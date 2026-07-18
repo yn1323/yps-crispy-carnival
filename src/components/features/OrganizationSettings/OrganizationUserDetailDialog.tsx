@@ -1,10 +1,11 @@
 import { Box, Flex, Heading, HStack, Stack, Tabs, Text } from "@chakra-ui/react";
 import { useState } from "react";
-import { LuShieldMinus, LuShieldPlus, LuTrash2 } from "react-icons/lu";
+import { LuShieldMinus, LuShieldPlus } from "react-icons/lu";
 import { ManagerAssignmentConfirmation } from "@/src/components/shared/ManagerAssignmentConfirmation";
 import { PersonProfileForm, type PersonProfileFormData } from "@/src/components/shared/PersonProfileForm";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
+import { DeletionActionSection } from "./DeletionActionSection";
 import { OrganizationUserRoleBadges } from "./OrganizationUserRoleBadges";
 import type { OrganizationPersonView } from "./types";
 
@@ -180,16 +181,7 @@ function InformationTab({
           変更を保存
         </Button>
       </Flex>
-      <Stack gap={1.5}>
-        <Text fontSize="xs" color="fg.muted">
-          役割
-        </Text>
-        <OrganizationUserRoleBadges person={person} />
-      </Stack>
-      <InformationRow
-        label="所属店舗"
-        value={person.shopNames.length > 0 ? person.shopNames.join("、") : "店舗所属なし"}
-      />
+      <InformationRow label="所属店舗" value={person.shopNames.length > 0 ? person.shopNames.join("、") : "なし"} />
     </Stack>
   );
 }
@@ -307,24 +299,13 @@ function SettingsTab({
         />
       )}
 
-      <SettingAction
-        title="グループから削除"
+      <DeletionActionSection
         description="このグループのすべての店舗所属と権限を終了します。過去のシフト履歴は保持します。"
-        action={
-          <Button
-            colorPalette="red"
-            gap={1.5}
-            onClick={onRemovePerson}
-            disabled={!person.canRemove}
-            title={!person.canRemove ? person.removeDisabledReason : undefined}
-            aria-describedby={!person.canRemove && person.removeDisabledReason ? removalDisabledReasonId : undefined}
-          >
-            <LuTrash2 aria-hidden />
-            グループから削除
-          </Button>
-        }
-        disabledReason={!person.canRemove ? person.removeDisabledReason : undefined}
+        actionLabel="グループから削除"
+        canDelete={person.canRemove}
+        disabledReason={person.removeDisabledReason}
         disabledReasonId={removalDisabledReasonId}
+        onDelete={onRemovePerson}
       />
     </Stack>
   );

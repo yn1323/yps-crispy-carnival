@@ -17,6 +17,7 @@ type Input = {
 
 export function useShopManagementController(input: Input) {
   const addShop = useShopMutation(api.organization.mutations.addShop);
+  const updateShop = useMutation(api.shop.mutations.updateShopSettings);
   const deleteShop = useMutation(api.organization.mutations.deleteShop);
   const selectedShop = useAtomValue(selectedShopAtom);
   const setSelectedShop = useSetAtom(selectedShopAtom);
@@ -46,26 +47,36 @@ export function useShopManagementController(input: Input) {
         setDialog(null);
         return;
       }
-    } else if (!latest.shops.find((candidate) => candidate.id === operation.shopId)?.canDelete) {
-      setDialog(null);
-      return;
+    } else {
+      const targetShop = latest.shops.find((candidate) => candidate.id === operation.shopId);
+      const canRun = operation.kind === "updateShop" ? targetShop?.canUpdateSettings : targetShop?.canDelete;
+      if (!canRun) {
+        setDialog(null);
+        return;
+      }
     }
 
-    const requestId =
-      operation.kind === "deleteShop"
-        ? (deleteRequestIdsRef.current.get(operation.shopId) ?? crypto.randomUUID())
-        : crypto.randomUUID();
-    if (operation.kind === "deleteShop") deleteRequestIdsRef.current.set(operation.shopId, requestId);
     try {
       switch (operation.kind) {
-        case "addShop":
+        case "addShop": {
+          const requestId = crypto.randomUUID();
           await addShop({
             ...operation.data,
             requestId,
           });
           showSuccessToast({ title: "店舗を追加しました" });
           break;
-        case "deleteShop":
+        }
+        case "updateShop":
+          await updateShop({
+            shopId: operation.shopId as Id<"shops">,
+            ...operation.data,
+          });
+          showSuccessToast({ title: "店舗設定を更新しました" });
+          break;
+        case "deleteShop": {
+          const requestId = deleteRequestIdsRef.current.get(operation.shopId) ?? crypto.randomUUID();
+          deleteRequestIdsRef.current.set(operation.shopId, requestId);
           await deleteShop({
             shopId: operation.shopId as Id<"shops">,
             confirmShopId: operation.shopId as Id<"shops">,
@@ -75,6 +86,7 @@ export function useShopManagementController(input: Input) {
           if (selectedShop?.shopId === operation.shopId) setSelectedShop(null);
           showSuccessToast({ title: "店舗の削除を受け付けました" });
           break;
+        }
       }
       setDialog(null);
     } catch (error) {
@@ -88,11 +100,17 @@ export function useShopManagementController(input: Input) {
     if (shop) setDialog({ kind: "shopDetails", shop });
   };
 
+  const openShopSettings = (shopId: string) => {
+    const shop = latestRef.current.shops.find((candidate) => candidate.id === shopId);
+    if (shop?.canUpdateSettings) setDialog({ kind: "shopSettings", shop });
+  };
+
   return {
     addShop: () => {
       if (latestRef.current.canAddShop) setDialog({ kind: "addShop" });
     },
     openShop,
+    openShopSettings,
     dialog: {
       dialog,
       isRunning,

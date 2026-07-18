@@ -14,6 +14,10 @@ describe("organization/queries.getSettings", () => {
         shopName: "設定対象店",
         plan: "pro",
       });
+      await ctx.db.patch(base.shopId, {
+        regularClosedDays: ["mon", "thu"],
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
       const now = Date.now();
       await ctx.db.insert("organizationInvitations", {
         organizationId: base.organizationId,
@@ -92,11 +96,25 @@ describe("organization/queries.getSettings", () => {
       shops: [
         {
           id: ids.shopId,
+          name: "設定対象店",
+          regularClosedDays: ["mon", "thu"],
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
           staffCount: expect.any(Number),
+          canUpdateSettings: true,
           canDelete: false,
         },
       ],
     });
+    expect(Object.keys(result?.shops[0] ?? {}).sort()).toEqual([
+      "canDelete",
+      "canUpdateSettings",
+      "deleteDisabledReason",
+      "id",
+      "name",
+      "regularClosedDays",
+      "staffCount",
+      "submissionPattern",
+    ]);
     expect(JSON.stringify(result)).not.toContain("never-return-this-digest");
     expect(result).not.toHaveProperty("freeSelection");
     expect(result).not.toHaveProperty("currentShopName");
@@ -509,6 +527,14 @@ describe("organization/queries.getSettings", () => {
     });
     expect(result?.people.every((person) => !person.canRemove)).toBe(true);
     expect(result?.shops.every((shop) => !shop.canDelete)).toBe(true);
+    expect(result?.shops.find((shop) => shop.id === ids.shopId)).toMatchObject({
+      canUpdateSettings: false,
+      settingsDisabledReason: "閲覧のみの管理者は店舗設定を変更できません。",
+    });
+    expect(result?.shops.find((shop) => shop.name === "履歴店舗")).toMatchObject({
+      canUpdateSettings: false,
+      settingsDisabledReason: "利用できない状態の店舗設定は変更できません。",
+    });
   });
 
   it("readOnly管理者には期限切れ・送信失敗・競合招待で実行不能な操作を案内しない", async () => {

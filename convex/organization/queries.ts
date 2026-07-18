@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { formatDateTimeJa, todayJST } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
+import { submissionPatternValidator } from "../_lib/submissionPattern";
 import {
   deriveOrganizationBillingPolicy,
   getEffectiveRestrictedBillingState,
@@ -58,7 +59,21 @@ const managerInvitationViewValidator = v.object({
 const organizationShopViewValidator = v.object({
   id: v.string(),
   name: v.string(),
+  regularClosedDays: v.array(
+    v.union(
+      v.literal("sun"),
+      v.literal("mon"),
+      v.literal("tue"),
+      v.literal("wed"),
+      v.literal("thu"),
+      v.literal("fri"),
+      v.literal("sat"),
+    ),
+  ),
+  submissionPattern: submissionPatternValidator,
   staffCount: v.number(),
+  canUpdateSettings: v.boolean(),
+  settingsDisabledReason: v.optional(v.string()),
   canDelete: v.boolean(),
   deleteDisabledReason: v.optional(v.string()),
 });
@@ -182,7 +197,11 @@ function legacyMigrationPendingSettings(user: Doc<"users">, shop: Doc<"shops">) 
       {
         id: shop._id,
         name: shop.name,
+        regularClosedDays: shop.regularClosedDays,
+        submissionPattern: shop.submissionPattern,
         staffCount: 0,
+        canUpdateSettings: false,
+        settingsDisabledReason: migrationReason,
         canDelete: false,
         deleteDisabledReason: migrationReason,
       },
@@ -736,13 +755,31 @@ export const getSettings = managerQuery({
             ? "契約の復旧担当者だけが店舗を削除できます。"
             : "現在の契約状態では店舗を削除できません。";
     const shopsView = shops
-      .map((shop) => ({
-        id: shop._id,
-        name: shop.name,
-        staffCount: staffCountByShopId.get(shop._id) ?? 0,
-        canDelete: canDeleteShop,
-        ...(deleteShopDisabledReason ? { deleteDisabledReason: deleteShopDisabledReason } : {}),
-      }))
+      .map((shop) => {
+        const canUpdateSettings = Boolean(canWriteNormally && shop.operatingStatus === "active");
+        const settingsDisabledReason = canUpdateSettings
+          ? undefined
+          : shop.operatingStatus !== "active"
+            ? "利用できない状態の店舗設定は変更できません。"
+            : !billingState
+              ? "グループ単位の設定を移行しています。完了までお待ちください。"
+              : !isActiveActor
+                ? "閲覧のみの管理者は店舗設定を変更できません。"
+                : restrictedState
+                  ? "契約制限中は店舗設定を変更できません。"
+                  : "支払い結果が確定してから店舗設定を変更できます。";
+        return {
+          id: shop._id,
+          name: shop.name,
+          regularClosedDays: shop.regularClosedDays,
+          submissionPattern: shop.submissionPattern,
+          staffCount: staffCountByShopId.get(shop._id) ?? 0,
+          canUpdateSettings,
+          ...(settingsDisabledReason ? { settingsDisabledReason } : {}),
+          canDelete: canDeleteShop,
+          ...(deleteShopDisabledReason ? { deleteDisabledReason: deleteShopDisabledReason } : {}),
+        };
+      })
       .sort((a, b) => a.name.localeCompare(b.name, "ja"));
 
     const billingCapabilities = {

@@ -17,6 +17,7 @@ const actions = {
   onRemovePerson: fn(),
   onAddShop: fn(),
   onOpenShop: fn(),
+  onOpenShopSettings: fn(),
   onManagePlan: fn(),
   onUpdatePaymentMethod: fn(),
   onUpdateBillingEmail: fn(),
@@ -106,19 +107,28 @@ const baseArgs: OrganizationSettingsViewProps = {
     {
       id: "shop-shibuya",
       name: "渋谷店",
+      regularClosedDays: ["sun"],
+      submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       staffCount: 8,
+      canUpdateSettings: true,
       canDelete: true,
     },
     {
       id: "shop-shinjuku",
       name: "新宿店",
+      regularClosedDays: [],
+      submissionPattern: { kind: "dateOnly" },
       staffCount: 5,
+      canUpdateSettings: true,
       canDelete: true,
     },
     {
       id: "shop-yokohama",
       name: "横浜店",
+      regularClosedDays: ["mon", "thu"],
+      submissionPattern: { kind: "time", startTime: "10:00", endTime: "23:00" },
       staffCount: 0,
+      canUpdateSettings: true,
       canDelete: true,
     },
   ],
@@ -183,7 +193,11 @@ const disabledActionReasonArgs: Pick<
     billingEmailDisabledReason: "閲覧のみの管理者は請求先を変更できません。",
   }),
   people: baseArgs.people,
-  shops: baseArgs.shops,
+  shops: baseArgs.shops.map((shop) => ({
+    ...shop,
+    canUpdateSettings: false,
+    settingsDisabledReason: "閲覧のみの管理者は店舗設定を変更できません。",
+  })),
 };
 
 const meta = {
@@ -375,6 +389,16 @@ export const ShopRowBehavior: Story = {
   },
 };
 
+export const ShopSettingsButtonBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: { defaultTab: "shops", actions: { ...actions, onOpenShopSettings: fn() } },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "渋谷店の店舗設定を開く" }));
+    await expect(args.actions.onOpenShopSettings).toHaveBeenCalledWith("shop-shibuya");
+  },
+};
+
 export const DisabledActionReasonsBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   args: disabledActionReasonArgs,
@@ -392,6 +416,10 @@ export const DisabledActionReasonsBehavior: Story = {
     await expectDisabledActionDescription(
       canvas.getByRole("button", { name: "店舗を追加" }),
       "閲覧のみの管理者は店舗を追加できません。",
+    );
+    await expectDisabledActionDescription(
+      canvas.getByRole("button", { name: "渋谷店の店舗設定を開く" }),
+      "閲覧のみの管理者は店舗設定を変更できません。",
     );
     await userEvent.click(canvas.getByRole("tab", { name: "プランと支払い" }));
     await expectDisabledActionDescription(

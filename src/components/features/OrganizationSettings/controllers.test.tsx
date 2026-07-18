@@ -71,7 +71,10 @@ const person: OrganizationPersonView = {
 const shop: OrganizationShopView = {
   id: "shop-1",
   name: "渋谷店",
+  regularClosedDays: ["sun"],
+  submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
   staffCount: 3,
+  canUpdateSettings: true,
   canDelete: true,
 };
 
@@ -180,6 +183,35 @@ describe("OrganizationSettings controllers", () => {
       expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
         title: "店舗の削除を受け付けました",
       }),
+    );
+  });
+
+  it("店舗設定は選択した店舗IDへ一度だけ保存する", async () => {
+    mocks.mutation.mockResolvedValue(null);
+    const { result } = renderHook((input) => useShopManagementController(input), {
+      initialProps: { canAddShop: true, shops: [shop] },
+    });
+    const data = {
+      shopName: "渋谷中央店",
+      regularClosedDays: ["mon" as const],
+      submissionPattern: { kind: "dateOnly" as const },
+    };
+
+    act(() => result.current.openShopSettings(shop.id));
+    expect(result.current.dialog.dialog).toEqual({ kind: "shopSettings", shop });
+    act(() => {
+      result.current.dialog.onSubmit({ kind: "updateShop", shopId: shop.id, data });
+      result.current.dialog.onSubmit({ kind: "updateShop", shopId: shop.id, data });
+    });
+
+    await waitFor(() =>
+      expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
+        shopId: shop.id,
+        ...data,
+      }),
+    );
+    await waitFor(() =>
+      expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "店舗設定を更新しました" }),
     );
   });
 

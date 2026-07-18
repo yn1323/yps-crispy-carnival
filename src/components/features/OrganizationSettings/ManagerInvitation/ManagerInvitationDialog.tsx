@@ -80,7 +80,7 @@ export function ManagerInvitationDialog({
         ? "ログイン案内を再送"
         : isResendOnly && activeTab === "external"
           ? "ログイン案内を再送"
-          : "ログイン案内を送る";
+          : "管理者招待を送る";
   const closeDialog = () => {
     setIsConfirmingFreeManagerExchange(false);
     onClose();
@@ -136,16 +136,6 @@ export function ManagerInvitationDialog({
           {peopleCapacityResolution && (
             <PeopleCapacityResolutionAlert resolution={peopleCapacityResolution} retryActionLabel="管理者を招待" />
           )}
-
-          <Alert.Root status="warning" alignItems="flex-start" borderRadius="lg">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>管理者権限を確認してください</Alert.Title>
-              <Alert.Description>
-                管理者になると、グループ内の全店舗と契約・支払い設定を操作できます。
-              </Alert.Description>
-            </Alert.Content>
-          </Alert.Root>
 
           <Tabs.Root
             value={activeTab}
@@ -255,7 +245,7 @@ export function ManagerInvitationDialog({
                             <HStack gap={1.5} color="fg.muted" minW={0}>
                               <LuStore aria-hidden />
                               <Text fontSize="xs" truncate>
-                                {candidate.shopNames.join("、") || "店舗所属なし"}
+                                {candidate.shopNames.join("、") || "なし"}
                               </Text>
                             </HStack>
                           </Stack>

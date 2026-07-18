@@ -1,3 +1,4 @@
+import type { ShopFormData } from "@/src/components/features/ShopForm";
 import type { PersonProfileFormData } from "@/src/components/shared/PersonProfileForm";
 import type { OrganizationContextModel } from "./OrganizationContext/script";
 
@@ -42,7 +43,11 @@ export type ManagerInvitationView = {
 export type OrganizationShopView = {
   id: string;
   name: string;
+  regularClosedDays: ShopFormData["regularClosedDays"];
+  submissionPattern: ShopFormData["submissionPattern"];
   staffCount: number;
+  canUpdateSettings: boolean;
+  settingsDisabledReason?: string;
   canDelete: boolean;
   deleteDisabledReason?: string;
 };
@@ -105,6 +110,7 @@ export type OrganizationSettingsActions = {
   onRemovePerson: (personId: string) => void;
   onAddShop: () => void;
   onOpenShop: (shopId: string) => void;
+  onOpenShopSettings: (shopId: string) => void;
   onManagePlan: () => void;
   onUpdatePaymentMethod: () => void;
   onUpdateBillingEmail: () => void;

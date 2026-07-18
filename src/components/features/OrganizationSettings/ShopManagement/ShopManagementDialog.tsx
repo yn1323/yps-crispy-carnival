@@ -1,10 +1,11 @@
-import { Box, Flex, HStack, Stack, Tabs, Text } from "@chakra-ui/react";
+import { Flex, HStack, Stack, Tabs, Text } from "@chakra-ui/react";
 import { useEffect, useRef, useState } from "react";
-import { LuStore, LuTrash2 } from "react-icons/lu";
+import { LuStore } from "react-icons/lu";
 import { ShopForm, type ShopFormData } from "@/src/components/features/ShopForm";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
+import { DeletionActionSection } from "../DeletionActionSection";
 import type { ShopManagementDialogState, ShopManagementOperation } from "./types";
 
 const ADD_SHOP_DEFAULT_VALUES: ShopFormData = {
@@ -23,7 +24,7 @@ type Props = {
 export function ShopManagementDialog({ dialog, isRunning, onClose, onSubmit }: Props) {
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
   const confirmDeleteButtonRef = useRef<HTMLButtonElement>(null);
-  const dialogKey = dialog?.kind === "shopDetails" ? dialog.shop.id : (dialog?.kind ?? null);
+  const dialogKey = dialog && "shop" in dialog ? `${dialog.kind}:${dialog.shop.id}` : (dialog?.kind ?? null);
 
   useEffect(() => {
     if (dialogKey !== null) setIsDeleteConfirmationOpen(false);
@@ -50,6 +51,30 @@ export function ShopManagementDialog({ dialog, isRunning, onClose, onSubmit }: P
           onSubmit={(data) => onSubmit({ kind: "addShop", data })}
           onCancel={onClose}
           submitLabel="店舗を追加"
+        />
+      </StepperDialog>
+    );
+  }
+
+  if (dialog.kind === "shopSettings") {
+    return (
+      <StepperDialog
+        title="店舗設定"
+        isOpen
+        onOpenChange={({ open }) => {
+          if (!open) onClose();
+        }}
+        onClose={onClose}
+      >
+        <ShopForm
+          key={dialog.shop.id}
+          defaultValues={{
+            shopName: dialog.shop.name,
+            regularClosedDays: dialog.shop.regularClosedDays,
+            submissionPattern: dialog.shop.submissionPattern,
+          }}
+          onSubmit={(data) => onSubmit({ kind: "updateShop", shopId: dialog.shop.id, data })}
+          onCancel={onClose}
         />
       </StepperDialog>
     );
@@ -96,23 +121,20 @@ export function ShopManagementDialog({ dialog, isRunning, onClose, onSubmit }: P
           </Tabs.List>
           <Tabs.Content value="info" pt={4}>
             <Stack gap={3}>
-              <DetailRow label="店舗名" value={shop.name} />
               <DetailRow label="所属スタッフ" value={`${shop.staffCount}名`} />
             </Stack>
           </Tabs.Content>
           <Tabs.Content value="settings" pt={4}>
-            <Box borderWidth="1px" borderColor="red.200" borderRadius="xl" p={{ base: 4, md: 5 }}>
-              <Stack gap={3}>
-                <Stack gap={1}>
-                  <Text fontWeight="bold" color="red.700">
-                    店舗を削除
-                  </Text>
-                  <Text id={deleteDescriptionId} fontSize="sm" color="fg.muted" lineHeight="tall">
-                    この店舗を利用できない状態にします。この操作は元に戻せません。
-                  </Text>
-                </Stack>
-
-                {isDeleteConfirmationOpen ? (
+            <DeletionActionSection
+              description="この店舗を利用できない状態にします。この操作は元に戻せません。"
+              descriptionId={deleteDescriptionId}
+              actionLabel="この店舗を削除"
+              canDelete={shop.canDelete}
+              disabledReason={shop.deleteDisabledReason}
+              disabledReasonId={`organization-shop-${shop.id}-delete-disabled-reason`}
+              onDelete={() => setIsDeleteConfirmationOpen(true)}
+              confirmation={
+                isDeleteConfirmationOpen ? (
                   <Stack gap={3} aria-labelledby={deleteConfirmationTitleId} aria-describedby={deleteDescriptionId}>
                     <Text id={deleteConfirmationTitleId} fontSize="sm" fontWeight="semibold">
                       「{shop.name}」を削除しますか？
@@ -145,34 +167,9 @@ export function ShopManagementDialog({ dialog, isRunning, onClose, onSubmit }: P
                       </Button>
                     </HStack>
                   </Stack>
-                ) : (
-                  <Stack gap={2} alignItems="flex-start">
-                    <Button
-                      variant="outline"
-                      colorPalette="red"
-                      size="sm"
-                      disabled={!shop.canDelete}
-                      title={!shop.canDelete ? shop.deleteDisabledReason : undefined}
-                      aria-describedby={
-                        !shop.canDelete && shop.deleteDisabledReason
-                          ? `organization-shop-${shop.id}-delete-disabled-reason`
-                          : undefined
-                      }
-                      onClick={() => setIsDeleteConfirmationOpen(true)}
-                      gap={1.5}
-                    >
-                      <LuTrash2 aria-hidden />
-                      この店舗を削除
-                    </Button>
-                    {!shop.canDelete && shop.deleteDisabledReason && (
-                      <Text id={`organization-shop-${shop.id}-delete-disabled-reason`} fontSize="xs" color="orange.700">
-                        {shop.deleteDisabledReason}
-                      </Text>
-                    )}
-                  </Stack>
-                )}
-              </Stack>
-            </Box>
+                ) : undefined
+              }
+            />
           </Tabs.Content>
         </Tabs.Root>
       </Stack>

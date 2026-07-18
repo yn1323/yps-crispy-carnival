@@ -75,7 +75,7 @@ export const SelectCurrentStaff: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement.ownerDocument.body);
     await userEvent.click(canvas.getByRole("button", { name: "鈴木 次郎を選択" }));
-    await userEvent.click(canvas.getByRole("button", { name: "ログイン案内を送る" }));
+    await userEvent.click(canvas.getByRole("button", { name: "管理者招待を送る" }));
     await expect(canvas.getByTestId("manager-invitation-submission")).toHaveTextContent(
       JSON.stringify({ kind: "person", personId: "person-staff" }),
     );
@@ -90,7 +90,7 @@ export const EnterNameAndEmail: Story = {
     await userEvent.click(canvas.getByRole("tab", { name: "名前・メールを入力" }));
     await userEvent.type(canvas.getByRole("textbox", { name: "名前" }), "佐藤 花子");
     await userEvent.type(canvas.getByRole("textbox", { name: "メールアドレス" }), "sato@example.com");
-    await userEvent.click(canvas.getByRole("button", { name: "ログイン案内を送る" }));
+    await userEvent.click(canvas.getByRole("button", { name: "管理者招待を送る" }));
     await expect(canvas.getByTestId("manager-invitation-submission")).toHaveTextContent(
       JSON.stringify({ kind: "external", name: "佐藤 花子", email: "sato@example.com" }),
     );

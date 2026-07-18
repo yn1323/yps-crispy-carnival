@@ -9,7 +9,6 @@ import type { OrganizationSettingsTab, OrganizationSettingsViewProps } from "./t
 
 export const OrganizationSettingsView = ({
   organizationContext,
-  organizationName,
   people,
   shops,
   billing,
@@ -90,6 +89,7 @@ export const OrganizationSettingsView = ({
           addShopDisabledReason={addShopDisabledReason}
           onAddShop={actions.onAddShop}
           onOpenShop={actions.onOpenShop}
+          onOpenShopSettings={actions.onOpenShopSettings}
         />
       </Tabs.Content>
 
@@ -105,7 +105,6 @@ export const OrganizationSettingsView = ({
 
       <Tabs.Content value="settings" pt={{ base: 5, md: 6 }}>
         <OrganizationDeletionSection
-          organizationName={organizationName}
           canDelete={canDeleteOrganization}
           disabledReason={deleteOrganizationDisabledReason}
           onDelete={actions.onDeleteOrganization}

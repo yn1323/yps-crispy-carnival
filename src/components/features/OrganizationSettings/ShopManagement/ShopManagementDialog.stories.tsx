@@ -14,7 +14,10 @@ const meta = {
       shop: {
         id: "shop-shibuya",
         name: "渋谷店",
+        regularClosedDays: ["sun"],
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         staffCount: 8,
+        canUpdateSettings: true,
         canDelete: true,
       },
     },
@@ -28,6 +31,23 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Details: Story = {};
+
+export const Settings: Story = {
+  args: {
+    dialog: {
+      kind: "shopSettings",
+      shop: {
+        id: "shop-shibuya",
+        name: "渋谷店",
+        regularClosedDays: ["sun"],
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        staffCount: 8,
+        canUpdateSettings: true,
+        canDelete: true,
+      },
+    },
+  },
+};
 
 export const DeleteConfirmationBehavior: Story = {
   parameters: { screenshot: { skip: true } },

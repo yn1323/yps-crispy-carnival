@@ -8,7 +8,7 @@ type Props = {
 
 export function OrganizationUserRoleBadges({ person, compact = false }: Props) {
   const isManager = person.managerRole !== "none";
-  const roleLabel = isManager ? "管理者" : person.isStaff ? "スタッフ" : "店舗未所属";
+  const roleLabel = isManager ? "管理者" : "スタッフ";
 
   return (
     <HStack gap={1.5} wrap="wrap">
