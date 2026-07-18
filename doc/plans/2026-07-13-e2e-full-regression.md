@@ -256,7 +256,7 @@ develop向けPreview／Developのdeployed Smokeはデプロイ後の検知であ
 | MG-P0-01 | 複数グループ切替と非混入 | `e2e/scenarios/multiActor/multiple-organization-switching.test.ts` | 同じAが無関係な2グループをDashboardとグループ設定で往復し、URL、reload、表示、店舗名更新を選択グループだけへ反映する | 同名グループ・店舗、複数tab、Mobile E2E |
 | MS-P0-01 | 店舗追加、切り替え、編集 | `e2e/scenarios/organization-shop-lifecycle.test.ts` | B店の追加と編集をreload後も維持し、A店設定へ混入させない | 店舗数上限、並行追加、request ID境界 |
 | MS-P0-02 | グループ内の他店舗スタッフ再利用 | `e2e/scenarios/open-recruitment-added-staff-notification.test.ts` | A店スタッフをB店へ追加し、A店所属を維持したままB店の募集通知CTAから希望を提出する | 人物documentと通知対象集合のDB完全一致 |
-| MS-P0-03 | 選択中店舗の削除と復旧 | `e2e/scenarios/shop-deletion-flow.test.ts` | B店削除後に旧URLで汎用エラーを表示し、A店Dashboardへ戻り、店舗候補からB店を除外する | 最後の店舗、同時削除、cleanup詳細 |
+| MS-P0-03 | 選択中店舗の削除と復旧 | `e2e/scenarios/shop-deletion-flow.test.ts` | B店削除後にA店へ復旧し、B店専属スタッフを「店舗所属なし」で利用人数へ含め続け、旧URLでは汎用エラーを表示する | 最後の店舗、同時削除、cleanup詳細 |
 | REG-P0-01 | B店でのシフト主導線 | `e2e/scenarios/shop-settings-submission-pattern-flow.test.ts` | B店で初回提出、再提出、管理者編集、下書きreload、確定通知、別context閲覧まで完了し、A店へ混入させない | 容量上限、provider実到着 |
 | REG-P0-02 | B店でのスタッフ登録申請 | `e2e/scenarios/staff-registration-review.test.ts` | B店の登録linkから申請し、A店へ要対応表示を出さず、B店だけで承認してB店の通知CTAへ進む | 重複メールなど既存の負系分岐の再網羅 |
 | REG-P0-03 | canonical organization上の管理者通知 | `e2e/scenarios/notification-release-matrix.test.ts`、`e2e/scenarios/multiActor/manager-invitation-collaboration.test.ts` | 4種digestの代表channelと、複数管理者A/Bへの代表digestおよびB店CTAを確認する | 実cron時刻、provider実到着。4種digestの対象完全一致はScenario Testの担当 |
