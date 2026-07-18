@@ -5,9 +5,12 @@
 ## 関連ファイル
 
 - `src/components/features/Dashboard/EditShopForm/` — 店舗設定フォーム
-- `src/components/features/AuthenticatedApp/AuthenticatedHeader/` — 店舗削除確認UI（入口は一時停止中）
-- `convex/shop/mutations.ts` — 店舗設定更新
+- `src/components/features/OrganizationSettings/ShopManagement/` — 店舗一覧、店舗詳細モーダル、削除確認UI
+- `convex/organization/mutations.ts` — グループ所属店舗の追加、状態変更、削除受付
+- `convex/shop/mutations.ts` — 店舗設定更新と旧店舗モデル向け削除互換API
+- `convex/deletionCleanup/` — 削除店舗の主要マスタ置換、所属・session・token・未送信通知の終了処理
 - `convex/dashboard/queries.ts` — ダッシュボード用の店舗設定取得
+- `doc/features/data-deletion.md` — 店舗・グループ削除の保証範囲と対象外
 
 ## 画面一覧
 
@@ -15,7 +18,7 @@
 |---|---|
 | ダッシュボード 店舗設定モーダル | 店舗名、希望シフトの提出方法、定休日を編集する |
 | 初回セットアップ | 店舗名、希望シフトの提出方法を登録する |
-| 右上ユーザーメニュー | 店舗削除入口は誤操作リスクを再検討するため一時停止中 |
+| グループ設定 店舗タブ | 店舗一覧から店舗詳細モーダルを開き、対象店舗を確認して削除する |
 
 ## API一覧
 
@@ -23,7 +26,8 @@
 |---|---|---|
 | `api.dashboard.queries.getDashboardShop` | query | 店舗設定を取得する |
 | `api.shop.mutations.updateShopSettings` | mutation | 店舗名、希望シフトの提出方法、定休日を更新する |
-| `api.shop.mutations.deleteShop` | mutation | 現在店舗を論理削除し、関連アクセスのcleanupを予約する |
+| `api.organization.mutations.deleteShop` | mutation | グループ所属と確認IDを再検証し、店舗を論理削除して永続cleanup jobを開始する |
+| `api.shop.mutations.deleteShop` | mutation | 旧店舗モデル向け互換API。現行のグループ所属店舗UIからは呼ばない |
 | `api.setup.mutations.setupShopAndManager` | mutation | 初回セットアップ時に店舗を作成する |
 
 ## 仕様メモ
@@ -32,5 +36,7 @@
 - `時間指定` は提出方法の中にシフト開始/終了時間を持つ。
 - `日ごと` はスタッフが出勤可能日だけを選び、時間入力は持たない。
 - `勤務区分` は区分名と時間帯を最大4件まで定義し、保存時に開始時間が早い順、同じ開始時間なら終了時間が早い順へ並べてから募集作成時点の設定が募集に保存される。
-- 店舗削除は物理削除ではなく論理削除。削除後にactive所属店舗がなくなった場合は、既存の初回セットアップ導線から店舗登録を再開する。
-- 店舗削除の右上メニュー入口は一時停止中。確認Dialogと削除後の所属店舗整合は、入口再設計時に再接続する。
+- 店舗削除は物理削除ではなく、受付時に`shops.isDeleted = true`として店舗名を`削除済み店舗`へ置き換える。最後の未削除店舗は削除できない。
+- 後続の永続cleanup jobは、対象店舗の`staffs`を論理削除して氏名・メールアドレスを置き換え、`staffLineAccounts`のLINE IDを置き換える。店舗用session、magic link、LINE連携token、法務同意token、登録リンクを失効し、未送信通知を停止する。
+- 店舗削除では`users`、`organizationPeople`、`organizationMembers`を変更しない。対象店舗のユーザーはグループ人物として残る。
+- rate limit、自由入力欄、通知履歴、送信済みメール・LINEなどは置換対象外とする。詳細は`doc/features/data-deletion.md`を参照する。

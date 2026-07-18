@@ -12,6 +12,7 @@
 - 既存グループへの無償Business付与は `doc/plans/2026-07-16_既存事業者_無償Business_実装計画.md` を参照する。
 - 管理者5名上限、スタッフ詳細からの招待、Free管理者交代後の権限失効は `doc/plans/2026-07-17_スタッフ詳細_管理者招待_5名上限_実装計画.md` が先行計画を上書きする。
 - Free管理者交代の送信前確認と、同一管理者による複数グループ切替のE2E契約は `doc/plans/2026-07-18_Free管理者交代_複数グループ_追加実装計画.md` を参照する。
+- 店舗・グループ削除と主要マスタの直接識別子置換は `doc/features/data-deletion.md` と `doc/plans/2026-07-18_店舗と組織の削除_個人情報匿名化_実装計画.md` を参照する。
 - この文書は現行コードの機能配置とAPI一覧を示し、料金や会計判断は定義しない。
 
 ## 主要な契約
@@ -44,6 +45,8 @@
 - Free移行または契約制限開始前の業務操作から遅延して作られた通知も、通知起点のversionで判定して送信しない。
 - メール通知は外部送信の直前に現在のグループ内の人物、スタッフ、または利用者のメールアドレスと宛先を照合し、変更前の宛先へ送信しない。
 - 閲覧専用へ切り替わった画面は、開いていた書込ダイアログを閉じ、ShiftBoardの未保存編集を永続化済みデータへ戻す。
+- グループ削除は、対象グループでほかに有効な管理者がなく、課金状態が未選択Trial、Free、無償Businessのいずれかで、店舗削除jobが進行していない場合だけ許可する。UIの表示可否だけに依存せず、mutationで所属、対象ID、更新時刻、課金状態を再検証する。
+- グループ削除受付ではグループと組織専属の操作ユーザーを即時に論理削除し、主要マスタの名称・氏名・メール・LINE ID置換と全店舗の終了処理は再開可能な永続jobで行う。別の有効グループ所属を持つ共有ユーザーとClerk認証は維持する。
 
 ## 関連ファイル
 
@@ -56,6 +59,7 @@
 - `convex/organizationBilling/`：プラン上限、操作policy、期限処理、Free選択、請求先メール、課金通知。
 - `convex/organizationInvitation/`：管理者招待の発行、再送、取消、失効、公開プレビュー、アカウント連携、通知。
 - `convex/notificationOutbox/`：グループ単位の通知scope、契約制限時の未送信業務通知停止、送信直前の再確認。
+- `convex/deletionCleanup/`：店舗・グループ削除の永続job、主要マスタ置換、Capability失効、未送信通知停止、lease回収。
 - `convex/migrations/m009_shops_to_organizations.ts`：既存店舗から一店舗一グループを作成。
 - `convex/migrations/m010_shop_members_to_organization_members.ts`：既存店舗管理者をグループ内の人物と管理者所属へ移行。
 - `convex/migrations/m011_staffs_to_organization_people.ts`：既存スタッフをグループ内の人物へ結び付け、曖昧な一致を衝突として記録。
@@ -63,13 +67,16 @@
 - `convex/migrations/m013_former_managers_remove_manager_access.ts`：交代済み旧管理者の由来を確認し、管理者所属だけを`removed`へ移行。
 - `convex/migrations/m014_removed_organization_members_delete_legacy_shop_members.ts`：`removed`になった管理者の旧店舗管理権限を削除済みにする。
 - `convex/migrations/m015_organization_invitations_link_lifecycle.ts`：旧`pending`を`issued`へ、旧`accepted`を`linked`へ移行し、連携者と招待時氏名を補完する。
+- `convex/migrations/m016_deleted_shops_enqueue_cleanup_jobs.ts`：既存の削除済み店舗へ重複しないcleanup jobを作成する。
+- `convex/migrations/m017_deleted_organizations_enqueue_cleanup_jobs.ts`：既存の削除済みグループへ重複しないcleanup jobを作成する。
 - `convex/migrations/index.ts`：固定seriesと、旧管理者権限の衝突解消後にm013、m014だけを再評価する専用runnerを公開。
 - `scripts/setupEnv.ts`：管理者招待の署名秘密値を含むサーバー環境変数をConvex環境へ同期。
 
 ### フロントエンド
 
 - `src/routes/_auth/settings.tsx` と `src/pages/settings/`：グループ設定の取得、読み込み状態、画面全体の配置。
-- `src/components/features/OrganizationSettings/`：グループ全体のユーザー一覧と詳細、店舗一覧と詳細、プランと支払いの表示UI、および操作ごとの送信、ダイアログ、最新権限を管理するcontroller。
+- `src/components/features/OrganizationSettings/`：グループ全体のユーザー一覧と詳細、店舗一覧と削除、プランと支払い、設定タブのグループ削除UI、および操作ごとの送信、ダイアログ、最新権限を管理するcontroller。
+- `src/components/features/AuthenticatedApp/DeletedAccountState.tsx`：削除済みuserへClerk由来の氏名・メールを表示せず、利用終了状態とサインアウトだけを表示する。
 - `src/components/features/ShopSwitcher/`：グループごとにまとめた店舗切り替え。
 - `src/components/features/AuthenticatedApp/AuthGuard.tsx`：`?shop=`、前回値、利用可能店舗一覧を解決し、有効なAPI候補だけを店舗コンテキストへ同期する。
 - `src/components/features/Dashboard/OperationContext/`：現在のグループと店舗を二枚のカードで表示し、複数候補だけを切り替え可能にする。
@@ -84,7 +91,7 @@
 
 | 画面 | 役割 |
 | --- | --- |
-| `/settings?shop=<shopId>` | 指定店舗からグループを解決し、元の店舗へ戻るリンクとグループ名を表示する。複数グループ所属時だけグループを切り替え、ユーザー、管理者招待、店舗、現在のプラン、利用上限、支払い情報を扱う。タブは`tab` queryで保持する |
+| `/settings?shop=<shopId>` | 指定店舗からグループを解決し、ユーザー、店舗、プランと支払い、設定の4タブを扱う。設定タブでは削除可否理由を表示し、対象名の再入力後にグループ削除を受け付ける。タブは`tab` queryで保持する |
 | 認証済みヘッダー | Dashboardとグループ設定以外で複数店舗がある場合に、現在のグループと店舗を表示して利用可能な店舗へ切り替える |
 | `/manager-invite?token=...` | 招待先グループと期限を公開DTOで確認し、ログインまたは登録後に確認済みメールのアカウントを自動連携する |
 | `/dashboard?shop=<shopId>` | グループと店舗のコンテキストカードを表示し、候補が複数ある場合だけ切り替える。店舗設定はモーダル、グループ設定は`/settings`へ進む |
@@ -98,10 +105,11 @@
 | `api.dashboard.queries.getMyShops` | `authenticatedQuery` | 利用者が閲覧できる店舗をグループ情報と所属状態付きで返す |
 | `api.dashboard.queries.getDashboardShop` | `managerQuery` | 店舗情報とグループ課金から導出した業務更新可否を返す |
 | `api.dashboard.queries.getDashboardStaffs` | `managerQuery` | 店舗スタッフ、管理者状態、スタッフ詳細からの招待可否をページングして返す |
-| `api.organization.queries.getSettings` | `managerQuery` | 選択店舗から所属グループを特定し、ユーザー、管理者招待と操作可否、店舗、課金の設定DTOを返す |
+| `api.organization.queries.getSettings` | `managerQuery` | 選択店舗から所属グループを特定し、ユーザー、管理者招待、店舗、課金、グループ削除可否と更新時刻を含む設定DTOを返す |
 | `api.organization.mutations.updateOrganizationName` | `authenticatedMutation` | グループ所属と課金状態を確認してグループ名を変更する |
 | `api.organization.mutations.addShop` | `authenticatedMutation` | 有料機能と上限を再確認して店舗を追加する |
 | `api.organization.mutations.deleteShop` | `authenticatedMutation` | 対象店舗のグループ所属、管理者権限、確認ID、requestIdを再確認し、最後の店舗を除いて削除と後続cleanupを開始する |
+| `api.organization.mutations.deleteOrganization` | `authenticatedMutation` | 唯一の有効管理者、課金状態、対象ID、更新時刻、requestIdを再確認し、グループを即時停止して永続cleanupを開始する |
 | `api.organization.mutations.archiveShop` | `authenticatedMutation` | グループ所属と復旧権限を確認して店舗をアーカイブする |
 | `api.organization.mutations.reactivateShop` | `authenticatedMutation` | グループ所属と店舗上限を確認して店舗を再稼働する |
 | `api.organization.mutations.removePersonFromShop` | `authenticatedMutation` | 将来シフトを確認し、対象店舗のスタッフ所属とアクセスだけを終了する |
@@ -141,6 +149,8 @@
 | `internal.notificationOutbox.mutations.prepareForDelivery` | `internalMutation` | 外部送信直前にグループ、店舗、所属、課金状態を再確認する |
 | `internal.notificationOutbox.mutations.prepareOrganizationManagerInvitationEmail` | `internalMutation` | 招待送信直前に有効性を確認し、生トークンを含まない表示情報を返す |
 | `internal.notificationOutbox.mutations.cancelOrganizationBusinessNotifications` | `internalMutation` | Free移行または契約制限開始後に未送信の業務通知を停止する |
+| `internal.deletionCleanup.mutations.kick` / `process` | `internalMutation` | 永続jobをlease付きで取得し、店舗またはグループのcleanupをbounded batchで進める |
+| `internal.deletionCleanup.mutations.recover` | `internalMutation` | retry待ちまたは期限切れleaseのjobを再開するcron入口 |
 | `internal.migrations.index.run` | `internalMutation` | 登録済みmigrationを順番に実行する |
 | `internal.migrations.index.runM012` | `internalMutation` | m012だけをdry runまたは衝突修復後に限定再実行する |
 | `internal.migrations.index.runFormerManagerAccessCleanup` | `internalMutation` | m013とm014だけを順番に実行し、衝突裁定後も限定再評価する |
@@ -210,6 +220,7 @@ BusinessからProへの期間末変更は、`issued`招待の予約枠を含む�
 - `m012`は既存課金状態、重複課金状態、移行元markerの重複、リンク不整合を上書きせず、migration conflictとして記録する。
 - `m013`はFree選択と交代監査から旧管理者だと一意に確認できる`readOnly`だけを`removed`へ変更し、スタッフ所属とスタッフ向け通知を維持する。
 - `m014`はcanonicalな管理者所属が`removed`であることを一意に確認できる旧`shopMembers`だけを削除済みにする。
+- `m016`と`m017`は既存の削除済み店舗・グループへ決定的なrequest IDでcleanup jobを作る。削除済みグループ配下の店舗は`m016`でskipし、親グループjobだけで処理する。
 - m013とm014で由来や対応が曖昧な行は自動変更せず、migration conflictとして手動裁定へ回す。
 - production exportのZIPは、実行前を`pnpm convex:verify-complimentary-export -- --mode pre --path <export.zip>`、実行後を`pnpm convex:verify-complimentary-export -- --mode post --path <export.zip> --expected-target-count <preの件数> --expected-target-set-sha256 <preのhash>`で展開せずにオフライン検証する。対象0件、pre/postの対象集合差分、重複、リンク、課金状態、監査、未解消conflictの対応が崩れている場合はmigrationを進めない。
 - export検証はmigration componentのstatusを証明しない。developとproductionで別途`lib:getStatus`を確認し、m012が`isDone: true`かつ`state: "success"`であることを完走条件にする。
@@ -233,6 +244,9 @@ BusinessからProへの期間末変更は、`issued`招待の予約枠を含む�
 ## テスト配置
 
 - `convex/organization/*.test.ts`：グループ境界、店舗操作、人物削除、最後の管理者、冪等性。
+- `convex/organization/deletion.test.ts`：グループ削除の認可、課金条件、即時停止、直接識別子置換、共有user維持、冪等性。
+- `convex/deletionCleanup/migrations.test.ts`：m016/m017の対象限定、決定的request ID、親子job重複防止、再実行の冪等性。
+- `convex/_scenario/organizationDeletion.test.ts`：複数店舗と100件超の人物を持つグループ削除、中断回収、主要マスタ置換、共有userと別グループの維持。
 - `convex/organizationBilling/*.test.ts`：上限、利用人数、JST境界、状態遷移、期限処理、通知。
 - `convex/organizationInvitation/mutations.test.ts`と`token.test.ts`：発行時の人物未作成、トークン、期限、メール一致、再送ローテーション、アカウント連携、上限、競合、通知。
 - `convex/organizationInvitation/lifecycleMigration.test.ts`：旧`pending/accepted`から`issued/linked`への移行と再実行時の冪等性。
