@@ -20,6 +20,7 @@
 | [Dashboardお知らせ](features/dashboard-announcements.md) | 有事のお知らせを全体・グループ・店舗の対象別にDashboard上部へ1件表示 | 実装済 |
 | [グループ課金、複数店舗、複数管理者](features/organization-billing.md) | グループ単位の課金状態、人物、管理者招待、店舗管理、店舗切り替え、移行互換 | ローカル実装済、外部ゲートを除く |
 | [店舗・グループ削除](features/data-deletion.md) | 論理削除、主要マスタの直接識別子置換、Capability失効、永続cleanupの保証範囲 | 実装済、本番migration未実行 |
+| [所属なしユーザーのアカウント削除](features/account-deletion.md) | 所属のない管理ユーザーが再認証後にローカル利用停止とClerk削除を依頼する導線 | 実装済、段階公開前 |
 | [スタッフ参加QR・承認導線](features/staff-registration.md) | 店舗専用QR/URLからスタッフ本人が参加申請し、シフト担当者が承認する導線 | 実装済 |
 | [店舗設定](features/shop-settings.md) | 店舗名、シフト時間帯、定休日などシフト作成の前提になる店舗情報を管理 | 実装済 |
 | [ログイン後オンボーディング](features/dashboard-onboarding.md) | 店舗登録後にシフト担当者自身で募集作成・通知確認・提出確認を試すDashboard内Callout | 実装済 |

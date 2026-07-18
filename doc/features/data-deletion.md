@@ -14,7 +14,7 @@
 | `staffs` | 対象店舗分を論理削除し、氏名・メールを置換 | 全店舗分を同様に変更 |
 | `staffLineAccounts` | 対象店舗分を論理削除し、LINE IDを置換 | 全店舗分を同様に変更 |
 | `organizationPeople` / `organizationMembers` | 変更しない | `removed`へ変更し、personの氏名・メールを置換 |
-| `users` | 変更しない | 対象外の有効グループ所属がないuserだけ論理削除し、氏名・メールを置換 |
+| `users` | 変更しない | 変更しない。ログインアカウントの削除は明示的なアカウント削除導線だけで受け付ける |
 | session / token / 登録リンク | 対象店舗分を失効 | 全店舗分を失効 |
 | 未送信通知 | 対象店舗scopeを停止 | 対象店舗・グループscopeを停止 |
 
@@ -43,8 +43,9 @@
 ## 削除後の状態
 
 - 親の`isDeleted`を受付transactionで先に確定し、manager API、staff session、公開Capability、通知enqueueと外部送信を停止する。
-- 削除済みuserへの`getCurrentUser`は`{ accountDeleted: true }`だけを返し、Clerk identityに残る氏名・メールアドレスをアプリへ戻さない。
-- グループ専属userは削除済み状態を表示してサインアウトできる。共有userは削除したグループだけを候補から外し、別の有効グループを継続利用できる。
+- グループ削除ではglobal `users`を論理削除・匿名化しない。最後の有効グループを削除したuserは、同じClerk認証を維持して店舗登録画面へ戻り、新しいグループを作成できる。
+- 共有userは削除したグループだけを候補から外し、別の有効グループを継続利用できる。
+- 明示的なアカウント削除受付済みuserまたはlegacy削除済みuserへの`getCurrentUser`は、`accountDeleted`と受付済みかどうかのbooleanだけを返す。Clerk identityに残る氏名・メールアドレスや受付時刻は返さない。
 - Clerkの認証主体と`users.authTokenIdentifier`は変更しない。
 
 ## 画面一覧
@@ -53,18 +54,20 @@
 | --- | --- |
 | グループ設定「店舗」タブの店舗詳細モーダル | 対象店舗と影響範囲を確認し、店舗削除を受け付ける |
 | グループ設定「設定」タブ | グループ削除可否または拒否理由を表示し、グループ名の再入力後に削除を受け付ける |
-| 削除済みアカウント状態 | 個人情報を表示せず、利用終了案内とサインアウトを表示する |
+| 店舗登録画面 | 最後のグループ削除後も認証を維持し、新しい店舗を登録できる |
+| 削除済みアカウント状態 | 明示的なアカウント削除受付済みまたはlegacy削除済みuserへ、個人情報を表示せず終了状態を表示する |
 
 ## 関連ファイル
 
 - `convex/schema.ts` — `deletionCleanupJobs`とcleanup用index。
 - `convex/organization/deletion.ts` — グループ削除可否。
 - `convex/organization/mutations.ts` — 店舗・グループ削除の公開受付。
-- `convex/deletionCleanup/` — tombstone生成、job作成、bounded worker、lease回収。
+- `convex/deletionCleanup/` — tenant配下のtombstone生成、job作成、bounded worker、lease回収。旧user cleanup phase/resourceは永続済みjobとの互換用no-opとして維持する。
+- `doc/features/account-deletion.md` — Clerkアカウントを含む明示的なアカウント削除。
 - `convex/migrations/m016_deleted_shops_enqueue_cleanup_jobs.ts` — 既存削除済み店舗のjob作成。
 - `convex/migrations/m017_deleted_organizations_enqueue_cleanup_jobs.ts` — 既存削除済みグループのjob作成。
-- `convex/organization/deletion.test.ts` — 削除受付、認可、主要マスタ置換、共有user維持のFunction Test。
-- `convex/_scenario/organizationDeletion.test.ts` — 複数店舗・100件超の人物・中断回収・別グループ非干渉のScenario Test。
+- `convex/organization/deletion.test.ts` — 削除受付、認可、主要マスタ置換、global user維持のFunction Test。
+- `convex/_scenario/organizationDeletion.test.ts` — 複数店舗・100件超の人物・中断回収・global user維持・再セットアップのScenario Test。
 - `convex/deletionCleanup/migrations.test.ts` — m016/m017の対象限定と再実行のFunction Test。
 - `src/components/features/OrganizationSettings/ShopManagement/` — 店舗削除UI。
 - `src/components/features/OrganizationSettings/OrganizationDeletion/` — グループ削除UI。
