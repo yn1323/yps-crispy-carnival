@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
 import { ManagerInvitationDialog } from "./ManagerInvitationDialog";
-import type { ManagerInvitationSubmitInput } from "./types";
+import type { ManagerInvitationStaffCandidate, ManagerInvitationSubmitInput } from "./types";
 
 const staffCandidates = [
   {
@@ -97,21 +97,120 @@ export const EnterNameAndEmail: Story = {
   },
 };
 
-function InteractiveManagerInvitationDialog() {
-  const [submission, setSubmission] = useState<ManagerInvitationSubmitInput | null>(null);
+export const FreeManagerExchangeConfirmationBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => (
+    <InteractiveManagerInvitationDialog
+      managerInvitationMode="freeManagerExchange"
+      candidates={staffCandidates.map((candidate) => ({ ...candidate, isResend: false }))}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement.ownerDocument.body);
+    const submission = canvas.getByTestId("manager-invitation-submission");
+
+    await userEvent.click(canvas.getByRole("button", { name: "鈴木 次郎を選択" }));
+    await userEvent.click(canvas.getByRole("button", { name: "交代内容を確認" }));
+
+    await expect(submission).toHaveAttribute("data-submission-count", "0");
+    await expect(
+      await canvas.findByRole("heading", { name: "鈴木 次郎さんへ管理者交代の案内を送りますか？" }),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.getByText(
+        "鈴木 次郎さんがアカウントを連携すると、このグループの唯一の管理者になります。その時点で、あなたのこのグループの管理者権限は終了し、グループ設定と店舗情報へアクセスできなくなります。",
+      ),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.getByText(
+        "交代が完了するまでは、あなたが引き続き管理できます。現在の管理者のスタッフ所属、シフト対象、通知設定は変更されません。",
+      ),
+    ).toBeInTheDocument();
+
+    await userEvent.click(canvas.getByRole("button", { name: "やめる" }));
+    await expect(submission).toHaveAttribute("data-submission-count", "0");
+    await expect(
+      canvas.queryByRole("heading", { name: "鈴木 次郎さんへ管理者交代の案内を送りますか？" }),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(canvas.getByRole("button", { name: "交代内容を確認" }));
+    await userEvent.click(await canvas.findByRole("button", { name: "交代の案内を送る" }));
+    await expect(submission).toHaveAttribute("data-submission-count", "1");
+    await expect(submission).toHaveTextContent(JSON.stringify({ kind: "person", personId: "person-staff" }));
+  },
+};
+
+export const FreeManagerExchangeResendConfirmationBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <InteractiveManagerInvitationDialog managerInvitationMode="freeManagerExchange" />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement.ownerDocument.body);
+    const submission = canvas.getByTestId("manager-invitation-submission");
+
+    await userEvent.click(canvas.getByRole("button", { name: "山田 美咲を選択" }));
+    await userEvent.click(canvas.getByRole("button", { name: "交代内容を確認" }));
+
+    await expect(submission).toHaveAttribute("data-submission-count", "0");
+    await expect(
+      await canvas.findByRole("heading", { name: "山田 美咲さんへ管理者交代の案内を再送しますか？" }),
+    ).toBeInTheDocument();
+    await expect(canvas.getByText(/以前のURLは利用できなくなります/)).toBeInTheDocument();
+
+    await userEvent.click(canvas.getByRole("button", { name: "交代の案内を再送" }));
+    await expect(submission).toHaveAttribute("data-submission-count", "1");
+    await expect(submission).toHaveTextContent(JSON.stringify({ kind: "person", personId: "person-staff-2" }));
+  },
+};
+
+export const MobileFreeManagerExchangeConfirmationBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  render: () => (
+    <InteractiveManagerInvitationDialog
+      managerInvitationMode="freeManagerExchange"
+      candidates={staffCandidates.map((candidate) => ({ ...candidate, isResend: false }))}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement.ownerDocument.body);
+    const submission = canvas.getByTestId("manager-invitation-submission");
+
+    await userEvent.click(canvas.getByRole("button", { name: "鈴木 次郎を選択" }));
+    await userEvent.click(canvas.getByRole("button", { name: "交代内容を確認" }));
+    await expect(
+      await canvas.findByRole("heading", { name: "鈴木 次郎さんへ管理者交代の案内を送りますか？" }),
+    ).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "交代の案内を送る" }));
+    await expect(submission).toHaveAttribute("data-submission-count", "1");
+  },
+};
+
+type InteractiveManagerInvitationDialogProps = {
+  managerInvitationMode?: "addition" | "freeManagerExchange";
+  candidates?: ManagerInvitationStaffCandidate[];
+};
+
+function InteractiveManagerInvitationDialog({
+  managerInvitationMode = "addition",
+  candidates = staffCandidates,
+}: InteractiveManagerInvitationDialogProps) {
+  const [submissions, setSubmissions] = useState<ManagerInvitationSubmitInput[]>([]);
+  const latestSubmission = submissions.at(-1);
 
   return (
     <>
       <ManagerInvitationDialog
         isOpen
-        managerInvitationMode="addition"
-        staffCandidates={staffCandidates}
+        managerInvitationMode={managerInvitationMode}
+        staffCandidates={candidates}
         peopleCapacityResolution={null}
         isRunning={false}
         onClose={() => undefined}
-        onSubmit={setSubmission}
+        onSubmit={(input) => setSubmissions((current) => [...current, input])}
       />
-      <output data-testid="manager-invitation-submission">{submission ? JSON.stringify(submission) : ""}</output>
+      <output data-testid="manager-invitation-submission" data-submission-count={submissions.length}>
+        {latestSubmission ? JSON.stringify(latestSubmission) : ""}
+      </output>
     </>
   );
 }

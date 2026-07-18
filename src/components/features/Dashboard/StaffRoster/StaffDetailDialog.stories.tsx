@@ -45,6 +45,10 @@ const freeManagerExchangeStaff = {
   ...mockStaffs[1],
   managerInvitationState: { kind: "available", mode: "freeManagerExchange", replacesStaleInvitation: false },
 } as Staff;
+const pendingFreeManagerExchangeStaff = {
+  ...mockStaffs[1],
+  managerInvitationState: { kind: "pending", mode: "freeManagerExchange" },
+} as Staff;
 const staleManagerInvitationStaff = {
   ...mockStaffs[1],
   managerInvitationState: { kind: "available", mode: "addition", replacesStaleInvitation: true },
@@ -215,7 +219,9 @@ export const ManagerInvitationConfirmationBehavior: Story = {
     await expect(
       await within(dialog).findByRole("heading", { name: "佐藤花子さんを管理者として招待しますか？" }),
     ).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: "招待メールを送る" }));
+    const managerInvitationButtons = within(dialog).getAllByRole("button", { name: "管理者として招待" });
+    await expect(managerInvitationButtons).toHaveLength(2);
+    await userEvent.click(managerInvitationButtons[1]);
     await expect(managerInvitationCallCount).toBe(1);
     await waitFor(() => {
       expect(
@@ -235,10 +241,84 @@ export const ManagerInvitationFailureKeepsConfirmationBehavior: Story = {
     const dialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
     await userEvent.click(within(dialog).getByRole("tab", { name: "設定" }));
     await userEvent.click(within(dialog).getByRole("button", { name: "管理者として招待" }));
-    await userEvent.click(within(dialog).getByRole("button", { name: "招待メールを送る" }));
+    await expect(
+      await within(dialog).findByRole("heading", { name: "佐藤花子さんを管理者として招待しますか？" }),
+    ).toBeInTheDocument();
+    const managerInvitationButtons = within(dialog).getAllByRole("button", { name: "管理者として招待" });
+    await expect(managerInvitationButtons).toHaveLength(2);
+    await userEvent.click(managerInvitationButtons[1]);
     await expect(
       within(dialog).getByRole("heading", { name: "佐藤花子さんを管理者として招待しますか？" }),
     ).toBeInTheDocument();
+  },
+};
+
+export const ManagerInvitationResendConfirmationBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: {
+    staff: pendingManagerInvitationStaff,
+    onInviteManager: countManagerInvitation,
+  },
+  play: async () => {
+    managerInvitationCallCount = 0;
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
+    await userEvent.click(within(dialog).getByRole("tab", { name: "設定" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "ログイン案内を再送" }));
+    await expect(
+      await within(dialog).findByRole("heading", { name: "佐藤花子さんへログイン案内を再送しますか？" }),
+    ).toBeInTheDocument();
+    const resendButtons = within(dialog).getAllByRole("button", { name: "ログイン案内を再送" });
+    await expect(resendButtons).toHaveLength(2);
+    await userEvent.click(resendButtons[1]);
+    await expect(managerInvitationCallCount).toBe(1);
+  },
+};
+
+export const FreeManagerExchangeConfirmationBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: {
+    staff: freeManagerExchangeStaff,
+    onInviteManager: countManagerInvitation,
+  },
+  play: async () => {
+    managerInvitationCallCount = 0;
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
+    await userEvent.click(within(dialog).getByRole("tab", { name: "設定" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "次の管理者として招待" }));
+
+    await expect(managerInvitationCallCount).toBe(0);
+    await expect(
+      await within(dialog).findByRole("heading", { name: "佐藤花子さんへ管理者交代の案内を送りますか？" }),
+    ).toBeInTheDocument();
+    await expect(within(dialog).getByText(/このグループの唯一の管理者になります/)).toBeInTheDocument();
+    await expect(within(dialog).getByText(/あなたのこのグループの管理者権限は終了し/)).toBeInTheDocument();
+    await expect(within(dialog).getByText(/交代が完了するまでは、あなたが引き続き管理できます/)).toBeInTheDocument();
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "交代の案内を送る" }));
+    await expect(managerInvitationCallCount).toBe(1);
+  },
+};
+
+export const FreeManagerExchangeResendConfirmationBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: {
+    staff: pendingFreeManagerExchangeStaff,
+    onInviteManager: countManagerInvitation,
+  },
+  play: async () => {
+    managerInvitationCallCount = 0;
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
+    await userEvent.click(within(dialog).getByRole("tab", { name: "設定" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "ログイン案内を再送" }));
+
+    await expect(managerInvitationCallCount).toBe(0);
+    await expect(
+      await within(dialog).findByRole("heading", { name: "佐藤花子さんへ管理者交代の案内を再送しますか？" }),
+    ).toBeInTheDocument();
+    await expect(within(dialog).getByText(/以前のURLは利用できなくなります/)).toBeInTheDocument();
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "交代の案内を再送" }));
+    await expect(managerInvitationCallCount).toBe(1);
   },
 };
 

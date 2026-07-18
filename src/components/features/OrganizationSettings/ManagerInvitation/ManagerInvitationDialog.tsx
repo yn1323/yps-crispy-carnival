@@ -2,6 +2,7 @@ import { Alert, Field, Flex, HStack, Input, Stack, Tabs, Text } from "@chakra-ui
 import { useEffect, useState } from "react";
 import { LuCheck, LuStore } from "react-icons/lu";
 import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH } from "@/convex/constants";
+import { ManagerAssignmentConfirmation } from "@/src/components/shared/ManagerAssignmentConfirmation";
 import { PeopleCapacityResolutionAlert } from "@/src/components/shared/PeopleCapacityResolutionAlert";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
@@ -37,8 +38,10 @@ export function ManagerInvitationDialog({
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
+  const [isConfirmingFreeManagerExchange, setIsConfirmingFreeManagerExchange] = useState(false);
 
   useEffect(() => {
+    setIsConfirmingFreeManagerExchange(false);
     if (isOpen) {
       setActiveTab(defaultTab);
       setSelectedPersonId(null);
@@ -47,44 +50,80 @@ export function ManagerInvitationDialog({
     }
   }, [defaultTab, isOpen]);
 
+  const isFreeManagerExchange = managerInvitationMode === "freeManagerExchange";
+  const selectedStaff = staffCandidates.find((candidate) => candidate.id === selectedPersonId);
+  const isShowingFreeManagerExchangeConfirmation =
+    isFreeManagerExchange && isConfirmingFreeManagerExchange && selectedStaff !== undefined;
+
+  useEffect(() => {
+    if (
+      !isFreeManagerExchange ||
+      !selectedPersonId ||
+      !staffCandidates.some((candidate) => candidate.id === selectedPersonId)
+    ) {
+      setIsConfirmingFreeManagerExchange(false);
+    }
+  }, [isFreeManagerExchange, selectedPersonId, staffCandidates]);
+
   if (!isOpen) return null;
 
   const normalizedEmail = email.trim();
-  const isFreeManagerExchange = managerInvitationMode === "freeManagerExchange";
-  const selectedStaff = staffCandidates.find((candidate) => candidate.id === selectedPersonId);
   const normalizedName = name.trim();
   const canSubmit =
     activeTab === "staff"
       ? selectedStaff !== undefined
       : !isFreeManagerExchange && normalizedName.length > 0 && isEmail(normalizedEmail);
   const submitLabel =
-    activeTab === "staff" && selectedStaff?.isResend
-      ? "ログイン案内を再送"
-      : isResendOnly && activeTab === "external"
+    isFreeManagerExchange && activeTab === "staff"
+      ? "交代内容を確認"
+      : activeTab === "staff" && selectedStaff?.isResend
         ? "ログイン案内を再送"
-        : "ログイン案内を送る";
+        : isResendOnly && activeTab === "external"
+          ? "ログイン案内を再送"
+          : "ログイン案内を送る";
+  const closeDialog = () => {
+    setIsConfirmingFreeManagerExchange(false);
+    onClose();
+  };
 
   return (
     <Dialog
       title={isResendOnly ? "ログイン案内を再送" : isFreeManagerExchange ? "次の管理者を招待" : "新しい管理者を招待"}
       isOpen
       onOpenChange={({ open }) => {
-        if (!open) onClose();
+        if (!open) closeDialog();
       }}
-      onClose={onClose}
-      formId="invite-manager-form"
+      onClose={closeDialog}
+      formId={isShowingFreeManagerExchangeConfirmation ? undefined : "invite-manager-form"}
       submitLabel={submitLabel}
       isLoading={isRunning}
       isSubmitDisabled={!canSubmit}
+      hideFooter={isShowingFreeManagerExchangeConfirmation}
       maxW={{ base: "calc(100vw - 24px)", md: "520px" }}
       maxH={{ base: "calc(100dvh - 24px)", md: "min(760px, calc(100dvh - 48px))" }}
     >
+      {isShowingFreeManagerExchangeConfirmation && (
+        <ManagerAssignmentConfirmation
+          personName={selectedStaff.name}
+          personEmail={selectedStaff.email}
+          mode="freeManagerExchange"
+          isResend={selectedStaff.isResend}
+          isRunning={isRunning}
+          onCancel={() => setIsConfirmingFreeManagerExchange(false)}
+          onConfirm={() => onSubmit({ kind: "person", personId: selectedStaff.id })}
+        />
+      )}
       <form
         id="invite-manager-form"
+        hidden={isShowingFreeManagerExchangeConfirmation}
         onSubmit={(event) => {
           event.preventDefault();
           if (!canSubmit) return;
           if (activeTab === "staff" && selectedStaff) {
+            if (isFreeManagerExchange) {
+              setIsConfirmingFreeManagerExchange(true);
+              return;
+            }
             onSubmit({ kind: "person", personId: selectedStaff.id });
             return;
           }
@@ -110,7 +149,10 @@ export function ManagerInvitationDialog({
 
           <Tabs.Root
             value={activeTab}
-            onValueChange={({ value }) => setActiveTab(value as InvitationTab)}
+            onValueChange={({ value }) => {
+              setActiveTab(value as InvitationTab);
+              setIsConfirmingFreeManagerExchange(false);
+            }}
             colorPalette="teal"
             variant="line"
           >
@@ -257,23 +299,23 @@ export function ManagerInvitationDialog({
                       ? "送信済みの案内と同じ対象者を入力してください。新しいURLを送り、以前のURLは利用できなくなります。"
                       : "本人へログイン案内を送ります。既にシフトリを利用している場合も、案内先のメールアドレスでログインすると管理者になります。"}
                   </Text>
-                  <Field.Root required>
+                  <Field.Root required={activeTab === "external"}>
                     <Field.Label>名前</Field.Label>
                     <Input
                       autoComplete="name"
-                      disabled={isRunning}
+                      disabled={isRunning || activeTab !== "external"}
                       value={name}
                       maxLength={PERSON_NAME_MAX_LENGTH}
                       placeholder="例：田中 花子"
                       onChange={(event) => setName(event.currentTarget.value)}
                     />
                   </Field.Root>
-                  <Field.Root required>
+                  <Field.Root required={activeTab === "external"}>
                     <Field.Label>メールアドレス</Field.Label>
                     <Input
                       type="email"
                       autoComplete="email"
-                      disabled={isRunning}
+                      disabled={isRunning || activeTab !== "external"}
                       value={email}
                       maxLength={EMAIL_MAX_LENGTH}
                       placeholder="manager@example.com"
