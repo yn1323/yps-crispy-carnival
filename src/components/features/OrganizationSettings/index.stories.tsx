@@ -190,6 +190,24 @@ type Story = StoryObj<typeof meta>;
 
 export const Users: Story = {};
 
+export const StaffWithoutShop: Story = {
+  args: {
+    people: [
+      ...baseArgs.people,
+      {
+        id: "person-without-shop",
+        name: "店舗未所属スタッフ",
+        email: "without-shop@sakura.example.com",
+        managerRole: "none",
+        isStaff: false,
+        shopNames: [],
+        canRemoveManagerRole: false,
+        canRemove: true,
+      },
+    ],
+  },
+};
+
 export const UserListLoadMoreBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   args: {

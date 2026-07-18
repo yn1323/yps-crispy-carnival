@@ -6,7 +6,7 @@ import { OrganizationSettingsPage } from "../pages/OrganizationSettingsPage";
 test.describe("グループ設定からの店舗削除", { tag: ["@release"] }, () => {
   test.setTimeout(60_000);
 
-  test("MS-P0-03: 選択中のB店を削除し、汎用エラーからA店へ復旧する", async ({ page }) => {
+  test("MS-P0-03: 選択中のB店を削除し、B店専属スタッフを店舗所属なしで維持する", async ({ page }) => {
     const seed = seedMultiShopOrganizationScenario({
       organizationName: "店舗削除E2Eグループ",
       primaryShopName: "店舗削除E2E A店",
@@ -19,6 +19,7 @@ test.describe("グループ設定からの店舗削除", { tag: ["@release"] }, 
       await dashboard.goto(seed.secondaryShopId);
       await dashboard.expectSelectedShop(seed.secondaryShopName, seed.secondaryShopId);
       await settings.goto(seed.secondaryShopId, "shops");
+      await settings.expectPersonShopNames(seed.secondaryMarkerPersonName, [seed.secondaryShopName]);
       await settings.cancelShopDeletion(seed.secondaryShopName);
       await settings.expectShopVisible(seed.secondaryShopName);
     });
@@ -35,7 +36,13 @@ test.describe("グループ設定からの店舗削除", { tag: ["@release"] }, 
       await dashboard.expectShopNotSelectable(seed.secondaryShopName, seed.primaryShopName, seed.primaryShopId);
     });
 
-    await test.step("Step 4: 削除済みB店の旧URLでも店舗名や業務画面を露出しない", async () => {
+    await test.step("Step 4: B店専属スタッフを店舗所属なしで表示し、利用人数に含め続ける", async () => {
+      await settings.goto(seed.primaryShopId);
+      await settings.expectPersonShopNames(seed.secondaryMarkerPersonName, []);
+      await settings.expectPeopleUsage(3, 30);
+    });
+
+    await test.step("Step 5: 削除済みB店の旧URLでも店舗名や業務画面を露出しない", async () => {
       await dashboard.goto(seed.secondaryShopId);
       await dashboard.expectInvalidShop();
       await expect(page.getByText(seed.secondaryShopName, { exact: true })).toHaveCount(0);

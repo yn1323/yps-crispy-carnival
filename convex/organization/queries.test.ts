@@ -94,6 +94,58 @@ describe("organization/queries.getSettings", () => {
     expect(result).not.toHaveProperty("currentShopName");
   });
 
+  it("削除済みstaff履歴で利用人数に含む店舗未所属ユーザーを一覧へ残す", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "settings_unassigned_staff",
+        shopName: "所属確認店",
+        plan: "business",
+      });
+      const now = Date.now();
+      const unassignedPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: base.organizationId,
+        name: "店舗未所属スタッフ",
+        email: "unassigned-staff@example.com",
+        emailNormalized: "unassigned-staff@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("staffs", {
+        shopId: base.shopId,
+        organizationId: base.organizationId,
+        organizationPersonId: unassignedPersonId,
+        name: "店舗未所属スタッフ",
+        email: "unassigned-staff@example.com",
+        emailNormalized: "unassigned-staff@example.com",
+        isDeleted: true,
+      });
+      await ctx.db.insert("organizationPeople", {
+        organizationId: base.organizationId,
+        name: "利用人数対象外",
+        email: "uncounted-person@example.com",
+        emailNormalized: "uncounted-person@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { ...base, unassignedPersonId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "settings_unassigned_staff" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+    expect(result?.billing.peopleUsage).toEqual({ current: 2, max: 30 });
+    expect(
+      result?.people.map(({ id, isStaff, managerRole, shopNames }) => ({ id, isStaff, managerRole, shopNames })),
+    ).toEqual([
+      { id: ids.personId, isStaff: false, managerRole: "active", shopNames: [] },
+      { id: ids.unassignedPersonId, isStaff: false, managerRole: "none", shopNames: [] },
+    ]);
+  });
+
   it("同じ人物のいずれかの有効スタッフがLINEフォロー中なら連携済みだけを返す", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {

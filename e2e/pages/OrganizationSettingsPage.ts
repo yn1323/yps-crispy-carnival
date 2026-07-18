@@ -95,6 +95,22 @@ export class OrganizationSettingsPage {
     await expect(this.personRow(personName)).toHaveCount(0);
   }
 
+  async expectPersonShopNames(personName: string, shopNames: string[]) {
+    await this.openPeopleTab();
+    const row = this.personRow(personName);
+    await expect(row).toBeVisible({ timeout: SETTINGS_DATA_TIMEOUT });
+    await expect(row.getByText(shopNames.join("、") || "店舗所属なし", { exact: true })).toBeVisible();
+    if (shopNames.length === 0) {
+      await expect(row.getByText("店舗未所属", { exact: true })).toBeVisible();
+    }
+  }
+
+  async expectPeopleUsage(current: number, max: number) {
+    await this.page.getByRole("tab", { name: "プランと支払い" }).click();
+    await expect(this.page.getByText("利用人数", { exact: true })).toBeVisible();
+    await expect(this.page.getByText(`${current} / ${max}`, { exact: true })).toBeVisible();
+  }
+
   async expectPersonRole(personName: string, role: "管理者" | "スタッフ") {
     const dialog = await this.openPerson(personName);
     await expect(dialog.getByText(role, { exact: true }).first()).toBeVisible();

@@ -12,7 +12,7 @@ export function OrganizationUserRow({ person, onOpenDetail }: Props) {
   const initial = person.name.trim().charAt(0) || "?";
   const isManager = person.managerRole !== "none";
   const descriptionId = `organization-user-${person.id}-summary`;
-  const roleLabel = isManager ? "管理者" : "スタッフ";
+  const roleLabel = isManager ? "管理者" : person.isStaff ? "スタッフ" : "店舗未所属";
   const shopNames = person.shopNames.length > 0 ? person.shopNames.join("、") : "店舗所属なし";
 
   return (

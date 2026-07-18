@@ -348,10 +348,27 @@ export const getSettings = managerQuery({
       );
     }
 
+    // 店舗所属がなくなってもグループの利用人数に含まれる人物は、削除済みを含むstaff履歴から判定する。
+    const staffRolePersonIds = new Set(
+      (
+        await Promise.all(
+          people.map(async (person) => {
+            const staff = await ctx.db
+              .query("staffs")
+              .withIndex("by_organizationId_and_organizationPersonId", (q) =>
+                q.eq("organizationId", organization._id).eq("organizationPersonId", person._id),
+              )
+              .first();
+            return staff ? person._id : null;
+          }),
+        )
+      ).filter((personId): personId is Id<"organizationPeople"> => personId !== null),
+    );
+
     const usageInputs: OrganizationPersonUsageInput[] = people.map((person) => ({
       personId: person._id,
       isActiveInOrganization: true,
-      isStaff: (staffRowsByPersonId.get(person._id)?.length ?? 0) > 0,
+      isStaff: staffRolePersonIds.has(person._id),
       managerRole: managerRoleByPersonId.get(person._id) ?? "none",
     }));
     const reservedPersonCount = pendingInvitations.filter(
@@ -607,6 +624,9 @@ export const getSettings = managerQuery({
       }),
     );
     const peopleView = people
+      .filter(
+        (person) => staffRolePersonIds.has(person._id) || (managerRoleByPersonId.get(person._id) ?? "none") !== "none",
+      )
       .map((person) => {
         const managerRole = managerRoleByPersonId.get(person._id) ?? "none";
         const staffRows = staffRowsByPersonId.get(person._id) ?? [];
@@ -687,7 +707,6 @@ export const getSettings = managerQuery({
           ...(removeDisabledReason ? { removeDisabledReason } : {}),
         };
       })
-      .filter((person) => person.isStaff || person.managerRole !== "none")
       .sort(
         (a, b) =>
           Number(b.managerRole === "active") - Number(a.managerRole === "active") ||

@@ -8,6 +8,7 @@ type Props = {
 
 export function OrganizationUserRoleBadges({ person, compact = false }: Props) {
   const isManager = person.managerRole !== "none";
+  const roleLabel = isManager ? "管理者" : person.isStaff ? "スタッフ" : "店舗未所属";
 
   return (
     <HStack gap={1.5} wrap="wrap">
@@ -18,7 +19,7 @@ export function OrganizationUserRoleBadges({ person, compact = false }: Props) {
         px={2}
         textStyle={compact ? "2xs" : undefined}
       >
-        {isManager ? "管理者" : "スタッフ"}
+        {roleLabel}
       </Badge>
       {person.isLineConnected && (
         <Badge colorPalette="green" variant="subtle" borderRadius="full" px={2} textStyle={compact ? "2xs" : undefined}>
