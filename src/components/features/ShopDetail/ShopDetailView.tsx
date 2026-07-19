@@ -1,21 +1,34 @@
-import { Box, Flex, Heading, HStack, Skeleton, Stack, Tabs, Text } from "@chakra-ui/react";
+import { Alert, Box, Flex, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import { LuChevronLeft, LuStore } from "react-icons/lu";
-import { DeletionActionSection } from "@/src/components/shared/DeletionActionSection";
 import { IconButton } from "@/src/components/ui/Button";
+import { ShopBasicInformationSection } from "./ShopBasicInformationSection";
 import { ShopDeletionDialog } from "./ShopDeletionDialog";
-import type { ShopDetailData, ShopDetailTab } from "./types";
+import { ShopOtherSettingsSection } from "./ShopOtherSettingsSection";
+import { ShopStaffList } from "./ShopStaffList";
+import type { ShopDetailData, ShopDetailPerson, ShopSettingKind, UpdateShopSetting } from "./types";
 
 type Props = {
   shop: ShopDetailData;
-  activeTab: ShopDetailTab;
+  staffs: ShopDetailPerson[];
+  updatingSetting: ShopSettingKind | null;
   isDeleting: boolean;
   onBack: () => void;
-  onTabChange: (tab: ShopDetailTab) => void;
+  onOpenUser: (personId: string) => void;
+  onUpdateSetting: UpdateShopSetting;
   onDelete: () => Promise<boolean>;
 };
 
-export function ShopDetailView({ shop, activeTab, isDeleting, onBack, onTabChange, onDelete }: Props) {
+export function ShopDetailView({
+  shop,
+  staffs,
+  updatingSetting,
+  isDeleting,
+  onBack,
+  onOpenUser,
+  onUpdateSetting,
+  onDelete,
+}: Props) {
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
 
   useEffect(() => {
@@ -35,41 +48,21 @@ export function ShopDetailView({ shop, activeTab, isDeleting, onBack, onTabChang
 
       <ShopSummary shop={shop} />
 
-      <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
-        <Tabs.Root
-          value={activeTab}
-          colorPalette="teal"
-          variant="outline"
-          onValueChange={({ value }) => onTabChange(value as ShopDetailTab)}
-        >
-          <Tabs.List overflowX="auto" overflowY="hidden" whiteSpace="nowrap" px={{ base: 3, md: 5 }}>
-            <Tabs.Trigger value="information" flexShrink={0}>
-              情報
-            </Tabs.Trigger>
-            <Tabs.Trigger value="settings" flexShrink={0}>
-              設定
-            </Tabs.Trigger>
-          </Tabs.List>
+      {!shop.canUpdateSettings && (
+        <Alert.Root status="warning" borderRadius="xl" alignItems="flex-start">
+          <Alert.Indicator mt={1} />
+          <Alert.Content>
+            <Alert.Title>店舗情報は閲覧のみです</Alert.Title>
+            <Alert.Description>
+              {shop.settingsDisabledReason ?? "現在、この店舗の情報を変更できません。"}
+            </Alert.Description>
+          </Alert.Content>
+        </Alert.Root>
+      )}
 
-          <Box p={{ base: 4, md: 6 }}>
-            <Tabs.Content value="information" p={0}>
-              <ShopInformation shop={shop} />
-            </Tabs.Content>
-            <Tabs.Content value="settings" p={0}>
-              <DeletionActionSection
-                title="店舗を削除する"
-                description="この店舗を利用できない状態にします。この操作は元に戻せません。"
-                descriptionId={`shop-detail-${shop.id}-delete-description`}
-                actionLabel="削除"
-                canDelete={shop.canDelete}
-                disabledReason={shop.deleteDisabledReason}
-                disabledReasonId={`shop-detail-${shop.id}-delete-disabled-reason`}
-                onDelete={() => setIsDeleteConfirmationOpen(true)}
-              />
-            </Tabs.Content>
-          </Box>
-        </Tabs.Root>
-      </Box>
+      <ShopBasicInformationSection shop={shop} updatingSetting={updatingSetting} onUpdateSetting={onUpdateSetting} />
+      <ShopStaffList staffs={staffs} onOpenUser={onOpenUser} />
+      <ShopOtherSettingsSection shop={shop} onRequestDelete={() => setIsDeleteConfirmationOpen(true)} />
 
       <ShopDeletionDialog
         shop={shop}
@@ -105,31 +98,6 @@ function ShopSummary({ shop }: { shop: ShopDetailData }) {
   );
 }
 
-function ShopInformation({ shop }: { shop: ShopDetailData }) {
-  return (
-    <Stack gap={4}>
-      <Heading as="h2" fontSize="md" fontWeight="semibold" color="gray.900">
-        店舗情報
-      </Heading>
-      <HStack
-        justify="space-between"
-        align="flex-start"
-        gap={4}
-        py={2}
-        borderBottomWidth="1px"
-        borderColor="blackAlpha.100"
-      >
-        <Text fontSize="sm" color="fg.muted">
-          所属スタッフ
-        </Text>
-        <Text fontSize="sm" fontWeight="semibold" textAlign="end">
-          {shop.staffCount}名
-        </Text>
-      </HStack>
-    </Stack>
-  );
-}
-
 export function ShopDetailSkeleton() {
   return (
     <Stack gap={{ base: 4, md: 6 }} aria-label="店舗詳細を読み込み中">
@@ -143,12 +111,23 @@ export function ShopDetailSkeleton() {
           <Skeleton h="28px" w="220px" />
         </HStack>
       </Box>
-      <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" p={{ base: 4, md: 6 }}>
-        <Stack gap={4}>
-          <Skeleton h="36px" w="180px" />
-          <Skeleton h="24px" w="full" />
+      {[3, 2, 1].map((rowCount) => (
+        <Stack key={rowCount} gap={3}>
+          <Skeleton h="28px" w="160px" />
+          <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
+            <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
+              {Array.from({ length: rowCount }, (_, index) => (
+                <Box key={index} p={{ base: 4, md: 5 }}>
+                  <Stack gap={4}>
+                    <Skeleton h="20px" w="120px" />
+                    <Skeleton h="40px" w="full" />
+                  </Stack>
+                </Box>
+              ))}
+            </Stack>
+          </Box>
         </Stack>
-      </Box>
+      ))}
     </Stack>
   );
 }

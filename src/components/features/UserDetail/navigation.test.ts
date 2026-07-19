@@ -29,4 +29,20 @@ describe("ユーザー詳細のURL遷移", () => {
       search: { shop: "shop-b", users: undefined, focus: "person-b" },
     });
   });
+
+  it("店舗詳細へ表示中の店舗を引き継いで戻る", () => {
+    expect(getUserDetailBackDestination("shopDetail", "shop-b", 10, "person-b")).toEqual({
+      to: "/shops/$shopId",
+      params: { shopId: "shop-b" },
+      search: { shop: "shop-b" },
+    });
+  });
+
+  it("ユーザー詳細内で店舗を切り替えても出発元の店舗詳細へ戻る", () => {
+    expect(getUserDetailBackDestination("shopDetail", "shop-b", 10, "person-b", "shop-a")).toEqual({
+      to: "/shops/$shopId",
+      params: { shopId: "shop-a" },
+      search: { shop: "shop-a" },
+    });
+  });
 });

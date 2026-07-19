@@ -17,10 +17,11 @@ type Props = {
   selectedShopId: string | null;
   activeTab: UserDetailTab;
   returnTo: UserDetailReturnTo;
+  returnShopId?: string;
   visibleUserCount: number;
 };
 
-export function UserDetail({ data, selectedShopId, activeTab, returnTo, visibleUserCount }: Props) {
+export function UserDetail({ data, selectedShopId, activeTab, returnTo, returnShopId, visibleUserCount }: Props) {
   const navigate = useNavigate();
   const [currentTab, setCurrentTab] = useState(activeTab);
   const selectedMembership = data.memberships.find((membership) => membership.shopId === selectedShopId) ?? null;
@@ -73,7 +74,13 @@ export function UserDetail({ data, selectedShopId, activeTab, returnTo, visibleU
   };
 
   const handleBack = () => {
-    const destination = getUserDetailBackDestination(returnTo, selectedShopId, visibleUserCount, data.person.id);
+    const destination = getUserDetailBackDestination(
+      returnTo,
+      selectedShopId,
+      visibleUserCount,
+      data.person.id,
+      returnShopId,
+    );
     void navigate({ ...destination, replace: true });
   };
 

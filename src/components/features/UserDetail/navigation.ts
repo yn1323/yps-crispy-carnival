@@ -15,7 +15,17 @@ export function getUserDetailBackDestination(
   selectedShopId: string | null,
   visibleUserCount: number,
   focusedPersonId: string,
+  returnShopId?: string | null,
 ) {
+  const shopDetailId = returnShopId ?? selectedShopId;
+  if (returnTo === "shopDetail" && shopDetailId) {
+    return {
+      to: "/shops/$shopId" as const,
+      params: { shopId: shopDetailId },
+      search: { shop: shopDetailId },
+    };
+  }
+
   return {
     to: returnTo === "settings" ? ("/settings" as const) : ("/dashboard" as const),
     search: {

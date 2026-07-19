@@ -1,14 +1,16 @@
 import { Stack } from "@chakra-ui/react";
 import { type ComponentProps, useMemo } from "react";
 import { LuCalendarDays, LuClock3, LuListChecks, LuStore } from "react-icons/lu";
+import {
+  RegularClosedDaysField,
+  ShiftTypePatternFields,
+  ShopNameField,
+  SubmissionPatternField,
+  TimePatternFields,
+} from "@/src/components/shared/ShopSettingsFields";
 import { StepperDialogContent, type StepperDialogStep } from "@/src/components/ui/StepperDialog";
-import { RegularClosedDaysStep } from "./RegularClosedDaysStep";
-import { ShiftTypePatternSettings } from "./ShiftTypePatternSettings";
 import { ShopFormActions } from "./ShopFormActions";
-import { ShopNameStep } from "./ShopNameStep";
-import { SubmissionPatternStep } from "./SubmissionPatternStep";
 import type { ShiftSubmissionPattern, ShopFormStep } from "./script";
-import { TimePatternSettings } from "./TimePatternSettings";
 
 const BASE_STEPS: StepperDialogStep<ShopFormStep>[] = [
   {
@@ -54,16 +56,16 @@ const getPatternSettingsStep = (kind: ShiftSubmissionPattern["kind"]): StepperDi
 
 type PatternSettingsProps =
   | { kind: "dateOnly" }
-  | { kind: "time"; props: ComponentProps<typeof TimePatternSettings> }
-  | { kind: "shiftType"; props: ComponentProps<typeof ShiftTypePatternSettings> };
+  | { kind: "time"; props: ComponentProps<typeof TimePatternFields> }
+  | { kind: "shiftType"; props: ComponentProps<typeof ShiftTypePatternFields> };
 
 type Props = {
   currentStep: ShopFormStep;
   submissionPatternKind: ShiftSubmissionPattern["kind"];
-  shopNameStep: ComponentProps<typeof ShopNameStep>;
-  submissionPatternStep: ComponentProps<typeof SubmissionPatternStep>;
+  shopNameStep: ComponentProps<typeof ShopNameField>;
+  submissionPatternStep: ComponentProps<typeof SubmissionPatternField>;
   patternSettings: PatternSettingsProps;
-  regularClosedDaysStep: ComponentProps<typeof RegularClosedDaysStep>;
+  regularClosedDaysStep: ComponentProps<typeof RegularClosedDaysField>;
   actions: ComponentProps<typeof ShopFormActions>;
 };
 
@@ -95,15 +97,15 @@ export const ShopFormView = ({
       }}
     >
       <StepperDialogContent steps={steps} currentStep={currentStep} actions={<ShopFormActions {...actions} />}>
-        {currentStep === "shopName" && <ShopNameStep {...shopNameStep} />}
-        {currentStep === "submissionPattern" && <SubmissionPatternStep {...submissionPatternStep} />}
+        {currentStep === "shopName" && <ShopNameField {...shopNameStep} />}
+        {currentStep === "submissionPattern" && <SubmissionPatternField {...submissionPatternStep} />}
         {currentStep === "patternSettings" && (
           <Stack gap={3}>
-            {patternSettings.kind === "time" && <TimePatternSettings {...patternSettings.props} />}
-            {patternSettings.kind === "shiftType" && <ShiftTypePatternSettings {...patternSettings.props} />}
+            {patternSettings.kind === "time" && <TimePatternFields {...patternSettings.props} />}
+            {patternSettings.kind === "shiftType" && <ShiftTypePatternFields {...patternSettings.props} />}
           </Stack>
         )}
-        {currentStep === "regularClosedDays" && <RegularClosedDaysStep {...regularClosedDaysStep} />}
+        {currentStep === "regularClosedDays" && <RegularClosedDaysField {...regularClosedDaysStep} />}
       </StepperDialogContent>
     </form>
   );

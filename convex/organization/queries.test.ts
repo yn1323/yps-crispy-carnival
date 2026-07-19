@@ -2,7 +2,7 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { seedOrganizationManagerShop, seedUser } from "../_test/seed";
+import { seedManagerShop, seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("organization/queries.getSettings", () => {
@@ -116,6 +116,7 @@ describe("organization/queries.getSettings", () => {
           isStaff: false,
           isLineConnected: false,
           shopNames: [],
+          shopIds: [],
           canRemoveManagerRole: false,
         },
       ],
@@ -141,9 +142,38 @@ describe("organization/queries.getSettings", () => {
       "staffCount",
       "submissionPattern",
     ]);
+    expect(Object.keys(result?.people[0] ?? {}).sort()).toEqual([
+      "canRemove",
+      "canRemoveManagerRole",
+      "email",
+      "hasManagerInvitation",
+      "id",
+      "isLineConnected",
+      "isStaff",
+      "managerRole",
+      "managerRoleRemovalDisabledReason",
+      "name",
+      "removeDisabledReason",
+      "shopIds",
+      "shopNames",
+    ]);
     expect(JSON.stringify(result)).not.toContain("never-return-this-digest");
     expect(result).not.toHaveProperty("freeSelection");
     expect(result).not.toHaveProperty("currentShopName");
+  });
+
+  it("グループ移行前のDTOでは所属店舗IDを空配列で返す", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(
+      async (ctx) => await seedManagerShop(ctx, { subject: "settings_legacy_shop_ids", shopName: "移行前店舗" }),
+    );
+
+    const result = await t
+      .withIdentity({ subject: "settings_legacy_shop_ids" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+    expect(result?.billing.state).toBe("migrationPending");
+    expect(result?.people).toEqual([expect.objectContaining({ id: ids.userId, shopIds: [] })]);
   });
 
   it("Freeかつ唯一の有効管理者には、最新組織IDと更新時刻を含む削除可能状態を返す", async () => {
@@ -209,11 +239,78 @@ describe("organization/queries.getSettings", () => {
 
     expect(result?.billing.peopleUsage).toEqual({ current: 2, max: 30 });
     expect(
-      result?.people.map(({ id, isStaff, managerRole, shopNames }) => ({ id, isStaff, managerRole, shopNames })),
+      result?.people.map(({ id, isStaff, managerRole, shopNames, shopIds }) => ({
+        id,
+        isStaff,
+        managerRole,
+        shopNames,
+        shopIds,
+      })),
     ).toEqual([
-      { id: ids.personId, isStaff: false, managerRole: "active", shopNames: [] },
-      { id: ids.unassignedPersonId, isStaff: false, managerRole: "none", shopNames: [] },
+      { id: ids.personId, isStaff: false, managerRole: "active", shopNames: [], shopIds: [] },
+      { id: ids.unassignedPersonId, isStaff: false, managerRole: "none", shopNames: [], shopIds: [] },
     ]);
+  });
+
+  it("同名店舗でも有効staff由来の所属店舗IDを区別し、重複と削除済みstaffを除く", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "settings_duplicate_shop_names",
+        shopName: "同名店舗",
+        plan: "pro",
+      });
+      const secondShopId = await ctx.db.insert("shops", {
+        organizationId: base.organizationId,
+        operatingStatus: "active",
+        name: "同名店舗",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        regularClosedDays: [],
+        isDeleted: false,
+      });
+      const deletedStaffShopId = await ctx.db.insert("shops", {
+        organizationId: base.organizationId,
+        operatingStatus: "active",
+        name: "削除済み所属店舗",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        regularClosedDays: [],
+        isDeleted: false,
+      });
+      const now = Date.now();
+      const staffPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: base.organizationId,
+        name: "複数店舗スタッフ",
+        email: "duplicate-shops-staff@example.com",
+        emailNormalized: "duplicate-shops-staff@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const insertStaff = async (shopId: Id<"shops">, isDeleted: boolean) =>
+        await ctx.db.insert("staffs", {
+          shopId,
+          organizationId: base.organizationId,
+          organizationPersonId: staffPersonId,
+          name: "複数店舗スタッフ",
+          email: "duplicate-shops-staff@example.com",
+          emailNormalized: "duplicate-shops-staff@example.com",
+          isDeleted,
+        });
+      await insertStaff(base.shopId, false);
+      await insertStaff(base.shopId, false);
+      await insertStaff(secondShopId, false);
+      await insertStaff(deletedStaffShopId, true);
+      return { ...base, secondShopId, deletedStaffShopId, staffPersonId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "settings_duplicate_shop_names" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+    const person = result?.people.find((candidate) => candidate.id === ids.staffPersonId);
+    expect(person?.shopNames).toEqual(["同名店舗"]);
+    expect(person?.shopIds).toEqual([ids.shopId, ids.secondShopId].sort((a, b) => String(a).localeCompare(String(b))));
+    expect(person?.shopIds).not.toContain(ids.deletedStaffShopId);
   });
 
   it("同じ人物のいずれかの有効スタッフがLINEフォロー中なら連携済みだけを返す", async () => {

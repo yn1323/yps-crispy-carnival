@@ -49,6 +49,7 @@ const person: OrganizationPersonView = {
   managerRole: "active",
   isStaff: true,
   shopNames: ["渋谷店"],
+  shopIds: ["shop-current"],
   canRemoveManagerRole: true,
   canRemove: true,
 };

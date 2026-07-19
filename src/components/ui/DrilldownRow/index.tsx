@@ -1,4 +1,4 @@
-import { Flex, HStack, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
+import { chakra, Flex, HStack, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { LuChevronRight } from "react-icons/lu";
 
@@ -14,7 +14,7 @@ type Props = {
   onClick: () => void;
 };
 
-export function SettingsDrilldownRow({
+export function DrilldownRow({
   id,
   ariaLabel,
   title,
@@ -28,15 +28,16 @@ export function SettingsDrilldownRow({
   const descriptionId = accessibleDescription && id ? `${id}-summary` : undefined;
 
   return (
-    <HStack
-      as="button"
+    <chakra.button
+      type="button"
       id={id}
       aria-label={ariaLabel}
       aria-describedby={descriptionId}
       gap={3}
       px={{ base: 3, md: 4 }}
       py={3.5}
-      align="center"
+      display="flex"
+      alignItems="center"
       w="full"
       textAlign="left"
       bg={highlighted ? "teal.50/40" : "transparent"}
@@ -69,6 +70,6 @@ export function SettingsDrilldownRow({
       </Flex>
 
       {descriptionId && <VisuallyHidden id={descriptionId}>{accessibleDescription}</VisuallyHidden>}
-    </HStack>
+    </chakra.button>
   );
 }

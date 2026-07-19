@@ -1,15 +1,17 @@
 import { useNavigate } from "@tanstack/react-router";
 import { ShopDetailView } from "./ShopDetailView";
-import type { ShopDetailData, ShopDetailTab } from "./types";
+import { getShopStaffs } from "./script";
+import type { ShopDetailData, ShopDetailPerson } from "./types";
 import { useShopDeletionController } from "./useShopDeletionController";
+import { useShopSettingsController } from "./useShopSettingsController";
 
 type Props = {
   shop: ShopDetailData;
+  people: ShopDetailPerson[];
   selectedShopId: string | null;
-  activeTab: ShopDetailTab;
 };
 
-export function ShopDetail({ shop, selectedShopId, activeTab }: Props) {
+export function ShopDetail({ shop, people, selectedShopId }: Props) {
   const navigate = useNavigate();
   const backToSettings = () =>
     void navigate({
@@ -18,26 +20,34 @@ export function ShopDetail({ shop, selectedShopId, activeTab }: Props) {
       replace: true,
     });
   const deletion = useShopDeletionController({ shop, onDeleted: backToSettings });
+  const settings = useShopSettingsController(shop);
+  const staffs = getShopStaffs(people, shop.id);
 
   return (
     <ShopDetailView
       key={shop.id}
       shop={shop}
-      activeTab={activeTab}
+      staffs={staffs}
+      updatingSetting={settings.updatingSetting}
       isDeleting={deletion.isDeleting}
       onBack={backToSettings}
-      onTabChange={(tab) =>
+      onOpenUser={(personId) =>
         void navigate({
-          to: ".",
-          search: (previous) => ({ ...previous, tab }),
-          replace: true,
-          resetScroll: false,
+          to: "/users/$personId",
+          params: { personId },
+          search: {
+            shop: shop.id,
+            tab: "notification",
+            returnTo: "shopDetail",
+            returnShop: shop.id,
+          },
         })
       }
+      onUpdateSetting={settings.updateSetting}
       onDelete={deletion.deleteShop}
     />
   );
 }
 
 export { ShopDetailSkeleton, ShopDetailView } from "./ShopDetailView";
-export type { ShopDetailData, ShopDetailTab } from "./types";
+export type { ShopDetailData, ShopDetailPerson } from "./types";

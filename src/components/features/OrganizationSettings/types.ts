@@ -12,6 +12,7 @@ export type OrganizationPersonView = {
   isLineConnected?: boolean;
   hasManagerInvitation?: boolean;
   shopNames: string[];
+  shopIds: string[];
   canRemoveManagerRole: boolean;
   managerRoleRemovalDisabledReason?: string;
   canRemove: boolean;

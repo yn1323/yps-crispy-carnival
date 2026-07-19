@@ -23,6 +23,28 @@ describe("ユーザー詳細URL", () => {
     });
   });
 
+  it("表示店舗がある場合は店舗詳細を戻り先として保持する", () => {
+    expect(validateUserDetailSearch({ shop: "shop-b", returnTo: "shopDetail" })).toEqual({
+      shop: "shop-b",
+      tab: "notification",
+      returnTo: "shopDetail",
+      returnShop: "shop-b",
+    });
+  });
+
+  it("店舗詳細の出発元を表示店舗とは別に保持する", () => {
+    expect(validateUserDetailSearch({ shop: "shop-b", returnTo: "shopDetail", returnShop: "shop-a" })).toEqual({
+      shop: "shop-b",
+      tab: "notification",
+      returnTo: "shopDetail",
+      returnShop: "shop-a",
+    });
+  });
+
+  it("表示店舗がない場合は店舗詳細を戻り先にしない", () => {
+    expect(validateUserDetailSearch({ returnTo: "shopDetail" })).toEqual({ tab: "notification" });
+  });
+
   it("不正な一覧表示件数は戻り先へ引き継がない", () => {
     expect(validateUserDetailSearch({ tab: "information", users: "25" })).toEqual({ tab: "notification" });
   });

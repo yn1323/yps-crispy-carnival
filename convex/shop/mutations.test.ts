@@ -458,6 +458,275 @@ describe("shop/mutations", () => {
     });
   });
 
+  describe("updateShopSetting", () => {
+    it("店舗名だけを正規化して更新する", async () => {
+      const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "partial_shop_name",
+          shopName: "更新前店舗",
+          plan: "pro",
+        });
+        await ctx.db.patch(seeded.shopId, {
+          regularClosedDays: ["sun", "wed"],
+          submissionPattern: { kind: "dateOnly" },
+        });
+        return seeded.shopId;
+      });
+
+      await t.withIdentity({ subject: "partial_shop_name" }).mutation(api.shop.mutations.updateShopSetting, {
+        shopId,
+        change: { kind: "shopName", shopName: "  更新後店舗  " },
+      });
+
+      const settings = await t.run(async (ctx) => {
+        const shop = await ctx.db.get(shopId);
+        return shop
+          ? {
+              name: shop.name,
+              regularClosedDays: shop.regularClosedDays,
+              submissionPattern: shop.submissionPattern,
+            }
+          : null;
+      });
+      expect(settings).toEqual({
+        name: "更新後店舗",
+        regularClosedDays: ["sun", "wed"],
+        submissionPattern: { kind: "dateOnly" },
+      });
+    });
+
+    it("希望提出方法だけを正規化して更新する", async () => {
+      const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "partial_submission_pattern",
+          shopName: "提出方法店舗",
+          plan: "pro",
+        });
+        await ctx.db.patch(seeded.shopId, { regularClosedDays: ["sun", "thu"] });
+        return seeded.shopId;
+      });
+
+      await t.withIdentity({ subject: "partial_submission_pattern" }).mutation(api.shop.mutations.updateShopSetting, {
+        shopId,
+        change: {
+          kind: "submissionPattern",
+          submissionPattern: {
+            kind: "shiftType",
+            options: [
+              { id: "late", name: "  遅番  ", startTime: "15:00", endTime: "23:00", sortOrder: 0 },
+              { id: "morning", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 1 },
+            ],
+          },
+        },
+      });
+
+      const settings = await t.run(async (ctx) => {
+        const shop = await ctx.db.get(shopId);
+        return shop
+          ? {
+              name: shop.name,
+              regularClosedDays: shop.regularClosedDays,
+              submissionPattern: shop.submissionPattern,
+            }
+          : null;
+      });
+      expect(settings).toEqual({
+        name: "提出方法店舗",
+        regularClosedDays: ["sun", "thu"],
+        submissionPattern: {
+          kind: "shiftType",
+          options: [
+            { id: "morning", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 },
+            { id: "late", name: "遅番", startTime: "15:00", endTime: "23:00", sortOrder: 1 },
+          ],
+        },
+      });
+    });
+
+    it("定休日だけを曜日順に更新する", async () => {
+      const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "partial_closed_days",
+          shopName: "定休日店舗",
+          plan: "pro",
+        });
+        await ctx.db.patch(seeded.shopId, { submissionPattern: { kind: "dateOnly" } });
+        return seeded.shopId;
+      });
+
+      await t.withIdentity({ subject: "partial_closed_days" }).mutation(api.shop.mutations.updateShopSetting, {
+        shopId,
+        change: { kind: "regularClosedDays", regularClosedDays: ["fri", "mon", "mon"] },
+      });
+
+      const settings = await t.run(async (ctx) => {
+        const shop = await ctx.db.get(shopId);
+        return shop
+          ? {
+              name: shop.name,
+              regularClosedDays: shop.regularClosedDays,
+              submissionPattern: shop.submissionPattern,
+            }
+          : null;
+      });
+      expect(settings).toEqual({
+        name: "定休日店舗",
+        regularClosedDays: ["mon", "fri"],
+        submissionPattern: { kind: "dateOnly" },
+      });
+    });
+
+    it("同じ事業者の別店舗を明示shopIdで更新する", async () => {
+      const t = convexTest(schema, modules);
+      const { baseShopId, targetShopId } = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "partial_explicit_target",
+          shopName: "基準店舗",
+          plan: "pro",
+        });
+        const targetShopId = await ctx.db.insert("shops", {
+          organizationId: seeded.organizationId,
+          operatingStatus: "active",
+          name: "更新対象店舗",
+          submissionPattern: { kind: "dateOnly" },
+          regularClosedDays: ["sun"],
+          isDeleted: false,
+        });
+        return { baseShopId: seeded.shopId, targetShopId };
+      });
+
+      await t.withIdentity({ subject: "partial_explicit_target" }).mutation(api.shop.mutations.updateShopSetting, {
+        shopId: targetShopId,
+        change: { kind: "shopName", shopName: "更新後の対象店舗" },
+      });
+
+      const names = await t.run(async (ctx) => ({
+        base: (await ctx.db.get(baseShopId))?.name,
+        target: (await ctx.db.get(targetShopId))?.name,
+      }));
+      expect(names).toEqual({ base: "基準店舗", target: "更新後の対象店舗" });
+    });
+
+    it("shopIdを省略した場合はどの店舗も更新しない", async () => {
+      const t = convexTest(schema, modules);
+      const { baseShopId, otherShopId } = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "partial_missing_target",
+          shopName: "先頭店舗",
+          plan: "pro",
+        });
+        const otherShopId = await ctx.db.insert("shops", {
+          organizationId: seeded.organizationId,
+          operatingStatus: "active",
+          name: "2店舗目",
+          submissionPattern: { kind: "dateOnly" },
+          regularClosedDays: [],
+          isDeleted: false,
+        });
+        return { baseShopId: seeded.shopId, otherShopId };
+      });
+
+      await expect(
+        t.withIdentity({ subject: "partial_missing_target" }).mutation(
+          api.shop.mutations.updateShopSetting,
+          // Runtime validatorもshopIdを必須にしていることを確認するため、意図的に型境界を越える。
+          { change: { kind: "shopName", shopName: "不正更新" } } as never,
+        ),
+      ).rejects.toThrow();
+
+      const names = await t.run(async (ctx) => ({
+        base: (await ctx.db.get(baseShopId))?.name,
+        other: (await ctx.db.get(otherShopId))?.name,
+      }));
+      expect(names).toEqual({ base: "先頭店舗", other: "2店舗目" });
+    });
+
+    it("未認証では更新できない", async () => {
+      const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => seedShop(ctx, "未認証店舗"));
+
+      await expect(
+        t.mutation(api.shop.mutations.updateShopSetting, {
+          shopId,
+          change: { kind: "shopName", shopName: "不正更新" },
+        }),
+      ).rejects.toThrow();
+      await expect(t.run(async (ctx) => (await ctx.db.get(shopId))?.name)).resolves.toBe("未認証店舗");
+    });
+
+    it("別事業者の店舗は Not found で更新できない", async () => {
+      const t = convexTest(schema, modules);
+      const otherShopId = await t.run(async (ctx) => {
+        await seedOrganizationManagerShop(ctx, { subject: "partial_idor_actor", plan: "pro" });
+        const other = await seedOrganizationManagerShop(ctx, {
+          subject: "partial_idor_other",
+          shopName: "別事業者店舗",
+          plan: "pro",
+        });
+        return other.shopId;
+      });
+
+      await expect(
+        t.withIdentity({ subject: "partial_idor_actor" }).mutation(api.shop.mutations.updateShopSetting, {
+          shopId: otherShopId,
+          change: { kind: "shopName", shopName: "不正更新" },
+        }),
+      ).rejects.toThrow("Not found");
+      await expect(t.run(async (ctx) => (await ctx.db.get(otherShopId))?.name)).resolves.toBe("別事業者店舗");
+    });
+
+    it("閲覧のみの管理者は更新できない", async () => {
+      const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "partial_read_only",
+          shopName: "閲覧専用店舗",
+          plan: "pro",
+        });
+        await ctx.db.patch(seeded.memberId, { status: "readOnly" });
+        return seeded.shopId;
+      });
+
+      await expect(
+        t.withIdentity({ subject: "partial_read_only" }).mutation(api.shop.mutations.updateShopSetting, {
+          shopId,
+          change: { kind: "shopName", shopName: "不正更新" },
+        }),
+      ).rejects.toThrow("Not found");
+      await expect(t.run(async (ctx) => (await ctx.db.get(shopId))?.name)).resolves.toBe("閲覧専用店舗");
+    });
+
+    it("不正な希望提出方法は既存schemaで拒否し、店舗を更新しない", async () => {
+      const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "partial_invalid_pattern",
+          shopName: "入力検証店舗",
+          plan: "pro",
+        });
+        return seeded.shopId;
+      });
+
+      await expect(
+        t.withIdentity({ subject: "partial_invalid_pattern" }).mutation(api.shop.mutations.updateShopSetting, {
+          shopId,
+          change: {
+            kind: "submissionPattern",
+            submissionPattern: { kind: "time", startTime: "22:00", endTime: "21:00" },
+          },
+        }),
+      ).rejects.toThrow(ConvexError);
+      await expect(t.run(async (ctx) => (await ctx.db.get(shopId))?.submissionPattern)).resolves.toEqual({
+        kind: "time",
+        startTime: "09:00",
+        endTime: "22:00",
+      });
+    });
+  });
+
   describe("deleteShop", () => {
     // バックグラウンドの cleanupDeletedShop は runAfter(0) で自己再スケジュールするため、
     // フェイクタイマー + finishAllScheduledFunctions で完了まで進める。

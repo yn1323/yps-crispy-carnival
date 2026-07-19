@@ -103,7 +103,7 @@ export function OrganizationSettings({
             void navigate({
               to: "/shops/$shopId",
               params: { shopId },
-              search: { shop: context.selectedShopId, tab: "information" },
+              search: { shop: context.selectedShopId },
             }),
           onManagePlan: billingSettings.managePlan,
           onUpdatePaymentMethod: billingSettings.updatePaymentMethod,

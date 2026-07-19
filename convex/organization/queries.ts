@@ -33,6 +33,7 @@ const organizationPersonViewValidator = v.object({
   isLineConnected: v.boolean(),
   hasManagerInvitation: v.boolean(),
   shopNames: v.array(v.string()),
+  shopIds: v.array(v.id("shops")),
   canRemoveManagerRole: v.boolean(),
   managerRoleRemovalDisabledReason: v.optional(v.string()),
   canRemove: v.boolean(),
@@ -186,6 +187,7 @@ function legacyMigrationPendingSettings(user: Doc<"users">, shop: Doc<"shops">) 
         isLineConnected: false,
         hasManagerInvitation: false,
         shopNames: [],
+        shopIds: [],
         canRemoveManagerRole: false,
         managerRoleRemovalDisabledReason: migrationReason,
         canRemove: false,
@@ -677,13 +679,17 @@ export const getSettings = managerQuery({
           isRestrictedRecovery,
           isLastRecoveryManager,
         });
-        const shopNames = staffRows
+        const assignedShops = staffRows
           .flatMap((staff) => {
             const shop = shopById.get(staff.shopId);
-            return shop ? [shop.name] : [];
+            return shop ? [shop] : [];
           })
-          .filter((name, index, names) => names.indexOf(name) === index)
-          .sort((a, b) => a.localeCompare(b, "ja"));
+          .filter((shop, index, assignedShops) => assignedShops.findIndex(({ _id }) => _id === shop._id) === index)
+          .sort((a, b) => a.name.localeCompare(b.name, "ja") || String(a._id).localeCompare(String(b._id)));
+        const shopNames = assignedShops
+          .map((shop) => shop.name)
+          .filter((name, index, names) => names.indexOf(name) === index);
+        const shopIds = assignedShops.map((shop) => shop._id);
         return {
           id: person._id,
           name: person.name,
@@ -693,6 +699,7 @@ export const getSettings = managerQuery({
           isLineConnected,
           hasManagerInvitation,
           shopNames,
+          shopIds,
           ...capabilities,
         };
       })

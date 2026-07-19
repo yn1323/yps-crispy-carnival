@@ -22,6 +22,7 @@ type Props = {
   selectedShopId?: string;
   defaultTab?: UserDetailTab;
   returnTo?: UserDetailReturnTo;
+  returnShopId?: string;
   visibleUserCount?: number;
 };
 
@@ -30,12 +31,19 @@ export function UserDetailPage({
   selectedShopId,
   defaultTab = "notification",
   returnTo = "dashboard",
+  returnShopId,
   visibleUserCount = DEFAULT_USER_LIST_COUNT,
 }: Props) {
   // query内の判定時刻を購読中に動かさず、同じ画面表示では同じcapability結果を使う。
   const [queryNow] = useState(() => Date.now());
   const data = useShopQuery(api.organization.userDetailQueries.getUserDetail, { personId, now: queryNow });
-  const backDestination = getUserDetailBackDestination(returnTo, selectedShopId ?? null, visibleUserCount, personId);
+  const backDestination = getUserDetailBackDestination(
+    returnTo,
+    selectedShopId ?? null,
+    visibleUserCount,
+    personId,
+    returnShopId,
+  );
 
   return (
     <UserDetailPageShell>
@@ -52,11 +60,19 @@ export function UserDetailPage({
             md: `calc(100dvh - ${HEADER_HEIGHT.md} - 64px)`,
           }}
           action={
-            <Button asChild colorPalette="teal">
-              <RouterLink to={backDestination.to} search={backDestination.search}>
-                {returnTo === "settings" ? "グループ設定へ戻る" : "ダッシュボードへ戻る"}
-              </RouterLink>
-            </Button>
+            backDestination.to === "/shops/$shopId" ? (
+              <Button asChild colorPalette="teal">
+                <RouterLink to="/shops/$shopId" params={backDestination.params} search={backDestination.search}>
+                  店舗詳細へ戻る
+                </RouterLink>
+              </Button>
+            ) : (
+              <Button asChild colorPalette="teal">
+                <RouterLink to={backDestination.to} search={backDestination.search}>
+                  {returnTo === "settings" ? "グループ設定へ戻る" : "ダッシュボードへ戻る"}
+                </RouterLink>
+              </Button>
+            )
           }
         />
       ) : (
@@ -65,6 +81,7 @@ export function UserDetailPage({
           selectedShopId={selectedShopId ?? null}
           activeTab={defaultTab}
           returnTo={returnTo}
+          returnShopId={returnShopId}
           visibleUserCount={visibleUserCount}
         />
       )}

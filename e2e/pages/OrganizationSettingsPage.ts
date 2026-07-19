@@ -175,7 +175,6 @@ export class OrganizationSettingsPage {
 
   async cancelShopDeletion(shopName: string) {
     const detail = await this.openShop(shopName);
-    await detail.getByRole("tab", { name: "設定" }).click();
     await detail.getByRole("button", { name: "削除", exact: true }).click();
     const confirmation = this.page.getByRole("alertdialog", { name: "店舗を削除" });
     await expect(confirmation.getByText(`「${shopName}」を削除しますか？`, { exact: true })).toBeVisible();
@@ -187,7 +186,6 @@ export class OrganizationSettingsPage {
 
   async deleteShop(shopName: string) {
     const detail = await this.openShop(shopName);
-    await detail.getByRole("tab", { name: "設定" }).click();
     await detail.getByRole("button", { name: "削除", exact: true }).click();
     const confirmation = this.page.getByRole("alertdialog", { name: "店舗を削除" });
     await expect(confirmation.getByText(`「${shopName}」を削除しますか？`, { exact: true })).toBeVisible();

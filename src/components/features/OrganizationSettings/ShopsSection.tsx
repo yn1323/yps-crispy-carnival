@@ -1,7 +1,7 @@
 import { Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import { LuPlus, LuStore } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
-import { SettingsDrilldownRow } from "./SettingsDrilldownRow";
+import { DrilldownRow } from "@/src/components/ui/DrilldownRow";
 import type { OrganizationShopView } from "./types";
 
 type Props = {
@@ -59,7 +59,7 @@ export const ShopsSection = ({ shops, canAddShop, addShopDisabledReason, onAddSh
 
 function ShopRow({ shop, onOpenShop }: { shop: OrganizationShopView; onOpenShop: (shopId: string) => void }) {
   return (
-    <SettingsDrilldownRow
+    <DrilldownRow
       ariaLabel={`${shop.name}の店舗詳細を開く`}
       title={shop.name}
       onClick={() => onOpenShop(shop.id)}

@@ -4,9 +4,25 @@ import { internalMutation } from "../_generated/server";
 import { managerMutation } from "../_lib/functions";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
 import { ensureDeletionCleanupJob } from "../deletionCleanup/service";
-import { updateShopSettingsSchema } from "./schemas";
+import { updateShopSettingSchema, updateShopSettingsSchema } from "./schemas";
 
 const WEEKDAY_ORDER = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+const regularClosedDaysValidator = v.array(
+  v.union(
+    v.literal("sun"),
+    v.literal("mon"),
+    v.literal("tue"),
+    v.literal("wed"),
+    v.literal("thu"),
+    v.literal("fri"),
+    v.literal("sat"),
+  ),
+);
+const updateShopSettingValidator = v.union(
+  v.object({ kind: v.literal("shopName"), shopName: v.string() }),
+  v.object({ kind: v.literal("submissionPattern"), submissionPattern: submissionPatternValidator }),
+  v.object({ kind: v.literal("regularClosedDays"), regularClosedDays: regularClosedDaysValidator }),
+);
 
 // 旧deploymentのscheduled functionが持つ引数をdeploy互換で受ける。
 // 進捗は新しい永続jobへ移すため、phase/cursor自体は使用しない。
@@ -25,17 +41,7 @@ const legacyShopCleanupPhaseValidator = v.union(
 export const updateShopSettings = managerMutation({
   args: {
     shopName: v.string(),
-    regularClosedDays: v.array(
-      v.union(
-        v.literal("sun"),
-        v.literal("mon"),
-        v.literal("tue"),
-        v.literal("wed"),
-        v.literal("thu"),
-        v.literal("fri"),
-        v.literal("sat"),
-      ),
-    ),
+    regularClosedDays: regularClosedDaysValidator,
     submissionPattern: submissionPatternValidator,
   },
   returns: v.null(),
@@ -51,6 +57,37 @@ export const updateShopSettings = managerMutation({
       regularClosedDays: WEEKDAY_ORDER.filter((day) => input.regularClosedDays.includes(day)),
       submissionPattern,
     });
+    return null;
+  },
+});
+
+// 個別保存時に、別項目の最新値を古いフォーム値で巻き戻さないため、選択項目だけを更新する。
+export const updateShopSetting = managerMutation({
+  // managerMutation全体の旧クライアント互換fallbackは、新規APIでは許可しない。
+  args: { shopId: v.id("shops"), change: updateShopSettingValidator },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const parsed = updateShopSettingSchema.safeParse(args.change);
+    if (!parsed.success) {
+      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+    }
+
+    const change = parsed.data;
+    switch (change.kind) {
+      case "shopName":
+        await ctx.db.patch(ctx.shop._id, { name: change.shopName });
+        break;
+      case "submissionPattern":
+        await ctx.db.patch(ctx.shop._id, {
+          submissionPattern: normalizeSubmissionPattern(change.submissionPattern),
+        });
+        break;
+      case "regularClosedDays":
+        await ctx.db.patch(ctx.shop._id, {
+          regularClosedDays: WEEKDAY_ORDER.filter((day) => change.regularClosedDays.includes(day)),
+        });
+        break;
+    }
     return null;
   },
 });

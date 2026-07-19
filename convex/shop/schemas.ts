@@ -120,5 +120,18 @@ export const updateShopSettingsSchema = z
     addShiftSubmissionPatternIssues(data.submissionPattern, ctx);
   });
 
+export const updateShopSettingSchema = z
+  .discriminatedUnion("kind", [
+    z.object({ kind: z.literal("shopName"), shopName: shopNameSchema }),
+    z.object({ kind: z.literal("submissionPattern"), submissionPattern: shiftSubmissionPatternSchema }),
+    z.object({ kind: z.literal("regularClosedDays"), regularClosedDays: regularClosedDaysSchema }),
+  ])
+  .superRefine((data, ctx) => {
+    if (data.kind === "submissionPattern") {
+      addShiftSubmissionPatternIssues(data.submissionPattern, ctx, ["submissionPattern"]);
+    }
+  });
+
 export type RegularClosedDay = z.infer<typeof regularClosedDaySchema>;
+export type UpdateShopSettingInput = z.infer<typeof updateShopSettingSchema>;
 export type UpdateShopSettingsInput = z.infer<typeof updateShopSettingsSchema>;

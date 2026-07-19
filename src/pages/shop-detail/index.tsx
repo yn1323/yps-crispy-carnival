@@ -3,7 +3,7 @@ import { Link as RouterLink } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { LuStore } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
-import { ShopDetail, ShopDetailSkeleton, type ShopDetailTab } from "@/src/components/features/ShopDetail";
+import { ShopDetail, ShopDetailSkeleton } from "@/src/components/features/ShopDetail";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
 import { Button } from "@/src/components/ui/Button";
@@ -14,10 +14,9 @@ import { selectedShopAtom } from "@/src/stores/shop";
 type Props = {
   shopId: string;
   selectedShopId?: string;
-  defaultTab?: ShopDetailTab;
 };
 
-export function ShopDetailPage({ shopId, selectedShopId, defaultTab = "information" }: Props) {
+export function ShopDetailPage({ shopId, selectedShopId }: Props) {
   const settings = useShopQuery(api.organization.queries.getSettings, {});
   const selectedShop = useAtomValue(selectedShopAtom);
   const contextShopId = selectedShopId ?? selectedShop?.shopId ?? null;
@@ -45,7 +44,7 @@ export function ShopDetailPage({ shopId, selectedShopId, defaultTab = "informati
       ) : settings === undefined ? (
         <ShopDetailSkeleton />
       ) : shop ? (
-        <ShopDetail shop={shop} selectedShopId={contextShopId} activeTab={defaultTab} />
+        <ShopDetail shop={shop} people={settings?.people ?? []} selectedShopId={contextShopId} />
       ) : (
         <Empty
           icon={LuStore}

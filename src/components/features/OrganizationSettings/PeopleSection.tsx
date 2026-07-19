@@ -1,10 +1,10 @@
 import { Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import { LuChevronDown, LuMailPlus, LuUsers } from "react-icons/lu";
+import { OrganizationPersonRow } from "@/src/components/shared/OrganizationPersonRow";
 import { Button } from "@/src/components/ui/Button";
 import { useScrollToListItem } from "@/src/hooks/useScrollToListItem";
 import { DEFAULT_USER_LIST_COUNT, USER_LIST_PAGE_SIZE } from "@/src/lib/userListSearch";
-import { OrganizationUserRow } from "./OrganizationUserRow";
 import type { OrganizationPersonView } from "./types";
 
 type Props = {
@@ -97,10 +97,11 @@ export const PeopleSection = ({
         <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.100" overflow="hidden">
           <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
             {visiblePeople.map((person) => (
-              <OrganizationUserRow
+              <OrganizationPersonRow
                 key={person.id}
                 person={person}
-                onOpenUser={() => onOpenUser(person.id, visibleUserCount)}
+                idPrefix="settings-user"
+                onOpen={() => onOpenUser(person.id, visibleUserCount)}
               />
             ))}
           </Stack>

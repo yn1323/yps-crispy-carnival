@@ -39,7 +39,9 @@ import { useShopDeletionController } from "./useShopDeletionController";
 const shop: ShopDetailData = {
   id: "shop-1",
   name: "渋谷店",
-  staffCount: 3,
+  regularClosedDays: ["sun"],
+  submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+  canUpdateSettings: true,
   canDelete: true,
 };
 
@@ -64,9 +66,11 @@ describe("店舗詳細の削除操作", () => {
     );
     const staleDelete = result.current.deleteShop;
 
-    rerender({ currentShop: { ...shop, canDelete: false } });
+    act(() => rerender({ currentShop: { ...shop, canDelete: false } }));
 
-    await expect(staleDelete()).resolves.toBe(false);
+    await act(async () => {
+      await expect(staleDelete()).resolves.toBe(false);
+    });
     expect(mocks.mutation).not.toHaveBeenCalled();
     expect(onDeleted).not.toHaveBeenCalled();
   });

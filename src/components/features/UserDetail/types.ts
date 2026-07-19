@@ -3,7 +3,7 @@ import type { api } from "@/convex/_generated/api";
 
 export type UserDetailTab = "notification" | "line" | "settings";
 
-export type UserDetailReturnTo = "dashboard" | "settings";
+export type UserDetailReturnTo = "dashboard" | "settings" | "shopDetail";
 
 export type UserDetailData = NonNullable<FunctionReturnType<typeof api.organization.userDetailQueries.getUserDetail>>;
 
