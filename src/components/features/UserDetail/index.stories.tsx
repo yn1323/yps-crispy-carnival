@@ -84,6 +84,14 @@ const multipleStoresData: UserDetailData = {
   memberships: [...baseData.memberships, shinjukuMembership],
 };
 
+const lastActiveManagerData: UserDetailData = {
+  ...baseData,
+  canRemoveManagerRole: false,
+  managerRoleRemovalDisabledReason: "最後の有効管理者の管理者権限は外せません。",
+  canRemove: false,
+  removeDisabledReason: "最後の有効管理者は削除できません。",
+};
+
 const notificationItems: StaffNotificationHistoryItem[] = [
   {
     _id: "history-1",
@@ -240,12 +248,8 @@ export const ManagerWithoutStore: Story = {
     activeTab: "settings",
     selectedShopId: null,
     data: {
-      ...baseData,
+      ...lastActiveManagerData,
       memberships: [],
-      canRemoveManagerRole: false,
-      managerRoleRemovalDisabledReason: "最後の有効管理者の管理者権限は外せません。",
-      canRemove: false,
-      removeDisabledReason: "最後の有効管理者は削除できません。",
     },
   },
 };
@@ -323,7 +327,7 @@ export const ArchivedStoreActionsBehavior: Story = {
   args: ArchivedStore.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const removeButton = canvas.getByRole("button", { name: "この店舗から外す" });
+    const removeButton = canvas.getByRole("button", { name: "店舗から外す" });
     await expect(removeButton).toBeDisabled();
     await expect(removeButton).toHaveAccessibleDescription(
       "アーカイブ済みの店舗では、通知送信やスタッフ設定を変更できません。",
@@ -349,7 +353,7 @@ export const FutureAssignmentRemovalBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("checkbox", { name: "シフト対象" })).toBeEnabled();
-    const removeButton = canvas.getByRole("button", { name: "この店舗から外す" });
+    const removeButton = canvas.getByRole("button", { name: "店舗から外す" });
     await expect(removeButton).toBeDisabled();
     await expect(removeButton).toHaveAccessibleDescription(
       "将来のシフト割当を解除してから、この店舗から外してください。",
@@ -598,9 +602,9 @@ export const MembershipRemovalConfirmationBehavior: Story = {
   play: async ({ canvasElement }) => {
     confirmMembershipRemoval.mockClear();
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "この店舗から外す" }));
+    await userEvent.click(canvas.getByRole("button", { name: "店舗から外す" }));
     const dialog = await within(canvasElement.ownerDocument.body).findByRole("alertdialog", { name: "渋谷店から外す" });
-    await userEvent.click(within(dialog).getByRole("button", { name: "この店舗から外す" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "店舗から外す" }));
     await expect(confirmMembershipRemoval).toHaveBeenCalledTimes(1);
   },
 };
@@ -609,7 +613,7 @@ function ManagerRemovalHarness() {
   const [dialog, setDialog] = useState<UserDetailDialog>(null);
   return (
     <UserDetailView
-      data={baseData}
+      data={lastActiveManagerData}
       selectedShopId={shibuyaShopId}
       activeTab="settings"
       notificationHistory={null}
@@ -630,7 +634,9 @@ export const ManagerRoleRemovalConfirmationBehavior: Story = {
   play: async ({ canvasElement }) => {
     confirmManagerRemoval.mockClear();
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "管理者権限を外す" }));
+    const removeButton = canvas.getByRole("button", { name: "管理者権限を外す" });
+    await expect(removeButton).toBeEnabled();
+    await userEvent.click(removeButton);
     const dialog = await within(canvasElement.ownerDocument.body).findByRole("alertdialog", {
       name: "管理者権限を外す",
     });
@@ -643,7 +649,7 @@ function PersonRemovalHarness() {
   const [dialog, setDialog] = useState<UserDetailDialog>(null);
   return (
     <UserDetailView
-      data={baseData}
+      data={lastActiveManagerData}
       selectedShopId={shibuyaShopId}
       activeTab="settings"
       notificationHistory={null}
@@ -664,7 +670,9 @@ export const PersonRemovalConfirmationBehavior: Story = {
   play: async ({ canvasElement }) => {
     confirmPersonRemoval.mockClear();
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "グループから削除" }));
+    const removeButton = canvas.getByRole("button", { name: "グループから削除" });
+    await expect(removeButton).toBeEnabled();
+    await userEvent.click(removeButton);
     const dialog = await within(canvasElement.ownerDocument.body).findByRole("alertdialog", {
       name: "グループからユーザーを削除",
     });

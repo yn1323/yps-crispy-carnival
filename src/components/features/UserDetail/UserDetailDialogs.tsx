@@ -38,7 +38,7 @@ export function UserDetailDialogs({
           }}
           onClose={onCloseMembershipDialog}
           onSubmit={onConfirmRemoveMembership}
-          submitLabel="この店舗から外す"
+          submitLabel="店舗から外す"
           submitColorPalette="red"
           isLoading={isRemovingMembership}
           role="alertdialog"

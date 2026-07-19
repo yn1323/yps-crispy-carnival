@@ -46,19 +46,14 @@ export function StaffNotificationHistoryView({
         <Empty
           icon={LuTriangleAlert}
           title="通知履歴を読み込めませんでした"
+          titleAs="h4"
           description="画面を再読み込みしてください。"
           tone="danger"
           variant="section"
           py={{ base: 8, lg: 10 }}
         />
       ) : items.length === 0 ? (
-        <Empty
-          icon={LuBellOff}
-          title="送った通知はまだありません"
-          description="今後、このスタッフに送った通知がここに表示されます。"
-          variant="section"
-          py={{ base: 8, lg: 10 }}
-        />
+        <Empty icon={LuBellOff} title="通知はありません。" titleAs="h4" variant="section" py={{ base: 8, lg: 10 }} />
       ) : (
         <>
           <DesktopHistoryTable items={items} />

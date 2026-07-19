@@ -59,9 +59,7 @@ export function useUserNotificationActions({
       }
       toaster.create({
         title:
-          result.reason === "rateLimited"
-            ? "少し時間をおいて再送してください"
-            : "送信できる現在の確定シフトがありません",
+          result.reason === "rateLimited" ? "少し時間をおいて再送してください" : "送信できる確定シフトがありません",
         type: result.reason === "rateLimited" ? "error" : "info",
       });
     } catch (error) {

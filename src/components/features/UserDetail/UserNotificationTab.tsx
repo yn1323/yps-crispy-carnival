@@ -49,14 +49,9 @@ export function UserNotificationTab({
     <Stack gap={10}>
       <fieldset disabled={isReadOnly} style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}>
         <Stack gap={6}>
-          <Stack gap={1}>
-            <Text as="h3" fontSize="md" fontWeight="semibold" color="gray.900">
-              {membership.shopName}の通知
-            </Text>
-            <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-              シフト関連の重要な通知を再送します。通常はスタッフ登録時、シフト作成・確定時に自動で送信しています。
-            </Text>
-          </Stack>
+          <Text as="h3" fontSize="md" fontWeight="semibold" color="gray.900">
+            {membership.shopName}の通知
+          </Text>
 
           {membership.excludedFromShift && (
             <Box borderWidth="1px" borderColor="blackAlpha.100" bg="blackAlpha.50" borderRadius="md" p={3}>
@@ -100,7 +95,7 @@ export function UserNotificationTab({
                 title="確定シフト"
                 icon={<LuCalendarCheck aria-hidden />}
                 recruitments={currentRecruitments}
-                emptyText="送信できる現在の確定シフトはありません。"
+                emptyText="送信できる確定シフトはありません。"
                 actionLabel="確定シフトを送る"
                 action={{
                   ...sendCurrentShiftAction,

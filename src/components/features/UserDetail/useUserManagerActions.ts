@@ -20,18 +20,23 @@ export function useUserManagerActions({
   const createManagerInvitation = useMutation(api.organizationInvitation.mutations.createForPerson);
   const removeManagerRole = useMutation(api.organization.mutations.removeManagerRole);
   const removePerson = useMutation(api.organization.mutations.removePersonFromOrganization);
+  const operationShopId =
+    data.shops.find((shop) => shop.shopId === selectedShopId)?.shopId ??
+    data.shops.find((shop) => shop.shopStatus === "active")?.shopId ??
+    data.shops[0]?.shopId ??
+    null;
   const canAssignManager =
     data.canWrite &&
     selectedShopId !== null &&
     data.managerRole === "none" &&
     data.managerInvitationState.kind !== "unavailable" &&
     data.person.email.length > 0;
+  const canAttemptManagerRoleRemoval = data.canWrite || data.canRemoveManagerRole;
+  const canAttemptPersonRemoval = data.canWrite || data.canRemove;
 
   useEffect(() => {
     if (!canAssignManager) setIsAssignmentConfirmationOpen(false);
-    if (dialog?.kind === "removeManagerRole" && !data.canRemoveManagerRole) setDialog(null);
-    if (dialog?.kind === "removePerson" && !data.canRemove) setDialog(null);
-  }, [canAssignManager, data.canRemove, data.canRemoveManagerRole, dialog?.kind]);
+  }, [canAssignManager]);
 
   const { run: assignManager, isRunning: isAssigningManager } = useSingleFlight(async (): Promise<boolean> => {
     if (!canAssignManager || !selectedShopId) return false;
@@ -55,13 +60,12 @@ export function useUserManagerActions({
   });
 
   const { run: confirmRemoval, isRunning: isRemoving } = useSingleFlight(async () => {
-    if (!selectedShopId || !dialog || dialog.kind === "removeMembership") return;
+    if (!operationShopId || !dialog || dialog.kind === "removeMembership") return;
     const requestId = crypto.randomUUID();
-    const shopId = selectedShopId as Id<"shops">;
+    const shopId = operationShopId as Id<"shops">;
 
     try {
       if (dialog.kind === "removeManagerRole") {
-        if (!data.canRemoveManagerRole) return;
         await removeManagerRole({ shopId, personId: data.person.id, requestId });
         showSuccessToast({
           title: "管理者権限を外しました",
@@ -75,7 +79,6 @@ export function useUserManagerActions({
         return;
       }
 
-      if (!data.canRemove) return;
       await removePerson({ shopId, personId: data.person.id, requestId });
       setDialog(null);
       showSuccessToast({
@@ -99,10 +102,10 @@ export function useUserManagerActions({
     onCancelManagerAssignment: () => setIsAssignmentConfirmationOpen(false),
     onAssignManager: assignManager,
     onRequestRemoveManagerRole: () => {
-      if (data.canRemoveManagerRole) setDialog({ kind: "removeManagerRole" });
+      if (operationShopId && canAttemptManagerRoleRemoval) setDialog({ kind: "removeManagerRole" });
     },
     onRequestRemovePerson: () => {
-      if (data.canRemove) setDialog({ kind: "removePerson" });
+      if (operationShopId && canAttemptPersonRemoval) setDialog({ kind: "removePerson" });
     },
     onConfirmRemoval: confirmRemoval,
     onCloseDialog: () => setDialog(null),

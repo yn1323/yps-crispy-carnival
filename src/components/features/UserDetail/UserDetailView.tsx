@@ -1,4 +1,4 @@
-import { Alert, Badge, Box, HStack, Icon, Menu, Portal, Stack, Tabs, Text } from "@chakra-ui/react";
+import { Alert, Badge, Box, Heading, HStack, Icon, Menu, Portal, Stack, Tabs, Text } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { LuCheck, LuChevronDown, LuChevronLeft } from "react-icons/lu";
 import type { PersonProfileFormData } from "@/src/components/shared/PersonProfileForm";
@@ -9,6 +9,7 @@ import { UserInformationTab } from "./UserInformationTab";
 import { UserLineTab } from "./UserLineTab";
 import { UserNotificationTab } from "./UserNotificationTab";
 import { UserGroupRemovalSection, UserManagerSettings, UserSettingsTab } from "./UserSettingsTab";
+import { UserShopMembershipList } from "./UserShopMembershipList";
 import { UserSummary } from "./UserSummary";
 
 export type UserDetailViewProps = {
@@ -108,16 +109,6 @@ export function UserDetailView({
         </Alert.Root>
       )}
 
-      {selectedShop && selectedShop.shopStatus !== "active" && (
-        <Alert.Root status="warning" borderRadius="xl" alignItems="flex-start">
-          <Alert.Indicator mt={1} />
-          <Alert.Content>
-            <Alert.Title>{selectedShop.shopName}は閲覧のみです</Alert.Title>
-            <Alert.Description>{getShopStatusDescription(selectedShop.shopStatus)}</Alert.Description>
-          </Alert.Content>
-        </Alert.Root>
-      )}
-
       <UserInformationTab
         data={data}
         isReadOnly={!data.canWrite}
@@ -133,6 +124,12 @@ export function UserDetailView({
             onRequestRemoveManagerRole={actions.onRequestRemoveManagerRole}
           />
         }
+        groupRemovalSettings={
+          <UserGroupRemovalSection
+            isDisabled={data.shops.length === 0 || (!data.canWrite && !data.canRemove)}
+            onRequestRemovePerson={actions.onRequestRemovePerson}
+          />
+        }
         onUpdate={actions.onUpdateProfile}
       />
 
@@ -146,118 +143,143 @@ export function UserDetailView({
         >
           店舗設定
         </Text>
-        <UserDetailShopSelector data={data} selectedShopId={selectedShopId} onSelect={actions.onSelectShop} />
+        <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
+          <Stack gap={0}>
+            <Box p={{ base: 4, md: 5 }} borderBottomWidth="1px" borderColor="blackAlpha.100">
+              <Stack gap={4}>
+                <Heading as="h3" fontSize="md" fontWeight="semibold" color="gray.900">
+                  所属店舗
+                </Heading>
+                <UserShopMembershipList data={data} />
+              </Stack>
+            </Box>
+
+            <Box p={{ base: 4, md: 5 }}>
+              <Stack gap={3}>
+                <Heading as="h3" fontSize="md" fontWeight="semibold" color="gray.900">
+                  現在の店舗
+                </Heading>
+                <UserDetailShopSelector data={data} selectedShopId={selectedShopId} onSelect={actions.onSelectShop} />
+                {selectedShop && selectedShop.shopStatus !== "active" && (
+                  <Alert.Root status="warning" borderRadius="lg" alignItems="flex-start">
+                    <Alert.Indicator mt={1} />
+                    <Alert.Content>
+                      <Alert.Title>{selectedShop.shopName}は閲覧のみです</Alert.Title>
+                      <Alert.Description>{getShopStatusDescription(selectedShop.shopStatus)}</Alert.Description>
+                    </Alert.Content>
+                  </Alert.Root>
+                )}
+              </Stack>
+            </Box>
+
+            <Tabs.Root
+              value={activeTab}
+              colorPalette="teal"
+              variant="outline"
+              onValueChange={({ value }) => actions.onTabChange(value as UserDetailTab)}
+            >
+              <Tabs.List overflowX="auto" overflowY="hidden" whiteSpace="nowrap" px={{ base: 3, md: 5 }}>
+                <Tabs.Trigger value="notification" flexShrink={0}>
+                  通知
+                </Tabs.Trigger>
+                <Tabs.Trigger value="line" flexShrink={0}>
+                  LINE連携
+                </Tabs.Trigger>
+                <Tabs.Trigger value="settings" flexShrink={0}>
+                  店舗設定
+                </Tabs.Trigger>
+              </Tabs.List>
+
+              <Box p={{ base: 4, md: 6 }}>
+                <Tabs.Content value="notification" p={0}>
+                  {!selectedMembership ? (
+                    <UnregisteredStore
+                      data={data}
+                      shopName={selectedShop?.shopName}
+                      isAdding={state.membership.isAdding}
+                      isReadOnly={isStoreReadOnly}
+                      onAdd={actions.onAddMembership}
+                    />
+                  ) : (
+                    <UserNotificationTab
+                      data={data}
+                      membership={selectedMembership}
+                      isReadOnly={isStoreReadOnly}
+                      isLoading={state.notification.isLoading}
+                      openRecruitments={state.notification.openRecruitments}
+                      currentRecruitments={state.notification.currentRecruitments}
+                      notificationHistory={notificationHistory}
+                      sendRecruitmentsAction={{
+                        isDisabled:
+                          isStoreReadOnly ||
+                          state.notification.isSendingRecruitments ||
+                          state.notification.isSendingCurrentShift,
+                        isLoading: state.notification.isSendingRecruitments,
+                        onAction: actions.onSendRecruitments,
+                      }}
+                      sendCurrentShiftAction={{
+                        isDisabled:
+                          isStoreReadOnly ||
+                          state.notification.isSendingRecruitments ||
+                          state.notification.isSendingCurrentShift,
+                        isLoading: state.notification.isSendingCurrentShift,
+                        onAction: actions.onSendCurrentShift,
+                      }}
+                      onSelectShop={actions.onSelectShop}
+                    />
+                  )}
+                </Tabs.Content>
+
+                <Tabs.Content value="line" p={0}>
+                  {!selectedMembership ? (
+                    <UnregisteredStore
+                      data={data}
+                      shopName={selectedShop?.shopName}
+                      isAdding={state.membership.isAdding}
+                      isReadOnly={isStoreReadOnly}
+                      onAdd={actions.onAddMembership}
+                    />
+                  ) : (
+                    <UserLineTab
+                      data={data}
+                      membership={selectedMembership}
+                      isReadOnly={isStoreReadOnly}
+                      authorizeUrl={state.line.authorizeUrl}
+                      showQr={state.line.showQr}
+                      isQrLoading={state.line.isQrLoading}
+                      isSendingInvite={state.line.isSendingInvite}
+                      onShowQr={actions.onShowLineQr}
+                      onSendInvite={actions.onSendLineInvite}
+                      onSelectShop={actions.onSelectShop}
+                    />
+                  )}
+                </Tabs.Content>
+
+                <Tabs.Content value="settings" p={0}>
+                  {!selectedMembership ? (
+                    <UnregisteredStore
+                      data={data}
+                      shopName={selectedShop?.shopName}
+                      isAdding={state.membership.isAdding}
+                      isReadOnly={isStoreReadOnly}
+                      onAdd={actions.onAddMembership}
+                    />
+                  ) : (
+                    <UserSettingsTab
+                      membership={selectedMembership}
+                      isStoreReadOnly={isStoreReadOnly}
+                      storeDisabledReason={storeDisabledReason}
+                      isChangingShiftTarget={state.membership.isChangingShiftTarget}
+                      onChangeShiftTarget={actions.onChangeShiftTarget}
+                      onRequestRemoveMembership={actions.onRequestRemoveMembership}
+                    />
+                  )}
+                </Tabs.Content>
+              </Box>
+            </Tabs.Root>
+          </Stack>
+        </Box>
       </Stack>
-
-      <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
-        <Tabs.Root
-          value={activeTab}
-          colorPalette="teal"
-          variant="outline"
-          onValueChange={({ value }) => actions.onTabChange(value as UserDetailTab)}
-        >
-          <Tabs.List overflowX="auto" overflowY="hidden" whiteSpace="nowrap" px={{ base: 3, md: 5 }}>
-            <Tabs.Trigger value="notification" flexShrink={0}>
-              通知
-            </Tabs.Trigger>
-            <Tabs.Trigger value="line" flexShrink={0}>
-              LINE連携
-            </Tabs.Trigger>
-            <Tabs.Trigger value="settings" flexShrink={0}>
-              店舗設定
-            </Tabs.Trigger>
-          </Tabs.List>
-
-          <Box p={{ base: 4, md: 6 }}>
-            <Tabs.Content value="notification" p={0}>
-              {!selectedMembership ? (
-                <UnregisteredStore
-                  data={data}
-                  shopName={selectedShop?.shopName}
-                  isAdding={state.membership.isAdding}
-                  isReadOnly={isStoreReadOnly}
-                  onAdd={actions.onAddMembership}
-                />
-              ) : (
-                <UserNotificationTab
-                  data={data}
-                  membership={selectedMembership}
-                  isReadOnly={isStoreReadOnly}
-                  isLoading={state.notification.isLoading}
-                  openRecruitments={state.notification.openRecruitments}
-                  currentRecruitments={state.notification.currentRecruitments}
-                  notificationHistory={notificationHistory}
-                  sendRecruitmentsAction={{
-                    isDisabled:
-                      isStoreReadOnly ||
-                      state.notification.isSendingRecruitments ||
-                      state.notification.isSendingCurrentShift,
-                    isLoading: state.notification.isSendingRecruitments,
-                    onAction: actions.onSendRecruitments,
-                  }}
-                  sendCurrentShiftAction={{
-                    isDisabled:
-                      isStoreReadOnly ||
-                      state.notification.isSendingRecruitments ||
-                      state.notification.isSendingCurrentShift,
-                    isLoading: state.notification.isSendingCurrentShift,
-                    onAction: actions.onSendCurrentShift,
-                  }}
-                  onSelectShop={actions.onSelectShop}
-                />
-              )}
-            </Tabs.Content>
-
-            <Tabs.Content value="line" p={0}>
-              {!selectedMembership ? (
-                <UnregisteredStore
-                  data={data}
-                  shopName={selectedShop?.shopName}
-                  isAdding={state.membership.isAdding}
-                  isReadOnly={isStoreReadOnly}
-                  onAdd={actions.onAddMembership}
-                />
-              ) : (
-                <UserLineTab
-                  data={data}
-                  membership={selectedMembership}
-                  isReadOnly={isStoreReadOnly}
-                  authorizeUrl={state.line.authorizeUrl}
-                  showQr={state.line.showQr}
-                  isQrLoading={state.line.isQrLoading}
-                  isSendingInvite={state.line.isSendingInvite}
-                  onShowQr={actions.onShowLineQr}
-                  onSendInvite={actions.onSendLineInvite}
-                  onSelectShop={actions.onSelectShop}
-                />
-              )}
-            </Tabs.Content>
-
-            <Tabs.Content value="settings" p={0}>
-              {!selectedMembership ? (
-                <UnregisteredStore
-                  data={data}
-                  shopName={selectedShop?.shopName}
-                  isAdding={state.membership.isAdding}
-                  isReadOnly={isStoreReadOnly}
-                  onAdd={actions.onAddMembership}
-                />
-              ) : (
-                <UserSettingsTab
-                  membership={selectedMembership}
-                  isStoreReadOnly={isStoreReadOnly}
-                  storeDisabledReason={storeDisabledReason}
-                  isChangingShiftTarget={state.membership.isChangingShiftTarget}
-                  onChangeShiftTarget={actions.onChangeShiftTarget}
-                  onRequestRemoveMembership={actions.onRequestRemoveMembership}
-                />
-              )}
-            </Tabs.Content>
-          </Box>
-        </Tabs.Root>
-      </Box>
-
-      <UserGroupRemovalSection data={data} onRequestRemovePerson={actions.onRequestRemovePerson} />
 
       <UserDetailDialogs
         data={data}

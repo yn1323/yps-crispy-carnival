@@ -64,9 +64,11 @@ export function UserLineTab({
             <LuMessageCircle aria-hidden />
             <Text fontWeight="semibold">{lineStatus.label}</Text>
           </HStack>
-          <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            {lineStatus.description}
-          </Text>
+          {lineStatus.description && (
+            <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+              {lineStatus.description}
+            </Text>
+          )}
         </Stack>
       </Box>
 
@@ -147,7 +149,7 @@ function getLineStatus(membership: UserDetailMembership) {
   if (!membership.line.isLinked) {
     return {
       label: "LINE未連携",
-      description: "この店舗からの通知は、メールアドレスが登録されていればメールで送ります。",
+      description: undefined,
       isActive: false,
     };
   }

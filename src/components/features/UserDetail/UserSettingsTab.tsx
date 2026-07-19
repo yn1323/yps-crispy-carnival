@@ -65,24 +65,36 @@ export function UserSettingsTab({
               </Text>
             </Stack>
 
-            <Stack gap={2} align="flex-end">
-              <Button
-                colorPalette="red"
-                variant="outline"
-                gap={1.5}
-                disabled={membershipRemovalDisabled}
-                aria-describedby={membershipRemovalDisabledReason ? storeActionDisabledReasonId : undefined}
-                onClick={onRequestRemoveMembership}
-              >
-                <LuTrash2 aria-hidden />
-                この店舗から外す
-              </Button>
-              {membershipRemovalDisabledReason && (
-                <Text id={storeActionDisabledReasonId} fontSize="xs" color="orange.700" textAlign="right">
-                  {membershipRemovalDisabledReason}
-                </Text>
-              )}
-            </Stack>
+            <Box borderTopWidth="1px" borderColor="blackAlpha.100" pt={6}>
+              <Stack gap={3}>
+                <Stack gap={1}>
+                  <Heading as="h4" fontSize="sm" fontWeight="semibold" color="gray.900">
+                    店舗から削除
+                  </Heading>
+                  <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+                    この店舗のスタッフ所属を削除します。
+                  </Text>
+                </Stack>
+                <Stack gap={2} align="flex-end">
+                  <Button
+                    colorPalette="red"
+                    variant="outline"
+                    gap={1.5}
+                    disabled={membershipRemovalDisabled}
+                    aria-describedby={membershipRemovalDisabledReason ? storeActionDisabledReasonId : undefined}
+                    onClick={onRequestRemoveMembership}
+                  >
+                    <LuTrash2 aria-hidden />
+                    店舗から外す
+                  </Button>
+                  {membershipRemovalDisabledReason && (
+                    <Text id={storeActionDisabledReasonId} fontSize="xs" color="orange.700" textAlign="right">
+                      {membershipRemovalDisabledReason}
+                    </Text>
+                  )}
+                </Stack>
+              </Stack>
+            </Box>
           </Stack>
         ) : (
           <Text fontSize="sm" color="fg.muted">
@@ -115,10 +127,10 @@ export function UserManagerSettings({
     <Stack gap={4}>
       <Stack gap={1}>
         <Heading as="h3" fontSize="md" fontWeight="semibold" color="gray.900">
-          グループの管理権限
+          管理者権限
         </Heading>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          このグループの設定や店舗情報を管理できる権限です。
+          シフト調整、店舗追加編集、支払いが可能になります。
         </Text>
       </Stack>
       <ManagerRoleAction
@@ -137,48 +149,28 @@ export function UserManagerSettings({
 }
 
 export function UserGroupRemovalSection({
-  data,
+  isDisabled,
   onRequestRemovePerson,
 }: {
-  data: UserDetailData;
+  isDisabled: boolean;
   onRequestRemovePerson: () => void;
 }) {
-  const disabledReasonId = `user-detail-person-removal-disabled-${data.person.id}`;
   return (
-    <Stack gap={3}>
-      <Heading
-        as="h2"
-        fontSize={{ base: "lg", lg: "xl" }}
-        lineHeight={{ base: "1.75rem", lg: "1.875rem" }}
-        fontWeight="bold"
-        color="red.700"
-      >
-        グループから削除
-      </Heading>
-      <Box borderWidth="1px" borderColor="red.100" borderRadius="lg" bg="white" p={{ base: 4, md: 5 }}>
-        <Stack gap={4}>
-          <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            すべての店舗所属と管理権限を終了します。過去のシフト履歴は保持します。
-          </Text>
-          <Stack gap={2} align="flex-end">
-            <Button
-              colorPalette="red"
-              gap={1.5}
-              disabled={!data.canRemove}
-              aria-describedby={!data.canRemove && data.removeDisabledReason ? disabledReasonId : undefined}
-              onClick={onRequestRemovePerson}
-            >
-              <LuTrash2 aria-hidden />
-              グループから削除
-            </Button>
-            {!data.canRemove && data.removeDisabledReason && (
-              <Text id={disabledReasonId} fontSize="xs" color="orange.700" textAlign="right">
-                {data.removeDisabledReason}
-              </Text>
-            )}
-          </Stack>
-        </Stack>
-      </Box>
+    <Stack gap={4}>
+      <Stack gap={1}>
+        <Heading as="h3" fontSize="md" fontWeight="semibold" color="red.700">
+          グループから削除
+        </Heading>
+        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+          全店舗からこのユーザーを削除します。
+        </Text>
+      </Stack>
+      <Flex justify="flex-end">
+        <Button colorPalette="red" gap={1.5} disabled={isDisabled} onClick={onRequestRemovePerson}>
+          <LuTrash2 aria-hidden />
+          グループから削除
+        </Button>
+      </Flex>
     </Stack>
   );
 }
@@ -200,7 +192,6 @@ function ManagerRoleAction({
   onAssignManager: () => void | Promise<void>;
   onRequestRemoveManagerRole: () => void;
 }) {
-  const managerRemovalDisabledReasonId = `user-detail-manager-removal-disabled-${data.person.id}`;
   const managerInvitationDisabledReasonId = `user-detail-manager-invitation-disabled-${data.person.id}`;
 
   if (data.managerRole === "active") {
@@ -209,22 +200,12 @@ function ManagerRoleAction({
         <Button
           variant="outline"
           gap={1.5}
-          disabled={!data.canRemoveManagerRole}
-          aria-describedby={
-            !data.canRemoveManagerRole && data.managerRoleRemovalDisabledReason
-              ? managerRemovalDisabledReasonId
-              : undefined
-          }
+          disabled={data.shops.length === 0 || (!data.canWrite && !data.canRemoveManagerRole)}
           onClick={onRequestRemoveManagerRole}
         >
           <LuShieldMinus aria-hidden />
           管理者権限を外す
         </Button>
-        {!data.canRemoveManagerRole && data.managerRoleRemovalDisabledReason && (
-          <Text id={managerRemovalDisabledReasonId} fontSize="xs" color="orange.700" textAlign="right">
-            {data.managerRoleRemovalDisabledReason}
-          </Text>
-        )}
       </Stack>
     );
   }
@@ -306,18 +287,16 @@ function SettingsSection({
   children: React.ReactNode;
 }) {
   return (
-    <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="lg" bg="white" p={{ base: 4, md: 5 }}>
-      <Stack gap={4}>
-        <Stack gap={1}>
-          <Heading as="h3" fontSize="md" fontWeight="semibold" color="gray.900">
-            {title}
-          </Heading>
-          <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            {description}
-          </Text>
-        </Stack>
-        {children}
+    <Stack gap={4}>
+      <Stack gap={1}>
+        <Heading as="h3" fontSize="md" fontWeight="semibold" color="gray.900">
+          {title}
+        </Heading>
+        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+          {description}
+        </Text>
       </Stack>
-    </Box>
+      {children}
+    </Stack>
   );
 }
