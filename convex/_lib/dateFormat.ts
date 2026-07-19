@@ -122,12 +122,6 @@ export function formatDateTimeLabel(ms: number): string {
   return `${month}/${day}(${dayName}) ${hours}:${minutes}`;
 }
 
-/** Unix ms → "YYYY年M月D日"（JST） */
-export function formatDateJa(ms: number): string {
-  const jst = new Date(ms + JST_OFFSET_MS);
-  return `${jst.getUTCFullYear()}年${jst.getUTCMonth() + 1}月${jst.getUTCDate()}日`;
-}
-
 export function formatDateTimeJa(ms: number): string {
   return new Intl.DateTimeFormat("ja-JP", {
     year: "numeric",

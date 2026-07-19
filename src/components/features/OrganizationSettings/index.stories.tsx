@@ -398,7 +398,7 @@ export const Trial: Story = {
       currentPlan: "trial",
       peopleUsage: { current: 12, max: 30 },
       shopUsage: { current: 3, max: 5 },
-      nextEvent: { label: "無料体験終了", date: "2026年9月1日" },
+      nextEvent: { label: "無料体験終了", date: "2026年9月1日 00:00" },
       paymentMethodLabel: undefined,
       invoices: [],
     }),

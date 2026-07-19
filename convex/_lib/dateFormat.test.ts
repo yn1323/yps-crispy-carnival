@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   addDays,
-  formatDateJa,
   formatDateLabel,
   formatDateTimeLabel,
   formatDeadlineLabel,
@@ -36,10 +35,6 @@ describe("dateFormat", () => {
 
   it("Unix msをJSTの曜日付き日時に変換できる", () => {
     expect(formatDateTimeLabel(new Date("2026-06-01T15:30:00.000Z").getTime())).toBe("6/2(火) 00:30");
-  });
-
-  it("Unix msを時刻なしのJST日付に変換できる", () => {
-    expect(formatDateJa(new Date("2026-08-31T15:00:00.000Z").getTime())).toBe("2026年9月1日");
   });
 
   it("締切日は翌日0時JSTをcutoffにする", () => {

@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
-import { formatDateJa, formatDateTimeJa, todayJST } from "../_lib/dateFormat";
+import { formatDateTimeJa, todayJST } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
 import {
@@ -853,7 +853,7 @@ export const getSettings = managerQuery({
             ...billingCapabilityReasons,
             state: "trial",
             currentPlan: "trial",
-            nextEvent: { label: "無料体験終了", date: formatDateJa(state.trialEndsAt) },
+            nextEvent: { label: "無料体験終了", date: formatDateTimeJa(state.trialEndsAt) },
           };
           break;
         case "initialPaymentPending":
@@ -906,7 +906,7 @@ export const getSettings = managerQuery({
             targetPlan: state.targetPlan,
             nextEvent: {
               label: state.targetPlan === "free" ? "Free適用予定日" : "Pro適用予定日",
-              date: formatDateJa(state.effectiveAt),
+              date: formatDateTimeJa(state.effectiveAt),
             },
           };
           break;
