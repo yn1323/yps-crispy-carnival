@@ -16,6 +16,7 @@
 | [法務同意フロー](features/legal-consent.md) | 管理ユーザー/スタッフ向け利用規約・プライバシーポリシー同意を記録 | 実装済 |
 | [LINE通知連携](features/line-notification.md) | スタッフ向け通知をLINE Push / メールで自動振り分け（設定UIなし） | 実装済 |
 | [通知配送outbox](features/notification-outbox.md) | LINE / メール通知を予約し、少量ずつ配送・再試行するバックエンドキュー | 実装済 |
+| [スタッフ通知履歴](features/notification-history.md) | スタッフごとのメール・LINE通知日時、タイトル、送信・配信状況をスタッフ詳細で確認 | 実装済 |
 | [通知不達Dashboard](features/notification-failure-dashboard.md) | 送信できなかった通知をDashboardで確認し、個別/一斉に再通知を受け付ける導線 | 実装済 |
 | [Dashboardお知らせ](features/dashboard-announcements.md) | 有事のお知らせを全体・グループ・店舗の対象別にDashboard上部へ1件表示 | 実装済 |
 | [グループ課金、複数店舗、複数管理者](features/organization-billing.md) | グループ単位の課金状態、人物、管理者招待、店舗管理、店舗切り替え、移行互換 | ローカル実装済、外部ゲートを除く |
