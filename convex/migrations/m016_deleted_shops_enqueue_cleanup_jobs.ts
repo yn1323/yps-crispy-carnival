@@ -1,7 +1,7 @@
 import { ensureDeletionCleanupJob } from "../deletionCleanup/service";
 import { migrations } from "./index";
 
-/** 既存の削除済み店舗へ、決定的なkeyで主要マスタ置換jobを一件だけ作る。 */
+/** 既存の削除済み店舗へ、決定的なkeyでaccess失効jobを一件だけ作る。 */
 export const migration = migrations.define({
   table: "shops",
   batchSize: 50,

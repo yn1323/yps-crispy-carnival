@@ -92,10 +92,6 @@ vi.mock("@/src/components/features/AccountDeletion", () => ({
   AccountDeletion: () => <div data-testid="account-deletion-entry" />,
 }));
 
-vi.mock("@/src/configs/env", () => ({
-  ACCOUNT_DELETION_ENABLED: false,
-}));
-
 vi.mock("@/src/components/ui/Button", () => ({
   Button: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (
     <button type="button" onClick={onClick}>
@@ -383,7 +379,7 @@ describe("AuthGuard", () => {
 
     expect(screen.getByRole("heading", { name: "アプリ上のアカウントは削除済みです" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "ログアウト" })).not.toBeNull();
-    expect(screen.queryByTestId("account-deletion-entry")).toBeNull();
+    expect(screen.getByTestId("account-deletion-entry")).not.toBeNull();
     expect(screen.queryByText("管理者")).toBeNull();
     expect(screen.queryByText("manager@example.com")).toBeNull();
     expect(screen.queryByTestId("manager-child")).toBeNull();
@@ -406,8 +402,9 @@ describe("AuthGuard", () => {
     );
 
     expect(screen.getByRole("heading", { name: "アカウントの削除を受け付けました" })).not.toBeNull();
-    expect(screen.getByText(/処理の完了まで時間がかかる場合があります/)).not.toBeNull();
+    expect(screen.getByText(/Clerkのログイン情報の削除には時間がかかる場合があります/)).not.toBeNull();
     expect(screen.queryByRole("heading", { name: "アプリ上のアカウントは削除済みです" })).toBeNull();
+    expect(screen.queryByTestId("account-deletion-entry")).toBeNull();
     expect(screen.queryByTestId("manager-child")).toBeNull();
     expect(mocks.useQuery).toHaveBeenCalledWith(mocks.myShopsQuery, "skip");
   });

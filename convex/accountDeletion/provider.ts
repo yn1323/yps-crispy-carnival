@@ -45,18 +45,13 @@ export function createClerkAccountDeletionProvider(config: AccountDeletionConfig
     async assertReady(expectedIssuer) {
       assertLocalConfiguration(config, expectedIssuer);
       const providerClient = getClient();
-      let instance: Awaited<ReturnType<typeof providerClient.instance.get>>;
+      let domains: Awaited<ReturnType<typeof providerClient.domains.list>>;
       try {
-        instance = await withTimeout(providerClient.instance.get());
+        domains = await withTimeout(providerClient.domains.list());
       } catch (error) {
         throw classifyProviderError(error);
       }
-      const parsedKey = parsePublishableKey(config.publishableKey);
-      if (
-        !parsedKey ||
-        instance.id !== config.expectedInstanceId ||
-        instance.environmentType !== parsedKey.instanceType
-      ) {
+      if (!domains.data.some((domain) => normalizeIssuer(domain.frontendApiUrl) === config.expectedIssuer)) {
         throw new AccountDeletionProviderError(false, "provider_instance_mismatch");
       }
     },
@@ -108,7 +103,7 @@ export function classifyProviderError(error: unknown): AccountDeletionProviderEr
 }
 
 function assertLocalConfiguration(config: AccountDeletionConfiguration, expectedIssuer: string) {
-  if (!config.secretKey || !config.publishableKey || !config.expectedInstanceId || !config.expectedIssuer) {
+  if (!config.secretKey || !config.publishableKey || !config.expectedIssuer) {
     throw new AccountDeletionProviderError(false, "provider_configuration_missing");
   }
   const normalizedExpectedIssuer = normalizeIssuer(expectedIssuer);

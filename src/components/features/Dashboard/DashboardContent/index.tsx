@@ -54,6 +54,7 @@ type Props = {
   pendingStaffRequests?: StaffRegistrationRequest[];
   notificationFailures?: DashboardNotificationFailure[];
   isDashboardOnboardingDismissed?: boolean;
+  showAccountDeletion?: boolean;
   announcement?: DashboardAnnouncementData | null;
   operationContextData?: OperationContextData;
 };
@@ -80,6 +81,7 @@ export const DashboardContent = ({
   pendingStaffRequests,
   notificationFailures,
   isDashboardOnboardingDismissed = false,
+  showAccountDeletion = false,
   announcement,
   operationContextData,
 }: Props) => {
@@ -112,7 +114,13 @@ export const DashboardContent = ({
     <DashboardAnnouncement announcement={usesInjectedData ? (announcement ?? null) : undefined}>
       {({ content: announcementContent }) => {
         if (!shop) {
-          return <Setup managerProfileDefaults={managerProfileDefaults} announcement={announcementContent} />;
+          return (
+            <Setup
+              managerProfileDefaults={managerProfileDefaults}
+              showAccountDeletion={showAccountDeletion}
+              announcement={announcementContent}
+            />
+          );
         }
 
         return (

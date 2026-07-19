@@ -65,9 +65,5 @@ const config: StorybookConfig = {
 
     return config;
   },
-  env: (config) => ({
-    ...config,
-    VITE_ACCOUNT_DELETION_ENABLED: "true",
-  }),
 };
 export default config;

@@ -13,10 +13,8 @@ const REQUEST_ID = "718cf80f-d4fb-4a5d-bf20-ad48044f31eb";
 describe("accountDeletion/httpActions", () => {
   beforeEach(() => {
     vi.stubEnv("APP_URL", ORIGIN);
-    vi.stubEnv("ACCOUNT_DELETION_ENABLED", "true");
     vi.stubEnv("CLERK_SECRET_KEY", "sk_test_example");
-    vi.stubEnv("CLERK_PUBLISHABLE_KEY", "pk_test_example");
-    vi.stubEnv("CLERK_EXPECTED_INSTANCE_ID", "ins_test");
+    vi.stubEnv("VITE_CLERK_PUBLISHABLE_KEY", "pk_test_example");
     vi.stubEnv("CLERK_JWT_ISSUER_DOMAIN", "https://issuer.example");
   });
 

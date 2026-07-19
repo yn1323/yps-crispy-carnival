@@ -195,8 +195,8 @@ const schema = defineSchema({
     .index("by_sourceType_and_sourceId_and_code", ["sourceType", "sourceId", "code"])
     .index("by_organizationId_and_resolvedAt", ["organizationId", "resolvedAt"]),
 
-  // 削除受付後の主要マスタ置換とaccess失効を、bounded batchで再開可能に進める。
-  // 元の氏名・メール・名称は保持せず、対象IDと安全な進捗codeだけを保存する。
+  // 削除受付後のaccess失効と通知停止を、bounded batchで再開可能に進める。
+  // 氏名・メール・名称は元の値を保持し、jobには対象IDと安全な進捗codeだけを保存する。
   deletionCleanupJobs: defineTable({
     scope: v.union(v.literal("shop"), v.literal("organization")),
     shopId: v.optional(v.id("shops")),

@@ -1,29 +1,23 @@
 import { env } from "../_generated/server";
 
 export type AccountDeletionConfiguration = {
-  enabled: boolean;
   appOrigin: string | null;
   secretKey: string;
   publishableKey: string;
-  expectedInstanceId: string;
   expectedIssuer: string;
 };
 
 export function getAccountDeletionConfiguration(): AccountDeletionConfiguration {
   return {
-    enabled: (env.ACCOUNT_DELETION_ENABLED ?? "").trim().toLowerCase() === "true",
     appOrigin: parseOrigin(env.APP_URL ?? ""),
     secretKey: (env.CLERK_SECRET_KEY ?? "").trim(),
-    publishableKey: (env.CLERK_PUBLISHABLE_KEY ?? "").trim(),
-    expectedInstanceId: (env.CLERK_EXPECTED_INSTANCE_ID ?? "").trim(),
+    publishableKey: (env.VITE_CLERK_PUBLISHABLE_KEY ?? "").trim(),
     expectedIssuer: normalizeIssuer(env.CLERK_JWT_ISSUER_DOMAIN ?? "") ?? "",
   };
 }
 
 export function hasRequiredAccountDeletionConfiguration(config: AccountDeletionConfiguration): boolean {
-  return Boolean(
-    config.appOrigin && config.secretKey && config.publishableKey && config.expectedInstanceId && config.expectedIssuer,
-  );
+  return Boolean(config.appOrigin && config.secretKey && config.publishableKey && config.expectedIssuer);
 }
 
 function parseOrigin(value: string): string | null {

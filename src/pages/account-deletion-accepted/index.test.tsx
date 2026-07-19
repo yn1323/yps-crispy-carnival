@@ -34,13 +34,9 @@ vi.mock("@/src/components/ui/Empty", () => ({
   ),
 }));
 
-vi.mock("@/src/configs/env", () => ({
-  ACCOUNT_DELETION_ENABLED: false,
-}));
-
 import { AccountDeletionAcceptedPage } from ".";
 
-it("機能フラグが無効でも公開受付ページを表示する", () => {
+it("公開受付ページを表示する", () => {
   render(<AccountDeletionAcceptedPage />);
 
   expect(screen.getByRole("heading", { name: "アカウントの削除を受け付けました" })).not.toBeNull();

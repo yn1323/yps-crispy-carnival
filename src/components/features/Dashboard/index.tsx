@@ -41,6 +41,7 @@ export function Dashboard({
         name: currentUser?.name ?? "",
         email: currentUser?.email ?? "",
       }}
+      showAccountDeletion={currentUser?.isNewUser === false}
     />
   );
 }

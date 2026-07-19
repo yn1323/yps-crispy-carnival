@@ -9,6 +9,7 @@ import {
   SHIFT_TYPE_NAME_MAX_LENGTH,
   SHOP_NAME_MAX_LENGTH,
 } from "../constants";
+import { deletedLineUserId } from "../deletionCleanup/tombstone";
 
 const validArgs = {
   shopName: "新・居酒屋たなか",
@@ -607,15 +608,23 @@ describe("shop/mutations", () => {
       await t.finishAllScheduledFunctions(vi.runAllTimers);
 
       await t.run(async (ctx) => {
-        expect((await ctx.db.get(ids.shopId))?.isDeleted).toBe(true);
-        expect((await ctx.db.get(ids.staffId))?.isDeleted).toBe(true);
+        expect(await ctx.db.get(ids.shopId)).toMatchObject({ isDeleted: true, name: "居酒屋たなか" });
+        expect(await ctx.db.get(ids.staffId)).toMatchObject({
+          isDeleted: true,
+          name: "佐藤",
+          email: "sato@example.com",
+          emailNormalized: "sato@example.com",
+        });
         expect(ids.membershipId && (await ctx.db.get(ids.membershipId))?.isDeleted).toBe(true);
         expect((await ctx.db.get(ids.sessionId))?.revokedAt).toBeTypeOf("number");
         expect((await ctx.db.get(ids.magicLinkId))?.revokedAt).toBeTypeOf("number");
         expect((await ctx.db.get(ids.lineLinkTokenId))?.revokedAt).toBeTypeOf("number");
         const lineAccount = await ctx.db.get(ids.lineAccountId);
-        expect(lineAccount?.isDeleted).toBe(true);
-        expect(lineAccount?.following).toBe(false);
+        expect(lineAccount).toMatchObject({
+          isDeleted: true,
+          following: false,
+          lineUserId: deletedLineUserId(ids.lineAccountId),
+        });
         expect((await ctx.db.get(ids.registrationLinkId))?.revokedAt).toBeTypeOf("number");
       });
     });

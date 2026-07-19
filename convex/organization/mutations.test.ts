@@ -246,9 +246,24 @@ describe("organization person removal", () => {
         .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", ids.userId).eq("isDeleted", false))
         .collect(),
     }));
-    expect(state.staff?.isDeleted).toBe(true);
-    expect(state.otherStaff?.isDeleted).toBe(false);
-    expect(state.person?.status).toBe("active");
+    expect(state.staff).toMatchObject({
+      isDeleted: true,
+      name: "削除対象",
+      email: ids.email,
+      emailNormalized: ids.email,
+    });
+    expect(state.otherStaff).toMatchObject({
+      isDeleted: false,
+      name: "削除対象",
+      email: ids.email,
+      emailNormalized: ids.email,
+    });
+    expect(state.person).toMatchObject({
+      status: "active",
+      name: "削除対象",
+      email: ids.email,
+      emailNormalized: ids.email,
+    });
     expect(state.member?.status).toBe("active");
     expect(state.legacyMemberships).toHaveLength(2);
     expect(state.assignment).not.toBeNull();
@@ -468,9 +483,22 @@ describe("organization person removal", () => {
       unrelatedOutbox: await ctx.db.get(ids.unrelatedOutboxId),
       userOutbox: await ctx.db.get(ids.userOutboxId),
     }));
-    expect(state.person?.status).toBe("removed");
+    expect(state.person).toMatchObject({
+      status: "removed",
+      name: "削除対象",
+      email: ids.email,
+      emailNormalized: ids.email,
+    });
     expect(state.member?.status).toBe("removed");
-    expect(state.staffs.every((staff) => staff?.isDeleted)).toBe(true);
+    expect(state.staffs).toHaveLength(2);
+    for (const staff of state.staffs) {
+      expect(staff).toMatchObject({
+        isDeleted: true,
+        name: "削除対象",
+        email: ids.email,
+        emailNormalized: ids.email,
+      });
+    }
     expect(state.session?.revokedAt).toBe(NOW);
     expect(state.lineAccount).toMatchObject({ isDeleted: true, following: false });
     expect(state.invitation).toMatchObject({ status: "revoked", reservedSeat: false, version: 2 });

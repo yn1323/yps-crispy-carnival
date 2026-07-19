@@ -141,11 +141,12 @@ export function ShopManagementDialog({ dialog, isRunning, onClose, onSubmit }: P
                     </Text>
                     <Stack gap={1.5} fontSize="sm" color="fg.muted" lineHeight="tall">
                       <Text>
-                        店舗とスタッフの基本情報に保存した店舗名、氏名、メールアドレス、LINE
-                        IDを削除済みの値へ置き換えます。
+                        この店舗と所属スタッフは利用できなくなり、この店舗の管理権限、LINE連携、提出・閲覧用リンクを停止します。
                       </Text>
-                      <Text>グループのユーザーと管理者権限は残ります。</Text>
-                      <Text>過去のシフト、登録申請、通知履歴、送信済みメールとLINEは残ります。</Text>
+                      <Text>
+                        店舗名、スタッフの氏名・メールアドレス、過去のシフトなどの履歴は、業務記録として残ります。
+                      </Text>
+                      <Text>グループのユーザーと、ほかの店舗の管理権限は残ります。</Text>
                     </Stack>
                     <HStack gap={2} justify="flex-end" wrap="wrap">
                       <Button

@@ -4,7 +4,6 @@ import { LuUserRoundX } from "react-icons/lu";
 import { AccountDeletion } from "@/src/components/features/AccountDeletion";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
-import { ACCOUNT_DELETION_ENABLED } from "@/src/configs/env";
 
 type Props = {
   accountDeletionRequested?: boolean;
@@ -17,11 +16,13 @@ export function DeletedAccountState({ accountDeletionRequested = false }: Props)
       title={accountDeletionRequested ? "アカウントの削除を受け付けました" : "アプリ上のアカウントは削除済みです"}
       description={
         accountDeletionRequested
-          ? "このログインではシフトリを利用できません。処理の完了まで時間がかかる場合があります。"
-          : "このログインではシフトリのデータを利用できません。"
+          ? "このログインではシフトリを利用できません。Clerkのログイン情報の削除には時間がかかる場合があります。"
+          : "このログインではシフトリのデータを利用できません。Clerkのログイン情報は残っています。"
       }
       secondaryDescription={
-        accountDeletionRequested ? "同じメールアドレスで登録し直しても、削除前のデータは復元されません。" : undefined
+        accountDeletionRequested
+          ? "シフトリ内の氏名、メールアドレス、店舗名、過去の履歴は業務記録として残ります。登録し直しても、新しいアカウントへ自動で紐付けません。"
+          : "シフトリ内の氏名、メールアドレス、店舗名、過去の履歴は業務記録として残ります。ログイン情報も削除する場合は、下からアカウント削除を行ってください。"
       }
       tone="warning"
       minH="100dvh"
@@ -30,7 +31,7 @@ export function DeletedAccountState({ accountDeletionRequested = false }: Props)
           <SignOutButton>
             <Button colorPalette="teal">ログアウト</Button>
           </SignOutButton>
-          {!accountDeletionRequested && ACCOUNT_DELETION_ENABLED ? <AccountDeletion variant="legacy" /> : null}
+          {!accountDeletionRequested ? <AccountDeletion variant="legacy" /> : null}
         </Stack>
       }
     />

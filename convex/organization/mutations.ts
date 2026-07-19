@@ -7,7 +7,6 @@ import { todayJST } from "../_lib/dateFormat";
 import { authenticatedMutation } from "../_lib/functions";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
 import { ensureDeletionCleanupJob } from "../deletionCleanup/service";
-import { DELETED_SHOP_NAME, organizationTombstone } from "../deletionCleanup/tombstone";
 import { cancelOrganizationRecipientBusinessNotifications } from "../notificationOutbox/mutations";
 import { scheduleOrganizationBillingStateDeadline } from "../organizationBilling/deadline";
 import { getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
@@ -546,7 +545,7 @@ export const deleteShop = authenticatedMutation({
     }
 
     const now = Date.now();
-    await ctx.db.patch(actor.shop._id, { isDeleted: true, name: DELETED_SHOP_NAME });
+    await ctx.db.patch(actor.shop._id, { isDeleted: true });
     if (billingState.freeShopId === actor.shop._id) {
       const updatedBillingState = {
         ...billingState,
@@ -589,7 +588,7 @@ function organizationDeletionCorrelationId(organizationId: Id<"organizations">, 
 }
 
 /**
- * グループを論理削除し、利用停止と主要マスタ置換cleanupを一つの受付transactionで開始する。
+ * グループを論理削除し、権限・連絡手段の失効cleanupを一つの受付transactionで開始する。
  * clientの組織ID・確認ID・更新時刻はすべて、Clerk identityから解決したactive所属と照合する。
  */
 export const deleteOrganization = authenticatedMutation({
@@ -639,7 +638,6 @@ export const deleteOrganization = authenticatedMutation({
 
     const now = Date.now();
     await ctx.db.patch(actor.organization._id, {
-      ...organizationTombstone(actor.organization._id),
       isDeleted: true,
       updatedAt: now,
     });

@@ -16,10 +16,6 @@ vi.mock("@/src/components/templates/ContentWrapper", () => ({
   ContentWrapper: ({ children }: { children: ReactNode }) => <main>{children}</main>,
 }));
 
-vi.mock("@/src/configs/env", () => ({
-  ACCOUNT_DELETION_ENABLED: false,
-}));
-
 vi.mock("../HeroSummary", () => ({
   WelcomeHero: () => <div>セットアップ案内</div>,
 }));
@@ -30,16 +26,28 @@ vi.mock("../SetupModal", () => ({
 
 import { SetupView } from "./SetupView";
 
-it("機能フラグが無効な場合はセットアップ画面にアカウント削除入口を表示しない", () => {
+function renderSetupView(showAccountDeletion: boolean) {
   render(
     <SetupView
       announcement={null}
       dialog={{ isOpen: false, open: vi.fn(), onOpenChange: vi.fn() }}
+      showAccountDeletion={showAccountDeletion}
       isSubmitting={false}
       onComplete={vi.fn()}
     />,
   );
+}
+
+it("初回セットアップではアカウント削除入口を表示しない", () => {
+  renderSetupView(false);
 
   expect(screen.getByText("セットアップ案内")).not.toBeNull();
   expect(screen.queryByTestId("account-deletion-entry")).toBeNull();
+});
+
+it("既存の所属なしユーザーにはアカウント削除入口を表示する", () => {
+  renderSetupView(true);
+
+  expect(screen.getByText("セットアップ案内")).not.toBeNull();
+  expect(screen.getByTestId("account-deletion-entry")).not.toBeNull();
 });

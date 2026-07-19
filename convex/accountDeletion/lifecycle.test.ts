@@ -24,10 +24,8 @@ describe("accountDeletion job lifecycle", () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
     vi.stubEnv("APP_URL", "https://shiftori.example");
-    vi.stubEnv("ACCOUNT_DELETION_ENABLED", "true");
     vi.stubEnv("CLERK_SECRET_KEY", "configured-secret");
-    vi.stubEnv("CLERK_PUBLISHABLE_KEY", "configured-publishable");
-    vi.stubEnv("CLERK_EXPECTED_INSTANCE_ID", "ins_test");
+    vi.stubEnv("VITE_CLERK_PUBLISHABLE_KEY", "configured-publishable");
     vi.stubEnv("CLERK_JWT_ISSUER_DOMAIN", ISSUER);
   });
 

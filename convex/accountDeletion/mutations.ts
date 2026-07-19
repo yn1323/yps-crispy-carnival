@@ -4,7 +4,6 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import { rateLimit } from "../_lib/rateLimits";
 import { getActiveUserAssociationStatus } from "../deletionCleanup/service";
-import { userTombstone } from "../deletionCleanup/tombstone";
 import { getAccountDeletionConfiguration, hasRequiredAccountDeletionConfiguration, normalizeIssuer } from "./config";
 import {
   ACCOUNT_DELETION_JOB_LEASE_MS,
@@ -86,13 +85,13 @@ export const accept = internalMutation({
         .withIndex("by_userId", (q) => q.eq("userId", existingUser._id))
         .take(2);
       if (jobs.length > 1) return { status: "conflict" as const };
-      // kill switchとrate limitより先に既存jobを返し、同じ要求の通信再送を常に収束させる。
+      // 設定検証とrate limitより先に既存jobを返し、同じ要求の通信再送を常に収束させる。
       if (jobs[0]) return { status: "accepted" as const };
       if (existingUser.accountDeletionRequestedAt !== undefined) return { status: "conflict" as const };
     }
 
     const config = getAccountDeletionConfiguration();
-    if (!config.enabled || !hasRequiredAccountDeletionConfiguration(config) || config.expectedIssuer !== issuer) {
+    if (!hasRequiredAccountDeletionConfiguration(config) || config.expectedIssuer !== issuer) {
       return { status: "unavailable" as const };
     }
 
@@ -117,7 +116,6 @@ export const accept = internalMutation({
           accountDeletionRequestedAt: now,
         });
     await ctx.db.patch(userId, {
-      ...userTombstone(userId),
       isDeleted: true,
       accountDeletionRequestedAt: now,
     });

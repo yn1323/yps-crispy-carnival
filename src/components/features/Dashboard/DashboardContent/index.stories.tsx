@@ -555,6 +555,7 @@ export const NotificationFailuresShowNextActionDuringOnboarding: Story = {
 export const Setup: Story = {
   args: {
     shop: null,
+    showAccountDeletion: false,
     recruitments: [],
     currentRecruitments: [],
     recruitmentStatus: "Exhausted",
@@ -571,15 +572,26 @@ export const Setup: Story = {
   },
 };
 
+export const SetupForExistingUserWithoutShop: Story = {
+  args: {
+    ...Setup.args,
+    showAccountDeletion: true,
+  },
+};
+
 export const SetupWithAnnouncement: Story = {
   args: {
     ...Setup.args,
+    showAccountDeletion: true,
     announcement: dashboardAnnouncement,
   },
 };
 
 export const SetupMobile: Story = {
-  args: Setup.args,
+  args: {
+    ...Setup.args,
+    showAccountDeletion: true,
+  },
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
 };

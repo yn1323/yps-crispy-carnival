@@ -1,4 +1,4 @@
-import { Flex, Text } from "@chakra-ui/react";
+import { Flex } from "@chakra-ui/react";
 import { Button } from "@/src/components/ui/Button";
 
 export type AccountDeletionVariant = "setup" | "legacy";
@@ -25,9 +25,6 @@ export function AccountDeletionTrigger({ variant, onOpen }: Props) {
       gap={{ base: 1, sm: 2 }}
       px={{ base: 1, md: 2 }}
     >
-      <Text fontSize="sm" color="fg.muted">
-        シフトリを利用しない場合
-      </Text>
       <Button variant="plain" colorPalette="red" size="sm" minH={{ base: "44px", md: "auto" }} onClick={onOpen}>
         アカウントを削除
       </Button>

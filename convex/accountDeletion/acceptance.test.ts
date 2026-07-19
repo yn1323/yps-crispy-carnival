@@ -5,7 +5,7 @@ import { seedShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { checkAccountDeletionReadiness } from "./actions";
 import { getAccountDeletionConfiguration } from "./config";
-import type { AccountDeletionProvider } from "./provider";
+import { type AccountDeletionProvider, AccountDeletionProviderError } from "./provider";
 
 const ISSUER = "https://convex.test";
 const REQUEST_ID = "718cf80f-d4fb-4a5d-bf20-ad48044f31eb";
@@ -23,9 +23,13 @@ describe("accountDeletion acceptance boundary", () => {
     vi.restoreAllMocks();
   });
 
-  it("既存userをtombstone化してjobを一件だけ作る", async () => {
+  it("既存userの業務識別情報を保持したまま利用停止し、jobを一件だけ作る", async () => {
     const t = convexTest(schema, modules);
-    const userId = await t.run((ctx) => seedUser(ctx, "existing_user", "pii@example.com"));
+    const userId = await t.run(async (ctx) => {
+      const id = await seedUser(ctx, "existing_user", "pii@example.com");
+      await ctx.db.patch(id, { name: "退会前ユーザー", emailNormalized: "pii@example.com" });
+      return id;
+    });
 
     await expect(t.mutation(internal.accountDeletion.mutations.accept, acceptArgs("existing_user"))).resolves.toEqual({
       status: "accepted",
@@ -35,8 +39,14 @@ describe("accountDeletion acceptance boundary", () => {
       user: await ctx.db.get(userId),
       jobs: await ctx.db.query("accountDeletionJobs").collect(),
     }));
-    expect(state.user).toMatchObject({ isDeleted: true, accountDeletionRequestedAt: Date.now() });
-    expect(state.user?.email).not.toBe("pii@example.com");
+    expect(state.user).toMatchObject({
+      authTokenIdentifier: `${ISSUER}|existing_user`,
+      name: "退会前ユーザー",
+      email: "pii@example.com",
+      emailNormalized: "pii@example.com",
+      isDeleted: true,
+      accountDeletionRequestedAt: Date.now(),
+    });
     expect(state.jobs).toHaveLength(1);
   });
 
@@ -62,7 +72,7 @@ describe("accountDeletion acceptance boundary", () => {
     expect(state.scheduled).toEqual([]);
   });
 
-  it("actionRequiredを含む既存jobはkill switchとrequest IDより先に202へ収束する", async () => {
+  it("actionRequiredを含む既存jobは設定検証とrequest IDより先に202へ収束する", async () => {
     const t = convexTest(schema, modules);
     await t.mutation(internal.accountDeletion.mutations.accept, acceptArgs("idempotent_subject"));
     await t.run(async (ctx) => {
@@ -70,7 +80,7 @@ describe("accountDeletion acceptance boundary", () => {
       if (!job) throw new Error("job not found");
       await ctx.db.patch(job._id, { status: "actionRequired", version: job.version + 1 });
     });
-    vi.stubEnv("ACCOUNT_DELETION_ENABLED", "false");
+    vi.stubEnv("VITE_CLERK_PUBLISHABLE_KEY", "");
 
     await expect(
       t.mutation(internal.accountDeletion.mutations.accept, acceptArgs("idempotent_subject")),
@@ -87,9 +97,10 @@ describe("accountDeletion acceptance boundary", () => {
   });
 
   it.each([
-    ["kill switch", "ACCOUNT_DELETION_ENABLED", "false"],
     ["APP_URL", "APP_URL", ""],
     ["provider secret", "CLERK_SECRET_KEY", ""],
+    ["publishable key", "VITE_CLERK_PUBLISHABLE_KEY", ""],
+    ["issuer", "CLERK_JWT_ISSUER_DOMAIN", ""],
   ] as const)("%sが無効な新規受付は利用停止もscheduleもしない", async (_label, key, value) => {
     const t = convexTest(schema, modules);
     vi.stubEnv(key, value);
@@ -162,6 +173,18 @@ describe("accountDeletion acceptance boundary", () => {
     expect(provider.getUser).not.toHaveBeenCalled();
     expect(provider.deleteUser).not.toHaveBeenCalled();
   });
+
+  it("readinessはClerk Instance不一致を安全なcodeで返し、user取得・削除へ進まない", async () => {
+    const provider = readinessProvider();
+    provider.assertReady.mockRejectedValue(new AccountDeletionProviderError(false, "provider_instance_mismatch"));
+
+    await expect(checkAccountDeletionReadiness(provider, getAccountDeletionConfiguration())).resolves.toEqual({
+      ready: false,
+      code: "provider_instance_mismatch",
+    });
+    expect(provider.getUser).not.toHaveBeenCalled();
+    expect(provider.deleteUser).not.toHaveBeenCalled();
+  });
 });
 
 function acceptArgs(subject: string) {
@@ -175,10 +198,8 @@ function acceptArgs(subject: string) {
 
 function stubValidConfiguration() {
   vi.stubEnv("APP_URL", "https://shiftori.example");
-  vi.stubEnv("ACCOUNT_DELETION_ENABLED", "true");
   vi.stubEnv("CLERK_SECRET_KEY", "configured-secret");
-  vi.stubEnv("CLERK_PUBLISHABLE_KEY", "configured-publishable");
-  vi.stubEnv("CLERK_EXPECTED_INSTANCE_ID", "ins_test");
+  vi.stubEnv("VITE_CLERK_PUBLISHABLE_KEY", "configured-publishable");
   vi.stubEnv("CLERK_JWT_ISSUER_DOMAIN", ISSUER);
 }
 

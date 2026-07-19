@@ -7,13 +7,7 @@ import {
   cancelNotificationForInactiveOrganization,
   cancelNotificationForInactiveShop,
 } from "../notificationOutbox/mutations";
-import {
-  DELETED_SHOP_NAME,
-  deletedLineUserId,
-  organizationTombstone,
-  personTombstone,
-  staffTombstone,
-} from "./tombstone";
+import { deletedLineUserId } from "./tombstone";
 
 const CLEANUP_BATCH_SIZE = 100;
 const CLEANUP_JOB_LEASE_MS = 60_000;
@@ -295,7 +289,7 @@ async function runStandaloneShopStep(
   if (!isShopPhase(job.phase)) throw new Error("Invalid shop cleanup phase");
   if (job.phase === "shopCore") {
     const shop = await ctx.db.get(shopId);
-    if (shop) await ctx.db.patch(shopId, { isDeleted: true, name: DELETED_SHOP_NAME });
+    if (shop && !shop.isDeleted) await ctx.db.patch(shopId, { isDeleted: true });
     return { phase: "shopOutboxPending" };
   }
   if (job.phase === "shopVerification") {
@@ -320,14 +314,8 @@ async function runOrganizationStep(
     case "organizationCore": {
       const organization = await ctx.db.get(organizationId);
       if (organization) {
-        const tombstone = organizationTombstone(organization._id);
-        if (
-          !organization.isDeleted ||
-          organization.name !== tombstone.name ||
-          organization.billingEmail !== tombstone.billingEmail ||
-          organization.billingEmailNormalized !== tombstone.billingEmailNormalized
-        ) {
-          await ctx.db.patch(organization._id, { ...tombstone, isDeleted: true, updatedAt: Date.now() });
+        if (!organization.isDeleted) {
+          await ctx.db.patch(organization._id, { isDeleted: true, updatedAt: Date.now() });
         }
         const billingStates = await ctx.db
           .query("organizationBillingStates")
@@ -360,7 +348,7 @@ async function runOrganizationStep(
         .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
         .paginate({ cursor: job.cursor ?? null, numItems: CLEANUP_BATCH_SIZE });
       for (const shop of page.page) {
-        await ctx.db.patch(shop._id, { isDeleted: true, name: DELETED_SHOP_NAME });
+        if (!shop.isDeleted) await ctx.db.patch(shop._id, { isDeleted: true });
       }
       return page.isDone ? { phase: ORGANIZATION_SHOP_PHASES[0] } : { phase: job.phase, cursor: page.continueCursor };
     }
@@ -371,7 +359,7 @@ async function runOrganizationStep(
         .paginate({ cursor: job.cursor ?? null, numItems: CLEANUP_BATCH_SIZE });
       const now = Date.now();
       for (const person of page.page) {
-        await ctx.db.patch(person._id, { ...personTombstone(person._id), status: "removed", updatedAt: now });
+        if (person.status !== "removed") await ctx.db.patch(person._id, { status: "removed", updatedAt: now });
       }
       return page.isDone ? { phase: "organizationMembers" } : { phase: job.phase, cursor: page.continueCursor };
     }
@@ -478,7 +466,7 @@ async function runShopResource(
         .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
         .paginate({ cursor, numItems: CLEANUP_BATCH_SIZE });
       for (const staff of page.page) {
-        await ctx.db.patch(staff._id, { ...staffTombstone(staff._id), isDeleted: true });
+        if (!staff.isDeleted) await ctx.db.patch(staff._id, { isDeleted: true });
       }
       return pageResult(page);
     }
@@ -600,7 +588,7 @@ async function revokeOrganizationInvitations(
   return invitations.length < CLEANUP_BATCH_SIZE;
 }
 
-/** cleanup完走後に、同じbounded cursorで主要マスタの置換値と全失効resourceを再走査する。 */
+/** cleanup完走後に、同じbounded cursorで利用停止状態と全失効resourceを再走査する。 */
 async function verifyShopCleanup(
   ctx: MutationCtx,
   job: Doc<"deletionCleanupJobs">,
@@ -625,17 +613,7 @@ async function verifyOrganizationCleanup(
   switch (resource) {
     case "organizationCore": {
       const organization = await ctx.db.get(organizationId);
-      if (organization) {
-        const tombstone = organizationTombstone(organizationId);
-        if (
-          !organization.isDeleted ||
-          organization.name !== tombstone.name ||
-          organization.billingEmail !== tombstone.billingEmail ||
-          organization.billingEmailNormalized !== tombstone.billingEmailNormalized
-        ) {
-          return { phase: "organizationCore" };
-        }
-      }
+      if (organization && !organization.isDeleted) return { phase: "organizationCore" };
       return nextOrganizationVerificationStep(resource);
     }
     case "organizationOutboxPending": {
@@ -657,7 +635,7 @@ async function verifyOrganizationCleanup(
         .query("shops")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
         .paginate({ cursor: job.cursor ?? null, numItems: CLEANUP_BATCH_SIZE });
-      if (page.page.some((shop) => !shop.isDeleted || shop.name !== DELETED_SHOP_NAME)) {
+      if (page.page.some((shop) => !shop.isDeleted)) {
         return { phase: "organizationShops" };
       }
       return page.isDone
@@ -670,7 +648,7 @@ async function verifyOrganizationCleanup(
         .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
         .paginate({ cursor: job.cursor ?? null, numItems: CLEANUP_BATCH_SIZE });
       for (const person of page.page) {
-        if (!isPersonTombstoned(person)) return { phase: "organizationPeople" };
+        if (person.status !== "removed") return { phase: "organizationPeople" };
       }
       return page.isDone
         ? nextOrganizationVerificationStep(resource)
@@ -762,7 +740,7 @@ async function verifyShopResource(
       const shop = await ctx.db.get(shopId);
       return {
         done: true,
-        ...(shop && (!shop.isDeleted || shop.name !== DELETED_SHOP_NAME) ? { violated: true } : {}),
+        ...(shop && !shop.isDeleted ? { violated: true } : {}),
       };
     }
     case "outboxPending": {
@@ -785,7 +763,7 @@ async function verifyShopResource(
         .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
         .paginate({ cursor, numItems: CLEANUP_BATCH_SIZE });
       for (const staff of page.page) {
-        if (!isStaffTombstoned(staff)) return { done: true, violated: true };
+        if (!staff.isDeleted) return { done: true, violated: true };
       }
       return page.isDone ? { done: true } : { done: false, cursor: page.continueCursor };
     }
@@ -857,26 +835,6 @@ function organizationVerificationShopResource(
 ): ShopResource {
   const suffix = resource.slice("organizationShop".length);
   return `${suffix[0].toLowerCase()}${suffix.slice(1)}` as ShopResource;
-}
-
-function isStaffTombstoned(staff: Doc<"staffs">) {
-  const tombstone = staffTombstone(staff._id);
-  return (
-    staff.isDeleted &&
-    staff.name === tombstone.name &&
-    staff.email === tombstone.email &&
-    staff.emailNormalized === tombstone.emailNormalized
-  );
-}
-
-function isPersonTombstoned(person: Doc<"organizationPeople">) {
-  const tombstone = personTombstone(person._id);
-  return (
-    person.status === "removed" &&
-    person.name === tombstone.name &&
-    person.email === tombstone.email &&
-    person.emailNormalized === tombstone.emailNormalized
-  );
 }
 
 function isLineAccountTombstoned(account: Doc<"staffLineAccounts">) {

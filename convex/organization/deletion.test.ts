@@ -5,13 +5,7 @@ import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { seedOrganizationManagerShop, seedStaffLineAccount, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import {
-  DELETED_ORGANIZATION_NAME,
-  DELETED_PERSON_NAME,
-  DELETED_SHOP_NAME,
-  deletedEmail,
-  deletedLineUserId,
-} from "../deletionCleanup/tombstone";
+import { deletedLineUserId } from "../deletionCleanup/tombstone";
 
 const submissionPattern = { kind: "time" as const, startTime: "09:00", endTime: "22:00" };
 
@@ -207,7 +201,7 @@ describe("organization deletion", () => {
     vi.unstubAllGlobals();
   });
 
-  it("組織を即時停止し、cleanupで主要マスタを置換してtokenを失効する", async () => {
+  it("組織を即時停止し、cleanupで業務識別情報を保持したままtokenを失効する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run((ctx) => seedDeletionScope(ctx, "delete_organization"));
     const fetchMock = vi.fn<typeof globalThis.fetch>(async () => {
@@ -252,8 +246,9 @@ describe("organization deletion", () => {
     }));
     expect(accepted.organization).toMatchObject({
       isDeleted: true,
-      name: DELETED_ORGANIZATION_NAME,
-      billingEmail: deletedEmail("organizations", ids.organizationId),
+      name: "削除対象店事業者",
+      billingEmail: "delete_organization@example.com",
+      billingEmailNormalized: "delete_organization@example.com",
     });
     expect(accepted.actorUser).toMatchObject({
       isDeleted: false,
@@ -289,12 +284,19 @@ describe("organization deletion", () => {
       invitation: await ctx.db.get(ids.invitationId),
     }));
     expect(completed.job?.status).toBe("completed");
-    expect(completed.shop).toMatchObject({ isDeleted: true, name: DELETED_SHOP_NAME });
-    expect(completed.actorPerson).toMatchObject({ status: "removed", name: DELETED_PERSON_NAME });
+    expect(completed.shop).toMatchObject({ isDeleted: true, name: "削除対象店" });
+    expect(completed.actorPerson).toMatchObject({
+      status: "removed",
+      name: "管理者",
+      email: "delete_organization@example.com",
+      emailNormalized: "delete_organization@example.com",
+    });
     expect(completed.actorMember?.status).toBe("removed");
     expect(completed.staffPerson).toMatchObject({
       status: "removed",
-      email: deletedEmail("organizationPeople", ids.staffPersonId),
+      name: "削除対象スタッフ",
+      email: "delete_organization_staff@example.com",
+      emailNormalized: "delete_organization_staff@example.com",
     });
     expect(completed.staffUser).toMatchObject({
       isDeleted: false,
@@ -303,8 +305,9 @@ describe("organization deletion", () => {
     });
     expect(completed.staff).toMatchObject({
       isDeleted: true,
-      name: DELETED_PERSON_NAME,
-      email: deletedEmail("staffs", ids.staffId),
+      name: "削除対象スタッフ",
+      email: "delete_organization_staff@example.com",
+      emailNormalized: "delete_organization_staff@example.com",
     });
     expect(completed.line).toMatchObject({
       isDeleted: true,
@@ -354,7 +357,12 @@ describe("organization deletion", () => {
       otherPerson: await ctx.db.get(ids.other.personId),
     }));
     expect(state.user).toMatchObject({ isDeleted: false, name: "管理者", email: "shared_owner@example.com" });
-    expect(state.targetPerson).toMatchObject({ status: "removed", name: DELETED_PERSON_NAME });
+    expect(state.targetPerson).toMatchObject({
+      status: "removed",
+      name: "管理者",
+      email: "shared_owner@example.com",
+      emailNormalized: "shared_owner@example.com",
+    });
     expect(state.otherOrganization?.isDeleted).toBe(false);
     expect(state.otherPerson).toMatchObject({ status: "active", userId: ids.target.userId });
 
@@ -365,7 +373,7 @@ describe("organization deletion", () => {
   it.each([
     "staff",
     "legacyShopMember",
-  ] as const)("別組織の%sだけに紐づく共有userを匿名化しない", async (associationKind) => {
+  ] as const)("別組織の%sだけに紐づく共有userの情報を変更しない", async (associationKind) => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const target = await seedDeletionScope(ctx, `shared_${associationKind}`);
@@ -565,7 +573,12 @@ describe("organization deletion", () => {
       user: await ctx.db.get(ids.userId),
       jobs: await ctx.db.query("deletionCleanupJobs").collect(),
     }));
-    expect(state.organization).toMatchObject({ isDeleted: true, name: DELETED_ORGANIZATION_NAME });
+    expect(state.organization).toMatchObject({
+      isDeleted: true,
+      name: "テスト店舗事業者",
+      billingEmail: "delete_association_unknown@example.com",
+      billingEmailNormalized: "delete_association_unknown@example.com",
+    });
     expect(state.user).toMatchObject({
       isDeleted: false,
       name: "管理者",

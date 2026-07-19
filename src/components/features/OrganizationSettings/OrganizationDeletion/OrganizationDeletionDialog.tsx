@@ -50,13 +50,14 @@ export function OrganizationDeletionDialog({ dialog, isRunning, onClose, onSubmi
         <Stack gap={4}>
           <Text fontWeight="bold">この操作は元に戻せません。</Text>
           <Stack gap={2} fontSize="sm" color="fg" lineHeight="tall">
-            <Text>グループとすべての店舗を利用できない状態にします。</Text>
             <Text>
-              基本情報に保存したグループ名、店舗名、氏名、メールアドレス、LINE IDを削除済みの値へ置き換えます。
+              グループとすべての店舗を利用できない状態にし、管理権限、LINE連携、提出・閲覧用リンクを停止します。
             </Text>
-            <Text>ほかのグループに所属するユーザーと、Clerkのログインアカウントは削除しません。</Text>
+            <Text>
+              グループ名、店舗名、氏名、メールアドレス、過去のシフト・同意・請求などの履歴は、業務記録として残ります。
+            </Text>
+            <Text>ほかのグループの所属と、Clerkのログインアカウントは削除しません。</Text>
             <Text>ほかに所属がない場合は、削除後に新しい店舗を登録できます。</Text>
-            <Text>過去のシフト、同意、請求、監査、通知、登録申請、送信済みメールとLINEの記録は残ります。</Text>
           </Stack>
           <Field.Root required>
             <Field.Label>確認のため「{dialog.organizationName}」と入力してください</Field.Label>

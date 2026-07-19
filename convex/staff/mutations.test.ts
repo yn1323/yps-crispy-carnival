@@ -2100,14 +2100,18 @@ describe("staff/mutations", () => {
       await expect(t.mutation(api.staff.mutations.deleteStaff, { shopId, staffId })).rejects.toThrow();
     });
 
-    it("スタッフを論理削除できる", async () => {
+    it("氏名とメールアドレスを保持して論理削除できる", async () => {
       const { t, data } = setupShopWithStaff();
       const { shopId, staffId } = await data;
 
       await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.deleteStaff, { shopId, staffId });
 
       const staff = await t.run(async (ctx) => ctx.db.get(staffId));
-      expect(staff?.isDeleted).toBe(true);
+      expect(staff).toMatchObject({
+        isDeleted: true,
+        name: "田中太郎",
+        email: "tanaka@example.com",
+      });
     });
 
     it.each([

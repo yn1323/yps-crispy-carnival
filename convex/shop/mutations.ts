@@ -4,7 +4,6 @@ import { internalMutation } from "../_generated/server";
 import { managerMutation } from "../_lib/functions";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
 import { ensureDeletionCleanupJob } from "../deletionCleanup/service";
-import { DELETED_SHOP_NAME } from "../deletionCleanup/tombstone";
 import { updateShopSettingsSchema } from "./schemas";
 
 const WEEKDAY_ORDER = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
@@ -64,7 +63,7 @@ export const deleteShop = managerMutation({
     if (args.confirmShopId !== ctx.shop._id) throw new ConvexError("Not found");
     if (ctx.shop.organizationId) throw new ConvexError("グループ設定から店舗を削除してください");
 
-    await ctx.db.patch(ctx.shop._id, { isDeleted: true, name: DELETED_SHOP_NAME });
+    await ctx.db.patch(ctx.shop._id, { isDeleted: true });
     const cleanupJob = await ensureDeletionCleanupJob(ctx, {
       scope: "shop",
       shopId: ctx.shop._id,

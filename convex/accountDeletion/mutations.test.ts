@@ -21,10 +21,8 @@ describe("accountDeletion", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-19T00:00:00.000Z"));
     vi.stubEnv("APP_URL", "https://shiftori.example");
-    vi.stubEnv("ACCOUNT_DELETION_ENABLED", "true");
     vi.stubEnv("CLERK_SECRET_KEY", "configured-secret");
-    vi.stubEnv("CLERK_PUBLISHABLE_KEY", "configured-publishable");
-    vi.stubEnv("CLERK_EXPECTED_INSTANCE_ID", "ins_test");
+    vi.stubEnv("VITE_CLERK_PUBLISHABLE_KEY", "configured-publishable");
     vi.stubEnv("CLERK_JWT_ISSUER_DOMAIN", ISSUER);
   });
 
@@ -34,7 +32,7 @@ describe("accountDeletion", () => {
     vi.restoreAllMocks();
   });
 
-  it("user行がない主体もPIIを持たないtombstoneとjobを同一transactionで一件だけ作る", async () => {
+  it("user行がない主体もPIIを持たない合成userとjobを同一transactionで一件だけ作る", async () => {
     const t = createAccountDeletionTest();
     await expect(t.mutation(internal.accountDeletion.mutations.accept, acceptArgs("new_subject"))).resolves.toEqual({
       status: "accepted",
@@ -82,15 +80,22 @@ describe("accountDeletion", () => {
 
   it("provider確認・削除成功後に完了し、provider識別子を同じtransactionでredactする", async () => {
     const t = createAccountDeletionTest();
-    const userId = await t.run((ctx) => seedUser(ctx, "worker_success", "worker@example.com"));
+    const userId = await t.run(async (ctx) => {
+      const id = await seedUser(ctx, "worker_success", "worker@example.com");
+      await ctx.db.patch(id, { name: "退会前の氏名", emailNormalized: "worker@example.com" });
+      return id;
+    });
     await t.mutation(internal.accountDeletion.mutations.accept, acceptArgs("worker_success"));
     const jobId = await onlyJobId(t);
     const provider = fakeProvider();
 
     await runAccountDeletionJob(workerCtx(t), provider, jobId);
 
-    const state = await t.run((ctx) => ctx.db.get(jobId));
-    expect(state).toMatchObject({
+    const state = await t.run(async (ctx) => ({
+      job: await ctx.db.get(jobId),
+      user: await ctx.db.get(userId),
+    }));
+    expect(state.job).toMatchObject({
       userId,
       status: "completed",
       phase: "complete",
@@ -99,8 +104,16 @@ describe("accountDeletion", () => {
       providerDeletedAt: Date.now(),
       completedAt: Date.now(),
     });
-    expect(state).not.toHaveProperty("clerkUserId");
-    expect(state).not.toHaveProperty("expectedIssuer");
+    expect(state.job).not.toHaveProperty("clerkUserId");
+    expect(state.job).not.toHaveProperty("expectedIssuer");
+    expect(state.user).toMatchObject({
+      authTokenIdentifier: `${ISSUER}|worker_success`,
+      name: "退会前の氏名",
+      email: "worker@example.com",
+      emailNormalized: "worker@example.com",
+      isDeleted: true,
+      accountDeletionRequestedAt: Date.now(),
+    });
     expect(provider.deleteUser).toHaveBeenCalledTimes(1);
   });
 
@@ -171,6 +184,23 @@ describe("accountDeletion", () => {
     expect(job).toMatchObject({ status: "retrying", lastErrorCode: "provider_rate_limited" });
     expect(job?.nextRunAt).toBe(Date.now() + 60_000);
     expect(JSON.stringify(job)).not.toContain("provider raw body");
+  });
+
+  it("Clerk Instance不一致はuser取得・削除前にactionRequiredへ止める", async () => {
+    const t = createAccountDeletionTest();
+    await t.mutation(internal.accountDeletion.mutations.accept, acceptArgs("wrong_instance"));
+    const jobId = await onlyJobId(t);
+    const provider = fakeProvider();
+    provider.assertReady.mockRejectedValue(new AccountDeletionProviderError(false, "provider_instance_mismatch"));
+
+    await runAccountDeletionJob(workerCtx(t), provider, jobId);
+
+    await expect(t.run((ctx) => ctx.db.get(jobId))).resolves.toMatchObject({
+      status: "actionRequired",
+      lastErrorCode: "provider_instance_mismatch",
+    });
+    expect(provider.getUser).not.toHaveBeenCalled();
+    expect(provider.deleteUser).not.toHaveBeenCalled();
   });
 
   it("stale versionのworkerは完了状態を上書きできない", async () => {

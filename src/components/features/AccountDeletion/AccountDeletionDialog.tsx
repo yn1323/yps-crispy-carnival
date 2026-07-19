@@ -37,9 +37,11 @@ export function AccountDeletionDialog({ isOpen, isRunning, error, onClose, onOpe
         <Stack gap={4}>
           <Text fontWeight="bold">この操作は元に戻せません。</Text>
           <Stack gap={2} fontSize="sm" color="fg" lineHeight="tall">
-            <Text>ログイン情報を削除し、シフトリを利用できない状態にします。</Text>
-            <Text>同じメールアドレスで登録し直しても、削除前のデータは復元されません。</Text>
-            <Text>過去の操作、同意、請求、監査などの記録は、法令や不正防止のため一定期間残る場合があります。</Text>
+            <Text>Clerkのログイン情報を削除し、このログインではシフトリを利用できない状態にします。</Text>
+            <Text>
+              シフトリ内の氏名、メールアドレス、店舗名、過去のシフト・同意・請求などの履歴は、業務記録として残ります。
+            </Text>
+            <Text>同じメールアドレスで登録し直しても、削除前の履歴を新しいアカウントへ自動で紐付けません。</Text>
           </Stack>
           {error ? (
             <Alert.Root status="error" borderRadius="lg" alignItems="flex-start">

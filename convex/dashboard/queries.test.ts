@@ -1888,9 +1888,9 @@ describe("dashboard/queries", () => {
       await t.run(async (ctx) => {
         await ctx.db.insert("users", {
           authTokenIdentifier: testAuthTokenIdentifier("deleted_user"),
-          name: "削除済みユーザー",
-          email: "deleted+users.local@example.invalid",
-          emailNormalized: "deleted+users.local@example.invalid",
+          name: "退会前ユーザー",
+          email: "deleted-before@example.com",
+          emailNormalized: "deleted-before@example.com",
           role: "manager",
           isDeleted: true,
         });

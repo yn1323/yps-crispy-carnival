@@ -4,13 +4,7 @@ import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import {
-  DELETED_ORGANIZATION_NAME,
-  DELETED_PERSON_NAME,
-  DELETED_SHOP_NAME,
-  deletedEmail,
-  deletedLineUserId,
-} from "../deletionCleanup/tombstone";
+import { deletedLineUserId } from "../deletionCleanup/tombstone";
 
 const NOW = Date.parse("2026-10-01T12:00:00+09:00");
 const submissionPattern = { kind: "time" as const, startTime: "09:00", endTime: "22:00" };
@@ -205,8 +199,9 @@ describe("グループ削除シナリオ", () => {
     expect(state.job?.status).toBe("completed");
     expect(state.organization).toMatchObject({
       isDeleted: true,
-      name: DELETED_ORGANIZATION_NAME,
-      billingEmail: deletedEmail("organizations", ids.target.organizationId),
+      name: "削除対象店A事業者",
+      billingEmail: "organization_deletion_owner@example.com",
+      billingEmailNormalized: "organization_deletion_owner@example.com",
     });
     expect(
       state.shops
@@ -214,7 +209,7 @@ describe("グループ削除シナリオ", () => {
         .sort((a, b) => a.id.localeCompare(b.id)),
     ).toEqual(
       [ids.target.shopId, ids.secondShopId]
-        .map((id) => ({ id, isDeleted: true, name: DELETED_SHOP_NAME }))
+        .map((id, index) => ({ id, isDeleted: true, name: index === 0 ? "削除対象店A" : "削除対象店B" }))
         .sort((a, b) => a.id.localeCompare(b.id)),
     );
     expect(
@@ -224,30 +219,52 @@ describe("グループ削除シナリオ", () => {
           status: person.status,
           name: person.name,
           email: person.email,
+          emailNormalized: person.emailNormalized,
         }))
         .sort((a, b) => a.id.localeCompare(b.id)),
     ).toEqual(
-      [ids.target.personId, ...ids.personIds]
-        .map((id) => ({
-          id,
+      [
+        {
+          id: ids.target.personId,
           status: "removed",
-          name: DELETED_PERSON_NAME,
-          email: deletedEmail("organizationPeople", id),
-        }))
-        .sort((a, b) => a.id.localeCompare(b.id)),
+          name: "管理者",
+          email: "organization_deletion_owner@example.com",
+          emailNormalized: "organization_deletion_owner@example.com",
+        },
+        ...ids.personIds.map((id, index) => {
+          const shared = index === 105;
+          return {
+            id,
+            status: "removed",
+            name: shared ? "共有スタッフ" : `一括スタッフ${index}`,
+            email: shared ? "shared-before@example.com" : `bulk-${index}@example.com`,
+            emailNormalized: shared ? "shared-before@example.com" : `bulk-${index}@example.com`,
+          };
+        }),
+      ].sort((a, b) => a.id.localeCompare(b.id)),
     );
     expect(
       state.staffs
-        .map((staff) => ({ id: staff._id, isDeleted: staff.isDeleted, name: staff.name, email: staff.email }))
+        .map((staff) => ({
+          id: staff._id,
+          isDeleted: staff.isDeleted,
+          name: staff.name,
+          email: staff.email,
+          emailNormalized: staff.emailNormalized,
+        }))
         .sort((a, b) => a.id.localeCompare(b.id)),
     ).toEqual(
       ids.staffIds
-        .map((id) => ({
-          id,
-          isDeleted: true,
-          name: DELETED_PERSON_NAME,
-          email: deletedEmail("staffs", id),
-        }))
+        .map((id, index) => {
+          const shared = index === 105;
+          return {
+            id,
+            isDeleted: true,
+            name: shared ? "共有スタッフ" : `一括スタッフ${index}`,
+            email: shared ? "shared-before@example.com" : `bulk-${index}@example.com`,
+            emailNormalized: shared ? "shared-before@example.com" : `bulk-${index}@example.com`,
+          };
+        })
         .sort((a, b) => a.id.localeCompare(b.id)),
     );
     expect(
@@ -302,5 +319,5 @@ describe("グループ削除シナリオ", () => {
       name: "再登録店舗",
       isDeleted: false,
     });
-  });
+  }, 15_000);
 });

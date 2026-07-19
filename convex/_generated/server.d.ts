@@ -25,12 +25,10 @@ import type { DataModel } from "./dataModel.js";
  * Typesafe environment variables declared in `convex.config.ts`.
  */
 type Env = {
-  readonly ACCOUNT_DELETION_ENABLED: string | undefined;
   readonly APP_URL: string | undefined;
-  readonly CLERK_EXPECTED_INSTANCE_ID: string | undefined;
   readonly CLERK_JWT_ISSUER_DOMAIN: string | undefined;
-  readonly CLERK_PUBLISHABLE_KEY: string | undefined;
   readonly CLERK_SECRET_KEY: string | undefined;
+  readonly VITE_CLERK_PUBLISHABLE_KEY: string | undefined;
 };
 
 /**

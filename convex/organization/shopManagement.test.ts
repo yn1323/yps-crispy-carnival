@@ -6,7 +6,6 @@ import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { seedOrganizationManagerShop, seedShopMembership, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { DELETED_SHOP_NAME } from "../deletionCleanup/tombstone";
 import { getOrganizationUsageSnapshot } from "./service";
 
 const submissionPattern = { kind: "time" as const, startTime: "09:00", endTime: "22:00" };
@@ -503,7 +502,7 @@ describe("organization shop management", () => {
           (job) => job.name === "deletionCleanup/mutations:kick",
         ),
       }));
-      expect(state.deletedShop).toMatchObject({ isDeleted: true, name: DELETED_SHOP_NAME });
+      expect(state.deletedShop).toMatchObject({ isDeleted: true, name: "テスト店舗" });
       expect(state.remainingShop?.isDeleted).toBe(false);
       expect(state.staff?.isDeleted).toBe(false);
       expect(state.staffUser).toEqual(ids.staffUserBefore);
@@ -535,7 +534,12 @@ describe("organization shop management", () => {
         staffUser: await ctx.db.get(ids.staffUserId),
       }));
       expect(cleaned.job?.status).toBe("completed");
-      expect(cleaned.staff?.isDeleted).toBe(true);
+      expect(cleaned.staff).toMatchObject({
+        isDeleted: true,
+        name: "所属スタッフ",
+        email: "shop-staff-user@example.com",
+        emailNormalized: "shop-staff-user@example.com",
+      });
       expect(cleaned.staffUser).toEqual(ids.staffUserBefore);
     });
 
