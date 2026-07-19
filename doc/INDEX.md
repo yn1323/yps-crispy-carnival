@@ -19,6 +19,7 @@
 | [通知不達Dashboard](features/notification-failure-dashboard.md) | 送信できなかった通知をDashboardで確認し、個別/一斉に再通知を受け付ける導線 | 実装済 |
 | [Dashboardお知らせ](features/dashboard-announcements.md) | 有事のお知らせを全体・グループ・店舗の対象別にDashboard上部へ1件表示 | 実装済 |
 | [グループ課金、複数店舗、複数管理者](features/organization-billing.md) | グループ単位の課金状態、人物、管理者招待、店舗管理、店舗切り替え、移行互換 | ローカル実装済、外部ゲートを除く |
+| [ユーザー詳細](features/user-detail.md) | グループ人物を正本として、共通プロフィールと店舗別のスタッフ設定、通知、LINE連携を一つのページで管理 | 実装済 |
 | [店舗・グループ削除](features/data-deletion.md) | 業務識別情報を保持した論理削除、Capability失効、永続cleanupの保証範囲 | 実装済、本番migration未実行 |
 | [所属なしユーザーのアカウント削除](features/account-deletion.md) | 所属のない管理ユーザーが再認証後にローカル利用停止とClerk削除を依頼する導線 | 実装済、段階公開前 |
 | [スタッフ参加QR・承認導線](features/staff-registration.md) | 店舗専用QR/URLからスタッフ本人が参加申請し、シフト担当者が承認する導線 | 実装済 |

@@ -10,7 +10,7 @@
 - 業務要件と受入条件は `doc/specs/organization-billing-business-flow.md` を正本とする。
 - 実装順序、移行境界、外部ゲートは `doc/plans/2026-07-14_事業者課金_複数店舗_複数管理者_実装計画.md` を参照する。
 - 既存グループへの無償Business付与は `doc/plans/2026-07-16_既存事業者_無償Business_実装計画.md` を参照する。
-- 管理者5名上限、スタッフ詳細からの招待、Free管理者交代後の権限失効は `doc/plans/2026-07-17_スタッフ詳細_管理者招待_5名上限_実装計画.md` が先行計画を上書きする。
+- 管理者5名上限、既存人物への管理者招待、Free管理者交代後の権限失効は `doc/plans/2026-07-17_スタッフ詳細_管理者招待_5名上限_実装計画.md` が先行計画を上書きする。
 - Free管理者交代の送信前確認と、同一管理者による複数グループ切替のE2E契約は `doc/plans/2026-07-18_Free管理者交代_複数グループ_追加実装計画.md` を参照する。
 - 店舗とグループの利用停止、業務識別情報の保持、LINE IDの切断は `doc/features/data-deletion.md` と `doc/plans/2026-07-19_削除後の業務識別情報保持と認証切り離し_実装計画.md` を参照する。
 - この文書は現行コードの機能配置とAPI一覧を示し、料金や会計判断は定義しない。
@@ -32,9 +32,9 @@
 - 管理者招待は対象人物のLINE連携状態にかかわらずメールへ送る。再送では旧招待を失効させ、トークンをローテーションする。
 - グループ設定の管理者招待Dialogは「現在のスタッフ」と「名前・メールを入力」の2タブで構成する。Freeでは現在のスタッフから次の管理者を選び、手入力による外部招待は行わない。
 - Freeの管理者交代では、初回送信と再送の前に、後任がこのグループの唯一の管理者になり、アカウント連携完了時に現管理者の管理者権限が終了することを現管理者へ明示する。最終確認までは招待mutationを実行しない。
-- グループ設定のユーザータブには管理者招待ボタンだけを置き、承認状況の一覧は表示しない。既存人物に未連携招待がある場合は、人物詳細または管理者招待Dialogからログイン案内を再送できる。
+- グループ設定のユーザータブには管理者招待ボタンだけを置き、承認状況の一覧は表示しない。既存人物に未連携招待がある場合は、ユーザー詳細ページまたは管理者招待Dialogからログイン案内を再送できる。
 - `organizationInvitations.status`、`shops.operatingStatus`、`organizationBillingStates.freeShopId`は招待・課金ライフサイクルで引き続き使うため内部に保持する。物理削除は依存する状態遷移を置き換えた後のNarrowで行う。
-- グループ設定では氏名とメールアドレスで外部人物を招待でき、人物詳細、スタッフ詳細、管理者招待Dialogのスタッフ選択では`targetPersonId`で固定した既存人物を招待する。有効な追加招待は`issued`の間から管理者枠を一枠予約する。
+- グループ設定では氏名とメールアドレスで外部人物を招待でき、ユーザー詳細ページと管理者招待Dialogのスタッフ選択では`targetPersonId`で固定した既存人物を招待する。有効な追加招待は`issued`の間から管理者枠を一枠予約する。
 - 招待先が確認済みメールでログインすると、同じmutation内で利用者IDを人物へ紐づけ、`organizationMembers`を`active`にして招待を`linked`へ進める。認証済みの既存`users`があれば再利用し、招待先グループにいない外部人物はこの時点で初めて作る。
 - アカウント連携完了通知のグループ設定CTAは、送信時点で対象グループの削除されていない代表店舗を`active`、`planSuspended`、`archived`の順に再解決し、`/settings?shop=<shopId>`へ遷移する。代表店舗がなければ別グループの店舗へfallbackせず、`/settings`に限定する。
 - Freeの管理者交代では、アカウント連携と同じトランザクションで旧管理者の管理画面権限と旧`shopMembers`だけを失効させる。`organizationPeople`と交代前からある`staffs`は維持し、未所属店舗へスタッフ行を追加しない。
@@ -78,7 +78,7 @@
 ### フロントエンド
 
 - `src/routes/_auth/settings.tsx` と `src/pages/settings/`：グループ設定の取得、読み込み状態、画面全体の配置。
-- `src/components/features/OrganizationSettings/`：グループ全体のユーザー一覧と詳細、店舗一覧と削除、プランと支払い、設定タブのグループ削除UI、および操作ごとの送信、ダイアログ、最新権限を管理するcontroller。
+- `src/components/features/OrganizationSettings/`：グループ全体のユーザー一覧とユーザー詳細ページへの入口、店舗一覧と削除、プランと支払い、設定タブのグループ削除UI、および操作ごとの送信、ダイアログ、最新権限を管理するcontroller。
 - `src/components/features/AuthenticatedApp/DeletedAccountState.tsx`：削除済みuserへClerk由来の氏名・メールを表示せず、利用終了状態とサインアウトだけを表示する。
 - `src/components/features/ShopSwitcher/`：グループごとにまとめた店舗切り替え。
 - `src/components/features/AuthenticatedApp/AuthGuard.tsx`：`?shop=`、前回値、利用可能店舗一覧を解決し、有効なAPI候補だけを店舗コンテキストへ同期する。
@@ -87,7 +87,8 @@
 - `src/stores/shop/`：最後に確定した有効なグループと店舗の永続化、旧保存値の正規化、選択可否判定。
 - `src/hooks/useShopQuery.ts`、`src/hooks/useShopPaginatedQuery.ts`、`src/hooks/useShopMutation.ts`：選択店舗を管理者APIへ渡すhook。
 - `src/components/features/Dashboard/`：アーカイブ、プラン停止、閲覧のみ所属、契約制限、支払い確認中の店舗を閲覧専用で表示する。
-- `src/components/features/Dashboard/StaffManagement/` と `StaffRoster/`：スタッフ詳細の管理者招待状態、確認、送信を管理する。
+- `src/routes/_auth/users.$personId.tsx`、`src/pages/user-detail/`、`src/components/features/UserDetail/`：グループ人物を正本とするユーザー詳細ページ、店舗切り替え、プロフィール、通知、LINE、設定を管理する。
+- `src/components/features/Dashboard/StaffManagement/` と `StaffRoster/`：店舗スタッフ一覧からユーザー詳細ページへ遷移する。人物IDが未移行のスタッフに限り、旧スタッフ詳細モーダルへ切り替える。
 - `src/components/features/ShiftBoard/`：閲覧専用状態では保存と確定を停止し、状態遷移時に未保存編集を破棄する。
 
 ## 画面一覧
@@ -95,6 +96,7 @@
 | 画面 | 役割 |
 | --- | --- |
 | `/settings?shop=<shopId>` | 指定店舗からグループを解決し、ユーザー、店舗、プランと支払い、設定の4タブを扱う。設定タブでは削除可否理由を表示し、対象名の再入力後にグループ削除を受け付ける。タブは`tab` queryで保持する |
+| `/users/<personId>?shop=<shopId>&tab=<tab>` | グループ人物の共通プロフィールと管理者権限を扱い、選択店舗のスタッフ設定、通知、LINE連携を表示する。`tab`は`information`、`notification`、`line`、`settings`を受け付ける |
 | 認証済みヘッダー | Dashboardとグループ設定以外で複数店舗がある場合に、現在のグループと店舗を表示して利用可能な店舗へ切り替える |
 | `/manager-invite?token=...` | 招待先グループと期限を公開DTOで確認し、ログインまたは登録後に確認済みメールのアカウントを自動連携する |
 | `/dashboard?shop=<shopId>` | グループと店舗のコンテキストカードを表示し、候補が複数ある場合だけ切り替える。店舗設定はモーダル、グループ設定は`/settings`へ進む |
@@ -107,8 +109,9 @@
 | `api.setup.mutations.setupShopAndManager` | `authenticatedMutation` | グループ、管理者、最初の店舗、Trial課金状態を作成する |
 | `api.dashboard.queries.getMyShops` | `authenticatedQuery` | 利用者が閲覧できる店舗をグループ情報と所属状態付きで返す |
 | `api.dashboard.queries.getDashboardShop` | `managerQuery` | 店舗情報とグループ課金から導出した業務更新可否を返す |
-| `api.dashboard.queries.getDashboardStaffs` | `managerQuery` | 店舗スタッフ、管理者状態、スタッフ詳細からの招待可否をページングして返す |
+| `api.dashboard.queries.getDashboardStaffs` | `managerQuery` | 店舗スタッフ、対応するグループ人物ID、管理者状態、管理者招待可否をページングして返す |
 | `api.organization.queries.getSettings` | `managerQuery` | 選択店舗から所属グループを特定し、ユーザー、管理者招待、店舗、課金、グループ削除可否と更新時刻を含む設定DTOを返す |
+| `api.organization.userDetailQueries.getUserDetail` | `managerQuery` | URLの人物が選択店舗と同じグループに属することを確認し、共通プロフィール、管理者権限、操作可否、店舗別所属を返す |
 | `api.organization.mutations.updateOrganizationName` | `authenticatedMutation` | グループ所属と課金状態を確認してグループ名を変更する |
 | `api.organization.mutations.addShop` | `authenticatedMutation` | 有料機能と上限を再確認して店舗を追加する |
 | `api.organization.mutations.deleteShop` | `authenticatedMutation` | 対象店舗のグループ所属、管理者権限、確認ID、requestIdを再確認し、最後の店舗を除いて削除と後続cleanupを開始する |
