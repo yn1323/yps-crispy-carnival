@@ -4,6 +4,7 @@ import { LuChevronDown, LuPlus, LuUsers } from "react-icons/lu";
 import type { Staff } from "@/src/components/features/Dashboard/types";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
+import { useScrollToListItem } from "@/src/hooks/useScrollToListItem";
 import { DASHBOARD_TOUR_TARGET } from "../dashboardTourTargets";
 import { StaffRow } from "./StaffRow";
 
@@ -15,6 +16,7 @@ type Props = {
   onAddClick: () => void;
   onOpenDetail: (staff: Staff) => void;
   onLoadMore: () => void;
+  focusedPersonId?: string;
 };
 
 export const StaffRoster = ({
@@ -25,9 +27,15 @@ export const StaffRoster = ({
   onAddClick,
   onOpenDetail,
   onLoadMore,
+  focusedPersonId,
 }: Props) => {
   const showLoadMore = canLoadMore && status !== "LoadingFirstPage";
   const sorted = [...staffs].sort((a, b) => Number(b.isManager) - Number(a.isManager));
+  const focusedItemId = focusedPersonId ? `dashboard-user-${focusedPersonId}` : undefined;
+  const isFocusedItemRendered = Boolean(
+    focusedPersonId && sorted.some((staff) => staff.organizationPersonId === focusedPersonId),
+  );
+  useScrollToListItem(focusedItemId, isFocusedItemRendered);
 
   return (
     <Stack as="section" aria-label="スタッフ一覧" gap={{ base: 4, lg: 5 }}>

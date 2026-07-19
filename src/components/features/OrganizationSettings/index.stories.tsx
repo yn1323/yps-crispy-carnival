@@ -268,7 +268,7 @@ export const UserNavigationBehavior: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "鈴木 次郎のユーザー詳細を開く" }));
     await expect(args.actions.onOpenUser).toHaveBeenCalledTimes(1);
-    await expect(args.actions.onOpenUser).toHaveBeenCalledWith("person-staff");
+    await expect(args.actions.onOpenUser).toHaveBeenCalledWith("person-staff", 10);
   },
 };
 

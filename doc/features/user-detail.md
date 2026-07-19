@@ -21,13 +21,15 @@ Dashboardのスタッフ一覧とグループ設定のユーザー一覧は、�
 ## URLと遷移
 
 ```text
-/users/<personId>?shop=<shopId>&tab=<tab>&returnTo=<dashboard|settings>
+/users/<personId>?shop=<shopId>&tab=<tab>&returnTo=<dashboard|settings>&users=<count>
 ```
 
 `tab`は`information`、`notification`、`line`、`settings`を受け付ける。
 未指定または不正な値は`information`として扱う。
 店舗を切り替えた場合は`shop`を更新し、同じ人物とタブを維持する。
-戻る操作は遷移元を`returnTo`で判定し、Dashboardまたはグループ設定を現在表示中の`shop`で開く。
+Dashboardとグループ設定のユーザー一覧は、初期表示を10件とし、「もっと見る」で増やした表示件数を`users`へ10件単位で保持する。
+ユーザー詳細へ遷移するときも`users`を引き継ぐ。
+戻る操作は遷移元を`returnTo`で判定し、Dashboardまたはグループ設定を現在表示中の`shop`と表示件数で開き、`focus`に指定した直前のユーザー付近へスクロールする。
 
 Dashboardの移行済みスタッフは、`getDashboardStaffs`が返す`organizationPersonId`を`personId`に使う。
 Widen期間中に`organizationPersonId`が未設定のスタッフだけは、操作不能にせず旧スタッフ詳細モーダルを暫定表示する。
@@ -37,8 +39,8 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 
 | 画面 | 役割 |
 |---|---|
-| `/dashboard?shop=<shopId>` | 店舗スタッフ一覧から、移行済みスタッフのユーザー詳細ページへ遷移する |
-| `/settings?shop=<shopId>&tab=people` | 店舗未所属者を含むグループ人物一覧から、ユーザー詳細ページへ遷移する |
+| `/dashboard?shop=<shopId>&users=<count>&focus=<personId>` | 店舗スタッフ一覧から、移行済みスタッフのユーザー詳細ページへ遷移する。表示件数と復帰位置を保持する |
+| `/settings?shop=<shopId>&tab=people&users=<count>&focus=<personId>` | 店舗未所属者を含むグループ人物一覧から、ユーザー詳細ページへ遷移する。表示件数と復帰位置を保持する |
 | `/users/<personId>?shop=<shopId>&tab=information` | グループ共通の氏名とメールアドレス、所属店舗を表示してプロフィールを編集する |
 | `/users/<personId>?shop=<shopId>&tab=notification` | 選択店舗の通知再送を扱う |
 | `/users/<personId>?shop=<shopId>&tab=line` | 選択店舗のLINE連携状態、連携リンク、個別連携依頼を扱う |
@@ -68,11 +70,14 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 
 ### フロントエンド
 
-- `src/routes/_auth/users.$personId.tsx`：人物IDと`shop`、`tab`を受け取るURL境界。
+- `src/routes/_auth/dashboard.tsx`と`settings.tsx`：ユーザー一覧の`users`と`focus`を受け取るURL境界。
+- `src/routes/_auth/users.$personId.tsx`：人物IDと`shop`、`tab`、戻り先の一覧表示件数を受け取るURL境界。
 - `src/pages/user-detail/`：詳細QueryとLoading、Not Found、正常表示の分岐。
 - `src/components/features/UserDetail/`：ヘッダー、店舗切り替え、4タブ、編集と確認操作。
 - `src/components/features/Dashboard/StaffManagement/`と`StaffRoster/`：店舗スタッフ一覧からの遷移と未移行スタッフの暫定フォールバック。
 - `src/components/features/OrganizationSettings/`：グループ人物一覧からの遷移。
+- `src/hooks/useScrollToListItem.ts`：一覧へ戻ったときに直前のユーザー行へスクロールする。
+- `src/lib/userListSearch.ts`：一覧表示件数と復帰対象のQueryStringを正規化する。
 
 ## API一覧
 

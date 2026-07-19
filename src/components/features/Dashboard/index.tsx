@@ -18,6 +18,9 @@ type Props = {
   currentUser: CurrentUser;
   managerLegalConsentStatus: DashboardContentProps["managerLegalConsentStatus"];
   isReadOnly?: boolean;
+  visibleUserCount?: number;
+  focusedPersonId?: string;
+  onVisibleUserCountChange?: (count: number) => void;
   operationContextData?: DashboardContentProps["operationContextData"];
 };
 
@@ -26,12 +29,18 @@ export function Dashboard({
   currentUser,
   managerLegalConsentStatus,
   isReadOnly = false,
+  visibleUserCount,
+  focusedPersonId,
+  onVisibleUserCountChange,
   operationContextData,
 }: Props) {
   return (
     <DashboardContent
       shop={shop}
       isReadOnly={isReadOnly}
+      visibleUserCount={visibleUserCount}
+      focusedPersonId={focusedPersonId}
+      onVisibleUserCountChange={onVisibleUserCountChange}
       operationContextData={operationContextData}
       isDashboardOnboardingDismissed={Boolean(
         currentUser && !currentUser.isNewUser && currentUser.dashboardOnboardingDismissedAt,

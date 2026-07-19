@@ -1,3 +1,4 @@
+import { toUserListCountSearch } from "@/src/lib/userListSearch";
 import type { UserDetailReturnTo, UserDetailTab } from "./types";
 
 type UserDetailSearchUpdate = {
@@ -9,9 +10,18 @@ export function mergeUserDetailSearch<T extends Record<string, unknown>>(previou
   return { ...previous, ...next };
 }
 
-export function getUserDetailBackDestination(returnTo: UserDetailReturnTo, selectedShopId: string | null) {
+export function getUserDetailBackDestination(
+  returnTo: UserDetailReturnTo,
+  selectedShopId: string | null,
+  visibleUserCount: number,
+  focusedPersonId: string,
+) {
   return {
     to: returnTo === "settings" ? ("/settings" as const) : ("/dashboard" as const),
-    search: { shop: selectedShopId ?? undefined },
+    search: {
+      shop: selectedShopId ?? undefined,
+      users: toUserListCountSearch(visibleUserCount),
+      focus: focusedPersonId,
+    },
   };
 }

@@ -18,6 +18,7 @@ export function OrganizationUserRow({ person, onOpenUser }: Props) {
   return (
     <HStack
       as="button"
+      id={`settings-user-${person.id}`}
       aria-label={`${person.name}のユーザー詳細を開く`}
       aria-describedby={descriptionId}
       gap={3}

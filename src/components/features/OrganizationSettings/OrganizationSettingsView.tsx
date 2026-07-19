@@ -25,6 +25,9 @@ export const OrganizationSettingsView = ({
   actions,
   defaultTab = "people",
   onTabChange,
+  initialVisibleUserCount,
+  focusedPersonId,
+  onVisibleUserCountChange,
 }: OrganizationSettingsViewProps) => (
   <Stack gap={{ base: 5, md: 7 }}>
     <OrganizationContext
@@ -70,6 +73,9 @@ export const OrganizationSettingsView = ({
           inviteManagerDisabledReason={inviteManagerDisabledReason}
           onInviteManager={actions.onInviteManager}
           onOpenUser={actions.onOpenUser}
+          initialVisibleUserCount={initialVisibleUserCount}
+          focusedPersonId={focusedPersonId}
+          onVisibleUserCountChange={onVisibleUserCountChange}
         />
       </Tabs.Content>
 

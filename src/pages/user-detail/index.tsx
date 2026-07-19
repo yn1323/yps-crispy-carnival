@@ -15,12 +15,14 @@ import { RootContentWrapper } from "@/src/components/templates/RootContentWrappe
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
+import { DEFAULT_USER_LIST_COUNT } from "@/src/lib/userListSearch";
 
 type Props = {
   personId: string;
   selectedShopId?: string;
   defaultTab?: UserDetailTab;
   returnTo?: UserDetailReturnTo;
+  visibleUserCount?: number;
 };
 
 export function UserDetailPage({
@@ -28,11 +30,12 @@ export function UserDetailPage({
   selectedShopId,
   defaultTab = "information",
   returnTo = "dashboard",
+  visibleUserCount = DEFAULT_USER_LIST_COUNT,
 }: Props) {
   // query内の判定時刻を購読中に動かさず、同じ画面表示では同じcapability結果を使う。
   const [queryNow] = useState(() => Date.now());
   const data = useShopQuery(api.organization.userDetailQueries.getUserDetail, { personId, now: queryNow });
-  const backDestination = getUserDetailBackDestination(returnTo, selectedShopId ?? null);
+  const backDestination = getUserDetailBackDestination(returnTo, selectedShopId ?? null, visibleUserCount, personId);
 
   return (
     <UserDetailPageShell>
@@ -57,7 +60,13 @@ export function UserDetailPage({
           }
         />
       ) : (
-        <UserDetail data={data} selectedShopId={selectedShopId ?? null} activeTab={defaultTab} returnTo={returnTo} />
+        <UserDetail
+          data={data}
+          selectedShopId={selectedShopId ?? null}
+          activeTab={defaultTab}
+          returnTo={returnTo}
+          visibleUserCount={visibleUserCount}
+        />
       )}
     </UserDetailPageShell>
   );

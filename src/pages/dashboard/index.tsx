@@ -12,7 +12,13 @@ import { Button } from "@/src/components/ui/Button";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
 import { isSelectableShop, normalizeShopContextOptions, selectedShopAtom } from "@/src/stores/shop";
 
-export function DashboardPage() {
+type Props = {
+  visibleUserCount?: number;
+  focusedPersonId?: string;
+  onVisibleUserCountChange?: (count: number) => void;
+};
+
+export function DashboardPage({ visibleUserCount, focusedPersonId, onVisibleUserCountChange }: Props) {
   const selectedContext = useAtomValue(selectedShopAtom);
   const myShops = useQuery(api.dashboard.queries.getMyShops, {});
   const selectedShop = useShopQuery(api.dashboard.queries.getDashboardShop, {});
@@ -79,6 +85,9 @@ export function DashboardPage() {
             currentUser={currentUser && "accountDeleted" in currentUser ? null : currentUser}
             managerLegalConsentStatus={managerLegalConsentStatus}
             isReadOnly={isReadOnly}
+            visibleUserCount={visibleUserCount}
+            focusedPersonId={focusedPersonId}
+            onVisibleUserCountChange={onVisibleUserCountChange}
             operationContextData={
               selectedContext && selectableShops ? { shops: selectableShops, selectedShop: selectedContext } : undefined
             }

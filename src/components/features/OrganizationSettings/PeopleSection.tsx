@@ -1,7 +1,9 @@
 import { Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LuChevronDown, LuMailPlus, LuUsers } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
+import { useScrollToListItem } from "@/src/hooks/useScrollToListItem";
+import { DEFAULT_USER_LIST_COUNT, USER_LIST_PAGE_SIZE } from "@/src/lib/userListSearch";
 import { OrganizationUserRow } from "./OrganizationUserRow";
 import type { OrganizationPersonView } from "./types";
 
@@ -12,11 +14,11 @@ type Props = {
   managerInvitationMode: "addition" | "freeManagerExchange";
   inviteManagerDisabledReason?: string;
   onInviteManager: () => void;
-  onOpenUser: (personId: string) => void;
+  onOpenUser: (personId: string, visibleUserCount: number) => void;
+  initialVisibleUserCount?: number;
+  focusedPersonId?: string;
+  onVisibleUserCountChange?: (count: number) => void;
 };
-
-const INITIAL_VISIBLE_USER_COUNT = 10;
-const LOAD_MORE_USER_COUNT = 10;
 
 export const PeopleSection = ({
   people,
@@ -26,10 +28,29 @@ export const PeopleSection = ({
   inviteManagerDisabledReason,
   onInviteManager,
   onOpenUser,
+  initialVisibleUserCount = DEFAULT_USER_LIST_COUNT,
+  focusedPersonId,
+  onVisibleUserCountChange,
 }: Props) => {
-  const [visibleUserCount, setVisibleUserCount] = useState(INITIAL_VISIBLE_USER_COUNT);
+  const [visibleUserCount, setVisibleUserCount] = useState(initialVisibleUserCount);
   const visiblePeople = people.slice(0, visibleUserCount);
   const canLoadMore = people.length > visibleUserCount;
+
+  useEffect(() => {
+    setVisibleUserCount(initialVisibleUserCount);
+  }, [initialVisibleUserCount]);
+
+  const focusedItemId = focusedPersonId ? `settings-user-${focusedPersonId}` : undefined;
+  const isFocusedItemRendered = Boolean(
+    focusedPersonId && visiblePeople.some((person) => person.id === focusedPersonId),
+  );
+  useScrollToListItem(focusedItemId, isFocusedItemRendered);
+
+  const handleLoadMore = () => {
+    const nextVisibleUserCount = visibleUserCount + USER_LIST_PAGE_SIZE;
+    setVisibleUserCount(nextVisibleUserCount);
+    onVisibleUserCountChange?.(nextVisibleUserCount);
+  };
 
   return (
     <Stack as="section" gap={4} aria-labelledby="organization-people-heading">
@@ -76,7 +97,11 @@ export const PeopleSection = ({
         <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.100" overflow="hidden">
           <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
             {visiblePeople.map((person) => (
-              <OrganizationUserRow key={person.id} person={person} onOpenUser={() => onOpenUser(person.id)} />
+              <OrganizationUserRow
+                key={person.id}
+                person={person}
+                onOpenUser={() => onOpenUser(person.id, visibleUserCount)}
+              />
             ))}
           </Stack>
         </Box>
@@ -84,13 +109,7 @@ export const PeopleSection = ({
 
       {canLoadMore && (
         <Flex justify="center">
-          <Button
-            variant="ghost"
-            colorPalette="teal"
-            size="sm"
-            gap={1}
-            onClick={() => setVisibleUserCount((count) => count + LOAD_MORE_USER_COUNT)}
-          >
+          <Button variant="ghost" colorPalette="teal" size="sm" gap={1} onClick={handleLoadMore}>
             <LuChevronDown aria-hidden />
             もっと見る
           </Button>

@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { clearRequestedShopSearch } from "@/src/lib/authenticatedSearch";
+import { toUserListCountSearch } from "@/src/lib/userListSearch";
 import { getUserDetailBackDestination, mergeUserDetailSearch } from "./navigation";
 import type { UserDetailData, UserDetailReturnTo, UserDetailTab } from "./types";
 import { UserDetailView } from "./UserDetailView";
@@ -14,9 +15,10 @@ type Props = {
   selectedShopId: string | null;
   activeTab: UserDetailTab;
   returnTo: UserDetailReturnTo;
+  visibleUserCount: number;
 };
 
-export function UserDetail({ data, selectedShopId, activeTab, returnTo }: Props) {
+export function UserDetail({ data, selectedShopId, activeTab, returnTo, visibleUserCount }: Props) {
   const navigate = useNavigate();
   const selectedMembership = data.memberships.find((membership) => membership.shopId === selectedShopId) ?? null;
   const isStoreReadOnly = !data.canWrite || Boolean(selectedMembership && selectedMembership.shopStatus !== "active");
@@ -43,7 +45,11 @@ export function UserDetail({ data, selectedShopId, activeTab, returnTo }: Props)
       }
       void navigate({
         to: "/settings",
-        search: { shop: selectedShopId ?? undefined, tab: "people" },
+        search: {
+          shop: selectedShopId ?? undefined,
+          tab: "people",
+          users: toUserListCountSearch(visibleUserCount),
+        },
         replace: true,
       });
     },
@@ -58,7 +64,7 @@ export function UserDetail({ data, selectedShopId, activeTab, returnTo }: Props)
   };
 
   const handleBack = () => {
-    const destination = getUserDetailBackDestination(returnTo, selectedShopId);
+    const destination = getUserDetailBackDestination(returnTo, selectedShopId, visibleUserCount, data.person.id);
     void navigate({ ...destination, replace: true });
   };
 

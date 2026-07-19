@@ -13,9 +13,15 @@ type SettingsTab = "people" | "shops" | "billing" | "settings";
 export function OrganizationSettingsPage({
   defaultTab = "people",
   onTabChange,
+  visibleUserCount,
+  focusedPersonId,
+  onVisibleUserCountChange,
 }: {
   defaultTab?: SettingsTab;
   onTabChange?: (tab: SettingsTab) => void;
+  visibleUserCount?: number;
+  focusedPersonId?: string;
+  onVisibleUserCountChange?: (count: number) => void;
 }) {
   const settings = useShopQuery(api.organization.queries.getSettings, {});
   const rawShops = useQuery(api.dashboard.queries.getMyShops, {});
@@ -31,6 +37,9 @@ export function OrganizationSettingsPage({
             context={{ shops, selectedShopId: selectedShop.shopId }}
             defaultTab={defaultTab}
             onTabChange={onTabChange}
+            initialVisibleUserCount={visibleUserCount}
+            focusedPersonId={focusedPersonId}
+            onVisibleUserCountChange={onVisibleUserCountChange}
           />
         ) : (
           <OrganizationSettingsSkeleton />

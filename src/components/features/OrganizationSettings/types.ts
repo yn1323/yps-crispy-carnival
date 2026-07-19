@@ -103,7 +103,7 @@ export type OrganizationSettingsActions = {
   onSelectOrganization: (shopId: string) => void;
   onUpdateOrganizationName: () => void;
   onInviteManager: () => void;
-  onOpenUser: (personId: string) => void;
+  onOpenUser: (personId: string, visibleUserCount: number) => void;
   onAddShop: () => void;
   onOpenShop: (shopId: string) => void;
   onOpenShopSettings: (shopId: string) => void;
@@ -136,9 +136,18 @@ export type OrganizationSettingsViewProps = {
   actions: OrganizationSettingsActions;
   defaultTab?: OrganizationSettingsTab;
   onTabChange?: (tab: OrganizationSettingsTab) => void;
+  initialVisibleUserCount?: number;
+  focusedPersonId?: string;
+  onVisibleUserCountChange?: (count: number) => void;
 };
 
 export type OrganizationSettingsData = Omit<
   OrganizationSettingsViewProps,
-  "organizationContext" | "actions" | "defaultTab" | "onTabChange"
+  | "organizationContext"
+  | "actions"
+  | "defaultTab"
+  | "onTabChange"
+  | "initialVisibleUserCount"
+  | "focusedPersonId"
+  | "onVisibleUserCountChange"
 >;

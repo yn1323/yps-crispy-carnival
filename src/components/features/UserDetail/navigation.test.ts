@@ -17,16 +17,16 @@ describe("ユーザー詳細のURL遷移", () => {
   });
 
   it("グループ設定へ現在表示中の店舗を引き継いで戻る", () => {
-    expect(getUserDetailBackDestination("settings", "shop-b")).toEqual({
+    expect(getUserDetailBackDestination("settings", "shop-b", 30, "person-a")).toEqual({
       to: "/settings",
-      search: { shop: "shop-b" },
+      search: { shop: "shop-b", users: 30, focus: "person-a" },
     });
   });
 
   it("Dashboardへ現在表示中の店舗を引き継いで戻る", () => {
-    expect(getUserDetailBackDestination("dashboard", "shop-b")).toEqual({
+    expect(getUserDetailBackDestination("dashboard", "shop-b", 10, "person-b")).toEqual({
       to: "/dashboard",
-      search: { shop: "shop-b" },
+      search: { shop: "shop-b", users: undefined, focus: "person-b" },
     });
   });
 });

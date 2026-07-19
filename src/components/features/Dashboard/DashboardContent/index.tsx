@@ -51,6 +51,9 @@ type Props = {
   staffStatus?: PaginationStatus;
   canLoadMoreStaffs?: boolean;
   loadMoreStaffs?: () => void;
+  visibleUserCount?: number;
+  focusedPersonId?: string;
+  onVisibleUserCountChange?: (count: number) => void;
   pendingStaffRequests?: StaffRegistrationRequest[];
   notificationFailures?: DashboardNotificationFailure[];
   isDashboardOnboardingDismissed?: boolean;
@@ -78,6 +81,9 @@ export const DashboardContent = ({
   staffStatus,
   canLoadMoreStaffs,
   loadMoreStaffs,
+  visibleUserCount,
+  focusedPersonId,
+  onVisibleUserCountChange,
   pendingStaffRequests,
   notificationFailures,
   isDashboardOnboardingDismissed = false,
@@ -138,6 +144,9 @@ export const DashboardContent = ({
                     openRecruitments={recruitment.openRecruitments}
                     currentRecruitments={recruitment.currentRecruitments}
                     isReadOnly={isReadOnly}
+                    initialVisibleUserCount={visibleUserCount}
+                    focusedPersonId={focusedPersonId}
+                    onVisibleUserCountChange={onVisibleUserCountChange}
                   >
                     {(staff) => (
                       <StaffRegistrationRequestManagement

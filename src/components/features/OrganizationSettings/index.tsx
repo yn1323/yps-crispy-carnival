@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
+import { toUserListCountSearch } from "@/src/lib/userListSearch";
 import type { ShopContextOption } from "@/src/stores/shop";
 import { BillingEmailDialog } from "./BillingSettings/BillingEmailDialog";
 import { useBillingSettingsController } from "./BillingSettings/useBillingSettingsController";
@@ -23,9 +24,20 @@ type Props = {
   };
   defaultTab?: OrganizationSettingsTab;
   onTabChange?: (tab: OrganizationSettingsTab) => void;
+  initialVisibleUserCount?: number;
+  focusedPersonId?: string;
+  onVisibleUserCountChange?: (count: number) => void;
 };
 
-export function OrganizationSettings({ settings, context, defaultTab = "people", onTabChange }: Props) {
+export function OrganizationSettings({
+  settings,
+  context,
+  defaultTab = "people",
+  onTabChange,
+  initialVisibleUserCount,
+  focusedPersonId,
+  onVisibleUserCountChange,
+}: Props) {
   const navigate = useNavigate();
   const organizationContext = useMemo(
     () => buildOrganizationContextModel(context.shops, context.selectedShopId),
@@ -64,6 +76,9 @@ export function OrganizationSettings({ settings, context, defaultTab = "people",
         organizationContext={organizationContext}
         defaultTab={defaultTab}
         onTabChange={onTabChange}
+        initialVisibleUserCount={initialVisibleUserCount}
+        focusedPersonId={focusedPersonId}
+        onVisibleUserCountChange={onVisibleUserCountChange}
         actions={{
           onSelectOrganization: (shopId) =>
             void navigate({
@@ -72,11 +87,16 @@ export function OrganizationSettings({ settings, context, defaultTab = "people",
             }),
           onUpdateOrganizationName: organizationName.open,
           onInviteManager: managerInvitation.open,
-          onOpenUser: (personId) =>
+          onOpenUser: (personId, visibleUserCount) =>
             void navigate({
               to: "/users/$personId",
               params: { personId },
-              search: { shop: context.selectedShopId, tab: "information", returnTo: "settings" },
+              search: {
+                shop: context.selectedShopId,
+                tab: "information",
+                returnTo: "settings",
+                users: toUserListCountSearch(visibleUserCount),
+              },
             }),
           onAddShop: shopManagement.addShop,
           onOpenShop: shopManagement.openShop,

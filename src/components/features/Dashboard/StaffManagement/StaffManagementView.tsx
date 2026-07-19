@@ -45,6 +45,7 @@ type Props = {
   status: PaginationStatus;
   canLoadMore: boolean;
   onLoadMore: () => void;
+  focusedPersonId?: string;
   openRecruitments: Recruitment[];
   currentRecruitments: Recruitment[];
   onOpenDetail: (staff: Staff) => void;
@@ -58,6 +59,7 @@ export function StaffManagementView({
   status,
   canLoadMore,
   onLoadMore,
+  focusedPersonId,
   openRecruitments,
   currentRecruitments,
   onOpenDetail,
@@ -74,6 +76,7 @@ export function StaffManagementView({
         onAddClick={invitation.onOpen}
         onOpenDetail={onOpenDetail}
         onLoadMore={onLoadMore}
+        focusedPersonId={focusedPersonId}
       />
 
       <StaffInvitationDialog invitation={invitation} isReadOnly={isReadOnly} />

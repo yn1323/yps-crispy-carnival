@@ -1,8 +1,9 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { useShopPaginatedQuery } from "@/src/hooks/useShopPaginatedQuery";
+import { DEFAULT_USER_LIST_COUNT, toUserListCountSearch, USER_LIST_PAGE_SIZE } from "@/src/lib/userListSearch";
 import { selectedShopAtom } from "@/src/stores/shop";
 import type { PaginationStatus, Recruitment, Staff } from "../types";
 import { StaffManagementView } from "./StaffManagementView";
@@ -11,10 +12,6 @@ import { useStaffLineConnection } from "./useStaffLineConnection";
 import { useStaffManagerInvitation } from "./useStaffManagerInvitation";
 import { useStaffNotificationDelivery } from "./useStaffNotificationDelivery";
 import { useStaffProfileManagement } from "./useStaffProfileManagement";
-
-const STAFF_INITIAL_VISIBLE_COUNT = 10;
-const STAFF_LOAD_MORE_COUNT = 10;
-const STAFF_QUERY_PAGE_SIZE = STAFF_INITIAL_VISIBLE_COUNT + 1;
 
 export type StaffManagementData = {
   staffs: Staff[];
@@ -34,16 +31,33 @@ type Props = {
   openRecruitments: Recruitment[];
   currentRecruitments: Recruitment[];
   isReadOnly?: boolean;
+  initialVisibleUserCount?: number;
+  focusedPersonId?: string;
+  onVisibleUserCountChange?: (count: number) => void;
   children: (state: StaffManagementState) => ReactNode;
 };
 
-export function StaffManagement({ data, openRecruitments, currentRecruitments, isReadOnly = false, children }: Props) {
+export function StaffManagement({
+  data,
+  openRecruitments,
+  currentRecruitments,
+  isReadOnly = false,
+  initialVisibleUserCount = DEFAULT_USER_LIST_COUNT,
+  focusedPersonId,
+  onVisibleUserCountChange,
+  children,
+}: Props) {
   const navigate = useNavigate();
   const selectedShop = useAtomValue(selectedShopAtom);
-  const [visibleStaffCount, setVisibleStaffCount] = useState(STAFF_INITIAL_VISIBLE_COUNT);
+  const [visibleStaffCount, setVisibleStaffCount] = useState(initialVisibleUserCount);
   const staffQuery = useShopPaginatedQuery(api.dashboard.queries.getDashboardStaffs, data ? "skip" : {}, {
-    initialNumItems: STAFF_QUERY_PAGE_SIZE,
+    initialNumItems: initialVisibleUserCount + 1,
   });
+
+  useEffect(() => {
+    setVisibleStaffCount(initialVisibleUserCount);
+  }, [initialVisibleUserCount]);
+
   const staffs = data?.staffs ?? staffQuery.results.slice(0, visibleStaffCount);
   const status = data?.status ?? staffQuery.status;
   const canLoadMore =
@@ -55,10 +69,11 @@ export function StaffManagement({ data, openRecruitments, currentRecruitments, i
   const handleLoadMore =
     data?.onLoadMore ??
     (() => {
-      const nextVisibleCount = visibleStaffCount + STAFF_LOAD_MORE_COUNT;
+      const nextVisibleCount = visibleStaffCount + USER_LIST_PAGE_SIZE;
       setVisibleStaffCount(nextVisibleCount);
+      onVisibleUserCountChange?.(nextVisibleCount);
       if (staffQuery.status === "CanLoadMore" && staffQuery.results.length <= nextVisibleCount) {
-        staffQuery.loadMore(STAFF_LOAD_MORE_COUNT);
+        staffQuery.loadMore(USER_LIST_PAGE_SIZE);
       }
     });
 
@@ -76,7 +91,12 @@ export function StaffManagement({ data, openRecruitments, currentRecruitments, i
     void navigate({
       to: "/users/$personId",
       params: { personId: staff.organizationPersonId },
-      search: { shop: selectedShop.shopId, tab: "information", returnTo: "dashboard" },
+      search: {
+        shop: selectedShop.shopId,
+        tab: "information",
+        returnTo: "dashboard",
+        users: toUserListCountSearch(visibleStaffCount),
+      },
     });
   };
 
@@ -86,6 +106,7 @@ export function StaffManagement({ data, openRecruitments, currentRecruitments, i
       status={status}
       canLoadMore={canLoadMore}
       onLoadMore={handleLoadMore}
+      focusedPersonId={focusedPersonId}
       openRecruitments={openRecruitments}
       currentRecruitments={currentRecruitments}
       onOpenDetail={handleOpenDetail}

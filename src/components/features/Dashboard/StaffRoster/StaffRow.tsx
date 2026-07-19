@@ -17,6 +17,7 @@ export function StaffRow({ staff, onOpenDetail }: Props) {
   return (
     <HStack
       as="button"
+      id={staff.organizationPersonId ? `dashboard-user-${staff.organizationPersonId}` : undefined}
       aria-label={hasUserDetail ? `${staff.name}のユーザー詳細を開く` : `${staff.name}のスタッフ詳細を開く`}
       gap={3}
       px={{ base: 3, lg: 4 }}
