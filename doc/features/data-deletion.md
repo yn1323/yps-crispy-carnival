@@ -54,7 +54,7 @@ LINE IDの置換値は`deleted:<documentId>`として行IDから決定的に作�
 
 | 画面 | 説明 |
 | --- | --- |
-| グループ設定「店舗」タブの店舗詳細モーダル | 対象店舗と影響範囲を確認し、店舗削除を受け付ける |
+| 店舗詳細ページ | グループ設定の店舗一覧から進み、対象店舗と影響範囲を確認して店舗削除を受け付ける |
 | グループ設定「設定」タブ | グループ削除可否または拒否理由を表示し、グループ名の再入力後に削除を受け付ける |
 | 店舗登録画面 | 最後のグループ削除後も認証を維持し、新しい店舗を登録できる |
 | 削除済みアカウント状態 | 明示的なアカウント削除受付済みまたはlegacy削除済みuserへ、個人情報を表示せず終了状態を表示する |
@@ -71,7 +71,7 @@ LINE IDの置換値は`deleted:<documentId>`として行IDから決定的に作�
 - `convex/organization/deletion.test.ts` — 削除受付、認可、業務識別情報の保持、アクセス失効、global user維持のFunction Test。
 - `convex/_scenario/organizationDeletion.test.ts` — 複数店舗、100件超の人物、中断回収、業務識別情報とglobal userの維持、再セットアップのScenario Test。
 - `convex/deletionCleanup/migrations.test.ts` — m016/m017の対象限定と再実行のFunction Test。
-- `src/components/features/OrganizationSettings/ShopManagement/` — 店舗削除UI。
+- `src/components/features/ShopDetail/` — 店舗詳細と店舗削除UI。
 - `src/components/features/OrganizationSettings/OrganizationDeletion/` — グループ削除UI。
 - `src/components/features/AuthenticatedApp/DeletedAccountState.tsx` — 削除済みuserの終了状態。
 - `e2e/scenarios/shop-deletion-flow.test.ts` — 店舗削除の実画面接続。
