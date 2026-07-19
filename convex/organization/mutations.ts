@@ -176,7 +176,6 @@ export const updateOrganizationName = authenticatedMutation({
   returns: v.object({ changed: v.boolean() }),
   handler: async (ctx, args) => {
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
-    await requireOrganizationBusinessWrite(ctx, actor.organization._id);
     const parsed = organizationNameSchema.safeParse(args.name);
     if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
     const requestKey = await toAuditRequestKey(args.requestId);

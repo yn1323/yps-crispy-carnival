@@ -194,7 +194,8 @@ const disabledActionReasonArgs: Pick<
 };
 
 const meta = {
-  title: "Features/OrganizationSettings",
+  id: "features-organizationsettings",
+  title: "Features/OrganizationSettings/1. 画面全体",
   component: OrganizationSettingsView,
   parameters: { layout: "padded" },
   args: baseArgs,
@@ -203,9 +204,10 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Users: Story = {};
+export const Users: Story = { name: "ユーザー｜通常" };
 
 export const StaffWithoutShop: Story = {
+  name: "ユーザー｜店舗未所属",
   args: {
     people: [
       ...baseArgs.people,
@@ -224,6 +226,7 @@ export const StaffWithoutShop: Story = {
 };
 
 export const UserListLoadMoreBehavior: Story = {
+  name: "ユーザー｜もっと見る（操作確認）",
   parameters: { screenshot: { skip: true } },
   args: {
     people: [
@@ -245,6 +248,7 @@ export const UserListLoadMoreBehavior: Story = {
 };
 
 export const FutureAssignmentRemovalBlocked: Story = {
+  name: "ユーザー｜未来のシフトあり",
   args: {
     people: baseArgs.people.map((person) =>
       person.id === "person-staff"
@@ -259,6 +263,7 @@ export const FutureAssignmentRemovalBlocked: Story = {
 };
 
 export const UserNavigationBehavior: Story = {
+  name: "ユーザー｜詳細を開く（操作確認）",
   parameters: { screenshot: { skip: true } },
   args: {
     actions: { ...actions, onOpenUser: fn() },
@@ -272,6 +277,7 @@ export const UserNavigationBehavior: Story = {
 };
 
 export const ManagerRoleRemoval: Story = {
+  name: "ユーザー｜管理者権限を外す",
   args: {
     people: [
       {
@@ -294,11 +300,12 @@ export const ManagerRoleRemoval: Story = {
   },
 };
 
-export const Shops: Story = { args: { defaultTab: "shops" } };
+export const Shops: Story = { name: "店舗｜通常", args: { defaultTab: "shops" } };
 
-export const Settings: Story = { args: { defaultTab: "settings" } };
+export const Settings: Story = { name: "設定｜通常", args: { defaultTab: "settings" } };
 
 export const SettingsDeletionUnavailable: Story = {
+  name: "設定｜削除不可",
   args: {
     defaultTab: "settings",
     canDeleteOrganization: false,
@@ -307,6 +314,7 @@ export const SettingsDeletionUnavailable: Story = {
 };
 
 export const OrganizationDeletionActionBehavior: Story = {
+  name: "設定｜グループ削除（操作確認）",
   parameters: { screenshot: { skip: true } },
   args: {
     defaultTab: "settings",
@@ -320,6 +328,7 @@ export const OrganizationDeletionActionBehavior: Story = {
 };
 
 export const ShopRowBehavior: Story = {
+  name: "店舗｜店舗詳細を開く（操作確認）",
   parameters: { screenshot: { skip: true } },
   args: { defaultTab: "shops", actions: { ...actions, onOpenShop: fn() } },
   play: async ({ args, canvasElement }) => {
@@ -330,6 +339,7 @@ export const ShopRowBehavior: Story = {
 };
 
 export const DisabledActionReasonsBehavior: Story = {
+  name: "画面全体｜閲覧のみの操作制限（操作確認）",
   parameters: { screenshot: { skip: true } },
   args: disabledActionReasonArgs,
   play: async ({ canvasElement }) => {
@@ -369,6 +379,7 @@ export const DisabledActionReasonsBehavior: Story = {
 };
 
 export const MobileDisabledActionReasonsBehavior: Story = {
+  name: "画面全体｜閲覧のみの操作制限・モバイル（操作確認）",
   parameters: { screenshot: { skip: true } },
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: disabledActionReasonArgs,
@@ -376,6 +387,7 @@ export const MobileDisabledActionReasonsBehavior: Story = {
 };
 
 export const Trial: Story = {
+  name: "プランと支払い｜トライアル",
   args: {
     defaultTab: "billing",
     billing: billing({
@@ -391,6 +403,7 @@ export const Trial: Story = {
 };
 
 export const Free: Story = {
+  name: "プランと支払い｜Free",
   args: {
     defaultTab: "billing",
     managerInvitations: [],
@@ -421,6 +434,7 @@ export const Free: Story = {
 };
 
 export const FreeBillingCapabilitiesBehavior: Story = {
+  name: "プランと支払い｜Freeの操作権限（操作確認）",
   parameters: { screenshot: { skip: true } },
   args: Free.args,
   play: async ({ canvasElement }) => {
@@ -434,9 +448,10 @@ export const FreeBillingCapabilitiesBehavior: Story = {
   },
 };
 
-export const Pro: Story = { args: { defaultTab: "billing" } };
+export const Pro: Story = { name: "プランと支払い｜Pro", args: { defaultTab: "billing" } };
 
 export const Business: Story = {
+  name: "プランと支払い｜Business",
   args: {
     defaultTab: "billing",
     canAddShop: false,
@@ -451,6 +466,7 @@ export const Business: Story = {
 };
 
 export const ComplimentaryBusiness: Story = {
+  name: "プランと支払い｜支払い不要Business",
   args: {
     defaultTab: "billing",
     billing: billing({
@@ -470,6 +486,7 @@ export const ComplimentaryBusiness: Story = {
 };
 
 export const ShopCapacityReachedBehavior: Story = {
+  name: "店舗｜登録上限（操作確認）",
   parameters: { screenshot: { skip: true } },
   args: { ...Business.args, defaultTab: "shops" },
   play: async ({ canvasElement }) => {
@@ -481,6 +498,7 @@ export const ShopCapacityReachedBehavior: Story = {
 };
 
 export const InitialPaymentPending: Story = {
+  name: "プランと支払い｜初回支払い確認中",
   args: {
     defaultTab: "billing",
     billing: billing({
@@ -494,6 +512,7 @@ export const InitialPaymentPending: Story = {
 };
 
 export const PendingActivationFreeFallback: Story = {
+  name: "プランと支払い｜有料プラン反映待ち・Free継続",
   args: {
     defaultTab: "billing",
     managerInvitations: [],
@@ -526,6 +545,7 @@ export const PendingActivationFreeFallback: Story = {
 };
 
 export const PendingActivationRestrictedRecovery: Story = {
+  name: "プランと支払い｜有料プラン反映待ち・利用制限",
   args: {
     defaultTab: "billing",
     managerInvitations: [],
@@ -533,8 +553,6 @@ export const PendingActivationRestrictedRecovery: Story = {
     managerInvitationMode: "addition",
     freeManagerExchangeCandidates: [],
     inviteManagerDisabledReason: "契約制限中は管理者を招待できません。",
-    canUpdateOrganizationName: false,
-    updateOrganizationNameDisabledReason: "契約制限中はグループ名を変更できません。",
     canAddShop: false,
     addShopDisabledReason: "契約制限中は店舗を追加できません。",
     people: restrictedPeople,
@@ -555,6 +573,7 @@ export const PendingActivationRestrictedRecovery: Story = {
 };
 
 export const MigrationPending: Story = {
+  name: "プランと支払い｜設定移行中",
   args: {
     defaultTab: "billing",
     managerInvitations: [],
@@ -562,8 +581,6 @@ export const MigrationPending: Story = {
     managerInvitationMode: "addition",
     freeManagerExchangeCandidates: [],
     inviteManagerDisabledReason: "グループ単位の設定を移行しています。完了までお待ちください。",
-    canUpdateOrganizationName: false,
-    updateOrganizationNameDisabledReason: "グループ単位の設定を移行しています。完了までお待ちください。",
     canAddShop: false,
     addShopDisabledReason: "グループ単位のプラン設定を移行しています。完了までお待ちください。",
     billing: billing({
@@ -584,6 +601,7 @@ export const MigrationPending: Story = {
 };
 
 export const Grace: Story = {
+  name: "プランと支払い｜支払い猶予",
   args: {
     defaultTab: "billing",
     billing: billing({
@@ -596,6 +614,7 @@ export const Grace: Story = {
 };
 
 export const Restricted: Story = {
+  name: "プランと支払い｜契約制限",
   args: {
     defaultTab: "billing",
     managerInvitations: [],
@@ -603,8 +622,6 @@ export const Restricted: Story = {
     managerInvitationMode: "addition",
     freeManagerExchangeCandidates: [],
     inviteManagerDisabledReason: "契約制限中は管理者を招待できません。",
-    canUpdateOrganizationName: false,
-    updateOrganizationNameDisabledReason: "契約制限中はグループ名を変更できません。",
     canAddShop: false,
     addShopDisabledReason: "契約制限中は店舗を追加できません。",
     people: restrictedPeople,
@@ -623,6 +640,7 @@ export const Restricted: Story = {
 };
 
 export const ScheduledFree: Story = {
+  name: "プランと支払い｜Freeへ変更予定",
   args: {
     defaultTab: "billing",
     billing: billing({
@@ -635,6 +653,7 @@ export const ScheduledFree: Story = {
 };
 
 export const ScheduledPro: Story = {
+  name: "プランと支払い｜Proへ変更予定",
   args: {
     defaultTab: "billing",
     billing: billing({
@@ -648,30 +667,35 @@ export const ScheduledPro: Story = {
 };
 
 export const MobileRestricted: Story = {
+  name: "プランと支払い｜契約制限・モバイル",
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
   args: Restricted.args,
 };
 
 export const MobileComplimentaryBusiness: Story = {
+  name: "プランと支払い｜支払い不要Business・モバイル",
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: ComplimentaryBusiness.args,
 };
 
 export const MobileUsers: Story = {
+  name: "ユーザー｜通常・モバイル",
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: { defaultTab: "people" },
 };
 
 export const MobileShops: Story = {
+  name: "店舗｜通常・モバイル",
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: { defaultTab: "shops" },
 };
 
 export const MobileSettings: Story = {
+  name: "設定｜通常・モバイル",
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: { defaultTab: "settings" },

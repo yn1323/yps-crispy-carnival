@@ -28,12 +28,12 @@ const STATE_PRESENTATION: Record<
   pro: {
     label: "Pro",
     status: "success",
-    description: "複数管理者・複数店舗・AIシフトたたき台を利用できます。",
+    description: "複数管理者・複数店舗を利用できます。",
   },
   business: {
     label: "Business",
     status: "success",
-    description: "最大30名まで、有料機能をすべて利用できます。",
+    description: "複数管理者・複数店舗を利用できます。",
   },
   initialPaymentPending: {
     label: "初回請求を確認中",
@@ -54,7 +54,7 @@ const STATE_PRESENTATION: Record<
     label: "契約制限中",
     status: "error",
     description:
-      "既存データは閲覧できます。業務を再開するには、支払いを確認するか利用人数・店舗数を上限内にしてください。",
+      "プラン移行に伴い、機能を制限しています。\n支払いを確認するか、人数、店舗数を無料プラン枠に収まるよう調整してください。",
   },
   scheduledFree: {
     label: "Freeへ変更予定",
@@ -80,19 +80,47 @@ export const PlanAndPaymentSection = ({
   onUpdateBillingEmail,
   onOpenInvoice,
 }: Props) => {
-  const presentation = billing.isComplimentary
-    ? {
-        ...STATE_PRESENTATION.business,
-        description: "このグループでは、料金なしでBusinessの全機能を利用できます。",
-      }
-    : billing.state === "pendingActivation" && billing.currentPlan === "free"
+  const presentation =
+    billing.state === "pendingActivation" && billing.currentPlan === "free"
       ? {
           ...STATE_PRESENTATION.pendingActivation,
           description: "支払い成功を確認するまで有料プランは開始されません。確認中もFreeの基本機能は利用できます。",
         }
       : STATE_PRESENTATION[billing.state];
-  const currentPlan = billing.currentPlan ?? (isPlanState(billing.state) ? billing.state : null);
+  const currentPlan =
+    billing.currentPlan ??
+    (billing.state === "restricted"
+      ? // 初回のプラン移行失敗など直前プランがない場合も、復旧基準のFreeを表示する。
+        (billing.previousPlan ?? "free")
+      : isPlanState(billing.state)
+        ? billing.state
+        : null);
   const currentPlanPresentation = currentPlan ? STATE_PRESENTATION[currentPlan] : null;
+  const stateAlert = isExceptionalState(billing.state) ? (
+    <Alert.Root status={presentation.status} borderRadius="xl" alignItems="flex-start">
+      <Alert.Indicator mt={1} />
+      <Alert.Content>
+        {billing.state !== "restricted" && (
+          <HStack gap={2} wrap="wrap">
+            <Alert.Title>{presentation.label}</Alert.Title>
+            {billing.targetPlan && (
+              <Badge variant="subtle" colorPalette="teal">
+                変更先: {planLabel(billing.targetPlan)}
+              </Badge>
+            )}
+            {shouldShowCurrentPlan(billing.state) && billing.currentPlan && (
+              <Badge variant="outline" colorPalette="gray">
+                現在: {planLabel(billing.currentPlan)}
+              </Badge>
+            )}
+          </HStack>
+        )}
+        <Alert.Description whiteSpace={billing.state === "restricted" ? "pre-line" : undefined}>
+          {presentation.description}
+        </Alert.Description>
+      </Alert.Content>
+    </Alert.Root>
+  ) : null;
 
   return (
     <Stack gap={6}>
@@ -108,7 +136,7 @@ export const PlanAndPaymentSection = ({
           <Box borderWidth="1px" borderRadius="xl" bg="white" p={{ base: 4, md: 5 }}>
             <Stack gap={3}>
               <Text fontSize="sm" fontWeight="semibold" color="fg.muted">
-                現在のプラン
+                {billing.state === "restricted" ? "プラン" : "現在のプラン"}
               </Text>
               <HStack gap={2} wrap="wrap">
                 <Heading as="h3" fontSize="2xl">
@@ -116,48 +144,25 @@ export const PlanAndPaymentSection = ({
                 </Heading>
                 {billing.isComplimentary && (
                   <Badge variant="subtle" colorPalette="teal">
-                    料金なし
+                    支払い不要
                   </Badge>
                 )}
               </HStack>
-              <Stack gap={1}>
-                <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
-                  できること
-                </Text>
+              <Stack gap={2}>
                 <Text fontSize="sm">{currentPlanPresentation.description}</Text>
+                {billing.isComplimentary && (
+                  <Text fontSize="sm">
+                    早期利用特典として、追加料金なしでBusinessプランと同等の機能がご利用いただけます。
+                  </Text>
+                )}
               </Stack>
             </Stack>
           </Box>
         )}
 
-        {isExceptionalState(billing.state) && (
-          <Alert.Root status={presentation.status} borderRadius="xl" alignItems="flex-start">
-            <Alert.Indicator mt={1} />
-            <Alert.Content>
-              <HStack gap={2} wrap="wrap">
-                <Alert.Title>{presentation.label}</Alert.Title>
-                {billing.targetPlan && (
-                  <Badge variant="subtle" colorPalette="teal">
-                    変更先: {planLabel(billing.targetPlan)}
-                  </Badge>
-                )}
-                {shouldShowCurrentPlan(billing.state) && billing.currentPlan && (
-                  <Badge variant="outline" colorPalette="gray">
-                    現在: {planLabel(billing.currentPlan)}
-                  </Badge>
-                )}
-                {billing.state === "restricted" && billing.previousPlan && (
-                  <Badge variant="outline" colorPalette="gray">
-                    直前: {planLabel(billing.previousPlan)}
-                  </Badge>
-                )}
-              </HStack>
-              <Alert.Description>{presentation.description}</Alert.Description>
-            </Alert.Content>
-          </Alert.Root>
-        )}
+        {billing.state !== "restricted" && stateAlert}
 
-        {billing.blockedReason && (
+        {billing.state !== "restricted" && billing.blockedReason && (
           <Box borderWidth="1px" borderColor="orange.200" bg="orange.50" borderRadius="lg" p={3}>
             <Text fontSize="sm" fontWeight="semibold" color="orange.900">
               操作できない理由
@@ -179,6 +184,8 @@ export const PlanAndPaymentSection = ({
             <UsageMeter icon={LuGauge} label="店舗数" current={billing.shopUsage.current} max={billing.shopUsage.max} />
           </Flex>
         )}
+
+        {billing.state === "restricted" && stateAlert}
 
         {billing.nextEvent && (
           <HStack borderWidth="1px" borderRadius="lg" bg="white" p={3} gap={3} align="flex-start">

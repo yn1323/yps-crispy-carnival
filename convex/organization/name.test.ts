@@ -50,7 +50,7 @@ describe("organization.mutations.updateOrganizationName", () => {
     expect(state.audits[0]?.correlationId).not.toContain(requestId);
   });
 
-  it("閲覧のみ管理者と契約制限中の通常変更を拒否する", async () => {
+  it("閲覧のみ管理者による変更を拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const readOnly = await seedOrganizationManagerShop(ctx, {
@@ -58,13 +58,30 @@ describe("organization.mutations.updateOrganizationName", () => {
         plan: "pro",
       });
       await ctx.db.patch(readOnly.memberId, { status: "readOnly" });
-      const restricted = await seedOrganizationManagerShop(ctx, {
+      return readOnly;
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "organization_name_readonly" })
+        .mutation(api.organization.mutations.updateOrganizationName, {
+          shopId: ids.shopId,
+          name: "変更不可",
+          requestId: "organization-name-readonly",
+        }),
+    ).rejects.toThrowError("Not found");
+  });
+
+  it("契約制限中でもactive管理者はグループ名を変更できる", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
         subject: "organization_name_restricted",
         plan: "pro",
       });
       const billingState = await ctx.db
         .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", restricted.organizationId))
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
         .unique();
       if (!billingState) throw new Error("billing state not found");
       await ctx.db.patch(billingState._id, {
@@ -72,31 +89,101 @@ describe("organization.mutations.updateOrganizationName", () => {
           kind: "restricted",
           reason: "freeConditionsNotMet",
           previousPlan: "pro",
-          recoveryManagerPersonIds: [restricted.personId],
-          previousActiveShopIds: [restricted.shopId],
+          recoveryManagerPersonIds: [base.personId],
+          previousActiveShopIds: [base.shopId],
           restrictedAt: Date.now(),
         },
       });
-      return { readOnly, restricted };
+      return base;
     });
 
     await expect(
       t
-        .withIdentity({ subject: "organization_name_readonly" })
-        .mutation(api.organization.mutations.updateOrganizationName, {
-          shopId: ids.readOnly.shopId,
-          name: "変更不可",
-          requestId: "organization-name-readonly",
-        }),
-    ).rejects.toThrow("Not found");
-    await expect(
-      t
         .withIdentity({ subject: "organization_name_restricted" })
         .mutation(api.organization.mutations.updateOrganizationName, {
-          shopId: ids.restricted.shopId,
-          name: "変更不可",
+          shopId: ids.shopId,
+          name: "契約制限中の変更後グループ",
           requestId: "organization-name-restricted",
         }),
-    ).rejects.toThrow("契約を確認するまで");
+    ).resolves.toEqual({ changed: true });
+
+    const organization = await t.run(async (ctx) => await ctx.db.get(ids.organizationId));
+    expect(organization?.name).toBe("契約制限中の変更後グループ");
+  });
+
+  it("契約制限中からの支払い結果待ちでもactive管理者はグループ名を変更できる", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "organization_name_pending_restricted",
+        plan: "pro",
+      });
+      const now = Date.now();
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      await ctx.db.patch(billingState._id, {
+        state: {
+          kind: "pendingActivation",
+          plan: "business",
+          fallback: "restricted",
+          restrictedFallbackState: {
+            kind: "restricted",
+            reason: "paymentGraceExpired",
+            previousPlan: "pro",
+            recoveryManagerPersonIds: [base.personId],
+            previousActiveShopIds: [base.shopId],
+            restrictedAt: now - 1_000,
+          },
+          startedAt: now,
+        },
+      });
+      return base;
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "organization_name_pending_restricted" })
+        .mutation(api.organization.mutations.updateOrganizationName, {
+          shopId: ids.shopId,
+          name: "支払い結果待ちの変更後グループ",
+          requestId: "organization-name-pending-restricted",
+        }),
+    ).resolves.toEqual({ changed: true });
+
+    const organization = await t.run(async (ctx) => await ctx.db.get(ids.organizationId));
+    expect(organization?.name).toBe("支払い結果待ちの変更後グループ");
+  });
+
+  it("課金状態が未移行でもactive管理者はグループ名を変更できる", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "organization_name_missing_billing",
+        plan: "pro",
+      });
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      await ctx.db.delete(billingState._id);
+      return base;
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "organization_name_missing_billing" })
+        .mutation(api.organization.mutations.updateOrganizationName, {
+          shopId: ids.shopId,
+          name: "課金移行中の変更後グループ",
+          requestId: "organization-name-missing-billing",
+        }),
+    ).resolves.toEqual({ changed: true });
+
+    const organization = await t.run(async (ctx) => await ctx.db.get(ids.organizationId));
+    expect(organization?.name).toBe("課金移行中の変更後グループ");
   });
 });

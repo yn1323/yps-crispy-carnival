@@ -966,16 +966,12 @@ export const getSettings = managerQuery({
               : policy?.paidFeatureBlockReason === "paymentResultPending"
                 ? "支払い結果が確定してから店舗を追加できます。"
                 : "店舗はグループごとに5件まで登録できます。";
-    const canUpdateOrganizationName = canWriteNormally;
+    const canUpdateOrganizationName = isActiveActor;
     const updateOrganizationNameDisabledReason = canUpdateOrganizationName
       ? undefined
-      : !billingState
+      : !ctx.organizationMember
         ? "グループ単位の設定を移行しています。完了までお待ちください。"
-        : !isActiveActor
-          ? "閲覧のみの管理者はグループ名を変更できません。"
-          : restrictedState
-            ? "契約制限中はグループ名を変更できません。"
-            : "支払い結果が確定してからグループ名を変更できます。";
+        : "閲覧のみの管理者はグループ名を変更できません。";
 
     const deletionEligibility = ctx.organizationMember
       ? await getOrganizationDeletionEligibility(ctx, {

@@ -27,7 +27,9 @@ describe("organization/queries.getSettings", () => {
       .withIdentity({ subject: "settings_trial_date" })
       .query(api.organization.queries.getSettings, { shopId: ids.shopId });
 
-    expect(result?.billing.nextEvent).toEqual({ label: "無料体験終了", date: "2026年9月1日" });
+    expect(result?.billing.state).toBe("trial");
+    if (!result || !("nextEvent" in result.billing)) throw new Error("trial billing view not found");
+    expect(result.billing.nextEvent).toEqual({ label: "無料体験終了", date: "2026年9月1日" });
   });
 
   it("事業者設定を画面用DTOへ投影し、tokenや内部状態を返さない", async () => {
@@ -540,6 +542,8 @@ describe("organization/queries.getSettings", () => {
 
     expect(result?.shops).toHaveLength(2);
     expect(result?.canAddShop).toBe(false);
+    expect(result?.canUpdateOrganizationName).toBe(false);
+    expect(result?.updateOrganizationNameDisabledReason).toBe("閲覧のみの管理者はグループ名を変更できません。");
     expect(result?.billing).toMatchObject({
       canManagePlan: false,
       managePlanDisabledReason: "閲覧のみの管理者はこの操作を行えません。",
@@ -790,7 +794,7 @@ describe("organization/queries.getSettings", () => {
     });
   });
 
-  it("契約情報が未移行の事業者はmigrationPendingとして全操作を停止する", async () => {
+  it("契約情報が未移行でもactive管理者にはグループ名変更を許可する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -824,6 +828,8 @@ describe("organization/queries.getSettings", () => {
       canScheduleFree: false,
     });
     expect(result?.billing.blockedReason).toContain("移行");
+    expect(result?.canUpdateOrganizationName).toBe(true);
+    expect(result?.updateOrganizationNameDisabledReason).toBeUndefined();
     expect(result?.canAddShop).toBe(false);
     expect(result?.shops[0]).toMatchObject({ canDelete: false });
   });
@@ -948,6 +954,8 @@ describe("organization/queries.getSettings", () => {
       canUpdateBillingEmail: true,
     });
     expect(result?.billing.blockedReason).toContain("支払い猶予");
+    expect(result?.canUpdateOrganizationName).toBe(true);
+    expect(result?.updateOrganizationNameDisabledReason).toBeUndefined();
     expect(result?.shops[0]).toMatchObject({ canDelete: false });
   });
 
@@ -998,6 +1006,8 @@ describe("organization/queries.getSettings", () => {
       canUpdatePaymentMethod: true,
       canUpdateBillingEmail: true,
     });
+    expect(result?.canUpdateOrganizationName).toBe(true);
+    expect(result?.updateOrganizationNameDisabledReason).toBeUndefined();
     expect(result?.canAddShop).toBe(false);
     expect(result?.shops.find((shop) => shop.id === ids.shopId)).toMatchObject({ canDelete: true });
     expect(result?.shops.find((shop) => shop.id === ids.suspendedShopId)).toMatchObject({ canDelete: true });
