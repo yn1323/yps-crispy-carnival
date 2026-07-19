@@ -1,5 +1,6 @@
 import dayjs from "dayjs";
-import { isValidIsoDateString } from "@/convex/_lib/validation";
+import { getInclusiveIsoDateSpanDays, isValidIsoDateString } from "@/convex/_lib/validation";
+import { RECRUITMENT_PERIOD_DAYS_MAX } from "@/convex/constants";
 import { createRecruitmentSchema } from "@/convex/recruitment/schemas";
 import type { RegularClosedDay } from "@/convex/shop/schemas";
 import {
@@ -32,6 +33,9 @@ export const getCalendarMonthCount = (startDate?: string, endDate?: string): 1 |
   if (!startDate || !endDate) return 1;
   return dayjs(startDate).isSame(endDate, "month") ? 1 : 2;
 };
+
+export const getPeriodSelectionMaxDate = (today: string): string =>
+  dayjs(today).add(3, "month").endOf("month").format("YYYY-MM-DD");
 
 export const getHolidaySummary = (holidays: string[]): { value: string; detail?: string } => {
   const sortedHolidays = [...holidays].sort();
@@ -74,6 +78,10 @@ export const getPeriodStepValidationError = ({
   }
   if (periodStart <= today) {
     return { field: "periodStart", message: "開始日は明日以降にしてください" };
+  }
+  const spanDays = getInclusiveIsoDateSpanDays(periodStart, periodEnd);
+  if (spanDays !== null && spanDays > RECRUITMENT_PERIOD_DAYS_MAX) {
+    return { field: "periodEnd", message: `募集期間は${RECRUITMENT_PERIOD_DAYS_MAX}日以内にしてください` };
   }
   return undefined;
 };

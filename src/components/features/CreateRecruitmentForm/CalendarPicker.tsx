@@ -1,6 +1,7 @@
 import { Box, DatePicker, type DateValue, Grid, Stack, Text, useBreakpointValue } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import { Fragment } from "react";
+import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
 
 export type CalendarPickerSelectionMode = "range" | "multiple" | "single";
 
@@ -15,25 +16,71 @@ export type CalendarPickerProps = {
   onValueChange: (value: DateValue[]) => void;
 };
 
-const CalendarHeader = () => (
-  <DatePicker.ViewControl display={{ base: "flex", md: "none" }} mb={3}>
-    <DatePicker.PrevTrigger display={{ base: "inline-flex", md: "none" }} _disabled={{ display: "none" }} />
-    <DatePicker.RangeText flex={1} textAlign="center" fontSize="sm" fontWeight="semibold" />
-    <DatePicker.NextTrigger display={{ base: "inline-flex", md: "none" }} _disabled={{ display: "none" }} />
-  </DatePicker.ViewControl>
-);
-
 const CalendarMonthTitle = ({ offset }: { offset: number }) => (
   <DatePicker.Context>
     {(datePicker) => {
       const visibleRange = offset ? datePicker.getOffset({ months: offset }).visibleRange : datePicker.visibleRange;
       return (
-        <Text display={{ base: "none", md: "block" }} textAlign="center" fontSize="sm" fontWeight="semibold">
+        <Text data-calendar-month-title minW={0} textAlign="center" fontSize="sm" fontWeight="semibold" truncate>
           {dayjs(visibleRange.start.toString()).format("YYYY年M月")}
         </Text>
       );
     }}
   </DatePicker.Context>
+);
+
+const navigationTriggerStyles = {
+  _hover: { bg: "bg.muted", cursor: "pointer" },
+  _disabled: { visibility: "hidden" },
+} as const;
+
+const MobileCalendarHeader = () => (
+  <DatePicker.ViewControl
+    data-calendar-navigation="mobile"
+    display="grid"
+    gridTemplateColumns="var(--datepicker-nav-trigger-size) minmax(0, 1fr) var(--datepicker-nav-trigger-size)"
+    mb={3}
+  >
+    <DatePicker.PrevTrigger aria-label="前の期間を表示" {...navigationTriggerStyles}>
+      <LuChevronLeft aria-hidden data-calendar-caret="left" />
+    </DatePicker.PrevTrigger>
+    <CalendarMonthTitle offset={0} />
+    <DatePicker.NextTrigger aria-label="次の期間を表示" {...navigationTriggerStyles}>
+      <LuChevronRight aria-hidden data-calendar-caret="right" />
+    </DatePicker.NextTrigger>
+  </DatePicker.ViewControl>
+);
+
+const DesktopCalendarMonthHeader = ({
+  offset,
+  showPrevious,
+  showNext,
+}: {
+  offset: number;
+  showPrevious: boolean;
+  showNext: boolean;
+}) => (
+  <DatePicker.ViewControl
+    data-calendar-navigation="desktop"
+    display="grid"
+    gridTemplateColumns="var(--datepicker-nav-trigger-size) minmax(0, 1fr) var(--datepicker-nav-trigger-size)"
+  >
+    {showPrevious ? (
+      <DatePicker.PrevTrigger aria-label="前の期間を表示" {...navigationTriggerStyles}>
+        <LuChevronLeft aria-hidden data-calendar-caret="left" />
+      </DatePicker.PrevTrigger>
+    ) : (
+      <Box aria-hidden="true" boxSize="var(--datepicker-nav-trigger-size)" />
+    )}
+    <CalendarMonthTitle offset={offset} />
+    {showNext ? (
+      <DatePicker.NextTrigger aria-label="次の期間を表示" {...navigationTriggerStyles}>
+        <LuChevronRight aria-hidden data-calendar-caret="right" />
+      </DatePicker.NextTrigger>
+    ) : (
+      <Box aria-hidden="true" boxSize="var(--datepicker-nav-trigger-size)" />
+    )}
+  </DatePicker.ViewControl>
 );
 
 const dayTriggerSelector = "& [data-part=table-cell-trigger]";
@@ -56,7 +103,8 @@ export const CalendarPicker = ({
   highlightSelectableDates = false,
   onValueChange,
 }: CalendarPickerProps) => {
-  const monthCount = useBreakpointValue({ base: 1, md: desktopMonths }) ?? 1;
+  const isDesktop = useBreakpointValue({ base: false, md: true }, { ssr: false }) ?? false;
+  const monthCount = isDesktop ? desktopMonths : 1;
   const showMonthDivider = monthCount > 1;
 
   return (
@@ -71,6 +119,7 @@ export const CalendarPicker = ({
       timeZone="Asia/Tokyo"
       startOfWeek={0}
       numOfMonths={monthCount}
+      fixedWeeks
       closeOnSelect={false}
       hideOutsideDays
       onValueChange={(details) => onValueChange(details.value)}
@@ -146,7 +195,7 @@ export const CalendarPicker = ({
       }}
     >
       <DatePicker.View view="day">
-        <CalendarHeader />
+        {!isDesktop && <MobileCalendarHeader />}
         <Grid
           templateColumns={{
             base: "1fr",
@@ -167,7 +216,13 @@ export const CalendarPicker = ({
                 />
               )}
               <Stack gap={3} minW={0}>
-                <CalendarMonthTitle offset={index} />
+                {isDesktop && (
+                  <DesktopCalendarMonthHeader
+                    offset={index}
+                    showPrevious={index === 0}
+                    showNext={index === monthCount - 1}
+                  />
+                )}
                 <DatePicker.DayTable offset={index} w="full" />
               </Stack>
             </Fragment>

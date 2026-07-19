@@ -63,6 +63,113 @@ export const MobileFullScreen: Story = {
   ),
 };
 
+export const FutureMonthsNavigation: Story = {
+  globals: {
+    viewport: { value: "desktop", isRotated: false },
+  },
+  render: InDialog.render,
+  play: async ({ canvasElement }) => {
+    const root = await getTestRoot(canvasElement);
+    const calendar = getCalendarRoot(root);
+    const initialSize = getElementSize(calendar);
+    const currentMonth = storyToday().startOf("month");
+    const futurePeriodStart = currentMonth.add(1, "month").endOf("month");
+    const futurePeriodEnd = currentMonth.add(3, "month").endOf("month");
+    const previousTrigger = getCalendarNavigationButton(calendar, "desktop", "前の期間を表示");
+    const nextTrigger = getCalendarNavigationButton(calendar, "desktop", "次の期間を表示");
+
+    expect(getDesktopMonthLabels(calendar)).toEqual([
+      currentMonth.format("YYYY年M月"),
+      currentMonth.add(1, "month").format("YYYY年M月"),
+    ]);
+    expectFixedCalendarWeeks(calendar, 2);
+    expectCaret(previousTrigger, "left", false);
+    expectCaret(nextTrigger, "right", true);
+    expectSingleNavigationPair(calendar);
+    expect(previousTrigger).not.toBeVisible();
+    expect(previousTrigger).toBeDisabled();
+    expect(previousTrigger.offsetWidth).toBeGreaterThan(0);
+    await expectMutedHover(nextTrigger, calendar);
+
+    await userEvent.click(nextTrigger);
+    await waitFor(() =>
+      expect(getDesktopMonthLabels(calendar)).toEqual([
+        currentMonth.add(2, "month").format("YYYY年M月"),
+        currentMonth.add(3, "month").format("YYYY年M月"),
+      ]),
+    );
+    expectElementSize(calendar, initialSize);
+    expectFixedCalendarWeeks(calendar, 2);
+    expect(previousTrigger).toBeEnabled();
+    expect(nextTrigger).toBeDisabled();
+    expect(nextTrigger).not.toBeVisible();
+    expectCaret(previousTrigger, "left", true);
+    expectCaret(nextTrigger, "right", false);
+    expect(nextTrigger.offsetWidth).toBeGreaterThan(0);
+
+    await userEvent.click(previousTrigger);
+    await waitFor(() =>
+      expect(getDesktopMonthLabels(calendar)).toEqual([
+        currentMonth.format("YYYY年M月"),
+        currentMonth.add(1, "month").format("YYYY年M月"),
+      ]),
+    );
+    expectElementSize(calendar, initialSize);
+    expectCaret(previousTrigger, "left", false);
+    expectCaret(nextTrigger, "right", true);
+    expect(previousTrigger).not.toBeVisible();
+
+    await clickDate(root, futurePeriodStart);
+    await userEvent.click(nextTrigger);
+    await waitFor(() => expect(getDesktopMonthLabels(calendar).at(-1)).toBe(futurePeriodEnd.format("YYYY年M月")));
+    await clickDate(root, futurePeriodEnd);
+    await clickButton(root, "次へ");
+    await within(root).findByText("募集期間は62日以内にしてください");
+    expect(within(root).getByText("シフト期間を選択")).toBeTruthy();
+  },
+};
+
+export const MobileFutureMonthsNavigation: Story = {
+  tags: ["vrt-mobile1"],
+  globals: {
+    viewport: { value: "mobile1", isRotated: false },
+  },
+  render: MobileFullScreen.render,
+  play: async ({ canvasElement }) => {
+    const root = await getTestRoot(canvasElement);
+    const calendar = getCalendarRoot(root);
+    const initialSize = getElementSize(calendar);
+    const currentMonth = storyToday().startOf("month");
+    const previousTrigger = getCalendarNavigationButton(calendar, "mobile", "前の期間を表示");
+    const nextTrigger = getCalendarNavigationButton(calendar, "mobile", "次の期間を表示");
+
+    expect(getMobileMonthLabel(calendar)).toBe(currentMonth.format("YYYY年M月"));
+    expectFixedCalendarWeeks(calendar, 1);
+    expectCaret(previousTrigger, "left", false);
+    expectCaret(nextTrigger, "right", true);
+    expectSingleNavigationPair(calendar);
+    expect(previousTrigger).not.toBeVisible();
+    expect(previousTrigger).toBeDisabled();
+    expect(previousTrigger.offsetWidth).toBeGreaterThan(0);
+
+    for (let monthOffset = 1; monthOffset <= 3; monthOffset += 1) {
+      await userEvent.click(nextTrigger);
+      await waitFor(() =>
+        expect(getMobileMonthLabel(calendar)).toBe(currentMonth.add(monthOffset, "month").format("YYYY年M月")),
+      );
+      expectElementSize(calendar, initialSize);
+      expectFixedCalendarWeeks(calendar, 1);
+    }
+
+    expect(previousTrigger).toBeEnabled();
+    expect(nextTrigger).not.toBeVisible();
+    expect(nextTrigger).toBeDisabled();
+    expectCaret(previousTrigger, "left", true);
+    expectCaret(nextTrigger, "right", false);
+    expect(nextTrigger.offsetWidth).toBeGreaterThan(0);
+  },
+};
+
 export const InteractiveBasicFlow: Story = {
   parameters: {
     screenshot: { skip: true },
@@ -293,7 +400,92 @@ export const InteractiveDoubleSubmitGuard: Story = {
 };
 
 async function getTestRoot(canvasElement: HTMLElement): Promise<HTMLElement> {
-  return within(canvasElement.ownerDocument.body).findByRole("dialog");
+  const root = await within(canvasElement.ownerDocument.body).findByRole("dialog");
+  await waitFor(() => expect(root).toBeVisible());
+  return root;
+}
+
+function getCalendarRoot(root: HTMLElement): HTMLElement {
+  const calendar = root.querySelector<HTMLElement>('[data-scope="date-picker"][data-part="root"]');
+  expect(calendar).toBeTruthy();
+  return calendar as HTMLElement;
+}
+
+function getCalendarNavigationButton(
+  calendar: HTMLElement,
+  viewport: "desktop" | "mobile",
+  label: "前の期間を表示" | "次の期間を表示",
+): HTMLButtonElement {
+  const button = calendar.querySelector<HTMLButtonElement>(
+    `[data-calendar-navigation="${viewport}"] button[aria-label="${label}"]`,
+  );
+  expect(button).toBeTruthy();
+  return button as HTMLButtonElement;
+}
+
+function getDesktopMonthLabels(calendar: HTMLElement): string[] {
+  return Array.from(
+    calendar.querySelectorAll<HTMLElement>('[data-calendar-navigation="desktop"] [data-calendar-month-title]'),
+  ).map((title) => title.textContent?.trim() ?? "");
+}
+
+function getMobileMonthLabel(calendar: HTMLElement): string {
+  const title = calendar.querySelector<HTMLElement>('[data-calendar-navigation="mobile"] [data-calendar-month-title]');
+  expect(title).toBeTruthy();
+  return title?.textContent?.trim() ?? "";
+}
+
+function expectCaret(button: HTMLButtonElement, direction: "left" | "right", isVisible: boolean) {
+  expect(button.textContent?.trim()).toBe("");
+  expect(button.querySelectorAll("svg")).toHaveLength(1);
+  const caret = button.querySelector(`[data-calendar-caret="${direction}"]`);
+  expect(caret).toBeTruthy();
+  if (isVisible) {
+    expect(caret).toBeVisible();
+  } else {
+    expect(caret).not.toBeVisible();
+  }
+}
+
+async function expectMutedHover(button: HTMLButtonElement, calendar: HTMLElement) {
+  const colorProbe = document.createElement("div");
+  colorProbe.style.backgroundColor = "var(--chakra-colors-bg-muted)";
+  calendar.append(colorProbe);
+  const mutedBackground = getComputedStyle(colorProbe).backgroundColor;
+  colorProbe.remove();
+
+  button.setAttribute("data-hover", "");
+  await waitFor(() => {
+    expect(getComputedStyle(button).backgroundColor).toBe(mutedBackground);
+    expect(getComputedStyle(button).cursor).toBe("pointer");
+  });
+  button.removeAttribute("data-hover");
+}
+
+function expectSingleNavigationPair(calendar: HTMLElement) {
+  expect(calendar.querySelectorAll('[data-part="prev-trigger"]')).toHaveLength(1);
+  expect(calendar.querySelectorAll('[data-part="next-trigger"]')).toHaveLength(1);
+}
+
+function expectFixedCalendarWeeks(calendar: HTMLElement, monthCount: number) {
+  const weekCounts = Array.from(calendar.querySelectorAll("table tbody")).map(
+    (tableBody) => tableBody.querySelectorAll("tr").length,
+  );
+  expect(weekCounts).toEqual(Array.from({ length: monthCount }, () => 6));
+}
+
+type ElementSize = {
+  width: number;
+  height: number;
+};
+
+function getElementSize(element: HTMLElement): ElementSize {
+  return { width: element.offsetWidth, height: element.offsetHeight };
+}
+
+function expectElementSize(element: HTMLElement, expected: ElementSize) {
+  const current = getElementSize(element);
+  expect(current).toEqual(expected);
 }
 
 function getDateButton(root: HTMLElement, date: dayjs.Dayjs): HTMLButtonElement {
@@ -346,7 +538,7 @@ function isDateDisabled(button: HTMLButtonElement): boolean {
 
 async function ensureMonthVisible(root: HTMLElement, date: dayjs.Dayjs) {
   const monthLabel = date.format("YYYY年M月");
-  for (let i = 0; i < 3; i += 1) {
+  for (let i = 0; i < 4; i += 1) {
     if (root.textContent?.includes(monthLabel)) return;
     const nextButton = root.querySelector<HTMLButtonElement>('[data-part="next-trigger"]');
     if (!nextButton || isDateDisabled(nextButton)) break;
