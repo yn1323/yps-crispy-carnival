@@ -8,7 +8,7 @@
 - `src/components/features/OrganizationSettings/ShopManagement/` — 店舗一覧、店舗詳細モーダル、削除確認UI
 - `convex/organization/mutations.ts` — グループ所属店舗の追加、状態変更、削除受付
 - `convex/shop/mutations.ts` — 店舗設定更新と旧店舗モデル向け削除互換API
-- `convex/deletionCleanup/` — 削除店舗の主要マスタ置換、所属・session・token・未送信通知の終了処理
+- `convex/deletionCleanup/` — 削除店舗の所属、session、token、LINE連携、未送信通知の終了処理
 - `convex/dashboard/queries.ts` — ダッシュボード用の店舗設定取得
 - `doc/features/data-deletion.md` — 店舗・グループ削除の保証範囲と対象外
 
@@ -36,7 +36,8 @@
 - `時間指定` は提出方法の中にシフト開始/終了時間を持つ。
 - `日ごと` はスタッフが出勤可能日だけを選び、時間入力は持たない。
 - `勤務区分` は区分名と時間帯を最大4件まで定義し、保存時に開始時間が早い順、同じ開始時間なら終了時間が早い順へ並べてから募集作成時点の設定が募集に保存される。
-- 店舗削除は物理削除ではなく、受付時に`shops.isDeleted = true`として店舗名を`削除済み店舗`へ置き換える。最後の未削除店舗は削除できない。
-- 後続の永続cleanup jobは、対象店舗の`staffs`を論理削除して氏名・メールアドレスを置き換え、`staffLineAccounts`のLINE IDを置き換える。店舗用session、magic link、LINE連携token、法務同意token、登録リンクを失効し、未送信通知を停止する。
+- 店舗削除は物理削除ではなく、受付時に店舗名を保持したまま`shops.isDeleted = true`にする。最後の未削除店舗は削除できない。
+- 後続の永続cleanup jobは、対象店舗の`staffs`にある氏名、メールアドレス、正規化メールを保持したまま論理削除し、`staffLineAccounts`のLINE IDだけを削除済みの値へ置き換える。店舗用session、magic link、LINE連携token、法務同意token、登録リンクを失効し、未送信通知を停止する。
 - 店舗削除では`users`、`organizationPeople`、`organizationMembers`を変更しない。対象店舗のユーザーはグループ人物として残る。
-- rate limit、自由入力欄、通知履歴、送信済みメール・LINEなどは置換対象外とする。詳細は`doc/features/data-deletion.md`を参照する。
+- 店舗名、スタッフの氏名とメールアドレス、rate limit、自由入力欄、送信済みメール、LINEはDBに残るため、この導線を個人データの消去や匿名化とは扱わない。詳細は`doc/features/data-deletion.md`を参照する。
+- 保持契約はConvex Function TestとScenario Testで検証し、削除用アカウントを破壊する新しいE2Eは追加しない。

@@ -12,7 +12,7 @@
 - 既存グループへの無償Business付与は `doc/plans/2026-07-16_既存事業者_無償Business_実装計画.md` を参照する。
 - 管理者5名上限、スタッフ詳細からの招待、Free管理者交代後の権限失効は `doc/plans/2026-07-17_スタッフ詳細_管理者招待_5名上限_実装計画.md` が先行計画を上書きする。
 - Free管理者交代の送信前確認と、同一管理者による複数グループ切替のE2E契約は `doc/plans/2026-07-18_Free管理者交代_複数グループ_追加実装計画.md` を参照する。
-- 店舗・グループ削除と主要マスタの直接識別子置換は `doc/features/data-deletion.md` と `doc/plans/2026-07-18_店舗と組織の削除_個人情報匿名化_実装計画.md` を参照する。
+- 店舗とグループの利用停止、業務識別情報の保持、LINE IDの切断は `doc/features/data-deletion.md` と `doc/plans/2026-07-19_削除後の業務識別情報保持と認証切り離し_実装計画.md` を参照する。
 - この文書は現行コードの機能配置とAPI一覧を示し、料金や会計判断は定義しない。
 
 ## 主要な契約
@@ -40,13 +40,16 @@
 - Freeの管理者交代では、アカウント連携と同じトランザクションで旧管理者の管理画面権限と旧`shopMembers`だけを失効させる。`organizationPeople`と交代前からある`staffs`は維持し、未所属店舗へスタッフ行を追加しない。
 - 店舗スタッフの編集は`organizationPeople`を正本とし、同じ人物の有効な全店舗スタッフ行へ氏名とメールアドレスを同期する。
 - 店舗から人物を外してもグループ内の人物と利用人数算入は維持し、グループからの削除では全所属と未送信通知を失効する。
+- 店舗またはグループから人物を外す場合も、`organizationPeople`と`staffs`の氏名、メールアドレス、正規化メールは過去の業務履歴を識別するため保持する。
 - グループ全体のユーザー一覧には、店舗所属がなくても利用人数に含まれる人物を「店舗未所属」として表示し、所属店舗を「店舗所属なし」と表示する。
 - 課金通知と招待通知は既存のNotification Outboxへ積み、外部送信前にグループ、所属、課金状態、通知起点の課金versionを再確認する。招待トークンはOutboxへ保存せず、送信直前に導出する。
 - Free移行または契約制限開始前の業務操作から遅延して作られた通知も、通知起点のversionで判定して送信しない。
 - メール通知は外部送信の直前に現在のグループ内の人物、スタッフ、または利用者のメールアドレスと宛先を照合し、変更前の宛先へ送信しない。
 - 閲覧専用へ切り替わった画面は、開いていた書込ダイアログを閉じ、ShiftBoardの未保存編集を永続化済みデータへ戻す。
 - グループ削除は、対象グループでほかに有効な管理者がなく、課金状態が未選択Trial、Free、無償Businessのいずれかで、店舗削除jobが進行していない場合だけ許可する。UIの表示可否だけに依存せず、mutationで所属、対象ID、更新時刻、課金状態を再検証する。
-- グループ削除受付ではグループと組織専属の操作ユーザーを即時に論理削除し、主要マスタの名称・氏名・メール・LINE ID置換と全店舗の終了処理は再開可能な永続jobで行う。別の有効グループ所属を持つ共有ユーザーとClerk認証は維持する。
+- グループ削除受付ではグループを即時に論理削除し、全店舗、人物所属、店舗所属、権限、session、token、招待、未送信通知の終了処理を再開可能な永続jobで行う。
+- グループ名、請求先メールアドレス、正規化請求先メール、店舗名、人物とスタッフの氏名、メールアドレス、正規化メールは保持し、LINE IDは削除済みの値へ置き換える。
+- グループ削除ではglobal `users`とClerk認証を変更しない。ログインアカウントの削除は、所属なしユーザーがstrict再認証を通る明示的なアカウント削除導線でだけ受け付ける。
 
 ## 関連ファイル
 
@@ -59,7 +62,7 @@
 - `convex/organizationBilling/`：プラン上限、操作policy、期限処理、Free選択、請求先メール、課金通知。
 - `convex/organizationInvitation/`：管理者招待の発行、再送、取消、失効、公開プレビュー、アカウント連携、通知。
 - `convex/notificationOutbox/`：グループ単位の通知scope、契約制限時の未送信業務通知停止、送信直前の再確認。
-- `convex/deletionCleanup/`：店舗・グループ削除の永続job、主要マスタ置換、Capability失効、未送信通知停止、lease回収。
+- `convex/deletionCleanup/`：店舗とグループ削除の永続job、所属とCapabilityの失効、LINE IDの切断、未送信通知停止、lease回収。
 - `convex/migrations/m009_shops_to_organizations.ts`：既存店舗から一店舗一グループを作成。
 - `convex/migrations/m010_shop_members_to_organization_members.ts`：既存店舗管理者をグループ内の人物と管理者所属へ移行。
 - `convex/migrations/m011_staffs_to_organization_people.ts`：既存スタッフをグループ内の人物へ結び付け、曖昧な一致を衝突として記録。
@@ -221,6 +224,8 @@ BusinessからProへの期間末変更は、`issued`招待の予約枠を含む�
 - `m013`はFree選択と交代監査から旧管理者だと一意に確認できる`readOnly`だけを`removed`へ変更し、スタッフ所属とスタッフ向け通知を維持する。
 - `m014`はcanonicalな管理者所属が`removed`であることを一意に確認できる旧`shopMembers`だけを削除済みにする。
 - `m016`と`m017`は既存の削除済み店舗・グループへ決定的なrequest IDでcleanup jobを作る。削除済みグループ配下の店舗は`m016`でskipし、親グループjobだけで処理する。
+- 業務識別情報の保持は既存fieldを上書きしない変更であり、新しいschema migrationは追加しない。`m016`と`m017`が作るjobも、展開後のworkerでは業務識別情報を保持してアクセスを失効する。
+- すでに削除済みの値へマスキングされたグループ名、請求先メールアドレス、店舗名、氏名、メールアドレスは、この変更で推測またはバックアップから自動復元しない。
 - m013とm014で由来や対応が曖昧な行は自動変更せず、migration conflictとして手動裁定へ回す。
 - production exportのZIPは、実行前を`pnpm convex:verify-complimentary-export -- --mode pre --path <export.zip>`、実行後を`pnpm convex:verify-complimentary-export -- --mode post --path <export.zip> --expected-target-count <preの件数> --expected-target-set-sha256 <preのhash>`で展開せずにオフライン検証する。対象0件、pre/postの対象集合差分、重複、リンク、課金状態、監査、未解消conflictの対応が崩れている場合はmigrationを進めない。
 - export検証はmigration componentのstatusを証明しない。developとproductionで別途`lib:getStatus`を確認し、m012が`isDone: true`かつ`state: "success"`であることを完走条件にする。
@@ -238,15 +243,17 @@ BusinessからProへの期間末変更は、`issued`招待の予約枠を含む�
 | 本番デプロイ | この実装では実行していない |
 | Narrow | 本番相当環境で新モデルの安定を観測するまで実行しない |
 | 旧課金データと履歴の物理削除 | 保持期間、対象件数、復旧手段が決まるまで実行しない |
+| 削除後の業務識別情報の保持目的と保持期間 | プロダクト責任者の判断後にプライバシーポリシーへ反映する。未確定のまま曖昧な法的根拠を追記しない |
 
 `setStateFromVerifiedBilling`は将来のStripe連携が検証済み結果を渡すための内部接続点であり、現在のコードがStripeとの通信や署名検証を行うことを意味しない。
 
 ## テスト配置
 
 - `convex/organization/*.test.ts`：グループ境界、店舗操作、人物削除、最後の管理者、冪等性。
-- `convex/organization/deletion.test.ts`：グループ削除の認可、課金条件、即時停止、直接識別子置換、共有user維持、冪等性。
+- `convex/organization/deletion.test.ts`：グループ削除の認可、課金条件、即時停止、業務識別情報の保持、アクセス失効、共有user維持、冪等性。
 - `convex/deletionCleanup/migrations.test.ts`：m016/m017の対象限定、決定的request ID、親子job重複防止、再実行の冪等性。
-- `convex/_scenario/organizationDeletion.test.ts`：複数店舗と100件超の人物を持つグループ削除、中断回収、主要マスタ置換、共有userと別グループの維持。
+- `convex/_scenario/organizationDeletion.test.ts`：複数店舗と100件超の人物を持つグループ削除、中断回収、業務識別情報の保持、アクセス失効、共有userと別グループの維持。
+- 店舗またはグループ削除のDB契約はConvex Function TestとScenario Testを主担当とし、削除用アカウントを破壊する新しいE2Eは追加しない。
 - `convex/organizationBilling/*.test.ts`：上限、利用人数、JST境界、状態遷移、期限処理、通知。
 - `convex/organizationInvitation/mutations.test.ts`と`token.test.ts`：発行時の人物未作成、トークン、期限、メール一致、再送ローテーション、アカウント連携、上限、競合、通知。
 - `convex/organizationInvitation/lifecycleMigration.test.ts`：旧`pending/accepted`から`issued/linked`への移行と再実行時の冪等性。
