@@ -402,7 +402,8 @@ describe("AuthGuard", () => {
     );
 
     expect(screen.getByRole("heading", { name: "アカウントの削除を受け付けました" })).not.toBeNull();
-    expect(screen.getByText(/Clerkのログイン情報の削除には時間がかかる場合があります/)).not.toBeNull();
+    expect(screen.getByText(/ログイン情報は通常、数分以内に削除されます/)).not.toBeNull();
+    expect(screen.getByText(/このページを閉じても処理は継続します/)).not.toBeNull();
     expect(screen.queryByRole("heading", { name: "アプリ上のアカウントは削除済みです" })).toBeNull();
     expect(screen.queryByTestId("account-deletion-entry")).toBeNull();
     expect(screen.queryByTestId("manager-child")).toBeNull();

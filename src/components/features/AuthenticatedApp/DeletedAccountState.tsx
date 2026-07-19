@@ -16,7 +16,7 @@ export function DeletedAccountState({ accountDeletionRequested = false }: Props)
       title={accountDeletionRequested ? "アカウントの削除を受け付けました" : "アプリ上のアカウントは削除済みです"}
       description={
         accountDeletionRequested
-          ? "このログインではシフトリを利用できません。Clerkのログイン情報の削除には時間がかかる場合があります。"
+          ? "このログインではシフトリを利用できません。ログイン情報は通常、数分以内に削除されます。このページを閉じても処理は継続します。"
           : "このログインではシフトリのデータを利用できません。Clerkのログイン情報は残っています。"
       }
       secondaryDescription={
