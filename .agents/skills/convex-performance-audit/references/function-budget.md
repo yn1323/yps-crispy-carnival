@@ -42,25 +42,6 @@ that page for the latest numbers.
 A query that calls `.collect()` on a table without a reasonable limit. As the
 table grows, the query reads more and more documents.
 
-Passing a caller-controlled count directly to `.take(count)` is also unbounded.
-
-For native pagination, `paginationOpts.numItems` is only the initial page-size
-target. Reactive pagination may return a different number of items, so a
-validated `numItems` is not a hard result limit.
-
-### Silent truncation
-
-A fixed `.take(limit)` inside a count or analytics job can stay within function
-budgets while returning an incomplete value as if it were exact.
-
-Choose one contract:
-
-- maintain an exact counter on writes, or use a resumable cursor-based job that
-  persists its accumulator across bounded invocations
-- enforce the same hard maximum on writes when the cap is a product invariant
-- return or persist `isTruncated`, `lowerBound`, and the applied limit when the
-  capped result is intentional
-
 ### Large document reads on hot paths
 
 Reading documents with large fields (rich text, embedded media references, long
@@ -87,19 +68,13 @@ const messages = await ctx.db.query("messages").collect();
 ```
 
 ```ts
-// Good: fixed, server-owned limit
+// Good: paginate or limit
 const messages = await ctx.db
   .query("messages")
   .withIndex("by_channel", (q) => q.eq("channelId", channelId))
   .order("desc")
   .take(50);
 ```
-
-Reject unreasonable caller-controlled `.take()` counts and pagination targets
-or read budgets where appropriate. For Convex native pagination, do not treat
-`numItems` as a hard result cap. Validate with `paginationOptsValidator` and
-pass `args.paginationOpts` unchanged to `.paginate()` so `endCursor`,
-`maximumRowsRead`, `maximumBytesRead`, and `id` retain their native behavior.
 
 ### 2. Read smaller shapes
 
@@ -117,14 +92,11 @@ self-scheduling chain.
 ```ts
 // Bad: one mutation updating every row
 export const backfillAll = internalMutation({
-  args: {},
-  returns: v.null(),
   handler: async (ctx) => {
     const docs = await ctx.db.query("items").collect();
     for (const doc of docs) {
       await ctx.db.patch(doc._id, { newField: computeValue(doc) });
     }
-    return null;
   },
 });
 ```
@@ -132,12 +104,12 @@ export const backfillAll = internalMutation({
 ```ts
 // Good: cursor-based batch processing
 export const backfillBatch = internalMutation({
-  args: { cursor: v.optional(v.string()) },
-  returns: v.null(),
+  args: { cursor: v.optional(v.string()), batchSize: v.optional(v.number()) },
   handler: async (ctx, args) => {
+    const batchSize = args.batchSize ?? 100;
     const result = await ctx.db
       .query("items")
-      .paginate({ cursor: args.cursor ?? null, numItems: 100 });
+      .paginate({ cursor: args.cursor ?? null, numItems: batchSize });
 
     for (const doc of result.page) {
       if (doc.newField === undefined) {
@@ -148,10 +120,9 @@ export const backfillBatch = internalMutation({
     if (!result.isDone) {
       await ctx.scheduler.runAfter(0, internal.items.backfillBatch, {
         cursor: result.continueCursor,
+        batchSize,
       });
     }
-
-    return null;
   },
 });
 ```
@@ -163,32 +134,24 @@ budgets. If you need to do CPU-intensive computation, call external APIs, or
 process large files, use an action instead.
 
 Actions run outside the transaction and can call mutations to write results
-back. In Shiftori, persist the authenticated request intent first and schedule
-an `internalAction`. A raw public action still needs the documented allowlist,
-authentication or capability checks, rate limits, and idempotency contract.
+back.
 
 ```ts
 // Bad: heavy computation inside a mutation
 export const processUpload = mutation({
-  args: { data: v.string() },
-  returns: v.null(),
   handler: async (ctx, args) => {
     const result = expensiveComputation(args.data);
     await ctx.db.insert("results", result);
-    return null;
   },
 });
 ```
 
 ```ts
 // Good: action for heavy work, mutation for the write
-export const processUpload = internalAction({
-  args: { data: v.string() },
-  returns: v.null(),
+export const processUpload = action({
   handler: async (ctx, args) => {
     const result = expensiveComputation(args.data);
     await ctx.runMutation(internal.results.store, { result });
-    return null;
   },
 });
 ```
@@ -201,8 +164,6 @@ component only renders a few fields, map the results before returning.
 ```ts
 // Bad: returns full documents including large content fields
 export const list = query({
-  args: {},
-  returns: v.array(articleDocumentValidator),
   handler: async (ctx) => {
     return await ctx.db.query("articles").take(20);
   },
@@ -212,8 +173,6 @@ export const list = query({
 ```ts
 // Good: project to only the fields the client needs
 export const list = query({
-  args: {},
-  returns: v.array(articleListItemValidator),
   handler: async (ctx) => {
     const articles = await ctx.db.query("articles").take(20);
     return articles.map((a) => ({
@@ -235,11 +194,9 @@ transaction but pay extra per-call cost.
 ```ts
 // Bad: unnecessary overhead from ctx.runQuery inside a mutation
 export const createProject = mutation({
-  args: { name: v.string() },
-  returns: v.id("projects"),
   handler: async (ctx, args) => {
-    const user = await ctx.runQuery(api.users.getCurrentUser, {});
-    return await ctx.db.insert("projects", { ...args, ownerId: user._id });
+    const user = await ctx.runQuery(api.users.getCurrentUser);
+    await ctx.db.insert("projects", { ...args, ownerId: user._id });
   },
 });
 ```
@@ -247,11 +204,9 @@ export const createProject = mutation({
 ```ts
 // Good: plain helper function, no extra overhead
 export const createProject = mutation({
-  args: { name: v.string() },
-  returns: v.id("projects"),
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
-    return await ctx.db.insert("projects", { ...args, ownerId: user._id });
+    await ctx.db.insert("projects", { ...args, ownerId: user._id });
   },
 });
 ```
@@ -268,28 +223,22 @@ calling Node.js code from the Convex runtime).
 
 ```ts
 // Bad: runAction overhead for no reason
-export const processItems = internalAction({
-  args: { items: v.array(itemValidator) },
-  returns: v.null(),
+export const processItems = action({
   handler: async (ctx, args) => {
     for (const item of args.items) {
       await ctx.runAction(internal.items.processOne, { item });
     }
-    return null;
   },
 });
 ```
 
 ```ts
 // Good: plain function call
-export const processItems = internalAction({
-  args: { items: v.array(itemValidator) },
-  returns: v.null(),
+export const processItems = action({
   handler: async (ctx, args) => {
     for (const item of args.items) {
       await processOneItem(ctx, { item });
     }
-    return null;
   },
 });
 ```
@@ -303,7 +252,3 @@ export const processItems = internalAction({
 5. `ctx.runQuery`/`ctx.runMutation` in queries and mutations replaced with
    helpers where possible
 6. Sibling functions with similar patterns were checked
-7. Caller-controlled `.take()` counts and pagination read budgets are validated,
-   and `numItems` is not treated as a hard result cap
-8. Fixed-cap aggregates expose truncation or are backed by an enforced product
-   limit
