@@ -6,6 +6,30 @@ import { seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("organization/queries.getSettings", () => {
+  it("無料体験終了を時刻なしのJST日付で返す", async () => {
+    const t = convexTest(schema, modules);
+    const trialEndsAt = Date.parse("2026-09-01T00:00:00+09:00");
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "settings_trial_date",
+        plan: "free",
+      });
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
+        .unique();
+      if (!billingState) throw new Error("organizationBillingState not found");
+      await ctx.db.patch(billingState._id, { state: { kind: "trial", trialEndsAt } });
+      return base;
+    });
+
+    const result = await t
+      .withIdentity({ subject: "settings_trial_date" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+    expect(result?.billing.nextEvent).toEqual({ label: "無料体験終了", date: "2026年9月1日" });
+  });
+
   it("事業者設定を画面用DTOへ投影し、tokenや内部状態を返さない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {

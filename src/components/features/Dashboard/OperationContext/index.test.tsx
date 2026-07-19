@@ -126,15 +126,13 @@ describe("OperationContext", () => {
     });
   });
 
-  it("設定メニューから店舗設定と現在店舗のグループ設定を開ける", async () => {
+  it("店舗設定を直接開き、現在店舗のグループ設定へ遷移できる", async () => {
     renderContext();
 
-    fireEvent.click(screen.getByRole("button", { name: "設定メニューを開く" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "店舗設定" }));
+    fireEvent.click(screen.getByRole("button", { name: "店舗設定を開く" }));
     expect(mocks.openShopSettings).toHaveBeenCalledOnce();
 
-    fireEvent.click(screen.getByRole("button", { name: "設定メニューを開く" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "グループ設定" }));
+    fireEvent.click(screen.getByRole("button", { name: "グループ設定" }));
 
     await waitFor(() => {
       expect(mocks.navigate).toHaveBeenCalledWith({ to: "/settings", search: { shop: "shop-a" } });
@@ -147,6 +145,6 @@ describe("OperationContext", () => {
     expect(screen.getByText("A店")).not.toBeNull();
     expect(screen.queryByText("Aグループ")).toBeNull();
     expect(screen.queryByRole("button", { name: /店舗を切り替える/ })).toBeNull();
-    expect(screen.getByRole("button", { name: "設定メニューを開く" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "店舗設定を開く" })).not.toBeNull();
   });
 });

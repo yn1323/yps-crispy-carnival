@@ -37,73 +37,74 @@ export const OperationContextView = ({
 
   return (
     <Stack gap={3} pb={{ base: 4, lg: 6 }} borderBottomWidth="1px" borderColor="gray.200">
-      <Text display={{ base: "none", md: "block" }} fontSize="sm" fontWeight="semibold" color="fg.muted">
-        店舗
-      </Text>
+      <Flex align="center" justify="space-between" gap={3} minW={0}>
+        <HStack gap={2.5} align="center" minW={0}>
+          <Box color="fg.muted" fontSize={{ base: "xl", lg: "2xl" }} flexShrink={0}>
+            <LuStore aria-hidden />
+          </Box>
+          <Heading
+            as="h2"
+            fontSize={{ base: "lg", lg: "xl" }}
+            lineHeight={{ base: "1.75rem", lg: "1.875rem" }}
+            fontWeight="bold"
+            color="gray.900"
+          >
+            店舗名
+          </Heading>
+        </HStack>
+        <Button
+          type="button"
+          variant="ghost"
+          colorPalette="teal"
+          size="sm"
+          gap={1.5}
+          fontWeight="semibold"
+          flexShrink={0}
+          onClick={onOpenGroupSettings}
+        >
+          <LuBuilding2 aria-hidden />
+          グループ設定
+        </Button>
+      </Flex>
 
       <Flex align="center" justify="space-between" direction="row" gap={3} minW={0}>
         <ShopSelector model={model} onSelect={onShopSelect} />
-        <SettingsMenu
+        <ShopSettingsButton
           isReadOnly={isReadOnly}
           readOnlyReason={readOnlyReason}
           onOpenShopSettings={onOpenShopSettings}
-          onOpenGroupSettings={onOpenGroupSettings}
         />
       </Flex>
     </Stack>
   );
 };
 
-const SettingsMenu = ({
+const ShopSettingsButton = ({
   isReadOnly,
   readOnlyReason,
   onOpenShopSettings,
-  onOpenGroupSettings,
 }: {
   isReadOnly: boolean;
   readOnlyReason: string;
   onOpenShopSettings: () => void;
-  onOpenGroupSettings: () => void;
 }) => (
-  <Menu.Root positioning={{ placement: "bottom-end", gutter: 8 }}>
-    <Tooltip content="設定">
-      <Box as="span" display="inline-flex">
-        <Menu.Trigger asChild>
-          <IconButton
-            variant="ghost"
-            colorPalette="teal"
-            minW="44px"
-            minH="44px"
-            aria-label="設定メニューを開く"
-            title="設定"
-          >
-            <LuSettings aria-hidden />
-          </IconButton>
-        </Menu.Trigger>
-      </Box>
-    </Tooltip>
-
-    <Portal>
-      <Menu.Positioner>
-        <Menu.Content minW="200px">
-          <Menu.Item
-            value="shop-settings"
-            cursor={isReadOnly ? "not-allowed" : "pointer"}
-            disabled={isReadOnly}
-            title={isReadOnly ? readOnlyReason : undefined}
-            onClick={onOpenShopSettings}
-          >
-            <LuStore aria-hidden />
-            店舗設定
-          </Menu.Item>
-          <Menu.Item value="group-settings" cursor="pointer" onClick={onOpenGroupSettings}>
-            <LuBuilding2 aria-hidden />
-            グループ設定
-          </Menu.Item>
-        </Menu.Content>
-      </Menu.Positioner>
-    </Portal>
-  </Menu.Root>
+  <Tooltip content={isReadOnly ? readOnlyReason : "店舗設定"}>
+    <Box as="span" display="inline-flex">
+      <IconButton
+        type="button"
+        variant="ghost"
+        colorPalette="teal"
+        minW="44px"
+        minH="44px"
+        aria-label="店舗設定を開く"
+        title={isReadOnly ? readOnlyReason : "店舗設定"}
+        disabled={isReadOnly}
+        onClick={onOpenShopSettings}
+      >
+        <LuSettings aria-hidden />
+      </IconButton>
+    </Box>
+  </Tooltip>
 );
 
 const ShopSelector = ({ model, onSelect }: { model: OperationContextModel; onSelect: (shopId: string) => void }) => {
@@ -234,7 +235,13 @@ export const OperationContextSkeleton = () => (
     borderColor="gray.200"
     aria-label="現在の店舗を読み込み中"
   >
-    <Skeleton display={{ base: "none", md: "block" }} h="18px" w="40px" />
+    <Flex align="center" justify="space-between" gap={3}>
+      <HStack gap={2.5}>
+        <Skeleton h={{ base: "24px", lg: "28px" }} w={{ base: "24px", lg: "28px" }} borderRadius="sm" />
+        <Skeleton h={{ base: "28px", lg: "30px" }} w="72px" />
+      </HStack>
+      <Skeleton h="32px" w="120px" />
+    </Flex>
     <Flex align="center" justify="space-between" gap={3}>
       <Skeleton h={{ base: "28px", md: "40px" }} w={{ base: "160px", md: "240px" }} maxW="60%" />
       <Skeleton h="44px" w="44px" flexShrink={0} />

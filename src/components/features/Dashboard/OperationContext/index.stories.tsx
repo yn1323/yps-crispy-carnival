@@ -96,22 +96,6 @@ export const Mobile: Story = {
   },
 };
 
-export const MobileSettingsMenuOpen: Story = {
-  tags: ["vrt-mobile2"],
-  globals: { viewport: { value: "mobile2", isRotated: false } },
-  args: {
-    model: createModel([shop({})], "shop-a-1"),
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const body = within(document.body);
-
-    await userEvent.click(canvas.getByRole("button", { name: "設定メニューを開く" }));
-    const shopSettingsMenuItem = await body.findByRole("menuitem", { name: "店舗設定" });
-    await waitFor(() => expect(shopSettingsMenuItem).toBeVisible());
-  },
-};
-
 export const SelectionBehavior: Story = {
   args: {
     model: createModel(multipleShops, "shop-a-1"),
