@@ -384,7 +384,7 @@ third-party由来の既知ノイズは、理由と対象を完全一致でallowl
 9. mobile E2Eの確定閲覧、法務同意、スタッフ登録。
 10. ShiftBoard、登録、確定閲覧、主要Dialog、validation error状態のa11y。
 
-容量境界は通常Full Regressionへ混ぜず、200スタッフ、2000割当、62日募集などを定期実行の`@capacity`へ分ける。
+容量境界は通常Full Regressionへ混ぜず、200スタッフ、2000割当、31日募集などを定期実行の`@capacity`へ分ける。
 
 ## 実装順序
 
