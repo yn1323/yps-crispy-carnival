@@ -2,7 +2,7 @@
 
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OrganizationBillingView, OrganizationPersonView, OrganizationShopView } from "./types";
+import type { OrganizationBillingView, OrganizationPersonView } from "./types";
 
 const mocks = vi.hoisted(() => ({
   mutation: vi.fn(),
@@ -53,16 +53,6 @@ const person: OrganizationPersonView = {
   canRemove: true,
 };
 
-const shop: OrganizationShopView = {
-  id: "shop-1",
-  name: "渋谷店",
-  regularClosedDays: ["sun"],
-  submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-  staffCount: 3,
-  canUpdateSettings: true,
-  canDelete: true,
-};
-
 const billing: OrganizationBillingView = {
   state: "pro",
   currentPlan: "pro",
@@ -105,23 +95,30 @@ describe("OrganizationSettings controllers", () => {
     await waitFor(() => expect(mocks.mutation).not.toHaveBeenCalled());
   });
 
-  it("店舗削除の権限を失うと古い確定操作を拒否する", async () => {
+  it("店舗追加の権限を失うとDialogを閉じ、古いsubmitからmutationを呼ばない", async () => {
     const { result, rerender } = renderHook((input) => useShopManagementController(input), {
-      initialProps: { canAddShop: true, shops: [shop] },
+      initialProps: { canAddShop: true },
     });
-    act(() => result.current.openShop(shop.id));
+    act(() => result.current.addShop());
     const staleSubmit = result.current.dialog.onSubmit;
 
-    rerender({ canAddShop: true, shops: [{ ...shop, canDelete: false }] });
+    rerender({ canAddShop: false });
 
-    await act(async () => {
-      await staleSubmit({ kind: "deleteShop", shopId: shop.id });
-    });
     await waitFor(() => expect(result.current.dialog.dialog).toBeNull());
+    await act(async () => {
+      await staleSubmit({
+        kind: "addShop",
+        data: {
+          shopName: "新宿店",
+          regularClosedDays: [],
+          submissionPattern: { kind: "dateOnly" },
+        },
+      });
+    });
     await waitFor(() => expect(mocks.mutation).not.toHaveBeenCalled());
   });
 
-  it("店舗削除は対象IDを二重確認し、同じ操作を一度だけ受け付ける", async () => {
+  it("店舗追加は短時間に連続送信しても一度だけ受け付ける", async () => {
     let resolveMutation: (() => void) | undefined;
     mocks.mutation.mockImplementation(
       () =>
@@ -130,56 +127,35 @@ describe("OrganizationSettings controllers", () => {
         }),
     );
     const { result } = renderHook((input) => useShopManagementController(input), {
-      initialProps: { canAddShop: true, shops: [shop] },
+      initialProps: { canAddShop: true },
     });
+    const operation = {
+      kind: "addShop" as const,
+      data: {
+        shopName: "新宿店",
+        regularClosedDays: [],
+        submissionPattern: { kind: "dateOnly" as const },
+      },
+    };
 
-    act(() => result.current.openShop(shop.id));
+    act(() => result.current.addShop());
     act(() => {
-      result.current.dialog.onSubmit({ kind: "deleteShop", shopId: shop.id });
-      result.current.dialog.onSubmit({ kind: "deleteShop", shopId: shop.id });
+      result.current.dialog.onSubmit(operation);
+      result.current.dialog.onSubmit(operation);
     });
 
     await waitFor(() =>
       expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
-        shopId: shop.id,
-        confirmShopId: shop.id,
+        ...operation.data,
+        shopId: "shop-current",
         requestId: "request-1",
       }),
     );
     await act(async () => resolveMutation?.());
     await waitFor(() =>
       expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
-        title: "店舗の削除を受け付けました",
+        title: "店舗を追加しました",
       }),
-    );
-  });
-
-  it("店舗設定は選択した店舗IDへ一度だけ保存する", async () => {
-    mocks.mutation.mockResolvedValue(null);
-    const { result } = renderHook((input) => useShopManagementController(input), {
-      initialProps: { canAddShop: true, shops: [shop] },
-    });
-    const data = {
-      shopName: "渋谷中央店",
-      regularClosedDays: ["mon" as const],
-      submissionPattern: { kind: "dateOnly" as const },
-    };
-
-    act(() => result.current.openShopSettings(shop.id));
-    expect(result.current.dialog.dialog).toEqual({ kind: "shopSettings", shop });
-    act(() => {
-      result.current.dialog.onSubmit({ kind: "updateShop", shopId: shop.id, data });
-      result.current.dialog.onSubmit({ kind: "updateShop", shopId: shop.id, data });
-    });
-
-    await waitFor(() =>
-      expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
-        shopId: shop.id,
-        ...data,
-      }),
-    );
-    await waitFor(() =>
-      expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "店舗設定を更新しました" }),
     );
   });
 

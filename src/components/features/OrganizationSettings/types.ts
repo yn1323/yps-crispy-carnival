@@ -106,7 +106,6 @@ export type OrganizationSettingsActions = {
   onOpenUser: (personId: string, visibleUserCount: number) => void;
   onAddShop: () => void;
   onOpenShop: (shopId: string) => void;
-  onOpenShopSettings: (shopId: string) => void;
   onManagePlan: () => void;
   onUpdatePaymentMethod: () => void;
   onUpdateBillingEmail: () => void;

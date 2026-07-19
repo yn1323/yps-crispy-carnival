@@ -58,7 +58,7 @@ export const PeopleSection = ({
         <HStack gap={2}>
           <LuUsers aria-hidden />
           <Heading id="organization-people-heading" as="h2" fontSize="lg">
-            グループ全体のユーザー
+            全ユーザー
           </Heading>
         </HStack>
         <Button

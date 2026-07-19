@@ -1,4 +1,4 @@
-import { DeletionActionSection } from "../DeletionActionSection";
+import { DeletionActionSection } from "@/src/components/shared/DeletionActionSection";
 
 type Props = {
   canDelete: boolean;
@@ -9,8 +9,8 @@ type Props = {
 export function OrganizationDeletionSection({ canDelete, disabledReason, onDelete }: Props) {
   return (
     <DeletionActionSection
-      description="グループとすべての店舗を利用できない状態にします。この操作は元に戻せません。"
-      actionLabel="このグループを削除"
+      title="グループ・店舗をすべて削除する"
+      actionLabel="削除"
       canDelete={canDelete}
       disabledReason={disabledReason}
       disabledReasonId="organization-delete-disabled-reason"

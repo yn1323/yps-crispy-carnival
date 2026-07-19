@@ -56,7 +56,7 @@ export function OrganizationSettings({
     freeManagerExchangeCandidates: settings.freeManagerExchangeCandidates,
     people: settings.people,
   });
-  const shopManagement = useShopManagementController({ canAddShop: settings.canAddShop, shops: settings.shops });
+  const shopManagement = useShopManagementController({ canAddShop: settings.canAddShop });
   const billingSettings = useBillingSettingsController({ billing: settings.billing });
   const organizationDeletion = useOrganizationDeletionController({
     organizationId: settings.organizationId,
@@ -99,8 +99,12 @@ export function OrganizationSettings({
               },
             }),
           onAddShop: shopManagement.addShop,
-          onOpenShop: shopManagement.openShop,
-          onOpenShopSettings: shopManagement.openShopSettings,
+          onOpenShop: (shopId) =>
+            void navigate({
+              to: "/shops/$shopId",
+              params: { shopId },
+              search: { shop: context.selectedShopId, tab: "information" },
+            }),
           onManagePlan: billingSettings.managePlan,
           onUpdatePaymentMethod: billingSettings.updatePaymentMethod,
           onUpdateBillingEmail: billingSettings.updateBillingEmail,

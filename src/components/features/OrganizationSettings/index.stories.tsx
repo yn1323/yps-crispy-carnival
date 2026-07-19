@@ -11,7 +11,6 @@ const actions = {
   onOpenUser: fn(),
   onAddShop: fn(),
   onOpenShop: fn(),
-  onOpenShopSettings: fn(),
   onManagePlan: fn(),
   onUpdatePaymentMethod: fn(),
   onUpdateBillingEmail: fn(),
@@ -315,7 +314,7 @@ export const OrganizationDeletionActionBehavior: Story = {
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "このグループを削除" }));
+    await userEvent.click(canvas.getByRole("button", { name: /^削除$/ }));
     await expect(args.actions.onDeleteOrganization).toHaveBeenCalledTimes(1);
   },
 };
@@ -327,16 +326,6 @@ export const ShopRowBehavior: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "渋谷店の店舗詳細を開く" }));
     await expect(args.actions.onOpenShop).toHaveBeenCalledWith("shop-shibuya");
-  },
-};
-
-export const ShopSettingsButtonBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  args: { defaultTab: "shops", actions: { ...actions, onOpenShopSettings: fn() } },
-  play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "渋谷店の店舗設定を開く" }));
-    await expect(args.actions.onOpenShopSettings).toHaveBeenCalledWith("shop-shibuya");
   },
 };
 
@@ -358,10 +347,6 @@ export const DisabledActionReasonsBehavior: Story = {
       canvas.getByRole("button", { name: "店舗を追加" }),
       "閲覧のみの管理者は店舗を追加できません。",
     );
-    await expectDisabledActionDescription(
-      canvas.getByRole("button", { name: "渋谷店の店舗設定を開く" }),
-      "閲覧のみの管理者は店舗設定を変更できません。",
-    );
     await userEvent.click(canvas.getByRole("tab", { name: "プランと支払い" }));
     await expectDisabledActionDescription(
       canvas.getByRole("button", { name: "有料プランを開始・再開" }),
@@ -377,7 +362,7 @@ export const DisabledActionReasonsBehavior: Story = {
     );
     await userEvent.click(canvas.getByRole("tab", { name: "設定" }));
     await expectDisabledActionDescription(
-      canvas.getByRole("button", { name: "このグループを削除" }),
+      canvas.getByRole("button", { name: /^削除$/ }),
       "閲覧のみの管理者はグループを削除できません。",
     );
   },
@@ -678,6 +663,12 @@ export const MobileUsers: Story = {
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: { defaultTab: "people" },
+};
+
+export const MobileShops: Story = {
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  args: { defaultTab: "shops" },
 };
 
 export const MobileSettings: Story = {

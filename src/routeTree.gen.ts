@@ -42,6 +42,7 @@ import { Route as UnregisteredShiftsSubmitRouteImport } from './routes/_unregist
 import { Route as UnregisteredShiftsReissueRouteImport } from './routes/_unregistered/shifts.reissue'
 import { Route as UnregisteredLineCallbackRouteImport } from './routes/_unregistered/line.callback'
 import { Route as AuthUsersPersonIdRouteImport } from './routes/_auth/users.$personId'
+import { Route as AuthShopsShopIdRouteImport } from './routes/_auth/shops.$shopId'
 import { Route as AuthShiftboardRecruitmentIdRouteImport } from './routes/_auth/shiftboard.$recruitmentId'
 import { Route as UnregisteredShiftsSubmitCompletedRouteImport } from './routes/_unregistered/shifts.submit_.completed'
 import { Route as UnregisteredLegalStaffConsentRouteImport } from './routes/_unregistered/legal.staff.consent'
@@ -214,6 +215,11 @@ const AuthUsersPersonIdRoute = AuthUsersPersonIdRouteImport.update({
   path: '/users/$personId',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthShopsShopIdRoute = AuthShopsShopIdRouteImport.update({
+  id: '/shops/$shopId',
+  path: '/shops/$shopId',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthShiftboardRecruitmentIdRoute =
   AuthShiftboardRecruitmentIdRouteImport.update({
     id: '/shiftboard/$recruitmentId',
@@ -259,6 +265,7 @@ export interface FileRoutesByFullPath {
   '/terms/staff': typeof TermsStaffRoute
   '/articles/': typeof ArticlesIndexRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
+  '/shops/$shopId': typeof AuthShopsShopIdRoute
   '/users/$personId': typeof AuthUsersPersonIdRoute
   '/line/callback': typeof UnregisteredLineCallbackRoute
   '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
@@ -294,6 +301,7 @@ export interface FileRoutesByTo {
   '/terms/staff': typeof TermsStaffRoute
   '/articles': typeof ArticlesIndexRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
+  '/shops/$shopId': typeof AuthShopsShopIdRoute
   '/users/$personId': typeof AuthUsersPersonIdRoute
   '/line/callback': typeof UnregisteredLineCallbackRoute
   '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
@@ -333,6 +341,7 @@ export interface FileRoutesById {
   '/terms_/staff': typeof TermsStaffRoute
   '/articles/': typeof ArticlesIndexRoute
   '/_auth/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
+  '/_auth/shops/$shopId': typeof AuthShopsShopIdRoute
   '/_auth/users/$personId': typeof AuthUsersPersonIdRoute
   '/_unregistered/line/callback': typeof UnregisteredLineCallbackRoute
   '/_unregistered/shifts/reissue': typeof UnregisteredShiftsReissueRoute
@@ -371,6 +380,7 @@ export interface FileRouteTypes {
     | '/terms/staff'
     | '/articles/'
     | '/shiftboard/$recruitmentId'
+    | '/shops/$shopId'
     | '/users/$personId'
     | '/line/callback'
     | '/shifts/reissue'
@@ -406,6 +416,7 @@ export interface FileRouteTypes {
     | '/terms/staff'
     | '/articles'
     | '/shiftboard/$recruitmentId'
+    | '/shops/$shopId'
     | '/users/$personId'
     | '/line/callback'
     | '/shifts/reissue'
@@ -444,6 +455,7 @@ export interface FileRouteTypes {
     | '/terms_/staff'
     | '/articles/'
     | '/_auth/shiftboard/$recruitmentId'
+    | '/_auth/shops/$shopId'
     | '/_auth/users/$personId'
     | '/_unregistered/line/callback'
     | '/_unregistered/shifts/reissue'
@@ -713,6 +725,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthUsersPersonIdRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/shops/$shopId': {
+      id: '/_auth/shops/$shopId'
+      path: '/shops/$shopId'
+      fullPath: '/shops/$shopId'
+      preLoaderRoute: typeof AuthShopsShopIdRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/shiftboard/$recruitmentId': {
       id: '/_auth/shiftboard/$recruitmentId'
       path: '/shiftboard/$recruitmentId'
@@ -741,6 +760,7 @@ interface AuthRouteChildren {
   AuthDashboardRoute: typeof AuthDashboardRoute
   AuthSettingsRoute: typeof AuthSettingsRoute
   AuthShiftboardRecruitmentIdRoute: typeof AuthShiftboardRecruitmentIdRoute
+  AuthShopsShopIdRoute: typeof AuthShopsShopIdRoute
   AuthUsersPersonIdRoute: typeof AuthUsersPersonIdRoute
 }
 
@@ -748,6 +768,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthDashboardRoute: AuthDashboardRoute,
   AuthSettingsRoute: AuthSettingsRoute,
   AuthShiftboardRecruitmentIdRoute: AuthShiftboardRecruitmentIdRoute,
+  AuthShopsShopIdRoute: AuthShopsShopIdRoute,
   AuthUsersPersonIdRoute: AuthUsersPersonIdRoute,
 }
 

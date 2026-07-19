@@ -64,7 +64,7 @@ export const OrganizationSettingsView = ({
         </Tabs.Trigger>
       </Tabs.List>
 
-      <Tabs.Content value="people" pt={{ base: 5, md: 6 }}>
+      <Tabs.Content value="people" p={0} pt={{ base: 5, md: 6 }}>
         <PeopleSection
           people={people}
           canInviteManager={canInviteManager}
@@ -79,18 +79,17 @@ export const OrganizationSettingsView = ({
         />
       </Tabs.Content>
 
-      <Tabs.Content value="shops" pt={{ base: 5, md: 6 }}>
+      <Tabs.Content value="shops" p={0} pt={{ base: 5, md: 6 }}>
         <ShopsSection
           shops={shops}
           canAddShop={canAddShop}
           addShopDisabledReason={addShopDisabledReason}
           onAddShop={actions.onAddShop}
           onOpenShop={actions.onOpenShop}
-          onOpenShopSettings={actions.onOpenShopSettings}
         />
       </Tabs.Content>
 
-      <Tabs.Content value="billing" pt={{ base: 5, md: 6 }}>
+      <Tabs.Content value="billing" p={0} pt={{ base: 5, md: 6 }}>
         <PlanAndPaymentSection
           billing={billing}
           onManagePlan={actions.onManagePlan}
@@ -100,7 +99,7 @@ export const OrganizationSettingsView = ({
         />
       </Tabs.Content>
 
-      <Tabs.Content value="settings" pt={{ base: 5, md: 6 }}>
+      <Tabs.Content value="settings" p={0} pt={{ base: 5, md: 6 }}>
         <OrganizationDeletionSection
           canDelete={canDeleteOrganization}
           disabledReason={deleteOrganizationDisabledReason}
@@ -116,7 +115,6 @@ export const OrganizationSettingsSkeleton = () => (
     <Stack gap={2}>
       <Skeleton h="20px" w="220px" />
       <Skeleton h="40px" w="200px" />
-      <Skeleton h="22px" w={{ base: "100%", md: "480px" }} />
     </Stack>
     <Skeleton h="42px" w="full" />
     <Box borderWidth="1px" borderRadius="xl" bg="white" p={5}>

@@ -174,21 +174,21 @@ export class OrganizationSettingsPage {
   }
 
   async cancelShopDeletion(shopName: string) {
-    const dialog = await this.openShop(shopName);
-    await dialog.getByRole("tab", { name: "設定" }).click();
-    await dialog.getByRole("button", { name: "この店舗を削除" }).click();
+    const detail = await this.openShop(shopName);
+    await detail.getByRole("tab", { name: "設定" }).click();
+    await detail.getByRole("button", { name: "削除", exact: true }).click();
     const confirmation = this.page.getByRole("alertdialog", { name: "店舗を削除" });
     await expect(confirmation.getByText(`「${shopName}」を削除しますか？`, { exact: true })).toBeVisible();
     await confirmation.getByRole("button", { name: "キャンセル" }).click();
     await expect(confirmation).not.toBeVisible();
-    const reopenedDetails = this.page.getByRole("dialog", { name: "店舗詳細" });
-    await reopenedDetails.getByRole("button", { name: "閉じる" }).click();
+    await detail.getByRole("button", { name: "前の画面に戻る" }).click();
+    await expect(this.page.getByRole("tab", { name: "店舗" })).toBeVisible();
   }
 
   async deleteShop(shopName: string) {
-    const dialog = await this.openShop(shopName);
-    await dialog.getByRole("tab", { name: "設定" }).click();
-    await dialog.getByRole("button", { name: "この店舗を削除" }).click();
+    const detail = await this.openShop(shopName);
+    await detail.getByRole("tab", { name: "設定" }).click();
+    await detail.getByRole("button", { name: "削除", exact: true }).click();
     const confirmation = this.page.getByRole("alertdialog", { name: "店舗を削除" });
     await expect(confirmation.getByText(`「${shopName}」を削除しますか？`, { exact: true })).toBeVisible();
     await confirmation.getByRole("button", { name: "店舗を削除" }).click();
@@ -204,7 +204,7 @@ export class OrganizationSettingsPage {
 
   async openOrganizationDeletionConfirmation() {
     await this.openSettingsTab();
-    await this.page.getByRole("button", { name: "このグループを削除" }).click();
+    await this.page.getByRole("button", { name: "削除", exact: true }).click();
     const confirmation = this.page.getByRole("alertdialog", { name: "グループを削除" });
     await expect(confirmation).toBeVisible();
     return confirmation;
@@ -251,9 +251,10 @@ export class OrganizationSettingsPage {
   private async openShop(shopName: string): Promise<Locator> {
     await this.openShopsTab();
     await this.shopRow(shopName).click();
-    const dialog = this.page.getByRole("dialog", { name: "店舗詳細" });
-    await expect(dialog).toBeVisible();
-    return dialog;
+    await expect(this.page).toHaveURL(/\/shops\/[^/?]+/);
+    await expect(this.page.getByRole("heading", { name: "店舗詳細", exact: true })).toBeVisible();
+    await expect(this.page.getByText(shopName, { exact: true }).first()).toBeVisible();
+    return this.page.locator("body");
   }
 
   private freeManagerExchangeDialog() {

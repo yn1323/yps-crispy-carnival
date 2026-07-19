@@ -56,8 +56,6 @@ export function OrganizationContext({
           {updateOrganizationNameDisabledReason}
         </Text>
       )}
-
-      <Text color="fg.muted">グループ全体のユーザー、店舗、プランと支払いを管理します。</Text>
     </Stack>
   );
 }

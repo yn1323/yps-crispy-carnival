@@ -1,4 +1,4 @@
-import { Field, Input, Stack, Text } from "@chakra-ui/react";
+import { Field, Input } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import { ORGANIZATION_NAME_MAX_LENGTH } from "@/convex/constants";
 import { Dialog } from "@/src/components/ui/Dialog";
@@ -41,20 +41,15 @@ export function OrganizationNameDialog({ isOpen, organizationName, isRunning, on
           if (normalizedName) onSubmit(normalizedName);
         }}
       >
-        <Stack gap={4}>
-          <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            グループ名は、グループ設定や招待メールに表示されます。店舗名は変更されません。
-          </Text>
-          <Field.Root required>
-            <Field.Label>グループ名</Field.Label>
-            <Input
-              value={name}
-              maxLength={ORGANIZATION_NAME_MAX_LENGTH}
-              autoFocus
-              onChange={(event) => setName(event.currentTarget.value)}
-            />
-          </Field.Root>
-        </Stack>
+        <Field.Root required>
+          <Field.Label>グループ名</Field.Label>
+          <Input
+            value={name}
+            maxLength={ORGANIZATION_NAME_MAX_LENGTH}
+            autoFocus
+            onChange={(event) => setName(event.currentTarget.value)}
+          />
+        </Field.Root>
       </form>
     </Dialog>
   );
