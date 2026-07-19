@@ -21,6 +21,7 @@ import {
   resolveOrganizationInvitationEligibility,
 } from "../organizationInvitation/service";
 import { getOrganizationDeletionEligibility } from "./deletion";
+import { deriveOrganizationPersonCapabilities, type ManagerRole } from "./personCapabilities";
 import { getOrganizationBillingState, organizationPersonCountsTowardPeopleLimit } from "./service";
 
 const organizationPersonViewValidator = v.object({
@@ -140,7 +141,6 @@ const organizationSettingsValidator = v.object({
   deleteOrganizationDisabledReason: v.optional(v.string()),
 });
 
-type ManagerRole = "active" | "readOnly" | "none";
 type BillingPlan = "trial" | "free" | "pro" | "business";
 type BillingView = {
   state:
@@ -659,58 +659,24 @@ export const getSettings = managerQuery({
         const isStaff = staffRows.length > 0;
         const isLineConnected = staffRows.some((staff) => lineConnectedStaffIds.has(staff._id));
         const hasManagerInvitation = invitedPersonIds.has(person._id);
-        const isLastActiveManager = managerRole === "active" && activeManagerCount <= 1;
         const isRecoveryManager = Boolean(restrictedState && recoveryPersonIds.includes(person._id));
         const isLastRecoveryManager = isRecoveryManager && recoveryPersonIds.length <= 1;
         const isBillingContact =
           billingEmailNormalized.length > 0 && billingEmailNormalized === person.emailNormalized.trim().toLowerCase();
         const hasFutureAssignment = futureAssignmentPersonIds.has(person._id);
-        const canRemove =
-          (canWriteNormally || isRestrictedRecovery) &&
-          !isLastActiveManager &&
-          !isLastRecoveryManager &&
-          !isBillingContact &&
-          !hasFutureAssignment;
-        const canRemoveManagerRole = Boolean(
-          managerRole === "active" &&
-            activeManagerCount > 1 &&
-            canWriteNormally &&
-            policy?.canUsePaidFeatures &&
-            (isStaff || (!isBillingContact && !hasFutureAssignment)),
-        );
-        const managerRoleRemovalDisabledReason =
-          managerRole !== "active" || canRemoveManagerRole
-            ? undefined
-            : activeManagerCount <= 1
-              ? "最後の有効管理者の管理者権限は外せません。"
-              : !isActiveActor
-                ? "閲覧のみの管理者は管理者権限を変更できません。"
-                : restrictedState
-                  ? "契約制限中は管理者権限を外せません。"
-                  : policy?.paidFeatureBlockReason === "freePlan"
-                    ? "Freeでは管理者の個別解除はできません。"
-                    : policy?.paidFeatureBlockReason === "paymentResultPending"
-                      ? "支払い結果が確定してから管理者権限を変更できます。"
-                      : !isStaff && isBillingContact
-                        ? "請求先メールアドレスを変更してから管理者権限を外してください。"
-                        : !isStaff && hasFutureAssignment
-                          ? "将来のシフト割当を解除してから管理者権限を外してください。"
-                          : "現在の契約状態では管理者権限を変更できません。";
-        const removeDisabledReason = canRemove
-          ? undefined
-          : isLastRecoveryManager
-            ? "最後の復旧担当者は、引き継ぎまたは契約復旧まで削除できません。"
-            : isLastActiveManager
-              ? "最後の有効管理者は削除できません。"
-              : isBillingContact
-                ? "請求先メールアドレスを変更してから削除してください。"
-                : hasFutureAssignment
-                  ? "将来のシフト割当を解除してから削除してください。"
-                  : isRestrictedRecovery
-                    ? "現在の契約状態ではこのユーザーを削除できません。"
-                    : !isActiveActor
-                      ? "閲覧のみの管理者はユーザーを削除できません。"
-                      : "現在の契約状態ではユーザーを削除できません。";
+        const capabilities = deriveOrganizationPersonCapabilities({
+          managerRole,
+          activeManagerCount,
+          canWriteNormally,
+          policy,
+          isStaff,
+          isBillingContact,
+          hasFutureAssignment,
+          isActiveActor,
+          isRestricted: restrictedState !== null,
+          isRestrictedRecovery,
+          isLastRecoveryManager,
+        });
         const shopNames = staffRows
           .flatMap((staff) => {
             const shop = shopById.get(staff.shopId);
@@ -727,10 +693,7 @@ export const getSettings = managerQuery({
           isLineConnected,
           hasManagerInvitation,
           shopNames,
-          canRemoveManagerRole,
-          ...(managerRoleRemovalDisabledReason ? { managerRoleRemovalDisabledReason } : {}),
-          canRemove,
-          ...(removeDisabledReason ? { removeDisabledReason } : {}),
+          ...capabilities,
         };
       })
       .sort(

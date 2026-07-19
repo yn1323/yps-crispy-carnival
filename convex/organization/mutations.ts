@@ -28,7 +28,11 @@ import { type OrganizationAuditAction, recordOrganizationAuditEvent } from "./au
 import { getOrganizationDeletionEligibility } from "./deletion";
 import { updateOrganizationPersonProfile } from "./personProfile";
 import { organizationNameSchema } from "./schemas";
-import { requireOrganizationBillingState } from "./service";
+import {
+  getValidActiveOrganizationManagerPersonIds,
+  isValidOrganizationRecoveryManager,
+  requireOrganizationBillingState,
+} from "./service";
 import { organizationShopOperatingStatusValidator } from "./validators";
 
 const shopMutationResultValidator = v.object({
@@ -854,71 +858,8 @@ async function hasOtherValidActiveManager(
   organizationId: Id<"organizations">,
   excludedPersonId: Id<"organizationPeople">,
 ) {
-  const activeMembers = await ctx.db
-    .query("organizationMembers")
-    .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "active"))
-    .collect();
-  const candidatePersonIds = new Set(
-    activeMembers.filter((member) => member.personId !== excludedPersonId).map((member) => member.personId),
-  );
-  for (const personId of candidatePersonIds) {
-    const members = await ctx.db
-      .query("organizationMembers")
-      .withIndex("by_organizationId_and_personId", (q) =>
-        q.eq("organizationId", organizationId).eq("personId", personId),
-      )
-      .take(2);
-    if (members.length !== 1 || members[0].status !== "active") continue;
-    const member = members[0];
-    const [person, user, userMemberships] = await Promise.all([
-      ctx.db.get(member.personId),
-      ctx.db.get(member.userId),
-      ctx.db
-        .query("organizationMembers")
-        .withIndex("by_userId_and_organizationId", (q) =>
-          q.eq("userId", member.userId).eq("organizationId", organizationId),
-        )
-        .take(2),
-    ]);
-    if (
-      userMemberships.length === 1 &&
-      userMemberships[0]._id === member._id &&
-      person?.organizationId === organizationId &&
-      person.status === "active" &&
-      person.userId === member.userId &&
-      user &&
-      !user.isDeleted
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
-
-async function isValidRecoveryManager(
-  ctx: MutationCtx,
-  organizationId: Id<"organizations">,
-  personId: Id<"organizationPeople">,
-) {
-  const person = await ctx.db.get(personId);
-  if (!person || person.organizationId !== organizationId || person.status !== "active" || !person.userId) return false;
-  const members = await ctx.db
-    .query("organizationMembers")
-    .withIndex("by_organizationId_and_personId", (q) => q.eq("organizationId", organizationId).eq("personId", personId))
-    .take(2);
-  if (members.length !== 1) return false;
-  const member = members[0];
-  if (member.userId !== person.userId || (member.status !== "active" && member.status !== "readOnly")) return false;
-  const [user, userMemberships] = await Promise.all([
-    ctx.db.get(member.userId),
-    ctx.db
-      .query("organizationMembers")
-      .withIndex("by_userId_and_organizationId", (q) =>
-        q.eq("userId", member.userId).eq("organizationId", organizationId),
-      )
-      .take(2),
-  ]);
-  return Boolean(user && !user.isDeleted && userMemberships.length === 1 && userMemberships[0]._id === member._id);
+  const validPersonIds = await getValidActiveOrganizationManagerPersonIds(ctx, organizationId);
+  return validPersonIds.some((personId) => personId !== excludedPersonId);
 }
 
 type BillingReferenceUpdate = {
@@ -945,7 +886,7 @@ async function planBillingReferenceUpdate(
   for (const personId of currentIds) {
     if (personId === removedPersonId || seen.has(personId)) continue;
     seen.add(personId);
-    if (await isValidRecoveryManager(ctx, billingState.organizationId, personId)) nextIds.push(personId);
+    if (await isValidOrganizationRecoveryManager(ctx, billingState.organizationId, personId)) nextIds.push(personId);
   }
   if (targetWasRecoveryManager && nextIds.length === 0) {
     throw new ConvexError("最後の復旧担当者は削除できません");

@@ -9,6 +9,9 @@ type DbCtx = {
   db: GenericDatabaseReader<DataModel>;
 };
 
+const ACTIVE_MANAGER_STATUSES: ReadonlySet<Doc<"organizationMembers">["status"]> = new Set(["active"]);
+const RECOVERY_MANAGER_STATUSES: ReadonlySet<Doc<"organizationMembers">["status"]> = new Set(["active", "readOnly"]);
+
 export type OrganizationUsageSnapshot = {
   personCount: number;
   reservedSeatCount: number;
@@ -45,6 +48,69 @@ export async function getOrganizationPersonForUser(
     .withIndex("by_organizationId_and_userId", (q) => q.eq("organizationId", organizationId).eq("userId", userId))
     .take(2);
   return people.length === 1 ? people[0] : null;
+}
+
+async function isValidOrganizationManagerPerson(
+  ctx: DbCtx,
+  organizationId: Id<"organizations">,
+  personId: Id<"organizationPeople">,
+  allowedStatuses: ReadonlySet<Doc<"organizationMembers">["status"]>,
+) {
+  const members = await ctx.db
+    .query("organizationMembers")
+    .withIndex("by_organizationId_and_personId", (q) => q.eq("organizationId", organizationId).eq("personId", personId))
+    .take(2);
+  if (members.length !== 1 || !allowedStatuses.has(members[0].status)) return false;
+  const member = members[0];
+  const [person, user, userMemberships] = await Promise.all([
+    ctx.db.get(member.personId),
+    ctx.db.get(member.userId),
+    ctx.db
+      .query("organizationMembers")
+      .withIndex("by_userId_and_organizationId", (q) =>
+        q.eq("userId", member.userId).eq("organizationId", organizationId),
+      )
+      .take(2),
+  ]);
+  return Boolean(
+    userMemberships.length === 1 &&
+      userMemberships[0]._id === member._id &&
+      person?.organizationId === organizationId &&
+      person.status === "active" &&
+      person.userId === member.userId &&
+      user &&
+      !user.isDeleted,
+  );
+}
+
+/** 削除・権限解除後もグループを管理できる、本人性まで確認済みのactive管理者を返す。 */
+export async function getValidActiveOrganizationManagerPersonIds(
+  ctx: DbCtx,
+  organizationId: Id<"organizations">,
+): Promise<Id<"organizationPeople">[]> {
+  const activeMembers = await ctx.db
+    .query("organizationMembers")
+    .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "active"))
+    .collect();
+  const candidatePersonIds = new Set(activeMembers.map((member) => member.personId));
+  const validPersonIds: Id<"organizationPeople">[] = [];
+
+  for (const personId of candidatePersonIds) {
+    if (await isValidOrganizationManagerPerson(ctx, organizationId, personId, ACTIVE_MANAGER_STATUSES)) {
+      validPersonIds.push(personId);
+    }
+  }
+
+  return validPersonIds;
+}
+
+/** restricted復旧担当者として使える管理者本人性を、削除mutationと同じ条件で確認する。 */
+export async function isValidOrganizationRecoveryManager(
+  ctx: DbCtx,
+  organizationId: Id<"organizations">,
+  personId: Id<"organizationPeople">,
+) {
+  return await isValidOrganizationManagerPerson(ctx, organizationId, personId, RECOVERY_MANAGER_STATUSES);
 }
 
 /** active人物が現在の利用人数へ算入されているかを、管理者権限とstaff履歴から判定する。 */

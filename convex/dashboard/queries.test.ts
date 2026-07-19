@@ -1599,7 +1599,7 @@ describe("dashboard/queries", () => {
 
     it("事業者人物へ紐づくスタッフを安全な店舗所属削除経路として識別する", async () => {
       const t = convexTest(schema, modules);
-      const shopId = await t.run(async (ctx) => {
+      const ids = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, {
           subject: "organization_linked_staff_query",
           plan: "pro",
@@ -1628,15 +1628,21 @@ describe("dashboard/queries", () => {
           email: "legacy@example.com",
           isDeleted: false,
         });
-        return base.shopId;
+        return { shopId: base.shopId, personId };
       });
 
       const result = await t
         .withIdentity({ subject: "organization_linked_staff_query" })
-        .query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(shopId));
+        .query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
 
-      expect(result.page.find((staff) => staff.name === "移行済みスタッフ")?.isOrganizationLinked).toBe(true);
-      expect(result.page.find((staff) => staff.name === "移行前スタッフ")?.isOrganizationLinked).toBe(false);
+      expect(result.page.find((staff) => staff.name === "移行済みスタッフ")).toMatchObject({
+        isOrganizationLinked: true,
+        organizationPersonId: ids.personId,
+      });
+      expect(result.page.find((staff) => staff.name === "移行前スタッフ")).toMatchObject({
+        isOrganizationLinked: false,
+        organizationPersonId: null,
+      });
     });
 
     it("対象人物の管理者所属と招待状態を返し、メール変更後の招待し直しを案内する", async () => {
@@ -1704,7 +1710,7 @@ describe("dashboard/queries", () => {
       const before = await owner.query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
       expect(before.page.find((staff) => staff.name === "別の管理者")).toMatchObject({
         isManager: true,
-        managerInvitationState: { kind: "unavailable", reason: "このスタッフはすでに管理者です。" },
+        managerInvitationState: { kind: "unavailable", reason: "このユーザーはすでに管理者です。" },
       });
       expect(before.page.find((staff) => staff._id === ids.targetStaffId)).toMatchObject({
         isManager: false,
@@ -1778,7 +1784,7 @@ describe("dashboard/queries", () => {
       const conflicted = await owner.query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
       expect(conflicted.page.find((staff) => staff._id === ids.targetStaffId)?.managerInvitationState).toEqual({
         kind: "unavailable",
-        reason: "このスタッフへの招待状態を確認できません。グループ設定を確認してください。",
+        reason: "このユーザーへの招待状態を確認できません。グループ設定を確認してください。",
       });
 
       await t.run(async (ctx) => {
@@ -1814,7 +1820,7 @@ describe("dashboard/queries", () => {
       const wrongTarget = await owner.query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
       expect(wrongTarget.page.find((staff) => staff._id === ids.targetStaffId)?.managerInvitationState).toEqual({
         kind: "unavailable",
-        reason: "このスタッフへの招待状態を確認できません。グループ設定を確認してください。",
+        reason: "このユーザーへの招待状態を確認できません。グループ設定を確認してください。",
       });
       expect(await t.run((ctx) => ctx.db.get(invitationId))).toMatchObject({ status: "revoked" });
     });
@@ -1849,6 +1855,7 @@ describe("dashboard/queries", () => {
         "isOrganizationLinked",
         "managerInvitationState",
         "name",
+        "organizationPersonId",
       ]);
     });
   });
