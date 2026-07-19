@@ -27,6 +27,7 @@
 - URLと保存値のどちらにも有効な店舗がなければ、候補数にかかわらず`getMyShops`の先頭店舗を自動採用する。明示されたURLが候補外の場合だけは別店舗へfallbackせず、汎用エラーを表示する。
 - 同じアカウントが無関係な複数グループの有効管理者である場合も、`?shop=`からグループを一意に解決し、Dashboardとグループ設定の切替、表示、更新を選択グループへ限定する。
 - `organizationBillingStates` がグループ単位の課金状態を保持し、画面とmutationは共通policyから操作可否を導出する。
+- グループ名は課金状態にかかわらず、有効管理者が変更できる。`readOnly`の管理者と、選択店舗からグループ所属を解決できない利用者には許可しない。
 - 旧店舗モデルから移行し、移行元店舗との相互リンクを一意に確認でき、課金状態が未設定のグループは`complimentary.business`として、Stripeと接続せずBusinessの利用上限と有料機能を利用する。
 - 管理者招待の発行では、本人確認後に管理者所属を作るための一回限りのアカウント連携権限と利用枠だけを予約する。新規人物、管理者所属、既存スタッフの管理者権限は作らない。
 - 管理者招待は対象人物のLINE連携状態にかかわらずメールへ送る。再送では旧招待を失効させ、トークンをローテーションする。
@@ -114,7 +115,7 @@
 | `api.dashboard.queries.getDashboardStaffs` | `managerQuery` | 店舗スタッフ、対応するグループ人物ID、管理者状態、管理者招待可否をページングして返す |
 | `api.organization.queries.getSettings` | `managerQuery` | 選択店舗から所属グループを特定し、ユーザー、管理者招待、店舗、課金、グループ削除可否と更新時刻を含む設定DTOを返す |
 | `api.organization.userDetailQueries.getUserDetail` | `managerQuery` | URLの人物が選択店舗と同じグループに属することを確認し、共通プロフィール、管理者権限、操作可否、店舗別所属を返す |
-| `api.organization.mutations.updateOrganizationName` | `authenticatedMutation` | グループ所属と課金状態を確認してグループ名を変更する |
+| `api.organization.mutations.updateOrganizationName` | `authenticatedMutation` | 選択店舗と有効なグループ所属を確認してグループ名を変更する |
 | `api.organization.mutations.addShop` | `authenticatedMutation` | 有料機能と上限を再確認して店舗を追加する |
 | `api.organization.mutations.deleteShop` | `authenticatedMutation` | 対象店舗のグループ所属、管理者権限、確認ID、requestIdを再確認し、最後の店舗を除いて削除と後続cleanupを開始する |
 | `api.organization.mutations.deleteOrganization` | `authenticatedMutation` | 唯一の有効管理者、課金状態、対象ID、更新時刻、requestIdを再確認し、グループを即時停止して永続cleanupを開始する |
