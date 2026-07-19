@@ -80,7 +80,7 @@
 
 - `src/routes/_auth/settings.tsx` と `src/pages/settings/`：グループ設定の取得、読み込み状態、画面全体の配置。
 - `src/components/features/OrganizationSettings/`：グループ全体のユーザー一覧とユーザー詳細ページへの入口、店舗一覧と店舗詳細ページへの入口、プランと支払い、設定タブのグループ削除UI、および操作ごとの送信、ダイアログ、最新権限を管理するcontroller。
-- `src/routes/_auth/shops.$shopId.tsx`、`src/pages/shop-detail/`、`src/components/features/ShopDetail/`：同一グループの店舗詳細ページ、削除可否、削除確認を管理する。
+- `src/routes/_auth/shops.$shopId.tsx`、`src/pages/shop-detail/`、`src/components/features/ShopDetail/`：同一グループの店舗詳細ページ、店舗情報の個別更新、所属スタッフ一覧、削除確認を管理する。
 - `src/components/features/AuthenticatedApp/DeletedAccountState.tsx`：削除済みuserへClerk由来の氏名・メールを表示せず、利用終了状態とサインアウトだけを表示する。
 - `src/components/features/ShopSwitcher/`：グループごとにまとめた店舗切り替え。
 - `src/components/features/AuthenticatedApp/AuthGuard.tsx`：`?shop=`、前回値、利用可能店舗一覧を解決し、有効なAPI候補だけを店舗コンテキストへ同期する。
@@ -98,7 +98,7 @@
 | 画面 | 役割 |
 | --- | --- |
 | `/settings?shop=<shopId>` | 指定店舗からグループを解決し、ユーザー、店舗、プランと支払い、設定の4タブを扱う。設定タブでは削除可否理由を表示し、対象名の再入力後にグループ削除を受け付ける。タブは`tab` queryで保持する |
-| `/shops/<targetShopId>?shop=<contextShopId>&tab=<tab>` | `shop`で解決したグループ内の対象店舗だけを表示し、情報と設定を切り替えて店舗削除を受け付ける |
+| `/shops/<targetShopId>?shop=<contextShopId>` | `shop`で解決したグループ内の対象店舗だけを表示し、店舗情報と削除可否を同じ画面で確認して店舗削除を受け付ける |
 | `/users/<personId>?shop=<shopId>&tab=<tab>` | グループ人物の共通プロフィールと管理者権限を扱い、選択店舗のスタッフ設定、通知、LINE連携を表示する。`tab`は`information`、`notification`、`line`、`settings`を受け付ける |
 | 認証済みヘッダー | Dashboardとグループ設定以外で複数店舗がある場合に、現在のグループと店舗を表示して利用可能な店舗へ切り替える |
 | `/manager-invite?token=...` | 招待先グループと期限を公開DTOで確認し、ログインまたは登録後に確認済みメールのアカウントを自動連携する |
@@ -113,7 +113,7 @@
 | `api.dashboard.queries.getMyShops` | `authenticatedQuery` | 利用者が閲覧できる店舗をグループ情報と所属状態付きで返す |
 | `api.dashboard.queries.getDashboardShop` | `managerQuery` | 店舗情報とグループ課金から導出した業務更新可否を返す |
 | `api.dashboard.queries.getDashboardStaffs` | `managerQuery` | 店舗スタッフ、対応するグループ人物ID、管理者状態、管理者招待可否をページングして返す |
-| `api.organization.queries.getSettings` | `managerQuery` | 選択店舗から所属グループを特定し、ユーザー、管理者招待、店舗、課金、グループ削除可否と更新時刻を含む設定DTOを返す |
+| `api.organization.queries.getSettings` | `managerQuery` | 選択店舗から所属グループを特定し、所属店舗ID付きユーザー、管理者招待、店舗、課金、グループ削除可否と更新時刻を含む設定DTOを返す |
 | `api.organization.userDetailQueries.getUserDetail` | `managerQuery` | URLの人物が選択店舗と同じグループに属することを確認し、共通プロフィール、管理者権限、操作可否、店舗別所属を返す |
 | `api.organization.mutations.updateOrganizationName` | `authenticatedMutation` | 選択店舗と有効なグループ所属を確認してグループ名を変更する |
 | `api.organization.mutations.addShop` | `authenticatedMutation` | 有料機能と上限を再確認して店舗を追加する |
@@ -272,6 +272,6 @@ BusinessからProへの期間末変更は、`issued`招待の予約枠を含む�
 - `src/components/features/AuthenticatedApp/shopContextResolver.test.ts` と `AuthGuard.test.tsx`：URL、前回値、自動fallback、明示URL不正時の解決境界。
 - `src/components/features/Dashboard/OperationContext/` のLogic UTとStory：候補数による静的表示・切り替え、設定導線、PC/SPの代表状態。
 - `src/components/features/OrganizationSettings/index.stories.tsx`：グループ設定の代表状態と操作後の状態。
-- `src/components/features/ShopDetail/index.stories.tsx`：店舗詳細ページの情報・設定・削除確認とPC/SPの代表状態。
+- `src/components/features/ShopDetail/index.stories.tsx`：店舗詳細ページの基本情報、スタッフ一覧、閲覧専用、削除確認とPC/SPの代表状態。
 - `src/components/features/ManagerInvitationAcceptance/index.stories.tsx`：招待プレビューとアカウント連携結果。
 - `src/components/features/ShopSwitcher/index.stories.tsx`：Dashboard以外でのグループと店舗の切り替え。

@@ -22,7 +22,7 @@ Hero直下にはユーザー情報とグループ内全店舗を表示し、管�
 ## URLと遷移
 
 ```text
-/users/<personId>?shop=<shopId>&tab=<tab>&returnTo=<dashboard|settings>&users=<count>
+/users/<personId>?shop=<shopId>&tab=<tab>&returnTo=<dashboard|settings|shopDetail>&returnShop=<shopId>&users=<count>
 ```
 
 `tab`は`notification`、`line`、`settings`を受け付ける。
@@ -31,7 +31,7 @@ Hero直下にはユーザー情報とグループ内全店舗を表示し、管�
 タブは画面内の状態を先に切り替えてからURLの`tab`へ同期し、切り替え前のスクロール位置を維持する。ブラウザの戻る・進むで`tab`が変わった場合は、画面内の状態もURLへ追従する。
 Dashboardとグループ設定のユーザー一覧は、初期表示を10件とし、「もっと見る」で増やした表示件数を`users`へ10件単位で保持する。
 ユーザー詳細へ遷移するときも`users`を引き継ぐ。
-戻る操作は遷移元を`returnTo`で判定し、Dashboardまたはグループ設定を現在表示中の`shop`と表示件数で開き、`focus`に指定した直前のユーザー付近へスクロールする。
+戻る操作は遷移元を`returnTo`で判定する。Dashboardまたはグループ設定へは現在表示中の`shop`と表示件数を引き継ぎ、`focus`に指定した直前のユーザー付近へスクロールする。店舗詳細から遷移した場合は、ユーザー詳細内で表示店舗を切り替えても`returnShop`に保持した出発元店舗へ戻る。
 
 Dashboardの移行済みスタッフは、`getDashboardStaffs`が返す`organizationPersonId`を`personId`に使う。
 Widen期間中に`organizationPersonId`が未設定のスタッフだけは、操作不能にせず旧スタッフ詳細モーダルを暫定表示する。
@@ -73,7 +73,7 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 ### フロントエンド
 
 - `src/routes/_auth/dashboard.tsx`と`settings.tsx`：ユーザー一覧の`users`と`focus`を受け取るURL境界。
-- `src/routes/_auth/users.$personId.tsx`：人物IDと`shop`、`tab`、戻り先の一覧表示件数を受け取るURL境界。
+- `src/routes/_auth/users.$personId.tsx`：人物IDと`shop`、`tab`、戻り先、出発元店舗、一覧表示件数を受け取るURL境界。
 - `src/pages/user-detail/`：詳細QueryとLoading、Not Found、正常表示の分岐。
 - `src/components/features/UserDetail/`：共通情報カード、店舗切り替え、3タブ、スクロールを維持するURL同期、編集と確認操作。
 - `src/components/features/StaffNotificationHistory/`：ユーザー詳細と旧スタッフ詳細フォールバックから利用する通知履歴。
