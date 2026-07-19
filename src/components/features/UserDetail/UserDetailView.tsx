@@ -117,7 +117,7 @@ export function UserDetailView({
         <Tabs.Root
           value={activeTab}
           colorPalette="teal"
-          variant="line"
+          variant="outline"
           onValueChange={({ value }) => actions.onTabChange(value as UserDetailTab)}
         >
           <Tabs.List overflowX="auto" overflowY="hidden" whiteSpace="nowrap" px={{ base: 3, md: 5 }}>

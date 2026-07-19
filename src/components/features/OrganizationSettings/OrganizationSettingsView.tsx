@@ -40,9 +40,9 @@ export const OrganizationSettingsView = ({
       defaultValue={onTabChange ? undefined : defaultTab}
       onValueChange={onTabChange ? ({ value }) => onTabChange(value as OrganizationSettingsTab) : undefined}
       colorPalette="teal"
-      variant="line"
+      variant="outline"
     >
-      <Tabs.List overflowX="auto" overflowY="hidden" whiteSpace="nowrap" borderBottomWidth="1px">
+      <Tabs.List overflowX="auto" overflowY="hidden" whiteSpace="nowrap">
         <Tabs.Trigger value="people" flexShrink={0} gap={2}>
           <LuUsers aria-hidden />
           ユーザー
