@@ -12,7 +12,7 @@ describe("ユーザー詳細のURL遷移", () => {
 
   it("タブを切り替えても表示店舗と戻り先を維持する", () => {
     expect(
-      mergeUserDetailSearch({ shop: "shop-b", tab: "information", returnTo: "dashboard" }, { tab: "notification" }),
+      mergeUserDetailSearch({ shop: "shop-b", tab: "line", returnTo: "dashboard" }, { tab: "notification" }),
     ).toEqual({ shop: "shop-b", tab: "notification", returnTo: "dashboard" });
   });
 

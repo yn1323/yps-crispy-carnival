@@ -6,7 +6,6 @@ import { Button } from "@/src/components/ui/Button";
 import type { StaffLineStatus } from "./staffDetailPresentation";
 
 type Props = {
-  staffName: string;
   lineStatus: StaffLineStatus;
   isLineActive: boolean;
   hasEmail: boolean;
@@ -22,7 +21,6 @@ type Props = {
 };
 
 export const StaffDetailLineTab = ({
-  staffName,
   lineStatus,
   isLineActive,
   hasEmail,
@@ -62,18 +60,12 @@ export const StaffDetailLineTab = ({
           </Text>
         </Stack>
 
-        <LineConnectionMethod
-          number="1"
-          title="LINE連携リンクを表示"
-          description="表示されたリンクを直接スタッフに共有してください。"
-        >
+        <LineConnectionMethod number="1" title="LINE連携リンクを表示" description="スタッフに直接共有してください。">
           <Button colorPalette="teal" gap={1.5} onClick={onShowLineQr}>
             <LuQrCode />
             LINE連携リンクを表示
           </Button>
-          {showLineQr && (
-            <LineLinkQrDialog authorizeUrl={lineAuthorizeUrl} isLoading={isLineQrLoading} staffName={staffName} />
-          )}
+          {showLineQr && <LineLinkQrDialog authorizeUrl={lineAuthorizeUrl} isLoading={isLineQrLoading} />}
         </LineConnectionMethod>
 
         <LineConnectionMethod

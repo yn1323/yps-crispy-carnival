@@ -1,5 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { type ComponentProps, useState } from "react";
 import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+import {
+  type StaffNotificationHistoryItem,
+  StaffNotificationHistoryView,
+} from "@/src/components/features/StaffNotificationHistory";
 import { mockCurrentRecruitments, mockRecruitments, mockStaffs, mockStaffsWithExcluded } from "../stories/fixtures";
 import type { Staff } from "../types";
 import { StaffDetailDialog } from "./StaffDetailDialog";
@@ -54,6 +59,89 @@ const staleManagerInvitationStaff = {
   managerInvitationState: { kind: "available", mode: "addition", replacesStaleInvitation: true },
 } as Staff;
 
+const notificationHistoryItems = [
+  {
+    _id: "history-delivered-email",
+    requestedAt: new Date("2026-07-19T01:00:00Z").getTime(),
+    sentAt: new Date("2026-07-19T01:00:12Z").getTime(),
+    channel: "email",
+    displayTitle: "確定シフトのお知らせ",
+    displayStatus: "delivered",
+  },
+  {
+    _id: "history-sent-line",
+    requestedAt: new Date("2026-07-18T08:30:00Z").getTime(),
+    sentAt: new Date("2026-07-18T08:30:05Z").getTime(),
+    channel: "line",
+    displayTitle: "シフト提出のお願い",
+    displayStatus: "sent",
+  },
+  {
+    _id: "history-failed-email",
+    requestedAt: new Date("2026-07-17T23:15:00Z").getTime(),
+    channel: "email",
+    displayTitle: "募集中シフトのお知らせ",
+    displayStatus: "failed",
+  },
+  {
+    _id: "history-delayed-email",
+    requestedAt: new Date("2026-07-17T03:00:00Z").getTime(),
+    channel: "email",
+    displayTitle: "シフト変更のお知らせ",
+    displayStatus: "delayed",
+  },
+  {
+    _id: "history-queued-email",
+    requestedAt: new Date("2026-07-16T12:00:00Z").getTime(),
+    channel: "email",
+    displayTitle: "スタッフ登録のお知らせ",
+    displayStatus: "queued",
+  },
+  {
+    _id: "history-cancelled-line",
+    requestedAt: new Date("2026-07-15T04:45:00Z").getTime(),
+    channel: "line",
+    displayTitle: "シフト募集のお知らせ",
+    displayStatus: "cancelled",
+  },
+] satisfies StaffNotificationHistoryItem[];
+
+const longTitleNotificationHistoryItems = [
+  {
+    ...notificationHistoryItems[0],
+    _id: "history-long-title",
+    displayTitle: "7月後半の確定シフトと営業時間変更にともなう出勤時刻・休憩時間の変更についてのお知らせ",
+  },
+] satisfies StaffNotificationHistoryItem[];
+
+const paginatedNotificationHistoryItems = Array.from({ length: 25 }, (_, index) => ({
+  _id: `history-page-${index + 1}`,
+  requestedAt: new Date("2026-07-19T01:00:00Z").getTime() - index * 60_000,
+  channel: index % 2 === 0 ? ("email" as const) : ("line" as const),
+  displayTitle: `通知履歴 ${index + 1}`,
+  displayStatus: "sent" as const,
+}));
+
+function NotificationHistoryLoadMoreStory(props: ComponentProps<typeof StaffDetailDialog>) {
+  const [visibleCount, setVisibleCount] = useState(20);
+  const canLoadMore = visibleCount < paginatedNotificationHistoryItems.length;
+
+  return (
+    <StaffDetailDialog
+      {...props}
+      notificationHistory={
+        <StaffNotificationHistoryView
+          items={paginatedNotificationHistoryItems.slice(0, visibleCount)}
+          canLoadMore={canLoadMore}
+          onLoadMore={() =>
+            setVisibleCount((current) => Math.min(current + 20, paginatedNotificationHistoryItems.length))
+          }
+        />
+      }
+    />
+  );
+}
+
 let managerInvitationCallCount = 0;
 const countManagerInvitation = async (): Promise<boolean> => {
   managerInvitationCallCount += 1;
@@ -86,6 +174,7 @@ const meta = {
     isSendingRecruitments: false,
     onSendCurrentShift: noop,
     isSendingCurrentShift: false,
+    notificationHistory: <StaffNotificationHistoryView items={[]} />,
     onChangeShiftTarget: noop,
     isChangingShiftTarget: false,
     onInviteManager: async (): Promise<boolean> => true,
@@ -119,6 +208,84 @@ export const Default: Story = {
     await expect(within(dialog).getByRole("checkbox", { name: /シフト対象/ })).toBeChecked();
     await expect(within(dialog).getByRole("button", { name: "スタッフを削除" })).toBeInTheDocument();
     await expect(within(dialog).queryByText("危険な操作")).toBeNull();
+  },
+};
+
+export const NotificationHistory: Story = {
+  args: {
+    defaultTab: "notification",
+    notificationHistory: <StaffNotificationHistoryView items={notificationHistoryItems} />,
+  },
+};
+
+export const NotificationHistoryLoading: Story = {
+  args: {
+    defaultTab: "notification",
+    notificationHistory: <StaffNotificationHistoryView items={[]} isLoading />,
+  },
+};
+
+export const NotificationHistoryEmpty: Story = {
+  args: {
+    defaultTab: "notification",
+  },
+};
+
+export const NotificationHistoryError: Story = {
+  args: {
+    defaultTab: "notification",
+    notificationHistory: <StaffNotificationHistoryView items={[]} isError />,
+  },
+};
+
+export const NotificationHistoryLongText: Story = {
+  args: {
+    defaultTab: "notification",
+    notificationHistory: <StaffNotificationHistoryView items={longTitleNotificationHistoryItems} />,
+  },
+};
+
+export const NotificationHistoryReadOnly: Story = {
+  args: {
+    defaultTab: "notification",
+    isReadOnly: true,
+    notificationHistory: (
+      <StaffNotificationHistoryView
+        items={paginatedNotificationHistoryItems.slice(0, 20)}
+        canLoadMore
+        onLoadMore={noop}
+      />
+    ),
+  },
+};
+
+export const NotificationHistoryMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  args: {
+    defaultTab: "notification",
+    notificationHistory: <StaffNotificationHistoryView items={notificationHistoryItems.slice(0, 3)} />,
+  },
+};
+
+export const NotificationHistoryLoadMoreBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: {
+    defaultTab: "notification",
+    isReadOnly: true,
+  },
+  render: (args) => <NotificationHistoryLoadMoreStory {...args} />,
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
+    const historyTable = await within(dialog).findByRole("table", { name: "通知履歴" });
+    await expect(within(historyTable).getAllByRole("row")).toHaveLength(21);
+
+    const loadMoreButton = within(dialog).getByRole("button", { name: "もっと見る" });
+    await expect(loadMoreButton).toBeEnabled();
+    await userEvent.click(loadMoreButton);
+
+    await expect(await within(historyTable).findByText("通知履歴 21")).toBeInTheDocument();
+    await expect(within(historyTable).getAllByRole("row")).toHaveLength(26);
   },
 };
 

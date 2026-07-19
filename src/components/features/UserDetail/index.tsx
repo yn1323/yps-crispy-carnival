@@ -1,4 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { StaffNotificationHistory } from "@/src/components/features/StaffNotificationHistory";
 import { clearRequestedShopSearch } from "@/src/lib/authenticatedSearch";
 import { toUserListCountSearch } from "@/src/lib/userListSearch";
 import { getUserDetailBackDestination, mergeUserDetailSearch } from "./navigation";
@@ -20,13 +22,15 @@ type Props = {
 
 export function UserDetail({ data, selectedShopId, activeTab, returnTo, visibleUserCount }: Props) {
   const navigate = useNavigate();
+  const [currentTab, setCurrentTab] = useState(activeTab);
   const selectedMembership = data.memberships.find((membership) => membership.shopId === selectedShopId) ?? null;
-  const isStoreReadOnly = !data.canWrite || Boolean(selectedMembership && selectedMembership.shopStatus !== "active");
+  const selectedShop = data.shops.find((shop) => shop.shopId === selectedShopId) ?? null;
+  const isStoreReadOnly = !data.canWrite || Boolean(selectedShop && selectedShop.shopStatus !== "active");
 
   const profile = useUserProfileUpdate({ data, selectedShopId });
   const notifications = useUserNotificationActions({
     membership: selectedMembership,
-    enabled: activeTab === "notification",
+    enabled: currentTab === "notification",
     isReadOnly: isStoreReadOnly,
   });
   const line = useUserLineActions({ membership: selectedMembership, isReadOnly: isStoreReadOnly });
@@ -55,11 +59,16 @@ export function UserDetail({ data, selectedShopId, activeTab, returnTo, visibleU
     },
   });
 
+  useEffect(() => {
+    setCurrentTab(activeTab);
+  }, [activeTab]);
+
   const updateSearch = (next: { shop?: string; tab?: UserDetailTab }) => {
     void navigate({
       to: ".",
       search: (previous) => mergeUserDetailSearch(previous, next),
       replace: true,
+      resetScroll: false,
     });
   };
 
@@ -72,7 +81,12 @@ export function UserDetail({ data, selectedShopId, activeTab, returnTo, visibleU
     <UserDetailView
       data={data}
       selectedShopId={selectedShopId}
-      activeTab={activeTab}
+      activeTab={currentTab}
+      notificationHistory={
+        selectedMembership ? (
+          <StaffNotificationHistory staffId={selectedMembership.staffId} enabled={currentTab === "notification"} />
+        ) : null
+      }
       state={{
         isUpdatingProfile: profile.isUpdating,
         notification: notifications,
@@ -81,6 +95,7 @@ export function UserDetail({ data, selectedShopId, activeTab, returnTo, visibleU
           dialog: membership.dialog,
           isChangingShiftTarget: membership.isChangingShiftTarget,
           isRemoving: membership.isRemovingMembership,
+          isAdding: membership.isAddingMembership,
         },
         manager: {
           dialog: manager.dialog,
@@ -92,7 +107,10 @@ export function UserDetail({ data, selectedShopId, activeTab, returnTo, visibleU
       actions={{
         onBack: handleBack,
         onSelectShop: (shopId) => updateSearch({ shop: shopId }),
-        onTabChange: (tab) => updateSearch({ tab }),
+        onTabChange: (tab) => {
+          setCurrentTab(tab);
+          updateSearch({ tab });
+        },
         onUpdateProfile: async (formData) => {
           await profile.update(formData);
         },
@@ -110,6 +128,13 @@ export function UserDetail({ data, selectedShopId, activeTab, returnTo, visibleU
         },
         onChangeShiftTarget: async (isShiftTarget) => {
           await membership.onChangeShiftTarget(isShiftTarget);
+        },
+        onAddMembership: async () => {
+          const added = await membership.onAddMembership(data.person.id);
+          if (added) {
+            setCurrentTab("line");
+            updateSearch({ tab: "line" });
+          }
         },
         onRequestRemoveMembership: membership.onRequestRemoveMembership,
         onConfirmRemoveMembership: async () => {

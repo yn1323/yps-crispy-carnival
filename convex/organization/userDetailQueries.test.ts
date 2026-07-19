@@ -81,6 +81,19 @@ describe("organization/userDetailQueries.getUserDetail", () => {
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         isDeleted: false,
       });
+      await ctx.db.insert("shops", {
+        organizationId: base.organizationId,
+        operatingStatus: "active",
+        name: "削除済み店舗",
+        regularClosedDays: [],
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        isDeleted: true,
+      });
+      await seedOrganizationManagerShop(ctx, {
+        subject: "user_detail_other_organization_shop",
+        shopName: "別グループ店舗",
+        plan: "pro",
+      });
       const personId = await seedPerson(ctx, { organizationId: base.organizationId });
       const firstStaffId = await seedStaff(ctx, {
         organizationId: base.organizationId,
@@ -147,6 +160,23 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       canRemoveManagerRole: false,
       canRemove: true,
       canWrite: true,
+      shops: [
+        {
+          shopId: ids.archivedShopId,
+          shopName: "旧店舗",
+          shopStatus: "archived",
+        },
+        {
+          shopId: ids.shopId,
+          shopName: "青山店",
+          shopStatus: "active",
+        },
+        {
+          shopId: ids.secondShopId,
+          shopName: "赤坂店",
+          shopStatus: "active",
+        },
+      ],
       memberships: [
         {
           staffId: ids.archivedStaffId,

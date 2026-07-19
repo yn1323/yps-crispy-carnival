@@ -93,7 +93,7 @@ export function OrganizationSettings({
               params: { personId },
               search: {
                 shop: context.selectedShopId,
-                tab: "information",
+                tab: "notification",
                 returnTo: "settings",
                 users: toUserListCountSearch(visibleUserCount),
               },

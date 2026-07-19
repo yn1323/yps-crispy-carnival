@@ -3,6 +3,10 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
+import {
+  type StaffNotificationHistoryItem,
+  StaffNotificationHistoryView,
+} from "@/src/components/features/StaffNotificationHistory";
 import { Button } from "@/src/components/ui/Button";
 import type { UserDetailData, UserDetailDialog, UserDetailTab } from "./types";
 import { UserDetailSkeleton } from "./UserDetailSkeleton";
@@ -34,6 +38,24 @@ const shinjukuMembership: UserDetailData["memberships"][number] = {
   line: { isLinked: true, isFollowing: false },
 };
 
+const shibuyaShop: UserDetailData["shops"][number] = {
+  shopId: shibuyaShopId,
+  shopName: "渋谷店",
+  shopStatus: "active",
+};
+
+const shinjukuShop: UserDetailData["shops"][number] = {
+  shopId: shinjukuShopId,
+  shopName: "新宿店",
+  shopStatus: "planSuspended",
+};
+
+const ikebukuroShop: UserDetailData["shops"][number] = {
+  shopId: "shop-ikebukuro" as Id<"shops">,
+  shopName: "池袋店",
+  shopStatus: "active",
+};
+
 const baseData: UserDetailData = {
   person: {
     id: personId,
@@ -49,8 +71,37 @@ const baseData: UserDetailData = {
   canRemove: true,
   removeDisabledReason: undefined,
   canWrite: true,
+  shops: [shibuyaShop],
   memberships: [shibuyaMembership],
 };
+
+const multipleStoresData: UserDetailData = {
+  ...baseData,
+  managerRole: "none",
+  managerInvitationState: { kind: "available", mode: "addition", replacesStaleInvitation: false },
+  canRemoveManagerRole: false,
+  shops: [shibuyaShop, shinjukuShop, ikebukuroShop],
+  memberships: [...baseData.memberships, shinjukuMembership],
+};
+
+const notificationItems: StaffNotificationHistoryItem[] = [
+  {
+    _id: "history-1",
+    requestedAt: new Date("2026-07-19T01:00:00Z").getTime(),
+    sentAt: new Date("2026-07-19T01:00:10Z").getTime(),
+    channel: "line",
+    displayTitle: "7月後半のシフト募集のお知らせ",
+    displayStatus: "sent",
+  },
+  {
+    _id: "history-2",
+    requestedAt: new Date("2026-07-18T01:00:00Z").getTime(),
+    sentAt: new Date("2026-07-18T01:00:08Z").getTime(),
+    channel: "email",
+    displayTitle: "確定シフトのお知らせ",
+    displayStatus: "delivered",
+  },
+];
 
 const baseState: UserDetailViewProps["state"] = {
   isUpdatingProfile: false,
@@ -78,6 +129,7 @@ const baseState: UserDetailViewProps["state"] = {
     dialog: null,
     isChangingShiftTarget: false,
     isRemoving: false,
+    isAdding: false,
   },
   manager: {
     dialog: null,
@@ -96,6 +148,7 @@ const selectStore = fn();
 const sendRecruitments = fn(async () => undefined);
 const showLineLink = fn(async () => undefined);
 const assignManager = fn(async () => undefined);
+const addMembership = fn(async () => undefined);
 const baseActions: UserDetailViewProps["actions"] = {
   onBack: noop,
   onSelectShop: noop,
@@ -106,6 +159,7 @@ const baseActions: UserDetailViewProps["actions"] = {
   onShowLineQr: asyncNoop,
   onSendLineInvite: asyncNoop,
   onChangeShiftTarget: asyncNoop,
+  onAddMembership: asyncNoop,
   onRequestRemoveMembership: noop,
   onConfirmRemoveMembership: asyncNoop,
   onCloseMembershipDialog: noop,
@@ -134,7 +188,8 @@ const meta = {
   args: {
     data: baseData,
     selectedShopId: shibuyaShopId,
-    activeTab: "information",
+    activeTab: "notification",
+    notificationHistory: <StaffNotificationHistoryView items={notificationItems} />,
     state: baseState,
     actions: baseActions,
   },
@@ -147,13 +202,7 @@ export const Information: Story = {};
 
 export const MultipleStores: Story = {
   args: {
-    data: {
-      ...baseData,
-      managerRole: "none",
-      managerInvitationState: { kind: "available", mode: "addition", replacesStaleInvitation: false },
-      canRemoveManagerRole: false,
-      memberships: [...baseData.memberships, shinjukuMembership],
-    },
+    data: multipleStoresData,
   },
 };
 
@@ -203,7 +252,7 @@ export const ManagerWithoutStore: Story = {
 
 export const ReadOnly: Story = {
   args: {
-    activeTab: "information",
+    activeTab: "notification",
     data: {
       ...baseData,
       canWrite: false,
@@ -263,6 +312,7 @@ export const ArchivedStore: Story = {
     activeTab: "settings",
     data: {
       ...baseData,
+      shops: [{ ...shibuyaShop, shopStatus: "archived" }],
       memberships: [{ ...shibuyaMembership, shopStatus: "archived" }],
     },
   },
@@ -322,6 +372,12 @@ export const LongText: Story = {
           shopName: "渋谷駅新南口商業施設フードコート第一店舗",
         },
       ],
+      shops: [
+        {
+          ...shibuyaShop,
+          shopName: "渋谷駅新南口商業施設フードコート第一店舗",
+        },
+      ],
     },
   },
 };
@@ -336,13 +392,20 @@ export const MobileSettings: Story = {
   args: { activeTab: "settings" },
 };
 
+export const MobileInformation: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  args: { data: multipleStoresData },
+};
+
 function NavigationBehaviorHarness() {
-  const [tab, setTab] = useState<UserDetailTab>("information");
+  const [tab, setTab] = useState<UserDetailTab>("notification");
   return (
     <UserDetailView
       data={baseData}
       selectedShopId={shibuyaShopId}
       activeTab={tab}
+      notificationHistory={<StaffNotificationHistoryView items={notificationItems} />}
       state={baseState}
       actions={{ ...baseActions, onTabChange: setTab }}
     />
@@ -354,26 +417,63 @@ export const TabNavigationBehavior: Story = {
   render: () => <NavigationBehaviorHarness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("tab", { name: "通知" }));
-    await expect(await canvas.findByRole("heading", { name: "渋谷店の通知" })).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("tab", { name: "LINE連携" }));
+    await expect(await canvas.findByRole("heading", { name: "渋谷店のLINE連携" })).toBeInTheDocument();
   },
 };
 
 export const StoreSwitchBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   args: {
-    data: { ...baseData, memberships: [...baseData.memberships, shinjukuMembership] },
+    data: multipleStoresData,
     selectedShopId: shibuyaShopId,
     actions: { ...baseActions, onSelectShop: selectStore },
   },
   play: async ({ canvasElement }) => {
     selectStore.mockClear();
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("combobox", { name: "表示する店舗" }));
+    await userEvent.click(canvas.getByRole("button", { name: "店舗を切り替える。現在は渋谷店" }));
     const page = within(canvasElement.ownerDocument.body);
-    await userEvent.click(await page.findByRole("option", { name: "新宿店（プラン停止中）" }));
+    await userEvent.click(await page.findByRole("menuitem", { name: "新宿店 プラン停止中" }));
     await expect(selectStore).toHaveBeenCalledTimes(1);
     await expect(selectStore).toHaveBeenCalledWith(shinjukuShopId);
+  },
+};
+
+export const StoreDashboardLinksBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: {
+    data: multipleStoresData,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("link", { name: /^渋谷店/ })).toHaveAttribute(
+      "href",
+      `/dashboard?shop=${shibuyaShopId}`,
+    );
+    await expect(canvas.getByRole("link", { name: /^池袋店/ })).toHaveAttribute(
+      "href",
+      `/dashboard?shop=${ikebukuroShop.shopId}`,
+    );
+  },
+};
+
+export const UnregisteredStore: Story = {
+  args: {
+    data: multipleStoresData,
+    selectedShopId: ikebukuroShop.shopId,
+    actions: { ...baseActions, onAddMembership: addMembership },
+  },
+};
+
+export const AddUnregisteredStoreBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: UnregisteredStore.args,
+  play: async ({ canvasElement }) => {
+    addMembership.mockClear();
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "このユーザーを池袋店に追加する" }));
+    await expect(addMembership).toHaveBeenCalledTimes(1);
   },
 };
 
@@ -451,7 +551,8 @@ function ProfileSubscriptionHarness() {
       <UserDetailView
         data={data}
         selectedShopId={shibuyaShopId}
-        activeTab="information"
+        activeTab="notification"
+        notificationHistory={null}
         state={baseState}
         actions={baseActions}
       />
@@ -479,6 +580,7 @@ function MembershipRemovalHarness() {
       data={baseData}
       selectedShopId={shibuyaShopId}
       activeTab="settings"
+      notificationHistory={null}
       state={{ ...baseState, membership: { ...baseState.membership, dialog } }}
       actions={{
         ...baseActions,
@@ -510,6 +612,7 @@ function ManagerRemovalHarness() {
       data={baseData}
       selectedShopId={shibuyaShopId}
       activeTab="settings"
+      notificationHistory={null}
       state={{ ...baseState, manager: { ...baseState.manager, dialog } }}
       actions={{
         ...baseActions,
@@ -543,6 +646,7 @@ function PersonRemovalHarness() {
       data={baseData}
       selectedShopId={shibuyaShopId}
       activeTab="settings"
+      notificationHistory={null}
       state={{ ...baseState, manager: { ...baseState.manager, dialog } }}
       actions={{
         ...baseActions,

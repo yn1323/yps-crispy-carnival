@@ -1,5 +1,5 @@
 import { Stack, Tabs } from "@chakra-ui/react";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Dialog } from "@/src/components/ui/Dialog";
 import type { EditStaffFormData } from "../EditStaffForm";
 import type { Recruitment, Staff } from "../types";
@@ -41,6 +41,7 @@ type Props = {
   isSendingRecruitments: boolean;
   onSendCurrentShift: (staff: Staff) => void | Promise<void>;
   isSendingCurrentShift: boolean;
+  notificationHistory: ReactNode;
   onChangeShiftTarget: (staff: Staff, isShiftTarget: boolean) => void | Promise<void>;
   isChangingShiftTarget: boolean;
   onInviteManager: (staff: Staff) => Promise<boolean>;
@@ -68,6 +69,7 @@ export const StaffDetailDialog = ({
   isSendingRecruitments,
   onSendCurrentShift,
   isSendingCurrentShift,
+  notificationHistory,
   onChangeShiftTarget,
   isChangingShiftTarget,
   onInviteManager,
@@ -178,32 +180,35 @@ export const StaffDetailDialog = ({
             </Tabs.Trigger>
           </Tabs.List>
 
-          <fieldset disabled={isReadOnly} style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}>
-            <Tabs.Content value="basic" pt={4}>
+          <Tabs.Content value="basic" pt={4}>
+            <fieldset disabled={isReadOnly} style={FIELDSET_STYLE}>
               <StaffDetailBasicTab staff={staff} onEdit={onEdit} isEditing={isEditing} />
-            </Tabs.Content>
+            </fieldset>
+          </Tabs.Content>
 
-            <Tabs.Content value="notification" pt={4}>
-              <StaffDetailNotificationTab
-                isShiftTarget={isShiftTarget}
-                openRecruitments={openRecruitments}
-                currentRecruitments={currentRecruitments}
-                sendRecruitmentsAction={{
-                  isDisabled: !canSendRecruitments || isDirectActionRunning,
-                  isLoading: isSendingRecruitments || directAction === "sendRecruitments",
-                  onAction: () => runDirectAction("sendRecruitments", () => onSendRecruitments(staff)),
-                }}
-                sendCurrentShiftAction={{
-                  isDisabled: !canSendCurrentShift || isDirectActionRunning,
-                  isLoading: isSendingCurrentShift || directAction === "sendCurrentShift",
-                  onAction: () => runDirectAction("sendCurrentShift", () => onSendCurrentShift(staff)),
-                }}
-              />
-            </Tabs.Content>
+          <Tabs.Content value="notification" pt={4}>
+            <StaffDetailNotificationTab
+              isReadOnly={isReadOnly}
+              isShiftTarget={isShiftTarget}
+              openRecruitments={openRecruitments}
+              currentRecruitments={currentRecruitments}
+              notificationHistory={notificationHistory}
+              sendRecruitmentsAction={{
+                isDisabled: !canSendRecruitments || isDirectActionRunning,
+                isLoading: isSendingRecruitments || directAction === "sendRecruitments",
+                onAction: () => runDirectAction("sendRecruitments", () => onSendRecruitments(staff)),
+              }}
+              sendCurrentShiftAction={{
+                isDisabled: !canSendCurrentShift || isDirectActionRunning,
+                isLoading: isSendingCurrentShift || directAction === "sendCurrentShift",
+                onAction: () => runDirectAction("sendCurrentShift", () => onSendCurrentShift(staff)),
+              }}
+            />
+          </Tabs.Content>
 
-            <Tabs.Content value="line" pt={4}>
+          <Tabs.Content value="line" pt={4}>
+            <fieldset disabled={isReadOnly} style={FIELDSET_STYLE}>
               <StaffDetailLineTab
-                staffName={staff.name}
                 lineStatus={lineStatus}
                 isLineActive={isLineActive}
                 hasEmail={hasEmail}
@@ -217,9 +222,11 @@ export const StaffDetailDialog = ({
                   onAction: () => runDirectAction("sendLineInvite", () => onSendLineInvite(staff)),
                 }}
               />
-            </Tabs.Content>
+            </fieldset>
+          </Tabs.Content>
 
-            <Tabs.Content value="settings" pt={4}>
+          <Tabs.Content value="settings" pt={4}>
+            <fieldset disabled={isReadOnly} style={FIELDSET_STYLE}>
               <StaffDetailSettingsTab
                 isShiftTarget={isShiftTarget}
                 isChangingShiftTarget={isChangingShiftTarget}
@@ -242,10 +249,12 @@ export const StaffDetailDialog = ({
                 onCancelDelete={() => setPendingAction(null)}
                 onConfirmDelete={handleDelete}
               />
-            </Tabs.Content>
-          </fieldset>
+            </fieldset>
+          </Tabs.Content>
         </Tabs.Root>
       </Stack>
     </Dialog>
   );
 };
+
+const FIELDSET_STYLE = { border: 0, margin: 0, minWidth: 0, padding: 0 } as const;

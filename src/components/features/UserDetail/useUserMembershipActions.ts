@@ -18,6 +18,7 @@ export function useUserMembershipActions({
 }) {
   const [dialog, setDialog] = useState<UserDetailDialog>(null);
   const setShiftExclusion = useShopMutation(api.staff.mutations.setShiftExclusion);
+  const addOrganizationPersonToShop = useShopMutation(api.staff.mutations.addOrganizationPersonToShop);
   const removePersonFromShop = useMutation(api.organization.mutations.removePersonFromShop);
 
   useEffect(() => {
@@ -70,10 +71,26 @@ export function useUserMembershipActions({
     }
   });
 
+  const { run: addMembership, isRunning: isAddingMembership } = useSingleFlight(
+    async (personId: Id<"organizationPeople">) => {
+      if (isReadOnly || membership) return false;
+      try {
+        await addOrganizationPersonToShop({ personId, requestId: crypto.randomUUID() });
+        showSuccessToast({ title: "店舗にユーザーを追加しました" });
+        return true;
+      } catch (error) {
+        showErrorToast(error);
+        return false;
+      }
+    },
+  );
+
   return {
     dialog,
     isChangingShiftTarget,
     isRemovingMembership,
+    isAddingMembership,
+    onAddMembership: addMembership,
     onChangeShiftTarget: changeShiftTarget,
     onRequestRemoveMembership: () => {
       if (!isReadOnly && membership?.canRemove) setDialog({ kind: "removeMembership", membership });

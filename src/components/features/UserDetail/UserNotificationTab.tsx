@@ -19,6 +19,7 @@ type Props = {
   isLoading: boolean;
   openRecruitments: UserDetailRecruitment[];
   currentRecruitments: UserDetailRecruitment[];
+  notificationHistory: ReactNode;
   sendRecruitmentsAction: NotificationAction;
   sendCurrentShiftAction: NotificationAction;
   onSelectShop: (shopId: string) => void;
@@ -31,6 +32,7 @@ export function UserNotificationTab({
   isLoading,
   openRecruitments,
   currentRecruitments,
+  notificationHistory,
   sendRecruitmentsAction,
   sendCurrentShiftAction,
   onSelectShop,
@@ -48,7 +50,7 @@ export function UserNotificationTab({
       <fieldset disabled={isReadOnly} style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}>
         <Stack gap={6}>
           <Stack gap={1}>
-            <Text as="h2" fontSize="md" fontWeight="semibold" color="gray.900">
+            <Text as="h3" fontSize="md" fontWeight="semibold" color="gray.900">
               {membership.shopName}の通知
             </Text>
             <Text fontSize="sm" color="fg.muted" lineHeight="tall">
@@ -72,7 +74,7 @@ export function UserNotificationTab({
               <Stack gap={1}>
                 <Text fontWeight="semibold">通知手段がありません</Text>
                 <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-                  情報タブでメールアドレスを登録するか、LINEタブからこの店舗のLINEを連携してください。
+                  ユーザー情報でメールアドレスを登録するか、LINE連携タブからこの店舗のLINEを連携してください。
                 </Text>
               </Stack>
             </Box>
@@ -110,6 +112,8 @@ export function UserNotificationTab({
           )}
         </Stack>
       </fieldset>
+
+      {notificationHistory}
     </Stack>
   );
 }
@@ -134,7 +138,7 @@ function NotificationSection({
       <Flex align={{ base: "flex-start", sm: "center" }} gap={3} justify="space-between">
         <HStack gap={2} color="gray.900" minW={0}>
           {icon}
-          <Text as="h3" fontSize="sm" fontWeight="semibold">
+          <Text as="h4" fontSize="sm" fontWeight="semibold">
             {title}
           </Text>
         </HStack>

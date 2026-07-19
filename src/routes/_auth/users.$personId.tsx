@@ -3,7 +3,7 @@ import { parseUserListCount } from "@/src/lib/userListSearch";
 import { UserDetailPage, type UserDetailReturnTo } from "@/src/pages/user-detail";
 import { buildUserDetailPageHead } from "@/src/pages/user-detail/meta";
 
-type UserDetailTab = "information" | "notification" | "line" | "settings";
+type UserDetailTab = "notification" | "line" | "settings";
 type UserDetailSearch = {
   shop?: string;
   tab: UserDetailTab;
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/_auth/users/$personId")({
 
 export function validateUserDetailSearch(search: Record<string, unknown>): UserDetailSearch {
   const shop = typeof search.shop === "string" && search.shop.trim() !== "" ? search.shop : undefined;
-  const tab = isUserDetailTab(search.tab) ? search.tab : "information";
+  const tab = isUserDetailTab(search.tab) ? search.tab : "notification";
   const returnTo = isUserDetailReturnTo(search.returnTo) ? search.returnTo : undefined;
   const users = parseUserListCount(search.users);
   return {
@@ -49,5 +49,5 @@ function isUserDetailReturnTo(value: unknown): value is UserDetailReturnTo {
 }
 
 function isUserDetailTab(value: unknown): value is UserDetailTab {
-  return value === "information" || value === "notification" || value === "line" || value === "settings";
+  return value === "notification" || value === "line" || value === "settings";
 }

@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { dateJST } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
-import { ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT } from "../constants";
+import { ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT, ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT } from "../constants";
 import { getStaffLineAccount } from "../line/service";
 import { deriveOrganizationBillingPolicy, getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
@@ -32,6 +32,13 @@ const userDetailValidator = v.object({
   removeDisabledReason: v.optional(v.string()),
   canWrite: v.boolean(),
   writeDisabledReason: v.optional(v.string()),
+  shops: v.array(
+    v.object({
+      shopId: v.id("shops"),
+      shopName: v.string(),
+      shopStatus: organizationShopOperatingStatusValidator,
+    }),
+  ),
   memberships: v.array(
     v.object({
       staffId: v.id("staffs"),
@@ -62,7 +69,7 @@ export const getUserDetail = managerQuery({
     const person = await ctx.db.get(personId);
     if (!person || person.organizationId !== organization._id || person.status !== "active") return null;
 
-    const [personMembers, staffDocs, billingState, usage, validActiveManagerPersonIds, invitationDocs] =
+    const [personMembers, staffDocs, shopDocs, billingState, usage, validActiveManagerPersonIds, invitationDocs] =
       await Promise.all([
         ctx.db
           .query("organizationMembers")
@@ -76,12 +83,22 @@ export const getUserDetail = managerQuery({
             q.eq("organizationId", organization._id).eq("organizationPersonId", person._id),
           )
           .take(ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT + 1),
+        ctx.db
+          .query("shops")
+          .withIndex("by_organizationId_and_isDeleted", (q) =>
+            q.eq("organizationId", organization._id).eq("isDeleted", false),
+          )
+          .take(ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT + 1),
         getOrganizationBillingState(ctx, organization._id),
         getOrganizationUsageSnapshot(ctx, organization._id, args.now),
         getValidActiveOrganizationManagerPersonIds(ctx, organization._id),
         collectIssuedInvitationsByOrganization(ctx, organization._id),
       ]);
-    if (personMembers.length > 1 || staffDocs.length > ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT) {
+    if (
+      personMembers.length > 1 ||
+      staffDocs.length > ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT ||
+      shopDocs.length > ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT
+    ) {
       return null;
     }
 
@@ -153,6 +170,13 @@ export const getUserDetail = managerQuery({
     const memberships = validMembershipRows
       .map((row) => row.view)
       .sort((a, b) => a.shopName.localeCompare(b.shopName, "ja") || a.shopId.localeCompare(b.shopId));
+    const shops = shopDocs
+      .map((targetShop) => ({
+        shopId: targetShop._id,
+        shopName: targetShop.name,
+        shopStatus: targetShop.operatingStatus ?? "active",
+      }))
+      .sort((a, b) => a.shopName.localeCompare(b.shopName, "ja") || a.shopId.localeCompare(b.shopId));
     const personHasFutureAssignment = staffIdsWithFutureAssignment.size > 0;
 
     const activePendingInvitations = invitationDocs.filter((invitation) => invitation.expiresAt > args.now);
@@ -222,6 +246,7 @@ export const getUserDetail = managerQuery({
       ...personCapabilities,
       canWrite: canWriteNormally,
       ...(writeDisabledReason ? { writeDisabledReason } : {}),
+      shops,
       memberships,
     };
   },

@@ -8,7 +8,6 @@ const meta = {
   parameters: { layout: "padded" },
   args: {
     authorizeUrl: "https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=12345&state=abc",
-    staffName: "田中太郎",
   },
   decorators: [
     (Story) => (

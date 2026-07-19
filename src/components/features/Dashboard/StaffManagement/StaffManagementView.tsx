@@ -1,4 +1,5 @@
 import { Alert, Stack, Text } from "@chakra-ui/react";
+import type { ReactNode } from "react";
 import { PeopleCapacityResolutionAlert } from "@/src/components/shared/PeopleCapacityResolutionAlert";
 import { Dialog } from "@/src/components/ui/Dialog";
 import type { EditStaffFormData } from "../EditStaffForm";
@@ -33,6 +34,7 @@ type StaffDetailViewModel = {
   isSendingRecruitments: boolean;
   onSendCurrentShift: (staff: Staff) => void | Promise<void>;
   isSendingCurrentShift: boolean;
+  notificationHistory: ReactNode;
   onChangeShiftTarget: (staff: Staff, isShiftTarget: boolean) => void | Promise<void>;
   isChangingShiftTarget: boolean;
   onInviteManager: (staff: Staff) => Promise<boolean>;
@@ -142,6 +144,7 @@ export function StaffManagementView({
         isSendingRecruitments={detail.isSendingRecruitments}
         onSendCurrentShift={detail.onSendCurrentShift}
         isSendingCurrentShift={detail.isSendingCurrentShift}
+        notificationHistory={detail.notificationHistory}
         onChangeShiftTarget={detail.onChangeShiftTarget}
         isChangingShiftTarget={detail.isChangingShiftTarget}
         onInviteManager={detail.onInviteManager}

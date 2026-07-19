@@ -1,4 +1,4 @@
-import { Box, Code, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
+import { Box, Code, HStack, Skeleton, Stack } from "@chakra-ui/react";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { LuCheck, LuCopy } from "react-icons/lu";
@@ -10,11 +10,9 @@ type Props = {
   authorizeUrl: string | null;
   /** mutation 中の場合 true */
   isLoading?: boolean;
-  /** スタッフ名（表示用） */
-  staffName: string;
 };
 
-export const LineLinkQrDialog = ({ authorizeUrl, isLoading, staffName }: Props) => {
+export const LineLinkQrDialog = ({ authorizeUrl, isLoading }: Props) => {
   const [qrSvg, setQrSvg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -53,10 +51,7 @@ export const LineLinkQrDialog = ({ authorizeUrl, isLoading, staffName }: Props) 
 
   return (
     <Stack gap={4}>
-      <Text fontSize="sm" color="fg.muted">
-        {staffName}さんにLINE連携リンクを共有してください。72時間以内に1回だけ使えます。
-      </Text>
-      <Stack align="center" gap={3}>
+      <Stack align="center">
         {qrSvg ? (
           <Box
             // biome-ignore lint/security/noDangerouslySetInnerHtml: trusted SVG from qrcode lib
@@ -71,16 +66,15 @@ export const LineLinkQrDialog = ({ authorizeUrl, isLoading, staffName }: Props) 
         ) : (
           <QrSkeleton />
         )}
-        <Text fontSize="xs" color="fg.muted">
-          スマホのカメラで読み取ってください
-        </Text>
       </Stack>
       <HStack gap={2} align="center">
         <Code
           p={2}
           fontSize="xs"
-          whiteSpace="pre-wrap"
-          wordBreak="break-all"
+          display="block"
+          whiteSpace="nowrap"
+          overflow="hidden"
+          textOverflow="ellipsis"
           bg="blackAlpha.50"
           borderRadius="md"
           color="gray.800"
@@ -113,15 +107,9 @@ const QrSkeleton = () => (
 
 const LineLinkQrDialogSkeleton = () => (
   <Stack gap={4} aria-busy="true">
-    <Stack gap={2}>
-      <Skeleton h="16px" w="92%" />
-      <Skeleton h="16px" w="64%" />
-    </Stack>
-    <Stack align="center" gap={3}>
+    <Stack align="center">
       <QrSkeleton />
-      <Skeleton h="14px" w="152px" />
     </Stack>
-    <Skeleton h="56px" w="full" borderRadius="md" />
-    <Skeleton h="32px" w="120px" borderRadius="md" />
+    <Skeleton h="36px" w="full" borderRadius="md" />
   </Stack>
 );

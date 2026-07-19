@@ -28,7 +28,7 @@ type Props = {
 export function UserDetailPage({
   personId,
   selectedShopId,
-  defaultTab = "information",
+  defaultTab = "notification",
   returnTo = "dashboard",
   visibleUserCount = DEFAULT_USER_LIST_COUNT,
 }: Props) {

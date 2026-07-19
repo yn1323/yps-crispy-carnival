@@ -44,7 +44,7 @@ export function UserLineTab({
   return (
     <Stack gap={6}>
       <Stack gap={1}>
-        <Text as="h2" fontSize="md" fontWeight="semibold" color="gray.900">
+        <Text as="h3" fontSize="md" fontWeight="semibold" color="gray.900">
           {membership.shopName}のLINE連携
         </Text>
         <Text fontSize="sm" color="fg.muted">
@@ -76,22 +76,16 @@ export function UserLineTab({
             <LineConnectionMethod
               number="1"
               title="LINE連携リンクを表示"
-              description="表示されたリンクを直接スタッフに共有してください。"
+              description="スタッフに直接共有してください。"
             >
               <Button colorPalette="teal" gap={1.5} onClick={onShowQr} disabled={isReadOnly}>
                 <LuQrCode aria-hidden />
                 LINE連携リンクを表示
               </Button>
-              {showQr && (
-                <LineLinkQrDialog authorizeUrl={authorizeUrl} isLoading={isQrLoading} staffName={data.person.name} />
-              )}
+              {showQr && <LineLinkQrDialog authorizeUrl={authorizeUrl} isLoading={isQrLoading} />}
             </LineConnectionMethod>
 
-            <LineConnectionMethod
-              number="2"
-              title="LINE連携リンクをメールで送る"
-              description="ユーザーのメールアドレスにLINE連携リンクを送ります。"
-            >
+            <LineConnectionMethod number="2" title="LINE連携リンクをメールで送る">
               <Button
                 colorPalette="teal"
                 gap={1.5}
@@ -127,18 +121,20 @@ function LineConnectionMethod({
 }: {
   number: string;
   title: string;
-  description: string;
+  description?: string;
   children: ReactNode;
 }) {
   return (
     <Stack gap={3}>
       <Stack gap={1}>
-        <Heading as="h3" fontSize="sm" fontWeight="semibold" color="gray.900">
+        <Heading as="h4" fontSize="sm" fontWeight="semibold" color="gray.900">
           {number}. {title}
         </Heading>
-        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          {description}
-        </Text>
+        {description && (
+          <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+            {description}
+          </Text>
+        )}
       </Stack>
       <Stack gap={3} align="flex-start">
         {children}

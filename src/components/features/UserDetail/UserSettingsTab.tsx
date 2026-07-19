@@ -5,37 +5,21 @@ import { Button } from "@/src/components/ui/Button";
 import type { UserDetailData, UserDetailMembership } from "./types";
 
 type Props = {
-  data: UserDetailData;
   membership: UserDetailMembership | null;
   isStoreReadOnly: boolean;
   storeDisabledReason?: string;
-  isAssignmentConfirmationOpen: boolean;
-  isAssigningManager: boolean;
   isChangingShiftTarget: boolean;
-  onRequestManagerAssignment: () => void;
-  onCancelManagerAssignment: () => void;
-  onAssignManager: () => void | Promise<void>;
-  onRequestRemoveManagerRole: () => void;
   onChangeShiftTarget: (isShiftTarget: boolean) => void | Promise<void>;
   onRequestRemoveMembership: () => void;
-  onRequestRemovePerson: () => void;
 };
 
 export function UserSettingsTab({
-  data,
   membership,
   isStoreReadOnly,
   storeDisabledReason,
-  isAssignmentConfirmationOpen,
-  isAssigningManager,
   isChangingShiftTarget,
-  onRequestManagerAssignment,
-  onCancelManagerAssignment,
-  onAssignManager,
-  onRequestRemoveManagerRole,
   onChangeShiftTarget,
   onRequestRemoveMembership,
-  onRequestRemovePerson,
 }: Props) {
   const storeActionDisabledReasonId = membership
     ? `user-detail-store-action-disabled-${membership.staffId}`
@@ -46,22 +30,8 @@ export function UserSettingsTab({
       ? storeDisabledReason
       : membership?.removeDisabledReason
     : undefined;
-  const personRemovalDisabledReasonId = `user-detail-person-removal-disabled-${data.person.id}`;
-
   return (
     <Stack gap={8}>
-      <SettingsSection title="グループの管理権限" description="このグループの設定や店舗情報を管理できる権限です。">
-        <ManagerRoleAction
-          data={data}
-          isAssignmentConfirmationOpen={isAssignmentConfirmationOpen}
-          isAssigningManager={isAssigningManager}
-          onRequestManagerAssignment={onRequestManagerAssignment}
-          onCancelManagerAssignment={onCancelManagerAssignment}
-          onAssignManager={onAssignManager}
-          onRequestRemoveManagerRole={onRequestRemoveManagerRole}
-        />
-      </SettingsSection>
-
       <SettingsSection
         title={membership ? `${membership.shopName}のスタッフ設定` : "店舗のスタッフ設定"}
         description="シフト対象や、この店舗だけのスタッフ所属を管理します。"
@@ -70,7 +40,7 @@ export function UserSettingsTab({
           <Stack gap={6}>
             <Stack gap={2}>
               <Flex align="center" justify="space-between" gap={4}>
-                <Heading as="h3" fontSize="sm" fontWeight="semibold" color="gray.900">
+                <Heading as="h4" fontSize="sm" fontWeight="semibold" color="gray.900">
                   シフト対象
                 </Heading>
                 <Switch.Root
@@ -120,30 +90,95 @@ export function UserSettingsTab({
           </Text>
         )}
       </SettingsSection>
+    </Stack>
+  );
+}
 
-      <SettingsSection
-        title="グループから削除"
-        description="すべての店舗所属と管理権限を終了します。過去のシフト履歴は保持します。"
-        danger
+export function UserManagerSettings({
+  data,
+  isAssignmentConfirmationOpen,
+  isAssigningManager,
+  onRequestManagerAssignment,
+  onCancelManagerAssignment,
+  onAssignManager,
+  onRequestRemoveManagerRole,
+}: {
+  data: UserDetailData;
+  isAssignmentConfirmationOpen: boolean;
+  isAssigningManager: boolean;
+  onRequestManagerAssignment: () => void;
+  onCancelManagerAssignment: () => void;
+  onAssignManager: () => void | Promise<void>;
+  onRequestRemoveManagerRole: () => void;
+}) {
+  return (
+    <Stack gap={4}>
+      <Stack gap={1}>
+        <Heading as="h3" fontSize="md" fontWeight="semibold" color="gray.900">
+          グループの管理権限
+        </Heading>
+        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+          このグループの設定や店舗情報を管理できる権限です。
+        </Text>
+      </Stack>
+      <ManagerRoleAction
+        {...{
+          data,
+          isAssignmentConfirmationOpen,
+          isAssigningManager,
+          onRequestManagerAssignment,
+          onCancelManagerAssignment,
+          onAssignManager,
+          onRequestRemoveManagerRole,
+        }}
+      />
+    </Stack>
+  );
+}
+
+export function UserGroupRemovalSection({
+  data,
+  onRequestRemovePerson,
+}: {
+  data: UserDetailData;
+  onRequestRemovePerson: () => void;
+}) {
+  const disabledReasonId = `user-detail-person-removal-disabled-${data.person.id}`;
+  return (
+    <Stack gap={3}>
+      <Heading
+        as="h2"
+        fontSize={{ base: "lg", lg: "xl" }}
+        lineHeight={{ base: "1.75rem", lg: "1.875rem" }}
+        fontWeight="bold"
+        color="red.700"
       >
-        <Stack gap={2} align="flex-end">
-          <Button
-            colorPalette="red"
-            gap={1.5}
-            disabled={!data.canRemove}
-            aria-describedby={!data.canRemove && data.removeDisabledReason ? personRemovalDisabledReasonId : undefined}
-            onClick={onRequestRemovePerson}
-          >
-            <LuTrash2 aria-hidden />
-            グループから削除
-          </Button>
-          {!data.canRemove && data.removeDisabledReason && (
-            <Text id={personRemovalDisabledReasonId} fontSize="xs" color="orange.700" textAlign="right">
-              {data.removeDisabledReason}
-            </Text>
-          )}
+        グループから削除
+      </Heading>
+      <Box borderWidth="1px" borderColor="red.100" borderRadius="lg" bg="white" p={{ base: 4, md: 5 }}>
+        <Stack gap={4}>
+          <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+            すべての店舗所属と管理権限を終了します。過去のシフト履歴は保持します。
+          </Text>
+          <Stack gap={2} align="flex-end">
+            <Button
+              colorPalette="red"
+              gap={1.5}
+              disabled={!data.canRemove}
+              aria-describedby={!data.canRemove && data.removeDisabledReason ? disabledReasonId : undefined}
+              onClick={onRequestRemovePerson}
+            >
+              <LuTrash2 aria-hidden />
+              グループから削除
+            </Button>
+            {!data.canRemove && data.removeDisabledReason && (
+              <Text id={disabledReasonId} fontSize="xs" color="orange.700" textAlign="right">
+                {data.removeDisabledReason}
+              </Text>
+            )}
+          </Stack>
         </Stack>
-      </SettingsSection>
+      </Box>
     </Stack>
   );
 }
@@ -264,19 +299,17 @@ function ManagerRoleAction({
 function SettingsSection({
   title,
   description,
-  danger = false,
   children,
 }: {
   title: string;
   description: string;
-  danger?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <Box borderWidth="1px" borderColor={danger ? "red.100" : "blackAlpha.100"} borderRadius="lg" p={{ base: 4, md: 5 }}>
+    <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="lg" bg="white" p={{ base: 4, md: 5 }}>
       <Stack gap={4}>
         <Stack gap={1}>
-          <Heading as="h2" fontSize="md" fontWeight="semibold" color={danger ? "red.700" : "gray.900"}>
+          <Heading as="h3" fontSize="md" fontWeight="semibold" color="gray.900">
             {title}
           </Heading>
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">

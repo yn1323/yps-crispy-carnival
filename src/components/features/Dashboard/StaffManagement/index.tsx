@@ -2,6 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 import { api } from "@/convex/_generated/api";
+import { StaffNotificationHistory } from "@/src/components/features/StaffNotificationHistory";
 import { useShopPaginatedQuery } from "@/src/hooks/useShopPaginatedQuery";
 import { DEFAULT_USER_LIST_COUNT, toUserListCountSearch, USER_LIST_PAGE_SIZE } from "@/src/lib/userListSearch";
 import { selectedShopAtom } from "@/src/stores/shop";
@@ -93,7 +94,7 @@ export function StaffManagement({
       params: { personId: staff.organizationPersonId },
       search: {
         shop: selectedShop.shopId,
-        tab: "information",
+        tab: "notification",
         returnTo: "dashboard",
         users: toUserListCountSearch(visibleStaffCount),
       },
@@ -133,6 +134,13 @@ export function StaffManagement({
         isSendingRecruitments: notifications.isSendingRecruitments,
         onSendCurrentShift: notifications.onSendCurrentShift,
         isSendingCurrentShift: notifications.isSendingCurrentShift,
+        notificationHistory: profile.staff ? (
+          <StaffNotificationHistory
+            key={profile.staff._id}
+            staffId={profile.staff._id}
+            enabled={profile.dialog.isOpen}
+          />
+        ) : null,
       }}
     />
   );
