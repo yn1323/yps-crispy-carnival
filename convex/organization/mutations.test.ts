@@ -1179,7 +1179,7 @@ describe("organization person removal", () => {
         personId: ids.personId,
         requestId: "role-last-request",
       }),
-    ).rejects.toThrow("最後の有効管理者は削除できません");
+    ).rejects.toThrow("最後の有効管理者の管理者権限は外せません");
   });
 
   it("Freeでは管理権限を個別に外せない", async () => {

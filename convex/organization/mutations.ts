@@ -1266,7 +1266,7 @@ export const removeManagerRole = authenticatedMutation({
     await requireOrganizationBusinessWrite(ctx, actor.organization._id);
     await requireOrganizationPaidFeature(ctx, actor.organization._id);
     if (!(await hasOtherValidActiveManager(ctx, actor.organization._id, person._id))) {
-      throw new ConvexError("最後の有効管理者は削除できません");
+      throw new ConvexError("最後の有効管理者の管理者権限は外せません");
     }
 
     const staffs = await ctx.db
