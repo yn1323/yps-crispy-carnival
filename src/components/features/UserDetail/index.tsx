@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { clearRequestedShopSearch } from "@/src/lib/authenticatedSearch";
+import { getUserDetailBackDestination, mergeUserDetailSearch } from "./navigation";
 import type { UserDetailData, UserDetailReturnTo, UserDetailTab } from "./types";
 import { UserDetailView } from "./UserDetailView";
 import { useUserLineActions } from "./useUserLineActions";
@@ -51,26 +52,14 @@ export function UserDetail({ data, selectedShopId, activeTab, returnTo }: Props)
   const updateSearch = (next: { shop?: string; tab?: UserDetailTab }) => {
     void navigate({
       to: ".",
-      search: (previous) => ({ ...previous, ...next }),
+      search: (previous) => mergeUserDetailSearch(previous, next),
       replace: true,
     });
   };
 
   const handleBack = () => {
-    if (returnTo === "settings") {
-      void navigate({
-        to: "/settings",
-        search: { shop: selectedShopId ?? undefined },
-        replace: true,
-      });
-      return;
-    }
-
-    void navigate({
-      to: "/dashboard",
-      search: { shop: selectedShopId ?? undefined },
-      replace: true,
-    });
+    const destination = getUserDetailBackDestination(returnTo, selectedShopId);
+    void navigate({ ...destination, replace: true });
   };
 
   return (
@@ -137,6 +126,7 @@ export function UserDetail({ data, selectedShopId, activeTab, returnTo }: Props)
   );
 }
 
+export { getUserDetailBackDestination } from "./navigation";
 export type { UserDetailData, UserDetailReturnTo, UserDetailTab } from "./types";
 export { UserDetailSkeleton } from "./UserDetailSkeleton";
 export { UserDetailView } from "./UserDetailView";

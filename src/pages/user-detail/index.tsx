@@ -4,6 +4,7 @@ import { useState } from "react";
 import { LuUserRoundX } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import {
+  getUserDetailBackDestination,
   UserDetail,
   type UserDetailReturnTo,
   UserDetailSkeleton,
@@ -31,6 +32,7 @@ export function UserDetailPage({
   // query内の判定時刻を購読中に動かさず、同じ画面表示では同じcapability結果を使う。
   const [queryNow] = useState(() => Date.now());
   const data = useShopQuery(api.organization.userDetailQueries.getUserDetail, { personId, now: queryNow });
+  const backDestination = getUserDetailBackDestination(returnTo, selectedShopId ?? null);
 
   return (
     <UserDetailPageShell>
@@ -48,8 +50,8 @@ export function UserDetailPage({
           }}
           action={
             <Button asChild colorPalette="teal">
-              <RouterLink to="/dashboard" search={{ shop: selectedShopId }}>
-                ダッシュボードへ戻る
+              <RouterLink to={backDestination.to} search={backDestination.search}>
+                {returnTo === "settings" ? "グループ設定へ戻る" : "ダッシュボードへ戻る"}
               </RouterLink>
             </Button>
           }
