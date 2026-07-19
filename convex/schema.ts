@@ -9,10 +9,13 @@ import {
   notificationFailureInboxSourceTypeValidator,
   notificationFailureInboxStatusValidator,
   notificationFailureResolutionKindValidator,
+  notificationHistoryDeliveryStatusValidator,
+  notificationHistorySendStatusValidator,
   notificationOutboxStatusValidator,
   notificationPayloadValidator,
   notificationPurposeValidator,
   resendProviderDeliveryStatusValidator,
+  resendProviderEventTypeValidator,
   resendProviderIssueEventTypeValidator,
 } from "./notificationOutbox/schemas";
 import {
@@ -667,6 +670,25 @@ const schema = defineSchema({
     .index("by_status_sentAt", ["status", "sentAt"])
     .index("by_status_failedAt", ["status", "failedAt"]),
 
+  notificationHistory: defineTable({
+    outboxId: v.id("notificationOutbox"),
+    shopId: v.id("shops"),
+    staffId: v.id("staffs"),
+    channel: notificationChannelValidator,
+    notificationKind: v.string(),
+    displayTitle: v.string(),
+    sendStatus: notificationHistorySendStatusValidator,
+    deliveryStatus: notificationHistoryDeliveryStatusValidator,
+    requestedAt: v.number(),
+    sentAt: v.optional(v.number()),
+    deliveredAt: v.optional(v.number()),
+    failedAt: v.optional(v.number()),
+    deliveryStatusAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index("by_outboxId", ["outboxId"])
+    .index("by_shopId_and_staffId_and_requestedAt", ["shopId", "staffId", "requestedAt"]),
+
   notificationDeliveryEvents: defineTable({
     eventType: notificationDeliveryEventTypeValidator,
     createdAt: v.number(),
@@ -687,8 +709,8 @@ const schema = defineSchema({
     provider: v.optional(v.literal("resend")),
     providerEventId: v.optional(v.string()),
     providerEmailId: v.optional(v.string()),
-    providerEventType: v.optional(resendProviderIssueEventTypeValidator),
-    errorMessage: v.string(),
+    providerEventType: v.optional(resendProviderEventTypeValidator),
+    errorMessage: v.optional(v.string()),
     errorName: v.optional(v.string()),
   })
     .index("by_expiresAt", ["expiresAt"])

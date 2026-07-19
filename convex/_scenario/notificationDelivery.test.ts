@@ -622,6 +622,10 @@ describe("通知配送outboxシナリオ", () => {
       channel: "line",
       shopId: ids.shopId,
       staffId: ids.staffId,
+      history: {
+        notificationKind: "test.failureInbox",
+        displayTitle: "シフト募集のお知らせ",
+      },
       dedupeKey: "line:failure-inbox:scenario",
       payload: {
         kind: "line",
@@ -631,6 +635,10 @@ describe("通知配送outboxシナリオ", () => {
         // （通常の400失敗ではfallbackは送らないため配送挙動は変わらない）
         fallbackEmail: {
           dedupeKey: "email:recruitment:failure-inbox:scenario",
+          history: {
+            notificationKind: "test.failureInbox",
+            displayTitle: "シフト募集のお知らせ",
+          },
           payload: {
             kind: "email",
             from: "シフトリ <noreply@example.com>",

@@ -1038,7 +1038,12 @@ async function applyFullOrganizationPersonRemoval(
     await ctx.db.patch(args.plan.member._id, { status: "removed", updatedAt: args.now });
   }
   for (const staff of args.plan.staffs) {
-    if (!staff.isDeleted) await ctx.db.patch(staff._id, { isDeleted: true });
+    if (staff.isDeleted) continue;
+    await ctx.db.patch(staff._id, { isDeleted: true });
+    await ctx.scheduler.runAfter(0, internal.notificationOutbox.mutations.deleteStaffNotificationHistoryBatch, {
+      shopId: staff.shopId,
+      staffId: staff._id,
+    });
   }
   await revokePendingInvitations(ctx, args.plan.invitations, args.now);
   if (args.plan.targetUserId) {
@@ -1121,6 +1126,10 @@ export const removePersonFromShop = authenticatedMutation({
 
     const now = Date.now();
     await ctx.db.patch(staff._id, { isDeleted: true });
+    await ctx.scheduler.runAfter(0, internal.notificationOutbox.mutations.deleteStaffNotificationHistoryBatch, {
+      shopId: staff.shopId,
+      staffId: staff._id,
+    });
     await revokeStaffAccessForRemoval(ctx, [staff._id], now);
     await cancelOrganizationRecipientBusinessNotifications(ctx, {
       organizationId: actor.organization._id,

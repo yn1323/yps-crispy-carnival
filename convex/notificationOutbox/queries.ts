@@ -11,10 +11,12 @@ import {
   getNotificationFailureResendKind,
   isLineInviteResendContext,
 } from "./failureResend";
+import { notificationHistoryDisplayStatus } from "./history";
 import {
   notificationChannelValidator,
   notificationFailureInboxSourceTypeValidator,
   notificationFailureInboxStatusValidator,
+  notificationHistoryDisplayStatusValidator,
 } from "./schemas";
 
 const EMPTY_PAGE = { page: [], isDone: true, continueCursor: "" } as {
@@ -23,6 +25,15 @@ const EMPTY_PAGE = { page: [], isDone: true, continueCursor: "" } as {
   continueCursor: string;
 };
 const VISIBLE_FAILURE_PAGINATION_SCAN_LIMIT = 20;
+
+const managerNotificationHistoryValidator = v.object({
+  _id: v.id("notificationHistory"),
+  requestedAt: v.number(),
+  sentAt: v.optional(v.number()),
+  channel: notificationChannelValidator,
+  displayTitle: v.string(),
+  displayStatus: notificationHistoryDisplayStatusValidator,
+});
 
 const managerNotificationFailureValidator = v.object({
   _id: v.id("notificationFailureInbox"),
@@ -50,6 +61,39 @@ const managerNotificationFailureValidator = v.object({
   lastFailedAt: v.number(),
   attemptCount: v.optional(v.number()),
   canRetry: v.boolean(),
+});
+
+export const listStaffNotificationHistory = managerQuery({
+  args: {
+    staffId: v.id("staffs"),
+    paginationOpts: paginationOptsValidator,
+  },
+  returns: paginationResultValidator(managerNotificationHistoryValidator),
+  handler: async (ctx, { staffId, paginationOpts }) => {
+    if (!ctx.shop) return EMPTY_PAGE;
+    const shop = ctx.shop;
+
+    const staff = await ctx.db.get(staffId);
+    if (!staff || staff.isDeleted || staff.shopId !== shop._id) return EMPTY_PAGE;
+
+    const histories = await ctx.db
+      .query("notificationHistory")
+      .withIndex("by_shopId_and_staffId_and_requestedAt", (q) => q.eq("shopId", shop._id).eq("staffId", staffId))
+      .order("desc")
+      .paginate(paginationOpts);
+
+    return {
+      ...histories,
+      page: histories.page.map((history) => ({
+        _id: history._id,
+        requestedAt: history.requestedAt,
+        ...(history.sentAt !== undefined ? { sentAt: history.sentAt } : {}),
+        channel: history.channel,
+        displayTitle: history.displayTitle,
+        displayStatus: notificationHistoryDisplayStatus(history),
+      })),
+    };
+  },
 });
 
 export const listOpenFailures = managerQuery({

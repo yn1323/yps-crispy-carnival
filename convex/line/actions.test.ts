@@ -1,7 +1,7 @@
 import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
@@ -141,6 +141,39 @@ describe("line/actions", () => {
       }));
       expect(state.account).toMatchObject({ lineUserId: "U_redeemed", following: false, isDeleted: false });
       expect(state.scheduled).toEqual([]);
+    });
+  });
+
+  it("LINE連携案内メールの件名を安全な通知履歴metadataとして保存する", async () => {
+    const t = convexTest(schema, modules);
+    const staffId = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: "line_invite_manager",
+        email: "line-invite-manager@notification.invalid",
+        shopName: "LINE案内店舗",
+      });
+      return await ctx.db.insert("staffs", {
+        shopId,
+        name: "LINE案内スタッフ",
+        email: "line-invite-staff@example.com",
+        isDeleted: false,
+      });
+    });
+
+    await t.action(internal.line.actions.sendInviteEmail, { staffId });
+
+    const state = await t.run(async (ctx) => ({
+      histories: await ctx.db.query("notificationHistory").collect(),
+      jobs: await ctx.db.query("notificationOutbox").collect(),
+    }));
+    expect(state.jobs).toHaveLength(1);
+    expect(state.histories).toHaveLength(1);
+    if (state.jobs[0]?.payload.kind !== "email") throw new Error("LINE連携案内がメールpayloadではありません");
+    expect(state.histories[0]).toMatchObject({
+      outboxId: state.jobs[0]._id,
+      staffId,
+      notificationKind: "line.invite",
+      displayTitle: state.jobs[0].payload.subject,
     });
   });
 });

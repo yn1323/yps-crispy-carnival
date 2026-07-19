@@ -19,6 +19,7 @@ const SHOP_PHASES = [
   "shopCore",
   "shopOutboxPending",
   "shopOutboxProcessing",
+  "shopNotificationHistory",
   "shopStaffs",
   "shopMembers",
   "shopLineAccounts",
@@ -33,6 +34,7 @@ const SHOP_PHASES = [
 const ORGANIZATION_SHOP_PHASES = [
   "organizationShopOutboxPending",
   "organizationShopOutboxProcessing",
+  "organizationShopNotificationHistory",
   "organizationShopStaffs",
   "organizationShopMembers",
   "organizationShopMemberUsers",
@@ -61,6 +63,7 @@ const SHOP_VERIFICATION_RESOURCES = [
   "core",
   "outboxPending",
   "outboxProcessing",
+  "notificationHistory",
   "staffs",
   "members",
   "lineAccounts",
@@ -78,6 +81,7 @@ const ORGANIZATION_VERIFICATION_RESOURCES = [
   "organizationShopsCore",
   "organizationShopOutboxPending",
   "organizationShopOutboxProcessing",
+  "organizationShopNotificationHistory",
   "organizationShopStaffs",
   "organizationShopMembers",
   "organizationShopMemberUsers",
@@ -101,6 +105,7 @@ type OrganizationVerificationResource = (typeof ORGANIZATION_VERIFICATION_RESOUR
 type ShopResource =
   | "outboxPending"
   | "outboxProcessing"
+  | "notificationHistory"
   | "staffs"
   | "members"
   | "memberUsers"
@@ -460,6 +465,14 @@ async function runShopResource(
         .take(CLEANUP_BATCH_SIZE);
       return await cancelStaleProcessingOutbox(ctx, jobs, "shop");
     }
+    case "notificationHistory": {
+      const histories = await ctx.db
+        .query("notificationHistory")
+        .withIndex("by_shopId_and_staffId_and_requestedAt", (q) => q.eq("shopId", shopId))
+        .take(CLEANUP_BATCH_SIZE);
+      for (const history of histories) await ctx.db.delete(history._id);
+      return { done: histories.length < CLEANUP_BATCH_SIZE };
+    }
     case "staffs": {
       const page = await ctx.db
         .query("staffs")
@@ -756,6 +769,13 @@ async function verifyShopResource(
         .withIndex("by_shopId_status", (q) => q.eq("shopId", shopId).eq("status", "processing"))
         .first();
       return { done: true, ...(active ? { violated: true } : {}) };
+    }
+    case "notificationHistory": {
+      const history = await ctx.db
+        .query("notificationHistory")
+        .withIndex("by_shopId_and_staffId_and_requestedAt", (q) => q.eq("shopId", shopId))
+        .first();
+      return { done: true, ...(history ? { violated: true } : {}) };
     }
     case "staffs": {
       const page = await ctx.db

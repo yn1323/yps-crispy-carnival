@@ -35,6 +35,8 @@ const PLAN_BY_QUOTA: Record<number, "communication" | "light" | "standard"> = {
   30000: "standard",
 };
 
+const LINE_INVITE_NOTIFICATION_KIND = "line.invite";
+
 /**
  * LINE OAuth コールバックから呼ばれる公開 action
  * - state を内部 mutation で検証 + rate limit
@@ -143,16 +145,21 @@ export const sendInviteEmail = internalAction({
       redirectUri: `${APP_URL}/line/callback`,
       state: token,
     });
+    const subject = formatResendSubject(data.shopName, "シフト通知をLINEで受け取れます");
 
     await enqueueEmail(ctx, {
       shopId: data.shopId,
       ...notificationOrigin,
       staffId: data.staffId,
+      history: {
+        notificationKind: LINE_INVITE_NOTIFICATION_KIND,
+        displayTitle: subject,
+      },
       dedupeKey: `email:lineInvite:${data.staffId}`,
       payload: emailPayload({
         from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
         to: data.staffEmail,
-        subject: formatResendSubject(data.shopName, "シフト通知をLINEで受け取れます"),
+        subject,
         html: buildLineInviteEmailHtml({
           staffName: data.staffName,
           shopName: data.shopName,

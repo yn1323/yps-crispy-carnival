@@ -1,5 +1,9 @@
 import { v } from "convex/values";
-import { RESEND_PROVIDER_DELIVERY_STATUSES, RESEND_PROVIDER_ISSUE_EVENT_TYPES } from "./resendProviderEvents";
+import {
+  RESEND_PROVIDER_DELIVERY_STATUSES,
+  RESEND_PROVIDER_EVENT_TYPES,
+  RESEND_PROVIDER_ISSUE_EVENT_TYPES,
+} from "./resendProviderEvents";
 
 export const notificationChannelValidator = v.union(v.literal("email"), v.literal("line"));
 
@@ -33,6 +37,26 @@ export const notificationDeliveryEventTypeValidator = v.union(
   v.literal("fallback_enqueued"),
   v.literal("worker_failed"),
   v.literal("provider_delivery_issue"),
+  v.literal("provider_delivery_update"),
+);
+
+// errorMessageを必須にする既存event専用。成功系provider eventは別mutationから記録する。
+export const notificationDeliveryErrorEventTypeValidator = v.union(
+  v.literal("enqueue_failed"),
+  v.literal("enqueue_preparation_failed"),
+  v.literal("retry_scheduled"),
+  v.literal("final_failed"),
+  v.literal("fallback_enqueued"),
+  v.literal("worker_failed"),
+  v.literal("provider_delivery_issue"),
+);
+
+export const resendProviderEventTypeValidator = v.union(
+  v.literal(RESEND_PROVIDER_EVENT_TYPES[0]),
+  v.literal(RESEND_PROVIDER_EVENT_TYPES[1]),
+  v.literal(RESEND_PROVIDER_EVENT_TYPES[2]),
+  v.literal(RESEND_PROVIDER_EVENT_TYPES[3]),
+  v.literal(RESEND_PROVIDER_EVENT_TYPES[4]),
 );
 
 export const resendProviderIssueEventTypeValidator = v.union(
@@ -67,6 +91,37 @@ export const notificationFailureResolutionKindValidator = v.union(
   v.literal("dismissed"),
   v.literal("superseded"),
   v.literal("expired"),
+);
+
+export const notificationHistoryInputValidator = v.object({
+  notificationKind: v.string(),
+  displayTitle: v.string(),
+});
+
+export const notificationHistorySendStatusValidator = v.union(
+  v.literal("queued"),
+  v.literal("sent"),
+  v.literal("failed"),
+  v.literal("cancelled"),
+);
+
+export const notificationHistoryDeliveryStatusValidator = v.union(
+  v.literal("not_supported"),
+  v.literal("unknown"),
+  v.literal("delivered"),
+  v.literal("delayed"),
+  v.literal("failed"),
+  v.literal("bounced"),
+  v.literal("suppressed"),
+);
+
+export const notificationHistoryDisplayStatusValidator = v.union(
+  v.literal("queued"),
+  v.literal("sent"),
+  v.literal("delivered"),
+  v.literal("delayed"),
+  v.literal("failed"),
+  v.literal("cancelled"),
 );
 
 export const notificationRenderedEmailPayloadValidator = v.object({
@@ -117,6 +172,7 @@ export const notificationLinePayloadValidator = v.object({
     v.object({
       dedupeKey: v.string(),
       payload: notificationEmailPayloadValidator,
+      history: v.optional(notificationHistoryInputValidator),
     }),
   ),
 });
@@ -130,6 +186,7 @@ export const notificationOrganizationManagerInvitationLinePayloadValidator = v.o
   fallbackEmail: v.object({
     dedupeKey: v.string(),
     payload: notificationOrganizationManagerInvitationEmailPayloadValidator,
+    history: v.optional(notificationHistoryInputValidator),
   }),
 });
 

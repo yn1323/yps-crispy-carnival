@@ -168,6 +168,127 @@ describe("deletionCleanup worker", () => {
     );
   });
 
+  it("店舗の通知履歴を1回100件まで削除し、残りを継続してから完了する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const shopId = await seedShop(ctx, { name: "通知履歴削除店舗", isDeleted: true });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId,
+        name: "通知履歴スタッフ",
+        email: "history@example.com",
+        isDeleted: true,
+      });
+      await seedNotificationHistories(ctx, { shopId, staffId, count: 101 });
+      const jobId = await ctx.db.insert("deletionCleanupJobs", {
+        scope: "shop",
+        shopId,
+        requestId: "notification-history-bounded",
+        status: "processing",
+        phase: "shopNotificationHistory",
+        version: 1,
+        attemptCount: 0,
+        nextRunAt: NOW,
+        leaseId: "notification-history-lease",
+        leaseExpiresAt: NOW + 60_000,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      return { shopId, staffId, jobId };
+    });
+
+    await t.mutation(internal.deletionCleanup.mutations.process, {
+      jobId: ids.jobId,
+      leaseId: "notification-history-lease",
+      expectedVersion: 1,
+    });
+
+    const firstBatch = await t.run(async (ctx) => ({
+      histories: await ctx.db
+        .query("notificationHistory")
+        .withIndex("by_shopId_and_staffId_and_requestedAt", (q) =>
+          q.eq("shopId", ids.shopId).eq("staffId", ids.staffId),
+        )
+        .collect(),
+      job: await ctx.db.get(ids.jobId),
+    }));
+    expect(firstBatch.job).toMatchObject({ status: "queued", phase: "shopNotificationHistory" });
+    expect(firstBatch.histories).toHaveLength(1);
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const completed = await t.run(async (ctx) => ({
+      histories: await ctx.db
+        .query("notificationHistory")
+        .withIndex("by_shopId_and_staffId_and_requestedAt", (q) =>
+          q.eq("shopId", ids.shopId).eq("staffId", ids.staffId),
+        )
+        .collect(),
+      job: await ctx.db.get(ids.jobId),
+    }));
+    expect(completed.histories).toEqual([]);
+    expect(completed.job).toMatchObject({ status: "completed", phase: "shopVerification" });
+  });
+
+  it("組織cleanupの完了検証は残存通知履歴を検出して店舗単位の削除phaseへ戻す", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const organizationId = await seedOrganization(ctx, "通知履歴削除グループ", undefined, true);
+      const shopId = await seedShop(ctx, {
+        organizationId,
+        name: "通知履歴削除店舗",
+        isDeleted: true,
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        organizationId,
+        shopId,
+        name: "通知履歴スタッフ",
+        email: "organization-history@example.com",
+        isDeleted: true,
+      });
+      await seedNotificationHistories(ctx, { shopId, staffId, count: 1 });
+      const jobId = await ctx.db.insert("deletionCleanupJobs", {
+        scope: "organization",
+        organizationId,
+        requestId: "organization-notification-history-verification",
+        status: "processing",
+        phase: "organizationVerification",
+        resource: "organizationShopNotificationHistory",
+        version: 1,
+        attemptCount: 0,
+        nextRunAt: NOW,
+        leaseId: "organization-notification-history-lease",
+        leaseExpiresAt: NOW + 60_000,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      return { shopId, jobId };
+    });
+
+    await t.mutation(internal.deletionCleanup.mutations.process, {
+      jobId: ids.jobId,
+      leaseId: "organization-notification-history-lease",
+      expectedVersion: 1,
+    });
+
+    await expect(t.run(async (ctx) => ctx.db.get(ids.jobId))).resolves.toMatchObject({
+      status: "queued",
+      phase: "organizationShopNotificationHistory",
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    await expect(
+      t.run(async (ctx) =>
+        ctx.db
+          .query("notificationHistory")
+          .withIndex("by_shopId_and_staffId_and_requestedAt", (q) => q.eq("shopId", ids.shopId))
+          .collect(),
+      ),
+    ).resolves.toEqual([]);
+    await expect(t.run(async (ctx) => ctx.db.get(ids.jobId))).resolves.toMatchObject({
+      status: "completed",
+      phase: "organizationVerification",
+    });
+  });
+
   it("期限切れleaseを回収し、古いlease/versionでは新しい状態を上書きしない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
@@ -661,7 +782,8 @@ describe("deletionCleanup worker", () => {
     });
     await expect(t.run(async (ctx) => ctx.db.get(ids.jobId))).resolves.toMatchObject({
       status: "queued",
-      phase: "organizationShopStaffs",
+      phase: "organizationVerification",
+      resource: "organizationShopMembers",
     });
 
     await t.finishAllScheduledFunctions(vi.runAllTimers);
@@ -861,4 +983,47 @@ async function seedOrganization(ctx: MutationCtx, name: string, createdByUserId?
     updatedAt: NOW,
   });
   return organizationId;
+}
+
+async function seedNotificationHistories(
+  ctx: MutationCtx,
+  args: { shopId: Id<"shops">; staffId: Id<"staffs">; count: number },
+) {
+  for (let index = 0; index < args.count; index += 1) {
+    const requestedAt = NOW + index;
+    const outboxId = await ctx.db.insert("notificationOutbox", {
+      channel: "email",
+      status: "sent",
+      dedupeKey: `email:cleanup-history:${args.staffId}:${index}`,
+      shopId: args.shopId,
+      staffId: args.staffId,
+      payload: {
+        kind: "email",
+        from: "シフトリ <noreply@example.com>",
+        to: "history@example.com",
+        subject: `通知履歴${index}`,
+        html: "<p>cleanup history</p>",
+        context: "test.notificationHistoryCleanup",
+        suppressDelivery: true,
+      },
+      attemptCount: 1,
+      nextRunAt: requestedAt,
+      sentAt: requestedAt,
+      createdAt: requestedAt,
+      updatedAt: requestedAt,
+    });
+    await ctx.db.insert("notificationHistory", {
+      outboxId,
+      shopId: args.shopId,
+      staffId: args.staffId,
+      channel: "email",
+      notificationKind: "test.cleanup",
+      displayTitle: `通知履歴${index}`,
+      sendStatus: "sent",
+      deliveryStatus: "unknown",
+      requestedAt,
+      sentAt: requestedAt,
+      updatedAt: requestedAt,
+    });
+  }
 }

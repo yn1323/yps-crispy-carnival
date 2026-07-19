@@ -2094,24 +2094,39 @@ describe("staff/mutations", () => {
   });
 
   describe("deleteStaff", () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
     it("未認証の場合エラーをthrow", async () => {
       const { t, data } = setupShopWithStaff();
       const { shopId, staffId } = await data;
       await expect(t.mutation(api.staff.mutations.deleteStaff, { shopId, staffId })).rejects.toThrow();
     });
 
-    it("氏名とメールアドレスを保持して論理削除できる", async () => {
+    it("氏名とメールアドレスを保持して論理削除し、通知履歴cleanupを一件だけ予約する", async () => {
+      vi.useFakeTimers();
       const { t, data } = setupShopWithStaff();
       const { shopId, staffId } = await data;
+      try {
+        await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.deleteStaff, { shopId, staffId });
 
-      await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.deleteStaff, { shopId, staffId });
-
-      const staff = await t.run(async (ctx) => ctx.db.get(staffId));
-      expect(staff).toMatchObject({
-        isDeleted: true,
-        name: "田中太郎",
-        email: "tanaka@example.com",
-      });
+        const state = await t.run(async (ctx) => ({
+          staff: await ctx.db.get(staffId),
+          cleanupJobs: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+            (job) => job.name === "notificationOutbox/mutations:deleteStaffNotificationHistoryBatch",
+          ),
+        }));
+        expect(state.staff).toMatchObject({
+          isDeleted: true,
+          name: "田中太郎",
+          email: "tanaka@example.com",
+        });
+        expect(state.cleanupJobs).toHaveLength(1);
+        expect(state.cleanupJobs[0]?.args[0]).toEqual({ shopId, staffId });
+      } finally {
+        await t.finishAllScheduledFunctions(vi.runAllTimers);
+        vi.useRealTimers();
+      }
     });
 
     it.each([

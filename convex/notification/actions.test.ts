@@ -16,7 +16,7 @@ describe("notification/actions", () => {
     const recruitmentId = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: "user_mgr",
-        email: "manager@example.com",
+        email: "manager@notification.invalid",
         shopName: "100人店舗",
       });
       for (let i = 0; i < 100; i++) {
@@ -41,9 +41,29 @@ describe("notification/actions", () => {
 
     await t.action(internal.notification.actions.sendRecruitmentNotificationEmails, { recruitmentId });
 
-    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
-    expect(jobs).toHaveLength(100);
-    expect(jobs.every((job) => job.channel === "email" && job.status === "pending")).toBe(true);
+    const state = await t.run(async (ctx) => ({
+      histories: await ctx.db.query("notificationHistory").collect(),
+      jobs: await ctx.db.query("notificationOutbox").collect(),
+    }));
+    expect(state.jobs).toHaveLength(100);
+    expect(state.jobs.every((job) => job.channel === "email" && job.status === "pending")).toBe(true);
+    expect(state.histories).toHaveLength(100);
+    expect(
+      state.histories
+        .map(({ outboxId, notificationKind, displayTitle }) => ({ outboxId, notificationKind, displayTitle }))
+        .sort((a, b) => a.outboxId.localeCompare(b.outboxId)),
+    ).toEqual(
+      state.jobs
+        .map((job) => {
+          if (job.payload.kind !== "email") throw new Error("募集通知がメールpayloadではありません");
+          return {
+            outboxId: job._id,
+            notificationKind: "shift.recruitment",
+            displayTitle: job.payload.subject,
+          };
+        })
+        .sort((a, b) => a.outboxId.localeCompare(b.outboxId)),
+    );
   });
 
   it("確定シフト通知はtargetStaffIdsのスタッフだけをoutboxにenqueueしてsnapshotを更新する", async () => {
@@ -51,7 +71,7 @@ describe("notification/actions", () => {
     const ids = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: "user_mgr",
-        email: "manager@example.com",
+        email: "manager@notification.invalid",
         shopName: "差分通知店舗",
       });
       const staffId1 = await ctx.db.insert("staffs", {
@@ -111,14 +131,23 @@ describe("notification/actions", () => {
       notificationRunId: 123,
     });
 
-    const [jobs, snapshots] = await Promise.all([
+    const [jobs, histories, snapshots] = await Promise.all([
       t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect()),
+      t.run(async (ctx) => await ctx.db.query("notificationHistory").collect()),
       t.run(async (ctx) => await ctx.db.query("shiftConfirmationSnapshots").collect()),
     ]);
     expect(jobs).toHaveLength(1);
     expect(jobs[0]).toMatchObject({
       staffId: ids.staffId1,
       dedupeKey: `email:confirmation:${ids.recruitmentId}:${ids.staffId1}:resend:123`,
+    });
+    expect(histories).toHaveLength(1);
+    if (jobs[0]?.payload.kind !== "email") throw new Error("確定通知がメールpayloadではありません");
+    expect(histories[0]).toMatchObject({
+      outboxId: jobs[0]._id,
+      staffId: ids.staffId1,
+      notificationKind: "shift.confirmation",
+      displayTitle: jobs[0].payload.subject,
     });
     expect(jobs.map((job) => job.staffId)).not.toContain(ids.staffId2);
     expect(snapshots).toHaveLength(1);

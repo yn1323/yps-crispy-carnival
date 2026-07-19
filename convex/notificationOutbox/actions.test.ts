@@ -53,6 +53,7 @@ async function setupLineJob(status: number) {
     channel: "line",
     shopId: ids.shopId,
     staffId: ids.staffId,
+    history: { notificationKind: "test.line", displayTitle: "LINE通知" },
     dedupeKey: `line:test:${status}`,
     payload: {
       kind: "line",
@@ -113,6 +114,7 @@ describe("notificationOutbox/actions", () => {
       channel: "line",
       shopId,
       staffId,
+      history: { notificationKind: "test.line", displayTitle: "LINE通知" },
       dedupeKey: "line:test:flex",
       payload: {
         kind: "line",
@@ -274,6 +276,7 @@ describe("notificationOutbox/actions", () => {
       channel: "line",
       shopId,
       staffId,
+      history: { notificationKind: "test.line", displayTitle: "LINE通知" },
       dedupeKey: "line:test:debug-quota",
       payload: {
         kind: "line",
@@ -338,6 +341,7 @@ describe("notificationOutbox/actions", () => {
       channel: "line",
       shopId,
       staffId,
+      history: { notificationKind: "test.line", displayTitle: "LINE通知" },
       dedupeKey: "line:test:quota",
       payload: {
         kind: "line",
@@ -367,6 +371,77 @@ describe("notificationOutbox/actions", () => {
     });
     const failures = await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
     expect(failures).toEqual([]);
+    const histories = await t.run(async (ctx) => await ctx.db.query("notificationHistory").collect());
+    expect(histories).toHaveLength(1);
+    expect(histories[0]).toMatchObject({ channel: "line", sendStatus: "failed" });
+  });
+
+  it("新しいLINE通知のfallback metadataからメール用の別履歴を作る", async () => {
+    const t = convexTest(schema, modules);
+    const { shopId, staffId } = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: "user_mgr",
+        email: "manager@example.com",
+        shopName: "LINE通知店舗",
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId,
+        name: "LINEスタッフ",
+        email: "line-staff@example.com",
+        isDeleted: false,
+      });
+      await ctx.db.insert("lineQuotaStatus", {
+        checkedAt: Date.now(),
+        totalQuota: 200,
+        consumed: 200,
+        remaining: 0,
+        status: "exceeded",
+        plan: "communication",
+      });
+      return { shopId, staffId };
+    });
+    await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "line",
+      shopId,
+      staffId,
+      history: { notificationKind: "test.line", displayTitle: "LINE通知" },
+      dedupeKey: "line:test:quota-with-history",
+      payload: {
+        kind: "line",
+        toUserId: "U_test",
+        text: "hello",
+        fallbackEmail: {
+          dedupeKey: "email:test:fallback-with-history",
+          history: { notificationKind: "test.emailFallback", displayTitle: "fallback" },
+          payload: {
+            kind: "email",
+            from: "シフトリ <noreply@example.com>",
+            to: "line-staff@example.com",
+            subject: "fallback",
+            html: "<p>fallback</p>",
+            context: "test.fallback",
+          },
+        },
+      },
+    });
+
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    const histories = await t.run(
+      async (ctx) =>
+        await ctx.db
+          .query("notificationHistory")
+          .withIndex("by_shopId_and_staffId_and_requestedAt", (q) => q.eq("shopId", shopId).eq("staffId", staffId))
+          .collect(),
+    );
+    expect(histories).toHaveLength(2);
+    expect(histories.map(({ channel, displayTitle, sendStatus }) => ({ channel, displayTitle, sendStatus }))).toEqual(
+      expect.arrayContaining([
+        { channel: "line", displayTitle: "LINE通知", sendStatus: "failed" },
+        { channel: "email", displayTitle: "fallback", sendStatus: "queued" },
+      ]),
+    );
   });
 
   it("Resend送信成功時はoutbox tagを付けてemail_idを保存する", async () => {

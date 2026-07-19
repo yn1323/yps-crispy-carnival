@@ -12,7 +12,7 @@ import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
 import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
-import type { NotificationRenderedEmailPayload } from "../notificationOutbox/types";
+import type { NotificationHistoryInput, NotificationRenderedEmailPayload } from "../notificationOutbox/types";
 import { recordNotificationPreparationFailure } from "./failureRecording";
 import {
   buildConfirmationEmailHtml,
@@ -25,6 +25,10 @@ import {
   buildShiftConfirmationLineFlexMessage,
   buildShiftConfirmationLineText,
 } from "./templates";
+
+const SHIFT_CONFIRMATION_NOTIFICATION_KIND = "shift.confirmation";
+const SHIFT_REISSUE_NOTIFICATION_KIND = "shift.reissue";
+const SHIFT_RECRUITMENT_NOTIFICATION_KIND = "shift.recruitment";
 
 /**
  * シフト確定通知の配信
@@ -102,6 +106,10 @@ export const sendShiftConfirmationEmails = internalAction({
             ...notificationOrigin,
             recruitmentId,
             staffId: staffData.staffId,
+            history: {
+              notificationKind: SHIFT_CONFIRMATION_NOTIFICATION_KIND,
+              displayTitle: isResend ? "シフト変更のお知らせ" : "確定シフトのお知らせ",
+            },
             dedupeKey: lineDedupeKey,
             payload: linePayload({
               toUserId: staffData.lineUserId,
@@ -167,7 +175,11 @@ async function buildConfirmationEmail(opts: {
   suppressDelivery: boolean;
   organizationBillingVersionAtOrigin?: number;
   dedupeKey?: string;
-}): Promise<{ dedupeKey: string; payload: NotificationRenderedEmailPayload } | null> {
+}): Promise<{
+  dedupeKey: string;
+  history: NotificationHistoryInput;
+  payload: NotificationRenderedEmailPayload;
+} | null> {
   const { ctx, staffData, data, recruitmentId, magicLinkUrl, isResend, suppressDelivery, dedupeKey } = opts;
   if (!staffData.email) return null;
 
@@ -180,15 +192,21 @@ async function buildConfirmationEmail(opts: {
     appUrl: APP_URL,
   });
 
+  const subject = isResend
+    ? formatResendSubject(data.shopName, `${data.periodLabel} シフト変更のお知らせ`)
+    : formatResendSubject(data.shopName, `${data.periodLabel} シフト確定のお知らせ`);
+
   return {
     dedupeKey:
       dedupeKey ?? `email:confirmation:${recruitmentId}:${staffData.staffId}:${isResend ? "resend" : "confirm"}`,
+    history: {
+      notificationKind: SHIFT_CONFIRMATION_NOTIFICATION_KIND,
+      displayTitle: subject,
+    },
     payload: emailPayload({
       from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
       to: staffData.email,
-      subject: isResend
-        ? formatResendSubject(data.shopName, `${data.periodLabel} シフト変更のお知らせ`)
-        : formatResendSubject(data.shopName, `${data.periodLabel} シフト確定のお知らせ`),
+      subject,
       html: buildConfirmationEmailHtml({
         staffName: staffData.name,
         periodLabel: data.periodLabel,
@@ -212,6 +230,7 @@ async function enqueueConfirmationEmail(opts: Parameters<typeof buildConfirmatio
     ...businessNotificationOriginFrom(opts),
     recruitmentId: opts.recruitmentId,
     staffId: opts.staffData.staffId,
+    history: email.history,
     dedupeKey: email.dedupeKey,
     payload: email.payload,
   });
@@ -293,6 +312,7 @@ export const sendReissueEmail = internalAction({
       accessKind: "view",
     });
     const magicLinkUrl = `${APP_URL}/shifts/view?token=${token}`;
+    const reissueSubject = formatResendSubject(data.shopName, `${data.periodLabel} シフト閲覧リンク`);
 
     if (channel === "line" && data.lineUserId) {
       const lineParams = {
@@ -304,10 +324,14 @@ export const sendReissueEmail = internalAction({
       const fallbackEmail = data.staffEmail
         ? {
             dedupeKey: `email:reissue:${recruitmentId}:${staffId}`,
+            history: {
+              notificationKind: SHIFT_REISSUE_NOTIFICATION_KIND,
+              displayTitle: reissueSubject,
+            },
             payload: emailPayload({
               from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
               to: data.staffEmail,
-              subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト閲覧リンク`),
+              subject: reissueSubject,
               html: buildReissueEmailHtml({
                 staffName: data.staffName,
                 periodLabel: data.periodLabel,
@@ -322,6 +346,10 @@ export const sendReissueEmail = internalAction({
         shopId: data.shopId,
         ...notificationOrigin,
         staffId,
+        history: {
+          notificationKind: SHIFT_REISSUE_NOTIFICATION_KIND,
+          displayTitle: "シフト閲覧リンク",
+        },
         dedupeKey: `line:reissue:${recruitmentId}:${staffId}`,
         payload: linePayload({
           toUserId: data.lineUserId,
@@ -341,11 +369,15 @@ export const sendReissueEmail = internalAction({
         shopId: data.shopId,
         ...notificationOrigin,
         staffId,
+        history: {
+          notificationKind: SHIFT_REISSUE_NOTIFICATION_KIND,
+          displayTitle: reissueSubject,
+        },
         dedupeKey: `email:reissue:${recruitmentId}:${staffId}`,
         payload: emailPayload({
           from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
           to: data.staffEmail,
-          subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト閲覧リンク`),
+          subject: reissueSubject,
           html: buildReissueEmailHtml({
             staffName: data.staffName,
             periodLabel: data.periodLabel,
@@ -432,6 +464,10 @@ export const sendRecruitmentNotificationEmails = internalAction({
             ...notificationOrigin,
             recruitmentId,
             staffId: staff.staffId,
+            history: {
+              notificationKind: SHIFT_RECRUITMENT_NOTIFICATION_KIND,
+              displayTitle: "シフト募集のお知らせ",
+            },
             dedupeKey: lineDedupeKey,
             payload: linePayload({
               toUserId: staff.lineUserId,
@@ -463,6 +499,7 @@ export const sendRecruitmentNotificationEmails = internalAction({
             ...notificationOrigin,
             recruitmentId,
             staffId: staff.staffId,
+            history: email.history,
             dedupeKey: email.dedupeKey,
             payload: email.payload,
           });
@@ -504,7 +541,11 @@ async function buildRecruitmentEmail(opts: {
   suppressDelivery: boolean;
   context: string;
   dedupeKey?: string;
-}): Promise<{ dedupeKey: string; payload: NotificationRenderedEmailPayload } | null> {
+}): Promise<{
+  dedupeKey: string;
+  history: NotificationHistoryInput;
+  payload: NotificationRenderedEmailPayload;
+} | null> {
   const {
     ctx,
     shopId,
@@ -528,12 +569,18 @@ async function buildRecruitmentEmail(opts: {
     appUrl: APP_URL,
   });
 
+  const subject = formatResendSubject(shopName, `${periodLabel} シフト希望の提出をお願いします`);
+
   return {
     dedupeKey: dedupeKey ?? `email:recruitment:${recruitmentId}:${staff.staffId}`,
+    history: {
+      notificationKind: SHIFT_RECRUITMENT_NOTIFICATION_KIND,
+      displayTitle: subject,
+    },
     payload: emailPayload({
       from: formatResendFrom(shopName, RESEND_FROM_EMAIL),
       to: staff.email,
-      subject: formatResendSubject(shopName, `${periodLabel} シフト希望の提出をお願いします`),
+      subject,
       html: buildRecruitmentEmailHtml({
         staffName: staff.name,
         periodLabel,
@@ -622,6 +669,10 @@ export const sendRecruitmentNotificationForStaff = internalAction({
           ...notificationOrigin,
           recruitmentId,
           staffId: data.staff.staffId,
+          history: {
+            notificationKind: SHIFT_RECRUITMENT_NOTIFICATION_KIND,
+            displayTitle: "シフト募集のお知らせ",
+          },
           dedupeKey: lineDedupeKey,
           payload: linePayload({
             toUserId: data.staff.lineUserId,
@@ -653,6 +704,7 @@ export const sendRecruitmentNotificationForStaff = internalAction({
         ...notificationOrigin,
         recruitmentId,
         staffId: data.staff.staffId,
+        history: email.history,
         dedupeKey: email.dedupeKey,
         payload: email.payload,
       });
@@ -722,6 +774,7 @@ export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
           ...notificationOrigin,
           recruitmentId: recruitment.recruitmentId,
           staffId: data.staff.staffId,
+          history: email.history,
           dedupeKey: email.dedupeKey,
           payload: email.payload,
         });
@@ -807,6 +860,7 @@ export const sendOpenRecruitmentNotificationEmailsForStaffEmailChange = internal
           ...notificationOrigin,
           recruitmentId: recruitment.recruitmentId,
           staffId: data.staff.staffId,
+          history: email.history,
           dedupeKey: email.dedupeKey,
           payload: email.payload,
         });
@@ -896,6 +950,10 @@ export const sendOpenRecruitmentNotificationsForStaff = internalAction({
             ...notificationOrigin,
             recruitmentId: recruitment.recruitmentId,
             staffId: data.staff.staffId,
+            history: {
+              notificationKind: SHIFT_RECRUITMENT_NOTIFICATION_KIND,
+              displayTitle: "シフト募集のお知らせ",
+            },
             dedupeKey: lineDedupeKey,
             payload: linePayload({
               toUserId: data.staff.lineUserId,
@@ -927,6 +985,7 @@ export const sendOpenRecruitmentNotificationsForStaff = internalAction({
           ...notificationOrigin,
           recruitmentId: recruitment.recruitmentId,
           staffId: data.staff.staffId,
+          history: email.history,
           dedupeKey: email.dedupeKey,
           payload: email.payload,
         });
@@ -997,6 +1056,10 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
           ...notificationOrigin,
           recruitmentId: recruitment.recruitmentId,
           staffId: data.staff.staffId,
+          history: {
+            notificationKind: SHIFT_RECRUITMENT_NOTIFICATION_KIND,
+            displayTitle: "シフト募集のお知らせ",
+          },
           dedupeKey,
           payload: linePayload({
             toUserId: data.staff.lineUserId,
@@ -1094,6 +1157,10 @@ export const sendCurrentShiftConfirmationForStaff = internalAction({
             ...notificationOrigin,
             recruitmentId: recruitment.recruitmentId,
             staffId: staffData.staffId,
+            history: {
+              notificationKind: SHIFT_CONFIRMATION_NOTIFICATION_KIND,
+              displayTitle: "確定シフトのお知らせ",
+            },
             dedupeKey: lineDedupeKey,
             payload: linePayload({
               toUserId: staffData.lineUserId,

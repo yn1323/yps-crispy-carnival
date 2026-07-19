@@ -240,6 +240,9 @@ async function enqueueLineFallback(
   fallbackReason: string,
 ) {
   try {
+    if (fallbackEmail.history && !job.staffId) {
+      throw new Error("LINE fallback history requires a staff recipient");
+    }
     const enqueueResult = await ctx.runMutation(internal.notificationOutbox.mutations.enqueue, {
       channel: "email",
       ...(job.shopId ? { shopId: job.shopId } : {}),
@@ -253,6 +256,8 @@ async function enqueueLineFallback(
         : {}),
       ...(job.purpose ? { purpose: job.purpose } : {}),
       ...(job.staffId ? { staffId: job.staffId } : {}),
+      ...(job.staffId && fallbackEmail.history ? { history: fallbackEmail.history } : {}),
+      ...(job.staffId && !fallbackEmail.history ? { historyMode: "legacy_no_history" as const } : {}),
       ...(job.userId ? { userId: job.userId } : {}),
       dedupeKey: fallbackEmail.dedupeKey,
       payload: fallbackEmail.payload,

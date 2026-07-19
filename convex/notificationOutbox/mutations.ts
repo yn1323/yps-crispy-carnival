@@ -27,11 +27,23 @@ import {
 } from "./failureIdentity";
 import { getNotificationFailureResendKind, isLineInviteResendContext } from "./failureResend";
 import { shouldSuppressNotificationFailureInbox } from "./failureSuppress";
+import {
+  insertNotificationHistory,
+  NOTIFICATION_HISTORY_DELETE_BATCH_SIZE,
+  normalizeNotificationHistoryInput,
+  updateNotificationHistoryDeliveryStatus,
+  updateNotificationHistorySendStatus,
+} from "./history";
 import { getBusinessNotificationOrigin } from "./origin";
-import { type ResendProviderIssueEventType, resendProviderDeliveryStatus } from "./resendProviderEvents";
+import {
+  type ResendProviderEventType,
+  type ResendProviderIssueEventType,
+  resendProviderDeliveryStatus,
+} from "./resendProviderEvents";
 import {
   notificationChannelValidator,
-  notificationDeliveryEventTypeValidator,
+  notificationDeliveryErrorEventTypeValidator,
+  notificationHistoryInputValidator,
   notificationPayloadValidator,
   notificationPurposeValidator,
   resendProviderIssueEventTypeValidator,
@@ -40,6 +52,7 @@ import type {
   NotificationCancelReason,
   NotificationChannel,
   NotificationEmailPayload,
+  NotificationHistoryInput,
   NotificationPayload,
   NotificationPurpose,
 } from "./types";
@@ -70,6 +83,55 @@ type ManagerNotificationOutboxMutationCtx = MutationCtx & {
   shop: Doc<"shops">;
 };
 
+function normalizeHistoryTarget(input: {
+  shopId?: Id<"shops">;
+  staffId?: Id<"staffs">;
+  history?: NotificationHistoryInput;
+  historyMode?: "legacy_no_history";
+}) {
+  if (input.historyMode === "legacy_no_history") {
+    if (!input.staffId || input.history) throw new ConvexError("Invalid notification history target");
+    return null;
+  }
+
+  if (!input.staffId) {
+    if (input.history) throw new ConvexError("Invalid notification history target");
+    return null;
+  }
+  if (!input.shopId || !input.history) throw new ConvexError("Invalid notification history target");
+
+  return {
+    shopId: input.shopId,
+    staffId: input.staffId,
+    history: normalizeNotificationHistoryInput(input.history),
+  };
+}
+
+function normalizePayloadHistory(payload: NotificationPayload): NotificationPayload {
+  if (payload.kind === "line") {
+    if (!payload.fallbackEmail?.history) return payload;
+    return {
+      ...payload,
+      fallbackEmail: {
+        ...payload.fallbackEmail,
+        history: normalizeNotificationHistoryInput(payload.fallbackEmail.history),
+      },
+    };
+  }
+
+  if (payload.kind === "organizationManagerInvitationLine" && payload.fallbackEmail.history) {
+    return {
+      ...payload,
+      fallbackEmail: {
+        ...payload.fallbackEmail,
+        history: normalizeNotificationHistoryInput(payload.fallbackEmail.history),
+      },
+    };
+  }
+
+  return payload;
+}
+
 export const enqueue = internalMutation({
   args: {
     channel: notificationChannelValidator,
@@ -81,18 +143,22 @@ export const enqueue = internalMutation({
     purpose: v.optional(notificationPurposeValidator),
     recruitmentId: v.optional(v.id("recruitments")),
     staffId: v.optional(v.id("staffs")),
+    history: v.optional(notificationHistoryInputValidator),
+    historyMode: v.optional(v.literal("legacy_no_history")),
     userId: v.optional(v.id("users")),
     dedupeKey: v.string(),
     payload: notificationPayloadValidator,
   },
   handler: async (ctx, args) => {
-    if (args.channel !== notificationChannelForPayload(args.payload)) {
+    const historyTarget = normalizeHistoryTarget(args);
+    const payload = normalizePayloadHistory(args.payload);
+    if (args.channel !== notificationChannelForPayload(payload)) {
       throw new ConvexError("Notification channel does not match payload");
     }
 
     const now = Date.now();
     const purpose = args.purpose ?? "business";
-    const eligibility = await getNotificationEligibility(ctx, { ...args, purpose }, now);
+    const eligibility = await getNotificationEligibility(ctx, { ...args, purpose, payload }, now);
     if (eligibility.cancelReason) {
       if (eligibility.cancelReason !== "unsupported_channel" && eligibility.cancelReason !== "invalid_scope") {
         return null;
@@ -136,19 +202,29 @@ export const enqueue = internalMutation({
       ...(args.recruitmentId ? { recruitmentId: args.recruitmentId } : {}),
       ...(args.staffId ? { staffId: args.staffId } : {}),
       ...(args.userId ? { userId: args.userId } : {}),
-      payload: args.payload,
+      payload,
       attemptCount: 0,
       nextRunAt: now + NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
       createdAt: now,
       updatedAt: now,
     });
+    if (historyTarget && !isNotificationDeliverySuppressed({ suppressDelivery: payload.suppressDelivery })) {
+      await insertNotificationHistory(ctx, {
+        outboxId,
+        shopId: historyTarget.shopId,
+        staffId: historyTarget.staffId,
+        channel: args.channel,
+        history: historyTarget.history,
+        requestedAt: now,
+      });
+    }
     return { outboxId, deduped: false };
   },
 });
 
 export const recordDeliveryEvent = internalMutation({
   args: {
-    eventType: notificationDeliveryEventTypeValidator,
+    eventType: notificationDeliveryErrorEventTypeValidator,
     shopId: v.optional(v.id("shops")),
     organizationId: v.optional(v.id("organizations")),
     organizationInvitationId: v.optional(v.id("organizationInvitations")),
@@ -220,11 +296,24 @@ export const recordResendProviderIssue = internalMutation({
       .first();
     if (existingEvent) return { recorded: false as const, reason: "duplicate" as const };
 
-    const outbox = await findOutboxForResendProviderIssue(ctx, args.providerEmailId, args.outboxIdTag);
+    const outbox = await findOutboxForResendProviderEvent(ctx, args.providerEmailId, args.outboxIdTag);
     const eventId = await insertDeliveryEvent(ctx, resendProviderIssueDeliveryEventInput(args, outbox));
 
     if (!isEmailNotificationOutbox(outbox)) {
       return { recorded: true as const, inboxed: false as const, reason: "outboxNotFound" as const };
+    }
+    if (outbox.resendLastEventAt !== undefined && args.occurredAt < outbox.resendLastEventAt) {
+      return { recorded: true as const, inboxed: false as const, reason: "stale" as const };
+    }
+
+    const historyUpdate = await updateNotificationHistoryDeliveryStatus(ctx, {
+      outboxId: outbox._id,
+      providerEventType: args.providerEventType,
+      occurredAt: args.occurredAt,
+      updatedAt: Date.now(),
+    });
+    if (historyUpdate === "stale") {
+      return { recorded: true as const, inboxed: false as const, reason: "stale" as const };
     }
 
     await patchOutboxResendProviderState(ctx, outbox, args);
@@ -237,6 +326,47 @@ export const recordResendProviderIssue = internalMutation({
     const failureId = await upsertFailureInbox(ctx, inboxInput);
 
     return { recorded: true as const, inboxed: true as const, failureId };
+  },
+});
+
+export const recordResendProviderDeliveryUpdate = internalMutation({
+  args: {
+    providerEventId: v.string(),
+    providerEventType: v.literal("email.delivered"),
+    providerEmailId: v.string(),
+    outboxIdTag: v.optional(v.string()),
+    occurredAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const existingEvent = await ctx.db
+      .query("notificationDeliveryEvents")
+      .withIndex("by_providerEventId", (q) => q.eq("providerEventId", args.providerEventId))
+      .first();
+    if (existingEvent) return { recorded: false as const, reason: "duplicate" as const };
+
+    const outbox = await findOutboxForResendProviderEvent(ctx, args.providerEmailId, args.outboxIdTag);
+    await insertDeliveryEvent(ctx, resendProviderDeliveryUpdateEventInput(args, outbox));
+
+    if (!isEmailNotificationOutbox(outbox)) {
+      return { recorded: true as const, historyUpdated: false as const, reason: "outboxNotFound" as const };
+    }
+    if (outbox.resendLastEventAt !== undefined && args.occurredAt < outbox.resendLastEventAt) {
+      return { recorded: true as const, historyUpdated: false as const, reason: "stale" as const };
+    }
+
+    const historyUpdate = await updateNotificationHistoryDeliveryStatus(ctx, {
+      outboxId: outbox._id,
+      providerEventType: args.providerEventType,
+      occurredAt: args.occurredAt,
+      updatedAt: Date.now(),
+    });
+    if (historyUpdate === "stale") {
+      return { recorded: true as const, historyUpdated: false as const, reason: "stale" as const };
+    }
+
+    await patchOutboxResendProviderEventAt(ctx, outbox, args);
+    await resolveProviderFailureInboxByOutbox(ctx, outbox._id, args.occurredAt);
+    return { recorded: true as const, historyUpdated: historyUpdate === "updated" };
   },
 });
 
@@ -473,6 +603,15 @@ export const markSent = internalMutation({
     if (job.status === "cancelled") return;
     const wasSent = job.status === "sent";
 
+    // actionの再実行で同じ送信結果を確定し直しても、利用者向けの送信日時は動かさない。
+    if (wasSent) {
+      if (resendEmailId && resendEmailId !== job.resendEmailId) {
+        await ctx.db.patch(outboxId, { resendEmailId, updatedAt: Date.now() });
+      }
+      await resolveFailureInboxByOutbox(ctx, outboxId, { resolutionKind: "sent" });
+      return;
+    }
+
     const now = Date.now();
     await ctx.db.patch(outboxId, {
       status: "sent",
@@ -481,10 +620,9 @@ export const markSent = internalMutation({
       lastError: undefined,
       ...(resendEmailId ? { resendEmailId } : {}),
     });
+    await updateNotificationHistorySendStatus(ctx, outboxId, { sendStatus: "sent", occurredAt: now });
     await resolveFailureInboxByOutbox(ctx, outboxId, { resolutionKind: "sent" });
 
-    // actionリトライ等で再実行されても使用量を二重カウントしない。
-    if (wasSent) return;
     // dry-run等で実際には配送していないジョブは課金対象外なのでカウントしない（送信時と同じ最終ゲートで判定）
     if (isNotificationDeliverySuppressed({ suppressDelivery: job.payload.suppressDelivery })) return;
     if (job.shopId) await incrementNotificationUsage(ctx, job.shopId, job.channel, now);
@@ -971,6 +1109,7 @@ async function cancelActiveNotification(
     processingStartedAt: undefined,
     updatedAt: now,
   });
+  await updateNotificationHistorySendStatus(ctx, job._id, { sendStatus: "cancelled", occurredAt: now });
   await resolveFailureInboxByOutbox(ctx, job._id, { resolutionKind: "superseded" });
   return true;
 }
@@ -1019,6 +1158,7 @@ export const markFailed = internalMutation({
       updatedAt: now,
       lastError,
     });
+    await updateNotificationHistorySendStatus(ctx, outboxId, { sendStatus: "failed", occurredAt: now });
     const eventId = await insertDeliveryEvent(ctx, deliveryEventFromJob(job, "final_failed", lastError, { errorName }));
     if (suppressFailureInbox || !job.shopId) return;
 
@@ -1069,12 +1209,14 @@ export const markRetry = internalMutation({
     }
     if (job.status === "cancelled") return;
 
+    const now = Date.now();
     await ctx.db.patch(outboxId, {
       status: "pending",
       nextRunAt,
-      updatedAt: Date.now(),
+      updatedAt: now,
       lastError,
     });
+    await updateNotificationHistorySendStatus(ctx, outboxId, { sendStatus: "queued", occurredAt: now });
     await insertDeliveryEvent(ctx, deliveryEventFromJob(job, "retry_scheduled", lastError, { nextRunAt, errorName }));
   },
 });
@@ -1351,6 +1493,7 @@ async function retryOutboxFailure(
       : {}),
     updatedAt: now,
   });
+  await updateNotificationHistorySendStatus(ctx, outbox._id, { sendStatus: "queued", occurredAt: now });
   await markFailureRetrying(ctx, failure._id, now);
 
   return { scheduled: true as const };
@@ -1397,6 +1540,30 @@ export const resolveFailure = managerMutation({
     });
 
     return { resolved: true as const };
+  },
+});
+
+export const deleteStaffNotificationHistoryBatch = internalMutation({
+  args: {
+    shopId: v.id("shops"),
+    staffId: v.id("staffs"),
+  },
+  handler: async (ctx, { shopId, staffId }) => {
+    const histories = await ctx.db
+      .query("notificationHistory")
+      .withIndex("by_shopId_and_staffId_and_requestedAt", (q) => q.eq("shopId", shopId).eq("staffId", staffId))
+      .take(NOTIFICATION_HISTORY_DELETE_BATCH_SIZE);
+
+    for (const history of histories) await ctx.db.delete(history._id);
+
+    if (histories.length === NOTIFICATION_HISTORY_DELETE_BATCH_SIZE) {
+      await ctx.scheduler.runAfter(0, internal.notificationOutbox.mutations.deleteStaffNotificationHistoryBatch, {
+        shopId,
+        staffId,
+      });
+    }
+
+    return { deletedCount: histories.length };
   },
 });
 
@@ -1457,8 +1624,7 @@ export const expireOldFailures = internalMutation({
   },
 });
 
-type DeliveryEventInput = {
-  eventType: Doc<"notificationDeliveryEvents">["eventType"];
+type DeliveryEventSharedInput = {
   shopId?: Id<"shops">;
   organizationId?: Id<"organizations">;
   organizationInvitationId?: Id<"organizationInvitations">;
@@ -1476,9 +1642,24 @@ type DeliveryEventInput = {
   providerEventId?: string;
   providerEmailId?: string;
   providerEventType?: Doc<"notificationDeliveryEvents">["providerEventType"];
-  errorMessage: string;
-  errorName?: string;
 };
+
+type NotificationErrorDeliveryEventType = Exclude<
+  Doc<"notificationDeliveryEvents">["eventType"],
+  "provider_delivery_update"
+>;
+
+type DeliveryEventInput =
+  | (DeliveryEventSharedInput & {
+      eventType: NotificationErrorDeliveryEventType;
+      errorMessage: string;
+      errorName?: string;
+    })
+  | (DeliveryEventSharedInput & {
+      eventType: "provider_delivery_update";
+      errorMessage?: never;
+      errorName?: never;
+    });
 
 type RecordResendProviderIssueArgs = {
   providerEventId: string;
@@ -1487,6 +1668,14 @@ type RecordResendProviderIssueArgs = {
   outboxIdTag?: string;
   occurredAt: number;
   errorMessage: string;
+};
+
+type RecordResendProviderDeliveryUpdateArgs = {
+  providerEventId: string;
+  providerEventType: Extract<ResendProviderEventType, "email.delivered">;
+  providerEmailId: string;
+  outboxIdTag?: string;
+  occurredAt: number;
 };
 
 type EmailNotificationOutbox = Doc<"notificationOutbox"> & {
@@ -1541,6 +1730,34 @@ function resendProviderIssueDeliveryEventInput(
   };
 }
 
+function resendProviderDeliveryUpdateEventInput(
+  args: RecordResendProviderDeliveryUpdateArgs,
+  outbox: Doc<"notificationOutbox"> | null,
+): DeliveryEventInput {
+  const input: DeliveryEventInput = {
+    eventType: "provider_delivery_update",
+    provider: "resend",
+    providerEventId: args.providerEventId,
+    providerEmailId: args.providerEmailId,
+    providerEventType: args.providerEventType,
+  };
+
+  if (!outbox) return input;
+
+  return {
+    ...input,
+    shopId: outbox.shopId,
+    recruitmentId: outbox.recruitmentId,
+    staffId: outbox.staffId,
+    userId: outbox.userId,
+    outboxId: outbox._id,
+    channel: outbox.channel,
+    dedupeKey: outbox.dedupeKey,
+    notificationContext: notificationContextForJob(outbox),
+    attemptCount: outbox.attemptCount,
+  };
+}
+
 function isEmailNotificationOutbox(outbox: Doc<"notificationOutbox"> | null): outbox is EmailNotificationOutbox {
   return (
     outbox?.channel === "email" &&
@@ -1558,6 +1775,18 @@ async function patchOutboxResendProviderState(
     resendLastEventType: args.providerEventType,
     resendLastEventAt: args.occurredAt,
     resendDeliveryStatus: resendProviderDeliveryStatus(args.providerEventType),
+    updatedAt: Date.now(),
+  });
+}
+
+async function patchOutboxResendProviderEventAt(
+  ctx: MutationCtx,
+  outbox: EmailNotificationOutbox,
+  args: RecordResendProviderDeliveryUpdateArgs,
+) {
+  await ctx.db.patch(outbox._id, {
+    ...(outbox.resendEmailId ? {} : { resendEmailId: args.providerEmailId }),
+    resendLastEventAt: args.occurredAt,
     updatedAt: Date.now(),
   });
 }
@@ -1627,8 +1856,12 @@ async function insertDeliveryEvent(ctx: MutationCtx, input: DeliveryEventInput) 
     ...(input.providerEventId ? { providerEventId: input.providerEventId } : {}),
     ...(input.providerEmailId ? { providerEmailId: input.providerEmailId } : {}),
     ...(input.providerEventType ? { providerEventType: input.providerEventType } : {}),
-    errorMessage: truncateErrorMessage(input.errorMessage),
-    ...(input.errorName ? { errorName: input.errorName } : {}),
+    ...(input.eventType === "provider_delivery_update"
+      ? {}
+      : {
+          errorMessage: truncateErrorMessage(input.errorMessage),
+          ...(input.errorName ? { errorName: input.errorName } : {}),
+        }),
   });
 }
 
@@ -1701,6 +1934,22 @@ async function resolveFailureInboxByOutbox(
   }
 }
 
+async function resolveProviderFailureInboxByOutbox(
+  ctx: MutationCtx,
+  outboxId: Id<"notificationOutbox">,
+  deliveredAt: number,
+) {
+  const failures = await ctx.db
+    .query("notificationFailureInbox")
+    .withIndex("by_outboxId", (q) => q.eq("outboxId", outboxId))
+    .take(FAILURE_DUPLICATE_SCAN_LIMIT);
+
+  for (const failure of failures) {
+    if (failure.sourceType !== "provider" || failure.status !== "open" || failure.lastFailedAt > deliveredAt) continue;
+    await resolveFailureInbox(ctx, failure._id, { resolutionKind: "sent" });
+  }
+}
+
 async function resolveFailureInbox(
   ctx: MutationCtx,
   failureId: Id<"notificationFailureInbox">,
@@ -1718,7 +1967,7 @@ async function resolveFailureInbox(
 
 function deliveryEventFromJob(
   job: Doc<"notificationOutbox">,
-  eventType: Doc<"notificationDeliveryEvents">["eventType"],
+  eventType: NotificationErrorDeliveryEventType,
   errorMessage: string,
   extra: { nextRunAt?: number; errorName?: string } = {},
 ): DeliveryEventInput {
@@ -1760,7 +2009,7 @@ function enqueueFailureKey(sourceType: "enqueue" | "enqueue_preparation", shopId
   return `${sourceType}:${shopId}:${dedupeKey}`;
 }
 
-async function findOutboxForResendProviderIssue(
+async function findOutboxForResendProviderEvent(
   ctx: MutationCtx,
   providerEmailId: string,
   outboxIdTag: string | undefined,

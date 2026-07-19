@@ -236,6 +236,9 @@ describe("organization person removal", () => {
       magicLink: await ctx.db.get(ids.magicLinkId),
       managerOutbox: await ctx.db.get(ids.managerOutboxId),
       member: await ctx.db.get(ids.memberId as Id<"organizationMembers">),
+      notificationHistoryCleanupJobs: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+        (job) => job.name === "notificationOutbox/mutations:deleteStaffNotificationHistoryBatch",
+      ),
       otherStaff: await ctx.db.get(ids.staffIds[1]),
       person: await ctx.db.get(ids.personId),
       session: await ctx.db.get(ids.sessionId),
@@ -273,6 +276,11 @@ describe("organization person removal", () => {
     expect(state.lineAccount).toMatchObject({ isDeleted: true, following: false });
     expect(state.staffOutbox).toMatchObject({ status: "cancelled", cancelReason: "recipient_inactive" });
     expect(state.managerOutbox?.status).toBe("pending");
+    expect(state.notificationHistoryCleanupJobs).toHaveLength(1);
+    expect(state.notificationHistoryCleanupJobs[0]?.args[0]).toEqual({
+      shopId: ids.shopId,
+      staffId: ids.staffIds[0],
+    });
     expect(state.audit).toMatchObject({
       action: "organization.person_removed_from_shop",
       targetId: ids.personId,
@@ -473,6 +481,9 @@ describe("organization person removal", () => {
         .collect(),
       lineAccount: await ctx.db.get(ids.lineAccountId),
       member: await ctx.db.get(ids.memberId as Id<"organizationMembers">),
+      notificationHistoryCleanupJobs: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+        (job) => job.name === "notificationOutbox/mutations:deleteStaffNotificationHistoryBatch",
+      ),
       otherOrganizationMembership: await ctx.db.get(ids.otherOrganizationMembershipId),
       otherOrganizationOutbox: await ctx.db.get(ids.otherOrganizationOutboxId),
       person: await ctx.db.get(ids.personId),
@@ -513,6 +524,16 @@ describe("organization person removal", () => {
     expect(state.otherOrganizationMembership?.isDeleted).toBe(false);
     expect(state.otherOrganizationOutbox?.status).toBe("pending");
     expect(state.legacyMemberships.map((membership) => membership._id)).toEqual([ids.otherOrganizationMembershipId]);
+    expect(
+      state.notificationHistoryCleanupJobs
+        .map((job) => job.args[0] as { shopId: Id<"shops">; staffId: Id<"staffs"> })
+        .sort((a, b) => a.staffId.localeCompare(b.staffId)),
+    ).toEqual(
+      state.staffs
+        .filter((staff) => staff !== null)
+        .map((staff) => ({ shopId: staff.shopId, staffId: staff._id }))
+        .sort((a, b) => a.staffId.localeCompare(b.staffId)),
+    );
     expect(state.assignment).not.toBeNull();
     expect(state.audit).toMatchObject({ action: "organization.person_removed", targetId: ids.personId });
 

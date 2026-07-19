@@ -107,6 +107,7 @@ describe("notificationOutbox", () => {
       channel: "email",
       shopId,
       staffId,
+      history: { notificationKind: "test.email", displayTitle: emailPayload.subject },
       dedupeKey: "email:test:dedupe",
       payload: emailPayload,
     });
@@ -114,6 +115,7 @@ describe("notificationOutbox", () => {
       channel: "email",
       shopId,
       staffId,
+      history: { notificationKind: "test.email", displayTitle: emailPayload.subject },
       dedupeKey: "email:test:dedupe",
       payload: emailPayload,
     });
@@ -522,6 +524,7 @@ describe("notificationOutbox", () => {
       organizationId,
       organizationBillingVersionAtOrigin: 2,
       staffId,
+      history: { notificationKind: "test.email", displayTitle: emailPayload.subject },
       dedupeKey: "email:test:billing-version-dedupe",
       payload: emailPayload,
     });
@@ -798,6 +801,7 @@ describe("notificationOutbox", () => {
         channel: "email",
         shopId,
         staffId,
+        history: { notificationKind: "test.email", displayTitle: emailPayload.subject },
         dedupeKey: `email:test:bulk:${index}`,
         payload: { ...emailPayload, to: `notify-${index + 1}@example.com` },
       });
@@ -836,6 +840,7 @@ describe("notificationOutbox", () => {
       channel: "email",
       shopId,
       staffId,
+      history: { notificationKind: "test.email", displayTitle: emailPayload.subject },
       dedupeKey: "email:test:after-processing-bulk",
       payload: emailPayload,
     });
@@ -867,6 +872,7 @@ describe("notificationOutbox", () => {
       channel: "email",
       shopId,
       staffId,
+      history: { notificationKind: "test.email", displayTitle: emailPayload.subject },
       dedupeKey: "email:test:after-stale",
       payload: emailPayload,
     });
@@ -945,6 +951,7 @@ describe("notificationOutbox", () => {
       channel: "email",
       shopId,
       staffId,
+      history: { notificationKind: "test.email", displayTitle: emailPayload.subject },
       dedupeKey: "email:test:stale-dedupe",
       payload: emailPayload,
     });
@@ -1066,14 +1073,42 @@ describe("notificationOutbox", () => {
       expect(usage.every((row) => row.emailCount === 1 && row.lineCount === 0)).toBe(true);
     });
 
-    it("既にsentのジョブを再度markSentしても二重カウントしない", async () => {
-      const { t, shopId } = await setupShop();
-      const outboxId = await insertProcessingJob(t, { shopId, channel: "email", dedupeKey: "email:test:twice" });
+    it("既にsentのジョブを再度markSentしても送信日時を動かさず二重カウントしない", async () => {
+      const { t, shopId, staffId } = await setupShop();
+      const outboxId = await insertProcessingJob(t, {
+        shopId,
+        staffId,
+        channel: "email",
+        dedupeKey: "email:test:twice",
+      });
+      const historyId = await t.run(async (ctx) => {
+        const now = Date.now();
+        return await ctx.db.insert("notificationHistory", {
+          outboxId,
+          shopId,
+          staffId,
+          channel: "email",
+          notificationKind: "test.email",
+          displayTitle: emailPayload.subject,
+          sendStatus: "queued",
+          deliveryStatus: "unknown",
+          requestedAt: now,
+          updatedAt: now,
+        });
+      });
 
       await t.mutation(internal.notificationOutbox.mutations.markSent, { outboxId });
+      const firstSentAt = Date.now();
+      vi.advanceTimersByTime(60_000);
       await t.mutation(internal.notificationOutbox.mutations.markSent, { outboxId });
 
-      const usage = await collectUsage(t);
+      const [job, history, usage] = await Promise.all([
+        t.run(async (ctx) => await ctx.db.get(outboxId)),
+        t.run(async (ctx) => await ctx.db.get(historyId)),
+        collectUsage(t),
+      ]);
+      expect(job?.sentAt).toBe(firstSentAt);
+      expect(history?.sentAt).toBe(firstSentAt);
       expect(usage).toHaveLength(1);
       expect(usage[0]).toMatchObject({ emailCount: 1, lineCount: 0 });
     });
@@ -1436,6 +1471,7 @@ describe("notificationOutbox", () => {
       channel: "email",
       shopId,
       staffId,
+      history: { notificationKind: "test.email", displayTitle: emailPayload.subject },
       dedupeKey: "email:test:claim",
       payload: emailPayload,
     });

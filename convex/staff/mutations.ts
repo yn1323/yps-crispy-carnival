@@ -581,6 +581,10 @@ export const deleteStaff = managerMutation({
     }
 
     await ctx.db.patch(args.staffId, { isDeleted: true });
+    await ctx.scheduler.runAfter(0, internal.notificationOutbox.mutations.deleteStaffNotificationHistoryBatch, {
+      shopId: ctx.shop._id,
+      staffId: args.staffId,
+    });
 
     const [sessions, magicLinks, lineLinkTokens, lineAccounts] = await Promise.all([
       ctx.db

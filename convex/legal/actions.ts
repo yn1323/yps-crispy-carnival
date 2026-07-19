@@ -13,6 +13,9 @@ import {
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
 import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
 
+const LEGAL_CONSENT_NOTIFICATION_KIND = "legal.consent";
+const LEGAL_CONSENT_LINE_TITLE = "利用規約への同意のお願い";
+
 export const sendStaffConsentEmail = internalAction({
   args: { staffId: v.id("staffs"), ...businessNotificationOriginArgs },
   handler: async (ctx, { staffId, organizationBillingVersionAtOrigin }) => {
@@ -32,16 +35,21 @@ export const sendStaffConsentEmail = internalAction({
       method: "staff_email_link",
     });
     const consentUrl = `${APP_URL}/legal/staff/consent?token=${token}`;
+    const subject = formatResendSubject(data.shopName, "シフトリの使い方と利用規約・プライバシーポリシーの確認");
 
     await enqueueEmail(ctx, {
       shopId: data.shopId,
       ...notificationOrigin,
       staffId: data.staffId,
+      history: {
+        notificationKind: LEGAL_CONSENT_NOTIFICATION_KIND,
+        displayTitle: subject,
+      },
       dedupeKey: `email:legalConsent:${staffId}`,
       payload: emailPayload({
         from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
         to: data.staffEmail,
-        subject: formatResendSubject(data.shopName, "シフトリの使い方と利用規約・プライバシーポリシーの確認"),
+        subject,
         html: buildStaffLegalConsentEmailHtml({
           staffName: data.staffName,
           shopName: data.shopName,
@@ -73,6 +81,7 @@ export const sendStaffConsentLine = internalAction({
       method: "line_link_notice",
     });
     const consentUrl = `${APP_URL}/legal/staff/consent?token=${token}`;
+    const subject = formatResendSubject(data.shopName, "シフトリの使い方と利用規約・プライバシーポリシーの確認");
 
     try {
       const lineParams = {
@@ -84,10 +93,14 @@ export const sendStaffConsentLine = internalAction({
       const fallbackEmail = data.staffEmail
         ? {
             dedupeKey: `email:legalConsent:${staffId}`,
+            history: {
+              notificationKind: LEGAL_CONSENT_NOTIFICATION_KIND,
+              displayTitle: subject,
+            },
             payload: emailPayload({
               from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
               to: data.staffEmail,
-              subject: formatResendSubject(data.shopName, "シフトリの使い方と利用規約・プライバシーポリシーの確認"),
+              subject,
               html: buildStaffLegalConsentEmailHtml({
                 staffName: data.staffName,
                 shopName: data.shopName,
@@ -104,6 +117,10 @@ export const sendStaffConsentLine = internalAction({
         shopId: data.shopId,
         ...notificationOrigin,
         staffId: data.staffId,
+        history: {
+          notificationKind: LEGAL_CONSENT_NOTIFICATION_KIND,
+          displayTitle: LEGAL_CONSENT_LINE_TITLE,
+        },
         dedupeKey: `line:legalConsent:${staffId}`,
         payload: linePayload({
           toUserId: data.lineUserId,

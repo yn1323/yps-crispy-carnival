@@ -1,6 +1,11 @@
 import type { Id } from "../_generated/dataModel";
 import type { LinePushMessage } from "../notification/templates";
 
+export type NotificationHistoryInput = {
+  notificationKind: string;
+  displayTitle: string;
+};
+
 export type NotificationRenderedEmailPayload = {
   kind: "email";
   from: string;
@@ -41,6 +46,7 @@ export type NotificationRenderedLinePayload = {
   fallbackEmail?: {
     dedupeKey: string;
     payload: NotificationEmailPayload;
+    history?: NotificationHistoryInput;
   };
 };
 
@@ -54,6 +60,7 @@ export type NotificationOrganizationManagerInvitationLinePayload = {
   fallbackEmail: {
     dedupeKey: string;
     payload: NotificationOrganizationManagerInvitationEmailPayload;
+    history?: NotificationHistoryInput;
   };
 };
 
@@ -91,14 +98,34 @@ type NotificationScope =
       organizationId: Id<"organizations">;
     };
 
-export type EnqueueNotificationInput = NotificationScope & {
+type NotificationHistoryTarget =
+  | {
+      staffId: Id<"staffs">;
+      history: NotificationHistoryInput;
+      historyMode?: never;
+    }
+  | {
+      staffId: Id<"staffs">;
+      history?: never;
+      historyMode: "legacy_no_history";
+    }
+  | {
+      staffId?: never;
+      history?: never;
+      historyMode?: never;
+    };
+
+type EnqueueNotificationCommon<TPayload extends NotificationPayload> = {
   organizationBillingVersionAtOrigin?: number;
   purpose?: NotificationPurpose;
   organizationInvitationId?: Id<"organizationInvitations">;
   organizationInvitationVersion?: number;
   recruitmentId?: Id<"recruitments">;
-  staffId?: Id<"staffs">;
   userId?: Id<"users">;
   dedupeKey: string;
-  payload: NotificationPayload;
+  payload: TPayload;
 };
+
+export type EnqueueNotificationInput<TPayload extends NotificationPayload = NotificationPayload> = NotificationScope &
+  NotificationHistoryTarget &
+  EnqueueNotificationCommon<TPayload>;

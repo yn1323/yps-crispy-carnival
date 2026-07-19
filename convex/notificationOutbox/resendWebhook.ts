@@ -3,7 +3,11 @@ import { httpAction } from "../_generated/server";
 import { readBoundedJsonBody } from "../_lib/httpBody";
 import { verifyResendWebhookSignature } from "../_lib/resendWebhookSignature";
 import { RESEND_WEBHOOK_BODY_MAX_BYTES } from "../constants";
-import { isResendProviderIssueEventType, resendProviderIssueErrorMessage } from "./resendProviderEvents";
+import {
+  isResendProviderEventType,
+  isResendProviderIssueEventType,
+  resendProviderIssueErrorMessage,
+} from "./resendProviderEvents";
 
 type ResendWebhookPayload = {
   type?: unknown;
@@ -20,7 +24,7 @@ type ResendEmailEventData = {
 /**
  * Resend provider webhook 受信エンドポイント（V8 ランタイム）
  * - svix headers + raw body 署名検証が通るまで JSON parse / DB 更新しない
- * - delivered は受け取らず、遅延・失敗・拒否・抑止だけを FailureInbox へ流す
+ * - delivered は表示用履歴へ、遅延・失敗・拒否・抑止は履歴と FailureInbox へ流す
  */
 export const webhookHandler = httpAction(async (ctx, request) => {
   const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
@@ -50,26 +54,40 @@ export const webhookHandler = httpAction(async (ctx, request) => {
   }
   if (!isRecord(body)) return new Response("Invalid webhook payload", { status: 400 });
 
-  const normalized = normalizeProviderIssue(body, request.headers.get("svix-id"));
+  const normalized = normalizeProviderEvent(body, request.headers.get("svix-id"));
   if (!normalized) return new Response("OK", { status: 200 });
 
-  await ctx.runMutation(internal.notificationOutbox.mutations.recordResendProviderIssue, normalized);
+  if (normalized.providerEventType === "email.delivered") {
+    await ctx.runMutation(internal.notificationOutbox.mutations.recordResendProviderDeliveryUpdate, normalized);
+  } else {
+    await ctx.runMutation(internal.notificationOutbox.mutations.recordResendProviderIssue, normalized);
+  }
   return new Response("OK", { status: 200 });
 });
 
-function normalizeProviderIssue(body: ResendWebhookPayload, svixId: string | null) {
-  if (!svixId || typeof body.type !== "string" || !isResendProviderIssueEventType(body.type)) return null;
+function normalizeProviderEvent(body: ResendWebhookPayload, svixId: string | null) {
+  if (!svixId || typeof body.type !== "string" || !isResendProviderEventType(body.type)) return null;
   const data = asEmailEventData(body.data);
   if (!data || typeof data.email_id !== "string" || data.email_id.length === 0) return null;
   const outboxIdTag = readShiftoriOutboxIdTag(data.tags);
-
-  return {
+  const common = {
     providerEventId: svixId,
-    providerEventType: body.type,
     providerEmailId: data.email_id,
     ...(outboxIdTag ? { outboxIdTag } : {}),
     occurredAt: parseResendEventTime(body.created_at, data.created_at),
-    errorMessage: resendProviderIssueErrorMessage(body.type),
+  };
+
+  if (isResendProviderIssueEventType(body.type)) {
+    return {
+      ...common,
+      providerEventType: body.type,
+      errorMessage: resendProviderIssueErrorMessage(body.type),
+    };
+  }
+
+  return {
+    ...common,
+    providerEventType: body.type,
   };
 }
 

@@ -37,7 +37,7 @@ export function organizationManagerInvitationLinePayload(
 
 export async function enqueueEmail(
   ctx: EnqueueCtx,
-  input: EnqueueNotificationInput & { payload: NotificationEmailPayload },
+  input: EnqueueNotificationInput<NotificationEmailPayload>,
 ): Promise<EnqueueResult> {
   return await enqueueNotification(ctx, input);
 }
@@ -45,17 +45,15 @@ export async function enqueueEmail(
 export async function enqueueLine(
   ctx: EnqueueCtx,
   input:
-    | (EnqueueNotificationInput & {
+    | (EnqueueNotificationInput<Extract<NotificationLinePayload, { kind: "line" }>> & {
         purpose?: "business";
         organizationInvitationId?: never;
         organizationInvitationVersion?: never;
-        payload: Extract<NotificationLinePayload, { kind: "line" }>;
       })
-    | (EnqueueNotificationInput & {
+    | (EnqueueNotificationInput<NotificationOrganizationManagerInvitationLinePayload> & {
         purpose?: "business";
         organizationInvitationId: Id<"organizationInvitations">;
         organizationInvitationVersion: number;
-        payload: NotificationOrganizationManagerInvitationLinePayload;
       }),
 ): Promise<EnqueueResult> {
   return await enqueueNotification(ctx, input);
@@ -77,6 +75,8 @@ async function enqueueNotification(ctx: EnqueueCtx, input: EnqueueNotificationIn
       ...(input.purpose ? { purpose: input.purpose } : {}),
       ...(input.recruitmentId ? { recruitmentId: input.recruitmentId } : {}),
       ...(input.staffId ? { staffId: input.staffId } : {}),
+      ...(input.history ? { history: input.history } : {}),
+      ...(input.historyMode ? { historyMode: input.historyMode } : {}),
       ...(input.userId ? { userId: input.userId } : {}),
       dedupeKey: input.dedupeKey,
       payload: input.payload,
