@@ -6,8 +6,6 @@ import type { OrganizationBillingView, OrganizationPersonView, OrganizationShopV
 
 const mocks = vi.hoisted(() => ({
   mutation: vi.fn(),
-  removeManagerRoleMutation: vi.fn(),
-  removePersonMutation: vi.fn(),
   showErrorToast: vi.fn(),
   showSuccessToast: vi.fn(),
   setAtom: vi.fn(),
@@ -22,18 +20,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("convex/react", async () => {
-  const { getFunctionName } = await import("convex/server");
   return {
-    useMutation: (reference: Parameters<typeof getFunctionName>[0]) => {
-      switch (getFunctionName(reference)) {
-        case "organization/mutations:removeManagerRole":
-          return mocks.removeManagerRoleMutation;
-        case "organization/mutations:removePersonFromOrganization":
-          return mocks.removePersonMutation;
-        default:
-          return mocks.mutation;
-      }
-    },
+    useMutation: () => mocks.mutation,
   };
 });
 
@@ -50,11 +38,8 @@ vi.mock("jotai", async (importOriginal) => ({
 
 import { useBillingSettingsController } from "./BillingSettings/useBillingSettingsController";
 import { useManagerInvitationController } from "./ManagerInvitation/useManagerInvitationController";
-import { usePersonManagerAssignmentController } from "./ManagerInvitation/usePersonManagerAssignmentController";
 import { useOrganizationDeletionController } from "./OrganizationDeletion/useOrganizationDeletionController";
 import { useOrganizationNameController } from "./OrganizationName/useOrganizationNameController";
-import { usePersonProfileController } from "./PersonProfile/usePersonProfileController";
-import { usePersonRemovalController } from "./PersonRemoval/usePersonRemovalController";
 import { useShopManagementController } from "./ShopManagement/useShopManagementController";
 
 const person: OrganizationPersonView = {
@@ -93,8 +78,6 @@ const billing: OrganizationBillingView = {
 
 beforeEach(() => {
   mocks.mutation.mockReset();
-  mocks.removeManagerRoleMutation.mockReset();
-  mocks.removePersonMutation.mockReset();
   mocks.showErrorToast.mockReset();
   mocks.showSuccessToast.mockReset();
   mocks.setAtom.mockReset();
@@ -120,21 +103,6 @@ describe("OrganizationSettings controllers", () => {
     await waitFor(() => expect(result.current.dialog.isOpen).toBe(false));
     act(() => staleSubmit("変更後のグループ名"));
     await waitFor(() => expect(mocks.mutation).not.toHaveBeenCalled());
-  });
-
-  it("ユーザーが対象外になったら確認Dialogを閉じ、古い確定操作を拒否する", async () => {
-    const { result, rerender } = renderHook(({ people }) => usePersonRemovalController(people), {
-      initialProps: { people: [person] },
-    });
-    act(() => result.current.removePerson(person.id));
-    const staleSubmit = result.current.dialog.onSubmit;
-
-    rerender({ people: [] });
-
-    await waitFor(() => expect(result.current.dialog.dialog).toBeNull());
-    act(() => staleSubmit());
-    await waitFor(() => expect(mocks.removePersonMutation).not.toHaveBeenCalled());
-    expect(mocks.removeManagerRoleMutation).not.toHaveBeenCalled();
   });
 
   it("店舗削除の権限を失うと古い確定操作を拒否する", async () => {
@@ -298,53 +266,6 @@ describe("OrganizationSettings controllers", () => {
     await waitFor(() => expect(mocks.mutation).not.toHaveBeenCalled());
   });
 
-  it("グループ設定から人物の氏名とメールアドレスを更新する", async () => {
-    mocks.mutation.mockResolvedValue({ changed: true });
-    const target = { ...person, managerRole: "none" as const };
-    const { result } = renderHook(() => usePersonProfileController([target]));
-
-    let succeeded = false;
-    await act(async () => {
-      succeeded =
-        (await result.current.update(target.id, {
-          name: "田中 花子",
-          email: "hanako@example.com",
-        })) === true;
-    });
-
-    expect(succeeded).toBe(true);
-    expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
-      shopId: "shop-current",
-      personId: target.id,
-      name: "田中 花子",
-      email: "hanako@example.com",
-      requestId: "request-1",
-    });
-    expect(mocks.showSuccessToast).toHaveBeenCalledWith({ title: "ユーザー情報を更新しました" });
-  });
-
-  it("既存スタッフへ管理者のログイン案内を送る", async () => {
-    mocks.mutation.mockResolvedValue({ status: "issued", invitationId: "invitation-1" });
-    const target = { ...person, managerRole: "none" as const };
-    const { result } = renderHook(() => usePersonManagerAssignmentController([target]));
-
-    let succeeded = false;
-    await act(async () => {
-      succeeded = (await result.current.assign(target.id)) === true;
-    });
-
-    expect(succeeded).toBe(true);
-    expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
-      shopId: "shop-current",
-      personId: target.id,
-      requestId: "request-1",
-    });
-    expect(mocks.showSuccessToast).toHaveBeenCalledWith({
-      title: "ログイン案内を送りました",
-      description: "本人のアカウントと店舗人物の連携後に管理者になります。",
-    });
-  });
-
   it("管理者枠が予約済みでも、同じ外部招待を再送するためのDialogを開く", async () => {
     mocks.mutation.mockResolvedValue({ status: "issued", invitationId: "invitation-1" });
     const { result } = renderHook(() =>
@@ -411,65 +332,6 @@ describe("OrganizationSettings controllers", () => {
       }),
     );
     await waitFor(() => expect(result.current.dialog.isOpen).toBe(false));
-  });
-
-  it("管理者権限解除を正しい対象で一度だけ実行し、スタッフ所属の維持を伝える", async () => {
-    let resolveMutation: (() => void) | undefined;
-    mocks.removeManagerRoleMutation.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveMutation = () => resolve({ changed: true });
-        }),
-    );
-    const { result } = renderHook(() => usePersonRemovalController([person]));
-
-    act(() => result.current.removeManagerRole(person.id));
-    act(() => {
-      result.current.dialog.onSubmit();
-      result.current.dialog.onSubmit();
-    });
-
-    await waitFor(() =>
-      expect(mocks.removeManagerRoleMutation).toHaveBeenCalledExactlyOnceWith({
-        shopId: "shop-current",
-        personId: person.id,
-        requestId: "request-1",
-      }),
-    );
-    expect(mocks.removePersonMutation).not.toHaveBeenCalled();
-    await act(async () => resolveMutation?.());
-    await waitFor(() =>
-      expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
-        title: "管理者権限を外しました",
-        description: "スタッフとしての店舗所属と業務用アクセスは維持しています。",
-      }),
-    );
-    expect(result.current.dialog.dialog).toBeNull();
-  });
-
-  it("グループ削除を正しい対象で実行し、履歴が残ることを伝える", async () => {
-    mocks.removePersonMutation.mockResolvedValue({ changed: true });
-    const target = { ...person, managerRole: "none" as const };
-    const { result } = renderHook(() => usePersonRemovalController([target]));
-
-    act(() => result.current.removePerson(target.id));
-    act(() => result.current.dialog.onSubmit());
-
-    await waitFor(() =>
-      expect(mocks.removePersonMutation).toHaveBeenCalledExactlyOnceWith({
-        shopId: "shop-current",
-        personId: target.id,
-        requestId: "request-1",
-      }),
-    );
-    expect(mocks.removeManagerRoleMutation).not.toHaveBeenCalled();
-    await waitFor(() =>
-      expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
-        title: "利用者をグループから削除しました",
-        description: "過去のシフト履歴は保持されます。",
-      }),
-    );
-    expect(result.current.dialog.dialog).toBeNull();
   });
 
   it("Freeでは手入力による管理者招待を実行しない", async () => {

@@ -15,7 +15,6 @@ type DialogState = {
 type StaffDetailViewModel = {
   staff: Staff | null;
   dialog: DialogState;
-  onOpen: (staff: Staff) => void;
   onOpenChange: (details: { open: boolean }) => void;
   onClose: () => void;
   onEdit: (data: EditStaffFormData) => void | Promise<void>;
@@ -48,6 +47,7 @@ type Props = {
   onLoadMore: () => void;
   openRecruitments: Recruitment[];
   currentRecruitments: Recruitment[];
+  onOpenDetail: (staff: Staff) => void;
   invitation: StaffInvitationViewModel;
   detail: StaffDetailViewModel;
 };
@@ -60,6 +60,7 @@ export function StaffManagementView({
   onLoadMore,
   openRecruitments,
   currentRecruitments,
+  onOpenDetail,
   invitation,
   detail,
 }: Props) {
@@ -71,7 +72,7 @@ export function StaffManagementView({
         status={status}
         canLoadMore={canLoadMore}
         onAddClick={invitation.onOpen}
-        onOpenDetail={detail.onOpen}
+        onOpenDetail={onOpenDetail}
         onLoadMore={onLoadMore}
       />
 

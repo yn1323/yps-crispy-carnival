@@ -1,6 +1,9 @@
+import { useNavigate } from "@tanstack/react-router";
+import { useAtomValue } from "jotai";
 import { type ReactNode, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { useShopPaginatedQuery } from "@/src/hooks/useShopPaginatedQuery";
+import { selectedShopAtom } from "@/src/stores/shop";
 import type { PaginationStatus, Recruitment, Staff } from "../types";
 import { StaffManagementView } from "./StaffManagementView";
 import { useStaffInvitation } from "./useStaffInvitation";
@@ -35,6 +38,8 @@ type Props = {
 };
 
 export function StaffManagement({ data, openRecruitments, currentRecruitments, isReadOnly = false, children }: Props) {
+  const navigate = useNavigate();
+  const selectedShop = useAtomValue(selectedShopAtom);
   const [visibleStaffCount, setVisibleStaffCount] = useState(STAFF_INITIAL_VISIBLE_COUNT);
   const staffQuery = useShopPaginatedQuery(api.dashboard.queries.getDashboardStaffs, data ? "skip" : {}, {
     initialNumItems: STAFF_QUERY_PAGE_SIZE,
@@ -62,6 +67,18 @@ export function StaffManagement({ data, openRecruitments, currentRecruitments, i
   const profile = useStaffProfileManagement(staffs, { onResetDetail: lineConnection.reset, isReadOnly });
   const managerInvitation = useStaffManagerInvitation(profile.staff, { isReadOnly });
   const notifications = useStaffNotificationDelivery(isReadOnly);
+  const handleOpenDetail = (staff: Staff) => {
+    if (!staff.organizationPersonId) {
+      profile.onOpen(staff);
+      return;
+    }
+    if (!selectedShop?.shopId) return;
+    void navigate({
+      to: "/users/$personId",
+      params: { personId: staff.organizationPersonId },
+      search: { shop: selectedShop.shopId, tab: "information", returnTo: "dashboard" },
+    });
+  };
 
   const content = (
     <StaffManagementView
@@ -71,12 +88,12 @@ export function StaffManagement({ data, openRecruitments, currentRecruitments, i
       onLoadMore={handleLoadMore}
       openRecruitments={openRecruitments}
       currentRecruitments={currentRecruitments}
+      onOpenDetail={handleOpenDetail}
       isReadOnly={isReadOnly}
       invitation={invitation}
       detail={{
         staff: profile.staff,
         dialog: profile.dialog,
-        onOpen: profile.onOpen,
         onOpenChange: profile.onOpenChange,
         onClose: profile.onClose,
         onEdit: profile.onEdit,

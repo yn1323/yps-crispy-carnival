@@ -32,7 +32,7 @@ export function ManagerAssignmentConfirmation({
     ? `${personName}さんがアカウントを連携すると、このグループの唯一の管理者になります。その時点で、あなたのこのグループの管理者権限は終了し、グループ設定と店舗情報へアクセスできなくなります。`
     : isResend
       ? `${personEmail}へ新しいログイン案内を送ります。以前のURLは利用できなくなります。`
-      : `${personEmail}へログイン案内を送ります。本人がログインし、アカウントと店舗人物の連携が完了した時点で管理者になります。`;
+      : `${personEmail}へログイン案内を送ります。本人がログインし、アカウントとグループのユーザー情報の連携が完了した時点で管理者になります。`;
   const confirmLabel = isFreeManagerExchange
     ? isResend
       ? "交代の案内を再送"

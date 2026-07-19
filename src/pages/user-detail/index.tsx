@@ -1,0 +1,78 @@
+import { Box } from "@chakra-ui/react";
+import { Link as RouterLink } from "@tanstack/react-router";
+import { useState } from "react";
+import { LuUserRoundX } from "react-icons/lu";
+import { api } from "@/convex/_generated/api";
+import {
+  UserDetail,
+  type UserDetailReturnTo,
+  UserDetailSkeleton,
+  type UserDetailTab,
+} from "@/src/components/features/UserDetail";
+import { HEADER_HEIGHT } from "@/src/components/templates/Header";
+import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
+import { Button } from "@/src/components/ui/Button";
+import { Empty } from "@/src/components/ui/Empty";
+import { useShopQuery } from "@/src/hooks/useShopQuery";
+
+type Props = {
+  personId: string;
+  selectedShopId?: string;
+  defaultTab?: UserDetailTab;
+  returnTo?: UserDetailReturnTo;
+};
+
+export function UserDetailPage({
+  personId,
+  selectedShopId,
+  defaultTab = "information",
+  returnTo = "dashboard",
+}: Props) {
+  // query内の判定時刻を購読中に動かさず、同じ画面表示では同じcapability結果を使う。
+  const [queryNow] = useState(() => Date.now());
+  const data = useShopQuery(api.organization.userDetailQueries.getUserDetail, { personId, now: queryNow });
+
+  return (
+    <UserDetailPageShell>
+      {data === undefined ? (
+        <UserDetailSkeleton />
+      ) : data === null ? (
+        <Empty
+          icon={LuUserRoundX}
+          title="ユーザーを表示できません"
+          description="ユーザーが削除されたか、このグループで表示する権限がありません。"
+          tone="warning"
+          minH={{
+            base: `calc(100dvh - ${HEADER_HEIGHT.base} - 32px)`,
+            md: `calc(100dvh - ${HEADER_HEIGHT.md} - 64px)`,
+          }}
+          action={
+            <Button asChild colorPalette="teal">
+              <RouterLink to="/dashboard" search={{ shop: selectedShopId }}>
+                ダッシュボードへ戻る
+              </RouterLink>
+            </Button>
+          }
+        />
+      ) : (
+        <UserDetail data={data} selectedShopId={selectedShopId ?? null} activeTab={defaultTab} returnTo={returnTo} />
+      )}
+    </UserDetailPageShell>
+  );
+}
+
+export type { UserDetailReturnTo };
+
+function UserDetailPageShell({ children }: { children: React.ReactNode }) {
+  return (
+    <Box
+      minH={{
+        base: `calc(100dvh - ${HEADER_HEIGHT.base})`,
+        md: `calc(100dvh - ${HEADER_HEIGHT.md})`,
+      }}
+      bg="gray.50"
+    >
+      <RootContentWrapper>{children}</RootContentWrapper>
+    </Box>
+  );
+}

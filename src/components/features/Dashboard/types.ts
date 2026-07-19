@@ -51,6 +51,7 @@ export type StaffManagerInvitationState =
 
 export type Staff = {
   _id: Id<"staffs">;
+  organizationPersonId: Id<"organizationPeople"> | null;
   name: string;
   email: string;
   isManager: boolean;

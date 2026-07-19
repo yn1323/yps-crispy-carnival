@@ -1,11 +1,12 @@
 import type { Recruitment, Staff } from "../types";
 
 // Storybook用モックデータ。_id は Convex ID の型だが、stories では文字列で代用する
-const withManagerInvitationStates = <T extends { isManager: boolean }>(staffs: T[]) =>
+const withManagerInvitationStates = <T extends { _id: string; isManager: boolean }>(staffs: T[]) =>
   staffs.map((staff) => ({
     ...staff,
+    organizationPersonId: `person-${staff._id}`,
     managerInvitationState: staff.isManager
-      ? ({ kind: "unavailable", reason: "このスタッフはすでに管理者です。" } as const)
+      ? ({ kind: "unavailable", reason: "このユーザーはすでに管理者です。" } as const)
       : ({ kind: "available", mode: "addition", replacesStaleInvitation: false } as const),
   }));
 

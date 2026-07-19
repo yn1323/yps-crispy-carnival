@@ -1,20 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { OrganizationSettingsView } from ".";
 import type { OrganizationContextModel } from "./OrganizationContext/script";
-import { PersonRemovalDialog } from "./PersonRemoval/PersonRemovalDialog";
-import type { PersonRemovalDialogState } from "./PersonRemoval/types";
 import type { OrganizationBillingView, OrganizationSettingsViewProps } from "./types";
 
 const actions = {
   onSelectOrganization: fn(),
   onUpdateOrganizationName: fn(),
   onInviteManager: fn(),
-  onUpdatePersonProfile: fn(async () => true),
-  onAssignManager: fn(async () => true),
-  onRemoveManagerRole: fn(),
-  onRemovePerson: fn(),
+  onOpenUser: fn(),
   onAddShop: fn(),
   onOpenShop: fn(),
   onOpenShopSettings: fn(),
@@ -265,30 +259,16 @@ export const FutureAssignmentRemovalBlocked: Story = {
   },
 };
 
-export const BillingContactRemovalBlockedBehavior: Story = {
+export const UserNavigationBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   args: {
-    people: baseArgs.people.map((person) =>
-      person.id === "person-staff"
-        ? {
-            ...person,
-            email: baseBilling.billingEmail,
-            canRemove: false,
-            removeDisabledReason: "請求先メールアドレスを変更してから削除してください。",
-          }
-        : person,
-    ),
+    actions: { ...actions, onOpenUser: fn() },
   },
-  play: async ({ canvasElement }) => {
+  play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "鈴木 次郎のユーザー詳細を開く" }));
-    const screen = within(canvasElement.ownerDocument.body);
-    const dialog = await screen.findByRole("dialog", { name: "ユーザー詳細" });
-    await userEvent.click(within(dialog).getByRole("tab", { name: "設定" }));
-    await expectDisabledActionDescription(
-      within(dialog).getByRole("button", { name: "グループから削除" }),
-      "請求先メールアドレスを変更してから削除してください。",
-    );
+    await expect(args.actions.onOpenUser).toHaveBeenCalledTimes(1);
+    await expect(args.actions.onOpenUser).toHaveBeenCalledWith("person-staff");
   },
 };
 
@@ -312,45 +292,6 @@ export const ManagerRoleRemoval: Story = {
       },
       ...baseArgs.people.slice(1),
     ],
-  },
-};
-
-export const ManagerRoleRemovalBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  args: {
-    ...ManagerRoleRemoval.args,
-    actions: { ...actions, onRemoveManagerRole: fn() },
-  },
-  render: (args) => <PersonRemovalBehaviorHarness {...args} />,
-  play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "田中 太郎のユーザー詳細を開く" }));
-    const screen = within(canvasElement.ownerDocument.body);
-    const detailDialog = await screen.findByRole("dialog", { name: "ユーザー詳細" });
-    await userEvent.click(within(detailDialog).getByRole("tab", { name: "設定" }));
-    await userEvent.click(within(detailDialog).getByRole("button", { name: "管理者権限を外す" }));
-    const confirmationDialog = await screen.findByRole("alertdialog", { name: "管理者権限を外す" });
-    await userEvent.click(within(confirmationDialog).getByRole("button", { name: "管理者権限を外す" }));
-    await expect(args.actions.onRemoveManagerRole).toHaveBeenCalledTimes(1);
-    await expect(args.actions.onRemoveManagerRole).toHaveBeenCalledWith("person-manager");
-  },
-};
-
-export const PersonRemovalBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  args: { actions: { ...actions, onRemovePerson: fn() } },
-  render: (args) => <PersonRemovalBehaviorHarness {...args} />,
-  play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "鈴木 次郎のユーザー詳細を開く" }));
-    const screen = within(canvasElement.ownerDocument.body);
-    const detailDialog = await screen.findByRole("dialog", { name: "ユーザー詳細" });
-    await userEvent.click(within(detailDialog).getByRole("tab", { name: "設定" }));
-    await userEvent.click(within(detailDialog).getByRole("button", { name: "グループから削除" }));
-    const confirmationDialog = await screen.findByRole("alertdialog", { name: "グループから利用者を削除" });
-    await userEvent.click(within(confirmationDialog).getByRole("button", { name: "グループから削除" }));
-    await expect(args.actions.onRemovePerson).toHaveBeenCalledTimes(1);
-    await expect(args.actions.onRemovePerson).toHaveBeenCalledWith("person-staff");
   },
 };
 
@@ -696,22 +637,6 @@ export const Restricted: Story = {
   },
 };
 
-export const RestrictedRecoveryPersonActionsBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  args: { ...Restricted.args, defaultTab: "people" },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "田中 太郎のユーザー詳細を開く" }));
-    const screen = within(canvasElement.ownerDocument.body);
-    const dialog = await screen.findByRole("dialog", { name: "ユーザー詳細" });
-    await userEvent.click(within(dialog).getByRole("tab", { name: "設定" }));
-    await expectDisabledActionDescription(
-      within(dialog).getByRole("button", { name: "グループから削除" }),
-      "最後の復旧担当者は、引き継ぎまたは契約復旧まで削除できません。",
-    );
-  },
-};
-
 export const ScheduledFree: Story = {
   args: {
     defaultTab: "billing",
@@ -760,39 +685,6 @@ export const MobileSettings: Story = {
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: { defaultTab: "settings" },
 };
-
-function PersonRemovalBehaviorHarness(args: OrganizationSettingsViewProps) {
-  const [dialog, setDialog] = useState<PersonRemovalDialogState | null>(null);
-  const openConfirmation = (kind: PersonRemovalDialogState["kind"], personId: string) => {
-    const person = args.people.find((candidate) => candidate.id === personId);
-    if (!person) return;
-    setDialog(kind === "removeManagerRole" ? { kind: "removeManagerRole", person } : { kind: "removePerson", person });
-  };
-
-  return (
-    <>
-      <OrganizationSettingsView
-        {...args}
-        actions={{
-          ...args.actions,
-          onRemoveManagerRole: (personId) => openConfirmation("removeManagerRole", personId),
-          onRemovePerson: (personId) => openConfirmation("removePerson", personId),
-        }}
-      />
-      <PersonRemovalDialog
-        dialog={dialog}
-        isRunning={false}
-        onClose={() => setDialog(null)}
-        onSubmit={() => {
-          if (!dialog) return;
-          if (dialog.kind === "removeManagerRole") args.actions.onRemoveManagerRole(dialog.person.id);
-          else args.actions.onRemovePerson(dialog.person.id);
-          setDialog(null);
-        }}
-      />
-    </>
-  );
-}
 
 async function expectDisabledActionDescription(button: HTMLElement, expectedReason: string) {
   await expect(button).toBeDisabled();

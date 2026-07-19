@@ -29,6 +29,7 @@ const availableAddition: StaffManagerInvitationState = {
 
 const staff = (overrides: Partial<Staff> = {}): Staff => ({
   _id: "staff-target" as Staff["_id"],
+  organizationPersonId: "person-target" as Staff["organizationPersonId"],
   name: "対象スタッフ",
   email: "staff@example.com",
   isManager: false,

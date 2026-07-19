@@ -1,21 +1,16 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { normalizeShopSearch } from "@/src/lib/authenticatedSearch";
 import type { ShopContextOption } from "@/src/stores/shop";
 import { BillingEmailDialog } from "./BillingSettings/BillingEmailDialog";
 import { useBillingSettingsController } from "./BillingSettings/useBillingSettingsController";
 import { ManagerInvitationDialog } from "./ManagerInvitation/ManagerInvitationDialog";
 import { useManagerInvitationController } from "./ManagerInvitation/useManagerInvitationController";
-import { usePersonManagerAssignmentController } from "./ManagerInvitation/usePersonManagerAssignmentController";
 import { buildOrganizationContextModel } from "./OrganizationContext/script";
 import { OrganizationDeletionDialog } from "./OrganizationDeletion/OrganizationDeletionDialog";
 import { useOrganizationDeletionController } from "./OrganizationDeletion/useOrganizationDeletionController";
 import { OrganizationNameDialog } from "./OrganizationName/OrganizationNameDialog";
 import { useOrganizationNameController } from "./OrganizationName/useOrganizationNameController";
 import { OrganizationSettingsSkeleton, OrganizationSettingsView } from "./OrganizationSettingsView";
-import { usePersonProfileController } from "./PersonProfile/usePersonProfileController";
-import { PersonRemovalDialog } from "./PersonRemoval/PersonRemovalDialog";
-import { usePersonRemovalController } from "./PersonRemoval/usePersonRemovalController";
 import { ShopManagementDialog } from "./ShopManagement/ShopManagementDialog";
 import { useShopManagementController } from "./ShopManagement/useShopManagementController";
 import type { OrganizationSettingsData, OrganizationSettingsTab } from "./types";
@@ -49,9 +44,6 @@ export function OrganizationSettings({ settings, context, defaultTab = "people",
     freeManagerExchangeCandidates: settings.freeManagerExchangeCandidates,
     people: settings.people,
   });
-  const personManagerAssignment = usePersonManagerAssignmentController(settings.people);
-  const personProfile = usePersonProfileController(settings.people);
-  const personRemoval = usePersonRemovalController(settings.people);
   const shopManagement = useShopManagementController({ canAddShop: settings.canAddShop, shops: settings.shops });
   const billingSettings = useBillingSettingsController({ billing: settings.billing });
   const organizationDeletion = useOrganizationDeletionController({
@@ -70,22 +62,22 @@ export function OrganizationSettings({ settings, context, defaultTab = "people",
       <OrganizationSettingsView
         {...settings}
         organizationContext={organizationContext}
-        isUpdatingPersonProfile={personProfile.isRunning}
-        isAssigningManager={personManagerAssignment.isRunning}
         defaultTab={defaultTab}
         onTabChange={onTabChange}
         actions={{
           onSelectOrganization: (shopId) =>
             void navigate({
               to: "/settings",
-              search: (previous) => normalizeShopSearch(previous, shopId),
+              search: { shop: shopId, tab: defaultTab },
             }),
           onUpdateOrganizationName: organizationName.open,
           onInviteManager: managerInvitation.open,
-          onUpdatePersonProfile: personProfile.update,
-          onAssignManager: personManagerAssignment.assign,
-          onRemoveManagerRole: personRemoval.removeManagerRole,
-          onRemovePerson: personRemoval.removePerson,
+          onOpenUser: (personId) =>
+            void navigate({
+              to: "/users/$personId",
+              params: { personId },
+              search: { shop: context.selectedShopId, tab: "information", returnTo: "settings" },
+            }),
           onAddShop: shopManagement.addShop,
           onOpenShop: shopManagement.openShop,
           onOpenShopSettings: shopManagement.openShopSettings,
@@ -98,7 +90,6 @@ export function OrganizationSettings({ settings, context, defaultTab = "people",
       />
       <OrganizationNameDialog {...organizationName.dialog} />
       <ManagerInvitationDialog {...managerInvitation.dialog} />
-      <PersonRemovalDialog {...personRemoval.dialog} />
       <ShopManagementDialog {...shopManagement.dialog} />
       <BillingEmailDialog {...billingSettings.dialog} />
       <OrganizationDeletionDialog {...organizationDeletion.dialog} />

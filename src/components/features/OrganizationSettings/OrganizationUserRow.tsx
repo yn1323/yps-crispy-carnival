@@ -5,10 +5,10 @@ import type { OrganizationPersonView } from "./types";
 
 type Props = {
   person: OrganizationPersonView;
-  onOpenDetail: () => void;
+  onOpenUser: () => void;
 };
 
-export function OrganizationUserRow({ person, onOpenDetail }: Props) {
+export function OrganizationUserRow({ person, onOpenUser }: Props) {
   const initial = person.name.trim().charAt(0) || "?";
   const isManager = person.managerRole !== "none";
   const descriptionId = `organization-user-${person.id}-summary`;
@@ -37,7 +37,7 @@ export function OrganizationUserRow({ person, onOpenDetail }: Props) {
         outlineColor: "teal.500",
         outlineOffset: "-2px",
       }}
-      onClick={onOpenDetail}
+      onClick={onOpenUser}
     >
       <Flex
         boxSize="40px"

@@ -56,6 +56,7 @@ const managerLegalConsentReady = {
 const managerOnly = [
   {
     _id: "staff-manager",
+    organizationPersonId: "person-manager",
     name: "田中太郎",
     email: "tanaka@example.com",
     isManager: true,
@@ -68,6 +69,7 @@ const managerAndStaff = [
   ...managerOnly,
   {
     _id: "staff-2",
+    organizationPersonId: "person-2",
     name: "佐藤花子",
     email: "sato@example.com",
     isManager: false,
@@ -217,10 +219,6 @@ export const ReadOnlyShop: Story = {
     await userEvent.keyboard("{Escape}");
     await expect(canvas.getByRole("button", { name: "新しい募集をつくる" })).toBeDisabled();
     await expect(canvas.getByRole("button", { name: "スタッフを招待" })).toBeDisabled();
-
-    await userEvent.click(canvas.getByRole("button", { name: "佐藤花子のスタッフ詳細を開く" }));
-    const staffDetailDialog = await body.findByRole("dialog", { name: "スタッフ詳細" });
-    await expect(within(staffDetailDialog).getByRole("button", { name: "変更を保存" })).toBeDisabled();
   },
 };
 
@@ -297,7 +295,7 @@ function ReadOnlyTransitionStory() {
   );
 }
 
-export const ManagementDialogsBehavior: Story = {
+export const ShopSettingsDialogBehavior: Story = {
   args: Normal.args,
   parameters: {
     screenshot: { skip: true },
@@ -311,6 +309,22 @@ export const ManagementDialogsBehavior: Story = {
     const shopSettingsDialog = await body.findByRole("dialog", { name: "店舗設定" });
     await userEvent.click(within(shopSettingsDialog).getByRole("button", { name: "閉じる" }));
     await waitFor(() => expect(body.queryByRole("dialog", { name: "店舗設定" })).not.toBeInTheDocument());
+  },
+};
+
+export const LegacyStaffDetailFallbackBehavior: Story = {
+  args: {
+    ...Normal.args,
+    staffs: mockStaffs.map((staff) =>
+      staff._id === mockStaffs[1]._id ? { ...staff, organizationPersonId: null } : staff,
+    ),
+  },
+  parameters: {
+    screenshot: { skip: true },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
 
     await userEvent.click(canvas.getByRole("button", { name: "佐藤花子のスタッフ詳細を開く" }));
     const staffDetailDialog = await body.findByRole("dialog", { name: "スタッフ詳細" });

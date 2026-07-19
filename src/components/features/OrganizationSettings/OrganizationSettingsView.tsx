@@ -15,10 +15,7 @@ export const OrganizationSettingsView = ({
   canInviteManager,
   managerInvitations,
   managerInvitationMode,
-  freeManagerExchangeCandidates,
   inviteManagerDisabledReason,
-  isUpdatingPersonProfile = false,
-  isAssigningManager = false,
   canUpdateOrganizationName,
   updateOrganizationNameDisabledReason,
   canAddShop,
@@ -70,15 +67,9 @@ export const OrganizationSettingsView = ({
           canInviteManager={canInviteManager}
           canOpenManagerInvitation={canInviteManager || managerInvitations.some((invitation) => invitation.canResend)}
           managerInvitationMode={managerInvitationMode}
-          freeManagerExchangeCandidates={freeManagerExchangeCandidates}
           inviteManagerDisabledReason={inviteManagerDisabledReason}
-          isUpdatingPersonProfile={isUpdatingPersonProfile}
-          isAssigningManager={isAssigningManager}
           onInviteManager={actions.onInviteManager}
-          onUpdatePersonProfile={actions.onUpdatePersonProfile}
-          onAssignManager={actions.onAssignManager}
-          onRemoveManagerRole={actions.onRemoveManagerRole}
-          onRemovePerson={actions.onRemovePerson}
+          onOpenUser={actions.onOpenUser}
         />
       </Tabs.Content>
 

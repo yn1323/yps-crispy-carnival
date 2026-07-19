@@ -1,5 +1,4 @@
 import type { ShopFormData } from "@/src/components/features/ShopForm";
-import type { PersonProfileFormData } from "@/src/components/shared/PersonProfileForm";
 import type { OrganizationContextModel } from "./OrganizationContext/script";
 
 export type OrganizationSettingsTab = "people" | "shops" | "billing" | "settings";
@@ -104,10 +103,7 @@ export type OrganizationSettingsActions = {
   onSelectOrganization: (shopId: string) => void;
   onUpdateOrganizationName: () => void;
   onInviteManager: () => void;
-  onUpdatePersonProfile: (personId: string, data: PersonProfileFormData) => Promise<boolean | undefined>;
-  onAssignManager: (personId: string) => Promise<boolean | undefined>;
-  onRemoveManagerRole: (personId: string) => void;
-  onRemovePerson: (personId: string) => void;
+  onOpenUser: (personId: string) => void;
   onAddShop: () => void;
   onOpenShop: (shopId: string) => void;
   onOpenShopSettings: (shopId: string) => void;
@@ -131,8 +127,6 @@ export type OrganizationSettingsViewProps = {
   managerInvitationMode: "addition" | "freeManagerExchange";
   freeManagerExchangeCandidates: Array<{ id: string; name: string; email: string }>;
   inviteManagerDisabledReason?: string;
-  isUpdatingPersonProfile?: boolean;
-  isAssigningManager?: boolean;
   canUpdateOrganizationName: boolean;
   updateOrganizationNameDisabledReason?: string;
   canAddShop: boolean;
