@@ -35,7 +35,8 @@ const createModel = (contextShops: readonly ShopContextOption[], selectedShopId:
 };
 
 const meta = {
-  title: "Features/OrganizationSettings/OrganizationContext",
+  id: "features-organizationsettings-organizationcontext",
+  title: "Features/OrganizationSettings/2. セクション/グループ切り替え",
   component: OrganizationContext,
   parameters: { layout: "padded" },
   decorators: [
@@ -56,13 +57,15 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const SingleOrganization: Story = {};
+export const SingleOrganization: Story = { name: "1グループ" };
 
 export const MultipleOrganizations: Story = {
+  name: "複数グループ",
   args: { model: createModel(shops, "shop-a-1") },
 };
 
 export const LongName: Story = {
+  name: "長いグループ名",
   args: {
     model: createModel(
       [
@@ -76,12 +79,14 @@ export const LongName: Story = {
 };
 
 export const MobileMultipleOrganizations: Story = {
+  name: "複数グループ・モバイル",
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
   args: { model: createModel(shops, "shop-a-1") },
 };
 
 export const SelectionBehavior: Story = {
+  name: "グループを切り替える（操作確認）",
   parameters: { screenshot: { skip: true } },
   render: () => <SelectionBehaviorStory />,
   play: async ({ canvasElement }) => {

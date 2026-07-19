@@ -22,7 +22,8 @@ const staffCandidates = [
 ];
 
 const meta = {
-  title: "Features/OrganizationSettings/ManagerInvitationDialog",
+  id: "features-organizationsettings-managerinvitationdialog",
+  title: "Features/OrganizationSettings/3. ダイアログ/管理者招待",
   component: ManagerInvitationDialog,
   parameters: { layout: "fullscreen" },
   args: {
@@ -39,17 +40,20 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Addition: Story = {};
+export const Addition: Story = { name: "既存スタッフから追加" };
 
 export const ManualInput: Story = {
+  name: "名前とメールを入力",
   args: { defaultTab: "external" },
 };
 
 export const NoEligibleStaff: Story = {
+  name: "招待できるスタッフなし",
   args: { staffCandidates: [] },
 };
 
 export const FreeManagerExchange: Story = {
+  name: "Freeの管理者交代",
   args: {
     managerInvitationMode: "freeManagerExchange",
     staffCandidates: staffCandidates.map((candidate) => ({ ...candidate, isResend: false })),
@@ -57,6 +61,7 @@ export const FreeManagerExchange: Story = {
 };
 
 export const FreeManualInputUnavailable: Story = {
+  name: "Freeの外部招待不可",
   args: {
     ...FreeManagerExchange.args,
     defaultTab: "external",
@@ -64,12 +69,14 @@ export const FreeManualInputUnavailable: Story = {
 };
 
 export const MobileFreeManagerExchange: Story = {
+  name: "Freeの管理者交代・モバイル",
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
   args: FreeManagerExchange.args,
 };
 
 export const SelectCurrentStaff: Story = {
+  name: "既存スタッフを選ぶ（操作確認）",
   parameters: { screenshot: { skip: true } },
   render: () => <InteractiveManagerInvitationDialog />,
   play: async ({ canvasElement }) => {
@@ -83,6 +90,7 @@ export const SelectCurrentStaff: Story = {
 };
 
 export const EnterNameAndEmail: Story = {
+  name: "名前とメールを入力（操作確認）",
   parameters: { screenshot: { skip: true } },
   render: () => <InteractiveManagerInvitationDialog />,
   play: async ({ canvasElement }) => {
@@ -98,6 +106,7 @@ export const EnterNameAndEmail: Story = {
 };
 
 export const FreeManagerExchangeConfirmationBehavior: Story = {
+  name: "Freeの管理者交代確認（操作確認）",
   parameters: { screenshot: { skip: true } },
   render: () => (
     <InteractiveManagerInvitationDialog
@@ -141,6 +150,7 @@ export const FreeManagerExchangeConfirmationBehavior: Story = {
 };
 
 export const FreeManagerExchangeResendConfirmationBehavior: Story = {
+  name: "Freeの管理者交代を再送（操作確認）",
   parameters: { screenshot: { skip: true } },
   render: () => <InteractiveManagerInvitationDialog managerInvitationMode="freeManagerExchange" />,
   play: async ({ canvasElement }) => {
@@ -163,6 +173,7 @@ export const FreeManagerExchangeResendConfirmationBehavior: Story = {
 };
 
 export const MobileFreeManagerExchangeConfirmationBehavior: Story = {
+  name: "Freeの管理者交代確認・モバイル（操作確認）",
   parameters: { screenshot: { skip: true } },
   globals: { viewport: { value: "mobile2", isRotated: false } },
   render: () => (

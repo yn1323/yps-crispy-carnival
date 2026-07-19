@@ -6,7 +6,8 @@ import { OrganizationDeletionDialog } from "./OrganizationDeletionDialog";
 const onSubmit = fn();
 
 const meta = {
-  title: "Features/OrganizationSettings/OrganizationDeletionDialog",
+  id: "features-organizationsettings-organizationdeletiondialog",
+  title: "Features/OrganizationSettings/3. ダイアログ/グループ削除",
   component: OrganizationDeletionDialog,
   parameters: { layout: "fullscreen" },
   args: {
@@ -20,9 +21,10 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Ready: Story = {};
+export const Ready: Story = { name: "削除前" };
 
 export const LongOrganizationName: Story = {
+  name: "長いグループ名",
   args: {
     dialog: {
       intentKey: "long-name",
@@ -31,9 +33,10 @@ export const LongOrganizationName: Story = {
   },
 };
 
-export const Running: Story = { args: { isRunning: true } };
+export const Running: Story = { name: "削除中", args: { isRunning: true } };
 
 export const ConfirmationBehavior: Story = {
+  name: "確認名を入力して削除（操作確認）",
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const screen = within(canvasElement.ownerDocument.body);
@@ -60,6 +63,7 @@ function ParentRerenderHarness(args: ComponentProps<typeof OrganizationDeletionD
 }
 
 export const ConfirmationSurvivesParentRerender: Story = {
+  name: "再描画後も入力を維持（操作確認）",
   parameters: { screenshot: { skip: true } },
   render: (args) => <ParentRerenderHarness {...args} />,
   play: async ({ canvasElement }) => {
@@ -76,6 +80,7 @@ export const ConfirmationSurvivesParentRerender: Story = {
 };
 
 export const Mobile: Story = {
+  name: "削除前・モバイル",
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
 };

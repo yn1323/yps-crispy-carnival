@@ -2,7 +2,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ShopManagementDialog } from "./ShopManagementDialog";
 
 const meta = {
-  title: "Features/OrganizationSettings/ShopManagementDialog",
+  id: "features-organizationsettings-shopmanagementdialog",
+  title: "Features/OrganizationSettings/3. ダイアログ/店舗追加",
   component: ShopManagementDialog,
   parameters: { layout: "fullscreen" },
   args: {
@@ -15,9 +16,10 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const AddShop: Story = {};
+export const AddShop: Story = { name: "通常" };
 
 export const MobileAddShop: Story = {
+  name: "通常・モバイル",
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
 };

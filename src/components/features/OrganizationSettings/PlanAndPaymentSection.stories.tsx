@@ -17,7 +17,8 @@ const billing: OrganizationBillingView = {
 };
 
 const meta = {
-  title: "Features/OrganizationSettings/PlanAndPaymentSection",
+  id: "features-organizationsettings-planandpaymentsection",
+  title: "Features/OrganizationSettings/2. セクション/プランと支払い",
   component: PlanAndPaymentSection,
   parameters: { layout: "padded" },
   args: {
@@ -32,9 +33,10 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const CurrentPlan: Story = {};
+export const CurrentPlan: Story = { name: "現在のプラン" };
 
 export const PaymentGrace: Story = {
+  name: "支払い猶予",
   args: {
     billing: {
       ...billing,
