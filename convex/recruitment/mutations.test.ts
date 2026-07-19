@@ -386,7 +386,7 @@ describe("recruitment/mutations", () => {
       ).rejects.toThrow("日付の形式が正しくありません");
     });
 
-    it("募集期間が62日を超える場合はエラー", async () => {
+    it("募集期間が31日を超える場合はエラー", async () => {
       const { t, shopId } = await setupShop();
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.recruitment.mutations.createRecruitment, {
@@ -396,10 +396,10 @@ describe("recruitment/mutations", () => {
           deadline: futureDate(3),
           shopClosedDates: [],
         }),
-      ).rejects.toThrow("募集期間は62日以内にしてください");
+      ).rejects.toThrow("募集期間は31日以内にしてください");
     });
 
-    it("募集期間が上限ちょうど62日なら作成できる", async () => {
+    it("募集期間が上限ちょうど31日なら作成できる", async () => {
       const { t, shopId } = await setupShop();
 
       await expect(

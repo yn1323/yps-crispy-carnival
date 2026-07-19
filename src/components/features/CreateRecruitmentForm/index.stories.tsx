@@ -124,7 +124,7 @@ export const FutureMonthsNavigation: Story = {
     await waitFor(() => expect(getDesktopMonthLabels(calendar).at(-1)).toBe(futurePeriodEnd.format("YYYY年M月")));
     await clickDate(root, futurePeriodEnd);
     await clickButton(root, "次へ");
-    await within(root).findByText("募集期間は62日以内にしてください");
+    await within(root).findByText("募集期間は31日以内にしてください");
     expect(within(root).getByText("シフト期間を選択")).toBeTruthy();
   },
 };
@@ -322,8 +322,20 @@ export const InteractiveNextMonthOnlyFlow: Story = {
     await clickButton(root, "次へ");
 
     await canvas.findByText("お店のお休みを選択");
-    expect(root.textContent).toContain(nextMonth.format("YYYY年M月"));
-    expect(root.textContent).not.toContain(followingMonth.format("YYYY年M月"));
+    expect(getDesktopMonthLabels(getCalendarRoot(root))).toEqual([nextMonth.format("YYYY年M月")]);
+
+    await clickButton(root, "戻る");
+    await canvas.findByText("シフト期間を選択");
+    await waitFor(() =>
+      expect(getDesktopMonthLabels(getCalendarRoot(root))).toEqual([
+        nextMonth.format("YYYY年M月"),
+        followingMonth.format("YYYY年M月"),
+      ]),
+    );
+
+    await clickButton(root, "次へ");
+    await canvas.findByText("お店のお休みを選択");
+    expect(getDesktopMonthLabels(getCalendarRoot(root))).toEqual([nextMonth.format("YYYY年M月")]);
     await clickButton(root, "次へ");
 
     await canvas.findByText("提出締切日を選択");
