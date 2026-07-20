@@ -66,6 +66,7 @@ export function UserShopAdditionDialog({
                 return (
                   <Button
                     key={shop.shopId}
+                    id={`user-shop-candidate-${shop.shopId}`}
                     variant="plain"
                     type="button"
                     aria-label={isCurrent ? `${shop.shopName}に追加中` : `${shop.shopName}に追加`}

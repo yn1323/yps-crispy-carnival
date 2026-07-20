@@ -1,16 +1,9 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { assertNotificationRecipientSuppressed } from "../helpers/notificationProbe";
+import { ShopDetailPage, type ShopSettingsEdit } from "./ShopDetailPage";
+import { UserDetailPage } from "./UserDetailPage";
 
 const JAPANESE_WEEKDAYS = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"] as const;
-const CLOSED_DAY_LABELS = {
-  sun: "日曜日",
-  mon: "月曜日",
-  tue: "火曜日",
-  wed: "水曜日",
-  thu: "木曜日",
-  fri: "金曜日",
-  sat: "土曜日",
-} as const;
 const DASHBOARD_DATA_TIMEOUT = 20_000;
 const SHIFT_BOARD_OPEN_BUTTON_NAME = /回収状況を見る|シフトを組む|シフトを見る/;
 const STAFF_ADDED_TOAST_TITLE = /スタッフを追加しました|スタッフを追加し、案内通知を送りました/;
@@ -19,15 +12,6 @@ const STAFF_REGISTRATION_APPROVED_TOAST_TITLE =
   /スタッフ登録申請を承認しました|スタッフ登録申請を承認し、案内通知を送りました/;
 const LINE_INVITE_SENT_TOAST_TITLE =
   /LINE連携URLをメールで送信しました|LINE連携リンクをメールで送信しました|LINE連携リンクをメールで送りました/;
-
-type RegularClosedDay = keyof typeof CLOSED_DAY_LABELS;
-type SubmissionPatternEdit =
-  | { kind: "dateOnly" }
-  | { kind: "time"; startTime: string; endTime: string }
-  | {
-      kind: "shiftType";
-      options: Array<{ name: string; startTime: string; endTime: string }>;
-    };
 
 type RecruitmentExpectations = {
   expectedHolidaySummary?: string;
@@ -253,44 +237,62 @@ export class DashboardPage {
     await expect(this.staffSection().getByText(name)).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
   }
 
+  async openUserDetail(staffName: string) {
+    const detail = await this.openStaffDetail(staffName);
+    if (detail.kind === "legacy") {
+      throw new Error(`${staffName}は組織ユーザー詳細へ移行されていません`);
+    }
+    return detail.user;
+  }
+
   async editStaff(staffName: string, newData: { name: string; email: string }) {
     assertNotificationRecipientSuppressed(newData.email);
-    await this.openStaffDetail(staffName);
-    const dialog = this.staffDetailDialog();
-    await expect(dialog).toBeVisible();
-    await dialog.getByRole("tab", { name: "情報" }).click();
+    const detail = await this.openStaffDetail(staffName);
+    if (detail.kind === "user") {
+      await detail.user.editProfile(newData);
+      await detail.user.returnToDashboard();
+      return;
+    }
+
+    await detail.dialog.getByRole("tab", { name: "情報" }).click();
     const form = this.page.locator("[id='edit-staff-form']");
     const nameInput = form.getByPlaceholder("例：田中 花子");
     const emailInput = form.getByPlaceholder("例：hanako@example.com");
-
     await nameInput.clear();
     await nameInput.fill(newData.name);
     await emailInput.clear();
     await emailInput.fill(newData.email);
-
-    await dialog.getByRole("button", { name: "変更を保存" }).click();
+    await detail.dialog.getByRole("button", { name: "変更を保存" }).click();
     await this.expectToastVisibleThenHidden("スタッフ情報を更新しました");
-    await dialog.getByRole("button", { name: "閉じる" }).click();
-    await expect(dialog).not.toBeVisible();
+    await this.closeLegacyStaffDialog(detail.dialog);
   }
 
   async deleteStaff(staffName: string) {
-    await this.openStaffDetail(staffName);
-    const dialog = this.staffDetailDialog();
-    await dialog.getByRole("tab", { name: "設定" }).click();
-    await dialog.getByRole("button", { name: "スタッフを削除" }).click();
-    await expect(dialog.getByText("この店舗のスタッフ所属を削除しますか？", { exact: true })).toBeVisible();
-    await dialog.getByRole("button", { name: "店舗から削除", exact: true }).click();
+    const detail = await this.openStaffDetail(staffName);
+    if (detail.kind === "user") {
+      await detail.user.removeFromShop();
+      await detail.user.returnToDashboard();
+      return;
+    }
+
+    await detail.dialog.getByRole("tab", { name: "設定" }).click();
+    await detail.dialog.getByRole("button", { name: "スタッフを削除" }).click();
+    await expect(detail.dialog.getByText("この店舗のスタッフ所属を削除しますか？", { exact: true })).toBeVisible();
+    await detail.dialog.getByRole("button", { name: "店舗から削除", exact: true }).click();
     await this.expectToastVisibleThenHidden("この店舗のスタッフ所属を削除しました");
   }
 
   async setStaffShiftTarget(staffName: string, isShiftTarget: boolean) {
-    await this.openStaffDetail(staffName);
-    const dialog = this.staffDetailDialog();
-    await expect(dialog).toBeVisible();
-    await dialog.getByRole("tab", { name: "設定" }).click();
+    const detail = await this.openStaffDetail(staffName);
+    if (detail.kind === "user") {
+      await detail.user.setShiftTarget(isShiftTarget);
+      await detail.user.returnToDashboard();
+      return;
+    }
 
-    const shiftTargetSwitch = dialog.getByRole("checkbox", { name: /シフト対象/ });
+    await detail.dialog.getByRole("tab", { name: "設定" }).click();
+
+    const shiftTargetSwitch = detail.dialog.getByRole("checkbox", { name: /シフト対象/ });
     await expect(shiftTargetSwitch).toBeVisible();
     if ((await shiftTargetSwitch.isChecked()) !== isShiftTarget) {
       await shiftTargetSwitch.press("Space");
@@ -298,28 +300,35 @@ export class DashboardPage {
       await expect(shiftTargetSwitch).toBeChecked({ checked: isShiftTarget });
     }
 
-    await dialog.getByRole("button", { name: "閉じる" }).click();
-    await expect(dialog).not.toBeVisible();
+    await this.closeLegacyStaffDialog(detail.dialog);
   }
 
   async sendOpenRecruitmentNotification(staffName: string) {
-    await this.openStaffDetail(staffName);
-    const dialog = this.staffDetailDialog();
-    await dialog.getByRole("tab", { name: "通知" }).click();
-    await dialog.getByRole("button", { name: "募集中のシフトを送る" }).click();
+    const detail = await this.openStaffDetail(staffName);
+    if (detail.kind === "user") {
+      await detail.user.sendOpenRecruitmentNotification();
+      await detail.user.returnToDashboard();
+      return;
+    }
+
+    await detail.dialog.getByRole("tab", { name: "通知" }).click();
+    await detail.dialog.getByRole("button", { name: "募集中のシフトを送る" }).click();
     await this.expectToastVisibleThenHidden("シフト募集通知を送りました");
-    await dialog.getByRole("button", { name: "閉じる" }).click();
-    await expect(dialog).not.toBeVisible();
+    await this.closeLegacyStaffDialog(detail.dialog);
   }
 
   async sendCurrentShiftNotification(staffName: string) {
-    await this.openStaffDetail(staffName);
-    const dialog = this.staffDetailDialog();
-    await dialog.getByRole("tab", { name: "通知" }).click();
-    await dialog.getByRole("button", { name: "確定シフトを送る" }).click();
+    const detail = await this.openStaffDetail(staffName);
+    if (detail.kind === "user") {
+      await detail.user.sendCurrentShiftNotification();
+      await detail.user.returnToDashboard();
+      return;
+    }
+
+    await detail.dialog.getByRole("tab", { name: "通知" }).click();
+    await detail.dialog.getByRole("button", { name: "確定シフトを送る" }).click();
     await this.expectToastVisibleThenHidden("現在の確定シフトを送りました");
-    await dialog.getByRole("button", { name: "閉じる" }).click();
-    await expect(dialog).not.toBeVisible();
+    await this.closeLegacyStaffDialog(detail.dialog);
   }
 
   async deleteRecruitment() {
@@ -344,20 +353,33 @@ export class DashboardPage {
   }
 
   async openLineQr(staffName: string) {
-    await this.openStaffDetail(staffName);
-    const dialog = this.staffDetailDialog();
-    await dialog.getByRole("tab", { name: "LINE" }).click();
-    await dialog.getByRole("button", { name: "LINE連携リンクを表示" }).click();
-    await expect(dialog.getByText(`${staffName}さんにLINE連携リンクを共有してください。`)).toBeVisible();
+    const detail = await this.openStaffDetail(staffName);
+    if (detail.kind === "user") {
+      await detail.user.openLineQr();
+      return;
+    }
+
+    await detail.dialog.getByRole("tab", { name: "LINE" }).click();
+    await detail.dialog.getByRole("button", { name: "LINE連携リンクを表示" }).click();
+    await expect(detail.dialog.getByRole("img", { name: "LINE連携用QRコード" })).toBeVisible({
+      timeout: DASHBOARD_DATA_TIMEOUT,
+    });
+    await expect(detail.dialog.getByTitle(/^https:\/\//)).toBeVisible();
+    await expect(detail.dialog.getByRole("button", { name: "リンクをコピー" })).toBeVisible();
   }
 
   async sendLineInvite(staffName: string) {
-    await this.openStaffDetail(staffName);
-    const dialog = this.staffDetailDialog();
-    await expect(dialog).toBeVisible();
-    await dialog.getByRole("tab", { name: "LINE" }).click();
-    await dialog.getByRole("button", { name: "メールでLINE連携リンクを送る" }).click();
-    await expect(this.page.getByText(LINE_INVITE_SENT_TOAST_TITLE).first()).toBeVisible();
+    const detail = await this.openStaffDetail(staffName);
+    if (detail.kind === "user") {
+      await detail.user.sendLineInvite();
+      await detail.user.returnToDashboard();
+      return;
+    }
+
+    await detail.dialog.getByRole("tab", { name: "LINE" }).click();
+    await detail.dialog.getByRole("button", { name: "メールでLINE連携リンクを送る" }).click();
+    await this.expectToastVisibleThenHidden(LINE_INVITE_SENT_TOAST_TITLE);
+    await this.closeLegacyStaffDialog(detail.dialog);
   }
 
   async expectStaffNotVisible(name: string) {
@@ -424,66 +446,11 @@ export class DashboardPage {
       .or(this.page.getByRole("button", { name: /回収状況を見る|シフトを組む/ }));
   }
 
-  async editShopSettings(data: {
-    shopName?: string;
-    shiftStartTime?: string;
-    shiftEndTime?: string;
-    submissionPattern?: SubmissionPatternEdit;
-    regularClosedDays?: RegularClosedDay[];
-  }) {
-    const settingsMenuButton = this.page.getByRole("button", { name: "設定メニューを開く" });
-    await expect(settingsMenuButton).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
-    await settingsMenuButton.click();
-    await this.page.getByRole("menuitem", { name: "店舗設定" }).click({ noWaitAfter: true });
-    const dialog = this.page.getByRole("dialog", { name: "店舗設定" });
-    await expect(dialog).toBeVisible();
-
-    if (data.shopName !== undefined) {
-      const nameInput = dialog.getByLabel(/店舗名|お店の名前/);
-      await nameInput.clear();
-      await nameInput.fill(data.shopName);
-    }
-
-    await dialog.getByRole("button", { name: "次へ" }).click();
-
-    const legacyTimePattern =
-      data.shiftStartTime !== undefined || data.shiftEndTime !== undefined
-        ? {
-            kind: "time" as const,
-            startTime: data.shiftStartTime ?? "09:00",
-            endTime: data.shiftEndTime ?? "22:00",
-          }
-        : undefined;
-    const submissionPattern = data.submissionPattern ?? legacyTimePattern;
-    if (submissionPattern) {
-      const patternLabel =
-        submissionPattern.kind === "dateOnly"
-          ? /^日ごと/
-          : submissionPattern.kind === "shiftType"
-            ? /^勤務区分/
-            : /^時間指定/;
-      await dialog.getByRole("button", { name: patternLabel }).click();
-    }
-    await dialog.getByRole("button", { name: "次へ" }).click();
-
-    if (submissionPattern?.kind === "time") {
-      await this.selectTime("シフト開始時間", submissionPattern.startTime);
-      await this.selectTime("シフト終了時間", submissionPattern.endTime);
-    } else if (submissionPattern?.kind === "shiftType") {
-      await this.configureShiftTypeOptions(dialog, submissionPattern.options);
-    }
-
-    const nextButton = dialog.getByRole("button", { name: "次へ" });
-    if (await nextButton.isVisible()) {
-      await nextButton.click();
-    }
-
-    if (data.regularClosedDays) {
-      await this.setRegularClosedDays(dialog, data.regularClosedDays);
-    }
-
-    await dialog.getByRole("button", { name: /保存する|変更を保存/ }).click();
-    await expect(this.page.getByText("店舗設定を更新しました")).toBeVisible();
+  async editShopSettings(data: ShopSettingsEdit) {
+    const shopDetail = new ShopDetailPage(this.page);
+    await shopDetail.openFromDashboard();
+    await shopDetail.editSettings(data);
+    await shopDetail.returnToDashboard();
   }
 
   async expectShopName(name: string) {
@@ -537,21 +504,10 @@ export class DashboardPage {
   }
 
   async expectShopTimeRange(timeRange: string) {
-    const [startTime, endTime] = timeRange.split("〜");
-    if (!startTime || !endTime) throw new Error(`Invalid time range: ${timeRange}`);
-
-    await this.page.getByRole("button", { name: "設定メニューを開く" }).click();
-    await this.page.getByRole("menuitem", { name: "店舗設定" }).click({ noWaitAfter: true });
-    const dialog = this.page.getByRole("dialog", { name: "店舗設定" });
-    await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "次へ" }).click();
-    await dialog.getByRole("button", { name: "次へ" }).click();
-
-    await expect(dialog.getByRole("combobox", { name: "シフト開始時間" })).toContainText(startTime);
-    await expect(dialog.getByRole("combobox", { name: "シフト終了時間" })).toContainText(endTime);
-
-    await dialog.getByRole("button", { name: "閉じる" }).click();
-    await expect(dialog).not.toBeVisible();
+    const shopDetail = new ShopDetailPage(this.page);
+    await shopDetail.openFromDashboard();
+    await shopDetail.expectTimeRange(timeRange);
+    await shopDetail.returnToDashboard();
   }
 
   async clickShowAllStaffs() {
@@ -570,7 +526,9 @@ export class DashboardPage {
   }
 
   async expectStaffRowCount(count: number) {
-    await expect(this.staffSection().getByRole("button", { name: /のスタッフ詳細を開く/ })).toHaveCount(count);
+    await expect(this.staffSection().getByRole("button", { name: /の(?:ユーザー|スタッフ)詳細を開く$/ })).toHaveCount(
+      count,
+    );
   }
 
   async expectStaffShiftExcludedBadge(staffName: string, isVisible: boolean) {
@@ -625,54 +583,43 @@ export class DashboardPage {
   }
 
   private async openStaffDetail(staffName: string) {
+    const contextShopName = (await this.page.getByRole("heading", { level: 1 }).first().textContent())?.trim();
+    const contextShopId = new URL(this.page.url()).searchParams.get("shop");
     await this.staffRow(staffName).click({ noWaitAfter: true });
+    const legacyDialog = this.staffDetailDialog();
+    const kind = await Promise.any([
+      this.page.waitForURL(/\/users\/[^/?]+/, { timeout: DASHBOARD_DATA_TIMEOUT }).then(() => "user" as const),
+      legacyDialog.waitFor({ state: "visible", timeout: DASHBOARD_DATA_TIMEOUT }).then(() => "legacy" as const),
+    ]);
+
+    if (kind === "user") {
+      const contextShop = contextShopId && contextShopName ? { id: contextShopId, name: contextShopName } : undefined;
+      const user = new UserDetailPage(this.page, staffName, contextShop);
+      await user.expectLoaded();
+      return { kind, user } as const;
+    }
+
+    return { kind, dialog: legacyDialog } as const;
   }
 
   private staffRow(staffName: string) {
-    return this.staffSection().getByRole("button", { name: `${staffName}のスタッフ詳細を開く` });
+    return this.staffSection()
+      .getByRole("button", { name: `${staffName}のユーザー詳細を開く` })
+      .or(this.staffSection().getByRole("button", { name: `${staffName}のスタッフ詳細を開く` }));
   }
 
   // 同名オプションが複数Select間で重複するため、listbox にスコープして選択
   private async selectTime(label: string, value: string) {
-    await this.selectTimeByIndex(label, value, 0);
-  }
-
-  private async selectTimeByIndex(label: string, value: string, index: number) {
-    // Chakra Select は同じ時刻 option が複数のlistboxに出るため、開いたcomboboxのラベルでスコープする。
-    await this.page.getByRole("combobox", { name: label }).nth(index).click();
+    await this.page.getByRole("combobox", { name: label }).click();
     await this.page
       .getByRole("listbox", { name: label })
       .getByRole("option", { name: value, exact: true })
       .click({ noWaitAfter: true });
   }
 
-  private async configureShiftTypeOptions(
-    dialog: Locator,
-    options: Array<{ name: string; startTime: string; endTime: string }>,
-  ) {
-    while ((await dialog.getByLabel("区分名").count()) < options.length) {
-      await dialog.getByRole("button", { name: "勤務区分を追加" }).click();
-    }
-
-    for (let index = 0; index < options.length; index++) {
-      const option = options[index];
-      const nameInput = dialog.getByLabel("区分名").nth(index);
-      await nameInput.clear();
-      await nameInput.fill(option.name);
-      await this.selectTimeByIndex("開始", option.startTime, index);
-      await this.selectTimeByIndex("終了", option.endTime, index);
-    }
-  }
-
-  private async setRegularClosedDays(dialog: Locator, days: RegularClosedDay[]) {
-    const daySet = new Set(days);
-    for (const [day, label] of Object.entries(CLOSED_DAY_LABELS) as Array<[RegularClosedDay, string]>) {
-      const button = dialog.getByRole("button", { name: new RegExp(`^${label}を`) });
-      const isPressed = (await button.getAttribute("aria-pressed")) === "true";
-      if (daySet.has(day) !== isPressed) {
-        await button.click();
-      }
-    }
+  private async closeLegacyStaffDialog(dialog: Locator) {
+    await dialog.getByRole("button", { name: "閉じる" }).first().click();
+    await expect(dialog).not.toBeVisible();
   }
 
   private async selectCalendarDate(scope: Locator, date: string) {

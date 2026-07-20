@@ -22,7 +22,7 @@ const projectWallSpans = new Map();
 const requiredProjectMinimums = new Map([
   ["setup", 6],
   ["multi-actor-chromium", 6],
-  ["desktop-chromium", 64],
+  ["desktop-chromium", 65],
   ["mobile-chrome", 1],
 ]);
 const requiredE2EUserIndexes = new Set([0, 1, 2, 3, 4, 5]);
@@ -61,6 +61,7 @@ const requiredScenarioSuites = [
   "scenarios/staff-registration-review.test.ts",
   "scenarios/staff-shift-submission.test.ts",
   "scenarios/staff-shift-target-impact.test.ts",
+  "scenarios/user-shop-membership-flow.test.ts",
 ];
 const requiredContractCoverage = [
   {
@@ -105,6 +106,7 @@ const requiredContractCoverage = [
     project: "desktop-chromium",
   },
   { id: "MS-P0-03", file: "scenarios/shop-deletion-flow.test.ts", project: "desktop-chromium" },
+  { id: "MS-P0-04", file: "scenarios/user-shop-membership-flow.test.ts", project: "desktop-chromium" },
   {
     id: "REG-P0-01",
     file: "scenarios/shop-settings-submission-pattern-flow.test.ts",

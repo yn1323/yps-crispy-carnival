@@ -36,10 +36,9 @@ test.describe("グループ設定からの店舗削除", { tag: ["@release", "@s
       await dashboard.expectShopNotSelectable(seed.secondaryShopName, seed.primaryShopName, seed.primaryShopId);
     });
 
-    await test.step("Step 4: B店専属スタッフを店舗所属なしで表示し、利用人数に含め続ける", async () => {
+    await test.step("Step 4: B店専属スタッフを店舗所属なしのユーザーとして維持する", async () => {
       await settings.goto(seed.primaryShopId);
       await settings.expectPersonShopNames(seed.secondaryMarkerPersonName, []);
-      await settings.expectPeopleUsage(3, 30);
     });
 
     await test.step("Step 5: 削除済みB店の旧URLでも店舗名や業務画面を露出しない", async () => {

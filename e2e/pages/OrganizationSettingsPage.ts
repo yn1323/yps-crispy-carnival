@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from "@playwright/test";
+import { UserDetailPage } from "./UserDetailPage";
 
 const SETTINGS_DATA_TIMEOUT = 20_000;
 
@@ -47,7 +48,7 @@ export class OrganizationSettingsPage {
     const dialog = this.page.getByRole("dialog", { name: "新しい管理者を招待" });
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: `${personName}を選択` }).click();
-    await dialog.getByRole("button", { name: "ログイン案内を送る" }).click();
+    await dialog.getByRole("button", { name: "管理者招待を送る" }).click();
     await this.expectToast("ログイン案内を送りました");
     await expect(dialog).not.toBeVisible();
   }
@@ -86,7 +87,7 @@ export class OrganizationSettingsPage {
     await dialog.getByRole("tab", { name: "名前・メールを入力" }).click();
     await dialog.getByLabel("名前").fill(person.name);
     await dialog.getByLabel("メールアドレス").fill(person.email);
-    await dialog.getByRole("button", { name: "ログイン案内を送る" }).click();
+    await dialog.getByRole("button", { name: "管理者招待を送る" }).click();
     await this.expectToast("ログイン案内を送りました");
     await expect(dialog).not.toBeVisible();
   }
@@ -103,10 +104,7 @@ export class OrganizationSettingsPage {
     await this.openPeopleTab();
     const row = this.personRow(personName);
     await expect(row).toBeVisible({ timeout: SETTINGS_DATA_TIMEOUT });
-    await expect(row.getByText(shopNames.join("、") || "店舗所属なし", { exact: true })).toBeVisible();
-    if (shopNames.length === 0) {
-      await expect(row.getByText("店舗未所属", { exact: true })).toBeVisible();
-    }
+    await expect(row.getByText(shopNames.join("、") || "なし", { exact: true })).toBeVisible();
   }
 
   async expectPeopleUsage(current: number, max: number) {
@@ -116,34 +114,20 @@ export class OrganizationSettingsPage {
   }
 
   async expectPersonRole(personName: string, role: "管理者" | "スタッフ") {
-    const dialog = await this.openPerson(personName);
-    await expect(dialog.getByText(role, { exact: true }).first()).toBeVisible();
-    await dialog.getByRole("button", { name: "閉じる" }).first().click();
-    await expect(dialog).not.toBeVisible();
+    const detail = await this.openUser(personName);
+    await detail.expectRole(role);
+    await detail.returnToSettings();
   }
 
   async removeManagerRole(personName: string) {
-    const detail = await this.openPerson(personName);
-    await detail.getByRole("tab", { name: "設定" }).click();
-    await detail.getByRole("button", { name: "管理者権限を外す" }).click();
-    const confirmation = this.page.getByRole("alertdialog", { name: "管理者権限を外す" });
-    await expect(confirmation).toBeVisible();
-    await expect(confirmation.getByText(/スタッフとしての店舗所属と業務用アクセスは維持します/)).toBeVisible();
-    await confirmation.getByRole("button", { name: "管理者権限を外す" }).click();
-    await this.expectToast("管理者権限を外しました");
-    await expect(confirmation).not.toBeVisible();
+    const detail = await this.openUser(personName);
+    await detail.removeManagerRole();
+    await detail.returnToSettings();
   }
 
   async removePerson(personName: string) {
-    const detail = await this.openPerson(personName);
-    await detail.getByRole("tab", { name: "設定" }).click();
-    await detail.getByRole("button", { name: "グループから削除" }).click();
-    const confirmation = this.page.getByRole("alertdialog", { name: "グループから利用者を削除" });
-    await expect(confirmation).toBeVisible();
-    await expect(confirmation.getByText(/ほかのグループへの所属には影響しません/)).toBeVisible();
-    await confirmation.getByRole("button", { name: "グループから削除" }).click();
-    await this.expectToast("利用者をグループから削除しました");
-    await expect(confirmation).not.toBeVisible();
+    const detail = await this.openUser(personName);
+    await detail.removeFromOrganization();
   }
 
   async addShop(shopName: string) {
@@ -238,12 +222,12 @@ export class OrganizationSettingsPage {
     await Promise.all([this.page.waitForURL(destination, { timeout: SETTINGS_DATA_TIMEOUT }), submit.click()]);
   }
 
-  private async openPerson(personName: string): Promise<Locator> {
+  async openUser(personName: string) {
     await this.openPeopleTab();
     await this.personRow(personName).click();
-    const dialog = this.page.getByRole("dialog", { name: "ユーザー詳細" });
-    await expect(dialog).toBeVisible();
-    return dialog;
+    const detail = new UserDetailPage(this.page, personName);
+    await detail.expectLoaded();
+    return detail;
   }
 
   private async openShop(shopName: string): Promise<Locator> {

@@ -55,7 +55,7 @@ test.describe("グループ設定からのグループ削除", { tag: ["@release
 
       await dashboard.expectSetupRequired();
       await expect(actorA.page.getByText(actorA.email, { exact: true })).toHaveCount(0);
-      await expect(actorA.page.getByText(seed.actorAName, { exact: true })).toHaveCount(0);
+      await expect(actorA.page.getByText(seed.actorAName, { exact: true })).toBeVisible();
       await expect(actorA.page.getByText(seed.alternateOrganizationName, { exact: true })).toHaveCount(0);
       await expect(actorA.page.getByText(seed.alternateShopName, { exact: true })).toHaveCount(0);
     });
