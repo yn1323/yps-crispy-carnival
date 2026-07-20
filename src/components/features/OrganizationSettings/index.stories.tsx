@@ -400,7 +400,7 @@ export const Trial: Story = {
       currentPlan: "trial",
       peopleUsage: { current: 12, max: 30 },
       shopUsage: { current: 3, max: 5 },
-      nextEvent: { label: "無料体験終了", date: "2026年9月1日" },
+      nextEvent: { label: "無料体験終了", date: "2026年8月31日" },
       paymentMethodLabel: undefined,
       invoices: [],
     }),
@@ -640,6 +640,11 @@ export const Restricted: Story = {
       blockedReason: "Freeの利用人数と店舗数を超えています。ユーザーまたは店舗を削除してから再確認してください。",
       nextEvent: undefined,
       paymentMethodLabel: "Visa •••• 4242（支払い失敗）",
+      invoices: [
+        { id: "invoice-july", issuedAt: "2026年7月31日", status: "open" },
+        { id: "invoice-june", issuedAt: "2026年6月30日", status: "paid" },
+        { id: "invoice-may", issuedAt: "2026年5月31日", status: "paid" },
+      ],
     }),
   },
 };
@@ -673,8 +678,8 @@ export const ScheduledPro: Story = {
 
 export const MobileRestricted: Story = {
   name: "プランと支払い｜契約制限・モバイル",
-  tags: ["vrt-mobile2"],
-  globals: { viewport: { value: "mobile2", isRotated: false } },
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
   args: Restricted.args,
 };
 
