@@ -8,7 +8,10 @@ import { mdxPlugin } from "./vite/mdxPlugin";
 export default defineConfig({
   plugins: [
     mdxPlugin(),
-    tanstackRouter({ autoCodeSplitting: true }),
+    tanstackRouter({
+      autoCodeSplitting: true,
+      routeFileIgnorePattern: "\\.test\\.[jt]sx?$",
+    }),
     viteReact({ include: /\.(js|jsx|mdx|ts|tsx)$/ }),
     tsconfigPaths(),
   ],
