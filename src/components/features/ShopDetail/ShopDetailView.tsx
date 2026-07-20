@@ -1,8 +1,8 @@
-import { Alert, Box, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
+import { Box, HStack, Skeleton, Stack } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
-import { LuChevronLeft } from "react-icons/lu";
 import { ShopForm, type ShopFormData } from "@/src/components/features/ShopForm";
-import { IconButton } from "@/src/components/ui/Button";
+import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
+import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
 import { ShopBasicInformationSection } from "./ShopBasicInformationSection";
 import { ShopDeletionDialog } from "./ShopDeletionDialog";
@@ -46,25 +46,13 @@ export function ShopDetailView({
 
   return (
     <Stack gap={{ base: 4, md: 6 }}>
-      <HStack gap={2} minW={0}>
-        <IconButton aria-label="前の画面に戻る" variant="ghost" size="sm" onClick={onBack}>
-          <LuChevronLeft aria-hidden />
-        </IconButton>
-        <Text as="h1" textStyle={{ base: "sectionTitle", md: "pageTitle" }} color="gray.900">
-          店舗詳細
-        </Text>
-      </HStack>
+      <DetailPageHeader title="店舗詳細" onBack={onBack} />
 
       {!shop.canUpdateSettings && (
-        <Alert.Root status="warning" borderRadius="xl" alignItems="flex-start">
-          <Alert.Indicator mt={1} />
-          <Alert.Content>
-            <Alert.Title>店舗情報は閲覧のみです</Alert.Title>
-            <Alert.Description>
-              {shop.settingsDisabledReason ?? "現在、この店舗の情報を変更できません。"}
-            </Alert.Description>
-          </Alert.Content>
-        </Alert.Root>
+        <ReadOnlyNotice
+          title="店舗情報は閲覧のみです"
+          description={shop.settingsDisabledReason ?? "現在、この店舗の情報を変更できません。"}
+        />
       )}
 
       <ShopBasicInformationSection shop={shop} onEdit={settingsDialog.open} />

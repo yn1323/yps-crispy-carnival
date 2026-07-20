@@ -1,6 +1,7 @@
 import { Box, Flex, Heading, HStack, Stack, Switch, Text, VisuallyHidden } from "@chakra-ui/react";
 import { useEffect, useId, useRef } from "react";
 import { LuShieldMinus, LuShieldPlus, LuTrash2 } from "react-icons/lu";
+import { DeletionActionSection } from "@/src/components/shared/DeletionActionSection";
 import { ManagerAssignmentConfirmation } from "@/src/components/shared/ManagerAssignmentConfirmation";
 import { Button } from "@/src/components/ui/Button";
 import type { UserDetailData, UserDetailMembership } from "./types";
@@ -164,6 +165,7 @@ export function UserManagerSettings({
 export function UserGroupRemovalSection({
   personName,
   isDisabled,
+  disabledReason,
   isConfirmationOpen,
   isRemoving,
   onRequestRemovePerson,
@@ -172,43 +174,36 @@ export function UserGroupRemovalSection({
 }: {
   personName: string;
   isDisabled: boolean;
+  disabledReason?: string;
   isConfirmationOpen: boolean;
   isRemoving: boolean;
   onRequestRemovePerson: () => void;
   onCancelRemovePerson: () => void;
   onConfirmRemovePerson: () => void | Promise<void>;
 }) {
+  const disabledReasonId = disabledReason ? "user-detail-group-removal-disabled-reason" : undefined;
+
   return (
-    <Box as="section" borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
-      <Box p={{ base: 4, md: 5 }}>
-        <Stack gap={4}>
-          <Stack gap={1}>
-            <Heading as="h2" fontSize="md" fontWeight="semibold" color="red.700">
-              ユーザーを削除する
-            </Heading>
-            <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-              このグループからユーザーを削除します。ほかのグループへの所属には影響しません。この操作は元に戻せません。
-            </Text>
-          </Stack>
-          <Flex justify="flex-end">
-            <Button colorPalette="red" variant="solid" gap={1.5} disabled={isDisabled} onClick={onRequestRemovePerson}>
-              <LuTrash2 aria-hidden />
-              削除
-            </Button>
-          </Flex>
-          {isConfirmationOpen && (
-            <InlineDestructiveConfirmation
-              title={`${personName}さんをグループから削除しますか？`}
-              description="このグループのすべての店舗所属、管理権限、スタッフ権限、閲覧権限を終了します。ほかのグループへの所属には影響しません。過去のシフト履歴は保持します。この操作は元に戻せません。"
-              confirmLabel="グループから削除"
-              isLoading={isRemoving}
-              onCancel={onCancelRemovePerson}
-              onConfirm={onConfirmRemovePerson}
-            />
-          )}
-        </Stack>
-      </Box>
-    </Box>
+    <DeletionActionSection
+      title="ユーザーを削除する"
+      description="このグループからユーザーを削除します。ほかのグループへの所属には影響しません。この操作は元に戻せません。"
+      actionLabel="削除"
+      canDelete={!isDisabled}
+      disabledReason={disabledReason}
+      disabledReasonId={disabledReasonId}
+      onDelete={onRequestRemovePerson}
+    >
+      {isConfirmationOpen && (
+        <InlineDestructiveConfirmation
+          title={`${personName}さんをグループから削除しますか？`}
+          description="このグループのすべての店舗所属、管理権限、スタッフ権限、閲覧権限を終了します。ほかのグループへの所属には影響しません。過去のシフト履歴は保持します。この操作は元に戻せません。"
+          confirmLabel="グループから削除"
+          isLoading={isRemoving}
+          onCancel={onCancelRemovePerson}
+          onConfirm={onConfirmRemovePerson}
+        />
+      )}
+    </DeletionActionSection>
   );
 }
 

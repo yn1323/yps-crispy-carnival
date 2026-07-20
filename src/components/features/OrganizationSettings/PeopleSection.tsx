@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { LuChevronDown, LuMailPlus, LuUsers } from "react-icons/lu";
 import { OrganizationPersonRow } from "@/src/components/shared/OrganizationPersonRow";
 import { Button } from "@/src/components/ui/Button";
+import { Empty } from "@/src/components/ui/Empty";
 import { useScrollToListItem } from "@/src/hooks/useScrollToListItem";
 import { DEFAULT_USER_LIST_COUNT, USER_LIST_PAGE_SIZE } from "@/src/lib/userListSearch";
 import type { OrganizationPersonView } from "./types";
@@ -90,9 +91,7 @@ export const PeopleSection = ({
       )}
 
       {visiblePeople.length === 0 ? (
-        <Box borderWidth="1px" borderStyle="dashed" borderRadius="xl" p={5} textAlign="center">
-          <Text color="fg.muted">グループのユーザーはいません。</Text>
-        </Box>
+        <Empty icon={LuUsers} title="グループのユーザーはいません。" titleAs="h3" variant="section" py={6} />
       ) : (
         <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.100" overflow="hidden">
           <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">

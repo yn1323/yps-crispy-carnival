@@ -2,6 +2,7 @@ import { Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import { LuPlus, LuStore } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { DrilldownRow } from "@/src/components/ui/DrilldownRow";
+import { Empty } from "@/src/components/ui/Empty";
 import type { OrganizationShopView } from "./types";
 
 type Props = {
@@ -42,9 +43,7 @@ export const ShopsSection = ({ shops, canAddShop, addShopDisabledReason, onAddSh
     )}
 
     {shops.length === 0 ? (
-      <Box borderWidth="1px" borderStyle="dashed" borderRadius="xl" p={6} textAlign="center" color="fg.muted">
-        登録されている店舗はありません。
-      </Box>
+      <Empty icon={LuStore} title="登録されている店舗はありません。" titleAs="h3" variant="section" py={6} />
     ) : (
       <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.100" overflow="hidden">
         <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">

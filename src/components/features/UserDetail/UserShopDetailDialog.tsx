@@ -1,5 +1,6 @@
-import { Alert, Box, Stack } from "@chakra-ui/react";
+import { Box, Stack } from "@chakra-ui/react";
 import type { ReactNode } from "react";
+import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
 import { Dialog } from "@/src/components/ui/Dialog";
 import type { UserDetailData, UserDetailMembership, UserDetailRecruitment } from "./types";
 import { UserLineTab } from "./UserLineTab";
@@ -85,13 +86,7 @@ export function UserShopDetailDialog({
     >
       <Stack gap={5}>
         {storeDisabledReason && (
-          <Alert.Root status="warning" borderRadius="lg" alignItems="flex-start">
-            <Alert.Indicator mt={1} />
-            <Alert.Content>
-              <Alert.Title>この店舗は閲覧のみです</Alert.Title>
-              <Alert.Description>{storeDisabledReason}</Alert.Description>
-            </Alert.Content>
-          </Alert.Root>
+          <ReadOnlyNotice title="この店舗は閲覧のみです" description={storeDisabledReason} borderRadius="lg" />
         )}
 
         <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">

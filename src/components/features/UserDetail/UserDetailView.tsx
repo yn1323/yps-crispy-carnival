@@ -1,9 +1,11 @@
-import { Alert, Box, Flex, HStack, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Stack, Text } from "@chakra-ui/react";
 import type { ReactNode } from "react";
-import { LuChevronLeft, LuPlus, LuUserRound } from "react-icons/lu";
+import { LuPlus, LuUserRound } from "react-icons/lu";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { PersonProfileFormData } from "@/src/components/shared/PersonProfileForm";
-import { Button, IconButton } from "@/src/components/ui/Button";
+import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
+import { Button } from "@/src/components/ui/Button";
+import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import { DrilldownRow } from "@/src/components/ui/DrilldownRow";
 import type { UserDetailData, UserDetailDialog, UserDetailPanel, UserDetailRecruitment } from "./types";
 import { UserInformationDialog } from "./UserInformationDialog";
@@ -92,27 +94,15 @@ export function UserDetailView({
 
   return (
     <Stack gap={{ base: 4, md: 6 }}>
-      <HStack gap={2} minW={0}>
-        <IconButton aria-label="前の画面に戻る" variant="ghost" size="sm" onClick={actions.onBack}>
-          <LuChevronLeft aria-hidden />
-        </IconButton>
-        <Text as="h1" textStyle={{ base: "sectionTitle", md: "pageTitle" }} color="gray.900">
-          ユーザー詳細
-        </Text>
-      </HStack>
+      <DetailPageHeader title="ユーザー詳細" onBack={actions.onBack} />
 
       <UserSummary data={data} />
 
       {!data.canWrite && (
-        <Alert.Root status="warning" borderRadius="xl" alignItems="flex-start">
-          <Alert.Indicator mt={1} />
-          <Alert.Content>
-            <Alert.Title>グループ情報は閲覧のみです</Alert.Title>
-            <Alert.Description>
-              {data.writeDisabledReason ?? "現在、このグループの情報を変更できません。"}
-            </Alert.Description>
-          </Alert.Content>
-        </Alert.Root>
+        <ReadOnlyNotice
+          title="グループ情報は閲覧のみです"
+          description={data.writeDisabledReason ?? "現在、このグループの情報を変更できません。"}
+        />
       )}
 
       <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
@@ -154,6 +144,11 @@ export function UserDetailView({
       <UserGroupRemovalSection
         personName={data.person.name}
         isDisabled={data.shops.length === 0 || (!data.canWrite && !data.canRemove)}
+        disabledReason={
+          data.shops.length === 0
+            ? "操作できる店舗がないため、このユーザーを削除できません。"
+            : data.removeDisabledReason
+        }
         isConfirmationOpen={state.manager.dialog?.kind === "removePerson"}
         isRemoving={state.manager.isRemoving}
         onRequestRemovePerson={actions.onRequestRemovePerson}
