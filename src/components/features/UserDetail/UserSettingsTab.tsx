@@ -70,14 +70,9 @@ export function UserSettingsTab({
 
       <Box borderTopWidth="1px" borderColor="blackAlpha.100" pt={6}>
         <Stack gap={3}>
-          <Stack gap={1}>
-            <Heading as="h3" fontSize="sm" fontWeight="semibold" color="gray.900">
-              店舗から削除
-            </Heading>
-            <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-              この店舗のスタッフ所属を削除します。
-            </Text>
-          </Stack>
+          <Heading as="h3" fontSize="sm" fontWeight="semibold" color="gray.900">
+            このスタッフを店舗から外す
+          </Heading>
           <Stack gap={2} align="flex-end">
             <Button
               colorPalette="red"

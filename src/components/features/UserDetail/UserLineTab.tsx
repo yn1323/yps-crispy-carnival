@@ -71,7 +71,13 @@ export function UserLineTab({
               title="LINE連携リンクを表示"
               description="スタッフに直接共有してください。"
             >
-              <Button colorPalette="teal" gap={1.5} onClick={onShowQr} disabled={isReadOnly}>
+              <Button
+                alignSelf="flex-end"
+                colorPalette="teal"
+                gap={1.5}
+                onClick={onShowQr}
+                disabled={isReadOnly || showQr}
+              >
                 <LuQrCode aria-hidden />
                 LINE連携リンクを表示
               </Button>
@@ -80,6 +86,7 @@ export function UserLineTab({
 
             <LineConnectionMethod number="2" title="LINE連携リンクをメールで送る">
               <Button
+                alignSelf="flex-end"
                 colorPalette="teal"
                 gap={1.5}
                 disabled={isReadOnly || !hasEmail || isSendingInvite}

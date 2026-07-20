@@ -276,6 +276,7 @@ export const Loading: Story = {
 function PanelNavigationHarness({ data = multipleStoresData }: { data?: UserDetailData }) {
   const [activePanel, setActivePanel] = useState<UserDetailPanel>();
   const [selectedShopId, setSelectedShopId] = useState<string | null>(shibuyaShopId);
+  const [showQr, setShowQr] = useState(false);
   const [addedShopId, setAddedShopId] = useState<Id<"shops"> | null>(null);
   const [addCallCount, setAddCallCount] = useState(0);
   const [membershipDialog, setMembershipDialog] = useState<UserDetailDialog>(null);
@@ -296,6 +297,11 @@ function PanelNavigationHarness({ data = multipleStoresData }: { data?: UserDeta
         notificationHistory={notificationHistory}
         state={{
           ...baseState,
+          line: {
+            ...baseState.line,
+            authorizeUrl: showQr ? "https://example.com/line/authorize" : null,
+            showQr,
+          },
           membership: { ...baseState.membership, dialog: membershipDialog },
           manager: { ...baseState.manager, dialog: managerDialog },
         }}
@@ -308,6 +314,7 @@ function PanelNavigationHarness({ data = multipleStoresData }: { data?: UserDeta
             setActivePanel("shop");
           },
           onClosePanel: () => setActivePanel(undefined),
+          onShowLineQr: async () => setShowQr(true),
           onRequestRemoveMembership: () =>
             setMembershipDialog({ kind: "removeMembership", membership: shibuyaMembership }),
           onCloseMembershipDialog: () => setMembershipDialog(null),
@@ -406,6 +413,24 @@ export const AssignedShopFlowBehavior: Story = {
     const shopDialog = within(dialog);
 
     await expect(shopDialog.queryByRole("tablist")).not.toBeInTheDocument();
+  },
+};
+
+export const LineQrButtonDisablesAfterDisplayBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <PanelNavigationHarness data={unlinkedLineData} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "渋谷店の詳細を開く" }));
+    const dialog = await page.findByRole("dialog", { name: "渋谷店" });
+    const showQrButton = within(dialog).getByRole("button", { name: "LINE連携リンクを表示" });
+
+    await expect(showQrButton).toBeEnabled();
+    await userEvent.click(showQrButton);
+    await expect(await within(dialog).findByRole("img", { name: "LINE連携用QRコード" })).toBeInTheDocument();
+    await expect(showQrButton).toBeDisabled();
   },
 };
 
