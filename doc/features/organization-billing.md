@@ -80,7 +80,7 @@
 
 - `src/routes/_auth/settings.tsx` と `src/pages/settings/`：グループ設定の取得、読み込み状態、画面全体の配置。
 - `src/components/features/OrganizationSettings/`：グループ全体のユーザー一覧とユーザー詳細ページへの入口、店舗一覧と店舗詳細ページへの入口、プランと支払い、設定タブのグループ削除UI、および操作ごとの送信、ダイアログ、最新権限を管理するcontroller。
-- `src/routes/_auth/shops.$shopId.tsx`、`src/pages/shop-detail/`、`src/components/features/ShopDetail/`：同一グループの店舗詳細ページ、店舗情報の個別更新、所属スタッフ一覧、削除確認を管理する。
+- `src/routes/_auth/shops.$shopId.tsx`、`src/pages/shop-detail/`、`src/components/features/ShopDetail/`：同一グループの店舗詳細ページ、店舗情報の閲覧・一括編集、所属スタッフ数とAccordion一覧、削除確認を管理する。
 - `src/components/features/AuthenticatedApp/DeletedAccountState.tsx`：削除済みuserへClerk由来の氏名・メールを表示せず、利用終了状態とサインアウトだけを表示する。
 - `src/components/features/ShopSwitcher/`：グループごとにまとめた店舗切り替え。
 - `src/components/features/AuthenticatedApp/AuthGuard.tsx`：`?shop=`、前回値、利用可能店舗一覧を解決し、有効なAPI候補だけを店舗コンテキストへ同期する。
@@ -272,6 +272,6 @@ BusinessからProへの期間末変更は、`issued`招待の予約枠を含む�
 - `src/components/features/AuthenticatedApp/shopContextResolver.test.ts` と `AuthGuard.test.tsx`：URL、前回値、自動fallback、明示URL不正時の解決境界。
 - `src/components/features/Dashboard/OperationContext/` のLogic UTとStory：候補数による静的表示・切り替え、設定導線、PC/SPの代表状態。
 - `src/components/features/OrganizationSettings/index.stories.tsx`：グループ設定の代表状態と操作後の状態。
-- `src/components/features/ShopDetail/index.stories.tsx`：店舗詳細ページの基本情報、スタッフ一覧、閲覧専用、削除確認とPC/SPの代表状態。
+- `src/components/features/ShopDetail/index.stories.tsx`：店舗詳細ページの基本情報、一括編集Dialog、スタッフ数とAccordion一覧、閲覧専用、削除確認とPC/SPの代表状態。
 - `src/components/features/ManagerInvitationAcceptance/index.stories.tsx`：招待プレビューとアカウント連携結果。
 - `src/components/features/ShopSwitcher/index.stories.tsx`：Dashboard以外でのグループと店舗の切り替え。
