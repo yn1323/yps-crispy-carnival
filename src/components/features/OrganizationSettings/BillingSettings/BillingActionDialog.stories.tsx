@@ -16,14 +16,18 @@ const meta = {
       billingStartsOn: "Stripeでの支払い完了後",
       shopNames: ["渋谷店", "新宿店"],
       price: {
-        currency: "jpy",
-        unitAmount: 3000,
-        interval: "month",
-        intervalCount: 1,
+        status: "available",
+        value: {
+          currency: "jpy",
+          unitAmount: 3000,
+          interval: "month",
+          intervalCount: 1,
+        },
       },
     },
     isRunning: false,
     onClose: () => {},
+    onRetryPrice: () => {},
     onSubmit: () => {},
   },
 } satisfies Meta<typeof BillingActionDialog>;
@@ -45,11 +49,34 @@ export const RegisterTrialContinuation: Story = {
       billingStartsOn: "2026年9月1日",
       shopNames: ["渋谷店", "新宿店"],
       price: {
-        currency: "jpy",
-        unitAmount: 3000,
-        interval: "month",
-        intervalCount: 1,
+        status: "available",
+        value: {
+          currency: "jpy",
+          unitAmount: 3000,
+          interval: "month",
+          intervalCount: 1,
+        },
       },
+    },
+  },
+};
+
+export const LoadingProPrice: Story = {
+  name: "Pro料金を読み込み中",
+  args: {
+    dialog: {
+      ...meta.args.dialog,
+      price: { status: "loading" },
+    },
+  },
+};
+
+export const ProPriceUnavailable: Story = {
+  name: "Pro料金を取得できない",
+  args: {
+    dialog: {
+      ...meta.args.dialog,
+      price: { status: "unavailable", reason: "billing_off" },
     },
   },
 };

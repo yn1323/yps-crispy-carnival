@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { OrganizationBillingView } from "../types";
-import { billingUnavailableToast, formatBillingBoundaryDate, formatProPrice, resolveBillingPlanAction } from "./script";
+import {
+  billingUnavailableMessage,
+  formatBillingBoundaryDate,
+  formatProPrice,
+  resolveBillingPlanAction,
+} from "./script";
 
 const baseBilling: OrganizationBillingView = {
   state: "pro",
@@ -82,12 +87,12 @@ describe("OrganizationSettings BillingSettings", () => {
   });
 
   it("mode offと価格未設定を内部設定値を含まない案内へ変換する", () => {
-    expect(billingUnavailableToast("billing_off")).toEqual({
+    expect(billingUnavailableMessage("billing_off")).toEqual({
       title: "決済機能は現在停止中です",
       description: "再開までお待ちください。現在の利用状態は変わりません。",
       type: "info",
     });
-    expect(billingUnavailableToast("price_unavailable")).toEqual({
+    expect(billingUnavailableMessage("price_unavailable")).toEqual({
       title: "決済機能は準備中です",
       description: "料金または決済設定の確認が完了してから、もう一度お試しください。",
       type: "info",

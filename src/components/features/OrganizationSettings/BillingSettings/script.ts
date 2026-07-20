@@ -15,6 +15,12 @@ export type ProPrice = {
   intervalCount: number;
 };
 
+export type ProPriceState =
+  | { status: "loading" }
+  | { status: "available"; value: ProPrice }
+  | { status: "unavailable"; reason: BillingUnavailableReason }
+  | { status: "error" };
+
 export type BillingPlanAction =
   | "startPro"
   | "cancelTrialContinuation"
@@ -32,7 +38,7 @@ export type BillingActionDialogState =
   | (BillingDialogBase & {
       kind: "startPro";
       source: "trial" | "immediate";
-      price: ProPrice;
+      price: ProPriceState;
       billingStartsOn: string;
       shopNames: string[];
     })
@@ -98,7 +104,7 @@ export function formatBillingBoundaryDate(timestamp: number): string {
   return `${value("year")}年${value("month")}月${value("day")}日`;
 }
 
-export function billingUnavailableToast(reason: BillingUnavailableReason): {
+export function billingUnavailableMessage(reason: BillingUnavailableReason): {
   title: string;
   description: string;
   type: "info" | "warning";

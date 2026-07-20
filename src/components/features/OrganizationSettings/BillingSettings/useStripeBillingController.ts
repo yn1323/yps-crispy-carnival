@@ -12,7 +12,7 @@ import { openBillingUrl } from "./openBillingUrl";
 import {
   type BillingActionDialogState,
   type BillingPlanAction,
-  billingUnavailableToast,
+  billingUnavailableMessage,
   formatBillingBoundaryDate,
   resolveBillingPlanAction,
 } from "./script";
@@ -37,6 +37,7 @@ export function useStripeBillingController(input: Input) {
   const latestRef = useRef(input);
   const selectedShopIdRef = useRef(selectedShop?.shopId);
   const dialogRef = useRef(dialog);
+  const startProPriceRequestRef = useRef<{ intentKey: string; shopId: string } | null>(null);
   latestRef.current = input;
   selectedShopIdRef.current = selectedShop?.shopId;
   dialogRef.current = dialog;
@@ -51,50 +52,54 @@ export function useStripeBillingController(input: Input) {
     });
   }, [input.billing, selectedShop?.shopId]);
 
-  const { run: prepareStartPro } = useSingleFlight(async () => {
+  const { run: prepareStartPro } = useSingleFlight(async (intent: { intentKey: string; shopId: string }) => {
     const current = latestRef.current;
-    const shopId = selectedShopIdRef.current;
-    if (current.billing.isComplimentary || resolveBillingPlanAction(current.billing) !== "startPro" || !shopId) {
+    if (
+      current.billing.isComplimentary ||
+      resolveBillingPlanAction(current.billing) !== "startPro" ||
+      selectedShopIdRef.current !== intent.shopId
+    ) {
+      if (startProPriceRequestRef.current?.intentKey === intent.intentKey) startProPriceRequestRef.current = null;
       return;
     }
 
     try {
-      const result = await getProPrice({ shopId: shopId as Id<"shops"> });
-      if (result.status === "unavailable") {
-        showUnavailable(result.reason);
-        return;
-      }
+      const result = await getProPrice({ shopId: intent.shopId as Id<"shops"> });
       const latest = latestRef.current;
       if (
         latest.billing.isComplimentary ||
         resolveBillingPlanAction(latest.billing) !== "startPro" ||
-        selectedShopIdRef.current !== shopId
+        selectedShopIdRef.current !== intent.shopId
       ) {
         return;
       }
 
-      setDialog({
-        kind: "startPro",
-        intentKey: crypto.randomUUID(),
-        shopId,
-        organizationName: latest.organizationName,
-        source: latest.billing.state === "trial" ? "trial" : "immediate",
-        billingStartsOn:
-          latest.billing.state === "trial"
-            ? latest.billing.trialEndsAt
-              ? formatBillingBoundaryDate(latest.billing.trialEndsAt)
-              : "トライアル終了後"
-            : "Stripeでの支払い完了後",
-        shopNames: [...latest.shopNames],
-        price: {
-          currency: result.currency,
-          unitAmount: result.unitAmount,
-          interval: result.interval,
-          intervalCount: result.intervalCount,
-        },
+      setDialog((dialog) => {
+        if (dialog?.kind !== "startPro" || dialog.intentKey !== intent.intentKey) return dialog;
+        return {
+          ...dialog,
+          price:
+            result.status === "unavailable"
+              ? { status: "unavailable", reason: result.reason }
+              : {
+                  status: "available",
+                  value: {
+                    currency: result.currency,
+                    unitAmount: result.unitAmount,
+                    interval: result.interval,
+                    intervalCount: result.intervalCount,
+                  },
+                },
+        };
       });
-    } catch (error) {
-      showErrorToast(error);
+    } catch {
+      setDialog((dialog) =>
+        dialog?.kind === "startPro" && dialog.intentKey === intent.intentKey
+          ? { ...dialog, price: { status: "error" } }
+          : dialog,
+      );
+    } finally {
+      if (startProPriceRequestRef.current?.intentKey === intent.intentKey) startProPriceRequestRef.current = null;
     }
   });
 
@@ -110,6 +115,7 @@ export function useStripeBillingController(input: Input) {
       setDialog(null);
       return;
     }
+    if (currentDialog.kind === "startPro" && currentDialog.price.status !== "available") return;
 
     const args = {
       shopId: currentDialog.shopId as Id<"shops">,
@@ -197,7 +203,30 @@ export function useStripeBillingController(input: Input) {
 
     const action = resolveBillingPlanAction(current);
     if (action === "startPro") {
-      void prepareStartPro();
+      const shopId = selectedShopIdRef.current;
+      if (!shopId) return;
+      const pendingRequest = startProPriceRequestRef.current;
+      if (pendingRequest && pendingRequest.shopId !== shopId) return;
+      const intentKey = pendingRequest?.intentKey ?? crypto.randomUUID();
+      setDialog({
+        kind: "startPro",
+        intentKey,
+        shopId,
+        organizationName: latestRef.current.organizationName,
+        source: current.state === "trial" ? "trial" : "immediate",
+        billingStartsOn:
+          current.state === "trial"
+            ? current.trialEndsAt
+              ? formatBillingBoundaryDate(current.trialEndsAt)
+              : "トライアル終了後"
+            : "Stripeでの支払い完了後",
+        shopNames: [...latestRef.current.shopNames],
+        price: { status: "loading" },
+      });
+      if (!pendingRequest) {
+        startProPriceRequestRef.current = { intentKey, shopId };
+        void prepareStartPro({ intentKey, shopId });
+      }
       return;
     }
     if (action === "openPortal") {
@@ -221,6 +250,19 @@ export function useStripeBillingController(input: Input) {
       onClose: () => {
         if (!isRunning) setDialog(null);
       },
+      onRetryPrice: () => {
+        const currentDialog = dialogRef.current;
+        if (
+          currentDialog?.kind !== "startPro" ||
+          currentDialog.price.status === "available" ||
+          startProPriceRequestRef.current
+        ) {
+          return;
+        }
+        startProPriceRequestRef.current = { intentKey: currentDialog.intentKey, shopId: currentDialog.shopId };
+        setDialog({ ...currentDialog, price: { status: "loading" } });
+        void prepareStartPro({ intentKey: currentDialog.intentKey, shopId: currentDialog.shopId });
+      },
       onSubmit: () => void confirm(),
     },
   };
@@ -234,9 +276,9 @@ function canOpenPortal(billing: OrganizationBillingView, intent: PortalIntent): 
   return billing.canUpdatePaymentMethod;
 }
 
-function showUnavailable(reason: Parameters<typeof billingUnavailableToast>[0]): void {
+function showUnavailable(reason: Parameters<typeof billingUnavailableMessage>[0]): void {
   toaster.create({
-    ...billingUnavailableToast(reason),
+    ...billingUnavailableMessage(reason),
     duration: 8000,
   });
 }

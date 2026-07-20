@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getStripeBillingConfiguration,
   getStripeBillingMode,
@@ -7,6 +7,14 @@ import {
 } from "./config";
 
 describe("organizationStripe/config", () => {
+  beforeEach(() => {
+    vi.stubEnv("STRIPE_BILLING_MODE", "");
+    vi.stubEnv("STRIPE_SECRET_KEY", "");
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", "");
+    vi.stubEnv("STRIPE_PRO_PRICE_ID", "");
+    vi.stubEnv("STRIPE_PORTAL_CONFIGURATION_ID", "");
+  });
+
   afterEach(() => {
     vi.unstubAllEnvs();
   });

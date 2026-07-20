@@ -284,14 +284,22 @@ describe("OrganizationSettings controllers", () => {
     await waitFor(() => expect(mocks.mutation).not.toHaveBeenCalled());
   });
 
-  it("Freeは価格取得後に確認を開き、同じrequestIdでCheckoutを一度だけ開始する", async () => {
-    mocks.actions.getProPrice.mockResolvedValue({
-      status: "available",
-      currency: "jpy",
-      unitAmount: 3000,
-      interval: "month",
-      intervalCount: 1,
-    });
+  it("Freeは確認をすぐ開いて価格を読み込み、同じrequestIdでCheckoutを一度だけ開始する", async () => {
+    let resolvePrice:
+      | ((value: {
+          status: "available";
+          currency: string;
+          unitAmount: number;
+          interval: "month";
+          intervalCount: number;
+        }) => void)
+      | undefined;
+    mocks.actions.getProPrice.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvePrice = resolve;
+        }),
+    );
     let resolveCheckout: ((value: { status: "redirect"; url: string }) => void) | undefined;
     mocks.actions.startProCheckout.mockImplementation(
       () =>
@@ -315,21 +323,38 @@ describe("OrganizationSettings controllers", () => {
     );
 
     act(() => result.current.managePlan());
-    await waitFor(() => expect(result.current.dialog.dialog?.kind).toBe("startPro"));
     expect(result.current.dialog.dialog).toMatchObject({
       intentKey: "request-1",
       organizationName: "さくらダイニング",
       source: "immediate",
       billingStartsOn: "Stripeでの支払い完了後",
       shopNames: ["渋谷店", "新宿店"],
-      price: {
+      price: { status: "loading" },
+    });
+    expect(mocks.actions.getProPrice).toHaveBeenCalledExactlyOnceWith({ shopId: "shop-current" });
+
+    await act(async () =>
+      resolvePrice?.({
+        status: "available",
         currency: "jpy",
         unitAmount: 3000,
         interval: "month",
         intervalCount: 1,
-      },
-    });
-    expect(mocks.actions.getProPrice).toHaveBeenCalledExactlyOnceWith({ shopId: "shop-current" });
+      }),
+    );
+    await waitFor(() =>
+      expect(result.current.dialog.dialog).toMatchObject({
+        price: {
+          status: "available",
+          value: {
+            currency: "jpy",
+            unitAmount: 3000,
+            interval: "month",
+            intervalCount: 1,
+          },
+        },
+      }),
+    );
 
     act(() => {
       result.current.dialog.onSubmit();
@@ -410,7 +435,12 @@ describe("OrganizationSettings controllers", () => {
     );
 
     act(() => result.current.managePlan());
-    await waitFor(() => expect(result.current.dialog.dialog?.kind).toBe("startPro"));
+    await waitFor(() =>
+      expect(result.current.dialog.dialog).toMatchObject({
+        kind: "startPro",
+        price: { status: "available" },
+      }),
+    );
     act(() => result.current.dialog.onSubmit());
 
     await waitFor(() =>
@@ -425,8 +455,16 @@ describe("OrganizationSettings controllers", () => {
     expect(result.current.dialog.dialog?.intentKey).toBe("request-1");
   });
 
-  it("mode offでは価格確認から先へ進まず、契約状態を変えない案内を表示する", async () => {
-    mocks.actions.getProPrice.mockResolvedValue({ status: "unavailable", reason: "billing_off" });
+  it("価格を取得できない場合はDialog内で案内し、再読み込みできる", async () => {
+    mocks.actions.getProPrice
+      .mockResolvedValueOnce({ status: "unavailable", reason: "billing_off" })
+      .mockResolvedValueOnce({
+        status: "available",
+        currency: "jpy",
+        unitAmount: 3000,
+        interval: "month",
+        intervalCount: 1,
+      });
     const freeBilling: OrganizationBillingView = {
       ...billing,
       state: "free",
@@ -445,15 +483,73 @@ describe("OrganizationSettings controllers", () => {
     act(() => result.current.managePlan());
 
     await waitFor(() =>
-      expect(mocks.toasterCreate).toHaveBeenCalledExactlyOnceWith({
-        title: "決済機能は現在停止中です",
-        description: "再開までお待ちください。現在の利用状態は変わりません。",
-        type: "info",
-        duration: 8000,
+      expect(result.current.dialog.dialog).toMatchObject({
+        kind: "startPro",
+        price: { status: "unavailable", reason: "billing_off" },
       }),
     );
-    expect(result.current.dialog.dialog).toBeNull();
+    expect(mocks.toasterCreate).not.toHaveBeenCalled();
     expect(mocks.actions.startProCheckout).not.toHaveBeenCalled();
+
+    act(() => result.current.dialog.onRetryPrice());
+    expect(result.current.dialog.dialog).toMatchObject({ price: { status: "loading" } });
+    await waitFor(() =>
+      expect(result.current.dialog.dialog).toMatchObject({
+        price: { status: "available", value: { currency: "jpy", unitAmount: 3000 } },
+      }),
+    );
+    expect(mocks.actions.getProPrice).toHaveBeenCalledTimes(2);
+  });
+
+  it("価格の読み込み中にDialogを閉じても、再クリックですぐ同じ確認を開く", async () => {
+    let resolvePrice:
+      | ((value: {
+          status: "available";
+          currency: string;
+          unitAmount: number;
+          interval: "month";
+          intervalCount: number;
+        }) => void)
+      | undefined;
+    mocks.actions.getProPrice.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvePrice = resolve;
+        }),
+    );
+    const freeBilling: OrganizationBillingView = {
+      ...billing,
+      state: "free",
+      currentPlan: "free",
+      canUpdatePaymentMethod: false,
+      canScheduleFree: false,
+    };
+    const { result } = renderHook(() =>
+      useStripeBillingController({
+        organizationName: "さくらダイニング",
+        shopNames: ["渋谷店", "新宿店"],
+        billing: freeBilling,
+      }),
+    );
+
+    act(() => result.current.managePlan());
+    expect(result.current.dialog.dialog).toMatchObject({ kind: "startPro", price: { status: "loading" } });
+    act(() => result.current.dialog.onClose());
+    expect(result.current.dialog.dialog).toBeNull();
+    act(() => result.current.managePlan());
+    expect(result.current.dialog.dialog).toMatchObject({ kind: "startPro", price: { status: "loading" } });
+    expect(mocks.actions.getProPrice).toHaveBeenCalledTimes(1);
+
+    await act(async () =>
+      resolvePrice?.({
+        status: "available",
+        currency: "jpy",
+        unitAmount: 3000,
+        interval: "month",
+        intervalCount: 1,
+      }),
+    );
+    await waitFor(() => expect(result.current.dialog.dialog).toMatchObject({ price: { status: "available" } }));
   });
 
   it("TrialのPro継続登録済み状態では価格やCheckoutを呼ばず、取消を確認して一度だけ受け付ける", async () => {

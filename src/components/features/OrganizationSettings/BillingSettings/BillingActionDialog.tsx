@@ -1,15 +1,22 @@
-import { Box, Grid, Stack, Text } from "@chakra-ui/react";
+import { Alert, Box, Grid, Stack, Text } from "@chakra-ui/react";
+import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
-import { type BillingActionDialogState, formatProPrice } from "./script";
+import {
+  type BillingActionDialogState,
+  type BillingUnavailableReason,
+  billingUnavailableMessage,
+  formatProPrice,
+} from "./script";
 
 type Props = {
   dialog: BillingActionDialogState | null;
   isRunning: boolean;
   onClose: () => void;
+  onRetryPrice: () => void;
   onSubmit: () => void;
 };
 
-export function BillingActionDialog({ dialog, isRunning, onClose, onSubmit }: Props) {
+export function BillingActionDialog({ dialog, isRunning, onClose, onRetryPrice, onSubmit }: Props) {
   if (!dialog) return null;
 
   const content = dialogContent(dialog);
@@ -26,7 +33,7 @@ export function BillingActionDialog({ dialog, isRunning, onClose, onSubmit }: Pr
       submitLabel={content.submitLabel}
       submitColorPalette={content.submitColorPalette}
       isLoading={isRunning}
-      isSubmitDisabled={isRunning}
+      isSubmitDisabled={isRunning || (dialog.kind === "startPro" && dialog.price.status !== "available")}
       role="alertdialog"
       maxW={{ base: "calc(100vw - 24px)", md: "560px" }}
     >
@@ -39,7 +46,7 @@ export function BillingActionDialog({ dialog, isRunning, onClose, onSubmit }: Pr
           <SummaryRow label="対象グループ" value={dialog.organizationName} />
           {dialog.kind === "startPro" && (
             <>
-              <StartProSummary dialog={dialog} />
+              <StartProSummary dialog={dialog} onRetryPrice={onRetryPrice} />
               <Text fontSize="xs" color="fg.muted" lineHeight="tall">
                 対象店舗は、このグループに現在登録されている店舗です。
               </Text>
@@ -62,19 +69,57 @@ export function BillingActionDialog({ dialog, isRunning, onClose, onSubmit }: Pr
   );
 }
 
-function StartProSummary({ dialog }: { dialog: Extract<BillingActionDialogState, { kind: "startPro" }> }) {
-  const price = formatProPrice(dialog.price);
+function StartProSummary({
+  dialog,
+  onRetryPrice,
+}: {
+  dialog: Extract<BillingActionDialogState, { kind: "startPro" }>;
+  onRetryPrice: () => void;
+}) {
+  const price = dialog.price.status === "available" ? formatProPrice(dialog.price.value) : null;
 
   return (
     <>
       <SummaryRow label="プラン" value="Pro" />
-      <SummaryRow label="料金" value={`${price.amount}（${price.interval}）`} />
+      <SummaryRow
+        label="料金"
+        value={
+          dialog.price.status === "loading"
+            ? "取得中..."
+            : price
+              ? `${price.amount}（${price.interval}）`
+              : "取得できませんでした"
+        }
+      />
       <SummaryRow label="請求開始" value={dialog.billingStartsOn} />
       <SummaryRow
         label="対象店舗"
         value={dialog.shopNames.length > 0 ? dialog.shopNames.join("、") : "現在の店舗はありません"}
       />
+      {(dialog.price.status === "unavailable" || dialog.price.status === "error") && (
+        <PriceLoadError
+          reason={dialog.price.status === "unavailable" ? dialog.price.reason : undefined}
+          onRetry={onRetryPrice}
+        />
+      )}
     </>
+  );
+}
+
+function PriceLoadError({ reason, onRetry }: { reason?: BillingUnavailableReason; onRetry: () => void }) {
+  const message = reason ? billingUnavailableMessage(reason) : null;
+
+  return (
+    <Alert.Root status="warning" borderRadius="md" mt={2} alignItems="flex-start">
+      <Alert.Indicator mt={0.5} />
+      <Alert.Content gap={2}>
+        <Alert.Title>{message?.title ?? "料金を取得できませんでした"}</Alert.Title>
+        <Alert.Description>{message?.description ?? "通信状態を確認して、もう一度お試しください。"}</Alert.Description>
+        <Button size="sm" variant="outline" alignSelf="flex-start" onClick={onRetry}>
+          料金を再読み込み
+        </Button>
+      </Alert.Content>
+    </Alert.Root>
   );
 }
 
@@ -106,9 +151,8 @@ function dialogContent(dialog: BillingActionDialogState): {
         ? {
             title: "トライアル終了後もProを継続しますか？",
             description: "トライアル終了後のPro継続に使う支払い方法を、Stripeの画面で登録します。",
-            submitLabel: "Stripeで登録を続ける",
+            submitLabel: "支払いに進む",
             submitColorPalette: "teal",
-            note: "Stripeから戻っただけでは登録完了になりません。支払い方法の確認結果がこの画面に反映されるまでお待ちください。",
           }
         : {
             title: "Proを開始しますか？",
