@@ -1,6 +1,6 @@
 # スタッフ通知履歴
 
-ユーザー詳細ページと旧スタッフ詳細の「通知」タブで、選択店舗のスタッフへ送ったメールとLINEの日時、タイトル、送信状況と配信状況を確認する機能。
+ユーザー詳細ページの店舗Dialogと旧スタッフ詳細の「通知」タブで、選択店舗のスタッフへ送ったメールとLINEの日時、タイトル、送信状況と配信状況を確認する機能。
 履歴は実装後に新しく作成した実配送通知だけを対象とし、通知本文や宛先は保存・表示しない。
 
 ## 関連ファイル
@@ -24,7 +24,7 @@
 ### フロントエンド（`src/`）
 
 - `src/components/features/StaffNotificationHistory/` — 履歴取得、ページング、PCテーブル、モバイルカード、表示状態
-- `src/components/features/UserDetail/` — 選択店舗のスタッフIDを通知タブと履歴へ接続
+- `src/components/features/UserDetail/` — 選択店舗のスタッフIDを店舗Dialogの通知セクションと履歴へ接続
 - `src/components/features/Dashboard/StaffManagement/` — 人物IDが未移行のスタッフに限り、旧詳細モーダルへ履歴を接続
 - `src/components/features/Dashboard/StaffRoster/StaffDetailNotificationTab.tsx` — 未移行スタッフ向けの通知送信と履歴表示
 
@@ -32,7 +32,7 @@
 
 | 画面 | 表示内容 |
 |---|---|
-| `/users/<personId>?shop=<shopId>&tab=notification` | 選択店舗のスタッフへの通知履歴を最新順に表示する。初回20件を取得し、「もっと見る」で続きを取得する |
+| `/users/<personId>?shop=<shopId>&panel=shop` | 店舗Dialogの通知セクションで、選択店舗のスタッフへの通知履歴を最新順に表示する。初回20件を取得し、「もっと見る」で続きを取得する |
 | Dashboard > スタッフ一覧 > 旧スタッフ詳細 > 通知 | `organizationPersonId`が未移行のスタッフに限り、同じ通知履歴を暫定表示する |
 
 ## API一覧

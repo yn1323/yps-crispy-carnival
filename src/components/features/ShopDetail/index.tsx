@@ -37,7 +37,6 @@ export function ShopDetail({ shop, people, selectedShopId }: Props) {
           params: { personId },
           search: {
             shop: shop.id,
-            tab: "notification",
             returnTo: "shopDetail",
             returnShop: shop.id,
           },

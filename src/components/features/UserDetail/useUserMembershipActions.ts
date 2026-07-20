@@ -11,14 +11,17 @@ export function useUserMembershipActions({
   membership,
   selectedShopId,
   isReadOnly,
+  canAddMembership,
 }: {
   membership: UserDetailMembership | null;
   selectedShopId: string | null;
   isReadOnly: boolean;
+  canAddMembership: boolean;
 }) {
   const [dialog, setDialog] = useState<UserDetailDialog>(null);
+  const [addingShopId, setAddingShopId] = useState<Id<"shops"> | null>(null);
   const setShiftExclusion = useShopMutation(api.staff.mutations.setShiftExclusion);
-  const addOrganizationPersonToShop = useShopMutation(api.staff.mutations.addOrganizationPersonToShop);
+  const addOrganizationPersonToShop = useMutation(api.staff.mutations.addOrganizationPersonToShop);
   const removePersonFromShop = useMutation(api.organization.mutations.removePersonFromShop);
 
   useEffect(() => {
@@ -43,7 +46,7 @@ export function useUserMembershipActions({
     },
   );
 
-  const { run: removeMembership, isRunning: isRemovingMembership } = useSingleFlight(async () => {
+  const { run: removeMembership, isRunning: isRemovingMembership } = useSingleFlight(async (): Promise<boolean> => {
     if (
       isReadOnly ||
       !selectedShopId ||
@@ -52,7 +55,7 @@ export function useUserMembershipActions({
       dialog.membership.shopId !== selectedShopId ||
       dialog.membership.staffId !== membership.staffId
     ) {
-      return;
+      return false;
     }
 
     try {
@@ -66,21 +69,26 @@ export function useUserMembershipActions({
         title: "この店舗のスタッフ所属を削除しました",
         description: "グループのユーザー情報、ほかの店舗所属、管理者権限は変更していません。",
       });
+      return true;
     } catch (error) {
       showErrorToast(error);
+      return false;
     }
   });
 
   const { run: addMembership, isRunning: isAddingMembership } = useSingleFlight(
-    async (personId: Id<"organizationPeople">) => {
-      if (isReadOnly || membership) return false;
+    async (personId: Id<"organizationPeople">, shopId: Id<"shops">) => {
+      if (!canAddMembership) return false;
+      setAddingShopId(shopId);
       try {
-        await addOrganizationPersonToShop({ personId, requestId: crypto.randomUUID() });
+        await addOrganizationPersonToShop({ shopId, personId, requestId: crypto.randomUUID() });
         showSuccessToast({ title: "店舗にユーザーを追加しました" });
         return true;
       } catch (error) {
         showErrorToast(error);
         return false;
+      } finally {
+        setAddingShopId(null);
       }
     },
   );
@@ -90,6 +98,7 @@ export function useUserMembershipActions({
     isChangingShiftTarget,
     isRemovingMembership,
     isAddingMembership,
+    addingShopId,
     onAddMembership: addMembership,
     onChangeShiftTarget: changeShiftTarget,
     onRequestRemoveMembership: () => {

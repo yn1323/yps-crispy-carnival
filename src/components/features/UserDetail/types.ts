@@ -1,7 +1,7 @@
 import type { FunctionReturnType } from "convex/server";
 import type { api } from "@/convex/_generated/api";
 
-export type UserDetailTab = "notification" | "line" | "settings";
+export type UserDetailPanel = "basic" | "addShop" | "shop";
 
 export type UserDetailReturnTo = "dashboard" | "settings" | "shopDetail";
 

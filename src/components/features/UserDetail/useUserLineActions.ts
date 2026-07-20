@@ -57,5 +57,9 @@ export function useUserLineActions({
     isSendingInvite,
     onShowQr: showQr,
     onSendInvite: sendInvite,
+    onReset: () => {
+      setAuthorizeUrl(null);
+      setQrTargetStaffId(null);
+    },
   };
 }

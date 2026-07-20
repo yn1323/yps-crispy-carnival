@@ -3,12 +3,11 @@ import type { ReactNode } from "react";
 import { LuMail, LuMessageCircle, LuQrCode } from "react-icons/lu";
 import { LineLinkQrDialog } from "@/src/components/features/Line";
 import { Button } from "@/src/components/ui/Button";
-import { StoreMembershipRequired } from "./StoreMembershipRequired";
 import type { UserDetailData, UserDetailMembership } from "./types";
 
 type Props = {
   data: UserDetailData;
-  membership: UserDetailMembership | null;
+  membership: UserDetailMembership;
   isReadOnly: boolean;
   authorizeUrl: string | null;
   showQr: boolean;
@@ -16,7 +15,6 @@ type Props = {
   isSendingInvite: boolean;
   onShowQr: () => void | Promise<void>;
   onSendInvite: () => void | Promise<void>;
-  onSelectShop: (shopId: string) => void;
 };
 
 export function UserLineTab({
@@ -29,14 +27,7 @@ export function UserLineTab({
   isSendingInvite,
   onShowQr,
   onSendInvite,
-  onSelectShop,
 }: Props) {
-  if (!membership) {
-    return (
-      <StoreMembershipRequired data={data} onSelectShop={onSelectShop} featureName="LINE連携" icon={LuMessageCircle} />
-    );
-  }
-
   const lineStatus = getLineStatus(membership);
   const isLineActive = membership.line.isLinked && membership.line.isFollowing;
   const hasEmail = data.person.email.length > 0;
@@ -45,7 +36,7 @@ export function UserLineTab({
     <Stack gap={6}>
       <Stack gap={1}>
         <Text as="h3" fontSize="md" fontWeight="semibold" color="gray.900">
-          {membership.shopName}のLINE連携
+          LINE連携
         </Text>
         <Text fontSize="sm" color="fg.muted">
           LINE連携は店舗ごとに設定します。
@@ -108,7 +99,7 @@ export function UserLineTab({
         </fieldset>
       ) : (
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          この店舗ではLINE連携済みです。必要な場合は、通知タブからシフト関連の通知を再送できます。
+          この店舗ではLINE連携済みです。必要な場合は、通知からシフト関連の通知を再送できます。
         </Text>
       )}
     </Stack>

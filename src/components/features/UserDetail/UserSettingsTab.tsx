@@ -1,107 +1,113 @@
-import { Box, Flex, Heading, Stack, Switch, Text, VisuallyHidden } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Stack, Switch, Text, VisuallyHidden } from "@chakra-ui/react";
+import { useEffect, useId, useRef } from "react";
 import { LuShieldMinus, LuShieldPlus, LuTrash2 } from "react-icons/lu";
 import { ManagerAssignmentConfirmation } from "@/src/components/shared/ManagerAssignmentConfirmation";
 import { Button } from "@/src/components/ui/Button";
 import type { UserDetailData, UserDetailMembership } from "./types";
 
 type Props = {
-  membership: UserDetailMembership | null;
+  personName: string;
+  membership: UserDetailMembership;
   isStoreReadOnly: boolean;
   storeDisabledReason?: string;
   isChangingShiftTarget: boolean;
+  isRemovalConfirmationOpen: boolean;
+  isRemovingMembership: boolean;
   onChangeShiftTarget: (isShiftTarget: boolean) => void | Promise<void>;
   onRequestRemoveMembership: () => void;
+  onCancelRemoveMembership: () => void;
+  onConfirmRemoveMembership: () => void | Promise<void>;
 };
 
 export function UserSettingsTab({
+  personName,
   membership,
   isStoreReadOnly,
   storeDisabledReason,
   isChangingShiftTarget,
+  isRemovalConfirmationOpen,
+  isRemovingMembership,
   onChangeShiftTarget,
   onRequestRemoveMembership,
+  onCancelRemoveMembership,
+  onConfirmRemoveMembership,
 }: Props) {
-  const storeActionDisabledReasonId = membership
-    ? `user-detail-store-action-disabled-${membership.staffId}`
-    : undefined;
-  const membershipRemovalDisabled = Boolean(membership && (isStoreReadOnly || !membership.canRemove));
+  const storeActionDisabledReasonId = `user-detail-store-action-disabled-${membership.staffId}`;
+  const membershipRemovalDisabled = isStoreReadOnly || !membership.canRemove;
   const membershipRemovalDisabledReason = membershipRemovalDisabled
     ? isStoreReadOnly
       ? storeDisabledReason
-      : membership?.removeDisabledReason
+      : membership.removeDisabledReason
     : undefined;
   return (
-    <Stack gap={8}>
-      <SettingsSection
-        title={membership ? `${membership.shopName}のスタッフ設定` : "店舗のスタッフ設定"}
-        description="シフト対象や、この店舗だけのスタッフ所属を管理します。"
-      >
-        {membership ? (
-          <Stack gap={6}>
-            <Stack gap={2}>
-              <Flex align="center" justify="space-between" gap={4}>
-                <Heading as="h4" fontSize="sm" fontWeight="semibold" color="gray.900">
-                  シフト対象
-                </Heading>
-                <Switch.Root
-                  checked={!membership.excludedFromShift}
-                  disabled={isStoreReadOnly || isChangingShiftTarget}
-                  colorPalette="teal"
-                  onCheckedChange={(details) => onChangeShiftTarget(details.checked)}
-                >
-                  <Switch.HiddenInput
-                    aria-describedby={isStoreReadOnly && storeDisabledReason ? storeActionDisabledReasonId : undefined}
-                  />
-                  <Switch.Control>
-                    <Switch.Thumb />
-                  </Switch.Control>
-                  <Switch.Label>
-                    <VisuallyHidden>シフト対象</VisuallyHidden>
-                  </Switch.Label>
-                </Switch.Root>
-              </Flex>
-              <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-                OFFにするとシフト表から非表示になり、シフト募集、確定通知も来なくなります。
-              </Text>
-            </Stack>
+    <Stack gap={6}>
+      <Stack gap={2}>
+        <Flex align="center" justify="space-between" gap={4}>
+          <Heading as="h3" fontSize="sm" fontWeight="semibold" color="gray.900">
+            シフト対象
+          </Heading>
+          <Switch.Root
+            checked={!membership.excludedFromShift}
+            disabled={isStoreReadOnly || isChangingShiftTarget}
+            colorPalette="teal"
+            onCheckedChange={(details) => onChangeShiftTarget(details.checked)}
+          >
+            <Switch.HiddenInput
+              aria-describedby={isStoreReadOnly && storeDisabledReason ? storeActionDisabledReasonId : undefined}
+            />
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+            <Switch.Label>
+              <VisuallyHidden>シフト対象</VisuallyHidden>
+            </Switch.Label>
+          </Switch.Root>
+        </Flex>
+        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+          OFFにするとシフト表から非表示になり、シフト募集、確定通知も来なくなります。
+        </Text>
+      </Stack>
 
-            <Box borderTopWidth="1px" borderColor="blackAlpha.100" pt={6}>
-              <Stack gap={3}>
-                <Stack gap={1}>
-                  <Heading as="h4" fontSize="sm" fontWeight="semibold" color="gray.900">
-                    店舗から削除
-                  </Heading>
-                  <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-                    この店舗のスタッフ所属を削除します。
-                  </Text>
-                </Stack>
-                <Stack gap={2} align="flex-end">
-                  <Button
-                    colorPalette="red"
-                    variant="outline"
-                    gap={1.5}
-                    disabled={membershipRemovalDisabled}
-                    aria-describedby={membershipRemovalDisabledReason ? storeActionDisabledReasonId : undefined}
-                    onClick={onRequestRemoveMembership}
-                  >
-                    <LuTrash2 aria-hidden />
-                    店舗から外す
-                  </Button>
-                  {membershipRemovalDisabledReason && (
-                    <Text id={storeActionDisabledReasonId} fontSize="xs" color="orange.700" textAlign="right">
-                      {membershipRemovalDisabledReason}
-                    </Text>
-                  )}
-                </Stack>
-              </Stack>
-            </Box>
+      <Box borderTopWidth="1px" borderColor="blackAlpha.100" pt={6}>
+        <Stack gap={3}>
+          <Stack gap={1}>
+            <Heading as="h3" fontSize="sm" fontWeight="semibold" color="gray.900">
+              店舗から削除
+            </Heading>
+            <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+              この店舗のスタッフ所属を削除します。
+            </Text>
           </Stack>
-        ) : (
-          <Text fontSize="sm" color="fg.muted">
-            このユーザーは、現在選択している店舗にはスタッフとして所属していません。
-          </Text>
-        )}
-      </SettingsSection>
+          <Stack gap={2} align="flex-end">
+            <Button
+              colorPalette="red"
+              variant="solid"
+              gap={1.5}
+              disabled={membershipRemovalDisabled}
+              aria-describedby={membershipRemovalDisabledReason ? storeActionDisabledReasonId : undefined}
+              onClick={onRequestRemoveMembership}
+            >
+              <LuTrash2 aria-hidden />
+              店舗から外す
+            </Button>
+            {membershipRemovalDisabledReason && (
+              <Text id={storeActionDisabledReasonId} fontSize="xs" color="orange.700" textAlign="right">
+                {membershipRemovalDisabledReason}
+              </Text>
+            )}
+          </Stack>
+          {isRemovalConfirmationOpen && (
+            <InlineDestructiveConfirmation
+              title={`${personName}さんを${membership.shopName}から外しますか？`}
+              description="この店舗のスタッフ所属、既存のシフト用リンク、LINE連携を終了します。グループのユーザー情報、ほかの店舗所属、管理者権限は変更しません。将来のシフトに割り当てられている場合は削除できません。"
+              confirmLabel="店舗から外す"
+              isLoading={isRemovingMembership}
+              onCancel={onCancelRemoveMembership}
+              onConfirm={onConfirmRemoveMembership}
+            />
+          )}
+        </Stack>
+      </Box>
     </Stack>
   );
 }
@@ -114,6 +120,10 @@ export function UserManagerSettings({
   onCancelManagerAssignment,
   onAssignManager,
   onRequestRemoveManagerRole,
+  isRemovalConfirmationOpen,
+  isRemovingManagerRole,
+  onCancelRemoveManagerRole,
+  onConfirmRemoveManagerRole,
 }: {
   data: UserDetailData;
   isAssignmentConfirmationOpen: boolean;
@@ -122,6 +132,10 @@ export function UserManagerSettings({
   onCancelManagerAssignment: () => void;
   onAssignManager: () => void | Promise<void>;
   onRequestRemoveManagerRole: () => void;
+  isRemovalConfirmationOpen: boolean;
+  isRemovingManagerRole: boolean;
+  onCancelRemoveManagerRole: () => void;
+  onConfirmRemoveManagerRole: () => void | Promise<void>;
 }) {
   return (
     <Stack gap={4}>
@@ -142,6 +156,10 @@ export function UserManagerSettings({
           onCancelManagerAssignment,
           onAssignManager,
           onRequestRemoveManagerRole,
+          isRemovalConfirmationOpen,
+          isRemovingManagerRole,
+          onCancelRemoveManagerRole,
+          onConfirmRemoveManagerRole,
         }}
       />
     </Stack>
@@ -149,29 +167,53 @@ export function UserManagerSettings({
 }
 
 export function UserGroupRemovalSection({
+  personName,
   isDisabled,
+  isConfirmationOpen,
+  isRemoving,
   onRequestRemovePerson,
+  onCancelRemovePerson,
+  onConfirmRemovePerson,
 }: {
+  personName: string;
   isDisabled: boolean;
+  isConfirmationOpen: boolean;
+  isRemoving: boolean;
   onRequestRemovePerson: () => void;
+  onCancelRemovePerson: () => void;
+  onConfirmRemovePerson: () => void | Promise<void>;
 }) {
   return (
-    <Stack gap={4}>
-      <Stack gap={1}>
-        <Heading as="h3" fontSize="md" fontWeight="semibold" color="red.700">
-          グループから削除
-        </Heading>
-        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          全店舗からこのユーザーを削除します。
-        </Text>
-      </Stack>
-      <Flex justify="flex-end">
-        <Button colorPalette="red" gap={1.5} disabled={isDisabled} onClick={onRequestRemovePerson}>
-          <LuTrash2 aria-hidden />
-          グループから削除
-        </Button>
-      </Flex>
-    </Stack>
+    <Box as="section" borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
+      <Box p={{ base: 4, md: 5 }}>
+        <Stack gap={4}>
+          <Stack gap={1}>
+            <Heading as="h2" fontSize="md" fontWeight="semibold" color="red.700">
+              ユーザーを削除する
+            </Heading>
+            <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+              このグループからユーザーを削除します。ほかのグループへの所属には影響しません。この操作は元に戻せません。
+            </Text>
+          </Stack>
+          <Flex justify="flex-end">
+            <Button colorPalette="red" variant="solid" gap={1.5} disabled={isDisabled} onClick={onRequestRemovePerson}>
+              <LuTrash2 aria-hidden />
+              削除
+            </Button>
+          </Flex>
+          {isConfirmationOpen && (
+            <InlineDestructiveConfirmation
+              title={`${personName}さんをグループから削除しますか？`}
+              description="このグループのすべての店舗所属、管理権限、スタッフ権限、閲覧権限を終了します。ほかのグループへの所属には影響しません。過去のシフト履歴は保持します。この操作は元に戻せません。"
+              confirmLabel="グループから削除"
+              isLoading={isRemoving}
+              onCancel={onCancelRemovePerson}
+              onConfirm={onConfirmRemovePerson}
+            />
+          )}
+        </Stack>
+      </Box>
+    </Box>
   );
 }
 
@@ -183,6 +225,10 @@ function ManagerRoleAction({
   onCancelManagerAssignment,
   onAssignManager,
   onRequestRemoveManagerRole,
+  isRemovalConfirmationOpen,
+  isRemovingManagerRole,
+  onCancelRemoveManagerRole,
+  onConfirmRemoveManagerRole,
 }: {
   data: UserDetailData;
   isAssignmentConfirmationOpen: boolean;
@@ -191,21 +237,41 @@ function ManagerRoleAction({
   onCancelManagerAssignment: () => void;
   onAssignManager: () => void | Promise<void>;
   onRequestRemoveManagerRole: () => void;
+  isRemovalConfirmationOpen: boolean;
+  isRemovingManagerRole: boolean;
+  onCancelRemoveManagerRole: () => void;
+  onConfirmRemoveManagerRole: () => void | Promise<void>;
 }) {
   const managerInvitationDisabledReasonId = `user-detail-manager-invitation-disabled-${data.person.id}`;
 
   if (data.managerRole === "active") {
     return (
-      <Stack gap={2} align="flex-end">
-        <Button
-          variant="outline"
-          gap={1.5}
-          disabled={data.shops.length === 0 || (!data.canWrite && !data.canRemoveManagerRole)}
-          onClick={onRequestRemoveManagerRole}
-        >
-          <LuShieldMinus aria-hidden />
-          管理者権限を外す
-        </Button>
+      <Stack gap={3}>
+        <Flex justify="flex-end">
+          <Button
+            variant="outline"
+            gap={1.5}
+            disabled={data.shops.length === 0 || (!data.canWrite && !data.canRemoveManagerRole)}
+            onClick={onRequestRemoveManagerRole}
+          >
+            <LuShieldMinus aria-hidden />
+            管理者権限を外す
+          </Button>
+        </Flex>
+        {isRemovalConfirmationOpen && (
+          <InlineDestructiveConfirmation
+            title={`${data.person.name}さんの管理者権限を外しますか？`}
+            description={
+              data.memberships.length > 0
+                ? "グループ全体の管理権限を終了します。スタッフとしての店舗所属は維持します。このユーザーが発行した未連携のログイン案内は無効になります。"
+                : "店舗所属がないため、管理者権限を外すと、このグループへのアクセスも終了します。このユーザーが発行した未連携のログイン案内は無効になります。"
+            }
+            confirmLabel="管理者権限を外す"
+            isLoading={isRemovingManagerRole}
+            onCancel={onCancelRemoveManagerRole}
+            onConfirm={onConfirmRemoveManagerRole}
+          />
+        )}
       </Stack>
     );
   }
@@ -277,26 +343,64 @@ function ManagerRoleAction({
   );
 }
 
-function SettingsSection({
+function InlineDestructiveConfirmation({
   title,
   description,
-  children,
+  confirmLabel,
+  isLoading,
+  onCancel,
+  onConfirm,
 }: {
   title: string;
   description: string;
-  children: React.ReactNode;
+  confirmLabel: string;
+  isLoading: boolean;
+  onCancel: () => void;
+  onConfirm: () => void | Promise<void>;
 }) {
+  const titleId = useId();
+  const descriptionId = useId();
+  const confirmationRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    confirmationRef.current?.focus();
+    return () => {
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, []);
+
   return (
-    <Stack gap={4}>
-      <Stack gap={1}>
-        <Heading as="h3" fontSize="md" fontWeight="semibold" color="gray.900">
-          {title}
-        </Heading>
-        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          {description}
-        </Text>
+    <Box
+      ref={confirmationRef}
+      role="alertdialog"
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
+      tabIndex={-1}
+      borderWidth="1px"
+      borderColor="red.200"
+      borderRadius="md"
+      p={3}
+      w="full"
+    >
+      <Stack gap={3}>
+        <Stack gap={1}>
+          <Text id={titleId} fontWeight="semibold" color="red.700">
+            {title}
+          </Text>
+          <Text id={descriptionId} fontSize="sm" color="fg.muted" lineHeight="tall">
+            {description}
+          </Text>
+        </Stack>
+        <HStack justify="flex-end" gap={2}>
+          <Button variant="outline" onClick={onCancel} disabled={isLoading}>
+            やめる
+          </Button>
+          <Button colorPalette="red" loading={isLoading} onClick={onConfirm}>
+            {confirmLabel}
+          </Button>
+        </HStack>
       </Stack>
-      {children}
-    </Stack>
+    </Box>
   );
 }

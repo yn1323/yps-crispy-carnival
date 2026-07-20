@@ -94,7 +94,6 @@ export function StaffManagement({
       params: { personId: staff.organizationPersonId },
       search: {
         shop: selectedShop.shopId,
-        tab: "notification",
         returnTo: "dashboard",
         users: toUserListCountSearch(visibleStaffCount),
       },

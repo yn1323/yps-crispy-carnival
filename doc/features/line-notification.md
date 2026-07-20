@@ -7,7 +7,7 @@
 
 ### バックエンド（`convex/`）
 
-- `convex/schema.ts` — `staffs` 拡張（`lineUserId` / `lineLinkedAt` / `lineFollowing`）+ `lineLinkTokens` / `lineQuotaStatus` / `notificationOutbox` テーブル
+- `convex/schema.ts` — `staffLineAccounts` / `lineLinkTokens` / `lineQuotaStatus` / `notificationOutbox` テーブル
 - `convex/http.ts` — `/line/webhook` エンドポイント登録
 - `convex/crons.ts` — Quota 日次更新 cron
 - `convex/line/schemas.ts` — Zod スキーマ
@@ -28,7 +28,7 @@
 - `src/components/features/Line/LineLinkQrDialog/` — シフト担当者UI: QR / URL 表示
 - `src/components/features/LineCallback/` — OAuth action、状態遷移、コールバック完了 / エラー UI
 - `src/components/features/Dashboard/StaffRoster/StaffRow.tsx` — ユーザー詳細ページへの入口
-- `src/components/features/UserDetail/` — 店舗別のLINE連携状態表示、連携リンク表示、個別連携依頼、個別通知再送
+- `src/components/features/UserDetail/` — 店舗Dialog内のLINE連携状態表示、連携リンク表示、個別連携依頼、個別通知再送
 - `src/components/features/Dashboard/StaffManagement/` — ユーザー詳細ページへの遷移と、人物IDが未移行のスタッフに限った旧詳細モーダルの暫定接続
 - `src/devtools/NotificationPreview/` — Storybook で目的別にメール文面・LINE Flex previewを VRT 管理
 - `src/devtools/FlexMessagePreview/` — シフトリで生成するFlex JSON subsetのReact preview
@@ -37,8 +37,7 @@
 
 | 画面 | 役割 |
 |---|---|
-| `/users/<personId>?shop=<shopId>&tab=line` | 選択店舗のLINE連携状態確認、連携リンク表示、個別連携依頼 |
-| `/users/<personId>?shop=<shopId>&tab=notification` | 選択店舗の募集通知と現在の確定シフト通知を個別再送 |
+| `/users/<personId>?shop=<shopId>&panel=shop` | 選択店舗のDialogで通知再送、通知履歴、LINE連携、店舗設定を縦に表示する |
 | LineLinkQrDialog | QR 表示 + URL コピー |
 | `/line/callback` | OAuth 完了画面（成功 / 期限切れ / レート超過 / エラー） |
 | LINE 公式アカウントトーク画面 | 受信メッセージへ Reply API で定型応答 |
@@ -120,7 +119,7 @@ StorybookのLINE previewは公式LINE rendererの完全再現ではなく、シ�
 - メール変更時の追送: `staff.mutations.editStaff` でメールが実際に変わった場合だけ、変更後メールへ `internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaffEmailChange` をスケジュール。LINE受信可能なスタッフには送らず、未連携・unfollow・Quota超過時はメールで送る
 - LINE通知: `line.mutations.finalizeLinking` / `dispatchWebhookEvents` から `internal.notification.actions.sendOpenRecruitmentNotificationLinesForStaff` をスケジュール
 - 複数の対象募集がある場合は募集ごとに1通ずつ送る
-- ユーザー詳細ページの通知タブから、選択店舗の募集通知と現在の確定シフト通知を手動再送できる。通常は募集作成時とシフト確定時に自動通知されるため、送れなかった場合だけ使う補助導線として扱う。操作後のUIでは「送りました」と案内する
+- ユーザー詳細ページの店舗Dialogにある通知セクションから、選択店舗の募集通知と現在の確定シフト通知を手動再送できる。通常は募集作成時とシフト確定時に自動通知されるため、送れなかった場合だけ使う補助導線として扱う。操作後のUIでは「送りました」と案内する
 
 ## 複数店舗での連携
 

@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import { LuBell, LuCalendarCheck, LuSend } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { formatDateShort } from "@/src/domains/shift/date";
-import { StoreMembershipRequired } from "./StoreMembershipRequired";
 import type { UserDetailData, UserDetailMembership, UserDetailRecruitment } from "./types";
 
 type NotificationAction = {
@@ -14,7 +13,7 @@ type NotificationAction = {
 
 type Props = {
   data: UserDetailData;
-  membership: UserDetailMembership | null;
+  membership: UserDetailMembership;
   isReadOnly: boolean;
   isLoading: boolean;
   openRecruitments: UserDetailRecruitment[];
@@ -22,7 +21,6 @@ type Props = {
   notificationHistory: ReactNode;
   sendRecruitmentsAction: NotificationAction;
   sendCurrentShiftAction: NotificationAction;
-  onSelectShop: (shopId: string) => void;
 };
 
 export function UserNotificationTab({
@@ -35,12 +33,7 @@ export function UserNotificationTab({
   notificationHistory,
   sendRecruitmentsAction,
   sendCurrentShiftAction,
-  onSelectShop,
 }: Props) {
-  if (!membership) {
-    return <StoreMembershipRequired data={data} onSelectShop={onSelectShop} featureName="通知" icon={LuBell} />;
-  }
-
   const isLineActive = membership.line.isLinked && membership.line.isFollowing;
   const hasNotificationChannel = data.person.email.length > 0 || isLineActive;
   const canSendNotification = !isReadOnly && !membership.excludedFromShift && hasNotificationChannel;
@@ -50,7 +43,7 @@ export function UserNotificationTab({
       <fieldset disabled={isReadOnly} style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}>
         <Stack gap={6}>
           <Text as="h3" fontSize="md" fontWeight="semibold" color="gray.900">
-            {membership.shopName}の通知
+            通知
           </Text>
 
           {membership.excludedFromShift && (
@@ -69,7 +62,7 @@ export function UserNotificationTab({
               <Stack gap={1}>
                 <Text fontWeight="semibold">通知手段がありません</Text>
                 <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-                  ユーザー情報でメールアドレスを登録するか、LINE連携タブからこの店舗のLINEを連携してください。
+                  基本情報でメールアドレスを登録するか、LINE連携からこの店舗のLINEを連携してください。
                 </Text>
               </Stack>
             </Box>

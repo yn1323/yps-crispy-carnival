@@ -6,9 +6,9 @@ import { api } from "@/convex/_generated/api";
 import {
   getUserDetailBackDestination,
   UserDetail,
+  type UserDetailPanel,
   type UserDetailReturnTo,
   UserDetailSkeleton,
-  type UserDetailTab,
 } from "@/src/components/features/UserDetail";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
@@ -20,18 +20,20 @@ import { DEFAULT_USER_LIST_COUNT } from "@/src/lib/userListSearch";
 type Props = {
   personId: string;
   selectedShopId?: string;
-  defaultTab?: UserDetailTab;
+  activePanel?: UserDetailPanel;
   returnTo?: UserDetailReturnTo;
   returnShopId?: string;
+  returnShopTo?: "dashboard";
   visibleUserCount?: number;
 };
 
 export function UserDetailPage({
   personId,
   selectedShopId,
-  defaultTab = "notification",
+  activePanel,
   returnTo = "dashboard",
   returnShopId,
+  returnShopTo,
   visibleUserCount = DEFAULT_USER_LIST_COUNT,
 }: Props) {
   // query内の判定時刻を購読中に動かさず、同じ画面表示では同じcapability結果を使う。
@@ -43,6 +45,7 @@ export function UserDetailPage({
     visibleUserCount,
     personId,
     returnShopId,
+    returnShopTo,
   );
 
   return (
@@ -79,9 +82,10 @@ export function UserDetailPage({
         <UserDetail
           data={data}
           selectedShopId={selectedShopId ?? null}
-          activeTab={defaultTab}
+          activePanel={activePanel}
           returnTo={returnTo}
           returnShopId={returnShopId}
+          returnShopTo={returnShopTo}
           visibleUserCount={visibleUserCount}
         />
       )}
