@@ -21,8 +21,7 @@
 - ProのCheckout、Customer Portal、期間末のFree変更は、専用の請求管理者を設けず、対象グループの全有効管理者へ同じ権限を与える。
 - 契約制限中は、記録された復旧担当者に支払い復旧に必要な操作だけを許可する。
 - Pro（先行登録特典）にはCheckout、Customer Portal、契約変更を表示せず、Stripeオブジェクトを作成しない。
-- 価格と会計判断が未確定の間は`STRIPE_BILLING_MODE=off`とし、Stripeの新しいユーザー操作を利用不可にする。
-- APIキー、Webhook署名シークレット、Price ID、Portal Configuration IDの実値は、実装と検証の完了後に利用者が登録する。
+- 開発用Convex deploymentはStripe Sandboxの実値を登録して`STRIPE_BILLING_MODE=test`とする。本番deploymentは会計判断と本番用Stripe設定を確認するまで`off`を維持する。
 
 ## 参考ファイル
 

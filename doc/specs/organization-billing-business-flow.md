@@ -104,9 +104,9 @@ Pro（先行登録特典）では課金通知を発生させない。
 
 Businessプランは廃止し、通常課金の有料プランをProへ統一する。
 
-通常Proの価格、税、請求周期、日割り、返金、未払い請求の終端方針は別途決定する。
+開発用Stripe Sandboxには通常Proの月額JPY 1,480のPriceを登録し、開発用Convex deploymentを`STRIPE_BILLING_MODE=test`で接続する。
 
-これらが決まるまで`STRIPE_BILLING_MODE=off`を維持し、Checkoutを公開せず、画面へ仮の価格を表示しない。
+本番deploymentは、税、日割り、返金、未払い請求の終端方針と本番用Stripe設定を確認するまで`STRIPE_BILLING_MODE=off`を維持する。
 
 Pro（先行登録特典）は、`m009_shops_to_organizations`によって旧店舗モデルから作成され、移行元店舗を保持するグループだけを対象とする。
 

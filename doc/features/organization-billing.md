@@ -239,9 +239,8 @@ Stripeの値はブラウザへ公開せず、`.env`から`pnpm convex:env:setup`
 `STRIPE_BILLING_MODE`を停止するときは、`.env`へ明示的に`STRIPE_BILLING_MODE=off`を書いて同期する。
 ローカルの変数を削除しただけでは同期処理がその項目をskipし、Convex側の既存`test`または`live`値は解除されない。
 
-価格と会計判断が未確定のため、現在は`STRIPE_BILLING_MODE=off`を維持する。
-
-APIキー、Webhook署名シークレット、Price ID、Portal Configuration IDの実値は、実装と検証の完了後に利用者が登録する。
+開発用Convex deploymentではStripe Sandboxの実値を登録し、`STRIPE_BILLING_MODE=test`で接続を検証する。
+本番deploymentは、本番用のProduct、Price、Webhook、Customer Portalと会計判断を確認するまで`off`を維持し、Sandboxの実値を流用しない。
 
 ## プラン上限
 
@@ -312,10 +311,10 @@ Freeを保持している間はFreeの基本業務を継続でき、`restricted`
 
 | 項目 | 状態 |
 | --- | --- |
-| Proの価格、税、請求周期、日割り、返金、クレジット、未払い請求書の最終処理 | 未決定であり、仮の価格やPrice IDを作らない |
+| Proの価格、税、請求周期、日割り、返金、クレジット、未払い請求書の最終処理 | Sandboxでは月額JPY 1,480のPriceを登録済み。本番公開前に税、日割り、返金、クレジット、未払い請求書の最終方針を確認する |
 | 既存本番利用者へ割り当てる初期課金状態 | `migrationSourceShopId`があるグループへ、期限と課金のない`complimentary.pro`を付与することを決定済み |
-| Stripe公開モード | `STRIPE_BILLING_MODE=off`を維持し、価格表示、Checkout、Portal、契約変更の新規ユーザー操作を公開しない |
-| Stripe Product、Price、Webhook endpoint、Customer Portal | 実装と検証の完了後に、利用者が環境別の実値と外部設定を登録する |
+| Stripe公開モード | 開発用Convex deploymentは`test`、本番deploymentは公開判断まで`off`を維持する |
+| Stripe Product、Price、Webhook endpoint、Customer Portal | Stripe Sandboxと開発用Convex deploymentへ登録済み。本番では別の実値と外部設定を登録する |
 | Stripe Webhookと既存契約の安全処理 | `off`でも署名検証、重複排除、再試行、状態照合、契約終了の反映に必要な処理を停止しない |
 | 本番migration | migrationコードだけを実装し、本番データへは実行していない |
 | 本番デプロイ | この実装では実行していない |

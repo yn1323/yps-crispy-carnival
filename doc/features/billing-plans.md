@@ -29,11 +29,9 @@ Pro（先行登録特典）は、公開API、管理用処理、Stripeイベン�
 
 ## Stripe公開状態
 
-Proの価格、税、請求周期、日割り、返金、クレジット、未払い請求の最終処理は未決定である。
+開発用Stripe Sandboxには月額JPY 1,480のPro Priceを登録し、開発用Convex deploymentを`STRIPE_BILLING_MODE=test`で接続する。
 
-これらが決まるまでは`STRIPE_BILLING_MODE=off`を維持し、仮の価格やPrice IDを登録せず、新しいStripeユーザー操作を公開しない。
-
-APIキー、Webhook署名シークレット、Price ID、Portal Configuration IDの実値は、実装と検証の完了後に利用者が登録する。
+本番deploymentは、税、日割り、返金、クレジット、未払い請求の最終処理と本番用Stripe設定を確認するまで`STRIPE_BILLING_MODE=off`を維持する。
 
 ## 参考ファイル
 
