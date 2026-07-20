@@ -185,7 +185,7 @@ describe("organizationStripe/actions", () => {
     });
     const providerResources: string[] = [];
     providerFetchMock.mockImplementation(async (input) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       providerResources.push(resource);
       if (resource === "events.retrieve") {
         return providerResponse({
@@ -349,7 +349,7 @@ describe("organizationStripe/actions", () => {
       },
     });
     providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
       providerResources.push(resource);
       if (resource === "events.retrieve") {
@@ -533,7 +533,7 @@ describe("organizationStripe/actions", () => {
       },
     });
     providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
       providerResources.push(resource);
       if (resource === "events.retrieve") {
@@ -752,7 +752,7 @@ describe("organizationStripe/actions", () => {
     });
     const providerResources: string[] = [];
     providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
       providerResources.push(resource);
       if (resource === "events.retrieve") {
@@ -853,7 +853,7 @@ describe("organizationStripe/actions", () => {
       },
     });
     providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       const providerArgs = JSON.parse(String(init?.body ?? "[]")) as unknown[];
       providerResources.push(resource);
       if (resource === "events.retrieve") {
@@ -928,7 +928,7 @@ describe("organizationStripe/actions", () => {
     const ids = await seedModeOffUnboundTrialCreate(t, { suffix: "immediate_replay_blocked" });
     const providerResources: string[] = [];
     providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       const providerArgs = JSON.parse(String(init?.body ?? "[]")) as unknown[];
       providerResources.push(resource);
       if (resource === "events.retrieve") {
@@ -1439,7 +1439,7 @@ describe("organizationStripe/actions", () => {
     });
     const providerCalls: Array<{ resource: string; args: unknown[] }> = [];
     providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
       providerCalls.push({ resource, args });
       if (resource === "events.retrieve") {
@@ -1644,7 +1644,7 @@ describe("organizationStripe/actions", () => {
       },
     });
     providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
       if (resource === "events.retrieve") {
         return providerResponse({
@@ -1829,7 +1829,7 @@ describe("organizationStripe/actions", () => {
       },
     });
     providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
       if (resource === "subscriptions.retrieve") return providerResponse(providerSubscription("trialing"));
       if (resource === "subscriptions.cancel") {
@@ -1909,7 +1909,7 @@ describe("organizationStripe/actions", () => {
       return seeded;
     });
     providerFetchMock.mockImplementation(async (input) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       if (resource === "subscriptions.retrieve") {
         return providerResponse({
           id: "sub_initial_reconcile",
@@ -2046,7 +2046,7 @@ describe("organizationStripe/actions", () => {
       },
     };
     providerFetchMock.mockImplementation(async (input) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       if (resource === "subscriptions.retrieve") return providerResponse(canceledSubscription);
       throw new Error(`Unexpected Stripe provider call: ${resource}`);
     });
@@ -2134,7 +2134,7 @@ describe("organizationStripe/actions", () => {
     });
     const providerCalls: string[] = [];
     providerFetchMock.mockImplementation(async (input) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       providerCalls.push(resource);
       if (resource === "subscriptions.retrieve") {
         return providerResponse({
@@ -2211,7 +2211,7 @@ describe("organizationStripe/actions", () => {
       periodEndsAt,
     });
     providerFetchMock.mockImplementation(async (input) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       if (resource === "subscriptions.retrieve") {
         return providerResponse(
           cancelAtPeriodEndSubscription(ids, {
@@ -2257,7 +2257,7 @@ describe("organizationStripe/actions", () => {
       periodEndsAt,
     });
     providerFetchMock.mockImplementation(async (input) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       if (resource === "subscriptions.retrieve") {
         return providerResponse(
           cancelAtPeriodEndSubscription(ids, {
@@ -2299,7 +2299,7 @@ describe("organizationStripe/actions", () => {
     });
     const updateCalls: unknown[][] = [];
     providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       if (resource === "subscriptions.retrieve") {
         return providerResponse(
           cancelAtPeriodEndSubscription(ids, {
@@ -2338,7 +2338,7 @@ describe("organizationStripe/actions", () => {
     const t = convexTest(schema, modules);
     const ids = await seedScheduledFreeStripeContext(t, "stripe_scheduled_free_cancelled");
     providerFetchMock.mockImplementation(async (input) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       if (resource === "subscriptions.retrieve") {
         return providerResponse(scheduledFreeSubscription(ids.organizationId, "active", false));
       }
@@ -2374,7 +2374,7 @@ describe("organizationStripe/actions", () => {
     const t = convexTest(schema, modules);
     const ids = await seedScheduledFreeStripeContext(t, "stripe_scheduled_free_confirmed");
     providerFetchMock.mockImplementation(async (input) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       if (resource === "subscriptions.retrieve") {
         return providerResponse(scheduledFreeSubscription(ids.organizationId, "canceled", true));
       }
@@ -2408,7 +2408,7 @@ describe("organizationStripe/actions", () => {
     const ids = await seedExpiredGraceStripeContext(t, "stripe_grace_success");
     const providerCalls: Array<{ resource: string; args: unknown[] }> = [];
     providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
       providerCalls.push({ resource, args });
       if (resource === "subscriptions.retrieve") return providerResponse(stripeSubscription("past_due"));
@@ -2491,7 +2491,7 @@ describe("organizationStripe/actions", () => {
     vi.stubEnv("STRIPE_SECRET_KEY", READY_TEST_CONFIGURATION.secretKey);
     vi.setSystemTime(NOW + 30_000);
     providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       const providerArgs = JSON.parse(String(init?.body ?? "[]")) as unknown[];
       if (resource === "subscriptions.retrieve") return providerResponse(stripeSubscription("past_due"));
       if (resource === "subscriptions.cancel") return providerResponse(stripeSubscription("canceled"));
@@ -2608,7 +2608,7 @@ describe("organizationStripe/actions", () => {
     });
     const updateCalls: unknown[][] = [];
     providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
       if (resource === "customers.retrieve") {
         return providerResponse({
@@ -2681,7 +2681,7 @@ describe("organizationStripe/actions", () => {
     });
     const completedEmails: string[] = [];
     providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
       if (resource === "customers.retrieve") {
         return providerResponse({
@@ -2756,7 +2756,7 @@ describe("organizationStripe/actions", () => {
     let shouldFail = true;
     const idempotencyKeys: string[] = [];
     providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
       if (resource === "customers.retrieve") {
         return providerResponse({
@@ -2833,7 +2833,7 @@ describe("organizationStripe/actions", () => {
     let safeConfiguration = false;
     const portalCreateCalls: unknown[][] = [];
     providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
       if (resource === "customers.retrieve") {
         return providerResponse({
@@ -2954,7 +2954,7 @@ describe("organizationStripe/actions", () => {
     });
     const checkoutCreateCalls: unknown[][] = [];
     providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").at(-1) ?? "";
+      const resource = String(input).split("/").pop() ?? "";
       const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
       if (resource === "prices.retrieve") {
         return providerResponse({
