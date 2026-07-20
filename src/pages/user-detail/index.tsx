@@ -1,4 +1,3 @@
-import { Box } from "@chakra-ui/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { useState } from "react";
 import { LuUserRoundX } from "react-icons/lu";
@@ -10,8 +9,8 @@ import {
   type UserDetailReturnTo,
   UserDetailSkeleton,
 } from "@/src/components/features/UserDetail";
+import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
-import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
@@ -49,7 +48,7 @@ export function UserDetailPage({
   );
 
   return (
-    <UserDetailPageShell>
+    <AuthenticatedPageContent>
       {data === undefined ? (
         <UserDetailSkeleton />
       ) : data === null ? (
@@ -89,22 +88,8 @@ export function UserDetailPage({
           visibleUserCount={visibleUserCount}
         />
       )}
-    </UserDetailPageShell>
+    </AuthenticatedPageContent>
   );
 }
 
 export type { UserDetailReturnTo };
-
-function UserDetailPageShell({ children }: { children: React.ReactNode }) {
-  return (
-    <Box
-      minH={{
-        base: `calc(100dvh - ${HEADER_HEIGHT.base})`,
-        md: `calc(100dvh - ${HEADER_HEIGHT.md})`,
-      }}
-      bg="gray.50"
-    >
-      <RootContentWrapper>{children}</RootContentWrapper>
-    </Box>
-  );
-}

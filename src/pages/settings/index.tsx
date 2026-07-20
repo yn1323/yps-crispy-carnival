@@ -1,10 +1,9 @@
-import { Box } from "@chakra-ui/react";
 import { useQuery } from "convex/react";
 import { useAtomValue } from "jotai";
 import { useMemo } from "react";
 import { api } from "@/convex/_generated/api";
 import { OrganizationSettings, OrganizationSettingsSkeleton } from "@/src/components/features/OrganizationSettings";
-import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
+import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
 import { isSelectableShop, normalizeShopContextOptions, selectedShopAtom } from "@/src/stores/shop";
 
@@ -29,30 +28,20 @@ export function OrganizationSettingsPage({
   const shops = useMemo(() => normalizeShopContextOptions(rawShops ?? []).filter(isSelectableShop), [rawShops]);
 
   return (
-    <SettingsPageLayout
-      content={
-        settings && rawShops !== undefined && selectedShop ? (
-          <OrganizationSettings
-            settings={settings}
-            context={{ shops, selectedShopId: selectedShop.shopId }}
-            defaultTab={defaultTab}
-            onTabChange={onTabChange}
-            initialVisibleUserCount={visibleUserCount}
-            focusedPersonId={focusedPersonId}
-            onVisibleUserCountChange={onVisibleUserCountChange}
-          />
-        ) : (
-          <OrganizationSettingsSkeleton />
-        )
-      }
-    />
-  );
-}
-
-function SettingsPageLayout({ content }: { content: React.ReactNode }) {
-  return (
-    <Box minH="calc(100dvh - 68px)" bg="gray.50">
-      <RootContentWrapper>{content}</RootContentWrapper>
-    </Box>
+    <AuthenticatedPageContent>
+      {settings && rawShops !== undefined && selectedShop ? (
+        <OrganizationSettings
+          settings={settings}
+          context={{ shops, selectedShopId: selectedShop.shopId }}
+          defaultTab={defaultTab}
+          onTabChange={onTabChange}
+          initialVisibleUserCount={visibleUserCount}
+          focusedPersonId={focusedPersonId}
+          onVisibleUserCountChange={onVisibleUserCountChange}
+        />
+      ) : (
+        <OrganizationSettingsSkeleton />
+      )}
+    </AuthenticatedPageContent>
   );
 }

@@ -1,11 +1,10 @@
-import { Box } from "@chakra-ui/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { LuStore } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import { ShopDetail, ShopDetailSkeleton } from "@/src/components/features/ShopDetail";
+import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
-import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
@@ -24,7 +23,7 @@ export function ShopDetailPage({ shopId, selectedShopId, returnTo }: Props) {
   const shop = settings?.shops.find((candidate) => candidate.id === shopId) ?? null;
 
   return (
-    <ShopDetailPageShell>
+    <AuthenticatedPageContent>
       {contextShopId === null ? (
         <Empty
           icon={LuStore}
@@ -65,20 +64,6 @@ export function ShopDetailPage({ shopId, selectedShopId, returnTo }: Props) {
           }
         />
       )}
-    </ShopDetailPageShell>
-  );
-}
-
-function ShopDetailPageShell({ children }: { children: React.ReactNode }) {
-  return (
-    <Box
-      minH={{
-        base: `calc(100dvh - ${HEADER_HEIGHT.base})`,
-        md: `calc(100dvh - ${HEADER_HEIGHT.md})`,
-      }}
-      bg="gray.50"
-    >
-      <RootContentWrapper>{children}</RootContentWrapper>
-    </Box>
+    </AuthenticatedPageContent>
   );
 }
