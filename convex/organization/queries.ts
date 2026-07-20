@@ -860,7 +860,9 @@ export const getSettings = managerQuery({
             ...billingCapabilityReasons,
             state: "trial",
             currentPlan: "trial",
-            nextEvent: { label: "無料体験終了", date: formatDateJa(state.trialEndsAt) },
+            // trialEndsAt は翌月末日の翌日 0:00 JST を表す排他的な境界。
+            // 画面では無料体験を利用できる最終日を表示する。
+            nextEvent: { label: "無料体験終了", date: formatDateJa(state.trialEndsAt - 1) },
           };
           break;
         case "initialPaymentPending":

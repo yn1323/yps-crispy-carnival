@@ -6,7 +6,7 @@ import { seedManagerShop, seedOrganizationManagerShop, seedUser } from "../_test
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("organization/queries.getSettings", () => {
-  it("無料体験終了を時刻なしのJST日付で返す", async () => {
+  it("無料体験を利用できる最終日のJST日付を返す", async () => {
     const t = convexTest(schema, modules);
     const trialEndsAt = Date.parse("2026-09-01T00:00:00+09:00");
     const ids = await t.run(async (ctx) => {
@@ -29,7 +29,7 @@ describe("organization/queries.getSettings", () => {
 
     expect(result?.billing.state).toBe("trial");
     if (!result || !("nextEvent" in result.billing)) throw new Error("trial billing view not found");
-    expect(result.billing.nextEvent).toEqual({ label: "無料体験終了", date: "2026年9月1日" });
+    expect(result.billing.nextEvent).toEqual({ label: "無料体験終了", date: "2026年8月31日" });
   });
 
   it("事業者設定を画面用DTOへ投影し、tokenや内部状態を返さない", async () => {
