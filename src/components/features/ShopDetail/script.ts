@@ -1,81 +1,64 @@
-import { MAX_SHIFT_TYPE_OPTIONS } from "@/convex/_lib/submissionPatternConstants";
-import type { RegularClosedDay, ShiftSubmissionPattern, ShiftTypeOption } from "@/convex/shop/schemas";
-import {
-  createDefaultShiftTypeOptions,
-  DEFAULT_TIME_PATTERN,
-  normalizeShiftTypeOptions,
-} from "@/src/components/shared/ShopSubmissionPatternForm";
-import { generateShiftTimeOptions, MAX_SHIFT_TIME_MINUTES, timeToMinutes } from "@/src/domains/shift/time";
-import type { ShopDetailPerson } from "./types";
+import type { RegularClosedDay, ShiftSubmissionPattern } from "@/convex/shop/schemas";
+import { formatShiftClockTimeRange } from "@/src/domains/shift/time";
+import type { ShopDetailData, ShopDetailPerson } from "./types";
 
-export const WEEKDAYS: Array<{ value: RegularClosedDay; label: string; ariaLabel: string }> = [
-  { value: "sun", label: "日", ariaLabel: "日曜日" },
-  { value: "mon", label: "月", ariaLabel: "月曜日" },
-  { value: "tue", label: "火", ariaLabel: "火曜日" },
-  { value: "wed", label: "水", ariaLabel: "水曜日" },
-  { value: "thu", label: "木", ariaLabel: "木曜日" },
-  { value: "fri", label: "金", ariaLabel: "金曜日" },
-  { value: "sat", label: "土", ariaLabel: "土曜日" },
+const WEEKDAYS: Array<{ value: RegularClosedDay; label: string }> = [
+  { value: "sun", label: "日曜日" },
+  { value: "mon", label: "月曜日" },
+  { value: "tue", label: "火曜日" },
+  { value: "wed", label: "水曜日" },
+  { value: "thu", label: "木曜日" },
+  { value: "fri", label: "金曜日" },
+  { value: "sat", label: "土曜日" },
 ];
 
-const START_TIME_OPTIONS = generateShiftTimeOptions({ endMinutes: MAX_SHIFT_TIME_MINUTES - 30 });
-const END_TIME_OPTIONS = generateShiftTimeOptions({ endMinutes: MAX_SHIFT_TIME_MINUTES });
+const SUBMISSION_PATTERN_LABELS: Record<ShiftSubmissionPattern["kind"], string> = {
+  dateOnly: "日ごと",
+  time: "時間指定",
+  shiftType: "勤務区分",
+};
+
+export type ShopBasicInformationRow = {
+  label: string;
+  value: string;
+};
 
 export function getShopStaffs(people: readonly ShopDetailPerson[], shopId: string) {
   return people.filter((person) => person.shopIds.includes(shopId));
 }
 
-export function sortRegularClosedDays(days: RegularClosedDay[]) {
-  return WEEKDAYS.filter((day) => days.includes(day.value)).map((day) => day.value);
-}
+export function getShopBasicInformationRows(
+  shop: Pick<ShopDetailData, "name" | "regularClosedDays" | "submissionPattern">,
+): ShopBasicInformationRow[] {
+  const rows: ShopBasicInformationRow[] = [
+    { label: "店舗名", value: shop.name },
+    {
+      label: "希望シフトの集め方",
+      value: SUBMISSION_PATTERN_LABELS[shop.submissionPattern.kind],
+    },
+  ];
 
-export function getAvailableStartTimeOptions(endTime: string) {
-  const endMinutes = timeToMinutes(endTime);
-  return START_TIME_OPTIONS.filter((option) => timeToMinutes(option.value) < endMinutes);
-}
-
-export function getAvailableEndTimeOptions(startTime: string) {
-  const startMinutes = timeToMinutes(startTime);
-  return END_TIME_OPTIONS.filter((option) => timeToMinutes(option.value) > startMinutes);
-}
-
-export function changeSubmissionPattern(
-  current: ShiftSubmissionPattern,
-  kind: ShiftSubmissionPattern["kind"],
-): ShiftSubmissionPattern {
-  if (kind === "time") {
-    return current.kind === "time" ? current : { ...DEFAULT_TIME_PATTERN };
+  if (shop.submissionPattern.kind === "time") {
+    rows.push({
+      label: "勤務時間",
+      value: formatShiftClockTimeRange(shop.submissionPattern.startTime, shop.submissionPattern.endTime),
+    });
   }
-  if (kind === "shiftType") {
-    return current.kind === "shiftType" && current.options.length > 0
-      ? current
-      : { kind: "shiftType", options: createDefaultShiftTypeOptions() };
+
+  if (shop.submissionPattern.kind === "shiftType") {
+    rows.push({
+      label: "勤務区分",
+      value: shop.submissionPattern.options
+        .map((option) => `${option.name}（${formatShiftClockTimeRange(option.startTime, option.endTime)}）`)
+        .join("、"),
+    });
   }
-  return { kind: "dateOnly" };
-}
 
-export function updateShiftTypeOption(
-  pattern: ShiftSubmissionPattern,
-  index: number,
-  patch: Partial<ShiftTypeOption>,
-): ShiftSubmissionPattern {
-  if (pattern.kind !== "shiftType") return pattern;
-  return {
-    kind: "shiftType",
-    options: normalizeShiftTypeOptions(
-      pattern.options.map((option, optionIndex) => (optionIndex === index ? { ...option, ...patch } : option)),
-    ),
-  };
-}
+  const closedDayLabels = WEEKDAYS.filter((day) => shop.regularClosedDays.includes(day.value)).map((day) => day.label);
+  rows.push({
+    label: "定休日",
+    value: closedDayLabels.length > 0 ? `毎週 ${closedDayLabels.join("・")}` : "定休日なし",
+  });
 
-export function removeShiftTypeOption(pattern: ShiftSubmissionPattern, index: number): ShiftSubmissionPattern {
-  if (pattern.kind !== "shiftType") return pattern;
-  return {
-    kind: "shiftType",
-    options: normalizeShiftTypeOptions(pattern.options.filter((_, optionIndex) => optionIndex !== index)),
-  };
-}
-
-export function canAddShiftTypeOption(pattern: ShiftSubmissionPattern) {
-  return pattern.kind === "shiftType" && pattern.options.length < MAX_SHIFT_TYPE_OPTIONS;
+  return rows;
 }

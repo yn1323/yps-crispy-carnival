@@ -28,7 +28,7 @@ export function ShopDetail({ shop, people, selectedShopId }: Props) {
       key={shop.id}
       shop={shop}
       staffs={staffs}
-      updatingSetting={settings.updatingSetting}
+      settingsDialog={settings.dialog}
       isDeleting={deletion.isDeleting}
       onBack={backToSettings}
       onOpenUser={(personId) =>
@@ -43,7 +43,7 @@ export function ShopDetail({ shop, people, selectedShopId }: Props) {
           },
         })
       }
-      onUpdateSetting={settings.updateSetting}
+      onUpdateSettings={settings.updateSettings}
       onDelete={deletion.deleteShop}
     />
   );

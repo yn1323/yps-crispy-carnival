@@ -1,4 +1,4 @@
-import type { RegularClosedDay, ShiftSubmissionPattern, UpdateShopSettingInput } from "@/convex/shop/schemas";
+import type { RegularClosedDay, ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import type { OrganizationPersonRowData } from "@/src/components/shared/OrganizationPersonRow";
 
 export type ShopDetailData = {
@@ -15,6 +15,3 @@ export type ShopDetailData = {
 export type ShopDetailPerson = OrganizationPersonRowData & {
   shopIds: readonly string[];
 };
-
-export type ShopSettingKind = UpdateShopSettingInput["kind"];
-export type UpdateShopSetting = (change: UpdateShopSettingInput) => void | Promise<void>;

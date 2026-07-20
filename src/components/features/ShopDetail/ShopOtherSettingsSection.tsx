@@ -38,7 +38,7 @@ export function ShopOtherSettingsSection({ shop, onRequestDelete }: Props) {
               <Flex justify="flex-end">
                 <Button
                   colorPalette="red"
-                  variant="outline"
+                  variant="solid"
                   gap={1.5}
                   disabled={!shop.canDelete}
                   aria-describedby={disabledReasonId}

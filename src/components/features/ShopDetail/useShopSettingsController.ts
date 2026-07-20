@@ -1,48 +1,55 @@
 import { useMutation } from "convex/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import type { UpdateShopSettingInput } from "@/convex/shop/schemas";
+import type { ShopFormData } from "@/src/components/features/ShopForm";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
+import { useDialog } from "@/src/components/ui/Dialog";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
-import type { ShopDetailData, ShopSettingKind } from "./types";
-
-const SUCCESS_TITLES: Record<ShopSettingKind, string> = {
-  shopName: "店舗名を更新しました",
-  submissionPattern: "希望シフトの集め方を更新しました",
-  regularClosedDays: "定休日を更新しました",
-};
+import type { ShopDetailData } from "./types";
 
 export function useShopSettingsController(shop: ShopDetailData) {
-  const updateMutation = useMutation(api.shop.mutations.updateShopSetting);
+  const updateMutation = useMutation(api.shop.mutations.updateShopSettings);
+  const dialog = useDialog();
   const latestShopRef = useRef(shop);
-  const [updatingSetting, setUpdatingSetting] = useState<ShopSettingKind | null>(null);
   latestShopRef.current = shop;
 
-  const { run } = useSingleFlight(async (change: UpdateShopSettingInput) => {
+  useEffect(() => {
+    if (!shop.canUpdateSettings) dialog.close();
+  }, [dialog.close, shop.canUpdateSettings]);
+
+  const { run } = useSingleFlight(async (data: ShopFormData) => {
     const latestShop = latestShopRef.current;
     if (!latestShop.canUpdateSettings) return false;
 
-    setUpdatingSetting(change.kind);
     try {
       await updateMutation({
         shopId: latestShop.id as Id<"shops">,
-        change,
+        ...data,
       });
-      showSuccessToast({ title: SUCCESS_TITLES[change.kind] });
+      dialog.close();
+      showSuccessToast({ title: "店舗設定を更新しました" });
       return true;
     } catch (error) {
       showErrorToast(error);
       return false;
-    } finally {
-      setUpdatingSetting(null);
     }
   });
 
+  const openSettings = () => {
+    if (!latestShopRef.current.canUpdateSettings) return;
+    dialog.open();
+  };
+
   return {
-    updatingSetting,
-    updateSetting: async (change: UpdateShopSettingInput) => {
-      await run(change);
+    dialog: {
+      isOpen: dialog.isOpen,
+      onOpenChange: dialog.onOpenChange,
+      open: openSettings,
+      close: dialog.close,
+    },
+    updateSettings: async (data: ShopFormData) => {
+      await run(data);
     },
   };
 }

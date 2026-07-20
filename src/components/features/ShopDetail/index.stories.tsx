@@ -33,6 +33,13 @@ const staffs: ShopDetailPerson[] = [
   },
 ];
 
+const closedSettingsDialog = {
+  isOpen: false,
+  onOpenChange: () => {},
+  open: () => {},
+  close: () => {},
+};
+
 const meta = {
   title: "Features/ShopDetail",
   component: ShopDetailView,
@@ -47,11 +54,11 @@ const meta = {
   args: {
     shop,
     staffs,
-    updatingSetting: null,
+    settingsDialog: closedSettingsDialog,
     isDeleting: false,
     onBack: () => {},
     onOpenUser: () => {},
-    onUpdateSetting: () => {},
+    onUpdateSettings: () => {},
     onDelete: async () => true,
   },
 } satisfies Meta<typeof ShopDetailView>;
@@ -106,14 +113,74 @@ export const DeletionUnavailable: Story = {
   },
 };
 
-export const SubmissionPatternUpdateBehavior: Story = {
+export const SettingsDialog: Story = {
+  args: {
+    settingsDialog: { ...closedSettingsDialog, isOpen: true },
+  },
+};
+
+export const StaffAccordionOpen: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const trigger = canvas.getByRole("button", { name: /スタッフ一覧を見る/ });
+    await userEvent.click(trigger);
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
+    const staffButton = await canvas.findByRole("button", { name: "佐藤 花子のユーザー詳細を開く" });
+    await waitFor(() => expect(staffButton).toBeVisible());
+  },
+};
+
+export const EmptyStaffAccordionOpen: Story = {
+  args: { staffs: [] },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const trigger = canvas.getByRole("button", { name: /スタッフ一覧を見る/ });
+    await userEvent.click(trigger);
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
+    const emptyMessage = await canvas.findByText("この店舗に所属するスタッフはいません。");
+    await waitFor(() => expect(emptyMessage).toBeVisible());
+  },
+};
+
+export const SettingsDialogBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   render: () => <InteractionHarness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: /^日ごと 日ごと/ }));
-    await userEvent.click(canvas.getByRole("button", { name: "希望シフトの集め方を更新" }));
-    await expect(await canvas.findByLabelText("操作結果")).toHaveTextContent("submissionPattern:dateOnly");
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("button", { name: "編集する" }));
+    const dialog = await body.findByRole("dialog", { name: "店舗設定" });
+    await waitFor(() => expect(dialog).toBeVisible());
+    await userEvent.click(within(dialog).getByRole("button", { name: "閉じる" }));
+    await waitFor(() => expect(body.queryByRole("dialog", { name: "店舗設定" })).not.toBeInTheDocument());
+  },
+};
+
+export const SettingsBatchUpdateBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <InteractionHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("button", { name: "編集する" }));
+    const dialog = await body.findByRole("dialog", { name: "店舗設定" });
+    const form = within(dialog);
+
+    const shopName = form.getByRole("textbox", { name: "お店の名前" });
+    await userEvent.clear(shopName);
+    await userEvent.type(shopName, "更新後の新宿店");
+    await userEvent.click(form.getByRole("button", { name: "次へ" }));
+
+    await form.findByText("希望シフトの集め方");
+    await userEvent.click(form.getByRole("button", { name: "次へ" }));
+
+    await form.findByText("シフト開始時間");
+    await userEvent.click(form.getByRole("button", { name: "次へ" }));
+
+    await form.findByText("現在の設定: 毎週 日");
+    await userEvent.click(form.getByRole("button", { name: "変更を保存" }));
+
+    await waitFor(() => expect(canvas.getByLabelText("操作結果")).toHaveTextContent("update:更新後の新宿店|time|sun"));
   },
 };
 
@@ -122,38 +189,13 @@ export const StaffNavigationBehavior: Story = {
   render: () => <InteractionHarness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "佐藤 花子のユーザー詳細を開く" }));
+    const trigger = canvas.getByRole("button", { name: /スタッフ一覧を見る/ });
+    await userEvent.click(trigger);
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
+    const staffButton = await canvas.findByRole("button", { name: "佐藤 花子のユーザー詳細を開く" });
+    await waitFor(() => expect(staffButton).toBeVisible());
+    await userEvent.click(staffButton);
     await expect(await canvas.findByLabelText("操作結果")).toHaveTextContent("open:person-staff");
-  },
-};
-
-export const InvalidShiftTypeBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  render: () => <InteractionHarness />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: /^勤務区分 勤務区分/ }));
-    await userEvent.click(canvas.getByRole("button", { name: "早番を削除" }));
-    await userEvent.click(canvas.getByRole("button", { name: "遅番を削除" }));
-    await expect(canvas.queryByText("勤務区分を1つ以上追加してください")).not.toBeInTheDocument();
-    await userEvent.click(canvas.getByRole("button", { name: "希望シフトの集め方を更新" }));
-
-    await expect(await canvas.findByText("勤務区分を1つ以上追加してください")).toBeVisible();
-    await expect(canvas.getByLabelText("操作結果")).toBeEmptyDOMElement();
-    await waitFor(() => expect(canvas.getByRole("button", { name: "勤務区分を追加" })).toHaveFocus());
-  },
-};
-
-export const RegularClosedDaysUpdateBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  render: () => <InteractionHarness />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "金曜日を定休日にする" }));
-    await userEvent.click(canvas.getByRole("button", { name: "月曜日を定休日にする" }));
-    await userEvent.click(canvas.getByRole("button", { name: "定休日を更新" }));
-
-    await expect(await canvas.findByLabelText("操作結果")).toHaveTextContent("regularClosedDays:sun,mon,fri");
   },
 };
 
@@ -180,6 +222,7 @@ const permissionLossReason = "最新の権限では、この店舗を削除で�
 
 function InteractionHarness() {
   const [result, setResult] = useState("");
+  const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
 
   return (
     <>
@@ -187,18 +230,18 @@ function InteractionHarness() {
       <ShopDetailView
         shop={shop}
         staffs={staffs}
-        updatingSetting={null}
+        settingsDialog={{
+          isOpen: isSettingsDialogOpen,
+          onOpenChange: ({ open }) => setIsSettingsDialogOpen(open),
+          open: () => setIsSettingsDialogOpen(true),
+          close: () => setIsSettingsDialogOpen(false),
+        }}
         isDeleting={false}
         onBack={() => {}}
         onOpenUser={(personId) => setResult(`open:${personId}`)}
-        onUpdateSetting={(change) => {
-          if (change.kind === "submissionPattern") {
-            setResult(`submissionPattern:${change.submissionPattern.kind}`);
-          }
-          if (change.kind === "regularClosedDays") {
-            setResult(`regularClosedDays:${change.regularClosedDays.join(",")}`);
-          }
-        }}
+        onUpdateSettings={(data) =>
+          setResult(`update:${data.shopName}|${data.submissionPattern.kind}|${data.regularClosedDays.join(",")}`)
+        }
         onDelete={async () => false}
       />
     </>
@@ -216,11 +259,11 @@ function PermissionLossHarness() {
       <ShopDetailView
         shop={{ ...shop, canDelete, deleteDisabledReason: canDelete ? undefined : permissionLossReason }}
         staffs={staffs}
-        updatingSetting={null}
+        settingsDialog={closedSettingsDialog}
         isDeleting={false}
         onBack={() => {}}
         onOpenUser={() => {}}
-        onUpdateSetting={() => {}}
+        onUpdateSettings={() => {}}
         onDelete={async () => false}
       />
     </>
@@ -247,6 +290,19 @@ export const DeletionPermissionLossBehavior: Story = {
 export const Mobile: Story = {
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
+export const MobileStaffAccordionOpen: Story = {
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const trigger = canvas.getByRole("button", { name: /スタッフ一覧を見る/ });
+    await userEvent.click(trigger);
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
+    const staffButton = await canvas.findByRole("button", { name: "佐藤 花子のユーザー詳細を開く" });
+    await waitFor(() => expect(staffButton).toBeVisible());
+  },
 };
 
 export const MobileShiftType: Story = {
