@@ -50,12 +50,14 @@ export const LineLinkQrDialog = ({ authorizeUrl, isLoading }: Props) => {
   }
 
   return (
-    <Stack gap={4}>
-      <Stack align="center">
+    <Stack gap={4} w="full" maxW="full" minW={0} alignSelf="stretch">
+      <Stack align="center" w="full">
         {qrSvg ? (
           <Box
             // biome-ignore lint/security/noDangerouslySetInnerHtml: trusted SVG from qrcode lib
             dangerouslySetInnerHTML={{ __html: qrSvg }}
+            role="img"
+            aria-label="LINE連携用QRコード"
             width="200px"
             height="200px"
             borderRadius="md"
@@ -67,8 +69,9 @@ export const LineLinkQrDialog = ({ authorizeUrl, isLoading }: Props) => {
           <QrSkeleton />
         )}
       </Stack>
-      <HStack gap={2} align="center">
+      <HStack gap={2} align="center" w="full" maxW="full" minW={0}>
         <Code
+          title={authorizeUrl}
           p={2}
           fontSize="xs"
           display="block"
@@ -106,8 +109,8 @@ const QrSkeleton = () => (
 );
 
 const LineLinkQrDialogSkeleton = () => (
-  <Stack gap={4} aria-busy="true">
-    <Stack align="center">
+  <Stack gap={4} w="full" maxW="full" minW={0} alignSelf="stretch" aria-busy="true">
+    <Stack align="center" w="full">
       <QrSkeleton />
     </Stack>
     <Skeleton h="36px" w="full" borderRadius="md" />
