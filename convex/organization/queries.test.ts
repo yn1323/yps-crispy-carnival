@@ -1,12 +1,24 @@
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { seedManagerShop, seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("organization/queries.getSettings", () => {
-  it("無料体験を利用できる最終日のJST日付を返す", async () => {
+  beforeEach(() => {
+    vi.stubEnv("STRIPE_BILLING_MODE", "test");
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_settings_query");
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_settings_query");
+    vi.stubEnv("STRIPE_PRO_PRICE_ID", "price_settings_query");
+    vi.stubEnv("STRIPE_PORTAL_CONFIGURATION_ID", "bpc_settings_query");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("トライアルを利用できる最終日のJST日付を返す", async () => {
     const t = convexTest(schema, modules);
     const trialEndsAt = Date.parse("2026-09-01T00:00:00+09:00");
     const ids = await t.run(async (ctx) => {
@@ -29,7 +41,75 @@ describe("organization/queries.getSettings", () => {
 
     expect(result?.billing.state).toBe("trial");
     if (!result || !("nextEvent" in result.billing)) throw new Error("trial billing view not found");
-    expect(result.billing.nextEvent).toEqual({ label: "無料体験終了", date: "2026年8月31日" });
+    expect(result.billing.nextEvent).toEqual({ label: "トライアル最終日", date: "2026年8月31日" });
+    expect(result.billing.trialEndsAt).toBe(trialEndsAt);
+    expect(result.billing.hasTrialContinuation).toBe(false);
+    expect(result.billing.canUpdatePaymentMethod).toBe(false);
+    expect(result.billing.paymentMethodDisabledReason).toBe("Pro継続を登録すると、Stripeで支払い情報を管理できます。");
+    expect(result.billing.canScheduleFree).toBe(false);
+  });
+
+  it("トライアル終了後のPro継続登録済み状態を画面用DTOへ返す", async () => {
+    const t = convexTest(schema, modules);
+    const trialEndsAt = Date.parse("2026-09-01T00:00:00+09:00");
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "settings_trial_continuation",
+        plan: "free",
+      });
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
+        .unique();
+      if (!billingState) throw new Error("organizationBillingState not found");
+      await ctx.db.patch(billingState._id, {
+        state: { kind: "trial", trialEndsAt, selectedPaidPlan: "pro" },
+      });
+      const now = Date.now();
+      await ctx.db.insert("organizationStripeCustomers", {
+        organizationId: base.organizationId,
+        stripeCustomerId: "cus_settings_trial_continuation",
+        livemode: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return base;
+    });
+
+    const result = await t
+      .withIdentity({ subject: "settings_trial_continuation" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+    expect(result?.billing).toMatchObject({
+      state: "trial",
+      currentPlan: "trial",
+      hasTrialContinuation: true,
+      hasStripeCustomer: true,
+      canUpdatePaymentMethod: true,
+      canScheduleFree: false,
+    });
+  });
+
+  it("Stripe Customer未作成ではPortal操作を停止する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(
+      async (ctx) =>
+        await seedOrganizationManagerShop(ctx, {
+          subject: "settings_customer_missing",
+          plan: "pro",
+        }),
+    );
+
+    const result = await t
+      .withIdentity({ subject: "settings_customer_missing" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+    expect(result?.billing).toMatchObject({
+      state: "pro",
+      hasStripeCustomer: false,
+      canUpdatePaymentMethod: false,
+      paymentMethodDisabledReason: "Stripeの契約情報を準備中です。しばらくしてからもう一度お試しください。",
+    });
   });
 
   it("事業者設定を画面用DTOへ投影し、tokenや内部状態を返さない", async () => {
@@ -55,6 +135,13 @@ describe("organization/queries.getSettings", () => {
         reservedSeat: true,
         version: 1,
         expiresAt: now + 86_400_000,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("organizationStripeCustomers", {
+        organizationId: base.organizationId,
+        stripeCustomerId: "cus_never_return_this_id",
+        livemode: false,
         createdAt: now,
         updatedAt: now,
       });
@@ -106,8 +193,13 @@ describe("organization/queries.getSettings", () => {
         state: "pro",
         currentPlan: "pro",
         isComplimentary: false,
-        peopleUsage: { current: 1, max: 15 },
+        hasTrialContinuation: false,
+        hasStripeCustomer: true,
+        peopleUsage: { current: 1, max: 30 },
         shopUsage: { current: 1, max: 5 },
+        stripeBillingAvailable: true,
+        canUpdatePaymentMethod: true,
+        canScheduleFree: true,
       },
       people: [
         {
@@ -158,8 +250,111 @@ describe("organization/queries.getSettings", () => {
       "shopNames",
     ]);
     expect(JSON.stringify(result)).not.toContain("never-return-this-digest");
+    expect(JSON.stringify(result)).not.toContain("cus_never_return_this_id");
+    expect(JSON.stringify(result)).not.toContain("sk_test_settings_query");
+    expect(result?.billing).not.toHaveProperty("paymentMethodLabel");
+    expect(result?.billing).not.toHaveProperty("invoices");
     expect(result).not.toHaveProperty("freeSelection");
     expect(result).not.toHaveProperty("currentShopName");
+  });
+
+  it("Stripe課金が未準備でもトライアル権利を維持し、決済操作だけを停止する", async () => {
+    vi.stubEnv("STRIPE_BILLING_MODE", "off");
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "settings_stripe_off_trial",
+        plan: "free",
+      });
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      await ctx.db.patch(billingState._id, {
+        state: { kind: "trial", trialEndsAt: Date.parse("2026-09-01T00:00:00+09:00") },
+      });
+      return base;
+    });
+
+    const result = await t
+      .withIdentity({ subject: "settings_stripe_off_trial" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+    expect(result?.billing).toMatchObject({
+      state: "trial",
+      currentPlan: "trial",
+      peopleUsage: { current: 1, max: 30 },
+      shopUsage: { current: 1, max: 5 },
+      stripeBillingAvailable: false,
+      canManagePlan: false,
+      canUpdatePaymentMethod: false,
+      canUpdateBillingEmail: true,
+      canScheduleFree: false,
+      managePlanDisabledReason: "Proの料金は準備中です。",
+      paymentMethodDisabledReason: "Proの料金は準備中です。",
+    });
+  });
+
+  it("Stripe課金停止中も既存Customerの存在表示を維持し、Portal操作だけを停止する", async () => {
+    vi.stubEnv("STRIPE_BILLING_MODE", "off");
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "settings_stripe_off_existing_customer",
+        plan: "pro",
+      });
+      const now = Date.now();
+      await ctx.db.insert("organizationStripeCustomers", {
+        organizationId: base.organizationId,
+        stripeCustomerId: "cus_settings_stripe_off",
+        livemode: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return base;
+    });
+
+    const result = await t
+      .withIdentity({ subject: "settings_stripe_off_existing_customer" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+    expect(result?.billing).toMatchObject({
+      state: "pro",
+      stripeBillingAvailable: false,
+      hasStripeCustomer: true,
+      canUpdatePaymentMethod: false,
+      paymentMethodDisabledReason: "Proの料金は準備中です。",
+    });
+  });
+
+  it("アーカイブ済み・プラン停止中の店舗を店舗上限へ数えない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "settings_active_shop_usage",
+        plan: "pro",
+      });
+      for (const [index, operatingStatus] of ["active", "active", "active", "archived", "planSuspended"].entries()) {
+        await ctx.db.insert("shops", {
+          organizationId: base.organizationId,
+          operatingStatus: operatingStatus as "active" | "archived" | "planSuspended",
+          name: `店舗${index}`,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        });
+      }
+      return base;
+    });
+
+    const result = await t
+      .withIdentity({ subject: "settings_active_shop_usage" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+    expect(result?.billing.shopUsage).toEqual({ current: 4, max: 5 });
+    expect(result?.shops).toHaveLength(6);
+    expect(result?.canAddShop).toBe(true);
   });
 
   it("グループ移行前のDTOでは所属店舗IDを空配列で返す", async () => {
@@ -505,9 +700,10 @@ describe("organization/queries.getSettings", () => {
     expect(result).toMatchObject({
       canAddShop: true,
       billing: {
-        state: "business",
-        currentPlan: "business",
+        state: "pro",
+        currentPlan: "pro",
         isComplimentary: true,
+        hasTrialContinuation: false,
         peopleUsage: { current: 1, max: 30 },
         shopUsage: { current: 1, max: 5 },
         canManagePlan: false,
@@ -949,6 +1145,14 @@ describe("organization/queries.getSettings", () => {
         version: 2,
         updatedAt: Date.now(),
       });
+      const now = Date.now();
+      await ctx.db.insert("organizationStripeCustomers", {
+        organizationId: base.organizationId,
+        stripeCustomerId: "cus_settings_initial_payment_pending",
+        livemode: false,
+        createdAt: now,
+        updatedAt: now,
+      });
       return base;
     });
 
@@ -960,7 +1164,8 @@ describe("organization/queries.getSettings", () => {
       state: "initialPaymentPending",
       canManagePlan: false,
       managePlanDisabledReason: "初回支払いの結果を確認中のため、プランを変更できません。",
-      canUpdatePaymentMethod: true,
+      canUpdatePaymentMethod: false,
+      paymentMethodDisabledReason: "初回支払いの結果を確認中です。確定後にStripeで支払い情報を管理できます。",
       canUpdateBillingEmail: true,
       canScheduleFree: false,
     });
@@ -997,10 +1202,10 @@ describe("organization/queries.getSettings", () => {
       canManagePlan: false,
       managePlanDisabledReason: "支払い結果を確認中のため、別のプラン変更はできません。",
       canUpdatePaymentMethod: false,
-      paymentMethodDisabledReason: "支払い結果を確認中です。確定後に支払い方法を変更できます。",
+      paymentMethodDisabledReason: "支払い結果を確認中です。確定後にStripeで支払い情報を管理できます。",
       canUpdateBillingEmail: true,
     });
-    expect(result?.billing.blockedReason).toContain("Freeの基本機能");
+    expect(result?.billing.blockedReason).toContain("無料の基本機能");
     expect(result?.billing.billingEmailDisabledReason).toBeUndefined();
     expect(result?.canUpdateOrganizationName).toBe(true);
   });
@@ -1045,9 +1250,11 @@ describe("organization/queries.getSettings", () => {
     expect(result?.billing).toMatchObject({
       state: "pendingActivation",
       currentPlan: null,
-      targetPlan: "business",
-      canManagePlan: true,
-      canUpdatePaymentMethod: true,
+      targetPlan: "pro",
+      canManagePlan: false,
+      managePlanDisabledReason: "支払い結果を確認中のため、別のプラン変更はできません。",
+      canUpdatePaymentMethod: false,
+      paymentMethodDisabledReason: "支払い結果を確認中です。確定後にStripeで支払い情報を管理できます。",
       canUpdateBillingEmail: true,
     });
     expect(result?.billing.blockedReason).toContain("支払い猶予");
@@ -1087,6 +1294,14 @@ describe("organization/queries.getSettings", () => {
           restrictedAt: Date.now(),
         },
       });
+      const now = Date.now();
+      await ctx.db.insert("organizationStripeCustomers", {
+        organizationId: base.organizationId,
+        stripeCustomerId: "cus_settings_recovery",
+        livemode: false,
+        createdAt: now,
+        updatedAt: now,
+      });
       return { ...base, suspendedShopId };
     });
 
@@ -1097,8 +1312,8 @@ describe("organization/queries.getSettings", () => {
     expect(result?.billing).toMatchObject({
       state: "restricted",
       previousPlan: "pro",
-      peopleUsage: { current: 1, max: 4 },
-      shopUsage: { current: 2, max: 1 },
+      peopleUsage: { current: 1, max: 5 },
+      shopUsage: { current: 1, max: 1 },
       canManagePlan: true,
       canUpdatePaymentMethod: true,
       canUpdateBillingEmail: true,

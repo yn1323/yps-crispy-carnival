@@ -4,6 +4,7 @@ import { query as analyticsDashboardQuery } from "./analyticsDashboard/httpActio
 import { options as contactOptions, submit as contactSubmit } from "./contact/httpActions";
 import { webhookHandler } from "./line/webhook";
 import { webhookHandler as resendWebhookHandler } from "./notificationOutbox/resendWebhook";
+import { webhookHandler as stripeWebhookHandler } from "./organizationStripe/webhook";
 
 const http = httpRouter();
 
@@ -41,6 +42,12 @@ http.route({
   path: "/resend/webhook",
   method: "POST",
   handler: resendWebhookHandler,
+});
+
+http.route({
+  path: "/stripe/webhook",
+  method: "POST",
+  handler: stripeWebhookHandler,
 });
 
 http.route({

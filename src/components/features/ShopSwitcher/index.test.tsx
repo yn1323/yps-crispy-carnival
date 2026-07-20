@@ -66,7 +66,7 @@ beforeEach(() => {
       shopStatus: "active",
       organizationId: "org-a",
       organizationName: "A社",
-      organizationPlan: "business",
+      organizationPlan: "pro",
       memberStatus: "active",
     },
     {
@@ -85,7 +85,7 @@ beforeEach(() => {
     shopStatus: "active",
     organizationId: "org-a",
     organizationName: "A社",
-    organizationPlan: "business",
+    organizationPlan: "pro",
     memberStatus: "active",
   });
 });
@@ -114,7 +114,7 @@ describe("ShopSwitcher", () => {
         shopStatus: "active",
         organizationId: "org-a",
         organizationName: "A社",
-        organizationPlan: "business",
+        organizationPlan: "pro",
         memberStatus: "active",
       },
     ]);

@@ -31,7 +31,7 @@ const myShopValidator = v.object({
   shopStatus: organizationShopOperatingStatusValidator,
   organizationId: v.union(v.id("organizations"), v.null()),
   organizationName: v.union(v.string(), v.null()),
-  organizationPlan: v.union(v.literal("trial"), v.literal("free"), v.literal("pro"), v.literal("business"), v.null()),
+  organizationPlan: v.union(v.literal("trial"), v.literal("free"), v.literal("pro"), v.null()),
   memberStatus: organizationMemberStatusValidator,
 });
 
@@ -234,12 +234,26 @@ async function getActiveDashboardAnnouncementCandidates(db: GenericDatabaseReade
     .take(DASHBOARD_ANNOUNCEMENT_CANDIDATE_LIMIT);
 }
 
+function normalizeDashboardAnnouncementPlanTargets(value: string) {
+  return [
+    ...new Set(
+      value
+        .split(",")
+        .map((target) => target.trim())
+        .filter(Boolean)
+        .map((target) => (target === "business" ? "pro" : target)),
+    ),
+  ].join(",");
+}
+
 function toDashboardAnnouncement(announcement: Doc<"dashboardAnnouncements">) {
   return {
     _id: announcement._id,
     ...(announcement.organizationId !== undefined ? { organizationId: announcement.organizationId } : {}),
     ...(announcement.shopId !== undefined ? { shopId: announcement.shopId } : {}),
-    ...(announcement.organizationPlan !== undefined ? { organizationPlan: announcement.organizationPlan } : {}),
+    ...(announcement.organizationPlan !== undefined
+      ? { organizationPlan: normalizeDashboardAnnouncementPlanTargets(announcement.organizationPlan) }
+      : {}),
     title: announcement.title,
     bodyHtml: announcement.bodyHtml,
     displayDate: announcement.displayDate,
@@ -283,7 +297,7 @@ export const getMyShops = authenticatedQuery({
         shopStatus: "active" | "archived" | "planSuspended";
         organizationId: Doc<"organizations">["_id"] | null;
         organizationName: string | null;
-        organizationPlan: "trial" | "free" | "pro" | "business" | null;
+        organizationPlan: "trial" | "free" | "pro" | null;
         memberStatus: "active" | "readOnly" | "removed";
       }
     >();

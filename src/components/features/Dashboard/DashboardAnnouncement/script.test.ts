@@ -12,7 +12,7 @@ const globalAnnouncement: Announcement = { key: "global" };
 const currentContext = {
   organizationId: "organization-current",
   shopId: "shop-current",
-  organizationPlan: "business" as const,
+  organizationPlan: "pro" as const,
 };
 
 describe("selectDashboardAnnouncementForContext", () => {
@@ -34,7 +34,7 @@ describe("selectDashboardAnnouncementForContext", () => {
       label: "カンマ区切りの店舗",
     },
     {
-      target: { organizationPlan: `pro, ${currentContext.organizationPlan}` },
+      target: { organizationPlan: `free, ${currentContext.organizationPlan}` },
       label: "カンマ区切りの契約プラン",
     },
     {
@@ -78,7 +78,7 @@ describe("selectDashboardAnnouncementForContext", () => {
   it("対象が一致しなければ次の全体向けお知らせを選ぶ", () => {
     const announcements: Announcement[] = [
       { key: "other", organizationId: "organization-other", shopId: "shop-other" },
-      { key: "other-plan", organizationPlan: "pro" },
+      { key: "other-plan", organizationPlan: "trial" },
       globalAnnouncement,
     ];
 

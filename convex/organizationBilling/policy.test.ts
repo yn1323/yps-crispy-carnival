@@ -8,6 +8,7 @@ import {
   evaluatePlanLimits,
   getOrganizationBillingStateDeadline,
   isVerifiedBillingTransitionAllowed,
+  normalizeOrganizationBillingState,
   ORGANIZATION_PLAN_LIMITS,
   type OrganizationBillingState,
   type OrganizationPersonUsageInput,
@@ -21,18 +22,17 @@ describe("organizationBilling/policy plan limits", () => {
   it("Trial、Free、Pro、Businessの人数・店舗・管理者上限を定義する", () => {
     expect(ORGANIZATION_PLAN_LIMITS).toEqual({
       trial: { maxPeople: 30, maxActiveShops: 5, maxActiveManagers: 5 },
-      free: { maxPeople: 4, maxActiveShops: 1, maxActiveManagers: 1 },
-      pro: { maxPeople: 15, maxActiveShops: 5, maxActiveManagers: 5 },
-      business: { maxPeople: 30, maxActiveShops: 5, maxActiveManagers: 5 },
+      free: { maxPeople: 5, maxActiveShops: 1, maxActiveManagers: 1 },
+      pro: { maxPeople: 30, maxActiveShops: 5, maxActiveManagers: 5 },
     });
   });
 
   it("各プランの上限内と超過項目を判定する", () => {
-    expect(evaluatePlanLimits("free", { peopleCount: 4, activeShopCount: 1, activeManagerCount: 1 })).toMatchObject({
+    expect(evaluatePlanLimits("free", { peopleCount: 5, activeShopCount: 1, activeManagerCount: 1 })).toMatchObject({
       withinLimits: true,
       violations: [],
     });
-    expect(evaluatePlanLimits("pro", { peopleCount: 16, activeShopCount: 6, activeManagerCount: 6 })).toMatchObject({
+    expect(evaluatePlanLimits("pro", { peopleCount: 31, activeShopCount: 6, activeManagerCount: 6 })).toMatchObject({
       withinLimits: false,
       violations: ["people", "activeShops", "activeManagers"],
     });
@@ -43,6 +43,21 @@ describe("organizationBilling/policy plan limits", () => {
       withinLimits: false,
       violations: ["activeManagers"],
     });
+  });
+
+  it("normalizes persisted Business variants to the canonical Pro model", () => {
+    expect(normalizeOrganizationBillingState({ kind: "active", plan: "business" })).toEqual({
+      kind: "active",
+      plan: "pro",
+    });
+    expect(
+      normalizeOrganizationBillingState({
+        kind: "scheduledChange",
+        currentPlan: "business",
+        targetPlan: "pro",
+        effectiveAt: 200,
+      }),
+    ).toEqual({ kind: "active", plan: "pro" });
   });
 });
 
@@ -116,8 +131,8 @@ describe("organizationBilling/policy capabilities", () => {
       canUsePaidFeatures: true,
     });
     expect(business).toMatchObject({
-      entitlementPlan: "business",
-      limits: ORGANIZATION_PLAN_LIMITS.business,
+      entitlementPlan: "pro",
+      limits: ORGANIZATION_PLAN_LIMITS.pro,
       canWriteBusinessData: true,
       canUsePaidFeatures: true,
     });
@@ -127,8 +142,8 @@ describe("organizationBilling/policy capabilities", () => {
     const state = { kind: "complimentary", plan: "business" } as const;
 
     expect(deriveOrganizationBillingPolicy(state)).toEqual({
-      entitlementPlan: "business",
-      limits: ORGANIZATION_PLAN_LIMITS.business,
+      entitlementPlan: "pro",
+      limits: ORGANIZATION_PLAN_LIMITS.pro,
       canReadExistingData: true,
       canWriteBusinessData: true,
       businessWriteBlockReason: null,
@@ -163,8 +178,8 @@ describe("organizationBilling/policy capabilities", () => {
     expect(
       deriveOrganizationBillingPolicy({ kind: "initialPaymentPending", plan: "business", startedAt: 10 }),
     ).toMatchObject({
-      entitlementPlan: "business",
-      limits: ORGANIZATION_PLAN_LIMITS.business,
+      entitlementPlan: "pro",
+      limits: ORGANIZATION_PLAN_LIMITS.pro,
       canWriteBusinessData: true,
       canUsePaidFeatures: true,
     });
@@ -230,11 +245,11 @@ describe("organizationBilling/policy capabilities", () => {
         effectiveAt: 200,
       }),
     ).toMatchObject({
-      entitlementPlan: "business",
-      limits: ORGANIZATION_PLAN_LIMITS.business,
+      entitlementPlan: "pro",
+      limits: ORGANIZATION_PLAN_LIMITS.pro,
       canWriteBusinessData: true,
       canUsePaidFeatures: true,
-      deadlineAt: 200,
+      deadlineAt: null,
     });
   });
 
@@ -269,8 +284,8 @@ describe("organizationBilling/policy capabilities", () => {
 });
 
 describe("organizationBilling/policy Free eligibility", () => {
-  it("有効管理者1名、稼働店舗1件以下、利用人数4名以下で成立する", () => {
-    expect(evaluateFreeEligibility({ peopleCount: 4, activeShopCount: 1, activeManagerCount: 1 })).toEqual({
+  it("有効管理者1名、稼働店舗1件以下、利用人数5名以下で成立する", () => {
+    expect(evaluateFreeEligibility({ peopleCount: 5, activeShopCount: 1, activeManagerCount: 1 })).toEqual({
       eligible: true,
       failures: [],
     });
@@ -281,7 +296,7 @@ describe("organizationBilling/policy Free eligibility", () => {
   });
 
   it("管理者未確定、複数店舗、人数超過を区別する", () => {
-    expect(evaluateFreeEligibility({ peopleCount: 5, activeShopCount: 2, activeManagerCount: 0 })).toEqual({
+    expect(evaluateFreeEligibility({ peopleCount: 6, activeShopCount: 2, activeManagerCount: 0 })).toEqual({
       eligible: false,
       failures: ["activeManagerCount", "activeShopCount", "peopleCount"],
     });
@@ -319,7 +334,7 @@ describe("organizationBilling/policy payment grace", () => {
     1.5,
     Number.MAX_SAFE_INTEGER,
   ])("不正な最初の失敗時刻 %s を拒否する", (value) => {
-    expect(() => createPaymentGraceState("business", value)).toThrow(RangeError);
+    expect(() => createPaymentGraceState("pro", value)).toThrow(RangeError);
   });
 });
 
@@ -385,7 +400,7 @@ describe("organizationBilling/policy verified transition", () => {
     expect(isVerifiedBillingTransitionAllowed({ kind: "trial", trialEndsAt: 100 }, businessToPro)).toBe(false);
     expect(
       isVerifiedBillingTransitionAllowed({ kind: "active", plan: "pro" }, { ...businessToPro, currentPlan: "pro" }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("期間末変更は明示した取消eventだけが現在プランへ戻せる", () => {
@@ -408,7 +423,7 @@ describe("organizationBilling/policy verified transition", () => {
     ).toBe(true);
     expect(
       isVerifiedBillingTransitionAllowed(proToFree, { kind: "active", plan: "business" }, "scheduledChangeCanceled"),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       isVerifiedBillingTransitionAllowed(
         businessToPro,
@@ -418,7 +433,7 @@ describe("organizationBilling/policy verified transition", () => {
     ).toBe(true);
     expect(
       isVerifiedBillingTransitionAllowed(businessToPro, { kind: "active", plan: "pro" }, "scheduledChangeCanceled"),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("有料プラン有効化は結果待ち・復旧・Freeから許可し、BusinessからProへの即時遷移を拒否する", () => {
@@ -431,7 +446,7 @@ describe("organizationBilling/policy verified transition", () => {
       ),
     ).toBe(true);
     expect(isVerifiedBillingTransitionAllowed({ kind: "active", plan: "free" }, activePro)).toBe(true);
-    expect(isVerifiedBillingTransitionAllowed({ kind: "active", plan: "business" }, activePro)).toBe(false);
+    expect(isVerifiedBillingTransitionAllowed({ kind: "active", plan: "business" }, activePro)).toBe(true);
   });
 
   it("即時支払い失敗はpendingActivationに記録したfallbackだけへ戻せる", () => {

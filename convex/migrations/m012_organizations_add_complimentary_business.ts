@@ -15,7 +15,7 @@ const CONFLICT_CODES = {
 
 const OWNED_CONFLICT_CODES = Object.values(CONFLICT_CODES);
 
-/** 旧店舗モデルから移行した事業者へ、課金なしのBusiness権限を一度だけ付与する。 */
+/** 旧店舗モデルから移行した事業者へ、課金なしのPro権限を一度だけ付与する。 */
 export const migration = migrations.define({
   table: "organizations",
   migrateOne: async (ctx, organization) => {
@@ -72,10 +72,7 @@ export const migration = migrations.define({
     }
 
     const existingBillingState = billingStates[0];
-    if (
-      existingBillingState &&
-      (existingBillingState.state.kind !== "complimentary" || existingBillingState.state.plan !== "business")
-    ) {
+    if (existingBillingState && existingBillingState.state.kind !== "complimentary") {
       await recordOrganizationMigrationConflict(ctx, {
         organizationId: organization._id,
         sourceType: "shop",
@@ -89,7 +86,7 @@ export const migration = migrations.define({
       const now = Date.now();
       const billingStateId = await ctx.db.insert("organizationBillingStates", {
         organizationId: organization._id,
-        state: { kind: "complimentary", plan: "business" },
+        state: { kind: "complimentary", plan: "pro" },
         version: 1,
         createdAt: now,
         updatedAt: now,
@@ -105,7 +102,7 @@ export const migration = migrations.define({
           action: "organization.billing_state_changed",
           targetKind: "billing",
           targetId: billingStateId,
-          toState: "complimentary.business",
+          toState: "complimentary.pro",
           correlationId,
           occurredAt: now,
         });

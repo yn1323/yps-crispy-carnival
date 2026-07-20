@@ -697,7 +697,7 @@ describe("staffRegistration/mutations", () => {
         plan: "pro",
       });
       const now = Date.now();
-      for (let index = 0; index < 14; index += 1) {
+      for (let index = 0; index < 29; index += 1) {
         const email = `registration-rollback-filler-${index}@example.com`;
         const personId = await ctx.db.insert("organizationPeople", {
           organizationId: organization.organizationId,
@@ -751,7 +751,7 @@ describe("staffRegistration/mutations", () => {
         requestId: submitted.requestId,
         shopId: seeded.shopId,
       }),
-    ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 15名 / 上限 15名）");
+    ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 30名 / 上限 30名）");
 
     const state = await t.run(async (ctx) => ({
       request: await ctx.db.get(submitted.requestId),
@@ -766,8 +766,8 @@ describe("staffRegistration/mutations", () => {
     }));
     expect(state.request?.status).toBe("pending");
     expect(state.invitation).toMatchObject({ status: "pending", reservedSeat: true, version: 1 });
-    expect(state.people).toHaveLength(15);
-    expect(state.staffs).toHaveLength(14);
+    expect(state.people).toHaveLength(30);
+    expect(state.staffs).toHaveLength(29);
     expect(state.audits).toEqual([]);
     expect(state.scheduled).toEqual([]);
   });
@@ -913,7 +913,7 @@ describe("staffRegistration/mutations", () => {
         plan: "free",
       });
       const now = Date.now();
-      for (let index = 0; index < 3; index += 1) {
+      for (let index = 0; index < 4; index += 1) {
         const email = `registration-filler-${index}@example.com`;
         const personId = await ctx.db.insert("organizationPeople", {
           organizationId: organization.organizationId,
@@ -953,7 +953,7 @@ describe("staffRegistration/mutations", () => {
         requestId: submitResult.requestId,
         shopId: seeded.shopId,
       }),
-    ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 4名 / 上限 4名）");
+    ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 5名 / 上限 5名）");
 
     const state = await t.run(async (ctx) => {
       const people = await ctx.db
@@ -969,8 +969,8 @@ describe("staffRegistration/mutations", () => {
       return { request: await ctx.db.get(submitResult.requestId), people, staffs, consents, scheduled };
     });
     expect(state.request?.status).toBe("pending");
-    expect(state.people).toHaveLength(4);
-    expect(state.staffs).toHaveLength(3);
+    expect(state.people).toHaveLength(5);
+    expect(state.staffs).toHaveLength(4);
     expect(state.consents).toEqual([]);
     expect(state.scheduled).toEqual([]);
   });
@@ -983,7 +983,7 @@ describe("staffRegistration/mutations", () => {
         plan: "business",
       });
       const now = Date.now();
-      for (let index = 0; index < 14; index += 1) {
+      for (let index = 0; index < 29; index += 1) {
         const email = `scheduled-pro-registration-${index}@example.com`;
         const personId = await ctx.db.insert("organizationPeople", {
           organizationId: organization.organizationId,
@@ -1025,7 +1025,7 @@ describe("staffRegistration/mutations", () => {
     });
     const submitResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
-      name: "16人目",
+      name: "31人目",
       email: "scheduled-pro-registration-over-limit@example.com",
       acceptedLegal: true,
     });
@@ -1036,7 +1036,7 @@ describe("staffRegistration/mutations", () => {
         requestId: submitResult.requestId,
         shopId: seeded.shopId,
       }),
-    ).rejects.toThrow("Proプランへの変更予約を取り消してから追加してください");
+    ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 30名 / 上限 30名）");
 
     const state = await t.run(async (ctx) => ({
       request: await ctx.db.get(submitResult.requestId),
@@ -1050,8 +1050,8 @@ describe("staffRegistration/mutations", () => {
         .collect(),
     }));
     expect(state.request?.status).toBe("pending");
-    expect(state.people).toHaveLength(15);
-    expect(state.staffs).toHaveLength(14);
+    expect(state.people).toHaveLength(30);
+    expect(state.staffs).toHaveLength(29);
   });
 
   it("却下するとstaffs作成と通知予約をしない", async () => {

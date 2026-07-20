@@ -14,7 +14,7 @@ const actions = {
   onManagePlan: fn(),
   onUpdatePaymentMethod: fn(),
   onUpdateBillingEmail: fn(),
-  onOpenInvoice: fn(),
+  onOpenBillingDocuments: fn(),
   onDeleteOrganization: fn(),
 };
 
@@ -37,18 +37,17 @@ const baseBilling: OrganizationBillingView = {
   state: "pro",
   currentPlan: "pro",
   isComplimentary: false,
-  peopleUsage: { current: 8, max: 15 },
+  hasTrialContinuation: false,
+  stripeBillingAvailable: true,
+  hasStripeCustomer: true,
+  peopleUsage: { current: 8, max: 30 },
   shopUsage: { current: 2, max: 5 },
   nextEvent: { label: "次回更新日", date: "2026年8月31日" },
-  paymentMethodLabel: "Visa •••• 4242",
   billingEmail: "billing@sakura.example.com",
-  invoices: [
-    { id: "invoice-july", issuedAt: "2026年7月31日", status: "paid" },
-    { id: "invoice-june", issuedAt: "2026年6月30日", status: "paid" },
-  ],
   canManagePlan: true,
   canUpdatePaymentMethod: true,
   canUpdateBillingEmail: true,
+  canScheduleFree: true,
 };
 
 const baseArgs: OrganizationSettingsViewProps = {
@@ -184,8 +183,9 @@ const disabledActionReasonArgs: Pick<
     canManagePlan: false,
     canUpdatePaymentMethod: false,
     canUpdateBillingEmail: false,
+    canScheduleFree: false,
     managePlanDisabledReason: "閲覧のみの管理者はプランを変更できません。",
-    paymentMethodDisabledReason: "閲覧のみの管理者は支払い方法を変更できません。",
+    paymentMethodDisabledReason: "閲覧のみの管理者はStripeの支払い情報を管理できません。",
     billingEmailDisabledReason: "閲覧のみの管理者は請求先を変更できません。",
   }),
   people: baseArgs.people,
@@ -364,12 +364,12 @@ export const DisabledActionReasonsBehavior: Story = {
     );
     await userEvent.click(canvas.getByRole("tab", { name: "プランと支払い" }));
     await expectDisabledActionDescription(
-      canvas.getByRole("button", { name: "有料プランを開始・再開" }),
+      canvas.getByRole("button", { name: "Proを再開" }),
       "閲覧のみの管理者はプランを変更できません。",
     );
     await expectDisabledActionDescription(
-      canvas.getByRole("button", { name: "支払い方法を更新" }),
-      "閲覧のみの管理者は支払い方法を変更できません。",
+      canvas.getByRole("button", { name: "支払い方法をStripeで管理" }),
+      "閲覧のみの管理者はStripeの支払い情報を管理できません。",
     );
     await expectDisabledActionDescription(
       canvas.getByRole("button", { name: "請求先を変更" }),
@@ -400,15 +400,34 @@ export const Trial: Story = {
       currentPlan: "trial",
       peopleUsage: { current: 12, max: 30 },
       shopUsage: { current: 3, max: 5 },
-      nextEvent: { label: "無料体験終了", date: "2026年8月31日" },
-      paymentMethodLabel: undefined,
-      invoices: [],
+      trialEndsAt: Date.parse("2026-09-01T00:00:00+09:00"),
+      nextEvent: { label: "トライアル最終日", date: "2026年8月31日" },
+      hasStripeCustomer: false,
+      canScheduleFree: false,
+    }),
+  },
+};
+
+export const TrialWithProContinuation: Story = {
+  name: "プランと支払い｜トライアル・Pro継続登録済み",
+  args: {
+    defaultTab: "billing",
+    billing: billing({
+      state: "trial",
+      currentPlan: "trial",
+      hasTrialContinuation: true,
+      peopleUsage: { current: 12, max: 30 },
+      shopUsage: { current: 3, max: 5 },
+      trialEndsAt: Date.parse("2026-09-01T00:00:00+09:00"),
+      nextEvent: { label: "トライアル最終日", date: "2026年8月31日" },
+      hasStripeCustomer: true,
+      canScheduleFree: false,
     }),
   },
 };
 
 export const Free: Story = {
-  name: "プランと支払い｜Free",
+  name: "プランと支払い｜無料",
   args: {
     defaultTab: "billing",
     managerInvitations: [],
@@ -422,32 +441,36 @@ export const Free: Story = {
       },
     ],
     canAddShop: false,
-    addShopDisabledReason: "店舗はグループごとに5件まで登録できます。",
+    addShopDisabledReason: "無料では店舗を1件まで登録できます。",
     billing: billing({
       state: "free",
       currentPlan: "free",
-      peopleUsage: { current: 4, max: 4 },
+      peopleUsage: { current: 5, max: 5 },
       shopUsage: { current: 1, max: 1 },
       nextEvent: undefined,
-      paymentMethodLabel: undefined,
-      invoices: [],
+      hasStripeCustomer: false,
       canUpdatePaymentMethod: false,
-      paymentMethodDisabledReason: "Freeでは支払い方法の登録はありません。有料プランを契約するときに登録します。",
+      paymentMethodDisabledReason: "無料プランでは支払い情報の管理は不要です。有料プランの契約時にStripeで登録します。",
       canUpdateBillingEmail: true,
+      canScheduleFree: false,
     }),
   },
 };
 
 export const FreeBillingCapabilitiesBehavior: Story = {
-  name: "プランと支払い｜Freeの操作権限（操作確認）",
+  name: "プランと支払い｜無料の操作権限（操作確認）",
   parameters: { screenshot: { skip: true } },
   args: Free.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("button", { name: "プランを確認・変更" })).toBeEnabled();
+    await expect(canvas.getByRole("button", { name: "Proを開始" })).toBeEnabled();
     await expectDisabledActionDescription(
-      canvas.getByRole("button", { name: "支払い方法を更新" }),
-      "Freeでは支払い方法の登録はありません。有料プランを契約するときに登録します。",
+      canvas.getByRole("button", { name: "支払い方法をStripeで管理" }),
+      "無料プランでは支払い情報の管理は不要です。有料プランの契約時にStripeで登録します。",
+    );
+    await expectDisabledActionDescription(
+      canvas.getByRole("button", { name: "請求書・領収書をStripeで確認" }),
+      "無料プランでは支払い情報の管理は不要です。有料プランの契約時にStripeで登録します。",
     );
     await expect(canvas.getByRole("button", { name: "請求先を変更" })).toBeEnabled();
   },
@@ -455,37 +478,43 @@ export const FreeBillingCapabilitiesBehavior: Story = {
 
 export const Pro: Story = { name: "プランと支払い｜Pro", args: { defaultTab: "billing" } };
 
-export const Business: Story = {
-  name: "プランと支払い｜Business",
+export const ProStripePortalActionsBehavior: Story = {
+  name: "プランと支払い｜Stripe Portal導線（操作確認）",
+  parameters: { screenshot: { skip: true } },
   args: {
     defaultTab: "billing",
-    canAddShop: false,
-    addShopDisabledReason: "店舗はグループごとに5件まで登録できます。",
-    billing: billing({
-      state: "business",
-      currentPlan: "business",
-      peopleUsage: { current: 22, max: 30 },
-      shopUsage: { current: 5, max: 5 },
-    }),
+    actions: {
+      ...actions,
+      onUpdatePaymentMethod: fn(),
+      onOpenBillingDocuments: fn(),
+    },
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "支払い方法をStripeで管理" }));
+    await userEvent.click(canvas.getByRole("button", { name: "請求書・領収書をStripeで確認" }));
+    await expect(args.actions.onUpdatePaymentMethod).toHaveBeenCalledTimes(1);
+    await expect(args.actions.onOpenBillingDocuments).toHaveBeenCalledTimes(1);
+    await expect(canvas.queryByText("発行済みの請求書はありません。")).not.toBeInTheDocument();
   },
 };
 
-export const ComplimentaryBusiness: Story = {
-  name: "プランと支払い｜支払い不要Business",
+export const ComplimentaryPro: Story = {
+  name: "プランと支払い｜支払い不要Pro",
   args: {
     defaultTab: "billing",
     billing: billing({
-      state: "business",
-      currentPlan: "business",
+      state: "pro",
+      currentPlan: "pro",
       isComplimentary: true,
       peopleUsage: { current: 22, max: 30 },
       shopUsage: { current: 3, max: 5 },
       nextEvent: undefined,
-      paymentMethodLabel: undefined,
-      invoices: [],
+      hasStripeCustomer: false,
       canManagePlan: false,
       canUpdatePaymentMethod: false,
       canUpdateBillingEmail: false,
+      canScheduleFree: false,
     }),
   },
 };
@@ -493,7 +522,17 @@ export const ComplimentaryBusiness: Story = {
 export const ShopCapacityReachedBehavior: Story = {
   name: "店舗｜登録上限（操作確認）",
   parameters: { screenshot: { skip: true } },
-  args: { ...Business.args, defaultTab: "shops" },
+  args: {
+    defaultTab: "shops",
+    canAddShop: false,
+    addShopDisabledReason: "店舗はグループごとに5件まで登録できます。",
+    billing: billing({
+      state: "pro",
+      currentPlan: "pro",
+      peopleUsage: { current: 22, max: 30 },
+      shopUsage: { current: 5, max: 5 },
+    }),
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const addShopButton = canvas.getByRole("button", { name: "店舗を追加" });
@@ -511,13 +550,16 @@ export const InitialPaymentPending: Story = {
       currentPlan: "pro",
       nextEvent: { label: "支払い結果", date: "確認中" },
       canManagePlan: false,
+      canUpdatePaymentMethod: false,
       managePlanDisabledReason: "初回支払いの結果を確認中のため、プランを変更できません。",
+      paymentMethodDisabledReason: "初回支払いの結果を確認中です。確定後にStripeで支払い情報を管理できます。",
+      canScheduleFree: false,
     }),
   },
 };
 
 export const PendingActivationFreeFallback: Story = {
-  name: "プランと支払い｜有料プラン反映待ち・Free継続",
+  name: "プランと支払い｜有料プラン反映待ち・無料継続",
   args: {
     defaultTab: "billing",
     managerInvitations: [],
@@ -536,15 +578,16 @@ export const PendingActivationFreeFallback: Story = {
       state: "pendingActivation",
       currentPlan: "free",
       targetPlan: "pro",
-      peopleUsage: { current: 4, max: 4 },
+      peopleUsage: { current: 5, max: 5 },
       shopUsage: { current: 1, max: 1 },
-      blockedReason: "有料プランの支払い結果を確認中です。Freeの基本機能は引き続き利用できます。",
+      blockedReason: "有料プランの支払い結果を確認中です。無料の基本機能は引き続き利用できます。",
       nextEvent: { label: "支払い結果", date: "確認中" },
       canManagePlan: false,
       canUpdatePaymentMethod: false,
       canUpdateBillingEmail: true,
+      canScheduleFree: false,
       managePlanDisabledReason: "支払い結果を確認中のため、別のプラン変更はできません。",
-      paymentMethodDisabledReason: "支払い結果を確認中です。確定後に支払い方法を変更できます。",
+      paymentMethodDisabledReason: "支払い結果を確認中です。確定後にStripeで支払い情報を管理できます。",
     }),
   },
 };
@@ -566,13 +609,14 @@ export const PendingActivationRestrictedRecovery: Story = {
       state: "pendingActivation",
       currentPlan: null,
       targetPlan: "pro",
-      peopleUsage: { current: 7, max: 4 },
+      peopleUsage: { current: 7, max: 5 },
       shopUsage: { current: 2, max: 1 },
-      blockedReason: "Freeの利用人数と店舗数を超えています。ユーザーまたは店舗を削除してから再確認してください。",
+      blockedReason: "無料の利用人数と店舗数を超えています。ユーザーまたは店舗を削除してから再確認してください。",
       nextEvent: { label: "支払い結果", date: "確認中" },
       canManagePlan: true,
       canUpdatePaymentMethod: true,
       canUpdateBillingEmail: true,
+      canScheduleFree: false,
     }),
   },
 };
@@ -593,11 +637,11 @@ export const MigrationPending: Story = {
       currentPlan: null,
       blockedReason: "グループ単位のプラン設定を移行しています。完了後に自動で利用状態を再確認します。",
       nextEvent: undefined,
-      paymentMethodLabel: undefined,
-      invoices: [],
+      hasStripeCustomer: false,
       canManagePlan: false,
       canUpdatePaymentMethod: false,
       canUpdateBillingEmail: false,
+      canScheduleFree: false,
       managePlanDisabledReason: "設定の移行が完了するまでお待ちください。",
       paymentMethodDisabledReason: "設定の移行が完了するまでお待ちください。",
       billingEmailDisabledReason: "設定の移行が完了するまでお待ちください。",
@@ -614,6 +658,7 @@ export const Grace: Story = {
       currentPlan: "pro",
       blockedReason: "支払い方法を更新しないまま期限を過ぎると、契約制限中へ移行します。",
       nextEvent: { label: "支払い猶予期限", date: "2026年8月14日 10:30" },
+      canScheduleFree: false,
     }),
   },
 };
@@ -635,43 +680,25 @@ export const Restricted: Story = {
       state: "restricted",
       currentPlan: null,
       previousPlan: "pro",
-      peopleUsage: { current: 7, max: 4 },
+      peopleUsage: { current: 7, max: 5 },
       shopUsage: { current: 2, max: 1 },
-      blockedReason: "Freeの利用人数と店舗数を超えています。ユーザーまたは店舗を削除してから再確認してください。",
+      blockedReason: "無料の利用人数と店舗数を超えています。ユーザーまたは店舗を削除してから再確認してください。",
       nextEvent: undefined,
-      paymentMethodLabel: "Visa •••• 4242（支払い失敗）",
-      invoices: [
-        { id: "invoice-july", issuedAt: "2026年7月31日", status: "open" },
-        { id: "invoice-june", issuedAt: "2026年6月30日", status: "paid" },
-        { id: "invoice-may", issuedAt: "2026年5月31日", status: "paid" },
-      ],
+      canScheduleFree: false,
     }),
   },
 };
 
 export const ScheduledFree: Story = {
-  name: "プランと支払い｜Freeへ変更予定",
+  name: "プランと支払い｜無料へ変更予定",
   args: {
     defaultTab: "billing",
     billing: billing({
       state: "scheduledFree",
       currentPlan: "pro",
       targetPlan: "free",
-      nextEvent: { label: "Free適用予定日", date: "2026年8月31日" },
-    }),
-  },
-};
-
-export const ScheduledPro: Story = {
-  name: "プランと支払い｜Proへ変更予定",
-  args: {
-    defaultTab: "billing",
-    billing: billing({
-      state: "scheduledPro",
-      currentPlan: "business",
-      targetPlan: "pro",
-      peopleUsage: { current: 14, max: 30 },
-      nextEvent: { label: "Pro適用予定日", date: "2026年8月31日" },
+      nextEvent: { label: "無料適用予定日", date: "2026年8月31日" },
+      canScheduleFree: false,
     }),
   },
 };
@@ -683,11 +710,11 @@ export const MobileRestricted: Story = {
   args: Restricted.args,
 };
 
-export const MobileComplimentaryBusiness: Story = {
-  name: "プランと支払い｜支払い不要Business・モバイル",
+export const MobileComplimentaryPro: Story = {
+  name: "プランと支払い｜支払い不要Pro・モバイル",
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
-  args: ComplimentaryBusiness.args,
+  args: ComplimentaryPro.args,
 };
 
 export const MobileUsers: Story = {

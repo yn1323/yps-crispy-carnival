@@ -225,12 +225,12 @@ describe("staff/mutations", () => {
         t.withIdentity({ subject: "capacity_manager" }).mutation(api.staff.mutations.addStaffs, {
           shopId,
           requestId: nextStaffAddRequestId(),
-          entries: Array.from({ length: 4 }, (_, index) => ({
+          entries: Array.from({ length: 5 }, (_, index) => ({
             name: `追加スタッフ${index}`,
             email: `additional-${index}@example.com`,
           })),
         }),
-      ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 1名 / 上限 4名）");
+      ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 1名 / 上限 5名）");
 
       const state = await t.run(async (ctx) => {
         const people = await ctx.db
@@ -257,7 +257,7 @@ describe("staff/mutations", () => {
           plan: "free",
         });
         const now = Date.now();
-        for (let index = 0; index < 3; index += 1) {
+        for (let index = 0; index < 4; index += 1) {
           const email = `readonly-capacity-staff-${index}@example.com`;
           const personId = await ctx.db.insert("organizationPeople", {
             organizationId: organization.organizationId,
@@ -327,7 +327,7 @@ describe("staff/mutations", () => {
           plan: "business",
         });
         const now = Date.now();
-        for (let index = 0; index < 14; index += 1) {
+        for (let index = 0; index < 29; index += 1) {
           const email = `scheduled-pro-staff-${index}@example.com`;
           const personId = await ctx.db.insert("organizationPeople", {
             organizationId: organization.organizationId,
@@ -368,9 +368,9 @@ describe("staff/mutations", () => {
         t.withIdentity({ subject: "scheduled_pro_staff_manager" }).mutation(api.staff.mutations.addStaffs, {
           shopId: seeded.shopId,
           requestId: nextStaffAddRequestId(),
-          entries: [{ name: "16人目", email: "scheduled-pro-over-limit@example.com" }],
+          entries: [{ name: "31人目", email: "scheduled-pro-over-limit@example.com" }],
         }),
-      ).rejects.toThrow("Proプランへの変更予約を取り消してから追加してください");
+      ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 30名 / 上限 30名）");
 
       const state = await t.run(async (ctx) => ({
         people: await ctx.db
@@ -382,8 +382,8 @@ describe("staff/mutations", () => {
           .withIndex("by_shopId", (q) => q.eq("shopId", seeded.shopId))
           .collect(),
       }));
-      expect(state.people).toHaveLength(15);
-      expect(state.staffs).toHaveLength(14);
+      expect(state.people).toHaveLength(30);
+      expect(state.staffs).toHaveLength(29);
       expect(state.people.map((person) => person.emailNormalized)).not.toContain(
         "scheduled-pro-over-limit@example.com",
       );
@@ -490,7 +490,7 @@ describe("staff/mutations", () => {
         });
         const now = Date.now();
         const invitationIds: Id<"organizationInvitations">[] = [];
-        for (let index = 0; index < 2; index += 1) {
+        for (let index = 0; index < 3; index += 1) {
           invitationIds.push(
             await ctx.db.insert("organizationInvitations", {
               organizationId: organization.organizationId,
@@ -952,7 +952,7 @@ describe("staff/mutations", () => {
           plan: "free",
         });
         const now = Date.now();
-        for (let index = 0; index < 2; index += 1) {
+        for (let index = 0; index < 3; index += 1) {
           const email = `capacity-existing-${index}@example.com`;
           const personId = await ctx.db.insert("organizationPeople", {
             organizationId: organization.organizationId,
@@ -1026,7 +1026,7 @@ describe("staff/mutations", () => {
           .collect(),
       }));
       expect(state.person?.status).toBe("removed");
-      expect(state.staffs).toHaveLength(2);
+      expect(state.staffs).toHaveLength(3);
       expect(state.audits).toEqual([]);
       expect(state.scheduled).toEqual([]);
     });

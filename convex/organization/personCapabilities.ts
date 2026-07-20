@@ -41,7 +41,7 @@ export function deriveOrganizationPersonCapabilities(input: OrganizationPersonCa
           : input.isRestricted
             ? "契約制限中は管理者権限を外せません。"
             : input.policy?.paidFeatureBlockReason === "freePlan"
-              ? "Freeでは管理者の個別解除はできません。"
+              ? "無料では管理者の個別解除はできません。"
               : input.policy?.paidFeatureBlockReason === "paymentResultPending"
                 ? "支払い結果が確定してから管理者権限を変更できます。"
                 : !input.isStaff && input.isBillingContact

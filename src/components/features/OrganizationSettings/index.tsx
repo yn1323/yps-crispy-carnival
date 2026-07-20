@@ -2,8 +2,10 @@ import { useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { toUserListCountSearch } from "@/src/lib/userListSearch";
 import type { ShopContextOption } from "@/src/stores/shop";
+import { BillingActionDialog } from "./BillingSettings/BillingActionDialog";
 import { BillingEmailDialog } from "./BillingSettings/BillingEmailDialog";
 import { useBillingSettingsController } from "./BillingSettings/useBillingSettingsController";
+import { useStripeBillingController } from "./BillingSettings/useStripeBillingController";
 import { ManagerInvitationDialog } from "./ManagerInvitation/ManagerInvitationDialog";
 import { useManagerInvitationController } from "./ManagerInvitation/useManagerInvitationController";
 import { buildOrganizationContextModel } from "./OrganizationContext/script";
@@ -57,7 +59,12 @@ export function OrganizationSettings({
     people: settings.people,
   });
   const shopManagement = useShopManagementController({ canAddShop: settings.canAddShop });
-  const billingSettings = useBillingSettingsController({ billing: settings.billing });
+  const billingEmailSettings = useBillingSettingsController({ billing: settings.billing });
+  const stripeBilling = useStripeBillingController({
+    organizationName: settings.organizationName,
+    shopNames: settings.shops.map((shop) => shop.name),
+    billing: settings.billing,
+  });
   const organizationDeletion = useOrganizationDeletionController({
     organizationId: settings.organizationId,
     organizationUpdatedAt: settings.organizationUpdatedAt,
@@ -104,17 +111,18 @@ export function OrganizationSettings({
               params: { shopId },
               search: { shop: context.selectedShopId },
             }),
-          onManagePlan: billingSettings.managePlan,
-          onUpdatePaymentMethod: billingSettings.updatePaymentMethod,
-          onUpdateBillingEmail: billingSettings.updateBillingEmail,
-          onOpenInvoice: billingSettings.openInvoice,
+          onManagePlan: stripeBilling.managePlan,
+          onUpdatePaymentMethod: stripeBilling.updatePaymentMethod,
+          onUpdateBillingEmail: billingEmailSettings.updateBillingEmail,
+          onOpenBillingDocuments: stripeBilling.openBillingDocuments,
           onDeleteOrganization: organizationDeletion.open,
         }}
       />
       <OrganizationNameDialog {...organizationName.dialog} />
       <ManagerInvitationDialog {...managerInvitation.dialog} />
       <ShopManagementDialog {...shopManagement.dialog} />
-      <BillingEmailDialog {...billingSettings.dialog} />
+      <BillingEmailDialog {...billingEmailSettings.dialog} />
+      <BillingActionDialog {...stripeBilling.dialog} />
       <OrganizationDeletionDialog {...organizationDeletion.dialog} />
     </>
   );
@@ -123,7 +131,6 @@ export function OrganizationSettings({
 export { OrganizationSettingsSkeleton, OrganizationSettingsView } from "./OrganizationSettingsView";
 export type {
   BillingDisplayState,
-  BillingInvoiceView,
   BillingUsageView,
   ManagerInvitationStatus,
   ManagerInvitationView,

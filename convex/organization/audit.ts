@@ -23,6 +23,7 @@ export type OrganizationAuditAction =
   | "organization.manager_invitation_accepted"
   | "organization.manager_invitation_linked"
   | "organization.free_selection_changed"
+  | "organization.billing_grace_shortened"
   | "organization.billing_state_changed";
 
 export async function recordOrganizationAuditEvent(

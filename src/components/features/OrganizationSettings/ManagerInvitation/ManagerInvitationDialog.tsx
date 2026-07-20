@@ -276,7 +276,7 @@ export function ManagerInvitationDialog({
                 <Alert.Root status="info" alignItems="flex-start" borderRadius="lg">
                   <Alert.Indicator />
                   <Alert.Content>
-                    <Alert.Title>Freeでは現在のスタッフから選択してください</Alert.Title>
+                    <Alert.Title>無料では現在のスタッフから選択してください</Alert.Title>
                     <Alert.Description>
                       名前とメールアドレスを入力して、新しいユーザーを管理者として招待することはできません。
                     </Alert.Description>

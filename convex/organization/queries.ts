@@ -6,6 +6,7 @@ import { submissionPatternValidator } from "../_lib/submissionPattern";
 import {
   deriveOrganizationBillingPolicy,
   getEffectiveRestrictedBillingState,
+  normalizeOrganizationBillingState,
   ORGANIZATION_PLAN_LIMITS,
   type OrganizationPersonUsageInput,
   projectOrganizationUsage,
@@ -20,6 +21,7 @@ import {
   resolveFreeManagerExchangeEligibility,
   resolveOrganizationInvitationEligibility,
 } from "../organizationInvitation/service";
+import { getStripeBillingMode, isStripeBillingAvailable } from "../organizationStripe/config";
 import { getOrganizationDeletionEligibility } from "./deletion";
 import { deriveOrganizationPersonCapabilities, type ManagerRole } from "./personCapabilities";
 import { getOrganizationBillingState, organizationPersonCountsTowardPeopleLimit } from "./service";
@@ -80,39 +82,33 @@ const organizationShopViewValidator = v.object({
   deleteDisabledReason: v.optional(v.string()),
 });
 
-const billingPlanValidator = v.union(v.literal("trial"), v.literal("free"), v.literal("pro"), v.literal("business"));
+const billingPlanValidator = v.union(v.literal("trial"), v.literal("free"), v.literal("pro"));
 
 const billingViewValidator = v.object({
   state: v.union(
     v.literal("trial"),
     v.literal("free"),
     v.literal("pro"),
-    v.literal("business"),
     v.literal("initialPaymentPending"),
     v.literal("pendingActivation"),
     v.literal("grace"),
     v.literal("restricted"),
     v.literal("scheduledFree"),
-    v.literal("scheduledPro"),
     v.literal("migrationPending"),
   ),
   currentPlan: v.union(billingPlanValidator, v.null()),
   isComplimentary: v.boolean(),
-  targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+  hasTrialContinuation: v.boolean(),
+  trialEndsAt: v.optional(v.number()),
+  stripeBillingAvailable: v.boolean(),
+  hasStripeCustomer: v.boolean(),
+  targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"))),
   peopleUsage: v.object({ current: v.number(), max: v.number() }),
   shopUsage: v.object({ current: v.number(), max: v.number() }),
   nextEvent: v.optional(v.object({ label: v.string(), date: v.string() })),
   blockedReason: v.optional(v.string()),
-  paymentMethodLabel: v.optional(v.string()),
   billingEmail: v.string(),
   previousPlan: v.optional(billingPlanValidator),
-  invoices: v.array(
-    v.object({
-      id: v.string(),
-      issuedAt: v.string(),
-      status: v.union(v.literal("paid"), v.literal("open"), v.literal("void")),
-    }),
-  ),
   canManagePlan: v.boolean(),
   canUpdatePaymentMethod: v.boolean(),
   canUpdateBillingEmail: v.boolean(),
@@ -142,7 +138,7 @@ const organizationSettingsValidator = v.object({
   deleteOrganizationDisabledReason: v.optional(v.string()),
 });
 
-type BillingPlan = "trial" | "free" | "pro" | "business";
+type BillingPlan = "trial" | "free" | "pro";
 type BillingView = {
   state:
     | BillingPlan
@@ -151,19 +147,20 @@ type BillingView = {
     | "grace"
     | "restricted"
     | "scheduledFree"
-    | "scheduledPro"
     | "migrationPending";
   currentPlan: BillingPlan | null;
   isComplimentary: boolean;
+  hasTrialContinuation: boolean;
+  trialEndsAt?: number;
+  stripeBillingAvailable: boolean;
+  hasStripeCustomer: boolean;
   targetPlan?: Exclude<BillingPlan, "trial">;
   peopleUsage: { current: number; max: number };
   shopUsage: { current: number; max: number };
   nextEvent?: { label: string; date: string };
   blockedReason?: string;
-  paymentMethodLabel?: string;
   billingEmail: string;
   previousPlan?: BillingPlan;
-  invoices: Array<{ id: string; issuedAt: string; status: "paid" | "open" | "void" }>;
   canManagePlan: boolean;
   canUpdatePaymentMethod: boolean;
   canUpdateBillingEmail: boolean;
@@ -212,11 +209,13 @@ function legacyMigrationPendingSettings(user: Doc<"users">, shop: Doc<"shops">) 
       state: "migrationPending" as const,
       currentPlan: null,
       isComplimentary: false,
+      hasTrialContinuation: false,
+      stripeBillingAvailable: false,
+      hasStripeCustomer: false,
       peopleUsage: { current: 1, max: 0 },
       shopUsage: { current: 1, max: 0 },
       blockedReason: "グループ単位のプラン設定を移行しています。完了後に利用状態を再確認します。",
       billingEmail: user.email,
-      invoices: [],
       canManagePlan: false,
       canUpdatePaymentMethod: false,
       canUpdateBillingEmail: false,
@@ -242,7 +241,7 @@ function restrictedBlockedReason(state: Extract<Doc<"organizationBillingStates">
   switch (state.reason) {
     case "trialFreeConditionsNotMet":
     case "freeConditionsNotMet":
-      return "Freeの利用人数または店舗数を超えています。ユーザーまたは店舗を削除してから再確認してください。";
+      return "無料の利用人数または店舗数を超えています。ユーザーまたは店舗を削除してから再確認してください。";
     case "paymentGraceExpired":
       return "支払い猶予が終了しています。支払い方法を更新するか、有料プランを再開してください。";
     case "paymentActivationFailed":
@@ -271,6 +270,7 @@ export const getSettings = managerQuery({
       revokedInvitations,
       expiredInvitations,
       billingState,
+      stripeCustomer,
     ] = await Promise.all([
       ctx.db
         .query("organizationPeople")
@@ -311,6 +311,10 @@ export const getSettings = managerQuery({
         .order("desc")
         .take(100),
       getOrganizationBillingState(ctx, organization._id),
+      ctx.db
+        .query("organizationStripeCustomers")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", organization._id))
+        .unique(),
     ]);
     const people = peopleDocs.filter((person) => person.status === "active");
     const historicalInvitations = [...acceptedInvitations, ...revokedInvitations, ...expiredInvitations]
@@ -403,8 +407,15 @@ export const getSettings = managerQuery({
       (invitation) => invitation.reservedSeat && invitation.expiresAt > now,
     ).length;
     const usage = projectOrganizationUsage({ people: usageInputs, reservedPersonCount });
+    const activeShopCount = shops.filter((shop) => shop.operatingStatus === "active").length;
     const policy = billingState ? deriveOrganizationBillingPolicy(billingState.state) : null;
+    const stripeBillingAvailable = isStripeBillingAvailable();
     const isComplimentary = billingState?.state.kind === "complimentary";
+    const stripeBillingMode = getStripeBillingMode();
+    const hasStripeCustomer = Boolean(!isComplimentary && stripeCustomer);
+    const stripeCustomerMatchesBillingMode = Boolean(
+      stripeBillingMode !== "off" && stripeCustomer?.livemode === (stripeBillingMode === "live"),
+    );
     const restrictedState = billingState ? getEffectiveRestrictedBillingState(billingState.state) : null;
     const isActiveActor = ctx.organizationMember?.status === "active";
     const isRestrictedRecovery = Boolean(
@@ -413,6 +424,7 @@ export const getSettings = managerQuery({
         ctx.organizationMember &&
         restrictedState.recoveryManagerPersonIds.includes(ctx.organizationMember.personId),
     );
+    const canStartRestrictedRecovery = isRestrictedRecovery && billingState?.state.kind === "restricted";
     const canWriteNormally = Boolean(isActiveActor && policy?.canWriteBusinessData);
     const usageLimits = restrictedState ? ORGANIZATION_PLAN_LIMITS.free : policy?.limits;
 
@@ -752,10 +764,22 @@ export const getSettings = managerQuery({
       })
       .sort((a, b) => a.name.localeCompare(b.name, "ja"));
 
+    const normalizedBillingState = billingState ? normalizeOrganizationBillingState(billingState.state) : null;
+    const canAccessCustomerPortal = Boolean(
+      canStartRestrictedRecovery ||
+        (isActiveActor &&
+          billingState &&
+          !restrictedState &&
+          ((billingState.state.kind === "trial" && billingState.state.selectedPaidPlan === "pro") ||
+            billingState.state.kind === "scheduledChange" ||
+            billingState.state.kind === "grace" ||
+            (billingState.state.kind === "active" && billingState.state.plan !== "free"))),
+    );
     const billingCapabilities = {
       canManagePlan: Boolean(
-        !isComplimentary &&
-          (isRestrictedRecovery ||
+        stripeBillingAvailable &&
+          !isComplimentary &&
+          (canStartRestrictedRecovery ||
             (isActiveActor &&
               billingState &&
               !restrictedState &&
@@ -763,16 +787,7 @@ export const getSettings = managerQuery({
               billingState.state.kind !== "pendingActivation")),
       ),
       canUpdatePaymentMethod: Boolean(
-        !isComplimentary &&
-          (isRestrictedRecovery ||
-            (isActiveActor &&
-              billingState &&
-              !restrictedState &&
-              (billingState.state.kind === "trial" ||
-                billingState.state.kind === "initialPaymentPending" ||
-                billingState.state.kind === "scheduledChange" ||
-                billingState.state.kind === "grace" ||
-                (billingState.state.kind === "active" && billingState.state.plan !== "free")))),
+        stripeBillingAvailable && stripeCustomerMatchesBillingMode && !isComplimentary && canAccessCustomerPortal,
       ),
       canUpdateBillingEmail: Boolean(
         !isComplimentary &&
@@ -783,23 +798,23 @@ export const getSettings = managerQuery({
               (billingState.state.kind !== "pendingActivation" || billingState.state.fallback === "free"))),
       ),
       canScheduleFree: Boolean(
-        !isComplimentary &&
-          (isRestrictedRecovery ||
-            (isActiveActor &&
-              billingState &&
-              !restrictedState &&
-              (billingState.state.kind === "trial" ||
-                billingState.state.kind === "scheduledChange" ||
-                billingState.state.kind === "grace" ||
-                (billingState.state.kind === "active" && billingState.state.plan !== "free")))),
+        stripeBillingAvailable &&
+          !isComplimentary &&
+          isActiveActor &&
+          normalizedBillingState?.kind === "active" &&
+          normalizedBillingState.plan === "pro",
       ),
     };
     const billingBase = {
       peopleUsage: { current: usage.currentPeopleCount, max: usageLimits?.maxPeople ?? 0 },
-      shopUsage: { current: shops.length, max: usageLimits?.maxActiveShops ?? 0 },
+      shopUsage: { current: activeShopCount, max: usageLimits?.maxActiveShops ?? 0 },
       billingEmail: organization.billingEmail ?? "",
-      invoices: [],
       isComplimentary,
+      stripeBillingAvailable,
+      hasStripeCustomer,
+      hasTrialContinuation: Boolean(
+        normalizedBillingState?.kind === "trial" && normalizedBillingState.selectedPaidPlan === "pro",
+      ),
       ...billingCapabilities,
     };
     const accessDisabledReason =
@@ -811,25 +826,39 @@ export const getSettings = managerQuery({
     const managePlanDisabledReason =
       billingCapabilities.canManagePlan || isComplimentary
         ? undefined
-        : !billingState
-          ? "設定の移行が完了するまでお待ちください。"
-          : (accessDisabledReason ??
-            (billingState.state.kind === "initialPaymentPending"
-              ? "初回支払いの結果を確認中のため、プランを変更できません。"
-              : billingState.state.kind === "pendingActivation"
-                ? "支払い結果を確認中のため、別のプラン変更はできません。"
-                : "現在の契約状態ではプランを変更できません。"));
+        : !stripeBillingAvailable
+          ? "Proの料金は準備中です。"
+          : !billingState
+            ? "設定の移行が完了するまでお待ちください。"
+            : (accessDisabledReason ??
+              (billingState.state.kind === "initialPaymentPending"
+                ? "初回支払いの結果を確認中のため、プランを変更できません。"
+                : billingState.state.kind === "pendingActivation"
+                  ? "支払い結果を確認中のため、別のプラン変更はできません。"
+                  : "現在の契約状態ではプランを変更できません。"));
     const paymentMethodDisabledReason =
       billingCapabilities.canUpdatePaymentMethod || isComplimentary
         ? undefined
-        : !billingState
-          ? "設定の移行が完了するまでお待ちください。"
-          : (accessDisabledReason ??
-            (billingState.state.kind === "active" && billingState.state.plan === "free"
-              ? "Freeでは支払い方法の登録はありません。有料プランを契約するときに登録します。"
-              : billingState.state.kind === "pendingActivation"
-                ? "支払い結果を確認中です。確定後に支払い方法を変更できます。"
-                : "現在の契約状態では支払い方法を変更できません。"));
+        : !stripeBillingAvailable
+          ? "Proの料金は準備中です。"
+          : !billingState
+            ? "設定の移行が完了するまでお待ちください。"
+            : (accessDisabledReason ??
+              (!canAccessCustomerPortal
+                ? billingState.state.kind === "trial" && !billingState.state.selectedPaidPlan
+                  ? "Pro継続を登録すると、Stripeで支払い情報を管理できます。"
+                  : billingState.state.kind === "initialPaymentPending"
+                    ? "初回支払いの結果を確認中です。確定後にStripeで支払い情報を管理できます。"
+                    : billingState.state.kind === "active" && billingState.state.plan === "free"
+                      ? "無料プランでは支払い情報の管理は不要です。有料プランの契約時にStripeで登録します。"
+                      : billingState.state.kind === "pendingActivation"
+                        ? "支払い結果を確認中です。確定後にStripeで支払い情報を管理できます。"
+                        : "現在の契約状態ではStripeの支払い情報を管理できません。"
+                : !hasStripeCustomer
+                  ? "Stripeの契約情報を準備中です。しばらくしてからもう一度お試しください。"
+                  : !stripeCustomerMatchesBillingMode
+                    ? "Stripeの契約情報と決済設定を確認中です。しばらくしてからもう一度お試しください。"
+                    : "現在の契約状態ではStripeの支払い情報を管理できません。"));
     const billingEmailDisabledReason =
       billingCapabilities.canUpdateBillingEmail || isComplimentary
         ? undefined
@@ -852,7 +881,7 @@ export const getSettings = managerQuery({
         blockedReason: "グループ単位のプラン設定を移行しています。完了後に利用状態を再確認します。",
       };
     } else {
-      const state = billingState.state;
+      const state = normalizeOrganizationBillingState(billingState.state);
       switch (state.kind) {
         case "trial":
           billing = {
@@ -860,9 +889,10 @@ export const getSettings = managerQuery({
             ...billingCapabilityReasons,
             state: "trial",
             currentPlan: "trial",
+            trialEndsAt: state.trialEndsAt,
             // trialEndsAt は翌月末日の翌日 0:00 JST を表す排他的な境界。
-            // 画面では無料体験を利用できる最終日を表示する。
-            nextEvent: { label: "無料体験終了", date: formatDateJa(state.trialEndsAt - 1) },
+            // 次の予定ではトライアルを利用できる最終日を表示する。
+            nextEvent: { label: "トライアル最終日", date: formatDateJa(state.trialEndsAt - 1) },
           };
           break;
         case "initialPaymentPending":
@@ -883,7 +913,7 @@ export const getSettings = managerQuery({
             targetPlan: state.plan,
             blockedReason:
               state.fallback === "free"
-                ? "有料プランの支払い結果を確認中です。Freeの基本機能は引き続き利用できます。"
+                ? "有料プランの支払い結果を確認中です。無料の基本機能は引き続き利用できます。"
                 : restrictedState
                   ? restrictedBlockedReason(restrictedState)
                   : "契約制限を維持したまま支払い結果を確認しています。",
@@ -902,19 +932,19 @@ export const getSettings = managerQuery({
           billing = {
             ...billingBase,
             ...billingCapabilityReasons,
-            state: "business",
-            currentPlan: "business",
+            state: "pro",
+            currentPlan: "pro",
           };
           break;
         case "scheduledChange":
           billing = {
             ...billingBase,
             ...billingCapabilityReasons,
-            state: state.targetPlan === "free" ? "scheduledFree" : "scheduledPro",
+            state: "scheduledFree",
             currentPlan: state.currentPlan,
             targetPlan: state.targetPlan,
             nextEvent: {
-              label: state.targetPlan === "free" ? "Free適用予定日" : "Pro適用予定日",
+              label: state.targetPlan === "free" ? "無料適用予定日" : "Pro適用予定日",
               date: formatDateJa(state.effectiveAt),
             },
           };
@@ -953,14 +983,14 @@ export const getSettings = managerQuery({
             : managerInvitationMode === "freeManagerExchange" && activeFreeManagerExchangeInvitations.length > 0
               ? "次の管理者のアカウント連携を待っています。連携完了までは現在の管理者が操作を継続します。"
               : managerInvitationMode === "freeManagerExchange"
-                ? "Freeでは、グループ内の既存スタッフとの管理者交代だけを利用できます。"
+                ? "無料では、グループ内の既存スタッフとの管理者交代だけを利用できます。"
                 : policy?.paidFeatureBlockReason === "freePlan"
-                  ? "Freeでは管理者を追加できません。有料プランを選択してください。"
+                  ? "無料では管理者を追加できません。有料プランを選択してください。"
                   : policy?.paidFeatureBlockReason === "paymentResultPending"
                     ? "支払い結果が確定してから管理者を招待できます。"
                     : "管理者と招待中の管理者は、グループ全体で5名までです。";
     const canAddShop = Boolean(
-      isActiveActor && policy?.canUsePaidFeatures && policy.limits && shops.length < policy.limits.maxActiveShops,
+      isActiveActor && policy?.canUsePaidFeatures && policy.limits && activeShopCount < policy.limits.maxActiveShops,
     );
     const addShopDisabledReason = canAddShop
       ? undefined
@@ -971,7 +1001,7 @@ export const getSettings = managerQuery({
           : restrictedState
             ? "契約制限中は店舗を追加できません。"
             : policy?.paidFeatureBlockReason === "freePlan"
-              ? "Freeでは店舗を追加できません。有料プランを選択してください。"
+              ? "無料では店舗を追加できません。有料プランを選択してください。"
               : policy?.paidFeatureBlockReason === "paymentResultPending"
                 ? "支払い結果が確定してから店舗を追加できます。"
                 : "店舗はグループごとに5件まで登録できます。";

@@ -505,7 +505,7 @@ describe("E2E testing helpers", () => {
       organizationPersonId: snapshot.people[0]._id,
       emailNormalized: "canonical-manager@example.com",
     });
-    expect(snapshot.billing).toMatchObject({ state: { kind: "complimentary", plan: "business" }, version: 1 });
+    expect(snapshot.billing).toMatchObject({ state: { kind: "complimentary", plan: "pro" }, version: 1 });
     expect(snapshot.legacyMembership).toMatchObject({ role: "manager", isDeleted: false });
   });
 
@@ -558,7 +558,7 @@ describe("E2E testing helpers", () => {
     });
     expect(snapshot.primaryMarkerPerson).toMatchObject({ organizationId: seeded.organizationId, status: "active" });
     expect(snapshot.secondaryMarkerPerson).toMatchObject({ organizationId: seeded.organizationId, status: "active" });
-    expect(snapshot.billing).toMatchObject({ state: { kind: "complimentary", plan: "business" } });
+    expect(snapshot.billing).toMatchObject({ state: { kind: "complimentary", plan: "pro" } });
   });
 
   it("3 actor seedをowner起点で再実行可能にresetし、別ownerのgraphは残す", async () => {

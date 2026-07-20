@@ -1351,7 +1351,7 @@ describe("m012 complimentary business migration", () => {
     expect(result.migratedBillingStates).toHaveLength(1);
     expect(result.migratedBillingStates[0]).toMatchObject({
       organizationId,
-      state: { kind: "complimentary", plan: "business" },
+      state: { kind: "complimentary", plan: "pro" },
       version: 1,
     });
     expect(result.migratedBillingStates[0].createdAt).toBe(result.migratedBillingStates[0].updatedAt);
@@ -1361,7 +1361,7 @@ describe("m012 complimentary business migration", () => {
         action: "organization.billing_state_changed",
         targetKind: "billing",
         targetId: result.migratedBillingStates[0]._id,
-        toState: "complimentary.business",
+        toState: "complimentary.pro",
         correlationId: `${organizationId}:migration:m012:complimentary-business`,
       }),
     ]);
@@ -1456,7 +1456,7 @@ describe("m012 complimentary business migration", () => {
     }));
     expect(repaired.billingStates).toHaveLength(1);
     expect(repaired.billingStates[0]).toMatchObject({
-      state: { kind: "complimentary", plan: "business" },
+      state: { kind: "complimentary", plan: "pro" },
       version: 1,
     });
     expect(repaired.audits).toHaveLength(1);
@@ -1656,7 +1656,7 @@ describe("m012 complimentary business migration", () => {
     }));
     expect(repaired.audits).toHaveLength(1);
     expect(repaired.billingStates).toHaveLength(1);
-    expect(repaired.billingStates[0].state).toEqual({ kind: "complimentary", plan: "business" });
+    expect(repaired.billingStates[0].state).toEqual({ kind: "complimentary", plan: "pro" });
     expect(
       repaired.conflicts
         .map(({ code, resolvedAt }) => ({ code, resolved: resolvedAt !== undefined }))

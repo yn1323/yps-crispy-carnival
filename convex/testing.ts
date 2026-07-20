@@ -1006,11 +1006,11 @@ async function createScenarioShop(
   return shopId;
 }
 
-async function createComplimentaryBusinessEntitlement(ctx: MutationCtx, organizationId: Id<"organizations">) {
+async function createComplimentaryProEntitlement(ctx: MutationCtx, organizationId: Id<"organizations">) {
   const now = Date.now();
   return await ctx.db.insert("organizationBillingStates", {
     organizationId,
-    state: { kind: "complimentary", plan: "business" },
+    state: { kind: "complimentary", plan: "pro" },
     version: 1,
     createdAt: now,
     updatedAt: now,
@@ -1104,7 +1104,7 @@ async function createCanonicalOrganizationFixture(
     name: args.shopName,
     managerUserId: userId,
   });
-  await createComplimentaryBusinessEntitlement(ctx, organizationId);
+  await createComplimentaryProEntitlement(ctx, organizationId);
   return { organizationId, ownerMemberId, ownerPersonId, shopId, userId };
 }
 
@@ -1246,7 +1246,7 @@ export const seedMultiActorOrganizationScenario = internalMutation({
       name: secondaryShopName,
       managerUserId: ownerUserId,
     });
-    await createComplimentaryBusinessEntitlement(ctx, primaryOrganizationId);
+    await createComplimentaryProEntitlement(ctx, primaryOrganizationId);
     const actorBPersonId = await createScenarioPerson(ctx, {
       organizationId: primaryOrganizationId,
       name: actorBName,
@@ -1285,7 +1285,7 @@ export const seedMultiActorOrganizationScenario = internalMutation({
       name: alternateShopName,
       managerUserId: actorBUserId,
     });
-    await createComplimentaryBusinessEntitlement(ctx, alternateOrganizationId);
+    await createComplimentaryProEntitlement(ctx, alternateOrganizationId);
 
     return {
       ownerUserId,

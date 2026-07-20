@@ -376,7 +376,7 @@ async function createManagerInvitation(
       ...(targetPerson ? { targetPersonId: targetPerson._id } : {}),
     });
     if (!exchange) {
-      throw new ConvexError("Freeではグループ内の既存スタッフとの管理者交代だけを招待できます");
+      throw new ConvexError("無料ではグループ内の既存スタッフとの管理者交代だけを招待できます");
     }
     await requireNoOtherPendingFreeManagerExchange(ctx, organization._id, now, staleTargetInvitation?._id);
     await requireOrganizationCapacity(ctx, { organizationId: organization._id });

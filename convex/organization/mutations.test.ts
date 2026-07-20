@@ -1200,7 +1200,7 @@ describe("organization person removal", () => {
         personId: ids.personId,
         requestId: "role-free-request",
       }),
-    ).rejects.toThrow("この機能は無料体験、Pro、Businessで利用できます");
+    ).rejects.toThrow("この機能はトライアルまたはProで利用できます");
   });
 
   it("契約制限中は最後の復旧担当者の保護を優先して管理権限解除を拒否する", async () => {

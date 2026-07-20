@@ -144,7 +144,7 @@ export async function resolvePersonManagerInvitationState(
           kind: "unavailable",
           reason: hasOtherFreeExchange
             ? "次の管理者のログインを待っています。切り替わるまでは現在の管理者が引き続き利用できます。"
-            : "Freeでは、グループ内の既存スタッフとの管理者交代だけを利用できます。",
+            : "無料では、グループ内の既存スタッフとの管理者交代だけを利用できます。",
         };
   }
   if (!policy.canUsePaidFeatures || !policy.limits) {

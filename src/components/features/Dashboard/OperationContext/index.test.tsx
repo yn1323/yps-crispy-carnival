@@ -44,7 +44,7 @@ const shops = [
     shopStatus: "active",
     organizationId: "organization-a",
     organizationName: "Aグループ",
-    organizationPlan: "business",
+    organizationPlan: "pro",
     memberStatus: "active",
   },
   {
@@ -53,7 +53,7 @@ const shops = [
     shopStatus: "active",
     organizationId: "organization-a",
     organizationName: "Aグループ",
-    organizationPlan: "business",
+    organizationPlan: "pro",
     memberStatus: "active",
   },
   {

@@ -11,26 +11,13 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const UpgradeToBusiness: Story = {
+export const ChoosePro: Story = {
   args: {
-    resolution: { kind: "upgradeToBusiness", current: 15, max: 15 },
+    resolution: { kind: "choosePaidPlan", current: 5, max: 5 },
     retryActionLabel: "スタッフを追加",
   },
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).getByRole("link", { name: "プランと支払いを確認" })).toHaveAttribute(
-      "href",
-      "/settings?tab=billing",
-    );
-  },
-};
-
-export const CancelScheduledProChange: Story = {
-  args: {
-    resolution: { kind: "cancelScheduledProChange" },
-    retryActionLabel: "管理者を招待",
-  },
-  play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByRole("link", { name: "プラン変更予定を確認" })).toHaveAttribute(
       "href",
       "/settings?tab=billing",
     );

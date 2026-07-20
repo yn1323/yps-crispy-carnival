@@ -13,16 +13,11 @@ export const ORGANIZATION_PLAN_LIMITS = {
     maxActiveManagers: 5,
   },
   free: {
-    maxPeople: 4,
+    maxPeople: 5,
     maxActiveShops: 1,
     maxActiveManagers: 1,
   },
   pro: {
-    maxPeople: 15,
-    maxActiveShops: 5,
-    maxActiveManagers: 5,
-  },
-  business: {
     maxPeople: 30,
     maxActiveShops: 5,
     maxActiveManagers: 5,
@@ -32,16 +27,112 @@ export const ORGANIZATION_PLAN_LIMITS = {
 export type OrganizationPlan = keyof typeof ORGANIZATION_PLAN_LIMITS;
 export type OrganizationPlanLimits = (typeof ORGANIZATION_PLAN_LIMITS)[OrganizationPlan];
 export type OrganizationBillingState = Infer<typeof organizationBillingStateValidator>;
-export type RestrictedOrganizationBillingState = Extract<OrganizationBillingState, { kind: "restricted" }>;
+type PersistedRestrictedOrganizationBillingState = Extract<OrganizationBillingState, { kind: "restricted" }>;
+export type RestrictedOrganizationBillingState = Omit<PersistedRestrictedOrganizationBillingState, "previousPlan"> & {
+  previousPlan?: "free" | "pro";
+};
+export type CanonicalOrganizationBillingState =
+  | (Omit<Extract<OrganizationBillingState, { kind: "trial" }>, "selectedPaidPlan"> & {
+      selectedPaidPlan?: "pro";
+    })
+  | (Omit<Extract<OrganizationBillingState, { kind: "initialPaymentPending" }>, "plan"> & { plan: "pro" })
+  | (Omit<Extract<OrganizationBillingState, { kind: "pendingActivation" }>, "plan" | "restrictedFallbackState"> & {
+      plan: "pro";
+      restrictedFallbackState?: RestrictedOrganizationBillingState;
+    })
+  | (Omit<Extract<OrganizationBillingState, { kind: "active" }>, "plan"> & { plan: "free" | "pro" })
+  | { kind: "complimentary"; plan: "pro" }
+  | { kind: "scheduledChange"; currentPlan: "pro"; targetPlan: "free"; effectiveAt: number }
+  | (Omit<Extract<OrganizationBillingState, { kind: "grace" }>, "plan"> & { plan: "pro" })
+  | RestrictedOrganizationBillingState;
 export type VerifiedBillingTransitionCause = "stateUpdate" | "scheduledChangeCanceled";
+
+/** Legacy Business values are accepted at the storage boundary and exposed as Pro everywhere else. */
+export function normalizeOrganizationPaidPlan(_plan: "pro" | "business"): "pro" {
+  // TODO[narrow]: Remove the legacy `business` input after m018 has completed everywhere.
+  return "pro";
+}
+
+export function normalizeOrganizationActivePlan(plan: "free" | "pro" | "business"): "free" | "pro" {
+  // TODO[narrow]: Remove the legacy `business` input after m018 has completed everywhere.
+  return plan === "free" ? "free" : "pro";
+}
+
+function normalizeRestrictedState(
+  state: PersistedRestrictedOrganizationBillingState,
+): RestrictedOrganizationBillingState {
+  const { previousPlan, ...rest } = state;
+  return {
+    ...rest,
+    ...(previousPlan === undefined ? {} : { previousPlan: normalizeOrganizationActivePlan(previousPlan) }),
+  };
+}
+
+export function normalizeOrganizationBillingState(state: OrganizationBillingState): CanonicalOrganizationBillingState {
+  switch (state.kind) {
+    case "trial": {
+      const { selectedPaidPlan, ...rest } = state;
+      return {
+        ...rest,
+        ...(selectedPaidPlan === undefined
+          ? {}
+          : { selectedPaidPlan: normalizeOrganizationPaidPlan(selectedPaidPlan) }),
+      };
+    }
+    case "initialPaymentPending":
+      return { ...state, plan: normalizeOrganizationPaidPlan(state.plan) };
+    case "pendingActivation": {
+      const { plan, restrictedFallbackState, ...rest } = state;
+      return {
+        ...rest,
+        plan: normalizeOrganizationPaidPlan(plan),
+        ...(restrictedFallbackState
+          ? { restrictedFallbackState: normalizeRestrictedState(restrictedFallbackState) }
+          : {}),
+      };
+    }
+    case "active":
+      return { ...state, plan: normalizeOrganizationActivePlan(state.plan) };
+    case "complimentary":
+      return { kind: "complimentary", plan: "pro" };
+    case "scheduledChange":
+      return state.targetPlan === "pro"
+        ? { kind: "active", plan: "pro" }
+        : { ...state, currentPlan: "pro", targetPlan: "free" };
+    case "grace":
+      return { ...state, plan: normalizeOrganizationPaidPlan(state.plan) };
+    case "restricted":
+      return normalizeRestrictedState(state);
+  }
+}
+
+export function hasLegacyBusinessBillingState(state: OrganizationBillingState): boolean {
+  switch (state.kind) {
+    case "trial":
+      return state.selectedPaidPlan === "business";
+    case "initialPaymentPending":
+    case "grace":
+      return state.plan === "business";
+    case "pendingActivation":
+      return state.plan === "business" || state.restrictedFallbackState?.previousPlan === "business";
+    case "active":
+      return state.plan === "business";
+    case "complimentary":
+      return state.plan === "business";
+    case "scheduledChange":
+      return state.currentPlan === "business" || state.targetPlan === "pro";
+    case "restricted":
+      return state.previousPlan === "business";
+  }
+}
 
 /** 支払い結果待ちでも、契約制限中から開始した場合は元の復旧契約を維持する。 */
 export function getEffectiveRestrictedBillingState(
   state: OrganizationBillingState,
 ): RestrictedOrganizationBillingState | null {
-  if (state.kind === "restricted") return state;
+  if (state.kind === "restricted") return normalizeRestrictedState(state);
   if (state.kind === "pendingActivation" && state.fallback === "restricted") {
-    return state.restrictedFallbackState ?? null;
+    return state.restrictedFallbackState ? normalizeRestrictedState(state.restrictedFallbackState) : null;
   }
   return null;
 }
@@ -50,9 +141,9 @@ export function getEffectiveRestrictedBillingState(
  * 検証済みの最初の支払い失敗時刻から、延長されない14日間の猶予を組み立てる。
  */
 export function createPaymentGraceState(
-  plan: "pro" | "business",
+  plan: "pro",
   firstFailureAt: number,
-): Extract<OrganizationBillingState, { kind: "grace" }> {
+): Extract<CanonicalOrganizationBillingState, { kind: "grace" }> {
   if (!Number.isSafeInteger(firstFailureAt) || firstFailureAt < 0) {
     throw new RangeError("firstFailureAt must be a non-negative safe integer timestamp");
   }
@@ -79,54 +170,64 @@ export function isVerifiedBillingTransitionAllowed(
 ): boolean {
   if (current.kind === "complimentary" || next.kind === "complimentary") return false;
 
-  switch (next.kind) {
+  const normalizedCurrent = normalizeOrganizationBillingState(current);
+  const normalizedNext = normalizeOrganizationBillingState(next);
+
+  switch (normalizedNext.kind) {
     case "initialPaymentPending":
       return (
-        current.kind === "trial" && current.selectedPaidPlan !== undefined && current.selectedPaidPlan === next.plan
+        normalizedCurrent.kind === "trial" &&
+        normalizedCurrent.selectedPaidPlan !== undefined &&
+        normalizedCurrent.selectedPaidPlan === normalizedNext.plan
       );
     case "pendingActivation":
       return (
-        (current.kind === "active" && current.plan === "free" && next.fallback === "free") ||
-        (current.kind === "restricted" && next.fallback === "restricted") ||
-        (current.kind === "pendingActivation" && current.plan === next.plan && current.fallback === next.fallback)
+        (normalizedCurrent.kind === "active" &&
+          normalizedCurrent.plan === "free" &&
+          normalizedNext.fallback === "free") ||
+        (normalizedCurrent.kind === "restricted" && normalizedNext.fallback === "restricted") ||
+        (normalizedCurrent.kind === "pendingActivation" &&
+          normalizedCurrent.plan === normalizedNext.plan &&
+          normalizedCurrent.fallback === normalizedNext.fallback)
       );
     case "active":
-      if (next.plan === "free") {
-        return current.kind === "pendingActivation" && current.fallback === "free";
+      if (normalizedNext.plan === "free") {
+        return normalizedCurrent.kind === "pendingActivation" && normalizedCurrent.fallback === "free";
       }
-      if (current.kind === "scheduledChange") {
-        return cause === "scheduledChangeCanceled" && current.currentPlan === next.plan;
+      if (normalizedCurrent.kind === "scheduledChange") {
+        return cause === "scheduledChangeCanceled" && normalizedCurrent.currentPlan === normalizedNext.plan;
       }
       if (
-        current.kind === "initialPaymentPending" ||
-        current.kind === "pendingActivation" ||
-        current.kind === "grace"
+        normalizedCurrent.kind === "initialPaymentPending" ||
+        normalizedCurrent.kind === "pendingActivation" ||
+        normalizedCurrent.kind === "grace"
       ) {
-        return current.plan === next.plan;
+        return normalizedCurrent.plan === normalizedNext.plan;
       }
-      if (current.kind === "restricted") return true;
-      if (current.kind !== "active") return false;
-      if (current.plan === "free") return true;
-      return current.plan === next.plan || (current.plan === "pro" && next.plan === "business");
+      if (normalizedCurrent.kind === "restricted") return true;
+      if (normalizedCurrent.kind !== "active") return false;
+      if (normalizedCurrent.plan === "free") return true;
+      return normalizedCurrent.plan === normalizedNext.plan;
     case "grace":
       return (
-        ((current.kind === "active" && current.plan !== "free") || current.kind === "initialPaymentPending") &&
-        current.plan === next.plan
+        ((normalizedCurrent.kind === "active" && normalizedCurrent.plan !== "free") ||
+          normalizedCurrent.kind === "initialPaymentPending") &&
+        normalizedCurrent.plan === normalizedNext.plan
       );
     case "scheduledChange":
-      if (current.kind === "scheduledChange") {
+      if (normalizedCurrent.kind === "scheduledChange") {
         return (
-          current.currentPlan === next.currentPlan &&
-          current.targetPlan === next.targetPlan &&
-          current.effectiveAt === next.effectiveAt
+          normalizedCurrent.currentPlan === normalizedNext.currentPlan &&
+          normalizedCurrent.targetPlan === normalizedNext.targetPlan
         );
       }
-      if (current.kind !== "active" || current.plan === "free" || current.plan !== next.currentPlan) return false;
-      return next.targetPlan === "free" || (current.plan === "business" && next.targetPlan === "pro");
+      return normalizedCurrent.kind === "active" && normalizedCurrent.plan === normalizedNext.currentPlan;
     case "trial":
       return false;
     case "restricted":
-      return current.kind === "pendingActivation" && current.fallback === "restricted";
+      return normalizedCurrent.kind === "pendingActivation" && normalizedCurrent.fallback === "restricted";
+    case "complimentary":
+      return false;
   }
 }
 
@@ -164,15 +265,16 @@ const NO_RECOVERY_CAPABILITIES: readonly RecoveryCapability[] = [];
  * 復旧操作は状態として許可される候補であり、呼び出し側で復旧担当者かを別途確認する。
  */
 export function deriveOrganizationBillingPolicy(state: OrganizationBillingState): OrganizationBillingPolicy {
-  switch (state.kind) {
+  const normalizedState = normalizeOrganizationBillingState(state);
+  switch (normalizedState.kind) {
     case "trial":
-      return enabledPolicy("trial", state.trialEndsAt);
+      return enabledPolicy("trial", normalizedState.trialEndsAt);
     case "initialPaymentPending":
       // 初回請求結果を待つ間は、選択済みの有料プランの権利を継続する。
-      return enabledPolicy(state.plan, null);
+      return enabledPolicy(normalizedState.plan, null);
     case "pendingActivation":
       // Freeからの契約開始は支払い成功までFree権利を維持し、有料機能だけを開放しない。
-      if (state.fallback === "free") {
+      if (normalizedState.fallback === "free") {
         return {
           ...freePolicy(),
           paidFeatureBlockReason: "paymentResultPending",
@@ -181,15 +283,15 @@ export function deriveOrganizationBillingPolicy(state: OrganizationBillingState)
       // 契約制限中からの契約開始は、支払い成功まで制限と復旧権限を維持する。
       return restrictedPolicy();
     case "active":
-      return state.plan === "free" ? freePolicy() : enabledPolicy(state.plan, null);
+      return normalizedState.plan === "free" ? freePolicy() : enabledPolicy(normalizedState.plan, null);
     case "complimentary":
-      return enabledPolicy("business", null);
+      return enabledPolicy("pro", null);
     case "scheduledChange":
       // FreeまたはProへの変更予定は、期間終了まで現在の有料プランを維持する。
-      return enabledPolicy(state.currentPlan, state.effectiveAt);
+      return enabledPolicy(normalizedState.currentPlan, normalizedState.effectiveAt);
     case "grace":
       // 猶予中も元の有料プランを通常どおり利用できる。
-      return enabledPolicy(state.plan, state.endsAt);
+      return enabledPolicy(normalizedState.plan, normalizedState.endsAt);
     case "restricted":
       return restrictedPolicy();
   }
@@ -341,9 +443,11 @@ export type OrganizationUsageSnapshot = {
 
 export type PlanLimitViolation = "people" | "activeShops" | "activeManagers";
 
-export function evaluatePlanLimits(plan: OrganizationPlan, usage: OrganizationUsageSnapshot) {
+export function evaluatePlanLimits(plan: OrganizationPlan | "business", usage: OrganizationUsageSnapshot) {
   validateUsageSnapshot(usage);
-  const limits = ORGANIZATION_PLAN_LIMITS[plan];
+  // TODO[narrow]: Remove the legacy `business` input after m018 has completed everywhere.
+  const canonicalPlan = plan === "business" ? "pro" : plan;
+  const limits = ORGANIZATION_PLAN_LIMITS[canonicalPlan];
   const violations: PlanLimitViolation[] = [];
 
   if (usage.peopleCount > limits.maxPeople) violations.push("people");
@@ -386,7 +490,7 @@ function requireNonNegativeInteger(value: number, fieldName: string): void {
 }
 
 /**
- * 事業者作成月とその翌月の末日を無料体験期間とし、翌々月1日00:00 JSTを返す。
+ * 事業者作成月とその翌月の末日をトライアル期間とし、翌々月1日00:00 JSTを返す。
  */
 export function calculateTrialEndsAt(organizationCreatedAt: number): number {
   if (!Number.isFinite(organizationCreatedAt)) {

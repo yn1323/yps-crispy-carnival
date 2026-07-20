@@ -66,6 +66,7 @@ export async function seedOrganizationManagerShop(
     subject: string;
     email?: string;
     shopName?: string;
+    // Legacy `business` remains available to compatibility tests during m018.
     plan?: "free" | "pro" | "business";
     complimentary?: boolean;
   },
@@ -110,9 +111,7 @@ export async function seedOrganizationManagerShop(
   });
   await ctx.db.insert("organizationBillingStates", {
     organizationId,
-    state: args.complimentary
-      ? { kind: "complimentary", plan: "business" }
-      : { kind: "active", plan: args.plan ?? "free" },
+    state: args.complimentary ? { kind: "complimentary", plan: "pro" } : { kind: "active", plan: args.plan ?? "free" },
     ...(args.complimentary ? {} : { freeManagerPersonId: personId, freeShopId: shopId }),
     version: 1,
     createdAt: now,

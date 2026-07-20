@@ -38,7 +38,7 @@ export async function requireOrganizationPaidFeature(ctx: DbCtx, organizationId:
     throw new ConvexError(
       policy?.paidFeatureBlockReason === "paymentResultPending"
         ? "支払い結果の確認後に利用できます"
-        : "この機能は無料体験、Pro、Businessで利用できます",
+        : "この機能はトライアルまたはProで利用できます",
     );
   }
   return policy;
@@ -79,16 +79,6 @@ export async function requireOrganizationCapacity(
         ? "稼働店舗数が現在のプラン上限を超えます"
         : "管理者と招待中の管理者が現在のプラン上限を超えます";
     throw new ConvexError(message);
-  }
-  if (
-    billingState.state.kind === "scheduledChange" &&
-    billingState.state.currentPlan === "business" &&
-    billingState.state.targetPlan === "pro"
-  ) {
-    const scheduledTargetEvaluation = evaluatePlanLimits("pro", projectedUsage);
-    if (!scheduledTargetEvaluation.withinLimits) {
-      throw new ConvexError("Proプランへの変更予約を取り消してから追加してください");
-    }
   }
   return { billingState, policy, usage };
 }

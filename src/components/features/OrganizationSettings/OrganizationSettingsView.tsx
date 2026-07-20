@@ -95,7 +95,7 @@ export const OrganizationSettingsView = ({
           onManagePlan={actions.onManagePlan}
           onUpdatePaymentMethod={actions.onUpdatePaymentMethod}
           onUpdateBillingEmail={actions.onUpdateBillingEmail}
-          onOpenInvoice={actions.onOpenInvoice}
+          onOpenBillingDocuments={actions.onOpenBillingDocuments}
         />
       </Tabs.Content>
 

@@ -9,7 +9,7 @@ const shops: ShopContextOption[] = [
     shopStatus: "active",
     organizationId: "organization-a",
     organizationName: "A社",
-    organizationPlan: "business",
+    organizationPlan: "free",
     memberStatus: "active",
   },
   {

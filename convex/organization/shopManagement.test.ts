@@ -249,7 +249,7 @@ describe("organization shop management", () => {
         submissionPattern,
         requestId: "free-add-shop",
       }),
-    ).rejects.toThrow("この機能は無料体験、Pro、Businessで利用できます");
+    ).rejects.toThrow("この機能はトライアルまたはProで利用できます");
   });
 
   it("アーカイブは履歴を削除せず、同じrequestIdを再実行しても監査を重複作成しない", async () => {

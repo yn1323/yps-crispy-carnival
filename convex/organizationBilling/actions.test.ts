@@ -251,9 +251,9 @@ describe("organizationBilling/actions", () => {
     expect(jobs).toHaveLength(1);
     expect(jobs[0]?.payload.kind).toBe("email");
     if (jobs[0]?.payload.kind !== "email") throw new Error("email payload not found");
-    expect(jobs[0].payload.html).toContain("選択済みの契約プランはBusinessプランです。");
+    expect(jobs[0].payload.html).toContain("選択済みの契約プランはProです。");
     expect(jobs[0].payload.html).toContain("初回請求は9/1(火) 00:00を予定しています。");
-    expect(jobs[0].payload.html).toContain("Freeプランへ変更する場合の設定期限は9/1(火) 00:00です。");
+    expect(jobs[0].payload.html).toContain("無料へ変更する場合の設定期限は9/1(火) 00:00です。");
     expect(jobs[0].payload.html).not.toContain("円");
   });
 });

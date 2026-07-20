@@ -26,25 +26,11 @@ export function PeopleCapacityResolutionAlert({ resolution, retryActionLabel }: 
 
 function getPresentation(resolution: PeopleCapacityResolution, retryActionLabel: string) {
   switch (resolution.kind) {
-    case "upgradeToBusiness":
-      return {
-        title: "Businessへの変更が必要です",
-        description: `現在の利用状況は${resolution.current}名 / ${resolution.max}名です。Businessへの変更と支払い結果の確認が完了してから、改めて${retryActionLabel}してください。`,
-        actionLabel: "プランと支払いを確認",
-        href: "/settings?tab=billing",
-      };
     case "choosePaidPlan":
       return {
-        title: "有料プランへの変更が必要です",
-        description: `現在の利用状況は${resolution.current}名 / ${resolution.max}名です。有料プランへの変更と支払い結果の確認が完了してから、改めて${retryActionLabel}してください。`,
+        title: "Proへの変更が必要です",
+        description: `現在の利用状況は${resolution.current}名 / ${resolution.max}名です。Proへの変更と支払い結果の確認が完了してから、改めて${retryActionLabel}してください。`,
         actionLabel: "プランと支払いを確認",
-        href: "/settings?tab=billing",
-      };
-    case "cancelScheduledProChange":
-      return {
-        title: "Proへの変更予定を確認してください",
-        description: `16人目を追加するには、Proへの変更予約を取り消す必要があります。取消後も自動では処理しないため、改めて${retryActionLabel}してください。`,
-        actionLabel: "プラン変更予定を確認",
         href: "/settings?tab=billing",
       };
     case "contact":

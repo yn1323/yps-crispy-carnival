@@ -47,7 +47,7 @@ async function seedActiveOrganizationStaff(
 
 async function seedFullProWithReadOnlyNonStaff(ctx: MutationCtx, subject: string) {
   const manager = await seedOrganizationManagerShop(ctx, { subject, plan: "pro" });
-  for (let index = 0; index < 14; index += 1) {
+  for (let index = 0; index < 29; index += 1) {
     await seedActiveOrganizationStaff(ctx, {
       organizationId: manager.organizationId,
       shopId: manager.shopId,
@@ -923,7 +923,7 @@ describe("organizationInvitation/mutations", () => {
         subject: "scheduled_pro_invite_owner",
         plan: "business",
       });
-      for (let index = 0; index < 14; index += 1) {
+      for (let index = 0; index < 29; index += 1) {
         await seedActiveOrganizationStaff(ctx, {
           organizationId: manager.organizationId,
           shopId: manager.shopId,
@@ -952,7 +952,7 @@ describe("organizationInvitation/mutations", () => {
         email: "scheduled-pro-new-manager@example.com",
         requestId: "scheduled-pro-invite-create",
       }),
-    ).rejects.toThrow("Proプランへの変更予約を取り消してから追加してください");
+    ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 30名 / 上限 30名）");
 
     const invitations = await t.run((ctx) =>
       ctx.db
@@ -973,7 +973,7 @@ describe("organizationInvitation/mutations", () => {
         email: ids.targetEmail,
         requestId: "readonly-invite-create",
       }),
-    ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 15名 / 上限 15名）");
+    ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 30名 / 上限 30名）");
 
     const invitations = await t.run((ctx) =>
       ctx.db
@@ -1073,7 +1073,7 @@ describe("organizationInvitation/mutations", () => {
         subject: "invitation_email_drift_staff",
         email: "before-change@example.com",
       });
-      for (let index = 0; index < 13; index += 1) {
+      for (let index = 0; index < 28; index += 1) {
         await seedActiveOrganizationStaff(ctx, {
           organizationId: manager.organizationId,
           shopId: manager.shopId,
@@ -1133,7 +1133,7 @@ describe("organizationInvitation/mutations", () => {
         subject: "parallel_accept_owner",
         plan: "pro",
       });
-      for (let index = 0; index < 13; index += 1) {
+      for (let index = 0; index < 28; index += 1) {
         await seedActiveOrganizationStaff(ctx, {
           organizationId: manager.organizationId,
           shopId: manager.shopId,
@@ -1192,7 +1192,7 @@ describe("organizationInvitation/mutations", () => {
         )
         .collect(),
     }));
-    expect(state.people).toHaveLength(15);
+    expect(state.people).toHaveLength(30);
     expect(state.targetMembers).toHaveLength(2);
     expect(state.competingStaff).toEqual([]);
   });
@@ -1805,7 +1805,7 @@ describe("organizationInvitation/mutations", () => {
         shopId: manager.shopId,
         subject: "free_capacity_target",
       });
-      for (let index = 0; index < 2; index += 1) {
+      for (let index = 0; index < 3; index += 1) {
         await seedActiveOrganizationStaff(ctx, {
           organizationId: manager.organizationId,
           shopId: manager.shopId,

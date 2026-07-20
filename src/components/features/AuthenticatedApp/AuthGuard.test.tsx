@@ -10,7 +10,7 @@ type SelectedShop = {
   shopStatus: "active" | "archived" | "planSuspended";
   organizationId: string | null;
   organizationName: string | null;
-  organizationPlan: "trial" | "free" | "pro" | "business" | null;
+  organizationPlan: "trial" | "free" | "pro" | null;
   memberStatus: "active" | "readOnly" | "removed";
 } | null;
 
@@ -20,7 +20,7 @@ type ShopRow = {
   shopStatus?: "active" | "archived" | "planSuspended";
   organizationId?: string;
   organizationName?: string;
-  organizationPlan?: "trial" | "free" | "pro" | "business";
+  organizationPlan?: "trial" | "free" | "pro";
   memberStatus?: "active" | "readOnly" | "removed";
 };
 
@@ -270,7 +270,7 @@ describe("AuthGuard", () => {
         shopName: "所属店舗",
         organizationId: "organization-a",
         organizationName: "A社",
-        organizationPlan: "business",
+        organizationPlan: "pro",
       },
     ];
     mocks.selectedShop = {
@@ -279,7 +279,7 @@ describe("AuthGuard", () => {
       shopStatus: "active",
       organizationId: "organization-a",
       organizationName: "A社",
-      organizationPlan: "pro",
+      organizationPlan: "free",
       memberStatus: "active",
     };
 
@@ -294,7 +294,7 @@ describe("AuthGuard", () => {
     await waitFor(() => {
       expect(mocks.setSelectedShop).toHaveBeenCalledWith({
         ...mocks.selectedShop,
-        organizationPlan: "business",
+        organizationPlan: "pro",
       });
     });
     expect(mocks.navigate).not.toHaveBeenCalled();

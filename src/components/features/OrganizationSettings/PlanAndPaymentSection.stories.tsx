@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { PlanAndPaymentSection } from "./PlanAndPaymentSection";
 import type { OrganizationBillingView } from "./types";
 
@@ -7,19 +7,17 @@ const billing: OrganizationBillingView = {
   state: "pro",
   currentPlan: "pro",
   isComplimentary: false,
-  peopleUsage: { current: 4, max: 15 },
+  hasTrialContinuation: false,
+  stripeBillingAvailable: true,
+  hasStripeCustomer: true,
+  peopleUsage: { current: 4, max: 30 },
   shopUsage: { current: 1, max: 5 },
   nextEvent: { label: "次回更新日", date: "2026年8月31日" },
-  paymentMethodLabel: "Visa •••• 4242",
   billingEmail: "billing@example.com",
-  invoices: [
-    { id: "invoice-july", issuedAt: "2026年7月31日", status: "paid" },
-    { id: "invoice-june", issuedAt: "2026年6月30日", status: "paid" },
-    { id: "invoice-may", issuedAt: "2026年5月31日", status: "paid" },
-  ],
   canManagePlan: true,
   canUpdatePaymentMethod: true,
   canUpdateBillingEmail: true,
+  canScheduleFree: true,
 };
 
 const meta = {
@@ -32,7 +30,7 @@ const meta = {
     onManagePlan: fn(),
     onUpdatePaymentMethod: fn(),
     onUpdateBillingEmail: fn(),
-    onOpenInvoice: fn(),
+    onOpenBillingDocuments: fn(),
   },
 } satisfies Meta<typeof PlanAndPaymentSection>;
 
@@ -49,7 +47,7 @@ export const PaymentGrace: Story = {
       state: "grace",
       blockedReason: "支払い方法を更新しないまま期限を過ぎると、契約制限中へ移行します。",
       nextEvent: { label: "支払い猶予期限", date: "2026年8月10日" },
-      invoices: [{ id: "invoice-july", issuedAt: "2026年7月31日", status: "open" }, ...billing.invoices.slice(1)],
+      canScheduleFree: false,
     },
   },
 };
@@ -69,11 +67,11 @@ export const Restricted: Story = {
       state: "restricted",
       currentPlan: null,
       previousPlan: "pro",
-      peopleUsage: { current: 7, max: 4 },
+      peopleUsage: { current: 7, max: 5 },
       shopUsage: { current: 2, max: 1 },
-      blockedReason: "Freeの利用人数または店舗数を超えています。ユーザーまたは店舗を削除してから再確認してください。",
+      blockedReason: "無料の利用人数または店舗数を超えています。ユーザーまたは店舗を削除してから再確認してください。",
       nextEvent: undefined,
-      invoices: [{ id: "invoice-july", issuedAt: "2026年7月31日", status: "open" }, ...billing.invoices.slice(1)],
+      canScheduleFree: false,
     },
   },
 };
@@ -83,4 +81,57 @@ export const MobileRestricted: Story = {
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: Restricted.args,
+};
+
+export const StripePortalActionsBehavior: Story = {
+  name: "Stripe Portal導線（操作確認）",
+  parameters: { screenshot: { skip: true } },
+  args: {
+    onUpdatePaymentMethod: fn(),
+    onOpenBillingDocuments: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getAllByText("Stripeで管理")).toHaveLength(2);
+    await userEvent.click(canvas.getByRole("button", { name: "支払い方法をStripeで管理" }));
+    await userEvent.click(canvas.getByRole("button", { name: "請求書・領収書をStripeで確認" }));
+    await expect(args.onUpdatePaymentMethod).toHaveBeenCalledTimes(1);
+    await expect(args.onOpenBillingDocuments).toHaveBeenCalledTimes(1);
+    await expect(canvas.queryByText("発行済みの請求書はありません。")).not.toBeInTheDocument();
+  },
+};
+
+export const CustomerNotCreated: Story = {
+  name: "Stripe Customer未作成",
+  args: {
+    billing: {
+      ...billing,
+      hasStripeCustomer: false,
+      canUpdatePaymentMethod: false,
+      paymentMethodDisabledReason: "Stripeの契約情報を準備中です。しばらくしてからもう一度お試しください。",
+    },
+  },
+};
+
+export const StripeUnavailableWithExistingCustomerBehavior: Story = {
+  name: "Stripe停止中・既存Customer（操作確認）",
+  parameters: { screenshot: { skip: true } },
+  args: {
+    billing: {
+      ...billing,
+      stripeBillingAvailable: false,
+      hasStripeCustomer: true,
+      canManagePlan: false,
+      canUpdatePaymentMethod: false,
+      canScheduleFree: false,
+      managePlanDisabledReason: "Proの料金は準備中です。",
+      paymentMethodDisabledReason: "Proの料金は準備中です。",
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getAllByText("Stripeで管理")).toHaveLength(2);
+    await expect(canvas.getByRole("button", { name: "支払い方法をStripeで管理" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "請求書・領収書をStripeで確認" })).toBeDisabled();
+  },
 };

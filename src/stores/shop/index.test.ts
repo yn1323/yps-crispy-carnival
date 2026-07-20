@@ -14,13 +14,14 @@ describe("shop context store", () => {
     });
   });
 
-  it("契約プランを正規化し、未知の値は対象判定へ使わない", () => {
+  it("現行の契約プランを正規化し、旧BusinessはProへ引き継ぐ", () => {
     const shops = normalizeShopContextOptions([
       { shopId: "1", shopName: "Pro店", organizationPlan: "pro" },
-      { shopId: "2", shopName: "未知店", organizationPlan: "enterprise" },
+      { shopId: "2", shopName: "旧Business店", organizationPlan: "business" },
+      { shopId: "3", shopName: "未知店", organizationPlan: "enterprise" },
     ]);
 
-    expect(shops.map((shop) => shop.organizationPlan)).toEqual(["pro", null]);
+    expect(shops.map((shop) => shop.organizationPlan)).toEqual(["pro", "pro", null]);
   });
 
   it("壊れた保存値と不正なquery行を除外する", () => {

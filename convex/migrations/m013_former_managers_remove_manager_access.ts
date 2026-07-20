@@ -54,7 +54,8 @@ async function m012GateIsComplete(
   billingState: Doc<"organizationBillingStates">,
 ) {
   if (!organization.migrationSourceShopId) return true;
-  if (billingState.state.kind !== "complimentary" || billingState.state.plan !== "business") return false;
+  // TODO[narrow]: The `business` variant remains readable until m018 has completed everywhere.
+  if (billingState.state.kind !== "complimentary") return false;
   const unresolved = await ctx.db
     .query("organizationMigrationConflicts")
     .withIndex("by_organizationId_and_resolvedAt", (q) =>

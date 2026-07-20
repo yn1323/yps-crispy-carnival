@@ -33,10 +33,14 @@ export const run = migrations.runner([
   internal.migrations.m015_organization_invitations_link_lifecycle.migration,
   internal.migrations.m016_deleted_shops_enqueue_cleanup_jobs.migration,
   internal.migrations.m017_deleted_organizations_enqueue_cleanup_jobs.migration,
+  internal.migrations.m018_organization_billing_business_to_pro.migration,
 ]);
 
-// Widen対応版の確認とm012だけの再実行に使う。固定seriesへはMigrate PRで登録する。
+// Widen対応版の確認と、衝突修復後にm012だけを限定再実行するために使う。
 export const runM012 = migrations.runner(internal.migrations.m012_organizations_add_complimentary_business.migration);
+
+// fixed seriesがdevelop CIで実行される前に、m018の限定dry runと競合確認に使う。
+export const runM018 = migrations.runner(internal.migrations.m018_organization_billing_business_to_pro.migration);
 
 // conflict裁定後は、この範囲だけをresetして安全に再評価する。
 export const runFormerManagerAccessCleanup = migrations.runner([

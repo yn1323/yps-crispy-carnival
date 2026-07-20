@@ -55,7 +55,7 @@ export function useBillingSettingsController(input: Input) {
   return {
     managePlan: openExternalBillingNotice,
     updatePaymentMethod: openExternalBillingNotice,
-    openInvoice: openExternalBillingNotice,
+    openBillingDocuments: openExternalBillingNotice,
     updateBillingEmail: () => {
       if (latestRef.current.billing.canUpdateBillingEmail) setIsBillingEmailOpen(true);
     },

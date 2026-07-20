@@ -1,6 +1,6 @@
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { seedOrganizationManagerShop, seedStaffLineAccount, seedUser } from "../_test/seed";
@@ -199,6 +199,319 @@ describe("organization deletion", () => {
     vi.useRealTimers();
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
+  });
+
+  it("Stripeの契約作成中または未終了のSubscriptionがあるグループは削除できない", async () => {
+    const now = Date.parse("2026-07-20T00:00:00.000Z");
+    vi.setSystemTime(now);
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "delete_stripe_guard",
+        plan: "free",
+      });
+      const organization = await ctx.db.get(seeded.organizationId);
+      if (!organization) throw new Error("organization not found");
+      const operationId = await ctx.db.insert("organizationStripeOperations", {
+        organizationId: seeded.organizationId,
+        kind: "createTrialSubscription",
+        requestKey: "delete-stripe-guard",
+        stripeIdempotencyKey: "test:delete-stripe-guard",
+        livemode: false,
+        providerGeneration: 1,
+        stripePriceIdSnapshot: "price_pro_test",
+        status: "processing",
+        attemptCount: 1,
+        leaseToken: "delete-stripe-guard-lease",
+        leaseExpiresAt: now + 60_000,
+        expiresAt: now + 90 * 24 * 60 * 60 * 1000,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { ...seeded, organizationUpdatedAt: organization.updatedAt, operationId };
+    });
+    const actor = t.withIdentity({ subject: "delete_stripe_guard" });
+
+    await expect(actor.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toMatchObject({
+      canDeleteOrganization: false,
+      deleteOrganizationDisabledReason: "Stripeの契約終了を確認してからグループを削除してください。",
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.operationId, {
+        status: "actionRequired",
+        stripeObjectId: "sub_delete_stripe_guard",
+        leaseToken: undefined,
+        leaseExpiresAt: undefined,
+        completedAt: now,
+        updatedAt: now,
+      });
+    });
+    await expect(actor.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toMatchObject({
+      canDeleteOrganization: false,
+    });
+
+    const subscriptionId = await t.run(async (ctx) =>
+      ctx.db.insert("organizationStripeSubscriptions", {
+        organizationId: ids.organizationId,
+        stripeCustomerId: "cus_delete_stripe_guard",
+        stripeSubscriptionId: "sub_delete_stripe_guard",
+        stripePriceId: "price_pro_test",
+        livemode: false,
+        status: "canceled",
+        providerGeneration: 1,
+        cancelAtPeriodEnd: false,
+        terminalAt: now,
+        syncedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      }),
+    );
+    await expect(actor.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toMatchObject({
+      canDeleteOrganization: true,
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(subscriptionId, { status: "active", terminalAt: undefined, updatedAt: now + 1 });
+    });
+    await expect(actor.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toMatchObject({
+      canDeleteOrganization: false,
+      deleteOrganizationDisabledReason: "Stripeの契約終了を確認してからグループを削除してください。",
+    });
+    await expect(
+      actor.mutation(api.organization.mutations.deleteOrganization, {
+        shopId: ids.shopId,
+        organizationId: ids.organizationId,
+        confirmOrganizationId: ids.organizationId,
+        expectedOrganizationUpdatedAt: ids.organizationUpdatedAt,
+        requestId: "delete-stripe-guard-request",
+      }),
+    ).rejects.toThrow("Stripeの契約終了を確認してからグループを削除してください");
+    await expect(t.run((ctx) => ctx.db.get(ids.organizationId))).resolves.toMatchObject({ isDeleted: false });
+  });
+
+  it("無効Trial cleanupは成功かつ一意な終端Subscription証拠がそろうまで削除を拒否する", async () => {
+    const now = Date.parse("2026-07-20T00:00:00.000Z");
+    vi.setSystemTime(now);
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "delete_invalid_trial_cleanup_guard",
+        plan: "free",
+      });
+      const sourceOperationId = await ctx.db.insert("organizationStripeOperations", {
+        organizationId: seeded.organizationId,
+        kind: "createTrialSubscription",
+        requestKey: "delete-invalid-trial-source",
+        stripeIdempotencyKey: "test:delete-invalid-trial-source",
+        livemode: false,
+        providerGeneration: 1,
+        stripePriceIdSnapshot: "price_pro_test",
+        stripeObjectId: "sub_delete_invalid_trial",
+        status: "actionRequired",
+        attemptCount: 1,
+        lastErrorCode: "trial_eligibility_race",
+        completedAt: now,
+        expiresAt: now + 90 * 24 * 60 * 60 * 1000,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const cleanupOperationId = await ctx.db.insert("organizationStripeOperations", {
+        organizationId: seeded.organizationId,
+        kind: "cancelSubscription",
+        requestKey: "delete-invalid-trial-cleanup",
+        stripeIdempotencyKey: "test:delete-invalid-trial-cleanup",
+        livemode: false,
+        providerGeneration: 1,
+        recoveryPurpose: "invalidTrialSubscriptionCancellation",
+        sourceOperationId,
+        stripePriceIdSnapshot: "price_pro_test",
+        stripeObjectId: "sub_delete_invalid_trial",
+        status: "processing",
+        attemptCount: 1,
+        leaseToken: "delete-invalid-trial-cleanup-lease",
+        leaseExpiresAt: now + 60_000,
+        expiresAt: now + 90 * 24 * 60 * 60 * 1000,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { ...seeded, cleanupOperationId };
+    });
+    const actor = t.withIdentity({ subject: "delete_invalid_trial_cleanup_guard" });
+    const expectDeletionBlocked = async () => {
+      await expect(actor.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toMatchObject({
+        canDeleteOrganization: false,
+        deleteOrganizationDisabledReason: "Stripeの契約終了を確認してからグループを削除してください。",
+      });
+    };
+
+    await expectDeletionBlocked();
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.cleanupOperationId, {
+        status: "failed",
+        leaseToken: undefined,
+        leaseExpiresAt: undefined,
+        completedAt: now,
+        updatedAt: now,
+      });
+    });
+    await expectDeletionBlocked();
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.cleanupOperationId, { status: "succeeded", updatedAt: now });
+    });
+    await expectDeletionBlocked();
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("organizationStripeSubscriptions", {
+        organizationId: ids.organizationId,
+        stripeCustomerId: "cus_delete_invalid_trial",
+        stripeSubscriptionId: "sub_delete_invalid_trial",
+        stripePriceId: "price_pro_test",
+        livemode: false,
+        status: "canceled",
+        providerGeneration: 1,
+        cancelAtPeriodEnd: false,
+        terminalAt: now,
+        syncedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.patch(ids.cleanupOperationId, { status: "failed", updatedAt: now });
+    });
+    await expectDeletionBlocked();
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.cleanupOperationId, { status: "succeeded", updatedAt: now });
+    });
+    await expect(actor.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toMatchObject({
+      canDeleteOrganization: true,
+    });
+  });
+
+  it("最新世代が終了済みでも旧世代に未終了Subscriptionがあれば削除を拒否する", async () => {
+    const now = Date.parse("2026-07-20T00:00:00.000Z");
+    vi.setSystemTime(now);
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "delete_old_current_subscription_guard",
+        plan: "free",
+      });
+      const common = {
+        organizationId: seeded.organizationId,
+        stripeCustomerId: "cus_delete_old_current",
+        stripePriceId: "price_pro_test",
+        livemode: false,
+        cancelAtPeriodEnd: false,
+        syncedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await ctx.db.insert("organizationStripeSubscriptions", {
+        ...common,
+        stripeSubscriptionId: "sub_delete_old_current_1",
+        status: "active",
+        providerGeneration: 1,
+      });
+      await ctx.db.insert("organizationStripeSubscriptions", {
+        ...common,
+        stripeSubscriptionId: "sub_delete_old_current_2",
+        status: "canceled",
+        providerGeneration: 2,
+        terminalAt: now,
+      });
+      return seeded;
+    });
+
+    await expect(
+      t.withIdentity({ subject: "delete_old_current_subscription_guard" }).query(api.organization.queries.getSettings, {
+        shopId: ids.shopId,
+      }),
+    ).resolves.toMatchObject({
+      canDeleteOrganization: false,
+      deleteOrganizationDisabledReason: "Stripeの契約終了を確認してからグループを削除してください。",
+    });
+  });
+
+  it("provider object ID不明のTrial作成要対応行があるグループは削除できない", async () => {
+    const now = Date.parse("2026-07-20T00:00:00.000Z");
+    vi.setSystemTime(now);
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "delete_unknown_trial_creation_guard",
+        plan: "free",
+      });
+      await ctx.db.insert("organizationStripeOperations", {
+        organizationId: seeded.organizationId,
+        kind: "createTrialSubscription",
+        requestKey: "delete-unknown-trial-source",
+        stripeIdempotencyKey: "test:delete-unknown-trial-source",
+        livemode: false,
+        providerGeneration: 1,
+        stripePriceIdSnapshot: "price_pro_test",
+        status: "actionRequired",
+        attemptCount: 1,
+        lastErrorCode: "trial_subscription_create_result_unknown",
+        completedAt: now,
+        expiresAt: now + 90 * 24 * 60 * 60 * 1000,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return seeded;
+    });
+
+    await expect(
+      t.withIdentity({ subject: "delete_unknown_trial_creation_guard" }).query(api.organization.queries.getSettings, {
+        shopId: ids.shopId,
+      }),
+    ).resolves.toMatchObject({
+      canDeleteOrganization: false,
+      deleteOrganizationDisabledReason: "Stripeの契約終了を確認してからグループを削除してください。",
+    });
+  });
+
+  it("削除済みグループではトライアルProを選択しない", async () => {
+    const now = Date.parse("2026-07-20T00:00:00.000Z");
+    vi.setSystemTime(now);
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "deleted_trial_pro_selection",
+        plan: "pro",
+      });
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      await ctx.db.patch(billingState._id, {
+        state: { kind: "trial", trialEndsAt: now + 30 * 24 * 60 * 60 * 1000 },
+      });
+      await ctx.db.patch(seeded.organizationId, { isDeleted: true, updatedAt: now + 1 });
+      return seeded;
+    });
+
+    await expect(
+      t.mutation(internal.organizationBilling.mutations.selectTrialPro, {
+        organizationId: ids.organizationId,
+        expectedVersion: 1,
+        correlationId: "deleted-trial-pro-selected",
+      }),
+    ).resolves.toEqual({ changed: false });
+
+    const state = await t.run(async (ctx) => ({
+      billing: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      audit: await ctx.db
+        .query("organizationAuditEvents")
+        .withIndex("by_correlationId", (q) => q.eq("correlationId", "deleted-trial-pro-selected"))
+        .first(),
+    }));
+    expect(state.billing).toMatchObject({ state: { kind: "trial" }, version: 1 });
+    expect(state.billing?.state).not.toHaveProperty("selectedPaidPlan");
+    expect(state.audit).toBeNull();
   });
 
   it("組織を即時停止し、cleanupで業務識別情報を保持したままtokenを失効する", async () => {

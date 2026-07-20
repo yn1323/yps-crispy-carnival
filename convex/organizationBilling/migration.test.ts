@@ -1,0 +1,258 @@
+import { convexTest } from "convex-test";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { internal } from "../_generated/api";
+import { seedOrganizationManagerShop } from "../_test/seed";
+import { modules, schema } from "../_test/setup.test-helper";
+import type { OrganizationBillingState } from "./policy";
+
+describe("m018 organization billing Business to Pro migration", () => {
+  beforeAll(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+  });
+
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
+  it("normalizes every legacy state shape without rewriting historical audits", async () => {
+    const t = convexTest(schema, modules);
+    const cases: Array<{ state: OrganizationBillingState; expected: OrganizationBillingState }> = [
+      {
+        state: { kind: "trial", trialEndsAt: 1_000, selectedPaidPlan: "business" },
+        expected: { kind: "trial", trialEndsAt: 1_000, selectedPaidPlan: "pro" },
+      },
+      {
+        state: { kind: "initialPaymentPending", plan: "business", startedAt: 100 },
+        expected: { kind: "initialPaymentPending", plan: "pro", startedAt: 100 },
+      },
+      {
+        state: {
+          kind: "pendingActivation",
+          plan: "business",
+          fallback: "restricted",
+          restrictedFallbackState: {
+            kind: "restricted",
+            reason: "paymentActivationFailed",
+            previousPlan: "business",
+            recoveryManagerPersonIds: [],
+            previousActiveShopIds: [],
+            restrictedAt: 100,
+          },
+          startedAt: 200,
+        },
+        expected: {
+          kind: "pendingActivation",
+          plan: "pro",
+          fallback: "restricted",
+          restrictedFallbackState: {
+            kind: "restricted",
+            reason: "paymentActivationFailed",
+            previousPlan: "pro",
+            recoveryManagerPersonIds: [],
+            previousActiveShopIds: [],
+            restrictedAt: 100,
+          },
+          startedAt: 200,
+        },
+      },
+      { state: { kind: "active", plan: "business" }, expected: { kind: "active", plan: "pro" } },
+      {
+        state: { kind: "complimentary", plan: "business" },
+        expected: { kind: "complimentary", plan: "pro" },
+      },
+      {
+        state: { kind: "scheduledChange", currentPlan: "business", targetPlan: "free", effectiveAt: 2_000 },
+        expected: { kind: "scheduledChange", currentPlan: "pro", targetPlan: "free", effectiveAt: 2_000 },
+      },
+      {
+        state: { kind: "scheduledChange", currentPlan: "business", targetPlan: "pro", effectiveAt: 2_000 },
+        expected: { kind: "active", plan: "pro" },
+      },
+      {
+        state: { kind: "grace", plan: "business", startedAt: 100, endsAt: 2_000 },
+        expected: { kind: "grace", plan: "pro", startedAt: 100, endsAt: 2_000 },
+      },
+      {
+        state: {
+          kind: "restricted",
+          reason: "paymentGraceExpired",
+          previousPlan: "business",
+          recoveryManagerPersonIds: [],
+          previousActiveShopIds: [],
+          restrictedAt: 100,
+        },
+        expected: {
+          kind: "restricted",
+          reason: "paymentGraceExpired",
+          previousPlan: "pro",
+          recoveryManagerPersonIds: [],
+          previousActiveShopIds: [],
+          restrictedAt: 100,
+        },
+      },
+    ];
+
+    const rows = await t.run(async (ctx) => {
+      const result = [];
+      for (const [index, migrationCase] of cases.entries()) {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: `m018_business_${index}`,
+          plan: "pro",
+        });
+        const billingState = await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+          .unique();
+        if (!billingState) throw new Error("billing state not found");
+        await ctx.db.patch(billingState._id, { state: migrationCase.state });
+        result.push({ billingStateId: billingState._id, expected: migrationCase.expected });
+      }
+      const auditBillingState = await ctx.db.get(result[4].billingStateId);
+      if (!auditBillingState) throw new Error("audit billing state not found");
+      const auditId = await ctx.db.insert("organizationAuditEvents", {
+        organizationId: auditBillingState.organizationId,
+        action: "organization.billing_state_changed",
+        targetKind: "billing",
+        targetId: result[4].billingStateId,
+        toState: "complimentary.business",
+        correlationId: "m018-historical-audit",
+        occurredAt: 1,
+      });
+      return { result, auditId };
+    });
+
+    await t.mutation(internal.migrations.m018_organization_billing_business_to_pro.migration, {
+      batchSize: 100,
+      cursor: null,
+      dryRun: false,
+    });
+
+    const snapshot = await t.run(async (ctx) => ({
+      billingStates: await Promise.all(rows.result.map(({ billingStateId }) => ctx.db.get(billingStateId))),
+      audit: await ctx.db.get(rows.auditId),
+    }));
+    for (const [index, row] of snapshot.billingStates.entries()) {
+      expect(row).toMatchObject({ state: rows.result[index].expected, version: 2 });
+    }
+    expect(snapshot.audit?.toState).toBe("complimentary.business");
+  });
+
+  it("同じグループに課金状態が複数ある場合は全行を変更せずmigration conflictへ記録する", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "m018_duplicate_billing_states",
+        plan: "business",
+      });
+      const original = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
+        .unique();
+      if (!original) throw new Error("billing state not found");
+      const duplicateId = await ctx.db.insert("organizationBillingStates", {
+        organizationId: base.organizationId,
+        state: { kind: "complimentary", plan: "business" },
+        version: 7,
+        createdAt: 10,
+        updatedAt: 20,
+      });
+      return { ...base, originalId: original._id, duplicateId };
+    });
+
+    await t.mutation(internal.migrations.m018_organization_billing_business_to_pro.migration, {
+      batchSize: 100,
+      cursor: null,
+      dryRun: false,
+    });
+
+    const snapshot = await t.run(async (ctx) => ({
+      original: await ctx.db.get(seeded.originalId),
+      duplicate: await ctx.db.get(seeded.duplicateId),
+      conflicts: await ctx.db
+        .query("organizationMigrationConflicts")
+        .withIndex("by_organizationId_and_resolvedAt", (q) =>
+          q.eq("organizationId", seeded.organizationId).eq("resolvedAt", undefined),
+        )
+        .collect(),
+    }));
+    expect(snapshot.original).toMatchObject({ state: { kind: "active", plan: "business" }, version: 1 });
+    expect(snapshot.duplicate).toMatchObject({ state: { kind: "complimentary", plan: "business" }, version: 7 });
+    expect(snapshot.conflicts).toEqual([
+      expect.objectContaining({
+        sourceType: "organization",
+        sourceId: seeded.organizationId,
+        code: "billing_business_to_pro_ambiguous_billing_states",
+      }),
+    ]);
+  });
+
+  it("旧Business表記を含むpending課金メールだけを取り消す", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "m018_pending_business_copy",
+        plan: "business",
+      });
+      const now = Date.now();
+      const insertNotification = async (purpose: "billing" | "business", status: "pending" | "processing") =>
+        await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status,
+          dedupeKey: `m018:${purpose}:${status}`,
+          organizationId: base.organizationId,
+          ...(status === "pending" ? { organizationBillingVersionAtEnqueue: 1 } : {}),
+          userId: base.userId,
+          purpose,
+          payload: {
+            kind: "email",
+            from: "noreply@example.com",
+            to: "manager@example.com",
+            subject: "Businessプランのお知らせ",
+            html: "<p>Businessプランのお知らせ</p>",
+            context: "organizationBilling.legacyBusiness",
+          },
+          attemptCount: 0,
+          nextRunAt: now,
+          ...(status === "processing" ? { processingStartedAt: now } : {}),
+          createdAt: now,
+          updatedAt: now,
+        });
+      return {
+        ...base,
+        pendingBillingId: await insertNotification("billing", "pending"),
+        processingBillingId: await insertNotification("billing", "processing"),
+        pendingBusinessId: await insertNotification("business", "pending"),
+      };
+    });
+
+    await t.mutation(internal.migrations.m018_organization_billing_business_to_pro.migration, {
+      batchSize: 100,
+      cursor: null,
+      dryRun: false,
+    });
+
+    const beforeDelivery = await t.run(async (ctx) => await ctx.db.get(seeded.processingBillingId));
+    expect(beforeDelivery?.status).toBe("processing");
+    const prepared = await t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
+      outboxId: seeded.processingBillingId,
+      now: Date.now() + 1,
+    });
+    expect(prepared).toBeNull();
+
+    const snapshot = await t.run(async (ctx) => ({
+      pendingBilling: await ctx.db.get(seeded.pendingBillingId),
+      processingBilling: await ctx.db.get(seeded.processingBillingId),
+      pendingBusiness: await ctx.db.get(seeded.pendingBusinessId),
+    }));
+    expect(snapshot.pendingBilling).toMatchObject({
+      status: "cancelled",
+      cancelReason: "organization_billing_changed",
+    });
+    expect(snapshot.processingBilling).toMatchObject({
+      status: "cancelled",
+      cancelReason: "organization_billing_changed",
+    });
+    expect(snapshot.pendingBusiness?.status).toBe("pending");
+  });
+});

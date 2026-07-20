@@ -56,13 +56,11 @@ export type BillingDisplayState =
   | "trial"
   | "free"
   | "pro"
-  | "business"
   | "initialPaymentPending"
   | "pendingActivation"
   | "grace"
   | "restricted"
   | "scheduledFree"
-  | "scheduledPro"
   | "migrationPending";
 
 export type BillingUsageView = {
@@ -70,17 +68,15 @@ export type BillingUsageView = {
   max: number;
 };
 
-export type BillingInvoiceView = {
-  id: string;
-  issuedAt: string;
-  status: "paid" | "open" | "void";
-};
-
 export type OrganizationBillingView = {
   state: BillingDisplayState;
-  currentPlan: "trial" | "free" | "pro" | "business" | null;
+  currentPlan: "trial" | "free" | "pro" | null;
   isComplimentary: boolean;
-  targetPlan?: "free" | "pro" | "business";
+  hasTrialContinuation: boolean;
+  trialEndsAt?: number;
+  stripeBillingAvailable: boolean;
+  hasStripeCustomer: boolean;
+  targetPlan?: "free" | "pro";
   peopleUsage: BillingUsageView;
   shopUsage: BillingUsageView;
   nextEvent?: {
@@ -88,13 +84,12 @@ export type OrganizationBillingView = {
     date: string;
   };
   blockedReason?: string;
-  paymentMethodLabel?: string;
   billingEmail: string;
-  previousPlan?: "trial" | "free" | "pro" | "business";
-  invoices: BillingInvoiceView[];
+  previousPlan?: "trial" | "free" | "pro";
   canManagePlan: boolean;
   canUpdatePaymentMethod: boolean;
   canUpdateBillingEmail: boolean;
+  canScheduleFree: boolean;
   managePlanDisabledReason?: string;
   paymentMethodDisabledReason?: string;
   billingEmailDisabledReason?: string;
@@ -110,7 +105,7 @@ export type OrganizationSettingsActions = {
   onManagePlan: () => void;
   onUpdatePaymentMethod: () => void;
   onUpdateBillingEmail: () => void;
-  onOpenInvoice: (invoiceId: string) => void;
+  onOpenBillingDocuments: () => void;
   onDeleteOrganization: () => void;
 };
 

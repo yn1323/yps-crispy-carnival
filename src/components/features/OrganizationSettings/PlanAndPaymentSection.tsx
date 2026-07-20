@@ -1,27 +1,25 @@
-import { Alert, Badge, Box, Flex, Grid, Heading, HStack, Stack, Table, Text } from "@chakra-ui/react";
+import { Alert, Badge, Box, Flex, Grid, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import {
   LuCalendarClock,
   LuChevronRight,
   LuCircleAlert,
   LuCircleCheck,
-  LuCircleMinus,
   LuClock3,
   LuCreditCard,
-  LuExternalLink,
   LuMail,
+  LuReceiptText,
   LuStore,
   LuUsers,
 } from "react-icons/lu";
 import { Button, IconButton } from "@/src/components/ui/Button";
-import { DrilldownRow } from "@/src/components/ui/DrilldownRow";
-import type { BillingDisplayState, BillingInvoiceView, OrganizationBillingView } from "./types";
+import type { BillingDisplayState, OrganizationBillingView } from "./types";
 
 type Props = {
   billing: OrganizationBillingView;
   onManagePlan: () => void;
   onUpdatePaymentMethod: () => void;
   onUpdateBillingEmail: () => void;
-  onOpenInvoice: (invoiceId: string) => void;
+  onOpenBillingDocuments: () => void;
 };
 
 const STATE_PRESENTATION: Record<
@@ -29,24 +27,19 @@ const STATE_PRESENTATION: Record<
   { label: string; status: "info" | "success" | "warning" | "error"; description: string }
 > = {
   trial: {
-    label: "無料体験",
+    label: "トライアル",
     status: "info",
-    description: "無料体験中はBusinessと同じ上限と有料機能を利用できます。",
+    description: "利用人数30名・5店舗・管理者5名まで、Proと同じ有料機能を利用できます。",
   },
   free: {
-    label: "Free",
+    label: "無料",
     status: "info",
-    description: "1名の管理者と最大1店舗で、基本的なシフト運用を利用できます。",
+    description: "利用人数5名・1店舗・管理者1名まで、基本的なシフト運用を利用できます。",
   },
   pro: {
     label: "Pro",
     status: "success",
-    description: "複数管理者・複数店舗を利用できます。",
-  },
-  business: {
-    label: "Business",
-    status: "success",
-    description: "複数管理者・複数店舗を利用できます。",
+    description: "利用人数30名・5店舗・管理者5名まで、すべての機能を利用できます。",
   },
   initialPaymentPending: {
     label: "初回請求を確認中",
@@ -67,17 +60,12 @@ const STATE_PRESENTATION: Record<
     label: "契約制限中",
     status: "error",
     description:
-      "プラン移行に伴い、機能を制限しています。\n支払いを確認するか、人数、店舗数を無料プラン枠に収まるよう調整してください。",
+      "プラン移行に伴い、機能を制限しています。\n支払いを確認するか、人数、店舗数を無料の枠に収まるよう調整してください。",
   },
   scheduledFree: {
-    label: "Freeへ変更予定",
+    label: "無料へ変更予定",
     status: "warning",
     description: "現在の支払い済み期間が終わるまでは、現在の有料プランを利用できます。",
-  },
-  scheduledPro: {
-    label: "Proへ変更予定",
-    status: "info",
-    description: "次回更新日まではBusinessを利用し、更新日時点でProの上限を再確認します。",
   },
   migrationPending: {
     label: "設定を移行中",
@@ -91,19 +79,19 @@ export const PlanAndPaymentSection = ({
   onManagePlan,
   onUpdatePaymentMethod,
   onUpdateBillingEmail,
-  onOpenInvoice,
+  onOpenBillingDocuments,
 }: Props) => {
   const presentation =
     billing.state === "pendingActivation" && billing.currentPlan === "free"
       ? {
           ...STATE_PRESENTATION.pendingActivation,
-          description: "支払い成功を確認するまで有料プランは開始されません。確認中もFreeの基本機能は利用できます。",
+          description: "支払い成功を確認するまで有料プランは開始されません。確認中も無料の基本機能は利用できます。",
         }
       : STATE_PRESENTATION[billing.state];
   const currentPlan =
     billing.currentPlan ??
     (billing.state === "restricted"
-      ? // 初回のプラン移行失敗など直前プランがない場合も、復旧基準のFreeを表示する。
+      ? // 初回のプラン移行失敗など直前プランがない場合も、復旧基準の無料を表示する。
         (billing.previousPlan ?? "free")
       : isPlanState(billing.state)
         ? billing.state
@@ -148,14 +136,14 @@ export const PlanAndPaymentSection = ({
               label="利用人数"
               current={billing.peopleUsage.current}
               max={billing.peopleUsage.max}
-              helperText={appliesFreeLimit ? "現在はFreeの上限が適用されています" : undefined}
+              helperText={appliesFreeLimit ? "現在は無料の上限が適用されています" : undefined}
             />
             <UsageMeter
               icon={LuStore}
               label="店舗数"
               current={billing.shopUsage.current}
               max={billing.shopUsage.max}
-              helperText={appliesFreeLimit ? "現在はFreeの上限が適用されています" : undefined}
+              helperText={appliesFreeLimit ? "現在は無料の上限が適用されています" : undefined}
             />
           </Grid>
         )}
@@ -184,9 +172,8 @@ export const PlanAndPaymentSection = ({
         billing={billing}
         onUpdatePaymentMethod={onUpdatePaymentMethod}
         onUpdateBillingEmail={onUpdateBillingEmail}
+        onOpenBillingDocuments={onOpenBillingDocuments}
       />
-
-      {!billing.isComplimentary && <InvoiceList invoices={billing.invoices} onOpenInvoice={onOpenInvoice} />}
     </Stack>
   );
 };
@@ -243,9 +230,14 @@ function PlanSummary({
                 <Heading as="h3" fontSize={{ base: "xl", md: "2xl" }} lineHeight="shorter">
                   {currentPlanLabel}
                 </Heading>
+                {billing.state === "trial" && billing.hasTrialContinuation && (
+                  <Badge variant="subtle" colorPalette="teal">
+                    Pro継続登録済み
+                  </Badge>
+                )}
                 {billing.isComplimentary && (
                   <Badge variant="subtle" colorPalette="teal">
-                    支払い不要
+                    先行登録特典・支払い不要
                   </Badge>
                 )}
               </HStack>
@@ -256,7 +248,7 @@ function PlanSummary({
               )}
               {billing.isComplimentary && (
                 <Text fontSize="xs" color="fg.muted">
-                  早期利用特典として、追加料金なしでBusinessプランと同等の機能を利用できます。
+                  先行登録特典として、料金なしでProの全機能を利用できます。
                 </Text>
               )}
             </Stack>
@@ -321,7 +313,7 @@ function PlanSummary({
                   : undefined
               }
             >
-              {isPaidPlanRecovery(billing) ? "有料プランを開始・再開" : "プランを確認・変更"}
+              {planActionLabel(billing)}
             </Button>
           </Flex>
         )}
@@ -399,6 +391,11 @@ function BillingStateAlert({
             <Stack gap={1}>
               <Text>{presentation.description}</Text>
               {billing.blockedReason && <Text>{billing.blockedReason}</Text>}
+              {showPaymentRecovery && !billing.canUpdatePaymentMethod && billing.paymentMethodDisabledReason && (
+                <Text id="organization-billing-recovery-payment-method-disabled-reason">
+                  {billing.paymentMethodDisabledReason}
+                </Text>
+              )}
             </Stack>
           </Alert.Description>
         </Alert.Content>
@@ -416,11 +413,11 @@ function BillingStateAlert({
             title={!billing.canUpdatePaymentMethod ? billing.paymentMethodDisabledReason : undefined}
             aria-describedby={
               !billing.canUpdatePaymentMethod && billing.paymentMethodDisabledReason
-                ? "organization-billing-payment-method-disabled-reason"
+                ? "organization-billing-recovery-payment-method-disabled-reason"
                 : undefined
             }
           >
-            支払い方法を更新
+            支払い方法をStripeで管理
           </Button>
         )}
       </Flex>
@@ -491,11 +488,15 @@ function PaymentInformation({
   billing,
   onUpdatePaymentMethod,
   onUpdateBillingEmail,
+  onOpenBillingDocuments,
 }: {
   billing: OrganizationBillingView;
   onUpdatePaymentMethod: () => void;
   onUpdateBillingEmail: () => void;
+  onOpenBillingDocuments: () => void;
 }) {
+  const stripeManagementStatus = billing.hasStripeCustomer ? "Stripeで管理" : "Stripe契約の開始後に利用できます";
+
   return (
     <Stack as="section" gap={3} aria-labelledby="payment-heading">
       <Heading id="payment-heading" as="h2" fontSize="lg">
@@ -511,12 +512,22 @@ function PaymentInformation({
             <BillingInformationRow
               icon={LuCreditCard}
               label="支払い方法"
-              value={billing.paymentMethodLabel ?? "支払い方法は未登録です"}
-              actionLabel="支払い方法を更新"
+              value={stripeManagementStatus}
+              actionLabel="支払い方法をStripeで管理"
               onAction={onUpdatePaymentMethod}
               disabled={!billing.canUpdatePaymentMethod}
               disabledReason={billing.paymentMethodDisabledReason}
               disabledReasonId="organization-billing-payment-method-disabled-reason"
+            />
+            <BillingInformationRow
+              icon={LuReceiptText}
+              label="請求書・領収書"
+              value={stripeManagementStatus}
+              actionLabel="請求書・領収書をStripeで確認"
+              onAction={onOpenBillingDocuments}
+              disabled={!billing.canUpdatePaymentMethod}
+              disabledReason={billing.paymentMethodDisabledReason}
+              disabledReasonId="organization-billing-documents-disabled-reason"
             />
             <BillingInformationRow
               icon={LuMail}
@@ -620,149 +631,14 @@ function BillingInformationRow({
   );
 }
 
-function InvoiceList({
-  invoices,
-  onOpenInvoice,
-}: {
-  invoices: BillingInvoiceView[];
-  onOpenInvoice: (invoiceId: string) => void;
-}) {
-  return (
-    <Stack as="section" gap={3} aria-labelledby="invoices-heading">
-      <Heading id="invoices-heading" as="h2" fontSize="lg">
-        請求書
-      </Heading>
-      {invoices.length === 0 ? (
-        <Box borderWidth="1px" borderStyle="dashed" borderRadius="xl" p={5} textAlign="center" color="fg.muted">
-          発行済みの請求書はありません。
-        </Box>
-      ) : (
-        <>
-          <DesktopInvoiceTable invoices={invoices} onOpenInvoice={onOpenInvoice} />
-          <MobileInvoiceList invoices={invoices} onOpenInvoice={onOpenInvoice} />
-        </>
-      )}
-    </Stack>
-  );
-}
-
-function DesktopInvoiceTable({
-  invoices,
-  onOpenInvoice,
-}: {
-  invoices: BillingInvoiceView[];
-  onOpenInvoice: (invoiceId: string) => void;
-}) {
-  return (
-    <Box
-      display={{ base: "none", md: "block" }}
-      borderWidth="1px"
-      borderColor="blackAlpha.100"
-      borderRadius="xl"
-      bg="white"
-      overflow="hidden"
-    >
-      <Table.Root size="sm" aria-label="請求書">
-        <Table.Header>
-          <Table.Row bg="gray.50">
-            <Table.ColumnHeader color="gray.600" fontWeight="bold">
-              日付
-            </Table.ColumnHeader>
-            <Table.ColumnHeader color="gray.600" fontWeight="bold">
-              ステータス
-            </Table.ColumnHeader>
-            <Table.ColumnHeader color="gray.600" fontWeight="bold" textAlign="end" w="112px">
-              操作
-            </Table.ColumnHeader>
-          </Table.Row>
-        </Table.Header>
-        <Table.Body>
-          {invoices.map((invoice) => (
-            <Table.Row key={invoice.id}>
-              <Table.Cell fontVariantNumeric="tabular-nums">{invoice.issuedAt}</Table.Cell>
-              <Table.Cell>
-                <InvoiceStatus status={invoice.status} />
-              </Table.Cell>
-              <Table.Cell textAlign="end">
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  colorPalette="teal"
-                  gap={1}
-                  aria-label={`${invoice.issuedAt}、${invoiceStatusLabel(invoice.status)}の請求書を開く`}
-                  onClick={() => onOpenInvoice(invoice.id)}
-                >
-                  開く
-                  <LuExternalLink aria-hidden />
-                </Button>
-              </Table.Cell>
-            </Table.Row>
-          ))}
-        </Table.Body>
-      </Table.Root>
-    </Box>
-  );
-}
-
-function MobileInvoiceList({
-  invoices,
-  onOpenInvoice,
-}: {
-  invoices: BillingInvoiceView[];
-  onOpenInvoice: (invoiceId: string) => void;
-}) {
-  return (
-    <Box
-      display={{ base: "block", md: "none" }}
-      borderWidth="1px"
-      borderColor="blackAlpha.100"
-      borderRadius="xl"
-      bg="white"
-      overflow="hidden"
-    >
-      <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
-        {invoices.map((invoice) => (
-          <DrilldownRow
-            key={invoice.id}
-            ariaLabel={`${invoice.issuedAt}、${invoiceStatusLabel(invoice.status)}の請求書を開く`}
-            title={invoice.issuedAt}
-            leading={
-              <Box color="gray.700" flexShrink={0}>
-                <LuCreditCard aria-hidden />
-              </Box>
-            }
-            badges={<InvoiceStatus status={invoice.status} />}
-            onClick={() => onOpenInvoice(invoice.id)}
-          />
-        ))}
-      </Stack>
-    </Box>
-  );
-}
-
-function InvoiceStatus({ status }: { status: BillingInvoiceView["status"] }) {
-  const StatusIcon = status === "paid" ? LuCircleCheck : status === "open" ? LuClock3 : LuCircleMinus;
-  const color = status === "paid" ? "green.700" : status === "open" ? "orange.700" : "gray.700";
-
-  return (
-    <HStack gap={1.5} color={color} whiteSpace="nowrap">
-      <StatusIcon aria-hidden />
-      <Text fontSize="xs" fontWeight="semibold">
-        {invoiceStatusLabel(status)}
-      </Text>
-    </HStack>
-  );
-}
-
 function planLabel(plan: NonNullable<OrganizationBillingView["currentPlan"]>): string {
-  if (plan === "trial") return "無料体験";
-  if (plan === "free") return "Free";
-  if (plan === "pro") return "Pro";
-  return "Business";
+  if (plan === "trial") return "トライアル";
+  if (plan === "free") return "無料";
+  return "Pro";
 }
 
 function billingStatusLabel(state: BillingDisplayState): string {
-  if (state === "trial") return "無料体験中";
+  if (state === "trial") return "トライアル中";
   if (isPlanState(state)) return "利用中";
   return STATE_PRESENTATION[state].label;
 }
@@ -774,8 +650,8 @@ function statusColor(status: (typeof STATE_PRESENTATION)[BillingDisplayState]["s
   return "blue.700";
 }
 
-function isPlanState(state: BillingDisplayState): state is "trial" | "free" | "pro" | "business" {
-  return state === "trial" || state === "free" || state === "pro" || state === "business";
+function isPlanState(state: BillingDisplayState): state is "trial" | "free" | "pro" {
+  return state === "trial" || state === "free" || state === "pro";
 }
 
 function isExceptionalState(state: BillingDisplayState): boolean {
@@ -783,17 +659,17 @@ function isExceptionalState(state: BillingDisplayState): boolean {
 }
 
 function shouldShowCurrentPlan(state: BillingDisplayState): boolean {
-  return (
-    state === "initialPaymentPending" || state === "grace" || state === "scheduledFree" || state === "scheduledPro"
-  );
+  return state === "initialPaymentPending" || state === "grace" || state === "scheduledFree";
 }
 
-function isPaidPlanRecovery(billing: OrganizationBillingView): boolean {
-  return billing.state === "restricted" || (billing.state === "pendingActivation" && billing.currentPlan === null);
-}
-
-function invoiceStatusLabel(status: BillingInvoiceView["status"]): string {
-  if (status === "paid") return "支払い済み";
-  if (status === "open") return "支払い待ち";
-  return "無効";
+function planActionLabel(billing: OrganizationBillingView): string {
+  if (billing.state === "trial") {
+    return billing.hasTrialContinuation ? "Pro継続を取り消す" : "Pro継続を登録";
+  }
+  if (billing.state === "free" || billing.state === "restricted") return "Proを開始";
+  if (billing.state === "pro") return "無料へ変更";
+  if (billing.state === "scheduledFree") return "無料への変更を取り消す";
+  if (billing.state === "grace") return "契約と支払いを確認";
+  if (billing.state === "pendingActivation" && billing.currentPlan === null) return "Proを再開";
+  return "プランを確認";
 }

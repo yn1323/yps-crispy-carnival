@@ -16,7 +16,11 @@ import {
   NOTIFICATION_OUTBOX_WORKER_BATCH_SIZE,
 } from "../constants";
 import { getStaffLineAccount } from "../line/service";
-import { deriveOrganizationBillingPolicy, getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
+import {
+  deriveOrganizationBillingPolicy,
+  getEffectiveRestrictedBillingState,
+  hasLegacyBusinessBillingState,
+} from "../organizationBilling/policy";
 import { isOrganizationInvitationIssued } from "../organizationInvitation/lifecycle";
 import { resolveOrganizationInvitationEligibility } from "../organizationInvitation/service";
 import { hasOpenRecruitmentScope, isManagerVisibleNotificationFailure } from "./failureEligibility";
@@ -805,11 +809,14 @@ async function getNotificationEligibility(
   if (purpose === "billing" && notification.payload.kind === "email") {
     const expectedStateKind =
       BILLING_DEADLINE_CONTEXT_STATE[notification.payload.context as keyof typeof BILLING_DEADLINE_CONTEXT_STATE];
+    const hasLegacyBusinessCopy =
+      notification.payload.context.startsWith("organizationBilling.") &&
+      (notification.payload.subject.includes("Businessプラン") || notification.payload.html.includes("Businessプラン"));
     if (
-      expectedStateKind &&
-      (billingState?.state.kind !== expectedStateKind ||
-        (notification.organizationBillingVersionAtEnqueue !== undefined &&
-          notification.organizationBillingVersionAtEnqueue !== billingState.version))
+      (notification.organizationBillingVersionAtEnqueue !== undefined &&
+        notification.organizationBillingVersionAtEnqueue !== billingState?.version) ||
+      (expectedStateKind && billingState?.state.kind !== expectedStateKind) ||
+      (hasLegacyBusinessCopy && (!billingState || !hasLegacyBusinessBillingState(billingState.state)))
     ) {
       return { organizationId, cancelReason: "organization_billing_changed" };
     }

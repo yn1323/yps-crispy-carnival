@@ -29,8 +29,10 @@ export const organizationInvitationPurposeValidator = v.union(
   v.literal("freeManagerExchange"),
 );
 
+// TODO[narrow]: Remove `business` after m018 has completed everywhere.
 export const organizationPaidPlanValidator = v.union(v.literal("pro"), v.literal("business"));
 
+// TODO[narrow]: Remove `business` after m018 has completed everywhere.
 export const organizationActivePlanValidator = v.union(v.literal("free"), v.literal("pro"), v.literal("business"));
 
 export const organizationRestrictionReasonValidator = v.union(
@@ -79,7 +81,8 @@ export const organizationBillingStateValidator = v.union(
   }),
   v.object({
     kind: v.literal("complimentary"),
-    plan: v.literal("business"),
+    // TODO[narrow]: Remove `business` after m018 has completed everywhere.
+    plan: v.union(v.literal("pro"), v.literal("business")),
   }),
   v.object({
     kind: v.literal("scheduledChange"),

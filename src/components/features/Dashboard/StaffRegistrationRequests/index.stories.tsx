@@ -35,7 +35,7 @@ export const DialogOpen: Story = {
   render: () => <DialogOpenStory />,
 };
 
-export const BusinessCapacityReached: Story = {
+export const ProCapacityReached: Story = {
   parameters: {
     layout: "fullscreen",
   },

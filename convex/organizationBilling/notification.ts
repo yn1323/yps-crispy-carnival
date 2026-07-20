@@ -38,7 +38,7 @@ export type OrganizationBillingNotificationEvent =
 
 export type TrialEndingNotificationDetails = {
   trialEndsAt: number;
-  selectedPaidPlan?: "pro" | "business";
+  selectedPaidPlan?: "pro";
 };
 
 export function organizationBillingNotificationCopy(
@@ -47,26 +47,21 @@ export function organizationBillingNotificationCopy(
 ) {
   switch (event) {
     case "trialEnding": {
-      const trialEndsAtLabel = trialEnding ? formatDateTimeLabel(trialEnding.trialEndsAt) : "無料体験終了日時";
-      const selectedPlanLabel =
-        trialEnding?.selectedPaidPlan === "pro"
-          ? "Proプラン"
-          : trialEnding?.selectedPaidPlan === "business"
-            ? "Businessプラン"
-            : null;
+      const trialEndsAtLabel = trialEnding ? formatDateTimeLabel(trialEnding.trialEndsAt) : "トライアル終了日時";
+      const selectedPlanLabel = trialEnding?.selectedPaidPlan === "pro" ? "Pro" : null;
       return {
-        subject: "無料体験終了まで7日です",
-        heading: "無料体験終了まで7日です",
+        subject: "トライアル終了まで7日です",
+        heading: "トライアル終了まで7日です",
         paragraphs: selectedPlanLabel
           ? [
-              `無料体験は${trialEndsAtLabel}に終了します。`,
+              `トライアルは${trialEndsAtLabel}に終了します。`,
               `選択済みの契約プランは${selectedPlanLabel}です。初回請求は${trialEndsAtLabel}を予定しています。`,
-              `Freeプランへ変更する場合の設定期限は${trialEndsAtLabel}です。期限までにグループ設定から変更してください。`,
+              `無料へ変更する場合の設定期限は${trialEndsAtLabel}です。期限までにグループ設定から変更してください。`,
             ]
           : [
-              `無料体験は${trialEndsAtLabel}に終了します。有料プランはまだ契約されていません。`,
-              "終了後にFreeを利用するには、Freeで残す管理者と店舗を選び、利用人数を4名以下にしてください。条件を満たさない場合は契約制限中になります。",
-              `Freeで残す管理者と店舗の設定期限は${trialEndsAtLabel}です。`,
+              `トライアルは${trialEndsAtLabel}に終了します。有料プランはまだ契約されていません。`,
+              "終了後に無料を利用するには、無料で残す管理者と店舗を選び、利用人数を5名以下にしてください。条件を満たさない場合は契約制限中になります。",
+              `無料で残す管理者と店舗の設定期限は${trialEndsAtLabel}です。`,
             ],
       };
     }
@@ -81,10 +76,10 @@ export function organizationBillingNotificationCopy(
       };
     case "freeApplied":
       return {
-        subject: "Freeプランへ変更しました",
-        heading: "Freeプランへ変更しました",
+        subject: "無料へ変更しました",
+        heading: "無料へ変更しました",
         paragraphs: [
-          "選択した管理者と店舗を残してFreeプランへ変更しました。店舗、利用者、過去のシフトは削除されません。",
+          "選択した管理者と店舗を残して無料へ変更しました。店舗、利用者、過去のシフトは削除されません。",
           "閲覧のみになった管理者とプラン停止中の店舗は、グループ設定から確認できます。",
         ],
       };
@@ -114,20 +109,20 @@ export function organizationBillingNotificationCopy(
       };
     case "proDowngradeNotApplied":
       return {
-        subject: "Proプランへの変更を適用できませんでした",
-        heading: "Businessプランを継続しています",
+        subject: "Proへの変更を適用できませんでした",
+        heading: "Proを継続しています",
         paragraphs: [
-          "更新日時点の利用人数、予約済み利用枠、管理者、店舗のいずれかがProプランの上限を超えていたため、変更を適用しませんでした。",
-          "Businessプランを継続しています。現在の利用状況はグループ設定で確認できます。",
+          "予約されていたプラン変更を適用できませんでした。",
+          "Proを継続しています。現在の利用状況はグループ設定で確認できます。",
         ],
       };
     case "paidActivationFailedFreeContinued":
       return {
         subject: "有料プランを開始できませんでした",
-        heading: "Freeプランを継続しています",
+        heading: "無料を継続しています",
         paragraphs: [
           "支払いを確認できなかったため、有料プランを開始しませんでした。",
-          "Freeプランを継続しています。支払い方法を確認してから、もう一度お手続きください。",
+          "無料を継続しています。支払い方法を確認してから、もう一度お手続きください。",
         ],
       };
     case "paidActivationFailedRestrictedContinued":
@@ -163,7 +158,7 @@ export function organizationBillingNotificationCopy(
         heading: "契約制限中へ移行しました",
         paragraphs: [
           "既存データは引き続き閲覧できますが、シフト作成や通知などの業務操作を停止しています。",
-          "グループ設定で有料契約を再開するか、Freeで残す管理者と店舗を整理してください。",
+          "グループ設定で有料契約を再開するか、無料で残す管理者と店舗を整理してください。",
         ],
       };
     case "recovered":

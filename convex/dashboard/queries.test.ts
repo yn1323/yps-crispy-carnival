@@ -504,7 +504,7 @@ describe("dashboard/queries", () => {
         {
           organizationId: ids.organizationBId,
           organizationName: "組織B",
-          organizationPlan: "business",
+          organizationPlan: "pro",
           memberStatus: "readOnly",
           shopId: ids.organizationBShopId,
           shopName: "組織B店舗",
@@ -518,7 +518,7 @@ describe("dashboard/queries", () => {
         label: "有効なBusiness",
         seedPlan: "business" as const,
         state: { kind: "active", plan: "business" } as const,
-        expectedPlan: "business" as const,
+        expectedPlan: "pro" as const,
       },
       {
         label: "BusinessからProへの変更予約中",
@@ -529,7 +529,7 @@ describe("dashboard/queries", () => {
           targetPlan: "pro",
           effectiveAt: Date.now() + 60_000,
         } as const,
-        expectedPlan: "business" as const,
+        expectedPlan: "pro" as const,
       },
       {
         label: "FreeからProへの支払い結果待ち",
@@ -742,7 +742,7 @@ describe("dashboard/queries", () => {
       expect(result).toEqual([]);
     });
 
-    it("単一値とカンマ区切りの対象指定を必要なフィールドだけ返す", async () => {
+    it("対象指定を必要なフィールドだけ返し、旧Business対象はProへ正規化する", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const now = Date.now();
@@ -774,7 +774,7 @@ describe("dashboard/queries", () => {
         });
         const organizationTargets = `${organizationId}, ${otherOrganizationId}`;
         const shopTargets = `${shopId}, ${otherShopId}`;
-        const organizationPlanTargets = "pro, business";
+        const organizationPlanTargets = " business, business ";
         const globalAnnouncementId = await ctx.db.insert("dashboardAnnouncements", {
           title: "全体向けのお知らせ",
           bodyHtml: "<p>全体向けです。</p>",
@@ -820,7 +820,6 @@ describe("dashboard/queries", () => {
           shopId,
           organizationTargets,
           shopTargets,
-          organizationPlanTargets,
           globalAnnouncementId,
           organizationAnnouncementId,
           shopAnnouncementId,
@@ -836,7 +835,7 @@ describe("dashboard/queries", () => {
       expect(result).toEqual([
         {
           _id: ids.organizationPlanAnnouncementId,
-          organizationPlan: ids.organizationPlanTargets,
+          organizationPlan: "pro",
           title: "契約プラン向けのお知らせ",
           bodyHtml: "<p>契約プラン向けです。</p>",
           displayDate: "2026-06-21",

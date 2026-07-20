@@ -26,6 +26,14 @@ import {
   organizationPersonStatusValidator,
   organizationShopOperatingStatusValidator,
 } from "./organization/validators";
+import {
+  organizationStripeOperationKindValidator,
+  organizationStripeOperationStatusValidator,
+  organizationStripeSubscriptionStatusValidator,
+  stripeWebhookEventStatusValidator,
+  stripeWebhookEventTypeValidator,
+  trialSubscriptionCreateSnapshotValidator,
+} from "./organizationStripe/validators";
 
 const schema = defineSchema({
   ...rateLimitTables,
@@ -79,6 +87,8 @@ const schema = defineSchema({
     //   （確認: pnpm convex:migrate:status と管理用集計）。
     //   対応: v.optional() を外して v.string() にする。
     billingEmailNormalized: v.optional(v.string()),
+    // Stripe Customer同期の世代を識別する非PIIのopaque key。既存行は未設定を許容する。
+    billingEmailSyncKey: v.optional(v.string()),
     isDeleted: v.boolean(),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -170,6 +180,128 @@ const schema = defineSchema({
     updatedAt: v.number(),
   }).index("by_organizationId", ["organizationId"]),
 
+  // 通常課金グループだけが持つStripe Customer対応。無償Proでは行を作らない。
+  organizationStripeCustomers: defineTable({
+    organizationId: v.id("organizations"),
+    stripeCustomerId: v.string(),
+    livemode: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organizationId", ["organizationId"])
+    .index("by_livemode_and_stripeCustomerId", ["livemode", "stripeCustomerId"]),
+
+  // 終了済みを含むSubscription世代を保持し、旧Invoiceからの誤復旧を防ぐ。
+  organizationStripeSubscriptions: defineTable({
+    organizationId: v.id("organizations"),
+    stripeCustomerId: v.string(),
+    stripeSubscriptionId: v.string(),
+    stripeSubscriptionItemId: v.optional(v.string()),
+    stripePriceId: v.string(),
+    livemode: v.boolean(),
+    status: organizationStripeSubscriptionStatusValidator,
+    providerGeneration: v.number(),
+    trialEndsAt: v.optional(v.number()),
+    currentPeriodEndsAt: v.optional(v.number()),
+    cancelAtPeriodEnd: v.boolean(),
+    latestInvoiceId: v.optional(v.string()),
+    lastStripeEventCreatedAt: v.optional(v.number()),
+    lastStripeEventId: v.optional(v.string()),
+    terminalAt: v.optional(v.number()),
+    syncedAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organizationId_and_providerGeneration", ["organizationId", "providerGeneration"])
+    .index("by_organizationId_and_status_and_terminalAt", ["organizationId", "status", "terminalAt"])
+    .index("by_livemode_and_stripeSubscriptionId", ["livemode", "stripeSubscriptionId"])
+    .index("by_livemode_and_latestInvoiceId", ["livemode", "latestInvoiceId"])
+    .index("by_livemode_and_stripeCustomerId", ["livemode", "stripeCustomerId"]),
+
+  // Stripeへの各副作用を論理operationとして永続化し、再試行時も同じidempotency keyを使う。
+  organizationStripeOperations: defineTable({
+    organizationId: v.id("organizations"),
+    kind: organizationStripeOperationKindValidator,
+    requestKey: v.string(),
+    stripeIdempotencyKey: v.string(),
+    livemode: v.boolean(),
+    expectedBillingVersion: v.optional(v.number()),
+    providerGeneration: v.optional(v.number()),
+    // cancelSubscription / reconcileSubscription の回収先を識別する。既存operationは猶予終了回収として扱う。
+    recoveryPurpose: v.optional(
+      v.union(
+        v.literal("trialContinuationCancellation"),
+        v.literal("invalidTrialSubscriptionCancellation"),
+        v.literal("scheduledFreeDeadline"),
+      ),
+    ),
+    // 無効なTrial Subscriptionのcleanupでは、作成元operationとの所有関係を固定する。
+    sourceOperationId: v.optional(v.id("organizationStripeOperations")),
+    // Checkout開始時に確認したPrice。env rotation後も進行中operationを別価格へ差し替えない。
+    stripePriceIdSnapshot: v.optional(v.string()),
+    // Provider createの引数を固定し、応答直後のhard crashでも同じintentだけを回収する。
+    trialSubscriptionCreateSnapshot: v.optional(trialSubscriptionCreateSnapshotValidator),
+    stripeObjectId: v.optional(v.string()),
+    status: organizationStripeOperationStatusValidator,
+    attemptCount: v.number(),
+    nextRunAt: v.optional(v.number()),
+    leaseToken: v.optional(v.string()),
+    leaseExpiresAt: v.optional(v.number()),
+    lastErrorCode: v.optional(v.string()),
+    completedAt: v.optional(v.number()),
+    expiresAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organizationId_and_kind_and_requestKey", ["organizationId", "kind", "requestKey"])
+    .index("by_organizationId_and_kind_and_status", ["organizationId", "kind", "status"])
+    .index("by_organizationId_and_recoveryPurpose_and_status", ["organizationId", "recoveryPurpose", "status"])
+    .index("by_organizationId_and_providerGeneration", ["organizationId", "providerGeneration"])
+    .index("by_organizationId_and_providerGeneration_and_kind_and_status", [
+      "organizationId",
+      "providerGeneration",
+      "kind",
+      "status",
+    ])
+    .index("by_organizationId_and_stripeObjectId", ["organizationId", "stripeObjectId"])
+    .index("by_livemode_and_stripeObjectId", ["livemode", "stripeObjectId"])
+    .index("by_organizationId_and_status", ["organizationId", "status"])
+    .index("by_status_and_nextRunAt", ["status", "nextRunAt"])
+    .index("by_kind_and_status", ["kind", "status"])
+    .index("by_kind_and_status_and_nextRunAt", ["kind", "status", "nextRunAt"])
+    .index("by_kind_and_status_and_leaseExpiresAt", ["kind", "status", "leaseExpiresAt"])
+    .index("by_status_and_expiresAt", ["status", "expiresAt"])
+    .index("by_expiresAt", ["expiresAt"]),
+
+  // raw bodyや署名は保存せず、再取得に必要なprovider event/object識別子だけを保持する。
+  stripeWebhookEvents: defineTable({
+    stripeEventId: v.string(),
+    type: stripeWebhookEventTypeValidator,
+    apiVersion: v.optional(v.string()),
+    livemode: v.boolean(),
+    objectId: v.string(),
+    // 署名検証済みpayload由来。provider取得前のfail-closed guard専用で、状態更新の権威にはしない。
+    objectCustomerId: v.optional(v.string()),
+    organizationId: v.optional(v.id("organizations")),
+    providerGeneration: v.optional(v.number()),
+    eventCreatedAt: v.number(),
+    status: stripeWebhookEventStatusValidator,
+    attemptCount: v.number(),
+    nextRunAt: v.optional(v.number()),
+    leaseToken: v.optional(v.string()),
+    leaseExpiresAt: v.optional(v.number()),
+    lastErrorCode: v.optional(v.string()),
+    receivedAt: v.number(),
+    processedAt: v.optional(v.number()),
+    expiresAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_stripeEventId", ["stripeEventId"])
+    .index("by_status_and_nextRunAt", ["status", "nextRunAt"])
+    .index("by_status_and_processedAt", ["status", "processedAt"])
+    .index("by_status_and_expiresAt", ["status", "expiresAt"])
+    .index("by_expiresAt", ["expiresAt"]),
+
   organizationAuditEvents: defineTable({
     organizationId: v.id("organizations"),
     actorUserId: v.optional(v.id("users")),
@@ -196,6 +328,7 @@ const schema = defineSchema({
     resolvedAt: v.optional(v.number()),
   })
     .index("by_sourceType_and_sourceId_and_code", ["sourceType", "sourceId", "code"])
+    .index("by_code_and_resolvedAt", ["code", "resolvedAt"])
     .index("by_organizationId_and_resolvedAt", ["organizationId", "resolvedAt"]),
 
   // 削除受付後のaccess失効と通知停止を、bounded batchで再開可能に進める。
@@ -322,7 +455,7 @@ const schema = defineSchema({
     // 単一IDまたは半角カンマ区切りの複数ID。表示制御用であり認可には使わない。
     organizationId: v.optional(v.string()),
     shopId: v.optional(v.string()),
-    // trial,free,pro,business の単一値または半角カンマ区切り。現在の権利プランとの表示判定に使う。
+    // 新規入力はtrial,free,pro。旧businessはm018完了まで保存データの互換入力として読む。
     organizationPlan: v.optional(v.string()),
     title: v.string(),
     bodyHtml: v.string(),
