@@ -123,7 +123,7 @@ const paginatedNotificationHistoryItems = Array.from({ length: 25 }, (_, index) 
 }));
 
 function NotificationHistoryLoadMoreStory(props: ComponentProps<typeof StaffDetailDialog>) {
-  const [visibleCount, setVisibleCount] = useState(20);
+  const [visibleCount, setVisibleCount] = useState(3);
   const canLoadMore = visibleCount < paginatedNotificationHistoryItems.length;
 
   return (
@@ -134,7 +134,7 @@ function NotificationHistoryLoadMoreStory(props: ComponentProps<typeof StaffDeta
           items={paginatedNotificationHistoryItems.slice(0, visibleCount)}
           canLoadMore={canLoadMore}
           onLoadMore={() =>
-            setVisibleCount((current) => Math.min(current + 20, paginatedNotificationHistoryItems.length))
+            setVisibleCount((current) => Math.min(current + 10, paginatedNotificationHistoryItems.length))
           }
         />
       }
@@ -251,7 +251,7 @@ export const NotificationHistoryReadOnly: Story = {
     isReadOnly: true,
     notificationHistory: (
       <StaffNotificationHistoryView
-        items={paginatedNotificationHistoryItems.slice(0, 20)}
+        items={paginatedNotificationHistoryItems.slice(0, 3)}
         canLoadMore
         onLoadMore={noop}
       />
@@ -278,14 +278,14 @@ export const NotificationHistoryLoadMoreBehavior: Story = {
   play: async () => {
     const dialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
     const historyTable = await within(dialog).findByRole("table", { name: "通知履歴" });
-    await expect(within(historyTable).getAllByRole("row")).toHaveLength(21);
+    await expect(within(historyTable).getAllByRole("row")).toHaveLength(4);
 
     const loadMoreButton = within(dialog).getByRole("button", { name: "もっと見る" });
     await expect(loadMoreButton).toBeEnabled();
     await userEvent.click(loadMoreButton);
 
-    await expect(await within(historyTable).findByText("通知履歴 21")).toBeInTheDocument();
-    await expect(within(historyTable).getAllByRole("row")).toHaveLength(26);
+    await expect(await within(historyTable).findByText("通知履歴 13")).toBeInTheDocument();
+    await expect(within(historyTable).getAllByRole("row")).toHaveLength(14);
   },
 };
 

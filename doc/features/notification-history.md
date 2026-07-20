@@ -32,7 +32,7 @@
 
 | 画面 | 表示内容 |
 |---|---|
-| `/users/<personId>?shop=<shopId>&panel=shop` | 店舗Dialogの通知セクションで、選択店舗のスタッフへの通知履歴を最新順に表示する。初回20件を取得し、「もっと見る」で続きを取得する |
+| `/users/<personId>?shop=<shopId>&panel=shop` | 店舗Dialogの通知セクションで、選択店舗のスタッフへの通知履歴を最新順に表示する。初回3件を取得し、「もっと見る」で10件ずつ続きを取得する |
 | Dashboard > スタッフ一覧 > 旧スタッフ詳細 > 通知 | `organizationPersonId`が未移行のスタッフに限り、同じ通知履歴を暫定表示する |
 
 ## API一覧

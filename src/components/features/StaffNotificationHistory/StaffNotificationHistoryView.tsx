@@ -197,7 +197,7 @@ function StaffNotificationHistorySkeleton() {
         aria-label="通知履歴を読み込み中"
       >
         <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
-          {Array.from({ length: 4 }).map((_, index) => (
+          {Array.from({ length: 3 }).map((_, index) => (
             <HStack key={index} gap={6} px={4} py={3.5}>
               <Skeleton h="16px" w="132px" />
               <Skeleton h="16px" w="48px" />
