@@ -15,7 +15,11 @@ export const AuthenticatedHeader = () => {
   const hasSelectedShop = useAtomValue(hasSelectedShopAtom);
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const showShopSwitcher =
-    hasSelectedShop && pathname !== "/dashboard" && pathname !== "/settings" && !pathname.startsWith("/users/");
+    hasSelectedShop &&
+    pathname !== "/dashboard" &&
+    pathname !== "/settings" &&
+    !pathname.startsWith("/shops/") &&
+    !pathname.startsWith("/users/");
 
   return (
     <Header
