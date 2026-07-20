@@ -4,6 +4,7 @@ import { buildShopDetailPageHead } from "@/src/pages/shop-detail/meta";
 
 type ShopDetailSearch = {
   shop?: string;
+  returnTo?: "dashboard";
 };
 
 export const Route = createFileRoute("/_auth/shops/$shopId")({
@@ -14,11 +15,12 @@ export const Route = createFileRoute("/_auth/shops/$shopId")({
 
 export function validateShopDetailSearch(search: Record<string, unknown>): ShopDetailSearch {
   const shop = typeof search.shop === "string" && search.shop.trim() !== "" ? search.shop : undefined;
-  return { ...(shop ? { shop } : {}) };
+  const returnTo = search.returnTo === "dashboard" ? "dashboard" : undefined;
+  return { ...(shop ? { shop } : {}), ...(returnTo ? { returnTo } : {}) };
 }
 
 function ShopDetailRoute() {
   const { shopId } = Route.useParams();
-  const { shop } = Route.useSearch();
-  return <ShopDetailPage shopId={shopId} selectedShopId={shop} />;
+  const { shop, returnTo } = Route.useSearch();
+  return <ShopDetailPage shopId={shopId} selectedShopId={shop} returnTo={returnTo} />;
 }

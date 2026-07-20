@@ -9,7 +9,7 @@ import { OperationContext, type OperationContextData, OperationContextSkeleton }
 import { RecruitmentBoardSkeleton } from "../RecruitmentBoard";
 import { RecruitmentManagement, type RecruitmentManagementData } from "../RecruitmentManagement";
 import { Setup } from "../Setup";
-import { ShopSettings, type ShopSettingsData } from "../ShopSettings";
+import type { ShopSettingsData } from "../ShopSettings";
 import { StaffManagement, type StaffManagementData } from "../StaffManagement";
 import { StaffRegistrationRequestManagement } from "../StaffRegistrationRequestManagement";
 import { StaffRosterSkeleton } from "../StaffRoster";
@@ -130,108 +130,100 @@ export const DashboardContent = ({
         }
 
         return (
-          <ShopSettings shop={shop} isReadOnly={isReadOnly}>
-            {({ openShopSettings }) => (
-              <RecruitmentManagement
-                regularClosedDays={shop.regularClosedDays}
-                submissionPattern={shop.submissionPattern}
-                data={recruitmentData}
+          <RecruitmentManagement
+            regularClosedDays={shop.regularClosedDays}
+            submissionPattern={shop.submissionPattern}
+            data={recruitmentData}
+            isReadOnly={isReadOnly}
+          >
+            {(recruitment) => (
+              <StaffManagement
+                data={staffData}
+                openRecruitments={recruitment.openRecruitments}
+                currentRecruitments={recruitment.currentRecruitments}
                 isReadOnly={isReadOnly}
+                initialVisibleUserCount={visibleUserCount}
+                focusedPersonId={focusedPersonId}
+                onVisibleUserCountChange={onVisibleUserCountChange}
               >
-                {(recruitment) => (
-                  <StaffManagement
-                    data={staffData}
-                    openRecruitments={recruitment.openRecruitments}
-                    currentRecruitments={recruitment.currentRecruitments}
+                {(staff) => (
+                  <StaffRegistrationRequestManagement
+                    requests={usesInjectedData ? (pendingStaffRequests ?? []) : undefined}
                     isReadOnly={isReadOnly}
-                    initialVisibleUserCount={visibleUserCount}
-                    focusedPersonId={focusedPersonId}
-                    onVisibleUserCountChange={onVisibleUserCountChange}
                   >
-                    {(staff) => (
-                      <StaffRegistrationRequestManagement
-                        requests={usesInjectedData ? (pendingStaffRequests ?? []) : undefined}
+                    {(registrationRequests) => (
+                      <NotificationFailureRecovery
+                        failures={usesInjectedData ? (notificationFailures ?? []) : undefined}
                         isReadOnly={isReadOnly}
                       >
-                        {(registrationRequests) => (
-                          <NotificationFailureRecovery
-                            failures={usesInjectedData ? (notificationFailures ?? []) : undefined}
-                            isReadOnly={isReadOnly}
-                          >
-                            {(notificationFailure) => {
-                              if (
-                                recruitment.isInitialLoading ||
-                                staff.isInitialLoading ||
-                                registrationRequests.isInitialLoading
-                              ) {
-                                return <DashboardContentSkeleton />;
-                              }
+                        {(notificationFailure) => {
+                          if (
+                            recruitment.isInitialLoading ||
+                            staff.isInitialLoading ||
+                            registrationRequests.isInitialLoading
+                          ) {
+                            return <DashboardContentSkeleton />;
+                          }
 
-                              return (
-                                <DashboardOnboarding
-                                  recruitments={recruitment.knownRecruitments}
-                                  staffs={staff.staffs}
-                                  pendingStaffRequestCount={registrationRequests.requests.length}
-                                  isDismissed={isDashboardOnboardingDismissed}
-                                  canShow={!isReadOnly && managerLegalConsentStatus?.required === false}
-                                >
-                                  {(onboarding) => (
-                                    <>
-                                      <ContentWrapper>
-                                        <OperationContext
-                                          data={operationContextData}
-                                          isReadOnly={isReadOnly}
-                                          onOpenShopSettings={openShopSettings}
-                                        />
-                                        <LegalReconsent status={managerLegalConsentStatus} />
-                                        <HeroSummary
-                                          recruitments={recruitment.recruitments}
-                                          onOpenShiftBoard={(recruitmentId) =>
-                                            recruitment.openShiftBoard(
-                                              recruitmentId as Recruitment["_id"],
-                                              onboarding.onOpenRecruitment,
-                                            )
-                                          }
-                                          onCreateRecruitment={recruitment.openCreateRecruitment}
-                                          hasNotificationFailures={notificationFailure.failures.length > 0}
-                                          onNotificationFailuresClick={notificationFailure.openNotificationFailures}
-                                          announcementBanner={announcementContent ?? undefined}
-                                          staffRegistrationRequest={
-                                            registrationRequests.requests.length > 0
-                                              ? {
-                                                  count: registrationRequests.requests.length,
-                                                  onClick: registrationRequests.openStaffRegistrationRequests,
-                                                }
-                                              : undefined
-                                          }
-                                          hideActionSection={
-                                            isReadOnly ||
-                                            (onboarding.isVisible && notificationFailure.failures.length === 0) ||
-                                            !managerLegalConsentStatus
-                                          }
-                                        />
-                                        {onboarding.content}
-                                        {recruitment.renderContent({
-                                          onBeforeOpenShiftBoard: onboarding.onOpenRecruitment,
-                                        })}
-                                        {staff.content}
-                                      </ContentWrapper>
-                                      {registrationRequests.content}
-                                      {notificationFailure.content}
-                                    </>
-                                  )}
-                                </DashboardOnboarding>
-                              );
-                            }}
-                          </NotificationFailureRecovery>
-                        )}
-                      </StaffRegistrationRequestManagement>
+                          return (
+                            <DashboardOnboarding
+                              recruitments={recruitment.knownRecruitments}
+                              staffs={staff.staffs}
+                              pendingStaffRequestCount={registrationRequests.requests.length}
+                              isDismissed={isDashboardOnboardingDismissed}
+                              canShow={!isReadOnly && managerLegalConsentStatus?.required === false}
+                            >
+                              {(onboarding) => (
+                                <>
+                                  <ContentWrapper>
+                                    <OperationContext data={operationContextData} />
+                                    <LegalReconsent status={managerLegalConsentStatus} />
+                                    <HeroSummary
+                                      recruitments={recruitment.recruitments}
+                                      onOpenShiftBoard={(recruitmentId) =>
+                                        recruitment.openShiftBoard(
+                                          recruitmentId as Recruitment["_id"],
+                                          onboarding.onOpenRecruitment,
+                                        )
+                                      }
+                                      onCreateRecruitment={recruitment.openCreateRecruitment}
+                                      hasNotificationFailures={notificationFailure.failures.length > 0}
+                                      onNotificationFailuresClick={notificationFailure.openNotificationFailures}
+                                      announcementBanner={announcementContent ?? undefined}
+                                      staffRegistrationRequest={
+                                        registrationRequests.requests.length > 0
+                                          ? {
+                                              count: registrationRequests.requests.length,
+                                              onClick: registrationRequests.openStaffRegistrationRequests,
+                                            }
+                                          : undefined
+                                      }
+                                      hideActionSection={
+                                        isReadOnly ||
+                                        (onboarding.isVisible && notificationFailure.failures.length === 0) ||
+                                        !managerLegalConsentStatus
+                                      }
+                                    />
+                                    {onboarding.content}
+                                    {recruitment.renderContent({
+                                      onBeforeOpenShiftBoard: onboarding.onOpenRecruitment,
+                                    })}
+                                    {staff.content}
+                                  </ContentWrapper>
+                                  {registrationRequests.content}
+                                  {notificationFailure.content}
+                                </>
+                              )}
+                            </DashboardOnboarding>
+                          );
+                        }}
+                      </NotificationFailureRecovery>
                     )}
-                  </StaffManagement>
+                  </StaffRegistrationRequestManagement>
                 )}
-              </RecruitmentManagement>
+              </StaffManagement>
             )}
-          </ShopSettings>
+          </RecruitmentManagement>
         );
       }}
     </DashboardAnnouncement>

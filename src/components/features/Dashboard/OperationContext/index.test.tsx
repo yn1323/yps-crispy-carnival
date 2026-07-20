@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => ({
   getMyShops: Symbol("getMyShops"),
   selectedShopAtom: Symbol("selectedShopAtom"),
   navigate: vi.fn(),
-  openShopSettings: vi.fn(),
   useQuery: vi.fn(),
   useAtomValue: vi.fn(),
 }));
@@ -88,7 +87,6 @@ beforeEach(() => {
     dispatchEvent: vi.fn(),
   }));
   mocks.navigate.mockReset();
-  mocks.openShopSettings.mockReset();
   mocks.useQuery.mockReturnValue(shops);
   mocks.useAtomValue.mockReturnValue(shops[0]);
 });
@@ -99,7 +97,7 @@ const renderContext = (
 ) =>
   render(
     <ChakraProvider>
-      <OperationContext data={{ shops: contextShops, selectedShop }} onOpenShopSettings={mocks.openShopSettings} />
+      <OperationContext data={{ shops: contextShops, selectedShop }} />
     </ChakraProvider>,
   );
 
@@ -126,11 +124,22 @@ describe("OperationContext", () => {
     });
   });
 
-  it("店舗設定を直接開き、現在店舗のグループ設定へ遷移できる", async () => {
+  it("現在店舗を表示対象とコンテキストにして店舗詳細へ遷移する", async () => {
     renderContext();
 
-    fireEvent.click(screen.getByRole("button", { name: "店舗設定を開く" }));
-    expect(mocks.openShopSettings).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "店舗詳細を開く" }));
+
+    await waitFor(() => {
+      expect(mocks.navigate).toHaveBeenCalledWith({
+        to: "/shops/$shopId",
+        params: { shopId: "shop-a" },
+        search: { shop: "shop-a", returnTo: "dashboard" },
+      });
+    });
+  });
+
+  it("現在店舗のグループ設定へ遷移する", async () => {
+    renderContext();
 
     fireEvent.click(screen.getByRole("button", { name: "グループ設定" }));
 
@@ -145,6 +154,6 @@ describe("OperationContext", () => {
     expect(screen.getByText("A店")).not.toBeNull();
     expect(screen.queryByText("Aグループ")).toBeNull();
     expect(screen.queryByRole("button", { name: /店舗を切り替える/ })).toBeNull();
-    expect(screen.getByRole("button", { name: "店舗設定を開く" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "店舗詳細を開く" })).not.toBeNull();
   });
 });

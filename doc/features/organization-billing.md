@@ -98,11 +98,11 @@
 | 画面 | 役割 |
 | --- | --- |
 | `/settings?shop=<shopId>` | 指定店舗からグループを解決し、ユーザー、店舗、プランと支払い、設定の4タブを扱う。設定タブでは削除可否理由を表示し、対象名の再入力後にグループ削除を受け付ける。タブは`tab` queryで保持する |
-| `/shops/<targetShopId>?shop=<contextShopId>` | `shop`で解決したグループ内の対象店舗だけを表示し、店舗情報と削除可否を同じ画面で確認して店舗削除を受け付ける |
-| `/users/<personId>?shop=<shopId>&tab=<tab>` | グループ人物の共通プロフィールと管理者権限を扱い、選択店舗のスタッフ設定、通知、LINE連携を表示する。`tab`は`notification`、`line`、`settings`を受け付ける |
-| 認証済みヘッダー | Dashboard、グループ設定、ユーザー詳細以外で複数店舗がある場合に、現在のグループと店舗を表示して利用可能な店舗へ切り替える |
+| `/shops/<targetShopId>?shop=<contextShopId>&returnTo=dashboard` | `shop`で解決したグループ内の対象店舗だけを表示し、店舗情報と削除可否を同じ画面で確認する。Dashboardから開いた場合は同じ店舗のDashboardへ戻る |
+| `/users/<personId>?shop=<shopId>&panel=<basic|addShop|shop>` | グループ人物の基本情報と所属店舗を表示し、基本情報、店舗追加、選択店舗の通知・LINE連携・店舗設定をDialogで扱う |
+| 認証済みヘッダー | Dashboard、グループ設定、店舗詳細、ユーザー詳細以外で複数店舗がある場合に、現在のグループと店舗を表示して利用可能な店舗へ切り替える |
 | `/manager-invite?token=...` | 招待先グループと期限を公開DTOで確認し、ログインまたは登録後に確認済みメールのアカウントを自動連携する |
-| `/dashboard?shop=<shopId>` | グループと店舗のコンテキストカードを表示し、候補が複数ある場合だけ切り替える。店舗設定はモーダル、グループ設定は`/settings`へ進む |
+| `/dashboard?shop=<shopId>` | グループと店舗のコンテキストカードを表示し、候補が複数ある場合だけ切り替える。店舗詳細は`/shops/<shopId>`、グループ設定は`/settings`へ進む |
 | 各店舗業務画面 | `shop` queryを引き継ぎ、候補照合済みの選択店舗をAPIへ渡して、グループ所属と店舗境界の再検証後に既存データを扱う |
 
 ## Public API一覧

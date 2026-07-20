@@ -20,21 +20,17 @@ import type { OperationContextModel } from "./script";
 
 export type OperationContextViewProps = {
   model: OperationContextModel;
-  isReadOnly?: boolean;
   onShopSelect: (shopId: string) => void;
-  onOpenShopSettings: () => void;
+  onOpenShopDetail: () => void;
   onOpenGroupSettings: () => void;
 };
 
 export const OperationContextView = ({
   model,
-  isReadOnly = false,
   onShopSelect,
-  onOpenShopSettings,
+  onOpenShopDetail,
   onOpenGroupSettings,
 }: OperationContextViewProps) => {
-  const readOnlyReason = "閲覧のみの店舗では設定を変更できません";
-
   return (
     <Stack gap={3} pb={{ base: 4, lg: 6 }} borderBottomWidth="1px" borderColor="gray.200">
       <Flex align="center" justify="space-between" gap={3} minW={0}>
@@ -69,26 +65,14 @@ export const OperationContextView = ({
 
       <Flex align="center" justify="space-between" direction="row" gap={3} minW={0}>
         <ShopSelector model={model} onSelect={onShopSelect} />
-        <ShopSettingsButton
-          isReadOnly={isReadOnly}
-          readOnlyReason={readOnlyReason}
-          onOpenShopSettings={onOpenShopSettings}
-        />
+        <ShopDetailButton onOpenShopDetail={onOpenShopDetail} />
       </Flex>
     </Stack>
   );
 };
 
-const ShopSettingsButton = ({
-  isReadOnly,
-  readOnlyReason,
-  onOpenShopSettings,
-}: {
-  isReadOnly: boolean;
-  readOnlyReason: string;
-  onOpenShopSettings: () => void;
-}) => (
-  <Tooltip content={isReadOnly ? readOnlyReason : "店舗設定"}>
+const ShopDetailButton = ({ onOpenShopDetail }: { onOpenShopDetail: () => void }) => (
+  <Tooltip content="店舗詳細">
     <Box as="span" display="inline-flex">
       <IconButton
         type="button"
@@ -96,10 +80,9 @@ const ShopSettingsButton = ({
         colorPalette="teal"
         minW="44px"
         minH="44px"
-        aria-label="店舗設定を開く"
-        title={isReadOnly ? readOnlyReason : "店舗設定"}
-        disabled={isReadOnly}
-        onClick={onOpenShopSettings}
+        aria-label="店舗詳細を開く"
+        title="店舗詳細"
+        onClick={onOpenShopDetail}
       >
         <LuSettings aria-hidden />
       </IconButton>

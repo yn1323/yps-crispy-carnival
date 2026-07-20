@@ -44,9 +44,8 @@ const meta = {
     ),
   ],
   args: {
-    isReadOnly: false,
     onShopSelect: () => {},
-    onOpenShopSettings: () => {},
+    onOpenShopDetail: () => {},
     onOpenGroupSettings: () => {},
   },
 } satisfies Meta<typeof OperationContextView>;
@@ -84,7 +83,6 @@ export const LongNamesReadOnly: Story = {
       ],
       "shop-a-1",
     ),
-    isReadOnly: true,
   },
 };
 
@@ -126,7 +124,7 @@ const SelectionBehaviorStory = () => {
     <OperationContextView
       model={model}
       onShopSelect={setSelectedShopId}
-      onOpenShopSettings={() => {}}
+      onOpenShopDetail={() => {}}
       onOpenGroupSettings={() => {}}
     />
   );

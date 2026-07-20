@@ -22,12 +22,10 @@ export type OperationContextData = {
 };
 
 type Props = {
-  isReadOnly?: boolean;
-  onOpenShopSettings: () => void;
   data?: OperationContextData;
 };
 
-export const OperationContext = ({ isReadOnly = false, onOpenShopSettings, data }: Props) => {
+export const OperationContext = ({ data }: Props) => {
   const navigate = useNavigate();
   const rawShops = useQuery(api.dashboard.queries.getMyShops, data ? "skip" : {});
   const storedSelectedShop = useAtomValue(selectedShopAtom);
@@ -62,12 +60,19 @@ export const OperationContext = ({ isReadOnly = false, onOpenShopSettings, data 
     void navigate({ to: "/settings", search: { shop: model.selectedShop.shopId } });
   };
 
+  const handleOpenShopDetail = () => {
+    void navigate({
+      to: "/shops/$shopId",
+      params: { shopId: model.selectedShop.shopId },
+      search: { shop: model.selectedShop.shopId, returnTo: "dashboard" },
+    });
+  };
+
   return (
     <OperationContextView
       model={model}
-      isReadOnly={isReadOnly}
       onShopSelect={handleShopSelect}
-      onOpenShopSettings={onOpenShopSettings}
+      onOpenShopDetail={handleOpenShopDetail}
       onOpenGroupSettings={handleOpenGroupSettings}
     />
   );

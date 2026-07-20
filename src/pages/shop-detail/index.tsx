@@ -14,9 +14,10 @@ import { selectedShopAtom } from "@/src/stores/shop";
 type Props = {
   shopId: string;
   selectedShopId?: string;
+  returnTo?: "dashboard";
 };
 
-export function ShopDetailPage({ shopId, selectedShopId }: Props) {
+export function ShopDetailPage({ shopId, selectedShopId, returnTo }: Props) {
   const settings = useShopQuery(api.organization.queries.getSettings, {});
   const selectedShop = useAtomValue(selectedShopAtom);
   const contextShopId = selectedShopId ?? selectedShop?.shopId ?? null;
@@ -44,7 +45,7 @@ export function ShopDetailPage({ shopId, selectedShopId }: Props) {
       ) : settings === undefined ? (
         <ShopDetailSkeleton />
       ) : shop ? (
-        <ShopDetail shop={shop} people={settings?.people ?? []} selectedShopId={contextShopId} />
+        <ShopDetail shop={shop} people={settings?.people ?? []} selectedShopId={contextShopId} returnTo={returnTo} />
       ) : (
         <Empty
           icon={LuStore}
