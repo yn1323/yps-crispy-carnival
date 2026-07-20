@@ -6,15 +6,42 @@
 ## 現行仕様との違い
 
 - `shopBillingStates`の`free`、`standard`、`premium`は、分析と旧読み取りの互換性を保つために残した旧モデルである。
-- 新しい課金状態の正本は`organizationBillingStates`であり、Trial、Free、Pro、Business、支払い猶予、契約制限を一つの状態unionで表す。
+- 新しい課金状態の正本は`organizationBillingStates`であり、Free、Trial、Pro、Pro（先行登録特典）とライフサイクル状態を一つのstate unionで表す。
 - プラン上限と操作可否は`convex/organizationBilling/policy.ts`から導出する。
-- ProとBusinessの料金、税、請求周期、日割り、返金は未決定であり、この文書の旧プラン名や上限を料金判断に使わない。
-- Stripe連携、本番migration、Narrow、旧課金データの物理削除は外部ゲートとして分離している。
+- 支払い確認中、支払い猶予、期間末変更予定、契約制限中はプランではなくライフサイクル状態である。
+- Businessプランは廃止し、通常課金の有料プランをProへ統一する。
+- 旧Business値は`m018`の全環境完了までWiden互換としてだけ受け入れ、新規書き込みとpolicyではProへ正規化する。
+
+## 現行の表示区分と上限
+
+| 表示区分 | 保存状態 | 利用人数 | 稼働店舗 | 有効管理者 | Stripe連携 |
+| --- | --- | ---: | ---: | ---: | --- |
+| Free | `active.free` | 5 | 1 | 1 | なし |
+| Trial | `trial` | 30 | 5 | 5 | 継続登録時に連携（請求はTrial終了後） |
+| Pro | `active.pro` | 30 | 5 | 5 | あり |
+| Pro（先行登録特典） | `complimentary.pro` | 30 | 5 | 5 | なし |
+
+Trialはグループを作成した月と、その翌月の末日まで利用できる。
+
+Pro（先行登録特典）は、Stripe Customer、Subscription、Checkout Session、Portal Session、請求、課金通知を一切持たない。
+
+Pro（先行登録特典）は、公開API、管理用処理、Stripeイベント、再同期処理から別の課金状態へ変更しない。
+
+## Stripe公開状態
+
+Proの価格、税、請求周期、日割り、返金、クレジット、未払い請求の最終処理は未決定である。
+
+これらが決まるまでは`STRIPE_BILLING_MODE=off`を維持し、仮の価格やPrice IDを登録せず、新しいStripeユーザー操作を公開しない。
+
+APIキー、Webhook署名シークレット、Price ID、Portal Configuration IDの実値は、実装と検証の完了後に利用者が登録する。
 
 ## 参考ファイル
 
 - `doc/features/organization-billing.md`
 - `doc/specs/organization-billing-business-flow.md`
+- `doc/plans/2026-07-20_Stripe課金連携_実装計画.md`
 - `convex/organizationBilling/policy.ts`
+- `convex/organizationStripe/`
 - `convex/organization/validators.ts`
+- `convex/migrations/m018_organization_billing_business_to_pro.ts`
 - `convex/schema.ts`

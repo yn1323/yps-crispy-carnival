@@ -36,7 +36,7 @@
 {
   "organizationId": "対象グループID1,対象グループID2（任意）",
   "shopId": "対象店舗ID1,対象店舗ID2（任意）",
-  "organizationPlan": "pro,business（任意）",
+  "organizationPlan": "pro（任意）",
   "title": "LINE通知の遅延について",
   "bodyHtml": "<p>現在、LINE通知の送信に遅延が発生しています。</p><p>復旧までメール通知をご確認ください。</p>",
   "displayDate": "2026-06-17",
@@ -50,8 +50,8 @@
 - 公開条件は `isPublished: true` と `isDeleted: false` のみ。終了時は `isPublished: false` にする。
 - `organizationId`、`shopId`、`organizationPlan` がすべて未設定なら全体向けとする。既存データも全体向けとして扱う。
 - 対象を複数指定するときは、各フィールドへ半角カンマ区切りで入力する。単一値もそのまま入力でき、値の前後の空白と空要素は無視する。
-- `organizationPlan` には `trial`、`free`、`pro`、`business` を指定できる。大文字・小文字は区別する。
-- 課金なしの無償Business（`complimentary.business`）もpolicy上は `business` に解決するため、`organizationPlan: "business"` の対象に含める。
+- `organizationPlan` には `trial`、`free`、`pro` を指定できる。大文字・小文字は区別する。旧値の`business`は保存データの互換入力として残るが、新規登録には使わず`pro`へ置き換える。
+- 料金なしのPro（`complimentary.pro`）もpolicy上は`pro`に解決するため、`organizationPlan: "pro"`の対象に含める。
 - `organizationId`、`shopId`、`organizationPlan` のいずれか一つが選択中のコンテキストと一致すれば表示対象とする。複数フィールドを設定した場合もOR条件になる。
 - 契約プランは課金policyが導出する現在の権利プランで判定する。プラン変更予約中は変更前プラン、支払い猶予中は元プラン、Freeから有料プランへの支払い結果待ちはFreeとして扱う。契約制限中または移行中で有効プランがない場合はプラン指定に一致しない。
 - フィールドを設定したのに有効な値がない場合は全体向けにせず、どの店舗にも表示しない。全体向けにする場合は3フィールド自体を未設定にする。
