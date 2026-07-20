@@ -71,6 +71,7 @@
     "convex:restore": "tsx convex-seeds/scripts/import.ts",
     "convex:save": "tsx convex-seeds/scripts/export.ts",
     "convex:env-setup": "tsx scripts/setupEnv.ts",
+    "convex:env:setup": "tsx scripts/setupEnv.ts",
     "convex:migrate": "convex run migrations/index:run",
     "convex:migrate:status": "convex run --component migrations lib:getStatus --watch",
     "convex:verify-complimentary-export": "tsx scripts/verifyComplimentaryBusinessExport.ts"
@@ -102,6 +103,7 @@
     "react-icons": "5.5.0",
     "react-joyride": "^3.0.2",
     "resend": "^6.9.2",
+    "stripe": "22.1.1",
     "zod": "4.4.3"
   },
   "devDependencies": {
