@@ -104,7 +104,7 @@ const DashboardPageShell = ({ children }: { children: ReactNode }) => (
       base: `calc(100dvh - ${HEADER_HEIGHT.base})`,
       md: `calc(100dvh - ${HEADER_HEIGHT.md})`,
     }}
-    bg="white"
+    bg="gray.50"
   >
     <RootContentWrapper>{children}</RootContentWrapper>
   </Box>

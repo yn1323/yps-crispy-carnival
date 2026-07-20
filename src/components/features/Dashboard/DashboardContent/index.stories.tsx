@@ -378,7 +378,7 @@ export const Loading: Story = {
     ...Normal.args,
   },
   render: () => (
-    <Box minH="100vh" bg="white" p={{ base: 4, lg: 8 }}>
+    <Box minH="100vh" bg="gray.50" p={{ base: 4, lg: 8 }}>
       <DashboardContentSkeleton />
     </Box>
   ),
