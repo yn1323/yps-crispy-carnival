@@ -36,7 +36,7 @@ export function LoginVerificationForm({
         <>
           新しい端末からのログインを確認します。
           <br />
-          {maskedIdentifier} に確認コードを送りました。
+          {maskedIdentifier}に確認コードを送りました。
         </>
       }
       submitLabel="確認してログイン"

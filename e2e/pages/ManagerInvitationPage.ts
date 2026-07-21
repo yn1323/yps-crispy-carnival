@@ -26,7 +26,7 @@ export class ManagerInvitationPage {
 
   async expectUsed(token: string) {
     await this.goto(token);
-    await expect(this.page.getByRole("heading", { name: "アカウント連携は完了しています" })).toBeVisible({
+    await expect(this.page.getByRole("heading", { name: "この招待への参加は完了しています" })).toBeVisible({
       timeout: INVITATION_TIMEOUT,
     });
   }

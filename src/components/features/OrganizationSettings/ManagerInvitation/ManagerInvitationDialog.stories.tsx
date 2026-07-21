@@ -127,7 +127,7 @@ export const FreeManagerExchangeConfirmationBehavior: Story = {
     ).toBeInTheDocument();
     await expect(
       canvas.getByText(
-        "鈴木 次郎さんがアカウントを連携すると、このグループの唯一の管理者になります。その時点で、あなたのこのグループの管理者権限は終了し、グループ設定と店舗情報へアクセスできなくなります。",
+        "鈴木 次郎さんがログインして招待を受け入れると、このグループの唯一の管理者になります。その時点で、あなたのこのグループの管理者権限は終了し、グループ設定と店舗情報へアクセスできなくなります。",
       ),
     ).toBeInTheDocument();
     await expect(

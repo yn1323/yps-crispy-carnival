@@ -321,7 +321,7 @@ export const SettingsDeletionUnavailable: Story = {
 
     await expect(deleteButton).toBeDisabled();
     await expect(deleteButton).toHaveAccessibleDescription(
-      "サブスクリプションが存在します。支払いを取り返してから削除してください。",
+      "有料契約またはプラン変更の予約が残っています。「プランと支払い」で契約や予約を終了してから、グループを削除してください。",
     );
   },
 };
@@ -338,7 +338,7 @@ export const SettingsDeletionUnavailableWithStripeSubscription: Story = {
 
     await expect(deleteButton).toBeDisabled();
     await expect(deleteButton).toHaveAccessibleDescription(
-      "サブスクリプションが存在します。支払いを取り返してから削除してください。",
+      "有料契約またはプラン変更の予約が残っています。「プランと支払い」で契約や予約を終了してから、グループを削除してください。",
     );
   },
 };

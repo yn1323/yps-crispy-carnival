@@ -181,7 +181,7 @@ function ReadyInvitation({
         <VStack role="status" gap={3} py={2}>
           <Spinner size="md" color="teal.600" borderWidth="2px" />
           <Text color="gray.700" fontSize="sm" lineHeight="tall" textAlign="center">
-            ログイン情報を確認し、アカウントとグループを連携しています。
+            招待内容を確認し、管理者として参加しています。
           </Text>
         </VStack>
       ) : (
@@ -243,8 +243,8 @@ function getStatusContent(
       };
     case "used":
       return {
-        title: "アカウント連携は完了しています",
-        description: "連携済みのアカウントでログインしている場合は、ダッシュボードから店舗を確認できます。",
+        title: "この招待への参加は完了しています",
+        description: "招待を受けたアカウントでログインしている場合は、ダッシュボードから店舗を確認できます。",
         icon: LuCheck,
         iconBg: "green.50",
         iconColor: "green.700",
@@ -275,30 +275,31 @@ function getStatusContent(
       };
     case "conflict":
       return {
-        title: "アカウントを安全に連携できません",
-        description:
-          "グループの利用者情報と現在のアカウントを一意に照合できませんでした。案内を送った管理者に確認したあと、最新の状態を確認してください。",
+        title: "招待先の情報を確認できません",
+        description: "招待を送った管理者に登録内容を確認してもらってから、もう一度お試しください。",
         icon: LuRefreshCw,
         iconBg: "orange.50",
         iconColor: "orange.700",
       };
     case "retryableError":
       return {
-        title: "アカウント連携を完了できませんでした",
+        title: "管理者として参加できませんでした",
         description: "通信が一時的に不安定な可能性があります。時間をおいて、もう一度お試しください。",
         icon: LuRefreshCw,
         iconBg: "orange.50",
         iconColor: "orange.700",
       };
     case "accepted": {
-      const organizationLabel = state.organizationName ? `${state.organizationName}への` : "";
+      const participationLabel = state.organizationName
+        ? `${state.organizationName}の管理者として参加しました。`
+        : "管理者として参加しました。";
       const description = state.isPreparingDestination
-        ? `${organizationLabel}アカウント連携が完了しました。対象店舗を開いています。`
+        ? `${participationLabel}対象店舗を開いています。`
         : state.hasDestination
-          ? `${organizationLabel}アカウント連携が完了しました。対象店舗へ移動します。`
-          : `${organizationLabel}アカウント連携が完了しました。現在、表示できる店舗がありません。案内を送った管理者に店舗の登録状況を確認してください。`;
+          ? `${participationLabel}対象店舗へ移動します。`
+          : `${participationLabel}現在、表示できる店舗がありません。案内を送った管理者に、店舗の登録状況を確認してください。`;
       return {
-        title: "管理者アカウントを連携しました",
+        title: "管理者として参加しました",
         description,
         icon: LuCheck,
         iconBg: "green.50",

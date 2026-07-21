@@ -49,7 +49,7 @@ function ConnectedCandidateList(props: Omit<CandidateListProps, "enabled">) {
       candidates={candidates ?? []}
       isLoading={candidates === undefined}
       errorMessage={
-        candidates === null ? "候補を一意に確認できません。グループの人物情報を確認してください。" : undefined
+        candidates === null ? "グループ設定の「ユーザー」で登録内容を確認してから、もう一度お試しください。" : undefined
       }
       {...props}
     />

@@ -377,7 +377,7 @@ describe("AuthGuard", () => {
       </AuthGuard>,
     );
 
-    expect(screen.getByRole("heading", { name: "アプリ上のアカウントは削除済みです" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "シフトリの利用は終了しています" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "ログアウト" })).not.toBeNull();
     expect(screen.getByTestId("account-deletion-entry")).not.toBeNull();
     expect(screen.queryByText("管理者")).toBeNull();
@@ -402,9 +402,9 @@ describe("AuthGuard", () => {
     );
 
     expect(screen.getByRole("heading", { name: "アカウントの削除を受け付けました" })).not.toBeNull();
-    expect(screen.getByText(/ログイン情報は通常、数分以内に削除されます/)).not.toBeNull();
-    expect(screen.getByText(/このページを閉じても処理は継続します/)).not.toBeNull();
-    expect(screen.queryByRole("heading", { name: "アプリ上のアカウントは削除済みです" })).toBeNull();
+    expect(screen.getByText(/ログイン用アカウントの削除は通常、数分以内に完了します/)).not.toBeNull();
+    expect(screen.getByText(/このページを閉じても処理は続きます/)).not.toBeNull();
+    expect(screen.queryByRole("heading", { name: "シフトリの利用は終了しています" })).toBeNull();
     expect(screen.queryByTestId("account-deletion-entry")).toBeNull();
     expect(screen.queryByTestId("manager-child")).toBeNull();
     expect(mocks.useQuery).toHaveBeenCalledWith(mocks.myShopsQuery, "skip");

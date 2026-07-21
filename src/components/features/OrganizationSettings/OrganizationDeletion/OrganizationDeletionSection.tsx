@@ -2,7 +2,8 @@ import { DeletionActionSection } from "@/src/components/shared/DeletionActionSec
 
 const BILLING_CONTINUATION_DISABLED_REASON = "有料契約やプラン変更を終了してからグループを削除してください。";
 const STRIPE_SUBSCRIPTION_DISABLED_REASON = "Stripeの契約終了を確認してからグループを削除してください。";
-const SUBSCRIPTION_DISABLED_REASON = "サブスクリプションが存在します。支払いを取り返してから削除してください。";
+const SUBSCRIPTION_DISABLED_REASON =
+  "有料契約またはプラン変更の予約が残っています。「プランと支払い」で契約や予約を終了してから、グループを削除してください。";
 
 type Props = {
   canDelete: boolean;

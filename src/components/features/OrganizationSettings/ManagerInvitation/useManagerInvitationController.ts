@@ -90,8 +90,8 @@ export function useManagerInvitationController(input: Input) {
         title: "ログイン案内を送りました",
         description:
           latest.managerInvitationMode === "freeManagerExchange"
-            ? "本人のアカウント連携が完了するまでは、現在の管理者が操作を継続します。"
-            : "本人がログインしてアカウントを連携すると、管理者になります。",
+            ? "本人がログインして招待を受け入れるまでは、現在の管理者が操作を継続します。"
+            : "本人が案内先のメールアドレスでログインし、招待を受け入れると管理者になります。",
       });
       setIsOpen(false);
     } catch (error) {

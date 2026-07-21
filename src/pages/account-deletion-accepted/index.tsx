@@ -15,8 +15,8 @@ export function AccountDeletionAcceptedPage() {
           iconVariant="circle"
           size="lg"
           title="アカウントの削除を受け付けました"
-          description="このログインではシフトリを利用できません。ログイン情報は通常、数分以内に削除されます。このページを閉じても処理は継続します。"
-          secondaryDescription="シフトリ内の氏名、メールアドレス、店舗名、過去の履歴は業務記録として残ります。登録し直しても、新しいアカウントへ自動で紐付けません。"
+          description="このアカウントでは、すでにシフトリを利用できません。ログイン用アカウントの削除は通常、数分以内に完了します。このページを閉じても処理は続きます。"
+          secondaryDescription="シフトリ内の氏名、メールアドレス、店舗名、過去の履歴は業務記録として残ります。同じメールアドレスで登録し直しても、新しいアカウントには自動で引き継がれません。"
           tone="brand"
           minH={{ base: `calc(100dvh - ${HEADER_HEIGHT.base})`, md: `calc(100dvh - ${HEADER_HEIGHT.md})` }}
           px={{ base: 2, md: 4 }}

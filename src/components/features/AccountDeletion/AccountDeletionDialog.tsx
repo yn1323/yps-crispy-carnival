@@ -37,7 +37,9 @@ export function AccountDeletionDialog({ isOpen, isRunning, error, onClose, onOpe
         <Stack gap={4}>
           <Text fontWeight="bold">この操作は元に戻せません。</Text>
           <Stack gap={2} fontSize="sm" color="fg" lineHeight="tall">
-            <Text>Clerkのログイン情報を削除し、このログインではシフトリを利用できない状態にします。</Text>
+            <Text>
+              シフトリへのログインに使うアカウントを削除します。削除後は、このアカウントでシフトリを利用できません。
+            </Text>
             <Text>
               シフトリ内の氏名、メールアドレス、店舗名、過去のシフト・同意・請求などの履歴は、業務記録として残ります。
             </Text>

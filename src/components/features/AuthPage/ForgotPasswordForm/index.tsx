@@ -42,7 +42,7 @@ export function ForgotPasswordForm({
         <Alert.Root status="info" borderRadius="lg">
           <Alert.Indicator />
           <Alert.Description>
-            {email ? `${email} に届いたコード` : "メールに届いたコード"}と新しいパスワードを入力してください。
+            {email ? `${email}に届いたコード` : "メールに届いたコード"}と新しいパスワードを入力してください。
           </Alert.Description>
         </Alert.Root>
         <Field.Root invalid={!!resetErrors.code}>

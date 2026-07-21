@@ -65,7 +65,7 @@ describe("useStaffManagerInvitation", () => {
     });
     expect(mocks.showSuccessToast).toHaveBeenCalledWith({
       title: "ログイン案内を送りました",
-      description: "本人のアカウントと店舗人物の連携後に管理者になります。",
+      description: "本人が案内先のメールアドレスでログインし、招待を受け入れると管理者になります。",
     });
     expect(mocks.showErrorToast).not.toHaveBeenCalled();
   });

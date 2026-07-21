@@ -159,8 +159,8 @@ export function ManagerInvitationDialog({
               <Stack gap={4}>
                 <Text fontSize="sm" color="fg.muted" lineHeight="tall">
                   {isFreeManagerExchange
-                    ? "次の管理者にするスタッフを1名選んでください。本人のアカウント連携が完了するまでは、現在の管理者が利用を継続します。"
-                    : "管理者として招待するスタッフを1名選んでください。本人がログインしてアカウントを連携すると、管理者になります。"}
+                    ? "次の管理者にするスタッフを1名選んでください。本人がログインして招待を受け入れるまでは、現在の管理者が利用を継続します。"
+                    : "管理者として招待するスタッフを1名選んでください。本人が案内先のメールアドレスでログインし、招待を受け入れると管理者になります。"}
                 </Text>
                 {staffCandidates.length === 0 ? (
                   <Stack

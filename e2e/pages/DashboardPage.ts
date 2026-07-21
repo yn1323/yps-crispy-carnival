@@ -28,11 +28,11 @@ export class DashboardPage {
   async expectTrialEndingNoticeVisible() {
     const callout = this.trialEndingNoticeCallout();
     await expect(callout).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
-    await expect(callout.getByRole("link", { name: "支払いに移動", exact: true })).toBeVisible();
+    await expect(callout.getByRole("link", { name: "プランと支払いを見る", exact: true })).toBeVisible();
   }
 
   async openTrialEndingNoticeBilling() {
-    const link = this.trialEndingNoticeCallout().getByRole("link", { name: "支払いに移動", exact: true });
+    const link = this.trialEndingNoticeCallout().getByRole("link", { name: "プランと支払いを見る", exact: true });
     await expect(link).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
     await Promise.all([this.page.waitForURL(/\/settings\?/, { timeout: DASHBOARD_DATA_TIMEOUT }), link.click()]);
   }

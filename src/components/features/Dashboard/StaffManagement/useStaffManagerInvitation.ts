@@ -50,8 +50,8 @@ export function useStaffManagerInvitation(selectedStaff: Staff | null, { isReadO
         description: didResend
           ? "以前のURLは利用できません。"
           : invitationMode === "freeManagerExchange"
-            ? "本人のアカウント連携後に自動で交代します。"
-            : "本人のアカウントと店舗人物の連携後に管理者になります。",
+            ? "本人がログインして招待を受け入れると、自動で管理者が交代します。"
+            : "本人が案内先のメールアドレスでログインし、招待を受け入れると管理者になります。",
       });
       return true;
     } catch (error) {

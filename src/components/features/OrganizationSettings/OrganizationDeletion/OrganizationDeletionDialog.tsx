@@ -56,7 +56,7 @@ export function OrganizationDeletionDialog({ dialog, isRunning, onClose, onSubmi
             <Text>
               グループ名、店舗名、氏名、メールアドレス、過去のシフト・同意・請求などの履歴は、業務記録として残ります。
             </Text>
-            <Text>ほかのグループの所属と、Clerkのログインアカウントは削除しません。</Text>
+            <Text>ほかのグループへの所属と、シフトリへのログインに使うアカウントは削除しません。</Text>
             <Text>ほかに所属がない場合は、削除後に新しい店舗を登録できます。</Text>
           </Stack>
           <Field.Root required>

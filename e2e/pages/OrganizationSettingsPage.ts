@@ -3,7 +3,7 @@ import { UserDetailPage } from "./UserDetailPage";
 
 const SETTINGS_DATA_TIMEOUT = 20_000;
 const SUBSCRIPTION_DELETION_DISABLED_REASON =
-  "サブスクリプションが存在します。支払いを取り返してから削除してください。";
+  "有料契約またはプラン変更の予約が残っています。「プランと支払い」で契約や予約を終了してから、グループを削除してください。";
 
 export class OrganizationSettingsPage {
   constructor(private page: Page) {}
@@ -97,7 +97,7 @@ export class OrganizationSettingsPage {
       dialog.getByRole("heading", { name: `${personName}さんへ管理者交代の案内を送りますか？` }),
     ).toBeVisible();
     await expect(
-      dialog.getByText(new RegExp(`${escapeRegExp(personName)}さんがアカウントを連携すると、`)),
+      dialog.getByText(new RegExp(`${escapeRegExp(personName)}さんがログインして招待を受け入れると、`)),
     ).toBeVisible();
     await expect(dialog.getByText(/このグループの唯一の管理者になります/)).toBeVisible();
     await expect(dialog.getByText(/あなたのこのグループの管理者権限は終了し/)).toBeVisible();
