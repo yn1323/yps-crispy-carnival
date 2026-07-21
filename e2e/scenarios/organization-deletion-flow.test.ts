@@ -1,6 +1,10 @@
 import { expect, test } from "../fixtures/e2eTest";
 import { expectNoA11yViolations } from "../helpers/accessibility";
-import { resetCurrentManagerScenarioData, seedOrganizationDeletionScenario } from "../helpers/scenarioSeeds";
+import {
+  resetCurrentManagerScenarioData,
+  seedActiveProOrganizationDeletionScenario,
+  seedOrganizationDeletionScenario,
+} from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 import { OrganizationSettingsPage } from "../pages/OrganizationSettingsPage";
 
@@ -63,5 +67,25 @@ test.describe("最後のグループの削除", { tag: ["@release", "@security",
       await expect(page.getByText(seed.targetOrganizationName, { exact: true })).toHaveCount(0);
       await expect(page.getByText(seed.targetShopName, { exact: true })).toHaveCount(0);
     });
+  });
+});
+
+test.describe("支払い継続中のグループ削除制約", { tag: ["@release", "@security"] }, () => {
+  test.setTimeout(60_000);
+
+  test.afterEach(() => {
+    resetCurrentManagerScenarioData();
+  });
+
+  test("OD-P0-03: active Proの支払いが続く間はグループ削除を開始できない", async ({ page }) => {
+    const seed = seedActiveProOrganizationDeletionScenario({
+      organizationName: "active Pro削除不可E2Eグループ",
+      shopName: "active Pro削除不可E2E店舗",
+    });
+    const settings = new OrganizationSettingsPage(page);
+
+    await settings.goto(seed.shopId, "settings");
+    await settings.expectOrganization(seed.organizationName);
+    await settings.expectOrganizationDeletionBlockedBySubscription();
   });
 });

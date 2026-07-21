@@ -13,6 +13,7 @@ import type { ShopSettingsData } from "../ShopSettings";
 import { StaffManagement, type StaffManagementData } from "../StaffManagement";
 import { StaffRegistrationRequestManagement } from "../StaffRegistrationRequestManagement";
 import { StaffRosterSkeleton } from "../StaffRoster";
+import { TrialEndingCallout, type TrialEndingNoticeData } from "../TrialEndingCallout";
 import type {
   DashboardAnnouncement as DashboardAnnouncementData,
   DashboardRecruitmentGroup,
@@ -60,6 +61,8 @@ type Props = {
   showAccountDeletion?: boolean;
   announcement?: DashboardAnnouncementData | null;
   operationContextData?: OperationContextData;
+  trialEndingNotice?: TrialEndingNoticeData | null;
+  billingSettingsShopId?: string;
 };
 
 export const DashboardContent = ({
@@ -90,6 +93,8 @@ export const DashboardContent = ({
   showAccountDeletion = false,
   announcement,
   operationContextData,
+  trialEndingNotice,
+  billingSettingsShopId,
 }: Props) => {
   // Storyはqueryに依存せず募集・スタッフの代表状態を固定する。本番の募集・スタッフは各子featureが購読する。
   const usesInjectedData = recruitments !== undefined || staffs !== undefined;
@@ -178,6 +183,12 @@ export const DashboardContent = ({
                                   <ContentWrapper>
                                     <OperationContext data={operationContextData} />
                                     <LegalReconsent status={managerLegalConsentStatus} />
+                                    {billingSettingsShopId && (
+                                      <TrialEndingCallout
+                                        notice={trialEndingNotice ?? null}
+                                        shopId={billingSettingsShopId}
+                                      />
+                                    )}
                                     <HeroSummary
                                       recruitments={recruitment.recruitments}
                                       onOpenShiftBoard={(recruitmentId) =>

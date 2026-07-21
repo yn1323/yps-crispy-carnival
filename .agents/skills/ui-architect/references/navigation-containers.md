@@ -75,6 +75,8 @@
 - **モーダルの中にモーダルを開かない**：迷子になる
 - **長すぎる内容は避ける**：スクロールするモーダルは設計失敗
 - **モバイルで重いDialog → 全画面Dialog**：現状のシフトリ実装では `maxW="100vw"` / `maxH="100dvh"` と `contentProps` で全画面化する
+- **Dialog表示中のToast操作でDialogを閉じない**：ToastはPortalでDialog外に描画されるため、閉じる・actionがoutside interaction扱いになり得る。共有 `Dialog` / `StepperDialog` を使い、raw Chakra Dialogを使う場合も同じ抑止を適用する
+- Behavior Testでは、Toastの閉じる操作後に「Toastが消える」と「Dialogが残る」の両方を検証する
 
 ## Drawer
 

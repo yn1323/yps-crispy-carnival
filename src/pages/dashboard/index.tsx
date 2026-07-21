@@ -88,6 +88,8 @@ export function DashboardPage({ visibleUserCount, focusedPersonId, onVisibleUser
             visibleUserCount={visibleUserCount}
             focusedPersonId={focusedPersonId}
             onVisibleUserCountChange={onVisibleUserCountChange}
+            trialEndingNotice={shop?.trialEndingNotice ?? null}
+            billingSettingsShopId={selectedContext?.shopId}
             operationContextData={
               selectedContext && selectableShops ? { shops: selectableShops, selectedShop: selectedContext } : undefined
             }

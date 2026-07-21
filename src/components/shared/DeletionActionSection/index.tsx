@@ -1,7 +1,7 @@
 import { Box, Heading, Stack, Text } from "@chakra-ui/react";
 import { type ReactNode, useId } from "react";
 import { LuTrash2 } from "react-icons/lu";
-import { Button } from "@/src/components/ui/Button";
+import { Button, type ButtonProps } from "@/src/components/ui/Button";
 
 type Props = {
   title: string;
@@ -9,6 +9,7 @@ type Props = {
   description?: string;
   descriptionId?: string;
   actionLabel: string;
+  actionVariant?: ButtonProps["variant"];
   canDelete: boolean;
   disabledReason?: string;
   disabledReasonId?: string;
@@ -22,6 +23,7 @@ export function DeletionActionSection({
   description,
   descriptionId,
   actionLabel,
+  actionVariant = "outline",
   canDelete,
   disabledReason,
   disabledReasonId,
@@ -47,7 +49,7 @@ export function DeletionActionSection({
 
         <Stack gap={2} align="flex-end">
           <Button
-            variant="outline"
+            variant={actionVariant}
             colorPalette="red"
             disabled={!canDelete}
             title={!canDelete ? disabledReason : undefined}

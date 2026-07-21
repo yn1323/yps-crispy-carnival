@@ -126,9 +126,11 @@ export function UserDetailView({
           </Text>
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
+            colorPalette="teal"
             size="sm"
             gap={1.5}
+            fontWeight="semibold"
             disabled={!data.canWrite || state.membership.isAdding}
             onClick={actions.onOpenAddShop}
           >

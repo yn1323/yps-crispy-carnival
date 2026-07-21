@@ -21,7 +21,7 @@ export const Toaster = () => {
                 {toast.description && <Toast.Description>{toast.description}</Toast.Description>}
               </Stack>
               {toast.action && <Toast.ActionTrigger>{toast.action.label}</Toast.ActionTrigger>}
-              <Toast.CloseTrigger cursor="pointer" />
+              <Toast.CloseTrigger cursor="pointer" aria-label="通知を閉じる" />
             </Toast.Root>
           )}
         </ChakraToaster>

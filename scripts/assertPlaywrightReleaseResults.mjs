@@ -22,7 +22,7 @@ const projectWallSpans = new Map();
 const requiredProjectMinimums = new Map([
   ["setup", 6],
   ["multi-actor-chromium", 6],
-  ["desktop-chromium", 65],
+  ["desktop-chromium", 67],
   ["mobile-chrome", 1],
 ]);
 const requiredE2EUserIndexes = new Set([0, 1, 2, 3, 4, 5]);
@@ -61,9 +61,15 @@ const requiredScenarioSuites = [
   "scenarios/staff-registration-review.test.ts",
   "scenarios/staff-shift-submission.test.ts",
   "scenarios/staff-shift-target-impact.test.ts",
+  "scenarios/trial-ending-notice.test.ts",
   "scenarios/user-shop-membership-flow.test.ts",
 ];
 const requiredContractCoverage = [
+  {
+    id: "BILL-P0-01",
+    file: "scenarios/trial-ending-notice.test.ts",
+    project: "desktop-chromium",
+  },
   {
     id: "MM-P0-01",
     file: "scenarios/multiActor/manager-invitation-collaboration.test.ts",
@@ -96,6 +102,11 @@ const requiredContractCoverage = [
   },
   {
     id: "OD-P0-02",
+    file: "scenarios/organization-deletion-flow.test.ts",
+    project: "desktop-chromium",
+  },
+  {
+    id: "OD-P0-03",
     file: "scenarios/organization-deletion-flow.test.ts",
     project: "desktop-chromium",
   },
@@ -191,7 +202,7 @@ function inspectSuite(suite, ancestors, inheritedFile) {
       testCount += 1;
       projectCounts.set(test.projectName, (projectCounts.get(test.projectName) ?? 0) + 1);
       if (suiteFile) {
-        const contractIds = new Set(specTitle.match(/\b(?:MM|MG|MS|OD|REG)-P0-\d+\b/g) ?? []);
+        const contractIds = new Set(specTitle.match(/\b(?:BILL|MM|MG|MS|OD|REG)-P0-\d+\b/g) ?? []);
         observedContractLocations.push({ contractIds, file: suiteFile, project: test.projectName, title: specTitle });
       }
       const title = [...path, specTitle].join(" > ");

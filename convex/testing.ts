@@ -1037,6 +1037,24 @@ async function createActiveFreeEntitlement(
   });
 }
 
+async function patchScenarioBillingState(
+  ctx: MutationCtx,
+  organizationId: Id<"organizations">,
+  state: Doc<"organizationBillingStates">["state"],
+) {
+  const current = await ctx.db
+    .query("organizationBillingStates")
+    .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+    .unique();
+  if (!current) throw new Error("E2E organization billing state was not found");
+
+  await ctx.db.patch(current._id, {
+    state,
+    version: current.version + 1,
+    updatedAt: Date.now(),
+  });
+}
+
 async function createScenarioStaff(
   ctx: MutationCtx,
   args: {
@@ -1166,6 +1184,84 @@ export const seedMultiShopOrganizationScenario = internalMutation({
       primaryMarkerPersonEmail: args.primaryMarkerPersonEmail ?? DEFAULT_PRIMARY_MARKER.email,
       secondaryMarkerPersonName: args.secondaryMarkerPersonName ?? DEFAULT_SECONDARY_MARKER.name,
       secondaryMarkerPersonEmail: args.secondaryMarkerPersonEmail ?? DEFAULT_SECONDARY_MARKER.email,
+    };
+  },
+});
+
+/** 同一グループの全店舗へトライアル終了Calloutを出すE2E前提を作る。 */
+export const seedTrialEndingNoticeScenario = internalMutation({
+  args: {
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.string(),
+    trialEndsAt: v.number(),
+    organizationName: v.optional(v.string()),
+    primaryShopName: v.optional(v.string()),
+    secondaryShopName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+    if (!Number.isFinite(args.trialEndsAt)) throw new Error("trialEndsAt must be finite");
+
+    const organizationName = args.organizationName ?? "E2E トライアル終了グループ";
+    const primaryShopName = args.primaryShopName ?? "E2E トライアル終了 A店";
+    const secondaryShopName = args.secondaryShopName ?? "E2E トライアル終了 B店";
+    const base = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
+      organizationName,
+      shopName: primaryShopName,
+    });
+    const secondaryShopId = await createScenarioShop(ctx, {
+      organizationId: base.organizationId,
+      name: secondaryShopName,
+      managerUserId: base.userId,
+    });
+
+    // selectedPaidPlanを設定せず、Stripe行も作らない未登録トライアルを再現する。
+    await patchScenarioBillingState(ctx, base.organizationId, {
+      kind: "trial",
+      trialEndsAt: args.trialEndsAt,
+    });
+
+    return {
+      organizationId: base.organizationId,
+      shopId: base.shopId,
+      primaryShopId: base.shopId,
+      secondaryShopId,
+      organizationName,
+      primaryShopName,
+      secondaryShopName,
+      trialEndsAt: args.trialEndsAt,
+    };
+  },
+});
+
+/** Stripe行なしのactive Proを作り、グループ削除UIの課金ガードだけを検証するE2E前提。 */
+export const seedActiveProOrganizationDeletionScenario = internalMutation({
+  args: {
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.string(),
+    organizationName: v.optional(v.string()),
+    shopName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+    const organizationName = args.organizationName ?? "E2E active Pro削除不可グループ";
+    const shopName = args.shopName ?? "E2E active Pro削除不可店舗";
+    const base = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
+      organizationName,
+      shopName,
+    });
+
+    await patchScenarioBillingState(ctx, base.organizationId, { kind: "active", plan: "pro" });
+
+    return {
+      organizationId: base.organizationId,
+      shopId: base.shopId,
+      organizationName,
+      shopName,
     };
   },
 });

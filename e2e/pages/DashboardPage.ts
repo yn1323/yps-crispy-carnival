@@ -25,6 +25,18 @@ export class DashboardPage {
     await this.page.goto(shopId ? `/dashboard?shop=${encodeURIComponent(shopId)}` : "/dashboard");
   }
 
+  async expectTrialEndingNoticeVisible() {
+    const callout = this.trialEndingNoticeCallout();
+    await expect(callout).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
+    await expect(callout.getByRole("link", { name: "支払いに移動", exact: true })).toBeVisible();
+  }
+
+  async openTrialEndingNoticeBilling() {
+    const link = this.trialEndingNoticeCallout().getByRole("link", { name: "支払いに移動", exact: true });
+    await expect(link).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
+    await Promise.all([this.page.waitForURL(/\/settings\?/, { timeout: DASHBOARD_DATA_TIMEOUT }), link.click()]);
+  }
+
   async completeSetup(data: {
     shopName: string;
     shiftStartTime?: string;
@@ -558,6 +570,10 @@ export class DashboardPage {
 
   private staffSection() {
     return this.page.getByRole("region", { name: "スタッフ一覧" });
+  }
+
+  private trialEndingNoticeCallout() {
+    return this.page.getByRole("region", { name: "トライアル終了前の支払い案内" });
   }
 
   private staffRegistrationRequestDialog() {

@@ -134,6 +134,64 @@ export function seedMultiShopOrganizationScenario(
   return result;
 }
 
+export type TrialEndingNoticeScenarioArgs = {
+  trialEndsAt: number;
+  organizationName?: string;
+  primaryShopName?: string;
+  secondaryShopName?: string;
+};
+
+export type TrialEndingNoticeScenarioSeed = {
+  organizationId: string;
+  shopId: string;
+  primaryShopId: string;
+  secondaryShopId: string;
+  organizationName: string;
+  primaryShopName: string;
+  secondaryShopName: string;
+  trialEndsAt: number;
+};
+
+export function seedTrialEndingNoticeScenario(args: TrialEndingNoticeScenarioArgs): TrialEndingNoticeScenarioSeed {
+  const owner = getCurrentE2EClerkUser();
+  const result = convexRunJson<TrialEndingNoticeScenarioSeed>("testing:seedTrialEndingNoticeScenario", {
+    managerAuthTokenIdentifier: getE2EManagerAuthTokenIdentifier(owner.index),
+    managerEmail: owner.email,
+    ...args,
+  });
+  assertNotificationDeliverySuppressed(result.primaryShopId);
+  assertNotificationDeliverySuppressed(result.secondaryShopId);
+  return result;
+}
+
+export type ActiveProOrganizationDeletionScenarioArgs = {
+  organizationName?: string;
+  shopName?: string;
+};
+
+export type ActiveProOrganizationDeletionScenarioSeed = {
+  organizationId: string;
+  shopId: string;
+  organizationName: string;
+  shopName: string;
+};
+
+export function seedActiveProOrganizationDeletionScenario(
+  args: ActiveProOrganizationDeletionScenarioArgs = {},
+): ActiveProOrganizationDeletionScenarioSeed {
+  const owner = getCurrentE2EClerkUser();
+  const result = convexRunJson<ActiveProOrganizationDeletionScenarioSeed>(
+    "testing:seedActiveProOrganizationDeletionScenario",
+    {
+      managerAuthTokenIdentifier: getE2EManagerAuthTokenIdentifier(owner.index),
+      managerEmail: owner.email,
+      ...args,
+    },
+  );
+  assertNotificationDeliverySuppressed(result.shopId);
+  return result;
+}
+
 export type MultiActorOrganizationScenarioArgs = {
   organizationName?: string;
   primaryShopName?: string;

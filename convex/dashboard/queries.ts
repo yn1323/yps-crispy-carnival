@@ -22,6 +22,8 @@ import {
   organizationMemberStatusValidator,
   organizationShopOperatingStatusValidator,
 } from "../organization/validators";
+import { TRIAL_ENDING_REMINDER_LEAD_MS } from "../organizationBilling/notification";
+import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
 import { getOrganizationBillingPolicy } from "../organizationBilling/service";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
 
@@ -105,6 +107,13 @@ const dashboardShopValidator = v.object({
   submissionPattern: submissionPatternValidator,
   canWriteBusinessData: v.boolean(),
   businessWriteBlockReason: v.union(v.literal("paymentResultPending"), v.literal("restricted"), v.null()),
+  trialEndingNotice: v.union(
+    v.object({
+      visibleFrom: v.number(),
+      trialEndsAt: v.number(),
+    }),
+    v.null(),
+  ),
 });
 
 // shop未登録のsetup中や、ログアウト直後に購読中queryが未認証で再実行された場合でも
@@ -266,7 +275,15 @@ export const getDashboardShop = managerQuery({
   handler: async (ctx) => {
     const shop = ctx.shop;
     if (!shop) return null;
-    const billingPolicy = ctx.organization ? await getOrganizationBillingPolicy(ctx, ctx.organization._id) : null;
+    const billingState = ctx.organization ? await getOrganizationBillingState(ctx, ctx.organization._id) : null;
+    const billingPolicy = billingState ? deriveOrganizationBillingPolicy(billingState.state) : null;
+    const trialEndingNotice =
+      billingState?.state.kind === "trial" && billingState.state.selectedPaidPlan === undefined
+        ? {
+            visibleFrom: billingState.state.trialEndsAt - TRIAL_ENDING_REMINDER_LEAD_MS,
+            trialEndsAt: billingState.state.trialEndsAt,
+          }
+        : null;
 
     return {
       name: shop.name,
@@ -275,6 +292,7 @@ export const getDashboardShop = managerQuery({
       // 課金state未作成の移行中orgは、managerMutationの旧導線互換と同じく許可扱いにする。
       canWriteBusinessData: billingPolicy?.canWriteBusinessData ?? true,
       businessWriteBlockReason: billingPolicy?.businessWriteBlockReason ?? null,
+      trialEndingNotice,
     };
   },
 });

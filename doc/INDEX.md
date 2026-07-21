@@ -19,6 +19,7 @@
 | [スタッフ通知履歴](features/notification-history.md) | スタッフごとのメール・LINE通知日時、タイトル、送信・配信状況をスタッフ詳細で確認 | 実装済 |
 | [通知不達Dashboard](features/notification-failure-dashboard.md) | 送信できなかった通知をDashboardで確認し、個別/一斉に再通知を受け付ける導線 | 実装済 |
 | [Dashboardお知らせ](features/dashboard-announcements.md) | 有事のお知らせを全体・グループ・店舗の対象別にDashboard上部へ1件表示 | 実装済 |
+| [トライアル終了前Dashboard案内](features/trial-ending-dashboard-callout.md) | Pro継続未登録のグループへ終了7日前から制限内容と支払い導線を全店舗で表示 | 実装済 |
 | [グループ課金、複数店舗、複数管理者](features/organization-billing.md) | 4区分のグループ課金状態、Stripe連携、人物、管理者招待、店舗管理、店舗切り替え、移行互換 | 4区分とStripe基盤を実装、公開`off`、外部設定待ち |
 | [ユーザー詳細](features/user-detail.md) | グループ人物を正本として、共通プロフィールと店舗別のスタッフ設定、通知、LINE連携を一つのページで管理 | 実装済 |
 | [店舗・グループ削除](features/data-deletion.md) | 業務識別情報を保持した論理削除、Capability失効、永続cleanupの保証範囲 | 実装済、本番migration未実行 |

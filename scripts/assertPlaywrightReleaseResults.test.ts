@@ -154,7 +154,7 @@ const SCENARIO_FIXTURES = [
   {
     file: "scenarios/organization-deletion-flow.test.ts",
     project: "desktop-chromium",
-    titles: ["[OD-P0-02] 組織削除を完了する"],
+    titles: ["[OD-P0-02] 組織削除を完了する", "[OD-P0-03] 支払い継続中の組織削除を防ぐ"],
   },
   {
     file: "scenarios/organization-shop-lifecycle.test.ts",
@@ -221,6 +221,16 @@ const SCENARIO_FIXTURES = [
     project: "desktop-chromium",
     titles: ["スタッフ対象変更の影響を確認する"],
   },
+  {
+    file: "scenarios/trial-ending-notice.test.ts",
+    project: "desktop-chromium",
+    titles: ["[BILL-P0-01] トライアル終了前の支払い案内を確認する"],
+  },
+  {
+    file: "scenarios/user-shop-membership-flow.test.ts",
+    project: "desktop-chromium",
+    titles: ["[MS-P0-04] ユーザーの店舗所属を管理する"],
+  },
 ] as const satisfies readonly ScenarioFixture[];
 
 function createValidReport(): SyntheticReport {
@@ -274,7 +284,7 @@ function createValidReport(): SyntheticReport {
     .flatMap(({ specs }) => specs)
     .flatMap(({ tests }) => tests)
     .filter(({ projectName }) => projectName === "desktop-chromium").length;
-  for (let index = desktopTestCount; index < 64; index += 1) {
+  for (let index = desktopTestCount; index < 67; index += 1) {
     desktopSuite.specs.push({
       title: `Desktop補完シナリオ${index}`,
       tests: [createTest("desktop-chromium")],
@@ -332,9 +342,9 @@ describe("assertPlaywrightReleaseResults", () => {
     expect(result.error).toBeUndefined();
     expect(result.status).toBe(0);
     expect(result.stderr).toBe("");
-    expect(result.stdout).toContain("Release E2E result gate passed: 77 tests");
+    expect(result.stdout).toContain("Release E2E result gate passed: 80 tests");
     expect(result.stdout).toContain(
-      "32 required suites, 13 required P0 contracts across 15 suite/project/spec bindings",
+      "34 required suites, 16 required P0 contracts across 18 suite/project/spec bindings",
     );
     expect(result.stdout).toContain(
       "Observed wall span: total=9.0s; setup=1.0s, multi-actor-chromium=2.0s, desktop-chromium=4.0s, mobile-chrome=1.0s.",

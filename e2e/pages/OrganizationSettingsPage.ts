@@ -2,6 +2,8 @@ import { expect, type Locator, type Page } from "@playwright/test";
 import { UserDetailPage } from "./UserDetailPage";
 
 const SETTINGS_DATA_TIMEOUT = 20_000;
+const SUBSCRIPTION_DELETION_DISABLED_REASON =
+  "サブスクリプションが存在します。支払いを取り返してから削除してください。";
 
 export class OrganizationSettingsPage {
   constructor(private page: Page) {}
@@ -40,6 +42,36 @@ export class OrganizationSettingsPage {
 
   async openSettingsTab() {
     await this.page.getByRole("tab", { name: "設定" }).click();
+  }
+
+  async expectBillingTabSelected(shopId: string) {
+    await expect
+      .poll(
+        () => {
+          const url = new URL(this.page.url());
+          return {
+            pathname: url.pathname,
+            shop: url.searchParams.get("shop"),
+            tab: url.searchParams.get("tab"),
+          };
+        },
+        { timeout: SETTINGS_DATA_TIMEOUT },
+      )
+      .toEqual({ pathname: "/settings", shop: shopId, tab: "billing" });
+    await expect(this.page.getByRole("tab", { name: "プランと支払い" })).toHaveAttribute("aria-selected", "true", {
+      timeout: SETTINGS_DATA_TIMEOUT,
+    });
+  }
+
+  async expectOrganizationDeletionBlockedBySubscription() {
+    await this.openSettingsTab();
+    const deleteButton = this.page.getByRole("button", { name: "削除", exact: true });
+    await expect(deleteButton).toBeDisabled({ timeout: SETTINGS_DATA_TIMEOUT });
+    await expect(this.page.getByText(SUBSCRIPTION_DELETION_DISABLED_REASON, { exact: true })).toBeVisible();
+
+    // native click()でもdisabled buttonはclick eventを発火せず、確認Dialogを開かない。
+    await deleteButton.evaluate((element: HTMLButtonElement) => element.click());
+    await expect(this.page.getByRole("alertdialog", { name: "グループを削除" })).toHaveCount(0);
   }
 
   async inviteExistingStaffAsManager(personName: string) {

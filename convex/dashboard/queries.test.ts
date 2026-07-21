@@ -11,9 +11,11 @@ import {
   testAuthTokenIdentifier,
 } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { TRIAL_ENDING_REMINDER_LEAD_MS } from "../organizationBilling/notification";
 
 const PAGINATION_FIRST_PAGE = { paginationOpts: { numItems: 10, cursor: null } };
 const firstPageArgs = (shopId: Id<"shops">) => ({ ...PAGINATION_FIRST_PAGE, shopId });
+const TRIAL_ENDS_AT = Date.parse("2026-09-01T00:00:00+09:00");
 
 describe("dashboard/queries", () => {
   describe("getDashboardShop", () => {
@@ -48,6 +50,96 @@ describe("dashboard/queries", () => {
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         canWriteBusinessData: true,
         businessWriteBlockReason: null,
+        trialEndingNotice: null,
+      });
+    });
+
+    it("Pro継続未登録のトライアルは終了7日前から使う通知境界を返す", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId } = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "dashboard_trial_unregistered",
+          plan: "free",
+        });
+        const billingState = await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+          .unique();
+        if (!billingState) throw new Error("billing state not found");
+        await ctx.db.patch(billingState._id, {
+          state: { kind: "trial", trialEndsAt: TRIAL_ENDS_AT },
+        });
+        return seeded;
+      });
+
+      const result = await t
+        .withIdentity({ subject: "dashboard_trial_unregistered" })
+        .query(api.dashboard.queries.getDashboardShop, { shopId });
+
+      expect(result?.trialEndingNotice).toEqual({
+        visibleFrom: TRIAL_ENDS_AT - TRIAL_ENDING_REMINDER_LEAD_MS,
+        trialEndsAt: TRIAL_ENDS_AT,
+      });
+    });
+
+    it.each(["pro", "business"] as const)("%s継続登録済みのトライアルは終了通知を返さない", async (plan) => {
+      const t = convexTest(schema, modules);
+      const subject = `dashboard_trial_registered_${plan}`;
+      const { shopId } = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, { subject, plan: "free" });
+        const billingState = await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+          .unique();
+        if (!billingState) throw new Error("billing state not found");
+        await ctx.db.patch(billingState._id, {
+          state: { kind: "trial", trialEndsAt: TRIAL_ENDS_AT, selectedPaidPlan: plan },
+        });
+        return seeded;
+      });
+
+      const result = await t.withIdentity({ subject }).query(api.dashboard.queries.getDashboardShop, { shopId });
+
+      expect(result?.trialEndingNotice).toBeNull();
+    });
+
+    it("同じグループの全店舗で同じトライアル終了通知を返す", async () => {
+      const t = convexTest(schema, modules);
+      const { firstShopId, secondShopId } = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "dashboard_trial_multi_shop",
+          shopName: "トライアル店舗A",
+          plan: "free",
+        });
+        const billingState = await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+          .unique();
+        if (!billingState) throw new Error("billing state not found");
+        await ctx.db.patch(billingState._id, {
+          state: { kind: "trial", trialEndsAt: TRIAL_ENDS_AT },
+        });
+        const secondShopId = await ctx.db.insert("shops", {
+          organizationId: seeded.organizationId,
+          operatingStatus: "active",
+          name: "トライアル店舗B",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        });
+        return { firstShopId: seeded.shopId, secondShopId };
+      });
+      const asManager = t.withIdentity({ subject: "dashboard_trial_multi_shop" });
+
+      const [firstShop, secondShop] = await Promise.all([
+        asManager.query(api.dashboard.queries.getDashboardShop, { shopId: firstShopId }),
+        asManager.query(api.dashboard.queries.getDashboardShop, { shopId: secondShopId }),
+      ]);
+
+      expect(firstShop?.trialEndingNotice).toEqual(secondShop?.trialEndingNotice);
+      expect(firstShop?.trialEndingNotice).toEqual({
+        visibleFrom: TRIAL_ENDS_AT - TRIAL_ENDING_REMINDER_LEAD_MS,
+        trialEndsAt: TRIAL_ENDS_AT,
       });
     });
 
@@ -173,6 +265,7 @@ describe("dashboard/queries", () => {
         "name",
         "regularClosedDays",
         "submissionPattern",
+        "trialEndingNotice",
       ]);
     });
 

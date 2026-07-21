@@ -34,7 +34,7 @@ export class UserDetailPage {
     await emailInput.clear();
     await emailInput.fill(data.email);
     await dialog.getByRole("button", { name: "変更を保存" }).click();
-    await this.expectToastVisibleThenHidden("ユーザー情報を更新しました");
+    await this.expectToastVisibleThenHidden("ユーザー情報を更新しました", dialog);
     await this.closeDialog(dialog);
     this.personName = data.name;
   }
@@ -60,7 +60,7 @@ export class UserDetailPage {
     await expect(confirmation).toBeVisible();
     await expect(confirmation.getByText(/スタッフとしての店舗所属は維持します/)).toBeVisible();
     await confirmation.getByRole("button", { name: "管理者権限を外す" }).click();
-    await this.expectToastVisibleThenHidden("管理者権限を外しました");
+    await this.expectToastVisibleThenHidden("管理者権限を外しました", dialog);
     await expect(confirmation).not.toBeVisible();
     await this.closeDialog(dialog);
   }
@@ -130,7 +130,10 @@ export class UserDetailPage {
     await expect(shiftTargetSwitch).toBeVisible();
     if ((await shiftTargetSwitch.isChecked()) !== isShiftTarget) {
       await shiftTargetSwitch.press("Space");
-      await this.expectToastVisibleThenHidden(isShiftTarget ? "シフト対象に戻しました" : "シフト対象外にしました");
+      await this.expectToastVisibleThenHidden(
+        isShiftTarget ? "シフト対象に戻しました" : "シフト対象外にしました",
+        dialog,
+      );
       await expect(shiftTargetSwitch).toBeChecked({ checked: isShiftTarget });
     }
     await this.closeDialog(dialog);
@@ -139,14 +142,14 @@ export class UserDetailPage {
   async sendOpenRecruitmentNotification(shop = this.requireContextShop()) {
     const dialog = await this.openShopDialog(shop);
     await dialog.getByRole("button", { name: "募集中のシフトを送る" }).click();
-    await this.expectToastVisibleThenHidden("シフト募集通知を送りました");
+    await this.expectToastVisibleThenHidden("シフト募集通知を送りました", dialog);
     await this.closeDialog(dialog);
   }
 
   async sendCurrentShiftNotification(shop = this.requireContextShop()) {
     const dialog = await this.openShopDialog(shop);
     await dialog.getByRole("button", { name: "確定シフトを送る" }).click();
-    await this.expectToastVisibleThenHidden("現在の確定シフトを送りました");
+    await this.expectToastVisibleThenHidden("現在の確定シフトを送りました", dialog);
     await this.closeDialog(dialog);
   }
 
@@ -155,6 +158,7 @@ export class UserDetailPage {
     await dialog.getByRole("button", { name: "メールでLINE連携リンクを送る" }).click();
     await this.expectToastVisibleThenHidden(
       /LINE連携URLをメールで送信しました|LINE連携リンクをメールで送信しました|LINE連携リンクをメールで送りました/,
+      dialog,
     );
     await this.closeDialog(dialog);
   }
@@ -208,10 +212,11 @@ export class UserDetailPage {
     return this.contextShop;
   }
 
-  private async expectToastVisibleThenHidden(title: string | RegExp) {
+  private async expectToastVisibleThenHidden(title: string | RegExp, dialogToRemainOpen?: Locator) {
     const toast = this.page.locator("[data-scope='toast'][data-part='root']").filter({ hasText: title }).first();
     await expect(toast).toBeVisible();
-    await toast.locator("[data-part='close-trigger']").evaluate((element: HTMLElement) => element.click());
+    await toast.getByLabel("通知を閉じる").click();
     await expect(toast).not.toBeVisible();
+    if (dialogToRemainOpen) await expect(dialogToRemainOpen).toBeVisible();
   }
 }
