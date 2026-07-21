@@ -35,8 +35,10 @@ export function StaffShiftReissue({ recruitmentId }: Props) {
       <StaffNarrowContent flex={1} display="flex" alignItems="center" justifyContent="center">
         <Empty
           icon={LuSend}
-          title="新しい閲覧リンクを送りました"
-          description={"LINE連携済みの場合はLINE、\nそれ以外はメールで\n新しい閲覧リンクを送りました。"}
+          title="再発行を受け付けました"
+          description={
+            "入力内容が登録情報と一致し、\n再発行できる場合は、LINEまたはメールへ\n新しい閲覧リンクを送ります。"
+          }
           secondaryDescription={"届かない場合は\nシフト作成担当者に連絡してください。"}
           tone="brand"
         />
