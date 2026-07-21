@@ -29,9 +29,12 @@ Pro（先行登録特典）は、公開API、管理用処理、Stripeイベン�
 
 ## Stripe公開状態
 
-開発用Stripe Sandboxには月額JPY 1,480のPro Priceを登録し、開発用Convex deploymentを`STRIPE_BILLING_MODE=test`で接続する。
+Localと開発用Convex deploymentは、それぞれ専用のStripe Sandboxへ`sk_test_`で始まるSecret keyを使って接続する。
+接続環境は`STRIPE_SECRET_KEY`の接頭辞から自動判定し、月額JPY 1,480のPro Priceを含むStripeオブジェクトの`livemode`と一致しない場合は課金操作を拒否する。
 
-本番deploymentは、税、日割り、返金、クレジット、未払い請求の最終処理と本番用Stripe設定を確認するまで`STRIPE_BILLING_MODE=off`を維持する。
+本番deploymentは本番Stripeアカウントへ`sk_live_`で始まるSecret keyを使って接続する。
+税、日割り、返金、クレジット、未払い請求の最終処理と本番用Stripe設定を確認するまではPro Priceをアーカイブし、新規販売を停止する。
+販売停止前に発行したopen状態のCheckout Sessionは別途失効させるが、既存契約のWebhook受信、再照合、取消、請求停止は継続する。
 
 ## 参考ファイル
 

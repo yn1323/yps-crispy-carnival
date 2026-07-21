@@ -1,6 +1,6 @@
 # グループ課金、複数店舗、複数管理者の業務フロー仕様
 
-- ステータス: 4区分と利用上限は確定、Stripe公開は`off`
+- ステータス: 4区分と利用上限は確定、Stripe課金は公開前
 - 更新日: 2026-07-20
 - 対象: Free、Trial、Pro、Pro（先行登録特典）、複数店舗、複数管理者、Stripe課金
 
@@ -104,9 +104,13 @@ Pro（先行登録特典）では課金通知を発生させない。
 
 Businessプランは廃止し、通常課金の有料プランをProへ統一する。
 
-開発用Stripe Sandboxには通常Proの月額JPY 1,480のPriceを登録し、開発用Convex deploymentを`STRIPE_BILLING_MODE=test`で接続する。
+Localと開発用Convex deploymentはそれぞれ専用のStripe Sandboxへ接続し、通常Proの月額JPY 1,480のPriceを登録する。
+両環境では`sk_test_`で始まるSecret keyを使用する。
 
-本番deploymentは、税、日割り、返金、未払い請求の終端方針と本番用Stripe設定を確認するまで`STRIPE_BILLING_MODE=off`を維持する。
+本番deploymentは本番Stripeアカウントへ`sk_live_`で始まるSecret keyを使って接続する。
+接続環境は`STRIPE_SECRET_KEY`の接頭辞から自動判定し、Stripeオブジェクトの`livemode`と一致しない場合は課金操作を拒否する。
+税、日割り、返金、未払い請求の終端方針と本番用Stripe設定を確認するまではPro Priceをアーカイブして新規販売を停止する。
+発行済みのopen Checkout Sessionは別途失効させ、既存契約のWebhook受信と安全処理は継続する。
 
 Pro（先行登録特典）は、`m009_shops_to_organizations`によって旧店舗モデルから作成され、移行元店舗を保持するグループだけを対象とする。
 
@@ -1080,13 +1084,23 @@ Customer PortalのSessionは、有効管理者または契約制限中の復旧�
 
 Portal設定では、支払い方法更新と請求履歴を有効にし、契約取消とプラン変更を無効にする。
 
-### 25.5 公開モードと環境変数
+### 25.5 Stripe接続環境と環境変数
 
-Stripeの新しいユーザー操作は、`STRIPE_BILLING_MODE`が`test`または`live`のときだけ公開する。
+Stripeのtest環境とlive環境は`STRIPE_SECRET_KEY`の`sk_test_`または`sk_live_`接頭辞から自動判定する。
 
-未設定または`off`の場合は、価格表示、Checkout、Customer Portal、無料体験の継続予約、Freeへの変更予約と取消を利用不可にし、準備中であることを案内する。
+Localと開発用Convex deploymentは別々のStripe Sandboxへ接続し、本番deploymentは本番Stripeアカウントへ接続する。
 
-価格、税、請求周期、未払い請求の最終処理が確定するまでは`off`を維持し、仮の価格やPrice IDを登録しない。
+Secret keyの接頭辞が不明な場合や、Price、Customer、Subscription、Invoiceの`livemode`が接続環境と一致しない場合は課金操作を拒否する。
+
+新しいPro契約に使うCheckoutと無料体験の継続登録は、設定済みのPro Priceがactiveな場合だけ開始する。
+
+新規販売を停止するときはPro Priceをアーカイブする。
+Priceのアーカイブ前に発行したopen状態のCheckout Sessionは別途失効させる。
+Priceのアーカイブ前に作成されローカル同期済みのSubscriptionは既存契約として処理を継続する。未同期の作成結果はmetadataで一意な既存objectだけを回収して取り消し、Subscription作成自体は再送しない。
+
+新規販売の停止中も、既存契約のCustomer Portal、Freeへの期間末変更、署名済みWebhook受信、再照合、Subscription取消、Invoice回収停止を継続する。
+
+価格、税、請求周期、未払い請求の最終処理が確定するまではPro Priceをアーカイブし、仮の価格やPrice IDを登録しない。
 
 Stripe連携には、`STRIPE_SECRET_KEY`、`STRIPE_WEBHOOK_SECRET`、`STRIPE_PRO_PRICE_ID`、`STRIPE_PORTAL_CONFIGURATION_ID`、既存の`APP_URL`を使う。
 
@@ -1096,7 +1110,7 @@ Stripe連携には、`STRIPE_SECRET_KEY`、`STRIPE_WEBHOOK_SECRET`、`STRIPE_PRO
 
 テスト環境と本番環境の値を混在させない。
 
-`off`へ切り替えても既存契約の安全処理を停止しない。
+Secret keyとWebhook署名シークレットを新規販売の停止手段として削除しない。
 
 既存契約がある環境では、署名済みWebhookの処理、状態照合、期間末終了、想定外終了の反映に必要な認証情報を維持する。
 
@@ -1164,8 +1178,9 @@ Stripe連携には、`STRIPE_SECRET_KEY`、`STRIPE_WEBHOOK_SECRET`、`STRIPE_PRO
 - 旧未払い請求と新しい契約の請求を重複回収しない。
 - 支払い成功画面だけでは有料機能を開放しない。
 - 重複または順不同のWebhookで、契約状態を過去へ戻さない。
-- `STRIPE_BILLING_MODE=off`では新しいStripeユーザー操作を開始できない。
-- `off`でも既存契約の署名済みWebhookと安全処理を継続できる。
+- `STRIPE_SECRET_KEY`から接続環境を自動判定し、testとliveのStripeオブジェクトを混在させない。
+- Pro Priceのアーカイブ中は新しいPro契約を開始できず、発行済みのopen Checkout Sessionを別途失効できる。
+- 新規販売の停止中も既存契約の署名済みWebhookと安全処理を継続できる。
 
 ### 26.5 通知
 
@@ -1207,7 +1222,7 @@ Stripe連携には、`STRIPE_SECRET_KEY`、`STRIPE_WEBHOOK_SECRET`、`STRIPE_PRO
 - 個人情報の完全消去と法定保持期間
 - グループ全体の閉鎖とデータ消去手続き
 - 詳細な自動テストケースとテストデータ
-- Stripe公開モードを切り替える運用手順
+- Stripe販売停止と再開に伴うDashboard上の詳細な操作手順
 
 ## 28. 実装への対応
 

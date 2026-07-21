@@ -31,6 +31,8 @@ Use this checklist for both pre-implementation plans and code review. Focus on t
 - [ ] Does not rely on frontend route guards or hidden controls.
 - [ ] Billing-sensitive operations re-check billing role/entitlement server-side.
 - [ ] Store-scoped APIs require the selected shop, and first-membership fallback is limited to bootstrap flows.
+- [ ] Stripe test/live selection is derived from the secret key, and Price, Customer, Subscription, Checkout, and webhook `livemode` values are checked against it.
+- [ ] A new-sales stop archives the configured Price without disabling webhook or existing-contract safety processing; already-created open Checkout Sessions have a separate expiry procedure.
 
 ## Staff Token / Session Flow
 

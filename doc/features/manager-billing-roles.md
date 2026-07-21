@@ -21,7 +21,10 @@
 - ProのCheckout、Customer Portal、期間末のFree変更は、専用の請求管理者を設けず、対象グループの全有効管理者へ同じ権限を与える。
 - 契約制限中は、記録された復旧担当者に支払い復旧に必要な操作だけを許可する。
 - Pro（先行登録特典）にはCheckout、Customer Portal、契約変更を表示せず、Stripeオブジェクトを作成しない。
-- 開発用Convex deploymentはStripe Sandboxの実値を登録して`STRIPE_BILLING_MODE=test`とする。本番deploymentは会計判断と本番用Stripe設定を確認するまで`off`を維持する。
+- Localと開発用Convex deploymentは、それぞれ専用のStripe Sandboxへ`sk_test_`で始まるSecret keyを使って接続する。
+- 本番deploymentは、本番Stripeアカウントへ`sk_live_`で始まるSecret keyを使って接続する。
+- 接続環境は`STRIPE_SECRET_KEY`から自動判定する。
+- 販売停止時はPro Priceをアーカイブし、発行済みのopen Checkout Sessionを別途失効させるが、既存契約のWebhook受信と安全処理は継続する。
 
 ## 参考ファイル
 

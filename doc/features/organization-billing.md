@@ -62,7 +62,7 @@
 - `convex/setup/mutations.ts`：グループ、最初の管理者、最初の店舗、Trial課金状態を一つの初期設定処理で作成。
 - `convex/organization/`：グループ設定DTO、店舗操作、人物削除、認可、監査、利用状況集計。
 - `convex/organizationBilling/`：プラン上限、操作policy、期限処理、Free選択、請求先メール、課金通知。
-- `convex/organizationStripe/`：公開モード、Stripe API操作、Webhook署名検証、イベント重複排除、再試行、provider参照。
+- `convex/organizationStripe/`：Secret keyによる接続環境判定、Stripe API操作、Webhook署名検証、イベント重複排除、再試行、provider参照。
 - `convex/http.ts`：`POST /stripe/webhook`をStripe Webhook handlerへ接続。
 - `convex/organizationInvitation/`：管理者招待の発行、再送、取消、失効、公開プレビュー、アカウント連携、通知。
 - `convex/notificationOutbox/`：グループ単位の通知scope、契約制限時の未送信業務通知停止、送信直前の再確認。
@@ -140,7 +140,7 @@
 | `api.organizationInvitation.mutations.accept` | `authenticatedMutation` | 旧クライアント向けの互換API。内部では`linkAccount`と同じ連携処理を行い、成功結果を旧`accepted`形式へ変換する |
 | `api.organizationBilling.mutations.setFreeSelection` | `authenticatedMutation` | Freeで残す管理者と店舗を保存し、契約制限中は再評価する。Pro（先行登録特典）では拒否する |
 | `api.organizationBilling.mutations.updateBillingEmail` | `authenticatedMutation` | 有効管理者または復旧担当者が請求先メールアドレスを変更する。Pro（先行登録特典）では拒否する |
-| `api.organizationStripe.actions.getProPrice` | `action` | 公開モードと設定を確認し、Stripe Priceの金額、通貨、請求周期を返す |
+| `api.organizationStripe.actions.getProPrice` | `action` | 接続環境、設定、Priceのactive状態を確認し、Stripe Priceの金額、通貨、請求周期を返す |
 | `api.organizationStripe.actions.startProCheckout` | `action` | 認可、課金状態、request ID、最新上限を確認し、Pro契約用のCheckout Sessionを作成する |
 | `api.organizationStripe.actions.openCustomerPortal` | `action` | 有効管理者または復旧担当者を確認し、保存済みCustomerだけに一時的なPortal Sessionを作成する |
 | `api.organizationStripe.actions.scheduleFreeAtPeriodEnd` | `action` | ProのSubscriptionへ期間末終了を設定し、検証済み結果を期間末変更予定へ反映する |
@@ -226,8 +226,7 @@ developでm018のstatusがsuccess、未解消migration conflictが0件、後述�
 
 ### Stripe
 
-- `STRIPE_BILLING_MODE`：`off`、`test`、`live`の公開モード。未設定は`off`として扱う。
-- `STRIPE_SECRET_KEY`：現在のモードに対応するStripeのサーバー側秘密鍵。
+- `STRIPE_SECRET_KEY`：Stripeのサーバー側秘密鍵。`sk_test_`または`sk_live_`の接頭辞から接続環境を自動判定する。
 - `STRIPE_WEBHOOK_SECRET`：`POST /stripe/webhook`の署名検証に使うWebhook署名シークレット。
 - `STRIPE_PRO_PRICE_ID`：Proに対応するStripe Price ID。
 - `STRIPE_PORTAL_CONFIGURATION_ID`：支払い方法更新と請求履歴だけを許可するCustomer Portal Configuration ID。
@@ -236,11 +235,16 @@ developでm018のstatusがsuccess、未解消migration conflictが0件、後述�
 Stripe.jsをブラウザで直接使わないため、`VITE_STRIPE_PUBLISHABLE_KEY`は使わない。
 
 Stripeの値はブラウザへ公開せず、`.env`から`pnpm convex:env:setup`でConvex環境へ同期する。
-`STRIPE_BILLING_MODE`を停止するときは、`.env`へ明示的に`STRIPE_BILLING_MODE=off`を書いて同期する。
-ローカルの変数を削除しただけでは同期処理がその項目をskipし、Convex側の既存`test`または`live`値は解除されない。
+`STRIPE_SECRET_KEY`が`sk_test_`または`sk_live_`で始まらない場合は設定不備として課金操作を開始しない。
+Price、Customer、Subscription、Invoiceなどの`livemode`が接続環境と一致しない場合も課金操作を拒否する。
 
-開発用Convex deploymentではStripe Sandboxの実値を登録し、`STRIPE_BILLING_MODE=test`で接続を検証する。
-本番deploymentは、本番用のProduct、Price、Webhook、Customer Portalと会計判断を確認するまで`off`を維持し、Sandboxの実値を流用しない。
+Localと開発用Convex deploymentは、それぞれ専用のStripe Sandboxへ`sk_test_`で始まるSecret keyを使って接続する。
+本番deploymentは本番Stripeアカウントへ`sk_live_`で始まるSecret keyを使って接続し、Sandboxの実値を流用しない。
+
+新規販売を停止するときは、Stripe上のPro Priceをアーカイブする。
+アーカイブ前に発行したopen状態のCheckout Sessionは自動失効しないため、別途失効させる。
+アーカイブ前に作成されローカル同期済みのSubscriptionは既存契約として収束を継続する。作成結果が未同期の場合はmetadataで一意な既存objectだけを回収して取り消し、Subscription作成は再送しない。
+既存契約の状態を失わないように、Secret keyとWebhook署名シークレットは単純に削除せず、Webhook受信、再照合、取消、Invoice回収停止を継続する。
 
 ## プラン上限
 
@@ -313,9 +317,10 @@ Freeを保持している間はFreeの基本業務を継続でき、`restricted`
 | --- | --- |
 | Proの価格、税、請求周期、日割り、返金、クレジット、未払い請求書の最終処理 | Sandboxでは月額JPY 1,480のPriceを登録済み。本番公開前に税、日割り、返金、クレジット、未払い請求書の最終方針を確認する |
 | 既存本番利用者へ割り当てる初期課金状態 | `migrationSourceShopId`があるグループへ、期限と課金のない`complimentary.pro`を付与することを決定済み |
-| Stripe公開モード | 開発用Convex deploymentは`test`、本番deploymentは公開判断まで`off`を維持する |
+| Stripe接続環境 | Localと開発用Convex deploymentは別々のSandboxへ接続し、本番deploymentは本番Stripeアカウントへ接続する。`STRIPE_SECRET_KEY`の接頭辞から自動判定する |
 | Stripe Product、Price、Webhook endpoint、Customer Portal | Stripe Sandboxと開発用Convex deploymentへ登録済み。本番では別の実値と外部設定を登録する |
-| Stripe Webhookと既存契約の安全処理 | `off`でも署名検証、重複排除、再試行、状態照合、契約終了の反映に必要な処理を停止しない |
+| Stripeの新規販売停止 | Pro Priceをアーカイブし、発行済みのopen Checkout Sessionを別途失効させる |
+| Stripe Webhookと既存契約の安全処理 | 新規販売の停止中も署名検証、重複排除、再試行、状態照合、契約終了の反映に必要な処理を停止しない |
 | 本番migration | migrationコードだけを実装し、本番データへは実行していない |
 | 本番デプロイ | この実装では実行していない |
 | Narrow | 本番相当環境で新モデルの安定を観測するまで実行しない |
@@ -360,24 +365,24 @@ npx convex run organizationStripe/maintenance:verifyLegacyBusinessStates '{"pagi
 組織ごとの公開ActionとWebhookはPro（先行登録特典）をStripe API呼出し前に拒否する。
 一方、全組織を毎回走査するグローバルゲートは設けないため、`complimentaryProStripeMappingP0.observedCount`が1件以上なら次をP0手順とする。
 
-1. `.env`へ`STRIPE_BILLING_MODE=off`を明示する。
-2. CheckoutまたはPortalをそれ以上実行する前に、`pnpm convex:env:setup`で対象Convex deploymentへ同期する。変数行の削除では停止できない。
+1. Stripe Dashboardで対象deploymentが参照するPro Priceをアーカイブし、新しいPro販売を止める。
+2. アーカイブ前に発行したopen状態のCheckout Sessionを列挙し、すべて失効させる。
 3. 署名済みWebhookと既存契約の取消・請求停止は継続し、Stripe対応を推測削除しない。
 4. 対象グループ、Customer、全Subscription世代、Invoiceを照合し、誤請求の有無と返金・credit要否を人が判断する。
-5. `observedCount: 0`でも`hasMore: true`なら未確認として扱い、全件reconciliationが終わるまで`test`または`live`へ戻さない。
+5. `observedCount: 0`でも`hasMore: true`なら未確認として扱い、全件reconciliationとcanaryが終わるまで有効なPro Priceへ切り替えない。
 
 ### Priceローテーション
 
-1. `STRIPE_BILLING_MODE=off`を明示してConvexへ同期し、新しいCheckout、Portal、契約変更を止める。
+1. 現在のPro Priceをアーカイブし、発行済みのopen Checkout Sessionをすべて失効させて新規販売を止める。
 2. probeの`priceRotationBlocking`、取消、請求停止、reconciliationの`actionRequired`を確認する。
-3. Stripeで新しいPriceを作成する。旧Priceはこの時点でarchiveせず、rollback可能な状態を保つ。
+3. Stripeで新しいPriceを作成する。既存Subscriptionはアーカイブ済みの旧Priceで継続する。
 4. `STRIPE_PRO_PRICE_ID`だけを新Priceへ変更して同期する。新規operationは開始時のPrice snapshotを保持し、既存Subscriptionは保存済みPrice IDで照合する。
-5. test canary後に`STRIPE_BILLING_MODE=test`または`live`を明示して同期する。
-6. 旧Priceを使う進行中CheckoutとTrial作成operationが0件までdrainし、既存Subscriptionの継続請求をStripe上で確認してから旧Priceをarchiveする。ローカルSubscriptionのPrice IDは一括書換えしない。
+5. 接続環境に対応するcanaryを実行し、新Priceを使うCheckoutとSubscriptionを確認する。
+6. 旧Priceを使う進行中Trial作成operationが0件までdrainし、既存Subscriptionの継続請求をStripe上で確認する。ローカルSubscriptionのPrice IDは一括書換えしない。
 
-rollbackではまず`off`を同期する。
-旧Priceが有効なら`STRIPE_PRO_PRICE_ID`を旧値へ戻して同期し、canary後にmodeを再開する。
-旧Priceをarchive済みならStripe側で再有効化できることを確認してから戻し、再有効化できない場合は新Priceのまま原因を解消する。
+rollbackでは新Priceをアーカイブし、発行済みのopen Checkout Sessionをすべて失効させる。
+旧Priceを再有効化できる場合は`STRIPE_PRO_PRICE_ID`を旧値へ戻して同期し、canary後に販売を再開する。
+旧Priceを再有効化できない場合は新Priceのまま原因を解消し、安全を確認してから再有効化する。
 
 ## テスト配置
 
