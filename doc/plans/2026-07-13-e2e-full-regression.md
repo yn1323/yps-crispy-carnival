@@ -299,7 +299,7 @@ multi-actor projectの各テストは数値annotation `e2e-actor-pool`を持ち�
 | MS-P0-02 | グループ内の他店舗スタッフ再利用 | `e2e/scenarios/open-recruitment-added-staff-notification.test.ts` | A店スタッフをB店へ追加し、A店所属を維持したままB店の募集通知CTAから希望を提出する | 人物documentと通知対象集合のDB完全一致 |
 | MS-P0-03 | 選択中店舗の削除と復旧 | `e2e/scenarios/shop-deletion-flow.test.ts` | B店削除後にA店へ復旧し、B店専属スタッフを「店舗所属なし」で利用人数へ含め続け、旧URLでは汎用エラーを表示する | 最後の店舗、同時削除、cleanup詳細 |
 | REG-P0-01 | B店でのシフト主導線 | `e2e/scenarios/shop-settings-submission-pattern-flow.test.ts` | B店で初回提出、再提出、管理者編集、下書きreload、確定通知、別context閲覧まで完了し、A店へ混入させない | 容量上限、provider実到着 |
-| REG-P0-02 | B店でのスタッフ登録申請 | `e2e/scenarios/staff-registration-review.test.ts` | B店の登録linkから申請し、A店へ要対応表示を出さず、B店だけで承認してB店の通知CTAへ進む | 重複メールなど既存の負系分岐の再網羅 |
+| REG-P0-02 | B店でのスタッフ登録申請 | `e2e/scenarios/staff-registration-review.test.ts` | browserはB店名、登録内容、アプリ所有のセキュリティ境界までを確認する。匿名submission契約はConvex Function／HTTP Testで確認し、E2E-only internal seedでpending申請を作成した後、管理UIでの承認／却下、通知CTA、tenant境界（A店非混入）を確認する | production Turnstileの完了は自動化せず、RC手動canaryを継続する。既存attestationへの項目追加はfollow-upとし、今回のCI変更には含めない |
 | REG-P0-03 | canonical organization上の管理者通知 | `e2e/scenarios/notification-release-matrix.test.ts`、`e2e/scenarios/multiActor/manager-invitation-collaboration.test.ts` | 4種digestの代表channelと、複数管理者A/Bへの代表digestおよびB店CTAを確認する | 実cron時刻、provider実到着。4種digestの対象完全一致はScenario Testの担当 |
 
 ## 境界値の配置
