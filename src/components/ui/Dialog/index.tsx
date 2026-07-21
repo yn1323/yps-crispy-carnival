@@ -10,10 +10,12 @@ import {
 } from "@/src/hooks/useDialogVisualViewportStyle";
 
 const getInteractOutsideTarget = (event: Event) => {
-  if (event.target instanceof Element) return event.target;
+  // ZagはDialog nodeからCustomEventをdispatchし、実際の操作対象をdetailへ保持する。
+  const detail = (event as { detail?: { target?: EventTarget | null; originalEvent?: Event } }).detail;
+  if (detail?.target instanceof Element) return detail.target;
+  if (detail?.originalEvent?.target instanceof Element) return detail.originalEvent.target;
 
-  const originalEvent = (event as { detail?: { originalEvent?: Event } }).detail?.originalEvent;
-  return originalEvent?.target instanceof Element ? originalEvent.target : null;
+  return event.target instanceof Element ? event.target : null;
 };
 
 const preventCloseWhenInteractingWithToaster: NonNullable<
