@@ -1,0 +1,68 @@
+name: Cleanup Trusted PR Preview
+
+on:
+  pull_request_target:
+    branches: [develop]
+    types: [closed]
+
+concurrency:
+  group: pr-preview-${{ github.event.pull_request.number }}
+  # closeを終端操作として優先し、実行中のpublisherを止めてから削除する。
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    environment: Preview
+    steps:
+      - name: Validate cleanup target
+        id: target
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          github-token: ""
+          script: |
+            const pull = context.payload.pull_request;
+            if (!pull || pull.base.ref !== 'develop' || pull.base.repo.full_name !== `${context.repo.owner}/${context.repo.repo}`) {
+              core.setFailed('Unexpected PR preview cleanup target.');
+              return;
+            }
+            if (!Number.isSafeInteger(pull.number) || pull.number <= 0) {
+              core.setFailed('PR preview cleanup number is invalid.');
+              return;
+            }
+            core.setOutput('pull_number', String(pull.number));
+      - name: Checkout trusted cleanup code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Setup trusted cleanup code
+        uses: ./.github/actions/setup
+      - name: Delete Cloudflare Pages preview
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ steps.target.outputs.pull_number }}
+        run: |
+          set -euo pipefail
+          DEPLOYMENTS=$(curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/dev-yps-crispy-carnival/deployments" \
+            | jq -r --arg branch "pr-${PR_NUMBER}" '.result[] | select(.deployment_trigger.metadata.branch == $branch) | .id')
+          for ID in $DEPLOYMENTS; do
+            echo "Deleting deployment $ID"
+            curl --fail-with-body --silent --show-error -X DELETE \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/dev-yps-crispy-carnival/deployments/$ID?force=true"
+          done
+      - name: Delete legacy Convex preview
+        env:
+          CONVEX_MANAGEMENT_TOKEN: ${{ secrets.CONVEX_MANAGEMENT_TOKEN }}
+          PR_NUMBER: ${{ steps.target.outputs.pull_number }}
+        run: |
+          pnpm exec tsx scripts/deleteConvexPreviews.ts \
+            --project-slug dev-yps-crispy-carnival \
+            --names "pr-${PR_NUMBER}-deploy"

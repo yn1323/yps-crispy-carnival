@@ -1,12 +1,11 @@
-name: Playwright Tests
+name: Full Regression on Develop
 
 on:
-  pull_request:
+  push:
     branches: [develop]
-    types: [opened, synchronize, reopened, edited]
 
 concurrency:
-  group: playwright-${{ github.event.pull_request.number }}
+  group: playwright-develop-${{ github.sha }}
   cancel-in-progress: true
 
 permissions:
@@ -18,9 +17,11 @@ jobs:
     runs-on: ubuntu-latest
     environment: Preview
     env:
-      CONVEX_PREVIEW_NAME: pr-${{ github.event.pull_request.number }}-e2e
+      CONVEX_PREVIEW_NAME: develop-${{ github.run_id }}-e2e
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
       - name: Setup
         uses: ./.github/actions/setup
       - name: Setup Playwright
@@ -77,7 +78,12 @@ jobs:
       - name: Verify Playwright artifact safety
         id: artifact-safety
         if: ${{ !cancelled() }}
-        run: pnpm e2e:assert-artifact-safety
+        run: |
+          pnpm e2e:assert-artifact-safety
+          node scripts/assertNoSensitiveArtifacts.mjs \
+            --root test-results.json \
+            --root playwright-report \
+            --root test-results
         env:
           E2E_CLERK_USERS: ${{ vars.E2E_CLERK_USERS }}
           E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD || vars.E2E_CLERK_PASSWORD }}
@@ -95,7 +101,7 @@ jobs:
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
           E2E_CLERK_USERS: ${{ vars.E2E_CLERK_USERS }}
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: ${{ !cancelled() && steps.artifact-safety.outcome == 'success' }}
         with:
           name: playwright-report
@@ -104,74 +110,3 @@ jobs:
             test-results.json
             test-results/
           retention-days: 7
-
-  comment:
-    needs: test
-    if: ${{ always() && !cancelled() }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      issues: write
-      pull-requests: write
-    steps:
-      - name: Comment PR with Playwright result
-        uses: actions/github-script@v8
-        with:
-          script: |
-            const marker = '## Playwright Test Report';
-            const { owner, repo } = context.repo;
-            const issue_number = context.payload.pull_request.number;
-            const expectedHeadSha = context.payload.pull_request.head.sha;
-            const { data: pullRequest } = await github.rest.pulls.get({
-              owner,
-              repo,
-              pull_number: issue_number,
-            });
-
-            if (pullRequest.state !== 'open') {
-              core.info(`PR #${issue_number} is no longer open.`);
-              return;
-            }
-            if (pullRequest.head.sha !== expectedHeadSha) {
-              core.info(`Skip stale run for ${expectedHeadSha}; current head is ${pullRequest.head.sha}.`);
-              return;
-            }
-
-            const result = '${{ needs.test.result }}';
-            const status = result === 'success' ? 'Passed' : `Failed (${result})`;
-            const actionsUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
-            const body = [
-              marker,
-              '',
-              `Status: ${status}`,
-              '',
-              '| Action | Link |',
-              '|---|---|',
-              `| レポート確認 | [Actionsの非公開artifactを見る](${actionsUrl}) |`,
-              '',
-              'Details:',
-              'trace・動画・tokenを含み得るため、レポートはActions artifactだけに保存します。',
-            ].join('\n');
-
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner,
-              repo,
-              issue_number,
-              per_page: 100,
-            });
-            for (const comment of comments) {
-              if (comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker)) {
-                await github.rest.issues.deleteComment({
-                  owner,
-                  repo,
-                  comment_id: comment.id,
-                });
-              }
-            }
-
-            await github.rest.issues.createComment({
-              owner,
-              repo,
-              issue_number,
-              body,
-            });

@@ -1,0 +1,12 @@
+{
+  "core": {
+    "actualDir": "vrt-actual",
+    "workingDir": "vrt-work/reg",
+    "thresholdRate": 0.001,
+    "enableAntialias": true,
+    "ximgdiff": {
+      "invocationType": "client"
+    },
+    "concurrency": 4
+  }
+}

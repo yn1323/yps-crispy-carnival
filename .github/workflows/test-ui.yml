@@ -1,34 +1,32 @@
 name: test-ui
 
 on:
-  - push
+  pull_request:
+  push:
+
+permissions:
+  contents: read
 
 jobs:
   unit-test:
     name: ui-test (${{ matrix.shard }})
     runs-on: ubuntu-latest
-    environment: Preview
+    env:
+      VITE_CLERK_PUBLISHABLE_KEY: pk_test_storybook
+      VITE_CONVEX_URL: https://storybook.convex.cloud
     strategy:
       fail-fast: false
       matrix:
         shard: [1/2, 2/2]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
       - name: Setup
         uses: ./.github/actions/setup
       - name: Setup Playwright
         uses: ./.github/actions/playwright
       - name: Run Test
-        run: |
-          npx convex dev &
-          # Convexの起動と環境変数のセットを待つ
-          sleep 15
-          pnpm vitest run --shard=${{ matrix.shard }} --project=ui
-          kill %1
-        env:
-          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
-          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
-          VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL }}
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+        run: pnpm vitest run --shard=${{ matrix.shard }} --project=ui

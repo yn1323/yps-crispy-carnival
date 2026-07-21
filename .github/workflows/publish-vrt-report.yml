@@ -1,0 +1,469 @@
+name: Publish Trusted VRT Report
+
+on:
+  workflow_run:
+    workflows: ["VRT Artifact"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+env:
+  VRT_REPORT_DIR: yps-crispy-carnival-vrt
+  VRT_BASELINE_DIR: yps-crispy-carnival-vrt-baselines
+
+jobs:
+  validate-source:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    outputs:
+      should_publish: ${{ steps.source.outputs.should_publish }}
+      pull_number: ${{ steps.source.outputs.pull_number }}
+      report_key: ${{ steps.source.outputs.report_key }}
+      baseline_ref: ${{ steps.source.outputs.baseline_ref }}
+      should_update_baseline: ${{ steps.source.outputs.should_update_baseline }}
+      head_sha: ${{ steps.source.outputs.head_sha }}
+      report_url: ${{ steps.source.outputs.report_url }}
+    steps:
+      - name: Validate source workflow metadata and artifact declarations
+        id: source
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const run = context.payload.workflow_run;
+            core.setOutput('should_publish', 'false');
+            if (run.name !== 'VRT Artifact' || !['pull_request', 'push'].includes(run.event) || run.conclusion !== 'success') {
+              core.setFailed('Unexpected VRT source workflow metadata.');
+              return;
+            }
+            if (!/^[0-9a-f]{40}$/.test(run.head_sha ?? '')) {
+              core.setFailed('VRT source head SHA is invalid.');
+              return;
+            }
+
+            let pullNumber = '';
+            let reportKey;
+            let baselineRef;
+            let shouldUpdateBaseline = 'false';
+            if (run.event === 'pull_request') {
+              if (run.head_repository?.full_name !== `${context.repo.owner}/${context.repo.repo}`) {
+                core.setFailed('VRT report publishing is limited to same-repository pull requests.');
+                return;
+              }
+              const pull = run.pull_requests?.[0];
+              if (!pull || run.pull_requests.length !== 1) {
+                core.setFailed('Exactly one pull request must be associated with VRT data.');
+                return;
+              }
+              const { data: pullRequest } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pull.number,
+              });
+              if (pullRequest.state !== 'open' || pullRequest.head.sha !== run.head_sha) {
+                core.notice('Skipping a stale or closed VRT pull request run.');
+                return;
+              }
+              if (
+                !['develop', 'main'].includes(pullRequest.base.ref) ||
+                pullRequest.head.repo?.full_name !== `${context.repo.owner}/${context.repo.repo}`
+              ) {
+                core.setFailed('VRT pull request crosses an unexpected repository boundary.');
+                return;
+              }
+              pullNumber = String(pull.number);
+              reportKey = `pr-${pull.number}`;
+              baselineRef = pullRequest.base.ref;
+            } else {
+              if (!['develop', 'main'].includes(run.head_branch)) {
+                core.setFailed('VRT push source must be develop or main.');
+                return;
+              }
+              const { data: branch } = await github.rest.repos.getBranch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                branch: run.head_branch,
+              });
+              if (branch.commit.sha !== run.head_sha) {
+                core.notice('Skipping a superseded VRT branch run.');
+                return;
+              }
+              reportKey = `branches/${run.head_branch}`;
+              baselineRef = run.head_branch;
+              shouldUpdateBaseline = 'true';
+            }
+
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run.id,
+              per_page: 100,
+            });
+            const available = artifacts.filter((artifact) => !artifact.expired);
+            const expectedNames = ['vrt-actual-1', 'vrt-actual-2', 'vrt-actual-3', 'vrt-actual-4'];
+            const actualNames = available.map((artifact) => artifact.name).sort();
+            const totalBytes = available.reduce((sum, artifact) => sum + artifact.size_in_bytes, 0);
+            if (
+              actualNames.length !== expectedNames.length ||
+              actualNames.some((name, index) => name !== expectedNames[index]) ||
+              available.some((artifact) => artifact.size_in_bytes <= 0 || artifact.size_in_bytes > 200 * 1024 * 1024) ||
+              totalBytes > 500 * 1024 * 1024
+            ) {
+              core.setFailed('VRT artifact names, count, or declared sizes are invalid.');
+              return;
+            }
+
+            core.setOutput('should_publish', 'true');
+            core.setOutput('pull_number', pullNumber);
+            core.setOutput('report_key', reportKey);
+            core.setOutput('baseline_ref', baselineRef);
+            core.setOutput('should_update_baseline', shouldUpdateBaseline);
+            core.setOutput('head_sha', run.head_sha);
+            core.setOutput(
+              'report_url',
+              `https://yn1323.github.io/hosting-pages/${process.env.VRT_REPORT_DIR}/${reportKey}/`,
+            );
+
+  approve-pr-publication:
+    needs: validate-source
+    if: |
+      needs.validate-source.outputs.should_publish == 'true' &&
+      needs.validate-source.outputs.pull_number != ''
+    runs-on: ubuntu-latest
+    environment: vrt-approval
+    permissions: {}
+    steps:
+      - name: Approve trusted VRT publication
+        run: echo "Trusted VRT publication has been approved"
+
+  publish:
+    needs: [validate-source, approve-pr-publication]
+    if: |
+      always() &&
+      needs.validate-source.result == 'success' &&
+      needs.validate-source.outputs.should_publish == 'true' &&
+      (
+        needs.validate-source.outputs.pull_number == '' ||
+        needs.approve-pr-publication.result == 'success'
+      )
+    runs-on: ubuntu-latest
+    environment: Preview
+    concurrency:
+      group: vrt-publication-${{ needs.validate-source.outputs.pull_number != '' && format('pr-{0}', needs.validate-source.outputs.pull_number) || format('branch-{0}', needs.validate-source.outputs.baseline_ref) }}
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Checkout trusted VRT publisher
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup trusted VRT publisher
+        uses: ./.github/actions/setup
+      - name: Download VRT screenshot data
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          pattern: vrt-actual-*
+          path: vrt-actual
+          merge-multiple: true
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+      - name: Validate VRT screenshot data
+        run: node scripts/assertStaticArtifactSafety.mjs --profile vrt-screenshots --root vrt-actual
+      - name: Scan VRT screenshot data
+        run: node scripts/assertNoSensitiveArtifacts.mjs --root vrt-actual
+      - name: Revalidate VRT source immediately before credentials
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          EXPECTED_BASELINE_REF: ${{ needs.validate-source.outputs.baseline_ref }}
+          EXPECTED_HEAD_SHA: ${{ needs.validate-source.outputs.head_sha }}
+          EXPECTED_PULL_NUMBER: ${{ needs.validate-source.outputs.pull_number }}
+          EXPECTED_REPORT_KEY: ${{ needs.validate-source.outputs.report_key }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const run = context.payload.workflow_run;
+            const baselineRef = process.env.EXPECTED_BASELINE_REF ?? '';
+            const expectedHeadSha = process.env.EXPECTED_HEAD_SHA ?? '';
+            const pullNumberValue = process.env.EXPECTED_PULL_NUMBER ?? '';
+            const reportKey = process.env.EXPECTED_REPORT_KEY ?? '';
+            if (
+              run.name !== 'VRT Artifact' ||
+              run.conclusion !== 'success' ||
+              !/^[0-9a-f]{40}$/.test(expectedHeadSha) ||
+              run.head_sha !== expectedHeadSha
+            ) {
+              core.setFailed('VRT source identity changed before credentials were enabled.');
+              return;
+            }
+
+            if (pullNumberValue) {
+              const pullNumber = Number(pullNumberValue);
+              if (
+                run.event !== 'pull_request' ||
+                run.head_repository?.full_name !== `${context.repo.owner}/${context.repo.repo}` ||
+                !Number.isSafeInteger(pullNumber) ||
+                pullNumber <= 0 ||
+                run.pull_requests?.length !== 1 ||
+                run.pull_requests[0]?.number !== pullNumber ||
+                !['develop', 'main'].includes(baselineRef) ||
+                reportKey !== `pr-${pullNumber}`
+              ) {
+                core.setFailed('VRT pull request source identity is invalid.');
+                return;
+              }
+              const { data: pullRequest } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pullNumber,
+              });
+              if (
+                pullRequest.state !== 'open' ||
+                pullRequest.base.ref !== baselineRef ||
+                pullRequest.head.sha !== expectedHeadSha ||
+                pullRequest.head.repo?.full_name !== `${context.repo.owner}/${context.repo.repo}`
+              ) {
+                core.setFailed('VRT source is no longer the current open pull request head.');
+                return;
+              }
+            } else {
+              if (
+                run.event !== 'push' ||
+                !['develop', 'main'].includes(baselineRef) ||
+                run.head_branch !== baselineRef ||
+                reportKey !== `branches/${baselineRef}`
+              ) {
+                core.setFailed('VRT branch source identity is invalid.');
+                return;
+              }
+              const { data: branch } = await github.rest.repos.getBranch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                branch: baselineRef,
+              });
+              if (branch.commit.sha !== expectedHeadSha) {
+                core.setFailed('VRT source is no longer the current branch head.');
+                return;
+              }
+            }
+
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run.id,
+              per_page: 100,
+            });
+            const available = artifacts.filter((artifact) => !artifact.expired);
+            const expectedNames = ['vrt-actual-1', 'vrt-actual-2', 'vrt-actual-3', 'vrt-actual-4'];
+            const actualNames = available.map((artifact) => artifact.name).sort();
+            const totalBytes = available.reduce((sum, artifact) => sum + artifact.size_in_bytes, 0);
+            if (
+              actualNames.length !== expectedNames.length ||
+              actualNames.some((name, index) => name !== expectedNames[index]) ||
+              available.some((artifact) => artifact.size_in_bytes <= 0 || artifact.size_in_bytes > 200 * 1024 * 1024) ||
+              totalBytes > 500 * 1024 * 1024
+            ) {
+              core.setFailed('VRT artifact set changed before credentials were enabled.');
+            }
+      - name: Checkout VRT Pages after data validation
+        run: |
+          git clone --depth 1 --single-branch \
+            https://x-access-token:${{ secrets.HOSTING_PAGES_TOKEN }}@github.com/yn1323/hosting-pages.git \
+            hosting-pages
+      - name: Prepare trusted RegSuit baseline
+        id: baseline
+        run: |
+          mkdir -p vrt-work/baseline
+          if [ -d "hosting-pages/${{ env.VRT_BASELINE_DIR }}/${{ needs.validate-source.outputs.baseline_ref }}" ]; then
+            cp -R "hosting-pages/${{ env.VRT_BASELINE_DIR }}/${{ needs.validate-source.outputs.baseline_ref }}/." vrt-work/baseline/
+            node scripts/assertStaticArtifactSafety.mjs --profile vrt-screenshots --root vrt-work/baseline
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Assert trusted VRT baseline
+        if: ${{ needs.validate-source.outputs.pull_number != '' }}
+        run: |
+          if [ "${{ steps.baseline.outputs.found }}" != "true" ]; then
+            echo "::error::VRT baseline is required for pull request publishing."
+            exit 1
+          fi
+      - name: Build VRT report with trusted code
+        run: pnpm vrt:report
+        env:
+          REG_SUIT_CLIENT_ID: ${{ secrets.REG_SUIT_CLIENT_ID }}
+      - name: Read trusted VRT result
+        id: regsuit
+        if: ${{ steps.baseline.outputs.found == 'true' }}
+        continue-on-error: true
+        run: pnpm vrt:assert
+      - name: Validate generated VRT report
+        run: node scripts/assertStaticArtifactSafety.mjs --profile vrt-report --root vrt-work/reg
+      - name: Scan generated VRT report
+        run: node scripts/assertNoSensitiveArtifacts.mjs --root vrt-work/reg
+      - name: Revalidate VRT source immediately before publish
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          EXPECTED_BASELINE_REF: ${{ needs.validate-source.outputs.baseline_ref }}
+          EXPECTED_HEAD_SHA: ${{ needs.validate-source.outputs.head_sha }}
+          EXPECTED_PULL_NUMBER: ${{ needs.validate-source.outputs.pull_number }}
+          EXPECTED_REPORT_KEY: ${{ needs.validate-source.outputs.report_key }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const run = context.payload.workflow_run;
+            const baselineRef = process.env.EXPECTED_BASELINE_REF ?? '';
+            const expectedHeadSha = process.env.EXPECTED_HEAD_SHA ?? '';
+            const pullNumberValue = process.env.EXPECTED_PULL_NUMBER ?? '';
+            const reportKey = process.env.EXPECTED_REPORT_KEY ?? '';
+            if (!/^[0-9a-f]{40}$/.test(expectedHeadSha) || run.head_sha !== expectedHeadSha) {
+              core.setFailed('VRT source identity changed before publication.');
+              return;
+            }
+
+            if (pullNumberValue) {
+              const pullNumber = Number(pullNumberValue);
+              if (
+                run.event !== 'pull_request' ||
+                !Number.isSafeInteger(pullNumber) ||
+                pullNumber <= 0 ||
+                run.pull_requests?.length !== 1 ||
+                run.pull_requests[0]?.number !== pullNumber ||
+                reportKey !== `pr-${pullNumber}`
+              ) {
+                core.setFailed('VRT pull request source identity changed before publication.');
+                return;
+              }
+              const { data: pullRequest } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pullNumber,
+              });
+              if (
+                pullRequest.state !== 'open' ||
+                pullRequest.base.ref !== baselineRef ||
+                pullRequest.head.sha !== expectedHeadSha ||
+                pullRequest.head.repo?.full_name !== `${context.repo.owner}/${context.repo.repo}`
+              ) {
+                core.setFailed('VRT source is no longer the current open pull request head.');
+                return;
+              }
+            } else {
+              if (
+                run.event !== 'push' ||
+                !['develop', 'main'].includes(baselineRef) ||
+                run.head_branch !== baselineRef ||
+                reportKey !== `branches/${baselineRef}`
+              ) {
+                core.setFailed('VRT branch source identity changed before publication.');
+                return;
+              }
+              const { data: branch } = await github.rest.repos.getBranch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                branch: baselineRef,
+              });
+              if (branch.commit.sha !== expectedHeadSha) {
+                core.setFailed('VRT source is no longer the current branch head.');
+              }
+            }
+      - name: Publish trusted VRT report and baseline
+        env:
+          REPORT_KEY: ${{ needs.validate-source.outputs.report_key }}
+          HEAD_SHA: ${{ needs.validate-source.outputs.head_sha }}
+          SHOULD_UPDATE_BASELINE: ${{ needs.validate-source.outputs.should_update_baseline }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$REPORT_KEY" =~ ^(pr-[1-9][0-9]*|branches/(develop|main))$ ]]; then
+            echo "::error::Unexpected VRT report key."
+            exit 1
+          fi
+
+          REPORT_TARGET="hosting-pages/${VRT_REPORT_DIR}/${REPORT_KEY}"
+          rm -rf "$REPORT_TARGET"
+          mkdir -p "$REPORT_TARGET"
+          cp -R vrt-work/reg/. "$REPORT_TARGET/"
+          echo "${{ github.run_id }}-${{ github.run_attempt }}" > "$REPORT_TARGET/deploy-marker-${{ github.run_id }}-${{ github.run_attempt }}.txt"
+
+          if [ "$SHOULD_UPDATE_BASELINE" = "true" ]; then
+            BASELINE_TARGET="hosting-pages/${VRT_BASELINE_DIR}/${REPORT_KEY#branches/}"
+            rm -rf "$BASELINE_TARGET"
+            mkdir -p "$BASELINE_TARGET"
+            cp -R vrt-actual/. "$BASELINE_TARGET/"
+          fi
+
+          cd hosting-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "VRT report for ${REPORT_KEY} at ${HEAD_SHA}" || exit 0
+          git pull --rebase
+          git push origin HEAD:main
+      - name: Wait for trusted VRT report deploy
+        id: wait-deploy
+        if: ${{ needs.validate-source.outputs.pull_number != '' }}
+        env:
+          REPORT_URL: ${{ needs.validate-source.outputs.report_url }}
+        run: |
+          MARKER_URL="${REPORT_URL}deploy-marker-${{ github.run_id }}-${{ github.run_attempt }}.txt"
+          for i in $(seq 1 90); do
+            if curl -sf -o /dev/null "${MARKER_URL}?t=$(date +%s)"; then
+              echo "deploy_status=success" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::Trusted VRT report deploy could not be confirmed within 15 minutes."
+          exit 1
+      - name: Comment PR with trusted VRT result
+        if: ${{ needs.validate-source.outputs.pull_number != '' }}
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const marker = '## VRT Report';
+            const issue_number = Number('${{ needs.validate-source.outputs.pull_number }}');
+            const hasDiff = '${{ steps.regsuit.outcome }}' === 'failure';
+            const reportUrl = `${{ needs.validate-source.outputs.report_url }}?v=${context.runId}-${{ github.run_attempt }}`;
+            const body = [
+              marker,
+              '',
+              `Status: ${hasDiff ? 'Trusted publication approved; differences published' : 'Passed'}`,
+              '',
+              '| Action | Link |',
+              '|---|---|',
+              `| 差分確認 | [差分レポートを見る](${reportUrl}) |`,
+              `| 実行確認 | [Actionsを見る](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) |`,
+            ].join('\n');
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              per_page: 100,
+            });
+            for (const comment of comments) {
+              if (comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker)) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: comment.id,
+                });
+              }
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              body,
+            });

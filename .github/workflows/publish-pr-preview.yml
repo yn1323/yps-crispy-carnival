@@ -1,0 +1,210 @@
+name: Publish Trusted PR Preview
+
+on:
+  workflow_run:
+    workflows: ["PR Preview Artifact"]
+    types: [completed]
+
+concurrency:
+  group: pr-preview-${{ github.event.workflow_run.pull_requests[0].number }}
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  publish:
+    if: |
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      !startsWith(github.event.workflow_run.head_branch, 'renovate/')
+    runs-on: ubuntu-latest
+    environment: Preview
+    outputs:
+      pull_number: ${{ steps.source.outputs.pull_number }}
+      head_sha: ${{ steps.source.outputs.head_sha }}
+    steps:
+      - name: Validate source workflow metadata
+        id: source
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const run = context.payload.workflow_run;
+            if (run.name !== 'PR Preview Artifact' || run.event !== 'pull_request' || run.conclusion !== 'success') {
+              core.setFailed('Unexpected PR preview source workflow metadata.');
+              return;
+            }
+            if (!/^[0-9a-f]{40}$/.test(run.head_sha ?? '')) {
+              core.setFailed('PR preview source head SHA is invalid.');
+              return;
+            }
+            if (run.head_repository?.full_name !== `${context.repo.owner}/${context.repo.repo}`) {
+              core.setFailed('PR preview publishing is limited to same-repository branches.');
+              return;
+            }
+
+            const pull = run.pull_requests?.[0];
+            if (!pull || run.pull_requests.length !== 1) {
+              core.setFailed('Exactly one pull request must be associated with the preview artifact.');
+              return;
+            }
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pull.number,
+            });
+            if (
+              pullRequest.state !== 'open' ||
+              pullRequest.base.ref !== 'develop' ||
+              pullRequest.head.sha !== run.head_sha ||
+              pullRequest.head.repo?.full_name !== `${context.repo.owner}/${context.repo.repo}`
+            ) {
+              core.setFailed('PR preview source is stale or targets an unexpected repository boundary.');
+              return;
+            }
+
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run.id,
+              per_page: 100,
+            });
+            const available = artifacts.filter((artifact) => !artifact.expired);
+            if (
+              available.length !== 1 ||
+              available[0].name !== 'pr-preview-dist' ||
+              available[0].size_in_bytes <= 0 ||
+              available[0].size_in_bytes > 300 * 1024 * 1024
+            ) {
+              core.setFailed('PR preview artifact set or declared size is invalid.');
+              return;
+            }
+
+            core.setOutput('pull_number', String(pull.number));
+            core.setOutput('head_sha', run.head_sha);
+
+      - name: Checkout trusted publisher
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup trusted publisher
+        uses: ./.github/actions/setup
+      - name: Download preview data artifact
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: pr-preview-dist
+          path: trusted-artifacts/preview-dist
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+      - name: Validate preview data artifact
+        run: node scripts/assertStaticArtifactSafety.mjs --profile preview-dist --root trusted-artifacts/preview-dist
+      - name: Scan preview data artifact
+        run: node scripts/assertNoSensitiveArtifacts.mjs --root trusted-artifacts/preview-dist
+      - name: Revalidate preview source immediately before publish
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          EXPECTED_HEAD_SHA: ${{ steps.source.outputs.head_sha }}
+          EXPECTED_PULL_NUMBER: ${{ steps.source.outputs.pull_number }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const run = context.payload.workflow_run;
+            const expectedHeadSha = process.env.EXPECTED_HEAD_SHA ?? '';
+            const pullNumber = Number(process.env.EXPECTED_PULL_NUMBER);
+            if (
+              run.name !== 'PR Preview Artifact' ||
+              run.event !== 'pull_request' ||
+              run.conclusion !== 'success' ||
+              !/^[0-9a-f]{40}$/.test(expectedHeadSha) ||
+              run.head_sha !== expectedHeadSha ||
+              run.head_repository?.full_name !== `${context.repo.owner}/${context.repo.repo}` ||
+              !Number.isSafeInteger(pullNumber) ||
+              pullNumber <= 0 ||
+              run.pull_requests?.length !== 1 ||
+              run.pull_requests[0]?.number !== pullNumber
+            ) {
+              core.setFailed('PR preview source identity changed before publication.');
+              return;
+            }
+
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pullNumber,
+            });
+            if (
+              pullRequest.state !== 'open' ||
+              pullRequest.base.ref !== 'develop' ||
+              pullRequest.head.sha !== expectedHeadSha ||
+              pullRequest.head.repo?.full_name !== `${context.repo.owner}/${context.repo.repo}`
+            ) {
+              core.setFailed('PR preview source is no longer the current open pull request head.');
+              return;
+            }
+
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run.id,
+              per_page: 100,
+            });
+            const available = artifacts.filter((artifact) => !artifact.expired);
+            if (
+              available.length !== 1 ||
+              available[0].name !== 'pr-preview-dist' ||
+              available[0].size_in_bytes <= 0 ||
+              available[0].size_in_bytes > 300 * 1024 * 1024
+            ) {
+              core.setFailed('PR preview artifact changed before publication.');
+            }
+      - name: Publish static preview data
+        run: |
+          npx wrangler pages deploy trusted-artifacts/preview-dist \
+            --project-name dev-yps-crispy-carnival \
+            --branch "pr-${{ steps.source.outputs.pull_number }}" \
+            --commit-hash "${{ steps.source.outputs.head_sha }}" \
+            --no-bundle
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Comment PR with published preview
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const marker = '## 🚀 Preview Deploy';
+            const issue_number = Number('${{ steps.source.outputs.pull_number }}');
+            const previewUrl = `https://pr-${issue_number}.dev-yps-crispy-carnival.pages.dev`;
+            const body = [
+              marker,
+              '',
+              'Status: Passed',
+              `**App:** ${previewUrl}`,
+              `**Actions:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            ].join('\n');
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              per_page: 100,
+            });
+            for (const comment of comments) {
+              if (comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker)) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: comment.id,
+                });
+              }
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              body,
+            });
