@@ -7,7 +7,7 @@ allowBuilds:
   esbuild: true
 
 catalog:
-  "@biomejs/biome": "2.5.1"
+  "@biomejs/biome": "2.5.4"
   "@chakra-ui/react": "3.36.0"
   "@emotion/react": "11.14.0"
   "@types/node": "24.13.2"
