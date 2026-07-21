@@ -53,6 +53,12 @@ describe("FAQコンテンツ", () => {
     ["LINE 届かない", ["line-not-delivered", "confirmed-link-unavailable"]],
     ["下書き 再提出", ["draft-after-resubmission"]],
     ["利用人数 複数店舗", ["usage-count"]],
+    ["時間指定 日ごと 勤務区分", ["submission-patterns"]],
+    ["スタッフ 別店舗", ["add-staff"]],
+    ["催促 予約されない", ["automatic-reminder"]],
+    ["管理者追加 管理者枠", ["invite-manager"]],
+    ["無料プラン 管理者 交代", ["replace-manager"]],
+    ["管理者 招待 期限切れ", ["manager-invite-unavailable"]],
   ])("複数語の検索「%s」で該当するFAQだけを返す", (query, expectedIds) => {
     expect(searchFaqEntries(faqEntries, query).map((entry) => entry.id)).toEqual(expectedIds);
   });

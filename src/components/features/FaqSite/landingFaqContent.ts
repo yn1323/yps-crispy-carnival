@@ -68,11 +68,8 @@ export const featuredFaqEntries: FaqEntry[] = [
     id: "automatic-reminder",
     category: "before-start",
     question: "未提出スタッフへ自動で催促できますか？",
-    answer: [
-      "できます。提出締切の前日17:00に、まだ提出していないシフト対象スタッフへ自動で催促を送ります。",
-      "締切前日17:00を過ぎてから募集を作成した場合、その募集の自動催促は予約されません。",
-    ],
-    keywords: ["自動催促", "リマインド", "未提出", "締切前日", "締め切り前日", "17時"],
+    answer: ["できます。提出締切の前日17:00に、まだ提出していないシフト対象スタッフへ自動で催促を送ります。"],
+    keywords: ["自動催促", "リマインド", "未提出", "締切前日", "締め切り前日", "17時", "予約されない", "遅れて募集"],
     audience: "manager",
     featured: true,
     howTo: { href: "/howto#automatic-reminder", label: "自動催促の条件を見る" },
