@@ -116,9 +116,41 @@ export const PlanAndPaymentSection = ({
   return (
     <Stack gap={{ base: 6, md: 7 }}>
       <Stack as="section" gap={4} aria-labelledby="plan-heading">
-        <Heading id="plan-heading" as="h2" fontSize="lg">
-          プラン
-        </Heading>
+        <Stack gap={2}>
+          <Flex
+            direction={{ base: "column", lg: "row" }}
+            align={{ base: "stretch", lg: "center" }}
+            justify="space-between"
+            gap={3}
+          >
+            <Heading id="plan-heading" as="h2" fontSize="lg">
+              プラン
+            </Heading>
+            {!billing.isComplimentary && (
+              <Button
+                colorPalette="teal"
+                w={{ base: "full", lg: "auto" }}
+                minW={{ lg: "176px" }}
+                minH={{ base: "44px", lg: "40px" }}
+                onClick={onManagePlan}
+                disabled={!billing.canManagePlan}
+                title={!billing.canManagePlan ? billing.managePlanDisabledReason : undefined}
+                aria-describedby={
+                  !billing.canManagePlan && billing.managePlanDisabledReason
+                    ? "organization-billing-manage-plan-disabled-reason"
+                    : undefined
+                }
+              >
+                {planActionLabel(billing)}
+              </Button>
+            )}
+          </Flex>
+          {!billing.isComplimentary && !billing.canManagePlan && billing.managePlanDisabledReason && (
+            <Text id="organization-billing-manage-plan-disabled-reason" fontSize="sm" color="orange.700">
+              {billing.managePlanDisabledReason}
+            </Text>
+          )}
+        </Stack>
 
         <PlanSummary
           billing={billing}
@@ -126,7 +158,6 @@ export const PlanAndPaymentSection = ({
           currentPlanLabel={planSummaryLabel}
           currentPlanDescription={isPlanState(billing.state) ? currentPlanPresentation?.description : undefined}
           presentation={presentation}
-          onManagePlan={onManagePlan}
         />
 
         {billing.state !== "migrationPending" && (
@@ -184,147 +215,103 @@ function PlanSummary({
   currentPlanLabel,
   currentPlanDescription,
   presentation,
-  onManagePlan,
 }: {
   billing: OrganizationBillingView;
   currentPlanHeading: string;
   currentPlanLabel: string;
   currentPlanDescription?: string;
   presentation: (typeof STATE_PRESENTATION)[BillingDisplayState];
-  onManagePlan: () => void;
 }) {
   return (
-    <Stack gap={2}>
-      <Flex
-        direction={{ base: "column", lg: "row" }}
-        align={{ base: "stretch", lg: "center" }}
-        gap={{ base: 3, lg: 4 }}
+    <Box minW={0} borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
+      <Grid
+        templateColumns={{
+          base: "repeat(2, minmax(0, 1fr))",
+          lg: "minmax(180px, 1.2fr) minmax(150px, 1fr) minmax(180px, 1fr)",
+        }}
+        alignItems="stretch"
       >
-        <Box
-          flex={1}
-          minW={0}
-          borderWidth="1px"
-          borderColor="blackAlpha.100"
-          borderRadius="xl"
-          bg="white"
-          overflow="hidden"
+        <Stack
+          gridColumn={{ base: "1 / -1", lg: "auto" }}
+          gap={1.5}
+          px={{ base: 4, md: 5 }}
+          py={{ base: 4, md: 5 }}
+          justify="center"
         >
-          <Grid
-            templateColumns={{
-              base: "repeat(2, minmax(0, 1fr))",
-              lg: "minmax(180px, 1.2fr) minmax(150px, 1fr) minmax(180px, 1fr)",
-            }}
-            alignItems="stretch"
-          >
-            <Stack
-              gridColumn={{ base: "1 / -1", lg: "auto" }}
-              gap={1.5}
-              px={{ base: 4, md: 5 }}
-              py={{ base: 4, md: 5 }}
-              justify="center"
-            >
-              <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
-                {currentPlanHeading}
-              </Text>
-              <HStack gap={2} wrap="wrap">
-                <Heading as="h3" fontSize={{ base: "xl", md: "2xl" }} lineHeight="shorter">
-                  {currentPlanLabel}
-                </Heading>
-                {billing.state === "trial" && billing.hasTrialContinuation && (
-                  <Badge variant="subtle" colorPalette="teal">
-                    Pro継続登録済み
-                  </Badge>
-                )}
-                {billing.isComplimentary && (
-                  <Badge variant="subtle" colorPalette="teal">
-                    先行登録特典・支払い不要
-                  </Badge>
-                )}
-              </HStack>
-              {currentPlanDescription && (
-                <Text fontSize="xs" color="fg.muted">
-                  {currentPlanDescription}
-                </Text>
-              )}
-              {billing.isComplimentary && (
-                <Text fontSize="xs" color="fg.muted">
-                  先行登録特典として、料金なしでProの全機能を利用できます。
-                </Text>
-              )}
-            </Stack>
+          <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
+            {currentPlanHeading}
+          </Text>
+          <HStack gap={2} wrap="wrap">
+            <Heading as="h3" fontSize={{ base: "xl", md: "2xl" }} lineHeight="shorter">
+              {currentPlanLabel}
+            </Heading>
+            {billing.state === "trial" && billing.hasTrialContinuation && (
+              <Badge variant="subtle" colorPalette="teal">
+                Pro継続登録済み
+              </Badge>
+            )}
+            {billing.isComplimentary && (
+              <Badge variant="subtle" colorPalette="teal">
+                先行登録特典・支払い不要
+              </Badge>
+            )}
+          </HStack>
+          {currentPlanDescription && (
+            <Text fontSize="xs" color="fg.muted">
+              {currentPlanDescription}
+            </Text>
+          )}
+          {billing.isComplimentary && (
+            <Text fontSize="xs" color="fg.muted">
+              先行登録特典として、料金なしでProの全機能を利用できます。
+            </Text>
+          )}
+        </Stack>
 
-            <Stack
-              gap={1.5}
-              px={{ base: 4, md: 5 }}
-              py={{ base: 3, md: 5 }}
-              borderTopWidth={{ base: "1px", lg: 0 }}
-              borderRightWidth={{ base: "1px", lg: 0 }}
-              borderLeftWidth={{ base: 0, lg: "1px" }}
-              borderColor="blackAlpha.100"
-              justify="center"
-            >
-              <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
-                状態
-              </Text>
-              <BillingStatus
-                state={billing.state}
-                status={presentation.status}
-                label={billingStatusLabel(billing.state)}
-              />
-            </Stack>
+        <Stack
+          gap={1.5}
+          px={{ base: 4, md: 5 }}
+          py={{ base: 3, md: 5 }}
+          borderTopWidth={{ base: "1px", lg: 0 }}
+          borderRightWidth={{ base: "1px", lg: 0 }}
+          borderLeftWidth={{ base: 0, lg: "1px" }}
+          borderColor="blackAlpha.100"
+          justify="center"
+        >
+          <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
+            状態
+          </Text>
+          <BillingStatus state={billing.state} status={presentation.status} label={billingStatusLabel(billing.state)} />
+        </Stack>
 
-            <Stack
-              gap={1.5}
-              px={{ base: 4, md: 5 }}
-              py={{ base: 3, md: 5 }}
-              borderTopWidth={{ base: "1px", lg: 0 }}
-              borderLeftWidth={{ base: 0, lg: "1px" }}
-              borderColor="blackAlpha.100"
-              justify="center"
-            >
-              <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
-                {billing.nextEvent?.label ?? "次の予定"}
-              </Text>
-              <HStack gap={1.5} align="flex-start">
-                <Box color="fg.muted" mt={0.5} flexShrink={0}>
-                  <LuCalendarClock aria-hidden />
-                </Box>
-                <Text fontSize="sm" fontWeight="bold" fontVariantNumeric="tabular-nums">
-                  {billing.nextEvent?.date ?? "ありません"}
-                </Text>
-              </HStack>
-            </Stack>
-          </Grid>
-        </Box>
-
-        {!billing.isComplimentary && (
-          <Flex align="center" justify="center" flexShrink={0}>
-            <Button
-              colorPalette="teal"
-              w={{ base: "full", lg: "auto" }}
-              minW={{ lg: "176px" }}
-              minH={{ base: "44px", lg: "40px" }}
-              onClick={onManagePlan}
-              disabled={!billing.canManagePlan}
-              title={!billing.canManagePlan ? billing.managePlanDisabledReason : undefined}
-              aria-describedby={
-                !billing.canManagePlan && billing.managePlanDisabledReason
-                  ? "organization-billing-manage-plan-disabled-reason"
-                  : undefined
-              }
-            >
-              {planActionLabel(billing)}
-            </Button>
-          </Flex>
-        )}
-      </Flex>
-
-      {!billing.isComplimentary && !billing.canManagePlan && billing.managePlanDisabledReason && (
-        <Text id="organization-billing-manage-plan-disabled-reason" fontSize="sm" color="orange.700">
-          {billing.managePlanDisabledReason}
-        </Text>
-      )}
-    </Stack>
+        <Stack
+          gap={1.5}
+          px={{ base: 4, md: 5 }}
+          py={{ base: 3, md: 5 }}
+          borderTopWidth={{ base: "1px", lg: 0 }}
+          borderLeftWidth={{ base: 0, lg: "1px" }}
+          borderColor="blackAlpha.100"
+          justify="center"
+        >
+          <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
+            {billing.nextEvent?.label ?? "次の予定"}
+          </Text>
+          <HStack gap={1.5} align="flex-start">
+            <Box color="fg.muted" mt={0.5} flexShrink={0}>
+              <LuCalendarClock aria-hidden />
+            </Box>
+            <Text fontSize="sm" fontWeight="bold" fontVariantNumeric="tabular-nums">
+              {billing.nextEvent?.date ?? "ありません"}
+            </Text>
+          </HStack>
+          {billing.state === "trial" && (
+            <Text fontSize="xs" color="fg.muted" lineHeight="tall">
+              終了後は利用人数5名・1店舗までとなります。
+            </Text>
+          )}
+        </Stack>
+      </Grid>
+    </Box>
   );
 }
 
@@ -417,7 +404,7 @@ function BillingStateAlert({
                 : undefined
             }
           >
-            支払い方法をStripeで管理
+            支払い方法を見る
           </Button>
         )}
       </Flex>
@@ -495,8 +482,6 @@ function PaymentInformation({
   onUpdateBillingEmail: () => void;
   onOpenBillingDocuments: () => void;
 }) {
-  const stripeManagementStatus = billing.hasStripeCustomer ? "Stripeで管理" : "Stripe契約の開始後に利用できます";
-
   return (
     <Stack as="section" gap={3} aria-labelledby="payment-heading">
       <Heading id="payment-heading" as="h2" fontSize="lg">
@@ -512,22 +497,22 @@ function PaymentInformation({
             <BillingInformationRow
               icon={LuCreditCard}
               label="支払い方法"
-              value={stripeManagementStatus}
-              actionLabel="支払い方法をStripeで管理"
+              actionLabel="支払い方法を見る"
               onAction={onUpdatePaymentMethod}
               disabled={!billing.canUpdatePaymentMethod}
               disabledReason={billing.paymentMethodDisabledReason}
               disabledReasonId="organization-billing-payment-method-disabled-reason"
+              showDisabledReason={false}
             />
             <BillingInformationRow
               icon={LuReceiptText}
               label="請求書・領収書"
-              value={stripeManagementStatus}
-              actionLabel="請求書・領収書をStripeで確認"
+              actionLabel="請求書・領収書を見る"
               onAction={onOpenBillingDocuments}
               disabled={!billing.canUpdatePaymentMethod}
               disabledReason={billing.paymentMethodDisabledReason}
               disabledReasonId="organization-billing-documents-disabled-reason"
+              showDisabledReason={false}
             />
             <BillingInformationRow
               icon={LuMail}
@@ -555,17 +540,19 @@ function BillingInformationRow({
   disabled,
   disabledReason,
   disabledReasonId,
+  showDisabledReason = true,
 }: {
   icon: typeof LuCreditCard;
   label: string;
-  value: string;
+  value?: string;
   actionLabel: string;
   onAction: () => void;
   disabled: boolean;
   disabledReason?: string;
   disabledReasonId: string;
+  showDisabledReason?: boolean;
 }) {
-  const descriptionId = disabled && disabledReason ? disabledReasonId : undefined;
+  const descriptionId = disabled && disabledReason && showDisabledReason ? disabledReasonId : undefined;
 
   return (
     <Stack gap={1.5} px={{ base: 3, md: 4 }} py={{ base: 3, md: 2.5 }}>
@@ -576,26 +563,30 @@ function BillingInformationRow({
         <Grid
           flex={1}
           minW={0}
-          templateColumns={{ base: "minmax(88px, auto) minmax(0, 1fr)", md: "160px minmax(0, 1fr)" }}
+          templateColumns={
+            value ? { base: "minmax(88px, auto) minmax(0, 1fr)", md: "160px minmax(0, 1fr)" } : "minmax(0, 1fr)"
+          }
           alignItems="center"
           gap={{ base: 2, md: 4 }}
         >
           <Text fontSize={{ base: "xs", md: "sm" }} fontWeight="semibold" color="gray.700">
             {label}
           </Text>
-          <Text
-            fontSize={{ base: "xs", md: "sm" }}
-            color="gray.900"
-            fontWeight={{ base: "normal", md: "medium" }}
-            overflowWrap="anywhere"
-          >
-            {value}
-          </Text>
+          {value && (
+            <Text
+              fontSize={{ base: "xs", md: "sm" }}
+              color="gray.900"
+              fontWeight={{ base: "normal", md: "medium" }}
+              overflowWrap="anywhere"
+            >
+              {value}
+            </Text>
+          )}
         </Grid>
         <Button
           display={{ base: "none", md: "inline-flex" }}
           size="sm"
-          variant="outline"
+          variant="solid"
           colorPalette="teal"
           flexShrink={0}
           onClick={onAction}
@@ -610,7 +601,7 @@ function BillingInformationRow({
           size="sm"
           minW="44px"
           minH="44px"
-          variant="ghost"
+          variant="solid"
           colorPalette="teal"
           flexShrink={0}
           aria-label={actionLabel}
@@ -664,12 +655,12 @@ function shouldShowCurrentPlan(state: BillingDisplayState): boolean {
 
 function planActionLabel(billing: OrganizationBillingView): string {
   if (billing.state === "trial") {
-    return billing.hasTrialContinuation ? "Pro継続を取り消す" : "Pro継続を登録";
+    return billing.hasTrialContinuation ? "Proプランをやめる" : "Proプランに登録する";
   }
-  if (billing.state === "free" || billing.state === "restricted") return "Proを開始";
-  if (billing.state === "pro") return "無料へ変更";
-  if (billing.state === "scheduledFree") return "無料への変更を取り消す";
-  if (billing.state === "grace") return "契約と支払いを確認";
-  if (billing.state === "pendingActivation" && billing.currentPlan === null) return "Proを再開";
+  if (billing.state === "free" || billing.state === "restricted") return "Proプランに登録する";
+  if (billing.state === "pro") return "Proプランをやめる";
+  if (billing.state === "scheduledFree") return "Proプランを続ける";
+  if (billing.state === "grace") return "支払い方法を見る";
+  if (billing.state === "pendingActivation" && billing.currentPlan === null) return "Proプランに登録する";
   return "プランを確認";
 }

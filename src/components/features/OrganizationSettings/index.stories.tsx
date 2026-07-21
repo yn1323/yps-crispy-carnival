@@ -316,6 +316,31 @@ export const SettingsDeletionUnavailable: Story = {
     canDeleteOrganization: false,
     deleteOrganizationDisabledReason: "有料契約やプラン変更を終了してからグループを削除してください。",
   },
+  play: async ({ canvasElement }) => {
+    const deleteButton = within(canvasElement).getByRole("button", { name: /^削除$/ });
+
+    await expect(deleteButton).toBeDisabled();
+    await expect(deleteButton).toHaveAccessibleDescription(
+      "サブスクリプションが存在します。支払いを取り返してから削除してください。",
+    );
+  },
+};
+
+export const SettingsDeletionUnavailableWithStripeSubscription: Story = {
+  name: "設定｜Stripe契約が残るため削除不可",
+  args: {
+    defaultTab: "settings",
+    canDeleteOrganization: false,
+    deleteOrganizationDisabledReason: "Stripeの契約終了を確認してからグループを削除してください。",
+  },
+  play: async ({ canvasElement }) => {
+    const deleteButton = within(canvasElement).getByRole("button", { name: /^削除$/ });
+
+    await expect(deleteButton).toBeDisabled();
+    await expect(deleteButton).toHaveAccessibleDescription(
+      "サブスクリプションが存在します。支払いを取り返してから削除してください。",
+    );
+  },
 };
 
 export const OrganizationDeletionActionBehavior: Story = {
@@ -364,13 +389,10 @@ export const DisabledActionReasonsBehavior: Story = {
     );
     await userEvent.click(canvas.getByRole("tab", { name: "プランと支払い" }));
     await expectDisabledActionDescription(
-      canvas.getByRole("button", { name: "Proを再開" }),
+      canvas.getByRole("button", { name: "Proプランに登録する" }),
       "閲覧のみの管理者はプランを変更できません。",
     );
-    await expectDisabledActionDescription(
-      canvas.getByRole("button", { name: "支払い方法をStripeで管理" }),
-      "閲覧のみの管理者はStripeの支払い情報を管理できません。",
-    );
+    await expect(canvas.getByRole("button", { name: "支払い方法を見る" })).toBeDisabled();
     await expectDisabledActionDescription(
       canvas.getByRole("button", { name: "請求先を変更" }),
       "閲覧のみの管理者は請求先を変更できません。",
@@ -463,15 +485,9 @@ export const FreeBillingCapabilitiesBehavior: Story = {
   args: Free.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("button", { name: "Proを開始" })).toBeEnabled();
-    await expectDisabledActionDescription(
-      canvas.getByRole("button", { name: "支払い方法をStripeで管理" }),
-      "無料プランでは支払い情報の管理は不要です。有料プランの契約時にStripeで登録します。",
-    );
-    await expectDisabledActionDescription(
-      canvas.getByRole("button", { name: "請求書・領収書をStripeで確認" }),
-      "無料プランでは支払い情報の管理は不要です。有料プランの契約時にStripeで登録します。",
-    );
+    await expect(canvas.getByRole("button", { name: "Proプランに登録する" })).toBeEnabled();
+    await expect(canvas.getByRole("button", { name: "支払い方法を見る" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "請求書・領収書を見る" })).toBeDisabled();
     await expect(canvas.getByRole("button", { name: "請求先を変更" })).toBeEnabled();
   },
 };
@@ -491,8 +507,8 @@ export const ProStripePortalActionsBehavior: Story = {
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "支払い方法をStripeで管理" }));
-    await userEvent.click(canvas.getByRole("button", { name: "請求書・領収書をStripeで確認" }));
+    await userEvent.click(canvas.getByRole("button", { name: "支払い方法を見る" }));
+    await userEvent.click(canvas.getByRole("button", { name: "請求書・領収書を見る" }));
     await expect(args.actions.onUpdatePaymentMethod).toHaveBeenCalledTimes(1);
     await expect(args.actions.onOpenBillingDocuments).toHaveBeenCalledTimes(1);
     await expect(canvas.queryByText("発行済みの請求書はありません。")).not.toBeInTheDocument();

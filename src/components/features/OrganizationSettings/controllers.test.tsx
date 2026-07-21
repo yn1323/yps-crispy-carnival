@@ -457,7 +457,7 @@ describe("OrganizationSettings controllers", () => {
 
   it("価格を取得できない場合はDialog内で案内し、再読み込みできる", async () => {
     mocks.actions.getProPrice
-      .mockResolvedValueOnce({ status: "unavailable", reason: "billing_off" })
+      .mockResolvedValueOnce({ status: "unavailable", reason: "price_unavailable" })
       .mockResolvedValueOnce({
         status: "available",
         currency: "jpy",
@@ -485,7 +485,7 @@ describe("OrganizationSettings controllers", () => {
     await waitFor(() =>
       expect(result.current.dialog.dialog).toMatchObject({
         kind: "startPro",
-        price: { status: "unavailable", reason: "billing_off" },
+        price: { status: "unavailable", reason: "price_unavailable" },
       }),
     );
     expect(mocks.toasterCreate).not.toHaveBeenCalled();

@@ -20,6 +20,25 @@ import {
 
 const WEBHOOK_RETRY_BASE_MS = 30_000;
 const WEBHOOK_RETRY_MAX_MS = 30 * 60_000;
+const INACTIVE_PRICE_RECOVERY_PENDING_CODE_PREFIX = "price_inactive_subscription_pending_";
+const INACTIVE_PRICE_RECOVERY_BUSY_ERROR_CODE = "price_inactive_subscription_recovery_busy";
+const INACTIVE_PRICE_RECOVERY_PROVIDER_RETRY_ERROR_CODE = "price_inactive_subscription_provider_retry";
+const INACTIVE_PRICE_RECOVERY_WEBHOOK_RETRY_CODES = new Set([
+  "price_inactive_subscription_pending",
+  INACTIVE_PRICE_RECOVERY_BUSY_ERROR_CODE,
+  INACTIVE_PRICE_RECOVERY_PROVIDER_RETRY_ERROR_CODE,
+]);
+
+function hasInactivePriceRecoveryMarker(lastErrorCode?: string) {
+  return (
+    lastErrorCode?.startsWith(INACTIVE_PRICE_RECOVERY_PENDING_CODE_PREFIX) === true ||
+    lastErrorCode === "price_inactive_subscription_not_found"
+  );
+}
+
+function isInactivePriceRecoveryWebhookRetry(errorCode?: string) {
+  return errorCode !== undefined && INACTIVE_PRICE_RECOVERY_WEBHOOK_RETRY_CODES.has(errorCode);
+}
 
 const operationResultValidator = v.object({
   operationId: v.id("organizationStripeOperations"),
@@ -32,6 +51,28 @@ const operationResultValidator = v.object({
   created: v.boolean(),
   conflict: v.boolean(),
 });
+
+const inactivePriceTrialResolutionValidator = v.union(
+  v.object({
+    kind: v.literal("preserved"),
+    providerGeneration: v.number(),
+    billingConverged: v.boolean(),
+    leaseToken: v.optional(v.string()),
+  }),
+  v.object({ kind: v.literal("cleanup"), operation: operationResultValidator }),
+  v.object({ kind: v.literal("busy") }),
+  v.object({ kind: v.literal("conflict") }),
+);
+
+type InvalidTrialSubscriptionCleanupArgs = {
+  organizationId: Doc<"organizations">["_id"];
+  sourceOperationId: Doc<"organizationStripeOperations">["_id"];
+  sourceLeaseToken?: string;
+  allowActiveSourceLease?: boolean;
+  requestKey: string;
+  stripeSubscriptionId: string;
+  errorCode: string;
+};
 
 export const receiveWebhookEvent = internalMutation({
   args: {
@@ -117,7 +158,10 @@ export const claimWebhookEvent = internalMutation({
     const now = Date.now();
     if (event.status === "processing" && (event.leaseExpiresAt ?? 0) > now) return null;
     if (event.nextRunAt !== undefined && event.nextRunAt > now) return null;
-    if (event.attemptCount >= STRIPE_OPERATION_MAX_ATTEMPTS) {
+    if (
+      event.attemptCount >= STRIPE_OPERATION_MAX_ATTEMPTS &&
+      !isInactivePriceRecoveryWebhookRetry(event.lastErrorCode)
+    ) {
       await ctx.db.patch(event._id, {
         status: "actionRequired",
         lastErrorCode: "attempt_limit_exceeded",
@@ -176,21 +220,27 @@ export const finishWebhookEvent = internalMutation({
 
     const now = Date.now();
     if (args.result.kind === "retry") {
+      const retryErrorCode =
+        args.result.errorCode === "stripe_temporary_error" && isInactivePriceRecoveryWebhookRetry(event.lastErrorCode)
+          ? INACTIVE_PRICE_RECOVERY_PROVIDER_RETRY_ERROR_CODE
+          : args.result.errorCode;
+      const continueInactivePriceRecovery = isInactivePriceRecoveryWebhookRetry(retryErrorCode);
+      const attemptLimitExceeded =
+        event.attemptCount >= STRIPE_OPERATION_MAX_ATTEMPTS && !continueInactivePriceRecovery;
       const retryDelay = Math.min(
         WEBHOOK_RETRY_BASE_MS * 2 ** Math.max(0, event.attemptCount - 1),
         WEBHOOK_RETRY_MAX_MS,
       );
       const nextRunAt = now + retryDelay;
       await ctx.db.patch(event._id, {
-        status: event.attemptCount >= STRIPE_OPERATION_MAX_ATTEMPTS ? "actionRequired" : "retrying",
-        nextRunAt: event.attemptCount >= STRIPE_OPERATION_MAX_ATTEMPTS ? undefined : nextRunAt,
+        status: attemptLimitExceeded ? "actionRequired" : "retrying",
+        nextRunAt: attemptLimitExceeded ? undefined : nextRunAt,
         leaseToken: undefined,
         leaseExpiresAt: undefined,
-        lastErrorCode:
-          event.attemptCount >= STRIPE_OPERATION_MAX_ATTEMPTS ? "attempt_limit_exceeded" : args.result.errorCode,
+        lastErrorCode: attemptLimitExceeded ? "attempt_limit_exceeded" : retryErrorCode,
         updatedAt: now,
       });
-      if (event.attemptCount < STRIPE_OPERATION_MAX_ATTEMPTS) {
+      if (!attemptLimitExceeded) {
         await ctx.scheduler.runAt(nextRunAt, internal.organizationStripe.actions.processWebhookEvent, {
           stripeEventId: event.stripeEventId,
         });
@@ -292,6 +342,7 @@ export const beginOperation = internalMutation({
       if (immutableIntentMismatch) return operationResult(existing, false, true);
       const now = Date.now();
       const canReclaim =
+        !(args.kind === "createTrialSubscription" && hasInactivePriceRecoveryMarker(existing.lastErrorCode)) &&
         (existing.status === "retrying" ||
           (existing.status === "processing" && (existing.leaseExpiresAt ?? 0) <= now)) &&
         existing.attemptCount < STRIPE_OPERATION_MAX_ATTEMPTS;
@@ -347,6 +398,7 @@ export const beginOperation = internalMutation({
         }
         const now = Date.now();
         const reclaimable =
+          !(args.kind === "createTrialSubscription" && hasInactivePriceRecoveryMarker(competing.lastErrorCode)) &&
           competing.attemptCount < STRIPE_OPERATION_MAX_ATTEMPTS &&
           (competing.status === "retrying" ||
             (competing.status === "processing" && (competing.leaseExpiresAt ?? 0) <= now));
@@ -400,6 +452,77 @@ export const beginOperation = internalMutation({
   },
 });
 
+/** Price停止後のprovider既存object再照合だけをclaimし、Subscription作成は再実行しない。 */
+export const claimInactivePriceTrialSubscriptionRecovery = internalMutation({
+  args: {
+    organizationId: v.id("organizations"),
+    operationId: v.id("organizationStripeOperations"),
+    requestKey: v.string(),
+    stripeIdempotencyKey: v.string(),
+    livemode: v.boolean(),
+    providerGeneration: v.number(),
+    stripePriceIdSnapshot: v.string(),
+    allowTerminalNotFoundRecheck: v.optional(v.boolean()),
+    webhookLeaseToken: v.optional(v.string()),
+  },
+  returns: operationResultValidator,
+  handler: async (ctx, args) => {
+    await requireStripeEligibleOrganization(ctx, args.organizationId);
+    const operation = await ctx.db.get(args.operationId);
+    if (!operation) throw new ConvexError("Trial subscription operation not found");
+    const immutableIntentMismatch =
+      operation.kind !== "createTrialSubscription" ||
+      operation.organizationId !== args.organizationId ||
+      operation.requestKey !== args.requestKey ||
+      operation.stripeIdempotencyKey !== args.stripeIdempotencyKey ||
+      operation.livemode !== args.livemode ||
+      operation.providerGeneration !== args.providerGeneration ||
+      operation.stripePriceIdSnapshot !== args.stripePriceIdSnapshot ||
+      !operation.trialSubscriptionCreateSnapshot;
+    if (immutableIntentMismatch) return operationResult(operation, false, true);
+    const now = Date.now();
+    if (
+      !(await markInactivePriceRecoveryWebhook(
+        ctx,
+        {
+          stripeEventId: operation.requestKey,
+          webhookLeaseToken: args.webhookLeaseToken,
+          livemode: operation.livemode,
+        },
+        now,
+      ))
+    ) {
+      return operationResult(operation, false, true);
+    }
+    if (operation.stripeObjectId) return operationResult(operation, false, false);
+
+    const reclaimable =
+      operation.status === "retrying" ||
+      (operation.status === "actionRequired" &&
+        (operation.lastErrorCode !== "price_inactive_subscription_not_found" ||
+          args.allowTerminalNotFoundRecheck === true)) ||
+      (operation.status === "processing" && (operation.leaseExpiresAt ?? 0) <= now);
+    if (!reclaimable) return operationResult(operation, false, false);
+
+    await ctx.db.patch(operation._id, {
+      status: "processing",
+      attemptCount: operation.attemptCount + 1,
+      lastErrorCode: hasInactivePriceRecoveryMarker(operation.lastErrorCode)
+        ? operation.lastErrorCode
+        : `${INACTIVE_PRICE_RECOVERY_PENDING_CODE_PREFIX}0`,
+      leaseToken: crypto.randomUUID(),
+      leaseExpiresAt: now + STRIPE_OPERATION_PROCESSING_LEASE_MS,
+      nextRunAt: undefined,
+      completedAt: undefined,
+      expiresAt: now + STRIPE_OPERATION_RETENTION_MS,
+      updatedAt: now,
+    });
+    const claimed = await ctx.db.get(operation._id);
+    if (!claimed) throw new ConvexError("Operation could not be claimed");
+    return operationResult(claimed, true, false);
+  },
+});
+
 /** Stripe createの応答直後にobject IDを固定し、後続処理のhard crashでも回収対象を失わない。 */
 export const bindTrialCreationSubscription = internalMutation({
   args: {
@@ -439,122 +562,220 @@ export const beginInvalidTrialSubscriptionCleanup = internalMutation({
     errorCode: v.string(),
   },
   returns: operationResultValidator,
+  handler: async (ctx, args) => await beginInvalidTrialSubscriptionCleanupCore(ctx, args),
+});
+
+/**
+ * Price停止と通常同期の競合を同一transactionで解決する。
+ * 既に確保済みのcleanup intentを優先し、確保前に同期済みなら既存契約を保持する。
+ */
+export const resolveInactivePriceTrialSubscription = internalMutation({
+  args: {
+    organizationId: v.id("organizations"),
+    sourceOperationId: v.id("organizationStripeOperations"),
+    sourceLeaseToken: v.optional(v.string()),
+    allowActiveSourceLease: v.optional(v.boolean()),
+    requestKey: v.string(),
+    stripeSubscriptionId: v.string(),
+    errorCode: v.string(),
+    webhookLeaseToken: v.optional(v.string()),
+  },
+  returns: inactivePriceTrialResolutionValidator,
   handler: async (ctx, args) => {
     if (!/^[A-Za-z0-9_-]{8,64}$/.test(args.requestKey) || !args.stripeSubscriptionId.startsWith("sub_")) {
       throw new ConvexError("Invalid cleanup intent");
     }
     await requireStripeEligibleOrganization(ctx, args.organizationId);
     const source = await ctx.db.get(args.sourceOperationId);
-    const sourceCanBeRejected =
-      source?.kind === "createTrialSubscription" &&
-      source.organizationId === args.organizationId &&
-      source.stripeObjectId === args.stripeSubscriptionId &&
-      source.providerGeneration !== undefined &&
-      source.stripePriceIdSnapshot !== undefined &&
-      (source.status === "succeeded" ||
-        source.status === "actionRequired" ||
-        source.status === "retrying" ||
-        (source.status === "processing" && source.leaseToken === args.sourceLeaseToken));
-    if (!sourceCanBeRejected) throw new ConvexError("Invalid trial creation operation");
+    if (
+      source?.kind !== "createTrialSubscription" ||
+      source.organizationId !== args.organizationId ||
+      source.stripeObjectId !== args.stripeSubscriptionId ||
+      source.providerGeneration === undefined ||
+      !source.stripePriceIdSnapshot ||
+      !source.trialSubscriptionCreateSnapshot ||
+      !source.trialSubscriptionCreateSnapshot.stripePaymentMethodId.startsWith("pm_")
+    ) {
+      return { kind: "conflict" as const };
+    }
 
     const now = Date.now();
-    const existing = await ctx.db
+    if (
+      !(await markInactivePriceRecoveryWebhook(
+        ctx,
+        {
+          stripeEventId: source.requestKey,
+          webhookLeaseToken: args.webhookLeaseToken,
+          livemode: source.livemode,
+        },
+        now,
+      ))
+    ) {
+      return { kind: "conflict" as const };
+    }
+
+    const existingCleanup = await ctx.db
       .query("organizationStripeOperations")
       .withIndex("by_organizationId_and_kind_and_requestKey", (q) =>
         q.eq("organizationId", args.organizationId).eq("kind", "cancelSubscription").eq("requestKey", args.requestKey),
       )
       .unique();
-    const rejectSource = async () => {
-      if (source.status === "actionRequired" && source.lastErrorCode === args.errorCode) return;
-      await ctx.db.patch(source._id, {
-        status: "actionRequired",
-        lastErrorCode: args.errorCode,
-        leaseToken: undefined,
-        leaseExpiresAt: undefined,
-        nextRunAt: undefined,
-        completedAt: now,
-        expiresAt: now + STRIPE_OPERATION_RETENTION_MS,
-        updatedAt: now,
-      });
-    };
-    if (existing) {
-      const immutableIntentMismatch =
-        existing.livemode !== source.livemode ||
-        existing.providerGeneration !== source.providerGeneration ||
-        existing.recoveryPurpose !== "invalidTrialSubscriptionCancellation" ||
-        existing.sourceOperationId !== source._id ||
-        existing.stripePriceIdSnapshot !== source.stripePriceIdSnapshot ||
-        existing.stripeObjectId !== args.stripeSubscriptionId;
-      if (immutableIntentMismatch) return operationResult(existing, false, true);
-      await rejectSource();
-      const canReclaim =
-        (existing.status === "retrying" ||
-          (existing.status === "processing" && (existing.leaseExpiresAt ?? 0) <= now)) &&
-        existing.attemptCount < STRIPE_OPERATION_MAX_ATTEMPTS;
-      if (!canReclaim) return operationResult(existing, false, false);
-      await ctx.db.patch(existing._id, {
-        status: "processing",
-        attemptCount: existing.attemptCount + 1,
-        leaseToken: crypto.randomUUID(),
-        leaseExpiresAt: now + STRIPE_OPERATION_PROCESSING_LEASE_MS,
-        nextRunAt: undefined,
-        updatedAt: now,
-      });
-      const reclaimed = await ctx.db.get(existing._id);
-      if (!reclaimed) throw new ConvexError("Operation could not be reclaimed");
-      return operationResult(reclaimed, true, false);
+    if (existingCleanup) {
+      return {
+        kind: "cleanup" as const,
+        operation: await beginInvalidTrialSubscriptionCleanupCore(ctx, args),
+      };
     }
 
-    const operationId = await ctx.db.insert("organizationStripeOperations", {
-      organizationId: args.organizationId,
-      kind: "cancelSubscription",
-      requestKey: args.requestKey,
-      stripeIdempotencyKey: `shiftori:${source.livemode ? "live" : "test"}:cancelSubscription:${args.organizationId}:${args.requestKey}`,
-      livemode: source.livemode,
-      ...(source.expectedBillingVersion !== undefined ? { expectedBillingVersion: source.expectedBillingVersion } : {}),
-      providerGeneration: source.providerGeneration,
-      recoveryPurpose: "invalidTrialSubscriptionCancellation",
-      sourceOperationId: source._id,
-      stripePriceIdSnapshot: source.stripePriceIdSnapshot,
-      stripeObjectId: args.stripeSubscriptionId,
-      status: "processing",
-      attemptCount: 1,
-      leaseToken: crypto.randomUUID(),
-      leaseExpiresAt: now + STRIPE_OPERATION_PROCESSING_LEASE_MS,
-      expiresAt: now + STRIPE_OPERATION_RETENTION_MS,
-      createdAt: now,
-      updatedAt: now,
-    });
-    await rejectSource();
-    const operation = await ctx.db.get(operationId);
-    if (!operation) throw new ConvexError("Operation could not be created");
-    return operationResult(operation, true, false);
+    if (
+      (source.status === "processing" &&
+        (source.leaseToken !== args.sourceLeaseToken ||
+          ((source.leaseExpiresAt ?? 0) > now && !args.allowActiveSourceLease))) ||
+      (source.status !== "processing" && source.status !== "retrying" && source.status !== "succeeded")
+    ) {
+      return source.status === "processing" ? { kind: "busy" as const } : { kind: "conflict" as const };
+    }
+
+    const mappings = await ctx.db
+      .query("organizationStripeSubscriptions")
+      .withIndex("by_livemode_and_stripeSubscriptionId", (q) =>
+        q.eq("livemode", source.livemode).eq("stripeSubscriptionId", args.stripeSubscriptionId),
+      )
+      .take(2);
+    const mapping = mappings[0];
+    if (mapping) {
+      const snapshot = source.trialSubscriptionCreateSnapshot;
+      const exactMapping =
+        mappings.length === 1 &&
+        mapping.organizationId === source.organizationId &&
+        mapping.stripeCustomerId === snapshot.stripeCustomerId &&
+        mapping.stripePriceId === source.stripePriceIdSnapshot &&
+        mapping.providerGeneration === source.providerGeneration;
+      if (!exactMapping) return { kind: "conflict" as const };
+
+      const billing = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", args.organizationId))
+        .unique();
+      const trialConverged =
+        mapping.status === "trialing" &&
+        mapping.terminalAt === undefined &&
+        snapshot.trialEndsAt !== undefined &&
+        mapping.trialEndsAt === snapshot.trialEndsAt &&
+        billing?.state.kind === "trial" &&
+        billing.state.selectedPaidPlan === "pro" &&
+        billing.state.trialEndsAt === snapshot.trialEndsAt;
+      const activeProConverged =
+        mapping.status === "active" &&
+        mapping.terminalAt === undefined &&
+        billing?.state.kind === "active" &&
+        billing.state.plan === "pro";
+      const billingConverged = trialConverged || activeProConverged;
+      if (billingConverged && source.status !== "succeeded") {
+        await ctx.db.patch(source._id, {
+          status: "succeeded",
+          lastErrorCode: undefined,
+          leaseToken: undefined,
+          leaseExpiresAt: undefined,
+          nextRunAt: undefined,
+          completedAt: now,
+          expiresAt: now + STRIPE_OPERATION_RETENTION_MS,
+          updatedAt: now,
+        });
+      }
+      if (billingConverged) {
+        return {
+          kind: "preserved" as const,
+          providerGeneration: source.providerGeneration,
+          billingConverged: true,
+        };
+      }
+
+      const leaseToken =
+        source.status === "processing" && (source.leaseExpiresAt ?? 0) > now ? source.leaseToken : crypto.randomUUID();
+      if (!leaseToken) return { kind: "busy" as const };
+      if (leaseToken !== source.leaseToken) {
+        await ctx.db.patch(source._id, {
+          status: "processing",
+          attemptCount: source.attemptCount + 1,
+          leaseToken,
+          leaseExpiresAt: now + STRIPE_OPERATION_PROCESSING_LEASE_MS,
+          nextRunAt: undefined,
+          completedAt: undefined,
+          expiresAt: now + STRIPE_OPERATION_RETENTION_MS,
+          updatedAt: now,
+        });
+      }
+      return {
+        kind: "preserved" as const,
+        providerGeneration: source.providerGeneration,
+        billingConverged: false,
+        leaseToken,
+      };
+    }
+
+    return {
+      kind: "cleanup" as const,
+      operation: await beginInvalidTrialSubscriptionCleanupCore(ctx, args),
+    };
   },
 });
 
-/** mode offで既存の作成operationを終端化し、再開時の新規作成を防ぐ。 */
-export const rejectTrialCreationWhenDisabled = internalMutation({
-  args: {
-    organizationId: v.id("organizations"),
-    operationId: v.id("organizationStripeOperations"),
-  },
-  returns: v.object({ changed: v.boolean() }),
-  handler: async (ctx, args) => {
-    const operation = await ctx.db.get(args.operationId);
-    if (
-      operation?.kind !== "createTrialSubscription" ||
-      operation.organizationId !== args.organizationId ||
-      (operation.status !== "queued" &&
-        operation.status !== "processing" &&
-        operation.status !== "retrying" &&
-        operation.status !== "succeeded")
-    ) {
-      return { changed: false };
-    }
-    const now = Date.now();
-    await ctx.db.patch(operation._id, {
+async function markInactivePriceRecoveryWebhook(
+  ctx: MutationCtx,
+  args: { stripeEventId: string; webhookLeaseToken?: string; livemode: boolean },
+  now: number,
+) {
+  if (!args.webhookLeaseToken) return true;
+  const event = await ctx.db
+    .query("stripeWebhookEvents")
+    .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", args.stripeEventId))
+    .unique();
+  if (
+    event?.type !== "checkout.session.completed" ||
+    event.status !== "processing" ||
+    event.leaseToken !== args.webhookLeaseToken ||
+    event.livemode !== args.livemode
+  ) {
+    return false;
+  }
+  await ctx.db.patch(event._id, {
+    lastErrorCode: INACTIVE_PRICE_RECOVERY_BUSY_ERROR_CODE,
+    updatedAt: now,
+  });
+  return true;
+}
+
+async function beginInvalidTrialSubscriptionCleanupCore(ctx: MutationCtx, args: InvalidTrialSubscriptionCleanupArgs) {
+  if (!/^[A-Za-z0-9_-]{8,64}$/.test(args.requestKey) || !args.stripeSubscriptionId.startsWith("sub_")) {
+    throw new ConvexError("Invalid cleanup intent");
+  }
+  await requireStripeEligibleOrganization(ctx, args.organizationId);
+  const source = await ctx.db.get(args.sourceOperationId);
+  const sourceCanBeRejected =
+    source?.kind === "createTrialSubscription" &&
+    source.organizationId === args.organizationId &&
+    source.stripeObjectId === args.stripeSubscriptionId &&
+    source.providerGeneration !== undefined &&
+    source.stripePriceIdSnapshot !== undefined &&
+    (source.status === "succeeded" ||
+      source.status === "actionRequired" ||
+      source.status === "retrying" ||
+      (source.status === "processing" && source.leaseToken === args.sourceLeaseToken));
+  if (!sourceCanBeRejected) throw new ConvexError("Invalid trial creation operation");
+
+  const now = Date.now();
+  const existing = await ctx.db
+    .query("organizationStripeOperations")
+    .withIndex("by_organizationId_and_kind_and_requestKey", (q) =>
+      q.eq("organizationId", args.organizationId).eq("kind", "cancelSubscription").eq("requestKey", args.requestKey),
+    )
+    .unique();
+  const rejectSource = async () => {
+    if (source.status === "actionRequired" && source.lastErrorCode === args.errorCode) return;
+    await ctx.db.patch(source._id, {
       status: "actionRequired",
-      lastErrorCode: "trial_subscription_creation_disabled",
+      lastErrorCode: args.errorCode,
       leaseToken: undefined,
       leaseExpiresAt: undefined,
       nextRunAt: undefined,
@@ -562,9 +783,59 @@ export const rejectTrialCreationWhenDisabled = internalMutation({
       expiresAt: now + STRIPE_OPERATION_RETENTION_MS,
       updatedAt: now,
     });
-    return { changed: true };
-  },
-});
+  };
+  if (existing) {
+    const immutableIntentMismatch =
+      existing.livemode !== source.livemode ||
+      existing.providerGeneration !== source.providerGeneration ||
+      existing.recoveryPurpose !== "invalidTrialSubscriptionCancellation" ||
+      existing.sourceOperationId !== source._id ||
+      existing.stripePriceIdSnapshot !== source.stripePriceIdSnapshot ||
+      existing.stripeObjectId !== args.stripeSubscriptionId;
+    if (immutableIntentMismatch) return operationResult(existing, false, true);
+    await rejectSource();
+    const canReclaim =
+      (existing.status === "retrying" || (existing.status === "processing" && (existing.leaseExpiresAt ?? 0) <= now)) &&
+      existing.attemptCount < STRIPE_OPERATION_MAX_ATTEMPTS;
+    if (!canReclaim) return operationResult(existing, false, false);
+    await ctx.db.patch(existing._id, {
+      status: "processing",
+      attemptCount: existing.attemptCount + 1,
+      leaseToken: crypto.randomUUID(),
+      leaseExpiresAt: now + STRIPE_OPERATION_PROCESSING_LEASE_MS,
+      nextRunAt: undefined,
+      updatedAt: now,
+    });
+    const reclaimed = await ctx.db.get(existing._id);
+    if (!reclaimed) throw new ConvexError("Operation could not be reclaimed");
+    return operationResult(reclaimed, true, false);
+  }
+
+  const operationId = await ctx.db.insert("organizationStripeOperations", {
+    organizationId: args.organizationId,
+    kind: "cancelSubscription",
+    requestKey: args.requestKey,
+    stripeIdempotencyKey: `shiftori:${source.livemode ? "live" : "test"}:cancelSubscription:${args.organizationId}:${args.requestKey}`,
+    livemode: source.livemode,
+    ...(source.expectedBillingVersion !== undefined ? { expectedBillingVersion: source.expectedBillingVersion } : {}),
+    providerGeneration: source.providerGeneration,
+    recoveryPurpose: "invalidTrialSubscriptionCancellation",
+    sourceOperationId: source._id,
+    stripePriceIdSnapshot: source.stripePriceIdSnapshot,
+    stripeObjectId: args.stripeSubscriptionId,
+    status: "processing",
+    attemptCount: 1,
+    leaseToken: crypto.randomUUID(),
+    leaseExpiresAt: now + STRIPE_OPERATION_PROCESSING_LEASE_MS,
+    expiresAt: now + STRIPE_OPERATION_RETENTION_MS,
+    createdAt: now,
+    updatedAt: now,
+  });
+  await rejectSource();
+  const operation = await ctx.db.get(operationId);
+  if (!operation) throw new ConvexError("Operation could not be created");
+  return operationResult(operation, true, false);
+}
 
 /** cleanup intentのDB束縛が壊れている場合は、推測してproviderを操作せず運用確認へ送る。 */
 export const terminalizeInvalidTrialCleanupBindingFailure = internalMutation({
@@ -1049,10 +1320,29 @@ export const saveSubscriptionSnapshot = internalMutation({
     eventCreatedAt: v.optional(v.number()),
     stripeEventId: v.optional(v.string()),
     syncedAt: v.number(),
+    trialCreationOperationId: v.optional(v.id("organizationStripeOperations")),
+    trialCreationOperationLeaseToken: v.optional(v.string()),
   },
   returns: v.object({ changed: v.boolean(), stale: v.boolean() }),
   handler: async (ctx, args) => {
     await requireStripeEligibleOrganization(ctx, args.organizationId);
+    if (args.trialCreationOperationLeaseToken && !args.trialCreationOperationId) {
+      throw new ConvexError("Invalid trial subscription operation guard");
+    }
+    if (args.trialCreationOperationId) {
+      const operation = await ctx.db.get(args.trialCreationOperationId);
+      const ownsSnapshot =
+        operation?.kind === "createTrialSubscription" &&
+        operation.organizationId === args.organizationId &&
+        operation.livemode === args.livemode &&
+        operation.providerGeneration === args.providerGeneration &&
+        operation.stripePriceIdSnapshot === args.stripePriceId &&
+        operation.stripeObjectId === args.stripeSubscriptionId &&
+        operation.trialSubscriptionCreateSnapshot?.stripeCustomerId === args.stripeCustomerId &&
+        (operation.status === "succeeded" ||
+          (operation.status === "processing" && operation.leaseToken === args.trialCreationOperationLeaseToken));
+      if (!ownsSnapshot) throw new ConvexError("Trial subscription operation no longer owns snapshot");
+    }
     const customer = await ctx.db
       .query("organizationStripeCustomers")
       .withIndex("by_organizationId", (q) => q.eq("organizationId", args.organizationId))

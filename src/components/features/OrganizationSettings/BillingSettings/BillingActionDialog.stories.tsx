@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { BillingActionDialog } from "./BillingActionDialog";
 
 const meta = {
@@ -76,8 +77,23 @@ export const ProPriceUnavailable: Story = {
   args: {
     dialog: {
       ...meta.args.dialog,
-      price: { status: "unavailable", reason: "billing_off" },
+      price: { status: "unavailable", reason: "price_unavailable" },
     },
+  },
+};
+
+export const RetryProPriceBehavior: Story = {
+  name: "Pro料金を再読み込み（操作確認）",
+  parameters: { screenshot: { skip: true } },
+  args: {
+    ...ProPriceUnavailable.args,
+    onRetryPrice: fn(),
+  },
+  play: async ({ args }) => {
+    const dialog = await within(document.body).findByRole("alertdialog", { name: "Proを開始しますか？" });
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "料金を再読み込みする" }));
+    await expect(args.onRetryPrice).toHaveBeenCalledTimes(1);
   },
 };
 

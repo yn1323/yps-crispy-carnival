@@ -21,7 +21,7 @@ import {
   resolveFreeManagerExchangeEligibility,
   resolveOrganizationInvitationEligibility,
 } from "../organizationInvitation/service";
-import { getStripeBillingMode, isStripeBillingAvailable } from "../organizationStripe/config";
+import { getStripeBillingConfiguration } from "../organizationStripe/config";
 import { getOrganizationDeletionEligibility } from "./deletion";
 import { deriveOrganizationPersonCapabilities, type ManagerRole } from "./personCapabilities";
 import { getOrganizationBillingState, organizationPersonCountsTowardPeopleLimit } from "./service";
@@ -409,12 +409,12 @@ export const getSettings = managerQuery({
     const usage = projectOrganizationUsage({ people: usageInputs, reservedPersonCount });
     const activeShopCount = shops.filter((shop) => shop.operatingStatus === "active").length;
     const policy = billingState ? deriveOrganizationBillingPolicy(billingState.state) : null;
-    const stripeBillingAvailable = isStripeBillingAvailable();
+    const stripeBillingConfiguration = getStripeBillingConfiguration();
+    const stripeBillingAvailable = stripeBillingConfiguration.status === "ready";
     const isComplimentary = billingState?.state.kind === "complimentary";
-    const stripeBillingMode = getStripeBillingMode();
     const hasStripeCustomer = Boolean(!isComplimentary && stripeCustomer);
-    const stripeCustomerMatchesBillingMode = Boolean(
-      stripeBillingMode !== "off" && stripeCustomer?.livemode === (stripeBillingMode === "live"),
+    const stripeCustomerMatchesConfiguration = Boolean(
+      stripeBillingConfiguration.status === "ready" && stripeCustomer?.livemode === stripeBillingConfiguration.livemode,
     );
     const restrictedState = billingState ? getEffectiveRestrictedBillingState(billingState.state) : null;
     const isActiveActor = ctx.organizationMember?.status === "active";
@@ -787,7 +787,7 @@ export const getSettings = managerQuery({
               billingState.state.kind !== "pendingActivation")),
       ),
       canUpdatePaymentMethod: Boolean(
-        stripeBillingAvailable && stripeCustomerMatchesBillingMode && !isComplimentary && canAccessCustomerPortal,
+        stripeBillingAvailable && stripeCustomerMatchesConfiguration && !isComplimentary && canAccessCustomerPortal,
       ),
       canUpdateBillingEmail: Boolean(
         !isComplimentary &&
@@ -856,7 +856,7 @@ export const getSettings = managerQuery({
                         : "現在の契約状態ではStripeの支払い情報を管理できません。"
                 : !hasStripeCustomer
                   ? "Stripeの契約情報を準備中です。しばらくしてからもう一度お試しください。"
-                  : !stripeCustomerMatchesBillingMode
+                  : !stripeCustomerMatchesConfiguration
                     ? "Stripeの契約情報と決済設定を確認中です。しばらくしてからもう一度お試しください。"
                     : "現在の契約状態ではStripeの支払い情報を管理できません。"));
     const billingEmailDisabledReason =

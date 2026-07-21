@@ -86,12 +86,7 @@ describe("OrganizationSettings BillingSettings", () => {
     expect(dollars.interval).toBe("2年ごと");
   });
 
-  it("mode offと価格未設定を内部設定値を含まない案内へ変換する", () => {
-    expect(billingUnavailableMessage("billing_off")).toEqual({
-      title: "決済機能は現在停止中です",
-      description: "再開までお待ちください。現在の利用状態は変わりません。",
-      type: "info",
-    });
+  it("価格未設定を内部設定値を含まない案内へ変換する", () => {
     expect(billingUnavailableMessage("price_unavailable")).toEqual({
       title: "決済機能は準備中です",
       description: "料金または決済設定の確認が完了してから、もう一度お試しください。",

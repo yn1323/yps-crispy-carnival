@@ -1,12 +1,7 @@
-import { Alert, Box, Grid, Stack, Text } from "@chakra-ui/react";
+import { Box, Grid, Stack, Text } from "@chakra-ui/react";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
-import {
-  type BillingActionDialogState,
-  type BillingUnavailableReason,
-  billingUnavailableMessage,
-  formatProPrice,
-} from "./script";
+import { type BillingActionDialogState, formatProPrice } from "./script";
 
 type Props = {
   dialog: BillingActionDialogState | null;
@@ -38,20 +33,15 @@ export function BillingActionDialog({ dialog, isRunning, onClose, onRetryPrice, 
       maxW={{ base: "calc(100vw - 24px)", md: "560px" }}
     >
       <Stack gap={4}>
-        <Text fontSize="sm" lineHeight="tall">
-          {content.description}
-        </Text>
+        {content.description && (
+          <Text fontSize="sm" lineHeight="tall">
+            {content.description}
+          </Text>
+        )}
 
         <Stack gap={2} borderWidth="1px" borderColor="blackAlpha.100" borderRadius="lg" bg="gray.50" p={4}>
           <SummaryRow label="対象グループ" value={dialog.organizationName} />
-          {dialog.kind === "startPro" && (
-            <>
-              <StartProSummary dialog={dialog} onRetryPrice={onRetryPrice} />
-              <Text fontSize="xs" color="fg.muted" lineHeight="tall">
-                対象店舗は、このグループに現在登録されている店舗です。
-              </Text>
-            </>
-          )}
+          {dialog.kind === "startPro" && <StartProSummary dialog={dialog} onRetryPrice={onRetryPrice} />}
           {dialog.kind !== "startPro" && content.effectiveLabel && (
             <SummaryRow label={content.effectiveLabel} value={content.effectiveValue ?? "現在の契約状態に従います"} />
           )}
@@ -92,34 +82,18 @@ function StartProSummary({
         }
       />
       <SummaryRow label="請求開始" value={dialog.billingStartsOn} />
-      <SummaryRow
-        label="対象店舗"
-        value={dialog.shopNames.length > 0 ? dialog.shopNames.join("、") : "現在の店舗はありません"}
-      />
       {(dialog.price.status === "unavailable" || dialog.price.status === "error") && (
-        <PriceLoadError
-          reason={dialog.price.status === "unavailable" ? dialog.price.reason : undefined}
-          onRetry={onRetryPrice}
-        />
+        <PriceLoadError onRetry={onRetryPrice} />
       )}
     </>
   );
 }
 
-function PriceLoadError({ reason, onRetry }: { reason?: BillingUnavailableReason; onRetry: () => void }) {
-  const message = reason ? billingUnavailableMessage(reason) : null;
-
+function PriceLoadError({ onRetry }: { onRetry: () => void }) {
   return (
-    <Alert.Root status="warning" borderRadius="md" mt={2} alignItems="flex-start">
-      <Alert.Indicator mt={0.5} />
-      <Alert.Content gap={2}>
-        <Alert.Title>{message?.title ?? "料金を取得できませんでした"}</Alert.Title>
-        <Alert.Description>{message?.description ?? "通信状態を確認して、もう一度お試しください。"}</Alert.Description>
-        <Button size="sm" variant="outline" alignSelf="flex-start" onClick={onRetry}>
-          料金を再読み込み
-        </Button>
-      </Alert.Content>
-    </Alert.Root>
+    <Button size="sm" variant="outline" alignSelf="flex-start" mt={2} onClick={onRetry}>
+      料金を再読み込みする
+    </Button>
   );
 }
 
@@ -138,7 +112,7 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
 
 function dialogContent(dialog: BillingActionDialogState): {
   title: string;
-  description: string;
+  description?: string;
   submitLabel: string;
   submitColorPalette: string;
   effectiveLabel?: string;
@@ -150,7 +124,6 @@ function dialogContent(dialog: BillingActionDialogState): {
       return dialog.source === "trial"
         ? {
             title: "トライアル終了後もProを継続しますか？",
-            description: "トライアル終了後のPro継続に使う支払い方法を、Stripeの画面で登録します。",
             submitLabel: "支払いに進む",
             submitColorPalette: "teal",
           }

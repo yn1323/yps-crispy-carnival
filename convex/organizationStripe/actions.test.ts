@@ -12,10 +12,12 @@ const MockStripeError = vi.hoisted(
   () =>
     class extends Error {
       statusCode?: number;
+      type: string;
 
-      constructor(statusCode?: number) {
+      constructor(statusCode?: number, type = "StripeAPIError") {
         super("Mock Stripe error");
         this.statusCode = statusCode;
+        this.type = type;
       }
     },
 );
@@ -76,7 +78,7 @@ vi.mock("stripe", () => {
 
 const READY_TEST_CONFIGURATION = {
   status: "ready",
-  mode: "test",
+  livemode: false,
   secretKey: "sk_test_organization_stripe",
   webhookSecret: "whsec_organization_stripe",
   proPriceId: "price_pro_test",
@@ -101,885 +103,12 @@ describe("organizationStripe/actions", () => {
     vi.stubEnv("STRIPE_SECRET_KEY", READY_TEST_CONFIGURATION.secretKey);
     vi.stubEnv("STRIPE_WEBHOOK_SECRET", READY_TEST_CONFIGURATION.webhookSecret);
     vi.stubEnv("STRIPE_PRO_PRICE_ID", READY_TEST_CONFIGURATION.proPriceId);
-    vi.stubEnv("STRIPE_BILLING_MODE", "test");
   });
 
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
-  });
-
-  it("mode offでは価格・Checkout・Portalのprovider通信とStripe永続化を行わない", async () => {
-    configurationMock.mockReturnValue({ status: "off", mode: "off" });
-    const t = convexTest(schema, modules);
-    const ids = await t.run(
-      async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "stripe_mode_off", plan: "free" }),
-    );
-
-    const results = await invokeBillingActions(t.withIdentity({ subject: "stripe_mode_off" }), ids.shopId);
-
-    expect(results).toEqual([
-      { status: "unavailable", reason: "billing_off" },
-      { status: "unavailable", reason: "billing_off" },
-      { status: "unavailable", reason: "billing_off" },
-    ]);
-    await expectNoStripeSideEffects(t);
-  });
-
-  it("mode off切替後は発行済みTrial Setup完了からSubscriptionを作成しない", async () => {
-    configurationMock.mockReturnValue({ status: "off", mode: "off" });
-    vi.stubEnv("STRIPE_BILLING_MODE", "off");
-    const t = convexTest(schema, modules);
-    const trialEndsAt = NOW + 10 * 24 * 60 * 60_000;
-    const ids = await t.run(async (ctx) => {
-      const seeded = await seedOrganizationManagerShop(ctx, { subject: "stripe_setup_completed_after_off" });
-      const billing = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
-        .unique();
-      if (!billing) throw new Error("billing missing");
-      await ctx.db.patch(billing._id, {
-        state: { kind: "trial", trialEndsAt },
-        version: 2,
-        updatedAt: NOW,
-      });
-      await ctx.db.insert("organizationStripeCustomers", {
-        organizationId: seeded.organizationId,
-        stripeCustomerId: "cus_setup_completed_after_off",
-        livemode: false,
-        createdAt: NOW,
-        updatedAt: NOW,
-      });
-      const checkoutOperationId = await ctx.db.insert("organizationStripeOperations", {
-        organizationId: seeded.organizationId,
-        kind: "trialSetupCheckout",
-        requestKey: "setup_completed_after_off",
-        stripeIdempotencyKey: "test:setup-completed-after-off",
-        livemode: false,
-        expectedBillingVersion: 2,
-        providerGeneration: 1,
-        stripePriceIdSnapshot: "price_pro_test",
-        stripeObjectId: "cs_setup_completed_after_off",
-        status: "succeeded",
-        attemptCount: 1,
-        completedAt: NOW,
-        expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
-        createdAt: NOW,
-        updatedAt: NOW,
-      });
-      await ctx.db.insert("stripeWebhookEvents", {
-        stripeEventId: "evt_setup_completed_after_off",
-        type: "checkout.session.completed",
-        apiVersion: STRIPE_WEBHOOK_API_VERSION,
-        livemode: false,
-        objectId: "cs_setup_completed_after_off",
-        eventCreatedAt: NOW,
-        status: "received",
-        attemptCount: 0,
-        receivedAt: NOW,
-        expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
-        updatedAt: NOW,
-      });
-      return { ...seeded, checkoutOperationId };
-    });
-    const providerResources: string[] = [];
-    providerFetchMock.mockImplementation(async (input) => {
-      const resource = String(input).split("/").pop() ?? "";
-      providerResources.push(resource);
-      if (resource === "events.retrieve") {
-        return providerResponse({
-          id: "evt_setup_completed_after_off",
-          type: "checkout.session.completed",
-          livemode: false,
-          api_version: STRIPE_WEBHOOK_API_VERSION,
-          created: Math.floor(NOW / 1000),
-          data: { object: { id: "cs_setup_completed_after_off" } },
-        });
-      }
-      if (resource === "checkout.sessions.retrieve") {
-        return providerResponse({
-          id: "cs_setup_completed_after_off",
-          customer: "cus_setup_completed_after_off",
-          livemode: false,
-          mode: "setup",
-          status: "complete",
-          setup_intent: "seti_setup_completed_after_off",
-          client_reference_id: String(ids.organizationId),
-          metadata: {
-            shiftori_organization_id: String(ids.organizationId),
-            shiftori_operation_id: String(ids.checkoutOperationId),
-            shiftori_provider_generation: "1",
-            shiftori_price_id: "price_pro_test",
-          },
-        });
-      }
-      throw new Error(`Unexpected Stripe provider call: ${resource}`);
-    });
-
-    await t.action(internal.organizationStripe.actions.processWebhookEvent, {
-      stripeEventId: "evt_setup_completed_after_off",
-    });
-
-    const result = await t.run(async (ctx) => ({
-      billing: await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
-        .unique(),
-      receipt: await ctx.db
-        .query("stripeWebhookEvents")
-        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", "evt_setup_completed_after_off"))
-        .unique(),
-      trialSubscriptionOperations: await ctx.db
-        .query("organizationStripeOperations")
-        .withIndex("by_organizationId_and_kind_and_status", (q) =>
-          q.eq("organizationId", ids.organizationId).eq("kind", "createTrialSubscription"),
-        )
-        .collect(),
-      subscriptions: await ctx.db.query("organizationStripeSubscriptions").collect(),
-    }));
-    expect(providerResources).toEqual(["events.retrieve", "checkout.sessions.retrieve"]);
-    expect(providerResources).not.toContain("subscriptions.create");
-    expect(result.billing?.state).toEqual({ kind: "trial", trialEndsAt });
-    expect(result.receipt).toMatchObject({
-      status: "actionRequired",
-      lastErrorCode: "trial_subscription_creation_disabled",
-      processedAt: NOW,
-    });
-    expect(result.trialSubscriptionOperations).toEqual([]);
-    expect(result.subscriptions).toEqual([]);
-  });
-
-  it("mode off切替前に作成済みのTrial Subscriptionは新規作成せず専用operationで取消す", async () => {
-    configurationMock.mockReturnValue({ status: "off", mode: "off" });
-    vi.stubEnv("STRIPE_BILLING_MODE", "off");
-    const t = convexTest(schema, modules);
-    const trialEndsAt = NOW + 10 * 24 * 60 * 60_000;
-    const ids = await t.run(async (ctx) => {
-      const seeded = await seedOrganizationManagerShop(ctx, { subject: "stripe_existing_trial_after_off" });
-      const billing = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
-        .unique();
-      if (!billing) throw new Error("billing missing");
-      await ctx.db.patch(billing._id, {
-        state: { kind: "trial", trialEndsAt },
-        version: 2,
-        updatedAt: NOW,
-      });
-      await ctx.db.insert("organizationStripeCustomers", {
-        organizationId: seeded.organizationId,
-        stripeCustomerId: "cus_existing_trial_after_off",
-        livemode: false,
-        createdAt: NOW,
-        updatedAt: NOW,
-      });
-      const checkoutOperationId = await ctx.db.insert("organizationStripeOperations", {
-        organizationId: seeded.organizationId,
-        kind: "trialSetupCheckout",
-        requestKey: "existing_trial_after_off_checkout",
-        stripeIdempotencyKey: "test:existing-trial-after-off-checkout",
-        livemode: false,
-        expectedBillingVersion: 2,
-        providerGeneration: 1,
-        stripePriceIdSnapshot: "price_pro_test",
-        stripeObjectId: "cs_existing_trial_after_off",
-        status: "succeeded",
-        attemptCount: 1,
-        completedAt: NOW,
-        expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
-        createdAt: NOW,
-        updatedAt: NOW,
-      });
-      const sourceOperationId = await ctx.db.insert("organizationStripeOperations", {
-        organizationId: seeded.organizationId,
-        kind: "createTrialSubscription",
-        requestKey: "evt_existing_trial_after_off",
-        stripeIdempotencyKey: "test:existing-trial-after-off-create",
-        livemode: false,
-        expectedBillingVersion: 2,
-        providerGeneration: 1,
-        stripePriceIdSnapshot: "price_pro_test",
-        stripeObjectId: "sub_existing_trial_after_off",
-        status: "succeeded",
-        attemptCount: 1,
-        completedAt: NOW,
-        expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
-        createdAt: NOW,
-        updatedAt: NOW,
-      });
-      await ctx.db.insert("stripeWebhookEvents", {
-        stripeEventId: "evt_existing_trial_after_off",
-        type: "checkout.session.completed",
-        apiVersion: STRIPE_WEBHOOK_API_VERSION,
-        livemode: false,
-        objectId: "cs_existing_trial_after_off",
-        eventCreatedAt: NOW,
-        status: "received",
-        attemptCount: 0,
-        receivedAt: NOW,
-        expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
-        updatedAt: NOW,
-      });
-      return { ...seeded, checkoutOperationId, sourceOperationId };
-    });
-    const providerResources: string[] = [];
-    const providerSubscription = (status: "trialing" | "canceled") => ({
-      id: "sub_existing_trial_after_off",
-      customer: "cus_existing_trial_after_off",
-      livemode: false,
-      status,
-      metadata: {
-        shiftori_organization_id: String(ids.organizationId),
-        shiftori_operation_id: String(ids.sourceOperationId),
-        shiftori_provider_generation: "1",
-        shiftori_price_id: "price_pro_test",
-      },
-      trial_end: Math.floor(trialEndsAt / 1000),
-      cancel_at_period_end: false,
-      latest_invoice: null,
-      items: {
-        data: [
-          {
-            id: "si_existing_trial_after_off",
-            current_period_end: Math.floor(trialEndsAt / 1000),
-            price: { id: "price_pro_test" },
-          },
-        ],
-      },
-    });
-    providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").pop() ?? "";
-      const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
-      providerResources.push(resource);
-      if (resource === "events.retrieve") {
-        return providerResponse({
-          id: "evt_existing_trial_after_off",
-          type: "checkout.session.completed",
-          livemode: false,
-          api_version: STRIPE_WEBHOOK_API_VERSION,
-          created: Math.floor(NOW / 1000),
-          data: { object: { id: "cs_existing_trial_after_off" } },
-        });
-      }
-      if (resource === "checkout.sessions.retrieve") {
-        return providerResponse({
-          id: "cs_existing_trial_after_off",
-          customer: "cus_existing_trial_after_off",
-          livemode: false,
-          mode: "setup",
-          status: "complete",
-          setup_intent: "seti_existing_trial_after_off",
-          client_reference_id: String(ids.organizationId),
-          metadata: {
-            shiftori_organization_id: String(ids.organizationId),
-            shiftori_operation_id: String(ids.checkoutOperationId),
-            shiftori_provider_generation: "1",
-            shiftori_price_id: "price_pro_test",
-          },
-        });
-      }
-      if (resource === "subscriptions.retrieve") return providerResponse(providerSubscription("trialing"));
-      if (resource === "subscriptions.cancel") {
-        expect(args[0]).toBe("sub_existing_trial_after_off");
-        return providerResponse(providerSubscription("canceled"));
-      }
-      throw new Error(`Unexpected Stripe provider call: ${resource}`);
-    });
-
-    await t.action(internal.organizationStripe.actions.processWebhookEvent, {
-      stripeEventId: "evt_existing_trial_after_off",
-    });
-
-    const result = await t.run(async (ctx) => ({
-      billing: await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
-        .unique(),
-      source: await ctx.db.get(ids.sourceOperationId),
-      cleanup: await ctx.db
-        .query("organizationStripeOperations")
-        .withIndex("by_organizationId_and_kind_and_status", (q) =>
-          q.eq("organizationId", ids.organizationId).eq("kind", "cancelSubscription").eq("status", "succeeded"),
-        )
-        .unique(),
-      subscription: await ctx.db
-        .query("organizationStripeSubscriptions")
-        .withIndex("by_organizationId_and_providerGeneration", (q) =>
-          q.eq("organizationId", ids.organizationId).eq("providerGeneration", 1),
-        )
-        .unique(),
-    }));
-    expect(providerResources).toEqual([
-      "events.retrieve",
-      "checkout.sessions.retrieve",
-      "subscriptions.retrieve",
-      "subscriptions.cancel",
-    ]);
-    expect(providerResources).not.toContain("subscriptions.create");
-    expect(result.billing?.state).toEqual({ kind: "trial", trialEndsAt });
-    expect(result.source).toMatchObject({
-      status: "actionRequired",
-      stripeObjectId: "sub_existing_trial_after_off",
-      lastErrorCode: "trial_subscription_creation_disabled",
-    });
-    expect(result.cleanup).toMatchObject({
-      recoveryPurpose: "invalidTrialSubscriptionCancellation",
-      sourceOperationId: ids.sourceOperationId,
-      stripeObjectId: "sub_existing_trial_after_off",
-    });
-    expect(result.subscription).toMatchObject({ status: "canceled", terminalAt: NOW });
-  });
-
-  it("create応答直後のbind前crashはmode offでも元のpayloadとidempotency keyだけで復元して取消す", async () => {
-    configurationMock.mockReturnValue({ status: "off", mode: "off" });
-    vi.stubEnv("STRIPE_BILLING_MODE", "off");
-    const t = convexTest(schema, modules);
-    const trialEndsAt = NOW + 10 * 24 * 60 * 60_000;
-    const originalIdempotencyKey = "test:create-trial-bind-crash";
-    const ids = await t.run(async (ctx) => {
-      const seeded = await seedOrganizationManagerShop(ctx, { subject: "stripe_create_bind_crash" });
-      const billing = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
-        .unique();
-      if (!billing) throw new Error("billing missing");
-      await ctx.db.patch(billing._id, { state: { kind: "trial", trialEndsAt }, version: 2, updatedAt: NOW });
-      await ctx.db.insert("organizationStripeCustomers", {
-        organizationId: seeded.organizationId,
-        stripeCustomerId: "cus_create_bind_crash",
-        livemode: false,
-        createdAt: NOW,
-        updatedAt: NOW,
-      });
-      const checkoutOperationId = await ctx.db.insert("organizationStripeOperations", {
-        organizationId: seeded.organizationId,
-        kind: "trialSetupCheckout",
-        requestKey: "create_bind_crash_checkout",
-        stripeIdempotencyKey: "test:create-bind-crash-checkout",
-        livemode: false,
-        expectedBillingVersion: 2,
-        providerGeneration: 1,
-        stripePriceIdSnapshot: "price_pro_test",
-        stripeObjectId: "cs_create_bind_crash",
-        status: "succeeded",
-        attemptCount: 1,
-        completedAt: NOW - 2 * 60_000,
-        expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
-        createdAt: NOW - 2 * 60_000,
-        updatedAt: NOW - 2 * 60_000,
-      });
-      const sourceOperationId = await ctx.db.insert("organizationStripeOperations", {
-        organizationId: seeded.organizationId,
-        kind: "createTrialSubscription",
-        requestKey: "evt_create_bind_crash",
-        stripeIdempotencyKey: originalIdempotencyKey,
-        livemode: false,
-        expectedBillingVersion: 2,
-        providerGeneration: 1,
-        stripePriceIdSnapshot: "price_pro_test",
-        trialSubscriptionCreateSnapshot: {
-          stripeCustomerId: "cus_create_bind_crash",
-          stripePaymentMethodId: "pm_create_bind_crash",
-          trialEndsAt,
-        },
-        status: "processing",
-        attemptCount: 1,
-        leaseToken: "abandoned-create-lease",
-        leaseExpiresAt: NOW - 1,
-        expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
-        createdAt: NOW - 60_000,
-        updatedAt: NOW - 60_000,
-      });
-      await ctx.db.insert("stripeWebhookEvents", {
-        stripeEventId: "evt_create_bind_crash",
-        type: "checkout.session.completed",
-        apiVersion: STRIPE_WEBHOOK_API_VERSION,
-        livemode: false,
-        objectId: "cs_create_bind_crash",
-        eventCreatedAt: NOW,
-        status: "received",
-        attemptCount: 0,
-        receivedAt: NOW,
-        expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
-        updatedAt: NOW,
-      });
-      return { ...seeded, checkoutOperationId, sourceOperationId };
-    });
-    const providerResources: string[] = [];
-    const createCalls: unknown[][] = [];
-    const providerSubscription = (status: "trialing" | "canceled") => ({
-      id: "sub_create_bind_crash",
-      customer: "cus_create_bind_crash",
-      livemode: false,
-      status,
-      metadata: {
-        shiftori_organization_id: String(ids.organizationId),
-        shiftori_operation_id: String(ids.sourceOperationId),
-        shiftori_provider_generation: "1",
-        shiftori_price_id: "price_pro_test",
-      },
-      trial_end: Math.floor(trialEndsAt / 1000),
-      cancel_at_period_end: false,
-      latest_invoice: null,
-      items: {
-        data: [
-          {
-            id: "si_create_bind_crash",
-            current_period_end: Math.floor(trialEndsAt / 1000),
-            price: { id: "price_pro_test" },
-          },
-        ],
-      },
-    });
-    providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").pop() ?? "";
-      const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
-      providerResources.push(resource);
-      if (resource === "events.retrieve") {
-        return providerResponse({
-          id: "evt_create_bind_crash",
-          type: "checkout.session.completed",
-          livemode: false,
-          api_version: STRIPE_WEBHOOK_API_VERSION,
-          created: Math.floor(NOW / 1000),
-          data: { object: { id: "cs_create_bind_crash" } },
-        });
-      }
-      if (resource === "checkout.sessions.retrieve") {
-        return providerResponse({
-          id: "cs_create_bind_crash",
-          customer: "cus_create_bind_crash",
-          livemode: false,
-          mode: "setup",
-          status: "complete",
-          setup_intent: "seti_create_bind_crash",
-          client_reference_id: String(ids.organizationId),
-          metadata: {
-            shiftori_organization_id: String(ids.organizationId),
-            shiftori_operation_id: String(ids.checkoutOperationId),
-            shiftori_provider_generation: "1",
-            shiftori_price_id: "price_pro_test",
-          },
-        });
-      }
-      if (resource === "subscriptions.list") {
-        expect(args[0]).toEqual({ customer: "cus_create_bind_crash", status: "all", limit: 100 });
-        return providerResponse({ data: [], has_more: false });
-      }
-      if (resource === "setupIntents.retrieve") {
-        return providerResponse({
-          id: "seti_create_bind_crash",
-          customer: "cus_create_bind_crash",
-          payment_method: "pm_create_bind_crash",
-          status: "succeeded",
-          usage: "off_session",
-        });
-      }
-      if (resource === "paymentMethods.retrieve") {
-        return providerResponse({ id: "pm_create_bind_crash", customer: "cus_create_bind_crash", type: "card" });
-      }
-      if (resource === "subscriptions.create") {
-        createCalls.push(args);
-        return providerResponse(providerSubscription("trialing"));
-      }
-      if (resource === "subscriptions.cancel") {
-        expect(args[0]).toBe("sub_create_bind_crash");
-        return providerResponse(providerSubscription("canceled"));
-      }
-      throw new Error(`Unexpected Stripe provider call: ${resource}`);
-    });
-
-    await t.action(internal.organizationStripe.actions.processWebhookEvent, {
-      stripeEventId: "evt_create_bind_crash",
-    });
-
-    expect(providerResources).toEqual([
-      "events.retrieve",
-      "checkout.sessions.retrieve",
-      "subscriptions.list",
-      "setupIntents.retrieve",
-      "paymentMethods.retrieve",
-      "subscriptions.create",
-      "subscriptions.cancel",
-    ]);
-    expect(createCalls).toEqual([
-      [
-        {
-          customer: "cus_create_bind_crash",
-          items: [{ price: "price_pro_test" }],
-          default_payment_method: "pm_create_bind_crash",
-          trial_end: Math.floor(trialEndsAt / 1000),
-          expand: ["latest_invoice"],
-          payment_settings: {
-            payment_method_types: ["card"],
-            save_default_payment_method: "on_subscription",
-          },
-          metadata: {
-            shiftori_organization_id: String(ids.organizationId),
-            shiftori_operation_id: String(ids.sourceOperationId),
-            shiftori_provider_generation: "1",
-            shiftori_price_id: "price_pro_test",
-          },
-        },
-        { idempotencyKey: originalIdempotencyKey },
-      ],
-    ]);
-    const result = await t.run(async (ctx) => ({
-      billing: await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
-        .unique(),
-      receipt: await ctx.db
-        .query("stripeWebhookEvents")
-        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", "evt_create_bind_crash"))
-        .unique(),
-      source: await ctx.db.get(ids.sourceOperationId),
-      createOperations: await ctx.db
-        .query("organizationStripeOperations")
-        .withIndex("by_organizationId_and_kind_and_status", (q) =>
-          q.eq("organizationId", ids.organizationId).eq("kind", "createTrialSubscription"),
-        )
-        .collect(),
-      cleanup: await ctx.db
-        .query("organizationStripeOperations")
-        .withIndex("by_organizationId_and_kind_and_status", (q) =>
-          q.eq("organizationId", ids.organizationId).eq("kind", "cancelSubscription"),
-        )
-        .unique(),
-      subscription: await ctx.db
-        .query("organizationStripeSubscriptions")
-        .withIndex("by_organizationId_and_providerGeneration", (q) =>
-          q.eq("organizationId", ids.organizationId).eq("providerGeneration", 1),
-        )
-        .unique(),
-    }));
-    expect(result.billing?.state).toEqual({ kind: "trial", trialEndsAt });
-    expect(result.receipt).toMatchObject({
-      status: "actionRequired",
-      lastErrorCode: "trial_subscription_creation_disabled",
-    });
-    expect(result.createOperations).toHaveLength(1);
-    expect(result.source).toMatchObject({
-      status: "actionRequired",
-      attemptCount: 2,
-      stripeIdempotencyKey: originalIdempotencyKey,
-      stripeObjectId: "sub_create_bind_crash",
-      lastErrorCode: "trial_subscription_creation_disabled",
-    });
-    expect(result.cleanup).toMatchObject({
-      status: "succeeded",
-      recoveryPurpose: "invalidTrialSubscriptionCancellation",
-      sourceOperationId: ids.sourceOperationId,
-      stripeObjectId: "sub_create_bind_crash",
-    });
-    expect(result.subscription).toMatchObject({ status: "canceled", terminalAt: NOW });
-  });
-
-  it("idempotency保持の安全時間を過ぎた未bind createは再送せずactionRequiredにする", async () => {
-    configurationMock.mockReturnValue({ status: "off", mode: "off" });
-    vi.stubEnv("STRIPE_BILLING_MODE", "off");
-    const t = convexTest(schema, modules);
-    const trialEndsAt = NOW + 10 * 24 * 60 * 60_000;
-    const ids = await t.run(async (ctx) => {
-      const seeded = await seedOrganizationManagerShop(ctx, { subject: "stripe_create_recovery_expired" });
-      const billing = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
-        .unique();
-      if (!billing) throw new Error("billing missing");
-      await ctx.db.patch(billing._id, { state: { kind: "trial", trialEndsAt }, version: 2, updatedAt: NOW });
-      await ctx.db.insert("organizationStripeCustomers", {
-        organizationId: seeded.organizationId,
-        stripeCustomerId: "cus_create_recovery_expired",
-        livemode: false,
-        createdAt: NOW,
-        updatedAt: NOW,
-      });
-      const checkoutOperationId = await ctx.db.insert("organizationStripeOperations", {
-        organizationId: seeded.organizationId,
-        kind: "trialSetupCheckout",
-        requestKey: "create_recovery_expired_checkout",
-        stripeIdempotencyKey: "test:create-recovery-expired-checkout",
-        livemode: false,
-        expectedBillingVersion: 2,
-        providerGeneration: 1,
-        stripePriceIdSnapshot: "price_pro_test",
-        stripeObjectId: "cs_create_recovery_expired",
-        status: "succeeded",
-        attemptCount: 1,
-        completedAt: NOW,
-        expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
-        createdAt: NOW - 24 * 60 * 60_000,
-        updatedAt: NOW,
-      });
-      const sourceOperationId = await ctx.db.insert("organizationStripeOperations", {
-        organizationId: seeded.organizationId,
-        kind: "createTrialSubscription",
-        requestKey: "evt_create_recovery_expired",
-        stripeIdempotencyKey: "test:create-recovery-expired",
-        livemode: false,
-        expectedBillingVersion: 2,
-        providerGeneration: 1,
-        stripePriceIdSnapshot: "price_pro_test",
-        trialSubscriptionCreateSnapshot: {
-          stripeCustomerId: "cus_create_recovery_expired",
-          stripePaymentMethodId: "pm_create_recovery_expired",
-          trialEndsAt,
-        },
-        status: "processing",
-        attemptCount: 1,
-        leaseToken: "expired-create-recovery-lease",
-        leaseExpiresAt: NOW - 1,
-        expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
-        createdAt: NOW - 23 * 60 * 60_000,
-        updatedAt: NOW - 23 * 60 * 60_000,
-      });
-      await ctx.db.insert("stripeWebhookEvents", {
-        stripeEventId: "evt_create_recovery_expired",
-        type: "checkout.session.completed",
-        apiVersion: STRIPE_WEBHOOK_API_VERSION,
-        livemode: false,
-        objectId: "cs_create_recovery_expired",
-        eventCreatedAt: NOW,
-        status: "received",
-        attemptCount: 0,
-        receivedAt: NOW,
-        expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
-        updatedAt: NOW,
-      });
-      return { ...seeded, checkoutOperationId, sourceOperationId };
-    });
-    const providerResources: string[] = [];
-    providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").pop() ?? "";
-      const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
-      providerResources.push(resource);
-      if (resource === "events.retrieve") {
-        return providerResponse({
-          id: "evt_create_recovery_expired",
-          type: "checkout.session.completed",
-          livemode: false,
-          api_version: STRIPE_WEBHOOK_API_VERSION,
-          created: Math.floor(NOW / 1000),
-          data: { object: { id: "cs_create_recovery_expired" } },
-        });
-      }
-      if (resource === "checkout.sessions.retrieve") {
-        return providerResponse({
-          id: "cs_create_recovery_expired",
-          customer: "cus_create_recovery_expired",
-          livemode: false,
-          mode: "setup",
-          status: "complete",
-          setup_intent: "seti_create_recovery_expired",
-          client_reference_id: String(ids.organizationId),
-          metadata: {
-            shiftori_organization_id: String(ids.organizationId),
-            shiftori_operation_id: String(ids.checkoutOperationId),
-            shiftori_provider_generation: "1",
-            shiftori_price_id: "price_pro_test",
-          },
-        });
-      }
-      if (resource === "subscriptions.list") {
-        expect(args[0]).toEqual({ customer: "cus_create_recovery_expired", status: "all", limit: 100 });
-        return providerResponse({ data: [], has_more: false });
-      }
-      throw new Error(`Unexpected Stripe provider call: ${resource}`);
-    });
-
-    await t.action(internal.organizationStripe.actions.processWebhookEvent, {
-      stripeEventId: "evt_create_recovery_expired",
-    });
-
-    expect(providerResources).toEqual(["events.retrieve", "checkout.sessions.retrieve", "subscriptions.list"]);
-    const result = await t.run(async (ctx) => ({
-      source: await ctx.db.get(ids.sourceOperationId),
-      receipt: await ctx.db
-        .query("stripeWebhookEvents")
-        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", "evt_create_recovery_expired"))
-        .unique(),
-      subscriptions: await ctx.db.query("organizationStripeSubscriptions").collect(),
-      cleanup: await ctx.db
-        .query("organizationStripeOperations")
-        .withIndex("by_organizationId_and_kind_and_status", (q) =>
-          q.eq("organizationId", ids.organizationId).eq("kind", "cancelSubscription"),
-        )
-        .collect(),
-    }));
-    expect(result.source).toMatchObject({
-      status: "actionRequired",
-      lastErrorCode: "trial_subscription_creation_disabled",
-    });
-    expect(result.source).not.toHaveProperty("stripeObjectId");
-    expect(result.receipt).toMatchObject({
-      status: "actionRequired",
-      lastErrorCode: "trial_subscription_creation_disabled",
-    });
-    expect(result.subscriptions).toEqual([]);
-    expect(result.cleanup).toEqual([]);
-  });
-
-  it("PaymentMethodがdetach済みでもlistで一意な作成済みSubscriptionをbindして取消す", async () => {
-    configurationMock.mockReturnValue({ status: "off", mode: "off" });
-    vi.stubEnv("STRIPE_BILLING_MODE", "off");
-    const t = convexTest(schema, modules);
-    const trialEndsAt = NOW + 10 * 24 * 60 * 60_000;
-    const ids = await seedModeOffUnboundTrialCreate(t, { suffix: "detached_pm_recovery", trialEndsAt });
-    const providerResources: string[] = [];
-    const providerSubscription = (status: "trialing" | "canceled") => ({
-      id: "sub_detached_pm_recovery",
-      customer: ids.stripeCustomerId,
-      livemode: false,
-      status,
-      metadata: {
-        shiftori_organization_id: String(ids.organizationId),
-        shiftori_operation_id: String(ids.sourceOperationId),
-        shiftori_provider_generation: "1",
-        shiftori_price_id: "price_pro_test",
-      },
-      trial_end: Math.floor(trialEndsAt / 1000),
-      cancel_at_period_end: false,
-      latest_invoice: null,
-      items: {
-        data: [
-          {
-            id: "si_detached_pm_recovery",
-            current_period_end: Math.floor(trialEndsAt / 1000),
-            price: { id: "price_pro_test" },
-          },
-        ],
-      },
-    });
-    providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").pop() ?? "";
-      const providerArgs = JSON.parse(String(init?.body ?? "[]")) as unknown[];
-      providerResources.push(resource);
-      if (resource === "events.retrieve") {
-        return providerResponse({
-          id: ids.stripeEventId,
-          type: "checkout.session.completed",
-          livemode: false,
-          api_version: STRIPE_WEBHOOK_API_VERSION,
-          created: Math.floor(NOW / 1000),
-          data: { object: { id: ids.stripeSessionId } },
-        });
-      }
-      if (resource === "checkout.sessions.retrieve") {
-        return providerResponse({
-          id: ids.stripeSessionId,
-          customer: ids.stripeCustomerId,
-          livemode: false,
-          mode: "setup",
-          status: "complete",
-          setup_intent: "seti_detached_pm_recovery",
-          client_reference_id: String(ids.organizationId),
-          metadata: {
-            shiftori_organization_id: String(ids.organizationId),
-            shiftori_operation_id: String(ids.checkoutOperationId),
-            shiftori_provider_generation: "1",
-            shiftori_price_id: "price_pro_test",
-          },
-        });
-      }
-      if (resource === "subscriptions.list") {
-        expect(providerArgs[0]).toEqual({ customer: ids.stripeCustomerId, status: "all", limit: 100 });
-        return providerResponse({ data: [providerSubscription("trialing")], has_more: false });
-      }
-      if (resource === "subscriptions.cancel") return providerResponse(providerSubscription("canceled"));
-      throw new Error(`Unexpected Stripe provider call: ${resource}`);
-    });
-
-    await t.action(internal.organizationStripe.actions.processWebhookEvent, {
-      stripeEventId: ids.stripeEventId,
-    });
-
-    expect(providerResources).toEqual([
-      "events.retrieve",
-      "checkout.sessions.retrieve",
-      "subscriptions.list",
-      "subscriptions.cancel",
-    ]);
-    expect(providerResources).not.toContain("setupIntents.retrieve");
-    expect(providerResources).not.toContain("paymentMethods.retrieve");
-    expect(providerResources).not.toContain("subscriptions.create");
-    const result = await t.run(async (ctx) => ({
-      source: await ctx.db.get(ids.sourceOperationId),
-      subscription: await ctx.db
-        .query("organizationStripeSubscriptions")
-        .withIndex("by_organizationId_and_providerGeneration", (q) =>
-          q.eq("organizationId", ids.organizationId).eq("providerGeneration", 1),
-        )
-        .unique(),
-    }));
-    expect(result.source).toMatchObject({
-      status: "actionRequired",
-      stripeObjectId: "sub_detached_pm_recovery",
-      lastErrorCode: "trial_subscription_creation_disabled",
-    });
-    expect(result.subscription).toMatchObject({ status: "canceled", terminalAt: NOW });
-  });
-
-  it("即時課金になり得る未bind createはlistが空でも再送しない", async () => {
-    configurationMock.mockReturnValue({ status: "off", mode: "off" });
-    vi.stubEnv("STRIPE_BILLING_MODE", "off");
-    const t = convexTest(schema, modules);
-    const ids = await seedModeOffUnboundTrialCreate(t, { suffix: "immediate_replay_blocked" });
-    const providerResources: string[] = [];
-    providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").pop() ?? "";
-      const providerArgs = JSON.parse(String(init?.body ?? "[]")) as unknown[];
-      providerResources.push(resource);
-      if (resource === "events.retrieve") {
-        return providerResponse({
-          id: ids.stripeEventId,
-          type: "checkout.session.completed",
-          livemode: false,
-          api_version: STRIPE_WEBHOOK_API_VERSION,
-          created: Math.floor(NOW / 1000),
-          data: { object: { id: ids.stripeSessionId } },
-        });
-      }
-      if (resource === "checkout.sessions.retrieve") {
-        return providerResponse({
-          id: ids.stripeSessionId,
-          customer: ids.stripeCustomerId,
-          livemode: false,
-          mode: "setup",
-          status: "complete",
-          setup_intent: "seti_immediate_replay_blocked",
-          client_reference_id: String(ids.organizationId),
-          metadata: {
-            shiftori_organization_id: String(ids.organizationId),
-            shiftori_operation_id: String(ids.checkoutOperationId),
-            shiftori_provider_generation: "1",
-            shiftori_price_id: "price_pro_test",
-          },
-        });
-      }
-      if (resource === "subscriptions.list") {
-        expect(providerArgs[0]).toEqual({ customer: ids.stripeCustomerId, status: "all", limit: 100 });
-        return providerResponse({ data: [], has_more: false });
-      }
-      throw new Error(`Unexpected Stripe provider call: ${resource}`);
-    });
-
-    await t.action(internal.organizationStripe.actions.processWebhookEvent, {
-      stripeEventId: ids.stripeEventId,
-    });
-
-    expect(providerResources).toEqual(["events.retrieve", "checkout.sessions.retrieve", "subscriptions.list"]);
-    const result = await t.run(async (ctx) => ({
-      source: await ctx.db.get(ids.sourceOperationId),
-      subscriptions: await ctx.db.query("organizationStripeSubscriptions").collect(),
-    }));
-    expect(result.source).toMatchObject({
-      status: "actionRequired",
-      lastErrorCode: "trial_subscription_creation_disabled",
-    });
-    expect(result.source).not.toHaveProperty("stripeObjectId");
-    expect(result.subscriptions).toEqual([]);
   });
 
   it("complimentary.proでは3 Actionともprovider通信せずStripe 4表を空のまま保つ", async () => {
@@ -1062,35 +191,18 @@ describe("organizationStripe/actions", () => {
     }
   });
 
-  it.each([
-    {
-      name: "必須設定不足",
-      configuration: {
-        status: "misconfigured",
-        mode: "test",
-        missing: ["STRIPE_SECRET_KEY"],
-      } satisfies StripeBillingConfiguration,
-    },
-    {
-      name: "test/live不一致",
-      configuration: {
-        status: "misconfigured",
-        mode: "live",
-        missing: ["STRIPE_SECRET_KEY"],
-      } satisfies StripeBillingConfiguration,
-    },
-  ])("$nameでは3 Actionともprovider通信しない", async ({ configuration }) => {
+  it("必須設定不足では3 Actionともprovider通信しない", async () => {
+    const configuration = {
+      status: "misconfigured",
+      missing: ["STRIPE_SECRET_KEY"],
+    } satisfies StripeBillingConfiguration;
     configurationMock.mockReturnValue(configuration);
     const t = convexTest(schema, modules);
     const ids = await t.run(
-      async (ctx) =>
-        await seedOrganizationManagerShop(ctx, { subject: `stripe_config_${configuration.mode}`, plan: "free" }),
+      async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "stripe_config_missing", plan: "free" }),
     );
 
-    const results = await invokeBillingActions(
-      t.withIdentity({ subject: `stripe_config_${configuration.mode}` }),
-      ids.shopId,
-    );
+    const results = await invokeBillingActions(t.withIdentity({ subject: "stripe_config_missing" }), ids.shopId);
 
     expect(results).toEqual([
       { status: "unavailable", reason: "configuration_pending" },
@@ -1098,6 +210,1598 @@ describe("organizationStripe/actions", () => {
       { status: "unavailable", reason: "configuration_pending" },
     ]);
     await expectNoStripeSideEffects(t);
+  });
+
+  it("Pro Priceがアーカイブ済みなら価格を公開せず、新しいCheckoutを作成しない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(
+      async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "stripe_price_archived", plan: "free" }),
+    );
+    const providerResources: string[] = [];
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      providerResources.push(resource);
+      if (resource !== "prices.retrieve") throw new Error(`Unexpected Stripe provider call: ${resource}`);
+      return providerResponse({
+        id: READY_TEST_CONFIGURATION.proPriceId,
+        active: false,
+        livemode: false,
+        currency: "jpy",
+        unit_amount: 1480,
+        recurring: { interval: "month", interval_count: 1 },
+      });
+    });
+    const actor = t.withIdentity({ subject: "stripe_price_archived" });
+
+    await expect(actor.action(api.organizationStripe.actions.getProPrice, { shopId: ids.shopId })).resolves.toEqual({
+      status: "unavailable",
+      reason: "price_unavailable",
+    });
+    await expect(
+      actor.action(api.organizationStripe.actions.startProCheckout, {
+        shopId: ids.shopId,
+        requestId: "archived-price-checkout",
+      }),
+    ).resolves.toEqual({ status: "unavailable", reason: "price_unavailable" });
+
+    expect(providerResources).toEqual(["prices.retrieve", "prices.retrieve"]);
+    const state = await stripeState(t);
+    expect(state.customers).toEqual([]);
+    expect(state.subscriptions).toEqual([]);
+    expect(state.events).toEqual([]);
+    expect(state.operations).toHaveLength(1);
+    expect(state.operations[0]).toMatchObject({ status: "failed", lastErrorCode: "price_invalid" });
+  });
+
+  it("Pro Priceのアーカイブ後は発行済みTrial Setupの完了からSubscriptionを作成しない", async () => {
+    const t = convexTest(schema, modules);
+    const trialEndsAt = NOW - 1;
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, { subject: "stripe_setup_completed_after_archive" });
+      const billing = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billing) throw new Error("billing missing");
+      await ctx.db.patch(billing._id, {
+        state: { kind: "trial", trialEndsAt },
+        version: 2,
+        updatedAt: NOW,
+      });
+      await ctx.db.insert("organizationStripeCustomers", {
+        organizationId: seeded.organizationId,
+        stripeCustomerId: "cus_setup_completed_after_archive",
+        livemode: false,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      const checkoutOperationId = await ctx.db.insert("organizationStripeOperations", {
+        organizationId: seeded.organizationId,
+        kind: "trialSetupCheckout",
+        requestKey: "setup_completed_after_archive",
+        stripeIdempotencyKey: "test:setup-completed-after-archive",
+        livemode: false,
+        expectedBillingVersion: 2,
+        providerGeneration: 1,
+        stripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId,
+        stripeObjectId: "cs_setup_completed_after_archive",
+        status: "succeeded",
+        attemptCount: 1,
+        completedAt: NOW,
+        expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      await ctx.db.insert("stripeWebhookEvents", {
+        stripeEventId: "evt_setup_completed_after_archive",
+        type: "checkout.session.completed",
+        apiVersion: STRIPE_WEBHOOK_API_VERSION,
+        livemode: false,
+        objectId: "cs_setup_completed_after_archive",
+        eventCreatedAt: NOW,
+        status: "received",
+        attemptCount: 0,
+        receivedAt: NOW,
+        expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
+        updatedAt: NOW,
+      });
+      return { ...seeded, checkoutOperationId };
+    });
+    const providerResources: string[] = [];
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      providerResources.push(resource);
+      if (resource === "events.retrieve") {
+        return providerResponse({
+          id: "evt_setup_completed_after_archive",
+          type: "checkout.session.completed",
+          livemode: false,
+          api_version: STRIPE_WEBHOOK_API_VERSION,
+          created: Math.floor(NOW / 1000),
+          data: { object: { id: "cs_setup_completed_after_archive" } },
+        });
+      }
+      if (resource === "checkout.sessions.retrieve") {
+        return providerResponse({
+          id: "cs_setup_completed_after_archive",
+          customer: "cus_setup_completed_after_archive",
+          livemode: false,
+          mode: "setup",
+          status: "complete",
+          setup_intent: "seti_setup_completed_after_archive",
+          client_reference_id: String(ids.organizationId),
+          metadata: {
+            shiftori_organization_id: String(ids.organizationId),
+            shiftori_operation_id: String(ids.checkoutOperationId),
+            shiftori_provider_generation: "1",
+            shiftori_price_id: READY_TEST_CONFIGURATION.proPriceId,
+          },
+        });
+      }
+      if (resource === "setupIntents.retrieve") {
+        return providerResponse({
+          id: "seti_setup_completed_after_archive",
+          customer: "cus_setup_completed_after_archive",
+          payment_method: "pm_setup_completed_after_archive",
+          status: "succeeded",
+          usage: "off_session",
+        });
+      }
+      if (resource === "paymentMethods.retrieve") {
+        return providerResponse({
+          id: "pm_setup_completed_after_archive",
+          customer: "cus_setup_completed_after_archive",
+          type: "card",
+        });
+      }
+      if (resource === "prices.retrieve") {
+        return providerResponse({
+          id: READY_TEST_CONFIGURATION.proPriceId,
+          active: false,
+          livemode: false,
+          currency: "jpy",
+          unit_amount: 1480,
+          recurring: { interval: "month", interval_count: 1 },
+        });
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, {
+      stripeEventId: "evt_setup_completed_after_archive",
+    });
+
+    const result = await t.run(async (ctx) => ({
+      billing: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      receipt: await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", "evt_setup_completed_after_archive"))
+        .unique(),
+      trialSubscriptionOperations: await ctx.db
+        .query("organizationStripeOperations")
+        .withIndex("by_organizationId_and_kind_and_status", (q) =>
+          q.eq("organizationId", ids.organizationId).eq("kind", "createTrialSubscription"),
+        )
+        .collect(),
+      subscriptions: await ctx.db.query("organizationStripeSubscriptions").collect(),
+    }));
+    expect(providerResources).toEqual(["events.retrieve", "checkout.sessions.retrieve", "prices.retrieve"]);
+    expect(providerResources).not.toContain("subscriptions.create");
+    expect(result.billing?.state).toEqual({ kind: "trial", trialEndsAt });
+    expect(result.receipt).toMatchObject({
+      status: "actionRequired",
+      lastErrorCode: "price_invalid",
+      processedAt: NOW,
+    });
+    expect(result.trialSubscriptionOperations).toEqual([]);
+    expect(result.subscriptions).toEqual([]);
+  });
+
+  it("Price停止前のbind未完了Subscriptionは一意なprovider objectだけを回収して取消す", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedInactivePriceTrialRecovery(t, {
+      suffix: "inactive_price_unbound",
+      trialEndsAt: NOW + 10 * 24 * 60 * 60_000,
+      source: "unbound",
+    });
+    const providerResources: string[] = [];
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      const providerArgs = JSON.parse(String(init?.body ?? "[]")) as unknown[];
+      providerResources.push(resource);
+      if (resource === "events.retrieve") {
+        return providerResponse({
+          id: ids.stripeEventId,
+          type: "checkout.session.completed",
+          livemode: false,
+          api_version: STRIPE_WEBHOOK_API_VERSION,
+          created: Math.floor(NOW / 1000),
+          data: { object: { id: ids.stripeSessionId } },
+        });
+      }
+      if (resource === "checkout.sessions.retrieve") {
+        return providerResponse({
+          id: ids.stripeSessionId,
+          customer: ids.stripeCustomerId,
+          livemode: false,
+          mode: "setup",
+          status: "complete",
+          setup_intent: `seti_${ids.stripeEventId}`,
+          client_reference_id: String(ids.organizationId),
+          metadata: {
+            shiftori_organization_id: String(ids.organizationId),
+            shiftori_operation_id: String(ids.checkoutOperationId),
+            shiftori_provider_generation: "1",
+            shiftori_price_id: READY_TEST_CONFIGURATION.proPriceId,
+          },
+        });
+      }
+      if (resource === "prices.retrieve") {
+        return providerResponse({
+          id: READY_TEST_CONFIGURATION.proPriceId,
+          active: false,
+          livemode: false,
+          currency: "jpy",
+          unit_amount: 1480,
+          recurring: { interval: "month", interval_count: 1 },
+        });
+      }
+      if (resource === "subscriptions.list") {
+        expect(providerArgs[0]).toEqual({ customer: ids.stripeCustomerId, status: "all", limit: 100 });
+        return providerResponse({ data: [inactivePriceTrialSubscription(ids)], has_more: false });
+      }
+      if (resource === "subscriptions.cancel") {
+        expect(providerArgs[0]).toBe(ids.stripeSubscriptionId);
+        return providerResponse(inactivePriceTrialSubscription(ids, "canceled"));
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: ids.stripeEventId });
+
+    expect(providerResources).toEqual([
+      "events.retrieve",
+      "checkout.sessions.retrieve",
+      "prices.retrieve",
+      "subscriptions.list",
+      "subscriptions.cancel",
+    ]);
+    expect(providerResources).not.toContain("subscriptions.create");
+    const result = await t.run(async (ctx) => ({
+      billing: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      receipt: await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+        .unique(),
+      source: await ctx.db.get(ids.sourceOperationId),
+      cleanup: await ctx.db
+        .query("organizationStripeOperations")
+        .withIndex("by_organizationId_and_kind_and_status", (q) =>
+          q.eq("organizationId", ids.organizationId).eq("kind", "cancelSubscription"),
+        )
+        .unique(),
+      subscription: await ctx.db
+        .query("organizationStripeSubscriptions")
+        .withIndex("by_livemode_and_stripeSubscriptionId", (q) =>
+          q.eq("livemode", false).eq("stripeSubscriptionId", ids.stripeSubscriptionId),
+        )
+        .unique(),
+    }));
+    expect(result.billing?.state).toEqual({ kind: "trial", trialEndsAt: ids.trialEndsAt });
+    expect(result.receipt).toMatchObject({ status: "actionRequired", lastErrorCode: "price_inactive" });
+    expect(result.source).toMatchObject({
+      status: "actionRequired",
+      attemptCount: 2,
+      stripeObjectId: ids.stripeSubscriptionId,
+      lastErrorCode: "price_inactive",
+    });
+    expect(result.cleanup).toMatchObject({
+      status: "succeeded",
+      recoveryPurpose: "invalidTrialSubscriptionCancellation",
+      sourceOperationId: ids.sourceOperationId,
+      stripeObjectId: ids.stripeSubscriptionId,
+    });
+    expect(result.subscription).toMatchObject({ status: "canceled", terminalAt: NOW });
+  });
+
+  it("Price停止前にローカル同期済みのSubscriptionは現在のPaymentMethodに依存せずTrial選択へ収束する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedInactivePriceTrialRecovery(t, {
+      suffix: "inactive_price_mapped",
+      trialEndsAt: NOW + 10 * 24 * 60 * 60_000,
+      source: "mapped",
+    });
+    const providerResources: string[] = [];
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      providerResources.push(resource);
+      if (resource === "events.retrieve") {
+        return providerResponse({
+          id: ids.stripeEventId,
+          type: "checkout.session.completed",
+          livemode: false,
+          api_version: STRIPE_WEBHOOK_API_VERSION,
+          created: Math.floor(NOW / 1000),
+          data: { object: { id: ids.stripeSessionId } },
+        });
+      }
+      if (resource === "checkout.sessions.retrieve") {
+        return providerResponse({
+          id: ids.stripeSessionId,
+          customer: ids.stripeCustomerId,
+          livemode: false,
+          mode: "setup",
+          status: "complete",
+          setup_intent: `seti_${ids.stripeEventId}`,
+          client_reference_id: String(ids.organizationId),
+          metadata: {
+            shiftori_organization_id: String(ids.organizationId),
+            shiftori_operation_id: String(ids.checkoutOperationId),
+            shiftori_provider_generation: "1",
+            shiftori_price_id: READY_TEST_CONFIGURATION.proPriceId,
+          },
+        });
+      }
+      if (resource === "prices.retrieve") {
+        return providerResponse({
+          id: READY_TEST_CONFIGURATION.proPriceId,
+          active: false,
+          livemode: false,
+          currency: "jpy",
+          unit_amount: 1480,
+          recurring: { interval: "month", interval_count: 1 },
+        });
+      }
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(inactivePriceTrialSubscription(ids));
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: ids.stripeEventId });
+
+    expect(providerResources).toEqual([
+      "events.retrieve",
+      "checkout.sessions.retrieve",
+      "prices.retrieve",
+      "subscriptions.retrieve",
+    ]);
+    expect(providerResources).not.toContain("subscriptions.create");
+    expect(providerResources).not.toContain("subscriptions.cancel");
+    const result = await t.run(async (ctx) => ({
+      billing: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      receipt: await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+        .unique(),
+      source: await ctx.db.get(ids.sourceOperationId),
+      subscription: await ctx.db
+        .query("organizationStripeSubscriptions")
+        .withIndex("by_livemode_and_stripeSubscriptionId", (q) =>
+          q.eq("livemode", false).eq("stripeSubscriptionId", ids.stripeSubscriptionId),
+        )
+        .unique(),
+    }));
+    expect(result.billing).toMatchObject({
+      state: { kind: "trial", trialEndsAt: ids.trialEndsAt, selectedPaidPlan: "pro" },
+    });
+    expect(result.receipt).toMatchObject({ status: "processed" });
+    expect(result.source).toMatchObject({
+      status: "succeeded",
+      attemptCount: 2,
+      stripeObjectId: ids.stripeSubscriptionId,
+    });
+    expect(result.subscription).toMatchObject({ status: "trialing" });
+  });
+
+  it("Price停止前に同期済みの契約が期限後activeかつ支払済みならFreeからProへ収束する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedInactivePriceTrialRecovery(t, {
+      suffix: "inactive_price_active_paid",
+      trialEndsAt: NOW - 60_000,
+      source: "mapped",
+    });
+    await t.run(async (ctx) => {
+      const billing = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique();
+      if (!billing) throw new Error("billing missing");
+      await ctx.db.patch(billing._id, {
+        state: { kind: "active", plan: "free" },
+        version: billing.version + 1,
+        updatedAt: NOW,
+      });
+    });
+    const providerResources = mockInactivePriceMappedWebhook(ids, {
+      ...inactivePriceTrialSubscription(ids),
+      status: "active",
+      latest_invoice: {
+        id: "in_inactive_price_active_paid",
+        customer: ids.stripeCustomerId,
+        livemode: false,
+        status: "paid",
+        amount_remaining: 0,
+        parent: { subscription_details: { subscription: ids.stripeSubscriptionId } },
+      },
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: ids.stripeEventId });
+
+    expect(providerResources).toEqual([
+      "events.retrieve",
+      "checkout.sessions.retrieve",
+      "prices.retrieve",
+      "subscriptions.retrieve",
+    ]);
+    const result = await t.run(async (ctx) => ({
+      billing: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      receipt: await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+        .unique(),
+      source: await ctx.db.get(ids.sourceOperationId),
+    }));
+    expect(result.billing).toMatchObject({ state: { kind: "active", plan: "pro" } });
+    expect(result.receipt).toMatchObject({ status: "processed" });
+    expect(result.source).toMatchObject({ status: "succeeded" });
+  });
+
+  it.each([
+    ["trialing", "trial_subscription_billing_state_invalid"],
+    ["past_due", "subscription_billing_state_invalid"],
+  ] as const)("期限後ローカルFreeでproviderが%sなら将来課金を防ぐため同期済み契約を取消す", async (providerStatus, expectedErrorCode) => {
+    const t = convexTest(schema, modules);
+    const ids = await seedInactivePriceTrialRecovery(t, {
+      suffix: `inactive_price_free_${providerStatus}`,
+      trialEndsAt: NOW - 60_000,
+      source: "mapped",
+    });
+    await t.run(async (ctx) => {
+      const billing = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique();
+      if (!billing) throw new Error("billing missing");
+      await ctx.db.patch(billing._id, {
+        state: { kind: "active", plan: "free" },
+        version: billing.version + 1,
+        updatedAt: NOW,
+      });
+    });
+    const providerResources = mockInactivePriceMappedWebhook(ids, {
+      ...inactivePriceTrialSubscription(ids),
+      status: providerStatus,
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: ids.stripeEventId });
+
+    expect(providerResources).toEqual([
+      "events.retrieve",
+      "checkout.sessions.retrieve",
+      "prices.retrieve",
+      "subscriptions.retrieve",
+      "subscriptions.cancel",
+    ]);
+    expect(providerResources).not.toContain("subscriptions.create");
+    const result = await t.run(async (ctx) => ({
+      billing: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      receipt: await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+        .unique(),
+      source: await ctx.db.get(ids.sourceOperationId),
+      subscription: await ctx.db
+        .query("organizationStripeSubscriptions")
+        .withIndex("by_livemode_and_stripeSubscriptionId", (q) =>
+          q.eq("livemode", false).eq("stripeSubscriptionId", ids.stripeSubscriptionId),
+        )
+        .unique(),
+    }));
+    expect(result.billing).toMatchObject({ state: { kind: "active", plan: "free" } });
+    expect(result.receipt).toMatchObject({ status: "actionRequired", lastErrorCode: expectedErrorCode });
+    expect(result.source).toMatchObject({ status: "actionRequired", lastErrorCode: expectedErrorCode });
+    expect(result.subscription).toMatchObject({ status: "canceled" });
+  });
+
+  it("同期済みTrialのprovider境界が作成intentと違う場合は取消し、選択済みProも解除する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedInactivePriceTrialRecovery(t, {
+      suffix: "inactive_price_trial_boundary_mismatch",
+      trialEndsAt: NOW + 10 * 24 * 60 * 60_000,
+      source: "mapped",
+    });
+    await t.run(async (ctx) => {
+      const billing = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique();
+      const mapping = await ctx.db
+        .query("organizationStripeSubscriptions")
+        .withIndex("by_livemode_and_stripeSubscriptionId", (q) =>
+          q.eq("livemode", false).eq("stripeSubscriptionId", ids.stripeSubscriptionId),
+        )
+        .unique();
+      if (!billing || !mapping) throw new Error("billing fixture missing");
+      const mismatchedTrialEndsAt = ids.trialEndsAt + 24 * 60 * 60_000;
+      await ctx.db.patch(billing._id, {
+        state: { kind: "trial", trialEndsAt: ids.trialEndsAt, selectedPaidPlan: "pro" },
+        version: billing.version + 1,
+        updatedAt: NOW,
+      });
+      await ctx.db.patch(mapping._id, { trialEndsAt: mismatchedTrialEndsAt, updatedAt: NOW });
+    });
+    const providerResources = mockInactivePriceMappedWebhook(ids, {
+      ...inactivePriceTrialSubscription(ids),
+      trial_end: Math.floor((ids.trialEndsAt + 24 * 60 * 60_000) / 1000),
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: ids.stripeEventId });
+
+    expect(providerResources).toEqual([
+      "events.retrieve",
+      "checkout.sessions.retrieve",
+      "prices.retrieve",
+      "subscriptions.retrieve",
+      "subscriptions.cancel",
+    ]);
+    const result = await t.run(async (ctx) => ({
+      billing: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      receipt: await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+        .unique(),
+      source: await ctx.db.get(ids.sourceOperationId),
+      subscription: await ctx.db
+        .query("organizationStripeSubscriptions")
+        .withIndex("by_livemode_and_stripeSubscriptionId", (q) =>
+          q.eq("livemode", false).eq("stripeSubscriptionId", ids.stripeSubscriptionId),
+        )
+        .unique(),
+    }));
+    expect(result.billing).toMatchObject({ state: { kind: "trial", trialEndsAt: ids.trialEndsAt } });
+    expect(result.billing?.state).not.toHaveProperty("selectedPaidPlan");
+    expect(result.receipt).toMatchObject({ status: "actionRequired", lastErrorCode: "trial_subscription_invalid" });
+    expect(result.source).toMatchObject({ status: "actionRequired", lastErrorCode: "trial_subscription_invalid" });
+    expect(result.subscription).toMatchObject({ status: "canceled" });
+  });
+
+  it("Price停止前に同期とTrial選択まで完了した再送は追加のprovider操作なしで収束する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedInactivePriceTrialRecovery(t, {
+      suffix: "inactive_price_converged_replay",
+      trialEndsAt: NOW + 10 * 24 * 60 * 60_000,
+      source: "mapped",
+    });
+    await t.run(async (ctx) => {
+      const billing = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique();
+      if (!billing) throw new Error("billing missing");
+      await ctx.db.patch(billing._id, {
+        state: { kind: "trial", trialEndsAt: ids.trialEndsAt, selectedPaidPlan: "pro" },
+        version: billing.version + 1,
+        updatedAt: NOW,
+      });
+    });
+    const providerResources: string[] = [];
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      providerResources.push(resource);
+      if (resource === "events.retrieve") {
+        return providerResponse({
+          id: ids.stripeEventId,
+          type: "checkout.session.completed",
+          livemode: false,
+          api_version: STRIPE_WEBHOOK_API_VERSION,
+          created: Math.floor(NOW / 1000),
+          data: { object: { id: ids.stripeSessionId } },
+        });
+      }
+      if (resource === "checkout.sessions.retrieve") {
+        return providerResponse({
+          id: ids.stripeSessionId,
+          customer: ids.stripeCustomerId,
+          livemode: false,
+          mode: "setup",
+          status: "complete",
+          setup_intent: `seti_${ids.stripeEventId}`,
+          client_reference_id: String(ids.organizationId),
+          metadata: {
+            shiftori_organization_id: String(ids.organizationId),
+            shiftori_operation_id: String(ids.checkoutOperationId),
+            shiftori_provider_generation: "1",
+            shiftori_price_id: READY_TEST_CONFIGURATION.proPriceId,
+          },
+        });
+      }
+      if (resource === "prices.retrieve") {
+        return providerResponse({
+          id: READY_TEST_CONFIGURATION.proPriceId,
+          active: false,
+          livemode: false,
+          currency: "jpy",
+          unit_amount: 1480,
+          recurring: { interval: "month", interval_count: 1 },
+        });
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: ids.stripeEventId });
+
+    expect(providerResources).toEqual(["events.retrieve", "checkout.sessions.retrieve", "prices.retrieve"]);
+    const result = await t.run(async (ctx) => ({
+      receipt: await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+        .unique(),
+      source: await ctx.db.get(ids.sourceOperationId),
+      cleanup: await ctx.db
+        .query("organizationStripeOperations")
+        .filter((q) =>
+          q.and(q.eq(q.field("organizationId"), ids.organizationId), q.eq(q.field("kind"), "cancelSubscription")),
+        )
+        .collect(),
+    }));
+    expect(result.receipt).toMatchObject({ status: "processed" });
+    expect(result.source).toMatchObject({ status: "succeeded", attemptCount: 1 });
+    expect(result.cleanup).toEqual([]);
+  });
+
+  it("Price停止前の取消済みSubscription再送はpendingActivationへ戻さず取消状態へ収束する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedInactivePriceTrialRecovery(t, {
+      suffix: "inactive_price_canceled_replay",
+      trialEndsAt: NOW + 10 * 24 * 60 * 60_000,
+      source: "mapped",
+    });
+    await t.run(async (ctx) => {
+      const billing = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique();
+      const mapping = await ctx.db
+        .query("organizationStripeSubscriptions")
+        .withIndex("by_livemode_and_stripeSubscriptionId", (q) =>
+          q.eq("livemode", false).eq("stripeSubscriptionId", ids.stripeSubscriptionId),
+        )
+        .unique();
+      if (!billing || !mapping) throw new Error("billing fixture missing");
+      await ctx.db.patch(billing._id, {
+        state: { kind: "active", plan: "free" },
+        version: billing.version + 1,
+        updatedAt: NOW,
+      });
+      await ctx.db.patch(mapping._id, { status: "canceled", terminalAt: NOW, updatedAt: NOW });
+    });
+    const providerResources: string[] = [];
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      providerResources.push(resource);
+      if (resource === "events.retrieve") {
+        return providerResponse({
+          id: ids.stripeEventId,
+          type: "checkout.session.completed",
+          livemode: false,
+          api_version: STRIPE_WEBHOOK_API_VERSION,
+          created: Math.floor(NOW / 1000),
+          data: { object: { id: ids.stripeSessionId } },
+        });
+      }
+      if (resource === "checkout.sessions.retrieve") {
+        return providerResponse({
+          id: ids.stripeSessionId,
+          customer: ids.stripeCustomerId,
+          livemode: false,
+          mode: "setup",
+          status: "complete",
+          setup_intent: `seti_${ids.stripeEventId}`,
+          client_reference_id: String(ids.organizationId),
+          metadata: {
+            shiftori_organization_id: String(ids.organizationId),
+            shiftori_operation_id: String(ids.checkoutOperationId),
+            shiftori_provider_generation: "1",
+            shiftori_price_id: READY_TEST_CONFIGURATION.proPriceId,
+          },
+        });
+      }
+      if (resource === "prices.retrieve") {
+        return providerResponse({
+          id: READY_TEST_CONFIGURATION.proPriceId,
+          active: false,
+          livemode: false,
+          currency: "jpy",
+          unit_amount: 1480,
+          recurring: { interval: "month", interval_count: 1 },
+        });
+      }
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse({
+          ...inactivePriceTrialSubscription(ids, "canceled"),
+          canceled_at: Math.floor(NOW / 1000),
+          ended_at: Math.floor(NOW / 1000),
+        });
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: ids.stripeEventId });
+
+    expect(providerResources).toEqual([
+      "events.retrieve",
+      "checkout.sessions.retrieve",
+      "prices.retrieve",
+      "subscriptions.retrieve",
+    ]);
+    const result = await t.run(async (ctx) => ({
+      billing: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      receipt: await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+        .unique(),
+      source: await ctx.db.get(ids.sourceOperationId),
+    }));
+    expect(result.billing).toMatchObject({ state: { kind: "active", plan: "free" } });
+    expect(result.billing?.state.kind).not.toBe("pendingActivation");
+    expect(result.receipt).toMatchObject({ status: "processed" });
+    expect(result.source).toMatchObject({ status: "succeeded" });
+  });
+
+  it("Price停止の取消判定より通常同期が先行した場合は同期済みSubscriptionを保持する", async () => {
+    const t = convexTest(schema, modules);
+    const suffix = "inactive_price_save_wins";
+    const ids = await seedInactivePriceTrialRecovery(t, {
+      suffix,
+      trialEndsAt: NOW + 10 * 24 * 60 * 60_000,
+      source: "unbound",
+    });
+    const sourceLeaseToken = `${suffix}-abandoned-lease`;
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.sourceOperationId, { stripeObjectId: ids.stripeSubscriptionId });
+    });
+    const before = await t.query(internal.organizationStripe.queries.getTrialCreationRecoveryContext, {
+      organizationId: ids.organizationId,
+      requestKey: ids.stripeEventId,
+    });
+    expect(before).toMatchObject({ mappingState: "none" });
+
+    await t.mutation(internal.organizationStripe.mutations.saveSubscriptionSnapshot, {
+      organizationId: ids.organizationId,
+      stripeCustomerId: ids.stripeCustomerId,
+      stripeSubscriptionId: ids.stripeSubscriptionId,
+      stripeSubscriptionItemId: ids.stripeSubscriptionItemId,
+      stripePriceId: READY_TEST_CONFIGURATION.proPriceId,
+      livemode: false,
+      status: "trialing",
+      providerGeneration: 1,
+      trialEndsAt: ids.trialEndsAt,
+      currentPeriodEndsAt: ids.trialEndsAt,
+      cancelAtPeriodEnd: false,
+      eventCreatedAt: Math.floor(NOW / 1000),
+      stripeEventId: ids.stripeEventId,
+      syncedAt: NOW,
+      trialCreationOperationId: ids.sourceOperationId,
+      trialCreationOperationLeaseToken: sourceLeaseToken,
+    });
+    const resolution = await t.mutation(internal.organizationStripe.mutations.resolveInactivePriceTrialSubscription, {
+      organizationId: ids.organizationId,
+      sourceOperationId: ids.sourceOperationId,
+      sourceLeaseToken,
+      requestKey: "inactive_price_save_wins_cleanup",
+      stripeSubscriptionId: ids.stripeSubscriptionId,
+      errorCode: "price_inactive",
+    });
+
+    expect(resolution).toMatchObject({
+      kind: "preserved",
+      providerGeneration: 1,
+      billingConverged: false,
+      leaseToken: expect.any(String),
+    });
+    const result = await t.run(async (ctx) => ({
+      source: await ctx.db.get(ids.sourceOperationId),
+      cleanup: await ctx.db
+        .query("organizationStripeOperations")
+        .filter((q) =>
+          q.and(q.eq(q.field("organizationId"), ids.organizationId), q.eq(q.field("kind"), "cancelSubscription")),
+        )
+        .collect(),
+    }));
+    expect(result.source).toMatchObject({
+      status: "processing",
+      attemptCount: 2,
+      stripeObjectId: ids.stripeSubscriptionId,
+    });
+    expect(result.cleanup).toEqual([]);
+  });
+
+  it("Price停止の取消intentが先行した場合は古い通常同期を拒否して同じ取消を再利用する", async () => {
+    const t = convexTest(schema, modules);
+    const suffix = "inactive_price_cleanup_wins";
+    const ids = await seedInactivePriceTrialRecovery(t, {
+      suffix,
+      trialEndsAt: NOW + 10 * 24 * 60 * 60_000,
+      source: "unbound",
+    });
+    const sourceLeaseToken = `${suffix}-abandoned-lease`;
+    const requestKey = "inactive_price_cleanup_wins_key";
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.sourceOperationId, { stripeObjectId: ids.stripeSubscriptionId });
+    });
+    const first = await t.mutation(internal.organizationStripe.mutations.resolveInactivePriceTrialSubscription, {
+      organizationId: ids.organizationId,
+      sourceOperationId: ids.sourceOperationId,
+      sourceLeaseToken,
+      requestKey,
+      stripeSubscriptionId: ids.stripeSubscriptionId,
+      errorCode: "price_inactive",
+    });
+    expect(first).toMatchObject({ kind: "cleanup", operation: { created: true, status: "processing" } });
+    if (first.kind !== "cleanup") throw new Error("cleanup operation missing");
+
+    await expect(
+      t.mutation(internal.organizationStripe.mutations.saveSubscriptionSnapshot, {
+        organizationId: ids.organizationId,
+        stripeCustomerId: ids.stripeCustomerId,
+        stripeSubscriptionId: ids.stripeSubscriptionId,
+        stripeSubscriptionItemId: ids.stripeSubscriptionItemId,
+        stripePriceId: READY_TEST_CONFIGURATION.proPriceId,
+        livemode: false,
+        status: "trialing",
+        providerGeneration: 1,
+        trialEndsAt: ids.trialEndsAt,
+        currentPeriodEndsAt: ids.trialEndsAt,
+        cancelAtPeriodEnd: false,
+        eventCreatedAt: Math.floor(NOW / 1000),
+        stripeEventId: ids.stripeEventId,
+        syncedAt: NOW,
+        trialCreationOperationId: ids.sourceOperationId,
+        trialCreationOperationLeaseToken: sourceLeaseToken,
+      }),
+    ).rejects.toThrow("Trial subscription operation no longer owns snapshot");
+
+    const repeated = await t.mutation(internal.organizationStripe.mutations.resolveInactivePriceTrialSubscription, {
+      organizationId: ids.organizationId,
+      sourceOperationId: ids.sourceOperationId,
+      requestKey,
+      stripeSubscriptionId: ids.stripeSubscriptionId,
+      errorCode: "price_inactive",
+    });
+    expect(repeated).toMatchObject({
+      kind: "cleanup",
+      operation: {
+        operationId: first.operation.operationId,
+        stripeIdempotencyKey: first.operation.stripeIdempotencyKey,
+        created: false,
+      },
+    });
+    const result = await t.run(async (ctx) => ({
+      source: await ctx.db.get(ids.sourceOperationId),
+      mapping: await ctx.db
+        .query("organizationStripeSubscriptions")
+        .withIndex("by_livemode_and_stripeSubscriptionId", (q) =>
+          q.eq("livemode", false).eq("stripeSubscriptionId", ids.stripeSubscriptionId),
+        )
+        .unique(),
+    }));
+    expect(result.source).toMatchObject({ status: "actionRequired", lastErrorCode: "price_inactive" });
+    expect(result.mapping).toBeNull();
+  });
+
+  it.each([
+    { initialAttemptCount: 2, initialReceiptAttemptCount: 0 },
+    { initialAttemptCount: 8, initialReceiptAttemptCount: 7 },
+  ])("Price停止時は元create試行が$initialAttemptCount回、Webhook試行が$initialReceiptAttemptCount回でも3回再照合する", async ({
+    initialAttemptCount,
+    initialReceiptAttemptCount,
+  }) => {
+    const t = convexTest(schema, modules);
+    const ids = await seedInactivePriceTrialRecovery(t, {
+      suffix: `inactive_price_not_found_${initialAttemptCount}`,
+      trialEndsAt: NOW + 10 * 24 * 60 * 60_000,
+      source: "unbound",
+    });
+    await t.run(async (ctx) => {
+      const receipt = await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+        .unique();
+      if (!receipt) throw new Error("webhook receipt missing");
+      await ctx.db.patch(ids.sourceOperationId, {
+        status: initialAttemptCount >= 8 ? "actionRequired" : "retrying",
+        attemptCount: initialAttemptCount,
+        lastErrorCode: initialAttemptCount >= 8 ? "attempt_limit_exceeded" : "stripe_create_result_unknown",
+        leaseToken: undefined,
+        leaseExpiresAt: undefined,
+        nextRunAt: undefined,
+        completedAt: initialAttemptCount >= 8 ? NOW - 1 : undefined,
+        updatedAt: NOW,
+      });
+      await ctx.db.patch(receipt._id, { attemptCount: initialReceiptAttemptCount, updatedAt: NOW });
+    });
+    const providerResources: string[] = [];
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      providerResources.push(resource);
+      if (resource === "events.retrieve") {
+        return providerResponse({
+          id: ids.stripeEventId,
+          type: "checkout.session.completed",
+          livemode: false,
+          api_version: STRIPE_WEBHOOK_API_VERSION,
+          created: Math.floor(NOW / 1000),
+          data: { object: { id: ids.stripeSessionId } },
+        });
+      }
+      if (resource === "checkout.sessions.retrieve") {
+        return providerResponse({
+          id: ids.stripeSessionId,
+          customer: ids.stripeCustomerId,
+          livemode: false,
+          mode: "setup",
+          status: "complete",
+          setup_intent: `seti_${ids.stripeEventId}`,
+          client_reference_id: String(ids.organizationId),
+          metadata: {
+            shiftori_organization_id: String(ids.organizationId),
+            shiftori_operation_id: String(ids.checkoutOperationId),
+            shiftori_provider_generation: "1",
+            shiftori_price_id: READY_TEST_CONFIGURATION.proPriceId,
+          },
+        });
+      }
+      if (resource === "prices.retrieve") {
+        return providerResponse({
+          id: READY_TEST_CONFIGURATION.proPriceId,
+          active: false,
+          livemode: false,
+          currency: "jpy",
+          unit_amount: 1480,
+          recurring: { interval: "month", interval_count: 1 },
+        });
+      }
+      if (resource === "subscriptions.list") {
+        return providerResponse({ data: [], has_more: false });
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: ids.stripeEventId });
+    const firstRetryDelay = initialReceiptAttemptCount >= 7 ? 30 * 60_000 : 30_000;
+    const secondRetryDelay = initialReceiptAttemptCount >= 7 ? 30 * 60_000 : 60_000;
+    vi.setSystemTime(NOW + firstRetryDelay + 1);
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: ids.stripeEventId });
+    vi.setSystemTime(NOW + firstRetryDelay + secondRetryDelay + 2);
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: ids.stripeEventId });
+
+    expect(providerResources.filter((resource) => resource === "subscriptions.list")).toHaveLength(3);
+    expect(providerResources).not.toContain("subscriptions.create");
+    expect(providerResources).not.toContain("subscriptions.cancel");
+    const result = await t.run(async (ctx) => ({
+      receipt: await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+        .unique(),
+      source: await ctx.db.get(ids.sourceOperationId),
+    }));
+    expect(result.receipt).toMatchObject({
+      status: "actionRequired",
+      attemptCount: initialReceiptAttemptCount + 3,
+      lastErrorCode: "price_inactive_subscription_not_found",
+    });
+    expect(result.source).toMatchObject({
+      status: "actionRequired",
+      attemptCount: initialAttemptCount + 3,
+      lastErrorCode: "price_inactive_subscription_not_found",
+    });
+  });
+
+  it("既存Subscription一覧の一時障害がWebhook上限に達しても回復照合を継続する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedInactivePriceTrialRecovery(t, {
+      suffix: "inactive_price_provider_retry_after_webhook_limit",
+      trialEndsAt: NOW + 10 * 24 * 60 * 60_000,
+      source: "unbound",
+    });
+    await t.run(async (ctx) => {
+      const receipt = await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+        .unique();
+      if (!receipt) throw new Error("webhook receipt missing");
+      await ctx.db.patch(ids.sourceOperationId, {
+        status: "actionRequired",
+        attemptCount: 8,
+        lastErrorCode: "attempt_limit_exceeded",
+        leaseToken: undefined,
+        leaseExpiresAt: undefined,
+        completedAt: NOW - 1,
+        updatedAt: NOW,
+      });
+      await ctx.db.patch(receipt._id, { attemptCount: 7, updatedAt: NOW });
+    });
+    const providerResources: string[] = [];
+    let listAttemptCount = 0;
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      providerResources.push(resource);
+      if (resource === "events.retrieve") {
+        return providerResponse({
+          id: ids.stripeEventId,
+          type: "checkout.session.completed",
+          livemode: false,
+          api_version: STRIPE_WEBHOOK_API_VERSION,
+          created: Math.floor(NOW / 1000),
+          data: { object: { id: ids.stripeSessionId } },
+        });
+      }
+      if (resource === "checkout.sessions.retrieve") {
+        return providerResponse({
+          id: ids.stripeSessionId,
+          customer: ids.stripeCustomerId,
+          livemode: false,
+          mode: "setup",
+          status: "complete",
+          client_reference_id: String(ids.organizationId),
+          metadata: {
+            shiftori_organization_id: String(ids.organizationId),
+            shiftori_operation_id: String(ids.checkoutOperationId),
+            shiftori_provider_generation: "1",
+            shiftori_price_id: READY_TEST_CONFIGURATION.proPriceId,
+          },
+        });
+      }
+      if (resource === "prices.retrieve") {
+        return providerResponse({
+          id: READY_TEST_CONFIGURATION.proPriceId,
+          active: false,
+          livemode: false,
+          currency: "jpy",
+          unit_amount: 1480,
+          recurring: { interval: "month", interval_count: 1 },
+        });
+      }
+      if (resource === "subscriptions.list") {
+        listAttemptCount += 1;
+        if (listAttemptCount === 1) throw new MockStripeError(undefined, "StripeConnectionError");
+        return providerResponse({ data: [], has_more: false });
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: ids.stripeEventId });
+    expect(
+      await t.run(async (ctx) => {
+        const receipt = await ctx.db
+          .query("stripeWebhookEvents")
+          .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+          .unique();
+        return { receipt, source: await ctx.db.get(ids.sourceOperationId) };
+      }),
+    ).toMatchObject({
+      receipt: {
+        status: "retrying",
+        attemptCount: 8,
+        lastErrorCode: "price_inactive_subscription_provider_retry",
+      },
+      source: {
+        status: "retrying",
+        attemptCount: 9,
+        lastErrorCode: "price_inactive_subscription_pending_0",
+      },
+    });
+
+    vi.setSystemTime(NOW + 30 * 60_000 + 1);
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: ids.stripeEventId });
+
+    expect(providerResources.filter((resource) => resource === "subscriptions.list")).toHaveLength(2);
+    expect(providerResources).not.toContain("subscriptions.create");
+    const result = await t.run(async (ctx) => ({
+      receipt: await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+        .unique(),
+      source: await ctx.db.get(ids.sourceOperationId),
+    }));
+    expect(result.receipt).toMatchObject({
+      status: "retrying",
+      attemptCount: 9,
+      lastErrorCode: "price_inactive_subscription_pending",
+    });
+    expect(result.source).toMatchObject({
+      status: "retrying",
+      attemptCount: 10,
+      lastErrorCode: "price_inactive_subscription_pending_1",
+    });
+  });
+
+  it("Price停止回収中の恒久的なStripe 4xxはWebhook上限を越えて再試行しない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedInactivePriceTrialRecovery(t, {
+      suffix: "inactive_price_provider_rejected_after_webhook_limit",
+      trialEndsAt: NOW + 10 * 24 * 60 * 60_000,
+      source: "unbound",
+    });
+    await t.run(async (ctx) => {
+      const receipt = await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+        .unique();
+      if (!receipt) throw new Error("webhook receipt missing");
+      await ctx.db.patch(ids.sourceOperationId, {
+        status: "actionRequired",
+        attemptCount: 8,
+        lastErrorCode: "attempt_limit_exceeded",
+        leaseToken: undefined,
+        leaseExpiresAt: undefined,
+        completedAt: NOW - 1,
+        updatedAt: NOW,
+      });
+      await ctx.db.patch(receipt._id, { attemptCount: 7, updatedAt: NOW });
+    });
+    const providerResources: string[] = [];
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      providerResources.push(resource);
+      if (resource === "events.retrieve") {
+        return providerResponse({
+          id: ids.stripeEventId,
+          type: "checkout.session.completed",
+          livemode: false,
+          api_version: STRIPE_WEBHOOK_API_VERSION,
+          created: Math.floor(NOW / 1000),
+          data: { object: { id: ids.stripeSessionId } },
+        });
+      }
+      if (resource === "checkout.sessions.retrieve") {
+        return providerResponse({
+          id: ids.stripeSessionId,
+          customer: ids.stripeCustomerId,
+          livemode: false,
+          mode: "setup",
+          status: "complete",
+          client_reference_id: String(ids.organizationId),
+          metadata: {
+            shiftori_organization_id: String(ids.organizationId),
+            shiftori_operation_id: String(ids.checkoutOperationId),
+            shiftori_provider_generation: "1",
+            shiftori_price_id: READY_TEST_CONFIGURATION.proPriceId,
+          },
+        });
+      }
+      if (resource === "prices.retrieve") {
+        return providerResponse({
+          id: READY_TEST_CONFIGURATION.proPriceId,
+          active: false,
+          livemode: false,
+          currency: "jpy",
+          unit_amount: 1480,
+          recurring: { interval: "month", interval_count: 1 },
+        });
+      }
+      if (resource === "subscriptions.list") {
+        throw new MockStripeError(400, "StripeAPIError");
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: ids.stripeEventId });
+
+    expect(providerResources).not.toContain("subscriptions.create");
+    const result = await t.run(async (ctx) => ({
+      receipt: await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+        .unique(),
+      source: await ctx.db.get(ids.sourceOperationId),
+    }));
+    expect(result.receipt).toMatchObject({
+      status: "actionRequired",
+      attemptCount: 8,
+      lastErrorCode: "attempt_limit_exceeded",
+    });
+    expect(result.source).toMatchObject({
+      status: "retrying",
+      attemptCount: 9,
+      lastErrorCode: "price_inactive_subscription_pending_0",
+    });
+  });
+
+  it("Price停止回収中の前段Stripe一時障害でもWebhook上限を越えて3回照合する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedInactivePriceTrialRecovery(t, {
+      suffix: "inactive_price_outer_provider_retry_after_webhook_limit",
+      trialEndsAt: NOW + 10 * 24 * 60 * 60_000,
+      source: "unbound",
+    });
+    await t.run(async (ctx) => {
+      const receipt = await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+        .unique();
+      if (!receipt) throw new Error("webhook receipt missing");
+      await ctx.db.patch(ids.sourceOperationId, {
+        status: "actionRequired",
+        attemptCount: 8,
+        lastErrorCode: "attempt_limit_exceeded",
+        leaseToken: undefined,
+        leaseExpiresAt: undefined,
+        completedAt: NOW - 1,
+        updatedAt: NOW,
+      });
+      await ctx.db.patch(receipt._id, { attemptCount: 7, updatedAt: NOW });
+    });
+    const providerResources: string[] = [];
+    let eventRetrieveAttemptCount = 0;
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      providerResources.push(resource);
+      if (resource === "events.retrieve") {
+        eventRetrieveAttemptCount += 1;
+        if (eventRetrieveAttemptCount === 2) {
+          throw new MockStripeError(undefined, "StripeConnectionError");
+        }
+        return providerResponse({
+          id: ids.stripeEventId,
+          type: "checkout.session.completed",
+          livemode: false,
+          api_version: STRIPE_WEBHOOK_API_VERSION,
+          created: Math.floor(NOW / 1000),
+          data: { object: { id: ids.stripeSessionId } },
+        });
+      }
+      if (resource === "checkout.sessions.retrieve") {
+        return providerResponse({
+          id: ids.stripeSessionId,
+          customer: ids.stripeCustomerId,
+          livemode: false,
+          mode: "setup",
+          status: "complete",
+          client_reference_id: String(ids.organizationId),
+          metadata: {
+            shiftori_organization_id: String(ids.organizationId),
+            shiftori_operation_id: String(ids.checkoutOperationId),
+            shiftori_provider_generation: "1",
+            shiftori_price_id: READY_TEST_CONFIGURATION.proPriceId,
+          },
+        });
+      }
+      if (resource === "prices.retrieve") {
+        return providerResponse({
+          id: READY_TEST_CONFIGURATION.proPriceId,
+          active: false,
+          livemode: false,
+          currency: "jpy",
+          unit_amount: 1480,
+          recurring: { interval: "month", interval_count: 1 },
+        });
+      }
+      if (resource === "subscriptions.list") {
+        return providerResponse({ data: [], has_more: false });
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: ids.stripeEventId });
+    vi.setSystemTime(NOW + 30 * 60_000 + 1);
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: ids.stripeEventId });
+    expect(
+      await t.run(async (ctx) => {
+        const receipt = await ctx.db
+          .query("stripeWebhookEvents")
+          .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+          .unique();
+        return { receipt, source: await ctx.db.get(ids.sourceOperationId) };
+      }),
+    ).toMatchObject({
+      receipt: {
+        status: "retrying",
+        attemptCount: 9,
+        lastErrorCode: "price_inactive_subscription_provider_retry",
+      },
+      source: {
+        status: "retrying",
+        attemptCount: 9,
+        lastErrorCode: "price_inactive_subscription_pending_1",
+      },
+    });
+
+    vi.setSystemTime(NOW + 60 * 60_000 + 2);
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: ids.stripeEventId });
+    vi.setSystemTime(NOW + 90 * 60_000 + 3);
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: ids.stripeEventId });
+
+    expect(providerResources.filter((resource) => resource === "events.retrieve")).toHaveLength(4);
+    expect(providerResources.filter((resource) => resource === "subscriptions.list")).toHaveLength(3);
+    expect(providerResources).not.toContain("subscriptions.create");
+    const result = await t.run(async (ctx) => ({
+      receipt: await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+        .unique(),
+      source: await ctx.db.get(ids.sourceOperationId),
+    }));
+    expect(result.receipt).toMatchObject({
+      status: "actionRequired",
+      attemptCount: 11,
+      lastErrorCode: "price_inactive_subscription_not_found",
+    });
+    expect(result.source).toMatchObject({
+      status: "actionRequired",
+      attemptCount: 11,
+      lastErrorCode: "price_inactive_subscription_not_found",
+    });
+  });
+
+  it("Webhook 8回目のPrice停止回収claim直後に停止しても再開しSubscription作成を再送しない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedInactivePriceTrialRecovery(t, {
+      suffix: "inactive_price_reactivated_after_claim",
+      trialEndsAt: NOW + 10 * 24 * 60 * 60_000,
+      source: "unbound",
+    });
+    await t.run(async (ctx) => {
+      const receipt = await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+        .unique();
+      if (!receipt) throw new Error("webhook receipt missing");
+      await ctx.db.patch(receipt._id, { attemptCount: 7, updatedAt: NOW });
+    });
+    const webhookClaim = await t.mutation(internal.organizationStripe.mutations.claimWebhookEvent, {
+      stripeEventId: ids.stripeEventId,
+    });
+    if (!webhookClaim) throw new Error("webhook claim missing");
+    const recoveryArgs = {
+      organizationId: ids.organizationId,
+      operationId: ids.sourceOperationId,
+      requestKey: ids.stripeEventId,
+      stripeIdempotencyKey: "test:inactive_price_reactivated_after_claim:create",
+      livemode: false,
+      providerGeneration: 1,
+      stripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId,
+      webhookLeaseToken: webhookClaim.leaseToken,
+    } as const;
+    const claimed = await t.mutation(
+      internal.organizationStripe.mutations.claimInactivePriceTrialSubscriptionRecovery,
+      recoveryArgs,
+    );
+    expect(claimed).toMatchObject({ created: true, status: "processing" });
+    expect(
+      await t.run(async (ctx) => {
+        const receipt = await ctx.db
+          .query("stripeWebhookEvents")
+          .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+          .unique();
+        return { receipt, source: await ctx.db.get(ids.sourceOperationId) };
+      }),
+    ).toMatchObject({
+      receipt: {
+        status: "processing",
+        attemptCount: 8,
+        lastErrorCode: "price_inactive_subscription_recovery_busy",
+      },
+      source: {
+        status: "processing",
+        attemptCount: 2,
+        lastErrorCode: "price_inactive_subscription_pending_0",
+      },
+    });
+
+    const providerResources: string[] = [];
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      providerResources.push(resource);
+      if (resource === "events.retrieve") {
+        return providerResponse({
+          id: ids.stripeEventId,
+          type: "checkout.session.completed",
+          livemode: false,
+          api_version: STRIPE_WEBHOOK_API_VERSION,
+          created: Math.floor(NOW / 1000),
+          data: { object: { id: ids.stripeSessionId } },
+        });
+      }
+      if (resource === "checkout.sessions.retrieve") {
+        return providerResponse({
+          id: ids.stripeSessionId,
+          customer: ids.stripeCustomerId,
+          livemode: false,
+          mode: "setup",
+          status: "complete",
+          setup_intent: `seti_${ids.stripeEventId}`,
+          client_reference_id: String(ids.organizationId),
+          metadata: {
+            shiftori_organization_id: String(ids.organizationId),
+            shiftori_operation_id: String(ids.checkoutOperationId),
+            shiftori_provider_generation: "1",
+            shiftori_price_id: READY_TEST_CONFIGURATION.proPriceId,
+          },
+        });
+      }
+      if (resource === "prices.retrieve") {
+        return providerResponse({
+          id: READY_TEST_CONFIGURATION.proPriceId,
+          active: true,
+          livemode: false,
+          currency: "jpy",
+          unit_amount: 1480,
+          recurring: { interval: "month", interval_count: 1 },
+        });
+      }
+      if (resource === "subscriptions.list") {
+        return providerResponse({ data: [], has_more: false });
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    vi.setSystemTime(NOW + 15 * 60_000 + 1);
+    const fenced = await t.mutation(internal.organizationStripe.mutations.beginOperation, {
+      organizationId: ids.organizationId,
+      kind: "createTrialSubscription",
+      requestKey: ids.stripeEventId,
+      livemode: false,
+      expectedBillingVersion: 2,
+      providerGeneration: 1,
+      stripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId,
+      trialSubscriptionCreateSnapshot: {
+        stripeCustomerId: ids.stripeCustomerId,
+        stripePaymentMethodId: ids.stripePaymentMethodId,
+        trialEndsAt: ids.trialEndsAt,
+      },
+    });
+    expect(fenced).toMatchObject({ created: false, status: "processing" });
+    expect(await t.run(async (ctx) => await ctx.db.get(ids.sourceOperationId))).toMatchObject({
+      attemptCount: 2,
+      lastErrorCode: "price_inactive_subscription_pending_0",
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: ids.stripeEventId });
+
+    expect(providerResources).toEqual([
+      "events.retrieve",
+      "checkout.sessions.retrieve",
+      "prices.retrieve",
+      "subscriptions.list",
+    ]);
+    expect(providerResources).not.toContain("setupIntents.retrieve");
+    expect(providerResources).not.toContain("paymentMethods.retrieve");
+    expect(providerResources).not.toContain("subscriptions.create");
+    const result = await t.run(async (ctx) => ({
+      receipt: await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+        .unique(),
+      source: await ctx.db.get(ids.sourceOperationId),
+    }));
+    expect(result.receipt).toMatchObject({
+      status: "retrying",
+      attemptCount: 9,
+      lastErrorCode: "price_inactive_subscription_pending",
+    });
+    expect(result.source).toMatchObject({
+      status: "retrying",
+      attemptCount: 3,
+      lastErrorCode: "price_inactive_subscription_pending_1",
+    });
+  });
+
+  it("Price停止時に未bind Subscription候補が複数なら推測せず新規作成もしない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedInactivePriceTrialRecovery(t, {
+      suffix: "inactive_price_ambiguous",
+      trialEndsAt: NOW + 10 * 24 * 60 * 60_000,
+      source: "unbound",
+    });
+    const providerResources: string[] = [];
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      providerResources.push(resource);
+      if (resource === "events.retrieve") {
+        return providerResponse({
+          id: ids.stripeEventId,
+          type: "checkout.session.completed",
+          livemode: false,
+          api_version: STRIPE_WEBHOOK_API_VERSION,
+          created: Math.floor(NOW / 1000),
+          data: { object: { id: ids.stripeSessionId } },
+        });
+      }
+      if (resource === "checkout.sessions.retrieve") {
+        return providerResponse({
+          id: ids.stripeSessionId,
+          customer: ids.stripeCustomerId,
+          livemode: false,
+          mode: "setup",
+          status: "complete",
+          client_reference_id: String(ids.organizationId),
+          metadata: {
+            shiftori_organization_id: String(ids.organizationId),
+            shiftori_operation_id: String(ids.checkoutOperationId),
+            shiftori_provider_generation: "1",
+            shiftori_price_id: READY_TEST_CONFIGURATION.proPriceId,
+          },
+        });
+      }
+      if (resource === "prices.retrieve") {
+        return providerResponse({
+          id: READY_TEST_CONFIGURATION.proPriceId,
+          active: false,
+          livemode: false,
+          currency: "jpy",
+          unit_amount: 1480,
+          recurring: { interval: "month", interval_count: 1 },
+        });
+      }
+      if (resource === "subscriptions.list") {
+        const candidate = inactivePriceTrialSubscription(ids);
+        return providerResponse({
+          data: [
+            { ...candidate, id: "sub_inactive_price_ambiguous_a" },
+            { ...candidate, id: "sub_inactive_price_ambiguous_b" },
+          ],
+          has_more: false,
+        });
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: ids.stripeEventId });
+
+    expect(providerResources).toEqual([
+      "events.retrieve",
+      "checkout.sessions.retrieve",
+      "prices.retrieve",
+      "subscriptions.list",
+    ]);
+    expect(providerResources).not.toContain("subscriptions.create");
+    expect(providerResources).not.toContain("subscriptions.cancel");
+    const result = await t.run(async (ctx) => ({
+      billing: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      receipt: await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+        .unique(),
+      source: await ctx.db.get(ids.sourceOperationId),
+      subscriptions: await ctx.db.query("organizationStripeSubscriptions").collect(),
+    }));
+    expect(result.billing?.state).toEqual({ kind: "trial", trialEndsAt: ids.trialEndsAt });
+    expect(result.receipt).toMatchObject({
+      status: "actionRequired",
+      lastErrorCode: "trial_subscription_recovery_ambiguous",
+    });
+    expect(result.source).toMatchObject({
+      status: "actionRequired",
+      attemptCount: 2,
+      lastErrorCode: "trial_subscription_recovery_ambiguous",
+    });
+    expect(result.subscriptions).toEqual([]);
   });
 
   it("同じrequestIdのidempotency keyを維持し、別Checkout要求との競合でもoperationを1件に保つ", async () => {
@@ -3461,9 +4165,9 @@ function stripeInvoice(id: string) {
   };
 }
 
-async function seedModeOffUnboundTrialCreate(
+async function seedInactivePriceTrialRecovery(
   t: TestConvex<typeof schema>,
-  args: { suffix: string; trialEndsAt?: number },
+  args: { suffix: string; trialEndsAt: number; source: "unbound" | "mapped" },
 ) {
   return await t.run(async (ctx) => {
     const seeded = await seedOrganizationManagerShop(ctx, { subject: `stripe_${args.suffix}` });
@@ -3473,10 +4177,7 @@ async function seedModeOffUnboundTrialCreate(
       .unique();
     if (!billing) throw new Error("billing missing");
     await ctx.db.patch(billing._id, {
-      state:
-        args.trialEndsAt === undefined
-          ? { kind: "pendingActivation", plan: "pro", fallback: "free", startedAt: NOW }
-          : { kind: "trial", trialEndsAt: args.trialEndsAt },
+      state: { kind: "trial", trialEndsAt: args.trialEndsAt },
       version: 2,
       updatedAt: NOW,
     });
@@ -3484,6 +4185,7 @@ async function seedModeOffUnboundTrialCreate(
     const stripePaymentMethodId = `pm_${args.suffix}`;
     const stripeSessionId = `cs_${args.suffix}`;
     const stripeEventId = `evt_${args.suffix}`;
+    const stripeSubscriptionId = `sub_${args.suffix}`;
     await ctx.db.insert("organizationStripeCustomers", {
       organizationId: seeded.organizationId,
       stripeCustomerId,
@@ -3499,14 +4201,14 @@ async function seedModeOffUnboundTrialCreate(
       livemode: false,
       expectedBillingVersion: 2,
       providerGeneration: 1,
-      stripePriceIdSnapshot: "price_pro_test",
+      stripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId,
       stripeObjectId: stripeSessionId,
       status: "succeeded",
       attemptCount: 1,
-      completedAt: NOW,
+      completedAt: NOW - 60_000,
       expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
-      createdAt: NOW - 2 * 60_000,
-      updatedAt: NOW,
+      createdAt: NOW - 60_000,
+      updatedAt: NOW - 60_000,
     });
     const sourceOperationId = await ctx.db.insert("organizationStripeOperations", {
       organizationId: seeded.organizationId,
@@ -3516,20 +4218,39 @@ async function seedModeOffUnboundTrialCreate(
       livemode: false,
       expectedBillingVersion: 2,
       providerGeneration: 1,
-      stripePriceIdSnapshot: "price_pro_test",
+      stripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId,
       trialSubscriptionCreateSnapshot: {
         stripeCustomerId,
         stripePaymentMethodId,
-        ...(args.trialEndsAt !== undefined ? { trialEndsAt: args.trialEndsAt } : {}),
+        trialEndsAt: args.trialEndsAt,
       },
+      ...(args.source === "mapped" ? { stripeObjectId: stripeSubscriptionId } : {}),
       status: "processing",
       attemptCount: 1,
       leaseToken: `${args.suffix}-abandoned-lease`,
       leaseExpiresAt: NOW - 1,
       expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
-      createdAt: NOW - 60_000,
-      updatedAt: NOW - 60_000,
+      createdAt: NOW - 30_000,
+      updatedAt: NOW - 30_000,
     });
+    if (args.source === "mapped") {
+      await ctx.db.insert("organizationStripeSubscriptions", {
+        organizationId: seeded.organizationId,
+        stripeCustomerId,
+        stripeSubscriptionId,
+        stripeSubscriptionItemId: `si_${args.suffix}`,
+        stripePriceId: READY_TEST_CONFIGURATION.proPriceId,
+        livemode: false,
+        status: "trialing",
+        providerGeneration: 1,
+        trialEndsAt: args.trialEndsAt,
+        currentPeriodEndsAt: args.trialEndsAt,
+        cancelAtPeriodEnd: false,
+        syncedAt: NOW - 30_000,
+        createdAt: NOW - 30_000,
+        updatedAt: NOW - 30_000,
+      });
+    }
     await ctx.db.insert("stripeWebhookEvents", {
       stripeEventId,
       type: "checkout.session.completed",
@@ -3551,8 +4272,105 @@ async function seedModeOffUnboundTrialCreate(
       stripePaymentMethodId,
       stripeSessionId,
       stripeEventId,
+      stripeSubscriptionId,
+      stripeSubscriptionItemId: `si_${args.suffix}`,
+      trialEndsAt: args.trialEndsAt,
     };
   });
+}
+
+function inactivePriceTrialSubscription(
+  ids: Awaited<ReturnType<typeof seedInactivePriceTrialRecovery>>,
+  status: "trialing" | "canceled" = "trialing",
+) {
+  return {
+    id: ids.stripeSubscriptionId,
+    customer: ids.stripeCustomerId,
+    livemode: false,
+    status,
+    metadata: {
+      shiftori_organization_id: String(ids.organizationId),
+      shiftori_operation_id: String(ids.sourceOperationId),
+      shiftori_provider_generation: "1",
+      shiftori_price_id: READY_TEST_CONFIGURATION.proPriceId,
+    },
+    trial_end: Math.floor(ids.trialEndsAt / 1000),
+    cancel_at_period_end: false,
+    latest_invoice: null,
+    items: {
+      data: [
+        {
+          id: ids.stripeSubscriptionItemId,
+          current_period_end: Math.floor(ids.trialEndsAt / 1000),
+          price: {
+            id: READY_TEST_CONFIGURATION.proPriceId,
+            active: false,
+            livemode: false,
+            recurring: { interval: "month", interval_count: 1 },
+          },
+        },
+      ],
+    },
+  };
+}
+
+function mockInactivePriceMappedWebhook(
+  ids: Awaited<ReturnType<typeof seedInactivePriceTrialRecovery>>,
+  subscription: Record<string, unknown> & { id: string },
+) {
+  const providerResources: string[] = [];
+  providerFetchMock.mockImplementation(async (input) => {
+    const resource = String(input).split("/").pop() ?? "";
+    providerResources.push(resource);
+    if (resource === "events.retrieve") {
+      return providerResponse({
+        id: ids.stripeEventId,
+        type: "checkout.session.completed",
+        livemode: false,
+        api_version: STRIPE_WEBHOOK_API_VERSION,
+        created: Math.floor(NOW / 1000),
+        data: { object: { id: ids.stripeSessionId } },
+      });
+    }
+    if (resource === "checkout.sessions.retrieve") {
+      return providerResponse({
+        id: ids.stripeSessionId,
+        customer: ids.stripeCustomerId,
+        livemode: false,
+        mode: "setup",
+        status: "complete",
+        setup_intent: `seti_${ids.stripeEventId}`,
+        client_reference_id: String(ids.organizationId),
+        metadata: {
+          shiftori_organization_id: String(ids.organizationId),
+          shiftori_operation_id: String(ids.checkoutOperationId),
+          shiftori_provider_generation: "1",
+          shiftori_price_id: READY_TEST_CONFIGURATION.proPriceId,
+        },
+      });
+    }
+    if (resource === "prices.retrieve") {
+      return providerResponse({
+        id: READY_TEST_CONFIGURATION.proPriceId,
+        active: false,
+        livemode: false,
+        currency: "jpy",
+        unit_amount: 1480,
+        recurring: { interval: "month", interval_count: 1 },
+      });
+    }
+    if (resource === "subscriptions.retrieve") return providerResponse(subscription);
+    if (resource === "subscriptions.cancel") {
+      return providerResponse({
+        ...subscription,
+        status: "canceled",
+        canceled_at: Math.floor(Date.now() / 1000),
+        ended_at: Math.floor(Date.now() / 1000),
+      });
+    }
+    throw new Error(`Unexpected Stripe provider call: ${resource}`);
+  });
+  return providerResources;
 }
 
 function providerResponse(value: unknown) {

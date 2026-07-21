@@ -39,6 +39,29 @@ type Story = StoryObj<typeof meta>;
 
 export const CurrentPlan: Story = { name: "現在のプラン" };
 
+export const Trial: Story = {
+  name: "トライアル",
+  args: {
+    billing: {
+      ...billing,
+      state: "trial",
+      currentPlan: "trial",
+      hasStripeCustomer: false,
+      peopleUsage: { current: 4, max: 30 },
+      shopUsage: { current: 1, max: 5 },
+      nextEvent: { label: "トライアル最終日", date: "2026年8月31日" },
+      canScheduleFree: false,
+    },
+  },
+};
+
+export const MobileTrial: Story = {
+  name: "トライアル・モバイル",
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  args: Trial.args,
+};
+
 export const PaymentGrace: Story = {
   name: "支払い猶予",
   args: {
@@ -92,9 +115,8 @@ export const StripePortalActionsBehavior: Story = {
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getAllByText("Stripeで管理")).toHaveLength(2);
-    await userEvent.click(canvas.getByRole("button", { name: "支払い方法をStripeで管理" }));
-    await userEvent.click(canvas.getByRole("button", { name: "請求書・領収書をStripeで確認" }));
+    await userEvent.click(canvas.getByRole("button", { name: "支払い方法を見る" }));
+    await userEvent.click(canvas.getByRole("button", { name: "請求書・領収書を見る" }));
     await expect(args.onUpdatePaymentMethod).toHaveBeenCalledTimes(1);
     await expect(args.onOpenBillingDocuments).toHaveBeenCalledTimes(1);
     await expect(canvas.queryByText("発行済みの請求書はありません。")).not.toBeInTheDocument();
@@ -130,8 +152,7 @@ export const StripeUnavailableWithExistingCustomerBehavior: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getAllByText("Stripeで管理")).toHaveLength(2);
-    await expect(canvas.getByRole("button", { name: "支払い方法をStripeで管理" })).toBeDisabled();
-    await expect(canvas.getByRole("button", { name: "請求書・領収書をStripeで確認" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "支払い方法を見る" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "請求書・領収書を見る" })).toBeDisabled();
   },
 };

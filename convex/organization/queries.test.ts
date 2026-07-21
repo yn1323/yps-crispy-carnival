@@ -7,7 +7,6 @@ import { modules, schema } from "../_test/setup.test-helper";
 
 describe("organization/queries.getSettings", () => {
   beforeEach(() => {
-    vi.stubEnv("STRIPE_BILLING_MODE", "test");
     vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_settings_query");
     vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_settings_query");
     vi.stubEnv("STRIPE_PRO_PRICE_ID", "price_settings_query");
@@ -109,6 +108,37 @@ describe("organization/queries.getSettings", () => {
       hasStripeCustomer: false,
       canUpdatePaymentMethod: false,
       paymentMethodDisabledReason: "Stripeの契約情報を準備中です。しばらくしてからもう一度お試しください。",
+    });
+  });
+
+  it("Secret KeyとCustomerのlivemodeが一致しない場合はPortal操作を停止する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "settings_customer_livemode_mismatch",
+        plan: "pro",
+      });
+      const now = Date.now();
+      await ctx.db.insert("organizationStripeCustomers", {
+        organizationId: base.organizationId,
+        stripeCustomerId: "cus_settings_livemode_mismatch",
+        livemode: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return base;
+    });
+
+    const result = await t
+      .withIdentity({ subject: "settings_customer_livemode_mismatch" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+    expect(result?.billing).toMatchObject({
+      state: "pro",
+      stripeBillingAvailable: true,
+      hasStripeCustomer: true,
+      canUpdatePaymentMethod: false,
+      paymentMethodDisabledReason: "Stripeの契約情報と決済設定を確認中です。しばらくしてからもう一度お試しください。",
     });
   });
 
@@ -259,7 +289,7 @@ describe("organization/queries.getSettings", () => {
   });
 
   it("Stripe課金が未準備でもトライアル権利を維持し、決済操作だけを停止する", async () => {
-    vi.stubEnv("STRIPE_BILLING_MODE", "off");
+    vi.stubEnv("STRIPE_SECRET_KEY", "");
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -296,8 +326,8 @@ describe("organization/queries.getSettings", () => {
     });
   });
 
-  it("Stripe課金停止中も既存Customerの存在表示を維持し、Portal操作だけを停止する", async () => {
-    vi.stubEnv("STRIPE_BILLING_MODE", "off");
+  it("Stripe設定が未準備でも既存Customerの存在表示を維持し、Portal操作だけを停止する", async () => {
+    vi.stubEnv("STRIPE_SECRET_KEY", "");
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {

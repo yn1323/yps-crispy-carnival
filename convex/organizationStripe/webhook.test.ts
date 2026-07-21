@@ -7,10 +7,10 @@ vi.mock("./config", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./config")>();
   return {
     ...actual,
-    getStripeBillingMode: () => "test",
     getStripeSafetyConfiguration: () => ({
       secretKey: "sk_test_organization_stripe",
       webhookSecret: "whsec_test_organization_stripe",
+      livemode: false,
     }),
   };
 });

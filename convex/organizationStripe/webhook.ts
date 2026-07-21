@@ -3,7 +3,7 @@ import { internal } from "../_generated/api";
 import { httpAction } from "../_generated/server";
 import { readBoundedJsonBody } from "../_lib/httpBody";
 import { STRIPE_WEBHOOK_BODY_MAX_BYTES, STRIPE_WEBHOOK_SIGNATURE_MAX_LENGTH } from "../constants";
-import { getStripeBillingMode, getStripeSafetyConfiguration, STRIPE_WEBHOOK_API_VERSION } from "./config";
+import { getStripeSafetyConfiguration, STRIPE_WEBHOOK_API_VERSION } from "./config";
 import { isSupportedStripeWebhookEventType, type StripeWebhookEventType } from "./validators";
 
 const STRIPE_WEBHOOK_TOLERANCE_SECONDS = 5 * 60;
@@ -61,12 +61,9 @@ export const webhookHandler = httpAction(async (ctx, request) => {
   if (normalized.kind === "unsupported") return okResponse();
   if (normalized.kind === "invalid") return new Response("Invalid webhook payload", { status: 400 });
 
-  const billingMode = getStripeBillingMode();
-  const expectedLivemode =
-    billingMode === "off" ? safetyConfiguration.secretKey.startsWith("sk_live_") : billingMode === "live";
   await ctx.runMutation(internal.organizationStripe.mutations.receiveWebhookEvent, {
     ...normalized.event,
-    expectedLivemode,
+    expectedLivemode: safetyConfiguration.livemode,
   });
 
   return okResponse();

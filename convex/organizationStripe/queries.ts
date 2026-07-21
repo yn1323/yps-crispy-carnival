@@ -161,8 +161,8 @@ export const getOperation = internalQuery({
   },
 });
 
-/** mode切替時も、既存のTrial Subscription作成operationだけを確認して安全回収する。 */
-export const getTrialCreationOperationByRequest = internalQuery({
+/** Price停止中のTrial作成を、ローカル同期済み契約と未確定provider副作用へ分けて回収する。 */
+export const getTrialCreationRecoveryContext = internalQuery({
   args: {
     organizationId: v.id("organizations"),
     requestKey: v.string(),
@@ -173,6 +173,7 @@ export const getTrialCreationOperationByRequest = internalQuery({
       operationId: v.id("organizationStripeOperations"),
       status: organizationStripeOperationStatusValidator,
       leaseToken: v.optional(v.string()),
+      leaseExpiresAt: v.optional(v.number()),
       stripeObjectId: v.optional(v.string()),
       providerGeneration: v.optional(v.number()),
       stripePriceIdSnapshot: v.optional(v.string()),
@@ -180,7 +181,9 @@ export const getTrialCreationOperationByRequest = internalQuery({
       stripeIdempotencyKey: v.string(),
       livemode: v.boolean(),
       expectedBillingVersion: v.optional(v.number()),
-      createdAt: v.number(),
+      attemptCount: v.number(),
+      lastErrorCode: v.optional(v.string()),
+      mappingState: v.union(v.literal("none"), v.literal("matching"), v.literal("conflict")),
     }),
   ),
   handler: async (ctx, args) => {
@@ -194,10 +197,35 @@ export const getTrialCreationOperationByRequest = internalQuery({
       )
       .unique();
     if (!operation) return null;
+
+    let mappingState: "none" | "matching" | "conflict" = "none";
+    if (operation.stripeObjectId) {
+      const stripeSubscriptionId = operation.stripeObjectId;
+      const mappings = await ctx.db
+        .query("organizationStripeSubscriptions")
+        .withIndex("by_livemode_and_stripeSubscriptionId", (q) =>
+          q.eq("livemode", operation.livemode).eq("stripeSubscriptionId", stripeSubscriptionId),
+        )
+        .take(2);
+      if (mappings.length > 1) {
+        mappingState = "conflict";
+      } else if (mappings.length === 1) {
+        const mapping = mappings[0];
+        mappingState =
+          mapping.organizationId === operation.organizationId &&
+          mapping.stripeCustomerId === operation.trialSubscriptionCreateSnapshot?.stripeCustomerId &&
+          mapping.stripePriceId === operation.stripePriceIdSnapshot &&
+          mapping.providerGeneration === operation.providerGeneration
+            ? "matching"
+            : "conflict";
+      }
+    }
+
     return {
       operationId: operation._id,
       status: operation.status,
       ...(operation.leaseToken ? { leaseToken: operation.leaseToken } : {}),
+      ...(operation.leaseExpiresAt !== undefined ? { leaseExpiresAt: operation.leaseExpiresAt } : {}),
       ...(operation.stripeObjectId ? { stripeObjectId: operation.stripeObjectId } : {}),
       ...(operation.providerGeneration !== undefined ? { providerGeneration: operation.providerGeneration } : {}),
       ...(operation.stripePriceIdSnapshot ? { stripePriceIdSnapshot: operation.stripePriceIdSnapshot } : {}),
@@ -209,7 +237,9 @@ export const getTrialCreationOperationByRequest = internalQuery({
       ...(operation.expectedBillingVersion !== undefined
         ? { expectedBillingVersion: operation.expectedBillingVersion }
         : {}),
-      createdAt: operation.createdAt,
+      attemptCount: operation.attemptCount,
+      ...(operation.lastErrorCode ? { lastErrorCode: operation.lastErrorCode } : {}),
+      mappingState,
     };
   },
 });

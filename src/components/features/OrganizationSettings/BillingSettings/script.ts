@@ -1,7 +1,6 @@
 import type { OrganizationBillingView } from "../types";
 
 export type BillingUnavailableReason =
-  | "billing_off"
   | "configuration_pending"
   | "not_allowed"
   | "price_unavailable"
@@ -110,12 +109,6 @@ export function billingUnavailableMessage(reason: BillingUnavailableReason): {
   type: "info" | "warning";
 } {
   switch (reason) {
-    case "billing_off":
-      return {
-        title: "決済機能は現在停止中です",
-        description: "再開までお待ちください。現在の利用状態は変わりません。",
-        type: "info",
-      };
     case "configuration_pending":
     case "price_unavailable":
       return {
