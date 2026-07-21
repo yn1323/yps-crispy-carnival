@@ -72,6 +72,7 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 - 閲覧専用または契約制限中は、サーバーが返す操作可否と理由を表示する。
 - 管理者権限解除と店舗所属解除は各Dialog内、グループ削除はページ下部の確認表示から実行し、最後の有効管理者などの制約に違反した場合はサーバーのエラーを表示する。
 - mutationは実行時に権限、グループ、店舗、対象人物を再検証し、フロントエンドの表示状態だけを認可判断に使わない。
+- 個別通知の再送は、募集通知と現在の確定シフト通知の両方でactor単位とグループ単位の短時間・日次quotaを適用する。client request IDはquota keyに使わず、別managerへ切り替えてもグループquotaを共有する。
 - 自分自身の管理者権限解除またはグループ削除後は、失効した店舗をURLに残さずダッシュボードへ戻る。
 
 ## 関連ファイル
@@ -114,6 +115,6 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 | `api.staff.mutations.setShiftExclusion` | `managerMutation` | 選択店舗のスタッフをシフト対象または対象外に切り替える |
 | `api.line.mutations.generateLinkToken` | `managerMutation` | 選択店舗のスタッフ向けLINE連携リンクを発行する |
 | `api.line.mutations.sendInvite` | `managerMutation` | 選択店舗のスタッフへLINE連携案内を送る |
-| `api.staff.mutations.sendOpenRecruitmentNotifications` | `managerMutation` | 選択店舗のスタッフへ現在送れる募集通知を再送する |
-| `api.staff.mutations.sendCurrentShiftNotification` | `managerMutation` | 選択店舗のスタッフへ現在の確定シフト通知を再送する |
+| `api.staff.mutations.sendOpenRecruitmentNotifications` | `managerMutation` | 選択店舗のスタッフへ現在送れる募集通知を、actor・グループ単位の再送quota内で予約する |
+| `api.staff.mutations.sendCurrentShiftNotification` | `managerMutation` | 選択店舗のスタッフへ現在の確定シフト通知を、actor・グループ単位の再送quota内で予約する |
 | `api.notificationOutbox.queries.listStaffNotificationHistory` | `managerQuery` | 選択店舗のスタッフへ送った通知履歴を最小DTOでページングする |

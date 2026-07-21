@@ -8,7 +8,7 @@
 ## 仕様の正本
 
 - 業務要件と受入条件は `doc/specs/organization-billing-business-flow.md` を正本とする。
-- 4区分への統合、Stripe連携、移行境界、外部ゲートは `doc/plans/2026-07-20_Stripe課金連携_実装計画.md` を参照する。
+- 4区分への統合、Stripe連携、移行境界、外部ゲートは `doc/plans/2026-07-20_Stripe課金連携_実装計画.md` を参照する。ただし、新規初期設定をTrialとする記述は、2026-07-21更新の業務仕様と現行実装が上書きする。
 - `doc/plans/2026-07-14_事業者課金_複数店舗_複数管理者_実装計画.md` と `doc/plans/2026-07-16_既存事業者_無償Business_実装計画.md` のプラン構成と上限は上書き済みであり、移行履歴の確認にだけ使う。
 - 管理者5名上限、既存人物への管理者招待、Free管理者交代後の権限失効は `doc/plans/2026-07-17_スタッフ詳細_管理者招待_5名上限_実装計画.md` が先行計画を上書きする。
 - Free管理者交代の送信前確認と、同一管理者による複数グループ切替のE2E契約は `doc/plans/2026-07-18_Free管理者交代_複数グループ_追加実装計画.md` を参照する。
@@ -28,6 +28,8 @@
 - 同じアカウントが無関係な複数グループの有効管理者である場合も、`?shop=`からグループを一意に解決し、Dashboardとグループ設定の切替、表示、更新を選択グループへ限定する。
 - `organizationBillingStates` がグループ単位の課金状態を保持し、画面とmutationは共通policyから操作可否を導出する。
 - グループ名は課金状態にかかわらず、有効管理者が変更できる。`readOnly`の管理者と、選択店舗からグループ所属を解決できない利用者には許可しない。
+- 請求先メール変更は正規化メールをserver-sideのsemantic identityとする。同じ正規化メールへ異なるrequest IDで再実行しても`changed: false`を返し、監査、課金通知、Stripe同期jobを増やさない。
+- 新規初期設定で作成するグループは`complimentary.pro`として開始し、期限と利用料金なしでPro機能を利用する。
 - 旧店舗モデルから移行し、移行元店舗との相互リンクを一意に確認でき、課金状態が未設定のグループは`complimentary.pro`として、30名、5店舗、管理者5名の上限とPro機能を利用する。
 - `complimentary.pro`にはStripe Customer、Subscription、Checkout Session、Portal Session、請求、課金通知を作らず、公開API、管理用処理、Stripeイベント、再同期処理から別の課金状態へ変更しない。
 - 管理者招待の発行では、本人確認後に管理者所属を作るための一回限りのアカウント連携権限と利用枠だけを予約する。新規人物、管理者所属、既存スタッフの管理者権限は作らない。
@@ -59,7 +61,7 @@
 
 - `convex/schema.ts`：グループ、人物、管理者所属、招待、課金状態、監査、移行衝突のテーブル定義。
 - `convex/_lib/functions.ts`：認証、グループ所属、選択店舗、課金状態を検証する管理者API wrapper。
-- `convex/setup/mutations.ts`：グループ、最初の管理者、最初の店舗、Trial課金状態を一つの初期設定処理で作成。
+- `convex/setup/mutations.ts`：グループ、最初の管理者、最初の店舗、費用なしのPro課金状態を一つの初期設定処理で作成。
 - `convex/organization/`：グループ設定DTO、店舗操作、人物削除、認可、監査、利用状況集計。
 - `convex/organizationBilling/`：プラン上限、操作policy、期限処理、Free選択、請求先メール、課金通知。
 - `convex/organizationStripe/`：Secret keyによる接続環境判定、Stripe API操作、Webhook署名検証、イベント重複排除、再試行、provider参照。
@@ -113,7 +115,7 @@
 
 | API | 種別 | 用途 |
 | --- | --- | --- |
-| `api.setup.mutations.setupShopAndManager` | `authenticatedMutation` | グループ、管理者、最初の店舗、Trial課金状態を作成する |
+| `api.setup.mutations.setupShopAndManager` | `authenticatedMutation` | グループ、管理者、最初の店舗、費用なしのPro課金状態を作成する |
 | `api.dashboard.queries.getMyShops` | `authenticatedQuery` | 利用者が閲覧できる店舗をグループ情報と所属状態付きで返す |
 | `api.dashboard.queries.getDashboardShop` | `managerQuery` | 店舗情報とグループ課金から導出した業務更新可否を返す |
 | `api.dashboard.queries.getDashboardStaffs` | `managerQuery` | 店舗スタッフ、対応するグループ人物ID、管理者状態、管理者招待可否をページングして返す |
@@ -139,14 +141,15 @@
 | `api.organizationInvitation.mutations.linkAccount` | `authenticatedMutation` | 確認済みメール、期限、最新性、所属、上限を再確認し、人物と利用者IDを紐づけて管理者所属を有効化する |
 | `api.organizationInvitation.mutations.accept` | `authenticatedMutation` | 旧クライアント向けの互換API。内部では`linkAccount`と同じ連携処理を行い、成功結果を旧`accepted`形式へ変換する |
 | `api.organizationBilling.mutations.setFreeSelection` | `authenticatedMutation` | Freeで残す管理者と店舗を保存し、契約制限中は再評価する。Pro（先行登録特典）では拒否する |
-| `api.organizationBilling.mutations.updateBillingEmail` | `authenticatedMutation` | 有効管理者または復旧担当者が請求先メールアドレスを変更する。Pro（先行登録特典）では拒否する |
+| `api.organizationBilling.mutations.updateBillingEmail` | `authenticatedMutation` | 有効管理者または復旧担当者が請求先メールアドレスを変更する。正規化値が同じ再実行は副作用なしで収束し、Pro（先行登録特典）では拒否する |
 | `api.organizationStripe.actions.getProPrice` | `action` | 接続環境、設定、Priceのactive状態を確認し、Stripe Priceの金額、通貨、請求周期を返す |
 | `api.organizationStripe.actions.startProCheckout` | `action` | 認可、課金状態、request ID、最新上限を確認し、Pro契約用のCheckout Sessionを作成する |
 | `api.organizationStripe.actions.openCustomerPortal` | `action` | 有効管理者または復旧担当者を確認し、保存済みCustomerだけに一時的なPortal Sessionを作成する |
 | `api.organizationStripe.actions.scheduleFreeAtPeriodEnd` | `action` | ProのSubscriptionへ期間末終了を設定し、検証済み結果を期間末変更予定へ反映する |
 | `api.organizationStripe.actions.cancelScheduledFree` | `action` | 期間末終了を取り消し、検証済み結果をProへ戻す |
 | `api.organizationStripe.actions.cancelTrialContinuation` | `action` | 無料体験後の継続予約を取り消し、初回請求を開始しない状態へ戻す |
-| `api.staffRegistration.mutations.submitRegistrationRequest` | 公開`mutation` | 稼働中店舗の公開登録リンクからスタッフ登録申請を作成する |
+| `POST /staff-registration/submit` | Convex HTTP Action | Origin、body、Turnstile、hash budgetを検証し、稼働中店舗の公開登録リンクから申請を受け付ける |
+| `internal.staffRegistration.mutations.submitRegistrationRequestFromHttp` | `internalMutation` | HTTP入口の検証後に、最新の店舗・契約状態を再確認してスタッフ登録申請を作成する |
 | `api.staffRegistration.mutations.approveRequest` | `managerMutation` | 最新の契約上限を確認し、予約枠を人物へ付け替えて申請を承認する |
 
 すべてのpublic Convex functionは、runtimeの`args`と`returns` validatorを持つ。
@@ -166,6 +169,14 @@ Webhook destinationには次の8イベントだけを登録する。
 - `invoice.paid`
 - `invoice.payment_failed`
 - `invoice.payment_action_required`
+
+Checkout SessionはTrialのSetupと即時Proの両方で`card`だけを許可し、成功・取消URLをサーバー設定の`APP_URL`配下へ固定する。PAN、CVC、有効期限はアプリの引数、DB、ログへ渡さない。
+
+TrialのCheckout完了は、SetupIntentの`succeeded`、`off_session`、対象Customerと、PaymentMethodの`card`、対象Customerを再照合してからSubscriptionを作成する。
+
+即時Proの`invoice.payment_action_required`は追加認証が終わるまで`pendingActivation`を維持し、権限をProへ進めない。後続の最新`invoice.paid`を再照合できた場合だけ`active.pro`へ収束する。
+
+Stripe APIの拒否詳細、decline code、provider payloadは公開Action、console、Stripe operationへ保存せず、固定した安全なerror codeだけを保持する。
 
 ## Internal API一覧
 

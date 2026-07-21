@@ -2,8 +2,9 @@
 
 - 作成日: 2026-07-21
 - 対象: Stripeの日本向けセキュリティ要件、2026-07-18のCodex Security調査、2026-07-21時点の現行worktree
-- ステータス: 実装前
+- ステータス: リポジトリ実装・自動検証完了（実環境証跡は別途）
 - 基準計画: `doc/plans/2026-07-20_Stripeセキュリティ対策_テスト計画.md`
+- 再検証台帳: `doc/manual/security-validation-2026-07-21.md`
 
 ## 1. 結論
 
@@ -306,8 +307,10 @@ UIのBehavior Testは、backendのgeneric契約に追従する状態遷移だけ
 `convex/line/webhook.test.ts`では次を確認する。
 
 - 同じevent IDの再送はno-opになり、通知とjobを増やさない。
+- 同じmessage eventを別HTTP requestで再送してもReply APIは一回だけ呼び、receiptにreply token、本文、source IDを保存しない。
 - 時刻T2のunfollow後に時刻T1のfollowを受けてもunfollowを維持する。
 - event identity欠落を拒否するか、legacyとして受理するかを明文化して固定する。
+- message receiptは期限境界と複数batchを固定し、削除後もprovider timestampが保持期間外のeventをno-opにする。
 
 ### 7.5 WS-4 通知workflow、送信時認可、retention
 

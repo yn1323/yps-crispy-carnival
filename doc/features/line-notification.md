@@ -7,9 +7,9 @@
 
 ### バックエンド（`convex/`）
 
-- `convex/schema.ts` — `staffLineAccounts` / `lineLinkTokens` / `lineQuotaStatus` / `notificationOutbox` テーブル
+- `convex/schema.ts` — `staffLineAccounts` / `lineLinkTokens` / `lineQuotaStatus` / `lineWebhookMessageReceipts` / `notificationOutbox` テーブル
 - `convex/http.ts` — `/line/webhook` エンドポイント登録
-- `convex/crons.ts` — Quota 日次更新 cron
+- `convex/crons.ts` — Quota 日次更新とWebhook message receipt削除のcron
 - `convex/line/schemas.ts` — Zod スキーマ
 - `convex/line/queries.ts` — 連携状況・Quota・Webhook 用 staff 引き
 - `convex/line/mutations.ts` — トークン発行 / 状態更新 / Webhook 受信ディスパッチ
@@ -57,13 +57,22 @@
 | `internal.line.actions.sendInviteEmail` | internalAction | 連携依頼メールを通知 outbox へ予約 |
 | `internal.notificationOutbox.actions.processPending` | internalAction | 通知 outbox の pending ジョブを少量ずつ配送 |
 | `internal.line.mutations.dispatchWebhookEvents` | internalMutation | Webhook follow/unfollow/message ディスパッチ |
+| `internal.line.mutations.pruneExpiredWebhookMessageReceipts` | internalMutation | 期限切れmessage receiptを100件ずつ削除し、残件時は継続を予約 |
 | `POST /line/webhook` | httpAction | LINE Messaging API Webhook 受信（署名検証） |
 
 ## Webhook受信制約
 
 - `POST /line/webhook` はparameter付きの `application/json` を受け付け、raw bodyを1 MiB、`events`を100件までに制限する。
 - `Content-Length`は早期拒否にだけ使い、request streamの実byte数も検査する。上限内のraw bodyを変更せずに署名検証し、検証後だけJSON parseとinternal mutationを行う。
-- LINEの疎通確認で送られる`events: []`と未知のevent typeは`200`で受理する。不正なContent-Type、body、署名、最小payload shapeは副作用なしで拒否する。
+- LINEの疎通確認で送られる`events: []`と未知のevent typeは`200`で受理する。eventがある場合は`webhookEventId`とprovider `timestamp`を必須とし、不正なContent-Type、body、署名、最小payload shapeは副作用なしで拒否する。
+- follow/unfollowは`staffLineAccounts`へ最後に反映したevent IDとprovider timestampを保存する。同じeventの再送と、保存済みtimestamp以前のeventはno-opにし、古いfollow/unfollowで新しい状態を巻き戻さない。既存rowの順序fieldはoptional wideningとし、最初の署名済みevent受信時に設定するためbackfillしない。
+- messageはglobal rate limitと外部Reply APIを呼ぶ前に`webhookEventId`を永続receiptと照合し、新規eventだけを同じtransactionでclaimする。別HTTP requestで同じ署名済みeventが再送されても、初回だけがmessage用global budgetを消費してreply tokenを外部actionへ渡す。message予算はfollow/unfollowへ適用せず、message集中時も状態eventを破棄しない。receiptにはreply token、source user ID、message ID、本文を保存せず、event IDと保持期限だけを保存する。
+- message receiptは受信から30日後を期限とし、日次cronが100件ずつ削除する。101件目がある場合だけ同じbounded mutationを再予約するため、中断後はcronまたは予約済みjobから再開できる。provider timestampが受信時刻の30日前以前のmessageはreceipt削除後もno-opにし、古い署名bodyの再利用でReply APIを再実行させない。
+
+## LINE連携token
+
+- 同じスタッフへtokenを再発行する時は、manager issuerとinternal issuerのどちらからでも、72時間内の旧activeかつunused tokenを同じtransactionで失効させる。
+- 利用できるtokenは最新の一件だけで、連携完了時に`usedAt`を記録する。失効済み・使用済みtokenの再利用はprovider通信前に拒否する。
 
 ## 通知振り分けロジック
 
@@ -91,9 +100,12 @@ StorybookのLINE previewは公式LINE rendererの完全再現ではなく、シ�
 
 `convex/_lib/rateLimits.ts`:
 
-- `lineLinkRedeem`: 5回/分（state先頭8文字キー） — OAuth コールバックのブルートフォース防御
-- `lineWebhook`: 100回/分（global） — Webhook 暴発時のセーフティネット
+- `lineLinkRedeemGlobal`: 100回/分（固定anonymous/global bucket） — attacker-controlled stateを引く前の試行上限
+- `lineLinkRedeem`: 5回/分（存在する有効stateの先頭8文字キー） — 有効tokenに対する二次防御
+- `lineWebhook`: message reply request 100回/分（global） — message集中を抑止しつつfollow/unfollowは処理する
 - `lineInviteShort`: 3回/分（shopId + staffId キー） — 同じスタッフへの個別連携依頼の短時間連打防止
+
+OAuth callbackは未認証のpublic Convex actionで、信頼できるidentityや送信元IPを取得できない。このため最初のbucketは全callbackで共有し、上限到達時はwindowが回復するまで正当なcallbackも一時的に抑止される。送信元ごとの分離が必要になった場合は、trusted proxy/IP契約を定めたHTTP Actionへ入口を移し、固定global bucketは暴発時の二次防御として残す。
 
 店舗単位の `lineInvite`（30回/時）は削除済み。1店舗で30人以上に連携依頼する通常運用は outbox に積んで順次配送し、同一スタッフへの短時間重複は `lineInviteShort` と outbox の `dedupeKey` で抑止する。
 
