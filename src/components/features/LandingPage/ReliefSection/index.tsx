@@ -14,12 +14,12 @@ const reliefItems: Array<{ imageSrc: string; title: string; body: string }> = [
   {
     imageSrc: autoReminderImage,
     title: "自動リマインド",
-    body: "シフトを出していない人に自動でお知らせが届きます。「シフトまだ？」と個別に聞いて回る手間が減ります。",
+    body: "シフトを出していない人へ自動でお知らせを送ります。「シフトまだ？」と個別に聞いて回る手間が減ります。",
   },
   {
     imageSrc: shareConfirmedShiftImage,
     title: "確定シフトを自動共有",
-    body: "確定したシフトをLINE・メールで全員へ。「見てなかった」を防げます。",
+    body: "確定したシフトをLINEやメールで全員へ送ります。「見てなかった」を防げます。",
   },
 ];
 

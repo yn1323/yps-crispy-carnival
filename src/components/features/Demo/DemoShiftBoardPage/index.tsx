@@ -92,7 +92,7 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }:
     // tour は handleOpenConfirm 時点で skip + idle 済み。確定後も FAB を出しておきたいので idle のまま
     setConfirmedAt(Date.now());
     confirmModal.close();
-    showSuccessToast({ title: "確定しました" });
+    showSuccessToast({ title: "確定後の画面を表示しました" });
   }, [confirmModal]);
 
   const handleTourCloseRequest = useCallback(() => {
@@ -104,9 +104,7 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }:
     showSuccessToast({ title: "保存しました" });
   }, []);
 
-  const confirmTitle = isConfirmed
-    ? "確定済みのシフトをもう一度通知しますか？"
-    : "このシフトをスタッフに通知しますか？";
+  const confirmTitle = isConfirmed ? "再通知後の画面を確認しますか？" : "確定後の画面を確認しますか？";
 
   return (
     <Flex direction="column" h={height} minH={0}>
@@ -156,7 +154,7 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }:
             <Text color="orange.900" fontSize="xs" fontWeight={700} lineHeight="1.5">
               このページはデモ画面です。
               <br />
-              変更が反映されたり、シフトが送信されることはありません。
+              このデモでの操作は保存されず、スタッフへの通知も送られません。
             </Text>
           </Box>
         </Flex>
@@ -183,10 +181,14 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }:
         isOpen={confirmModal.isOpen}
         onOpenChange={confirmModal.onOpenChange}
         onSubmit={handleConfirm}
-        submitLabel="シフトを確定して通知"
+        submitLabel={isConfirmed ? "再通知後の画面を見る" : "確定後の画面を見る"}
         onClose={confirmModal.close}
       >
-        <ConfirmShiftContent staffCount={mockStaffs.length} periodLabel={periodLabel} />
+        <ConfirmShiftContent
+          staffCount={mockStaffs.length}
+          periodLabel={periodLabel}
+          notificationDescription="このデモでの操作は保存されず、スタッフへの通知も送られません。"
+        />
       </Dialog>
 
       {tourPhase === "idle" && viewMode === "daily" && (

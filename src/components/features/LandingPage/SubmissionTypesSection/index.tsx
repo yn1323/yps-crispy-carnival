@@ -16,24 +16,24 @@ const submissionTypes: Array<{
 }> = [
   {
     icon: LuCalendarDays,
-    title: "出勤の可否のみ",
-    body: "出勤日を選ぶシンプルな方式",
+    title: "日ごと",
+    body: "出勤できる日を選ぶ方式",
     badge: "短時間シフト向け",
     imageSrc: dayImage,
     imageAlt: "日ごとに希望シフトを提出する画面",
   },
   {
     icon: LuClock3,
-    title: "時間入力",
-    body: "出勤可能時間を入力してもらう方式",
+    title: "時間指定",
+    body: "働ける開始時間と終了時間を入力する方式",
     badge: "飲食店・小売店向け",
     imageSrc: timeImage,
-    imageAlt: "時間入力で希望シフトを提出する画面",
+    imageAlt: "時間指定で希望シフトを提出する画面",
   },
   {
     icon: LuUsers,
     title: "勤務区分",
-    body: "朝番・昼番・夜番など区分から選ぶ方式",
+    body: "早番や遅番など、店舗で決めた区分から選ぶ方式",
     badge: "介護・施設向け",
     imageSrc: selectionImage,
     imageAlt: "勤務区分で希望シフトを提出する画面",
@@ -45,9 +45,9 @@ export const SubmissionTypesSection = () => (
     <Container maxW="7xl">
       <VStack gap={9}>
         <VStack gap={3} textAlign="center">
-          <SectionHeading phrases={["選べる3タイプのシフト希望表"]} />
+          <SectionHeading phrases={["希望シフトの集め方を3つから選べます"]} />
           <Text color="gray.700" fontSize="md" lineHeight="1.8" fontWeight="semibold">
-            営業スタイルにフィットする形で回収できます
+            お店の働き方に合う方法を選べます
           </Text>
         </VStack>
 

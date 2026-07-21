@@ -53,7 +53,7 @@ function getReadOnlyReason(reason: ShiftBoardData["businessWriteBlockReason"]): 
 
 const generatePeriodLabel = (dates: string[]): string => {
   if (dates.length === 0) return "";
-  return `${formatDateWithWeekday(dates[0])}〜${formatDateWithWeekday(dates[dates.length - 1])} のシフト`;
+  return `${formatDateWithWeekday(dates[0])}〜${formatDateWithWeekday(dates[dates.length - 1])}のシフト`;
 };
 
 export const useShiftBoardPageController = (
