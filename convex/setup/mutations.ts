@@ -5,8 +5,6 @@ import { authenticatedMutation } from "../_lib/functions";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
 import { recordStaffLegalConsent, recordUserLegalConsent } from "../legal/service";
 import { recordOrganizationAuditEvent } from "../organization/audit";
-import { TRIAL_ENDING_REMINDER_LEAD_MS } from "../organizationBilling/notification";
-import { calculateTrialEndsAt } from "../organizationBilling/policy";
 import { ensureDefaultPosition } from "../position/service";
 import { sendReminderRef } from "../shopActivationReminder/refs";
 import { normalizeEmail } from "../staff/service";
@@ -117,12 +115,9 @@ export const setupShopAndManager = authenticatedMutation({
       submissionPattern,
       isDeleted: false,
     });
-    const trialEndsAt = calculateTrialEndsAt(now);
     await ctx.db.insert("organizationBillingStates", {
       organizationId,
-      state: { kind: "trial", trialEndsAt },
-      freeManagerPersonId: personId,
-      freeShopId: shopId,
+      state: { kind: "complimentary", plan: "pro" },
       version: 1,
       createdAt: now,
       updatedAt: now,
@@ -180,7 +175,7 @@ export const setupShopAndManager = authenticatedMutation({
       action: "organization.created",
       targetKind: "organization",
       targetId: organizationId,
-      toState: "trial",
+      toState: "complimentary.pro",
       occurredAt: now,
     });
 
@@ -192,21 +187,6 @@ export const setupShopAndManager = authenticatedMutation({
       shopId,
       organizationBillingVersionAtOrigin: 1,
     });
-    await ctx.scheduler.runAt(trialEndsAt, internal.organizationBilling.mutations.processDeadline, {
-      organizationId,
-      expectedVersion: 1,
-      expectedDeadlineAt: trialEndsAt,
-    });
-    await ctx.scheduler.runAt(
-      trialEndsAt - TRIAL_ENDING_REMINDER_LEAD_MS,
-      internal.organizationBilling.actions.enqueueBillingNotification,
-      {
-        organizationId,
-        event: "trialEnding",
-        eventKey: `${organizationId}:trial-ending:${trialEndsAt}`,
-        expectedDeadlineAt: trialEndsAt,
-      },
-    );
 
     return shopId;
   },

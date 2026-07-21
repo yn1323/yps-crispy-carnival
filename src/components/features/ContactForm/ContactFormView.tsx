@@ -9,8 +9,8 @@ import {
   CONTACT_ORGANIZATION_MAX_LENGTH,
 } from "@/convex/constants";
 import { CONTACT_TYPE_OPTIONS } from "@/convex/contact/schemas";
+import { TurnstileWidget } from "@/src/components/shared/TurnstileWidget";
 import { Button } from "@/src/components/ui/Button";
-import { TurnstileWidget } from "./TurnstileWidget";
 
 type ContactFormFields = {
   type: UseFormRegisterReturn<"type">;
@@ -177,6 +177,7 @@ export function ContactFormView(props: ContactFormViewProps) {
         {props.turnstile ? (
           <TurnstileWidget
             key={props.turnstile.widgetKey}
+            action="contact"
             onError={props.turnstile.onError}
             onVerify={props.turnstile.onVerify}
             siteKey={props.turnstile.siteKey}

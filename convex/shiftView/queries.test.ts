@@ -5,7 +5,7 @@ import { api } from "../_generated/api";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
-async function setupConfirmedShiftView(t: TestConvex<typeof schema>) {
+async function setupConfirmedShiftView(t: TestConvex<typeof schema>, accessKind: "submit" | "view" = "view") {
   return await t.run(async (ctx) => {
     const shopId = await seedShop(ctx, "確定シフト閲覧店舗");
     const staffId = await ctx.db.insert("staffs", {
@@ -54,7 +54,7 @@ async function setupConfirmedShiftView(t: TestConvex<typeof schema>) {
       staffId,
       shopId,
       recruitmentId,
-      accessKind: "view",
+      accessKind,
       expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000,
     });
     return { shopId, staffId, excludedStaffId, positionId, recruitmentId, sessionToken };
@@ -130,9 +130,9 @@ describe("shiftView/queries", () => {
       ).resolves.toBeNull();
     });
 
-    it("submit用sessionでは確定シフトを閲覧できない", async () => {
+    it("実体もcaller引数もsubmitのsessionでは確定シフトを閲覧できない", async () => {
       const t = convexTest(schema, modules);
-      const ids = await setupConfirmedShiftView(t);
+      const ids = await setupConfirmedShiftView(t, "submit");
 
       await expect(
         t.query(api.shiftView.queries.getShiftViewData, {

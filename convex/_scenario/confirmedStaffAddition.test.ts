@@ -105,7 +105,7 @@ describe("確定後スタッフ追加シナリオ", () => {
     expect(resendJobs).toHaveLength(1);
     const [resendJob] = resendJobs;
     expect(resendJob?.args[0]?.targetStaffIds).toEqual([addedStaffId]);
-    expect(resendJob?.args[0]?.notificationRunId).toBe(SCENARIO_NOW + 1_000);
+    expect(resendJob?.args[0]?.notificationRunId).toBe(2);
 
     vi.advanceTimersByTime(0);
     await t.finishInProgressScheduledFunctions();
@@ -126,7 +126,7 @@ describe("確定後スタッフ追加シナリオ", () => {
     expect(finalState.outbox.map((job) => job.dedupeKey).sort()).toEqual(
       [
         `email:confirmation:${recruitmentId}:${existingStaffId}:confirm`,
-        `email:confirmation:${recruitmentId}:${addedStaffId}:resend:${SCENARIO_NOW + 1_000}`,
+        `email:confirmation:${recruitmentId}:${addedStaffId}:resend:2`,
       ].sort(),
     );
     expect(finalState.outbox.filter((job) => job.staffId === existingStaffId)).toHaveLength(1);

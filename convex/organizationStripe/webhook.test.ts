@@ -71,6 +71,15 @@ describe("organizationStripe/webhook", () => {
     expect(externalFetchMock).not.toHaveBeenCalled();
   });
 
+  it.each(["GET", "PUT", "PATCH", "DELETE"])("%sは拒否して課金状態とschedulerを変更しない", async (method) => {
+    const t = convexTest(schema, modules);
+
+    const response = await t.fetch("/stripe/webhook", { method });
+
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    await expectStripeStateEmpty(t);
+  });
+
   it("同じEvent IDの再送を一度だけ保存して処理予約も増やさない", async () => {
     const t = convexTest(schema, modules);
     const event = stripeEvent({ id: "evt_duplicate", type: "customer.subscription.updated", objectId: "sub_1" });

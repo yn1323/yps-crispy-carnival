@@ -89,9 +89,9 @@ export const replyDefaultMessage = internalAction({
   handler: async (_ctx, { replyToken }) => {
     try {
       await replyTextMessage(replyToken, buildLineDefaultReplyText());
-    } catch (e) {
+    } catch {
       // reply 失敗で Webhook 全体を落とさない
-      console.error("LINE reply failed", e);
+      console.error("LINE reply failed", { errorCode: "line_reply_failed" });
     }
   },
 });

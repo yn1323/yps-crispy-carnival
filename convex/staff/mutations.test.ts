@@ -6,7 +6,12 @@ import type { Id } from "../_generated/dataModel";
 import { todayJST } from "../_lib/dateFormat";
 import { seedManagerShop, seedOrganizationManagerShop, seedShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { PERSON_NAME_MAX_LENGTH, STAFF_ADD_ENTRIES_MAX } from "../constants";
+import {
+  PERSON_NAME_MAX_LENGTH,
+  STAFF_ADD_ENTRIES_MAX,
+  STAFF_NOTIFICATION_RESEND_ACTOR_DAILY_LIMIT,
+  STAFF_NOTIFICATION_RESEND_ORGANIZATION_DAILY_LIMIT,
+} from "../constants";
 import { getLegalConsentVersions } from "../legal/documents";
 
 function dateFromToday(daysFromNow: number): string {
@@ -2534,6 +2539,154 @@ describe("staff/mutations", () => {
       expect(first).toEqual({ scheduled: true });
       expect(second).toEqual({ scheduled: false, reason: "rateLimited" });
       expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(1);
+    });
+  });
+
+  describe.each([
+    ["募集通知", "openRecruitments", "notification/actions:sendOpenRecruitmentNotificationsForStaff"],
+    ["現在の確定シフト", "currentShift", "notification/actions:sendCurrentShiftConfirmationForStaff"],
+  ] as const)("%sの個別再送quota", (_label, kind, scheduledJobName) => {
+    async function setupNotificationQuotaTest(t: TestConvex<typeof schema>) {
+      return await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "staff_resend_manager_1",
+          email: "staff-resend-manager-1@example.com",
+          plan: "pro",
+        });
+        const now = Date.now();
+        for (const managerNumber of [2, 3]) {
+          const subject = `staff_resend_manager_${managerNumber}`;
+          const email = `${subject}@example.com`;
+          const userId = await seedUser(ctx, subject, email);
+          const personId = await ctx.db.insert("organizationPeople", {
+            organizationId: base.organizationId,
+            userId,
+            name: `管理者${managerNumber}`,
+            email,
+            emailNormalized: email,
+            status: "active",
+            createdAt: now,
+            updatedAt: now,
+          });
+          await ctx.db.insert("organizationMembers", {
+            organizationId: base.organizationId,
+            personId,
+            userId,
+            status: "active",
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        const staffId = await ctx.db.insert("staffs", {
+          shopId: base.shopId,
+          organizationId: base.organizationId,
+          name: "個別通知対象",
+          email: "staff-resend-target@example.com",
+          emailNormalized: "staff-resend-target@example.com",
+          isDeleted: false,
+        });
+        await ctx.db.insert("recruitments", {
+          shopId: base.shopId,
+          periodStart: dateFromToday(7),
+          periodEnd: dateFromToday(13),
+          deadline: todayJST(),
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        await ctx.db.insert("recruitments", {
+          shopId: base.shopId,
+          periodStart: dateFromToday(-1),
+          periodEnd: dateFromToday(1),
+          deadline: dateFromToday(-5),
+          shopClosedDates: [],
+          status: "confirmed",
+          confirmedAt: now,
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        return { shopId: base.shopId, staffId };
+      });
+    }
+
+    async function getNotificationSideEffects(t: TestConvex<typeof schema>) {
+      return await t.run(async (ctx) => {
+        const rateLimitRows = (await ctx.db.query("rateLimits").collect())
+          .map(({ name, key, value, ts }) => ({ name, key, value, ts }))
+          .sort((a, b) => `${a.name}:${a.key ?? ""}`.localeCompare(`${b.name}:${b.key ?? ""}`));
+        return {
+          scheduledJobs: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+            (job) => job.name === scheduledJobName,
+          ).length,
+          magicLinks: (await ctx.db.query("magicLinks").collect()).length,
+          outbox: (await ctx.db.query("notificationOutbox").collect()).length,
+          rateLimitRows,
+        };
+      });
+    }
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-07-21T12:00:00+09:00"));
+    });
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    });
+
+    it("fresh request IDでもactor短期・日次と組織日次を迂回できず、拒否時の副作用は0になる", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupNotificationQuotaTest(t);
+      const providerCall = vi.fn();
+      vi.stubGlobal("fetch", providerCall);
+
+      const send = async (managerNumber: number, requestSequence: number) => {
+        const actor = t.withIdentity({ subject: `staff_resend_manager_${managerNumber}` });
+        const args = {
+          shopId: ids.shopId,
+          staffId: ids.staffId,
+          requestId: `staff-resend-${kind}-${managerNumber}-${requestSequence}`,
+        };
+        return kind === "openRecruitments"
+          ? await actor.mutation(api.staff.mutations.sendOpenRecruitmentNotifications, args)
+          : await actor.mutation(api.staff.mutations.sendCurrentShiftNotification, args);
+      };
+      const movePastShortLimit = () => vi.setSystemTime(new Date(Date.now() + 61_000));
+
+      await expect(send(1, 0)).resolves.toEqual({ scheduled: true });
+      const afterFirst = await getNotificationSideEffects(t);
+      await expect(send(1, 1)).resolves.toEqual({ scheduled: false, reason: "rateLimited" });
+      expect(await getNotificationSideEffects(t)).toEqual(afterFirst);
+
+      for (let request = 1; request < STAFF_NOTIFICATION_RESEND_ACTOR_DAILY_LIMIT; request += 1) {
+        movePastShortLimit();
+        await expect(send(1, request + 1)).resolves.toEqual({ scheduled: true });
+      }
+      movePastShortLimit();
+      const beforeActorDailyRejection = await getNotificationSideEffects(t);
+      await expect(send(1, 100)).resolves.toEqual({ scheduled: false, reason: "rateLimited" });
+      expect(await getNotificationSideEffects(t)).toEqual(beforeActorDailyRejection);
+
+      // actor側の上限で拒否された操作は組織bucketを消費せず、別managerは通常どおり送れる。
+      await expect(send(2, 0)).resolves.toEqual({ scheduled: true });
+      const remainingOrganizationBudget =
+        STAFF_NOTIFICATION_RESEND_ORGANIZATION_DAILY_LIMIT - STAFF_NOTIFICATION_RESEND_ACTOR_DAILY_LIMIT - 1;
+      for (let request = 0; request < remainingOrganizationBudget; request += 1) {
+        movePastShortLimit();
+        await expect(send(2, request + 1)).resolves.toEqual({ scheduled: true });
+      }
+
+      movePastShortLimit();
+      const beforeOrganizationDailyRejection = await getNotificationSideEffects(t);
+      await expect(send(3, 0)).resolves.toEqual({ scheduled: false, reason: "rateLimited" });
+      expect(await getNotificationSideEffects(t)).toEqual(beforeOrganizationDailyRejection);
+      expect(beforeOrganizationDailyRejection).toMatchObject({
+        scheduledJobs: STAFF_NOTIFICATION_RESEND_ORGANIZATION_DAILY_LIMIT,
+        magicLinks: 0,
+        outbox: 0,
+      });
+      expect(providerCall).not.toHaveBeenCalled();
     });
   });
 });

@@ -24,6 +24,19 @@ export function getContactAllowedOrigins(): string[] {
     .filter(Boolean);
 }
 
+export function getStaffRegistrationAllowedOrigins(): string[] {
+  return (process.env.STAFF_REGISTRATION_ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
+export function getStaffRegistrationTrustedIpHeader(): "cf-connecting-ip" | null {
+  return process.env.STAFF_REGISTRATION_TRUSTED_IP_HEADER?.trim().toLowerCase() === "cf-connecting-ip"
+    ? "cf-connecting-ip"
+    : null;
+}
+
 export function isDebugNotifyFailEnabled(): boolean {
   return (process.env.DEBUG_NOTIFY_FAIL ?? "").trim().length > 0;
 }

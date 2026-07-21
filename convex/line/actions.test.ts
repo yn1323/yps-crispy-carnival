@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { LINE_LINK_REDEEM_GLOBAL_LIMIT } from "../constants";
 
 async function seedRedeemableToken(t: TestConvex<typeof schema>, token: string) {
   return await t.run(async (ctx) => {
@@ -64,6 +65,7 @@ describe("line/actions", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.useRealTimers();
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
@@ -142,6 +144,67 @@ describe("line/actions", () => {
       expect(state.account).toMatchObject({ lineUserId: "U_redeemed", following: false, isDeleted: false });
       expect(state.scheduled).toEqual([]);
     });
+
+    it("異なる無効stateでglobal上限に達してもproviderを呼ばず、window回復後は正常tokenを処理する", async () => {
+      const t = convexTest(schema, modules);
+      const { tokenDocId } = await seedRedeemableToken(t, "global-limit-recovery-token");
+      const fetchMock = mockLineOAuth(false);
+      const before = await t.run(async (ctx) => ({
+        token: await ctx.db.get(tokenDocId),
+        accounts: await ctx.db.query("staffLineAccounts").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+
+      for (let attempt = 0; attempt < LINE_LINK_REDEEM_GLOBAL_LIMIT; attempt += 1) {
+        await expect(
+          t.action(api.line.actions.redeemLineToken, {
+            state: `${String(attempt).padStart(8, "0")}-invalid-action-state`,
+            code: "unused-authorization-code",
+          }),
+        ).resolves.toEqual({ status: "expired" });
+      }
+      await expect(
+        t.action(api.line.actions.redeemLineToken, {
+          state: "overflow-invalid-action-state",
+          code: "unused-authorization-code",
+        }),
+      ).resolves.toEqual({ status: "rate_limited" });
+      expect(fetchMock).not.toHaveBeenCalled();
+      const afterRejected = await t.run(async (ctx) => ({
+        token: await ctx.db.get(tokenDocId),
+        accounts: await ctx.db.query("staffLineAccounts").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+      expect(afterRejected).toEqual(before);
+
+      vi.setSystemTime(new Date(Date.now() + 60_000));
+      await expect(
+        t.action(api.line.actions.redeemLineToken, {
+          state: "global-limit-recovery-token",
+          code: "authorization-code",
+        }),
+      ).resolves.toEqual({ status: "needs_follow" });
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  it("LINE reply失敗のprovider bodyとreply tokenをconsoleへ出さない", async () => {
+    const t = convexTest(schema, modules);
+    const sentinelBody = 'staff+secret@example.com token=capability-secret {"provider":"declined"}';
+    const replyToken = "reply-token-secret";
+    vi.stubEnv("LINE_MESSAGING_CHANNEL_ACCESS_TOKEN", "line-token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof globalThis.fetch>(async () => new Response(sentinelBody, { status: 400 })),
+    );
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(t.action(internal.line.actions.replyDefaultMessage, { replyToken })).resolves.toBeNull();
+
+    const logged = JSON.stringify(errorSpy.mock.calls);
+    expect(logged).toContain("line_reply_failed");
+    expect(logged).not.toContain(sentinelBody);
+    expect(logged).not.toContain(replyToken);
   });
 
   it("LINE連携案内メールの件名を安全な通知履歴metadataとして保存する", async () => {

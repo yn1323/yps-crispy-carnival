@@ -1513,6 +1513,8 @@ async function processVerifiedStripeEvent(
       return processedResult(synchronized);
     }
     if (current.state.kind === "pendingActivation") {
+      // 追加認証待ちは失敗の終端ではない。pendingActivationを維持し、後続のinvoice.paidでのみProへ進める。
+      if (event.type === "invoice.payment_action_required") return processedResult(synchronized);
       const changed = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
         organizationId: synchronized.organization.organizationId,
         expectedVersion: current.version,

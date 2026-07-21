@@ -69,8 +69,7 @@ describe("notificationOutbox/enqueue", () => {
       channel: "email",
       dedupeKey: "email:organizationInvitation:invitation_test:2",
       notificationContext: "organizationInvitation.send",
-      errorMessage: "enqueue failed",
-      errorName: "Error",
+      errorMessage: "notification_enqueue_failed",
     });
   });
 
@@ -104,8 +103,7 @@ describe("notificationOutbox/enqueue", () => {
       channel: "email",
       dedupeKey,
       notificationContext: NOTIFICATION_FAILURE_REMINDER_CONTEXT,
-      errorMessage: "enqueue failed",
-      errorName: "Error",
+      errorMessage: "notification_enqueue_failed",
     });
   });
 });

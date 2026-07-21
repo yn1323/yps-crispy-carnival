@@ -1,11 +1,10 @@
-import { useMutation } from "convex/react";
-import { useState } from "react";
-import { api } from "@/convex/_generated/api";
+import { useCallback, useState } from "react";
 import type { StaffRegistrationFormData } from "@/convex/staffRegistration/schemas";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
-import { toaster } from "@/src/components/ui/toaster";
+import { TURNSTILE_SITE_KEY } from "@/src/configs/env";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { StaffRegistrationFlow } from "./StaffRegistrationFlow";
+import { submitStaffRegistrationRequest } from "./submitStaffRegistrationRequest";
 import type { StaffRegistrationPageData } from "./types";
 
 type Props = {
@@ -13,45 +12,64 @@ type Props = {
   data: StaffRegistrationPageData;
 };
 
-// 重複・申請済みはエラーではなく「想定内の案内」なので warning トーストで知らせる。
-const DUPLICATE_REGISTRATION_MESSAGE = {
-  already_registered: "このメールアドレスは登録済みです。シフト提出や確定シフトの案内をお待ちください。",
-  already_applied: "このメールアドレスは申請済みです。承認までしばらくお待ちください。",
-} as const;
-
 export function StaffRegistration({ token, data }: Props) {
-  const submit = useMutation(api.staffRegistration.mutations.submitRegistrationRequest);
   const [isSubmitted, setSubmitted] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileKey, setTurnstileKey] = useState(0);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
+
+  const handleVerified = useCallback((verifiedToken: string) => {
+    setTurnstileToken(verifiedToken);
+    setVerificationError(null);
+  }, []);
+
+  const handleVerificationError = useCallback((errorCode?: string) => {
+    if (import.meta.env.DEV && errorCode) console.warn("Turnstile client verification failed", { errorCode });
+    setTurnstileToken("");
+    setVerificationError("セキュリティ確認をやり直してください");
+  }, []);
+
   const { run: handleSubmit, isRunning: isSubmitting } = useSingleFlight(
     async (formData: StaffRegistrationFormData) => {
       if (!token) return;
+      if (!turnstileToken) {
+        setVerificationError("セキュリティ確認を完了してください");
+        return;
+      }
 
       try {
-        const result = await submit({
+        await submitStaffRegistrationRequest({
           token,
           name: formData.name,
           email: formData.email,
           acceptedLegal: formData.acceptedLegal,
+          turnstileToken,
+          requestId: crypto.randomUUID(),
         });
-        if (result.status === "ok") {
-          setSubmitted(true);
-          showSuccessToast({ title: "スタッフ登録申請を送りました" });
-          return;
-        }
-
-        toaster.create({
-          title: DUPLICATE_REGISTRATION_MESSAGE[result.status],
-          type: "warning",
-          duration: Number.POSITIVE_INFINITY,
-        });
+        setSubmitted(true);
+        showSuccessToast({ title: "スタッフ登録申請を受け付けました" });
       } catch (error) {
         showErrorToast(error);
+        setTurnstileToken("");
+        setTurnstileKey((current) => current + 1);
       }
     },
   );
 
   return (
-    <StaffRegistrationFlow data={data} isSubmitting={isSubmitting} isSubmitted={isSubmitted} onSubmit={handleSubmit} />
+    <StaffRegistrationFlow
+      data={data}
+      isSubmitting={isSubmitting}
+      isSubmitted={isSubmitted}
+      onSubmit={handleSubmit}
+      turnstile={{
+        widgetKey: turnstileKey,
+        siteKey: TURNSTILE_SITE_KEY,
+        onError: handleVerificationError,
+        onVerify: handleVerified,
+      }}
+      verificationError={verificationError}
+    />
   );
 }
 

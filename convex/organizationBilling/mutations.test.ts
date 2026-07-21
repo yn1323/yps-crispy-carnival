@@ -551,7 +551,7 @@ describe("organizationBilling/mutations 請求先メール", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it("同じrequestIdは一度だけ適用し、監査へ生値を保存しない", async () => {
+  it("同じ正規化メールは異なるrequestIdでも通知・同期・監査を一度だけ適用する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run((ctx) =>
       seedOrganizationManagerShop(ctx, { subject: "billing_email_idempotent", plan: "pro" }),
@@ -567,26 +567,33 @@ describe("organizationBilling/mutations 請求先メール", () => {
     await expect(actor.mutation(api.organizationBilling.mutations.updateBillingEmail, args)).resolves.toEqual({
       changed: true,
     });
-    await expect(actor.mutation(api.organizationBilling.mutations.updateBillingEmail, args)).resolves.toEqual({
-      changed: false,
-    });
+    await expect(
+      actor.mutation(api.organizationBilling.mutations.updateBillingEmail, {
+        ...args,
+        email: "billing@example.COM",
+        requestId: "billing-email-another-request",
+      }),
+    ).resolves.toEqual({ changed: false });
 
     const requestKey = await toAuditRequestKey(requestId);
-    const result = await t.run(async (ctx) => ({
-      audits: await ctx.db
+    const result = await t.run(async (ctx) => {
+      const audits = await ctx.db
         .query("organizationAuditEvents")
-        .withIndex("by_correlationId", (q) =>
-          q.eq("correlationId", `${ids.organizationId}:billing-email:${requestKey}`),
-        )
-        .collect(),
-      organization: await ctx.db.get(ids.organizationId),
-      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
-    }));
+        .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
+        .collect();
+      return {
+        audits: audits.filter((audit) => audit.action === "organization.billing_email_changed"),
+        organization: await ctx.db.get(ids.organizationId),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      };
+    });
     expect(result.organization).toMatchObject({
       billingEmail: "Billing@Example.com",
       billingEmailNormalized: "billing@example.com",
+      billingEmailSyncKey: requestKey,
     });
     expect(result.audits).toHaveLength(1);
+    expect(result.audits[0]?.correlationId).toBe(`${ids.organizationId}:billing-email:${requestKey}`);
     expect(result.audits[0]?.correlationId).not.toContain(requestId);
     expect(
       result.scheduled.filter(
@@ -595,6 +602,9 @@ describe("organizationBilling/mutations 請求先メール", () => {
           job.args[0]?.event === "billingEmailChanged",
       ),
     ).toHaveLength(1);
+    expect(result.scheduled.filter((job) => job.name === "organizationStripe/actions:syncBillingEmail")).toHaveLength(
+      1,
+    );
   });
 
   it("短すぎるrequestIdでは請求先メールを変更しない", async () => {

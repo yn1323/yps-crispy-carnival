@@ -7,6 +7,11 @@ export type AnalyticsProxyEnv = {
 };
 
 const robotsHeaderValue = "noindex, nofollow";
+const ANALYTICS_API_BODY_MAX_BYTES = 16 * 1024;
+
+type BoundedBodyResult =
+  | { ok: true; body: string }
+  | { ok: false; error: "unsupported_media_type" | "body_too_large" | "invalid_body" };
 
 export function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -60,9 +65,74 @@ function getEnvLabel(env: AnalyticsProxyEnv, fallback: string) {
   return env.ANALYTICS_ENV_LABEL ?? env.CF_PAGES_BRANCH ?? fallback;
 }
 
+async function readBoundedJsonBody(request: Request): Promise<BoundedBodyResult> {
+  const contentType = request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+  if (contentType !== "application/json") return { ok: false, error: "unsupported_media_type" };
+
+  const contentLength = request.headers.get("content-length");
+  const normalizedContentLength = contentLength?.replace(/^0+/, "") || "0";
+  const maxBytesText = String(ANALYTICS_API_BODY_MAX_BYTES);
+  if (
+    /^\d+$/.test(contentLength ?? "") &&
+    (normalizedContentLength.length > maxBytesText.length ||
+      (normalizedContentLength.length === maxBytesText.length && normalizedContentLength > maxBytesText))
+  ) {
+    return { ok: false, error: "body_too_large" };
+  }
+
+  const reader = request.body?.getReader();
+  if (!reader) return { ok: true, body: "" };
+
+  const chunks: Uint8Array[] = [];
+  let byteLength = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      byteLength += value.byteLength;
+      if (byteLength > ANALYTICS_API_BODY_MAX_BYTES) {
+        try {
+          await reader.cancel();
+        } catch {
+          // 上限超過の判定をstreamのcancel失敗で上書きしない。
+        }
+        return { ok: false, error: "body_too_large" };
+      }
+      chunks.push(value);
+    }
+  } catch {
+    return { ok: false, error: "invalid_body" };
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(byteLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return { ok: true, body: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes) };
+  } catch {
+    return { ok: false, error: "invalid_body" };
+  }
+}
+
 export async function handleAnalyticsApi(request: Request, env: AnalyticsProxyEnv, fallbackEnvLabel: string) {
   if (request.method !== "POST") {
     return jsonResponse({ error: { message: "POSTでリクエストしてください" } }, { status: 405 });
+  }
+
+  const bodyResult = await readBoundedJsonBody(request);
+  if (!bodyResult.ok) {
+    if (bodyResult.error === "unsupported_media_type") {
+      return jsonResponse({ error: { message: "JSONでリクエストしてください" } }, { status: 415 });
+    }
+    if (bodyResult.error === "body_too_large") {
+      return jsonResponse({ error: { message: "リクエストが大きすぎます" } }, { status: 413 });
+    }
+    return jsonResponse({ error: { message: "リクエストを読み込めませんでした" } }, { status: 400 });
   }
 
   const convexHttpUrl = env.VITE_CONVEX_SITE_URL ?? getConvexHttpUrl(env.VITE_CONVEX_URL);
@@ -70,14 +140,13 @@ export async function handleAnalyticsApi(request: Request, env: AnalyticsProxyEn
     return jsonResponse({ error: { message: "分析データの接続先が設定されていません" } }, { status: 503 });
   }
 
-  const body = await request.text();
   const upstream = await fetch(getConvexEndpoint(convexHttpUrl), {
     method: "POST",
     headers: {
       "content-type": "application/json",
       "x-shiftori-internal-api-secret": env.SHIFTORI_INTERNAL_API_SECRET,
     },
-    body,
+    body: bodyResult.body,
   });
 
   const responseText = await upstream.text();

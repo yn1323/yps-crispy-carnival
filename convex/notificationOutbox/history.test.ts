@@ -133,16 +133,24 @@ describe("notificationOutbox/history", () => {
 
     const retry = await enqueueStaffEmail(t, { shopId, staffId, dedupeKey: "email:test:history-retry" });
     if (!retry) throw new Error("retry notification was not enqueued");
+    const [retryClaim] = await t.mutation(internal.notificationOutbox.mutations.claimDue, {
+      now: Date.now() + NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
+    });
+    if (!retryClaim?.leaseToken) throw new Error("retry lease was not issued");
     await t.mutation(internal.notificationOutbox.mutations.markRetry, {
       outboxId: retry.outboxId,
+      leaseToken: retryClaim.leaseToken,
       lastError: "temporary",
       nextRunAt: Date.now() + 1_000,
     });
     expect(await historyForOutbox(t, retry.outboxId)).toMatchObject({ sendStatus: "queued" });
 
     vi.advanceTimersByTime(1_000);
+    const [sentClaim] = await t.mutation(internal.notificationOutbox.mutations.claimDue, { now: Date.now() });
+    if (!sentClaim?.leaseToken) throw new Error("sent lease was not issued");
     await t.mutation(internal.notificationOutbox.mutations.markSent, {
       outboxId: retry.outboxId,
+      leaseToken: sentClaim.leaseToken,
       resendEmailId: "email_history_sent",
     });
     expect(await historyForOutbox(t, retry.outboxId)).toMatchObject({
@@ -157,7 +165,10 @@ describe("notificationOutbox/history", () => {
       occurredAt: Date.now() + 500,
     });
     vi.advanceTimersByTime(1_000);
-    await t.mutation(internal.notificationOutbox.mutations.markSent, { outboxId: retry.outboxId });
+    await t.mutation(internal.notificationOutbox.mutations.markSent, {
+      outboxId: retry.outboxId,
+      leaseToken: sentClaim.leaseToken,
+    });
     expect(await historyForOutbox(t, retry.outboxId)).toMatchObject({
       sendStatus: "sent",
       deliveryStatus: "delivered",
@@ -165,8 +176,13 @@ describe("notificationOutbox/history", () => {
 
     const failed = await enqueueStaffEmail(t, { shopId, staffId, dedupeKey: "email:test:history-failed" });
     if (!failed) throw new Error("failed notification was not enqueued");
+    const [failedClaim] = await t.mutation(internal.notificationOutbox.mutations.claimDue, {
+      now: Date.now() + NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
+    });
+    if (!failedClaim?.leaseToken) throw new Error("failed lease was not issued");
     await t.mutation(internal.notificationOutbox.mutations.markFailed, {
       outboxId: failed.outboxId,
+      leaseToken: failedClaim.leaseToken,
       lastError: "final",
       suppressFailureInbox: true,
     });
@@ -179,9 +195,12 @@ describe("notificationOutbox/history", () => {
     if (!cancelled) throw new Error("cancelled notification was not enqueued");
     await t.run(async (ctx) => await ctx.db.patch(staffId, { isDeleted: true }));
     vi.advanceTimersByTime(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
-    await t.mutation(internal.notificationOutbox.mutations.claimDue, { now: Date.now() });
+    const cancelledClaims = await t.mutation(internal.notificationOutbox.mutations.claimDue, { now: Date.now() });
+    const cancelledClaim = cancelledClaims.find((job) => job._id === cancelled.outboxId);
+    if (!cancelledClaim?.leaseToken) throw new Error("cancelled lease was not issued");
     await t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
       outboxId: cancelled.outboxId,
+      leaseToken: cancelledClaim.leaseToken,
       now: Date.now(),
     });
     expect(await historyForOutbox(t, cancelled.outboxId)).toMatchObject({ sendStatus: "cancelled" });
@@ -207,7 +226,7 @@ describe("notificationOutbox/history", () => {
 
     await expect(
       t.mutation(internal.notificationOutbox.mutations.markSent, { outboxId, resendEmailId: "email_predeploy" }),
-    ).resolves.toBeNull();
+    ).resolves.toBe(true);
     await expect(historyForOutbox(t, outboxId)).resolves.toBeNull();
   });
 });

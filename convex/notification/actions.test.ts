@@ -39,15 +39,26 @@ describe("notification/actions", () => {
       });
     });
 
-    await t.action(internal.notification.actions.sendRecruitmentNotificationEmails, { recruitmentId });
+    // 1 action = 1 bounded batch。通常schedulerと同じactionを繰り返し、永続cursorから再開する。
+    for (let batch = 0; batch < 10; batch++) {
+      await t.action(internal.notification.actions.sendRecruitmentNotificationEmails, { recruitmentId });
+    }
 
     const state = await t.run(async (ctx) => ({
       histories: await ctx.db.query("notificationHistory").collect(),
       jobs: await ctx.db.query("notificationOutbox").collect(),
+      operations: await ctx.db.query("notificationFanoutOperations").collect(),
     }));
     expect(state.jobs).toHaveLength(100);
     expect(state.jobs.every((job) => job.channel === "email" && job.status === "pending")).toBe(true);
     expect(state.histories).toHaveLength(100);
+    expect(state.operations).toEqual([
+      expect.objectContaining({
+        recruitmentId,
+        cursor: 100,
+        status: "completed",
+      }),
+    ]);
     expect(
       state.histories
         .map(({ outboxId, notificationKind, displayTitle }) => ({ outboxId, notificationKind, displayTitle }))

@@ -6,7 +6,7 @@ import { internalMutation, type MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { getOrganizationInvitationSigningSecret } from "../_lib/config";
 import { authenticatedMutation } from "../_lib/functions";
-import { rateLimit } from "../_lib/rateLimits";
+import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
 import { generateUUID } from "../_lib/uuid";
 import { cancelOrganizationRecipientBusinessNotifications } from "../notificationOutbox/mutations";
 import { requireOrganizationActorForShop } from "../organization/access";
@@ -87,6 +87,34 @@ type OrganizationInvitationLinkCtx = MutationCtx & {
 
 async function invitationRateKey(organizationId: Id<"organizations">, emailNormalized: string) {
   return invitationRateLimitKey(await digestInvitationToken(`${organizationId}:${emailNormalized}`));
+}
+
+async function invitationAcceptActorRateKey(identity: UserIdentity) {
+  return invitationRateLimitKey(await digestInvitationToken(`actor:${identity.tokenIdentifier}`));
+}
+
+async function requireInvitationResendBudget(
+  ctx: MutationCtx,
+  organizationId: Id<"organizations">,
+  emailNormalized: string,
+) {
+  const key = await invitationRateKey(organizationId, emailNormalized);
+  const limits = [
+    { name: "organizationManagerInviteResendShort", key },
+    { name: "organizationManagerInviteResendDaily", key },
+  ] as const;
+  const statuses = await Promise.all(limits.map(async (limit) => await checkRateLimit(ctx, limit)));
+  if (statuses.some((status) => !status.ok)) {
+    throw new ConvexError("招待回数が多いため、少し時間をおいてお試しください");
+  }
+
+  for (const limit of limits) {
+    const consumed = await rateLimit(ctx, limit);
+    if (!consumed.ok) {
+      // 同じtransaction内の確認後なので通常は到達しない。throwして先行consumeもrollbackする。
+      throw new Error("Organization invitation resend rate limit changed during consumption");
+    }
+  }
 }
 
 async function requireNoOtherPendingFreeManagerExchange(
@@ -185,9 +213,7 @@ async function reissueActiveInvitation(
     now: number;
   },
 ) {
-  const key = await invitationRateKey(args.organization._id, args.oldInvitation.emailNormalized);
-  const shortLimit = await rateLimit(ctx, { name: "organizationManagerInviteResendShort", key });
-  if (!shortLimit.ok) throw new ConvexError("少し時間をおいて、もう一度お試しください");
+  await requireInvitationResendBudget(ctx, args.organization._id, args.oldInvitation.emailNormalized);
 
   await ctx.db.patch(args.oldInvitation._id, {
     status: "revoked",
@@ -686,9 +712,7 @@ export const resend = authenticatedMutation({
         excludedInvitationId: oldInvitation._id,
       });
     }
-    const key = await invitationRateKey(organization._id, oldInvitation.emailNormalized);
-    const shortLimit = await rateLimit(ctx, { name: "organizationManagerInviteResendShort", key });
-    if (!shortLimit.ok) throw new ConvexError("少し時間をおいて、もう一度お試しください");
+    await requireInvitationResendBudget(ctx, organization._id, oldInvitation.emailNormalized);
 
     await ctx.db.patch(oldInvitation._id, {
       status: wasExpired ? "expired" : "revoked",
@@ -765,6 +789,12 @@ async function linkAccountWithToken(
   options?: { linkedInvitationResult?: "linked" | "used" },
 ) {
   if (args.token.length !== 43) return { status: "invalid" as const };
+  const actorLimit = await rateLimit(ctx, {
+    name: "organizationManagerInviteAcceptActor",
+    key: await invitationAcceptActorRateKey(ctx.identity),
+  });
+  if (!actorLimit.ok) return { status: "unavailable" as const };
+
   const tokenDigest = await digestInvitationToken(args.token);
   const limit = await rateLimit(ctx, {
     name: "organizationManagerInviteAccept",

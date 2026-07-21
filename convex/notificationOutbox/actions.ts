@@ -22,6 +22,7 @@ import {
   ORGANIZATION_MANAGER_INVITATION_SUBJECT,
 } from "../notification/templates";
 import { deriveInvitationToken } from "../organizationInvitation/token";
+import { safeNotificationError } from "./safeError";
 
 type NotificationJob = Doc<"notificationOutbox">;
 const LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE = "LINE quota exceeded; fallback email enqueued";
@@ -30,8 +31,8 @@ type LineFallbackEmail = NonNullable<
 >;
 class LinePushDeliveryError extends Error {
   constructor(readonly deliveryCause: unknown) {
-    super(errorMessage(deliveryCause));
-    this.name = errorName(deliveryCause) ?? "LinePushDeliveryError";
+    super(safeNotificationError(deliveryCause).code);
+    this.name = "LinePushDeliveryError";
   }
 }
 type SendJobResult = {
@@ -57,6 +58,7 @@ export const processPending = internalAction({
       try {
         const preparedJob = await ctx.runMutation(internal.notificationOutbox.mutations.prepareForDelivery, {
           outboxId: claimedJob._id,
+          leaseToken: claimedJob.leaseToken,
           now: Date.now(),
         });
         if (!preparedJob) continue;
@@ -66,19 +68,20 @@ export const processPending = internalAction({
         if (result.cancelled) continue;
         await ctx.runMutation(internal.notificationOutbox.mutations.markSent, {
           outboxId: job._id,
+          leaseToken: job.leaseToken,
           ...(result.resendEmailId ? { resendEmailId: result.resendEmailId } : {}),
         });
       } catch (e) {
-        const lastError = errorMessage(e);
+        const lastError = safeNotificationError(e).code;
         if (shouldRetry(job, e)) {
           await ctx.runMutation(internal.notificationOutbox.mutations.markRetry, {
             outboxId: job._id,
+            leaseToken: job.leaseToken,
             lastError,
             nextRunAt: Date.now() + retryDelayMs(job.attemptCount, e),
-            ...(errorName(e) ? { errorName: errorName(e) } : {}),
           });
         } else {
-          let suppressFailureInbox = lastError === LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE;
+          let suppressFailureInbox = lastError === "line_quota_fallback_enqueued";
           if (
             !suppressFailureInbox &&
             e instanceof LinePushDeliveryError &&
@@ -94,9 +97,9 @@ export const processPending = internalAction({
           }
           await ctx.runMutation(internal.notificationOutbox.mutations.markFailed, {
             outboxId: job._id,
+            leaseToken: job.leaseToken,
             lastError,
             ...(suppressFailureInbox ? { suppressFailureInbox: true } : {}),
-            ...(errorName(e) ? { errorName: errorName(e) } : {}),
           });
         }
       }
@@ -123,7 +126,7 @@ async function sendJob(ctx: ActionCtx, job: NotificationJob): Promise<SendJobRes
   if (job.payload.kind === "organizationManagerInvitationEmail") {
     const invitation = await ctx.runMutation(
       internal.notificationOutbox.mutations.prepareOrganizationManagerInvitationEmail,
-      { outboxId: job._id, now: Date.now() },
+      { outboxId: job._id, leaseToken: job.leaseToken, now: Date.now() },
     );
     if (!invitation) return { cancelled: true };
 
@@ -152,7 +155,7 @@ async function sendJob(ctx: ActionCtx, job: NotificationJob): Promise<SendJobRes
   if (job.payload.kind === "organizationManagerInvitationLine") {
     const invitation = await ctx.runMutation(
       internal.notificationOutbox.mutations.prepareOrganizationManagerInvitationEmail,
-      { outboxId: job._id, now: Date.now() },
+      { outboxId: job._id, leaseToken: job.leaseToken, now: Date.now() },
     );
     if (!invitation) return { cancelled: true };
 
@@ -255,7 +258,9 @@ async function enqueueLineFallback(
         ? { organizationBillingVersionAtOrigin: job.organizationBillingVersionAtEnqueue }
         : {}),
       ...(job.purpose ? { purpose: job.purpose } : {}),
+      ...(job.recruitmentId ? { recruitmentId: job.recruitmentId } : {}),
       ...(job.staffId ? { staffId: job.staffId } : {}),
+      ...(job.fanoutOperationId ? { fanoutOperationId: job.fanoutOperationId } : {}),
       ...(job.staffId && fallbackEmail.history ? { history: fallbackEmail.history } : {}),
       ...(job.staffId && !fallbackEmail.history ? { historyMode: "legacy_no_history" as const } : {}),
       ...(job.userId ? { userId: job.userId } : {}),
@@ -264,6 +269,7 @@ async function enqueueLineFallback(
     });
     if (!enqueueResult) throw new Error("LINE fallback email was not enqueued");
   } catch (e) {
+    const safeError = safeNotificationError(e, "notification_enqueue_failed");
     try {
       await ctx.runMutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
         eventType: "enqueue_failed",
@@ -280,11 +286,12 @@ async function enqueueLineFallback(
         dedupeKey: fallbackEmail.dedupeKey,
         notificationContext: fallbackEmail.payload.context,
         attemptCount: job.attemptCount,
-        errorMessage: errorMessage(e),
-        ...(errorName(e) ? { errorName: errorName(e) } : {}),
+        errorMessage: safeError.code,
       });
-    } catch (logError) {
-      console.error("Notification fallback enqueue failure logging failed", logError);
+    } catch {
+      console.error("Notification fallback enqueue failure logging failed", {
+        errorCode: "notification_worker_failed",
+      });
     }
     throw e;
   }
@@ -305,10 +312,10 @@ async function enqueueLineFallback(
       dedupeKey: job.dedupeKey,
       notificationContext: fallbackEmail.payload.context,
       attemptCount: job.attemptCount,
-      errorMessage: fallbackReason,
+      errorMessage: safeNotificationError(fallbackReason).code,
     });
-  } catch (logError) {
-    console.error("Notification fallback event logging failed", logError);
+  } catch {
+    console.error("Notification fallback event logging failed", { errorCode: "notification_worker_failed" });
   }
 }
 
@@ -379,18 +386,14 @@ function errorMessage(e: unknown) {
   return e instanceof Error ? e.message : String(e);
 }
 
-function errorName(e: unknown) {
-  return e instanceof Error ? e.name : undefined;
-}
-
 async function recordWorkerFailure(ctx: ActionCtx, e: unknown) {
+  const safeError = safeNotificationError(e, "notification_worker_failed");
   try {
     await ctx.runMutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
       eventType: "worker_failed",
-      errorMessage: errorMessage(e),
-      ...(errorName(e) ? { errorName: errorName(e) } : {}),
+      errorMessage: safeError.code,
     });
-  } catch (logError) {
-    console.error("Notification outbox worker failure logging failed", logError);
+  } catch {
+    console.error("Notification outbox worker failure logging failed", { errorCode: "notification_worker_failed" });
   }
 }

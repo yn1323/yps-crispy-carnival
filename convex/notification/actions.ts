@@ -14,6 +14,7 @@ import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notific
 import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
 import type { NotificationHistoryInput, NotificationRenderedEmailPayload } from "../notificationOutbox/types";
 import { recordNotificationPreparationFailure } from "./failureRecording";
+import { buildNotificationFanoutTargetKey } from "./fanout";
 import {
   buildConfirmationEmailHtml,
   buildRecruitmentEmailHtml,
@@ -41,25 +42,60 @@ export const sendShiftConfirmationEmails = internalAction({
     isResend: v.boolean(),
     targetStaffIds: v.optional(v.array(v.id("staffs"))),
     notificationRunId: v.optional(v.number()),
+    fanoutOperationId: v.optional(v.id("notificationFanoutOperations")),
     ...businessNotificationOriginArgs,
   },
   handler: async (
     ctx,
-    { recruitmentId, isResend, targetStaffIds, notificationRunId, organizationBillingVersionAtOrigin },
+    {
+      recruitmentId,
+      isResend,
+      targetStaffIds,
+      notificationRunId,
+      fanoutOperationId,
+      organizationBillingVersionAtOrigin,
+    },
   ) => {
-    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
+    const operationId =
+      fanoutOperationId ??
+      (await ctx.runMutation(internal.notification.mutations.ensureConfirmationNotificationFanout, {
+        recruitmentId,
+        isResend,
+        ...(targetStaffIds ? { targetStaffIds } : {}),
+        ...(notificationRunId === undefined ? {} : { notificationRunId }),
+        ...(organizationBillingVersionAtOrigin === undefined ? {} : { organizationBillingVersionAtOrigin }),
+      }));
+    if (!operationId) return;
+    const batch = await ctx.runMutation(internal.notification.mutations.claimNotificationFanoutBatch, {
+      operationId,
+    });
+    if (batch.state !== "claimed") return;
+
+    const completeBatch = () =>
+      ctx.runMutation(internal.notification.mutations.completeNotificationFanoutBatch, {
+        operationId,
+        leaseToken: batch.leaseToken,
+        expectedCursor: batch.cursor,
+      });
+    const operationIsResend = batch.purpose === "confirmation_resend";
+    const notificationOrigin = businessNotificationOriginFrom({
+      organizationBillingVersionAtOrigin: batch.organizationBillingVersionAtOrigin,
+    });
     const data = await ctx.runQuery(internal.notification.queries.getConfirmationEmailData, {
       recruitmentId,
-      ...(targetStaffIds ? { targetStaffIds } : {}),
+      targetStaffIds: batch.targetStaffIds,
     });
-    if (!data) return;
+    if (!data) {
+      await completeBatch();
+      return;
+    }
 
     const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
     const suppressDelivery = await ctx.runQuery(
       internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
       { shopId: data.shopId },
     );
-    const dedupeSuffix = isResend ? `resend:${notificationRunId ?? Date.now()}` : "confirm";
+    const dedupeSuffix = batch.dedupeSuffix;
 
     for (const staffData of data.staffEntries) {
       const channel = selectChannel(
@@ -68,17 +104,22 @@ export const sendShiftConfirmationEmails = internalAction({
       );
       const emailDedupeKey = `email:confirmation:${recruitmentId}:${staffData.staffId}:${dedupeSuffix}`;
       const lineDedupeKey = `line:confirmation:${recruitmentId}:${staffData.staffId}:${dedupeSuffix}`;
+      const fanoutTargetKey = buildNotificationFanoutTargetKey(batch.operationKey, staffData.staffId);
+      const legacyFanoutDedupeKeys = [emailDedupeKey, lineDedupeKey];
       const selectedChannel = channel === "line" && staffData.lineUserId ? "line" : "email";
       const dedupeKey = selectedChannel === "line" ? lineDedupeKey : emailDedupeKey;
       if (selectedChannel === "email" && !staffData.email) continue;
 
       try {
-        const { token: viewToken } = await ctx.runMutation(internal.notification.mutations.createMagicLink, {
-          staffId: staffData.staffId,
-          shopId: data.shopId,
-          recruitmentId,
-          accessKind: "view",
-        });
+        const { token: viewToken } = await ctx.runMutation(
+          internal.notification.mutations.getOrCreateNotificationViewMagicLink,
+          {
+            staffId: staffData.staffId,
+            shopId: data.shopId,
+            recruitmentId,
+            notificationOperationKey: batch.operationKey,
+          },
+        );
         const magicLinkUrl = `${APP_URL}/shifts/view?token=${viewToken}`;
 
         if (selectedChannel === "line" && staffData.lineUserId) {
@@ -88,7 +129,7 @@ export const sendShiftConfirmationEmails = internalAction({
             periodLabel: data.periodLabel,
             shifts: staffData.shifts,
             magicLinkUrl,
-            isResend,
+            isResend: operationIsResend,
           };
           const text = buildShiftConfirmationLineText(lineParams);
           const fallbackEmail = await buildConfirmationEmail({
@@ -97,7 +138,7 @@ export const sendShiftConfirmationEmails = internalAction({
             data,
             recruitmentId,
             magicLinkUrl,
-            isResend,
+            isResend: operationIsResend,
             suppressDelivery,
             dedupeKey: emailDedupeKey,
           });
@@ -108,8 +149,13 @@ export const sendShiftConfirmationEmails = internalAction({
             staffId: staffData.staffId,
             history: {
               notificationKind: SHIFT_CONFIRMATION_NOTIFICATION_KIND,
-              displayTitle: isResend ? "シフト変更のお知らせ" : "確定シフトのお知らせ",
+              displayTitle: operationIsResend ? "シフト変更のお知らせ" : "確定シフトのお知らせ",
             },
+            dedupeAcrossTerminal: true,
+            fanoutTargetKey,
+            fanoutOperationId: operationId,
+            fanoutLeaseToken: batch.leaseToken,
+            legacyFanoutDedupeKeys,
             dedupeKey: lineDedupeKey,
             payload: linePayload({
               toUserId: staffData.lineUserId,
@@ -132,8 +178,13 @@ export const sendShiftConfirmationEmails = internalAction({
           data,
           recruitmentId,
           magicLinkUrl,
-          isResend,
+          isResend: operationIsResend,
           suppressDelivery,
+          dedupeAcrossTerminal: true,
+          fanoutTargetKey,
+          fanoutOperationId: operationId,
+          fanoutLeaseToken: batch.leaseToken,
+          legacyFanoutDedupeKeys,
           dedupeKey: emailDedupeKey,
         });
         if (result) {
@@ -155,6 +206,7 @@ export const sendShiftConfirmationEmails = internalAction({
         );
       }
     }
+    await completeBatch();
   },
 });
 
@@ -174,6 +226,11 @@ async function buildConfirmationEmail(opts: {
   isResend: boolean;
   suppressDelivery: boolean;
   organizationBillingVersionAtOrigin?: number;
+  dedupeAcrossTerminal?: boolean;
+  fanoutTargetKey?: string;
+  fanoutOperationId?: Id<"notificationFanoutOperations">;
+  fanoutLeaseToken?: string;
+  legacyFanoutDedupeKeys?: readonly string[];
   dedupeKey?: string;
 }): Promise<{
   dedupeKey: string;
@@ -231,6 +288,11 @@ async function enqueueConfirmationEmail(opts: Parameters<typeof buildConfirmatio
     recruitmentId: opts.recruitmentId,
     staffId: opts.staffData.staffId,
     history: email.history,
+    ...(opts.dedupeAcrossTerminal ? { dedupeAcrossTerminal: true } : {}),
+    ...(opts.fanoutTargetKey ? { fanoutTargetKey: opts.fanoutTargetKey } : {}),
+    ...(opts.fanoutOperationId ? { fanoutOperationId: opts.fanoutOperationId } : {}),
+    ...(opts.fanoutLeaseToken ? { fanoutLeaseToken: opts.fanoutLeaseToken } : {}),
+    ...(opts.legacyFanoutDedupeKeys ? { legacyFanoutDedupeKeys: opts.legacyFanoutDedupeKeys } : {}),
     dedupeKey: email.dedupeKey,
     payload: email.payload,
   });
@@ -267,8 +329,10 @@ async function recordConfirmationSnapshotSentSafely(
 ) {
   try {
     await recordConfirmationSnapshotSent(ctx, recruitmentId, staffData);
-  } catch (e) {
-    console.error("Shift confirmation snapshot recording failed after notification enqueue", e);
+  } catch {
+    console.error("Shift confirmation snapshot recording failed after notification enqueue", {
+      errorCode: "notification_snapshot_record_failed",
+    });
   }
 }
 
@@ -392,25 +456,50 @@ export const sendReissueEmail = internalAction({
       } else {
         log("error", "email_enqueue_failed");
       }
-    } catch (e) {
-      log("error", "email_enqueue_failed", { error: errorMessage(e) });
+    } catch {
+      log("error", "email_enqueue_failed");
     }
   },
 });
-
-function errorMessage(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
-}
 
 /**
  * 募集開始通知の配信（LINE 振り分け対応）
  */
 export const sendRecruitmentNotificationEmails = internalAction({
-  args: { recruitmentId: v.id("recruitments"), ...businessNotificationOriginArgs },
-  handler: async (ctx, { recruitmentId, organizationBillingVersionAtOrigin }) => {
-    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
-    const data = await ctx.runQuery(internal.notification.queries.getRecruitmentEmailData, { recruitmentId });
-    if (!data) return;
+  args: {
+    recruitmentId: v.id("recruitments"),
+    fanoutOperationId: v.optional(v.id("notificationFanoutOperations")),
+    ...businessNotificationOriginArgs,
+  },
+  handler: async (ctx, { recruitmentId, fanoutOperationId, organizationBillingVersionAtOrigin }) => {
+    const operationId =
+      fanoutOperationId ??
+      (await ctx.runMutation(internal.notification.mutations.ensureRecruitmentNotificationFanout, {
+        recruitmentId,
+        ...(organizationBillingVersionAtOrigin === undefined ? {} : { organizationBillingVersionAtOrigin }),
+      }));
+    if (!operationId) return;
+    const batch = await ctx.runMutation(internal.notification.mutations.claimNotificationFanoutBatch, {
+      operationId,
+    });
+    if (batch.state !== "claimed") return;
+    const completeBatch = () =>
+      ctx.runMutation(internal.notification.mutations.completeNotificationFanoutBatch, {
+        operationId,
+        leaseToken: batch.leaseToken,
+        expectedCursor: batch.cursor,
+      });
+    const notificationOrigin = businessNotificationOriginFrom({
+      organizationBillingVersionAtOrigin: batch.organizationBillingVersionAtOrigin,
+    });
+    const data = await ctx.runQuery(internal.notification.queries.getRecruitmentEmailData, {
+      recruitmentId,
+      targetStaffIds: batch.targetStaffIds,
+    });
+    if (!data) {
+      await completeBatch();
+      return;
+    }
 
     const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
     const suppressDelivery = await ctx.runQuery(
@@ -424,6 +513,8 @@ export const sendRecruitmentNotificationEmails = internalAction({
       const selectedChannel = channel === "line" && staff.lineUserId ? "line" : "email";
       const emailDedupeKey = `email:recruitment:${recruitmentId}:${staff.staffId}`;
       const lineDedupeKey = `line:recruitment:${recruitmentId}:${staff.staffId}`;
+      const fanoutTargetKey = buildNotificationFanoutTargetKey(batch.operationKey, staff.staffId);
+      const legacyFanoutDedupeKeys = [emailDedupeKey, lineDedupeKey];
       const dedupeKey = selectedChannel === "line" ? lineDedupeKey : emailDedupeKey;
       if (selectedChannel === "email" && !staff.email) continue;
 
@@ -468,6 +559,11 @@ export const sendRecruitmentNotificationEmails = internalAction({
               notificationKind: SHIFT_RECRUITMENT_NOTIFICATION_KIND,
               displayTitle: "シフト募集のお知らせ",
             },
+            dedupeAcrossTerminal: true,
+            fanoutTargetKey,
+            fanoutOperationId: operationId,
+            fanoutLeaseToken: batch.leaseToken,
+            legacyFanoutDedupeKeys,
             dedupeKey: lineDedupeKey,
             payload: linePayload({
               toUserId: staff.lineUserId,
@@ -500,6 +596,11 @@ export const sendRecruitmentNotificationEmails = internalAction({
             recruitmentId,
             staffId: staff.staffId,
             history: email.history,
+            dedupeAcrossTerminal: true,
+            fanoutTargetKey,
+            fanoutOperationId: operationId,
+            fanoutLeaseToken: batch.leaseToken,
+            legacyFanoutDedupeKeys,
             dedupeKey: email.dedupeKey,
             payload: email.payload,
           });
@@ -520,6 +621,7 @@ export const sendRecruitmentNotificationEmails = internalAction({
         );
       }
     }
+    await completeBatch();
   },
 });
 

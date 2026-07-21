@@ -1,6 +1,7 @@
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
+import { safeNotificationError } from "./safeError";
 import type {
   EnqueueNotificationInput,
   NotificationEmailPayload,
@@ -78,6 +79,11 @@ async function enqueueNotification(ctx: EnqueueCtx, input: EnqueueNotificationIn
       ...(input.history ? { history: input.history } : {}),
       ...(input.historyMode ? { historyMode: input.historyMode } : {}),
       ...(input.userId ? { userId: input.userId } : {}),
+      ...(input.dedupeAcrossTerminal ? { dedupeAcrossTerminal: true } : {}),
+      ...(input.fanoutTargetKey ? { fanoutTargetKey: input.fanoutTargetKey } : {}),
+      ...(input.fanoutOperationId ? { fanoutOperationId: input.fanoutOperationId } : {}),
+      ...(input.fanoutLeaseToken ? { fanoutLeaseToken: input.fanoutLeaseToken } : {}),
+      ...(input.legacyFanoutDedupeKeys ? { legacyFanoutDedupeKeys: [...input.legacyFanoutDedupeKeys] } : {}),
       dedupeKey: input.dedupeKey,
       payload: input.payload,
     });
@@ -88,6 +94,7 @@ async function enqueueNotification(ctx: EnqueueCtx, input: EnqueueNotificationIn
 }
 
 async function recordEnqueueFailure(ctx: EnqueueCtx, input: EnqueueNotificationInput, e: unknown) {
+  const safeError = safeNotificationError(e, "notification_enqueue_failed");
   try {
     await ctx.runMutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
       eventType: "enqueue_failed",
@@ -103,11 +110,10 @@ async function recordEnqueueFailure(ctx: EnqueueCtx, input: EnqueueNotificationI
       channel: notificationChannelForPayload(input.payload),
       dedupeKey: input.dedupeKey,
       notificationContext: notificationContext(input),
-      errorMessage: errorMessage(e),
-      ...(errorName(e) ? { errorName: errorName(e) } : {}),
+      errorMessage: safeError.code,
     });
-  } catch (logError) {
-    console.error("Notification enqueue failure logging failed", logError);
+  } catch {
+    console.error("Notification enqueue failure logging failed", { errorCode: "notification_worker_failed" });
   }
 }
 
@@ -115,12 +121,4 @@ function notificationContext(input: EnqueueNotificationInput) {
   if (input.payload.kind === "organizationManagerInvitationLine") return input.payload.context;
   if (input.payload.kind !== "line") return input.payload.context;
   return input.payload.fallbackEmail?.payload.context ?? input.dedupeKey.split(":").slice(0, 2).join(":");
-}
-
-function errorMessage(e: unknown) {
-  return e instanceof Error ? e.message : String(e);
-}
-
-function errorName(e: unknown) {
-  return e instanceof Error ? e.name : undefined;
 }

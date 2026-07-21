@@ -51,6 +51,7 @@ describe("管理者セットアップシナリオ", () => {
       name: "初回セットアップ店舗",
       regularClosedDays: [],
       submissionPattern: { kind: "dateOnly" },
+      trialEndingNotice: null,
     });
     expect(staffPage.page).toMatchObject([{ name: "山田 太郎", email: "manager@example.com", isManager: true }]);
     expect(consentStatus.required).toBe(false);

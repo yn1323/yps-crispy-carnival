@@ -9,6 +9,14 @@ crons.cron("line-quota-refresh", "0 17 * * *", internal.line.actions.refreshQuot
 // 通知outboxを1分ごとに回収する。enqueue側ではworker予約を読まず、cronを配送開始の主導線にする。
 crons.interval("notification-outbox-drain", { minutes: 1 }, internal.notificationOutbox.actions.processPending, {});
 
+// fanout actionの予約漏れと期限切れleaseを1分ごとに回収する。
+crons.interval(
+  "notification-fanout-recover",
+  { minutes: 1 },
+  internal.notification.mutations.recoverNotificationFanoutOperations,
+  {},
+);
+
 // 削除cleanupの予約漏れと期限切れleaseを回収する。各jobはbounded mutationで一batchずつ進む。
 crons.interval("deletion-cleanup-recover", { minutes: 1 }, internal.deletionCleanup.mutations.recover, {});
 
@@ -42,6 +50,14 @@ crons.cron(
   {},
 );
 
+// LINE message Webhookの重複排除receiptを30日後に削除（JST 03:50 = UTC 18:50）。
+crons.cron(
+  "line-webhook-message-receipt-prune",
+  "50 18 * * *",
+  internal.line.mutations.pruneExpiredWebhookMessageReceipts,
+  {},
+);
+
 // 通知配送イベントログを1日1回削除（JST 03:30 = UTC 18:30）
 crons.cron(
   "notification-delivery-event-prune",
@@ -51,6 +67,13 @@ crons.cron(
 
 // 通知不達Inboxを1日1回期限切れ化（JST 03:35 = UTC 18:35）
 crons.cron("notification-failure-inbox-expire", "35 18 * * *", internal.notificationOutbox.mutations.expireOldFailures);
+
+// terminal通知の宛先・本文・capability URL・生errorを1日1回redact（JST 03:40 = UTC 18:40）
+crons.cron(
+  "notification-outbox-terminal-redact",
+  "40 18 * * *",
+  internal.notificationOutbox.mutations.redactExpiredTerminalData,
+);
 
 // 分析KPI日次集計（JST 03:00 = UTC 18:00）。delivery-event-prune(03:30 JST)より前に実行する
 crons.cron("analytics-daily-aggregation", "0 18 * * *", internal.analytics.dailyAggregation.run, {});

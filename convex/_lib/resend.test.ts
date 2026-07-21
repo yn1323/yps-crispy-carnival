@@ -126,7 +126,7 @@ describe("sendResendEmail", () => {
     });
 
     await expect(sendResendEmail(createResendMock(send), emailPayload, "test.dailyQuota")).rejects.toThrow(
-      "Resend email send failed: daily_quota_exceeded Daily quota exceeded",
+      "email_recipient_rejected",
     );
     expect(send).toHaveBeenCalledOnce();
     expect(console.error).toHaveBeenCalledOnce();
@@ -141,7 +141,7 @@ describe("sendResendEmail", () => {
     });
 
     await expect(sendResendEmail(createResendMock(send), emailPayload, "test.validation")).rejects.toThrow(
-      "Resend email send failed: validation_error Invalid recipient",
+      "email_recipient_rejected",
     );
     expect(send).toHaveBeenCalledOnce();
   });
@@ -189,15 +189,13 @@ describe("sendResendEmail", () => {
     });
 
     const result = sendResendEmail(createResendMock(send), emailPayload, "test.retryLimit");
-    const expectation = expect(result).rejects.toThrow(
-      "Resend email send failed: rate_limit_exceeded Too many requests",
-    );
+    const expectation = expect(result).rejects.toThrow("email_rate_limited");
     await vi.advanceTimersByTimeAsync(20_000);
 
     await expectation;
     await expect(result).rejects.toMatchObject({
       name: "ResendEmailError",
-      errorName: "rate_limit_exceeded",
+      errorName: "email_rate_limited",
       statusCode: 429,
       retryable: true,
     } satisfies Partial<ResendEmailError>);

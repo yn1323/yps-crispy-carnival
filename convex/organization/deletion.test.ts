@@ -184,7 +184,7 @@ async function expectDeletionCapabilitiesUnavailable(
     }),
   ).resolves.toMatchObject({ status: "expired" });
   await expect(
-    t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: ids.registrationLinkToken,
       name: "拒否確認",
       email: "must-not-register@example.com",

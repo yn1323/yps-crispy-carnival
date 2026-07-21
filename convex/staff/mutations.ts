@@ -4,7 +4,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { managerMutation } from "../_lib/functions";
-import { rateLimit } from "../_lib/rateLimits";
+import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
 import { getStaffLineAccount } from "../line/service";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { recordOrganizationAuditEvent } from "../organization/audit";
@@ -126,11 +126,35 @@ async function allowStaffNotificationResend(
   staffId: Id<"staffs">,
   kind: StaffNotificationKind,
 ) {
-  const shortLimit = await rateLimit(ctx, {
-    name: "staffNotificationResendShort",
-    key: `${ctx.shop._id}:${staffId}:${kind}`,
-  });
-  return shortLimit.ok;
+  const recipientScope = `${ctx.shop._id}:${staffId}:${kind}`;
+  const actorKey = `${ctx.user._id}:${recipientScope}`;
+  const organizationScope = ctx.organization?._id ?? ctx.shop._id;
+  const organizationKey = `${organizationScope}:${recipientScope}`;
+  const limits = [
+    { name: "staffNotificationResendActorShort", key: actorKey },
+    { name: "staffNotificationResendActorDaily", key: actorKey },
+    { name: "staffNotificationResendOrganizationShort", key: organizationKey },
+    { name: "staffNotificationResendOrganizationDaily", key: organizationKey },
+  ] as const;
+
+  const statuses = await Promise.all(limits.map(async (limit) => await checkRateLimit(ctx, limit)));
+  if (statuses.some((status) => !status.ok)) return false;
+
+  for (const limit of limits) {
+    const consumed = await rateLimit(ctx, limit);
+    if (!consumed.ok) {
+      // 同じtransaction内のnon-mutating確認後なので通常は到達しない。throwして先行consumeもrollbackする。
+      throw new Error("Staff notification resend rate limit changed during consumption");
+    }
+  }
+  return true;
+}
+
+async function validateOptionalNotificationRequestId(requestId: string | undefined) {
+  if (requestId !== undefined) {
+    // client request IDは入力契約だけ検証し、quotaや通知operationのidentityには使わない。
+    await toAuditRequestKey(requestId);
+  }
 }
 
 type AddStaffEntriesArgs = {
@@ -459,6 +483,7 @@ export const editStaff = managerMutation({
 export const sendOpenRecruitmentNotifications = managerMutation({
   args: {
     staffId: v.id("staffs"),
+    requestId: v.optional(v.string()),
   },
   returns: v.union(
     v.object({ scheduled: v.literal(true) }),
@@ -468,6 +493,7 @@ export const sendOpenRecruitmentNotifications = managerMutation({
     }),
   ),
   handler: async (ctx, args) => {
+    await validateOptionalNotificationRequestId(args.requestId);
     const staff = await getSendableStaff(ctx, args.staffId);
     const notificationData = await ctx.runQuery(
       internal.notification.queries.getOpenRecruitmentNotificationDataForStaff,
@@ -494,6 +520,7 @@ export const sendOpenRecruitmentNotifications = managerMutation({
 export const sendCurrentShiftNotification = managerMutation({
   args: {
     staffId: v.id("staffs"),
+    requestId: v.optional(v.string()),
   },
   returns: v.union(
     v.object({ scheduled: v.literal(true) }),
@@ -503,6 +530,7 @@ export const sendCurrentShiftNotification = managerMutation({
     }),
   ),
   handler: async (ctx, args) => {
+    await validateOptionalNotificationRequestId(args.requestId);
     const staff = await getSendableStaff(ctx, args.staffId);
     const notificationData = await ctx.runQuery(internal.notification.queries.getCurrentConfirmationEmailDataForStaff, {
       staffId: staff._id,

@@ -52,10 +52,12 @@ function loadTurnstile(): Promise<TurnstileApi> {
 }
 
 export function TurnstileWidget({
+  action,
   onError,
   onVerify,
   siteKey,
 }: {
+  action: string;
   onError: (errorCode?: string) => void;
   onVerify: (token: string) => void;
   siteKey: string;
@@ -72,7 +74,7 @@ export function TurnstileWidget({
         if (disposed || !containerRef.current) return;
         widgetId = api.render(containerRef.current, {
           sitekey: siteKey,
-          action: "contact",
+          action,
           appearance: "interaction-only",
           size: window.matchMedia("(max-width: 359px)").matches ? "compact" : "flexible",
           callback: onVerify,
@@ -89,7 +91,7 @@ export function TurnstileWidget({
       disposed = true;
       if (widgetId && window.turnstile) window.turnstile.remove(widgetId);
     };
-  }, [onError, onVerify, siteKey]);
+  }, [action, onError, onVerify, siteKey]);
 
   if (!siteKey) {
     return (

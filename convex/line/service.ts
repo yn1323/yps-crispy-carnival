@@ -45,11 +45,20 @@ export async function upsertStaffLineAccount(
     .first();
   const now = Date.now();
   if (existing) {
+    const lineUserChanged = existing.lineUserId !== args.lineUserId;
     await ctx.db.patch(existing._id, {
       shopId: args.shopId,
       lineUserId: args.lineUserId,
       linkedAt: existing.linkedAt,
       following: args.following,
+      // 別LINE userへ付け替えた場合、旧userのWebhook順序を新userへ持ち越さない。
+      ...(lineUserChanged
+        ? {
+            lastWebhookAt: undefined,
+            lastWebhookEventId: undefined,
+            lastWebhookEventTimestamp: undefined,
+          }
+        : {}),
       isDeleted: false,
     });
     return existing._id;

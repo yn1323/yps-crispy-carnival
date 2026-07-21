@@ -2,10 +2,12 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { mutation } from "../_generated/server";
+import { internalMutation } from "../_generated/server";
 import { APP_URL } from "../_lib/config";
 import { managerMutation } from "../_lib/functions";
+import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
 import { generateUUID } from "../_lib/uuid";
+import { STAFF_REGISTRATION_PENDING_LIMIT } from "../constants";
 import { getLegalConsentVersions } from "../legal/documents";
 import { recordStaffLegalConsentSnapshot } from "../legal/service";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
@@ -20,15 +22,22 @@ import {
 } from "../staff/service";
 import { staffRegistrationFormSchema } from "./schemas";
 
-const registrationRequestResultValidator = v.union(
-  v.object({ status: v.literal("ok"), requestId: v.id("staffRegistrationRequests") }),
-  v.object({ status: v.literal("already_registered") }),
-  v.object({ status: v.literal("already_applied") }),
-);
+const registrationRequestResultValidator = v.object({ status: v.literal("accepted") });
+const registrationRequestHttpResultValidator = v.object({
+  status: v.union(v.literal("accepted"), v.literal("unavailable")),
+});
 const registrationLinkResultValidator = v.object({ token: v.string(), registrationUrl: v.string() });
+const REGISTRATION_LINK_UNAVAILABLE_MESSAGE = "登録リンクの有効期限が切れています";
+
+type SubmitRegistrationRequestArgs = {
+  token: string;
+  name: string;
+  email: string;
+  acceptedLegal: boolean;
+};
 
 function registrationLinkUnavailableError() {
-  return new ConvexError("登録リンクの有効期限が切れています");
+  return new ConvexError(REGISTRATION_LINK_UNAVAILABLE_MESSAGE);
 }
 
 function buildRegistrationUrl(token: string) {
@@ -41,6 +50,95 @@ async function findActiveRegistrationLink(ctx: { db: MutationCtx["db"]; shop: Do
     .withIndex("by_shopId", (q) => q.eq("shopId", ctx.shop._id))
     .take(10);
   return links.find((candidate) => !candidate.revokedAt) ?? null;
+}
+
+async function submitRegistrationRequestImpl(
+  ctx: MutationCtx,
+  args: SubmitRegistrationRequestArgs,
+): Promise<{ status: "accepted" }> {
+  const parsed = staffRegistrationFormSchema.safeParse({
+    name: args.name,
+    email: args.email,
+    acceptedLegal: args.acceptedLegal,
+  });
+  if (!parsed.success) {
+    throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+  }
+
+  const links = await ctx.db
+    .query("shopRegistrationLinks")
+    .withIndex("by_token", (q) => q.eq("token", args.token))
+    .take(2);
+  if (links.length !== 1) {
+    throw registrationLinkUnavailableError();
+  }
+  const link = links[0];
+  if (link.revokedAt) {
+    throw registrationLinkUnavailableError();
+  }
+
+  const shop = await ctx.db.get(link.shopId);
+  if (!shop || shop.isDeleted) {
+    throw registrationLinkUnavailableError();
+  }
+  if (shop.organizationId) {
+    const organization = await ctx.db.get(shop.organizationId);
+    const billingPolicy = await getOrganizationBillingPolicy(ctx, shop.organizationId);
+    if (
+      !organization ||
+      organization.isDeleted ||
+      shop.operatingStatus !== "active" ||
+      (billingPolicy !== null && !billingPolicy.canWriteBusinessData)
+    ) {
+      // 公開Capabilityでは、店舗や契約の内部状態を区別できるエラーを返さない。
+      throw registrationLinkUnavailableError();
+    }
+  } else if (shop.operatingStatus === "archived" || shop.operatingStatus === "planSuspended") {
+    throw registrationLinkUnavailableError();
+  }
+
+  const name = parsed.data.name;
+  const email = normalizeEmail(parsed.data.email);
+
+  // 公開入口では、登録済み・申請済み・上限到達を同じ応答にしてメールアドレスの存在を秘匿する。
+  const acceptedResult = { status: "accepted" as const };
+
+  const existingStaff = await findActiveStaffByEmail(ctx, shop._id, email);
+  if (existingStaff) {
+    return acceptedResult;
+  }
+
+  const pendingRequest = await ctx.db
+    .query("staffRegistrationRequests")
+    .withIndex("by_shopId_emailNormalized_status", (q) =>
+      q.eq("shopId", shop._id).eq("emailNormalized", email).eq("status", "pending"),
+    )
+    .first();
+  if (pendingRequest) {
+    return acceptedResult;
+  }
+
+  const pendingRequests = await ctx.db
+    .query("staffRegistrationRequests")
+    .withIndex("by_shopId_status", (q) => q.eq("shopId", shop._id).eq("status", "pending"))
+    .take(STAFF_REGISTRATION_PENDING_LIMIT);
+  if (pendingRequests.length >= STAFF_REGISTRATION_PENDING_LIMIT) {
+    return acceptedResult;
+  }
+
+  const versions = getLegalConsentVersions("staff");
+  const now = Date.now();
+  await ctx.db.insert("staffRegistrationRequests", {
+    shopId: shop._id,
+    name,
+    email,
+    emailNormalized: email,
+    status: "pending",
+    ...versions,
+    consentedAt: now,
+    createdAt: now,
+  });
+  return acceptedResult;
 }
 
 export const ensureShopRegistrationLink = managerMutation({
@@ -68,7 +166,69 @@ export const ensureShopRegistrationLink = managerMutation({
   },
 });
 
-export const submitRegistrationRequest = mutation({
+/** Siteverifyへの外部callより先に、攻撃者が分散できない入口budgetを消費する。 */
+export const checkSubmissionIngressRateLimit = internalMutation({
+  args: { ipKey: v.optional(v.string()) },
+  returns: v.object({ allowed: v.boolean() }),
+  handler: async (ctx, args) => {
+    const budgets = [
+      { name: "staffRegistrationGlobalShort" as const, key: "global" },
+      ...(args.ipKey
+        ? [
+            { name: "staffRegistrationIpShort" as const, key: args.ipKey },
+            { name: "staffRegistrationIpDaily" as const, key: args.ipKey },
+          ]
+        : []),
+    ];
+    for (const budget of budgets) {
+      const result = await checkRateLimit(ctx, budget);
+      if (!result.ok) return { allowed: false };
+    }
+    for (const budget of budgets) {
+      const result = await rateLimit(ctx, budget);
+      if (!result.ok) return { allowed: false };
+    }
+    return { allowed: true };
+  },
+});
+
+/** Turnstile通過後だけ、有効linkに紐づくlink・email budgetを消費する。 */
+export const checkSubmissionRateLimit = internalMutation({
+  args: {
+    token: v.string(),
+    emailKey: v.string(),
+    linkKey: v.string(),
+  },
+  returns: v.object({ status: v.union(v.literal("allowed"), v.literal("rate_limited"), v.literal("unavailable")) }),
+  handler: async (ctx, args) => {
+    const links = await ctx.db
+      .query("shopRegistrationLinks")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .take(2);
+    const hasActiveUniqueLink = links.length === 1 && !links[0]?.revokedAt;
+    // 無効tokenごとにrate-limit stateを作らせない。link固有budgetはDBで有効性を確認できたtokenにだけ使う。
+    if (!hasActiveUniqueLink) return { status: "unavailable" as const };
+    const budgets = [
+      { name: "staffRegistrationEmailShort" as const, key: args.emailKey },
+      { name: "staffRegistrationEmailDaily" as const, key: args.emailKey },
+      { name: "staffRegistrationLinkShort" as const, key: args.linkKey },
+      { name: "staffRegistrationLinkDaily" as const, key: args.linkKey },
+    ];
+
+    for (const budget of budgets) {
+      const result = await checkRateLimit(ctx, budget);
+      if (!result.ok) return { status: "rate_limited" as const };
+    }
+    for (const budget of budgets) {
+      const result = await rateLimit(ctx, budget);
+      if (!result.ok) return { status: "rate_limited" as const };
+    }
+    return { status: "allowed" as const };
+  },
+});
+
+// 匿名クライアントからは直接呼ばせず、HTTP ActionでOrigin、body、Turnstile、rate limitを通した後だけ実行する。
+export const submitRegistrationRequest = internalMutation({
   args: {
     token: v.string(),
     name: v.string(),
@@ -76,87 +236,26 @@ export const submitRegistrationRequest = mutation({
     acceptedLegal: v.boolean(),
   },
   returns: registrationRequestResultValidator,
+  handler: submitRegistrationRequestImpl,
+});
+
+export const submitRegistrationRequestFromHttp = internalMutation({
+  args: {
+    token: v.string(),
+    name: v.string(),
+    email: v.string(),
+    acceptedLegal: v.boolean(),
+  },
+  returns: registrationRequestHttpResultValidator,
   handler: async (ctx, args) => {
-    const parsed = staffRegistrationFormSchema.safeParse({
-      name: args.name,
-      email: args.email,
-      acceptedLegal: args.acceptedLegal,
-    });
-    if (!parsed.success) {
-      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
-    }
-
-    const links = await ctx.db
-      .query("shopRegistrationLinks")
-      .withIndex("by_token", (q) => q.eq("token", args.token))
-      .take(2);
-    if (links.length !== 1) {
-      throw registrationLinkUnavailableError();
-    }
-    const link = links[0];
-    if (link.revokedAt) {
-      throw registrationLinkUnavailableError();
-    }
-
-    const shop = await ctx.db.get(link.shopId);
-    if (!shop || shop.isDeleted) {
-      throw registrationLinkUnavailableError();
-    }
-    if (shop.organizationId) {
-      const organization = await ctx.db.get(shop.organizationId);
-      const billingPolicy = await getOrganizationBillingPolicy(ctx, shop.organizationId);
-      if (
-        !organization ||
-        organization.isDeleted ||
-        shop.operatingStatus !== "active" ||
-        (billingPolicy !== null && !billingPolicy.canWriteBusinessData)
-      ) {
-        // 公開Capabilityでは、店舗や契約の内部状態を区別できるエラーを返さない。
-        throw registrationLinkUnavailableError();
+    try {
+      return await submitRegistrationRequestImpl(ctx, args);
+    } catch (error) {
+      if (error instanceof ConvexError && error.data === REGISTRATION_LINK_UNAVAILABLE_MESSAGE) {
+        return { status: "unavailable" as const };
       }
-    } else if (shop.operatingStatus === "archived" || shop.operatingStatus === "planSuspended") {
-      throw registrationLinkUnavailableError();
+      throw error;
     }
-
-    const name = parsed.data.name;
-    const email = normalizeEmail(parsed.data.email);
-
-    // 重複・申請済みは「想定内の利用フロー」なので throw せず status を返す。
-    // throw すると Convex のログにエラーとして残ってしまうため、observability は warn で残す。
-    // メールアドレスは生で残さず domain 部分のみログに含める（Dashboard 共有時の漏洩防止）。
-    const logSkip = (reason: string) =>
-      console.warn("[submitRegistrationRequest] skip", { reason, shopId: shop._id, emailDomain: email.split("@")[1] });
-
-    const existingStaff = await findActiveStaffByEmail(ctx, shop._id, email);
-    if (existingStaff) {
-      logSkip("already_registered");
-      return { status: "already_registered" as const };
-    }
-
-    const pendingRequest = await ctx.db
-      .query("staffRegistrationRequests")
-      .withIndex("by_shopId_emailNormalized_status", (q) =>
-        q.eq("shopId", shop._id).eq("emailNormalized", email).eq("status", "pending"),
-      )
-      .first();
-    if (pendingRequest) {
-      logSkip("already_applied");
-      return { status: "already_applied" as const };
-    }
-
-    const versions = getLegalConsentVersions("staff");
-    const now = Date.now();
-    const requestId = await ctx.db.insert("staffRegistrationRequests", {
-      shopId: shop._id,
-      name,
-      email,
-      emailNormalized: email,
-      status: "pending",
-      ...versions,
-      consentedAt: now,
-      createdAt: now,
-    });
-    return { status: "ok" as const, requestId };
   },
 });
 

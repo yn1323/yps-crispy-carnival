@@ -134,6 +134,8 @@ function assertE2EHelpersEnabled() {
 }
 
 function notificationContextForProbe(job: Doc<"notificationOutbox">) {
+  // TODO[narrow]: m019のisDone/successとredaction readiness確認後にpayload fallbackを削除する。
+  if (job.notificationContext) return job.notificationContext;
   if (job.payload.kind !== "line") return job.payload.context;
   return job.payload.fallbackEmail?.payload.context ?? job.dedupeKey.split(":").slice(0, 2).join(":");
 }
@@ -1701,6 +1703,8 @@ async function createFailedRecruitmentNotification(
     shopId: args.shopId,
     recruitmentId: args.recruitmentId,
     staffId: args.staffId,
+    notificationContext,
+    deliverySuppressed: true,
     payload: {
       kind: "email",
       from: "e2e@shiftori.invalid",
@@ -1714,6 +1718,7 @@ async function createFailedRecruitmentNotification(
     nextRunAt: now,
     lastError: E2E_SIMULATED_NOTIFICATION_FAILURE,
     failedAt: now,
+    terminalAt: now,
     createdAt: now,
     updatedAt: now,
   });
@@ -2753,7 +2758,10 @@ export const getNotificationProbe = internalQuery({
         status: job.status,
         notificationContext: notificationContextForProbe(job),
         attemptCount: job.attemptCount,
-        deliverySuppressed: isNotificationDeliverySuppressed({ suppressDelivery: job.payload.suppressDelivery }),
+        // TODO[narrow]: m019のisDone/successとredaction readiness確認後にpayload fallbackを削除する。
+        deliverySuppressed: isNotificationDeliverySuppressed({
+          suppressDelivery: job.deliverySuppressed ?? job.payload.suppressDelivery,
+        }),
         hasRecruitmentTarget: job.recruitmentId !== undefined,
         hasStaffTarget: job.staffId !== undefined,
         hasUserTarget: job.userId !== undefined,
@@ -2838,8 +2846,9 @@ export const getOrganizationNotificationProbe = internalQuery({
           // 将来dedupe構成へ宛先が混ざってもprobeからPIIが漏れないよう、同一性だけを返す。
           dedupeKey: `sha256:${await digestInvitationToken(job.dedupeKey)}`,
           attemptCount: job.attemptCount,
+          // TODO[narrow]: m019のisDone/successとredaction readiness確認後にpayload fallbackを削除する。
           deliverySuppressed: isNotificationDeliverySuppressed({
-            suppressDelivery: job.payload.suppressDelivery,
+            suppressDelivery: job.deliverySuppressed ?? job.payload.suppressDelivery,
           }),
           recipientUserFingerprint: job.userId ? `sha256:${await digestInvitationToken(job.userId)}` : null,
           invitationVersionMatchesTarget,

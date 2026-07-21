@@ -90,6 +90,7 @@ async function cancelPendingLegacyBusinessBillingNotifications(
     await ctx.db.patch(job._id, {
       status: "cancelled",
       cancelledAt: updatedAt,
+      terminalAt: updatedAt,
       cancelReason: "organization_billing_changed",
       updatedAt,
     });

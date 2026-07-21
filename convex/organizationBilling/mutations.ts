@@ -1580,6 +1580,8 @@ export const updateBillingEmail = authenticatedMutation({
       throw new ConvexError("この操作を行う権限がありません");
     }
     const requestKey = await toAuditRequestKey(args.requestId);
+    if (actor.organization.billingEmailNormalized === normalized) return { changed: false };
+
     const correlationId = `${actor.organization._id}:billing-email:${requestKey}`;
     const existing = await ctx.db
       .query("organizationAuditEvents")

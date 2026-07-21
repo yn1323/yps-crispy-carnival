@@ -5,7 +5,7 @@ import type { Id } from "../_generated/dataModel";
 import { resetResendEmailQueueForTest } from "../_lib/resend";
 import { MANAGER_SUBJECT, SCENARIO_NOW, type ScenarioTest, seedStaff } from "../_test/scenarioBuilders";
 import { createScenario } from "../_test/scenarioFixtures";
-import { seedManagerShop } from "../_test/seed";
+import { seedManagerShop, seedStaffLineAccount } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS } from "../constants";
 
@@ -133,6 +133,11 @@ describe("スタッフ通知履歴シナリオ", () => {
         shopId,
         name: "Fallbackスタッフ",
         email: "fallback-staff@example.com",
+      });
+      await seedStaffLineAccount(ctx, {
+        shopId,
+        staffId,
+        lineUserId: "U_history_fallback",
       });
       await ctx.db.insert("lineQuotaStatus", {
         checkedAt: Date.now(),

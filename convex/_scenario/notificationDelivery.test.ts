@@ -1,13 +1,20 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import { resetResendEmailQueueForTest } from "../_lib/resend";
 import type { ScenarioTest } from "../_test/scenarioBuilders";
 import { MANAGER_SUBJECT, SCENARIO_NOW, scenarioDate, seedStaff } from "../_test/scenarioBuilders";
 import { createScenario } from "../_test/scenarioFixtures";
 import { seedManagerShop, seedStaffLineAccount } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS, RESEND_EMAIL_SEND_INTERVAL_MS } from "../constants";
+import {
+  NOTIFICATION_FANOUT_BATCH_SIZE,
+  NOTIFICATION_FANOUT_PROCESSING_LEASE_MS,
+  NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
+  NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS,
+  RESEND_EMAIL_SEND_INTERVAL_MS,
+} from "../constants";
 
 async function getOutboxJobs(t: ScenarioTest) {
   return await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
@@ -26,6 +33,7 @@ describe("通知配送outboxシナリオ", () => {
   });
   afterEach(() => {
     resetResendEmailQueueForTest();
+    vi.clearAllTimers();
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
@@ -108,6 +116,542 @@ describe("通知配送outboxシナリオ", () => {
     );
   });
 
+  it("募集fanoutは一batch後の中断から通常schedulerで再開し、persisted対象を欠落・重複なく完走する", async () => {
+    const t = convexTest(schema, modules);
+    const { recruitmentId, staffIds } = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "fanout-resume-manager@example.com",
+        shopName: "fanout再開店舗",
+      });
+      const staffIds: Id<"staffs">[] = [];
+      for (let index = 0; index < NOTIFICATION_FANOUT_BATCH_SIZE * 2 + 5; index++) {
+        staffIds.push(
+          await seedStaff(ctx, {
+            shopId,
+            name: `fanout再開スタッフ${index}`,
+            email: `fanout-resume-${index}@example.com`,
+          }),
+        );
+      }
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: scenarioDate(7),
+        periodEnd: scenarioDate(13),
+        deadline: scenarioDate(3),
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      return { recruitmentId, staffIds };
+    });
+    const operationId = await t.mutation(internal.notification.mutations.ensureRecruitmentNotificationFanout, {
+      recruitmentId,
+    });
+    if (!operationId) throw new Error("fanout operation was not created");
+
+    await t.action(internal.notification.actions.sendRecruitmentNotificationEmails, {
+      recruitmentId,
+      fanoutOperationId: operationId,
+    });
+    const interrupted = await t.run(async (ctx) => ({
+      operation: await ctx.db.get(operationId),
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+    }));
+    expect(interrupted.operation).toMatchObject({
+      status: "pending",
+      cursor: NOTIFICATION_FANOUT_BATCH_SIZE,
+    });
+    expect(interrupted.outbox).toHaveLength(NOTIFICATION_FANOUT_BATCH_SIZE);
+
+    for (let remainingBatch = 0; remainingBatch < 2; remainingBatch++) {
+      vi.advanceTimersByTime(0);
+      await t.finishInProgressScheduledFunctions();
+    }
+
+    const completed = await t.run(async (ctx) => ({
+      operation: await ctx.db.get(operationId),
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+    }));
+    const expectedStaffIds = [...staffIds].sort((left, right) => left.localeCompare(right));
+    const actualStaffIds = completed.outbox
+      .map((job) => job.staffId)
+      .filter((staffId): staffId is Id<"staffs"> => staffId !== undefined)
+      .sort((left, right) => left.localeCompare(right));
+    expect(completed.operation).toMatchObject({
+      status: "completed",
+      cursor: staffIds.length,
+      targetStaffIds: expectedStaffIds,
+    });
+    expect(actualStaffIds).toEqual(expectedStaffIds);
+    expect(new Set(actualStaffIds).size).toBe(staffIds.length);
+  });
+
+  it("fanoutがsent後に中断してlease回収されてもterminal outboxとprovider identityを再利用する", async () => {
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    vi.stubEnv("LINE_MESSAGING_CHANNEL_ACCESS_TOKEN", "line-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>(
+      async () => new Response(JSON.stringify({ id: "email_fanout_terminal_dedupe" }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "fanout-terminal-manager@example.com",
+        shopName: "fanout terminal dedupe店舗",
+      });
+      const staffId = await seedStaff(ctx, {
+        shopId,
+        name: "terminal dedupeスタッフ",
+        email: "fanout-terminal@example.com",
+      });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: scenarioDate(7),
+        periodEnd: scenarioDate(13),
+        deadline: scenarioDate(3),
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      return { shopId, staffId, recruitmentId };
+    });
+    const operationId = await t.mutation(internal.notification.mutations.ensureRecruitmentNotificationFanout, {
+      recruitmentId: ids.recruitmentId,
+    });
+    if (!operationId) throw new Error("fanout operation was not created");
+    const claimed = await t.mutation(internal.notification.mutations.claimNotificationFanoutBatch, {
+      operationId,
+    });
+    if (claimed.state !== "claimed") throw new Error("fanout batch was not claimed");
+
+    // actionがenqueue後、cursor完了前に落ちた状態を作る。
+    const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      shopId: ids.shopId,
+      recruitmentId: ids.recruitmentId,
+      staffId: ids.staffId,
+      history: { notificationKind: "shift.recruitment", displayTitle: "シフト募集のお知らせ" },
+      dedupeAcrossTerminal: true,
+      dedupeKey: `email:recruitment:${ids.recruitmentId}:${ids.staffId}`,
+      payload: {
+        kind: "email",
+        from: "シフトリ <noreply@example.com>",
+        to: "fanout-terminal@example.com",
+        subject: "シフト募集のお知らせ",
+        html: "<p>fanout terminal dedupe</p>",
+        context: "notification.sendRecruitmentNotificationEmails",
+      },
+    });
+    if (!enqueued) throw new Error("fanout notification was not enqueued");
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+    expect(fetchMock).toHaveBeenCalledOnce();
+    await expect(t.run(async (ctx) => ctx.db.get(enqueued.outboxId))).resolves.toMatchObject({
+      status: "sent",
+      resendEmailId: "email_fanout_terminal_dedupe",
+    });
+
+    // 再開前に優先channelがemailからLINEへ変わっても、operation×staff identityは変えない。
+    await t.run(async (ctx) => {
+      await seedStaffLineAccount(ctx, {
+        shopId: ids.shopId,
+        staffId: ids.staffId,
+        lineUserId: "U_fanout_terminal_dedupe",
+        following: true,
+      });
+    });
+
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_FANOUT_PROCESSING_LEASE_MS);
+    await t.finishInProgressScheduledFunctions();
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    const recovered = await t.run(async (ctx) => ({
+      operation: await ctx.db.get(operationId),
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+      submitLinks: (await ctx.db.query("magicLinks").collect()).filter((link) => link.accessKind === "submit"),
+    }));
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(recovered.operation).toMatchObject({ status: "completed", cursor: 1 });
+    expect(recovered.outbox).toEqual([
+      expect.objectContaining({
+        _id: enqueued.outboxId,
+        status: "sent",
+        resendEmailId: "email_fanout_terminal_dedupe",
+        fanoutTargetKey: `fanout:shift.recruitment:v1:${ids.recruitmentId}:${ids.staffId}`,
+        fanoutOperationId: operationId,
+      }),
+    ]);
+    expect(recovered.submitLinks).toHaveLength(1);
+  });
+
+  it("募集削除は残りfanoutとenqueue済みoutboxをcancelしproviderへ送らない", async () => {
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "fanout-delete-manager@example.com",
+        shopName: "fanout削除店舗",
+      });
+      for (let index = 0; index < NOTIFICATION_FANOUT_BATCH_SIZE + 1; index++) {
+        await seedStaff(ctx, {
+          shopId,
+          name: `fanout削除スタッフ${index}`,
+          email: `fanout-delete-${index}@example.com`,
+        });
+      }
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: scenarioDate(7),
+        periodEnd: scenarioDate(13),
+        deadline: scenarioDate(3),
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      return { recruitmentId };
+    });
+    const operationId = await t.mutation(internal.notification.mutations.ensureRecruitmentNotificationFanout, {
+      recruitmentId: ids.recruitmentId,
+    });
+    if (!operationId) throw new Error("fanout operation was not created");
+    await t.action(internal.notification.actions.sendRecruitmentNotificationEmails, {
+      recruitmentId: ids.recruitmentId,
+      fanoutOperationId: operationId,
+    });
+
+    await asManager.deleteRecruitment(ids.recruitmentId);
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    const state = await t.run(async (ctx) => ({
+      operation: await ctx.db.get(operationId),
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+    }));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(state.operation).toMatchObject({
+      status: "cancelled",
+      cancelReason: "recruitment_inactive",
+      cursor: NOTIFICATION_FANOUT_BATCH_SIZE,
+    });
+    expect(state.outbox).toHaveLength(NOTIFICATION_FANOUT_BATCH_SIZE);
+    expect(state.outbox.every((job) => job.status === "cancelled" && job.cancelReason === "recruitment_inactive")).toBe(
+      true,
+    );
+  });
+
+  it("最新でない確定operationと旧shape outboxはprovider直前にsupersededへ収束する", async () => {
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>(
+      async () => new Response(JSON.stringify({ id: "email_latest_confirmation" }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "confirmation-epoch-manager@example.com",
+        shopName: "確定通知世代店舗",
+      });
+      const staffId = await seedStaff(ctx, {
+        shopId,
+        name: "確定通知世代スタッフ",
+        email: "confirmation-epoch@example.com",
+      });
+      const latestOperationKey = "shift.confirmation:epoch:latest";
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: scenarioDate(7),
+        periodEnd: scenarioDate(13),
+        deadline: scenarioDate(3),
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        lastConfirmationNotificationOperationKey: latestOperationKey,
+        lastConfirmationNotificationRunId: 2,
+      });
+      const insertOperation = async (operationKey: string, dedupeSuffix: string) =>
+        await ctx.db.insert("notificationFanoutOperations", {
+          operationKey,
+          kind: "confirmation",
+          purpose: dedupeSuffix === "confirm" ? "confirmation" : "confirmation_resend",
+          recruitmentId,
+          shopId,
+          targetStaffIds: [staffId],
+          cursor: 1,
+          status: "completed",
+          dedupeSuffix,
+          completedAt: Date.now(),
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      const oldOperationId = await insertOperation("shift.confirmation:epoch:old", "confirm");
+      const latestOperationId = await insertOperation(latestOperationKey, "resend:2");
+      const insertOutbox = async (args: {
+        dedupeKey: string;
+        subject: string;
+        fanoutOperationId?: Id<"notificationFanoutOperations">;
+        fanoutTargetKey?: string;
+      }) =>
+        await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status: "pending",
+          dedupeKey: args.dedupeKey,
+          ...(args.fanoutOperationId ? { fanoutOperationId: args.fanoutOperationId } : {}),
+          ...(args.fanoutTargetKey ? { fanoutTargetKey: args.fanoutTargetKey } : {}),
+          shopId,
+          recruitmentId,
+          staffId,
+          purpose: "business",
+          payload: {
+            kind: "email",
+            from: "シフトリ <noreply@example.com>",
+            to: "confirmation-epoch@example.com",
+            subject: args.subject,
+            html: `<p>${args.subject}</p>`,
+            context: "notification.sendConfirmationEmail",
+          },
+          attemptCount: 0,
+          nextRunAt: Date.now(),
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      const oldOutboxId = await insertOutbox({
+        dedupeKey: `email:confirmation:${recruitmentId}:${staffId}:confirm`,
+        subject: "旧確定通知",
+        fanoutOperationId: oldOperationId,
+        fanoutTargetKey: `fanout:shift.confirmation:epoch:old:${staffId}`,
+      });
+      // deploy前にenqueue済みでoperation IDを持たない別semantic rowも安全側で止める。
+      const legacyOldOutboxId = await insertOutbox({
+        dedupeKey: `email:confirmation:${recruitmentId}:${staffId}:resend:1`,
+        subject: "旧shape再通知",
+      });
+      const latestOutboxId = await insertOutbox({
+        dedupeKey: `email:confirmation:${recruitmentId}:${staffId}:resend:2`,
+        subject: "最新確定通知",
+        fanoutOperationId: latestOperationId,
+        fanoutTargetKey: `fanout:${latestOperationKey}:${staffId}`,
+      });
+      return { oldOutboxId, legacyOldOutboxId, latestOutboxId };
+    });
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const state = await t.run(async (ctx) => ({
+      old: await ctx.db.get(ids.oldOutboxId),
+      legacyOld: await ctx.db.get(ids.legacyOldOutboxId),
+      latest: await ctx.db.get(ids.latestOutboxId),
+    }));
+    expect(state.old).toMatchObject({ status: "cancelled", cancelReason: "notification_superseded" });
+    expect(state.legacyOld).toMatchObject({ status: "cancelled", cancelReason: "notification_superseded" });
+    expect(state.latest).toMatchObject({ status: "sent", resendEmailId: "email_latest_confirmation" });
+  });
+
+  it("LINE fallbackは募集とfanout世代を継承し、募集削除後はemail providerへ進まない", async () => {
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "fallback-scope-manager@example.com",
+        shopName: "fallback scope店舗",
+      });
+      const staffId = await seedStaff(ctx, {
+        shopId,
+        name: "fallback scopeスタッフ",
+        email: "fallback-scope@example.com",
+      });
+      await seedStaffLineAccount(ctx, {
+        shopId,
+        staffId,
+        lineUserId: "U_fallback_scope",
+        following: true,
+      });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: scenarioDate(7),
+        periodEnd: scenarioDate(13),
+        deadline: scenarioDate(3),
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      return { shopId, staffId, recruitmentId };
+    });
+    const operationId = await t.mutation(internal.notification.mutations.ensureRecruitmentNotificationFanout, {
+      recruitmentId: ids.recruitmentId,
+    });
+    if (!operationId) throw new Error("fanout operation was not created");
+    await t.action(internal.notification.actions.sendRecruitmentNotificationEmails, {
+      recruitmentId: ids.recruitmentId,
+      fanoutOperationId: operationId,
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("lineQuotaStatus", {
+        checkedAt: Date.now(),
+        totalQuota: 200,
+        consumed: 200,
+        remaining: 0,
+        status: "exceeded",
+        plan: "communication",
+      });
+    });
+
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+    const fallbackBeforeDeletion = (await getOutboxJobs(t)).find((job) => job.channel === "email");
+    expect(fallbackBeforeDeletion).toMatchObject({
+      status: "pending",
+      recruitmentId: ids.recruitmentId,
+      staffId: ids.staffId,
+      fanoutOperationId: operationId,
+    });
+
+    await asManager.deleteRecruitment(ids.recruitmentId);
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    const jobs = await getOutboxJobs(t);
+    expect(jobs.find((job) => job.channel === "line")).toMatchObject({ status: "failed" });
+    expect(jobs.find((job) => job.channel === "email")).toMatchObject({
+      status: "cancelled",
+      cancelReason: "recruitment_inactive",
+      recruitmentId: ids.recruitmentId,
+      fanoutOperationId: operationId,
+    });
+  });
+
+  it("enqueue後にshift対象外となったスタッフの通知はprovider直前にcancelする", async () => {
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "shift-target-gate-manager@example.com",
+        shopName: "shift対象再照合店舗",
+      });
+      const staffId = await seedStaff(ctx, {
+        shopId,
+        name: "shift対象再照合スタッフ",
+        email: "shift-target-gate@example.com",
+      });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: scenarioDate(7),
+        periodEnd: scenarioDate(13),
+        deadline: scenarioDate(3),
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      return { staffId, recruitmentId };
+    });
+    const operationId = await t.mutation(internal.notification.mutations.ensureRecruitmentNotificationFanout, {
+      recruitmentId: ids.recruitmentId,
+    });
+    if (!operationId) throw new Error("fanout operation was not created");
+    await t.action(internal.notification.actions.sendRecruitmentNotificationEmails, {
+      recruitmentId: ids.recruitmentId,
+      fanoutOperationId: operationId,
+    });
+
+    await asManager.setShiftExclusion(ids.staffId, true);
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await getOutboxJobs(t)).toEqual([
+      expect.objectContaining({
+        status: "cancelled",
+        cancelReason: "recipient_inactive",
+        staffId: ids.staffId,
+        fanoutOperationId: operationId,
+      }),
+    ]);
+  });
+
+  it("worker中断で期限切れになったprocessing通知を通常drainが再claimして送信完了する", async () => {
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>(
+      async () => new Response(JSON.stringify({ id: "email_recovered_lease" }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "lease-recovery-manager@example.com",
+        shopName: "通知lease復旧店舗",
+      });
+      const staffId = await seedStaff(ctx, {
+        shopId,
+        name: "lease復旧スタッフ",
+        email: "lease-recovery@example.com",
+      });
+      return { shopId, staffId };
+    });
+    const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      shopId: ids.shopId,
+      staffId: ids.staffId,
+      history: { notificationKind: "test.leaseRecovery", displayTitle: "lease復旧通知" },
+      dedupeKey: "email:test:scenario-lease-recovery",
+      payload: {
+        kind: "email",
+        from: "シフトリ <noreply@example.com>",
+        to: "lease-recovery@example.com",
+        subject: "lease復旧通知",
+        html: "<p>lease recovery</p>",
+        context: "test.leaseRecovery",
+      },
+    });
+    if (!enqueued) throw new Error("notification was not enqueued");
+
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    const [abandoned] = await t.mutation(internal.notificationOutbox.mutations.claimDue, { now: Date.now() });
+    expect(abandoned).toMatchObject({ _id: enqueued.outboxId, status: "processing", attemptCount: 1 });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS);
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const job = await t.run(async (ctx) => await ctx.db.get(enqueued.outboxId));
+    expect(job).toMatchObject({
+      status: "sent",
+      attemptCount: 2,
+      resendEmailId: "email_recovered_lease",
+    });
+    expect(job?.processingStartedAt).toBeUndefined();
+    expect(job?.leaseToken).toBeUndefined();
+    expect(job?.leaseExpiresAt).toBeUndefined();
+  });
+
   it("Resend provider delayedは既存の不達通知一覧にメール失敗として表示される", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
@@ -136,8 +680,13 @@ describe("通知配送outboxシナリオ", () => {
     const jobs = await getOutboxJobs(t);
     const emailJob = jobs.find((job) => job.channel === "email" && job.staffId === ids.staffId);
     if (!emailJob) throw new Error("email outbox was not created");
+    const [claimed] = await t.mutation(internal.notificationOutbox.mutations.claimDue, {
+      now: Date.now() + NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
+    });
+    if (!claimed?.leaseToken) throw new Error("email outbox lease was not issued");
     await t.mutation(internal.notificationOutbox.mutations.markSent, {
       outboxId: emailJob._id,
+      leaseToken: claimed.leaseToken,
       resendEmailId: "email_provider_delayed",
     });
 
@@ -616,6 +1165,11 @@ describe("通知配送outboxシナリオ", () => {
         name: "失敗確認スタッフ",
         email: "failure-staff@example.com",
       });
+      await seedStaffLineAccount(ctx, {
+        shopId,
+        staffId,
+        lineUserId: "U_failure",
+      });
       return { shopId, staffId };
     });
     await t.mutation(internal.notificationOutbox.mutations.enqueue, {
@@ -679,7 +1233,7 @@ describe("通知配送outboxシナリオ", () => {
     await t.action(internal.notificationOutbox.actions.processPending, {});
     inbox = await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
     expect(inbox[0].status).toBe("open");
-    expect(inbox[0].lastError).toContain("LINE push failed: 400");
+    expect(inbox[0].lastError).toBe("line_recipient_rejected");
 
     vi.advanceTimersByTime(60_000);
     fetchMock.mockImplementationOnce(async () => ({ ok: true, status: 200, text: async () => "{}" }));
@@ -713,13 +1267,23 @@ describe("通知配送outboxシナリオ", () => {
     const registrationLink = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
       shopId,
     });
-    const request = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    const request = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: registrationLink.token,
       name: "申請スタッフ",
       email: "digest-staff@example.com",
       acceptedLegal: true,
     });
-    if (request.status !== "ok") throw new Error(`unexpected status: ${request.status}`);
+    expect(request).toEqual({ status: "accepted" });
+    const requestId = await t.run(async (ctx) => {
+      const pending = await ctx.db
+        .query("staffRegistrationRequests")
+        .withIndex("by_shopId_emailNormalized_status", (q) =>
+          q.eq("shopId", shopId).eq("emailNormalized", "digest-staff@example.com").eq("status", "pending"),
+        )
+        .unique();
+      if (!pending) throw new Error("pending registration request not found");
+      return pending._id;
+    });
 
     await t.action(internal.staffRegistration.actions.sendOwnerDailyDigest, {});
 
@@ -737,7 +1301,7 @@ describe("通知配送outboxシナリオ", () => {
     });
 
     await asManager.mutation(api.staffRegistration.mutations.approveRequest, {
-      requestId: request.requestId,
+      requestId,
       shopId,
     });
     await t.action(internal.staffRegistration.actions.sendOwnerDailyDigest, {});

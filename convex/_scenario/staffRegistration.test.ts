@@ -40,7 +40,7 @@ describe("スタッフ参加QRシナリオ", () => {
     const link = await t
       .withIdentity({ subject: MANAGER_SUBJECT })
       .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
-    await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "QR申請スタッフ",
       email: "qr-staff@example.com",

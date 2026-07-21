@@ -5,7 +5,7 @@ import type { Id } from "../_generated/dataModel";
 import { todayJST } from "../_lib/dateFormat";
 import { seedManagerShop, seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { RECRUITMENT_PERIOD_DAYS_MAX } from "../constants";
+import { NOTIFICATION_FANOUT_SCOPE_LIMIT, RECRUITMENT_PERIOD_DAYS_MAX } from "../constants";
 
 function futureDate(daysFromNow: number): string {
   const d = new Date(Date.now() + 9 * 60 * 60 * 1000);
@@ -85,6 +85,35 @@ describe("recruitment/mutations", () => {
       expect(recruitment?.submissionPattern).toEqual({ kind: "time", startTime: "09:00", endTime: "22:00" });
     });
 
+    it("募集通知対象が上限を超える場合は無言で切り捨てず作成全体をfail-closedにする", async () => {
+      const { t, shopId } = await setupShop();
+      await t.run(async (ctx) => {
+        for (let index = 0; index < NOTIFICATION_FANOUT_SCOPE_LIMIT + 1; index++) {
+          await ctx.db.insert("staffs", {
+            shopId,
+            name: `上限超過スタッフ${index}`,
+            email: `recruitment-overflow-${index}@example.com`,
+            isDeleted: false,
+          });
+        }
+      });
+
+      await expect(
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.recruitment.mutations.createRecruitment, {
+          ...validArgs(),
+          shopId,
+        }),
+      ).rejects.toThrow("通知対象が上限を超えています");
+
+      const state = await t.run(async (ctx) => ({
+        recruitments: await ctx.db.query("recruitments").collect(),
+        stats: await ctx.db.query("recruitmentStats").collect(),
+        operations: await ctx.db.query("notificationFanoutOperations").collect(),
+        jobs: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+      expect(state).toEqual({ recruitments: [], stats: [], operations: [], jobs: [] });
+    });
+
     it("募集作成後のaction実行前にFreeへ移行した場合は旧versionの通知を積まない", async () => {
       const now = new Date("2026-01-01T00:00:00+09:00");
       vi.setSystemTime(now);
@@ -154,8 +183,8 @@ describe("recruitment/mutations", () => {
         organizationBillingVersionAtOrigin: 2,
       });
       const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
-      expect(jobs.length).toBeGreaterThan(0);
-      expect(jobs.every((job) => job.organizationBillingVersionAtEnqueue === 2)).toBe(true);
+      // 同じ募集の旧jobと再実行は一つのpersisted operationへ収束し、originを書き換えて復活させない。
+      expect(jobs).toEqual([]);
     });
 
     it("同一内容の募集作成はエラーにし、統計と通知予約を増やさない", async () => {

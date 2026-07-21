@@ -1,13 +1,36 @@
-import { convexTest } from "convex-test";
+import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import { seedManagerShop, seedOrganizationManagerShop, seedShop, seedShopMembership, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH } from "../constants";
+import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH, STAFF_REGISTRATION_PENDING_LIMIT } from "../constants";
+
+async function getPendingRequestId(
+  t: TestConvex<typeof schema>,
+  shopId: Id<"shops">,
+  email: string,
+): Promise<Id<"staffRegistrationRequests">> {
+  const emailNormalized = email.trim().toLowerCase();
+  const request = await t.run(
+    async (ctx) =>
+      await ctx.db
+        .query("staffRegistrationRequests")
+        .withIndex("by_shopId_emailNormalized_status", (q) =>
+          q.eq("shopId", shopId).eq("emailNormalized", emailNormalized).eq("status", "pending"),
+        )
+        .unique(),
+  );
+  if (!request) throw new Error(`pending registration request not found: ${emailNormalized}`);
+  return request._id;
+}
 
 describe("staffRegistration/mutations", () => {
   beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   it("店舗固定の登録リンクを作成し、再取得では同じリンクを返す", async () => {
     const t = convexTest(schema, modules);
@@ -37,7 +60,7 @@ describe("staffRegistration/mutations", () => {
       .withIdentity({ subject: "manager_submit" })
       .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
 
-    await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "申請スタッフ",
       email: "Request@Example.com",
@@ -65,7 +88,7 @@ describe("staffRegistration/mutations", () => {
     });
 
     await expect(
-      t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+      t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
         token,
         name: "重複token申請者",
         email: "duplicate-registration@example.com",
@@ -99,7 +122,7 @@ describe("staffRegistration/mutations", () => {
       .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
 
     await expect(
-      t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+      t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
         token: link.token,
         name: "申請スタッフ",
         email: "not-email",
@@ -107,7 +130,7 @@ describe("staffRegistration/mutations", () => {
       }),
     ).rejects.toThrow("メールアドレスの形式で入力してください");
     await expect(
-      t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+      t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
         token: link.token,
         name: "",
         email: "request@example.com",
@@ -115,7 +138,7 @@ describe("staffRegistration/mutations", () => {
       }),
     ).rejects.toThrow("名前を入力してください");
     await expect(
-      t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+      t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
         token: link.token,
         name: "申請スタッフ",
         email: "request@example.com",
@@ -123,7 +146,7 @@ describe("staffRegistration/mutations", () => {
       }),
     ).rejects.toThrow("利用規約とプライバシーポリシーに同意してください");
     await expect(
-      t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+      t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
         token: link.token,
         name: "あ".repeat(PERSON_NAME_MAX_LENGTH + 1),
         email: "request@example.com",
@@ -131,7 +154,7 @@ describe("staffRegistration/mutations", () => {
       }),
     ).rejects.toThrow("名前は80文字以内で入力してください");
     await expect(
-      t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+      t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
         token: link.token,
         name: "申請\nスタッフ",
         email: "request@example.com",
@@ -139,7 +162,7 @@ describe("staffRegistration/mutations", () => {
       }),
     ).rejects.toThrow("名前に使用できない文字が含まれています");
     await expect(
-      t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+      t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
         token: link.token,
         name: "申請スタッフ",
         email: `${"a".repeat(64)}@${"b".repeat(63)}.${"c".repeat(63)}.${"d".repeat(57)}.comx`,
@@ -166,7 +189,7 @@ describe("staffRegistration/mutations", () => {
     await t.run(async (ctx) => await ctx.db.patch(seeded.shopId, { operatingStatus }));
 
     await expect(
-      t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+      t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
         token: link.token,
         name: "停止後の申請者",
         email: `${operatingStatus}-submit@example.com`,
@@ -208,7 +231,7 @@ describe("staffRegistration/mutations", () => {
     });
 
     await expect(
-      t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+      t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
         token: link.token,
         name: "制限後の申請者",
         email: "restricted-submit@example.com",
@@ -219,12 +242,18 @@ describe("staffRegistration/mutations", () => {
     await expect(t.run(async (ctx) => await ctx.db.query("staffRegistrationRequests").collect())).resolves.toEqual([]);
   });
 
-  it("同じメールアドレスの承認待ち申請は重複登録できない", async () => {
+  it("新規・申請済み・登録済みの公開応答を統一し、重複時は副作用を作らない", async () => {
     const t = convexTest(schema, modules);
     const shopId = await t.run(async (ctx) => {
       const seeded = await seedManagerShop(ctx, {
         subject: "manager_duplicate",
         email: "manager-duplicate@example.com",
+      });
+      await ctx.db.insert("staffs", {
+        shopId: seeded.shopId,
+        name: "既存スタッフ",
+        email: "Existing@Example.com",
+        isDeleted: false,
       });
       return seeded.shopId;
     });
@@ -232,53 +261,112 @@ describe("staffRegistration/mutations", () => {
       .withIdentity({ subject: "manager_duplicate" })
       .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
 
-    await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    const newResult = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "申請スタッフ",
       email: "duplicate@example.com",
       acceptedLegal: true,
     });
+    const stateAfterNew = await t.run(async (ctx) => ({
+      requests: await ctx.db.query("staffRegistrationRequests").collect(),
+      staffs: await ctx.db.query("staffs").collect(),
+      audits: await ctx.db.query("organizationAuditEvents").collect(),
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const duplicateResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    const pendingResult = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "別の申請スタッフ",
       email: "Duplicate@Example.com",
       acceptedLegal: true,
     });
-    expect(duplicateResult).toEqual({ status: "already_applied" });
-  });
-
-  it("既存スタッフと同じメールアドレスでは参加申請できない", async () => {
-    const t = convexTest(schema, modules);
-    const shopId = await t.run(async (ctx) => {
-      const { shopId } = await seedManagerShop(ctx, {
-        subject: "manager_existing_staff",
-        email: "manager-existing-staff@example.com",
-      });
-      await ctx.db.insert("staffs", {
-        shopId,
-        name: "既存スタッフ",
-        email: "Existing@Example.com",
-        isDeleted: false,
-      });
-      return shopId;
-    });
-    const link = await t
-      .withIdentity({ subject: "manager_existing_staff" })
-      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
-
-    const existingResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    const existingResult = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "申請スタッフ",
       email: "existing@example.com",
       acceptedLegal: true,
     });
-    expect(existingResult).toEqual({ status: "already_registered" });
+    const stateAfterDuplicates = await t.run(async (ctx) => ({
+      requests: await ctx.db.query("staffRegistrationRequests").collect(),
+      staffs: await ctx.db.query("staffs").collect(),
+      audits: await ctx.db.query("organizationAuditEvents").collect(),
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
 
-    const requests = await t
-      .withIdentity({ subject: "manager_existing_staff" })
-      .query(api.staffRegistration.queries.getPendingRequests, { shopId });
-    expect(requests).toEqual([]);
+    expect(newResult).toEqual({ status: "accepted" });
+    expect(pendingResult).toEqual(newResult);
+    expect(existingResult).toEqual(newResult);
+    expect(stateAfterNew.requests).toHaveLength(1);
+    expect(stateAfterDuplicates).toEqual(stateAfterNew);
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it("承認待ち上限の直前だけ一件を保存し、到達後は同じ受付結果のまま増やさない", async () => {
+    const t = convexTest(schema, modules);
+    const shopId = await t.run(async (ctx) => {
+      const seeded = await seedManagerShop(ctx, {
+        subject: "manager_pending_cap",
+        email: "manager-pending-cap@example.com",
+      });
+      for (let index = 0; index < STAFF_REGISTRATION_PENDING_LIMIT - 1; index += 1) {
+        const email = `pending-cap-${index}@example.com`;
+        await ctx.db.insert("staffRegistrationRequests", {
+          shopId: seeded.shopId,
+          name: `承認待ち${index}`,
+          email,
+          emailNormalized: email,
+          status: "pending",
+          termsConsentVersion: "2026-01-01",
+          privacyConsentVersion: "2026-01-01",
+          termsDocumentVersion: "2026-01-01",
+          privacyDocumentVersion: "2026-01-01",
+          consentedAt: Date.now(),
+          createdAt: Date.now(),
+        });
+      }
+      return seeded.shopId;
+    });
+    const link = await t
+      .withIdentity({ subject: "manager_pending_cap" })
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
+
+    const beforeCap = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
+      token: link.token,
+      name: "上限直前",
+      email: "pending-cap-last@example.com",
+      acceptedLegal: true,
+    });
+    const atCap = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
+      token: link.token,
+      name: "上限到達後",
+      email: "pending-cap-over@example.com",
+      acceptedLegal: true,
+    });
+    const state = await t.run(async (ctx) => ({
+      requests: await ctx.db
+        .query("staffRegistrationRequests")
+        .withIndex("by_shopId_status", (q) => q.eq("shopId", shopId).eq("status", "pending"))
+        .collect(),
+      audits: await ctx.db.query("organizationAuditEvents").collect(),
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+
+    expect(beforeCap).toEqual({ status: "accepted" });
+    expect(atCap).toEqual(beforeCap);
+    expect(state.requests).toHaveLength(STAFF_REGISTRATION_PENDING_LIMIT);
+    expect(state.requests.some((request) => request.emailNormalized === "pending-cap-last@example.com")).toBe(true);
+    expect(state.requests.some((request) => request.emailNormalized === "pending-cap-over@example.com")).toBe(false);
+    expect(state.audits).toEqual([]);
+    expect(state.outbox).toEqual([]);
+    expect(state.scheduled).toEqual([]);
   });
 
   it("他店舗のシフト担当者は承認待ち申請を閲覧・承認・却下できない", async () => {
@@ -294,14 +382,14 @@ describe("staffRegistration/mutations", () => {
     const link = await t
       .withIdentity({ subject: "manager_manager" })
       .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId: managerShopId });
-    const submitResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    const submitResult = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "承認待ちスタッフ",
       email: "pending@example.com",
       acceptedLegal: true,
     });
-    if (submitResult.status !== "ok") throw new Error(`unexpected status: ${submitResult.status}`);
-    const { requestId } = submitResult;
+    expect(submitResult).toEqual({ status: "accepted" });
+    const requestId = await getPendingRequestId(t, managerShopId, "pending@example.com");
 
     const otherShopRequests = await t
       .withIdentity({ subject: "manager_other" })
@@ -339,13 +427,14 @@ describe("staffRegistration/mutations", () => {
     const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
       shopId: seeded.shopId,
     });
-    const submitted = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    const submitted = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "状態変更前の申請者",
       email: `${blockedState}-approve@example.com`,
       acceptedLegal: true,
     });
-    if (submitted.status !== "ok") throw new Error(`unexpected status: ${submitted.status}`);
+    expect(submitted).toEqual({ status: "accepted" });
+    const requestId = await getPendingRequestId(t, seeded.shopId, `${blockedState}-approve@example.com`);
 
     await t.run(async (ctx) => {
       if (blockedState === "archived" || blockedState === "planSuspended") {
@@ -375,13 +464,13 @@ describe("staffRegistration/mutations", () => {
 
     await expect(
       asManager.mutation(api.staffRegistration.mutations.approveRequest, {
-        requestId: submitted.requestId,
+        requestId,
         shopId: seeded.shopId,
       }),
     ).rejects.toThrow();
 
     const state = await t.run(async (ctx) => ({
-      request: await ctx.db.get(submitted.requestId),
+      request: await ctx.db.get(requestId),
       people: await ctx.db
         .query("organizationPeople")
         .withIndex("by_organizationId_and_emailNormalized", (q) => q.eq("organizationId", seeded.organizationId))
@@ -449,14 +538,14 @@ describe("staffRegistration/mutations", () => {
     const link = await t
       .withIdentity({ subject: "manager_approve" })
       .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
-    const submitResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    const submitResult = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "承認スタッフ",
       email: "approved@example.com",
       acceptedLegal: true,
     });
-    if (submitResult.status !== "ok") throw new Error(`unexpected status: ${submitResult.status}`);
-    const { requestId } = submitResult;
+    expect(submitResult).toEqual({ status: "accepted" });
+    const requestId = await getPendingRequestId(t, shopId, "approved@example.com");
 
     const { staffId } = await t
       .withIdentity({ subject: "manager_approve" })
@@ -509,21 +598,22 @@ describe("staffRegistration/mutations", () => {
     );
     const asManager = t.withIdentity({ subject: "organization_approve_manager" });
     const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
-    const submitResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    const submitResult = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "承認対象スタッフ",
       email: "Org-Approved@Example.com",
       acceptedLegal: true,
     });
-    if (submitResult.status !== "ok") throw new Error(`unexpected status: ${submitResult.status}`);
+    expect(submitResult).toEqual({ status: "accepted" });
+    const requestId = await getPendingRequestId(t, shopId, "org-approved@example.com");
 
     const { staffId } = await asManager.mutation(api.staffRegistration.mutations.approveRequest, {
-      requestId: submitResult.requestId,
+      requestId,
       shopId,
     });
     await expect(
       asManager.mutation(api.staffRegistration.mutations.approveRequest, {
-        requestId: submitResult.requestId,
+        requestId,
         shopId,
       }),
     ).rejects.toThrow("Not found");
@@ -626,16 +716,17 @@ describe("staffRegistration/mutations", () => {
     const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
       shopId: seeded.shopId,
     });
-    const submitted = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    const submitted = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "予約枠の申請スタッフ",
       email: "Reserved-Registration@Example.com",
       acceptedLegal: true,
     });
-    if (submitted.status !== "ok") throw new Error(`unexpected status: ${submitted.status}`);
+    expect(submitted).toEqual({ status: "accepted" });
+    const requestId = await getPendingRequestId(t, seeded.shopId, "reserved-registration@example.com");
 
     const { staffId } = await asManager.mutation(api.staffRegistration.mutations.approveRequest, {
-      requestId: submitted.requestId,
+      requestId,
       shopId: seeded.shopId,
     });
 
@@ -738,23 +829,24 @@ describe("staffRegistration/mutations", () => {
     const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
       shopId: seeded.shopId,
     });
-    const submitted = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    const submitted = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "上限超過の申請者",
       email: "registration-rollback@example.com",
       acceptedLegal: true,
     });
-    if (submitted.status !== "ok") throw new Error(`unexpected status: ${submitted.status}`);
+    expect(submitted).toEqual({ status: "accepted" });
+    const requestId = await getPendingRequestId(t, seeded.shopId, "registration-rollback@example.com");
 
     await expect(
       asManager.mutation(api.staffRegistration.mutations.approveRequest, {
-        requestId: submitted.requestId,
+        requestId,
         shopId: seeded.shopId,
       }),
     ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 30名 / 上限 30名）");
 
     const state = await t.run(async (ctx) => ({
-      request: await ctx.db.get(submitted.requestId),
+      request: await ctx.db.get(requestId),
       invitation: await ctx.db.get(seeded.invitationId),
       people: await ctx.db
         .query("organizationPeople")
@@ -813,16 +905,17 @@ describe("staffRegistration/mutations", () => {
     const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
       shopId: seeded.secondShopId,
     });
-    const submitResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    const submitResult = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "別店舗の表示名",
       email: "Registration-Shared@Example.com",
       acceptedLegal: true,
     });
-    if (submitResult.status !== "ok") throw new Error(`unexpected status: ${submitResult.status}`);
+    expect(submitResult).toEqual({ status: "accepted" });
+    const requestId = await getPendingRequestId(t, seeded.secondShopId, "registration-shared@example.com");
 
     const { staffId } = await asManager.mutation(api.staffRegistration.mutations.approveRequest, {
-      requestId: submitResult.requestId,
+      requestId,
       shopId: seeded.secondShopId,
     });
 
@@ -868,23 +961,24 @@ describe("staffRegistration/mutations", () => {
     const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
       shopId: seeded.shopId,
     });
-    const submitResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    const submitResult = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "再登録申請",
       email: "Registration-Removed@Example.com",
       acceptedLegal: true,
     });
-    if (submitResult.status !== "ok") throw new Error(`unexpected status: ${submitResult.status}`);
+    expect(submitResult).toEqual({ status: "accepted" });
+    const requestId = await getPendingRequestId(t, seeded.shopId, "registration-removed@example.com");
 
     await expect(
       asManager.mutation(api.staffRegistration.mutations.approveRequest, {
-        requestId: submitResult.requestId,
+        requestId,
         shopId: seeded.shopId,
       }),
     ).rejects.toThrow("人物管理から再有効化してから追加してください");
 
     const state = await t.run(async (ctx) => ({
-      request: await ctx.db.get(submitResult.requestId),
+      request: await ctx.db.get(requestId),
       person: await ctx.db.get(seeded.removedPersonId),
       user: await ctx.db.get(seeded.removedUserId),
       staffs: await ctx.db
@@ -940,17 +1034,18 @@ describe("staffRegistration/mutations", () => {
     const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
       shopId: seeded.shopId,
     });
-    const submitResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    const submitResult = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "上限超過スタッフ",
       email: "registration-over-limit@example.com",
       acceptedLegal: true,
     });
-    if (submitResult.status !== "ok") throw new Error(`unexpected status: ${submitResult.status}`);
+    expect(submitResult).toEqual({ status: "accepted" });
+    const requestId = await getPendingRequestId(t, seeded.shopId, "registration-over-limit@example.com");
 
     await expect(
       asManager.mutation(api.staffRegistration.mutations.approveRequest, {
-        requestId: submitResult.requestId,
+        requestId,
         shopId: seeded.shopId,
       }),
     ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 5名 / 上限 5名）");
@@ -966,7 +1061,7 @@ describe("staffRegistration/mutations", () => {
         .collect();
       const consents = await ctx.db.query("legalConsentStates").collect();
       const scheduled = await ctx.db.system.query("_scheduled_functions").collect();
-      return { request: await ctx.db.get(submitResult.requestId), people, staffs, consents, scheduled };
+      return { request: await ctx.db.get(requestId), people, staffs, consents, scheduled };
     });
     expect(state.request?.status).toBe("pending");
     expect(state.people).toHaveLength(5);
@@ -1023,23 +1118,24 @@ describe("staffRegistration/mutations", () => {
     const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
       shopId: seeded.shopId,
     });
-    const submitResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    const submitResult = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "31人目",
       email: "scheduled-pro-registration-over-limit@example.com",
       acceptedLegal: true,
     });
-    if (submitResult.status !== "ok") throw new Error(`unexpected status: ${submitResult.status}`);
+    expect(submitResult).toEqual({ status: "accepted" });
+    const requestId = await getPendingRequestId(t, seeded.shopId, "scheduled-pro-registration-over-limit@example.com");
 
     await expect(
       asManager.mutation(api.staffRegistration.mutations.approveRequest, {
-        requestId: submitResult.requestId,
+        requestId,
         shopId: seeded.shopId,
       }),
     ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 30名 / 上限 30名）");
 
     const state = await t.run(async (ctx) => ({
-      request: await ctx.db.get(submitResult.requestId),
+      request: await ctx.db.get(requestId),
       people: await ctx.db
         .query("organizationPeople")
         .withIndex("by_organizationId_and_emailNormalized", (q) => q.eq("organizationId", seeded.organizationId))
@@ -1063,14 +1159,14 @@ describe("staffRegistration/mutations", () => {
     const link = await t
       .withIdentity({ subject: "manager_reject" })
       .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
-    const submitResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    const submitResult = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "却下スタッフ",
       email: "rejected@example.com",
       acceptedLegal: true,
     });
-    if (submitResult.status !== "ok") throw new Error(`unexpected status: ${submitResult.status}`);
-    const { requestId } = submitResult;
+    expect(submitResult).toEqual({ status: "accepted" });
+    const requestId = await getPendingRequestId(t, shopId, "rejected@example.com");
 
     await t.withIdentity({ subject: "manager_reject" }).mutation(api.staffRegistration.mutations.rejectRequest, {
       requestId,

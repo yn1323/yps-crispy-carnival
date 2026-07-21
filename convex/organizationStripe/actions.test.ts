@@ -103,6 +103,7 @@ describe("organizationStripe/actions", () => {
     vi.stubEnv("STRIPE_SECRET_KEY", READY_TEST_CONFIGURATION.secretKey);
     vi.stubEnv("STRIPE_WEBHOOK_SECRET", READY_TEST_CONFIGURATION.webhookSecret);
     vi.stubEnv("STRIPE_PRO_PRICE_ID", READY_TEST_CONFIGURATION.proPriceId);
+    vi.stubEnv("APP_URL", "https://app.example.test");
   });
 
   afterEach(() => {
@@ -251,6 +252,270 @@ describe("organizationStripe/actions", () => {
     expect(state.events).toEqual([]);
     expect(state.operations).toHaveLength(1);
     expect(state.operations[0]).toMatchObject({ status: "failed", lastErrorCode: "price_invalid" });
+  });
+
+  it.each([
+    { kind: "trial", expectedMode: "setup" },
+    { kind: "immediate", expectedMode: "subscription" },
+  ] as const)("$kind Checkoutはcard限定かつ固定の戻り先を使い、生カードfieldを渡さない", async (testCase) => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: `stripe_checkout_payload_${testCase.kind}`,
+        plan: "free",
+      });
+      if (testCase.kind === "trial") {
+        const billing = await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+          .unique();
+        if (!billing) throw new Error("billing state missing");
+        await ctx.db.patch(billing._id, {
+          state: { kind: "trial", trialEndsAt: NOW + 14 * 24 * 60 * 60_000 },
+          updatedAt: NOW,
+        });
+      }
+      return seeded;
+    });
+    const checkoutCreateCalls: unknown[][] = [];
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
+      if (resource === "prices.retrieve") {
+        return providerResponse({
+          id: READY_TEST_CONFIGURATION.proPriceId,
+          active: true,
+          livemode: false,
+          currency: "jpy",
+          unit_amount: 1480,
+          recurring: { interval: "month", interval_count: 1 },
+        });
+      }
+      if (resource === "customers.create") {
+        return providerResponse({ id: `cus_checkout_payload_${testCase.kind}`, livemode: false });
+      }
+      if (resource === "checkout.sessions.create") {
+        checkoutCreateCalls.push(args);
+        return providerResponse({
+          id: `cs_checkout_payload_${testCase.kind}`,
+          url: `https://checkout.stripe.test/${testCase.kind}`,
+          livemode: false,
+        });
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: `stripe_checkout_payload_${testCase.kind}` })
+        .action(api.organizationStripe.actions.startProCheckout, {
+          shopId: ids.shopId,
+          requestId: `checkout-payload-${testCase.kind}`,
+        }),
+    ).resolves.toEqual({ status: "redirect", url: `https://checkout.stripe.test/${testCase.kind}` });
+
+    expect(checkoutCreateCalls).toHaveLength(1);
+    const payload = checkoutCreateCalls[0][0] as Record<string, unknown>;
+    expect(payload).toMatchObject({ mode: testCase.expectedMode, payment_method_types: ["card"] });
+    for (const [urlValue, result] of [
+      [payload.success_url, "returned"],
+      [payload.cancel_url, "cancelled"],
+    ] as const) {
+      const url = new URL(String(urlValue));
+      expect(`${url.origin}${url.pathname}`).toBe("https://app.example.test/settings");
+      expect(url.searchParams.get("tab")).toBe("billing");
+      expect(url.searchParams.get("stripe")).toBe(result);
+    }
+    expect(payload).not.toHaveProperty("payment_method_data");
+    expect(payload).not.toHaveProperty("card");
+    expect(payload).not.toHaveProperty("cvc");
+    expect(payload).not.toHaveProperty("number");
+    expect(payload).not.toHaveProperty("exp_month");
+    expect(payload).not.toHaveProperty("exp_year");
+  });
+
+  it.each([
+    { name: "SetupIntent status", setupPatch: { status: "requires_action" }, errorCode: "setup_intent_invalid" },
+    { name: "SetupIntent usage", setupPatch: { usage: "on_session" }, errorCode: "setup_intent_invalid" },
+    {
+      name: "SetupIntent customer",
+      setupPatch: { customer: "cus_other_setup_intent" },
+      errorCode: "setup_intent_invalid",
+    },
+    {
+      name: "PaymentMethod type",
+      paymentMethodPatch: { type: "us_bank_account" },
+      errorCode: "payment_method_invalid",
+    },
+    {
+      name: "PaymentMethod customer",
+      paymentMethodPatch: { customer: "cus_other_payment_method" },
+      errorCode: "payment_method_invalid",
+    },
+  ])("$name不一致ではSubscriptionを作らずactionRequiredにする", async (testCase) => {
+    const t = convexTest(schema, modules);
+    const suffix = testCase.name.replaceAll(" ", "-").toLowerCase();
+    const ids = await seedTrialCheckoutCompletion(t, suffix);
+    const providerResources: string[] = [];
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      providerResources.push(resource);
+      if (resource === "events.retrieve") {
+        return providerResponse({
+          id: ids.stripeEventId,
+          type: "checkout.session.completed",
+          livemode: false,
+          api_version: STRIPE_WEBHOOK_API_VERSION,
+          created: Math.floor(NOW / 1000),
+          data: { object: { id: ids.stripeSessionId } },
+        });
+      }
+      if (resource === "checkout.sessions.retrieve") {
+        return providerResponse({
+          id: ids.stripeSessionId,
+          customer: ids.stripeCustomerId,
+          livemode: false,
+          mode: "setup",
+          status: "complete",
+          setup_intent: ids.stripeSetupIntentId,
+          client_reference_id: String(ids.organizationId),
+          metadata: {
+            shiftori_organization_id: String(ids.organizationId),
+            shiftori_operation_id: String(ids.checkoutOperationId),
+            shiftori_provider_generation: "1",
+            shiftori_price_id: READY_TEST_CONFIGURATION.proPriceId,
+          },
+        });
+      }
+      if (resource === "prices.retrieve") {
+        return providerResponse({
+          id: READY_TEST_CONFIGURATION.proPriceId,
+          active: true,
+          livemode: false,
+          currency: "jpy",
+          unit_amount: 1480,
+          recurring: { interval: "month", interval_count: 1 },
+        });
+      }
+      if (resource === "setupIntents.retrieve") {
+        return providerResponse({
+          id: ids.stripeSetupIntentId,
+          customer: ids.stripeCustomerId,
+          payment_method: ids.stripePaymentMethodId,
+          status: "succeeded",
+          usage: "off_session",
+          ...testCase.setupPatch,
+        });
+      }
+      if (resource === "paymentMethods.retrieve") {
+        return providerResponse({
+          id: ids.stripePaymentMethodId,
+          customer: ids.stripeCustomerId,
+          type: "card",
+          ...testCase.paymentMethodPatch,
+        });
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: ids.stripeEventId });
+
+    const state = await t.run(async (ctx) => ({
+      billing: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      receipt: await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+        .unique(),
+      subscriptions: await ctx.db.query("organizationStripeSubscriptions").collect(),
+      createOperations: await ctx.db
+        .query("organizationStripeOperations")
+        .withIndex("by_organizationId_and_kind_and_status", (q) =>
+          q.eq("organizationId", ids.organizationId).eq("kind", "createTrialSubscription"),
+        )
+        .collect(),
+    }));
+    expect(state.billing?.state).toEqual({ kind: "trial", trialEndsAt: ids.trialEndsAt });
+    expect(state.receipt).toMatchObject({ status: "actionRequired", lastErrorCode: testCase.errorCode });
+    expect(state.subscriptions).toEqual([]);
+    expect(state.createOperations).toEqual([]);
+    expect(providerResources).not.toContain("subscriptions.create");
+  });
+
+  it("Stripe拒否詳細・email・tokenをclient、console、永続状態へ露出しない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(
+      async (ctx) =>
+        await seedOrganizationManagerShop(ctx, {
+          subject: "stripe_error_redaction",
+          plan: "free",
+        }),
+    );
+    const sentinels = [
+      "decline-sentinel-do-not-expose",
+      "provider-email-sentinel@example.test",
+      "tok_provider_sentinel_do_not_expose",
+    ];
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource === "prices.retrieve") {
+        return providerResponse({
+          id: READY_TEST_CONFIGURATION.proPriceId,
+          active: true,
+          livemode: false,
+          currency: "jpy",
+          unit_amount: 1480,
+          recurring: { interval: "month", interval_count: 1 },
+        });
+      }
+      if (resource === "customers.create") {
+        return providerResponse({ id: "cus_error_redaction", livemode: false });
+      }
+      if (resource === "checkout.sessions.create") {
+        const error = new MockStripeError(402, "StripeCardError");
+        error.message = sentinels.join(" ");
+        throw Object.assign(error, {
+          decline_code: sentinels[0],
+          raw: { message: sentinels[0], email: sentinels[1], token: sentinels[2] },
+        });
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await t
+      .withIdentity({ subject: "stripe_error_redaction" })
+      .action(api.organizationStripe.actions.startProCheckout, {
+        shopId: ids.shopId,
+        requestId: "stripe-error-redaction",
+      });
+    const state = await t.run(async (ctx) => ({
+      billing: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      customers: await ctx.db.query("organizationStripeCustomers").collect(),
+      subscriptions: await ctx.db.query("organizationStripeSubscriptions").collect(),
+      operations: await ctx.db.query("organizationStripeOperations").collect(),
+      receipts: await ctx.db.query("stripeWebhookEvents").collect(),
+      audits: await ctx.db.query("organizationAuditEvents").collect(),
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    const exposed = JSON.stringify({
+      result,
+      state,
+      console: [...logSpy.mock.calls, ...warnSpy.mock.calls, ...errorSpy.mock.calls],
+    });
+
+    expect(result).toEqual({ status: "unavailable", reason: "configuration_pending" });
+    expect(state.operations).toHaveLength(1);
+    expect(state.operations[0]).toMatchObject({ status: "retrying", lastErrorCode: "stripe_request_rejected" });
+    for (const sentinel of sentinels) expect(exposed).not.toContain(sentinel);
   });
 
   it("Pro Priceのアーカイブ後は発行済みTrial Setupの完了からSubscriptionを作成しない", async () => {
@@ -3858,6 +4123,74 @@ async function expectNoStripeSideEffects(t: TestConvex<typeof schema>) {
   expect(state.operations).toEqual([]);
   expect(state.events).toEqual([]);
   expect(providerFetchMock).not.toHaveBeenCalled();
+}
+
+async function seedTrialCheckoutCompletion(t: TestConvex<typeof schema>, suffix: string) {
+  return await t.run(async (ctx) => {
+    const seeded = await seedOrganizationManagerShop(ctx, { subject: `stripe_setup_validation_${suffix}` });
+    const billing = await ctx.db
+      .query("organizationBillingStates")
+      .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+      .unique();
+    if (!billing) throw new Error("billing state missing");
+    const trialEndsAt = NOW + 14 * 24 * 60 * 60_000;
+    await ctx.db.patch(billing._id, {
+      state: { kind: "trial", trialEndsAt },
+      updatedAt: NOW,
+    });
+    const stripeCustomerId = `cus_setup_validation_${suffix}`;
+    const stripeSessionId = `cs_setup_validation_${suffix}`;
+    const stripeEventId = `evt_setup_validation_${suffix}`;
+    const stripeSetupIntentId = `seti_setup_validation_${suffix}`;
+    const stripePaymentMethodId = `pm_setup_validation_${suffix}`;
+    await ctx.db.insert("organizationStripeCustomers", {
+      organizationId: seeded.organizationId,
+      stripeCustomerId,
+      livemode: false,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    const checkoutOperationId = await ctx.db.insert("organizationStripeOperations", {
+      organizationId: seeded.organizationId,
+      kind: "trialSetupCheckout",
+      requestKey: `setup-validation-${suffix}`,
+      stripeIdempotencyKey: `test:setup-validation:${suffix}`,
+      livemode: false,
+      expectedBillingVersion: billing.version,
+      providerGeneration: 1,
+      stripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId,
+      stripeObjectId: stripeSessionId,
+      status: "succeeded",
+      attemptCount: 1,
+      completedAt: NOW,
+      expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    await ctx.db.insert("stripeWebhookEvents", {
+      stripeEventId,
+      type: "checkout.session.completed",
+      apiVersion: STRIPE_WEBHOOK_API_VERSION,
+      livemode: false,
+      objectId: stripeSessionId,
+      eventCreatedAt: NOW,
+      status: "received",
+      attemptCount: 0,
+      receivedAt: NOW,
+      expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
+      updatedAt: NOW,
+    });
+    return {
+      ...seeded,
+      checkoutOperationId,
+      stripeCustomerId,
+      stripeSessionId,
+      stripeEventId,
+      stripeSetupIntentId,
+      stripePaymentMethodId,
+      trialEndsAt,
+    };
+  });
 }
 
 async function seedExpiredGraceStripeContext(t: TestConvex<typeof schema>, subject: string) {

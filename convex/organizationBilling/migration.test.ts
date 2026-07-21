@@ -248,11 +248,15 @@ describe("m018 organization billing Business to Pro migration", () => {
     expect(snapshot.pendingBilling).toMatchObject({
       status: "cancelled",
       cancelReason: "organization_billing_changed",
+      terminalAt: expect.any(Number),
     });
+    expect(snapshot.pendingBilling?.terminalAt).toBe(snapshot.pendingBilling?.cancelledAt);
     expect(snapshot.processingBilling).toMatchObject({
       status: "cancelled",
       cancelReason: "organization_billing_changed",
+      terminalAt: expect.any(Number),
     });
+    expect(snapshot.processingBilling?.terminalAt).toBe(snapshot.processingBilling?.cancelledAt);
     expect(snapshot.pendingBusiness?.status).toBe("pending");
   });
 });

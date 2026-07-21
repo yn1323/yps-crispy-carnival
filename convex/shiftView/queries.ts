@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { formatPeriodLabel } from "../_lib/dateFormat";
 import { staffSessionQuery } from "../_lib/functions";
+import { sessionMatchesAccessKind } from "../_lib/staffAccess";
 import { getSubmissionPatternTimeRange, submissionPatternValidator } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
 import { SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT, SHIFT_BOARD_TIME_UNIT_MINUTES } from "../constants";
@@ -49,6 +50,7 @@ export const getShiftViewData = staffSessionQuery({
     if (!ctx.staff || !ctx.shop || !ctx.session) return null;
     const shop = ctx.shop;
     const session = ctx.session;
+    if (!sessionMatchesAccessKind(session, "view")) return null;
     if (session.recruitmentId !== recruitmentId) return null;
 
     const recruitment = await getActiveRecruitmentInShop(ctx, shop._id, recruitmentId);

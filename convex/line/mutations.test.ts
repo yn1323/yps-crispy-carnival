@@ -11,6 +11,7 @@ import {
   seedStaffLineAccount,
 } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { LINE_LINK_REDEEM_GLOBAL_LIMIT, LINE_WEBHOOK_MESSAGE_REQUEST_LIMIT } from "../constants";
 
 async function setupShop(t: TestConvex<typeof schema>) {
   return await t.run(async (ctx) => {
@@ -189,6 +190,68 @@ describe("line/mutations", () => {
       expect(link?.staffId).toBe(staffId);
       expect(link?.shopId).toBe(shopId);
       expect(link?.expiresAt).toBeGreaterThan(Date.now());
+    });
+
+    it("managerとinternalの両発行入口で旧tokenを失効し、最新tokenだけを一度利用できる", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, shopId } = await setupShop(t);
+      const manager = t.withIdentity({ subject: "user_mgr" });
+
+      const first = await manager.mutation(api.line.mutations.generateLinkToken, { shopId, staffId });
+      const second = await manager.mutation(api.line.mutations.generateLinkToken, { shopId, staffId });
+      const afterManagerIssue = await t.run(async (ctx) =>
+        ctx.db
+          .query("lineLinkTokens")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+          .collect(),
+      );
+      expect(afterManagerIssue.find((token) => token.token === first.token)?.revokedAt).toEqual(expect.any(Number));
+      expect(
+        afterManagerIssue.filter((token) => !token.revokedAt && !token.usedAt && token.expiresAt >= Date.now()),
+      ).toHaveLength(1);
+      expect(afterManagerIssue.find((token) => token.token === second.token)?.revokedAt).toBeUndefined();
+
+      const latest = await t.mutation(internal.line.mutations.createLinkTokenInternal, { staffId, shopId });
+      const afterInternalIssue = await t.run(async (ctx) =>
+        ctx.db
+          .query("lineLinkTokens")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+          .collect(),
+      );
+      expect(afterInternalIssue.find((token) => token.token === second.token)?.revokedAt).toEqual(expect.any(Number));
+      const activeUnused = afterInternalIssue.filter(
+        (token) => !token.revokedAt && !token.usedAt && token.expiresAt >= Date.now(),
+      );
+      expect(activeUnused).toHaveLength(1);
+      expect(activeUnused[0]?.token).toBe(latest.token);
+
+      for (const revokedToken of [first.token, second.token]) {
+        await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: revokedToken })).resolves.toEqual({
+          status: "expired",
+        });
+      }
+      const validation = await t.mutation(internal.line.mutations.validateLinkToken, { state: latest.token });
+      expect(validation.status).toBe("ok");
+      if (validation.status !== "ok") throw new Error("latest LINE token was not valid");
+      await expect(
+        t.mutation(internal.line.mutations.finalizeLinking, {
+          staffId,
+          tokenDocId: validation.tokenDocId,
+          lineUserId: "U_newest_only",
+          lineFollowing: false,
+        }),
+      ).resolves.toEqual({ status: "ok" });
+      await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: latest.token })).resolves.toEqual({
+        status: "expired",
+      });
+      await expect(
+        t.mutation(internal.line.mutations.finalizeLinking, {
+          staffId,
+          tokenDocId: validation.tokenDocId,
+          lineUserId: "U_newest_only",
+          lineFollowing: false,
+        }),
+      ).resolves.toEqual({ status: "expired" });
     });
   });
 
@@ -382,19 +445,75 @@ describe("line/mutations", () => {
       expect(state.scheduled).toEqual([]);
     });
 
-    it("同じstate先頭8文字で6回検証するとrate limitする", async () => {
+    it("存在する同じstateを6回検証するとtoken単位の二次rate limitが働く", async () => {
       const t = convexTest(schema, modules);
+      const { staffId, shopId } = await setupShop(t);
+      const { token } = await seedLineLinkToken(t, { staffId, shopId, token: "same-valid-state-token" });
       const results = [];
       for (let index = 0; index < 6; index++) {
-        results.push(
-          await t.mutation(internal.line.mutations.validateLinkToken, {
-            state: `same-key-${index}`,
-          }),
-        );
+        results.push(await t.mutation(internal.line.mutations.validateLinkToken, { state: token }));
       }
 
-      expect(results.slice(0, 5)).toEqual(Array.from({ length: 5 }, () => ({ status: "expired" })));
+      expect(results.slice(0, 5).every((result) => result.status === "ok")).toBe(true);
       expect(results[5]).toEqual({ status: "rate_limited" });
+    });
+
+    it("異なる無効state prefixは固定global budgetを共有するが、有効stateを停止させない", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, shopId } = await setupShop(t);
+      const { token } = await seedLineLinkToken(t, { staffId, shopId, token: "recovery-valid-state-token" });
+      const before = await t.run(async (ctx) => ({
+        tokens: await ctx.db.query("lineLinkTokens").collect(),
+        accounts: await ctx.db.query("staffLineAccounts").collect(),
+        outbox: await ctx.db.query("notificationOutbox").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+
+      for (let attempt = 0; attempt < LINE_LINK_REDEEM_GLOBAL_LIMIT; attempt += 1) {
+        const state = `${String(attempt).padStart(8, "0")}-invalid-state`;
+        await expect(t.mutation(internal.line.mutations.validateLinkToken, { state })).resolves.toEqual({
+          status: "expired",
+        });
+      }
+      await expect(
+        t.mutation(internal.line.mutations.validateLinkToken, { state: "overflow-invalid-state" }),
+      ).resolves.toEqual({ status: "rate_limited" });
+
+      const after = await t.run(async (ctx) => ({
+        tokens: await ctx.db.query("lineLinkTokens").collect(),
+        accounts: await ctx.db.query("staffLineAccounts").collect(),
+        outbox: await ctx.db.query("notificationOutbox").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+        globalRows: await ctx.db
+          .query("rateLimits")
+          .withIndex("name", (q) => q.eq("name", "lineLinkRedeemGlobal"))
+          .collect(),
+        tokenRows: await ctx.db
+          .query("rateLimits")
+          .withIndex("name", (q) => q.eq("name", "lineLinkRedeem"))
+          .collect(),
+      }));
+      expect({
+        tokens: after.tokens,
+        accounts: after.accounts,
+        outbox: after.outbox,
+        scheduled: after.scheduled,
+      }).toEqual(before);
+      expect(after.globalRows).toHaveLength(1);
+      expect(after.globalRows[0]?.key).toBeUndefined();
+      expect(after.tokenRows).toEqual([]);
+
+      await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: token })).resolves.toMatchObject({
+        status: "ok",
+        staffId,
+      });
+      const tokenRows = await t.run(async (ctx) =>
+        ctx.db
+          .query("rateLimits")
+          .withIndex("name", (q) => q.eq("name", "lineLinkRedeem"))
+          .collect(),
+      );
+      expect(tokenRows).toHaveLength(1);
     });
   });
 
@@ -740,7 +859,7 @@ describe("line/mutations", () => {
         await seedStaffLineAccount(ctx, { staffId, shopId: staff.shopId, lineUserId: "U_abc", following: false });
       });
       await t.mutation(internal.line.mutations.dispatchWebhookEvents, {
-        events: [{ type: "follow", userId: "U_abc" }],
+        events: [{ type: "follow", userId: "U_abc", webhookEventId: "follow-U_abc", timestamp: 100 }],
       });
       const account = await t.run(async (ctx) =>
         ctx.db
@@ -765,7 +884,7 @@ describe("line/mutations", () => {
         await seedStaffLineAccount(ctx, { staffId, shopId: staff.shopId, lineUserId: "U_abc", following: true });
       });
       await t.mutation(internal.line.mutations.dispatchWebhookEvents, {
-        events: [{ type: "unfollow", userId: "U_abc" }],
+        events: [{ type: "unfollow", userId: "U_abc", webhookEventId: "unfollow-U_abc", timestamp: 200 }],
       });
       const account = await t.run(async (ctx) =>
         ctx.db
@@ -803,7 +922,7 @@ describe("line/mutations", () => {
       });
 
       await t.mutation(internal.line.mutations.dispatchWebhookEvents, {
-        events: [{ type: "follow", userId: "U_multi" }],
+        events: [{ type: "follow", userId: "U_multi", webhookEventId: "follow-U_multi", timestamp: 300 }],
       });
 
       const accounts = await t.run(async (ctx) =>
@@ -829,16 +948,76 @@ describe("line/mutations", () => {
       const t = convexTest(schema, modules);
       await setupShop(t);
       const r = await t.mutation(internal.line.mutations.dispatchWebhookEvents, {
-        events: [{ type: "message", replyToken: "reply-1" }],
+        events: [{ type: "message", replyToken: "reply-1", webhookEventId: "message-1", timestamp: Date.now() }],
       });
       expect(r.replyTokens).toEqual(["reply-1"]);
+    });
+
+    it("message予算を使い切っても別userのfollow状態を破棄しない", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, staffId } = await setupShop(t);
+      await t.run(async (ctx) => {
+        await seedStaffLineAccount(ctx, {
+          staffId,
+          shopId,
+          lineUserId: "U_state_after_message_flood",
+          following: false,
+        });
+      });
+
+      for (let index = 0; index < LINE_WEBHOOK_MESSAGE_REQUEST_LIMIT; index += 1) {
+        const result = await t.mutation(internal.line.mutations.dispatchWebhookEvents, {
+          events: [
+            {
+              type: "message",
+              replyToken: `reply-${index}`,
+              webhookEventId: `message-flood-${index}`,
+              timestamp: Date.now(),
+            },
+          ],
+        });
+        expect(result.replyTokens).toEqual([`reply-${index}`]);
+      }
+      await expect(
+        t.mutation(internal.line.mutations.dispatchWebhookEvents, {
+          events: [
+            {
+              type: "message",
+              replyToken: "reply-over-limit",
+              webhookEventId: "message-flood-over-limit",
+              timestamp: Date.now(),
+            },
+          ],
+        }),
+      ).resolves.toEqual({ replyTokens: [] });
+
+      await expect(
+        t.mutation(internal.line.mutations.dispatchWebhookEvents, {
+          events: [
+            {
+              type: "follow",
+              userId: "U_state_after_message_flood",
+              webhookEventId: "follow-after-message-flood",
+              timestamp: Date.now(),
+            },
+          ],
+        }),
+      ).resolves.toEqual({ replyTokens: [] });
+      const account = await t.run(async (ctx) =>
+        ctx.db
+          .query("staffLineAccounts")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+          .unique(),
+      );
+      expect(account?.following).toBe(true);
+      expect(account?.lastWebhookEventId).toBe("follow-after-message-flood");
     });
 
     it("未知のスタッフ userId は黙ってスキップ", async () => {
       const t = convexTest(schema, modules);
       await setupShop(t);
       const r = await t.mutation(internal.line.mutations.dispatchWebhookEvents, {
-        events: [{ type: "follow", userId: "U_unknown" }],
+        events: [{ type: "follow", userId: "U_unknown", webhookEventId: "follow-unknown", timestamp: 500 }],
       });
       expect(r.replyTokens).toEqual([]);
     });

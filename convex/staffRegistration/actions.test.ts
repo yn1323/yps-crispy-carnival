@@ -18,7 +18,7 @@ describe("staffRegistration/actions", () => {
     const registrationLink = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
       shopId,
     });
-    await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: registrationLink.token,
       name: "申請スタッフ",
       email: "digest-staff@example.com",

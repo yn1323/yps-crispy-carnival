@@ -78,7 +78,7 @@ export const InteractiveFormFlow: Story = {
 
     await userEvent.type(canvas.getByRole("textbox", { name: "名前" }), "田中 花子");
     await userEvent.type(canvas.getByRole("textbox", { name: "メールアドレス" }), "hanako@gmai.com");
-    await userEvent.click(await canvas.findByRole("button", { name: "hanako@gmail.com に直す" }));
+    await userEvent.click(await canvas.findByRole("button", { name: "hanako@gmail.comに直す" }));
     await expect(canvas.getByRole("textbox", { name: "メールアドレス" })).toHaveValue("hanako@gmail.com");
     await userEvent.click(canvas.getByRole("checkbox"));
     await userEvent.click(canvas.getByRole("button", { name: "確認へ" }));

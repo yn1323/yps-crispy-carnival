@@ -5,6 +5,10 @@ import { options as contactOptions, submit as contactSubmit } from "./contact/ht
 import { webhookHandler } from "./line/webhook";
 import { webhookHandler as resendWebhookHandler } from "./notificationOutbox/resendWebhook";
 import { webhookHandler as stripeWebhookHandler } from "./organizationStripe/webhook";
+import {
+  options as staffRegistrationOptions,
+  submit as staffRegistrationSubmit,
+} from "./staffRegistration/httpActions";
 
 const http = httpRouter();
 
@@ -30,6 +34,18 @@ http.route({
   path: "/contact/submit",
   method: "OPTIONS",
   handler: contactOptions,
+});
+
+http.route({
+  path: "/staff-registration/submit",
+  method: "OPTIONS",
+  handler: staffRegistrationOptions,
+});
+
+http.route({
+  path: "/staff-registration/submit",
+  method: "POST",
+  handler: staffRegistrationSubmit,
 });
 
 http.route({

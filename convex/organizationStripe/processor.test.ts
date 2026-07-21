@@ -374,6 +374,101 @@ describe("organizationStripe/processWebhookEvent", () => {
     expect(result.event).toMatchObject({ status: "processed", organizationId: ids.organizationId });
   });
 
+  it("payment_action_requiredではPro化もfallbackもせず、後続paidでだけactive.proへ収束する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedStripeOrganization(t, "stripe_processor_action_required", {
+      kind: "pendingActivation",
+      plan: "pro",
+      fallback: "free",
+      startedAt: NOW - 60_000,
+    });
+    provider.retrieveCheckout.mockResolvedValue({
+      id: "cs_shiftori_processor",
+      customer: CUSTOMER_ID,
+      subscription: SUBSCRIPTION_ID,
+      livemode: false,
+      mode: "subscription",
+      status: "complete",
+      client_reference_id: String(ids.organizationId),
+      metadata: {
+        shiftori_organization_id: String(ids.organizationId),
+        shiftori_operation_id: String(ids.operationId),
+        shiftori_provider_generation: "1",
+        shiftori_price_id: PRICE_ID,
+      },
+    });
+    provider.retrieveEvent
+      .mockResolvedValueOnce({
+        id: "evt_processor_action_required",
+        type: "invoice.payment_action_required",
+        livemode: false,
+        api_version: STRIPE_WEBHOOK_API_VERSION,
+        created: Math.floor(NOW / 1000),
+        data: { object: { id: INVOICE_ID } },
+      })
+      .mockResolvedValueOnce({
+        id: "evt_processor_action_required_paid",
+        type: "invoice.paid",
+        livemode: false,
+        api_version: STRIPE_WEBHOOK_API_VERSION,
+        created: Math.floor((NOW + 1000) / 1000),
+        data: { object: { id: INVOICE_ID } },
+      });
+    provider.retrieveInvoice
+      .mockResolvedValueOnce({
+        id: INVOICE_ID,
+        customer: CUSTOMER_ID,
+        livemode: false,
+        status: "open",
+        amount_remaining: 1480,
+        parent: { subscription_details: { subscription: SUBSCRIPTION_ID } },
+      })
+      .mockResolvedValueOnce({
+        id: INVOICE_ID,
+        customer: CUSTOMER_ID,
+        livemode: false,
+        status: "paid",
+        amount_remaining: 0,
+        parent: { subscription_details: { subscription: SUBSCRIPTION_ID } },
+      });
+    provider.retrieveSubscription
+      .mockResolvedValueOnce(subscriptionFixture("incomplete", ids.organizationId, ids.operationId))
+      .mockResolvedValueOnce(subscriptionFixture("active", ids.organizationId, ids.operationId));
+    await insertReceipt(t, "evt_processor_action_required", "invoice.payment_action_required", INVOICE_ID, NOW);
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, {
+      stripeEventId: "evt_processor_action_required",
+    });
+
+    let billing = await t.run((ctx) =>
+      ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+    );
+    expect(billing?.state).toEqual({
+      kind: "pendingActivation",
+      plan: "pro",
+      fallback: "free",
+      startedAt: NOW - 60_000,
+    });
+    expect(await receiptById(t, "evt_processor_action_required")).toMatchObject({ status: "processed" });
+
+    await insertReceipt(t, "evt_processor_action_required_paid", "invoice.paid", INVOICE_ID, NOW + 1000);
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, {
+      stripeEventId: "evt_processor_action_required_paid",
+    });
+
+    billing = await t.run((ctx) =>
+      ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+    );
+    expect(billing?.state).toEqual({ kind: "active", plan: "pro" });
+    expect(await receiptById(t, "evt_processor_action_required_paid")).toMatchObject({ status: "processed" });
+  });
+
   it("制限中からのPro開始は保存済みの管理者と店舗だけを復旧してactive.proへ進む", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
@@ -1218,6 +1313,7 @@ async function insertReceipt(
   type:
     | "invoice.paid"
     | "invoice.payment_failed"
+    | "invoice.payment_action_required"
     | "customer.subscription.updated"
     | "customer.subscription.deleted"
     | "checkout.session.completed"
@@ -1385,7 +1481,7 @@ function mockPaidInvoiceEvent(
 }
 
 function subscriptionFixture(
-  status: "trialing" | "active" | "past_due" | "canceled" | "paused",
+  status: "trialing" | "active" | "incomplete" | "past_due" | "canceled" | "paused",
   organizationId: Id<"organizations">,
   operationId: Id<"organizationStripeOperations">,
 ) {

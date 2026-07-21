@@ -1,5 +1,5 @@
 import { ConvexError } from "convex/values";
-import { convexTest } from "convex-test";
+import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
@@ -76,6 +76,18 @@ async function seedFullProWithReadOnlyNonStaff(ctx: MutationCtx, subject: string
     updatedAt: now,
   });
   return { ...manager, targetUserId, targetPersonId, targetMemberId, targetEmail: email };
+}
+
+async function invitationSecurityState(t: TestConvex<typeof schema>) {
+  return await t.run(async (ctx) => ({
+    organizations: await ctx.db.query("organizations").collect(),
+    people: await ctx.db.query("organizationPeople").collect(),
+    members: await ctx.db.query("organizationMembers").collect(),
+    invitations: await ctx.db.query("organizationInvitations").collect(),
+    audits: await ctx.db.query("organizationAuditEvents").collect(),
+    outbox: await ctx.db.query("notificationOutbox").collect(),
+    scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+  }));
 }
 
 describe("organizationInvitation/mutations", () => {
@@ -855,6 +867,92 @@ describe("organizationInvitation/mutations", () => {
     expect(invitations.filter((invitation) => invitation.status === "issued")).toHaveLength(1);
   });
 
+  it("短時間上限で拒否した試行は日次再送枠を消費しない", async () => {
+    const t = convexTest(schema, modules);
+    const manager = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: "resend_short_limit_owner", plan: "pro" }),
+    );
+    const owner = t.withIdentity({ subject: "resend_short_limit_owner" });
+    const first = await owner.mutation(api.organizationInvitation.mutations.create, {
+      shopId: manager.shopId,
+      email: "resend-short-limit@example.com",
+      requestId: "resend-short-limit-create",
+    });
+    const resent = await owner.mutation(api.organizationInvitation.mutations.resend, {
+      shopId: manager.shopId,
+      invitationId: first.invitationId,
+      requestId: "resend-short-limit-first",
+    });
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await expect(
+        owner.mutation(api.organizationInvitation.mutations.resend, {
+          shopId: manager.shopId,
+          invitationId: resent.invitationId,
+          requestId: `resend-short-limit-rejected-${attempt}`,
+        }),
+      ).rejects.toThrow("少し時間をおいて");
+    }
+
+    vi.setSystemTime(new Date(Date.now() + 60_000));
+    await expect(
+      owner.mutation(api.organizationInvitation.mutations.resend, {
+        shopId: manager.shopId,
+        invitationId: resent.invitationId,
+        requestId: "resend-short-limit-after-refill",
+      }),
+    ).resolves.toMatchObject({ status: "created" });
+  });
+
+  it("再送入口を切り替えて1分ずつ待っても日次上限を超えず、拒否時に業務状態を変えない", async () => {
+    const t = convexTest(schema, modules);
+    const manager = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: "resend_daily_limit_owner", plan: "pro" }),
+    );
+    const owner = t.withIdentity({ subject: "resend_daily_limit_owner" });
+    const email = "resend-daily-limit@example.com";
+    const first = await owner.mutation(api.organizationInvitation.mutations.createExternal, {
+      shopId: manager.shopId,
+      name: "日次上限対象",
+      email,
+      requestId: "resend-daily-limit-create",
+    });
+    let invitationId = first.invitationId;
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      vi.setSystemTime(new Date(Date.now() + 60_000));
+      if (attempt % 2 === 0) {
+        const result = await owner.mutation(api.organizationInvitation.mutations.createExternal, {
+          shopId: manager.shopId,
+          name: "日次上限対象",
+          email,
+          requestId: `resend-daily-limit-reissue-${attempt}`,
+        });
+        expect(result.status).toBe("issued");
+        invitationId = result.invitationId;
+      } else {
+        const result = await owner.mutation(api.organizationInvitation.mutations.resend, {
+          shopId: manager.shopId,
+          invitationId,
+          requestId: `resend-daily-limit-direct-${attempt}`,
+        });
+        expect(result.status).toBe("created");
+        invitationId = result.invitationId;
+      }
+    }
+
+    vi.setSystemTime(new Date(Date.now() + 60_000));
+    const beforeRejected = await invitationSecurityState(t);
+    await expect(
+      owner.mutation(api.organizationInvitation.mutations.resend, {
+        shopId: manager.shopId,
+        invitationId,
+        requestId: "resend-daily-limit-rejected",
+      }),
+    ).rejects.toThrow("招待回数が多いため");
+    expect(await invitationSecurityState(t)).toEqual(beforeRejected);
+  });
+
   it("管理者招待の承認は同じtokenの6回目をrate limitし、回復後も所属を重複作成しない", async () => {
     const t = convexTest(schema, modules);
     const manager = await t.run((ctx) =>
@@ -914,6 +1012,54 @@ describe("organizationInvitation/mutations", () => {
         .collect(),
     );
     expect(targetMembers).toHaveLength(1);
+  });
+
+  it("異なる不正tokenでも認証主体の試行上限を共有し、別主体の正当な承認を妨げない", async () => {
+    const t = convexTest(schema, modules);
+    const manager = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: "stable_accept_limit_owner", plan: "pro" }),
+    );
+    const created = await t
+      .withIdentity({ subject: "stable_accept_limit_owner" })
+      .mutation(api.organizationInvitation.mutations.create, {
+        shopId: manager.shopId,
+        email: "stable-accept-target@example.com",
+        requestId: "stable-accept-limit-create",
+      });
+    const invitation = await t.run((ctx) => ctx.db.get(created.invitationId));
+    if (!invitation) throw new Error("invitation not found");
+    const validToken = await deriveInvitationToken({
+      invitationId: invitation._id,
+      version: invitation.version,
+      signingSecret: SIGNING_SECRET,
+    });
+    const attacker = t.withIdentity({
+      subject: "stable_accept_limit_attacker",
+      email: "attacker@example.com",
+      emailVerified: true,
+    });
+    const beforeAttacks = await invitationSecurityState(t);
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const invalidToken = `${attempt}`.padStart(43, "x");
+      await expect(
+        attacker.mutation(api.organizationInvitation.mutations.accept, { token: invalidToken }),
+      ).resolves.toEqual({ status: "invalid" });
+    }
+    await expect(
+      attacker.mutation(api.organizationInvitation.mutations.accept, { token: "blocked".padStart(43, "x") }),
+    ).resolves.toEqual({ status: "unavailable" });
+    expect(await invitationSecurityState(t)).toEqual(beforeAttacks);
+
+    await expect(
+      t
+        .withIdentity({
+          subject: "stable_accept_limit_target",
+          email: "stable-accept-target@example.com",
+          emailVerified: true,
+        })
+        .mutation(api.organizationInvitation.mutations.accept, { token: validToken }),
+    ).resolves.toMatchObject({ status: "accepted", organizationId: manager.organizationId });
   });
 
   it("BusinessからProへの変更予約中はPro上限を超える管理者招待を作成しない", async () => {

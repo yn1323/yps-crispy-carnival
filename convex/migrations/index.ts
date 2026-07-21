@@ -34,6 +34,8 @@ export const run = migrations.runner([
   internal.migrations.m016_deleted_shops_enqueue_cleanup_jobs.migration,
   internal.migrations.m017_deleted_organizations_enqueue_cleanup_jobs.migration,
   internal.migrations.m018_organization_billing_business_to_pro.migration,
+  internal.migrations.m019_notification_outbox_terminal_redaction.migration,
+  internal.migrations.m020_notification_failure_inbox_redaction.migration,
 ]);
 
 // Widen対応版の確認と、衝突修復後にm012だけを限定再実行するために使う。
@@ -41,6 +43,12 @@ export const runM012 = migrations.runner(internal.migrations.m012_organizations_
 
 // fixed seriesがdevelop CIで実行される前に、m018の限定dry runと競合確認に使う。
 export const runM018 = migrations.runner(internal.migrations.m018_organization_billing_business_to_pro.migration);
+
+// NOT-03のWiden migration。runner/component標準のdryRun・cursor進捗・lib:getStatusで確認する。
+export const runNotificationTerminalRedaction = migrations.runner([
+  internal.migrations.m019_notification_outbox_terminal_redaction.migration,
+  internal.migrations.m020_notification_failure_inbox_redaction.migration,
+]);
 
 // conflict裁定後は、この範囲だけをresetして安全に再評価する。
 export const runFormerManagerAccessCleanup = migrations.runner([

@@ -1,17 +1,48 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
+import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { isPastShiftPeriod } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
 import { SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT } from "../constants";
 import { buildConfirmationSnapshotsForStaffs } from "../notification/confirmationSnapshots";
+import { ensureNotificationFanoutOperation } from "../notification/fanout";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { ensureDefaultPosition } from "../position/service";
 import { getActiveRecruitmentInShop } from "../recruitment/service";
-import { getActiveStaffInShop } from "../staff/service";
+import { getActiveStaffInShop, isShiftTargetStaff } from "../staff/service";
 import { buildAssignmentIssue, SHIFT_ASSIGNMENT_VALIDATION, validateShiftAssignments } from "./validation";
 
 const PAST_SHIFT_SAVE_ERROR = "過去のシフトは保存できません";
 const PAST_SHIFT_NOTIFY_ERROR = "過去のシフトはスタッフに通知できません";
+const SHIFT_CONFIRMATION_OPERATION_VERSION = 1;
+
+async function buildConfirmationNotificationOperationKey(args: {
+  organizationId?: string;
+  shopId: string;
+  shopName: string;
+  recruitmentId: string;
+  periodStart: string;
+  periodEnd: string;
+  purpose: "confirm" | "resend";
+  recipients: Array<{ staffId: string; name: string; email: string; snapshotSignature: string }>;
+}) {
+  const semanticInput = JSON.stringify({
+    version: SHIFT_CONFIRMATION_OPERATION_VERSION,
+    organizationId: args.organizationId ?? null,
+    shopId: args.shopId,
+    shopName: args.shopName,
+    recipient: {
+      kind: "recruitment",
+      recruitmentId: args.recruitmentId,
+      staffs: [...args.recipients].sort((a, b) => a.staffId.localeCompare(b.staffId)),
+    },
+    purpose: `shift.confirmation.${args.purpose}`,
+    periodStart: args.periodStart,
+    periodEnd: args.periodEnd,
+  });
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(semanticInput));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 
 export const saveShiftAssignments = managerMutation({
   args: {
@@ -104,6 +135,7 @@ export const confirmRecruitment = managerMutation({
   args: {
     recruitmentId: v.id("recruitments"),
     intent: v.optional(v.union(v.literal("confirm"), v.literal("resend"))),
+    requestId: v.optional(v.string()),
   },
   returns: v.union(
     v.null(),
@@ -116,6 +148,10 @@ export const confirmRecruitment = managerMutation({
     const recruitment = await getActiveRecruitmentInShop(ctx, ctx.shop._id, args.recruitmentId);
     if (!recruitment) {
       throw new ConvexError("Not found");
+    }
+    if (args.requestId !== undefined) {
+      // client request IDは入力契約だけ検証し、通知operationのidentityには使わない。
+      await toAuditRequestKey(args.requestId);
     }
     if (isPastShiftPeriod(recruitment.periodEnd)) {
       throw new ConvexError(PAST_SHIFT_NOTIFY_ERROR);
@@ -151,9 +187,13 @@ export const confirmRecruitment = managerMutation({
     const staffs = await ctx.db
       .query("staffs")
       .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", recruitment.shopId).eq("isDeleted", false))
-      .take(SHIFT_BOARD_STAFF_LIMIT);
+      .take(SHIFT_BOARD_STAFF_LIMIT + 1);
+    if (staffs.length > SHIFT_BOARD_STAFF_LIMIT) {
+      throw new ConvexError("通知対象が上限を超えています");
+    }
+    const notificationStaffs = staffs.filter(isShiftTargetStaff);
     const currentSnapshots = buildConfirmationSnapshotsForStaffs(
-      staffs.map((staff) => staff._id),
+      notificationStaffs.map((staff) => staff._id),
       existingAssignments.map((assignment) => ({
         staffId: assignment.staffId,
         date: assignment.date,
@@ -193,20 +233,65 @@ export const confirmRecruitment = managerMutation({
       return { status: "no_changes" as const, notifiedStaffCount: 0 };
     }
 
-    const notificationRunId = Date.now();
+    const targetStaffIdSet = new Set(targetStaffIds);
+    const currentSnapshotByStaffId = new Map(currentSnapshots.map((snapshot) => [snapshot.staffId, snapshot]));
+    const operationKey = await buildConfirmationNotificationOperationKey({
+      ...(ctx.organization ? { organizationId: String(ctx.organization._id) } : {}),
+      shopId: String(ctx.shop._id),
+      shopName: ctx.shop.name,
+      recruitmentId: String(args.recruitmentId),
+      periodStart: recruitment.periodStart,
+      periodEnd: recruitment.periodEnd,
+      purpose: isResend ? "resend" : "confirm",
+      recipients: notificationStaffs
+        .filter((staff) => targetStaffIdSet.has(staff._id))
+        .map((staff) => ({
+          staffId: String(staff._id),
+          name: staff.name,
+          email: staff.email.trim().toLowerCase(),
+          snapshotSignature: currentSnapshotByStaffId.get(staff._id)?.signature ?? "",
+        })),
+    });
+    if (recruitment.lastConfirmationNotificationOperationKey === operationKey) {
+      return isResend ? { status: "no_changes" as const, notifiedStaffCount: 0 } : null;
+    }
+    const notificationRunId = (recruitment.lastConfirmationNotificationRunId ?? 0) + 1;
+    if (!Number.isSafeInteger(notificationRunId)) {
+      throw new ConvexError("通知処理を開始できません");
+    }
+    const confirmedAt = Date.now();
     // 再確定も同じ導線で許可する。再通知では前回通知時点から変わったスタッフだけに届ける。
     await ctx.db.patch(args.recruitmentId, {
       status: "confirmed",
-      confirmedAt: notificationRunId,
+      confirmedAt,
+      lastConfirmationNotificationOperationKey: operationKey,
+      lastConfirmationNotificationRunId: notificationRunId,
     });
     const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
-
-    await ctx.scheduler.runAfter(0, internal.notification.actions.sendShiftConfirmationEmails, {
+    const { operation: fanoutOperation } = await ensureNotificationFanoutOperation(ctx, {
+      operationKey,
+      kind: "confirmation",
+      purpose: isResend ? "confirmation_resend" : "confirmation",
       recruitmentId: args.recruitmentId,
-      isResend,
+      shopId: ctx.shop._id,
+      targetStaffIds,
+      dedupeSuffix: isResend ? `resend:${notificationRunId}` : "confirm",
+      notificationRunId,
       ...notificationOrigin,
-      ...(isResend ? { targetStaffIds, notificationRunId } : {}),
     });
+
+    const fanoutScheduledFunctionId = await ctx.scheduler.runAfter(
+      0,
+      internal.notification.actions.sendShiftConfirmationEmails,
+      {
+        recruitmentId: args.recruitmentId,
+        isResend,
+        fanoutOperationId: fanoutOperation._id,
+        ...notificationOrigin,
+        ...(isResend ? { targetStaffIds, notificationRunId } : {}),
+      },
+    );
+    await ctx.db.patch(fanoutOperation._id, { scheduledFunctionId: fanoutScheduledFunctionId });
     return { status: "scheduled" as const, notifiedStaffCount: targetStaffIds.length };
   },
 });

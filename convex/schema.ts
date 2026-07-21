@@ -3,6 +3,12 @@ import { v } from "convex/values";
 import { rateLimitTables } from "convex-helpers/server/rateLimit";
 import { submissionPatternValidator } from "./_lib/submissionPattern";
 import {
+  notificationFanoutCancelReasonValidator,
+  notificationFanoutKindValidator,
+  notificationFanoutPurposeValidator,
+  notificationFanoutStatusValidator,
+} from "./notification/fanout";
+import {
   notificationCancelReasonValidator,
   notificationChannelValidator,
   notificationDeliveryEventTypeValidator,
@@ -507,6 +513,9 @@ const schema = defineSchema({
     linkedAt: v.number(),
     following: v.boolean(),
     lastWebhookAt: v.optional(v.number()),
+    // optional widening: legacy rowは最初の署名済みevent受信時に更新するためbackfill不要。
+    lastWebhookEventId: v.optional(v.string()),
+    lastWebhookEventTimestamp: v.optional(v.number()),
     isDeleted: v.boolean(),
   })
     .index("by_staffId", ["staffId"])
@@ -516,6 +525,15 @@ const schema = defineSchema({
     .index("by_lineUserId_and_isDeleted", ["lineUserId", "isDeleted"])
     // 分析KPI: 日次窓（JST）でのLINE連携完了のレンジスキャン用（再連携でもlinkedAtは初回値を保持）
     .index("by_linkedAt", ["linkedAt"]),
+
+  // message Webhookの外部Reply APIを一回だけ実行するためのreceipt。
+  // reply token、送信元、message ID、本文は保存しない。
+  lineWebhookMessageReceipts: defineTable({
+    webhookEventId: v.string(),
+    expiresAt: v.number(),
+  })
+    .index("by_webhookEventId", ["webhookEventId"])
+    .index("by_expiresAt", ["expiresAt"]),
 
   shopRegistrationLinks: defineTable({
     shopId: v.id("shops"),
@@ -583,6 +601,10 @@ const schema = defineSchema({
     lastReminderSentAt: v.optional(v.number()),
     // シフト表の下書き保存時刻。保存後の希望表示優先順位判定に使う。
     draftSavedAt: v.optional(v.number()),
+    // 確定・再送通知の最新semantic operation。optional wideningのため既存行のbackfillは不要。
+    lastConfirmationNotificationOperationKey: v.optional(v.string()),
+    // Date.nowに依存しない通知operation世代。semantic operationが変わった時だけ進める。
+    lastConfirmationNotificationRunId: v.optional(v.number()),
   })
     .index("by_shopId", ["shopId"])
     .index("by_shopId_isDeleted", ["shopId", "isDeleted"])
@@ -703,6 +725,9 @@ const schema = defineSchema({
     shopId: v.id("shops"),
     recruitmentId: v.id("recruitments"),
     accessKind: v.optional(v.union(v.literal("submit"), v.literal("view"))),
+    // resumable fanoutで同じbatchを再実行してもview capabilityを増やさないためのsemantic key。
+    // 既存linkには安全に導出できないためbackfillせず、旧reader互換のoptional wideningとする。
+    notificationOperationKey: v.optional(v.string()),
     expiresAt: v.number(), // Unix ms（用途ごとの期限）
     usedAt: v.optional(v.number()), // 使用日時（ワンタイム制御）
     revokedAt: v.optional(v.number()),
@@ -710,6 +735,12 @@ const schema = defineSchema({
     .index("by_token", ["token"])
     .index("by_staffId", ["staffId"])
     .index("by_staffId_recruitmentId_accessKind", ["staffId", "recruitmentId", "accessKind"])
+    .index("by_staffId_recruitmentId_accessKind_notificationOperationKey", [
+      "staffId",
+      "recruitmentId",
+      "accessKind",
+      "notificationOperationKey",
+    ])
     .index("by_shopId", ["shopId"])
     .index("by_expiresAt", ["expiresAt"]),
 
@@ -745,6 +776,7 @@ const schema = defineSchema({
   })
     .index("by_token", ["token"])
     .index("by_staffId", ["staffId"])
+    .index("by_staffId_and_expiresAt", ["staffId", "expiresAt"])
     .index("by_shopId", ["shopId"])
     .index("by_expiresAt", ["expiresAt"]),
 
@@ -761,10 +793,41 @@ const schema = defineSchema({
     plan: v.union(v.literal("communication"), v.literal("light"), v.literal("standard")),
   }),
 
+  // 募集・確定通知の対象集合と進捗。新規tableのため既存rowのbackfillは不要。
+  notificationFanoutOperations: defineTable({
+    operationKey: v.string(),
+    kind: notificationFanoutKindValidator,
+    purpose: notificationFanoutPurposeValidator,
+    recruitmentId: v.id("recruitments"),
+    shopId: v.id("shops"),
+    targetStaffIds: v.array(v.id("staffs")),
+    cursor: v.number(),
+    status: notificationFanoutStatusValidator,
+    dedupeSuffix: v.string(),
+    organizationBillingVersionAtOrigin: v.optional(v.number()),
+    notificationRunId: v.optional(v.number()),
+    // pending actionのscheduler identity。cronが生存予約を重ねず、失敗済み予約だけを置き換える。
+    scheduledFunctionId: v.optional(v.id("_scheduled_functions")),
+    leaseToken: v.optional(v.string()),
+    leaseExpiresAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    cancelledAt: v.optional(v.number()),
+    cancelReason: v.optional(notificationFanoutCancelReasonValidator),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_operationKey", ["operationKey"])
+    .index("by_recruitmentId_status", ["recruitmentId", "status"])
+    .index("by_status_leaseExpiresAt", ["status", "leaseExpiresAt"]),
+
   notificationOutbox: defineTable({
     channel: notificationChannelValidator,
     status: notificationOutboxStatusValidator,
     dedupeKey: v.string(),
+    // durable fanoutはchannelが変わってもoperation×staffを一つのprovider identityへ収束させる。
+    fanoutTargetKey: v.optional(v.string()),
+    // provider呼び出し直前に最新semantic operationかを再照合する。既存row互換のoptional widening。
+    fanoutOperationId: v.optional(v.id("notificationFanoutOperations")),
     shopId: v.optional(v.id("shops")),
     organizationId: v.optional(v.id("organizations")),
     organizationBillingVersionAtEnqueue: v.optional(v.number()),
@@ -774,14 +837,22 @@ const schema = defineSchema({
     recruitmentId: v.optional(v.id("recruitments")),
     staffId: v.optional(v.id("staffs")),
     userId: v.optional(v.id("users")),
+    // TODO[narrow]: 対象deploymentでm019のisDone/successによるshape backfill完了と
+    // redaction readinessの残件0を確認後、required化して旧payload fallbackを削除する。
+    notificationContext: v.optional(v.string()),
+    deliverySuppressed: v.optional(v.boolean()),
     payload: notificationPayloadValidator,
     attemptCount: v.number(),
     nextRunAt: v.number(),
     lastError: v.optional(v.string()),
     processingStartedAt: v.optional(v.number()),
+    leaseToken: v.optional(v.string()),
+    leaseExpiresAt: v.optional(v.number()),
     sentAt: v.optional(v.number()),
     failedAt: v.optional(v.number()),
     cancelledAt: v.optional(v.number()),
+    terminalAt: v.optional(v.number()),
+    payloadRedactedAt: v.optional(v.number()),
     cancelReason: v.optional(notificationCancelReasonValidator),
     resendEmailId: v.optional(v.string()),
     resendLastEventType: v.optional(resendProviderIssueEventTypeValidator),
@@ -791,7 +862,11 @@ const schema = defineSchema({
     updatedAt: v.number(),
   })
     .index("by_dedupeKey_status", ["dedupeKey", "status"])
+    .index("by_fanoutTargetKey", ["fanoutTargetKey"])
     .index("by_status_nextRunAt", ["status", "nextRunAt"])
+    .index("by_status_leaseExpiresAt", ["status", "leaseExpiresAt"])
+    .index("by_status_processingStartedAt", ["status", "processingStartedAt"])
+    .index("by_status_payloadRedactedAt_terminalAt", ["status", "payloadRedactedAt", "terminalAt"])
     .index("by_shopId_status", ["shopId", "status"])
     .index("by_organizationId_status", ["organizationId", "status"])
     .index("by_organizationId_purpose_status", ["organizationId", "purpose", "status"])
@@ -870,8 +945,9 @@ const schema = defineSchema({
     lastFailedAt: v.number(),
     lastEventId: v.optional(v.id("notificationDeliveryEvents")),
     attemptCount: v.optional(v.number()),
-    lastError: v.string(),
+    lastError: v.optional(v.string()),
     errorName: v.optional(v.string()),
+    sensitiveDataRedactedAt: v.optional(v.number()),
     retryRequestedAt: v.optional(v.number()),
     retryRequestedByUserId: v.optional(v.id("users")),
     resolvedAt: v.optional(v.number()),
@@ -885,7 +961,8 @@ const schema = defineSchema({
     .index("by_status_lastFailedAt", ["status", "lastFailedAt"])
     .index("by_shopId_status_lastFailedAt", ["shopId", "status", "lastFailedAt"])
     .index("by_outboxId", ["outboxId"])
-    .index("by_staffId_status_lastFailedAt", ["staffId", "status", "lastFailedAt"]),
+    .index("by_staffId_status_lastFailedAt", ["staffId", "status", "lastFailedAt"])
+    .index("by_sensitiveDataRedactedAt_lastFailedAt", ["sensitiveDataRedactedAt", "lastFailedAt"]),
 
   // ========================================
   // 店舗×月（JST）ごとの通知送信数。markSent 時にインクリメントする集約カウンタ
@@ -936,6 +1013,9 @@ const schema = defineSchema({
   analyticsDailyShopSnapshots: defineTable({
     date: v.string(), // "YYYY-MM-DD"（JST基準）
     shopId: v.id("shops"),
+    // optional widening: 旧snapshotは再集計までnull表示し、現在値から過去値を再構成しない。
+    shopName: v.optional(v.string()),
+    shopCreatedAt: v.optional(v.number()),
     planKey: v.union(v.literal("free"), v.literal("standard"), v.literal("premium")),
     staffCount: v.number(),
     shiftTargetStaffCount: v.number(),
@@ -970,6 +1050,7 @@ const schema = defineSchema({
     openNotificationFailureCount: v.optional(v.number()), // 未解決の通知失敗件数
     recruitmentCreatedLast30Days: v.optional(v.number()), // 直近30日間の募集作成数
     submissionRate: v.optional(v.number()), // 全募集の提出率（提出人数合計 / 対象スタッフ合計）
+    confirmedSubmissionRate: v.optional(v.number()), // 確定済み募集だけの提出率
     averageFirstSubmissionLeadTimeMs: v.optional(v.number()), // 募集作成から初回提出までの平均時間
     averageConfirmationLeadTimeMs: v.optional(v.number()), // 確定済み募集の平均作成→確定時間
     emailNotificationSentCount: v.optional(v.number()), // 実配送されたメール通知数
@@ -980,6 +1061,15 @@ const schema = defineSchema({
     lastRecruitmentCreatedAt: v.optional(v.number()), // 最後の募集作成時刻
     lastRecruitmentConfirmedAt: v.optional(v.number()), // 最後のシフト確定時刻
     lastConfirmedRecruitmentLeadTimeMs: v.optional(v.number()), // 最後に確定した募集の作成→確定時間
+    firstRecruitmentCreatedAt: v.optional(v.number()),
+    firstRecruitmentDeadline: v.optional(v.string()),
+    lastShiftCreatedAt: v.optional(v.number()),
+    lastShiftPeriodStart: v.optional(v.string()),
+    lastShiftPeriodEnd: v.optional(v.string()),
+    lastShiftSubmissionRate: v.optional(v.number()),
+    averageRecruitmentOpenDays: v.optional(v.number()),
+    averageDeadlineToConfirmationDays: v.optional(v.number()),
+    reminderSentStaffRate: v.optional(v.number()),
     computedAt: v.number(),
   })
     .index("by_date_shopId", ["date", "shopId"])

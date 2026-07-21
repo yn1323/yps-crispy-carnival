@@ -176,7 +176,7 @@ test.describe("スタッフ登録申請の承認/却下", { tag: ["@release"] },
     });
   });
 
-  test("登録済みのメールアドレスではスタッフ登録申請を送れない", async ({ page }) => {
+  test("登録済みのメールアドレスでも受付結果を同じ表示にする", async ({ page }) => {
     const seed = seedManagerScenario<StaffRegistrationReviewSeed>("testing:seedStaffRegistrationReviewScenario", {
       shopName: "スタッフ登録済み重複E2E店舗",
       existingStaff: EXISTING_STAFF,
@@ -184,13 +184,10 @@ test.describe("スタッフ登録申請の承認/却下", { tag: ["@release"] },
     const registrationPage = new StaffRegistrationPage(page);
 
     await registrationPage.goto(seed.registrationToken);
-    await registrationPage.submitRequestAndExpectError(
-      { name: "重複申請スタッフ", email: EXISTING_STAFF.email },
-      "このメールアドレスは登録済みです。シフト提出や確定シフトの案内をお待ちください。",
-    );
+    await registrationPage.submitRequest({ name: "重複申請スタッフ", email: EXISTING_STAFF.email });
   });
 
-  test("承認待ちのメールアドレスではスタッフ登録申請を送れない", async ({ page }) => {
+  test("承認待ちのメールアドレスでも受付結果を同じ表示にする", async ({ page }) => {
     const seed = seedManagerScenario<StaffRegistrationReviewSeed>("testing:seedStaffRegistrationReviewScenario", {
       shopName: "スタッフ承認待ち重複E2E店舗",
       pendingRequest: PENDING_STAFF,
@@ -198,10 +195,7 @@ test.describe("スタッフ登録申請の承認/却下", { tag: ["@release"] },
     const registrationPage = new StaffRegistrationPage(page);
 
     await registrationPage.goto(seed.registrationToken);
-    await registrationPage.submitRequestAndExpectError(
-      { name: "再申請スタッフ", email: PENDING_STAFF.email },
-      "このメールアドレスは申請済みです。承認までしばらくお待ちください。",
-    );
+    await registrationPage.submitRequest({ name: "再申請スタッフ", email: PENDING_STAFF.email });
   });
 });
 

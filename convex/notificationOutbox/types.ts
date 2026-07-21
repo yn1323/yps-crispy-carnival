@@ -83,6 +83,8 @@ export type NotificationCancelReason =
   | "organization_restricted"
   | "organization_inactive"
   | "shop_inactive"
+  | "recruitment_inactive"
+  | "notification_superseded"
   | "recipient_inactive"
   | "invitation_inactive"
   | "unsupported_channel"
@@ -122,6 +124,14 @@ type EnqueueNotificationCommon<TPayload extends NotificationPayload> = {
   organizationInvitationVersion?: number;
   recruitmentId?: Id<"recruitments">;
   userId?: Id<"users">;
+  /** durable fanoutの同一semantic targetではterminal rowも再利用し、provider再送を防ぐ。 */
+  dedupeAcrossTerminal?: boolean;
+  /** channel選択が変わっても同じoperation×staffを一つのoutboxへ収束させる。 */
+  fanoutTargetKey?: string;
+  fanoutOperationId?: Id<"notificationFanoutOperations">;
+  fanoutLeaseToken?: string;
+  /** Widen前のfanout rowをemail/LINEどちらのdedupeKeyでもlazy照合する。 */
+  legacyFanoutDedupeKeys?: readonly string[];
   dedupeKey: string;
   payload: TPayload;
 };

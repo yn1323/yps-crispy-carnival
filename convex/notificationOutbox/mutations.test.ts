@@ -10,6 +10,9 @@ import {
   NOTIFICATION_FAILURE_INBOX_EXPIRE_BATCH_SIZE,
   NOTIFICATION_FAILURE_INBOX_RETENTION_MS,
   NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
+  NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS,
+  NOTIFICATION_OUTBOX_TERMINAL_PAYLOAD_RETENTION_MS,
+  NOTIFICATION_OUTBOX_TERMINAL_REDACTION_BATCH_SIZE,
 } from "../constants";
 import { NOTIFICATION_FAILURE_REMINDER_CONTEXT, SHOP_ACTIVATION_REMINDER_CONTEXT } from "./failureSuppress";
 
@@ -44,6 +47,25 @@ async function setupShop() {
 
 async function collectFailureInbox(t: Awaited<ReturnType<typeof setupShop>>["t"]) {
   return await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
+}
+
+async function reopenOutboxWithTestLease(
+  t: Awaited<ReturnType<typeof setupShop>>["t"],
+  outboxId: Id<"notificationOutbox">,
+) {
+  const leaseToken = `test-lease:${outboxId}:${Date.now()}`;
+  await t.run(async (ctx) => {
+    const now = Date.now();
+    await ctx.db.patch(outboxId, {
+      status: "processing",
+      failedAt: undefined,
+      processingStartedAt: now,
+      leaseToken,
+      leaseExpiresAt: now + NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS,
+      updatedAt: now,
+    });
+  });
+  return leaseToken;
 }
 
 async function insertRecruitment(t: Awaited<ReturnType<typeof setupShop>>["t"], shopId: Id<"shops">) {
@@ -188,10 +210,14 @@ describe("notificationOutbox", () => {
       now: Date.now(),
     });
     expect(claimedAfterDeletion.map((job) => job._id)).toEqual([pending.outboxId]);
+    const claims = [...claimedBeforeDeletion, ...claimedAfterDeletion];
     for (const outboxId of [processing.outboxId, pending.outboxId]) {
+      const leaseToken = claims.find((job) => job._id === outboxId)?.leaseToken;
+      if (!leaseToken) throw new Error("notification lease was not issued");
       await expect(
         t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
           outboxId,
+          leaseToken,
           now: Date.now(),
         }),
       ).resolves.toBeNull();
@@ -909,7 +935,7 @@ describe("notificationOutbox", () => {
     expect(job).toMatchObject({
       status: "pending",
       nextRunAt: now + 60 * 60 * 1000,
-      lastError: "temporary error",
+      lastError: "notification_delivery_failed",
     });
     const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
     expect(events).toHaveLength(1);
@@ -923,7 +949,7 @@ describe("notificationOutbox", () => {
       notificationContext: "test.email",
       attemptCount: 1,
       nextRunAt: now + 60 * 60 * 1000,
-      errorMessage: "temporary error",
+      errorMessage: "notification_delivery_failed",
     });
     expect(await collectFailureInbox(t)).toEqual([]);
     const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
@@ -1148,7 +1174,7 @@ describe("notificationOutbox", () => {
         dedupeKey: "email:test:failed",
         notificationContext: "test.email",
         attemptCount: 1,
-        errorMessage: "boom",
+        errorMessage: "notification_delivery_failed",
       });
       const failures = await collectFailureInbox(t);
       expect(failures).toHaveLength(1);
@@ -1163,7 +1189,7 @@ describe("notificationOutbox", () => {
         notificationContext: "test.email",
         attemptCount: 1,
         lastEventId: events[0]._id,
-        lastError: "boom",
+        lastError: "notification_delivery_failed",
       });
     });
 
@@ -1174,7 +1200,12 @@ describe("notificationOutbox", () => {
       await t.mutation(internal.notificationOutbox.mutations.markFailed, { outboxId, lastError: "first" });
       const firstFailure = (await collectFailureInbox(t))[0];
       vi.advanceTimersByTime(1000);
-      await t.mutation(internal.notificationOutbox.mutations.markFailed, { outboxId, lastError: "second" });
+      const leaseToken = await reopenOutboxWithTestLease(t, outboxId);
+      await t.mutation(internal.notificationOutbox.mutations.markFailed, {
+        outboxId,
+        leaseToken,
+        lastError: "notification_delivery_failed",
+      });
 
       const failures = await collectFailureInbox(t);
       expect(failures).toHaveLength(1);
@@ -1183,7 +1214,7 @@ describe("notificationOutbox", () => {
         failureKey: `outbox:${outboxId}`,
         status: "open",
         shopId,
-        lastError: "second",
+        lastError: "notification_delivery_failed",
       });
       expect(failures[0].firstFailedAt).toBe(firstFailure.firstFailedAt);
       expect(failures[0].lastFailedAt).toBeGreaterThan(firstFailure.lastFailedAt);
@@ -1210,7 +1241,7 @@ describe("notificationOutbox", () => {
         channel: "email",
         dedupeKey,
         notificationContext: NOTIFICATION_FAILURE_REMINDER_CONTEXT,
-        errorMessage: "reminder failed",
+        errorMessage: "notification_delivery_failed",
       });
       expect(await collectFailureInbox(t)).toEqual([]);
     });
@@ -1236,7 +1267,7 @@ describe("notificationOutbox", () => {
         channel: "email",
         dedupeKey,
         notificationContext: SHOP_ACTIVATION_REMINDER_CONTEXT,
-        errorMessage: "reminder failed",
+        errorMessage: "notification_delivery_failed",
       });
       expect(await collectFailureInbox(t)).toEqual([]);
     });
@@ -1281,7 +1312,7 @@ describe("notificationOutbox", () => {
       });
       await t.mutation(internal.notificationOutbox.mutations.markFailed, {
         outboxId: secondOutboxId,
-        lastError: "second",
+        lastError: "notification_delivery_failed",
       });
 
       const failures = await collectFailureInbox(t);
@@ -1297,7 +1328,7 @@ describe("notificationOutbox", () => {
         outboxId: secondOutboxId,
         dedupeKey: `email:confirmation:${recruitmentId}:${staffId}:resend:2`,
         notificationContext: "notification.sendConfirmationEmail",
-        lastError: "second",
+        lastError: "notification_delivery_failed",
       });
       expect(failures[0].firstFailedAt).toBe(firstFailure.firstFailedAt);
       expect(failures[0].lastFailedAt).toBeGreaterThan(firstFailure.lastFailedAt);
@@ -1342,7 +1373,7 @@ describe("notificationOutbox", () => {
       });
       await t.mutation(internal.notificationOutbox.mutations.markFailed, {
         outboxId,
-        lastError: "delivery failed",
+        lastError: "notification_delivery_failed",
       });
 
       const failures = await collectFailureInbox(t);
@@ -1353,7 +1384,7 @@ describe("notificationOutbox", () => {
         sourceType: "outbox",
         status: "open",
         outboxId,
-        lastError: "delivery failed",
+        lastError: "notification_delivery_failed",
       });
       expect(failures[0].firstFailedAt).toBe(firstFailure.firstFailedAt);
     });
@@ -1363,7 +1394,8 @@ describe("notificationOutbox", () => {
       const outboxId = await insertProcessingJob(t, { shopId, channel: "email", dedupeKey: "email:test:recover" });
 
       await t.mutation(internal.notificationOutbox.mutations.markFailed, { outboxId, lastError: "first" });
-      await t.mutation(internal.notificationOutbox.mutations.markSent, { outboxId });
+      const leaseToken = await reopenOutboxWithTestLease(t, outboxId);
+      await t.mutation(internal.notificationOutbox.mutations.markSent, { outboxId, leaseToken });
 
       const failures = await collectFailureInbox(t);
       expect(failures).toHaveLength(1);
@@ -1402,7 +1434,8 @@ describe("notificationOutbox", () => {
       });
 
       await t.mutation(internal.notificationOutbox.mutations.markFailed, { outboxId, lastError: "delivery failed" });
-      await t.mutation(internal.notificationOutbox.mutations.markSent, { outboxId });
+      const leaseToken = await reopenOutboxWithTestLease(t, outboxId);
+      await t.mutation(internal.notificationOutbox.mutations.markSent, { outboxId, leaseToken });
 
       const failures = await collectFailureInbox(t);
       expect(failures.find((failure) => failure.failureKey === `outbox:${outboxId}`)).toMatchObject({
@@ -1460,7 +1493,7 @@ describe("notificationOutbox", () => {
         sourceType: "outbox",
         recruitmentId,
         outboxId,
-        lastError: "delivery failed",
+        lastError: "notification_delivery_failed",
       });
     });
   });
@@ -1483,8 +1516,158 @@ describe("notificationOutbox", () => {
     expect(claimed).toHaveLength(1);
     expect(claimed[0].status).toBe("processing");
     expect(claimed[0].attemptCount).toBe(1);
+    expect(claimed[0].leaseToken).toEqual(expect.any(String));
+    expect(claimed[0].leaseExpiresAt).toBe(
+      Date.now() + NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS + NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS,
+    );
     const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
     expect(jobs[0].status).toBe("processing");
+  });
+
+  it("有効なleaseは再claimせず、期限到達後は同じジョブを新しいtokenで回収する", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      shopId,
+      staffId,
+      history: { notificationKind: "test.email", displayTitle: emailPayload.subject },
+      dedupeKey: "email:test:lease-reclaim",
+      payload: emailPayload,
+    });
+    if (!enqueued) throw new Error("notification was not enqueued");
+
+    const claimAt = Date.now() + NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS;
+    const [first] = await t.mutation(internal.notificationOutbox.mutations.claimDue, { now: claimAt });
+    if (!first?.leaseToken || first.leaseExpiresAt === undefined) throw new Error("lease was not issued");
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.claimDue, { now: first.leaseExpiresAt - 1 }),
+    ).resolves.toEqual([]);
+
+    const [reclaimed] = await t.mutation(internal.notificationOutbox.mutations.claimDue, {
+      now: first.leaseExpiresAt,
+    });
+    expect(reclaimed).toMatchObject({ _id: enqueued.outboxId, status: "processing", attemptCount: 2 });
+    expect(reclaimed.leaseToken).toEqual(expect.any(String));
+    expect(reclaimed.leaseToken).not.toBe(first.leaseToken);
+    expect(reclaimed.leaseExpiresAt).toBe(first.leaseExpiresAt + NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS);
+  });
+
+  it("lease fieldsのない旧processing行もprocessingStartedAtから期限判定して回収する", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const now = Date.now();
+    const { expiredOutboxId, liveOutboxId } = await t.run(async (ctx) => {
+      const expiredOutboxId = await ctx.db.insert("notificationOutbox", {
+        channel: "email",
+        status: "processing",
+        dedupeKey: "email:test:legacy-processing-lease",
+        shopId,
+        staffId,
+        payload: emailPayload,
+        attemptCount: 1,
+        nextRunAt: now - NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS,
+        processingStartedAt: now - NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS,
+        createdAt: now - NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS,
+        updatedAt: now - NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS,
+      });
+      const liveOutboxId = await ctx.db.insert("notificationOutbox", {
+        channel: "email",
+        status: "processing",
+        dedupeKey: "email:test:legacy-live-processing-lease",
+        shopId,
+        staffId,
+        payload: emailPayload,
+        attemptCount: 1,
+        nextRunAt: now,
+        processingStartedAt: now - NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS + 1,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { expiredOutboxId, liveOutboxId };
+    });
+
+    const [reclaimed] = await t.mutation(internal.notificationOutbox.mutations.claimDue, { now });
+
+    expect(reclaimed).toMatchObject({ _id: expiredOutboxId, status: "processing", attemptCount: 2 });
+    expect(reclaimed.leaseToken).toEqual(expect.any(String));
+    expect(reclaimed.leaseExpiresAt).toBe(now + NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS);
+    expect(await t.run(async (ctx) => await ctx.db.get(liveOutboxId))).toMatchObject({
+      status: "processing",
+      attemptCount: 1,
+      processingStartedAt: now - NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS + 1,
+    });
+  });
+
+  it("再claim前のworkerはprepareと全完了更新を行えず、現在tokenだけが確定できる", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      shopId,
+      staffId,
+      history: { notificationKind: "test.email", displayTitle: emailPayload.subject },
+      dedupeKey: "email:test:lease-fencing",
+      payload: emailPayload,
+    });
+    if (!enqueued) throw new Error("notification was not enqueued");
+
+    const [first] = await t.mutation(internal.notificationOutbox.mutations.claimDue, {
+      now: Date.now() + NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
+    });
+    if (!first?.leaseToken || first.leaseExpiresAt === undefined) throw new Error("first lease was not issued");
+    const [current] = await t.mutation(internal.notificationOutbox.mutations.claimDue, {
+      now: first.leaseExpiresAt,
+    });
+    if (!current?.leaseToken) throw new Error("current lease was not issued");
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
+        outboxId: enqueued.outboxId,
+        leaseToken: first.leaseToken,
+        now: first.leaseExpiresAt,
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.markRetry, {
+        outboxId: enqueued.outboxId,
+        leaseToken: first.leaseToken,
+        lastError: "stale retry",
+        nextRunAt: first.leaseExpiresAt + 1,
+      }),
+    ).resolves.toBe(false);
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.markFailed, {
+        outboxId: enqueued.outboxId,
+        leaseToken: first.leaseToken,
+        lastError: "stale failure",
+      }),
+    ).resolves.toBe(false);
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.markSent, {
+        outboxId: enqueued.outboxId,
+        leaseToken: first.leaseToken,
+      }),
+    ).resolves.toBe(false);
+
+    expect(await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect())).toEqual([]);
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
+        outboxId: enqueued.outboxId,
+        leaseToken: current.leaseToken,
+        now: first.leaseExpiresAt,
+      }),
+    ).resolves.toMatchObject({ _id: enqueued.outboxId, leaseToken: current.leaseToken });
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.markSent, {
+        outboxId: enqueued.outboxId,
+        leaseToken: current.leaseToken,
+      }),
+    ).resolves.toBe(true);
+
+    const job = await t.run(async (ctx) => await ctx.db.get(enqueued.outboxId));
+    expect(job).toMatchObject({ status: "sent", attemptCount: 2 });
+    expect(job?.processingStartedAt).toBeUndefined();
+    expect(job?.leaseToken).toBeUndefined();
+    expect(job?.leaseExpiresAt).toBeUndefined();
   });
 
   it("recordDeliveryEventはOutbox投入失敗と投入準備失敗を要対応Inbox化する", async () => {
@@ -1510,7 +1693,7 @@ describe("notificationOutbox", () => {
       channel: "email",
       dedupeKey: "email:test:enqueue-failed",
       notificationContext: "test.enqueue",
-      errorMessage: "enqueue failed",
+      errorMessage: "notification_enqueue_failed",
     });
     await t.mutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
       eventType: "enqueue_preparation_failed",
@@ -1554,7 +1737,7 @@ describe("notificationOutbox", () => {
       channel: "email",
       dedupeKey: "email:test:enqueue-failed",
       notificationContext: "test.enqueue",
-      lastError: "enqueue failed",
+      lastError: "notification_enqueue_failed",
     });
     expect(failures.find((failure) => failure.sourceType === "enqueue_preparation")).toMatchObject({
       failureKey: `enqueue_preparation:${shopId}:email:test:preparation-failed`,
@@ -1566,13 +1749,12 @@ describe("notificationOutbox", () => {
       channel: "email",
       dedupeKey: "email:test:preparation-failed",
       notificationContext: "test.preparation",
-      lastError: "preparation failed",
-      errorName: "PreparationError",
+      lastError: "notification_preparation_failed",
     });
     const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
     expect(events.find((event) => event.eventType === "enqueue_preparation_failed")).toMatchObject({
       recruitmentId,
-      errorMessage: "preparation failed",
+      errorMessage: "notification_preparation_failed",
     });
   });
 
@@ -1587,7 +1769,7 @@ describe("notificationOutbox", () => {
       channel: "email",
       dedupeKey,
       notificationContext: NOTIFICATION_FAILURE_REMINDER_CONTEXT,
-      errorMessage: "enqueue failed",
+      errorMessage: "notification_enqueue_failed",
     });
 
     const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
@@ -1599,7 +1781,7 @@ describe("notificationOutbox", () => {
       channel: "email",
       dedupeKey,
       notificationContext: NOTIFICATION_FAILURE_REMINDER_CONTEXT,
-      errorMessage: "enqueue failed",
+      errorMessage: "notification_enqueue_failed",
     });
     expect(await collectFailureInbox(t)).toEqual([]);
   });
@@ -1618,7 +1800,7 @@ describe("notificationOutbox", () => {
       channel: "email",
       dedupeKey,
       notificationContext: SHOP_ACTIVATION_REMINDER_CONTEXT,
-      errorMessage: "enqueue failed",
+      errorMessage: eventType === "enqueue_failed" ? "notification_enqueue_failed" : "notification_preparation_failed",
     });
 
     const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
@@ -1630,7 +1812,7 @@ describe("notificationOutbox", () => {
       channel: "email",
       dedupeKey,
       notificationContext: SHOP_ACTIVATION_REMINDER_CONTEXT,
-      errorMessage: "enqueue failed",
+      errorMessage: eventType === "enqueue_failed" ? "notification_enqueue_failed" : "notification_preparation_failed",
     });
     expect(await collectFailureInbox(t)).toEqual([]);
   });
@@ -1645,7 +1827,7 @@ describe("notificationOutbox", () => {
       staffId,
       channel: "line",
       dedupeKey,
-      errorMessage: "line enqueue failed",
+      errorMessage: "notification_enqueue_failed",
     });
 
     const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
@@ -1656,17 +1838,17 @@ describe("notificationOutbox", () => {
       staffId,
       channel: "line",
       dedupeKey,
-      errorMessage: "line enqueue failed",
+      errorMessage: "notification_enqueue_failed",
     });
     expect(await collectFailureInbox(t)).toEqual([]);
   });
 
   it.each([
-    ["email.delivery_delayed", "delivery_delayed"],
-    ["email.failed", "failed"],
-    ["email.bounced", "bounced"],
-    ["email.suppressed", "suppressed"],
-  ] as const)("recordResendProviderIssueは%sをprovider失敗として要対応Inbox化する", async (eventType, deliveryStatus) => {
+    ["email.delivery_delayed", "delivery_delayed", "email_delivery_delayed"],
+    ["email.failed", "failed", "email_delivery_failed"],
+    ["email.bounced", "bounced", "email_delivery_bounced"],
+    ["email.suppressed", "suppressed", "email_delivery_suppressed"],
+  ] as const)("recordResendProviderIssueは%sをprovider失敗として要対応Inbox化する", async (eventType, deliveryStatus, errorCode) => {
     const { t, shopId, staffId } = await setupShop();
     const recruitmentId = await insertRecruitment(t, shopId);
     const outboxId = await insertSentEmailOutbox(t, {
@@ -1683,7 +1865,7 @@ describe("notificationOutbox", () => {
       providerEventType: eventType,
       providerEmailId: `email_${eventType}`,
       occurredAt: Date.now() + 1000,
-      errorMessage: "Resend reported email issue",
+      errorMessage: errorCode,
     });
 
     const [events, failures, outbox] = await Promise.all([
@@ -1704,7 +1886,7 @@ describe("notificationOutbox", () => {
       outboxId,
       channel: "email",
       notificationContext: "notification.sendRecruitmentNotificationEmails",
-      errorMessage: "Resend reported email issue",
+      errorMessage: errorCode,
     });
     expect(failures).toHaveLength(1);
     expect(failures[0]).toMatchObject({
@@ -1718,7 +1900,7 @@ describe("notificationOutbox", () => {
       channel: "email",
       notificationContext: "notification.sendRecruitmentNotificationEmails",
       lastEventId: events[0]._id,
-      lastError: "Resend reported email issue",
+      lastError: errorCode,
     });
     expect(outbox).toMatchObject({
       status: "sent",
@@ -1762,7 +1944,7 @@ describe("notificationOutbox", () => {
       providerEventType: "email.failed",
       providerEmailId: "email_missing",
       occurredAt: Date.now(),
-      errorMessage: "Resend reported email failed",
+      errorMessage: "email_delivery_failed",
     });
 
     const [events, failures] = await Promise.all([
@@ -1851,7 +2033,7 @@ describe("notificationOutbox", () => {
       providerEventType: "email.failed",
       providerEmailId: "email_shop_activation_reminder",
       occurredAt: Date.now(),
-      errorMessage: "Resend reported email failed",
+      errorMessage: "email_delivery_failed",
     });
 
     const [events, failures, outbox] = await Promise.all([
@@ -1870,7 +2052,7 @@ describe("notificationOutbox", () => {
       shopId,
       channel: "email",
       notificationContext: SHOP_ACTIVATION_REMINDER_CONTEXT,
-      errorMessage: "Resend reported email failed",
+      errorMessage: "email_delivery_failed",
     });
     expect(outbox).toMatchObject({
       status: "sent",
@@ -1915,7 +2097,7 @@ describe("notificationOutbox", () => {
     expect(failures[0]).toMatchObject({
       _id: failureId,
       status: "open",
-      lastError: "second",
+      lastError: "notification_preparation_failed",
     });
     expect(failures[0].resolvedAt).toBeUndefined();
     expect(failures[0].resolutionKind).toBeUndefined();
@@ -1983,6 +2165,94 @@ describe("notificationOutbox", () => {
         paginationOpts: { numItems: 10, cursor: null },
       });
     expect(openPage.page).toHaveLength(0);
+  });
+
+  it("payloadRedacted済みOutboxのretryはquota消費と副作用なしでInboxをexpired解決する", async () => {
+    vi.setSystemTime(new Date("2026-06-23T00:00:00Z"));
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const { t, shopId, staffId } = await setupShop();
+    const now = Date.now();
+    const { outboxId, failureId } = await t.run(async (ctx) => {
+      const outboxId = await ctx.db.insert("notificationOutbox", {
+        channel: "email",
+        status: "failed",
+        dedupeKey: "email:test:redacted-manual-retry",
+        shopId,
+        staffId,
+        notificationContext: "test.email",
+        deliverySuppressed: true,
+        payload: {
+          kind: "email",
+          from: "",
+          to: "",
+          subject: "",
+          html: "",
+          context: "test.email",
+          suppressDelivery: true,
+        },
+        attemptCount: 3,
+        nextRunAt: now,
+        failedAt: now - NOTIFICATION_OUTBOX_TERMINAL_PAYLOAD_RETENTION_MS,
+        terminalAt: now - NOTIFICATION_OUTBOX_TERMINAL_PAYLOAD_RETENTION_MS,
+        payloadRedactedAt: now,
+        createdAt: now - NOTIFICATION_OUTBOX_TERMINAL_PAYLOAD_RETENTION_MS,
+        updatedAt: now,
+      });
+      const failureId = await ctx.db.insert("notificationFailureInbox", {
+        failureKey: `outbox:${outboxId}`,
+        sourceType: "outbox",
+        status: "open",
+        shopId,
+        staffId,
+        outboxId,
+        channel: "email",
+        dedupeKey: "email:test:redacted-manual-retry",
+        notificationContext: "test.email",
+        firstFailedAt: now - NOTIFICATION_FAILURE_INBOX_RETENTION_MS,
+        lastFailedAt: now,
+        attemptCount: 3,
+        lastError: "notification_delivery_failed",
+        errorName: "legacy_provider_error",
+        createdAt: now - NOTIFICATION_FAILURE_INBOX_RETENTION_MS,
+        updatedAt: now,
+      });
+      return { outboxId, failureId };
+    });
+    const before = await t.run(async (ctx) => ({
+      outbox: await ctx.db.get(outboxId),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+
+    await expect(
+      t.withIdentity({ subject: "user_mgr" }).mutation(api.notificationOutbox.mutations.retryFailure, {
+        failureId,
+        shopId,
+      }),
+    ).resolves.toEqual({ scheduled: false, reason: "notRetryable" });
+
+    const after = await t.run(async (ctx) => ({
+      outbox: await ctx.db.get(outboxId),
+      failure: await ctx.db.get(failureId),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      deliveryEvents: await ctx.db.query("notificationDeliveryEvents").collect(),
+      retryRateLimitRows: await ctx.db
+        .query("rateLimits")
+        .withIndex("name", (q) => q.eq("name", "notificationFailureRetryShort"))
+        .collect(),
+    }));
+    expect(after.outbox).toEqual(before.outbox);
+    expect(after.failure).toMatchObject({
+      status: "resolved",
+      resolvedAt: now,
+      resolutionKind: "expired",
+      sensitiveDataRedactedAt: now,
+    });
+    expect(after.failure?.lastError).toBeUndefined();
+    expect(after.failure?.errorName).toBeUndefined();
+    expect(after.scheduled).toEqual(before.scheduled);
+    expect(after.deliveryEvents).toEqual([]);
+    expect(after.retryRateLimitRows).toEqual([]);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("resendFailureは投入前失敗を対象通知actionに予約し、open一覧から外す", async () => {
@@ -2786,12 +3056,131 @@ describe("notificationOutbox", () => {
     expect(failures.map((failure) => failure?.status)).toEqual(["retrying", "resolved", "open", "open"]);
   });
 
-  it("初回失敗から30日を過ぎたopen/retryingのFailureInboxをresolved/expiredにする", async () => {
+  it("保持期限を過ぎたsent/failed/cancelledだけpayloadと生errorをredactする", async () => {
     vi.setSystemTime(new Date("2026-06-23T00:00:00Z"));
     const { t, shopId, staffId } = await setupShop();
     const now = Date.now();
-    const oldFirstFailedAt = now - NOTIFICATION_FAILURE_INBOX_RETENTION_MS - 1;
-    const freshFirstFailedAt = now - NOTIFICATION_FAILURE_INBOX_RETENTION_MS + 1;
+    const expiredAt = now - NOTIFICATION_OUTBOX_TERMINAL_PAYLOAD_RETENTION_MS - 1;
+    const retainedAt = now - NOTIFICATION_OUTBOX_TERMINAL_PAYLOAD_RETENTION_MS + 1;
+    const sensitivePayload = {
+      kind: "email" as const,
+      from: "sender@example.com",
+      to: "secret-recipient@example.com",
+      subject: "secret subject",
+      html: '<a href="https://app.example.com/shifts/view?token=capability-secret">open</a>',
+      context: "notification.sendConfirmationEmail",
+    };
+    const ids = await t.run(async (ctx) => {
+      const insert = async (
+        dedupeKey: string,
+        status: "pending" | "processing" | "sent" | "failed" | "cancelled",
+        terminalAt: number,
+      ) =>
+        await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status,
+          dedupeKey,
+          shopId,
+          staffId,
+          payload: sensitivePayload,
+          attemptCount: 1,
+          nextRunAt: terminalAt,
+          lastError: `raw-error:${dedupeKey}:secret-recipient@example.com`,
+          terminalAt,
+          ...(status === "sent" ? { sentAt: terminalAt } : {}),
+          ...(status === "failed" ? { failedAt: terminalAt } : {}),
+          ...(status === "cancelled" ? { cancelledAt: terminalAt, cancelReason: "recipient_inactive" as const } : {}),
+          createdAt: terminalAt,
+          updatedAt: terminalAt,
+        });
+      return {
+        expiredSentId: await insert("email:redact:sent", "sent", expiredAt),
+        expiredFailedId: await insert("email:redact:failed", "failed", expiredAt),
+        expiredCancelledId: await insert("email:redact:cancelled", "cancelled", expiredAt),
+        retainedSentId: await insert("email:redact:retained", "sent", retainedAt),
+        pendingId: await insert("email:redact:pending", "pending", expiredAt),
+        processingId: await insert("email:redact:processing", "processing", expiredAt),
+      };
+    });
+
+    await expect(t.mutation(internal.notificationOutbox.mutations.redactExpiredTerminalData, {})).resolves.toEqual({
+      redactedCount: 3,
+    });
+    const state = await t.run(async (ctx) => ({
+      expired: await Promise.all([
+        ctx.db.get(ids.expiredSentId),
+        ctx.db.get(ids.expiredFailedId),
+        ctx.db.get(ids.expiredCancelledId),
+      ]),
+      retainedSent: await ctx.db.get(ids.retainedSentId),
+      pending: await ctx.db.get(ids.pendingId),
+      processing: await ctx.db.get(ids.processingId),
+    }));
+
+    for (const job of state.expired) {
+      expect(job).toMatchObject({
+        notificationContext: "notification.sendConfirmationEmail",
+        payload: { kind: "email", from: "", to: "", subject: "", html: "" },
+        payloadRedactedAt: now,
+      });
+      expect(job?.lastError).toBeUndefined();
+      expect(JSON.stringify(job)).not.toContain("capability-secret");
+      expect(JSON.stringify(job)).not.toContain("secret-recipient@example.com");
+    }
+    for (const job of [state.retainedSent, state.pending, state.processing]) {
+      expect(job?.payload).toEqual(sensitivePayload);
+      expect(job?.payloadRedactedAt).toBeUndefined();
+    }
+    await expect(t.mutation(internal.notificationOutbox.mutations.redactExpiredTerminalData, {})).resolves.toEqual({
+      redactedCount: 0,
+    });
+  });
+
+  it("terminal payload redactionをbounded batchで継続し再実行しても結果が変わらない", async () => {
+    vi.setSystemTime(new Date("2026-06-23T00:00:00Z"));
+    const { t, shopId, staffId } = await setupShop();
+    const expiredAt = Date.now() - NOTIFICATION_OUTBOX_TERMINAL_PAYLOAD_RETENTION_MS - 1;
+    await t.run(async (ctx) => {
+      for (let i = 0; i < NOTIFICATION_OUTBOX_TERMINAL_REDACTION_BATCH_SIZE + 1; i++) {
+        await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status: "sent",
+          dedupeKey: `email:redact:batch:${i}`,
+          shopId,
+          staffId,
+          payload: { ...emailPayload, to: `secret-${i}@example.com` },
+          attemptCount: 1,
+          nextRunAt: expiredAt,
+          sentAt: expiredAt,
+          terminalAt: expiredAt,
+          createdAt: expiredAt,
+          updatedAt: expiredAt,
+        });
+      }
+    });
+
+    await expect(t.mutation(internal.notificationOutbox.mutations.redactExpiredTerminalData, {})).resolves.toEqual({
+      redactedCount: NOTIFICATION_OUTBOX_TERMINAL_REDACTION_BATCH_SIZE,
+    });
+    const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+    expect(scheduled.some((job) => job.name === "notificationOutbox/mutations:redactExpiredTerminalData")).toBe(true);
+    await expect(t.mutation(internal.notificationOutbox.mutations.redactExpiredTerminalData, {})).resolves.toEqual({
+      redactedCount: 1,
+    });
+    await expect(t.mutation(internal.notificationOutbox.mutations.redactExpiredTerminalData, {})).resolves.toEqual({
+      redactedCount: 0,
+    });
+    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+    expect(jobs).toHaveLength(NOTIFICATION_OUTBOX_TERMINAL_REDACTION_BATCH_SIZE + 1);
+    expect(jobs.every((job) => job.payloadRedactedAt === Date.now())).toBe(true);
+  });
+
+  it("最終失敗から30日を過ぎたFailureInboxだけをredactし、直近に再失敗した行を保持する", async () => {
+    vi.setSystemTime(new Date("2026-06-23T00:00:00Z"));
+    const { t, shopId, staffId } = await setupShop();
+    const now = Date.now();
+    const oldFailedAt = now - NOTIFICATION_FAILURE_INBOX_RETENTION_MS - 1;
+    const freshLastFailedAt = now - NOTIFICATION_FAILURE_INBOX_RETENTION_MS + 1;
     const ids = await t.run(async (ctx) => {
       const oldOpenId = await ctx.db.insert("notificationFailureInbox", {
         failureKey: "outbox:old-open",
@@ -2802,11 +3191,11 @@ describe("notificationOutbox", () => {
         channel: "email",
         dedupeKey: "email:test:old-open",
         notificationContext: "test.email",
-        firstFailedAt: oldFirstFailedAt,
-        lastFailedAt: now,
+        firstFailedAt: oldFailedAt,
+        lastFailedAt: oldFailedAt,
         lastError: "old open",
-        createdAt: oldFirstFailedAt,
-        updatedAt: now,
+        createdAt: oldFailedAt,
+        updatedAt: oldFailedAt,
       });
       const oldRetryingId = await ctx.db.insert("notificationFailureInbox", {
         failureKey: "outbox:old-retrying",
@@ -2817,12 +3206,12 @@ describe("notificationOutbox", () => {
         channel: "email",
         dedupeKey: "email:test:old-retrying",
         notificationContext: "test.email",
-        firstFailedAt: oldFirstFailedAt,
-        lastFailedAt: now,
+        firstFailedAt: oldFailedAt,
+        lastFailedAt: oldFailedAt,
         lastError: "old retrying",
         retryRequestedAt: now - 1_000,
-        createdAt: oldFirstFailedAt,
-        updatedAt: now,
+        createdAt: oldFailedAt,
+        updatedAt: oldFailedAt,
       });
       const freshOpenId = await ctx.db.insert("notificationFailureInbox", {
         failureKey: "outbox:fresh-open",
@@ -2833,11 +3222,11 @@ describe("notificationOutbox", () => {
         channel: "email",
         dedupeKey: "email:test:fresh-open",
         notificationContext: "test.email",
-        firstFailedAt: freshFirstFailedAt,
-        lastFailedAt: now,
+        firstFailedAt: oldFailedAt,
+        lastFailedAt: freshLastFailedAt,
         lastError: "fresh open",
-        createdAt: freshFirstFailedAt,
-        updatedAt: now,
+        createdAt: oldFailedAt,
+        updatedAt: freshLastFailedAt,
       });
       const resolvedId = await ctx.db.insert("notificationFailureInbox", {
         failureKey: "outbox:resolved",
@@ -2848,12 +3237,12 @@ describe("notificationOutbox", () => {
         channel: "email",
         dedupeKey: "email:test:resolved",
         notificationContext: "test.email",
-        firstFailedAt: oldFirstFailedAt,
-        lastFailedAt: oldFirstFailedAt,
+        firstFailedAt: oldFailedAt,
+        lastFailedAt: oldFailedAt,
         lastError: "resolved",
         resolvedAt: now - 1_000,
         resolutionKind: "dismissed",
-        createdAt: oldFirstFailedAt,
+        createdAt: oldFailedAt,
         updatedAt: now - 1_000,
       });
       return { oldOpenId, oldRetryingId, freshOpenId, resolvedId };
@@ -2861,7 +3250,7 @@ describe("notificationOutbox", () => {
 
     const result = await t.mutation(internal.notificationOutbox.mutations.expireOldFailures, {});
 
-    expect(result).toEqual({ expiredCount: 2 });
+    expect(result).toEqual({ expiredCount: 3 });
     const failures = await t.run(async (ctx) => ({
       oldOpen: await ctx.db.get(ids.oldOpenId),
       oldRetrying: await ctx.db.get(ids.oldRetryingId),
@@ -2872,21 +3261,31 @@ describe("notificationOutbox", () => {
       status: "resolved",
       resolvedAt: now,
       resolutionKind: "expired",
+      sensitiveDataRedactedAt: now,
     });
     expect(failures.oldRetrying).toMatchObject({
       status: "resolved",
       resolvedAt: now,
       resolutionKind: "expired",
+      sensitiveDataRedactedAt: now,
     });
+    expect(failures.oldOpen?.lastError).toBeUndefined();
+    expect(failures.oldRetrying?.lastError).toBeUndefined();
     expect(failures.freshOpen).toMatchObject({
       status: "open",
+      firstFailedAt: oldFailedAt,
+      lastFailedAt: freshLastFailedAt,
+      lastError: "fresh open",
     });
     expect(failures.freshOpen?.resolutionKind).toBeUndefined();
+    expect(failures.freshOpen?.sensitiveDataRedactedAt).toBeUndefined();
     expect(failures.resolved).toMatchObject({
       status: "resolved",
       resolutionKind: "dismissed",
       resolvedAt: now - 1_000,
+      sensitiveDataRedactedAt: now,
     });
+    expect(failures.resolved?.lastError).toBeUndefined();
   });
 
   it("期限切れFailureInboxがbatch満杯なら期限切れ化の継続を予約する", async () => {
@@ -2967,11 +3366,11 @@ describe("notificationOutbox", () => {
     expect(failures.find((failure) => failure._id === firstFailure._id)).toMatchObject({
       status: "resolved",
       resolutionKind: "expired",
-      lastError: "first",
+      lastError: "notification_preparation_failed",
     });
     expect(failures.find((failure) => failure._id !== firstFailure._id)).toMatchObject({
       status: "open",
-      lastError: "second",
+      lastError: "notification_preparation_failed",
     });
     expect(failures.find((failure) => failure._id !== firstFailure._id)?.resolutionKind).toBeUndefined();
   });

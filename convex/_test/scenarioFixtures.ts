@@ -271,7 +271,14 @@ export function createScenario(t: ScenarioTest) {
         }) {
           return t.mutation(internal.line.mutations.finalizeLinking, args);
         },
-        dispatchWebhookEvents(events: Array<{ type: "follow" | "unfollow"; userId: string }>) {
+        dispatchWebhookEvents(
+          events: Array<{
+            type: "follow" | "unfollow";
+            userId: string;
+            webhookEventId: string;
+            timestamp: number;
+          }>,
+        ) {
           return t.mutation(internal.line.mutations.dispatchWebhookEvents, { events });
         },
       };

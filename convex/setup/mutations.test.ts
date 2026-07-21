@@ -215,7 +215,7 @@ describe("setup/mutations", () => {
       ).rejects.toThrow("メールアドレスの形式で入力してください");
     });
 
-    it("店舗・ユーザー・スタッフ・同意履歴をトランザクションで作成する", async () => {
+    it("店舗・ユーザー・スタッフ・費用なしPro状態・同意履歴をトランザクションで作成する", async () => {
       const t = convexTest(schema, modules);
       const now = new Date("2026-07-05T10:00:00+09:00");
       vi.setSystemTime(now);
@@ -250,11 +250,20 @@ describe("setup/mutations", () => {
           .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
           .unique(),
       );
-      expect(organizationBillingState).toMatchObject({
+      expect(organizationBillingState).not.toBeNull();
+      if (!organizationBillingState) throw new Error("organization billing state not found");
+      expect({
+        organizationId: organizationBillingState.organizationId,
+        state: organizationBillingState.state,
+        freeManagerPersonId: organizationBillingState.freeManagerPersonId,
+        freeShopId: organizationBillingState.freeShopId,
+        version: organizationBillingState.version,
+      }).toEqual({
         organizationId,
-        state: { kind: "trial", trialEndsAt: Date.parse("2026-09-01T00:00:00+09:00") },
+        state: { kind: "complimentary", plan: "pro" },
+        freeManagerPersonId: undefined,
+        freeShopId: undefined,
         version: 1,
-        freeShopId: shopId,
       });
       const billingState = await t.run(async (ctx) =>
         ctx.db
@@ -297,7 +306,6 @@ describe("setup/mutations", () => {
           .unique(),
       );
       expect(organizationMember).toMatchObject({ status: "active", personId: organizationPerson?._id });
-      expect(organizationBillingState?.freeManagerPersonId).toBe(organizationPerson?._id);
       const consentState = await t.run(async (ctx) =>
         ctx.db
           .query("legalConsentStates")
@@ -346,15 +354,29 @@ describe("setup/mutations", () => {
             job.scheduledTime === getShopActivationReminderAt(now.getTime()),
         ),
       ).toBe(true);
+      expect(scheduled.filter((job) => job.name.startsWith("organizationBilling/"))).toEqual([]);
+
+      const organizationAudits = await t.run(async (ctx) =>
+        ctx.db
+          .query("organizationAuditEvents")
+          .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", organizationId))
+          .collect(),
+      );
       expect(
-        scheduled.some(
-          (job) =>
-            job.name === "organizationBilling/mutations:processDeadline" &&
-            job.args[0]?.organizationId === organizationId &&
-            job.args[0]?.expectedVersion === 1 &&
-            job.args[0]?.expectedDeadlineAt === Date.parse("2026-09-01T00:00:00+09:00"),
-        ),
-      ).toBe(true);
+        organizationAudits.map(({ action, targetKind, targetId, toState }) => ({
+          action,
+          targetKind,
+          targetId,
+          toState,
+        })),
+      ).toEqual([
+        {
+          action: "organization.created",
+          targetKind: "organization",
+          targetId: organizationId,
+          toState: "complimentary.pro",
+        },
+      ]);
 
       const consentEvents = await t.run(async (ctx) =>
         ctx.db

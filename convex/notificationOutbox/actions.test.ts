@@ -1,8 +1,8 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { internal } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import { resetResendEmailQueueForTest } from "../_lib/resend";
-import { seedManagerShop } from "../_test/seed";
+import { seedManagerShop, seedStaffLineAccount } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import {
   NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
@@ -11,6 +11,9 @@ import {
   RESEND_RETRY_DELAY_PADDING_MS,
 } from "../constants";
 import { deriveInvitationToken } from "../organizationInvitation/token";
+
+const PROVIDER_ERROR_SENTINEL =
+  'staff+secret@example.com token=capability-secret {"provider":"declined","body":"raw-response"}';
 
 const fallbackEmail = {
   dedupeKey: "email:test:fallback",
@@ -25,12 +28,12 @@ const fallbackEmail = {
   },
 };
 
-async function setupLineJob(status: number) {
+async function setupLineJob(status: number, responseBody = "line error") {
   vi.stubEnv("LINE_MESSAGING_CHANNEL_ACCESS_TOKEN", "line-token");
   const fetchMock = vi.fn(async () => ({
     ok: false,
     status,
-    text: async () => "line error",
+    text: async () => responseBody,
   }));
   vi.stubGlobal("fetch", fetchMock);
 
@@ -47,6 +50,7 @@ async function setupLineJob(status: number) {
       email: "line-staff@example.com",
       isDeleted: false,
     });
+    await seedStaffLineAccount(ctx, { shopId, staffId, lineUserId: "U_test" });
     return { shopId, staffId };
   });
   await t.mutation(internal.notificationOutbox.mutations.enqueue, {
@@ -62,6 +66,52 @@ async function setupLineJob(status: number) {
     },
   });
   return { t, ...ids, fetchMock };
+}
+
+async function setupLineRecipientRevalidationJob(scope: "staff" | "manager" = "staff") {
+  vi.stubEnv("LINE_MESSAGING_CHANNEL_ACCESS_TOKEN", "line-token");
+  const fetchMock = vi.fn<typeof globalThis.fetch>(async () => new Response(null, { status: 200 }));
+  vi.stubGlobal("fetch", fetchMock);
+
+  const t = convexTest(schema, modules);
+  const ids = await t.run(async (ctx) => {
+    const { shopId, userId } = await seedManagerShop(ctx, {
+      subject: "line_revalidation_manager",
+      email: "line-revalidation-manager@example.com",
+      shopName: "LINE宛先再検証店舗",
+    });
+    const staffId = await ctx.db.insert("staffs", {
+      shopId,
+      name: "LINE宛先再検証スタッフ",
+      email: "line-revalidation@example.com",
+      ...(scope === "manager" ? { userId } : {}),
+      isDeleted: false,
+    });
+    const lineAccountId = await seedStaffLineAccount(ctx, {
+      shopId,
+      staffId,
+      lineUserId: "U_line_current",
+    });
+    return { shopId, staffId, lineAccountId, userId };
+  });
+  const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+    channel: "line",
+    shopId: ids.shopId,
+    ...(scope === "staff"
+      ? {
+          staffId: ids.staffId,
+          history: { notificationKind: "test.lineRevalidation", displayTitle: "LINE宛先再検証" },
+        }
+      : { userId: ids.userId }),
+    dedupeKey: `line:test:recipient-revalidation:${scope}`,
+    payload: {
+      kind: "line",
+      toUserId: "U_line_current",
+      text: "hello",
+    },
+  });
+  if (!enqueued) throw new Error("LINE notification was not enqueued");
+  return { t, fetchMock, outboxId: enqueued.outboxId, ...ids };
 }
 
 describe("notificationOutbox/actions", () => {
@@ -96,6 +146,7 @@ describe("notificationOutbox/actions", () => {
         email: "line-staff@example.com",
         isDeleted: false,
       });
+      await seedStaffLineAccount(ctx, { shopId, staffId, lineUserId: "U_test" });
       return { shopId, staffId };
     });
     const flexMessage = {
@@ -146,8 +197,59 @@ describe("notificationOutbox/actions", () => {
     });
   });
 
+  it.each([
+    "unfollow",
+    "relinked",
+  ] as const)("enqueue後にLINE宛先が%sになった場合は旧IDへ送信せずcancelする", async (variant) => {
+    const { t, fetchMock, lineAccountId, outboxId } = await setupLineRecipientRevalidationJob();
+    await t.run(async (ctx) => {
+      await ctx.db.patch(
+        lineAccountId,
+        variant === "unfollow" ? { following: false } : { lineUserId: "U_line_relinked" },
+      );
+    });
+
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    const job = await t.run(async (ctx) => await ctx.db.get(outboxId));
+    expect(job).toMatchObject({ status: "cancelled", cancelReason: "recipient_inactive" });
+    expect(job?.processingStartedAt).toBeUndefined();
+    expect(job?.leaseToken).toBeUndefined();
+    expect(job?.leaseExpiresAt).toBeUndefined();
+  });
+
+  it.each([
+    "staff",
+    "manager",
+  ] as const)("送信直前の%s LINE宛先がenqueue時と一致する場合だけproviderを1回呼ぶ", async (scope) => {
+    const { t, fetchMock, outboxId } = await setupLineRecipientRevalidationJob(scope);
+
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(await t.run(async (ctx) => await ctx.db.get(outboxId))).toMatchObject({ status: "sent" });
+  });
+
+  it("管理者向け通常LINEも現在の連携IDへ変わった後は旧IDへ送らない", async () => {
+    const { t, fetchMock, lineAccountId, outboxId } = await setupLineRecipientRevalidationJob("manager");
+    await t.run(async (ctx) => await ctx.db.patch(lineAccountId, { lineUserId: "U_manager_relinked" }));
+
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await t.run(async (ctx) => await ctx.db.get(outboxId))).toMatchObject({
+      status: "cancelled",
+      cancelReason: "recipient_inactive",
+    });
+  });
+
   it.each([429, 500])("LINE %i はpendingに戻して再試行予約する", async (status) => {
     const { t } = await setupLineJob(status);
+    const errorCode = status === 429 ? "line_rate_limited" : "line_provider_unavailable";
 
     await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
     await t.action(internal.notificationOutbox.actions.processPending, {});
@@ -156,7 +258,7 @@ describe("notificationOutbox/actions", () => {
     expect(jobs).toHaveLength(1);
     expect(jobs[0].status).toBe("pending");
     expect(jobs[0].attemptCount).toBe(1);
-    expect(jobs[0].lastError).toContain(`LINE push failed: ${status}`);
+    expect(jobs[0].lastError).toBe(errorCode);
     expect(jobs[0].nextRunAt).toBeGreaterThan(Date.now());
     const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
     expect(events).toHaveLength(1);
@@ -170,7 +272,7 @@ describe("notificationOutbox/actions", () => {
       notificationContext: `line:test`,
       attemptCount: 1,
     });
-    expect(events[0].errorMessage).toContain(`LINE push failed: ${status}`);
+    expect(events[0].errorMessage).toBe(errorCode);
   });
 
   it("LINE 400 はfailedにする", async () => {
@@ -182,7 +284,7 @@ describe("notificationOutbox/actions", () => {
     const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
     expect(jobs).toHaveLength(1);
     expect(jobs[0].status).toBe("failed");
-    expect(jobs[0].lastError).toContain("LINE push failed: 400");
+    expect(jobs[0].lastError).toBe("line_recipient_rejected");
     const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
@@ -195,7 +297,37 @@ describe("notificationOutbox/actions", () => {
       notificationContext: "line:test",
       attemptCount: 1,
     });
-    expect(events[0].errorMessage).toContain("LINE push failed: 400");
+    expect(events[0].errorMessage).toBe("line_recipient_rejected");
+  });
+
+  it("LINE失敗のprovider bodyをaction結果・console・永続化先へ出さない", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { t } = await setupLineJob(400, PROVIDER_ERROR_SENTINEL);
+
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    const actionResult = await t.action(internal.notificationOutbox.actions.processPending, {});
+    const clientResponse = await t
+      .withIdentity({ subject: "user_mgr" })
+      .query(api.notificationOutbox.queries.listOpenFailures, {
+        paginationOpts: { cursor: null, numItems: 10 },
+      });
+    const persisted = await t.run(async (ctx) => ({
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+      events: await ctx.db.query("notificationDeliveryEvents").collect(),
+      failures: await ctx.db.query("notificationFailureInbox").collect(),
+    }));
+
+    const observable = JSON.stringify({
+      actionResult,
+      clientResponse,
+      console: [...errorSpy.mock.calls, ...warnSpy.mock.calls],
+      persisted,
+    });
+    expect(observable).not.toContain(PROVIDER_ERROR_SENTINEL);
+    expect(persisted.outbox[0]?.lastError).toBe("line_recipient_rejected");
+    expect(persisted.events[0]?.errorMessage).toBe("line_recipient_rejected");
+    expect(persisted.failures[0]?.lastError).toBe("line_recipient_rejected");
   });
 
   it("DEBUG_NOTIFY_FAIL はLINEを非リトライ失敗としてFailureInboxに出す", async () => {
@@ -215,7 +347,7 @@ describe("notificationOutbox/actions", () => {
       status: "failed",
       attemptCount: 1,
     });
-    expect(jobs[0].lastError).toContain("DEBUG_NOTIFY_FAIL");
+    expect(jobs[0].lastError).toBe("line_recipient_rejected");
 
     const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
     expect(events).toHaveLength(1);
@@ -229,7 +361,7 @@ describe("notificationOutbox/actions", () => {
       notificationContext: "line:test",
       attemptCount: 1,
     });
-    expect(events[0].errorMessage).toContain("DEBUG_NOTIFY_FAIL");
+    expect(events[0].errorMessage).toBe("line_recipient_rejected");
 
     const failures = await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
     expect(failures).toHaveLength(1);
@@ -242,7 +374,7 @@ describe("notificationOutbox/actions", () => {
       channel: "line",
       notificationContext: "line:test",
     });
-    expect(failures[0].lastError).toContain("DEBUG_NOTIFY_FAIL");
+    expect(failures[0].lastError).toBe("line_recipient_rejected");
   });
 
   it("DEBUG_NOTIFY_FAIL はLINE quota fallbackより優先される", async () => {
@@ -262,6 +394,7 @@ describe("notificationOutbox/actions", () => {
         email: "line-staff@example.com",
         isDeleted: false,
       });
+      await seedStaffLineAccount(ctx, { shopId, staffId, lineUserId: "U_test" });
       await ctx.db.insert("lineQuotaStatus", {
         checkedAt: Date.now(),
         totalQuota: 200,
@@ -299,7 +432,7 @@ describe("notificationOutbox/actions", () => {
       status: "failed",
       dedupeKey: "line:test:debug-quota",
     });
-    expect(jobs[0].lastError).toContain("DEBUG_NOTIFY_FAIL");
+    expect(jobs[0].lastError).toBe("line_recipient_rejected");
 
     const failures = await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
     expect(failures).toHaveLength(1);
@@ -327,6 +460,7 @@ describe("notificationOutbox/actions", () => {
         email: "line-staff@example.com",
         isDeleted: false,
       });
+      await seedStaffLineAccount(ctx, { shopId, staffId, lineUserId: "U_test" });
       await ctx.db.insert("lineQuotaStatus", {
         checkedAt: Date.now(),
         totalQuota: 200,
@@ -367,7 +501,7 @@ describe("notificationOutbox/actions", () => {
       dedupeKey: "line:test:quota",
       notificationContext: "test.fallback",
       attemptCount: 1,
-      errorMessage: "LINE quota exceeded; fallback email enqueued",
+      errorMessage: "line_quota_fallback_enqueued",
     });
     const failures = await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
     expect(failures).toEqual([]);
@@ -390,6 +524,7 @@ describe("notificationOutbox/actions", () => {
         email: "line-staff@example.com",
         isDeleted: false,
       });
+      await seedStaffLineAccount(ctx, { shopId, staffId, lineUserId: "U_test" });
       await ctx.db.insert("lineQuotaStatus", {
         checkedAt: Date.now(),
         totalQuota: 200,
@@ -1016,7 +1151,7 @@ describe("notificationOutbox/actions", () => {
       status: "pending",
       attemptCount: 1,
     });
-    expect(jobs[0].lastError).toContain("rate_limit_exceeded");
+    expect(jobs[0].lastError).toBe("email_rate_limited");
     expect(jobs[0].nextRunAt - jobs[0].updatedAt).toBe(2000 + RESEND_RETRY_DELAY_PADDING_MS);
     const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
     expect(events).toHaveLength(1);
@@ -1029,7 +1164,7 @@ describe("notificationOutbox/actions", () => {
       notificationContext: "test.resendRetry",
       attemptCount: 1,
     });
-    expect(events[0].errorMessage).toContain("rate_limit_exceeded");
+    expect(events[0].errorMessage).toBe("email_rate_limited");
   });
 
   it("DEBUG_NOTIFY_FAIL はメールを非リトライ失敗としてFailureInboxに出す", async () => {
@@ -1055,7 +1190,7 @@ describe("notificationOutbox/actions", () => {
       status: "failed",
       attemptCount: 1,
     });
-    expect(jobs[0].lastError).toContain("DEBUG_NOTIFY_FAIL");
+    expect(jobs[0].lastError).toBe("email_recipient_rejected");
 
     const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
     expect(events).toHaveLength(1);
@@ -1069,7 +1204,7 @@ describe("notificationOutbox/actions", () => {
       notificationContext: "test.debugEmail",
       attemptCount: 1,
     });
-    expect(events[0].errorMessage).toContain("DEBUG_NOTIFY_FAIL");
+    expect(events[0].errorMessage).toBe("email_recipient_rejected");
 
     const failures = await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
     expect(failures).toHaveLength(1);
@@ -1082,7 +1217,54 @@ describe("notificationOutbox/actions", () => {
       channel: "email",
       notificationContext: "test.debugEmail",
     });
-    expect(failures[0].lastError).toContain("DEBUG_NOTIFY_FAIL");
+    expect(failures[0].lastError).toBe("email_recipient_rejected");
+  });
+
+  it("Resend失敗のprovider bodyをaction結果・console・永続化先へ出さない", async () => {
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof globalThis.fetch>(
+        async () =>
+          new Response(
+            JSON.stringify({
+              name: "validation_error",
+              statusCode: 422,
+              message: PROVIDER_ERROR_SENTINEL,
+            }),
+            { status: 422 },
+          ),
+      ),
+    );
+    const { t } = await setupEmailJob({
+      dedupeKey: "email:test:provider-sentinel",
+      context: "line.sendInviteEmail",
+    });
+
+    const actionResult = await t.action(internal.notificationOutbox.actions.processPending, {});
+    const clientResponse = await t
+      .withIdentity({ subject: "user_mgr" })
+      .query(api.notificationOutbox.queries.listOpenFailures, {
+        paginationOpts: { cursor: null, numItems: 10 },
+      });
+    const persisted = await t.run(async (ctx) => ({
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+      events: await ctx.db.query("notificationDeliveryEvents").collect(),
+      failures: await ctx.db.query("notificationFailureInbox").collect(),
+    }));
+
+    const observable = JSON.stringify({
+      actionResult,
+      clientResponse,
+      console: [...errorSpy.mock.calls, ...warnSpy.mock.calls],
+      persisted,
+    });
+    expect(observable).not.toContain(PROVIDER_ERROR_SENTINEL);
+    expect(persisted.outbox[0]?.lastError).toBe("email_recipient_rejected");
+    expect(persisted.events[0]?.errorMessage).toBe("email_recipient_rejected");
+    expect(persisted.failures[0]?.lastError).toBe("email_recipient_rejected");
   });
   it("LINE管理者招待のretry可能な失敗は最終試行前にはメールへfallbackしない", async () => {
     vi.stubEnv("LINE_MESSAGING_CHANNEL_ACCESS_TOKEN", "line-token");
@@ -1144,7 +1326,7 @@ describe("notificationOutbox/actions", () => {
       organizationInvitationId: invitationId,
       organizationInvitationVersion: 1,
     });
-    expect(lineJobs[0].lastError).toContain(`LINE push failed: ${status}`);
+    expect(lineJobs[0].lastError).toBe(status === 400 ? "line_recipient_rejected" : "line_provider_unavailable");
 
     const fallbackJobs = jobs.filter((job) => job.dedupeKey === fallbackDedupeKey);
     expect(fallbackJobs).toHaveLength(1);
@@ -1178,7 +1360,9 @@ describe("notificationOutbox/actions", () => {
       notificationContext: "organizationInvitation.send",
       attemptCount: initialAttemptCount + 1,
     });
-    expect(fallbackEvents[0].errorMessage).toContain(`LINE push failed: ${status}`);
+    expect(fallbackEvents[0].errorMessage).toBe(
+      status === 400 ? "line_recipient_rejected" : "line_provider_unavailable",
+    );
     const failures = await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
     expect(failures).toEqual([]);
   });
@@ -1205,7 +1389,7 @@ describe("notificationOutbox/actions", () => {
     expect(lineJobs[0]).toMatchObject({
       status: "failed",
       attemptCount: NOTIFICATION_OUTBOX_MAX_ATTEMPTS,
-      lastError: "fetch failed",
+      lastError: "line_provider_unavailable",
     });
     const fallbackJobs = jobs.filter((job) => job.dedupeKey === fallbackDedupeKey);
     expect(fallbackJobs).toHaveLength(1);
