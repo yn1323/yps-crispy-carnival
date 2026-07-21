@@ -145,9 +145,13 @@ export class OrganizationSettingsPage {
     await expect(this.page.getByText(`${current} / ${max}`, { exact: true })).toBeVisible();
   }
 
-  async expectPersonRole(personName: string, role: "管理者" | "スタッフ") {
+  async expectPersonRole(
+    personName: string,
+    role: "管理者" | "スタッフ",
+    options: { hasPendingManagerInvitation?: boolean } = {},
+  ) {
     const detail = await this.openUser(personName);
-    await detail.expectRole(role);
+    await detail.expectRole(role, options);
     await detail.returnToSettings();
   }
 

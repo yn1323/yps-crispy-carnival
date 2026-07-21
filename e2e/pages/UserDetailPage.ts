@@ -39,7 +39,7 @@ export class UserDetailPage {
     this.personName = data.name;
   }
 
-  async expectRole(role: "管理者" | "スタッフ") {
+  async expectRole(role: "管理者" | "スタッフ", options: { hasPendingManagerInvitation?: boolean } = {}) {
     if (role === "管理者") {
       await expect(this.page.getByText("管理者", { exact: true }).first()).toBeVisible();
       return;
@@ -47,7 +47,12 @@ export class UserDetailPage {
 
     await expect(this.page.getByText("管理者", { exact: true })).toHaveCount(0);
     await expect(this.page.getByText("閲覧のみの管理者", { exact: true })).toHaveCount(0);
-    await expect(this.page.getByText("管理者招待中", { exact: true })).toHaveCount(0);
+    const pendingInvitationBadge = this.page.getByText("管理者招待中", { exact: true });
+    if (options.hasPendingManagerInvitation) {
+      await expect(pendingInvitationBadge).toBeVisible();
+    } else {
+      await expect(pendingInvitationBadge).toHaveCount(0);
+    }
     await expect(this.page.getByRole("button", { name: /の詳細を開く$/ }).first()).toBeVisible();
   }
 

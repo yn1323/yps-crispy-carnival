@@ -67,7 +67,7 @@ test.describe("Free管理者交代", { tag: ["@release", "@notification", "@secu
 
       await settingsA.goto(seed.targetShopId);
       await settingsA.expectOrganization(seed.targetOrganizationName);
-      await settingsA.expectPersonRole(seed.actorBName, "スタッフ");
+      await settingsA.expectPersonRole(seed.actorBName, "スタッフ", { hasPendingManagerInvitation: true });
     });
 
     await test.step("Step 3: Bが現行の自動連携で唯一の管理者になる", async () => {
