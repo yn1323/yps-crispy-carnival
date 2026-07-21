@@ -683,6 +683,189 @@ describe("事業者課金ライフサイクル", () => {
     expect(stripeProviderMock.retrieveSubscription).toHaveBeenCalledTimes(1);
   });
 
+  it("Proを継続せず利用人数6人・2店舗のFree上限を超える場合はデータを残して制限する", async () => {
+    const t = convexTest(schema, modules);
+    const effectiveAt = Date.parse("2026-11-01T00:00:00+09:00");
+    vi.setSystemTime(effectiveAt - 24 * 60 * 60 * 1000);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, { subject: "pro_to_free_over_limits", plan: "pro" });
+      for (let index = 1; index <= 5; index += 1) {
+        await addStaffPerson(ctx, seeded.organizationId, seeded.shopId, `pro_to_free_over_limits_staff_${index}`);
+      }
+      const secondShopId = await ctx.db.insert("shops", {
+        organizationId: seeded.organizationId,
+        operatingStatus: "active",
+        name: "第二店舗",
+        submissionPattern: { kind: "dateOnly" },
+        regularClosedDays: [],
+        isDeleted: false,
+      });
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      await ctx.db.patch(billingState._id, {
+        freeShopId: undefined,
+        updatedAt: Date.now(),
+      });
+      await ctx.db.insert("organizationStripeCustomers", {
+        organizationId: seeded.organizationId,
+        stripeCustomerId: "cus_pro_to_free_over_limits",
+        livemode: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      await ctx.db.insert("organizationStripeSubscriptions", {
+        organizationId: seeded.organizationId,
+        stripeCustomerId: "cus_pro_to_free_over_limits",
+        stripeSubscriptionId: "sub_pro_to_free_over_limits",
+        stripeSubscriptionItemId: "si_pro_to_free_over_limits",
+        stripePriceId: "price_pro_test",
+        livemode: false,
+        status: "active",
+        providerGeneration: 1,
+        currentPeriodEndsAt: effectiveAt,
+        cancelAtPeriodEnd: true,
+        syncedAt: Date.now(),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      return { ...seeded, secondShopId, billingStateId: billingState._id };
+    });
+
+    await expect(
+      t.mutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
+        organizationId: ids.organizationId,
+        expectedVersion: 1,
+        state: { kind: "scheduledChange", currentPlan: "pro", targetPlan: "free", effectiveAt },
+        correlationId: "verified-pro-to-free-over-limits-scheduled",
+      }),
+    ).resolves.toEqual({ changed: true, stateKind: "scheduledChange" });
+
+    vi.setSystemTime(effectiveAt);
+    await expect(
+      t.mutation(internal.organizationBilling.mutations.processDeadline, {
+        organizationId: ids.organizationId,
+        expectedVersion: 2,
+        expectedDeadlineAt: effectiveAt,
+      }),
+    ).resolves.toEqual({ changed: false, stateKind: "scheduledChange" });
+
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_billing_scenario");
+    stripeProviderMock.retrieveSubscription.mockResolvedValue({
+      id: "sub_pro_to_free_over_limits",
+      customer: "cus_pro_to_free_over_limits",
+      livemode: false,
+      status: "canceled",
+      cancel_at_period_end: true,
+      trial_end: null,
+      latest_invoice: null,
+      items: {
+        data: [
+          {
+            id: "si_pro_to_free_over_limits",
+            price: { id: "price_pro_test" },
+            current_period_end: Math.floor(effectiveAt / 1_000),
+          },
+        ],
+      },
+    });
+    const scheduledFreeJobs = await t.run(async (ctx) => {
+      const jobs = await ctx.db.system.query("_scheduled_functions").collect();
+      return jobs.filter(
+        (job) =>
+          job.name === "organizationStripe/actions:reconcileScheduledFreeDeadline" &&
+          job.args[0]?.organizationId === ids.organizationId,
+      );
+    });
+    expect(scheduledFreeJobs.map((job) => ({ name: job.name, args: job.args[0] }))).toEqual([
+      {
+        name: "organizationStripe/actions:reconcileScheduledFreeDeadline",
+        args: {
+          organizationId: ids.organizationId,
+          expectedBillingVersion: 2,
+          requestId: "scheduled-free-2",
+        },
+      },
+    ]);
+    vi.advanceTimersByTime(0);
+    await t.finishInProgressScheduledFunctions();
+
+    const [settings, result] = await Promise.all([
+      t
+        .withIdentity({ subject: "pro_to_free_over_limits" })
+        .query(api.organization.queries.getSettings, { shopId: ids.shopId }),
+      t.run(async (ctx) => ({
+        billingState: await ctx.db.get(ids.billingStateId),
+        people: await ctx.db
+          .query("organizationPeople")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+          .collect(),
+        members: await ctx.db
+          .query("organizationMembers")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+          .collect(),
+        shops: await ctx.db
+          .query("shops")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+          .collect(),
+        operations: await ctx.db
+          .query("organizationStripeOperations")
+          .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", ids.organizationId))
+          .collect(),
+      })),
+    ]);
+    expect(result.billingState?.state).toEqual({
+      kind: "restricted",
+      reason: "freeConditionsNotMet",
+      previousPlan: "pro",
+      recoveryManagerPersonIds: [ids.personId],
+      previousActiveShopIds: [ids.shopId, ids.secondShopId],
+      restrictedAt: effectiveAt,
+    });
+    expect(result.billingState).toMatchObject({
+      freeManagerPersonId: ids.personId,
+      version: 3,
+      businessNotificationCutoffAt: effectiveAt,
+      businessNotificationCutoffVersion: 3,
+    });
+    expect(result.billingState?.freeShopId).toBeUndefined();
+    expect(result.people.filter((person) => person.status === "active")).toHaveLength(6);
+    expect(result.members).toEqual([expect.objectContaining({ personId: ids.personId, status: "active" })]);
+    expect(
+      result.shops
+        .filter((shop) => !shop.isDeleted)
+        .map((shop) => ({ id: shop._id, operatingStatus: shop.operatingStatus })),
+    ).toEqual([
+      { id: ids.shopId, operatingStatus: "active" },
+      { id: ids.secondShopId, operatingStatus: "active" },
+    ]);
+    expect(
+      result.operations.map(({ kind, recoveryPurpose, requestKey, status }) => ({
+        kind,
+        recoveryPurpose,
+        requestKey,
+        status,
+      })),
+    ).toEqual([
+      {
+        kind: "reconcileSubscription",
+        recoveryPurpose: "scheduledFreeDeadline",
+        requestKey: "scheduled-free-2",
+        status: "succeeded",
+      },
+    ]);
+    expect(settings?.billing).toMatchObject({
+      state: "restricted",
+      currentPlan: null,
+      previousPlan: "pro",
+      peopleUsage: { current: 6, max: 5 },
+      shopUsage: { current: 2, max: 1 },
+    });
+    expect(settings?.canAddShop).toBe(false);
+  });
+
   it("料金なしのProは30人5店舗まで利用でき、Stripeデータと課金通知を作らない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
