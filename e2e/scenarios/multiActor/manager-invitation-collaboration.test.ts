@@ -8,7 +8,7 @@ import {
   waitForNotificationOutbox,
   waitForOrganizationNotificationOutbox,
 } from "../../helpers/notificationProbe";
-import { seedMultiActorOrganizationScenario } from "../../helpers/scenarioSeeds";
+import { seedMultiActorOrganizationScenario, seedPendingStaffRegistrationRequest } from "../../helpers/scenarioSeeds";
 import { DashboardPage } from "../../pages/DashboardPage";
 import { ManagerInvitationPage } from "../../pages/ManagerInvitationPage";
 import { OrganizationSettingsPage } from "../../pages/OrganizationSettingsPage";
@@ -130,13 +130,18 @@ test.describe("複数管理者の招待と共同管理", { tag: ["@release", "@n
         const registrationPage = new StaffRegistrationPage(await staffContext.newPage());
         await registrationPage.goto(registrationToken);
         await registrationPage.expectShopName(seed.secondaryShopName);
-        await registrationPage.submitRequest({
+        await registrationPage.fillRequestAndExpectSecurityBoundary({
           name: "複数管理者digest申請者",
           email: "multi-manager-digest@shiftori.invalid",
         });
       } finally {
         await staffContext.close();
       }
+      seedPendingStaffRegistrationRequest({
+        shopId: seed.secondaryShopId,
+        name: "複数管理者digest申請者",
+        email: "multi-manager-digest@shiftori.invalid",
+      });
 
       const trigger = convexRunJson<{ scheduledPurposeCount: number }>(
         "testing:triggerStaffRegistrationManagerDigestScenario",

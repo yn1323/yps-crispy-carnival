@@ -101,5 +101,5 @@ export function TurnstileWidget({
     );
   }
 
-  return <Box ref={containerRef} minH="65px" overflowX="auto" />;
+  return <Box ref={containerRef} role="group" aria-label="セキュリティ確認" minH="65px" overflowX="auto" />;
 }

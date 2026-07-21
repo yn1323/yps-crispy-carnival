@@ -6,7 +6,11 @@ import {
   waitForNotificationOutbox,
 } from "../helpers/notificationProbe";
 import { waitForLineLinkToken, waitForMagicLinkToken } from "../helpers/notificationTokens";
-import { seedManagerScenario, seedMultiShopOrganizationScenario } from "../helpers/scenarioSeeds";
+import {
+  seedManagerScenario,
+  seedMultiShopOrganizationScenario,
+  seedPendingStaffRegistrationRequest,
+} from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 import { StaffRegistrationPage } from "../pages/StaffRegistrationPage";
 import { StaffSubmitPage } from "../pages/StaffSubmitPage";
@@ -55,7 +59,7 @@ test.describe("スタッフ登録申請の承認/却下", { tag: ["@release"] },
     });
     const dashboard = new DashboardPage(page);
 
-    await test.step("Step 1: B店で募集と登録リンクを用意し、スタッフが申請を送る", async () => {
+    await test.step("Step 1: B店の登録内容とセキュリティ確認境界を確認し、承認待ち申請を用意する", async () => {
       assertNotificationDeliverySuppressed(seed.secondaryShopId);
       await dashboard.goto(seed.secondaryShopId);
       await dashboard.expectSelectedShop(seed.secondaryShopName, seed.secondaryShopId);
@@ -66,10 +70,11 @@ test.describe("スタッフ登録申請の承認/却下", { tag: ["@release"] },
         const registrationPage = new StaffRegistrationPage(await registrationContext.newPage());
         await registrationPage.goto(registrationToken);
         await registrationPage.expectShopName(seed.secondaryShopName);
-        await registrationPage.submitRequest(APPROVED_STAFF);
+        await registrationPage.fillRequestAndExpectSecurityBoundary(APPROVED_STAFF);
       } finally {
         await registrationContext.close();
       }
+      seedPendingStaffRegistrationRequest({ shopId: seed.secondaryShopId, ...APPROVED_STAFF });
     });
 
     await test.step("Step 2: A店には申請を出さず、B店だけで承認する", async () => {
@@ -161,9 +166,10 @@ test.describe("スタッフ登録申請の承認/却下", { tag: ["@release"] },
     const registrationPage = new StaffRegistrationPage(page);
     const dashboard = new DashboardPage(page);
 
-    await test.step("Step 1: スタッフが登録ページからスタッフ登録申請を送る", async () => {
+    await test.step("Step 1: 登録内容とセキュリティ確認境界を確認し、承認待ち申請を用意する", async () => {
       await registrationPage.goto(seed.registrationToken);
-      await registrationPage.submitRequest(REJECTED_STAFF);
+      await registrationPage.fillRequestAndExpectSecurityBoundary(REJECTED_STAFF);
+      seedPendingStaffRegistrationRequest({ shopId: seed.shopId, ...REJECTED_STAFF });
     });
 
     await test.step("Step 2: シフト担当者がDashboardで申請を却下する", async () => {
@@ -174,28 +180,6 @@ test.describe("スタッフ登録申請の承認/却下", { tag: ["@release"] },
       await dashboard.expectStaffRegistrationRequestBannerHidden();
       await dashboard.expectStaffNotVisible(REJECTED_STAFF.name);
     });
-  });
-
-  test("登録済みのメールアドレスでも受付結果を同じ表示にする", async ({ page }) => {
-    const seed = seedManagerScenario<StaffRegistrationReviewSeed>("testing:seedStaffRegistrationReviewScenario", {
-      shopName: "スタッフ登録済み重複E2E店舗",
-      existingStaff: EXISTING_STAFF,
-    });
-    const registrationPage = new StaffRegistrationPage(page);
-
-    await registrationPage.goto(seed.registrationToken);
-    await registrationPage.submitRequest({ name: "重複申請スタッフ", email: EXISTING_STAFF.email });
-  });
-
-  test("承認待ちのメールアドレスでも受付結果を同じ表示にする", async ({ page }) => {
-    const seed = seedManagerScenario<StaffRegistrationReviewSeed>("testing:seedStaffRegistrationReviewScenario", {
-      shopName: "スタッフ承認待ち重複E2E店舗",
-      pendingRequest: PENDING_STAFF,
-    });
-    const registrationPage = new StaffRegistrationPage(page);
-
-    await registrationPage.goto(seed.registrationToken);
-    await registrationPage.submitRequest({ name: "再申請スタッフ", email: PENDING_STAFF.email });
   });
 });
 

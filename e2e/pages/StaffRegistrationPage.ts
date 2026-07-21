@@ -11,11 +11,10 @@ export class StaffRegistrationPage {
     await expect(this.page.getByText(shopName, { exact: true }).first()).toBeVisible();
   }
 
-  async submitRequest(data: { name: string; email: string }) {
+  async fillRequestAndExpectSecurityBoundary(data: { name: string; email: string }) {
     await this.fillRequestForm(data);
-    await this.page.getByRole("button", { name: "申請する" }).click();
-
-    await expect(this.page.getByRole("heading", { name: "スタッフ登録申請を受け付けました" })).toBeVisible();
+    await expect(this.page.getByRole("group", { name: "セキュリティ確認" })).toBeVisible();
+    await expect(this.page.getByRole("button", { name: "申請する" })).toBeVisible();
   }
 
   private async fillRequestForm(data: { name: string; email: string }) {

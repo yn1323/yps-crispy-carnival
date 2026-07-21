@@ -15,6 +15,8 @@ import { deriveInvitationToken, digestInvitationToken } from "./organizationInvi
 import { ensureDefaultPosition } from "./position/service";
 import schema from "./schema";
 import { sendReminderRef as sendShopActivationReminderRef } from "./shopActivationReminder/refs";
+import { normalizeEmail } from "./staff/service";
+import { staffRegistrationFormSchema } from "./staffRegistration/schemas";
 
 const TABLE_NAMES = Object.keys(schema.tables) as (keyof typeof schema.tables)[];
 const magicLinkPurposeValidator = v.union(v.literal("submit"), v.literal("view"));
@@ -2264,6 +2266,46 @@ export const seedStaffRegistrationReviewScenario = internalMutation({
       : undefined;
 
     return { shopId, registrationToken, ...(recruitmentId ? { recruitmentId } : {}) };
+  },
+});
+
+/** Turnstileの外部チャレンジ後にある管理画面フローを、E2Eで独立して検証するための前提データ。 */
+export const seedPendingStaffRegistrationRequestScenario = internalMutation({
+  args: {
+    shopId: v.id("shops"),
+    name: v.string(),
+    email: v.string(),
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+    const shop = await ctx.db.get(args.shopId);
+    if (!shop || shop.isDeleted) {
+      throw new Error("Staff registration request scenario not found");
+    }
+
+    const parsed = staffRegistrationFormSchema.safeParse({
+      name: args.name,
+      email: args.email,
+      acceptedLegal: true,
+    });
+    if (!parsed.success) {
+      throw new Error(parsed.error.issues[0]?.message ?? "Invalid staff registration request scenario");
+    }
+
+    const emailNormalized = normalizeEmail(parsed.data.email);
+    const versions = getLegalConsentVersions("staff");
+    const now = Date.now();
+    const requestId = await ctx.db.insert("staffRegistrationRequests", {
+      shopId: shop._id,
+      name: parsed.data.name,
+      email: emailNormalized,
+      emailNormalized,
+      status: "pending",
+      ...versions,
+      consentedAt: now,
+      createdAt: now,
+    });
+    return { requestId };
   },
 });
 

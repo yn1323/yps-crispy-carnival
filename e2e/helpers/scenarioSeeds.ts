@@ -88,6 +88,10 @@ export function getCurrentManagerShopId() {
   return result.shopId;
 }
 
+export function seedPendingStaffRegistrationRequest(args: { shopId: string; name: string; email: string }) {
+  return convexRunJson<{ requestId: string }>("testing:seedPendingStaffRegistrationRequestScenario", args);
+}
+
 export type MultiShopOrganizationScenarioArgs = {
   organizationName?: string;
   primaryShopName?: string;

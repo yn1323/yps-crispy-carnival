@@ -10,6 +10,7 @@ import {
   testAuthTokenIdentifier,
 } from "./_test/seed";
 import { modules, schema } from "./_test/setup.test-helper";
+import { getLegalConsentVersions } from "./legal/documents";
 import { deriveInvitationToken, digestInvitationToken } from "./organizationInvitation/token";
 
 const seedMultiShopOrganizationScenarioRef = makeFunctionReference<
@@ -169,6 +170,12 @@ const triggerStaffRegistrationManagerDigestScenarioRef = makeFunctionReference<
   { scheduledPurposeCount: number }
 >("testing:triggerStaffRegistrationManagerDigestScenario");
 
+const seedPendingStaffRegistrationRequestScenarioRef = makeFunctionReference<
+  "mutation",
+  { shopId: Id<"shops">; name: string; email: string },
+  { requestId: Id<"staffRegistrationRequests"> }
+>("testing:seedPendingStaffRegistrationRequestScenario");
+
 describe("E2E testing helpers", () => {
   beforeEach(() => {
     vi.stubEnv("CONVEX_CLOUD_URL", "https://e2e-test.convex.cloud");
@@ -234,6 +241,68 @@ describe("E2E testing helpers", () => {
         actorBManagerAuthTokenIdentifier: testAuthTokenIdentifier("disabled_free_multi_b"),
         actorBManagerEmail: "disabled-free-multi-b@example.com",
         actorCManagerAuthTokenIdentifier: testAuthTokenIdentifier("disabled_free_multi_c"),
+      }),
+    ).rejects.toThrow("E2E testing helpers are disabled");
+  });
+
+  it("スタッフ登録申請seedはE2E境界と有効店舗を検証し、正規化済みの現行同意情報を保存する", async () => {
+    vi.stubEnv("E2E_TESTING_ENABLED", "true");
+    const t = convexTest(schema, modules);
+    const { shopId } = await t.run(async (ctx) =>
+      seedManagerShop(ctx, {
+        subject: "pending_staff_registration_seed",
+        shopName: "スタッフ登録申請seed店舗",
+      }),
+    );
+
+    const { requestId } = await t.mutation(seedPendingStaffRegistrationRequestScenarioRef, {
+      shopId,
+      name: "  申請スタッフ  ",
+      email: "  Pending-Staff@Example.COM  ",
+    });
+    const request = await t.run(async (ctx) => await ctx.db.get(requestId));
+    expect(request).toMatchObject({
+      shopId,
+      name: "申請スタッフ",
+      email: "pending-staff@example.com",
+      emailNormalized: "pending-staff@example.com",
+      status: "pending",
+      ...getLegalConsentVersions("staff"),
+      consentedAt: expect.any(Number),
+      createdAt: expect.any(Number),
+    });
+
+    const { shopId: deletedShopId } = await t.run(async (ctx) =>
+      seedManagerShop(ctx, {
+        subject: "deleted_pending_staff_registration_seed",
+        shopName: "削除済みスタッフ登録申請seed店舗",
+        shopDeleted: true,
+      }),
+    );
+    await expect(
+      t.mutation(seedPendingStaffRegistrationRequestScenarioRef, {
+        shopId: deletedShopId,
+        name: "削除済み店舗申請スタッフ",
+        email: "deleted-pending-staff@example.com",
+      }),
+    ).rejects.toThrow("Staff registration request scenario not found");
+
+    vi.stubEnv("E2E_TESTING_DEPLOYMENT_URL", "https://other-e2e-test.convex.cloud");
+    await expect(
+      t.mutation(seedPendingStaffRegistrationRequestScenarioRef, {
+        shopId,
+        name: "deployment不一致申請スタッフ",
+        email: "deployment-mismatch-pending-staff@example.com",
+      }),
+    ).rejects.toThrow("E2E testing helpers are disabled for this deployment");
+
+    vi.stubEnv("E2E_TESTING_DEPLOYMENT_URL", "https://e2e-test.convex.cloud");
+    vi.stubEnv("E2E_TESTING_ENABLED", "");
+    await expect(
+      t.mutation(seedPendingStaffRegistrationRequestScenarioRef, {
+        shopId,
+        name: "無効境界申請スタッフ",
+        email: "disabled-pending-staff@example.com",
       }),
     ).rejects.toThrow("E2E testing helpers are disabled");
   });
