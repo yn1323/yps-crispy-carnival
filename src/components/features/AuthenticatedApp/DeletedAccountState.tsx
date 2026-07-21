@@ -1,5 +1,5 @@
 import { Stack } from "@chakra-ui/react";
-import { SignOutButton } from "@clerk/clerk-react";
+import { SignOutButton } from "@clerk/react";
 import { LuUserRoundX } from "react-icons/lu";
 import { AccountDeletion } from "@/src/components/features/AccountDeletion";
 import { Button } from "@/src/components/ui/Button";

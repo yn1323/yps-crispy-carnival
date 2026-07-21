@@ -49,7 +49,7 @@ const mocks = vi.hoisted(() => ({
   user: { authId: "manager-user", name: "管理者", email: "manager@example.com" },
 }));
 
-vi.mock("@clerk/clerk-react", () => ({
+vi.mock("@clerk/react", () => ({
   SignOutButton: ({ children }: { children: ReactNode }) => children,
   useAuth: mocks.useAuth,
 }));

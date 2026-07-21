@@ -327,15 +327,12 @@ describe("organizationBilling/policy payment grace", () => {
     });
   });
 
-  it.each([
-    Number.NaN,
-    Number.POSITIVE_INFINITY,
-    -1,
-    1.5,
-    Number.MAX_SAFE_INTEGER,
-  ])("不正な最初の失敗時刻 %s を拒否する", (value) => {
-    expect(() => createPaymentGraceState("pro", value)).toThrow(RangeError);
-  });
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, -1, 1.5, Number.MAX_SAFE_INTEGER])(
+    "不正な最初の失敗時刻 %s を拒否する",
+    (value) => {
+      expect(() => createPaymentGraceState("pro", value)).toThrow(RangeError);
+    },
+  );
 });
 
 describe("organizationBilling/policy verified transition", () => {

@@ -1,48 +1,32 @@
-import type { MigrationResult } from "@convex-dev/migrations";
-import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { modules, schema } from "../_test/setup.test-helper";
+import { createConvexTestWithMigrations, runMigrationToCompletion } from "../_test/migrations.test-helper";
 import { FORMER_MANAGER_ACCESS_CONFLICT_CODES } from "./migrations";
 
 const NOW = 1_800_000_000_000;
 
 function createMigrationTest() {
-  return convexTest(schema, modules);
+  return createConvexTestWithMigrations();
 }
 
 async function runM013(t: ReturnType<typeof createMigrationTest>, batchSize = 100) {
-  let cursor: string | null = null;
-  let processed = 0;
-  for (;;) {
-    const result: MigrationResult = await t.mutation(
-      internal.migrations.m013_former_managers_remove_manager_access.migration,
-      {
-        batchSize,
-        cursor,
-        dryRun: false,
-      },
-    );
-    processed += result.processed;
-    if (result.isDone) return processed;
-    cursor = result.continueCursor;
-  }
+  const result = await runMigrationToCompletion(
+    t,
+    internal.migrations.m013_former_managers_remove_manager_access.migration,
+    { batchSize, cursor: null },
+  );
+  return result.processed;
 }
 
 async function runM014(t: ReturnType<typeof createMigrationTest>, batchSize = 100) {
-  let cursor: string | null = null;
-  let processed = 0;
-  for (;;) {
-    const result: MigrationResult = await t.mutation(
-      internal.migrations.m014_removed_organization_members_delete_legacy_shop_members.migration,
-      { batchSize, cursor, dryRun: false },
-    );
-    processed += result.processed;
-    if (result.isDone) return processed;
-    cursor = result.continueCursor;
-  }
+  const result = await runMigrationToCompletion(
+    t,
+    internal.migrations.m014_removed_organization_members_delete_legacy_shop_members.migration,
+    { batchSize, cursor: null },
+  );
+  return result.processed;
 }
 
 async function insertUser(ctx: MutationCtx, subject: string) {
@@ -566,7 +550,7 @@ describe("旧管理者アクセス移行", () => {
     const beforeM013 = await t.run(migrationSnapshot);
 
     await expect(
-      t.mutation(internal.migrations.m013_former_managers_remove_manager_access.migration, {
+      runMigrationToCompletion(t, internal.migrations.m013_former_managers_remove_manager_access.migration, {
         batchSize: 100,
         cursor: null,
         dryRun: true,
@@ -577,11 +561,15 @@ describe("旧管理者アクセス移行", () => {
     await t.run(async (ctx) => await ctx.db.patch(ids.formerMemberId, { status: "removed" }));
     const beforeM014 = await t.run(migrationSnapshot);
     await expect(
-      t.mutation(internal.migrations.m014_removed_organization_members_delete_legacy_shop_members.migration, {
-        batchSize: 100,
-        cursor: null,
-        dryRun: true,
-      }),
+      runMigrationToCompletion(
+        t,
+        internal.migrations.m014_removed_organization_members_delete_legacy_shop_members.migration,
+        {
+          batchSize: 100,
+          cursor: null,
+          dryRun: true,
+        },
+      ),
     ).rejects.toThrowError();
     expect(await t.run(migrationSnapshot)).toEqual(beforeM014);
   });

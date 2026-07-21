@@ -162,65 +162,65 @@ describe("organizationBilling/actions", () => {
     expect(jobs.map((job) => job.userId).sort()).toEqual([ids.userId, ids.recoveryUserId].sort());
   });
 
-  it.each([
-    "restrictedStarted",
-    "recovered",
-  ] as const)("%sは遷移前snapshotにだけいたreadOnly非復旧担当者を送信対象にしない", async (event) => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const seeded = await seedOrganizationManagerShop(ctx, { subject: `${event}_current_recipient`, plan: "pro" });
-      const now = Date.now();
-      const formerUserId = await seedUser(ctx, `${event}_former_recipient`, `${event}-former@example.com`);
-      const formerPersonId = await ctx.db.insert("organizationPeople", {
-        organizationId: seeded.organizationId,
-        userId: formerUserId,
-        name: "旧復旧担当者",
-        email: `${event}-former@example.com`,
-        emailNormalized: `${event}-former@example.com`,
-        status: "active",
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.insert("organizationMembers", {
-        organizationId: seeded.organizationId,
-        personId: formerPersonId,
-        userId: formerUserId,
-        status: "readOnly",
-        createdAt: now,
-        updatedAt: now,
-      });
-      const billingState = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
-        .unique();
-      if (!billingState) throw new Error("billing state not found");
-      if (event === "restrictedStarted") {
-        await ctx.db.patch(billingState._id, {
-          state: {
-            kind: "restricted",
-            reason: "freeConditionsNotMet",
-            previousPlan: "pro",
-            recoveryManagerPersonIds: [seeded.personId],
-            previousActiveShopIds: [seeded.shopId],
-            restrictedAt: now,
-          },
+  it.each(["restrictedStarted", "recovered"] as const)(
+    "%sは遷移前snapshotにだけいたreadOnly非復旧担当者を送信対象にしない",
+    async (event) => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, { subject: `${event}_current_recipient`, plan: "pro" });
+        const now = Date.now();
+        const formerUserId = await seedUser(ctx, `${event}_former_recipient`, `${event}-former@example.com`);
+        const formerPersonId = await ctx.db.insert("organizationPeople", {
+          organizationId: seeded.organizationId,
+          userId: formerUserId,
+          name: "旧復旧担当者",
+          email: `${event}-former@example.com`,
+          emailNormalized: `${event}-former@example.com`,
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
         });
-      }
-      return { ...seeded, formerUserId };
-    });
+        await ctx.db.insert("organizationMembers", {
+          organizationId: seeded.organizationId,
+          personId: formerPersonId,
+          userId: formerUserId,
+          status: "readOnly",
+          createdAt: now,
+          updatedAt: now,
+        });
+        const billingState = await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+          .unique();
+        if (!billingState) throw new Error("billing state not found");
+        if (event === "restrictedStarted") {
+          await ctx.db.patch(billingState._id, {
+            state: {
+              kind: "restricted",
+              reason: "freeConditionsNotMet",
+              previousPlan: "pro",
+              recoveryManagerPersonIds: [seeded.personId],
+              previousActiveShopIds: [seeded.shopId],
+              restrictedAt: now,
+            },
+          });
+        }
+        return { ...seeded, formerUserId };
+      });
 
-    await expect(
-      t.action(internal.organizationBilling.actions.enqueueBillingNotification, {
-        organizationId: ids.organizationId,
-        event,
-        eventKey: `${event}-current-recipients`,
-        recipientUserIds: [ids.userId, ids.formerUserId],
-      }),
-    ).resolves.toEqual({ enqueuedCount: 1 });
+      await expect(
+        t.action(internal.organizationBilling.actions.enqueueBillingNotification, {
+          organizationId: ids.organizationId,
+          event,
+          eventKey: `${event}-current-recipients`,
+          recipientUserIds: [ids.userId, ids.formerUserId],
+        }),
+      ).resolves.toEqual({ enqueuedCount: 1 });
 
-    const jobs = await t.run((ctx) => ctx.db.query("notificationOutbox").collect());
-    expect(jobs.map((job) => job.userId)).toEqual([ids.userId]);
-  });
+      const jobs = await t.run((ctx) => ctx.db.query("notificationOutbox").collect());
+      expect(jobs.map((job) => job.userId)).toEqual([ids.userId]);
+    },
+  );
 
   it("Trial終了通知は選択済みプランと終了時刻をDTOから本文へ反映する", async () => {
     const t = convexTest(schema, modules);

@@ -3,7 +3,7 @@ import { internal } from "../_generated/api";
 import { httpAction } from "../_generated/server";
 import { readBoundedJsonBody } from "../_lib/httpBody";
 import { STRIPE_WEBHOOK_BODY_MAX_BYTES, STRIPE_WEBHOOK_SIGNATURE_MAX_LENGTH } from "../constants";
-import { getStripeSafetyConfiguration, STRIPE_WEBHOOK_API_VERSION } from "./config";
+import { getStripeSafetyConfiguration, STRIPE_API_VERSION } from "./config";
 import { isSupportedStripeWebhookEventType, type StripeWebhookEventType } from "./validators";
 
 const STRIPE_WEBHOOK_TOLERANCE_SECONDS = 5 * 60;
@@ -40,7 +40,7 @@ export const webhookHandler = httpAction(async (ctx, request) => {
   if (!bodyResult.ok) return bodyErrorResponse(bodyResult.error);
 
   const stripe = new Stripe(safetyConfiguration.secretKey, {
-    apiVersion: STRIPE_WEBHOOK_API_VERSION,
+    apiVersion: STRIPE_API_VERSION,
     httpClient: Stripe.createFetchHttpClient(),
   });
 

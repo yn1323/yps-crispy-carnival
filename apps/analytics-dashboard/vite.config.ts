@@ -2,7 +2,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin } from "vite";
-import tsconfigPaths from "vite-tsconfig-paths";
 
 type AnalyticsDevEnv = {
   convexHttpUrl?: string;
@@ -143,7 +142,10 @@ export default defineConfig(({ mode }) => {
 
   return {
     envDir: workspaceRoot,
-    plugins: [analyticsLocalApiPlugin(env), react(), tsconfigPaths()],
+    plugins: [analyticsLocalApiPlugin(env), react()],
+    resolve: {
+      tsconfigPaths: true,
+    },
     build: {
       emptyOutDir: true,
       outDir: "dist",

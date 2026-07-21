@@ -417,68 +417,68 @@ describe("dashboard/queries", () => {
       expect(result).toEqual([]);
     });
 
-    it.each([
-      "active",
-      "readOnly",
-    ] as const)("事業者の%s管理者には同じ事業者の全非削除店舗だけを返す", async (memberStatus) => {
-      const t = convexTest(schema, modules);
-      const subject = `organization_shop_list_${memberStatus}`;
-      const ids = await t.run(async (ctx) => {
-        const base = await seedOrganizationManagerShop(ctx, {
-          subject,
-          shopName: "事業者店舗A",
-          plan: "pro",
+    it.each(["active", "readOnly"] as const)(
+      "事業者の%s管理者には同じ事業者の全非削除店舗だけを返す",
+      async (memberStatus) => {
+        const t = convexTest(schema, modules);
+        const subject = `organization_shop_list_${memberStatus}`;
+        const ids = await t.run(async (ctx) => {
+          const base = await seedOrganizationManagerShop(ctx, {
+            subject,
+            shopName: "事業者店舗A",
+            plan: "pro",
+          });
+          await ctx.db.patch(base.memberId, { status: memberStatus });
+          const archivedShopId = await ctx.db.insert("shops", {
+            organizationId: base.organizationId,
+            operatingStatus: "archived",
+            name: "事業者店舗B",
+            submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+            regularClosedDays: [],
+            isDeleted: false,
+          });
+          const deletedShopId = await ctx.db.insert("shops", {
+            organizationId: base.organizationId,
+            operatingStatus: "active",
+            name: "削除済み事業者店舗",
+            submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+            regularClosedDays: [],
+            isDeleted: true,
+          });
+          const other = await seedOrganizationManagerShop(ctx, {
+            subject: `other_${memberStatus}`,
+            shopName: "別事業者店舗",
+            plan: "pro",
+          });
+          return { ...base, archivedShopId, deletedShopId, otherShopId: other.shopId };
         });
-        await ctx.db.patch(base.memberId, { status: memberStatus });
-        const archivedShopId = await ctx.db.insert("shops", {
-          organizationId: base.organizationId,
-          operatingStatus: "archived",
-          name: "事業者店舗B",
-          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-          regularClosedDays: [],
-          isDeleted: false,
-        });
-        const deletedShopId = await ctx.db.insert("shops", {
-          organizationId: base.organizationId,
-          operatingStatus: "active",
-          name: "削除済み事業者店舗",
-          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-          regularClosedDays: [],
-          isDeleted: true,
-        });
-        const other = await seedOrganizationManagerShop(ctx, {
-          subject: `other_${memberStatus}`,
-          shopName: "別事業者店舗",
-          plan: "pro",
-        });
-        return { ...base, archivedShopId, deletedShopId, otherShopId: other.shopId };
-      });
 
-      const result = await t.withIdentity({ subject }).query(api.dashboard.queries.getMyShops, {});
+        const result = await t.withIdentity({ subject }).query(api.dashboard.queries.getMyShops, {});
 
-      expect(result).toEqual([
-        {
-          shopId: ids.shopId,
-          shopName: "事業者店舗A",
-          shopStatus: "active",
-          organizationId: ids.organizationId,
-          organizationName: "事業者店舗A事業者",
-          organizationPlan: "pro",
-          memberStatus,
-        },
-        {
-          shopId: ids.archivedShopId,
-          shopName: "事業者店舗B",
-          shopStatus: "archived",
-          organizationId: ids.organizationId,
-          organizationName: "事業者店舗A事業者",
-          organizationPlan: "pro",
-          memberStatus,
-        },
-      ]);
-      expect(result.some((shop) => shop.shopId === ids.deletedShopId)).toBe(false);
-      expect(result.some((shop) => shop.shopId === ids.otherShopId)).toBe(false);
-    });
+        expect(result).toEqual([
+          {
+            shopId: ids.shopId,
+            shopName: "事業者店舗A",
+            shopStatus: "active",
+            organizationId: ids.organizationId,
+            organizationName: "事業者店舗A事業者",
+            organizationPlan: "pro",
+            memberStatus,
+          },
+          {
+            shopId: ids.archivedShopId,
+            shopName: "事業者店舗B",
+            shopStatus: "archived",
+            organizationId: ids.organizationId,
+            organizationName: "事業者店舗A事業者",
+            organizationPlan: "pro",
+            memberStatus,
+          },
+        ]);
+        expect(result.some((shop) => shop.shopId === ids.deletedShopId)).toBe(false);
+        expect(result.some((shop) => shop.shopId === ids.otherShopId)).toBe(false);
+      },
+    );
 
     it("複数グループに所属する利用者には各グループの非削除店舗だけを所属状態付きで返す", async () => {
       const t = convexTest(schema, modules);

@@ -1,8 +1,7 @@
-import { convexTest } from "convex-test";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
+import { createConvexTestWithMigrations } from "../_test/migrations.test-helper";
 import { seedOrganizationManagerShop } from "../_test/seed";
-import { modules, schema } from "../_test/setup.test-helper";
 import type { OrganizationBillingState } from "./policy";
 
 describe("m018 organization billing Business to Pro migration", () => {
@@ -16,7 +15,7 @@ describe("m018 organization billing Business to Pro migration", () => {
   });
 
   it("normalizes every legacy state shape without rewriting historical audits", async () => {
-    const t = convexTest(schema, modules);
+    const t = createConvexTestWithMigrations();
     const cases: Array<{ state: OrganizationBillingState; expected: OrganizationBillingState }> = [
       {
         state: { kind: "trial", trialEndsAt: 1_000, selectedPaidPlan: "business" },
@@ -139,7 +138,7 @@ describe("m018 organization billing Business to Pro migration", () => {
   });
 
   it("同じグループに課金状態が複数ある場合は全行を変更せずmigration conflictへ記録する", async () => {
-    const t = convexTest(schema, modules);
+    const t = createConvexTestWithMigrations();
     const seeded = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "m018_duplicate_billing_states",
@@ -188,7 +187,7 @@ describe("m018 organization billing Business to Pro migration", () => {
   });
 
   it("旧Business表記を含むpending課金メールだけを取り消す", async () => {
-    const t = convexTest(schema, modules);
+    const t = createConvexTestWithMigrations();
     const seeded = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "m018_pending_business_copy",

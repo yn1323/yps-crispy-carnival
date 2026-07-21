@@ -1,5 +1,6 @@
 import { env } from "../_generated/server";
 
+export const STRIPE_API_VERSION = "2026-06-24.dahlia";
 export const STRIPE_WEBHOOK_API_VERSION = "2026-04-22.dahlia";
 
 export type StripeBillingConfiguration =

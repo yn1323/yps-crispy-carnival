@@ -10,6 +10,7 @@ import { getAppUrl } from "../_lib/config";
 import {
   getStripeBillingConfiguration,
   getStripeProviderSafetyConfiguration,
+  STRIPE_API_VERSION,
   STRIPE_WEBHOOK_API_VERSION,
 } from "./config";
 import type { StripeWebhookEventType } from "./validators";
@@ -3841,7 +3842,7 @@ async function retrieveConfiguredPrice(stripe: Stripe, priceId: string, livemode
 
 function createStripeClient(secretKey: string) {
   return new Stripe(secretKey, {
-    apiVersion: STRIPE_WEBHOOK_API_VERSION,
+    apiVersion: STRIPE_API_VERSION,
     maxNetworkRetries: 2,
     timeout: 20_000,
   });

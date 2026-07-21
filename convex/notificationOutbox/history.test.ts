@@ -52,26 +52,22 @@ describe("notificationOutbox/history", () => {
     expect(histories[0]).not.toHaveProperty("errorMessage");
   });
 
-  it.each([
-    "notice",
-    "notice.staff_v2",
-    `a${"b".repeat(79)}`,
-  ])("notificationKindの許可形式を受け付ける: %s", (notificationKind) => {
-    expect(normalizeNotificationHistoryInput({ notificationKind, displayTitle: "通知" })).toEqual({
-      notificationKind,
-      displayTitle: "通知",
-    });
-  });
+  it.each(["notice", "notice.staff_v2", `a${"b".repeat(79)}`])(
+    "notificationKindの許可形式を受け付ける: %s",
+    (notificationKind) => {
+      expect(normalizeNotificationHistoryInput({ notificationKind, displayTitle: "通知" })).toEqual({
+        notificationKind,
+        displayTitle: "通知",
+      });
+    },
+  );
 
-  it.each([
-    "Notice",
-    "1notice",
-    "notice staff",
-    "notice/invalid",
-    `a${"b".repeat(80)}`,
-  ])("notificationKindの不正形式を拒否する: %s", (notificationKind) => {
-    expect(() => normalizeNotificationHistoryInput({ notificationKind, displayTitle: "通知" })).toThrow();
-  });
+  it.each(["Notice", "1notice", "notice staff", "notice/invalid", `a${"b".repeat(80)}`])(
+    "notificationKindの不正形式を拒否する: %s",
+    (notificationKind) => {
+      expect(() => normalizeNotificationHistoryInput({ notificationKind, displayTitle: "通知" })).toThrow();
+    },
+  );
 
   it("displayTitleをtrimし、空白だけは拒否し、120文字を超えた分だけ切り詰める", () => {
     expect(() => normalizeNotificationHistoryInput({ notificationKind: "notice", displayTitle: "   " })).toThrow();

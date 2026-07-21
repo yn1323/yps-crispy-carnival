@@ -1,12 +1,11 @@
-import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
 import type { MutationCtx } from "../_generated/server";
-import { modules, schema } from "../_test/setup.test-helper";
+import { createConvexTestWithMigrations } from "../_test/migrations.test-helper";
 
 describe("deletion cleanup backfill migrations", () => {
   it("m016とm017は決定的なrequest IDで一件だけ作り、削除済み親組織のshopをskipする", async () => {
-    const t = convexTest(schema, modules);
+    const t = createConvexTestWithMigrations();
     const ids = await t.run(async (ctx) => {
       const activeOrganizationId = await seedOrganization(ctx, "有効組織", false);
       const deletedOrganizationId = await seedOrganization(ctx, "削除済み組織", true);

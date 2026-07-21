@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import storycap from "@storycap-testrun/browser/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
-import tsconfigPaths from "vite-tsconfig-paths";
 import { defineConfig, defineProject } from "vitest/config";
 import { mdxPlugin } from "./vite/mdxPlugin";
 
@@ -38,8 +37,6 @@ const createVrtProject = (
   defineConfig({
     plugins: [
       mdxPlugin(),
-      // biome-ignore lint/suspicious/noExplicitAny: temp
-      tsconfigPaths() as any,
       storybookTest({
         configDir: path.join(dirname, ".storybook"),
         storybookScript: "pnpm storybook",
@@ -61,11 +58,12 @@ const createVrtProject = (
       __VRT_VIEWPORT__: JSON.stringify(viewport),
     },
     resolve: {
+      tsconfigPaths: true,
       alias: {
         "convex/react": path.resolve(dirname, ".storybook/mocks/convex-react.ts"),
         "convex/react-clerk": path.resolve(dirname, ".storybook/mocks/convex-react.ts"),
-        "@clerk/clerk-react/errors": path.resolve(dirname, ".storybook/mocks/clerk-react-errors.ts"),
-        "@clerk/clerk-react": path.resolve(dirname, ".storybook/mocks/clerk-react.tsx"),
+        "@clerk/react/errors": path.resolve(dirname, ".storybook/mocks/clerk-react-errors.ts"),
+        "@clerk/react": path.resolve(dirname, ".storybook/mocks/clerk-react.tsx"),
       },
     },
     test: {

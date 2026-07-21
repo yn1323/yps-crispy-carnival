@@ -175,35 +175,35 @@ describe("organization shop management", () => {
     expect(state.audits).toEqual([]);
   });
 
-  it.each([
-    "archived",
-    "planSuspended",
-  ] as const)("%s店舗を選択中でも有効管理者は事業者へ新店舗を追加できる", async (operatingStatus) => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, {
-        subject: `inactive_add_shop_${operatingStatus}`,
-        plan: "pro",
+  it.each(["archived", "planSuspended"] as const)(
+    "%s店舗を選択中でも有効管理者は事業者へ新店舗を追加できる",
+    async (operatingStatus) => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: `inactive_add_shop_${operatingStatus}`,
+          plan: "pro",
+        });
+        await ctx.db.patch(base.shopId, { operatingStatus });
+        return base;
       });
-      await ctx.db.patch(base.shopId, { operatingStatus });
-      return base;
-    });
 
-    const created = await t
-      .withIdentity({ subject: `inactive_add_shop_${operatingStatus}` })
-      .mutation(api.organization.mutations.addShop, {
-        shopId: ids.shopId,
-        shopName: `${operatingStatus}から追加`,
-        submissionPattern,
-        requestId: `inactive-add-${operatingStatus}`,
+      const created = await t
+        .withIdentity({ subject: `inactive_add_shop_${operatingStatus}` })
+        .mutation(api.organization.mutations.addShop, {
+          shopId: ids.shopId,
+          shopName: `${operatingStatus}から追加`,
+          submissionPattern,
+          requestId: `inactive-add-${operatingStatus}`,
+        });
+      await expect(t.run((ctx) => ctx.db.get(created.shopId))).resolves.toMatchObject({
+        organizationId: ids.organizationId,
+        operatingStatus: "active",
+        regularClosedDays: [],
+        isDeleted: false,
       });
-    await expect(t.run((ctx) => ctx.db.get(created.shopId))).resolves.toMatchObject({
-      organizationId: ids.organizationId,
-      operatingStatus: "active",
-      regularClosedDays: [],
-      isDeleted: false,
-    });
-  });
+    },
+  );
 
   it("5店舗稼働中のBusinessでは6店舗目を保存せず拒否する", async () => {
     const t = convexTest(schema, modules);
@@ -672,70 +672,71 @@ describe("organization shop management", () => {
       expect(state.billingState?.version).toBe(2);
     });
 
-    it.each(
-      deadlineStateCases,
-    )("$labelの期限中にFree対象店舗を削除しても、更新後versionで同じ期限を再予約する", async ({ buildState }) => {
-      const t = convexTest(schema, modules);
-      const now = Date.parse("2026-08-01T00:00:00+09:00");
-      const deadlineAt = now + 7 * 24 * 60 * 60 * 1000;
-      vi.setSystemTime(now);
-      const ids = await t.run(async (ctx) => {
-        const base = await seedOrganizationManagerShop(ctx, { subject: "delete_deadline_shop", plan: "pro" });
-        await seedOrganizationShop(ctx, {
-          organizationId: base.organizationId,
-          name: "期限後も残る店舗",
+    it.each(deadlineStateCases)(
+      "$labelの期限中にFree対象店舗を削除しても、更新後versionで同じ期限を再予約する",
+      async ({ buildState }) => {
+        const t = convexTest(schema, modules);
+        const now = Date.parse("2026-08-01T00:00:00+09:00");
+        const deadlineAt = now + 7 * 24 * 60 * 60 * 1000;
+        vi.setSystemTime(now);
+        const ids = await t.run(async (ctx) => {
+          const base = await seedOrganizationManagerShop(ctx, { subject: "delete_deadline_shop", plan: "pro" });
+          await seedOrganizationShop(ctx, {
+            organizationId: base.organizationId,
+            name: "期限後も残る店舗",
+          });
+          const billingState = await ctx.db
+            .query("organizationBillingStates")
+            .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
+            .unique();
+          if (!billingState) throw new Error("billing state not found");
+          await ctx.db.patch(billingState._id, {
+            state: buildState(now, deadlineAt),
+            freeShopId: base.shopId,
+            version: 7,
+            updatedAt: now,
+          });
+          await ctx.scheduler.runAt(deadlineAt, internal.organizationBilling.mutations.processDeadline, {
+            organizationId: base.organizationId,
+            expectedVersion: 7,
+            expectedDeadlineAt: deadlineAt,
+          });
+          return { ...base, billingStateId: billingState._id };
         });
-        const billingState = await ctx.db
-          .query("organizationBillingStates")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
-          .unique();
-        if (!billingState) throw new Error("billing state not found");
-        await ctx.db.patch(billingState._id, {
-          state: buildState(now, deadlineAt),
-          freeShopId: base.shopId,
-          version: 7,
-          updatedAt: now,
-        });
-        await ctx.scheduler.runAt(deadlineAt, internal.organizationBilling.mutations.processDeadline, {
-          organizationId: base.organizationId,
-          expectedVersion: 7,
-          expectedDeadlineAt: deadlineAt,
-        });
-        return { ...base, billingStateId: billingState._id };
-      });
 
-      await expect(
-        t.withIdentity({ subject: "delete_deadline_shop" }).mutation(api.organization.mutations.deleteShop, {
-          shopId: ids.shopId,
-          confirmShopId: ids.shopId,
-          requestId: "delete-deadline-shop",
-        }),
-      ).resolves.toEqual({ shopId: ids.shopId, changed: true });
+        await expect(
+          t.withIdentity({ subject: "delete_deadline_shop" }).mutation(api.organization.mutations.deleteShop, {
+            shopId: ids.shopId,
+            confirmShopId: ids.shopId,
+            requestId: "delete-deadline-shop",
+          }),
+        ).resolves.toEqual({ shopId: ids.shopId, changed: true });
 
-      const state = await t.run(async (ctx) => ({
-        billingState: await ctx.db.get(ids.billingStateId),
-        deadlineJobs: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
-          (job) =>
-            job.name === "organizationBilling/mutations:processDeadline" &&
-            job.args[0]?.organizationId === ids.organizationId &&
-            job.args[0]?.expectedDeadlineAt === deadlineAt,
-        ),
-      }));
-      expect(state.billingState?.freeShopId).toBeUndefined();
-      expect(state.billingState?.version).toBe(8);
-      expect(
-        state.deadlineJobs
-          .map((job) => ({
-            expectedVersion: job.args[0]?.expectedVersion,
-            expectedDeadlineAt: job.args[0]?.expectedDeadlineAt,
-            scheduledTime: job.scheduledTime,
-          }))
-          .sort((a, b) => (a.expectedVersion ?? 0) - (b.expectedVersion ?? 0)),
-      ).toEqual([
-        { expectedVersion: 7, expectedDeadlineAt: deadlineAt, scheduledTime: deadlineAt },
-        { expectedVersion: 8, expectedDeadlineAt: deadlineAt, scheduledTime: deadlineAt },
-      ]);
-    });
+        const state = await t.run(async (ctx) => ({
+          billingState: await ctx.db.get(ids.billingStateId),
+          deadlineJobs: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+            (job) =>
+              job.name === "organizationBilling/mutations:processDeadline" &&
+              job.args[0]?.organizationId === ids.organizationId &&
+              job.args[0]?.expectedDeadlineAt === deadlineAt,
+          ),
+        }));
+        expect(state.billingState?.freeShopId).toBeUndefined();
+        expect(state.billingState?.version).toBe(8);
+        expect(
+          state.deadlineJobs
+            .map((job) => ({
+              expectedVersion: job.args[0]?.expectedVersion,
+              expectedDeadlineAt: job.args[0]?.expectedDeadlineAt,
+              scheduledTime: job.scheduledTime,
+            }))
+            .sort((a, b) => (a.expectedVersion ?? 0) - (b.expectedVersion ?? 0)),
+        ).toEqual([
+          { expectedVersion: 7, expectedDeadlineAt: deadlineAt, scheduledTime: deadlineAt },
+          { expectedVersion: 8, expectedDeadlineAt: deadlineAt, scheduledTime: deadlineAt },
+        ]);
+      },
+    );
 
     it("契約制限中は復旧担当の有効管理者だけが店舗を削除できる", async () => {
       const t = convexTest(schema, modules);

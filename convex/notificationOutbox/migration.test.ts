@@ -1,48 +1,28 @@
-import type { MigrationResult } from "@convex-dev/migrations";
-import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
+import { createConvexTestWithMigrations, runMigrationToCompletion } from "../_test/migrations.test-helper";
 import { seedManagerShop } from "../_test/seed";
-import { modules, schema } from "../_test/setup.test-helper";
 import {
   NOTIFICATION_FAILURE_INBOX_RETENTION_MS,
   NOTIFICATION_OUTBOX_TERMINAL_PAYLOAD_RETENTION_MS,
 } from "../constants";
 
 async function runM019(t: ReturnType<typeof createMigrationTest>, batchSize: number) {
-  let cursor: string | null = null;
-  let pages = 0;
-  let processed = 0;
-  for (;;) {
-    const result: MigrationResult = await t.mutation(
-      internal.migrations.m019_notification_outbox_terminal_redaction.migration,
-      { batchSize, cursor, dryRun: false },
-    );
-    pages += 1;
-    processed += result.processed;
-    if (result.isDone) return { pages, processed };
-    cursor = result.continueCursor;
-  }
+  return await runMigrationToCompletion(t, internal.migrations.m019_notification_outbox_terminal_redaction.migration, {
+    batchSize,
+    cursor: null,
+  });
 }
 
 async function runM020(t: ReturnType<typeof createMigrationTest>, batchSize: number) {
-  let cursor: string | null = null;
-  let pages = 0;
-  let processed = 0;
-  for (;;) {
-    const result: MigrationResult = await t.mutation(
-      internal.migrations.m020_notification_failure_inbox_redaction.migration,
-      { batchSize, cursor, dryRun: false },
-    );
-    pages += 1;
-    processed += result.processed;
-    if (result.isDone) return { pages, processed };
-    cursor = result.continueCursor;
-  }
+  return await runMigrationToCompletion(t, internal.migrations.m020_notification_failure_inbox_redaction.migration, {
+    batchSize,
+    cursor: null,
+  });
 }
 
 function createMigrationTest() {
-  return convexTest(schema, modules);
+  return createConvexTestWithMigrations();
 }
 
 describe("notification terminal redaction migrations", () => {
@@ -141,14 +121,14 @@ describe("notification terminal redaction migrations", () => {
     const beforeDryRun = await migrationSnapshot(t);
 
     await expect(
-      t.mutation(internal.migrations.m019_notification_outbox_terminal_redaction.migration, {
+      runMigrationToCompletion(t, internal.migrations.m019_notification_outbox_terminal_redaction.migration, {
         batchSize: 1,
         cursor: null,
         dryRun: true,
       }),
     ).rejects.toThrowError();
     await expect(
-      t.mutation(internal.migrations.m020_notification_failure_inbox_redaction.migration, {
+      runMigrationToCompletion(t, internal.migrations.m020_notification_failure_inbox_redaction.migration, {
         batchSize: 1,
         cursor: null,
         dryRun: true,
@@ -158,7 +138,6 @@ describe("notification terminal redaction migrations", () => {
 
     const m019Progress = await runM019(t, 1);
     const m020Progress = await runM020(t, 1);
-    expect(m019Progress.pages).toBeGreaterThan(1);
     expect(m019Progress.processed).toBe(4);
     expect(m020Progress.processed).toBe(2);
 

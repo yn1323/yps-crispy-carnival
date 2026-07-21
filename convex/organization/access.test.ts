@@ -126,28 +126,28 @@ describe("organization manager access", () => {
     ).rejects.toThrow("Not found");
   });
 
-  it.each([
-    "archived",
-    "planSuspended",
-  ] as const)("active所属でも%s店舗はmutationを実行できない", async (operatingStatus) => {
-    const t = convexTest(schema, modules);
-    const subject = `organization_inactive_shop_${operatingStatus}`;
-    const { shopId } = await t.run(
-      async (ctx) =>
-        await seedOrganizationAccess(ctx, {
-          subject,
-          memberStatus: "active",
-          operatingStatus,
-        }),
-    );
+  it.each(["archived", "planSuspended"] as const)(
+    "active所属でも%s店舗はmutationを実行できない",
+    async (operatingStatus) => {
+      const t = convexTest(schema, modules);
+      const subject = `organization_inactive_shop_${operatingStatus}`;
+      const { shopId } = await t.run(
+        async (ctx) =>
+          await seedOrganizationAccess(ctx, {
+            subject,
+            memberStatus: "active",
+            operatingStatus,
+          }),
+      );
 
-    await expect(
-      t.withIdentity({ subject }).mutation(api.shop.mutations.updateShopSettings, {
-        ...validShopUpdate,
-        shopId,
-      }),
-    ).rejects.toThrow("Not found");
-  });
+      await expect(
+        t.withIdentity({ subject }).mutation(api.shop.mutations.updateShopSettings, {
+          ...validShopUpdate,
+          shopId,
+        }),
+      ).rejects.toThrow("Not found");
+    },
+  );
 
   it("m009完了後m010前は所属行が0件の場合だけ旧shopMembersで参照できる", async () => {
     const t = convexTest(schema, modules);

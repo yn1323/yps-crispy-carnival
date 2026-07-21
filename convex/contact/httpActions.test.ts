@@ -104,7 +104,8 @@ describe("contact/httpActions", () => {
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
       if (url.includes("turnstile")) {
-        expect((init?.body as FormData).get("secret")).toBe("1x0000000000000000000000000000000AA");
+        if (!(init?.body instanceof FormData)) throw new Error("Turnstile request body must be FormData");
+        expect(init.body.get("secret")).toBe("1x0000000000000000000000000000000AA");
         return responseJson({ success: true, hostname: "example.com", metadata: { result_with_testing_key: true } });
       }
       if (url === SLACK_URL) return new Response("ok", { status: 200 });

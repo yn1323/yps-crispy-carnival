@@ -1,9 +1,8 @@
-import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import { createConvexTestWithMigrations } from "../_test/migrations.test-helper";
 import { seedManagerShop, seedOrganizationManagerShop, seedShopMembership, seedUser } from "../_test/seed";
-import { modules, schema } from "../_test/setup.test-helper";
 import {
   NOTIFICATION_DELIVERY_EVENT_PRUNE_BATCH_SIZE,
   NOTIFICATION_DELIVERY_EVENT_RETENTION_MS,
@@ -27,7 +26,7 @@ const emailPayload = {
 };
 
 async function setupShop() {
-  const t = convexTest(schema, modules);
+  const t = createConvexTestWithMigrations();
   const ids = await t.run(async (ctx) => {
     const { shopId, userId } = await seedManagerShop(ctx, {
       subject: "user_mgr",
@@ -150,7 +149,7 @@ describe("notificationOutbox", () => {
   });
 
   it("組織削除とpending・claim済み通知が競合しても新しい外部送信を開始しない", async () => {
-    const t = convexTest(schema, modules);
+    const t = createConvexTestWithMigrations();
     const ids = await t.run((ctx) =>
       seedOrganizationManagerShop(ctx, {
         subject: "organization_notification_deleted",
@@ -249,7 +248,7 @@ describe("notificationOutbox", () => {
       state: { kind: "grace" as const, plan: "pro" as const, startedAt: 100, endsAt: 1_000 },
     },
   ])("$labelの課金reminderは状態変更後の再送を送信直前に停止する", async ({ context, state }) => {
-    const t = convexTest(schema, modules);
+    const t = createConvexTestWithMigrations();
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
         subject: `stale_${state.kind}_reminder`,
@@ -303,7 +302,7 @@ describe("notificationOutbox", () => {
   });
 
   it("契約制限を維持する支払い結果待ちはfallback snapshot欠損でも業務通知を送信直前に停止する", async () => {
-    const t = convexTest(schema, modules);
+    const t = createConvexTestWithMigrations();
     const ids = await t.run((ctx) =>
       seedOrganizationManagerShop(ctx, { subject: "pending_restricted_business_gate", plan: "pro" }),
     );
@@ -357,7 +356,7 @@ describe("notificationOutbox", () => {
   });
 
   it("課金状態の正本が重複した場合は送信直前にfail-closedにする", async () => {
-    const t = convexTest(schema, modules);
+    const t = createConvexTestWithMigrations();
     const ids = await t.run((ctx) =>
       seedOrganizationManagerShop(ctx, { subject: "duplicate_billing_state_gate", plan: "pro" }),
     );
@@ -438,73 +437,73 @@ describe("notificationOutbox", () => {
     });
   });
 
-  it.each([
-    "restrictedStarted",
-    "recovered",
-  ] as const)("%sのreadOnly非復旧担当者は既存Outbox経路でも送信対象にしない", async (event) => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const seeded = await seedOrganizationManagerShop(ctx, { subject: `${event}_outbox_current`, plan: "pro" });
-      const now = Date.now();
-      const formerUserId = await seedUser(ctx, `${event}_outbox_former`, `${event}-outbox-former@example.com`);
-      const formerPersonId = await ctx.db.insert("organizationPeople", {
-        organizationId: seeded.organizationId,
-        userId: formerUserId,
-        name: "旧復旧担当者",
-        email: `${event}-outbox-former@example.com`,
-        emailNormalized: `${event}-outbox-former@example.com`,
-        status: "active",
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.insert("organizationMembers", {
-        organizationId: seeded.organizationId,
-        personId: formerPersonId,
-        userId: formerUserId,
-        status: "readOnly",
-        createdAt: now,
-        updatedAt: now,
-      });
-      const billingState = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
-        .unique();
-      if (!billingState) throw new Error("billing state not found");
-      if (event === "restrictedStarted") {
-        await ctx.db.patch(billingState._id, {
-          state: {
-            kind: "restricted",
-            reason: "freeConditionsNotMet",
-            previousPlan: "pro",
-            recoveryManagerPersonIds: [seeded.personId],
-            previousActiveShopIds: [seeded.shopId],
-            restrictedAt: now,
-          },
+  it.each(["restrictedStarted", "recovered"] as const)(
+    "%sのreadOnly非復旧担当者は既存Outbox経路でも送信対象にしない",
+    async (event) => {
+      const t = createConvexTestWithMigrations();
+      const ids = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, { subject: `${event}_outbox_current`, plan: "pro" });
+        const now = Date.now();
+        const formerUserId = await seedUser(ctx, `${event}_outbox_former`, `${event}-outbox-former@example.com`);
+        const formerPersonId = await ctx.db.insert("organizationPeople", {
+          organizationId: seeded.organizationId,
+          userId: formerUserId,
+          name: "旧復旧担当者",
+          email: `${event}-outbox-former@example.com`,
+          emailNormalized: `${event}-outbox-former@example.com`,
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
         });
-      }
-      return { ...seeded, formerUserId };
-    });
+        await ctx.db.insert("organizationMembers", {
+          organizationId: seeded.organizationId,
+          personId: formerPersonId,
+          userId: formerUserId,
+          status: "readOnly",
+          createdAt: now,
+          updatedAt: now,
+        });
+        const billingState = await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+          .unique();
+        if (!billingState) throw new Error("billing state not found");
+        if (event === "restrictedStarted") {
+          await ctx.db.patch(billingState._id, {
+            state: {
+              kind: "restricted",
+              reason: "freeConditionsNotMet",
+              previousPlan: "pro",
+              recoveryManagerPersonIds: [seeded.personId],
+              previousActiveShopIds: [seeded.shopId],
+              restrictedAt: now,
+            },
+          });
+        }
+        return { ...seeded, formerUserId };
+      });
 
-    await expect(
-      t.mutation(internal.notificationOutbox.mutations.enqueue, {
-        channel: "email",
-        organizationId: ids.organizationId,
-        userId: ids.formerUserId,
-        purpose: "billing",
-        dedupeKey: `email:test:${event}-former-recipient`,
-        payload: {
-          kind: "email",
-          from: "シフトリ <noreply@example.com>",
-          to: `${event}-outbox-former@example.com`,
-          subject: "契約通知",
-          html: "<p>test</p>",
-          context: `organizationBilling.${event}`,
-          suppressDelivery: true,
-        },
-      }),
-    ).resolves.toBeNull();
-    await expect(t.run((ctx) => ctx.db.query("notificationOutbox").collect())).resolves.toEqual([]);
-  });
+      await expect(
+        t.mutation(internal.notificationOutbox.mutations.enqueue, {
+          channel: "email",
+          organizationId: ids.organizationId,
+          userId: ids.formerUserId,
+          purpose: "billing",
+          dedupeKey: `email:test:${event}-former-recipient`,
+          payload: {
+            kind: "email",
+            from: "シフトリ <noreply@example.com>",
+            to: `${event}-outbox-former@example.com`,
+            subject: "契約通知",
+            html: "<p>test</p>",
+            context: `organizationBilling.${event}`,
+            suppressDelivery: true,
+          },
+        }),
+      ).resolves.toBeNull();
+      await expect(t.run((ctx) => ctx.db.query("notificationOutbox").collect())).resolves.toEqual([]);
+    },
+  );
 
   it("契約cutoff前の同一dedupeKeyジョブを停止し、現在versionの業務通知を新規作成する", async () => {
     const { t, shopId, staffId } = await setupShop();
@@ -1786,36 +1785,38 @@ describe("notificationOutbox", () => {
     expect(await collectFailureInbox(t)).toEqual([]);
   });
 
-  it.each([
-    "enqueue_failed",
-    "enqueue_preparation_failed",
-  ] as const)("recordDeliveryEventは店舗登録後リマインダーcontextの%sを要対応Inbox化しない", async (eventType) => {
-    const { t, shopId, staffId } = await setupShop();
-    const dedupeKey = `email:shopActivationReminder:${shopId}:user_test`;
+  it.each(["enqueue_failed", "enqueue_preparation_failed"] as const)(
+    "recordDeliveryEventは店舗登録後リマインダーcontextの%sを要対応Inbox化しない",
+    async (eventType) => {
+      const { t, shopId, staffId } = await setupShop();
+      const dedupeKey = `email:shopActivationReminder:${shopId}:user_test`;
 
-    await t.mutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
-      eventType,
-      shopId,
-      staffId,
-      channel: "email",
-      dedupeKey,
-      notificationContext: SHOP_ACTIVATION_REMINDER_CONTEXT,
-      errorMessage: eventType === "enqueue_failed" ? "notification_enqueue_failed" : "notification_preparation_failed",
-    });
+      await t.mutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
+        eventType,
+        shopId,
+        staffId,
+        channel: "email",
+        dedupeKey,
+        notificationContext: SHOP_ACTIVATION_REMINDER_CONTEXT,
+        errorMessage:
+          eventType === "enqueue_failed" ? "notification_enqueue_failed" : "notification_preparation_failed",
+      });
 
-    const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
-    expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({
-      eventType,
-      shopId,
-      staffId,
-      channel: "email",
-      dedupeKey,
-      notificationContext: SHOP_ACTIVATION_REMINDER_CONTEXT,
-      errorMessage: eventType === "enqueue_failed" ? "notification_enqueue_failed" : "notification_preparation_failed",
-    });
-    expect(await collectFailureInbox(t)).toEqual([]);
-  });
+      const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        eventType,
+        shopId,
+        staffId,
+        channel: "email",
+        dedupeKey,
+        notificationContext: SHOP_ACTIVATION_REMINDER_CONTEXT,
+        errorMessage:
+          eventType === "enqueue_failed" ? "notification_enqueue_failed" : "notification_preparation_failed",
+      });
+      expect(await collectFailureInbox(t)).toEqual([]);
+    },
+  );
 
   it("recordDeliveryEventは通知不達リマインダーLINEのdedupe由来contextでも要対応Inbox化しない", async () => {
     const { t, shopId, staffId } = await setupShop();
@@ -1848,66 +1849,69 @@ describe("notificationOutbox", () => {
     ["email.failed", "failed", "email_delivery_failed"],
     ["email.bounced", "bounced", "email_delivery_bounced"],
     ["email.suppressed", "suppressed", "email_delivery_suppressed"],
-  ] as const)("recordResendProviderIssueは%sをprovider失敗として要対応Inbox化する", async (eventType, deliveryStatus, errorCode) => {
-    const { t, shopId, staffId } = await setupShop();
-    const recruitmentId = await insertRecruitment(t, shopId);
-    const outboxId = await insertSentEmailOutbox(t, {
-      shopId,
-      staffId,
-      recruitmentId,
-      dedupeKey: `email:recruitment:${recruitmentId}:${staffId}`,
-      context: "notification.sendRecruitmentNotificationEmails",
-      resendEmailId: `email_${eventType}`,
-    });
+  ] as const)(
+    "recordResendProviderIssueは%sをprovider失敗として要対応Inbox化する",
+    async (eventType, deliveryStatus, errorCode) => {
+      const { t, shopId, staffId } = await setupShop();
+      const recruitmentId = await insertRecruitment(t, shopId);
+      const outboxId = await insertSentEmailOutbox(t, {
+        shopId,
+        staffId,
+        recruitmentId,
+        dedupeKey: `email:recruitment:${recruitmentId}:${staffId}`,
+        context: "notification.sendRecruitmentNotificationEmails",
+        resendEmailId: `email_${eventType}`,
+      });
 
-    await t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
-      providerEventId: `svix_${eventType}`,
-      providerEventType: eventType,
-      providerEmailId: `email_${eventType}`,
-      occurredAt: Date.now() + 1000,
-      errorMessage: errorCode,
-    });
+      await t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
+        providerEventId: `svix_${eventType}`,
+        providerEventType: eventType,
+        providerEmailId: `email_${eventType}`,
+        occurredAt: Date.now() + 1000,
+        errorMessage: errorCode,
+      });
 
-    const [events, failures, outbox] = await Promise.all([
-      t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect()),
-      collectFailureInbox(t),
-      t.run(async (ctx) => await ctx.db.get(outboxId)),
-    ]);
-    expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({
-      eventType: "provider_delivery_issue",
-      provider: "resend",
-      providerEventId: `svix_${eventType}`,
-      providerEmailId: `email_${eventType}`,
-      providerEventType: eventType,
-      shopId,
-      recruitmentId,
-      staffId,
-      outboxId,
-      channel: "email",
-      notificationContext: "notification.sendRecruitmentNotificationEmails",
-      errorMessage: errorCode,
-    });
-    expect(failures).toHaveLength(1);
-    expect(failures[0]).toMatchObject({
-      failureKey: `logical:${shopId}:${recruitmentId}:${staffId}:recruitment`,
-      sourceType: "provider",
-      status: "open",
-      shopId,
-      recruitmentId,
-      staffId,
-      outboxId,
-      channel: "email",
-      notificationContext: "notification.sendRecruitmentNotificationEmails",
-      lastEventId: events[0]._id,
-      lastError: errorCode,
-    });
-    expect(outbox).toMatchObject({
-      status: "sent",
-      resendLastEventType: eventType,
-      resendDeliveryStatus: deliveryStatus,
-    });
-  });
+      const [events, failures, outbox] = await Promise.all([
+        t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect()),
+        collectFailureInbox(t),
+        t.run(async (ctx) => await ctx.db.get(outboxId)),
+      ]);
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        eventType: "provider_delivery_issue",
+        provider: "resend",
+        providerEventId: `svix_${eventType}`,
+        providerEmailId: `email_${eventType}`,
+        providerEventType: eventType,
+        shopId,
+        recruitmentId,
+        staffId,
+        outboxId,
+        channel: "email",
+        notificationContext: "notification.sendRecruitmentNotificationEmails",
+        errorMessage: errorCode,
+      });
+      expect(failures).toHaveLength(1);
+      expect(failures[0]).toMatchObject({
+        failureKey: `logical:${shopId}:${recruitmentId}:${staffId}:recruitment`,
+        sourceType: "provider",
+        status: "open",
+        shopId,
+        recruitmentId,
+        staffId,
+        outboxId,
+        channel: "email",
+        notificationContext: "notification.sendRecruitmentNotificationEmails",
+        lastEventId: events[0]._id,
+        lastError: errorCode,
+      });
+      expect(outbox).toMatchObject({
+        status: "sent",
+        resendLastEventType: eventType,
+        resendDeliveryStatus: deliveryStatus,
+      });
+    },
+  );
 
   it("recordResendProviderIssueは同じsvix-idを二重作成しない", async () => {
     const { t, shopId, staffId } = await setupShop();

@@ -258,26 +258,25 @@ describe("PR workflow credential isolation", () => {
     expect(source).not.toContain("github.event.pull_request");
   });
 
-  it.each([
-    "pr-preview.yml",
-    "test-ui.yml",
-    "vrt.yml",
-  ])("keeps PR producer %s free of secrets and write tokens", (filename) => {
-    const { source, workflow } = readWorkflow(filename);
+  it.each(["pr-preview.yml", "test-ui.yml", "vrt.yml"])(
+    "keeps PR producer %s free of secrets and write tokens",
+    (filename) => {
+      const { source, workflow } = readWorkflow(filename);
 
-    expect(workflow.on?.pull_request).toBeDefined();
-    expect(source).not.toContain("${{ secrets.");
-    expect(Object.values(workflow.permissions ?? {})).not.toContain("write");
-    for (const job of Object.values(workflow.jobs ?? {})) {
-      expect(Object.values(job.permissions ?? {})).not.toContain("write");
-      const executesCheckedOutCode = job.steps?.some(
-        (step) => step.uses?.startsWith("./") || step.uses === CHECKOUT_ACTION || step.run,
-      );
-      if (executesCheckedOutCode) {
-        expect(JSON.stringify(job)).not.toContain("${{ secrets.");
+      expect(workflow.on?.pull_request).toBeDefined();
+      expect(source).not.toContain("${{ secrets.");
+      expect(Object.values(workflow.permissions ?? {})).not.toContain("write");
+      for (const job of Object.values(workflow.jobs ?? {})) {
+        expect(Object.values(job.permissions ?? {})).not.toContain("write");
+        const executesCheckedOutCode = job.steps?.some(
+          (step) => step.uses?.startsWith("./") || step.uses === CHECKOUT_ACTION || step.run,
+        );
+        if (executesCheckedOutCode) {
+          expect(JSON.stringify(job)).not.toContain("${{ secrets.");
+        }
       }
-    }
-  });
+    },
+  );
 
   it("builds PR preview data from the exact head using public variables only", () => {
     const { source, workflow } = readWorkflow("pr-preview.yml");
@@ -541,43 +540,43 @@ describe("PR workflow credential isolation", () => {
     expect(findStep(steps, "Scan generated VRT report").run).toContain("--root vrt-work/reg");
   });
 
-  it.each([
-    "Revalidate VRT source immediately before credentials",
-    "Revalidate VRT source immediately before publish",
-  ])("fails %s after approval when the pull request head advanced", async (stepName) => {
-    const expectedHeadSha = "a".repeat(40);
-    const result = await executePublisherSourceGate({
-      workflowFilename: "publish-vrt-report.yml",
-      stepName,
-      env: {
-        EXPECTED_BASELINE_REF: "develop",
-        EXPECTED_HEAD_SHA: expectedHeadSha,
-        EXPECTED_PULL_NUMBER: "42",
-        EXPECTED_REPORT_KEY: "pr-42",
-      },
-      workflowRun: {
-        id: 200,
-        name: "VRT Artifact",
-        event: "pull_request",
-        conclusion: "success",
-        head_sha: expectedHeadSha,
-        head_repository: { full_name: "example/shiftori" },
-        pull_requests: [{ number: 42 }],
-      },
-      pullRequest: {
-        state: "open",
-        base: { ref: "develop" },
-        head: { sha: "b".repeat(40), repo: { full_name: "example/shiftori" } },
-      },
-      artifacts: ["vrt-actual-1", "vrt-actual-2", "vrt-actual-3", "vrt-actual-4"].map((name) => ({
-        expired: false,
-        name,
-        size_in_bytes: 1024,
-      })),
-    });
+  it.each(["Revalidate VRT source immediately before credentials", "Revalidate VRT source immediately before publish"])(
+    "fails %s after approval when the pull request head advanced",
+    async (stepName) => {
+      const expectedHeadSha = "a".repeat(40);
+      const result = await executePublisherSourceGate({
+        workflowFilename: "publish-vrt-report.yml",
+        stepName,
+        env: {
+          EXPECTED_BASELINE_REF: "develop",
+          EXPECTED_HEAD_SHA: expectedHeadSha,
+          EXPECTED_PULL_NUMBER: "42",
+          EXPECTED_REPORT_KEY: "pr-42",
+        },
+        workflowRun: {
+          id: 200,
+          name: "VRT Artifact",
+          event: "pull_request",
+          conclusion: "success",
+          head_sha: expectedHeadSha,
+          head_repository: { full_name: "example/shiftori" },
+          pull_requests: [{ number: 42 }],
+        },
+        pullRequest: {
+          state: "open",
+          base: { ref: "develop" },
+          head: { sha: "b".repeat(40), repo: { full_name: "example/shiftori" } },
+        },
+        artifacts: ["vrt-actual-1", "vrt-actual-2", "vrt-actual-3", "vrt-actual-4"].map((name) => ({
+          expired: false,
+          name,
+          size_in_bytes: 1024,
+        })),
+      });
 
-    expect(result.failures).not.toEqual([]);
-  });
+      expect(result.failures).not.toEqual([]);
+    },
+  );
 
   it("fails the post-approval VRT credential gate when the pull request was closed", async () => {
     const expectedHeadSha = "a".repeat(40);

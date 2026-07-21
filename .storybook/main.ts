@@ -53,10 +53,10 @@ const config: StorybookConfig = {
           if (id === "convex/react" || id === "convex/react-clerk") {
             return path.resolve(__dirname, "mocks/convex-react.ts");
           }
-          if (id === "@clerk/clerk-react/errors") {
+          if (id === "@clerk/react/errors") {
             return path.resolve(__dirname, "mocks/clerk-react-errors.ts");
           }
-          if (id === "@clerk/clerk-react") {
+          if (id === "@clerk/react") {
             return path.resolve(__dirname, "mocks/clerk-react.tsx");
           }
         },

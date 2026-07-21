@@ -2134,75 +2134,75 @@ describe("staff/mutations", () => {
       }
     });
 
-    it.each([
-      false,
-      true,
-    ])("事業者に紐づくスタッフは将来割当=%sでも旧APIから削除しない", async (hasFutureAssignment) => {
-      const t = convexTest(schema, modules);
-      const ids = await t.run(async (ctx) => {
-        const base = await seedOrganizationManagerShop(ctx, {
-          subject: `organization_staff_delete_${hasFutureAssignment}`,
-          plan: "pro",
-        });
-        const now = Date.now();
-        const personId = await ctx.db.insert("organizationPeople", {
-          organizationId: base.organizationId,
-          name: "事業者スタッフ",
-          email: `organization-staff-${hasFutureAssignment}@example.com`,
-          emailNormalized: `organization-staff-${hasFutureAssignment}@example.com`,
-          status: "active",
-          createdAt: now,
-          updatedAt: now,
-        });
-        const staffId = await ctx.db.insert("staffs", {
-          shopId: base.shopId,
-          organizationId: base.organizationId,
-          organizationPersonId: personId,
-          name: "事業者スタッフ",
-          email: `organization-staff-${hasFutureAssignment}@example.com`,
-          emailNormalized: `organization-staff-${hasFutureAssignment}@example.com`,
-          isDeleted: false,
-        });
-        if (hasFutureAssignment) {
-          const date = dateFromToday(1);
-          const positionId = await ctx.db.insert("positions", {
+    it.each([false, true])(
+      "事業者に紐づくスタッフは将来割当=%sでも旧APIから削除しない",
+      async (hasFutureAssignment) => {
+        const t = convexTest(schema, modules);
+        const ids = await t.run(async (ctx) => {
+          const base = await seedOrganizationManagerShop(ctx, {
+            subject: `organization_staff_delete_${hasFutureAssignment}`,
+            plan: "pro",
+          });
+          const now = Date.now();
+          const personId = await ctx.db.insert("organizationPeople", {
+            organizationId: base.organizationId,
+            name: "事業者スタッフ",
+            email: `organization-staff-${hasFutureAssignment}@example.com`,
+            emailNormalized: `organization-staff-${hasFutureAssignment}@example.com`,
+            status: "active",
+            createdAt: now,
+            updatedAt: now,
+          });
+          const staffId = await ctx.db.insert("staffs", {
             shopId: base.shopId,
-            name: "通常",
-            color: "#000000",
-            sortOrder: 0,
+            organizationId: base.organizationId,
+            organizationPersonId: personId,
+            name: "事業者スタッフ",
+            email: `organization-staff-${hasFutureAssignment}@example.com`,
+            emailNormalized: `organization-staff-${hasFutureAssignment}@example.com`,
             isDeleted: false,
           });
-          const recruitmentId = await ctx.db.insert("recruitments", {
-            shopId: base.shopId,
-            periodStart: date,
-            periodEnd: date,
-            deadline: dateFromToday(0),
-            shopClosedDates: [],
-            status: "confirmed",
-            confirmedAt: now,
-            isDeleted: false,
-            submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-          });
-          await ctx.db.insert("shiftAssignments", {
-            recruitmentId,
-            staffId,
-            date,
-            startTime: "10:00",
-            endTime: "18:00",
-            positionId,
-          });
-        }
-        return { ...base, personId, staffId };
-      });
+          if (hasFutureAssignment) {
+            const date = dateFromToday(1);
+            const positionId = await ctx.db.insert("positions", {
+              shopId: base.shopId,
+              name: "通常",
+              color: "#000000",
+              sortOrder: 0,
+              isDeleted: false,
+            });
+            const recruitmentId = await ctx.db.insert("recruitments", {
+              shopId: base.shopId,
+              periodStart: date,
+              periodEnd: date,
+              deadline: dateFromToday(0),
+              shopClosedDates: [],
+              status: "confirmed",
+              confirmedAt: now,
+              isDeleted: false,
+              submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+            });
+            await ctx.db.insert("shiftAssignments", {
+              recruitmentId,
+              staffId,
+              date,
+              startTime: "10:00",
+              endTime: "18:00",
+              positionId,
+            });
+          }
+          return { ...base, personId, staffId };
+        });
 
-      await expect(
-        t
-          .withIdentity({ subject: `organization_staff_delete_${hasFutureAssignment}` })
-          .mutation(api.staff.mutations.deleteStaff, { shopId: ids.shopId, staffId: ids.staffId }),
-      ).rejects.toThrow("グループ設定から店舗所属を解除してください");
-      await expect(t.run(async (ctx) => (await ctx.db.get(ids.staffId))?.isDeleted)).resolves.toBe(false);
-      await expect(t.run(async (ctx) => (await ctx.db.get(ids.personId))?.status)).resolves.toBe("active");
-    });
+        await expect(
+          t
+            .withIdentity({ subject: `organization_staff_delete_${hasFutureAssignment}` })
+            .mutation(api.staff.mutations.deleteStaff, { shopId: ids.shopId, staffId: ids.staffId }),
+        ).rejects.toThrow("グループ設定から店舗所属を解除してください");
+        await expect(t.run(async (ctx) => (await ctx.db.get(ids.staffId))?.isDeleted)).resolves.toBe(false);
+        await expect(t.run(async (ctx) => (await ctx.db.get(ids.personId))?.status)).resolves.toBe("active");
+      },
+    );
 
     it("他店舗のスタッフは削除できない（IDOR）", async () => {
       const { t, data } = setupShopWithStaff();

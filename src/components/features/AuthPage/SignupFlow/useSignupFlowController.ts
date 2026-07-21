@@ -1,6 +1,8 @@
-import { useSignUp } from "@clerk/clerk-react";
+import { useSignUp } from "@clerk/react";
 import { useState } from "react";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { buildSsoCallbackUrl } from "@/src/lib/auth/redirect";
+import { throwIfClerkOperationFailed } from "../clerkOperations";
 import { completeAuthSession } from "../completeAuthSession";
 import type { EmailVerificationValues } from "../EmailCodeVerificationForm";
 import { getClerkErrorMessage } from "../errorPresentation";
@@ -12,53 +14,53 @@ type UseSignupFlowControllerParams = {
 };
 
 export function useSignupFlowController({ redirectTo }: UseSignupFlowControllerParams) {
-  const { isLoaded: signUpLoaded, signUp, setActive } = useSignUp();
+  const { fetchStatus, signUp } = useSignUp();
   const [errorMessage, setErrorMessage] = useState<string>();
   const [isVerificationStep, setIsVerificationStep] = useState(false);
-  const { run: runAuthAction, isRunning: isSubmitting } = useSingleFlight(async (action: () => Promise<void>) => {
+  const { run: runAuthAction, isRunning } = useSingleFlight(async (action: () => Promise<void>) => {
     await action();
   });
   const { handleGoogle, isLineBrowser } = useGoogleOAuthController({
-    authenticateWithRedirect: signUp
-      ? () =>
-          signUp.authenticateWithRedirect({
-            strategy: "oauth_google",
-            redirectUrl: "/sso-callback",
-            redirectUrlComplete: redirectTo,
-          })
-      : undefined,
-    isResourceLoaded: signUpLoaded,
+    authenticateWithRedirect: async () => {
+      const result = await signUp.sso({
+        strategy: "oauth_google",
+        redirectCallbackUrl: buildSsoCallbackUrl(redirectTo),
+        redirectUrl: redirectTo,
+      });
+      throwIfClerkOperationFailed(result);
+    },
+    isResourceLoaded: fetchStatus === "idle",
     runAuthAction,
     onErrorMessage: setErrorMessage,
   });
 
-  const completeWithSession = async (sessionId: string | null) => {
+  const completeWithSession = async () => {
     await completeAuthSession({
-      sessionId,
+      resource: signUp,
       redirectTo,
-      activateSession: setActive ? (activeSessionId) => setActive({ session: activeSessionId }) : undefined,
       onErrorMessage: setErrorMessage,
     });
   };
 
   const handleSignup = (values: SignupValues) =>
     runAuthAction(async () => {
-      if (!signUpLoaded) return;
+      if (fetchStatus !== "idle") return;
 
       setErrorMessage(undefined);
       try {
-        const result = await signUp.create({
+        const result = await signUp.password({
           emailAddress: values.email,
           password: values.password,
         });
+        throwIfClerkOperationFailed(result);
 
-        if (result.status === "complete") {
-          await completeWithSession(result.createdSessionId);
+        if (signUp.status === "complete") {
+          await completeWithSession();
           return;
         }
 
-        if (result.unverifiedFields.includes("email_address")) {
-          await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+        if (signUp.unverifiedFields.includes("email_address")) {
+          throwIfClerkOperationFailed(await signUp.verifications.sendEmailCode());
           setIsVerificationStep(true);
           return;
         }
@@ -71,13 +73,14 @@ export function useSignupFlowController({ redirectTo }: UseSignupFlowControllerP
 
   const handleVerifyEmail = (values: EmailVerificationValues) =>
     runAuthAction(async () => {
-      if (!signUpLoaded) return;
+      if (fetchStatus !== "idle") return;
 
       setErrorMessage(undefined);
       try {
-        const result = await signUp.attemptEmailAddressVerification({ code: values.code });
-        if (result.status === "complete") {
-          await completeWithSession(result.createdSessionId);
+        const result = await signUp.verifications.verifyEmailCode({ code: values.code });
+        throwIfClerkOperationFailed(result);
+        if (signUp.status === "complete") {
+          await completeWithSession();
           return;
         }
 
@@ -87,15 +90,21 @@ export function useSignupFlowController({ redirectTo }: UseSignupFlowControllerP
       }
     });
 
-  const handleRestartSignup = () => {
-    setErrorMessage(undefined);
-    setIsVerificationStep(false);
-  };
+  const handleRestartSignup = () =>
+    runAuthAction(async () => {
+      setErrorMessage(undefined);
+      try {
+        throwIfClerkOperationFailed(await signUp.reset());
+        setIsVerificationStep(false);
+      } catch (error) {
+        setErrorMessage(getClerkErrorMessage(error));
+      }
+    });
 
   return {
     errorMessage,
     isLineBrowser,
-    isSubmitting,
+    isSubmitting: isRunning || fetchStatus === "fetching",
     isVerificationStep,
     onGoogle: handleGoogle,
     onRestartSignup: handleRestartSignup,

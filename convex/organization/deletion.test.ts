@@ -683,62 +683,62 @@ describe("organization deletion", () => {
     expect(shops.map((shop) => shop.shopId)).toEqual([ids.other.shopId]);
   });
 
-  it.each([
-    "staff",
-    "legacyShopMember",
-  ] as const)("別組織の%sだけに紐づく共有userの情報を変更しない", async (associationKind) => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const target = await seedDeletionScope(ctx, `shared_${associationKind}`);
-      const other = await seedOrganizationManagerShop(ctx, {
-        subject: `temporary_${associationKind}_owner`,
-        plan: "free",
-      });
-      if (associationKind === "staff") {
-        const email = `shared_${associationKind}_staff@example.com`;
-        await ctx.db.insert("staffs", {
-          shopId: other.shopId,
-          organizationId: other.organizationId,
-          userId: target.staffUserId,
-          name: "別組織だけの共有スタッフ",
-          email,
-          emailNormalized: email,
-          isDeleted: false,
+  it.each(["staff", "legacyShopMember"] as const)(
+    "別組織の%sだけに紐づく共有userの情報を変更しない",
+    async (associationKind) => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const target = await seedDeletionScope(ctx, `shared_${associationKind}`);
+        const other = await seedOrganizationManagerShop(ctx, {
+          subject: `temporary_${associationKind}_owner`,
+          plan: "free",
         });
-      } else {
-        await ctx.db.insert("shopMembers", {
-          shopId: other.shopId,
-          userId: target.staffUserId,
-          role: "manager",
-          isDeleted: false,
-        });
-      }
-      return { target, other };
-    });
-
-    await t
-      .withIdentity({ subject: `shared_${associationKind}` })
-      .mutation(api.organization.mutations.deleteOrganization, {
-        shopId: ids.target.shopId,
-        organizationId: ids.target.organizationId,
-        confirmOrganizationId: ids.target.organizationId,
-        expectedOrganizationUpdatedAt: ids.target.organizationUpdatedAt,
-        requestId: `delete-shared-${associationKind}`,
+        if (associationKind === "staff") {
+          const email = `shared_${associationKind}_staff@example.com`;
+          await ctx.db.insert("staffs", {
+            shopId: other.shopId,
+            organizationId: other.organizationId,
+            userId: target.staffUserId,
+            name: "別組織だけの共有スタッフ",
+            email,
+            emailNormalized: email,
+            isDeleted: false,
+          });
+        } else {
+          await ctx.db.insert("shopMembers", {
+            shopId: other.shopId,
+            userId: target.staffUserId,
+            role: "manager",
+            isDeleted: false,
+          });
+        }
+        return { target, other };
       });
-    const cleanupJobId = await t.run(async (ctx) => (await ctx.db.query("deletionCleanupJobs").first())?._id);
-    if (!cleanupJobId) throw new Error("cleanup job not found");
-    await finishDeletionCleanupJob(t, cleanupJobId);
 
-    const sharedUser = await t.run(async (ctx) => ctx.db.get(ids.target.staffUserId));
-    expect(sharedUser).toMatchObject({
-      isDeleted: false,
-      name: "管理者",
-      email: `shared_${associationKind}_staff@example.com`,
-    });
-    await expect(t.run(async (ctx) => ctx.db.get(ids.other.organizationId))).resolves.toMatchObject({
-      isDeleted: false,
-    });
-  });
+      await t
+        .withIdentity({ subject: `shared_${associationKind}` })
+        .mutation(api.organization.mutations.deleteOrganization, {
+          shopId: ids.target.shopId,
+          organizationId: ids.target.organizationId,
+          confirmOrganizationId: ids.target.organizationId,
+          expectedOrganizationUpdatedAt: ids.target.organizationUpdatedAt,
+          requestId: `delete-shared-${associationKind}`,
+        });
+      const cleanupJobId = await t.run(async (ctx) => (await ctx.db.query("deletionCleanupJobs").first())?._id);
+      if (!cleanupJobId) throw new Error("cleanup job not found");
+      await finishDeletionCleanupJob(t, cleanupJobId);
+
+      const sharedUser = await t.run(async (ctx) => ctx.db.get(ids.target.staffUserId));
+      expect(sharedUser).toMatchObject({
+        isDeleted: false,
+        name: "管理者",
+        email: `shared_${associationKind}_staff@example.com`,
+      });
+      await expect(t.run(async (ctx) => ctx.db.get(ids.other.organizationId))).resolves.toMatchObject({
+        isDeleted: false,
+      });
+    },
+  );
 
   it("有料契約、stale画面、対象不一致を副作用なしで拒否する", async () => {
     const t = convexTest(schema, modules);

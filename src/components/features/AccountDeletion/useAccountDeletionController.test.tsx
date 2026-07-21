@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
   isReverificationCancelledError: vi.fn(),
 }));
 
-vi.mock("@clerk/clerk-react", () => ({
+vi.mock("@clerk/react", () => ({
   useAuth: () => ({ getToken: mocks.getToken }),
   useClerk: () => ({ signOut: mocks.signOut }),
   useReverification:
@@ -25,7 +25,7 @@ vi.mock("@clerk/clerk-react", () => ({
       mocks.runWithReverification(fetcher, args),
 }));
 
-vi.mock("@clerk/clerk-react/errors", () => ({
+vi.mock("@clerk/react/errors", () => ({
   isReverificationCancelledError: mocks.isReverificationCancelledError,
 }));
 

@@ -106,31 +106,31 @@ describe("isNotificationDeliverySuppressedForShop", () => {
     ).resolves.toBe(false);
   });
 
-  it.each([
-    "allowlisted-first",
-    "real-first",
-  ] as const)("mixed managersでは挿入順が%sでもdry-runにしない", async (order) => {
-    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "@test.example");
-    const t = convexTest(schema, modules);
-    const shopId = await t.run(async (ctx) => {
-      const seeded = await seedManagerShop(ctx, {
-        subject: `manager_mixed_primary_${order}`,
-        email: order === "allowlisted-first" ? "preview@test.example" : "owner@real.example",
-        shopName: "Mixed managers",
+  it.each(["allowlisted-first", "real-first"] as const)(
+    "mixed managersでは挿入順が%sでもdry-runにしない",
+    async (order) => {
+      vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "@test.example");
+      const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
+          subject: `manager_mixed_primary_${order}`,
+          email: order === "allowlisted-first" ? "preview@test.example" : "owner@real.example",
+          shopName: "Mixed managers",
+        });
+        const secondUserId = await seedUser(
+          ctx,
+          `manager_mixed_secondary_${order}`,
+          order === "allowlisted-first" ? "owner@real.example" : "preview@test.example",
+        );
+        await seedShopMembership(ctx, { userId: secondUserId, shopId: seeded.shopId });
+        return seeded.shopId;
       });
-      const secondUserId = await seedUser(
-        ctx,
-        `manager_mixed_secondary_${order}`,
-        order === "allowlisted-first" ? "owner@real.example" : "preview@test.example",
-      );
-      await seedShopMembership(ctx, { userId: secondUserId, shopId: seeded.shopId });
-      return seeded.shopId;
-    });
 
-    await expect(
-      t.query(internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop, { shopId }),
-    ).resolves.toBe(false);
-  });
+      await expect(
+        t.query(internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop, { shopId }),
+      ).resolves.toBe(false);
+    },
+  );
 
   it("active manager全員がallowlistに一致するとdry-runにする", async () => {
     vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "@test.example");

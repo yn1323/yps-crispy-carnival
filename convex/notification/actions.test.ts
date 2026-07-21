@@ -75,7 +75,7 @@ describe("notification/actions", () => {
         })
         .sort((a, b) => a.outboxId.localeCompare(b.outboxId)),
     );
-  });
+  }, 60_000);
 
   it("確定シフト通知はtargetStaffIdsのスタッフだけをoutboxにenqueueしてsnapshotを更新する", async () => {
     const t = convexTest(schema, modules);

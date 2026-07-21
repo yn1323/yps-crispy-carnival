@@ -18,3 +18,8 @@ export function normalizeAuthRedirect(value: unknown) {
     return "/dashboard";
   }
 }
+
+export function buildSsoCallbackUrl(value: unknown) {
+  const search = new URLSearchParams({ redirect: normalizeAuthRedirect(value) });
+  return `/sso-callback?${search.toString()}`;
+}

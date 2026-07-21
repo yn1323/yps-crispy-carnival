@@ -17,19 +17,12 @@ describe("ユーザー一覧のURL状態", () => {
     expect(parseUserListCount(value)).toBe(expected);
   });
 
-  it.each([
-    undefined,
-    null,
-    "",
-    "10",
-    10,
-    "25",
-    -20,
-    "201",
-    Number.NaN,
-  ])("不正または既定の表示件数 %s はURL状態から除く", (value) => {
-    expect(parseUserListCount(value)).toBeUndefined();
-  });
+  it.each([undefined, null, "", "10", 10, "25", -20, "201", Number.NaN])(
+    "不正または既定の表示件数 %s はURL状態から除く",
+    (value) => {
+      expect(parseUserListCount(value)).toBeUndefined();
+    },
+  );
 
   it("既定件数は省略し、もっと見るで増えた件数だけURLへ保持する", () => {
     expect(toUserListCountSearch(DEFAULT_USER_LIST_COUNT)).toBeUndefined();

@@ -1,5 +1,5 @@
 import { Box, Flex, Icon, Menu, Portal, Text } from "@chakra-ui/react";
-import { SignOutButton } from "@clerk/clerk-react";
+import { SignOutButton } from "@clerk/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { LuBookOpen, LuBuilding2, LuChevronDown, LuLogOut, LuMailQuestion, LuUserRound } from "react-icons/lu";

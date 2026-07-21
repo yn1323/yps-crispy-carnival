@@ -120,30 +120,30 @@ describe("useUserManagerActions", () => {
     expect(result.current.dialog).toBeNull();
   });
 
-  it.each([
-    null,
-    "unknown-shop",
-  ])("選択店舗が未指定または不正な場合はグループ内の店舗を削除操作のコンテキストに使う: %s", async (selectedShopId) => {
-    const error = new ConvexError("最後の有効管理者は削除できません。");
-    mocks.removePerson.mockRejectedValue(error);
-    const { result } = renderHook(() =>
-      useUserManagerActions({ data: lastActiveManagerData, selectedShopId, onPersonRemoved: vi.fn() }),
-    );
+  it.each([null, "unknown-shop"])(
+    "選択店舗が未指定または不正な場合はグループ内の店舗を削除操作のコンテキストに使う: %s",
+    async (selectedShopId) => {
+      const error = new ConvexError("最後の有効管理者は削除できません。");
+      mocks.removePerson.mockRejectedValue(error);
+      const { result } = renderHook(() =>
+        useUserManagerActions({ data: lastActiveManagerData, selectedShopId, onPersonRemoved: vi.fn() }),
+      );
 
-    act(() => result.current.onRequestRemovePerson());
-    expect(result.current.dialog).toEqual({ kind: "removePerson" });
+      act(() => result.current.onRequestRemovePerson());
+      expect(result.current.dialog).toEqual({ kind: "removePerson" });
 
-    await act(async () => {
-      await result.current.onConfirmRemoval();
-    });
+      await act(async () => {
+        await result.current.onConfirmRemoval();
+      });
 
-    expect(mocks.removePerson).toHaveBeenCalledExactlyOnceWith({
-      shopId,
-      personId,
-      requestId,
-    });
-    expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error);
-  });
+      expect(mocks.removePerson).toHaveBeenCalledExactlyOnceWith({
+        shopId,
+        personId,
+        requestId,
+      });
+      expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error);
+    },
+  );
 
   it("最後の有効管理者でも管理者権限解除を確認し、サーバー拒否を表示してDialogを維持する", async () => {
     const error = new ConvexError("最後の有効管理者の管理者権限は外せません。");

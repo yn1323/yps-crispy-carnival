@@ -296,36 +296,36 @@ describe("organization person removal", () => {
     ).resolves.toEqual({ changed: false });
   });
 
-  it.each([
-    "archived",
-    "planSuspended",
-  ] as const)("%s店舗では未完了の店舗所属解除を拒否する", async (operatingStatus) => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, {
-        subject: `inactive_shop_remove_${operatingStatus}`,
-        plan: "pro",
+  it.each(["archived", "planSuspended"] as const)(
+    "%s店舗では未完了の店舗所属解除を拒否する",
+    async (operatingStatus) => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: `inactive_shop_remove_${operatingStatus}`,
+          plan: "pro",
+        });
+        const target = await seedTargetPerson(ctx, {
+          base,
+          subject: `inactive_shop_target_${operatingStatus}`,
+          shopIds: [base.shopId],
+        });
+        await ctx.db.patch(base.shopId, { operatingStatus });
+        return { ...base, ...target };
       });
-      const target = await seedTargetPerson(ctx, {
-        base,
-        subject: `inactive_shop_target_${operatingStatus}`,
-        shopIds: [base.shopId],
-      });
-      await ctx.db.patch(base.shopId, { operatingStatus });
-      return { ...base, ...target };
-    });
 
-    await expect(
-      t
-        .withIdentity({ subject: `inactive_shop_remove_${operatingStatus}` })
-        .mutation(api.organization.mutations.removePersonFromShop, {
-          shopId: ids.shopId,
-          staffId: ids.staffIds[0],
-          requestId: `inactive-shop-remove-${operatingStatus}`,
-        }),
-    ).rejects.toThrow("稼働中の店舗だけ所属を変更できます");
-    await expect(t.run(async (ctx) => (await ctx.db.get(ids.staffIds[0]))?.isDeleted)).resolves.toBe(false);
-  });
+      await expect(
+        t
+          .withIdentity({ subject: `inactive_shop_remove_${operatingStatus}` })
+          .mutation(api.organization.mutations.removePersonFromShop, {
+            shopId: ids.shopId,
+            staffId: ids.staffIds[0],
+            requestId: `inactive-shop-remove-${operatingStatus}`,
+          }),
+      ).rejects.toThrow("稼働中の店舗だけ所属を変更できます");
+      await expect(t.run(async (ctx) => (await ctx.db.get(ids.staffIds[0]))?.isDeleted)).resolves.toBe(false);
+    },
+  );
 
   it("事業者から削除すると全所属・権限・招待・リンク・業務通知を失効し、他事業者と履歴は残す", async () => {
     const t = convexTest(schema, modules);

@@ -8,6 +8,15 @@ import { ensureDeletionCleanupJob } from "./service";
 import { deletedLineUserId } from "./tombstone";
 
 const NOW = new Date("2026-07-18T00:00:00.000Z").getTime();
+const DELETION_CLEANUP_MAX_SCHEDULED_ITERATIONS = 300;
+
+async function finishDeletionCleanup(test: Pick<ReturnType<typeof convexTest>, "finishAllScheduledFunctions">) {
+  const finishAll = test.finishAllScheduledFunctions as (
+    advanceTimers: () => void,
+    maxIterations?: number,
+  ) => Promise<void>;
+  await finishAll(vi.runAllTimers, DELETION_CLEANUP_MAX_SCHEDULED_ITERATIONS);
+}
 
 describe("deletionCleanup worker", () => {
   beforeEach(() => {
@@ -65,7 +74,7 @@ describe("deletionCleanup worker", () => {
     expect(detected.job?.completedAt).toBeUndefined();
     expect(detected.staff).toMatchObject({ isDeleted: false, name: "残存スタッフ" });
 
-    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    await finishDeletionCleanup(t);
 
     const completed = await t.run(async (ctx) => ({
       job: await ctx.db.get(ids.jobId),
@@ -136,7 +145,7 @@ describe("deletionCleanup worker", () => {
     expect(firstPage.active).toHaveLength(1);
     expect(firstPage.all).toHaveLength(101);
 
-    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    await finishDeletionCleanup(t);
 
     const finalState = await t.run(async (ctx) => ({
       job: await ctx.db.get(ids.jobId),
@@ -214,7 +223,7 @@ describe("deletionCleanup worker", () => {
     expect(firstBatch.job).toMatchObject({ status: "queued", phase: "shopNotificationHistory" });
     expect(firstBatch.histories).toHaveLength(1);
 
-    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    await finishDeletionCleanup(t);
 
     const completed = await t.run(async (ctx) => ({
       histories: await ctx.db
@@ -272,9 +281,11 @@ describe("deletionCleanup worker", () => {
 
     await expect(t.run(async (ctx) => ctx.db.get(ids.jobId))).resolves.toMatchObject({
       status: "queued",
-      phase: "organizationShopNotificationHistory",
+      phase: "organizationVerification",
+      resource: "organizationShopNotificationHistory",
+      currentShopId: ids.shopId,
     });
-    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    await finishDeletionCleanup(t);
     await expect(
       t.run(async (ctx) =>
         ctx.db
@@ -327,7 +338,7 @@ describe("deletionCleanup worker", () => {
       version: 5,
     });
 
-    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    await finishDeletionCleanup(t);
     await expect(t.run(async (ctx) => ctx.db.get(ids.jobId))).resolves.toMatchObject({
       status: "completed",
       completedAt: expect.any(Number),
@@ -496,7 +507,7 @@ describe("deletionCleanup worker", () => {
       leaseId: "association-scan-lease",
       expectedVersion: 1,
     });
-    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    await finishDeletionCleanup(t);
 
     const state = await t.run(async (ctx) => ({
       job: await ctx.db.get(ids.jobId),
@@ -660,7 +671,7 @@ describe("deletionCleanup worker", () => {
       resource: "organizationOutboxPending",
     });
 
-    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    await finishDeletionCleanup(t);
 
     const completed = await t.run(async (ctx) => ({
       job: await ctx.db.get(ids.jobId),
@@ -783,10 +794,11 @@ describe("deletionCleanup worker", () => {
     await expect(t.run(async (ctx) => ctx.db.get(ids.jobId))).resolves.toMatchObject({
       status: "queued",
       phase: "organizationVerification",
-      resource: "organizationShopMembers",
+      resource: "organizationShopStaffs",
+      currentShopId: ids.shopId,
     });
 
-    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    await finishDeletionCleanup(t);
 
     const state = await t.run(async (ctx) => ({
       job: await ctx.db.get(ids.jobId),

@@ -1,5 +1,5 @@
-import { useAuth, useClerk, useReverification } from "@clerk/clerk-react";
-import { isReverificationCancelledError } from "@clerk/clerk-react/errors";
+import { useAuth, useClerk, useReverification } from "@clerk/react";
+import { isReverificationCancelledError } from "@clerk/react/errors";
 import { useSetAtom } from "jotai";
 import { useCallback, useRef, useState } from "react";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";

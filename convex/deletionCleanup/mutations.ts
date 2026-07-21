@@ -425,6 +425,9 @@ async function runOrganizationShopStep(
     }
     shopId = shop._id;
     nextShopCursor = shops.isDone ? undefined : shops.continueCursor;
+    // Convexでは1回のfunction実行につきpaginateは1回だけ許可される。
+    // 店舗選択を永続化し、resource処理は次のscheduled mutationへ分ける。
+    return { phase, shopCursor: nextShopCursor, currentShopId: shopId };
   }
 
   const result = await runShopResource(ctx, shopId, resourceForOrganizationShopPhase(phase), job.cursor ?? null);
@@ -721,6 +724,14 @@ async function verifyOrganizationShopResource(
     if (!shop) return nextOrganizationVerificationStep(resource);
     shopId = shop._id;
     nextShopCursor = shops.isDone ? undefined : shops.continueCursor;
+    // 店舗一覧と店舗resourceの両方を同じ実行でpaginateしない。
+    // 検証位置をjobへ保存し、次のscheduled mutationから再開する。
+    return {
+      phase: "organizationVerification",
+      resource,
+      shopCursor: nextShopCursor,
+      currentShopId: shopId,
+    };
   }
 
   const shopResource = organizationVerificationShopResource(resource);

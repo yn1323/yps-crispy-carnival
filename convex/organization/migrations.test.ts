@@ -1,11 +1,10 @@
-import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "../_generated/api";
+import { createConvexTestWithMigrations } from "../_test/migrations.test-helper";
 import { seedManagerShop, seedShopMembership } from "../_test/seed";
-import { modules, schema } from "../_test/setup.test-helper";
 
 function createOrganizationTest() {
-  return convexTest(schema, modules);
+  return createConvexTestWithMigrations();
 }
 
 async function runOrganizationMigrations(t: ReturnType<typeof createOrganizationTest>) {

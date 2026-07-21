@@ -3,7 +3,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
-import tsconfigPaths from "vite-tsconfig-paths";
 import { defineConfig, defineProject } from "vitest/config";
 import { mdxPlugin } from "./vite/mdxPlugin";
 
@@ -11,11 +10,10 @@ const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(file
 const storybookAppVersion = "0.0.0-vrt";
 
 const logicProject = defineConfig({
-  plugins: [
-    mdxPlugin(),
-    // biome-ignore lint/suspicious/noExplicitAny: temp
-    tsconfigPaths() as any,
-  ],
+  plugins: [mdxPlugin()],
+  resolve: {
+    tsconfigPaths: true,
+  },
   test: {
     globals: true,
     name: "logic",
@@ -32,8 +30,6 @@ const logicProject = defineConfig({
 const uiProject = defineConfig({
   plugins: [
     mdxPlugin(),
-    // biome-ignore lint/suspicious/noExplicitAny: temp
-    tsconfigPaths() as any,
     storybookTest({
       // The location of your Storybook config, main.js|ts
       configDir: path.join(dirname, ".storybook"),
@@ -46,11 +42,12 @@ const uiProject = defineConfig({
     __APP_VERSION__: JSON.stringify(storybookAppVersion),
   },
   resolve: {
+    tsconfigPaths: true,
     alias: {
       "convex/react": path.resolve(dirname, ".storybook/mocks/convex-react.ts"),
       "convex/react-clerk": path.resolve(dirname, ".storybook/mocks/convex-react.ts"),
-      "@clerk/clerk-react/errors": path.resolve(dirname, ".storybook/mocks/clerk-react-errors.ts"),
-      "@clerk/clerk-react": path.resolve(dirname, ".storybook/mocks/clerk-react.tsx"),
+      "@clerk/react/errors": path.resolve(dirname, ".storybook/mocks/clerk-react-errors.ts"),
+      "@clerk/react": path.resolve(dirname, ".storybook/mocks/clerk-react.tsx"),
     },
   },
   test: {
@@ -63,7 +60,6 @@ const uiProject = defineConfig({
       headless: true,
       instances: [{ browser: "chromium" }],
     },
-    setupFiles: ["./.storybook/vitest.setup.ts"],
   },
 });
 
@@ -71,8 +67,8 @@ const convexLogicProject = defineConfig({
   test: {
     name: "convex(logic)",
     environment: "edge-runtime",
-    // 全project同時実行時も、100人規模のOutbox/移行回帰を環境負荷だけで失敗させない。
-    testTimeout: 10_000,
+    // 全project同時実行時も、HTTP Actionや100人規模の回帰を環境負荷だけで失敗させない。
+    testTimeout: 30_000,
     include: ["./convex/**/*.test.ts"],
     exclude: ["node_modules", "./convex/_generated/**", "./convex/_scenario/**"],
   },

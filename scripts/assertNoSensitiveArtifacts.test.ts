@@ -101,17 +101,14 @@ describe("artifact privacy gate", () => {
     expect(result.stderr).toContain("invalid binary file data");
   });
 
-  it.each([
-    "app.js.map",
-    ".env.production",
-    "storage-state.json",
-    "access.log",
-    "signing.pem",
-  ])("rejects forbidden artifact file %s", (filename) => {
-    writeFileSync(path.join(testDirectory, filename), "not-sensitive-by-content");
+  it.each(["app.js.map", ".env.production", "storage-state.json", "access.log", "signing.pem"])(
+    "rejects forbidden artifact file %s",
+    (filename) => {
+      writeFileSync(path.join(testDirectory, filename), "not-sensitive-by-content");
 
-    expect(runGate(filename).status).toBe(1);
-  });
+      expect(runGate(filename).status).toBe(1);
+    },
+  );
 
   it("detects Playwright storage state by shape even under an ordinary filename", () => {
     writeFileSync(path.join(testDirectory, "state.json"), '{"cookies":[],"origins":[]}');

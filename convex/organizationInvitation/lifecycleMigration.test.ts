@@ -1,12 +1,11 @@
-import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
+import { createConvexTestWithMigrations } from "../_test/migrations.test-helper";
 import { seedOrganizationManagerShop } from "../_test/seed";
-import { modules, schema } from "../_test/setup.test-helper";
 
 describe("m015 organization invitation lifecycle migration", () => {
   it("旧statusと連携情報を新ライフサイクルへ移し、再実行しても人物を増やさない", async () => {
-    const t = convexTest(schema, modules);
+    const t = createConvexTestWithMigrations();
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "invitation_m015_owner", plan: "pro" });
       const now = Date.now();

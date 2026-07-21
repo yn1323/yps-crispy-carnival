@@ -1,6 +1,8 @@
-import { useSignIn } from "@clerk/clerk-react";
+import { useSignIn } from "@clerk/react";
 import { useEffect, useState } from "react";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { buildSsoCallbackUrl } from "@/src/lib/auth/redirect";
+import { throwIfClerkOperationFailed } from "../clerkOperations";
 import { completeAuthSession } from "../completeAuthSession";
 import type { EmailVerificationValues } from "../EmailCodeVerificationForm";
 import { getClerkErrorMessage } from "../errorPresentation";
@@ -23,35 +25,33 @@ type UseLoginFlowControllerParams = {
 };
 
 export function useLoginFlowController({ redirectTo, initialErrorMessage }: UseLoginFlowControllerParams) {
-  const { isLoaded: signInLoaded, signIn, setActive } = useSignIn();
+  const { fetchStatus, signIn } = useSignIn();
   const [errorMessage, setErrorMessage] = useState(initialErrorMessage);
   const [loginStep, setLoginStep] = useState<LoginStep>("credentials");
-  const [loginEmailAddressId, setLoginEmailAddressId] = useState<string>();
   const [loginSafeIdentifier, setLoginSafeIdentifier] = useState<string>();
   const [verificationInfoMessage, setVerificationInfoMessage] = useState<string>();
   const [resendCooldownSeconds, setResendCooldownSeconds] = useState(0);
-  const { run: runAuthAction, isRunning: isSubmitting } = useSingleFlight(async (action: () => Promise<void>) => {
+  const { run: runAuthAction, isRunning } = useSingleFlight(async (action: () => Promise<void>) => {
     await action();
   });
   const { handleGoogle, isLineBrowser } = useGoogleOAuthController({
-    authenticateWithRedirect: signIn
-      ? () =>
-          signIn.authenticateWithRedirect({
-            strategy: "oauth_google",
-            redirectUrl: "/sso-callback",
-            redirectUrlComplete: redirectTo,
-          })
-      : undefined,
-    isResourceLoaded: signInLoaded,
+    authenticateWithRedirect: async () => {
+      const result = await signIn.sso({
+        strategy: "oauth_google",
+        redirectCallbackUrl: buildSsoCallbackUrl(redirectTo),
+        redirectUrl: redirectTo,
+      });
+      throwIfClerkOperationFailed(result);
+    },
+    isResourceLoaded: fetchStatus === "idle",
     runAuthAction,
     onErrorMessage: setErrorMessage,
   });
 
-  const completeWithSession = async (sessionId: string | null) => {
+  const completeWithSession = async () => {
     await completeAuthSession({
-      sessionId,
+      resource: signIn,
       redirectTo,
-      activateSession: setActive ? (activeSessionId) => setActive({ session: activeSessionId }) : undefined,
       onErrorMessage: setErrorMessage,
     });
   };
@@ -68,28 +68,27 @@ export function useLoginFlowController({ redirectTo, initialErrorMessage }: UseL
 
   const handleLogin = (values: LoginValues) =>
     runAuthAction(async () => {
-      if (!signInLoaded) return;
+      if (fetchStatus !== "idle") return;
 
       setErrorMessage(undefined);
       try {
-        const result = await signIn.create({
-          strategy: "password",
-          identifier: values.email,
+        const result = await signIn.password({
+          emailAddress: values.email,
           password: values.password,
         });
+        throwIfClerkOperationFailed(result);
 
-        if (isCompletedSignIn(result)) {
-          await completeWithSession(result.createdSessionId);
+        if (isCompletedSignIn(signIn)) {
+          await completeWithSession();
           return;
         }
 
         const emailCodeFactor = findClientTrustEmailCodeFactor({
-          status: result.status,
-          supportedSecondFactors: result.supportedSecondFactors,
+          status: signIn.status,
+          supportedSecondFactors: signIn.supportedSecondFactors,
         });
         if (emailCodeFactor) {
-          await prepareClientTrustEmailCode(result, emailCodeFactor.emailAddressId);
-          setLoginEmailAddressId(emailCodeFactor.emailAddressId);
+          await prepareClientTrustEmailCode(signIn);
           setLoginSafeIdentifier(maskEmailAddress(emailCodeFactor.safeIdentifier ?? values.email));
           setVerificationInfoMessage(undefined);
           setResendCooldownSeconds(RESEND_COOLDOWN_SECONDS);
@@ -97,7 +96,7 @@ export function useLoginFlowController({ redirectTo, initialErrorMessage }: UseL
           return;
         }
 
-        const status = result.status as string | null;
+        const status = signIn.status as string | null;
         setErrorMessage(
           status === "needs_client_trust" || status === "needs_second_factor"
             ? "この方法では本人確認を続けられません。お問い合わせください。"
@@ -110,14 +109,14 @@ export function useLoginFlowController({ redirectTo, initialErrorMessage }: UseL
 
   const handleVerifyLogin = (values: EmailVerificationValues) =>
     runAuthAction(async () => {
-      if (!signInLoaded) return;
+      if (fetchStatus !== "idle") return;
 
       setErrorMessage(undefined);
       setVerificationInfoMessage(undefined);
       try {
         const result = await verifyClientTrustEmailCode(signIn, values.code);
         if (isCompletedSignIn(result)) {
-          await completeWithSession(result.createdSessionId);
+          await completeWithSession();
           return;
         }
 
@@ -129,17 +128,17 @@ export function useLoginFlowController({ redirectTo, initialErrorMessage }: UseL
 
   const handleResendLoginCode = () =>
     runAuthAction(async () => {
-      if (!signInLoaded || resendCooldownSeconds > 0) return;
+      if (fetchStatus !== "idle" || resendCooldownSeconds > 0) return;
 
       setErrorMessage(undefined);
       setVerificationInfoMessage(undefined);
-      if (!loginEmailAddressId) {
+      if (loginStep !== "verify-email-code") {
         setErrorMessage("確認コードを再送できませんでした。ログイン画面に戻ってもう一度お試しください。");
         return;
       }
 
       try {
-        await prepareClientTrustEmailCode(signIn, loginEmailAddressId);
+        await prepareClientTrustEmailCode(signIn);
         setVerificationInfoMessage("新しい確認コードを送りました。");
         setResendCooldownSeconds(RESEND_COOLDOWN_SECONDS);
       } catch (error) {
@@ -147,19 +146,24 @@ export function useLoginFlowController({ redirectTo, initialErrorMessage }: UseL
       }
     });
 
-  const handleRestartLogin = () => {
-    setErrorMessage(undefined);
-    setVerificationInfoMessage(undefined);
-    setResendCooldownSeconds(0);
-    setLoginEmailAddressId(undefined);
-    setLoginSafeIdentifier(undefined);
-    setLoginStep("credentials");
-  };
+  const handleRestartLogin = () =>
+    runAuthAction(async () => {
+      setErrorMessage(undefined);
+      try {
+        throwIfClerkOperationFailed(await signIn.reset());
+        setVerificationInfoMessage(undefined);
+        setResendCooldownSeconds(0);
+        setLoginSafeIdentifier(undefined);
+        setLoginStep("credentials");
+      } catch (error) {
+        setErrorMessage(getClerkErrorMessage(error));
+      }
+    });
 
   return {
     errorMessage,
     isLineBrowser,
-    isSubmitting,
+    isSubmitting: isRunning || fetchStatus === "fetching",
     loginSafeIdentifier,
     loginStep,
     resendCooldownSeconds,

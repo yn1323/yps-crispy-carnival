@@ -1,14 +1,13 @@
 import { ConvexError } from "convex/values";
-import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
+import { createConvexTestWithMigrations } from "../_test/migrations.test-helper";
 import { seedShop } from "../_test/seed";
-import { modules, schema } from "../_test/setup.test-helper";
 import { getShopBillingState, getShopEntitlements, requirePaidFeature } from "./service";
 
 describe("billing/service", () => {
   it("課金状態行がない店舗はfreeとして扱う", async () => {
-    const t = convexTest(schema, modules);
+    const t = createConvexTestWithMigrations();
     const result = await t.run(async (ctx) => {
       const shopId = await seedShop(ctx, "課金未作成店舗");
       return await getShopBillingState(ctx, shopId);
@@ -23,7 +22,7 @@ describe("billing/service", () => {
   });
 
   it("freeは有料機能を利用できない", async () => {
-    const t = convexTest(schema, modules);
+    const t = createConvexTestWithMigrations();
     const result = await t.run(async (ctx) => {
       const shopId = await seedShop(ctx, "フリー店舗");
       return await getShopEntitlements(ctx, shopId);
@@ -39,7 +38,7 @@ describe("billing/service", () => {
   });
 
   it("standardとpremiumは有料機能を利用できる", async () => {
-    const t = convexTest(schema, modules);
+    const t = createConvexTestWithMigrations();
     const result = await t.run(async (ctx) => {
       const standardShopId = await seedShop(ctx, "スタンダード店舗");
       const premiumShopId = await seedShop(ctx, "プレミアム店舗");
@@ -82,7 +81,7 @@ describe("billing/service", () => {
   });
 
   it("requirePaidFeatureはfreeで失敗し、有料プランで通る", async () => {
-    const t = convexTest(schema, modules);
+    const t = createConvexTestWithMigrations();
     const { freeShopId, paidShopId } = await t.run(async (ctx) => {
       const freeShopId = await seedShop(ctx, "フリー店舗");
       const paidShopId = await seedShop(ctx, "有料店舗");
@@ -105,7 +104,7 @@ describe("billing/service", () => {
   });
 
   it("既存店舗のfree課金状態をmigrationで作り、既存行は上書きしない", async () => {
-    const t = convexTest(schema, modules);
+    const t = createConvexTestWithMigrations();
     const { freeShopId, premiumShopId } = await t.run(async (ctx) => {
       const freeShopId = await seedShop(ctx, "既存フリー店舗");
       const premiumShopId = await seedShop(ctx, "既存プレミアム店舗");

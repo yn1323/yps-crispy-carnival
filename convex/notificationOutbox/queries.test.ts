@@ -309,9 +309,9 @@ describe("notificationOutbox/queries", () => {
     expect(page.page[0]).not.toHaveProperty("lastError");
   });
 
-  it("listOpenFailuresは非表示失敗がページを埋めても対応可能な失敗を初回ページで返す", async () => {
+  it("listOpenFailuresは非表示失敗を挟んでも対応可能な失敗を欠落なくページングする", async () => {
     const t = convexTest(schema, modules);
-    const { actionableId, shopId } = await t.run(async (ctx) => {
+    const { actionableId, olderActionableId, shopId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: "manager_pagination",
         email: "pagination@example.com",
@@ -355,6 +355,14 @@ describe("notificationOutbox/queries", () => {
         recruitmentId: openRecruitmentId,
         notificationContext: "notification.sendRecruitmentNotificationEmails",
       });
+      const olderId = await insertFailure(ctx, {
+        shopId,
+        failureKey: "outbox:older-actionable",
+        status: "open",
+        dedupeKey: "email:test:older-actionable",
+        lastFailedAt: Date.now() - 20_000,
+        notificationContext: "notification.sendReminderEmails",
+      });
       // 募集終了済み失敗（新しい）でページ先頭を埋める
       for (let i = 0; i < 3; i++) {
         await insertFailure(ctx, {
@@ -379,17 +387,38 @@ describe("notificationOutbox/queries", () => {
           notificationContext: "test.email",
         });
       }
-      return { actionableId: id, shopId };
+      return { actionableId: id, olderActionableId: olderId, shopId };
     });
 
-    const page = await t
+    const first = await t
       .withIdentity({ subject: "manager_pagination" })
       .query(api.notificationOutbox.queries.listOpenFailures, {
         shopId,
         paginationOpts: { numItems: 1, cursor: null },
       });
 
-    expect(page.page.map((failure) => failure._id)).toEqual([actionableId]);
+    expect(first.page.map((failure) => failure._id)).toEqual([actionableId]);
+    expect(first.isDone).toBe(false);
+
+    const second = await t
+      .withIdentity({ subject: "manager_pagination" })
+      .query(api.notificationOutbox.queries.listOpenFailures, {
+        shopId,
+        paginationOpts: { numItems: 1, cursor: first.continueCursor },
+      });
+
+    expect(second.page.map((failure) => failure._id)).toEqual([olderActionableId]);
+    expect(second.isDone).toBe(false);
+
+    const last = await t
+      .withIdentity({ subject: "manager_pagination" })
+      .query(api.notificationOutbox.queries.listOpenFailures, {
+        shopId,
+        paginationOpts: { numItems: 1, cursor: second.continueCursor },
+      });
+
+    expect(last.page).toEqual([]);
+    expect(last.isDone).toBe(true);
   });
 
   it("hasOpenFailuresは現在店舗のopen失敗の有無だけを返す", async () => {

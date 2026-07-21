@@ -1,6 +1,7 @@
-import { useSignIn } from "@clerk/clerk-react";
+import { useSignIn } from "@clerk/react";
 import { useState } from "react";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { throwIfClerkOperationFailed } from "../clerkOperations";
 import { completeAuthSession } from "../completeAuthSession";
 import { getClerkErrorMessage } from "../errorPresentation";
 import type { ForgotRequestValues, ForgotResetValues } from "../ForgotPasswordForm";
@@ -11,33 +12,34 @@ type UseForgotPasswordFlowControllerParams = {
 };
 
 export function useForgotPasswordFlowController({ redirectTo }: UseForgotPasswordFlowControllerParams) {
-  const { isLoaded: signInLoaded, signIn, setActive } = useSignIn();
+  const { fetchStatus, signIn } = useSignIn();
   const [errorMessage, setErrorMessage] = useState<string>();
   const [step, setStep] = useState<ForgotStep>("request");
   const [email, setEmail] = useState("");
-  const { run: runAuthAction, isRunning: isSubmitting } = useSingleFlight(async (action: () => Promise<void>) => {
+  const { run: runAuthAction, isRunning } = useSingleFlight(async (action: () => Promise<void>) => {
     await action();
   });
 
-  const completeWithSession = async (sessionId: string | null) => {
+  const completeWithSession = async () => {
     await completeAuthSession({
-      sessionId,
+      resource: signIn,
       redirectTo,
-      activateSession: setActive ? (activeSessionId) => setActive({ session: activeSessionId }) : undefined,
       onErrorMessage: setErrorMessage,
     });
   };
 
   const handleRequestReset = (values: ForgotRequestValues) =>
     runAuthAction(async () => {
-      if (!signInLoaded) return;
+      if (fetchStatus !== "idle") return;
 
       setErrorMessage(undefined);
       try {
-        await signIn.create({
-          strategy: "reset_password_email_code",
-          identifier: values.email,
-        });
+        throwIfClerkOperationFailed(
+          await signIn.create({
+            identifier: values.email,
+          }),
+        );
+        throwIfClerkOperationFailed(await signIn.resetPasswordEmailCode.sendCode());
         setEmail(values.email);
         setStep("reset");
       } catch (error) {
@@ -47,21 +49,19 @@ export function useForgotPasswordFlowController({ redirectTo }: UseForgotPasswor
 
   const handleResetPassword = (values: ForgotResetValues) =>
     runAuthAction(async () => {
-      if (!signInLoaded) return;
+      if (fetchStatus !== "idle") return;
 
       setErrorMessage(undefined);
       try {
-        const verified = await signIn.attemptFirstFactor({
-          strategy: "reset_password_email_code",
-          code: values.code,
-        });
-        const result =
-          verified.status === "needs_new_password"
-            ? await verified.resetPassword({ password: values.password })
-            : verified;
+        throwIfClerkOperationFailed(await signIn.resetPasswordEmailCode.verifyCode({ code: values.code }));
+        if (signIn.status !== "needs_new_password") {
+          setErrorMessage("パスワードを再設定できませんでした。コードを確認してもう一度お試しください。");
+          return;
+        }
+        throwIfClerkOperationFailed(await signIn.resetPasswordEmailCode.submitPassword({ password: values.password }));
 
-        if (result.status === "complete") {
-          await completeWithSession(result.createdSessionId);
+        if ((signIn.status as string) === "complete") {
+          await completeWithSession();
           return;
         }
 
@@ -74,7 +74,7 @@ export function useForgotPasswordFlowController({ redirectTo }: UseForgotPasswor
   return {
     email,
     errorMessage,
-    isSubmitting,
+    isSubmitting: isRunning || fetchStatus === "fetching",
     step,
     onRequestReset: handleRequestReset,
     onResetPassword: handleResetPassword,

@@ -9,102 +9,55 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TermsRouteImport } from './routes/terms'
-import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
-import { Route as SignupRouteImport } from './routes/signup'
-import { Route as PrivacyRouteImport } from './routes/privacy'
-import { Route as ManagerInviteRouteImport } from './routes/manager-invite'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as HowtoRouteImport } from './routes/howto'
-import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
-import { Route as FeaturesRouteImport } from './routes/features'
-import { Route as FaqRouteImport } from './routes/faq'
-import { Route as ContactRouteImport } from './routes/contact'
-import { Route as ArticlesRouteImport } from './routes/articles'
-import { Route as AccountDeletionAcceptedRouteImport } from './routes/account-deletion-accepted'
-import { Route as UnregisteredRouteImport } from './routes/_unregistered'
-import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ArticlesIndexRouteImport } from './routes/articles.index'
-import { Route as TermsStaffRouteImport } from './routes/terms_.staff'
-import { Route as TermsManagerRouteImport } from './routes/terms_.manager'
-import { Route as PrivacyStaffRouteImport } from './routes/privacy_.staff'
-import { Route as PrivacyManagerRouteImport } from './routes/privacy_.manager'
-import { Route as DemoShiftboardRouteImport } from './routes/demo.shiftboard'
-import { Route as DemoFlowRouteImport } from './routes/demo.flow'
-import { Route as ArticlesSlugRouteImport } from './routes/articles.$slug'
-import { Route as AuthSettingsRouteImport } from './routes/_auth/settings'
+import { Route as AuthRouteImport } from './routes/_auth'
+import { Route as UnregisteredRouteImport } from './routes/_unregistered'
+import { Route as AccountDeletionAcceptedRouteImport } from './routes/account-deletion-accepted'
+import { Route as ArticlesRouteImport } from './routes/articles'
+import { Route as ContactRouteImport } from './routes/contact'
+import { Route as FaqRouteImport } from './routes/faq'
+import { Route as FeaturesRouteImport } from './routes/features'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as HowtoRouteImport } from './routes/howto'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as ManagerInviteRouteImport } from './routes/manager-invite'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as SignupRouteImport } from './routes/signup'
+import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
-import { Route as ArticlesCategoriesCategorySlugRouteImport } from './routes/articles.categories.$categorySlug'
-import { Route as UnregisteredStaffRegisterRouteImport } from './routes/_unregistered/staff.register'
-import { Route as UnregisteredShiftsViewRouteImport } from './routes/_unregistered/shifts.view'
-import { Route as UnregisteredShiftsSubmitRouteImport } from './routes/_unregistered/shifts.submit'
-import { Route as UnregisteredShiftsReissueRouteImport } from './routes/_unregistered/shifts.reissue'
-import { Route as UnregisteredLineCallbackRouteImport } from './routes/_unregistered/line.callback'
-import { Route as AuthUsersPersonIdRouteImport } from './routes/_auth/users.$personId'
-import { Route as AuthShopsShopIdRouteImport } from './routes/_auth/shops.$shopId'
+import { Route as AuthSettingsRouteImport } from './routes/_auth/settings'
+import { Route as ArticlesIndexRouteImport } from './routes/articles.index'
+import { Route as ArticlesSlugRouteImport } from './routes/articles.$slug'
+import { Route as DemoFlowRouteImport } from './routes/demo.flow'
+import { Route as DemoShiftboardRouteImport } from './routes/demo.shiftboard'
+import { Route as PrivacyManagerRouteImport } from './routes/privacy_.manager'
+import { Route as PrivacyStaffRouteImport } from './routes/privacy_.staff'
+import { Route as TermsManagerRouteImport } from './routes/terms_.manager'
+import { Route as TermsStaffRouteImport } from './routes/terms_.staff'
 import { Route as AuthShiftboardRecruitmentIdRouteImport } from './routes/_auth/shiftboard.$recruitmentId'
-import { Route as UnregisteredShiftsSubmitCompletedRouteImport } from './routes/_unregistered/shifts.submit_.completed'
+import { Route as AuthShopsShopIdRouteImport } from './routes/_auth/shops.$shopId'
+import { Route as AuthUsersPersonIdRouteImport } from './routes/_auth/users.$personId'
+import { Route as UnregisteredLineCallbackRouteImport } from './routes/_unregistered/line.callback'
+import { Route as UnregisteredShiftsReissueRouteImport } from './routes/_unregistered/shifts.reissue'
+import { Route as UnregisteredShiftsSubmitRouteImport } from './routes/_unregistered/shifts.submit'
+import { Route as UnregisteredShiftsViewRouteImport } from './routes/_unregistered/shifts.view'
+import { Route as UnregisteredStaffRegisterRouteImport } from './routes/_unregistered/staff.register'
+import { Route as ArticlesCategoriesCategorySlugRouteImport } from './routes/articles.categories.$categorySlug'
 import { Route as UnregisteredLegalStaffConsentRouteImport } from './routes/_unregistered/legal.staff.consent'
+import { Route as UnregisteredShiftsSubmitCompletedRouteImport } from './routes/_unregistered/shifts.submit_.completed'
 
-const TermsRoute = TermsRouteImport.update({
-  id: '/terms',
-  path: '/terms',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SsoCallbackRoute = SsoCallbackRouteImport.update({
-  id: '/sso-callback',
-  path: '/sso-callback',
+const AuthRoute = AuthRouteImport.update({
+  id: '/_auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SignupRoute = SignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PrivacyRoute = PrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ManagerInviteRoute = ManagerInviteRouteImport.update({
-  id: '/manager-invite',
-  path: '/manager-invite',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HowtoRoute = HowtoRouteImport.update({
-  id: '/howto',
-  path: '/howto',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
-  id: '/forgot-password',
-  path: '/forgot-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FeaturesRoute = FeaturesRouteImport.update({
-  id: '/features',
-  path: '/features',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FaqRoute = FaqRouteImport.update({
-  id: '/faq',
-  path: '/faq',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ContactRoute = ContactRouteImport.update({
-  id: '/contact',
-  path: '/contact',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ArticlesRoute = ArticlesRouteImport.update({
-  id: '/articles',
-  path: '/articles',
+const UnregisteredRoute = UnregisteredRouteImport.update({
+  id: '/_unregistered',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AccountDeletionAcceptedRoute = AccountDeletionAcceptedRouteImport.update({
@@ -112,42 +65,89 @@ const AccountDeletionAcceptedRoute = AccountDeletionAcceptedRouteImport.update({
   path: '/account-deletion-accepted',
   getParentRoute: () => rootRouteImport,
 } as any)
-const UnregisteredRoute = UnregisteredRouteImport.update({
-  id: '/_unregistered',
+const ArticlesRoute = ArticlesRouteImport.update({
+  id: '/articles',
+  path: '/articles',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthRoute = AuthRouteImport.update({
-  id: '/_auth',
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const FaqRoute = FaqRouteImport.update({
+  id: '/faq',
+  path: '/faq',
   getParentRoute: () => rootRouteImport,
+} as any)
+const FeaturesRoute = FeaturesRouteImport.update({
+  id: '/features',
+  path: '/features',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HowtoRoute = HowtoRouteImport.update({
+  id: '/howto',
+  path: '/howto',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ManagerInviteRoute = ManagerInviteRouteImport.update({
+  id: '/manager-invite',
+  path: '/manager-invite',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SsoCallbackRoute = SsoCallbackRouteImport.update({
+  id: '/sso-callback',
+  path: '/sso-callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthDashboardRoute = AuthDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthSettingsRoute = AuthSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthRoute,
 } as any)
 const ArticlesIndexRoute = ArticlesIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => ArticlesRoute,
 } as any)
-const TermsStaffRoute = TermsStaffRouteImport.update({
-  id: '/terms_/staff',
-  path: '/terms/staff',
-  getParentRoute: () => rootRouteImport,
+const ArticlesSlugRoute = ArticlesSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => ArticlesRoute,
 } as any)
-const TermsManagerRoute = TermsManagerRouteImport.update({
-  id: '/terms_/manager',
-  path: '/terms/manager',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PrivacyStaffRoute = PrivacyStaffRouteImport.update({
-  id: '/privacy_/staff',
-  path: '/privacy/staff',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PrivacyManagerRoute = PrivacyManagerRouteImport.update({
-  id: '/privacy_/manager',
-  path: '/privacy/manager',
+const DemoFlowRoute = DemoFlowRouteImport.update({
+  id: '/demo/flow',
+  path: '/demo/flow',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DemoShiftboardRoute = DemoShiftboardRouteImport.update({
@@ -155,47 +155,46 @@ const DemoShiftboardRoute = DemoShiftboardRouteImport.update({
   path: '/demo/shiftboard',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DemoFlowRoute = DemoFlowRouteImport.update({
-  id: '/demo/flow',
-  path: '/demo/flow',
+const PrivacyManagerRoute = PrivacyManagerRouteImport.update({
+  id: '/privacy_/manager',
+  path: '/privacy/manager',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ArticlesSlugRoute = ArticlesSlugRouteImport.update({
-  id: '/$slug',
-  path: '/$slug',
-  getParentRoute: () => ArticlesRoute,
+const PrivacyStaffRoute = PrivacyStaffRouteImport.update({
+  id: '/privacy_/staff',
+  path: '/privacy/staff',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const AuthSettingsRoute = AuthSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
+const TermsManagerRoute = TermsManagerRouteImport.update({
+  id: '/terms_/manager',
+  path: '/terms/manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsStaffRoute = TermsStaffRouteImport.update({
+  id: '/terms_/staff',
+  path: '/terms/staff',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthShiftboardRecruitmentIdRoute =
+  AuthShiftboardRecruitmentIdRouteImport.update({
+    id: '/shiftboard/$recruitmentId',
+    path: '/shiftboard/$recruitmentId',
+    getParentRoute: () => AuthRoute,
+  } as any)
+const AuthShopsShopIdRoute = AuthShopsShopIdRouteImport.update({
+  id: '/shops/$shopId',
+  path: '/shops/$shopId',
   getParentRoute: () => AuthRoute,
 } as any)
-const AuthDashboardRoute = AuthDashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
+const AuthUsersPersonIdRoute = AuthUsersPersonIdRouteImport.update({
+  id: '/users/$personId',
+  path: '/users/$personId',
   getParentRoute: () => AuthRoute,
 } as any)
-const ArticlesCategoriesCategorySlugRoute =
-  ArticlesCategoriesCategorySlugRouteImport.update({
-    id: '/categories/$categorySlug',
-    path: '/categories/$categorySlug',
-    getParentRoute: () => ArticlesRoute,
-  } as any)
-const UnregisteredStaffRegisterRoute =
-  UnregisteredStaffRegisterRouteImport.update({
-    id: '/staff/register',
-    path: '/staff/register',
-    getParentRoute: () => UnregisteredRoute,
-  } as any)
-const UnregisteredShiftsViewRoute = UnregisteredShiftsViewRouteImport.update({
-  id: '/shifts/view',
-  path: '/shifts/view',
-  getParentRoute: () => UnregisteredRoute,
-} as any)
-const UnregisteredShiftsSubmitRoute =
-  UnregisteredShiftsSubmitRouteImport.update({
-    id: '/shifts/submit',
-    path: '/shifts/submit',
+const UnregisteredLineCallbackRoute =
+  UnregisteredLineCallbackRouteImport.update({
+    id: '/line/callback',
+    path: '/line/callback',
     getParentRoute: () => UnregisteredRoute,
   } as any)
 const UnregisteredShiftsReissueRoute =
@@ -204,38 +203,39 @@ const UnregisteredShiftsReissueRoute =
     path: '/shifts/reissue',
     getParentRoute: () => UnregisteredRoute,
   } as any)
-const UnregisteredLineCallbackRoute =
-  UnregisteredLineCallbackRouteImport.update({
-    id: '/line/callback',
-    path: '/line/callback',
+const UnregisteredShiftsSubmitRoute =
+  UnregisteredShiftsSubmitRouteImport.update({
+    id: '/shifts/submit',
+    path: '/shifts/submit',
     getParentRoute: () => UnregisteredRoute,
   } as any)
-const AuthUsersPersonIdRoute = AuthUsersPersonIdRouteImport.update({
-  id: '/users/$personId',
-  path: '/users/$personId',
-  getParentRoute: () => AuthRoute,
+const UnregisteredShiftsViewRoute = UnregisteredShiftsViewRouteImport.update({
+  id: '/shifts/view',
+  path: '/shifts/view',
+  getParentRoute: () => UnregisteredRoute,
 } as any)
-const AuthShopsShopIdRoute = AuthShopsShopIdRouteImport.update({
-  id: '/shops/$shopId',
-  path: '/shops/$shopId',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthShiftboardRecruitmentIdRoute =
-  AuthShiftboardRecruitmentIdRouteImport.update({
-    id: '/shiftboard/$recruitmentId',
-    path: '/shiftboard/$recruitmentId',
-    getParentRoute: () => AuthRoute,
-  } as any)
-const UnregisteredShiftsSubmitCompletedRoute =
-  UnregisteredShiftsSubmitCompletedRouteImport.update({
-    id: '/shifts/submit_/completed',
-    path: '/shifts/submit/completed',
+const UnregisteredStaffRegisterRoute =
+  UnregisteredStaffRegisterRouteImport.update({
+    id: '/staff/register',
+    path: '/staff/register',
     getParentRoute: () => UnregisteredRoute,
+  } as any)
+const ArticlesCategoriesCategorySlugRoute =
+  ArticlesCategoriesCategorySlugRouteImport.update({
+    id: '/categories/$categorySlug',
+    path: '/categories/$categorySlug',
+    getParentRoute: () => ArticlesRoute,
   } as any)
 const UnregisteredLegalStaffConsentRoute =
   UnregisteredLegalStaffConsentRouteImport.update({
     id: '/legal/staff/consent',
     path: '/legal/staff/consent',
+    getParentRoute: () => UnregisteredRoute,
+  } as any)
+const UnregisteredShiftsSubmitCompletedRoute =
+  UnregisteredShiftsSubmitCompletedRouteImport.update({
+    id: '/shifts/submit_/completed',
+    path: '/shifts/submit/completed',
     getParentRoute: () => UnregisteredRoute,
   } as any)
 
@@ -494,102 +494,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/terms': {
-      id: '/terms'
-      path: '/terms'
-      fullPath: '/terms'
-      preLoaderRoute: typeof TermsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sso-callback': {
-      id: '/sso-callback'
-      path: '/sso-callback'
-      fullPath: '/sso-callback'
-      preLoaderRoute: typeof SsoCallbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/signup': {
-      id: '/signup'
-      path: '/signup'
-      fullPath: '/signup'
-      preLoaderRoute: typeof SignupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/privacy': {
-      id: '/privacy'
-      path: '/privacy'
-      fullPath: '/privacy'
-      preLoaderRoute: typeof PrivacyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/manager-invite': {
-      id: '/manager-invite'
-      path: '/manager-invite'
-      fullPath: '/manager-invite'
-      preLoaderRoute: typeof ManagerInviteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/howto': {
-      id: '/howto'
-      path: '/howto'
-      fullPath: '/howto'
-      preLoaderRoute: typeof HowtoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/forgot-password': {
-      id: '/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/forgot-password'
-      preLoaderRoute: typeof ForgotPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/features': {
-      id: '/features'
-      path: '/features'
-      fullPath: '/features'
-      preLoaderRoute: typeof FeaturesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/faq': {
-      id: '/faq'
-      path: '/faq'
-      fullPath: '/faq'
-      preLoaderRoute: typeof FaqRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/contact': {
-      id: '/contact'
-      path: '/contact'
-      fullPath: '/contact'
-      preLoaderRoute: typeof ContactRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/articles': {
-      id: '/articles'
-      path: '/articles'
-      fullPath: '/articles'
-      preLoaderRoute: typeof ArticlesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/account-deletion-accepted': {
-      id: '/account-deletion-accepted'
-      path: '/account-deletion-accepted'
-      fullPath: '/account-deletion-accepted'
-      preLoaderRoute: typeof AccountDeletionAcceptedRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_unregistered': {
-      id: '/_unregistered'
-      path: ''
+    '/': {
+      id: '/'
+      path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof UnregisteredRouteImport
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_auth': {
@@ -599,12 +508,117 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
+    '/_unregistered': {
+      id: '/_unregistered'
+      path: ''
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+      preLoaderRoute: typeof UnregisteredRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/account-deletion-accepted': {
+      id: '/account-deletion-accepted'
+      path: '/account-deletion-accepted'
+      fullPath: '/account-deletion-accepted'
+      preLoaderRoute: typeof AccountDeletionAcceptedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/articles': {
+      id: '/articles'
+      path: '/articles'
+      fullPath: '/articles'
+      preLoaderRoute: typeof ArticlesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/faq': {
+      id: '/faq'
+      path: '/faq'
+      fullPath: '/faq'
+      preLoaderRoute: typeof FaqRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/features': {
+      id: '/features'
+      path: '/features'
+      fullPath: '/features'
+      preLoaderRoute: typeof FeaturesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/howto': {
+      id: '/howto'
+      path: '/howto'
+      fullPath: '/howto'
+      preLoaderRoute: typeof HowtoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/manager-invite': {
+      id: '/manager-invite'
+      path: '/manager-invite'
+      fullPath: '/manager-invite'
+      preLoaderRoute: typeof ManagerInviteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sso-callback': {
+      id: '/sso-callback'
+      path: '/sso-callback'
+      fullPath: '/sso-callback'
+      preLoaderRoute: typeof SsoCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_auth/dashboard': {
+      id: '/_auth/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthDashboardRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/settings': {
+      id: '/_auth/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthSettingsRouteImport
+      parentRoute: typeof AuthRoute
     }
     '/articles/': {
       id: '/articles/'
@@ -613,32 +627,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ArticlesIndexRouteImport
       parentRoute: typeof ArticlesRoute
     }
-    '/terms_/staff': {
-      id: '/terms_/staff'
-      path: '/terms/staff'
-      fullPath: '/terms/staff'
-      preLoaderRoute: typeof TermsStaffRouteImport
-      parentRoute: typeof rootRouteImport
+    '/articles/$slug': {
+      id: '/articles/$slug'
+      path: '/$slug'
+      fullPath: '/articles/$slug'
+      preLoaderRoute: typeof ArticlesSlugRouteImport
+      parentRoute: typeof ArticlesRoute
     }
-    '/terms_/manager': {
-      id: '/terms_/manager'
-      path: '/terms/manager'
-      fullPath: '/terms/manager'
-      preLoaderRoute: typeof TermsManagerRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/privacy_/staff': {
-      id: '/privacy_/staff'
-      path: '/privacy/staff'
-      fullPath: '/privacy/staff'
-      preLoaderRoute: typeof PrivacyStaffRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/privacy_/manager': {
-      id: '/privacy_/manager'
-      path: '/privacy/manager'
-      fullPath: '/privacy/manager'
-      preLoaderRoute: typeof PrivacyManagerRouteImport
+    '/demo/flow': {
+      id: '/demo/flow'
+      path: '/demo/flow'
+      fullPath: '/demo/flow'
+      preLoaderRoute: typeof DemoFlowRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/demo/shiftboard': {
@@ -648,81 +648,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DemoShiftboardRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/demo/flow': {
-      id: '/demo/flow'
-      path: '/demo/flow'
-      fullPath: '/demo/flow'
-      preLoaderRoute: typeof DemoFlowRouteImport
+    '/privacy_/manager': {
+      id: '/privacy_/manager'
+      path: '/privacy/manager'
+      fullPath: '/privacy/manager'
+      preLoaderRoute: typeof PrivacyManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/articles/$slug': {
-      id: '/articles/$slug'
-      path: '/$slug'
-      fullPath: '/articles/$slug'
-      preLoaderRoute: typeof ArticlesSlugRouteImport
-      parentRoute: typeof ArticlesRoute
+    '/privacy_/staff': {
+      id: '/privacy_/staff'
+      path: '/privacy/staff'
+      fullPath: '/privacy/staff'
+      preLoaderRoute: typeof PrivacyStaffRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_auth/settings': {
-      id: '/_auth/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AuthSettingsRouteImport
-      parentRoute: typeof AuthRoute
+    '/terms_/manager': {
+      id: '/terms_/manager'
+      path: '/terms/manager'
+      fullPath: '/terms/manager'
+      preLoaderRoute: typeof TermsManagerRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_auth/dashboard': {
-      id: '/_auth/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof AuthDashboardRouteImport
-      parentRoute: typeof AuthRoute
+    '/terms_/staff': {
+      id: '/terms_/staff'
+      path: '/terms/staff'
+      fullPath: '/terms/staff'
+      preLoaderRoute: typeof TermsStaffRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/articles/categories/$categorySlug': {
-      id: '/articles/categories/$categorySlug'
-      path: '/categories/$categorySlug'
-      fullPath: '/articles/categories/$categorySlug'
-      preLoaderRoute: typeof ArticlesCategoriesCategorySlugRouteImport
-      parentRoute: typeof ArticlesRoute
-    }
-    '/_unregistered/staff/register': {
-      id: '/_unregistered/staff/register'
-      path: '/staff/register'
-      fullPath: '/staff/register'
-      preLoaderRoute: typeof UnregisteredStaffRegisterRouteImport
-      parentRoute: typeof UnregisteredRoute
-    }
-    '/_unregistered/shifts/view': {
-      id: '/_unregistered/shifts/view'
-      path: '/shifts/view'
-      fullPath: '/shifts/view'
-      preLoaderRoute: typeof UnregisteredShiftsViewRouteImport
-      parentRoute: typeof UnregisteredRoute
-    }
-    '/_unregistered/shifts/submit': {
-      id: '/_unregistered/shifts/submit'
-      path: '/shifts/submit'
-      fullPath: '/shifts/submit'
-      preLoaderRoute: typeof UnregisteredShiftsSubmitRouteImport
-      parentRoute: typeof UnregisteredRoute
-    }
-    '/_unregistered/shifts/reissue': {
-      id: '/_unregistered/shifts/reissue'
-      path: '/shifts/reissue'
-      fullPath: '/shifts/reissue'
-      preLoaderRoute: typeof UnregisteredShiftsReissueRouteImport
-      parentRoute: typeof UnregisteredRoute
-    }
-    '/_unregistered/line/callback': {
-      id: '/_unregistered/line/callback'
-      path: '/line/callback'
-      fullPath: '/line/callback'
-      preLoaderRoute: typeof UnregisteredLineCallbackRouteImport
-      parentRoute: typeof UnregisteredRoute
-    }
-    '/_auth/users/$personId': {
-      id: '/_auth/users/$personId'
-      path: '/users/$personId'
-      fullPath: '/users/$personId'
-      preLoaderRoute: typeof AuthUsersPersonIdRouteImport
+    '/_auth/shiftboard/$recruitmentId': {
+      id: '/_auth/shiftboard/$recruitmentId'
+      path: '/shiftboard/$recruitmentId'
+      fullPath: '/shiftboard/$recruitmentId'
+      preLoaderRoute: typeof AuthShiftboardRecruitmentIdRouteImport
       parentRoute: typeof AuthRoute
     }
     '/_auth/shops/$shopId': {
@@ -732,25 +690,67 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthShopsShopIdRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/_auth/shiftboard/$recruitmentId': {
-      id: '/_auth/shiftboard/$recruitmentId'
-      path: '/shiftboard/$recruitmentId'
-      fullPath: '/shiftboard/$recruitmentId'
-      preLoaderRoute: typeof AuthShiftboardRecruitmentIdRouteImport
+    '/_auth/users/$personId': {
+      id: '/_auth/users/$personId'
+      path: '/users/$personId'
+      fullPath: '/users/$personId'
+      preLoaderRoute: typeof AuthUsersPersonIdRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/_unregistered/shifts/submit_/completed': {
-      id: '/_unregistered/shifts/submit_/completed'
-      path: '/shifts/submit/completed'
-      fullPath: '/shifts/submit/completed'
-      preLoaderRoute: typeof UnregisteredShiftsSubmitCompletedRouteImport
+    '/_unregistered/line/callback': {
+      id: '/_unregistered/line/callback'
+      path: '/line/callback'
+      fullPath: '/line/callback'
+      preLoaderRoute: typeof UnregisteredLineCallbackRouteImport
       parentRoute: typeof UnregisteredRoute
+    }
+    '/_unregistered/shifts/reissue': {
+      id: '/_unregistered/shifts/reissue'
+      path: '/shifts/reissue'
+      fullPath: '/shifts/reissue'
+      preLoaderRoute: typeof UnregisteredShiftsReissueRouteImport
+      parentRoute: typeof UnregisteredRoute
+    }
+    '/_unregistered/shifts/submit': {
+      id: '/_unregistered/shifts/submit'
+      path: '/shifts/submit'
+      fullPath: '/shifts/submit'
+      preLoaderRoute: typeof UnregisteredShiftsSubmitRouteImport
+      parentRoute: typeof UnregisteredRoute
+    }
+    '/_unregistered/shifts/view': {
+      id: '/_unregistered/shifts/view'
+      path: '/shifts/view'
+      fullPath: '/shifts/view'
+      preLoaderRoute: typeof UnregisteredShiftsViewRouteImport
+      parentRoute: typeof UnregisteredRoute
+    }
+    '/_unregistered/staff/register': {
+      id: '/_unregistered/staff/register'
+      path: '/staff/register'
+      fullPath: '/staff/register'
+      preLoaderRoute: typeof UnregisteredStaffRegisterRouteImport
+      parentRoute: typeof UnregisteredRoute
+    }
+    '/articles/categories/$categorySlug': {
+      id: '/articles/categories/$categorySlug'
+      path: '/categories/$categorySlug'
+      fullPath: '/articles/categories/$categorySlug'
+      preLoaderRoute: typeof ArticlesCategoriesCategorySlugRouteImport
+      parentRoute: typeof ArticlesRoute
     }
     '/_unregistered/legal/staff/consent': {
       id: '/_unregistered/legal/staff/consent'
       path: '/legal/staff/consent'
       fullPath: '/legal/staff/consent'
       preLoaderRoute: typeof UnregisteredLegalStaffConsentRouteImport
+      parentRoute: typeof UnregisteredRoute
+    }
+    '/_unregistered/shifts/submit_/completed': {
+      id: '/_unregistered/shifts/submit_/completed'
+      path: '/shifts/submit/completed'
+      fullPath: '/shifts/submit/completed'
+      preLoaderRoute: typeof UnregisteredShiftsSubmitCompletedRouteImport
       parentRoute: typeof UnregisteredRoute
     }
   }

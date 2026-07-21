@@ -4,8 +4,8 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { toaster } from "@/src/components/ui/toaster";
+import { useShopCustomPaginatedQuery } from "@/src/hooks/useShopCustomPaginatedQuery";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
-import { useShopPaginatedQuery } from "@/src/hooks/useShopPaginatedQuery";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import type { DashboardNotificationFailure } from "../NotificationFailureDialog";
 import { NotificationFailureRecoveryView } from "./NotificationFailureRecoveryView";
@@ -27,7 +27,7 @@ const NOTIFICATION_FAILURE_PAGE_SIZE = 50;
 
 export function NotificationFailureRecovery({ failures: failureOverrides, isReadOnly = false, children }: Props) {
   const dialog = useDialog();
-  const failureQuery = useShopPaginatedQuery(
+  const failureQuery = useShopCustomPaginatedQuery(
     api.notificationOutbox.queries.listOpenFailures,
     failureOverrides ? "skip" : {},
     { initialNumItems: NOTIFICATION_FAILURE_PAGE_SIZE },

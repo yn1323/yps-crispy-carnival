@@ -1823,48 +1823,48 @@ describe("organizationInvitation/mutations", () => {
     ).resolves.toEqual({ status: "revoked", invitationId: resent.invitationId });
   });
 
-  it.each([
-    "planSuspended",
-    "archived",
-  ] as const)("%sのみの事業者へ参加した承認結果は閲覧可能な店舗を返す", async (operatingStatus) => {
-    const t = convexTest(schema, modules);
-    const manager = await t.run(async (ctx) => {
-      const seeded = await seedOrganizationManagerShop(ctx, {
-        subject: `inactive_destination_owner_${operatingStatus}`,
-        plan: "pro",
+  it.each(["planSuspended", "archived"] as const)(
+    "%sのみの事業者へ参加した承認結果は閲覧可能な店舗を返す",
+    async (operatingStatus) => {
+      const t = convexTest(schema, modules);
+      const manager = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: `inactive_destination_owner_${operatingStatus}`,
+          plan: "pro",
+        });
+        await ctx.db.patch(seeded.shopId, { operatingStatus });
+        return seeded;
       });
-      await ctx.db.patch(seeded.shopId, { operatingStatus });
-      return seeded;
-    });
-    const created = await t
-      .withIdentity({ subject: `inactive_destination_owner_${operatingStatus}` })
-      .mutation(api.organizationInvitation.mutations.create, {
-        shopId: manager.shopId,
-        email: `inactive-destination-${operatingStatus}@example.com`,
-        requestId: `inactive-destination-${operatingStatus}`,
-      });
-    const invitation = await t.run((ctx) => ctx.db.get(created.invitationId));
-    if (!invitation) throw new Error("invitation not found");
-    const token = await deriveInvitationToken({
-      invitationId: invitation._id,
-      version: invitation.version,
-      signingSecret: SIGNING_SECRET,
-    });
-
-    await expect(
-      t
-        .withIdentity({
-          subject: `inactive_destination_invitee_${operatingStatus}`,
+      const created = await t
+        .withIdentity({ subject: `inactive_destination_owner_${operatingStatus}` })
+        .mutation(api.organizationInvitation.mutations.create, {
+          shopId: manager.shopId,
           email: `inactive-destination-${operatingStatus}@example.com`,
-          emailVerified: true,
-        })
-        .mutation(api.organizationInvitation.mutations.accept, { token }),
-    ).resolves.toEqual({
-      status: "accepted",
-      organizationId: manager.organizationId,
-      shopId: manager.shopId,
-    });
-  });
+          requestId: `inactive-destination-${operatingStatus}`,
+        });
+      const invitation = await t.run((ctx) => ctx.db.get(created.invitationId));
+      if (!invitation) throw new Error("invitation not found");
+      const token = await deriveInvitationToken({
+        invitationId: invitation._id,
+        version: invitation.version,
+        signingSecret: SIGNING_SECRET,
+      });
+
+      await expect(
+        t
+          .withIdentity({
+            subject: `inactive_destination_invitee_${operatingStatus}`,
+            email: `inactive-destination-${operatingStatus}@example.com`,
+            emailVerified: true,
+          })
+          .mutation(api.organizationInvitation.mutations.accept, { token }),
+      ).resolves.toEqual({
+        status: "accepted",
+        organizationId: manager.organizationId,
+        shopId: manager.shopId,
+      });
+    },
+  );
 
   it("Free交代招待の取消・期限切れでは現管理者を変更せず、同時に二件発行しない", async () => {
     const t = convexTest(schema, modules);

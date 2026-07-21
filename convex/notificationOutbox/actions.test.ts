@@ -197,41 +197,41 @@ describe("notificationOutbox/actions", () => {
     });
   });
 
-  it.each([
-    "unfollow",
-    "relinked",
-  ] as const)("enqueue後にLINE宛先が%sになった場合は旧IDへ送信せずcancelする", async (variant) => {
-    const { t, fetchMock, lineAccountId, outboxId } = await setupLineRecipientRevalidationJob();
-    await t.run(async (ctx) => {
-      await ctx.db.patch(
-        lineAccountId,
-        variant === "unfollow" ? { following: false } : { lineUserId: "U_line_relinked" },
-      );
-    });
+  it.each(["unfollow", "relinked"] as const)(
+    "enqueue後にLINE宛先が%sになった場合は旧IDへ送信せずcancelする",
+    async (variant) => {
+      const { t, fetchMock, lineAccountId, outboxId } = await setupLineRecipientRevalidationJob();
+      await t.run(async (ctx) => {
+        await ctx.db.patch(
+          lineAccountId,
+          variant === "unfollow" ? { following: false } : { lineUserId: "U_line_relinked" },
+        );
+      });
 
-    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
-    await t.action(internal.notificationOutbox.actions.processPending, {});
+      await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+      await t.action(internal.notificationOutbox.actions.processPending, {});
 
-    expect(fetchMock).not.toHaveBeenCalled();
-    const job = await t.run(async (ctx) => await ctx.db.get(outboxId));
-    expect(job).toMatchObject({ status: "cancelled", cancelReason: "recipient_inactive" });
-    expect(job?.processingStartedAt).toBeUndefined();
-    expect(job?.leaseToken).toBeUndefined();
-    expect(job?.leaseExpiresAt).toBeUndefined();
-  });
+      expect(fetchMock).not.toHaveBeenCalled();
+      const job = await t.run(async (ctx) => await ctx.db.get(outboxId));
+      expect(job).toMatchObject({ status: "cancelled", cancelReason: "recipient_inactive" });
+      expect(job?.processingStartedAt).toBeUndefined();
+      expect(job?.leaseToken).toBeUndefined();
+      expect(job?.leaseExpiresAt).toBeUndefined();
+    },
+  );
 
-  it.each([
-    "staff",
-    "manager",
-  ] as const)("送信直前の%s LINE宛先がenqueue時と一致する場合だけproviderを1回呼ぶ", async (scope) => {
-    const { t, fetchMock, outboxId } = await setupLineRecipientRevalidationJob(scope);
+  it.each(["staff", "manager"] as const)(
+    "送信直前の%s LINE宛先がenqueue時と一致する場合だけproviderを1回呼ぶ",
+    async (scope) => {
+      const { t, fetchMock, outboxId } = await setupLineRecipientRevalidationJob(scope);
 
-    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
-    await t.action(internal.notificationOutbox.actions.processPending, {});
+      await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+      await t.action(internal.notificationOutbox.actions.processPending, {});
 
-    expect(fetchMock).toHaveBeenCalledOnce();
-    expect(await t.run(async (ctx) => await ctx.db.get(outboxId))).toMatchObject({ status: "sent" });
-  });
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(await t.run(async (ctx) => await ctx.db.get(outboxId))).toMatchObject({ status: "sent" });
+    },
+  );
 
   it("管理者向け通常LINEも現在の連携IDへ変わった後は旧IDへ送らない", async () => {
     const { t, fetchMock, lineAccountId, outboxId } = await setupLineRecipientRevalidationJob("manager");
@@ -1056,21 +1056,21 @@ describe("notificationOutbox/actions", () => {
     });
   });
 
-  it.each([
-    "person",
-    "member",
-  ] as const)("enqueue後に事業者の%sが削除された場合はproviderを呼ばずに停止する", async (removedTarget) => {
-    vi.stubEnv("RESEND_API_KEY", "resend-token");
-    const fetchMock = vi.fn<typeof globalThis.fetch>();
-    vi.stubGlobal("fetch", fetchMock);
-    const { t, outboxId } = await setupOrganizationEmailJob(removedTarget);
+  it.each(["person", "member"] as const)(
+    "enqueue後に事業者の%sが削除された場合はproviderを呼ばずに停止する",
+    async (removedTarget) => {
+      vi.stubEnv("RESEND_API_KEY", "resend-token");
+      const fetchMock = vi.fn<typeof globalThis.fetch>();
+      vi.stubGlobal("fetch", fetchMock);
+      const { t, outboxId } = await setupOrganizationEmailJob(removedTarget);
 
-    await t.action(internal.notificationOutbox.actions.processPending, {});
+      await t.action(internal.notificationOutbox.actions.processPending, {});
 
-    expect(fetchMock).not.toHaveBeenCalled();
-    const job = await t.run(async (ctx) => await ctx.db.get(outboxId));
-    expect(job).toMatchObject({ status: "cancelled", cancelReason: "recipient_inactive" });
-  });
+      expect(fetchMock).not.toHaveBeenCalled();
+      const job = await t.run(async (ctx) => await ctx.db.get(outboxId));
+      expect(job).toMatchObject({ status: "cancelled", cancelReason: "recipient_inactive" });
+    },
+  );
 
   it("enqueue後に店舗が停止した場合はproviderを呼ばずに停止する", async () => {
     vi.stubEnv("RESEND_API_KEY", "resend-token");
