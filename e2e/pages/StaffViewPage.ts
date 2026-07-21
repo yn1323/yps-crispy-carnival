@@ -52,13 +52,11 @@ export class StaffViewPage {
   }
 
   async requestReissue(email: string) {
-    await this.page.getByRole("link", { name: "新しい閲覧リンクを受け取る" }).click();
+    await this.page.getByRole("link", { name: "新しい閲覧リンクを申し込む" }).click();
     await expect(this.page).toHaveURL(/\/shifts\/reissue/);
     await this.page.getByLabel("メールアドレス").fill(email);
-    await this.page.getByRole("button", { name: "リンクを送信する" }).click();
-    await expect(
-      this.page.getByText(/新しい閲覧リンクをお送りしました|新しい閲覧リンクを送りました/).first(),
-    ).toBeVisible();
+    await this.page.getByRole("button", { name: "再発行を申し込む" }).click();
+    await expect(this.page.getByText("再発行を受け付けました").first()).toBeVisible();
   }
 
   private staffRow(staffName: string): Locator {

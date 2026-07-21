@@ -73,7 +73,7 @@ function StaffShiftViewState({ state }: { state: StaffAccessState }) {
               state.recruitmentId ? (
                 <Link to="/shifts/reissue" search={{ recruitmentId: state.recruitmentId }}>
                   <Button colorPalette="teal" size="md" borderRadius="lg" px={6}>
-                    新しい閲覧リンクを受け取る
+                    新しい閲覧リンクを申し込む
                   </Button>
                 </Link>
               ) : undefined
@@ -97,7 +97,7 @@ function StaffShiftViewState({ state }: { state: StaffAccessState }) {
               action={
                 <Link to="/shifts/reissue" search={{ recruitmentId: state.session.recruitmentId }}>
                   <Button colorPalette="teal" size="md" borderRadius="lg" px={6}>
-                    新しい閲覧リンクを受け取る
+                    新しい閲覧リンクを申し込む
                   </Button>
                 </Link>
               }
@@ -137,7 +137,7 @@ function ShiftViewContent({ session }: { session: { sessionToken: string; recrui
             action={
               <Link to="/shifts/reissue" search={{ recruitmentId: session.recruitmentId }}>
                 <Button colorPalette="teal" size="md" borderRadius="lg" px={6}>
-                  新しい閲覧リンクを受け取る
+                  新しい閲覧リンクを申し込む
                 </Button>
               </Link>
             }

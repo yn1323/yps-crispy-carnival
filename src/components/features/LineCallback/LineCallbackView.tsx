@@ -23,7 +23,7 @@ const COPY: Record<
     icon: LuCircleCheck,
     tone: "success",
     title: "シフト通知をLINEで受け取れます",
-    description: "シフト確定や提出依頼がLINEに届きます。このページは閉じて構いません。",
+    description: "シフト確定や提出依頼をLINEへ送ります。このページは閉じて構いません。",
   },
   needs_follow: {
     icon: LuCircleAlert,
@@ -35,8 +35,9 @@ const COPY: Record<
   expired: {
     icon: LuClock,
     tone: "warning",
-    title: "リンクの有効期限が切れています",
-    description: "シフト作成担当者に、リンクの再送をお願いしてください。このリンクは72時間以内に1回だけ使えます。",
+    title: "このリンクではLINE連携できません",
+    description:
+      "リンクが無効または使用済みの可能性があります。シフト作成担当者に、新しい連携リンクをお願いしてください。",
   },
   rate_limited: {
     icon: LuCircleAlert,

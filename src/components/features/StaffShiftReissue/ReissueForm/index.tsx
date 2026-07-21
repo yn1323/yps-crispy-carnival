@@ -33,7 +33,7 @@ export const ReissueForm = ({ onSubmit, isSubmitting }: Props) => {
         </Field.Root>
 
         <Button type="submit" colorPalette="teal" w="full" borderRadius="lg" loading={isSubmitting}>
-          リンクを送信する
+          再発行を申し込む
         </Button>
 
         <Separator />

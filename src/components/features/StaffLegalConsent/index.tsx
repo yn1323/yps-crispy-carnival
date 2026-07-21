@@ -32,7 +32,7 @@ export function StaffLegalConsent({ token, data }: Props) {
         return;
       }
 
-      toaster.create({ title: "リンクの有効期限が切れています", type: "error" });
+      toaster.create({ title: "このリンクでは同意できません", type: "error" });
     } catch (error) {
       showErrorToast(error);
     }
