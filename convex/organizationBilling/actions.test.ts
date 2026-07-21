@@ -7,19 +7,31 @@ import { modules, schema } from "../_test/setup.test-helper";
 describe("organizationBilling/actions", () => {
   it("課金通知を管理者ごとのemailだけでOutboxへ積み、同じeventKeyを重複させない", async () => {
     const t = convexTest(schema, modules);
-    const ids = await t.run((ctx) => seedOrganizationManagerShop(ctx, { subject: "billing_notice", plan: "pro" }));
+    const ids = await t.run((ctx) => seedOrganizationManagerShop(ctx, { subject: "billing_notice", plan: "business" }));
 
     await expect(
       t.action(internal.organizationBilling.actions.enqueueBillingNotification, {
         organizationId: ids.organizationId,
         event: "planActivated",
         eventKey: "plan-activated-1",
+        notificationDetails: {
+          targetPlan: "business",
+          amountDue: 1_200,
+          currency: "jpy",
+          effectiveAt: Date.parse("2026-09-01T00:00:00+09:00"),
+        },
       }),
     ).resolves.toEqual({ enqueuedCount: 1 });
     await t.action(internal.organizationBilling.actions.enqueueBillingNotification, {
       organizationId: ids.organizationId,
       event: "planActivated",
       eventKey: "plan-activated-1",
+      notificationDetails: {
+        targetPlan: "business",
+        amountDue: 9_999,
+        currency: "jpy",
+        effectiveAt: Date.parse("2026-09-01T00:00:00+09:00"),
+      },
     });
 
     const jobs = await t.run((ctx) => ctx.db.query("notificationOutbox").collect());
@@ -33,6 +45,9 @@ describe("organizationBilling/actions", () => {
       dedupeKey: `email:organizationBilling:plan-activated-1:${ids.userId}`,
       payload: { kind: "email", context: "organizationBilling.planActivated" },
     });
+    expect(jobs[0]?.payload.kind === "email" ? jobs[0].payload.subject : "").toContain("Businessを開始しました");
+    expect(jobs[0]?.payload.kind === "email" ? jobs[0].payload.html : "").toContain("1,200");
+    expect(jobs[0]?.payload.kind === "email" ? jobs[0].payload.html : "").not.toContain("9,999");
     expect(jobs.some((job) => job.channel === "line")).toBe(false);
   });
 
@@ -251,7 +266,7 @@ describe("organizationBilling/actions", () => {
     expect(jobs).toHaveLength(1);
     expect(jobs[0]?.payload.kind).toBe("email");
     if (jobs[0]?.payload.kind !== "email") throw new Error("email payload not found");
-    expect(jobs[0].payload.html).toContain("選択済みの契約プランはProです。");
+    expect(jobs[0].payload.html).toContain("選択済みの契約プランはBusinessです。");
     expect(jobs[0].payload.html).toContain("初回請求は9/1(火) 00:00を予定しています。");
     expect(jobs[0].payload.html).toContain("無料へ変更する場合の設定期限は9/1(火) 00:00です。");
     expect(jobs[0].payload.html).not.toContain("円");

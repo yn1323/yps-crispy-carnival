@@ -6,17 +6,34 @@ import {
   LuCircleCheck,
   LuClock3,
   LuCreditCard,
+  LuCrown,
   LuMail,
   LuReceiptText,
   LuStore,
   LuUsers,
 } from "react-icons/lu";
 import { Button, IconButton } from "@/src/components/ui/Button";
-import type { BillingDisplayState, OrganizationBillingView } from "./types";
+import {
+  BILLING_PLAN_LIMITS,
+  type BillingPlanAction,
+  formatPlanPrice,
+  getRequiredReductions,
+  planLabel,
+  resolveBillingPlanAction,
+} from "./BillingSettings/script";
+import type {
+  BillingDisplayState,
+  BillingPlanPrices,
+  BillingProductPlan,
+  OrganizationBillingView,
+  PaidBillingPlan,
+} from "./types";
 
 type Props = {
   billing: OrganizationBillingView;
-  onManagePlan: () => void;
+  planPrices: BillingPlanPrices;
+  onManagePlan: (targetPlan: BillingProductPlan) => void;
+  onRetryPlanPrice: (targetPlan: PaidBillingPlan) => void;
   onUpdatePaymentMethod: () => void;
   onUpdateBillingEmail: () => void;
   onOpenBillingDocuments: () => void;
@@ -29,7 +46,7 @@ const STATE_PRESENTATION: Record<
   trial: {
     label: "トライアル",
     status: "info",
-    description: "利用人数30名・5店舗・管理者5名まで、Proと同じ有料機能を利用できます。",
+    description: "利用人数20名・5店舗・管理者5名まで、Proと同じ機能を利用できます。",
   },
   free: {
     label: "無料",
@@ -39,7 +56,12 @@ const STATE_PRESENTATION: Record<
   pro: {
     label: "Pro",
     status: "success",
-    description: "利用人数30名・5店舗・管理者5名まで、すべての機能を利用できます。",
+    description: "利用人数20名・5店舗・管理者5名まで利用できます。",
+  },
+  business: {
+    label: "Business",
+    status: "success",
+    description: "利用人数40名・5店舗・管理者5名まで利用できます。",
   },
   initialPaymentPending: {
     label: "初回請求を確認中",
@@ -60,12 +82,17 @@ const STATE_PRESENTATION: Record<
     label: "契約制限中",
     status: "error",
     description:
-      "プラン移行に伴い、機能を制限しています。\n支払いを確認するか、人数、店舗数を無料の枠に収まるよう調整してください。",
+      "プラン移行に伴い、機能を制限しています。\n支払いを確認するか、人数、店舗数を変更先プランの枠に収まるよう調整してください。",
   },
   scheduledFree: {
     label: "無料へ変更予定",
     status: "warning",
     description: "現在の支払い済み期間が終わるまでは、現在の有料プランを利用できます。",
+  },
+  scheduledChange: {
+    label: "プラン変更予定",
+    status: "warning",
+    description: "現在の支払い済み期間が終わるまでは、現在のプランを利用できます。",
   },
   migrationPending: {
     label: "設定を移行中",
@@ -76,18 +103,25 @@ const STATE_PRESENTATION: Record<
 
 export const PlanAndPaymentSection = ({
   billing,
+  planPrices,
   onManagePlan,
+  onRetryPlanPrice,
   onUpdatePaymentMethod,
   onUpdateBillingEmail,
   onOpenBillingDocuments,
 }: Props) => {
   const presentation =
-    billing.state === "pendingActivation" && billing.currentPlan === "free"
+    billing.state === "restricted" && billing.limitPlan
       ? {
-          ...STATE_PRESENTATION.pendingActivation,
-          description: "支払い成功を確認するまで有料プランは開始されません。確認中も無料の基本機能は利用できます。",
+          ...STATE_PRESENTATION.restricted,
+          description: `${planLabel(billing.limitPlan)}の上限に収まるよう、利用人数、店舗、管理者を整理してください。`,
         }
-      : STATE_PRESENTATION[billing.state];
+      : billing.state === "pendingActivation" && billing.currentPlan === "free"
+        ? {
+            ...STATE_PRESENTATION.pendingActivation,
+            description: "支払い成功を確認するまで有料プランは開始されません。確認中も無料の基本機能は利用できます。",
+          }
+        : STATE_PRESENTATION[billing.state];
   const currentPlan =
     billing.currentPlan ??
     (billing.state === "restricted"
@@ -110,41 +144,24 @@ export const PlanAndPaymentSection = ({
       : billing.state === "pendingActivation"
         ? "契約制限中"
         : "確認中");
-  const appliesFreeLimit =
-    billing.state === "restricted" || (billing.state === "pendingActivation" && billing.currentPlan === null);
+  const appliedLimitLabel =
+    billing.state === "restricted"
+      ? billing.limitPlan === "pro"
+        ? "現在はProの上限が適用されています"
+        : billing.limitPlan === "free"
+          ? "現在はFreeの上限が適用されています"
+          : undefined
+      : billing.state === "pendingActivation" && billing.currentPlan === null
+        ? "現在はFreeの上限が適用されています"
+        : undefined;
 
   return (
     <Stack gap={{ base: 6, md: 7 }}>
       <Stack as="section" gap={4} aria-labelledby="plan-heading">
         <Stack gap={2}>
-          <Flex
-            direction={{ base: "column", lg: "row" }}
-            align={{ base: "stretch", lg: "center" }}
-            justify="space-between"
-            gap={3}
-          >
-            <Heading id="plan-heading" as="h2" fontSize="lg">
-              プラン
-            </Heading>
-            {!billing.isComplimentary && (
-              <Button
-                colorPalette="teal"
-                w={{ base: "full", lg: "auto" }}
-                minW={{ lg: "176px" }}
-                minH={{ base: "44px", lg: "40px" }}
-                onClick={onManagePlan}
-                disabled={!billing.canManagePlan}
-                title={!billing.canManagePlan ? billing.managePlanDisabledReason : undefined}
-                aria-describedby={
-                  !billing.canManagePlan && billing.managePlanDisabledReason
-                    ? "organization-billing-manage-plan-disabled-reason"
-                    : undefined
-                }
-              >
-                {planActionLabel(billing)}
-              </Button>
-            )}
-          </Flex>
+          <Heading id="plan-heading" as="h2" fontSize="lg">
+            プラン
+          </Heading>
           {!billing.isComplimentary && !billing.canManagePlan && billing.managePlanDisabledReason && (
             <Text id="organization-billing-manage-plan-disabled-reason" fontSize="sm" color="orange.700">
               {billing.managePlanDisabledReason}
@@ -159,25 +176,6 @@ export const PlanAndPaymentSection = ({
           currentPlanDescription={isPlanState(billing.state) ? currentPlanPresentation?.description : undefined}
           presentation={presentation}
         />
-
-        {billing.state !== "migrationPending" && (
-          <Grid templateColumns="repeat(2, minmax(0, 1fr))" gap={{ base: 2, md: 4 }}>
-            <UsageMeter
-              icon={LuUsers}
-              label="利用人数"
-              current={billing.peopleUsage.current}
-              max={billing.peopleUsage.max}
-              helperText={appliesFreeLimit ? "現在は無料の上限が適用されています" : undefined}
-            />
-            <UsageMeter
-              icon={LuStore}
-              label="店舗数"
-              current={billing.shopUsage.current}
-              max={billing.shopUsage.max}
-              helperText={appliesFreeLimit ? "現在は無料の上限が適用されています" : undefined}
-            />
-          </Grid>
-        )}
 
         {isExceptionalState(billing.state) && (
           <BillingStateAlert
@@ -196,6 +194,45 @@ export const PlanAndPaymentSection = ({
               {billing.blockedReason}
             </Text>
           </Box>
+        )}
+
+        {shouldShowPlanComparison(billing) && (
+          <PlanComparisonCards
+            billing={billing}
+            prices={planPrices}
+            onSelectPlan={onManagePlan}
+            onRetryPrice={onRetryPlanPrice}
+          />
+        )}
+
+        {billing.state !== "migrationPending" && (
+          <Grid templateColumns={{ base: "1fr", sm: "repeat(3, minmax(0, 1fr))" }} gap={{ base: 2, md: 4 }}>
+            <UsageMeter
+              icon={LuUsers}
+              label="利用人数"
+              current={billing.peopleUsage.current}
+              max={billing.peopleUsage.max}
+              helperText={usageHelperText(
+                "管理者も1名として含みます",
+                billing.peopleUsage.pendingInvitations,
+                appliedLimitLabel,
+              )}
+            />
+            <UsageMeter
+              icon={LuStore}
+              label="店舗数"
+              current={billing.shopUsage.current}
+              max={billing.shopUsage.max}
+              helperText={appliedLimitLabel}
+            />
+            <UsageMeter
+              icon={LuCrown}
+              label="管理者数"
+              current={billing.managerUsage.current}
+              max={billing.managerUsage.max}
+              helperText={usageHelperText(undefined, billing.managerUsage.pendingInvitations, appliedLimitLabel)}
+            />
+          </Grid>
         )}
       </Stack>
 
@@ -247,12 +284,12 @@ function PlanSummary({
             </Heading>
             {billing.state === "trial" && billing.hasTrialContinuation && (
               <Badge variant="subtle" colorPalette="teal">
-                Pro継続登録済み
+                {billing.targetPlan ? planLabel(billing.targetPlan) : "有料プラン"}継続登録済み
               </Badge>
             )}
             {billing.isComplimentary && (
               <Badge variant="subtle" colorPalette="teal">
-                先行登録特典・支払い不要
+                支払い不要
               </Badge>
             )}
           </HStack>
@@ -263,7 +300,7 @@ function PlanSummary({
           )}
           {billing.isComplimentary && (
             <Text fontSize="xs" color="fg.muted">
-              先行登録特典として、料金なしでProの全機能を利用できます。
+              Businessの機能を料金なしで利用できます。
             </Text>
           )}
         </Stack>
@@ -306,13 +343,158 @@ function PlanSummary({
           </HStack>
           {billing.state === "trial" && (
             <Text fontSize="xs" color="fg.muted" lineHeight="tall">
-              終了後は利用人数5名・1店舗までとなります。
+              {trialContinuationDescription(billing)}
             </Text>
           )}
         </Stack>
       </Grid>
     </Box>
   );
+}
+
+function PlanComparisonCards({
+  billing,
+  prices,
+  onSelectPlan,
+  onRetryPrice,
+}: {
+  billing: OrganizationBillingView;
+  prices: BillingPlanPrices;
+  onSelectPlan: (targetPlan: BillingProductPlan) => void;
+  onRetryPrice: (targetPlan: PaidBillingPlan) => void;
+}) {
+  return (
+    <Grid templateColumns={{ base: "1fr", md: "repeat(3, minmax(0, 1fr))" }} gap={3}>
+      {(["free", "pro", "business"] as const).map((plan) => {
+        const isCurrent = billing.currentPlan === plan;
+        const action = resolveBillingPlanAction(billing, plan);
+        const limits = BILLING_PLAN_LIMITS[plan];
+        return (
+          <Stack
+            key={plan}
+            borderWidth="1px"
+            borderColor={isCurrent ? "teal.400" : "blackAlpha.100"}
+            borderRadius="xl"
+            bg={isCurrent ? "teal.50" : "white"}
+            p={4}
+            gap={3}
+          >
+            <HStack justify="space-between" align="flex-start" gap={2}>
+              <Heading as="h3" fontSize="md">
+                {planLabel(plan)}
+              </Heading>
+              {isCurrent && (
+                <Badge colorPalette="teal" variant="subtle">
+                  利用中
+                </Badge>
+              )}
+            </HStack>
+
+            <PlanPrice
+              plan={plan}
+              price={plan === "free" ? null : prices[plan]}
+              isComplimentary={billing.isComplimentary && plan === "business"}
+              onRetry={plan === "free" ? undefined : () => onRetryPrice(plan)}
+            />
+
+            <Stack gap={1} color="fg.muted">
+              <Text fontSize="xs">利用人数 {limits.people}名まで</Text>
+              <Text fontSize="xs">店舗 {limits.shops}店舗まで</Text>
+              <Text fontSize="xs">管理者 {limits.managers}名まで</Text>
+            </Stack>
+
+            {action && action.kind !== "openPortal" && (
+              <Button
+                size="sm"
+                variant={isSecondaryPlanAction(action) ? "outline" : "solid"}
+                colorPalette={
+                  action.kind === "schedulePlanChange"
+                    ? "orange"
+                    : action.kind === "cancelScheduledPlanChange"
+                      ? "gray"
+                      : "teal"
+                }
+                mt="auto"
+                minH="40px"
+                onClick={() => onSelectPlan(plan)}
+              >
+                {planChangeLabel(action.kind, plan)}
+              </Button>
+            )}
+          </Stack>
+        );
+      })}
+    </Grid>
+  );
+}
+
+function PlanPrice({
+  plan,
+  price,
+  isComplimentary,
+  onRetry,
+}: {
+  plan: BillingProductPlan;
+  price: BillingPlanPrices[PaidBillingPlan] | null;
+  isComplimentary: boolean;
+  onRetry?: () => void;
+}) {
+  if (plan === "free") {
+    return (
+      <Text fontSize="lg" fontWeight="bold">
+        ¥0
+      </Text>
+    );
+  }
+  if (isComplimentary) {
+    return (
+      <Text fontSize="lg" fontWeight="bold">
+        支払い不要
+      </Text>
+    );
+  }
+  if (!price || price.status === "loading") {
+    return (
+      <Text fontSize="sm" color="fg.muted">
+        料金を読み込み中
+      </Text>
+    );
+  }
+  if (price.status === "available") {
+    const formatted = formatPlanPrice(price.value);
+    return (
+      <Stack gap={0}>
+        <Text fontSize="lg" fontWeight="bold">
+          {formatted.amount}
+        </Text>
+        <Text fontSize="xs" color="fg.muted">
+          {formatted.interval}
+        </Text>
+      </Stack>
+    );
+  }
+  return (
+    <Stack gap={1.5}>
+      <Text fontSize="sm" color="orange.700">
+        {price.status === "unavailable" ? "料金を表示できません" : "料金を取得できませんでした"}
+      </Text>
+      {onRetry && (
+        <Button size="xs" variant="outline" alignSelf="flex-start" onClick={onRetry}>
+          料金を再読み込み
+        </Button>
+      )}
+    </Stack>
+  );
+}
+
+function planChangeLabel(kind: BillingPlanAction["kind"], plan: BillingProductPlan) {
+  if (kind === "cancelScheduledPlanChange") return "変更予約を取り消す";
+  if (kind === "cancelTrialContinuation") return "有料継続を取り消す";
+  return `${planLabel(plan)}へ変更`;
+}
+
+function isSecondaryPlanAction(action: BillingPlanAction) {
+  return action.kind === "schedulePlanChange" || action.kind === "cancelScheduledPlanChange";
 }
 
 function BillingStatus({
@@ -349,6 +531,12 @@ function BillingStateAlert({
   onUpdatePaymentMethod: () => void;
 }) {
   const showPaymentRecovery = billing.state === "grace";
+  const reductions = getRequiredReductions(billing);
+  const showReductions =
+    ((billing.state === "restricted" && billing.limitPlan !== undefined) ||
+      billing.state === "scheduledChange" ||
+      billing.state === "scheduledFree") &&
+    (reductions.people > 0 || reductions.shops > 0 || reductions.managers > 0);
 
   return (
     <Alert.Root
@@ -378,6 +566,7 @@ function BillingStateAlert({
             <Stack gap={1}>
               <Text>{presentation.description}</Text>
               {billing.blockedReason && <Text>{billing.blockedReason}</Text>}
+              {showReductions && <ReductionGuidance reductions={reductions} />}
               {showPaymentRecovery && !billing.canUpdatePaymentMethod && billing.paymentMethodDisabledReason && (
                 <Text id="organization-billing-recovery-payment-method-disabled-reason">
                   {billing.paymentMethodDisabledReason}
@@ -409,6 +598,16 @@ function BillingStateAlert({
         )}
       </Flex>
     </Alert.Root>
+  );
+}
+
+function ReductionGuidance({ reductions }: { reductions: ReturnType<typeof getRequiredReductions> }) {
+  return (
+    <Stack gap={0.5} fontWeight="semibold">
+      {reductions.people > 0 && <Text>あと{reductions.people}名削除してください</Text>}
+      {reductions.shops > 0 && <Text>あと{reductions.shops}店舗を整理してください</Text>}
+      {reductions.managers > 0 && <Text>あと{reductions.managers}名の管理者権限または招待を整理してください</Text>}
+    </Stack>
   );
 }
 
@@ -470,6 +669,19 @@ const UsageMeter = ({
     </Box>
   );
 };
+
+function usageHelperText(base: string | undefined, pendingInvitations: number | undefined, limit: string | undefined) {
+  const parts = [base];
+  if (pendingInvitations && pendingInvitations > 0) parts.push(`招待中${pendingInvitations}名を含む`);
+  if (limit) parts.push(limit);
+  return parts.filter((part): part is string => Boolean(part)).join("。") || undefined;
+}
+
+function trialContinuationDescription(billing: OrganizationBillingView) {
+  if (billing.targetPlan === "business") return "終了後はBusinessへ継続する予定です。";
+  if (billing.targetPlan === "pro") return "終了後はProへ継続する予定です。";
+  return "継続登録がない場合、終了後は利用人数5名・1店舗までとなります。";
+}
 
 function PaymentInformation({
   billing,
@@ -622,12 +834,6 @@ function BillingInformationRow({
   );
 }
 
-function planLabel(plan: NonNullable<OrganizationBillingView["currentPlan"]>): string {
-  if (plan === "trial") return "トライアル";
-  if (plan === "free") return "無料";
-  return "Pro";
-}
-
 function billingStatusLabel(state: BillingDisplayState): string {
   if (state === "trial") return "トライアル中";
   if (isPlanState(state)) return "利用中";
@@ -641,26 +847,26 @@ function statusColor(status: (typeof STATE_PRESENTATION)[BillingDisplayState]["s
   return "blue.700";
 }
 
-function isPlanState(state: BillingDisplayState): state is "trial" | "free" | "pro" {
-  return state === "trial" || state === "free" || state === "pro";
+function isPlanState(state: BillingDisplayState): state is "trial" | "free" | "pro" | "business" {
+  return state === "trial" || state === "free" || state === "pro" || state === "business";
 }
 
 function isExceptionalState(state: BillingDisplayState): boolean {
   return !isPlanState(state);
 }
 
-function shouldShowCurrentPlan(state: BillingDisplayState): boolean {
-  return state === "initialPaymentPending" || state === "grace" || state === "scheduledFree";
+function shouldShowPlanComparison(billing: OrganizationBillingView) {
+  if (billing.isComplimentary) return false;
+  return (
+    isPlanState(billing.state) ||
+    billing.state === "scheduledChange" ||
+    billing.state === "scheduledFree" ||
+    ((billing.state === "restricted" || billing.state === "pendingActivation") && billing.canManagePlan)
+  );
 }
 
-function planActionLabel(billing: OrganizationBillingView): string {
-  if (billing.state === "trial") {
-    return billing.hasTrialContinuation ? "Proプランをやめる" : "Proプランに登録する";
-  }
-  if (billing.state === "free" || billing.state === "restricted") return "Proプランに登録する";
-  if (billing.state === "pro") return "Proプランをやめる";
-  if (billing.state === "scheduledFree") return "Proプランを続ける";
-  if (billing.state === "grace") return "支払い方法を見る";
-  if (billing.state === "pendingActivation" && billing.currentPlan === null) return "Proプランに登録する";
-  return "プランを確認";
+function shouldShowCurrentPlan(state: BillingDisplayState): boolean {
+  return (
+    state === "initialPaymentPending" || state === "grace" || state === "scheduledChange" || state === "scheduledFree"
+  );
 }

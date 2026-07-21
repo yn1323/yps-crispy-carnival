@@ -10,6 +10,7 @@ vi.mock("dotenv", () => ({ config: dotenvConfigMock }));
 
 const SECRET_SENTINEL = "secret-sentinel-should-never-be-printed";
 const TEST_ENV_KEY = "STRIPE_SECRET_KEY";
+const BUSINESS_PRICE_ENV_KEY = "STRIPE_BUSINESS_PRICE_ID";
 
 describe("setupEnv", () => {
   beforeEach(() => {
@@ -20,6 +21,7 @@ describe("setupEnv", () => {
 
   afterEach(() => {
     delete process.env[TEST_ENV_KEY];
+    delete process.env[BUSINESS_PRICE_ENV_KEY];
     vi.restoreAllMocks();
   });
 
@@ -61,5 +63,21 @@ describe("setupEnv", () => {
     expect(secretCall).toBeDefined();
     if (!secretCall) return;
     expect(JSON.stringify(secretCall.slice(0, 2))).not.toContain(SECRET_SENTINEL);
+  });
+
+  it("Business Price IDをargvへ含めずstdinでConvex環境変数へ同期する", async () => {
+    const businessPriceId = "price_business_setup_env";
+    process.env[BUSINESS_PRICE_ENV_KEY] = businessPriceId;
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await import("./setupEnv");
+
+    const businessPriceCall = execFileSyncMock.mock.calls.find(([, args]) => args.at(-1) === BUSINESS_PRICE_ENV_KEY);
+    expect(businessPriceCall).toBeDefined();
+    if (!businessPriceCall) return;
+    const [command, argv, options] = businessPriceCall;
+    expect(JSON.stringify([command, argv])).not.toContain(businessPriceId);
+    expect(options).toMatchObject({ input: `${businessPriceId}\n`, stdio: ["pipe", "pipe", "pipe"] });
   });
 });

@@ -4,11 +4,12 @@ import { LuShieldMinus, LuShieldPlus, LuTrash2 } from "react-icons/lu";
 import { DeletionActionSection } from "@/src/components/shared/DeletionActionSection";
 import { ManagerAssignmentConfirmation } from "@/src/components/shared/ManagerAssignmentConfirmation";
 import { Button } from "@/src/components/ui/Button";
-import type { UserDetailData, UserDetailMembership } from "./types";
+import type { UserDetailData, UserDetailMembership, UserDetailRemovalPreview } from "./types";
 
 type Props = {
   personName: string;
   membership: UserDetailMembership;
+  removalPreview: UserDetailRemovalPreview;
   isStoreReadOnly: boolean;
   storeDisabledReason?: string;
   isChangingShiftTarget: boolean;
@@ -23,6 +24,7 @@ type Props = {
 export function UserSettingsTab({
   personName,
   membership,
+  removalPreview,
   isStoreReadOnly,
   storeDisabledReason,
   isChangingShiftTarget,
@@ -38,7 +40,7 @@ export function UserSettingsTab({
   const membershipRemovalDisabledReason = membershipRemovalDisabled
     ? isStoreReadOnly
       ? storeDisabledReason
-      : membership.removeDisabledReason
+      : "この店舗から外せません。"
     : undefined;
   return (
     <Stack gap={6}>
@@ -95,9 +97,11 @@ export function UserSettingsTab({
           {isRemovalConfirmationOpen && (
             <InlineDestructiveConfirmation
               title={`${personName}さんを${membership.shopName}から外しますか？`}
-              description="この店舗のスタッフ所属、既存のシフト用リンク、LINE連携を終了します。グループのユーザー情報、ほかの店舗所属、管理者権限は変更しません。将来のシフトに割り当てられている場合は削除できません。"
+              description="この店舗のスタッフ所属、既存のシフト用リンク、LINE連携を終了します。グループのユーザー情報、ほかの店舗所属、管理者権限は変更しません。"
+              warning={getAssignmentRemovalDescription(removalPreview)}
               confirmLabel="店舗から外す"
               isLoading={isRemovingMembership}
+              isDisabled={removalPreview.kind === "tooMany"}
               onCancel={onCancelRemoveMembership}
               onConfirm={onConfirmRemoveMembership}
             />
@@ -166,6 +170,7 @@ export function UserGroupRemovalSection({
   personName,
   isDisabled,
   disabledReason,
+  removalPreview,
   isConfirmationOpen,
   isRemoving,
   onRequestRemovePerson,
@@ -175,6 +180,7 @@ export function UserGroupRemovalSection({
   personName: string;
   isDisabled: boolean;
   disabledReason?: string;
+  removalPreview: UserDetailRemovalPreview;
   isConfirmationOpen: boolean;
   isRemoving: boolean;
   onRequestRemovePerson: () => void;
@@ -197,8 +203,10 @@ export function UserGroupRemovalSection({
         <InlineDestructiveConfirmation
           title={`${personName}さんをグループから削除しますか？`}
           description="このグループのすべての店舗所属、管理権限、スタッフ権限、閲覧権限を終了します。ほかのグループへの所属には影響しません。過去のシフト履歴は保持します。この操作は元に戻せません。"
+          warning={getAssignmentRemovalDescription(removalPreview)}
           confirmLabel="グループから削除"
           isLoading={isRemoving}
+          isDisabled={removalPreview.kind === "tooMany"}
           onCancel={onCancelRemovePerson}
           onConfirm={onConfirmRemovePerson}
         />
@@ -254,7 +262,7 @@ function ManagerRoleAction({
             description={
               data.memberships.length > 0
                 ? "グループ全体の管理権限を終了します。スタッフとしての店舗所属は維持します。このユーザーが発行した未連携のログイン案内は無効になります。"
-                : "店舗所属がないため、管理者権限を外すと、このグループへのアクセスも終了します。このユーザーが発行した未連携のログイン案内は無効になります。"
+                : "店舗所属がないため、管理者権限を外すと、このグループへのアクセスも終了します。グループのユーザー情報とシフト記録は残ります。このユーザーが発行した未連携のログイン案内は無効になります。"
             }
             confirmLabel="管理者権限を外す"
             isLoading={isRemovingManagerRole}
@@ -336,20 +344,25 @@ function ManagerRoleAction({
 function InlineDestructiveConfirmation({
   title,
   description,
+  warning,
   confirmLabel,
   isLoading,
+  isDisabled = false,
   onCancel,
   onConfirm,
 }: {
   title: string;
   description: string;
+  warning?: string;
   confirmLabel: string;
   isLoading: boolean;
+  isDisabled?: boolean;
   onCancel: () => void;
   onConfirm: () => void | Promise<void>;
 }) {
   const titleId = useId();
   const descriptionId = useId();
+  const warningId = useId();
   const confirmationRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -365,7 +378,7 @@ function InlineDestructiveConfirmation({
       ref={confirmationRef}
       role="alertdialog"
       aria-labelledby={titleId}
-      aria-describedby={descriptionId}
+      aria-describedby={warning ? `${descriptionId} ${warningId}` : descriptionId}
       tabIndex={-1}
       borderWidth="1px"
       borderColor="red.200"
@@ -381,16 +394,29 @@ function InlineDestructiveConfirmation({
           <Text id={descriptionId} fontSize="sm" color="fg.muted" lineHeight="tall">
             {description}
           </Text>
+          {warning && (
+            <Text id={warningId} fontSize="sm" color="orange.700" lineHeight="tall" fontWeight="medium">
+              {warning}
+            </Text>
+          )}
         </Stack>
         <HStack justify="flex-end" gap={2}>
           <Button variant="outline" onClick={onCancel} disabled={isLoading}>
             やめる
           </Button>
-          <Button colorPalette="red" loading={isLoading} onClick={onConfirm}>
+          <Button colorPalette="red" loading={isLoading} disabled={isDisabled || isLoading} onClick={onConfirm}>
             {confirmLabel}
           </Button>
         </HStack>
       </Stack>
     </Box>
   );
+}
+
+function getAssignmentRemovalDescription(preview: UserDetailRemovalPreview) {
+  if (preview.kind === "tooMany") {
+    return `今日以降のシフト割当が${preview.limit}件を超えています。先にシフトを整理してから削除してください。`;
+  }
+  if (preview.assignmentCount === 0) return "今日以降のシフトから外れる割当はありません。";
+  return `今日以降のシフト${preview.assignmentCount}件からも外れます。`;
 }

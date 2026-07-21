@@ -990,7 +990,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
     ).rejects.toThrow("現在の契約状態からこの変更は適用できません");
   });
 
-  it("予約枠を含む利用人数がPro上限を超えるBusinessからの変更予約を拒否する", async () => {
+  it("Pro上限を超えていてもBusinessからの変更予約を保存し、適用時の整理対象にする", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
@@ -1024,8 +1024,8 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
         expectedVersion: 1,
         state: {
           kind: "scheduledChange",
-          currentPlan: "pro",
-          targetPlan: "free",
+          currentPlan: "business",
+          targetPlan: "pro",
           effectiveAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
         },
         correlationId: "business-to-pro-over-limit",
@@ -1044,8 +1044,8 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
     }));
     expect(result.billingState?.state).toMatchObject({
       kind: "scheduledChange",
-      currentPlan: "pro",
-      targetPlan: "free",
+      currentPlan: "business",
+      targetPlan: "pro",
     });
     expect(result.billingState?.version).toBe(2);
     expect(result.audits).toHaveLength(1);
@@ -1072,17 +1072,25 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
         .unique();
       if (!billingState) throw new Error("billing state not found");
       await ctx.db.patch(billingState._id, {
-        state: {
-          kind: "scheduledChange",
-          currentPlan: plan.currentPlan,
-          targetPlan: plan.targetPlan,
-          effectiveAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
-        },
+        state:
+          plan.currentPlan === "business"
+            ? {
+                kind: "scheduledChange",
+                currentPlan: "business",
+                targetPlan: "pro",
+                effectiveAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+              }
+            : {
+                kind: "scheduledChange",
+                currentPlan: "pro",
+                targetPlan: "free",
+                effectiveAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+              },
       });
       return { ...seeded, secondManagerUserId: secondManager.userId, billingStateId: billingState._id };
     });
     const correlationId = `cancel-${plan.currentPlan}-${plan.targetPlan}`;
-    const expectedPlan = "pro";
+    const expectedPlan = plan.currentPlan;
 
     await expect(
       t.mutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {

@@ -14,6 +14,7 @@
  * - STRIPE_SECRET_KEY
  * - STRIPE_WEBHOOK_SECRET
  * - STRIPE_PRO_PRICE_ID
+ * - STRIPE_BUSINESS_PRICE_ID
  * - STRIPE_PORTAL_CONFIGURATION_ID
  */
 import { execFileSync } from "node:child_process";
@@ -30,6 +31,7 @@ const CONVEX_ENV_KEYS = [
   "STRIPE_SECRET_KEY",
   "STRIPE_WEBHOOK_SECRET",
   "STRIPE_PRO_PRICE_ID",
+  "STRIPE_BUSINESS_PRICE_ID",
   "STRIPE_PORTAL_CONFIGURATION_ID",
 ] as const;
 const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";

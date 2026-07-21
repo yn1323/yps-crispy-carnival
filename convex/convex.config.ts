@@ -11,6 +11,7 @@ const app = defineApp({
     STRIPE_SECRET_KEY: v.optional(v.string()),
     STRIPE_WEBHOOK_SECRET: v.optional(v.string()),
     STRIPE_PRO_PRICE_ID: v.optional(v.string()),
+    STRIPE_BUSINESS_PRICE_ID: v.optional(v.string()),
     STRIPE_PORTAL_CONFIGURATION_ID: v.optional(v.string()),
   },
 });

@@ -40,6 +40,10 @@ export class OrganizationSettingsPage {
     await this.page.getByRole("tab", { name: "店舗" }).click();
   }
 
+  async openBillingTab() {
+    await this.page.getByRole("tab", { name: "プランと支払い" }).click();
+  }
+
   async openSettingsTab() {
     await this.page.getByRole("tab", { name: "設定" }).click();
   }
@@ -140,9 +144,60 @@ export class OrganizationSettingsPage {
   }
 
   async expectPeopleUsage(current: number, max: number) {
-    await this.page.getByRole("tab", { name: "プランと支払い" }).click();
-    await expect(this.page.getByText("利用人数", { exact: true })).toBeVisible();
-    await expect(this.page.getByText(`${current} / ${max}`, { exact: true })).toBeVisible();
+    await this.openBillingTab();
+    await this.expectBillingUsage("利用人数", current, max);
+  }
+
+  async expectBillingPlan(plan: "Free" | "Pro" | "Business") {
+    await this.openBillingTab();
+    await expect(this.page.getByRole("heading", { name: plan, exact: true }).first()).toBeVisible({
+      timeout: SETTINGS_DATA_TIMEOUT,
+    });
+  }
+
+  async expectBillingUsage(label: "利用人数" | "店舗数" | "管理者数", current: number, max: number) {
+    await expect(this.page.getByRole("meter", { name: `${label} ${current} / ${max}`, exact: true })).toBeVisible({
+      timeout: SETTINGS_DATA_TIMEOUT,
+    });
+  }
+
+  async expectComplimentaryBusiness() {
+    await this.expectBillingPlan("Business");
+    await this.expectBillingUsage("利用人数", 1, 40);
+    await this.expectBillingUsage("店舗数", 1, 5);
+    await this.expectBillingUsage("管理者数", 1, 5);
+    await expect(this.page.getByText("Businessの機能を料金なしで利用できます。", { exact: true })).toBeVisible();
+    await expect(
+      this.page.getByText("現在の利用料金はかかりません。支払い方法の登録は不要です。", { exact: true }),
+    ).toBeVisible();
+    await expect(this.page.getByRole("button", { name: /(?:Free|Pro|Business)へ変更/ })).toHaveCount(0);
+    await expect(this.page.getByRole("button", { name: "支払い方法を見る" })).toHaveCount(0);
+  }
+
+  async expectPlanReductionRequired(people: number) {
+    await this.openBillingTab();
+    await expect(this.page.getByText(`あと${people}名削除してください`, { exact: true })).toBeVisible({
+      timeout: SETTINGS_DATA_TIMEOUT,
+    });
+  }
+
+  async expectProLimitApplied() {
+    await this.openBillingTab();
+    await expect(this.page.getByText("現在はProの上限が適用されています", { exact: true }).first()).toBeVisible({
+      timeout: SETTINGS_DATA_TIMEOUT,
+    });
+  }
+
+  async expectPlanReductionResolved() {
+    await this.openBillingTab();
+    await expect(this.page.getByText(/あと\d+名削除してください/)).toHaveCount(0);
+  }
+
+  async expectPlanChangeAvailable(targetPlan: "Free" | "Pro" | "Business") {
+    await this.openBillingTab();
+    await expect(this.page.getByRole("button", { name: `${targetPlan}へ変更`, exact: true })).toBeVisible({
+      timeout: SETTINGS_DATA_TIMEOUT,
+    });
   }
 
   async expectPersonRole(
@@ -161,9 +216,9 @@ export class OrganizationSettingsPage {
     await detail.returnToSettings();
   }
 
-  async removePerson(personName: string) {
+  async removePerson(personName: string, options: { expectedAssignmentCount?: number } = {}) {
     const detail = await this.openUser(personName);
-    await detail.removeFromOrganization();
+    await detail.removeFromOrganization(options);
   }
 
   async addShop(shopName: string) {
@@ -260,7 +315,19 @@ export class OrganizationSettingsPage {
 
   async openUser(personName: string) {
     await this.openPeopleTab();
-    await this.personRow(personName).click();
+    const row = this.personRow(personName);
+    for (let pageIndex = 0; pageIndex < 10 && (await row.count()) === 0; pageIndex += 1) {
+      const loadMore = this.page.getByRole("button", { name: "もっと見る", exact: true });
+      if ((await loadMore.count()) === 0) break;
+
+      const previousVisibleCount = new URL(this.page.url()).searchParams.get("users");
+      await loadMore.click();
+      await expect
+        .poll(() => new URL(this.page.url()).searchParams.get("users"), { timeout: SETTINGS_DATA_TIMEOUT })
+        .not.toBe(previousVisibleCount);
+    }
+    await expect(row).toBeVisible({ timeout: SETTINGS_DATA_TIMEOUT });
+    await row.click();
     const detail = new UserDetailPage(this.page, personName);
     await detail.expectLoaded();
     return detail;

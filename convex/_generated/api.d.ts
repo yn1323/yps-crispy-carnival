@@ -106,6 +106,7 @@ import type * as migrations_m017_deleted_organizations_enqueue_cleanup_jobs from
 import type * as migrations_m018_organization_billing_business_to_pro from "../migrations/m018_organization_billing_business_to_pro.js";
 import type * as migrations_m019_notification_outbox_terminal_redaction from "../migrations/m019_notification_outbox_terminal_redaction.js";
 import type * as migrations_m020_notification_failure_inbox_redaction from "../migrations/m020_notification_failure_inbox_redaction.js";
+import type * as migrations_m021_organization_billing_complimentary_pro_to_business from "../migrations/m021_organization_billing_complimentary_pro_to_business.js";
 import type * as migrations_organizationMigrationHelpers from "../migrations/organizationMigrationHelpers.js";
 import type * as notification_actions from "../notification/actions.js";
 import type * as notification_confirmationSnapshots from "../notification/confirmationSnapshots.js";
@@ -143,6 +144,7 @@ import type * as organization_migrations from "../organization/migrations.js";
 import type * as organization_mutations from "../organization/mutations.js";
 import type * as organization_personCapabilities from "../organization/personCapabilities.js";
 import type * as organization_personProfile from "../organization/personProfile.js";
+import type * as organization_personRemoval from "../organization/personRemoval.js";
 import type * as organization_queries from "../organization/queries.js";
 import type * as organization_schemas from "../organization/schemas.js";
 import type * as organization_service from "../organization/service.js";
@@ -311,6 +313,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/m018_organization_billing_business_to_pro": typeof migrations_m018_organization_billing_business_to_pro;
   "migrations/m019_notification_outbox_terminal_redaction": typeof migrations_m019_notification_outbox_terminal_redaction;
   "migrations/m020_notification_failure_inbox_redaction": typeof migrations_m020_notification_failure_inbox_redaction;
+  "migrations/m021_organization_billing_complimentary_pro_to_business": typeof migrations_m021_organization_billing_complimentary_pro_to_business;
   "migrations/organizationMigrationHelpers": typeof migrations_organizationMigrationHelpers;
   "notification/actions": typeof notification_actions;
   "notification/confirmationSnapshots": typeof notification_confirmationSnapshots;
@@ -348,6 +351,7 @@ declare const fullApi: ApiFromModules<{
   "organization/mutations": typeof organization_mutations;
   "organization/personCapabilities": typeof organization_personCapabilities;
   "organization/personProfile": typeof organization_personProfile;
+  "organization/personRemoval": typeof organization_personRemoval;
   "organization/queries": typeof organization_queries;
   "organization/schemas": typeof organization_schemas;
   "organization/service": typeof organization_service;

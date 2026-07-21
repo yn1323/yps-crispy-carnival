@@ -44,6 +44,7 @@ type MultiActorSeedArgs = {
   actorBManagerEmail: string;
   actorCManagerAuthTokenIdentifier: string;
   actorCManagerEmail: string;
+  personRemovalAssignments?: { today: string; future: string };
 };
 
 type MultiActorSeedResult = {
@@ -60,6 +61,8 @@ type MultiActorSeedResult = {
   alternateShopId: Id<"shops">;
   actorBAlternatePersonId: Id<"organizationPeople">;
   actorBAlternateMemberId: Id<"organizationMembers">;
+  personRemovalRecruitmentId?: Id<"recruitments">;
+  personRemovalAssignmentCount?: number;
 };
 
 const seedMultiActorOrganizationScenarioRef = makeFunctionReference<
@@ -176,6 +179,35 @@ const seedPendingStaffRegistrationRequestScenarioRef = makeFunctionReference<
   { requestId: Id<"staffRegistrationRequests"> }
 >("testing:seedPendingStaffRegistrationRequestScenario");
 
+type OrganizationBillingPlanChangeSeedArgs = {
+  managerAuthTokenIdentifier: string;
+  managerEmail: string;
+  complimentaryOrganizationName?: string;
+  complimentaryShopName?: string;
+  restrictedOrganizationName?: string;
+  restrictedShopName?: string;
+  removablePersonName?: string;
+};
+
+type OrganizationBillingPlanChangeSeedResult = {
+  complimentaryOrganizationId: Id<"organizations">;
+  complimentaryShopId: Id<"shops">;
+  complimentaryOrganizationName: string;
+  restrictedOrganizationId: Id<"organizations">;
+  restrictedShopId: Id<"shops">;
+  restrictedOrganizationName: string;
+  removablePersonId: Id<"organizationPeople">;
+  removablePersonName: string;
+  expectedRestrictedPeople: number;
+  expectedProLimit: number;
+};
+
+const seedOrganizationBillingPlanChangeScenarioRef = makeFunctionReference<
+  "mutation",
+  OrganizationBillingPlanChangeSeedArgs,
+  OrganizationBillingPlanChangeSeedResult
+>("testing:seedOrganizationBillingPlanChangeScenario");
+
 describe("E2E testing helpers", () => {
   beforeEach(() => {
     vi.stubEnv("CONVEX_CLOUD_URL", "https://e2e-test.convex.cloud");
@@ -243,6 +275,88 @@ describe("E2E testing helpers", () => {
         actorCManagerAuthTokenIdentifier: testAuthTokenIdentifier("disabled_free_multi_c"),
       }),
     ).rejects.toThrow("E2E testing helpers are disabled");
+    await expect(
+      t.mutation(seedOrganizationBillingPlanChangeScenarioRef, {
+        managerAuthTokenIdentifier: testAuthTokenIdentifier("disabled_billing_plan_change"),
+        managerEmail: "disabled-billing-plan-change@example.com",
+      }),
+    ).rejects.toThrow("E2E testing helpers are disabled");
+  });
+
+  it("課金プラン変更seedは支払い不要BusinessとPro上限超過をStripe秘密情報なしで再現する", async () => {
+    vi.stubEnv("E2E_TESTING_ENABLED", "true");
+    const t = convexTest(schema, modules);
+
+    const seeded = await t.mutation(seedOrganizationBillingPlanChangeScenarioRef, {
+      managerAuthTokenIdentifier: testAuthTokenIdentifier("billing_plan_change"),
+      managerEmail: "billing-plan-change@example.com",
+      complimentaryOrganizationName: "支払い不要Business契約テスト",
+      complimentaryShopName: "支払い不要Business店舗",
+      restrictedOrganizationName: "Pro上限復旧契約テスト",
+      restrictedShopName: "Pro上限復旧店舗",
+      removablePersonName: "上限復旧で削除する人",
+    });
+
+    expect(Object.keys(seeded).sort()).toEqual(
+      [
+        "complimentaryOrganizationId",
+        "complimentaryOrganizationName",
+        "complimentaryShopId",
+        "expectedProLimit",
+        "expectedRestrictedPeople",
+        "removablePersonId",
+        "removablePersonName",
+        "restrictedOrganizationId",
+        "restrictedOrganizationName",
+        "restrictedShopId",
+      ].sort(),
+    );
+    expect(seeded).toMatchObject({
+      complimentaryOrganizationName: "支払い不要Business契約テスト",
+      restrictedOrganizationName: "Pro上限復旧契約テスト",
+      removablePersonName: "上限復旧で削除する人",
+      expectedRestrictedPeople: 21,
+      expectedProLimit: 20,
+    });
+
+    const stored = await t.run(async (ctx) => {
+      const complimentaryBilling = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.complimentaryOrganizationId))
+        .unique();
+      const restrictedBilling = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.restrictedOrganizationId))
+        .unique();
+      const restrictedPeople = await ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.restrictedOrganizationId))
+        .collect();
+      return {
+        complimentaryBilling,
+        restrictedBilling,
+        activeRestrictedPeople: restrictedPeople.filter((person) => person.status === "active"),
+        stripeCustomers: await ctx.db.query("organizationStripeCustomers").collect(),
+        stripeSubscriptions: await ctx.db.query("organizationStripeSubscriptions").collect(),
+        stripeOperations: await ctx.db.query("organizationStripeOperations").collect(),
+        notificationOutbox: await ctx.db.query("notificationOutbox").collect(),
+      };
+    });
+
+    expect(stored.complimentaryBilling?.state).toEqual({ kind: "complimentary", plan: "business" });
+    expect(stored.restrictedBilling?.state).toMatchObject({
+      kind: "restricted",
+      reason: "planLimitExceeded",
+      previousPlan: "business",
+      targetPlan: "pro",
+      limitPlan: "pro",
+    });
+    expect(stored.activeRestrictedPeople).toHaveLength(21);
+    expect(stored.activeRestrictedPeople.some((person) => person._id === seeded.removablePersonId)).toBe(true);
+    expect(stored.stripeCustomers).toEqual([]);
+    expect(stored.stripeSubscriptions).toEqual([]);
+    expect(stored.stripeOperations).toEqual([]);
+    expect(stored.notificationOutbox).toEqual([]);
   });
 
   it("スタッフ登録申請seedはE2E境界と有効店舗を検証し、正規化済みの現行同意情報を保存する", async () => {
@@ -640,8 +754,10 @@ describe("E2E testing helpers", () => {
       actorBManagerEmail: "multi-actor-b@example.com",
       actorCManagerAuthTokenIdentifier: testAuthTokenIdentifier("multi_actor_c"),
       actorCManagerEmail: "multi-actor-c@example.com",
+      personRemovalAssignments: { today: "2026-07-22", future: "2026-07-23" },
     };
     const seeded = await t.mutation(seedMultiActorOrganizationScenarioRef, args);
+    const personRemovalRecruitmentId = seeded.personRemovalRecruitmentId;
 
     const before = await t.run(async (ctx) => ({
       primaryPerson: await ctx.db.get(seeded.actorBPersonId),
@@ -656,12 +772,27 @@ describe("E2E testing helpers", () => {
         .query("organizationMembers")
         .withIndex("by_userId_and_status", (q) => q.eq("userId", seeded.actorCUserId).eq("status", "active"))
         .collect(),
+      personRemovalRecruitment: personRemovalRecruitmentId ? await ctx.db.get(personRemovalRecruitmentId) : null,
+      personRemovalAssignments: personRemovalRecruitmentId
+        ? await ctx.db
+            .query("shiftAssignments")
+            .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", personRemovalRecruitmentId))
+            .collect()
+        : [],
     }));
     expect(before.primaryPerson).toMatchObject({ emailNormalized: args.actorBManagerEmail });
     expect(before.primaryPerson).not.toHaveProperty("userId");
     expect(before.primaryMembers).toEqual([]);
     expect(before.alternateMember).toMatchObject({ userId: seeded.actorBUserId, status: "active" });
     expect(before.actorCMembers).toEqual([]);
+    expect(seeded.personRemovalAssignmentCount).toBe(2);
+    expect(before.personRemovalRecruitment).toMatchObject({
+      shopId: seeded.primaryShopId,
+      periodStart: "2026-07-22",
+      periodEnd: "2026-07-23",
+      status: "confirmed",
+    });
+    expect(before.personRemovalAssignments.map((assignment) => assignment.date)).toEqual(["2026-07-22", "2026-07-23"]);
 
     const targetGraph = await t.run(async (ctx) => {
       const now = Date.now();

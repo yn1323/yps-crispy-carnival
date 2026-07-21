@@ -260,7 +260,7 @@ describe("setup/mutations", () => {
         version: organizationBillingState.version,
       }).toEqual({
         organizationId,
-        state: { kind: "complimentary", plan: "pro" },
+        state: { kind: "complimentary", plan: "business" },
         freeManagerPersonId: undefined,
         freeShopId: undefined,
         version: 1,
@@ -374,7 +374,7 @@ describe("setup/mutations", () => {
           action: "organization.created",
           targetKind: "organization",
           targetId: organizationId,
-          toState: "complimentary.pro",
+          toState: "complimentary.business",
         },
       ]);
 

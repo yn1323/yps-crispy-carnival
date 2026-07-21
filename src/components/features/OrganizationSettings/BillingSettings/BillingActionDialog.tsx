@@ -1,20 +1,30 @@
 import { Box, Grid, Stack, Text } from "@chakra-ui/react";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
-import { type BillingActionDialogState, formatProPrice } from "./script";
+import {
+  type BillingActionDialogState,
+  formatBillingBoundaryDate,
+  formatCurrencyAmount,
+  formatPlanPrice,
+  planLabel,
+} from "./script";
 
 type Props = {
   dialog: BillingActionDialogState | null;
   isRunning: boolean;
   onClose: () => void;
   onRetryPrice: () => void;
+  onRetryPreview: () => void;
   onSubmit: () => void;
 };
 
-export function BillingActionDialog({ dialog, isRunning, onClose, onRetryPrice, onSubmit }: Props) {
+export function BillingActionDialog({ dialog, isRunning, onClose, onRetryPrice, onRetryPreview, onSubmit }: Props) {
   if (!dialog) return null;
 
   const content = dialogContent(dialog);
+  const isDataReady =
+    (dialog.kind !== "startPaidPlan" || dialog.price.status === "available") &&
+    (dialog.kind !== "changePaidPlanNow" || dialog.preview.status === "available");
 
   return (
     <Dialog
@@ -28,7 +38,7 @@ export function BillingActionDialog({ dialog, isRunning, onClose, onRetryPrice, 
       submitLabel={content.submitLabel}
       submitColorPalette={content.submitColorPalette}
       isLoading={isRunning}
-      isSubmitDisabled={isRunning || (dialog.kind === "startPro" && dialog.price.status !== "available")}
+      isSubmitDisabled={isRunning || !isDataReady}
       role="alertdialog"
       maxW={{ base: "calc(100vw - 24px)", md: "560px" }}
     >
@@ -41,9 +51,20 @@ export function BillingActionDialog({ dialog, isRunning, onClose, onRetryPrice, 
 
         <Stack gap={2} borderWidth="1px" borderColor="blackAlpha.100" borderRadius="lg" bg="gray.50" p={4}>
           <SummaryRow label="対象グループ" value={dialog.organizationName} />
-          {dialog.kind === "startPro" && <StartProSummary dialog={dialog} onRetryPrice={onRetryPrice} />}
-          {dialog.kind !== "startPro" && content.effectiveLabel && (
-            <SummaryRow label={content.effectiveLabel} value={content.effectiveValue ?? "現在の契約状態に従います"} />
+          {dialog.kind === "startPaidPlan" && <StartPaidPlanSummary dialog={dialog} onRetry={onRetryPrice} />}
+          {dialog.kind === "changePaidPlanNow" && <PaidPlanChangeSummary dialog={dialog} onRetry={onRetryPreview} />}
+          {dialog.kind === "cancelTrialContinuation" && (
+            <>
+              <SummaryRow label="取り消すプラン" value={planLabel(dialog.targetPlan)} />
+              <SummaryRow label="トライアル最終日" value={dialog.trialEndsOn ?? "現在の契約状態に従います"} />
+            </>
+          )}
+          {dialog.kind === "schedulePlanChange" && <ScheduledPlanChangeSummary dialog={dialog} />}
+          {dialog.kind === "cancelScheduledPlanChange" && (
+            <>
+              <SummaryRow label="取り消す変更" value={`${planLabel(dialog.targetPlan)}への変更`} />
+              <SummaryRow label="変更予定日" value={dialog.effectiveOn ?? "現在の契約状態に従います"} />
+            </>
           )}
         </Stack>
 
@@ -59,18 +80,17 @@ export function BillingActionDialog({ dialog, isRunning, onClose, onRetryPrice, 
   );
 }
 
-function StartProSummary({
+function StartPaidPlanSummary({
   dialog,
-  onRetryPrice,
+  onRetry,
 }: {
-  dialog: Extract<BillingActionDialogState, { kind: "startPro" }>;
-  onRetryPrice: () => void;
+  dialog: Extract<BillingActionDialogState, { kind: "startPaidPlan" }>;
+  onRetry: () => void;
 }) {
-  const price = dialog.price.status === "available" ? formatProPrice(dialog.price.value) : null;
-
+  const price = dialog.price.status === "available" ? formatPlanPrice(dialog.price.value) : null;
   return (
     <>
-      <SummaryRow label="プラン" value="Pro" />
+      <SummaryRow label="プラン" value={planLabel(dialog.targetPlan)} />
       <SummaryRow
         label="料金"
         value={
@@ -83,16 +103,64 @@ function StartProSummary({
       />
       <SummaryRow label="請求開始" value={dialog.billingStartsOn} />
       {(dialog.price.status === "unavailable" || dialog.price.status === "error") && (
-        <PriceLoadError onRetry={onRetryPrice} />
+        <RetryButton label="料金を再読み込みする" onRetry={onRetry} />
       )}
     </>
   );
 }
 
-function PriceLoadError({ onRetry }: { onRetry: () => void }) {
+function PaidPlanChangeSummary({
+  dialog,
+  onRetry,
+}: {
+  dialog: Extract<BillingActionDialogState, { kind: "changePaidPlanNow" }>;
+  onRetry: () => void;
+}) {
+  const preview = dialog.preview.status === "available" ? dialog.preview.value : null;
+  return (
+    <>
+      <SummaryRow label="変更先" value="Business" />
+      <SummaryRow
+        label="今すぐの請求額"
+        value={
+          dialog.preview.status === "loading"
+            ? "見積もり中..."
+            : preview
+              ? formatCurrencyAmount(preview.currency, preview.amountDue)
+              : "見積もりを取得できませんでした"
+        }
+      />
+      {preview && <SummaryRow label="次回更新日" value={formatBillingBoundaryDate(preview.currentPeriodEnd)} />}
+      {(dialog.preview.status === "unavailable" || dialog.preview.status === "error") && (
+        <RetryButton label="見積もりを再読み込みする" onRetry={onRetry} />
+      )}
+    </>
+  );
+}
+
+function ScheduledPlanChangeSummary({
+  dialog,
+}: {
+  dialog: Extract<BillingActionDialogState, { kind: "schedulePlanChange" }>;
+}) {
+  const reductions = dialog.requiredReductions;
+  return (
+    <>
+      <SummaryRow label="変更先" value={planLabel(dialog.targetPlan)} />
+      <SummaryRow label="変更予定日" value={dialog.effectiveOn ?? "現在の契約状態に従います"} />
+      {reductions.people > 0 && <SummaryRow label="利用人数" value={`あと${reductions.people}名削除してください`} />}
+      {reductions.shops > 0 && <SummaryRow label="店舗" value={`あと${reductions.shops}店舗を整理してください`} />}
+      {reductions.managers > 0 && (
+        <SummaryRow label="管理者" value={`あと${reductions.managers}名の権限または招待を整理してください`} />
+      )}
+    </>
+  );
+}
+
+function RetryButton({ label, onRetry }: { label: string; onRetry: () => void }) {
   return (
     <Button size="sm" variant="outline" alignSelf="flex-start" mt={2} onClick={onRetry}>
-      料金を再読み込みする
+      {label}
     </Button>
   );
 }
@@ -115,53 +183,54 @@ function dialogContent(dialog: BillingActionDialogState): {
   description?: string;
   submitLabel: string;
   submitColorPalette: string;
-  effectiveLabel?: string;
-  effectiveValue?: string;
   note?: string;
 } {
   switch (dialog.kind) {
-    case "startPro":
+    case "startPaidPlan":
       return dialog.source === "trial"
         ? {
-            title: "トライアル終了後もProを継続しますか？",
-            submitLabel: "支払いに進む",
+            title: `トライアル終了後も${planLabel(dialog.targetPlan)}を継続しますか？`,
+            description: "トライアル最終日までは請求されません。",
+            submitLabel: "支払い情報の登録へ進む",
             submitColorPalette: "teal",
           }
         : {
-            title: "Proを開始しますか？",
+            title: `${planLabel(dialog.targetPlan)}を開始しますか？`,
             description: "表示内容を確認して、Stripeの決済画面へ進みます。",
             submitLabel: "Stripeで支払いを続ける",
             submitColorPalette: "teal",
-            note: "Stripeから戻っただけではProは開始されません。支払い結果がこの画面に反映されるまでお待ちください。",
+            note: "支払い結果がこの画面に反映されるまで、現在のプランを利用します。",
           };
+    case "changePaidPlanNow":
+      return {
+        title: "Businessへ変更しますか？",
+        description: "残りの契約期間との差額を日割りで直ちに請求します。次回更新日は変わりません。",
+        submitLabel: "Businessへ変更",
+        submitColorPalette: "teal",
+        note: "支払い成功を確認するまではProを利用します。",
+      };
     case "cancelTrialContinuation":
       return {
-        title: "Pro継続を取り消しますか？",
-        description: "登録済みのトライアル終了後のPro継続を取り消します。トライアルは最終日までそのまま利用できます。",
-        submitLabel: "Pro継続を取り消す",
+        title: "有料プランの継続を取り消しますか？",
+        description: "トライアルは最終日までそのまま利用できます。",
+        submitLabel: "有料継続を取り消す",
         submitColorPalette: "red",
-        effectiveLabel: "トライアル最終日",
-        effectiveValue: dialog.trialEndsOn,
-        note: "トライアル終了時に無料の上限を超えている場合は、利用が制限されることがあります。",
+        note: "トライアル終了時にFreeの上限を超えている場合は、利用が制限されることがあります。",
       };
-    case "scheduleFree":
+    case "schedulePlanChange":
       return {
-        title: "無料への変更を予約しますか？",
-        description: "現在の支払い済み期間が終わるまではProを利用し、期間終了後に無料へ変更します。",
-        submitLabel: "無料への変更を予約",
+        title: `${planLabel(dialog.targetPlan)}への変更を予約しますか？`,
+        description: "現在の支払い済み期間が終わるまでは、現在のプランを利用します。",
+        submitLabel: "プラン変更を予約",
         submitColorPalette: "orange",
-        effectiveLabel: "変更予定日",
-        effectiveValue: dialog.effectiveOn,
-        note: "無料の上限を超えている場合は、変更後に利用が制限されることがあります。",
+        note: "変更予定日までに上限を超える利用人数、店舗、管理者を整理してください。余剰のユーザーは自動では削除されません。",
       };
-    case "cancelScheduledFree":
+    case "cancelScheduledPlanChange":
       return {
-        title: "無料への変更予約を取り消しますか？",
-        description: "予約を取り消し、次回更新後もProを継続します。",
+        title: "プラン変更の予約を取り消しますか？",
+        description: "予約を取り消し、次回更新後も現在のプランを継続します。",
         submitLabel: "変更予約を取り消す",
         submitColorPalette: "teal",
-        effectiveLabel: "予約中の変更日",
-        effectiveValue: dialog.effectiveOn,
       };
   }
 }

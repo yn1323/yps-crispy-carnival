@@ -5,6 +5,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { getConvexErrorMessage } from "@/src/lib/convex/error";
 import type { UserDetailDialog, UserDetailMembership } from "./types";
 
 export function useUserMembershipActions({
@@ -53,7 +54,8 @@ export function useUserMembershipActions({
       !membership?.canRemove ||
       dialog?.kind !== "removeMembership" ||
       dialog.membership.shopId !== selectedShopId ||
-      dialog.membership.staffId !== membership.staffId
+      dialog.membership.staffId !== membership.staffId ||
+      dialog.membership.removalPreview.kind !== "ready"
     ) {
       return false;
     }
@@ -63,6 +65,10 @@ export function useUserMembershipActions({
         shopId: selectedShopId as Id<"shops">,
         staffId: dialog.membership.staffId,
         requestId: crypto.randomUUID(),
+        removalPreview: {
+          assignmentCount: dialog.membership.removalPreview.assignmentCount,
+          fingerprint: dialog.membership.removalPreview.fingerprint,
+        },
       });
       setDialog(null);
       showSuccessToast({
@@ -71,6 +77,7 @@ export function useUserMembershipActions({
       });
       return true;
     } catch (error) {
+      if (getConvexErrorMessage(error)?.includes("今日以降のシフト割当が変更されました")) setDialog(null);
       showErrorToast(error);
       return false;
     }

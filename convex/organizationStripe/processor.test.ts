@@ -37,6 +37,7 @@ const CUSTOMER_ID = "cus_shiftori_processor";
 const SUBSCRIPTION_ID = "sub_shiftori_processor";
 const INVOICE_ID = "in_shiftori_processor";
 const PRICE_ID = "price_shiftori_pro";
+const BUSINESS_PRICE_ID = "price_shiftori_business";
 
 describe("organizationStripe/processWebhookEvent", () => {
   beforeEach(() => {
@@ -45,6 +46,7 @@ describe("organizationStripe/processWebhookEvent", () => {
     vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_processor");
     vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_processor");
     vi.stubEnv("STRIPE_PRO_PRICE_ID", PRICE_ID);
+    vi.stubEnv("STRIPE_BUSINESS_PRICE_ID", BUSINESS_PRICE_ID);
     provider.retrieveEvent.mockReset();
     provider.retrieveInvoice.mockReset();
     provider.retrieveSubscription.mockReset();
@@ -372,6 +374,211 @@ describe("organizationStripe/processWebhookEvent", () => {
       providerGeneration: 1,
     });
     expect(result.event).toMatchObject({ status: "processed", organizationId: ids.organizationId });
+  });
+
+  it("FreeからのBusiness開始は最新Invoiceのpaid確認後にだけactive.businessへ進む", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedBusinessCheckoutOrganization(t, "stripe_processor_business_paid", {
+      kind: "pendingActivation",
+      plan: "business",
+      fallback: "free",
+      startedAt: NOW - 60_000,
+    });
+    provider.retrieveEvent.mockResolvedValue({
+      id: "evt_processor_business_paid",
+      type: "invoice.paid",
+      livemode: false,
+      api_version: STRIPE_WEBHOOK_API_VERSION,
+      created: Math.floor(NOW / 1000),
+      data: { object: { id: INVOICE_ID } },
+    });
+    provider.retrieveInvoice.mockResolvedValue({
+      id: INVOICE_ID,
+      customer: CUSTOMER_ID,
+      livemode: false,
+      status: "paid",
+      amount_remaining: 0,
+      parent: { subscription_details: { subscription: SUBSCRIPTION_ID } },
+    });
+    provider.retrieveSubscription.mockResolvedValue(
+      businessSubscriptionFixture("active", ids.organizationId, ids.operationId),
+    );
+    provider.retrieveCheckout.mockResolvedValue({
+      id: "cs_shiftori_business_processor",
+      customer: CUSTOMER_ID,
+      subscription: SUBSCRIPTION_ID,
+      livemode: false,
+      mode: "subscription",
+      status: "complete",
+      client_reference_id: String(ids.organizationId),
+      metadata: {
+        shiftori_organization_id: String(ids.organizationId),
+        shiftori_operation_id: String(ids.operationId),
+        shiftori_provider_generation: "1",
+        shiftori_price_id: BUSINESS_PRICE_ID,
+      },
+    });
+    provider.retrievePrice.mockImplementation(async (priceId: string) =>
+      priceId === BUSINESS_PRICE_ID ? businessPriceFixture() : priceFixture(),
+    );
+    await insertReceipt(t, "evt_processor_business_paid", "invoice.paid", INVOICE_ID, NOW);
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, {
+      stripeEventId: "evt_processor_business_paid",
+    });
+
+    const result = await t.run(async (ctx) => ({
+      billing: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      subscriptions: await ctx.db
+        .query("organizationStripeSubscriptions")
+        .withIndex("by_organizationId_and_providerGeneration", (q) => q.eq("organizationId", ids.organizationId))
+        .collect(),
+      event: await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", "evt_processor_business_paid"))
+        .unique(),
+    }));
+    expect(result.billing?.state).toEqual({ kind: "active", plan: "business" });
+    expect(result.subscriptions).toHaveLength(1);
+    expect(result.subscriptions[0]).toMatchObject({
+      organizationId: ids.organizationId,
+      stripeSubscriptionId: SUBSCRIPTION_ID,
+      stripePriceId: BUSINESS_PRICE_ID,
+      plan: "business",
+      status: "active",
+      providerGeneration: 1,
+    });
+    expect(result.event).toMatchObject({ status: "processed", organizationId: ids.organizationId });
+  });
+
+  it("Pro→Businessのpending_update_expiredはBusinessを付与せずactive.proへ戻す", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedStripeOrganization(t, "stripe_processor_pending_update_expired", {
+      kind: "pendingActivation",
+      plan: "business",
+      fallback: "pro",
+      startedAt: NOW - 60_000,
+    });
+    await insertCurrentSubscription(t, ids.organizationId, "active");
+    provider.retrieveEvent.mockResolvedValue({
+      id: "evt_processor_pending_update_expired",
+      type: "customer.subscription.pending_update_expired",
+      livemode: false,
+      api_version: STRIPE_WEBHOOK_API_VERSION,
+      created: Math.floor(NOW / 1000),
+      data: { object: { id: SUBSCRIPTION_ID } },
+    });
+    provider.retrieveSubscription.mockResolvedValue({
+      ...subscriptionFixture("active", ids.organizationId, ids.operationId),
+      latest_invoice: {
+        id: INVOICE_ID,
+        customer: CUSTOMER_ID,
+        livemode: false,
+        status: "paid",
+        amount_remaining: 0,
+        parent: { subscription_details: { subscription: SUBSCRIPTION_ID } },
+      },
+    });
+    await insertReceipt(
+      t,
+      "evt_processor_pending_update_expired",
+      "customer.subscription.pending_update_expired",
+      SUBSCRIPTION_ID,
+      NOW,
+    );
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, {
+      stripeEventId: "evt_processor_pending_update_expired",
+    });
+
+    const billing = await t.run((ctx) =>
+      ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+    );
+    expect(billing?.state).toEqual({ kind: "active", plan: "pro" });
+    expect(await receiptById(t, "evt_processor_pending_update_expired")).toMatchObject({ status: "processed" });
+  });
+
+  it("Pro→Businessの日割り請求は追加認証待ちでProを維持し、確定失敗でactive.proへ戻す", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedStripeOrganization(t, "stripe_processor_business_payment_failed", {
+      kind: "pendingActivation",
+      plan: "business",
+      fallback: "pro",
+      startedAt: NOW - 60_000,
+    });
+    await insertCurrentSubscription(t, ids.organizationId, "active");
+    provider.retrieveEvent
+      .mockResolvedValueOnce({
+        id: "evt_processor_business_action_required",
+        type: "invoice.payment_action_required",
+        livemode: false,
+        api_version: STRIPE_WEBHOOK_API_VERSION,
+        created: Math.floor(NOW / 1000),
+        data: { object: { id: INVOICE_ID } },
+      })
+      .mockResolvedValueOnce({
+        id: "evt_processor_business_payment_failed",
+        type: "invoice.payment_failed",
+        livemode: false,
+        api_version: STRIPE_WEBHOOK_API_VERSION,
+        created: Math.floor((NOW + 1000) / 1000),
+        data: { object: { id: INVOICE_ID } },
+      });
+    provider.retrieveInvoice.mockResolvedValue({
+      id: INVOICE_ID,
+      customer: CUSTOMER_ID,
+      livemode: false,
+      status: "open",
+      amount_remaining: 1500,
+      created: Math.floor(NOW / 1000),
+      status_transitions: { finalized_at: Math.floor(NOW / 1000) },
+      parent: { subscription_details: { subscription: SUBSCRIPTION_ID } },
+    });
+    provider.retrieveSubscription.mockResolvedValue({
+      ...subscriptionFixture("incomplete", ids.organizationId, ids.operationId),
+      latest_invoice: INVOICE_ID,
+    });
+    await insertReceipt(
+      t,
+      "evt_processor_business_action_required",
+      "invoice.payment_action_required",
+      INVOICE_ID,
+      NOW,
+    );
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, {
+      stripeEventId: "evt_processor_business_action_required",
+    });
+    let billing = await t.run((ctx) =>
+      ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+    );
+    expect(billing?.state).toEqual({
+      kind: "pendingActivation",
+      plan: "business",
+      fallback: "pro",
+      startedAt: NOW - 60_000,
+    });
+
+    await insertReceipt(t, "evt_processor_business_payment_failed", "invoice.payment_failed", INVOICE_ID, NOW + 1000);
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, {
+      stripeEventId: "evt_processor_business_payment_failed",
+    });
+    billing = await t.run((ctx) =>
+      ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+    );
+    expect(billing?.state).toEqual({ kind: "active", plan: "pro" });
   });
 
   it("payment_action_requiredではPro化もfallbackもせず、後続paidでだけactive.proへ収束する", async () => {
@@ -1316,6 +1523,7 @@ async function insertReceipt(
     | "invoice.payment_action_required"
     | "customer.subscription.updated"
     | "customer.subscription.deleted"
+    | "customer.subscription.pending_update_expired"
     | "checkout.session.completed"
     | "checkout.session.expired",
   objectId: string,
@@ -1439,6 +1647,45 @@ async function seedExpiredCheckout(t: TestConvex<typeof schema>, kind: "trialSet
   });
 }
 
+async function seedBusinessCheckoutOrganization(
+  t: TestConvex<typeof schema>,
+  subject: string,
+  billingState: Doc<"organizationBillingStates">["state"],
+) {
+  return await t.run(async (ctx) => {
+    const ids = await seedOrganizationManagerShop(ctx, { subject, plan: "free" });
+    await patchBillingState(ctx, ids.organizationId, billingState);
+    await ctx.db.insert("organizationStripeCustomers", {
+      organizationId: ids.organizationId,
+      stripeCustomerId: CUSTOMER_ID,
+      livemode: false,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    const operationId = await ctx.db.insert("organizationStripeOperations", {
+      organizationId: ids.organizationId,
+      kind: "immediatePaidCheckout",
+      requestKey: `request_${subject}`.slice(0, 64),
+      stripeIdempotencyKey: `test:${subject}`,
+      livemode: false,
+      expectedBillingVersion: 2,
+      providerGeneration: 1,
+      targetPlan: "business",
+      changeMode: "checkout",
+      stripePriceIdSnapshot: BUSINESS_PRICE_ID,
+      targetStripePriceIdSnapshot: BUSINESS_PRICE_ID,
+      stripeObjectId: "cs_shiftori_business_processor",
+      status: "succeeded",
+      attemptCount: 1,
+      completedAt: NOW,
+      expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    return { ...ids, operationId };
+  });
+}
+
 function mockPaidInvoiceEvent(
   stripeEventId: string,
   subscriptionStatus: "trialing" | "active",
@@ -1511,6 +1758,32 @@ function subscriptionFixture(
   };
 }
 
+function businessSubscriptionFixture(
+  status: "active" | "incomplete" | "past_due",
+  organizationId: Id<"organizations">,
+  operationId: Id<"organizationStripeOperations">,
+) {
+  return {
+    ...subscriptionFixture(status, organizationId, operationId),
+    metadata: {
+      shiftori_organization_id: String(organizationId),
+      shiftori_provider_generation: "1",
+      shiftori_price_id: BUSINESS_PRICE_ID,
+      shiftori_operation_id: String(operationId),
+    },
+    items: {
+      data: [
+        {
+          id: "si_shiftori_processor",
+          current_period_start: Math.floor(NOW / 1000),
+          current_period_end: Math.floor((NOW + 30 * 24 * 60 * 60_000) / 1000),
+          price: businessPriceFixture(),
+        },
+      ],
+    },
+  };
+}
+
 async function insertCurrentSubscription(
   t: TestConvex<typeof schema>,
   organizationId: Id<"organizations">,
@@ -1543,6 +1816,17 @@ function priceFixture() {
     livemode: false,
     currency: "jpy",
     unit_amount: 1000,
+    recurring: { interval: "month", interval_count: 1 },
+  };
+}
+
+function businessPriceFixture() {
+  return {
+    id: BUSINESS_PRICE_ID,
+    active: true,
+    livemode: false,
+    currency: "jpy",
+    unit_amount: 3000,
     recurring: { interval: "month", interval_count: 1 },
   };
 }

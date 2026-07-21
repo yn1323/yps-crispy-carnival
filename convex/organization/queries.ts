@@ -1,15 +1,15 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
-import { formatDateJa, formatDateTimeJa, todayJST } from "../_lib/dateFormat";
+import { formatDateJa, formatDateTimeJa } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
 import {
   deriveOrganizationBillingPolicy,
   getEffectiveRestrictedBillingState,
-  normalizeOrganizationBillingState,
   ORGANIZATION_PLAN_LIMITS,
   type OrganizationPersonUsageInput,
   projectOrganizationUsage,
+  resolveRestrictedLimitPlan,
 } from "../organizationBilling/policy";
 import {
   collectIssuedInvitationsByOrganization,
@@ -82,18 +82,19 @@ const organizationShopViewValidator = v.object({
   deleteDisabledReason: v.optional(v.string()),
 });
 
-const billingPlanValidator = v.union(v.literal("trial"), v.literal("free"), v.literal("pro"));
+const billingPlanValidator = v.union(v.literal("trial"), v.literal("free"), v.literal("pro"), v.literal("business"));
 
 const billingViewValidator = v.object({
   state: v.union(
     v.literal("trial"),
     v.literal("free"),
     v.literal("pro"),
+    v.literal("business"),
     v.literal("initialPaymentPending"),
     v.literal("pendingActivation"),
     v.literal("grace"),
     v.literal("restricted"),
-    v.literal("scheduledFree"),
+    v.literal("scheduledChange"),
     v.literal("migrationPending"),
   ),
   currentPlan: v.union(billingPlanValidator, v.null()),
@@ -102,9 +103,12 @@ const billingViewValidator = v.object({
   trialEndsAt: v.optional(v.number()),
   stripeBillingAvailable: v.boolean(),
   hasStripeCustomer: v.boolean(),
-  targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"))),
-  peopleUsage: v.object({ current: v.number(), max: v.number() }),
-  shopUsage: v.object({ current: v.number(), max: v.number() }),
+  targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+  limitPlan: v.optional(v.union(v.literal("free"), v.literal("pro"))),
+  peopleUsage: v.object({ current: v.number(), max: v.number(), pendingInvitations: v.number() }),
+  shopUsage: v.object({ current: v.number(), max: v.number(), pendingInvitations: v.number() }),
+  managerUsage: v.object({ current: v.number(), max: v.number(), pendingInvitations: v.number() }),
+  requiredReductions: v.object({ people: v.number(), shops: v.number(), managers: v.number() }),
   nextEvent: v.optional(v.object({ label: v.string(), date: v.string() })),
   blockedReason: v.optional(v.string()),
   billingEmail: v.string(),
@@ -138,7 +142,7 @@ const organizationSettingsValidator = v.object({
   deleteOrganizationDisabledReason: v.optional(v.string()),
 });
 
-type BillingPlan = "trial" | "free" | "pro";
+type BillingPlan = "trial" | "free" | "pro" | "business";
 type BillingView = {
   state:
     | BillingPlan
@@ -146,7 +150,7 @@ type BillingView = {
     | "pendingActivation"
     | "grace"
     | "restricted"
-    | "scheduledFree"
+    | "scheduledChange"
     | "migrationPending";
   currentPlan: BillingPlan | null;
   isComplimentary: boolean;
@@ -155,8 +159,11 @@ type BillingView = {
   stripeBillingAvailable: boolean;
   hasStripeCustomer: boolean;
   targetPlan?: Exclude<BillingPlan, "trial">;
-  peopleUsage: { current: number; max: number };
-  shopUsage: { current: number; max: number };
+  limitPlan?: "free" | "pro";
+  peopleUsage: { current: number; max: number; pendingInvitations: number };
+  shopUsage: { current: number; max: number; pendingInvitations: number };
+  managerUsage: { current: number; max: number; pendingInvitations: number };
+  requiredReductions: { people: number; shops: number; managers: number };
   nextEvent?: { label: string; date: string };
   blockedReason?: string;
   billingEmail: string;
@@ -212,8 +219,10 @@ function legacyMigrationPendingSettings(user: Doc<"users">, shop: Doc<"shops">) 
       hasTrialContinuation: false,
       stripeBillingAvailable: false,
       hasStripeCustomer: false,
-      peopleUsage: { current: 1, max: 0 },
-      shopUsage: { current: 1, max: 0 },
+      peopleUsage: { current: 1, max: 0, pendingInvitations: 0 },
+      shopUsage: { current: 1, max: 0, pendingInvitations: 0 },
+      managerUsage: { current: 1, max: 0, pendingInvitations: 0 },
+      requiredReductions: { people: 0, shops: 0, managers: 0 },
       blockedReason: "グループ単位のプラン設定を移行しています。完了後に利用状態を再確認します。",
       billingEmail: user.email,
       canManagePlan: false,
@@ -248,6 +257,10 @@ function restrictedBlockedReason(state: Extract<Doc<"organizationBillingStates">
       return "有料プランの支払いを確認できませんでした。有料プランを再契約してください。";
     case "unexpectedCancellation":
       return "契約状態を確認できません。有料プランを再契約してください。";
+    case "planLimitExceeded":
+      return state.limitPlan === "pro"
+        ? "Proの利用人数を超えています。必要な人数を削除すると、Proを利用できます。"
+        : "無料の利用上限を超えています。必要なユーザー、店舗、管理者を整理してください。";
   }
 }
 
@@ -271,6 +284,7 @@ export const getSettings = managerQuery({
       expiredInvitations,
       billingState,
       stripeCustomer,
+      latestStripeSubscription,
     ] = await Promise.all([
       ctx.db
         .query("organizationPeople")
@@ -315,6 +329,11 @@ export const getSettings = managerQuery({
         .query("organizationStripeCustomers")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", organization._id))
         .unique(),
+      ctx.db
+        .query("organizationStripeSubscriptions")
+        .withIndex("by_organizationId_and_providerGeneration", (q) => q.eq("organizationId", organization._id))
+        .order("desc")
+        .first(),
     ]);
     const people = peopleDocs.filter((person) => person.status === "active");
     const historicalInvitations = [...acceptedInvitations, ...revokedInvitations, ...expiredInvitations]
@@ -426,26 +445,9 @@ export const getSettings = managerQuery({
     );
     const canStartRestrictedRecovery = isRestrictedRecovery && billingState?.state.kind === "restricted";
     const canWriteNormally = Boolean(isActiveActor && policy?.canWriteBusinessData);
-    const usageLimits = restrictedState ? ORGANIZATION_PLAN_LIMITS.free : policy?.limits;
-
-    const futureAssignmentPersonIds = new Set<Id<"organizationPeople">>();
-    const today = todayJST();
-    for (const [personId, staffRows] of staffRowsByPersonId) {
-      let hasFutureAssignment = false;
-      for (const staff of staffRows) {
-        const assignments = ctx.db
-          .query("shiftAssignments")
-          .withIndex("by_staffId_and_date", (q) => q.eq("staffId", staff._id).gte("date", today));
-        for await (const assignment of assignments) {
-          const recruitment = await ctx.db.get(assignment.recruitmentId);
-          if (!recruitment || recruitment.isDeleted || !shopById.has(recruitment.shopId)) continue;
-          hasFutureAssignment = true;
-          break;
-        }
-        if (hasFutureAssignment) break;
-      }
-      if (hasFutureAssignment) futureAssignmentPersonIds.add(personId);
-    }
+    const restrictedLimitPlan = restrictedState ? resolveRestrictedLimitPlan(restrictedState) : null;
+    // 購入対象の表示ではなく、現在のentitlementを利用上限の根拠にする。
+    const usageLimits = restrictedLimitPlan ? ORGANIZATION_PLAN_LIMITS[restrictedLimitPlan] : policy?.limits;
 
     const recoveryPersonIds = restrictedState
       ? restrictedState.recoveryManagerPersonIds.filter((personId) => people.some((person) => person._id === personId))
@@ -677,7 +679,6 @@ export const getSettings = managerQuery({
         const isLastRecoveryManager = isRecoveryManager && recoveryPersonIds.length <= 1;
         const isBillingContact =
           billingEmailNormalized.length > 0 && billingEmailNormalized === person.emailNormalized.trim().toLowerCase();
-        const hasFutureAssignment = futureAssignmentPersonIds.has(person._id);
         const capabilities = deriveOrganizationPersonCapabilities({
           managerRole,
           activeManagerCount,
@@ -685,7 +686,6 @@ export const getSettings = managerQuery({
           policy,
           isStaff,
           isBillingContact,
-          hasFutureAssignment,
           isActiveActor,
           isRestricted: restrictedState !== null,
           isRestrictedRecovery,
@@ -764,13 +764,13 @@ export const getSettings = managerQuery({
       })
       .sort((a, b) => a.name.localeCompare(b.name, "ja"));
 
-    const normalizedBillingState = billingState ? normalizeOrganizationBillingState(billingState.state) : null;
+    const runtimeBillingState = billingState?.state ?? null;
     const canAccessCustomerPortal = Boolean(
       canStartRestrictedRecovery ||
         (isActiveActor &&
           billingState &&
           !restrictedState &&
-          ((billingState.state.kind === "trial" && billingState.state.selectedPaidPlan === "pro") ||
+          ((billingState.state.kind === "trial" && billingState.state.selectedPaidPlan !== undefined) ||
             billingState.state.kind === "scheduledChange" ||
             billingState.state.kind === "grace" ||
             (billingState.state.kind === "active" && billingState.state.plan !== "free"))),
@@ -801,19 +801,39 @@ export const getSettings = managerQuery({
         stripeBillingAvailable &&
           !isComplimentary &&
           isActiveActor &&
-          normalizedBillingState?.kind === "active" &&
-          normalizedBillingState.plan === "pro",
+          runtimeBillingState?.kind === "active" &&
+          runtimeBillingState.plan !== "free",
       ),
     };
+    const peopleUsageCurrent = usage.projectedPeopleCount;
+    const managerUsageCurrent = projectedActiveManagerCount;
+    const maxPeople = usageLimits?.maxPeople ?? 0;
+    const maxShops = usageLimits?.maxActiveShops ?? 0;
+    const maxManagers = usageLimits?.maxActiveManagers ?? 0;
     const billingBase = {
-      peopleUsage: { current: usage.currentPeopleCount, max: usageLimits?.maxPeople ?? 0 },
-      shopUsage: { current: activeShopCount, max: usageLimits?.maxActiveShops ?? 0 },
+      peopleUsage: {
+        current: peopleUsageCurrent,
+        max: maxPeople,
+        pendingInvitations: usage.reservedPersonCount,
+      },
+      shopUsage: { current: activeShopCount, max: maxShops, pendingInvitations: 0 },
+      managerUsage: {
+        current: managerUsageCurrent,
+        max: maxManagers,
+        pendingInvitations: pendingManagerInvitationCount,
+      },
+      requiredReductions: {
+        people: Math.max(0, peopleUsageCurrent - maxPeople),
+        shops: Math.max(0, activeShopCount - maxShops),
+        managers: Math.max(0, managerUsageCurrent - maxManagers),
+      },
+      ...(restrictedLimitPlan ? { limitPlan: restrictedLimitPlan } : {}),
       billingEmail: organization.billingEmail ?? "",
       isComplimentary,
       stripeBillingAvailable,
       hasStripeCustomer,
       hasTrialContinuation: Boolean(
-        normalizedBillingState?.kind === "trial" && normalizedBillingState.selectedPaidPlan === "pro",
+        runtimeBillingState?.kind === "trial" && runtimeBillingState.selectedPaidPlan !== undefined,
       ),
       ...billingCapabilities,
     };
@@ -881,7 +901,7 @@ export const getSettings = managerQuery({
         blockedReason: "グループ単位のプラン設定を移行しています。完了後に利用状態を再確認します。",
       };
     } else {
-      const state = normalizeOrganizationBillingState(billingState.state);
+      const state = billingState.state;
       switch (state.kind) {
         case "trial":
           billing = {
@@ -889,6 +909,7 @@ export const getSettings = managerQuery({
             ...billingCapabilityReasons,
             state: "trial",
             currentPlan: "trial",
+            ...(state.selectedPaidPlan ? { targetPlan: state.selectedPaidPlan } : {}),
             trialEndsAt: state.trialEndsAt,
             // trialEndsAt は翌月末日の翌日 0:00 JST を表す排他的な境界。
             // 次の予定ではトライアルを利用できる最終日を表示する。
@@ -900,7 +921,8 @@ export const getSettings = managerQuery({
             ...billingBase,
             ...billingCapabilityReasons,
             state: "initialPaymentPending",
-            currentPlan: state.plan,
+            currentPlan: "pro",
+            targetPlan: state.plan,
             nextEvent: { label: "支払い結果", date: "確認中" },
           };
           break;
@@ -909,7 +931,7 @@ export const getSettings = managerQuery({
             ...billingBase,
             ...billingCapabilityReasons,
             state: "pendingActivation",
-            currentPlan: state.fallback === "free" ? "free" : null,
+            currentPlan: state.fallback === "free" ? "free" : state.fallback === "pro" ? "pro" : null,
             targetPlan: state.plan,
             blockedReason:
               state.fallback === "free"
@@ -926,21 +948,31 @@ export const getSettings = managerQuery({
             ...billingCapabilityReasons,
             state: state.plan,
             currentPlan: state.plan,
+            ...(state.plan !== "free" &&
+            latestStripeSubscription?.terminalAt === undefined &&
+            latestStripeSubscription?.currentPeriodEndsAt !== undefined
+              ? {
+                  nextEvent: {
+                    label: "次回更新日",
+                    date: formatDateJa(latestStripeSubscription.currentPeriodEndsAt),
+                  },
+                }
+              : {}),
           };
           break;
         case "complimentary":
           billing = {
             ...billingBase,
             ...billingCapabilityReasons,
-            state: "pro",
-            currentPlan: "pro",
+            state: "business",
+            currentPlan: "business",
           };
           break;
         case "scheduledChange":
           billing = {
             ...billingBase,
             ...billingCapabilityReasons,
-            state: "scheduledFree",
+            state: "scheduledChange",
             currentPlan: state.currentPlan,
             targetPlan: state.targetPlan,
             nextEvent: {
@@ -955,6 +987,7 @@ export const getSettings = managerQuery({
             ...billingCapabilityReasons,
             state: "grace",
             currentPlan: state.plan,
+            ...(state.targetPlan ? { targetPlan: state.targetPlan } : {}),
             blockedReason: "支払い方法を更新しないまま期限を過ぎると、契約制限中へ移行します。",
             nextEvent: { label: "支払い猶予期限", date: formatDateTimeJa(state.endsAt) },
           };
@@ -966,6 +999,7 @@ export const getSettings = managerQuery({
             state: "restricted",
             currentPlan: null,
             ...(state.previousPlan ? { previousPlan: state.previousPlan } : {}),
+            ...(state.targetPlan ? { targetPlan: state.targetPlan } : {}),
             blockedReason: restrictedBlockedReason(state),
           };
           break;

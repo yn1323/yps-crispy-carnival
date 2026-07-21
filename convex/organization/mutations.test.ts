@@ -596,7 +596,7 @@ describe("organization person removal", () => {
     expect(state.audits).toHaveLength(1);
   });
 
-  it.each(["shop", "organization"] as const)("%s削除は将来の有効な割当があると拒否する", async (scope) => {
+  it.each(["shop", "organization"] as const)("%s削除はpreview確認後に今日以降の割当も削除する", async (scope) => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: `future_${scope}_actor`, plan: "pro" });
@@ -613,26 +613,179 @@ describe("organization person removal", () => {
       return { ...base, ...target, assignmentId };
     });
 
+    const actor = t.withIdentity({ subject: `future_${scope}_actor` });
+    const detail = await actor.query(api.organization.userDetailQueries.getUserDetail, {
+      shopId: ids.shopId,
+      personId: ids.personId,
+      now: NOW,
+    });
+    const preview = scope === "shop" ? detail?.memberships[0]?.removalPreview : detail?.removalPreview;
+    if (preview?.kind !== "ready") throw new Error("removal preview not ready");
+
     const request =
       scope === "shop"
-        ? t
-            .withIdentity({ subject: `future_${scope}_actor` })
-            .mutation(api.organization.mutations.removePersonFromShop, {
-              shopId: ids.shopId,
-              staffId: ids.staffIds[0],
-              requestId: `future-${scope}`,
-            })
-        : t
-            .withIdentity({ subject: `future_${scope}_actor` })
-            .mutation(api.organization.mutations.removePersonFromOrganization, {
-              shopId: ids.shopId,
-              personId: ids.personId,
-              requestId: `future-${scope}`,
-            });
-    await expect(request).rejects.toThrow("将来のシフト割当を解除してから削除してください");
-    await expect(t.run(async (ctx) => await ctx.db.get(ids.assignmentId))).resolves.not.toBeNull();
-    await expect(t.run(async (ctx) => (await ctx.db.get(ids.personId))?.status)).resolves.toBe("active");
-    await expect(t.run(async (ctx) => (await ctx.db.get(ids.staffIds[0]))?.isDeleted)).resolves.toBe(false);
+        ? actor.mutation(api.organization.mutations.removePersonFromShop, {
+            shopId: ids.shopId,
+            staffId: ids.staffIds[0],
+            requestId: `future-${scope}`,
+            removalPreview: {
+              assignmentCount: preview.assignmentCount,
+              fingerprint: preview.fingerprint,
+            },
+          })
+        : actor.mutation(api.organization.mutations.removePersonFromOrganization, {
+            shopId: ids.shopId,
+            personId: ids.personId,
+            requestId: `future-${scope}`,
+            removalPreview: {
+              assignmentCount: preview.assignmentCount,
+              fingerprint: preview.fingerprint,
+            },
+          });
+    await expect(request).resolves.toEqual({ changed: true });
+    await expect(t.run(async (ctx) => await ctx.db.get(ids.assignmentId))).resolves.toBeNull();
+    await expect(t.run(async (ctx) => (await ctx.db.get(ids.personId))?.status)).resolves.toBe(
+      scope === "shop" ? "active" : "removed",
+    );
+    await expect(t.run(async (ctx) => (await ctx.db.get(ids.staffIds[0]))?.isDeleted)).resolves.toBe(true);
+  });
+
+  it("stale previewでは無変更にし、再確認後は対象の今日以降だけを削除して再送を冪等にする", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, { subject: "stale_preview_actor", plan: "pro" });
+      const secondShopId = await seedOrganizationShop(ctx, base.organizationId, "第二店舗");
+      const target = await seedTargetPerson(ctx, {
+        base,
+        subject: "stale_preview_target",
+        shopIds: [base.shopId, secondShopId],
+      });
+      const other = await seedTargetPerson(ctx, {
+        base,
+        subject: "stale_preview_other",
+        shopIds: [base.shopId],
+      });
+      const otherOrganization = await seedOrganizationManagerShop(ctx, {
+        subject: "stale_preview_other_org",
+        plan: "pro",
+      });
+      const otherOrganizationTarget = await seedTargetPerson(ctx, {
+        base: otherOrganization,
+        subject: "stale_preview_other_org_target",
+        shopIds: [otherOrganization.shopId],
+      });
+      const past = await seedAssignment(ctx, {
+        shopId: base.shopId,
+        staffId: target.staffIds[0],
+        date: addDays(todayJST(), -1),
+      });
+      const today = await seedAssignment(ctx, {
+        shopId: base.shopId,
+        staffId: target.staffIds[0],
+        date: todayJST(),
+      });
+      const future = await seedAssignment(ctx, {
+        shopId: secondShopId,
+        staffId: target.staffIds[1],
+        date: addDays(todayJST(), 1),
+      });
+      const otherPerson = await seedAssignment(ctx, {
+        shopId: base.shopId,
+        staffId: other.staffIds[0],
+        date: todayJST(),
+      });
+      const otherOrg = await seedAssignment(ctx, {
+        shopId: otherOrganization.shopId,
+        staffId: otherOrganizationTarget.staffIds[0],
+        date: todayJST(),
+      });
+      return { ...base, ...target, past, today, future, otherPerson, otherOrg };
+    });
+    const actor = t.withIdentity({ subject: "stale_preview_actor" });
+    const getPreview = async () => {
+      const detail = await actor.query(api.organization.userDetailQueries.getUserDetail, {
+        shopId: ids.shopId,
+        personId: ids.personId,
+        now: NOW,
+      });
+      if (detail?.removalPreview.kind !== "ready") throw new Error("removal preview not ready");
+      return detail.removalPreview;
+    };
+    const stalePreview = await getPreview();
+    expect(stalePreview.assignmentCount).toBe(2);
+
+    const addedAfterPreview = await t.run(async (ctx) =>
+      seedAssignment(ctx, {
+        shopId: ids.shopId,
+        staffId: ids.staffIds[0],
+        date: addDays(todayJST(), 2),
+      }),
+    );
+    const requestId = "stale-preview-removal";
+    await expect(
+      actor.mutation(api.organization.mutations.removePersonFromOrganization, {
+        shopId: ids.shopId,
+        personId: ids.personId,
+        requestId,
+        removalPreview: {
+          assignmentCount: stalePreview.assignmentCount,
+          fingerprint: stalePreview.fingerprint,
+        },
+      }),
+    ).rejects.toThrow("今日以降のシフト割当が変更されました");
+
+    const unchanged = await t.run(async (ctx) => ({
+      person: await ctx.db.get(ids.personId),
+      staffs: await Promise.all(ids.staffIds.map((staffId) => ctx.db.get(staffId))),
+      targetAssignments: await Promise.all(
+        [ids.today.assignmentId, ids.future.assignmentId, addedAfterPreview.assignmentId].map((id) => ctx.db.get(id)),
+      ),
+    }));
+    expect(unchanged.person?.status).toBe("active");
+    expect(unchanged.staffs.every((staff) => staff?.isDeleted === false)).toBe(true);
+    expect(unchanged.targetAssignments.every((assignment) => assignment !== null)).toBe(true);
+
+    const confirmedPreview = await getPreview();
+    expect(confirmedPreview.assignmentCount).toBe(3);
+    const mutationArgs = {
+      shopId: ids.shopId,
+      personId: ids.personId,
+      requestId,
+      removalPreview: {
+        assignmentCount: confirmedPreview.assignmentCount,
+        fingerprint: confirmedPreview.fingerprint,
+      },
+    };
+    await expect(
+      actor.mutation(api.organization.mutations.removePersonFromOrganization, mutationArgs),
+    ).resolves.toEqual({ changed: true });
+    await expect(
+      actor.mutation(api.organization.mutations.removePersonFromOrganization, mutationArgs),
+    ).resolves.toEqual({ changed: false });
+
+    const finalState = await t.run(async (ctx) => ({
+      past: await ctx.db.get(ids.past.assignmentId),
+      today: await ctx.db.get(ids.today.assignmentId),
+      future: await ctx.db.get(ids.future.assignmentId),
+      addedAfterPreview: await ctx.db.get(addedAfterPreview.assignmentId),
+      otherPerson: await ctx.db.get(ids.otherPerson.assignmentId),
+      otherOrg: await ctx.db.get(ids.otherOrg.assignmentId),
+      recruitments: await Promise.all(
+        [
+          ids.past.recruitmentId,
+          ids.today.recruitmentId,
+          ids.future.recruitmentId,
+          addedAfterPreview.recruitmentId,
+        ].map((id) => ctx.db.get(id)),
+      ),
+    }));
+    expect(finalState.past).not.toBeNull();
+    expect(finalState.today).toBeNull();
+    expect(finalState.future).toBeNull();
+    expect(finalState.addedAfterPreview).toBeNull();
+    expect(finalState.otherPerson).not.toBeNull();
+    expect(finalState.otherOrg).not.toBeNull();
+    expect(finalState.recruitments.every((recruitment) => recruitment?.status === "confirmed")).toBe(true);
   });
 
   it("請求先メールアドレスの所有者は変更完了まで事業者から削除できない", async () => {
@@ -660,7 +813,7 @@ describe("organization person removal", () => {
           personId: ids.personId,
           requestId: "billing-owner",
         }),
-    ).rejects.toThrow("請求先メールアドレスを変更してから削除してください");
+    ).rejects.toThrow("請求先メールアドレスを変更してから管理者権限を外してください");
   });
 
   it("最後の有効管理者は自分自身でも事業者から削除できない", async () => {
@@ -832,6 +985,9 @@ describe("organization person removal", () => {
         .collect(),
       billingState: await ctx.db.get(ids.billingStateId),
       person: await ctx.db.get(ids.personId),
+      reconciliationJobs: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+        (job) => job.name === "organizationBilling/mutations:reconcileRestrictedPlanEligibility",
+      ),
     }));
     expect(state.person?.status).toBe("removed");
     expect(state.billingState?.state).toMatchObject({
@@ -842,6 +998,11 @@ describe("organization person removal", () => {
     expect(state.billingState.state.recoveryManagerPersonIds).toEqual([ids.recoveryActorPersonId]);
     expect(state.billingState.freeManagerPersonId).toBeUndefined();
     expect(state.billingState).toMatchObject({ version: 2, updatedAt: NOW });
+    expect(state.reconciliationJobs).toHaveLength(1);
+    expect(state.reconciliationJobs[0]?.args[0]).toEqual({
+      billingStateId: ids.billingStateId,
+      expectedVersion: 2,
+    });
     expect(state.audits.map((audit) => audit.action)).toEqual(
       expect.arrayContaining([
         "organization.person_removed",
@@ -1083,7 +1244,7 @@ describe("organization person removal", () => {
     expect(state.audit).toMatchObject({ action: "organization.manager_role_removed", toState: "staffOnly" });
   });
 
-  it("スタッフ所属がない管理者の権限解除は人物を事業者から削除する", async () => {
+  it("スタッフ所属がない管理者の権限解除は人物を保持して管理アクセスだけを終了する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "role_remove_no_staff_actor", plan: "pro" });
@@ -1104,11 +1265,17 @@ describe("organization person removal", () => {
       }),
     ).resolves.toEqual({ changed: true });
     const state = await t.run(async (ctx) => ({
+      audit: await ctx.db
+        .query("organizationAuditEvents")
+        .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
+        .filter((q) => q.eq(q.field("targetId"), ids.personId))
+        .first(),
       member: await ctx.db.get(ids.memberId as Id<"organizationMembers">),
       person: await ctx.db.get(ids.personId),
     }));
     expect(state.member?.status).toBe("removed");
-    expect(state.person?.status).toBe("removed");
+    expect(state.person?.status).toBe("active");
+    expect(state.audit).toMatchObject({ action: "organization.manager_role_removed", toState: "personOnly" });
   });
 
   it("スタッフ所属がない請求先所有者の管理権限は請求先変更前に外せない", async () => {
@@ -1136,7 +1303,7 @@ describe("organization person removal", () => {
     ).rejects.toThrow("請求先メールアドレスを変更してから削除してください");
   });
 
-  it("スタッフ所属がなく将来シフトが残る管理者の権限は外せない", async () => {
+  it("スタッフ所属がなく将来シフトが残る管理者の権限解除は人物と割当を維持する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "role_future_actor", plan: "pro" });
@@ -1147,12 +1314,12 @@ describe("organization person removal", () => {
         manager: true,
       });
       await ctx.db.patch(target.staffIds[0], { isDeleted: true });
-      await seedAssignment(ctx, {
+      const { assignmentId } = await seedAssignment(ctx, {
         shopId: base.shopId,
         staffId: target.staffIds[0],
         date: addDays(todayJST(), 1),
       });
-      return { ...base, ...target };
+      return { ...base, ...target, assignmentId };
     });
     await expect(
       t.withIdentity({ subject: "role_future_actor" }).mutation(api.organization.mutations.removeManagerRole, {
@@ -1160,7 +1327,21 @@ describe("organization person removal", () => {
         personId: ids.personId,
         requestId: "role-future-request",
       }),
-    ).rejects.toThrow("将来のシフト割当を解除してから削除してください");
+    ).resolves.toEqual({ changed: true });
+    const state = await t.run(async (ctx) => ({
+      assignment: await ctx.db.get(ids.assignmentId),
+      member: await ctx.db.get(ids.memberId as Id<"organizationMembers">),
+      person: await ctx.db.get(ids.personId),
+      audit: await ctx.db
+        .query("organizationAuditEvents")
+        .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
+        .filter((q) => q.eq(q.field("targetId"), ids.personId))
+        .first(),
+    }));
+    expect(state.assignment).not.toBeNull();
+    expect(state.member?.status).toBe("removed");
+    expect(state.person?.status).toBe("active");
+    expect(state.audit).toMatchObject({ action: "organization.manager_role_removed", toState: "personOnly" });
   });
 
   it("最後の有効管理者の管理権限は外せない", async () => {

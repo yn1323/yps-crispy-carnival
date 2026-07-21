@@ -157,6 +157,11 @@ const SCENARIO_FIXTURES = [
     titles: ["[OD-P0-02] 組織削除を完了する", "[OD-P0-03] 支払い継続中の組織削除を防ぐ"],
   },
   {
+    file: "scenarios/organization-billing-plan-change.test.ts",
+    project: "desktop-chromium",
+    titles: ["[BILL-P0-02] 支払い不要Businessを保ち、BusinessからProへの変更後の超過を人物削除で復旧する"],
+  },
+  {
     file: "scenarios/organization-shop-lifecycle.test.ts",
     project: "desktop-chromium",
     titles: ["[MS-P0-01] 組織と店舗のライフサイクルを確認する"],
@@ -284,7 +289,7 @@ function createValidReport(): SyntheticReport {
     .flatMap(({ specs }) => specs)
     .flatMap(({ tests }) => tests)
     .filter(({ projectName }) => projectName === "desktop-chromium").length;
-  for (let index = desktopTestCount; index < 67; index += 1) {
+  for (let index = desktopTestCount; index < 68; index += 1) {
     desktopSuite.specs.push({
       title: `Desktop補完シナリオ${index}`,
       tests: [createTest("desktop-chromium")],
@@ -342,9 +347,9 @@ describe("assertPlaywrightReleaseResults", () => {
     expect(result.error).toBeUndefined();
     expect(result.status).toBe(0);
     expect(result.stderr).toBe("");
-    expect(result.stdout).toContain("Release E2E result gate passed: 80 tests");
+    expect(result.stdout).toContain("Release E2E result gate passed: 81 tests");
     expect(result.stdout).toContain(
-      "34 required suites, 16 required P0 contracts across 18 suite/project/spec bindings",
+      "35 required suites, 17 required P0 contracts across 19 suite/project/spec bindings",
     );
     expect(result.stdout).toContain(
       "Observed wall span: total=9.0s; setup=1.0s, multi-actor-chromium=2.0s, desktop-chromium=4.0s, mobile-chrome=1.0s.",

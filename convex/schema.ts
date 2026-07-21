@@ -186,7 +186,7 @@ const schema = defineSchema({
     updatedAt: v.number(),
   }).index("by_organizationId", ["organizationId"]),
 
-  // 通常課金グループだけが持つStripe Customer対応。無償Proでは行を作らない。
+  // 通常課金グループだけが持つStripe Customer対応。支払い不要プランでは行を作らない。
   organizationStripeCustomers: defineTable({
     organizationId: v.id("organizations"),
     stripeCustomerId: v.string(),
@@ -204,11 +204,16 @@ const schema = defineSchema({
     stripeSubscriptionId: v.string(),
     stripeSubscriptionItemId: v.optional(v.string()),
     stripePriceId: v.string(),
+    // TODO[narrow]: 既存Subscription snapshotのPrice照合・plan backfill完了を確認してrequired化する。
+    plan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
     livemode: v.boolean(),
     status: organizationStripeSubscriptionStatusValidator,
     providerGeneration: v.number(),
     trialEndsAt: v.optional(v.number()),
+    currentPeriodStartsAt: v.optional(v.number()),
     currentPeriodEndsAt: v.optional(v.number()),
+    billingCycleAnchor: v.optional(v.number()),
+    stripeSubscriptionScheduleId: v.optional(v.string()),
     cancelAtPeriodEnd: v.boolean(),
     latestInvoiceId: v.optional(v.string()),
     lastStripeEventCreatedAt: v.optional(v.number()),
@@ -221,6 +226,7 @@ const schema = defineSchema({
     .index("by_organizationId_and_providerGeneration", ["organizationId", "providerGeneration"])
     .index("by_organizationId_and_status_and_terminalAt", ["organizationId", "status", "terminalAt"])
     .index("by_livemode_and_stripeSubscriptionId", ["livemode", "stripeSubscriptionId"])
+    .index("by_livemode_and_stripeSubscriptionScheduleId", ["livemode", "stripeSubscriptionScheduleId"])
     .index("by_livemode_and_latestInvoiceId", ["livemode", "latestInvoiceId"])
     .index("by_livemode_and_stripeCustomerId", ["livemode", "stripeCustomerId"]),
 
@@ -233,12 +239,22 @@ const schema = defineSchema({
     livemode: v.boolean(),
     expectedBillingVersion: v.optional(v.number()),
     providerGeneration: v.optional(v.number()),
+    sourcePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
+    targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+    changeMode: v.optional(v.union(v.literal("checkout"), v.literal("immediate"), v.literal("periodEnd"))),
+    stripeSubscriptionIdSnapshot: v.optional(v.string()),
+    stripeSubscriptionItemIdSnapshot: v.optional(v.string()),
+    sourceStripePriceIdSnapshot: v.optional(v.string()),
+    targetStripePriceIdSnapshot: v.optional(v.string()),
+    prorationDate: v.optional(v.number()),
+    effectiveAt: v.optional(v.number()),
     // cancelSubscription / reconcileSubscription の回収先を識別する。既存operationは猶予終了回収として扱う。
     recoveryPurpose: v.optional(
       v.union(
         v.literal("trialContinuationCancellation"),
         v.literal("invalidTrialSubscriptionCancellation"),
         v.literal("scheduledFreeDeadline"),
+        v.literal("scheduledPaidPlanDeadline"),
       ),
     ),
     // 無効なTrial Subscriptionのcleanupでは、作成元operationとの所有関係を固定する。
@@ -303,6 +319,7 @@ const schema = defineSchema({
     updatedAt: v.number(),
   })
     .index("by_stripeEventId", ["stripeEventId"])
+    .index("by_organizationId", ["organizationId"])
     .index("by_status_and_nextRunAt", ["status", "nextRunAt"])
     .index("by_status_and_processedAt", ["status", "processedAt"])
     .index("by_status_and_expiresAt", ["status", "expiresAt"])

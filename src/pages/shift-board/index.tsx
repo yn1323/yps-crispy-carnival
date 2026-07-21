@@ -5,14 +5,17 @@ import { Animation } from "@/src/components/templates/Animation";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { ShiftoriLoading } from "@/src/components/ui/ShiftoriLoading";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
+import { useShiftBoardDayKey } from "./useShiftBoardDayKey";
 
 type Props = {
   recruitmentId: string;
 };
 
 export function ShiftBoardRoutePage({ recruitmentId }: Props) {
+  const asOfDate = useShiftBoardDayKey();
   const data = useShopQuery(api.shiftBoard.queries.getShiftBoardData, {
     recruitmentId: recruitmentId as Id<"recruitments">,
+    asOfDate,
   });
 
   if (data === undefined) {

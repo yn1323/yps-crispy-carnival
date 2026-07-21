@@ -559,7 +559,7 @@ export const pruneExpiredTerminalRecords = internalMutation({
 
 /**
  * 件数は全件走査せずobservedCount/hasMoreで返す。
- * P0相当の無償Pro mappingも観測だけに留め、自動修復・自動削除しない。
+ * P0相当の無償プランmappingも観測だけに留め、自動修復・自動削除しない。
  */
 export const getProbe = internalQuery({
   args: {},
@@ -580,19 +580,19 @@ export const getProbe = internalQuery({
       priceRotationBlocking: v.object({
         trialSetupCheckout: boundedCountValidator,
         createTrialSubscription: boundedCountValidator,
-        immediateProCheckout: boundedCountValidator,
+        immediatePaidCheckout: boundedCountValidator,
       }),
       reconcileSubscriptionActionRequired: boundedCountValidator,
     }),
     anomalies: v.object({
-      complimentaryProStripeMappingP0: boundedCountValidator,
-      activeProWithoutCurrentSubscription: boundedCountValidator,
+      complimentaryStripeMappingP0: boundedCountValidator,
+      activePaidWithoutCurrentSubscription: boundedCountValidator,
       activeFreeWithCurrentSubscription: boundedCountValidator,
       organizationsWithMultipleNonterminalSubscriptions: boundedCountValidator,
       organizationsWithMultipleStripeCustomers: boundedCountValidator,
       subscriptionsWithoutMatchingLocalCustomer: boundedCountValidator,
       stripeCustomersWithoutBillingState: boundedCountValidator,
-      legacyBusinessState: boundedCountValidator,
+      complimentaryProAwaitingM021: boundedCountValidator,
       unresolvedM018MigrationConflicts: boundedCountValidator,
     }),
   }),
@@ -690,7 +690,8 @@ async function probeSafetyOperations(ctx: QueryCtx) {
     unfinishedStopInvoiceCollection,
     trialSetupCheckout,
     createTrialSubscription,
-    immediateProCheckout,
+    legacyImmediateProCheckout,
+    immediatePaidCheckout,
     reconcileSubscriptionActionRequired,
   ] = await Promise.all([
     observeOperations(ctx, "cancelSubscription", UNFINISHED_OPERATION_STATUSES),
@@ -698,6 +699,7 @@ async function probeSafetyOperations(ctx: QueryCtx) {
     observePriceRotationBlockingOperations(ctx, "trialSetupCheckout"),
     observePriceRotationBlockingOperations(ctx, "createTrialSubscription"),
     observePriceRotationBlockingOperations(ctx, "immediateProCheckout"),
+    observePriceRotationBlockingOperations(ctx, "immediatePaidCheckout"),
     observeOperations(ctx, "reconcileSubscription", ["actionRequired"]),
   ]);
 
@@ -707,7 +709,7 @@ async function probeSafetyOperations(ctx: QueryCtx) {
     priceRotationBlocking: {
       trialSetupCheckout,
       createTrialSubscription,
-      immediateProCheckout,
+      immediatePaidCheckout: combineBoundedCounts(legacyImmediateProCheckout, immediatePaidCheckout),
     },
     reconcileSubscriptionActionRequired,
   };
@@ -715,7 +717,7 @@ async function probeSafetyOperations(ctx: QueryCtx) {
 
 async function observePriceRotationBlockingOperations(
   ctx: QueryCtx,
-  kind: "trialSetupCheckout" | "createTrialSubscription" | "immediateProCheckout",
+  kind: "trialSetupCheckout" | "createTrialSubscription" | "immediateProCheckout" | "immediatePaidCheckout",
 ) {
   const statuses = [...UNFINISHED_OPERATION_STATUSES, "succeeded", "actionRequired"] as const;
   const samples = await Promise.all(
@@ -776,6 +778,13 @@ async function observeOperations(
   };
 }
 
+function combineBoundedCounts(...counts: Array<{ observedCount: number; hasMore: boolean }>) {
+  return {
+    observedCount: counts.reduce((total, count) => total + count.observedCount, 0),
+    hasMore: counts.some((count) => count.hasMore),
+  };
+}
+
 async function probeRelationshipAnomalies(ctx: QueryCtx) {
   const billingStates = await ctx.db.query("organizationBillingStates").take(PROBE_ORGANIZATION_LIMIT + 1);
   const sampled = billingStates.slice(0, PROBE_ORGANIZATION_LIMIT);
@@ -833,10 +842,10 @@ async function probeRelationshipAnomalies(ctx: QueryCtx) {
     if (!billingState) stripeCustomersWithoutBillingState += 1;
   }
 
-  let complimentaryProStripeMappingP0 = 0;
-  let activeProWithoutCurrentSubscription = 0;
+  let complimentaryStripeMappingP0 = 0;
+  let activePaidWithoutCurrentSubscription = 0;
   let activeFreeWithCurrentSubscription = 0;
-  let legacyBusinessState = 0;
+  let complimentaryProAwaitingM021 = 0;
 
   for (const billing of sampled) {
     const currentSubscriptions = await ctx.db
@@ -850,13 +859,14 @@ async function probeRelationshipAnomalies(ctx: QueryCtx) {
         .query("organizationStripeCustomers")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", billing.organizationId))
         .first();
-      if (customer || currentSubscriptions.length > 0) complimentaryProStripeMappingP0 += 1;
+      if (customer || currentSubscriptions.length > 0) complimentaryStripeMappingP0 += 1;
+      if (billing.state.plan === "pro") complimentaryProAwaitingM021 += 1;
     }
 
     if (billing.state.kind === "active" && billing.state.plan !== "free") {
       const currentSubscription = currentSubscriptions[0];
       if (!currentSubscription || currentSubscription.terminalAt !== undefined) {
-        activeProWithoutCurrentSubscription += 1;
+        activePaidWithoutCurrentSubscription += 1;
       }
     }
     if (
@@ -867,17 +877,15 @@ async function probeRelationshipAnomalies(ctx: QueryCtx) {
     ) {
       activeFreeWithCurrentSubscription += 1;
     }
-
-    if (hasLegacyBusinessBillingState(billing.state)) legacyBusinessState += 1;
   }
 
   return {
-    complimentaryProStripeMappingP0: {
-      observedCount: complimentaryProStripeMappingP0,
+    complimentaryStripeMappingP0: {
+      observedCount: complimentaryStripeMappingP0,
       hasMore: hasMoreBillingStates,
     },
-    activeProWithoutCurrentSubscription: {
-      observedCount: activeProWithoutCurrentSubscription,
+    activePaidWithoutCurrentSubscription: {
+      observedCount: activePaidWithoutCurrentSubscription,
       hasMore: hasMoreBillingStates,
     },
     activeFreeWithCurrentSubscription: {
@@ -900,7 +908,10 @@ async function probeRelationshipAnomalies(ctx: QueryCtx) {
       observedCount: stripeCustomersWithoutBillingState,
       hasMore: hasMoreCustomerRelationships,
     },
-    legacyBusinessState: { observedCount: legacyBusinessState, hasMore: hasMoreBillingStates },
+    complimentaryProAwaitingM021: {
+      observedCount: complimentaryProAwaitingM021,
+      hasMore: hasMoreBillingStates,
+    },
     unresolvedM018MigrationConflicts: {
       observedCount: Math.min(unresolvedM018MigrationConflicts.length, PROBE_LIMIT_PER_STATUS),
       hasMore: unresolvedM018MigrationConflicts.length > PROBE_LIMIT_PER_STATUS,

@@ -9,9 +9,11 @@ const mocks = vi.hoisted(() => ({
   actions: {
     getProPrice: vi.fn(),
     startProCheckout: vi.fn(),
-    openCustomerPortal: vi.fn(),
+    previewPaidPlanChange: vi.fn(),
+    changePaidPlanNow: vi.fn(),
     scheduleFreeAtPeriodEnd: vi.fn(),
     cancelScheduledFree: vi.fn(),
+    openCustomerPortal: vi.fn(),
     cancelTrialContinuation: vi.fn(),
   },
   showErrorToast: vi.fn(),
@@ -35,13 +37,15 @@ vi.mock("convex/react", async () => {
     useMutation: () => mocks.mutation,
     useAction: (reference: never) => {
       const name = getFunctionName(reference);
-      if (name === "organizationStripe/actions:getProPrice") return mocks.actions.getProPrice;
-      if (name === "organizationStripe/actions:startProCheckout") return mocks.actions.startProCheckout;
-      if (name === "organizationStripe/actions:openCustomerPortal") return mocks.actions.openCustomerPortal;
-      if (name === "organizationStripe/actions:scheduleFreeAtPeriodEnd") {
-        return mocks.actions.scheduleFreeAtPeriodEnd;
+      if (name === "organizationStripe/actions:getPlanPrice") return mocks.actions.getProPrice;
+      if (name === "organizationStripe/actions:startPaidCheckout") return mocks.actions.startProCheckout;
+      if (name === "organizationStripe/actions:previewPaidPlanChange") return mocks.actions.previewPaidPlanChange;
+      if (name === "organizationStripe/actions:changePaidPlanNow") return mocks.actions.changePaidPlanNow;
+      if (name === "organizationStripe/actions:schedulePaidPlanChange") return mocks.actions.scheduleFreeAtPeriodEnd;
+      if (name === "organizationStripe/actions:cancelScheduledPlanChange") {
+        return mocks.actions.cancelScheduledFree;
       }
-      if (name === "organizationStripe/actions:cancelScheduledFree") return mocks.actions.cancelScheduledFree;
+      if (name === "organizationStripe/actions:openCustomerPortal") return mocks.actions.openCustomerPortal;
       if (name === "organizationStripe/actions:cancelTrialContinuation") {
         return mocks.actions.cancelTrialContinuation;
       }
@@ -95,8 +99,9 @@ const billing: OrganizationBillingView = {
   hasTrialContinuation: false,
   stripeBillingAvailable: true,
   hasStripeCustomer: true,
-  peopleUsage: { current: 4, max: 30 },
+  peopleUsage: { current: 4, max: 20 },
   shopUsage: { current: 1, max: 5 },
+  managerUsage: { current: 1, max: 5 },
   billingEmail: "billing@example.com",
   canManagePlan: true,
   canUpdatePaymentMethod: true,
@@ -294,13 +299,20 @@ describe("OrganizationSettings controllers", () => {
           intervalCount: number;
         }) => void)
       | undefined;
-    mocks.actions.getProPrice.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolvePrice = resolve;
-        }),
+    mocks.actions.getProPrice.mockImplementation(({ targetPlan }: { targetPlan: "pro" | "business" }) =>
+      targetPlan === "pro"
+        ? new Promise((resolve) => {
+            resolvePrice = resolve;
+          })
+        : Promise.resolve({
+            status: "available",
+            currency: "jpy",
+            unitAmount: 6000,
+            interval: "month",
+            intervalCount: 1,
+          }),
     );
-    let resolveCheckout: ((value: { status: "redirect"; url: string }) => void) | undefined;
+    let resolveCheckout: ((value: { status: "available"; url: string }) => void) | undefined;
     mocks.actions.startProCheckout.mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -324,14 +336,16 @@ describe("OrganizationSettings controllers", () => {
 
     act(() => result.current.managePlan());
     expect(result.current.dialog.dialog).toMatchObject({
+      kind: "startPaidPlan",
+      targetPlan: "pro",
       intentKey: "request-1",
       organizationName: "さくらダイニング",
       source: "immediate",
-      billingStartsOn: "Stripeでの支払い完了後",
-      shopNames: ["渋谷店", "新宿店"],
+      billingStartsOn: "Stripeでの支払い完了日",
       price: { status: "loading" },
     });
-    expect(mocks.actions.getProPrice).toHaveBeenCalledExactlyOnceWith({ shopId: "shop-current" });
+    expect(mocks.actions.getProPrice).toHaveBeenCalledWith({ shopId: "shop-current", targetPlan: "pro" });
+    expect(mocks.actions.getProPrice).toHaveBeenCalledWith({ shopId: "shop-current", targetPlan: "business" });
 
     await act(async () =>
       resolvePrice?.({
@@ -364,10 +378,11 @@ describe("OrganizationSettings controllers", () => {
       expect(mocks.actions.startProCheckout).toHaveBeenCalledExactlyOnceWith({
         shopId: "shop-current",
         requestId: "request-1",
+        targetPlan: "pro",
       }),
     );
 
-    await act(async () => resolveCheckout?.({ status: "redirect", url: "https://checkout.stripe.example/session" }));
+    await act(async () => resolveCheckout?.({ status: "available", url: "https://checkout.stripe.example/session" }));
     await waitFor(() =>
       expect(mocks.openBillingUrl).toHaveBeenCalledExactlyOnceWith("https://checkout.stripe.example/session"),
     );
@@ -402,12 +417,56 @@ describe("OrganizationSettings controllers", () => {
 
     await waitFor(() =>
       expect(result.current.dialog.dialog).toMatchObject({
-        kind: "startPro",
+        kind: "startPaidPlan",
+        targetPlan: "pro",
         source: "trial",
         billingStartsOn: "2026年9月1日",
-        shopNames: ["渋谷店", "新宿店"],
       }),
     );
+  });
+
+  it("FreeからBusinessはBusiness Priceを確認して対象plan付きCheckoutを開始する", async () => {
+    mocks.actions.getProPrice.mockImplementation(({ targetPlan }: { targetPlan: "pro" | "business" }) =>
+      Promise.resolve({
+        status: "available",
+        currency: "jpy",
+        unitAmount: targetPlan === "business" ? 8000 : 3000,
+        interval: "month",
+        intervalCount: 1,
+      }),
+    );
+    mocks.actions.startProCheckout.mockResolvedValue({
+      status: "available",
+      url: "https://checkout.stripe.example/business",
+    });
+    const freeBilling: OrganizationBillingView = {
+      ...billing,
+      state: "free",
+      currentPlan: "free",
+      canUpdatePaymentMethod: false,
+      canScheduleFree: false,
+    };
+    const { result } = renderHook(() =>
+      useStripeBillingController({ organizationName: "さくらダイニング", billing: freeBilling }),
+    );
+
+    await waitFor(() => expect(result.current.planPrices.business.status).toBe("available"));
+    act(() => result.current.managePlan("business"));
+    expect(result.current.dialog.dialog).toMatchObject({
+      kind: "startPaidPlan",
+      targetPlan: "business",
+      price: { status: "available", value: { unitAmount: 8000 } },
+    });
+    act(() => result.current.dialog.onSubmit());
+
+    await waitFor(() =>
+      expect(mocks.actions.startProCheckout).toHaveBeenCalledExactlyOnceWith({
+        shopId: "shop-current",
+        targetPlan: "business",
+        requestId: "request-1",
+      }),
+    );
+    expect(mocks.openBillingUrl).toHaveBeenCalledExactlyOnceWith("https://checkout.stripe.example/business");
   });
 
   it("Checkoutが利用不可なら外部遷移せず、安全な案内を表示する", async () => {
@@ -437,7 +496,7 @@ describe("OrganizationSettings controllers", () => {
     act(() => result.current.managePlan());
     await waitFor(() =>
       expect(result.current.dialog.dialog).toMatchObject({
-        kind: "startPro",
+        kind: "startPaidPlan",
         price: { status: "available" },
       }),
     );
@@ -456,15 +515,30 @@ describe("OrganizationSettings controllers", () => {
   });
 
   it("価格を取得できない場合はDialog内で案内し、再読み込みできる", async () => {
-    mocks.actions.getProPrice
-      .mockResolvedValueOnce({ status: "unavailable", reason: "price_unavailable" })
-      .mockResolvedValueOnce({
-        status: "available",
-        currency: "jpy",
-        unitAmount: 3000,
-        interval: "month",
-        intervalCount: 1,
-      });
+    let proPriceRequestCount = 0;
+    mocks.actions.getProPrice.mockImplementation(({ targetPlan }: { targetPlan: "pro" | "business" }) => {
+      if (targetPlan === "business") {
+        return Promise.resolve({
+          status: "available",
+          currency: "jpy",
+          unitAmount: 6000,
+          interval: "month",
+          intervalCount: 1,
+        });
+      }
+      proPriceRequestCount += 1;
+      return Promise.resolve(
+        proPriceRequestCount === 1
+          ? { status: "unavailable", reason: "price_unavailable" }
+          : {
+              status: "available",
+              currency: "jpy",
+              unitAmount: 3000,
+              interval: "month",
+              intervalCount: 1,
+            },
+      );
+    });
     const freeBilling: OrganizationBillingView = {
       ...billing,
       state: "free",
@@ -484,7 +558,7 @@ describe("OrganizationSettings controllers", () => {
 
     await waitFor(() =>
       expect(result.current.dialog.dialog).toMatchObject({
-        kind: "startPro",
+        kind: "startPaidPlan",
         price: { status: "unavailable", reason: "price_unavailable" },
       }),
     );
@@ -498,7 +572,7 @@ describe("OrganizationSettings controllers", () => {
         price: { status: "available", value: { currency: "jpy", unitAmount: 3000 } },
       }),
     );
-    expect(mocks.actions.getProPrice).toHaveBeenCalledTimes(2);
+    expect(mocks.actions.getProPrice).toHaveBeenCalledTimes(3);
   });
 
   it("価格の読み込み中にDialogを閉じても、再クリックですぐ同じ確認を開く", async () => {
@@ -511,11 +585,18 @@ describe("OrganizationSettings controllers", () => {
           intervalCount: number;
         }) => void)
       | undefined;
-    mocks.actions.getProPrice.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolvePrice = resolve;
-        }),
+    mocks.actions.getProPrice.mockImplementation(({ targetPlan }: { targetPlan: "pro" | "business" }) =>
+      targetPlan === "pro"
+        ? new Promise((resolve) => {
+            resolvePrice = resolve;
+          })
+        : Promise.resolve({
+            status: "available",
+            currency: "jpy",
+            unitAmount: 6000,
+            interval: "month",
+            intervalCount: 1,
+          }),
     );
     const freeBilling: OrganizationBillingView = {
       ...billing,
@@ -533,12 +614,12 @@ describe("OrganizationSettings controllers", () => {
     );
 
     act(() => result.current.managePlan());
-    expect(result.current.dialog.dialog).toMatchObject({ kind: "startPro", price: { status: "loading" } });
+    expect(result.current.dialog.dialog).toMatchObject({ kind: "startPaidPlan", price: { status: "loading" } });
     act(() => result.current.dialog.onClose());
     expect(result.current.dialog.dialog).toBeNull();
     act(() => result.current.managePlan());
-    expect(result.current.dialog.dialog).toMatchObject({ kind: "startPro", price: { status: "loading" } });
-    expect(mocks.actions.getProPrice).toHaveBeenCalledTimes(1);
+    expect(result.current.dialog.dialog).toMatchObject({ kind: "startPaidPlan", price: { status: "loading" } });
+    expect(mocks.actions.getProPrice).toHaveBeenCalledTimes(2);
 
     await act(async () =>
       resolvePrice?.({
@@ -552,13 +633,14 @@ describe("OrganizationSettings controllers", () => {
     await waitFor(() => expect(result.current.dialog.dialog).toMatchObject({ price: { status: "available" } }));
   });
 
-  it("TrialのPro継続登録済み状態では価格やCheckoutを呼ばず、取消を確認して一度だけ受け付ける", async () => {
+  it("TrialのPro継続登録済み状態ではCheckoutを増やさず、取消を確認して一度だけ受け付ける", async () => {
     mocks.actions.cancelTrialContinuation.mockResolvedValue({ status: "accepted" });
     const trialBilling: OrganizationBillingView = {
       ...billing,
       state: "trial",
       currentPlan: "trial",
       hasTrialContinuation: true,
+      targetPlan: "pro",
       nextEvent: { label: "トライアル最終日", date: "2026年8月31日" },
       canScheduleFree: false,
     };
@@ -570,7 +652,7 @@ describe("OrganizationSettings controllers", () => {
       }),
     );
 
-    act(() => result.current.managePlan());
+    act(() => result.current.managePlan("free"));
     expect(result.current.dialog.dialog).toMatchObject({
       kind: "cancelTrialContinuation",
       intentKey: "request-1",
@@ -587,7 +669,7 @@ describe("OrganizationSettings controllers", () => {
         requestId: "request-1",
       }),
     );
-    expect(mocks.actions.getProPrice).not.toHaveBeenCalled();
+    expect(mocks.actions.getProPrice).toHaveBeenCalledTimes(2);
     expect(mocks.actions.startProCheckout).not.toHaveBeenCalled();
     await waitFor(() =>
       expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
@@ -603,13 +685,14 @@ describe("OrganizationSettings controllers", () => {
       initialProps: { organizationName: "さくらダイニング", shopNames: ["渋谷店", "新宿店"], billing },
     });
 
-    act(() => result.current.managePlan());
-    expect(result.current.dialog.dialog?.kind).toBe("scheduleFree");
+    act(() => result.current.managePlan("free"));
+    expect(result.current.dialog.dialog?.kind).toBe("schedulePlanChange");
     act(() => result.current.dialog.onSubmit());
     await waitFor(() =>
       expect(mocks.actions.scheduleFreeAtPeriodEnd).toHaveBeenCalledExactlyOnceWith({
         shopId: "shop-current",
         requestId: "request-1",
+        targetPlan: "free",
       }),
     );
 
@@ -618,14 +701,15 @@ describe("OrganizationSettings controllers", () => {
       shopNames: ["渋谷店", "新宿店"],
       billing: {
         ...billing,
-        state: "scheduledFree",
+        state: "scheduledChange",
+        currentPlan: "pro",
         targetPlan: "free",
         nextEvent: { label: "無料適用予定日", date: "2026年8月31日" },
         canScheduleFree: false,
       },
     });
-    act(() => result.current.managePlan());
-    expect(result.current.dialog.dialog?.kind).toBe("cancelScheduledFree");
+    act(() => result.current.managePlan("pro"));
+    expect(result.current.dialog.dialog?.kind).toBe("cancelScheduledPlanChange");
     act(() => result.current.dialog.onSubmit());
     await waitFor(() =>
       expect(mocks.actions.cancelScheduledFree).toHaveBeenCalledExactlyOnceWith({
@@ -633,6 +717,144 @@ describe("OrganizationSettings controllers", () => {
         requestId: "request-1",
       }),
     );
+  });
+
+  it("ProからBusinessは同じproration dateの見積もり確認後に一度だけ即時変更する", async () => {
+    mocks.actions.previewPaidPlanChange.mockResolvedValue({
+      status: "available",
+      currency: "jpy",
+      amountDue: 4200,
+      currentPeriodEnd: Date.parse("2026-09-01T00:00:00+09:00"),
+      prorationDate: 1_780_000_000,
+    });
+    mocks.actions.changePaidPlanNow.mockResolvedValue({ status: "accepted" });
+    const { result } = renderHook(() => useStripeBillingController({ organizationName: "さくらダイニング", billing }));
+
+    act(() => result.current.managePlan("business"));
+    await waitFor(() =>
+      expect(result.current.dialog.dialog).toMatchObject({
+        kind: "changePaidPlanNow",
+        targetPlan: "business",
+        preview: {
+          status: "available",
+          value: { amountDue: 4200, prorationDate: 1_780_000_000 },
+        },
+      }),
+    );
+    expect(mocks.actions.previewPaidPlanChange).toHaveBeenCalledExactlyOnceWith({
+      shopId: "shop-current",
+      targetPlan: "business",
+      requestId: "request-1",
+    });
+
+    act(() => {
+      result.current.dialog.onSubmit();
+      result.current.dialog.onSubmit();
+    });
+    await waitFor(() =>
+      expect(mocks.actions.changePaidPlanNow).toHaveBeenCalledExactlyOnceWith({
+        shopId: "shop-current",
+        targetPlan: "business",
+        prorationDate: 1_780_000_000,
+        requestId: "request-1",
+      }),
+    );
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
+      title: "Businessへの変更を受け付けました",
+    });
+  });
+
+  it("日割り見積もり中のDialogを閉じて開き直しても、新しい確認が読み込み中のまま残らない", async () => {
+    let requestSequence = 0;
+    vi.mocked(crypto.randomUUID).mockImplementation(
+      () => `00000000-0000-4000-8000-${String(++requestSequence).padStart(12, "0")}`,
+    );
+    mocks.actions.getProPrice.mockResolvedValue({
+      status: "available",
+      currency: "jpy",
+      unitAmount: 3000,
+      interval: "month",
+      intervalCount: 1,
+    });
+    const previewResolvers = new Map<
+      string,
+      (result: {
+        status: "available";
+        currency: string;
+        amountDue: number;
+        currentPeriodEnd: number;
+        prorationDate: number;
+      }) => void
+    >();
+    mocks.actions.previewPaidPlanChange.mockImplementation(
+      ({ requestId }: { requestId: string }) =>
+        new Promise((resolve) => {
+          previewResolvers.set(requestId, resolve);
+        }),
+    );
+    const { result } = renderHook(() => useStripeBillingController({ organizationName: "さくらダイニング", billing }));
+    await waitFor(() => expect(result.current.planPrices.pro.status).toBe("available"));
+
+    act(() => result.current.managePlan("business"));
+    const firstIntent = result.current.dialog.dialog?.intentKey;
+    act(() => result.current.dialog.onClose());
+    act(() => result.current.managePlan("business"));
+    const secondIntent = result.current.dialog.dialog?.intentKey;
+
+    expect(firstIntent).toBeTruthy();
+    expect(secondIntent).toBeTruthy();
+    expect(secondIntent).not.toBe(firstIntent);
+    await waitFor(() => expect(mocks.actions.previewPaidPlanChange).toHaveBeenCalledTimes(2));
+    await act(async () =>
+      previewResolvers.get(secondIntent ?? "")?.({
+        status: "available",
+        currency: "jpy",
+        amountDue: 4200,
+        currentPeriodEnd: Date.parse("2026-09-01T00:00:00+09:00"),
+        prorationDate: 1_780_000_000,
+      }),
+    );
+    await waitFor(() =>
+      expect(result.current.dialog.dialog).toMatchObject({
+        intentKey: secondIntent,
+        preview: { status: "available" },
+      }),
+    );
+  });
+
+  it("BusinessからProは期間末変更と必要削減人数を確認して予約する", async () => {
+    mocks.actions.scheduleFreeAtPeriodEnd.mockResolvedValue({ status: "accepted" });
+    const businessBilling: OrganizationBillingView = {
+      ...billing,
+      state: "business",
+      currentPlan: "business",
+      peopleUsage: { current: 23, max: 40 },
+      requiredReductions: { people: 0, shops: 0, managers: 0 },
+      nextEvent: { label: "次回更新日", date: "2026年8月31日" },
+    };
+    const { result } = renderHook(() =>
+      useStripeBillingController({ organizationName: "さくらダイニング", billing: businessBilling }),
+    );
+
+    act(() => result.current.managePlan("pro"));
+    expect(result.current.dialog.dialog).toMatchObject({
+      kind: "schedulePlanChange",
+      targetPlan: "pro",
+      effectiveOn: "2026年8月31日",
+      requiredReductions: { people: 3, shops: 0, managers: 0 },
+    });
+    act(() => result.current.dialog.onSubmit());
+
+    await waitFor(() =>
+      expect(mocks.actions.scheduleFreeAtPeriodEnd).toHaveBeenCalledExactlyOnceWith({
+        shopId: "shop-current",
+        targetPlan: "pro",
+        requestId: "request-1",
+      }),
+    );
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
+      title: "Proへの変更予約を受け付けました",
+    });
   });
 
   it("確認中に選択グループが変わったらDialogを閉じ、古い確定操作を受け付けない", async () => {
@@ -705,18 +927,22 @@ describe("OrganizationSettings controllers", () => {
     await waitFor(() => expect(mocks.actions.openCustomerPortal).not.toHaveBeenCalled());
   });
 
-  it("支払い不要Proでは古い確定操作を含む全Stripe Actionを呼ばない", async () => {
+  it("支払い不要Businessでは古い確定操作を含む全Stripe Actionを呼ばない", async () => {
     const { result, rerender } = renderHook((input) => useStripeBillingController(input), {
       initialProps: { organizationName: "さくらダイニング", shopNames: ["渋谷店", "新宿店"], billing },
     });
+    await waitFor(() => expect(mocks.actions.getProPrice).toHaveBeenCalledTimes(2));
     act(() => result.current.managePlan());
     const staleSubmit = result.current.dialog.onSubmit;
+    mocks.actions.getProPrice.mockClear();
 
     rerender({
       organizationName: "さくらダイニング",
       shopNames: ["渋谷店", "新宿店"],
       billing: {
         ...billing,
+        state: "business",
+        currentPlan: "business",
         isComplimentary: true,
         canManagePlan: false,
         canUpdatePaymentMethod: false,

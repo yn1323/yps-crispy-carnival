@@ -47,6 +47,15 @@ const operationResultValidator = v.object({
   stripeObjectId: v.optional(v.string()),
   providerGeneration: v.optional(v.number()),
   stripePriceIdSnapshot: v.optional(v.string()),
+  sourcePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
+  targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+  changeMode: v.optional(v.union(v.literal("checkout"), v.literal("immediate"), v.literal("periodEnd"))),
+  stripeSubscriptionIdSnapshot: v.optional(v.string()),
+  stripeSubscriptionItemIdSnapshot: v.optional(v.string()),
+  sourceStripePriceIdSnapshot: v.optional(v.string()),
+  targetStripePriceIdSnapshot: v.optional(v.string()),
+  prorationDate: v.optional(v.number()),
+  effectiveAt: v.optional(v.number()),
   leaseToken: v.optional(v.string()),
   created: v.boolean(),
   conflict: v.boolean(),
@@ -279,9 +288,22 @@ export const beginOperation = internalMutation({
     expectedBillingVersion: v.optional(v.number()),
     providerGeneration: v.optional(v.number()),
     recoveryPurpose: v.optional(
-      v.union(v.literal("trialContinuationCancellation"), v.literal("scheduledFreeDeadline")),
+      v.union(
+        v.literal("trialContinuationCancellation"),
+        v.literal("scheduledFreeDeadline"),
+        v.literal("scheduledPaidPlanDeadline"),
+      ),
     ),
     stripePriceIdSnapshot: v.optional(v.string()),
+    sourcePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
+    targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+    changeMode: v.optional(v.union(v.literal("checkout"), v.literal("immediate"), v.literal("periodEnd"))),
+    stripeSubscriptionIdSnapshot: v.optional(v.string()),
+    stripeSubscriptionItemIdSnapshot: v.optional(v.string()),
+    sourceStripePriceIdSnapshot: v.optional(v.string()),
+    targetStripePriceIdSnapshot: v.optional(v.string()),
+    prorationDate: v.optional(v.number()),
+    effectiveAt: v.optional(v.number()),
     trialSubscriptionCreateSnapshot: v.optional(trialSubscriptionCreateSnapshotValidator),
   },
   returns: operationResultValidator,
@@ -291,7 +313,8 @@ export const beginOperation = internalMutation({
     }
     if (
       (args.recoveryPurpose === "trialContinuationCancellation" && args.kind !== "cancelSubscription") ||
-      (args.recoveryPurpose === "scheduledFreeDeadline" && args.kind !== "reconcileSubscription")
+      ((args.recoveryPurpose === "scheduledFreeDeadline" || args.recoveryPurpose === "scheduledPaidPlanDeadline") &&
+        args.kind !== "reconcileSubscription")
     ) {
       throw new ConvexError("Invalid recovery purpose");
     }
@@ -335,6 +358,15 @@ export const beginOperation = internalMutation({
         existing.providerGeneration !== args.providerGeneration ||
         existing.recoveryPurpose !== args.recoveryPurpose ||
         existing.stripePriceIdSnapshot !== args.stripePriceIdSnapshot ||
+        existing.sourcePlan !== args.sourcePlan ||
+        existing.targetPlan !== args.targetPlan ||
+        existing.changeMode !== args.changeMode ||
+        existing.stripeSubscriptionIdSnapshot !== args.stripeSubscriptionIdSnapshot ||
+        existing.stripeSubscriptionItemIdSnapshot !== args.stripeSubscriptionItemIdSnapshot ||
+        existing.sourceStripePriceIdSnapshot !== args.sourceStripePriceIdSnapshot ||
+        existing.targetStripePriceIdSnapshot !== args.targetStripePriceIdSnapshot ||
+        existing.prorationDate !== args.prorationDate ||
+        existing.effectiveAt !== args.effectiveAt ||
         !sameTrialSubscriptionCreateSnapshot(
           existing.trialSubscriptionCreateSnapshot,
           args.trialSubscriptionCreateSnapshot,
@@ -364,12 +396,13 @@ export const beginOperation = internalMutation({
     if (
       args.kind === "trialSetupCheckout" ||
       args.kind === "immediateProCheckout" ||
+      args.kind === "immediatePaidCheckout" ||
       args.kind === "createTrialSubscription"
     ) {
       const competingKinds =
         args.kind === "createTrialSubscription"
           ? (["createTrialSubscription"] as const)
-          : (["trialSetupCheckout", "immediateProCheckout"] as const);
+          : (["trialSetupCheckout", "immediateProCheckout", "immediatePaidCheckout"] as const);
       const blockingStatuses = ["queued", "processing", "retrying", "succeeded", "actionRequired"] as const;
       const generationOperations = (
         await Promise.all(
@@ -435,6 +468,17 @@ export const beginOperation = internalMutation({
       ...(args.providerGeneration !== undefined ? { providerGeneration: args.providerGeneration } : {}),
       ...(args.recoveryPurpose ? { recoveryPurpose: args.recoveryPurpose } : {}),
       ...(args.stripePriceIdSnapshot ? { stripePriceIdSnapshot: args.stripePriceIdSnapshot } : {}),
+      ...(args.sourcePlan ? { sourcePlan: args.sourcePlan } : {}),
+      ...(args.targetPlan ? { targetPlan: args.targetPlan } : {}),
+      ...(args.changeMode ? { changeMode: args.changeMode } : {}),
+      ...(args.stripeSubscriptionIdSnapshot ? { stripeSubscriptionIdSnapshot: args.stripeSubscriptionIdSnapshot } : {}),
+      ...(args.stripeSubscriptionItemIdSnapshot
+        ? { stripeSubscriptionItemIdSnapshot: args.stripeSubscriptionItemIdSnapshot }
+        : {}),
+      ...(args.sourceStripePriceIdSnapshot ? { sourceStripePriceIdSnapshot: args.sourceStripePriceIdSnapshot } : {}),
+      ...(args.targetStripePriceIdSnapshot ? { targetStripePriceIdSnapshot: args.targetStripePriceIdSnapshot } : {}),
+      ...(args.prorationDate !== undefined ? { prorationDate: args.prorationDate } : {}),
+      ...(args.effectiveAt !== undefined ? { effectiveAt: args.effectiveAt } : {}),
       ...(args.trialSubscriptionCreateSnapshot
         ? { trialSubscriptionCreateSnapshot: args.trialSubscriptionCreateSnapshot }
         : {}),
@@ -549,6 +593,33 @@ export const bindTrialCreationSubscription = internalMutation({
   },
 });
 
+/** Subscription Schedule作成直後のIDを、operation leaseの所有下で固定する。 */
+export const bindPlanChangeProviderObject = internalMutation({
+  args: {
+    operationId: v.id("organizationStripeOperations"),
+    leaseToken: v.string(),
+    organizationId: v.id("organizations"),
+    stripeObjectId: v.string(),
+  },
+  returns: v.object({ changed: v.boolean() }),
+  handler: async (ctx, args) => {
+    const operation = await ctx.db.get(args.operationId);
+    if (
+      operation?.kind !== "schedulePaidPlanChange" ||
+      operation.organizationId !== args.organizationId ||
+      operation.status !== "processing" ||
+      operation.leaseToken !== args.leaseToken ||
+      !args.stripeObjectId.startsWith("sub_sched_") ||
+      (operation.stripeObjectId !== undefined && operation.stripeObjectId !== args.stripeObjectId)
+    ) {
+      return { changed: false };
+    }
+    if (operation.stripeObjectId === args.stripeObjectId) return { changed: true };
+    await ctx.db.patch(operation._id, { stripeObjectId: args.stripeObjectId, updatedAt: Date.now() });
+    return { changed: true };
+  },
+});
+
 /**
  * 無効なTrial Subscriptionの作成元をactionRequiredにし、専用cancel operationを同一transactionで確保する。
  */
@@ -657,20 +728,21 @@ export const resolveInactivePriceTrialSubscription = internalMutation({
         .query("organizationBillingStates")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", args.organizationId))
         .unique();
+      const targetPlan = source.targetPlan ?? "pro";
       const trialConverged =
         mapping.status === "trialing" &&
         mapping.terminalAt === undefined &&
         snapshot.trialEndsAt !== undefined &&
         mapping.trialEndsAt === snapshot.trialEndsAt &&
         billing?.state.kind === "trial" &&
-        billing.state.selectedPaidPlan === "pro" &&
+        billing.state.selectedPaidPlan === targetPlan &&
         billing.state.trialEndsAt === snapshot.trialEndsAt;
-      const activeProConverged =
+      const activePaidPlanConverged =
         mapping.status === "active" &&
         mapping.terminalAt === undefined &&
         billing?.state.kind === "active" &&
-        billing.state.plan === "pro";
-      const billingConverged = trialConverged || activeProConverged;
+        billing.state.plan === targetPlan;
+      const billingConverged = trialConverged || activePaidPlanConverged;
       if (billingConverged && source.status !== "succeeded") {
         await ctx.db.patch(source._id, {
           status: "succeeded",
@@ -928,6 +1000,7 @@ export const retryExpiredGraceSafetyOperation = internalMutation({
         v.literal("trialContinuation"),
         v.literal("invalidTrialSubscription"),
         v.literal("scheduledFree"),
+        v.literal("scheduledPaid"),
         v.literal("cancelAtPeriodEnd"),
       ),
     ),
@@ -983,9 +1056,11 @@ export const retryExpiredGraceSafetyOperation = internalMutation({
             ? internal.organizationStripe.actions.reconcileInvalidTrialSubscriptionCancellation
             : args.action === "scheduledFree"
               ? internal.organizationStripe.actions.reconcileScheduledFreeDeadline
-              : args.action === "cancelAtPeriodEnd"
-                ? internal.organizationStripe.actions.reconcileCancelAtPeriodEndChange
-                : internal.organizationStripe.actions.stopExpiredGraceCollection,
+              : args.action === "scheduledPaid"
+                ? internal.organizationStripe.actions.reconcileScheduledPaidPlanDeadline
+                : args.action === "cancelAtPeriodEnd"
+                  ? internal.organizationStripe.actions.reconcileCancelAtPeriodEndChange
+                  : internal.organizationStripe.actions.stopExpiredGraceCollection,
       {
         organizationId: args.organizationId,
         expectedBillingVersion: args.expectedBillingVersion,
@@ -1196,7 +1271,9 @@ export const releaseExpiredCheckoutOperation = internalMutation({
     if (
       operation?.status !== "succeeded" ||
       operation.stripeObjectId !== args.stripeSessionId ||
-      (operation.kind !== "trialSetupCheckout" && operation.kind !== "immediateProCheckout")
+      (operation.kind !== "trialSetupCheckout" &&
+        operation.kind !== "immediateProCheckout" &&
+        operation.kind !== "immediatePaidCheckout")
     ) {
       return { changed: false };
     }
@@ -1310,11 +1387,16 @@ export const saveSubscriptionSnapshot = internalMutation({
     stripeSubscriptionId: v.string(),
     stripeSubscriptionItemId: v.optional(v.string()),
     stripePriceId: v.string(),
+    plan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
     livemode: v.boolean(),
     status: organizationStripeSubscriptionStatusValidator,
     providerGeneration: v.number(),
     trialEndsAt: v.optional(v.number()),
+    currentPeriodStartsAt: v.optional(v.number()),
     currentPeriodEndsAt: v.optional(v.number()),
+    billingCycleAnchor: v.optional(v.number()),
+    stripeSubscriptionScheduleId: v.optional(v.string()),
+    clearStripeSubscriptionScheduleId: v.optional(v.boolean()),
     cancelAtPeriodEnd: v.boolean(),
     latestInvoiceId: v.optional(v.string()),
     eventCreatedAt: v.optional(v.number()),
@@ -1415,11 +1497,19 @@ export const saveSubscriptionSnapshot = internalMutation({
       stripeSubscriptionId: args.stripeSubscriptionId,
       ...(args.stripeSubscriptionItemId ? { stripeSubscriptionItemId: args.stripeSubscriptionItemId } : {}),
       stripePriceId: args.stripePriceId,
+      ...(args.plan ? { plan: args.plan } : {}),
       livemode: args.livemode,
       status: args.status,
       providerGeneration: args.providerGeneration,
       ...(args.trialEndsAt !== undefined ? { trialEndsAt: args.trialEndsAt } : {}),
+      ...(args.currentPeriodStartsAt !== undefined ? { currentPeriodStartsAt: args.currentPeriodStartsAt } : {}),
       ...(args.currentPeriodEndsAt !== undefined ? { currentPeriodEndsAt: args.currentPeriodEndsAt } : {}),
+      ...(args.billingCycleAnchor !== undefined ? { billingCycleAnchor: args.billingCycleAnchor } : {}),
+      ...(args.clearStripeSubscriptionScheduleId
+        ? { stripeSubscriptionScheduleId: undefined }
+        : args.stripeSubscriptionScheduleId
+          ? { stripeSubscriptionScheduleId: args.stripeSubscriptionScheduleId }
+          : {}),
       cancelAtPeriodEnd: args.cancelAtPeriodEnd,
       ...(args.latestInvoiceId ? { latestInvoiceId: args.latestInvoiceId } : {}),
       ...(args.eventCreatedAt !== undefined ? { lastStripeEventCreatedAt: args.eventCreatedAt } : {}),
@@ -1445,6 +1535,23 @@ function operationResult(operation: Doc<"organizationStripeOperations">, created
     ...(operation.stripeObjectId ? { stripeObjectId: operation.stripeObjectId } : {}),
     ...(operation.providerGeneration !== undefined ? { providerGeneration: operation.providerGeneration } : {}),
     ...(operation.stripePriceIdSnapshot ? { stripePriceIdSnapshot: operation.stripePriceIdSnapshot } : {}),
+    ...(operation.sourcePlan ? { sourcePlan: operation.sourcePlan } : {}),
+    ...(operation.targetPlan ? { targetPlan: operation.targetPlan } : {}),
+    ...(operation.changeMode ? { changeMode: operation.changeMode } : {}),
+    ...(operation.stripeSubscriptionIdSnapshot
+      ? { stripeSubscriptionIdSnapshot: operation.stripeSubscriptionIdSnapshot }
+      : {}),
+    ...(operation.stripeSubscriptionItemIdSnapshot
+      ? { stripeSubscriptionItemIdSnapshot: operation.stripeSubscriptionItemIdSnapshot }
+      : {}),
+    ...(operation.sourceStripePriceIdSnapshot
+      ? { sourceStripePriceIdSnapshot: operation.sourceStripePriceIdSnapshot }
+      : {}),
+    ...(operation.targetStripePriceIdSnapshot
+      ? { targetStripePriceIdSnapshot: operation.targetStripePriceIdSnapshot }
+      : {}),
+    ...(operation.prorationDate !== undefined ? { prorationDate: operation.prorationDate } : {}),
+    ...(operation.effectiveAt !== undefined ? { effectiveAt: operation.effectiveAt } : {}),
     ...(operation.leaseToken ? { leaseToken: operation.leaseToken } : {}),
     created,
     conflict,
@@ -1476,7 +1583,7 @@ async function requireStripeEligibleOrganization(
   ]);
   if (!organization || organization.isDeleted || !billingState) throw new ConvexError("Not found");
   if (billingState.state.kind === "complimentary") {
-    throw new ConvexError("支払い不要のProではStripeを利用しません");
+    throw new ConvexError("支払い不要プランではStripeを利用しません");
   }
   return { organization, billingState };
 }

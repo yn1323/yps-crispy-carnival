@@ -7,7 +7,11 @@ import { getAppUrl, RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { buildOrganizationBillingEmailHtml } from "../notification/templates";
 import { emailPayload, enqueueEmail } from "../notificationOutbox/enqueue";
-import { organizationBillingNotificationCopy, organizationBillingNotificationEventValidator } from "./notification";
+import {
+  organizationBillingNotificationCopy,
+  organizationBillingNotificationDetailsValidator,
+  organizationBillingNotificationEventValidator,
+} from "./notification";
 
 export const enqueueBillingNotification = internalAction({
   args: {
@@ -16,6 +20,7 @@ export const enqueueBillingNotification = internalAction({
     eventKey: v.string(),
     recipientUserIds: v.optional(v.array(v.id("users"))),
     expectedDeadlineAt: v.optional(v.number()),
+    notificationDetails: v.optional(organizationBillingNotificationDetailsValidator),
   },
   returns: v.object({ enqueuedCount: v.number() }),
   handler: async (ctx, args) => {
@@ -27,7 +32,7 @@ export const enqueueBillingNotification = internalAction({
     });
     if (!data) return { enqueuedCount: 0 };
 
-    const copy = organizationBillingNotificationCopy(args.event, data.trialEnding);
+    const copy = organizationBillingNotificationCopy(args.event, data.trialEnding, args.notificationDetails);
     const settingsUrl = new URL("/settings", getAppUrl()).toString();
     let enqueuedCount = 0;
     for (const recipient of data.recipients) {

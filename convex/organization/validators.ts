@@ -29,10 +29,8 @@ export const organizationInvitationPurposeValidator = v.union(
   v.literal("freeManagerExchange"),
 );
 
-// TODO[narrow]: Remove `business` after m018 has completed everywhere.
 export const organizationPaidPlanValidator = v.union(v.literal("pro"), v.literal("business"));
 
-// TODO[narrow]: Remove `business` after m018 has completed everywhere.
 export const organizationActivePlanValidator = v.union(v.literal("free"), v.literal("pro"), v.literal("business"));
 
 export const organizationRestrictionReasonValidator = v.union(
@@ -41,12 +39,18 @@ export const organizationRestrictionReasonValidator = v.union(
   v.literal("paymentGraceExpired"),
   v.literal("paymentActivationFailed"),
   v.literal("unexpectedCancellation"),
+  v.literal("planLimitExceeded"),
 );
 
 const organizationRestrictedBillingStateValidator = v.object({
   kind: v.literal("restricted"),
   reason: organizationRestrictionReasonValidator,
   previousPlan: v.optional(organizationActivePlanValidator),
+  // TODO[narrow]: m021と新runtime stateの全deployment収束後、reason別の必須条件へ分割する。
+  //   確認: pnpm convex:migrate:status。対応: planLimitExceededではlimitPlanを必須にする。
+  limitPlan: v.optional(v.union(v.literal("free"), v.literal("pro"))),
+  // grace/pendingからの有料復旧先。既存行は未設定を現在planとして解釈する。
+  targetPlan: v.optional(organizationPaidPlanValidator),
   recoveryManagerPersonIds: v.array(v.id("organizationPeople")),
   previousActiveShopIds: v.array(v.id("shops")),
   restrictedAt: v.number(),
@@ -71,7 +75,7 @@ export const organizationBillingStateValidator = v.union(
   v.object({
     kind: v.literal("pendingActivation"),
     plan: organizationPaidPlanValidator,
-    fallback: v.union(v.literal("free"), v.literal("restricted")),
+    fallback: v.union(v.literal("free"), v.literal("pro"), v.literal("restricted")),
     restrictedFallbackState: v.optional(organizationRestrictedBillingStateValidator),
     startedAt: v.number(),
   }),
@@ -81,18 +85,34 @@ export const organizationBillingStateValidator = v.union(
   }),
   v.object({
     kind: v.literal("complimentary"),
-    // TODO[narrow]: Remove `business` after m018 has completed everywhere.
+    // TODO[narrow]: m021が全deploymentで完走後（確認: pnpm convex:migrate:status）、
+    //   `pro`互換を外して`v.literal("business")`へ変更する。
     plan: v.union(v.literal("pro"), v.literal("business")),
   }),
-  v.object({
-    kind: v.literal("scheduledChange"),
-    currentPlan: organizationPaidPlanValidator,
-    targetPlan: v.union(v.literal("free"), v.literal("pro")),
-    effectiveAt: v.number(),
-  }),
+  v.union(
+    v.object({
+      kind: v.literal("scheduledChange"),
+      currentPlan: v.literal("pro"),
+      targetPlan: v.literal("free"),
+      effectiveAt: v.number(),
+    }),
+    v.object({
+      kind: v.literal("scheduledChange"),
+      currentPlan: v.literal("business"),
+      targetPlan: v.literal("pro"),
+      effectiveAt: v.number(),
+    }),
+    v.object({
+      kind: v.literal("scheduledChange"),
+      currentPlan: v.literal("business"),
+      targetPlan: v.literal("free"),
+      effectiveAt: v.number(),
+    }),
+  ),
   v.object({
     kind: v.literal("grace"),
     plan: organizationPaidPlanValidator,
+    targetPlan: v.optional(organizationPaidPlanValidator),
     startedAt: v.number(),
     endsAt: v.number(),
   }),

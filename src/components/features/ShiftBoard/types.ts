@@ -28,6 +28,7 @@ export type ShiftBoardData = {
   staffs: Array<{
     _id: Id<"staffs">;
     name: string;
+    isRemoved?: boolean;
     isSubmitted: boolean;
     createdAt?: number;
     wasSubmittedAtDraft: boolean;

@@ -3,7 +3,7 @@ import { atomWithStorage, createJSONStorage } from "jotai/utils";
 
 export type ShopStatus = "active" | "archived" | "planSuspended";
 export type OrganizationMemberStatus = "active" | "readOnly" | "removed";
-export type OrganizationPlan = "trial" | "free" | "pro";
+export type OrganizationPlan = "trial" | "free" | "pro" | "business";
 
 export type ShopContextOption = {
   shopId: string;
@@ -54,13 +54,7 @@ export function normalizeShopContextOption(value: unknown): ShopContextOption | 
     shopStatus: isShopStatus(value.shopStatus) ? value.shopStatus : "active",
     organizationId: typeof value.organizationId === "string" ? value.organizationId : null,
     organizationName: typeof value.organizationName === "string" ? value.organizationName : null,
-    organizationPlan:
-      value.organizationPlan === "business"
-        ? // 旧Businessの保存値と段階的なbackend移行中のDTOは、新しいPro権限へ引き継ぐ。
-          "pro"
-        : isOrganizationPlan(value.organizationPlan)
-          ? value.organizationPlan
-          : null,
+    organizationPlan: isOrganizationPlan(value.organizationPlan) ? value.organizationPlan : null,
     memberStatus: isOrganizationMemberStatus(value.memberStatus) ? value.memberStatus : "active",
   };
 }
@@ -141,5 +135,5 @@ function isOrganizationMemberStatus(value: unknown): value is OrganizationMember
 }
 
 function isOrganizationPlan(value: unknown): value is OrganizationPlan {
-  return value === "trial" || value === "free" || value === "pro";
+  return value === "trial" || value === "free" || value === "pro" || value === "business";
 }

@@ -6,7 +6,7 @@
 
 | 仕様 | 概要 | 状況 |
 |---|---|---|
-| [グループ課金、複数店舗、複数管理者の業務フロー](specs/organization-billing-business-flow.md) | Free、Trial、Pro、Pro（先行登録特典）、利用人数、無料体験、Free移行、支払い失敗、Stripe、通知、管理者招待の業務基準 | 4区分と上限は確定、Stripe公開は`off`、価格と会計判断は未決定 |
+| [グループ課金、複数店舗、複数管理者の業務フロー](specs/organization-billing-business-flow.md) | Free、Trial、Pro、Business、支払い不要Business、利用人数、下位プラン移行、支払い失敗、Stripe、通知、管理者招待の業務基準 | Business再導入と上限変更を実装、Stripe公開は`off`、実価格と外部設定は未登録、production migrationは未実施 |
 
 ## 機能一覧
 
@@ -18,9 +18,9 @@
 | [通知配送outbox](features/notification-outbox.md) | LINE / メール通知を予約し、少量ずつ配送・再試行するバックエンドキュー | 実装済 |
 | [スタッフ通知履歴](features/notification-history.md) | スタッフごとのメール・LINE通知日時、タイトル、送信・配信状況をスタッフ詳細で確認 | 実装済 |
 | [通知不達Dashboard](features/notification-failure-dashboard.md) | 送信できなかった通知をDashboardで確認し、個別/一斉に再通知を受け付ける導線 | 実装済 |
-| [Dashboardお知らせ](features/dashboard-announcements.md) | 有事のお知らせを全体・グループ・店舗の対象別にDashboard上部へ1件表示 | 実装済 |
-| [トライアル終了前Dashboard案内](features/trial-ending-dashboard-callout.md) | Pro継続未登録のグループへ終了7日前から制限内容と支払い導線を全店舗で表示 | 実装済 |
-| [グループ課金、複数店舗、複数管理者](features/organization-billing.md) | 4区分のグループ課金状態、Stripe連携、人物、管理者招待、店舗管理、店舗切り替え、移行互換 | 4区分とStripe基盤を実装、公開`off`、外部設定待ち |
+| [Dashboardお知らせ](features/dashboard-announcements.md) | 有事のお知らせを全体、グループ、店舗、Free、Trial、Pro、Businessの対象別にDashboard上部へ1件表示 | 実装済 |
+| [トライアル終了前Dashboard案内](features/trial-ending-dashboard-callout.md) | 有料プラン継続未登録のグループへ終了7日前から制限内容と支払い導線を全店舗で表示 | 実装済 |
+| [グループ課金、複数店舗、複数管理者](features/organization-billing.md) | Free、Trial、Pro、Business、支払い不要Businessの課金状態、Stripe連携、人物、管理者招待、店舗管理、店舗切り替え、移行互換 | Business再導入、Stripeプラン変更、人物削除、migrationを実装、公開`off`、外部設定とproduction migration待ち |
 | [ユーザー詳細](features/user-detail.md) | グループ人物を正本として、共通プロフィールと店舗別のスタッフ設定、通知、LINE連携を一つのページで管理 | 実装済 |
 | [店舗・グループ削除](features/data-deletion.md) | 業務識別情報を保持した論理削除、Capability失効、永続cleanupの保証範囲 | 実装済、本番migration未実行 |
 | [所属なしユーザーのアカウント削除](features/account-deletion.md) | 所属のない管理ユーザーが再認証後にローカル利用停止とClerk削除を依頼する導線 | 実装済、段階公開前 |
@@ -52,4 +52,5 @@
 - [rules/convex-design-strategy.md](rules/convex-design-strategy.md) - Convexの認証境界、公開API、Capability、durable workflow、データ保持、運用契約
 - [rules/security-strategy.md](rules/security-strategy.md) - セキュリティ設計、認証/認可境界、token/通知/billingレビュー方針
 - [rules/testing-strategy.md](rules/testing-strategy.md) - テスト種別、テスト層の分担、Convex Function TestとScenario Testの方針
-- [plans/2026-07-20_Stripe課金連携_実装計画.md](plans/2026-07-20_Stripe課金連携_実装計画.md) - 4区分への統合、Stripe連携、移行、公開ゲートの実装計画
+- [plans/2026-07-21_課金プラン改定_Business再導入_実装計画.md](plans/2026-07-21_課金プラン改定_Business再導入_実装計画.md) - Business再導入、利用上限、Stripeプラン変更、人物削除、migration、全テスト層の現行実装計画
+- [plans/2026-07-20_Stripe課金連携_実装計画.md](plans/2026-07-20_Stripe課金連携_実装計画.md) - BusinessをProへ統合した時点のStripe連携と移行に関する履歴計画

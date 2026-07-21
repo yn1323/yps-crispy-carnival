@@ -71,6 +71,31 @@ describe("organizationStripe/webhook", () => {
     expect(externalFetchMock).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { type: "customer.subscription.pending_update_applied", objectId: "sub_pending_applied" },
+    { type: "customer.subscription.pending_update_expired", objectId: "sub_pending_expired" },
+    { type: "subscription_schedule.updated", objectId: "sub_sched_updated" },
+    { type: "subscription_schedule.released", objectId: "sub_sched_released" },
+    { type: "subscription_schedule.canceled", objectId: "sub_sched_canceled" },
+  ])("Businessプラン変更に必要な$typeをallowlistで受理する", async ({ type, objectId }) => {
+    const t = convexTest(schema, modules);
+    const eventId = `evt_${type.replaceAll(".", "_")}`;
+
+    const response = await postStripeEvent(t, stripeEvent({ id: eventId, type, objectId }));
+
+    expect(response.status).toBe(200);
+    const state = await stripeState(t);
+    expect(state.events).toHaveLength(1);
+    expect(state.events[0]).toMatchObject({ stripeEventId: eventId, type, objectId, status: "received" });
+    expect(state.scheduled).toEqual([
+      {
+        name: "organizationStripe/actions:processWebhookEvent",
+        args: [{ stripeEventId: eventId }],
+      },
+    ]);
+    expect(externalFetchMock).not.toHaveBeenCalled();
+  });
+
   it.each(["GET", "PUT", "PATCH", "DELETE"])("%sは拒否して課金状態とschedulerを変更しない", async (method) => {
     const t = convexTest(schema, modules);
 

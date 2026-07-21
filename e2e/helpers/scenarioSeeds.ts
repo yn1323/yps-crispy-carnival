@@ -196,6 +196,39 @@ export function seedActiveProOrganizationDeletionScenario(
   return result;
 }
 
+export type OrganizationBillingPlanChangeScenarioArgs = {
+  complimentaryOrganizationName?: string;
+  complimentaryShopName?: string;
+  restrictedOrganizationName?: string;
+  restrictedShopName?: string;
+  removablePersonName?: string;
+};
+
+export type OrganizationBillingPlanChangeScenarioSeed = {
+  complimentaryOrganizationId: string;
+  complimentaryShopId: string;
+  complimentaryOrganizationName: string;
+  restrictedOrganizationId: string;
+  restrictedShopId: string;
+  restrictedOrganizationName: string;
+  removablePersonId: string;
+  removablePersonName: string;
+  expectedRestrictedPeople: number;
+  expectedProLimit: number;
+};
+
+export function seedOrganizationBillingPlanChangeScenario(
+  args: OrganizationBillingPlanChangeScenarioArgs = {},
+): OrganizationBillingPlanChangeScenarioSeed {
+  const result = seedManagerScenario<OrganizationBillingPlanChangeScenarioSeed>(
+    "testing:seedOrganizationBillingPlanChangeScenario",
+    args,
+  );
+  assertNotificationDeliverySuppressed(result.complimentaryShopId);
+  assertNotificationDeliverySuppressed(result.restrictedShopId);
+  return result;
+}
+
 export type MultiActorOrganizationScenarioArgs = {
   organizationName?: string;
   primaryShopName?: string;
@@ -204,6 +237,10 @@ export type MultiActorOrganizationScenarioArgs = {
   actorCName?: string;
   alternateOrganizationName?: string;
   alternateShopName?: string;
+  personRemovalAssignments?: {
+    today: string;
+    future: string;
+  };
 };
 
 export type MultiActorOrganizationScenarioSeed = {
@@ -221,6 +258,8 @@ export type MultiActorOrganizationScenarioSeed = {
   alternateShopId: string;
   actorBAlternatePersonId: string;
   actorBAlternateMemberId: string;
+  personRemovalRecruitmentId?: string;
+  personRemovalAssignmentCount?: number;
   organizationName: string;
   primaryShopName: string;
   secondaryShopName: string;

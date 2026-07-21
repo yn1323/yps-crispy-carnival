@@ -3,6 +3,12 @@ import { expect, type Locator, type Page } from "@playwright/test";
 export class ShiftBoardPage {
   constructor(private page: Page) {}
 
+  async goto(recruitmentId: string, shopId: string) {
+    await this.page.goto(`/shiftboard/${encodeURIComponent(recruitmentId)}?shop=${encodeURIComponent(shopId)}`);
+    await this.expectOnShiftBoard();
+    await this.expectShopContext(shopId);
+  }
+
   async expectOnShiftBoard() {
     await expect(this.page).toHaveURL(/\/shiftboard\//);
   }
@@ -22,7 +28,7 @@ export class ShiftBoardPage {
   }
 
   async expectStaffNotVisible(name: string) {
-    await expect(this.page.getByText(name, { exact: true })).not.toBeVisible();
+    await expect(this.page.getByText(name, { exact: true })).toHaveCount(0);
   }
 
   async expectShiftBarVisible() {

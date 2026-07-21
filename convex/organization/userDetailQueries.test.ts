@@ -159,6 +159,12 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       },
       canRemoveManagerRole: false,
       canRemove: true,
+      removalPreview: {
+        kind: "ready",
+        asOfDate: "2026-07-19",
+        assignmentCount: 0,
+        fingerprint: expect.any(String),
+      },
       canWrite: true,
       shops: [
         {
@@ -185,6 +191,12 @@ describe("organization/userDetailQueries.getUserDetail", () => {
           shopStatus: "archived",
           excludedFromShift: false,
           canRemove: true,
+          removalPreview: {
+            kind: "ready",
+            asOfDate: "2026-07-19",
+            assignmentCount: 0,
+            fingerprint: expect.any(String),
+          },
           line: { isLinked: false, isFollowing: false },
         },
         {
@@ -194,6 +206,12 @@ describe("organization/userDetailQueries.getUserDetail", () => {
           shopStatus: "active",
           excludedFromShift: true,
           canRemove: true,
+          removalPreview: {
+            kind: "ready",
+            asOfDate: "2026-07-19",
+            assignmentCount: 0,
+            fingerprint: expect.any(String),
+          },
           line: { isLinked: true, isFollowing: true },
         },
         {
@@ -203,6 +221,12 @@ describe("organization/userDetailQueries.getUserDetail", () => {
           shopStatus: "active",
           excludedFromShift: false,
           canRemove: true,
+          removalPreview: {
+            kind: "ready",
+            asOfDate: "2026-07-19",
+            assignmentCount: 0,
+            fingerprint: expect.any(String),
+          },
           line: { isLinked: false, isFollowing: false },
         },
       ],
@@ -585,7 +609,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     expect(await actor.query(api.organization.userDetailQueries.getUserDetail, args)).toBeNull();
   });
 
-  it("店舗の不整合にかかわらず非削除募集の将来割当を拒否理由にする", async () => {
+  it("今日以降の対象店舗割当だけを削除previewへ数え、Capabilityは無効化しない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -639,18 +663,19 @@ describe("organization/userDetailQueries.getUserDetail", () => {
 
     const withCrossShopAssignment = await actor.query(api.organization.userDetailQueries.getUserDetail, args);
     expect(withCrossShopAssignment).toMatchObject({
-      canRemove: false,
-      removeDisabledReason: "将来のシフト割当を解除してから削除してください。",
+      canRemove: true,
+      removalPreview: { kind: "ready", assignmentCount: 0 },
     });
     expect(withCrossShopAssignment?.memberships[0]).toMatchObject({
       staffId: ids.staffId,
-      canRemove: false,
-      removeDisabledReason: "将来のシフト割当を解除してから、この店舗から外してください。",
+      canRemove: true,
+      removalPreview: { kind: "ready", assignmentCount: 0 },
     });
 
     await t.run(async (ctx) => await ctx.db.patch(ids.otherRecruitmentId, { isDeleted: true }));
     expect(await actor.query(api.organization.userDetailQueries.getUserDetail, args)).toMatchObject({
       canRemove: true,
+      removalPreview: { kind: "ready", assignmentCount: 0 },
     });
 
     await t.run(async (ctx) => {
@@ -675,14 +700,15 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       });
     });
     expect(await actor.query(api.organization.userDetailQueries.getUserDetail, args)).toMatchObject({
-      canRemove: false,
-      removeDisabledReason: "将来のシフト割当を解除してから削除してください。",
+      canRemove: true,
+      removalPreview: { kind: "ready", assignmentCount: 1 },
+      memberships: [{ canRemove: true, removalPreview: { kind: "ready", assignmentCount: 1 } }],
     });
 
     await t.run(async (ctx) => await ctx.db.patch(ids.staffId, { isDeleted: true }));
     expect(await actor.query(api.organization.userDetailQueries.getUserDetail, args)).toMatchObject({
-      canRemove: false,
-      removeDisabledReason: "将来のシフト割当を解除してから削除してください。",
+      canRemove: true,
+      removalPreview: { kind: "ready", assignmentCount: 1 },
       memberships: [],
     });
   });

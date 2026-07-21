@@ -12,6 +12,7 @@ export const OrganizationSettingsView = ({
   people,
   shops,
   billing,
+  planPrices,
   canInviteManager,
   managerInvitations,
   managerInvitationMode,
@@ -92,7 +93,9 @@ export const OrganizationSettingsView = ({
       <Tabs.Content value="billing" p={0} pt={{ base: 5, md: 6 }}>
         <PlanAndPaymentSection
           billing={billing}
+          planPrices={planPrices}
           onManagePlan={actions.onManagePlan}
+          onRetryPlanPrice={actions.onRetryPlanPrice}
           onUpdatePaymentMethod={actions.onUpdatePaymentMethod}
           onUpdateBillingEmail={actions.onUpdateBillingEmail}
           onOpenBillingDocuments={actions.onOpenBillingDocuments}

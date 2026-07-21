@@ -62,7 +62,6 @@ export function OrganizationSettings({
   const billingEmailSettings = useBillingSettingsController({ billing: settings.billing });
   const stripeBilling = useStripeBillingController({
     organizationName: settings.organizationName,
-    shopNames: settings.shops.map((shop) => shop.name),
     billing: settings.billing,
   });
   const organizationDeletion = useOrganizationDeletionController({
@@ -80,6 +79,7 @@ export function OrganizationSettings({
     <>
       <OrganizationSettingsView
         {...settings}
+        planPrices={stripeBilling.planPrices}
         organizationContext={organizationContext}
         defaultTab={defaultTab}
         onTabChange={onTabChange}
@@ -112,6 +112,7 @@ export function OrganizationSettings({
               search: { shop: context.selectedShopId },
             }),
           onManagePlan: stripeBilling.managePlan,
+          onRetryPlanPrice: stripeBilling.retryPlanPrice,
           onUpdatePaymentMethod: stripeBilling.updatePaymentMethod,
           onUpdateBillingEmail: billingEmailSettings.updateBillingEmail,
           onOpenBillingDocuments: stripeBilling.openBillingDocuments,
@@ -131,6 +132,12 @@ export function OrganizationSettings({
 export { OrganizationSettingsSkeleton, OrganizationSettingsView } from "./OrganizationSettingsView";
 export type {
   BillingDisplayState,
+  BillingPlan,
+  BillingPlanPrice,
+  BillingPlanPriceState,
+  BillingPlanPrices,
+  BillingProductPlan,
+  BillingRequiredReductions,
   BillingUsageView,
   ManagerInvitationStatus,
   ManagerInvitationView,
@@ -141,4 +148,5 @@ export type {
   OrganizationSettingsTab,
   OrganizationSettingsViewProps,
   OrganizationShopView,
+  PaidBillingPlan,
 } from "./types";

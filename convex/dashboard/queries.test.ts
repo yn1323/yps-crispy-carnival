@@ -597,7 +597,7 @@ describe("dashboard/queries", () => {
         {
           organizationId: ids.organizationBId,
           organizationName: "組織B",
-          organizationPlan: "pro",
+          organizationPlan: "business",
           memberStatus: "readOnly",
           shopId: ids.organizationBShopId,
           shopName: "組織B店舗",
@@ -611,7 +611,7 @@ describe("dashboard/queries", () => {
         label: "有効なBusiness",
         seedPlan: "business" as const,
         state: { kind: "active", plan: "business" } as const,
-        expectedPlan: "pro" as const,
+        expectedPlan: "business" as const,
       },
       {
         label: "BusinessからProへの変更予約中",
@@ -622,7 +622,7 @@ describe("dashboard/queries", () => {
           targetPlan: "pro",
           effectiveAt: Date.now() + 60_000,
         } as const,
-        expectedPlan: "pro" as const,
+        expectedPlan: "business" as const,
       },
       {
         label: "FreeからProへの支払い結果待ち",
@@ -641,7 +641,7 @@ describe("dashboard/queries", () => {
           previousActiveShopIds: [] as Id<"shops">[],
           restrictedAt: Date.now(),
         } as const,
-        expectedPlan: null,
+        expectedPlan: "business" as const,
       },
     ])("$labelは現在利用できるプランを店舗コンテキストへ返す", async ({ seedPlan, state, expectedPlan }) => {
       const t = convexTest(schema, modules);
@@ -835,7 +835,7 @@ describe("dashboard/queries", () => {
       expect(result).toEqual([]);
     });
 
-    it("対象指定を必要なフィールドだけ返し、旧Business対象はProへ正規化する", async () => {
+    it("対象指定を必要なフィールドだけ返し、Business対象をBusinessのまま返す", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const now = Date.now();
@@ -928,7 +928,7 @@ describe("dashboard/queries", () => {
       expect(result).toEqual([
         {
           _id: ids.organizationPlanAnnouncementId,
-          organizationPlan: "pro",
+          organizationPlan: "business",
           title: "契約プラン向けのお知らせ",
           bodyHtml: "<p>契約プラン向けです。</p>",
           displayDate: "2026-06-21",

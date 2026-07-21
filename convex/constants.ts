@@ -46,6 +46,8 @@ export const DASHBOARD_RECRUITMENT_CANDIDATE_GROUP_LIMIT = 100;
 export const ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT = 100;
 // ユーザー詳細へ返す同一グループ店舗を安全に走査する上限。
 export const ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT = 100;
+// 人物削除を単一transactionで確定できる、今日以降のシフト割当上限。
+export const ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT = 500;
 export const SHIFT_BOARD_SHIFT_REQUEST_LIMIT = 2000;
 export const SHIFT_ASSIGNMENT_LIMIT = 2000;
 // スタッフ個別通知の再送上限。actorを替えた回避も組織単位の上限で抑止する。

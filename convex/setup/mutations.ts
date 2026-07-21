@@ -117,7 +117,7 @@ export const setupShopAndManager = authenticatedMutation({
     });
     await ctx.db.insert("organizationBillingStates", {
       organizationId,
-      state: { kind: "complimentary", plan: "pro" },
+      state: { kind: "complimentary", plan: "business" },
       version: 1,
       createdAt: now,
       updatedAt: now,
@@ -175,7 +175,7 @@ export const setupShopAndManager = authenticatedMutation({
       action: "organization.created",
       targetKind: "organization",
       targetId: organizationId,
-      toState: "complimentary.pro",
+      toState: "complimentary.business",
       occurredAt: now,
     });
 

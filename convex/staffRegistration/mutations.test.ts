@@ -788,7 +788,7 @@ describe("staffRegistration/mutations", () => {
         plan: "pro",
       });
       const now = Date.now();
-      for (let index = 0; index < 29; index += 1) {
+      for (let index = 0; index < 19; index += 1) {
         const email = `registration-rollback-filler-${index}@example.com`;
         const personId = await ctx.db.insert("organizationPeople", {
           organizationId: organization.organizationId,
@@ -843,7 +843,7 @@ describe("staffRegistration/mutations", () => {
         requestId,
         shopId: seeded.shopId,
       }),
-    ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 30名 / 上限 30名）");
+    ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 20名 / 上限 20名）");
 
     const state = await t.run(async (ctx) => ({
       request: await ctx.db.get(requestId),
@@ -858,8 +858,8 @@ describe("staffRegistration/mutations", () => {
     }));
     expect(state.request?.status).toBe("pending");
     expect(state.invitation).toMatchObject({ status: "pending", reservedSeat: true, version: 1 });
-    expect(state.people).toHaveLength(30);
-    expect(state.staffs).toHaveLength(29);
+    expect(state.people).toHaveLength(20);
+    expect(state.staffs).toHaveLength(19);
     expect(state.audits).toEqual([]);
     expect(state.scheduled).toEqual([]);
   });
@@ -1070,7 +1070,7 @@ describe("staffRegistration/mutations", () => {
     expect(state.scheduled).toEqual([]);
   });
 
-  it("BusinessからProへの変更予約中はPro上限を超える参加申請承認を保存しない", async () => {
+  it("BusinessからProへの変更予約中も適用日まではBusiness上限で参加申請を承認する", async () => {
     const t = convexTest(schema, modules);
     const seeded = await t.run(async (ctx) => {
       const organization = await seedOrganizationManagerShop(ctx, {
@@ -1132,7 +1132,7 @@ describe("staffRegistration/mutations", () => {
         requestId,
         shopId: seeded.shopId,
       }),
-    ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 30名 / 上限 30名）");
+    ).resolves.toMatchObject({ staffId: expect.any(String) });
 
     const state = await t.run(async (ctx) => ({
       request: await ctx.db.get(requestId),
@@ -1145,9 +1145,9 @@ describe("staffRegistration/mutations", () => {
         .withIndex("by_shopId", (q) => q.eq("shopId", seeded.shopId))
         .collect(),
     }));
-    expect(state.request?.status).toBe("pending");
-    expect(state.people).toHaveLength(30);
-    expect(state.staffs).toHaveLength(29);
+    expect(state.request?.status).toBe("approved");
+    expect(state.people).toHaveLength(31);
+    expect(state.staffs).toHaveLength(30);
   });
 
   it("却下するとstaffs作成と通知予約をしない", async () => {

@@ -179,6 +179,14 @@ describe("organizationStripe/maintenance", () => {
         nextRunAt: NOW,
         expectedBillingVersion: 1,
       });
+      await insertOperation(ctx, {
+        organizationId: unrelated.organizationId,
+        requestKey: "unsafe-business-checkout-retry",
+        kind: "immediatePaidCheckout",
+        status: "retrying",
+        nextRunAt: NOW,
+        expectedBillingVersion: 1,
+      });
     });
 
     const probe = await t.query(internal.organizationStripe.maintenance.getProbe, {});
@@ -188,7 +196,7 @@ describe("organizationStripe/maintenance", () => {
       priceRotationBlocking: {
         trialSetupCheckout: { observedCount: 0, hasMore: false },
         createTrialSubscription: { observedCount: 0, hasMore: false },
-        immediateProCheckout: { observedCount: 1, hasMore: false },
+        immediatePaidCheckout: { observedCount: 2, hasMore: false },
       },
       reconcileSubscriptionActionRequired: { observedCount: 0, hasMore: false },
     });
@@ -1117,19 +1125,19 @@ describe("organizationStripe/maintenance", () => {
       priceRotationBlocking: {
         trialSetupCheckout: { observedCount: 1, hasMore: false },
         createTrialSubscription: { observedCount: 1, hasMore: false },
-        immediateProCheckout: { observedCount: 0, hasMore: false },
+        immediatePaidCheckout: { observedCount: 0, hasMore: false },
       },
       reconcileSubscriptionActionRequired: { observedCount: 0, hasMore: false },
     });
     expect(probe.anomalies).toEqual({
-      complimentaryProStripeMappingP0: { observedCount: 1, hasMore: false },
-      activeProWithoutCurrentSubscription: { observedCount: 2, hasMore: false },
+      complimentaryStripeMappingP0: { observedCount: 1, hasMore: false },
+      activePaidWithoutCurrentSubscription: { observedCount: 2, hasMore: false },
       activeFreeWithCurrentSubscription: { observedCount: 1, hasMore: false },
       organizationsWithMultipleNonterminalSubscriptions: { observedCount: 1, hasMore: false },
       organizationsWithMultipleStripeCustomers: { observedCount: 0, hasMore: false },
       subscriptionsWithoutMatchingLocalCustomer: { observedCount: 2, hasMore: false },
       stripeCustomersWithoutBillingState: { observedCount: 0, hasMore: false },
-      legacyBusinessState: { observedCount: 1, hasMore: false },
+      complimentaryProAwaitingM021: { observedCount: 1, hasMore: false },
       unresolvedM018MigrationConflicts: { observedCount: 0, hasMore: false },
     });
 

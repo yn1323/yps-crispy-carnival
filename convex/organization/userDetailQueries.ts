@@ -1,5 +1,4 @@
 import { v } from "convex/values";
-import type { Id } from "../_generated/dataModel";
 import { dateJST } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
 import { ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT, ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT } from "../constants";
@@ -8,6 +7,11 @@ import { deriveOrganizationBillingPolicy, getEffectiveRestrictedBillingState } f
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
 import { managerInvitationStateValidator, resolvePersonManagerInvitationState } from "./managerInvitationState";
 import { deriveOrganizationPersonCapabilities, type ManagerRole } from "./personCapabilities";
+import {
+  collectPersonRemovalPreview,
+  personRemovalPreviewValidator,
+  toPublicPersonRemovalPreview,
+} from "./personRemoval";
 import {
   getOrganizationBillingState,
   getOrganizationUsageSnapshot,
@@ -30,6 +34,7 @@ const userDetailValidator = v.object({
   managerRoleRemovalDisabledReason: v.optional(v.string()),
   canRemove: v.boolean(),
   removeDisabledReason: v.optional(v.string()),
+  removalPreview: personRemovalPreviewValidator,
   canWrite: v.boolean(),
   writeDisabledReason: v.optional(v.string()),
   shops: v.array(
@@ -48,6 +53,7 @@ const userDetailValidator = v.object({
       excludedFromShift: v.boolean(),
       canRemove: v.boolean(),
       removeDisabledReason: v.optional(v.string()),
+      removalPreview: personRemovalPreviewValidator,
       line: v.object({
         isLinked: v.boolean(),
         isFollowing: v.boolean(),
@@ -116,20 +122,12 @@ export const getUserDetail = managerQuery({
           : "none";
     if (managerRole === "active" && !validActiveManagerPersonIds.includes(person._id)) return null;
 
-    const staffIdsWithFutureAssignment = new Set<Id<"staffs">>();
     const today = dateJST(args.now);
-    for (const staff of staffDocs) {
-      const assignments = ctx.db
-        .query("shiftAssignments")
-        .withIndex("by_staffId_and_date", (q) => q.eq("staffId", staff._id).gte("date", today));
-      for await (const assignment of assignments) {
-        const recruitment = await ctx.db.get(assignment.recruitmentId);
-        if (recruitment && !recruitment.isDeleted) {
-          staffIdsWithFutureAssignment.add(staff._id);
-          break;
-        }
-      }
-    }
+    const removalPreview = await collectPersonRemovalPreview(ctx, {
+      scope: { kind: "organization", organizationId: organization._id, personId: person._id },
+      staffs: staffDocs,
+      asOfDate: today,
+    });
 
     const membershipRows = await Promise.all(
       staffDocs
@@ -139,7 +137,16 @@ export const getUserDetail = managerQuery({
           if (!targetShop || targetShop.isDeleted || targetShop.organizationId !== organization._id) return null;
           const lineAccount = await getStaffLineAccount(ctx, staff._id);
           const validLineAccount = lineAccount?.shopId === staff.shopId ? lineAccount : null;
-          const canRemove = !staffIdsWithFutureAssignment.has(staff._id);
+          const membershipRemovalPreview = await collectPersonRemovalPreview(ctx, {
+            scope: {
+              kind: "shop",
+              organizationId: organization._id,
+              shopId: targetShop._id,
+              staffId: staff._id,
+            },
+            staffs: [staff],
+            asOfDate: today,
+          });
           return {
             staff,
             view: {
@@ -148,10 +155,8 @@ export const getUserDetail = managerQuery({
               shopName: targetShop.name,
               shopStatus: targetShop.operatingStatus ?? "active",
               excludedFromShift: staff.excludedFromShift ?? false,
-              canRemove,
-              ...(canRemove
-                ? {}
-                : { removeDisabledReason: "将来のシフト割当を解除してから、この店舗から外してください。" }),
+              canRemove: true,
+              removalPreview: toPublicPersonRemovalPreview(membershipRemovalPreview),
               line: {
                 isLinked: Boolean(validLineAccount?.lineUserId),
                 isFollowing: Boolean(validLineAccount?.following),
@@ -177,8 +182,6 @@ export const getUserDetail = managerQuery({
         shopStatus: targetShop.operatingStatus ?? "active",
       }))
       .sort((a, b) => a.shopName.localeCompare(b.shopName, "ja") || a.shopId.localeCompare(b.shopId));
-    const personHasFutureAssignment = staffIdsWithFutureAssignment.size > 0;
-
     const activePendingInvitations = invitationDocs.filter((invitation) => invitation.expiresAt > args.now);
     const managerInvitationState = await resolvePersonManagerInvitationState(ctx, {
       organization,
@@ -220,7 +223,6 @@ export const getUserDetail = managerQuery({
       isStaff: memberships.length > 0,
       isBillingContact:
         billingEmailNormalized.length > 0 && billingEmailNormalized === person.emailNormalized.trim().toLowerCase(),
-      hasFutureAssignment: personHasFutureAssignment,
       isActiveActor,
       isRestricted: restrictedState !== null,
       isRestrictedRecovery,
@@ -244,6 +246,7 @@ export const getUserDetail = managerQuery({
       hasManagerInvitation: activePendingInvitations.some((invitation) => invitation.targetPersonId === person._id),
       managerInvitationState,
       ...personCapabilities,
+      removalPreview: toPublicPersonRemovalPreview(removalPreview),
       canWrite: canWriteNormally,
       ...(writeDisabledReason ? { writeDisabledReason } : {}),
       shops,

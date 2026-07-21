@@ -324,7 +324,7 @@ describe("staff/mutations", () => {
       expect(targetStaffs).toEqual([]);
     });
 
-    it("BusinessからProへの変更予約中はPro上限を超えるスタッフ追加を保存しない", async () => {
+    it("BusinessからProへの変更予約中も適用日まではBusiness上限でスタッフを追加する", async () => {
       const t = convexTest(schema, modules);
       const seeded = await t.run(async (ctx) => {
         const organization = await seedOrganizationManagerShop(ctx, {
@@ -375,7 +375,7 @@ describe("staff/mutations", () => {
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "31人目", email: "scheduled-pro-over-limit@example.com" }],
         }),
-      ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 30名 / 上限 30名）");
+      ).resolves.toMatchObject({ status: "added" });
 
       const state = await t.run(async (ctx) => ({
         people: await ctx.db
@@ -387,11 +387,9 @@ describe("staff/mutations", () => {
           .withIndex("by_shopId", (q) => q.eq("shopId", seeded.shopId))
           .collect(),
       }));
-      expect(state.people).toHaveLength(30);
-      expect(state.staffs).toHaveLength(29);
-      expect(state.people.map((person) => person.emailNormalized)).not.toContain(
-        "scheduled-pro-over-limit@example.com",
-      );
+      expect(state.people).toHaveLength(31);
+      expect(state.staffs).toHaveLength(30);
+      expect(state.people.map((person) => person.emailNormalized)).toContain("scheduled-pro-over-limit@example.com");
     });
 
     it("同一メールのpending管理者招待予約枠をstaff人物へ付け替えて上限を二重計上しない", async () => {

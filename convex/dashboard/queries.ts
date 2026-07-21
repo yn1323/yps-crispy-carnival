@@ -33,7 +33,7 @@ const myShopValidator = v.object({
   shopStatus: organizationShopOperatingStatusValidator,
   organizationId: v.union(v.id("organizations"), v.null()),
   organizationName: v.union(v.string(), v.null()),
-  organizationPlan: v.union(v.literal("trial"), v.literal("free"), v.literal("pro"), v.null()),
+  organizationPlan: v.union(v.literal("trial"), v.literal("free"), v.literal("pro"), v.literal("business"), v.null()),
   memberStatus: organizationMemberStatusValidator,
 });
 
@@ -249,8 +249,7 @@ function normalizeDashboardAnnouncementPlanTargets(value: string) {
       value
         .split(",")
         .map((target) => target.trim())
-        .filter(Boolean)
-        .map((target) => (target === "business" ? "pro" : target)),
+        .filter(Boolean),
     ),
   ].join(",");
 }
@@ -315,7 +314,7 @@ export const getMyShops = authenticatedQuery({
         shopStatus: "active" | "archived" | "planSuspended";
         organizationId: Doc<"organizations">["_id"] | null;
         organizationName: string | null;
-        organizationPlan: "trial" | "free" | "pro" | null;
+        organizationPlan: "trial" | "free" | "pro" | "business" | null;
         memberStatus: "active" | "readOnly" | "removed";
       }
     >();
@@ -348,7 +347,7 @@ export const getMyShops = authenticatedQuery({
         ) {
           continue;
         }
-        const organizationPlan = (await getOrganizationBillingPolicy(ctx, organization._id))?.entitlementPlan ?? null;
+        const organizationPlan = (await getOrganizationBillingPolicy(ctx, organization._id))?.targetingPlan ?? null;
 
         const shops = await ctx.db
           .query("shops")
@@ -412,7 +411,7 @@ export const getMyShops = authenticatedQuery({
       if (organizationMemberships.length !== 0) continue;
       const organization = await ctx.db.get(organizationId);
       if (!organization || organization.isDeleted) continue;
-      const organizationPlan = (await getOrganizationBillingPolicy(ctx, organization._id))?.entitlementPlan ?? null;
+      const organizationPlan = (await getOrganizationBillingPolicy(ctx, organization._id))?.targetingPlan ?? null;
       result.set(shop._id, {
         shopId: shop._id,
         shopName: shop.name,

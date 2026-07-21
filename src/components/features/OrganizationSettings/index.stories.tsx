@@ -12,6 +12,7 @@ const actions = {
   onAddShop: fn(),
   onOpenShop: fn(),
   onManagePlan: fn(),
+  onRetryPlanPrice: fn(),
   onUpdatePaymentMethod: fn(),
   onUpdateBillingEmail: fn(),
   onOpenBillingDocuments: fn(),
@@ -40,8 +41,9 @@ const baseBilling: OrganizationBillingView = {
   hasTrialContinuation: false,
   stripeBillingAvailable: true,
   hasStripeCustomer: true,
-  peopleUsage: { current: 8, max: 30 },
+  peopleUsage: { current: 8, max: 20 },
   shopUsage: { current: 2, max: 5 },
+  managerUsage: { current: 1, max: 5 },
   nextEvent: { label: "次回更新日", date: "2026年8月31日" },
   billingEmail: "billing@sakura.example.com",
   canManagePlan: true,
@@ -128,6 +130,16 @@ const baseArgs: OrganizationSettingsViewProps = {
     },
   ],
   billing: baseBilling,
+  planPrices: {
+    pro: {
+      status: "available",
+      value: { currency: "jpy", unitAmount: 3000, interval: "month", intervalCount: 1 },
+    },
+    business: {
+      status: "available",
+      value: { currency: "jpy", unitAmount: 6000, interval: "month", intervalCount: 1 },
+    },
+  },
   canAddShop: true,
   canDeleteOrganization: true,
   actions,
@@ -388,10 +400,7 @@ export const DisabledActionReasonsBehavior: Story = {
       "閲覧のみの管理者は店舗を追加できません。",
     );
     await userEvent.click(canvas.getByRole("tab", { name: "プランと支払い" }));
-    await expectDisabledActionDescription(
-      canvas.getByRole("button", { name: "Proプランに登録する" }),
-      "閲覧のみの管理者はプランを変更できません。",
-    );
+    await expect(canvas.queryByRole("button", { name: /へ変更|変更予約を取り消す/ })).not.toBeInTheDocument();
     await expect(canvas.getByRole("button", { name: "支払い方法を見る" })).toBeDisabled();
     await expectDisabledActionDescription(
       canvas.getByRole("button", { name: "請求先を変更" }),
@@ -420,7 +429,7 @@ export const Trial: Story = {
     billing: billing({
       state: "trial",
       currentPlan: "trial",
-      peopleUsage: { current: 12, max: 30 },
+      peopleUsage: { current: 12, max: 20 },
       shopUsage: { current: 3, max: 5 },
       trialEndsAt: Date.parse("2026-09-01T00:00:00+09:00"),
       nextEvent: { label: "トライアル最終日", date: "2026年8月31日" },
@@ -438,7 +447,8 @@ export const TrialWithProContinuation: Story = {
       state: "trial",
       currentPlan: "trial",
       hasTrialContinuation: true,
-      peopleUsage: { current: 12, max: 30 },
+      targetPlan: "pro",
+      peopleUsage: { current: 12, max: 20 },
       shopUsage: { current: 3, max: 5 },
       trialEndsAt: Date.parse("2026-09-01T00:00:00+09:00"),
       nextEvent: { label: "トライアル最終日", date: "2026年8月31日" },
@@ -469,6 +479,7 @@ export const Free: Story = {
       currentPlan: "free",
       peopleUsage: { current: 5, max: 5 },
       shopUsage: { current: 1, max: 1 },
+      managerUsage: { current: 1, max: 1 },
       nextEvent: undefined,
       hasStripeCustomer: false,
       canUpdatePaymentMethod: false,
@@ -485,7 +496,8 @@ export const FreeBillingCapabilitiesBehavior: Story = {
   args: Free.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("button", { name: "Proプランに登録する" })).toBeEnabled();
+    await expect(canvas.getByRole("button", { name: "Proへ変更" })).toBeEnabled();
+    await expect(canvas.getByRole("button", { name: "Businessへ変更" })).toBeEnabled();
     await expect(canvas.getByRole("button", { name: "支払い方法を見る" })).toBeDisabled();
     await expect(canvas.getByRole("button", { name: "請求書・領収書を見る" })).toBeDisabled();
     await expect(canvas.getByRole("button", { name: "請求先を変更" })).toBeEnabled();
@@ -515,15 +527,15 @@ export const ProStripePortalActionsBehavior: Story = {
   },
 };
 
-export const ComplimentaryPro: Story = {
-  name: "プランと支払い｜支払い不要Pro",
+export const ComplimentaryBusiness: Story = {
+  name: "プランと支払い｜支払い不要Business",
   args: {
     defaultTab: "billing",
     billing: billing({
-      state: "pro",
-      currentPlan: "pro",
+      state: "business",
+      currentPlan: "business",
       isComplimentary: true,
-      peopleUsage: { current: 22, max: 30 },
+      peopleUsage: { current: 22, max: 40 },
       shopUsage: { current: 3, max: 5 },
       nextEvent: undefined,
       hasStripeCustomer: false,
@@ -545,7 +557,7 @@ export const ShopCapacityReachedBehavior: Story = {
     billing: billing({
       state: "pro",
       currentPlan: "pro",
-      peopleUsage: { current: 22, max: 30 },
+      peopleUsage: { current: 20, max: 20 },
       shopUsage: { current: 5, max: 5 },
     }),
   },
@@ -627,6 +639,9 @@ export const PendingActivationRestrictedRecovery: Story = {
       targetPlan: "pro",
       peopleUsage: { current: 7, max: 5 },
       shopUsage: { current: 2, max: 1 },
+      managerUsage: { current: 2, max: 1 },
+      limitPlan: "free",
+      requiredReductions: { people: 2, shops: 1, managers: 1 },
       blockedReason: "無料の利用人数と店舗数を超えています。ユーザーまたは店舗を削除してから再確認してください。",
       nextEvent: { label: "支払い結果", date: "確認中" },
       canManagePlan: true,
@@ -696,8 +711,12 @@ export const Restricted: Story = {
       state: "restricted",
       currentPlan: null,
       previousPlan: "pro",
+      targetPlan: "free",
+      limitPlan: "free",
       peopleUsage: { current: 7, max: 5 },
       shopUsage: { current: 2, max: 1 },
+      managerUsage: { current: 2, max: 1 },
+      requiredReductions: { people: 2, shops: 1, managers: 1 },
       blockedReason: "無料の利用人数と店舗数を超えています。ユーザーまたは店舗を削除してから再確認してください。",
       nextEvent: undefined,
       canScheduleFree: false,
@@ -710,7 +729,7 @@ export const ScheduledFree: Story = {
   args: {
     defaultTab: "billing",
     billing: billing({
-      state: "scheduledFree",
+      state: "scheduledChange",
       currentPlan: "pro",
       targetPlan: "free",
       nextEvent: { label: "無料適用予定日", date: "2026年8月31日" },
@@ -726,11 +745,11 @@ export const MobileRestricted: Story = {
   args: Restricted.args,
 };
 
-export const MobileComplimentaryPro: Story = {
-  name: "プランと支払い｜支払い不要Pro・モバイル",
+export const MobileComplimentaryBusiness: Story = {
+  name: "プランと支払い｜支払い不要Business・モバイル",
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
-  args: ComplimentaryPro.args,
+  args: ComplimentaryBusiness.args,
 };
 
 export const MobileUsers: Story = {

@@ -22,7 +22,7 @@ const projectWallSpans = new Map();
 const requiredProjectMinimums = new Map([
   ["setup", 6],
   ["multi-actor-chromium", 6],
-  ["desktop-chromium", 67],
+  ["desktop-chromium", 68],
   ["mobile-chrome", 1],
 ]);
 const requiredE2EUserIndexes = new Set([0, 1, 2, 3, 4, 5]);
@@ -48,6 +48,7 @@ const requiredScenarioSuites = [
   "scenarios/multiActor/multiple-organization-switching.test.ts",
   "scenarios/open-recruitment-added-staff-notification.test.ts",
   "scenarios/organization-deletion-flow.test.ts",
+  "scenarios/organization-billing-plan-change.test.ts",
   "scenarios/organization-shop-lifecycle.test.ts",
   "scenarios/recruitment-deletion.test.ts",
   "scenarios/release-support-accessibility.test.ts",
@@ -68,6 +69,11 @@ const requiredContractCoverage = [
   {
     id: "BILL-P0-01",
     file: "scenarios/trial-ending-notice.test.ts",
+    project: "desktop-chromium",
+  },
+  {
+    id: "BILL-P0-02",
+    file: "scenarios/organization-billing-plan-change.test.ts",
     project: "desktop-chromium",
   },
   {

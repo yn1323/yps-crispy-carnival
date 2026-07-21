@@ -50,6 +50,31 @@ describe("organizationBilling/notification", () => {
     });
   });
 
+  it("期間末変更通知へ変更先プランと適用日時を載せる", () => {
+    const copy = organizationBillingNotificationCopy("scheduledChange", undefined, {
+      targetPlan: "pro",
+      effectiveAt: trialEndsAt,
+    });
+
+    expect(copy.subject).toBe("Proへの変更を予約しました");
+    expect(copy.paragraphs.join("\n")).toContain("9/1(火) 00:00にProへ変更します");
+  });
+
+  it("日割り変更完了通知へ変更先プラン・請求額・適用日時を載せる", () => {
+    const copy = organizationBillingNotificationCopy("planActivated", undefined, {
+      targetPlan: "business",
+      amountDue: 1_200,
+      currency: "jpy",
+      effectiveAt: trialEndsAt,
+    });
+    const paragraphs = copy.paragraphs.join("\n");
+
+    expect(copy.subject).toBe("Businessを開始しました");
+    expect(paragraphs).toContain("JPY");
+    expect(paragraphs).toContain("1,200");
+    expect(paragraphs).toContain("9/1(火) 00:00");
+  });
+
   it("即時支払い失敗後の無料継続と契約制限継続を区別する", () => {
     expect(organizationBillingNotificationCopy("paidActivationFailedFreeContinued")).toMatchObject({
       heading: "無料を継続しています",

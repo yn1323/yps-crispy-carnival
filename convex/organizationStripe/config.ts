@@ -11,6 +11,7 @@ export type StripeBillingConfiguration =
       secretKey: string;
       webhookSecret: string;
       proPriceId: string;
+      businessPriceId?: string;
       portalConfigurationId: string;
     };
 
@@ -25,6 +26,7 @@ export function getStripeBillingConfiguration(): StripeBillingConfiguration {
   const secretKey = (env.STRIPE_SECRET_KEY ?? "").trim();
   const webhookSecret = (env.STRIPE_WEBHOOK_SECRET ?? "").trim();
   const proPriceId = (env.STRIPE_PRO_PRICE_ID ?? "").trim();
+  const businessPriceId = (env.STRIPE_BUSINESS_PRICE_ID ?? "").trim();
   const portalConfigurationId = (env.STRIPE_PORTAL_CONFIGURATION_ID ?? "").trim();
   const livemode = stripeLivemodeFromSecretKey(secretKey);
   const missing: StripeConfigurationKey[] = [];
@@ -40,23 +42,26 @@ export function getStripeBillingConfiguration(): StripeBillingConfiguration {
     secretKey,
     webhookSecret,
     proPriceId,
+    ...(businessPriceId.startsWith("price_") && businessPriceId !== proPriceId ? { businessPriceId } : {}),
     portalConfigurationId,
   };
 }
 
 /**
  * Webhook受信と既存契約の安全処理用。
- * 新規販売を止める場合もsecretを残し、Pro Priceをアーカイブする。
+ * 新規販売を止める場合もsecretを残し、対象Priceをアーカイブする。
  */
 export function getStripeSafetyConfiguration(): {
   secretKey: string;
   webhookSecret: string;
   livemode: boolean;
   proPriceId?: string;
+  businessPriceId?: string;
 } | null {
   const secretKey = (env.STRIPE_SECRET_KEY ?? "").trim();
   const webhookSecret = (env.STRIPE_WEBHOOK_SECRET ?? "").trim();
   const proPriceId = (env.STRIPE_PRO_PRICE_ID ?? "").trim();
+  const businessPriceId = (env.STRIPE_BUSINESS_PRICE_ID ?? "").trim();
   const livemode = stripeLivemodeFromSecretKey(secretKey);
   if (livemode === null || !webhookSecret.startsWith("whsec_")) {
     return null;
@@ -66,6 +71,7 @@ export function getStripeSafetyConfiguration(): {
     webhookSecret,
     livemode,
     ...(proPriceId.startsWith("price_") ? { proPriceId } : {}),
+    ...(businessPriceId.startsWith("price_") && businessPriceId !== proPriceId ? { businessPriceId } : {}),
   };
 }
 
@@ -74,12 +80,29 @@ export function getStripeProviderSafetyConfiguration(): {
   secretKey: string;
   livemode: boolean;
   proPriceId?: string;
+  businessPriceId?: string;
 } | null {
   const secretKey = (env.STRIPE_SECRET_KEY ?? "").trim();
   const proPriceId = (env.STRIPE_PRO_PRICE_ID ?? "").trim();
+  const businessPriceId = (env.STRIPE_BUSINESS_PRICE_ID ?? "").trim();
   const livemode = stripeLivemodeFromSecretKey(secretKey);
   if (livemode === null) return null;
-  return { secretKey, livemode, ...(proPriceId.startsWith("price_") ? { proPriceId } : {}) };
+  return {
+    secretKey,
+    livemode,
+    ...(proPriceId.startsWith("price_") ? { proPriceId } : {}),
+    ...(businessPriceId.startsWith("price_") && businessPriceId !== proPriceId ? { businessPriceId } : {}),
+  };
+}
+
+export type StripePaidPlan = "pro" | "business";
+
+/** Price ID is selected only from the server-side allowlist. */
+export function getConfiguredStripePriceId(
+  configuration: { proPriceId?: string; businessPriceId?: string },
+  plan: StripePaidPlan,
+) {
+  return plan === "pro" ? configuration.proPriceId : configuration.businessPriceId;
 }
 
 function stripeLivemodeFromSecretKey(secretKey: string): boolean | null {

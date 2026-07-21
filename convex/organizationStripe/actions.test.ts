@@ -1,7 +1,7 @@
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import { seedOrganizationManagerShop, testAuthTokenIdentifier } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { STRIPE_WEBHOOK_EVENT_RETENTION_MS } from "../constants";
@@ -37,7 +37,7 @@ vi.mock("stripe", () => {
     static errors = { StripeError: MockStripeError };
     static createFetchHttpClient = vi.fn();
     static createSubtleCryptoProvider = vi.fn();
-    prices = { retrieve: async () => await providerRequest("prices.retrieve") };
+    prices = { retrieve: async (...args: unknown[]) => await providerRequest("prices.retrieve", args) };
     checkout = {
       sessions: {
         retrieve: async () => await providerRequest("checkout.sessions.retrieve"),
@@ -69,6 +69,13 @@ vi.mock("stripe", () => {
       retrieve: async (...args: unknown[]) => await providerRequest("invoices.retrieve", args),
       list: async (...args: unknown[]) => await providerRequest("invoices.list", args),
       update: async (...args: unknown[]) => await providerRequest("invoices.update", args),
+      createPreview: async (...args: unknown[]) => await providerRequest("invoices.createPreview", args),
+    };
+    subscriptionSchedules = {
+      retrieve: async (...args: unknown[]) => await providerRequest("subscriptionSchedules.retrieve", args),
+      create: async (...args: unknown[]) => await providerRequest("subscriptionSchedules.create", args),
+      update: async (...args: unknown[]) => await providerRequest("subscriptionSchedules.update", args),
+      release: async (...args: unknown[]) => await providerRequest("subscriptionSchedules.release", args),
     };
     setupIntents = { retrieve: async () => await providerRequest("setupIntents.retrieve") };
     paymentMethods = { retrieve: async () => await providerRequest("paymentMethods.retrieve") };
@@ -83,6 +90,11 @@ const READY_TEST_CONFIGURATION = {
   webhookSecret: "whsec_organization_stripe",
   proPriceId: "price_pro_test",
   portalConfigurationId: "bpc_test",
+} satisfies StripeBillingConfiguration;
+const BUSINESS_PRICE_ID = "price_business_test";
+const READY_BUSINESS_TEST_CONFIGURATION = {
+  ...READY_TEST_CONFIGURATION,
+  businessPriceId: BUSINESS_PRICE_ID,
 } satisfies StripeBillingConfiguration;
 const NOW = Date.parse("2026-07-20T00:00:00.000Z");
 const providerFetchMock = vi.fn<typeof globalThis.fetch>(async () => {
@@ -103,6 +115,7 @@ describe("organizationStripe/actions", () => {
     vi.stubEnv("STRIPE_SECRET_KEY", READY_TEST_CONFIGURATION.secretKey);
     vi.stubEnv("STRIPE_WEBHOOK_SECRET", READY_TEST_CONFIGURATION.webhookSecret);
     vi.stubEnv("STRIPE_PRO_PRICE_ID", READY_TEST_CONFIGURATION.proPriceId);
+    vi.stubEnv("STRIPE_BUSINESS_PRICE_ID", BUSINESS_PRICE_ID);
     vi.stubEnv("APP_URL", "https://app.example.test");
   });
 
@@ -130,6 +143,113 @@ describe("organizationStripe/actions", () => {
       { status: "unavailable", reason: "not_allowed" },
       { status: "unavailable", reason: "not_allowed" },
     ]);
+    await expectNoStripeSideEffects(t);
+  });
+
+  it("complimentary.businessではoperation・Customer・SubscriptionのStripe mutationを拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "stripe_complimentary_business_mutations",
+        complimentary: true,
+      });
+      const billing = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billing) throw new Error("billing fixture missing");
+      await ctx.db.patch(billing._id, { state: { kind: "complimentary", plan: "business" } });
+      return seeded;
+    });
+
+    await expect(
+      t.mutation(internal.organizationStripe.mutations.beginOperation, {
+        organizationId: ids.organizationId,
+        kind: "immediatePaidCheckout",
+        requestKey: "complimentary_business_checkout",
+        livemode: false,
+        providerGeneration: 1,
+        targetPlan: "business",
+        changeMode: "checkout",
+        targetStripePriceIdSnapshot: "price_business_complimentary",
+      }),
+    ).rejects.toThrow("支払い不要プランではStripeを利用しません");
+    await expect(
+      t.mutation(internal.organizationStripe.mutations.saveCustomerMapping, {
+        organizationId: ids.organizationId,
+        stripeCustomerId: "cus_complimentary_business",
+        livemode: false,
+      }),
+    ).rejects.toThrow("支払い不要プランではStripeを利用しません");
+    await expect(
+      t.mutation(internal.organizationStripe.mutations.saveSubscriptionSnapshot, {
+        organizationId: ids.organizationId,
+        stripeCustomerId: "cus_complimentary_business",
+        stripeSubscriptionId: "sub_complimentary_business",
+        stripePriceId: "price_business_complimentary",
+        plan: "business",
+        livemode: false,
+        status: "active",
+        providerGeneration: 1,
+        cancelAtPeriodEnd: false,
+        syncedAt: NOW,
+      }),
+    ).rejects.toThrow("支払い不要プランではStripeを利用しません");
+    await expectNoStripeSideEffects(t);
+  });
+
+  it("complimentary.businessではBusiness向け公開Actionもprovider通信前に拒否する", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "stripe_complimentary_business_public_actions",
+        complimentary: true,
+      });
+      const billing = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billing) throw new Error("billing fixture missing");
+      await ctx.db.patch(billing._id, { state: { kind: "complimentary", plan: "business" } });
+      return seeded;
+    });
+    const actor = t.withIdentity({ subject: "stripe_complimentary_business_public_actions" });
+
+    const results = await Promise.all([
+      actor.action(api.organizationStripe.actions.getPlanPrice, {
+        shopId: ids.shopId,
+        targetPlan: "business",
+      }),
+      actor.action(api.organizationStripe.actions.startPaidCheckout, {
+        shopId: ids.shopId,
+        targetPlan: "business",
+        requestId: "complimentary-business-checkout",
+      }),
+      actor.action(api.organizationStripe.actions.previewPaidPlanChange, {
+        shopId: ids.shopId,
+        targetPlan: "business",
+        requestId: "complimentary-business-preview",
+      }),
+      actor.action(api.organizationStripe.actions.changePaidPlanNow, {
+        shopId: ids.shopId,
+        targetPlan: "business",
+        requestId: "complimentary-business-change",
+        prorationDate: Math.floor(NOW / 1000),
+      }),
+      actor.action(api.organizationStripe.actions.schedulePaidPlanChange, {
+        shopId: ids.shopId,
+        targetPlan: "pro",
+        requestId: "complimentary-business-schedule",
+      }),
+      actor.action(api.organizationStripe.actions.cancelScheduledPlanChange, {
+        shopId: ids.shopId,
+        requestId: "complimentary-business-cancel-schedule",
+      }),
+    ]);
+
+    expect(results).toEqual(Array.from({ length: 6 }, () => ({ status: "unavailable", reason: "not_allowed" })));
+    expect(providerFetchMock).not.toHaveBeenCalled();
     await expectNoStripeSideEffects(t);
   });
 
@@ -212,6 +332,471 @@ describe("organizationStripe/actions", () => {
     ]);
     await expectNoStripeSideEffects(t);
   });
+
+  it("Business価格はserver-side allowlistのPriceだけをProと同じ通貨で公開する", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await t.run(
+      async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "stripe_business_price", plan: "free" }),
+    );
+    const requestedPriceIds: string[] = [];
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource !== "prices.retrieve") throw new Error(`Unexpected Stripe provider call: ${resource}`);
+      const [priceId] = JSON.parse(String(init?.body ?? "[]")) as [string];
+      requestedPriceIds.push(priceId);
+      return providerResponse(priceFixtureFor(priceId));
+    });
+
+    await expect(
+      t.withIdentity({ subject: "stripe_business_price" }).action(api.organizationStripe.actions.getPlanPrice, {
+        shopId: ids.shopId,
+        targetPlan: "business",
+      }),
+    ).resolves.toEqual({
+      status: "available",
+      currency: "jpy",
+      unitAmount: 2980,
+      interval: "month",
+      intervalCount: 1,
+    });
+    expect(requestedPriceIds).toEqual([BUSINESS_PRICE_ID, READY_TEST_CONFIGURATION.proPriceId]);
+
+    requestedPriceIds.length = 0;
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource !== "prices.retrieve") throw new Error(`Unexpected Stripe provider call: ${resource}`);
+      const [priceId] = JSON.parse(String(init?.body ?? "[]")) as [string];
+      requestedPriceIds.push(priceId);
+      return providerResponse({
+        ...priceFixtureFor(priceId),
+        currency: priceId === BUSINESS_PRICE_ID ? "usd" : "jpy",
+      });
+    });
+    await expect(
+      t.withIdentity({ subject: "stripe_business_price" }).action(api.organizationStripe.actions.getPlanPrice, {
+        shopId: ids.shopId,
+        targetPlan: "business",
+      }),
+    ).resolves.toEqual({ status: "unavailable", reason: "price_unavailable" });
+    expect(requestedPriceIds).toEqual([BUSINESS_PRICE_ID, READY_TEST_CONFIGURATION.proPriceId]);
+
+    configurationMock.mockReturnValue(READY_TEST_CONFIGURATION);
+    providerFetchMock.mockClear();
+    await expect(
+      t.withIdentity({ subject: "stripe_business_price" }).action(api.organizationStripe.actions.getPlanPrice, {
+        shopId: ids.shopId,
+        targetPlan: "business",
+      }),
+    ).resolves.toEqual({ status: "unavailable", reason: "price_unavailable" });
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("FreeからBusiness Checkoutを開始しても支払確認前はpendingActivationを維持する", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await t.run(
+      async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "stripe_free_to_business", plan: "free" }),
+    );
+    const checkoutCalls: unknown[][] = [];
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
+      if (resource === "prices.retrieve") return providerResponse(priceFixtureFor(String(args[0])));
+      if (resource === "customers.create") return providerResponse({ id: "cus_free_to_business", livemode: false });
+      if (resource === "checkout.sessions.create") {
+        checkoutCalls.push(args);
+        return providerResponse({
+          id: "cs_free_to_business",
+          url: "https://checkout.stripe.test/free-to-business",
+          livemode: false,
+        });
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await expect(
+      t.withIdentity({ subject: "stripe_free_to_business" }).action(api.organizationStripe.actions.startPaidCheckout, {
+        shopId: ids.shopId,
+        targetPlan: "business",
+        requestId: "free-to-business-checkout",
+      }),
+    ).resolves.toEqual({ status: "available", url: "https://checkout.stripe.test/free-to-business" });
+
+    expect(checkoutCalls).toHaveLength(1);
+    expect(checkoutCalls[0][0]).toMatchObject({
+      mode: "subscription",
+      customer: "cus_free_to_business",
+      payment_method_types: ["card"],
+      line_items: [{ price: BUSINESS_PRICE_ID, quantity: 1 }],
+    });
+    const state = await t.run(async (ctx) => ({
+      billing: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      operations: await ctx.db
+        .query("organizationStripeOperations")
+        .withIndex("by_organizationId_and_kind_and_status", (q) =>
+          q.eq("organizationId", ids.organizationId).eq("kind", "immediatePaidCheckout"),
+        )
+        .collect(),
+      customers: await ctx.db
+        .query("organizationStripeCustomers")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .collect(),
+      subscriptions: await ctx.db
+        .query("organizationStripeSubscriptions")
+        .withIndex("by_organizationId_and_providerGeneration", (q) => q.eq("organizationId", ids.organizationId))
+        .collect(),
+    }));
+    expect(state.billing?.state).toEqual({
+      kind: "pendingActivation",
+      plan: "business",
+      fallback: "free",
+      startedAt: NOW,
+    });
+    expect(state.operations).toHaveLength(1);
+    expect(state.operations[0]).toMatchObject({
+      kind: "immediatePaidCheckout",
+      status: "succeeded",
+      targetPlan: "business",
+      changeMode: "checkout",
+      stripePriceIdSnapshot: BUSINESS_PRICE_ID,
+      targetStripePriceIdSnapshot: BUSINESS_PRICE_ID,
+      stripeObjectId: "cs_free_to_business",
+    });
+    expect(state.customers.map((customer) => customer.stripeCustomerId)).toEqual(["cus_free_to_business"]);
+    expect(state.subscriptions).toEqual([]);
+  });
+
+  it("ProからBusinessの日割り見積もりと実更新で同じproration_date・Subscription Itemを使う", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: "stripe_pro_to_business_paid",
+      plan: "pro",
+    });
+    const previewCalls: unknown[][] = [];
+    const updateCalls: unknown[][] = [];
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
+      if (resource === "prices.retrieve") return providerResponse(priceFixtureFor(String(args[0])));
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(paidPlanSubscriptionFixture(ids, { plan: "pro", invoiceStatus: "paid" }));
+      }
+      if (resource === "invoices.createPreview") {
+        previewCalls.push(args);
+        return providerResponse({
+          id: "in_preview_business",
+          livemode: false,
+          currency: "jpy",
+          amount_due: 1500,
+        });
+      }
+      if (resource === "subscriptions.update") {
+        updateCalls.push(args);
+        return providerResponse(paidPlanSubscriptionFixture(ids, { plan: "business", invoiceStatus: "paid" }));
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+    const actor = t.withIdentity({ subject: "stripe_pro_to_business_paid" });
+
+    const preview = await actor.action(api.organizationStripe.actions.previewPaidPlanChange, {
+      shopId: ids.shopId,
+      targetPlan: "business",
+      requestId: "preview-pro-to-business",
+    });
+    expect(preview).toEqual({
+      status: "available",
+      currency: "jpy",
+      amountDue: 1500,
+      currentPeriodEnd: ids.periodEndsAt,
+      prorationDate: Math.floor(NOW / 1000),
+    });
+    if (preview.status !== "available") throw new Error("preview fixture failed");
+
+    await expect(
+      actor.action(api.organizationStripe.actions.changePaidPlanNow, {
+        shopId: ids.shopId,
+        targetPlan: "business",
+        requestId: "apply-pro-to-business",
+        prorationDate: preview.prorationDate,
+      }),
+    ).resolves.toEqual({ status: "accepted" });
+
+    expect(previewCalls).toHaveLength(1);
+    expect(previewCalls[0][0]).toEqual({
+      customer: ids.stripeCustomerId,
+      subscription: ids.stripeSubscriptionId,
+      subscription_details: {
+        items: [{ id: ids.stripeSubscriptionItemId, price: BUSINESS_PRICE_ID, quantity: 1 }],
+        proration_behavior: "always_invoice",
+        proration_date: preview.prorationDate,
+        billing_cycle_anchor: "unchanged",
+      },
+    });
+    expect(updateCalls).toHaveLength(1);
+    expect(updateCalls[0][0]).toBe(ids.stripeSubscriptionId);
+    expect(updateCalls[0][1]).toEqual({
+      items: [{ id: ids.stripeSubscriptionItemId, price: BUSINESS_PRICE_ID, quantity: 1 }],
+      proration_behavior: "always_invoice",
+      payment_behavior: "pending_if_incomplete",
+      proration_date: preview.prorationDate,
+      billing_cycle_anchor: "unchanged",
+      expand: ["latest_invoice"],
+    });
+    const state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({ kind: "active", plan: "business" });
+    expect(state.subscription).toMatchObject({
+      stripeSubscriptionId: ids.stripeSubscriptionId,
+      stripeSubscriptionItemId: ids.stripeSubscriptionItemId,
+      stripePriceId: BUSINESS_PRICE_ID,
+      plan: "business",
+      currentPeriodStartsAt: ids.periodStartsAt,
+      currentPeriodEndsAt: ids.periodEndsAt,
+      billingCycleAnchor: ids.billingCycleAnchor,
+    });
+  });
+
+  it("ProからBusinessのprovider更新が未確定ならPro entitlementをfallbackとして維持する", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: "stripe_pro_to_business_pending",
+      plan: "pro",
+    });
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
+      if (resource === "prices.retrieve") return providerResponse(priceFixtureFor(String(args[0])));
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(paidPlanSubscriptionFixture(ids, { plan: "pro", invoiceStatus: "open" }));
+      }
+      if (resource === "subscriptions.update") {
+        return providerResponse(
+          paidPlanSubscriptionFixture(ids, {
+            plan: "pro",
+            invoiceStatus: "open",
+            subscriptionStatus: "active",
+            pendingUpdate: true,
+          }),
+        );
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "stripe_pro_to_business_pending" })
+        .action(api.organizationStripe.actions.changePaidPlanNow, {
+          shopId: ids.shopId,
+          targetPlan: "business",
+          requestId: "apply-pro-to-business-pending",
+          prorationDate: Math.floor(NOW / 1000),
+        }),
+    ).resolves.toEqual({ status: "accepted" });
+
+    const state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({
+      kind: "pendingActivation",
+      plan: "business",
+      fallback: "pro",
+      startedAt: NOW,
+    });
+    expect(state.subscription).toMatchObject({ stripePriceId: READY_TEST_CONFIGURATION.proPriceId, plan: "pro" });
+    expect(state.operations).toHaveLength(1);
+    expect(state.operations[0]).toMatchObject({ kind: "changePaidPlanNow", status: "succeeded" });
+  });
+
+  it("BusinessからProを現在の期間末へScheduleし、取消時はprovider確認後にBusinessへ戻す", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: "stripe_business_to_pro_schedule",
+      plan: "business",
+    });
+    const scheduleCreateCalls: unknown[][] = [];
+    const scheduleUpdateCalls: unknown[][] = [];
+    const scheduleReleaseCalls: unknown[][] = [];
+    let scheduled = false;
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
+      if (resource === "prices.retrieve") return providerResponse(priceFixtureFor(String(args[0])));
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(
+          paidPlanSubscriptionFixture(ids, {
+            plan: "business",
+            invoiceStatus: "paid",
+            scheduleId: scheduled ? ids.stripeSubscriptionScheduleId : undefined,
+          }),
+        );
+      }
+      if (resource === "subscriptionSchedules.create") {
+        scheduleCreateCalls.push(args);
+        return providerResponse(subscriptionScheduleFixture(ids, { status: "not_started" }));
+      }
+      if (resource === "subscriptionSchedules.update") {
+        scheduleUpdateCalls.push(args);
+        scheduled = true;
+        const payload = args[1] as { phases: unknown[] };
+        return providerResponse(subscriptionScheduleFixture(ids, { status: "active", phases: payload.phases }));
+      }
+      if (resource === "subscriptionSchedules.retrieve") {
+        return providerResponse(subscriptionScheduleFixture(ids, { status: "active" }));
+      }
+      if (resource === "subscriptionSchedules.release") {
+        scheduleReleaseCalls.push(args);
+        scheduled = false;
+        return providerResponse(subscriptionScheduleFixture(ids, { status: "released" }));
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+    const actor = t.withIdentity({ subject: "stripe_business_to_pro_schedule" });
+
+    await expect(
+      actor.action(api.organizationStripe.actions.schedulePaidPlanChange, {
+        shopId: ids.shopId,
+        targetPlan: "pro",
+        requestId: "business-to-pro-at-period-end",
+      }),
+    ).resolves.toEqual({ status: "accepted" });
+
+    expect(scheduleCreateCalls).toHaveLength(1);
+    expect(scheduleCreateCalls[0][0]).toMatchObject({ from_subscription: ids.stripeSubscriptionId });
+    expect(scheduleUpdateCalls).toHaveLength(1);
+    expect(scheduleUpdateCalls[0][0]).toBe(ids.stripeSubscriptionScheduleId);
+    expect(scheduleUpdateCalls[0][1]).toEqual({
+      end_behavior: "release",
+      proration_behavior: "none",
+      metadata: expect.objectContaining({
+        shiftori_organization_id: String(ids.organizationId),
+        shiftori_provider_generation: "1",
+        shiftori_price_id: READY_TEST_CONFIGURATION.proPriceId,
+      }),
+      phases: [
+        {
+          start_date: Math.floor(ids.periodStartsAt / 1000),
+          end_date: Math.floor(ids.periodEndsAt / 1000),
+          items: [{ price: BUSINESS_PRICE_ID, quantity: 1 }],
+          proration_behavior: "none",
+        },
+        {
+          start_date: Math.floor(ids.periodEndsAt / 1000),
+          duration: { interval: "month", interval_count: 1 },
+          items: [{ price: READY_TEST_CONFIGURATION.proPriceId, quantity: 1 }],
+          proration_behavior: "none",
+        },
+      ],
+    });
+    let state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({
+      kind: "scheduledChange",
+      currentPlan: "business",
+      targetPlan: "pro",
+      effectiveAt: ids.periodEndsAt,
+    });
+    expect(state.subscription).toMatchObject({
+      plan: "business",
+      stripePriceId: BUSINESS_PRICE_ID,
+      stripeSubscriptionScheduleId: ids.stripeSubscriptionScheduleId,
+    });
+
+    await expect(
+      actor.action(api.organizationStripe.actions.cancelScheduledPlanChange, {
+        shopId: ids.shopId,
+        requestId: "cancel-business-to-pro",
+      }),
+    ).resolves.toEqual({ status: "accepted" });
+    expect(scheduleReleaseCalls).toHaveLength(1);
+    expect(scheduleReleaseCalls[0][0]).toBe(ids.stripeSubscriptionScheduleId);
+    expect(scheduleReleaseCalls[0][1]).toEqual({ preserve_cancel_date: false });
+    state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({ kind: "active", plan: "business" });
+    expect(state.subscription).not.toHaveProperty("stripeSubscriptionScheduleId");
+  });
+
+  it.each([
+    { result: "paid", overProLimit: false, expectedKind: "active" },
+    { result: "paid", overProLimit: true, expectedKind: "restricted" },
+    { result: "failed", overProLimit: false, expectedKind: "grace" },
+  ] as const)(
+    "Business→Pro期限時にprovider結果=$result・Pro超過=$overProLimitを検証して$expectedKindへ確定する",
+    async ({ result, overProLimit, expectedKind }) => {
+      configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+      const t = convexTest(schema, modules);
+      const ids = await seedPaidPlanStripeContext(t, {
+        subject: `stripe_business_to_pro_${result}_${overProLimit}`,
+        plan: "business",
+        billingState: {
+          kind: "scheduledChange",
+          currentPlan: "business",
+          targetPlan: "pro",
+          effectiveAt: NOW,
+        },
+        scheduleId: "sub_sched_business_to_pro",
+      });
+      if (overProLimit) await seedAdditionalOrganizationStaff(t, ids, 20);
+      providerFetchMock.mockImplementation(async (input) => {
+        const resource = String(input).split("/").pop() ?? "";
+        if (resource === "subscriptions.retrieve") {
+          return providerResponse(
+            paidPlanSubscriptionFixture(ids, {
+              plan: "pro",
+              invoiceStatus: result === "paid" ? "paid" : "open",
+              subscriptionStatus: result === "paid" ? "active" : "past_due",
+            }),
+          );
+        }
+        throw new Error(`Unexpected Stripe provider call: ${resource}`);
+      });
+
+      await t.action(internal.organizationStripe.actions.reconcileScheduledPaidPlanDeadline, {
+        organizationId: ids.organizationId,
+        expectedBillingVersion: 2,
+        requestId: `scheduled-paid-${result}-${overProLimit}`,
+      });
+
+      const state = await paidPlanStripeState(t, ids.organizationId);
+      expect(state.billing?.state.kind).toBe(expectedKind);
+      if (result === "paid" && !overProLimit) {
+        expect(state.billing?.state).toEqual({ kind: "active", plan: "pro" });
+      } else if (result === "paid") {
+        expect(state.billing?.state).toMatchObject({
+          kind: "restricted",
+          reason: "planLimitExceeded",
+          previousPlan: "business",
+          targetPlan: "pro",
+          limitPlan: "pro",
+        });
+      } else {
+        expect(state.billing?.state).toEqual({
+          kind: "grace",
+          plan: "business",
+          targetPlan: "pro",
+          startedAt: NOW,
+          endsAt: NOW + 14 * 24 * 60 * 60_000,
+        });
+      }
+      expect(state.subscription).toMatchObject({
+        stripeSubscriptionId: ids.stripeSubscriptionId,
+        stripeSubscriptionItemId: ids.stripeSubscriptionItemId,
+        stripePriceId: READY_TEST_CONFIGURATION.proPriceId,
+        plan: "pro",
+      });
+      expect(state.operations).toHaveLength(1);
+      expect(state.operations[0]).toMatchObject({
+        kind: "reconcileSubscription",
+        recoveryPurpose: "scheduledPaidPlanDeadline",
+        status: "succeeded",
+        sourcePlan: "business",
+        targetPlan: "pro",
+        changeMode: "periodEnd",
+      });
+    },
+  );
 
   it("Pro Priceがアーカイブ済みなら価格を公開せず、新しいCheckoutを作成しない", async () => {
     const t = convexTest(schema, modules);
@@ -868,6 +1453,56 @@ describe("organizationStripe/actions", () => {
     expect(result.subscription).toMatchObject({ status: "trialing" });
   });
 
+  it("Business Price停止前に同期済みのTrial SubscriptionはBusiness選択へ収束する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedInactivePriceTrialRecovery(t, {
+      suffix: "inactive_business_price_mapped",
+      trialEndsAt: NOW + 10 * 24 * 60 * 60_000,
+      source: "mapped",
+      targetPlan: "business",
+    });
+    const providerResources = mockInactivePriceMappedWebhook(ids, inactivePriceTrialSubscription(ids));
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: ids.stripeEventId });
+
+    expect(providerResources).toEqual([
+      "events.retrieve",
+      "checkout.sessions.retrieve",
+      "prices.retrieve",
+      "subscriptions.retrieve",
+    ]);
+    expect(providerResources).not.toContain("subscriptions.cancel");
+    const result = await t.run(async (ctx) => ({
+      billing: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      receipt: await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+        .unique(),
+      source: await ctx.db.get(ids.sourceOperationId),
+      subscription: await ctx.db
+        .query("organizationStripeSubscriptions")
+        .withIndex("by_livemode_and_stripeSubscriptionId", (q) =>
+          q.eq("livemode", false).eq("stripeSubscriptionId", ids.stripeSubscriptionId),
+        )
+        .unique(),
+    }));
+    expect(result.billing?.state).toEqual({
+      kind: "trial",
+      trialEndsAt: ids.trialEndsAt,
+      selectedPaidPlan: "business",
+    });
+    expect(result.receipt).toMatchObject({ status: "processed" });
+    expect(result.source).toMatchObject({ status: "succeeded", targetPlan: "business" });
+    expect(result.subscription).toMatchObject({
+      status: "trialing",
+      plan: "business",
+      stripePriceId: BUSINESS_PRICE_ID,
+    });
+  });
+
   it("Price停止前に同期済みの契約が期限後activeかつ支払済みならFreeからProへ収束する", async () => {
     const t = convexTest(schema, modules);
     const ids = await seedInactivePriceTrialRecovery(t, {
@@ -922,6 +1557,63 @@ describe("organizationStripe/actions", () => {
     expect(result.billing).toMatchObject({ state: { kind: "active", plan: "pro" } });
     expect(result.receipt).toMatchObject({ status: "processed" });
     expect(result.source).toMatchObject({ status: "succeeded" });
+  });
+
+  it("Business Price停止前に同期済みの契約が期限後activeかつ支払済みならBusinessへ収束する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedInactivePriceTrialRecovery(t, {
+      suffix: "inactive_business_price_active_paid",
+      trialEndsAt: NOW - 60_000,
+      source: "mapped",
+      targetPlan: "business",
+    });
+    await t.run(async (ctx) => {
+      const billing = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique();
+      if (!billing) throw new Error("billing missing");
+      await ctx.db.patch(billing._id, {
+        state: { kind: "active", plan: "free" },
+        version: billing.version + 1,
+        updatedAt: NOW,
+      });
+    });
+    const providerResources = mockInactivePriceMappedWebhook(ids, {
+      ...inactivePriceTrialSubscription(ids),
+      status: "active",
+      latest_invoice: {
+        id: "in_inactive_business_price_active_paid",
+        customer: ids.stripeCustomerId,
+        livemode: false,
+        status: "paid",
+        amount_remaining: 0,
+        parent: { subscription_details: { subscription: ids.stripeSubscriptionId } },
+      },
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: ids.stripeEventId });
+
+    expect(providerResources).toEqual([
+      "events.retrieve",
+      "checkout.sessions.retrieve",
+      "prices.retrieve",
+      "subscriptions.retrieve",
+    ]);
+    const result = await t.run(async (ctx) => ({
+      billing: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      receipt: await ctx.db
+        .query("stripeWebhookEvents")
+        .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", ids.stripeEventId))
+        .unique(),
+      source: await ctx.db.get(ids.sourceOperationId),
+    }));
+    expect(result.billing?.state).toEqual({ kind: "active", plan: "business" });
+    expect(result.receipt).toMatchObject({ status: "processed" });
+    expect(result.source).toMatchObject({ status: "succeeded", targetPlan: "business" });
   });
 
   it.each([
@@ -2164,6 +2856,112 @@ describe("organizationStripe/actions", () => {
     expect(persisted).toMatchObject({ providerGeneration: 1, attemptCount: 1, status: "retrying" });
   });
 
+  it("paid plan変更operationのintent snapshotは同じrequestIdで差し替えない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(
+      async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "stripe_paid_plan_intent", plan: "pro" }),
+    );
+    const base = {
+      organizationId: ids.organizationId,
+      kind: "changePaidPlanNow" as const,
+      requestKey: "paid_plan_immutable_intent",
+      livemode: false,
+      expectedBillingVersion: 1,
+      providerGeneration: 1,
+      sourcePlan: "pro" as const,
+      targetPlan: "business" as const,
+      changeMode: "immediate" as const,
+      stripeSubscriptionIdSnapshot: "sub_paid_plan_intent",
+      stripeSubscriptionItemIdSnapshot: "si_paid_plan_intent",
+      sourceStripePriceIdSnapshot: "price_pro_intent",
+      targetStripePriceIdSnapshot: "price_business_intent",
+      prorationDate: Math.floor(NOW / 1000),
+      effectiveAt: NOW,
+    };
+    const first = await t.mutation(internal.organizationStripe.mutations.beginOperation, base);
+    const intentSnapshot = {
+      sourcePlan: base.sourcePlan,
+      targetPlan: base.targetPlan,
+      changeMode: base.changeMode,
+      stripeSubscriptionIdSnapshot: base.stripeSubscriptionIdSnapshot,
+      stripeSubscriptionItemIdSnapshot: base.stripeSubscriptionItemIdSnapshot,
+      sourceStripePriceIdSnapshot: base.sourceStripePriceIdSnapshot,
+      targetStripePriceIdSnapshot: base.targetStripePriceIdSnapshot,
+      prorationDate: base.prorationDate,
+      effectiveAt: base.effectiveAt,
+    };
+    expect(first).toMatchObject({ ...intentSnapshot, created: true, conflict: false });
+    await t.mutation(internal.organizationStripe.mutations.finishOperation, {
+      operationId: first.operationId,
+      leaseToken: first.leaseToken as string,
+      status: "retrying",
+      errorCode: "temporary_provider_error",
+    });
+
+    const changedIntents = [
+      { ...base, sourcePlan: "business" as const },
+      { ...base, targetPlan: "free" as const },
+      { ...base, changeMode: "periodEnd" as const },
+      { ...base, stripeSubscriptionIdSnapshot: "sub_changed_intent" },
+      { ...base, stripeSubscriptionItemIdSnapshot: "si_changed_intent" },
+      { ...base, sourceStripePriceIdSnapshot: "price_changed_source" },
+      { ...base, targetStripePriceIdSnapshot: "price_changed_target" },
+      { ...base, prorationDate: base.prorationDate + 1 },
+      { ...base, effectiveAt: base.effectiveAt + 1 },
+    ];
+    for (const changedIntent of changedIntents) {
+      await expect(
+        t.mutation(internal.organizationStripe.mutations.beginOperation, changedIntent),
+      ).resolves.toMatchObject({
+        operationId: first.operationId,
+        created: false,
+        conflict: true,
+        status: "retrying",
+      });
+    }
+
+    const [persisted, queried] = await Promise.all([
+      t.run(async (ctx) => await ctx.db.get(first.operationId)),
+      t.query(internal.organizationStripe.queries.getOperation, { operationId: first.operationId }),
+    ]);
+    expect(persisted).toMatchObject({ ...base, attemptCount: 1, status: "retrying" });
+    expect(queried).toMatchObject(intentSnapshot);
+  });
+
+  it("Business用の期限切れCheckout operationをsingle-flight対象から解放する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(
+      async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "stripe_business_expired_checkout" }),
+    );
+    const operation = await t.mutation(internal.organizationStripe.mutations.beginOperation, {
+      organizationId: ids.organizationId,
+      kind: "immediatePaidCheckout",
+      requestKey: "business_expired_checkout",
+      livemode: false,
+      providerGeneration: 1,
+      targetPlan: "business",
+      changeMode: "checkout",
+      targetStripePriceIdSnapshot: "price_business_expired",
+    });
+    await t.mutation(internal.organizationStripe.mutations.finishOperation, {
+      operationId: operation.operationId,
+      leaseToken: operation.leaseToken as string,
+      status: "succeeded",
+      stripeObjectId: "cs_business_expired",
+    });
+
+    await expect(
+      t.mutation(internal.organizationStripe.mutations.releaseExpiredCheckoutOperation, {
+        operationId: operation.operationId,
+        stripeSessionId: "cs_business_expired",
+      }),
+    ).resolves.toEqual({ changed: true });
+    await expect(t.run(async (ctx) => await ctx.db.get(operation.operationId))).resolves.toMatchObject({
+      status: "cancelled",
+      lastErrorCode: "checkout_session_expired",
+    });
+  });
+
   it("Trial Subscription createのpayload snapshotが変わったoperationは再利用しない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
@@ -3173,6 +3971,88 @@ describe("organizationStripe/actions", () => {
     expect(providerCalls).toEqual(["subscriptions.retrieve"]);
   });
 
+  it("Business Trial取消の回復時に初回請求が支払済みならactive.businessを維持して解約しない", async () => {
+    const t = convexTest(schema, modules);
+    const trialEndsAt = NOW;
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: "stripe_business_trial_cancel_already_paid",
+      plan: "business",
+      billingState: { kind: "trial", trialEndsAt, selectedPaidPlan: "business" },
+    });
+    const operationId = await t.run(async (ctx) => {
+      const subscription = await ctx.db
+        .query("organizationStripeSubscriptions")
+        .withIndex("by_organizationId_and_providerGeneration", (q) =>
+          q.eq("organizationId", ids.organizationId).eq("providerGeneration", 1),
+        )
+        .unique();
+      if (!subscription) throw new Error("subscription missing");
+      await ctx.db.patch(subscription._id, { trialEndsAt, status: "trialing" });
+      return await ctx.db.insert("organizationStripeOperations", {
+        organizationId: ids.organizationId,
+        kind: "cancelSubscription",
+        requestKey: "business-trial-cancel-already-paid-request",
+        stripeIdempotencyKey: `shiftori:test:cancelSubscription:${ids.organizationId}:business-paid`,
+        livemode: false,
+        expectedBillingVersion: 2,
+        providerGeneration: 1,
+        recoveryPurpose: "trialContinuationCancellation",
+        stripeObjectId: ids.stripeSubscriptionId,
+        status: "retrying",
+        attemptCount: 1,
+        nextRunAt: NOW,
+        expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+    });
+    const providerCalls: string[] = [];
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      providerCalls.push(resource);
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse({
+          ...paidPlanSubscriptionFixture(ids, { plan: "business", invoiceStatus: "paid" }),
+          trial_end: Math.floor(trialEndsAt / 1000),
+        });
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.reconcileTrialContinuationCancellation, {
+      organizationId: ids.organizationId,
+      expectedBillingVersion: 2,
+      requestId: "business-trial-cancel-already-paid-request",
+    });
+
+    const result = await t.run(async (ctx) => ({
+      billing: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      subscription: await ctx.db
+        .query("organizationStripeSubscriptions")
+        .withIndex("by_organizationId_and_providerGeneration", (q) =>
+          q.eq("organizationId", ids.organizationId).eq("providerGeneration", 1),
+        )
+        .unique(),
+      operation: await ctx.db.get(operationId),
+    }));
+    expect(result.billing?.state).toEqual({ kind: "active", plan: "business" });
+    expect(result.subscription).toMatchObject({
+      status: "active",
+      plan: "business",
+      stripePriceId: BUSINESS_PRICE_ID,
+    });
+    expect(result.subscription?.terminalAt).toBeUndefined();
+    expect(result.operation).toMatchObject({
+      status: "succeeded",
+      attemptCount: 2,
+      lastErrorCode: "trial_continuation_already_paid",
+    });
+    expect(providerCalls).toEqual(["subscriptions.retrieve"]);
+  });
+
   it("期間末Free予約はprovider成功後のlocal停止を同じoperationで回収する", async () => {
     const t = convexTest(schema, modules);
     const periodEndsAt = NOW + 30 * 24 * 60 * 60_000;
@@ -3260,6 +4140,70 @@ describe("organizationStripe/actions", () => {
     expect(providerFetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    {
+      operationKind: "scheduleFree",
+      cancelAtPeriodEndSnapshot: false,
+      providerCancelAtPeriodEnd: true,
+      expectedState: (periodEndsAt: number) => ({
+        kind: "scheduledChange" as const,
+        currentPlan: "business" as const,
+        targetPlan: "free" as const,
+        effectiveAt: periodEndsAt,
+      }),
+    },
+    {
+      operationKind: "cancelFreeSchedule",
+      cancelAtPeriodEndSnapshot: true,
+      providerCancelAtPeriodEnd: false,
+      expectedState: () => ({ kind: "active" as const, plan: "business" as const }),
+    },
+  ] as const)(
+    "Business→Freeの$operationKind回復はprovider確認後もBusinessを維持する",
+    async ({ operationKind, cancelAtPeriodEndSnapshot, providerCancelAtPeriodEnd, expectedState }) => {
+      const t = convexTest(schema, modules);
+      const periodEndsAt = NOW + 30 * 24 * 60 * 60_000;
+      const ids = await seedCancelAtPeriodEndRecoveryContext(t, {
+        subject: `stripe_business_${operationKind}_recovery`,
+        operationKind,
+        cancelAtPeriodEndSnapshot,
+        periodEndsAt,
+        currentPlan: "business",
+      });
+      providerFetchMock.mockImplementation(async (input) => {
+        const resource = String(input).split("/").pop() ?? "";
+        if (resource === "subscriptions.retrieve") {
+          return providerResponse(
+            cancelAtPeriodEndSubscription(ids, {
+              cancelAtPeriodEnd: providerCancelAtPeriodEnd,
+              periodEndsAt,
+            }),
+          );
+        }
+        throw new Error(`Unexpected Stripe provider call: ${resource}`);
+      });
+
+      await t.action(internal.organizationStripe.actions.reconcileCancelAtPeriodEndChange, {
+        organizationId: ids.organizationId,
+        expectedBillingVersion: 2,
+        requestId:
+          operationKind === "scheduleFree"
+            ? "schedule-free-provider-succeeded"
+            : "cancel-free-schedule-provider-succeeded",
+        operationKind,
+      });
+
+      const result = await cancelAtPeriodEndRecoveryState(t, ids.organizationId, ids.operationId);
+      expect(result.billing?.state).toEqual(expectedState(periodEndsAt));
+      expect(result.subscription).toMatchObject({
+        plan: "business",
+        stripePriceId: BUSINESS_PRICE_ID,
+        cancelAtPeriodEnd: providerCancelAtPeriodEnd,
+      });
+      expect(result.operation).toMatchObject({ status: "succeeded", attemptCount: 2 });
+    },
+  );
+
   it("期間末Free予約の再試行でも同じStripe idempotency keyを使う", async () => {
     const t = convexTest(schema, modules);
     const periodEndsAt = NOW + 30 * 24 * 60 * 60_000;
@@ -3312,7 +4256,7 @@ describe("organizationStripe/actions", () => {
     providerFetchMock.mockImplementation(async (input) => {
       const resource = String(input).split("/").pop() ?? "";
       if (resource === "subscriptions.retrieve") {
-        return providerResponse(scheduledFreeSubscription(ids.organizationId, "active", false));
+        return providerResponse(scheduledFreeSubscription(ids, "active", false));
       }
       throw new Error(`Unexpected Stripe provider call: ${resource}`);
     });
@@ -3342,13 +4286,51 @@ describe("organizationStripe/actions", () => {
     expect(result.operation).toMatchObject({ status: "succeeded", recoveryPurpose: "scheduledFreeDeadline" });
   });
 
+  it("Business→Free期限時にStripeの取消解除を確認したらBusinessへ復帰する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedScheduledFreeStripeContext(t, "stripe_scheduled_business_cancelled", "business");
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(scheduledFreeSubscription(ids, "active", false));
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.reconcileScheduledFreeDeadline, {
+      organizationId: ids.organizationId,
+      expectedBillingVersion: 2,
+      requestId: "scheduled-business-cancelled-request",
+    });
+
+    const result = await t.run(async (ctx) => ({
+      billing: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      subscription: await ctx.db
+        .query("organizationStripeSubscriptions")
+        .withIndex("by_organizationId_and_providerGeneration", (q) =>
+          q.eq("organizationId", ids.organizationId).eq("providerGeneration", 1),
+        )
+        .unique(),
+    }));
+    expect(result.billing?.state).toEqual({ kind: "active", plan: "business" });
+    expect(result.subscription).toMatchObject({
+      plan: "business",
+      stripePriceId: BUSINESS_PRICE_ID,
+      status: "active",
+      cancelAtPeriodEnd: false,
+    });
+  });
+
   it("期間末FreeはStripeのterminal Subscription確認後にだけ確定する", async () => {
     const t = convexTest(schema, modules);
     const ids = await seedScheduledFreeStripeContext(t, "stripe_scheduled_free_confirmed");
     providerFetchMock.mockImplementation(async (input) => {
       const resource = String(input).split("/").pop() ?? "";
       if (resource === "subscriptions.retrieve") {
-        return providerResponse(scheduledFreeSubscription(ids.organizationId, "canceled", true));
+        return providerResponse(scheduledFreeSubscription(ids, "canceled", true));
       }
       throw new Error(`Unexpected Stripe provider call: ${resource}`);
     });
@@ -4235,32 +5217,41 @@ async function seedExpiredGraceStripeContext(t: TestConvex<typeof schema>, subje
   });
 }
 
-async function seedScheduledFreeStripeContext(t: TestConvex<typeof schema>, subject: string) {
+async function seedScheduledFreeStripeContext(
+  t: TestConvex<typeof schema>,
+  subject: string,
+  currentPlan: "pro" | "business" = "pro",
+) {
   return await t.run(async (ctx) => {
-    const seeded = await seedOrganizationManagerShop(ctx, { subject, plan: "pro" });
+    const seeded = await seedOrganizationManagerShop(ctx, { subject, plan: currentPlan });
+    const stripeCustomerId = `cus_scheduled_free_${currentPlan}`;
+    const stripeSubscriptionId = `sub_scheduled_free_${currentPlan}`;
+    const stripeSubscriptionItemId = `si_scheduled_free_${currentPlan}`;
+    const stripePriceId = currentPlan === "business" ? BUSINESS_PRICE_ID : READY_TEST_CONFIGURATION.proPriceId;
     const billing = await ctx.db
       .query("organizationBillingStates")
       .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
       .unique();
     if (!billing) throw new Error("billing state was not seeded");
     await ctx.db.patch(billing._id, {
-      state: { kind: "scheduledChange", currentPlan: "pro", targetPlan: "free", effectiveAt: NOW },
+      state: { kind: "scheduledChange", currentPlan, targetPlan: "free", effectiveAt: NOW },
       version: 2,
       updatedAt: NOW,
     });
     await ctx.db.insert("organizationStripeCustomers", {
       organizationId: seeded.organizationId,
-      stripeCustomerId: "cus_scheduled_free",
+      stripeCustomerId,
       livemode: false,
       createdAt: NOW,
       updatedAt: NOW,
     });
     await ctx.db.insert("organizationStripeSubscriptions", {
       organizationId: seeded.organizationId,
-      stripeCustomerId: "cus_scheduled_free",
-      stripeSubscriptionId: "sub_scheduled_free",
-      stripeSubscriptionItemId: "si_scheduled_free",
-      stripePriceId: "price_pro_test",
+      stripeCustomerId,
+      stripeSubscriptionId,
+      stripeSubscriptionItemId,
+      stripePriceId,
+      plan: currentPlan,
       livemode: false,
       status: "active",
       providerGeneration: 1,
@@ -4270,8 +5261,213 @@ async function seedScheduledFreeStripeContext(t: TestConvex<typeof schema>, subj
       createdAt: NOW,
       updatedAt: NOW,
     });
-    return seeded;
+    return {
+      ...seeded,
+      currentPlan,
+      stripeCustomerId,
+      stripeSubscriptionId,
+      stripeSubscriptionItemId,
+      stripePriceId,
+    };
   });
+}
+
+async function seedPaidPlanStripeContext(
+  t: TestConvex<typeof schema>,
+  args: {
+    subject: string;
+    plan: "pro" | "business";
+    billingState?: Doc<"organizationBillingStates">["state"];
+    scheduleId?: string;
+  },
+) {
+  return await t.run(async (ctx) => {
+    const seeded = await seedOrganizationManagerShop(ctx, { subject: args.subject, plan: args.plan });
+    if (args.billingState) {
+      const billing = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billing) throw new Error("billing state was not seeded");
+      await ctx.db.patch(billing._id, { state: args.billingState, version: 2, updatedAt: NOW });
+    }
+    const stripeCustomerId = `cus_${args.subject}`;
+    const stripeSubscriptionId = `sub_${args.subject}`;
+    const stripeSubscriptionItemId = `si_${args.subject}`;
+    const stripeSubscriptionScheduleId = args.scheduleId ?? "sub_sched_business_to_pro";
+    const periodStartsAt = NOW - 10 * 24 * 60 * 60_000;
+    const periodEndsAt = NOW + 20 * 24 * 60 * 60_000;
+    const billingCycleAnchor = periodStartsAt;
+    const stripePriceId = args.plan === "business" ? BUSINESS_PRICE_ID : READY_TEST_CONFIGURATION.proPriceId;
+    await ctx.db.insert("organizationStripeCustomers", {
+      organizationId: seeded.organizationId,
+      stripeCustomerId,
+      livemode: false,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    await ctx.db.insert("organizationStripeSubscriptions", {
+      organizationId: seeded.organizationId,
+      stripeCustomerId,
+      stripeSubscriptionId,
+      stripeSubscriptionItemId,
+      stripePriceId,
+      plan: args.plan,
+      livemode: false,
+      status: "active",
+      providerGeneration: 1,
+      currentPeriodStartsAt: periodStartsAt,
+      currentPeriodEndsAt: periodEndsAt,
+      billingCycleAnchor,
+      ...(args.scheduleId ? { stripeSubscriptionScheduleId: args.scheduleId } : {}),
+      cancelAtPeriodEnd: false,
+      latestInvoiceId: `in_${args.subject}`,
+      syncedAt: NOW,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    return {
+      ...seeded,
+      stripeCustomerId,
+      stripeSubscriptionId,
+      stripeSubscriptionItemId,
+      stripeSubscriptionScheduleId,
+      periodStartsAt,
+      periodEndsAt,
+      billingCycleAnchor,
+    };
+  });
+}
+
+function priceFixtureFor(priceId: string) {
+  return {
+    id: priceId,
+    active: true,
+    livemode: false,
+    currency: "jpy",
+    unit_amount: priceId === BUSINESS_PRICE_ID ? 2980 : 1480,
+    recurring: { interval: "month", interval_count: 1 },
+  };
+}
+
+function paidPlanSubscriptionFixture(
+  ids: Awaited<ReturnType<typeof seedPaidPlanStripeContext>>,
+  args: {
+    plan: "pro" | "business";
+    invoiceStatus: "paid" | "open";
+    subscriptionStatus?: "active" | "past_due";
+    pendingUpdate?: boolean;
+    scheduleId?: string;
+  },
+) {
+  const priceId = args.plan === "business" ? BUSINESS_PRICE_ID : READY_TEST_CONFIGURATION.proPriceId;
+  const invoiceId = `in_${ids.stripeSubscriptionId}_${args.invoiceStatus}`;
+  return {
+    id: ids.stripeSubscriptionId,
+    customer: ids.stripeCustomerId,
+    livemode: false,
+    status: args.subscriptionStatus ?? "active",
+    metadata: {
+      shiftori_organization_id: String(ids.organizationId),
+      shiftori_provider_generation: "1",
+      shiftori_price_id: priceId,
+    },
+    billing_cycle_anchor: Math.floor(ids.billingCycleAnchor / 1000),
+    trial_end: null,
+    cancel_at_period_end: false,
+    schedule: args.scheduleId ?? null,
+    ...(args.pendingUpdate ? { pending_update: { expires_at: Math.floor((NOW + 60_000) / 1000) } } : {}),
+    latest_invoice: {
+      id: invoiceId,
+      customer: ids.stripeCustomerId,
+      livemode: false,
+      status: args.invoiceStatus,
+      amount_remaining: args.invoiceStatus === "paid" ? 0 : 1500,
+      created: Math.floor(NOW / 1000),
+      status_transitions: { finalized_at: Math.floor(NOW / 1000) },
+      parent: { subscription_details: { subscription: ids.stripeSubscriptionId } },
+    },
+    items: {
+      data: [
+        {
+          id: ids.stripeSubscriptionItemId,
+          quantity: 1,
+          current_period_start: Math.floor(ids.periodStartsAt / 1000),
+          current_period_end: Math.floor(ids.periodEndsAt / 1000),
+          price: priceFixtureFor(priceId),
+        },
+      ],
+    },
+  };
+}
+
+function subscriptionScheduleFixture(
+  ids: Awaited<ReturnType<typeof seedPaidPlanStripeContext>>,
+  args: { status: "not_started" | "active" | "released"; phases?: unknown[] },
+) {
+  return {
+    id: ids.stripeSubscriptionScheduleId,
+    customer: ids.stripeCustomerId,
+    subscription: ids.stripeSubscriptionId,
+    released_subscription: args.status === "released" ? ids.stripeSubscriptionId : null,
+    livemode: false,
+    status: args.status,
+    metadata: {
+      shiftori_organization_id: String(ids.organizationId),
+      shiftori_provider_generation: "1",
+      shiftori_price_id: READY_TEST_CONFIGURATION.proPriceId,
+    },
+    current_phase: { start_date: Math.floor(ids.periodStartsAt / 1000) },
+    phases: args.phases ?? [],
+  };
+}
+
+async function seedAdditionalOrganizationStaff(
+  t: TestConvex<typeof schema>,
+  ids: { organizationId: Id<"organizations">; shopId: Id<"shops"> },
+  count: number,
+) {
+  await t.run(async (ctx) => {
+    for (let index = 0; index < count; index += 1) {
+      const email = `stripe-over-limit-${index}@example.com`;
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId: ids.organizationId,
+        name: `超過スタッフ${index + 1}`,
+        email,
+        emailNormalized: email,
+        status: "active",
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      await ctx.db.insert("staffs", {
+        organizationId: ids.organizationId,
+        organizationPersonId: personId,
+        shopId: ids.shopId,
+        name: `超過スタッフ${index + 1}`,
+        email,
+        emailNormalized: email,
+        isDeleted: false,
+      });
+    }
+  });
+}
+
+async function paidPlanStripeState(t: TestConvex<typeof schema>, organizationId: Id<"organizations">) {
+  return await t.run(async (ctx) => ({
+    billing: await ctx.db
+      .query("organizationBillingStates")
+      .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+      .unique(),
+    subscription: await ctx.db
+      .query("organizationStripeSubscriptions")
+      .withIndex("by_organizationId_and_providerGeneration", (q) => q.eq("organizationId", organizationId))
+      .order("desc")
+      .first(),
+    operations: await ctx.db
+      .query("organizationStripeOperations")
+      .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId))
+      .collect(),
+  }));
 }
 
 async function seedCancelAtPeriodEndRecoveryContext(
@@ -4281,10 +5477,13 @@ async function seedCancelAtPeriodEndRecoveryContext(
     operationKind: "scheduleFree" | "cancelFreeSchedule";
     cancelAtPeriodEndSnapshot: boolean;
     periodEndsAt: number;
+    currentPlan?: "pro" | "business";
   },
 ) {
   return await t.run(async (ctx) => {
-    const seeded = await seedOrganizationManagerShop(ctx, { subject: args.subject, plan: "pro" });
+    const currentPlan = args.currentPlan ?? "pro";
+    const stripePriceId = currentPlan === "business" ? BUSINESS_PRICE_ID : READY_TEST_CONFIGURATION.proPriceId;
+    const seeded = await seedOrganizationManagerShop(ctx, { subject: args.subject, plan: currentPlan });
     const billing = await ctx.db
       .query("organizationBillingStates")
       .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
@@ -4293,10 +5492,10 @@ async function seedCancelAtPeriodEndRecoveryContext(
     await ctx.db.patch(billing._id, {
       state:
         args.operationKind === "scheduleFree"
-          ? { kind: "active", plan: "pro" }
+          ? { kind: "active", plan: currentPlan }
           : {
               kind: "scheduledChange",
-              currentPlan: "pro",
+              currentPlan,
               targetPlan: "free",
               effectiveAt: args.periodEndsAt,
             },
@@ -4318,7 +5517,8 @@ async function seedCancelAtPeriodEndRecoveryContext(
       stripeCustomerId,
       stripeSubscriptionId,
       stripeSubscriptionItemId: `si_${suffix}`,
-      stripePriceId: "price_pro_test",
+      stripePriceId,
+      plan: currentPlan,
       livemode: false,
       status: "active",
       providerGeneration: 1,
@@ -4355,6 +5555,8 @@ async function seedCancelAtPeriodEndRecoveryContext(
       stripeSubscriptionId,
       stripeIdempotencyKey,
       stripeSubscriptionItemId: `si_${suffix}`,
+      stripePriceId,
+      currentPlan,
     };
   });
 }
@@ -4365,6 +5567,7 @@ function cancelAtPeriodEndSubscription(
     stripeCustomerId: string;
     stripeSubscriptionId: string;
     stripeSubscriptionItemId: string;
+    stripePriceId: string;
   },
   args: { cancelAtPeriodEnd: boolean; periodEndsAt: number },
 ) {
@@ -4376,7 +5579,7 @@ function cancelAtPeriodEndSubscription(
     metadata: {
       shiftori_organization_id: String(ids.organizationId),
       shiftori_provider_generation: "1",
-      shiftori_price_id: "price_pro_test",
+      shiftori_price_id: ids.stripePriceId,
     },
     trial_end: null,
     cancel_at_period_end: args.cancelAtPeriodEnd,
@@ -4387,7 +5590,7 @@ function cancelAtPeriodEndSubscription(
           id: ids.stripeSubscriptionItemId,
           current_period_end: Math.floor(args.periodEndsAt / 1000),
           price: {
-            id: "price_pro_test",
+            id: ids.stripePriceId,
             active: true,
             livemode: false,
             recurring: { interval: "month", interval_count: 1 },
@@ -4419,19 +5622,19 @@ async function cancelAtPeriodEndRecoveryState(
 }
 
 function scheduledFreeSubscription(
-  organizationId: Id<"organizations">,
+  ids: Awaited<ReturnType<typeof seedScheduledFreeStripeContext>>,
   status: "active" | "canceled",
   cancelAtPeriodEnd: boolean,
 ) {
   return {
-    id: "sub_scheduled_free",
-    customer: "cus_scheduled_free",
+    id: ids.stripeSubscriptionId,
+    customer: ids.stripeCustomerId,
     livemode: false,
     status,
     metadata: {
-      shiftori_organization_id: String(organizationId),
+      shiftori_organization_id: String(ids.organizationId),
       shiftori_provider_generation: "1",
-      shiftori_price_id: "price_pro_test",
+      shiftori_price_id: ids.stripePriceId,
     },
     trial_end: null,
     cancel_at_period_end: cancelAtPeriodEnd,
@@ -4439,10 +5642,10 @@ function scheduledFreeSubscription(
     items: {
       data: [
         {
-          id: "si_scheduled_free",
+          id: ids.stripeSubscriptionItemId,
           current_period_end: Math.floor(NOW / 1000),
           price: {
-            id: "price_pro_test",
+            id: ids.stripePriceId,
             active: true,
             livemode: false,
             recurring: { interval: "month", interval_count: 1 },
@@ -4503,9 +5706,16 @@ function stripeInvoice(id: string) {
 
 async function seedInactivePriceTrialRecovery(
   t: TestConvex<typeof schema>,
-  args: { suffix: string; trialEndsAt: number; source: "unbound" | "mapped" },
+  args: {
+    suffix: string;
+    trialEndsAt: number;
+    source: "unbound" | "mapped";
+    targetPlan?: "pro" | "business";
+  },
 ) {
   return await t.run(async (ctx) => {
+    const targetPlan = args.targetPlan ?? "pro";
+    const stripePriceId = targetPlan === "business" ? BUSINESS_PRICE_ID : READY_TEST_CONFIGURATION.proPriceId;
     const seeded = await seedOrganizationManagerShop(ctx, { subject: `stripe_${args.suffix}` });
     const billing = await ctx.db
       .query("organizationBillingStates")
@@ -4537,7 +5747,10 @@ async function seedInactivePriceTrialRecovery(
       livemode: false,
       expectedBillingVersion: 2,
       providerGeneration: 1,
-      stripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId,
+      targetPlan,
+      changeMode: "checkout",
+      stripePriceIdSnapshot: stripePriceId,
+      targetStripePriceIdSnapshot: stripePriceId,
       stripeObjectId: stripeSessionId,
       status: "succeeded",
       attemptCount: 1,
@@ -4554,7 +5767,10 @@ async function seedInactivePriceTrialRecovery(
       livemode: false,
       expectedBillingVersion: 2,
       providerGeneration: 1,
-      stripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId,
+      targetPlan,
+      changeMode: "checkout",
+      stripePriceIdSnapshot: stripePriceId,
+      targetStripePriceIdSnapshot: stripePriceId,
       trialSubscriptionCreateSnapshot: {
         stripeCustomerId,
         stripePaymentMethodId,
@@ -4575,7 +5791,8 @@ async function seedInactivePriceTrialRecovery(
         stripeCustomerId,
         stripeSubscriptionId,
         stripeSubscriptionItemId: `si_${args.suffix}`,
-        stripePriceId: READY_TEST_CONFIGURATION.proPriceId,
+        stripePriceId,
+        plan: targetPlan,
         livemode: false,
         status: "trialing",
         providerGeneration: 1,
@@ -4611,6 +5828,8 @@ async function seedInactivePriceTrialRecovery(
       stripeSubscriptionId,
       stripeSubscriptionItemId: `si_${args.suffix}`,
       trialEndsAt: args.trialEndsAt,
+      targetPlan,
+      stripePriceId,
     };
   });
 }
@@ -4628,7 +5847,7 @@ function inactivePriceTrialSubscription(
       shiftori_organization_id: String(ids.organizationId),
       shiftori_operation_id: String(ids.sourceOperationId),
       shiftori_provider_generation: "1",
-      shiftori_price_id: READY_TEST_CONFIGURATION.proPriceId,
+      shiftori_price_id: ids.stripePriceId,
     },
     trial_end: Math.floor(ids.trialEndsAt / 1000),
     cancel_at_period_end: false,
@@ -4639,7 +5858,7 @@ function inactivePriceTrialSubscription(
           id: ids.stripeSubscriptionItemId,
           current_period_end: Math.floor(ids.trialEndsAt / 1000),
           price: {
-            id: READY_TEST_CONFIGURATION.proPriceId,
+            id: ids.stripePriceId,
             active: false,
             livemode: false,
             recurring: { interval: "month", interval_count: 1 },
@@ -4681,13 +5900,13 @@ function mockInactivePriceMappedWebhook(
           shiftori_organization_id: String(ids.organizationId),
           shiftori_operation_id: String(ids.checkoutOperationId),
           shiftori_provider_generation: "1",
-          shiftori_price_id: READY_TEST_CONFIGURATION.proPriceId,
+          shiftori_price_id: ids.stripePriceId,
         },
       });
     }
     if (resource === "prices.retrieve") {
       return providerResponse({
-        id: READY_TEST_CONFIGURATION.proPriceId,
+        id: ids.stripePriceId,
         active: false,
         livemode: false,
         currency: "jpy",

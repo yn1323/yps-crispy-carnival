@@ -12,6 +12,7 @@ export const organizationBillingNotificationEventValidator = v.union(
   v.literal("planActivated"),
   v.literal("proDowngradeNotApplied"),
   v.literal("paidActivationFailedFreeContinued"),
+  v.literal("paidActivationFailedProContinued"),
   v.literal("paidActivationFailedRestrictedContinued"),
   v.literal("graceStarted"),
   v.literal("graceEndingSoon"),
@@ -19,6 +20,13 @@ export const organizationBillingNotificationEventValidator = v.union(
   v.literal("recovered"),
   v.literal("billingEmailChanged"),
 );
+
+export const organizationBillingNotificationDetailsValidator = v.object({
+  targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+  amountDue: v.optional(v.number()),
+  currency: v.optional(v.string()),
+  effectiveAt: v.optional(v.number()),
+});
 
 export type OrganizationBillingNotificationEvent =
   | "trialEnding"
@@ -29,6 +37,7 @@ export type OrganizationBillingNotificationEvent =
   | "planActivated"
   | "proDowngradeNotApplied"
   | "paidActivationFailedFreeContinued"
+  | "paidActivationFailedProContinued"
   | "paidActivationFailedRestrictedContinued"
   | "graceStarted"
   | "graceEndingSoon"
@@ -38,17 +47,30 @@ export type OrganizationBillingNotificationEvent =
 
 export type TrialEndingNotificationDetails = {
   trialEndsAt: number;
-  selectedPaidPlan?: "pro";
+  selectedPaidPlan?: "pro" | "business";
+};
+
+export type OrganizationBillingNotificationDetails = {
+  targetPlan?: "free" | "pro" | "business";
+  amountDue?: number;
+  currency?: string;
+  effectiveAt?: number;
 };
 
 export function organizationBillingNotificationCopy(
   event: OrganizationBillingNotificationEvent,
   trialEnding?: TrialEndingNotificationDetails,
+  details?: OrganizationBillingNotificationDetails,
 ) {
   switch (event) {
     case "trialEnding": {
       const trialEndsAtLabel = trialEnding ? formatDateTimeLabel(trialEnding.trialEndsAt) : "トライアル終了日時";
-      const selectedPlanLabel = trialEnding?.selectedPaidPlan === "pro" ? "Pro" : null;
+      const selectedPlanLabel =
+        trialEnding?.selectedPaidPlan === "pro"
+          ? "Pro"
+          : trialEnding?.selectedPaidPlan === "business"
+            ? "Business"
+            : null;
       return {
         subject: "トライアル終了まで7日です",
         heading: "トライアル終了まで7日です",
@@ -70,7 +92,7 @@ export function organizationBillingNotificationCopy(
         subject: "初回請求の結果を確認しています",
         heading: "初回請求の結果を確認しています",
         paragraphs: [
-          "支払い結果を確認しています。確認中も、選択した有料プランの機能を利用できます。",
+          "支払い結果を確認しています。確認中も、トライアルと同じPro相当の機能を利用できます。",
           "結果が確定すると、グループ設定へ反映されます。",
         ],
       };
@@ -83,15 +105,20 @@ export function organizationBillingNotificationCopy(
           "閲覧のみになった管理者とプラン停止中の店舗は、グループ設定から確認できます。",
         ],
       };
-    case "scheduledChange":
+    case "scheduledChange": {
+      const targetPlanLabel = details?.targetPlan ? planLabel(details.targetPlan) : "変更先プラン";
+      const effectiveAtLabel = details?.effectiveAt
+        ? formatDateTimeLabel(details.effectiveAt)
+        : "現在の支払い済み期間の終了時";
       return {
-        subject: "プラン変更を予約しました",
-        heading: "プラン変更を予約しました",
+        subject: `${targetPlanLabel}への変更を予約しました`,
+        heading: `${targetPlanLabel}への変更を予約しました`,
         paragraphs: [
-          "現在の支払い済み期間が終わるまでは、現在の有料プランを利用できます。",
+          `${effectiveAtLabel}に${targetPlanLabel}へ変更します。それまでは現在の有料プランを利用できます。`,
           "適用時には利用人数、管理者、店舗の状態をもう一度確認します。",
         ],
       };
+    }
     case "scheduledChangeCanceled":
       return {
         subject: "プラン変更予約を取り消しました",
@@ -101,12 +128,18 @@ export function organizationBillingNotificationCopy(
           "現在の有料プランを継続します。現在の契約状態はグループ設定で確認できます。",
         ],
       };
-    case "planActivated":
+    case "planActivated": {
+      const targetPlanLabel = details?.targetPlan ? planLabel(details.targetPlan) : "有料プラン";
+      const billingSummary = formatBillingSummary(details);
       return {
-        subject: "有料プランを開始しました",
-        heading: "有料プランを開始しました",
-        paragraphs: ["支払い結果を確認し、有料プランを開始しました。現在の利用状況はグループ設定で確認できます。"],
+        subject: `${targetPlanLabel}を開始しました`,
+        heading: `${targetPlanLabel}を開始しました`,
+        paragraphs: [
+          `支払い結果を確認し、${targetPlanLabel}を開始しました。${billingSummary}`,
+          "現在の利用状況はグループ設定で確認できます。",
+        ],
       };
+    }
     case "proDowngradeNotApplied":
       return {
         subject: "Proへの変更を適用できませんでした",
@@ -123,6 +156,15 @@ export function organizationBillingNotificationCopy(
         paragraphs: [
           "支払いを確認できなかったため、有料プランを開始しませんでした。",
           "無料を継続しています。支払い方法を確認してから、もう一度お手続きください。",
+        ],
+      };
+    case "paidActivationFailedProContinued":
+      return {
+        subject: "Businessへの変更を完了できませんでした",
+        heading: "Proを継続しています",
+        paragraphs: [
+          "支払いを確認できなかったため、Businessへの変更を適用しませんでした。",
+          "Proを継続しています。支払い方法を確認してから、もう一度お手続きください。",
         ],
       };
     case "paidActivationFailedRestrictedContinued":
@@ -179,4 +221,32 @@ export function organizationBillingNotificationCopy(
         ],
       };
   }
+}
+
+function planLabel(plan: "free" | "pro" | "business") {
+  if (plan === "free") return "Free";
+  if (plan === "pro") return "Pro";
+  return "Business";
+}
+
+function formatBillingSummary(details?: OrganizationBillingNotificationDetails) {
+  const parts: string[] = [];
+  if (details?.amountDue !== undefined && details.currency) {
+    parts.push(`今回の請求額は${formatCurrencyAmount(details.currency, details.amountDue)}です。`);
+  }
+  if (details?.effectiveAt !== undefined) {
+    parts.push(`適用日時は${formatDateTimeLabel(details.effectiveAt)}です。`);
+  }
+  return parts.join("");
+}
+
+function formatCurrencyAmount(currencyValue: string, amountInMinorUnit: number) {
+  const currency = currencyValue.toUpperCase();
+  const formatter = new Intl.NumberFormat("ja-JP", {
+    style: "currency",
+    currency,
+    currencyDisplay: "code",
+  });
+  const fractionDigits = formatter.resolvedOptions().maximumFractionDigits ?? 0;
+  return formatter.format(amountInMinorUnit / 10 ** fractionDigits);
 }

@@ -70,13 +70,20 @@ export class UserDetailPage {
     await this.closeDialog(dialog);
   }
 
-  async removeFromOrganization() {
+  async removeFromOrganization(options: { expectedAssignmentCount?: number } = {}) {
     await this.page.getByRole("button", { name: "削除", exact: true }).click();
     const confirmation = this.page.getByRole("alertdialog", {
       name: `${this.personName}さんをグループから削除しますか？`,
     });
     await expect(confirmation).toBeVisible();
     await expect(confirmation.getByText(/ほかのグループへの所属には影響しません/)).toBeVisible();
+    if (options.expectedAssignmentCount !== undefined) {
+      await expect(
+        confirmation.getByText(`今日以降のシフト${options.expectedAssignmentCount}件からも外れます。`, {
+          exact: true,
+        }),
+      ).toBeVisible();
+    }
     await confirmation.getByRole("button", { name: "グループから削除" }).click();
     await this.expectToastVisibleThenHidden("ユーザーをグループから削除しました");
     await expect(this.page).toHaveURL(/\/settings\?/, { timeout: USER_DETAIL_DATA_TIMEOUT });

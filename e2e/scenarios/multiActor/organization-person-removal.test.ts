@@ -5,6 +5,12 @@ import { seedMultiActorOrganizationScenario } from "../../helpers/scenarioSeeds"
 import { DashboardPage } from "../../pages/DashboardPage";
 import { ManagerInvitationPage } from "../../pages/ManagerInvitationPage";
 import { OrganizationSettingsPage } from "../../pages/OrganizationSettingsPage";
+import { ShiftBoardPage } from "../../pages/ShiftBoardPage";
+
+function jstDate(daysFromToday: number) {
+  const date = new Date(Date.now() + 9 * 60 * 60 * 1000 + daysFromToday * 24 * 60 * 60 * 1000);
+  return date.toISOString().slice(0, 10);
+}
 
 test.describe("グループからの利用者削除", { tag: ["@release", "@security"] }, () => {
   test.setTimeout(75_000);
@@ -21,11 +27,18 @@ test.describe("グループからの利用者削除", { tag: ["@release", "@secu
       actorBName: "グループ削除対象B",
       alternateOrganizationName: "利用者削除E2E別グループ",
       alternateShopName: "利用者削除E2E別店舗",
+      personRemovalAssignments: { today: jstDate(0), future: jstDate(1) },
     });
+    const personRemovalRecruitmentId = seed.personRemovalRecruitmentId;
+    const personRemovalAssignmentCount = seed.personRemovalAssignmentCount;
+    if (!personRemovalRecruitmentId || personRemovalAssignmentCount === undefined) {
+      throw new Error("人物削除E2Eのシフト割当前提がありません");
+    }
     const settingsA = new OrganizationSettingsPage(actorA.page);
     const dashboardA = new DashboardPage(actorA.page);
     const dashboardB = new DashboardPage(actorB.page);
     const invitationB = new ManagerInvitationPage(actorB.page);
+    const shiftBoardA = new ShiftBoardPage(actorA.page);
 
     await test.step("Step 1: AがBを管理者として招待し、Bが主グループへ連携する", async () => {
       await settingsA.goto(seed.primaryShopId);
@@ -47,8 +60,13 @@ test.describe("グループからの利用者削除", { tag: ["@release", "@secu
 
     await test.step("Step 2: AがBを主グループから削除し、全店舗の表示から除外する", async () => {
       await settingsA.goto(seed.primaryShopId);
-      await settingsA.removePerson(seed.actorBName);
+      await settingsA.removePerson(seed.actorBName, {
+        expectedAssignmentCount: personRemovalAssignmentCount,
+      });
       await settingsA.expectPersonNotVisible(seed.actorBName);
+
+      await shiftBoardA.goto(personRemovalRecruitmentId, seed.primaryShopId);
+      await shiftBoardA.expectStaffNotVisible(seed.actorBName);
 
       await dashboardA.goto(seed.primaryShopId);
       await dashboardA.expectStaffNotVisible(seed.actorBName);

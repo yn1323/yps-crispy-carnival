@@ -1,4 +1,6 @@
 import { v } from "convex/values";
+import type { Doc } from "../_generated/dataModel";
+import { isPastShiftPeriod } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
 import { getSubmissionPatternTimeRange, submissionPatternValidator } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
@@ -42,6 +44,7 @@ const shiftBoardDataValidator = v.object({
     v.object({
       _id: v.id("staffs"),
       name: v.string(),
+      isRemoved: v.boolean(),
       isSubmitted: v.boolean(),
       createdAt: v.number(),
       wasSubmittedAtDraft: v.boolean(),
@@ -80,6 +83,7 @@ const shiftBoardDataValidator = v.object({
 export const getShiftBoardData = managerQuery({
   args: {
     recruitmentId: v.id("recruitments"),
+    asOfDate: v.string(),
   },
   returns: v.union(shiftBoardDataValidator, v.null()),
   handler: async (ctx, args) => {
@@ -118,6 +122,18 @@ export const getShiftBoardData = managerQuery({
       .query("shiftSubmissions")
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
       .take(SHIFT_BOARD_STAFF_LIMIT);
+    const activeShiftTargetStaffs = allStaffs.filter(isShiftTargetStaff);
+    const historicalRemovedStaffs: Doc<"staffs">[] = [];
+    if (isPastShiftPeriod(recruitment.periodEnd, args.asOfDate)) {
+      const activeStaffIds = new Set(activeShiftTargetStaffs.map((staff) => staff._id));
+      const removedStaffIds = [...new Set(shiftAssignments.map((assignment) => assignment.staffId))].filter(
+        (staffId) => !activeStaffIds.has(staffId),
+      );
+      for (const staffId of removedStaffIds.slice(0, SHIFT_BOARD_STAFF_LIMIT - activeShiftTargetStaffs.length)) {
+        const removedStaff = await ctx.db.get(staffId);
+        if (removedStaff?.isDeleted && removedStaff.shopId === shop._id) historicalRemovedStaffs.push(removedStaff);
+      }
+    }
     const submissionByStaffId = new Map(submissions.map((s) => [s.staffId, s]));
     const submittedStaffIds = new Set(submissions.map((s) => s.staffId));
     // draftSavedAt 導入前の既存データは、保存済み assignment の作成時刻を暫定の保存時刻として扱う。
@@ -160,21 +176,32 @@ export const getShiftBoardData = managerQuery({
         draftSavedAt: effectiveDraftSavedAt,
       },
       submissionPattern,
-      staffs: allStaffs.filter(isShiftTargetStaff).map((s) => {
-        const submission = submissionByStaffId.get(s._id);
-        // firstSubmittedAt がない既存 submission は submittedAt を初回提出時刻として扱う。
-        const firstSubmittedAt = submission ? (submission.firstSubmittedAt ?? submission.submittedAt) : null;
-        return {
-          _id: s._id,
-          name: s.name,
-          isSubmitted: submittedStaffIds.has(s._id),
-          createdAt: s._creationTime,
-          wasSubmittedAtDraft:
-            effectiveDraftSavedAt !== null && firstSubmittedAt !== null
-              ? firstSubmittedAt <= effectiveDraftSavedAt
-              : false,
-        };
-      }),
+      staffs: [
+        ...activeShiftTargetStaffs.map((s) => {
+          const submission = submissionByStaffId.get(s._id);
+          // firstSubmittedAt がない既存 submission は submittedAt を初回提出時刻として扱う。
+          const firstSubmittedAt = submission ? (submission.firstSubmittedAt ?? submission.submittedAt) : null;
+          return {
+            _id: s._id,
+            name: s.name,
+            isRemoved: false,
+            isSubmitted: submittedStaffIds.has(s._id),
+            createdAt: s._creationTime,
+            wasSubmittedAtDraft:
+              effectiveDraftSavedAt !== null && firstSubmittedAt !== null
+                ? firstSubmittedAt <= effectiveDraftSavedAt
+                : false,
+          };
+        }),
+        ...historicalRemovedStaffs.map((staff) => ({
+          _id: staff._id,
+          name: staff.name,
+          isRemoved: true,
+          isSubmitted: true,
+          createdAt: staff._creationTime,
+          wasSubmittedAtDraft: false,
+        })),
+      ],
       positions: positions.map((p) => ({ _id: p._id, name: p.name, color: p.color, isDefault: Boolean(p.isDefault) })),
       requestedSlots: shiftSlots.map((r) => ({
         staffId: r.staffId,

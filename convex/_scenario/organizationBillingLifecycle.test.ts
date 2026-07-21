@@ -866,14 +866,14 @@ describe("事業者課金ライフサイクル", () => {
     expect(settings?.canAddShop).toBe(false);
   });
 
-  it("料金なしのProは30人5店舗まで利用でき、Stripeデータと課金通知を作らない", async () => {
+  it("料金なしのBusinessは40人5店舗まで利用でき、Stripeデータと課金通知を作らない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
         subject: "complimentary_pro_limits",
         complimentary: true,
       });
-      for (let index = 1; index < 30; index += 1) {
+      for (let index = 1; index < 40; index += 1) {
         await addStaffPerson(ctx, seeded.organizationId, seeded.shopId, `complimentary_pro_staff_${index}`);
       }
       const billingState = await ctx.db
@@ -901,10 +901,10 @@ describe("事業者課金ライフサイクル", () => {
     expect(settings).toMatchObject({
       canAddShop: false,
       billing: {
-        state: "pro",
-        currentPlan: "pro",
+        state: "business",
+        currentPlan: "business",
         isComplimentary: true,
-        peopleUsage: { current: 30, max: 30 },
+        peopleUsage: { current: 40, max: 40 },
         shopUsage: { current: 5, max: 5 },
         canManagePlan: false,
         canUpdatePaymentMethod: false,

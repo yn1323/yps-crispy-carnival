@@ -1,5 +1,6 @@
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import { todayJST } from "../_lib/dateFormat";
 import { generateUUID } from "../_lib/uuid";
 import type { ScenarioTest } from "./scenarioBuilders";
 
@@ -212,10 +213,11 @@ export function createScenario(t: ScenarioTest) {
         getManagerConsentStatus() {
           return asManager.query(api.legal.queries.getManagerConsentStatus, {});
         },
-        async getShiftBoardData(recruitmentId: Id<"recruitments">) {
+        async getShiftBoardData(recruitmentId: Id<"recruitments">, asOfDate: string = todayJST()) {
           return asManager.query(api.shiftBoard.queries.getShiftBoardData, {
             recruitmentId,
             shopId: await getSelectedShopId(),
+            asOfDate,
           });
         },
       };

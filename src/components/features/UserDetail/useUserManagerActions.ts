@@ -4,6 +4,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { getConvexErrorMessage } from "@/src/lib/convex/error";
 import type { UserDetailData, UserDetailDialog } from "./types";
 
 export function useUserManagerActions({
@@ -72,14 +73,23 @@ export function useUserManagerActions({
           description:
             data.memberships.length > 0
               ? "スタッフとしての店舗所属は維持しています。"
-              : "店舗所属がないため、このグループへのアクセスも終了しました。",
+              : "このグループへのアクセスを終了しました。ユーザー情報とシフト記録は残しています。",
         });
         setDialog(null);
         if (data.isSelf || data.memberships.length === 0) onPersonRemoved();
         return;
       }
 
-      await removePerson({ shopId, personId: data.person.id, requestId });
+      if (dialog.removalPreview.kind !== "ready") return;
+      await removePerson({
+        shopId,
+        personId: data.person.id,
+        requestId,
+        removalPreview: {
+          assignmentCount: dialog.removalPreview.assignmentCount,
+          fingerprint: dialog.removalPreview.fingerprint,
+        },
+      });
       setDialog(null);
       showSuccessToast({
         title: "ユーザーをグループから削除しました",
@@ -87,6 +97,7 @@ export function useUserManagerActions({
       });
       onPersonRemoved();
     } catch (error) {
+      if (getConvexErrorMessage(error)?.includes("今日以降のシフト割当が変更されました")) setDialog(null);
       showErrorToast(error);
     }
   });
@@ -105,7 +116,9 @@ export function useUserManagerActions({
       if (operationShopId && canAttemptManagerRoleRemoval) setDialog({ kind: "removeManagerRole" });
     },
     onRequestRemovePerson: () => {
-      if (operationShopId && canAttemptPersonRemoval) setDialog({ kind: "removePerson" });
+      if (operationShopId && canAttemptPersonRemoval) {
+        setDialog({ kind: "removePerson", removalPreview: data.removalPreview });
+      }
     },
     onConfirmRemoval: confirmRemoval,
     onCloseDialog: () => setDialog(null),

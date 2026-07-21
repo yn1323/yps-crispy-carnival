@@ -225,8 +225,10 @@ describe("organization/queries.getSettings", () => {
         isComplimentary: false,
         hasTrialContinuation: false,
         hasStripeCustomer: true,
-        peopleUsage: { current: 1, max: 30 },
-        shopUsage: { current: 1, max: 5 },
+        peopleUsage: { current: 2, max: 20, pendingInvitations: 1 },
+        shopUsage: { current: 1, max: 5, pendingInvitations: 0 },
+        managerUsage: { current: 2, max: 5, pendingInvitations: 1 },
+        requiredReductions: { people: 0, shops: 0, managers: 0 },
         stripeBillingAvailable: true,
         canUpdatePaymentMethod: true,
         canScheduleFree: true,
@@ -314,8 +316,9 @@ describe("organization/queries.getSettings", () => {
     expect(result?.billing).toMatchObject({
       state: "trial",
       currentPlan: "trial",
-      peopleUsage: { current: 1, max: 30 },
-      shopUsage: { current: 1, max: 5 },
+      peopleUsage: { current: 1, max: 20, pendingInvitations: 0 },
+      shopUsage: { current: 1, max: 5, pendingInvitations: 0 },
+      managerUsage: { current: 1, max: 5, pendingInvitations: 0 },
       stripeBillingAvailable: false,
       canManagePlan: false,
       canUpdatePaymentMethod: false,
@@ -382,7 +385,7 @@ describe("organization/queries.getSettings", () => {
       .withIdentity({ subject: "settings_active_shop_usage" })
       .query(api.organization.queries.getSettings, { shopId: ids.shopId });
 
-    expect(result?.billing.shopUsage).toEqual({ current: 4, max: 5 });
+    expect(result?.billing.shopUsage).toEqual({ current: 4, max: 5, pendingInvitations: 0 });
     expect(result?.shops).toHaveLength(6);
     expect(result?.canAddShop).toBe(true);
   });
@@ -462,7 +465,7 @@ describe("organization/queries.getSettings", () => {
       .withIdentity({ subject: "settings_unassigned_staff" })
       .query(api.organization.queries.getSettings, { shopId: ids.shopId });
 
-    expect(result?.billing.peopleUsage).toEqual({ current: 2, max: 30 });
+    expect(result?.billing.peopleUsage).toEqual({ current: 2, max: 40, pendingInvitations: 0 });
     expect(
       result?.people.map(({ id, isStaff, managerRole, shopNames, shopIds }) => ({
         id,
@@ -730,12 +733,13 @@ describe("organization/queries.getSettings", () => {
     expect(result).toMatchObject({
       canAddShop: true,
       billing: {
-        state: "pro",
-        currentPlan: "pro",
+        state: "business",
+        currentPlan: "business",
         isComplimentary: true,
         hasTrialContinuation: false,
-        peopleUsage: { current: 1, max: 30 },
-        shopUsage: { current: 1, max: 5 },
+        peopleUsage: { current: 1, max: 40, pendingInvitations: 0 },
+        shopUsage: { current: 1, max: 5, pendingInvitations: 0 },
+        managerUsage: { current: 1, max: 5, pendingInvitations: 0 },
         canManagePlan: false,
         canUpdatePaymentMethod: false,
         canUpdateBillingEmail: false,
@@ -1280,7 +1284,7 @@ describe("organization/queries.getSettings", () => {
     expect(result?.billing).toMatchObject({
       state: "pendingActivation",
       currentPlan: null,
-      targetPlan: "pro",
+      targetPlan: "business",
       canManagePlan: false,
       managePlanDisabledReason: "支払い結果を確認中のため、別のプラン変更はできません。",
       canUpdatePaymentMethod: false,
@@ -1456,7 +1460,7 @@ describe("organization/queries.getSettings", () => {
     });
   });
 
-  it("将来シフトがある人物は削除を止める", async () => {
+  it("将来シフトがある人物も削除確認へ進める", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -1516,10 +1520,8 @@ describe("organization/queries.getSettings", () => {
       .withIdentity({ subject: "settings_future_assignment" })
       .query(api.organization.queries.getSettings, { shopId: ids.shopId });
 
-    expect(result?.people.find((person) => person.id === ids.personId)).toMatchObject({
-      canRemove: false,
-      removeDisabledReason: "将来のシフト割当を解除してから削除してください。",
-    });
+    expect(result?.people.find((person) => person.id === ids.personId)).toMatchObject({ canRemove: true });
+    expect(result?.people.find((person) => person.id === ids.personId)).not.toHaveProperty("removeDisabledReason");
     expect(result?.people.find((person) => person.id === ids.personId)).not.toHaveProperty("futureAssignments");
   });
 

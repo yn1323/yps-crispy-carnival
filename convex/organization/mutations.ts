@@ -27,6 +27,11 @@ import { type OrganizationActor, requireOrganizationActorForShop } from "./acces
 import { type OrganizationAuditAction, recordOrganizationAuditEvent } from "./audit";
 import { getOrganizationDeletionEligibility } from "./deletion";
 import { updateOrganizationPersonProfile } from "./personProfile";
+import {
+  collectPersonRemovalPreview,
+  expectedPersonRemovalPreviewValidator,
+  type PersonRemovalPreview,
+} from "./personRemoval";
 import { organizationNameSchema } from "./schemas";
 import {
   getValidActiveOrganizationManagerPersonIds,
@@ -674,7 +679,8 @@ export const deleteOrganization = authenticatedMutation({
 });
 
 const personRemovalResultValidator = v.object({ changed: v.boolean() });
-const FUTURE_ASSIGNMENT_ERROR = "将来のシフト割当を解除してから削除してください";
+const STALE_PERSON_REMOVAL_PREVIEW_ERROR =
+  "今日以降のシフト割当が変更されました。内容を確認して、もう一度削除してください";
 
 type PersonRemovalCtx = MutationCtx & { user: Doc<"users"> | null };
 
@@ -744,18 +750,28 @@ async function authorizeOrganizationPersonRemoval(ctx: MutationCtx, actor: Organ
   return billingState;
 }
 
-async function hasFutureAssignment(ctx: MutationCtx, staffIds: readonly Id<"staffs">[]) {
-  const today = todayJST();
-  for (const staffId of staffIds) {
-    const assignments = ctx.db
-      .query("shiftAssignments")
-      .withIndex("by_staffId_and_date", (q) => q.eq("staffId", staffId).gte("date", today));
-    for await (const assignment of assignments) {
-      const recruitment = await ctx.db.get(assignment.recruitmentId);
-      if (recruitment && !recruitment.isDeleted) return true;
-    }
+function assertPersonRemovalPreview(
+  preview: PersonRemovalPreview,
+  expected: { assignmentCount: number; fingerprint: string } | undefined,
+) {
+  if (preview.kind === "tooMany") {
+    throw new ConvexError(
+      `今日以降のシフト割当が${preview.limit}件を超えています。先にシフトを整理してから削除してください`,
+    );
   }
-  return false;
+  // 旧クライアントは0件だけ互換許容する。割当がある削除は必ず明示確認を要求する。
+  if (!expected) {
+    if (preview.assignmentCount > 0) throw new ConvexError(STALE_PERSON_REMOVAL_PREVIEW_ERROR);
+    return preview.assignmentIds;
+  }
+  if (expected.assignmentCount !== preview.assignmentCount || expected.fingerprint !== preview.fingerprint) {
+    throw new ConvexError(STALE_PERSON_REMOVAL_PREVIEW_ERROR);
+  }
+  return preview.assignmentIds;
+}
+
+async function deletePersonRemovalAssignments(ctx: MutationCtx, assignmentIds: readonly Id<"shiftAssignments">[]) {
+  for (const assignmentId of assignmentIds) await ctx.db.delete(assignmentId);
 }
 
 async function revokeStaffAccessForRemoval(ctx: MutationCtx, staffIds: readonly Id<"staffs">[], now: number) {
@@ -975,6 +991,14 @@ type FullOrganizationPersonRemovalPlan = {
   billingReferenceUpdate: BillingReferenceUpdate;
 };
 
+function isOrganizationBillingContact(
+  organization: Doc<"organizations">,
+  person: Doc<"organizationPeople">,
+) {
+  const billingEmail = (organization.billingEmailNormalized ?? organization.billingEmail ?? "").trim().toLowerCase();
+  return billingEmail.length > 0 && billingEmail === person.emailNormalized.trim().toLowerCase();
+}
+
 async function prepareFullOrganizationPersonRemoval(
   ctx: MutationCtx,
   args: {
@@ -984,10 +1008,7 @@ async function prepareFullOrganizationPersonRemoval(
     member: Doc<"organizationMembers"> | null;
   },
 ): Promise<FullOrganizationPersonRemovalPlan> {
-  const billingEmail = (args.actor.organization.billingEmailNormalized ?? args.actor.organization.billingEmail ?? "")
-    .trim()
-    .toLowerCase();
-  if (billingEmail && billingEmail === args.person.emailNormalized.trim().toLowerCase()) {
+  if (isOrganizationBillingContact(args.actor.organization, args.person)) {
     throw new ConvexError("請求先メールアドレスを変更してから削除してください");
   }
   const billingReferenceUpdate = await planBillingReferenceUpdate(ctx, args.billingState, args.person._id);
@@ -1003,7 +1024,6 @@ async function prepareFullOrganizationPersonRemoval(
     )
     .collect();
   const staffIds = staffs.map((staff) => staff._id);
-  if (await hasFutureAssignment(ctx, staffIds)) throw new ConvexError(FUTURE_ASSIGNMENT_ERROR);
   const invitations = await findPendingInvitationsForRemovedPerson(ctx, {
     organizationId: args.actor.organization._id,
     person: args.person,
@@ -1075,11 +1095,26 @@ async function applyFullOrganizationPersonRemoval(
     correlationId: args.correlationId,
     occurredAt: args.now,
   });
+  if (args.billingState.state.kind === "restricted") {
+    const billingVersionAfterRemoval =
+      args.plan.billingReferenceUpdate.recoveryManagersChanged || args.plan.billingReferenceUpdate.clearFreeManager
+        ? args.billingState.version + 1
+        : args.billingState.version;
+    await ctx.scheduler.runAfter(0, internal.organizationBilling.mutations.reconcileRestrictedPlanEligibility, {
+      billingStateId: args.billingState._id,
+      expectedVersion: billingVersionAfterRemoval,
+    });
+  }
 }
 
 /** 対象店舗のスタッフ所属だけを終了し、事業者人物・管理者権限は維持する。 */
 export const removePersonFromShop = authenticatedMutation({
-  args: { shopId: v.id("shops"), staffId: v.id("staffs"), requestId: v.string() },
+  args: {
+    shopId: v.id("shops"),
+    staffId: v.id("staffs"),
+    requestId: v.string(),
+    removalPreview: v.optional(expectedPersonRemovalPreviewValidator),
+  },
   returns: personRemovalResultValidator,
   handler: async (ctx, args) => {
     const requestId = await toAuditRequestKey(args.requestId);
@@ -1121,9 +1156,20 @@ export const removePersonFromShop = authenticatedMutation({
     if (!person || person.organizationId !== actor.organization._id || person.status !== "active") {
       throw new ConvexError("Not found");
     }
-    if (await hasFutureAssignment(ctx, [staff._id])) throw new ConvexError(FUTURE_ASSIGNMENT_ERROR);
+    const removalPreview = await collectPersonRemovalPreview(ctx, {
+      scope: {
+        kind: "shop",
+        organizationId: actor.organization._id,
+        shopId: actor.shop._id,
+        staffId: staff._id,
+      },
+      staffs: [staff],
+      asOfDate: todayJST(),
+    });
+    const assignmentIds = assertPersonRemovalPreview(removalPreview, args.removalPreview);
 
     const now = Date.now();
+    await deletePersonRemovalAssignments(ctx, assignmentIds);
     await ctx.db.patch(staff._id, { isDeleted: true });
     await ctx.scheduler.runAfter(0, internal.notificationOutbox.mutations.deleteStaffNotificationHistoryBatch, {
       shopId: staff.shopId,
@@ -1152,7 +1198,12 @@ export const removePersonFromShop = authenticatedMutation({
 
 /** 対象人物の事業者内アクセスをすべて終了し、履歴レコードは保持する。 */
 export const removePersonFromOrganization = authenticatedMutation({
-  args: { shopId: v.id("shops"), personId: v.id("organizationPeople"), requestId: v.string() },
+  args: {
+    shopId: v.id("shops"),
+    personId: v.id("organizationPeople"),
+    requestId: v.string(),
+    removalPreview: v.optional(expectedPersonRemovalPreviewValidator),
+  },
   returns: personRemovalResultValidator,
   handler: async (ctx, args) => {
     const requestId = await toAuditRequestKey(args.requestId);
@@ -1195,7 +1246,14 @@ export const removePersonFromOrganization = authenticatedMutation({
     const member = members[0] ?? null;
     if (member && person.userId !== member.userId) throw new ConvexError("Not found");
     const plan = await prepareFullOrganizationPersonRemoval(ctx, { actor, billingState, person, member });
+    const removalPreview = await collectPersonRemovalPreview(ctx, {
+      scope: { kind: "organization", organizationId: actor.organization._id, personId: person._id },
+      staffs: plan.staffs,
+      asOfDate: todayJST(),
+    });
+    const assignmentIds = assertPersonRemovalPreview(removalPreview, args.removalPreview);
     const now = Date.now();
+    await deletePersonRemovalAssignments(ctx, assignmentIds);
     await applyFullOrganizationPersonRemoval(ctx, {
       actor,
       billingState,
@@ -1209,7 +1267,7 @@ export const removePersonFromOrganization = authenticatedMutation({
   },
 });
 
-/** 管理者権限だけを明示的に終了し、スタッフ所属がなければ事業者アクセスも終了する。 */
+/** 管理者権限だけを明示的に終了し、人物とシフト履歴は保持する。 */
 export const removeManagerRole = authenticatedMutation({
   args: { shopId: v.id("shops"), personId: v.id("organizationPeople"), requestId: v.string() },
   returns: personRemovalResultValidator,
@@ -1276,26 +1334,10 @@ export const removeManagerRole = authenticatedMutation({
       )
       .collect();
     const hasActiveStaffRole = staffs.some((staff) => !staff.isDeleted);
-    const now = Date.now();
-    if (!hasActiveStaffRole) {
-      const plan = await prepareFullOrganizationPersonRemoval(ctx, {
-        actor,
-        billingState,
-        person,
-        member,
-      });
-      await applyFullOrganizationPersonRemoval(ctx, {
-        actor,
-        billingState,
-        plan,
-        auditAction: "organization.manager_role_removed",
-        auditToState: "personRemoved",
-        correlationId,
-        now,
-      });
-      return { changed: true };
+    if (!hasActiveStaffRole && isOrganizationBillingContact(actor.organization, person)) {
+      throw new ConvexError("請求先メールアドレスを変更してから管理者権限を外してください");
     }
-
+    const now = Date.now();
     const billingReferenceUpdate = await planBillingReferenceUpdate(ctx, billingState, person._id);
     const invitations = await findPendingInvitationsIssuedByManager(ctx, actor.organization._id, member._id);
     await ctx.db.patch(member._id, { status: "removed", updatedAt: now });
@@ -1323,7 +1365,7 @@ export const removeManagerRole = authenticatedMutation({
       targetKind: "person",
       targetId: person._id,
       fromState: "activeManager",
-      toState: "staffOnly",
+      toState: hasActiveStaffRole ? "staffOnly" : "personOnly",
       correlationId,
       occurredAt: now,
     });

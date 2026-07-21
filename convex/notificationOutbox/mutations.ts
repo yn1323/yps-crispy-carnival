@@ -21,9 +21,9 @@ import {
 import { getStaffLineAccount } from "../line/service";
 import { buildNotificationFanoutTargetKey } from "../notification/fanout";
 import {
+  billingStateReferencesBusinessPlan,
   deriveOrganizationBillingPolicy,
   getEffectiveRestrictedBillingState,
-  hasLegacyBusinessBillingState,
 } from "../organizationBilling/policy";
 import { isOrganizationInvitationIssued } from "../organizationInvitation/lifecycle";
 import { resolveOrganizationInvitationEligibility } from "../organizationInvitation/service";
@@ -1062,7 +1062,7 @@ async function getNotificationEligibility(
       (notification.organizationBillingVersionAtEnqueue !== undefined &&
         notification.organizationBillingVersionAtEnqueue !== billingState?.version) ||
       (expectedStateKind && billingState?.state.kind !== expectedStateKind) ||
-      (hasLegacyBusinessCopy && (!billingState || !hasLegacyBusinessBillingState(billingState.state)))
+      (hasLegacyBusinessCopy && (!billingState || !billingStateReferencesBusinessPlan(billingState.state)))
     ) {
       return { organizationId, cancelReason: "organization_billing_changed" };
     }

@@ -1,11 +1,7 @@
 import { v } from "convex/values";
 import { internalQuery } from "../_generated/server";
 import { organizationBillingNotificationEventValidator } from "./notification";
-import {
-  getEffectiveRestrictedBillingState,
-  getOrganizationBillingStateDeadline,
-  normalizeOrganizationPaidPlan,
-} from "./policy";
+import { getEffectiveRestrictedBillingState, getOrganizationBillingStateDeadline } from "./policy";
 
 const historicalRecipientEvents = new Set(["freeApplied"]);
 
@@ -24,7 +20,7 @@ export const getNotificationData = internalQuery({
       trialEnding: v.optional(
         v.object({
           trialEndsAt: v.number(),
-          selectedPaidPlan: v.optional(v.literal("pro")),
+          selectedPaidPlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
         }),
       ),
       recipients: v.array(
@@ -92,9 +88,7 @@ export const getNotificationData = internalQuery({
         ? {
             trialEnding: {
               trialEndsAt: billingState.state.trialEndsAt,
-              ...(billingState.state.selectedPaidPlan
-                ? { selectedPaidPlan: normalizeOrganizationPaidPlan(billingState.state.selectedPaidPlan) }
-                : {}),
+              ...(billingState.state.selectedPaidPlan ? { selectedPaidPlan: billingState.state.selectedPaidPlan } : {}),
             },
           }
         : {}),

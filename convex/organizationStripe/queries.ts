@@ -17,6 +17,9 @@ const actionPurposeValidator = v.union(
   v.literal("portal"),
   v.literal("scheduleFree"),
   v.literal("cancelFreeSchedule"),
+  v.literal("changePaidPlan"),
+  v.literal("schedulePaidPlanChange"),
+  v.literal("cancelScheduledPlanChange"),
 );
 
 export const getActionContext = internalQuery({
@@ -42,6 +45,12 @@ export const getActionContext = internalQuery({
       currentStripeSubscriptionId: v.optional(v.string()),
       currentStripeSubscriptionLivemode: v.optional(v.boolean()),
       currentStripePriceId: v.optional(v.string()),
+      currentStripePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
+      currentStripeSubscriptionItemId: v.optional(v.string()),
+      currentPeriodStartsAt: v.optional(v.number()),
+      currentPeriodEndsAt: v.optional(v.number()),
+      billingCycleAnchor: v.optional(v.number()),
+      stripeSubscriptionScheduleId: v.optional(v.string()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -120,6 +129,24 @@ export const getActionContext = internalQuery({
       ...(latestSubscription && !latestSubscription.terminalAt
         ? { currentStripePriceId: latestSubscription.stripePriceId }
         : {}),
+      ...(latestSubscription && !latestSubscription.terminalAt && latestSubscription.plan
+        ? { currentStripePlan: latestSubscription.plan }
+        : {}),
+      ...(latestSubscription && !latestSubscription.terminalAt && latestSubscription.stripeSubscriptionItemId
+        ? { currentStripeSubscriptionItemId: latestSubscription.stripeSubscriptionItemId }
+        : {}),
+      ...(latestSubscription && !latestSubscription.terminalAt && latestSubscription.currentPeriodStartsAt !== undefined
+        ? { currentPeriodStartsAt: latestSubscription.currentPeriodStartsAt }
+        : {}),
+      ...(latestSubscription && !latestSubscription.terminalAt && latestSubscription.currentPeriodEndsAt !== undefined
+        ? { currentPeriodEndsAt: latestSubscription.currentPeriodEndsAt }
+        : {}),
+      ...(latestSubscription && !latestSubscription.terminalAt && latestSubscription.billingCycleAnchor !== undefined
+        ? { billingCycleAnchor: latestSubscription.billingCycleAnchor }
+        : {}),
+      ...(latestSubscription && !latestSubscription.terminalAt && latestSubscription.stripeSubscriptionScheduleId
+        ? { stripeSubscriptionScheduleId: latestSubscription.stripeSubscriptionScheduleId }
+        : {}),
     };
   },
 });
@@ -136,6 +163,15 @@ export const getOperation = internalQuery({
       expectedBillingVersion: v.optional(v.number()),
       providerGeneration: v.optional(v.number()),
       stripePriceIdSnapshot: v.optional(v.string()),
+      sourcePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
+      targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+      changeMode: v.optional(v.union(v.literal("checkout"), v.literal("immediate"), v.literal("periodEnd"))),
+      stripeSubscriptionIdSnapshot: v.optional(v.string()),
+      stripeSubscriptionItemIdSnapshot: v.optional(v.string()),
+      sourceStripePriceIdSnapshot: v.optional(v.string()),
+      targetStripePriceIdSnapshot: v.optional(v.string()),
+      prorationDate: v.optional(v.number()),
+      effectiveAt: v.optional(v.number()),
       stripeObjectId: v.optional(v.string()),
       stripeIdempotencyKey: v.string(),
       livemode: v.boolean(),
@@ -154,6 +190,23 @@ export const getOperation = internalQuery({
         : {}),
       ...(operation.providerGeneration !== undefined ? { providerGeneration: operation.providerGeneration } : {}),
       ...(operation.stripePriceIdSnapshot ? { stripePriceIdSnapshot: operation.stripePriceIdSnapshot } : {}),
+      ...(operation.sourcePlan ? { sourcePlan: operation.sourcePlan } : {}),
+      ...(operation.targetPlan ? { targetPlan: operation.targetPlan } : {}),
+      ...(operation.changeMode ? { changeMode: operation.changeMode } : {}),
+      ...(operation.stripeSubscriptionIdSnapshot
+        ? { stripeSubscriptionIdSnapshot: operation.stripeSubscriptionIdSnapshot }
+        : {}),
+      ...(operation.stripeSubscriptionItemIdSnapshot
+        ? { stripeSubscriptionItemIdSnapshot: operation.stripeSubscriptionItemIdSnapshot }
+        : {}),
+      ...(operation.sourceStripePriceIdSnapshot
+        ? { sourceStripePriceIdSnapshot: operation.sourceStripePriceIdSnapshot }
+        : {}),
+      ...(operation.targetStripePriceIdSnapshot
+        ? { targetStripePriceIdSnapshot: operation.targetStripePriceIdSnapshot }
+        : {}),
+      ...(operation.prorationDate !== undefined ? { prorationDate: operation.prorationDate } : {}),
+      ...(operation.effectiveAt !== undefined ? { effectiveAt: operation.effectiveAt } : {}),
       ...(operation.stripeObjectId ? { stripeObjectId: operation.stripeObjectId } : {}),
       stripeIdempotencyKey: operation.stripeIdempotencyKey,
       livemode: operation.livemode,
@@ -177,6 +230,7 @@ export const getTrialCreationRecoveryContext = internalQuery({
       stripeObjectId: v.optional(v.string()),
       providerGeneration: v.optional(v.number()),
       stripePriceIdSnapshot: v.optional(v.string()),
+      targetPlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
       trialSubscriptionCreateSnapshot: v.optional(trialSubscriptionCreateSnapshotValidator),
       stripeIdempotencyKey: v.string(),
       livemode: v.boolean(),
@@ -229,6 +283,9 @@ export const getTrialCreationRecoveryContext = internalQuery({
       ...(operation.stripeObjectId ? { stripeObjectId: operation.stripeObjectId } : {}),
       ...(operation.providerGeneration !== undefined ? { providerGeneration: operation.providerGeneration } : {}),
       ...(operation.stripePriceIdSnapshot ? { stripePriceIdSnapshot: operation.stripePriceIdSnapshot } : {}),
+      ...(operation.targetPlan === "pro" || operation.targetPlan === "business"
+        ? { targetPlan: operation.targetPlan }
+        : {}),
       ...(operation.trialSubscriptionCreateSnapshot
         ? { trialSubscriptionCreateSnapshot: operation.trialSubscriptionCreateSnapshot }
         : {}),
@@ -336,6 +393,7 @@ export const getCheckoutOperationBySession = internalQuery({
       expectedBillingVersion: v.optional(v.number()),
       providerGeneration: v.optional(v.number()),
       stripePriceIdSnapshot: v.optional(v.string()),
+      targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
       stripeIdempotencyKey: v.string(),
     }),
   ),
@@ -357,6 +415,7 @@ export const getCheckoutOperationBySession = internalQuery({
         : {}),
       ...(operation.providerGeneration !== undefined ? { providerGeneration: operation.providerGeneration } : {}),
       ...(operation.stripePriceIdSnapshot ? { stripePriceIdSnapshot: operation.stripePriceIdSnapshot } : {}),
+      ...(operation.targetPlan ? { targetPlan: operation.targetPlan } : {}),
       stripeIdempotencyKey: operation.stripeIdempotencyKey,
     };
   },
@@ -376,6 +435,9 @@ export const resolveOrganizationByCustomer = internalQuery({
       providerGeneration: v.number(),
       latestStripeSubscriptionId: v.optional(v.string()),
       latestStripePriceId: v.optional(v.string()),
+      latestStripePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
+      latestStripeSubscriptionItemId: v.optional(v.string()),
+      latestStripeSubscriptionScheduleId: v.optional(v.string()),
       latestStripeSubscriptionTerminal: v.boolean(),
       currentStripeSubscriptionId: v.optional(v.string()),
       restoreManagerPersonIds: v.optional(v.array(v.id("organizationPeople"))),
@@ -416,6 +478,13 @@ export const resolveOrganizationByCustomer = internalQuery({
       providerGeneration: latestSubscription?.providerGeneration ?? 0,
       ...(latestSubscription ? { latestStripeSubscriptionId: latestSubscription.stripeSubscriptionId } : {}),
       ...(latestSubscription ? { latestStripePriceId: latestSubscription.stripePriceId } : {}),
+      ...(latestSubscription?.plan ? { latestStripePlan: latestSubscription.plan } : {}),
+      ...(latestSubscription?.stripeSubscriptionItemId
+        ? { latestStripeSubscriptionItemId: latestSubscription.stripeSubscriptionItemId }
+        : {}),
+      ...(latestSubscription?.stripeSubscriptionScheduleId
+        ? { latestStripeSubscriptionScheduleId: latestSubscription.stripeSubscriptionScheduleId }
+        : {}),
       latestStripeSubscriptionTerminal: latestSubscription?.terminalAt !== undefined,
       ...(latestSubscription && !latestSubscription.terminalAt
         ? { currentStripeSubscriptionId: latestSubscription.stripeSubscriptionId }
@@ -481,6 +550,12 @@ export const getSafetyContextByOrganization = internalQuery({
       subscription: v.object({
         stripeSubscriptionId: v.string(),
         stripePriceId: v.string(),
+        plan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
+        stripeSubscriptionItemId: v.optional(v.string()),
+        currentPeriodStartsAt: v.optional(v.number()),
+        currentPeriodEndsAt: v.optional(v.number()),
+        billingCycleAnchor: v.optional(v.number()),
+        stripeSubscriptionScheduleId: v.optional(v.string()),
         providerGeneration: v.number(),
         status: v.string(),
         latestInvoiceId: v.optional(v.string()),
@@ -527,6 +602,22 @@ export const getSafetyContextByOrganization = internalQuery({
       subscription: {
         stripeSubscriptionId: latestSubscription.stripeSubscriptionId,
         stripePriceId: latestSubscription.stripePriceId,
+        ...(latestSubscription.plan ? { plan: latestSubscription.plan } : {}),
+        ...(latestSubscription.stripeSubscriptionItemId
+          ? { stripeSubscriptionItemId: latestSubscription.stripeSubscriptionItemId }
+          : {}),
+        ...(latestSubscription.currentPeriodStartsAt !== undefined
+          ? { currentPeriodStartsAt: latestSubscription.currentPeriodStartsAt }
+          : {}),
+        ...(latestSubscription.currentPeriodEndsAt !== undefined
+          ? { currentPeriodEndsAt: latestSubscription.currentPeriodEndsAt }
+          : {}),
+        ...(latestSubscription.billingCycleAnchor !== undefined
+          ? { billingCycleAnchor: latestSubscription.billingCycleAnchor }
+          : {}),
+        ...(latestSubscription.stripeSubscriptionScheduleId
+          ? { stripeSubscriptionScheduleId: latestSubscription.stripeSubscriptionScheduleId }
+          : {}),
         providerGeneration: latestSubscription.providerGeneration,
         status: latestSubscription.status,
         ...(latestSubscription.latestInvoiceId ? { latestInvoiceId: latestSubscription.latestInvoiceId } : {}),
@@ -613,7 +704,7 @@ export const getBillingEmailSyncContext = internalQuery({
   },
 });
 
-/** DB上で所有関係が既知のWebhook objectは、Stripeへ接続する前に無償Proを遮断する。 */
+/** DB上で所有関係が既知のWebhook objectは、Stripeへ接続する前に支払い不要プランを遮断する。 */
 export const getKnownWebhookObjectGuard = internalQuery({
   args: {
     type: stripeWebhookEventTypeValidator,
@@ -629,6 +720,14 @@ export const getKnownWebhookObjectGuard = internalQuery({
         .query("organizationStripeSubscriptions")
         .withIndex("by_livemode_and_stripeSubscriptionId", (q) =>
           q.eq("livemode", args.livemode).eq("stripeSubscriptionId", args.objectId),
+        )
+        .take(2);
+      if (subscriptions.length === 1) organizationId = subscriptions[0].organizationId;
+    } else if (args.type.startsWith("subscription_schedule.")) {
+      const subscriptions = await ctx.db
+        .query("organizationStripeSubscriptions")
+        .withIndex("by_livemode_and_stripeSubscriptionScheduleId", (q) =>
+          q.eq("livemode", args.livemode).eq("stripeSubscriptionScheduleId", args.objectId),
         )
         .take(2);
       if (subscriptions.length === 1) organizationId = subscriptions[0].organizationId;
@@ -669,7 +768,15 @@ export const getKnownWebhookObjectGuard = internalQuery({
 });
 
 function isPurposeAllowed(
-  purpose: "price" | "startCheckout" | "portal" | "scheduleFree" | "cancelFreeSchedule",
+  purpose:
+    | "price"
+    | "startCheckout"
+    | "portal"
+    | "scheduleFree"
+    | "cancelFreeSchedule"
+    | "changePaidPlan"
+    | "schedulePaidPlanChange"
+    | "cancelScheduledPlanChange",
   state: typeof organizationBillingStateValidator.type,
   isActiveManager: boolean,
   isRecoveryManager: boolean,
@@ -695,13 +802,28 @@ function isPurposeAllowed(
           (state.kind === "active" && state.plan !== "free"))
       );
     case "scheduleFree":
-      return isActiveManager && state.kind === "active" && state.plan === "pro";
+      return isActiveManager && state.kind === "active" && (state.plan === "pro" || state.plan === "business");
     case "cancelFreeSchedule":
       return (
         isActiveManager &&
         state.kind === "scheduledChange" &&
-        state.currentPlan === "pro" &&
+        (state.currentPlan === "pro" || state.currentPlan === "business") &&
         state.targetPlan === "free"
+      );
+    case "changePaidPlan":
+      return (
+        isActiveManager &&
+        ((state.kind === "active" && state.plan === "pro") ||
+          (state.kind === "pendingActivation" && state.plan === "business" && state.fallback === "pro"))
+      );
+    case "schedulePaidPlanChange":
+      return isActiveManager && state.kind === "active" && state.plan === "business";
+    case "cancelScheduledPlanChange":
+      return (
+        isActiveManager &&
+        state.kind === "scheduledChange" &&
+        state.currentPlan === "business" &&
+        state.targetPlan === "pro"
       );
   }
 }

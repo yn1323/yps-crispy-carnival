@@ -36,6 +36,7 @@ export const run = migrations.runner([
   internal.migrations.m018_organization_billing_business_to_pro.migration,
   internal.migrations.m019_notification_outbox_terminal_redaction.migration,
   internal.migrations.m020_notification_failure_inbox_redaction.migration,
+  internal.migrations.m021_organization_billing_complimentary_pro_to_business.migration,
 ]);
 
 // Widen対応版の確認と、衝突修復後にm012だけを限定再実行するために使う。
@@ -43,6 +44,11 @@ export const runM012 = migrations.runner(internal.migrations.m012_organizations_
 
 // fixed seriesがdevelop CIで実行される前に、m018の限定dry runと競合確認に使う。
 export const runM018 = migrations.runner(internal.migrations.m018_organization_billing_business_to_pro.migration);
+
+// m021の限定dry runと、developmentでconflict修復後に対象だけを再評価するために使う。
+export const runM021 = migrations.runner(
+  internal.migrations.m021_organization_billing_complimentary_pro_to_business.migration,
+);
 
 // NOT-03のWiden migration。runner/component標準のdryRun・cursor進捗・lib:getStatusで確認する。
 export const runNotificationTerminalRedaction = migrations.runner([

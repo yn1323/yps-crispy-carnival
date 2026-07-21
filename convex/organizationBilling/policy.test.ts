@@ -21,9 +21,10 @@ import {
 describe("organizationBilling/policy plan limits", () => {
   it("Trial、Free、Pro、Businessの人数・店舗・管理者上限を定義する", () => {
     expect(ORGANIZATION_PLAN_LIMITS).toEqual({
-      trial: { maxPeople: 30, maxActiveShops: 5, maxActiveManagers: 5 },
+      trial: { maxPeople: 20, maxActiveShops: 5, maxActiveManagers: 5 },
       free: { maxPeople: 5, maxActiveShops: 1, maxActiveManagers: 1 },
-      pro: { maxPeople: 30, maxActiveShops: 5, maxActiveManagers: 5 },
+      pro: { maxPeople: 20, maxActiveShops: 5, maxActiveManagers: 5 },
+      business: { maxPeople: 40, maxActiveShops: 5, maxActiveManagers: 5 },
     });
   });
 
@@ -32,14 +33,14 @@ describe("organizationBilling/policy plan limits", () => {
       withinLimits: true,
       violations: [],
     });
-    expect(evaluatePlanLimits("pro", { peopleCount: 31, activeShopCount: 6, activeManagerCount: 6 })).toMatchObject({
+    expect(evaluatePlanLimits("pro", { peopleCount: 21, activeShopCount: 6, activeManagerCount: 6 })).toMatchObject({
       withinLimits: false,
       violations: ["people", "activeShops", "activeManagers"],
     });
     expect(
-      evaluatePlanLimits("business", { peopleCount: 30, activeShopCount: 5, activeManagerCount: 5 }),
+      evaluatePlanLimits("business", { peopleCount: 40, activeShopCount: 5, activeManagerCount: 5 }),
     ).toMatchObject({ withinLimits: true });
-    expect(evaluatePlanLimits("trial", { peopleCount: 30, activeShopCount: 5, activeManagerCount: 6 })).toMatchObject({
+    expect(evaluatePlanLimits("trial", { peopleCount: 20, activeShopCount: 5, activeManagerCount: 6 })).toMatchObject({
       withinLimits: false,
       violations: ["activeManagers"],
     });
@@ -118,8 +119,11 @@ describe("organizationBilling/policy capabilities", () => {
     const business = deriveOrganizationBillingPolicy({ kind: "active", plan: "business" });
 
     expect(trial).toMatchObject({
-      entitlementPlan: "trial",
-      limits: ORGANIZATION_PLAN_LIMITS.trial,
+      paidPlan: null,
+      entitlementPlan: "pro",
+      displayPlan: "trial",
+      targetingPlan: "trial",
+      limits: ORGANIZATION_PLAN_LIMITS.pro,
       canWriteBusinessData: true,
       canUsePaidFeatures: true,
       deadlineAt: 100,
@@ -131,8 +135,11 @@ describe("organizationBilling/policy capabilities", () => {
       canUsePaidFeatures: true,
     });
     expect(business).toMatchObject({
-      entitlementPlan: "pro",
-      limits: ORGANIZATION_PLAN_LIMITS.pro,
+      paidPlan: "business",
+      entitlementPlan: "business",
+      displayPlan: "business",
+      targetingPlan: "business",
+      limits: ORGANIZATION_PLAN_LIMITS.business,
       canWriteBusinessData: true,
       canUsePaidFeatures: true,
     });
@@ -142,8 +149,11 @@ describe("organizationBilling/policy capabilities", () => {
     const state = { kind: "complimentary", plan: "business" } as const;
 
     expect(deriveOrganizationBillingPolicy(state)).toEqual({
-      entitlementPlan: "pro",
-      limits: ORGANIZATION_PLAN_LIMITS.pro,
+      paidPlan: null,
+      entitlementPlan: "business",
+      displayPlan: "business",
+      targetingPlan: "business",
+      limits: ORGANIZATION_PLAN_LIMITS.business,
       canReadExistingData: true,
       canWriteBusinessData: true,
       businessWriteBlockReason: null,
@@ -178,7 +188,9 @@ describe("organizationBilling/policy capabilities", () => {
     expect(
       deriveOrganizationBillingPolicy({ kind: "initialPaymentPending", plan: "business", startedAt: 10 }),
     ).toMatchObject({
+      paidPlan: "business",
       entitlementPlan: "pro",
+      displayPlan: "business",
       limits: ORGANIZATION_PLAN_LIMITS.pro,
       canWriteBusinessData: true,
       canUsePaidFeatures: true,
@@ -245,11 +257,11 @@ describe("organizationBilling/policy capabilities", () => {
         effectiveAt: 200,
       }),
     ).toMatchObject({
-      entitlementPlan: "pro",
-      limits: ORGANIZATION_PLAN_LIMITS.pro,
+      entitlementPlan: "business",
+      limits: ORGANIZATION_PLAN_LIMITS.business,
       canWriteBusinessData: true,
       canUsePaidFeatures: true,
-      deadlineAt: null,
+      deadlineAt: 200,
     });
   });
 
@@ -396,7 +408,10 @@ describe("organizationBilling/policy verified transition", () => {
     expect(isVerifiedBillingTransitionAllowed({ kind: "active", plan: "business" }, businessToPro)).toBe(true);
     expect(isVerifiedBillingTransitionAllowed({ kind: "trial", trialEndsAt: 100 }, businessToPro)).toBe(false);
     expect(
-      isVerifiedBillingTransitionAllowed({ kind: "active", plan: "pro" }, { ...businessToPro, currentPlan: "pro" }),
+      isVerifiedBillingTransitionAllowed(
+        { kind: "active", plan: "pro" },
+        { kind: "scheduledChange", currentPlan: "pro", targetPlan: "free", effectiveAt: 200 },
+      ),
     ).toBe(true);
   });
 
@@ -420,7 +435,7 @@ describe("organizationBilling/policy verified transition", () => {
     ).toBe(true);
     expect(
       isVerifiedBillingTransitionAllowed(proToFree, { kind: "active", plan: "business" }, "scheduledChangeCanceled"),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       isVerifiedBillingTransitionAllowed(
         businessToPro,
@@ -430,7 +445,8 @@ describe("organizationBilling/policy verified transition", () => {
     ).toBe(true);
     expect(
       isVerifiedBillingTransitionAllowed(businessToPro, { kind: "active", plan: "pro" }, "scheduledChangeCanceled"),
-    ).toBe(true);
+    ).toBe(false);
+    expect(isVerifiedBillingTransitionAllowed(businessToPro, { kind: "active", plan: "pro" })).toBe(true);
   });
 
   it("有料プラン有効化は結果待ち・復旧・Freeから許可し、BusinessからProへの即時遷移を拒否する", () => {
@@ -443,7 +459,7 @@ describe("organizationBilling/policy verified transition", () => {
       ),
     ).toBe(true);
     expect(isVerifiedBillingTransitionAllowed({ kind: "active", plan: "free" }, activePro)).toBe(true);
-    expect(isVerifiedBillingTransitionAllowed({ kind: "active", plan: "business" }, activePro)).toBe(true);
+    expect(isVerifiedBillingTransitionAllowed({ kind: "active", plan: "business" }, activePro)).toBe(false);
   });
 
   it("即時支払い失敗はpendingActivationに記録したfallbackだけへ戻せる", () => {

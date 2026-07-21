@@ -46,6 +46,12 @@ import { useUserManagerActions } from "./useUserManagerActions";
 const personId = "person-target" as Id<"organizationPeople">;
 const shopId = "shop-current" as Id<"shops">;
 const requestId = "2b79a222-176c-44d6-9b39-d090c1f72efb";
+const removalPreview = {
+  kind: "ready" as const,
+  asOfDate: "2026-07-22",
+  assignmentCount: 2,
+  fingerprint: "preview-fingerprint",
+};
 
 const lastActiveManagerData: UserDetailData = {
   person: {
@@ -61,6 +67,7 @@ const lastActiveManagerData: UserDetailData = {
   managerRoleRemovalDisabledReason: "最後の有効管理者の管理者権限は外せません。",
   canRemove: false,
   removeDisabledReason: "最後の有効管理者は削除できません。",
+  removalPreview,
   canWrite: true,
   shops: [
     {
@@ -77,6 +84,7 @@ const lastActiveManagerData: UserDetailData = {
       shopStatus: "active",
       excludedFromShift: false,
       canRemove: true,
+      removalPreview: { ...removalPreview, assignmentCount: 1, fingerprint: "shop-preview-fingerprint" },
       line: { isLinked: false, isFollowing: false },
     },
   ],
@@ -130,7 +138,7 @@ describe("useUserManagerActions", () => {
       );
 
       act(() => result.current.onRequestRemovePerson());
-      expect(result.current.dialog).toEqual({ kind: "removePerson" });
+      expect(result.current.dialog).toEqual({ kind: "removePerson", removalPreview });
 
       await act(async () => {
         await result.current.onConfirmRemoval();
@@ -140,6 +148,7 @@ describe("useUserManagerActions", () => {
         shopId,
         personId,
         requestId,
+        removalPreview: { assignmentCount: 2, fingerprint: "preview-fingerprint" },
       });
       expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error);
     },
@@ -171,6 +180,38 @@ describe("useUserManagerActions", () => {
     expect(result.current.dialog).toEqual({ kind: "removeManagerRole" });
   });
 
+  it("店舗所属がない管理者は人物削除のpreviewを送らず権限だけを外す", async () => {
+    mocks.removeManagerRole.mockResolvedValue({ changed: true });
+    const onPersonRemoved = vi.fn();
+    const data: UserDetailData = {
+      ...lastActiveManagerData,
+      memberships: [],
+      canRemoveManagerRole: true,
+      managerRoleRemovalDisabledReason: undefined,
+    };
+    const { result } = renderHook(() =>
+      useUserManagerActions({ data, selectedShopId: shopId, onPersonRemoved }),
+    );
+
+    act(() => result.current.onRequestRemoveManagerRole());
+    await act(async () => {
+      await result.current.onConfirmRemoval();
+    });
+
+    expect(mocks.removeManagerRole).toHaveBeenCalledExactlyOnceWith({
+      shopId,
+      personId,
+      requestId,
+    });
+    expect(mocks.removePerson).not.toHaveBeenCalled();
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
+      title: "管理者権限を外しました",
+      description: "このグループへのアクセスを終了しました。ユーザー情報とシフト記録は残しています。",
+    });
+    expect(onPersonRemoved).toHaveBeenCalledOnce();
+    expect(result.current.dialog).toBeNull();
+  });
+
   it("最後の有効管理者でもグループ削除を確認し、サーバー拒否を表示してDialogを維持する", async () => {
     const error = new ConvexError("最後の有効管理者は削除できません。");
     mocks.removePerson.mockRejectedValue(error);
@@ -180,7 +221,7 @@ describe("useUserManagerActions", () => {
     );
 
     act(() => result.current.onRequestRemovePerson());
-    expect(result.current.dialog).toEqual({ kind: "removePerson" });
+    expect(result.current.dialog).toEqual({ kind: "removePerson", removalPreview });
 
     await act(async () => {
       await result.current.onConfirmRemoval();
@@ -190,10 +231,27 @@ describe("useUserManagerActions", () => {
       shopId,
       personId,
       requestId,
+      removalPreview: { assignmentCount: 2, fingerprint: "preview-fingerprint" },
     });
     expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error);
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();
     expect(onPersonRemoved).not.toHaveBeenCalled();
-    expect(result.current.dialog).toEqual({ kind: "removePerson" });
+    expect(result.current.dialog).toEqual({ kind: "removePerson", removalPreview });
+  });
+
+  it("確認後に割当が変わった場合は古い確認を閉じて再確認を求める", async () => {
+    const error = new ConvexError("今日以降のシフト割当が変更されました。内容を確認して、もう一度削除してください");
+    mocks.removePerson.mockRejectedValue(error);
+    const { result } = renderHook(() =>
+      useUserManagerActions({ data: lastActiveManagerData, selectedShopId: shopId, onPersonRemoved: vi.fn() }),
+    );
+
+    act(() => result.current.onRequestRemovePerson());
+    await act(async () => {
+      await result.current.onConfirmRemoval();
+    });
+
+    expect(result.current.dialog).toBeNull();
+    expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error);
   });
 });

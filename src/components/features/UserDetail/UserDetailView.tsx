@@ -151,6 +151,9 @@ export function UserDetailView({
             ? "操作できる店舗がないため、このユーザーを削除できません。"
             : data.removeDisabledReason
         }
+        removalPreview={
+          state.manager.dialog?.kind === "removePerson" ? state.manager.dialog.removalPreview : data.removalPreview
+        }
         isConfirmationOpen={state.manager.dialog?.kind === "removePerson"}
         isRemoving={state.manager.isRemoving}
         onRequestRemovePerson={actions.onRequestRemovePerson}
@@ -202,6 +205,10 @@ export function UserDetailView({
             state.membership.dialog?.kind === "removeMembership" &&
             state.membership.dialog.membership.staffId === selectedMembership?.staffId,
           isRemoving: state.membership.isRemoving,
+          removalPreview:
+            state.membership.dialog?.kind === "removeMembership"
+              ? state.membership.dialog.membership.removalPreview
+              : (selectedMembership?.removalPreview ?? null),
         }}
         onOpenChange={handleDialogOpenChange}
         onClose={actions.onClosePanel}

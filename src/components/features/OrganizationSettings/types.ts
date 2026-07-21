@@ -56,36 +56,68 @@ export type BillingDisplayState =
   | "trial"
   | "free"
   | "pro"
+  | "business"
   | "initialPaymentPending"
   | "pendingActivation"
   | "grace"
   | "restricted"
+  | "scheduledChange"
+  // Widen中の旧DTOを表示し続けるための互換値。新runtimeはscheduledChangeを返す。
   | "scheduledFree"
   | "migrationPending";
 
 export type BillingUsageView = {
   current: number;
   max: number;
+  pendingInvitations?: number;
+};
+
+export type BillingPlan = "trial" | "free" | "pro" | "business";
+export type BillingProductPlan = Exclude<BillingPlan, "trial">;
+export type PaidBillingPlan = Exclude<BillingProductPlan, "free">;
+
+export type BillingPlanPrice = {
+  currency: string;
+  unitAmount: number;
+  interval: "day" | "week" | "month" | "year";
+  intervalCount: number;
+};
+
+export type BillingPlanPriceState =
+  | { status: "loading" }
+  | { status: "available"; value: BillingPlanPrice }
+  | { status: "unavailable"; reason: string }
+  | { status: "error" };
+
+export type BillingPlanPrices = Record<PaidBillingPlan, BillingPlanPriceState>;
+
+export type BillingRequiredReductions = {
+  people: number;
+  shops: number;
+  managers: number;
 };
 
 export type OrganizationBillingView = {
   state: BillingDisplayState;
-  currentPlan: "trial" | "free" | "pro" | null;
+  currentPlan: BillingPlan | null;
   isComplimentary: boolean;
   hasTrialContinuation: boolean;
   trialEndsAt?: number;
   stripeBillingAvailable: boolean;
   hasStripeCustomer: boolean;
-  targetPlan?: "free" | "pro";
+  targetPlan?: BillingProductPlan;
+  limitPlan?: "free" | "pro";
+  requiredReductions?: BillingRequiredReductions;
   peopleUsage: BillingUsageView;
   shopUsage: BillingUsageView;
+  managerUsage: BillingUsageView;
   nextEvent?: {
     label: string;
     date: string;
   };
   blockedReason?: string;
   billingEmail: string;
-  previousPlan?: "trial" | "free" | "pro";
+  previousPlan?: BillingPlan;
   canManagePlan: boolean;
   canUpdatePaymentMethod: boolean;
   canUpdateBillingEmail: boolean;
@@ -102,7 +134,8 @@ export type OrganizationSettingsActions = {
   onOpenUser: (personId: string, visibleUserCount: number) => void;
   onAddShop: () => void;
   onOpenShop: (shopId: string) => void;
-  onManagePlan: () => void;
+  onManagePlan: (targetPlan: BillingProductPlan) => void;
+  onRetryPlanPrice: (targetPlan: PaidBillingPlan) => void;
   onUpdatePaymentMethod: () => void;
   onUpdateBillingEmail: () => void;
   onOpenBillingDocuments: () => void;
@@ -118,6 +151,7 @@ export type OrganizationSettingsViewProps = {
   managerInvitations: ManagerInvitationView[];
   shops: OrganizationShopView[];
   billing: OrganizationBillingView;
+  planPrices: BillingPlanPrices;
   canInviteManager: boolean;
   managerInvitationMode: "addition" | "freeManagerExchange";
   freeManagerExchangeCandidates: Array<{ id: string; name: string; email: string }>;
@@ -139,6 +173,7 @@ export type OrganizationSettingsViewProps = {
 export type OrganizationSettingsData = Omit<
   OrganizationSettingsViewProps,
   | "organizationContext"
+  | "planPrices"
   | "actions"
   | "defaultTab"
   | "onTabChange"

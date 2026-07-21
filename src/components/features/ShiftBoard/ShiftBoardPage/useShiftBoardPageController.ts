@@ -78,8 +78,9 @@ export const useShiftBoardPageController = (
     () =>
       data.staffs.map((staff) => ({
         id: staff._id,
-        name: staff.name,
+        name: staff.isRemoved ? `${staff.name}（削除済み）` : staff.name,
         isSubmitted: staff.isSubmitted,
+        isRemoved: staff.isRemoved,
         createdAt: staff.createdAt,
       })),
     [data.staffs],

@@ -8,6 +8,7 @@ export type UserDetailReturnTo = "dashboard" | "settings" | "shopDetail";
 export type UserDetailData = NonNullable<FunctionReturnType<typeof api.organization.userDetailQueries.getUserDetail>>;
 
 export type UserDetailMembership = UserDetailData["memberships"][number];
+export type UserDetailRemovalPreview = UserDetailData["removalPreview"];
 
 export type UserDetailRecruitment = {
   _id: string;
@@ -19,5 +20,5 @@ export type UserDetailRecruitment = {
 export type UserDetailDialog =
   | { kind: "removeManagerRole" }
   | { kind: "removeMembership"; membership: UserDetailMembership }
-  | { kind: "removePerson" }
+  | { kind: "removePerson"; removalPreview: UserDetailRemovalPreview }
   | null;

@@ -17,6 +17,13 @@ const shibuyaShopId = "shop-shibuya" as Id<"shops">;
 const shinjukuStaffId = "staff-shinjuku" as Id<"staffs">;
 const shinjukuShopId = "shop-shinjuku" as Id<"shops">;
 
+const removalPreview = (assignmentCount: number, fingerprint = `preview-${assignmentCount}`) => ({
+  kind: "ready" as const,
+  asOfDate: "2026-07-22",
+  assignmentCount,
+  fingerprint,
+});
+
 const shibuyaMembership: UserDetailData["memberships"][number] = {
   staffId: shibuyaStaffId,
   shopId: shibuyaShopId,
@@ -24,6 +31,7 @@ const shibuyaMembership: UserDetailData["memberships"][number] = {
   shopStatus: "active",
   excludedFromShift: false,
   canRemove: true,
+  removalPreview: removalPreview(2, "shibuya-preview"),
   line: { isLinked: true, isFollowing: true },
 };
 
@@ -34,6 +42,7 @@ const shinjukuMembership: UserDetailData["memberships"][number] = {
   shopStatus: "planSuspended",
   excludedFromShift: true,
   canRemove: true,
+  removalPreview: removalPreview(0, "shinjuku-preview"),
   line: { isLinked: true, isFollowing: false },
 };
 
@@ -75,6 +84,7 @@ const baseData: UserDetailData = {
   managerRoleRemovalDisabledReason: undefined,
   canRemove: true,
   removeDisabledReason: undefined,
+  removalPreview: removalPreview(2),
   canWrite: true,
   shops: [shibuyaShop],
   memberships: [shibuyaMembership],
@@ -244,6 +254,10 @@ export const AssignedShopDialogMobile: Story = {
   },
 };
 
+export const PersonRemovalZeroAssignments: Story = createPersonRemovalStory(0);
+export const PersonRemovalOneAssignment: Story = createPersonRemovalStory(1);
+export const PersonRemovalMultipleAssignments: Story = createPersonRemovalStory(3);
+
 export const LongText: Story = {
   args: {
     data: {
@@ -268,6 +282,19 @@ export const LongText: Story = {
     },
   },
 };
+
+function createPersonRemovalStory(assignmentCount: number): Story {
+  const preview = removalPreview(assignmentCount, `story-preview-${assignmentCount}`);
+  return {
+    args: {
+      data: { ...multipleStoresData, removalPreview: preview },
+      state: {
+        ...baseState,
+        manager: { ...baseState.manager, dialog: { kind: "removePerson", removalPreview: preview } },
+      },
+    },
+  };
+}
 
 export const Loading: Story = {
   render: () => <UserDetailSkeleton />,
@@ -318,7 +345,7 @@ function PanelNavigationHarness({ data = multipleStoresData }: { data?: UserDeta
           onRequestRemoveMembership: () =>
             setMembershipDialog({ kind: "removeMembership", membership: shibuyaMembership }),
           onCloseMembershipDialog: () => setMembershipDialog(null),
-          onRequestRemovePerson: () => setManagerDialog({ kind: "removePerson" }),
+          onRequestRemovePerson: () => setManagerDialog({ kind: "removePerson", removalPreview: data.removalPreview }),
           onCloseManagerDialog: () => setManagerDialog(null),
           onAddMembership: async (shopId) => {
             setAddedShopId(shopId);

@@ -108,7 +108,7 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 | `api.dashboard.queries.getDashboardStaffs` | `managerQuery` | 店舗スタッフと対応する`organizationPersonId`をページングして返す |
 | `api.organization.mutations.updatePersonProfile` | `authenticatedMutation` | グループ共通プロフィールを更新し、有効な店舗スタッフ行へ同期する |
 | `api.organizationInvitation.mutations.createForPerson` | `authenticatedMutation` | 人物IDと現在のメールアドレスへ固定して管理者招待を発行または再送する |
-| `api.organization.mutations.removeManagerRole` | `authenticatedMutation` | 店舗スタッフ所属を維持し、グループの管理者権限だけを外す |
+| `api.organization.mutations.removeManagerRole` | `authenticatedMutation` | 人物とシフト記録を維持し、グループの管理者権限だけを外す。店舗所属がなければ管理アクセスを終了する |
 | `api.organization.mutations.removePersonFromShop` | `authenticatedMutation` | 指定店舗のスタッフ所属とアクセスだけを終了する |
 | `api.organization.mutations.removePersonFromOrganization` | `authenticatedMutation` | グループ内の全所属とアクセスを終了する |
 | `api.staff.mutations.addOrganizationPersonToShop` | `managerMutation` | 同じグループの既存人物を選択店舗へスタッフとして追加する |

@@ -1270,6 +1270,115 @@ export const seedActiveProOrganizationDeletionScenario = internalMutation({
   },
 });
 
+/** 支払い不要Businessと、Business→Pro確定後に1名超過した復旧導線のE2E前提を作る。 */
+export const seedOrganizationBillingPlanChangeScenario = internalMutation({
+  args: {
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.string(),
+    complimentaryOrganizationName: v.optional(v.string()),
+    complimentaryShopName: v.optional(v.string()),
+    restrictedOrganizationName: v.optional(v.string()),
+    restrictedShopName: v.optional(v.string()),
+    removablePersonName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+    await resetManagerScenarioDataForAuth(ctx, args.managerAuthTokenIdentifier);
+
+    const now = Date.now();
+    const userId = await createScenarioUser(ctx, {
+      authTokenIdentifier: args.managerAuthTokenIdentifier,
+      name: DEFAULT_MANAGER.name,
+      email: args.managerEmail,
+    });
+
+    const createManagedOrganization = async (name: string, shopName: string) => {
+      const organizationId = await createScenarioOrganization(ctx, {
+        createdByUserId: userId,
+        name,
+        billingEmail: args.managerEmail,
+      });
+      const ownerPersonId = await createScenarioPerson(ctx, {
+        organizationId,
+        userId,
+        name: DEFAULT_MANAGER.name,
+        email: args.managerEmail,
+      });
+      await createScenarioMember(ctx, { organizationId, personId: ownerPersonId, userId });
+      const shopId = await createScenarioShop(ctx, { organizationId, name: shopName, managerUserId: userId });
+      await createScenarioStaff(ctx, {
+        organizationId,
+        shopId,
+        personId: ownerPersonId,
+        userId,
+        name: DEFAULT_MANAGER.name,
+        email: args.managerEmail,
+      });
+      return { organizationId, ownerPersonId, shopId };
+    };
+
+    const complimentaryOrganizationName = args.complimentaryOrganizationName ?? "E2E 支払い不要Businessグループ";
+    const complimentaryShopName = args.complimentaryShopName ?? "E2E 支払い不要Business店舗";
+    const complimentary = await createManagedOrganization(complimentaryOrganizationName, complimentaryShopName);
+    await ctx.db.insert("organizationBillingStates", {
+      organizationId: complimentary.organizationId,
+      state: { kind: "complimentary", plan: "business" },
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const restrictedOrganizationName = args.restrictedOrganizationName ?? "E2E Pro上限復旧グループ";
+    const restrictedShopName = args.restrictedShopName ?? "E2E Pro上限復旧店舗";
+    const removablePersonName = args.removablePersonName ?? "E2E 削減対象ユーザー";
+    const restricted = await createManagedOrganization(restrictedOrganizationName, restrictedShopName);
+
+    let removablePersonId: Id<"organizationPeople"> | null = null;
+    for (let index = 1; index <= 20; index += 1) {
+      const name = index === 20 ? removablePersonName : `E2E Pro上限スタッフ${index}`;
+      const staff = await createScenarioStaff(ctx, {
+        organizationId: restricted.organizationId,
+        shopId: restricted.shopId,
+        name,
+        email: `billing-plan-change-${index}@shiftori.invalid`,
+      });
+      if (index === 20) removablePersonId = staff.personId;
+    }
+    if (!removablePersonId) throw new Error("E2E removable person was not seeded");
+
+    // Provider上のBusiness→Pro変更と初回Pro請求が成功した後、Pro上限だけが1名超過した状態を再現する。
+    await ctx.db.insert("organizationBillingStates", {
+      organizationId: restricted.organizationId,
+      state: {
+        kind: "restricted",
+        reason: "planLimitExceeded",
+        previousPlan: "business",
+        targetPlan: "pro",
+        limitPlan: "pro",
+        recoveryManagerPersonIds: [restricted.ownerPersonId],
+        previousActiveShopIds: [restricted.shopId],
+        restrictedAt: now,
+      },
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return {
+      complimentaryOrganizationId: complimentary.organizationId,
+      complimentaryShopId: complimentary.shopId,
+      complimentaryOrganizationName,
+      restrictedOrganizationId: restricted.organizationId,
+      restrictedShopId: restricted.shopId,
+      restrictedOrganizationName,
+      removablePersonId,
+      removablePersonName,
+      expectedRestrictedPeople: 21,
+      expectedProLimit: 20,
+    };
+  },
+});
+
 export const seedMultiActorOrganizationScenario = internalMutation({
   args: {
     ownerManagerAuthTokenIdentifier: v.string(),
@@ -1285,6 +1394,12 @@ export const seedMultiActorOrganizationScenario = internalMutation({
     actorCName: v.optional(v.string()),
     alternateOrganizationName: v.optional(v.string()),
     alternateShopName: v.optional(v.string()),
+    personRemovalAssignments: v.optional(
+      v.object({
+        today: v.string(),
+        future: v.string(),
+      }),
+    ),
   },
   handler: async (ctx, args) => {
     assertE2EHelpersEnabled();
@@ -1361,6 +1476,36 @@ export const seedMultiActorOrganizationScenario = internalMutation({
       emailNormalized: normalizeScenarioEmail(args.actorBManagerEmail),
       isDeleted: false,
     });
+    let personRemovalRecruitmentId: Id<"recruitments"> | undefined;
+    let personRemovalAssignmentCount: number | undefined;
+    if (args.personRemovalAssignments) {
+      const positionId = await ensureDefaultPosition(ctx, primaryShopId);
+      personRemovalRecruitmentId = await ctx.db.insert("recruitments", {
+        shopId: primaryShopId,
+        periodStart: args.personRemovalAssignments.today,
+        periodEnd: args.personRemovalAssignments.future,
+        deadline: args.personRemovalAssignments.today,
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      for (const [index, date] of [
+        args.personRemovalAssignments.today,
+        args.personRemovalAssignments.future,
+      ].entries()) {
+        await ctx.db.insert("shiftAssignments", {
+          recruitmentId: personRemovalRecruitmentId,
+          staffId: actorBPrimaryStaffId,
+          date,
+          startTime: index === 0 ? "10:00" : "11:00",
+          endTime: index === 0 ? "18:00" : "19:00",
+          positionId,
+        });
+      }
+      personRemovalAssignmentCount = 2;
+    }
 
     const alternateOrganizationName = args.alternateOrganizationName ?? "E2E 管理者B別グループ";
     const alternateShopName = args.alternateShopName ?? "E2E 管理者B別店舗";
@@ -1402,6 +1547,7 @@ export const seedMultiActorOrganizationScenario = internalMutation({
       alternateShopId,
       actorBAlternatePersonId,
       actorBAlternateMemberId,
+      ...(personRemovalRecruitmentId ? { personRemovalRecruitmentId, personRemovalAssignmentCount } : {}),
       organizationName,
       primaryShopName,
       secondaryShopName,

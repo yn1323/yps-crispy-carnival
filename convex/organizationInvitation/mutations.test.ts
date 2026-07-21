@@ -47,7 +47,7 @@ async function seedActiveOrganizationStaff(
 
 async function seedFullProWithReadOnlyNonStaff(ctx: MutationCtx, subject: string) {
   const manager = await seedOrganizationManagerShop(ctx, { subject, plan: "pro" });
-  for (let index = 0; index < 29; index += 1) {
+  for (let index = 0; index < 19; index += 1) {
     await seedActiveOrganizationStaff(ctx, {
       organizationId: manager.organizationId,
       shopId: manager.shopId,
@@ -1062,7 +1062,7 @@ describe("organizationInvitation/mutations", () => {
     ).resolves.toMatchObject({ status: "accepted", organizationId: manager.organizationId });
   });
 
-  it("BusinessからProへの変更予約中はPro上限を超える管理者招待を作成しない", async () => {
+  it("BusinessからProへの変更予約中も適用日まではBusiness上限で管理者招待を作成する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const manager = await seedOrganizationManagerShop(ctx, {
@@ -1098,7 +1098,7 @@ describe("organizationInvitation/mutations", () => {
         email: "scheduled-pro-new-manager@example.com",
         requestId: "scheduled-pro-invite-create",
       }),
-    ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 30名 / 上限 30名）");
+    ).resolves.toMatchObject({ status: "created", invitationId: expect.any(String) });
 
     const invitations = await t.run((ctx) =>
       ctx.db
@@ -1106,7 +1106,12 @@ describe("organizationInvitation/mutations", () => {
         .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", ids.organizationId))
         .collect(),
     );
-    expect(invitations).toEqual([]);
+    expect(invitations).toHaveLength(1);
+    expect(invitations[0]).toMatchObject({
+      emailNormalized: "scheduled-pro-new-manager@example.com",
+      status: "issued",
+      reservedSeat: true,
+    });
   });
 
   it("利用人数に未算入のreadOnly人物を管理者へ戻す招待でも空きを予約する", async () => {
@@ -1119,7 +1124,7 @@ describe("organizationInvitation/mutations", () => {
         email: ids.targetEmail,
         requestId: "readonly-invite-create",
       }),
-    ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 30名 / 上限 30名）");
+    ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 20名 / 上限 20名）");
 
     const invitations = await t.run((ctx) =>
       ctx.db
@@ -1219,7 +1224,7 @@ describe("organizationInvitation/mutations", () => {
         subject: "invitation_email_drift_staff",
         email: "before-change@example.com",
       });
-      for (let index = 0; index < 28; index += 1) {
+      for (let index = 0; index < 18; index += 1) {
         await seedActiveOrganizationStaff(ctx, {
           organizationId: manager.organizationId,
           shopId: manager.shopId,
@@ -1279,7 +1284,7 @@ describe("organizationInvitation/mutations", () => {
         subject: "parallel_accept_owner",
         plan: "pro",
       });
-      for (let index = 0; index < 28; index += 1) {
+      for (let index = 0; index < 18; index += 1) {
         await seedActiveOrganizationStaff(ctx, {
           organizationId: manager.organizationId,
           shopId: manager.shopId,
@@ -1338,7 +1343,7 @@ describe("organizationInvitation/mutations", () => {
         )
         .collect(),
     }));
-    expect(state.people).toHaveLength(30);
+    expect(state.people).toHaveLength(20);
     expect(state.targetMembers).toHaveLength(2);
     expect(state.competingStaff).toEqual([]);
   });

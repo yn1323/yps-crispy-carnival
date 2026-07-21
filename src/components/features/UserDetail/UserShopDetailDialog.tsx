@@ -2,7 +2,7 @@ import { Box, Stack } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
 import { Dialog } from "@/src/components/ui/Dialog";
-import type { UserDetailData, UserDetailMembership, UserDetailRecruitment } from "./types";
+import type { UserDetailData, UserDetailMembership, UserDetailRecruitment, UserDetailRemovalPreview } from "./types";
 import { UserLineTab } from "./UserLineTab";
 import { UserNotificationTab } from "./UserNotificationTab";
 import { UserSettingsTab } from "./UserSettingsTab";
@@ -31,6 +31,7 @@ type Props = {
     isChangingShiftTarget: boolean;
     isRemovalConfirmationOpen: boolean;
     isRemoving: boolean;
+    removalPreview: UserDetailRemovalPreview | null;
   };
   onOpenChange: (details: { open: boolean }) => void;
   onClose: () => void;
@@ -130,6 +131,7 @@ export function UserShopDetailDialog({
             <UserSettingsTab
               personName={data.person.name}
               membership={membership}
+              removalPreview={membershipState.removalPreview ?? membership.removalPreview}
               isStoreReadOnly={isStoreReadOnly}
               storeDisabledReason={storeDisabledReason}
               isChangingShiftTarget={membershipState.isChangingShiftTarget}
