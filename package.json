@@ -79,7 +79,7 @@
   "dependencies": {
     "@chakra-ui/react": "catalog:",
     "@clerk/backend": "2.33.5",
-    "@clerk/clerk-react": "5.61.3",
+    "@clerk/clerk-react": "5.61.6",
     "@clerk/localizations": "3.37.3",
     "@clerk/shared": "3.47.7",
     "@convex-dev/migrations": "^0.3.3",
@@ -129,9 +129,9 @@
     "@types/unzipper": "0.10.11",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "@vitejs/plugin-react": "catalog:",
-    "@vitest/browser": "4.1.4",
-    "@vitest/browser-playwright": "4.1.4",
-    "@vitest/coverage-v8": "4.1.4",
+    "@vitest/browser": "4.1.8",
+    "@vitest/browser-playwright": "4.1.8",
+    "@vitest/coverage-v8": "4.1.8",
     "@yn1323/cognac": "^0.2.2",
     "chromatic": "13.3.5",
     "concurrently": "^9.2.1",
@@ -149,7 +149,7 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-tsconfig-paths": "catalog:",
-    "vitest": "4.1.4",
+    "vitest": "4.1.8",
     "web-vitals": "5.1.0",
     "yaml": "^2.9.0"
   }
