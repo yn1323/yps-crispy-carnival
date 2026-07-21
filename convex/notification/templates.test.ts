@@ -92,7 +92,7 @@ describe("notification/templates", () => {
       staticMarkup: ["<strong>提出締切：</strong>"],
     },
     {
-      name: "提出リマインド",
+      name: "提出締切案内",
       build: () =>
         buildReminderEmailHtml({
           staffName: dangerousText,
@@ -160,7 +160,7 @@ describe("notification/templates", () => {
           expiresAt: new Date("2026-05-31T12:00:00+09:00").getTime(),
           documents: LEGAL_DOCUMENTS.staff,
         }),
-      staticMarkup: ["利用規約・プライバシーポリシー"],
+      staticMarkup: ["案内と規約を確認する"],
     },
     {
       name: "シフト閲覧リンク再発行",
@@ -204,6 +204,53 @@ describe("notification/templates", () => {
     expect(lineCtaHtml).not.toContain("<script>");
     expect(emailHtml).toContain(lineCtaHtml);
     expect(emailHtml).not.toContain("&lt;table");
+  });
+
+  it("LINE連携案内はLINEで送れない場合のメール通知を正確に伝える", () => {
+    const inviteHtml = buildLineInviteEmailHtml({
+      staffName: "田中太郎",
+      shopName: "テスト店舗",
+      authorizeUrl: "https://example.com/line/authorize",
+    });
+    const initialCta = buildLineCtaSection({
+      authorizeUrl: "https://example.com/line/authorize",
+      reLink: false,
+    });
+    const reLinkCta = buildLineCtaSection({
+      authorizeUrl: "https://example.com/line/authorize",
+      reLink: true,
+    });
+
+    for (const html of [inviteHtml, initialCta, reLinkCta]) {
+      expect(html).toContain("LINEで送れない場合は、メールでお知らせすることがあります。");
+      expect(html).not.toContain("次回からメールではなく");
+    }
+    expect(reLinkCta).toContain("友だち追加し直すと、シフトのお知らせをLINEで受け取れます。");
+  });
+
+  it("法務同意案内は通知用途、確認操作、期限後の同意方法を簡潔に伝える", () => {
+    const expiresAt = new Date("2026-05-31T12:00:00+09:00").getTime();
+    const emailHtml = buildStaffLegalConsentEmailHtml({
+      staffName: "田中太郎",
+      shopName: "テスト店舗",
+      consentUrl: "https://shiftori.app/legal/staff/consent?token=test",
+      expiresAt,
+      documents: LEGAL_DOCUMENTS.staff,
+    });
+    const flex = buildStaffLegalConsentLineFlexMessage({
+      staffName: "田中太郎",
+      shopName: "テスト店舗",
+      consentUrl: "https://shiftori.app/legal/staff/consent?token=test",
+      expiresAt,
+    });
+    const copy = `${emailHtml}\n${flex.altText}\n${flexTexts(flex).join("\n")}`;
+
+    expect(copy).toContain("シフト希望の提出依頼と確定シフトのお知らせを送ります。");
+    expect(copy).toContain("次回のシフト提出時に確認して同意できます。");
+    expect(copy).toContain("お知らせは同意前でも送られます。");
+    expect(copy).not.toContain("シフトリでは、メール・LINEで届くリンクから");
+    expect(emailHtml).toContain(">案内と規約を確認する</a>");
+    expect(flexButtonLabels(flex)).toContain("案内と規約を確認する");
   });
 
   it("magic linkを含む対象3リンクにnoreferrerを付ける", () => {
@@ -287,11 +334,11 @@ describe("notification/templates", () => {
     expect(flexTexts(flex)).toEqual(
       expect.arrayContaining(["テスト店舗\n✅ シフト確定", "▼あなたのシフト", "1/20(火)", "出勤", "1/21(水)", "休み"]),
     );
-    expect(flexBodyTextsWithoutTitle(flex)).toContain("1/20(火)〜1/22(木) のシフトが確定しました。");
+    expect(flexBodyTextsWithoutTitle(flex)).toContain("1/20(火)〜1/22(木)のシフトが確定しました。");
     expect(flexBodyTextsWithoutTitle(flex).join("\n")).not.toContain("テスト店舗");
-    expect(flexBodyTextsWithoutTitle(flex).join("\n")).not.toContain("全員分の確認はこちら");
+    expect(flexBodyTextsWithoutTitle(flex).join("\n")).not.toContain("全員のシフトを確認する");
     expect(flex.altText).not.toContain("24時間有効");
-    expect(flexButtonLabels(flex)).toContain("全員分の確認はこちら");
+    expect(flexButtonLabels(flex)).toContain("全員のシフトを確認する");
     expect(flexUris(flex)).toContain("https://example.com/shifts/view?token=test&openExternalBrowser=1");
     expect(flex.contents.footer).toMatchObject({ paddingAll: "20px" });
     expect(flex.contents.footer?.paddingTop).toBeUndefined();
@@ -332,11 +379,11 @@ describe("notification/templates", () => {
       isResend: true,
     });
     expect(flexTexts(flex)).toContain("テスト店舗\n🔁 シフト変更");
-    expect(flexBodyTextsWithoutTitle(flex)).toContain("1/20(火)〜1/22(木) のシフトが変更されました。");
+    expect(flexBodyTextsWithoutTitle(flex)).toContain("1/20(火)〜1/22(木)のシフトが変更されました。");
     expect(flexBodyTextsWithoutTitle(flex).join("\n")).not.toContain("テスト店舗");
-    expect(flexBodyTextsWithoutTitle(flex).join("\n")).not.toContain("全員分の確認はこちら");
+    expect(flexBodyTextsWithoutTitle(flex).join("\n")).not.toContain("全員のシフトを確認する");
     expect(flex.altText).not.toContain("24時間有効");
-    expect(flexButtonLabels(flex)).toContain("全員分の確認はこちら");
+    expect(flexButtonLabels(flex)).toContain("全員のシフトを確認する");
   });
 
   it("各LINE通知の1行目に状態ラベル（絵文字 + 種別）を置く", () => {
@@ -366,8 +413,8 @@ describe("notification/templates", () => {
       dashboardUrl: "https://shiftori.app/dashboard",
     });
 
-    expect(recruitment.startsWith("📩 提出依頼\n")).toBe(true);
-    expect(reminder.startsWith("🔔 提出リマインド\n")).toBe(true);
+    expect(recruitment.startsWith("📩 シフト提出のお願い\n")).toBe(true);
+    expect(reminder.startsWith("🔔 提出締切が近づいています\n")).toBe(true);
     expect(confirmationReminder.startsWith("⏰ 提出締切を過ぎています\n")).toBe(true);
     expect(failure.startsWith("⚠️ 送れなかった通知\n")).toBe(true);
     expect(shopActivation.startsWith("📅 シフト作成の続き\n")).toBe(true);
@@ -390,9 +437,9 @@ describe("notification/templates", () => {
           deadline: "6/25(金) 23:59",
           magicLinkUrl: submitUrl,
         }),
-        title: "テスト店舗\n📩 提出依頼",
+        title: "テスト店舗\n📩 シフト提出のお願い",
         text: "提出締切：6/25(金) 23:59",
-        label: "提出はこちら",
+        label: "シフト希望を提出する",
         uri: `${submitUrl}&openExternalBrowser=1`,
       },
       {
@@ -403,9 +450,9 @@ describe("notification/templates", () => {
           linkExpiresAtLabel: "6/25(金) 23:59",
           magicLinkUrl: submitUrl,
         }),
-        title: "テスト店舗\n🔔 提出リマインド",
-        text: "まだ提出されていないようです。早めに提出してください。",
-        label: "提出はこちら",
+        title: "テスト店舗\n🔔 提出締切が近づいています",
+        text: "まだ提出していない場合は、提出締切までに希望シフトを提出してください。",
+        label: "シフト希望を提出する",
         uri: `${submitUrl}&openExternalBrowser=1`,
       },
       {
@@ -416,8 +463,8 @@ describe("notification/templates", () => {
           magicLinkUrl: "https://example.com/shifts/view?token=test",
         }),
         title: "テスト店舗\n🔁 リンク再発行",
-        text: "7/2(木)〜7/30(木) のシフト閲覧リンクを再発行しました。",
-        label: "シフトの確認はこちら",
+        text: "7/2(木)〜7/30(木)のシフト閲覧リンクを再発行しました。",
+        label: "シフトを確認する",
         uri: "https://example.com/shifts/view?token=test&openExternalBrowser=1",
       },
       {
@@ -429,7 +476,7 @@ describe("notification/templates", () => {
         }),
         title: "テスト店舗\n⏰ 提出締切を過ぎています",
         text: "提出締切（6/30(火) 23:59）を過ぎています。",
-        label: "シフトの確定はこちら",
+        label: "シフトを確定する",
         uri: `${dashboardUrl}&openExternalBrowser=1`,
       },
       {
@@ -460,9 +507,9 @@ describe("notification/templates", () => {
           consentUrl: "https://shiftori.app/legal/staff/consent?token=test",
           expiresAt: new Date("2026-05-31T12:00:00+09:00").getTime(),
         }),
-        title: "テスト店舗\n📄 ご案内",
-        text: "シフトリの使い方と、利用規約・プライバシーポリシーを確認できます。",
-        label: "確認はこちら",
+        title: "テスト店舗\n📄 シフトリの案内と規約",
+        text: "使い方と利用規約、プライバシーポリシーを確認してください。",
+        label: "案内と規約を確認する",
         uri: "https://shiftori.app/legal/staff/consent?token=test&openExternalBrowser=1",
       },
     ];
