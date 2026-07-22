@@ -22,7 +22,14 @@ export class DashboardPage {
   constructor(private page: Page) {}
 
   async goto(shopId?: string) {
-    await this.page.goto(shopId ? `/dashboard?shop=${encodeURIComponent(shopId)}` : "/dashboard");
+    await this.page.goto(shopId ? `/dashboard?shop=${encodeURIComponent(shopId)}` : "/dashboard", {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(this.page).toHaveURL(
+      (url) => url.pathname === "/dashboard" && (!shopId || url.searchParams.get("shop") === shopId),
+      { timeout: DASHBOARD_DATA_TIMEOUT },
+    );
+    await this.expectDashboardReady();
   }
 
   async expectTrialEndingNoticeVisible() {
@@ -537,6 +544,15 @@ export class DashboardPage {
     });
   }
 
+  private async expectDashboardReady() {
+    const readyState = this.page
+      .getByRole("button", { name: "新しい募集をつくる" })
+      .or(this.page.getByRole("button", { name: /お店を登録する/ }))
+      .or(this.page.getByRole("heading", { name: "この店舗を開けません" }))
+      .first();
+    await expect(readyState).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
+  }
+
   async expectStaffRowCount(count: number) {
     await expect(this.staffSection().getByRole("button", { name: /の(?:ユーザー|スタッフ)詳細を開く$/ })).toHaveCount(
       count,
@@ -595,13 +611,19 @@ export class DashboardPage {
     // 閉じるボタン（全トーストに存在）を直接発火して即座に閉じる。
     // 座標クリックだと、トースト消滅の瞬間に下のダイアログへクリックが落ちることがある。
     await toast.locator("[data-part='close-trigger']").evaluate((element: HTMLElement) => element.click());
-    await expect(toast).not.toBeVisible();
+    // exit animation中も表示扱いになるため、閉じた状態またはDOMからの削除を完了条件にする。
+    await expect(toast).not.toHaveAttribute("data-state", "open");
   }
 
   private async openStaffDetail(staffName: string) {
-    const contextShopName = (await this.page.getByRole("heading", { level: 1 }).first().textContent())?.trim();
+    await this.expectDashboardDataLoaded();
+    const contextHeading = this.page.getByRole("heading", { level: 1 }).first();
+    await expect(contextHeading).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
+    const contextShopName = (await contextHeading.textContent())?.trim();
     const contextShopId = new URL(this.page.url()).searchParams.get("shop");
-    await this.staffRow(staffName).click({ noWaitAfter: true });
+    const row = this.staffRow(staffName);
+    await expect(row).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
+    await row.click({ noWaitAfter: true });
     const legacyDialog = this.staffDetailDialog();
     const kind = await Promise.any([
       this.page.waitForURL(/\/users\/[^/?]+/, { timeout: DASHBOARD_DATA_TIMEOUT }).then(() => "user" as const),

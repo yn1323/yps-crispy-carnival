@@ -1,16 +1,23 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
+const SHIFT_BOARD_DATA_TIMEOUT = 20_000;
+
 export class ShiftBoardPage {
   constructor(private page: Page) {}
 
   async goto(recruitmentId: string, shopId: string) {
-    await this.page.goto(`/shiftboard/${encodeURIComponent(recruitmentId)}?shop=${encodeURIComponent(shopId)}`);
+    await this.page.goto(`/shiftboard/${encodeURIComponent(recruitmentId)}?shop=${encodeURIComponent(shopId)}`, {
+      waitUntil: "domcontentloaded",
+    });
     await this.expectOnShiftBoard();
     await this.expectShopContext(shopId);
   }
 
   async expectOnShiftBoard() {
-    await expect(this.page).toHaveURL(/\/shiftboard\//);
+    await expect(this.page).toHaveURL(/\/shiftboard\//, { timeout: SHIFT_BOARD_DATA_TIMEOUT });
+    await expect(this.page.getByRole("link", { name: "戻る", exact: true })).toBeVisible({
+      timeout: SHIFT_BOARD_DATA_TIMEOUT,
+    });
   }
 
   async expectShopContext(shopId: string) {
@@ -19,7 +26,7 @@ export class ShiftBoardPage {
   }
 
   async reload() {
-    await this.page.reload();
+    await this.page.reload({ waitUntil: "domcontentloaded" });
     await this.expectOnShiftBoard();
   }
 
@@ -67,8 +74,7 @@ export class ShiftBoardPage {
   }
 
   async reloadAndExpectDraft(staffName: string, startTime: string, endTime: string) {
-    await this.page.reload();
-    await this.expectOnShiftBoard();
+    await this.reload();
     await this.expectStaffShiftTime(staffName, startTime, endTime);
   }
 

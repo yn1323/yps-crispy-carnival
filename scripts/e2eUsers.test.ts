@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  getCurrentE2EClerkUserIndex,
   getE2EActorPool,
   getE2EClerkUserForActor,
   getE2EClerkUserForIndex,
@@ -8,6 +9,7 @@ import {
   getE2EMultiActorWorkerCount,
   getE2EWorkerCount,
   parseE2EClerkUserEmails,
+  setCurrentE2EClerkUserIndex,
 } from "../e2e/helpers/e2eUsers";
 
 const E2E_USERS = [
@@ -21,6 +23,7 @@ const E2E_USERS = [
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  delete process.env.E2E_CURRENT_USER_INDEX;
 });
 
 describe("E2Eユーザー設定", () => {
@@ -97,6 +100,14 @@ describe("E2E actor pool", () => {
     expect([0, 1, 2, 3].map((ordinal) => getE2EClerkUserForWorkerTest(1, 2, ordinal).index)).toEqual([1, 3, 5, 1]);
   });
 
+  it("3 workerでは各workerが重ならない2ユーザーを順番に使う", () => {
+    vi.stubEnv("E2E_CLERK_USERS", E2E_USERS.join(","));
+
+    expect([0, 1, 2].map((ordinal) => getE2EClerkUserForWorkerTest(0, 3, ordinal).index)).toEqual([0, 3, 0]);
+    expect([0, 1, 2].map((ordinal) => getE2EClerkUserForWorkerTest(1, 3, ordinal).index)).toEqual([1, 4, 1]);
+    expect([0, 1, 2].map((ordinal) => getE2EClerkUserForWorkerTest(2, 3, ordinal).index)).toEqual([2, 5, 2]);
+  });
+
   it("6 workerでは各workerに同じユーザーを固定する", () => {
     vi.stubEnv("E2E_CLERK_USERS", E2E_USERS.join(","));
 
@@ -112,11 +123,34 @@ describe("E2E actor pool", () => {
     );
   });
 
-  it("通常E2Eは6 worker、multi-actor E2Eは2 workerを返す", () => {
+  it("未指定時の通常E2Eは6 worker、multi-actor E2Eは2 workerを返す", () => {
     vi.stubEnv("E2E_CLERK_USERS", E2E_USERS.join(","));
 
     expect(getE2EWorkerCount()).toBe(6);
     expect(getE2EMultiActorWorkerCount()).toBe(2);
+  });
+
+  it("通常E2EだけをE2E_WORKERSで3 workerへ減らせる", () => {
+    vi.stubEnv("E2E_CLERK_USERS", E2E_USERS.join(","));
+    vi.stubEnv("E2E_WORKERS", "3");
+
+    expect(getE2EWorkerCount()).toBe(3);
+    expect(getE2EMultiActorWorkerCount()).toBe(2);
+  });
+
+  it.each(["0", "4", "7", "1.5", "not-a-number"])("6ユーザーを分割できないE2E_WORKERS=%sを拒否する", (raw) => {
+    vi.stubEnv("E2E_CLERK_USERS", E2E_USERS.join(","));
+
+    expect(() => getE2EWorkerCount(raw)).toThrow(`E2E_WORKERS must be a positive divisor of 6: ${raw}`);
+  });
+
+  it("worker数を減らしても現在のユーザーindexを6ユーザー内で保持する", () => {
+    vi.stubEnv("E2E_CLERK_USERS", E2E_USERS.join(","));
+    vi.stubEnv("E2E_WORKERS", "3");
+
+    setCurrentE2EClerkUserIndex(4);
+
+    expect(getCurrentE2EClerkUserIndex()).toBe(4);
   });
 
   it("6ユーザーのstorageStateとmetadataを別ファイルへ保存する", () => {

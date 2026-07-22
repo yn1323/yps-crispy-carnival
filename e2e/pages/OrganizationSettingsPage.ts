@@ -2,16 +2,35 @@ import { expect, type Locator, type Page } from "@playwright/test";
 import { UserDetailPage } from "./UserDetailPage";
 
 const SETTINGS_DATA_TIMEOUT = 20_000;
+const SETTINGS_TAB_LABELS = {
+  people: "ユーザー",
+  shops: "店舗",
+  billing: "プランと支払い",
+  settings: "設定",
+} as const;
+type SettingsTab = keyof typeof SETTINGS_TAB_LABELS;
 const SUBSCRIPTION_DELETION_DISABLED_REASON =
   "有料契約またはプラン変更の予約が残っています。「プランと支払い」で契約や予約を終了してから、グループを削除してください。";
 
 export class OrganizationSettingsPage {
   constructor(private page: Page) {}
 
-  async goto(shopId: string, tab: "people" | "shops" | "billing" | "settings" = "people") {
+  async goto(shopId: string, tab: SettingsTab = "people") {
     await this.page.goto(
       `/settings?shop=${encodeURIComponent(shopId)}${tab === "people" ? "" : `&tab=${encodeURIComponent(tab)}`}`,
+      { waitUntil: "domcontentloaded" },
     );
+    await expect(this.page).toHaveURL(
+      (url) =>
+        url.pathname === "/settings" &&
+        url.searchParams.get("shop") === shopId &&
+        (tab === "people" ? url.searchParams.get("tab") === null : url.searchParams.get("tab") === tab),
+      { timeout: SETTINGS_DATA_TIMEOUT },
+    );
+    const invalidShop = this.page.getByRole("heading", { name: "この店舗を開けません" });
+    await expect(this.tabTrigger(tab).or(invalidShop).first()).toBeVisible({ timeout: SETTINGS_DATA_TIMEOUT });
+    if (await invalidShop.isVisible()) return;
+    await this.expectTabSelected(tab);
   }
 
   async expectOrganization(name: string) {
@@ -33,38 +52,30 @@ export class OrganizationSettingsPage {
   }
 
   async openPeopleTab() {
-    await this.page.getByRole("tab", { name: "ユーザー" }).click();
+    await this.openTab("people");
   }
 
   async openShopsTab() {
-    await this.page.getByRole("tab", { name: "店舗" }).click();
+    await this.openTab("shops");
   }
 
   async openBillingTab() {
-    await this.page.getByRole("tab", { name: "プランと支払い" }).click();
+    await this.openTab("billing");
   }
 
   async openSettingsTab() {
-    await this.page.getByRole("tab", { name: "設定" }).click();
+    await this.openTab("settings");
   }
 
   async expectBillingTabSelected(shopId: string) {
-    await expect
-      .poll(
-        () => {
-          const url = new URL(this.page.url());
-          return {
-            pathname: url.pathname,
-            shop: url.searchParams.get("shop"),
-            tab: url.searchParams.get("tab"),
-          };
-        },
-        { timeout: SETTINGS_DATA_TIMEOUT },
-      )
-      .toEqual({ pathname: "/settings", shop: shopId, tab: "billing" });
-    await expect(this.page.getByRole("tab", { name: "プランと支払い" })).toHaveAttribute("aria-selected", "true", {
-      timeout: SETTINGS_DATA_TIMEOUT,
-    });
+    await expect(this.page).toHaveURL(
+      (url) =>
+        url.pathname === "/settings" &&
+        url.searchParams.get("shop") === shopId &&
+        url.searchParams.get("tab") === "billing",
+      { timeout: SETTINGS_DATA_TIMEOUT },
+    );
+    await this.expectTabSelected("billing");
   }
 
   async expectOrganizationDeletionBlockedBySubscription() {
@@ -352,6 +363,25 @@ export class OrganizationSettingsPage {
 
   private shopRow(shopName: string) {
     return this.page.getByRole("button", { name: `${shopName}の店舗詳細を開く` });
+  }
+
+  private async openTab(tab: SettingsTab) {
+    const trigger = this.tabTrigger(tab);
+    await expect(trigger).toBeVisible({ timeout: SETTINGS_DATA_TIMEOUT });
+    if ((await trigger.getAttribute("aria-selected")) !== "true") {
+      await trigger.click({ noWaitAfter: true });
+    }
+    await this.expectTabSelected(tab);
+  }
+
+  private async expectTabSelected(tab: SettingsTab) {
+    await expect(this.tabTrigger(tab)).toHaveAttribute("aria-selected", "true", {
+      timeout: SETTINGS_DATA_TIMEOUT,
+    });
+  }
+
+  private tabTrigger(tab: SettingsTab) {
+    return this.page.getByRole("tab", { name: SETTINGS_TAB_LABELS[tab], exact: true });
   }
 
   private async expectToast(title: string) {

@@ -9,6 +9,7 @@ const DEFAULT_E2E_CLERK_USER_EMAILS = [
   "e2e-user-6@test.com",
 ];
 const EXPECTED_E2E_USER_COUNT = 6;
+const E2E_WORKER_COUNT_ENV = "E2E_WORKERS";
 const CURRENT_E2E_USER_INDEX_ENV = "E2E_CURRENT_USER_INDEX";
 const E2E_ACTOR_USER_OFFSET = {
   A: 0,
@@ -62,8 +63,16 @@ export function getE2EClerkUsers(): E2EClerkUser[] {
   }));
 }
 
-export function getE2EWorkerCount() {
-  return getE2EClerkUsers().length;
+export function getE2EWorkerCount(raw = process.env[E2E_WORKER_COUNT_ENV]) {
+  const userCount = getE2EClerkUsers().length;
+  const normalized = raw?.trim();
+  if (!normalized) return userCount;
+
+  const workerCount = Number(normalized);
+  if (!Number.isInteger(workerCount) || workerCount <= 0 || userCount % workerCount !== 0) {
+    throw new Error(`${E2E_WORKER_COUNT_ENV} must be a positive divisor of ${userCount}: ${raw}`);
+  }
+  return workerCount;
 }
 
 export function getE2EMultiActorWorkerCount() {
@@ -124,7 +133,7 @@ export function getE2EClerkUserForActor(actor: E2EActor, poolIndex: number): E2E
 }
 
 export function setCurrentE2EClerkUserIndex(index: number) {
-  process.env[CURRENT_E2E_USER_INDEX_ENV] = String(normalizeE2EUserIndex(index, getE2EWorkerCount()));
+  process.env[CURRENT_E2E_USER_INDEX_ENV] = String(normalizeE2EUserIndex(index, getE2EClerkUsers().length));
 }
 
 export function getCurrentE2EClerkUserIndex() {
@@ -133,7 +142,7 @@ export function getCurrentE2EClerkUserIndex() {
   if (!Number.isInteger(parsed)) {
     throw new Error(`Invalid E2E user index: ${raw}`);
   }
-  return normalizeE2EUserIndex(parsed, getE2EWorkerCount());
+  return normalizeE2EUserIndex(parsed, getE2EClerkUsers().length);
 }
 
 export function getCurrentE2EClerkUser() {
