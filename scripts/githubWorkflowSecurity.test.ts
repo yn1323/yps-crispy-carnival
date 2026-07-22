@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
 
 type WorkflowStep = {
+  "continue-on-error"?: boolean;
   id?: string;
   if?: string;
   name?: string;
@@ -349,20 +350,30 @@ describe("PR workflow and trusted publisher security", () => {
     const { source, workflow } = readWorkflow("playwright.yml");
     const test = getJob(workflow, "test");
     const steps = getSteps(test);
+    const publicInputSafety = findStep(steps, "Verify Playwright public report input");
     const artifactSafety = findStep(steps, "Verify Playwright artifact safety");
     const publicInput = findStep(steps, "Upload Playwright public report input");
     const privateArtifact = findStep(steps, "Upload private Playwright report");
     const enforce = findStep(steps, "Enforce Full Regression result");
 
+    expect(publicInputSafety).toMatchObject({
+      id: "public-input-safety",
+      if: githubExpression("!cancelled()"),
+      "continue-on-error": true,
+    });
+    expect(publicInputSafety.run).toContain("cp test-results.json playwright-public-input/test-results.json");
+    expect(publicInputSafety.run).toContain("--profile playwright-public-input");
+    expect(publicInputSafety.run).toContain("playwright-public-input/test-results.json");
+    expect(publicInputSafety.run).toContain("assertNoSensitiveArtifacts.mjs");
     expect(artifactSafety.run).toContain("pnpm e2e:assert-artifact-safety");
     expect(artifactSafety.run).toContain("assertNoSensitiveArtifacts.mjs");
     expect(publicInput).toMatchObject({
       uses: UPLOAD_ARTIFACT_ACTION,
-      if: githubExpression("!cancelled() && steps.artifact-safety.outcome == 'success'"),
+      if: githubExpression("!cancelled() && steps.public-input-safety.outcome == 'success'"),
     });
     expect(publicInput.with).toMatchObject({
       name: `playwright-public-input-${githubExpression("github.run_attempt")}`,
-      path: "test-results.json",
+      path: "playwright-public-input/test-results.json",
       "if-no-files-found": "error",
       "retention-days": 1,
     });
@@ -376,6 +387,7 @@ describe("PR workflow and trusted publisher security", () => {
     expect(JSON.stringify(privateArtifact.with?.path)).toContain("playwright-report/");
     expect(JSON.stringify(privateArtifact.with?.path)).toContain("test-results/");
     expect(enforce.env).toMatchObject({
+      PUBLIC_INPUT_SAFETY_RESULT: githubExpression("steps.public-input-safety.outcome"),
       PUBLIC_INPUT_ARTIFACT_RESULT: githubExpression("steps.public-input-artifact.outcome"),
       PRIVATE_REPORT_ARTIFACT_RESULT: githubExpression("steps.playwright-report-artifact.outcome"),
     });

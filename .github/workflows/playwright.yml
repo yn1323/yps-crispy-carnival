@@ -97,6 +97,25 @@ jobs:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
           E2E_TESTING_ENABLED: "true"
           NOTIFICATION_DELIVERY_MODE: dry-run
+      - name: Verify Playwright public report input
+        id: public-input-safety
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: |
+          mkdir -p playwright-public-input
+          cp test-results.json playwright-public-input/test-results.json
+          node scripts/assertStaticArtifactSafety.mjs \
+            --profile playwright-public-input \
+            --root playwright-public-input
+          node scripts/assertPlaywrightArtifactSafety.mjs \
+            playwright-public-input/test-results.json
+          node scripts/assertNoSensitiveArtifacts.mjs \
+            --root playwright-public-input
+        env:
+          E2E_CLERK_USERS: ${{ vars.E2E_CLERK_USERS }}
+          E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD || vars.E2E_CLERK_PASSWORD }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       - name: Verify Playwright artifact safety
         id: artifact-safety
         if: ${{ !cancelled() }}
@@ -130,11 +149,11 @@ jobs:
           E2E_CLERK_USERS: ${{ vars.E2E_CLERK_USERS }}
       - name: Upload Playwright public report input
         id: public-input-artifact
-        if: ${{ !cancelled() && steps.artifact-safety.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.public-input-safety.outcome == 'success' }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: playwright-public-input-${{ github.run_attempt }}
-          path: test-results.json
+          path: playwright-public-input/test-results.json
           if-no-files-found: error
           retention-days: 1
       - name: Upload private Playwright report
@@ -153,6 +172,7 @@ jobs:
         if: ${{ always() && !cancelled() }}
         env:
           PLAYWRIGHT_RESULT: ${{ steps.playwright.outcome }}
+          PUBLIC_INPUT_SAFETY_RESULT: ${{ steps.public-input-safety.outcome }}
           ARTIFACT_SAFETY_RESULT: ${{ steps.artifact-safety.outcome }}
           RESULT_GATE_RESULT: ${{ steps.result-gate.outcome }}
           BACKEND_AUDIT_RESULT: ${{ steps.backend-audit.outcome }}
@@ -162,6 +182,7 @@ jobs:
           set -euo pipefail
           for RESULT in \
             "$PLAYWRIGHT_RESULT" \
+            "$PUBLIC_INPUT_SAFETY_RESULT" \
             "$ARTIFACT_SAFETY_RESULT" \
             "$RESULT_GATE_RESULT" \
             "$BACKEND_AUDIT_RESULT" \
