@@ -28,6 +28,7 @@
 - VRT対象Storyに最初から表示される静的な見出しや文言はVRTへ委ね、存在確認だけのBehavior Testを重複させない。Behavior Testは操作後に生じる表示・非表示・状態・件数の変化を保証する。
 - 共有schemaの境界値は定義元で一度だけ検証し、フォーム側ではresolver接続、submit抑止、payload、状態遷移を保証する。
 - `apps/analytics-dashboard/` は本人だけが使う内部BIのため、自動テストとFull Regressionの対象外とする。新しいテストを追加・維持せず、`pnpm analytics:lint`、`pnpm analytics:type-check`、`pnpm analytics:build`で確認する。
+- GitHub Actionsのworkflow YAMLについて、step名、job構成、権限値、埋め込みscript文字列などの内部構造をLogic UTで固定しない。構文・既知の危険パターン・Action参照の検査はworkflow向けlintと`zizmor`へ寄せ、実行契約はGitHub Actions上のjob結果で確認する。workflowから独立した純粋helperを実装した場合だけ、その公開入出力をLogic UTで検証する。
 
 ## テスト種別
 
