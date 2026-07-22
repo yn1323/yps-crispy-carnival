@@ -174,9 +174,9 @@ Issue Templateにも`@claude`など、未稼働botを自動起動するように
 | ワークフロー | トリガー | 内容 |
 |---|---|---|
 | `vrt.yml` | PR to develop/main、push to develop/main | secretlessでStorycap PNG生成と公開baseline比較を行い、固定artifactをupload |
-| `publish-vrt-report.yml` | `VRT Artifact`の`workflow_run: in_progress / completed` | default branchの信頼済みcodeでsource / artifactを再検証し、PRではVRT report公開とコメント更新後、差分時だけ`vrt-approval`を待つ。pushではbaselineもhosting-pagesへ公開 |
+| `publish-vrt-report.yml` | `VRT Artifact`の`workflow_run: completed` | default branchの信頼済みcodeでsource / artifactを再検証し、PRではVRT report公開とコメント更新後、差分時だけ`vrt-approval`を待つ。pushではbaselineもhosting-pagesへ公開 |
 
-VRT producerはPR / pushのsource treeでsecretlessにbuild・capture・compareし、公開済みbaselineも匿名cloneで読む。PR screenshot artifactは未信頼入力として扱い、publisherがsource workflowの固定path / ID、current head、latest run、artifact形式と機密情報不在を検査し、default branchのcodeでreportを生成してから公開する。差分reportと件数をPRコメントへ返した後だけ、publisherの`approve-pr-publication`（表示名`approve`）を`vrt-approval` Environmentで待ち、承認後に同じコメントを承認済みへ更新する。`workflow_run` job自体はdefault branch SHAに紐づくためrequired checkにはせず、publisherがexact PR head SHAへ書く固定commit status `shiftori/vrt-approval`をmerge gateにする。publisherはcurrent head / latest run以外のreport、status、コメントで上書きせず、hosting-pagesへの並行pushをretry付きrebaseで処理する。
+VRT producerはPR / pushのsource treeでsecretlessにbuild・capture・compareし、公開済みbaselineも匿名cloneで読む。PR screenshot artifactは未信頼入力として扱い、publisherは`workflow_run`通知をsource run IDの起点としてのみ使い、GitHub APIから再取得したworkflow runを基準に固定path / ID、current head、latest run、artifact形式と機密情報不在を検査する。workflow別run一覧APIへ`head_sha`を渡すと対象runが空になる場合があるため、一覧はeventで取得し、exact head SHAは取得後に比較する。default branchのcodeでreportを生成してから公開し、差分reportと件数をPRコメントへ返した後だけ、publisherの`approve-pr-publication`（表示名`approve`）を`vrt-approval` Environmentで待ち、承認後に同じコメントを承認済みへ更新する。`workflow_run` job自体はdefault branch SHAに紐づくためrequired checkにはせず、publisherがexact PR head SHAへ書く固定commit status `shiftori/vrt-approval`をmerge gateにする。publisherはcurrent head / latest run以外のreport、status、コメントで上書きせず、hosting-pagesへの並行pushをretry付きrebaseで処理する。
 
 `workflow_run` publisherは、そのworkflowファイルがdefault branchに存在するときだけproducerのrunから起動する。publisher導入PR自体はbootstrap対象のため、merge前のrunではreport公開、publisherコメント、`shiftori/vrt-approval` statusが動かない。default branchへの導入後に、PRの再実行または追加pushでproducerを再起動してstatus contextを一度作成し、その後branch protection / rulesetのrequired checkへ登録してstrictを有効化する。
 

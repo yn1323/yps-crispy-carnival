@@ -3,7 +3,7 @@ name: Publish Trusted VRT Report
 on:
   workflow_run:
     workflows: ["VRT Artifact"]
-    types: [in_progress, completed]
+    types: [completed]
 
 permissions:
   actions: read
@@ -11,7 +11,7 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: publish-vrt-${{ github.event.workflow_run.workflow_id }}-${{ github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.head_branch }}
+  group: publish-vrt-${{ github.event.workflow_run.id }}
   cancel-in-progress: true
 
 env:
@@ -25,7 +25,7 @@ jobs:
       github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     concurrency:
-      group: vrt-status-${{ github.event.workflow_run.workflow_id }}-${{ github.event.workflow_run.pull_requests[0].number }}
+      group: vrt-status-${{ github.event.workflow_run.id }}
       cancel-in-progress: false
     permissions:
       actions: read
@@ -43,31 +43,48 @@ jobs:
             const heading = '## VRT Report';
             const otherMarker = '<!-- shiftori-playwright-report:v1 -->';
             const otherHeading = '## Playwright Test Report';
-            const run = context.payload.workflow_run;
+            const eventRun = context.payload.workflow_run;
             const action = context.payload.action;
             const expectedRepository = `${context.repo.owner}/${context.repo.repo}`;
             const expectedWorkflowPath = '.github/workflows/vrt.yml';
 
             if (
+              action !== 'completed' ||
+              !Number.isSafeInteger(eventRun.id) ||
+              eventRun.id <= 0
+            ) {
+              core.setFailed('Unexpected VRT source workflow metadata for PR status comment.');
+              return;
+            }
+
+            const [{ data: trustedWorkflow }, { data: run }] = await Promise.all([
+              github.rest.actions.getWorkflow({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'vrt.yml',
+              }),
+              github.rest.actions.getWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: eventRun.id,
+              }),
+            ]);
+            if (
+              trustedWorkflow.path !== expectedWorkflowPath ||
+              trustedWorkflow.state !== 'active' ||
               run.name !== 'VRT Artifact' ||
+              run.workflow_id !== trustedWorkflow.id ||
               run.path !== expectedWorkflowPath ||
               run.event !== 'pull_request' ||
-              !['in_progress', 'completed'].includes(action) ||
+              run.status !== 'completed' ||
+              typeof run.conclusion !== 'string' ||
               run.head_repository?.full_name !== expectedRepository ||
-              !Number.isSafeInteger(run.id) ||
-              run.id <= 0 ||
-              !Number.isSafeInteger(run.workflow_id) ||
-              run.workflow_id <= 0 ||
               !Number.isSafeInteger(run.run_attempt) ||
               run.run_attempt <= 0 ||
               !/^[0-9a-f]{40}$/.test(run.head_sha ?? '') ||
               run.pull_requests?.length !== 1
             ) {
-              core.setFailed('Unexpected VRT source workflow metadata for PR status comment.');
-              return;
-            }
-            if (action === 'completed' && typeof run.conclusion !== 'string') {
-              core.setFailed('Completed VRT source workflow is missing its conclusion.');
+              core.setFailed('VRT source workflow is not the trusted completed PR workflow.');
               return;
             }
 
@@ -78,7 +95,7 @@ jobs:
             }
 
             const sourceRunIsCurrent = async () => {
-              const [{ data: trustedWorkflow }, { data: liveRun }] = await Promise.all([
+              const [{ data: currentWorkflow }, { data: liveRun }] = await Promise.all([
                 github.rest.actions.getWorkflow({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
@@ -90,20 +107,18 @@ jobs:
                   run_id: run.id,
                 }),
               ]);
-              const liveStatusMatches = action === 'in_progress'
-                ? ['queued', 'in_progress', 'waiting', 'pending', 'requested'].includes(liveRun.status) && liveRun.conclusion == null
-                : liveRun.status === 'completed' && liveRun.conclusion === run.conclusion;
               if (
-                trustedWorkflow.id !== run.workflow_id ||
-                trustedWorkflow.path !== expectedWorkflowPath ||
-                trustedWorkflow.state !== 'active' ||
+                currentWorkflow.id !== run.workflow_id ||
+                currentWorkflow.path !== expectedWorkflowPath ||
+                currentWorkflow.state !== 'active' ||
                 liveRun.name !== run.name ||
                 liveRun.workflow_id !== run.workflow_id ||
                 liveRun.path !== expectedWorkflowPath ||
                 liveRun.event !== run.event ||
                 liveRun.head_sha !== run.head_sha ||
                 liveRun.run_attempt !== run.run_attempt ||
-                !liveStatusMatches
+                liveRun.status !== 'completed' ||
+                liveRun.conclusion !== run.conclusion
               ) {
                 return false;
               }
@@ -113,7 +128,6 @@ jobs:
                 repo: context.repo.repo,
                 workflow_id: run.workflow_id,
                 event: run.event,
-                head_sha: run.head_sha,
                 per_page: 100,
               });
               const latestSourceRun = sourceRuns
@@ -124,8 +138,8 @@ jobs:
                   candidate.workflow_id === run.workflow_id &&
                   candidate.event === run.event &&
                   candidate.head_sha === run.head_sha &&
-                  candidate.head_repository?.full_name === expectedRepository &&
-                  candidate.pull_requests?.some((pull) => pull.number === pullNumber),
+                  candidate.head_branch === run.head_branch &&
+                  candidate.head_repository?.full_name === expectedRepository,
                 )
                 .reduce(
                   (latest, candidate) => (!latest || candidate.id > latest.id ? candidate : latest),
@@ -156,14 +170,12 @@ jobs:
             }
 
             const publisherActionsUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const sourceGateState = action === 'in_progress' || run.conclusion === 'success'
+            const sourceGateState = run.conclusion === 'success'
               ? 'pending'
               : 'failure';
-            const sourceGateDescription = action === 'in_progress'
-              ? 'VRT capture and comparison are running'
-              : run.conclusion === 'success'
-                ? 'Trusted VRT report publication is pending'
-                : `VRT source ${run.conclusion}`;
+            const sourceGateDescription = run.conclusion === 'success'
+              ? 'Trusted VRT report publication is pending'
+              : `VRT source ${run.conclusion}`;
             const { data: gatePullRequest } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -200,10 +212,8 @@ jobs:
               stale: '期限切れ',
               startup_failure: '起動失敗',
             };
-            const status = action === 'in_progress'
-              ? '実行中（capture / 比較）'
-              : (conclusionLabels[run.conclusion] ?? `完了（${run.conclusion}）`);
-            const phase = action === 'in_progress' ? 1 : 2;
+            const status = conclusionLabels[run.conclusion] ?? `完了（${run.conclusion}）`;
+            const phase = 2;
             const stateMarker = `<!-- shiftori-vrt-state:${run.head_sha}:${run.id}:${run.run_attempt}:${phase} -->`;
             const reportUrl = `https://yn1323.github.io/hosting-pages/${process.env.VRT_REPORT_DIR}/pr-${pullNumber}/`;
             const sourceActionsUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${run.id}`;
@@ -219,11 +229,7 @@ jobs:
               '| Action | Link |',
               '|---|---|',
               `| 差分確認 | [hosting-pagesの予定URLを開く（未公開の場合あり）](${reportUrl}) |`,
-              ...(
-                action === 'in_progress'
-                  ? [`| VRT実行 | [source Actionsを見る](${sourceActionsUrl}) |`]
-                  : [`| Trusted report公開 | [publisherの確認・承認へ進む](${publisherActionsUrl}) |`]
-              ),
+              `| Trusted report公開 | [publisherの確認・承認へ進む](${publisherActionsUrl}) |`,
               '',
               'Details:',
               'デプロイ先: [yn1323/hosting-pages:main](https://github.com/yn1323/hosting-pages/commits/main/)',
@@ -332,35 +338,18 @@ jobs:
         with:
           github-token: ${{ github.token }}
           script: |
-            const run = context.payload.workflow_run;
+            const eventRun = context.payload.workflow_run;
             const expectedWorkflowPath = '.github/workflows/vrt.yml';
             core.setOutput('should_publish', 'false');
             if (
-              run.name !== 'VRT Artifact' ||
-              run.path !== expectedWorkflowPath ||
-              !['pull_request', 'push'].includes(run.event) ||
-              run.conclusion !== 'success'
-            ) {
-              core.setFailed('Unexpected VRT source workflow metadata.');
-              return;
-            }
-            if (!/^[0-9a-f]{40}$/.test(run.head_sha ?? '')) {
-              core.setFailed('VRT source head SHA is invalid.');
-              return;
-            }
-            if (
-              !Number.isSafeInteger(run.id) ||
-              run.id <= 0 ||
-              !Number.isSafeInteger(run.workflow_id) ||
-              run.workflow_id <= 0 ||
-              !Number.isSafeInteger(run.run_attempt) ||
-              run.run_attempt <= 0
+              !Number.isSafeInteger(eventRun.id) ||
+              eventRun.id <= 0
             ) {
               core.setFailed('VRT source run identity is invalid.');
               return;
             }
 
-            const [{ data: trustedWorkflow }, { data: liveRun }] = await Promise.all([
+            const [{ data: trustedWorkflow }, { data: run }] = await Promise.all([
               github.rest.actions.getWorkflow({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -369,21 +358,21 @@ jobs:
               github.rest.actions.getWorkflowRun({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                run_id: run.id,
+                run_id: eventRun.id,
               }),
             ]);
             if (
-              trustedWorkflow.id !== run.workflow_id ||
               trustedWorkflow.path !== expectedWorkflowPath ||
               trustedWorkflow.state !== 'active' ||
-              liveRun.name !== run.name ||
-              liveRun.workflow_id !== trustedWorkflow.id ||
-              liveRun.path !== expectedWorkflowPath ||
-              liveRun.event !== run.event ||
-              liveRun.status !== 'completed' ||
-              liveRun.conclusion !== run.conclusion ||
-              liveRun.head_sha !== run.head_sha ||
-              liveRun.run_attempt !== run.run_attempt
+              run.name !== 'VRT Artifact' ||
+              run.workflow_id !== trustedWorkflow.id ||
+              run.path !== expectedWorkflowPath ||
+              !['pull_request', 'push'].includes(run.event) ||
+              run.status !== 'completed' ||
+              run.conclusion !== 'success' ||
+              !/^[0-9a-f]{40}$/.test(run.head_sha ?? '') ||
+              !Number.isSafeInteger(run.run_attempt) ||
+              run.run_attempt <= 0
             ) {
               core.setFailed('VRT source workflow is not the trusted current workflow identity.');
               return;
@@ -446,7 +435,6 @@ jobs:
               repo: context.repo.repo,
               workflow_id: run.workflow_id,
               event: run.event,
-              head_sha: run.head_sha,
               per_page: 100,
             });
             const latestSourceRun = sourceRuns
@@ -457,12 +445,9 @@ jobs:
                 candidate.workflow_id === run.workflow_id &&
                 candidate.event === run.event &&
                 candidate.head_sha === run.head_sha &&
+                candidate.head_branch === run.head_branch &&
                 candidate.head_repository?.full_name === `${context.repo.owner}/${context.repo.repo}` &&
-                (
-                  run.event === 'pull_request'
-                    ? candidate.pull_requests?.some((pull) => String(pull.number) === pullNumber)
-                    : candidate.head_branch === baselineRef
-                ),
+                (run.event === 'pull_request' || candidate.head_branch === baselineRef),
               )
               .reduce(
                 (latest, candidate) => (!latest || candidate.id > latest.id ? candidate : latest),
@@ -558,7 +543,7 @@ jobs:
         with:
           github-token: ${{ github.token }}
           script: |
-            const run = context.payload.workflow_run;
+            const eventRun = context.payload.workflow_run;
             const expectedWorkflowPath = '.github/workflows/vrt.yml';
             const baselineRef = process.env.EXPECTED_BASELINE_REF ?? '';
             const expectedHeadSha = process.env.EXPECTED_HEAD_SHA ?? '';
@@ -566,24 +551,17 @@ jobs:
             const reportKey = process.env.EXPECTED_REPORT_KEY ?? '';
             const expectedRunAttempt = Number(process.env.EXPECTED_RUN_ATTEMPT ?? '');
             if (
-              run.name !== 'VRT Artifact' ||
-              run.path !== expectedWorkflowPath ||
-              run.conclusion !== 'success' ||
-              !Number.isSafeInteger(run.id) ||
-              run.id <= 0 ||
-              !Number.isSafeInteger(run.workflow_id) ||
-              run.workflow_id <= 0 ||
+              !Number.isSafeInteger(eventRun.id) ||
+              eventRun.id <= 0 ||
               !Number.isSafeInteger(expectedRunAttempt) ||
               expectedRunAttempt <= 0 ||
-              run.run_attempt !== expectedRunAttempt ||
-              !/^[0-9a-f]{40}$/.test(expectedHeadSha) ||
-              run.head_sha !== expectedHeadSha
+              !/^[0-9a-f]{40}$/.test(expectedHeadSha)
             ) {
               core.setFailed('VRT source identity changed before credentials were enabled.');
               return;
             }
 
-            const [{ data: trustedWorkflow }, { data: liveRun }] = await Promise.all([
+            const [{ data: trustedWorkflow }, { data: run }] = await Promise.all([
               github.rest.actions.getWorkflow({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -592,21 +570,19 @@ jobs:
               github.rest.actions.getWorkflowRun({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                run_id: run.id,
+                run_id: eventRun.id,
               }),
             ]);
             if (
-              trustedWorkflow.id !== run.workflow_id ||
               trustedWorkflow.path !== expectedWorkflowPath ||
               trustedWorkflow.state !== 'active' ||
-              liveRun.name !== 'VRT Artifact' ||
-              liveRun.workflow_id !== trustedWorkflow.id ||
-              liveRun.path !== expectedWorkflowPath ||
-              liveRun.event !== run.event ||
-              liveRun.head_sha !== expectedHeadSha ||
-              liveRun.run_attempt !== expectedRunAttempt ||
-              liveRun.status !== 'completed' ||
-              liveRun.conclusion !== 'success'
+              run.name !== 'VRT Artifact' ||
+              run.workflow_id !== trustedWorkflow.id ||
+              run.path !== expectedWorkflowPath ||
+              run.head_sha !== expectedHeadSha ||
+              run.run_attempt !== expectedRunAttempt ||
+              run.status !== 'completed' ||
+              run.conclusion !== 'success'
             ) {
               core.setFailed('VRT source run was superseded before credentials were enabled.');
               return;
@@ -617,7 +593,6 @@ jobs:
               repo: context.repo.repo,
               workflow_id: run.workflow_id,
               event: run.event,
-              head_sha: expectedHeadSha,
               per_page: 100,
             });
             const latestSourceRun = sourceRuns
@@ -628,12 +603,9 @@ jobs:
                 candidate.workflow_id === run.workflow_id &&
                 candidate.event === run.event &&
                 candidate.head_sha === expectedHeadSha &&
+                candidate.head_branch === run.head_branch &&
                 candidate.head_repository?.full_name === `${context.repo.owner}/${context.repo.repo}` &&
-                (
-                  pullNumberValue
-                    ? candidate.pull_requests?.some((pull) => String(pull.number) === pullNumberValue)
-                    : candidate.head_branch === baselineRef
-                ),
+                (pullNumberValue !== '' || candidate.head_branch === baselineRef),
               )
               .reduce(
                 (latest, candidate) => (!latest || candidate.id > latest.id ? candidate : latest),
@@ -778,7 +750,7 @@ jobs:
         with:
           github-token: ${{ github.token }}
           script: |
-            const run = context.payload.workflow_run;
+            const eventRun = context.payload.workflow_run;
             const expectedWorkflowPath = '.github/workflows/vrt.yml';
             const baselineRef = process.env.EXPECTED_BASELINE_REF ?? '';
             const expectedHeadSha = process.env.EXPECTED_HEAD_SHA ?? '';
@@ -786,24 +758,17 @@ jobs:
             const reportKey = process.env.EXPECTED_REPORT_KEY ?? '';
             const expectedRunAttempt = Number(process.env.EXPECTED_RUN_ATTEMPT ?? '');
             if (
-              run.name !== 'VRT Artifact' ||
-              run.path !== expectedWorkflowPath ||
-              run.conclusion !== 'success' ||
-              !Number.isSafeInteger(run.id) ||
-              run.id <= 0 ||
-              !Number.isSafeInteger(run.workflow_id) ||
-              run.workflow_id <= 0 ||
+              !Number.isSafeInteger(eventRun.id) ||
+              eventRun.id <= 0 ||
               !Number.isSafeInteger(expectedRunAttempt) ||
               expectedRunAttempt <= 0 ||
-              run.run_attempt !== expectedRunAttempt ||
-              !/^[0-9a-f]{40}$/.test(expectedHeadSha) ||
-              run.head_sha !== expectedHeadSha
+              !/^[0-9a-f]{40}$/.test(expectedHeadSha)
             ) {
               core.setFailed('VRT source identity changed before publication.');
               return;
             }
 
-            const [{ data: trustedWorkflow }, { data: liveRun }] = await Promise.all([
+            const [{ data: trustedWorkflow }, { data: run }] = await Promise.all([
               github.rest.actions.getWorkflow({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -812,21 +777,19 @@ jobs:
               github.rest.actions.getWorkflowRun({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                run_id: run.id,
+                run_id: eventRun.id,
               }),
             ]);
             if (
-              trustedWorkflow.id !== run.workflow_id ||
               trustedWorkflow.path !== expectedWorkflowPath ||
               trustedWorkflow.state !== 'active' ||
-              liveRun.name !== 'VRT Artifact' ||
-              liveRun.workflow_id !== trustedWorkflow.id ||
-              liveRun.path !== expectedWorkflowPath ||
-              liveRun.event !== run.event ||
-              liveRun.head_sha !== expectedHeadSha ||
-              liveRun.run_attempt !== expectedRunAttempt ||
-              liveRun.status !== 'completed' ||
-              liveRun.conclusion !== 'success'
+              run.name !== 'VRT Artifact' ||
+              run.workflow_id !== trustedWorkflow.id ||
+              run.path !== expectedWorkflowPath ||
+              run.head_sha !== expectedHeadSha ||
+              run.run_attempt !== expectedRunAttempt ||
+              run.status !== 'completed' ||
+              run.conclusion !== 'success'
             ) {
               core.setFailed('VRT source run was superseded before publication.');
               return;
@@ -837,7 +800,6 @@ jobs:
               repo: context.repo.repo,
               workflow_id: run.workflow_id,
               event: run.event,
-              head_sha: expectedHeadSha,
               per_page: 100,
             });
             const latestSourceRun = sourceRuns
@@ -848,12 +810,9 @@ jobs:
                 candidate.workflow_id === run.workflow_id &&
                 candidate.event === run.event &&
                 candidate.head_sha === expectedHeadSha &&
+                candidate.head_branch === run.head_branch &&
                 candidate.head_repository?.full_name === `${context.repo.owner}/${context.repo.repo}` &&
-                (
-                  pullNumberValue
-                    ? candidate.pull_requests?.some((pull) => String(pull.number) === pullNumberValue)
-                    : candidate.head_branch === baselineRef
-                ),
+                (pullNumberValue !== '' || candidate.head_branch === baselineRef),
               )
               .reduce(
                 (latest, candidate) => (!latest || candidate.id > latest.id ? candidate : latest),
@@ -972,7 +931,7 @@ jobs:
       github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     concurrency:
-      group: vrt-status-${{ github.event.workflow_run.workflow_id }}-${{ github.event.workflow_run.pull_requests[0].number }}
+      group: vrt-status-${{ github.event.workflow_run.id }}
       cancel-in-progress: false
     permissions:
       actions: read
@@ -1006,7 +965,7 @@ jobs:
             const heading = '## VRT Report';
             const otherMarker = '<!-- shiftori-playwright-report:v1 -->';
             const otherHeading = '## Playwright Test Report';
-            const run = context.payload.workflow_run;
+            const eventRun = context.payload.workflow_run;
             const expectedRepository = `${context.repo.owner}/${context.repo.repo}`;
             const expectedWorkflowPath = '.github/workflows/vrt.yml';
             const outputBaselineRef = process.env.EXPECTED_BASELINE_REF ?? '';
@@ -1027,6 +986,15 @@ jobs:
             const publishRunAttempt = process.env.PUBLISH_RUN_ATTEMPT ?? '';
             const reportBaseUrl = process.env.REPORT_URL ?? '';
             const allowedJobResults = ['success', 'failure', 'cancelled', 'skipped'];
+            if (!Number.isSafeInteger(eventRun.id) || eventRun.id <= 0) {
+              core.setFailed('VRT source run identity is invalid at comment time.');
+              return;
+            }
+            const { data: run } = await github.rest.actions.getWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: eventRun.id,
+            });
             const expectedHeadSha = run.head_sha ?? '';
             const issueNumber = run.pull_requests?.[0]?.number;
             const expectedSourceRunAttempt = run.run_attempt;
@@ -1035,6 +1003,7 @@ jobs:
               run.name !== 'VRT Artifact' ||
               run.path !== expectedWorkflowPath ||
               run.event !== 'pull_request' ||
+              run.status !== 'completed' ||
               run.conclusion !== 'success' ||
               run.head_repository?.full_name !== expectedRepository ||
               !Number.isSafeInteger(run.id) ||
@@ -1108,7 +1077,6 @@ jobs:
                 repo: context.repo.repo,
                 workflow_id: run.workflow_id,
                 event: run.event,
-                head_sha: expectedHeadSha,
                 per_page: 100,
               });
               const latestSourceRun = sourceRuns
@@ -1119,8 +1087,8 @@ jobs:
                   candidate.workflow_id === run.workflow_id &&
                   candidate.event === run.event &&
                   candidate.head_sha === expectedHeadSha &&
-                  candidate.head_repository?.full_name === expectedRepository &&
-                  candidate.pull_requests?.some((pull) => pull.number === issueNumber),
+                  candidate.head_branch === run.head_branch &&
+                  candidate.head_repository?.full_name === expectedRepository,
                 )
                 .reduce(
                   (latest, candidate) => (!latest || candidate.id > latest.id ? candidate : latest),
@@ -1330,14 +1298,18 @@ jobs:
         with:
           github-token: ${{ github.token }}
           script: |
-            const run = context.payload.workflow_run;
+            const eventRun = context.payload.workflow_run;
             const expectedRepository = `${context.repo.owner}/${context.repo.repo}`;
             const expectedWorkflowPath = '.github/workflows/vrt.yml';
             const expectedHeadSha = process.env.EXPECTED_HEAD_SHA ?? '';
             const expectedBaselineRef = process.env.EXPECTED_BASELINE_REF ?? '';
             const pullNumber = Number(process.env.EXPECTED_PULL_NUMBER ?? '');
             const expectedRunAttempt = Number(process.env.EXPECTED_RUN_ATTEMPT ?? '');
-            const [{ data: trustedWorkflow }, { data: liveRun }, { data: pullRequest }, sourceRuns] = await Promise.all([
+            if (!Number.isSafeInteger(eventRun.id) || eventRun.id <= 0) {
+              core.setFailed('VRT approval source run identity is invalid.');
+              return;
+            }
+            const [{ data: trustedWorkflow }, { data: run }, { data: pullRequest }] = await Promise.all([
               github.rest.actions.getWorkflow({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -1346,33 +1318,31 @@ jobs:
               github.rest.actions.getWorkflowRun({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                run_id: run.id,
+                run_id: eventRun.id,
               }),
               github.rest.pulls.get({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 pull_number: pullNumber,
               }),
-              github.paginate(github.rest.actions.listWorkflowRunsForWorkflow, {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                workflow_id: run.workflow_id,
-                event: 'pull_request',
-                head_sha: expectedHeadSha,
-                per_page: 100,
-              }),
             ]);
+            const sourceRuns = await github.paginate(github.rest.actions.listWorkflowRunsForWorkflow, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: trustedWorkflow.id,
+              event: 'pull_request',
+              per_page: 100,
+            });
             const latestSourceRun = sourceRuns
               .filter((candidate) =>
                 Number.isSafeInteger(candidate.id) &&
                 candidate.id > 0 &&
                 candidate.name === 'VRT Artifact' &&
                 candidate.workflow_id === trustedWorkflow.id &&
-                candidate.path === expectedWorkflowPath &&
                 candidate.event === 'pull_request' &&
                 candidate.head_sha === expectedHeadSha &&
-                candidate.head_repository?.full_name === expectedRepository &&
-                candidate.pull_requests?.some((pull) => pull.number === pullNumber),
+                candidate.head_branch === run.head_branch &&
+                candidate.head_repository?.full_name === expectedRepository,
               )
               .reduce(
                 (latest, candidate) => (!latest || candidate.id > latest.id ? candidate : latest),
@@ -1382,6 +1352,7 @@ jobs:
               run.name !== 'VRT Artifact' ||
               run.path !== expectedWorkflowPath ||
               run.event !== 'pull_request' ||
+              run.status !== 'completed' ||
               run.conclusion !== 'success' ||
               run.head_repository?.full_name !== expectedRepository ||
               run.workflow_id !== trustedWorkflow.id ||
@@ -1391,12 +1362,6 @@ jobs:
               run.pull_requests[0]?.number !== pullNumber ||
               trustedWorkflow.path !== expectedWorkflowPath ||
               trustedWorkflow.state !== 'active' ||
-              liveRun.workflow_id !== trustedWorkflow.id ||
-              liveRun.path !== expectedWorkflowPath ||
-              liveRun.status !== 'completed' ||
-              liveRun.conclusion !== 'success' ||
-              liveRun.head_sha !== expectedHeadSha ||
-              liveRun.run_attempt !== expectedRunAttempt ||
               pullRequest.state !== 'open' ||
               pullRequest.base.ref !== expectedBaselineRef ||
               pullRequest.head.sha !== expectedHeadSha ||
@@ -1416,7 +1381,7 @@ jobs:
       github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     concurrency:
-      group: vrt-status-${{ github.event.workflow_run.workflow_id }}-${{ github.event.workflow_run.pull_requests[0].number }}
+      group: vrt-status-${{ github.event.workflow_run.id }}
       cancel-in-progress: false
     permissions:
       actions: read
@@ -1436,15 +1401,19 @@ jobs:
           github-token: ${{ github.token }}
           script: |
             const marker = '<!-- shiftori-vrt-report:v1 -->';
-            const run = context.payload.workflow_run;
+            const eventRun = context.payload.workflow_run;
             const expectedRepository = `${context.repo.owner}/${context.repo.repo}`;
             const expectedWorkflowPath = '.github/workflows/vrt.yml';
             const expectedHeadSha = process.env.EXPECTED_HEAD_SHA ?? '';
             const expectedBaselineRef = process.env.EXPECTED_BASELINE_REF ?? '';
             const pullNumber = Number(process.env.EXPECTED_PULL_NUMBER ?? '');
             const expectedRunAttempt = Number(process.env.EXPECTED_RUN_ATTEMPT ?? '');
-            const pendingState = `<!-- shiftori-vrt-state:${expectedHeadSha}:${run.id}:${expectedRunAttempt}:3 -->`;
-            const approvedState = `<!-- shiftori-vrt-state:${expectedHeadSha}:${run.id}:${expectedRunAttempt}:4 -->`;
+            if (!Number.isSafeInteger(eventRun.id) || eventRun.id <= 0) {
+              core.setFailed('VRT approval comment source run identity is invalid.');
+              return;
+            }
+            const pendingState = `<!-- shiftori-vrt-state:${expectedHeadSha}:${eventRun.id}:${expectedRunAttempt}:3 -->`;
+            const approvedState = `<!-- shiftori-vrt-state:${expectedHeadSha}:${eventRun.id}:${expectedRunAttempt}:4 -->`;
 
             const loadCurrentSource = async () => {
               const [{ data: trustedWorkflow }, { data: liveRun }, { data: pullRequest }, sourceRuns] = await Promise.all([
@@ -1456,7 +1425,7 @@ jobs:
                 github.rest.actions.getWorkflowRun({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  run_id: run.id,
+                  run_id: eventRun.id,
                 }),
                 github.rest.pulls.get({
                   owner: context.repo.owner,
@@ -1466,9 +1435,8 @@ jobs:
                 github.paginate(github.rest.actions.listWorkflowRunsForWorkflow, {
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  workflow_id: run.workflow_id,
+                  workflow_id: 'vrt.yml',
                   event: 'pull_request',
-                  head_sha: expectedHeadSha,
                   per_page: 100,
                 }),
               ]);
@@ -1478,11 +1446,10 @@ jobs:
                   candidate.id > 0 &&
                   candidate.name === 'VRT Artifact' &&
                   candidate.workflow_id === trustedWorkflow.id &&
-                  candidate.path === expectedWorkflowPath &&
                   candidate.event === 'pull_request' &&
                   candidate.head_sha === expectedHeadSha &&
-                  candidate.head_repository?.full_name === expectedRepository &&
-                  candidate.pull_requests?.some((pull) => pull.number === pullNumber),
+                  candidate.head_branch === liveRun.head_branch &&
+                  candidate.head_repository?.full_name === expectedRepository,
                 )
                 .reduce(
                   (latest, candidate) => (!latest || candidate.id > latest.id ? candidate : latest),
@@ -1491,20 +1458,16 @@ jobs:
               return { trustedWorkflow, liveRun, pullRequest, latestSourceRun };
             };
             const isCurrentSource = ({ trustedWorkflow, liveRun, pullRequest, latestSourceRun }) =>
-              run.name === 'VRT Artifact' &&
-              run.path === expectedWorkflowPath &&
-              run.event === 'pull_request' &&
-              run.conclusion === 'success' &&
-              run.head_repository?.full_name === expectedRepository &&
-              run.workflow_id === trustedWorkflow.id &&
-              run.head_sha === expectedHeadSha &&
-              run.run_attempt === expectedRunAttempt &&
-              run.pull_requests?.length === 1 &&
-              run.pull_requests[0]?.number === pullNumber &&
               trustedWorkflow.path === expectedWorkflowPath &&
               trustedWorkflow.state === 'active' &&
+              liveRun.id === eventRun.id &&
+              liveRun.name === 'VRT Artifact' &&
               liveRun.workflow_id === trustedWorkflow.id &&
               liveRun.path === expectedWorkflowPath &&
+              liveRun.event === 'pull_request' &&
+              liveRun.head_repository?.full_name === expectedRepository &&
+              liveRun.pull_requests?.length === 1 &&
+              liveRun.pull_requests[0]?.number === pullNumber &&
               liveRun.status === 'completed' &&
               liveRun.conclusion === 'success' &&
               liveRun.head_sha === expectedHeadSha &&
@@ -1513,7 +1476,7 @@ jobs:
               pullRequest.base.ref === expectedBaselineRef &&
               pullRequest.head.sha === expectedHeadSha &&
               pullRequest.head.repo?.full_name === expectedRepository &&
-              latestSourceRun?.id === run.id &&
+              latestSourceRun?.id === eventRun.id &&
               latestSourceRun.run_attempt === expectedRunAttempt;
 
             if (!(await loadCurrentSource().then(isCurrentSource))) {
