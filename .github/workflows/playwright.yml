@@ -16,6 +16,8 @@ jobs:
     timeout-minutes: 60
     runs-on: ubuntu-latest
     environment: Preview
+    outputs:
+      report_artifact_uploaded: ${{ steps.playwright-report-artifact.outcome == 'success' }}
     env:
       CONVEX_PREVIEW_NAME: develop-${{ github.run_id }}-e2e
     steps:
@@ -101,7 +103,9 @@ jobs:
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
           E2E_CLERK_USERS: ${{ vars.E2E_CLERK_USERS }}
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+      - name: Upload Playwright report
+        id: playwright-report-artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: ${{ !cancelled() && steps.artifact-safety.outcome == 'success' }}
         with:
           name: playwright-report
@@ -124,11 +128,14 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           TEST_RESULT: ${{ needs.test.result }}
+          REPORT_ARTIFACT_UPLOADED: ${{ needs.test.outputs.report_artifact_uploaded }}
         with:
           github-token: ${{ github.token }}
           script: |
             const marker = '<!-- shiftori-playwright-report:v1 -->';
             const heading = '## Playwright Test Report';
+            const otherMarker = '<!-- shiftori-vrt-report:v1 -->';
+            const otherHeading = '## VRT Report';
             const { owner, repo } = context.repo;
             const expectedRepository = `${owner}/${repo}`;
             const mergeSha = context.sha;
@@ -193,6 +200,7 @@ jobs:
               core.setFailed(`Unexpected Full Regression result: ${result || 'missing'}.`);
               return;
             }
+            const reportArtifactUploaded = process.env.REPORT_ARTIFACT_UPLOADED === 'true';
             const status = result === 'success' ? 'Passed' : `Failed (${result})`;
             const actionsUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
             const body = [
@@ -203,11 +211,15 @@ jobs:
               '',
               '| Action | Link |',
               '|---|---|',
-              `| レポート確認 | [Actionsの非公開artifactを見る](${actionsUrl}) |`,
+              reportArtifactUploaded
+                ? `| レポート確認 | [Actionsの非公開artifactを見る](${actionsUrl}) |`
+                : `| 実行確認 | [Actionsで実行結果を見る](${actionsUrl}) |`,
               '',
               'Details:',
               `developへマージされたcommit \`${mergeSha}\` をFull Regressionで検証しました。`,
-              'trace・動画・tokenを含み得るため、レポートはActions artifactだけに保存します。',
+              reportArtifactUploaded
+                ? 'trace・動画・tokenを含み得るため、レポートはActions artifactだけに保存します。'
+                : 'Playwright report artifactは生成されていません。Actionsログで失敗箇所を確認してください。',
             ].join('\n');
 
             const comments = await github.paginate(github.rest.issues.listComments, {
@@ -216,10 +228,21 @@ jobs:
               issue_number: pullNumber,
               per_page: 100,
             });
-            const existing = [...comments].reverse().find((comment) =>
-              comment.user?.login === 'github-actions[bot]' &&
-              (comment.body?.includes(marker) || comment.body?.includes(heading)),
+            const botComments = [...comments].reverse().filter(
+              (comment) => comment.user?.login === 'github-actions[bot]',
             );
+            const markedComment = botComments.find((comment) => comment.body?.includes(marker));
+            const actionsPrefix = `${context.serverUrl}/${owner}/${repo}/actions/runs/`;
+            const legacyCandidates = botComments.filter((comment) => {
+              const body = comment.body?.trimStart() ?? '';
+              return body.startsWith(`${heading}\n`) &&
+                body.includes('\nStatus: ') &&
+                body.includes('\n| Action | Link |\n') &&
+                body.includes(actionsPrefix) &&
+                !body.includes(otherMarker) &&
+                !body.includes(otherHeading);
+            });
+            const existing = markedComment ?? (legacyCandidates.length === 1 ? legacyCandidates[0] : undefined);
             if (existing) {
               await github.rest.issues.updateComment({
                 owner,

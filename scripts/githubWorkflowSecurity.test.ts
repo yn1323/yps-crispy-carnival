@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
 
 type WorkflowStep = {
+  id?: string;
+  if?: string;
   name?: string;
   uses?: string;
   run?: string;
@@ -30,6 +32,7 @@ type WorkflowJob = {
   if?: string;
   needs?: string | string[];
   environment?: unknown;
+  outputs?: Record<string, string>;
   permissions?: Record<string, string>;
   steps?: WorkflowStep[];
   "timeout-minutes"?: number;
@@ -149,6 +152,7 @@ async function executePublisherSourceGate(scenario: PublisherSourceGateScenario)
 type PlaywrightCommentScenario = {
   mergeSha: string;
   result: string;
+  artifactUploaded?: "true" | "false";
   associatedPulls: Array<Record<string, unknown>>;
   pullRequest?: Record<string, unknown>;
   comments?: Array<Record<string, unknown>>;
@@ -193,6 +197,7 @@ async function executePlaywrightComment(scenario: PlaywrightCommentScenario) {
   };
 
   vi.stubEnv("TEST_RESULT", scenario.result);
+  vi.stubEnv("REPORT_ARTIFACT_UPLOADED", scenario.artifactUploaded ?? "true");
   try {
     const execute = new Function("github", "context", "core", `return (async () => {${getGithubScript(step)}\n})()`);
     await execute(github, context, core);
@@ -243,6 +248,7 @@ async function executeVrtStatusComment(scenario: VrtStatusCommentScenario) {
   const context = {
     payload: { action: scenario.action, workflow_run: scenario.workflowRun },
     repo: { owner: "example", repo: "shiftori" },
+    runId: 300,
     serverUrl: "https://github.com",
   };
   const core = {
@@ -469,6 +475,8 @@ describe("PR workflow credential isolation", () => {
 
   it("returns the Full Regression result to exactly one merged develop pull request", async () => {
     const { workflow } = readWorkflow("playwright.yml");
+    const testJob = getJob(workflow, "test");
+    const upload = findStep(getSteps(testJob), "Upload Playwright report");
     const commentJob = getJob(workflow, "comment");
     const steps = getSteps(commentJob);
     const comment = findStep(steps, "Comment merged PR with Full Regression result");
@@ -489,23 +497,42 @@ describe("PR workflow credential isolation", () => {
       comments: [
         {
           id: 99,
-          body: "## Playwright Test Report\n\nStatus: Running",
+          body: [
+            "## Playwright Test Report",
+            "",
+            "Status: Running",
+            "",
+            "| Action | Link |",
+            "|---|---|",
+            "| レポート確認 | [Actionsを見る](https://github.com/example/shiftori/actions/runs/100) |",
+          ].join("\n"),
           user: { login: "github-actions[bot]" },
         },
       ],
     });
 
     expect(commentJob.needs).toBe("test");
+    expect(testJob.outputs).toEqual({
+      report_artifact_uploaded: githubExpression("steps.playwright-report-artifact.outcome == 'success'"),
+    });
+    expect(upload.id).toBe("playwright-report-artifact");
+    expect(upload.uses).toBe(UPLOAD_ARTIFACT_ACTION);
     expect(commentJob.if).toBe(githubExpression("always()"));
     expect(commentJob.permissions).toEqual({ contents: "read", issues: "write", "pull-requests": "write" });
     expect(steps).toHaveLength(1);
     expect(comment.uses).toBe(GITHUB_SCRIPT_ACTION);
+    expect(comment.env?.REPORT_ARTIFACT_UPLOADED).toBe(githubExpression("needs.test.outputs.report_artifact_uploaded"));
     expect(comment.with?.["github-token"]).toBe(githubExpression("github.token"));
     expect(JSON.stringify(commentJob)).not.toContain("${{ secrets.");
     expect(script).toContain("listPullRequestsAssociatedWithCommit");
     expect(script).toContain("pull.merge_commit_sha === mergeSha");
     expect(script).toContain("pullRequest.merge_commit_sha !== mergeSha");
     expect(script).toContain("shiftori-playwright-report:v1");
+    expect(script).not.toContain("comment.body?.includes(heading)");
+    expect(script).toContain("legacyCandidates.length === 1");
+    expect(script).toContain(`body.startsWith(\`${interpolation("heading")}\\n\`)`);
+    expect(script).toContain("!body.includes(otherMarker)");
+    expect(script).toContain("!body.includes(otherHeading)");
     expect(result.failures).toEqual([]);
     expect(result.github.paginate).toHaveBeenNthCalledWith(
       1,
@@ -518,14 +545,23 @@ describe("PR workflow credential isolation", () => {
       pull_number: 42,
     });
     expect(result.github.rest.issues.updateComment).toHaveBeenCalledWith(
-      expect.objectContaining({ comment_id: 99, body: expect.stringContaining("Status: Passed") }),
+      expect.objectContaining({
+        comment_id: 99,
+        body: expect.stringMatching(
+          /<!-- shiftori-playwright-report:v1 -->[\s\S]*## Playwright Test Report[\s\S]*Status: Passed[\s\S]*Actionsの非公開artifactを見る[\s\S]*actions\/runs\/300/,
+        ),
+      }),
     );
     expect(result.github.rest.issues.createComment).not.toHaveBeenCalled();
   });
 
-  it.each(["failure", "cancelled"])(
-    "creates a %s Full Regression comment when no prior report comment exists",
-    async (testResult) => {
+  it.each([
+    { testResult: "failure", artifactUploaded: "true" as const, linkLabel: "Actionsの非公開artifactを見る" },
+    { testResult: "cancelled", artifactUploaded: "false" as const, linkLabel: "Actionsで実行結果を見る" },
+    { testResult: "skipped", artifactUploaded: "false" as const, linkLabel: "Actionsで実行結果を見る" },
+  ])(
+    "creates a $testResult Full Regression comment with a valid Actions link",
+    async ({ testResult, artifactUploaded, linkLabel }) => {
       const mergeSha = "a".repeat(40);
       const mergedPull = {
         number: 42,
@@ -537,6 +573,7 @@ describe("PR workflow credential isolation", () => {
       const result = await executePlaywrightComment({
         mergeSha,
         result: testResult,
+        artifactUploaded,
         associatedPulls: [mergedPull],
         pullRequest: mergedPull,
         comments: [],
@@ -546,12 +583,59 @@ describe("PR workflow credential isolation", () => {
       expect(result.github.rest.issues.createComment).toHaveBeenCalledWith(
         expect.objectContaining({
           issue_number: 42,
-          body: expect.stringMatching(new RegExp(`Status: Failed \\(${testResult}\\)[\\s\\S]*actions/runs/300`)),
+          body: expect.stringMatching(
+            new RegExp(`Status: Failed \\(${testResult}\\)[\\s\\S]*${linkLabel}[\\s\\S]*actions/runs/300`),
+          ),
         }),
       );
       expect(result.github.rest.issues.updateComment).not.toHaveBeenCalled();
     },
   );
+
+  it("does not merge the Full Regression result into the VRT comment", async () => {
+    const mergeSha = "a".repeat(40);
+    const mergedPull = {
+      number: 42,
+      state: "closed",
+      merged_at: "2026-07-22T00:00:00Z",
+      merge_commit_sha: mergeSha,
+      base: { ref: "develop", repo: { full_name: "example/shiftori" } },
+    };
+    const result = await executePlaywrightComment({
+      mergeSha,
+      result: "success",
+      associatedPulls: [mergedPull],
+      pullRequest: mergedPull,
+      comments: [
+        {
+          id: 99,
+          body: [
+            "## Playwright Test Report",
+            "",
+            "Status: Passed",
+            "",
+            "| Action | Link |",
+            "|---|---|",
+            "| 実行確認 | [Actionsを見る](https://github.com/example/shiftori/actions/runs/100) |",
+            "",
+            "## VRT Report",
+            "",
+            "Status: Passed",
+          ].join("\n"),
+          user: { login: "github-actions[bot]" },
+        },
+      ],
+    });
+
+    expect(result.failures).toEqual([]);
+    expect(result.github.rest.issues.updateComment).not.toHaveBeenCalled();
+    expect(result.github.rest.issues.createComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        issue_number: 42,
+        body: expect.stringContaining("<!-- shiftori-playwright-report:v1 -->"),
+      }),
+    );
+  });
 
   it("does not attach a Full Regression result to a direct develop push", async () => {
     const result = await executePlaywrightComment({
@@ -836,6 +920,12 @@ describe("PR workflow credential isolation", () => {
     expect(statusScript.match(/github\.rest\.pulls\.get/g)).toHaveLength(2);
     expect(statusScript).toContain("shiftori-vrt-report:v1");
     expect(statusScript).toContain("shiftori-vrt-state:");
+    expect(statusScript).toContain("publicationActionsUrl");
+    expect(statusScript).not.toContain("comment.body?.includes(heading)");
+    expect(statusScript).toContain("legacyCandidates.length === 1");
+    expect(statusScript).toContain(`body.startsWith(\`${interpolation("heading")}\\n\`)`);
+    expect(statusScript).toContain("!body.includes(otherMarker)");
+    expect(statusScript).toContain("!body.includes(otherHeading)");
     expect(statusScript).toContain("issues.updateComment");
     expect(sourceScript).toContain("run.name !== 'VRT Artifact'");
     expect(sourceScript).toContain("pullRequest.head.sha !== run.head_sha");
@@ -906,7 +996,7 @@ describe("PR workflow credential isolation", () => {
       REPORT_DEPLOYED: githubExpression("needs.publish.outputs.report_deployed"),
       HAS_DIFF: githubExpression("needs.publish.outputs.report_has_diff"),
     });
-    expect(getGithubScript(comment)).toContain("Trusted publication approved; differences published");
+    expect(getGithubScript(comment)).toContain("差分あり（公開済み）");
     expect(getGithubScript(comment)).toContain("Trusted report公開失敗");
     expect(getGithubScript(comment)).toContain("Trusted report検証失敗");
     expect(getGithubScript(comment)).toContain("公開承認未完了");
@@ -915,6 +1005,13 @@ describe("PR workflow credential isolation", () => {
     expect(getGithubScript(comment)).toContain("actions.getWorkflowRun");
     expect(getGithubScript(comment)).toContain("actions.listWorkflowRunsForWorkflow");
     expect(getGithubScript(comment)).toContain("shiftori-vrt-state:");
+    expect(getGithubScript(comment)).toContain("sourceActionsUrl");
+    expect(getGithubScript(comment)).toContain("publicationActionsUrl");
+    expect(getGithubScript(comment)).not.toContain("comment.body?.includes(heading)");
+    expect(getGithubScript(comment)).toContain("legacyCandidates.length === 1");
+    expect(getGithubScript(comment)).toContain(`body.startsWith(\`${interpolation("heading")}\\n\`)`);
+    expect(getGithubScript(comment)).toContain("!body.includes(otherMarker)");
+    expect(getGithubScript(comment)).toContain("!body.includes(otherHeading)");
     expect(getGithubScript(comment).match(/github\.rest\.pulls\.get/g)).toHaveLength(2);
     expect(getGithubScript(comment)).toContain("issues.updateComment");
     expect(findStep(steps, "Validate VRT screenshot data").run).toContain("--profile vrt-screenshots");
@@ -953,7 +1050,15 @@ describe("PR workflow credential isolation", () => {
       comments: [
         {
           id: 99,
-          body: "## VRT Report\n\nStatus: Passed",
+          body: [
+            "## VRT Report",
+            "",
+            "Status: Passed",
+            "",
+            "| Action | Link |",
+            "|---|---|",
+            "| VRT実行 | [Actionsを見る](https://github.com/example/shiftori/actions/runs/100) |",
+          ].join("\n"),
           user: { login: "github-actions[bot]" },
         },
       ],
@@ -961,7 +1066,16 @@ describe("PR workflow credential isolation", () => {
 
     expect(result.failures).toEqual([]);
     expect(result.github.rest.issues.updateComment).toHaveBeenCalledWith(
-      expect.objectContaining({ comment_id: 99, body: expect.stringContaining("Status: 実行中") }),
+      expect.objectContaining({
+        comment_id: 99,
+        body: expect.stringMatching(/Status: 実行中[\s\S]*VRT実行[\s\S]*actions\/runs\/200/),
+      }),
+    );
+    expect(result.github.rest.issues.updateComment).not.toHaveBeenCalledWith(
+      expect.objectContaining({ body: expect.stringContaining("actions/runs/300") }),
+    );
+    expect(result.github.rest.issues.updateComment).not.toHaveBeenCalledWith(
+      expect.objectContaining({ body: expect.stringContaining("差分レポートを見る") }),
     );
     expect(result.github.rest.actions.getWorkflowRun).toHaveBeenCalledTimes(2);
     expect(result.github.paginate).toHaveBeenCalledWith(result.github.rest.actions.listWorkflowRunsForWorkflow, {
@@ -974,6 +1088,135 @@ describe("PR workflow credential isolation", () => {
     });
     expect(result.github.paginate).toHaveBeenCalledTimes(3);
     expect(result.github.rest.issues.createComment).not.toHaveBeenCalled();
+  });
+
+  it("links the VRT source and trusted publisher while publication is waiting", async () => {
+    const headSha = "a".repeat(40);
+    const sourceRun = {
+      id: 200,
+      workflow_id: 500,
+      run_attempt: 1,
+      status: "completed",
+      name: "VRT Artifact",
+      event: "pull_request",
+      conclusion: "success",
+      head_sha: headSha,
+      head_repository: { full_name: "example/shiftori" },
+      pull_requests: [{ number: 42 }],
+    };
+    const result = await executeVrtStatusComment({
+      action: "completed",
+      workflowRun: sourceRun,
+      pullRequest: {
+        state: "open",
+        base: { ref: "develop" },
+        head: { sha: headSha, repo: { full_name: "example/shiftori" } },
+      },
+    });
+
+    expect(result.failures).toEqual([]);
+    expect(result.github.rest.issues.createComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        issue_number: 42,
+        body: expect.stringMatching(
+          /<!-- shiftori-vrt-report:v1 -->[\s\S]*## VRT Report[\s\S]*公開承認待ち[\s\S]*VRT実行[\s\S]*actions\/runs\/200[\s\S]*公開承認・公開処理[\s\S]*actions\/runs\/300/,
+        ),
+      }),
+    );
+    expect(result.github.rest.issues.createComment).not.toHaveBeenCalledWith(
+      expect.objectContaining({ body: expect.stringContaining("差分レポートを見る") }),
+    );
+  });
+
+  it.each([
+    { conclusion: "failure", status: "Status: 失敗" },
+    { conclusion: "cancelled", status: "Status: キャンセル" },
+  ])("links only the VRT source when the source run is $conclusion", async ({ conclusion, status }) => {
+    const headSha = "a".repeat(40);
+    const sourceRun = {
+      id: 200,
+      workflow_id: 500,
+      run_attempt: 1,
+      status: "completed",
+      name: "VRT Artifact",
+      event: "pull_request",
+      conclusion,
+      head_sha: headSha,
+      head_repository: { full_name: "example/shiftori" },
+      pull_requests: [{ number: 42 }],
+    };
+    const result = await executeVrtStatusComment({
+      action: "completed",
+      workflowRun: sourceRun,
+      pullRequest: {
+        state: "open",
+        base: { ref: "develop" },
+        head: { sha: headSha, repo: { full_name: "example/shiftori" } },
+      },
+    });
+
+    expect(result.failures).toEqual([]);
+    expect(result.github.rest.issues.createComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.stringMatching(new RegExp(`${status}[\\s\\S]*VRT実行[\\s\\S]*actions/runs/200`)),
+      }),
+    );
+    expect(result.github.rest.issues.createComment).not.toHaveBeenCalledWith(
+      expect.objectContaining({ body: expect.stringContaining("actions/runs/300") }),
+    );
+    expect(result.github.rest.issues.createComment).not.toHaveBeenCalledWith(
+      expect.objectContaining({ body: expect.stringContaining("差分レポートを見る") }),
+    );
+  });
+
+  it("does not merge the VRT status into the Playwright comment", async () => {
+    const headSha = "a".repeat(40);
+    const sourceRun = {
+      id: 200,
+      workflow_id: 500,
+      run_attempt: 1,
+      status: "completed",
+      name: "VRT Artifact",
+      event: "pull_request",
+      conclusion: "failure",
+      head_sha: headSha,
+      head_repository: { full_name: "example/shiftori" },
+      pull_requests: [{ number: 42 }],
+    };
+    const result = await executeVrtStatusComment({
+      action: "completed",
+      workflowRun: sourceRun,
+      pullRequest: {
+        state: "open",
+        base: { ref: "develop" },
+        head: { sha: headSha, repo: { full_name: "example/shiftori" } },
+      },
+      comments: [
+        {
+          id: 99,
+          body: [
+            "## VRT Report",
+            "",
+            "Status: 失敗",
+            "",
+            "| Action | Link |",
+            "|---|---|",
+            "| VRT実行 | [Actionsを見る](https://github.com/example/shiftori/actions/runs/100) |",
+            "",
+            "## Playwright Test Report",
+            "",
+            "Status: Passed",
+          ].join("\n"),
+          user: { login: "github-actions[bot]" },
+        },
+      ],
+    });
+
+    expect(result.failures).toEqual([]);
+    expect(result.github.rest.issues.updateComment).not.toHaveBeenCalled();
+    expect(result.github.rest.issues.createComment).toHaveBeenCalledWith(
+      expect.objectContaining({ body: expect.stringContaining("<!-- shiftori-vrt-report:v1 -->") }),
+    );
   });
 
   it("does not overwrite the VRT comment from a stale pull request run", async () => {
@@ -1094,7 +1337,15 @@ describe("PR workflow credential isolation", () => {
       comments: [
         {
           id: 99,
-          body: "<!-- shiftori-vrt-report:v1 -->\n## VRT Report\n\nStatus: 実行中",
+          body: [
+            "## VRT Report",
+            "",
+            "Status: 実行中",
+            "",
+            "| Action | Link |",
+            "|---|---|",
+            "| VRT実行 | [Actionsを見る](https://github.com/example/shiftori/actions/runs/100) |",
+          ].join("\n"),
           user: { login: "github-actions[bot]" },
         },
       ],
@@ -1104,7 +1355,9 @@ describe("PR workflow credential isolation", () => {
     expect(result.github.rest.issues.updateComment).toHaveBeenCalledWith(
       expect.objectContaining({
         comment_id: 99,
-        body: expect.stringMatching(/Status: Passed[\s\S]*差分レポートを見る/),
+        body: expect.stringMatching(
+          /Status: Passed[\s\S]*差分レポートを見る\]\(https:\/\/yn1323\.github\.io\/hosting-pages\/yps-crispy-carnival-vrt\/pr-42\/\?v=300-1\)[\s\S]*VRT実行[\s\S]*actions\/runs\/200[\s\S]*公開処理[\s\S]*actions\/runs\/300/,
+        ),
       }),
     );
     expect(result.github.rest.actions.getWorkflowRun).toHaveBeenCalledTimes(2);
@@ -1136,8 +1389,16 @@ describe("PR workflow credential isolation", () => {
       status: "Status: 公開承認未完了（failure）",
     },
     {
+      env: { APPROVAL_RESULT: "cancelled", PUBLISH_RESULT: "skipped", REPORT_DEPLOYED: "", HAS_DIFF: "" },
+      status: "Status: 公開承認未完了（cancelled）",
+    },
+    {
       env: { APPROVAL_RESULT: "success", PUBLISH_RESULT: "failure", REPORT_DEPLOYED: "false" },
       status: "Status: Trusted report公開失敗（failure）",
+    },
+    {
+      env: { APPROVAL_RESULT: "success", PUBLISH_RESULT: "cancelled", REPORT_DEPLOYED: "false" },
+      status: "Status: Trusted report公開失敗（cancelled）",
     },
   ])("reports a terminal VRT publication failure: $status", async ({ env, status }) => {
     const headSha = "a".repeat(40);
@@ -1165,7 +1426,11 @@ describe("PR workflow credential isolation", () => {
 
     expect(result.failures).toEqual([]);
     expect(result.github.rest.issues.createComment).toHaveBeenCalledWith(
-      expect.objectContaining({ body: expect.stringContaining(status) }),
+      expect.objectContaining({
+        body: expect.stringMatching(
+          new RegExp(`${status}[\\s\\S]*VRT実行[\\s\\S]*actions/runs/200[\\s\\S]*公開処理[\\s\\S]*actions/runs/300`),
+        ),
+      }),
     );
     expect(result.github.rest.issues.createComment).not.toHaveBeenCalledWith(
       expect.objectContaining({ body: expect.stringContaining("差分レポートを見る") }),
