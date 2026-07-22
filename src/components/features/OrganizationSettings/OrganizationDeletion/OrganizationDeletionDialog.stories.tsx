@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type ComponentProps, useState } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fireEvent, fn, userEvent, within } from "storybook/test";
 import { OrganizationDeletionDialog } from "./OrganizationDeletionDialog";
 
 const onSubmit = fn();
@@ -42,8 +42,10 @@ export const ConfirmationBehavior: Story = {
     const screen = within(canvasElement.ownerDocument.body);
     const dialog = await screen.findByRole("alertdialog", { name: "グループを削除" });
     const submit = within(dialog).getByRole("button", { name: "このグループを削除" });
+    const textbox = within(dialog).getByRole("textbox");
     await expect(submit).toBeDisabled();
-    await userEvent.type(within(dialog).getByRole("textbox"), "株式会社さくらダイニング");
+    await userEvent.type(textbox, "株式会社さくらダイニング", { delay: 1 });
+    await expect(textbox).toHaveValue("株式会社さくらダイニング");
     await expect(submit).toBeEnabled();
     await userEvent.click(submit);
     await expect(onSubmit).toHaveBeenCalledTimes(1);
@@ -71,10 +73,10 @@ export const ConfirmationSurvivesParentRerender: Story = {
     const dialog = await screen.findByRole("alertdialog", { name: "グループを削除" });
     const textbox = within(dialog).getByRole("textbox");
     const submit = within(dialog).getByRole("button", { name: "このグループを削除" });
-    await userEvent.type(textbox, "株式会社さくら");
-    screen.getByText("親を再描画", { exact: true }).click();
+    fireEvent.change(textbox, { target: { value: "株式会社さくら" } });
+    fireEvent.click(screen.getByText("親を再描画", { exact: true }));
     await expect(textbox).toHaveValue("株式会社さくら");
-    await userEvent.type(textbox, "ダイニング");
+    fireEvent.change(textbox, { target: { value: "株式会社さくらダイニング" } });
     await expect(submit).toBeEnabled();
   },
 };
