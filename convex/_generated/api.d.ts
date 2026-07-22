@@ -57,7 +57,6 @@ import type * as analyticsDashboard_httpActions from "../analyticsDashboard/http
 import type * as analyticsDashboard_queries from "../analyticsDashboard/queries.js";
 import type * as analyticsDashboard_refs from "../analyticsDashboard/refs.js";
 import type * as analyticsDashboard_schemas from "../analyticsDashboard/schemas.js";
-import type * as billing_service from "../billing/service.js";
 import type * as constants from "../constants.js";
 import type * as contact_actions from "../contact/actions.js";
 import type * as contact_httpActions from "../contact/httpActions.js";
@@ -264,7 +263,6 @@ declare const fullApi: ApiFromModules<{
   "analyticsDashboard/queries": typeof analyticsDashboard_queries;
   "analyticsDashboard/refs": typeof analyticsDashboard_refs;
   "analyticsDashboard/schemas": typeof analyticsDashboard_schemas;
-  "billing/service": typeof billing_service;
   constants: typeof constants;
   "contact/actions": typeof contact_actions;
   "contact/httpActions": typeof contact_httpActions;
