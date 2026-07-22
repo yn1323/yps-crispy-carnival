@@ -68,6 +68,17 @@ const profiles = {
     pngOnly: false,
     validatePlaywrightJson: true,
   },
+  "playwright-public-input": {
+    allowedExtensions: new Set([".json"]),
+    allowedPaths: new Set(["test-results.json"]),
+    maxFiles: 1,
+    maxFileBytes: 10 * MEBIBYTE,
+    maxTotalBytes: 10 * MEBIBYTE,
+    requiredPaths: ["test-results.json"],
+    forbiddenBasenames: new Set(),
+    pngOnly: false,
+    validatePlaywrightJson: true,
+  },
   "playwright-public-report": {
     allowedExtensions: new Set([".html", ".json"]),
     allowedPaths: new Set(["index.html", "report.json"]),

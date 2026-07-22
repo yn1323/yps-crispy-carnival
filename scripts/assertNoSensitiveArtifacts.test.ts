@@ -41,6 +41,7 @@ describe("artifact privacy gate", () => {
     ["Stripe key", STRIPE_KEY_FIXTURE],
     ["private key", "-----BEGIN PRIVATE KEY-----"],
     ["secret identifier", "STRIPE_WEBHOOK_SECRET"],
+    ["publisher secret identifier", "REPORT_PUBLISHER_HOSTING_PAGES_TOKEN"],
     ["session token", "eyJabcdefghijklmnop.qrstuvwxyzABCDEFGHIJ.klmnopqrstuvwxyzABCDEF"],
   ])("rejects %s without echoing the detected value", (_label, sensitiveValue) => {
     writeFileSync(path.join(testDirectory, "report.json"), JSON.stringify({ value: sensitiveValue }));

@@ -48,6 +48,7 @@ const releaseWorkflow = parse(releaseSource) as Workflow;
 const DOLLAR = "$";
 const CHECKOUT_ACTION = "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803";
 const GITHUB_SCRIPT_ACTION = "actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd";
+const DOWNLOAD_ARTIFACT_ACTION = "actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53";
 const UPLOAD_ARTIFACT_ACTION = "actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f";
 
 function githubExpression(expression: string): string {
@@ -270,7 +271,7 @@ describe("GitHub release workflow security", () => {
   });
 });
 
-describe("Direct PR workflow security", () => {
+describe("PR workflow and trusted publisher security", () => {
   it("runs authenticated Full Regression on the exact same-repository PR head", () => {
     const { source, workflow } = readWorkflow("playwright.yml");
     const pullRequest = workflow.on?.pull_request as { branches?: string[]; types?: string[] };
@@ -344,121 +345,172 @@ describe("Direct PR workflow security", () => {
     expect(backendAudit.run).toContain("duplicateActiveDedupeKeyCount");
   });
 
-  it("publishes only a validated sanitized E2E summary directly to hosting-pages", () => {
-    const { workflow } = readWorkflow("playwright.yml");
+  it("keeps E2E publication credentials and PR comments out of the PR producer", () => {
+    const { source, workflow } = readWorkflow("playwright.yml");
     const test = getJob(workflow, "test");
     const steps = getSteps(test);
     const artifactSafety = findStep(steps, "Verify Playwright artifact safety");
-    const publicResult = findStep(steps, "Resolve public E2E result");
-    const build = findStep(steps, "Build sanitized public E2E report");
-    const publicSafety = findStep(steps, "Validate sanitized public E2E report");
-    const currentHead = findStep(steps, "Revalidate PR head before publishing E2E report");
-    const publish = findStep(steps, "Publish sanitized E2E report to hosting-pages");
-    const wait = findStep(steps, "Wait for hosting-pages E2E report");
+    const publicInput = findStep(steps, "Upload Playwright public report input");
     const privateArtifact = findStep(steps, "Upload private Playwright report");
     const enforce = findStep(steps, "Enforce Full Regression result");
 
     expect(artifactSafety.run).toContain("pnpm e2e:assert-artifact-safety");
     expect(artifactSafety.run).toContain("assertNoSensitiveArtifacts.mjs");
-    expect(publicResult.env).toMatchObject({
-      PLAYWRIGHT_RESULT: githubExpression("steps.playwright.outcome"),
-      RESULT_GATE_RESULT: githubExpression("steps.result-gate.outcome"),
-      BACKEND_AUDIT_RESULT: githubExpression("steps.backend-audit.outcome"),
+    expect(publicInput).toMatchObject({
+      uses: UPLOAD_ARTIFACT_ACTION,
+      if: githubExpression("!cancelled() && steps.artifact-safety.outcome == 'success'"),
     });
-    expect(publicResult.run).toContain("result=failure");
-    expect(build.if).toContain("steps.playwright.outcome == 'failure'");
-    expect(build.if).not.toContain("artifact-safety");
-    expect(build.run).toContain("buildPublicPlaywrightReport.mjs");
-    expect(build.run).toContain("--input test-results.json");
-    expect(build.run).toContain("--output public-playwright-report");
-    expect(build.env?.PREVIEW_URL).toBe(
-      `https://pr-${githubExpression("github.event.pull_request.number")}.dev-yps-crispy-carnival.pages.dev/`,
-    );
-    expect(build.env?.PLAYWRIGHT_RESULT).toBe(githubExpression("steps.public-result.outputs.result"));
-    expect(publicSafety.run).toContain("--profile playwright-public-report");
-    expect(publicSafety.run).toContain("assertNoSensitiveArtifacts.mjs");
-    expect(getGithubScript(currentHead)).toContain("pullRequest.state === 'open'");
-    expect(getGithubScript(currentHead)).toContain("pullRequest.head.sha === process.env.EXPECTED_HEAD_SHA");
-    expect(getGithubScript(currentHead)).toContain("pullRequest.head.repo?.full_name");
-    expect(publish.env?.HOSTING_PAGES_TOKEN).toBe(githubExpression("secrets.HOSTING_PAGES_TOKEN"));
-    expect(publish.run).toContain("github.com/yn1323/hosting-pages.git");
-    expect(publish.run).toContain("public-playwright-report/.");
-    expect(publish.run).toContain("scripts/pushHostingPagesWithRetry.sh");
-    expect(publish.run).toContain("deploy-marker-");
-    expect(wait.run).toContain("deploy-marker-");
-    expect(wait.run).toContain("curl -sf");
+    expect(publicInput.with).toMatchObject({
+      name: `playwright-public-input-${githubExpression("github.run_attempt")}`,
+      path: "test-results.json",
+      "if-no-files-found": "error",
+      "retention-days": 1,
+    });
     expect(privateArtifact.uses).toBe(UPLOAD_ARTIFACT_ACTION);
     expect(privateArtifact.if).toContain("steps.artifact-safety.outcome == 'success'");
-    expect(privateArtifact.with?.["retention-days"]).toBe(7);
+    expect(privateArtifact.with).toMatchObject({
+      name: `playwright-report-${githubExpression("github.run_attempt")}`,
+      "if-no-files-found": "error",
+      "retention-days": 7,
+    });
     expect(JSON.stringify(privateArtifact.with?.path)).toContain("playwright-report/");
     expect(JSON.stringify(privateArtifact.with?.path)).toContain("test-results/");
-    expect(enforce.run).toContain("PUBLIC_REPORT_SAFETY_RESULT");
-    expect(enforce.run).toContain("PUBLISH_REPORT_RESULT");
-    expect(enforce.run).toContain("PUBLIC_RESULT_STEP");
+    expect(enforce.env).toMatchObject({
+      PUBLIC_INPUT_ARTIFACT_RESULT: githubExpression("steps.public-input-artifact.outcome"),
+      PRIVATE_REPORT_ARTIFACT_RESULT: githubExpression("steps.playwright-report-artifact.outcome"),
+    });
+    expect(source).not.toContain("HOSTING_PAGES_TOKEN");
+    expect(source).not.toContain("issues: write");
+    expect(source).not.toContain("pull-requests: write");
+    expect(source).not.toContain("buildPublicPlaywrightReport.mjs");
+    expect(source).not.toContain("pushHostingPagesWithRetry.sh");
+    expect(source).not.toContain("shiftori-playwright-report:v1");
   });
 
-  it("updates a separate open-PR E2E comment with Actions, hosting-pages, and Cloudflare links", async () => {
-    const expectedHeadSha = "a".repeat(40);
-    const existing = {
-      id: 91,
-      body: "<!-- shiftori-playwright-report:v1 -->\nold",
-      user: { login: "github-actions[bot]" },
-    };
-    const vrtComment = {
-      id: 92,
-      body: "<!-- shiftori-vrt-report:v1 -->\n## VRT Report",
-      user: { login: "github-actions[bot]" },
-    };
-    const result = await executePrComment({
-      workflowFilename: "playwright.yml",
-      jobName: "comment",
-      stepName: "Comment PR with Playwright result",
-      env: {
-        E2E_REPORT_DIR: "yps-crispy-carnival-e2e",
-        EXPECTED_HEAD_SHA: expectedHeadSha,
-        TEST_RESULT: "success",
-        REPORT_DEPLOYED: "true",
-        REPORT_ARTIFACT_UPLOADED: "true",
-      },
-      comments: [existing, vrtComment],
-    });
-
-    expect(result.github.rest.issues.updateComment).toHaveBeenCalledWith(
-      expect.objectContaining({
-        comment_id: 91,
-        body: expect.stringMatching(
-          /shiftori-playwright-report:v1[\s\S]*Status: Passed[\s\S]*Actionsを見る[\s\S]*actions\/runs\/300[\s\S]*yps-crispy-carnival-e2e\/pr-42\/[\s\S]*pr-42\.dev-yps-crispy-carnival\.pages\.dev[\s\S]*Actionsの非公開artifactを見る/,
-        ),
-      }),
+  it("publishes only a validated E2E summary from trusted default-branch code", () => {
+    const { source, workflow } = readWorkflow("publish-playwright-report.yml");
+    const workflowRun = workflow.on?.workflow_run as { workflows?: string[]; types?: string[] };
+    const validate = getJob(workflow, "validate-source");
+    const validateScript = getGithubScript(
+      findStep(getSteps(validate), "Validate Playwright source and artifact declarations"),
     );
-    const body = result.github.rest.issues.updateComment.mock.calls[0]?.[0]?.body as string;
-    expect(body).not.toContain("shiftori-vrt-report:v1");
-    expect(result.github.rest.issues.createComment).not.toHaveBeenCalled();
+    const publish = getJob(workflow, "publish");
+    const steps = getSteps(publish);
+    const checkout = findStep(steps, "Checkout trusted Playwright publisher");
+    const download = findStep(steps, "Download Playwright public report input");
+    const inputSafety = findStep(steps, "Validate Playwright public report input");
+    const build = findStep(steps, "Build trusted public Playwright report");
+    const reportSafety = findStep(steps, "Validate trusted public Playwright report");
+    const trustedReportArtifact = findStep(steps, "Upload trusted public Playwright report");
+    const revalidate = findStep(steps, "Revalidate Playwright source before credentials");
+    const clone = findStep(steps, "Checkout E2E hosting pages");
+    const revalidatePublish = findStep(steps, "Revalidate Playwright source before publish");
+    const publishStep = findStep(steps, "Publish trusted Playwright report");
+    const wait = findStep(steps, "Wait for trusted Playwright report deploy");
+    const credentialIndex = steps.indexOf(clone);
+    const downloadedArtifactNames = Object.values(workflow.jobs ?? {})
+      .flatMap((job) => job.steps ?? [])
+      .filter((step) => step.uses === DOWNLOAD_ARTIFACT_ACTION)
+      .map((step) => step.with?.name);
+
+    expect(workflowRun).toEqual({ workflows: ["Playwright Tests"], types: ["completed"] });
+    expect(validate.if).toContain("github.event.workflow_run.head_repository.full_name == github.repository");
+    expect(validateScript).toContain("pullRequest.state !== 'open'");
+    expect(validateScript).toContain("pullRequest.base.ref !== 'develop'");
+    expect(validateScript).toContain("pullRequest.head.sha !== run.head_sha");
+    expect(validateScript).toContain("workflow_id: 'playwright.yml'");
+    expect(validateScript).toContain("run.path !== expectedWorkflowPath");
+    expect(validateScript).toContain("trustedWorkflow.id !== run.workflow_id");
+    expect(validateScript).toContain("liveRun.path !== expectedWorkflowPath");
+    expect(validateScript).toContain("getWorkflowRun");
+    expect(validateScript).toContain("listWorkflowRunsForWorkflow");
+    expect(validateScript).toContain("latestSourceRun?.id !== run.id");
+    expect(validateScript).toContain("artifactNamePattern");
+    expect(validateScript).toContain(`\`playwright-public-input-${interpolation("run.run_attempt")}\``);
+    expect(validateScript).toContain(`\`playwright-report-${interpolation("run.run_attempt")}\``);
+    expect(validateScript).toContain("10 * 1024 * 1024");
+    expect(validateScript).toContain("500 * 1024 * 1024");
+    expect(publish.environment).toBe("Report Publisher");
+    expect(checkout.with).toMatchObject({
+      ref: githubExpression("github.sha"),
+      "persist-credentials": false,
+    });
+    expect(download.with).toMatchObject({
+      name: `playwright-public-input-${githubExpression("needs.validate-source.outputs.run_attempt")}`,
+      path: "trusted-artifacts/playwright-public-input",
+      "run-id": githubExpression("github.event.workflow_run.id"),
+      "github-token": githubExpression("github.token"),
+    });
+    expect(inputSafety.run).toContain("--profile playwright-public-input");
+    expect(inputSafety.run).toContain("assertNoSensitiveArtifacts.mjs");
+    expect(build.run).toContain("buildPublicPlaywrightReport.mjs");
+    expect(build.run).toContain("trusted-artifacts/playwright-public-input/test-results.json");
+    expect(reportSafety.run).toContain("--profile playwright-public-report");
+    expect(reportSafety.run).toContain("assertNoSensitiveArtifacts.mjs");
+    expect(trustedReportArtifact.with).toMatchObject({
+      name: "trusted-playwright-public-report",
+      overwrite: true,
+    });
+    expect(getGithubScript(revalidate)).toContain("latestSourceRun?.id !== run.id");
+    expect(getGithubScript(revalidate)).toContain("workflow_id: 'playwright.yml'");
+    expect(getGithubScript(revalidate)).toContain("run.workflow_id !== trustedWorkflow.id");
+    expect(getGithubScript(revalidate)).toContain("publicInputs.length !== 1");
+    expect(getGithubScript(revalidatePublish)).toContain("pullRequest.head.sha !== expectedHeadSha");
+    expect(getGithubScript(revalidatePublish)).toContain("workflow_id: 'playwright.yml'");
+    expect(getGithubScript(revalidatePublish)).toContain("liveRun.path !== expectedWorkflowPath");
+    expect(clone.env?.HOSTING_PAGES_TOKEN).toBe(githubExpression("secrets.REPORT_PUBLISHER_HOSTING_PAGES_TOKEN"));
+    expect(JSON.stringify(steps.slice(0, credentialIndex))).not.toContain("HOSTING_PAGES_TOKEN");
+    expect(publishStep.run).toContain(
+      `hosting-pages/${interpolation("E2E_REPORT_DIR")}/pr-${interpolation("PR_NUMBER")}`,
+    );
+    expect(publishStep.run).toContain("git add --");
+    expect(publishStep.run).toContain("pushHostingPagesWithRetry.sh");
+    expect(publishStep.run).toContain("deploy-marker-");
+    expect(wait.run).toContain("deploy-marker-");
+    expect(wait.run).toContain("curl --fail");
+    expect(downloadedArtifactNames).toEqual([
+      `playwright-public-input-${githubExpression("needs.validate-source.outputs.run_attempt")}`,
+      "trusted-playwright-public-report",
+    ]);
+    expect(downloadedArtifactNames).not.toContain(
+      `playwright-report-${githubExpression("needs.validate-source.outputs.run_attempt")}`,
+    );
+    expect(source).toContain("trace・動画・スクリーンショットはActionsの非公開artifactだけ");
   });
 
-  it("does not update the E2E comment for a stale PR head", async () => {
-    const expectedHeadSha = "a".repeat(40);
-    const result = await executePrComment({
-      workflowFilename: "playwright.yml",
-      jobName: "comment",
-      stepName: "Comment PR with Playwright result",
-      env: {
-        E2E_REPORT_DIR: "yps-crispy-carnival-e2e",
-        EXPECTED_HEAD_SHA: expectedHeadSha,
-        TEST_RESULT: "success",
-        REPORT_DEPLOYED: "false",
-        REPORT_ARTIFACT_UPLOADED: "false",
-      },
-      pullRequest: {
-        state: "open",
-        base: { ref: "develop" },
-        head: { sha: "b".repeat(40), repo: { full_name: "example/shiftori" } },
-      },
-    });
+  it("writes a separate E2E PR comment with the legacy summary layout and hosting URL", () => {
+    const { workflow } = readWorkflow("publish-playwright-report.yml");
+    const comment = getJob(workflow, "comment");
+    const script = getGithubScript(findStep(getSteps(comment), "Comment PR with trusted Playwright result"));
 
-    expect(result.core.notice).toHaveBeenCalled();
-    expect(result.github.rest.issues.updateComment).not.toHaveBeenCalled();
-    expect(result.github.rest.issues.createComment).not.toHaveBeenCalled();
+    expect(comment.permissions).toEqual({
+      actions: "read",
+      contents: "read",
+      issues: "write",
+      "pull-requests": "write",
+    });
+    expect(script).toContain("<!-- shiftori-playwright-report:v1 -->");
+    expect(script).toContain("<!-- shiftori-playwright-state:");
+    expect(script).toContain("<!-- shiftori-vrt-report:v1 -->");
+    expect(script).toContain("Results: Passed");
+    expect(script).toContain("### 失敗したテスト");
+    expect(script).toContain("<summary>すべてのテスト結果を表示</summary>");
+    expect(script).toContain(
+      `hosting-pages/${interpolation("process.env.E2E_REPORT_DIR")}/pr-${interpolation("issueNumber")}/`,
+    );
+    expect(script).toContain(`hosting-pages/yps-crispy-carnival/${interpolation("issueNumber")}/`);
+    expect(script).toContain("legacyReportUrls.some");
+    expect(script).toContain("Cloudflare Previewを開く");
+    expect(script).toContain("実行結果・非公開artifact");
+    expect(script).toContain("E2E Actionsを見る");
+    expect(script).toContain("E2E環境: Convex");
+    expect(script).toContain("report?.e2eDeployment");
+    expect(script).toContain("workflow_id: 'playwright.yml'");
+    expect(script).toContain("trustedWorkflow.id === run.workflow_id");
+    expect(script).toContain("trace・動画・スクリーンショットはActionsの非公開artifactだけ");
+    expect(script).toContain("pullRequest.head.sha === run.head_sha");
+    expect(script).toContain("latestSourceRun?.id === run.id");
+    expect(script).toContain("!commentBody.includes(otherMarker)");
   });
 
   it("deploys the exact same-repository PR head to Cloudflare Pages branch pr-N", () => {
@@ -556,182 +608,275 @@ describe("Direct PR workflow security", () => {
     expect(body).not.toContain("shiftori-playwright-report:v1");
   });
 
-  it("publishes validated VRT reports directly from the exact current source", () => {
+  it("runs VRT on pull requests and branches while keeping the artifact producer secretless", () => {
     const { source, workflow } = readWorkflow("vrt.yml");
     const prepare = getJob(workflow, "prepare");
     const build = getJob(workflow, "build");
     const capture = getJob(workflow, "capture");
     const compare = getJob(workflow, "compare");
-    const prepareStep = findStep(getSteps(prepare), "Resolve VRT destination");
+    const prepareStep = findStep(getSteps(prepare), "Resolve VRT comparison target");
+    const buildCheckout = getSteps(build).find((step) => step.uses === CHECKOUT_ACTION);
+    const captureSteps = getSteps(capture);
+    const captureCheckout = captureSteps.find((step) => step.uses === CHECKOUT_ACTION);
+    const upload = findStep(captureSteps, "Upload VRT screenshot data");
     const compareSteps = getSteps(compare);
     const compareCheckout = compareSteps.find((step) => step.uses === CHECKOUT_ACTION);
-    const clone = findStep(compareSteps, "Checkout VRT Pages");
+    const clone = findStep(compareSteps, "Read published VRT baseline without credentials");
     const screenshotSafety = findStep(compareSteps, "Validate VRT screenshot data");
-    const report = findStep(compareSteps, "Build VRT report");
-    const reportSafety = findStep(compareSteps, "Validate generated VRT report");
-    const sourceGate = findStep(compareSteps, "Revalidate VRT source before publish");
-    const publish = findStep(compareSteps, "Publish VRT report and baseline");
-    const wait = findStep(compareSteps, "Wait for hosting-pages VRT report");
+    const comparison = findStep(compareSteps, "Build credential-free VRT comparison");
 
-    expect(workflow.on?.pull_request).toEqual({ branches: ["develop", "main"] });
+    expect(workflow.on?.pull_request).toEqual({
+      branches: ["develop", "main"],
+      types: ["opened", "synchronize", "reopened", "edited"],
+    });
     expect(workflow.on?.push).toEqual({ branches: ["develop", "main"] });
-    for (const job of [prepare, build, capture]) {
-      expect(job.if).toContain("github.event.pull_request.head.repo.full_name == github.repository");
-      expect(job.if).toContain("!startsWith(github.head_ref, 'renovate/')");
-      expect(job.if).toContain("github.actor != 'dependabot[bot]'");
-    }
-    expect(compare.if).toContain("github.event.pull_request.head.repo.full_name == github.repository");
-    expect(compare.if).toContain("!startsWith(github.head_ref, 'renovate/')");
-    expect(compare.if).toContain("github.actor != 'dependabot[bot]'");
-    expect(workflow.concurrency).toBeUndefined();
-    expect(compare.concurrency).toEqual({
-      group: `vrt-publish-${githubExpression("github.event.pull_request.number || github.ref_name")}`,
+    expect(workflow.permissions).toEqual({ contents: "read", "pull-requests": "read" });
+    expect(workflow.concurrency).toEqual({
+      group: `vrt-${githubExpression("github.event.pull_request.number || github.ref_name")}`,
       "cancel-in-progress": true,
     });
-    expect(compare.environment).toBe("Preview");
+    expect(buildCheckout?.with).toMatchObject({
+      ref: githubExpression("github.event.pull_request.head.sha || github.sha"),
+      "persist-credentials": false,
+    });
+    expect(captureCheckout?.with).toMatchObject({
+      ref: githubExpression("github.event.pull_request.head.sha || github.sha"),
+      "persist-credentials": false,
+    });
     expect(compareCheckout?.with).toMatchObject({
       ref: githubExpression("github.event.pull_request.head.sha || github.sha"),
       "persist-credentials": false,
     });
-    expect(getGithubScript(prepareStep)).toContain("pull.head.repo?.full_name");
-    expect(prepareStep.with?.["github-token"]).toBe(githubExpression("github.token"));
-    expect(clone.env?.HOSTING_PAGES_TOKEN).toBe(githubExpression("secrets.HOSTING_PAGES_TOKEN"));
-    expect(clone.run).toContain("github.com/yn1323/hosting-pages.git");
+    expect(getGithubScript(prepareStep)).toContain("pull?.base?.ref");
+    expect(upload.with).toMatchObject({
+      name: `vrt-actual-${githubExpression("matrix.shard")}`,
+      path: "vrt-actual/",
+      "if-no-files-found": "error",
+      overwrite: true,
+      "retention-days": 3,
+    });
+    expect(clone.run).toBe(
+      "git clone --depth 1 --single-branch https://github.com/yn1323/hosting-pages.git hosting-pages",
+    );
     expect(screenshotSafety.run).toContain("--profile vrt-screenshots");
-    expect(report.env?.REG_SUIT_CLIENT_ID).toBe(githubExpression("secrets.REG_SUIT_CLIENT_ID"));
+    expect(comparison.run).toContain("reg-suit compare -c regconfig.artifact.json");
+    expect(JSON.stringify([prepare, build, capture, compare])).not.toContain("${{ secrets.");
+    expect(source).not.toContain("HOSTING_PAGES_TOKEN");
+    expect(source).not.toContain("issues: write");
+    expect(source).not.toContain("pull-requests: write");
+    expect(source).not.toContain("pushHostingPagesWithRetry.sh");
+    expect(source).not.toContain("shiftori-vrt-report:v1");
+    expect(source).not.toContain("workflow_run");
+    expect(workflow.jobs?.approve).toBeUndefined();
+  });
+
+  it("publishes VRT artifacts only after trusted source and artifact validation", () => {
+    const { workflow } = readWorkflow("publish-vrt-report.yml");
+    const workflowRun = workflow.on?.workflow_run as { workflows?: string[]; types?: string[] };
+    const validate = getJob(workflow, "validate-source");
+    const validateScript = getGithubScript(
+      findStep(getSteps(validate), "Validate source workflow metadata and artifact declarations"),
+    );
+    const approval = getJob(workflow, "approve-pr-publication");
+    const approvalStep = findStep(getSteps(approval), "Approve current trusted VRT differences");
+    const publicationComment = getJob(workflow, "comment-publication-result");
+    const approvedComment = getJob(workflow, "comment-after-approval");
+    const publish = getJob(workflow, "publish");
+    const steps = getSteps(publish);
+    const checkout = findStep(steps, "Checkout trusted VRT publisher");
+    const download = findStep(steps, "Download VRT screenshot data");
+    const screenshotSafety = findStep(steps, "Validate VRT screenshot data");
+    const screenshotScan = findStep(steps, "Scan VRT screenshot data");
+    const revalidate = findStep(steps, "Revalidate VRT source immediately before credentials");
+    const clone = findStep(steps, "Read VRT Pages without credentials");
+    const buildReport = findStep(steps, "Build VRT report with trusted code");
+    const readCounts = findStep(steps, "Read trusted VRT result counts");
+    const reportSafety = findStep(steps, "Validate generated VRT report");
+    const reportScan = findStep(steps, "Scan generated VRT report");
+    const revalidatePublish = findStep(steps, "Revalidate VRT source immediately before publish");
+    const publishStep = findStep(steps, "Publish trusted VRT report and baseline");
+    const wait = findStep(steps, "Wait for trusted VRT report deploy");
+    const credentialIndex = steps.indexOf(publishStep);
+    const statusWriteJobs = Object.entries(workflow.jobs ?? {})
+      .filter(([, job]) => job.permissions?.statuses === "write")
+      .map(([name]) => name)
+      .sort();
+
+    expect(workflowRun).toEqual({ workflows: ["VRT Artifact"], types: ["in_progress", "completed"] });
+    expect(workflow.concurrency).toEqual({
+      group: `publish-vrt-${githubExpression("github.event.workflow_run.workflow_id")}-${githubExpression("github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.head_branch")}`,
+      "cancel-in-progress": true,
+    });
+    expect(statusWriteJobs).toEqual(["comment-after-approval", "comment-publication-result", "comment-source-status"]);
+    expect(validate.if).toContain("github.event.workflow_run.conclusion == 'success'");
+    expect(validate.if).toContain("github.event.workflow_run.head_repository.full_name == github.repository");
+    expect(validateScript).toContain("pullRequest.state !== 'open'");
+    expect(validateScript).toContain("pullRequest.head.sha !== run.head_sha");
+    expect(validateScript).toContain("branch.commit.sha !== run.head_sha");
+    expect(validateScript).toContain("workflow_id: 'vrt.yml'");
+    expect(validateScript).toContain("run.path !== expectedWorkflowPath");
+    expect(validateScript).toContain("trustedWorkflow.id !== run.workflow_id");
+    expect(validateScript).toContain("liveRun.path !== expectedWorkflowPath");
+    expect(validateScript).toContain("listWorkflowRunsForWorkflow");
+    expect(validateScript).toContain("latestSourceRun?.id !== run.id");
+    expect(validateScript).toContain("['vrt-actual-1', 'vrt-actual-2', 'vrt-actual-3', 'vrt-actual-4']");
+    expect(validateScript).toContain("200 * 1024 * 1024");
+    expect(validateScript).toContain("totalBytes > 500 * 1024 * 1024");
+    expect(publish.needs).toBe("validate-source");
+    expect(publish.if).not.toContain("approve-pr-publication");
+    expect(publish.environment).toBe("Report Publisher");
+    expect(publicationComment.needs).toEqual(["comment-source-status", "validate-source", "publish"]);
+    expect(approval.needs).toEqual(["validate-source", "publish", "comment-publication-result"]);
+    expect(approval.if).toContain("needs.validate-source.outputs.pull_number != ''");
+    expect(approval.if).toContain("needs.publish.outputs.report_deployed == 'true'");
+    expect(approval.if).toContain("needs.publish.outputs.report_has_diff == 'true'");
+    expect(approval.if).toContain("needs.comment-publication-result.result == 'success'");
+    expect(approval.environment).toEqual({
+      name: "vrt-approval",
+      url: `${githubExpression("needs.validate-source.outputs.report_url")}?v=${githubExpression("github.run_id")}-${githubExpression("github.run_attempt")}`,
+    });
+    expect(approval.concurrency).toEqual({
+      group: `vrt-approval-pr-${githubExpression("needs.validate-source.outputs.pull_number")}`,
+      "cancel-in-progress": true,
+    });
+    expect(approval.permissions).toEqual({ actions: "read", contents: "read", "pull-requests": "read" });
+    expect(getGithubScript(approvalStep)).toContain("workflow_id: 'vrt.yml'");
+    expect(getGithubScript(approvalStep)).toContain("latestSourceRun?.id !== run.id");
+    expect(approvedComment.needs).toEqual([
+      "validate-source",
+      "publish",
+      "comment-publication-result",
+      "approve-pr-publication",
+    ]);
+    expect(checkout.with).toMatchObject({
+      ref: githubExpression("github.sha"),
+      "persist-credentials": false,
+    });
+    expect(download.with).toMatchObject({
+      pattern: "vrt-actual-*",
+      path: "vrt-actual",
+      "merge-multiple": true,
+      "run-id": githubExpression("github.event.workflow_run.id"),
+      "github-token": githubExpression("github.token"),
+    });
+    expect(screenshotSafety.run).toContain("--profile vrt-screenshots");
+    expect(screenshotScan.run).toContain("assertNoSensitiveArtifacts.mjs");
+    expect(getGithubScript(revalidate)).toContain("latestSourceRun?.id !== run.id");
+    expect(getGithubScript(revalidate)).toContain("workflow_id: 'vrt.yml'");
+    expect(getGithubScript(revalidate)).toContain("liveRun.path !== expectedWorkflowPath");
+    expect(getGithubScript(revalidate)).toContain("actualNames.some");
+    expect(JSON.stringify(steps.slice(0, credentialIndex))).not.toContain("HOSTING_PAGES_TOKEN");
+    expect(clone.env?.HOSTING_PAGES_TOKEN).toBeUndefined();
+    expect(clone.run).toBe(
+      "git clone --depth 1 --single-branch https://github.com/yn1323/hosting-pages.git hosting-pages",
+    );
+    expect(buildReport.run).toContain("reg-suit compare -c regconfig.artifact.json");
+    expect(readCounts.run).toContain("changed_count");
+    expect(readCounts.run).toContain("passed_count");
     expect(reportSafety.run).toContain("--profile vrt-report");
-    expect(reportSafety.run).toContain("assertNoSensitiveArtifacts.mjs");
-    expect(getGithubScript(sourceGate)).toContain("pullRequest.state === 'open'");
-    expect(getGithubScript(sourceGate)).toContain("pullRequest.head.sha === expectedHeadSha");
-    expect(getGithubScript(sourceGate)).toContain("branch.commit.sha === expectedHeadSha");
-    expect(publish.run).toContain("vrt-work/reg/.");
-    expect(publish.run).toContain("scripts/pushHostingPagesWithRetry.sh");
-    expect(publish.run).toContain("deploy-marker-");
+    expect(reportScan.run).toContain("assertNoSensitiveArtifacts.mjs");
+    expect(getGithubScript(revalidatePublish)).toContain("latestSourceRun?.id !== run.id");
+    expect(getGithubScript(revalidatePublish)).toContain("workflow_id: 'vrt.yml'");
+    expect(getGithubScript(revalidatePublish)).toContain("trustedWorkflow.id !== run.workflow_id");
+    expect(publishStep.run).toContain(
+      `hosting-pages/${interpolation("VRT_REPORT_DIR")}/${interpolation("REPORT_KEY")}`,
+    );
+    expect(publishStep.run).toContain("git add --");
+    expect(publishStep.env?.HOSTING_PAGES_TOKEN).toBe(githubExpression("secrets.REPORT_PUBLISHER_HOSTING_PAGES_TOKEN"));
+    expect(publishStep.run).toContain(`x-access-token:${interpolation("HOSTING_PAGES_TOKEN")}`);
+    expect(publishStep.run).toContain("pushHostingPagesWithRetry.sh");
+    expect(publishStep.run).toContain("deploy-marker-");
     expect(wait.run).toContain("deploy-marker-");
     expect(wait.run).toContain("curl -sf");
-    expect(source).not.toContain("workflow_run");
   });
 
-  it("requires explicit vrt-approval when a PR has visual differences", () => {
-    const { workflow } = readWorkflow("vrt.yml");
-    const approve = getJob(workflow, "approve");
+  it("requires explicit vrt-approval only after the trusted diff report is published and commented", () => {
+    const { workflow } = readWorkflow("publish-vrt-report.yml");
+    const approve = getJob(workflow, "approve-pr-publication");
 
-    expect(approve.needs).toEqual(["prepare", "compare"]);
-    expect(approve.environment).toBe("vrt-approval");
-    expect(approve.if).toContain("needs.prepare.outputs.should_fail_on_diff == 'true'");
-    expect(approve.if).toContain("needs.compare.outputs.has_diff == 'true'");
-    expect(approve.if).toContain("needs.compare.result == 'success'");
-  });
-
-  it("updates a separate VRT comment with report, Actions, and approval links", async () => {
-    const expectedHeadSha = "a".repeat(40);
-    const result = await executePrComment({
-      workflowFilename: "vrt.yml",
-      jobName: "comment",
-      stepName: "Comment PR with VRT result",
-      env: {
-        VRT_REPORT_DIR: "yps-crispy-carnival-vrt",
-        COMPARE_RESULT: "success",
-        HAS_DIFF: "true",
-        REPORT_DEPLOYED: "true",
-        REPORT_URL: "https://yn1323.github.io/hosting-pages/yps-crispy-carnival-vrt/pr-42/",
-        EXPECTED_HEAD_SHA: expectedHeadSha,
-        RUN_ATTEMPT: "2",
-      },
-      comments: [
-        {
-          id: 99,
-          body: "<!-- shiftori-playwright-report:v1 -->\n## Playwright Test Report",
-          user: { login: "github-actions[bot]" },
-        },
-      ],
-      jobs: [{ name: "approve", html_url: "https://github.com/example/shiftori/actions/runs/300/job/999" }],
+    expect(approve.needs).toEqual(["validate-source", "publish", "comment-publication-result"]);
+    expect(approve.if).toContain("needs.publish.outputs.report_deployed == 'true'");
+    expect(approve.if).toContain("needs.publish.outputs.report_has_diff == 'true'");
+    expect(approve.if).toContain("needs.comment-publication-result.result == 'success'");
+    expect(approve.environment).toEqual({
+      name: "vrt-approval",
+      url: `${githubExpression("needs.validate-source.outputs.report_url")}?v=${githubExpression("github.run_id")}-${githubExpression("github.run_attempt")}`,
     });
+  });
 
-    expect(result.github.rest.issues.createComment).toHaveBeenCalledWith(
-      expect.objectContaining({
-        issue_number: 42,
-        body: expect.stringMatching(
-          /shiftori-vrt-report:v1[\s\S]*差分あり（承認待ち）[\s\S]*yps-crispy-carnival-vrt\/pr-42\/\?v=300-2[\s\S]*actions\/runs\/300[\s\S]*actions\/runs\/300\/job\/999/,
-        ),
-      }),
+  it("writes a separate VRT PR comment with counts, hosting URL, Actions, and approval status", () => {
+    const { workflow } = readWorkflow("publish-vrt-report.yml");
+    const sourceStatus = getJob(workflow, "comment-source-status");
+    const sourceScript = getGithubScript(findStep(getSteps(sourceStatus), "Comment PR with VRT source status"));
+    const finalComment = getJob(workflow, "comment-publication-result");
+    const finalScript = getGithubScript(
+      findStep(getSteps(finalComment), "Comment PR with trusted VRT publication result"),
     );
-    expect(result.github.paginate).toHaveBeenCalledWith(result.github.rest.actions.listJobsForWorkflowRun, {
-      owner: "example",
-      repo: "shiftori",
-      run_id: 300,
-      per_page: 100,
-    });
-    const body = result.github.rest.issues.createComment.mock.calls[0]?.[0]?.body as string;
-    expect(body).not.toContain("shiftori-playwright-report:v1");
-  });
-
-  it("marks the VRT comment approved after the environment approval finishes", async () => {
-    const expectedHeadSha = "a".repeat(40);
-    const result = await executePrComment({
-      workflowFilename: "vrt.yml",
-      jobName: "comment-after-approval",
-      stepName: "Mark VRT comment as approved",
-      env: {
-        VRT_REPORT_DIR: "yps-crispy-carnival-vrt",
-        EXPECTED_HEAD_SHA: expectedHeadSha,
-        REPORT_DEPLOYED: "true",
-        REPORT_URL: "https://yn1323.github.io/hosting-pages/yps-crispy-carnival-vrt/pr-42/",
-        RUN_ATTEMPT: "2",
-      },
-      comments: [
-        {
-          id: 77,
-          body: "<!-- shiftori-vrt-report:v1 -->\n## VRT Report\n\nStatus: 差分あり（承認待ち）",
-          user: { login: "github-actions[bot]" },
-        },
-      ],
-      jobs: [{ name: "approve", html_url: "https://github.com/example/shiftori/actions/runs/300/job/999" }],
-    });
-
-    expect(result.github.rest.issues.updateComment).toHaveBeenCalledWith(
-      expect.objectContaining({
-        comment_id: 77,
-        body: expect.stringMatching(
-          /Status: 差分あり（承認済み）[\s\S]*yps-crispy-carnival-vrt\/pr-42\/\?v=300-2[\s\S]*承認済みjobを見る/,
-        ),
-      }),
+    const approvedComment = getJob(workflow, "comment-after-approval");
+    const approvedScript = getGithubScript(
+      findStep(getSteps(approvedComment), "Mark trusted VRT differences as approved"),
     );
-  });
 
-  it("does not update the VRT comment for a stale PR head", async () => {
-    const expectedHeadSha = "a".repeat(40);
-    const result = await executePrComment({
-      workflowFilename: "vrt.yml",
-      jobName: "comment",
-      stepName: "Comment PR with VRT result",
-      env: {
-        VRT_REPORT_DIR: "yps-crispy-carnival-vrt",
-        COMPARE_RESULT: "success",
-        HAS_DIFF: "false",
-        REPORT_DEPLOYED: "false",
-        REPORT_URL: "https://yn1323.github.io/hosting-pages/yps-crispy-carnival-vrt/pr-42/",
-        EXPECTED_HEAD_SHA: expectedHeadSha,
-      },
-      pullRequest: {
-        state: "open",
-        base: { ref: "develop" },
-        head: { sha: "b".repeat(40), repo: { full_name: "example/shiftori" } },
-      },
-    });
-
-    expect(result.core.notice).toHaveBeenCalled();
-    expect(result.github.rest.issues.updateComment).not.toHaveBeenCalled();
-    expect(result.github.rest.issues.createComment).not.toHaveBeenCalled();
-  });
-
-  it("removes the workflow_run publishers and PR preview artifact producer", () => {
-    for (const filename of ["pr-preview.yml", "publish-pr-preview.yml", "publish-vrt-report.yml"]) {
-      expect(existsSync(path.join(REPOSITORY_ROOT, ".github/workflows", filename))).toBe(false);
+    for (const job of [sourceStatus, finalComment, approvedComment]) {
+      expect(job.permissions).toEqual({
+        actions: "read",
+        contents: "read",
+        issues: "write",
+        "pull-requests": "write",
+        statuses: "write",
+      });
+      expect(job.concurrency).toEqual({
+        group: `vrt-status-${githubExpression("github.event.workflow_run.workflow_id")}-${githubExpression("github.event.workflow_run.pull_requests[0].number")}`,
+        "cancel-in-progress": false,
+      });
     }
+    expect(sourceScript).toContain("<!-- shiftori-vrt-report:v1 -->");
+    expect(sourceScript).toContain("<!-- shiftori-playwright-report:v1 -->");
+    expect(sourceScript).toContain("差分: Changed - / New - / Deleted -");
+    expect(sourceScript).toContain("Passed: -");
+    expect(sourceScript).toContain("実行中（capture / 比較）");
+    expect(sourceScript).toContain("sha: run.head_sha");
+    expect(sourceScript).toContain("state: sourceGateState");
+    expect(sourceScript).toContain("context: 'shiftori/vrt-approval'");
+    expect(sourceScript).toContain("gatePullRequest.head.sha !== run.head_sha");
+    expect(sourceScript).toContain("!(await sourceRunIsCurrent())");
+    expect(sourceScript).toContain("body.includes(reportUrl)");
+    expect(finalScript).toContain("<!-- shiftori-vrt-report:v1 -->");
+    expect(finalScript).toContain("<!-- shiftori-vrt-state:");
+    expect(finalScript).toContain("<!-- shiftori-playwright-report:v1 -->");
+    expect(finalScript).toContain("差分: Changed ${countValues.changed");
+    expect(finalScript).toContain("Passed: ${countValues.passed");
+    expect(finalScript).toContain("hosting-pagesで差分レポートを見る");
+    expect(finalScript).toContain("差分あり（承認待ち）");
+    expect(finalScript).toContain("VRT差分を確認・承認する");
+    expect(finalScript).toContain("VRT実行: [source Actionsを見る]");
+    expect(finalScript).toContain("Trusted publisher: [Actionsを見る]");
+    expect(finalScript).toContain("yn1323/hosting-pages:main");
+    expect(finalScript).toContain("pullRequest.head.sha !== expectedHeadSha");
+    expect(finalScript).toContain("latestSourceRun?.id === run.id");
+    expect(finalScript).toContain("!body.includes(otherMarker)");
+    expect(finalScript).toContain("sha: expectedHeadSha");
+    expect(finalScript).toContain("state: gateState");
+    expect(finalScript).toContain("hasDiff ? 'pending' : 'success'");
+    expect(finalScript).toContain("context: 'shiftori/vrt-approval'");
+    expect(finalScript).toContain("gatePullRequest.head.sha !== expectedHeadSha");
+    expect(finalScript).toContain("body.includes(plannedReportUrl)");
+    expect(approvedScript).toContain("差分あり（承認済み）");
+    expect(approvedScript).toContain("承認済みjobを見る");
+    expect(approvedScript).toContain("workflow_id: 'vrt.yml'");
+    expect(approvedScript).toContain("run.workflow_id === trustedWorkflow.id");
+    expect(approvedScript).toContain("sha: expectedHeadSha");
+    expect(approvedScript).toContain("state: 'success'");
+    expect(approvedScript).toContain("context: 'shiftori/vrt-approval'");
+  });
 
-    for (const filename of ["playwright.yml", "deploy.yml", "vrt.yml"]) {
-      expect(readWorkflow(filename).source).not.toContain("workflow_run");
+  it("retains both workflow_run report publishers and removes only obsolete preview publishers", () => {
+    for (const filename of ["publish-playwright-report.yml", "publish-vrt-report.yml"]) {
+      expect(existsSync(path.join(REPOSITORY_ROOT, ".github/workflows", filename))).toBe(true);
+      expect(readWorkflow(filename).source).toContain("workflow_run");
+    }
+    for (const filename of ["pr-preview.yml", "publish-pr-preview.yml"]) {
+      expect(existsSync(path.join(REPOSITORY_ROOT, ".github/workflows", filename))).toBe(false);
     }
   });
 

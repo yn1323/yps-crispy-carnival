@@ -53,7 +53,13 @@ afterEach(() => {
 });
 
 function runGate(
-  profile: "playwright-public-report" | "playwright-result" | "preview-dist" | "vrt-report" | "vrt-screenshots",
+  profile:
+    | "playwright-public-input"
+    | "playwright-public-report"
+    | "playwright-result"
+    | "preview-dist"
+    | "vrt-report"
+    | "vrt-screenshots",
 ) {
   return spawnSync(process.execPath, [GATE_PATH, "--profile", profile, "--root", testDirectory], {
     encoding: "utf8",
@@ -175,6 +181,25 @@ describe("static artifact safety gate", () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("1 regular files");
+  });
+
+  it("accepts the fixed Playwright public report input", () => {
+    writeFileSync(path.join(testDirectory, "test-results.json"), JSON.stringify({ suites: [] }));
+
+    const result = runGate("playwright-public-input");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("1 regular files");
+  });
+
+  it("rejects extra files in the Playwright public report input", () => {
+    writeFileSync(path.join(testDirectory, "test-results.json"), JSON.stringify({ suites: [] }));
+    writeFileSync(path.join(testDirectory, "trace.json"), "{}");
+
+    const result = runGate("playwright-public-input");
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("path outside the selected profile");
   });
 
   it("rejects extra files in the Playwright result artifact", () => {
