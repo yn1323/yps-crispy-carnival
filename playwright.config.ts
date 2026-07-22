@@ -32,7 +32,7 @@ export default defineConfig({
   /* 未指定時は6 worker。CIではE2E_WORKERSで6ユーザーを重複なく分割できるworker数へ抑える。 */
   workers: getE2EWorkerCount(),
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: [["list"], ["html"], ["json", { outputFile: "test-results.json" }]],
+  reporter: [["list", { printSteps: true }], ["html"], ["json", { outputFile: "test-results.json" }]],
   /* 並列実行時の初回購読・描画待ちを考慮しつつ、操作失敗を早く検知する。 */
   expect: {
     timeout: 10_000,
