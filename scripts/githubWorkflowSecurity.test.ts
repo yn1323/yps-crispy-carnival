@@ -1710,7 +1710,8 @@ describe("PR workflow credential isolation", () => {
     expect(approval.if).toContain("needs.validate-source.outputs.should_publish == 'true'");
     expect(approval.if).toContain("needs.validate-source.outputs.pull_number != ''");
     expect(publish.needs).toEqual(["comment-source-status", "validate-source", "approve-pr-publication"]);
-    expect(publish.if).toContain("always()");
+    expect(publish.if).toContain("!cancelled()");
+    expect(publish.if).not.toContain("always()");
     expect(publish.if).toContain("needs.validate-source.result == 'success'");
     expect(publish.if).toContain("needs.validate-source.outputs.should_publish == 'true'");
     expect(publish.if).toContain("needs.validate-source.outputs.pull_number == ''");
