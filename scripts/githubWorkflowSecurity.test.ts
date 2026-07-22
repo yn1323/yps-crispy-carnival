@@ -109,17 +109,27 @@ async function executePublisherSourceGate(scenario: PublisherSourceGateScenario)
   const failures: string[] = [];
   const listWorkflowRunArtifacts = vi.fn();
   const listWorkflowRunsForWorkflow = vi.fn();
+  const workflowRun = {
+    workflow_id: 500,
+    run_attempt: 1,
+    status: "completed",
+    ...scenario.workflowRun,
+  };
+  const liveWorkflowRun = {
+    ...workflowRun,
+    ...(scenario.liveWorkflowRun ?? {}),
+  };
   const github = {
     paginate: vi.fn(async (endpoint: unknown) => {
       if (endpoint === listWorkflowRunArtifacts) return scenario.artifacts ?? [];
       if (endpoint === listWorkflowRunsForWorkflow) {
-        return scenario.sourceRuns ?? [scenario.liveWorkflowRun ?? scenario.workflowRun];
+        return scenario.sourceRuns ?? [liveWorkflowRun];
       }
       throw new Error("unexpected paginate endpoint");
     }),
     rest: {
       actions: {
-        getWorkflowRun: vi.fn(async () => ({ data: scenario.liveWorkflowRun ?? scenario.workflowRun })),
+        getWorkflowRun: vi.fn(async () => ({ data: liveWorkflowRun })),
         listWorkflowRunArtifacts,
         listWorkflowRunsForWorkflow,
       },
@@ -132,8 +142,9 @@ async function executePublisherSourceGate(scenario: PublisherSourceGateScenario)
     },
   };
   const context = {
-    payload: { workflow_run: scenario.workflowRun },
+    payload: { workflow_run: workflowRun },
     repo: { owner: "example", repo: "shiftori" },
+    runId: 300,
   };
   const core = {
     setFailed: vi.fn((message: string) => failures.push(message)),
@@ -198,6 +209,115 @@ async function executePlaywrightComment(scenario: PlaywrightCommentScenario) {
 
   vi.stubEnv("TEST_RESULT", scenario.result);
   vi.stubEnv("REPORT_ARTIFACT_UPLOADED", scenario.artifactUploaded ?? "true");
+  try {
+    const execute = new Function("github", "context", "core", `return (async () => {${getGithubScript(step)}\n})()`);
+    await execute(github, context, core);
+  } finally {
+    vi.unstubAllEnvs();
+  }
+  return { failures, github };
+}
+
+type PrE2ECommentScenario = {
+  workflowRun?: Record<string, unknown>;
+  liveWorkflowRun?: Record<string, unknown>;
+  sourceRuns?: Array<Record<string, unknown>>;
+  pullRequest?: Record<string, unknown>;
+  comments?: Array<Record<string, unknown>>;
+  env?: Partial<{
+    PREVIEW_PUBLISH_RESULT: string;
+    PR_E2E_JOB_RESULT: string;
+    PR_E2E_RESULT: string;
+    REPORT_PUBLISH_RESULT: string;
+    REPORT_DEPLOYED: string;
+    PUBLISH_RUN_ATTEMPT: string;
+  }>;
+};
+
+async function executePrE2EComment(
+  scenario: PrE2ECommentScenario,
+  phase: "preview" | "preliminary" | "terminal" = "terminal",
+) {
+  const { workflow } = readWorkflow("publish-pr-preview.yml");
+  const step =
+    phase === "preview"
+      ? findStep(getSteps(getJob(workflow, "publish")), "Comment PR with published preview")
+      : phase === "preliminary"
+        ? findStep(getSteps(getJob(workflow, "comment-pr-e2e-status")), "Comment PR with preliminary E2E result")
+        : findStep(getSteps(getJob(workflow, "comment-pr-e2e-result")), "Comment PR with trusted E2E result");
+  const listWorkflowRunsForWorkflow = vi.fn();
+  const listComments = vi.fn();
+  const failures: string[] = [];
+  const workflowRun = {
+    id: 200,
+    workflow_id: 500,
+    run_attempt: 1,
+    status: "completed",
+    name: "PR Preview Artifact",
+    event: "pull_request",
+    conclusion: "success",
+    head_sha: "a".repeat(40),
+    head_repository: { full_name: "example/shiftori" },
+    pull_requests: [{ number: 42 }],
+    ...(scenario.workflowRun ?? {}),
+  };
+  const liveWorkflowRun = {
+    ...workflowRun,
+    ...(scenario.liveWorkflowRun ?? {}),
+  };
+  const github = {
+    paginate: vi.fn(async (endpoint: unknown) => {
+      if (endpoint === listWorkflowRunsForWorkflow) return scenario.sourceRuns ?? [liveWorkflowRun];
+      if (endpoint === listComments) return scenario.comments ?? [];
+      throw new Error("unexpected paginate endpoint");
+    }),
+    rest: {
+      actions: {
+        getWorkflowRun: vi.fn(async () => ({ data: liveWorkflowRun })),
+        listWorkflowRunsForWorkflow,
+      },
+      pulls: {
+        get: vi.fn(async () => ({
+          data: scenario.pullRequest ?? {
+            state: "open",
+            base: { ref: "develop" },
+            head: { sha: workflowRun.head_sha, repo: { full_name: "example/shiftori" } },
+          },
+        })),
+      },
+      issues: {
+        listComments,
+        updateComment: vi.fn(async () => undefined),
+        createComment: vi.fn(async () => undefined),
+      },
+    },
+  };
+  const context = {
+    payload: { workflow_run: workflowRun },
+    repo: { owner: "example", repo: "shiftori" },
+    runId: 300,
+    runAttempt: 1,
+    serverUrl: "https://github.com",
+  };
+  const core = {
+    notice: vi.fn(),
+    setFailed: vi.fn((message: string) => failures.push(message)),
+  };
+  const env = {
+    E2E_REPORT_DIR: "yps-crispy-carnival-e2e",
+    EXPECTED_HEAD_SHA: String(workflowRun.head_sha),
+    EXPECTED_PULL_NUMBER: String(workflowRun.pull_requests[0]?.number ?? ""),
+    EXPECTED_SOURCE_RUN_ATTEMPT: String(workflowRun.run_attempt),
+    PREVIEW_PUBLISH_RESULT: "success",
+    PR_E2E_JOB_RESULT: "success",
+    PR_E2E_RESULT: "success",
+    REPORT_PUBLISH_RESULT: "success",
+    REPORT_DEPLOYED: "true",
+    PUBLISH_RUN_ATTEMPT: "1",
+    ...scenario.env,
+  };
+
+  for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
   try {
     const execute = new Function("github", "context", "core", `return (async () => {${getGithubScript(step)}\n})()`);
     await execute(github, context, core);
@@ -538,6 +658,7 @@ describe("PR workflow credential isolation", () => {
     expect(script).toContain("pull.merge_commit_sha === mergeSha");
     expect(script).toContain("pullRequest.merge_commit_sha !== mergeSha");
     expect(script).toContain("shiftori-playwright-report:v1");
+    expect(script).toContain(`yps-crispy-carnival-e2e/pr-${interpolation("pullNumber")}/`);
     expect(script).not.toContain("comment.body?.includes(heading)");
     expect(script).toContain("legacyCandidates.length === 1");
     expect(script).toContain(`body.startsWith(\`${interpolation("heading")}\\n\`)`);
@@ -558,7 +679,7 @@ describe("PR workflow credential isolation", () => {
       expect.objectContaining({
         comment_id: 99,
         body: expect.stringMatching(
-          /<!-- shiftori-playwright-report:v1 -->[\s\S]*## Playwright Test Report[\s\S]*Status: Passed[\s\S]*実行結果[\s\S]*Actionsを見る[\s\S]*actions\/runs\/300[\s\S]*レポート確認[\s\S]*Actionsの非公開artifactを見る[\s\S]*actions\/runs\/300/,
+          /<!-- shiftori-playwright-report:v1 -->[\s\S]*## Playwright Test Report[\s\S]*Status: Passed[\s\S]*実行結果[\s\S]*Actionsを見る[\s\S]*actions\/runs\/300[\s\S]*PR Smoke[\s\S]*hosting-pagesのE2Eレポートを見る（未公開の場合あり）[\s\S]*yps-crispy-carnival-e2e\/pr-42\/[\s\S]*レポート確認[\s\S]*Actionsの非公開artifactを見る[\s\S]*actions\/runs\/300/,
         ),
       }),
     );
@@ -599,6 +720,11 @@ describe("PR workflow credential isolation", () => {
         ),
       });
       expect(result.github.rest.issues.createComment).toHaveBeenCalledWith(expectedComment);
+      expect(result.github.rest.issues.createComment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.stringContaining("https://yn1323.github.io/hosting-pages/yps-crispy-carnival-e2e/pr-42/"),
+        }),
+      );
       if (reportExpected) {
         expect(result.github.rest.issues.createComment).toHaveBeenCalledWith(
           expect.objectContaining({ body: expect.stringContaining("Actionsの非公開artifactを見る") }),
@@ -692,7 +818,7 @@ describe("PR workflow credential isolation", () => {
     }
   });
 
-  it("builds PR preview data from the exact head using browser-public Preview secrets only", () => {
+  it("builds PR preview data from the exact head using an isolated public-only environment", () => {
     const { source, workflow } = readWorkflow("pr-preview.yml");
     const job = getJob(workflow, "build-preview-artifact");
     const steps = getSteps(job);
@@ -700,7 +826,7 @@ describe("PR workflow credential isolation", () => {
     const upload = steps.find((step) => step.uses === UPLOAD_ARTIFACT_ACTION);
     const secretNames = [...source.matchAll(/secrets\.([A-Z0-9_]+)/g)].map((match) => match[1]).sort();
 
-    expect(job.environment).toBe("Preview");
+    expect(job.environment).toBe("PR Preview Public");
     expect(Object.values(workflow.permissions ?? {})).not.toContain("write");
     expect(checkout?.with?.ref).toBe(githubExpression("github.event.pull_request.head.sha"));
     expect(checkout?.with?.["persist-credentials"]).toBe(false);
@@ -725,6 +851,7 @@ describe("PR workflow credential isolation", () => {
     const finalSourceScript = getGithubScript(finalSourceGate);
     const publication = findStep(steps, "Publish static preview data");
     const comment = findStep(steps, "Comment PR with published preview");
+    const commentScript = getGithubScript(comment);
     const artifactGateIndex = steps.findIndex((step) => step.name === "Validate preview data artifact");
     const privacyGateIndex = steps.findIndex((step) => step.name === "Scan preview data artifact");
     const finalSourceGateIndex = steps.indexOf(finalSourceGate);
@@ -747,6 +874,9 @@ describe("PR workflow credential isolation", () => {
     expect(sourceScript).toContain("run.name !== 'PR Preview Artifact'");
     expect(sourceScript).toContain("run.head_repository?.full_name");
     expect(sourceScript).toContain("pullRequest.head.sha !== run.head_sha");
+    expect(sourceScript).toContain("actions.getWorkflowRun");
+    expect(sourceScript).toContain("actions.listWorkflowRunsForWorkflow");
+    expect(sourceScript).toContain("latestSourceRun?.id !== run.id");
     expect(sourceScript).toContain("available.length !== 1");
     expect(sourceScript).toContain("available[0].name !== 'pr-preview-dist'");
     expect(sourceScript).toContain("available[0].size_in_bytes <= 0");
@@ -762,6 +892,7 @@ describe("PR workflow credential isolation", () => {
     expect(finalSourceGate.env).toMatchObject({
       EXPECTED_HEAD_SHA: githubExpression("steps.source.outputs.head_sha"),
       EXPECTED_PULL_NUMBER: githubExpression("steps.source.outputs.pull_number"),
+      EXPECTED_SOURCE_RUN_ATTEMPT: githubExpression("steps.source.outputs.source_run_attempt"),
     });
     expect(finalSourceGate.with?.["github-token"]).toBe(githubExpression("github.token"));
     expect(finalSourceScript).toContain("run.head_sha !== expectedHeadSha");
@@ -769,7 +900,18 @@ describe("PR workflow credential isolation", () => {
     expect(finalSourceScript).toContain("pullRequest.head.sha !== expectedHeadSha");
     expect(finalSourceScript).toContain("run.pull_requests[0]?.number !== pullNumber");
     expect(finalSourceScript).toContain("available[0].name !== 'pr-preview-dist'");
+    expect(finalSourceScript).toContain("actions.getWorkflowRun");
+    expect(finalSourceScript).toContain("actions.listWorkflowRunsForWorkflow");
+    expect(finalSourceScript).toContain("latestSourceRun?.id !== run.id");
     expect(comment.with?.["github-token"]).toBe(githubExpression("github.token"));
+    expect(comment.env).toMatchObject({
+      EXPECTED_HEAD_SHA: githubExpression("steps.source.outputs.head_sha"),
+      EXPECTED_PULL_NUMBER: githubExpression("steps.source.outputs.pull_number"),
+      EXPECTED_SOURCE_RUN_ATTEMPT: githubExpression("steps.source.outputs.source_run_attempt"),
+    });
+    expect(commentScript.match(/loadCurrentSource\(\)/g)).toHaveLength(2);
+    expect(commentScript).toContain("latestSourceRun?.id === run.id");
+    expect(commentScript).not.toContain("deleteComment");
     expect(artifactGateIndex).toBeGreaterThan(steps.indexOf(download));
     expect(artifactGateIndex).toBeLessThan(firstSecretIndex);
     expect(privacyGateIndex).toBeGreaterThan(artifactGateIndex);
@@ -779,7 +921,290 @@ describe("PR workflow credential isolation", () => {
     expect(publicationIndex).toBe(firstSecretIndex);
     expect(findStep(steps, "Validate preview data artifact").run).toContain("--profile preview-dist");
     expect(findStep(steps, "Publish static preview data").run).toContain("--no-bundle");
+    expect(findStep(steps, "Publish static preview data").id).toBe("deploy");
+    expect(findStep(steps, "Publish static preview data").run).toContain("deployment_url=$DEPLOYMENT_URL");
     expect(JSON.stringify(publish)).not.toMatch(/(?:bash|node|tsx)\s+trusted-artifacts\/preview-dist/);
+  });
+
+  it("comments a published preview only while its source is still the current PR head", async () => {
+    const current = await executePrE2EComment({ workflowRun: {} }, "preview");
+
+    expect(current.failures).toEqual([]);
+    expect(current.github.rest.issues.createComment).toHaveBeenCalledWith(
+      expect.objectContaining({ issue_number: 42, body: expect.stringContaining("Status: Passed") }),
+    );
+
+    const stale = await executePrE2EComment(
+      {
+        workflowRun: {},
+        pullRequest: {
+          state: "open",
+          base: { ref: "develop" },
+          head: { sha: "b".repeat(40), repo: { full_name: "example/shiftori" } },
+        },
+      },
+      "preview",
+    );
+
+    expect(stale.failures).not.toEqual([]);
+    expect(stale.github.rest.issues.updateComment).not.toHaveBeenCalled();
+    expect(stale.github.rest.issues.createComment).not.toHaveBeenCalled();
+  });
+
+  it("runs secretless PR E2E and publishes only a trusted sanitized report", () => {
+    const { source, workflow } = readWorkflow("publish-pr-preview.yml");
+    const prE2E = getJob(workflow, "pr-e2e");
+    const prE2ESteps = getSteps(prE2E);
+    const prE2ECheckout = findStep(prE2ESteps, "Checkout trusted PR E2E code");
+    const runSmoke = findStep(prE2ESteps, "Run credential-free PR E2E Smoke");
+    const resultUpload = findStep(prE2ESteps, "Upload PR E2E result data");
+    const statusCommentJob = getJob(workflow, "comment-pr-e2e-status");
+    const statusComment = findStep(getSteps(statusCommentJob), "Comment PR with preliminary E2E result");
+    const statusCommentScript = getGithubScript(statusComment);
+    const reportPublisher = getJob(workflow, "publish-pr-e2e-report");
+    const reportSteps = getSteps(reportPublisher);
+    const reportCheckout = findStep(reportSteps, "Checkout trusted PR E2E report publisher");
+    const resultDownload = findStep(reportSteps, "Download PR E2E result data");
+    const sourceGate = findStep(reportSteps, "Validate PR E2E publication source");
+    const credentialGate = findStep(reportSteps, "Revalidate PR E2E source immediately before credentials");
+    const clone = findStep(reportSteps, "Checkout E2E hosting pages after validation");
+    const publishGate = findStep(reportSteps, "Revalidate PR E2E source immediately before publish");
+    const publishReport = findStep(reportSteps, "Publish trusted PR E2E report");
+    const commentJob = getJob(workflow, "comment-pr-e2e-result");
+    const comment = findStep(getSteps(commentJob), "Comment PR with trusted E2E result");
+    const commentScript = getGithubScript(comment);
+    const firstReportSecretIndex = reportSteps.findIndex((step) => JSON.stringify(step).includes("${{ secrets."));
+
+    expect(prE2E.needs).toBe("publish");
+    expect(prE2E.environment).toBeUndefined();
+    expect(prE2E.permissions).toEqual({ contents: "read" });
+    expect(prE2ECheckout.with).toMatchObject({
+      ref: githubExpression("github.sha"),
+      "persist-credentials": false,
+    });
+    expect(runSmoke.run).toBe("pnpm e2e:deployed");
+    expect(runSmoke.env).toEqual({
+      E2E_DEPLOYED_BASE_URL: githubExpression("needs.publish.outputs.deployment_url"),
+    });
+    expect(JSON.stringify(prE2E)).not.toContain("${{ secrets.");
+    expect(JSON.stringify(prE2E)).not.toContain("CLERK_SECRET_KEY");
+    expect(JSON.stringify(prE2E)).not.toContain("CONVEX_DEPLOY_KEY");
+    expect(JSON.stringify(prE2E)).not.toContain("E2E_CLERK_PASSWORD");
+    expect(resultUpload.with).toMatchObject({ name: "pr-e2e-result", path: "pr-e2e-result/" });
+    expect(resultUpload.if).toContain("steps.pr-e2e-result-safety.outcome == 'success'");
+
+    expect(statusCommentJob.needs).toEqual(["publish", "pr-e2e"]);
+    expect(statusCommentJob.environment).toBeUndefined();
+    expect(statusCommentJob.permissions).toEqual({
+      actions: "read",
+      contents: "read",
+      issues: "write",
+      "pull-requests": "write",
+    });
+    expect(statusComment.with?.["github-token"]).toBe(githubExpression("github.token"));
+    expect(statusCommentScript).toContain("hosting-pages publish pending");
+    expect(statusCommentScript).toContain("hosting-pagesの予定URLを開く（未公開の場合あり）");
+    expect(statusCommentScript).toContain("PR E2E実行・公開承認を見る");
+    expect(statusCommentScript.match(/loadCurrentSource\(\)/g)).toHaveLength(2);
+    expect(statusCommentScript).not.toContain("deleteComment");
+
+    expect(reportPublisher.needs).toEqual(["publish", "pr-e2e", "comment-pr-e2e-status"]);
+    expect(reportPublisher.environment).toBe("Preview");
+    expect(reportPublisher.permissions).toEqual({
+      actions: "read",
+      contents: "read",
+      "pull-requests": "read",
+    });
+    expect(reportCheckout.with).toMatchObject({
+      ref: githubExpression("github.sha"),
+      "persist-credentials": false,
+    });
+    expect(resultDownload.with).toMatchObject({ name: "pr-e2e-result", path: "trusted-artifacts/pr-e2e-result" });
+    expect(getGithubScript(sourceGate)).toContain("latestSourceRun?.id !== run.id");
+    expect(getGithubScript(sourceGate)).toContain("available[0].name !== 'pr-e2e-result'");
+    expect(getGithubScript(credentialGate)).toContain("latestSourceRun?.id !== run.id");
+    expect(getGithubScript(credentialGate)).toContain("available[0].name !== 'pr-e2e-result'");
+    expect(getGithubScript(publishGate)).toContain("latestSourceRun?.id !== run.id");
+    expect(reportSteps.indexOf(credentialGate)).toBe(firstReportSecretIndex - 1);
+    expect(reportSteps.indexOf(clone)).toBe(firstReportSecretIndex);
+    expect(reportSteps.indexOf(publishGate)).toBe(reportSteps.indexOf(publishReport) - 1);
+    expect(findStep(reportSteps, "Validate PR E2E result data").run).toContain("--profile playwright-result");
+    expect(findStep(reportSteps, "Build trusted public PR E2E report").run).toContain(
+      "buildPublicPlaywrightReport.mjs",
+    );
+    expect(findStep(reportSteps, "Validate trusted public PR E2E report").run).toContain(
+      "--profile playwright-public-report",
+    );
+    expect(publishReport.run).toContain("cp -R playwright-public-report/.");
+    expect(publishReport.run).toContain("scripts/pushHostingPagesWithRetry.sh");
+    expect(publishReport.run).not.toContain("playwright-report-deployed");
+    expect(publishReport.run).not.toContain("test-results-deployed.json");
+
+    expect(commentJob.needs).toEqual(["publish", "pr-e2e", "comment-pr-e2e-status", "publish-pr-e2e-report"]);
+    expect(commentJob.if).toContain("always()");
+    expect(commentJob.permissions).toEqual({
+      actions: "read",
+      contents: "read",
+      issues: "write",
+      "pull-requests": "write",
+    });
+    expect(comment.with?.["github-token"]).toBe(githubExpression("github.token"));
+    expect(commentScript).toContain("shiftori-playwright-report:v1");
+    expect(commentScript).toContain("shiftori-playwright-state:");
+    expect(commentScript).toContain("hosting-pagesでE2Eレポートを見る");
+    expect(commentScript).toContain("hosting-pagesの予定URLを開く（未公開の場合あり）");
+    expect(commentScript).toContain("PR E2E実行を見る");
+    expect(commentScript).toContain("PR Previewを開く");
+    expect(commentScript).toContain("認証付きFull Regressionはdevelopへマージされたexact commit");
+    expect(commentScript.match(/loadCurrentSource\(\)/g)).toHaveLength(2);
+    expect(commentScript).not.toContain("deleteComment");
+    expect(source).toContain("yps-crispy-carnival-e2e");
+  });
+
+  it("comments the current open PR with separate E2E report, Actions, and Preview links", async () => {
+    const result = await executePrE2EComment({ workflowRun: {} });
+
+    expect(result.failures).toEqual([]);
+    expect(result.github.rest.issues.createComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        issue_number: 42,
+        body: expect.stringMatching(
+          /<!-- shiftori-playwright-report:v1 -->[\s\S]*Status: Passed[\s\S]*hosting-pagesでE2Eレポートを見る\]\(https:\/\/yn1323\.github\.io\/hosting-pages\/yps-crispy-carnival-e2e\/pr-42\/\?v=300-1\)[\s\S]*実行結果[\s\S]*PR E2E実行を見る[\s\S]*actions\/runs\/300[\s\S]*テスト対象[\s\S]*PR Previewを開く[\s\S]*pr-42\.dev-yps-crispy-carnival\.pages\.dev/,
+        ),
+      }),
+    );
+    expect(result.github.rest.issues.updateComment).not.toHaveBeenCalled();
+    expect(result.github.rest.actions.getWorkflowRun).toHaveBeenCalledTimes(2);
+    expect(result.github.rest.pulls.get).toHaveBeenCalledTimes(2);
+  });
+
+  it("comments with the planned hosting URL before report publication approval completes", async () => {
+    const result = await executePrE2EComment({ workflowRun: {} }, "preliminary");
+
+    expect(result.failures).toEqual([]);
+    expect(result.github.rest.issues.createComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        issue_number: 42,
+        body: expect.stringMatching(
+          /Status: Passed \(hosting-pages publish pending\)[\s\S]*hosting-pagesの予定URLを開く（未公開の場合あり）\]\(https:\/\/yn1323\.github\.io\/hosting-pages\/yps-crispy-carnival-e2e\/pr-42\/\)[\s\S]*PR E2E実行・公開承認を見る[\s\S]*actions\/runs\/300/,
+        ),
+      }),
+    );
+    expect(result.github.rest.actions.getWorkflowRun).toHaveBeenCalledTimes(2);
+    expect(result.github.rest.pulls.get).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports an artifact gate failure without claiming that the E2E job passed", async () => {
+    const result = await executePrE2EComment({
+      env: {
+        PR_E2E_JOB_RESULT: "failure",
+        PR_E2E_RESULT: "success",
+        REPORT_PUBLISH_RESULT: "skipped",
+        REPORT_DEPLOYED: "false",
+      },
+    });
+
+    expect(result.failures).toEqual([]);
+    expect(result.github.rest.issues.createComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.stringMatching(/Status: Failed \(PR E2E failure\)[\s\S]*公開5ルートのSmokeを実行しました。/),
+      }),
+    );
+  });
+
+  it("does not claim that Smoke ran when preview publication failed", async () => {
+    const result = await executePrE2EComment(
+      {
+        env: {
+          PREVIEW_PUBLISH_RESULT: "failure",
+          PR_E2E_JOB_RESULT: "skipped",
+          PR_E2E_RESULT: "",
+        },
+      },
+      "preliminary",
+    );
+
+    expect(result.failures).toEqual([]);
+    expect(result.github.rest.issues.createComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.stringMatching(/Status: Failed \(Preview publish failure\)[\s\S]*Smokeは完了していません。/),
+      }),
+    );
+  });
+
+  it("keeps the planned hosting URL and updates only the E2E comment when publication fails", async () => {
+    const result = await executePrE2EComment({
+      env: {
+        REPORT_PUBLISH_RESULT: "failure",
+        REPORT_DEPLOYED: "false",
+      },
+      comments: [
+        {
+          id: 98,
+          body: "<!-- shiftori-vrt-report:v1 -->\n## VRT Report\n\nStatus: Passed",
+          user: { login: "github-actions[bot]" },
+        },
+        {
+          id: 99,
+          body: "<!-- shiftori-playwright-report:v1 -->\n## Playwright Test Report\n\nStatus: Passed",
+          user: { login: "github-actions[bot]" },
+        },
+      ],
+    });
+
+    expect(result.failures).toEqual([]);
+    expect(result.github.rest.issues.updateComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        comment_id: 99,
+        body: expect.stringMatching(
+          /Status: Failed \(report publish failure\)[\s\S]*hosting-pagesの予定URLを開く（未公開の場合あり）\]\(https:\/\/yn1323\.github\.io\/hosting-pages\/yps-crispy-carnival-e2e\/pr-42\/\)/,
+        ),
+      }),
+    );
+    expect(result.github.rest.issues.updateComment).not.toHaveBeenCalledWith(
+      expect.objectContaining({ comment_id: 98 }),
+    );
+    expect(result.github.rest.issues.createComment).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      label: "the PR head advanced",
+      pullRequest: {
+        state: "open",
+        base: { ref: "develop" },
+        head: { sha: "b".repeat(40), repo: { full_name: "example/shiftori" } },
+      },
+      sourceRuns: undefined,
+    },
+    {
+      label: "a newer source run exists",
+      pullRequest: undefined,
+      sourceRuns: [
+        {
+          id: 201,
+          workflow_id: 500,
+          run_attempt: 1,
+          status: "completed",
+          name: "PR Preview Artifact",
+          event: "pull_request",
+          conclusion: "success",
+          head_sha: "a".repeat(40),
+          head_repository: { full_name: "example/shiftori" },
+          pull_requests: [{ number: 42 }],
+        },
+      ],
+    },
+  ])("does not write the PR E2E comment when $label", async ({ pullRequest, sourceRuns }) => {
+    const result = await executePrE2EComment({
+      workflowRun: {},
+      pullRequest,
+      sourceRuns,
+    });
+
+    expect(result.failures).toEqual([]);
+    expect(result.github.rest.issues.updateComment).not.toHaveBeenCalled();
+    expect(result.github.rest.issues.createComment).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -796,7 +1221,11 @@ describe("PR workflow credential isolation", () => {
     const result = await executePublisherSourceGate({
       workflowFilename: "publish-pr-preview.yml",
       stepName: "Revalidate preview source immediately before publish",
-      env: { EXPECTED_HEAD_SHA: expectedHeadSha, EXPECTED_PULL_NUMBER: "42" },
+      env: {
+        EXPECTED_HEAD_SHA: expectedHeadSha,
+        EXPECTED_PULL_NUMBER: "42",
+        EXPECTED_SOURCE_RUN_ATTEMPT: "1",
+      },
       workflowRun: {
         id: 100,
         name: "PR Preview Artifact",
@@ -822,7 +1251,11 @@ describe("PR workflow credential isolation", () => {
     const result = await executePublisherSourceGate({
       workflowFilename: "publish-pr-preview.yml",
       stepName: "Revalidate preview source immediately before publish",
-      env: { EXPECTED_HEAD_SHA: expectedHeadSha, EXPECTED_PULL_NUMBER: "42" },
+      env: {
+        EXPECTED_HEAD_SHA: expectedHeadSha,
+        EXPECTED_PULL_NUMBER: "42",
+        EXPECTED_SOURCE_RUN_ATTEMPT: "1",
+      },
       workflowRun: {
         id: 100,
         name: "PR Preview Artifact",
@@ -1049,6 +1482,7 @@ describe("PR workflow credential isolation", () => {
     expect(findStep(steps, "Build VRT report with trusted code").run).toBe("pnpm vrt:report");
     expect(findStep(steps, "Validate generated VRT report").run).toContain("--profile vrt-report");
     expect(findStep(steps, "Scan generated VRT report").run).toContain("--root vrt-work/reg");
+    expect(publication.run).toContain("scripts/pushHostingPagesWithRetry.sh");
   });
 
   it("updates the trusted VRT comment while the current PR source is running", async () => {

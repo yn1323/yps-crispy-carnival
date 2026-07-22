@@ -17,7 +17,7 @@
 - TypeScriptのテストファイル名は`*.test.ts`または`*.test.tsx`に統一する。jsdomやDOM APIを使う場合は、ファイル単位で実行環境を指定する。
 - 複雑な DB 状態遷移は E2E に寄せすぎず、Convex Scenario Test で厚く見る。
 - E2E は画面・認証・フロントエンドと実 Convex backend の接続確認を中心にする。
-- developへマージされたexact commitの `@release` Full Regressionで、壊れた時の運用影響が大きい通知受付、再送、モバイル、公開導線、アクセシビリティを実ブラウザで確認し、結果を元PRへ返す。develop向けPR head、developからmainへのPR、`release.yml`ではE2E自体を実行せず、成功checkも要求しない。
+- open PRでは公開済みPR Previewの公開5routeを、default branchのtrusted codeによるsecretless `@deployed` Smokeで確認する。developへマージされたexact commitの認証付き`@release` Full Regressionでは、壊れた時の運用影響が大きい通知受付、再送、モバイル、公開導線、アクセシビリティを実ブラウザで確認し、結果を元PRへ返す。develop向けPR head、developからmainへのPR、`release.yml`では認証付きFull Regressionを実行せず、成功checkも要求しない。
 - E2EのブラウザprojectはChrome系に限定し、Desktop ChromeとMobile Chromeの代表導線を確認する。
 - スタッフの提出方式を追加・変更した場合は、対応する全方式について「初回提出、再編集・再提出、管理者による割当編集、下書き保存、reload後の永続化、確定通知、スタッフ閲覧」までを `@release` の一気通貫シナリオで保証する。
 - magic link経由のスタッフ提出と閲覧は管理者のstorageStateを持たない別contextで確認し、再提出で追加・取り消した内容の両方を管理者画面と確定後のスタッフ画面で検証する。
@@ -247,8 +247,9 @@ durable workflowを変更する場合は、次の契約を優先する。
 
 ### E2E
 
-- `@smoke` はdevelopマージ後のFull Regressionに含める主要ハッピーパスとして扱う。
-- developへマージされたexact commitで `@release` Full Regressionを実行し、売上・店舗運用・スタッフ通知に直結する状態遷移を広く確認する。結果はexact merge commitに紐づく元PRへ返す。develop向けPR head、developからmainへのPR、`release.yml`ではE2Eを実行しない。
+- `@smoke` はdevelopマージ後の認証付きFull Regressionに含める主要ハッピーパスとして扱う。
+- open PRではPR Preview公開後に、default branchのtrusted codeでTOP、機能、FAQ、使い方、お問い合わせの公開5routeだけを`@deployed` Smokeする。GitHub Environment、Secrets、認証、storageStateを使用せず、PR headのPlaywright codeやpackage scriptを実行しない。
+- developへマージされたexact commitで認証付き`@release` Full Regressionを実行し、売上・店舗運用・スタッフ通知に直結する状態遷移を広く確認する。結果はexact merge commitに紐づく元PRへ返す。develop向けPR head、developからmainへのPR、`release.yml`では認証付きFull Regressionを実行しない。
 - ユーザーが画面から完了できること、実 frontend と実 Convex backend がつながっていることを確認する。
 - mutation 成功は、ユーザーに見えるトーストや表示状態で判定する。
 - DB の細かい最終状態確認は Convex Scenario Test に寄せる。
@@ -267,10 +268,12 @@ durable workflowを変更する場合は、次の契約を優先する。
 | `@security` | `@release` 内で必須 | 保護ページ、失効token、対象外、削除済み、代表IDOR |
 | `@mobile` | `@release` 内で必須 | スタッフ提出・閲覧・同意・登録の代表導線 |
 | `@a11y` | `@release` 内で必須 | 主要ページのaxe自動検査 |
-| `@deployed` | デプロイ後 | Cloudflareへデプロイ済みURLの最小Smoke |
+| `@deployed` | PR Preview／Developのデプロイ後 | Cloudflareへデプロイ済みURLの公開5route Smoke |
 | `@provider-canary` | RC / 手動 | 隔離したメール・LINEアカウントへの最小実配送 |
 
 developマージ後のFull Regression判定では、必須projectとscenario suite、skip 0件、想定外のflaky 0件、通知dry-run preflight成功、想定外のopen FailureInbox 0件、active outboxの重複dedupe 0件を必須とする。
+
+open PRのE2E結果はVRTと別の固定markerコメントへ返し、Actions、PR Preview、`yps-crispy-carnival-e2e/pr-{N}`のhosting-pages予定URLを常に表示する。公開確認後だけ同じURLへcache-busting queryを付ける。hosting-pagesへ公開するのはtrusted codeが生成したsanitized summaryだけとし、raw Playwright report、trace、動画、screenshot、console/error詳細、認証情報、storageStateは公開しない。認証付きFull Regressionのraw artifactは従来どおりActionsの非公開artifactとして扱う。
 
 RCの本番リリースでは、隔離受信先によるprovider canary完了後、権限ある確認者がexact head SHA、時刻、環境、証跡URL、Turnstile・募集/確定のemail/LINE・LINE reply・問い合わせemail/Slackの全PASSを構造化attestationとして記録する。その検証後だけ`release:provider-canary-passed`ラベルを有効とし、追加push後は再実施する。
 

@@ -57,7 +57,31 @@ const profiles = {
     forbiddenBasenames: FORBIDDEN_PAGES_FILES,
     pngOnly: false,
   },
+  "playwright-result": {
+    allowedExtensions: new Set([".json"]),
+    allowedPaths: new Set(["test-results-deployed.json"]),
+    maxFiles: 1,
+    maxFileBytes: 10 * MEBIBYTE,
+    maxTotalBytes: 10 * MEBIBYTE,
+    requiredPaths: ["test-results-deployed.json"],
+    forbiddenBasenames: new Set(),
+    pngOnly: false,
+    validatePlaywrightJson: true,
+  },
+  "playwright-public-report": {
+    allowedExtensions: new Set([".html", ".json"]),
+    allowedPaths: new Set(["index.html", "report.json"]),
+    maxFiles: 2,
+    maxFileBytes: 2 * MEBIBYTE,
+    maxTotalBytes: 3 * MEBIBYTE,
+    requiredPaths: ["index.html", "report.json"],
+    forbiddenBasenames: FORBIDDEN_PAGES_FILES,
+    pngOnly: false,
+    forbidActiveHtml: true,
+  },
 };
+
+const PROFILE_NAMES = Object.keys(profiles).join("|");
 
 function parseArguments(argv) {
   const values = new Map();
@@ -65,12 +89,12 @@ function parseArguments(argv) {
     const option = argv[index];
     const value = argv[index + 1];
     if (!option?.startsWith("--") || !value || values.has(option)) {
-      throw new Error("Usage: --profile <preview-dist|vrt-screenshots|vrt-report> --root <directory>");
+      throw new Error(`Usage: --profile <${PROFILE_NAMES}> --root <directory>`);
     }
     values.set(option, value);
   }
   if (values.size !== 2 || !values.has("--profile") || !values.has("--root")) {
-    throw new Error("Usage: --profile <preview-dist|vrt-screenshots|vrt-report> --root <directory>");
+    throw new Error(`Usage: --profile <${PROFILE_NAMES}> --root <directory>`);
   }
   return { profileName: values.get("--profile"), rootArgument: values.get("--root") };
 }
@@ -207,6 +231,7 @@ async function validateArtifact(rootArgument, profile) {
 
       const basename = path.basename(relativePath).toLowerCase();
       const extension = path.extname(basename);
+      const portableRelativePath = relativePath.split(path.sep).join("/");
       if (
         profile.pngOnly &&
         relativePath.split(path.sep).some((segment) => !/^[\p{L}\p{M}\p{N}._()（）-]+$/u.test(segment))
@@ -216,6 +241,9 @@ async function validateArtifact(rootArgument, profile) {
       if (profile.forbiddenBasenames.has(basename)) {
         throw new Error(`Artifact contains a forbidden Pages control file: ${relativePath}`);
       }
+      if (profile.allowedPaths && !profile.allowedPaths.has(portableRelativePath)) {
+        throw new Error(`Artifact contains a path outside the selected profile: ${relativePath}`);
+      }
       if (!profile.allowedExtensions.has(extension)) {
         throw new Error(`Artifact contains a file type outside the allowlist: ${relativePath}`);
       }
@@ -223,6 +251,27 @@ async function validateArtifact(rootArgument, profile) {
         throw new Error(`Artifact file exceeds the size limit: ${relativePath}`);
       }
       if (extension === ".png" || profile.pngOnly) await assertValidPng(filePath, relativePath);
+      if (profile.validatePlaywrightJson) {
+        let parsed;
+        try {
+          parsed = JSON.parse(await readFile(filePath, "utf8"));
+        } catch {
+          throw new Error(`Artifact Playwright result is not valid JSON: ${relativePath}`);
+        }
+        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed) || !Array.isArray(parsed.suites)) {
+          throw new Error(`Artifact Playwright result does not contain a suites array: ${relativePath}`);
+        }
+      }
+      if (profile.forbidActiveHtml && extension === ".html") {
+        const html = await readFile(filePath, "utf8");
+        if (
+          /<\s*(?:script|iframe|object|embed|base|link)\b/i.test(html) ||
+          /<[^>]*\son[a-z]+\s*=/i.test(html) ||
+          /<[^>]*\s(?:href|src|action)\s*=\s*["']?\s*javascript:/i.test(html)
+        ) {
+          throw new Error(`Artifact public report contains active HTML or JavaScript: ${relativePath}`);
+        }
+      }
 
       relativeFiles.push(relativePath);
       totalBytes += fileStat.size;

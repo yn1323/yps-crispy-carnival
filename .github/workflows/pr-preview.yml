@@ -16,9 +16,9 @@ jobs:
   build-preview-artifact:
     if: ${{ !startsWith(github.head_ref, 'renovate/') }}
     runs-on: ubuntu-latest
-    environment: Preview
+    environment: PR Preview Public
     env:
-      # 成果物へ埋め込まれるbrowser公開値だけをPreview Environmentから参照する。
+      # 機密secretを持たない専用Environmentから、成果物へ埋め込まれるbrowser公開値だけを参照する。
       VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL }}
       VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
       VITE_GTM_ID: ${{ secrets.VITE_GTM_ID }}

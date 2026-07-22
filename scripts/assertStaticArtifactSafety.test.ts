@@ -52,7 +52,9 @@ afterEach(() => {
   rmSync(testDirectory, { force: true, recursive: true });
 });
 
-function runGate(profile: "preview-dist" | "vrt-report" | "vrt-screenshots") {
+function runGate(
+  profile: "playwright-public-report" | "playwright-result" | "preview-dist" | "vrt-report" | "vrt-screenshots",
+) {
   return spawnSync(process.execPath, [GATE_PATH, "--profile", profile, "--root", testDirectory], {
     encoding: "utf8",
   });
@@ -164,5 +166,68 @@ describe("static artifact safety gate", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("outside the safety bounds");
+  });
+
+  it("accepts one Playwright JSON result file", () => {
+    writeFileSync(path.join(testDirectory, "test-results-deployed.json"), JSON.stringify({ suites: [] }));
+
+    const result = runGate("playwright-result");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("1 regular files");
+  });
+
+  it("rejects extra files in the Playwright result artifact", () => {
+    writeFileSync(path.join(testDirectory, "test-results-deployed.json"), JSON.stringify({ suites: [] }));
+    writeFileSync(path.join(testDirectory, "trace.json"), "{}");
+
+    const result = runGate("playwright-result");
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("path outside the selected profile");
+  });
+
+  it("rejects a malformed Playwright result artifact", () => {
+    writeFileSync(path.join(testDirectory, "test-results-deployed.json"), JSON.stringify({ errors: [] }));
+
+    const result = runGate("playwright-result");
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("does not contain a suites array");
+  });
+
+  it("accepts a script-free public Playwright report", () => {
+    writeFileSync(path.join(testDirectory, "index.html"), '<!doctype html><a href="https://example.com">Report</a>');
+    writeFileSync(path.join(testDirectory, "report.json"), JSON.stringify({ schemaVersion: 1 }));
+
+    const result = runGate("playwright-public-report");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("2 regular files");
+  });
+
+  it.each([
+    ["<script>alert(1)</script>"],
+    ['<img src="x" onerror="alert(1)">'],
+    ['<a href="javascript:alert(1)">unsafe</a>'],
+  ])("rejects active content from a public Playwright report", (activeHtml) => {
+    writeFileSync(path.join(testDirectory, "index.html"), `<!doctype html>${activeHtml}`);
+    writeFileSync(path.join(testDirectory, "report.json"), JSON.stringify({ schemaVersion: 1 }));
+
+    const result = runGate("playwright-public-report");
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("active HTML or JavaScript");
+  });
+
+  it("rejects files outside the fixed public Playwright report schema", () => {
+    writeFileSync(path.join(testDirectory, "index.html"), "<!doctype html>");
+    writeFileSync(path.join(testDirectory, "report.json"), JSON.stringify({ schemaVersion: 1 }));
+    writeFileSync(path.join(testDirectory, "app.js"), "console.log('unsafe')");
+
+    const result = runGate("playwright-public-report");
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("path outside the selected profile");
   });
 });

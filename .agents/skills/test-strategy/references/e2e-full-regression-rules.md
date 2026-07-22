@@ -209,7 +209,12 @@ probeはPII、本文、raw token、provider error全文を返さない。画面�
 ## 10. Deployed Smokeと外部challenge
 
 - ローカルE2Eとデプロイ済みURLのSmokeを分ける。
+- open PRではPR Preview公開後に、default branchのtrusted codeでTOP、機能、FAQ、使い方、お問い合わせの公開5routeを`@deployed` Smokeする。
+- PR Preview SmokeはGitHub Environment、Secrets、認証、storageStateを使用せず、PR headのPlaywright codeやpackage scriptを実行しない。
 - Deployed Smokeは公開主要route、固有ランドマーク、主要CTA、HTTP成功を軽量に確認する。
+- E2EとVRTは別の固定markerコメントで扱う。E2Eコメントには実行結果、Actions、PR Preview、`yps-crispy-carnival-e2e/pr-{N}`のhosting-pages予定URLを常に表示し、公開確認後だけcache-busting queryを付ける。
+- hosting-pagesへ公開するのはtrusted codeが生成したsanitized summaryだけとし、raw Playwright report、trace、動画、screenshot、console/error詳細、認証情報、storageStateは公開しない。
+- trusted `workflow_run` consumerはdefault branchへ導入されて初めて起動する。bootstrapのためにPR headへwrite tokenやSecretsを渡さない。
 - production Turnstileなど外部challengeを自動化するために、アプリ側の検証やセキュリティを弱めない。
 - challengeを安定して自動化できない問い合わせ等は、route / CTA Smokeと内部受付contractを自動化し、実送信を手動provider canaryへ明示的に残す。
 
@@ -221,6 +226,7 @@ probeはPII、本文、raw token、provider error全文を返さない。画面�
 - Desktop Chromeと代表Mobile Chromeを分ける。
 - developへマージされたexact commitのPreviewでFull Regressionを実行し、結果を元PRへ返す。
 - develop向けPR headではcredentialed Full Regressionを実行しない。
+- open PRで実行するのは公開5routeのsecretless PR Preview Smokeだけとする。
 - developからmainへのPRと`release.yml`ではE2Eを実行しない。
 - Previewは自動失効に任せ、cleanup workflowを追加しない。
 
@@ -263,5 +269,7 @@ probeはPII、本文、raw token、provider error全文を返さない。画面�
 - [ ] 締切、日付、タイムゾーン境界を下位層へ配置し、必要な代表E2Eだけを選んだ。
 - [ ] 境界値と容量をE2Eへ寄せすぎていない。
 - [ ] Desktop / Mobile / a11y / deployed Smoke / canaryの担当を決めた。
+- [ ] open PRのDeployed SmokeへEnvironment、Secrets、認証、storageState、PR head codeを渡していない。
+- [ ] hosting-pagesへsanitized summaryだけを公開し、raw report、trace、error詳細を公開していない。
 - [ ] test名の最終動詞までassertした。
 - [ ] 件数・ファイル名ではなく契約内容で網羅性を説明できる。

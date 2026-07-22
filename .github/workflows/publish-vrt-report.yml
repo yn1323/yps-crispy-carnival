@@ -816,8 +816,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .
           git commit -m "VRT report for ${REPORT_KEY} at ${HEAD_SHA}" || exit 0
-          git pull --rebase
-          git push origin HEAD:main
+          bash "$GITHUB_WORKSPACE/scripts/pushHostingPagesWithRetry.sh"
       - name: Wait for trusted VRT report deploy
         id: wait-deploy
         if: ${{ needs.validate-source.outputs.pull_number != '' }}

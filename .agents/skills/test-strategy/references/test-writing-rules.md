@@ -260,8 +260,9 @@ E2E で見ると遅すぎる DB 状態遷移、通知、集計、dashboard 表�
 
 ## E2E
 
-E2E は「実 frontend + 実 Convex backend + 認証済みブラウザ」の接続確認を中心にする。
-developへマージされたexact commitの `@release` Full Regressionは主要ハッピーパスに加え、通知・復旧・モバイル・公開面・axe検査まで含め、結果を元PRへ返す。develop向けPR head、developからmainへのPR、`release.yml`ではFull Regressionを実行しない。
+E2E は、open PRのsecretless PR Preview Smokeと、develop merge後の認証付きFull Regressionを分けて運用する。
+open PRではPR Preview公開後にdefault branchのtrusted codeで公開5routeの`@deployed` Smokeだけを行う。GitHub Environment、Secrets、認証、storageStateを使用せず、PR headのPlaywright codeやpackage scriptを実行しない。
+developへマージされたexact commitの `@release` Full Regressionは主要ハッピーパスに加え、通知・復旧・モバイル・公開面・axe検査まで含め、結果を元PRへ返す。develop向けPR head、developからmainへのPR、`release.yml`では認証付きFull Regressionを実行しない。
 ブラウザprojectはChrome系に限定し、Desktop ChromeとMobile Chromeの代表導線を分けて確認する。
 機能棚卸し、機能×テスト層のトレーサビリティ、通知目的の分類、方式別ライフサイクル、CI結果ゲートは `e2e-full-regression-rules.md` に従う。この節ではE2Eコードの実装規約を扱う。
 
@@ -274,9 +275,13 @@ developへマージされたexact commitの `@release` Full Regressionは主要�
 - `page.waitForTimeout()` は禁止。`expect(locator).toBeVisible()` など web-first assertion で待つ。
 - mutation 成功はトーストや画面の表示状態で判定する。
 - DB の細かい最終状態確認は Convex Scenario Test に寄せる。
+- PR Previewの`@deployed` SmokeはTOP、機能、FAQ、使い方、お問い合わせの公開5routeについて、HTTP成功、固有ランドマーク、URLだけを確認する。
 - 通知E2Eでは、検証対象のmagic link、LINE link token、outbox、FailureInboxをテストhelperで人工生成しない。本番と同じUI操作・mutation・scheduled actionから生成された証跡を待つ。
 - 通知のDB確認が必要な場合は、E2E環境だけで動くinternal testing APIから、目的、channel、対象ID、status、dedupe、CTA整合だけを返す。redacted通知probeは生メールアドレス、LINE userId、token、本文、provider error全文を返さない。画面遷移にtokenが必要な場合だけ、同じE2Eゲートを持つ専用token helperを分離して使う。
 - 正常通知は `notificationOutbox`、retry/fallbackは `notificationDeliveryEvents`、最終失敗だけ `notificationFailureInbox` を見る。
+- open PRのE2E結果はVRTと別の固定markerコメントへ返し、Actions、PR Preview、hosting-pagesの予定URLを未公開時から表示する。公開確認後だけ同じURLへcache-busting queryを付ける。
+- hosting-pagesへ公開するのはtrusted codeが固定schemaから生成したsanitized summaryだけとし、raw Playwright report、trace、動画、screenshot、console/error詳細、認証情報、storageStateは公開しない。
+- trusted `workflow_run` consumerはdefault branchへ導入されて初めて起動する。導入PRのbootstrapを理由にPR headへwrite tokenやSecretsを戻さない。
 
 避けること:
 

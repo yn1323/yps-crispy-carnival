@@ -4,7 +4,7 @@
 
 既存テスト層（convex-test / Vitest / Storybook+Chromatic）がカバーできない **「繋がり」の検証**。
 画面遷移・認証・フロント⇔Convex結合・ハッピーパスが壊れていないことを保証する。
-developへマージされたexact commitのFull Regression内でSmokeを含めて運用し、結果を元PRへ返す。
+open PRでは公開済みPR Previewの公開5routeをsecretless Smokeで確認し、developへマージされたexact commitでは認証付きFull Regressionを運用する。それぞれの結果を対象PRへ返す。
 
 ### テストしないこと
 
@@ -40,13 +40,14 @@ e2e/
 - `@security`: 保護ページ、失効token、対象外、削除済み、代表IDOR
 - `@mobile`: スタッフ向け代表モバイル導線
 - `@a11y`: axeによる主要ページ検査
-- `@deployed`: Cloudflareへデプロイ済みURLのSmoke
+- `@deployed`: Cloudflareへデプロイ済みPR Preview／Develop URLの公開route Smoke
 
 `@notification` / `@security` / `@mobile` / `@a11y` は `@release` の部分集合として扱う。
 
 ### CIとブラウザ
 
-- Playwright Full Regressionはdevelopへマージされたexact commitで実行し、元PRへ結果コメントを返す。develop向けPR head、developからmainへのPR、`release.yml`ではE2E自体を実行せず、成功checkも要求しない
+- 認証付き`@release` Full Regressionはdevelopへマージされたexact commitで実行し、元PRへ結果コメントを返す。develop向けPR head、developからmainへのPR、`release.yml`ではFull Regression自体を実行せず、成功checkも要求しない
+- open PRではPR Preview公開後に、default branchのtrusted codeでTOP、機能、FAQ、使い方、お問い合わせの公開5routeだけを`@deployed` Smokeする。Smoke jobへGitHub Environment、Secrets、認証情報、storageStateを渡さず、PR headのPlaywright codeやpackage scriptを実行しない
 - ブラウザprojectはChrome系だけとし、Desktop ChromeとMobile Chromeの代表viewportを使う
 - 通常のDesktop ChromeとMobile Chromeは6ユーザーを6 workerへ固定対応させ、同じ認証状態を並行worker間で共有しない
 - 通常projectの`@notification`テストは6 worker時の通知probe負荷を考慮して150秒を上限とする。実行時間の評価にはタイムアウト値ではなくJSON reportのwall spanを使う
@@ -54,7 +55,7 @@ e2e/
 - 複数actorシナリオはuser index 0〜2をpool 0、3〜5をpool 1として2 workerへ固定対応させる。各poolのactor A、B、Cは独立したbrowser contextを使う
 - `setup` → `multi-actor-chromium` → 通常projectのdependencyを維持する。DesktopとMobileは同時実行できるが、Playwrightのworker slotごとの`parallelIndex`で同じユーザーの重複利用を避ける
 - developマージcommit専用Convex Previewは自動失効に任せ、E2E専用cleanup workflowを作らない
-- CloudflareへデプロイしたURLの`@deployed` Smokeは、Full Regressionとは別にdevelop向けPreview／Developのdeploy workflowで実行する
+- CloudflareへデプロイしたURLの`@deployed` Smokeは、認証付きFull Regressionとは別にPR Preview／Developのdeploy workflowで実行する
 - シフト提出方式は、全方式で初回提出と再提出、管理者の割当編集、下書き保存、reload、確定通知、スタッフ閲覧までを一気通貫で確認する
 
 ### POM + 1ファイル + `test.step`
@@ -81,6 +82,7 @@ e2e/
 
 ## 認証
 
+- `@deployed` PR Preview Smokeは認証を行わず、空のbrowser contextで公開routeだけを確認する。Clerk/Convexの共有credentialとstorageStateは使用しない
 - `fixtures/auth.setup.ts` で `@clerk/testing` の `clerk.signIn` を利用し、6ユーザー分の storageState を作成
 - Convex probeは`npx`を経由せず、依存解決したConvex CLIをNodeで直接起動して6 worker時のプロセス競合を抑える
 - CIでは環境変数 `E2E_CLERK_USERS`（カンマ区切り6件） / `E2E_CLERK_PASSWORD`（6ユーザー共通）を使用
@@ -88,6 +90,15 @@ e2e/
 - `E2E_CLERK_USERS`の各値とpasswordはworkflow開始時にmaskし、password入力を行うsetupと通常suiteではtraceを保存しない。結果ゲートの割当情報には数値のuser indexとactor poolだけを記録する
 - Playwrightの`webServer.env`へ`process.env`を設定しない。JSON reportへcredentialを直列化せず、artifact upload前のfail-closed gateでpassword、user identifier、secret、tokenの混入を検査する
 - 通常シナリオの失敗trace・動画は認証済みtokenを含み得るため、Actionsの非公開artifactへ7日だけ保存する。storageStateファイル自体はartifactへ含めない
+
+## PR Preview Smokeの結果公開
+
+- E2EとVRTは別々の専用markerを持つ固定コメントとして更新する
+- E2Eコメントには実行結果、Actions、PR Preview、`https://yn1323.github.io/hosting-pages/yps-crispy-carnival-e2e/pr-{N}/`の予定URLを未公開時から表示する
+- 公開確認後だけ同じhosting-pages URLへrun IDとattemptのcache-busting queryを付け、公開済みsanitized summaryとして表示する
+- hosting-pagesへ公開するのは、trusted codeが固定schemaから生成したstatus、対象route、duration、head SHA、run IDのsanitized summaryだけとする
+- PR Preview Smokeの`playwright-result`は同workflow内で受け渡す非公開の中間artifactとし、raw Playwright report、trace、動画、screenshot、console/error詳細、認証情報、storageStateはhosting-pagesへ公開しない
+- `workflow_run` consumerはdefault branchへ導入されて初めて起動する。導入PRのbootstrapを理由にPR headへwrite tokenやSecretsを渡さない
 
 ## データ
 

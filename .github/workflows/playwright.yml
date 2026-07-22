@@ -203,6 +203,7 @@ jobs:
             const reportArtifactUploaded = process.env.REPORT_ARTIFACT_UPLOADED === 'true';
             const status = result === 'success' ? 'Passed' : `Failed (${result})`;
             const actionsUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const publicReportUrl = `https://yn1323.github.io/hosting-pages/yps-crispy-carnival-e2e/pr-${pullNumber}/`;
             const body = [
               marker,
               heading,
@@ -212,6 +213,7 @@ jobs:
               '| Action | Link |',
               '|---|---|',
               `| 実行結果 | [Actionsを見る](${actionsUrl}) |`,
+              `| PR Smoke | [hosting-pagesのE2Eレポートを見る（未公開の場合あり）](${publicReportUrl}) |`,
               ...(reportArtifactUploaded
                 ? [`| レポート確認 | [Actionsの非公開artifactを見る](${actionsUrl}) |`]
                 : []),
