@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
-import { useState } from "react";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { useRef, useState } from "react";
+import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
+import { createDeferred } from "@/src/devtools/createDeferred";
 import { CreateRecruitmentForm } from "./index.tsx";
 
 const meta = {
@@ -25,6 +26,7 @@ const storyToday = () => dayjs(STORY_TODAY);
 
 const DoubleSubmitGuardHarness = () => {
   const [submitCount, setSubmitCount] = useState(0);
+  const pendingSubmission = useRef<ReturnType<typeof createDeferred> | null>(null);
 
   return (
     <>
@@ -33,12 +35,23 @@ const DoubleSubmitGuardHarness = () => {
           today={STORY_TODAY}
           onSubmit={async () => {
             setSubmitCount((current) => current + 1);
-            await delay(100);
+            const submission = createDeferred();
+            pendingSubmission.current = submission;
+            await submission.promise;
+            if (pendingSubmission.current === submission) pendingSubmission.current = null;
           }}
           onCancel={() => {}}
         />
       </StepperDialog>
       <output data-testid="submit-call-count">{submitCount}</output>
+      <button
+        type="button"
+        hidden
+        data-testid="release-recruitment-submission"
+        onClick={() => pendingSubmission.current?.resolve()}
+      >
+        募集作成処理を完了する
+      </button>
     </>
   );
 };
@@ -405,9 +418,14 @@ export const InteractiveDoubleSubmitGuard: Story = {
 
     await canvas.findByText("内容を確認");
     const submitButton = canvas.getByRole("button", { name: "募集をつくる" });
-    await userEvent.dblClick(submitButton);
+    fireEvent.click(submitButton);
+    fireEvent.click(submitButton);
 
     await waitFor(() => expect(story.getByTestId("submit-call-count")).toHaveTextContent("1"));
+    await expect(submitButton).toBeDisabled();
+
+    fireEvent.click(story.getByTestId("release-recruitment-submission"));
+    await waitFor(() => expect(submitButton).toBeEnabled());
   },
 };
 
@@ -591,5 +609,3 @@ function nextWeekday(from: dayjs.Dayjs, weekday: number): dayjs.Dayjs {
   const offset = (weekday - from.day() + 7) % 7;
   return from.add(offset, "day");
 }
-
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { useRef, useState } from "react";
+import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import { StaffLayout } from "@/src/components/templates/StaffLayout";
+import { createDeferred } from "@/src/devtools/createDeferred";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { StaffRegistrationFlow } from "./StaffRegistrationFlow";
 
@@ -100,17 +101,27 @@ export const InteractiveDoubleSubmitGuard: Story = {
   render: () => <GuardedConfirmStory />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.dblClick(canvas.getByRole("button", { name: "申請する" }));
+    const submit = canvas.getByRole("button", { name: "申請する" });
+    fireEvent.click(submit);
+    fireEvent.click(submit);
 
-    await waitFor(() => expect(canvas.getByTestId("registration-submit-count")).toHaveTextContent("1"));
+    await expect(await canvas.findByTestId("registration-submit-count")).toHaveTextContent("1");
+    await expect(submit).toBeDisabled();
+
+    fireEvent.click(canvas.getByTestId("release-registration-submission"));
+    await waitFor(() => expect(submit).toBeEnabled());
   },
 };
 
 function GuardedConfirmStory() {
   const [submitCount, setSubmitCount] = useState(0);
+  const pendingSubmission = useRef<ReturnType<typeof createDeferred> | null>(null);
   const { run: handleSubmit, isRunning: isSubmitting } = useSingleFlight(async () => {
     setSubmitCount((count) => count + 1);
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    const submission = createDeferred();
+    pendingSubmission.current = submission;
+    await submission.promise;
+    if (pendingSubmission.current === submission) pendingSubmission.current = null;
   });
 
   return (
@@ -129,9 +140,19 @@ function GuardedConfirmStory() {
         }}
         onSubmit={handleSubmit}
       />
-      <output data-testid="registration-submit-count" hidden>
-        {submitCount}
-      </output>
+      {submitCount > 0 ? (
+        <output data-testid="registration-submit-count" hidden>
+          {submitCount}
+        </output>
+      ) : null}
+      <button
+        type="button"
+        hidden
+        data-testid="release-registration-submission"
+        onClick={() => pendingSubmission.current?.resolve()}
+      >
+        スタッフ登録処理を完了する
+      </button>
     </>
   );
 }

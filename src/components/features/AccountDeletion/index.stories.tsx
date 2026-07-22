@@ -1,7 +1,8 @@
 import { Box, Text } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
+import { createDeferred } from "@/src/devtools/createDeferred";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { AccountDeletionDialog } from "./AccountDeletionDialog";
 import { AccountDeletionTrigger, type AccountDeletionVariant } from "./AccountDeletionTrigger";
@@ -26,9 +27,15 @@ function AccountDeletionPreview({
 }: PreviewProps) {
   const [isOpen, setIsOpen] = useState(initialOpen);
   const [submissionCount, setSubmissionCount] = useState(0);
+  const pendingSubmission = useRef<ReturnType<typeof createDeferred> | null>(null);
   const { run, isRunning: isSubmitting } = useSingleFlight(async () => {
-    if (countSubmissions) setSubmissionCount((current) => current + 1);
-    await new Promise((resolve) => setTimeout(resolve, 40));
+    if (!countSubmissions) return;
+
+    setSubmissionCount((current) => current + 1);
+    const submission = createDeferred();
+    pendingSubmission.current = submission;
+    await submission.promise;
+    if (pendingSubmission.current === submission) pendingSubmission.current = null;
   });
   const effectiveRunning = isRunning || isSubmitting;
   const close = () => {
@@ -38,7 +45,17 @@ function AccountDeletionPreview({
   return (
     <Box bg="gray.50" minH="100vh" p={{ base: 4, md: 8 }}>
       {showTrigger ? <AccountDeletionTrigger variant={variant} onOpen={() => setIsOpen(true)} /> : null}
-      {countSubmissions ? <Text data-testid="submission-count">送信回数: {submissionCount}</Text> : null}
+      {submissionCount > 0 ? <Text data-testid="submission-count">送信回数: {submissionCount}</Text> : null}
+      {countSubmissions ? (
+        <button
+          type="button"
+          hidden
+          data-testid="release-account-deletion-submission"
+          onClick={() => pendingSubmission.current?.resolve()}
+        >
+          削除処理を完了する
+        </button>
+      ) : null}
       <AccountDeletionDialog
         isOpen={isOpen}
         isRunning={effectiveRunning}
@@ -149,7 +166,11 @@ export const DoubleSubmitBehavior: Story = {
     fireEvent.click(submit);
     fireEvent.click(submit);
 
-    await waitFor(() => expect(body.getByTestId("submission-count")).toHaveTextContent("送信回数: 1"));
+    await expect(await body.findByTestId("submission-count")).toHaveTextContent("送信回数: 1");
+    await expect(submit).toBeDisabled();
+
+    fireEvent.click(body.getByTestId("release-account-deletion-submission"));
+    await waitFor(() => expect(submit).toBeEnabled());
   },
 };
 
