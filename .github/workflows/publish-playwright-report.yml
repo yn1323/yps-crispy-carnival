@@ -1,7 +1,7 @@
 name: Publish Trusted Playwright Report
 
 on:
-  workflow_run: # zizmor: ignore[dangerous-triggers] trusted code validates source and artifacts without executing PR code
+  workflow_run:
     workflows: ["Playwright Tests"]
     types: [completed]
 

@@ -164,7 +164,7 @@ release workflowは`main`へsource commitを追加しない。release PRにversi
 | `playwright.yml` | same-repository PR to develop | exact PR headをcheckoutし、専用Convex Preview `preview/pr-{N}-e2e`で認証付きFull Regression E2E、結果gate、backend audit、機密検査済み固定入力artifact、非公開raw artifactを生成 |
 | `publish-playwright-report.yml` | `Playwright Tests`の`workflow_run: completed` | default branchの信頼済みcodeでsource / artifactを再検証し、sanitized reportだけをhosting-pagesへ公開してE2E専用PRコメントを更新 |
 | `provider-canary-approval.yml` | main向けPRのcanaryラベル付与 / 追加push | 構造化attestationを検証してhead SHA markerを記録し、不備時と追加push時に承認ラベルを削除 |
-| `security.yml` | PR to develop/main、push to develop/main、週次 | Git履歴secret scan、`public`/`dist`漏洩scan、dependency review/audit、zizmor、trusted branch CodeQL |
+| `security.yml` | PR to develop/main、push to develop/main、週次 | Git履歴secret scan、`public`/`dist`漏洩scan、dependency review/audit、trusted branch CodeQL |
 
 Issueやcommentを起点にsecret-backed AI botを実行するworkflowは運用しない。
 Issue Templateにも`@claude`など、未稼働botを自動起動するように見える文言を置かない。
@@ -187,12 +187,11 @@ VRT producerはPR / pushのsource treeでsecretlessにbuild・capture・compare�
 - TruffleHogのverified / unknown credentialまたはscan error
 - 公開artifactのsecret、顧客email、`.env`、source map、認証済みstorage state
 - 新規依存または全依存のHigh / Critical脆弱性
-- high severity / high confidenceのGitHub Actions指摘
 - trusted branchのCodeQL指摘
 
 TruffleHogはPRでbase SHAからexact head SHAまでを検査し、push・週次・手動実行では`base` を空にしてexact `github.sha`から到達可能な全Git履歴を検査する。scanner自体とversionはcommit SHA / 固定versionへ束縛し、scan errorも成功扱いしない。
 
-すべての外部GitHub Actionはmajor tagだけではなく40文字のcommit SHAへ固定する。更新時は公式repositoryのtagが指すSHAを照合し、zizmorのHigh / high-confidence finding 0件を確認する。
+すべての外部GitHub Actionはmajor tagだけではなく40文字のcommit SHAへ固定する。更新時は公式repositoryのtagが指すSHAを照合する。
 
 修正またはupgradeを優先し、workflow上の`continue-on-error`や包括的なignoreで迂回しない。修正できない指摘を一時受容する場合は、指摘ID、影響範囲、代替策、承認者、期限をaccess-controlledなissueに記録し、指摘ID単位の最小例外だけを別PRで追加する。
 

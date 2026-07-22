@@ -41,7 +41,7 @@
 - 共有schemaの境界値は定義元で一度だけ検証し、利用側で同じ入力表を複製しない。
 - 本番コードから参照されないhelperは、将来利用の可能性だけを理由に実装とテストを維持しない。
 - 失敗しているテストを、理由なく期待値だけ緩めない。先に仕様変更、テストドリフト、実装バグ、環境問題を切り分ける。
-- GitHub Actionsのworkflow YAMLをparseし、step名、job順序、権限値、埋め込みscriptの部分文字列をLogic UTで固定しない。workflow本体は専用lint、`zizmor`、Actions上の実行結果で検証する。再利用する純粋helperをworkflow外へ切り出した場合だけ、その公開入出力を通常のLogic UTとして検証する。
+- GitHub Actionsのworkflow YAMLをparseし、step名、job順序、権限値、埋め込みscriptの部分文字列をLogic UTや専用の静的解析CIで固定しない。Action参照のcommit SHA固定はレビューで確認し、workflowの実行契約はActions上のjob結果で検証する。再利用する純粋helperをworkflow外へ切り出した場合だけ、その公開入出力を通常のLogic UTとして検証する。
 
 ## Full Regression の契約マップ
 
