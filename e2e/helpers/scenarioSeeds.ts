@@ -18,6 +18,22 @@ type ClerkSessionPayload = {
 };
 
 const cachedManagerAuthTokenIdentifiers = new Map<number, string>();
+const RESET_OCC_RETRY_DELAYS_MS = [250, 500, 1_000, 2_000, 4_000] as const;
+
+function isOptimisticConcurrencyControlFailure(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  const stderr = "stderr" in error ? String(error.stderr) : "";
+  const details = `${error.message}\n${stderr}`;
+  return (
+    details.includes("OptimisticConcurrencyControlFailure") &&
+    details.includes("deletionCleanupJobs") &&
+    details.includes("scheduled_job_mutation_success")
+  );
+}
+
+function wait(delayMs: number) {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
 
 function decodeBase64Url(value: string) {
   const padded = value.padEnd(value.length + ((4 - (value.length % 4)) % 4), "=");
@@ -377,11 +393,22 @@ export function seedOrganizationDeletionScenario(
   return result;
 }
 
-export function resetMultiActorOrganizationScenarioData(pool: E2EActorPool) {
+export async function resetMultiActorOrganizationScenarioData(pool: E2EActorPool) {
   const identity = getMultiActorSeedIdentity(pool);
-  return convexRunJson("testing:resetMultiActorOrganizationScenarioData", {
+  const args = {
     ownerManagerAuthTokenIdentifier: identity.ownerManagerAuthTokenIdentifier,
     actorBManagerAuthTokenIdentifier: identity.actorBManagerAuthTokenIdentifier,
     actorCManagerAuthTokenIdentifier: identity.actorCManagerAuthTokenIdentifier,
-  });
+  };
+
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return convexRunJson("testing:resetMultiActorOrganizationScenarioData", args);
+    } catch (error) {
+      const delayMs = RESET_OCC_RETRY_DELAYS_MS[attempt];
+      if (delayMs === undefined || !isOptimisticConcurrencyControlFailure(error)) throw error;
+      // 削除workflowのscheduled mutationが完了するまで、E2E専用resetだけをboundedに再試行する。
+      await wait(delayMs);
+    }
+  }
 }

@@ -1,28 +1,38 @@
 import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import { test as base, expect } from "@playwright/test";
-import { type E2EClerkUser, getE2EClerkUserForIndex, setCurrentE2EClerkUserIndex } from "../helpers/e2eUsers";
+import { type E2EClerkUser, getE2EClerkUserForWorkerTest, setCurrentE2EClerkUserIndex } from "../helpers/e2eUsers";
 
 const NOTIFICATION_TEST_TIMEOUT_MS = 150_000;
 
 type E2ETestFixtures = {
   e2eClerkUser: string;
   e2eUserAnnotation: undefined;
-};
-
-type E2EWorkerFixtures = {
   e2eWorkerUser: E2EClerkUser;
 };
 
+type E2EWorkerFixtures = {
+  nextE2EClerkUser: () => E2EClerkUser;
+};
+
 export const test = base.extend<E2ETestFixtures, E2EWorkerFixtures>({
-  e2eWorkerUser: [
+  nextE2EClerkUser: [
     // biome-ignore lint/correctness/noEmptyPattern: Playwright requires fixture destructuring even when unused.
     async ({}, use, workerInfo) => {
-      const user = getE2EClerkUserForIndex(workerInfo.parallelIndex);
-      setCurrentE2EClerkUserIndex(user.index);
-      await use(user);
+      let testOrdinal = 0;
+      await use(() => {
+        const user = getE2EClerkUserForWorkerTest(workerInfo.parallelIndex, workerInfo.config.workers, testOrdinal);
+        testOrdinal += 1;
+        return user;
+      });
     },
     { scope: "worker", auto: true },
   ],
+
+  e2eWorkerUser: async ({ nextE2EClerkUser }, use) => {
+    const user = nextE2EClerkUser();
+    setCurrentE2EClerkUserIndex(user.index);
+    await use(user);
+  },
 
   storageState: async ({ e2eWorkerUser }, use) => {
     await use(e2eWorkerUser.storageStatePath);

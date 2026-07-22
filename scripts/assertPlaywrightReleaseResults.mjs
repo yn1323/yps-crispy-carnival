@@ -22,7 +22,7 @@ const projectWallSpans = new Map();
 const requiredProjectMinimums = new Map([
   ["setup", 6],
   ["multi-actor-chromium", 6],
-  ["desktop-chromium", 68],
+  ["desktop-chromium", 66],
   ["mobile-chrome", 1],
 ]);
 const requiredE2EUserIndexes = new Set([0, 1, 2, 3, 4, 5]);

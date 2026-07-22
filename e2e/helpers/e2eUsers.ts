@@ -84,6 +84,27 @@ export function getE2EClerkUserForIndex(index: number): E2EClerkUser {
   return users[normalizedIndex];
 }
 
+export function getE2EClerkUserForWorkerTest(
+  parallelIndex: number,
+  workerCount: number,
+  testOrdinal: number,
+): E2EClerkUser {
+  const users = getE2EClerkUsers();
+  if (!Number.isInteger(workerCount) || workerCount <= 0 || users.length % workerCount !== 0) {
+    throw new Error(`E2E worker count must be a positive divisor of ${users.length}: ${workerCount}`);
+  }
+  if (!Number.isInteger(parallelIndex) || parallelIndex < 0 || parallelIndex >= workerCount) {
+    throw new Error(`E2E parallel index must be an integer between 0 and ${workerCount - 1}: ${parallelIndex}`);
+  }
+  if (!Number.isInteger(testOrdinal) || testOrdinal < 0) {
+    throw new Error(`E2E test ordinal must be a non-negative integer: ${testOrdinal}`);
+  }
+
+  const usersPerWorker = users.length / workerCount;
+  const userIndex = parallelIndex + (testOrdinal % usersPerWorker) * workerCount;
+  return users[userIndex];
+}
+
 export function getE2EActorPool(poolIndex: number): E2EActorPool {
   const users = getE2EClerkUsers();
   const poolCount = users.length / E2E_ACTOR_COUNT;

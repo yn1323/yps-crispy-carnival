@@ -89,7 +89,7 @@ export const test = base.extend<MultiActorFixtures, MultiActorWorkerFixtures>({
       try {
         await use(undefined);
       } finally {
-        resetMultiActorOrganizationScenarioData(multiActorPool);
+        await resetMultiActorOrganizationScenarioData(multiActorPool);
       }
     },
     { auto: true },

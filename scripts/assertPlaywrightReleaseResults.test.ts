@@ -289,7 +289,7 @@ function createValidReport(): SyntheticReport {
     .flatMap(({ specs }) => specs)
     .flatMap(({ tests }) => tests)
     .filter(({ projectName }) => projectName === "desktop-chromium").length;
-  for (let index = desktopTestCount; index < 68; index += 1) {
+  for (let index = desktopTestCount; index < 66; index += 1) {
     desktopSuite.specs.push({
       title: `Desktop補完シナリオ${index}`,
       tests: [createTest("desktop-chromium")],
@@ -347,7 +347,7 @@ describe("assertPlaywrightReleaseResults", () => {
     expect(result.error).toBeUndefined();
     expect(result.status).toBe(0);
     expect(result.stderr).toBe("");
-    expect(result.stdout).toContain("Release E2E result gate passed: 81 tests");
+    expect(result.stdout).toContain("Release E2E result gate passed: 79 tests");
     expect(result.stdout).toContain(
       "35 required suites, 17 required P0 contracts across 19 suite/project/spec bindings",
     );

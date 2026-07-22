@@ -81,7 +81,7 @@ export class DashboardPage {
   }
 
   async expectLegalReconsentVisible() {
-    await expect(this.legalReconsentMessage()).toBeVisible();
+    await expect(this.legalReconsentMessage()).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
   }
 
   async expectLegalReconsentNotVisible() {

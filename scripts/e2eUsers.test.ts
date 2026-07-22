@@ -3,6 +3,7 @@ import {
   getE2EActorPool,
   getE2EClerkUserForActor,
   getE2EClerkUserForIndex,
+  getE2EClerkUserForWorkerTest,
   getE2EClerkUsers,
   getE2EMultiActorWorkerCount,
   getE2EWorkerCount,
@@ -87,6 +88,28 @@ describe("E2E actor pool", () => {
 
     expect(getE2EClerkUserForIndex(6)).toEqual(expect.objectContaining({ index: 0, email: E2E_USERS[0] }));
     expect(getE2EClerkUserForIndex(7)).toEqual(expect.objectContaining({ index: 1, email: E2E_USERS[1] }));
+  });
+
+  it("2 workerでは重ならない3ユーザーをworkerごとに順番に使う", () => {
+    vi.stubEnv("E2E_CLERK_USERS", E2E_USERS.join(","));
+
+    expect([0, 1, 2, 3].map((ordinal) => getE2EClerkUserForWorkerTest(0, 2, ordinal).index)).toEqual([0, 2, 4, 0]);
+    expect([0, 1, 2, 3].map((ordinal) => getE2EClerkUserForWorkerTest(1, 2, ordinal).index)).toEqual([1, 3, 5, 1]);
+  });
+
+  it("6 workerでは各workerに同じユーザーを固定する", () => {
+    vi.stubEnv("E2E_CLERK_USERS", E2E_USERS.join(","));
+
+    expect(getE2EClerkUserForWorkerTest(4, 6, 0).index).toBe(4);
+    expect(getE2EClerkUserForWorkerTest(4, 6, 10).index).toBe(4);
+  });
+
+  it.each([0, 4, 7])("6ユーザーを重複なく分割できないworker数 %s を拒否する", (workerCount) => {
+    vi.stubEnv("E2E_CLERK_USERS", E2E_USERS.join(","));
+
+    expect(() => getE2EClerkUserForWorkerTest(0, workerCount, 0)).toThrow(
+      `E2E worker count must be a positive divisor of 6: ${workerCount}`,
+    );
   });
 
   it("通常E2Eは6 worker、multi-actor E2Eは2 workerを返す", () => {

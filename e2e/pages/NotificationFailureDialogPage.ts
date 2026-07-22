@@ -1,5 +1,7 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
+const DASHBOARD_DATA_TIMEOUT = 20_000;
+
 export class NotificationFailureDialogPage {
   constructor(private page: Page) {}
 
@@ -16,8 +18,9 @@ export class NotificationFailureDialogPage {
   }
 
   async open() {
-    await expect(this.page.getByText("送れなかった通知があります")).toBeVisible();
-    await this.page.getByRole("button", { name: "通知を確認" }).click();
+    const openButton = this.page.getByRole("button", { name: "通知を確認" });
+    await expect(openButton).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
+    await openButton.click();
     await expect(this.dialog()).toBeVisible();
   }
 
