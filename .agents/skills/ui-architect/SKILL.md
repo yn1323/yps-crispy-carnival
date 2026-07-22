@@ -79,7 +79,7 @@ SaaSの作業画面では、マーケ風の大きな装飾カードより、密�
 - モーダル: `Dialog`
 - 多段フロー: `StepperDialog`
 - 空状態: `Empty`
-- ローディング: まずSkeleton、必要なら `LoadingState` / `ShiftoriLoading`
+- ローディング: まずSkeleton、必要なら `ShiftoriLoading`
 - Select: `src/components/ui/Select`
 - Toast: `toaster.create`
 - Tooltip: `src/components/ui/tooltip`
@@ -101,7 +101,7 @@ propsを流すだけなら既存UIを直接使う。
 
 以下を必ず見る。
 
-- Loading: Skeletonが第一候補。Spinner/ロゴローディングはレイアウトが予測できない場合だけ。
+- Loading: Skeletonが第一候補。ロゴローディングはレイアウトが予測できない場合だけ。
 - Empty: 初回、検索ゼロ件、処理済みで出し分ける。事実 + 次の一歩を書く。
 - Error: フィールド、セクション、ページの3レベルを分ける。
 - Success: Toast、永続バナー、インライン反映、画面遷移のどれで伝えるか選ぶ。
@@ -331,7 +331,7 @@ UI文言の作成・レビュー・横断監査では、必ず `references/ui-wr
 ### フレームワーク
 
 - Chakra UI v3 + `src/components/ui/*` を優先する。
-- 現状確認できる主要ラッパー: `Button` / `IconButton` / `Dialog` / `StepperDialog` / `Empty` / `FormCard` / `LoadingState` / `ShiftoriLoading` / `Select` / `Title` / `InfoGuide` / `LazyShow` / `Tour` / `toaster` / `tooltip`。
+- 現状確認できる主要ラッパー: `Button` / `IconButton` / `Dialog` / `StepperDialog` / `Empty` / `ShiftoriLoading` / `Select` / `Tour` / `toaster` / `tooltip`。
 - `react-icons/lu` を既存パターンとして優先する。
 - 専用BottomSheetラッパーは現状確認できない。モバイルの重いDialogは、既存実装に合わせて全画面Dialog/StepperDialogにする。
 

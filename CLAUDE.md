@@ -87,7 +87,7 @@ convex/       → queries.ts(読み取り) / mutations.ts(書き込み) / polici
 - **routes/**: TanStack Routerのファイルベースルーティング。ページコンポーネントの呼び出し**のみ**。`_auth/`（Clerk認証必須）と`_unregistered/`（ゲスト）でレイアウト分離
 - **pages/**: `useQuery`でデータ取得し、エラー/ローディング/正常系を振り分け。正常系のみfeaturesを呼ぶ
 - **features/**: ドメイン別ディレクトリ（Shop, Shift, Staff等）。`useMutation`はここで定義
-- **ui/**: 汎用UIコンポーネント（FormCard, Dialog等）。SelectなどChakra UIのラッパーもここに配置
+- **ui/**: 汎用UIコンポーネント（Button, Dialog等）。SelectなどChakra UIのラッパーもここに配置
 - **templates/**: レイアウトコンポーネント（BottomMenu, SideMenu等）
 
 ### Convexバックエンド（詳細は `convex/CLAUDE.md` を参照）

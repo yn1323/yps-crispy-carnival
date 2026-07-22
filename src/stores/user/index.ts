@@ -1,4 +1,4 @@
-import { atom, useSetAtom } from "jotai";
+import { atom } from "jotai";
 
 export const EMPTY_USER = {
   authId: "",
@@ -7,8 +7,3 @@ export const EMPTY_USER = {
 };
 
 export const userAtom = atom(EMPTY_USER);
-
-export const resetUserAtom = () => {
-  const setUser = useSetAtom(userAtom);
-  setUser(EMPTY_USER);
-};
