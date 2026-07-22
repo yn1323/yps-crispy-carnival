@@ -8,14 +8,14 @@ import { api } from "@/convex/_generated/api";
 import { FullPageSpinner } from "@/src/components/templates/FullPageSpinner";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
-import { normalizeAuthRedirect } from "@/src/lib/auth/redirect";
 import {
   isSameSelectedShop,
   isSelectableShop,
   normalizeShopContextOptions,
-  selectedShopAtom,
   toSelectedShop,
-} from "@/src/stores/shop";
+} from "@/src/domains/shop/context";
+import { normalizeAuthRedirect } from "@/src/lib/auth/redirect";
+import { selectedShopAtom } from "@/src/stores/shop";
 import { EMPTY_USER, userAtom } from "@/src/stores/user";
 import { DeletedAccountState } from "./DeletedAccountState";
 import { resolveShopContext } from "./shopContextResolver";

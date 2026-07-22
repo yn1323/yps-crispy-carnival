@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
+import { type ShopContextOption, toSelectedShop } from "@/src/domains/shop/context";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
-import type { ShopContextOption } from "@/src/stores/shop";
-import { selectedShopAtom, toSelectedShop } from "@/src/stores/shop";
+import { selectedShopAtom } from "@/src/stores/shop";
 import { EMPTY_USER, userAtom } from "@/src/stores/user";
 import type { OrganizationDeletionDialogState } from "./OrganizationDeletionDialog";
 

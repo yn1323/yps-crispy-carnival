@@ -1,4 +1,8 @@
-import { groupShopsByOrganization, type ShopContextOption, type ShopOrganizationGroup } from "@/src/stores/shop";
+import {
+  groupShopsByOrganization,
+  type ShopContextOption,
+  type ShopOrganizationGroup,
+} from "@/src/domains/shop/context";
 
 export type OperationContextModel = {
   groups: ShopOrganizationGroup[];

@@ -5,8 +5,8 @@ import type { FunctionReturnType } from "convex/server";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { showErrorToast } from "@/src/components/shared/feedback";
+import { normalizeShopContextOptions } from "@/src/domains/shop/context";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
-import { normalizeShopContextOptions } from "@/src/stores/shop";
 import {
   ManagerInvitationAcceptanceView,
   type ManagerInvitationAcceptanceViewState,

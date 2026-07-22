@@ -1,6 +1,5 @@
+import { isSelectableShop, type ShopContextOption } from "@/src/domains/shop/context";
 import { normalizeAuthRedirect } from "@/src/lib/auth/redirect";
-import type { ShopContextOption } from "@/src/stores/shop";
-import { isSelectableShop } from "@/src/stores/shop";
 
 export function buildManagerInvitationRedirect(token: string | undefined): string {
   const search = token === undefined ? "" : `?token=${encodeURIComponent(token)}`;

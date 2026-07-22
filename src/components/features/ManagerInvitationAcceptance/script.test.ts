@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ShopContextOption } from "@/src/stores/shop";
+import type { ShopContextOption } from "@/src/domains/shop/context";
 import {
   buildManagerInvitationLoginUrl,
   buildManagerInvitationRedirect,

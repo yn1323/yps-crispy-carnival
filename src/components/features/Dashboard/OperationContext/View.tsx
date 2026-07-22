@@ -15,7 +15,7 @@ import {
 import { LuBuilding2, LuCheck, LuChevronDown, LuSettings, LuStore } from "react-icons/lu";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/tooltip";
-import type { ShopContextOption } from "@/src/stores/shop";
+import type { ShopContextOption } from "@/src/domains/shop/context";
 import type { OperationContextModel } from "./script";
 
 export type OperationContextViewProps = {

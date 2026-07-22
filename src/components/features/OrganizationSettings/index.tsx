@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
+import type { ShopContextOption } from "@/src/domains/shop/context";
 import { toUserListCountSearch } from "@/src/lib/userListSearch";
-import type { ShopContextOption } from "@/src/stores/shop";
 import { BillingActionDialog } from "./BillingSettings/BillingActionDialog";
 import { BillingEmailDialog } from "./BillingSettings/BillingEmailDialog";
 import { useBillingSettingsController } from "./BillingSettings/useBillingSettingsController";

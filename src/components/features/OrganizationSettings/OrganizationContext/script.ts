@@ -1,4 +1,4 @@
-import { groupShopsByOrganization, type ShopContextOption } from "@/src/stores/shop";
+import { groupShopsByOrganization, type ShopContextOption } from "@/src/domains/shop/context";
 
 export type OrganizationContextOption = {
   key: string;

@@ -2,8 +2,8 @@
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ShopContextOption } from "@/src/domains/shop/context";
 import { ChakraProvider } from "@/src/providers/ChakraProvider";
-import type { ShopContextOption } from "@/src/stores/shop";
 
 const mocks = vi.hoisted(() => ({
   getMyShops: Symbol("getMyShops"),

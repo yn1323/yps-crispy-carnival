@@ -4,8 +4,9 @@ import { useMemo } from "react";
 import { api } from "@/convex/_generated/api";
 import { OrganizationSettings, OrganizationSettingsSkeleton } from "@/src/components/features/OrganizationSettings";
 import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
+import { isSelectableShop, normalizeShopContextOptions } from "@/src/domains/shop/context";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
-import { isSelectableShop, normalizeShopContextOptions, selectedShopAtom } from "@/src/stores/shop";
+import { selectedShopAtom } from "@/src/stores/shop";
 
 type SettingsTab = "people" | "shops" | "billing" | "settings";
 

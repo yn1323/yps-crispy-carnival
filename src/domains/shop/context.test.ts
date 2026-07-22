@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { groupShopsByOrganization, isSelectableShop, normalizeSelectedShop, normalizeShopContextOptions } from ".";
+import {
+  groupShopsByOrganization,
+  isSelectableShop,
+  normalizeSelectedShop,
+  normalizeShopContextOptions,
+} from "./context";
 
-describe("shop context store", () => {
+describe("shop context", () => {
   it("旧selected-shop DTOをactive所属として読み込める", () => {
     expect(normalizeSelectedShop({ shopId: "shop-1", shopName: "渋谷店" })).toEqual({
       shopId: "shop-1",

@@ -1,4 +1,4 @@
-import type { SelectedShopType, ShopContextOption } from "@/src/stores/shop";
+import type { SelectedShopType, ShopContextOption } from "@/src/domains/shop/context";
 
 type ResolveShopContextArgs = {
   requestedShopId?: string;

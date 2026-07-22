@@ -1,4 +1,4 @@
-import type { OrganizationPlan } from "@/src/stores/shop";
+import type { OrganizationPlan } from "@/src/domains/shop/context";
 
 type TargetedAnnouncement = {
   organizationId?: string;

@@ -2,7 +2,7 @@ import { Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
-import type { ShopContextOption } from "@/src/stores/shop";
+import type { ShopContextOption } from "@/src/domains/shop/context";
 import { buildOperationContextModel } from "./script";
 import { OperationContextView } from "./View";
 

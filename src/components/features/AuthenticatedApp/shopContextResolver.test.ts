@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { SelectedShopType, ShopContextOption } from "@/src/stores/shop";
+import type { SelectedShopType, ShopContextOption } from "@/src/domains/shop/context";
 import { resolveShopContext } from "./shopContextResolver";
 
 const shops: ShopContextOption[] = [

@@ -8,8 +8,8 @@ import {
   normalizeShopContextOptions,
   type SelectedShopType,
   type ShopContextOption,
-  selectedShopAtom,
-} from "@/src/stores/shop";
+} from "@/src/domains/shop/context";
+import { selectedShopAtom } from "@/src/stores/shop";
 import { buildOperationContextModel } from "./script";
 import { OperationContextSkeleton, OperationContextView } from "./View";
 

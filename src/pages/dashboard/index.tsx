@@ -9,8 +9,9 @@ import { Animation } from "@/src/components/templates/Animation";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
 import { Button } from "@/src/components/ui/Button";
+import { isSelectableShop, normalizeShopContextOptions } from "@/src/domains/shop/context";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
-import { isSelectableShop, normalizeShopContextOptions, selectedShopAtom } from "@/src/stores/shop";
+import { selectedShopAtom } from "@/src/stores/shop";
 
 type Props = {
   visibleUserCount?: number;
