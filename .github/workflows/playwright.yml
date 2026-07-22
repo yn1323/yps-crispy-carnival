@@ -110,3 +110,128 @@ jobs:
             test-results.json
             test-results/
           retention-days: 7
+
+  comment:
+    needs: test
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Comment merged PR with Full Regression result
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          TEST_RESULT: ${{ needs.test.result }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const marker = '<!-- shiftori-playwright-report:v1 -->';
+            const heading = '## Playwright Test Report';
+            const { owner, repo } = context.repo;
+            const expectedRepository = `${owner}/${repo}`;
+            const mergeSha = context.sha;
+            if (
+              context.eventName !== 'push' ||
+              context.ref !== 'refs/heads/develop' ||
+              context.payload.after !== mergeSha ||
+              !/^[0-9a-f]{40}$/.test(mergeSha ?? '')
+            ) {
+              core.setFailed('Full Regression comment must originate from the exact develop push commit.');
+              return;
+            }
+
+            const associatedPulls = await github.paginate(
+              github.rest.repos.listPullRequestsAssociatedWithCommit,
+              {
+                owner,
+                repo,
+                commit_sha: mergeSha,
+                per_page: 100,
+              },
+            );
+            const candidates = associatedPulls.filter((pull) =>
+              pull.state === 'closed' &&
+              typeof pull.merged_at === 'string' &&
+              pull.base?.ref === 'develop' &&
+              pull.base?.repo?.full_name === expectedRepository &&
+              pull.merge_commit_sha === mergeSha,
+            );
+            if (candidates.length === 0) {
+              core.info(`No merged pull request is associated with develop commit ${mergeSha}.`);
+              return;
+            }
+            if (candidates.length !== 1) {
+              core.setFailed(`Expected exactly one merged pull request for develop commit ${mergeSha}.`);
+              return;
+            }
+
+            const pullNumber = candidates[0].number;
+            if (!Number.isSafeInteger(pullNumber) || pullNumber <= 0) {
+              core.setFailed('Associated pull request number is invalid.');
+              return;
+            }
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: pullNumber,
+            });
+            if (
+              pullRequest.state !== 'closed' ||
+              typeof pullRequest.merged_at !== 'string' ||
+              pullRequest.base.ref !== 'develop' ||
+              pullRequest.base.repo?.full_name !== expectedRepository ||
+              pullRequest.merge_commit_sha !== mergeSha
+            ) {
+              core.setFailed('Associated pull request no longer matches the tested develop merge commit.');
+              return;
+            }
+
+            const result = process.env.TEST_RESULT ?? '';
+            if (!['success', 'failure', 'cancelled', 'skipped'].includes(result)) {
+              core.setFailed(`Unexpected Full Regression result: ${result || 'missing'}.`);
+              return;
+            }
+            const status = result === 'success' ? 'Passed' : `Failed (${result})`;
+            const actionsUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const body = [
+              marker,
+              heading,
+              '',
+              `Status: ${status}`,
+              '',
+              '| Action | Link |',
+              '|---|---|',
+              `| レポート確認 | [Actionsの非公開artifactを見る](${actionsUrl}) |`,
+              '',
+              'Details:',
+              `developへマージされたcommit \`${mergeSha}\` をFull Regressionで検証しました。`,
+              'trace・動画・tokenを含み得るため、レポートはActions artifactだけに保存します。',
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: pullNumber,
+              per_page: 100,
+            });
+            const existing = [...comments].reverse().find((comment) =>
+              comment.user?.login === 'github-actions[bot]' &&
+              (comment.body?.includes(marker) || comment.body?.includes(heading)),
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: pullNumber,
+                body,
+              });
+            }

@@ -261,7 +261,7 @@ E2E で見ると遅すぎる DB 状態遷移、通知、集計、dashboard 表�
 ## E2E
 
 E2E は「実 frontend + 実 Convex backend + 認証済みブラウザ」の接続確認を中心にする。
-develop向けPRの `@release` Full Regressionは主要ハッピーパスに加え、通知・復旧・モバイル・公開面・axe検査まで含める。developからmainへのPRと`release.yml`ではFull Regressionを再実行しない。
+developへマージされたexact commitの `@release` Full Regressionは主要ハッピーパスに加え、通知・復旧・モバイル・公開面・axe検査まで含め、結果を元PRへ返す。develop向けPR head、developからmainへのPR、`release.yml`ではFull Regressionを実行しない。
 ブラウザprojectはChrome系に限定し、Desktop ChromeとMobile Chromeの代表導線を分けて確認する。
 機能棚卸し、機能×テスト層のトレーサビリティ、通知目的の分類、方式別ライフサイクル、CI結果ゲートは `e2e-full-regression-rules.md` に従う。この節ではE2Eコードの実装規約を扱う。
 

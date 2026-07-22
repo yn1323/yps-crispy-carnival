@@ -4,7 +4,7 @@
 
 既存テスト層（convex-test / Vitest / Storybook+Chromatic）がカバーできない **「繋がり」の検証**。
 画面遷移・認証・フロント⇔Convex結合・ハッピーパスが壊れていないことを保証する。
-develop向けPRのFull Regression内でSmokeを含めて運用する。
+developへマージされたexact commitのFull Regression内でSmokeを含めて運用し、結果を元PRへ返す。
 
 ### テストしないこと
 
@@ -34,8 +34,8 @@ e2e/
 
 ### Suiteタグ
 
-- `@smoke`: develop向けPRのFull Regressionに含める最小主導線
-- `@release`: develop向けPRで実行するFull Regression
+- `@smoke`: developマージ後のFull Regressionに含める最小主導線
+- `@release`: developへマージされたexact commitで実行するFull Regression
 - `@notification`: 通知目的ごとのoutbox・channel・CTA
 - `@security`: 保護ページ、失効token、対象外、削除済み、代表IDOR
 - `@mobile`: スタッフ向け代表モバイル導線
@@ -46,14 +46,14 @@ e2e/
 
 ### CIとブラウザ
 
-- Playwright Full Regressionはdevelop向けPRでのみ実行する。developからmainへのPRと`release.yml`ではE2E自体を実行せず、成功checkも要求しない
+- Playwright Full Regressionはdevelopへマージされたexact commitで実行し、元PRへ結果コメントを返す。develop向けPR head、developからmainへのPR、`release.yml`ではE2E自体を実行せず、成功checkも要求しない
 - ブラウザprojectはChrome系だけとし、Desktop ChromeとMobile Chromeの代表viewportを使う
 - 通常のDesktop ChromeとMobile Chromeは6ユーザーを6 workerへ固定対応させ、同じ認証状態を並行worker間で共有しない
 - 通常projectの`@notification`テストは6 worker時の通知probe負荷を考慮して150秒を上限とする。実行時間の評価にはタイムアウト値ではなくJSON reportのwall spanを使う
 - 6 worker時の初回購読と描画を考慮し、expect/actionは10秒、navigationは15秒を上限とする。ローカルだけ短い上限へ戻さない
 - 複数actorシナリオはuser index 0〜2をpool 0、3〜5をpool 1として2 workerへ固定対応させる。各poolのactor A、B、Cは独立したbrowser contextを使う
 - `setup` → `multi-actor-chromium` → 通常projectのdependencyを維持する。DesktopとMobileは同時実行できるが、Playwrightのworker slotごとの`parallelIndex`で同じユーザーの重複利用を避ける
-- PR専用Convex Previewは自動失効に任せ、E2E専用cleanup workflowを作らない
+- developマージcommit専用Convex Previewは自動失効に任せ、E2E専用cleanup workflowを作らない
 - CloudflareへデプロイしたURLの`@deployed` Smokeは、Full Regressionとは別にdevelop向けPreview／Developのdeploy workflowで実行する
 - シフト提出方式は、全方式で初回提出と再提出、管理者の割当編集、下書き保存、reload、確定通知、スタッフ閲覧までを一気通貫で確認する
 

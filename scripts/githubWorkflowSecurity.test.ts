@@ -15,6 +15,7 @@ type WorkflowStep = {
 type WorkflowConcurrency = {
   group?: string;
   "cancel-in-progress"?: boolean;
+  queue?: "single" | "max";
 };
 
 type Workflow = {
@@ -92,6 +93,8 @@ type PublisherSourceGateScenario = {
   stepName: string;
   env: Record<string, string>;
   workflowRun: Record<string, unknown>;
+  liveWorkflowRun?: Record<string, unknown>;
+  sourceRuns?: Array<Record<string, unknown>>;
   pullRequest?: Record<string, unknown>;
   branch?: Record<string, unknown>;
   artifacts?: Array<{ expired: boolean; name: string; size_in_bytes: number }>;
@@ -101,10 +104,22 @@ async function executePublisherSourceGate(scenario: PublisherSourceGateScenario)
   const { workflow } = readWorkflow(scenario.workflowFilename);
   const gate = findStep(getSteps(getJob(workflow, "publish")), scenario.stepName);
   const failures: string[] = [];
+  const listWorkflowRunArtifacts = vi.fn();
+  const listWorkflowRunsForWorkflow = vi.fn();
   const github = {
-    paginate: vi.fn(async () => scenario.artifacts ?? []),
+    paginate: vi.fn(async (endpoint: unknown) => {
+      if (endpoint === listWorkflowRunArtifacts) return scenario.artifacts ?? [];
+      if (endpoint === listWorkflowRunsForWorkflow) {
+        return scenario.sourceRuns ?? [scenario.liveWorkflowRun ?? scenario.workflowRun];
+      }
+      throw new Error("unexpected paginate endpoint");
+    }),
     rest: {
-      actions: { listWorkflowRunArtifacts: vi.fn() },
+      actions: {
+        getWorkflowRun: vi.fn(async () => ({ data: scenario.liveWorkflowRun ?? scenario.workflowRun })),
+        listWorkflowRunArtifacts,
+        listWorkflowRunsForWorkflow,
+      },
       pulls: {
         get: vi.fn(async () => ({ data: scenario.pullRequest ?? {} })),
       },
@@ -124,6 +139,201 @@ async function executePublisherSourceGate(scenario: PublisherSourceGateScenario)
   for (const [name, value] of Object.entries(scenario.env)) vi.stubEnv(name, value);
   try {
     const execute = new Function("github", "context", "core", `return (async () => {${getGithubScript(gate)}\n})()`);
+    await execute(github, context, core);
+  } finally {
+    vi.unstubAllEnvs();
+  }
+  return { failures, github };
+}
+
+type PlaywrightCommentScenario = {
+  mergeSha: string;
+  result: string;
+  associatedPulls: Array<Record<string, unknown>>;
+  pullRequest?: Record<string, unknown>;
+  comments?: Array<Record<string, unknown>>;
+};
+
+async function executePlaywrightComment(scenario: PlaywrightCommentScenario) {
+  const { workflow } = readWorkflow("playwright.yml");
+  const step = findStep(getSteps(getJob(workflow, "comment")), "Comment merged PR with Full Regression result");
+  const listPullRequestsAssociatedWithCommit = vi.fn();
+  const listComments = vi.fn();
+  const failures: string[] = [];
+  const github = {
+    paginate: vi.fn(async (endpoint: unknown) => {
+      if (endpoint === listPullRequestsAssociatedWithCommit) return scenario.associatedPulls;
+      if (endpoint === listComments) return scenario.comments ?? [];
+      throw new Error("unexpected paginate endpoint");
+    }),
+    rest: {
+      repos: { listPullRequestsAssociatedWithCommit },
+      pulls: {
+        get: vi.fn(async () => ({ data: scenario.pullRequest ?? {} })),
+      },
+      issues: {
+        listComments,
+        updateComment: vi.fn(async () => undefined),
+        createComment: vi.fn(async () => undefined),
+      },
+    },
+  };
+  const context = {
+    eventName: "push",
+    ref: "refs/heads/develop",
+    sha: scenario.mergeSha,
+    payload: { after: scenario.mergeSha },
+    repo: { owner: "example", repo: "shiftori" },
+    runId: 300,
+    serverUrl: "https://github.com",
+  };
+  const core = {
+    info: vi.fn(),
+    setFailed: vi.fn((message: string) => failures.push(message)),
+  };
+
+  vi.stubEnv("TEST_RESULT", scenario.result);
+  try {
+    const execute = new Function("github", "context", "core", `return (async () => {${getGithubScript(step)}\n})()`);
+    await execute(github, context, core);
+  } finally {
+    vi.unstubAllEnvs();
+  }
+  return { failures, github };
+}
+
+type VrtStatusCommentScenario = {
+  action: "in_progress" | "completed";
+  workflowRun: Record<string, unknown>;
+  liveWorkflowRun?: Record<string, unknown>;
+  sourceRuns?: Array<Record<string, unknown>>;
+  pullRequest?: Record<string, unknown>;
+  comments?: Array<Record<string, unknown>>;
+};
+
+async function executeVrtStatusComment(scenario: VrtStatusCommentScenario) {
+  const { workflow } = readWorkflow("publish-vrt-report.yml");
+  const step = findStep(getSteps(getJob(workflow, "comment-source-status")), "Comment PR with VRT source status");
+  const listComments = vi.fn();
+  const listWorkflowRunsForWorkflow = vi.fn();
+  const failures: string[] = [];
+  const github = {
+    paginate: vi.fn(async (endpoint: unknown) => {
+      if (endpoint === listComments) return scenario.comments ?? [];
+      if (endpoint === listWorkflowRunsForWorkflow) {
+        return scenario.sourceRuns ?? [scenario.liveWorkflowRun ?? scenario.workflowRun];
+      }
+      throw new Error("unexpected paginate endpoint");
+    }),
+    rest: {
+      actions: {
+        getWorkflowRun: vi.fn(async () => ({ data: scenario.liveWorkflowRun ?? scenario.workflowRun })),
+        listWorkflowRunsForWorkflow,
+      },
+      pulls: {
+        get: vi.fn(async () => ({ data: scenario.pullRequest ?? {} })),
+      },
+      issues: {
+        listComments,
+        updateComment: vi.fn(async () => undefined),
+        createComment: vi.fn(async () => undefined),
+      },
+    },
+  };
+  const context = {
+    payload: { action: scenario.action, workflow_run: scenario.workflowRun },
+    repo: { owner: "example", repo: "shiftori" },
+    serverUrl: "https://github.com",
+  };
+  const core = {
+    notice: vi.fn(),
+    setFailed: vi.fn((message: string) => failures.push(message)),
+  };
+
+  const execute = new Function("github", "context", "core", `return (async () => {${getGithubScript(step)}\n})()`);
+  await execute(github, context, core);
+  return { failures, github };
+}
+
+type VrtPublicationCommentScenario = {
+  workflowRun: Record<string, unknown>;
+  liveWorkflowRun?: Record<string, unknown>;
+  sourceRuns?: Array<Record<string, unknown>>;
+  pullRequest?: Record<string, unknown>;
+  comments?: Array<Record<string, unknown>>;
+  env?: Partial<{
+    VALIDATION_RESULT: string;
+    SHOULD_PUBLISH: string;
+    APPROVAL_RESULT: string;
+    PUBLISH_RESULT: string;
+    REPORT_DEPLOYED: string;
+    HAS_DIFF: string;
+  }>;
+};
+
+async function executeVrtPublicationComment(scenario: VrtPublicationCommentScenario) {
+  const { workflow } = readWorkflow("publish-vrt-report.yml");
+  const step = findStep(
+    getSteps(getJob(workflow, "comment-publication-result")),
+    "Comment PR with trusted VRT publication result",
+  );
+  const listComments = vi.fn();
+  const listWorkflowRunsForWorkflow = vi.fn();
+  const failures: string[] = [];
+  const github = {
+    paginate: vi.fn(async (endpoint: unknown) => {
+      if (endpoint === listComments) return scenario.comments ?? [];
+      if (endpoint === listWorkflowRunsForWorkflow) {
+        return scenario.sourceRuns ?? [scenario.liveWorkflowRun ?? scenario.workflowRun];
+      }
+      throw new Error("unexpected paginate endpoint");
+    }),
+    rest: {
+      actions: {
+        getWorkflowRun: vi.fn(async () => ({ data: scenario.liveWorkflowRun ?? scenario.workflowRun })),
+        listWorkflowRunsForWorkflow,
+      },
+      pulls: {
+        get: vi.fn(async () => ({ data: scenario.pullRequest ?? {} })),
+      },
+      issues: {
+        listComments,
+        updateComment: vi.fn(async () => undefined),
+        createComment: vi.fn(async () => undefined),
+      },
+    },
+  };
+  const context = {
+    payload: { workflow_run: scenario.workflowRun },
+    repo: { owner: "example", repo: "shiftori" },
+    runId: 300,
+    serverUrl: "https://github.com",
+  };
+  const core = {
+    notice: vi.fn(),
+    setFailed: vi.fn((message: string) => failures.push(message)),
+  };
+  const headSha = String(scenario.workflowRun.head_sha ?? "");
+  const env = {
+    VRT_REPORT_DIR: "yps-crispy-carnival-vrt",
+    EXPECTED_BASELINE_REF: "develop",
+    EXPECTED_HEAD_SHA: headSha,
+    EXPECTED_PULL_NUMBER: "42",
+    EXPECTED_SOURCE_RUN_ATTEMPT: "1",
+    VALIDATION_RESULT: "success",
+    SHOULD_PUBLISH: "true",
+    APPROVAL_RESULT: "success",
+    PUBLISH_RESULT: "success",
+    REPORT_DEPLOYED: "true",
+    HAS_DIFF: "false",
+    PUBLISH_RUN_ATTEMPT: "1",
+    REPORT_URL: "https://yn1323.github.io/hosting-pages/yps-crispy-carnival-vrt/pr-42/",
+    ...scenario.env,
+  };
+
+  for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
+  try {
+    const execute = new Function("github", "context", "core", `return (async () => {${getGithubScript(step)}\n})()`);
     await execute(github, context, core);
   } finally {
     vi.unstubAllEnvs();
@@ -251,11 +461,109 @@ describe("PR workflow credential isolation", () => {
     const testJob = getJob(workflow, "test");
     const checkout = getSteps(testJob).find((step) => step.uses === CHECKOUT_ACTION);
 
-    expect(workflow.on?.pull_request).toBeUndefined();
-    expect(workflow.on?.push).toMatchObject({ branches: ["develop"] });
+    expect(workflow.on).toEqual({ push: { branches: ["develop"] } });
     expect(checkout?.with?.ref).toBe(githubExpression("github.sha"));
     expect(source).toContain(githubExpression("secrets.CONVEX_DEPLOY_KEY"));
     expect(source).not.toContain("github.event.pull_request");
+  });
+
+  it("returns the Full Regression result to exactly one merged develop pull request", async () => {
+    const { workflow } = readWorkflow("playwright.yml");
+    const commentJob = getJob(workflow, "comment");
+    const steps = getSteps(commentJob);
+    const comment = findStep(steps, "Comment merged PR with Full Regression result");
+    const script = getGithubScript(comment);
+    const mergeSha = "a".repeat(40);
+    const mergedPull = {
+      number: 42,
+      state: "closed",
+      merged_at: "2026-07-22T00:00:00Z",
+      merge_commit_sha: mergeSha,
+      base: { ref: "develop", repo: { full_name: "example/shiftori" } },
+    };
+    const result = await executePlaywrightComment({
+      mergeSha,
+      result: "success",
+      associatedPulls: [mergedPull],
+      pullRequest: mergedPull,
+      comments: [
+        {
+          id: 99,
+          body: "## Playwright Test Report\n\nStatus: Running",
+          user: { login: "github-actions[bot]" },
+        },
+      ],
+    });
+
+    expect(commentJob.needs).toBe("test");
+    expect(commentJob.if).toBe(githubExpression("always()"));
+    expect(commentJob.permissions).toEqual({ contents: "read", issues: "write", "pull-requests": "write" });
+    expect(steps).toHaveLength(1);
+    expect(comment.uses).toBe(GITHUB_SCRIPT_ACTION);
+    expect(comment.with?.["github-token"]).toBe(githubExpression("github.token"));
+    expect(JSON.stringify(commentJob)).not.toContain("${{ secrets.");
+    expect(script).toContain("listPullRequestsAssociatedWithCommit");
+    expect(script).toContain("pull.merge_commit_sha === mergeSha");
+    expect(script).toContain("pullRequest.merge_commit_sha !== mergeSha");
+    expect(script).toContain("shiftori-playwright-report:v1");
+    expect(result.failures).toEqual([]);
+    expect(result.github.paginate).toHaveBeenNthCalledWith(
+      1,
+      result.github.rest.repos.listPullRequestsAssociatedWithCommit,
+      { owner: "example", repo: "shiftori", commit_sha: mergeSha, per_page: 100 },
+    );
+    expect(result.github.rest.pulls.get).toHaveBeenCalledWith({
+      owner: "example",
+      repo: "shiftori",
+      pull_number: 42,
+    });
+    expect(result.github.rest.issues.updateComment).toHaveBeenCalledWith(
+      expect.objectContaining({ comment_id: 99, body: expect.stringContaining("Status: Passed") }),
+    );
+    expect(result.github.rest.issues.createComment).not.toHaveBeenCalled();
+  });
+
+  it.each(["failure", "cancelled"])(
+    "creates a %s Full Regression comment when no prior report comment exists",
+    async (testResult) => {
+      const mergeSha = "a".repeat(40);
+      const mergedPull = {
+        number: 42,
+        state: "closed",
+        merged_at: "2026-07-22T00:00:00Z",
+        merge_commit_sha: mergeSha,
+        base: { ref: "develop", repo: { full_name: "example/shiftori" } },
+      };
+      const result = await executePlaywrightComment({
+        mergeSha,
+        result: testResult,
+        associatedPulls: [mergedPull],
+        pullRequest: mergedPull,
+        comments: [],
+      });
+
+      expect(result.failures).toEqual([]);
+      expect(result.github.rest.issues.createComment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          issue_number: 42,
+          body: expect.stringMatching(new RegExp(`Status: Failed \\(${testResult}\\)[\\s\\S]*actions/runs/300`)),
+        }),
+      );
+      expect(result.github.rest.issues.updateComment).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not attach a Full Regression result to a direct develop push", async () => {
+    const result = await executePlaywrightComment({
+      mergeSha: "a".repeat(40),
+      result: "success",
+      associatedPulls: [],
+    });
+
+    expect(result.failures).toEqual([]);
+    expect(result.github.rest.pulls.get).not.toHaveBeenCalled();
+    expect(result.github.rest.issues.updateComment).not.toHaveBeenCalled();
+    expect(result.github.rest.issues.createComment).not.toHaveBeenCalled();
   });
 
   it.each(["test-ui.yml", "vrt.yml"])("keeps PR producer %s free of secrets and write tokens", (filename) => {
@@ -314,7 +622,15 @@ describe("PR workflow credential isolation", () => {
     const publicationIndex = steps.indexOf(publication);
     const firstSecretIndex = steps.findIndex((step) => JSON.stringify(step).includes("${{ secrets."));
 
-    expect(workflow.on?.workflow_run).toMatchObject({ workflows: ["PR Preview Artifact"], types: ["completed"] });
+    expect(workflow.on).toEqual({
+      workflow_run: { workflows: ["PR Preview Artifact"], types: ["completed"] },
+    });
+    expect(workflow.permissions).toEqual({
+      actions: "read",
+      contents: "read",
+      issues: "write",
+      "pull-requests": "write",
+    });
     expect(workflow.concurrency).toEqual({
       group: `pr-preview-${githubExpression("github.event.workflow_run.pull_requests[0].number")}`,
       "cancel-in-progress": false,
@@ -472,6 +788,9 @@ describe("PR workflow credential isolation", () => {
 
   it("publishes VRT from validated PNG data using trusted default-branch code", () => {
     const { workflow } = readWorkflow("publish-vrt-report.yml");
+    const statusJob = getJob(workflow, "comment-source-status");
+    const statusComment = findStep(getSteps(statusJob), "Comment PR with VRT source status");
+    const statusScript = getGithubScript(statusComment);
     const validation = getJob(workflow, "validate-source");
     const sourceGate = findStep(getSteps(validation), "Validate source workflow metadata and artifact declarations");
     const sourceScript = getGithubScript(sourceGate);
@@ -484,7 +803,8 @@ describe("PR workflow credential isolation", () => {
     const publicationSourceGate = findStep(steps, "Revalidate VRT source immediately before publish");
     const publicationSourceScript = getGithubScript(publicationSourceGate);
     const publication = findStep(steps, "Publish trusted VRT report and baseline");
-    const comment = findStep(steps, "Comment PR with trusted VRT result");
+    const commentJob = getJob(workflow, "comment-publication-result");
+    const comment = findStep(getSteps(commentJob), "Comment PR with trusted VRT publication result");
     const artifactGateIndex = steps.findIndex((step) => step.name === "Validate VRT screenshot data");
     const privacyGateIndex = steps.findIndex((step) => step.name === "Scan VRT screenshot data");
     const credentialSourceGateIndex = steps.indexOf(credentialSourceGate);
@@ -492,10 +812,35 @@ describe("PR workflow credential isolation", () => {
     const publicationIndex = steps.indexOf(publication);
     const firstSecretIndex = steps.findIndex((step) => JSON.stringify(step).includes("${{ secrets."));
 
-    expect(workflow.on?.workflow_run).toMatchObject({ workflows: ["VRT Artifact"], types: ["completed"] });
+    expect(workflow.on).toEqual({
+      workflow_run: { workflows: ["VRT Artifact"], types: ["in_progress", "completed"] },
+    });
+    expect(statusJob.if).toBe("github.event.workflow_run.event == 'pull_request'");
+    expect(statusJob.permissions).toEqual({
+      actions: "read",
+      contents: "read",
+      issues: "write",
+      "pull-requests": "write",
+    });
+    expect(statusJob.concurrency).toEqual({
+      group: `vrt-source-status-pr-${githubExpression("github.event.workflow_run.pull_requests[0].number")}`,
+      "cancel-in-progress": true,
+    });
+    expect(statusComment.uses).toBe(GITHUB_SCRIPT_ACTION);
+    expect(statusComment.with?.["github-token"]).toBe(githubExpression("github.token"));
+    expect(JSON.stringify(statusJob)).not.toContain("${{ secrets.");
+    expect(statusScript).toContain("run.name !== 'VRT Artifact'");
+    expect(statusScript).toContain("pullRequest.head.sha !== run.head_sha");
+    expect(statusScript).toContain("actions.getWorkflowRun");
+    expect(statusScript).toContain("actions.listWorkflowRunsForWorkflow");
+    expect(statusScript.match(/github\.rest\.pulls\.get/g)).toHaveLength(2);
+    expect(statusScript).toContain("shiftori-vrt-report:v1");
+    expect(statusScript).toContain("shiftori-vrt-state:");
+    expect(statusScript).toContain("issues.updateComment");
     expect(sourceScript).toContain("run.name !== 'VRT Artifact'");
     expect(sourceScript).toContain("pullRequest.head.sha !== run.head_sha");
     expect(sourceScript).toContain("branch.commit.sha !== run.head_sha");
+    expect(sourceScript).toContain("actions.listWorkflowRunsForWorkflow");
     for (const name of ["vrt-actual-1", "vrt-actual-2", "vrt-actual-3", "vrt-actual-4"]) {
       expect(sourceScript).toContain(name);
     }
@@ -504,32 +849,74 @@ describe("PR workflow credential isolation", () => {
     expect(sourceScript).toContain("totalBytes > 500 * 1024 * 1024");
     expect(sourceGate.with?.["github-token"]).toBe(githubExpression("github.token"));
     expect(checkout.with?.ref).toBe(githubExpression("github.sha"));
+    expect(publish.permissions).toEqual({ actions: "read", contents: "read", "pull-requests": "read" });
     expect(checkout.with?.["persist-credentials"]).toBe(false);
     expect(download.with?.["github-token"]).toBe(githubExpression("github.token"));
     expect(publish.concurrency).toEqual({
-      group: `vrt-publication-${githubExpression(
-        "needs.validate-source.outputs.pull_number != '' && format('pr-{0}', needs.validate-source.outputs.pull_number) || format('branch-{0}', needs.validate-source.outputs.baseline_ref)",
+      group: `vrt-${githubExpression(
+        "needs.validate-source.outputs.pull_number != '' && needs.validate-source.outputs.pull_number || needs.validate-source.outputs.baseline_ref",
       )}`,
       "cancel-in-progress": false,
+      queue: "max",
     });
     expect(credentialSourceGate.env).toMatchObject({
       EXPECTED_BASELINE_REF: githubExpression("needs.validate-source.outputs.baseline_ref"),
       EXPECTED_HEAD_SHA: githubExpression("needs.validate-source.outputs.head_sha"),
       EXPECTED_PULL_NUMBER: githubExpression("needs.validate-source.outputs.pull_number"),
       EXPECTED_REPORT_KEY: githubExpression("needs.validate-source.outputs.report_key"),
+      EXPECTED_RUN_ATTEMPT: githubExpression("needs.validate-source.outputs.run_attempt"),
     });
+    expect(credentialSourceScript).toContain("actions.getWorkflowRun");
+    expect(credentialSourceScript).toContain("actions.listWorkflowRunsForWorkflow");
+    expect(credentialSourceScript).toContain("liveRun.run_attempt !== expectedRunAttempt");
     expect(credentialSourceScript).toContain("run.head_sha !== expectedHeadSha");
     expect(credentialSourceScript).toContain("pullRequest.state !== 'open'");
     expect(credentialSourceScript).toContain("pullRequest.head.sha !== expectedHeadSha");
     expect(credentialSourceScript).toContain("branch.commit.sha !== expectedHeadSha");
     expect(credentialSourceScript).toContain("actualNames.some((name, index) => name !== expectedNames[index])");
+    expect(publicationSourceGate.env).toMatchObject({
+      EXPECTED_RUN_ATTEMPT: githubExpression("needs.validate-source.outputs.run_attempt"),
+    });
+    expect(publicationSourceScript).toContain("actions.getWorkflowRun");
+    expect(publicationSourceScript).toContain("actions.listWorkflowRunsForWorkflow");
+    expect(publicationSourceScript).toContain("liveRun.run_attempt !== expectedRunAttempt");
     expect(publicationSourceScript).toContain("run.head_sha !== expectedHeadSha");
     expect(publicationSourceScript).toContain("pullRequest.state !== 'open'");
     expect(publicationSourceScript).toContain("pullRequest.head.sha !== expectedHeadSha");
     expect(publicationSourceScript).toContain("branch.commit.sha !== expectedHeadSha");
     expect(comment.with?.["github-token"]).toBe(githubExpression("github.token"));
+    expect(commentJob.permissions).toEqual({
+      actions: "read",
+      contents: "read",
+      issues: "write",
+      "pull-requests": "write",
+    });
+    expect(commentJob.needs).toEqual(["comment-source-status", "validate-source", "approve-pr-publication", "publish"]);
+    expect(commentJob.if).toContain("always()");
+    expect(commentJob.if).toContain("github.event.workflow_run.conclusion == 'success'");
+    expect(comment.env).toMatchObject({
+      EXPECTED_BASELINE_REF: githubExpression("needs.validate-source.outputs.baseline_ref"),
+      EXPECTED_HEAD_SHA: githubExpression("needs.validate-source.outputs.head_sha"),
+      EXPECTED_PULL_NUMBER: githubExpression("needs.validate-source.outputs.pull_number"),
+      EXPECTED_SOURCE_RUN_ATTEMPT: githubExpression("needs.validate-source.outputs.run_attempt"),
+      VALIDATION_RESULT: githubExpression("needs.validate-source.result"),
+      SHOULD_PUBLISH: githubExpression("needs.validate-source.outputs.should_publish"),
+      APPROVAL_RESULT: githubExpression("needs.approve-pr-publication.result"),
+      PUBLISH_RESULT: githubExpression("needs.publish.result"),
+      REPORT_DEPLOYED: githubExpression("needs.publish.outputs.report_deployed"),
+      HAS_DIFF: githubExpression("needs.publish.outputs.report_has_diff"),
+    });
     expect(getGithubScript(comment)).toContain("Trusted publication approved; differences published");
+    expect(getGithubScript(comment)).toContain("Trusted report公開失敗");
+    expect(getGithubScript(comment)).toContain("Trusted report検証失敗");
+    expect(getGithubScript(comment)).toContain("公開承認未完了");
     expect(getGithubScript(comment)).not.toContain("Differences approved and published");
+    expect(getGithubScript(comment)).toContain("pullRequest.head.sha !== expectedHeadSha");
+    expect(getGithubScript(comment)).toContain("actions.getWorkflowRun");
+    expect(getGithubScript(comment)).toContain("actions.listWorkflowRunsForWorkflow");
+    expect(getGithubScript(comment)).toContain("shiftori-vrt-state:");
+    expect(getGithubScript(comment).match(/github\.rest\.pulls\.get/g)).toHaveLength(2);
+    expect(getGithubScript(comment)).toContain("issues.updateComment");
     expect(findStep(steps, "Validate VRT screenshot data").run).toContain("--profile vrt-screenshots");
     expect(artifactGateIndex).toBeLessThan(firstSecretIndex);
     expect(privacyGateIndex).toBeGreaterThan(artifactGateIndex);
@@ -540,6 +927,337 @@ describe("PR workflow credential isolation", () => {
     expect(findStep(steps, "Build VRT report with trusted code").run).toBe("pnpm vrt:report");
     expect(findStep(steps, "Validate generated VRT report").run).toContain("--profile vrt-report");
     expect(findStep(steps, "Scan generated VRT report").run).toContain("--root vrt-work/reg");
+  });
+
+  it("updates the trusted VRT comment while the current PR source is running", async () => {
+    const headSha = "a".repeat(40);
+    const result = await executeVrtStatusComment({
+      action: "in_progress",
+      workflowRun: {
+        id: 200,
+        workflow_id: 500,
+        run_attempt: 1,
+        status: "waiting",
+        name: "VRT Artifact",
+        event: "pull_request",
+        conclusion: null,
+        head_sha: headSha,
+        head_repository: { full_name: "example/shiftori" },
+        pull_requests: [{ number: 42 }],
+      },
+      pullRequest: {
+        state: "open",
+        base: { ref: "develop" },
+        head: { sha: headSha, repo: { full_name: "example/shiftori" } },
+      },
+      comments: [
+        {
+          id: 99,
+          body: "## VRT Report\n\nStatus: Passed",
+          user: { login: "github-actions[bot]" },
+        },
+      ],
+    });
+
+    expect(result.failures).toEqual([]);
+    expect(result.github.rest.issues.updateComment).toHaveBeenCalledWith(
+      expect.objectContaining({ comment_id: 99, body: expect.stringContaining("Status: 実行中") }),
+    );
+    expect(result.github.rest.actions.getWorkflowRun).toHaveBeenCalledTimes(2);
+    expect(result.github.paginate).toHaveBeenCalledWith(result.github.rest.actions.listWorkflowRunsForWorkflow, {
+      owner: "example",
+      repo: "shiftori",
+      workflow_id: 500,
+      event: "pull_request",
+      head_sha: headSha,
+      per_page: 100,
+    });
+    expect(result.github.paginate).toHaveBeenCalledTimes(3);
+    expect(result.github.rest.issues.createComment).not.toHaveBeenCalled();
+  });
+
+  it("does not overwrite the VRT comment from a stale pull request run", async () => {
+    const result = await executeVrtStatusComment({
+      action: "completed",
+      workflowRun: {
+        id: 200,
+        workflow_id: 500,
+        run_attempt: 1,
+        status: "completed",
+        name: "VRT Artifact",
+        event: "pull_request",
+        conclusion: "failure",
+        head_sha: "a".repeat(40),
+        head_repository: { full_name: "example/shiftori" },
+        pull_requests: [{ number: 42 }],
+      },
+      pullRequest: {
+        state: "open",
+        base: { ref: "develop" },
+        head: { sha: "b".repeat(40), repo: { full_name: "example/shiftori" } },
+      },
+    });
+
+    expect(result.failures).toEqual([]);
+    expect(result.github.rest.issues.updateComment).not.toHaveBeenCalled();
+    expect(result.github.rest.issues.createComment).not.toHaveBeenCalled();
+  });
+
+  it("does not overwrite the VRT comment when a newer source run exists for the same head", async () => {
+    const headSha = "a".repeat(40);
+    const sourceRun = {
+      id: 200,
+      workflow_id: 500,
+      run_attempt: 1,
+      status: "completed",
+      name: "VRT Artifact",
+      event: "pull_request",
+      conclusion: "success",
+      head_sha: headSha,
+      head_repository: { full_name: "example/shiftori" },
+      pull_requests: [{ number: 42 }],
+    };
+    const result = await executeVrtStatusComment({
+      action: "completed",
+      workflowRun: sourceRun,
+      sourceRuns: [sourceRun, { ...sourceRun, id: 201, status: "in_progress", conclusion: null }],
+    });
+
+    expect(result.failures).toEqual([]);
+    expect(result.github.rest.pulls.get).not.toHaveBeenCalled();
+    expect(result.github.rest.issues.updateComment).not.toHaveBeenCalled();
+    expect(result.github.rest.issues.createComment).not.toHaveBeenCalled();
+  });
+
+  it("does not downgrade a published VRT comment for the same source attempt", async () => {
+    const headSha = "a".repeat(40);
+    const result = await executeVrtStatusComment({
+      action: "completed",
+      workflowRun: {
+        id: 200,
+        workflow_id: 500,
+        run_attempt: 2,
+        status: "completed",
+        name: "VRT Artifact",
+        event: "pull_request",
+        conclusion: "success",
+        head_sha: headSha,
+        head_repository: { full_name: "example/shiftori" },
+        pull_requests: [{ number: 42 }],
+      },
+      pullRequest: {
+        state: "open",
+        base: { ref: "develop" },
+        head: { sha: headSha, repo: { full_name: "example/shiftori" } },
+      },
+      comments: [
+        {
+          id: 99,
+          body: [
+            "<!-- shiftori-vrt-report:v1 -->",
+            `<!-- shiftori-vrt-state:${headSha}:200:2:3 -->`,
+            "## VRT Report",
+            "",
+            "Status: Passed",
+          ].join("\n"),
+          user: { login: "github-actions[bot]" },
+        },
+      ],
+    });
+
+    expect(result.failures).toEqual([]);
+    expect(result.github.rest.issues.updateComment).not.toHaveBeenCalled();
+    expect(result.github.rest.issues.createComment).not.toHaveBeenCalled();
+  });
+
+  it("updates the current PR with the trusted VRT publication result", async () => {
+    const headSha = "a".repeat(40);
+    const sourceRun = {
+      id: 200,
+      workflow_id: 500,
+      run_attempt: 1,
+      status: "completed",
+      name: "VRT Artifact",
+      event: "pull_request",
+      conclusion: "success",
+      head_sha: headSha,
+      head_repository: { full_name: "example/shiftori" },
+      pull_requests: [{ number: 42 }],
+    };
+    const result = await executeVrtPublicationComment({
+      workflowRun: sourceRun,
+      pullRequest: {
+        state: "open",
+        base: { ref: "develop" },
+        head: { sha: headSha, repo: { full_name: "example/shiftori" } },
+      },
+      comments: [
+        {
+          id: 99,
+          body: "<!-- shiftori-vrt-report:v1 -->\n## VRT Report\n\nStatus: 実行中",
+          user: { login: "github-actions[bot]" },
+        },
+      ],
+    });
+
+    expect(result.failures).toEqual([]);
+    expect(result.github.rest.issues.updateComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        comment_id: 99,
+        body: expect.stringMatching(/Status: Passed[\s\S]*差分レポートを見る/),
+      }),
+    );
+    expect(result.github.rest.actions.getWorkflowRun).toHaveBeenCalledTimes(2);
+    expect(result.github.rest.pulls.get).toHaveBeenCalledTimes(2);
+    expect(result.github.paginate).toHaveBeenCalledWith(result.github.rest.actions.listWorkflowRunsForWorkflow, {
+      owner: "example",
+      repo: "shiftori",
+      workflow_id: 500,
+      event: "pull_request",
+      head_sha: headSha,
+      per_page: 100,
+    });
+  });
+
+  it.each([
+    {
+      env: {
+        VALIDATION_RESULT: "failure",
+        SHOULD_PUBLISH: "",
+        APPROVAL_RESULT: "skipped",
+        PUBLISH_RESULT: "skipped",
+        REPORT_DEPLOYED: "",
+        HAS_DIFF: "",
+      },
+      status: "Status: Trusted report検証失敗（failure）",
+    },
+    {
+      env: { APPROVAL_RESULT: "failure", PUBLISH_RESULT: "skipped", REPORT_DEPLOYED: "", HAS_DIFF: "" },
+      status: "Status: 公開承認未完了（failure）",
+    },
+    {
+      env: { APPROVAL_RESULT: "success", PUBLISH_RESULT: "failure", REPORT_DEPLOYED: "false" },
+      status: "Status: Trusted report公開失敗（failure）",
+    },
+  ])("reports a terminal VRT publication failure: $status", async ({ env, status }) => {
+    const headSha = "a".repeat(40);
+    const sourceRun = {
+      id: 200,
+      workflow_id: 500,
+      run_attempt: 1,
+      status: "completed",
+      name: "VRT Artifact",
+      event: "pull_request",
+      conclusion: "success",
+      head_sha: headSha,
+      head_repository: { full_name: "example/shiftori" },
+      pull_requests: [{ number: 42 }],
+    };
+    const result = await executeVrtPublicationComment({
+      workflowRun: sourceRun,
+      env,
+      pullRequest: {
+        state: "open",
+        base: { ref: "develop" },
+        head: { sha: headSha, repo: { full_name: "example/shiftori" } },
+      },
+    });
+
+    expect(result.failures).toEqual([]);
+    expect(result.github.rest.issues.createComment).toHaveBeenCalledWith(
+      expect.objectContaining({ body: expect.stringContaining(status) }),
+    );
+    expect(result.github.rest.issues.createComment).not.toHaveBeenCalledWith(
+      expect.objectContaining({ body: expect.stringContaining("差分レポートを見る") }),
+    );
+  });
+
+  it("skips the terminal VRT comment after the pull request head changes", async () => {
+    const headSha = "a".repeat(40);
+    const sourceRun = {
+      id: 200,
+      workflow_id: 500,
+      run_attempt: 1,
+      status: "completed",
+      name: "VRT Artifact",
+      event: "pull_request",
+      conclusion: "success",
+      head_sha: headSha,
+      head_repository: { full_name: "example/shiftori" },
+      pull_requests: [{ number: 42 }],
+    };
+    const result = await executeVrtPublicationComment({
+      workflowRun: sourceRun,
+      pullRequest: {
+        state: "open",
+        base: { ref: "develop" },
+        head: { sha: "b".repeat(40), repo: { full_name: "example/shiftori" } },
+      },
+    });
+
+    expect(result.failures).toEqual([]);
+    expect(result.github.rest.issues.updateComment).not.toHaveBeenCalled();
+    expect(result.github.rest.issues.createComment).not.toHaveBeenCalled();
+  });
+
+  it("skips the terminal VRT comment when a newer source run exists", async () => {
+    const headSha = "a".repeat(40);
+    const sourceRun = {
+      id: 200,
+      workflow_id: 500,
+      run_attempt: 1,
+      status: "completed",
+      name: "VRT Artifact",
+      event: "pull_request",
+      conclusion: "success",
+      head_sha: headSha,
+      head_repository: { full_name: "example/shiftori" },
+      pull_requests: [{ number: 42 }],
+    };
+    const result = await executeVrtPublicationComment({
+      workflowRun: sourceRun,
+      sourceRuns: [sourceRun, { ...sourceRun, id: 201, status: "in_progress", conclusion: null }],
+    });
+
+    expect(result.failures).toEqual([]);
+    expect(result.github.rest.pulls.get).not.toHaveBeenCalled();
+    expect(result.github.rest.issues.updateComment).not.toHaveBeenCalled();
+    expect(result.github.rest.issues.createComment).not.toHaveBeenCalled();
+  });
+
+  it("does not replace a terminal VRT comment from a newer source run", async () => {
+    const headSha = "a".repeat(40);
+    const sourceRun = {
+      id: 200,
+      workflow_id: 500,
+      run_attempt: 1,
+      status: "completed",
+      name: "VRT Artifact",
+      event: "pull_request",
+      conclusion: "success",
+      head_sha: headSha,
+      head_repository: { full_name: "example/shiftori" },
+      pull_requests: [{ number: 42 }],
+    };
+    const result = await executeVrtPublicationComment({
+      workflowRun: sourceRun,
+      pullRequest: {
+        state: "open",
+        base: { ref: "develop" },
+        head: { sha: headSha, repo: { full_name: "example/shiftori" } },
+      },
+      comments: [
+        {
+          id: 99,
+          body: `<!-- shiftori-vrt-report:v1 -->\n<!-- shiftori-vrt-state:${headSha}:201:1:3 -->\n## VRT Report`,
+          user: { login: "github-actions[bot]" },
+        },
+      ],
+    });
+
+    expect(result.failures).toEqual([]);
+    expect(result.github.rest.issues.updateComment).not.toHaveBeenCalled();
+    expect(result.github.rest.issues.createComment).not.toHaveBeenCalled();
   });
 
   it.each(["Revalidate VRT source immediately before credentials", "Revalidate VRT source immediately before publish"])(
@@ -554,9 +1272,13 @@ describe("PR workflow credential isolation", () => {
           EXPECTED_HEAD_SHA: expectedHeadSha,
           EXPECTED_PULL_NUMBER: "42",
           EXPECTED_REPORT_KEY: "pr-42",
+          EXPECTED_RUN_ATTEMPT: "1",
         },
         workflowRun: {
           id: 200,
+          workflow_id: 500,
+          run_attempt: 1,
+          status: "completed",
           name: "VRT Artifact",
           event: "pull_request",
           conclusion: "success",
@@ -580,6 +1302,90 @@ describe("PR workflow credential isolation", () => {
     },
   );
 
+  it.each(["Revalidate VRT source immediately before credentials", "Revalidate VRT source immediately before publish"])(
+    "fails %s when a same-SHA source rerun supersedes the approved attempt",
+    async (stepName) => {
+      const expectedHeadSha = "a".repeat(40);
+      const sourceRun = {
+        id: 200,
+        workflow_id: 500,
+        run_attempt: 1,
+        status: "completed",
+        name: "VRT Artifact",
+        event: "pull_request",
+        conclusion: "success",
+        head_sha: expectedHeadSha,
+        head_repository: { full_name: "example/shiftori" },
+        pull_requests: [{ number: 42 }],
+      };
+      const result = await executePublisherSourceGate({
+        workflowFilename: "publish-vrt-report.yml",
+        stepName,
+        env: {
+          EXPECTED_BASELINE_REF: "develop",
+          EXPECTED_HEAD_SHA: expectedHeadSha,
+          EXPECTED_PULL_NUMBER: "42",
+          EXPECTED_REPORT_KEY: "pr-42",
+          EXPECTED_RUN_ATTEMPT: "1",
+        },
+        workflowRun: sourceRun,
+        liveWorkflowRun: { ...sourceRun, run_attempt: 2, status: "in_progress", conclusion: null },
+        pullRequest: {
+          state: "open",
+          base: { ref: "develop" },
+          head: { sha: expectedHeadSha, repo: { full_name: "example/shiftori" } },
+        },
+      });
+
+      expect(result.failures).not.toEqual([]);
+      expect(result.github.rest.pulls.get).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["Revalidate VRT source immediately before credentials", "Revalidate VRT source immediately before publish"])(
+    "fails %s when a newer source run exists for the same head",
+    async (stepName) => {
+      const expectedHeadSha = "a".repeat(40);
+      const sourceRun = {
+        id: 200,
+        workflow_id: 500,
+        run_attempt: 1,
+        status: "completed",
+        name: "VRT Artifact",
+        event: "pull_request",
+        conclusion: "success",
+        head_sha: expectedHeadSha,
+        head_repository: { full_name: "example/shiftori" },
+        pull_requests: [{ number: 42 }],
+      };
+      const result = await executePublisherSourceGate({
+        workflowFilename: "publish-vrt-report.yml",
+        stepName,
+        env: {
+          EXPECTED_BASELINE_REF: "develop",
+          EXPECTED_HEAD_SHA: expectedHeadSha,
+          EXPECTED_PULL_NUMBER: "42",
+          EXPECTED_REPORT_KEY: "pr-42",
+          EXPECTED_RUN_ATTEMPT: "1",
+        },
+        workflowRun: sourceRun,
+        sourceRuns: [sourceRun, { ...sourceRun, id: 201, status: "in_progress", conclusion: null }],
+      });
+
+      expect(result.failures).not.toEqual([]);
+      expect(result.github.rest.pulls.get).not.toHaveBeenCalled();
+      expect(result.github.paginate).toHaveBeenCalledWith(result.github.rest.actions.listWorkflowRunsForWorkflow, {
+        owner: "example",
+        repo: "shiftori",
+        workflow_id: 500,
+        event: "pull_request",
+        head_sha: expectedHeadSha,
+        per_page: 100,
+      });
+      expect(result.github.paginate).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it("fails the post-approval VRT credential gate when the pull request was closed", async () => {
     const expectedHeadSha = "a".repeat(40);
     const result = await executePublisherSourceGate({
@@ -590,9 +1396,13 @@ describe("PR workflow credential isolation", () => {
         EXPECTED_HEAD_SHA: expectedHeadSha,
         EXPECTED_PULL_NUMBER: "42",
         EXPECTED_REPORT_KEY: "pr-42",
+        EXPECTED_RUN_ATTEMPT: "1",
       },
       workflowRun: {
         id: 200,
+        workflow_id: 500,
+        run_attempt: 1,
+        status: "completed",
         name: "VRT Artifact",
         event: "pull_request",
         conclusion: "success",
@@ -622,6 +1432,11 @@ describe("PR workflow credential isolation", () => {
     const approval = getJob(publisher, "approve-pr-publication");
     const publish = getJob(publisher, "publish");
 
+    expect(producer.concurrency).toEqual({
+      group: `vrt-${githubExpression("github.event.pull_request.number || github.ref_name")}`,
+      "cancel-in-progress": true,
+    });
+
     expect(producerApproval.needs).toEqual(["prepare", "compare"]);
     expect(producerApproval.environment).toBe("vrt-approval");
     expect(producerApproval.if).toContain("needs.compare.outputs.has_diff == 'true'");
@@ -629,7 +1444,7 @@ describe("PR workflow credential isolation", () => {
     expect(approval.environment).toBe("vrt-approval");
     expect(approval.if).toContain("needs.validate-source.outputs.should_publish == 'true'");
     expect(approval.if).toContain("needs.validate-source.outputs.pull_number != ''");
-    expect(publish.needs).toEqual(["validate-source", "approve-pr-publication"]);
+    expect(publish.needs).toEqual(["comment-source-status", "validate-source", "approve-pr-publication"]);
     expect(publish.if).toContain("always()");
     expect(publish.if).toContain("needs.validate-source.result == 'success'");
     expect(publish.if).toContain("needs.validate-source.outputs.should_publish == 'true'");

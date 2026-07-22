@@ -131,6 +131,8 @@ Preview Environmentのdeployment branch policyを使う場合は、`develop`と�
 
 trusted publisherはsource workflow名・event・conclusion・same-repository・PR current head SHA・artifact名/個数/宣言sizeを検証する。download後はdefault branchの`assertStaticArtifactSafety.mjs`でregular file、path、拡張子、実size、symlink、Pages control fileをfail closedで検査し、artifact内のscriptを実行しない。Cloudflare credentialの直前でPRがopenかつ同じhead SHAであることとartifact setを再検証する。publisherとclose cleanupはPR番号単位の同じconcurrency groupを使い、close時は実行中のpublisherを停止してから削除する。
 
+PRのissue commentを作成・更新するtrusted jobは、`issues: write`と`pull-requests: write`の両方をjobまたはworkflowへ付与する。`pull-requests: write`はdefault branchの`workflow_run` consumerまたはdevelop push jobだけに限定し、PR head workflowへ付与しない。
+
 `assertNoSensitiveArtifacts.mjs`はさらに`.env`、source map、private key、access log、認証済みbrowser storage state、secret prefix / identifier、JWT、placeholder以外のemailを検査する。PR producerの検査だけを信頼せず、credentialを持つconsumerでtrusted copyのscannerを再実行する。
 
 ### リリース (`release.yml`)
@@ -150,7 +152,7 @@ release workflowは`main`へsource commitを追加しない。release PRにversi
 | `test-logic.yml` | 全push | ロジックテスト（sharding 2分割） |
 | `test-ui.yml` | PR / push | Storybook mockと決定的な公開dummy値で行うsecretless UIテスト（sharding 2分割） |
 | `build.yml` | push to develop | credential付きビルド確認（Convex dev使用） |
-| `playwright.yml` | push to develop | merge済みdevelop commitだけをcheckoutし、一時Convex PreviewでFull Regression E2E、結果gate、backend audit、非公開artifact保存 |
+| `playwright.yml` | push to develop | merge済みdevelop commitだけをcheckoutし、一時Convex PreviewでFull Regression E2E、結果gate、backend audit、非公開artifact保存。exact merge commitから元PRを逆引きして結果コメントを更新 |
 | `provider-canary-approval.yml` | main向けPRのcanaryラベル付与 / 追加push | 構造化attestationを検証してhead SHA markerを記録し、不備時と追加push時に承認ラベルを削除 |
 | `claude.yml` | `@claude`を含む作成済みissue/comment/review | secretなしjobでoriginal senderのlive repository permissionを検証し、write/maintain/adminだけをturn上限付きClaude jobへ渡す |
 | `security.yml` | PR to develop/main、push to develop/main、週次 | Git履歴secret scan、`public`/`dist`漏洩scan、dependency review/audit、zizmor、trusted branch CodeQL |
@@ -160,9 +162,11 @@ release workflowは`main`へsource commitを追加しない。release PRにversi
 | ワークフロー | トリガー | 内容 |
 |---|---|---|
 | `vrt.yml` | PR to develop/main、push to develop/main | secretlessでStorycap PNGを生成し、公開baselineを匿名readしてRegSuit比較。artifactはPNG dataだけを保存 |
-| `publish-vrt-report.yml` | `VRT Artifact`完了 | default branchのtrusted codeでsource metadataと4 PNG artifactを検査し、PRは`vrt-approval`承認後だけtrusted RegSuitでreportを再生成してhosting-pagesへ公開。push時だけbaseline更新 |
+| `publish-vrt-report.yml` | `VRT Artifact`開始 / 完了 | default branchのtrusted codeでPRの実行状態コメントを更新。完了後はsource metadataと4 PNG artifactを検査し、PRは`vrt-approval`承認後だけtrusted RegSuitでreportを再生成してhosting-pagesへ公開。push時だけbaseline更新 |
 
-secretless producerは`hosting-pages`を匿名readし、差分があるPRでは`approve` jobをbranch protectionのmerge gateとして使う。trusted publisherはsource runをPRまたはpushへ分類した結果だけを使い、producerの`approve`が存在・成功したことを公開承認として信用しない。producer側で承認jobが削除またはskipされても、publisher側の独立した`approve-pr-publication`なしには公開できない。承認後はPR番号単位でpublisherを直列化し、credentialを使う直前とreportをpushする直前にlive PRまたはbranchのcurrent head SHAを再検証する。repositoryをprivate化した場合はbaseline取得がfail closedで停止するため、public readを維持するか、credentialなしで取得できる別のbaseline storeへ移行する。
+`workflow_run` consumerはworkflowファイルがdefault branchに存在する場合だけ登録・起動される。新設または改名したtrusted publisherは、その導入PR自身では利用できない。bootstrapのためにPR head workflowへwrite tokenを戻さず、publisherを先にdefault branchへ導入するか、導入PRだけ手動で状態を補う。
+
+secretless producerは`hosting-pages`を匿名readし、差分があるPRでは`approve` jobをbranch protectionのmerge gateとして使う。producerとpublisherはPR番号またはbranch単位の同じconcurrency groupを使い、新しいproducer runの開始時に古いproducerとpublisherを停止する。publisherは`queue: max`で待機中の新producerを置換せず、順番が来た時点でlatest source run検証により古い公開を停止する。trusted publisherはsource開始時にworkflow名・event・same-repository・current head SHAを検証して固定markerの状態コメントを作成し、source完了時とreport公開後に同じコメントを更新する。コメントmarkerにはsource run ID、run attempt、状態phaseを記録し、same-SHAのrerunや遅延eventによる状態の巻き戻りを拒否する。trusted publisherはActions APIでも同じworkflow・event・headの最新run IDとattemptを照合し、古いpublisherがreportまたはコメントを上書きしないようにする。trusted publisherはsource runをPRまたはpushへ分類した結果だけを使い、producerの`approve`が存在・成功したことを公開承認として信用しない。producer側で承認jobが削除またはskipされても、publisher側の独立した`approve-pr-publication`なしには公開できない。source artifact検証、公開承認、report生成・公開・deploy確認の失敗を含め、terminal comment jobは`always()`でtrusted job結果を固定markerコメントへ返す。承認後はcredentialを使う直前とreportをpushする直前にlive Actions runのID・attemptとlive PRまたはbranchのcurrent head SHAを再検証する。PRコメントはcanonical comment選定後にもsource runとcurrent headを再取得し、write直前まで一致する場合だけ更新する。repositoryをprivate化した場合はbaseline取得がfail closedで停止するため、public readを維持するか、credentialなしで取得できる別のbaseline storeへ移行する。
 
 `vrt-approval`の承認対象は、検査済みPNGからtrusted codeでreportを生成して公開する実行そのものであり、生成後のvisual diffを人がレビューした証跡ではない。このためPRコメントは差分を「approved」と表記しない。生成済みtrusted reportを見て差分単位で承認する契約が必要になった場合は、trusted compare jobのreport artifactと差分outputを承認jobへ渡し、その後のpublish jobだけを許可する三段構成へ変更する。
 
@@ -195,6 +199,7 @@ Convex deploy → Convex migrations → ビルド → CloudFlare の順で実行
 ## 注意事項
 
 - `playwright.yml`がdevelop merge後に作るE2E専用Convex Previewは数日で自動消滅するため、明示的な削除は不要
+- Full Regression結果はexact develop merge commitに紐づく元PRが1件だけ見つかった場合に、そのclosed PRの固定markerコメントへ返す。direct pushや曖昧な対応関係ではコメントしない
 - `build.yml`はcredentialを渡せるdevelop pushだけで実行する。`test-ui.yml`はConvex / ClerkのStorybook mockを使い、PRにcredentialを渡さない
 - E2E Full Regressionはdevelop merge後に実施する。PR headへ共有Clerk/Convex credentialを渡して実行しない
 - E2E専用Convex Previewは自動失効に任せ、cleanup workflowを作らない

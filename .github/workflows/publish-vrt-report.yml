@@ -3,7 +3,7 @@ name: Publish Trusted VRT Report
 on:
   workflow_run:
     workflows: ["VRT Artifact"]
-    types: [completed]
+    types: [in_progress, completed]
 
 permissions:
   actions: read
@@ -15,6 +15,222 @@ env:
   VRT_BASELINE_DIR: yps-crispy-carnival-vrt-baselines
 
 jobs:
+  comment-source-status:
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: vrt-source-status-pr-${{ github.event.workflow_run.pull_requests[0].number }}
+      cancel-in-progress: true
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Comment PR with VRT source status
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const marker = '<!-- shiftori-vrt-report:v1 -->';
+            const heading = '## VRT Report';
+            const run = context.payload.workflow_run;
+            const action = context.payload.action;
+            const expectedRepository = `${context.repo.owner}/${context.repo.repo}`;
+
+            if (
+              run.name !== 'VRT Artifact' ||
+              run.event !== 'pull_request' ||
+              !['in_progress', 'completed'].includes(action) ||
+              run.head_repository?.full_name !== expectedRepository ||
+              !Number.isSafeInteger(run.id) ||
+              run.id <= 0 ||
+              !Number.isSafeInteger(run.workflow_id) ||
+              run.workflow_id <= 0 ||
+              !Number.isSafeInteger(run.run_attempt) ||
+              run.run_attempt <= 0 ||
+              !/^[0-9a-f]{40}$/.test(run.head_sha ?? '') ||
+              run.pull_requests?.length !== 1
+            ) {
+              core.setFailed('Unexpected VRT source workflow metadata for PR status comment.');
+              return;
+            }
+            if (action === 'completed' && typeof run.conclusion !== 'string') {
+              core.setFailed('Completed VRT source workflow is missing its conclusion.');
+              return;
+            }
+
+            const pullNumber = run.pull_requests[0]?.number;
+            if (!Number.isSafeInteger(pullNumber) || pullNumber <= 0) {
+              core.setFailed('VRT source workflow has an invalid pull request number.');
+              return;
+            }
+
+            const sourceRunIsCurrent = async () => {
+              const { data: liveRun } = await github.rest.actions.getWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: run.id,
+              });
+              const liveStatusMatches = action === 'in_progress'
+                ? ['queued', 'in_progress', 'waiting', 'pending', 'requested'].includes(liveRun.status) && liveRun.conclusion == null
+                : liveRun.status === 'completed' && liveRun.conclusion === run.conclusion;
+              if (
+                liveRun.name !== run.name ||
+                liveRun.workflow_id !== run.workflow_id ||
+                liveRun.event !== run.event ||
+                liveRun.head_sha !== run.head_sha ||
+                liveRun.run_attempt !== run.run_attempt ||
+                !liveStatusMatches
+              ) {
+                return false;
+              }
+
+              const sourceRuns = await github.paginate(github.rest.actions.listWorkflowRunsForWorkflow, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: run.workflow_id,
+                event: run.event,
+                head_sha: run.head_sha,
+                per_page: 100,
+              });
+              const latestSourceRun = sourceRuns
+                .filter((candidate) =>
+                  Number.isSafeInteger(candidate.id) &&
+                  candidate.id > 0 &&
+                  candidate.name === run.name &&
+                  candidate.workflow_id === run.workflow_id &&
+                  candidate.event === run.event &&
+                  candidate.head_sha === run.head_sha &&
+                  candidate.head_repository?.full_name === expectedRepository &&
+                  candidate.pull_requests?.some((pull) => pull.number === pullNumber),
+                )
+                .reduce(
+                  (latest, candidate) => (!latest || candidate.id > latest.id ? candidate : latest),
+                  undefined,
+                );
+              return latestSourceRun?.id === run.id && latestSourceRun.run_attempt === run.run_attempt;
+            };
+            if (!(await sourceRunIsCurrent())) {
+              core.notice('Skipping a superseded VRT source workflow status.');
+              return;
+            }
+
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pullNumber,
+            });
+            if (pullRequest.state !== 'open' || pullRequest.head.sha !== run.head_sha) {
+              core.notice('Skipping a stale or closed VRT pull request status.');
+              return;
+            }
+            if (
+              !['develop', 'main'].includes(pullRequest.base.ref) ||
+              pullRequest.head.repo?.full_name !== expectedRepository
+            ) {
+              core.setFailed('VRT status comment crosses an unexpected repository boundary.');
+              return;
+            }
+
+            const conclusionLabels = {
+              success: '比較完了（trusted reportの公開承認待ち）',
+              failure: '失敗',
+              cancelled: 'キャンセル',
+              timed_out: 'タイムアウト',
+              action_required: '要対応',
+              skipped: 'スキップ',
+              neutral: '完了（neutral）',
+              stale: '期限切れ',
+              startup_failure: '起動失敗',
+            };
+            const status = action === 'in_progress'
+              ? '実行中（比較または承認待ち）'
+              : (conclusionLabels[run.conclusion] ?? `完了（${run.conclusion}）`);
+            const phase = action === 'in_progress' ? 1 : 2;
+            const stateMarker = `<!-- shiftori-vrt-state:${run.head_sha}:${run.id}:${run.run_attempt}:${phase} -->`;
+            const actionsUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${run.id}`;
+            const body = [
+              marker,
+              stateMarker,
+              heading,
+              '',
+              `Status: ${status}`,
+              '',
+              '| Action | Link |',
+              '|---|---|',
+              `| 実行確認 | [Actionsを見る](${actionsUrl}) |`,
+              '',
+              '差分レポートはtrusted publisherによる公開後、このコメントへ追加されます。',
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pullNumber,
+              per_page: 100,
+            });
+            const existing = [...comments].reverse().find((comment) =>
+              comment.user?.login === 'github-actions[bot]' &&
+              (comment.body?.includes(marker) || comment.body?.includes(heading)),
+            );
+            const existingState = existing?.body?.match(
+              /<!-- shiftori-vrt-state:([0-9a-f]{40}):([1-9][0-9]*):([1-9][0-9]*):([1-3]) -->/,
+            );
+            if (existingState?.[1] === run.head_sha) {
+              const existingRunId = BigInt(existingState[2]);
+              const existingAttempt = BigInt(existingState[3]);
+              const existingPhase = Number(existingState[4]);
+              if (
+                existingRunId > BigInt(run.id) ||
+                (existingRunId === BigInt(run.id) && existingAttempt > BigInt(run.run_attempt)) ||
+                (
+                  existingRunId === BigInt(run.id) &&
+                  existingAttempt === BigInt(run.run_attempt) &&
+                  existingPhase > phase
+                )
+              ) {
+                core.notice('Skipping an older VRT source status comment update.');
+                return;
+              }
+            }
+
+            const { data: currentPullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pullNumber,
+            });
+            if (currentPullRequest.state !== 'open' || currentPullRequest.head.sha !== run.head_sha) {
+              core.notice('Skipping a VRT status update after the pull request head changed.');
+              return;
+            }
+            if (
+              !['develop', 'main'].includes(currentPullRequest.base.ref) ||
+              currentPullRequest.head.repo?.full_name !== expectedRepository
+            ) {
+              core.setFailed('VRT status target changed repository boundary before comment write.');
+              return;
+            }
+            if (!(await sourceRunIsCurrent())) {
+              core.notice('Skipping a VRT status update after the source run changed.');
+              return;
+            }
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pullNumber,
+                body,
+              });
+            }
+
   validate-source:
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
@@ -29,6 +245,7 @@ jobs:
       baseline_ref: ${{ steps.source.outputs.baseline_ref }}
       should_update_baseline: ${{ steps.source.outputs.should_update_baseline }}
       head_sha: ${{ steps.source.outputs.head_sha }}
+      run_attempt: ${{ steps.source.outputs.run_attempt }}
       report_url: ${{ steps.source.outputs.report_url }}
     steps:
       - name: Validate source workflow metadata and artifact declarations
@@ -45,6 +262,17 @@ jobs:
             }
             if (!/^[0-9a-f]{40}$/.test(run.head_sha ?? '')) {
               core.setFailed('VRT source head SHA is invalid.');
+              return;
+            }
+            if (
+              !Number.isSafeInteger(run.id) ||
+              run.id <= 0 ||
+              !Number.isSafeInteger(run.workflow_id) ||
+              run.workflow_id <= 0 ||
+              !Number.isSafeInteger(run.run_attempt) ||
+              run.run_attempt <= 0
+            ) {
+              core.setFailed('VRT source run identity is invalid.');
               return;
             }
 
@@ -100,6 +328,38 @@ jobs:
               shouldUpdateBaseline = 'true';
             }
 
+            const sourceRuns = await github.paginate(github.rest.actions.listWorkflowRunsForWorkflow, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: run.workflow_id,
+              event: run.event,
+              head_sha: run.head_sha,
+              per_page: 100,
+            });
+            const latestSourceRun = sourceRuns
+              .filter((candidate) =>
+                Number.isSafeInteger(candidate.id) &&
+                candidate.id > 0 &&
+                candidate.name === run.name &&
+                candidate.workflow_id === run.workflow_id &&
+                candidate.event === run.event &&
+                candidate.head_sha === run.head_sha &&
+                candidate.head_repository?.full_name === `${context.repo.owner}/${context.repo.repo}` &&
+                (
+                  run.event === 'pull_request'
+                    ? candidate.pull_requests?.some((pull) => String(pull.number) === pullNumber)
+                    : candidate.head_branch === baselineRef
+                ),
+              )
+              .reduce(
+                (latest, candidate) => (!latest || candidate.id > latest.id ? candidate : latest),
+                undefined,
+              );
+            if (latestSourceRun?.id !== run.id || latestSourceRun.run_attempt !== run.run_attempt) {
+              core.notice('Skipping a superseded VRT source workflow run.');
+              return;
+            }
+
             const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -126,6 +386,7 @@ jobs:
             core.setOutput('baseline_ref', baselineRef);
             core.setOutput('should_update_baseline', shouldUpdateBaseline);
             core.setOutput('head_sha', run.head_sha);
+            core.setOutput('run_attempt', String(run.run_attempt));
             core.setOutput(
               'report_url',
               `https://yn1323.github.io/hosting-pages/${process.env.VRT_REPORT_DIR}/${reportKey}/`,
@@ -144,7 +405,7 @@ jobs:
         run: echo "Trusted VRT publication has been approved"
 
   publish:
-    needs: [validate-source, approve-pr-publication]
+    needs: [comment-source-status, validate-source, approve-pr-publication]
     if: |
       always() &&
       needs.validate-source.result == 'success' &&
@@ -156,13 +417,16 @@ jobs:
     runs-on: ubuntu-latest
     environment: Preview
     concurrency:
-      group: vrt-publication-${{ needs.validate-source.outputs.pull_number != '' && format('pr-{0}', needs.validate-source.outputs.pull_number) || format('branch-{0}', needs.validate-source.outputs.baseline_ref) }}
+      group: vrt-${{ needs.validate-source.outputs.pull_number != '' && needs.validate-source.outputs.pull_number || needs.validate-source.outputs.baseline_ref }}
       cancel-in-progress: false
+      queue: max
     permissions:
       actions: read
       contents: read
-      issues: write
       pull-requests: read
+    outputs:
+      report_has_diff: ${{ steps.regsuit.outcome == 'failure' }}
+      report_deployed: ${{ steps.wait-deploy.outputs.deploy_status == 'success' }}
     steps:
       - name: Checkout trusted VRT publisher
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -190,6 +454,7 @@ jobs:
           EXPECTED_HEAD_SHA: ${{ needs.validate-source.outputs.head_sha }}
           EXPECTED_PULL_NUMBER: ${{ needs.validate-source.outputs.pull_number }}
           EXPECTED_REPORT_KEY: ${{ needs.validate-source.outputs.report_key }}
+          EXPECTED_RUN_ATTEMPT: ${{ needs.validate-source.outputs.run_attempt }}
         with:
           github-token: ${{ github.token }}
           script: |
@@ -198,13 +463,71 @@ jobs:
             const expectedHeadSha = process.env.EXPECTED_HEAD_SHA ?? '';
             const pullNumberValue = process.env.EXPECTED_PULL_NUMBER ?? '';
             const reportKey = process.env.EXPECTED_REPORT_KEY ?? '';
+            const expectedRunAttempt = Number(process.env.EXPECTED_RUN_ATTEMPT ?? '');
             if (
               run.name !== 'VRT Artifact' ||
               run.conclusion !== 'success' ||
+              !Number.isSafeInteger(run.id) ||
+              run.id <= 0 ||
+              !Number.isSafeInteger(run.workflow_id) ||
+              run.workflow_id <= 0 ||
+              !Number.isSafeInteger(expectedRunAttempt) ||
+              expectedRunAttempt <= 0 ||
+              run.run_attempt !== expectedRunAttempt ||
               !/^[0-9a-f]{40}$/.test(expectedHeadSha) ||
               run.head_sha !== expectedHeadSha
             ) {
               core.setFailed('VRT source identity changed before credentials were enabled.');
+              return;
+            }
+
+            const { data: liveRun } = await github.rest.actions.getWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run.id,
+            });
+            if (
+              liveRun.name !== 'VRT Artifact' ||
+              liveRun.workflow_id !== run.workflow_id ||
+              liveRun.event !== run.event ||
+              liveRun.head_sha !== expectedHeadSha ||
+              liveRun.run_attempt !== expectedRunAttempt ||
+              liveRun.status !== 'completed' ||
+              liveRun.conclusion !== 'success'
+            ) {
+              core.setFailed('VRT source run was superseded before credentials were enabled.');
+              return;
+            }
+
+            const sourceRuns = await github.paginate(github.rest.actions.listWorkflowRunsForWorkflow, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: run.workflow_id,
+              event: run.event,
+              head_sha: expectedHeadSha,
+              per_page: 100,
+            });
+            const latestSourceRun = sourceRuns
+              .filter((candidate) =>
+                Number.isSafeInteger(candidate.id) &&
+                candidate.id > 0 &&
+                candidate.name === run.name &&
+                candidate.workflow_id === run.workflow_id &&
+                candidate.event === run.event &&
+                candidate.head_sha === expectedHeadSha &&
+                candidate.head_repository?.full_name === `${context.repo.owner}/${context.repo.repo}` &&
+                (
+                  pullNumberValue
+                    ? candidate.pull_requests?.some((pull) => String(pull.number) === pullNumberValue)
+                    : candidate.head_branch === baselineRef
+                ),
+              )
+              .reduce(
+                (latest, candidate) => (!latest || candidate.id > latest.id ? candidate : latest),
+                undefined,
+              );
+            if (latestSourceRun?.id !== run.id || latestSourceRun.run_attempt !== expectedRunAttempt) {
+              core.setFailed('A newer VRT source run exists before credentials were enabled.');
               return;
             }
 
@@ -319,6 +642,7 @@ jobs:
           EXPECTED_HEAD_SHA: ${{ needs.validate-source.outputs.head_sha }}
           EXPECTED_PULL_NUMBER: ${{ needs.validate-source.outputs.pull_number }}
           EXPECTED_REPORT_KEY: ${{ needs.validate-source.outputs.report_key }}
+          EXPECTED_RUN_ATTEMPT: ${{ needs.validate-source.outputs.run_attempt }}
         with:
           github-token: ${{ github.token }}
           script: |
@@ -327,8 +651,71 @@ jobs:
             const expectedHeadSha = process.env.EXPECTED_HEAD_SHA ?? '';
             const pullNumberValue = process.env.EXPECTED_PULL_NUMBER ?? '';
             const reportKey = process.env.EXPECTED_REPORT_KEY ?? '';
-            if (!/^[0-9a-f]{40}$/.test(expectedHeadSha) || run.head_sha !== expectedHeadSha) {
+            const expectedRunAttempt = Number(process.env.EXPECTED_RUN_ATTEMPT ?? '');
+            if (
+              run.name !== 'VRT Artifact' ||
+              run.conclusion !== 'success' ||
+              !Number.isSafeInteger(run.id) ||
+              run.id <= 0 ||
+              !Number.isSafeInteger(run.workflow_id) ||
+              run.workflow_id <= 0 ||
+              !Number.isSafeInteger(expectedRunAttempt) ||
+              expectedRunAttempt <= 0 ||
+              run.run_attempt !== expectedRunAttempt ||
+              !/^[0-9a-f]{40}$/.test(expectedHeadSha) ||
+              run.head_sha !== expectedHeadSha
+            ) {
               core.setFailed('VRT source identity changed before publication.');
+              return;
+            }
+
+            const { data: liveRun } = await github.rest.actions.getWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run.id,
+            });
+            if (
+              liveRun.name !== 'VRT Artifact' ||
+              liveRun.workflow_id !== run.workflow_id ||
+              liveRun.event !== run.event ||
+              liveRun.head_sha !== expectedHeadSha ||
+              liveRun.run_attempt !== expectedRunAttempt ||
+              liveRun.status !== 'completed' ||
+              liveRun.conclusion !== 'success'
+            ) {
+              core.setFailed('VRT source run was superseded before publication.');
+              return;
+            }
+
+            const sourceRuns = await github.paginate(github.rest.actions.listWorkflowRunsForWorkflow, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: run.workflow_id,
+              event: run.event,
+              head_sha: expectedHeadSha,
+              per_page: 100,
+            });
+            const latestSourceRun = sourceRuns
+              .filter((candidate) =>
+                Number.isSafeInteger(candidate.id) &&
+                candidate.id > 0 &&
+                candidate.name === run.name &&
+                candidate.workflow_id === run.workflow_id &&
+                candidate.event === run.event &&
+                candidate.head_sha === expectedHeadSha &&
+                candidate.head_repository?.full_name === `${context.repo.owner}/${context.repo.repo}` &&
+                (
+                  pullNumberValue
+                    ? candidate.pull_requests?.some((pull) => String(pull.number) === pullNumberValue)
+                    : candidate.head_branch === baselineRef
+                ),
+              )
+              .reduce(
+                (latest, candidate) => (!latest || candidate.id > latest.id ? candidate : latest),
+                undefined,
+              );
+            if (latestSourceRun?.id !== run.id || latestSourceRun.run_attempt !== expectedRunAttempt) {
+              core.setFailed('A newer VRT source run exists before publication.');
               return;
             }
 
@@ -426,44 +813,254 @@ jobs:
           done
           echo "::error::Trusted VRT report deploy could not be confirmed within 15 minutes."
           exit 1
-      - name: Comment PR with trusted VRT result
-        if: ${{ needs.validate-source.outputs.pull_number != '' }}
+  comment-publication-result:
+    needs: [comment-source-status, validate-source, approve-pr-publication, publish]
+    if: |
+      always() &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Comment PR with trusted VRT publication result
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          EXPECTED_BASELINE_REF: ${{ needs.validate-source.outputs.baseline_ref }}
+          EXPECTED_HEAD_SHA: ${{ needs.validate-source.outputs.head_sha }}
+          EXPECTED_PULL_NUMBER: ${{ needs.validate-source.outputs.pull_number }}
+          EXPECTED_SOURCE_RUN_ATTEMPT: ${{ needs.validate-source.outputs.run_attempt }}
+          VALIDATION_RESULT: ${{ needs.validate-source.result }}
+          SHOULD_PUBLISH: ${{ needs.validate-source.outputs.should_publish }}
+          APPROVAL_RESULT: ${{ needs.approve-pr-publication.result }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+          REPORT_DEPLOYED: ${{ needs.publish.outputs.report_deployed }}
+          HAS_DIFF: ${{ needs.publish.outputs.report_has_diff }}
+          PUBLISH_RUN_ATTEMPT: ${{ github.run_attempt }}
+          REPORT_URL: ${{ needs.validate-source.outputs.report_url }}
         with:
           github-token: ${{ github.token }}
           script: |
-            const marker = '## VRT Report';
-            const issue_number = Number('${{ needs.validate-source.outputs.pull_number }}');
-            const hasDiff = '${{ steps.regsuit.outcome }}' === 'failure';
-            const reportUrl = `${{ needs.validate-source.outputs.report_url }}?v=${context.runId}-${{ github.run_attempt }}`;
+            const marker = '<!-- shiftori-vrt-report:v1 -->';
+            const heading = '## VRT Report';
+            const run = context.payload.workflow_run;
+            const expectedRepository = `${context.repo.owner}/${context.repo.repo}`;
+            const outputBaselineRef = process.env.EXPECTED_BASELINE_REF ?? '';
+            const outputHeadSha = process.env.EXPECTED_HEAD_SHA ?? '';
+            const outputIssueNumber = Number(process.env.EXPECTED_PULL_NUMBER ?? '');
+            const outputSourceRunAttempt = Number(process.env.EXPECTED_SOURCE_RUN_ATTEMPT ?? '');
+            const validationResult = process.env.VALIDATION_RESULT ?? '';
+            const shouldPublish = process.env.SHOULD_PUBLISH ?? '';
+            const approvalResult = process.env.APPROVAL_RESULT ?? '';
+            const publishResult = process.env.PUBLISH_RESULT ?? '';
+            const reportDeployed = process.env.REPORT_DEPLOYED ?? '';
+            const hasDiffValue = process.env.HAS_DIFF ?? '';
+            const publishRunAttempt = process.env.PUBLISH_RUN_ATTEMPT ?? '';
+            const reportBaseUrl = process.env.REPORT_URL ?? '';
+            const allowedJobResults = ['success', 'failure', 'cancelled', 'skipped'];
+            const expectedHeadSha = run.head_sha ?? '';
+            const issueNumber = run.pull_requests?.[0]?.number;
+            const expectedSourceRunAttempt = run.run_attempt;
+            const validationSucceeded = validationResult === 'success' && shouldPublish === 'true';
+            if (
+              run.name !== 'VRT Artifact' ||
+              run.event !== 'pull_request' ||
+              run.conclusion !== 'success' ||
+              run.head_repository?.full_name !== expectedRepository ||
+              !Number.isSafeInteger(run.id) ||
+              run.id <= 0 ||
+              !Number.isSafeInteger(run.workflow_id) ||
+              run.workflow_id <= 0 ||
+              !Number.isSafeInteger(expectedSourceRunAttempt) ||
+              expectedSourceRunAttempt <= 0 ||
+              run.run_attempt !== expectedSourceRunAttempt ||
+              run.pull_requests?.length !== 1 ||
+              run.pull_requests[0]?.number !== issueNumber ||
+              !Number.isSafeInteger(issueNumber) ||
+              issueNumber <= 0 ||
+              !/^[0-9a-f]{40}$/.test(expectedHeadSha) ||
+              !/^[1-9][0-9]*$/.test(publishRunAttempt) ||
+              !allowedJobResults.includes(validationResult) ||
+              !['', 'true', 'false'].includes(shouldPublish) ||
+              !allowedJobResults.includes(approvalResult) ||
+              !allowedJobResults.includes(publishResult) ||
+              !['', 'true', 'false'].includes(reportDeployed) ||
+              !['', 'true', 'false'].includes(hasDiffValue)
+            ) {
+              core.setFailed('VRT source identity is invalid at comment time.');
+              return;
+            }
+            if (
+              validationSucceeded &&
+              (
+                outputBaselineRef === '' ||
+                outputHeadSha !== expectedHeadSha ||
+                outputIssueNumber !== issueNumber ||
+                outputSourceRunAttempt !== expectedSourceRunAttempt ||
+                reportBaseUrl !== `https://yn1323.github.io/hosting-pages/${process.env.VRT_REPORT_DIR}/pr-${issueNumber}/`
+              )
+            ) {
+              core.setFailed('Validated VRT outputs changed before the terminal comment.');
+              return;
+            }
+
+            const sourceRunIsCurrent = async () => {
+              const { data: liveRun } = await github.rest.actions.getWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: run.id,
+              });
+              if (
+                liveRun.name !== 'VRT Artifact' ||
+                liveRun.workflow_id !== run.workflow_id ||
+                liveRun.event !== 'pull_request' ||
+                liveRun.head_sha !== expectedHeadSha ||
+                liveRun.run_attempt !== expectedSourceRunAttempt ||
+                liveRun.status !== 'completed' ||
+                liveRun.conclusion !== 'success'
+              ) {
+                return false;
+              }
+
+              const sourceRuns = await github.paginate(github.rest.actions.listWorkflowRunsForWorkflow, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: run.workflow_id,
+                event: run.event,
+                head_sha: expectedHeadSha,
+                per_page: 100,
+              });
+              const latestSourceRun = sourceRuns
+                .filter((candidate) =>
+                  Number.isSafeInteger(candidate.id) &&
+                  candidate.id > 0 &&
+                  candidate.name === run.name &&
+                  candidate.workflow_id === run.workflow_id &&
+                  candidate.event === run.event &&
+                  candidate.head_sha === expectedHeadSha &&
+                  candidate.head_repository?.full_name === expectedRepository &&
+                  candidate.pull_requests?.some((pull) => pull.number === issueNumber),
+                )
+                .reduce(
+                  (latest, candidate) => (!latest || candidate.id > latest.id ? candidate : latest),
+                  undefined,
+                );
+              return latestSourceRun?.id === run.id && latestSourceRun.run_attempt === expectedSourceRunAttempt;
+            };
+            if (!(await sourceRunIsCurrent())) {
+              core.notice('Skipping a VRT result comment from a superseded source run.');
+              return;
+            }
+
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: issueNumber,
+            });
+            const baselineRef = pullRequest.base?.ref;
+            if (
+              pullRequest.state !== 'open' ||
+              !['develop', 'main'].includes(baselineRef) ||
+              pullRequest.head.sha !== expectedHeadSha ||
+              pullRequest.head.repo?.full_name !== expectedRepository ||
+              (validationSucceeded && baselineRef !== outputBaselineRef)
+            ) {
+              core.notice('Skipping a stale or closed VRT result comment.');
+              return;
+            }
+
+            const publicationSucceeded =
+              validationSucceeded &&
+              approvalResult === 'success' &&
+              publishResult === 'success' &&
+              reportDeployed === 'true';
+            const hasDiff = hasDiffValue === 'true';
+            const reportUrl = `${reportBaseUrl}?v=${context.runId}-${publishRunAttempt}`;
+            const status = !validationSucceeded
+              ? `Trusted report検証失敗（${validationResult}）`
+              : approvalResult !== 'success'
+                ? `公開承認未完了（${approvalResult}）`
+                : publicationSucceeded
+                  ? (hasDiff ? 'Trusted publication approved; differences published' : 'Passed')
+                  : `Trusted report公開失敗（${publishResult}）`;
+            const phase = 3;
+            const stateMarker = `<!-- shiftori-vrt-state:${run.head_sha}:${run.id}:${run.run_attempt}:${phase} -->`;
             const body = [
               marker,
+              stateMarker,
+              heading,
               '',
-              `Status: ${hasDiff ? 'Trusted publication approved; differences published' : 'Passed'}`,
+              `Status: ${status}`,
               '',
               '| Action | Link |',
               '|---|---|',
-              `| 差分確認 | [差分レポートを見る](${reportUrl}) |`,
+              ...(publicationSucceeded ? [`| 差分確認 | [差分レポートを見る](${reportUrl}) |`] : []),
               `| 実行確認 | [Actionsを見る](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) |`,
             ].join('\n');
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number,
+              issue_number: issueNumber,
               per_page: 100,
             });
-            for (const comment of comments) {
-              if (comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker)) {
-                await github.rest.issues.deleteComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  comment_id: comment.id,
-                });
+            const existing = [...comments].reverse().find((comment) =>
+              comment.user?.login === 'github-actions[bot]' &&
+              (comment.body?.includes(marker) || comment.body?.includes(heading)),
+            );
+            const existingState = existing?.body?.match(
+              /<!-- shiftori-vrt-state:([0-9a-f]{40}):([1-9][0-9]*):([1-9][0-9]*):([1-3]) -->/,
+            );
+            if (existingState?.[1] === run.head_sha) {
+              const existingRunId = BigInt(existingState[2]);
+              const existingAttempt = BigInt(existingState[3]);
+              const existingPhase = Number(existingState[4]);
+              if (
+                existingRunId > BigInt(run.id) ||
+                (existingRunId === BigInt(run.id) && existingAttempt > BigInt(run.run_attempt)) ||
+                (
+                  existingRunId === BigInt(run.id) &&
+                  existingAttempt === BigInt(run.run_attempt) &&
+                  existingPhase > phase
+                )
+              ) {
+                core.notice('Skipping an older VRT result comment update.');
+                return;
               }
             }
-            await github.rest.issues.createComment({
+
+            const { data: currentPullRequest } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number,
-              body,
+              pull_number: issueNumber,
             });
+            if (
+              currentPullRequest.state !== 'open' ||
+              currentPullRequest.base.ref !== baselineRef ||
+              currentPullRequest.head.sha !== expectedHeadSha ||
+              currentPullRequest.head.repo?.full_name !== expectedRepository
+            ) {
+              core.notice('Skipping a VRT result update after the pull request head changed.');
+              return;
+            }
+            if (!(await sourceRunIsCurrent())) {
+              core.notice('Skipping a VRT result update after the source run changed.');
+              return;
+            }
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body,
+              });
+            }

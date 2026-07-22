@@ -219,7 +219,8 @@ probeはPII、本文、raw token、provider error全文を返さない。画面�
 
 - ブラウザはChrome系だけを使う。
 - Desktop Chromeと代表Mobile Chromeを分ける。
-- develop向けPRのPreviewでFull Regressionを実行する。
+- developへマージされたexact commitのPreviewでFull Regressionを実行し、結果を元PRへ返す。
+- develop向けPR headではcredentialed Full Regressionを実行しない。
 - developからmainへのPRと`release.yml`ではE2Eを実行しない。
 - Previewは自動失効に任せ、cleanup workflowを追加しない。
 

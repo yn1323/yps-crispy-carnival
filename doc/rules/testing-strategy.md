@@ -17,7 +17,7 @@
 - TypeScriptのテストファイル名は`*.test.ts`または`*.test.tsx`に統一する。jsdomやDOM APIを使う場合は、ファイル単位で実行環境を指定する。
 - 複雑な DB 状態遷移は E2E に寄せすぎず、Convex Scenario Test で厚く見る。
 - E2E は画面・認証・フロントエンドと実 Convex backend の接続確認を中心にする。
-- develop向けPRの `@release` Full Regressionで、壊れた時の運用影響が大きい通知受付、再送、モバイル、公開導線、アクセシビリティを実ブラウザで確認する。developからmainへのPRと`release.yml`ではE2E自体を実行せず、成功checkも要求しない。
+- developへマージされたexact commitの `@release` Full Regressionで、壊れた時の運用影響が大きい通知受付、再送、モバイル、公開導線、アクセシビリティを実ブラウザで確認し、結果を元PRへ返す。develop向けPR head、developからmainへのPR、`release.yml`ではE2E自体を実行せず、成功checkも要求しない。
 - E2EのブラウザprojectはChrome系に限定し、Desktop ChromeとMobile Chromeの代表導線を確認する。
 - スタッフの提出方式を追加・変更した場合は、対応する全方式について「初回提出、再編集・再提出、管理者による割当編集、下書き保存、reload後の永続化、確定通知、スタッフ閲覧」までを `@release` の一気通貫シナリオで保証する。
 - magic link経由のスタッフ提出と閲覧は管理者のstorageStateを持たない別contextで確認し、再提出で追加・取り消した内容の両方を管理者画面と確定後のスタッフ画面で検証する。
@@ -247,8 +247,8 @@ durable workflowを変更する場合は、次の契約を優先する。
 
 ### E2E
 
-- `@smoke` はdevelop向けPRのFull Regressionに含める主要ハッピーパスとして扱う。
-- develop向けPRでは `@release` Full Regressionを実行し、売上・店舗運用・スタッフ通知に直結する状態遷移を広く確認する。developからmainへのPRと`release.yml`ではE2Eを実行しない。
+- `@smoke` はdevelopマージ後のFull Regressionに含める主要ハッピーパスとして扱う。
+- developへマージされたexact commitで `@release` Full Regressionを実行し、売上・店舗運用・スタッフ通知に直結する状態遷移を広く確認する。結果はexact merge commitに紐づく元PRへ返す。develop向けPR head、developからmainへのPR、`release.yml`ではE2Eを実行しない。
 - ユーザーが画面から完了できること、実 frontend と実 Convex backend がつながっていることを確認する。
 - mutation 成功は、ユーザーに見えるトーストや表示状態で判定する。
 - DB の細かい最終状態確認は Convex Scenario Test に寄せる。
@@ -261,8 +261,8 @@ durable workflowを変更する場合は、次の契約を優先する。
 
 | Suite | 実行タイミング | 主な対象 |
 |---|---|---|
-| `@smoke` | develop向けPRのFull Regression内 | ログイン、募集、提出、下書き、確定、閲覧の最小主導線 |
-| `@release` | develop向けPR | 機能全体の主要状態遷移、復旧、削除、永続化 |
+| `@smoke` | developマージ後のFull Regression内 | ログイン、募集、提出、下書き、確定、閲覧の最小主導線 |
+| `@release` | developマージ後 | 機能全体の主要状態遷移、復旧、削除、永続化 |
 | `@notification` | `@release` 内で必須 | 製品が生成する通知目的ごとのoutbox・channel・CTA |
 | `@security` | `@release` 内で必須 | 保護ページ、失効token、対象外、削除済み、代表IDOR |
 | `@mobile` | `@release` 内で必須 | スタッフ提出・閲覧・同意・登録の代表導線 |
@@ -270,7 +270,7 @@ durable workflowを変更する場合は、次の契約を優先する。
 | `@deployed` | デプロイ後 | Cloudflareへデプロイ済みURLの最小Smoke |
 | `@provider-canary` | RC / 手動 | 隔離したメール・LINEアカウントへの最小実配送 |
 
-develop向けPRのFull Regression判定では、必須projectとscenario suite、skip 0件、想定外のflaky 0件、通知dry-run preflight成功、想定外のopen FailureInbox 0件、active outboxの重複dedupe 0件を必須とする。
+developマージ後のFull Regression判定では、必須projectとscenario suite、skip 0件、想定外のflaky 0件、通知dry-run preflight成功、想定外のopen FailureInbox 0件、active outboxの重複dedupe 0件を必須とする。
 
 RCの本番リリースでは、隔離受信先によるprovider canary完了後、権限ある確認者がexact head SHA、時刻、環境、証跡URL、Turnstile・募集/確定のemail/LINE・LINE reply・問い合わせemail/Slackの全PASSを構造化attestationとして記録する。その検証後だけ`release:provider-canary-passed`ラベルを有効とし、追加push後は再実施する。
 
