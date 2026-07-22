@@ -67,8 +67,3 @@ body:
       placeholder: "例: 参考デザイン、技術制約など"
     validations:
       required: false
-
-  - type: markdown
-    attributes:
-      value: |
-        **@claude** この機能を実装してください。

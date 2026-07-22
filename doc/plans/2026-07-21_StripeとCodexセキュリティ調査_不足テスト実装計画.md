@@ -151,7 +151,7 @@ discoveryでは127ファイルの読取が完了し、重複排除後も30候補
 | CAND-FR022-001 | PRコードと同じPlaywright jobへPreview credentialを渡す | 現行成立条件あり、実環境確認待ち | P0 | workflow静的検査とEnvironment証跡 |
 | CAND-FR023-001 | PRコードを実行するpreview deploy jobへCloudflareとConvex credentialを渡す | 現行成立条件あり、実環境確認待ち | P0 | workflow静的検査とEnvironment証跡 |
 | CAND-FR023-002 | canaryはPR headを承認するがreleaseはmoving mainをcheckoutする | 正式検証済み、現行も未解消 | P0 | immutable SHAの静的検査とruntime attestation |
-| CAND-FR024-001 | 公開issueまたはcommentの`@claude`だけでsecret-backed actionを起動できる | 現行成立条件あり | P0 | actor認可のworkflow静的検査 |
+| CAND-FR024-001 | 公開issueまたはcommentの`@claude`だけでsecret-backed actionを起動できる | 対象外（workflow廃止） | 完了 | workflowと専用テストを削除 |
 | CAND-FR024-002 | PRコードを実行するVRT compare jobへHosting tokenを渡す | 現行成立条件あり、実環境確認待ち | P0 | workflow静的検査とpublisher分離 |
 | CAND-FR024-003 | 環境設定CLIの失敗時にsecretがargvやerrorへ出る | 修正済み、回帰不足 | P1 | `scripts/setupEnv.test.ts` |
 
@@ -216,15 +216,8 @@ build once and promoteと、merge後のrelease candidateをcanaryする方式の
 
 #### CI-02 secret-backed botのactor認可
 
-対象は`CAND-FR024-001`である。
-
-参照先は`.github/workflows/claude.yml`である。
-
-OWNER、MEMBER、COLLABORATORまたはGitHub権限APIで許可されたactorだけが起動できるようにする。
-
-workflow testには未認可actor、外部投稿者、許可actor、編集済みcomment、再実行を含める。
-
-利用上限と監査logも設定し、read-onlyな`GITHUB_TOKEN`だけで費用濫用が防げるとは判断しない。
+`CAND-FR024-001`は、secret-backed AI bot workflowを運用しない方針に変更したため対象外とする。
+`.github/workflows/claude.yml`、Issue Templateの`@claude`起動文言、workflow専用テストは削除する。
 
 ### 7.3 WS-2 redirectとstaff Capability
 
@@ -684,7 +677,6 @@ deployed canaryは、ユーザーが起動または公開した対象環境へ�
 - `.github/workflows/vrt.yml`
 - `.github/workflows/release.yml`
 - `.github/workflows/provider-canary-approval.yml`
-- `.github/workflows/claude.yml`
 
 ### 外部資料
 

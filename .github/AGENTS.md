@@ -164,8 +164,10 @@ release workflowは`main`へsource commitを追加しない。release PRにversi
 | `playwright.yml` | same-repository PR to develop | exact PR headをcheckoutし、専用Convex Preview `preview/pr-{N}-e2e`で認証付きFull Regression E2E、結果gate、backend audit、機密検査済み固定入力artifact、非公開raw artifactを生成 |
 | `publish-playwright-report.yml` | `Playwright Tests`の`workflow_run: completed` | default branchの信頼済みcodeでsource / artifactを再検証し、sanitized reportだけをhosting-pagesへ公開してE2E専用PRコメントを更新 |
 | `provider-canary-approval.yml` | main向けPRのcanaryラベル付与 / 追加push | 構造化attestationを検証してhead SHA markerを記録し、不備時と追加push時に承認ラベルを削除 |
-| `claude.yml` | `@claude`を含む作成済みissue/comment/review | secretなしjobでoriginal senderのlive repository permissionを検証し、write/maintain/adminだけをturn上限付きClaude jobへ渡す |
 | `security.yml` | PR to develop/main、push to develop/main、週次 | Git履歴secret scan、`public`/`dist`漏洩scan、dependency review/audit、zizmor、trusted branch CodeQL |
+
+Issueやcommentを起点にsecret-backed AI botを実行するworkflowは運用しない。
+Issue Templateにも`@claude`など、未稼働botを自動起動するように見える文言を置かない。
 
 ### Storybook / VRT
 
