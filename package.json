@@ -103,7 +103,7 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
     "@biomejs/biome": "catalog:",
-    "@clerk/testing": "1.14.8",
+    "@clerk/testing": "1.14.9",
     "@edge-runtime/vm": "^5.0.0",
     "@mdx-js/mdx": "^3.1.1",
     "@playwright/test": "1.60.0",
