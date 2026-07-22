@@ -85,7 +85,7 @@ contact-slack: PASS
 | `CLOUDFLARE_API_TOKEN` | CloudFlare APIトークン |
 | `CLOUDFLARE_ACCOUNT_ID` | CloudFlareアカウントID |
 | `VITE_GTM_ID` | Google Tag Manager ID |
-| `HOSTING_PAGES_TOKEN` | VRT reportとbaselineを`hosting-pages`へpushするtoken |
+| `HOSTING_PAGES_TOKEN` | VRTとPlaywrightのreport、VRT baselineを`hosting-pages`へpushするtoken |
 | `REG_SUIT_CLIENT_ID` | RegSuitのVRT比較で使用するclient ID |
 
 browserへ埋め込まれる`VITE_*`はRepository Variablesではなく同EnvironmentのSecretsから参照する。
@@ -93,14 +93,6 @@ browserへ埋め込まれる`VITE_*`はRepository Variablesではなく同Enviro
 credential付きPR workflowは、base repositoryとhead repositoryが同じsame-repository PRだけを対象にする。fork PRへEnvironment Secretsを渡さず、外部contributorのPRではPreview、Full Regression、VRT公開を実行しない。この運用ではsame-repositoryのbranchへpushできるactorを信頼境界内とみなす。`pull_request_target`でPR headをcheckoutして実行してはならない。
 
 Environmentのdeployment branch policyを使う場合、`Preview`はsame-repository PRのhead branchを許可する。`vrt-approval` Environmentにはrequired reviewerを設定し、公開用secretは置かない。VRTはreportをhosting-pagesへpushしてPRコメントへリンクを返し、差分がある場合だけ同じworkflowの`approve` jobで人の承認を待つ。
-
-### Report Publisher 環境（trusted `workflow_run` publisherで使用）
-
-| シークレット | 用途 |
-|---|---|
-| `REPORT_PUBLISHER_HOSTING_PAGES_TOKEN` | 検査済みE2E reportを`hosting-pages`へpushするtoken |
-
-`Report Publisher`はdefault branch上の`publish-playwright-report.yml`だけで使用する。deployment branch policyはdefault branchだけを許可し、PR headを許可しない。publisherはPR codeを実行せず、source run、repository、open PR、exact head SHA、最新run、artifact名・個数・容量を再検証してからcredentialを有効にする。専用secret未設定時はpublisherのpushを失敗させる。
 
 ### Develop 環境（developブランチのデプロイで使用）
 
@@ -140,11 +132,9 @@ PR Previewはartifact producer / `workflow_run` publisherへ分割せず、same-
 
 E2Eのissue commentを作成・更新するjobは、`issues: write`と`pull-requests: write`の両方をそのjobだけに付与する。VRT workflowはreport公開とPRコメント更新に必要なwrite権限をworkflow単位で持つ。
 
-VRTとE2Eの結果は、一つの総合コメントへまとめず、独立したコメントとして更新する。open PRのE2Eコメントはstatus、Passed / Failed / Flaky / Skipped、失敗テスト、全テスト、Actions、Cloudflare PR Preview、`yps-crispy-carnival-e2e/pr-{N}`のhosting-pages URL、実行した`preview/pr-{N}-e2e`を表示する。VRTコメントはChanged / New / Deleted / Passed、hosting-pagesの差分レポート、Actionsの承認導線を表示する。
+VRTとE2Eの結果は、一つの総合コメントへまとめず、独立したコメントとして更新する。open PRのE2Eコメントはstatus、Passed / Failed / Skipped、失敗テスト、全テスト、Actions、`yps-crispy-carnival/{N}`のhosting-pages URLを表示する。VRTコメントはChanged / New / Deleted / Passed、hosting-pagesの差分レポート、Actionsの承認導線を表示する。
 
-Cloudflare公開後の`@deployed` Smokeは`deploy.yml`で実行し、認証付き`@release` Full Regressionは`playwright.yml`でPR headに対して専用Convex Preview `preview/pr-{N}-e2e`を作り、3 workerで実行する。producerはraw JSON reportを固定schemaへallowlist射影した公開入力artifact `playwright-public-input-{run_attempt}`と、機密検査済みのraw reportを含む非公開`playwright-report-{run_attempt}` artifactをuploadする。publisherはcurrent source attemptと完全一致するartifactだけを採用し、raw artifactはActionsへ7日だけ保存する。
-
-`publish-playwright-report.yml`はdefault branchの信頼済みcodeで固定入力artifactを再検査し、固定schemaのsanitized summaryだけを生成・検査してhosting-pagesへpushする。raw Playwright report、trace、動画、screenshot、console/error詳細、認証情報、storageStateは公開しない。`assertNoSensitiveArtifacts.mjs`は`.env`、source map、private key、access log、認証済みbrowser storage state、secret prefix / identifier、JWT、placeholder以外のemailも検査する。
+Cloudflare公開後の`@deployed` Smokeは`deploy.yml`で実行し、認証付き`@release` Full Regressionは`playwright.yml`で専用Convex Preview `preview/pr-{N}-e2e`を作り、3 workerで実行する。同じworkflowがPlaywright HTML reportをActions artifactへ30日保存し、`hosting-pages`へpushしてPRコメントを更新する。
 
 ### リリース (`release.yml`)
 
@@ -163,8 +153,7 @@ release workflowは`main`へsource commitを追加しない。release PRにversi
 | `test-logic.yml` | 全push | ロジックテスト（sharding 2分割） |
 | `test-ui.yml` | PR / push | Storybook mockと決定的な公開dummy値で行うsecretless UIテスト（sharding 2分割） |
 | `build.yml` | push to develop | credential付きビルド確認（Convex dev使用） |
-| `playwright.yml` | same-repository PR to develop | exact PR headをcheckoutし、専用Convex Preview `preview/pr-{N}-e2e`で認証付きFull Regression E2E、結果gate、backend audit、allowlist射影した公開入力artifact、機密検査済み非公開raw artifactを生成 |
-| `publish-playwright-report.yml` | `Playwright Tests`の`workflow_run: completed` | default branchの信頼済みcodeでsource / artifactを再検証し、sanitized reportだけをhosting-pagesへ公開してE2E専用PRコメントを更新 |
+| `playwright.yml` | same-repository PR to develop | 専用Convex Preview `preview/pr-{N}-e2e`で認証付きFull Regression E2Eを実行し、HTML reportのartifact保存、hosting-pagesへのpush、PRコメント更新まで行う |
 | `provider-canary-approval.yml` | main向けPRのcanaryラベル付与 / 追加push | 構造化attestationを検証してhead SHA markerを記録し、不備時と追加push時に承認ラベルを削除 |
 | `security.yml` | PR to develop/main、push to develop/main、週次 | Git履歴secret scan、`public`/`dist`漏洩scan、dependency review/audit、trusted branch CodeQL |
 
@@ -205,8 +194,8 @@ Convex deploy → Convex migrations → ビルド → CloudFlare の順で実行
 ## 注意事項
 
 - PR Full RegressionとCloudflare Previewが作るConvex PreviewはPR close時のcleanup対象とし、cleanup失敗時は自動失効で回収する
-- Full Regression producerは専用Convex Preview `preview/pr-{N}-e2e`で実行し、trusted publisherがopen PRのE2E専用固定markerコメントへ結果、Actions、Cloudflare Preview、sanitized hosting-pages reportを返す
+- Full Regressionは専用Convex Preview `preview/pr-{N}-e2e`で実行し、同じworkflowがopen PRへ結果、Actions、hosting-pages reportを返す
 - `build.yml`はdevelop pushだけで実行する。`test-ui.yml`はConvex / ClerkのStorybook mockを使い、credentialを渡さない
 - credential付きPR workflowはsame-repository PRだけに限定し、fork PRを対象にしない。PR headのworkflowとpackage scriptを実行するため、same-repositoryへpushできるactor自体を信頼境界に含める
-- Cloudflare、Convex、Clerkのcredentialは必要なPR jobの`Preview` Environment Secrets、VRTのhosting-pages credentialは同Environmentの`HOSTING_PAGES_TOKEN`、E2E reportのcredentialは`Report Publisher` Environment Secretから参照する
+- Cloudflare、Convex、ClerkのcredentialとVRT・E2Eのhosting-pages credentialは、必要なPR jobの`Preview` Environment Secretsから参照する
 - PR close cleanupはsame-repository PRだけを対象にし、base SHAのcodeをcheckoutする。PR headのcode、shell、local action、package scriptをcleanup credentialと組み合わせない
