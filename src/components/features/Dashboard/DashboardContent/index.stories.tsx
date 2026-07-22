@@ -463,11 +463,11 @@ export const DismissedOnboardingShowsNextAction: Story = {
     const canvas = within(canvasElement);
 
     await expect(canvas.getByRole("region", { name: "シフトリへようこそ！" })).toBeVisible();
-    await expect(canvas.queryByRole("heading", { name: "TODO" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("heading", { name: "今やること" })).not.toBeInTheDocument();
 
     await userEvent.click(canvas.getByRole("button", { name: "シフトリへようこそを閉じる" }));
 
-    await canvas.findByRole("heading", { name: "TODO" });
+    await expect(await canvas.findByRole("heading", { name: "今やること" })).toBeVisible();
     await expect(canvas.queryByRole("region", { name: "シフトリへようこそ！" })).not.toBeInTheDocument();
   },
 };
