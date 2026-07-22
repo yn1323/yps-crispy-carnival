@@ -67,8 +67,3 @@ body:
       placeholder: "例: Chrome 120.0, macOS 14.0, 開発環境"
     validations:
       required: false
-
-  - type: markdown
-    attributes:
-      value: |
-        **@claude** このバグを調査・修正してください。

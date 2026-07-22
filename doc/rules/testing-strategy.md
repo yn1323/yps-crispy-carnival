@@ -17,7 +17,7 @@
 - TypeScriptのテストファイル名は`*.test.ts`または`*.test.tsx`に統一する。jsdomやDOM APIを使う場合は、ファイル単位で実行環境を指定する。
 - 複雑な DB 状態遷移は E2E に寄せすぎず、Convex Scenario Test で厚く見る。
 - E2E は画面・認証・フロントエンドと実 Convex backend の接続確認を中心にする。
-- same-repositoryのdevelop向けopen PRでは、exact PR headの認証付き`@release` Full Regressionと、Cloudflare PR Previewの公開5routeを確認する`@deployed` Smokeを実行する。fork PR、developからmainへのPR、`release.yml`では認証付きFull Regressionを実行しない。same-repositoryへpushできるactorをcredential付きPR workflowの信頼境界内とする。
+- same-repositoryのdevelop向けopen PRでは、exact PR headごとの専用Convex Preview `preview/pr-{N}-e2e`で認証付き`@release` Full Regressionを実行し、Cloudflare PR Previewの公開5routeを`@deployed` Smokeで確認する。fork PR、developからmainへのPR、`release.yml`では認証付きFull Regressionを実行しない。same-repositoryへpushできるactorをcredential付きPR workflowの信頼境界内とする。
 - E2EのブラウザprojectはChrome系に限定し、Desktop ChromeとMobile Chromeの代表導線を確認する。
 - スタッフの提出方式を追加・変更した場合は、対応する全方式について「初回提出、再編集・再提出、管理者による割当編集、下書き保存、reload後の永続化、確定通知、スタッフ閲覧」までを `@release` の一気通貫シナリオで保証する。
 - magic link経由のスタッフ提出と閲覧は管理者のstorageStateを持たない別contextで確認し、再提出で追加・取り消した内容の両方を管理者画面と確定後のスタッフ画面で検証する。
@@ -28,6 +28,7 @@
 - VRT対象Storyに最初から表示される静的な見出しや文言はVRTへ委ね、存在確認だけのBehavior Testを重複させない。Behavior Testは操作後に生じる表示・非表示・状態・件数の変化を保証する。
 - 共有schemaの境界値は定義元で一度だけ検証し、フォーム側ではresolver接続、submit抑止、payload、状態遷移を保証する。
 - `apps/analytics-dashboard/` は本人だけが使う内部BIのため、自動テストとFull Regressionの対象外とする。新しいテストを追加・維持せず、`pnpm analytics:lint`、`pnpm analytics:type-check`、`pnpm analytics:build`で確認する。
+- GitHub Actionsのworkflow YAMLについて、step名、job構成、権限値、埋め込みscript文字列などの内部構造をLogic UTや専用の静的解析CIで固定しない。Action参照のcommit SHA固定はレビューで確認し、実行契約はGitHub Actions上のjob結果で確認する。workflowから独立した純粋helperを実装した場合だけ、その公開入出力をLogic UTで検証する。
 
 ## テスト種別
 
@@ -195,6 +196,7 @@ Scenario Test では、入力値そのものの網羅ではなく、その入力
 - モバイルStoryはviewport指定と対応する`vrt-mobile1`または`vrt-mobile2` tagを同時に付ける。viewport指定だけではモバイルVRT projectへ選択されない。
 - Storycap testrun + RegSuit では `pnpm vrt:capture` でVRT対象StoryのPNGを `vrt-actual/` に生成し、`pnpm vrt:compare` で `vrt-work/reg/` に差分レポートを作る。
 - PRではbaseline欠落を成功扱いにせず、初回baseline作成は明示的なbootstrap操作に限定する。
+- CIのVRT producerはPR / develop・main pushでsecretlessにcapture・compareして固定artifactを渡し、default branchのtrusted `workflow_run` publisherだけが検査済みreportとbaselineをhosting-pagesへ公開する。PRではreport URLと差分件数を専用markerコメントへ返した後、差分がある場合だけpublisherの`approve` jobを`vrt-approval` Environmentで待つ。publisherはexact PR head SHAの固定commit status `shiftori/vrt-approval`をpendingから、差分なしまたは承認後にsuccessへ進め、このstatusをstrict required checkとして使う。base更新後はPR branchをupdateして`synchronize`を発生させ、現baselineで再比較する。
 - DB や業務フロー全体は検証しない。
 
 ### Convex Function Test
@@ -249,7 +251,7 @@ durable workflowを変更する場合は、次の契約を優先する。
 
 - `@smoke` はPR headの認証付きFull Regressionに含める主要ハッピーパスとして扱う。
 - Cloudflare PR Preview公開後に、TOP、機能、FAQ、使い方、お問い合わせの公開5routeを`@deployed` Smokeする。Smoke自体は認証情報とstorageStateを使用しない。
-- same-repositoryのdevelop向けPR headで認証付き`@release` Full Regressionを実行し、売上・店舗運用・スタッフ通知に直結する状態遷移を広く確認する。fork PR、developからmainへのPR、`release.yml`では実行しない。
+- same-repositoryのdevelop向けPR headごとに専用Convex Preview `preview/pr-{N}-e2e`を作り、認証付き`@release` Full Regressionで売上・店舗運用・スタッフ通知に直結する状態遷移を広く確認する。fork PR、developからmainへのPR、`release.yml`では実行しない。
 - credential付きPR workflowはbase repositoryとhead repositoryが同じことを検証する。fork PRへEnvironment Secretsを渡さず、`pull_request_target`でPR headのcodeやpackage scriptを実行しない。
 - ユーザーが画面から完了できること、実 frontend と実 Convex backend がつながっていることを確認する。
 - mutation 成功は、ユーザーに見えるトーストや表示状態で判定する。
@@ -274,7 +276,7 @@ durable workflowを変更する場合は、次の契約を優先する。
 
 PR Full Regression判定では、必須projectとscenario suite、skip 0件、想定外のflaky 0件、通知dry-run preflight成功、想定外のopen FailureInbox 0件、active outboxの重複dedupe 0件を必須とする。
 
-open PRのE2E結果はVRTと別の固定markerコメントへ返し、Full Regression結果、Actions、Cloudflare PR Preview、`yps-crispy-carnival-e2e/pr-{N}`のhosting-pages予定URLを常に表示する。公開確認後だけ同じURLへcache-busting queryを付ける。hosting-pagesへ直接公開するのは固定schemaから生成したsanitized summaryだけとし、raw Playwright report、trace、動画、screenshot、console/error詳細、認証情報、storageStateは公開しない。raw artifactはActionsの非公開artifactとして扱う。
+PR workflowは機密検査済み`test-results.json`を`playwright-public-input-{run_attempt}` artifactとしてuploadし、raw Playwright report、trace、動画、screenshotは`playwright-report-{run_attempt}`の非公開artifactとして7日だけ保持する。default branchのtrusted `workflow_run` publisherはsource run、open PR、exact head SHA、latest run、current source attemptと完全一致するartifact宣言を再検証し、信頼済みcodeで固定schemaのsanitized summaryだけを生成・検査してhosting-pagesへ公開する。open PRのE2E結果はVRTと別の固定markerコメントへ返し、Full Regression結果、Actions、Cloudflare PR Preview、実行した`preview/pr-{N}-e2e`、`yps-crispy-carnival-e2e/pr-{N}`のhosting-pages URLを表示する。raw report、console/error詳細、認証情報、storageStateはhosting-pagesへ公開しない。
 
 RCの本番リリースでは、隔離受信先によるprovider canary完了後、権限ある確認者がexact head SHA、時刻、環境、証跡URL、Turnstile・募集/確定のemail/LINE・LINE reply・問い合わせemail/Slackの全PASSを構造化attestationとして記録する。その検証後だけ`release:provider-canary-passed`ラベルを有効とし、追加push後は再実施する。
 

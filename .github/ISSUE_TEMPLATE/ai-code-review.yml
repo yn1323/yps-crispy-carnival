@@ -81,8 +81,3 @@ body:
       placeholder: "例: 実装の背景、技術的制約、テスト状況など"
     validations:
       required: false
-
-  - type: markdown
-    attributes:
-      value: |
-        **@claude** 上記のコードをレビューしてください。

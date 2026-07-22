@@ -21,6 +21,7 @@ import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { chromium, type Page } from "playwright";
+import { assertNoLoopbackUrls, normalizePrerenderedHtml } from "./prerenderHtml";
 
 const DIST_DIR = "dist";
 const DIST_ABS = resolve(DIST_DIR);
@@ -237,6 +238,8 @@ async function collectPrerenderRoutes(): Promise<string[]> {
  * 不完全な HTML を CF Pages にデプロイするのを防ぐ。
  */
 function assertRenderedHtml(route: string, html: string): void {
+  assertNoLoopbackUrls(route, html);
+
   if (html.length < MIN_HTML_BYTES) {
     throw new Error(`[prerender] ${route} produced suspiciously small HTML (${html.length} bytes < ${MIN_HTML_BYTES})`);
   }
@@ -486,7 +489,7 @@ async function main(): Promise<void> {
         }
       });
 
-      const html = await page.content();
+      const html = normalizePrerenderedHtml(await page.content(), baseUrl);
       await page.close();
 
       assertRenderedHtml(route, html);

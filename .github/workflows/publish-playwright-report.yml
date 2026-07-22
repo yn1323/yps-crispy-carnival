@@ -1,0 +1,884 @@
+name: Publish Trusted Playwright Report
+
+on:
+  workflow_run:
+    workflows: ["Playwright Tests"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+env:
+  E2E_REPORT_DIR: yps-crispy-carnival-e2e
+
+jobs:
+  validate-source:
+    if: |
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      !startsWith(github.event.workflow_run.head_branch, 'renovate/')
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    outputs:
+      should_publish: ${{ steps.source.outputs.should_publish }}
+      pull_number: ${{ steps.source.outputs.pull_number }}
+      head_sha: ${{ steps.source.outputs.head_sha }}
+      run_attempt: ${{ steps.source.outputs.run_attempt }}
+      source_result: ${{ steps.source.outputs.source_result }}
+      report_url: ${{ steps.source.outputs.report_url }}
+      preview_url: ${{ steps.source.outputs.preview_url }}
+    steps:
+      - name: Validate Playwright source and artifact declarations
+        id: source
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const run = context.payload.workflow_run;
+            const expectedRepository = `${context.repo.owner}/${context.repo.repo}`;
+            const expectedWorkflowPath = '.github/workflows/playwright.yml';
+            const allowedConclusions = new Set([
+              'success',
+              'failure',
+              'cancelled',
+              'timed_out',
+              'action_required',
+              'skipped',
+              'neutral',
+              'stale',
+              'startup_failure',
+            ]);
+            core.setOutput('should_publish', 'false');
+
+            if (
+              run.name !== 'Playwright Tests' ||
+              run.path !== expectedWorkflowPath ||
+              run.event !== 'pull_request' ||
+              run.head_repository?.full_name !== expectedRepository ||
+              !allowedConclusions.has(run.conclusion) ||
+              !Number.isSafeInteger(run.id) ||
+              run.id <= 0 ||
+              !Number.isSafeInteger(run.workflow_id) ||
+              run.workflow_id <= 0 ||
+              !Number.isSafeInteger(run.run_attempt) ||
+              run.run_attempt <= 0 ||
+              !/^[0-9a-f]{40}$/.test(run.head_sha ?? '') ||
+              run.pull_requests?.length !== 1
+            ) {
+              core.setFailed('Playwright publisher received invalid source workflow metadata.');
+              return;
+            }
+
+            const pullNumber = run.pull_requests[0]?.number;
+            if (!Number.isSafeInteger(pullNumber) || pullNumber <= 0) {
+              core.setFailed('Playwright source workflow has an invalid pull request number.');
+              return;
+            }
+
+            const [{ data: trustedWorkflow }, { data: pullRequest }, { data: liveRun }, sourceRuns] = await Promise.all([
+              github.rest.actions.getWorkflow({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'playwright.yml',
+              }),
+              github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pullNumber,
+              }),
+              github.rest.actions.getWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: run.id,
+              }),
+              github.paginate(github.rest.actions.listWorkflowRunsForWorkflow, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: run.workflow_id,
+                event: 'pull_request',
+                head_sha: run.head_sha,
+                per_page: 100,
+              }),
+            ]);
+            const latestSourceRun = sourceRuns
+              .filter((candidate) =>
+                Number.isSafeInteger(candidate.id) &&
+                candidate.id > 0 &&
+                candidate.name === run.name &&
+                candidate.workflow_id === run.workflow_id &&
+                candidate.event === 'pull_request' &&
+                candidate.head_sha === run.head_sha &&
+                candidate.head_repository?.full_name === expectedRepository &&
+                candidate.pull_requests?.some((pull) => pull.number === pullNumber),
+              )
+              .reduce(
+                (latest, candidate) => (!latest || candidate.id > latest.id ? candidate : latest),
+                undefined,
+              );
+            if (
+              trustedWorkflow.id !== run.workflow_id ||
+              trustedWorkflow.path !== expectedWorkflowPath ||
+              trustedWorkflow.state !== 'active' ||
+              pullRequest.state !== 'open' ||
+              pullRequest.base.ref !== 'develop' ||
+              pullRequest.head.sha !== run.head_sha ||
+              pullRequest.head.repo?.full_name !== expectedRepository ||
+              liveRun.name !== run.name ||
+              liveRun.workflow_id !== run.workflow_id ||
+              liveRun.path !== expectedWorkflowPath ||
+              liveRun.event !== run.event ||
+              liveRun.status !== 'completed' ||
+              liveRun.conclusion !== run.conclusion ||
+              liveRun.head_sha !== run.head_sha ||
+              liveRun.run_attempt !== run.run_attempt ||
+              latestSourceRun?.id !== run.id ||
+              latestSourceRun.run_attempt !== run.run_attempt
+            ) {
+              core.notice('Skipping a stale, closed, or superseded Playwright source run.');
+              return;
+            }
+
+            core.setOutput('pull_number', String(pullNumber));
+            core.setOutput('head_sha', run.head_sha);
+            core.setOutput('run_attempt', String(run.run_attempt));
+            core.setOutput('source_result', run.conclusion === 'success' ? 'success' : 'failure');
+            core.setOutput(
+              'report_url',
+              `https://yn1323.github.io/hosting-pages/${process.env.E2E_REPORT_DIR}/pr-${pullNumber}/`,
+            );
+            core.setOutput(
+              'preview_url',
+              `https://pr-${pullNumber}.dev-yps-crispy-carnival.pages.dev/`,
+            );
+
+            if (!['success', 'failure'].includes(run.conclusion)) return;
+
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run.id,
+              per_page: 100,
+            });
+            const available = artifacts.filter((artifact) => !artifact.expired);
+            const artifactNamePattern = /^(playwright-public-input|playwright-report)-([1-9][0-9]*)$/;
+            const unexpected = available.filter((artifact) => {
+              const match = artifact.name.match(artifactNamePattern);
+              return !match || Number(match[2]) > run.run_attempt;
+            });
+            const publicInputs = available.filter(
+              (artifact) => artifact.name === `playwright-public-input-${run.run_attempt}`,
+            );
+            const privateReports = available.filter(
+              (artifact) => artifact.name === `playwright-report-${run.run_attempt}`,
+            );
+
+            if (
+              unexpected.length > 0 ||
+              publicInputs.length > 1 ||
+              privateReports.length > 1 ||
+              publicInputs.some(
+                (artifact) => artifact.size_in_bytes <= 0 || artifact.size_in_bytes > 10 * 1024 * 1024,
+              ) ||
+              privateReports.some(
+                (artifact) => artifact.size_in_bytes <= 0 || artifact.size_in_bytes > 500 * 1024 * 1024,
+              )
+            ) {
+              core.setFailed('Playwright source artifact names, count, or declared sizes are invalid.');
+              return;
+            }
+
+            if (publicInputs.length === 0) {
+              if (run.conclusion === 'success') {
+                core.setFailed('A successful Playwright source run must provide its public report input.');
+              } else {
+                core.notice('The failed Playwright run did not produce a publishable result artifact.');
+              }
+              return;
+            }
+            if (run.conclusion === 'success' && privateReports.length !== 1) {
+              core.setFailed('A successful Playwright source run must preserve its private report artifact.');
+              return;
+            }
+
+            core.setOutput('should_publish', 'true');
+
+  publish:
+    needs: validate-source
+    if: |
+      !cancelled() &&
+      needs.validate-source.result == 'success' &&
+      needs.validate-source.outputs.should_publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: Report Publisher
+    concurrency:
+      group: playwright-report-pr-${{ needs.validate-source.outputs.pull_number }}
+      cancel-in-progress: true
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    outputs:
+      report_deployed: ${{ steps.wait-deploy.outputs.deploy_status == 'success' }}
+      report_ready: ${{ steps.trusted-report-artifact.outcome == 'success' }}
+    steps:
+      - name: Checkout trusted Playwright publisher
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Download Playwright public report input
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: playwright-public-input-${{ needs.validate-source.outputs.run_attempt }}
+          path: trusted-artifacts/playwright-public-input
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+      - name: Validate Playwright public report input
+        run: |
+          node scripts/assertStaticArtifactSafety.mjs \
+            --profile playwright-public-input \
+            --root trusted-artifacts/playwright-public-input
+          node scripts/assertNoSensitiveArtifacts.mjs \
+            --root trusted-artifacts/playwright-public-input
+      - name: Build trusted public Playwright report
+        env:
+          ACTIONS_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}
+          HEAD_SHA: ${{ needs.validate-source.outputs.head_sha }}
+          PLAYWRIGHT_RESULT: ${{ needs.validate-source.outputs.source_result }}
+          PREVIEW_URL: ${{ needs.validate-source.outputs.preview_url }}
+          PR_NUMBER: ${{ needs.validate-source.outputs.pull_number }}
+          SOURCE_RUN_ATTEMPT: ${{ needs.validate-source.outputs.run_attempt }}
+          SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          node scripts/buildPublicPlaywrightReport.mjs \
+            --input trusted-artifacts/playwright-public-input/test-results.json \
+            --output playwright-public-report \
+            --result "$PLAYWRIGHT_RESULT" \
+            --pull-number "$PR_NUMBER" \
+            --head-sha "$HEAD_SHA" \
+            --source-run-id "$SOURCE_RUN_ID" \
+            --source-run-attempt "$SOURCE_RUN_ATTEMPT" \
+            --actions-url "$ACTIONS_URL" \
+            --preview-url "$PREVIEW_URL"
+      - name: Validate trusted public Playwright report
+        run: |
+          node scripts/assertStaticArtifactSafety.mjs \
+            --profile playwright-public-report \
+            --root playwright-public-report
+          node scripts/assertNoSensitiveArtifacts.mjs --root playwright-public-report
+      - name: Upload trusted public Playwright report
+        id: trusted-report-artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: trusted-playwright-public-report
+          path: playwright-public-report/
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 1
+      - name: Revalidate Playwright source before credentials
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.validate-source.outputs.head_sha }}
+          EXPECTED_PULL_NUMBER: ${{ needs.validate-source.outputs.pull_number }}
+          EXPECTED_RUN_ATTEMPT: ${{ needs.validate-source.outputs.run_attempt }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const run = context.payload.workflow_run;
+            const expectedRepository = `${context.repo.owner}/${context.repo.repo}`;
+            const expectedWorkflowPath = '.github/workflows/playwright.yml';
+            const expectedHeadSha = process.env.EXPECTED_HEAD_SHA ?? '';
+            const pullNumber = Number(process.env.EXPECTED_PULL_NUMBER ?? '');
+            const expectedRunAttempt = Number(process.env.EXPECTED_RUN_ATTEMPT ?? '');
+            const [{ data: trustedWorkflow }, { data: pullRequest }, { data: liveRun }, sourceRuns, artifacts] = await Promise.all([
+              github.rest.actions.getWorkflow({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'playwright.yml',
+              }),
+              github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pullNumber,
+              }),
+              github.rest.actions.getWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: run.id,
+              }),
+              github.paginate(github.rest.actions.listWorkflowRunsForWorkflow, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: run.workflow_id,
+                event: 'pull_request',
+                head_sha: expectedHeadSha,
+                per_page: 100,
+              }),
+              github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: run.id,
+                per_page: 100,
+              }),
+            ]);
+            const latestSourceRun = sourceRuns
+              .filter((candidate) =>
+                candidate.name === 'Playwright Tests' &&
+                candidate.workflow_id === run.workflow_id &&
+                candidate.event === 'pull_request' &&
+                candidate.head_sha === expectedHeadSha &&
+                candidate.head_repository?.full_name === expectedRepository &&
+                candidate.pull_requests?.some((pull) => pull.number === pullNumber),
+              )
+              .reduce(
+                (latest, candidate) => (!latest || candidate.id > latest.id ? candidate : latest),
+                undefined,
+              );
+            const publicInputs = artifacts.filter(
+              (artifact) =>
+                !artifact.expired && artifact.name === `playwright-public-input-${expectedRunAttempt}`,
+            );
+            if (
+              run.name !== 'Playwright Tests' ||
+              run.path !== expectedWorkflowPath ||
+              run.workflow_id !== trustedWorkflow.id ||
+              trustedWorkflow.path !== expectedWorkflowPath ||
+              trustedWorkflow.state !== 'active' ||
+              run.event !== 'pull_request' ||
+              !['success', 'failure'].includes(run.conclusion) ||
+              run.head_repository?.full_name !== expectedRepository ||
+              run.head_sha !== expectedHeadSha ||
+              run.run_attempt !== expectedRunAttempt ||
+              run.pull_requests?.length !== 1 ||
+              run.pull_requests[0]?.number !== pullNumber ||
+              pullRequest.state !== 'open' ||
+              pullRequest.base.ref !== 'develop' ||
+              pullRequest.head.sha !== expectedHeadSha ||
+              pullRequest.head.repo?.full_name !== expectedRepository ||
+              liveRun.status !== 'completed' ||
+              liveRun.workflow_id !== trustedWorkflow.id ||
+              liveRun.path !== expectedWorkflowPath ||
+              liveRun.conclusion !== run.conclusion ||
+              liveRun.head_sha !== expectedHeadSha ||
+              liveRun.run_attempt !== expectedRunAttempt ||
+              latestSourceRun?.id !== run.id ||
+              latestSourceRun.run_attempt !== expectedRunAttempt ||
+              publicInputs.length !== 1 ||
+              publicInputs[0].size_in_bytes <= 0 ||
+              publicInputs[0].size_in_bytes > 10 * 1024 * 1024
+            ) {
+              core.setFailed('Playwright source changed before publication credentials were enabled.');
+            }
+      - name: Checkout E2E hosting pages
+        env:
+          HOSTING_PAGES_TOKEN: ${{ secrets.REPORT_PUBLISHER_HOSTING_PAGES_TOKEN }}
+        run: |
+          git clone --depth 1 --single-branch \
+            "https://x-access-token:${HOSTING_PAGES_TOKEN}@github.com/yn1323/hosting-pages.git" \
+            hosting-pages
+      - name: Revalidate Playwright source before publish
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.validate-source.outputs.head_sha }}
+          EXPECTED_PULL_NUMBER: ${{ needs.validate-source.outputs.pull_number }}
+          EXPECTED_RUN_ATTEMPT: ${{ needs.validate-source.outputs.run_attempt }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const run = context.payload.workflow_run;
+            const expectedRepository = `${context.repo.owner}/${context.repo.repo}`;
+            const expectedWorkflowPath = '.github/workflows/playwright.yml';
+            const expectedHeadSha = process.env.EXPECTED_HEAD_SHA ?? '';
+            const pullNumber = Number(process.env.EXPECTED_PULL_NUMBER ?? '');
+            const expectedRunAttempt = Number(process.env.EXPECTED_RUN_ATTEMPT ?? '');
+            const [{ data: trustedWorkflow }, { data: pullRequest }, { data: liveRun }, sourceRuns] = await Promise.all([
+              github.rest.actions.getWorkflow({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'playwright.yml',
+              }),
+              github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pullNumber,
+              }),
+              github.rest.actions.getWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: run.id,
+              }),
+              github.paginate(github.rest.actions.listWorkflowRunsForWorkflow, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: run.workflow_id,
+                event: 'pull_request',
+                head_sha: expectedHeadSha,
+                per_page: 100,
+              }),
+            ]);
+            const latestSourceRun = sourceRuns
+              .filter((candidate) =>
+                candidate.name === 'Playwright Tests' &&
+                candidate.workflow_id === run.workflow_id &&
+                candidate.event === 'pull_request' &&
+                candidate.head_sha === expectedHeadSha &&
+                candidate.head_repository?.full_name === expectedRepository &&
+                candidate.pull_requests?.some((pull) => pull.number === pullNumber),
+              )
+              .reduce(
+                (latest, candidate) => (!latest || candidate.id > latest.id ? candidate : latest),
+                undefined,
+              );
+            if (
+              run.name !== 'Playwright Tests' ||
+              run.path !== expectedWorkflowPath ||
+              run.workflow_id !== trustedWorkflow.id ||
+              trustedWorkflow.path !== expectedWorkflowPath ||
+              trustedWorkflow.state !== 'active' ||
+              run.event !== 'pull_request' ||
+              !['success', 'failure'].includes(run.conclusion) ||
+              run.head_repository?.full_name !== expectedRepository ||
+              run.head_sha !== expectedHeadSha ||
+              run.run_attempt !== expectedRunAttempt ||
+              run.pull_requests?.length !== 1 ||
+              run.pull_requests[0]?.number !== pullNumber ||
+              pullRequest.state !== 'open' ||
+              pullRequest.base.ref !== 'develop' ||
+              pullRequest.head.sha !== expectedHeadSha ||
+              pullRequest.head.repo?.full_name !== expectedRepository ||
+              liveRun.status !== 'completed' ||
+              liveRun.workflow_id !== trustedWorkflow.id ||
+              liveRun.path !== expectedWorkflowPath ||
+              liveRun.conclusion !== run.conclusion ||
+              liveRun.head_sha !== expectedHeadSha ||
+              liveRun.run_attempt !== expectedRunAttempt ||
+              latestSourceRun?.id !== run.id ||
+              latestSourceRun.run_attempt !== expectedRunAttempt
+            ) {
+              core.setFailed('Playwright source changed immediately before report publication.');
+            }
+      - name: Publish trusted Playwright report
+        env:
+          HEAD_SHA: ${{ needs.validate-source.outputs.head_sha }}
+          PR_NUMBER: ${{ needs.validate-source.outputs.pull_number }}
+          PUBLISH_RUN_ATTEMPT: ${{ github.run_attempt }}
+          PUBLISH_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || ! [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Unexpected Playwright report destination."
+            exit 1
+          fi
+          REPORT_TARGET="hosting-pages/${E2E_REPORT_DIR}/pr-${PR_NUMBER}"
+          rm -rf "$REPORT_TARGET"
+          mkdir -p "$REPORT_TARGET"
+          cp -R playwright-public-report/. "$REPORT_TARGET/"
+          echo "${PUBLISH_RUN_ID}-${PUBLISH_RUN_ATTEMPT}" > "$REPORT_TARGET/deploy-marker-${PUBLISH_RUN_ID}-${PUBLISH_RUN_ATTEMPT}.txt"
+
+          cd hosting-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -- "${E2E_REPORT_DIR}/pr-${PR_NUMBER}"
+          git commit -m "E2E report for PR #${PR_NUMBER} at ${HEAD_SHA}"
+          bash "$GITHUB_WORKSPACE/scripts/pushHostingPagesWithRetry.sh"
+      - name: Wait for trusted Playwright report deploy
+        id: wait-deploy
+        env:
+          REPORT_URL: ${{ needs.validate-source.outputs.report_url }}
+          PUBLISH_RUN_ATTEMPT: ${{ github.run_attempt }}
+          PUBLISH_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          MARKER_URL="${REPORT_URL}deploy-marker-${PUBLISH_RUN_ID}-${PUBLISH_RUN_ATTEMPT}.txt"
+          for i in $(seq 1 90); do
+            if curl --fail --silent --show-error --output /dev/null "${MARKER_URL}?t=$(date +%s)"; then
+              echo "deploy_status=success" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::Trusted Playwright report deploy could not be confirmed within 15 minutes."
+          exit 1
+
+  comment:
+    needs: [validate-source, publish]
+    if: |
+      always() &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      !startsWith(github.event.workflow_run.head_branch, 'renovate/')
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Download trusted Playwright report for comment
+        if: ${{ needs.publish.outputs.report_ready == 'true' }}
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: trusted-playwright-public-report
+          path: trusted-playwright-public-report
+      - name: Comment PR with trusted Playwright result
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          VALIDATION_RESULT: ${{ needs.validate-source.result }}
+          SHOULD_PUBLISH: ${{ needs.validate-source.outputs.should_publish }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+          REPORT_DEPLOYED: ${{ needs.publish.outputs.report_deployed }}
+          PUBLISH_RUN_ATTEMPT: ${{ github.run_attempt }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const fs = require('node:fs');
+            const marker = '<!-- shiftori-playwright-report:v1 -->';
+            const heading = '## Playwright Test Report';
+            const otherMarker = '<!-- shiftori-vrt-report:v1 -->';
+            const otherHeading = '## VRT Report';
+            const run = context.payload.workflow_run;
+            const expectedRepository = `${context.repo.owner}/${context.repo.repo}`;
+            const expectedWorkflowPath = '.github/workflows/playwright.yml';
+            const issueNumber = run.pull_requests?.[0]?.number;
+            const allowedConclusions = new Set([
+              'success',
+              'failure',
+              'cancelled',
+              'timed_out',
+              'action_required',
+              'skipped',
+              'neutral',
+              'stale',
+              'startup_failure',
+            ]);
+            if (
+              run.name !== 'Playwright Tests' ||
+              run.path !== expectedWorkflowPath ||
+              run.event !== 'pull_request' ||
+              run.head_repository?.full_name !== expectedRepository ||
+              !allowedConclusions.has(run.conclusion) ||
+              !Number.isSafeInteger(run.id) ||
+              run.id <= 0 ||
+              !Number.isSafeInteger(run.workflow_id) ||
+              run.workflow_id <= 0 ||
+              !Number.isSafeInteger(run.run_attempt) ||
+              run.run_attempt <= 0 ||
+              !/^[0-9a-f]{40}$/.test(run.head_sha ?? '') ||
+              run.pull_requests?.length !== 1 ||
+              !Number.isSafeInteger(issueNumber) ||
+              issueNumber <= 0
+            ) {
+              core.setFailed('Playwright comment source metadata is invalid.');
+              return;
+            }
+
+            const loadCurrentSource = async () => {
+              const [{ data: trustedWorkflow }, { data: pullRequest }, { data: liveRun }, sourceRuns] = await Promise.all([
+                github.rest.actions.getWorkflow({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  workflow_id: 'playwright.yml',
+                }),
+                github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: issueNumber,
+                }),
+                github.rest.actions.getWorkflowRun({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  run_id: run.id,
+                }),
+                github.paginate(github.rest.actions.listWorkflowRunsForWorkflow, {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  workflow_id: run.workflow_id,
+                  event: 'pull_request',
+                  head_sha: run.head_sha,
+                  per_page: 100,
+                }),
+              ]);
+              const latestSourceRun = sourceRuns
+                .filter((candidate) =>
+                  Number.isSafeInteger(candidate.id) &&
+                  candidate.id > 0 &&
+                  candidate.name === run.name &&
+                  candidate.workflow_id === run.workflow_id &&
+                  candidate.event === 'pull_request' &&
+                  candidate.head_sha === run.head_sha &&
+                  candidate.head_repository?.full_name === expectedRepository &&
+                  candidate.pull_requests?.some((pull) => pull.number === issueNumber),
+                )
+                .reduce(
+                  (latest, candidate) => (!latest || candidate.id > latest.id ? candidate : latest),
+                  undefined,
+                );
+              return { trustedWorkflow, pullRequest, liveRun, latestSourceRun };
+            };
+            const isCurrentSource = ({ trustedWorkflow, pullRequest, liveRun, latestSourceRun }) =>
+              trustedWorkflow.id === run.workflow_id &&
+              trustedWorkflow.path === expectedWorkflowPath &&
+              trustedWorkflow.state === 'active' &&
+              pullRequest.state === 'open' &&
+              pullRequest.base.ref === 'develop' &&
+              pullRequest.head.sha === run.head_sha &&
+              pullRequest.head.repo?.full_name === expectedRepository &&
+              liveRun.name === run.name &&
+              liveRun.workflow_id === run.workflow_id &&
+              liveRun.path === expectedWorkflowPath &&
+              liveRun.event === run.event &&
+              liveRun.status === 'completed' &&
+              liveRun.conclusion === run.conclusion &&
+              liveRun.head_sha === run.head_sha &&
+              liveRun.run_attempt === run.run_attempt &&
+              latestSourceRun?.id === run.id &&
+              latestSourceRun.run_attempt === run.run_attempt;
+
+            if (!isCurrentSource(await loadCurrentSource())) {
+              core.notice('Skipping a stale, closed, or superseded Playwright result comment.');
+              return;
+            }
+
+            const validationResult = process.env.VALIDATION_RESULT ?? '';
+            const shouldPublish = process.env.SHOULD_PUBLISH === 'true';
+            const publishResult = process.env.PUBLISH_RESULT ?? '';
+            const reportDeployed = process.env.REPORT_DEPLOYED === 'true';
+            const publishRunAttempt = Number(process.env.PUBLISH_RUN_ATTEMPT ?? '');
+            if (
+              !['success', 'failure', 'cancelled', 'skipped'].includes(validationResult) ||
+              !['success', 'failure', 'cancelled', 'skipped'].includes(publishResult) ||
+              !Number.isSafeInteger(publishRunAttempt) ||
+              publishRunAttempt <= 0
+            ) {
+              core.setFailed('Playwright publisher job metadata is invalid.');
+              return;
+            }
+
+            let report;
+            let reportError;
+            const reportPath = 'trusted-playwright-public-report/report.json';
+            if (fs.existsSync(reportPath)) {
+              try {
+                report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+                const summary = report.summary;
+                if (
+                  report.schemaVersion !== 1 ||
+                  !['success', 'failure'].includes(report.result) ||
+                  report.pullRequest?.number !== issueNumber ||
+                  report.pullRequest?.headSha !== run.head_sha ||
+                  report.source?.runId !== run.id ||
+                  report.source?.runAttempt !== run.run_attempt ||
+                  report.source?.actionsUrl !== `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${run.id}` ||
+                  report.e2eDeployment !== `preview/pr-${issueNumber}-e2e` ||
+                  report.previewUrl !== `https://pr-${issueNumber}.dev-yps-crispy-carnival.pages.dev/` ||
+                  !summary ||
+                  !['total', 'passed', 'failed', 'flaky', 'skipped'].every(
+                    (key) => Number.isSafeInteger(summary[key]) && summary[key] >= 0,
+                  ) ||
+                  summary.total !== summary.passed + summary.failed + summary.flaky + summary.skipped ||
+                  !Array.isArray(report.tests) ||
+                  report.tests.length !== summary.total
+                ) {
+                  throw new Error('Trusted Playwright report does not match the source workflow.');
+                }
+              } catch (error) {
+                report = undefined;
+                reportError = error instanceof Error ? error.message : 'Trusted Playwright report is invalid.';
+                core.error(reportError);
+              }
+            }
+
+            const publicationSucceeded =
+              shouldPublish &&
+              publishResult === 'success' &&
+              reportDeployed &&
+              Boolean(report) &&
+              !reportError;
+            const conclusionLabels = {
+              success: 'Passed',
+              failure: 'Failed',
+              cancelled: 'Cancelled',
+              timed_out: 'Timed out',
+              action_required: 'Action required',
+              skipped: 'Skipped',
+              neutral: 'Neutral',
+              stale: 'Stale',
+              startup_failure: 'Startup failure',
+            };
+            let status = conclusionLabels[run.conclusion] ?? `Completed (${run.conclusion})`;
+            if (validationResult !== 'success') {
+              status = `Publisher validation failed (${validationResult})`;
+            } else if (shouldPublish && !publicationSucceeded) {
+              status = `Failed (report publish ${publishResult || 'unknown'})`;
+            }
+
+            const summary = report?.summary;
+            const passed = summary?.passed ?? 'unknown';
+            const failed = summary?.failed ?? 'unknown';
+            const flaky = summary?.flaky ?? 'unknown';
+            const skipped = summary?.skipped ?? 'unknown';
+            const plannedReportUrl =
+              `https://yn1323.github.io/hosting-pages/${process.env.E2E_REPORT_DIR}/pr-${issueNumber}/`;
+            const reportUrl = publicationSucceeded
+              ? `${plannedReportUrl}?v=${context.runId}-${publishRunAttempt}`
+              : plannedReportUrl;
+            const reportLabel = publicationSucceeded
+              ? 'Playwrightレポートを見る'
+              : 'hosting-pagesの予定URLを開く（今回未公開の場合あり）';
+            const sourceActionsUrl =
+              `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${run.id}`;
+            const previewUrl =
+              `https://pr-${issueNumber}.dev-yps-crispy-carnival.pages.dev/`;
+            const escapeCell = (value) =>
+              String(value)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('|', '&#124;')
+                .replace(/[\r\n]+/g, ' ');
+            const icons = {
+              expected: '✅',
+              unexpected: '❌',
+              flaky: '⚠️',
+              skipped: '⏭️',
+            };
+            const testRows = Array.isArray(report?.tests)
+              ? report.tests.map((test) => {
+                  const icon = icons[test.status] ?? '❔';
+                  return `| ${icon} | ${escapeCell(test.title)} | ${escapeCell(test.project)} |`;
+                })
+              : [];
+            const failedTests = Array.isArray(report?.tests)
+              ? report.tests.filter((test) => test.status === 'unexpected')
+              : [];
+            const failedRows = failedTests
+                  .slice(0, 20)
+                  .map(
+                    (test) =>
+                      `| ❌ | ${escapeCell(test.title)} | ${escapeCell(test.project)} |`,
+                  );
+            const details = [];
+            if (failedRows.length > 0) {
+              details.push(
+                '',
+                failedTests.length > failedRows.length
+                  ? `### 失敗したテスト（先頭${failedRows.length}件 / 全${failedTests.length}件）`
+                  : '### 失敗したテスト',
+                '',
+                '| Status | Test | Project |',
+                '|---|---|---|',
+                ...failedRows,
+              );
+            }
+            if (testRows.length > 0) {
+              const visibleRows = testRows.slice(0, 50);
+              details.push(
+                '',
+                '<details>',
+                testRows.length > visibleRows.length
+                  ? `<summary>テスト結果の先頭${visibleRows.length}件を表示（全${testRows.length}件）</summary>`
+                  : '<summary>すべてのテスト結果を表示</summary>',
+                '',
+                '| Status | Test | Project |',
+                '|---|---|---|',
+                ...visibleRows,
+                ...(testRows.length > visibleRows.length
+                  ? [`| … | 残り ${testRows.length - visibleRows.length} 件はhosting-pagesレポートで確認 | |`]
+                  : []),
+                '',
+                '</details>',
+              );
+            }
+
+            const stateMarker =
+              `<!-- shiftori-playwright-state:${run.head_sha}:${run.id}:${run.run_attempt} -->`;
+            const body = [
+              marker,
+              stateMarker,
+              heading,
+              '',
+              `Status: ${status}`,
+              `Results: Passed ${passed} / Failed ${failed} / Flaky ${flaky} / Skipped ${skipped}`,
+              '',
+              '| Action | Link |',
+              '|---|---|',
+              `| レポート確認 | [${reportLabel}](${reportUrl}) |`,
+              '',
+              'Details:',
+              'デプロイ先: [yn1323/hosting-pages:main](https://github.com/yn1323/hosting-pages/commits/main/)',
+              `E2E環境: Convex ${report?.e2eDeployment ?? `preview/pr-${issueNumber}-e2e`}`,
+              `実行結果・非公開artifact: [E2E Actionsを見る](${sourceActionsUrl})`,
+              `PR Preview（参考）: [Cloudflare Previewを開く](${previewUrl})`,
+              'hosting-pagesにはテスト名・結果・所要時間だけを含むサニタイズ済みレポートを公開します。',
+              'trace・動画・スクリーンショットはActionsの非公開artifactだけに保存します。',
+              ...details,
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              per_page: 100,
+            });
+            const botComments = [...comments].reverse().filter(
+              (comment) => comment.user?.login === 'github-actions[bot]',
+            );
+            const markedComment = botComments.find((comment) => comment.body?.includes(marker));
+            const legacyReportUrls = [
+              plannedReportUrl,
+              `https://yn1323.github.io/hosting-pages/yps-crispy-carnival/${issueNumber}/`,
+            ];
+            const legacyCandidates = botComments.filter((comment) => {
+              const commentBody = comment.body?.trimStart() ?? '';
+              return (
+                commentBody.startsWith(`${heading}\n`) &&
+                commentBody.includes('\nStatus: ') &&
+                commentBody.includes('\n| Action | Link |\n') &&
+                legacyReportUrls.some((url) => commentBody.includes(url)) &&
+                !commentBody.includes(otherMarker) &&
+                !commentBody.includes(otherHeading)
+              );
+            });
+            const existing =
+              markedComment ?? (legacyCandidates.length === 1 ? legacyCandidates[0] : undefined);
+            const existingState = existing?.body?.match(
+              /<!-- shiftori-playwright-state:([0-9a-f]{40}):([1-9][0-9]*):([1-9][0-9]*) -->/,
+            );
+            if (existingState?.[1] === run.head_sha) {
+              const existingRunId = BigInt(existingState[2]);
+              const existingAttempt = BigInt(existingState[3]);
+              if (
+                existingRunId > BigInt(run.id) ||
+                (existingRunId === BigInt(run.id) && existingAttempt > BigInt(run.run_attempt))
+              ) {
+                core.notice('Skipping an older Playwright result comment update.');
+                return;
+              }
+            }
+
+            if (!isCurrentSource(await loadCurrentSource())) {
+              core.notice('Skipping Playwright result comment after the source changed.');
+              return;
+            }
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body,
+              });
+            }
+            if (reportError) core.setFailed(reportError);

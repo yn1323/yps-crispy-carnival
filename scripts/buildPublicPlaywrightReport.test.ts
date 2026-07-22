@@ -136,6 +136,7 @@ describe("public Playwright report builder", () => {
       "result",
       "pullRequest",
       "source",
+      "e2eDeployment",
       "previewUrl",
       "summary",
       "tests",
@@ -149,6 +150,7 @@ describe("public Playwright report builder", () => {
         runAttempt: 2,
         actionsUrl: "https://github.com/yn1323/yps-crispy-carnival/actions/runs/29900000000",
       },
+      e2eDeployment: "preview/pr-705-e2e",
       previewUrl: "https://a1b2c3d4.dev-yps-crispy-carnival.pages.dev/",
       summary: { total: 2, passed: 1, failed: 1, flaky: 0, skipped: 0, durationMs: 250 },
     });
@@ -188,6 +190,8 @@ describe("public Playwright report builder", () => {
     const html = readFileSync(path.join(outputPath, "index.html"), "utf8");
     expect(html).toContain("&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;");
     expect(html).toContain("chromium &amp; mobile");
+    expect(html).toContain("E2E execution environment: <code>Convex preview/pr-705-e2e</code>");
+    expect(html).toContain(">Cloudflare PR Preview (reference)</a>");
     expect(html).not.toContain("<script");
     expect(html).not.toContain("super-secret");
     expect(html).not.toContain("trace.zip");

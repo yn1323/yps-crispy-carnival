@@ -13,9 +13,6 @@ permissions:
   contents: read
   pull-requests: read
 
-env:
-  E2E_REPORT_DIR: yps-crispy-carnival-e2e
-
 jobs:
   test:
     if: |
@@ -25,9 +22,6 @@ jobs:
     timeout-minutes: 75
     runs-on: ubuntu-latest
     environment: Preview
-    outputs:
-      report_deployed: ${{ steps.wait-deploy.outputs.deploy_status == 'success' }}
-      report_artifact_uploaded: ${{ steps.playwright-report-artifact.outcome == 'success' }}
     env:
       CONVEX_PREVIEW_NAME: pr-${{ github.event.pull_request.number }}-e2e
     steps:
@@ -103,6 +97,25 @@ jobs:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
           E2E_TESTING_ENABLED: "true"
           NOTIFICATION_DELIVERY_MODE: dry-run
+      - name: Verify Playwright public report input
+        id: public-input-safety
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: |
+          mkdir -p playwright-public-input
+          cp test-results.json playwright-public-input/test-results.json
+          node scripts/assertStaticArtifactSafety.mjs \
+            --profile playwright-public-input \
+            --root playwright-public-input
+          node scripts/assertPlaywrightArtifactSafety.mjs \
+            playwright-public-input/test-results.json
+          node scripts/assertNoSensitiveArtifacts.mjs \
+            --root playwright-public-input
+        env:
+          E2E_CLERK_USERS: ${{ vars.E2E_CLERK_USERS }}
+          E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD || vars.E2E_CLERK_PASSWORD }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       - name: Verify Playwright artifact safety
         id: artifact-safety
         if: ${{ !cancelled() }}
@@ -134,250 +147,49 @@ jobs:
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
           E2E_CLERK_USERS: ${{ vars.E2E_CLERK_USERS }}
-      - name: Resolve public E2E result
-        id: public-result
-        if: ${{ !cancelled() }}
-        env:
-          PLAYWRIGHT_RESULT: ${{ steps.playwright.outcome }}
-          RESULT_GATE_RESULT: ${{ steps.result-gate.outcome }}
-          BACKEND_AUDIT_RESULT: ${{ steps.backend-audit.outcome }}
-        run: |
-          if [ "$PLAYWRIGHT_RESULT" = "success" ] && \
-            [ "$RESULT_GATE_RESULT" = "success" ] && \
-            [ "$BACKEND_AUDIT_RESULT" = "success" ]; then
-            echo "result=success" >> "$GITHUB_OUTPUT"
-          else
-            echo "result=failure" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Build sanitized public E2E report
-        id: public-report
-        if: |
-          !cancelled() &&
-          (steps.playwright.outcome == 'success' || steps.playwright.outcome == 'failure')
-        env:
-          ACTIONS_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PLAYWRIGHT_RESULT: ${{ steps.public-result.outputs.result }}
-          PREVIEW_URL: https://pr-${{ github.event.pull_request.number }}.dev-yps-crispy-carnival.pages.dev/
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          RUN_ATTEMPT: ${{ github.run_attempt }}
-          RUN_ID: ${{ github.run_id }}
-        run: |
-          node scripts/buildPublicPlaywrightReport.mjs \
-            --input test-results.json \
-            --output public-playwright-report \
-            --result "$PLAYWRIGHT_RESULT" \
-            --pull-number "$PR_NUMBER" \
-            --head-sha "$HEAD_SHA" \
-            --source-run-id "$RUN_ID" \
-            --source-run-attempt "$RUN_ATTEMPT" \
-            --actions-url "$ACTIONS_URL" \
-            --preview-url "$PREVIEW_URL"
-      - name: Validate sanitized public E2E report
-        id: public-report-safety
-        if: ${{ !cancelled() && steps.public-report.outcome == 'success' }}
-        run: |
-          node scripts/assertStaticArtifactSafety.mjs --profile playwright-public-report --root public-playwright-report
-          node scripts/assertNoSensitiveArtifacts.mjs --root public-playwright-report
-      - name: Revalidate PR head before publishing E2E report
-        id: current-head
-        if: ${{ !cancelled() && steps.public-report-safety.outcome == 'success' }}
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
-        env:
-          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      - name: Upload Playwright public report input
+        id: public-input-artifact
+        if: ${{ !cancelled() && steps.public-input-safety.outcome == 'success' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          github-token: ${{ github.token }}
-          script: |
-            const { data: pullRequest } = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.payload.pull_request.number,
-            });
-            const isCurrent =
-              pullRequest.state === 'open' &&
-              pullRequest.head.sha === process.env.EXPECTED_HEAD_SHA &&
-              pullRequest.head.repo?.full_name === `${context.repo.owner}/${context.repo.repo}`;
-            core.setOutput('is_current', isCurrent ? 'true' : 'false');
-            if (!isCurrent) core.notice('Skipping E2E publication for a stale or closed PR head.');
-      - name: Publish sanitized E2E report to hosting-pages
-        id: publish-report
-        if: ${{ !cancelled() && steps.current-head.outputs.is_current == 'true' }}
-        env:
-          HOSTING_PAGES_TOKEN: ${{ secrets.HOSTING_PAGES_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          RUN_ATTEMPT: ${{ github.run_attempt }}
-          RUN_ID: ${{ github.run_id }}
-        run: |
-          set -euo pipefail
-          if ! [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || ! [[ "$EXPECTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error::Unexpected E2E report destination."
-            exit 1
-          fi
-          git clone --depth 1 --single-branch \
-            "https://x-access-token:${HOSTING_PAGES_TOKEN}@github.com/yn1323/hosting-pages.git" \
-            hosting-pages
-          REPORT_TARGET="hosting-pages/${E2E_REPORT_DIR}/pr-${PR_NUMBER}"
-          rm -rf "$REPORT_TARGET"
-          mkdir -p "$REPORT_TARGET"
-          cp -R public-playwright-report/. "$REPORT_TARGET/"
-          echo "${RUN_ID}-${RUN_ATTEMPT}" > "$REPORT_TARGET/deploy-marker-${RUN_ID}-${RUN_ATTEMPT}.txt"
-          cd hosting-pages
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -- "${E2E_REPORT_DIR}/pr-${PR_NUMBER}"
-          git commit -m "E2E report for PR #${PR_NUMBER} at ${EXPECTED_HEAD_SHA}" || exit 0
-          bash "$GITHUB_WORKSPACE/scripts/pushHostingPagesWithRetry.sh"
-      - name: Wait for hosting-pages E2E report
-        id: wait-deploy
-        if: ${{ !cancelled() && steps.publish-report.outcome == 'success' }}
-        env:
-          REPORT_URL: https://yn1323.github.io/hosting-pages/${{ env.E2E_REPORT_DIR }}/pr-${{ github.event.pull_request.number }}/
-          RUN_ATTEMPT: ${{ github.run_attempt }}
-          RUN_ID: ${{ github.run_id }}
-        run: |
-          MARKER_URL="${REPORT_URL}deploy-marker-${RUN_ID}-${RUN_ATTEMPT}.txt"
-          for i in $(seq 1 90); do
-            if curl -sf -o /dev/null "${MARKER_URL}?t=$(date +%s)"; then
-              echo "deploy_status=success" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            sleep 10
-          done
-          echo "deploy_status=timeout" >> "$GITHUB_OUTPUT"
-          echo "::warning::hosting-pages E2E report deploy could not be confirmed within 15 minutes."
+          name: playwright-public-input-${{ github.run_attempt }}
+          path: playwright-public-input/test-results.json
+          if-no-files-found: error
+          retention-days: 1
       - name: Upload private Playwright report
         id: playwright-report-artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: ${{ !cancelled() && steps.artifact-safety.outcome == 'success' }}
         with:
-          name: playwright-report
+          name: playwright-report-${{ github.run_attempt }}
           path: |
             playwright-report/
             test-results.json
             test-results/
+          if-no-files-found: error
           retention-days: 7
       - name: Enforce Full Regression result
         if: ${{ always() && !cancelled() }}
         env:
           PLAYWRIGHT_RESULT: ${{ steps.playwright.outcome }}
+          PUBLIC_INPUT_SAFETY_RESULT: ${{ steps.public-input-safety.outcome }}
           ARTIFACT_SAFETY_RESULT: ${{ steps.artifact-safety.outcome }}
           RESULT_GATE_RESULT: ${{ steps.result-gate.outcome }}
           BACKEND_AUDIT_RESULT: ${{ steps.backend-audit.outcome }}
-          PUBLIC_REPORT_RESULT: ${{ steps.public-report.outcome }}
-          PUBLIC_REPORT_SAFETY_RESULT: ${{ steps.public-report-safety.outcome }}
-          PUBLISH_REPORT_RESULT: ${{ steps.publish-report.outcome }}
-          PUBLIC_RESULT_STEP: ${{ steps.public-result.outcome }}
+          PUBLIC_INPUT_ARTIFACT_RESULT: ${{ steps.public-input-artifact.outcome }}
+          PRIVATE_REPORT_ARTIFACT_RESULT: ${{ steps.playwright-report-artifact.outcome }}
         run: |
           set -euo pipefail
           for RESULT in \
             "$PLAYWRIGHT_RESULT" \
+            "$PUBLIC_INPUT_SAFETY_RESULT" \
             "$ARTIFACT_SAFETY_RESULT" \
             "$RESULT_GATE_RESULT" \
             "$BACKEND_AUDIT_RESULT" \
-            "$PUBLIC_RESULT_STEP" \
-            "$PUBLIC_REPORT_RESULT" \
-            "$PUBLIC_REPORT_SAFETY_RESULT" \
-            "$PUBLISH_REPORT_RESULT"; do
+            "$PUBLIC_INPUT_ARTIFACT_RESULT" \
+            "$PRIVATE_REPORT_ARTIFACT_RESULT"; do
             if [ "$RESULT" != "success" ]; then
-              echo "::error::Full Regression or its report pipeline did not complete successfully: $RESULT"
+              echo "::error::Full Regression or its artifact pipeline did not complete successfully: $RESULT"
               exit 1
             fi
           done
-
-  comment:
-    needs: test
-    if: |
-      always() &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      !startsWith(github.head_ref, 'renovate/') &&
-      github.actor != 'dependabot[bot]'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      issues: write
-      pull-requests: write
-    steps:
-      - name: Comment PR with Playwright result
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
-        env:
-          TEST_RESULT: ${{ needs.test.result }}
-          REPORT_DEPLOYED: ${{ needs.test.outputs.report_deployed }}
-          REPORT_ARTIFACT_UPLOADED: ${{ needs.test.outputs.report_artifact_uploaded }}
-          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          RUN_ATTEMPT: ${{ github.run_attempt }}
-        with:
-          github-token: ${{ github.token }}
-          script: |
-            const marker = '<!-- shiftori-playwright-report:v1 -->';
-            const heading = '## Playwright Test Report';
-            const { owner, repo } = context.repo;
-            const issueNumber = context.payload.pull_request.number;
-            const expectedHeadSha = process.env.EXPECTED_HEAD_SHA ?? '';
-            const { data: pullRequest } = await github.rest.pulls.get({
-              owner,
-              repo,
-              pull_number: issueNumber,
-            });
-            if (
-              pullRequest.state !== 'open' ||
-              pullRequest.head.sha !== expectedHeadSha ||
-              pullRequest.head.repo?.full_name !== `${owner}/${repo}`
-            ) {
-              core.notice('Skipping a stale or closed Playwright result comment.');
-              return;
-            }
-
-            const result = process.env.TEST_RESULT ?? '';
-            const status = result === 'success' ? 'Passed' : `Failed (${result || 'unknown'})`;
-            const reportDeployed = process.env.REPORT_DEPLOYED === 'true';
-            const reportArtifactUploaded = process.env.REPORT_ARTIFACT_UPLOADED === 'true';
-            const actionsUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
-            const reportBaseUrl = `https://yn1323.github.io/hosting-pages/${process.env.E2E_REPORT_DIR}/pr-${issueNumber}/`;
-            const reportUrl = reportDeployed
-              ? `${reportBaseUrl}?v=${context.runId}-${process.env.RUN_ATTEMPT ?? '1'}`
-              : reportBaseUrl;
-            const previewUrl = `https://pr-${issueNumber}.dev-yps-crispy-carnival.pages.dev/`;
-            const reportLabel = reportDeployed
-              ? 'hosting-pagesでE2Eレポートを見る'
-              : 'hosting-pagesのE2Eレポートを開く（未公開の場合あり）';
-            const body = [
-              marker,
-              heading,
-              '',
-              `Status: ${status}`,
-              '',
-              '| Action | Link |',
-              '|---|---|',
-              `| 実行結果 | [Actionsを見る](${actionsUrl}) |`,
-              `| E2Eレポート | [${reportLabel}](${reportUrl}) |`,
-              `| Cloudflare Preview | [PRプレビューを開く](${previewUrl}) |`,
-              ...(reportArtifactUploaded
-                ? [`| 詳細artifact | [Actionsの非公開artifactを見る](${actionsUrl}) |`]
-                : []),
-              '',
-              'Details:',
-              'hosting-pagesにはテスト名・結果・所要時間だけを含むサニタイズ済みレポートを公開します。',
-              'trace・動画・スクリーンショットはActionsの非公開artifactだけに保存します。',
-            ].join('\n');
-
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner,
-              repo,
-              issue_number: issueNumber,
-              per_page: 100,
-            });
-            const botComments = [...comments].reverse().filter(
-              (comment) => comment.user?.login === 'github-actions[bot]',
-            );
-            const markedComment = botComments.find((comment) => comment.body?.includes(marker));
-            const legacyComments = botComments.filter((comment) => {
-              const body = comment.body?.trimStart() ?? '';
-              return body.startsWith(`${heading}\n`) && !body.includes('## VRT Report');
-            });
-            const existing = markedComment ?? (legacyComments.length === 1 ? legacyComments[0] : undefined);
-            if (existing) {
-              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
-            } else {
-              await github.rest.issues.createComment({ owner, repo, issue_number: issueNumber, body });
-            }

@@ -285,6 +285,7 @@ function renderHtml(report) {
     <span class="overall overall-${report.result}">${overallLabel}</span>
   </header>
   <p>Head SHA: <code>${report.pullRequest.headSha}</code> / Workflow run: ${report.source.runId} (attempt ${report.source.runAttempt})</p>
+  <p>E2E execution environment: <code>Convex ${escapeHtml(report.e2eDeployment)}</code></p>
   <div class="summary">
     <div><strong>${report.summary.total}</strong>Total</div>
     <div><strong>${report.summary.passed}</strong>Passed</div>
@@ -294,7 +295,7 @@ function renderHtml(report) {
     <div><strong>${escapeHtml(formatDuration(report.summary.durationMs))}</strong>Duration</div>
   </div>
   <nav class="links" aria-label="Report links">
-    <a href="${escapeHtml(report.previewUrl)}" target="_blank" rel="noreferrer noopener">Preview environment</a>
+    <a href="${escapeHtml(report.previewUrl)}" target="_blank" rel="noreferrer noopener">Cloudflare PR Preview (reference)</a>
     <a href="${escapeHtml(report.source.actionsUrl)}" target="_blank" rel="noreferrer noopener">GitHub Actions</a>
   </nav>
   <div class="table-wrap">
@@ -339,6 +340,7 @@ async function main() {
     result: options["--result"],
     pullRequest: { number: pullNumber, headSha },
     source: { runId: sourceRunId, runAttempt: sourceRunAttempt, actionsUrl },
+    e2eDeployment: `preview/pr-${pullNumber}-e2e`,
     previewUrl,
     summary: summarize(tests),
     tests,

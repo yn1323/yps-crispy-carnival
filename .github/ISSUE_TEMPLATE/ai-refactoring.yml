@@ -55,8 +55,3 @@ body:
       placeholder: "例: 既存のAPIとの互換性を保つ"
     validations:
       required: false
-
-  - type: markdown
-    attributes:
-      value: |
-        **@claude** このリファクタリングを実施してください。
