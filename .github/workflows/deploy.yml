@@ -1,24 +1,300 @@
-name: Deploy Develop
+name: Deploy to Cloudflare Pages
 
 on:
+  pull_request:
+    branches: [develop]
+    types: [opened, synchronize, reopened, closed]
   push:
     branches: [develop]
 
-concurrency:
-  group: deploy-develop-${{ github.sha }}
-  cancel-in-progress: true
-
 permissions:
   contents: read
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('pr-preview-{0}', github.event.pull_request.number) || format('deploy-develop-{0}', github.sha) }}
+  cancel-in-progress: true
 
 jobs:
+  deploy-preview:
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !startsWith(github.head_ref, 'renovate/') &&
+      github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    environment: Preview
+    outputs:
+      deploy_url: ${{ steps.deploy.outputs.DEPLOY_URL }}
+    env:
+      CONVEX_PREVIEW_NAME: pr-${{ github.event.pull_request.number }}-deploy
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Validate current PR head before credentials
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+            });
+            if (
+              pullRequest.state !== 'open' ||
+              pullRequest.head.sha !== process.env.EXPECTED_HEAD_SHA ||
+              pullRequest.head.repo?.full_name !== `${context.repo.owner}/${context.repo.repo}`
+            ) {
+              core.setFailed('PR head changed before Cloudflare Preview credentials were enabled.');
+            }
+      - name: Deploy Convex Preview
+        id: convex
+        run: |
+          npx convex deploy --preview-create "$CONVEX_PREVIEW_NAME" \
+            --cmd 'echo "PREVIEW_URL=$CONVEX_URL" >> "$GITHUB_OUTPUT"' \
+            --cmd-url-env-var-name CONVEX_URL
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+      # NOTE: convex-seeds/seeds/db.zip is currently stale against the schema.
+      # E2E scenarios seed their own data via convex/testing.ts helpers.
+      - name: Build
+        run: pnpm build
+        env:
+          VITE_CONVEX_URL: ${{ steps.convex.outputs.PREVIEW_URL }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          VITE_GTM_ID: ${{ secrets.VITE_GTM_ID }}
+          VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
+      - name: Setup Playwright
+        uses: ./.github/actions/playwright
+      - name: Prerender static routes
+        run: pnpm prerender
+      - name: Revalidate current PR head before Cloudflare publish
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+            });
+            if (
+              pullRequest.state !== 'open' ||
+              pullRequest.head.sha !== process.env.EXPECTED_HEAD_SHA ||
+              pullRequest.head.repo?.full_name !== `${context.repo.owner}/${context.repo.repo}`
+            ) {
+              core.setFailed('PR head changed before Cloudflare Pages publication.');
+            }
+      - name: Deploy PR head to Cloudflare Pages
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          DEPLOY_OUTPUT=$(npx wrangler pages deploy dist \
+            --project-name dev-yps-crispy-carnival \
+            --branch "pr-${PR_NUMBER}" \
+            --commit-hash "$EXPECTED_HEAD_SHA" 2>&1)
+          echo "$DEPLOY_OUTPUT"
+          DEPLOY_URL=$(echo "$DEPLOY_OUTPUT" | grep -oE 'https://[^[:space:]]+\.dev-yps-crispy-carnival\.pages\.dev' | tail -1)
+          if ! [[ "$DEPLOY_URL" =~ ^https://[A-Za-z0-9.-]+\.dev-yps-crispy-carnival\.pages\.dev/?$ ]]; then
+            echo "::error::Cloudflare Pages returned an unexpected deployment URL."
+            exit 1
+          fi
+          echo "DEPLOY_URL=${DEPLOY_URL%/}/" >> "$GITHUB_OUTPUT"
+      - name: Smoke deployed Cloudflare Preview
+        run: pnpm e2e:deployed
+        env:
+          E2E_DEPLOYED_BASE_URL: ${{ steps.deploy.outputs.DEPLOY_URL }}
+
+  comment-preview:
+    needs: deploy-preview
+    if: |
+      always() &&
+      github.event_name == 'pull_request' &&
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !startsWith(github.head_ref, 'renovate/') &&
+      github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Comment PR with Cloudflare Preview
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          DEPLOY_RESULT: ${{ needs.deploy-preview.result }}
+          DEPLOY_URL: ${{ needs.deploy-preview.outputs.deploy_url }}
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const marker = '<!-- shiftori-cloudflare-preview:v1 -->';
+            const heading = '## 🚀 Preview Deploy';
+            const { owner, repo } = context.repo;
+            const issueNumber = context.payload.pull_request.number;
+            const expectedHeadSha = process.env.EXPECTED_HEAD_SHA ?? '';
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: issueNumber,
+            });
+            if (
+              pullRequest.state !== 'open' ||
+              pullRequest.head.sha !== expectedHeadSha ||
+              pullRequest.head.repo?.full_name !== `${owner}/${repo}`
+            ) {
+              core.notice('Skipping a stale or closed Cloudflare Preview comment.');
+              return;
+            }
+
+            const result = process.env.DEPLOY_RESULT ?? '';
+            const status = result === 'success' ? 'Deployed' : `Failed (${result || 'unknown'})`;
+            const stableUrl = `https://pr-${issueNumber}.dev-yps-crispy-carnival.pages.dev/`;
+            const deployUrl = process.env.DEPLOY_URL || stableUrl;
+            const actionsUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const body = [
+              marker,
+              heading,
+              '',
+              `Status: ${status}`,
+              '',
+              '| Action | Link |',
+              '|---|---|',
+              `| Cloudflare Preview | [PRプレビューを開く](${deployUrl}) |`,
+              `| 固定URL | [pr-${issueNumber} の固定URLを開く](${stableUrl}) |`,
+              `| 実行結果 | [Actionsを見る](${actionsUrl}) |`,
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: issueNumber,
+              per_page: 100,
+            });
+            const botComments = [...comments].reverse().filter(
+              (comment) => comment.user?.login === 'github-actions[bot]',
+            );
+            const existing = botComments.find(
+              (comment) => comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker),
+            ) ?? botComments.find((comment) => comment.body?.trimStart().startsWith(`${heading}\n`));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number: issueNumber, body });
+            }
+
+  cleanup-preview:
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    concurrency:
+      group: playwright-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    environment: Preview
+    steps:
+      - name: Validate cleanup target
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          github-token: ""
+          script: |
+            const pull = context.payload.pull_request;
+            if (
+              !pull ||
+              pull.base.ref !== 'develop' ||
+              pull.base.repo.full_name !== `${context.repo.owner}/${context.repo.repo}` ||
+              pull.head.repo?.full_name !== `${context.repo.owner}/${context.repo.repo}` ||
+              !Number.isSafeInteger(pull.number) ||
+              pull.number <= 0
+            ) {
+              core.setFailed('Unexpected PR preview cleanup target.');
+            }
+      - name: Checkout trusted cleanup code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Setup trusted cleanup code
+        uses: ./.github/actions/setup
+      - name: Delete Cloudflare Pages previews
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          BRANCH="pr-${PR_NUMBER}"
+          DEPLOYMENT_IDS=""
+          PAGE=1
+          while true; do
+            RESPONSE=$(curl --fail-with-body --silent --show-error --get \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              --data-urlencode "page=${PAGE}" \
+              --data-urlencode "per_page=100" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/dev-yps-crispy-carnival/deployments")
+            if ! jq -e '.success == true and (.result | type == "array")' >/dev/null <<< "$RESPONSE"; then
+              echo "::error::Cloudflare deployment listing failed."
+              exit 1
+            fi
+            PAGE_IDS=$(jq -r --arg branch "$BRANCH" '.result[] | select(.deployment_trigger.metadata.branch == $branch) | .id' <<< "$RESPONSE")
+            if [ -n "$PAGE_IDS" ]; then
+              DEPLOYMENT_IDS="${DEPLOYMENT_IDS}"$'\n'"${PAGE_IDS}"
+            fi
+            TOTAL_PAGES=$(jq -r '.result_info.total_pages // 1' <<< "$RESPONSE")
+            if ! [[ "$TOTAL_PAGES" =~ ^[1-9][0-9]*$ ]] || [ "$PAGE" -ge "$TOTAL_PAGES" ]; then
+              break
+            fi
+            PAGE=$((PAGE + 1))
+          done
+
+          while IFS= read -r ID; do
+            if [ -z "$ID" ]; then
+              continue
+            fi
+            echo "Deleting deployment $ID"
+            DELETE_RESPONSE=$(curl --fail-with-body --silent --show-error -X DELETE \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/dev-yps-crispy-carnival/deployments/$ID?force=true")
+            if ! jq -e '.success == true' >/dev/null <<< "$DELETE_RESPONSE"; then
+              echo "::error::Cloudflare deployment deletion failed for $ID."
+              exit 1
+            fi
+          done <<< "$DEPLOYMENT_IDS"
+      - name: Delete Convex previews
+        env:
+          CONVEX_MANAGEMENT_TOKEN: ${{ secrets.CONVEX_MANAGEMENT_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          pnpm exec tsx scripts/deleteConvexPreviews.ts \
+            --project-slug dev-yps-crispy-carnival \
+            --names "pr-${PR_NUMBER}-deploy,pr-${PR_NUMBER}-e2e"
+
   deploy-develop:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     environment: Develop
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.sha }}
+          persist-credentials: false
       - name: Setup
         uses: ./.github/actions/setup
       - name: Deploy Convex
@@ -42,16 +318,22 @@ jobs:
         run: pnpm prerender
       - name: Deploy to Cloudflare Pages
         id: deploy
-        run: |
-          DEPLOY_OUTPUT=$(npx wrangler pages deploy dist \
-            --project-name dev-yps-crispy-carnival \
-            --commit-hash "${{ github.sha }}" 2>&1)
-          echo "$DEPLOY_OUTPUT"
-          DEPLOY_URL=$(echo "$DEPLOY_OUTPUT" | grep -oP 'https://[^\s]+\.pages\.dev' | tail -1)
-          echo "DEPLOY_URL=$DEPLOY_URL" >> "$GITHUB_OUTPUT"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          DEPLOY_OUTPUT=$(npx wrangler pages deploy dist \
+            --project-name dev-yps-crispy-carnival \
+            --commit-hash "$COMMIT_SHA" 2>&1)
+          echo "$DEPLOY_OUTPUT"
+          DEPLOY_URL=$(echo "$DEPLOY_OUTPUT" | grep -oE 'https://[^[:space:]]+\.pages\.dev' | tail -1)
+          if [ -z "$DEPLOY_URL" ]; then
+            echo "::error::Cloudflare Pages deployment URL was not found."
+            exit 1
+          fi
+          echo "DEPLOY_URL=${DEPLOY_URL%/}/" >> "$GITHUB_OUTPUT"
       - name: Smoke deployed Cloudflare Develop
         run: pnpm e2e:deployed
         env:

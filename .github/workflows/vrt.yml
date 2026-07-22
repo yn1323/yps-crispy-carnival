@@ -1,4 +1,4 @@
-name: VRT Artifact
+name: vrt
 
 on:
   pull_request:
@@ -23,29 +23,55 @@ env:
 
 jobs:
   prepare:
+    if: |
+      github.event_name == 'push' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+      !startsWith(github.head_ref, 'renovate/') &&
+      github.actor != 'dependabot[bot]')
     runs-on: ubuntu-latest
     outputs:
       pull_number: ${{ steps.destination.outputs.pull_number }}
+      report_key: ${{ steps.destination.outputs.report_key }}
       baseline_ref: ${{ steps.destination.outputs.baseline_ref }}
+      report_url: ${{ steps.destination.outputs.report_url }}
+      should_update_baseline: ${{ steps.destination.outputs.should_update_baseline }}
       should_fail_on_diff: ${{ steps.destination.outputs.should_fail_on_diff }}
     steps:
-      - name: Resolve VRT comparison target
+      - name: Resolve VRT destination
         id: destination
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
+          github-token: ""
           script: |
             const pull = context.payload.pull_request;
             const branch = pull?.head?.ref ?? context.ref.replace('refs/heads/', '');
+            const isBasePush = !pull && ['develop', 'main'].includes(branch);
             const baselineRef = pull?.base?.ref ?? branch;
             if (!['develop', 'main'].includes(baselineRef)) {
               core.setFailed('VRT baseline must be develop or main.');
               return;
             }
+            if (pull && pull.head.repo?.full_name !== `${context.repo.owner}/${context.repo.repo}`) {
+              core.setFailed('Credentialed VRT publication only supports same-repository pull requests.');
+              return;
+            }
+            const reportKey = pull ? `pr-${pull.number}` : `branches/${branch}`;
             core.setOutput('pull_number', pull?.number ?? '');
+            core.setOutput('report_key', reportKey);
             core.setOutput('baseline_ref', baselineRef);
+            core.setOutput('should_update_baseline', isBasePush ? 'true' : 'false');
             core.setOutput('should_fail_on_diff', pull ? 'true' : 'false');
+            core.setOutput(
+              'report_url',
+              `https://yn1323.github.io/hosting-pages/${process.env.VRT_REPORT_DIR}/${reportKey}/`,
+            );
 
   build:
+    if: |
+      github.event_name == 'push' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+      !startsWith(github.head_ref, 'renovate/') &&
+      github.actor != 'dependabot[bot]')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -58,6 +84,11 @@ jobs:
         run: pnpm vrt:build
 
   capture:
+    if: |
+      github.event_name == 'push' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+      !startsWith(github.head_ref, 'renovate/') &&
+      github.actor != 'dependabot[bot]')
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -93,9 +124,20 @@ jobs:
 
   compare:
     needs: [prepare, build, capture]
+    if: |
+      always() &&
+      needs.prepare.result == 'success' &&
+      needs.build.result == 'success' &&
+      needs.capture.result == 'success' &&
+      (github.event_name == 'push' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+      !startsWith(github.head_ref, 'renovate/') &&
+      github.actor != 'dependabot[bot]'))
     runs-on: ubuntu-latest
+    environment: Preview
     outputs:
       has_diff: ${{ steps.diff-check.outputs.has_diff }}
+      report_deployed: ${{ steps.wait-deploy.outputs.deploy_status == 'success' }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -103,8 +145,46 @@ jobs:
           persist-credentials: false
       - name: Setup
         uses: ./.github/actions/setup
-      - name: Read published VRT baseline without credentials
-        run: git clone --depth 1 --single-branch https://github.com/yn1323/hosting-pages.git hosting-pages
+      - name: Validate VRT source before credentials
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_BASELINE_REF: ${{ needs.prepare.outputs.baseline_ref }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const expectedHeadSha = process.env.EXPECTED_HEAD_SHA ?? '';
+            if (context.eventName === 'pull_request') {
+              const { data: pullRequest } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number,
+              });
+              if (
+                pullRequest.state !== 'open' ||
+                pullRequest.base.ref !== process.env.EXPECTED_BASELINE_REF ||
+                pullRequest.head.sha !== expectedHeadSha ||
+                pullRequest.head.repo?.full_name !== `${context.repo.owner}/${context.repo.repo}`
+              ) {
+                core.setFailed('VRT PR head changed before credentials were enabled.');
+              }
+            } else {
+              const { data: branch } = await github.rest.repos.getBranch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                branch: process.env.EXPECTED_BASELINE_REF,
+              });
+              if (branch.commit.sha !== expectedHeadSha) {
+                core.setFailed('VRT branch head changed before credentials were enabled.');
+              }
+            }
+      - name: Checkout VRT Pages
+        env:
+          HOSTING_PAGES_TOKEN: ${{ secrets.HOSTING_PAGES_TOKEN }}
+        run: |
+          git clone --depth 1 --single-branch \
+            "https://x-access-token:${HOSTING_PAGES_TOKEN}@github.com/yn1323/hosting-pages.git" \
+            hosting-pages
       - name: Download VRT screenshot data
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
@@ -115,35 +195,136 @@ jobs:
         run: node scripts/assertStaticArtifactSafety.mjs --profile vrt-screenshots --root vrt-actual
       - name: Prepare RegSuit baseline
         id: baseline
+        env:
+          BASELINE_REF: ${{ needs.prepare.outputs.baseline_ref }}
         run: |
           mkdir -p vrt-work/baseline
-          if [ -d "hosting-pages/${{ env.VRT_BASELINE_DIR }}/${{ needs.prepare.outputs.baseline_ref }}" ]; then
-            cp -R "hosting-pages/${{ env.VRT_BASELINE_DIR }}/${{ needs.prepare.outputs.baseline_ref }}/." vrt-work/baseline/
+          if [ -d "hosting-pages/${VRT_BASELINE_DIR}/${BASELINE_REF}" ]; then
+            cp -R "hosting-pages/${VRT_BASELINE_DIR}/${BASELINE_REF}/." vrt-work/baseline/
             node scripts/assertStaticArtifactSafety.mjs --profile vrt-screenshots --root vrt-work/baseline
             echo "found=true" >> "$GITHUB_OUTPUT"
           else
             echo "found=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Assert VRT baseline
+        env:
+          BASELINE_REF: ${{ needs.prepare.outputs.baseline_ref }}
+          SHOULD_FAIL_ON_DIFF: ${{ needs.prepare.outputs.should_fail_on_diff }}
+          BASELINE_FOUND: ${{ steps.baseline.outputs.found }}
         run: |
-          if [ "${{ needs.prepare.outputs.should_fail_on_diff }}" = "true" ] && [ "${{ steps.baseline.outputs.found }}" != "true" ]; then
-            echo "::error::VRT baseline is required for pull requests targeting ${{ needs.prepare.outputs.baseline_ref }}."
+          if [ "$SHOULD_FAIL_ON_DIFF" = "true" ] && [ "$BASELINE_FOUND" != "true" ]; then
+            echo "::error::VRT baseline is required for pull requests targeting ${BASELINE_REF}."
             exit 1
           fi
-      - name: Build credential-free VRT comparison
-        run: |
-          pnpm exec tsx scripts/prepareRegSuitBaseline.ts
-          pnpm exec reg-suit compare -c regconfig.artifact.json
+      - name: Build VRT report
+        run: pnpm vrt:report
+        env:
+          REG_SUIT_CLIENT_ID: ${{ secrets.REG_SUIT_CLIENT_ID }}
       - name: Assert VRT result
         id: regsuit
         if: ${{ steps.baseline.outputs.found == 'true' }}
         continue-on-error: true
         run: pnpm vrt:assert
+      - name: Validate generated VRT report
+        run: |
+          node scripts/assertStaticArtifactSafety.mjs --profile vrt-report --root vrt-work/reg
+          node scripts/assertNoSensitiveArtifacts.mjs --root vrt-work/reg
+      - name: Revalidate VRT source before publish
+        id: current-source
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_BASELINE_REF: ${{ needs.prepare.outputs.baseline_ref }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const expectedHeadSha = process.env.EXPECTED_HEAD_SHA ?? '';
+            let isCurrent = false;
+            if (context.eventName === 'pull_request') {
+              const { data: pullRequest } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number,
+              });
+              isCurrent =
+                pullRequest.state === 'open' &&
+                pullRequest.base.ref === process.env.EXPECTED_BASELINE_REF &&
+                pullRequest.head.sha === expectedHeadSha &&
+                pullRequest.head.repo?.full_name === `${context.repo.owner}/${context.repo.repo}`;
+            } else {
+              const { data: branch } = await github.rest.repos.getBranch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                branch: process.env.EXPECTED_BASELINE_REF,
+              });
+              isCurrent = branch.commit.sha === expectedHeadSha;
+            }
+            core.setOutput('is_current', isCurrent ? 'true' : 'false');
+            if (!isCurrent) core.setFailed('VRT source is no longer the current PR or branch head.');
+      - name: Publish VRT report and baseline
+        if: ${{ steps.current-source.outputs.is_current == 'true' }}
+        env:
+          REPORT_KEY: ${{ needs.prepare.outputs.report_key }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          SHOULD_UPDATE_BASELINE: ${{ needs.prepare.outputs.should_update_baseline }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$REPORT_KEY" =~ ^(pr-[1-9][0-9]*|branches/(develop|main))$ ]] || ! [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Unexpected VRT report destination."
+            exit 1
+          fi
+
+          REPORT_TARGET="hosting-pages/${VRT_REPORT_DIR}/${REPORT_KEY}"
+          rm -rf "$REPORT_TARGET"
+          mkdir -p "$REPORT_TARGET"
+          cp -R vrt-work/reg/. "$REPORT_TARGET/"
+          echo "${RUN_ID}-${RUN_ATTEMPT}" > "$REPORT_TARGET/deploy-marker-${RUN_ID}-${RUN_ATTEMPT}.txt"
+
+          if [ "$SHOULD_UPDATE_BASELINE" = "true" ]; then
+            BASELINE_REF="${REPORT_KEY#branches/}"
+            BASELINE_TARGET="hosting-pages/${VRT_BASELINE_DIR}/${BASELINE_REF}"
+            rm -rf "$BASELINE_TARGET"
+            mkdir -p "$BASELINE_TARGET"
+            cp -R vrt-actual/. "$BASELINE_TARGET/"
+          fi
+
+          cd hosting-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -- "${VRT_REPORT_DIR}/${REPORT_KEY}"
+          if [ "$SHOULD_UPDATE_BASELINE" = "true" ]; then
+            git add -- "${VRT_BASELINE_DIR}/${REPORT_KEY#branches/}"
+          fi
+          git commit -m "VRT report for ${REPORT_KEY} at ${HEAD_SHA}" || exit 0
+          bash "$GITHUB_WORKSPACE/scripts/pushHostingPagesWithRetry.sh"
+      - name: Wait for hosting-pages VRT report
+        id: wait-deploy
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          REPORT_URL: ${{ needs.prepare.outputs.report_url }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          MARKER_URL="${REPORT_URL}deploy-marker-${RUN_ID}-${RUN_ATTEMPT}.txt"
+          for i in $(seq 1 90); do
+            if curl -sf -o /dev/null "${MARKER_URL}?t=$(date +%s)"; then
+              echo "deploy_status=success" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "deploy_status=timeout" >> "$GITHUB_OUTPUT"
+          echo "::warning::hosting-pages VRT report deploy could not be confirmed within 15 minutes."
       - name: Set diff output
         id: diff-check
-        if: always()
+        if: ${{ always() }}
+        env:
+          BASELINE_FOUND: ${{ steps.baseline.outputs.found }}
+          REG_SUIT_OUTCOME: ${{ steps.regsuit.outcome }}
         run: |
-          if [[ "${{ steps.baseline.outputs.found }}" == "true" && "${{ steps.regsuit.outcome }}" == "failure" ]]; then
+          if [[ "$BASELINE_FOUND" == "true" && "$REG_SUIT_OUTCOME" == "failure" ]]; then
             echo "has_diff=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_diff=false" >> "$GITHUB_OUTPUT"
@@ -159,5 +340,205 @@ jobs:
     environment: vrt-approval
     runs-on: ubuntu-latest
     steps:
-      - name: VRT source diffs approved for merge
-        run: echo "Source VRT differences have been reviewed for the pull request merge gate"
+      - name: VRT diffs approved
+        run: echo "Visual regression diffs have been reviewed and approved"
+
+  comment:
+    needs: [prepare, compare]
+    if: |
+      always() &&
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !startsWith(github.head_ref, 'renovate/') &&
+      github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Comment PR with VRT result
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          COMPARE_RESULT: ${{ needs.compare.result }}
+          HAS_DIFF: ${{ needs.compare.outputs.has_diff }}
+          REPORT_DEPLOYED: ${{ needs.compare.outputs.report_deployed }}
+          REPORT_URL: ${{ needs.prepare.outputs.report_url }}
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const marker = '<!-- shiftori-vrt-report:v1 -->';
+            const heading = '## VRT Report';
+            const { owner, repo } = context.repo;
+            const issueNumber = context.payload.pull_request.number;
+            const expectedHeadSha = process.env.EXPECTED_HEAD_SHA ?? '';
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: issueNumber,
+            });
+            if (
+              pullRequest.state !== 'open' ||
+              pullRequest.head.sha !== expectedHeadSha ||
+              pullRequest.head.repo?.full_name !== `${owner}/${repo}`
+            ) {
+              core.notice('Skipping a stale or closed VRT result comment.');
+              return;
+            }
+
+            const compareResult = process.env.COMPARE_RESULT ?? '';
+            const hasDiff = process.env.HAS_DIFF === 'true';
+            const requiresApproval = compareResult === 'success' && hasDiff;
+            const reportDeployed = process.env.REPORT_DEPLOYED === 'true';
+            const runAttempt = process.env.RUN_ATTEMPT ?? '1';
+            const plannedReportUrl = `https://yn1323.github.io/hosting-pages/${process.env.VRT_REPORT_DIR}/pr-${issueNumber}/`;
+            const reportUrl = process.env.REPORT_URL === plannedReportUrl
+              ? (reportDeployed ? `${plannedReportUrl}?v=${context.runId}-${runAttempt}` : plannedReportUrl)
+              : plannedReportUrl;
+            const status = compareResult !== 'success'
+              ? `Failed (${compareResult || 'unknown'})`
+              : requiresApproval
+                ? '差分あり（承認待ち）'
+                : 'Passed';
+            const reportLabel = reportDeployed
+              ? 'hosting-pagesで差分レポートを見る'
+              : 'hosting-pagesの差分レポートを開く（未公開の場合あり）';
+            const actionsUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            let approvalUrl = actionsUrl;
+            if (requiresApproval) {
+              const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+                owner,
+                repo,
+                run_id: context.runId,
+                per_page: 100,
+              });
+              const approvalJob = jobs.find((job) => job.name === 'approve' || job.name.startsWith('approve '));
+              if (approvalJob?.html_url) approvalUrl = approvalJob.html_url;
+            }
+            const body = [
+              marker,
+              heading,
+              '',
+              `Status: ${status}`,
+              '',
+              '| Action | Link |',
+              '|---|---|',
+              `| 差分確認 | [${reportLabel}](${reportUrl}) |`,
+              `| 実行結果 | [Actionsを見る](${actionsUrl}) |`,
+              ...(requiresApproval ? [`| 承認フロー | [VRT差分を確認・承認する](${approvalUrl}) |`] : []),
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: issueNumber,
+              per_page: 100,
+            });
+            const botComments = [...comments].reverse().filter(
+              (comment) => comment.user?.login === 'github-actions[bot]',
+            );
+            const markedComment = botComments.find((comment) => comment.body?.includes(marker));
+            const legacyComments = botComments.filter((comment) => {
+              const body = comment.body?.trimStart() ?? '';
+              return body.startsWith(`${heading}\n`) && !body.includes('## Playwright Test Report');
+            });
+            const existing = markedComment ?? (legacyComments.length === 1 ? legacyComments[0] : undefined);
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number: issueNumber, body });
+            }
+
+  comment-after-approval:
+    needs: [prepare, compare, approve, comment]
+    if: |
+      always() &&
+      github.event_name == 'pull_request' &&
+      needs.approve.result == 'success' &&
+      needs.comment.result == 'success' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !startsWith(github.head_ref, 'renovate/') &&
+      github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Mark VRT comment as approved
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPORT_DEPLOYED: ${{ needs.compare.outputs.report_deployed }}
+          REPORT_URL: ${{ needs.prepare.outputs.report_url }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const marker = '<!-- shiftori-vrt-report:v1 -->';
+            const heading = '## VRT Report';
+            const { owner, repo } = context.repo;
+            const issueNumber = context.payload.pull_request.number;
+            const expectedHeadSha = process.env.EXPECTED_HEAD_SHA ?? '';
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: issueNumber,
+            });
+            if (
+              pullRequest.state !== 'open' ||
+              pullRequest.head.sha !== expectedHeadSha ||
+              pullRequest.head.repo?.full_name !== `${owner}/${repo}`
+            ) {
+              core.notice('Skipping an approved VRT comment for a stale or closed PR head.');
+              return;
+            }
+
+            const reportDeployed = process.env.REPORT_DEPLOYED === 'true';
+            const reportBaseUrl = `https://yn1323.github.io/hosting-pages/${process.env.VRT_REPORT_DIR}/pr-${issueNumber}/`;
+            const reportUrl = process.env.REPORT_URL === reportBaseUrl && reportDeployed
+              ? `${reportBaseUrl}?v=${context.runId}-${process.env.RUN_ATTEMPT ?? '1'}`
+              : reportBaseUrl;
+            const reportLabel = reportDeployed
+              ? 'hosting-pagesで差分レポートを見る'
+              : 'hosting-pagesの差分レポートを開く（未公開の場合あり）';
+            const actionsUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+              owner,
+              repo,
+              run_id: context.runId,
+              per_page: 100,
+            });
+            const approvalJob = jobs.find((job) => job.name === 'approve' || job.name.startsWith('approve '));
+            const approvalUrl = approvalJob?.html_url ?? actionsUrl;
+            const body = [
+              marker,
+              heading,
+              '',
+              'Status: 差分あり（承認済み）',
+              '',
+              '| Action | Link |',
+              '|---|---|',
+              `| 差分確認 | [${reportLabel}](${reportUrl}) |`,
+              `| 実行結果 | [Actionsを見る](${actionsUrl}) |`,
+              `| 承認履歴 | [承認済みjobを見る](${approvalUrl}) |`,
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: issueNumber,
+              per_page: 100,
+            });
+            const existing = [...comments].reverse().find(
+              (comment) => comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker),
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number: issueNumber, body });
+            }

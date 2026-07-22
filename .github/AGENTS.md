@@ -60,7 +60,7 @@ contact-slack: PASS
 
 2プロジェクト体制:
 - `yps-crispy-carnival` — 本番DB
-- `dev-yps-crispy-carnival` — 開発DB（永続） + develop merge後のFull Regression用preview（数日で自動消滅）
+- `dev-yps-crispy-carnival` — 開発DB（永続） + PR Full Regression用preview（数日で自動消滅）
 
 ### Clerk
 
@@ -72,36 +72,27 @@ contact-slack: PASS
 
 シークレットはGitHub Environmentsで環境別に管理する。同じキー名で環境ごとに異なる値を設定。
 
-### Preview 環境（trusted publisher、develop Full Regressionで使用）
+### Preview 環境（same-repository PRのPreview / Full Regressionで使用）
 
 | シークレット | 用途 |
 |---|---|
 | `CONVEX_DEPLOY_KEY` | dev Convexプロジェクトのデプロイキー |
-| `CONVEX_MANAGEMENT_TOKEN` | `cleanup-pr-preview.yml`が旧形式のConvex previewを削除する移行用Management APIトークン |
+| `CONVEX_MANAGEMENT_TOKEN` | `deploy.yml`のPR close cleanupがPR用Convex Previewを削除するManagement APIトークン |
 | `VITE_CONVEX_URL` | dev Convexの永続URL |
 | `VITE_CLERK_PUBLISHABLE_KEY` | Clerk開発用Publishableキー |
 | `VITE_TURNSTILE_SITE_KEY` | 問い合わせフォームのCloudflare Turnstile Site Key |
 | `CLERK_SECRET_KEY` | Clerk開発用シークレットキー |
 | `CLOUDFLARE_API_TOKEN` | CloudFlare APIトークン |
 | `CLOUDFLARE_ACCOUNT_ID` | CloudFlareアカウントID |
-| `HOSTING_PAGES_TOKEN` | trusted VRT publisherとPR E2E publisherが`hosting-pages`へsanitized reportをpushするtoken |
-| `REG_SUIT_CLIENT_ID` | trusted VRT publisherのRegSuit notify client ID |
+| `HOSTING_PAGES_TOKEN` | PR E2EとVRTが`hosting-pages`へsanitized reportをpushするtoken |
+| `REG_SUIT_CLIENT_ID` | VRTのRegSuit notify client ID |
 | `VITE_GTM_ID` | Google Tag Manager ID |
 
-### PR Preview Public 環境（静的PR preview producer専用）
+`HOSTING_PAGES_TOKEN`と`REG_SUIT_CLIENT_ID`はRepository Secretsへ置かず、`Preview` Environment Secretsとして登録する。browserへ埋め込まれる`VITE_*`も、Repository Variablesではなく同EnvironmentのSecretsから参照する。
 
-| シークレット | 用途 |
-|---|---|
-| `VITE_CONVEX_URL` | dev Convexの永続URL |
-| `VITE_CLERK_PUBLISHABLE_KEY` | Clerk開発用Publishableキー |
-| `VITE_TURNSTILE_SITE_KEY` | 問い合わせフォームのCloudflare Turnstile Site Key |
-| `VITE_GTM_ID` | Google Tag Manager ID |
+credential付きPR workflowは、base repositoryとhead repositoryが同じsame-repository PRだけを対象にする。fork PRへEnvironment Secretsを渡さず、外部contributorのPRではPreview、Full Regression、VRT公開を実行しない。この運用ではsame-repositoryのbranchへpushできるactorを信頼境界内とみなすため、repository write権限を最小化し、workflow変更を通常のコード変更と同様にレビューする。`pull_request_target`でPR headをcheckoutして実行してはならない。
 
-`PR Preview Public` Environmentに登録するEnvironment Secretsは、成果物へ埋め込まれるこの4つのbrowser公開値だけとする。`CONVEX_DEPLOY_KEY`、`CONVEX_MANAGEMENT_TOKEN`、`CLERK_SECRET_KEY`、`CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`、`HOSTING_PAGES_TOKEN`、`REG_SUIT_CLIENT_ID`などの機密secretは登録しない。PR headをcheckoutするjobは`Preview`、`Develop`、`Production`の各Environmentを参照せず、機密secretを受け取らない。
-
-`HOSTING_PAGES_TOKEN`と`REG_SUIT_CLIENT_ID`はRepository Secretsへ置かず、trusted default-branch consumerだけが参照できる`Preview` Environment Secretsとして登録する。同名のRepository Secretが残っているとsame-repository PR workflowから参照できるため、Environment側へ再登録したことを確認してからRepository側を削除する。
-
-Environmentのdeployment branch policyを使う場合、`PR Preview Public`は静的PR previewのhead branchだけを許可し、機密secretを持つ`Preview`はtrusted default-branch workflowが実行される`develop`だけを許可する。`PR Preview Public`にrequired reviewerを設定すると静的PR previewのbuildが承認待ちになるため、その運用を前提に設定する。`vrt-approval` Environmentにはrequired reviewerを設定し、公開用secretは置かない。producerは差分があるPRのmerge gate、trusted VRT publisherは全PRの公開実行で、それぞれ独立したEnvironment承認を必須にする。publisherは承認後にPreview Environmentの公開ジョブを実行する。これらのGitHub上の設定はworkflowファイルだけでは保証できないため、repository settingsで別途確認する。
+Environmentのdeployment branch policyを使う場合、`Preview`はsame-repository PRのhead branchと、VRT baseline更新に使う`develop`・`main`を許可する。`vrt-approval` Environmentにはrequired reviewerを設定し、公開用secretは置かない。これらのGitHub上の設定はworkflowファイルだけでは保証できないため、repository settingsで別途確認する。
 
 ### Develop 環境（developブランチのデプロイで使用）
 
@@ -135,20 +126,17 @@ Environmentのdeployment branch policyを使う場合、`PR Preview Public`は�
 
 | ワークフロー | トリガー | 処理 |
 |---|---|---|
-| `pr-preview.yml` | PR to develop (open/sync) | PR headを機密secretなしでビルド・prerenderし、`dist` data artifactを保存 |
-| `publish-pr-preview.yml` | `PR Preview Artifact`完了 | default branchのtrusted codeでsource metadataとartifactを検査し、Cloudflareへ静的dataだけを公開。公開後は公開5routeの`@deployed` Smokeをsecretlessで実行し、sanitized summaryをhosting-pagesへ公開してPRへコメント |
-| `cleanup-pr-preview.yml` | PR to develop (close) | `pull_request_target`のbase SHAにあるtrusted codeでCF previewと旧Convex previewを削除 |
-| `deploy.yml` | push to develop | Convex devデプロイ → migration → ビルド → CF devメインデプロイ → 公開URL Smoke |
+| `deploy.yml` | same-repository PR to develop、push to develop | PRでは専用Convex Preview → ビルド → CF branch `pr-{N}`へデプロイ → 公開URL Smoke。PR closeでは実行中のPreviewとFull Regressionを止めてCF / Convex Previewを削除。develop pushではmigrationを含むdevメインデプロイ |
 
-trusted publisherはsource workflow名・event・conclusion・same-repository・PR current head SHA・artifact名/個数/宣言sizeを検証する。download後はdefault branchの`assertStaticArtifactSafety.mjs`でregular file、path、拡張子、実size、symlink、Pages control fileをfail closedで検査し、artifact内のscriptを実行しない。Cloudflare credentialの直前でPRがopenかつ同じhead SHAであることとartifact setを再検証する。publisherとclose cleanupはPR番号単位の同じconcurrency groupを使い、close時は実行中のpublisherを停止してから削除する。
+PR Previewはartifact producer / `workflow_run` publisherへ分割せず、same-repositoryの`pull_request` workflowからCloudflareへ直接デプロイする。PR番号単位のconcurrency groupを使い、close cleanupは実行中のPreviewを停止してから削除する。credentialを使う前とPRコメントを書き込む前に、PRがopenでhead SHAが現在の値と一致することを確認する。
 
-PRのissue commentを作成・更新するtrusted jobは、`issues: write`と`pull-requests: write`の両方をjobまたはworkflowへ付与する。`pull-requests: write`はdefault branchの`workflow_run` consumerまたはdevelop push jobだけに限定し、PR head workflowへ付与しない。
+PRのissue commentを作成・更新するjobは、`issues: write`と`pull-requests: write`の両方をそのjobだけに付与する。テスト、ビルド、capture jobの`GITHUB_TOKEN`は`contents: read`に限定する。
 
-VRTとE2Eの結果は、一つの総合コメントへまとめず、それぞれ専用markerを持つ独立した固定コメントとして更新する。open PRのE2EコメントはPR Preview Smokeの実行結果とActions、PR Preview、`yps-crispy-carnival-e2e/pr-{N}`のhosting-pages予定URLを常に表示する。未公開または現在runとの一致を確認できていない状態ではリンク名にその旨を明示し、公開成功後だけ同じreport URLへcache-busting queryを付けてsanitized summaryへのリンクとして表示する。VRTコメントも、公開前または公開失敗時にリンク先が未生成でも、PR番号から決まるhosting-pages差分レポートの予定URLを常に表示する。未公開または現在runとの一致を確認できていない状態ではリンク名にその旨を明示し、公開成功後だけ同じreport URLへcache-busting queryを付けて「差分レポート」と表示する。あわせてActionsの実行結果と、その時点で必要な差分承認またはレポート公開承認への導線を表示する。
+VRTとE2Eの結果は、一つの総合コメントへまとめず、それぞれ専用markerを持つ独立した固定コメントとして更新する。open PRのE2EコメントはFull Regressionの結果、Actions、Cloudflare PR Preview、`yps-crispy-carnival-e2e/pr-{N}`のhosting-pages URLを表示する。VRTコメントは差分レポート、Actions、差分がある場合の`vrt-approval`導線を表示する。未公開または現在runとの一致を確認できていない状態では予定URLであることを明示し、公開成功後だけcache-busting queryを付ける。
 
-PR Preview SmokeはCloudflare公開後に`publish-pr-preview.yml`の`pr-e2e` jobがdefault branchのtrusted codeで公開5routeだけを確認する。このjobへGitHub Environment、Secrets、認証情報、storageStateを渡さず、PR headのPlaywright codeやpackage scriptを実行しない。`playwright-result`は同workflow内で受け渡す非公開の中間artifactとし、`publish-pr-e2e-report` jobがhosting-pagesへ公開するのはtrusted codeが固定schemaから生成した`playwright-public-report`だけとする。raw Playwright report、trace、動画、screenshot、console/error詳細は公開しない。認証付き`@release` Full Regressionの非公開artifact運用はこれと分離し、develop merge後のまま維持する。
+Cloudflare公開後の`@deployed` Smokeは`deploy.yml`で実行し、認証付き`@release` Full Regressionは`playwright.yml`でPR headに対して実行する。hosting-pagesへ公開するE2E成果物は固定schemaから生成したsanitized summaryだけとし、raw Playwright report、trace、動画、screenshot、console/error詳細、認証情報、storageStateは公開しない。raw artifactはActionsへ7日だけ保存する。
 
-`assertNoSensitiveArtifacts.mjs`はさらに`.env`、source map、private key、access log、認証済みbrowser storage state、secret prefix / identifier、JWT、placeholder以外のemailを検査する。PR producerの検査だけを信頼せず、credentialを持つconsumerでtrusted copyのscannerを再実行する。
+`assertNoSensitiveArtifacts.mjs`はさらに`.env`、source map、private key、access log、認証済みbrowser storage state、secret prefix / identifier、JWT、placeholder以外のemailを検査する。公開用report jobは、生成したsanitized summaryを検査してからhosting-pagesへpushする。
 
 ### リリース (`release.yml`)
 
@@ -167,7 +155,7 @@ release workflowは`main`へsource commitを追加しない。release PRにversi
 | `test-logic.yml` | 全push | ロジックテスト（sharding 2分割） |
 | `test-ui.yml` | PR / push | Storybook mockと決定的な公開dummy値で行うsecretless UIテスト（sharding 2分割） |
 | `build.yml` | push to develop | credential付きビルド確認（Convex dev使用） |
-| `playwright.yml` | push to develop | merge済みdevelop commitだけをcheckoutし、一時Convex PreviewでFull Regression E2E、結果gate、backend audit、非公開artifact保存。exact merge commitから元PRを逆引きして結果コメントを更新 |
+| `playwright.yml` | same-repository PR to develop | exact PR headをcheckoutし、一時Convex Previewで認証付きFull Regression E2E、結果gate、backend audit、非公開artifactとsanitized hosting-pages report、PRコメントを生成 |
 | `provider-canary-approval.yml` | main向けPRのcanaryラベル付与 / 追加push | 構造化attestationを検証してhead SHA markerを記録し、不備時と追加push時に承認ラベルを削除 |
 | `claude.yml` | `@claude`を含む作成済みissue/comment/review | secretなしjobでoriginal senderのlive repository permissionを検証し、write/maintain/adminだけをturn上限付きClaude jobへ渡す |
 | `security.yml` | PR to develop/main、push to develop/main、週次 | Git履歴secret scan、`public`/`dist`漏洩scan、dependency review/audit、zizmor、trusted branch CodeQL |
@@ -176,16 +164,9 @@ release workflowは`main`へsource commitを追加しない。release PRにversi
 
 | ワークフロー | トリガー | 内容 |
 |---|---|---|
-| `vrt.yml` | PR to develop/main、push to develop/main | secretlessでStorycap PNGを生成し、公開baselineを匿名readしてRegSuit比較。artifactはPNG dataだけを保存 |
-| `publish-vrt-report.yml` | `VRT Artifact`開始 / 完了 | default branchのtrusted codeでPRの実行状態コメントを更新。完了後はsource metadataと4 PNG artifactを検査し、PRは`vrt-approval`承認後だけtrusted RegSuitでreportを再生成してhosting-pagesへ公開。push時だけbaseline更新 |
+| `vrt.yml` | same-repository PR to develop/main、push to develop/main | Storycap PNG生成、baseline比較、hosting-pagesへの差分report直接公開、PRコメント、差分時の`vrt-approval`。push時だけbaseline更新 |
 
-`workflow_run` consumerはworkflowファイルがdefault branchに存在する場合だけ登録・起動される。新設または改名したtrusted publisherは、その導入PR自身では利用できない。この制約はPR Preview SmokeとVRTのtrusted publisherに共通する。bootstrapのためにPR head workflowへwrite tokenを戻さず、publisherを先にdefault branchへ導入するか、導入PRだけ手動で状態を補う。
-
-secretless producerは`hosting-pages`を匿名readし、差分があるPRでは`approve` jobをbranch protectionのmerge gateとして使う。producerとpublisherはPR番号またはbranch単位の同じconcurrency groupを使い、新しいproducer runの開始時に古いproducerとpublisherを停止する。publisherは`queue: max`で待機中の新producerを置換せず、順番が来た時点でlatest source run検証により古い公開を停止する。trusted publisherはsource開始時にworkflow名・event・same-repository・current head SHAを検証して固定markerの状態コメントを作成し、source完了時とreport公開後に同じコメントを更新する。コメントmarkerにはsource run ID、run attempt、状態phaseを記録し、same-SHAのrerunや遅延eventによる状態の巻き戻りを拒否する。trusted publisherはActions APIでも同じworkflow・event・headの最新run IDとattemptを照合し、古いpublisherがreportまたはコメントを上書きしないようにする。trusted publisherはsource runをPRまたはpushへ分類した結果だけを使い、producerの`approve`が存在・成功したことを公開承認として信用しない。producer側で承認jobが削除またはskipされても、publisher側の独立した`approve-pr-publication`なしには公開できない。source artifact検証、公開承認、report生成・公開・deploy確認の失敗を含め、terminal comment jobは`always()`でtrusted job結果を固定markerコメントへ返す。承認後はcredentialを使う直前とreportをpushする直前にlive Actions runのID・attemptとlive PRまたはbranchのcurrent head SHAを再検証する。PRコメントはcanonical comment選定後にもsource runとcurrent headを再取得し、write直前まで一致する場合だけ更新する。repositoryをprivate化した場合はbaseline取得がfail closedで停止するため、public readを維持するか、credentialなしで取得できる別のbaseline storeへ移行する。
-
-`vrt-approval`の承認対象は、検査済みPNGからtrusted codeでreportを生成して公開する実行そのものであり、生成後のvisual diffを人がレビューした証跡ではない。このためPRコメントは差分を「approved」と表記しない。生成済みtrusted reportを見て差分単位で承認する契約が必要になった場合は、trusted compare jobのreport artifactと差分outputを承認jobへ渡し、その後のpublish jobだけを許可する三段構成へ変更する。
-
-差分があるPRではproducerのmerge gateとpublisherの公開実行で二回のEnvironment承認が発生する。前者はrequired checkを止めるため、後者はcredential付き公開をproducerから独立させるために必要であり、同じ承認証跡としてまとめない。branch protectionではproducerのcheck名、Environment履歴では両workflow runの承認者と時刻を確認する。
+VRTはPR workflow内でreportを生成し、`HOSTING_PAGES_TOKEN`で直接公開する。差分がある場合は`vrt-approval` jobをbranch protectionのmerge gateとして使い、PRコメントから同じActions runの承認画面へ移動できるようにする。新しいrunの開始時はPR番号単位のconcurrencyで古いrunを停止し、current head以外のreportやコメントで上書きしない。hosting-pagesへの並行pushは共通concurrencyまたはretry付きrebaseで直列化する。
 
 ## Security scan失敗と例外
 
@@ -213,12 +194,9 @@ Convex deploy → Convex migrations → ビルド → CloudFlare の順で実行
 
 ## 注意事項
 
-- `playwright.yml`がdevelop merge後に作るE2E専用Convex Previewは数日で自動消滅するため、明示的な削除は不要
-- open PRでは、公開済みPR Previewに対するsecretless `@deployed` Smokeの結果をE2E専用固定markerコメントへ返し、sanitized summaryのhosting-pages予定URLを未公開時から表示する
-- Full Regression結果はexact develop merge commitに紐づく元PRが1件だけ見つかった場合に、そのclosed PRの固定markerコメントへ返す。direct pushや曖昧な対応関係ではコメントしない
-- `build.yml`はcredentialを渡せるdevelop pushだけで実行する。`test-ui.yml`はConvex / ClerkのStorybook mockを使い、PRにcredentialを渡さない
-- E2E Full Regressionはdevelop merge後に実施する。PR headへ共有Clerk/Convex credentialを渡して実行しない。open PRで行うのは公開5routeのsecretless PR Preview Smokeだけとする
-- E2E専用Convex Previewは自動失効に任せ、cleanup workflowを作らない
-- PR static previewはdevelop Convexを参照するため、未mergeのConvex変更はpreviewへ反映されない。backend変更はFunction/Scenario Testとmerge後Full Regressionで検証する
-- PRのコードをcheckoutして実行するjobの`GITHUB_TOKEN`はread-onlyにし、secret、write token、secret-backed local actionを渡さない
-- credentialを持つ`workflow_run` consumerはdefault branch SHAをcheckoutし、source runとcurrent PR headを照合する。PR artifactは許可済みdataとして検査するまでcredential stepへ進めず、artifact内のcode、HTML、shell、package scriptを直接実行しない
+- PR Full RegressionとCloudflare Previewが作るConvex PreviewはPR close時のcleanup対象とし、cleanup失敗時は自動失効で回収する
+- Full Regression結果はopen PRのE2E専用固定markerコメントへ返し、Actions、Cloudflare Preview、sanitized hosting-pages reportを表示する
+- `build.yml`はdevelop pushだけで実行する。`test-ui.yml`はConvex / ClerkのStorybook mockを使い、credentialを渡さない
+- credential付きPR workflowはsame-repository PRだけに限定し、fork PRを対象にしない。PR headのworkflowとpackage scriptを実行するため、same-repositoryへpushできるactor自体を信頼境界に含める
+- `GITHUB_TOKEN`のwrite権限はコメントjobだけに限定し、Cloudflare、Convex、Clerk、hosting-pagesのcredentialは必要なjobのEnvironment Secretsからだけ参照する
+- PR close cleanupはsame-repository PRだけを対象にし、base SHAのcodeをcheckoutする。PR headのcode、shell、local action、package scriptをcleanup credentialと組み合わせない

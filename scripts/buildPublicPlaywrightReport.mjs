@@ -284,7 +284,7 @@ function renderHtml(report) {
     <h1>PR #${report.pullRequest.number} E2E Report</h1>
     <span class="overall overall-${report.result}">${overallLabel}</span>
   </header>
-  <p>Head SHA: <code>${report.pullRequest.headSha}</code> / Publisher run: ${report.source.runId} (attempt ${report.source.runAttempt})</p>
+  <p>Head SHA: <code>${report.pullRequest.headSha}</code> / Workflow run: ${report.source.runId} (attempt ${report.source.runAttempt})</p>
   <div class="summary">
     <div><strong>${report.summary.total}</strong>Total</div>
     <div><strong>${report.summary.passed}</strong>Passed</div>

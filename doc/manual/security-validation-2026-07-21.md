@@ -7,6 +7,8 @@
 
 この台帳は、2026-07-18の調査候補を2026-07-21のworktreeと突合したリポジトリ再検証記録である。
 
+> 2026-07-22更新: `CAND-FR022-001`、`CAND-FR023-001`、`CAND-FR024-002`に記録したpublisher分離は、same-repositoryのPR branchを信頼境界内とするdirect workflowへ変更した。現在はPR headでFull Regression、Cloudflare Preview、VRT比較とhosting-pages公開を実行し、fork PRは対象外とする。publisher分離により抑止していた「same-repositoryへpushできるactorがPR workflowを書き換えてcredentialへアクセスする」経路は、この運用ではrepository write権限とレビューで管理する。
+
 元資料で正式に`reportable`と判定された候補は`CAND-FR023-002`だけである。
 
 残り29件を正式な脆弱性として一括認定せず、成立条件、現行control、固定回帰、実環境証跡の不足を候補ごとに分ける。
