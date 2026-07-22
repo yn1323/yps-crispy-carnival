@@ -213,7 +213,7 @@ jobs:
       - name: Validate cleanup target
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
-          github-token: ""
+          github-token: ${{ github.token }}
           script: |
             const pull = context.payload.pull_request;
             if (

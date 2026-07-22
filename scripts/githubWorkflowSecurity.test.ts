@@ -594,6 +594,7 @@ describe("Direct PR workflow security", () => {
       "persist-credentials": false,
     });
     expect(getGithubScript(prepareStep)).toContain("pull.head.repo?.full_name");
+    expect(prepareStep.with?.["github-token"]).toBe(githubExpression("github.token"));
     expect(clone.env?.HOSTING_PAGES_TOKEN).toBe(githubExpression("secrets.HOSTING_PAGES_TOKEN"));
     expect(clone.run).toContain("github.com/yn1323/hosting-pages.git");
     expect(screenshotSafety.run).toContain("--profile vrt-screenshots");
@@ -755,6 +756,7 @@ describe("Direct PR workflow security", () => {
     expect(cleanup.environment).toBe("Preview");
     expect(getGithubScript(validate)).toContain("pull.base.repo.full_name");
     expect(getGithubScript(validate)).toContain("pull.head.repo?.full_name");
+    expect(validate.with?.["github-token"]).toBe(githubExpression("github.token"));
     expect(checkout.with).toMatchObject({
       ref: githubExpression("github.event.pull_request.base.sha"),
       "persist-credentials": false,
