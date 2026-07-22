@@ -57,3 +57,5 @@ minimumReleaseAgeExclude:
   - '@tanstack/query-core@5.101.3'
   - '@tanstack/react-query@5.101.3'
   - recharts@3.10.0
+  - '@tanstack/devtools@0.13.0'
+  - '@tanstack/react-devtools@0.10.9'
