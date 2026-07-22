@@ -117,6 +117,10 @@ describe("organizationStripe/maintenance", () => {
       const initial = await seedOrganizationManagerShop(ctx, { subject: "stripe_safe_initial", plan: "pro" });
       const grace = await seedOrganizationManagerShop(ctx, { subject: "stripe_safe_grace", plan: "pro" });
       const restricted = await seedOrganizationManagerShop(ctx, { subject: "stripe_safe_restricted", plan: "pro" });
+      const scheduledPaid = await seedOrganizationManagerShop(ctx, {
+        subject: "stripe_safe_scheduled_paid",
+        plan: "business",
+      });
       const unrelated = await seedOrganizationManagerShop(ctx, { subject: "stripe_safe_unrelated", plan: "pro" });
       await replaceBillingState(ctx, initial.organizationId, {
         kind: "initialPaymentPending",
@@ -137,6 +141,12 @@ describe("organizationStripe/maintenance", () => {
         previousActiveShopIds: [],
         restrictedAt: NOW - DAY_MS,
       });
+      await replaceBillingState(ctx, scheduledPaid.organizationId, {
+        kind: "scheduledChange",
+        currentPlan: "business",
+        targetPlan: "pro",
+        effectiveAt: NOW,
+      });
 
       await insertOperation(ctx, {
         organizationId: initial.organizationId,
@@ -145,6 +155,15 @@ describe("organizationStripe/maintenance", () => {
         status: "retrying",
         nextRunAt: NOW,
         expectedBillingVersion: 0,
+      });
+      await insertOperation(ctx, {
+        organizationId: scheduledPaid.organizationId,
+        requestKey: "safe-scheduled-paid-reconcile",
+        kind: "reconcileSubscription",
+        status: "retrying",
+        nextRunAt: NOW,
+        expectedBillingVersion: 0,
+        recoveryPurpose: "scheduledPaidPlanDeadline",
       });
       await insertOperation(ctx, {
         organizationId: grace.organizationId,
@@ -202,14 +221,17 @@ describe("organizationStripe/maintenance", () => {
     });
 
     await expect(t.mutation(internal.organizationStripe.maintenance.recoverSafeOperations, {})).resolves.toEqual({
-      scheduledCount: 3,
+      scheduledCount: 4,
       scheduledByKind: {
-        reconcileSubscription: 2,
+        reconcileSubscription: 3,
         cancelSubscription: 1,
         stopInvoiceCollection: 0,
         syncBillingEmail: 0,
         scheduleFree: 0,
         cancelFreeSchedule: 0,
+        changePaidPlanNow: 0,
+        schedulePaidPlanChange: 0,
+        cancelScheduledPlanChange: 0,
       },
       terminalizedWithoutDispatchCount: 0,
       reachedBatchLimit: false,
@@ -223,6 +245,14 @@ describe("organizationStripe/maintenance", () => {
           organizationId: expect.any(String),
           expectedBillingVersion: 1,
           requestId: "safe-initial-reconcile",
+        },
+      },
+      {
+        name: "organizationStripe/actions:reconcileScheduledPaidPlanDeadline",
+        args: {
+          organizationId: expect.any(String),
+          expectedBillingVersion: 1,
+          requestId: "safe-scheduled-paid-reconcile",
         },
       },
       {
@@ -300,6 +330,9 @@ describe("organizationStripe/maintenance", () => {
         syncBillingEmail: 0,
         scheduleFree: 0,
         cancelFreeSchedule: 0,
+        changePaidPlanNow: 0,
+        schedulePaidPlanChange: 0,
+        cancelScheduledPlanChange: 0,
       },
       terminalizedWithoutDispatchCount: 0,
       reachedBatchLimit: false,
@@ -367,6 +400,9 @@ describe("organizationStripe/maintenance", () => {
         syncBillingEmail: 0,
         scheduleFree: 1,
         cancelFreeSchedule: 1,
+        changePaidPlanNow: 0,
+        schedulePaidPlanChange: 0,
+        cancelScheduledPlanChange: 0,
       },
       terminalizedWithoutDispatchCount: 0,
       reachedBatchLimit: false,
@@ -397,6 +433,85 @@ describe("organizationStripe/maintenance", () => {
         },
       },
     ]);
+  });
+
+  it("retryingの有料プラン変更3種を保存済みoperation IDで専用回収Actionへ再予約する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const immediate = await seedOrganizationManagerShop(ctx, {
+        subject: "stripe_recover_immediate_paid_plan",
+        plan: "pro",
+      });
+      const schedule = await seedOrganizationManagerShop(ctx, {
+        subject: "stripe_recover_schedule_paid_plan",
+        plan: "business",
+      });
+      const cancel = await seedOrganizationManagerShop(ctx, {
+        subject: "stripe_recover_cancel_paid_plan",
+        plan: "business",
+      });
+      await replaceBillingState(ctx, immediate.organizationId, {
+        kind: "pendingActivation",
+        plan: "business",
+        fallback: "pro",
+        startedAt: NOW - 1_000,
+      });
+      await replaceBillingState(ctx, cancel.organizationId, {
+        kind: "scheduledChange",
+        currentPlan: "business",
+        targetPlan: "pro",
+        effectiveAt: NOW + DAY_MS,
+      });
+      const immediateOperationId = await insertOperation(ctx, {
+        organizationId: immediate.organizationId,
+        requestKey: "recover-immediate-paid-plan",
+        kind: "changePaidPlanNow",
+        status: "retrying",
+        nextRunAt: NOW,
+        providerGeneration: 1,
+      });
+      const scheduleOperationId = await insertOperation(ctx, {
+        organizationId: schedule.organizationId,
+        requestKey: "recover-schedule-paid-plan",
+        kind: "schedulePaidPlanChange",
+        status: "retrying",
+        nextRunAt: NOW,
+        providerGeneration: 1,
+      });
+      const cancelOperationId = await insertOperation(ctx, {
+        organizationId: cancel.organizationId,
+        requestKey: "recover-cancel-paid-plan",
+        kind: "cancelScheduledPlanChange",
+        status: "retrying",
+        nextRunAt: NOW,
+        providerGeneration: 1,
+      });
+      return { immediateOperationId, scheduleOperationId, cancelOperationId };
+    });
+
+    await expect(t.mutation(internal.organizationStripe.maintenance.recoverSafeOperations, {})).resolves.toEqual({
+      scheduledCount: 3,
+      scheduledByKind: {
+        reconcileSubscription: 0,
+        cancelSubscription: 0,
+        stopInvoiceCollection: 0,
+        syncBillingEmail: 0,
+        scheduleFree: 0,
+        cancelFreeSchedule: 0,
+        changePaidPlanNow: 1,
+        schedulePaidPlanChange: 1,
+        cancelScheduledPlanChange: 1,
+      },
+      terminalizedWithoutDispatchCount: 0,
+      reachedBatchLimit: false,
+    });
+    const state = await stripeMaintenanceState(t);
+    expect(
+      state.scheduled
+        .filter((job) => job.name === "organizationStripe/actions:reconcilePaidPlanChangeOperation")
+        .map((job) => job.args[0]?.operationId)
+        .sort(),
+    ).toEqual([ids.immediateOperationId, ids.scheduleOperationId, ids.cancelOperationId].sort());
   });
 
   it("古いbilling versionとqueuedを最新状態で再評価し、解決済みの安全operationをcancelledへ収束させる", async () => {
@@ -449,6 +564,9 @@ describe("organizationStripe/maintenance", () => {
         syncBillingEmail: 0,
         scheduleFree: 0,
         cancelFreeSchedule: 0,
+        changePaidPlanNow: 0,
+        schedulePaidPlanChange: 0,
+        cancelScheduledPlanChange: 0,
       },
       terminalizedWithoutDispatchCount: 0,
       reachedBatchLimit: false,
@@ -531,6 +649,9 @@ describe("organizationStripe/maintenance", () => {
         syncBillingEmail: 0,
         scheduleFree: 0,
         cancelFreeSchedule: 0,
+        changePaidPlanNow: 0,
+        schedulePaidPlanChange: 0,
+        cancelScheduledPlanChange: 0,
       },
       terminalizedWithoutDispatchCount: 2,
       reachedBatchLimit: false,
@@ -590,6 +711,9 @@ describe("organizationStripe/maintenance", () => {
         syncBillingEmail: 50,
         scheduleFree: 0,
         cancelFreeSchedule: 0,
+        changePaidPlanNow: 0,
+        schedulePaidPlanChange: 0,
+        cancelScheduledPlanChange: 0,
       },
       terminalizedWithoutDispatchCount: 0,
       reachedBatchLimit: true,
@@ -661,6 +785,9 @@ describe("organizationStripe/maintenance", () => {
         syncBillingEmail: 2,
         scheduleFree: 0,
         cancelFreeSchedule: 0,
+        changePaidPlanNow: 0,
+        schedulePaidPlanChange: 0,
+        cancelScheduledPlanChange: 0,
       },
       terminalizedWithoutDispatchCount: 0,
       reachedBatchLimit: false,

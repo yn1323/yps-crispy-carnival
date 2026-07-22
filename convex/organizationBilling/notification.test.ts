@@ -75,6 +75,24 @@ describe("organizationBilling/notification", () => {
     expect(paragraphs).toContain("9/1(火) 00:00");
   });
 
+  it("契約復旧通知へ復旧プラン・請求額・適用日時を載せ、detailsなしの既存文面も維持する", () => {
+    const detailed = organizationBillingNotificationCopy("recovered", undefined, {
+      targetPlan: "business",
+      amountDue: 2_980,
+      currency: "jpy",
+      effectiveAt: trialEndsAt,
+    });
+    const paragraphs = detailed.paragraphs.join("\n");
+
+    expect(paragraphs).toContain("Businessの契約を復旧しました");
+    expect(paragraphs).toContain("JPY");
+    expect(paragraphs).toContain("2,980");
+    expect(paragraphs).toContain("9/1(火) 00:00");
+    expect(organizationBillingNotificationCopy("recovered").paragraphs[0]).toBe(
+      "支払い結果を確認し、確認済みの管理者と店舗で業務を再開しました。",
+    );
+  });
+
   it("即時支払い失敗後の無料継続と契約制限継続を区別する", () => {
     expect(organizationBillingNotificationCopy("paidActivationFailedFreeContinued")).toMatchObject({
       heading: "無料を継続しています",

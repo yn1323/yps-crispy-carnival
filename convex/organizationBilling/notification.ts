@@ -194,7 +194,18 @@ export function organizationBillingNotificationCopy(
           "グループ設定から支払い方法を確認してください。",
         ],
       };
-    case "restrictedStarted":
+    case "restrictedStarted": {
+      const targetPlanLabel = details?.targetPlan ? planLabel(details.targetPlan) : null;
+      if (targetPlanLabel) {
+        return {
+          subject: `${targetPlanLabel}への変更には利用状況の整理が必要です`,
+          heading: `${targetPlanLabel}の利用上限を確認してください`,
+          paragraphs: [
+            `支払い結果を確認しました。${formatBillingSummary(details)}`,
+            `${targetPlanLabel}の利用上限を超えているため、契約制限中です。グループ設定で利用人数、管理者、店舗を上限以内に整理してください。`,
+          ],
+        };
+      }
       return {
         subject: "契約制限中へ移行しました",
         heading: "契約制限中へ移行しました",
@@ -203,15 +214,21 @@ export function organizationBillingNotificationCopy(
           "グループ設定で有料契約を再開するか、無料で残す管理者と店舗を整理してください。",
         ],
       };
-    case "recovered":
+    }
+    case "recovered": {
+      const targetPlanLabel = details?.targetPlan ? planLabel(details.targetPlan) : null;
+      const billingSummary = formatBillingSummary(details);
       return {
         subject: "契約を復旧しました",
         heading: "契約を復旧しました",
         paragraphs: [
-          "支払い結果を確認し、確認済みの管理者と店舗で業務を再開しました。",
+          targetPlanLabel || billingSummary
+            ? `支払い結果を確認し、${targetPlanLabel ? `${targetPlanLabel}の契約を復旧しました。` : ""}確認済みの管理者と店舗で業務を再開しました。${billingSummary}`
+            : "支払い結果を確認し、確認済みの管理者と店舗で業務を再開しました。",
           "契約制限中に停止した過去の通知は自動では再送しません。",
         ],
       };
+    }
     case "billingEmailChanged":
       return {
         subject: "請求先メールアドレスを変更しました",

@@ -1382,6 +1382,8 @@ export const confirmScheduledPaidPlanDeadline = internalMutation({
     expectedDeadlineAt: v.number(),
     result: v.union(v.literal("paid"), v.literal("failed")),
     firstFailureAt: v.optional(v.number()),
+    amountDue: v.optional(v.number()),
+    currency: v.optional(v.string()),
     correlationId: v.string(),
   },
   returns: transitionResultValidator,
@@ -1400,6 +1402,15 @@ export const confirmScheduledPaidPlanDeadline = internalMutation({
     }
     if (args.result === "failed" && args.firstFailureAt === undefined) {
       throw new ConvexError("請求失敗時刻を確認できません");
+    }
+    if (
+      args.result === "paid" &&
+      (args.amountDue === undefined ||
+        !Number.isSafeInteger(args.amountDue) ||
+        args.amountDue < 0 ||
+        !args.currency?.trim())
+    ) {
+      throw new ConvexError("確定した請求内容を確認できません");
     }
     const existingAudit = await ctx.db
       .query("organizationAuditEvents")
@@ -1448,8 +1459,15 @@ export const confirmScheduledPaidPlanDeadline = internalMutation({
             : "restrictedStarted",
       eventKey: args.correlationId,
       recipientUserIds: recipients,
-      ...(nextState.kind === "active"
-        ? { notificationDetails: { targetPlan: nextState.plan, effectiveAt: args.expectedDeadlineAt } }
+      ...(args.result === "paid"
+        ? {
+            notificationDetails: {
+              targetPlan: "pro",
+              amountDue: args.amountDue,
+              currency: args.currency,
+              effectiveAt: args.expectedDeadlineAt,
+            },
+          }
         : {}),
     });
     return { changed: true, stateKind: nextState.kind === "active" ? nextState.plan : nextState.kind };

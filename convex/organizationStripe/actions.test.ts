@@ -521,7 +521,7 @@ describe("organizationStripe/actions", () => {
       actor.action(api.organizationStripe.actions.changePaidPlanNow, {
         shopId: ids.shopId,
         targetPlan: "business",
-        requestId: "apply-pro-to-business",
+        requestId: "preview-pro-to-business",
         prorationDate: preview.prorationDate,
       }),
     ).resolves.toEqual({ status: "accepted" });
@@ -560,6 +560,53 @@ describe("organizationStripe/actions", () => {
     });
   });
 
+  it.each([
+    { name: "成功済み見積もりがない", previewProrationOffset: undefined },
+    { name: "見積もりとproration_dateが異なる", previewProrationOffset: -1 },
+  ] as const)("ProからBusinessの実更新は$name場合にprovider更新を開始しない", async (testCase) => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: `stripe_paid_plan_preview_required_${testCase.previewProrationOffset ?? "missing"}`,
+      plan: "pro",
+    });
+    const requestId = `preview-required-${testCase.previewProrationOffset ?? "missing"}`;
+    const requestedProrationDate = Math.floor(NOW / 1000);
+    if (testCase.previewProrationOffset !== undefined) {
+      await seedSucceededPaidPlanPreview(t, ids, requestId, requestedProrationDate + testCase.previewProrationOffset);
+    }
+    const updateCalls: unknown[][] = [];
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
+      if (resource === "prices.retrieve") return providerResponse(priceFixtureFor(String(args[0])));
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(paidPlanSubscriptionFixture(ids, { plan: "pro", invoiceStatus: "paid" }));
+      }
+      if (resource === "subscriptions.update") {
+        updateCalls.push(args);
+        throw new Error("successful matching preview is required before provider update");
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: `stripe_paid_plan_preview_required_${testCase.previewProrationOffset ?? "missing"}` })
+        .action(api.organizationStripe.actions.changePaidPlanNow, {
+          shopId: ids.shopId,
+          targetPlan: "business",
+          requestId,
+          prorationDate: requestedProrationDate,
+        }),
+    ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
+
+    expect(updateCalls).toEqual([]);
+    const state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({ kind: "active", plan: "pro" });
+    expect(state.operations.filter((operation) => operation.kind === "changePaidPlanNow")).toEqual([]);
+  });
+
   it("ProからBusinessのprovider更新が未確定ならPro entitlementをfallbackとして維持する", async () => {
     configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
     const t = convexTest(schema, modules);
@@ -586,6 +633,7 @@ describe("organizationStripe/actions", () => {
       }
       throw new Error(`Unexpected Stripe provider call: ${resource}`);
     });
+    await seedSucceededPaidPlanPreview(t, ids, "apply-pro-to-business-pending");
 
     await expect(
       t
@@ -606,8 +654,896 @@ describe("organizationStripe/actions", () => {
       startedAt: NOW,
     });
     expect(state.subscription).toMatchObject({ stripePriceId: READY_TEST_CONFIGURATION.proPriceId, plan: "pro" });
+    expect(state.operations).toHaveLength(2);
+    expect(state.operations.find((operation) => operation.kind === "changePaidPlanNow")).toMatchObject({
+      status: "succeeded",
+    });
+  });
+
+  it("pending_if_incomplete後にBusiness Priceがrotationしても保存済みintentの旧Priceでinvoice.paidを回収する", async () => {
+    const oldBusinessPriceId = "price_business_before_pending_rotation";
+    configurationMock.mockReturnValue({
+      ...READY_BUSINESS_TEST_CONFIGURATION,
+      businessPriceId: oldBusinessPriceId,
+    });
+    const t = convexTest(schema, modules);
+    const subject = "stripe_pending_business_rotation_matching";
+    const requestId = "pending-business-rotation-matching";
+    const ids = await seedPaidPlanStripeContext(t, { subject, plan: "pro" });
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
+      if (resource === "prices.retrieve") {
+        const priceId = String(args[0]);
+        return providerResponse({
+          ...priceFixtureFor(priceId),
+          unit_amount: priceId === oldBusinessPriceId ? 2_980 : 1_480,
+        });
+      }
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(paidPlanSubscriptionFixture(ids, { plan: "pro", invoiceStatus: "paid" }));
+      }
+      if (resource === "invoices.createPreview") {
+        return providerResponse({
+          id: "in_preview_pending_business_rotation",
+          livemode: false,
+          currency: "jpy",
+          amount_due: 1_500,
+        });
+      }
+      if (resource === "subscriptions.update") {
+        return providerResponse(
+          paidPlanSubscriptionFixture(ids, {
+            plan: "pro",
+            invoiceStatus: "open",
+            pendingUpdate: true,
+          }),
+        );
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+    const actor = t.withIdentity({ subject });
+    const preview = await actor.action(api.organizationStripe.actions.previewPaidPlanChange, {
+      shopId: ids.shopId,
+      targetPlan: "business",
+      requestId,
+    });
+    if (preview.status !== "available") throw new Error("paid plan preview unavailable");
+    await expect(
+      actor.action(api.organizationStripe.actions.changePaidPlanNow, {
+        shopId: ids.shopId,
+        targetPlan: "business",
+        requestId,
+        prorationDate: preview.prorationDate,
+      }),
+    ).resolves.toEqual({ status: "accepted" });
+    let state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toMatchObject({
+      kind: "pendingActivation",
+      plan: "business",
+      fallback: "pro",
+    });
+    expect(state.operations.find((operation) => operation.kind === "changePaidPlanNow")).toMatchObject({
+      status: "succeeded",
+      expectedBillingVersion: 1,
+      sourceStripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId,
+      targetStripePriceIdSnapshot: oldBusinessPriceId,
+    });
+
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const stripeEventId = "evt_pending_business_rotation_matching";
+    const subscription = paidPlanSubscriptionFixture(ids, {
+      plan: "business",
+      subscriptionPriceId: oldBusinessPriceId,
+      invoicePriceId: oldBusinessPriceId,
+      invoiceStatus: "paid",
+    });
+    const invoice = subscription.latest_invoice;
+    await seedStripeWebhookReceipt(t, { stripeEventId, type: "invoice.paid", objectId: invoice.id });
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource === "events.retrieve") {
+        return providerResponse({
+          id: stripeEventId,
+          type: "invoice.paid",
+          livemode: false,
+          api_version: STRIPE_WEBHOOK_API_VERSION,
+          created: Math.floor(NOW / 1000),
+          data: { object: { id: invoice.id } },
+        });
+      }
+      if (resource === "invoices.retrieve") return providerResponse(invoice);
+      if (resource === "subscriptions.retrieve") return providerResponse(subscription);
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId });
+
+    state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({ kind: "active", plan: "business" });
+    expect(state.subscription).toMatchObject({ plan: "business", stripePriceId: oldBusinessPriceId });
+    expect(
+      await t.run(
+        async (ctx) =>
+          await ctx.db
+            .query("stripeWebhookEvents")
+            .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", stripeEventId))
+            .unique(),
+      ),
+    ).toMatchObject({ status: "processed" });
+  });
+
+  it.each([
+    { caseName: "別Subscriptionのforeign intent", operationEvidence: "foreign" },
+    { caseName: "重複した保存済みintent", operationEvidence: "duplicate" },
+    { caseName: "一世代前のbilling versionに属するintent", operationEvidence: "staleVersion" },
+  ] as const)("Business Price rotation後のpending更新は$caseNameならfail closedにする", async (testCase) => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const oldBusinessPriceId = "price_business_before_pending_rotation";
+    const subject = `stripe_pending_business_rotation_${testCase.operationEvidence}`;
+    const ids = await seedPaidPlanStripeContext(t, { subject, plan: "pro" });
+    await t.run(async (ctx) => {
+      const billing = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique();
+      if (!billing) throw new Error("billing state missing");
+      await ctx.db.patch(billing._id, {
+        state: {
+          kind: "pendingActivation",
+          plan: "business",
+          fallback: "pro",
+          startedAt: NOW - 1_000,
+        },
+        version: 2,
+        updatedAt: NOW - 1_000,
+      });
+      const operationCount = testCase.operationEvidence === "duplicate" ? 2 : 1;
+      for (let index = 0; index < operationCount; index += 1) {
+        const foreign = testCase.operationEvidence === "foreign";
+        const stripeSubscriptionId = foreign ? "sub_foreign_pending_business_rotation" : ids.stripeSubscriptionId;
+        await ctx.db.insert("organizationStripeOperations", {
+          organizationId: ids.organizationId,
+          kind: "changePaidPlanNow",
+          requestKey: `pending-business-rotation-${testCase.operationEvidence}-${index}`,
+          stripeIdempotencyKey: `test:pending-business-rotation:${testCase.operationEvidence}:${index}`,
+          livemode: false,
+          expectedBillingVersion: testCase.operationEvidence === "staleVersion" ? 0 : 1,
+          providerGeneration: 1,
+          sourcePlan: "pro",
+          targetPlan: "business",
+          changeMode: "immediate",
+          stripeSubscriptionIdSnapshot: stripeSubscriptionId,
+          stripeSubscriptionItemIdSnapshot: foreign
+            ? "si_foreign_pending_business_rotation"
+            : ids.stripeSubscriptionItemId,
+          sourceStripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId,
+          targetStripePriceIdSnapshot: oldBusinessPriceId,
+          prorationDate: Math.floor((NOW - 1_000) / 1000),
+          effectiveAt: NOW - 1_000,
+          stripeObjectId: stripeSubscriptionId,
+          status: "succeeded",
+          attemptCount: 1,
+          completedAt: NOW - 500,
+          expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
+          createdAt: NOW - 1_000,
+          updatedAt: NOW - 500,
+        });
+      }
+    });
+    const stripeEventId = `evt_pending_business_rotation_${testCase.operationEvidence}`;
+    const subscription = paidPlanSubscriptionFixture(ids, {
+      plan: "business",
+      subscriptionPriceId: oldBusinessPriceId,
+      invoicePriceId: oldBusinessPriceId,
+      invoiceStatus: "paid",
+    });
+    const invoice = subscription.latest_invoice;
+    await seedStripeWebhookReceipt(t, { stripeEventId, type: "invoice.paid", objectId: invoice.id });
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource === "events.retrieve") {
+        return providerResponse({
+          id: stripeEventId,
+          type: "invoice.paid",
+          livemode: false,
+          api_version: STRIPE_WEBHOOK_API_VERSION,
+          created: Math.floor(NOW / 1000),
+          data: { object: { id: invoice.id } },
+        });
+      }
+      if (resource === "invoices.retrieve") return providerResponse(invoice);
+      if (resource === "subscriptions.retrieve") return providerResponse(subscription);
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId });
+
+    const state = await paidPlanStripeState(t, ids.organizationId);
+    const receipt = await t.run(
+      async (ctx) =>
+        await ctx.db
+          .query("stripeWebhookEvents")
+          .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", stripeEventId))
+          .unique(),
+    );
+    expect(state.billing?.state).toEqual({
+      kind: "pendingActivation",
+      plan: "business",
+      fallback: "pro",
+      startedAt: NOW - 1_000,
+    });
+    expect(state.subscription).toMatchObject({
+      plan: "pro",
+      stripePriceId: READY_TEST_CONFIGURATION.proPriceId,
+    });
+    expect(receipt).toMatchObject({ status: "actionRequired", lastErrorCode: "subscription_price_invalid" });
+  });
+
+  it("ProからBusinessの実適用時に既存pending_updateがあればprovider更新と状態変更を開始しない", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: "stripe_pro_to_business_existing_pending",
+      plan: "pro",
+    });
+    const updateCalls: unknown[][] = [];
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
+      if (resource === "prices.retrieve") return providerResponse(priceFixtureFor(String(args[0])));
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(
+          paidPlanSubscriptionFixture(ids, { plan: "pro", invoiceStatus: "paid", pendingUpdate: true }),
+        );
+      }
+      if (resource === "subscriptions.update") {
+        updateCalls.push(args);
+        throw new Error("provider update must not be called");
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "stripe_pro_to_business_existing_pending" })
+        .action(api.organizationStripe.actions.changePaidPlanNow, {
+          shopId: ids.shopId,
+          targetPlan: "business",
+          requestId: "apply-existing-pending-update",
+          prorationDate: Math.floor(NOW / 1000),
+        }),
+    ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
+
+    expect(updateCalls).toEqual([]);
+    const state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({ kind: "active", plan: "pro" });
+    expect(state.operations).toEqual([]);
+  });
+
+  it("日割りpreviewのprovider失敗はterminal failedにして世代lockを残さない", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: "stripe_paid_plan_preview_failure",
+      plan: "pro",
+    });
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      const providerArgs = JSON.parse(String(init?.body ?? "[]")) as unknown[];
+      if (resource === "prices.retrieve") return providerResponse(priceFixtureFor(String(providerArgs[0])));
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(paidPlanSubscriptionFixture(ids, { plan: "pro", invoiceStatus: "paid" }));
+      }
+      if (resource === "invoices.createPreview") throw new MockStripeError(500);
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "stripe_paid_plan_preview_failure" })
+        .action(api.organizationStripe.actions.previewPaidPlanChange, {
+          shopId: ids.shopId,
+          targetPlan: "business",
+          requestId: "preview-provider-failure",
+        }),
+    ).resolves.toEqual({ status: "unavailable", reason: "provider_unavailable" });
+
+    const state = await paidPlanStripeState(t, ids.organizationId);
     expect(state.operations).toHaveLength(1);
-    expect(state.operations[0]).toMatchObject({ kind: "changePaidPlanNow", status: "succeeded" });
+    expect(state.operations[0]).toMatchObject({
+      kind: "previewPaidPlanChange",
+      status: "failed",
+      lastErrorCode: "stripe_temporary_error",
+      completedAt: NOW,
+    });
+    expect(state.operations[0]).not.toHaveProperty("nextRunAt");
+    const next = await t.mutation(internal.organizationStripe.mutations.beginOperation, {
+      organizationId: ids.organizationId,
+      kind: "scheduleFree",
+      requestKey: "after-preview-provider-failure",
+      livemode: false,
+      expectedBillingVersion: 1,
+      providerGeneration: 1,
+      sourcePlan: "pro",
+      targetPlan: "free",
+      changeMode: "periodEnd",
+      stripeSubscriptionIdSnapshot: ids.stripeSubscriptionId,
+      stripeSubscriptionItemIdSnapshot: ids.stripeSubscriptionItemId,
+      sourceStripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId,
+      effectiveAt: ids.periodEndsAt,
+    });
+    expect(next).toMatchObject({ created: true, conflict: false });
+  });
+
+  it.each([
+    { kind: "changePaidPlanNow", plan: "pro", scheduleId: undefined },
+    { kind: "schedulePaidPlanChange", plan: "business", scheduleId: undefined },
+    { kind: "cancelScheduledPlanChange", plan: "business", scheduleId: "sub_sched_retry_cancel" },
+  ] as const)("$kindのprovider例外をdurableに再予約し、8回目はactionRequiredへ終端化する", async (testCase) => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const subject = `stripe_${testCase.kind}_durable_retry`;
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject,
+      plan: testCase.plan,
+      ...(testCase.kind === "cancelScheduledPlanChange"
+        ? {
+            billingState: {
+              kind: "scheduledChange" as const,
+              currentPlan: "business" as const,
+              targetPlan: "pro" as const,
+              effectiveAt: NOW,
+            },
+          }
+        : {}),
+      ...(testCase.scheduleId ? { scheduleId: testCase.scheduleId } : {}),
+    });
+    if (testCase.kind === "cancelScheduledPlanChange") {
+      await seedSucceededBusinessToProScheduleOperation(t, ids, NOW);
+    }
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      const providerArgs = JSON.parse(String(init?.body ?? "[]")) as unknown[];
+      if (resource === "prices.retrieve") return providerResponse(priceFixtureFor(String(providerArgs[0])));
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(
+          paidPlanSubscriptionFixture(ids, {
+            plan: testCase.plan,
+            invoiceStatus: "paid",
+            ...(testCase.scheduleId ? { scheduleId: testCase.scheduleId } : {}),
+          }),
+        );
+      }
+      if (
+        (testCase.kind === "changePaidPlanNow" && resource === "subscriptions.update") ||
+        (testCase.kind === "schedulePaidPlanChange" && resource === "subscriptionSchedules.create") ||
+        (testCase.kind === "cancelScheduledPlanChange" && resource === "subscriptionSchedules.retrieve")
+      ) {
+        throw new MockStripeError(500);
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+    const actor = t.withIdentity({ subject });
+    if (testCase.kind === "changePaidPlanNow") {
+      await seedSucceededPaidPlanPreview(t, ids, "durable-paid-plan-retry");
+    }
+    const invoke = async () => {
+      if (testCase.kind === "changePaidPlanNow") {
+        return await actor.action(api.organizationStripe.actions.changePaidPlanNow, {
+          shopId: ids.shopId,
+          targetPlan: "business",
+          requestId: "durable-paid-plan-retry",
+          prorationDate: Math.floor(NOW / 1000),
+        });
+      }
+      if (testCase.kind === "schedulePaidPlanChange") {
+        return await actor.action(api.organizationStripe.actions.schedulePaidPlanChange, {
+          shopId: ids.shopId,
+          targetPlan: "pro",
+          requestId: "durable-paid-plan-retry",
+        });
+      }
+      return await actor.action(api.organizationStripe.actions.cancelScheduledPlanChange, {
+        shopId: ids.shopId,
+        requestId: "durable-paid-plan-retry",
+      });
+    };
+
+    await expect(invoke()).resolves.toEqual({ status: "unavailable", reason: "provider_unavailable" });
+
+    let state = await paidPlanStripeState(t, ids.organizationId);
+    const operation = state.operations.find((candidate) => candidate.kind === testCase.kind);
+    expect(operation).toMatchObject({
+      status: "retrying",
+      attemptCount: 1,
+      nextRunAt: NOW + 30_000,
+      lastErrorCode: "stripe_temporary_error",
+    });
+    const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+    expect(scheduled).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "organizationStripe/actions:reconcilePaidPlanChangeOperation",
+          args: [{ operationId: operation?._id }],
+        }),
+      ]),
+    );
+    if (!operation) throw new Error("paid plan operation missing");
+    await t.run(async (ctx) => {
+      await ctx.db.patch(operation._id, { attemptCount: 7, nextRunAt: NOW, updatedAt: NOW });
+    });
+
+    await t.action(internal.organizationStripe.actions.reconcilePaidPlanChangeOperation, {
+      operationId: operation._id,
+    });
+
+    state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.operations.find((candidate) => candidate._id === operation._id)).toMatchObject({
+      status: "actionRequired",
+      attemptCount: 8,
+      lastErrorCode: "attempt_limit_exceeded",
+      completedAt: NOW,
+    });
+  });
+
+  it("Pro→Businessのprovider成功後に停止したretrying operationをlocalへ反映し、terminal後は世代lockを解放する", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: "stripe_paid_plan_recovery_after_provider_success",
+      plan: "pro",
+    });
+    await seedSucceededPaidPlanPreview(t, ids, "recover-paid-plan-success");
+    const operationId = await t.run(async (ctx) => {
+      const billing = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique();
+      if (!billing) throw new Error("billing state was not seeded");
+      await ctx.db.patch(billing._id, {
+        state: { kind: "pendingActivation", plan: "business", fallback: "pro", startedAt: NOW - 1_000 },
+        version: 2,
+        updatedAt: NOW - 1_000,
+      });
+      return await ctx.db.insert("organizationStripeOperations", {
+        organizationId: ids.organizationId,
+        kind: "changePaidPlanNow",
+        requestKey: "recover-paid-plan-success",
+        stripeIdempotencyKey: `shiftori:test:changePaidPlanNow:${ids.organizationId}:recover-paid-plan-success`,
+        livemode: false,
+        expectedBillingVersion: 1,
+        providerGeneration: 1,
+        sourcePlan: "pro",
+        targetPlan: "business",
+        changeMode: "immediate",
+        stripeSubscriptionIdSnapshot: ids.stripeSubscriptionId,
+        stripeSubscriptionItemIdSnapshot: ids.stripeSubscriptionItemId,
+        sourceStripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId,
+        targetStripePriceIdSnapshot: BUSINESS_PRICE_ID,
+        prorationDate: Math.floor(NOW / 1000),
+        effectiveAt: NOW,
+        status: "retrying",
+        attemptCount: 1,
+        nextRunAt: NOW,
+        lastErrorCode: "stripe_temporary_error",
+        expiresAt: NOW + 30 * 24 * 60 * 60_000,
+        createdAt: NOW - 1_000,
+        updatedAt: NOW - 1_000,
+      });
+    });
+    const providerResources: string[] = [];
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      providerResources.push(resource);
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(paidPlanSubscriptionFixture(ids, { plan: "business", invoiceStatus: "paid" }));
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.reconcilePaidPlanChangeOperation, { operationId });
+
+    expect(providerResources).toEqual(["subscriptions.retrieve"]);
+    const state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({ kind: "active", plan: "business" });
+    expect(state.subscription).toMatchObject({ plan: "business", stripePriceId: BUSINESS_PRICE_ID });
+    expect(state.operations).toHaveLength(2);
+    expect(state.operations.find((candidate) => candidate._id === operationId)).toMatchObject({
+      status: "succeeded",
+      attemptCount: 2,
+    });
+    const notification = await t.run(async (ctx) =>
+      (await ctx.db.system.query("_scheduled_functions").collect()).find(
+        (job) =>
+          job.name === "organizationBilling/actions:enqueueBillingNotification" &&
+          job.args[0]?.event === "planActivated",
+      ),
+    );
+    expect(notification?.args[0]?.notificationDetails).toEqual({
+      targetPlan: "business",
+      amountDue: 2_980,
+      currency: "jpy",
+      effectiveAt: NOW,
+    });
+
+    const next = await t.mutation(internal.organizationStripe.mutations.beginOperation, {
+      organizationId: ids.organizationId,
+      kind: "schedulePaidPlanChange",
+      requestKey: "after-terminal-plan-lock",
+      livemode: false,
+      expectedBillingVersion: 3,
+      providerGeneration: 1,
+      sourcePlan: "business",
+      targetPlan: "pro",
+      changeMode: "periodEnd",
+      stripeSubscriptionIdSnapshot: ids.stripeSubscriptionId,
+      stripeSubscriptionItemIdSnapshot: ids.stripeSubscriptionItemId,
+      sourceStripePriceIdSnapshot: BUSINESS_PRICE_ID,
+      targetStripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId,
+      effectiveAt: ids.periodEndsAt,
+    });
+    expect(next).toMatchObject({ created: true, conflict: false });
+  });
+
+  it("Business→Pro Schedule作成後のlocal停止は保存済みScheduleを再利用して収束する", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: "stripe_schedule_paid_plan_recovery_after_provider_success",
+      plan: "business",
+      scheduleId: "sub_sched_recovery_after_provider_success",
+    });
+    const stripeIdempotencyKey = "test:schedule-recovery-after-provider-success";
+    const operationId = await t.run(
+      async (ctx) =>
+        await ctx.db.insert("organizationStripeOperations", {
+          organizationId: ids.organizationId,
+          kind: "schedulePaidPlanChange",
+          requestKey: "schedule-recovery-after-provider-success",
+          stripeIdempotencyKey,
+          livemode: false,
+          expectedBillingVersion: 1,
+          providerGeneration: 1,
+          sourcePlan: "business",
+          targetPlan: "pro",
+          changeMode: "periodEnd",
+          stripeSubscriptionIdSnapshot: ids.stripeSubscriptionId,
+          stripeSubscriptionItemIdSnapshot: ids.stripeSubscriptionItemId,
+          sourceStripePriceIdSnapshot: BUSINESS_PRICE_ID,
+          targetStripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId,
+          effectiveAt: ids.periodEndsAt,
+          stripeObjectId: ids.stripeSubscriptionScheduleId,
+          status: "retrying",
+          attemptCount: 1,
+          nextRunAt: NOW,
+          expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
+          createdAt: NOW - 1_000,
+          updatedAt: NOW - 1_000,
+        }),
+    );
+    const providerResources: string[] = [];
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      providerResources.push(resource);
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(
+          paidPlanSubscriptionFixture(ids, {
+            plan: "business",
+            invoiceStatus: "paid",
+            scheduleId: ids.stripeSubscriptionScheduleId,
+          }),
+        );
+      }
+      if (resource === "subscriptionSchedules.retrieve") {
+        return providerResponse(
+          subscriptionScheduleFixture(ids, {
+            status: "active",
+            operationId,
+            phases: [
+              {
+                start_date: Math.floor(ids.periodEndsAt / 1000),
+                items: [{ price: READY_TEST_CONFIGURATION.proPriceId, quantity: 1 }],
+              },
+            ],
+          }),
+        );
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.reconcilePaidPlanChangeOperation, { operationId });
+
+    expect(providerResources).toEqual(["subscriptions.retrieve", "subscriptionSchedules.retrieve"]);
+    expect(providerResources).not.toContain("subscriptionSchedules.create");
+    expect(providerResources).not.toContain("subscriptionSchedules.update");
+    const state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({
+      kind: "scheduledChange",
+      currentPlan: "business",
+      targetPlan: "pro",
+      effectiveAt: ids.periodEndsAt,
+    });
+    expect(state.subscription).toMatchObject({
+      stripeSubscriptionScheduleId: ids.stripeSubscriptionScheduleId,
+      plan: "business",
+    });
+    expect(state.operations.find((operation) => operation._id === operationId)).toMatchObject({
+      status: "succeeded",
+      attemptCount: 2,
+      stripeObjectId: ids.stripeSubscriptionScheduleId,
+      stripeIdempotencyKey,
+    });
+  });
+
+  it("BusinessのままScheduleがreleasedになった予約回収はscheduledChangeへ誤収束しない", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: "stripe_schedule_released_before_target_applied",
+      plan: "business",
+      scheduleId: "sub_sched_released_before_target_applied",
+    });
+    const operation = await t.mutation(internal.organizationStripe.mutations.beginOperation, {
+      organizationId: ids.organizationId,
+      kind: "schedulePaidPlanChange",
+      requestKey: "released-before-target-applied",
+      livemode: false,
+      expectedBillingVersion: 1,
+      providerGeneration: 1,
+      sourcePlan: "business",
+      targetPlan: "pro",
+      changeMode: "periodEnd",
+      stripeSubscriptionIdSnapshot: ids.stripeSubscriptionId,
+      stripeSubscriptionItemIdSnapshot: ids.stripeSubscriptionItemId,
+      sourceStripePriceIdSnapshot: BUSINESS_PRICE_ID,
+      targetStripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId,
+      effectiveAt: ids.periodEndsAt,
+    });
+    await t.mutation(internal.organizationStripe.mutations.finishOperation, {
+      operationId: operation.operationId,
+      leaseToken: operation.leaseToken as string,
+      status: "retrying",
+      errorCode: "stripe_temporary_error",
+    });
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(
+          paidPlanSubscriptionFixture(ids, {
+            plan: "business",
+            invoiceStatus: "paid",
+            scheduleId: ids.stripeSubscriptionScheduleId,
+          }),
+        );
+      }
+      if (resource === "subscriptionSchedules.retrieve") {
+        return providerResponse(
+          subscriptionScheduleFixture(ids, {
+            status: "released",
+            operationId: operation.operationId,
+            phases: [
+              {
+                start_date: Math.floor(ids.periodEndsAt / 1000),
+                items: [{ price: READY_TEST_CONFIGURATION.proPriceId, quantity: 1 }],
+              },
+            ],
+          }),
+        );
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.reconcilePaidPlanChangeOperation, {
+      operationId: operation.operationId,
+    });
+
+    const state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({ kind: "active", plan: "business" });
+    expect(state.subscription).toMatchObject({
+      plan: "business",
+      stripePriceId: BUSINESS_PRICE_ID,
+      stripeSubscriptionScheduleId: ids.stripeSubscriptionScheduleId,
+    });
+    expect(state.operations.find((candidate) => candidate._id === operation.operationId)).toMatchObject({
+      status: "retrying",
+      attemptCount: 2,
+      lastErrorCode: "stripe_processing_error",
+    });
+  });
+
+  it("Business→Pro Schedule解放後のlocal停止は保存済みScheduleを再releaseせず収束する", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: "stripe_cancel_paid_plan_recovery_after_provider_success",
+      plan: "business",
+      billingState: {
+        kind: "scheduledChange",
+        currentPlan: "business",
+        targetPlan: "pro",
+        effectiveAt: NOW,
+      },
+      scheduleId: "sub_sched_cancel_recovery_after_provider_success",
+    });
+    const sourceOperationId = await seedSucceededBusinessToProScheduleOperation(t, ids, NOW);
+    const stripeIdempotencyKey = "test:cancel-recovery-after-provider-success";
+    const operationId = await t.run(async (ctx) => {
+      const subscription = await ctx.db
+        .query("organizationStripeSubscriptions")
+        .withIndex("by_organizationId_and_providerGeneration", (q) =>
+          q.eq("organizationId", ids.organizationId).eq("providerGeneration", 1),
+        )
+        .unique();
+      if (!subscription) throw new Error("subscription fixture missing");
+      await ctx.db.patch(subscription._id, { stripeSubscriptionScheduleId: undefined });
+      return await ctx.db.insert("organizationStripeOperations", {
+        organizationId: ids.organizationId,
+        kind: "cancelScheduledPlanChange",
+        requestKey: "cancel-recovery-after-provider-success",
+        stripeIdempotencyKey,
+        livemode: false,
+        expectedBillingVersion: 2,
+        providerGeneration: 1,
+        sourcePlan: "business",
+        targetPlan: "pro",
+        changeMode: "periodEnd",
+        stripeSubscriptionIdSnapshot: ids.stripeSubscriptionId,
+        stripeSubscriptionItemIdSnapshot: ids.stripeSubscriptionItemId,
+        sourceStripePriceIdSnapshot: BUSINESS_PRICE_ID,
+        targetStripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId,
+        effectiveAt: NOW,
+        stripeObjectId: ids.stripeSubscriptionScheduleId,
+        status: "retrying",
+        attemptCount: 1,
+        nextRunAt: NOW,
+        expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
+        createdAt: NOW - 1_000,
+        updatedAt: NOW - 1_000,
+      });
+    });
+    const providerResources: string[] = [];
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      providerResources.push(resource);
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(paidPlanSubscriptionFixture(ids, { plan: "business", invoiceStatus: "paid" }));
+      }
+      if (resource === "subscriptionSchedules.retrieve") {
+        return providerResponse(
+          subscriptionScheduleFixture(ids, { status: "released", operationId: sourceOperationId }),
+        );
+      }
+      if (resource === "subscriptionSchedules.release") {
+        throw new Error("released Schedule must not be released again");
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.reconcilePaidPlanChangeOperation, { operationId });
+
+    expect(providerResources).toEqual([
+      "subscriptions.retrieve",
+      "subscriptionSchedules.retrieve",
+      "subscriptions.retrieve",
+    ]);
+    expect(providerResources).not.toContain("subscriptionSchedules.release");
+    const state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({ kind: "active", plan: "business" });
+    expect(state.subscription).not.toHaveProperty("stripeSubscriptionScheduleId");
+    expect(state.operations.find((operation) => operation._id === operationId)).toMatchObject({
+      status: "succeeded",
+      attemptCount: 2,
+      stripeObjectId: ids.stripeSubscriptionScheduleId,
+      stripeIdempotencyKey,
+    });
+  });
+
+  it.each([
+    {
+      caseName: "snapshot欠落",
+      providerGeneration: 1,
+      includeSourcePrice: false,
+      errorCode: "paid_plan_change_snapshot_invalid",
+    },
+    {
+      caseName: "provider世代不一致",
+      providerGeneration: 2,
+      includeSourcePrice: true,
+      errorCode: "paid_plan_change_binding_invalid",
+    },
+  ] as const)("有料プラン変更の回収で$caseNameを検知したらactionRequiredへ終端化する", async (testCase) => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: `stripe_paid_plan_invalid_recovery_${testCase.providerGeneration}_${testCase.includeSourcePrice}`,
+      plan: "pro",
+    });
+    const operationId = await t.run(
+      async (ctx) =>
+        await ctx.db.insert("organizationStripeOperations", {
+          organizationId: ids.organizationId,
+          kind: "changePaidPlanNow",
+          requestKey: `invalid-recovery-${testCase.providerGeneration}-${testCase.includeSourcePrice}`,
+          stripeIdempotencyKey: `test:invalid-recovery:${testCase.providerGeneration}:${testCase.includeSourcePrice}`,
+          livemode: false,
+          expectedBillingVersion: 1,
+          providerGeneration: testCase.providerGeneration,
+          sourcePlan: "pro",
+          targetPlan: "business",
+          changeMode: "immediate",
+          stripeSubscriptionIdSnapshot: ids.stripeSubscriptionId,
+          stripeSubscriptionItemIdSnapshot: ids.stripeSubscriptionItemId,
+          ...(testCase.includeSourcePrice ? { sourceStripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId } : {}),
+          targetStripePriceIdSnapshot: BUSINESS_PRICE_ID,
+          prorationDate: Math.floor(NOW / 1000),
+          effectiveAt: NOW,
+          status: "retrying",
+          attemptCount: 1,
+          nextRunAt: NOW,
+          expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
+          createdAt: NOW - 1_000,
+          updatedAt: NOW - 1_000,
+        }),
+    );
+
+    await t.action(internal.organizationStripe.actions.reconcilePaidPlanChangeOperation, { operationId });
+
+    expect(await t.run(async (ctx) => await ctx.db.get(operationId))).toMatchObject({
+      status: "actionRequired",
+      lastErrorCode: testCase.errorCode,
+      completedAt: NOW,
+    });
+    expect(await t.run(async (ctx) => await ctx.db.get(operationId))).not.toHaveProperty("nextRunAt");
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("有効leaseを持つ有料プラン変更へ重複schedulerが来ても正規ownerを終端化しない", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: "stripe_paid_plan_duplicate_scheduler",
+      plan: "pro",
+    });
+    const operationId = await t.run(
+      async (ctx) =>
+        await ctx.db.insert("organizationStripeOperations", {
+          organizationId: ids.organizationId,
+          kind: "changePaidPlanNow",
+          requestKey: "paid-plan-duplicate-scheduler",
+          stripeIdempotencyKey: "test:paid-plan-duplicate-scheduler",
+          livemode: false,
+          expectedBillingVersion: 1,
+          providerGeneration: 1,
+          sourcePlan: "pro",
+          targetPlan: "business",
+          changeMode: "immediate",
+          stripeSubscriptionIdSnapshot: ids.stripeSubscriptionId,
+          stripeSubscriptionItemIdSnapshot: ids.stripeSubscriptionItemId,
+          sourceStripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId,
+          targetStripePriceIdSnapshot: BUSINESS_PRICE_ID,
+          prorationDate: Math.floor(NOW / 1000),
+          effectiveAt: NOW,
+          status: "processing",
+          attemptCount: 2,
+          leaseToken: "active-paid-plan-owner-lease",
+          leaseExpiresAt: NOW + 60_000,
+          expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
+          createdAt: NOW - 1_000,
+          updatedAt: NOW - 1_000,
+        }),
+    );
+
+    await t.action(internal.organizationStripe.actions.reconcilePaidPlanChangeOperation, { operationId });
+
+    expect(await t.run(async (ctx) => await ctx.db.get(operationId))).toMatchObject({
+      status: "processing",
+      attemptCount: 2,
+      leaseToken: "active-paid-plan-owner-lease",
+      leaseExpiresAt: NOW + 60_000,
+    });
+    expect(providerFetchMock).not.toHaveBeenCalled();
   });
 
   it("BusinessからProを現在の期間末へScheduleし、取消時はprovider確認後にBusinessへ戻す", async () => {
@@ -621,6 +1557,7 @@ describe("organizationStripe/actions", () => {
     const scheduleUpdateCalls: unknown[][] = [];
     const scheduleReleaseCalls: unknown[][] = [];
     let scheduled = false;
+    let scheduleOperationId: string | undefined;
     providerFetchMock.mockImplementation(async (input, init) => {
       const resource = String(input).split("/").pop() ?? "";
       const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
@@ -636,21 +1573,38 @@ describe("organizationStripe/actions", () => {
       }
       if (resource === "subscriptionSchedules.create") {
         scheduleCreateCalls.push(args);
-        return providerResponse(subscriptionScheduleFixture(ids, { status: "not_started" }));
+        const payload = args[0] as { metadata: { shiftori_operation_id: string } };
+        return providerResponse(
+          subscriptionScheduleFixture(ids, {
+            status: "not_started",
+            operationId: payload.metadata.shiftori_operation_id,
+          }),
+        );
       }
       if (resource === "subscriptionSchedules.update") {
         scheduleUpdateCalls.push(args);
         scheduled = true;
-        const payload = args[1] as { phases: unknown[] };
-        return providerResponse(subscriptionScheduleFixture(ids, { status: "active", phases: payload.phases }));
+        const payload = args[1] as { phases: unknown[]; metadata: { shiftori_operation_id: string } };
+        scheduleOperationId = payload.metadata.shiftori_operation_id;
+        return providerResponse(
+          subscriptionScheduleFixture(ids, {
+            status: "active",
+            phases: payload.phases,
+            operationId: scheduleOperationId,
+          }),
+        );
       }
       if (resource === "subscriptionSchedules.retrieve") {
-        return providerResponse(subscriptionScheduleFixture(ids, { status: "active" }));
+        return providerResponse(
+          subscriptionScheduleFixture(ids, { status: "active", operationId: scheduleOperationId }),
+        );
       }
       if (resource === "subscriptionSchedules.release") {
         scheduleReleaseCalls.push(args);
         scheduled = false;
-        return providerResponse(subscriptionScheduleFixture(ids, { status: "released" }));
+        return providerResponse(
+          subscriptionScheduleFixture(ids, { status: "released", operationId: scheduleOperationId }),
+        );
       }
       throw new Error(`Unexpected Stripe provider call: ${resource}`);
     });
@@ -718,6 +1672,307 @@ describe("organizationStripe/actions", () => {
     expect(state.subscription).not.toHaveProperty("stripeSubscriptionScheduleId");
   });
 
+  it("Business→Pro開始時の既存Scheduleが別operation所有なら更新せず、actionRequired ownerを別requestで迂回させない", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const subject = "stripe_business_to_pro_foreign_schedule_start";
+    const foreignScheduleId = "sub_sched_foreign_schedule_start";
+    const ids = await seedPaidPlanStripeContext(t, { subject, plan: "business" });
+    let scheduleRetrieveCount = 0;
+    const scheduleUpdateCalls: unknown[][] = [];
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
+      if (resource === "prices.retrieve") return providerResponse(priceFixtureFor(String(args[0])));
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(
+          paidPlanSubscriptionFixture(ids, {
+            plan: "business",
+            invoiceStatus: "paid",
+            scheduleId: foreignScheduleId,
+          }),
+        );
+      }
+      if (resource === "subscriptionSchedules.retrieve") {
+        scheduleRetrieveCount += 1;
+        return providerResponse({
+          ...subscriptionScheduleFixture(ids, {
+            status: "active",
+            operationId: "foreign-operation-owner",
+          }),
+          id: foreignScheduleId,
+        });
+      }
+      if (resource === "subscriptionSchedules.update") {
+        scheduleUpdateCalls.push(args);
+        throw new Error("foreign Schedule must not be updated");
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+    const actor = t.withIdentity({ subject });
+
+    await expect(
+      actor.action(api.organizationStripe.actions.schedulePaidPlanChange, {
+        shopId: ids.shopId,
+        targetPlan: "pro",
+        requestId: "foreign-schedule-owner-1",
+      }),
+    ).resolves.toEqual({ status: "unavailable", reason: "provider_unavailable" });
+
+    let state = await paidPlanStripeState(t, ids.organizationId);
+    const operation = state.operations.find((candidate) => candidate.kind === "schedulePaidPlanChange");
+    expect(operation).toMatchObject({ status: "retrying", attemptCount: 1 });
+    if (!operation) throw new Error("schedule operation missing");
+    await t.run(async (ctx) => {
+      await ctx.db.patch(operation._id, { attemptCount: 7, nextRunAt: NOW, updatedAt: NOW });
+    });
+    await t.action(internal.organizationStripe.actions.reconcilePaidPlanChangeOperation, {
+      operationId: operation._id,
+    });
+
+    state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.operations.find((candidate) => candidate._id === operation._id)).toMatchObject({
+      status: "actionRequired",
+      attemptCount: 8,
+      lastErrorCode: "attempt_limit_exceeded",
+    });
+    await expect(
+      actor.action(api.organizationStripe.actions.schedulePaidPlanChange, {
+        shopId: ids.shopId,
+        targetPlan: "pro",
+        requestId: "foreign-schedule-owner-2",
+      }),
+    ).resolves.toEqual({ status: "unavailable", reason: "in_progress" });
+    state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.operations.filter((candidate) => candidate.kind === "schedulePaidPlanChange")).toHaveLength(1);
+    expect(scheduleRetrieveCount).toBe(2);
+    expect(scheduleUpdateCalls).toEqual([]);
+  });
+
+  it("Business→Pro開始時に作成直後のScheduleがreleasedなら予約状態へ保存しない", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const subject = "stripe_business_to_pro_created_released";
+    const ids = await seedPaidPlanStripeContext(t, { subject, plan: "business" });
+    const scheduleUpdateCalls: unknown[][] = [];
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
+      if (resource === "prices.retrieve") return providerResponse(priceFixtureFor(String(args[0])));
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(paidPlanSubscriptionFixture(ids, { plan: "business", invoiceStatus: "paid" }));
+      }
+      if (resource === "subscriptionSchedules.create") {
+        const payload = args[0] as { metadata: { shiftori_operation_id: string } };
+        return providerResponse(
+          subscriptionScheduleFixture(ids, {
+            status: "released",
+            operationId: payload.metadata.shiftori_operation_id,
+          }),
+        );
+      }
+      if (resource === "subscriptionSchedules.update") {
+        scheduleUpdateCalls.push(args);
+        throw new Error("released Schedule must not be updated");
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await expect(
+      t.withIdentity({ subject }).action(api.organizationStripe.actions.schedulePaidPlanChange, {
+        shopId: ids.shopId,
+        targetPlan: "pro",
+        requestId: "created-released-schedule",
+      }),
+    ).resolves.toEqual({ status: "unavailable", reason: "provider_unavailable" });
+
+    const state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({ kind: "active", plan: "business" });
+    expect(state.subscription).not.toHaveProperty("stripeSubscriptionScheduleId");
+    expect(state.operations.find((candidate) => candidate.kind === "schedulePaidPlanChange")).toMatchObject({
+      status: "retrying",
+      attemptCount: 1,
+    });
+    expect(scheduleUpdateCalls).toEqual([]);
+  });
+
+  it("Business→Pro Scheduleがすでにreleasedでも取消の再試行を成功扱いにする", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: "stripe_business_to_pro_already_released",
+      plan: "business",
+      billingState: {
+        kind: "scheduledChange",
+        currentPlan: "business",
+        targetPlan: "pro",
+        effectiveAt: NOW,
+      },
+      scheduleId: "sub_sched_business_to_pro_already_released",
+    });
+    const sourceOperationId = await seedSucceededBusinessToProScheduleOperation(t, ids, NOW);
+    let subscriptionRetrieveCount = 0;
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource === "subscriptions.retrieve") {
+        subscriptionRetrieveCount += 1;
+        return providerResponse(
+          paidPlanSubscriptionFixture(ids, {
+            plan: "business",
+            invoiceStatus: "paid",
+            ...(subscriptionRetrieveCount === 1 ? { scheduleId: ids.stripeSubscriptionScheduleId } : {}),
+          }),
+        );
+      }
+      if (resource === "subscriptionSchedules.retrieve") {
+        return providerResponse(
+          subscriptionScheduleFixture(ids, { status: "released", operationId: sourceOperationId }),
+        );
+      }
+      if (resource === "subscriptionSchedules.release") {
+        throw new Error("released Schedule must not be released again");
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "stripe_business_to_pro_already_released" })
+        .action(api.organizationStripe.actions.cancelScheduledPlanChange, {
+          shopId: ids.shopId,
+          requestId: "cancel-already-released-schedule",
+        }),
+    ).resolves.toEqual({ status: "accepted" });
+
+    const state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({ kind: "active", plan: "business" });
+    expect(state.subscription).not.toHaveProperty("stripeSubscriptionScheduleId");
+    expect(providerFetchMock.mock.calls.map(([input]) => String(input))).not.toEqual(
+      expect.arrayContaining([expect.stringContaining("subscriptionSchedules.release")]),
+    );
+  });
+
+  it("Pro Price rotation後も作成時snapshotの旧Priceを正としてBusiness→Pro Scheduleを取り消す", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: "stripe_business_to_pro_rotated_price_cancel",
+      plan: "business",
+      billingState: {
+        kind: "scheduledChange",
+        currentPlan: "business",
+        targetPlan: "pro",
+        effectiveAt: NOW,
+      },
+      scheduleId: "sub_sched_business_to_pro_rotated_price",
+    });
+    const scheduledTargetPriceId = "price_pro_before_rotation";
+    const sourceOperationId = await seedSucceededBusinessToProScheduleOperation(t, ids, NOW, scheduledTargetPriceId);
+    let subscriptionRetrieveCount = 0;
+    let releaseCount = 0;
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource === "subscriptions.retrieve") {
+        subscriptionRetrieveCount += 1;
+        return providerResponse(
+          paidPlanSubscriptionFixture(ids, {
+            plan: "business",
+            invoiceStatus: "paid",
+            ...(subscriptionRetrieveCount === 1 ? { scheduleId: ids.stripeSubscriptionScheduleId } : {}),
+          }),
+        );
+      }
+      if (resource === "subscriptionSchedules.retrieve") {
+        return providerResponse(
+          subscriptionScheduleFixture(ids, {
+            status: "active",
+            operationId: sourceOperationId,
+            targetStripePriceId: scheduledTargetPriceId,
+          }),
+        );
+      }
+      if (resource === "subscriptionSchedules.release") {
+        releaseCount += 1;
+        return providerResponse(
+          subscriptionScheduleFixture(ids, {
+            status: "released",
+            operationId: sourceOperationId,
+            targetStripePriceId: scheduledTargetPriceId,
+          }),
+        );
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "stripe_business_to_pro_rotated_price_cancel" })
+        .action(api.organizationStripe.actions.cancelScheduledPlanChange, {
+          shopId: ids.shopId,
+          requestId: "cancel-schedule-after-pro-price-rotation",
+        }),
+    ).resolves.toEqual({ status: "accepted" });
+
+    expect(releaseCount).toBe(1);
+    const state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({ kind: "active", plan: "business" });
+    expect(state.operations.find((operation) => operation.kind === "cancelScheduledPlanChange")).toMatchObject({
+      status: "succeeded",
+      targetStripePriceIdSnapshot: scheduledTargetPriceId,
+    });
+  });
+
+  it("Subscriptionが別Scheduleへ差し替わっていたらBusiness→Pro予約の取消でreleaseしない", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: "stripe_business_to_pro_foreign_schedule",
+      plan: "business",
+      billingState: {
+        kind: "scheduledChange",
+        currentPlan: "business",
+        targetPlan: "pro",
+        effectiveAt: NOW,
+      },
+      scheduleId: "sub_sched_business_to_pro_owned",
+    });
+    await seedSucceededBusinessToProScheduleOperation(t, ids, NOW);
+    const providerResources: string[] = [];
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      providerResources.push(resource);
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(
+          paidPlanSubscriptionFixture(ids, {
+            plan: "business",
+            invoiceStatus: "paid",
+            scheduleId: "sub_sched_foreign_dashboard_replacement",
+          }),
+        );
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "stripe_business_to_pro_foreign_schedule" })
+        .action(api.organizationStripe.actions.cancelScheduledPlanChange, {
+          shopId: ids.shopId,
+          requestId: "cancel-foreign-schedule",
+        }),
+    ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
+
+    expect(providerResources).toEqual(["subscriptions.retrieve"]);
+    const state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({
+      kind: "scheduledChange",
+      currentPlan: "business",
+      targetPlan: "pro",
+      effectiveAt: NOW,
+    });
+    expect(state.operations.filter((operation) => operation.kind === "cancelScheduledPlanChange")).toEqual([]);
+  });
+
   it.each([
     { result: "paid", overProLimit: false, expectedKind: "active" },
     { result: "paid", overProLimit: true, expectedKind: "restricted" },
@@ -738,6 +1993,7 @@ describe("organizationStripe/actions", () => {
         },
         scheduleId: "sub_sched_business_to_pro",
       });
+      const scheduleOperationId = await seedSucceededBusinessToProScheduleOperation(t, ids, NOW);
       if (overProLimit) await seedAdditionalOrganizationStaff(t, ids, 20);
       providerFetchMock.mockImplementation(async (input) => {
         const resource = String(input).split("/").pop() ?? "";
@@ -747,6 +2003,20 @@ describe("organizationStripe/actions", () => {
               plan: "pro",
               invoiceStatus: result === "paid" ? "paid" : "open",
               subscriptionStatus: result === "paid" ? "active" : "past_due",
+            }),
+          );
+        }
+        if (resource === "subscriptionSchedules.retrieve") {
+          return providerResponse(
+            subscriptionScheduleFixture(ids, {
+              status: "active",
+              operationId: scheduleOperationId,
+              phases: [
+                {
+                  start_date: Math.floor(NOW / 1000),
+                  items: [{ price: READY_TEST_CONFIGURATION.proPriceId, quantity: 1 }],
+                },
+              ],
             }),
           );
         }
@@ -763,6 +2033,19 @@ describe("organizationStripe/actions", () => {
       expect(state.billing?.state.kind).toBe(expectedKind);
       if (result === "paid" && !overProLimit) {
         expect(state.billing?.state).toEqual({ kind: "active", plan: "pro" });
+        const notification = await t.run(async (ctx) =>
+          (await ctx.db.system.query("_scheduled_functions").collect()).find(
+            (job) =>
+              job.name === "organizationBilling/actions:enqueueBillingNotification" &&
+              job.args[0]?.event === "planActivated",
+          ),
+        );
+        expect(notification?.args[0]?.notificationDetails).toEqual({
+          targetPlan: "pro",
+          amountDue: 1_480,
+          currency: "jpy",
+          effectiveAt: NOW,
+        });
       } else if (result === "paid") {
         expect(state.billing?.state).toMatchObject({
           kind: "restricted",
@@ -770,6 +2053,19 @@ describe("organizationStripe/actions", () => {
           previousPlan: "business",
           targetPlan: "pro",
           limitPlan: "pro",
+        });
+        const notification = await t.run(async (ctx) =>
+          (await ctx.db.system.query("_scheduled_functions").collect()).find(
+            (job) =>
+              job.name === "organizationBilling/actions:enqueueBillingNotification" &&
+              job.args[0]?.event === "restrictedStarted",
+          ),
+        );
+        expect(notification?.args[0]?.notificationDetails).toEqual({
+          targetPlan: "pro",
+          amountDue: 1_480,
+          currency: "jpy",
+          effectiveAt: NOW,
         });
       } else {
         expect(state.billing?.state).toEqual({
@@ -786,8 +2082,11 @@ describe("organizationStripe/actions", () => {
         stripePriceId: READY_TEST_CONFIGURATION.proPriceId,
         plan: "pro",
       });
-      expect(state.operations).toHaveLength(1);
-      expect(state.operations[0]).toMatchObject({
+      const reconciliation = state.operations.filter(
+        (operation) => operation.recoveryPurpose === "scheduledPaidPlanDeadline",
+      );
+      expect(reconciliation).toHaveLength(1);
+      expect(reconciliation[0]).toMatchObject({
         kind: "reconcileSubscription",
         recoveryPurpose: "scheduledPaidPlanDeadline",
         status: "succeeded",
@@ -797,6 +2096,571 @@ describe("organizationStripe/actions", () => {
       });
     },
   );
+
+  it("Business→Pro期限の遅延再照合ではreleased Scheduleの元Subscription対応を受け入れる", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: "stripe_business_to_pro_released_deadline",
+      plan: "business",
+      billingState: {
+        kind: "scheduledChange",
+        currentPlan: "business",
+        targetPlan: "pro",
+        effectiveAt: NOW,
+      },
+      scheduleId: "sub_sched_business_to_pro_released_deadline",
+    });
+    const scheduleOperationId = await seedSucceededBusinessToProScheduleOperation(t, ids, NOW);
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(paidPlanSubscriptionFixture(ids, { plan: "pro", invoiceStatus: "paid" }));
+      }
+      if (resource === "subscriptionSchedules.retrieve") {
+        return providerResponse(
+          subscriptionScheduleFixture(ids, {
+            status: "released",
+            operationId: scheduleOperationId,
+            phases: [
+              {
+                start_date: Math.floor(NOW / 1000),
+                items: [{ price: READY_TEST_CONFIGURATION.proPriceId, quantity: 1 }],
+              },
+            ],
+          }),
+        );
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.reconcileScheduledPaidPlanDeadline, {
+      organizationId: ids.organizationId,
+      expectedBillingVersion: 2,
+      requestId: "scheduled-paid-released-deadline",
+    });
+
+    const state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({ kind: "active", plan: "pro" });
+    expect(state.subscription).toMatchObject({ plan: "pro", stripePriceId: READY_TEST_CONFIGURATION.proPriceId });
+  });
+
+  it("Business→Proのinvoice.paid WebhookもSchedule証拠を照合し請求額・通貨・適用日を通知する", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: "stripe_business_to_pro_paid_webhook",
+      plan: "business",
+      billingState: {
+        kind: "scheduledChange",
+        currentPlan: "business",
+        targetPlan: "pro",
+        effectiveAt: NOW,
+      },
+      scheduleId: "sub_sched_business_to_pro_paid_webhook",
+    });
+    const scheduleOperationId = await seedSucceededBusinessToProScheduleOperation(t, ids, NOW);
+    const stripeEventId = "evt_business_to_pro_paid_webhook";
+    const subscription = paidPlanSubscriptionFixture(ids, {
+      plan: "pro",
+      invoiceStatus: "paid",
+      scheduleId: ids.stripeSubscriptionScheduleId,
+    });
+    const invoice = subscription.latest_invoice;
+    await seedStripeWebhookReceipt(t, {
+      stripeEventId,
+      type: "invoice.paid",
+      objectId: invoice.id,
+    });
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource === "events.retrieve") {
+        return providerResponse({
+          id: stripeEventId,
+          type: "invoice.paid",
+          livemode: false,
+          api_version: STRIPE_WEBHOOK_API_VERSION,
+          created: Math.floor(NOW / 1000),
+          data: { object: { id: invoice.id } },
+        });
+      }
+      if (resource === "invoices.retrieve") return providerResponse(invoice);
+      if (resource === "subscriptions.retrieve") return providerResponse(subscription);
+      if (resource === "subscriptionSchedules.retrieve") {
+        return providerResponse(
+          subscriptionScheduleFixture(ids, {
+            status: "active",
+            operationId: scheduleOperationId,
+            phases: [
+              {
+                start_date: Math.floor(NOW / 1000),
+                items: [{ price: READY_TEST_CONFIGURATION.proPriceId, quantity: 1 }],
+              },
+            ],
+          }),
+        );
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId });
+
+    const state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({ kind: "active", plan: "pro" });
+    expect(
+      await t.run(
+        async (ctx) =>
+          await ctx.db
+            .query("stripeWebhookEvents")
+            .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", stripeEventId))
+            .unique(),
+      ),
+    ).toMatchObject({ status: "processed" });
+    const notification = await t.run(async (ctx) =>
+      (await ctx.db.system.query("_scheduled_functions").collect()).find(
+        (job) =>
+          job.name === "organizationBilling/actions:enqueueBillingNotification" &&
+          job.args[0]?.event === "planActivated",
+      ),
+    );
+    expect(notification?.args[0]?.notificationDetails).toEqual({
+      targetPlan: "pro",
+      amountDue: 1_480,
+      currency: "jpy",
+      effectiveAt: NOW,
+    });
+  });
+
+  it("Business→Proの初回Pro請求が未確定でもSchedule bindingを保持し、後続invoice.paidで回収する", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: "stripe_business_to_pro_pending_then_paid",
+      plan: "business",
+      billingState: {
+        kind: "scheduledChange",
+        currentPlan: "business",
+        targetPlan: "pro",
+        effectiveAt: NOW,
+      },
+      scheduleId: "sub_sched_business_to_pro_pending_then_paid",
+    });
+    const scheduleOperationId = await seedSucceededBusinessToProScheduleOperation(t, ids, NOW);
+    const pendingEventId = "evt_business_to_pro_invoice_pending";
+    const paidEventId = "evt_business_to_pro_invoice_paid_after_pending";
+    const pendingSubscription = paidPlanSubscriptionFixture(ids, {
+      plan: "pro",
+      invoiceStatus: "open",
+    });
+    const paidSubscription = paidPlanSubscriptionFixture(ids, {
+      plan: "pro",
+      invoiceStatus: "paid",
+    });
+    await seedStripeWebhookReceipt(t, {
+      stripeEventId: pendingEventId,
+      type: "customer.subscription.updated",
+      objectId: ids.stripeSubscriptionId,
+    });
+    await seedStripeWebhookReceipt(t, {
+      stripeEventId: paidEventId,
+      type: "invoice.paid",
+      objectId: paidSubscription.latest_invoice.id,
+    });
+    let activeEvent: typeof pendingEventId | typeof paidEventId = pendingEventId;
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      const activeSubscription = activeEvent === pendingEventId ? pendingSubscription : paidSubscription;
+      if (resource === "events.retrieve") {
+        return providerResponse({
+          id: activeEvent,
+          type: activeEvent === pendingEventId ? "customer.subscription.updated" : "invoice.paid",
+          livemode: false,
+          api_version: STRIPE_WEBHOOK_API_VERSION,
+          created: Math.floor(NOW / 1000),
+          data: {
+            object: {
+              id: activeEvent === pendingEventId ? ids.stripeSubscriptionId : paidSubscription.latest_invoice.id,
+            },
+          },
+        });
+      }
+      if (resource === "subscriptions.retrieve") return providerResponse(activeSubscription);
+      if (resource === "invoices.retrieve") return providerResponse(paidSubscription.latest_invoice);
+      if (resource === "subscriptionSchedules.retrieve") {
+        return providerResponse(
+          subscriptionScheduleFixture(ids, {
+            status: "released",
+            operationId: scheduleOperationId,
+            phases: [
+              {
+                start_date: Math.floor(NOW / 1000),
+                items: [{ price: READY_TEST_CONFIGURATION.proPriceId, quantity: 1 }],
+              },
+            ],
+          }),
+        );
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: pendingEventId });
+
+    let state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({
+      kind: "scheduledChange",
+      currentPlan: "business",
+      targetPlan: "pro",
+      effectiveAt: NOW,
+    });
+    expect(state.subscription).toMatchObject({
+      plan: "pro",
+      stripePriceId: READY_TEST_CONFIGURATION.proPriceId,
+      stripeSubscriptionScheduleId: ids.stripeSubscriptionScheduleId,
+    });
+    expect(
+      await t.run(
+        async (ctx) =>
+          await ctx.db
+            .query("stripeWebhookEvents")
+            .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", pendingEventId))
+            .unique(),
+      ),
+    ).toMatchObject({ status: "retrying", lastErrorCode: "scheduled_paid_invoice_pending" });
+
+    activeEvent = paidEventId;
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: paidEventId });
+
+    state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({ kind: "active", plan: "pro" });
+    expect(state.subscription).toMatchObject({ plan: "pro", stripePriceId: READY_TEST_CONFIGURATION.proPriceId });
+    expect(state.subscription).not.toHaveProperty("stripeSubscriptionScheduleId");
+    expect(
+      await t.run(
+        async (ctx) =>
+          await ctx.db
+            .query("stripeWebhookEvents")
+            .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", paidEventId))
+            .unique(),
+      ),
+    ).toMatchObject({ status: "processed" });
+  });
+
+  it.each([
+    {
+      name: "Price",
+      invoicePriceId: "price_unrelated_invoice",
+      invoiceEffectiveAt: NOW,
+      billingReason: "subscription_cycle",
+    },
+    {
+      name: "開始期間",
+      invoicePriceId: READY_TEST_CONFIGURATION.proPriceId,
+      invoiceEffectiveAt: NOW + 1_000,
+      billingReason: "subscription_cycle",
+    },
+    {
+      name: "billing_reason",
+      invoicePriceId: READY_TEST_CONFIGURATION.proPriceId,
+      invoiceEffectiveAt: NOW,
+      billingReason: "subscription_update",
+    },
+  ] as const)("Business→Proの初回請求で$nameが予約snapshotと異なれば確定しない", async (testCase) => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const subject = `stripe_scheduled_paid_invoice_invalid_${testCase.name}`;
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject,
+      plan: "business",
+      billingState: {
+        kind: "scheduledChange",
+        currentPlan: "business",
+        targetPlan: "pro",
+        effectiveAt: NOW,
+      },
+      scheduleId: `sub_sched_invoice_invalid_${testCase.name}`,
+    });
+    const scheduleOperationId = await seedSucceededBusinessToProScheduleOperation(t, ids, NOW);
+    const stripeEventId = `evt_scheduled_paid_invoice_invalid_${testCase.name}`;
+    const subscription = paidPlanSubscriptionFixture(ids, {
+      plan: "pro",
+      invoiceStatus: "paid",
+      scheduleId: ids.stripeSubscriptionScheduleId,
+      invoicePriceId: testCase.invoicePriceId,
+      invoiceEffectiveAt: testCase.invoiceEffectiveAt,
+      invoiceBillingReason: testCase.billingReason,
+    });
+    const invoice = subscription.latest_invoice;
+    await seedStripeWebhookReceipt(t, { stripeEventId, type: "invoice.paid", objectId: invoice.id });
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource === "events.retrieve") {
+        return providerResponse({
+          id: stripeEventId,
+          type: "invoice.paid",
+          livemode: false,
+          api_version: STRIPE_WEBHOOK_API_VERSION,
+          created: Math.floor(NOW / 1000),
+          data: { object: { id: invoice.id } },
+        });
+      }
+      if (resource === "invoices.retrieve") return providerResponse(invoice);
+      if (resource === "subscriptions.retrieve") return providerResponse(subscription);
+      if (resource === "subscriptionSchedules.retrieve") {
+        return providerResponse(
+          subscriptionScheduleFixture(ids, {
+            status: "active",
+            operationId: scheduleOperationId,
+            phases: [
+              {
+                start_date: Math.floor(NOW / 1000),
+                items: [{ price: READY_TEST_CONFIGURATION.proPriceId, quantity: 1 }],
+              },
+            ],
+          }),
+        );
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId });
+
+    const state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({
+      kind: "scheduledChange",
+      currentPlan: "business",
+      targetPlan: "pro",
+      effectiveAt: NOW,
+    });
+    expect(state.subscription).toHaveProperty("stripeSubscriptionScheduleId", ids.stripeSubscriptionScheduleId);
+    expect(
+      await t.run(
+        async (ctx) =>
+          await ctx.db
+            .query("stripeWebhookEvents")
+            .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", stripeEventId))
+            .unique(),
+      ),
+    ).toMatchObject({ status: "actionRequired", lastErrorCode: "scheduled_paid_invoice_invalid" });
+  });
+
+  it("Pro Priceローテーション後も予約operationの旧Price請求をBusiness→Proの根拠として受け入れる", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const oldProPriceId = "price_pro_before_webhook_rotation";
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: "stripe_scheduled_paid_old_pro_price_webhook",
+      plan: "business",
+      billingState: {
+        kind: "scheduledChange",
+        currentPlan: "business",
+        targetPlan: "pro",
+        effectiveAt: NOW,
+      },
+      scheduleId: "sub_sched_old_pro_price_webhook",
+    });
+    const scheduleOperationId = await seedSucceededBusinessToProScheduleOperation(t, ids, NOW, oldProPriceId);
+    const stripeEventId = "evt_scheduled_paid_old_pro_price_webhook";
+    const subscription = paidPlanSubscriptionFixture(ids, {
+      plan: "pro",
+      subscriptionPriceId: oldProPriceId,
+      invoicePriceId: oldProPriceId,
+      invoiceStatus: "paid",
+      scheduleId: ids.stripeSubscriptionScheduleId,
+    });
+    const invoice = subscription.latest_invoice;
+    await seedStripeWebhookReceipt(t, { stripeEventId, type: "invoice.paid", objectId: invoice.id });
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource === "events.retrieve") {
+        return providerResponse({
+          id: stripeEventId,
+          type: "invoice.paid",
+          livemode: false,
+          api_version: STRIPE_WEBHOOK_API_VERSION,
+          created: Math.floor(NOW / 1000),
+          data: { object: { id: invoice.id } },
+        });
+      }
+      if (resource === "invoices.retrieve") return providerResponse(invoice);
+      if (resource === "subscriptions.retrieve") return providerResponse(subscription);
+      if (resource === "subscriptionSchedules.retrieve") {
+        return providerResponse(
+          subscriptionScheduleFixture(ids, {
+            status: "active",
+            operationId: scheduleOperationId,
+            targetStripePriceId: oldProPriceId,
+            phases: [
+              {
+                start_date: Math.floor(NOW / 1000),
+                items: [{ price: oldProPriceId, quantity: 1 }],
+              },
+            ],
+          }),
+        );
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId });
+
+    const state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({ kind: "active", plan: "pro" });
+    expect(state.subscription).toMatchObject({ plan: "pro", stripePriceId: oldProPriceId });
+    expect(state.subscription).not.toHaveProperty("stripeSubscriptionScheduleId");
+    expect(
+      await t.run(
+        async (ctx) =>
+          await ctx.db
+            .query("stripeWebhookEvents")
+            .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", stripeEventId))
+            .unique(),
+      ),
+    ).toMatchObject({ status: "processed" });
+  });
+
+  it("Business Priceのinvoice.paid WebhookではBusiness→Proを確定しない", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: "stripe_business_price_paid_webhook",
+      plan: "business",
+      billingState: {
+        kind: "scheduledChange",
+        currentPlan: "business",
+        targetPlan: "pro",
+        effectiveAt: NOW,
+      },
+      scheduleId: "sub_sched_business_price_paid_webhook",
+    });
+    const scheduleOperationId = await seedSucceededBusinessToProScheduleOperation(t, ids, NOW);
+    const stripeEventId = "evt_business_price_paid_webhook";
+    const subscription = paidPlanSubscriptionFixture(ids, {
+      plan: "business",
+      invoiceStatus: "paid",
+      scheduleId: ids.stripeSubscriptionScheduleId,
+    });
+    const invoice = subscription.latest_invoice;
+    await seedStripeWebhookReceipt(t, {
+      stripeEventId,
+      type: "invoice.paid",
+      objectId: invoice.id,
+    });
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource === "events.retrieve") {
+        return providerResponse({
+          id: stripeEventId,
+          type: "invoice.paid",
+          livemode: false,
+          api_version: STRIPE_WEBHOOK_API_VERSION,
+          created: Math.floor(NOW / 1000),
+          data: { object: { id: invoice.id } },
+        });
+      }
+      if (resource === "invoices.retrieve") return providerResponse(invoice);
+      if (resource === "subscriptions.retrieve") return providerResponse(subscription);
+      if (resource === "subscriptionSchedules.retrieve") {
+        return providerResponse(
+          subscriptionScheduleFixture(ids, {
+            status: "active",
+            operationId: scheduleOperationId,
+            phases: [
+              {
+                start_date: Math.floor(NOW / 1000),
+                items: [{ price: READY_TEST_CONFIGURATION.proPriceId, quantity: 1 }],
+              },
+            ],
+          }),
+        );
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId });
+
+    const state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({
+      kind: "scheduledChange",
+      currentPlan: "business",
+      targetPlan: "pro",
+      effectiveAt: NOW,
+    });
+    expect(
+      await t.run(
+        async (ctx) =>
+          await ctx.db
+            .query("stripeWebhookEvents")
+            .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", stripeEventId))
+            .unique(),
+      ),
+    ).toMatchObject({
+      status: "actionRequired",
+      lastErrorCode: "scheduled_paid_subscription_not_applied",
+    });
+    expect(
+      await t.run(async (ctx) =>
+        (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+          (job) => job.name === "organizationBilling/actions:enqueueBillingNotification",
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it("Business→Pro期限時にScheduleのoperation対応がproviderと一致しなければ確定しない", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: "stripe_business_to_pro_operation_mismatch",
+      plan: "business",
+      billingState: {
+        kind: "scheduledChange",
+        currentPlan: "business",
+        targetPlan: "pro",
+        effectiveAt: NOW,
+      },
+      scheduleId: "sub_sched_business_to_pro_mismatch",
+    });
+    await seedSucceededBusinessToProScheduleOperation(t, ids, NOW);
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(paidPlanSubscriptionFixture(ids, { plan: "pro", invoiceStatus: "paid" }));
+      }
+      if (resource === "subscriptionSchedules.retrieve") {
+        return providerResponse(
+          subscriptionScheduleFixture(ids, {
+            status: "active",
+            operationId: "wrong-schedule-operation",
+            phases: [
+              {
+                start_date: Math.floor(NOW / 1000),
+                items: [{ price: READY_TEST_CONFIGURATION.proPriceId, quantity: 1 }],
+              },
+            ],
+          }),
+        );
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.reconcileScheduledPaidPlanDeadline, {
+      organizationId: ids.organizationId,
+      expectedBillingVersion: 2,
+      requestId: "scheduled-paid-operation-mismatch",
+    });
+
+    const state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({
+      kind: "scheduledChange",
+      currentPlan: "business",
+      targetPlan: "pro",
+      effectiveAt: NOW,
+    });
+    expect(state.subscription).toMatchObject({ plan: "business", stripePriceId: BUSINESS_PRICE_ID });
+    expect(
+      state.operations.find((operation) => operation.recoveryPurpose === "scheduledPaidPlanDeadline"),
+    ).toMatchObject({ status: "retrying", lastErrorCode: "stripe_processing_error" });
+  });
 
   it("Pro Priceがアーカイブ済みなら価格を公開せず、新しいCheckoutを作成しない", async () => {
     const t = convexTest(schema, modules);
@@ -2878,6 +4742,16 @@ describe("organizationStripe/actions", () => {
       prorationDate: Math.floor(NOW / 1000),
       effectiveAt: NOW,
     };
+    const preview = await t.mutation(internal.organizationStripe.mutations.beginOperation, {
+      ...base,
+      kind: "previewPaidPlanChange",
+      effectiveAt: NOW - 1,
+    });
+    await t.mutation(internal.organizationStripe.mutations.finishOperation, {
+      operationId: preview.operationId,
+      leaseToken: preview.leaseToken as string,
+      status: "succeeded",
+    });
     const first = await t.mutation(internal.organizationStripe.mutations.beginOperation, base);
     const intentSnapshot = {
       sourcePlan: base.sourcePlan,
@@ -2926,6 +4800,146 @@ describe("organizationStripe/actions", () => {
     ]);
     expect(persisted).toMatchObject({ ...base, attemptCount: 1, status: "retrying" });
     expect(queried).toMatchObject(intentSnapshot);
+  });
+
+  it("有料プラン変更は同じprovider世代で排他し、同一intentの見積もり→実適用だけrequestIdを引き継ぐ", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(
+      async (ctx) =>
+        await seedOrganizationManagerShop(ctx, { subject: "stripe_paid_plan_generation_lock", plan: "pro" }),
+    );
+    const sharedIntent = {
+      organizationId: ids.organizationId,
+      requestKey: "paid_plan_shared_intent",
+      livemode: false,
+      expectedBillingVersion: 1,
+      providerGeneration: 1,
+      sourcePlan: "pro" as const,
+      targetPlan: "business" as const,
+      changeMode: "immediate" as const,
+      stripeSubscriptionIdSnapshot: "sub_paid_plan_lock",
+      stripeSubscriptionItemIdSnapshot: "si_paid_plan_lock",
+      sourceStripePriceIdSnapshot: "price_pro_lock",
+      targetStripePriceIdSnapshot: "price_business_lock",
+      prorationDate: Math.floor(NOW / 1000),
+    };
+    const preview = await t.mutation(internal.organizationStripe.mutations.beginOperation, {
+      ...sharedIntent,
+      kind: "previewPaidPlanChange",
+      effectiveAt: NOW - 1,
+    });
+    await t.mutation(internal.organizationStripe.mutations.finishOperation, {
+      operationId: preview.operationId,
+      leaseToken: preview.leaseToken as string,
+      status: "succeeded",
+    });
+
+    const apply = await t.mutation(internal.organizationStripe.mutations.beginOperation, {
+      ...sharedIntent,
+      kind: "changePaidPlanNow",
+      effectiveAt: NOW,
+    });
+    expect(apply).toMatchObject({ created: true, conflict: false });
+
+    const scheduleIntent = {
+      organizationId: ids.organizationId,
+      kind: "schedulePaidPlanChange" as const,
+      requestKey: "paid_plan_schedule_lock",
+      livemode: false,
+      expectedBillingVersion: 1,
+      providerGeneration: 1,
+      sourcePlan: "business" as const,
+      targetPlan: "pro" as const,
+      changeMode: "periodEnd" as const,
+      stripeSubscriptionIdSnapshot: "sub_paid_plan_lock",
+      stripeSubscriptionItemIdSnapshot: "si_paid_plan_lock",
+      sourceStripePriceIdSnapshot: "price_business_lock",
+      targetStripePriceIdSnapshot: "price_pro_lock",
+      effectiveAt: NOW + 30 * 24 * 60 * 60_000,
+    };
+    const competing = await t.mutation(internal.organizationStripe.mutations.beginOperation, scheduleIntent);
+    expect(competing).toMatchObject({ operationId: apply.operationId, created: false, conflict: true });
+
+    await t.mutation(internal.organizationStripe.mutations.finishOperation, {
+      operationId: apply.operationId,
+      leaseToken: apply.leaseToken as string,
+      status: "actionRequired",
+      errorCode: "provider_action_required",
+    });
+    const reusedByOtherKind = await t.mutation(internal.organizationStripe.mutations.beginOperation, {
+      ...scheduleIntent,
+      requestKey: sharedIntent.requestKey,
+    });
+    expect(reusedByOtherKind).toMatchObject({ created: false, conflict: true });
+
+    const afterTerminal = await t.mutation(internal.organizationStripe.mutations.beginOperation, scheduleIntent);
+    expect(afterTerminal).toMatchObject({ operationId: apply.operationId, created: false, conflict: true });
+  });
+
+  it("Free変更のactionRequired ownerは同じprovider世代の取消・有料変更・自己reclaimを遮断する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(
+      async (ctx) =>
+        await seedOrganizationManagerShop(ctx, { subject: "stripe_free_plan_generation_lock", plan: "pro" }),
+    );
+    const freeIntent = {
+      organizationId: ids.organizationId,
+      requestKey: "free-generation-owner",
+      livemode: false,
+      expectedBillingVersion: 1,
+      providerGeneration: 1,
+      sourcePlan: "pro" as const,
+      targetPlan: "free" as const,
+      changeMode: "periodEnd" as const,
+      stripeSubscriptionIdSnapshot: "sub_free_generation_lock",
+      stripeSubscriptionItemIdSnapshot: "si_free_generation_lock",
+      sourceStripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId,
+      effectiveAt: NOW + 30 * 24 * 60 * 60_000,
+    };
+    const owner = await t.mutation(internal.organizationStripe.mutations.beginOperation, {
+      ...freeIntent,
+      kind: "scheduleFree",
+    });
+    await t.mutation(internal.organizationStripe.mutations.finishOperation, {
+      operationId: owner.operationId,
+      leaseToken: owner.leaseToken as string,
+      status: "actionRequired",
+      errorCode: "provider_action_required",
+    });
+
+    const sameOwner = await t.mutation(internal.organizationStripe.mutations.beginOperation, {
+      ...freeIntent,
+      kind: "scheduleFree",
+    });
+    expect(sameOwner).toMatchObject({
+      operationId: owner.operationId,
+      status: "actionRequired",
+      created: false,
+      conflict: false,
+    });
+    const cancel = await t.mutation(internal.organizationStripe.mutations.beginOperation, {
+      ...freeIntent,
+      kind: "cancelFreeSchedule",
+      requestKey: "cancel-free-generation-owner",
+    });
+    expect(cancel).toMatchObject({ operationId: owner.operationId, created: false, conflict: true });
+    const paid = await t.mutation(internal.organizationStripe.mutations.beginOperation, {
+      organizationId: ids.organizationId,
+      kind: "schedulePaidPlanChange",
+      requestKey: "paid-after-free-generation-owner",
+      livemode: false,
+      expectedBillingVersion: 1,
+      providerGeneration: 1,
+      sourcePlan: "business",
+      targetPlan: "pro",
+      changeMode: "periodEnd",
+      stripeSubscriptionIdSnapshot: freeIntent.stripeSubscriptionIdSnapshot,
+      stripeSubscriptionItemIdSnapshot: freeIntent.stripeSubscriptionItemIdSnapshot,
+      sourceStripePriceIdSnapshot: BUSINESS_PRICE_ID,
+      targetStripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId,
+      effectiveAt: freeIntent.effectiveAt,
+    });
+    expect(paid).toMatchObject({ operationId: owner.operationId, created: false, conflict: true });
   });
 
   it("Business用の期限切れCheckout operationをsingle-flight対象から解放する", async () => {
@@ -5339,6 +7353,102 @@ async function seedPaidPlanStripeContext(
   });
 }
 
+async function seedStripeWebhookReceipt(
+  t: TestConvex<typeof schema>,
+  args: {
+    stripeEventId: string;
+    type: "invoice.paid" | "customer.subscription.updated";
+    objectId: string;
+  },
+) {
+  await t.run(async (ctx) => {
+    await ctx.db.insert("stripeWebhookEvents", {
+      stripeEventId: args.stripeEventId,
+      type: args.type,
+      apiVersion: STRIPE_WEBHOOK_API_VERSION,
+      livemode: false,
+      objectId: args.objectId,
+      eventCreatedAt: NOW,
+      status: "received",
+      attemptCount: 0,
+      receivedAt: NOW,
+      expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
+      updatedAt: NOW,
+    });
+  });
+}
+
+async function seedSucceededBusinessToProScheduleOperation(
+  t: TestConvex<typeof schema>,
+  ids: Awaited<ReturnType<typeof seedPaidPlanStripeContext>>,
+  effectiveAt: number,
+  targetStripePriceId = READY_TEST_CONFIGURATION.proPriceId,
+) {
+  return await t.run(
+    async (ctx) =>
+      await ctx.db.insert("organizationStripeOperations", {
+        organizationId: ids.organizationId,
+        kind: "schedulePaidPlanChange",
+        requestKey: `scheduled-source-${String(ids.organizationId).slice(-16)}`,
+        stripeIdempotencyKey: `test:schedule:${ids.organizationId}`,
+        livemode: false,
+        expectedBillingVersion: 1,
+        providerGeneration: 1,
+        sourcePlan: "business",
+        targetPlan: "pro",
+        changeMode: "periodEnd",
+        stripeSubscriptionIdSnapshot: ids.stripeSubscriptionId,
+        stripeSubscriptionItemIdSnapshot: ids.stripeSubscriptionItemId,
+        sourceStripePriceIdSnapshot: BUSINESS_PRICE_ID,
+        targetStripePriceIdSnapshot: targetStripePriceId,
+        effectiveAt,
+        stripeObjectId: ids.stripeSubscriptionScheduleId,
+        status: "succeeded",
+        attemptCount: 1,
+        completedAt: NOW,
+        expiresAt: NOW + 30 * 24 * 60 * 60_000,
+        createdAt: NOW,
+        updatedAt: NOW,
+      }),
+  );
+}
+
+async function seedSucceededPaidPlanPreview(
+  t: TestConvex<typeof schema>,
+  ids: Awaited<ReturnType<typeof seedPaidPlanStripeContext>>,
+  requestKey: string,
+  prorationDate = Math.floor(NOW / 1000),
+) {
+  return await t.run(
+    async (ctx) =>
+      await ctx.db.insert("organizationStripeOperations", {
+        organizationId: ids.organizationId,
+        kind: "previewPaidPlanChange",
+        requestKey,
+        stripeIdempotencyKey: `test:preview:${ids.organizationId}:${requestKey}`,
+        livemode: false,
+        expectedBillingVersion: 1,
+        providerGeneration: 1,
+        sourcePlan: "pro",
+        targetPlan: "business",
+        changeMode: "immediate",
+        stripeSubscriptionIdSnapshot: ids.stripeSubscriptionId,
+        stripeSubscriptionItemIdSnapshot: ids.stripeSubscriptionItemId,
+        sourceStripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId,
+        targetStripePriceIdSnapshot: BUSINESS_PRICE_ID,
+        prorationDate,
+        effectiveAt: NOW,
+        stripeObjectId: `in_preview_${requestKey}`,
+        status: "succeeded",
+        attemptCount: 1,
+        completedAt: NOW,
+        expiresAt: NOW + 30 * 24 * 60 * 60_000,
+        createdAt: NOW,
+        updatedAt: NOW,
+      }),
+  );
+}
+
 function priceFixtureFor(priceId: string) {
   return {
     id: priceId,
@@ -5358,10 +7468,17 @@ function paidPlanSubscriptionFixture(
     subscriptionStatus?: "active" | "past_due";
     pendingUpdate?: boolean;
     scheduleId?: string;
+    subscriptionPriceId?: string;
+    invoiceEffectiveAt?: number;
+    invoicePriceId?: string;
+    invoiceBillingReason?: string;
   },
 ) {
-  const priceId = args.plan === "business" ? BUSINESS_PRICE_ID : READY_TEST_CONFIGURATION.proPriceId;
+  const priceId =
+    args.subscriptionPriceId ?? (args.plan === "business" ? BUSINESS_PRICE_ID : READY_TEST_CONFIGURATION.proPriceId);
   const invoiceId = `in_${ids.stripeSubscriptionId}_${args.invoiceStatus}`;
+  const invoiceEffectiveAt = args.invoiceEffectiveAt ?? NOW;
+  const invoicePriceId = args.invoicePriceId ?? priceId;
   return {
     id: ids.stripeSubscriptionId,
     customer: ids.stripeCustomerId,
@@ -5382,10 +7499,27 @@ function paidPlanSubscriptionFixture(
       customer: ids.stripeCustomerId,
       livemode: false,
       status: args.invoiceStatus,
+      currency: "jpy",
+      amount_paid: args.invoiceStatus === "paid" ? (args.plan === "business" ? 2_980 : 1_480) : 0,
       amount_remaining: args.invoiceStatus === "paid" ? 0 : 1500,
       created: Math.floor(NOW / 1000),
+      billing_reason: args.invoiceBillingReason ?? "subscription_cycle",
+      period_start: Math.floor(invoiceEffectiveAt / 1000),
+      period_end: Math.floor((invoiceEffectiveAt + 30 * 24 * 60 * 60_000) / 1000),
       status_transitions: { finalized_at: Math.floor(NOW / 1000) },
       parent: { subscription_details: { subscription: ids.stripeSubscriptionId } },
+      lines: {
+        has_more: false,
+        data: [
+          {
+            pricing: { price_details: { price: invoicePriceId } },
+            period: {
+              start: Math.floor(invoiceEffectiveAt / 1000),
+              end: Math.floor((invoiceEffectiveAt + 30 * 24 * 60 * 60_000) / 1000),
+            },
+          },
+        ],
+      },
     },
     items: {
       data: [
@@ -5403,19 +7537,25 @@ function paidPlanSubscriptionFixture(
 
 function subscriptionScheduleFixture(
   ids: Awaited<ReturnType<typeof seedPaidPlanStripeContext>>,
-  args: { status: "not_started" | "active" | "released"; phases?: unknown[] },
+  args: {
+    status: "not_started" | "active" | "released";
+    phases?: unknown[];
+    operationId?: Id<"organizationStripeOperations"> | string;
+    targetStripePriceId?: string;
+  },
 ) {
   return {
     id: ids.stripeSubscriptionScheduleId,
     customer: ids.stripeCustomerId,
-    subscription: ids.stripeSubscriptionId,
+    subscription: args.status === "released" ? null : ids.stripeSubscriptionId,
     released_subscription: args.status === "released" ? ids.stripeSubscriptionId : null,
     livemode: false,
     status: args.status,
     metadata: {
       shiftori_organization_id: String(ids.organizationId),
+      ...(args.operationId ? { shiftori_operation_id: String(args.operationId) } : {}),
       shiftori_provider_generation: "1",
-      shiftori_price_id: READY_TEST_CONFIGURATION.proPriceId,
+      shiftori_price_id: args.targetStripePriceId ?? READY_TEST_CONFIGURATION.proPriceId,
     },
     current_phase: { start_date: Math.floor(ids.periodStartsAt / 1000) },
     phases: args.phases ?? [],
@@ -5541,6 +7681,13 @@ async function seedCancelAtPeriodEndRecoveryContext(
       livemode: false,
       expectedBillingVersion: 2,
       providerGeneration: 1,
+      sourcePlan: currentPlan,
+      targetPlan: "free",
+      changeMode: "periodEnd",
+      stripeSubscriptionIdSnapshot: stripeSubscriptionId,
+      stripeSubscriptionItemIdSnapshot: `si_${suffix}`,
+      sourceStripePriceIdSnapshot: stripePriceId,
+      effectiveAt: args.periodEndsAt,
       status: "retrying",
       attemptCount: 1,
       nextRunAt: NOW,

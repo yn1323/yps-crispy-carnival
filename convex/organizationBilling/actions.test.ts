@@ -237,6 +237,58 @@ describe("organizationBilling/actions", () => {
     },
   );
 
+  it("Pro上限超過の契約制限通知へプラン・請求額・適用日時・整理案内を反映する", async () => {
+    const t = convexTest(schema, modules);
+    const effectiveAt = Date.parse("2026-07-20T09:00:00+09:00");
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "pro_limit_restricted_notice",
+        plan: "business",
+      });
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      await ctx.db.patch(billingState._id, {
+        state: {
+          kind: "restricted",
+          reason: "planLimitExceeded",
+          previousPlan: "business",
+          targetPlan: "pro",
+          limitPlan: "pro",
+          recoveryManagerPersonIds: [seeded.personId],
+          previousActiveShopIds: [seeded.shopId],
+          restrictedAt: effectiveAt,
+        },
+      });
+      return seeded;
+    });
+
+    await expect(
+      t.action(internal.organizationBilling.actions.enqueueBillingNotification, {
+        organizationId: ids.organizationId,
+        event: "restrictedStarted",
+        eventKey: "pro-limit-restricted-with-billing-details",
+        notificationDetails: {
+          targetPlan: "pro",
+          amountDue: 1_480,
+          currency: "jpy",
+          effectiveAt,
+        },
+      }),
+    ).resolves.toEqual({ enqueuedCount: 1 });
+
+    const jobs = await t.run((ctx) => ctx.db.query("notificationOutbox").collect());
+    expect(jobs).toHaveLength(1);
+    if (jobs[0]?.payload.kind !== "email") throw new Error("email payload not found");
+    expect(jobs[0].payload.subject).toContain("Proへの変更には利用状況の整理が必要です");
+    expect(jobs[0].payload.html).toContain("今回の請求額は");
+    expect(jobs[0].payload.html).toContain("1,480");
+    expect(jobs[0].payload.html).toContain("適用日時は7/20(月) 09:00です。");
+    expect(jobs[0].payload.html).toContain("利用人数、管理者、店舗を上限以内に整理してください");
+  });
+
   it("Trial終了通知は選択済みプランと終了時刻をDTOから本文へ反映する", async () => {
     const t = convexTest(schema, modules);
     const trialEndsAt = Date.parse("2026-09-01T00:00:00+09:00");

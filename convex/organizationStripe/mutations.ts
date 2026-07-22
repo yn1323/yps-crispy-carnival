@@ -28,6 +28,15 @@ const INACTIVE_PRICE_RECOVERY_WEBHOOK_RETRY_CODES = new Set([
   INACTIVE_PRICE_RECOVERY_BUSY_ERROR_CODE,
   INACTIVE_PRICE_RECOVERY_PROVIDER_RETRY_ERROR_CODE,
 ]);
+const PLAN_CHANGE_OPERATION_KINDS = [
+  "previewPaidPlanChange",
+  "changePaidPlanNow",
+  "schedulePaidPlanChange",
+  "cancelScheduledPlanChange",
+  "scheduleFree",
+  "cancelFreeSchedule",
+] as const;
+const PLAN_CHANGE_LOCKING_STATUSES = ["queued", "processing", "retrying", "actionRequired"] as const;
 
 function hasInactivePriceRecoveryMarker(lastErrorCode?: string) {
   return (
@@ -372,6 +381,64 @@ export const beginOperation = internalMutation({
           args.trialSubscriptionCreateSnapshot,
         );
       if (immutableIntentMismatch) return operationResult(existing, false, true);
+
+      if (isPlanChangeOperationKind(args.kind)) {
+        const sameRequestOperations = (
+          await Promise.all(
+            PLAN_CHANGE_OPERATION_KINDS.map(
+              async (kind) =>
+                await ctx.db
+                  .query("organizationStripeOperations")
+                  .withIndex("by_organizationId_and_kind_and_requestKey", (q) =>
+                    q.eq("organizationId", args.organizationId).eq("kind", kind).eq("requestKey", args.requestKey),
+                  )
+                  .take(2),
+            ),
+          )
+        )
+          .flat()
+          .filter((operation) => operation._id !== existing._id);
+        if (args.kind === "changePaidPlanNow") {
+          const previews = sameRequestOperations.filter((operation) => operation.kind === "previewPaidPlanChange");
+          const other = sameRequestOperations.find((operation) => operation.kind !== "previewPaidPlanChange");
+          if (
+            other ||
+            previews.length !== 1 ||
+            previews[0].status !== "succeeded" ||
+            !samePaidPlanChangeIntent(previews[0], args)
+          ) {
+            return operationResult(other ?? previews[0] ?? existing, false, true);
+          }
+        } else if (sameRequestOperations.length > 0) {
+          return operationResult(sameRequestOperations[0], false, true);
+        }
+
+        const generationOperations = (
+          await Promise.all(
+            PLAN_CHANGE_OPERATION_KINDS.flatMap((kind) =>
+              PLAN_CHANGE_LOCKING_STATUSES.map(
+                async (status) =>
+                  await ctx.db
+                    .query("organizationStripeOperations")
+                    .withIndex("by_organizationId_and_providerGeneration_and_kind_and_status", (q) =>
+                      q
+                        .eq("organizationId", args.organizationId)
+                        .eq("providerGeneration", args.providerGeneration)
+                        .eq("kind", kind)
+                        .eq("status", status),
+                    )
+                    .take(2),
+              ),
+            ),
+          )
+        )
+          .flat()
+          .filter((operation) => operation._id !== existing._id);
+        if (generationOperations.length > 0) {
+          return operationResult(generationOperations[0], false, true);
+        }
+      }
+
       const now = Date.now();
       const canReclaim =
         !(args.kind === "createTrialSubscription" && hasInactivePriceRecoveryMarker(existing.lastErrorCode)) &&
@@ -391,6 +458,61 @@ export const beginOperation = internalMutation({
       const reclaimed = await ctx.db.get(existing._id);
       if (!reclaimed) throw new ConvexError("Operation could not be reclaimed");
       return operationResult(reclaimed, true, false);
+    }
+
+    if (isPlanChangeOperationKind(args.kind)) {
+      const sameRequestOperations = (
+        await Promise.all(
+          PLAN_CHANGE_OPERATION_KINDS.map(
+            async (kind) =>
+              await ctx.db
+                .query("organizationStripeOperations")
+                .withIndex("by_organizationId_and_kind_and_requestKey", (q) =>
+                  q.eq("organizationId", args.organizationId).eq("kind", kind).eq("requestKey", args.requestKey),
+                )
+                .take(2),
+          ),
+        )
+      ).flat();
+      if (args.kind === "changePaidPlanNow") {
+        const previews = sameRequestOperations.filter((operation) => operation.kind === "previewPaidPlanChange");
+        const other = sameRequestOperations.find((operation) => operation.kind !== "previewPaidPlanChange");
+        if (
+          other ||
+          previews.length !== 1 ||
+          previews[0].status !== "succeeded" ||
+          !samePaidPlanChangeIntent(previews[0], args)
+        ) {
+          if (other || previews[0]) return operationResult(other ?? previews[0], false, true);
+          throw new ConvexError("A successful paid plan preview is required");
+        }
+      } else if (sameRequestOperations.length > 0) {
+        return operationResult(sameRequestOperations[0], false, true);
+      }
+
+      const generationOperations = (
+        await Promise.all(
+          PLAN_CHANGE_OPERATION_KINDS.flatMap((kind) =>
+            PLAN_CHANGE_LOCKING_STATUSES.map(
+              async (status) =>
+                await ctx.db
+                  .query("organizationStripeOperations")
+                  .withIndex("by_organizationId_and_providerGeneration_and_kind_and_status", (q) =>
+                    q
+                      .eq("organizationId", args.organizationId)
+                      .eq("providerGeneration", args.providerGeneration)
+                      .eq("kind", kind)
+                      .eq("status", status),
+                  )
+                  .take(2),
+            ),
+          ),
+        )
+      ).flat();
+      const generationConflict = generationOperations[0];
+      if (generationConflict) {
+        return operationResult(generationConflict, false, true);
+      }
     }
 
     if (
@@ -605,7 +727,7 @@ export const bindPlanChangeProviderObject = internalMutation({
   handler: async (ctx, args) => {
     const operation = await ctx.db.get(args.operationId);
     if (
-      operation?.kind !== "schedulePaidPlanChange" ||
+      (operation?.kind !== "schedulePaidPlanChange" && operation?.kind !== "cancelScheduledPlanChange") ||
       operation.organizationId !== args.organizationId ||
       operation.status !== "processing" ||
       operation.leaseToken !== args.leaseToken ||
@@ -1121,6 +1243,97 @@ export const retryBillingEmailSyncOperation = internalMutation({
   },
 });
 
+/** 保存済みintentと同じidempotency keyで、有料プラン変更だけをdurableに再開する。 */
+export const retryPaidPlanChangeOperation = internalMutation({
+  args: {
+    operationId: v.id("organizationStripeOperations"),
+    leaseToken: v.string(),
+    organizationId: v.id("organizations"),
+    requestId: v.string(),
+    errorCode: v.string(),
+  },
+  returns: v.object({ scheduled: v.boolean(), actionRequired: v.boolean() }),
+  handler: async (ctx, args) => {
+    const operation = await ctx.db.get(args.operationId);
+    if (
+      !operation ||
+      (operation.kind !== "changePaidPlanNow" &&
+        operation.kind !== "schedulePaidPlanChange" &&
+        operation.kind !== "cancelScheduledPlanChange") ||
+      operation.organizationId !== args.organizationId ||
+      operation.requestKey !== args.requestId ||
+      operation.status !== "processing" ||
+      operation.leaseToken !== args.leaseToken
+    ) {
+      return { scheduled: false, actionRequired: false };
+    }
+    const now = Date.now();
+    if (operation.attemptCount >= STRIPE_OPERATION_MAX_ATTEMPTS) {
+      await ctx.db.patch(operation._id, {
+        status: "actionRequired",
+        lastErrorCode: "attempt_limit_exceeded",
+        leaseToken: undefined,
+        leaseExpiresAt: undefined,
+        nextRunAt: undefined,
+        completedAt: now,
+        expiresAt: now + STRIPE_OPERATION_RETENTION_MS,
+        updatedAt: now,
+      });
+      return { scheduled: false, actionRequired: true };
+    }
+    const delayMs = Math.min(30_000 * 2 ** Math.max(0, operation.attemptCount - 1), 30 * 60_000);
+    const nextRunAt = now + delayMs;
+    await ctx.db.patch(operation._id, {
+      status: "retrying",
+      nextRunAt,
+      lastErrorCode: args.errorCode,
+      leaseToken: undefined,
+      leaseExpiresAt: undefined,
+      updatedAt: now,
+    });
+    await ctx.scheduler.runAt(nextRunAt, internal.organizationStripe.actions.reconcilePaidPlanChangeOperation, {
+      operationId: operation._id,
+    });
+    return { scheduled: true, actionRequired: false };
+  },
+});
+
+/** 回収に必要な所有関係またはsnapshotが壊れたプラン変更を、silent retry loopへ残さない。 */
+export const terminalizeInvalidPaidPlanChangeRecovery = internalMutation({
+  args: {
+    operationId: v.id("organizationStripeOperations"),
+    errorCode: v.string(),
+  },
+  returns: v.object({ changed: v.boolean() }),
+  handler: async (ctx, args) => {
+    const operation = await ctx.db.get(args.operationId);
+    const now = Date.now();
+    if (
+      !operation ||
+      (operation.kind !== "changePaidPlanNow" &&
+        operation.kind !== "schedulePaidPlanChange" &&
+        operation.kind !== "cancelScheduledPlanChange" &&
+        operation.kind !== "scheduleFree" &&
+        operation.kind !== "cancelFreeSchedule") ||
+      (operation.status !== "retrying" &&
+        !(operation.status === "processing" && (operation.leaseExpiresAt ?? 0) <= now))
+    ) {
+      return { changed: false };
+    }
+    await ctx.db.patch(operation._id, {
+      status: "actionRequired",
+      lastErrorCode: args.errorCode,
+      leaseToken: undefined,
+      leaseExpiresAt: undefined,
+      nextRunAt: undefined,
+      completedAt: now,
+      expiresAt: now + STRIPE_OPERATION_RETENTION_MS,
+      updatedAt: now,
+    });
+    return { changed: true };
+  },
+});
+
 /** 新しい請求先メール世代へ進んだ後に、古い未完了の同期operationを残さない。 */
 export const cancelSupersededBillingEmailSyncOperation = internalMutation({
   args: {
@@ -1556,6 +1769,44 @@ function operationResult(operation: Doc<"organizationStripeOperations">, created
     created,
     conflict,
   };
+}
+
+function isPlanChangeOperationKind(
+  kind: Doc<"organizationStripeOperations">["kind"],
+): kind is (typeof PLAN_CHANGE_OPERATION_KINDS)[number] {
+  return PLAN_CHANGE_OPERATION_KINDS.includes(kind as (typeof PLAN_CHANGE_OPERATION_KINDS)[number]);
+}
+
+/** 見積もりから実適用へ進む同一intentだけは、同じrequestIdを引き継げる。 */
+function samePaidPlanChangeIntent(
+  operation: Doc<"organizationStripeOperations">,
+  args: {
+    livemode: boolean;
+    expectedBillingVersion?: number;
+    providerGeneration?: number;
+    sourcePlan?: "pro" | "business";
+    targetPlan?: "free" | "pro" | "business";
+    changeMode?: "checkout" | "immediate" | "periodEnd";
+    stripeSubscriptionIdSnapshot?: string;
+    stripeSubscriptionItemIdSnapshot?: string;
+    sourceStripePriceIdSnapshot?: string;
+    targetStripePriceIdSnapshot?: string;
+    prorationDate?: number;
+  },
+) {
+  return (
+    operation.livemode === args.livemode &&
+    operation.expectedBillingVersion === args.expectedBillingVersion &&
+    operation.providerGeneration === args.providerGeneration &&
+    operation.sourcePlan === args.sourcePlan &&
+    operation.targetPlan === args.targetPlan &&
+    operation.changeMode === args.changeMode &&
+    operation.stripeSubscriptionIdSnapshot === args.stripeSubscriptionIdSnapshot &&
+    operation.stripeSubscriptionItemIdSnapshot === args.stripeSubscriptionItemIdSnapshot &&
+    operation.sourceStripePriceIdSnapshot === args.sourceStripePriceIdSnapshot &&
+    operation.targetStripePriceIdSnapshot === args.targetStripePriceIdSnapshot &&
+    operation.prorationDate === args.prorationDate
+  );
 }
 
 function sameTrialSubscriptionCreateSnapshot(

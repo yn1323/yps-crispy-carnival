@@ -48,6 +48,9 @@ const RECOVERABLE_SAFE_OPERATION_KINDS = [
   "syncBillingEmail",
   "scheduleFree",
   "cancelFreeSchedule",
+  "changePaidPlanNow",
+  "schedulePaidPlanChange",
+  "cancelScheduledPlanChange",
 ] as const satisfies readonly Doc<"organizationStripeOperations">["kind"][];
 const TERMINAL_WEBHOOK_STATUSES = [
   "processed",
@@ -185,7 +188,7 @@ export const recoverWebhookEvents = internalMutation({
   },
 });
 
-/** 安定したStripe idempotency keyで再開できる取消・期間末変更・請求停止・再照合・請求先メール同期だけを回収する。 */
+/** 安定したStripe idempotency keyで再開できる有料プラン変更・取消・請求停止・再照合・請求先メール同期だけを回収する。 */
 export const recoverSafeOperations = internalMutation({
   args: {},
   returns: v.object({
@@ -197,6 +200,9 @@ export const recoverSafeOperations = internalMutation({
       syncBillingEmail: v.number(),
       scheduleFree: v.number(),
       cancelFreeSchedule: v.number(),
+      changePaidPlanNow: v.number(),
+      schedulePaidPlanChange: v.number(),
+      cancelScheduledPlanChange: v.number(),
     }),
     terminalizedWithoutDispatchCount: v.number(),
     reachedBatchLimit: v.boolean(),
@@ -245,6 +251,9 @@ export const recoverSafeOperations = internalMutation({
       syncBillingEmail: 0,
       scheduleFree: 0,
       cancelFreeSchedule: 0,
+      changePaidPlanNow: 0,
+      schedulePaidPlanChange: 0,
+      cancelScheduledPlanChange: 0,
     };
     let scheduledCount = 0;
     let terminalizedWithoutDispatchCount = 0;
@@ -256,7 +265,10 @@ export const recoverSafeOperations = internalMutation({
         operation.kind !== "stopInvoiceCollection" &&
         operation.kind !== "syncBillingEmail" &&
         operation.kind !== "scheduleFree" &&
-        operation.kind !== "cancelFreeSchedule"
+        operation.kind !== "cancelFreeSchedule" &&
+        operation.kind !== "changePaidPlanNow" &&
+        operation.kind !== "schedulePaidPlanChange" &&
+        operation.kind !== "cancelScheduledPlanChange"
       ) {
         continue;
       }
@@ -296,6 +308,14 @@ export const recoverSafeOperations = internalMutation({
           requestId: operation.requestKey,
           operationKind: operation.kind,
         });
+      } else if (
+        operation.kind === "changePaidPlanNow" ||
+        operation.kind === "schedulePaidPlanChange" ||
+        operation.kind === "cancelScheduledPlanChange"
+      ) {
+        await ctx.scheduler.runAfter(0, internal.organizationStripe.actions.reconcilePaidPlanChangeOperation, {
+          operationId: operation._id,
+        });
       } else {
         const actionArgs = {
           organizationId: operation.organizationId,
@@ -315,6 +335,15 @@ export const recoverSafeOperations = internalMutation({
           await ctx.scheduler.runAfter(
             0,
             internal.organizationStripe.actions.reconcileScheduledFreeDeadline,
+            actionArgs,
+          );
+        } else if (
+          operation.kind === "reconcileSubscription" &&
+          operation.recoveryPurpose === "scheduledPaidPlanDeadline"
+        ) {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.organizationStripe.actions.reconcileScheduledPaidPlanDeadline,
             actionArgs,
           );
         } else if (

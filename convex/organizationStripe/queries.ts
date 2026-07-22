@@ -158,6 +158,7 @@ export const getOperation = internalQuery({
     v.object({
       operationId: v.id("organizationStripeOperations"),
       organizationId: v.id("organizations"),
+      requestKey: v.string(),
       kind: organizationStripeOperationKindValidator,
       status: organizationStripeOperationStatusValidator,
       expectedBillingVersion: v.optional(v.number()),
@@ -183,6 +184,7 @@ export const getOperation = internalQuery({
     return {
       operationId: operation._id,
       organizationId: operation.organizationId,
+      requestKey: operation.requestKey,
       kind: operation.kind,
       status: operation.status,
       ...(operation.expectedBillingVersion !== undefined
@@ -210,6 +212,223 @@ export const getOperation = internalQuery({
       ...(operation.stripeObjectId ? { stripeObjectId: operation.stripeObjectId } : {}),
       stripeIdempotencyKey: operation.stripeIdempotencyKey,
       livemode: operation.livemode,
+    };
+  },
+});
+
+/** Pro→Businessの実適用を、同じrequestIdで成功した見積もりの不変snapshotへ束縛する。 */
+export const getSuccessfulPaidPlanChangePreview = internalQuery({
+  args: {
+    organizationId: v.id("organizations"),
+    requestKey: v.string(),
+    livemode: v.boolean(),
+    expectedBillingVersion: v.number(),
+    providerGeneration: v.number(),
+    stripeSubscriptionId: v.string(),
+    stripeSubscriptionItemId: v.string(),
+    sourceStripePriceId: v.string(),
+    targetStripePriceId: v.string(),
+    prorationDate: v.number(),
+  },
+  returns: v.union(v.null(), v.object({ operationId: v.id("organizationStripeOperations") })),
+  handler: async (ctx, args) => {
+    const operation = await ctx.db
+      .query("organizationStripeOperations")
+      .withIndex("by_organizationId_and_kind_and_requestKey", (q) =>
+        q
+          .eq("organizationId", args.organizationId)
+          .eq("kind", "previewPaidPlanChange")
+          .eq("requestKey", args.requestKey),
+      )
+      .unique();
+    if (
+      operation?.status !== "succeeded" ||
+      operation.livemode !== args.livemode ||
+      operation.expectedBillingVersion !== args.expectedBillingVersion ||
+      operation.providerGeneration !== args.providerGeneration ||
+      operation.sourcePlan !== "pro" ||
+      operation.targetPlan !== "business" ||
+      operation.changeMode !== "immediate" ||
+      operation.stripeSubscriptionIdSnapshot !== args.stripeSubscriptionId ||
+      operation.stripeSubscriptionItemIdSnapshot !== args.stripeSubscriptionItemId ||
+      operation.sourceStripePriceIdSnapshot !== args.sourceStripePriceId ||
+      operation.targetStripePriceIdSnapshot !== args.targetStripePriceId ||
+      operation.prorationDate !== args.prorationDate
+    ) {
+      return null;
+    }
+    return { operationId: operation._id };
+  },
+});
+
+/** pending_if_incomplete後のPrice rotationでも、成功済みPro→Business intentだけをprovider変更の根拠にする。 */
+export const getSuccessfulImmediatePaidPlanChangeOperation = internalQuery({
+  args: {
+    organizationId: v.id("organizations"),
+    livemode: v.boolean(),
+    providerGeneration: v.number(),
+    sourceBillingVersion: v.number(),
+    stripeSubscriptionId: v.string(),
+    stripeSubscriptionItemId: v.string(),
+    sourceStripePriceId: v.string(),
+    targetStripePriceId: v.string(),
+  },
+  returns: v.union(v.null(), v.object({ operationId: v.id("organizationStripeOperations") })),
+  handler: async (ctx, args) => {
+    const operations = await ctx.db
+      .query("organizationStripeOperations")
+      .withIndex("by_organizationId_and_providerGeneration_and_kind_and_status", (q) =>
+        q
+          .eq("organizationId", args.organizationId)
+          .eq("providerGeneration", args.providerGeneration)
+          .eq("kind", "changePaidPlanNow")
+          .eq("status", "succeeded"),
+      )
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("livemode"), args.livemode),
+          q.eq(q.field("expectedBillingVersion"), args.sourceBillingVersion),
+          q.eq(q.field("sourcePlan"), "pro"),
+          q.eq(q.field("targetPlan"), "business"),
+          q.eq(q.field("changeMode"), "immediate"),
+          q.eq(q.field("stripeSubscriptionIdSnapshot"), args.stripeSubscriptionId),
+          q.eq(q.field("stripeSubscriptionItemIdSnapshot"), args.stripeSubscriptionItemId),
+          q.eq(q.field("sourceStripePriceIdSnapshot"), args.sourceStripePriceId),
+          q.eq(q.field("targetStripePriceIdSnapshot"), args.targetStripePriceId),
+          q.eq(q.field("stripeObjectId"), args.stripeSubscriptionId),
+        ),
+      )
+      .take(2);
+    if (operations.length !== 1) return null;
+    const operation = operations[0];
+    if (
+      operation.prorationDate === undefined ||
+      !Number.isSafeInteger(operation.prorationDate) ||
+      operation.effectiveAt === undefined ||
+      !Number.isSafeInteger(operation.effectiveAt) ||
+      operation.completedAt === undefined
+    ) {
+      return null;
+    }
+    return { operationId: operation._id };
+  },
+});
+
+/** Free予約・取消のretryが、初回操作で保存したprovider snapshotをそのまま再利用する。 */
+export const getFreePlanChangeOperationByRequest = internalQuery({
+  args: {
+    organizationId: v.id("organizations"),
+    kind: v.union(v.literal("scheduleFree"), v.literal("cancelFreeSchedule")),
+    requestKey: v.string(),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      operationId: v.id("organizationStripeOperations"),
+      status: organizationStripeOperationStatusValidator,
+      livemode: v.boolean(),
+      expectedBillingVersion: v.optional(v.number()),
+      providerGeneration: v.optional(v.number()),
+      sourcePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
+      targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+      changeMode: v.optional(v.union(v.literal("checkout"), v.literal("immediate"), v.literal("periodEnd"))),
+      stripeSubscriptionIdSnapshot: v.optional(v.string()),
+      stripeSubscriptionItemIdSnapshot: v.optional(v.string()),
+      sourceStripePriceIdSnapshot: v.optional(v.string()),
+      targetStripePriceIdSnapshot: v.optional(v.string()),
+      prorationDate: v.optional(v.number()),
+      effectiveAt: v.optional(v.number()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const operation = await ctx.db
+      .query("organizationStripeOperations")
+      .withIndex("by_organizationId_and_kind_and_requestKey", (q) =>
+        q.eq("organizationId", args.organizationId).eq("kind", args.kind).eq("requestKey", args.requestKey),
+      )
+      .unique();
+    if (!operation) return null;
+    return {
+      operationId: operation._id,
+      status: operation.status,
+      livemode: operation.livemode,
+      ...(operation.expectedBillingVersion !== undefined
+        ? { expectedBillingVersion: operation.expectedBillingVersion }
+        : {}),
+      ...(operation.providerGeneration !== undefined ? { providerGeneration: operation.providerGeneration } : {}),
+      ...(operation.sourcePlan ? { sourcePlan: operation.sourcePlan } : {}),
+      ...(operation.targetPlan ? { targetPlan: operation.targetPlan } : {}),
+      ...(operation.changeMode ? { changeMode: operation.changeMode } : {}),
+      ...(operation.stripeSubscriptionIdSnapshot
+        ? { stripeSubscriptionIdSnapshot: operation.stripeSubscriptionIdSnapshot }
+        : {}),
+      ...(operation.stripeSubscriptionItemIdSnapshot
+        ? { stripeSubscriptionItemIdSnapshot: operation.stripeSubscriptionItemIdSnapshot }
+        : {}),
+      ...(operation.sourceStripePriceIdSnapshot
+        ? { sourceStripePriceIdSnapshot: operation.sourceStripePriceIdSnapshot }
+        : {}),
+      ...(operation.targetStripePriceIdSnapshot
+        ? { targetStripePriceIdSnapshot: operation.targetStripePriceIdSnapshot }
+        : {}),
+      ...(operation.prorationDate !== undefined ? { prorationDate: operation.prorationDate } : {}),
+      ...(operation.effectiveAt !== undefined ? { effectiveAt: operation.effectiveAt } : {}),
+    };
+  },
+});
+
+/** 期間末有料変更を作成したoperationとScheduleの永続対応を、期限確定前に再検証する。 */
+export const getScheduledPaidPlanChangeOperation = internalQuery({
+  args: {
+    organizationId: v.id("organizations"),
+    stripeSubscriptionScheduleId: v.string(),
+    stripeSubscriptionId: v.string(),
+    stripeSubscriptionItemId: v.string(),
+    providerGeneration: v.number(),
+    effectiveAt: v.number(),
+    livemode: v.boolean(),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      operationId: v.id("organizationStripeOperations"),
+      sourceStripePriceId: v.string(),
+      targetStripePriceId: v.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const operations = await ctx.db
+      .query("organizationStripeOperations")
+      .withIndex("by_organizationId_and_stripeObjectId", (q) =>
+        q.eq("organizationId", args.organizationId).eq("stripeObjectId", args.stripeSubscriptionScheduleId),
+      )
+      .filter((q) => q.eq(q.field("kind"), "schedulePaidPlanChange"))
+      .take(2);
+    if (operations.length !== 1) return null;
+    const operation = operations[0];
+    if (
+      operation.kind !== "schedulePaidPlanChange" ||
+      operation.status !== "succeeded" ||
+      operation.livemode !== args.livemode ||
+      operation.providerGeneration !== args.providerGeneration ||
+      operation.sourcePlan !== "business" ||
+      operation.targetPlan !== "pro" ||
+      operation.changeMode !== "periodEnd" ||
+      operation.stripeSubscriptionIdSnapshot !== args.stripeSubscriptionId ||
+      operation.stripeSubscriptionItemIdSnapshot !== args.stripeSubscriptionItemId ||
+      operation.effectiveAt !== args.effectiveAt ||
+      !operation.sourceStripePriceIdSnapshot ||
+      !operation.sourceStripePriceIdSnapshot.startsWith("price_") ||
+      !operation.targetStripePriceIdSnapshot ||
+      !operation.targetStripePriceIdSnapshot.startsWith("price_") ||
+      operation.sourceStripePriceIdSnapshot === operation.targetStripePriceIdSnapshot
+    ) {
+      return null;
+    }
+    return {
+      operationId: operation._id,
+      sourceStripePriceId: operation.sourceStripePriceIdSnapshot,
+      targetStripePriceId: operation.targetStripePriceIdSnapshot,
     };
   },
 });
