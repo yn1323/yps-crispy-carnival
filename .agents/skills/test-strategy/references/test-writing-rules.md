@@ -158,6 +158,7 @@ Storybook play function は振る舞い、VRT は見た目で役割を分ける�
 - VRT 差分だけでロジックの正しさを判断しない。
 - 静的文言の追加・削除・改行・長文崩れはVRTで確認し、同じStoryへ存在確認だけのplayを足さない。
 - PRではbaseline欠落を成功扱いにせず、意図した差分だけを承認する。
+- CIではPR / develop・main pushのsecretless producerがcapture・compareして固定artifactを渡し、default branchのtrusted `workflow_run` publisherだけが検査済みreportとbaselineをhosting-pagesへ公開する。PRではreport URLと差分件数を専用markerコメントへ返した後、差分がある場合だけpublisherの`approve` jobを`vrt-approval` Environmentで待つ。publisherはexact PR head SHAの固定commit status `shiftori/vrt-approval`をpendingから、差分なしまたは承認後にsuccessへ進め、このstatusをstrict required checkとして使う。base更新後はPR branchをupdateして`synchronize`を発生させ、現baselineで再比較する。
 
 ## Convex Function Test
 
@@ -260,7 +261,7 @@ E2E で見ると遅すぎる DB 状態遷移、通知、集計、dashboard 表�
 
 ## E2E
 
-E2E は、same-repositoryのdevelop向けopen PRで、exact PR headの認証付きFull RegressionとCloudflare PR Previewの`@deployed` Smokeを分けて運用する。
+E2E は、same-repositoryのdevelop向けopen PRで、exact PR headごとの専用Convex Preview `preview/pr-{N}-e2e`を使う認証付きFull Regressionと、Cloudflare PR Previewの`@deployed` Smokeを分けて運用する。
 `@deployed` Smokeは公開5routeだけを認証情報とstorageStateなしで確認し、`@release` Full Regressionは主要ハッピーパスに加えて通知・復旧・モバイル・公開面・axe検査まで含める。
 credential付きworkflowはbase repositoryとhead repositoryが同じPRだけを対象にする。fork PR、developからmainへのPR、`release.yml`では認証付きFull Regressionを実行しない。same-repositoryへpushできるactorを信頼境界内とし、`pull_request_target`でPR headのcodeやpackage scriptを実行しない。
 ブラウザprojectはChrome系に限定し、Desktop ChromeとMobile Chromeの代表導線を分けて確認する。
@@ -279,9 +280,10 @@ credential付きworkflowはbase repositoryとhead repositoryが同じPRだけを
 - 通知E2Eでは、検証対象のmagic link、LINE link token、outbox、FailureInboxをテストhelperで人工生成しない。本番と同じUI操作・mutation・scheduled actionから生成された証跡を待つ。
 - 通知のDB確認が必要な場合は、E2E環境だけで動くinternal testing APIから、目的、channel、対象ID、status、dedupe、CTA整合だけを返す。redacted通知probeは生メールアドレス、LINE userId、token、本文、provider error全文を返さない。画面遷移にtokenが必要な場合だけ、同じE2Eゲートを持つ専用token helperを分離して使う。
 - 正常通知は `notificationOutbox`、retry/fallbackは `notificationDeliveryEvents`、最終失敗だけ `notificationFailureInbox` を見る。
-- open PRのE2E結果はVRTと別の固定markerコメントへ返し、Actions、PR Preview、hosting-pagesの予定URLを未公開時から表示する。公開確認後だけ同じURLへcache-busting queryを付ける。
-- hosting-pagesへ直接公開するのは固定schemaから生成して機密情報不在を検査したsanitized summaryだけとし、raw Playwright report、trace、動画、screenshot、console/error詳細、認証情報、storageStateは公開しない。
-- direct PR workflowではsame-repositoryへpushできるactorを信頼境界内とする。`GITHUB_TOKEN`のwrite権限はコメントjobだけに限定し、credentialは必要なstepだけで参照する。
+- PR producerは機密検査済み`test-results.json`を`playwright-public-input-{run_attempt}`へuploadし、raw Playwright report、trace、動画、screenshotは`playwright-report-{run_attempt}`の非公開artifactへ7日だけ保存する。publisherはcurrent source attemptと完全一致するartifactだけを採用する。
+- default branchのtrusted `workflow_run` publisherはsource run、open PR、exact head SHA、latest run、artifact宣言を再検証し、信頼済みcodeで固定schemaのsanitized summaryだけを生成・検査してhosting-pagesへ公開する。
+- open PRのE2E結果はVRTと別の固定markerコメントへ返し、status、Passed / Failed / Flaky / Skipped、失敗テスト、全テスト、Actions、PR Preview、`preview/pr-{N}-e2e`、hosting-pages URLを表示する。
+- `GITHUB_TOKEN`のwrite権限はpublisherのcomment / PR-head status jobだけに限定し、hosting-pages credentialは`Report Publisher` Environmentだけで参照する。raw report、console/error詳細、認証情報、storageStateはhosting-pagesへ公開しない。
 
 避けること:
 

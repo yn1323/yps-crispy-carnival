@@ -46,7 +46,7 @@ e2e/
 
 ### CIとブラウザ
 
-- 認証付き`@release` Full Regressionはsame-repositoryのdevelop向けPR headで実行し、そのopen PRへ結果コメントを返す。fork PR、developからmainへのPR、`release.yml`では実行しない
+- 認証付き`@release` Full Regressionはsame-repositoryのdevelop向けPR headごとに専用Convex Preview `preview/pr-{N}-e2e`を作って実行する。trusted `workflow_run` publisherがそのopen PRへ結果コメントを返す。fork PR、developからmainへのPR、`release.yml`では実行しない
 - Cloudflare PR Preview公開後に、TOP、機能、FAQ、使い方、お問い合わせの公開5routeを`@deployed` Smokeする。Smoke自体は認証情報とstorageStateを使用しない
 - credential付きPR workflowはbase repositoryとhead repositoryが同じ場合だけ実行する。same-repositoryへpushできるactorを信頼境界内とし、fork PRへEnvironment Secretsを渡さない
 - ブラウザprojectはChrome系だけとし、Desktop ChromeとMobile Chromeの代表viewportを使う
@@ -55,7 +55,7 @@ e2e/
 - 6 worker時の初回購読と描画を考慮し、expect/actionは10秒、navigationは15秒を上限とする。ローカルだけ短い上限へ戻さない
 - 複数actorシナリオはuser index 0〜2をpool 0、3〜5をpool 1として2 workerへ固定対応させる。各poolのactor A、B、Cは独立したbrowser contextを使う
 - `setup` → `multi-actor-chromium` → 通常projectのdependencyを維持する。DesktopとMobileは同時実行できるが、Playwrightのworker slotごとの`parallelIndex`で同じユーザーの重複利用を避ける
-- PR Full Regression専用Convex PreviewはPR close時のcleanup対象とし、cleanup失敗時は自動失効で回収する
+- PR Full Regression専用Convex Preview `preview/pr-{N}-e2e`はPR close時のcleanup対象とし、cleanup失敗時は自動失効で回収する
 - CloudflareへデプロイしたURLの`@deployed` Smokeは、認証付きFull Regressionとは別にPR Preview／Developのdeploy workflowで実行する
 - シフト提出方式は、全方式で初回提出と再提出、管理者の割当編集、下書き保存、reload、確定通知、スタッフ閲覧までを一気通貫で確認する
 
@@ -95,11 +95,13 @@ e2e/
 ## PR Full Regressionの結果公開
 
 - E2EとVRTは別々の専用markerを持つ固定コメントとして更新する
-- E2Eコメントには実行結果、Actions、PR Preview、`https://yn1323.github.io/hosting-pages/yps-crispy-carnival-e2e/pr-{N}/`の予定URLを未公開時から表示する
+- E2Eコメントにはstatus、Passed / Failed / Flaky / Skipped、失敗テスト、全テスト、source Actions、PR Preview、実行した`preview/pr-{N}-e2e`、`https://yn1323.github.io/hosting-pages/yps-crispy-carnival-e2e/pr-{N}/`の予定URLを表示する
 - 公開確認後だけ同じhosting-pages URLへrun IDとattemptのcache-busting queryを付け、公開済みsanitized summaryとして表示する
-- hosting-pagesへ公開するのは、固定schemaから生成したstatus、test名、project、duration、head SHA、run IDのsanitized summaryだけとする
+- PR producerは機密検査済み`test-results.json`だけを`playwright-public-input-{run_attempt}` artifactへuploadし、raw report、trace、動画、screenshotは非公開`playwright-report-{run_attempt}` artifactへuploadする。publisherはcurrent source attemptと完全一致するartifactだけを採用する
+- default branchのtrusted `publish-playwright-report.yml`はsource run、repository、open PR、exact head SHA、latest run、artifact名・個数・容量を再検証し、信頼済みcodeで固定schemaのstatus、test名、project、duration、head SHA、run IDだけを含むsanitized summaryを生成する
+- `REPORT_PUBLISHER_HOSTING_PAGES_TOKEN`は`Report Publisher` Environmentだけから参照し、producerの`Preview` EnvironmentやRepository Secretsへ置かない
 - raw Playwright report、trace、動画、screenshot、console/error詳細、認証情報、storageStateはhosting-pagesへ公開せず、Actionsの非公開artifactへ7日だけ保存する
-- E2E reportはPR workflowから`HOSTING_PAGES_TOKEN`で直接公開する。公開前にsanitized summaryの形式と機密情報不在を検査し、current head以外のrunがコメントやreportを上書きしないようにする
+- publisherはsanitized summaryの形式と機密情報不在を検査してhosting-pagesへ公開し、current head / latest run以外のrunがコメントやreportを上書きしないようにする
 
 ## データ
 
