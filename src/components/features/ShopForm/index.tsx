@@ -2,18 +2,21 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import {
-  createDefaultShiftTypeOptions,
-  createShiftTypeOption,
-  DEFAULT_TIME_PATTERN,
   getNestedErrorMessage,
   getShiftTypeOptionErrorMessages,
-  normalizeShiftTypeOptions,
-} from "@/src/components/shared/ShopSubmissionPatternForm";
+} from "@/src/components/shared/ShopSettingsFields/formErrors";
+import {
+  appendShiftTypeOption,
+  DEFAULT_TIME_PATTERN,
+  getAvailableEndTimeOptions,
+  getAvailableStartTimeOptions,
+  removeShiftTypeOptionAt,
+  selectSubmissionPattern,
+  updateShiftTypeOptionAt,
+} from "@/src/domains/shop/submissionPattern";
 import { ShopFormView } from "./ShopFormView";
 import {
   buildShopFormSubmission,
-  getAvailableEndTimeOptions,
-  getAvailableStartTimeOptions,
   getInitialStep,
   getNextStep,
   getPreviousStep,
@@ -68,25 +71,7 @@ export const ShopForm = ({
   };
 
   const handleSubmissionPatternChange = (kind: ShiftSubmissionPattern["kind"]) => {
-    if (kind === "time") {
-      setSubmissionPattern(
-        submissionPattern.kind === "time"
-          ? submissionPattern
-          : { kind: "time", startTime: DEFAULT_TIME_PATTERN.startTime, endTime: DEFAULT_TIME_PATTERN.endTime },
-      );
-      return;
-    }
-    if (kind === "shiftType") {
-      setSubmissionPattern({
-        kind,
-        options:
-          submissionPattern.kind === "shiftType" && submissionPattern.options.length > 0
-            ? submissionPattern.options
-            : createDefaultShiftTypeOptions(),
-      });
-      return;
-    }
-    setSubmissionPattern({ kind: "dateOnly" });
+    setSubmissionPattern(selectSubmissionPattern(kind, submissionPattern));
   };
 
   const goToNextStep = () => {
@@ -107,11 +92,7 @@ export const ShopForm = ({
     if (submissionPattern.kind !== "shiftType") return;
     setSubmissionPattern({
       kind: "shiftType",
-      options: normalizeShiftTypeOptions(
-        submissionPattern.options.map((option, optionIndex) =>
-          optionIndex === index ? { ...option, ...patch } : option,
-        ),
-      ),
+      options: updateShiftTypeOptionAt(submissionPattern.options, index, patch),
     });
   };
 
@@ -119,10 +100,7 @@ export const ShopForm = ({
     if (submissionPattern.kind !== "shiftType" || submissionPattern.options.length >= MAX_SHIFT_TYPE_OPTIONS) return;
     setSubmissionPattern({
       kind: "shiftType",
-      options: normalizeShiftTypeOptions([
-        ...submissionPattern.options,
-        createShiftTypeOption(submissionPattern.options.length),
-      ]),
+      options: appendShiftTypeOption(submissionPattern.options),
     });
   };
 
@@ -130,7 +108,7 @@ export const ShopForm = ({
     if (submissionPattern.kind !== "shiftType") return;
     setSubmissionPattern({
       kind: "shiftType",
-      options: normalizeShiftTypeOptions(submissionPattern.options.filter((_, optionIndex) => optionIndex !== index)),
+      options: removeShiftTypeOptionAt(submissionPattern.options, index),
     });
   };
 

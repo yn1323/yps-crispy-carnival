@@ -1,6 +1,6 @@
 import { Field, type SelectRootProps, Stack } from "@chakra-ui/react";
-import { DIALOG_SELECT_POSITIONING } from "@/src/components/shared/ShopSubmissionPatternForm";
 import { Select } from "@/src/components/ui/Select";
+import { DIALOG_SELECT_POSITIONING } from "./selectPositioning";
 
 type TimeOption = { label: string; value: string };
 

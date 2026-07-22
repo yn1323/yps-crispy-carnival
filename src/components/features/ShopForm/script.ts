@@ -6,17 +6,10 @@ import {
   type UpdateShopSettingsInput,
   updateShopSettingsSchema,
 } from "@/convex/shop/schemas";
-import { normalizeShiftTypeOptions } from "@/src/components/shared/ShopSubmissionPatternForm";
-import { generateShiftTimeOptions, MAX_SHIFT_TIME_MINUTES, timeToMinutes } from "@/src/domains/shift/time";
+import { normalizeShiftTypeOptions } from "@/src/domains/shop/submissionPattern";
 
 export type { RegularClosedDay, ShiftSubmissionPattern, ShiftTypeOption };
-export {
-  generateShiftTimeOptions,
-  MAX_SHIFT_TIME_MINUTES,
-  MAX_SHIFT_TYPE_OPTIONS,
-  timeToMinutes,
-  updateShopSettingsSchema as shopFormSchema,
-};
+export { MAX_SHIFT_TYPE_OPTIONS, updateShopSettingsSchema as shopFormSchema };
 export type ShopFormData = UpdateShopSettingsInput;
 
 export type ShopFormStep = "shopName" | "submissionPattern" | "patternSettings" | "regularClosedDays";
@@ -30,19 +23,6 @@ export const WEEKDAYS: { value: RegularClosedDay; label: string; ariaLabel: stri
   { value: "fri", label: "金", ariaLabel: "金曜日" },
   { value: "sat", label: "土", ariaLabel: "土曜日" },
 ];
-
-const SHIFT_START_TIME_OPTIONS = generateShiftTimeOptions({ endMinutes: MAX_SHIFT_TIME_MINUTES - 30 });
-const SHIFT_END_TIME_OPTIONS = generateShiftTimeOptions({ endMinutes: MAX_SHIFT_TIME_MINUTES });
-
-export const getAvailableStartTimeOptions = (endTime: string) => {
-  const endMinutes = timeToMinutes(endTime);
-  return SHIFT_START_TIME_OPTIONS.filter((option) => timeToMinutes(option.value) < endMinutes);
-};
-
-export const getAvailableEndTimeOptions = (startTime: string) => {
-  const startMinutes = timeToMinutes(startTime);
-  return SHIFT_END_TIME_OPTIONS.filter((option) => timeToMinutes(option.value) > startMinutes);
-};
 
 export const sortRegularClosedDays = (days: RegularClosedDay[]) =>
   WEEKDAYS.filter((day) => days.includes(day.value)).map((day) => day.value);

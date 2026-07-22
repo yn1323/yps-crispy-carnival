@@ -3,9 +3,9 @@ import { useId } from "react";
 import { LuPlus, LuTrash2 } from "react-icons/lu";
 import { SHIFT_TYPE_NAME_MAX_LENGTH } from "@/convex/constants";
 import type { ShiftTypeOption } from "@/convex/shop/schemas";
-import { DIALOG_SELECT_POSITIONING } from "@/src/components/shared/ShopSubmissionPatternForm";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Select } from "@/src/components/ui/Select";
+import { DIALOG_SELECT_POSITIONING } from "./selectPositioning";
 
 type TimeOption = { label: string; value: string };
 
