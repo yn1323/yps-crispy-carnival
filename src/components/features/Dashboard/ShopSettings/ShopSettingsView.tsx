@@ -1,28 +1,34 @@
 import type { ReactNode } from "react";
+import { ShopForm, type ShopFormData } from "@/src/components/features/ShopForm";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
-import { EditShopForm, type EditShopFormData } from "../EditShopForm";
 
 type Props = {
   children: ReactNode;
   shop: {
     name: string;
-    regularClosedDays: EditShopFormData["regularClosedDays"];
-    submissionPattern: EditShopFormData["submissionPattern"];
+    regularClosedDays: ShopFormData["regularClosedDays"];
+    submissionPattern: ShopFormData["submissionPattern"];
   };
+  isReadOnly: boolean;
   dialog: {
     isOpen: boolean;
     onOpenChange: (details: { open: boolean }) => void;
     close: () => void;
   };
-  onUpdate: (data: EditShopFormData) => void | Promise<void>;
+  onUpdate: (data: ShopFormData) => void | Promise<void>;
 };
 
-export function ShopSettingsView({ children, shop, dialog, onUpdate }: Props) {
+export function ShopSettingsView({ children, shop, dialog, isReadOnly, onUpdate }: Props) {
   return (
     <>
       {children}
-      <StepperDialog title="店舗設定" isOpen={dialog.isOpen} onOpenChange={dialog.onOpenChange} onClose={dialog.close}>
-        <EditShopForm
+      <StepperDialog
+        title="店舗設定"
+        isOpen={dialog.isOpen && !isReadOnly}
+        onOpenChange={dialog.onOpenChange}
+        onClose={dialog.close}
+      >
+        <ShopForm
           key={dialog.isOpen ? "edit-shop-open" : "edit-shop-closed"}
           defaultValues={{
             shopName: shop.name,

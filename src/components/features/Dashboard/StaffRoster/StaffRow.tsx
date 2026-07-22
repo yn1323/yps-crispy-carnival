@@ -12,11 +12,13 @@ export function StaffRow({ staff, onOpenDetail }: Props) {
   const avatarPalette = staff.isManager ? { bg: "teal.500", fg: "white" } : { bg: "teal.50", fg: "teal.700" };
   const isLineActive = staff.isLineLinked && staff.isLineFollowing;
   const isExcluded = staff.excludedFromShift;
+  const hasUserDetail = Boolean(staff.organizationPersonId);
 
   return (
     <HStack
       as="button"
-      aria-label={`${staff.name}のスタッフ詳細を開く`}
+      id={staff.organizationPersonId ? `dashboard-user-${staff.organizationPersonId}` : undefined}
+      aria-label={hasUserDetail ? `${staff.name}のユーザー詳細を開く` : `${staff.name}のスタッフ詳細を開く`}
       gap={3}
       px={{ base: 3, lg: 4 }}
       py={3.5}

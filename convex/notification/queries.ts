@@ -11,7 +11,12 @@ import {
   todayJST,
 } from "../_lib/dateFormat";
 import { buildShiftTimeLabel } from "../_lib/time";
-import { DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT, OPEN_RECRUITMENT_NOTIFICATION_LIMIT } from "../constants";
+import {
+  DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT,
+  NOTIFICATION_FANOUT_SCOPE_LIMIT,
+  OPEN_RECRUITMENT_NOTIFICATION_LIMIT,
+  SHIFT_ASSIGNMENT_LIMIT,
+} from "../constants";
 import { getStaffLineAccount } from "../line/service";
 import { isShiftTargetStaff } from "../staff/service";
 import {
@@ -148,6 +153,9 @@ export const getConfirmationEmailData = internalQuery({
     targetStaffIds: v.optional(v.array(v.id("staffs"))),
   },
   handler: async (ctx, { recruitmentId, targetStaffIds }) => {
+    if (targetStaffIds && targetStaffIds.length > NOTIFICATION_FANOUT_SCOPE_LIMIT) {
+      throw new Error("Notification fanout scope exceeds the supported limit");
+    }
     const recruitment = await ctx.db.get(recruitmentId);
     if (!recruitment || recruitment.isDeleted) return null;
     if (recruitment.status !== "confirmed") return null;
@@ -155,16 +163,24 @@ export const getConfirmationEmailData = internalQuery({
     const shop = await ctx.db.get(recruitment.shopId);
     if (!shop || shop.isDeleted) return null;
 
-    const [staffs, assignments] = await Promise.all([
-      ctx.db
-        .query("staffs")
-        .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", recruitment.shopId).eq("isDeleted", false))
-        .collect(),
+    const [allStaffs, assignments] = await Promise.all([
+      targetStaffIds
+        ? Promise.all(targetStaffIds.map((staffId) => ctx.db.get(staffId)))
+        : ctx.db
+            .query("staffs")
+            .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", recruitment.shopId).eq("isDeleted", false))
+            .take(NOTIFICATION_FANOUT_SCOPE_LIMIT + 1),
       ctx.db
         .query("shiftAssignments")
         .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
-        .collect(),
+        .take(SHIFT_ASSIGNMENT_LIMIT),
     ]);
+    if (allStaffs.length > NOTIFICATION_FANOUT_SCOPE_LIMIT) {
+      throw new Error("Notification fanout scope exceeds the supported limit");
+    }
+    const staffs = allStaffs.flatMap((staff) =>
+      staff && !staff.isDeleted && staff.shopId === recruitment.shopId ? [staff] : [],
+    );
 
     const targetStaffIdSet = targetStaffIds ? new Set(targetStaffIds) : null;
     // シフト対象外スタッフには確定通知を送らない。
@@ -187,8 +203,14 @@ export const getConfirmationEmailData = internalQuery({
  * 募集開始メール送信に必要なデータを取得
  */
 export const getRecruitmentEmailData = internalQuery({
-  args: { recruitmentId: v.id("recruitments") },
-  handler: async (ctx, { recruitmentId }) => {
+  args: {
+    recruitmentId: v.id("recruitments"),
+    targetStaffIds: v.optional(v.array(v.id("staffs"))),
+  },
+  handler: async (ctx, { recruitmentId, targetStaffIds }) => {
+    if (targetStaffIds && targetStaffIds.length > NOTIFICATION_FANOUT_SCOPE_LIMIT) {
+      throw new Error("Notification fanout scope exceeds the supported limit");
+    }
     const recruitment = await ctx.db.get(recruitmentId);
     if (!recruitment || recruitment.isDeleted) return null;
     const now = Date.now();
@@ -203,10 +225,17 @@ export const getRecruitmentEmailData = internalQuery({
     const shop = await ctx.db.get(recruitment.shopId);
     if (!shop || shop.isDeleted) return null;
 
-    const staffs = await ctx.db
-      .query("staffs")
-      .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", recruitment.shopId).eq("isDeleted", false))
-      .collect();
+    const staffs = targetStaffIds
+      ? (await Promise.all(targetStaffIds.map((staffId) => ctx.db.get(staffId)))).flatMap((staff) =>
+          staff && !staff.isDeleted && staff.shopId === recruitment.shopId ? [staff] : [],
+        )
+      : await ctx.db
+          .query("staffs")
+          .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", recruitment.shopId).eq("isDeleted", false))
+          .take(NOTIFICATION_FANOUT_SCOPE_LIMIT + 1);
+    if (staffs.length > NOTIFICATION_FANOUT_SCOPE_LIMIT) {
+      throw new Error("Notification fanout scope exceeds the supported limit");
+    }
 
     return {
       shopId: recruitment.shopId,

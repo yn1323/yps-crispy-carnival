@@ -30,6 +30,9 @@
 - **Tab**：軽量切替・同コンテキスト・URL不要 or アンカー
 - **Page**：URLで共有したい・戻れる・別コンテキスト
 
+タブ、内部スクロール、複数段階、別Dialog、入力保持、URL共有のいずれかが必要になった詳細UIは、既存Dialogを広げず専用ページ化を検討する。
+操作後すぐ元画面へ戻る短い補助操作と、破壊的操作・送信・確定の最終確認はDialogに残す。
+
 ## モーダル系の選択
 
 ```
@@ -72,6 +75,8 @@
 - **モーダルの中にモーダルを開かない**：迷子になる
 - **長すぎる内容は避ける**：スクロールするモーダルは設計失敗
 - **モバイルで重いDialog → 全画面Dialog**：現状のシフトリ実装では `maxW="100vw"` / `maxH="100dvh"` と `contentProps` で全画面化する
+- **Dialog表示中のToast操作でDialogを閉じない**：ToastはPortalでDialog外に描画されるため、閉じる・actionがoutside interaction扱いになり得る。共有 `Dialog` / `StepperDialog` を使い、raw Chakra Dialogを使う場合も同じ抑止を適用する
+- Behavior Testでは、Toastの閉じる操作後に「Toastが消える」と「Dialogが残る」の両方を検証する
 
 ## Drawer
 

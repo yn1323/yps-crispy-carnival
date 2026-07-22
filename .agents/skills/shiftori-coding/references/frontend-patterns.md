@@ -55,7 +55,7 @@
 
 ## UI
 
-- まず `src/components/ui/` の `Button`、`Dialog`、`StepperDialog`、`Select`、`Empty`、`LoadingState`、`ShiftoriLoading`、`toaster`、`tooltip` を確認する。
+- まず `src/components/ui/` の `Button`、`Dialog`、`StepperDialog`、`Select`、`Empty`、`ShiftoriLoading`、`toaster`、`tooltip` を確認する。
 - Chakra UI v3 の recipe / token / semantic token を使い、局所的な色・余白のばら撒きを避ける。
 - アイコンは既存に合わせて `react-icons/lu` の Lucide 系を優先する。
 - 薄い wrapper を増やす前に、その名前が業務意味、状態分岐、レイアウト責務を持つか確認する。

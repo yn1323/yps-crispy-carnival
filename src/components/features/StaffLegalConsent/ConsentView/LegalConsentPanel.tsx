@@ -17,13 +17,11 @@ type Props = {
 export function LegalConsentPanel({ data, checked, error, isSubmitting, onCheckedChange, onAccept }: Props) {
   if (data.status === "expired") {
     return (
-      <PanelFrame tone="neutral" icon={<LuClock />} title="リンクの有効期限が切れています">
+      <PanelFrame tone="neutral" icon={<LuClock />} title="このリンクでは同意できません">
         <Text color="fg.muted" lineHeight={1.8}>
-          この同意リンクは現在利用できません。
+          リンクが無効または使用済みの可能性があります。
           <br />
-          同意していない場合でも、お店からの通知は届きます。
-          <br />
-          初回シフト提出時に同意欄がありますので、その際ご確認ください。
+          初回のシフト提出時にも、内容を確認して同意できます。
         </Text>
         <LegalDocumentLinks data={data} />
       </PanelFrame>

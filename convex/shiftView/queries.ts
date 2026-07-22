@@ -1,18 +1,56 @@
 import { v } from "convex/values";
 import { formatPeriodLabel } from "../_lib/dateFormat";
 import { staffSessionQuery } from "../_lib/functions";
-import { getSubmissionPatternTimeRange } from "../_lib/submissionPattern";
+import { sessionMatchesAccessKind } from "../_lib/staffAccess";
+import { getSubmissionPatternTimeRange, submissionPatternValidator } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
 import { SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT, SHIFT_BOARD_TIME_UNIT_MINUTES } from "../constants";
 import { getActiveRecruitmentInShop } from "../recruitment/service";
 import { isShiftTargetStaff } from "../staff/service";
 
+const shiftViewDataValidator = v.object({
+  shopName: v.string(),
+  periodLabel: v.string(),
+  periodStart: v.string(),
+  periodEnd: v.string(),
+  staffs: v.array(v.object({ _id: v.id("staffs"), name: v.string() })),
+  positions: v.array(
+    v.object({
+      _id: v.id("positions"),
+      name: v.string(),
+      color: v.string(),
+      isDefault: v.boolean(),
+    }),
+  ),
+  assignments: v.array(
+    v.object({
+      staffId: v.id("staffs"),
+      date: v.string(),
+      startTime: v.string(),
+      endTime: v.string(),
+      positionId: v.id("positions"),
+      optionId: v.optional(v.string()),
+    }),
+  ),
+  shopClosedDates: v.array(v.string()),
+  submissionPattern: submissionPatternValidator,
+  timeRange: v.object({
+    start: v.number(),
+    end: v.number(),
+    unit: v.number(),
+    editableStartMinutes: v.number(),
+    editableEndMinutes: v.number(),
+  }),
+});
+
 export const getShiftViewData = staffSessionQuery({
   args: { recruitmentId: v.id("recruitments") },
+  returns: v.union(shiftViewDataValidator, v.null()),
   handler: async (ctx, { recruitmentId }) => {
     if (!ctx.staff || !ctx.shop || !ctx.session) return null;
     const shop = ctx.shop;
     const session = ctx.session;
+    if (!sessionMatchesAccessKind(session, "view")) return null;
     if (session.recruitmentId !== recruitmentId) return null;
 
     const recruitment = await getActiveRecruitmentInShop(ctx, shop._id, recruitmentId);

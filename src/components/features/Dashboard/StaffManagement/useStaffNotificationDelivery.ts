@@ -5,11 +5,12 @@ import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import type { Staff } from "../types";
 
-export function useStaffNotificationDelivery() {
+export function useStaffNotificationDelivery(isReadOnly = false) {
   const sendOpenRecruitmentNotifications = useShopMutation(api.staff.mutations.sendOpenRecruitmentNotifications);
   const sendCurrentShiftNotification = useShopMutation(api.staff.mutations.sendCurrentShiftNotification);
 
   const { run: handleSendRecruitments, isRunning: isSendingRecruitments } = useSingleFlight(async (staff: Staff) => {
+    if (isReadOnly) return;
     try {
       const result = await sendOpenRecruitmentNotifications({ staffId: staff._id });
       if (result.scheduled) {
@@ -27,6 +28,7 @@ export function useStaffNotificationDelivery() {
   });
 
   const { run: handleSendCurrentShift, isRunning: isSendingCurrentShift } = useSingleFlight(async (staff: Staff) => {
+    if (isReadOnly) return;
     try {
       const result = await sendCurrentShiftNotification({ staffId: staff._id });
       if (result.scheduled) {

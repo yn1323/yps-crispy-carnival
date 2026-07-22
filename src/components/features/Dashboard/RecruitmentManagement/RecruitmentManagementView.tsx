@@ -11,6 +11,7 @@ type Props = {
   regularClosedDays: RegularClosedDay[];
   submissionPattern: ShiftSubmissionPattern;
   groups: DashboardRecruitmentGroup[];
+  isReadOnly: boolean;
   pastStatus: PaginationStatus;
   hasPastRecruitments: boolean;
   isPastRecruitmentsVisible: boolean;
@@ -41,6 +42,7 @@ export function RecruitmentManagementView({
   regularClosedDays,
   submissionPattern,
   groups,
+  isReadOnly,
   pastStatus,
   hasPastRecruitments,
   isPastRecruitmentsVisible,
@@ -66,6 +68,7 @@ export function RecruitmentManagementView({
     <>
       <RecruitmentBoard
         groups={groups}
+        isReadOnly={isReadOnly}
         pastStatus={pastStatus}
         hasPastRecruitments={hasPastRecruitments}
         isPastRecruitmentsVisible={isPastRecruitmentsVisible}
@@ -80,7 +83,7 @@ export function RecruitmentManagementView({
 
       <StepperDialog
         title="新しい募集をつくる"
-        isOpen={createDialog.isOpen}
+        isOpen={createDialog.isOpen && !isReadOnly}
         onOpenChange={createDialog.onOpenChange}
         onClose={createDialog.close}
       >
@@ -94,7 +97,7 @@ export function RecruitmentManagementView({
 
       <Dialog
         title={deleteTitle}
-        isOpen={deleteDialog.isOpen}
+        isOpen={deleteDialog.isOpen && !isReadOnly}
         onOpenChange={deleteDialog.onOpenChange}
         onClose={deleteDialog.close}
         onSubmit={onDeleteConfirm}
@@ -102,7 +105,7 @@ export function RecruitmentManagementView({
         role="alertdialog"
         submitColorPalette="red"
         isLoading={isDeleting}
-        isSubmitDisabled={isDeleting}
+        isSubmitDisabled={isReadOnly || isDeleting}
       >
         <Text>この募集を削除すると元に戻せません。</Text>
       </Dialog>

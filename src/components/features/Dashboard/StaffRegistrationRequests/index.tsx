@@ -1,15 +1,19 @@
 import { Box, Flex, HStack, Stack, Table, Text } from "@chakra-ui/react";
 import { LuX } from "react-icons/lu";
+import { PeopleCapacityResolutionAlert } from "@/src/components/shared/PeopleCapacityResolutionAlert";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
+import type { PeopleCapacityResolution } from "@/src/domains/organizationBilling/peopleCapacity";
 import { formatDateTime } from "@/src/domains/shift/date";
 import type { StaffRegistrationRequest } from "../types";
 
 type StaffRegistrationRequestDialogProps = {
   isOpen: boolean;
+  isReadOnly?: boolean;
   onOpenChange: (details: { open: boolean }) => void;
   onClose: () => void;
   requests: StaffRegistrationRequest[];
+  peopleCapacityResolution?: PeopleCapacityResolution | null;
   onApprove: (request: StaffRegistrationRequest) => void;
   onReject: (request: StaffRegistrationRequest) => void;
   isApproving?: boolean;
@@ -18,14 +22,16 @@ type StaffRegistrationRequestDialogProps = {
 
 type StaffRegistrationRequestListProps = Pick<
   StaffRegistrationRequestDialogProps,
-  "requests" | "onApprove" | "onReject" | "isApproving" | "isRejecting"
+  "requests" | "onApprove" | "onReject" | "isApproving" | "isRejecting" | "isReadOnly"
 >;
 
 export const StaffRegistrationRequestDialog = ({
   isOpen,
+  isReadOnly = false,
   onOpenChange,
   onClose,
   requests,
+  peopleCapacityResolution = null,
   onApprove,
   onReject,
   isApproving = false,
@@ -33,7 +39,7 @@ export const StaffRegistrationRequestDialog = ({
 }: StaffRegistrationRequestDialogProps) => (
   <Dialog
     title="スタッフ登録申請"
-    isOpen={isOpen}
+    isOpen={isOpen && !isReadOnly}
     onOpenChange={onOpenChange}
     onClose={onClose}
     footer={
@@ -51,11 +57,15 @@ export const StaffRegistrationRequestDialog = ({
     }}
   >
     <Stack gap={4} w="full">
+      {peopleCapacityResolution && (
+        <PeopleCapacityResolutionAlert resolution={peopleCapacityResolution} retryActionLabel="申請を承認" />
+      )}
       <Text fontSize="sm" color="fg.muted">
         承認するとスタッフとして登録されます。LINE連携の案内を送り、募集中のシフトがあれば提出リンクも送ります。
       </Text>
       <StaffRegistrationRequestList
         requests={requests}
+        isReadOnly={isReadOnly}
         onApprove={onApprove}
         onReject={onReject}
         isApproving={isApproving}
@@ -67,13 +77,14 @@ export const StaffRegistrationRequestDialog = ({
 
 const StaffRegistrationRequestList = ({
   requests,
+  isReadOnly = false,
   onApprove,
   onReject,
   isApproving = false,
   isRejecting = false,
 }: StaffRegistrationRequestListProps) => {
   if (requests.length === 0) return null;
-  const isBusy = isApproving || isRejecting;
+  const isBusy = isReadOnly || isApproving || isRejecting;
 
   return (
     <>

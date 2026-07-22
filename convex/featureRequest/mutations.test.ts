@@ -15,7 +15,7 @@ const submitFeatureRequest = makeFunctionReference<
 
 const submitFeatureRequestFromStaff = makeFunctionReference<
   "mutation",
-  { comment: string; requestId: string; sessionToken: string; accessKind: "submit" },
+  { comment: string; requestId: string; sessionToken: string; accessKind: "submit" | "view" },
   { status: "accepted" }
 >("featureRequest/mutations:submitFromStaff");
 
@@ -186,5 +186,48 @@ describe("featureRequest/mutations", () => {
       comment: "提出画面でも要望を送りたい",
     });
     expect(requests[0]).not.toHaveProperty("userId");
+  });
+
+  it("view用sessionとcaller引数を一致させてもスタッフ要望を登録できない", async () => {
+    const t = convexTest(schema, modules);
+    const sessionToken = "staff-feature-request-view-session";
+    await t.run(async (ctx) => {
+      const shopId = await seedShop(ctx, "閲覧session要望店舗");
+      const staffId = await ctx.db.insert("staffs", {
+        shopId,
+        name: "閲覧スタッフ",
+        email: "viewer@example.com",
+        isDeleted: false,
+      });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: "2026-07-01",
+        periodEnd: "2026-07-07",
+        deadline: "2026-06-30",
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
+      });
+      await ctx.db.insert("sessions", {
+        sessionToken,
+        staffId,
+        shopId,
+        recruitmentId,
+        accessKind: "view",
+        expiresAt: Date.now() + 60_000,
+      });
+    });
+
+    await expect(
+      t.mutation(submitFeatureRequestFromStaff, {
+        comment: "閲覧画面から要望を送る",
+        requestId: REQUEST_ID,
+        sessionToken,
+        accessKind: "view",
+      }),
+    ).rejects.toThrow("Session expired");
+    expect(await t.run((ctx) => ctx.db.query("featureRequests").collect())).toEqual([]);
   });
 });

@@ -5,6 +5,7 @@ import { LuCheck, LuClock, LuUserPlus } from "react-icons/lu";
 import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH } from "@/convex/constants";
 import { LegalDocumentLink } from "@/src/components/shared/LegalDocumentLink";
 import { StaffGuideContent } from "@/src/components/shared/StaffGuideContent";
+import { TurnstileWidget } from "@/src/components/shared/TurnstileWidget";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { Button } from "@/src/components/ui/Button";
 
@@ -18,6 +19,13 @@ type Props = {
         isSubmitting: boolean;
         onRevise: () => void;
         onSubmit: () => Promise<void> | void;
+        turnstile: {
+          widgetKey: number;
+          siteKey: string;
+          onError: (errorCode?: string) => void;
+          onVerify: (token: string) => void;
+        } | null;
+        verificationError: string | null;
       }
     | {
         kind: "form";
@@ -53,9 +61,9 @@ export function StaffRegistrationView({ state }: Props) {
   if (state.kind === "submitted") {
     return (
       <RegistrationGuideShell>
-        <PanelFrame tone="success" icon={<LuCheck />} title="スタッフ登録申請を送りました">
+        <PanelFrame tone="success" icon={<LuCheck />} title="スタッフ登録申請を受け付けました">
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            承認されると、シフト提出の案内がメールで届きます。しばらくお待ちください。
+            申請内容を確認します。必要な場合は、入力したメールアドレスへ案内を送ります。
           </Text>
         </PanelFrame>
       </RegistrationGuideShell>
@@ -68,13 +76,28 @@ export function StaffRegistrationView({ state }: Props) {
         <PanelFrame tone="action" icon={<LuUserPlus />} title="申請内容を確認してください">
           <VStack align="stretch" gap={5}>
             <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-              シフト作成担当者が承認すると、このメールアドレスにシフト提出の案内が届きます。
+              承認後、登録完了とLINE連携の案内をこのメールアドレスへ送ります。募集中のシフトがある場合は、提出案内も送ります。
             </Text>
 
             <Stack gap={4} bg="white" borderWidth="1px" borderColor="teal.100" borderRadius="lg" p={4}>
               <ConfirmRow label="名前" value={state.confirmData.name} />
               <ConfirmRow label="メールアドレス" value={state.confirmData.email} />
             </Stack>
+
+            {state.turnstile ? (
+              <TurnstileWidget
+                key={state.turnstile.widgetKey}
+                action="staff_registration"
+                onError={state.turnstile.onError}
+                onVerify={state.turnstile.onVerify}
+                siteKey={state.turnstile.siteKey}
+              />
+            ) : null}
+            {state.verificationError ? (
+              <Text color="red.600" fontSize="sm">
+                {state.verificationError}
+              </Text>
+            ) : null}
 
             <Stack direction={{ base: "column", sm: "row" }} gap={{ base: 2, sm: 3 }} pt={1}>
               <Button
@@ -119,7 +142,7 @@ export function StaffRegistrationView({ state }: Props) {
       <PanelFrame tone="action" icon={<LuUserPlus />} title="スタッフ登録">
         <VStack align="stretch" gap={5}>
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            名前とメールアドレスを登録すると、シフト作成担当者の確認後にシフト提出の案内が届きます。
+            名前とメールアドレスを入力し、スタッフ登録を申請します。確認後、必要な案内をメールへ送ります。
           </Text>
           <form id="staff-registration-form" onSubmit={state.onConfirm} noValidate>
             <Stack gap={5}>
@@ -146,7 +169,7 @@ export function StaffRegistrationView({ state }: Props) {
                 {state.emailError && <Field.ErrorText>{state.emailError}</Field.ErrorText>}
                 {state.typoSuggestion && (
                   <Text fontSize="xs" color="orange.600">
-                    もしかして {state.typoSuggestion} ですか？
+                    もしかして{state.typoSuggestion}ですか？
                   </Text>
                 )}
               </Field.Root>
@@ -188,7 +211,7 @@ export function StaffRegistrationView({ state }: Props) {
                       alignSelf="flex-start"
                       onClick={state.onApplyEmailSuggestion}
                     >
-                      {state.typoSuggestion} に直す
+                      {state.typoSuggestion}に直す
                     </Button>
                   </Stack>
                 </Box>

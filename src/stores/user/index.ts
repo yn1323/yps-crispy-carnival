@@ -1,14 +1,9 @@
-import { atom, useSetAtom } from "jotai";
+import { atom } from "jotai";
 
-const DefaultValue = {
+export const EMPTY_USER = {
   authId: "",
   name: "",
   email: "",
 };
 
-export const userAtom = atom(DefaultValue);
-
-export const resetUserAtom = () => {
-  const setUser = useSetAtom(userAtom);
-  setUser(DefaultValue);
-};
+export const userAtom = atom(EMPTY_USER);

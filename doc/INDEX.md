@@ -6,7 +6,7 @@
 
 | 仕様 | 概要 | 状況 |
 |---|---|---|
-| [事業者課金、複数店舗、複数管理者の業務フロー](specs/organization-billing-business-flow.md) | 事業者単位の契約、利用人数、無料体験、Free移行、支払い失敗、通知、管理者招待の業務基準 | 業務方針確定、料金未定 |
+| [グループ課金、複数店舗、複数管理者の業務フロー](specs/organization-billing-business-flow.md) | Free、Trial、Pro、Business、支払い不要Business、利用人数、下位プラン移行、支払い失敗、Stripe、通知、管理者招待の業務基準 | Business再導入と上限変更を実装、Stripe公開は`off`、実価格と外部設定は未登録、production migrationは未実施 |
 
 ## 機能一覧
 
@@ -16,11 +16,14 @@
 | [法務同意フロー](features/legal-consent.md) | 管理ユーザー/スタッフ向け利用規約・プライバシーポリシー同意を記録 | 実装済 |
 | [LINE通知連携](features/line-notification.md) | スタッフ向け通知をLINE Push / メールで自動振り分け（設定UIなし） | 実装済 |
 | [通知配送outbox](features/notification-outbox.md) | LINE / メール通知を予約し、少量ずつ配送・再試行するバックエンドキュー | 実装済 |
+| [スタッフ通知履歴](features/notification-history.md) | スタッフごとのメール・LINE通知日時、タイトル、送信・配信状況をスタッフ詳細で確認 | 実装済 |
 | [通知不達Dashboard](features/notification-failure-dashboard.md) | 送信できなかった通知をDashboardで確認し、個別/一斉に再通知を受け付ける導線 | 実装済 |
-| [Dashboardお知らせ](features/dashboard-announcements.md) | 有事の全店舗共通お知らせをDashboard上部に1件だけ表示 | 実装済 |
-| [管理ユーザーと店舗所属](features/manager-shop-membership.md) | 管理ユーザーと店舗を `shopMembers` で結ぶ所属モデル。複数店舗対応のDB土台 | 準備中 |
-| [課金プラン管理](features/billing-plans.md) | 店舗単位で課金状態を持つ初期検討資料。新規実装は事業者課金の業務仕様を優先 | 旧検討 |
-| [管理者と請求管理者の権限方針](features/manager-billing-roles.md) | BillingManagerを含む初期検討資料。新規実装は事業者課金の業務仕様を優先 | 旧検討 |
+| [Dashboardお知らせ](features/dashboard-announcements.md) | 有事のお知らせを全体、グループ、店舗、Free、Trial、Pro、Businessの対象別にDashboard上部へ1件表示 | 実装済 |
+| [トライアル終了前Dashboard案内](features/trial-ending-dashboard-callout.md) | 有料プラン継続未登録のグループへ終了7日前から制限内容と支払い導線を全店舗で表示 | 実装済 |
+| [グループ課金、複数店舗、複数管理者](features/organization-billing.md) | Free、Trial、Pro、Business、支払い不要Businessの課金状態、Stripe連携、人物、管理者招待、店舗管理、店舗切り替え、移行互換 | Business再導入、Stripeプラン変更、人物削除、migrationを実装、公開`off`、外部設定とproduction migration待ち |
+| [ユーザー詳細](features/user-detail.md) | グループ人物を正本として、共通プロフィールと店舗別のスタッフ設定、通知、LINE連携を一つのページで管理 | 実装済 |
+| [店舗・グループ削除](features/data-deletion.md) | 業務識別情報を保持した論理削除、Capability失効、永続cleanupの保証範囲 | 実装済、本番migration未実行 |
+| [所属なしユーザーのアカウント削除](features/account-deletion.md) | 所属のない管理ユーザーが再認証後にローカル利用停止とClerk削除を依頼する導線 | 実装済、段階公開前 |
 | [スタッフ参加QR・承認導線](features/staff-registration.md) | 店舗専用QR/URLからスタッフ本人が参加申請し、シフト担当者が承認する導線 | 実装済 |
 | [店舗設定](features/shop-settings.md) | 店舗名、シフト時間帯、定休日などシフト作成の前提になる店舗情報を管理 | 実装済 |
 | [ログイン後オンボーディング](features/dashboard-onboarding.md) | 店舗登録後にシフト担当者自身で募集作成・通知確認・提出確認を試すDashboard内Callout | 実装済 |
@@ -29,12 +32,18 @@
 | [希望シフト提出](features/shift-submission.md) | スタッフの希望提出と前回シフトあり週パターンの再利用 | 実装済 |
 | [シフト対象外スタッフ](features/shift-exclusion.md) | 店舗共通アドレス等シフトを出さないスタッフを表示・シフト関連通知の対象から外す | 実装済 |
 | [シフト確定催促リマインダー](features/shift-confirmation-reminder.md) | 締切翌日17時に未確定の募集があれば店舗マネージャー全員へ確定を催促（失敗は要対応Inbox対象外） | 実装済 |
-| [公開サブページ](features/public-pages.md) | LPコンテンツを流用した、できること・FAQ・デモへの公開導線 | 実装済 |
-| [使い方・ヘルプ](features/howto.md) | 操作方法、通知の仕組み、困ったときの対処方法をMDXで管理する公開ヘルプ | 実装済 |
+| [公開サブページ](features/public-pages.md) | TOPの注目7問と、カテゴリ・検索・図・HowTo導線を備えた総合FAQを含む公開導線 | 実装済 |
+| [使い方・ヘルプ](features/howto.md) | FAQから案内する詳しい操作手順とトラブル対応をMDXで管理する公開ヘルプ | 実装済 |
 | [問い合わせ](features/contact.md) | 公開フォームから問い合わせメールを送り、成功後にSlackへ社内通知 | 実装済 |
 | [要望受付](features/feature-requests.md) | ログイン後の要望DialogでDBへ保存し、分析画面で新しい順に確認 | 実装済 |
 | [分析KPI蓄積基盤](features/analytics.md) | サービス利用状況KPIを日次cronで蓄積し時系列分析できるようにするinternal専用基盤 | 実装済 |
 | [分析KPI可視化アプリ](features/analytics-dashboard.md) | 蓄積済みKPIを本人用の内部BIとしてCloudflare Pages別アプリで可視化 | 実装済 |
+
+## 旧検討資料
+
+- [店舗単位課金プランの旧検討](features/billing-plans.md)
+- [店舗単位の請求管理者ロールに関する旧検討](features/manager-billing-roles.md)
+- [店舗単位管理者所属の移行互換](features/manager-shop-membership.md)
 
 ## 関連ドキュメント
 
@@ -43,3 +52,5 @@
 - [rules/convex-design-strategy.md](rules/convex-design-strategy.md) - Convexの認証境界、公開API、Capability、durable workflow、データ保持、運用契約
 - [rules/security-strategy.md](rules/security-strategy.md) - セキュリティ設計、認証/認可境界、token/通知/billingレビュー方針
 - [rules/testing-strategy.md](rules/testing-strategy.md) - テスト種別、テスト層の分担、Convex Function TestとScenario Testの方針
+- [plans/2026-07-21_課金プラン改定_Business再導入_実装計画.md](plans/2026-07-21_課金プラン改定_Business再導入_実装計画.md) - Business再導入、利用上限、Stripeプラン変更、人物削除、migration、全テスト層の現行実装計画
+- [plans/2026-07-20_Stripe課金連携_実装計画.md](plans/2026-07-20_Stripe課金連携_実装計画.md) - BusinessをProへ統合した時点のStripe連携と移行に関する履歴計画

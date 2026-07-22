@@ -1,6 +1,6 @@
 # 通知不達Dashboard
 
-送信できなかった通知を `notificationFailureInbox` から店舗単位で読み取り、Dashboard の「TODO」から再通知または「対応不要」を受け付ける機能。再通知は配送完了ではなく、Outbox または再通知 action に載った時点で受付済みとして扱う。
+送信できなかった通知を `notificationFailureInbox` から店舗単位で読み取り、Dashboard の「今やること」から再通知または「対応不要」を受け付ける機能。再通知は配送完了ではなく、Outbox または再通知 action に載った時点で受付済みとして扱う。
 
 マネージャーがDashboardを開かないと不達に気づけないため、open 不達通知がある店舗のmanager usersへ、毎日 JST 17:00 に「Dashboardから再通知してください」というリマインダー（日次ダイジェスト）を送る。
 
@@ -8,7 +8,7 @@
 
 ### フロントエンド（`src/`）
 
-- `src/components/features/Dashboard/HeroSummary/index.tsx` — 「TODO」に不達通知カードを表示する
+- `src/components/features/Dashboard/HeroSummary/index.tsx` — 「今やること」に不達通知カードを表示する
 - `src/components/features/Dashboard/NotificationFailureRecovery/` — open 不達通知query、Dialogの開閉、個別/一斉再通知・対応不要mutation、受付済み状態を所有する
 - `src/components/features/Dashboard/NotificationFailureDialog/` — 不達通知一覧、PCテーブル、SPリスト、Storybook
 
@@ -26,6 +26,7 @@
 - cron `notification-failure-reminder-digest`（JST 17:00 = UTC 08:00）が `internal.notificationOutbox.failureReminderActions.sendFailureReminderDigest` を起動する。
 - `status = open` かつ最新失敗（`lastFailedAt`）が直近24時間以内（`NOTIFICATION_FAILURE_REMINDER_WINDOW_MS`）の不達通知がある店舗だけを対象にする。失敗が再発するたびに対象期間を再計算し、日次cronでは通常1回だけ送る。
 - 配信先は店舗のmanager users全員。LINE連携済みなら LINE（Quota超過時のemailフォールバック付き）、それ以外はメール。
+- メール / LINE のCTAは通知元店舗を `shop` クエリで指定したDashboard URLを使う。
 - このリマインダー通知自体の配送が失敗しても `notificationFailureInbox` には記録しない（payloadの `suppressFailureInbox` で抑止。メタ失敗でInboxを汚さないため）。
 
 ## 画面一覧

@@ -27,7 +27,7 @@ test.describe("主要ページのaxeアクセシビリティ検査", { tag: ["@r
             '.css-1eo32r8.chakra-stack:nth-child(2) > a[href$="features"]',
             ".css-1eo32r8.chakra-stack:nth-child(3) > .css-8puo4c",
             'a[href$="howto"]',
-            '.css-1eo32r8.chakra-stack:nth-child(3) > a[href$="faq"]',
+            'footer a[href="/faq"]',
             'a[href$="contact"]',
             ".css-1eo32r8.chakra-stack:nth-child(4) > .css-8puo4c",
             'a[href$="terms"]',

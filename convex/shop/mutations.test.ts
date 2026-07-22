@@ -1,10 +1,15 @@
 import { ConvexError } from "convex/values";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "../_generated/api";
-import { seedManagerShop, seedShop, seedUser } from "../_test/seed";
+import { api, internal } from "../_generated/api";
+import { seedManagerShop, seedOrganizationManagerShop, seedShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { SHIFT_TYPE_NAME_MAX_LENGTH, SHOP_NAME_MAX_LENGTH } from "../constants";
+import {
+  NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS,
+  SHIFT_TYPE_NAME_MAX_LENGTH,
+  SHOP_NAME_MAX_LENGTH,
+} from "../constants";
+import { deletedLineUserId } from "../deletionCleanup/tombstone";
 
 const validArgs = {
   shopName: "新・居酒屋たなか",
@@ -453,6 +458,275 @@ describe("shop/mutations", () => {
     });
   });
 
+  describe("updateShopSetting", () => {
+    it("店舗名だけを正規化して更新する", async () => {
+      const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "partial_shop_name",
+          shopName: "更新前店舗",
+          plan: "pro",
+        });
+        await ctx.db.patch(seeded.shopId, {
+          regularClosedDays: ["sun", "wed"],
+          submissionPattern: { kind: "dateOnly" },
+        });
+        return seeded.shopId;
+      });
+
+      await t.withIdentity({ subject: "partial_shop_name" }).mutation(api.shop.mutations.updateShopSetting, {
+        shopId,
+        change: { kind: "shopName", shopName: "  更新後店舗  " },
+      });
+
+      const settings = await t.run(async (ctx) => {
+        const shop = await ctx.db.get(shopId);
+        return shop
+          ? {
+              name: shop.name,
+              regularClosedDays: shop.regularClosedDays,
+              submissionPattern: shop.submissionPattern,
+            }
+          : null;
+      });
+      expect(settings).toEqual({
+        name: "更新後店舗",
+        regularClosedDays: ["sun", "wed"],
+        submissionPattern: { kind: "dateOnly" },
+      });
+    });
+
+    it("希望提出方法だけを正規化して更新する", async () => {
+      const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "partial_submission_pattern",
+          shopName: "提出方法店舗",
+          plan: "pro",
+        });
+        await ctx.db.patch(seeded.shopId, { regularClosedDays: ["sun", "thu"] });
+        return seeded.shopId;
+      });
+
+      await t.withIdentity({ subject: "partial_submission_pattern" }).mutation(api.shop.mutations.updateShopSetting, {
+        shopId,
+        change: {
+          kind: "submissionPattern",
+          submissionPattern: {
+            kind: "shiftType",
+            options: [
+              { id: "late", name: "  遅番  ", startTime: "15:00", endTime: "23:00", sortOrder: 0 },
+              { id: "morning", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 1 },
+            ],
+          },
+        },
+      });
+
+      const settings = await t.run(async (ctx) => {
+        const shop = await ctx.db.get(shopId);
+        return shop
+          ? {
+              name: shop.name,
+              regularClosedDays: shop.regularClosedDays,
+              submissionPattern: shop.submissionPattern,
+            }
+          : null;
+      });
+      expect(settings).toEqual({
+        name: "提出方法店舗",
+        regularClosedDays: ["sun", "thu"],
+        submissionPattern: {
+          kind: "shiftType",
+          options: [
+            { id: "morning", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 },
+            { id: "late", name: "遅番", startTime: "15:00", endTime: "23:00", sortOrder: 1 },
+          ],
+        },
+      });
+    });
+
+    it("定休日だけを曜日順に更新する", async () => {
+      const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "partial_closed_days",
+          shopName: "定休日店舗",
+          plan: "pro",
+        });
+        await ctx.db.patch(seeded.shopId, { submissionPattern: { kind: "dateOnly" } });
+        return seeded.shopId;
+      });
+
+      await t.withIdentity({ subject: "partial_closed_days" }).mutation(api.shop.mutations.updateShopSetting, {
+        shopId,
+        change: { kind: "regularClosedDays", regularClosedDays: ["fri", "mon", "mon"] },
+      });
+
+      const settings = await t.run(async (ctx) => {
+        const shop = await ctx.db.get(shopId);
+        return shop
+          ? {
+              name: shop.name,
+              regularClosedDays: shop.regularClosedDays,
+              submissionPattern: shop.submissionPattern,
+            }
+          : null;
+      });
+      expect(settings).toEqual({
+        name: "定休日店舗",
+        regularClosedDays: ["mon", "fri"],
+        submissionPattern: { kind: "dateOnly" },
+      });
+    });
+
+    it("同じ事業者の別店舗を明示shopIdで更新する", async () => {
+      const t = convexTest(schema, modules);
+      const { baseShopId, targetShopId } = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "partial_explicit_target",
+          shopName: "基準店舗",
+          plan: "pro",
+        });
+        const targetShopId = await ctx.db.insert("shops", {
+          organizationId: seeded.organizationId,
+          operatingStatus: "active",
+          name: "更新対象店舗",
+          submissionPattern: { kind: "dateOnly" },
+          regularClosedDays: ["sun"],
+          isDeleted: false,
+        });
+        return { baseShopId: seeded.shopId, targetShopId };
+      });
+
+      await t.withIdentity({ subject: "partial_explicit_target" }).mutation(api.shop.mutations.updateShopSetting, {
+        shopId: targetShopId,
+        change: { kind: "shopName", shopName: "更新後の対象店舗" },
+      });
+
+      const names = await t.run(async (ctx) => ({
+        base: (await ctx.db.get(baseShopId))?.name,
+        target: (await ctx.db.get(targetShopId))?.name,
+      }));
+      expect(names).toEqual({ base: "基準店舗", target: "更新後の対象店舗" });
+    });
+
+    it("shopIdを省略した場合はどの店舗も更新しない", async () => {
+      const t = convexTest(schema, modules);
+      const { baseShopId, otherShopId } = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "partial_missing_target",
+          shopName: "先頭店舗",
+          plan: "pro",
+        });
+        const otherShopId = await ctx.db.insert("shops", {
+          organizationId: seeded.organizationId,
+          operatingStatus: "active",
+          name: "2店舗目",
+          submissionPattern: { kind: "dateOnly" },
+          regularClosedDays: [],
+          isDeleted: false,
+        });
+        return { baseShopId: seeded.shopId, otherShopId };
+      });
+
+      await expect(
+        t.withIdentity({ subject: "partial_missing_target" }).mutation(
+          api.shop.mutations.updateShopSetting,
+          // Runtime validatorもshopIdを必須にしていることを確認するため、意図的に型境界を越える。
+          { change: { kind: "shopName", shopName: "不正更新" } } as never,
+        ),
+      ).rejects.toThrow();
+
+      const names = await t.run(async (ctx) => ({
+        base: (await ctx.db.get(baseShopId))?.name,
+        other: (await ctx.db.get(otherShopId))?.name,
+      }));
+      expect(names).toEqual({ base: "先頭店舗", other: "2店舗目" });
+    });
+
+    it("未認証では更新できない", async () => {
+      const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => seedShop(ctx, "未認証店舗"));
+
+      await expect(
+        t.mutation(api.shop.mutations.updateShopSetting, {
+          shopId,
+          change: { kind: "shopName", shopName: "不正更新" },
+        }),
+      ).rejects.toThrow();
+      await expect(t.run(async (ctx) => (await ctx.db.get(shopId))?.name)).resolves.toBe("未認証店舗");
+    });
+
+    it("別事業者の店舗は Not found で更新できない", async () => {
+      const t = convexTest(schema, modules);
+      const otherShopId = await t.run(async (ctx) => {
+        await seedOrganizationManagerShop(ctx, { subject: "partial_idor_actor", plan: "pro" });
+        const other = await seedOrganizationManagerShop(ctx, {
+          subject: "partial_idor_other",
+          shopName: "別事業者店舗",
+          plan: "pro",
+        });
+        return other.shopId;
+      });
+
+      await expect(
+        t.withIdentity({ subject: "partial_idor_actor" }).mutation(api.shop.mutations.updateShopSetting, {
+          shopId: otherShopId,
+          change: { kind: "shopName", shopName: "不正更新" },
+        }),
+      ).rejects.toThrow("Not found");
+      await expect(t.run(async (ctx) => (await ctx.db.get(otherShopId))?.name)).resolves.toBe("別事業者店舗");
+    });
+
+    it("閲覧のみの管理者は更新できない", async () => {
+      const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "partial_read_only",
+          shopName: "閲覧専用店舗",
+          plan: "pro",
+        });
+        await ctx.db.patch(seeded.memberId, { status: "readOnly" });
+        return seeded.shopId;
+      });
+
+      await expect(
+        t.withIdentity({ subject: "partial_read_only" }).mutation(api.shop.mutations.updateShopSetting, {
+          shopId,
+          change: { kind: "shopName", shopName: "不正更新" },
+        }),
+      ).rejects.toThrow("Not found");
+      await expect(t.run(async (ctx) => (await ctx.db.get(shopId))?.name)).resolves.toBe("閲覧専用店舗");
+    });
+
+    it("不正な希望提出方法は既存schemaで拒否し、店舗を更新しない", async () => {
+      const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "partial_invalid_pattern",
+          shopName: "入力検証店舗",
+          plan: "pro",
+        });
+        return seeded.shopId;
+      });
+
+      await expect(
+        t.withIdentity({ subject: "partial_invalid_pattern" }).mutation(api.shop.mutations.updateShopSetting, {
+          shopId,
+          change: {
+            kind: "submissionPattern",
+            submissionPattern: { kind: "time", startTime: "22:00", endTime: "21:00" },
+          },
+        }),
+      ).rejects.toThrow(ConvexError);
+      await expect(t.run(async (ctx) => (await ctx.db.get(shopId))?.submissionPattern)).resolves.toEqual({
+        kind: "time",
+        startTime: "09:00",
+        endTime: "22:00",
+      });
+    });
+  });
+
   describe("deleteShop", () => {
     // バックグラウンドの cleanupDeletedShop は runAfter(0) で自己再スケジュールするため、
     // フェイクタイマー + finishAllScheduledFunctions で完了まで進める。
@@ -498,6 +772,29 @@ describe("shop/mutations", () => {
 
       const ownShop = await t.run(async (ctx) => ctx.db.get(ownShopId));
       expect(ownShop?.isDeleted).toBe(false);
+    });
+
+    it("事業者に紐づく店舗は旧APIで削除せずグループ設定の削除導線へ寄せる", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run((ctx) =>
+        seedOrganizationManagerShop(ctx, { subject: "organization_shop_delete", plan: "pro" }),
+      );
+
+      await expect(
+        t.withIdentity({ subject: "organization_shop_delete" }).mutation(api.shop.mutations.deleteShop, {
+          confirmShopId: ids.shopId,
+          shopId: ids.shopId,
+        }),
+      ).rejects.toThrow("グループ設定から店舗を削除してください");
+
+      const state = await t.run(async (ctx) => ({
+        shop: await ctx.db.get(ids.shopId),
+        member: await ctx.db.get(ids.memberId),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+      expect(state.shop).toMatchObject({ isDeleted: false, operatingStatus: "active" });
+      expect(state.member?.status).toBe("active");
+      expect(state.scheduled.filter((job) => job.name === "shop/mutations:cleanupDeletedShop")).toHaveLength(0);
     });
 
     it("店舗・所属スタッフ・所属マネージャーを論理削除し、アクセス経路を無効化する", async () => {
@@ -580,15 +877,23 @@ describe("shop/mutations", () => {
       await t.finishAllScheduledFunctions(vi.runAllTimers);
 
       await t.run(async (ctx) => {
-        expect((await ctx.db.get(ids.shopId))?.isDeleted).toBe(true);
-        expect((await ctx.db.get(ids.staffId))?.isDeleted).toBe(true);
+        expect(await ctx.db.get(ids.shopId)).toMatchObject({ isDeleted: true, name: "居酒屋たなか" });
+        expect(await ctx.db.get(ids.staffId)).toMatchObject({
+          isDeleted: true,
+          name: "佐藤",
+          email: "sato@example.com",
+          emailNormalized: "sato@example.com",
+        });
         expect(ids.membershipId && (await ctx.db.get(ids.membershipId))?.isDeleted).toBe(true);
         expect((await ctx.db.get(ids.sessionId))?.revokedAt).toBeTypeOf("number");
         expect((await ctx.db.get(ids.magicLinkId))?.revokedAt).toBeTypeOf("number");
         expect((await ctx.db.get(ids.lineLinkTokenId))?.revokedAt).toBeTypeOf("number");
         const lineAccount = await ctx.db.get(ids.lineAccountId);
-        expect(lineAccount?.isDeleted).toBe(true);
-        expect(lineAccount?.following).toBe(false);
+        expect(lineAccount).toMatchObject({
+          isDeleted: true,
+          following: false,
+          lineUserId: deletedLineUserId(ids.lineAccountId),
+        });
         expect((await ctx.db.get(ids.registrationLinkId))?.revokedAt).toBeTypeOf("number");
       });
     });
@@ -627,7 +932,7 @@ describe("shop/mutations", () => {
       });
     });
 
-    it("配信予約済み（pending/processing）の通知をキャンセルし、送信済みは変更しない", async () => {
+    it("pending通知はすぐ停止し、processing通知はlease終了後に回収して送信済みは変更しない", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const { shopId } = await seedManagerShop(ctx, {
@@ -667,7 +972,23 @@ describe("shop/mutations", () => {
           dedupeKey: "dedupe-sent",
           sentAt: Date.now(),
         });
-        return { shopId, pendingId, processingId, sentId };
+        const now = Date.now();
+        const failureId = await ctx.db.insert("notificationFailureInbox", {
+          failureKey: `outbox:${pendingId}`,
+          sourceType: "outbox",
+          status: "retrying",
+          shopId,
+          outboxId: pendingId,
+          channel: "email",
+          dedupeKey: "dedupe-pending",
+          notificationContext: "test",
+          firstFailedAt: now,
+          lastFailedAt: now,
+          lastError: "delivery failed",
+          createdAt: now,
+          updatedAt: now,
+        });
+        return { shopId, pendingId, processingId, sentId, failureId };
       });
 
       await t
@@ -676,10 +997,75 @@ describe("shop/mutations", () => {
       await t.finishAllScheduledFunctions(vi.runAllTimers);
 
       await t.run(async (ctx) => {
-        expect((await ctx.db.get(ids.pendingId))?.status).toBe("failed");
-        expect((await ctx.db.get(ids.processingId))?.status).toBe("failed");
+        expect(await ctx.db.get(ids.pendingId)).toMatchObject({
+          status: "cancelled",
+          cancelReason: "shop_inactive",
+          cancelledAt: expect.any(Number),
+        });
+        expect(await ctx.db.get(ids.processingId)).toMatchObject({
+          status: "cancelled",
+          cancelReason: "shop_inactive",
+        });
+        expect(await ctx.db.get(ids.failureId)).toMatchObject({
+          status: "resolved",
+          resolutionKind: "superseded",
+          resolvedAt: expect.any(Number),
+        });
         expect((await ctx.db.get(ids.sentId))?.status).toBe("sent");
       });
+    });
+
+    it("provider処理中の通知はlease中に上書きせず、staleになった後で回収する", async () => {
+      const t = convexTest(schema, modules);
+      const startedAt = Date.now();
+      const ids = await t.run(async (ctx) => {
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: MANAGER_SUBJECT,
+          email: "yamada@example.com",
+          shopName: "削除対象店",
+        });
+        await ctx.db.patch(shopId, { isDeleted: true });
+        const outboxId = await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          shopId,
+          status: "processing",
+          dedupeKey: "dedupe-processing-lease",
+          payload: {
+            kind: "email",
+            context: "test",
+            from: "noreply@example.com",
+            to: "sato@example.com",
+            subject: "件名",
+            html: "<p>body</p>",
+          },
+          attemptCount: 1,
+          nextRunAt: startedAt,
+          processingStartedAt: startedAt,
+          createdAt: startedAt,
+          updatedAt: startedAt,
+        });
+        return { shopId, outboxId };
+      });
+
+      await t.mutation(internal.shop.mutations.cleanupDeletedShopProcessingOutbox, { shopId: ids.shopId });
+
+      const beforeExpiry = await t.run(async (ctx) => ({
+        outbox: await ctx.db.get(ids.outboxId),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+      expect(beforeExpiry.outbox?.status).toBe("processing");
+      expect(beforeExpiry.scheduled.some((job) => job.name === "deletionCleanup/mutations:kick")).toBe(true);
+
+      vi.setSystemTime(startedAt + NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS + 1);
+      await t.mutation(internal.shop.mutations.cleanupDeletedShopProcessingOutbox, { shopId: ids.shopId });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+      const staleOutbox = await t.run(async (ctx) => ctx.db.get(ids.outboxId));
+      expect(staleOutbox).toMatchObject({
+        status: "cancelled",
+        cancelReason: "shop_inactive",
+      });
+      expect(staleOutbox).not.toHaveProperty("processingStartedAt");
     });
 
     it("バッチサイズを超える件数でも全件を後片付けできる", async () => {

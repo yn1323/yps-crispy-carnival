@@ -1,4 +1,4 @@
 interface:
   display_name: "Shiftori UI Text"
-  short_description: "シフトリのUI文言依頼を統合済みの UI Architect にルーティングします。"
-  default_prompt: "Use $ui-architect to draft or review シフトリ UI labels, buttons, dialogs, toasts, empty states, and error messages."
+  short_description: "シフトリUI文言をUI設計と認知リズムの規範へルーティングします。"
+  default_prompt: "Use $ui-architect and $cognitive-rhythm-writing to draft or review シフトリ UI copy. Apply cognitive rhythm only to explanatory prose, and keep atomic microcopy concise."

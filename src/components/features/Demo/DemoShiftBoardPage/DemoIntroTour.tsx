@@ -37,7 +37,7 @@ const STEPS: TourStep[] = [
     target: '[data-tour="confirm-button"]',
     placement: "top-end",
     title: "いい感じになりました！",
-    content: "確定ボタンでスタッフ全員に通知が届きます。（デモでは通知は送信されません）",
+    content: "確定ボタンを押すと、確定後の画面を確認できます。このデモでは通知は送られません。",
   },
 ];
 

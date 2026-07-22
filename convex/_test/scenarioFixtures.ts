@@ -1,5 +1,7 @@
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import { todayJST } from "../_lib/dateFormat";
+import { generateUUID } from "../_lib/uuid";
 import type { ScenarioTest } from "./scenarioBuilders";
 
 type ManagerIdentity =
@@ -8,6 +10,7 @@ type ManagerIdentity =
       subject: string;
       name?: string;
       email?: string;
+      emailVerified?: boolean;
     };
 
 type RecruitmentInput = {
@@ -116,7 +119,35 @@ export function createScenario(t: ScenarioTest) {
           });
         },
         async addStaffs(entries: StaffEntry[]) {
-          return asManager.mutation(api.staff.mutations.addStaffs, { entries, shopId: await getSelectedShopId() });
+          const result = await asManager.mutation(api.staff.mutations.addStaffs, {
+            entries,
+            requestId: generateUUID(),
+            shopId: await getSelectedShopId(),
+          });
+          if (result.status !== "added") {
+            throw new Error("Scenario staff addition unexpectedly requires confirmation");
+          }
+          return result.staffIds;
+        },
+        async inviteStaffAsManager(staffId: Id<"staffs">) {
+          return asManager.mutation(api.organizationInvitation.mutations.createForStaff, {
+            staffId,
+            requestId: generateUUID(),
+            shopId: await getSelectedShopId(),
+          });
+        },
+        acceptManagerInvitation(token: string) {
+          return asManager.mutation(api.organizationInvitation.mutations.accept, { token });
+        },
+        linkManagerInvitationAccount(token: string) {
+          return asManager.mutation(api.organizationInvitation.mutations.linkAccount, { token });
+        },
+        async removeManagerRole(personId: Id<"organizationPeople">) {
+          return asManager.mutation(api.organization.mutations.removeManagerRole, {
+            shopId: await getSelectedShopId(),
+            personId,
+            requestId: generateUUID(),
+          });
         },
         async editStaff(args: { staffId: Id<"staffs">; name: string; email: string }) {
           return asManager.mutation(api.staff.mutations.editStaff, { ...args, shopId: await getSelectedShopId() });
@@ -182,10 +213,11 @@ export function createScenario(t: ScenarioTest) {
         getManagerConsentStatus() {
           return asManager.query(api.legal.queries.getManagerConsentStatus, {});
         },
-        async getShiftBoardData(recruitmentId: Id<"recruitments">) {
+        async getShiftBoardData(recruitmentId: Id<"recruitments">, refreshDayKey: string = todayJST()) {
           return asManager.query(api.shiftBoard.queries.getShiftBoardData, {
             recruitmentId,
             shopId: await getSelectedShopId(),
+            refreshDayKey,
           });
         },
       };
@@ -241,7 +273,14 @@ export function createScenario(t: ScenarioTest) {
         }) {
           return t.mutation(internal.line.mutations.finalizeLinking, args);
         },
-        dispatchWebhookEvents(events: Array<{ type: "follow" | "unfollow"; userId: string }>) {
+        dispatchWebhookEvents(
+          events: Array<{
+            type: "follow" | "unfollow";
+            userId: string;
+            webhookEventId: string;
+            timestamp: number;
+          }>,
+        ) {
           return t.mutation(internal.line.mutations.dispatchWebhookEvents, { events });
         },
       };

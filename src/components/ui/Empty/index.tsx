@@ -9,6 +9,7 @@ type EmptySize = "md" | "lg";
 type Props = Omit<BoxProps, "title"> & {
   icon?: ElementType | ReactElement;
   title: ReactNode;
+  titleAs?: ElementType;
   description?: ReactNode;
   secondaryDescription?: ReactNode;
   action?: ReactNode;
@@ -74,6 +75,7 @@ function renderIcon(icon: ElementType | ReactElement, boxSize: number) {
 export const Empty = ({
   icon,
   title,
+  titleAs = "h2",
   description,
   secondaryDescription,
   action,
@@ -118,7 +120,7 @@ export const Empty = ({
           ))}
         <Stack gap={1.5} align="center">
           <Text
-            as="h2"
+            as={titleAs}
             fontSize={size === "lg" ? "xl" : "lg"}
             fontWeight={size === "lg" ? "bold" : "semibold"}
             color="gray.900"

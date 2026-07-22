@@ -2,20 +2,14 @@
 name: convex-performance-audit
 description:
   Audits Convex performance for reads, subscriptions, write contention, and
-  function and capacity limits. Use for slow features, insights findings, OCC
-  conflicts, read amplification, caller-controlled read targets, or capped
-  analytics that may silently become incomplete.
+  function limits. Use for slow features, insights findings, OCC conflicts, or
+  read amplification.
 ---
 
 # Convex Performance Audit
 
 Diagnose and fix performance problems in Convex applications, one problem class
 at a time.
-
-When used in Shiftori, first read `convex/_generated/ai/guidelines.md`,
-`doc/rules/convex-design-strategy.md`, and `convex/AGENTS.md`.
-Treat the design strategy as the correctness contract and this skill as the
-place for measured performance decisions.
 
 ## When to Use
 
@@ -27,8 +21,6 @@ place for measured performance decisions.
 - OCC conflict errors or excessive mutation retries
 - High subscription count or slow UI updates
 - Functions approaching execution or transaction limits
-- Client-controlled `.take()` counts, pagination read budgets, or fixed scan
-  caps can make reads unbounded or analytics incomplete
 - The same performance pattern needs fixing across sibling functions
 
 ## When Not to Use
@@ -47,9 +39,6 @@ place for measured performance decisions.
   unbounded path, or a known hot read/write path
 - In Convex, a simple scan on a small table is often acceptable. Do not invent
   structural work just because a pattern is not ideal at large scale
-- Distinguish a product-enforced hard cap from an implementation scan cap. A
-  fixed `.take()` is not a correct exact aggregate unless the product enforces
-  the same maximum or the result is explicitly marked truncated
 
 ## First Step: Gather Signals
 
@@ -66,10 +55,6 @@ Start with the strongest signal available:
 4. If runtime signals are unavailable, audit from code anyway, but keep the
    guardrails above in mind. Lack of insights is not proof of health, but it is
    also not proof that a large refactor is warranted.
-5. Record client-controlled `.take()` counts, pagination targets and read
-   budgets, product plan limits, and fixed scan caps separately before deciding
-   whether a path is bounded. `paginationOpts.numItems` is an initial target,
-   not a guaranteed result maximum.
 
 ## Signal Routing
 
@@ -117,9 +102,6 @@ Write down:
 - tables read
 - tables written
 - whether the path is high-read, high-write, or both
-- whether caller-controlled `.take()` counts and pagination read budgets are
-  validated without treating `numItems` as a hard result cap
-- whether capped counts are exact, lower bounds, or explicitly truncated
 
 ### 2. Trace the full read and write set
 
@@ -201,7 +183,3 @@ code organization that may surface during the audit.
 - [ ] Applied fixes from the reference, following the recommended fix order
 - [ ] Fixed sibling functions consistently
 - [ ] Verified behavior and confirmed no regressions
-- [ ] Bounded caller-controlled `.take()` counts and preserved native
-      pagination options without treating `numItems` as a hard result cap
-- [ ] Classified capped aggregates as exact, lower-bound, or truncated instead
-      of silently mixing them

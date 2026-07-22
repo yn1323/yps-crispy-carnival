@@ -12,10 +12,11 @@ type Props = {
     name: string;
     email: string;
   };
+  showAccountDeletion: boolean;
   announcement: ReactNode;
 };
 
-export function Setup({ managerProfileDefaults, announcement }: Props) {
+export function Setup({ managerProfileDefaults, showAccountDeletion, announcement }: Props) {
   const dialog = useDialog();
   // 店舗未作成状態でも呼ぶため、shopIdを必要としないauthenticatedMutationを使う。
   const setupShopAndManager = useMutation(api.setup.mutations.setupShopAndManager);
@@ -39,6 +40,7 @@ export function Setup({ managerProfileDefaults, announcement }: Props) {
       announcement={announcement}
       dialog={dialog}
       managerProfileDefaults={managerProfileDefaults}
+      showAccountDeletion={showAccountDeletion}
       isSubmitting={isSubmitting}
       onComplete={handleComplete}
     />

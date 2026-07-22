@@ -2,12 +2,72 @@ import { v } from "convex/values";
 import { getDeadlineCutoff, getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { staffSessionQuery } from "../_lib/functions";
 import { getPreviousDateOnlyPattern, getPreviousWeeklyPattern } from "../_lib/previousWeeklyPattern";
-import { getSubmissionPatternTimeRange, type ShiftSubmissionPattern } from "../_lib/submissionPattern";
+import {
+  getSubmissionPatternTimeRange,
+  type ShiftSubmissionPattern,
+  submissionPatternValidator,
+} from "../_lib/submissionPattern";
 import { getLegalDocumentsForAudience } from "../legal/documents";
 import { hasCurrentStaffLegalConsent } from "../legal/service";
 
 type ExistingRequest = { date: string; startTime: string; endTime: string; optionId?: string };
 type SubmissionUnavailableReason = "invalid_link" | "recruitment_deleted" | "submission_closed";
+
+const existingRequestValidator = v.object({
+  date: v.string(),
+  startTime: v.string(),
+  endTime: v.string(),
+  optionId: v.optional(v.string()),
+});
+
+const legalDocumentValidator = v.object({
+  audience: v.union(v.literal("manager"), v.literal("staff")),
+  kind: v.union(v.literal("terms"), v.literal("privacy")),
+  title: v.string(),
+  documentVersion: v.string(),
+  requiredConsentVersion: v.string(),
+  path: v.string(),
+});
+
+const submissionPageDataValidator = v.object({
+  shopName: v.string(),
+  staffName: v.string(),
+  periodStart: v.string(),
+  periodEnd: v.string(),
+  deadline: v.string(),
+  shopClosedDates: v.array(v.string()),
+  submissionPattern: submissionPatternValidator,
+  isBeforeDeadline: v.boolean(),
+  hasSubmitted: v.boolean(),
+  existingRequests: v.array(existingRequestValidator),
+  existingSelection: v.union(
+    v.object({ kind: v.literal("time"), requests: v.array(existingRequestValidator) }),
+    v.object({
+      kind: v.literal("dateOnly"),
+      workingDates: v.array(v.string()),
+      unmatchedRequests: v.array(existingRequestValidator),
+    }),
+    v.object({
+      kind: v.literal("shiftType"),
+      selections: v.array(v.object({ date: v.string(), optionId: v.string() })),
+      unmatchedRequests: v.array(existingRequestValidator),
+    }),
+  ),
+  legalConsentRequired: v.boolean(),
+  legalDocuments: v.object({
+    terms: legalDocumentValidator,
+    privacy: legalDocumentValidator,
+  }),
+  timeRange: v.object({ startTime: v.string(), endTime: v.string() }),
+  previousWeeklyPattern: v.union(
+    v.object({
+      sourceWeekStart: v.string(),
+      days: v.array(v.object({ weekday: v.number(), startTime: v.string(), endTime: v.string() })),
+    }),
+    v.null(),
+  ),
+  previousDateOnlyPattern: v.union(v.object({ sourceWeekStart: v.string(), weekdays: v.array(v.number()) }), v.null()),
+});
 
 function unavailable(reason: SubmissionUnavailableReason) {
   return { status: "unavailable" as const, reason };
@@ -49,6 +109,13 @@ function buildExistingSelection(pattern: ShiftSubmissionPattern, requests: Exist
  */
 export const getSubmissionPageData = staffSessionQuery({
   args: { recruitmentId: v.id("recruitments") },
+  returns: v.union(
+    v.object({
+      status: v.literal("unavailable"),
+      reason: v.union(v.literal("invalid_link"), v.literal("recruitment_deleted"), v.literal("submission_closed")),
+    }),
+    v.object({ status: v.literal("ok"), data: submissionPageDataValidator }),
+  ),
   handler: async (ctx, { recruitmentId }) => {
     if (!ctx.staff || !ctx.shop || !ctx.session) return unavailable("invalid_link");
     if (ctx.session.recruitmentId !== recruitmentId) return unavailable("invalid_link");

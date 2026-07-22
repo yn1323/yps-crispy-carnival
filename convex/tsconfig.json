@@ -21,5 +21,8 @@
     "noEmit": true
   },
   "include": ["./**/*"],
-  "exclude": ["./_generated"]
+  /* Keep the Convex dev hot loop focused on deployable functions.
+   * The root tsconfig and Vitest still check and run these test files.
+   */
+  "exclude": ["./_generated", "./_test", "./_scenario", "./**/*.test.ts", "./**/*.test.tsx"]
 }

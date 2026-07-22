@@ -34,14 +34,33 @@ export type DashboardRecruitmentGroupsResult = {
   totalCount: number;
 };
 
+export type StaffManagerInvitationState =
+  | {
+      kind: "available";
+      mode: "addition" | "freeManagerExchange";
+      replacesStaleInvitation: boolean;
+    }
+  | {
+      kind: "pending";
+      mode: "addition" | "freeManagerExchange";
+    }
+  | {
+      kind: "unavailable";
+      reason: string;
+    };
+
 export type Staff = {
   _id: Id<"staffs">;
+  organizationPersonId: Id<"organizationPeople"> | null;
   name: string;
   email: string;
   isManager: boolean;
   isLineLinked: boolean;
   isLineFollowing: boolean;
   excludedFromShift: boolean;
+  /** 移行済みスタッフは、削除時に事業者人物を残して操作中店舗の所属だけを終了する。 */
+  isOrganizationLinked?: boolean;
+  managerInvitationState: StaffManagerInvitationState;
 };
 
 export type StaffRegistrationRequest = {
@@ -53,6 +72,9 @@ export type StaffRegistrationRequest = {
 
 export type DashboardAnnouncement = {
   _id: Id<"dashboardAnnouncements">;
+  organizationId?: string;
+  shopId?: string;
+  organizationPlan?: string;
   title: string;
   bodyHtml: string;
   displayDate: string;

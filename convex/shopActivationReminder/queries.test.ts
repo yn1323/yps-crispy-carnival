@@ -64,8 +64,12 @@ describe("shopActivationReminder/queries", () => {
     expect(target).toMatchObject({
       shopId,
       shopName: "通知店舗",
-      dashboardUrl: expect.stringContaining("/dashboard"),
     });
+    expect(target).not.toBeNull();
+    if (!target) return;
+    const dashboardUrl = new URL(target.dashboardUrl);
+    expect(dashboardUrl.pathname).toBe("/dashboard");
+    expect([...dashboardUrl.searchParams.entries()]).toEqual([["shop", String(shopId)]]);
     expect(target?.recipients).toHaveLength(1);
     expect(target?.recipients[0]).toMatchObject({
       userId,

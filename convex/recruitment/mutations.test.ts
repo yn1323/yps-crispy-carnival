@@ -1,11 +1,11 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { todayJST } from "../_lib/dateFormat";
-import { seedManagerShop, seedUser } from "../_test/seed";
+import { seedManagerShop, seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { RECRUITMENT_PERIOD_DAYS_MAX } from "../constants";
+import { NOTIFICATION_FANOUT_SCOPE_LIMIT, RECRUITMENT_PERIOD_DAYS_MAX } from "../constants";
 
 function futureDate(daysFromNow: number): string {
   const d = new Date(Date.now() + 9 * 60 * 60 * 1000);
@@ -83,6 +83,108 @@ describe("recruitment/mutations", () => {
       expect(recruitment?.periodStart).toBe(args.periodStart);
       // 店舗設定が後から変わっても過去の募集が歪まないよう、作成時点の提出方法をスナップショットする
       expect(recruitment?.submissionPattern).toEqual({ kind: "time", startTime: "09:00", endTime: "22:00" });
+    });
+
+    it("募集通知対象が上限を超える場合は無言で切り捨てず作成全体をfail-closedにする", async () => {
+      const { t, shopId } = await setupShop();
+      await t.run(async (ctx) => {
+        for (let index = 0; index < NOTIFICATION_FANOUT_SCOPE_LIMIT + 1; index++) {
+          await ctx.db.insert("staffs", {
+            shopId,
+            name: `上限超過スタッフ${index}`,
+            email: `recruitment-overflow-${index}@example.com`,
+            isDeleted: false,
+          });
+        }
+      });
+
+      await expect(
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.recruitment.mutations.createRecruitment, {
+          ...validArgs(),
+          shopId,
+        }),
+      ).rejects.toThrow("通知対象が上限を超えています");
+
+      const state = await t.run(async (ctx) => ({
+        recruitments: await ctx.db.query("recruitments").collect(),
+        stats: await ctx.db.query("recruitmentStats").collect(),
+        operations: await ctx.db.query("notificationFanoutOperations").collect(),
+        jobs: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+      expect(state).toEqual({ recruitments: [], stats: [], operations: [], jobs: [] });
+    });
+
+    it("募集作成後のaction実行前にFreeへ移行した場合は旧versionの通知を積まない", async () => {
+      const now = new Date("2026-01-01T00:00:00+09:00");
+      vi.setSystemTime(now);
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "notification_origin_race",
+          plan: "business",
+        });
+        const billingState = await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+          .unique();
+        if (!billingState) throw new Error("billing state not found");
+        await ctx.db.patch(billingState._id, {
+          state: { kind: "trial", trialEndsAt: now.getTime() },
+          freeManagerPersonId: seeded.personId,
+          freeShopId: seeded.shopId,
+          version: 1,
+          updatedAt: now.getTime(),
+        });
+        await ctx.db.insert("staffs", {
+          shopId: seeded.shopId,
+          organizationId: seeded.organizationId,
+          organizationPersonId: seeded.personId,
+          userId: seeded.userId,
+          name: "管理者",
+          email: "notification_origin_race@example.com",
+          emailNormalized: "notification_origin_race@example.com",
+          isDeleted: false,
+        });
+        return seeded;
+      });
+
+      const recruitmentId = await t
+        .withIdentity({ subject: "notification_origin_race" })
+        .mutation(api.recruitment.mutations.createRecruitment, {
+          shopId: ids.shopId,
+          periodStart: "2026-01-10",
+          periodEnd: "2026-01-16",
+          deadline: "2026-01-05",
+          shopClosedDates: [],
+        });
+      const scheduledOrigin = await t.run(async (ctx) => {
+        const scheduled = await ctx.db.system.query("_scheduled_functions").collect();
+        return scheduled.find((job) => job.name === "notification/actions:sendRecruitmentNotificationEmails")?.args[0]
+          ?.organizationBillingVersionAtOrigin;
+      });
+      expect(scheduledOrigin).toBe(1);
+
+      await expect(
+        t.mutation(internal.organizationBilling.mutations.processDeadline, {
+          organizationId: ids.organizationId,
+          expectedVersion: 1,
+          expectedDeadlineAt: now.getTime(),
+        }),
+      ).resolves.toEqual({ changed: true, stateKind: "free" });
+
+      await t.action(internal.notification.actions.sendRecruitmentNotificationEmails, {
+        recruitmentId,
+        organizationBillingVersionAtOrigin: scheduledOrigin,
+      });
+      expect(await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect())).toHaveLength(0);
+
+      await t.action(internal.notification.actions.sendRecruitmentNotificationEmails, {
+        recruitmentId,
+        organizationBillingVersionAtOrigin: 2,
+      });
+      const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+      // 同じ募集の旧jobと再実行は一つのpersisted operationへ収束し、originを書き換えて復活させない。
+      expect(jobs).toEqual([]);
     });
 
     it("同一内容の募集作成はエラーにし、統計と通知予約を増やさない", async () => {
@@ -313,7 +415,7 @@ describe("recruitment/mutations", () => {
       ).rejects.toThrow("日付の形式が正しくありません");
     });
 
-    it("募集期間が62日を超える場合はエラー", async () => {
+    it("募集期間が31日を超える場合はエラー", async () => {
       const { t, shopId } = await setupShop();
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.recruitment.mutations.createRecruitment, {
@@ -323,10 +425,10 @@ describe("recruitment/mutations", () => {
           deadline: futureDate(3),
           shopClosedDates: [],
         }),
-      ).rejects.toThrow("募集期間は62日以内にしてください");
+      ).rejects.toThrow("募集期間は31日以内にしてください");
     });
 
-    it("募集期間が上限ちょうど62日なら作成できる", async () => {
+    it("募集期間が上限ちょうど31日なら作成できる", async () => {
       const { t, shopId } = await setupShop();
 
       await expect(

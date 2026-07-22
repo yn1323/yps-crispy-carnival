@@ -13,7 +13,6 @@ import { StaffSubmitPage } from "../pages/StaffSubmitPage";
 
 const MANAGER = {
   name: "田中太郎",
-  email: "tanaka@example.com",
 };
 
 type SubmitScenarioSeed = {
@@ -23,7 +22,7 @@ type SubmitScenarioSeed = {
 test.describe("通知URL起点のシフト募集", { tag: ["@release", "@notification"] }, () => {
   test.setTimeout(45_000);
 
-  test("募集開始で発行されたURLから提出し、シフト担当者画面に再編集まで反映される", async ({ page }) => {
+  test("募集開始で発行されたURLから提出し、シフト担当者画面に再編集まで反映される", async ({ page, e2eClerkUser }) => {
     const dates = getNextWeekDates();
     const seed = seedManagerScenario<SubmitScenarioSeed>("testing:seedNotificationSubmitScenario", { dates });
     const dashboard = new DashboardPage(page);
@@ -37,7 +36,7 @@ test.describe("通知URL起点のシフト募集", { tag: ["@release", "@notific
 
       const probe = await waitForNotificationOutbox({
         shopId: seed.shopId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         notificationContext: "notification.sendRecruitmentNotificationEmails",
         channel: "email",
       });
@@ -53,7 +52,7 @@ test.describe("通知URL起点のシフト募集", { tag: ["@release", "@notific
 
       return await waitForMagicLinkToken({
         shopId: seed.shopId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         purpose: "submit",
       });
     });
@@ -88,7 +87,7 @@ test.describe("通知URL起点のシフト募集", { tag: ["@release", "@notific
     });
   });
 
-  test("LINE連携済みスタッフへ募集開始通知と提出CTAを受け付ける", async ({ page }) => {
+  test("LINE連携済みスタッフへ募集開始通知と提出CTAを受け付ける", async ({ page, e2eClerkUser }) => {
     const dates = getNextWeekDates();
     const seed = seedManagerScenario<SubmitScenarioSeed>("testing:seedNotificationSubmitScenario", {
       dates,
@@ -102,7 +101,7 @@ test.describe("通知URL起点のシフト募集", { tag: ["@release", "@notific
 
     const probe = await waitForNotificationOutbox({
       shopId: seed.shopId,
-      staffEmail: MANAGER.email,
+      staffEmail: e2eClerkUser,
       notificationContext: "notification.sendRecruitmentNotificationEmails",
       channel: "line",
     });
@@ -116,14 +115,14 @@ test.describe("通知URL起点のシフト募集", { tag: ["@release", "@notific
     expect(probe.failureInbox).toHaveLength(0);
     await assertNoNotificationOutbox({
       shopId: seed.shopId,
-      staffEmail: MANAGER.email,
+      staffEmail: e2eClerkUser,
       notificationContext: "notification.sendRecruitmentNotificationEmails",
       channel: "email",
     });
 
     const token = await waitForMagicLinkToken({
       shopId: seed.shopId,
-      staffEmail: MANAGER.email,
+      staffEmail: e2eClerkUser,
       purpose: "submit",
     });
     expect(token.token).toMatch(/^[0-9a-f-]{36}$/);

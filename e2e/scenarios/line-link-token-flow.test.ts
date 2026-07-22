@@ -5,7 +5,6 @@ import { DashboardPage } from "../pages/DashboardPage";
 
 const MANAGER = {
   name: "田中太郎",
-  email: "tanaka@example.com",
 };
 
 type LineLinkSeed = {
@@ -15,14 +14,14 @@ type LineLinkSeed = {
 test.describe("LINE連携URL発行", { tag: ["@release", "@notification"] }, () => {
   test.setTimeout(30_000);
 
-  test("シフト担当者操作でLINE連携トークンが発行される", async ({ page }) => {
+  test("シフト担当者操作でLINE連携トークンが発行される", async ({ page, e2eClerkUser }) => {
     const seed = seedManagerScenario<LineLinkSeed>("testing:seedLineLinkScenario");
     const dashboard = new DashboardPage(page);
 
     await test.step("Step 1: LINE連携リンクを発行する", async () => {
       await dashboard.goto();
       await dashboard.openLineQr(MANAGER.name);
-      const lineToken = await waitForLineLinkToken({ staffEmail: MANAGER.email, shopId: seed.shopId });
+      const lineToken = await waitForLineLinkToken({ staffEmail: e2eClerkUser, shopId: seed.shopId });
       expect(lineToken.token).toMatch(/^[0-9a-f-]{36}$/);
     });
   });

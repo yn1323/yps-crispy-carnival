@@ -15,6 +15,7 @@ import {
   getDeadlineStepValidationError,
   getHolidaySummary,
   getInclusiveDateCount,
+  getPeriodSelectionMaxDate,
   getPeriodStepValidationError,
   isDeadlineInRange,
   pruneHolidaysInRange,
@@ -102,7 +103,7 @@ export const CreateRecruitmentForm = ({
 
   const periodInitialFocus = useMemo(() => parseDate(dayjs(today).startOf("month").format("YYYY-MM-DD")), [today]);
   const periodMin = useMemo(() => parseDate(tomorrow), [tomorrow]);
-  const periodMax = useMemo(() => parseDate(dayjs(today).add(1, "month").endOf("month").format("YYYY-MM-DD")), [today]);
+  const periodMax = useMemo(() => parseDate(getPeriodSelectionMaxDate(today)), [today]);
   const deadlineMin = useMemo(() => parseDate(today), [today]);
   const holidayMin = toDateValue(periodStart);
   const holidayMax = toDateValue(periodEnd);

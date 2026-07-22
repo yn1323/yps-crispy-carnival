@@ -43,6 +43,7 @@ export type StaffType = {
   id: string;
   name: string;
   isSubmitted: boolean;
+  isRemoved?: boolean;
   displayOrder?: number;
   createdAt?: number;
 };

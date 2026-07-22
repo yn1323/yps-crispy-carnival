@@ -4,7 +4,7 @@
 
 この文書は、本番リリース前に実行するE2E Full Regressionの到達点と、機能ごとの不足を管理する計画書である。
 
-「実装済み」は、2026年7月13日時点の作業ツリーにテストまたは設定が存在することを表す。
+「実装済み」は、2026年7月18日時点の作業ツリーにテストまたは設定が存在することを表す。
 
 「実装済み」は、CIでリリースゲートとして接続済みであることや、外部サービスへの実到着まで確認済みであることを意味しない。
 
@@ -23,7 +23,10 @@
 - すべての入力validation、認可分岐、DB状態の組み合わせをE2Eで総当たりしない。
 - ピクセル単位の見た目差分をE2E assertionで保証しない。
 - 本人だけが使う`apps/analytics-dashboard/`の内部BIを自動テストまたはFull Regressionの対象にしない。
-- 準備中で画面公開されていない複数店舗切り替え、課金プラン、billingManagerを現行リリースのE2Eゲートへ含めない。
+- Stripe Checkout、Customer Portal、Webhook、支払い成功または失敗、プラン変更、請求書、課金通知を現行リリースのE2Eゲートへ含めない。
+- `billingManager`が課金を操作する導線は対象外とする。
+- 複数管理者、複数グループ、グループ削除、複数店舗は課金機能から分離し、`MM-P0-01`から`04`、`MG-P0-01`、`OD-P0-01`から`02`、`MS-P0-01`から`03`、`REG-P0-01`から`03`の13契約を現行リリースのE2Eゲートへ含める。
+- E2E seedが作る固定entitlementは複数管理者と複数店舗を利用するための前提データであり、課金機能の検証結果として扱わない。
 
 ## テストスイートの定義
 
@@ -49,11 +52,23 @@ Desktop Chromeを必須とし、スタッフ向け代表導線はMobile Chrome�
 
 Desktop ChromeとMobile Chromeを実行し、通知配送はdry-runで抑止する。
 
+複数管理者、複数グループ、グループ削除の6シナリオは`multi-actor-chromium` projectで実行する。
+
+user index 0〜2をpool 0、3〜5をpool 1として各poolを1 workerへ固定する。各worker内では認証済みactor A、B、Cを独立したbrowser contextで使用し、シナリオを直列実行する。
+
+通常のDesktop ChromeとMobile Chromeは合計6 workerで実行する。通常projectの`@notification`テストは、6 worker時に通知probeのConvex CLI呼び出しが重なる実測を踏まえて、150秒をタイムアウト上限とする。性能はこの上限ではなくJSON reportのwall spanで判定する。
+
+`setup`、`multi-actor-chromium`、通常projectのdependencyを維持し、通常projectは2 workerのmulti-actor projectが完了した後に実行する。DesktopとMobileは同時実行できるが、Playwrightのworker slotごとの`parallelIndex`で同じユーザーの重複利用を避ける。
+
 実行コマンドは`pnpm e2e:release`である。
 
 目標実行時間は60分以内とする。
 
 現状はタグ、コマンド、ブラウザproject、通知dry-run preflightが存在する。
+
+E2E seedは、`organizations`、`organizationPeople`、`organizationMembers`、店舗所属、固定entitlementを含むcanonical organization graphを作る。
+
+resetはownerが管理する対象organization graphを回収し、複数actorの前回状態を次の実行へ持ち越さない。
 
 develop向けPRで専用Convex Previewを作り、Full Regressionを実行する。
 
@@ -61,9 +76,11 @@ developからmainへのPRと`.github/workflows/release.yml`ではE2E自体を実
 
 E2E専用Convex Previewは数日で自動失効するため、cleanup workflowは設けない。
 
-Full Regressionは、`E2E_TESTING_ENABLED`を有効にした本番Convexへ接続してはならない。
+Full Regressionは、`E2E_TESTING_ENABLED=true`かつ`E2E_TESTING_DEPLOYMENT_URL=CONVEX_CLOUD_URL`のdeployment bindingが成立する非本番Convexだけへ接続する。URL不一致ならhelper自身が拒否する。
 
 developへ取り込む前の専用Convex PreviewでFull Regressionを完了し、main向けPRではその確認を重複させない。
+
+Previewにはrun単位の`ORGANIZATION_INVITATION_SIGNING_SECRET`を設定し、管理者招待tokenを実利用環境から分離する。
 
 ### Provider Canary
 
@@ -130,16 +147,18 @@ provider canaryはRC作成時または手動承認後に実行し、通常PRで�
 | G12 | CloudflareへデプロイしたURLでSmokeを成功させる | develop向けPreviewとDevelopのdeploy workflowへ接続済み。本番release workflowではE2Eを実行しない | 実装済み | P0 |
 | G13 | provider canaryを必要なRCで成功させる | 手動手順と必須PRラベルによるrelease gateを実装済み。各RCで実行が必要 | 実装済み | P0 |
 | G14 | Playwright HTML、JSON、trace、動画を保存する | PR workflowで実装済み | 実装済み | P1 |
-| G15 | P0機能のトレーサビリティに未分類行を残さない | 本文の表を初版とし、自動検査はない | 一部実装 | P1 |
+| G15 | 今回追加するP0機能のトレーサビリティに未分類行を残さない | 複数管理者、複数グループ、グループ削除、複数店舗、既存影響機能の13契約を`MM`、`MG`、`OD`、`MS`、`REG`として分類し、test titleと結果ゲートへ接続した | 実装済み | P0 |
 | G16 | P0通知目的をE2Eまたは安全な外部境界contract testへ分類する | N01-N21、N24、N27はE2E。N22は代表UIと目的別再通知contract、N23はoutbox Action/Scenario、N25はWebhook Functionで確認する。Playwright workflowにはE2E以外のテスト層を混在させない | 実装済み | P0 |
 | G17 | develop統合後またはRCのexact SHAでFull Regressionを完了する | develop向けPRのhead SHAだけを実行し、統合後SHAとRC SHAは未実行 | 未実装 | P0 |
 | G18 | production buildを対象に認証済み主要導線を確認する | 通常E2EはVite dev server、deployed Smokeは公開ページだけ | 未実装 | P0 |
 | G19 | browser runtime errorと同一origin 5xxを失敗にする | 共通fixtureはClerk token設定だけで、pageerror、console.error、5xxを監視しない | 未実装 | P0 |
-| G20 | 必須契約IDでFull Regressionの欠落を検知する | project件数下限と必須scenario file名だけを検査する | 未実装 | P0 |
+| G20 | 今回追加した13件の必須契約IDでFull Regressionの欠落を検知する | 必須scenario fileに加え、13件のP0契約IDがPlaywright JSONのtest titleに存在することを検査する。`REG-P0-03`はemail、LINE、複数管理者の3 specを個別に固定する | 実装済み | P0 |
 
-必須project/scenario file、最終失敗、非passing expected status、skip、flaky、許可外project、通知dry-run、全E2E管理者のbackend audit、FailureInbox、active dedupe、デプロイ済みURLを確認する自動ゲート初版は存在する。
+必須project、scenario file、P0契約ID、最終失敗、non-passing expected status、skip、flaky、許可外project、6 user indexと2 actor poolの完全利用、通知dry-run、全E2E管理者のbackend audit、FailureInbox、active dedupe、デプロイ済みURLを確認する自動ゲートが存在する。
 
-ただし、件数とfile名は契約内容を保証せず、統合後SHA、production build、runtime errorも検査しないため、現状を本番リリースのFull Regressionゲートとは扱わない。
+ただし、契約IDの存在は各assertionの妥当性まで保証しない。
+
+統合後SHA、production build、runtime errorも検査していないため、現状を本番リリースのFull Regressionゲートとは扱わない。
 
 自動Full Regression成功だけでは本番リリースを許可しない。
 
@@ -147,16 +166,59 @@ RCごとのprovider canary完了と`release:provider-canary-passed`付与を最�
 
 develop向けPreview／Developのdeployed Smokeはデプロイ後の検知であり、develop向けPRのFull Regressionを代替しない。
 
-## 2026年7月13日の検証基準値
+## 2026年7月18日の実行契約
 
-- Chrome系へ統一後の`pnpm e2e:release`では65件成功、失敗0件、skip 0件、flaky 0件、5.6分だった。
-- project内訳はsetup 3件、Desktop Chromium 61件、Mobile Chrome 1件である。
-- 必須scenario suite: 23件すべて検出。
-- E2E backend audit: 要求管理者3件、一致3件、有効店舗未所属0件、対象店舗3件、想定外の未解決FailureInbox 0件、active dedupe重複0件。
-- `pnpm test`: 229ファイル、1458件成功。
-- `pnpm type-check`、`pnpm lint`、workflow YAML parse、`git diff --check`: 成功。
+6ユーザー対応後の結果ゲートは、最低合計77件を次のproject内訳で要求する。
 
-この基準値はローカルの起動済みVite/Convex devに対する結果であり、PR専用Previewとデプロイ済みURLのworkflow結果はPR上で別途確認する。
+- `setup`：6件。
+- `multi-actor-chromium`：6件。
+- `desktop-chromium`：64件。
+- `mobile-chrome`：1件。
+
+必須32 suite、13件のP0契約、15件のsuite/project/spec bindingを維持する。
+
+通常projectの各テストは数値annotation `e2e-user-index`を持ち、結果ゲートは0から5までの完全利用を確認する。
+
+multi-actor projectの各テストは数値annotation `e2e-actor-pool`を持ち、結果ゲートはpool 0と1の完全利用を確認する。
+
+結果ゲートは各projectと全体について、最初のtest開始時刻から最後のtest終了時刻までのwall spanを出力する。テストdurationの合計は並列実行時間として扱わない。
+
+#### 6ユーザー実行のSecurity Lens
+
+- Actor: Preview環境でFull Regressionを実行するGitHub Actionsと、同じE2E設定を使うローカル開発者。
+- Asset: 6ユーザー共通password、Clerk sessionを含むstorageState、ユーザーごとに分離したE2Eデータ。
+- Trust boundary: GitHub Environmentまたはローカル環境変数からPlaywright workerへ認証情報を渡し、E2E専用Previewへ接続する境界。
+- Abuse case: 複数workerが同じユーザーを同時利用して互いのseedを削除すること、認証情報をログへ含めること、通常projectとmulti-actor projectが同じsessionを同時利用すること。
+- Server-side check: 既存のE2E Preview binding、`E2E_TESTING_ENABLED`、通知dry-run preflight、全6管理者のbackend auditを維持し、新しいpublic APIは追加しない。
+- Lifecycle / recovery: storageStateはrunごとに再生成し、setup時のowner単位force resetと各multi-actorシナリオ終了時のpool単位resetで前回失敗runを回収する。
+- Logs / PII: workflowは各emailとpasswordをmaskし、passwordを入力する認証setupと通常suiteのtraceを無効化する。Playwrightの`webServer.env`へ`process.env`を設定せず、JSON reportへcredentialを直列化しない。割当reportには数値のuser indexとactor poolだけを残し、artifact upload前のfail-closed gateでpassword、user identifier、secret、tokenの混入を検査する。その他の通常シナリオの認証済みtrace・動画はtokenを含み得るため、検査を通過した非公開artifactへ7日だけ保存し、storageStateファイル自体は含めない。
+- Remaining operation: workflowはPreview Environment Secretを優先し、既存Variableを移行互換としてmaskして利用する。Secretへ移行後はVariable fallbackを削除する。
+- Incident follow-up: 旧`webServer.env`設定で生成された有効なPlaywright artifactを削除し、少なくともE2E共通password、Clerk開発用secret、Convex deploy keyをローテーションする。外部artifactの削除とcredential更新は、リポジトリ差分とは別の権限付き運用として実施する。
+- Regression test: 6ユーザーの一意性、2 poolの非重複、範囲外poolのfail-closedをLogic UTで保証し、結果ゲートで全user indexと両poolの実利用を確認する。
+
+### 6ユーザー化後の暫定実測
+
+2026年7月18日、6ユーザー、2 actor pool、6 worker構成の作業ツリーで`@release` 77件がすべて成功した。skip 0件、flaky 0件で、結果ゲートは必須32 suite、13件のP0契約、15件のbinding、全6 user index、両actor poolを確認した。
+
+全体wall spanは450.0秒（7.5分）だった。project別は`setup` 28.0秒、`multi-actor-chromium` 111.1秒、`desktop-chromium` 309.8秒、`mobile-chrome` 6.7秒である。DesktopとMobileは重なるため、project別wall spanを合算して全体時間として扱わない。
+
+6ユーザー化前の10.2分との単純比較では約26%短縮した。テスト総数は72件から77件へ増えているため、同一件数だけの速度比較ではない。また、setupとmulti-actorは通常projectより前に実行するため、ユーザー数を倍にしても全体時間は半分にならない。
+
+この値はローカル作業ツリーでの1回の実測であり、同一commit・同一CI条件の3回中央値ではない。新しい性能基準やG17のexact SHA証跡には使用しない。
+
+### 6ユーザー化前の過去実績
+
+2026年7月18日、6ユーザー化前の作業ツリーに対する`pnpm e2e:release`は72件すべて成功した。
+
+内訳は`setup` 3件、`multi-actor-chromium` 5件、`desktop-chromium` 63件、`mobile-chrome` 1件で、skip 0件、flaky 0件、所要時間10.2分だった。
+
+`pnpm e2e:assert-release-results test-results.json`も成功し、必須30 suite、11件のP0契約、13件のsuite/project/spec bindingを確認した。
+
+この72件には、現在の6本目のmulti-actorシナリオであるグループ削除フローが含まれていない。
+
+この実績は6ユーザー、2 pool、6 worker構成の性能基準または、develop統合後・RCのexact SHAに対するG17の完了証跡として扱わない。
+
+6ユーザー対応後は同じcommitとCI条件で3回実行し、全体とproject別wall spanの中央値を新しい基準値として記録する。
 
 ## 機能とテスト層のトレーサビリティ
 
@@ -171,12 +233,15 @@ develop向けPreview／Developのdeployed Smokeはデプロイ後の検知であ
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---|
 | 認証、redirect、logout | ✅ | ✅ | △ | — | ✅ | △ | △ | △ | Clerkメール確認と別端末本人確認はFull Regression未接続 |
 | 初回セットアップ、店舗設定 | ✅ | ✅ | ✅ | ✅ | ✅ | △ | — | — | 文字数上限と大量データは下位層中心 |
+| 複数管理者の招待、共同管理、権限解除、グループ削除 | △ | ✅ | ✅ | ✅ | ✅ | △ | — | □ | 3 actorの主要導線と権限境界はFull Regressionで成功。provider実到着は未確認 |
+| Free管理者交代、複数グループ切替 | ✅ | ✅ | ✅ | ✅ | ✅ | △ | — | — | 送信前確認、連携前後の権限、前任者のスタッフ所属と別グループ管理権限、2グループ間の非混入を確認済み。同名データと緊急復旧は対象外 |
+| 複数店舗の追加、切り替え、編集、データ分離 | △ | ✅ | ✅ | ✅ | ✅ | △ | — | — | 代表2店舗の主要導線は実装済み。店舗数上限と並行操作は下位層の担当 |
 | Dashboardオンボーディング | ✅ | ✅ | ✅ | △ | ✅ | ✅ | — | — | 1/4以外の進捗永続化をE2Eで未確認 |
 | Dashboard一覧、グルーピング、お知らせ | ✅ | ✅ | ✅ | △ | △ | ✅ | — | — | お知らせと全グループのE2Eが不足 |
 | スタッフ情報タブ、編集、削除 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | — | 下書き後・確定後追加は確認済み。email変更時の旧linkと削除後の履歴表示が未達 |
 | シフト対象外と復帰 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | — | 復帰時は手動再送する現行仕様を明示する必要がある |
 | スタッフ参加申請、承認、却下 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | — | 承認後のLINE案内email、open募集outbox、submit CTAまで確認済み |
-| 募集作成、一覧、削除 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | — | 募集期間62日の実ブラウザ容量ケースは未実装 |
+| 募集作成、一覧、削除 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | — | 募集期間31日の実ブラウザ容量ケースは未実装 |
 | 希望提出、再提出、締切後提出 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | — | 時間指定、日付のみ、勤務区分は再提出まで一気通貫で確認済み。31件上限とtoken全状態は下位層のみ |
 | ShiftForm編集、下書き、reload | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | — | 3方式すべて管理者編集とreload後の永続化を確認済み。200スタッフ、2000割当の容量E2Eは未実装 |
 | シフト確定、変更通知、閲覧 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | □ | email/LINEの初回・変更再通知・再発行と非変更者除外を確認。実到着はcanary未達 |
@@ -187,8 +252,8 @@ develop向けPreview／Developのdeployed Smokeはデプロイ後の検知であ
 | 公開ページ、ヘルプ、記事、CTA | ✅ | ✅ | — | — | ✅ | ✅ | — | — | デプロイ済みSmokeは接続済みだが、自動rollbackは未実装 |
 | 問い合わせ | ✅ | ✅ | ✅ | — | ✅ | △ | △ | □ | 公開route smokeは自動、実フォーム送信とprovider実到着はRC手動canary |
 | 要望送信、分析一覧 | ✅ | ✅ | ✅ | ✅ | ✅ | △ | — | — | スタッフ提出画面からの要望E2Eが未実装 |
-| 店舗削除 | △ | △ | ✅ | ✅ | □ | △ | △ | E2Eファイル全体がコメントアウトされている |
-| 複数店舗、課金、billingManager | △ | △ | △ | △ | □ | △ | △ | □ | 準備中機能のため現行リリースゲート対象外 |
+| 店舗削除と残存店舗への復旧 | △ | ✅ | ✅ | ✅ | ✅ | △ | — | — | 選択中店舗の削除、旧URLの汎用エラー、残存店舗への復旧をE2Eで確認する。最後の店舗と同時削除は下位層の担当 |
+| 課金、Stripe、課金操作を行う`billingManager` | △ | △ | ✅ | △ | — | △ | — | — | 課金機能自体は今回のFull Regression対象外。複数管理者と複数店舗の固定entitlementとは分離する |
 
 この表は「機能名にテストがあるか」だけを示す表ではない。
 
@@ -196,9 +261,11 @@ develop向けPreview／Developのdeployed Smokeはデプロイ後の検知であ
 
 ## 今回の作業差分で追加または強化したE2E
 
-次の行は、2026年7月13日時点の作業ツリーに存在する。
+次の行は、2026年7月18日時点の作業ツリーに存在する。
 
 未マージのため、既存ブランチや本番環境に反映済みとは限らない。
+
+表の「現在確認する範囲」は実装されたassertionの契約を示し、今回のFull Regression全件成功を示さない。
 
 | ID | シナリオ | ファイル | 現在確認する範囲 | 現在確認しない範囲 |
 |---|---|---|---|---|
@@ -223,6 +290,17 @@ develop向けPreview／Developのdeployed Smokeはデプロイ後の検知であ
 | DEPLOY-01 | デプロイ済み公開URL Smoke | `e2e/scenarios/deployed-smoke.test.ts` | develop向けPreview／DevelopでHTTP成功とTOP、機能、FAQ、ヘルプ、問い合わせ固有h1 | 本番releaseでは実行しない |
 | MOBILE-01 | Mobile Chromeの希望提出 | `e2e/scenarios/release-support-staff-submit.mobile.test.ts` | 日付のみ提出の完了 | 閲覧、法務同意、登録、時間指定、勤務区分 |
 | A11Y-01 | axeによる主要画面検査 | `e2e/scenarios/release-support-accessibility.test.ts` | TOP、Dashboard、スタッフ提出、既知違反node完全一致 | 既知の`color-contrast`違反そのものは未解消 |
+| MM-P0-01 | 管理者招待と共同管理 | `e2e/scenarios/multiActor/manager-invitation-collaboration.test.ts` | AがBを招待し、Cの本人不一致で招待を消費せず、Bが連携後に全店舗を切り替えてB店を共同管理する | 招待取消、期限境界、provider実到着 |
+| MM-P0-02 | 管理者権限だけの解除 | `e2e/scenarios/multiActor/manager-role-removal.test.ts` | AがBの管理者権限を外し、Bの主グループ管理画面を失効させ、A店のスタッフ所属を維持する | 最後の管理者、並行解除 |
+| MM-P0-03 | グループからの人物削除 | `e2e/scenarios/multiActor/organization-person-removal.test.ts` | AがBを主グループから削除し、主グループへの再アクセスを拒否し、Bの別グループ所属を維持する | 将来シフトなど削除を妨げる全制約の組み合わせ |
+| MM-P0-04 | Free管理者交代 | `e2e/scenarios/multiActor/free-manager-exchange.test.ts` | Aが送信前の影響を確認して既存スタッフBへ交代案内を送り、連携前はA、連携後はBだけが対象グループを管理する。Aのスタッフ所属と別グループ権限は維持する | 緊急復旧、外部後任、前任者への完了通知、provider実到着 |
+| MG-P0-01 | 複数グループ切替と非混入 | `e2e/scenarios/multiActor/multiple-organization-switching.test.ts` | 同じAが無関係な2グループをDashboardとグループ設定で往復し、URL、reload、表示、店舗名更新を選択グループだけへ反映する | 同名グループ・店舗、複数tab、Mobile E2E |
+| MS-P0-01 | 店舗追加、切り替え、編集 | `e2e/scenarios/organization-shop-lifecycle.test.ts` | B店の追加と編集をreload後も維持し、A店設定へ混入させない | 店舗数上限、並行追加、request ID境界 |
+| MS-P0-02 | グループ内の他店舗スタッフ再利用 | `e2e/scenarios/open-recruitment-added-staff-notification.test.ts` | A店スタッフをB店へ追加し、A店所属を維持したままB店の募集通知CTAから希望を提出する | 人物documentと通知対象集合のDB完全一致 |
+| MS-P0-03 | 選択中店舗の削除と復旧 | `e2e/scenarios/shop-deletion-flow.test.ts` | B店削除後にA店へ復旧し、B店専属スタッフを「店舗所属なし」で利用人数へ含め続け、旧URLでは汎用エラーを表示する | 最後の店舗、同時削除、cleanup詳細 |
+| REG-P0-01 | B店でのシフト主導線 | `e2e/scenarios/shop-settings-submission-pattern-flow.test.ts` | B店で初回提出、再提出、管理者編集、下書きreload、確定通知、別context閲覧まで完了し、A店へ混入させない | 容量上限、provider実到着 |
+| REG-P0-02 | B店でのスタッフ登録申請 | `e2e/scenarios/staff-registration-review.test.ts` | browserはB店名、登録内容、アプリ所有のセキュリティ境界までを確認する。匿名submission契約はConvex Function／HTTP Testで確認し、E2E-only internal seedでpending申請を作成した後、管理UIでの承認／却下、通知CTA、tenant境界（A店非混入）を確認する | production Turnstileの完了は自動化せず、RC手動canaryを継続する。既存attestationへの項目追加はfollow-upとし、今回のCI変更には含めない |
+| REG-P0-03 | canonical organization上の管理者通知 | `e2e/scenarios/notification-release-matrix.test.ts`、`e2e/scenarios/multiActor/manager-invitation-collaboration.test.ts` | 4種digestの代表channelと、複数管理者A/Bへの代表digestおよびB店CTAを確認する | 実cron時刻、provider実到着。4種digestの対象完全一致はScenario Testの担当 |
 
 ## 境界値の配置
 
@@ -231,14 +309,14 @@ develop向けPreview／Developのdeployed Smokeはデプロイ後の検知であ
 | 境界 | 定義 | LogicまたはFunction | ScenarioまたはE2E | 現在の不足 |
 |---|---|---|---|---|
 | スタッフ一括追加 | 50件まで | 50件受理、51件拒否 | 代表追加と一覧反映 | 50件追加のブラウザ容量確認なし |
-| 募集期間 | 62日まで | 62日受理、63日拒否 | 代表期間の作成、削除 | 62日表示とShiftForm容量確認なし |
+| 募集期間 | 31日まで | 31日受理、32日拒否 | 代表期間の作成、削除 | 31日表示とShiftForm容量確認なし |
 | 勤務区分 | 4件まで | 4件受理、5件拒否 | 代表2区分の提出と反映 | 4区分のE2Eなし |
 | 1提出の希望枠 | 31件まで | 31件受理、32件拒否、拒否後も既存31件を保持 | 複数日の提出と再提出 | 31件のブラウザ容量確認なし |
 | ShiftBoardスタッフ | queryが200人で打ち切る | hard validationなし | 通常人数の編集、確定 | 201人目が静かに欠落するため仕様決定が必要 |
 | 希望枠と割当 | queryが各2000件で打ち切る | hard validationなし | 通常件数のScenario | silent truncationの仕様決定と境界テストが必要 |
 | open募集通知 | queryが50募集で打ち切る | 50件境界テスト未確認 | 1募集への追加通知 | 51件目の扱いの仕様決定が必要 |
 | 承認待ち申請 | queryが20件で打ち切る | 20件境界テスト未確認 | 代表申請の承認、却下 | 21件目の表示/digest仕様が未決定 |
-| manager通知対象 | 各queryが20人で打ち切る | 20件境界テスト未確認 | 代表manager1人 | 複数manager公開前に仕様決定が必要 |
+| manager通知対象 | 各queryが20人で打ち切る | 20件境界テスト未確認 | 代表manager A/Bと4種digestの対象変化 | 20件と21件の境界、切り捨て時の仕様決定が必要 |
 | 氏名と店舗名 | 80文字まで | 80文字受理、81文字拒否 | 代表入力 | 長文表示はVRT中心でE2Eなし |
 | メールアドレス | 254文字まで | 254文字受理、超過拒否 | 代表入力と通知対象 | 変更時の旧link失効仕様が未決定 |
 | 要望 | 200文字まで | 200文字受理、201文字拒否 | 管理者から代表送信 | スタッフからのE2Eなし |
@@ -276,7 +354,7 @@ Resend、LINE、Slackの実到着は通常自動スイートでは扱わず、RC
 | N15 | スタッフ詳細から現在シフトを個別再送 | 管理者の手動操作 | emailまたはLINE | 両channel実装済み | notificationDelivery Scenario | view token発行まで確認、provider未達 |
 | N16 | LINE連携案内の手動再送 | 管理者の手動操作 | email | 実装済み | LINE Function、FailureInbox Function | UI、outbox、新tokenを確認、provider未達 |
 | N17 | 未同意スタッフへのLINE法務案内 | LINE連携またはfollow | LINE | 実装済み | legal、lineNotification Scenario | 本番共通follow mutationから法務CTAを確認。実Webhook署名と実到着は下位層/canary |
-| N18 | スタッフ登録申請の日次digest | 日次cron | emailまたはLINE | 両channel実装済み | notificationDelivery Scenario、Function | 実cron時刻とprovider実到着は対象外 |
+| N18 | スタッフ登録申請の日次digest | 日次cron | emailまたはLINE | 両channelと複数管理者A/Bの代表契約を実装済み | notificationDelivery、staffManagerInvitation Scenario、Function | 実cron時刻とprovider実到着は対象外 |
 | N19 | 締切翌日のシフト確定催促 | scheduled action | emailまたはLINE | 両channel実装済み | shiftConfirmationReminder Function | 実scheduled時刻とprovider実到着は対象外 |
 | N20 | 店舗登録7日後の本番募集催促 | scheduled action | emailまたはLINE | 両channel実装済み | shopActivationReminder Function | 実scheduled時刻とprovider実到着は対象外 |
 | N21 | 通知不達の日次digest | 日次cron | emailまたはLINE | 両channel実装済み | failureReminder Function | 実cron時刻とprovider実到着は対象外 |
@@ -285,7 +363,7 @@ Resend、LINE、Slackの実到着は通常自動スイートでは扱わず、RC
 | N24 | LINE unfollow時のemail振り分け | 通知trigger | email | 実装済み | lineNotification Scenario、Function | 手動募集でemail選択を確認、実Webhook未達 |
 | N25 | LINE通常メッセージへの定型reply | LINE Webhook | LINE reply | E2E対象外 | Webhook、署名Function | contractはCI必須Convex test、実replyはprovider canary |
 | N26 | 問い合わせ受付 | 公開フォーム | emailとSlack | route smokeのみ | contact HTTP Action Function | 実フォーム送信とprovider到着はRC手動canary |
-| N27 | 管理者本人へのスタッフ通知 | 募集、催促、確定 | emailまたはLINE | 両channel実装済み | notification Scenario | provider実到着のみ未確認 |
+| N27 | 管理者本人へのスタッフ通知 | 募集、催促、確定 | emailまたはLINE | canonical organization seed上で両channel実装済み | notification Scenario | provider実到着のみ未確認 |
 
 N17は本番Webhookと共通の`markFollowing`までE2Eで確認する。
 
@@ -303,7 +381,7 @@ N23、N24は目的ではなくchannel選択条件、N22は復旧lifecycle、N27�
 2. develop統合後またはRC exact SHAでFull Regressionを再実行する。
 3. E2Eをproduction build後のpreviewへ接続し、`pageerror`、allowlist外`console.error`、同一origin 5xxを失敗にする。
 4. VRT baseline欠落と未承認差分を失敗にする。
-5. project件数とscenario file名のゲートを、必須契約ID manifestへ置き換える。
+5. `CORE`、`AUTH`、`NOTIFY`など既存P0にも安定した契約IDとsuite/project/spec bindingを追加する。
 6. 各RCで隔離provider canaryを実行し、証跡を残して`release:provider-canary-passed`を付ける。
 7. スタッフemail変更時に、旧メールへ送付済みのlinkを失効させるかを決定し、E2Eへ追加する。
 8. シフト対象外スタッフが募集、催促、確定通知の全triggerから除外されることをE2Eへ拡張する。
@@ -313,23 +391,22 @@ N23、N24は目的ではなくchannel選択条件、N22は復旧lifecycle、N27�
 ### P1
 
 1. Mobile Chromeで確定閲覧、法務同意、スタッフ登録を追加する。
-2. 200スタッフ、2000割当、50件追加、62日募集の容量ジョブをFull Regressionとは別の`@capacity`として追加する。
+2. 200スタッフ、2000割当、50件追加、31日募集の容量ジョブをFull Regressionとは別の`@capacity`として追加する。
 3. TOP、Dashboard、スタッフ提出画面の既知の`color-contrast`違反を修正し、axe除外を削除する。
-4. 店舗削除E2Eを復帰させるか、機能非公開を仕様として確定する。
-5. スタッフ提出画面からの要望送信と、保存された要望が管理用queryの対象になることをE2EとScenarioで確認する。
-6. 法務文書の文書版だけ更新、同意要求版更新、期限切れ、用途違いを代表E2Eへ追加する。
-7. PR workflowを`@smoke`中心へ分離し、Full Regressionの実行時間と責務を分ける。
+4. スタッフ提出画面からの要望送信と、保存された要望が管理用queryの対象になることをE2EとScenarioで確認する。
+5. 法務文書の文書版だけ更新、同意要求版更新、期限切れ、用途違いを代表E2Eへ追加する。
+6. PR workflowを`@smoke`中心へ分離し、Full Regressionの実行時間と責務を分ける。
 
 ### P2
 
 1. Dashboardお知らせの公開期間、sanitize、最新1件表示をE2Eへ追加する。
-2. 複数店舗、課金、billingManagerの画面公開時に、新しいP0トレーサビリティ行を追加する。
+2. 課金、Stripe、課金操作を行う`billingManager`をE2E対象へ追加する場合は、複数管理者と複数店舗とは別のP0トレーサビリティ行を作る。
 
 ## 実装順序
 
 1. required check、exact SHA、production build、runtime error、VRT baselineのゲートを成立させる。
-2. 件数ゲートを契約ID manifestへ置き換える。
-3. 既存作業差分を安定させ、`@smoke`と`@release`の実行結果を基準値として保存する。
+2. canonical organization seed、owner単位reset、multi-actor project、13件のP0契約IDゲートを維持する。
+3. 今回の作業差分を安定させ、`@smoke`と`@release`の実行結果を基準値として保存する。
 4. P0通知不足を目的別かつchannel別に追加する。
 5. スタッフ追加、email変更、対象外復帰の仕様を確定し、状態遷移E2Eを追加する。
 6. Mobile Chrome、容量、法務、アクセシビリティの不足を解消する。
@@ -342,10 +419,18 @@ N23、N24は目的ではなくchannel選択条件、N22は復旧lifecycle、N27�
 - `doc/rules/testing-strategy.md`
 - `doc/rules/security-strategy.md`
 - `doc/plans/2026-07-13-frontend-test-vrt-refactor.md`
+- `doc/plans/2026-07-18_複数管理者_複数店舗_E2E実装計画.md`
+- `doc/plans/2026-07-18_Free管理者交代_複数グループ_追加実装計画.md`
 - `e2e/AGENTS.md`
 - `playwright.config.ts`
 - `playwright.deployed.config.ts`
 - `package.json`
+- `scripts/assertPlaywrightReleaseResults.mjs`
+- `scripts/assertPlaywrightReleaseResults.test.ts`
+- `scripts/assertPlaywrightArtifactSafety.mjs`
+- `scripts/assertPlaywrightArtifactSafety.test.ts`
+- `scripts/playwrightConfigSecurity.test.ts`
+- `scripts/e2eUsers.test.ts`
 - `.github/actions/playwright/action.yml`
 - `.github/workflows/playwright.yml`
 - `.github/workflows/pr-report-comments.yml`
@@ -354,7 +439,15 @@ N23、N24は目的ではなくchannel選択条件、N22は復旧lifecycle、N27�
 - `.github/workflows/release.yml`
 - `e2e/helpers/notificationProbe.ts`
 - `e2e/helpers/notificationTokens.ts`
+- `e2e/helpers/managerInvitationProbe.ts`
+- `e2e/helpers/convex.ts`
+- `e2e/helpers/e2eUsers.ts`
+- `e2e/helpers/scenarioSeeds.ts`
 - `e2e/helpers/accessibility.ts`
+- `e2e/fixtures/e2eTest.ts`
+- `e2e/fixtures/multiActorTest.ts`
+- `e2e/pages/OrganizationSettingsPage.ts`
+- `e2e/pages/ManagerInvitationPage.ts`
 - `e2e/scenarios/first-shift-delivery.test.ts`
 - `e2e/scenarios/date-only-shift-full-flow.test.ts`
 - `e2e/scenarios/shop-settings-submission-pattern-flow.test.ts`
@@ -371,6 +464,11 @@ N23、N24は目的ではなくchannel選択条件、N22は復旧lifecycle、N27�
 - `e2e/scenarios/release-support-staff-submit.mobile.test.ts`
 - `e2e/scenarios/release-support-accessibility.test.ts`
 - `e2e/scenarios/deployed-smoke.test.ts`
+- `e2e/scenarios/organization-shop-lifecycle.test.ts`
+- `e2e/scenarios/shop-deletion-flow.test.ts`
+- `e2e/scenarios/multiActor/manager-invitation-collaboration.test.ts`
+- `e2e/scenarios/multiActor/manager-role-removal.test.ts`
+- `e2e/scenarios/multiActor/organization-person-removal.test.ts`
 - `convex/constants.ts`
 - `convex/testing.ts`
 - `convex/notification/actions.ts`
@@ -380,6 +478,7 @@ N23、N24は目的ではなくchannel選択条件、N22は復旧lifecycle、N27�
 - `convex/_scenario/staffManagement.test.ts`
 - `convex/_scenario/staffRegistration.test.ts`
 - `convex/_scenario/lineNotification.test.ts`
+- `convex/_scenario/staffManagerInvitation.test.ts`
 - `doc/features/auth-pages.md`
 - `doc/features/dashboard-onboarding.md`
 - `doc/features/shop-settings.md`

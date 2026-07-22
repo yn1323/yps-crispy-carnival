@@ -1,6 +1,7 @@
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
+import { safeNotificationError } from "../notificationOutbox/safeError";
 
 type RecordFailureCtx = Pick<ActionCtx, "runMutation">;
 
@@ -20,7 +21,8 @@ export async function recordNotificationPreparationFailure(
   error: unknown,
   logMessage: string,
 ) {
-  console.error(logMessage, error);
+  const safeError = safeNotificationError(error, "notification_preparation_failed");
+  console.error(logMessage, { errorCode: safeError.code });
 
   try {
     await ctx.runMutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
@@ -32,18 +34,9 @@ export async function recordNotificationPreparationFailure(
       channel: input.channel,
       dedupeKey: input.dedupeKey,
       notificationContext: input.notificationContext,
-      errorMessage: errorMessage(error),
-      ...(errorName(error) ? { errorName: errorName(error) } : {}),
+      errorMessage: safeError.code,
     });
-  } catch (recordError) {
-    console.error("Notification preparation failure logging failed", recordError);
+  } catch {
+    console.error("Notification preparation failure logging failed", { errorCode: "notification_worker_failed" });
   }
-}
-
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function errorName(error: unknown) {
-  return error instanceof Error ? error.name : undefined;
 }

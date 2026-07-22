@@ -1,5 +1,5 @@
 import { useBlocker } from "@tanstack/react-router";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
@@ -34,9 +34,26 @@ import { visibleAssignmentWarnings } from "./warningVisibility";
 const PAST_SHIFT_SAVE_ERROR = "過去のシフトは保存できません";
 const PAST_SHIFT_NOTIFY_ERROR = "過去のシフトはスタッフに通知できません";
 
+function getReadOnlyReason(reason: ShiftBoardData["businessWriteBlockReason"]): string {
+  switch (reason) {
+    case "memberReadOnly":
+      return "管理者権限が閲覧のみに制限されているため、シフトを変更できません。";
+    case "shopArchived":
+      return "アーカイブ済みの店舗では、シフトを変更できません。";
+    case "shopPlanSuspended":
+      return "現在のプランではこの店舗のシフトを変更できません。グループ設定で利用店舗を確認してください。";
+    case "paymentResultPending":
+      return "支払い結果を確認中のため、シフトを変更できません。";
+    case "restricted":
+      return "契約を確認するまで、シフトを変更できません。グループ設定で契約状態を確認してください。";
+    case null:
+      return "現在、このシフトは変更できません。";
+  }
+}
+
 const generatePeriodLabel = (dates: string[]): string => {
   if (dates.length === 0) return "";
-  return `${formatDateWithWeekday(dates[0])}〜${formatDateWithWeekday(dates[dates.length - 1])} のシフト`;
+  return `${formatDateWithWeekday(dates[0])}〜${formatDateWithWeekday(dates[dates.length - 1])}のシフト`;
 };
 
 export const useShiftBoardPageController = (
@@ -48,6 +65,8 @@ export const useShiftBoardPageController = (
 
   const confirmedAt = data.recruitment.confirmedAt ? new Date(data.recruitment.confirmedAt) : null;
   const isConfirmed = data.recruitment.status === "confirmed";
+  const isReadOnly = !data.canWriteBusinessData;
+  const readOnlyReason = isReadOnly ? getReadOnlyReason(data.businessWriteBlockReason) : null;
   const isPastShiftNow = useCallback(() => isPastShiftPeriod(data.recruitment.periodEnd), [data.recruitment.periodEnd]);
 
   const dates = useMemo(
@@ -59,8 +78,9 @@ export const useShiftBoardPageController = (
     () =>
       data.staffs.map((staff) => ({
         id: staff._id,
-        name: staff.name,
+        name: staff.isRemoved ? `${staff.name}（削除済み）` : staff.name,
         isSubmitted: staff.isSubmitted,
+        isRemoved: staff.isRemoved,
         createdAt: staff.createdAt,
       })),
     [data.staffs],
@@ -81,6 +101,7 @@ export const useShiftBoardPageController = (
   // 下書き保存でdirty基準が更新されても、再通知までは確認対象を維持する
   const confirmedWarningBaselineRef = useRef<ShiftData[]>(initialShifts);
   const isFormInitializedRef = useRef(false);
+  const canWriteBusinessDataRef = useRef(data.canWriteBusinessData);
   const shopClosedDateSet = useMemo(
     () => new Set(data.recruitment.shopClosedDates),
     [data.recruitment.shopClosedDates],
@@ -214,6 +235,10 @@ export const useShiftBoardPageController = (
 
   // 現在のシフトを保存し、dirty判定の基準（baseline）を保存時点に更新する
   const persistCurrentShifts = useCallback(async () => {
+    if (isReadOnly) {
+      toaster.create({ title: readOnlyReason ?? "現在、このシフトは変更できません", type: "info" });
+      return false;
+    }
     if (isPastShiftNow()) {
       toaster.create({ title: PAST_SHIFT_SAVE_ERROR, type: "error" });
       return false;
@@ -222,11 +247,15 @@ export const useShiftBoardPageController = (
     await saveShiftAssignments({ recruitmentId, assignments: buildSaveAssignments(shiftsAtSave) });
     baselineShiftsRef.current = shiftsAtSave;
     return true;
-  }, [buildSaveAssignments, isPastShiftNow, recruitmentId, saveShiftAssignments]);
+  }, [buildSaveAssignments, isPastShiftNow, isReadOnly, readOnlyReason, recruitmentId, saveShiftAssignments]);
 
   // 確定ボタン押下時: フロントで全件評価する。
   // エラーがあれば確認ダイアログを開かず一覧表示。ワーニングは確定をブロックせず、ダイアログ内のサマリーで知らせる。
   const handleConfirmRequest = useCallback(() => {
+    if (isReadOnly) {
+      toaster.create({ title: readOnlyReason ?? "現在、このシフトは変更できません", type: "info" });
+      return;
+    }
     if (isPastShiftNow()) {
       toaster.create({ title: PAST_SHIFT_NOTIFY_ERROR, type: "error" });
       return;
@@ -235,9 +264,14 @@ export const useShiftBoardPageController = (
     const issues = revalidate(shiftsRef.current);
     if (issues.length > 0) return;
     confirmModal.open();
-  }, [isPastShiftNow, revalidate, confirmModal]);
+  }, [isPastShiftNow, isReadOnly, readOnlyReason, revalidate, confirmModal]);
 
   const { run: handleConfirm, isRunning: isConfirming } = useSingleFlight(async () => {
+    if (isReadOnly) {
+      confirmModal.close();
+      toaster.create({ title: readOnlyReason ?? "現在、このシフトは変更できません", type: "info" });
+      return;
+    }
     if (isPastShiftNow()) {
       confirmModal.close();
       toaster.create({ title: PAST_SHIFT_NOTIFY_ERROR, type: "error" });
@@ -283,13 +317,14 @@ export const useShiftBoardPageController = (
   // 未保存の変更（ユーザー編集による割り当ての差分）があるか。
   // シフト申請の到着などサーバー由来のデータ変化はatomに反映されないため、ここではdirty扱いにならない
   const hasUnsavedChanges = useCallback(() => {
+    if (isReadOnly) return false;
     if (!isFormInitializedRef.current) return false;
     if (shiftsRef.current === baselineShiftsRef.current) return false;
     return !isAssignmentsEqual(
       buildSaveAssignments(shiftsRef.current),
       buildSaveAssignments(baselineShiftsRef.current),
     );
-  }, [buildSaveAssignments]);
+  }, [buildSaveAssignments, isReadOnly]);
 
   // 離脱時（アプリ内の戻る・ブラウザバック）に未保存の変更があれば確認ダイアログを表示し、
   // 「保存する」「保存しない」を選ばせる。ダイアログを閉じた場合はその場に留まる
@@ -299,7 +334,31 @@ export const useShiftBoardPageController = (
     withResolver: true,
   });
 
+  useEffect(() => {
+    if (canWriteBusinessDataRef.current === data.canWriteBusinessData) return;
+    canWriteBusinessDataRef.current = data.canWriteBusinessData;
+
+    // 権限変更時はShiftFormも再初期化されるため、controller側の編集基準も同じserver値へ揃える。
+    // editable中の通常のquery更新ではここを通らず、ユーザーの未保存draftを維持する。
+    shiftsRef.current = initialShifts;
+    baselineShiftsRef.current = initialShifts;
+    confirmedWarningBaselineRef.current = initialShifts;
+    isFormInitializedRef.current = false;
+    hasAttemptedConfirmRef.current = false;
+    setValidationIssues([]);
+    setValidationWarnings([]);
+
+    if (!data.canWriteBusinessData) {
+      confirmModal.close();
+      blocker.reset?.();
+    }
+  }, [blocker.reset, confirmModal.close, data.canWriteBusinessData, initialShifts]);
+
   const { run: handleSaveAndLeave, isRunning: isSavingAndLeaving } = useSingleFlight(async () => {
+    if (isReadOnly) {
+      blocker.proceed?.();
+      return;
+    }
     try {
       const saved = await persistCurrentShifts();
       if (!saved) return;
@@ -318,6 +377,8 @@ export const useShiftBoardPageController = (
       periodLabel,
       confirmedAtLabel: isConfirmed && confirmedAt ? formatDateTime(confirmedAt) : null,
       isConfirmed,
+      isReadOnly,
+      readOnlyReason,
       showTimeInputGuide: data.submissionPattern.kind === "time",
       shiftForm: {
         shopId: data.shopId,

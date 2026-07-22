@@ -1,6 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { modules, schema } from "../_test/setup.test-helper";
+import { CONTACT_TURNSTILE_GLOBAL_SHORT_LIMIT } from "../constants";
 import { buildContactSlackPayload } from "./actions";
 import type { SubmitContactInput } from "./schemas";
 
@@ -44,6 +45,7 @@ describe("contact/httpActions", () => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it("Turnstile検証後に問い合わせを受け付けてSlackへ通知する", async () => {
@@ -102,7 +104,8 @@ describe("contact/httpActions", () => {
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
       if (url.includes("turnstile")) {
-        expect((init?.body as FormData).get("secret")).toBe("1x0000000000000000000000000000000AA");
+        if (!(init?.body instanceof FormData)) throw new Error("Turnstile request body must be FormData");
+        expect(init.body.get("secret")).toBe("1x0000000000000000000000000000000AA");
         return responseJson({ success: true, hostname: "example.com", metadata: { result_with_testing_key: true } });
       }
       if (url === SLACK_URL) return new Response("ok", { status: 200 });
@@ -152,6 +155,35 @@ describe("contact/httpActions", () => {
 
     expect(response.status).toBe(400);
     expect(fetchMock.mock.calls.some(([url]) => String(url) === SLACK_URL)).toBe(false);
+  });
+
+  it("Turnstile失敗を固定global budgetで止め、上限後はSiteverifyを呼ばない", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-21T12:00:00+09:00"));
+    const fetchMock = vi.fn(async () => responseJson({ success: false }));
+    vi.stubGlobal("fetch", fetchMock);
+    const t = convexTest(schema, modules);
+    const statuses: number[] = [];
+
+    for (let index = 0; index <= CONTACT_TURNSTILE_GLOBAL_SHORT_LIMIT; index += 1) {
+      const response = await t.fetch("/contact/submit", {
+        method: "POST",
+        headers: { origin: ORIGIN, "content-type": "application/json" },
+        body: JSON.stringify(
+          validBody({
+            requestId: `00000000-0000-4000-8000-${index.toString(16).padStart(12, "0")}`,
+            turnstileToken: `invalid-turnstile-${index}`,
+          }),
+        ),
+      });
+      statuses.push(response.status);
+    }
+
+    expect(statuses.slice(0, CONTACT_TURNSTILE_GLOBAL_SHORT_LIMIT)).toEqual(
+      Array.from({ length: CONTACT_TURNSTILE_GLOBAL_SHORT_LIMIT }, () => 400),
+    );
+    expect(statuses.at(-1)).toBe(429);
+    expect(fetchMock).toHaveBeenCalledTimes(CONTACT_TURNSTILE_GLOBAL_SHORT_LIMIT);
   });
 
   it("メール送信に失敗した場合はSlackへ通知しない", async () => {

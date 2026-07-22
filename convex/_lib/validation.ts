@@ -43,6 +43,10 @@ export const requiredEmailSchema = z
     message: "メールアドレスに使用できない文字が含まれています",
   });
 
+export function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
 export const optionalEmail = (val: string, ctx: z.RefinementCtx) => {
   if (val.trim() === "") return;
   const result = requiredEmailSchema.safeParse(val);

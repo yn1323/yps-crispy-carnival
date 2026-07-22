@@ -1,11 +1,13 @@
 import { Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { buildDashboardRecruitmentGroups } from "@/src/components/features/Dashboard/script";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
 import { RecruitmentBoard, RecruitmentBoardSkeleton } from ".";
 
 const noop = () => {};
+const openReadOnlyShiftBoard = fn();
 const dateInDays = (days: number) => dayjs().add(days, "day").format("YYYY-MM-DD");
 const makeRecruitment = (overrides: Partial<Recruitment> = {}) =>
   ({
@@ -193,6 +195,21 @@ export const OnlyPastExists: Story = {
 export const OnlyCurrentShift: Story = {
   args: {
     groups: groupsFor([currentRecruitment]),
+  },
+};
+
+export const ReadOnlyNavigation: Story = {
+  args: {
+    groups: groupsFor([currentRecruitment]),
+    isReadOnly: true,
+    onOpenShiftBoard: openReadOnlyShiftBoard,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.click(canvas.getByLabelText(/のシフトを見る/));
+    await expect(openReadOnlyShiftBoard).toHaveBeenCalledWith(currentRecruitment._id);
+    await expect(canvas.queryByRole("button", { name: /募集操作メニュー/ })).not.toBeInTheDocument();
   },
 };
 

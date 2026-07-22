@@ -6,6 +6,7 @@ import { type DashboardNotificationFailure, NotificationFailureDialogContent } f
 
 type Props = {
   isOpen: boolean;
+  isReadOnly?: boolean;
   onOpenChange: (details: { open: boolean }) => void;
   onClose: () => void;
   failures: DashboardNotificationFailure[];
@@ -23,6 +24,7 @@ type Props = {
 
 export function NotificationFailureRecoveryView({
   isOpen,
+  isReadOnly = false,
   onOpenChange,
   onClose,
   failures,
@@ -41,7 +43,7 @@ export function NotificationFailureRecoveryView({
     <>
       <Dialog
         title="送れなかった通知"
-        isOpen={isOpen}
+        isOpen={isOpen && !isReadOnly}
         onOpenChange={onOpenChange}
         onClose={onClose}
         footer={
@@ -60,6 +62,7 @@ export function NotificationFailureRecoveryView({
       >
         <NotificationFailureDialogContent
           failures={failures}
+          isReadOnly={isReadOnly}
           acceptedFailureIds={acceptedFailureIds}
           resendingFailureIds={resendingFailureIds}
           isResendingAll={isResendingAll}
@@ -72,7 +75,7 @@ export function NotificationFailureRecoveryView({
       <Dialog
         title="送れなかった通知を対応不要にする"
         role="alertdialog"
-        isOpen={dismissTarget !== null}
+        isOpen={dismissTarget !== null && !isReadOnly}
         onOpenChange={({ open }) => {
           if (!open && !isDismissing) onCancelDismiss();
         }}
@@ -83,7 +86,7 @@ export function NotificationFailureRecoveryView({
         submitLabel="対応不要にする"
         submitColorPalette="red"
         isLoading={isDismissing}
-        isSubmitDisabled={dismissTarget === null}
+        isSubmitDisabled={isReadOnly || dismissTarget === null}
         maxW="480px"
       >
         <Stack gap={2}>

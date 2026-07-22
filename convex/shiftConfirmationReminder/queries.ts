@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { internalQuery } from "../_generated/server";
-import { APP_URL } from "../_lib/config";
+import { buildShopDashboardUrl } from "../_lib/dashboardUrl";
 import { formatDeadlineLabel, formatPeriodLabel } from "../_lib/dateFormat";
 import { loadShopManagerRecipients } from "../_lib/shopManagerRecipients";
 import { SHIFT_CONFIRMATION_REMINDER_MANAGER_LIMIT } from "../constants";
@@ -30,7 +30,7 @@ export const getManagerConfirmationReminderTarget = internalQuery({
       shopName: shop.name,
       periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
       deadlineLabel: formatDeadlineLabel(recruitment.deadline),
-      dashboardUrl: `${APP_URL}/dashboard`,
+      dashboardUrl: buildShopDashboardUrl(recruitment.shopId),
       recipients,
     };
   },

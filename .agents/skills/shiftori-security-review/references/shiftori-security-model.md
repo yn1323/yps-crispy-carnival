@@ -137,6 +137,8 @@ Rules:
 - Treat `billingManager` as a store membership role/permission, not a global user role.
 - Stripe Customer Portal or equivalent billing sessions must use the shop's billing state and customer context.
 - Prevent broad manager changes from accidentally granting billing power.
+- Derive the Stripe environment from the secret key (`sk_test_` or `sk_live_`) instead of maintaining a separate test/live switch, and verify that Price, Customer, Subscription, Checkout, and webhook `livemode` values match it.
+- Stop new sales by archiving the configured Price while keeping webhook handling and existing-contract convergence active. Expire already-created open Checkout Sessions separately when an immediate stop is required.
 
 ### Logging And Personal Data
 

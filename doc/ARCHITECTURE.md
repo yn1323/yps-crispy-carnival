@@ -111,9 +111,14 @@ Convex側で新規実装または見直しを行う場合の標準フローは�
 | Store | 責務 | 永続化 |
 |-------|------|--------|
 | `userAtom` | ログインユーザー情報 | メモリ |
-| `selectedShopAtom` | 選択中の店舗情報 | localStorage |
+| `selectedShopAtom` | 最後に確定した有効な店舗情報。URLに店舗指定がない場合のfallback | localStorage |
 | `hasSelectedShopAtom` | 店舗選択済み判定（派生） | - |
 | ShiftForm Atoms | シフト編集状態（Jotai Provider内スコープ） | メモリ |
+
+認証済み画面の現在タブでは`?shop=`を店舗コンテキストの正とする。
+URLの値は`getMyShops`の候補と照合し、一致したAPI由来の店舗だけを`selectedShopAtom`へ同期して管理者APIへ渡す。
+URL指定がない場合はlocalStorageの有効な前回値、利用可能店舗一覧の先頭の順で補完し、`replace`でURLを正規化する。
+localStorageは初回fallbackと前回値保存に限定し、別タブの更新で現在タブのURLコンテキストを上書きしない。
 
 ---
 

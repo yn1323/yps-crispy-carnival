@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { managerMutation, staffSessionMutation } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
+import { sessionMatchesAccessKind } from "../_lib/staffAccess";
 import { submitFeatureRequestSchema } from "./schemas";
 
 export const submit = managerMutation({
@@ -8,6 +9,7 @@ export const submit = managerMutation({
     comment: v.string(),
     requestId: v.string(),
   },
+  returns: v.object({ status: v.literal("accepted") }),
   handler: async (ctx, args) => {
     const parsed = submitFeatureRequestSchema.safeParse(args);
     if (!parsed.success) {
@@ -45,7 +47,12 @@ export const submitFromStaff = staffSessionMutation({
     comment: v.string(),
     requestId: v.string(),
   },
+  returns: v.object({ status: v.literal("accepted") }),
   handler: async (ctx, args) => {
+    if (!sessionMatchesAccessKind(ctx.session, "submit")) {
+      throw new ConvexError("Session expired");
+    }
+
     const parsed = submitFeatureRequestSchema.safeParse(args);
     if (!parsed.success) {
       throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");

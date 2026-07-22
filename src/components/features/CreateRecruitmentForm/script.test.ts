@@ -8,6 +8,7 @@ import {
   getCalendarMonthCount,
   getDeadlineStepValidationError,
   getHolidaySummary,
+  getPeriodSelectionMaxDate,
   getPeriodStepValidationError,
 } from "./script";
 
@@ -38,6 +39,13 @@ describe("募集作成ステップの表示値と入力判定", () => {
     });
   });
 
+  it.each([
+    ["2026-05-01", "2026-08-31"],
+    ["2027-11-30", "2028-02-29"],
+  ])("%s を基準に3か月先の月末まで選択可能にする", (today, expected) => {
+    expect(getPeriodSelectionMaxDate(today)).toBe(expected);
+  });
+
   it("期間ステップでは最初に直す入力を返す", () => {
     expect(getPeriodStepValidationError({ periodStart: "", periodEnd: "", today: "2026-06-01" })).toEqual({
       field: "periodStart",
@@ -50,6 +58,12 @@ describe("募集作成ステップの表示値と入力判定", () => {
     expect(
       getPeriodStepValidationError({ periodStart: "2026-06-02", periodEnd: "2026-06-03", today: "2026-06-01" }),
     ).toBeUndefined();
+    expect(
+      getPeriodStepValidationError({ periodStart: "2026-06-02", periodEnd: "2026-07-02", today: "2026-06-01" }),
+    ).toBeUndefined();
+    expect(
+      getPeriodStepValidationError({ periodStart: "2026-06-02", periodEnd: "2026-07-03", today: "2026-06-01" }),
+    ).toEqual({ field: "periodEnd", message: "募集期間は31日以内にしてください" });
   });
 
   it("提出締切ステップでは期間開始日より前の日付だけを受け入れる", () => {
@@ -150,7 +164,7 @@ describe("createRecruitmentSchema", () => {
     expect(createRecruitmentSchema.safeParse({ ...validData, deadline: "2026-13-01" }).success).toBe(false);
   });
 
-  it("募集期間は62日以内にする", () => {
+  it("募集期間は31日以内にする", () => {
     const valid = createRecruitmentSchema.safeParse({
       ...validData,
       periodStart: "2026-04-01",
@@ -169,7 +183,7 @@ describe("createRecruitmentSchema", () => {
     });
     expect(invalid.success).toBe(false);
     if (!invalid.success) {
-      expect(invalid.error.issues.some((issue) => issue.message === "募集期間は62日以内にしてください")).toBe(true);
+      expect(invalid.error.issues.some((issue) => issue.message === "募集期間は31日以内にしてください")).toBe(true);
     }
   });
 

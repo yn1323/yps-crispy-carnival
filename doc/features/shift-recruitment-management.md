@@ -8,7 +8,7 @@
 |---|---|
 | 画面 | `src/pages/dashboard/index.tsx`, `src/pages/shift-board/index.tsx` |
 | UI | `src/components/features/Dashboard/RecruitmentManagement/`, `src/components/features/Dashboard/RecruitmentBoard/`, `src/components/features/Shift/ShiftForm/`, `src/components/features/Shift/ShiftForm/ValidationErrorPanel/` |
-| API | `convex/recruitment/mutations.ts`, `convex/dashboard/queries.ts`, `convex/shiftBoard/queries.ts`, `convex/shiftBoard/mutations.ts` |
+| API | `convex/recruitment/mutations.ts`, `convex/dashboard/queries.ts`, `convex/shiftBoard/queries.ts`, `convex/shiftBoard/mutations.ts`, `convex/notification/fanout.ts` |
 | バリデーション | `convex/shiftBoard/validation.ts`（サーバー/フロント共有の純粋関数）, `src/domains/shift/buildAssignments.ts`, `src/domains/shift/assignmentIssues.ts`, `src/domains/shift/assignmentWarnings.ts`（確認事項＝クライアントのみの助言） |
 | テスト | `convex/recruitment/mutations.test.ts`, `convex/dashboard/queries.test.ts`, `convex/shiftBoard/validation.test.ts`, `convex/shiftBoard/mutations.test.ts`, `src/components/features/Dashboard/script.test.ts`, `src/components/features/Dashboard/HeroSummary/pickNextAction.test.ts`, `convex/_scenario/recruitmentDeletion.test.ts`, `e2e/scenarios/recruitment-deletion.test.ts` |
 
@@ -16,7 +16,7 @@
 
 | 画面 | 概要 |
 |---|---|
-| `/dashboard` | TODO、シフト一覧、募集作成、募集削除の入口 |
+| `/dashboard` | 今やること、シフト一覧、募集作成、募集削除の入口 |
 | `/shiftboard/$recruitmentId` | 募集期間のシフト表確認・下書き保存・確定 |
 
 ## API一覧
@@ -31,6 +31,7 @@
 | `api.dashboard.queries.getDashboardCurrentRecruitments` | query | 現在日付がシフト期間内に含まれる確定済みシフトを取得する |
 | `api.shiftBoard.queries.getShiftBoardData` | query | シフト表画面のデータを取得する。削除済み募集は `null` を返す |
 | `api.shiftBoard.mutations.saveShiftAssignments` | mutation | シフト表の下書き割当を保存する |
+| `api.shiftBoard.mutations.confirmRecruitment` | mutation | シフトを確定し、確定後は前回通知から変更されたスタッフへの再通知を予約する |
 
 ## 仕様メモ
 
@@ -51,6 +52,13 @@
 - 確定済み募集も削除できる。削除前に確認ダイアログを表示する。
 - シフト表で未保存のユーザー編集がある状態で離脱（アプリ内の戻る・ブラウザバック）しようとすると、確認ダイアログで「保存する」「保存しない」を選ばせる。ダイアログを閉じるとその場に留まる（`useBlocker` + `src/domains/shift/isAssignmentsEqual.ts`）。シフト申請の到着などサーバー由来のデータ変化はdirty扱いにしない。タブを閉じる/リロード時はブラウザ標準の離脱確認のみ表示する。
 - 確定済みシフトの再通知は、前回通知時点のスタッフ別スナップショットと現在の割当を比較し、変更があるスタッフだけに送る。変更対象が0人なら通知は予約しない。スナップショットがない既存の確定済み募集では、導入後の初回再通知だけ全員を対象にする。
+- 確定・再通知は、グループ、店舗、募集、通知用途、対象スタッフと文面に影響する値から作るstable semantic keyを募集へ保存する。manager、client request ID、実行時刻が異なっても同じsemantic operationは一つのscheduler jobへ収束し、対象、文面、用途が変わった場合だけ世代を進める。保存fieldはoptional wideningであり、既存募集は初回操作時に設定するためbackfillしない。
+- 募集開始・確定通知は `notificationFanoutOperations` に作成時点の対象ID集合、cursor、lease、scheduler IDを保存し、10人ずつ処理する。actionが中断しても1分cronが予約漏れpendingと期限切れleaseを同じcursorから再開する。生存scheduler IDは重複予約せず、旧形式の予約済みactionもstable semantic keyで同じoperationへ収束する。
+- 各対象は `fanoutTargetKey = semantic operation × staff` でOutboxへ関連付ける。再開までにemail/LINEの優先channelが変わっても、channel別dedupe keyではなく同じOutbox/provider identityを再利用する。
+- fanout対象は200人を上限として `limit + 1` で検査する。超過時は対象を無言で欠落させず、募集作成または確定通知予約をtransactionごと拒否する。
+- 募集削除時は非終端fanoutを同じtransactionでcancelする。すでにOutboxへ入った通知もprovider呼び出し直前に募集を再確認し、`recruitment_inactive`へ収束する。
+- 確定Outboxはprovider呼び出し直前に募集へ保存した最新semantic keyを照合し、完走済みの旧operationやdeploy前shapeの別世代Outboxを`notification_superseded`へ収束させる。LINE fallbackも募集とoperation IDを継承する。
+- 確定fanoutのview linkにはoptionalな`notificationOperationKey`を保存し、同じbatchの再実行ではtokenを増やさない。既存linkからsemantic operationを安全に復元できないためbackfillはせず、旧linkは従来どおりreaderが扱う。
 - シフト終了日を過ぎた過去シフトは、下書き保存・確定通知・再通知をできない。ボタンは押せるままにし、押下後に理由をtoastで表示する。サーバー側でも同じ条件で保存・通知予約を拒否し、直接API呼び出しでも副作用を起こさない。
 - 日ごと募集のPCシフト表では、日別/一覧タブを出さず、左サイドバーで週を選び、`ユーザー × 日付` のテーブルでセル押下により勤務させる/勤務させないを切り替える。週は月曜始まりの7日固定で表示し、募集期間外の日は薄く表示して入力できない。
 - 日ごと募集のSPシフト表では、日別/一覧タブを表示する。日別は募集期間内の日付チップで日付を選び、スタッフ行の `○/×` でその日の割当を切り替える。一覧は週ごとのカードで日付別に勤務するスタッフだけを表示し、期間外の日も一覧上で確認できる。

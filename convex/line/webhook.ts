@@ -8,6 +8,8 @@ type DispatchEvent = {
   type: string;
   userId?: string;
   replyToken?: string;
+  webhookEventId: string;
+  timestamp: number;
 };
 
 /**
@@ -66,13 +68,32 @@ function parseDispatchEvents(events: unknown[]): DispatchEvent[] | null {
   const parsed: DispatchEvent[] = [];
   for (const event of events) {
     if (!isRecord(event) || typeof event.type !== "string") return null;
+    if (
+      typeof event.webhookEventId !== "string" ||
+      event.webhookEventId.length === 0 ||
+      event.webhookEventId.length > 200 ||
+      typeof event.timestamp !== "number" ||
+      !Number.isSafeInteger(event.timestamp) ||
+      event.timestamp < 0
+    ) {
+      return null;
+    }
 
     const source = event.source;
     if (source !== undefined && (!isRecord(source) || !isOptionalString(source.userId))) return null;
     if (!isOptionalString(event.replyToken)) return null;
+    if (
+      ((event.type === "follow" || event.type === "unfollow") &&
+        (!isRecord(source) || typeof source.userId !== "string")) ||
+      (event.type === "message" && typeof event.replyToken !== "string")
+    ) {
+      return null;
+    }
 
     parsed.push({
       type: event.type,
+      webhookEventId: event.webhookEventId,
+      timestamp: event.timestamp,
       ...(isRecord(source) && typeof source.userId === "string" ? { userId: source.userId } : {}),
       ...(typeof event.replyToken === "string" ? { replyToken: event.replyToken } : {}),
     });

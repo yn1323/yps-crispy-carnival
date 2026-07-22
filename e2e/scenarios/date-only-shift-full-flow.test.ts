@@ -10,7 +10,6 @@ import { StaffViewPage } from "../pages/StaffViewPage";
 
 const MANAGER = {
   name: "田中太郎",
-  email: "tanaka@example.com",
 };
 
 type DateOnlyFlowSeed = {
@@ -20,7 +19,7 @@ type DateOnlyFlowSeed = {
 test.describe("日付のみ方式のシフト確定", { tag: ["@release", "@notification"] }, () => {
   test.setTimeout(90_000);
 
-  test("再提出から管理者編集、下書き、確定通知、スタッフ閲覧までつながる", async ({ browser, page }) => {
+  test("再提出から管理者編集、下書き、確定通知、スタッフ閲覧までつながる", async ({ browser, page, e2eClerkUser }) => {
     const dates = getNextWeekDates();
     const dateLabels = dates.dates.map(formatDateWithWeekday);
     const seed = seedManagerScenario<DateOnlyFlowSeed>("testing:seedLegalManagerConsentScenario", {
@@ -38,7 +37,7 @@ test.describe("日付のみ方式のシフト確定", { tag: ["@release", "@noti
     const submitToken = await test.step("スタッフが希望日を提出し、内容を修正して再提出する", async () => {
       const recruitmentProbe = await waitForNotificationOutbox({
         shopId: seed.shopId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         notificationContext: "notification.sendRecruitmentNotificationEmails",
         channel: "email",
       });
@@ -52,7 +51,7 @@ test.describe("日付のみ方式のシフト確定", { tag: ["@release", "@noti
 
       const token = await waitForMagicLinkToken({
         shopId: seed.shopId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         purpose: "submit",
       });
 
@@ -103,7 +102,7 @@ test.describe("日付のみ方式のシフト確定", { tag: ["@release", "@noti
       const probe = await waitForNotificationOutbox({
         shopId: seed.shopId,
         recruitmentId: submitToken.recruitmentId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         notificationContext: "notification.sendConfirmationEmail",
         channel: "email",
       });
@@ -118,7 +117,7 @@ test.describe("日付のみ方式のシフト確定", { tag: ["@release", "@noti
       return await waitForMagicLinkToken({
         shopId: seed.shopId,
         recruitmentId: submitToken.recruitmentId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         purpose: "view",
       });
     });

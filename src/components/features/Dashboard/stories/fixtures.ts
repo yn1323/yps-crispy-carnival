@@ -1,6 +1,15 @@
 import type { Recruitment, Staff } from "../types";
 
 // Storybook用モックデータ。_id は Convex ID の型だが、stories では文字列で代用する
+const withManagerInvitationStates = <T extends { _id: string; isManager: boolean }>(staffs: T[]) =>
+  staffs.map((staff) => ({
+    ...staff,
+    organizationPersonId: `person-${staff._id}`,
+    managerInvitationState: staff.isManager
+      ? ({ kind: "unavailable", reason: "このユーザーはすでに管理者です。" } as const)
+      : ({ kind: "available", mode: "addition", replacesStaleInvitation: false } as const),
+  }));
+
 export const mockRecruitments = [
   {
     _id: "rec-1",
@@ -66,7 +75,7 @@ export const mockRecruitments = [
 
 export const mockCurrentRecruitments = [mockRecruitments[3]];
 
-export const mockStaffs = [
+export const mockStaffs = withManagerInvitationStates([
   {
     _id: "s1",
     name: "田中太郎",
@@ -91,9 +100,9 @@ export const mockStaffs = [
     isLineLinked: true,
     isLineFollowing: false,
   },
-] as unknown as Staff[];
+]) as unknown as Staff[];
 
-export const mockStaffsWithExcluded = [
+export const mockStaffsWithExcluded = withManagerInvitationStates([
   {
     _id: "s1",
     name: "店舗共通アドレス",
@@ -121,9 +130,9 @@ export const mockStaffsWithExcluded = [
     isLineFollowing: false,
     excludedFromShift: true,
   },
-] as unknown as Staff[];
+]) as unknown as Staff[];
 
-export const mockStaffsMany = [
+export const mockStaffsMany = withManagerInvitationStates([
   {
     _id: "s1",
     name: "田中太郎",
@@ -204,4 +213,4 @@ export const mockStaffsMany = [
     isLineLinked: false,
     isLineFollowing: false,
   },
-] as unknown as Staff[];
+]) as unknown as Staff[];

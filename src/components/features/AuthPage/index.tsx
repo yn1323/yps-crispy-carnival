@@ -1,4 +1,4 @@
-import { useAuth } from "@clerk/clerk-react";
+import { useAuth } from "@clerk/react";
 import { Navigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { normalizeAuthRedirect } from "@/src/lib/auth/redirect";

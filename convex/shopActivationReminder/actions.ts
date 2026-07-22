@@ -14,6 +14,7 @@ import {
 } from "../notification/templates";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
 import { SHOP_ACTIVATION_REMINDER_CONTEXT } from "../notificationOutbox/failureSuppress";
+import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
 import { getReminderTargetRef } from "./refs";
 
 /**
@@ -21,8 +22,9 @@ import { getReminderTargetRef } from "./refs";
  * 補助的な通知のため、失敗しても failureInbox には載せない（context で抑止）。
  */
 export const sendReminder = internalAction({
-  args: { shopId: v.id("shops") },
-  handler: async (ctx, { shopId }) => {
+  args: { shopId: v.id("shops"), ...businessNotificationOriginArgs },
+  handler: async (ctx, { shopId, organizationBillingVersionAtOrigin }) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(getReminderTargetRef, { shopId });
     if (!data) return;
 
@@ -60,6 +62,7 @@ export const sendReminder = internalAction({
       if (channel === "line" && recipient.lineUserId) {
         await enqueueLine(ctx, {
           shopId: data.shopId,
+          ...notificationOrigin,
           userId: recipient.userId,
           dedupeKey: lineDedupeKey,
           payload: linePayload({
@@ -78,6 +81,7 @@ export const sendReminder = internalAction({
 
       await enqueueEmail(ctx, {
         shopId: data.shopId,
+        ...notificationOrigin,
         userId: recipient.userId,
         dedupeKey: emailDedupeKey,
         payload: emailPayloadValue,

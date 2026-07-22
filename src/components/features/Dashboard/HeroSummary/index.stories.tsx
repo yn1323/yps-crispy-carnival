@@ -23,9 +23,6 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const SHOP = {
-  name: "居酒屋たなか",
-};
 const today = dayjs().format("YYYY-MM-DD");
 const inDays = (n: number) => dayjs().add(n, "day").format("YYYY-MM-DD");
 
@@ -53,14 +50,12 @@ const zeroTotal = make({ _id: id("zero-total"), deadline: inDays(10), responseCo
 const confirmed = make({ _id: id("conf"), status: "confirmed", deadline: inDays(-30), responseCount: 10 });
 
 const NOOP = {
-  onEditClick: () => {},
   onOpenShiftBoard: () => {},
   onCreateRecruitment: () => {},
   onNotificationFailuresClick: () => {},
 };
 
 const baseArgs = {
-  shop: SHOP,
   ...NOOP,
 };
 const allTasksArgs = {

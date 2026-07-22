@@ -1,7 +1,9 @@
 import { Box, Flex, Icon, Menu, Portal, Text } from "@chakra-ui/react";
-import { SignOutButton } from "@clerk/clerk-react";
+import { SignOutButton } from "@clerk/react";
+import { Link as RouterLink } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import { LuBookOpen, LuChevronDown, LuLogOut, LuMailQuestion, LuUserRound } from "react-icons/lu";
+import { LuBookOpen, LuBuilding2, LuChevronDown, LuLogOut, LuMailQuestion, LuUserRound } from "react-icons/lu";
+import { selectedShopAtom } from "@/src/stores/shop";
 import { userAtom } from "@/src/stores/user";
 
 type Props = {
@@ -10,6 +12,7 @@ type Props = {
 
 export const UserMenu = ({ tone = "dark" }: Props) => {
   const user = useAtomValue(userAtom);
+  const selectedShop = useAtomValue(selectedShopAtom);
   const displayName = user.name || "ユーザー";
   const isLight = tone === "light";
 
@@ -24,7 +27,7 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
           transition="opacity 0.15s"
           display="flex"
           alignItems="center"
-          gap={2}
+          gap={{ base: 0, md: 2 }}
           minW={0}
           px={isLight ? { base: 1.5, md: 2.5 } : undefined}
           py={isLight ? 1 : undefined}
@@ -45,6 +48,7 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
             <Icon as={LuUserRound} boxSize={5} />
           </Flex>
           <Text
+            display={{ base: "none", md: "block" }}
             color={isLight ? "gray.900" : "white"}
             fontSize="sm"
             fontWeight="semibold"
@@ -53,7 +57,13 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
           >
             {displayName}
           </Text>
-          <Icon as={LuChevronDown} boxSize={5} color={isLight ? "gray.700" : "white"} flexShrink={0} />
+          <Icon
+            as={LuChevronDown}
+            display={{ base: "none", md: "block" }}
+            boxSize={5}
+            color={isLight ? "gray.700" : "white"}
+            flexShrink={0}
+          />
         </Box>
       </Menu.Trigger>
       <Portal>
@@ -68,6 +78,12 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
               </Text>
             </Box>
             <Menu.Separator />
+            <Menu.Item asChild value="group-settings" cursor="pointer">
+              <RouterLink to="/settings" search={{ shop: selectedShop?.shopId }}>
+                <LuBuilding2 aria-hidden />
+                グループ設定
+              </RouterLink>
+            </Menu.Item>
             <Menu.Item asChild value="howto" cursor="pointer">
               <a href="/howto" target="_blank" rel="noreferrer">
                 <LuBookOpen />

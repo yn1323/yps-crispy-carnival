@@ -20,13 +20,52 @@ jobs:
     runs-on: ubuntu-latest
     environment: Production
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: main
-          fetch-depth: 0
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 1
+          persist-credentials: false
 
-      - name: Setup
-        uses: ./.github/actions/setup
+      - name: Verify immutable release content
+        id: release-content
+        env:
+          EXPECTED_MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          ATTESTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          SHA_PATTERN='^[0-9a-f]{40}$'
+          if ! [[ "$EXPECTED_MERGE_SHA" =~ $SHA_PATTERN ]]; then
+            echo "::error title=Invalid release merge SHA::The merged pull request did not provide a full commit SHA."
+            exit 1
+          fi
+          if ! [[ "$ATTESTED_HEAD_SHA" =~ $SHA_PATTERN ]]; then
+            echo "::error title=Invalid canary head SHA::The provider canary did not target a full commit SHA."
+            exit 1
+          fi
+
+          ACTUAL_HEAD_SHA="$(git rev-parse HEAD)"
+          if [ "$ACTUAL_HEAD_SHA" != "$EXPECTED_MERGE_SHA" ]; then
+            echo "::error title=Release checkout mismatch::Checked out commit does not match the merged pull request."
+            exit 1
+          fi
+
+          git fetch --no-tags --depth=1 origin "$ATTESTED_HEAD_SHA"
+          FETCHED_ATTESTED_HEAD_SHA="$(git rev-parse FETCH_HEAD)"
+          if [ "$FETCHED_ATTESTED_HEAD_SHA" != "$ATTESTED_HEAD_SHA" ]; then
+            echo "::error title=Canary checkout mismatch::Fetched commit does not match the canary-attested pull request head."
+            exit 1
+          fi
+
+          RELEASE_TREE_SHA="$(git rev-parse "${EXPECTED_MERGE_SHA}^{tree}")"
+          ATTESTED_TREE_SHA="$(git rev-parse "${ATTESTED_HEAD_SHA}^{tree}")"
+          if [ "$RELEASE_TREE_SHA" != "$ATTESTED_TREE_SHA" ]; then
+            echo "::error title=Release content changed after canary::The merged pull request tree differs from the canary-attested tree."
+            exit 1
+          fi
+
+          echo "merge_sha=${EXPECTED_MERGE_SHA}" >> "$GITHUB_OUTPUT"
+          echo "tree_sha=${RELEASE_TREE_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Verify provider canary approval
         env:
@@ -34,38 +73,105 @@ jobs:
           EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" --paginate --slurp > provider-canary-comments.json
-          node -e 'const fs = require("fs"); const labels = JSON.parse(process.env.PR_LABELS_JSON || "[]"); const required = "release:provider-canary-passed"; const marker = `<!-- shiftori-provider-canary:${process.env.EXPECTED_HEAD_SHA} -->`; const verified = "<!-- shiftori-provider-canary-verified:v1 -->"; const comments = JSON.parse(fs.readFileSync("provider-canary-comments.json", "utf8")).flat(); const recordedByWorkflow = comments.some((comment) => comment.user?.login === "github-actions[bot]" && comment.body.includes(marker) && comment.body.includes(verified)); if (!labels.includes(required) || !recordedByWorkflow) { console.error(`Missing verified provider canary approval for head ${process.env.EXPECTED_HEAD_SHA}`); process.exit(1); }'
+          set -euo pipefail
+          gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" --paginate --slurp \
+            | node -e 'let input = ""; process.stdin.on("data", (chunk) => input += chunk); process.stdin.on("end", () => { const labels = JSON.parse(process.env.PR_LABELS_JSON || "[]"); const required = "release:provider-canary-passed"; const marker = `<!-- shiftori-provider-canary:${process.env.EXPECTED_HEAD_SHA} -->`; const verified = "<!-- shiftori-provider-canary-verified:v1 -->"; const comments = JSON.parse(input).flat(); const recordedByWorkflow = comments.some((comment) => comment.user?.login === "github-actions[bot]" && comment.body?.includes(marker) && comment.body?.includes(verified)); if (!labels.includes(required) || !recordedByWorkflow) { console.error(`Missing verified provider canary approval for head ${process.env.EXPECTED_HEAD_SHA}`); process.exit(1); } });'
 
-      - name: Determine release type
-        id: release-type
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Determine release metadata
+        id: release
         run: |
-          if ${{ contains(github.event.pull_request.labels.*.name, 'release:major') }}; then
-            echo "type=major" >> "$GITHUB_OUTPUT"
-          elif ${{ contains(github.event.pull_request.labels.*.name, 'release:minor') }}; then
-            echo "type=minor" >> "$GITHUB_OUTPUT"
-          else
-            echo "type=patch" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+
+          RELEASE_VERSION="$(node -p 'require("./package.json").version')"
+          VERSION_PATTERN='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          if ! [[ "$RELEASE_VERSION" =~ $VERSION_PATTERN ]]; then
+            echo "::error title=Invalid release version::package.json must contain the final major.minor.patch version before the release PR is canary-tested and merged."
+            exit 1
+          fi
+          echo "tag=v${RELEASE_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "version=${RELEASE_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify release source remains immutable
+        env:
+          EXPECTED_MERGE_SHA: ${{ steps.release-content.outputs.merge_sha }}
+        run: |
+          set -euo pipefail
+
+          if [ "$(git rev-parse HEAD)" != "$EXPECTED_MERGE_SHA" ]; then
+            echo "::error title=Release commit changed::HEAD changed after the immutable release gate."
+            exit 1
+          fi
+          if ! git diff --quiet "$EXPECTED_MERGE_SHA" --; then
+            echo "::error title=Release source changed::Tracked files changed after the immutable release gate."
+            exit 1
           fi
 
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Create immutable release tag
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          EXPECTED_MERGE_SHA: ${{ steps.release-content.outputs.merge_sha }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const expectedSha = process.env.EXPECTED_MERGE_SHA;
+            const tag = process.env.RELEASE_TAG;
+            if (!/^[0-9a-f]{40}$/.test(expectedSha ?? '') || !/^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(tag ?? '')) {
+              core.setFailed('Release tag metadata is invalid.');
+              return;
+            }
 
-      - name: Bump version
-        id: bump
-        run: |
-          NEW_TAG=$(npm version ${{ steps.release-type.outputs.type }} --no-git-tag-version)
-          echo "tag=${NEW_TAG}" >> "$GITHUB_OUTPUT"
-          echo "version=${NEW_TAG#v}" >> "$GITHUB_OUTPUT"
+            const getReference = async () => {
+              try {
+                return (await github.rest.git.getRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `tags/${tag}`,
+                })).data;
+              } catch (error) {
+                if (error.status === 404) return null;
+                throw error;
+              }
+            };
+            const resolveCommit = async (object) => {
+              for (let depth = 0; depth < 5; depth += 1) {
+                if (!/^[0-9a-f]{40}$/.test(object.sha ?? '')) throw new Error('Release tag object SHA is invalid.');
+                if (object.type === 'commit') return object.sha;
+                if (object.type !== 'tag') throw new Error(`Release tag points to unsupported object type: ${object.type}`);
+                object = (await github.rest.git.getTag({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  tag_sha: object.sha,
+                })).data.object;
+              }
+              throw new Error('Release tag indirection is too deep.');
+            };
 
-      - name: Commit, tag and push
-        run: |
-          git add package.json
-          git commit -m "chore: release ${{ steps.bump.outputs.tag }}"
-          git tag ${{ steps.bump.outputs.tag }}
-          git push origin main --follow-tags
+            let reference = await getReference();
+            if (!reference) {
+              try {
+                await github.rest.git.createRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `refs/tags/${tag}`,
+                  sha: expectedSha,
+                });
+                core.info(`${tag} created at the expected release commit.`);
+                return;
+              } catch (error) {
+                if (error.status !== 422) throw error;
+                reference = await getReference();
+              }
+            }
+
+            if (!reference || (await resolveCommit(reference.object)) !== expectedSha) {
+              core.setFailed(`${tag} already points to a different commit.`);
+              return;
+            }
+            core.info(`${tag} already points to the expected release commit.`);
 
       - name: Deploy Convex
         run: npx convex deploy
@@ -96,14 +202,16 @@ jobs:
         run: |
           npx wrangler pages deploy dist \
             --project-name shiftori \
-            --branch main
+            --branch main \
+            --commit-hash "${{ steps.release-content.outputs.merge_sha }}"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          tag_name: ${{ steps.bump.outputs.tag }}
-          name: ${{ steps.bump.outputs.tag }}
+          tag_name: ${{ steps.release.outputs.tag }}
+          name: ${{ steps.release.outputs.tag }}
+          target_commitish: ${{ steps.release-content.outputs.merge_sha }}
           generate_release_notes: true

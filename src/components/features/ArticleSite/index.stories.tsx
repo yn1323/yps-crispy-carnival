@@ -20,7 +20,7 @@ const meta = {
             padding-top: 0 !important;
           }
 
-          html[data-vrt="true"] aside[aria-label="この記事の目次"] {
+          html[data-vrt="true"] nav[aria-label="この記事の目次"] {
             position: static !important;
             top: auto !important;
           }

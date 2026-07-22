@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalQuery } from "../_generated/server";
+import { isShopParentActive } from "../_lib/activeShop";
 import { managerQuery } from "../_lib/functions";
 import { findStaffLineAccountByLineUserId, getStaffLineAccount } from "./service";
 
@@ -8,6 +9,18 @@ import { findStaffLineAccountByLineUserId, getStaffLineAccount } from "./service
  */
 export const getLinkStatusByShop = managerQuery({
   args: {},
+  returns: v.union(
+    v.array(
+      v.object({
+        staffId: v.id("staffs"),
+        name: v.string(),
+        email: v.string(),
+        isLinked: v.boolean(),
+        isFollowing: v.boolean(),
+      }),
+    ),
+    v.null(),
+  ),
   handler: async (ctx) => {
     const shop = ctx.shop;
     if (!shop) return null;
@@ -36,6 +49,17 @@ export const getLinkStatusByShop = managerQuery({
  */
 export const getQuotaStatus = managerQuery({
   args: {},
+  returns: v.union(
+    v.object({
+      status: v.union(v.literal("normal"), v.literal("exceeded")),
+      remaining: v.number(),
+      totalQuota: v.number(),
+      consumed: v.number(),
+      checkedAt: v.number(),
+      plan: v.union(v.literal("communication"), v.literal("light"), v.literal("standard")),
+    }),
+    v.null(),
+  ),
   handler: async (ctx) => {
     if (!ctx.shop) return null;
     const status = await ctx.db.query("lineQuotaStatus").order("desc").first();
@@ -60,6 +84,8 @@ export const findStaffByLineUserId = internalQuery({
     const account = await findStaffLineAccountByLineUserId(ctx, lineUserId);
     const staff = account ? await ctx.db.get(account.staffId) : null;
     if (!staff || staff.isDeleted) return null;
+    const shop = await ctx.db.get(staff.shopId);
+    if (!shop || !(await isShopParentActive(ctx, shop))) return null;
     return { _id: staff._id, shopId: staff.shopId, name: staff.name };
   },
 });
@@ -85,7 +111,7 @@ export const getInviteEmailData = internalQuery({
     const staff = await ctx.db.get(staffId);
     if (!staff || staff.isDeleted || !staff.email) return null;
     const shop = await ctx.db.get(staff.shopId);
-    if (!shop || shop.isDeleted) return null;
+    if (!shop || !(await isShopParentActive(ctx, shop))) return null;
     return {
       staffId: staff._id,
       shopId: staff.shopId,

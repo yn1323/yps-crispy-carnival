@@ -1,38 +1,52 @@
-# 課金プラン管理
+# 店舗単位課金プランの旧検討
 
-店舗単位で課金プラン状態を管理し、有料ユーザー向け機能を安全に出し分けるための土台。現時点ではStripe連携、料金ページ、ユーザー向けのプラン表示、スタッフ数上限の強制は未実装。
+この文書名は既存リンクを維持するために残している。
+現在の課金契約はグループ単位であり、実装と業務判断は[グループ課金、複数店舗、複数管理者](organization-billing.md)と[業務フロー](../specs/organization-billing-business-flow.md)を参照する。
 
-## 関連ファイル
+## 現行仕様との違い
 
-- `convex/schema.ts` — `shopBillingStates` と `by_shopId` index
-- `convex/billing/service.ts` — プラン定義、entitlements計算、有料機能guard
-- `convex/setup/mutations.ts` — 新規店舗作成時の `free` 課金状態作成
-- `convex/migrations/m005_shop_billing_states_backfill_free.ts` — 既存店舗への `free` 課金状態バックフィル
-- `convex/migrations/index.ts` — migration runner登録
+- `shopBillingStates`の`free`、`standard`、`premium`は、分析と旧読み取りの互換性を保つために残した旧モデルである。
+- 新しい課金状態の正本は`organizationBillingStates`であり、Free、Trial、Pro、Business、支払い不要Businessとライフサイクル状態を一つのstate unionで表す。
+- プラン上限と操作可否は`convex/organizationBilling/policy.ts`から導出する。
+- 支払い確認中、支払い猶予、期間末変更予定、契約制限中はプランではなくライフサイクル状態である。
+- ProとBusinessはそれぞれ正規の有料プランとして扱う。
+- `m018`のBusiness→Pro helperは履歴再実行用に意味を凍結し、通常runtimeではBusiness対応resolverを使う。
 
-## プラン
+## 現行の表示区分と上限
 
-| planKey | 表示名 | 有料機能 | スタッフ上限 |
-|---|---|---|---:|
-| `free` | フリー | 利用不可 | 10 |
-| `standard` | スタンダード | 利用可 | 20 |
-| `premium` | プレミアム | 利用可 | 30 |
+| 表示区分 | 保存状態 | 利用人数 | 稼働店舗 | 有効管理者 | Stripe連携 |
+| --- | --- | ---: | ---: | ---: | --- |
+| Free | `active.free` | 5 | 1 | 1 | なし |
+| Trial | `trial` | 20 | 5 | 5 | 継続登録時に連携（請求はTrial終了後） |
+| Pro | `active.pro` | 20 | 5 | 5 | あり |
+| Business | `active.business` | 40 | 5 | 5 | あり |
+| 支払い不要Business | `complimentary.business` | 40 | 5 | 5 | なし |
 
-スタッフ上限は料金設計のメタデータとして定義しているが、課金機能公開前のためまだ強制しない。既存店舗はスタッフ数に関係なくそのまま利用できる。
+Trialはグループを作成した月と、その翌月の末日まで利用できる。
 
-## 判定方針
+支払い不要Businessは、Stripe Customer、Subscription、Checkout Session、Portal Session、請求、課金通知を一切持たない。
 
-有料機能をConvex側で実装するときは、画面やmutation内で `planKey` を直接判定しない。必ず `convex/billing/service.ts` の `requirePaidFeature(ctx, shopId)` または `getShopEntitlements(ctx, shopId)` を使う。
+支払い不要Businessは、公開API、管理用処理、Stripeイベント、再同期処理から別の課金状態へ変更しない。
+移行中に残る`complimentary.pro`もBusiness権限として扱い、m021で課金証跡のない対象だけを`complimentary.business`へ変換する。
 
-`shopBillingStates` が存在しない店舗は互換性のため `free` として扱う。migration完了後は原則として1店舗につき1行を持つ。
+## Stripe公開状態
 
-## 今回やらないこと
+Localと開発用Convex deploymentは、それぞれ専用のStripe Sandboxへ`sk_test_`で始まるSecret keyを使って接続する。
+接続環境は`STRIPE_SECRET_KEY`の接頭辞から自動判定し、ProとBusinessの月額Priceを含むStripeオブジェクトの`livemode`と一致しない場合は課金操作を拒否する。
 
-- Stripe Checkout / Customer Portal
-- Stripe Webhook同期
-- `shopSubscriptions` / `stripeWebhookEvents`
-- 手動override専用テーブル
-- Dashboardや店舗設定でのプラン表示
-- スタッフ追加・参加申請承認時の人数上限チェック
+本番deploymentは本番Stripeアカウントへ`sk_live_`で始まるSecret keyを使って接続する。
+税、日割り、返金、クレジット、未払い請求の最終処理と本番用Stripe設定を確認するまでは対象Priceをアーカイブし、新規販売を停止する。
+販売停止前に発行したopen状態のCheckout Sessionは別途失効させるが、既存契約のWebhook受信、再照合、取消、請求停止は継続する。
 
-Stripe連携時は、Stripe上の契約状態とシフトリ上の利用権限を分ける。画面・APIは契約状態ではなく `getShopEntitlements` の結果を使う。
+## 参考ファイル
+
+- `doc/features/organization-billing.md`
+- `doc/specs/organization-billing-business-flow.md`
+- `doc/plans/2026-07-20_Stripe課金連携_実装計画.md`
+- `convex/organizationBilling/policy.ts`
+- `convex/organizationStripe/`
+- `convex/organization/validators.ts`
+- `convex/migrations/m018_organization_billing_business_to_pro.ts`
+- `convex/migrations/m021_organization_billing_complimentary_pro_to_business.ts`
+- `scripts/verifyComplimentaryBusinessM021Export.ts`
+- `convex/schema.ts`

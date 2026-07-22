@@ -1,22 +1,15 @@
-import { Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
+import { Box, Heading, HStack, Stack } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { LuCircleCheck } from "react-icons/lu";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
-import { Button } from "@/src/components/ui/Button";
 import { ActionTaskList } from "./ActionTaskList";
 import { pickNextAction } from "./pickNextAction";
 
 export { HeroSummarySkeleton } from "./HeroSummarySkeleton";
 export { WelcomeHero } from "./WelcomeHero";
 
-type Shop = {
-  name: string;
-};
-
 type Props = {
-  shop: Shop;
   recruitments: Recruitment[];
-  onEditClick: () => void;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onCreateRecruitment: () => void;
   announcementBanner?: ReactNode;
@@ -30,9 +23,7 @@ type Props = {
 };
 
 export const HeroSummary = ({
-  shop,
   recruitments,
-  onEditClick,
   onOpenShiftBoard,
   onCreateRecruitment,
   announcementBanner,
@@ -43,36 +34,10 @@ export const HeroSummary = ({
 }: Props) => {
   const action = pickNextAction(recruitments);
 
+  if (!announcementBanner && hideActionSection) return null;
+
   return (
     <Stack gap={{ base: 5, lg: 6 }}>
-      <Stack gap={3} pb={{ base: 4, lg: 6 }} borderBottomWidth="1px" borderColor="gray.200">
-        <Text display={{ base: "none", md: "block" }} fontSize="sm" fontWeight="semibold" color="fg.muted">
-          店舗
-        </Text>
-
-        <Flex align="center" justify="space-between" direction="row" gap={4} minW={0}>
-          <HStack gap={4} align="center" flex={1} minW={0}>
-            <Heading as="h1" textStyle={{ base: "sectionTitle", md: "pageTitle" }} color="gray.900" truncate minW={0}>
-              {shop.name}
-            </Heading>
-          </HStack>
-
-          <Button
-            aria-label="店舗設定を編集"
-            variant="ghost"
-            size="sm"
-            colorPalette="teal"
-            px={{ base: 0, md: 2 }}
-            minW="auto"
-            fontWeight="semibold"
-            flexShrink={0}
-            onClick={onEditClick}
-          >
-            編集
-          </Button>
-        </Flex>
-      </Stack>
-
       {announcementBanner}
 
       {!hideActionSection && (
@@ -82,7 +47,7 @@ export const HeroSummary = ({
               <LuCircleCheck />
             </Box>
             <Heading as="h2" textStyle="sectionTitle" color="gray.900">
-              TODO
+              今やること
             </Heading>
           </HStack>
 

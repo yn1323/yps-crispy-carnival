@@ -175,6 +175,66 @@ describe("shiftSubmission/queries", () => {
       ).toBeNull();
     });
 
+    it("未リンクの移行中staffはplanSuspendedかつ契約制限中でも既存データを閲覧できる", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, sessionToken, recruitmentId } = await setupSubmissionPageData(t);
+      await t.run(async (ctx) => {
+        const now = Date.now();
+        const organizationId = await ctx.db.insert("organizations", {
+          name: "移行中閲覧テスト事業者",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        });
+        await ctx.db.patch(shopId, { organizationId, operatingStatus: "planSuspended" });
+        await ctx.db.insert("organizationBillingStates", {
+          organizationId,
+          state: {
+            kind: "restricted",
+            reason: "paymentGraceExpired",
+            previousPlan: "pro",
+            recoveryManagerPersonIds: [],
+            previousActiveShopIds: [shopId],
+            restrictedAt: now,
+          },
+          version: 1,
+          createdAt: now,
+          updatedAt: now,
+        });
+      });
+
+      const result = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
+        sessionToken,
+        accessKind: "submit",
+        recruitmentId,
+      });
+
+      expect(result.status).toBe("ok");
+    });
+
+    it("未リンクの移行中staffでも削除済み事業者のsessionは無効として扱う", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, sessionToken, recruitmentId } = await setupSubmissionPageData(t);
+      await t.run(async (ctx) => {
+        const now = Date.now();
+        const organizationId = await ctx.db.insert("organizations", {
+          name: "削除済み移行テスト事業者",
+          isDeleted: true,
+          createdAt: now,
+          updatedAt: now,
+        });
+        await ctx.db.patch(shopId, { organizationId, operatingStatus: "active" });
+      });
+
+      const result = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
+        sessionToken,
+        accessKind: "submit",
+        recruitmentId,
+      });
+
+      expect(result).toEqual({ status: "unavailable", reason: "invalid_link" });
+    });
+
     it("直近のシフトあり週を previousWeeklyPattern として返す", async () => {
       const t = convexTest(schema, modules);
       const { shopId, staffId, sessionToken, recruitmentId } = await setupSubmissionPageData(t);

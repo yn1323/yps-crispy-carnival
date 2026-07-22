@@ -1,3 +1,13 @@
+export const RESEND_PROVIDER_EVENT_TYPES = [
+  "email.delivered",
+  "email.delivery_delayed",
+  "email.failed",
+  "email.bounced",
+  "email.suppressed",
+] as const;
+
+export type ResendProviderEventType = (typeof RESEND_PROVIDER_EVENT_TYPES)[number];
+
 export const RESEND_PROVIDER_ISSUE_EVENT_TYPES = [
   "email.delivery_delayed",
   "email.failed",
@@ -20,6 +30,10 @@ export const RESEND_PROVIDER_DELIVERY_STATUS_BY_EVENT = {
 
 export function isResendProviderIssueEventType(value: string): value is ResendProviderIssueEventType {
   return RESEND_PROVIDER_ISSUE_EVENT_TYPES.includes(value as ResendProviderIssueEventType);
+}
+
+export function isResendProviderEventType(value: string): value is ResendProviderEventType {
+  return RESEND_PROVIDER_EVENT_TYPES.includes(value as ResendProviderEventType);
 }
 
 export function resendProviderDeliveryStatus(eventType: ResendProviderIssueEventType): ResendProviderDeliveryStatus {

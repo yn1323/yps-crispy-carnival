@@ -209,7 +209,12 @@ probeはPII、本文、raw token、provider error全文を返さない。画面�
 ## 10. Deployed Smokeと外部challenge
 
 - ローカルE2Eとデプロイ済みURLのSmokeを分ける。
+- same-repositoryのdevelop向けopen PRでは、exact PR headをCloudflareの`pr-{N}` branchへデプロイし、TOP、機能、FAQ、使い方、お問い合わせの公開5routeを`@deployed` Smokeする。
+- PR Preview Smoke自体は認証情報とstorageStateを使用しない。credential付きdeploy workflowはsame-repository PRだけを対象にし、fork PRへEnvironment Secretsを渡さない。
 - Deployed Smokeは公開主要route、固有ランドマーク、主要CTA、HTTP成功を軽量に確認する。
+- E2EとVRTは別の固定markerコメントで扱う。E2Eコメントには実行結果、Actions、PR Preview、`yps-crispy-carnival-e2e/pr-{N}`のhosting-pages予定URLを常に表示し、公開確認後だけcache-busting queryを付ける。
+- hosting-pagesへ直接公開するのは固定schemaから生成して機密情報不在を検査したsanitized summaryだけとし、raw Playwright report、trace、動画、screenshot、console/error詳細、認証情報、storageStateは公開しない。
+- direct PR workflowではsame-repositoryへpushできるactorを信頼境界内とする。`GITHUB_TOKEN`のwrite権限はコメントjobだけに限定し、credentialは必要なstepだけで参照する。
 - production Turnstileなど外部challengeを自動化するために、アプリ側の検証やセキュリティを弱めない。
 - challengeを安定して自動化できない問い合わせ等は、route / CTA Smokeと内部受付contractを自動化し、実送信を手動provider canaryへ明示的に残す。
 
@@ -219,9 +224,12 @@ probeはPII、本文、raw token、provider error全文を返さない。画面�
 
 - ブラウザはChrome系だけを使う。
 - Desktop Chromeと代表Mobile Chromeを分ける。
-- develop向けPRのPreviewでFull Regressionを実行する。
+- same-repositoryのdevelop向けexact PR headのPreviewでFull Regressionを実行し、結果をopen PRへ返す。
+- Full Regression用Convex PreviewではE2E helperを明示的に有効化し、通知をdry-runへ固定して事前確認する。
+- open PRでは認証付きFull Regressionと、Cloudflare PR Previewの公開5route Smokeを別workflowで実行する。
 - developからmainへのPRと`release.yml`ではE2Eを実行しない。
-- Previewは自動失効に任せ、cleanup workflowを追加しない。
+- fork PRではcredential付きFull RegressionとPreview deployを実行しない。
+- PR close時にCloudflare PreviewとPR用Convex Previewをcleanupし、cleanup失敗時は自動失効で回収する。
 
 結果ゲートは少なくとも次を失敗にする。
 
@@ -262,5 +270,7 @@ probeはPII、本文、raw token、provider error全文を返さない。画面�
 - [ ] 締切、日付、タイムゾーン境界を下位層へ配置し、必要な代表E2Eだけを選んだ。
 - [ ] 境界値と容量をE2Eへ寄せすぎていない。
 - [ ] Desktop / Mobile / a11y / deployed Smoke / canaryの担当を決めた。
+- [ ] open PRのDeployed SmokeへEnvironment、Secrets、認証、storageState、PR head codeを渡していない。
+- [ ] hosting-pagesへsanitized summaryだけを公開し、raw report、trace、error詳細を公開していない。
 - [ ] test名の最終動詞までassertした。
 - [ ] 件数・ファイル名ではなく契約内容で網羅性を説明できる。

@@ -21,6 +21,11 @@ export const getReminderTargetRef = makeFunctionReference<
   ShopActivationReminderTarget | null
 >;
 
-export const sendReminderRef = makeFunctionReference<"action", { shopId: Id<"shops"> }, void>(
+type ShopActivationReminderArgs = {
+  shopId: Id<"shops">;
+  organizationBillingVersionAtOrigin?: number;
+};
+
+export const sendReminderRef = makeFunctionReference<"action", ShopActivationReminderArgs, void>(
   "shopActivationReminder/actions:sendReminder",
-) as unknown as FunctionReference<"action", "internal", { shopId: Id<"shops"> }, void>;
+) as unknown as FunctionReference<"action", "internal", ShopActivationReminderArgs, void>;

@@ -13,7 +13,6 @@ import { StaffViewPage } from "../pages/StaffViewPage";
 
 const MANAGER = {
   name: "田中太郎",
-  email: "tanaka@example.com",
 };
 
 type ConfirmationScenarioSeed = {
@@ -24,7 +23,7 @@ type ConfirmationScenarioSeed = {
 test.describe("通知URL起点の確定シフト閲覧", { tag: ["@release", "@notification"] }, () => {
   test.setTimeout(75_000);
 
-  test("確定URLで閲覧し、使用済みURLから再発行した新URLでも閲覧できる", async ({ browser, page }) => {
+  test("確定URLで閲覧し、使用済みURLから再発行した新URLでも閲覧できる", async ({ browser, page, e2eClerkUser }) => {
     const dates = getNextWeekDates();
     const seed = seedManagerScenario<ConfirmationScenarioSeed>("testing:seedNotificationConfirmationViewScenario", {
       dates,
@@ -42,7 +41,7 @@ test.describe("通知URL起点の確定シフト閲覧", { tag: ["@release", "@n
       const probe = await waitForNotificationOutbox({
         shopId: seed.shopId,
         recruitmentId: seed.recruitmentId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         notificationContext: "notification.sendConfirmationEmail",
         channel: "email",
       });
@@ -59,7 +58,7 @@ test.describe("通知URL起点の確定シフト閲覧", { tag: ["@release", "@n
       return await waitForMagicLinkToken({
         recruitmentId: seed.recruitmentId,
         shopId: seed.shopId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         purpose: "view",
       });
     });
@@ -81,11 +80,11 @@ test.describe("通知URL起点の確定シフト閲覧", { tag: ["@release", "@n
       try {
         await isolatedView.goto(viewToken.token);
         await isolatedView.expectExpiredVisible();
-        await isolatedView.requestReissue(MANAGER.email);
+        await isolatedView.requestReissue(e2eClerkUser);
 
         const reissueProbe = await waitForNotificationOutbox({
           shopId: seed.shopId,
-          staffEmail: MANAGER.email,
+          staffEmail: e2eClerkUser,
           notificationContext: "notification.sendReissueEmail",
           channel: "email",
         });
@@ -101,7 +100,7 @@ test.describe("通知URL起点の確定シフト閲覧", { tag: ["@release", "@n
         const reissuedToken = await waitForFreshMagicLinkToken({
           recruitmentId: seed.recruitmentId,
           shopId: seed.shopId,
-          staffEmail: MANAGER.email,
+          staffEmail: e2eClerkUser,
           purpose: "view",
           previousToken: viewToken.token,
         });
@@ -115,7 +114,7 @@ test.describe("通知URL起点の確定シフト閲覧", { tag: ["@release", "@n
     });
   });
 
-  test("LINE連携済みスタッフへ確定通知と閲覧link再発行を受け付ける", async ({ browser, page }) => {
+  test("LINE連携済みスタッフへ確定通知と閲覧link再発行を受け付ける", async ({ browser, page, e2eClerkUser }) => {
     const dates = getNextWeekDates();
     const seed = seedManagerScenario<ConfirmationScenarioSeed>("testing:seedNotificationConfirmationViewScenario", {
       dates,
@@ -133,7 +132,7 @@ test.describe("通知URL起点の確定シフト閲覧", { tag: ["@release", "@n
     const confirmationProbe = await waitForNotificationOutbox({
       shopId: seed.shopId,
       recruitmentId: seed.recruitmentId,
-      staffEmail: MANAGER.email,
+      staffEmail: e2eClerkUser,
       notificationContext: "notification.sendConfirmationEmail",
       channel: "line",
     });
@@ -148,7 +147,7 @@ test.describe("通知URL起点の確定シフト閲覧", { tag: ["@release", "@n
     await assertNoNotificationOutbox({
       shopId: seed.shopId,
       recruitmentId: seed.recruitmentId,
-      staffEmail: MANAGER.email,
+      staffEmail: e2eClerkUser,
       notificationContext: "notification.sendConfirmationEmail",
       channel: "email",
     });
@@ -159,13 +158,17 @@ test.describe("通知URL起点の確定シフト閲覧", { tag: ["@release", "@n
       { startTime: "11:00", endTime: "18:00" },
     );
     await shiftBoard.notifyChangedStaff();
-    const changedProbe = await waitForNotificationOutbox({
-      shopId: seed.shopId,
-      recruitmentId: seed.recruitmentId,
-      staffEmail: MANAGER.email,
-      notificationContext: "notification.sendConfirmationEmail",
-      channel: "line",
-    });
+    const changedProbe = await waitForNotificationOutbox(
+      {
+        shopId: seed.shopId,
+        recruitmentId: seed.recruitmentId,
+        staffEmail: e2eClerkUser,
+        notificationContext: "notification.sendConfirmationEmail",
+        channel: "line",
+      },
+      { expectedOutboxCount: 2 },
+    );
+    expect(changedProbe.outbox.map((job) => job.isResend)).toEqual([true, false]);
     expect(changedProbe.outbox[0]).toMatchObject({
       channel: "line",
       isResend: true,
@@ -177,7 +180,7 @@ test.describe("通知URL起点の確定シフト閲覧", { tag: ["@release", "@n
     await assertNoNotificationOutbox({
       shopId: seed.shopId,
       recruitmentId: seed.recruitmentId,
-      staffEmail: MANAGER.email,
+      staffEmail: e2eClerkUser,
       notificationContext: "notification.sendConfirmationEmail",
       channel: "email",
     });
@@ -185,7 +188,7 @@ test.describe("通知URL起点の確定シフト閲覧", { tag: ["@release", "@n
     const firstToken = await waitForMagicLinkToken({
       recruitmentId: seed.recruitmentId,
       shopId: seed.shopId,
-      staffEmail: MANAGER.email,
+      staffEmail: e2eClerkUser,
       purpose: "view",
     });
     await staffView.goto(firstToken.token);
@@ -197,11 +200,11 @@ test.describe("通知URL起点の確定シフト閲覧", { tag: ["@release", "@n
     try {
       await isolatedView.goto(firstToken.token);
       await isolatedView.expectExpiredVisible();
-      await isolatedView.requestReissue(MANAGER.email);
+      await isolatedView.requestReissue(e2eClerkUser);
 
       const reissueProbe = await waitForNotificationOutbox({
         shopId: seed.shopId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         notificationContext: "notification.sendReissueEmail",
         channel: "line",
       });
@@ -214,14 +217,14 @@ test.describe("通知URL起点の確定シフト閲覧", { tag: ["@release", "@n
       expect(reissueProbe.failureInbox).toHaveLength(0);
       await assertNoNotificationOutbox({
         shopId: seed.shopId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         notificationContext: "notification.sendReissueEmail",
         channel: "email",
       });
       const reissuedToken = await waitForFreshMagicLinkToken({
         recruitmentId: seed.recruitmentId,
         shopId: seed.shopId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         purpose: "view",
         previousToken: firstToken.token,
       });

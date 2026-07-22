@@ -1,17 +1,15 @@
-import { createFaqPageJsonLd } from "@/src/components/features/LandingPage/faqs";
-import { buildLinks, buildMeta, jsonLdMeta } from "@/src/lib/seo";
+import { buildLinks, buildMeta } from "@/src/lib/seo";
 
 export function buildFaqPageHead() {
   return {
     links: buildLinks({ canonical: "/faq" }),
     meta: [
       ...buildMeta({
-        title: "よくある質問｜シフトリの使い方と導入前の確認",
+        title: "よくある質問｜シフトリの使い方・料金・トラブル解決",
         description:
-          "シフトリの導入前によくある質問をまとめました。LINEでのシフト提出、無料利用、スタッフのアプリ登録、メール通知、スマホ利用、自動リマインドについて確認できます。",
+          "シフトリの導入、スタッフ登録、シフト募集・作成、LINE・メール通知、料金、よくあるトラブルへの対処をカテゴリ別に確認できます。",
         canonical: "/faq",
       }),
-      ...jsonLdMeta(createFaqPageJsonLd()),
     ],
   };
 }

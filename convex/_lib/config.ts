@@ -24,6 +24,27 @@ export function getContactAllowedOrigins(): string[] {
     .filter(Boolean);
 }
 
+export function getStaffRegistrationAllowedOrigins(): string[] {
+  return (process.env.STAFF_REGISTRATION_ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
+export function getStaffRegistrationTrustedIpHeader(): "cf-connecting-ip" | null {
+  return process.env.STAFF_REGISTRATION_TRUSTED_IP_HEADER?.trim().toLowerCase() === "cf-connecting-ip"
+    ? "cf-connecting-ip"
+    : null;
+}
+
 export function isDebugNotifyFailEnabled(): boolean {
   return (process.env.DEBUG_NOTIFY_FAIL ?? "").trim().length > 0;
+}
+
+export function getOrganizationInvitationSigningSecret(): string {
+  const secret = (process.env.ORGANIZATION_INVITATION_SIGNING_SECRET ?? "").trim();
+  if (secret.length < 32) {
+    throw new Error("ORGANIZATION_INVITATION_SIGNING_SECRET is not configured");
+  }
+  return secret;
 }

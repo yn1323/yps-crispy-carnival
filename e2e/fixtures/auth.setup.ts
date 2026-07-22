@@ -7,7 +7,9 @@ import { forceResetManagerScenarioData } from "../helpers/scenarioSeeds";
 
 const E2E_CLERK_USERS = getE2EClerkUsers();
 
-setup.describe.configure({ mode: "parallel" });
+// 前回のmulti-actor runが途中終了した場合、A/Bが同じグループを参照している可能性がある。
+// user単位のforce resetを直列化し、同じgraphを並行削除しない。
+setup.describe.configure({ mode: "serial" });
 
 for (const user of E2E_CLERK_USERS) {
   setup(`prepare Clerk testing token and sign in: user-${user.index + 1}`, async ({ page }) => {

@@ -40,6 +40,35 @@ describe("legal/queries", () => {
       });
     });
 
+    it("同一tokenが異なるスタッフに重複している場合は対象情報を返さない", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        for (const index of [1, 2]) {
+          const shopId = await seedShop(ctx, `重複同意token対象店舗${index}`);
+          const staffId = await ctx.db.insert("staffs", {
+            shopId,
+            name: `重複同意token対象スタッフ${index}`,
+            email: `duplicate-consent-${index}@example.com`,
+            isDeleted: false,
+          });
+          await ctx.db.insert("legalConsentTokens", {
+            staffId,
+            shopId,
+            token: "duplicate-page-consent-token",
+            method: "staff_email_link",
+            expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+          });
+        }
+      });
+
+      await expect(
+        t.query(api.legal.queries.getStaffConsentPageData, { token: "duplicate-page-consent-token" }),
+      ).resolves.toEqual({
+        status: "expired",
+        documents: getLegalDocumentsForAudience("staff"),
+      });
+    });
+
     it("失効・期限切れ・使用済みtokenは店舗情報を返さない", async () => {
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {

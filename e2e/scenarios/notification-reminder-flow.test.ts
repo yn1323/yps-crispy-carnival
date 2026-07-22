@@ -16,7 +16,6 @@ const REMINDED_STAFF = {
   name: "佐藤花子",
   email: "sato@example.com",
 };
-const MANAGER_EMAIL = "tanaka@example.com";
 
 type ReminderScenarioSeed = {
   shopId: string;
@@ -129,7 +128,7 @@ test.describe("通知URL起点のシフト提出催促", { tag: ["@release", "@n
     expect(token.token).toMatch(/^[0-9a-f-]{36}$/);
   });
 
-  test("LINE連携済み管理者本人が未提出なら自動催促の対象になる", async () => {
+  test("LINE連携済み管理者本人が未提出なら自動催促の対象になる", async ({ e2eClerkUser }) => {
     const dates = getNextWeekDates();
     const seed = seedManagerScenario<ReminderScenarioSeed>("testing:seedNotificationReminderScenario", {
       dates,
@@ -146,7 +145,7 @@ test.describe("通知URL起点のシフト提出催促", { tag: ["@release", "@n
     const probe = await waitForNotificationOutbox({
       shopId: seed.shopId,
       recruitmentId: seed.recruitmentId,
-      staffEmail: MANAGER_EMAIL,
+      staffEmail: e2eClerkUser,
       notificationContext: "notification.sendReminderEmails",
       channel: "line",
     });
@@ -159,7 +158,7 @@ test.describe("通知URL起点のシフト提出催促", { tag: ["@release", "@n
     await assertNoNotificationOutbox({
       shopId: seed.shopId,
       recruitmentId: seed.recruitmentId,
-      staffEmail: MANAGER_EMAIL,
+      staffEmail: e2eClerkUser,
       notificationContext: "notification.sendReminderEmails",
       channel: "email",
     });

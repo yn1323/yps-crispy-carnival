@@ -4,6 +4,9 @@ import { AuthPage } from "../pages/AuthPage";
 import { DashboardPage } from "../pages/DashboardPage";
 import { ManagerSupportPage } from "../pages/ManagerSupportPage";
 
+// ログアウト後の認証復元でpasswordを入力するため、平文のfill引数をtraceへ保存しない。
+test.use({ trace: "off" });
+
 test.describe("リリース前の認証・オンボーディング回帰", { tag: ["@release"] }, () => {
   test.setTimeout(45_000);
 
@@ -58,7 +61,7 @@ test.describe("リリース前の認証・オンボーディング回帰", { tag
 
     await test.step("Step 3: reloadしても完了状態が維持される", async () => {
       await page.reload();
-      await expect(page.getByRole("button", { name: "店舗設定を編集" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "店舗詳細を開く" })).toBeVisible();
       await support.expectOnboardingHidden();
     });
   });

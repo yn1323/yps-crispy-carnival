@@ -1,0 +1,128 @@
+name: Security Scans
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+  schedule:
+    - cron: "17 20 * * 0"
+      timezone: Asia/Tokyo
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  secret-history:
+    name: Git history secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Scan reachable Git history for credentials
+        uses: trufflesecurity/trufflehog@17456f8c7d042d8c82c9a8ca9e937231f9f42e26 # v3.95.2
+        with:
+          base: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
+          head: ${{ github.event.pull_request.head.sha || github.sha }}
+          version: 3.95.2
+          extra_args: --results=verified,unknown --fail-on-scan-errors
+
+  public-artifact:
+    name: Public artifact privacy scan
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    env:
+      VITE_CLERK_PUBLISHABLE_KEY: pk_test_security_scan
+      VITE_CONVEX_URL: https://security-scan.convex.cloud
+      VITE_GTM_ID: ""
+      VITE_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Setup without credentials
+        uses: ./.github/actions/setup
+      - name: Build public artifact
+        run: pnpm build
+      - name: Scan public and dist
+        run: node scripts/assertNoSensitiveArtifacts.mjs --root public --root dist
+
+  dependency-review:
+    name: Dependency change review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Reject newly introduced High or Critical vulnerabilities
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          license-check: false
+          retry-on-snapshot-warnings: true
+
+  dependency-audit:
+    name: Full dependency audit
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Reject High or Critical dependency vulnerabilities
+        run: pnpm audit --audit-level high
+
+  workflow-sast:
+    name: GitHub Actions security analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Scan workflows without Advanced Security write permission
+        uses: zizmorcore/zizmor-action@6599ee8b7a49aef6a770f63d261d214911a7ce02 # v0.6.0
+        with:
+          advanced-security: false
+          annotations: true
+          min-confidence: high
+          min-severity: high
+          persona: regular
+          version: 1.27.0
+
+  codeql-sast:
+    name: CodeQL JavaScript and TypeScript
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@7188fc363630916deb702c7fdcf4e481b751f97a
+        with:
+          build-mode: none
+          languages: javascript-typescript
+          queries: security-extended
+      - name: Analyze source
+        uses: github/codeql-action/analyze@7188fc363630916deb702c7fdcf4e481b751f97a
+        with:
+          category: /language:javascript-typescript

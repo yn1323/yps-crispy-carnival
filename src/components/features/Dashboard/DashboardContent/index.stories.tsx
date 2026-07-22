@@ -1,8 +1,10 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { type ComponentProps, useState } from "react";
+import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
+import { Button } from "@/src/components/ui/Button";
 import type { DashboardNotificationFailure } from "../NotificationFailureDialog";
+import type { OperationContextData } from "../OperationContext";
 import { buildDashboardRecruitmentGroups } from "../script";
 import { mockCurrentRecruitments, mockRecruitments, mockStaffs } from "../stories/fixtures";
 import type { DashboardAnnouncement, Recruitment, Staff, StaffRegistrationRequest } from "../types";
@@ -15,6 +17,34 @@ const shop = {
   regularClosedDays: [],
   submissionPattern: { kind: "time" as const, startTime: "14:00", endTime: "25:00" },
 };
+const operationShop = {
+  shopId: "shop-1",
+  shopName: shop.name,
+  shopStatus: "active" as const,
+  organizationId: "organization-1",
+  organizationName: "たなかグループ",
+  organizationPlan: "pro" as const,
+  memberStatus: "active" as const,
+};
+const operationContextData = {
+  shops: [
+    operationShop,
+    {
+      ...operationShop,
+      shopId: "shop-2",
+      shopName: "カフェたなか",
+    },
+    {
+      ...operationShop,
+      shopId: "shop-3",
+      shopName: "ビストロ佐藤",
+      organizationId: "organization-2",
+      organizationName: "佐藤フードグループ",
+    },
+  ],
+  selectedShop: operationShop,
+  onSelect: noop,
+} satisfies OperationContextData;
 const managerLegalConsentReady = {
   required: false,
   documents: {
@@ -26,6 +56,7 @@ const managerLegalConsentReady = {
 const managerOnly = [
   {
     _id: "staff-manager",
+    organizationPersonId: "person-manager",
     name: "田中太郎",
     email: "tanaka@example.com",
     isManager: true,
@@ -38,6 +69,7 @@ const managerAndStaff = [
   ...managerOnly,
   {
     _id: "staff-2",
+    organizationPersonId: "person-2",
     name: "佐藤花子",
     email: "sato@example.com",
     isManager: false,
@@ -109,6 +141,7 @@ const onboardingRecruitment = (overrides: Partial<Recruitment> = {}) =>
 
 const dashboardBaseArgs = {
   shop,
+  operationContextData,
   managerLegalConsentStatus: managerLegalConsentReady,
   recruitmentStatus: "Exhausted",
   hasPastRecruitments: false,
@@ -123,6 +156,7 @@ const dashboardBaseArgs = {
 } satisfies Pick<
   ComponentProps<typeof DashboardContent>,
   | "shop"
+  | "operationContextData"
   | "managerLegalConsentStatus"
   | "recruitmentStatus"
   | "hasPastRecruitments"
@@ -150,6 +184,7 @@ type Story = StoryObj<typeof meta>;
 export const Normal: Story = {
   args: {
     shop,
+    operationContextData,
     managerLegalConsentStatus: managerLegalConsentReady,
     recruitments: dashboardRecruitments,
     recruitmentGroups: dashboardRecruitmentGroups,
@@ -168,19 +203,101 @@ export const Normal: Story = {
   },
 };
 
-export const ManagementDialogsBehavior: Story = {
+export const ReadOnlyShop: Story = {
+  args: {
+    ...Normal.args,
+    isReadOnly: true,
+    isDashboardOnboardingDismissed: true,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("button", { name: "店舗詳細を開く" })).toBeEnabled();
+    await expect(canvas.getByRole("button", { name: "新しい募集をつくる" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "スタッフを招待" })).toBeDisabled();
+  },
+};
+
+export const ReadOnlyTransitionBehavior: Story = {
   args: Normal.args,
+  parameters: {
+    screenshot: { skip: true },
+  },
+  render: () => <ReadOnlyTransitionStory />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+    const toggle = canvas.getByRole("button", { name: "閲覧専用を切り替える" });
+
+    const expectDialogClosedByReadOnly = async (dialogName: string) => {
+      fireEvent.click(toggle);
+      await waitFor(() => expect(toggle).toHaveAttribute("aria-pressed", "true"));
+      await waitFor(() => expect(body.queryByRole("dialog", { name: dialogName })).not.toBeInTheDocument());
+      fireEvent.click(toggle);
+      await waitFor(() => expect(toggle).toHaveAttribute("aria-pressed", "false"));
+    };
+
+    await userEvent.click(await canvas.findByRole("button", { name: "新しい募集をつくる" }));
+    await body.findByRole("dialog", { name: "新しい募集をつくる" });
+    await expectDialogClosedByReadOnly("新しい募集をつくる");
+
+    await userEvent.click(await canvas.findByRole("button", { name: "スタッフを招待" }));
+    await body.findByRole("dialog", { name: "スタッフを招待" });
+    await expectDialogClosedByReadOnly("スタッフを招待");
+
+    await userEvent.click(await canvas.findByRole("button", { name: "申請を確認" }));
+    await body.findByRole("dialog", { name: "スタッフ登録申請" });
+    await expectDialogClosedByReadOnly("スタッフ登録申請");
+
+    await userEvent.click(await canvas.findByRole("button", { name: "通知を確認" }));
+    await body.findByRole("dialog", { name: "送れなかった通知" });
+    await expectDialogClosedByReadOnly("送れなかった通知");
+  },
+};
+
+function ReadOnlyTransitionStory() {
+  const [isReadOnly, setIsReadOnly] = useState(false);
+
+  return (
+    <>
+      <Button
+        aria-label="閲覧専用を切り替える"
+        aria-pressed={isReadOnly}
+        position="fixed"
+        top={2}
+        left={2}
+        zIndex="tooltip"
+        onClick={() => setIsReadOnly((current) => !current)}
+      >
+        閲覧専用を切り替える
+      </Button>
+      <DashboardContent
+        {...dashboardBaseArgs}
+        isReadOnly={isReadOnly}
+        recruitments={dashboardRecruitments}
+        recruitmentGroups={dashboardRecruitmentGroups}
+        currentRecruitments={mockCurrentRecruitments}
+        staffs={mockStaffs}
+        pendingStaffRequests={pendingStaffRequests}
+        notificationFailures={notificationFailures}
+        isDashboardOnboardingDismissed
+      />
+    </>
+  );
+}
+
+export const LegacyStaffDetailFallbackBehavior: Story = {
+  args: {
+    ...Normal.args,
+    staffs: mockStaffs.map((staff) =>
+      staff._id === mockStaffs[1]._id ? { ...staff, organizationPersonId: null } : staff,
+    ),
+  },
   parameters: {
     screenshot: { skip: true },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const body = within(document.body);
-
-    await userEvent.click(canvas.getByRole("button", { name: "店舗設定を編集" }));
-    const shopSettingsDialog = await body.findByRole("dialog", { name: "店舗設定" });
-    await userEvent.click(within(shopSettingsDialog).getByRole("button", { name: "閉じる" }));
-    await waitFor(() => expect(body.queryByRole("dialog", { name: "店舗設定" })).not.toBeInTheDocument());
 
     await userEvent.click(canvas.getByRole("button", { name: "佐藤花子のスタッフ詳細を開く" }));
     const staffDetailDialog = await body.findByRole("dialog", { name: "スタッフ詳細" });
@@ -241,7 +358,7 @@ export const Loading: Story = {
     ...Normal.args,
   },
   render: () => (
-    <Box minH="100vh" bg="white" p={{ base: 4, lg: 8 }}>
+    <Box minH="100vh" bg="gray.50" p={{ base: 4, lg: 8 }}>
       <DashboardContentSkeleton />
     </Box>
   ),
@@ -250,6 +367,7 @@ export const Loading: Story = {
 export const Empty: Story = {
   args: {
     shop,
+    operationContextData,
     managerLegalConsentStatus: managerLegalConsentReady,
     recruitments: [],
     currentRecruitments: [],
@@ -345,11 +463,11 @@ export const DismissedOnboardingShowsNextAction: Story = {
     const canvas = within(canvasElement);
 
     await expect(canvas.getByRole("region", { name: "シフトリへようこそ！" })).toBeVisible();
-    await expect(canvas.queryByRole("heading", { name: "TODO" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("heading", { name: "今やること" })).not.toBeInTheDocument();
 
     await userEvent.click(canvas.getByRole("button", { name: "シフトリへようこそを閉じる" }));
 
-    await canvas.findByRole("heading", { name: "TODO" });
+    await expect(await canvas.findByRole("heading", { name: "今やること" })).toBeVisible();
     await expect(canvas.queryByRole("region", { name: "シフトリへようこそ！" })).not.toBeInTheDocument();
   },
 };
@@ -424,6 +542,7 @@ export const NotificationFailuresShowNextActionDuringOnboarding: Story = {
 export const Setup: Story = {
   args: {
     shop: null,
+    showAccountDeletion: false,
     recruitments: [],
     currentRecruitments: [],
     recruitmentStatus: "Exhausted",
@@ -440,11 +559,28 @@ export const Setup: Story = {
   },
 };
 
+export const SetupForExistingUserWithoutShop: Story = {
+  args: {
+    ...Setup.args,
+    showAccountDeletion: true,
+  },
+};
+
 export const SetupWithAnnouncement: Story = {
   args: {
     ...Setup.args,
+    showAccountDeletion: true,
     announcement: dashboardAnnouncement,
   },
+};
+
+export const SetupMobile: Story = {
+  args: {
+    ...Setup.args,
+    showAccountDeletion: true,
+  },
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
 };
 
 export const SetupDialogBehavior: Story = {

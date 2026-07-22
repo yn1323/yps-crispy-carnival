@@ -1,7 +1,7 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
-import { seedManagerShop, seedShop } from "../_test/seed";
+import { seedManagerShop, seedOrganizationManagerShop, seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { getLegalDocumentsForAudience } from "../legal/documents";
 
@@ -28,6 +28,72 @@ describe("staffRegistration/queries", () => {
         documents: getLegalDocumentsForAudience("staff"),
       });
     });
+
+    it("同一tokenが異なる店舗に重複している場合は店舗情報を返さない", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        for (const index of [1, 2]) {
+          const shopId = await seedShop(ctx, `重複登録token対象店舗${index}`);
+          await ctx.db.insert("shopRegistrationLinks", {
+            shopId,
+            token: "duplicate-page-registration-token",
+            createdAt: Date.now(),
+          });
+        }
+      });
+
+      await expect(
+        t.query(api.staffRegistration.queries.getRegistrationPageData, {
+          token: "duplicate-page-registration-token",
+        }),
+      ).resolves.toEqual({
+        status: "expired",
+        documents: getLegalDocumentsForAudience("staff"),
+      });
+    });
+
+    it.each(["archived", "planSuspended", "restricted"] as const)(
+      "%s状態の店舗は登録ページに店舗情報を返さない",
+      async (blockedState) => {
+        const t = convexTest(schema, modules);
+        const token = `blocked-registration-page-${blockedState}`;
+        await t.run(async (ctx) => {
+          const seeded = await seedOrganizationManagerShop(ctx, {
+            subject: `blocked_registration_page_${blockedState}`,
+            plan: "pro",
+          });
+          if (blockedState === "archived" || blockedState === "planSuspended") {
+            await ctx.db.patch(seeded.shopId, { operatingStatus: blockedState });
+          } else {
+            const billingState = await ctx.db
+              .query("organizationBillingStates")
+              .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+              .unique();
+            if (!billingState) throw new Error("billing state not found");
+            await ctx.db.patch(billingState._id, {
+              state: {
+                kind: "restricted",
+                reason: "freeConditionsNotMet",
+                previousPlan: "pro",
+                recoveryManagerPersonIds: [seeded.personId],
+                previousActiveShopIds: [seeded.shopId],
+                restrictedAt: Date.now(),
+              },
+            });
+          }
+          await ctx.db.insert("shopRegistrationLinks", {
+            shopId: seeded.shopId,
+            token,
+            createdAt: Date.now(),
+          });
+        });
+
+        await expect(t.query(api.staffRegistration.queries.getRegistrationPageData, { token })).resolves.toEqual({
+          status: "expired",
+          documents: getLegalDocumentsForAudience("staff"),
+        });
+      },
+    );
 
     it("存在しない・失効済みtokenと削除済み店舗はexpiredを返す", async () => {
       const t = convexTest(schema, modules);

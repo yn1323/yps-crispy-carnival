@@ -18,7 +18,6 @@ import { DashboardPage } from "../pages/DashboardPage";
 
 const MANAGER = {
   name: "田中太郎",
-  email: "tanaka@example.com",
 };
 
 const CHANGED_MANAGER_EMAIL = "changed-manager@example.com";
@@ -44,7 +43,7 @@ function getCurrentShiftDates() {
   };
 }
 
-test.describe("通知目的別Full Regression", { tag: ["@release", "@notification"] }, () => {
+test.describe("正規グループの通知目的別Full Regression", { tag: ["@release", "@notification"] }, () => {
   test.setTimeout(90_000);
 
   test("初期設定時に管理者へLINE連携案内を受け付ける", async ({ page, e2eClerkUser }) => {
@@ -124,11 +123,11 @@ test.describe("通知目的別Full Regression", { tag: ["@release", "@notificati
     });
   });
 
-  test("スタッフ詳細からLINE連携案内を手動再送できる", async ({ page }) => {
+  test("ユーザー詳細からLINE連携案内を手動再送できる", async ({ page, e2eClerkUser }) => {
     const seed = seedManagerScenario<{ shopId: string }>("testing:seedLineLinkScenario");
     const dashboard = new DashboardPage(page);
 
-    await test.step("Step 1: スタッフ詳細のLINEタブから連携案内を送る", async () => {
+    await test.step("Step 1: ユーザー詳細の店舗ダイアログからLINE連携案内を送る", async () => {
       assertNotificationDeliverySuppressed(seed.shopId);
       await dashboard.goto();
       await dashboard.sendLineInvite(MANAGER.name);
@@ -137,7 +136,7 @@ test.describe("通知目的別Full Regression", { tag: ["@release", "@notificati
     await test.step("Step 2: LINE連携案内の受付とtoken発行を確認する", async () => {
       const probe = await waitForNotificationOutbox({
         shopId: seed.shopId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         notificationContext: "line.sendInviteEmail",
         channel: "email",
       });
@@ -148,12 +147,12 @@ test.describe("通知目的別Full Regression", { tag: ["@release", "@notificati
         hasStaffTarget: true,
       });
       expect(probe.failureInbox).toHaveLength(0);
-      const token = await waitForLineLinkToken({ shopId: seed.shopId, staffEmail: MANAGER.email });
+      const token = await waitForLineLinkToken({ shopId: seed.shopId, staffEmail: e2eClerkUser });
       expect(token.token).toMatch(/^[0-9a-f-]{36}$/);
     });
   });
 
-  test("LINE連携済みスタッフへ募集中シフトを手動再送できる", async ({ page }) => {
+  test("LINE連携済みスタッフへ募集中シフトを手動再送できる", async ({ page, e2eClerkUser }) => {
     const dates = getNextWeekDates();
     const seed = seedManagerScenario<ShopSeed>("testing:seedOpenRecruitmentNotificationScenario", {
       dates,
@@ -161,7 +160,7 @@ test.describe("通知目的別Full Regression", { tag: ["@release", "@notificati
     });
     const dashboard = new DashboardPage(page);
 
-    await test.step("Step 1: スタッフ詳細から募集中シフトを送る", async () => {
+    await test.step("Step 1: ユーザー詳細から募集中シフトを送る", async () => {
       assertNotificationDeliverySuppressed(seed.shopId);
       await dashboard.goto();
       await dashboard.sendOpenRecruitmentNotification(MANAGER.name);
@@ -171,7 +170,7 @@ test.describe("通知目的別Full Regression", { tag: ["@release", "@notificati
       const probe = await waitForNotificationOutbox({
         shopId: seed.shopId,
         recruitmentId: seed.recruitmentId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         notificationContext: "notification.sendOpenRecruitmentNotificationsForStaff",
         channel: "line",
       });
@@ -186,14 +185,14 @@ test.describe("通知目的別Full Regression", { tag: ["@release", "@notificati
       await assertNoNotificationOutbox({
         shopId: seed.shopId,
         recruitmentId: seed.recruitmentId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         notificationContext: "notification.sendOpenRecruitmentNotificationsForStaff",
         channel: "email",
       });
     });
   });
 
-  test("LINE unfollow中は募集中シフトをメールへ振り分ける", async ({ page }) => {
+  test("LINE unfollow中は募集中シフトをメールへ振り分ける", async ({ page, e2eClerkUser }) => {
     const dates = getNextWeekDates();
     const seed = seedManagerScenario<ShopSeed>("testing:seedOpenRecruitmentNotificationScenario", {
       dates,
@@ -208,7 +207,7 @@ test.describe("通知目的別Full Regression", { tag: ["@release", "@notificati
     const probe = await waitForNotificationOutbox({
       shopId: seed.shopId,
       recruitmentId: seed.recruitmentId,
-      staffEmail: MANAGER.email,
+      staffEmail: e2eClerkUser,
       notificationContext: "notification.sendOpenRecruitmentNotificationsForStaff",
       channel: "email",
     });
@@ -222,19 +221,19 @@ test.describe("通知目的別Full Regression", { tag: ["@release", "@notificati
     await assertNoNotificationOutbox({
       shopId: seed.shopId,
       recruitmentId: seed.recruitmentId,
-      staffEmail: MANAGER.email,
+      staffEmail: e2eClerkUser,
       notificationContext: "notification.sendOpenRecruitmentNotificationsForStaff",
       channel: "line",
     });
   });
 
-  test("スタッフ詳細から現在の確定シフトを手動通知できる", async ({ page }) => {
+  test("ユーザー詳細から現在の確定シフトを手動通知できる", async ({ page, e2eClerkUser }) => {
     const seed = seedManagerScenario<ShopSeed>("testing:seedCurrentShiftManualNotificationScenario", {
       dates: getCurrentShiftDates(),
     });
     const dashboard = new DashboardPage(page);
 
-    await test.step("Step 1: スタッフ詳細から現在の確定シフトを送る", async () => {
+    await test.step("Step 1: ユーザー詳細から現在の確定シフトを送る", async () => {
       assertNotificationDeliverySuppressed(seed.shopId);
       await dashboard.goto();
       await dashboard.sendCurrentShiftNotification(MANAGER.name);
@@ -244,7 +243,7 @@ test.describe("通知目的別Full Regression", { tag: ["@release", "@notificati
       const probe = await waitForNotificationOutbox({
         shopId: seed.shopId,
         recruitmentId: seed.recruitmentId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         notificationContext: "notification.sendConfirmationEmail",
         channel: "email",
       });
@@ -261,14 +260,14 @@ test.describe("通知目的別Full Regression", { tag: ["@release", "@notificati
       const token = await waitForMagicLinkToken({
         recruitmentId: seed.recruitmentId,
         shopId: seed.shopId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         purpose: "view",
       });
       expect(token.token).toMatch(/^[0-9a-f-]{36}$/);
     });
   });
 
-  test("LINE連携済みスタッフへ現在の確定シフトを手動通知できる", async ({ page }) => {
+  test("LINE連携済みスタッフへ現在の確定シフトを手動通知できる", async ({ page, e2eClerkUser }) => {
     const seed = seedManagerScenario<ShopSeed>("testing:seedCurrentShiftManualNotificationScenario", {
       dates: getCurrentShiftDates(),
       managerLineState: "following",
@@ -282,7 +281,7 @@ test.describe("通知目的別Full Regression", { tag: ["@release", "@notificati
     const probe = await waitForNotificationOutbox({
       shopId: seed.shopId,
       recruitmentId: seed.recruitmentId,
-      staffEmail: MANAGER.email,
+      staffEmail: e2eClerkUser,
       notificationContext: "notification.sendConfirmationEmail",
       channel: "line",
     });
@@ -297,13 +296,13 @@ test.describe("通知目的別Full Regression", { tag: ["@release", "@notificati
     await assertNoNotificationOutbox({
       shopId: seed.shopId,
       recruitmentId: seed.recruitmentId,
-      staffEmail: MANAGER.email,
+      staffEmail: e2eClerkUser,
       notificationContext: "notification.sendConfirmationEmail",
       channel: "email",
     });
   });
 
-  test("管理者向け登録・確定・稼働促進・不達digestを受け付ける", async () => {
+  test("REG-P0-03: 管理者向け登録・確定・稼働促進・不達digestをメールで受け付ける", async () => {
     const seed = seedManagerScenario<ShopSeed>("testing:seedNotificationManagerDigestScenario", {
       dates: getNextWeekDates(),
     });
@@ -329,7 +328,9 @@ test.describe("通知目的別Full Regression", { tag: ["@release", "@notificati
         notificationContext,
         deliverySuppressed: true,
         hasUserTarget: true,
+        ctaShopMatchesTarget: true,
       });
+      expect(probe.outbox).toHaveLength(1);
       expect(["pending", "processing", "sent"]).toContain(probe.outbox[0].status);
       expect(probe.failureInbox).toHaveLength(0);
       await assertNoNotificationOutbox({
@@ -345,7 +346,7 @@ test.describe("通知目的別Full Regression", { tag: ["@release", "@notificati
     expect(cleanup.resolvedCount).toBe(1);
   });
 
-  test("LINE連携済み管理者へ登録・確定・稼働促進・不達digestを受け付ける", async () => {
+  test("REG-P0-03: LINE連携済み管理者へ4種digestを受け付ける", async () => {
     const seed = seedManagerScenario<ShopSeed>("testing:seedNotificationManagerDigestScenario", {
       dates: getNextWeekDates(),
       managerLineState: "following",
@@ -372,7 +373,9 @@ test.describe("通知目的別Full Regression", { tag: ["@release", "@notificati
         notificationContext,
         deliverySuppressed: true,
         hasUserTarget: true,
+        ctaShopMatchesTarget: true,
       });
+      expect(probe.outbox).toHaveLength(1);
       expect(probe.failureInbox).toHaveLength(0);
       await assertNoNotificationOutbox({
         shopId: seed.shopId,

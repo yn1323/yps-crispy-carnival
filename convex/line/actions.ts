@@ -16,6 +16,7 @@ import {
 } from "../_lib/lineClient";
 import { buildLineDefaultReplyText, buildLineInviteEmailHtml } from "../notification/templates";
 import { emailPayload, enqueueEmail } from "../notificationOutbox/enqueue";
+import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
 
 function getLoginChannelId(): string {
   const v = process.env.LINE_LOGIN_CHANNEL_ID;
@@ -34,6 +35,8 @@ const PLAN_BY_QUOTA: Record<number, "communication" | "light" | "standard"> = {
   30000: "standard",
 };
 
+const LINE_INVITE_NOTIFICATION_KIND = "line.invite";
+
 /**
  * LINE OAuth コールバックから呼ばれる公開 action
  * - state を内部 mutation で検証 + rate limit
@@ -44,6 +47,9 @@ const PLAN_BY_QUOTA: Record<number, "communication" | "light" | "standard"> = {
  */
 export const redeemLineToken = action({
   args: { state: v.string(), code: v.string() },
+  returns: v.object({
+    status: v.union(v.literal("ok"), v.literal("needs_follow"), v.literal("expired"), v.literal("rate_limited")),
+  }),
   handler: async (
     ctx,
     args,
@@ -83,9 +89,9 @@ export const replyDefaultMessage = internalAction({
   handler: async (_ctx, { replyToken }) => {
     try {
       await replyTextMessage(replyToken, buildLineDefaultReplyText());
-    } catch (e) {
+    } catch {
       // reply 失敗で Webhook 全体を落とさない
-      console.error("LINE reply failed", e);
+      console.error("LINE reply failed", { errorCode: "line_reply_failed" });
     }
   },
 });
@@ -119,8 +125,10 @@ export const sendInviteEmail = internalAction({
   args: {
     staffId: v.id("staffs"),
     context: v.optional(v.union(v.literal("default"), v.literal("registration_approved"))),
+    ...businessNotificationOriginArgs,
   },
-  handler: async (ctx, { staffId, context }) => {
+  handler: async (ctx, { staffId, context, organizationBillingVersionAtOrigin }) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.line.queries.getInviteEmailData, { staffId });
     if (!data) return;
     const suppressDelivery = await ctx.runQuery(
@@ -137,15 +145,21 @@ export const sendInviteEmail = internalAction({
       redirectUri: `${APP_URL}/line/callback`,
       state: token,
     });
+    const subject = formatResendSubject(data.shopName, "シフト通知をLINEで受け取れます");
 
     await enqueueEmail(ctx, {
       shopId: data.shopId,
+      ...notificationOrigin,
       staffId: data.staffId,
+      history: {
+        notificationKind: LINE_INVITE_NOTIFICATION_KIND,
+        displayTitle: subject,
+      },
       dedupeKey: `email:lineInvite:${data.staffId}`,
       payload: emailPayload({
         from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
         to: data.staffEmail,
-        subject: formatResendSubject(data.shopName, "シフト通知をLINEで受け取れます"),
+        subject,
         html: buildLineInviteEmailHtml({
           staffName: data.staffName,
           shopName: data.shopName,

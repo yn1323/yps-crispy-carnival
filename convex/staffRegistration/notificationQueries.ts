@@ -1,7 +1,8 @@
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { internalQuery } from "../_generated/server";
-import { APP_URL } from "../_lib/config";
+import { isShopParentActive } from "../_lib/activeShop";
+import { buildShopDashboardUrl } from "../_lib/dashboardUrl";
 import { loadShopManagerRecipients } from "../_lib/shopManagerRecipients";
 import { STAFF_REGISTRATION_DAILY_DIGEST_MANAGER_LIMIT, STAFF_REGISTRATION_DIGEST_WINDOW_MS } from "../constants";
 
@@ -26,7 +27,7 @@ export const getOwnerDigestTargetForShop = internalQuery({
   args: { shopId: v.id("shops") },
   handler: async (ctx, { shopId }) => {
     const shop = await ctx.db.get(shopId);
-    if (!shop || shop.isDeleted) return null;
+    if (!shop || !(await isShopParentActive(ctx, shop))) return null;
 
     const pendingRequest = await ctx.db
       .query("staffRegistrationRequests")
@@ -40,7 +41,7 @@ export const getOwnerDigestTargetForShop = internalQuery({
     return {
       shopId,
       shopName: shop.name,
-      dashboardUrl: `${APP_URL}/dashboard`,
+      dashboardUrl: buildShopDashboardUrl(shopId),
       recipients,
     };
   },

@@ -1,13 +1,16 @@
 import { Text } from "@chakra-ui/react";
 import { Dialog } from "@/src/components/ui/Dialog";
+import type { PeopleCapacityResolution } from "@/src/domains/organizationBilling/peopleCapacity";
 import { StaffRegistrationRequestDialog } from "../StaffRegistrationRequests";
 import type { StaffRegistrationRequest } from "../types";
 
 type Props = {
   isOpen: boolean;
+  isReadOnly: boolean;
   onOpenChange: (details: { open: boolean }) => void;
   onClose: () => void;
   requests: StaffRegistrationRequest[];
+  peopleCapacityResolution: PeopleCapacityResolution | null;
   rejectTarget: StaffRegistrationRequest | null;
   onApprove: (request: StaffRegistrationRequest) => void;
   onRejectClick: (request: StaffRegistrationRequest) => void;
@@ -19,9 +22,11 @@ type Props = {
 
 export function StaffRegistrationRequestManagementView({
   isOpen,
+  isReadOnly,
   onOpenChange,
   onClose,
   requests,
+  peopleCapacityResolution,
   rejectTarget,
   onApprove,
   onRejectClick,
@@ -33,10 +38,12 @@ export function StaffRegistrationRequestManagementView({
   return (
     <>
       <StaffRegistrationRequestDialog
-        isOpen={isOpen}
+        isOpen={isOpen && !isReadOnly}
+        isReadOnly={isReadOnly}
         onOpenChange={onOpenChange}
         onClose={onClose}
         requests={requests}
+        peopleCapacityResolution={peopleCapacityResolution}
         onApprove={onApprove}
         onReject={onRejectClick}
         isApproving={isApproving}
@@ -45,7 +52,7 @@ export function StaffRegistrationRequestManagementView({
 
       <Dialog
         title="スタッフ登録申請を却下"
-        isOpen={rejectTarget !== null}
+        isOpen={rejectTarget !== null && !isReadOnly}
         onOpenChange={({ open }) => {
           if (!open) onRejectClose();
         }}
@@ -55,7 +62,7 @@ export function StaffRegistrationRequestManagementView({
         role="alertdialog"
         submitColorPalette="red"
         isLoading={isRejecting}
-        isSubmitDisabled={isRejecting}
+        isSubmitDisabled={isReadOnly || isRejecting}
       >
         <Text>「{rejectTarget?.name}」さんのスタッフ登録申請を却下しますか？</Text>
         <Text fontSize="sm" color="gray.600">

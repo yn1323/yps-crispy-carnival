@@ -9,6 +9,7 @@ import { RecruitmentRow } from "./RecruitmentRow";
 
 type Props = {
   groups: DashboardRecruitmentGroup[];
+  isReadOnly?: boolean;
   pastStatus: PaginationStatus;
   hasPastRecruitments: boolean;
   isPastRecruitmentsVisible: boolean;
@@ -23,6 +24,7 @@ type Props = {
 
 export const RecruitmentBoard = ({
   groups,
+  isReadOnly = false,
   pastStatus,
   hasPastRecruitments,
   isPastRecruitmentsVisible,
@@ -69,6 +71,8 @@ export const RecruitmentBoard = ({
           colorPalette="teal"
           size="sm"
           onClick={onCreateClick}
+          disabled={isReadOnly}
+          title={isReadOnly ? "閲覧のみの店舗では募集を作成できません" : undefined}
           gap={1.5}
           fontWeight="semibold"
         >
@@ -85,7 +89,7 @@ export const RecruitmentBoard = ({
           tone="brand"
           variant="section"
           action={
-            <Button colorPalette="teal" size="md" onClick={onCreateClick} gap={1.5}>
+            <Button colorPalette="teal" size="md" onClick={onCreateClick} gap={1.5} disabled={isReadOnly}>
               <LuPlus />
               はじめての募集をつくる
             </Button>
@@ -120,6 +124,7 @@ export const RecruitmentBoard = ({
                   <RecruitmentRow
                     key={r._id}
                     recruitment={r}
+                    isReadOnly={isReadOnly}
                     dataTour={r._id === tourRecruitmentId ? DASHBOARD_TOUR_TARGET.latestRecruitment : undefined}
                     onOpenShiftBoard={onOpenShiftBoard}
                     onDeleteRecruitment={onDeleteRecruitment}

@@ -4,6 +4,8 @@ export const migration = migrations.define({
   table: "notificationOutbox",
   migrateOne: async (ctx, doc) => {
     if (doc.status !== "failed") return;
+    // m004は店舗通知だけを対象にした履歴migration。後から追加された事業者専用通知は対象外。
+    if (!doc.shopId) return;
     if (doc.lastError === "LINE quota exceeded; fallback email enqueued") return;
 
     const failureKey = `outbox:${doc._id}`;
@@ -40,9 +42,11 @@ export const migration = migrations.define({
 function notificationContextForPayload(
   payload:
     | { kind: "email"; context: string }
+    | { kind: "organizationManagerInvitationEmail"; context: string }
+    | { kind: "organizationManagerInvitationLine"; context: string }
     | { kind: "line"; fallbackEmail?: { payload: { context: string } } | undefined },
   dedupeKey: string,
 ) {
-  if (payload.kind === "email") return payload.context;
+  if (payload.kind !== "line") return payload.context;
   return payload.fallbackEmail?.payload.context ?? dedupeKey.split(":").slice(0, 2).join(":");
 }

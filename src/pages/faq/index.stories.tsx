@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, userEvent, within } from "storybook/test";
+import { faqEntries } from "@/src/components/features/FaqSite/faqContent";
 import { FaqPage } from ".";
 
 const meta = {
@@ -25,5 +27,39 @@ export const Mobile: Story = {
   },
   parameters: {
     vrt: { releaseFixedHeader: true },
+  },
+};
+
+export const Search: Story = {
+  parameters: {
+    screenshot: { skip: true },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const searchbox = canvas.getByRole("searchbox", { name: "よくある質問を検索" });
+    const structuredData = canvasElement.querySelector('script[type="application/ld+json"]');
+    const faqPageJsonLd = JSON.parse(structuredData?.textContent ?? "") as { mainEntity: unknown[] };
+
+    await expect(faqPageJsonLd.mainEntity).toHaveLength(faqEntries.length);
+
+    await userEvent.type(searchbox, "LINE 届かない");
+
+    await expect(canvas.getByText("2件の質問が見つかりました")).toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "管理者向け LINE通知が届かないときは、何を確認すればよいですか？" }),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.getByRole("heading", {
+        level: 3,
+        name: "管理者向け LINE通知が届かないときは、何を確認すればよいですか？",
+      }),
+    ).toBeInTheDocument();
+
+    await userEvent.clear(searchbox);
+    await userEvent.type(searchbox, "一致しない検索語");
+    await userEvent.click(canvas.getByRole("button", { name: "検索をクリア" }));
+
+    await expect(searchbox).toHaveFocus();
+    await expect(searchbox).toHaveValue("");
   },
 };

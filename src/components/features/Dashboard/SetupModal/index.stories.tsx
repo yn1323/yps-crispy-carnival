@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { useRef, useState } from "react";
+import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
+import { createDeferred } from "@/src/devtools/createDeferred";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { SetupModal } from "./index";
 
@@ -96,17 +97,27 @@ export const InteractiveDoubleSubmitGuard: Story = {
 
     await dialog.findByRole("textbox", { name: "あなたの名前" });
     await userEvent.click(dialog.getByRole("checkbox", { name: /利用規約.*プライバシーポリシー.*同意/ }));
-    await userEvent.dblClick(dialog.getByRole("button", { name: "お店を登録する" }));
+    const submit = dialog.getByRole("button", { name: "お店を登録する" });
+    fireEvent.click(submit);
+    fireEvent.click(submit);
 
-    await waitFor(() => expect(screen.getByTestId("setup-complete-count")).toHaveTextContent("1"));
+    await expect(await screen.findByTestId("setup-complete-count")).toHaveTextContent("1");
+    await expect(submit).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("release-setup-completion"));
+    await waitFor(() => expect(submit).toBeEnabled());
   },
 };
 
 function GuardedSetupModalStory() {
   const [completeCount, setCompleteCount] = useState(0);
+  const pendingCompletion = useRef<ReturnType<typeof createDeferred> | null>(null);
   const { run: handleComplete, isRunning: isSubmitting } = useSingleFlight(async () => {
     setCompleteCount((count) => count + 1);
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    const completion = createDeferred();
+    pendingCompletion.current = completion;
+    await completion.promise;
+    if (pendingCompletion.current === completion) pendingCompletion.current = null;
   });
 
   return (
@@ -121,9 +132,19 @@ function GuardedSetupModalStory() {
           email: "yamada@example.com",
         }}
       />
-      <output data-testid="setup-complete-count" hidden>
-        {completeCount}
-      </output>
+      {completeCount > 0 ? (
+        <output data-testid="setup-complete-count" hidden>
+          {completeCount}
+        </output>
+      ) : null}
+      <button
+        type="button"
+        hidden
+        data-testid="release-setup-completion"
+        onClick={() => pendingCompletion.current?.resolve()}
+      >
+        店舗登録処理を完了する
+      </button>
     </>
   );
 }

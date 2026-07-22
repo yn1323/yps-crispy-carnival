@@ -10,17 +10,11 @@
 | `Select` | カスタムSelect | `<Select items={[...] as SelectItemType[]} value={...} onChange={...} usePortal={false} />` |
 | `Dialog` | モーダルダイアログ | `useDialog()` フック + `<Dialog isOpen={...} onOpenChange={...} onClose={...} />` |
 | `StepperDialog` | 多段フロー用Dialog | `<StepperDialog><StepperDialogContent ... /></StepperDialog>` |
-| `FormCard` | フォームのカード単位 | `<FormCard icon title rightElement>{...}</FormCard>` |
 | `Empty` | 空状態 | `<Empty icon title description action minH />` |
-| `LoadingState` | ローディング表示 | `<LoadingState />` |
 | `ShiftoriLoading` | ロゴ付きローディング | `<ShiftoriLoading variant="section" />` |
 | `FullPageSpinner` | ページ全体スピナー | `<FullPageSpinner />`（最後の手段） |
 | `ErrorBoundary` | レンダリングエラー境界 | `<ErrorBoundary>{...}</ErrorBoundary>` |
-| `Title` | ページ/セクションタイトル | `<Title>...</Title>` |
-| `InfoGuide` | ヘルプ・案内ボックス | `<InfoGuide>...</InfoGuide>` |
-| `LazyShow` | 遅延表示・スムーズ出現 | `<LazyShow>{...}</LazyShow>` |
 | `Tour` | プロダクトツアー（react-joyride） | `<Tour steps={...} />` |
-| `BrowserMockup` | ブラウザ枠UI（デモ・LP用） | `<BrowserMockup>{...}</BrowserMockup>` |
 | `toaster.tsx` | Toast表示 | `toaster.create({ title, description, type })` |
 | `tooltip.tsx` | Tooltip | `<Tooltip content="..." />` |
 
@@ -54,7 +48,7 @@
 | Switch | `<Switch.Root />` |
 | Checkbox | `<Checkbox.Root />` |
 | Slider | `<Slider.Root />` |
-| Color | `<ColorPicker />` (`src/components/ui/ColorPicker`) |
+| Color | Chakra UIのColor Picker、または限定パレット（要件に合う方を選ぶ） |
 | Date | DatePicker（プロジェクト未統一の場合は要確認） |
 
 **Select × Dialog / StepperDialog 内**：Portalで背面や外側に出る場合は `usePortal={false}` を渡す。

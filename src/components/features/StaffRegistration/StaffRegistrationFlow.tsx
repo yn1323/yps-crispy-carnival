@@ -9,6 +9,13 @@ type Props = {
   isSubmitted?: boolean;
   initialConfirmData?: StaffRegistrationFormData;
   onSubmit: (data: StaffRegistrationFormData) => Promise<void> | void;
+  turnstile?: {
+    widgetKey: number;
+    siteKey: string;
+    onError: (errorCode?: string) => void;
+    onVerify: (token: string) => void;
+  } | null;
+  verificationError?: string | null;
 };
 
 export function StaffRegistrationFlow({
@@ -17,6 +24,8 @@ export function StaffRegistrationFlow({
   isSubmitted = false,
   initialConfirmData,
   onSubmit,
+  turnstile = null,
+  verificationError = null,
 }: Props) {
   const controller = useStaffRegistrationFormController({ initialConfirmData, onSubmit });
 
@@ -40,6 +49,8 @@ export function StaffRegistrationFlow({
           isSubmitting,
           onRevise: controller.handleRevise,
           onSubmit: controller.handleSubmitConfirmed,
+          turnstile,
+          verificationError,
         }}
       />
     );

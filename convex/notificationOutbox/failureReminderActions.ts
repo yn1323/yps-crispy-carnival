@@ -66,9 +66,12 @@ async function sendFailureReminderForShop(ctx: ActionCtx, shopId: Id<"shops">) {
   });
   if (!data) return;
 
-  const [quota, suppressDelivery] = await Promise.all([
+  const [quota, suppressDelivery, notificationOrigin] = await Promise.all([
     ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {}),
     ctx.runQuery(internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop, {
+      shopId: data.shopId,
+    }),
+    ctx.runQuery(internal.notificationOutbox.origin.captureCurrentBusinessNotificationOrigin, {
       shopId: data.shopId,
     }),
   ]);
@@ -79,6 +82,7 @@ async function sendFailureReminderForShop(ctx: ActionCtx, shopId: Id<"shops">) {
     if (channel === "line" && recipient.lineUserId) {
       await enqueueLine(ctx, {
         shopId: data.shopId,
+        ...notificationOrigin,
         userId: recipient.userId,
         dedupeKey: `line:notificationFailureReminder:${data.shopId}:${recipient.userId}`,
         payload: linePayload({
@@ -110,6 +114,7 @@ async function sendFailureReminderForShop(ctx: ActionCtx, shopId: Id<"shops">) {
 
     await enqueueEmail(ctx, {
       shopId: data.shopId,
+      ...notificationOrigin,
       userId: recipient.userId,
       dedupeKey: `email:notificationFailureReminder:${data.shopId}:${recipient.userId}`,
       payload: emailPayload({

@@ -14,7 +14,18 @@ describe("getUserFacingErrorMessage", () => {
     expect(getUserFacingErrorMessage("この募集は締め切られました")).toBe("この募集は締め切られました");
   });
 
-  it("未知の内部エラーは画面へ露出しない", () => {
-    expect(getUserFacingErrorMessage("internal stack trace")).toBe("うまく処理できませんでした");
+  it.each(["internal stack trace", "管理者所属を一意に確認できません", "Clerkとの同期中に内部エラーが発生しました"])(
+    "未知または内部向けのエラー %s は画面へ露出しない",
+    (message) => {
+      expect(getUserFacingErrorMessage(message)).toBe(
+        "操作を完了できませんでした。少し時間をおいて、もう一度お試しください。",
+      );
+    },
+  );
+
+  it("エラー内容が空でも次の行動を案内する", () => {
+    expect(getUserFacingErrorMessage(undefined)).toBe(
+      "操作を完了できませんでした。少し時間をおいて、もう一度お試しください。",
+    );
   });
 });

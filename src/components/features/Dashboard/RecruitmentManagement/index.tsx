@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
-import { type ReactNode, useState } from "react";
+import { useAtomValue } from "jotai";
+import { type ReactNode, useEffect, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { RegularClosedDay, ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import type { CreateRecruitmentData } from "@/src/components/features/CreateRecruitmentForm";
@@ -10,6 +11,7 @@ import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useShopPaginatedQuery } from "@/src/hooks/useShopPaginatedQuery";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { selectedShopAtom } from "@/src/stores/shop";
 import { buildDashboardRecruitmentGroups, sortRecruitmentsByCreatedAt } from "../script";
 import type { DashboardRecruitmentGroup, PaginationStatus, Recruitment } from "../types";
 import { getCreateRecruitmentErrorMessage } from "./presentation";
@@ -54,11 +56,19 @@ type Props = {
   regularClosedDays: RegularClosedDay[];
   submissionPattern: ShiftSubmissionPattern;
   data?: RecruitmentManagementData;
+  isReadOnly?: boolean;
   children: (state: RecruitmentManagementState) => ReactNode;
 };
 
-export function RecruitmentManagement({ regularClosedDays, submissionPattern, data, children }: Props) {
+export function RecruitmentManagement({
+  regularClosedDays,
+  submissionPattern,
+  data,
+  isReadOnly = false,
+  children,
+}: Props) {
   const navigate = useNavigate();
+  const selectedShop = useAtomValue(selectedShopAtom);
   const createDialog = useDialog();
   const deleteDialog = useDialog();
   const [deleteTarget, setDeleteTarget] = useState<Recruitment | null>(null);
@@ -100,13 +110,21 @@ export function RecruitmentManagement({ regularClosedDays, submissionPattern, da
   const handleLoadMorePastRecruitments =
     data?.onLoadMorePastRecruitments ?? (() => pastRecruitments.loadMore(PAST_RECRUITMENT_PAGE_SIZE));
 
+  useEffect(() => {
+    if (!isReadOnly) return;
+    createDialog.close();
+    deleteDialog.close();
+    setDeleteTarget(null);
+  }, [createDialog.close, deleteDialog.close, isReadOnly]);
+
   const { run: handleCreate } = useSingleFlight(async (formData: CreateRecruitmentData) => {
+    if (isReadOnly) return;
     try {
       await createRecruitment(formData);
       createDialog.close();
       showSuccessToast({
         title: "募集をつくり、スタッフに通知しました",
-        description: "LINE連携済みのスタッフにはLINE、未連携のスタッフにはメールで届きます。",
+        description: "LINE連携済みのスタッフには通常LINE、それ以外にはメールで送ります。",
       });
     } catch (error) {
       const message = getCreateRecruitmentErrorMessage(error);
@@ -119,12 +137,13 @@ export function RecruitmentManagement({ regularClosedDays, submissionPattern, da
   });
 
   const handleDeleteClick = (recruitment: Recruitment) => {
+    if (isReadOnly) return;
     setDeleteTarget(recruitment);
     deleteDialog.open();
   };
 
   const { run: handleDelete, isRunning: isDeleting } = useSingleFlight(async () => {
-    if (!deleteTarget) return;
+    if (isReadOnly || !deleteTarget) return;
     try {
       await deleteRecruitment({ recruitmentId: deleteTarget._id });
       deleteDialog.close();
@@ -140,7 +159,16 @@ export function RecruitmentManagement({ regularClosedDays, submissionPattern, da
     onBeforeOpenShiftBoard?: (recruitmentId: Recruitment["_id"]) => void,
   ) => {
     onBeforeOpenShiftBoard?.(recruitmentId);
-    navigate({ to: "/shiftboard/$recruitmentId", params: { recruitmentId } });
+    navigate({
+      to: "/shiftboard/$recruitmentId",
+      params: { recruitmentId },
+      search: { shop: selectedShop?.shopId },
+    });
+  };
+
+  const handleOpenCreate = () => {
+    if (isReadOnly) return;
+    createDialog.open();
   };
 
   const renderContent = ({ onBeforeOpenShiftBoard }: RenderContentOptions = {}) => (
@@ -148,6 +176,7 @@ export function RecruitmentManagement({ regularClosedDays, submissionPattern, da
       regularClosedDays={regularClosedDays}
       submissionPattern={submissionPattern}
       groups={groups}
+      isReadOnly={isReadOnly}
       pastStatus={resolvedPastStatus}
       hasPastRecruitments={resolvedHasPastRecruitments}
       isPastRecruitmentsVisible={data?.isPastRecruitmentsVisible ?? isPastRecruitmentsVisible}
@@ -157,7 +186,7 @@ export function RecruitmentManagement({ regularClosedDays, submissionPattern, da
       deleteDialog={deleteDialog}
       deleteTarget={deleteTarget}
       isDeleting={isDeleting}
-      onOpenCreate={createDialog.open}
+      onOpenCreate={handleOpenCreate}
       onCreate={handleCreate}
       onOpenShiftBoard={(recruitmentId) =>
         handleOpenShiftBoard(recruitmentId as Recruitment["_id"], onBeforeOpenShiftBoard)
@@ -176,7 +205,7 @@ export function RecruitmentManagement({ regularClosedDays, submissionPattern, da
     groups,
     currentRecruitments,
     openRecruitments,
-    openCreateRecruitment: createDialog.open,
+    openCreateRecruitment: handleOpenCreate,
     openShiftBoard: handleOpenShiftBoard,
     renderContent,
   });

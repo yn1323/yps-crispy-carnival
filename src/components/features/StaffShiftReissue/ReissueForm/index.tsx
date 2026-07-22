@@ -23,7 +23,7 @@ export const ReissueForm = ({ onSubmit, isSubmitting }: Props) => {
     <form onSubmit={handleSubmit(onSubmit)}>
       <VStack gap={5} align="stretch">
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          登録済みのメールアドレスを入力してください。新しい閲覧リンクを送ります。
+          登録時に使ったメールアドレスを入力してください。再発行の申込みを受け付けます。
         </Text>
 
         <Field.Root invalid={!!errors.email}>
@@ -33,7 +33,7 @@ export const ReissueForm = ({ onSubmit, isSubmitting }: Props) => {
         </Field.Root>
 
         <Button type="submit" colorPalette="teal" w="full" borderRadius="lg" loading={isSubmitting}>
-          リンクを送信する
+          再発行を申し込む
         </Button>
 
         <Separator />

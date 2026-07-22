@@ -1,4 +1,4 @@
-import { Box, Flex, Grid, Icon, Text } from "@chakra-ui/react";
+import { Alert, Box, Flex, Grid, Icon, Text } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
 import { LuChevronLeft, LuCircleCheck, LuExternalLink } from "react-icons/lu";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
@@ -31,7 +31,7 @@ export const ShiftBoardPageView = ({ viewModel, intents }: ShiftBoardPageViewPro
         flexShrink={0}
       >
         <Box justifySelf="start">
-          <Link to="/dashboard">
+          <Link to="/dashboard" search={{ shop: shiftForm.shopId }}>
             <Flex align="center" gap={1} color="gray.500" _hover={{ color: "gray.700" }} cursor="pointer">
               <Icon boxSize={4}>
                 <LuChevronLeft />
@@ -80,8 +80,19 @@ export const ShiftBoardPageView = ({ viewModel, intents }: ShiftBoardPageViewPro
         </Flex>
       </Grid>
 
+      {viewModel.isReadOnly && (
+        <Alert.Root status="info" borderRadius={0} flexShrink={0}>
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>このシフトは閲覧のみです</Alert.Title>
+            <Alert.Description>{viewModel.readOnlyReason}</Alert.Description>
+          </Alert.Content>
+        </Alert.Root>
+      )}
+
       <Box flex={1} minH={0}>
         <ShiftForm
+          key={viewModel.isReadOnly ? "read-only" : "editable"}
           shopId={shiftForm.shopId}
           staffs={shiftForm.staffs}
           positions={shiftForm.positions}
@@ -90,6 +101,7 @@ export const ShiftBoardPageView = ({ viewModel, intents }: ShiftBoardPageViewPro
           timeRange={shiftForm.timeRange}
           holidays={shiftForm.holidays}
           submissionPattern={shiftForm.submissionPattern}
+          isReadOnly={viewModel.isReadOnly}
           onShiftsChange={intents.onShiftsChange}
           isConfirmed={viewModel.isConfirmed}
           onSaveDraft={intents.onSaveDraft}
@@ -112,7 +124,7 @@ export const ShiftBoardPageView = ({ viewModel, intents }: ShiftBoardPageViewPro
         submitLabel={confirmDialog.submitLabel}
         onClose={intents.onCloseConfirmDialog}
         isLoading={shiftForm.isConfirming}
-        isSubmitDisabled={shiftForm.isConfirming}
+        isSubmitDisabled={viewModel.isReadOnly || shiftForm.isConfirming}
       >
         <ConfirmShiftContent
           staffCount={confirmDialog.staffCount}

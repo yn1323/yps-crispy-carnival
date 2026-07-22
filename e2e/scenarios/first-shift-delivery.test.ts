@@ -22,7 +22,7 @@ test.describe("田中さんの初めてのシフト確定", { tag: ["@release", 
     shiftBoard = new ShiftBoardPage(page);
   });
 
-  test("初回セットアップから下書き保存、確定、スタッフ閲覧まで", async ({ browser }) => {
+  test("初回セットアップから下書き保存、確定、スタッフ閲覧まで", async ({ browser, e2eClerkUser }) => {
     resetCurrentManagerScenarioData();
 
     await test.step("Step 1: 初回セットアップを完了する", async () => {
@@ -32,7 +32,7 @@ test.describe("田中さんの初めてのシフト確定", { tag: ["@release", 
         shiftStartTime: "10:00",
         shiftEndTime: "23:00",
         managerName: "田中太郎",
-        managerEmail: "tanaka@example.com",
+        managerEmail: e2eClerkUser,
       });
       await dashboard.expectSetupComplete();
     });

@@ -81,6 +81,27 @@ export const Accepted: Story = {
   },
 };
 
+export const ReadOnlyBehavior: Story = {
+  args: {
+    ...Normal.args,
+    isReadOnly: true,
+  },
+  parameters: {
+    screenshot: { skip: true },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole("button", { name: "すべて再送" })).toBeDisabled();
+    for (const button of canvas.getAllByRole("button", { name: /^再送$/ })) {
+      await expect(button).toBeDisabled();
+    }
+    for (const button of canvas.getAllByRole("button", { name: "対応不要" })) {
+      await expect(button).toBeDisabled();
+    }
+  },
+};
+
 export const Empty: Story = {
   args: {
     ...Normal.args,

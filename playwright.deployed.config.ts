@@ -14,7 +14,11 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   failOnFlakyTests: !!process.env.CI,
   workers: 1,
-  reporter: [["list"], ["html", { outputFolder: "playwright-report-deployed" }]],
+  reporter: [
+    ["list"],
+    ["html", { outputFolder: "playwright-report-deployed" }],
+    ["json", { outputFile: "test-results-deployed.json" }],
+  ],
   use: {
     ...devices["Desktop Chrome"],
     baseURL,

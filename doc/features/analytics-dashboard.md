@@ -74,6 +74,10 @@ TOPはタブで `全体サマリー` / `開始前` / `立ち上げ` / `運用中
 - ブラウザはConvex public queryを直接呼ばない
 - Convex URLと共有secretはCloudflare Workerのサーバー側envに置く
 - Convex HTTP actionは `SHIFTORI_INTERNAL_API_SECRET` を検証する
+- `SHIFTORI_INTERNAL_API_SECRET`はWorkerからConvexへのservice credentialであり、閲覧者認証には使わない。公開環境ではCloudflare Accessまたは同等の制御をWorker到達前へ設定する
+- `/api/analytics`はJSON本文を16 KiBまでstreamで読み、上限を超えた時点で残りをcancelしてConvexへ転送しない
+- 店舗ステージ一覧は日次`analyticsDailyShopSnapshots`に表示指標を固定し、閲覧時に店舗ごとの募集・提出・通知を再走査しない。旧snapshotの追加指標は、その日を再集計するまで`null`で返す
+- 店舗snapshot一覧は1日500件を上限としてfail closedにし、最大想定店舗数のread量・実行時間・応答sizeはpreview容量probeで確認する
 - HTMLと静的assetのWorker応答へ `X-Robots-Tag: noindex, nofollow` を付ける
 - 返却DTOは集計値と店舗単位の情報に限定し、staff email、manager email、token、raw notification payload、provider error bodyを返さない
 - 期間、metric、cursor、limitはHTTP action側で検証する

@@ -1,28 +1,67 @@
-import { useAuth } from "@clerk/clerk-react";
+import { useAuth } from "@clerk/react";
 import { Navigate, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 import { useAtom } from "jotai";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
+import { LuStore } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import { FullPageSpinner } from "@/src/components/templates/FullPageSpinner";
+import { Button } from "@/src/components/ui/Button";
+import { Empty } from "@/src/components/ui/Empty";
+import {
+  isSameSelectedShop,
+  isSelectableShop,
+  normalizeShopContextOptions,
+  toSelectedShop,
+} from "@/src/domains/shop/context";
 import { normalizeAuthRedirect } from "@/src/lib/auth/redirect";
 import { selectedShopAtom } from "@/src/stores/shop";
-import { userAtom } from "@/src/stores/user";
+import { EMPTY_USER, userAtom } from "@/src/stores/user";
+import { DeletedAccountState } from "./DeletedAccountState";
+import { resolveShopContext } from "./shopContextResolver";
 
 type Props = {
   children: React.ReactNode;
+  requestedShopId?: string;
+  onNormalizeShopUrl?: (shopId: string) => void;
+  onReturnToDashboard?: () => void;
 };
 
-export const AuthGuard = ({ children }: Props) => {
+export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onReturnToDashboard }: Props) => {
   const { isSignedIn, userId, isLoaded } = useAuth();
   const location = useRouterState({ select: (state) => state.location });
   const [user, setUser] = useAtom(userAtom);
   const [selectedShop, setSelectedShop] = useAtom(selectedShopAtom);
   const currentUser = useQuery(api.dashboard.queries.getCurrentUser, isSignedIn ? {} : "skip");
-  const myShops = useQuery(api.dashboard.queries.getMyShops, isSignedIn ? {} : "skip");
+  const isAccountDeleted = Boolean(currentUser && "accountDeleted" in currentUser);
+  const accountDeletionRequested = Boolean(
+    isAccountDeleted &&
+      currentUser &&
+      "accountDeletionRequested" in currentUser &&
+      currentUser.accountDeletionRequested === true,
+  );
+  const myShops = useQuery(
+    api.dashboard.queries.getMyShops,
+    isSignedIn && currentUser !== undefined && !isAccountDeleted ? {} : "skip",
+  );
+  const selectableShops = useMemo(
+    () => (myShops ? normalizeShopContextOptions(myShops).filter(isSelectableShop) : []),
+    [myShops],
+  );
+  const shopContextResolution = useMemo(
+    () =>
+      myShops === undefined
+        ? null
+        : resolveShopContext({
+            requestedShopId,
+            selectedShop,
+            shops: selectableShops,
+          }),
+    [myShops, requestedShopId, selectedShop, selectableShops],
+  );
 
   useEffect(() => {
-    if (userId && currentUser) {
+    if (userId && currentUser && !("accountDeleted" in currentUser)) {
       setUser({
         authId: userId,
         name: currentUser.name ?? "",
@@ -31,33 +70,45 @@ export const AuthGuard = ({ children }: Props) => {
     }
   }, [userId, currentUser, setUser]);
 
-  // 選択中店舗を初期化/整合する。未選択 or 保存値が所属一覧から消えた場合は先頭店舗にする。
-  // （店舗切替UIは未提供。ここで selectedShopAtom にセットした値が manager 系の shopId として送られる）
   useEffect(() => {
-    if (!myShops) return;
-    if (myShops.length === 0) {
+    if (!isAccountDeleted) return;
+    setUser(EMPTY_USER);
+    setSelectedShop(null);
+  }, [isAccountDeleted, setSelectedShop, setUser]);
+
+  // URLはAPI由来の候補に一致する場合だけ採用する。URLがなければ保存値、候補先頭の順で補完する。
+  useEffect(() => {
+    if (!shopContextResolution) return;
+
+    if (shopContextResolution.kind === "empty") {
       if (selectedShop !== null) {
         setSelectedShop(null);
       }
       return;
     }
 
-    const currentShop = selectedShop ? myShops.find((shop) => shop.shopId === selectedShop.shopId) : null;
-    if (!currentShop) {
-      setSelectedShop({ shopId: myShops[0].shopId, shopName: myShops[0].shopName });
+    if (shopContextResolution.kind === "invalidRequestedShop") return;
+
+    const resolvedShop = shopContextResolution.shop;
+
+    // URL文字列をatomへ入れず、所属queryで確認できたDTOだけを同期する。
+    if (!isSameSelectedShop(selectedShop, resolvedShop)) {
+      setSelectedShop(toSelectedShop(resolvedShop));
       return;
     }
 
-    if (currentShop.shopName !== selectedShop?.shopName) {
-      setSelectedShop({ shopId: currentShop.shopId, shopName: currentShop.shopName });
+    if (shopContextResolution.shouldNormalizeUrl) {
+      onNormalizeShopUrl?.(resolvedShop.shopId);
     }
-  }, [myShops, selectedShop, setSelectedShop]);
+  }, [onNormalizeShopUrl, selectedShop, setSelectedShop, shopContextResolution]);
 
+  // 同じ店舗でも課金プランなどの保存済みcontextが古い間は子画面を描画せず、誤った対象判定を防ぐ。
   const isShopContextReady =
-    myShops !== undefined &&
-    (myShops.length === 0
+    shopContextResolution?.kind === "empty"
       ? selectedShop === null
-      : selectedShop !== null && myShops.some((shop) => shop.shopId === selectedShop.shopId));
+      : shopContextResolution?.kind === "resolved" &&
+        !shopContextResolution.shouldNormalizeUrl &&
+        isSameSelectedShop(selectedShop, shopContextResolution.shop);
 
   // ログアウト・セッション失効時は userAtom が残っていても必ずログインへ戻す。
   // （queryは未認証時にthrowせず空を返すため、エラー経由のリダイレクトは発生しない）
@@ -67,6 +118,9 @@ export const AuthGuard = ({ children }: Props) => {
     );
   }
 
+  // 古いatomやURLが残っていても、削除済み状態を通常画面より先に確定する。
+  if (isAccountDeleted) return <DeletedAccountState accountDeletionRequested={accountDeletionRequested} />;
+
   if (user.authId && isShopContextReady) {
     return children;
   }
@@ -75,7 +129,28 @@ export const AuthGuard = ({ children }: Props) => {
     return <FullPageSpinner showHeader />;
   }
 
-  if (currentUser === undefined || !isShopContextReady) {
+  if (currentUser === undefined || shopContextResolution === null) {
+    return <FullPageSpinner showHeader />;
+  }
+
+  if (shopContextResolution.kind === "invalidRequestedShop") {
+    return (
+      <Empty
+        icon={LuStore}
+        title="この店舗を開けません"
+        description="店舗が削除されたか、この店舗を利用する権限がありません。ダッシュボードから利用できる店舗を選び直してください。"
+        tone="warning"
+        minH="100dvh"
+        action={
+          <Button onClick={onReturnToDashboard} colorPalette="teal">
+            ダッシュボードへ戻る
+          </Button>
+        }
+      />
+    );
+  }
+
+  if (!isShopContextReady) {
     return <FullPageSpinner showHeader />;
   }
 

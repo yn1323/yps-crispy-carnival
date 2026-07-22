@@ -3,7 +3,7 @@ import { internal } from "../_generated/api";
 import type { Doc } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { internalMutation } from "../_generated/server";
-import { addDays, jstDayRangeMs, todayJST } from "../_lib/dateFormat";
+import { addDays, dateJST, dateToUtcMs, formatUtcDate, jstDayRangeMs, todayJST } from "../_lib/dateFormat";
 import {
   ANALYTICS_AGGREGATION_PAGE_SIZE,
   ANALYTICS_SHOP_SNAPSHOT_PAGE_SIZE,
@@ -11,7 +11,7 @@ import {
   SHIFT_BOARD_STAFF_LIMIT,
 } from "../constants";
 import { describeNotificationFailureContext } from "../notificationOutbox/failureResend";
-import { notificationContextForJob } from "../notificationOutbox/mutations";
+import { notificationContextForJob, notificationDeliverySuppressedForJob } from "../notificationOutbox/mutations";
 import { ANALYTICS_METRICS, allNotificationEventMetrics, notificationMetric } from "./metrics";
 import { setDailyEventCount, setServiceSnapshot, setShopSnapshot } from "./mutations";
 import { classifyShopStage, type ShopStage, type ShopStageInputs } from "./stage";
@@ -121,6 +121,28 @@ function ratioOrNull(numerator: number, denominator: number): number | null {
   return numerator / denominator;
 }
 
+function dateStringToEpochDay(value: string | null | undefined) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const ms = dateToUtcMs(value);
+  if (!Number.isFinite(ms) || formatUtcDate(ms) !== value) return null;
+  return Math.floor(ms / (24 * 60 * 60 * 1000));
+}
+
+function daysBetweenJstDates(from: string | null | undefined, to: string | null | undefined) {
+  const fromDay = dateStringToEpochDay(from);
+  const toDay = dateStringToEpochDay(to);
+  if (fromDay === null || toDay === null) return null;
+  return toDay - fromDay;
+}
+
+function isReminderNotificationJob(job: Doc<"notificationOutbox">) {
+  return (
+    notificationContextForJob(job) === "notification.sendReminderEmails" ||
+    job.dedupeKey.startsWith("line:reminder:") ||
+    job.dedupeKey.startsWith("line:failureRetryReminder:")
+  );
+}
+
 async function computeSubmissionTimingKpis(
   ctx: MutationCtx,
   recruitments: Doc<"recruitments">[],
@@ -205,6 +227,26 @@ async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">, s
     .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
     .take(ANALYTICS_SHOP_STAGE_SCAN_LIMIT);
   const recruitments = allRecruitments.filter((recruitment) => recruitment._creationTime <= snapshot.snapshotAt);
+  const firstRecruitment = recruitments.reduce<Doc<"recruitments"> | null>(
+    (earliest, recruitment) =>
+      earliest === null || recruitment._creationTime < earliest._creationTime ? recruitment : earliest,
+    null,
+  );
+  const lastShiftRecruitment = recruitments.reduce<Doc<"recruitments"> | null>((latest, recruitment) => {
+    if (latest === null) return recruitment;
+    const recruitmentEndDay = dateStringToEpochDay(recruitment.periodEnd) ?? Number.NEGATIVE_INFINITY;
+    const latestEndDay = dateStringToEpochDay(latest.periodEnd) ?? Number.NEGATIVE_INFINITY;
+    if (recruitmentEndDay !== latestEndDay) return recruitmentEndDay > latestEndDay ? recruitment : latest;
+    const recruitmentStartDay = dateStringToEpochDay(recruitment.periodStart) ?? Number.NEGATIVE_INFINITY;
+    const latestStartDay = dateStringToEpochDay(latest.periodStart) ?? Number.NEGATIVE_INFINITY;
+    if (recruitmentStartDay !== latestStartDay) return recruitmentStartDay > latestStartDay ? recruitment : latest;
+    return recruitment._creationTime > latest._creationTime ? recruitment : latest;
+  }, null);
+  const recruitmentOpenDays = recruitments.flatMap((recruitment) => {
+    const days = daysBetweenJstDates(dateJST(recruitment._creationTime), recruitment.deadline);
+    return days === null ? [] : [Math.max(0, days + 1)];
+  });
+  const averageRecruitmentOpenDays = average(recruitmentOpenDays);
   const confirmedRecruitments = recruitments.filter((recruitment) => {
     const confirmedAt = confirmedAtForStage(recruitment);
     return confirmedAt !== null && confirmedAt <= snapshot.snapshotAt;
@@ -222,6 +264,14 @@ async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">, s
     return confirmedAt === null ? [] : [Math.max(0, confirmedAt - recruitment._creationTime)];
   });
   const averageConfirmationLeadTimeMs = average(confirmationLeadTimes);
+  const averageDeadlineToConfirmationDays = average(
+    confirmedRecruitments.flatMap((recruitment) => {
+      const confirmedAt = confirmedAtForStage(recruitment);
+      if (confirmedAt === null) return [];
+      const days = daysBetweenJstDates(recruitment.deadline, dateJST(confirmedAt));
+      return days === null ? [] : [Math.max(0, days)];
+    }),
+  );
   const recentRecruitmentStartAt = snapshot.snapshotAt - RECENT_RECRUITMENT_WINDOW_MS;
   const recruitmentCreatedLast30Days = recruitments.filter(
     (recruitment) => recruitment._creationTime >= recentRecruitmentStartAt,
@@ -267,6 +317,12 @@ async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">, s
   const submittedTotal = visibleStats.reduce((sum, stats) => sum + stats.submittedCount, 0);
   const expectedStaffTotal = visibleStats.reduce((sum, stats) => sum + stats.activeStaffCountSnapshot, 0);
   const submissionRate = ratioOrNull(submittedTotal, expectedStaffTotal);
+  const confirmedRecruitmentIds = new Set(confirmedRecruitments.map((recruitment) => recruitment._id));
+  const confirmedStats = visibleStats.filter((stats) => confirmedRecruitmentIds.has(stats.recruitmentId));
+  const confirmedSubmissionRate = ratioOrNull(
+    confirmedStats.reduce((sum, stats) => sum + stats.submittedCount, 0),
+    confirmedStats.reduce((sum, stats) => sum + stats.activeStaffCountSnapshot, 0),
+  );
   const lastRecruitment = recruitments.reduce<Doc<"recruitments"> | null>(
     (latest, recruitment) =>
       latest === null || recruitment._creationTime > latest._creationTime ? recruitment : latest,
@@ -275,6 +331,10 @@ async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">, s
   const lastRecruitmentStats = lastRecruitment ? submittedByRecruitmentId.get(lastRecruitment._id) : undefined;
   const lastRecruitmentSubmissionRate = lastRecruitmentStats
     ? ratioOrNull(lastRecruitmentStats.submittedCount, lastRecruitmentStats.activeStaffCountSnapshot)
+    : null;
+  const lastShiftStats = lastShiftRecruitment ? submittedByRecruitmentId.get(lastShiftRecruitment._id) : undefined;
+  const lastShiftSubmissionRate = lastShiftStats
+    ? ratioOrNull(lastShiftStats.submittedCount, lastShiftStats.activeStaffCountSnapshot)
     : null;
   const submissionTimingKpis = await computeSubmissionTimingKpis(
     ctx,
@@ -289,11 +349,20 @@ async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">, s
     .withIndex("by_shopId_status", (q) => q.eq("shopId", shopId).eq("status", "sent"))
     .take(ANALYTICS_SHOP_STAGE_SCAN_LIMIT);
   const deliveredNotifications = sentNotifications.filter(
-    (job) => job.payload.suppressDelivery !== true && happenedBy(job.sentAt, snapshot.snapshotAt),
+    (job) => !notificationDeliverySuppressedForJob(job) && happenedBy(job.sentAt, snapshot.snapshotAt),
   );
   const hasNotificationSent = deliveredNotifications.length > 0;
   const emailNotificationSentCount = deliveredNotifications.filter((job) => job.channel === "email").length;
   const lineNotificationSentCount = deliveredNotifications.filter((job) => job.channel === "line").length;
+  const shiftTargetStaffIds = new Set(
+    staffs.filter((staff) => staff.excludedFromShift !== true).map((staff) => staff._id),
+  );
+  const reminderSentStaffIds = new Set(
+    deliveredNotifications.flatMap((job) =>
+      job.staffId && shiftTargetStaffIds.has(job.staffId) && isReminderNotificationJob(job) ? [job.staffId] : [],
+    ),
+  );
+  const reminderSentStaffRate = ratioOrNull(reminderSentStaffIds.size, shiftTargetStaffIds.size);
 
   const openNotificationFailures = await ctx.db
     .query("notificationFailureInbox")
@@ -343,6 +412,8 @@ async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">, s
   };
 
   return {
+    shopName: shop.name,
+    shopCreatedAt: shop._creationTime,
     planKey: billingState?.planKey ?? ("free" as const),
     staffCount: staffs.length,
     shiftTargetStaffCount: stageInputs.realStaffCount,
@@ -369,6 +440,7 @@ async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">, s
     emailNotificationSentCount,
     lineNotificationSentCount,
     ...(submissionRate === null ? {} : { submissionRate }),
+    ...(confirmedSubmissionRate === null ? {} : { confirmedSubmissionRate }),
     ...(submissionTimingKpis.averageFirstSubmissionLeadTimeMs === null
       ? {}
       : { averageFirstSubmissionLeadTimeMs: submissionTimingKpis.averageFirstSubmissionLeadTimeMs }),
@@ -380,6 +452,23 @@ async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">, s
       ? {}
       : { resubmissionRate: submissionTimingKpis.resubmissionRate }),
     ...(lastRecruitmentSubmissionRate === null ? {} : { lastRecruitmentSubmissionRate }),
+    ...(firstRecruitment === null
+      ? {}
+      : {
+          firstRecruitmentCreatedAt: firstRecruitment._creationTime,
+          firstRecruitmentDeadline: firstRecruitment.deadline,
+        }),
+    ...(lastShiftRecruitment === null
+      ? {}
+      : {
+          lastShiftCreatedAt: lastShiftRecruitment._creationTime,
+          lastShiftPeriodStart: lastShiftRecruitment.periodStart,
+          lastShiftPeriodEnd: lastShiftRecruitment.periodEnd,
+        }),
+    ...(lastShiftSubmissionRate === null ? {} : { lastShiftSubmissionRate }),
+    ...(averageRecruitmentOpenDays === null ? {} : { averageRecruitmentOpenDays }),
+    ...(averageDeadlineToConfirmationDays === null ? {} : { averageDeadlineToConfirmationDays }),
+    ...(reminderSentStaffRate === null ? {} : { reminderSentStaffRate }),
     ...(lastRecruitmentCreatedAt === null ? {} : { lastRecruitmentCreatedAt }),
     ...(lastRecruitmentConfirmedAt === null ? {} : { lastRecruitmentConfirmedAt }),
     ...(lastConfirmedRecruitmentLeadTimeMs === null ? {} : { lastConfirmedRecruitmentLeadTimeMs }),
@@ -541,7 +630,7 @@ export const aggregateNotificationEvents = internalMutation({
 
     for (const job of page.page) {
       // dry-run等で実際には配送していないジョブはKPI対象外（markSentの使用量カウントと同じ扱い）
-      if (job.payload.suppressDelivery === true) continue;
+      if (notificationDeliverySuppressedForJob(job)) continue;
       const { kind } = describeNotificationFailureContext(notificationContextForJob(job));
       const metric = notificationMetric(job.channel, stage, kind);
       acc[metric] = (acc[metric] ?? 0) + 1;

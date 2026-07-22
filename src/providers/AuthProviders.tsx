@@ -1,5 +1,5 @@
-import { ClerkProvider } from "@clerk/clerk-react";
 import { jaJP } from "@clerk/localizations";
+import { ClerkProvider } from "@clerk/react";
 import type { ReactNode } from "react";
 import { CLERK_PUBLISHABLE_KEY, CONVEX_URL } from "@/src/configs/env";
 import { ConvexClientProvider } from "@/src/providers/ConvexProvider";

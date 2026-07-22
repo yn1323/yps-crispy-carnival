@@ -30,14 +30,14 @@ export function ArticlePage({ slug }: ArticleSitePageProps): ReactNode {
     <ArticleSiteShell>
       <ArticleHero article={article} />
       <Container
-        maxW={{ base: "820px", xl: shouldShowToc ? "1300px" : "820px" }}
+        maxW={{ base: "720px", xl: shouldShowToc ? "1200px" : "720px" }}
         px={{ base: 4, lg: 8, xl: 0 }}
-        py={{ base: 8, lg: 10 }}
+        py={{ base: 8, lg: 16 }}
       >
         <Grid
           templateColumns={{
             base: "1fr",
-            xl: shouldShowToc ? "minmax(0, 216px) minmax(0, 820px) minmax(0, 216px)" : "minmax(0, 820px)",
+            xl: shouldShowToc ? "minmax(0, 216px) minmax(0, 720px) minmax(0, 216px)" : "minmax(0, 720px)",
           }}
           justifyContent="center"
           columnGap={{ xl: 6 }}
@@ -47,9 +47,9 @@ export function ArticlePage({ slug }: ArticleSitePageProps): ReactNode {
           <VStack
             gridColumn={{ base: "1", xl: shouldShowToc ? "2" : "1" }}
             align="stretch"
-            gap={{ base: 8, lg: 10 }}
+            gap={{ base: 12, lg: 16 }}
             w="full"
-            maxW="820px"
+            maxW="720px"
           >
             {shouldShowToc && <MobileArticleToc article={article} />}
             <ArticleBody article={article} />
@@ -68,7 +68,7 @@ function ArticleHero({ article }: { article: ArticleContent }): ReactNode {
 
   return (
     <Box borderBottomWidth="1px" borderColor="gray.200" bg="white">
-      <Container maxW={heroImage ? "1120px" : "820px"} px={{ base: 4, lg: heroImage ? 8 : 0 }} py={{ base: 8, lg: 10 }}>
+      <Container maxW={heroImage ? "1120px" : "720px"} px={{ base: 4, lg: heroImage ? 8 : 0 }} py={{ base: 8, lg: 12 }}>
         <Grid
           templateColumns={{ base: "1fr", lg: heroImage ? `minmax(0, 1fr) ${heroImage.width}px` : "1fr" }}
           gap={{ base: 5, lg: 8 }}
@@ -95,11 +95,28 @@ function ArticleHero({ article }: { article: ArticleContent }): ReactNode {
                 ]}
               />
             </Box>
-            <HStack gap={{ base: 2.5, md: 3 }} wrap="wrap" color="gray.700" textStyle="sm">
-              <Badge colorPalette="green" variant="subtle" borderRadius="full" px={3} py={1}>
+            <VStack align="stretch" gap={{ base: 3, md: 4 }}>
+              <Badge alignSelf="flex-start" colorPalette="green" variant="subtle" borderRadius="full" px={3} py={1}>
                 {article.meta.categoryLabel}
               </Badge>
-              <ArticleMetaItem icon={LuCalendarDays}>{formatJapaneseDate(article.meta.publishedAt)}</ArticleMetaItem>
+              <Heading
+                id="article-title"
+                as="h1"
+                color="gray.950"
+                textStyle="pageTitle"
+                letterSpacing="0"
+                textWrap="balance"
+              >
+                {article.meta.title}
+              </Heading>
+              <Text color="gray.700" textStyle="body" lineHeight="1.8" maxW="640px" textWrap="pretty">
+                {article.meta.description}
+              </Text>
+            </VStack>
+            <HStack gap={{ base: 3, md: 4 }} wrap="wrap" color="gray.600" textStyle="sm">
+              <ArticleMetaItem icon={LuCalendarDays}>
+                公開 {formatJapaneseDate(article.meta.publishedAt)}
+              </ArticleMetaItem>
               {shouldShowUpdatedAt && (
                 <ArticleMetaItem icon={LuPenLine}>
                   更新 {formatJapaneseDate(article.meta.updatedAt ?? "")}
@@ -107,14 +124,6 @@ function ArticleHero({ article }: { article: ArticleContent }): ReactNode {
               )}
               <ArticleMetaItem icon={LuClock3}>{article.meta.readingMinutes}分で読めます</ArticleMetaItem>
             </HStack>
-            <VStack align="stretch" gap={{ base: 3, md: 4 }}>
-              <Heading as="h1" color="gray.950" textStyle="pageTitle" letterSpacing="0">
-                {article.meta.title}
-              </Heading>
-              <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" maxW="680px">
-                {article.meta.description}
-              </Text>
-            </VStack>
           </VStack>
           {heroImage && <ArticleHeroImageFigure image={heroImage} />}
         </Grid>
@@ -127,7 +136,7 @@ function ArticleBody({ article }: { article: ArticleContent }): ReactNode {
   const components = useMemo(() => createArticleMdxComponents(article.resolveImageSrc), [article]);
 
   return (
-    <VStack as="article" align="stretch" gap={{ base: 6, lg: 7 }}>
+    <VStack as="article" aria-labelledby="article-title" align="stretch" gap={4}>
       <article.Content components={components} />
     </VStack>
   );
@@ -136,7 +145,7 @@ function ArticleBody({ article }: { article: ArticleContent }): ReactNode {
 function ArticleAside({ article }: { article: ArticleContent }): ReactNode {
   return (
     <VStack
-      as="aside"
+      as="nav"
       aria-label="この記事の目次"
       align="stretch"
       gap={4}
@@ -147,23 +156,25 @@ function ArticleAside({ article }: { article: ArticleContent }): ReactNode {
       maxW="216px"
       position={{ base: "static", xl: "sticky" }}
       top={{ xl: `calc(${HEADER_HEIGHT.md} + 24px)` }}
-      borderWidth="1px"
+      maxH={{ xl: `calc(100vh - ${HEADER_HEIGHT.md} - 48px)` }}
+      overflowY={{ xl: "auto" }}
+      borderLeftWidth="2px"
       borderColor="gray.200"
-      borderRadius="lg"
-      p={4}
-      bg="white"
+      py={1}
+      ps={4}
+      pe={2}
     >
-      <Text fontWeight="bold" color="gray.950">
+      <Text fontWeight="bold" color="gray.800" textStyle="sm">
         この記事の目次
       </Text>
-      <VStack as="nav" align="stretch" gap={2}>
+      <VStack align="stretch" gap={2}>
         {article.toc.map((item) => (
           <Link
             key={item.id}
             href={`#${item.id}`}
-            color="teal.700"
+            color="gray.700"
             textStyle="sm"
-            lineHeight="1.6"
+            lineHeight="1.7"
             _hover={{ color: "teal.800", textDecoration: "none" }}
           >
             {item.text}
@@ -195,14 +206,17 @@ function MobileArticleToc({ article }: { article: ArticleContent }): ReactNode {
         </Accordion.ItemTrigger>
         <Accordion.ItemContent borderTopWidth="1px" borderTopColor="gray.100">
           <Accordion.ItemBody px={4} py={3}>
-            <VStack as="nav" align="stretch" gap={2}>
+            <VStack as="nav" aria-label="この記事の目次" align="stretch" gap={2}>
               {article.toc.map((item) => (
                 <Link
                   key={item.id}
                   href={`#${item.id}`}
                   color="teal.700"
                   textStyle="sm"
-                  lineHeight="1.6"
+                  lineHeight="1.7"
+                  display="flex"
+                  alignItems="center"
+                  minH={10}
                   _hover={{ color: "teal.800", textDecoration: "none" }}
                 >
                   {item.text}

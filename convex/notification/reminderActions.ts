@@ -9,8 +9,12 @@ import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
+import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
 import { recordNotificationPreparationFailure } from "./failureRecording";
 import { buildReminderEmailHtml, buildReminderLineFlexMessage, buildReminderLineText } from "./templates";
+
+const SHIFT_REMINDER_NOTIFICATION_KIND = "shift.reminder";
+const SHIFT_REMINDER_LINE_TITLE = "シフト提出のお願い";
 
 /**
  * 未提出スタッフ全員に催促を送信
@@ -18,8 +22,9 @@ import { buildReminderEmailHtml, buildReminderLineFlexMessage, buildReminderLine
  * - それ以外 → メール（未連携なら CTA を末尾に挿入）
  */
 export const sendReminderEmails = internalAction({
-  args: { recruitmentId: v.id("recruitments") },
-  handler: async (ctx, { recruitmentId }) => {
+  args: { recruitmentId: v.id("recruitments"), ...businessNotificationOriginArgs },
+  handler: async (ctx, { recruitmentId, organizationBillingVersionAtOrigin }) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.notification.reminderQueries.getReminderEmailData, { recruitmentId });
     if (!data || data.staffEntries.length === 0) return;
 
@@ -30,6 +35,7 @@ export const sendReminderEmails = internalAction({
     );
     const expiresAt = getSubmitLinkCutoff(data.periodStart);
     const deadlineLabel = formatDeadlineLabel(data.deadline);
+    const subject = formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出締切が近づいています`);
     let sentCount = 0;
 
     for (const staff of data.staffEntries) {
@@ -60,13 +66,14 @@ export const sendReminderEmails = internalAction({
           const fallbackEmail = staff.email
             ? {
                 dedupeKey: emailDedupeKey,
+                history: {
+                  notificationKind: SHIFT_REMINDER_NOTIFICATION_KIND,
+                  displayTitle: subject,
+                },
                 payload: emailPayload({
                   from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
                   to: staff.email,
-                  subject: formatResendSubject(
-                    data.shopName,
-                    `${data.periodLabel} シフト希望の提出締切が近づいています`,
-                  ),
+                  subject,
                   html: buildReminderEmailHtml({
                     staffName: staff.name,
                     periodLabel: data.periodLabel,
@@ -87,8 +94,13 @@ export const sendReminderEmails = internalAction({
             : undefined;
           const result = await enqueueLine(ctx, {
             shopId: data.shopId,
+            ...notificationOrigin,
             recruitmentId,
             staffId: staff.staffId,
+            history: {
+              notificationKind: SHIFT_REMINDER_NOTIFICATION_KIND,
+              displayTitle: SHIFT_REMINDER_LINE_TITLE,
+            },
             dedupeKey: lineDedupeKey,
             payload: linePayload({
               toUserId: staff.lineUserId,
@@ -112,13 +124,18 @@ export const sendReminderEmails = internalAction({
 
         const result = await enqueueEmail(ctx, {
           shopId: data.shopId,
+          ...notificationOrigin,
           recruitmentId,
           staffId: staff.staffId,
+          history: {
+            notificationKind: SHIFT_REMINDER_NOTIFICATION_KIND,
+            displayTitle: subject,
+          },
           dedupeKey: emailDedupeKey,
           payload: emailPayload({
             from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
             to: staff.email,
-            subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出締切が近づいています`),
+            subject,
             html: buildReminderEmailHtml({
               staffName: staff.name,
               periodLabel: data.periodLabel,
@@ -165,8 +182,10 @@ export const sendReminderEmailForStaff = internalAction({
     recruitmentId: v.id("recruitments"),
     staffId: v.id("staffs"),
     notificationRunId: v.optional(v.number()),
+    ...businessNotificationOriginArgs,
   },
-  handler: async (ctx, { recruitmentId, staffId, notificationRunId }) => {
+  handler: async (ctx, { recruitmentId, staffId, notificationRunId, organizationBillingVersionAtOrigin }) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.notification.reminderQueries.getReminderEmailDataForStaff, {
       recruitmentId,
       staffId,
@@ -180,6 +199,7 @@ export const sendReminderEmailForStaff = internalAction({
     );
     const expiresAt = getSubmitLinkCutoff(data.periodStart);
     const deadlineLabel = formatDeadlineLabel(data.deadline);
+    const subject = formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出締切が近づいています`);
     const channel = selectChannel(
       { lineUserId: data.staff.lineUserId, lineFollowing: data.staff.lineFollowing },
       quota,
@@ -211,10 +231,14 @@ export const sendReminderEmailForStaff = internalAction({
         const fallbackEmail = data.staff.email
           ? {
               dedupeKey: emailDedupeKey,
+              history: {
+                notificationKind: SHIFT_REMINDER_NOTIFICATION_KIND,
+                displayTitle: subject,
+              },
               payload: emailPayload({
                 from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
                 to: data.staff.email,
-                subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出締切が近づいています`),
+                subject,
                 html: buildReminderEmailHtml({
                   staffName: data.staff.name,
                   periodLabel: data.periodLabel,
@@ -235,8 +259,13 @@ export const sendReminderEmailForStaff = internalAction({
           : undefined;
         await enqueueLine(ctx, {
           shopId: data.shopId,
+          ...notificationOrigin,
           recruitmentId,
           staffId: data.staff.staffId,
+          history: {
+            notificationKind: SHIFT_REMINDER_NOTIFICATION_KIND,
+            displayTitle: SHIFT_REMINDER_LINE_TITLE,
+          },
           dedupeKey: lineDedupeKey,
           payload: linePayload({
             toUserId: data.staff.lineUserId,
@@ -258,13 +287,18 @@ export const sendReminderEmailForStaff = internalAction({
       });
       await enqueueEmail(ctx, {
         shopId: data.shopId,
+        ...notificationOrigin,
         recruitmentId,
         staffId: data.staff.staffId,
+        history: {
+          notificationKind: SHIFT_REMINDER_NOTIFICATION_KIND,
+          displayTitle: subject,
+        },
         dedupeKey: emailDedupeKey,
         payload: emailPayload({
           from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
           to: data.staff.email,
-          subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出締切が近づいています`),
+          subject,
           html: buildReminderEmailHtml({
             staffName: data.staff.name,
             periodLabel: data.periodLabel,

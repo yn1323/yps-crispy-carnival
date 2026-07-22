@@ -16,15 +16,22 @@ type Props = {
   periodLabel: string;
   warnings?: DisplayIssue[];
   isResend?: boolean;
+  notificationDescription?: string;
 };
 
-export const ConfirmShiftContent = ({ staffCount, periodLabel, warnings = [], isResend = false }: Props) => {
+export const ConfirmShiftContent = ({
+  staffCount,
+  periodLabel,
+  warnings = [],
+  isResend = false,
+  notificationDescription = "LINE連携済みのスタッフには通常LINE、それ以外にはメールで送ります。",
+}: Props) => {
   const warningSummary = summarizeAssignmentWarnings(warnings);
 
   return (
     <>
       <Text fontSize="sm" lineHeight="tall" mb={4}>
-        {"LINE連携済みのスタッフにはLINE、それ以外にはメールで届きます。"}
+        {notificationDescription}
       </Text>
       <Box bg="gray.50" borderRadius="md" p={4}>
         <Text fontSize="sm">対象：{isResend ? "前回通知から変更があるスタッフ" : `${staffCount}名`}</Text>

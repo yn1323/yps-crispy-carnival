@@ -146,7 +146,7 @@ export const CreateRecruitmentFormView = ({
               value={period.value}
               min={period.min}
               max={period.max}
-              defaultFocusedValue={period.initialFocus}
+              defaultFocusedValue={period.value[0] ?? period.initialFocus}
               desktopMonths={2}
               onValueChange={onPeriodChange}
             />

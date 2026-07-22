@@ -1,7 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import type { DatabaseWriter } from "../_generated/server";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
@@ -12,6 +12,180 @@ describe("notificationOutbox/queries", () => {
     vi.setSystemTime(new Date("2026-06-17T00:00:00Z"));
   });
   afterEach(() => vi.useRealTimers());
+
+  it("listStaffNotificationHistoryは同一店舗の履歴だけを最新順にページングし、最小DTOを返す", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const primary = await seedManagerShop(ctx, {
+        subject: "history_query_primary",
+        email: "history-query-primary@example.com",
+        shopName: "履歴主店舗",
+      });
+      const other = await seedManagerShop(ctx, {
+        subject: "history_query_other",
+        email: "history-query-other@example.com",
+        shopName: "履歴別店舗",
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: primary.shopId,
+        name: "履歴スタッフ",
+        email: "history-staff@example.com",
+        isDeleted: false,
+      });
+      const otherStaffId = await ctx.db.insert("staffs", {
+        shopId: other.shopId,
+        name: "別店舗スタッフ",
+        email: "other-history-staff@example.com",
+        isDeleted: false,
+      });
+      const deletedStaffId = await ctx.db.insert("staffs", {
+        shopId: primary.shopId,
+        name: "削除済みスタッフ",
+        email: "deleted-history-staff@example.com",
+        isDeleted: true,
+      });
+      const missingStaffId = await ctx.db.insert("staffs", {
+        shopId: primary.shopId,
+        name: "物理削除スタッフ",
+        email: "missing-history-staff@example.com",
+        isDeleted: false,
+      });
+      await ctx.db.delete(missingStaffId);
+
+      const historyIds: Id<"notificationHistory">[] = [];
+      for (let index = 0; index < 25; index++) {
+        historyIds.push(
+          await insertNotificationHistoryFixture(ctx, {
+            shopId: primary.shopId,
+            staffId,
+            requestedAt: Date.now() + index,
+            sentAt: Date.now() + index + 100,
+            displayTitle: `通知${index}`,
+            sendStatus: "sent",
+            deliveryStatus: "unknown",
+          }),
+        );
+      }
+      await insertNotificationHistoryFixture(ctx, {
+        shopId: other.shopId,
+        staffId: otherStaffId,
+        requestedAt: Date.now() + 1_000,
+        displayTitle: "別店舗通知",
+        sendStatus: "sent",
+        deliveryStatus: "unknown",
+      });
+
+      return {
+        shopId: primary.shopId,
+        staffId,
+        otherStaffId,
+        deletedStaffId,
+        missingStaffId,
+        historyIds,
+      };
+    });
+
+    const unauthenticated = await t.query(api.notificationOutbox.queries.listStaffNotificationHistory, {
+      shopId: ids.shopId,
+      staffId: ids.staffId,
+      paginationOpts: { numItems: 20, cursor: null },
+    });
+    expect(unauthenticated.page).toEqual([]);
+
+    const first = await t
+      .withIdentity({ subject: "history_query_primary" })
+      .query(api.notificationOutbox.queries.listStaffNotificationHistory, {
+        shopId: ids.shopId,
+        staffId: ids.staffId,
+        paginationOpts: { numItems: 20, cursor: null },
+      });
+    expect(first.page.map((history) => history._id)).toEqual([...ids.historyIds].reverse().slice(0, 20));
+    expect(first.isDone).toBe(false);
+    expect(Object.keys(first.page[0]).sort()).toEqual(
+      ["_id", "channel", "displayStatus", "displayTitle", "requestedAt", "sentAt"].sort(),
+    );
+    expect(first.page[0]).not.toHaveProperty("payload");
+    expect(first.page[0]).not.toHaveProperty("notificationKind");
+    expect(first.page[0]).not.toHaveProperty("deliveryStatusAt");
+
+    const second = await t
+      .withIdentity({ subject: "history_query_primary" })
+      .query(api.notificationOutbox.queries.listStaffNotificationHistory, {
+        shopId: ids.shopId,
+        staffId: ids.staffId,
+        paginationOpts: { numItems: 20, cursor: first.continueCursor },
+      });
+    expect(second.page.map((history) => history._id)).toEqual([...ids.historyIds].reverse().slice(20));
+    expect(second.isDone).toBe(true);
+    expect(new Set([...first.page, ...second.page].map((history) => history._id)).size).toBe(25);
+
+    for (const inaccessibleStaffId of [ids.otherStaffId, ids.deletedStaffId, ids.missingStaffId]) {
+      const page = await t
+        .withIdentity({ subject: "history_query_primary" })
+        .query(api.notificationOutbox.queries.listStaffNotificationHistory, {
+          shopId: ids.shopId,
+          staffId: inaccessibleStaffId,
+          paginationOpts: { numItems: 20, cursor: null },
+        });
+      expect(page).toEqual({ page: [], isDone: true, continueCursor: "" });
+    }
+  });
+
+  it("listStaffNotificationHistoryは送信・配信状態を表示用の機械値へ優先順どおり正規化する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: "history_query_status",
+        email: "history-query-status@example.com",
+        shopName: "履歴状態店舗",
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId,
+        name: "履歴状態スタッフ",
+        email: "history-status-staff@example.com",
+        isDeleted: false,
+      });
+      const statuses: Array<{
+        displayTitle: string;
+        sendStatus: Doc<"notificationHistory">["sendStatus"];
+        deliveryStatus: Doc<"notificationHistory">["deliveryStatus"];
+      }> = [
+        { displayTitle: "cancelled", sendStatus: "cancelled", deliveryStatus: "delivered" },
+        { displayTitle: "delivered", sendStatus: "queued", deliveryStatus: "delivered" },
+        { displayTitle: "delayed", sendStatus: "sent", deliveryStatus: "delayed" },
+        { displayTitle: "provider-failed", sendStatus: "sent", deliveryStatus: "bounced" },
+        { displayTitle: "send-failed", sendStatus: "failed", deliveryStatus: "unknown" },
+        { displayTitle: "sent", sendStatus: "sent", deliveryStatus: "unknown" },
+        { displayTitle: "queued", sendStatus: "queued", deliveryStatus: "unknown" },
+      ];
+      for (const [index, status] of statuses.entries()) {
+        await insertNotificationHistoryFixture(ctx, {
+          shopId,
+          staffId,
+          requestedAt: Date.now() + index,
+          ...status,
+        });
+      }
+      return { shopId, staffId };
+    });
+
+    const page = await t
+      .withIdentity({ subject: "history_query_status" })
+      .query(api.notificationOutbox.queries.listStaffNotificationHistory, {
+        shopId: ids.shopId,
+        staffId: ids.staffId,
+        paginationOpts: { numItems: 20, cursor: null },
+      });
+    expect(Object.fromEntries(page.page.map((history) => [history.displayTitle, history.displayStatus]))).toEqual({
+      cancelled: "cancelled",
+      delivered: "delivered",
+      delayed: "delayed",
+      "provider-failed": "failed",
+      "send-failed": "failed",
+      sent: "sent",
+      queued: "queued",
+    });
+  });
 
   it("listOpenFailuresは同一店舗のopen失敗だけをlastFailedAt降順で返す", async () => {
     const t = convexTest(schema, modules);
@@ -135,9 +309,9 @@ describe("notificationOutbox/queries", () => {
     expect(page.page[0]).not.toHaveProperty("lastError");
   });
 
-  it("listOpenFailuresは非表示失敗がページを埋めても対応可能な失敗を初回ページで返す", async () => {
+  it("listOpenFailuresは非表示失敗を挟んでも対応可能な失敗を欠落なくページングする", async () => {
     const t = convexTest(schema, modules);
-    const { actionableId, shopId } = await t.run(async (ctx) => {
+    const { actionableId, olderActionableId, shopId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: "manager_pagination",
         email: "pagination@example.com",
@@ -181,6 +355,14 @@ describe("notificationOutbox/queries", () => {
         recruitmentId: openRecruitmentId,
         notificationContext: "notification.sendRecruitmentNotificationEmails",
       });
+      const olderId = await insertFailure(ctx, {
+        shopId,
+        failureKey: "outbox:older-actionable",
+        status: "open",
+        dedupeKey: "email:test:older-actionable",
+        lastFailedAt: Date.now() - 20_000,
+        notificationContext: "notification.sendReminderEmails",
+      });
       // 募集終了済み失敗（新しい）でページ先頭を埋める
       for (let i = 0; i < 3; i++) {
         await insertFailure(ctx, {
@@ -205,17 +387,38 @@ describe("notificationOutbox/queries", () => {
           notificationContext: "test.email",
         });
       }
-      return { actionableId: id, shopId };
+      return { actionableId: id, olderActionableId: olderId, shopId };
     });
 
-    const page = await t
+    const first = await t
       .withIdentity({ subject: "manager_pagination" })
       .query(api.notificationOutbox.queries.listOpenFailures, {
         shopId,
         paginationOpts: { numItems: 1, cursor: null },
       });
 
-    expect(page.page.map((failure) => failure._id)).toEqual([actionableId]);
+    expect(first.page.map((failure) => failure._id)).toEqual([actionableId]);
+    expect(first.isDone).toBe(false);
+
+    const second = await t
+      .withIdentity({ subject: "manager_pagination" })
+      .query(api.notificationOutbox.queries.listOpenFailures, {
+        shopId,
+        paginationOpts: { numItems: 1, cursor: first.continueCursor },
+      });
+
+    expect(second.page.map((failure) => failure._id)).toEqual([olderActionableId]);
+    expect(second.isDone).toBe(false);
+
+    const last = await t
+      .withIdentity({ subject: "manager_pagination" })
+      .query(api.notificationOutbox.queries.listOpenFailures, {
+        shopId,
+        paginationOpts: { numItems: 1, cursor: second.continueCursor },
+      });
+
+    expect(last.page).toEqual([]);
+    expect(last.isDone).toBe(true);
   });
 
   it("hasOpenFailuresは現在店舗のopen失敗の有無だけを返す", async () => {
@@ -335,5 +538,53 @@ async function insertFailure(
     lastError: "failed",
     createdAt: now,
     updatedAt: now,
+  });
+}
+
+async function insertNotificationHistoryFixture(
+  ctx: { db: DatabaseWriter },
+  args: {
+    shopId: Id<"shops">;
+    staffId: Id<"staffs">;
+    requestedAt: number;
+    sentAt?: number;
+    displayTitle: string;
+    sendStatus: Doc<"notificationHistory">["sendStatus"];
+    deliveryStatus: Doc<"notificationHistory">["deliveryStatus"];
+  },
+) {
+  const outboxId = await ctx.db.insert("notificationOutbox", {
+    channel: "email",
+    status: "sent",
+    dedupeKey: `email:test:history-query:${args.displayTitle}:${args.requestedAt}`,
+    shopId: args.shopId,
+    staffId: args.staffId,
+    payload: {
+      kind: "email",
+      from: "シフトリ <noreply@example.com>",
+      to: "sensitive-recipient@example.com",
+      subject: args.displayTitle,
+      html: "<p>token付きURLを含み得る本文</p>",
+      context: "test.historyQuery",
+    },
+    attemptCount: 1,
+    nextRunAt: args.requestedAt,
+    ...(args.sentAt !== undefined ? { sentAt: args.sentAt } : {}),
+    createdAt: args.requestedAt,
+    updatedAt: args.requestedAt,
+  });
+
+  return await ctx.db.insert("notificationHistory", {
+    outboxId,
+    shopId: args.shopId,
+    staffId: args.staffId,
+    channel: "email",
+    notificationKind: "test.historyQuery",
+    displayTitle: args.displayTitle,
+    sendStatus: args.sendStatus,
+    deliveryStatus: args.deliveryStatus,
+    requestedAt: args.requestedAt,
+    ...(args.sentAt !== undefined ? { sentAt: args.sentAt } : {}),
+    updatedAt: args.requestedAt,
   });
 }

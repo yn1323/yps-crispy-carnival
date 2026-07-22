@@ -12,52 +12,66 @@ type NotificationAction = {
 };
 
 type Props = {
+  isReadOnly: boolean;
   isShiftTarget: boolean;
   openRecruitments: Recruitment[];
   currentRecruitments: Recruitment[];
+  notificationHistory: ReactNode;
   sendRecruitmentsAction: NotificationAction;
   sendCurrentShiftAction: NotificationAction;
 };
 
 export const StaffDetailNotificationTab = ({
+  isReadOnly,
   isShiftTarget,
   openRecruitments,
   currentRecruitments,
+  notificationHistory,
   sendRecruitmentsAction,
   sendCurrentShiftAction,
 }: Props) => (
-  <Stack gap={8}>
-    {!isShiftTarget && (
-      <Box borderWidth="1px" borderColor="blackAlpha.100" bg="blackAlpha.50" borderRadius="md" p={3}>
+  <Stack gap={10}>
+    <fieldset disabled={isReadOnly} style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}>
+      <Stack gap={6}>
         <Stack gap={1}>
-          <Text fontWeight="semibold">このスタッフはシフト対象外です</Text>
+          <Heading as="h3" fontSize="md" fontWeight="semibold">
+            通知を送る
+          </Heading>
           <Text fontSize="sm" color="fg.muted">
-            シフト表、提出依頼、確定シフト通知の対象から外れています。
+            シフト関連の重要な通知を再送します。
+            <br />
+            通常はスタッフ登録時、シフト作成・確定時に自動で送信しています。
           </Text>
         </Stack>
-      </Box>
-    )}
-    <Text fontSize="sm" color="fg.muted">
-      シフト関連の重要な通知を再送します。
-      <br />
-      通常はスタッフ登録時、シフト作成・確定時に自動で送信しています。
-    </Text>
-    <NotificationSection
-      title="現在の募集中シフト"
-      icon={<LuSend />}
-      recruitments={openRecruitments}
-      emptyText="送信できる募集中シフトはありません。"
-      actionLabel="募集中のシフトを送る"
-      {...sendRecruitmentsAction}
-    />
-    <NotificationSection
-      title="確定シフト"
-      icon={<LuCalendarCheck />}
-      recruitments={currentRecruitments}
-      emptyText="送信できる現在の確定シフトはありません。"
-      actionLabel="確定シフトを送る"
-      {...sendCurrentShiftAction}
-    />
+        {!isShiftTarget && (
+          <Box borderWidth="1px" borderColor="blackAlpha.100" bg="blackAlpha.50" borderRadius="md" p={3}>
+            <Stack gap={1}>
+              <Text fontWeight="semibold">このスタッフはシフト対象外です</Text>
+              <Text fontSize="sm" color="fg.muted">
+                シフト表、提出依頼、確定シフト通知の対象から外れています。
+              </Text>
+            </Stack>
+          </Box>
+        )}
+        <NotificationSection
+          title="現在の募集中シフト"
+          icon={<LuSend />}
+          recruitments={openRecruitments}
+          emptyText="送信できる募集中シフトはありません。"
+          actionLabel="募集中のシフトを送る"
+          {...sendRecruitmentsAction}
+        />
+        <NotificationSection
+          title="確定シフト"
+          icon={<LuCalendarCheck />}
+          recruitments={currentRecruitments}
+          emptyText="送信できる現在の確定シフトはありません。"
+          actionLabel="確定シフトを送る"
+          {...sendCurrentShiftAction}
+        />
+      </Stack>
+    </fieldset>
+    {notificationHistory}
   </Stack>
 );
 
@@ -84,7 +98,7 @@ const NotificationSection = ({
     <Flex align="center" gap={3} justify="space-between">
       <HStack gap={2} color="gray.900" minW={0}>
         {icon}
-        <Heading as="h3" fontSize="sm" fontWeight="semibold">
+        <Heading as="h4" fontSize="sm" fontWeight="semibold">
           {title}
         </Heading>
       </HStack>

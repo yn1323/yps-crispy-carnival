@@ -2,18 +2,21 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
-import { APP_URL } from "./_lib/config";
+import { APP_URL, getOrganizationInvitationSigningSecret } from "./_lib/config";
 import { addDays, getReminderScheduledAt, getSubmitLinkCutoff } from "./_lib/dateFormat";
 import { buildLineAuthorizeUrl } from "./_lib/lineClient";
 import { isDryRunManagerEmail, isNotificationDeliverySuppressed } from "./_lib/notificationDelivery";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "./_lib/submissionPattern";
 import { generateUUID } from "./_lib/uuid";
+import { normalizeEmail } from "./_lib/validation";
 import { LEGAL_CONSENT_TOKEN_TTL_MS, MAGIC_LINK_DEFAULT_TTL_MS } from "./constants";
 import { getLegalConsentVersions, type LegalAudience } from "./legal/documents";
 import { getStaffLineAccount, upsertStaffLineAccount } from "./line/service";
+import { deriveInvitationToken, digestInvitationToken } from "./organizationInvitation/token";
 import { ensureDefaultPosition } from "./position/service";
 import schema from "./schema";
 import { sendReminderRef as sendShopActivationReminderRef } from "./shopActivationReminder/refs";
+import { staffRegistrationFormSchema } from "./staffRegistration/schemas";
 
 const TABLE_NAMES = Object.keys(schema.tables) as (keyof typeof schema.tables)[];
 const magicLinkPurposeValidator = v.union(v.literal("submit"), v.literal("view"));
@@ -51,10 +54,25 @@ const notificationProbeArgs = {
   notificationContext: v.optional(v.string()),
   channel: v.optional(notificationChannelValidator),
 };
+const organizationNotificationProbeArgs = {
+  organizationId: v.id("organizations"),
+  organizationInvitationId: v.optional(v.id("organizationInvitations")),
+  expectedShopId: v.optional(v.id("shops")),
+  notificationContext: v.optional(v.string()),
+  channel: v.optional(notificationChannelValidator),
+};
 
 const DEFAULT_MANAGER = {
   name: "田中太郎",
   email: "tanaka@example.com",
+};
+const DEFAULT_PRIMARY_MARKER = {
+  name: "A店識別スタッフ",
+  email: "primary.marker@shiftori.invalid",
+};
+const DEFAULT_SECONDARY_MARKER = {
+  name: "B店識別スタッフ",
+  email: "secondary.marker@shiftori.invalid",
 };
 const E2E_SIMULATED_NOTIFICATION_FAILURE = "E2E simulated notification failure";
 
@@ -69,22 +87,65 @@ type ScenarioDates = {
 type LegalConsentState = "current" | "missing" | "oldRequired" | "oldDocumentOnly";
 type NotificationOutboxStatus = Doc<"notificationOutbox">["status"];
 type NotificationFailureInboxStatus = Doc<"notificationFailureInbox">["status"];
+type OrganizationInvitationStatus = Doc<"organizationInvitations">["status"];
+type OrganizationMemberStatus = Doc<"organizationMembers">["status"];
+type OrganizationPersonStatus = Doc<"organizationPeople">["status"];
+type DeletionCleanupJobStatus = Doc<"deletionCleanupJobs">["status"];
+
+const ORGANIZATION_INVITATION_STATUSES: OrganizationInvitationStatus[] = [
+  "pending",
+  "accepted",
+  "issued",
+  "linked",
+  "revoked",
+  "expired",
+];
+const ORGANIZATION_MEMBER_STATUSES: OrganizationMemberStatus[] = ["active", "readOnly", "removed"];
+const ORGANIZATION_PERSON_STATUSES: OrganizationPersonStatus[] = ["active", "removed"];
+const ALL_NOTIFICATION_OUTBOX_STATUSES: NotificationOutboxStatus[] = [
+  "pending",
+  "processing",
+  "sent",
+  "failed",
+  "cancelled",
+];
+const DELETION_CLEANUP_JOB_STATUSES: DeletionCleanupJobStatus[] = [
+  "queued",
+  "processing",
+  "retrying",
+  "actionRequired",
+  "completed",
+];
+const E2E_GRAPH_CLEANUP_JOB_LIMIT_PER_STATUS = 100;
+
+function normalizeDeploymentUrl(value: string | undefined) {
+  return value?.trim().replace(/\/+$/, "") ?? "";
+}
 
 function assertE2EHelpersEnabled() {
-  if (process.env.E2E_TESTING_ENABLED !== "true") {
-    throw new Error("E2E testing helpers are disabled. Set E2E_TESTING_ENABLED=true in the Convex deployment.");
+  const currentDeploymentUrl = normalizeDeploymentUrl(process.env.CONVEX_CLOUD_URL);
+  const allowedDeploymentUrl = normalizeDeploymentUrl(process.env.E2E_TESTING_DEPLOYMENT_URL);
+  if (
+    process.env.E2E_TESTING_ENABLED !== "true" ||
+    !currentDeploymentUrl ||
+    !allowedDeploymentUrl ||
+    currentDeploymentUrl !== allowedDeploymentUrl
+  ) {
+    throw new Error("E2E testing helpers are disabled for this deployment.");
   }
 }
 
 function notificationContextForProbe(job: Doc<"notificationOutbox">) {
-  if (job.payload.kind === "email") return job.payload.context;
+  // TODO[narrow]: m019のisDone/successとredaction readiness確認後にpayload fallbackを削除する。
+  if (job.notificationContext) return job.notificationContext;
+  if (job.payload.kind !== "line") return job.payload.context;
   return job.payload.fallbackEmail?.payload.context ?? job.dedupeKey.split(":").slice(0, 2).join(":");
 }
 
-async function notificationCtaProbe(ctx: QueryCtx, job: Doc<"notificationOutbox">) {
+async function notificationCtaProbe(ctx: QueryCtx, job: Doc<"notificationOutbox">, expectedShopId?: Id<"shops">) {
   // LINEはfallback emailを除外し、実際のLINE本文/Flex messageにCTAがあることを確認する。
   const payloadForCta =
-    job.payload.kind === "email"
+    job.payload.kind !== "line"
       ? job.payload
       : {
           kind: job.payload.kind,
@@ -92,18 +153,49 @@ async function notificationCtaProbe(ctx: QueryCtx, job: Doc<"notificationOutbox"
           message: job.payload.message,
         };
   const serializedPayload = JSON.stringify(payloadForCta);
-  const hasRecognizedCta = [
-    "/shifts/submit?token=",
-    "/shifts/view?token=",
-    "/shifts/reissue?",
-    "/legal/staff/consent?token=",
-    "/staff/register?token=",
-    "/dashboard",
-    "access.line.me/oauth2/v2.1/authorize",
-  ].some((fragment) => serializedPayload.includes(fragment));
+  const ctaShopIds = [...serializedPayload.matchAll(/(?:\?|&|&amp;)shop=([^&"'<>\\\s]+)/g)].map(([, encodedShopId]) => {
+    try {
+      return decodeURIComponent(encodedShopId);
+    } catch {
+      return "";
+    }
+  });
+  let ctaShopMatchesTarget: boolean | null = null;
+  if (ctaShopIds.length > 0) {
+    if (expectedShopId) {
+      ctaShopMatchesTarget = ctaShopIds.every((shopId) => shopId === expectedShopId);
+    } else if (job.shopId) {
+      ctaShopMatchesTarget = ctaShopIds.every((shopId) => shopId === job.shopId);
+    } else if (job.organizationId) {
+      const targetShops = await Promise.all(
+        ctaShopIds.map((shopId) => {
+          const normalizedShopId = ctx.db.normalizeId("shops", shopId);
+          return normalizedShopId ? ctx.db.get(normalizedShopId) : null;
+        }),
+      );
+      ctaShopMatchesTarget = targetShops.every(
+        (shop) => shop !== null && !shop.isDeleted && shop.organizationId === job.organizationId,
+      );
+    } else {
+      ctaShopMatchesTarget = false;
+    }
+  }
+  const hasRecognizedCta =
+    job.payload.kind === "organizationManagerInvitationEmail" ||
+    job.payload.kind === "organizationManagerInvitationLine" ||
+    [
+      "/shifts/submit?token=",
+      "/shifts/view?token=",
+      "/shifts/reissue?",
+      "/legal/staff/consent?token=",
+      "/staff/register?token=",
+      "/dashboard",
+      "/settings",
+      "access.line.me/oauth2/v2.1/authorize",
+    ].some((fragment) => serializedPayload.includes(fragment));
 
   const staffId = job.staffId;
-  if (!staffId) return { hasRecognizedCta, ctaTokenMatchesTarget: null };
+  if (!staffId) return { hasRecognizedCta, ctaTokenMatchesTarget: null, ctaShopMatchesTarget };
 
   const [magicLinks, lineLinks, legalLinks] = await Promise.all([
     ctx.db
@@ -136,6 +228,7 @@ async function notificationCtaProbe(ctx: QueryCtx, job: Doc<"notificationOutbox"
 
   return {
     hasRecognizedCta,
+    ctaShopMatchesTarget,
     ctaTokenMatchesTarget: !requiresTokenMatch
       ? null
       : candidateTokens.length > 0 && candidateTokens.some((token) => serializedPayload.includes(token)),
@@ -239,9 +332,13 @@ async function seedLegalConsentState(
 }
 
 async function deleteRecruitmentGraph(ctx: MutationCtx, recruitmentId: Id<"recruitments">) {
-  const [slots, submissions, assignments, stats] = await Promise.all([
+  const [slots, dates, submissions, assignments, snapshots, stats] = await Promise.all([
     ctx.db
       .query("shiftSubmissionSlots")
+      .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+      .collect(),
+    ctx.db
+      .query("shiftSubmissionDates")
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
       .collect(),
     ctx.db
@@ -253,12 +350,16 @@ async function deleteRecruitmentGraph(ctx: MutationCtx, recruitmentId: Id<"recru
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
       .collect(),
     ctx.db
+      .query("shiftConfirmationSnapshots")
+      .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+      .collect(),
+    ctx.db
       .query("recruitmentStats")
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
       .collect(),
   ]);
 
-  for (const doc of [...slots, ...submissions, ...assignments, ...stats]) {
+  for (const doc of [...slots, ...dates, ...submissions, ...assignments, ...snapshots, ...stats]) {
     await ctx.db.delete(doc._id);
   }
 }
@@ -305,11 +406,10 @@ async function deleteStaffAuthGraph(ctx: MutationCtx, staffId: Id<"staffs">) {
 }
 
 async function deleteShopNotificationGraph(ctx: MutationCtx, shopId: Id<"shops">) {
-  const outboxStatuses: NotificationOutboxStatus[] = ["pending", "processing", "sent", "failed"];
   const failureStatuses: NotificationFailureInboxStatus[] = ["open", "retrying", "resolved"];
   const [outboxByStatus, failuresByStatus, deliveryEvents, usage] = await Promise.all([
     Promise.all(
-      outboxStatuses.map((status) =>
+      ALL_NOTIFICATION_OUTBOX_STATUSES.map((status) =>
         ctx.db
           .query("notificationOutbox")
           .withIndex("by_shopId_status", (q) => q.eq("shopId", shopId).eq("status", status))
@@ -336,6 +436,34 @@ async function deleteShopNotificationGraph(ctx: MutationCtx, shopId: Id<"shops">
 
   for (const doc of [...failuresByStatus.flat(), ...deliveryEvents, ...outboxByStatus.flat(), ...usage]) {
     await ctx.db.delete(doc._id);
+  }
+}
+
+async function deleteShopCleanupJobs(ctx: MutationCtx, shopId: Id<"shops">) {
+  for (const status of DELETION_CLEANUP_JOB_STATUSES) {
+    const jobs = await ctx.db
+      .query("deletionCleanupJobs")
+      .withIndex("by_shopId_and_status", (q) => q.eq("shopId", shopId).eq("status", status))
+      .take(E2E_GRAPH_CLEANUP_JOB_LIMIT_PER_STATUS + 1);
+    if (jobs.length > E2E_GRAPH_CLEANUP_JOB_LIMIT_PER_STATUS) {
+      throw new Error(`E2E shop cleanup job reset limit exceeded: shopId=${shopId}, status=${status}`);
+    }
+    for (const job of jobs) await ctx.db.delete(job._id);
+  }
+}
+
+async function deleteOrganizationCleanupJobs(ctx: MutationCtx, organizationId: Id<"organizations">) {
+  for (const status of DELETION_CLEANUP_JOB_STATUSES) {
+    const jobs = await ctx.db
+      .query("deletionCleanupJobs")
+      .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", status))
+      .take(E2E_GRAPH_CLEANUP_JOB_LIMIT_PER_STATUS + 1);
+    if (jobs.length > E2E_GRAPH_CLEANUP_JOB_LIMIT_PER_STATUS) {
+      throw new Error(
+        `E2E organization cleanup job reset limit exceeded: organizationId=${organizationId}, status=${status}`,
+      );
+    }
+    for (const job of jobs) await ctx.db.delete(job._id);
   }
 }
 
@@ -383,6 +511,55 @@ async function deleteShopGraph(
   if (auditBeforeReset) await assertShopNotificationAuditBeforeReset(ctx, shopId);
   // 監査済みの通知状態は、次シナリオへ混入しないよう店舗graphと一緒に破棄する。
   await deleteShopNotificationGraph(ctx, shopId);
+  await deleteShopCleanupJobs(ctx, shopId);
+
+  const [
+    featureRequests,
+    registrationLinks,
+    registrationRequestPages,
+    legalConsentStates,
+    legalConsentEvents,
+    billingStates,
+  ] = await Promise.all([
+    ctx.db
+      .query("featureRequests")
+      .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
+      .collect(),
+    ctx.db
+      .query("shopRegistrationLinks")
+      .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
+      .collect(),
+    Promise.all(
+      (["pending", "approved", "rejected"] as const).map((status) =>
+        ctx.db
+          .query("staffRegistrationRequests")
+          .withIndex("by_shopId_status", (q) => q.eq("shopId", shopId).eq("status", status))
+          .collect(),
+      ),
+    ),
+    ctx.db
+      .query("legalConsentStates")
+      .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
+      .collect(),
+    ctx.db
+      .query("legalConsentEvents")
+      .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
+      .collect(),
+    ctx.db
+      .query("shopBillingStates")
+      .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
+      .collect(),
+  ]);
+  for (const doc of [
+    ...featureRequests,
+    ...registrationLinks,
+    ...registrationRequestPages.flat(),
+    ...legalConsentStates,
+    ...legalConsentEvents,
+    ...billingStates,
+  ]) {
+    await ctx.db.delete(doc._id);
+  }
 
   const recruitments = await ctx.db
     .query("recruitments")
@@ -391,6 +568,13 @@ async function deleteShopGraph(
   for (const recruitment of recruitments) {
     await deleteRecruitmentGraph(ctx, recruitment._id);
     await ctx.db.delete(recruitment._id);
+  }
+  const orphanRecruitmentStats = await ctx.db
+    .query("recruitmentStats")
+    .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
+    .collect();
+  for (const stats of orphanRecruitmentStats) {
+    await ctx.db.delete(stats._id);
   }
 
   const staffs = await ctx.db
@@ -402,11 +586,15 @@ async function deleteShopGraph(
     await ctx.db.delete(staff._id);
   }
 
-  const members = await ctx.db
-    .query("shopMembers")
-    .withIndex("by_shopId_and_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
-    .collect();
-  for (const member of members) {
+  const memberPages = await Promise.all(
+    ([false, true] as const).map((isDeleted) =>
+      ctx.db
+        .query("shopMembers")
+        .withIndex("by_shopId_and_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", isDeleted))
+        .collect(),
+    ),
+  );
+  for (const member of memberPages.flat()) {
     await ctx.db.delete(member._id);
   }
 
@@ -421,6 +609,176 @@ async function deleteShopGraph(
   await ctx.db.delete(shopId);
 }
 
+async function assertOrganizationNotificationAuditBeforeReset(ctx: MutationCtx, organizationId: Id<"organizations">) {
+  const activeOutboxPages = await Promise.all(
+    (["pending", "processing"] as const).map((status) =>
+      ctx.db
+        .query("notificationOutbox")
+        .withIndex("by_organizationId_status", (q) => q.eq("organizationId", organizationId).eq("status", status))
+        .collect(),
+    ),
+  );
+  const activeDedupeCounts = new Map<string, number>();
+  for (const job of activeOutboxPages.flat()) {
+    activeDedupeCounts.set(job.dedupeKey, (activeDedupeCounts.get(job.dedupeKey) ?? 0) + 1);
+  }
+  const duplicateActiveDedupeKeyCount = [...activeDedupeCounts.values()].filter((count) => count > 1).length;
+  if (duplicateActiveDedupeKeyCount > 0) {
+    throw new Error(
+      `E2E organization notification audit failed before reset: duplicateActiveDedupeKeys=${duplicateActiveDedupeKeyCount}`,
+    );
+  }
+}
+
+async function deleteOrganizationNotificationGraph(ctx: MutationCtx, organizationId: Id<"organizations">) {
+  const [outboxPages, deliveryEvents] = await Promise.all([
+    Promise.all(
+      ALL_NOTIFICATION_OUTBOX_STATUSES.map((status) =>
+        ctx.db
+          .query("notificationOutbox")
+          .withIndex("by_organizationId_status", (q) => q.eq("organizationId", organizationId).eq("status", status))
+          .collect(),
+      ),
+    ),
+    ctx.db
+      .query("notificationDeliveryEvents")
+      .withIndex("by_organizationId_createdAt", (q) => q.eq("organizationId", organizationId))
+      .collect(),
+  ]);
+
+  for (const event of deliveryEvents) await ctx.db.delete(event._id);
+  for (const job of outboxPages.flat()) await ctx.db.delete(job._id);
+}
+
+async function deleteOrganizationGraph(
+  ctx: MutationCtx,
+  organizationId: Id<"organizations">,
+  { auditBeforeReset = true }: { auditBeforeReset?: boolean } = {},
+) {
+  if (auditBeforeReset) await assertOrganizationNotificationAuditBeforeReset(ctx, organizationId);
+  await deleteOrganizationNotificationGraph(ctx, organizationId);
+  await deleteOrganizationCleanupJobs(ctx, organizationId);
+
+  const shops = await ctx.db
+    .query("shops")
+    .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+    .collect();
+  for (const shop of shops) {
+    await deleteShopGraph(ctx, shop._id, { auditBeforeReset });
+  }
+
+  const [invitationPages, billingStates, auditEvents, migrationConflicts, memberPages, personPages] = await Promise.all(
+    [
+      Promise.all(
+        ORGANIZATION_INVITATION_STATUSES.map((status) =>
+          ctx.db
+            .query("organizationInvitations")
+            .withIndex("by_organizationId_and_status", (q) =>
+              q.eq("organizationId", organizationId).eq("status", status),
+            )
+            .collect(),
+        ),
+      ),
+      ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+        .collect(),
+      ctx.db
+        .query("organizationAuditEvents")
+        .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", organizationId))
+        .collect(),
+      ctx.db
+        .query("organizationMigrationConflicts")
+        .withIndex("by_organizationId_and_resolvedAt", (q) => q.eq("organizationId", organizationId))
+        .collect(),
+      Promise.all(
+        ORGANIZATION_MEMBER_STATUSES.map((status) =>
+          ctx.db
+            .query("organizationMembers")
+            .withIndex("by_organizationId_and_status", (q) =>
+              q.eq("organizationId", organizationId).eq("status", status),
+            )
+            .collect(),
+        ),
+      ),
+      Promise.all(
+        ORGANIZATION_PERSON_STATUSES.map((status) =>
+          ctx.db
+            .query("organizationPeople")
+            .withIndex("by_organizationId_and_status", (q) =>
+              q.eq("organizationId", organizationId).eq("status", status),
+            )
+            .collect(),
+        ),
+      ),
+    ],
+  );
+
+  for (const invitation of invitationPages.flat()) await ctx.db.delete(invitation._id);
+  for (const billingState of billingStates) await ctx.db.delete(billingState._id);
+  for (const auditEvent of auditEvents) await ctx.db.delete(auditEvent._id);
+  for (const conflict of migrationConflicts) await ctx.db.delete(conflict._id);
+  for (const member of memberPages.flat()) await ctx.db.delete(member._id);
+  for (const person of personPages.flat()) await ctx.db.delete(person._id);
+  await ctx.db.delete(organizationId);
+}
+
+async function deleteUserIfScenarioOrphaned(ctx: MutationCtx, userId: Id<"users">) {
+  const [memberPages, personPages, legacyMemberPages, staff] = await Promise.all([
+    Promise.all(
+      ORGANIZATION_MEMBER_STATUSES.map((status) =>
+        ctx.db
+          .query("organizationMembers")
+          .withIndex("by_userId_and_status", (q) => q.eq("userId", userId).eq("status", status))
+          .first(),
+      ),
+    ),
+    Promise.all(
+      ORGANIZATION_PERSON_STATUSES.map((status) =>
+        ctx.db
+          .query("organizationPeople")
+          .withIndex("by_userId_and_status", (q) => q.eq("userId", userId).eq("status", status))
+          .first(),
+      ),
+    ),
+    Promise.all(
+      ([false, true] as const).map((isDeleted) =>
+        ctx.db
+          .query("shopMembers")
+          .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", userId).eq("isDeleted", isDeleted))
+          .first(),
+      ),
+    ),
+    ctx.db
+      .query("staffs")
+      .withIndex("by_userId_and_shopId", (q) => q.eq("userId", userId))
+      .first(),
+  ]);
+  if ([...memberPages, ...personPages, ...legacyMemberPages, staff].some(Boolean)) return;
+
+  const legalConsentStates = await ctx.db
+    .query("legalConsentStates")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .collect();
+  for (const state of legalConsentStates) await ctx.db.delete(state._id);
+  const legalConsentEvents = await ctx.db
+    .query("legalConsentEvents")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .collect();
+  for (const event of legalConsentEvents) await ctx.db.delete(event._id);
+  await ctx.db.delete(userId);
+}
+
+async function deleteScenarioUsersByAuthTokenIdentifiers(ctx: MutationCtx, authTokenIdentifiers: string[]) {
+  for (const authTokenIdentifier of new Set(authTokenIdentifiers)) {
+    const users = await ctx.db
+      .query("users")
+      .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", authTokenIdentifier))
+      .collect();
+    for (const user of users) await deleteUserIfScenarioOrphaned(ctx, user._id);
+  }
+}
+
 async function resetManagerScenarioDataForAuth(
   ctx: MutationCtx,
   managerAuthTokenIdentifier: string,
@@ -431,21 +789,30 @@ async function resetManagerScenarioDataForAuth(
     .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", managerAuthTokenIdentifier))
     .collect();
   for (const user of users) {
-    const memberships = await ctx.db
-      .query("shopMembers")
-      .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
+    const organizations = await ctx.db
+      .query("organizations")
+      .withIndex("by_createdByUserId", (q) => q.eq("createdByUserId", user._id))
       .collect();
-    for (const membership of memberships) {
-      await deleteShopGraph(ctx, membership.shopId, options);
+    for (const organization of organizations) {
+      await deleteOrganizationGraph(ctx, organization._id, options);
     }
-    const states = await ctx.db
-      .query("legalConsentStates")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .collect();
-    for (const state of states) {
-      await ctx.db.delete(state._id);
+
+    const legacyMembershipPages = await Promise.all(
+      ([false, true] as const).map((isDeleted) =>
+        ctx.db
+          .query("shopMembers")
+          .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", isDeleted))
+          .collect(),
+      ),
+    );
+    const legacyShopIds = new Set<Id<"shops">>();
+    for (const membership of legacyMembershipPages.flat()) {
+      const shop = await ctx.db.get(membership.shopId);
+      if (shop && !shop.organizationId) legacyShopIds.add(shop._id);
     }
-    await ctx.db.delete(user._id);
+    for (const shopId of legacyShopIds) await deleteShopGraph(ctx, shopId, options);
+
+    await deleteUserIfScenarioOrphaned(ctx, user._id);
   }
 }
 
@@ -488,6 +855,7 @@ async function createManagerScenario(
   args: {
     managerAuthTokenIdentifier: string;
     managerEmail?: string;
+    organizationName?: string;
     shopName: string;
     managerLegalConsentState?: LegalConsentState;
     managerStaffLegalConsentState?: LegalConsentState;
@@ -497,48 +865,867 @@ async function createManagerScenario(
   if (!args.managerAuthTokenIdentifier) throw new Error("managerAuthTokenIdentifier is required");
   await resetManagerScenarioDataForAuth(ctx, args.managerAuthTokenIdentifier);
 
-  const userId = await ctx.db.insert("users", {
-    authTokenIdentifier: args.managerAuthTokenIdentifier,
-    name: DEFAULT_MANAGER.name,
-    email: args.managerEmail ?? DEFAULT_MANAGER.email,
-    role: "manager",
-    isDeleted: false,
+  const managerEmail = (args.managerEmail ?? DEFAULT_MANAGER.email).trim().toLowerCase();
+  const fixture = await createCanonicalOrganizationFixture(ctx, {
+    ownerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+    ownerName: DEFAULT_MANAGER.name,
+    ownerEmail: managerEmail,
+    organizationName: args.organizationName ?? `${args.shopName}グループ`,
+    shopName: args.shopName,
   });
-  const shopId = await ctx.db.insert("shops", {
-    name: args.shopName,
-    submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-    regularClosedDays: [],
-    isDeleted: false,
-  });
-  await ctx.db.insert("shopMembers", {
-    shopId,
-    userId,
-    role: "manager",
-    isDeleted: false,
-  });
+  const { organizationId, ownerMemberId, ownerPersonId, shopId, userId } = fixture;
   await seedLegalConsentState(ctx, {
     audience: "manager",
     state: args.managerLegalConsentState,
     shopId,
     userId,
   });
-  const managerStaffId = await ctx.db.insert("staffs", {
+  const managerStaff = await createScenarioStaff(ctx, {
+    organizationId,
     shopId,
-    name: DEFAULT_MANAGER.name,
-    email: DEFAULT_MANAGER.email,
-    emailNormalized: DEFAULT_MANAGER.email,
+    personId: ownerPersonId,
     userId,
-    isDeleted: false,
+    name: DEFAULT_MANAGER.name,
+    email: managerEmail,
   });
   await seedLegalConsentState(ctx, {
     audience: "staff",
     state: args.managerStaffLegalConsentState,
     shopId,
-    staffId: managerStaffId,
+    staffId: managerStaff.staffId,
   });
 
-  return { shopId, userId, managerStaffId };
+  return {
+    organizationId,
+    ownerMemberId,
+    ownerPersonId,
+    shopId,
+    userId,
+    managerStaffId: managerStaff.staffId,
+  };
 }
+
+function normalizeScenarioEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+async function createScenarioUser(
+  ctx: MutationCtx,
+  args: { authTokenIdentifier: string; name: string; email: string },
+) {
+  if (!args.authTokenIdentifier) throw new Error("authTokenIdentifier is required");
+  const emailNormalized = normalizeScenarioEmail(args.email);
+  const current = await ctx.db
+    .query("users")
+    .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", args.authTokenIdentifier))
+    .filter((q) => q.eq(q.field("isDeleted"), false))
+    .first();
+  if (current) {
+    if (normalizeScenarioEmail(current.emailNormalized ?? current.email) !== emailNormalized) {
+      throw new Error("E2E actor email does not match the existing authenticated user");
+    }
+    return current._id;
+  }
+  return await ctx.db.insert("users", {
+    authTokenIdentifier: args.authTokenIdentifier,
+    name: args.name,
+    email: emailNormalized,
+    emailNormalized,
+    role: "manager",
+    isDeleted: false,
+  });
+}
+
+async function createScenarioOrganization(
+  ctx: MutationCtx,
+  args: { createdByUserId: Id<"users">; name: string; billingEmail: string },
+) {
+  const now = Date.now();
+  const billingEmailNormalized = normalizeScenarioEmail(args.billingEmail);
+  return await ctx.db.insert("organizations", {
+    createdByUserId: args.createdByUserId,
+    name: args.name,
+    billingEmail: billingEmailNormalized,
+    billingEmailNormalized,
+    isDeleted: false,
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+async function createScenarioPerson(
+  ctx: MutationCtx,
+  args: { organizationId: Id<"organizations">; name: string; email: string; userId?: Id<"users"> },
+) {
+  const now = Date.now();
+  const emailNormalized = normalizeScenarioEmail(args.email);
+  return await ctx.db.insert("organizationPeople", {
+    organizationId: args.organizationId,
+    userId: args.userId,
+    name: args.name,
+    email: emailNormalized,
+    emailNormalized,
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+async function createScenarioMember(
+  ctx: MutationCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    personId: Id<"organizationPeople">;
+    userId: Id<"users">;
+    invitedByMemberId?: Id<"organizationMembers">;
+  },
+) {
+  const now = Date.now();
+  return await ctx.db.insert("organizationMembers", {
+    ...args,
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+async function createScenarioShop(
+  ctx: MutationCtx,
+  args: { organizationId: Id<"organizations">; name: string; managerUserId: Id<"users"> },
+) {
+  const shopId = await ctx.db.insert("shops", {
+    organizationId: args.organizationId,
+    operatingStatus: "active",
+    name: args.name,
+    submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+    regularClosedDays: [],
+    isDeleted: false,
+  });
+  await ctx.db.insert("shopMembers", {
+    shopId,
+    userId: args.managerUserId,
+    role: "manager",
+    isDeleted: false,
+  });
+  return shopId;
+}
+
+async function createComplimentaryProEntitlement(ctx: MutationCtx, organizationId: Id<"organizations">) {
+  const now = Date.now();
+  return await ctx.db.insert("organizationBillingStates", {
+    organizationId,
+    state: { kind: "complimentary", plan: "pro" },
+    version: 1,
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+async function createActiveFreeEntitlement(
+  ctx: MutationCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    managerPersonId: Id<"organizationPeople">;
+    shopId: Id<"shops">;
+  },
+) {
+  const now = Date.now();
+  return await ctx.db.insert("organizationBillingStates", {
+    organizationId: args.organizationId,
+    state: { kind: "active", plan: "free" },
+    freeManagerPersonId: args.managerPersonId,
+    freeShopId: args.shopId,
+    version: 1,
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+async function patchScenarioBillingState(
+  ctx: MutationCtx,
+  organizationId: Id<"organizations">,
+  state: Doc<"organizationBillingStates">["state"],
+) {
+  const current = await ctx.db
+    .query("organizationBillingStates")
+    .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+    .unique();
+  if (!current) throw new Error("E2E organization billing state was not found");
+
+  await ctx.db.patch(current._id, {
+    state,
+    version: current.version + 1,
+    updatedAt: Date.now(),
+  });
+}
+
+async function createScenarioStaff(
+  ctx: MutationCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    shopId: Id<"shops">;
+    name: string;
+    email: string;
+    personId?: Id<"organizationPeople">;
+    userId?: Id<"users">;
+  },
+) {
+  const personId =
+    args.personId ??
+    (await createScenarioPerson(ctx, {
+      organizationId: args.organizationId,
+      name: args.name,
+      email: args.email,
+    }));
+  const staffId = await ctx.db.insert("staffs", {
+    organizationId: args.organizationId,
+    organizationPersonId: personId,
+    shopId: args.shopId,
+    name: args.name,
+    email: normalizeScenarioEmail(args.email),
+    emailNormalized: normalizeScenarioEmail(args.email),
+    userId: args.userId,
+    isDeleted: false,
+  });
+  return { personId, staffId };
+}
+
+async function createCanonicalOrganizationFixture(
+  ctx: MutationCtx,
+  args: {
+    ownerAuthTokenIdentifier: string;
+    ownerName: string;
+    ownerEmail: string;
+    organizationName: string;
+    shopName: string;
+  },
+) {
+  const userId = await createScenarioUser(ctx, {
+    authTokenIdentifier: args.ownerAuthTokenIdentifier,
+    name: args.ownerName,
+    email: args.ownerEmail,
+  });
+  const organizationId = await createScenarioOrganization(ctx, {
+    createdByUserId: userId,
+    name: args.organizationName,
+    billingEmail: args.ownerEmail,
+  });
+  const ownerPersonId = await createScenarioPerson(ctx, {
+    organizationId,
+    userId,
+    name: args.ownerName,
+    email: args.ownerEmail,
+  });
+  const ownerMemberId = await createScenarioMember(ctx, {
+    organizationId,
+    personId: ownerPersonId,
+    userId,
+  });
+  const shopId = await createScenarioShop(ctx, {
+    organizationId,
+    name: args.shopName,
+    managerUserId: userId,
+  });
+  await createComplimentaryProEntitlement(ctx, organizationId);
+  return { organizationId, ownerMemberId, ownerPersonId, shopId, userId };
+}
+
+export const seedMultiShopOrganizationScenario = internalMutation({
+  args: {
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.string(),
+    organizationName: v.optional(v.string()),
+    primaryShopName: v.optional(v.string()),
+    secondaryShopName: v.optional(v.string()),
+    primaryMarkerPersonName: v.optional(v.string()),
+    primaryMarkerPersonEmail: v.optional(v.string()),
+    secondaryMarkerPersonName: v.optional(v.string()),
+    secondaryMarkerPersonEmail: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const primaryShopName = args.primaryShopName ?? "E2E A店";
+    const secondaryShopName = args.secondaryShopName ?? "E2E B店";
+    const base = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
+      organizationName: args.organizationName ?? "E2E 複数店舗グループ",
+      shopName: primaryShopName,
+    });
+    const secondaryShopId = await createScenarioShop(ctx, {
+      organizationId: base.organizationId,
+      name: secondaryShopName,
+      managerUserId: base.userId,
+    });
+    const primaryMarker = await createScenarioStaff(ctx, {
+      organizationId: base.organizationId,
+      shopId: base.shopId,
+      name: args.primaryMarkerPersonName ?? DEFAULT_PRIMARY_MARKER.name,
+      email: args.primaryMarkerPersonEmail ?? DEFAULT_PRIMARY_MARKER.email,
+    });
+    const secondaryMarker = await createScenarioStaff(ctx, {
+      organizationId: base.organizationId,
+      shopId: secondaryShopId,
+      name: args.secondaryMarkerPersonName ?? DEFAULT_SECONDARY_MARKER.name,
+      email: args.secondaryMarkerPersonEmail ?? DEFAULT_SECONDARY_MARKER.email,
+    });
+    return {
+      organizationId: base.organizationId,
+      primaryOrganizationId: base.organizationId,
+      shopId: base.shopId,
+      primaryShopId: base.shopId,
+      secondaryShopId,
+      userId: base.userId,
+      ownerPersonId: base.ownerPersonId,
+      managerStaffId: base.managerStaffId,
+      primaryMarkerPersonId: primaryMarker.personId,
+      primaryMarkerStaffId: primaryMarker.staffId,
+      secondaryMarkerPersonId: secondaryMarker.personId,
+      secondaryMarkerStaffId: secondaryMarker.staffId,
+      organizationName: args.organizationName ?? "E2E 複数店舗グループ",
+      primaryShopName,
+      secondaryShopName,
+      primaryMarkerPersonName: args.primaryMarkerPersonName ?? DEFAULT_PRIMARY_MARKER.name,
+      primaryMarkerPersonEmail: args.primaryMarkerPersonEmail ?? DEFAULT_PRIMARY_MARKER.email,
+      secondaryMarkerPersonName: args.secondaryMarkerPersonName ?? DEFAULT_SECONDARY_MARKER.name,
+      secondaryMarkerPersonEmail: args.secondaryMarkerPersonEmail ?? DEFAULT_SECONDARY_MARKER.email,
+    };
+  },
+});
+
+/** 同一グループの全店舗へトライアル終了Calloutを出すE2E前提を作る。 */
+export const seedTrialEndingNoticeScenario = internalMutation({
+  args: {
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.string(),
+    trialEndsAt: v.number(),
+    organizationName: v.optional(v.string()),
+    primaryShopName: v.optional(v.string()),
+    secondaryShopName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+    if (!Number.isFinite(args.trialEndsAt)) throw new Error("trialEndsAt must be finite");
+
+    const organizationName = args.organizationName ?? "E2E トライアル終了グループ";
+    const primaryShopName = args.primaryShopName ?? "E2E トライアル終了 A店";
+    const secondaryShopName = args.secondaryShopName ?? "E2E トライアル終了 B店";
+    const base = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
+      organizationName,
+      shopName: primaryShopName,
+    });
+    const secondaryShopId = await createScenarioShop(ctx, {
+      organizationId: base.organizationId,
+      name: secondaryShopName,
+      managerUserId: base.userId,
+    });
+
+    // selectedPaidPlanを設定せず、Stripe行も作らない未登録トライアルを再現する。
+    await patchScenarioBillingState(ctx, base.organizationId, {
+      kind: "trial",
+      trialEndsAt: args.trialEndsAt,
+    });
+
+    return {
+      organizationId: base.organizationId,
+      shopId: base.shopId,
+      primaryShopId: base.shopId,
+      secondaryShopId,
+      organizationName,
+      primaryShopName,
+      secondaryShopName,
+      trialEndsAt: args.trialEndsAt,
+    };
+  },
+});
+
+/** Stripe行なしのactive Proを作り、グループ削除UIの課金ガードだけを検証するE2E前提。 */
+export const seedActiveProOrganizationDeletionScenario = internalMutation({
+  args: {
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.string(),
+    organizationName: v.optional(v.string()),
+    shopName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+    const organizationName = args.organizationName ?? "E2E active Pro削除不可グループ";
+    const shopName = args.shopName ?? "E2E active Pro削除不可店舗";
+    const base = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
+      organizationName,
+      shopName,
+    });
+
+    await patchScenarioBillingState(ctx, base.organizationId, { kind: "active", plan: "pro" });
+
+    return {
+      organizationId: base.organizationId,
+      shopId: base.shopId,
+      organizationName,
+      shopName,
+    };
+  },
+});
+
+/** 支払い不要Businessと、Business→Pro確定後に1名超過した復旧導線のE2E前提を作る。 */
+export const seedOrganizationBillingPlanChangeScenario = internalMutation({
+  args: {
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.string(),
+    complimentaryOrganizationName: v.optional(v.string()),
+    complimentaryShopName: v.optional(v.string()),
+    restrictedOrganizationName: v.optional(v.string()),
+    restrictedShopName: v.optional(v.string()),
+    removablePersonName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+    await resetManagerScenarioDataForAuth(ctx, args.managerAuthTokenIdentifier);
+
+    const now = Date.now();
+    const userId = await createScenarioUser(ctx, {
+      authTokenIdentifier: args.managerAuthTokenIdentifier,
+      name: DEFAULT_MANAGER.name,
+      email: args.managerEmail,
+    });
+
+    const createManagedOrganization = async (name: string, shopName: string) => {
+      const organizationId = await createScenarioOrganization(ctx, {
+        createdByUserId: userId,
+        name,
+        billingEmail: args.managerEmail,
+      });
+      const ownerPersonId = await createScenarioPerson(ctx, {
+        organizationId,
+        userId,
+        name: DEFAULT_MANAGER.name,
+        email: args.managerEmail,
+      });
+      await createScenarioMember(ctx, { organizationId, personId: ownerPersonId, userId });
+      const shopId = await createScenarioShop(ctx, { organizationId, name: shopName, managerUserId: userId });
+      await createScenarioStaff(ctx, {
+        organizationId,
+        shopId,
+        personId: ownerPersonId,
+        userId,
+        name: DEFAULT_MANAGER.name,
+        email: args.managerEmail,
+      });
+      return { organizationId, ownerPersonId, shopId };
+    };
+
+    const complimentaryOrganizationName = args.complimentaryOrganizationName ?? "E2E 支払い不要Businessグループ";
+    const complimentaryShopName = args.complimentaryShopName ?? "E2E 支払い不要Business店舗";
+    const complimentary = await createManagedOrganization(complimentaryOrganizationName, complimentaryShopName);
+    await ctx.db.insert("organizationBillingStates", {
+      organizationId: complimentary.organizationId,
+      state: { kind: "complimentary", plan: "business" },
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const restrictedOrganizationName = args.restrictedOrganizationName ?? "E2E Pro上限復旧グループ";
+    const restrictedShopName = args.restrictedShopName ?? "E2E Pro上限復旧店舗";
+    const removablePersonName = args.removablePersonName ?? "E2E 削減対象ユーザー";
+    const restricted = await createManagedOrganization(restrictedOrganizationName, restrictedShopName);
+
+    let removablePersonId: Id<"organizationPeople"> | null = null;
+    for (let index = 1; index <= 20; index += 1) {
+      const name = index === 20 ? removablePersonName : `E2E Pro上限スタッフ${index}`;
+      const staff = await createScenarioStaff(ctx, {
+        organizationId: restricted.organizationId,
+        shopId: restricted.shopId,
+        name,
+        email: `billing-plan-change-${index}@shiftori.invalid`,
+      });
+      if (index === 20) removablePersonId = staff.personId;
+    }
+    if (!removablePersonId) throw new Error("E2E removable person was not seeded");
+
+    // Provider上のBusiness→Pro変更と初回Pro請求が成功した後、Pro上限だけが1名超過した状態を再現する。
+    await ctx.db.insert("organizationBillingStates", {
+      organizationId: restricted.organizationId,
+      state: {
+        kind: "restricted",
+        reason: "planLimitExceeded",
+        previousPlan: "business",
+        targetPlan: "pro",
+        limitPlan: "pro",
+        recoveryManagerPersonIds: [restricted.ownerPersonId],
+        previousActiveShopIds: [restricted.shopId],
+        restrictedAt: now,
+      },
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return {
+      complimentaryOrganizationId: complimentary.organizationId,
+      complimentaryShopId: complimentary.shopId,
+      complimentaryOrganizationName,
+      restrictedOrganizationId: restricted.organizationId,
+      restrictedShopId: restricted.shopId,
+      restrictedOrganizationName,
+      removablePersonId,
+      removablePersonName,
+      expectedRestrictedPeople: 21,
+      expectedProLimit: 20,
+    };
+  },
+});
+
+export const seedMultiActorOrganizationScenario = internalMutation({
+  args: {
+    ownerManagerAuthTokenIdentifier: v.string(),
+    ownerManagerEmail: v.string(),
+    actorBManagerAuthTokenIdentifier: v.string(),
+    actorBManagerEmail: v.string(),
+    actorCManagerAuthTokenIdentifier: v.string(),
+    actorCManagerEmail: v.string(),
+    organizationName: v.optional(v.string()),
+    primaryShopName: v.optional(v.string()),
+    secondaryShopName: v.optional(v.string()),
+    actorBName: v.optional(v.string()),
+    actorCName: v.optional(v.string()),
+    alternateOrganizationName: v.optional(v.string()),
+    alternateShopName: v.optional(v.string()),
+    personRemovalAssignments: v.optional(
+      v.object({
+        today: v.string(),
+        future: v.string(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+    const authIdentifiers = [
+      args.ownerManagerAuthTokenIdentifier,
+      args.actorBManagerAuthTokenIdentifier,
+      args.actorCManagerAuthTokenIdentifier,
+    ];
+    if (authIdentifiers.some((identifier) => !identifier) || new Set(authIdentifiers).size !== 3) {
+      throw new Error("Multi-actor E2E seed requires three distinct auth token identifiers");
+    }
+    await resetManagerScenarioDataForAuth(ctx, args.ownerManagerAuthTokenIdentifier);
+    await deleteScenarioUsersByAuthTokenIdentifiers(ctx, authIdentifiers.slice(1));
+
+    const ownerUserId = await createScenarioUser(ctx, {
+      authTokenIdentifier: args.ownerManagerAuthTokenIdentifier,
+      name: DEFAULT_MANAGER.name,
+      email: args.ownerManagerEmail,
+    });
+    const actorBName = args.actorBName ?? "既存スタッフ管理者B";
+    const actorCName = args.actorCName ?? "未招待管理者C";
+    const actorBUserId = await createScenarioUser(ctx, {
+      authTokenIdentifier: args.actorBManagerAuthTokenIdentifier,
+      name: actorBName,
+      email: args.actorBManagerEmail,
+    });
+    const actorCUserId = await createScenarioUser(ctx, {
+      authTokenIdentifier: args.actorCManagerAuthTokenIdentifier,
+      name: actorCName,
+      email: args.actorCManagerEmail,
+    });
+
+    const organizationName = args.organizationName ?? "E2E 複数管理者グループ";
+    const primaryShopName = args.primaryShopName ?? "E2E 管理者A店";
+    const secondaryShopName = args.secondaryShopName ?? "E2E 管理者B店";
+    const primaryOrganizationId = await createScenarioOrganization(ctx, {
+      createdByUserId: ownerUserId,
+      name: organizationName,
+      billingEmail: args.ownerManagerEmail,
+    });
+    const ownerPersonId = await createScenarioPerson(ctx, {
+      organizationId: primaryOrganizationId,
+      userId: ownerUserId,
+      name: DEFAULT_MANAGER.name,
+      email: args.ownerManagerEmail,
+    });
+    const ownerMemberId = await createScenarioMember(ctx, {
+      organizationId: primaryOrganizationId,
+      personId: ownerPersonId,
+      userId: ownerUserId,
+    });
+    const primaryShopId = await createScenarioShop(ctx, {
+      organizationId: primaryOrganizationId,
+      name: primaryShopName,
+      managerUserId: ownerUserId,
+    });
+    const secondaryShopId = await createScenarioShop(ctx, {
+      organizationId: primaryOrganizationId,
+      name: secondaryShopName,
+      managerUserId: ownerUserId,
+    });
+    await createComplimentaryProEntitlement(ctx, primaryOrganizationId);
+    const actorBPersonId = await createScenarioPerson(ctx, {
+      organizationId: primaryOrganizationId,
+      name: actorBName,
+      email: args.actorBManagerEmail,
+    });
+    const actorBPrimaryStaffId = await ctx.db.insert("staffs", {
+      organizationId: primaryOrganizationId,
+      organizationPersonId: actorBPersonId,
+      shopId: primaryShopId,
+      name: actorBName,
+      email: normalizeScenarioEmail(args.actorBManagerEmail),
+      emailNormalized: normalizeScenarioEmail(args.actorBManagerEmail),
+      isDeleted: false,
+    });
+    let personRemovalRecruitmentId: Id<"recruitments"> | undefined;
+    let personRemovalAssignmentCount: number | undefined;
+    if (args.personRemovalAssignments) {
+      const positionId = await ensureDefaultPosition(ctx, primaryShopId);
+      personRemovalRecruitmentId = await ctx.db.insert("recruitments", {
+        shopId: primaryShopId,
+        periodStart: args.personRemovalAssignments.today,
+        periodEnd: args.personRemovalAssignments.future,
+        deadline: args.personRemovalAssignments.today,
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      for (const [index, date] of [
+        args.personRemovalAssignments.today,
+        args.personRemovalAssignments.future,
+      ].entries()) {
+        await ctx.db.insert("shiftAssignments", {
+          recruitmentId: personRemovalRecruitmentId,
+          staffId: actorBPrimaryStaffId,
+          date,
+          startTime: index === 0 ? "10:00" : "11:00",
+          endTime: index === 0 ? "18:00" : "19:00",
+          positionId,
+        });
+      }
+      personRemovalAssignmentCount = 2;
+    }
+
+    const alternateOrganizationName = args.alternateOrganizationName ?? "E2E 管理者B別グループ";
+    const alternateShopName = args.alternateShopName ?? "E2E 管理者B別店舗";
+    const alternateOrganizationId = await createScenarioOrganization(ctx, {
+      createdByUserId: ownerUserId,
+      name: alternateOrganizationName,
+      billingEmail: args.actorBManagerEmail,
+    });
+    const actorBAlternatePersonId = await createScenarioPerson(ctx, {
+      organizationId: alternateOrganizationId,
+      userId: actorBUserId,
+      name: actorBName,
+      email: args.actorBManagerEmail,
+    });
+    const actorBAlternateMemberId = await createScenarioMember(ctx, {
+      organizationId: alternateOrganizationId,
+      personId: actorBAlternatePersonId,
+      userId: actorBUserId,
+    });
+    const alternateShopId = await createScenarioShop(ctx, {
+      organizationId: alternateOrganizationId,
+      name: alternateShopName,
+      managerUserId: actorBUserId,
+    });
+    await createComplimentaryProEntitlement(ctx, alternateOrganizationId);
+
+    return {
+      ownerUserId,
+      actorBUserId,
+      actorCUserId,
+      primaryOrganizationId,
+      ownerPersonId,
+      ownerMemberId,
+      primaryShopId,
+      secondaryShopId,
+      actorBPersonId,
+      actorBPrimaryStaffId,
+      alternateOrganizationId,
+      alternateShopId,
+      actorBAlternatePersonId,
+      actorBAlternateMemberId,
+      ...(personRemovalRecruitmentId ? { personRemovalRecruitmentId, personRemovalAssignmentCount } : {}),
+      organizationName,
+      primaryShopName,
+      secondaryShopName,
+      actorBName,
+      actorCName,
+      alternateOrganizationName,
+      alternateShopName,
+    };
+  },
+});
+
+/** Free管理者交代と複数グループ切替で共有する、actor単位で回収可能なE2E前提を作る。 */
+export const seedFreeManagerMultiOrganizationScenario = internalMutation({
+  args: {
+    actorAManagerAuthTokenIdentifier: v.string(),
+    actorAManagerEmail: v.string(),
+    actorBManagerAuthTokenIdentifier: v.string(),
+    actorBManagerEmail: v.string(),
+    actorCManagerAuthTokenIdentifier: v.string(),
+    targetOrganizationName: v.optional(v.string()),
+    targetShopName: v.optional(v.string()),
+    actorBName: v.optional(v.string()),
+    alternateOrganizationName: v.optional(v.string()),
+    alternateShopName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+    const authIdentifiers = [
+      args.actorAManagerAuthTokenIdentifier,
+      args.actorBManagerAuthTokenIdentifier,
+      args.actorCManagerAuthTokenIdentifier,
+    ];
+    if (authIdentifiers.some((identifier) => !identifier) || new Set(authIdentifiers).size !== 3) {
+      throw new Error("Free manager multi-organization E2E seed requires three distinct auth token identifiers");
+    }
+    if (normalizeScenarioEmail(args.actorAManagerEmail) === normalizeScenarioEmail(args.actorBManagerEmail)) {
+      throw new Error("Free manager multi-organization E2E seed requires distinct actor emails");
+    }
+
+    // 両グループをAのcreatedByUserId配下へ置くことで、既存のactor単位resetだけで安全に回収する。
+    await resetManagerScenarioDataForAuth(ctx, args.actorAManagerAuthTokenIdentifier);
+    await deleteScenarioUsersByAuthTokenIdentifiers(ctx, [
+      args.actorBManagerAuthTokenIdentifier,
+      args.actorCManagerAuthTokenIdentifier,
+    ]);
+
+    const actorAUserId = await createScenarioUser(ctx, {
+      authTokenIdentifier: args.actorAManagerAuthTokenIdentifier,
+      name: DEFAULT_MANAGER.name,
+      email: args.actorAManagerEmail,
+    });
+    const actorBName = args.actorBName ?? "交代先スタッフB";
+    const targetOrganizationName = args.targetOrganizationName ?? "E2E Free交代対象グループ";
+    const targetShopName = args.targetShopName ?? "E2E Free交代対象店舗";
+    const targetOrganizationId = await createScenarioOrganization(ctx, {
+      createdByUserId: actorAUserId,
+      name: targetOrganizationName,
+      billingEmail: args.actorAManagerEmail,
+    });
+    const actorATargetPersonId = await createScenarioPerson(ctx, {
+      organizationId: targetOrganizationId,
+      userId: actorAUserId,
+      name: DEFAULT_MANAGER.name,
+      email: args.actorAManagerEmail,
+    });
+    const actorATargetMemberId = await createScenarioMember(ctx, {
+      organizationId: targetOrganizationId,
+      personId: actorATargetPersonId,
+      userId: actorAUserId,
+    });
+    const targetShopId = await createScenarioShop(ctx, {
+      organizationId: targetOrganizationId,
+      name: targetShopName,
+      managerUserId: actorAUserId,
+    });
+    await createActiveFreeEntitlement(ctx, {
+      organizationId: targetOrganizationId,
+      managerPersonId: actorATargetPersonId,
+      shopId: targetShopId,
+    });
+    const actorATargetStaff = await createScenarioStaff(ctx, {
+      organizationId: targetOrganizationId,
+      shopId: targetShopId,
+      personId: actorATargetPersonId,
+      userId: actorAUserId,
+      name: DEFAULT_MANAGER.name,
+      email: args.actorAManagerEmail,
+    });
+    const actorBTargetPersonId = await createScenarioPerson(ctx, {
+      organizationId: targetOrganizationId,
+      name: actorBName,
+      email: args.actorBManagerEmail,
+    });
+    const actorBTargetStaff = await createScenarioStaff(ctx, {
+      organizationId: targetOrganizationId,
+      shopId: targetShopId,
+      personId: actorBTargetPersonId,
+      name: actorBName,
+      email: args.actorBManagerEmail,
+    });
+
+    const alternateOrganizationName = args.alternateOrganizationName ?? "E2E A継続管理グループ";
+    const alternateShopName = args.alternateShopName ?? "E2E A継続管理店舗";
+    const alternateOrganizationId = await createScenarioOrganization(ctx, {
+      createdByUserId: actorAUserId,
+      name: alternateOrganizationName,
+      billingEmail: args.actorAManagerEmail,
+    });
+    const actorAAlternatePersonId = await createScenarioPerson(ctx, {
+      organizationId: alternateOrganizationId,
+      userId: actorAUserId,
+      name: DEFAULT_MANAGER.name,
+      email: args.actorAManagerEmail,
+    });
+    const actorAAlternateMemberId = await createScenarioMember(ctx, {
+      organizationId: alternateOrganizationId,
+      personId: actorAAlternatePersonId,
+      userId: actorAUserId,
+    });
+    const alternateShopId = await createScenarioShop(ctx, {
+      organizationId: alternateOrganizationId,
+      name: alternateShopName,
+      managerUserId: actorAUserId,
+    });
+    await createActiveFreeEntitlement(ctx, {
+      organizationId: alternateOrganizationId,
+      managerPersonId: actorAAlternatePersonId,
+      shopId: alternateShopId,
+    });
+    const actorAAlternateStaff = await createScenarioStaff(ctx, {
+      organizationId: alternateOrganizationId,
+      shopId: alternateShopId,
+      personId: actorAAlternatePersonId,
+      userId: actorAUserId,
+      name: DEFAULT_MANAGER.name,
+      email: args.actorAManagerEmail,
+    });
+
+    return {
+      actorAUserId,
+      actorAName: DEFAULT_MANAGER.name,
+      targetOrganizationId,
+      targetOrganizationName,
+      targetShopId,
+      targetShopName,
+      actorATargetPersonId,
+      actorATargetMemberId,
+      actorATargetStaffId: actorATargetStaff.staffId,
+      actorBTargetPersonId,
+      actorBTargetStaffId: actorBTargetStaff.staffId,
+      actorBName,
+      alternateOrganizationId,
+      alternateOrganizationName,
+      alternateShopId,
+      alternateShopName,
+      actorAAlternatePersonId,
+      actorAAlternateMemberId,
+      actorAAlternateStaffId: actorAAlternateStaff.staffId,
+    };
+  },
+});
+
+export const resetMultiActorOrganizationScenarioData = internalMutation({
+  args: {
+    ownerManagerAuthTokenIdentifier: v.string(),
+    actorBManagerAuthTokenIdentifier: v.string(),
+    actorCManagerAuthTokenIdentifier: v.string(),
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+    await resetManagerScenarioDataForAuth(ctx, args.ownerManagerAuthTokenIdentifier);
+    await deleteScenarioUsersByAuthTokenIdentifiers(ctx, [
+      args.actorBManagerAuthTokenIdentifier,
+      args.actorCManagerAuthTokenIdentifier,
+    ]);
+    return { reset: true };
+  },
+});
 
 async function createStaff(
   ctx: MutationCtx,
@@ -664,6 +1851,8 @@ async function createFailedRecruitmentNotification(
     shopId: args.shopId,
     recruitmentId: args.recruitmentId,
     staffId: args.staffId,
+    notificationContext,
+    deliverySuppressed: true,
     payload: {
       kind: "email",
       from: "e2e@shiftori.invalid",
@@ -677,6 +1866,7 @@ async function createFailedRecruitmentNotification(
     nextRunAt: now,
     lastError: E2E_SIMULATED_NOTIFICATION_FAILURE,
     failedAt: now,
+    terminalAt: now,
     createdAt: now,
     updatedAt: now,
   });
@@ -1225,6 +2415,46 @@ export const seedStaffRegistrationReviewScenario = internalMutation({
   },
 });
 
+/** Turnstileの外部チャレンジ後にある管理画面フローを、E2Eで独立して検証するための前提データ。 */
+export const seedPendingStaffRegistrationRequestScenario = internalMutation({
+  args: {
+    shopId: v.id("shops"),
+    name: v.string(),
+    email: v.string(),
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+    const shop = await ctx.db.get(args.shopId);
+    if (!shop || shop.isDeleted) {
+      throw new Error("Staff registration request scenario not found");
+    }
+
+    const parsed = staffRegistrationFormSchema.safeParse({
+      name: args.name,
+      email: args.email,
+      acceptedLegal: true,
+    });
+    if (!parsed.success) {
+      throw new Error(parsed.error.issues[0]?.message ?? "Invalid staff registration request scenario");
+    }
+
+    const emailNormalized = normalizeEmail(parsed.data.email);
+    const versions = getLegalConsentVersions("staff");
+    const now = Date.now();
+    const requestId = await ctx.db.insert("staffRegistrationRequests", {
+      shopId: shop._id,
+      name: parsed.data.name,
+      email: emailNormalized,
+      emailNormalized,
+      status: "pending",
+      ...versions,
+      consentedAt: now,
+      createdAt: now,
+    });
+    return { requestId };
+  },
+});
+
 export const seedLegalManagerConsentScenario = internalMutation({
   args: {
     managerAuthTokenIdentifier: v.string(),
@@ -1492,7 +2722,7 @@ export const seedNotificationFailureRecoveryScenario = internalMutation({
       shopId,
       recruitmentId,
       staffId: managerStaffId,
-      email: DEFAULT_MANAGER.email,
+      email: normalizeScenarioEmail(args.managerEmail ?? DEFAULT_MANAGER.email),
     });
     await createFailedRecruitmentNotification(ctx, {
       shopId,
@@ -1579,7 +2809,7 @@ export const seedNotificationManagerDigestScenario = internalMutation({
       shopId,
       recruitmentId,
       staffId: managerStaffId,
-      email: DEFAULT_MANAGER.email,
+      email: normalizeScenarioEmail(args.managerEmail ?? DEFAULT_MANAGER.email),
     });
 
     return { shopId, recruitmentId };
@@ -1609,6 +2839,23 @@ export const triggerNotificationManagerDigestScenario = internalMutation({
       }),
     ]);
     return { scheduledPurposeCount: 4 };
+  },
+});
+
+/** 複数管理者E2Eで代表のスタッフ登録digestだけを対象店舗へ起動する。 */
+export const triggerStaffRegistrationManagerDigestScenario = internalMutation({
+  args: {
+    shopId: v.id("shops"),
+  },
+  handler: async (ctx, { shopId }) => {
+    assertE2EHelpersEnabled();
+    const shop = await ctx.db.get(shopId);
+    if (!shop || shop.isDeleted || !shop.organizationId) {
+      throw new Error("Staff registration manager digest scenario not found");
+    }
+
+    await ctx.scheduler.runAfter(0, internal.staffRegistration.actions.sendOwnerDailyDigest, { shopId });
+    return { scheduledPurposeCount: 1 };
   },
 });
 
@@ -1699,10 +2946,14 @@ export const getNotificationProbe = internalQuery({
         status: job.status,
         notificationContext: notificationContextForProbe(job),
         attemptCount: job.attemptCount,
-        deliverySuppressed: isNotificationDeliverySuppressed({ suppressDelivery: job.payload.suppressDelivery }),
+        // TODO[narrow]: m019のisDone/successとredaction readiness確認後にpayload fallbackを削除する。
+        deliverySuppressed: isNotificationDeliverySuppressed({
+          suppressDelivery: job.deliverySuppressed ?? job.payload.suppressDelivery,
+        }),
         hasRecruitmentTarget: job.recruitmentId !== undefined,
         hasStaffTarget: job.staffId !== undefined,
         hasUserTarget: job.userId !== undefined,
+        recipientUserFingerprint: job.userId ? `sha256:${await digestInvitationToken(job.userId)}` : null,
         isResend: job.dedupeKey.includes(":resend:"),
         ...(await notificationCtaProbe(ctx, job)),
       })),
@@ -1736,14 +2987,117 @@ export const getNotificationProbe = internalQuery({
   },
 });
 
+/** E2E限定のorganization-scope通知probe。宛先、本文、token、provider errorは返さない。 */
+export const getOrganizationNotificationProbe = internalQuery({
+  args: organizationNotificationProbeArgs,
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+    const outboxPages = await Promise.all(
+      ALL_NOTIFICATION_OUTBOX_STATUSES.map((status) =>
+        ctx.db
+          .query("notificationOutbox")
+          .withIndex("by_organizationId_status", (q) =>
+            q.eq("organizationId", args.organizationId).eq("status", status),
+          )
+          .order("desc")
+          .take(50),
+      ),
+    );
+    const matchingOutbox = outboxPages
+      .flat()
+      .filter((job) => !args.organizationInvitationId || job.organizationInvitationId === args.organizationInvitationId)
+      .filter((job) => !args.channel || job.channel === args.channel)
+      .filter((job) => !args.notificationContext || notificationContextForProbe(job) === args.notificationContext)
+      .sort((left, right) => right.createdAt - left.createdAt);
+    const dedupeCounts = new Map<string, number>();
+    for (const job of matchingOutbox) {
+      dedupeCounts.set(job.dedupeKey, (dedupeCounts.get(job.dedupeKey) ?? 0) + 1);
+    }
+    const duplicateDedupeKeyCount = [...dedupeCounts.values()].filter((count) => count > 1).length;
+    const outbox = await Promise.all(
+      matchingOutbox.map(async (job) => {
+        const invitation = job.organizationInvitationId ? await ctx.db.get(job.organizationInvitationId) : null;
+        const invitationVersionMatchesTarget = job.organizationInvitationId
+          ? Boolean(
+              invitation &&
+                invitation.organizationId === args.organizationId &&
+                invitation.version === job.organizationInvitationVersion,
+            )
+          : null;
+        return {
+          organizationId: args.organizationId,
+          organizationInvitationId: job.organizationInvitationId ?? null,
+          purpose: job.purpose ?? null,
+          channel: job.channel,
+          status: job.status,
+          notificationContext: notificationContextForProbe(job),
+          // 将来dedupe構成へ宛先が混ざってもprobeからPIIが漏れないよう、同一性だけを返す。
+          dedupeKey: `sha256:${await digestInvitationToken(job.dedupeKey)}`,
+          attemptCount: job.attemptCount,
+          // TODO[narrow]: m019のisDone/successとredaction readiness確認後にpayload fallbackを削除する。
+          deliverySuppressed: isNotificationDeliverySuppressed({
+            suppressDelivery: job.deliverySuppressed ?? job.payload.suppressDelivery,
+          }),
+          recipientUserFingerprint: job.userId ? `sha256:${await digestInvitationToken(job.userId)}` : null,
+          invitationVersionMatchesTarget,
+          ...(await notificationCtaProbe(ctx, job, args.expectedShopId)),
+        };
+      }),
+    );
+    return { outbox, duplicateDedupeKeyCount };
+  },
+});
+
+/** bearer tokenを必要とする招待E2Eだけが使う専用probe。通常通知probeとは型とsymbolを分ける。 */
+export const getManagerInvitationTokenProbe = internalQuery({
+  args: {
+    organizationId: v.id("organizations"),
+    invitationId: v.id("organizationInvitations"),
+  },
+  handler: async (ctx, { organizationId, invitationId }) => {
+    assertE2EHelpersEnabled();
+    const invitation = await ctx.db.get(invitationId);
+    const empty = {
+      token: null,
+      invitationId: null,
+      version: null,
+      status: null,
+      expiresAt: null,
+    };
+    if (!invitation || invitation.organizationId !== organizationId) return empty;
+
+    const token = await deriveInvitationToken({
+      invitationId,
+      version: invitation.version,
+      signingSecret: getOrganizationInvitationSigningSecret(),
+    });
+    if ((await digestInvitationToken(token)) !== invitation.tokenDigest) return empty;
+    return {
+      token,
+      invitationId,
+      version: invitation.version,
+      status: invitation.status,
+      expiresAt: invitation.expiresAt,
+    };
+  },
+});
+
 /** E2E起動前にhelperと通知dry-runの安全条件を確認する。 */
 export const getE2ESafetyState = internalQuery({
   args: {},
   handler: async () => {
     assertE2EHelpersEnabled();
+    let organizationInvitationSigningSecretConfigured = false;
+    try {
+      getOrganizationInvitationSigningSecret();
+      organizationInvitationSigningSecretConfigured = true;
+    } catch {
+      // 秘密値そのものや設定エラー詳細はpreflightへ返さない。
+    }
     return {
       helpersEnabled: true,
       notificationDeliverySuppressed: isNotificationDeliverySuppressed(),
+      organizationInvitationSigningSecretConfigured,
     };
   },
 });
@@ -1763,6 +3117,7 @@ export const getE2EBackendAudit = internalQuery({
     );
     const managerEmailsWithShop = new Set<string>();
     const e2eShopIds = new Set<Id<"shops">>();
+    const e2eOrganizationIds = new Set<Id<"organizations">>();
     for (const user of e2eUsers) {
       const memberships = await ctx.db
         .query("shopMembers")
@@ -1772,6 +3127,7 @@ export const getE2EBackendAudit = internalQuery({
         const shop = await ctx.db.get(membership.shopId);
         if (!shop || shop.isDeleted) continue;
         e2eShopIds.add(membership.shopId);
+        if (shop.organizationId) e2eOrganizationIds.add(shop.organizationId);
         managerEmailsWithShop.add((user.emailNormalized ?? user.email).trim().toLowerCase());
       }
     }
@@ -1793,8 +3149,8 @@ export const getE2EBackendAudit = internalQuery({
       if (e2eShopIds.has(failure.shopId)) unexpectedContexts.push(failure.notificationContext);
     }
 
-    const activeOutboxPages = await Promise.all(
-      [...e2eShopIds].flatMap((shopId) =>
+    const activeOutboxPages = await Promise.all([
+      ...[...e2eShopIds].flatMap((shopId) =>
         (["pending", "processing"] as const).map((status) =>
           ctx.db
             .query("notificationOutbox")
@@ -1802,11 +3158,19 @@ export const getE2EBackendAudit = internalQuery({
             .collect(),
         ),
       ),
-    );
+      ...[...e2eOrganizationIds].flatMap((organizationId) =>
+        (["pending", "processing"] as const).map((status) =>
+          ctx.db
+            .query("notificationOutbox")
+            .withIndex("by_organizationId_status", (q) => q.eq("organizationId", organizationId).eq("status", status))
+            .collect(),
+        ),
+      ),
+    ]);
+    const activeOutbox = new Map(activeOutboxPages.flat().map((job) => [job._id, job]));
     const activeDedupeCounts = new Map<string, number>();
-    for (const job of activeOutboxPages.flat()) {
-      const key = `${job.shopId}:${job.dedupeKey}`;
-      activeDedupeCounts.set(key, (activeDedupeCounts.get(key) ?? 0) + 1);
+    for (const job of activeOutbox.values()) {
+      activeDedupeCounts.set(job.dedupeKey, (activeDedupeCounts.get(job.dedupeKey) ?? 0) + 1);
     }
     const duplicateActiveDedupeKeyCount = [...activeDedupeCounts.values()].filter((count) => count > 1).length;
 
@@ -1816,6 +3180,7 @@ export const getE2EBackendAudit = internalQuery({
       missingManagerEmailCount,
       managerEmailWithoutShopCount,
       auditedShopCount: e2eShopIds.size,
+      auditedOrganizationCount: e2eOrganizationIds.size,
       unexpectedUnresolvedFailureInboxCount: unexpectedContexts.length,
       duplicateActiveDedupeKeyCount,
       notificationContexts: [...new Set(unexpectedContexts)].sort(),

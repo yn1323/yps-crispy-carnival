@@ -1,6 +1,6 @@
 import { Box, Circle, Flex, HStack, Icon, Image, SimpleGrid, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
-import { LuBell, LuCalendarCheck, LuLink, LuMail, LuSmartphone, LuStore, LuTabletSmartphone } from "react-icons/lu";
+import { LuBell, LuCalendarCheck, LuLink, LuMail, LuSmartphone, LuTabletSmartphone } from "react-icons/lu";
 import heroSpImage from "@/src/assets/hero-sp.webp";
 
 type HeroTopOffset = {
@@ -19,43 +19,42 @@ type GuideItem = {
   body: string;
 };
 
-const shiftreeDescription = "勤務先のお店がシフト希望の回収や確定シフトの共有に使うシフト管理サービスです。";
-const registrationDescription =
-  "名前・メールアドレスを登録し、シフト提出ができるようにしましょう。\nシフト作成担当者が承認後、メールでシフト提出の案内が届きます。";
+const shiftreeDescription = "勤務先のお店が、シフト希望の受付と確定シフトの共有に使うサービスです。";
+const staffGuideLead = "お店から案内が届いたら、リンクを開いて内容を確認してください。";
 
 const quickPoints: QuickPoint[] = [
   { icon: LuTabletSmartphone, label: "専用アプリ不要" },
-  { icon: LuLink, label: "LINEやメールのリンクから提出" },
+  { icon: LuLink, label: "メールやLINEのリンクから操作" },
 ];
 
 const guideItems: GuideItem[] = [
   {
-    icon: LuStore,
-    title: "シフトリとは",
-    body: shiftreeDescription,
+    icon: LuBell,
+    title: "シフト募集のお知らせ",
+    body: "シフト希望の受付が始まると提出依頼を送り、まだ提出していない場合は締切前にもお知らせします。",
   },
   {
-    icon: LuBell,
-    title: "お店から連絡が届きます",
-    body: "シフト希望の提出依頼、締切前のお知らせ、確定シフトなどが届きます。",
+    icon: LuCalendarCheck,
+    title: "確定シフトのお知らせ",
+    body: "お店でシフトが確定すると、自分の勤務予定を確認できるリンクを送ります。",
   },
   {
     icon: LuMail,
-    title: "メールまたはLINEで届きます",
-    body: "勤務先からメールやLINEでシフトに関する案内が届きます。",
+    title: "メールまたはLINEでお知らせします",
+    body: "お知らせは、登録済みのメールアドレスまたは連携済みのLINEへ送られます。LINEで送れない場合は、メールでお知らせすることがあります。",
   },
   {
     icon: LuSmartphone,
-    title: "専用アプリなしで使えます",
-    body: "届いたリンクからシフト希望の提出や確定シフトの確認ができます。",
+    title: "届いたリンクから操作できます",
+    body: "専用アプリをインストールせず、シフト希望の提出や確定シフトの確認ができます。",
   },
 ];
 
 const flowItems = [
-  { icon: LuMail, labelLines: ["メール・LINEが届く"] },
-  { icon: LuLink, labelLines: ["添付のリンクを", "開く"] },
+  { icon: LuMail, labelLines: ["提出依頼が届く"] },
+  { icon: LuLink, labelLines: ["案内のリンクを", "開く"] },
   { icon: LuCalendarCheck, labelLines: ["希望シフトを提出"] },
-  { icon: LuBell, labelLines: ["確定シフトが届く"] },
+  { icon: LuBell, labelLines: ["確定シフトを確認"] },
 ];
 
 type StaffGuideContentProps = {
@@ -111,7 +110,7 @@ function HeroSection({ topOffset }: { topOffset?: HeroTopOffset }) {
               {shiftreeDescription}
             </Text>
             <Text mt={3} color="gray.700" fontSize={{ base: "sm", md: "md" }} lineHeight={1.9} whiteSpace="pre-line">
-              {registrationDescription}
+              {staffGuideLead}
             </Text>
           </Box>
           <Box aria-hidden="true" display={{ base: "block", md: "none" }} alignSelf="center" w="150px">
@@ -162,7 +161,7 @@ function GuideSection() {
   return (
     <Box px={{ base: 5, md: 8 }} py={6}>
       <Text as="h2" color="teal.900" fontSize={{ base: "xl", md: "2xl" }} fontWeight="bold" textAlign="center">
-        シフトリとは？
+        シフトリでできること
       </Text>
       <VStack align="stretch" gap={0} mt={{ base: 4, md: 6 }}>
         {guideItems.map((item, index) => (
