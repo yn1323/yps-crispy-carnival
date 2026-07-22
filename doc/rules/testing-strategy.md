@@ -19,6 +19,7 @@
 - E2E は画面・認証・フロントエンドと実 Convex backend の接続確認を中心にする。
 - same-repositoryのdevelop向けopen PRでは、exact PR headごとの専用Convex Preview `preview/pr-{N}-e2e`で認証付き`@release` Full Regressionを実行し、Cloudflare PR Previewの公開5routeを`@deployed` Smokeで確認する。fork PR、developからmainへのPR、`release.yml`では認証付きFull Regressionを実行しない。same-repositoryへpushできるactorをcredential付きPR workflowの信頼境界内とする。
 - E2EのブラウザprojectはChrome系に限定し、Desktop ChromeとMobile Chromeの代表導線を確認する。
+- 認証状態は6人のE2E管理者分を作り、CIは3 workerで各workerが2 user indexを交互に担当する。結果ゲートでは全6 user indexが実行されたことを検証する。
 - スタッフの提出方式を追加・変更した場合は、対応する全方式について「初回提出、再編集・再提出、管理者による割当編集、下書き保存、reload後の永続化、確定通知、スタッフ閲覧」までを `@release` の一気通貫シナリオで保証する。
 - magic link経由のスタッフ提出と閲覧は管理者のstorageStateを持たない別contextで確認し、再提出で追加・取り消した内容の両方を管理者画面と確定後のスタッフ画面で検証する。
 - すべての分岐を同じ層で網羅しない。境界値は Logic UT / Function Test、業務状態遷移は Scenario Test、画面の完了確認は E2E に分担する。
@@ -276,7 +277,7 @@ durable workflowを変更する場合は、次の契約を優先する。
 
 PR Full Regression判定では、必須projectとscenario suite、skip 0件、想定外のflaky 0件、通知dry-run preflight成功、想定外のopen FailureInbox 0件、active outboxの重複dedupe 0件を必須とする。
 
-PR workflowは機密検査済み`test-results.json`を`playwright-public-input-{run_attempt}` artifactとしてuploadし、raw Playwright report、trace、動画、screenshotは`playwright-report-{run_attempt}`の非公開artifactとして7日だけ保持する。default branchのtrusted `workflow_run` publisherはsource run、open PR、exact head SHA、latest run、current source attemptと完全一致するartifact宣言を再検証し、信頼済みcodeで固定schemaのsanitized summaryだけを生成・検査してhosting-pagesへ公開する。open PRのE2E結果はVRTと別の固定markerコメントへ返し、Full Regression結果、Actions、Cloudflare PR Preview、実行した`preview/pr-{N}-e2e`、`yps-crispy-carnival-e2e/pr-{N}`のhosting-pages URLを表示する。raw report、console/error詳細、認証情報、storageStateはhosting-pagesへ公開しない。
+PR workflowはraw `test-results.json`からsuite名、test名、project、status、duration、retryだけを固定schemaへallowlist射影し、`playwright-public-input-{run_attempt}` artifactとしてuploadする。raw Playwright report、trace、動画、screenshotは専用scannerで機密検査し、`playwright-report-{run_attempt}`の非公開artifactとして7日だけ保持する。default branchのtrusted `workflow_run` publisherはsource run、open PR、exact head SHA、latest run、current source attemptと完全一致するartifact宣言を再検証し、信頼済みcodeで固定schemaのsanitized summaryだけを生成・検査してhosting-pagesへ公開する。open PRのE2E結果はVRTと別の固定markerコメントへ返し、Full Regression結果、Actions、Cloudflare PR Preview、実行した`preview/pr-{N}-e2e`、`yps-crispy-carnival-e2e/pr-{N}`のhosting-pages URLを表示する。raw report、console/error詳細、認証情報、storageStateはhosting-pagesへ公開しない。
 
 RCの本番リリースでは、隔離受信先によるprovider canary完了後、権限ある確認者がexact head SHA、時刻、環境、証跡URL、Turnstile・募集/確定のemail/LINE・LINE reply・問い合わせemail/Slackの全PASSを構造化attestationとして記録する。その検証後だけ`release:provider-canary-passed`ラベルを有効とし、追加push後は再実施する。
 

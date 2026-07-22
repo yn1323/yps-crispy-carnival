@@ -142,7 +142,7 @@ E2Eのissue commentを作成・更新するjobは、`issues: write`と`pull-requ
 
 VRTとE2Eの結果は、一つの総合コメントへまとめず、独立したコメントとして更新する。open PRのE2Eコメントはstatus、Passed / Failed / Flaky / Skipped、失敗テスト、全テスト、Actions、Cloudflare PR Preview、`yps-crispy-carnival-e2e/pr-{N}`のhosting-pages URL、実行した`preview/pr-{N}-e2e`を表示する。VRTコメントはChanged / New / Deleted / Passed、hosting-pagesの差分レポート、Actionsの承認導線を表示する。
 
-Cloudflare公開後の`@deployed` Smokeは`deploy.yml`で実行し、認証付き`@release` Full Regressionは`playwright.yml`でPR headに対して専用Convex Preview `preview/pr-{N}-e2e`を作って実行する。producerは機密検査済みの固定入力artifact `playwright-public-input-{run_attempt}`と、raw reportを含む非公開`playwright-report-{run_attempt}` artifactをuploadする。publisherはcurrent source attemptと完全一致するartifactだけを採用し、raw artifactはActionsへ7日だけ保存する。
+Cloudflare公開後の`@deployed` Smokeは`deploy.yml`で実行し、認証付き`@release` Full Regressionは`playwright.yml`でPR headに対して専用Convex Preview `preview/pr-{N}-e2e`を作り、3 workerで実行する。producerはraw JSON reportを固定schemaへallowlist射影した公開入力artifact `playwright-public-input-{run_attempt}`と、機密検査済みのraw reportを含む非公開`playwright-report-{run_attempt}` artifactをuploadする。publisherはcurrent source attemptと完全一致するartifactだけを採用し、raw artifactはActionsへ7日だけ保存する。
 
 `publish-playwright-report.yml`はdefault branchの信頼済みcodeで固定入力artifactを再検査し、固定schemaのsanitized summaryだけを生成・検査してhosting-pagesへpushする。raw Playwright report、trace、動画、screenshot、console/error詳細、認証情報、storageStateは公開しない。`assertNoSensitiveArtifacts.mjs`は`.env`、source map、private key、access log、認証済みbrowser storage state、secret prefix / identifier、JWT、placeholder以外のemailも検査する。
 
@@ -163,7 +163,7 @@ release workflowは`main`へsource commitを追加しない。release PRにversi
 | `test-logic.yml` | 全push | ロジックテスト（sharding 2分割） |
 | `test-ui.yml` | PR / push | Storybook mockと決定的な公開dummy値で行うsecretless UIテスト（sharding 2分割） |
 | `build.yml` | push to develop | credential付きビルド確認（Convex dev使用） |
-| `playwright.yml` | same-repository PR to develop | exact PR headをcheckoutし、専用Convex Preview `preview/pr-{N}-e2e`で認証付きFull Regression E2E、結果gate、backend audit、機密検査済み固定入力artifact、非公開raw artifactを生成 |
+| `playwright.yml` | same-repository PR to develop | exact PR headをcheckoutし、専用Convex Preview `preview/pr-{N}-e2e`で認証付きFull Regression E2E、結果gate、backend audit、allowlist射影した公開入力artifact、機密検査済み非公開raw artifactを生成 |
 | `publish-playwright-report.yml` | `Playwright Tests`の`workflow_run: completed` | default branchの信頼済みcodeでsource / artifactを再検証し、sanitized reportだけをhosting-pagesへ公開してE2E専用PRコメントを更新 |
 | `provider-canary-approval.yml` | main向けPRのcanaryラベル付与 / 追加push | 構造化attestationを検証してhead SHA markerを記録し、不備時と追加push時に承認ラベルを削除 |
 | `security.yml` | PR to develop/main、push to develop/main、週次 | Git履歴secret scan、`public`/`dist`漏洩scan、dependency review/audit、trusted branch CodeQL |

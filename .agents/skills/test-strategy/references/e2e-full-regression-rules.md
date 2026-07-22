@@ -213,7 +213,7 @@ probeはPII、本文、raw token、provider error全文を返さない。画面�
 - PR Preview Smoke自体は認証情報とstorageStateを使用しない。credential付きdeploy workflowはsame-repository PRだけを対象にし、fork PRへEnvironment Secretsを渡さない。
 - Deployed Smokeは公開主要route、固有ランドマーク、主要CTA、HTTP成功を軽量に確認する。
 - E2EとVRTは別の固定markerコメントで扱う。E2Eコメントにはstatus、Passed / Failed / Flaky / Skipped、失敗テスト、全テスト、Actions、PR Preview、`preview/pr-{N}-e2e`、`yps-crispy-carnival-e2e/pr-{N}`のhosting-pages URLを表示する。
-- PR E2E producerは機密検査済み`test-results.json`を`playwright-public-input-{run_attempt}`へuploadし、raw Playwright report、trace、動画、screenshotは`playwright-report-{run_attempt}`の非公開artifactへ7日だけ保存する。publisherはcurrent source attemptと完全一致するartifactだけを採用する。
+- PR E2E producerはraw `test-results.json`からsuite名、test名、project、status、duration、retryだけを固定schemaへallowlist射影し、`playwright-public-input-{run_attempt}`へuploadする。raw Playwright report、trace、動画、screenshotは専用scannerで機密検査し、`playwright-report-{run_attempt}`の非公開artifactへ7日だけ保存する。publisherはcurrent source attemptと完全一致するartifactだけを採用する。
 - default branchのtrusted `workflow_run` publisherはsource run、open PR、exact head SHA、latest run、artifact宣言を再検証し、信頼済みcodeで固定schemaのsanitized summaryだけを生成・検査してhosting-pagesへ公開する。raw report、console/error詳細、認証情報、storageStateは公開しない。
 - VRTはPR / develop・main pushでcapture・compareし、同じworkflowからreportとbaselineをhosting-pagesへ公開する。PRではreport URLと差分件数をコメントし、差分がある場合だけ`approve` jobを`vrt-approval` Environmentで待つ。
 - production Turnstileなど外部challengeを自動化するために、アプリ側の検証やセキュリティを弱めない。
@@ -240,7 +240,8 @@ probeはPII、本文、raw token、provider error全文を返さない。画面�
 - 未許可project、必須Desktop / Mobile project欠落。
 - 必須P0契約ID欠落。件数とファイル名だけの検査は暫定扱いにする。
 - 通知dry-run preflight失敗。
-- 全E2E管理者と有効店舗の対応不整合。
+- 全6 user indexの実行欠落。
+- 終了時にE2E店舗または組織が1件も監査できない、もしくはbackend audit自体を取得できない状態。削除シナリオで管理者や店舗が削除済みであること自体は失敗にしない。
 - 想定外のopen FailureInbox、active dedupe重複。
 
 実行対象が統合後またはRCのexact SHA、production相当build、実際にリリースするartifactと一致しない場合は、その差を残課題として報告する。自動化されていないのに本番リリースゲート完了とは表現しない。
