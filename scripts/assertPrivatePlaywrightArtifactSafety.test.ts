@@ -171,7 +171,7 @@ describe("private Playwright artifact safety gate", () => {
   );
 
   it("rejects storage state content under an ordinary filename", () => {
-    writeFileSync(path.join(testDirectory, "playwright-report", "state.json"), '{"cookies":[],"origins":[]}');
+    writeFileSync(path.join(testDirectory, "playwright-report", "state.json"), '{"origins":[],"cookies":[]}');
 
     const result = runGate();
 
@@ -201,6 +201,26 @@ describe("private Playwright artifact safety gate", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("storage state");
+  });
+
+  it("accepts storage state metadata nested in a Playwright context-options trace event", () => {
+    const traceEvent = JSON.stringify({
+      type: "context-options",
+      options: {
+        storageState: {
+          cookies: [{ name: "session", value: "generated-session-value" }],
+          origins: [],
+        },
+      },
+    });
+    writeFileSync(
+      path.join(testDirectory, "test-results", "trace.zip"),
+      createZip([{ name: "trace.trace", contents: `${traceEvent}\n`, compressed: true }]),
+    );
+
+    const result = runGate();
+
+    expect(result.status).toBe(0);
   });
 
   it("rejects a high-confidence secret not supplied through the environment", () => {

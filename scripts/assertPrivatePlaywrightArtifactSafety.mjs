@@ -43,7 +43,6 @@ const BINARY_SIGNATURES = new Map([
       contents.toString("ascii", 8, 12) === "WEBP",
   ],
 ]);
-const PLAYWRIGHT_STORAGE_PATTERN = /"cookies"\s*:\s*\[[\s\S]*?"origins"\s*:\s*\[/;
 const HIGH_CONFIDENCE_SECRET_PATTERNS = [
   { label: "private key", pattern: /-----BEGIN (?:DSA |EC |OPENSSH |RSA )?PRIVATE KEY-----/ },
   { label: "Stripe or Clerk secret key", pattern: /\b(?:rk|sk)_(?:live|test)_[A-Za-z0-9]{16,}\b/ },
@@ -197,6 +196,23 @@ function findSecrets(contents, credentialsByValue) {
   return findings;
 }
 
+function isStandaloneBrowserStorageState(contents) {
+  let value;
+  try {
+    const source = new TextDecoder("utf-8", { fatal: true }).decode(contents).replace(/^\uFEFF/, "");
+    value = JSON.parse(source);
+  } catch {
+    return false;
+  }
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Array.isArray(value.cookies) &&
+    Array.isArray(value.origins)
+  );
+}
+
 function inspectZip(contents, credentialsByValue) {
   const eocdOffset = findEndOfCentralDirectory(contents);
   const diskNumber = contents.readUInt16LE(eocdOffset + 4);
@@ -286,7 +302,9 @@ function inspectZip(contents, credentialsByValue) {
     if (uncompressedContents.length !== uncompressedSize || crc32(uncompressedContents) !== expectedCrc) {
       throw new Error("Private Playwright artifact ZIP entry checksum or size is invalid.");
     }
-    if (PLAYWRIGHT_STORAGE_PATTERN.test(uncompressedContents.toString("latin1"))) {
+    // Playwright traceのcontext-optionsにもcookies/originsは含まれる。
+    // ZIP entry全体がstorageState JSONである場合だけ拒否し、診断trace自体は非公開artifactへ残す。
+    if (isStandaloneBrowserStorageState(uncompressedContents)) {
       throw new Error("Private Playwright artifact ZIP contains browser storage state.");
     }
     for (const finding of findSecrets(uncompressedContents, credentialsByValue)) findings.add(finding);
@@ -368,7 +386,7 @@ function main() {
       } catch {
         throw new Error(`Private Playwright artifact contains invalid UTF-8 text: ${artifactFile.relativePath}`);
       }
-      if (PLAYWRIGHT_STORAGE_PATTERN.test(source)) {
+      if (isStandaloneBrowserStorageState(contents)) {
         throw new Error(`Private Playwright artifact gate found browser storage state: ${artifactFile.relativePath}`);
       }
       if (options.redactKnownIdentifiers) {
