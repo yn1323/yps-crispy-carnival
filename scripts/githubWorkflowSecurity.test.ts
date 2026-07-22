@@ -548,7 +548,7 @@ describe("PR workflow credential isolation", () => {
       expect.objectContaining({
         comment_id: 99,
         body: expect.stringMatching(
-          /<!-- shiftori-playwright-report:v1 -->[\s\S]*## Playwright Test Report[\s\S]*Status: Passed[\s\S]*Actionsの非公開artifactを見る[\s\S]*actions\/runs\/300/,
+          /<!-- shiftori-playwright-report:v1 -->[\s\S]*## Playwright Test Report[\s\S]*Status: Passed[\s\S]*実行結果[\s\S]*Actionsを見る[\s\S]*actions\/runs\/300[\s\S]*レポート確認[\s\S]*Actionsの非公開artifactを見る[\s\S]*actions\/runs\/300/,
         ),
       }),
     );
@@ -556,12 +556,12 @@ describe("PR workflow credential isolation", () => {
   });
 
   it.each([
-    { testResult: "failure", artifactUploaded: "true" as const, linkLabel: "Actionsの非公開artifactを見る" },
-    { testResult: "cancelled", artifactUploaded: "false" as const, linkLabel: "Actionsで実行結果を見る" },
-    { testResult: "skipped", artifactUploaded: "false" as const, linkLabel: "Actionsで実行結果を見る" },
+    { testResult: "failure", artifactUploaded: "true" as const, reportExpected: true },
+    { testResult: "cancelled", artifactUploaded: "false" as const, reportExpected: false },
+    { testResult: "skipped", artifactUploaded: "false" as const, reportExpected: false },
   ])(
     "creates a $testResult Full Regression comment with a valid Actions link",
-    async ({ testResult, artifactUploaded, linkLabel }) => {
+    async ({ testResult, artifactUploaded, reportExpected }) => {
       const mergeSha = "a".repeat(40);
       const mergedPull = {
         number: 42,
@@ -580,12 +580,27 @@ describe("PR workflow credential isolation", () => {
       });
 
       expect(result.failures).toEqual([]);
-      expect(result.github.rest.issues.createComment).toHaveBeenCalledWith(
-        expect.objectContaining({
-          issue_number: 42,
-          body: expect.stringMatching(
-            new RegExp(`Status: Failed \\(${testResult}\\)[\\s\\S]*${linkLabel}[\\s\\S]*actions/runs/300`),
+      const expectedComment = expect.objectContaining({
+        issue_number: 42,
+        body: expect.stringMatching(
+          new RegExp(
+            `Status: Failed \\(${testResult}\\)[\\s\\S]*実行結果[\\s\\S]*Actionsを見る[\\s\\S]*actions/runs/300`,
           ),
+        ),
+      });
+      expect(result.github.rest.issues.createComment).toHaveBeenCalledWith(expectedComment);
+      if (reportExpected) {
+        expect(result.github.rest.issues.createComment).toHaveBeenCalledWith(
+          expect.objectContaining({ body: expect.stringContaining("Actionsの非公開artifactを見る") }),
+        );
+      } else {
+        expect(result.github.rest.issues.createComment).not.toHaveBeenCalledWith(
+          expect.objectContaining({ body: expect.stringContaining("Actionsの非公開artifactを見る") }),
+        );
+      }
+      expect(result.github.rest.issues.createComment).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.stringContaining("Actionsで実行結果を見る"),
         }),
       );
       expect(result.github.rest.issues.updateComment).not.toHaveBeenCalled();
@@ -1068,7 +1083,9 @@ describe("PR workflow credential isolation", () => {
     expect(result.github.rest.issues.updateComment).toHaveBeenCalledWith(
       expect.objectContaining({
         comment_id: 99,
-        body: expect.stringMatching(/Status: 実行中[\s\S]*VRT実行[\s\S]*actions\/runs\/200/),
+        body: expect.stringMatching(
+          /Status: 実行中[\s\S]*実行結果[\s\S]*VRT実行を見る[\s\S]*actions\/runs\/200[\s\S]*承認フロー[\s\S]*VRT差分の確認・承認へ進む[\s\S]*actions\/runs\/200/,
+        ),
       }),
     );
     expect(result.github.rest.issues.updateComment).not.toHaveBeenCalledWith(
@@ -1119,7 +1136,7 @@ describe("PR workflow credential isolation", () => {
       expect.objectContaining({
         issue_number: 42,
         body: expect.stringMatching(
-          /<!-- shiftori-vrt-report:v1 -->[\s\S]*## VRT Report[\s\S]*公開承認待ち[\s\S]*VRT実行[\s\S]*actions\/runs\/200[\s\S]*公開承認・公開処理[\s\S]*actions\/runs\/300/,
+          /<!-- shiftori-vrt-report:v1 -->[\s\S]*## VRT Report[\s\S]*公開承認待ち[\s\S]*実行結果[\s\S]*VRT実行を見る[\s\S]*actions\/runs\/200[\s\S]*承認フロー[\s\S]*レポート公開の承認へ進む[\s\S]*actions\/runs\/300/,
         ),
       }),
     );
@@ -1158,8 +1175,13 @@ describe("PR workflow credential isolation", () => {
     expect(result.failures).toEqual([]);
     expect(result.github.rest.issues.createComment).toHaveBeenCalledWith(
       expect.objectContaining({
-        body: expect.stringMatching(new RegExp(`${status}[\\s\\S]*VRT実行[\\s\\S]*actions/runs/200`)),
+        body: expect.stringMatching(
+          new RegExp(`${status}[\\s\\S]*実行結果[\\s\\S]*VRT実行を見る[\\s\\S]*actions/runs/200`),
+        ),
       }),
+    );
+    expect(result.github.rest.issues.createComment).not.toHaveBeenCalledWith(
+      expect.objectContaining({ body: expect.stringContaining("承認フロー") }),
     );
     expect(result.github.rest.issues.createComment).not.toHaveBeenCalledWith(
       expect.objectContaining({ body: expect.stringContaining("actions/runs/300") }),
@@ -1356,7 +1378,7 @@ describe("PR workflow credential isolation", () => {
       expect.objectContaining({
         comment_id: 99,
         body: expect.stringMatching(
-          /Status: Passed[\s\S]*差分レポートを見る\]\(https:\/\/yn1323\.github\.io\/hosting-pages\/yps-crispy-carnival-vrt\/pr-42\/\?v=300-1\)[\s\S]*VRT実行[\s\S]*actions\/runs\/200[\s\S]*公開処理[\s\S]*actions\/runs\/300/,
+          /Status: Passed[\s\S]*hosting-pagesで差分レポートを見る\]\(https:\/\/yn1323\.github\.io\/hosting-pages\/yps-crispy-carnival-vrt\/pr-42\/\?v=300-1\)[\s\S]*実行結果[\s\S]*VRT実行を見る[\s\S]*actions\/runs\/200[\s\S]*承認フロー[\s\S]*レポート公開の承認・実行を見る[\s\S]*actions\/runs\/300/,
         ),
       }),
     );
@@ -1428,7 +1450,9 @@ describe("PR workflow credential isolation", () => {
     expect(result.github.rest.issues.createComment).toHaveBeenCalledWith(
       expect.objectContaining({
         body: expect.stringMatching(
-          new RegExp(`${status}[\\s\\S]*VRT実行[\\s\\S]*actions/runs/200[\\s\\S]*公開処理[\\s\\S]*actions/runs/300`),
+          new RegExp(
+            `${status}[\\s\\S]*実行結果[\\s\\S]*VRT実行を見る[\\s\\S]*actions/runs/200[\\s\\S]*承認フロー[\\s\\S]*actions/runs/300`,
+          ),
         ),
       }),
     );

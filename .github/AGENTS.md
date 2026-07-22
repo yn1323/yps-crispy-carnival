@@ -133,7 +133,7 @@ trusted publisherはsource workflow名・event・conclusion・same-repository・
 
 PRのissue commentを作成・更新するtrusted jobは、`issues: write`と`pull-requests: write`の両方をjobまたはworkflowへ付与する。`pull-requests: write`はdefault branchの`workflow_run` consumerまたはdevelop push jobだけに限定し、PR head workflowへ付与しない。
 
-VRTとE2Eの結果は、一つの総合コメントへまとめず、それぞれ専用markerを持つ独立した固定コメントとして更新する。E2Eコメントは、artifact生成済みならActionsの非公開Playwright artifactへ、未生成なら同じActions runのログへリンクする。VRTコメントはsource runとtrusted publisher runへリンクし、公開成功後だけ実在確認済みの差分レポートURLを追加する。未実行・承認待ち・公開失敗の状態では、まだ存在しないreport URLを表示しない。
+VRTとE2Eの結果は、一つの総合コメントへまとめず、それぞれ専用markerを持つ独立した固定コメントとして更新する。E2EコメントはActionsの実行結果を常に表示し、artifact生成済みの場合だけ非公開Playwright artifactへの行も追加する。VRTコメントはActionsの実行結果と、その時点で必要な差分承認またはレポート公開承認への導線を表示し、公開成功後は実在確認済みのhosting-pages差分レポートURLも追加する。未実行・公開失敗の状態では、まだ存在しないreport URLを表示しない。
 
 `assertNoSensitiveArtifacts.mjs`はさらに`.env`、source map、private key、access log、認証済みbrowser storage state、secret prefix / identifier、JWT、placeholder以外のemailを検査する。PR producerの検査だけを信頼せず、credentialを持つconsumerでtrusted copyのscannerを再実行する。
 

@@ -211,9 +211,10 @@ jobs:
               '',
               '| Action | Link |',
               '|---|---|',
-              reportArtifactUploaded
-                ? `| レポート確認 | [Actionsの非公開artifactを見る](${actionsUrl}) |`
-                : `| 実行確認 | [Actionsで実行結果を見る](${actionsUrl}) |`,
+              `| 実行結果 | [Actionsを見る](${actionsUrl}) |`,
+              ...(reportArtifactUploaded
+                ? [`| レポート確認 | [Actionsの非公開artifactを見る](${actionsUrl}) |`]
+                : []),
               '',
               'Details:',
               `developへマージされたcommit \`${mergeSha}\` をFull Regressionで検証しました。`,

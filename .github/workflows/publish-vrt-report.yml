@@ -162,11 +162,13 @@ jobs:
               '',
               '| Action | Link |',
               '|---|---|',
-              `| VRT実行 | [Actionsを見る](${sourceActionsUrl}) |`,
+              `| 実行結果 | [VRT実行を見る](${sourceActionsUrl}) |`,
               ...(
-                action === 'completed' && run.conclusion === 'success'
-                  ? [`| 公開承認・公開処理 | [Actionsを見る](${publicationActionsUrl}) |`]
-                  : []
+                action === 'in_progress'
+                  ? [`| 承認フロー | [VRT差分の確認・承認へ進む](${sourceActionsUrl}) |`]
+                  : run.conclusion === 'success'
+                    ? [`| 承認フロー | [レポート公開の承認へ進む](${publicationActionsUrl}) |`]
+                    : []
               ),
               '',
               '差分レポートはtrusted publisherによる公開後、このコメントへ追加されます。',
@@ -1020,9 +1022,13 @@ jobs:
               '',
               '| Action | Link |',
               '|---|---|',
-              ...(publicationSucceeded ? [`| 差分確認 | [差分レポートを見る](${reportUrl}) |`] : []),
-              `| VRT実行 | [Actionsを見る](${sourceActionsUrl}) |`,
-              `| 公開処理 | [Actionsを見る](${publicationActionsUrl}) |`,
+              ...(
+                publicationSucceeded
+                  ? [`| 差分確認 | [hosting-pagesで差分レポートを見る](${reportUrl}) |`]
+                  : []
+              ),
+              `| 実行結果 | [VRT実行を見る](${sourceActionsUrl}) |`,
+              `| 承認フロー | [レポート公開の承認・実行を見る](${publicationActionsUrl}) |`,
             ].join('\n');
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner: context.repo.owner,
