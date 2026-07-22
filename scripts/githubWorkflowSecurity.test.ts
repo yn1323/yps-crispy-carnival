@@ -733,7 +733,7 @@ describe("repository security scan workflow", () => {
       "advanced-security": false,
       "min-confidence": "high",
       "min-severity": "high",
-      version: "1.26.0",
+      version: "1.27.0",
     });
   });
 });

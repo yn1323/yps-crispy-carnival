@@ -102,7 +102,7 @@ jobs:
           min-confidence: high
           min-severity: high
           persona: regular
-          version: 1.26.0
+          version: 1.27.0
 
   codeql-sast:
     name: CodeQL JavaScript and TypeScript
