@@ -46,13 +46,13 @@ e2e/
 
 ### CIとブラウザ
 
-- 認証付き`@release` Full Regressionはsame-repositoryのdevelop向けPR headごとに専用Convex Preview `preview/pr-{N}-e2e`を作って実行する。trusted `workflow_run` publisherがそのopen PRへ結果コメントを返す。fork PR、developからmainへのPR、`release.yml`では実行しない
+- 認証付き`@release` Full Regressionはsame-repositoryのdevelop向けPRごとに専用Convex Preview `preview/pr-{N}-e2e`を作って実行する。同じworkflowがhosting-pagesへのreport公開とPRコメント更新を行う。fork PR、developからmainへのPR、`release.yml`では実行しない
 - Cloudflare PR Preview公開後に、TOP、機能、FAQ、使い方、お問い合わせの公開5routeを`@deployed` Smokeする。Smoke自体は認証情報とstorageStateを使用しない
 - credential付きPR workflowはbase repositoryとhead repositoryが同じ場合だけ実行する。same-repositoryへpushできるactorを信頼境界内とし、fork PRへEnvironment Secretsを渡さない
 - ブラウザprojectはChrome系だけとし、Desktop ChromeとMobile Chromeの代表viewportを使う
-- 通常のDesktop ChromeとMobile Chromeは6ユーザーを6 workerへ固定対応させ、同じ認証状態を並行worker間で共有しない
-- 通常projectの`@notification`テストは6 worker時の通知probe負荷を考慮して150秒を上限とする。実行時間の評価にはタイムアウト値ではなくJSON reportのwall spanを使う
-- 6 worker時の初回購読と描画を考慮し、expect/actionは10秒、navigationは15秒を上限とする。ローカルだけ短い上限へ戻さない
+- 認証状態は6ユーザー分を用意する。CIの通常projectは3 workerとし、各workerが2ユーザーを交互に使う。同じ認証状態を並行worker間で共有しない。ローカルは既定6 workerを維持し、`E2E_WORKERS`を指定する場合は6の正の約数に限定する
+- 通常projectの`@notification`テストは並列実行時の通知probe負荷を考慮して150秒を上限とする。実行時間の評価にはタイムアウト値ではなくJSON reportのwall spanを使う
+- CI 3 worker時の初回購読と描画を考慮し、expect/actionは10秒、navigationは15秒を上限とする。ローカルだけ短い上限へ戻さない
 - 複数actorシナリオはuser index 0〜2をpool 0、3〜5をpool 1として2 workerへ固定対応させる。各poolのactor A、B、Cは独立したbrowser contextを使う
 - `setup` → `multi-actor-chromium` → 通常projectのdependencyを維持する。DesktopとMobileは同時実行できるが、Playwrightのworker slotごとの`parallelIndex`で同じユーザーの重複利用を避ける
 - PR Full Regression専用Convex Preview `preview/pr-{N}-e2e`はPR close時のcleanup対象とし、cleanup失敗時は自動失効で回収する
@@ -85,23 +85,20 @@ e2e/
 
 - `@deployed` PR Preview Smokeは認証を行わず、空のbrowser contextで公開routeだけを確認する。Clerk/Convexの共有credentialとstorageStateは使用しない
 - `fixtures/auth.setup.ts` で `@clerk/testing` の `clerk.signIn` を利用し、6ユーザー分の storageState を作成
-- Convex probeは`npx`を経由せず、依存解決したConvex CLIをNodeで直接起動して6 worker時のプロセス競合を抑える
+- Convex probeは`npx`を経由せず、依存解決したConvex CLIをNodeで直接起動して並列実行時のプロセス競合を抑える
 - CIでは環境変数 `E2E_CLERK_USERS`（カンマ区切り6件） / `E2E_CLERK_PASSWORD`（6ユーザー共通）を使用
-- scenario は `fixtures/e2eTest.ts` の `test` を import し、workerごとに別ユーザーの storageState を使う
-- `E2E_CLERK_USERS`の各値とpasswordはworkflow開始時にmaskし、password入力を行うsetupと通常suiteではtraceを保存しない。結果ゲートの割当情報には数値のuser indexとactor poolだけを記録する
+- scenario は `fixtures/e2eTest.ts` の `test` を import し、各テストへ割り当てられたユーザーの storageState を使う
+- `E2E_CLERK_USERS`の各値とpasswordはworkflow開始時にmaskし、password入力を行うsetupではtraceを保存しない
 - Playwrightの`webServer.env`へ`process.env`を設定しない。JSON reportへcredentialを直列化せず、artifact upload前のfail-closed gateでpassword、user identifier、secret、tokenの混入を検査する
 - 通常シナリオの失敗trace・動画は認証済みtokenを含み得るため、Actionsの非公開artifactへ7日だけ保存する。storageStateファイル自体はartifactへ含めない
 
 ## PR Full Regressionの結果公開
 
 - E2EとVRTは別々の専用markerを持つ固定コメントとして更新する
-- E2Eコメントにはstatus、Passed / Failed / Flaky / Skipped、失敗テスト、全テスト、source Actions、PR Preview、実行した`preview/pr-{N}-e2e`、`https://yn1323.github.io/hosting-pages/yps-crispy-carnival-e2e/pr-{N}/`の予定URLを表示する
-- 公開確認後だけ同じhosting-pages URLへrun IDとattemptのcache-busting queryを付け、公開済みsanitized summaryとして表示する
-- PR producerは機密検査済み`test-results.json`だけを`playwright-public-input-{run_attempt}` artifactへuploadし、raw report、trace、動画、screenshotは非公開`playwright-report-{run_attempt}` artifactへuploadする。publisherはcurrent source attemptと完全一致するartifactだけを採用する
-- default branchのtrusted `publish-playwright-report.yml`はsource run、repository、open PR、exact head SHA、latest run、artifact名・個数・容量を再検証し、信頼済みcodeで固定schemaのstatus、test名、project、duration、head SHA、run IDだけを含むsanitized summaryを生成する
-- `REPORT_PUBLISHER_HOSTING_PAGES_TOKEN`は`Report Publisher` Environmentだけから参照し、producerの`Preview` EnvironmentやRepository Secretsへ置かない
-- raw Playwright report、trace、動画、screenshot、console/error詳細、認証情報、storageStateはhosting-pagesへ公開せず、Actionsの非公開artifactへ7日だけ保存する
-- publisherはsanitized summaryの形式と機密情報不在を検査してhosting-pagesへ公開し、current head / latest run以外のrunがコメントやreportを上書きしないようにする
+- E2Eコメントにはstatus、Passed / Failed / Skipped、失敗テスト、全テスト、Actions、`https://yn1323.github.io/hosting-pages/yps-crispy-carnival/{N}/`のreport URLを表示する
+- `playwright.yml`はPlaywright HTML reportを`playwright-report` artifactへ30日保存し、同じ内容を`hosting-pages`へ直接pushする
+- hosting-pagesへのpushには`Preview` Environmentの`HOSTING_PAGES_TOKEN`を使う
+- 同じPRの過去コメントは削除し、最新の結果コメントを1件だけ作成する
 
 ## データ
 

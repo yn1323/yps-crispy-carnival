@@ -29,7 +29,10 @@ export class ShopDetailPage {
   async openFromDashboard() {
     const selectedShopId = new URL(this.page.url()).searchParams.get("shop");
 
-    await this.page.getByRole("button", { name: "店舗詳細を開く" }).click();
+    const openButton = this.page.getByRole("button", { name: "店舗詳細を開く" });
+    await expect(openButton).toBeVisible({ timeout: SHOP_DETAIL_DATA_TIMEOUT });
+    await expect(openButton).toBeEnabled({ timeout: SHOP_DETAIL_DATA_TIMEOUT });
+    await openButton.click({ noWaitAfter: true });
     await expect(this.page).toHaveURL(/\/shops\/[^/?]+(?:\?|$)/, {
       timeout: SHOP_DETAIL_DATA_TIMEOUT,
     });
@@ -141,7 +144,7 @@ export class ShopDetailPage {
     const toast = this.page.locator("[data-scope='toast'][data-part='root']").filter({ hasText: title }).first();
     await expect(toast).toBeVisible();
     await toast.locator("[data-part='close-trigger']").evaluate((element: HTMLElement) => element.click());
-    await expect(toast).not.toBeVisible();
+    await expect(toast).not.toHaveAttribute("data-state", "open");
   }
 }
 

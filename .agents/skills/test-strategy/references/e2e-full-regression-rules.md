@@ -212,36 +212,28 @@ probeはPII、本文、raw token、provider error全文を返さない。画面�
 - same-repositoryのdevelop向けopen PRでは、exact PR headをCloudflareの`pr-{N}` branchへデプロイし、TOP、機能、FAQ、使い方、お問い合わせの公開5routeを`@deployed` Smokeする。
 - PR Preview Smoke自体は認証情報とstorageStateを使用しない。credential付きdeploy workflowはsame-repository PRだけを対象にし、fork PRへEnvironment Secretsを渡さない。
 - Deployed Smokeは公開主要route、固有ランドマーク、主要CTA、HTTP成功を軽量に確認する。
-- E2EとVRTは別の固定markerコメントで扱う。E2Eコメントにはstatus、Passed / Failed / Flaky / Skipped、失敗テスト、全テスト、Actions、PR Preview、`preview/pr-{N}-e2e`、`yps-crispy-carnival-e2e/pr-{N}`のhosting-pages URLを表示する。
-- PR E2E producerは機密検査済み`test-results.json`を`playwright-public-input-{run_attempt}`へuploadし、raw Playwright report、trace、動画、screenshotは`playwright-report-{run_attempt}`の非公開artifactへ7日だけ保存する。publisherはcurrent source attemptと完全一致するartifactだけを採用する。
-- default branchのtrusted `workflow_run` publisherはsource run、open PR、exact head SHA、latest run、artifact宣言を再検証し、信頼済みcodeで固定schemaのsanitized summaryだけを生成・検査してhosting-pagesへ公開する。raw report、console/error詳細、認証情報、storageStateは公開しない。
-- VRT producerはPR / develop・main pushでsecretlessにcapture・compareし、trusted publisherだけが検査済みreportとbaselineをhosting-pagesへ公開する。PRではreport URLと差分件数をコメントした後、差分がある場合だけpublisherの`approve` jobを`vrt-approval` Environmentで待つ。publisherはexact PR head SHAの固定commit status `shiftori/vrt-approval`をpendingから、差分なしまたは承認後にsuccessへ進め、このstatusをstrict required checkとして使う。base更新後はPR branchをupdateして`synchronize`を発生させ、現baselineで再比較する。`GITHUB_TOKEN`のwrite権限はcomment / status jobだけに限定し、hosting-pages credentialは`Report Publisher` Environmentだけで参照する。
+- E2EとVRTは別の結果コメントで扱う。E2Eコメントにはstatus、Passed / Failed / Skipped、失敗テスト、全テスト、Actions、`yps-crispy-carnival/{PR番号}`のhosting-pages URLを表示する。
+- `playwright.yml`はPlaywright HTML reportをActions artifactへ30日保存し、同じreportを`hosting-pages`へ直接pushする。
+- VRTはPR / develop・main pushでcapture・compareし、同じworkflowからreportとbaselineをhosting-pagesへ公開する。PRではreport URLと差分件数をコメントし、差分がある場合だけ`approve` jobを`vrt-approval` Environmentで待つ。
 - production Turnstileなど外部challengeを自動化するために、アプリ側の検証やセキュリティを弱めない。
 - challengeを安定して自動化できない問い合わせ等は、route / CTA Smokeと内部受付contractを自動化し、実送信を手動provider canaryへ明示的に残す。
 
-## 11. Full Regression結果ゲート
+## 11. Full RegressionのCI実行
 
 現在のリポジトリ方針:
 
 - ブラウザはChrome系だけを使う。
 - Desktop Chromeと代表Mobile Chromeを分ける。
-- same-repositoryのdevelop向けexact PR headごとに専用Convex Preview `preview/pr-{N}-e2e`を作ってFull Regressionを実行し、trusted publisherから結果をopen PRへ返す。
-- Full Regression用Convex PreviewではE2E helperを明示的に有効化し、通知をdry-runへ固定して事前確認する。
+- same-repositoryのdevelop向けPRごとに専用Convex Preview `preview/pr-{N}-e2e`を作ってFull Regressionを実行し、同じworkflowから結果をopen PRへ返す。
+- Full Regression用Convex PreviewではE2E helperを明示的に有効化し、通知をdry-runへ固定する。
 - open PRでは認証付きFull Regressionと、Cloudflare PR Previewの公開5route Smokeを別workflowで実行する。
 - developからmainへのPRと`release.yml`ではE2Eを実行しない。
 - fork PRではcredential付きFull RegressionとPreview deployを実行しない。
 - PR close時にCloudflare PreviewとPR用Convex Previewをcleanupし、cleanup失敗時は自動失効で回収する。
 
-結果ゲートは少なくとも次を失敗にする。
-
-- report欠落、0件、top-level error。
-- failure、timeout、interrupted、non-passing expected status。
-- skipとretry後成功を含むflaky。
-- 未許可project、必須Desktop / Mobile project欠落。
-- 必須P0契約ID欠落。件数とファイル名だけの検査は暫定扱いにする。
-- 通知dry-run preflight失敗。
-- 全E2E管理者と有効店舗の対応不整合。
-- 想定外のopen FailureInbox、active dedupe重複。
+- `pnpm e2e:release`の終了結果をPlaywright checkの成否とする。failureとretry後成功はPlaywright設定でcheckを失敗させる。
+- テスト失敗後も`if: !cancelled()`のreport保存、hosting-pagesへのpush、PRコメント更新を実行する。
+- `test-results.json`をPRコメントのPassed / Failed / Skipped件数とテスト一覧へ使う。
 
 実行対象が統合後またはRCのexact SHA、production相当build、実際にリリースするartifactと一致しない場合は、その差を残課題として報告する。自動化されていないのに本番リリースゲート完了とは表現しない。
 
@@ -272,6 +264,6 @@ probeはPII、本文、raw token、provider error全文を返さない。画面�
 - [ ] 境界値と容量をE2Eへ寄せすぎていない。
 - [ ] Desktop / Mobile / a11y / deployed Smoke / canaryの担当を決めた。
 - [ ] open PRのDeployed SmokeへEnvironment、Secrets、認証、storageState、PR head codeを渡していない。
-- [ ] hosting-pagesへsanitized summaryだけを公開し、raw report、trace、error詳細を公開していない。
+- [ ] Playwright HTML reportがhosting-pagesのPR番号別pathへ公開され、PRコメントから到達できる。
 - [ ] test名の最終動詞までassertした。
 - [ ] 件数・ファイル名ではなく契約内容で網羅性を説明できる。

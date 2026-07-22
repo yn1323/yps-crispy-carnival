@@ -45,7 +45,7 @@ export const test = base.extend<E2ETestFixtures, E2EWorkerFixtures>({
   e2eUserAnnotation: [
     async ({ e2eWorkerUser }, use, testInfo) => {
       testInfo.annotations.push({ type: "e2e-user-index", description: String(e2eWorkerUser.index) });
-      // 6 worker時は通知probeのConvex CLI呼び出しが重なるため、実測時間は結果ゲートで監視しつつ上限だけ校正する。
+      // 並列実行時は通知probeのConvex CLI呼び出しが重なるため、実測時間は結果ゲートで監視しつつ上限だけ校正する。
       if (testInfo.tags.includes("@notification") && testInfo.timeout < NOTIFICATION_TEST_TIMEOUT_MS) {
         testInfo.setTimeout(NOTIFICATION_TEST_TIMEOUT_MS);
       }

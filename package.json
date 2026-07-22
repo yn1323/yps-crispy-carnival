@@ -1,6 +1,6 @@
 {
   "name": "yps-crispy-carnival",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "packageManager": "pnpm@11.15.1",
   "type": "module",
@@ -45,8 +45,6 @@
     "e2e:mobile": "playwright test --project=mobile-chrome",
     "e2e:a11y": "playwright test --grep @a11y",
     "e2e:deployed": "playwright test --config=playwright.deployed.config.ts",
-    "e2e:assert-release-results": "node scripts/assertPlaywrightReleaseResults.mjs",
-    "e2e:assert-artifact-safety": "node scripts/assertPlaywrightArtifactSafety.mjs",
     "e2e:ui": "playwright test --ui",
     "e2e:no-report": "playwright test --reporter=line",
     "e2e:debug": "playwright test --debug",

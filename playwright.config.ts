@@ -15,7 +15,7 @@ dotenv.config({ debug: false, quiet: true });
  *    └── 3ユーザーずつの2 poolを使い、ファイル間を2 workerで並列実行
  *
  * 3. 通常の認証済みテスト
- *    └── workerごとに別ユーザーの storageState を使い、owner単位のseedで並列実行
+ *    └── 各workerが割り当てられたユーザーの storageState をテストごとに切り替え、owner単位のseedで並列実行
  *
  * See https://playwright.dev/docs/test-configuration.
  */
@@ -29,11 +29,11 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   /* A retry-pass is still a release risk and must fail the CI gate. */
   failOnFlakyTests: !!process.env.CI,
-  /* E2E_CLERK_USERS のユーザー数に合わせて、別ユーザーで並列実行する。 */
+  /* 未指定時は6 worker。CIではE2E_WORKERSで6ユーザーを重複なく分割できるworker数へ抑える。 */
   workers: getE2EWorkerCount(),
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: [["list"], ["html"], ["json", { outputFile: "test-results.json" }]],
-  /* 6 worker時の初回購読・描画待ちを考慮しつつ、操作失敗を早く検知する。 */
+  reporter: [["list", { printSteps: true }], ["html"], ["json", { outputFile: "test-results.json" }]],
+  /* 並列実行時の初回購読・描画待ちを考慮しつつ、操作失敗を早く検知する。 */
   expect: {
     timeout: 10_000,
   },
@@ -42,7 +42,7 @@ export default defineConfig({
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: "http://localhost:3000",
 
-    /* ローカルとCIで同じ6 worker負荷を再現できる待機上限に揃える。 */
+    /* worker数にかかわらず、ローカルとCIで待機上限を揃える。 */
     actionTimeout: 10_000,
     navigationTimeout: 15_000,
 

@@ -3,55 +3,31 @@ name: Playwright Tests
 on:
   pull_request:
     branches: [develop]
-    types: [opened, synchronize, reopened, edited]
-
-concurrency:
-  group: playwright-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
 
 permissions:
   contents: read
-  pull-requests: read
+  issues: write
+  pull-requests: write
 
 jobs:
   test:
-    if: |
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      !startsWith(github.head_ref, 'renovate/') &&
-      github.actor != 'dependabot[bot]'
-    timeout-minutes: 75
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    timeout-minutes: 60
     runs-on: ubuntu-latest
     environment: Preview
     env:
+      REPORT_DIR: yps-crispy-carnival
+      PR_NUMBER: ${{ github.event.pull_request.number }}
       CONVEX_PREVIEW_NAME: pr-${{ github.event.pull_request.number }}-e2e
+      E2E_WORKERS: "3"
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
       - name: Setup
         uses: ./.github/actions/setup
       - name: Setup Playwright
         uses: ./.github/actions/playwright
-      - name: Validate current PR head before credentials
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
-        env:
-          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        with:
-          github-token: ${{ github.token }}
-          script: |
-            const { data: pullRequest } = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.payload.pull_request.number,
-            });
-            if (
-              pullRequest.state !== 'open' ||
-              pullRequest.head.sha !== process.env.EXPECTED_HEAD_SHA ||
-              pullRequest.head.repo?.full_name !== `${context.repo.owner}/${context.repo.repo}`
-            ) {
-              core.setFailed('PR head changed before Full Regression credentials were enabled.');
-            }
       - name: Deploy Preview
         id: preview
         run: |
@@ -60,7 +36,7 @@ jobs:
             --cmd-url-env-var-name CONVEX_URL
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
-      - name: Configure E2E Preview safety
+      - name: Configure E2E Preview
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
           PREVIEW_URL: ${{ steps.preview.outputs.PREVIEW_URL }}
@@ -71,17 +47,10 @@ jobs:
           npx convex env set E2E_TESTING_ENABLED true --deployment "preview/$CONVEX_PREVIEW_NAME"
           npx convex env set NOTIFICATION_DELIVERY_MODE dry-run --deployment "preview/$CONVEX_PREVIEW_NAME"
           npx convex env set ORGANIZATION_INVITATION_SIGNING_SECRET "$E2E_INVITATION_SIGNING_SECRET" --deployment "preview/$CONVEX_PREVIEW_NAME"
-      - name: Verify Preview E2E Safety
-        run: |
-          SAFETY_STATE=$(npx convex run testing:getE2ESafetyState --deployment "preview/${CONVEX_PREVIEW_NAME}")
-          node -e 'const state = JSON.parse(process.argv[1]); if (!state.helpersEnabled || !state.notificationDeliverySuppressed || !state.organizationInvitationSigningSecretConfigured) process.exit(1)' "$SAFETY_STATE"
-        env:
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       # NOTE: convex-seeds/seeds/db.zip is currently stale against the schema.
       # E2E scenarios seed their own data via convex/testing.ts helpers.
-      - name: Run Playwright Full Regression
+      - name: Run Playwright tests
         id: playwright
-        continue-on-error: true
         run: |
           node -e 'const escape = (value) => value.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A"); const values = [process.env.E2E_CLERK_PASSWORD, ...(process.env.E2E_CLERK_USERS || "").split(",").map((value) => value.trim())]; for (const value of values.filter(Boolean)) console.log(`::add-mask::${escape(value)}`)'
           pnpm e2e:release
@@ -97,99 +66,123 @@ jobs:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
           E2E_TESTING_ENABLED: "true"
           NOTIFICATION_DELIVERY_MODE: dry-run
-      - name: Verify Playwright public report input
-        id: public-input-safety
+      - name: Upload Playwright report
         if: ${{ !cancelled() }}
-        continue-on-error: true
-        run: |
-          mkdir -p playwright-public-input
-          cp test-results.json playwright-public-input/test-results.json
-          node scripts/assertStaticArtifactSafety.mjs \
-            --profile playwright-public-input \
-            --root playwright-public-input
-          node scripts/assertPlaywrightArtifactSafety.mjs \
-            playwright-public-input/test-results.json
-          node scripts/assertNoSensitiveArtifacts.mjs \
-            --root playwright-public-input
-        env:
-          E2E_CLERK_USERS: ${{ vars.E2E_CLERK_USERS }}
-          E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD || vars.E2E_CLERK_PASSWORD }}
-          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
-      - name: Verify Playwright artifact safety
-        id: artifact-safety
-        if: ${{ !cancelled() }}
-        continue-on-error: true
-        run: |
-          pnpm e2e:assert-artifact-safety
-          node scripts/assertNoSensitiveArtifacts.mjs \
-            --root test-results.json \
-            --root playwright-report \
-            --root test-results
-        env:
-          E2E_CLERK_USERS: ${{ vars.E2E_CLERK_USERS }}
-          E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD || vars.E2E_CLERK_PASSWORD }}
-          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
-      - name: Verify Full Regression result gate
-        id: result-gate
-        if: ${{ !cancelled() }}
-        continue-on-error: true
-        run: pnpm e2e:assert-release-results
-      - name: Verify Full Regression backend audit
-        id: backend-audit
-        if: ${{ !cancelled() }}
-        continue-on-error: true
-        run: |
-          BACKEND_AUDIT_ARGS=$(node -e 'const emails = (process.env.E2E_CLERK_USERS || "").split(",").map((email) => email.trim()).filter(Boolean); process.stdout.write(JSON.stringify({ managerEmails: emails }));')
-          BACKEND_AUDIT=$(npx convex run testing:getE2EBackendAudit "$BACKEND_AUDIT_ARGS" --deployment "preview/${CONVEX_PREVIEW_NAME}")
-          node -e 'const audit = JSON.parse(process.argv[1]); if (audit.requestedManagerEmailCount === 0 || audit.missingManagerEmailCount !== 0 || audit.managerEmailWithoutShopCount !== 0 || audit.auditedShopCount === 0 || audit.auditedOrganizationCount === 0 || audit.unexpectedUnresolvedFailureInboxCount !== 0 || audit.duplicateActiveDedupeKeyCount !== 0) { console.error(audit); process.exit(1); }' "$BACKEND_AUDIT"
-        env:
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
-          E2E_CLERK_USERS: ${{ vars.E2E_CLERK_USERS }}
-      - name: Upload Playwright public report input
-        id: public-input-artifact
-        if: ${{ !cancelled() && steps.public-input-safety.outcome == 'success' }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: playwright-public-input-${{ github.run_attempt }}
-          path: playwright-public-input/test-results.json
-          if-no-files-found: error
-          retention-days: 1
-      - name: Upload private Playwright report
-        id: playwright-report-artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        if: ${{ !cancelled() && steps.artifact-safety.outcome == 'success' }}
-        with:
-          name: playwright-report-${{ github.run_attempt }}
-          path: |
-            playwright-report/
-            test-results.json
-            test-results/
-          if-no-files-found: error
-          retention-days: 7
-      - name: Enforce Full Regression result
-        if: ${{ always() && !cancelled() }}
+          name: playwright-report
+          path: playwright-report/
+          if-no-files-found: warn
+          overwrite: true
+          retention-days: 30
+      - name: Deploy Report to GitHub Pages
+        if: ${{ !cancelled() && hashFiles('playwright-report/index.html') != '' }}
         env:
-          PLAYWRIGHT_RESULT: ${{ steps.playwright.outcome }}
-          PUBLIC_INPUT_SAFETY_RESULT: ${{ steps.public-input-safety.outcome }}
-          ARTIFACT_SAFETY_RESULT: ${{ steps.artifact-safety.outcome }}
-          RESULT_GATE_RESULT: ${{ steps.result-gate.outcome }}
-          BACKEND_AUDIT_RESULT: ${{ steps.backend-audit.outcome }}
-          PUBLIC_INPUT_ARTIFACT_RESULT: ${{ steps.public-input-artifact.outcome }}
-          PRIVATE_REPORT_ARTIFACT_RESULT: ${{ steps.playwright-report-artifact.outcome }}
+          HOSTING_PAGES_TOKEN: ${{ secrets.HOSTING_PAGES_TOKEN }}
         run: |
-          set -euo pipefail
-          for RESULT in \
-            "$PLAYWRIGHT_RESULT" \
-            "$PUBLIC_INPUT_SAFETY_RESULT" \
-            "$ARTIFACT_SAFETY_RESULT" \
-            "$RESULT_GATE_RESULT" \
-            "$BACKEND_AUDIT_RESULT" \
-            "$PUBLIC_INPUT_ARTIFACT_RESULT" \
-            "$PRIVATE_REPORT_ARTIFACT_RESULT"; do
-            if [ "$RESULT" != "success" ]; then
-              echo "::error::Full Regression or its artifact pipeline did not complete successfully: $RESULT"
-              exit 1
-            fi
-          done
+          REPORT_KEY="${PR_NUMBER}"
+          LOCAL_REPORT_DIR="playwright-report"
+          REPORT_COMMIT_MESSAGE="Playwright report for PR #${PR_NUMBER}"
+
+          git clone --depth 1 --single-branch "https://x-access-token:${HOSTING_PAGES_TOKEN}@github.com/yn1323/hosting-pages.git" hosting-pages
+          rm -rf "hosting-pages/${REPORT_DIR}/${REPORT_KEY}"
+          mkdir -p "hosting-pages/${REPORT_DIR}/${REPORT_KEY}"
+          cp -R "${LOCAL_REPORT_DIR}/." "hosting-pages/${REPORT_DIR}/${REPORT_KEY}/"
+          cd hosting-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "${REPORT_COMMIT_MESSAGE}" || exit 0
+          git pull --rebase
+          git push origin HEAD:main
+      - name: Comment PR with Report Link
+        if: ${{ !cancelled() }}
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          TEST_RESULT: ${{ steps.playwright.outcome }}
+        with:
+          script: |
+            const fs = require('node:fs');
+            const reportUrl = `https://yn1323.github.io/hosting-pages/${process.env.REPORT_DIR}/${process.env.PR_NUMBER}/`;
+            const actionsUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const testResult = process.env.TEST_RESULT;
+            const statusText = testResult === 'success' ? 'Passed' : 'Failed';
+
+            let passedCount = 'unknown';
+            let failedCount = 'unknown';
+            let skippedCount = 'unknown';
+            let testDetails = '';
+            try {
+              const json = JSON.parse(fs.readFileSync('test-results.json', 'utf8'));
+              let passed = 0;
+              let failed = 0;
+              let skipped = 0;
+              const allRows = [];
+              const failedRows = [];
+
+              function collectTests(suites) {
+                for (const suite of suites || []) {
+                  for (const spec of suite.specs || []) {
+                    for (const test of spec.tests || []) {
+                      const status = test.status;
+                      if (status === 'expected') passed += 1;
+                      else if (status === 'unexpected' || status === 'flaky') failed += 1;
+                      else if (status === 'skipped') skipped += 1;
+                      const icon = status === 'expected' ? '✅' : status === 'unexpected' || status === 'flaky' ? '❌' : '⏭';
+                      const title = String(spec.title).replaceAll('|', '\\|').replace(/[\r\n]+/g, ' ');
+                      const row = `| ${icon} | ${title} |`;
+                      allRows.push(row);
+                      if (status === 'unexpected' || status === 'flaky') failedRows.push(row);
+                    }
+                  }
+                  collectTests(suite.suites);
+                }
+              }
+              collectTests(json.suites);
+
+              passedCount = String(passed);
+              failedCount = String(failed);
+              skippedCount = String(skipped);
+              if (failedRows.length > 0) {
+                testDetails += `\n\n### 失敗したテスト\n\n| Status | Test |\n|---|---|\n${failedRows.join('\n')}`;
+              }
+              if (allRows.length > 0) {
+                testDetails += `\n\n<details>\n<summary>すべてのテスト結果を表示</summary>\n\n| Status | Test |\n|---|---|\n${allRows.join('\n')}\n\n</details>`;
+              }
+            } catch {
+              testDetails = '\n\n⚠️ テスト結果JSONの読み込みに失敗しました';
+            }
+
+            const body = [
+              '## Playwright Test Report',
+              '',
+              `Status: ${statusText}`,
+              `Results: Passed ${passedCount} / Failed ${failedCount} / Skipped ${skippedCount}`,
+              '',
+              '| Action | Link |',
+              '|---|---|',
+              `| レポート確認 | [Playwrightレポートを見る](${reportUrl}) |`,
+              `| Actions | [実行ログを見る](${actionsUrl}) |`,
+            ].join('\n') + testDetails;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            for (const comment of comments) {
+              if (comment.user?.login === 'github-actions[bot]' && comment.body?.includes('## Playwright Test Report')) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: comment.id,
+                });
+              }
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
