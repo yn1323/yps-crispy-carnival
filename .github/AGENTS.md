@@ -88,9 +88,9 @@ contact-slack: PASS
 | `REG_SUIT_CLIENT_ID` | trusted VRT publisherのRegSuit notify client ID |
 | `VITE_GTM_ID` | Google Tag Manager ID |
 
-PR headをcheckoutするjobはPreview Environmentを指定せず、secretを一切参照しない。静的PR previewのbuildに必要なbrowser公開値は、同名のRepository Variables（`VITE_CONVEX_URL`、`VITE_CLERK_PUBLISHABLE_KEY`、`VITE_TURNSTILE_SITE_KEY`、`VITE_GTM_ID`）として設定する。これらは成果物へ埋め込まれる公開値だけに限定する。
+PR headをcheckoutするjobは機密secretを参照しない。静的PR previewのbuildだけはPreview Environmentを指定し、成果物へ埋め込まれるbrowser公開値のEnvironment Secrets（`VITE_CONVEX_URL`、`VITE_CLERK_PUBLISHABLE_KEY`、`VITE_TURNSTILE_SITE_KEY`、`VITE_GTM_ID`）だけを参照する。
 
-Preview Environmentのdeployment branchはdefault branchの`develop`だけに制限し、可能ならrequired reviewerを設定する。`vrt-approval` Environmentにはrequired reviewerを設定し、公開用secretは置かない。producerは差分があるPRのmerge gate、trusted VRT publisherは全PRの公開実行で、それぞれ独立したEnvironment承認を必須にする。publisherは承認後にPreview Environmentの公開ジョブを実行する。これらのGitHub上の設定はworkflowファイルだけでは保証できないため、repository settingsで別途確認する。
+Preview Environmentのdeployment branch policyを使う場合は、`develop`と静的PR previewのhead branchを許可する。required reviewerを設定すると静的PR previewのbuildも承認待ちになるため、その運用を前提に設定する。`vrt-approval` Environmentにはrequired reviewerを設定し、公開用secretは置かない。producerは差分があるPRのmerge gate、trusted VRT publisherは全PRの公開実行で、それぞれ独立したEnvironment承認を必須にする。publisherは承認後にPreview Environmentの公開ジョブを実行する。これらのGitHub上の設定はworkflowファイルだけでは保証できないため、repository settingsで別途確認する。
 
 ### Develop 環境（developブランチのデプロイで使用）
 

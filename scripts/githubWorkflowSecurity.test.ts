@@ -258,40 +258,42 @@ describe("PR workflow credential isolation", () => {
     expect(source).not.toContain("github.event.pull_request");
   });
 
-  it.each(["pr-preview.yml", "test-ui.yml", "vrt.yml"])(
-    "keeps PR producer %s free of secrets and write tokens",
-    (filename) => {
-      const { source, workflow } = readWorkflow(filename);
+  it.each(["test-ui.yml", "vrt.yml"])("keeps PR producer %s free of secrets and write tokens", (filename) => {
+    const { source, workflow } = readWorkflow(filename);
 
-      expect(workflow.on?.pull_request).toBeDefined();
-      expect(source).not.toContain("${{ secrets.");
-      expect(Object.values(workflow.permissions ?? {})).not.toContain("write");
-      for (const job of Object.values(workflow.jobs ?? {})) {
-        expect(Object.values(job.permissions ?? {})).not.toContain("write");
-        const executesCheckedOutCode = job.steps?.some(
-          (step) => step.uses?.startsWith("./") || step.uses === CHECKOUT_ACTION || step.run,
-        );
-        if (executesCheckedOutCode) {
-          expect(JSON.stringify(job)).not.toContain("${{ secrets.");
-        }
+    expect(workflow.on?.pull_request).toBeDefined();
+    expect(source).not.toContain("${{ secrets.");
+    expect(Object.values(workflow.permissions ?? {})).not.toContain("write");
+    for (const job of Object.values(workflow.jobs ?? {})) {
+      expect(Object.values(job.permissions ?? {})).not.toContain("write");
+      const executesCheckedOutCode = job.steps?.some(
+        (step) => step.uses?.startsWith("./") || step.uses === CHECKOUT_ACTION || step.run,
+      );
+      if (executesCheckedOutCode) {
+        expect(JSON.stringify(job)).not.toContain("${{ secrets.");
       }
-    },
-  );
+    }
+  });
 
-  it("builds PR preview data from the exact head using public variables only", () => {
+  it("builds PR preview data from the exact head using browser-public Preview secrets only", () => {
     const { source, workflow } = readWorkflow("pr-preview.yml");
     const job = getJob(workflow, "build-preview-artifact");
     const steps = getSteps(job);
     const checkout = steps.find((step) => step.uses === CHECKOUT_ACTION);
     const upload = steps.find((step) => step.uses === UPLOAD_ARTIFACT_ACTION);
+    const secretNames = [...source.matchAll(/secrets\.([A-Z0-9_]+)/g)].map((match) => match[1]).sort();
 
-    expect(job.environment).toBeUndefined();
+    expect(job.environment).toBe("Preview");
+    expect(Object.values(workflow.permissions ?? {})).not.toContain("write");
     expect(checkout?.with?.ref).toBe(githubExpression("github.event.pull_request.head.sha"));
     expect(checkout?.with?.["persist-credentials"]).toBe(false);
     expect(upload?.with).toMatchObject({ name: "pr-preview-dist", path: "dist/" });
-    expect(source).toContain("vars.VITE_CONVEX_URL");
-    expect(source).toContain("vars.VITE_CLERK_PUBLISHABLE_KEY");
-    expect(source).not.toContain("CONVEX_DEPLOY_KEY");
+    expect(secretNames).toEqual([
+      "VITE_CLERK_PUBLISHABLE_KEY",
+      "VITE_CONVEX_URL",
+      "VITE_GTM_ID",
+      "VITE_TURNSTILE_SITE_KEY",
+    ]);
   });
 
   it("publishes PR preview data only from a validated trusted workflow_run consumer", () => {
