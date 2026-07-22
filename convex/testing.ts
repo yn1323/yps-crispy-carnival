@@ -8,6 +8,7 @@ import { buildLineAuthorizeUrl } from "./_lib/lineClient";
 import { isDryRunManagerEmail, isNotificationDeliverySuppressed } from "./_lib/notificationDelivery";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "./_lib/submissionPattern";
 import { generateUUID } from "./_lib/uuid";
+import { normalizeEmail } from "./_lib/validation";
 import { LEGAL_CONSENT_TOKEN_TTL_MS, MAGIC_LINK_DEFAULT_TTL_MS } from "./constants";
 import { getLegalConsentVersions, type LegalAudience } from "./legal/documents";
 import { getStaffLineAccount, upsertStaffLineAccount } from "./line/service";
@@ -15,7 +16,6 @@ import { deriveInvitationToken, digestInvitationToken } from "./organizationInvi
 import { ensureDefaultPosition } from "./position/service";
 import schema from "./schema";
 import { sendReminderRef as sendShopActivationReminderRef } from "./shopActivationReminder/refs";
-import { normalizeEmail } from "./staff/service";
 import { staffRegistrationFormSchema } from "./staffRegistration/schemas";
 
 const TABLE_NAMES = Object.keys(schema.tables) as (keyof typeof schema.tables)[];

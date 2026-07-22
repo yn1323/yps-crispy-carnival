@@ -1,10 +1,10 @@
 import type { GenericDatabaseReader } from "convex/server";
 import { v } from "convex/values";
 import type { DataModel, Doc } from "../_generated/dataModel";
+import { normalizeEmail } from "../_lib/validation";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
 import { getOrganizationInvitationPurpose } from "../organizationInvitation/purpose";
 import { resolveFreeManagerExchangeEligibility } from "../organizationInvitation/service";
-import { normalizeEmail } from "../staff/service";
 import type { OrganizationUsageSnapshot } from "./service";
 
 export const managerInvitationStateValidator = v.union(

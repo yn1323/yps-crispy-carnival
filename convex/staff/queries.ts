@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { managerQuery } from "../_lib/functions";
-import { normalizeEmail } from "./service";
+import { normalizeEmail } from "../_lib/validation";
 
 const ORGANIZATION_PERSON_LIST_LIMIT = 100;
 

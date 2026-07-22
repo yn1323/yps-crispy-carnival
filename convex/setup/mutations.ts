@@ -3,11 +3,11 @@ import { internal } from "../_generated/api";
 import { getShopActivationReminderAt } from "../_lib/dateFormat";
 import { authenticatedMutation } from "../_lib/functions";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
+import { normalizeEmail } from "../_lib/validation";
 import { recordStaffLegalConsent, recordUserLegalConsent } from "../legal/service";
 import { recordOrganizationAuditEvent } from "../organization/audit";
 import { ensureDefaultPosition } from "../position/service";
 import { sendReminderRef } from "../shopActivationReminder/refs";
-import { normalizeEmail } from "../staff/service";
 import { setupShopAndManagerSchema } from "./schemas";
 
 export const setupShopAndManager = authenticatedMutation({

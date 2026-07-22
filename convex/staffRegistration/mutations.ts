@@ -7,6 +7,7 @@ import { APP_URL } from "../_lib/config";
 import { managerMutation } from "../_lib/functions";
 import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
 import { generateUUID } from "../_lib/uuid";
+import { normalizeEmail } from "../_lib/validation";
 import { STAFF_REGISTRATION_PENDING_LIMIT } from "../constants";
 import { getLegalConsentVersions } from "../legal/documents";
 import { recordStaffLegalConsentSnapshot } from "../legal/service";
@@ -16,7 +17,6 @@ import { getOrganizationBillingPolicy, requireOrganizationCapacity } from "../or
 import {
   findActiveStaffByEmail,
   materializeOrganizationPeopleForStaffAddition,
-  normalizeEmail,
   prepareOrganizationPeopleForStaffAddition,
   releasePendingInvitationReservationsForStaffAddition,
 } from "../staff/service";

@@ -7,6 +7,7 @@ import { monthJST } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
 import { isNotificationDeliverySuppressed } from "../_lib/notificationDelivery";
 import { rateLimit } from "../_lib/rateLimits";
+import { normalizeEmail } from "../_lib/validation";
 import {
   NOTIFICATION_DELIVERY_EVENT_PRUNE_BATCH_SIZE,
   NOTIFICATION_DELIVERY_EVENT_RETENTION_MS,
@@ -1419,10 +1420,6 @@ export async function cancelNotificationForInactiveOrganization(
   now: number,
 ) {
   return await cancelActiveNotification(ctx, job, "organization_inactive", now);
-}
-
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
 }
 
 export const markFailed = internalMutation({

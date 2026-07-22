@@ -8,6 +8,7 @@ import { getOrganizationInvitationSigningSecret } from "../_lib/config";
 import { authenticatedMutation } from "../_lib/functions";
 import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
 import { generateUUID } from "../_lib/uuid";
+import { normalizeEmail } from "../_lib/validation";
 import { cancelOrganizationRecipientBusinessNotifications } from "../notificationOutbox/mutations";
 import { requireOrganizationActorForShop } from "../organization/access";
 import { recordOrganizationAuditEvent } from "../organization/audit";
@@ -22,7 +23,7 @@ import {
   requireOrganizationCapacity,
   requireOrganizationPaidFeature,
 } from "../organizationBilling/service";
-import { getActiveStaffInShop, normalizeEmail } from "../staff/service";
+import { getActiveStaffInShop } from "../staff/service";
 import { getOrganizationInvitationExpiresAt } from "./constants";
 import {
   getOrganizationInvitationLinkedByPersonId,

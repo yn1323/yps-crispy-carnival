@@ -1,6 +1,6 @@
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { normalizeEmail } from "../staff/service";
+import { normalizeEmail } from "../_lib/validation";
 
 type MigrationCtx = Pick<MutationCtx, "db">;
 

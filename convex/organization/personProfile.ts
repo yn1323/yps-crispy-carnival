@@ -2,8 +2,8 @@ import { ConvexError } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
+import { normalizeEmail } from "../_lib/validation";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
-import { normalizeEmail } from "../staff/service";
 
 type OrganizationPersonProfileMutationCtx = MutationCtx;
 

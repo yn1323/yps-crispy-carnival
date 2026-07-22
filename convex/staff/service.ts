@@ -1,14 +1,11 @@
 import { ConvexError } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
+import { normalizeEmail } from "../_lib/validation";
 import { requireOrganizationCapacity } from "../organizationBilling/service";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
-
-export function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
 
 /**
  * シフト対象スタッフかどうか（論理削除されておらず、シフト対象外でもない）。

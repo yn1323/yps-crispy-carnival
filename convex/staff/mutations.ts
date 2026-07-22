@@ -5,6 +5,7 @@ import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { managerMutation } from "../_lib/functions";
 import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
+import { normalizeEmail } from "../_lib/validation";
 import { getStaffLineAccount } from "../line/service";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { recordOrganizationAuditEvent } from "../organization/audit";
@@ -15,7 +16,6 @@ import {
   findActiveStaffByEmail,
   getActiveStaffInShop,
   materializeOrganizationPeopleForStaffAddition,
-  normalizeEmail,
   prepareOrganizationPeopleForStaffAddition,
   releasePendingInvitationReservationsForStaffAddition,
 } from "./service";
