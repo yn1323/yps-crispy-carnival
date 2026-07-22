@@ -427,8 +427,8 @@ N23、N24は目的ではなくchannel選択条件、N22は復旧lifecycle、N27�
 - `package.json`
 - `scripts/assertPlaywrightReleaseResults.mjs`
 - `scripts/assertPlaywrightReleaseResults.test.ts`
-- `scripts/assertPlaywrightArtifactSafety.mjs`
-- `scripts/assertPlaywrightArtifactSafety.test.ts`
+- `scripts/assertNoSensitiveArtifacts.mjs`
+- `scripts/assertNoSensitiveArtifacts.test.ts`
 - `scripts/playwrightConfigSecurity.test.ts`
 - `scripts/e2eUsers.test.ts`
 - `.github/actions/playwright/action.yml`

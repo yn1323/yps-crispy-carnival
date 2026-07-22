@@ -215,7 +215,7 @@ probeはPII、本文、raw token、provider error全文を返さない。画面�
 - E2EとVRTは別の固定markerコメントで扱う。E2Eコメントにはstatus、Passed / Failed / Flaky / Skipped、失敗テスト、全テスト、Actions、PR Preview、`preview/pr-{N}-e2e`、`yps-crispy-carnival-e2e/pr-{N}`のhosting-pages URLを表示する。
 - PR E2E producerは機密検査済み`test-results.json`を`playwright-public-input-{run_attempt}`へuploadし、raw Playwright report、trace、動画、screenshotは`playwright-report-{run_attempt}`の非公開artifactへ7日だけ保存する。publisherはcurrent source attemptと完全一致するartifactだけを採用する。
 - default branchのtrusted `workflow_run` publisherはsource run、open PR、exact head SHA、latest run、artifact宣言を再検証し、信頼済みcodeで固定schemaのsanitized summaryだけを生成・検査してhosting-pagesへ公開する。raw report、console/error詳細、認証情報、storageStateは公開しない。
-- VRT producerはPR / develop・main pushでsecretlessにcapture・compareし、trusted publisherだけが検査済みreportとbaselineをhosting-pagesへ公開する。PRではreport URLと差分件数をコメントした後、差分がある場合だけpublisherの`approve` jobを`vrt-approval` Environmentで待つ。publisherはexact PR head SHAの固定commit status `shiftori/vrt-approval`をpendingから、差分なしまたは承認後にsuccessへ進め、このstatusをstrict required checkとして使う。base更新後はPR branchをupdateして`synchronize`を発生させ、現baselineで再比較する。`GITHUB_TOKEN`のwrite権限はcomment / status jobだけに限定し、hosting-pages credentialは`Report Publisher` Environmentだけで参照する。
+- VRTはPR / develop・main pushでcapture・compareし、同じworkflowからreportとbaselineをhosting-pagesへ公開する。PRではreport URLと差分件数をコメントし、差分がある場合だけ`approve` jobを`vrt-approval` Environmentで待つ。
 - production Turnstileなど外部challengeを自動化するために、アプリ側の検証やセキュリティを弱めない。
 - challengeを安定して自動化できない問い合わせ等は、route / CTA Smokeと内部受付contractを自動化し、実送信を手動provider canaryへ明示的に残す。
 

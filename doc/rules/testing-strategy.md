@@ -196,7 +196,7 @@ Scenario Test では、入力値そのものの網羅ではなく、その入力
 - モバイルStoryはviewport指定と対応する`vrt-mobile1`または`vrt-mobile2` tagを同時に付ける。viewport指定だけではモバイルVRT projectへ選択されない。
 - Storycap testrun + RegSuit では `pnpm vrt:capture` でVRT対象StoryのPNGを `vrt-actual/` に生成し、`pnpm vrt:compare` で `vrt-work/reg/` に差分レポートを作る。
 - PRではbaseline欠落を成功扱いにせず、初回baseline作成は明示的なbootstrap操作に限定する。
-- CIのVRT producerはPR / develop・main pushでsecretlessにcapture・compareして固定artifactを渡し、default branchのtrusted `workflow_run` publisherだけが検査済みreportとbaselineをhosting-pagesへ公開する。PRではreport URLと差分件数を専用markerコメントへ返した後、差分がある場合だけpublisherの`approve` jobを`vrt-approval` Environmentで待つ。publisherはexact PR head SHAの固定commit status `shiftori/vrt-approval`をpendingから、差分なしまたは承認後にsuccessへ進め、このstatusをstrict required checkとして使う。base更新後はPR branchをupdateして`synchronize`を発生させ、現baselineで再比較する。
+- CIのVRTは単一workflowでcapture・baseline比較・hosting-pagesへのreport公開・PRコメント更新まで行う。PRで差分がある場合だけ`vrt-approval` Environmentの`approve` jobを待ち、develop / main pushではbranch別baselineを更新する。
 - DB や業務フロー全体は検証しない。
 
 ### Convex Function Test

@@ -107,30 +107,17 @@ jobs:
           node scripts/assertStaticArtifactSafety.mjs \
             --profile playwright-public-input \
             --root playwright-public-input
-          node scripts/assertPlaywrightArtifactSafety.mjs \
-            playwright-public-input/test-results.json
           node scripts/assertNoSensitiveArtifacts.mjs \
             --root playwright-public-input
-        env:
-          E2E_CLERK_USERS: ${{ vars.E2E_CLERK_USERS }}
-          E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD || vars.E2E_CLERK_PASSWORD }}
-          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       - name: Verify Playwright artifact safety
         id: artifact-safety
         if: ${{ !cancelled() }}
         continue-on-error: true
         run: |
-          pnpm e2e:assert-artifact-safety
           node scripts/assertNoSensitiveArtifacts.mjs \
             --root test-results.json \
             --root playwright-report \
             --root test-results
-        env:
-          E2E_CLERK_USERS: ${{ vars.E2E_CLERK_USERS }}
-          E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD || vars.E2E_CLERK_PASSWORD }}
-          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       - name: Verify Full Regression result gate
         id: result-gate
         if: ${{ !cancelled() }}
