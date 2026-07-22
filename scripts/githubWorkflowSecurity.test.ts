@@ -256,8 +256,13 @@ async function executeVrtStatusComment(scenario: VrtStatusCommentScenario) {
     setFailed: vi.fn((message: string) => failures.push(message)),
   };
 
-  const execute = new Function("github", "context", "core", `return (async () => {${getGithubScript(step)}\n})()`);
-  await execute(github, context, core);
+  vi.stubEnv("VRT_REPORT_DIR", "yps-crispy-carnival-vrt");
+  try {
+    const execute = new Function("github", "context", "core", `return (async () => {${getGithubScript(step)}\n})()`);
+    await execute(github, context, core);
+  } finally {
+    vi.unstubAllEnvs();
+  }
   return { failures, github };
 }
 
@@ -268,12 +273,17 @@ type VrtPublicationCommentScenario = {
   pullRequest?: Record<string, unknown>;
   comments?: Array<Record<string, unknown>>;
   env?: Partial<{
+    EXPECTED_BASELINE_REF: string;
+    EXPECTED_HEAD_SHA: string;
+    EXPECTED_PULL_NUMBER: string;
+    EXPECTED_SOURCE_RUN_ATTEMPT: string;
     VALIDATION_RESULT: string;
     SHOULD_PUBLISH: string;
     APPROVAL_RESULT: string;
     PUBLISH_RESULT: string;
     REPORT_DEPLOYED: string;
     HAS_DIFF: string;
+    REPORT_URL: string;
   }>;
 };
 
@@ -1084,15 +1094,12 @@ describe("PR workflow credential isolation", () => {
       expect.objectContaining({
         comment_id: 99,
         body: expect.stringMatching(
-          /Status: 実行中[\s\S]*実行結果[\s\S]*VRT実行を見る[\s\S]*actions\/runs\/200[\s\S]*承認フロー[\s\S]*VRT差分の確認・承認へ進む[\s\S]*actions\/runs\/200/,
+          /Status: 実行中[\s\S]*hosting-pagesの予定URLを開く（未公開の場合あり）\]\(https:\/\/yn1323\.github\.io\/hosting-pages\/yps-crispy-carnival-vrt\/pr-42\/\)[\s\S]*実行結果[\s\S]*VRT実行を見る[\s\S]*actions\/runs\/200[\s\S]*承認フロー[\s\S]*VRT差分の確認・承認へ進む[\s\S]*actions\/runs\/200/,
         ),
       }),
     );
     expect(result.github.rest.issues.updateComment).not.toHaveBeenCalledWith(
       expect.objectContaining({ body: expect.stringContaining("actions/runs/300") }),
-    );
-    expect(result.github.rest.issues.updateComment).not.toHaveBeenCalledWith(
-      expect.objectContaining({ body: expect.stringContaining("差分レポートを見る") }),
     );
     expect(result.github.rest.actions.getWorkflowRun).toHaveBeenCalledTimes(2);
     expect(result.github.paginate).toHaveBeenCalledWith(result.github.rest.actions.listWorkflowRunsForWorkflow, {
@@ -1136,19 +1143,16 @@ describe("PR workflow credential isolation", () => {
       expect.objectContaining({
         issue_number: 42,
         body: expect.stringMatching(
-          /<!-- shiftori-vrt-report:v1 -->[\s\S]*## VRT Report[\s\S]*公開承認待ち[\s\S]*実行結果[\s\S]*VRT実行を見る[\s\S]*actions\/runs\/200[\s\S]*承認フロー[\s\S]*レポート公開の承認へ進む[\s\S]*actions\/runs\/300/,
+          /<!-- shiftori-vrt-report:v1 -->[\s\S]*## VRT Report[\s\S]*公開承認待ち[\s\S]*hosting-pagesの予定URLを開く（未公開の場合あり）\]\(https:\/\/yn1323\.github\.io\/hosting-pages\/yps-crispy-carnival-vrt\/pr-42\/\)[\s\S]*実行結果[\s\S]*VRT実行を見る[\s\S]*actions\/runs\/200[\s\S]*承認フロー[\s\S]*レポート公開の承認へ進む[\s\S]*actions\/runs\/300/,
         ),
       }),
-    );
-    expect(result.github.rest.issues.createComment).not.toHaveBeenCalledWith(
-      expect.objectContaining({ body: expect.stringContaining("差分レポートを見る") }),
     );
   });
 
   it.each([
     { conclusion: "failure", status: "Status: 失敗" },
     { conclusion: "cancelled", status: "Status: キャンセル" },
-  ])("links only the VRT source when the source run is $conclusion", async ({ conclusion, status }) => {
+  ])("links the planned VRT report and source when the source run is $conclusion", async ({ conclusion, status }) => {
     const headSha = "a".repeat(40);
     const sourceRun = {
       id: 200,
@@ -1176,7 +1180,9 @@ describe("PR workflow credential isolation", () => {
     expect(result.github.rest.issues.createComment).toHaveBeenCalledWith(
       expect.objectContaining({
         body: expect.stringMatching(
-          new RegExp(`${status}[\\s\\S]*実行結果[\\s\\S]*VRT実行を見る[\\s\\S]*actions/runs/200`),
+          new RegExp(
+            `${status}[\\s\\S]*hosting-pagesの予定URLを開く（未公開の場合あり）[\\s\\S]*yps-crispy-carnival-vrt/pr-42/[\\s\\S]*実行結果[\\s\\S]*VRT実行を見る[\\s\\S]*actions/runs/200`,
+          ),
         ),
       }),
     );
@@ -1185,9 +1191,6 @@ describe("PR workflow credential isolation", () => {
     );
     expect(result.github.rest.issues.createComment).not.toHaveBeenCalledWith(
       expect.objectContaining({ body: expect.stringContaining("actions/runs/300") }),
-    );
-    expect(result.github.rest.issues.createComment).not.toHaveBeenCalledWith(
-      expect.objectContaining({ body: expect.stringContaining("差分レポートを見る") }),
     );
   });
 
@@ -1397,12 +1400,17 @@ describe("PR workflow credential isolation", () => {
   it.each([
     {
       env: {
+        EXPECTED_BASELINE_REF: "",
+        EXPECTED_HEAD_SHA: "",
+        EXPECTED_PULL_NUMBER: "",
+        EXPECTED_SOURCE_RUN_ATTEMPT: "",
         VALIDATION_RESULT: "failure",
         SHOULD_PUBLISH: "",
         APPROVAL_RESULT: "skipped",
         PUBLISH_RESULT: "skipped",
         REPORT_DEPLOYED: "",
         HAS_DIFF: "",
+        REPORT_URL: "",
       },
       status: "Status: Trusted report検証失敗（failure）",
     },
@@ -1451,13 +1459,10 @@ describe("PR workflow credential isolation", () => {
       expect.objectContaining({
         body: expect.stringMatching(
           new RegExp(
-            `${status}[\\s\\S]*実行結果[\\s\\S]*VRT実行を見る[\\s\\S]*actions/runs/200[\\s\\S]*承認フロー[\\s\\S]*actions/runs/300`,
+            `${status}[\\s\\S]*hosting-pagesの予定URLを開く（未公開の場合あり）[\\s\\S]*yps-crispy-carnival-vrt/pr-42/[\\s\\S]*実行結果[\\s\\S]*VRT実行を見る[\\s\\S]*actions/runs/200[\\s\\S]*承認フロー[\\s\\S]*actions/runs/300`,
           ),
         ),
       }),
-    );
-    expect(result.github.rest.issues.createComment).not.toHaveBeenCalledWith(
-      expect.objectContaining({ body: expect.stringContaining("差分レポートを見る") }),
     );
   });
 

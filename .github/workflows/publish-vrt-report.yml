@@ -151,6 +151,7 @@ jobs:
               : (conclusionLabels[run.conclusion] ?? `完了（${run.conclusion}）`);
             const phase = action === 'in_progress' ? 1 : 2;
             const stateMarker = `<!-- shiftori-vrt-state:${run.head_sha}:${run.id}:${run.run_attempt}:${phase} -->`;
+            const reportUrl = `https://yn1323.github.io/hosting-pages/${process.env.VRT_REPORT_DIR}/pr-${pullNumber}/`;
             const sourceActionsUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${run.id}`;
             const publicationActionsUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const body = [
@@ -162,6 +163,7 @@ jobs:
               '',
               '| Action | Link |',
               '|---|---|',
+              `| 差分確認 | [hosting-pagesの予定URLを開く（未公開の場合あり）](${reportUrl}) |`,
               `| 実行結果 | [VRT実行を見る](${sourceActionsUrl}) |`,
               ...(
                 action === 'in_progress'
@@ -170,8 +172,6 @@ jobs:
                     ? [`| 承認フロー | [レポート公開の承認へ進む](${publicationActionsUrl}) |`]
                     : []
               ),
-              '',
-              '差分レポートはtrusted publisherによる公開後、このコメントへ追加されます。',
             ].join('\n');
 
             const comments = await github.paginate(github.rest.issues.listComments, {
@@ -1001,7 +1001,13 @@ jobs:
               publishResult === 'success' &&
               reportDeployed === 'true';
             const hasDiff = hasDiffValue === 'true';
-            const reportUrl = `${reportBaseUrl}?v=${context.runId}-${publishRunAttempt}`;
+            const plannedReportUrl = `https://yn1323.github.io/hosting-pages/${process.env.VRT_REPORT_DIR}/pr-${issueNumber}/`;
+            const reportUrl = publicationSucceeded
+              ? `${plannedReportUrl}?v=${context.runId}-${publishRunAttempt}`
+              : plannedReportUrl;
+            const reportLinkLabel = publicationSucceeded
+              ? 'hosting-pagesで差分レポートを見る'
+              : 'hosting-pagesの予定URLを開く（未公開の場合あり）';
             const status = !validationSucceeded
               ? `Trusted report検証失敗（${validationResult}）`
               : approvalResult !== 'success'
@@ -1022,11 +1028,7 @@ jobs:
               '',
               '| Action | Link |',
               '|---|---|',
-              ...(
-                publicationSucceeded
-                  ? [`| 差分確認 | [hosting-pagesで差分レポートを見る](${reportUrl}) |`]
-                  : []
-              ),
+              `| 差分確認 | [${reportLinkLabel}](${reportUrl}) |`,
               `| 実行結果 | [VRT実行を見る](${sourceActionsUrl}) |`,
               `| 承認フロー | [レポート公開の承認・実行を見る](${publicationActionsUrl}) |`,
             ].join('\n');
