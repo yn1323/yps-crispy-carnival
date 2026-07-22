@@ -89,6 +89,7 @@ jobs:
           TZ: Asia/Tokyo
           VITE_CONVEX_URL: ${{ steps.preview.outputs.PREVIEW_URL }}
           CONVEX_PREVIEW_NAME: ${{ env.CONVEX_PREVIEW_NAME }}
+          E2E_WORKERS: "3"
           E2E_CLERK_USERS: ${{ vars.E2E_CLERK_USERS }}
           E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD || vars.E2E_CLERK_PASSWORD }}
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
@@ -103,26 +104,41 @@ jobs:
         continue-on-error: true
         run: |
           mkdir -p playwright-public-input
-          cp test-results.json playwright-public-input/test-results.json
+          node scripts/buildPlaywrightPublicInput.mjs \
+            --input test-results.json \
+            --output playwright-public-input/test-results.json
           node scripts/assertStaticArtifactSafety.mjs \
             --profile playwright-public-input \
             --root playwright-public-input
+          node scripts/assertPrivatePlaywrightArtifactSafety.mjs \
+            playwright-public-input/test-results.json
           node scripts/assertNoSensitiveArtifacts.mjs \
             --root playwright-public-input
-      - name: Verify Playwright artifact safety
-        id: artifact-safety
-        if: ${{ !cancelled() }}
-        continue-on-error: true
-        run: |
-          node scripts/assertNoSensitiveArtifacts.mjs \
-            --root test-results.json \
-            --root playwright-report \
-            --root test-results
+        env:
+          E2E_CLERK_USERS: ${{ vars.E2E_CLERK_USERS }}
+          E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD || vars.E2E_CLERK_PASSWORD }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       - name: Verify Full Regression result gate
         id: result-gate
         if: ${{ !cancelled() }}
         continue-on-error: true
         run: pnpm e2e:assert-release-results
+      - name: Verify Playwright artifact safety
+        id: artifact-safety
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: |
+          node scripts/assertPrivatePlaywrightArtifactSafety.mjs \
+            --redact-known-identifiers \
+            test-results.json \
+            playwright-report \
+            test-results
+        env:
+          E2E_CLERK_USERS: ${{ vars.E2E_CLERK_USERS }}
+          E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD || vars.E2E_CLERK_PASSWORD }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       - name: Verify Full Regression backend audit
         id: backend-audit
         if: ${{ !cancelled() }}
@@ -130,7 +146,7 @@ jobs:
         run: |
           BACKEND_AUDIT_ARGS=$(node -e 'const emails = (process.env.E2E_CLERK_USERS || "").split(",").map((email) => email.trim()).filter(Boolean); process.stdout.write(JSON.stringify({ managerEmails: emails }));')
           BACKEND_AUDIT=$(npx convex run testing:getE2EBackendAudit "$BACKEND_AUDIT_ARGS" --deployment "preview/${CONVEX_PREVIEW_NAME}")
-          node -e 'const audit = JSON.parse(process.argv[1]); if (audit.requestedManagerEmailCount === 0 || audit.missingManagerEmailCount !== 0 || audit.managerEmailWithoutShopCount !== 0 || audit.auditedShopCount === 0 || audit.auditedOrganizationCount === 0 || audit.unexpectedUnresolvedFailureInboxCount !== 0 || audit.duplicateActiveDedupeKeyCount !== 0) { console.error(audit); process.exit(1); }' "$BACKEND_AUDIT"
+          pnpm exec tsx scripts/assertPlaywrightBackendAudit.ts "$BACKEND_AUDIT"
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
           E2E_CLERK_USERS: ${{ vars.E2E_CLERK_USERS }}
