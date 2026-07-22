@@ -166,7 +166,7 @@ release workflowは`main`へsource commitを追加しない。release PRにversi
 |---|---|---|
 | `vrt.yml` | same-repository PR to develop/main、push to develop/main | Storycap PNG生成、baseline比較、hosting-pagesへの差分report直接公開、PRコメント、差分時の`vrt-approval`。push時だけbaseline更新 |
 
-VRTはPR workflow内でreportを生成し、`HOSTING_PAGES_TOKEN`で直接公開する。差分がある場合は`vrt-approval` jobをbranch protectionのmerge gateとして使い、PRコメントから同じActions runの承認画面へ移動できるようにする。新しいrunの開始時はPR番号単位のconcurrencyで古いrunを停止し、current head以外のreportやコメントで上書きしない。hosting-pagesへの並行pushは共通concurrencyまたはretry付きrebaseで直列化する。
+VRTはPR workflow内でreportを生成し、`HOSTING_PAGES_TOKEN`で直接公開する。差分がある場合は`vrt-approval` jobをbranch protectionのmerge gateとして使い、PRコメントから同じActions runの承認画面へ移動できるようにする。承認待ちjobが新しいrunを塞がないよう、PR番号単位のconcurrencyはcompare/publish jobだけに適用して古い公開処理を停止し、current head以外のreportやコメントで上書きしない。hosting-pagesへの並行pushは共通concurrencyまたはretry付きrebaseで直列化する。
 
 ## Security scan失敗と例外
 

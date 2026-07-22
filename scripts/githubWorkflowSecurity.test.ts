@@ -366,6 +366,8 @@ describe("Direct PR workflow security", () => {
       BACKEND_AUDIT_RESULT: githubExpression("steps.backend-audit.outcome"),
     });
     expect(publicResult.run).toContain("result=failure");
+    expect(build.if).toContain("steps.playwright.outcome == 'failure'");
+    expect(build.if).not.toContain("artifact-safety");
     expect(build.run).toContain("buildPublicPlaywrightReport.mjs");
     expect(build.run).toContain("--input test-results.json");
     expect(build.run).toContain("--output public-playwright-report");
@@ -581,6 +583,11 @@ describe("Direct PR workflow security", () => {
     expect(compare.if).toContain("github.event.pull_request.head.repo.full_name == github.repository");
     expect(compare.if).toContain("!startsWith(github.head_ref, 'renovate/')");
     expect(compare.if).toContain("github.actor != 'dependabot[bot]'");
+    expect(workflow.concurrency).toBeUndefined();
+    expect(compare.concurrency).toEqual({
+      group: `vrt-publish-${githubExpression("github.event.pull_request.number || github.ref_name")}`,
+      "cancel-in-progress": true,
+    });
     expect(compare.environment).toBe("Preview");
     expect(compareCheckout?.with).toMatchObject({
       ref: githubExpression("github.event.pull_request.head.sha || github.sha"),

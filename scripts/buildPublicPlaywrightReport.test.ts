@@ -7,14 +7,16 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const SCRIPT_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT_PATH = path.join(SCRIPT_DIRECTORY, "buildPublicPlaywrightReport.mjs");
+const ARTIFACT_SAFETY_PATH = path.join(SCRIPT_DIRECTORY, "assertNoSensitiveArtifacts.mjs");
 const HEAD_SHA = "0123456789abcdef0123456789abcdef01234567";
+const SENSITIVE_EMAIL = "e2e-manager@shiftori.jp";
 let testDirectory: string;
 let inputPath: string;
 let outputPath: string;
 
 function playwrightReport() {
   return {
-    config: { metadata: { privateValue: "do-not-publish" } },
+    config: { metadata: { privateValue: SENSITIVE_EMAIL } },
     suites: [
       {
         title: "deployed-smoke.test.ts",
@@ -35,13 +37,13 @@ function playwrightReport() {
                 projectId: "private-project-id",
                 status: "unexpected",
                 expectedStatus: "passed",
-                annotations: [{ type: "secret", description: "do-not-publish" }],
+                annotations: [{ type: "secret", description: SENSITIVE_EMAIL }],
                 results: [
                   {
                     status: "failed",
                     duration: 120.4,
                     retry: 0,
-                    error: { message: "token=super-secret" },
+                    error: { message: `token=super-secret user=${SENSITIVE_EMAIL}` },
                     errors: [{ message: "password=super-secret" }],
                     stdout: ["private stdout"],
                     stderr: ["private stderr"],
@@ -171,6 +173,13 @@ describe("public Playwright report builder", () => {
     expect(jsonSource).not.toContain("private stdout");
     expect(jsonSource).not.toContain("trace.zip");
     expect(jsonSource).not.toContain("secret-test-id");
+    expect(jsonSource).not.toContain(SENSITIVE_EMAIL);
+
+    const safetyResult = spawnSync(process.execPath, [ARTIFACT_SAFETY_PATH, "--root", path.basename(outputPath)], {
+      cwd: testDirectory,
+      encoding: "utf8",
+    });
+    expect(safetyResult.status).toBe(0);
   });
 
   it("escapes untrusted text in a script-free HTML report", () => {

@@ -153,7 +153,6 @@ jobs:
         id: public-report
         if: |
           !cancelled() &&
-          steps.artifact-safety.outcome == 'success' &&
           (steps.playwright.outcome == 'success' || steps.playwright.outcome == 'failure')
         env:
           ACTIONS_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
