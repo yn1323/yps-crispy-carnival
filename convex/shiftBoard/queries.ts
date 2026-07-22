@@ -83,7 +83,9 @@ const shiftBoardDataValidator = v.object({
 export const getShiftBoardData = managerQuery({
   args: {
     recruitmentId: v.id("recruitments"),
-    asOfDate: v.string(),
+    // rolling deploy中の旧client（引数なし / asOfDate）も受け入れる。どちらも表示判定の時計としては信用しない。
+    refreshDayKey: v.optional(v.string()),
+    asOfDate: v.optional(v.string()),
   },
   returns: v.union(shiftBoardDataValidator, v.null()),
   handler: async (ctx, args) => {
@@ -124,7 +126,7 @@ export const getShiftBoardData = managerQuery({
       .take(SHIFT_BOARD_STAFF_LIMIT);
     const activeShiftTargetStaffs = allStaffs.filter(isShiftTargetStaff);
     const historicalRemovedStaffs: Doc<"staffs">[] = [];
-    if (isPastShiftPeriod(recruitment.periodEnd, args.asOfDate)) {
+    if (isPastShiftPeriod(recruitment.periodEnd)) {
       const activeStaffIds = new Set(activeShiftTargetStaffs.map((staff) => staff._id));
       const removedStaffIds = [...new Set(shiftAssignments.map((assignment) => assignment.staffId))].filter(
         (staffId) => !activeStaffIds.has(staffId),

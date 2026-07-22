@@ -1,10 +1,15 @@
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import { seedManagerShop, seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
+const QUERY_REFRESH_DAY_KEY = "2026-07-22";
+
 describe("shiftBoard/queries", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
   it("削除済み募集は null を返す", async () => {
     const t = convexTest(schema, modules);
     const { shopId, recruitmentId } = await t.run(async (ctx) => {
@@ -55,7 +60,11 @@ describe("shiftBoard/queries", () => {
 
     const result = await t
       .withIdentity({ subject: "readonly_shift_board" })
-      .query(api.shiftBoard.queries.getShiftBoardData, { shopId, recruitmentId });
+      .query(api.shiftBoard.queries.getShiftBoardData, {
+        shopId,
+        recruitmentId,
+        refreshDayKey: QUERY_REFRESH_DAY_KEY,
+      });
 
     expect(result).toMatchObject({
       canWriteBusinessData: false,
@@ -96,12 +105,18 @@ describe("shiftBoard/queries", () => {
 
     const result = await t
       .withIdentity({ subject: "manager_excluded" })
-      .query(api.shiftBoard.queries.getShiftBoardData, { shopId, recruitmentId });
+      .query(api.shiftBoard.queries.getShiftBoardData, {
+        shopId,
+        recruitmentId,
+        refreshDayKey: QUERY_REFRESH_DAY_KEY,
+      });
 
     expect(result?.staffs.map((s) => s._id)).toEqual([includedStaffId]);
   });
 
-  it("過去募集では削除済み割当スタッフをtombstoneで返し、現在の募集候補には含めない", async () => {
+  it("JST日付を跨いで過去募集になると削除済み割当スタッフをtombstoneで返す", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.parse("2026-07-20T14:59:59.000Z"));
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_removed_history", shopName: "履歴店舗" });
@@ -118,44 +133,41 @@ describe("shiftBoard/queries", () => {
         sortOrder: 0,
         isDeleted: false,
       });
-      const createRecruitment = async (periodStart: string, periodEnd: string) => {
-        const recruitmentId = await ctx.db.insert("recruitments", {
-          shopId,
-          periodStart,
-          periodEnd,
-          deadline: periodStart,
-          shopClosedDates: [],
-          status: "confirmed",
-          confirmedAt: Date.now(),
-          isDeleted: false,
-          submissionPattern: { kind: "time" as const, startTime: "09:00", endTime: "22:00" },
-        });
-        await ctx.db.insert("shiftAssignments", {
-          recruitmentId,
-          staffId,
-          date: periodStart,
-          startTime: "10:00",
-          endTime: "18:00",
-          positionId,
-        });
-        return recruitmentId;
-      };
-      return {
+      const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,
+        periodStart: "2026-07-20",
+        periodEnd: "2026-07-20",
+        deadline: "2026-07-20",
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: false,
+        submissionPattern: { kind: "time" as const, startTime: "09:00", endTime: "22:00" },
+      });
+      await ctx.db.insert("shiftAssignments", {
+        recruitmentId,
         staffId,
-        pastRecruitmentId: await createRecruitment("2020-01-01", "2020-01-01"),
-        currentRecruitmentId: await createRecruitment("2099-01-01", "2099-01-01"),
-      };
+        date: "2026-07-20",
+        startTime: "10:00",
+        endTime: "18:00",
+        positionId,
+      });
+      return { shopId, staffId, recruitmentId };
     });
     const actor = t.withIdentity({ subject: "manager_removed_history" });
 
-    const past = await actor.query(api.shiftBoard.queries.getShiftBoardData, {
-      shopId: ids.shopId,
-      recruitmentId: ids.pastRecruitmentId,
-    });
     const current = await actor.query(api.shiftBoard.queries.getShiftBoardData, {
       shopId: ids.shopId,
-      recruitmentId: ids.currentRecruitmentId,
+      recruitmentId: ids.recruitmentId,
+      // rolling deploy中の旧clientが未来のasOfDateを渡しても、server時刻より早くtombstoneを取得できない。
+      asOfDate: "2026-07-21",
+    });
+    vi.setSystemTime(Date.parse("2026-07-20T15:00:00.000Z"));
+    const past = await actor.query(api.shiftBoard.queries.getShiftBoardData, {
+      shopId: ids.shopId,
+      recruitmentId: ids.recruitmentId,
+      // 実subscriptionと同様、server側の日付変更後は別keyで再購読する。
+      refreshDayKey: "2026-07-21:safe",
     });
 
     expect(past?.staffs).toContainEqual({
@@ -166,8 +178,8 @@ describe("shiftBoard/queries", () => {
       createdAt: expect.any(Number),
       wasSubmittedAtDraft: false,
     });
-    expect(past?.shiftAssignments).toHaveLength(1);
     expect(current?.staffs.map((staff) => staff._id)).not.toContain(ids.staffId);
+    expect(past?.shiftAssignments).toHaveLength(1);
     expect(current?.shiftAssignments).toHaveLength(1);
   });
 
@@ -201,7 +213,11 @@ describe("shiftBoard/queries", () => {
 
     const result = await t
       .withIdentity({ subject: "manager_all_off" })
-      .query(api.shiftBoard.queries.getShiftBoardData, { shopId, recruitmentId });
+      .query(api.shiftBoard.queries.getShiftBoardData, {
+        shopId,
+        recruitmentId,
+        refreshDayKey: QUERY_REFRESH_DAY_KEY,
+      });
 
     expect(result?.staffs).toEqual([
       {
@@ -251,7 +267,11 @@ describe("shiftBoard/queries", () => {
 
     const result = await t
       .withIdentity({ subject: "manager_date_only_board" })
-      .query(api.shiftBoard.queries.getShiftBoardData, { shopId, recruitmentId });
+      .query(api.shiftBoard.queries.getShiftBoardData, {
+        shopId,
+        recruitmentId,
+        refreshDayKey: QUERY_REFRESH_DAY_KEY,
+      });
 
     expect(result?.requestedDates).toEqual([{ staffId, date: "2026-04-03" }]);
     expect(result?.requestedSlots).toEqual([]);
@@ -319,7 +339,11 @@ describe("shiftBoard/queries", () => {
 
     const result = await t
       .withIdentity({ subject: "manager_shift_type_board" })
-      .query(api.shiftBoard.queries.getShiftBoardData, { shopId, recruitmentId });
+      .query(api.shiftBoard.queries.getShiftBoardData, {
+        shopId,
+        recruitmentId,
+        refreshDayKey: QUERY_REFRESH_DAY_KEY,
+      });
 
     expect(result?.submissionPattern).toEqual({
       kind: "shiftType",
@@ -380,7 +404,11 @@ describe("shiftBoard/queries", () => {
 
     const result = await t
       .withIdentity({ subject: "manager_draft_status" })
-      .query(api.shiftBoard.queries.getShiftBoardData, { shopId, recruitmentId });
+      .query(api.shiftBoard.queries.getShiftBoardData, {
+        shopId,
+        recruitmentId,
+        refreshDayKey: QUERY_REFRESH_DAY_KEY,
+      });
 
     const staffById = new Map(result?.staffs.map((s) => [s._id, s]));
     expect(staffById.get(staffBeforeDraftId)?.wasSubmittedAtDraft).toBe(true);
@@ -434,7 +462,11 @@ describe("shiftBoard/queries", () => {
 
     const result = await t
       .withIdentity({ subject: "manager_legacy_draft" })
-      .query(api.shiftBoard.queries.getShiftBoardData, { shopId, recruitmentId });
+      .query(api.shiftBoard.queries.getShiftBoardData, {
+        shopId,
+        recruitmentId,
+        refreshDayKey: QUERY_REFRESH_DAY_KEY,
+      });
 
     expect(result?.recruitment.draftSavedAt).toBeTypeOf("number");
     expect(result?.staffs.find((s) => s._id === staffId)?.wasSubmittedAtDraft).toBe(true);
@@ -459,7 +491,11 @@ describe("shiftBoard/queries", () => {
 
     const result = await t
       .withIdentity({ subject: "manager_half_hour" })
-      .query(api.shiftBoard.queries.getShiftBoardData, { shopId, recruitmentId });
+      .query(api.shiftBoard.queries.getShiftBoardData, {
+        shopId,
+        recruitmentId,
+        refreshDayKey: QUERY_REFRESH_DAY_KEY,
+      });
 
     expect(result?.timeRange).toEqual({
       start: 5,
@@ -489,7 +525,11 @@ describe("shiftBoard/queries", () => {
 
     const result = await t
       .withIdentity({ subject: "manager_snapshot" })
-      .query(api.shiftBoard.queries.getShiftBoardData, { shopId, recruitmentId });
+      .query(api.shiftBoard.queries.getShiftBoardData, {
+        shopId,
+        recruitmentId,
+        refreshDayKey: QUERY_REFRESH_DAY_KEY,
+      });
 
     expect(result?.timeRange.editableStartMinutes).toBe(330);
     expect(result?.timeRange.editableEndMinutes).toBe(1350);

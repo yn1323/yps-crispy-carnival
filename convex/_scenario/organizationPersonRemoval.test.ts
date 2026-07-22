@@ -331,12 +331,12 @@ describe("割当付きグループ人物削除シナリオ", () => {
     const pastBoard = await manager.query(api.shiftBoard.queries.getShiftBoardData, {
       shopId: ids.shopId,
       recruitmentId: ids.pastRecruitmentId,
-      asOfDate: scenarioDate(0),
+      refreshDayKey: scenarioDate(0),
     });
     const currentBoard = await manager.query(api.shiftBoard.queries.getShiftBoardData, {
       shopId: ids.shopId,
       recruitmentId: ids.todayRecruitmentId,
-      asOfDate: scenarioDate(0),
+      refreshDayKey: scenarioDate(0),
     });
     expect(pastBoard?.staffs).toContainEqual(
       expect.objectContaining({ _id: ids.targetStaffIds[0], name: "削除対象ユーザー", isRemoved: true }),

@@ -213,11 +213,11 @@ export function createScenario(t: ScenarioTest) {
         getManagerConsentStatus() {
           return asManager.query(api.legal.queries.getManagerConsentStatus, {});
         },
-        async getShiftBoardData(recruitmentId: Id<"recruitments">, asOfDate: string = todayJST()) {
+        async getShiftBoardData(recruitmentId: Id<"recruitments">, refreshDayKey: string = todayJST()) {
           return asManager.query(api.shiftBoard.queries.getShiftBoardData, {
             recruitmentId,
             shopId: await getSelectedShopId(),
-            asOfDate,
+            refreshDayKey,
           });
         },
       };
