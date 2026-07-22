@@ -241,21 +241,32 @@ function ManagerRoleAction({
   onConfirmRemoveManagerRole: () => void | Promise<void>;
 }) {
   const managerInvitationDisabledReasonId = `user-detail-manager-invitation-disabled-${data.person.id}`;
+  const managerRemovalDisabledReasonId = `user-detail-manager-removal-disabled-${data.person.id}`;
 
   if (data.managerRole === "active") {
     return (
       <Stack gap={3}>
-        <Flex justify="flex-end">
+        <Stack gap={2} align="flex-end">
           <Button
             variant="outline"
             gap={1.5}
-            disabled={data.shops.length === 0 || (!data.canWrite && !data.canRemoveManagerRole)}
+            disabled={data.shops.length === 0 || !data.canRemoveManagerRole}
+            aria-describedby={
+              data.shops.length === 0 || !data.canRemoveManagerRole ? managerRemovalDisabledReasonId : undefined
+            }
             onClick={onRequestRemoveManagerRole}
           >
             <LuShieldMinus aria-hidden />
             管理者権限を外す
           </Button>
-        </Flex>
+          {(data.shops.length === 0 || !data.canRemoveManagerRole) && (
+            <Text id={managerRemovalDisabledReasonId} fontSize="xs" color="orange.700" textAlign="right">
+              {data.shops.length === 0
+                ? "操作できる店舗がないため、管理者権限を外せません。"
+                : (data.managerRoleRemovalDisabledReason ?? "現在、管理者権限を外せません。")}
+            </Text>
+          )}
+        </Stack>
         {isRemovalConfirmationOpen && (
           <InlineDestructiveConfirmation
             title={`${data.person.name}さんの管理者権限を外しますか？`}

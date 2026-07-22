@@ -18,7 +18,18 @@ export type UserDetailRecruitment = {
 };
 
 export type UserDetailDialog =
-  | { kind: "removeManagerRole" }
-  | { kind: "removeMembership"; membership: UserDetailMembership }
-  | { kind: "removePerson"; removalPreview: UserDetailRemovalPreview }
+  | {
+      kind: "removeManagerRole";
+      personId: UserDetailData["person"]["id"];
+      shopId: UserDetailData["shops"][number]["shopId"];
+      requestId: string;
+    }
+  | { kind: "removeMembership"; membership: UserDetailMembership; requestId: string }
+  | {
+      kind: "removePerson";
+      personId: UserDetailData["person"]["id"];
+      shopId: UserDetailData["shops"][number]["shopId"];
+      removalPreview: UserDetailRemovalPreview;
+      requestId: string;
+    }
   | null;

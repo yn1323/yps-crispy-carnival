@@ -100,8 +100,12 @@ export function UserDetailView({
 
       {!data.canWrite && (
         <ReadOnlyNotice
-          title="グループ情報は閲覧のみです"
-          description={data.writeDisabledReason ?? "現在、このグループの情報を変更できません。"}
+          title={data.canRemove ? "利用上限の整理のみ行えます" : "グループ情報は閲覧のみです"}
+          description={
+            data.canRemove
+              ? "契約制限中のため通常の変更はできません。制限の解消に必要なユーザー削除は、この画面から行えます。"
+              : (data.writeDisabledReason ?? "現在、このグループの情報を変更できません。")
+          }
         />
       )}
 
@@ -145,7 +149,7 @@ export function UserDetailView({
 
       <UserGroupRemovalSection
         personName={data.person.name}
-        isDisabled={data.shops.length === 0 || (!data.canWrite && !data.canRemove)}
+        isDisabled={data.shops.length === 0 || !data.canRemove}
         disabledReason={
           data.shops.length === 0
             ? "操作できる店舗がないため、このユーザーを削除できません。"

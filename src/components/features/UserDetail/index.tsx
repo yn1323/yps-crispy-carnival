@@ -34,6 +34,8 @@ export function UserDetail({
   const navigate = useNavigate();
   const activePanelRef = useRef(activePanel);
   activePanelRef.current = activePanel;
+  const visibleTargetRef = useRef({ personId: data.person.id, selectedShopId });
+  visibleTargetRef.current = { personId: data.person.id, selectedShopId };
   const selectedMembership = data.memberships.find((membership) => membership.shopId === selectedShopId) ?? null;
   const selectedShop = data.shops.find((shop) => shop.shopId === selectedShopId) ?? null;
   const isStoreReadOnly = !data.canWrite || Boolean(selectedShop && selectedShop.shopStatus !== "active");
@@ -55,7 +57,8 @@ export function UserDetail({
   const manager = useUserManagerActions({
     data,
     selectedShopId,
-    onPersonRemoved: () => {
+    onPersonRemoved: (removedPersonId) => {
+      if (visibleTargetRef.current.personId !== removedPersonId) return;
       if (data.isSelf) {
         void navigate({ to: "/dashboard", search: clearRequestedShopSearch(), replace: true });
         return;
@@ -155,13 +158,24 @@ export function UserDetail({
           await membership.onChangeShiftTarget(isShiftTarget);
         },
         onAddMembership: async (shopId) => {
+          const personId = data.person.id;
           const added = await membership.onAddMembership(data.person.id, shopId);
-          if (added && activePanelRef.current === "addShop") handleClosePanel();
+          if (added && activePanelRef.current === "addShop" && visibleTargetRef.current.personId === personId) {
+            handleClosePanel();
+          }
         },
         onRequestRemoveMembership: membership.onRequestRemoveMembership,
         onConfirmRemoveMembership: async () => {
+          const target = { personId: data.person.id, selectedShopId };
           const removed = await membership.onConfirmRemoveMembership();
-          if (removed && activePanelRef.current === "shop") handleClosePanel();
+          if (
+            removed &&
+            activePanelRef.current === "shop" &&
+            visibleTargetRef.current.personId === target.personId &&
+            visibleTargetRef.current.selectedShopId === target.selectedShopId
+          ) {
+            handleClosePanel();
+          }
         },
         onCloseMembershipDialog: membership.onCloseDialog,
         onRequestManagerAssignment: manager.onRequestManagerAssignment,

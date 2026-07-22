@@ -69,6 +69,7 @@ const yokohamaShop: UserDetailData["shops"][number] = {
   shopName: "横浜店",
   shopStatus: "archived",
 };
+const storyRequestId = "00000000-0000-4000-8000-000000000001";
 
 const baseData: UserDetailData = {
   person: {
@@ -258,6 +259,53 @@ export const PersonRemovalZeroAssignments: Story = createPersonRemovalStory(0);
 export const PersonRemovalOneAssignment: Story = createPersonRemovalStory(1);
 export const PersonRemovalMultipleAssignments: Story = createPersonRemovalStory(3);
 
+export const ManagerOnlyRoleRemovalConfirmation: Story = {
+  args: {
+    activePanel: "basic",
+    data: { ...baseData, memberships: [] },
+    state: {
+      ...baseState,
+      manager: {
+        ...baseState.manager,
+        dialog: { kind: "removeManagerRole", personId, shopId: shibuyaShopId, requestId: storyRequestId },
+      },
+    },
+  },
+};
+
+export const ManagerRoleRemovalUnavailable: Story = {
+  args: {
+    activePanel: "basic",
+    data: {
+      ...baseData,
+      canRemoveManagerRole: false,
+      managerRoleRemovalDisabledReason: "最後の有効管理者の管理者権限は外せません。",
+    },
+  },
+};
+
+export const PersonRemovalUnavailable: Story = {
+  args: {
+    data: {
+      ...baseData,
+      canRemove: false,
+      removeDisabledReason: "最後の有効管理者は削除できません。",
+    },
+  },
+};
+
+export const RestrictedRecoveryRemoval: Story = {
+  args: {
+    data: {
+      ...baseData,
+      canWrite: false,
+      writeDisabledReason: "Proの利用上限を超えているため、契約制限中です。",
+      canRemove: true,
+      removeDisabledReason: undefined,
+    },
+  },
+};
+
 export const LongText: Story = {
   args: {
     data: {
@@ -290,7 +338,16 @@ function createPersonRemovalStory(assignmentCount: number): Story {
       data: { ...multipleStoresData, removalPreview: preview },
       state: {
         ...baseState,
-        manager: { ...baseState.manager, dialog: { kind: "removePerson", removalPreview: preview } },
+        manager: {
+          ...baseState.manager,
+          dialog: {
+            kind: "removePerson",
+            personId,
+            shopId: shibuyaShopId,
+            removalPreview: preview,
+            requestId: storyRequestId,
+          },
+        },
       },
     },
   };
@@ -343,9 +400,16 @@ function PanelNavigationHarness({ data = multipleStoresData }: { data?: UserDeta
           onClosePanel: () => setActivePanel(undefined),
           onShowLineQr: async () => setShowQr(true),
           onRequestRemoveMembership: () =>
-            setMembershipDialog({ kind: "removeMembership", membership: shibuyaMembership }),
+            setMembershipDialog({ kind: "removeMembership", membership: shibuyaMembership, requestId: storyRequestId }),
           onCloseMembershipDialog: () => setMembershipDialog(null),
-          onRequestRemovePerson: () => setManagerDialog({ kind: "removePerson", removalPreview: data.removalPreview }),
+          onRequestRemovePerson: () =>
+            setManagerDialog({
+              kind: "removePerson",
+              personId: data.person.id,
+              shopId: shibuyaShopId,
+              removalPreview: data.removalPreview,
+              requestId: storyRequestId,
+            }),
           onCloseManagerDialog: () => setManagerDialog(null),
           onAddMembership: async (shopId) => {
             setAddedShopId(shopId);

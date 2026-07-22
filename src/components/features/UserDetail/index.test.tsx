@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   addMembership: vi.fn(),
   confirmRemoveMembership: vi.fn(),
+  managerOptions: undefined as undefined | { onPersonRemoved: (personId: string) => void },
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -105,19 +106,22 @@ vi.mock("./useUserMembershipActions", () => ({
 }));
 
 vi.mock("./useUserManagerActions", () => ({
-  useUserManagerActions: () => ({
-    dialog: null,
-    isAssignmentConfirmationOpen: false,
-    isAssigningManager: false,
-    isRemoving: false,
-    onRequestManagerAssignment: vi.fn(),
-    onCancelManagerAssignment: vi.fn(),
-    onAssignManager: vi.fn(),
-    onRequestRemoveManagerRole: vi.fn(),
-    onRequestRemovePerson: vi.fn(),
-    onConfirmRemoval: vi.fn(),
-    onCloseDialog: vi.fn(),
-  }),
+  useUserManagerActions: (options: { onPersonRemoved: (personId: string) => void }) => {
+    mocks.managerOptions = options;
+    return {
+      dialog: null,
+      isAssignmentConfirmationOpen: false,
+      isAssigningManager: false,
+      isRemoving: false,
+      onRequestManagerAssignment: vi.fn(),
+      onCancelManagerAssignment: vi.fn(),
+      onAssignManager: vi.fn(),
+      onRequestRemoveManagerRole: vi.fn(),
+      onRequestRemovePerson: vi.fn(),
+      onConfirmRemoval: vi.fn(),
+      onCloseDialog: vi.fn(),
+    };
+  },
 }));
 
 import { UserDetail } from ".";
@@ -136,6 +140,7 @@ beforeEach(() => {
   mocks.addMembership.mockResolvedValue(false);
   mocks.confirmRemoveMembership.mockReset();
   mocks.confirmRemoveMembership.mockResolvedValue(false);
+  mocks.managerOptions = undefined;
 });
 
 describe("UserDetail", () => {
@@ -254,6 +259,52 @@ describe("UserDetail", () => {
       resolveRemoval?.(true);
       await removal;
     });
+
+    expect(mocks.navigate).not.toHaveBeenCalled();
+  });
+
+  it("店舗所属解除の完了前に別店舗へ移った場合は、その店舗のパネルを閉じない", async () => {
+    let resolveRemoval: ((value: boolean) => void) | undefined;
+    const removal = new Promise<boolean>((resolve) => {
+      resolveRemoval = resolve;
+    });
+    mocks.confirmRemoveMembership.mockReturnValue(removal);
+    const { rerender } = render(
+      <UserDetail data={data} selectedShopId="shop-a" activePanel="shop" returnTo="dashboard" visibleUserCount={10} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "店舗から外す" }));
+    rerender(
+      <UserDetail data={data} selectedShopId="shop-b" activePanel="shop" returnTo="dashboard" visibleUserCount={10} />,
+    );
+    await act(async () => {
+      resolveRemoval?.(true);
+      await removal;
+    });
+
+    expect(mocks.navigate).not.toHaveBeenCalled();
+  });
+
+  it("人物削除の完了前に別人物へ移った場合は、古い応答で画面遷移しない", () => {
+    const { rerender } = render(
+      <UserDetail data={data} selectedShopId="shop-a" activePanel="basic" returnTo="dashboard" visibleUserCount={10} />,
+    );
+    const previousRemovalCallback = mocks.managerOptions?.onPersonRemoved;
+    const nextData: UserDetailData = {
+      ...data,
+      person: { ...data.person, id: "person-2" as UserDetailData["person"]["id"] },
+    };
+
+    rerender(
+      <UserDetail
+        data={nextData}
+        selectedShopId="shop-a"
+        activePanel="basic"
+        returnTo="dashboard"
+        visibleUserCount={10}
+      />,
+    );
+    previousRemovalCallback?.("person-1");
 
     expect(mocks.navigate).not.toHaveBeenCalled();
   });

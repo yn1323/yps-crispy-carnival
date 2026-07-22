@@ -28,11 +28,15 @@ export function useUserMembershipActions({
   useEffect(() => {
     if (
       dialog?.kind === "removeMembership" &&
-      (isReadOnly || !membership?.canRemove || dialog.membership.staffId !== membership.staffId)
+      (isReadOnly ||
+        !membership?.canRemove ||
+        dialog.membership.shopId !== selectedShopId ||
+        dialog.membership.staffId !== membership.staffId ||
+        !hasSameRemovalPreview(dialog.membership.removalPreview, membership.removalPreview))
     ) {
       setDialog(null);
     }
-  }, [dialog, isReadOnly, membership?.canRemove, membership?.staffId]);
+  }, [dialog, isReadOnly, membership, selectedShopId]);
 
   const { run: changeShiftTarget, isRunning: isChangingShiftTarget } = useSingleFlight(
     async (isShiftTarget: boolean) => {
@@ -64,7 +68,7 @@ export function useUserMembershipActions({
       await removePersonFromShop({
         shopId: selectedShopId as Id<"shops">,
         staffId: dialog.membership.staffId,
-        requestId: crypto.randomUUID(),
+        requestId: dialog.requestId,
         removalPreview: {
           assignmentCount: dialog.membership.removalPreview.assignmentCount,
           fingerprint: dialog.membership.removalPreview.fingerprint,
@@ -109,9 +113,27 @@ export function useUserMembershipActions({
     onAddMembership: addMembership,
     onChangeShiftTarget: changeShiftTarget,
     onRequestRemoveMembership: () => {
-      if (!isReadOnly && membership?.canRemove) setDialog({ kind: "removeMembership", membership });
+      if (!isReadOnly && membership?.canRemove) {
+        setDialog({ kind: "removeMembership", membership, requestId: crypto.randomUUID() });
+      }
     },
     onConfirmRemoveMembership: removeMembership,
     onCloseDialog: () => setDialog(null),
   };
+}
+
+function hasSameRemovalPreview(
+  left: UserDetailMembership["removalPreview"],
+  right: UserDetailMembership["removalPreview"],
+) {
+  if (left.kind !== right.kind || left.asOfDate !== right.asOfDate) return false;
+  if (left.kind === "ready" && right.kind === "ready") {
+    return left.assignmentCount === right.assignmentCount && left.fingerprint === right.fingerprint;
+  }
+  return (
+    left.kind === "tooMany" &&
+    right.kind === "tooMany" &&
+    left.assignmentCountAtLeast === right.assignmentCountAtLeast &&
+    left.limit === right.limit
+  );
 }

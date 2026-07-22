@@ -46,6 +46,7 @@ const personId = "person-target" as Id<"organizationPeople">;
 const shopId = "shop-target" as Id<"shops">;
 const otherShopId = "shop-other" as Id<"shops">;
 const requestId = "71d01840-98c3-4cd3-aaf7-51f98cbe8c5e";
+const nextRequestId = "64aa119c-2896-449f-935a-5b4a632dc0fb";
 const membership: UserDetailMembership = {
   staffId: "staff-target" as Id<"staffs">,
   shopId,
@@ -136,6 +137,91 @@ describe("useUserMembershipActions", () => {
       staffId: membership.staffId,
       requestId,
       removalPreview: { assignmentCount: 2, fingerprint: "membership-preview" },
+    });
+    expect(result.current.dialog).toBeNull();
+  });
+
+  it("結果が不明な再押下では同じ対象・preview・requestIdを再利用する", async () => {
+    const error = new ConvexError("操作結果を確認できませんでした。");
+    mocks.removeMembership.mockRejectedValueOnce(error).mockResolvedValueOnce({ changed: false });
+    const { result } = renderHook(() =>
+      useUserMembershipActions({
+        membership,
+        selectedShopId: shopId,
+        isReadOnly: false,
+        canAddMembership: true,
+      }),
+    );
+
+    act(() => result.current.onRequestRemoveMembership());
+    expect(result.current.dialog).toEqual({ kind: "removeMembership", membership, requestId });
+    await act(async () => {
+      await result.current.onConfirmRemoveMembership();
+    });
+    expect(result.current.dialog).toEqual({ kind: "removeMembership", membership, requestId });
+    await act(async () => {
+      await result.current.onConfirmRemoveMembership();
+    });
+
+    const expectedArgs = {
+      shopId,
+      staffId: membership.staffId,
+      requestId,
+      removalPreview: { assignmentCount: 2, fingerprint: "membership-preview" },
+    };
+    expect(mocks.removeMembership.mock.calls).toEqual([[expectedArgs], [expectedArgs]]);
+    expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error);
+    expect(result.current.dialog).toBeNull();
+  });
+
+  it("キャンセルするとrequestIdを破棄し、次の確認では新しく発行する", () => {
+    vi.mocked(crypto.randomUUID).mockReturnValueOnce(requestId).mockReturnValueOnce(nextRequestId);
+    const { result } = renderHook(() =>
+      useUserMembershipActions({
+        membership,
+        selectedShopId: shopId,
+        isReadOnly: false,
+        canAddMembership: true,
+      }),
+    );
+
+    act(() => result.current.onRequestRemoveMembership());
+    expect(result.current.dialog).toMatchObject({ requestId });
+    act(() => result.current.onCloseDialog());
+    act(() => result.current.onRequestRemoveMembership());
+    expect(result.current.dialog).toMatchObject({ requestId: nextRequestId });
+  });
+
+  it("対象店舗またはpreviewが変わると古い確認とrequestIdを破棄する", () => {
+    const { result, rerender } = renderHook(
+      ({
+        currentMembership,
+        selectedShopId,
+      }: {
+        currentMembership: UserDetailMembership;
+        selectedShopId: Id<"shops">;
+      }) =>
+        useUserMembershipActions({
+          membership: currentMembership,
+          selectedShopId,
+          isReadOnly: false,
+          canAddMembership: true,
+        }),
+      { initialProps: { currentMembership: membership, selectedShopId: shopId } },
+    );
+
+    act(() => result.current.onRequestRemoveMembership());
+    rerender({
+      currentMembership: {
+        ...membership,
+        removalPreview: {
+          kind: "ready",
+          asOfDate: "2026-07-22",
+          assignmentCount: 3,
+          fingerprint: "updated-membership-preview",
+        },
+      },
+      selectedShopId: otherShopId,
     });
     expect(result.current.dialog).toBeNull();
   });

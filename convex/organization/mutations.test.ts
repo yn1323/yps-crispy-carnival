@@ -813,7 +813,7 @@ describe("organization person removal", () => {
           personId: ids.personId,
           requestId: "billing-owner",
         }),
-    ).rejects.toThrow("請求先メールアドレスを変更してから管理者権限を外してください");
+    ).rejects.toThrow("請求先メールアドレスを変更してから削除してください");
   });
 
   it("最後の有効管理者は自分自身でも事業者から削除できない", async () => {
@@ -1300,7 +1300,7 @@ describe("organization person removal", () => {
         personId: ids.personId,
         requestId: "role-billing-request",
       }),
-    ).rejects.toThrow("請求先メールアドレスを変更してから削除してください");
+    ).rejects.toThrow("請求先メールアドレスを変更してから管理者権限を外してください");
   });
 
   it("スタッフ所属がなく将来シフトが残る管理者の権限解除は人物と割当を維持する", async () => {

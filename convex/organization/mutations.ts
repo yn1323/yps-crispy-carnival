@@ -991,10 +991,7 @@ type FullOrganizationPersonRemovalPlan = {
   billingReferenceUpdate: BillingReferenceUpdate;
 };
 
-function isOrganizationBillingContact(
-  organization: Doc<"organizations">,
-  person: Doc<"organizationPeople">,
-) {
+function isOrganizationBillingContact(organization: Doc<"organizations">, person: Doc<"organizationPeople">) {
   const billingEmail = (organization.billingEmailNormalized ?? organization.billingEmail ?? "").trim().toLowerCase();
   return billingEmail.length > 0 && billingEmail === person.emailNormalized.trim().toLowerCase();
 }

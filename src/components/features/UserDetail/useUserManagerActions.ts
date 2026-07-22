@@ -14,7 +14,7 @@ export function useUserManagerActions({
 }: {
   data: UserDetailData;
   selectedShopId: string | null;
-  onPersonRemoved: () => void;
+  onPersonRemoved: (personId: UserDetailData["person"]["id"]) => void;
 }) {
   const [isAssignmentConfirmationOpen, setIsAssignmentConfirmationOpen] = useState(false);
   const [dialog, setDialog] = useState<UserDetailDialog>(null);
@@ -32,12 +32,19 @@ export function useUserManagerActions({
     data.managerRole === "none" &&
     data.managerInvitationState.kind !== "unavailable" &&
     data.person.email.length > 0;
-  const canAttemptManagerRoleRemoval = data.canWrite || data.canRemoveManagerRole;
-  const canAttemptPersonRemoval = data.canWrite || data.canRemove;
 
   useEffect(() => {
     if (!canAssignManager) setIsAssignmentConfirmationOpen(false);
   }, [canAssignManager]);
+
+  useEffect(() => {
+    setDialog((current) => {
+      if (!current || current.kind === "removeMembership") return current;
+      if (current.personId !== data.person.id || !operationShopId || current.shopId !== operationShopId) return null;
+      if (current.kind === "removeManagerRole") return data.canRemoveManagerRole ? current : null;
+      return data.canRemove && hasSameRemovalPreview(current.removalPreview, data.removalPreview) ? current : null;
+    });
+  }, [data.canRemove, data.canRemoveManagerRole, data.person.id, data.removalPreview, operationShopId]);
 
   const { run: assignManager, isRunning: isAssigningManager } = useSingleFlight(async (): Promise<boolean> => {
     if (!canAssignManager || !selectedShopId) return false;
@@ -62,12 +69,13 @@ export function useUserManagerActions({
 
   const { run: confirmRemoval, isRunning: isRemoving } = useSingleFlight(async () => {
     if (!operationShopId || !dialog || dialog.kind === "removeMembership") return;
-    const requestId = crypto.randomUUID();
-    const shopId = operationShopId as Id<"shops">;
+    if (dialog.personId !== data.person.id || dialog.shopId !== operationShopId) return;
+    const shopId = dialog.shopId as Id<"shops">;
 
     try {
       if (dialog.kind === "removeManagerRole") {
-        await removeManagerRole({ shopId, personId: data.person.id, requestId });
+        if (!data.canRemoveManagerRole) return;
+        await removeManagerRole({ shopId, personId: dialog.personId, requestId: dialog.requestId });
         showSuccessToast({
           title: "管理者権限を外しました",
           description:
@@ -76,15 +84,15 @@ export function useUserManagerActions({
               : "このグループへのアクセスを終了しました。ユーザー情報とシフト記録は残しています。",
         });
         setDialog(null);
-        if (data.isSelf || data.memberships.length === 0) onPersonRemoved();
+        if (data.isSelf || data.memberships.length === 0) onPersonRemoved(dialog.personId);
         return;
       }
 
-      if (dialog.removalPreview.kind !== "ready") return;
+      if (!data.canRemove || dialog.removalPreview.kind !== "ready") return;
       await removePerson({
         shopId,
-        personId: data.person.id,
-        requestId,
+        personId: dialog.personId,
+        requestId: dialog.requestId,
         removalPreview: {
           assignmentCount: dialog.removalPreview.assignmentCount,
           fingerprint: dialog.removalPreview.fingerprint,
@@ -95,7 +103,7 @@ export function useUserManagerActions({
         title: "ユーザーをグループから削除しました",
         description: "過去のシフト履歴は保持されます。",
       });
-      onPersonRemoved();
+      onPersonRemoved(dialog.personId);
     } catch (error) {
       if (getConvexErrorMessage(error)?.includes("今日以降のシフト割当が変更されました")) setDialog(null);
       showErrorToast(error);
@@ -113,14 +121,40 @@ export function useUserManagerActions({
     onCancelManagerAssignment: () => setIsAssignmentConfirmationOpen(false),
     onAssignManager: assignManager,
     onRequestRemoveManagerRole: () => {
-      if (operationShopId && canAttemptManagerRoleRemoval) setDialog({ kind: "removeManagerRole" });
+      if (operationShopId && data.canRemoveManagerRole) {
+        setDialog({
+          kind: "removeManagerRole",
+          personId: data.person.id,
+          shopId: operationShopId,
+          requestId: crypto.randomUUID(),
+        });
+      }
     },
     onRequestRemovePerson: () => {
-      if (operationShopId && canAttemptPersonRemoval) {
-        setDialog({ kind: "removePerson", removalPreview: data.removalPreview });
+      if (operationShopId && data.canRemove) {
+        setDialog({
+          kind: "removePerson",
+          personId: data.person.id,
+          shopId: operationShopId,
+          removalPreview: data.removalPreview,
+          requestId: crypto.randomUUID(),
+        });
       }
     },
     onConfirmRemoval: confirmRemoval,
     onCloseDialog: () => setDialog(null),
   };
+}
+
+function hasSameRemovalPreview(left: UserDetailData["removalPreview"], right: UserDetailData["removalPreview"]) {
+  if (left.kind !== right.kind || left.asOfDate !== right.asOfDate) return false;
+  if (left.kind === "ready" && right.kind === "ready") {
+    return left.assignmentCount === right.assignmentCount && left.fingerprint === right.fingerprint;
+  }
+  return (
+    left.kind === "tooMany" &&
+    right.kind === "tooMany" &&
+    left.assignmentCountAtLeast === right.assignmentCountAtLeast &&
+    left.limit === right.limit
+  );
 }
