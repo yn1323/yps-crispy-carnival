@@ -1,403 +1,89 @@
-# Convex アーキテクチャ規約
+# convex/AGENTS.md
 
-## 必読ドキュメント
+このファイルは `convex/` 配下へ適用する。
+ルートの `AGENTS.md` と併せて読む。
+
+## 必読
+
+Convexコードを扱う前に、次を読む。
 
 1. `convex/_generated/ai/guidelines.md`
-2. テスト層や配置を選ぶ、既存のカバレッジ契約を変える、または大規模回帰を扱う場合は `doc/rules/testing-strategy.md`。同じ層の近い既存テストを追従更新するだけなら、その既存パターンを優先する
-3. 複数use caseをまたぐ設計、public API境界、Capability、durable workflow、データ寿命、運用契約を変更する場合は `doc/rules/convex-design-strategy.md`
-4. 公開範囲、認証・認可、tenant境界、入力制約、データ露出、token lifecycle、外部副作用などのセキュリティ契約を変更する場合は `doc/rules/security-strategy.md`
-
-このファイルは配置と実装規約を扱う。
-認証境界、公開API、Capability、durable workflow、データ寿命、運用契約のSource of Truthは `doc/rules/convex-design-strategy.md` とする。
-Source of Truthであることは、局所変更のたびに全文を読む、または全項目を実装するという意味ではない。
-
-## 設計方針
-
-**Use-Case Slices + CQRS** — ユースケース（画面/機能）単位でディレクトリを分割し、読み取り（queries）と書き込み（mutations）を分離する。
-
-## ディレクトリ構造
-
-```
-convex/
-├── {useCase}/              # ユースケース単位のディレクトリ
-│   ├── schemas.ts          # Zodバリデーションスキーマ（フロント共有）
-│   ├── queries.ts          # 読み取り（query）
-│   ├── mutations.ts        # 書き込み（mutation）
-│   └── actions.ts          # 外部API呼び出し（原則internalAction。公開Capabilityはallowlist）
-│
-├── _lib/                   # 共通ユーティリティ
-│   ├── config.ts           # 環境変数由来の共通設定（APP_URL等）
-│   ├── validation.ts       # 共通Zodリファインメント（optionalEmail等）
-│   └── time.ts             # 時刻ユーティリティ
-├── constants.ts            # グローバル定数（TTL、limit、時刻単位等）
-├── schema.ts               # DBスキーマ
-├── auth.config.ts          # Clerk認証設定
-└── _generated/             # 自動生成（編集禁止）
-```
-
-## ファイル配置ルール
-
-| コードの種類 | 配置先 |
-|------------|--------|
-| mutation引数のZodスキーマ | そのユースケースの `schemas.ts` |
-| 特定画面/機能のAPI | そのユースケースの `queries.ts` / `mutations.ts` |
-| 外部APIを呼ぶ処理 | そのユースケースの `actions.ts`（原則`internalAction`。allowlist化した公開Capabilityだけpublic `action`を許可） |
-| 共通バリデーションヘルパー | `_lib/validation.ts` |
-| 複数ユースケースの共通処理 | `_lib/` |
-| 環境変数由来の設定 | `_lib/config.ts` |
-| TTL・limit・時刻単位などの定数 | `constants.ts` |
-
-**判断基準**: 「この API は誰が、どの画面で使うか？」で決める。DBテーブルではなくユースケースに紐付ける。
-
-## 現在の境界ルール
-
-大きなリファクタでは、以下の境界を維持する。新しいファイルを作る前に「既存の境界に置けないか」を確認する。
-
-| 領域 | 配置 | ルール |
-|------|------|--------|
-| 通知（メール、LINE、テンプレート、通知用内部query） | `notification/` | `email/` ディレクトリは作らない。メール専用に見えても、通知ドメインとして `notification` に置く |
-| シフト提出催促 | `notification/reminderActions.ts` / `notification/reminderQueries.ts` | 手動催促 API は持たず、募集作成時に予約した自動催促を `notification` 側で処理する |
-| スタッフ認証・セッション | `staffAuth/` | magic link、session、募集情報取得に限定する。画面固有の閲覧APIを混ぜない |
-| 確定シフト閲覧 | `shiftView/queries.ts` | 通知URLなどからの確定シフト閲覧は `staffAuth` ではなく `shiftView` に置く |
-| 法務同意 | `legal/mutations.ts` + `legal/service.ts` | mutation は API 境界として薄く保ち、他ユースケースから再利用する同意記録ロジックは `service.ts` に置く |
-| LINE 連携 | `line/` | OAuth、Webhook、LINE API 呼び出しを扱う。通知文面や通知 fanout は `notification` に寄せる |
-| 共通設定 | `_lib/config.ts` | `APP_URL`、送信元メールなど環境変数由来の設定を集約する。各 action で `process.env` を散らさない |
-| 共通定数 | `constants.ts` | TTL、取得上限、rate limit fallback、シフト表の時刻単位などを集約する。数値リテラルを各ファイルに散らさない |
-
-### データ意味論
-
-- 「提出済みかどうか」「回答数」は `shiftSubmissions` を正とする。時間指定・勤務区分の明細は `shiftSubmissionSlots`、日ごと提出の明細は `shiftSubmissionDates` に持ち、全休み提出では明細が0件になる
-- 募集期間の提出方法は `recruitments.submissionPattern` のスナップショットを正とする。時間指定の開始/終了時刻や勤務区分の時間は提出方法の中に持つ
-- 既存データ互換のフォールバックは残さない。DB再作成前提のリファクタでは新スキーマだけを読む
-- 一覧系 query では必ず上限定数を使う。`.collect()` で無制限に読む前に、index と `take()` / `paginate()` にできないか検討する
-- 上限で打ち切る集計は、正確値、下限値、truncatedのどれかをAPIと永続データで明示する
-- actorやsubjectによって必須fieldが変わる場合は、複数のoptional fieldではなくdiscriminated unionで不変条件を表す
-
-### 日付・時刻・タイムゾーン
-
-- `YYYY-MM-DD` 文字列は店舗業務上の **JST暦日** として扱う。UTCの暦日に読み替えない。
-- `createdAt` / `updatedAt` / `expiresAt` / `confirmedAt` / `deadlineAt` など `*At` は Unix ms の瞬間値として扱う。
-- Convex本番コードで業務日付を作るときは `convex/_lib/dateFormat.ts` の helper を使う。`new Date().toISOString().slice(0, 10)` や `toISOString().split("T")[0]` で `YYYY-MM-DD` を作らない。
-- `new Date("2026-01-20")` のような日付だけの文字列はUTC解釈になりやすいので、本番コードでは使わない。`dateToUtcMs` や業務意味のある helper を追加して使う。
-- 締切、提出リンク期限、cron のような境界時刻は、helper名またはコメントで「JSTでの仕様」と「UTCで保存/実行される値」を明示する。
-- cron はConvexの実行指定がUTCになる前提で、コメントに `JST 17:00 = UTC 08:00` のように必ず併記する。
-- 直接 `Date.UTC(...)` を使う必要がある場合は、まず `convex/_lib/dateFormat.ts` に業務意味のある helper を追加し、その helper を呼ぶ。
-
-## Convex 固有の注意事項
-
-- `_` プレフィクスのディレクトリ（`_lib/` 等）はConvexがAPIとして公開しない
-- `_generated/` は Convex CLI が自動生成するため手動編集禁止
-- `actions.ts` は原則`internalAction`で定義し、`mutations`から`ctx.scheduler`経由で呼び出す。allowlist化した公開Capabilityだけpublic `action`を許可する
-- scheduled actionの一回実行だけにfanoutやworkflowの完了を依存させない。中断後の再開が必要なら永続job、cursor、lease、attemptを持たせる
-- queries のエラーは `null` or `{ error }` を返す（throwしない）。mutations のエラーは `ConvexError` をthrow
-- 論理削除は `isDeleted` フラグを使用。クエリでは常にフィルタリングする
-
-## セキュリティ
-
-### 大前提：Convex はパブリック API
-
-public query / mutation / actionとHTTP routeは外部から呼べる。**関数名やpathが分かれば攻撃面になる**前提で設計する。
-
-### 認証ラッパー（必須）
-
-`convex-helpers` の `customMutation` / `customQuery` で認証ラッパーを作り、manager、authenticated、staff sessionのpublic APIでは生の `mutation` / `query` を直接使わない。
-外部副作用はmutationから`internalAction`へ渡し、public `action`を増やさない。
-
-匿名登録、magic link、法務同意、LINE OAuthのような公開Capabilityで生の`query`、`mutation`、`action`が必要な場合だけ例外とする。
-例外はファイルをallowlist化し、scope、TTL、使用回数、再発行、revoke、rate limit、外部応答を共通policyで検証する。
-
-認証wrapperの実装は`convex/_lib/functions.ts`を正とする。
-manager境界はClerk identity、active `shopMembers`、非削除`shops`を検証し、店舗スコープAPIでは選択中`shopId`を必須にする。
-staff session境界はsession、staff、shop、recruitment、access kindの整合を検証する。
-
-Biome / ESLintまたはCI検査で、allowlist外からの生`query`、`mutation`、`action`インポートを禁止する。
-
-### IDOR 対策
-
-クライアントから渡される ID は信頼しない。取得後に所属を必ず検証する。
-
-```ts
-// ❌ ID をそのまま信頼
-const recruitment = await ctx.db.get(args.recruitmentId);
-
-// ✅ 取得後に所属を検証
-const recruitment = await ctx.db.get(args.recruitmentId);
-if (!recruitment || recruitment.shopId !== ctx.shop._id) {
-  throw new Error("Not found");
-}
-```
-
-### 列挙攻撃対策
-
-「Not found」と「Forbidden」を区別しない。同一エラーを返す。
-
-```ts
-// ❌ 情報が漏れる
-if (!recruitment) throw new Error("Not found");
-if (recruitment.shopId !== shopId) throw new Error("Forbidden");
-
-// ✅ 区別しない
-if (!recruitment || recruitment.shopId !== shopId) {
-  throw new Error("Not found");
-}
-```
-
-### 過剰なデータ露出の防止
-
-query の返り値はドキュメントをそのまま返さず、必要なフィールドだけに絞る。
-
-public functionは `args` と `returns` のruntime validatorを持たせる。
-paginated queryはConvex標準のpagination result validatorを使い、独自に似たshapeを作らない。
-
-- スタッフ向け API でマネージャーのメールアドレスを返さない
-- スタッフ同士のメールアドレスも返さない（名前のみ）
-- シフト希望の詳細は本人 + マネージャーのみ
-
-### Magic Link セキュリティ
-
-| 項目 | 対策 |
-|------|------|
-| トークン | UUID v4（128bit エントロピー） |
-| 有効期限 | 用途ごとに `constants.ts` で定義する（例: magic link、LINE連携、スタッフsession、法務同意） |
-| 使用回数 | ワンタイム（使用後に `usedAt` を記録し無効化） |
-| ブルートフォース | レートリミット必須（`convex-helpers` Rate Limiter） |
-| URL 漏洩 | `rel="noreferrer"` でリファラー漏洩を防止 |
-
-再発行で古い権限を失効させる用途はnewest-onlyとし、同じscopeの未使用tokenを発行transaction内でrevokeする。
-DB照合にだけ使うtokenは、raw tokenを再表示する理由がない限りdigestを保存する。
-期限切れ、使用済み、失効済みtokenには保持期限とboundedなprune処理を設ける。
-
-### LINE 通知の URL
-
-**LINEメッセージ本文に載せるURLは必ず `withOpenExternalBrowser()`（`convex/_lib/lineUrl.ts`）を通すこと。**
-
-- LINEアプリ内ブラウザ（WebView）ではGoogle OAuthがブロックされる（403: disallowed_useragent）ため、`openExternalBrowser=1` を付与して端末の既定ブラウザで開かせる
-- 適用箇所は LINE テキストテンプレート関数の内部（`convex/notification/templates.ts` の `build*LineText()`）。新しい LINE 通知を追加する際も同様にすること
-- メールHTML内のURLには付与しない（メールは通常ブラウザで開くため不要）
-
-### 入力バリデーション
-
-- 全 mutation の `args` に `v.` バリデータを必ず定義
-- public query / mutation / action の返り値に `returns` validatorを定義
-- 文字列の最大長、配列の最大件数などビジネスロジック制約も加える
-- 必要に応じて `withZod` で高度なバリデーションを追加
-
-### HTTP Action
-
-- `convex/http.ts`へ登録するrouteをallowlistとして扱い、公開理由を明示する
-- method、content type、body上限、event件数上限、CORS、外部応答をrouteごとに定義する
-- provider Webhookは公式の署名検証を行い、timestamp、nonce、event IDがあればreplayと重複を拒否する
-- service credentialはserver側の環境変数に置き、URL queryへ含めず、rotationと失効手順を持たせる
-- 認証、bot proof、署名、request制約を検証した後だけinternal mutationへ状態変更を渡す
-- `t.fetch()`を使うFunction Testで拒否時の副作用ゼロを確認する
-
-## スキーマ共有ルール
-
-- mutation に渡すデータの Zod スキーマは `{useCase}/schemas.ts` に定義する
-- フロントエンドは `@/convex/{useCase}/schemas` でインポートし、zodResolver に渡す
-- フォーム固有のバリデーション（配列ラッパー、UI表示用refinement）は `src/` 側で schemas を compose する
-- `schemas.ts` は純粋な Zod 定義のみ。DB アクセスや Convex API のインポート禁止
-- 型は `z.infer<typeof schema>` で導出し、手動で型定義しない
-
-### レートリミット
-
-`convex-helpers` の Rate Limiter を使用。特に以下に適用必須：
-
-- Magic Link トークン検証
-- シフト希望提出
-- 公開登録、再発行、外部配送など、状態変更、列挙、コスト増加につながる匿名導線
-
-攻撃者が毎回変えられるtoken prefixだけをrate limit keyにしない。
-必要に応じてIP、店舗、subject、global bucketを組み合わせる。
-
-### API追加時のチェックリスト
-
-- [ ] actorとauthenticated / staff session / Capability / anonymous HTTP / provider・service HTTP境界を分類した
-- [ ] 店舗スコープAPIで選択中`shopId`とactive membershipを検証した
-- [ ] `args`、`returns`、最小DTO、入力上限、返却量とread budgetの契約を定義した
-- [ ] raw public functionの例外理由とallowlistを確認した
-- [ ] tokenのTTL、再利用、newest-only、revoke、rate limitを定義した
-- [ ] scheduler、Outbox、外部APIの副作用と再実行時の契約を定義した
-- [ ] HTTP routeではmethod、body、CORS、署名またはcredential、replay、rate limitを定義した
-- [ ] Function TestまたはScenario Testへ契約を対応付けた
-
-## Durable workflowとデータ寿命
-
-- 多数対象へのfanoutは永続jobとbounded batchで進め、cursorと完了状態を保存する
-- `processing`には期限付きleaseを持たせ、stale jobを再回収する
-- 完了、再試行、失敗、cancelは期待status、lease、epochが一致する場合だけ更新する
-- 店舗削除後は新規enqueueを拒否し、外部送信直前にも対象の有効性を再確認する
-- 通知payload、宛先、token URL、provider errorにはretentionとredaction方針を持たせる
-- 論理削除、契約終了、個人情報消去を同じ状態として扱わない
-
-詳細は `doc/rules/convex-design-strategy.md` と `doc/rules/security-strategy.md` を参照する。
-
-## スキーマ変更とマイグレーション
-
-**前提**: 本番運用中のため、スキーマ変更は既存ドキュメントを壊さないことを最優先する。
-
-### 基本ルール
-
-- **フィールド追加は `v.optional()` から始める** — 既存ドキュメントをそのまま通す
-- **破壊的変更は Widen → Migrate → Narrow の3ステップで進める**
-  1. Widen: 新旧両形式を受け入れるスキーマ（`v.union` / `v.optional`）にデプロイ
-  2. Migrate: internal mutation で既存ドキュメントを新形式に書き換え
-  3. Narrow: 新形式のみのスキーマにデプロイ
-- **フィールド削除・リネーム・型変更は一発でやらない** — 必ず上記3ステップに分解
-- **論理削除（`isDeleted`）をアクセス停止の基本とする** — 保持期限後のredact、anonymize、物理削除はテーブルごとのデータ寿命方針に従う
-
-### バッチ書き換えが必要なとき
-
-`@convex-dev/migrations` コンポーネントを使う（導入済み）。詳細は下記「マイグレーション基盤」を参照。
-
-### マイグレーション基盤（`@convex-dev/migrations`）
-
-**構成**: 1ファイル1マイグレーション方式
-
-```
-convex/
-  convex.config.ts                           # migrations コンポーネント登録
-  migrations/
-    index.ts                                 # Migrations インスタンス + CI/CLI エントリ `run`
-    m001_{テーブル名}_{操作内容}.ts           # 個別マイグレーション（後続PRで追加）
-```
-
-**命名規則**: `m{3桁連番}_{snake_case}.ts`
-- 先頭 `m` は Convex のファイル名規則（先頭数字不可）を回避するため
-- 連番は `001` から。欠番・再採番はしない
-- 機能名は対象テーブルを先頭に置く（例: `m001_recruitments_add_shift_times.ts`）
-
-**新しいマイグレーションの追加手順**:
-1. `convex/migrations/m{次の連番}_{名前}.ts` を作成し、以下のように書く:
-   ```ts
-   import { migrations } from "./index";
-
-   export const migration = migrations.define({
-     table: "targetTable",
-     migrateOne: async (ctx, doc) => {
-       if (doc.newField !== undefined) return; // 冪等チェック必須
-       await ctx.db.patch(doc._id, { newField: "default" });
-     },
-   });
-   ```
-2. `convex/migrations/index.ts` の `run` を以下の形に書き換える（または既に `runner([...])` になっていれば配列に追加）:
-   ```ts
-   import { internal } from "../_generated/api";
-   export const run = migrations.runner([
-     internal.migrations.m001_xxx.migration,
-     internal.migrations.m002_yyy.migration, // 新しいものを末尾に追加
-   ]);
-   ```
-3. `pnpm convex:dev` で `_generated` が更新されることを確認
-4. PR にマージ → CI が `deploy-develop` で `convex deploy` → `migrations/index:run` を自動実行
-5. `release:*` ラベル付き PR を main マージ → 本番にも自動適用
-
-**手動実行**（ローカル dev 等）:
-- 全実行: `pnpm convex:migrate`（= `npx convex run migrations/index:run`）
-- 進捗確認: `pnpm convex:migrate:status`（= `npx convex run --component migrations lib:getStatus --watch`）
-- 特定マイグレーション単発: `npx convex run migrations/index:run '{"fn": "migrations/m001_xxx:migration"}'`
-- キャンセル: `npx convex run --component migrations lib:cancel '{name: "migrations/m001_xxx:migration"}'`
-
-**Widen → Migrate → Narrow の進め方**:
-1. スキーマに `v.optional()` で新フィールドを追加（Widen）
-2. コード側はフォールバック付きで読み取り（新旧両方を許容）
-3. `convex/migrations/mXXX_xxx.ts` でマイグレーションを定義し `index.ts` の runner 配列に追加
-4. **Narrow 忘れ防止のために `TODO[narrow]: ...` コメントを入れる**（下記ルール参照）
-5. PR マージ → CI が develop 環境に自動適用 → 全件完了を `lib:getStatus` で確認
-6. 別 PR でスキーマ Narrow（`v.optional` を外す、TODO コメントも削除）
-7. `release:*` 付きで main マージ → 本番に順次適用
-
-**`TODO[narrow]` コメント運用ルール**:
-
-Widen PR で「マイグレ完走後に戻す必要がある箇所」を Narrow PR まで確実に追跡するため、以下 2 箇所に `TODO[narrow]:` で始まるコメントを必ず残す：
-
-- `convex/schema.ts` の該当 `v.optional()` フィールド直上
-- フォールバック読み取りをしている query / mutation の該当行直上（例: `?? shop.xxx`）
-
-コメントには以下を含める：
-- **前提**: どのマイグレーション（`m0XX_xxx`）が完走していれば Narrow できるか
-- **確認コマンド**: `pnpm convex:migrate:status`（state: done を確認）
-- **対応内容**: 「この行の `v.optional()` を外す」「`?? shop.xxx` を削除する」など具体的な差分
-
-例:
-
-```ts
-// convex/schema.ts
-// TODO[narrow]: Widen → Migrate → Narrow の 2 段階目。
-//   前提: develop/prod で m001_xxx が完走していること（確認: pnpm convex:migrate:status）
-//   対応: v.optional() を外して v.string() にする
-shiftStartTime: v.optional(v.string()),
-```
-
-```ts
-// convex/shiftBoard/queries.ts
-// TODO[narrow]: m001_xxx 完走後に `?? shop.xxx` を削除（schema の narrow と同じ PR で対応）
-const startTimeStr = recruitment.shiftStartTime ?? shop.shiftStartTime;
-```
-
-Narrow PR 作成時は `grep -r "TODO\[narrow\]" convex/ src/` で残タスクを網羅的に拾う。Narrow PR マージ時に対応コメントも同時削除する。
-
-### デプロイ前チェック
-
-- [ ] dev 環境（`dev-yps-crispy-carnival`）でスキーマデプロイが通ることを確認
-- [ ] 既存ドキュメントが新スキーマに合致するか（Convex はデプロイ時に全件バリデートする）
-- [ ] バックフィルが必要な場合、マイグレーションを `convex/migrations/` に追加し `index.ts` の runner 配列に登録したか
-- [ ] 本番デプロイは `release:*` ラベル付き PR 経由で行う（`.github/AGENTS.md` 参照）
+2. `convex/AGENTS.md`
+3. 設計境界を変更する場合は `doc/rules/convex-design-strategy.md`
+4. セキュリティ境界を変更する場合は `doc/rules/security-strategy.md`
+5. テスト層、配置、新しい検証契約を判断する場合は `doc/rules/testing-strategy.md`
+
+局所変更では近い既存実装を優先する。
+複数ユースケース、public API、Capability、永続ワークフロー、データ寿命、運用契約を横断する場合は `convex-design-review` を使う。
+
+## 配置
+
+Convexコードはユースケース単位とCQRSを基本とする。
+
+| 対象 | 配置 |
+|---|---|
+| 特定機能のquery、mutation、action | `convex/{useCase}/` |
+| mutation引数をフロントエンドと共有するZod schema | `convex/{useCase}/schemas.ts` |
+| 複数ユースケースで使う実装 | `convex/_lib/` |
+| 環境変数由来の設定 | `convex/_lib/config.ts` |
+| TTL、limit、時刻単位などの共通定数 | `convex/constants.ts` |
+| schema | `convex/schema.ts` |
+
+- DB tableではなく、呼び出すactorとユースケースで配置を決める。
+- 外部API呼び出しは原則 `internalAction` とし、所有するユースケースの `actions.ts` に置く。
+- 通知の配送、文面、fanoutは `notification/` に置く。
+- staff tokenとsessionの境界は `staffAuth/`、確定シフトの閲覧は `shiftView/` に置く。
+- LINE OAuth、Webhook、LINE API境界は `line/` に置き、通知配送と混ぜない。
+- 既存のwrapper、policy、serviceを確認してから新しい抽象化を作る。
+
+## 常時制約
+
+- `_` で始まるディレクトリは公開APIとして使わない内部実装に限定する。
+- public query、mutation、action、HTTP routeは外部から直接呼ばれる前提で扱う。
+- manager、authenticated、staff session向けpublic functionでは、`convex/_lib/functions.ts` の既存認証wrapperを使う。
+- raw public functionは、匿名Capabilityやprovider callbackなど、設計上必要なallowlistだけに限定する。
+- 店舗スコープの入力IDは取得後に所属を検証し、存在と権限不足を区別して漏らさない。
+- public functionにはruntimeの `args` と `returns` validatorを定義する。
+- queryの返り値は必要なfieldだけで構成し、DB documentをそのまま返さない。
+- 一覧取得はindexと上限を使い、無制限の `.collect()` を避ける。
+- 論理削除済みdocumentは、対象ユースケースの有効データから除外する。
+- 外部副作用はmutationからinternal actionへ渡し、再実行時の重複を防ぐ。
+- schedulerの一回実行だけに、回復が必要なworkflowの完了を依存させない。
+- secret、token、個人情報、provider payloadをログへ出さない。
+
+## 日付と時刻
+
+- `YYYY-MM-DD` は店舗業務上のJST暦日として扱う。
+- `*At` はUnix millisecondsの瞬間値として扱う。
+- 業務日付の生成と変換には `convex/_lib/dateFormat.ts` のhelperを使う。
+- `toISOString()`の切り出しや、日付だけの文字列を `new Date()` へ渡す方法で業務日付を作らない。
+- cronや締切では、JSTの仕様とUTCで保存・実行する値の対応を明示する。
+
+## セキュリティ変更
+
+次を新設・変更する相談、計画、設計、実装、レビューでは、プラン確定前に `shiftori-security-review` を使う。
+
+- 認証、認可、tenant境界、IDOR
+- public function、HTTP route、Webhook、service credential
+- magic link、staff session、招待、Capability lifecycle
+- LINE、Resend、billingなどの外部連携
+- 通知配送、Outbox、外部副作用、replay、rate limit
+- 個人情報、retention、redaction、削除状態
+
+内部の並び順、命名、配置だけを変え、既存の安全契約を変えない場合は自動発動しない。
+
+## schemaとmigration
+
+- 保存済みデータの形を変える、既存documentが新schemaに合わなくなる、またはbackfillが必要な場合は `convex-migration-helper` を使う。
+- 本番データが存在する変更はWiden → Migrate → Narrowで進め、一度に破壊的変更を行わない。
+- migrationは1ファイルに一つとし、`convex/migrations/m{3桁連番}_{snake_case}.ts`へ置く。
+- 連番は`001`からの追加専用とし、欠番、再採番、既存番号の再利用をしない。
+- 全体runnerへ追加する場合は、既存配列の末尾へ連番順で追加する。
+- Widenで後から外すschema互換とfallbackには、対象migrationと完了条件を示す`TODO[narrow]:`を残す。
+- schema変更だけで完了とせず、backfill、読み取り互換、完了確認、Narrowの追跡を計画する。
 
 ## テスト
 
-### 方針
-
-`convex-test` + Vitest でユニットテスト。100%カバレッジは目指さず、セキュリティとコアロジックを優先する。
-
-実行: `pnpm test:convex`
-
-CI や単発実行では `pnpm vitest run --project='convex(logic)' --project='convex(scenario)'` を使う。
-
-### ファイル配置
-
-コロケーション。テスト共通ユーティリティは `_test/` に配置。
-```
-convex/
-├── {useCase}/
-│   ├── queries.ts
-│   ├── queries.test.ts
-│   ├── mutations.ts
-│   └── mutations.test.ts
-├── _test/
-│   └── setup.ts
-```
-
-### テスト優先度（高→低）
-
-1. **認証・認可** — ラッパーが未認証・権限不足を弾くこと
-2. **IDOR** — shopId 不一致で "Not found" になること
-3. **Magic Link** — 期限切れ・使用済みトークンの拒否
-4. **コアビジネスロジック** — シフト生成、希望提出等
-5. **query 返り値制限** — 不要フィールドが漏れないこと
-6. **エッジケース** — 論理削除済みのフィルタ、空データ時の挙動
-
-### ルール
-
-- 各テストは独立した `convexTest` インスタンスを使う（テスト間でデータ共有しない）
-- 認証テストは `t.withIdentity()` を使う
-- 正常系と異常系をセットで書く
-- テストデータは internal mutation 経由でセットアップ
-
-### Convex Scenario Test
-
-`convex/_scenario/` の Scenario Test は、E2E の代わりに複数の Convex 関数を高速に通す業務フローテストとして扱う。
-
-- 繰り返し出るユーザー操作相当の API 呼び出しは `convex/_test/scenarioFixtures.ts` に寄せる
-- Scenario Fixture は public/internal Convex API を呼ぶ薄い operation wrapper にする
-- Fixture には検証パターン、期待値、`expect(...)` を入れない
-- DB 直 seed は前提状態作成だけに使い、通常のユーザー操作は Fixture 経由で表現する
-- 各 `it` は Scenario 向け AAA（Arrange / Act / Assert）が読み取れる順序で書く
-- 長い業務フローでは `Act` / `Assert` の小さなまとまりを複数置いてよい
-- 新しい Scenario Test を追加するときは、既存 Fixture に同じ操作がないか確認してから API 直呼びを追加する
-
-### テスト不要
-
-- `_generated/`
-- 追加ロジックのない単純 CRUD
-- schema 定義
+- テスト層と配置は `doc/rules/testing-strategy.md` を正本とする。
+- テスト層、配置、新しい検証契約を判断する場合は `test-strategy` を使う。
+- 同じ層の近いテストを追従更新するだけなら、その既存パターンを優先する。

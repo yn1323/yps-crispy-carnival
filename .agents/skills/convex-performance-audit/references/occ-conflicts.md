@@ -4,6 +4,14 @@ Use these rules when insights, logs, or dashboard health show OCC (Optimistic
 Concurrency Control) conflicts, mutation retries, or write contention on hot
 tables.
 
+## Contents
+
+- Core Principle
+- Symptoms and Common Causes
+- Fix Order
+- Invalidation Scope
+- Verification
+
 ## Core Principle
 
 Convex uses optimistic concurrency control. When two transactions read or write

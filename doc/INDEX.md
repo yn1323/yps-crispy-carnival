@@ -37,7 +37,7 @@
 | [問い合わせ](features/contact.md) | 公開フォームから問い合わせメールを送り、成功後にSlackへ社内通知 | 実装済 |
 | [要望受付](features/feature-requests.md) | ログイン後の要望DialogでDBへ保存し、分析画面で新しい順に確認 | 実装済 |
 | [分析KPI蓄積基盤](features/analytics.md) | サービス利用状況KPIを日次cronで蓄積し時系列分析できるようにするinternal専用基盤 | 実装済 |
-| [分析KPI可視化アプリ](features/analytics-dashboard.md) | 蓄積済みKPIを本人用の内部BIとしてCloudflare Pages別アプリで可視化 | 実装済 |
+| [分析KPI可視化アプリ](features/analytics-dashboard.md) | 蓄積済みKPIを本人用の内部BIとしてCloudflare Worker別アプリで可視化 | 実装済 |
 
 ## 旧検討資料
 
@@ -48,9 +48,13 @@
 ## 関連ドキュメント
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) - 全体構造、機能マッピング、データフロー
+- [rules/agent-instructions.md](rules/agent-instructions.md) - Rule、AGENTS.md、Skill、機能文書、運用文書、コードと設定の役割分担
+- [rules/ui-design.md](rules/ui-design.md) - プロダクトの約束、利用者、UI設計の判断基準
 - [rules/frontend-architecture.md](rules/frontend-architecture.md) - フロントエンドのディレクトリ、依存方向、ファイル責務
-- [rules/convex-design-strategy.md](rules/convex-design-strategy.md) - Convexの認証境界、公開API、Capability、durable workflow、データ保持、運用契約
+- [rules/convex-design-strategy.md](rules/convex-design-strategy.md) - Convexの認証境界、公開API、Capability、永続ワークフロー、データ保持、運用契約
 - [rules/security-strategy.md](rules/security-strategy.md) - セキュリティ設計、認証/認可境界、token/通知/billingレビュー方針
 - [rules/testing-strategy.md](rules/testing-strategy.md) - テスト種別、テスト層の分担、Convex Function TestとScenario Testの方針
+- [manual/ci-cd.md](manual/ci-cd.md) - GitHub Actions、プレビュー、リリースの人間向け運用手順
+- [plans/2026-07-23_エージェント指示体系_再構成計画.md](plans/2026-07-23_エージェント指示体系_再構成計画.md) - エージェント指示、Rule、Skill、Claude互換入口の再構成計画
 - [plans/2026-07-21_課金プラン改定_Business再導入_実装計画.md](plans/2026-07-21_課金プラン改定_Business再導入_実装計画.md) - Business再導入、利用上限、Stripeプラン変更、人物削除、migration、全テスト層の現行実装計画
 - [plans/2026-07-20_Stripe課金連携_実装計画.md](plans/2026-07-20_Stripe課金連携_実装計画.md) - BusinessをProへ統合した時点のStripe連携と移行に関する履歴計画

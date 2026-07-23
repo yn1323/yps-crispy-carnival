@@ -1,20 +1,18 @@
 ---
 name: difit-review
-description: A skill for reviewing a specific diff and showing the findings as comments inside difit (the diff viewer). Use it to review branch diffs, commit diffs, or GitHub PRs, then preload findings or code explanations into difit with `--comment` before launching it for the user.
+description: ユーザーが`$difit-review`を明示したとき、指定された作業ツリー、branch、commit、Pull Requestの差分をレビューし、指摘を`--comment`へ設定してdifitを起動する。通常のコードレビューやGitHubへのレビュー投稿には使わない。
 ---
 
-# Difit Review
+# difitで差分レビューを表示する
 
-## Overview
+このスキルは、ユーザーが `$difit-review` を明示した場合だけ使う。
 
-This skill launches a requested git diff in a viewer that is easy for humans to read. At the same time, the agent can attach arbitrary comments via the `--comment` option.
-This comment mechanism is well suited for code review findings and code explanations.
 Before running commands, choose `<difit-command>` using the following rule:
 
 - If `command -v difit` succeeds, use `difit`.
 - Otherwise, use `npx difit`.
 - If falling back to `npx difit` would require network access in a sandboxed environment without network permission, request escalated permissions and user approval before running it.
-- 心理的安全性も考慮してレビューしてください
+- Prefer concrete, respectful findings that state impact and evidence.
 
 ## Steps
 

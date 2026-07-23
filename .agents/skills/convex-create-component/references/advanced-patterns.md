@@ -3,6 +3,13 @@
 Additional patterns for Convex components that go beyond the basics covered in
 the main skill file.
 
+## Contents
+
+- Function Handles for callbacks
+- Deriving validators from schema
+- Static configuration with a globals table
+- Class-based client wrappers
+
 ## Function Handles for callbacks
 
 When the app needs to pass a callback function to the component, use function

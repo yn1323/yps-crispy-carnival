@@ -1,201 +1,49 @@
 # .github/AGENTS.md
 
-CI/CDパイプラインの構成と運用ルール。
+このファイルは `.github/` 配下へ適用する。
+ルートの `AGENTS.md` と併せて読む。
 
-## ブランチ戦略
+## 正本
 
-| ブランチ | 用途 | デプロイ先 | トリガー |
-|---|---|---|---|
-| `main` | 本番環境 | CF `yps-crispy-carnival` + Convex `yps-crispy-carnival` | `release:*` ラベル付き PR のマージ時のみ |
-| `develop` | ステージング環境 | CF `dev-yps-crispy-carnival` + Convex `dev-yps-crispy-carnival` | push 毎 |
-| PR → develop | 静的プレビュー環境 | CF `dev-yps-crispy-carnival` (branch: pr-{N}) + develop Convex | PR open/sync |
+- workflow、trigger、権限、environment、job依存、現在のリリース条件は `.github/workflows/*.yml` を正とする。
+- 人が行うブランチ、Preview、release、障害対応は `doc/manual/ci-cd.md` を参照する。
+- テスト層とFull Regressionの役割は `doc/rules/testing-strategy.md` を参照する。
+- セキュリティ境界を変更する場合は `doc/rules/security-strategy.md` を読み、`shiftori-security-review` を使う。
 
-### リリースラベル
+このファイルへworkflow一覧、secret名、environment値、現在件数を複製しない。
 
-`main` への本番デプロイは PR に以下のいずれかのラベルを付けてマージしたときのみ実行される。
+## 常時制約
 
-| ラベル | 挙動 |
-|---|---|
-| `release:major` | PR内で`package.json`をmajor更新（例: 1.2.3 → 2.0.0）して本番releaseを要求する |
-| `release:minor` | PR内で`package.json`をminor更新（例: 1.2.3 → 1.3.0）して本番releaseを要求する |
-| `release:patch` | PR内で`package.json`をpatch更新（例: 1.2.3 → 1.2.4）して本番releaseを要求する |
-| `release:provider-canary-passed` | 隔離受信先でTurnstile、Resend、LINE、SlackのRC手動canaryを完了した証跡。`release:*`と併用する |
+- `permissions` はworkflowまたはjobの責務に必要な最小限へ限定する。
+- third-party Actionはversionを明示し、`main`や`master`などの追従参照を使わない。
+- secret、token、credential、個人情報をworkflow、ログ、artifact、summaryへ出さない。
+- fork由来の未信頼コードへsecretやwrite権限を渡さない。
+- `pull_request_target` でPull Requestのheadをcheckoutして実行しない。
+- cleanupや削除処理では対象を明示し、credentialを渡した状態で未信頼のPull Requestコードを実行しない。
+- same-repository Pull Requestだけに権限を与える場合は、repository一致を明示的に検証する。
+- user-controlledなbranch名、label、artifact名、outputをshellへ直接展開しない。
+- environment protectionとapprovalを回避する別経路を追加しない。
+- security scan、lint、type-check、test、migration確認を `continue-on-error` で無効化しない。
+- deploy、migration、cleanupの依存順を変更する場合は、失敗時と再実行時の状態を設計する。
+- concurrencyを変更する場合は、古い実行による上書き、二重deploy、cleanup競合を防ぐ。
 
-ラベルなしでマージした場合はデプロイされない（`release.yml` が skip される）。
+## PreviewとFull Regression
 
-`release:*`付きPRでも`release:provider-canary-passed`がなければ、本番デプロイ前のゲートで停止する。
+- Previewは未信頼コードを扱う境界として設計する。
+- Full Regressionは主要導線の退行を検知するもので、実装詳細や静的文言を網羅しない。
+- E2Eを変更する場合は `e2e/AGENTS.md` も読む。
+- reportの公開処理は、artifactの出所、保存期間、公開範囲、失敗時の表示を確認する。
+- cleanupは対象を明示し、別branchや別Pull Requestの資産を削除しない。
 
-canaryラベル付与前に、後述の構造化attestationをPRコメントへ残す。`provider-canary-approval.yml`はdefault branch上の信頼済み`pull_request_target`として、承認者のwrite以上の権限、exact head SHA、24時間以内の確認時刻、環境、証跡URL、全PASS項目を検証した後だけbot検証済みmarkerを記録する。不備時はラベルを削除する。追加push時もラベルを自動削除し、release時はbot検証済みmarkerと最終head SHAの一致を必須にする。releaseはPRの`merge_commit_sha`を直接checkoutし、そのtreeがcanary承認済みheadのtreeと完全一致する場合だけ続行する。mainの前進やmerge時の内容変化でtreeが変わった場合は停止し、更新後のheadでcanaryをやり直す。
+## Release
 
-version更新はcanary前のrelease PRへ含める。release workflow内ではsourceを変更せず、`package.json`のversionからtagを作る。同名tagが別commitを指す場合は停止し、同じmerge commitを指す場合だけ再実行を許可する。release後にversionをdevelopへ戻す同期workflowは使用しない。
+- developとproductionの昇格条件は、workflowに定義されたbranch、label、environment gateを維持する。
+- schemaや保存済みデータを変えるreleaseでは、`convex-migration-helper` の計画とmigration完了確認を先に行う。
+- rollbackはコードだけでなく、schema、migration、外部副作用の互換性を確認する。
 
-attestationは次の形式で、証跡を確認した本人がコメントする。`evidence-url`はGitHub上のアクセス制御済み証跡またはPR添付を使い、個人情報、token、Webhook URLを含めない。時刻はUTCのISO 8601とする。
+## 検証
 
-```text
-<!-- shiftori-provider-canary-attestation:v1 -->
-head-sha: <40文字のhead SHA>
-environment: production-rc
-environment-url: https://<canary実行先>
-verified-at: 2026-07-13T00:00:00Z
-evidence-url: https://github.com/<owner>/<repo>/...
-turnstile-contact: PASS
-recruitment-email: PASS
-recruitment-line: PASS
-confirmation-email: PASS
-confirmation-line: PASS
-line-reply: PASS
-contact-email: PASS
-contact-slack: PASS
-```
-
-## 外部サービス構成
-
-### CloudFlare Pages
-
-2プロジェクト体制:
-- `yps-crispy-carnival` — 本番専用（mainブランチのみデプロイ）
-- `dev-yps-crispy-carnival` — 開発用（developのメインデプロイ + PRプレビュー）
-
-### Convex
-
-2プロジェクト体制:
-- `yps-crispy-carnival` — 本番DB
-- `dev-yps-crispy-carnival` — 開発DB（永続） + PR Full Regression用preview（数日で自動消滅）
-
-### Clerk
-
-1アプリ・2モード:
-- 本番環境 → Clerk本番キー（Production環境シークレット）
-- 開発/プレビュー環境 → Clerk開発キー（Preview環境シークレット）
-
-## GitHub Environments
-
-シークレットはGitHub Environmentsで環境別に管理する。同じキー名で環境ごとに異なる値を設定。
-
-### Preview 環境（same-repository PRのPreview / Full Regressionで使用）
-
-| シークレット | 用途 |
-|---|---|
-| `CONVEX_DEPLOY_KEY` | dev Convexプロジェクトのデプロイキー |
-| `CONVEX_MANAGEMENT_TOKEN` | `deploy.yml`のPR close cleanupがPR用Convex Previewを削除するManagement APIトークン |
-| `VITE_CONVEX_URL` | dev Convexの永続URL |
-| `VITE_CLERK_PUBLISHABLE_KEY` | Clerk開発用Publishableキー |
-| `VITE_TURNSTILE_SITE_KEY` | 問い合わせフォームのCloudflare Turnstile Site Key |
-| `CLERK_SECRET_KEY` | Clerk開発用シークレットキー |
-| `CLOUDFLARE_API_TOKEN` | CloudFlare APIトークン |
-| `CLOUDFLARE_ACCOUNT_ID` | CloudFlareアカウントID |
-| `VITE_GTM_ID` | Google Tag Manager ID |
-| `HOSTING_PAGES_TOKEN` | VRTとPlaywrightのreport、VRT baselineを`hosting-pages`へpushするtoken |
-| `REG_SUIT_CLIENT_ID` | RegSuitのVRT比較で使用するclient ID |
-
-browserへ埋め込まれる`VITE_*`はRepository Variablesではなく同EnvironmentのSecretsから参照する。
-
-credential付きPR workflowは、base repositoryとhead repositoryが同じsame-repository PRだけを対象にする。fork PRへEnvironment Secretsを渡さず、外部contributorのPRではPreview、Full Regression、VRT公開を実行しない。この運用ではsame-repositoryのbranchへpushできるactorを信頼境界内とみなす。`pull_request_target`でPR headをcheckoutして実行してはならない。
-
-Environmentのdeployment branch policyを使う場合、`Preview`はsame-repository PRのhead branchを許可する。`vrt-approval` Environmentにはrequired reviewerを設定し、公開用secretは置かない。VRTはreportをhosting-pagesへpushしてPRコメントへリンクを返し、差分がある場合だけ同じworkflowの`approve` jobで人の承認を待つ。
-
-### Develop 環境（developブランチのデプロイで使用）
-
-| シークレット | 用途 |
-|---|---|
-| `CONVEX_DEPLOY_KEY` | dev Convexプロジェクトのデプロイキー |
-| `VITE_CONVEX_URL` | dev Convexの永続URL |
-| `VITE_CLERK_PUBLISHABLE_KEY` | Clerk開発用Publishableキー |
-| `VITE_TURNSTILE_SITE_KEY` | 問い合わせフォームのCloudflare Turnstile Site Key |
-| `CLERK_SECRET_KEY` | Clerk開発用シークレットキー |
-| `CLOUDFLARE_API_TOKEN` | CloudFlare APIトークン |
-| `CLOUDFLARE_ACCOUNT_ID` | CloudFlareアカウントID |
-| `VITE_GTM_ID` | Google Tag Manager ID |
-
-### Production 環境（mainで使用）
-
-| シークレット | 用途 |
-|---|---|
-| `CONVEX_DEPLOY_KEY` | prod Convexプロジェクトのデプロイキー |
-| `VITE_CONVEX_URL` | prod Convexの永続URL |
-| `VITE_CLERK_PUBLISHABLE_KEY` | Clerk本番用Publishableキー |
-| `VITE_TURNSTILE_SITE_KEY` | 問い合わせフォームのCloudflare Turnstile Site Key |
-| `CLERK_SECRET_KEY` | Clerk本番用シークレットキー |
-| `CLOUDFLARE_API_TOKEN` | CloudFlare APIトークン |
-| `CLOUDFLARE_ACCOUNT_ID` | CloudFlareアカウントID |
-| `VITE_GTM_ID` | Google Tag Manager ID |
-
-## ワークフロー一覧
-
-### デプロイ
-
-| ワークフロー | トリガー | 処理 |
-|---|---|---|
-| `deploy.yml` | same-repository PR to develop、push to develop | PRでは専用Convex Preview → ビルド → CF branch `pr-{N}`へデプロイ → 公開URL Smoke。PR closeでは実行中のPreviewとFull Regressionを止めてCF / Convex Previewを削除。develop pushではmigrationを含むdevメインデプロイ |
-
-PR Previewはartifact producer / `workflow_run` publisherへ分割せず、same-repositoryの`pull_request` workflowからCloudflareへ直接デプロイする。PR番号単位のconcurrency groupを使い、close cleanupは実行中のPreviewを停止してから削除する。credentialを使う前とPRコメントを書き込む前に、PRがopenでhead SHAが現在の値と一致することを確認する。
-
-E2Eのissue commentを作成・更新するjobは、`issues: write`と`pull-requests: write`の両方をそのjobだけに付与する。VRT workflowはreport公開とPRコメント更新に必要なwrite権限をworkflow単位で持つ。
-
-VRTとE2Eの結果は、一つの総合コメントへまとめず、独立したコメントとして更新する。open PRのE2Eコメントはstatus、Passed / Failed / Skipped、失敗テスト、全テスト、Actions、`yps-crispy-carnival/{N}`のhosting-pages URLを表示する。VRTコメントはChanged / New / Deleted / Passed、hosting-pagesの差分レポート、Actionsの承認導線を表示する。
-
-Cloudflare公開後の`@deployed` Smokeは`deploy.yml`で実行し、認証付き`@release` Full Regressionは`playwright.yml`で専用Convex Preview `preview/pr-{N}-e2e`を作り、3 workerで実行する。同じworkflowがPlaywright HTML reportをActions artifactへ30日保存し、`hosting-pages`へpushしてPRコメントを更新する。
-
-### リリース (`release.yml`)
-
-| ジョブ | トリガー | 処理 |
-|---|---|---|
-| `release` | PR merged to main w/ `release:*` ラベル | merge SHAとcanary承認済みtreeを照合 → package versionのtagをmerge SHAへ作成 → Convex prodデプロイ → ビルド → CF prodデプロイ → GitHub Release作成 |
-
-release workflowは`main`へsource commitを追加しない。release PRにversion更新を含め、canary対象とmerge後のdeploy対象を同一content treeに保つ。
-
-### テスト・品質チェック
-
-| ワークフロー | トリガー | 内容 |
-|---|---|---|
-| `lint.yml` | 全push | Biome lint |
-| `type-check.yml` | 全push | TypeScript型チェック |
-| `test-logic.yml` | 全push | ロジックテスト（sharding 2分割） |
-| `test-ui.yml` | PR / push | Storybook mockと決定的な公開dummy値で行うsecretless UIテスト（sharding 2分割） |
-| `build.yml` | push to develop | credential付きビルド確認（Convex dev使用） |
-| `playwright.yml` | same-repository PR to develop | 専用Convex Preview `preview/pr-{N}-e2e`で認証付きFull Regression E2Eを実行し、HTML reportのartifact保存、hosting-pagesへのpush、PRコメント更新まで行う |
-| `provider-canary-approval.yml` | main向けPRのcanaryラベル付与 / 追加push | 構造化attestationを検証してhead SHA markerを記録し、不備時と追加push時に承認ラベルを削除 |
-| `security.yml` | PR to develop/main、push to develop/main、週次 | Git履歴secret scan、`public`/`dist`漏洩scan、dependency review/audit、trusted branch CodeQL |
-
-Issueやcommentを起点にsecret-backed AI botを実行するworkflowは運用しない。
-Issue Templateにも`@claude`など、未稼働botを自動起動するように見える文言を置かない。
-
-### Storybook / VRT
-
-| ワークフロー | トリガー | 内容 |
-|---|---|---|
-| `vrt.yml` | PR to develop/main、push to develop/main | Storycap PNG生成、baseline比較、hosting-pagesへのreport/baseline push、PRコメント、差分時の`vrt-approval`承認を単一workflowで行う |
-
-VRTの`compare` jobは`Preview` Environmentの`HOSTING_PAGES_TOKEN`で`yn1323/hosting-pages:main`へ直接pushする。PRでは`pr-{N}`へ差分reportを公開し、develop / main pushではbranch別baselineも更新する。report URLをPRコメントへ書き、差分がある場合だけ`vrt-approval` Environmentの`approve` jobを待つ。
-
-## Security scan失敗と例外
-
-`security.yml`は次をfail closedにする。
-
-- TruffleHogのverified / unknown credentialまたはscan error
-- 公開artifactのsecret、顧客email、`.env`、source map、認証済みstorage state
-- 新規依存または全依存のHigh / Critical脆弱性
-- trusted branchのCodeQL指摘
-
-TruffleHogはPRでbase SHAからexact head SHAまでを検査し、push・週次・手動実行では`base` を空にしてexact `github.sha`から到達可能な全Git履歴を検査する。scanner自体とversionはcommit SHA / 固定versionへ束縛し、scan errorも成功扱いしない。
-
-すべての外部GitHub Actionはmajor tagだけではなく40文字のcommit SHAへ固定する。更新時は公式repositoryのtagが指すSHAを照合する。
-
-修正またはupgradeを優先し、workflow上の`continue-on-error`や包括的なignoreで迂回しない。修正できない指摘を一時受容する場合は、指摘ID、影響範囲、代替策、承認者、期限をaccess-controlledなissueに記録し、指摘ID単位の最小例外だけを別PRで追加する。
-
-## デプロイ順序
-
-Convex deploy → Convex migrations → ビルド → CloudFlare の順で実行する。
-- Convex を先にデプロイすることで、スキーマ変更がビルド時に反映される
-- `convex deploy` 直後に `npx convex run migrations/index:run` を実行し、データのバックフィルを完了させてからビルドに進む（develop / release のみ、preview は実行しない）
-- マイグレーションは `@convex-dev/migrations` で冪等に管理されるため、変更のない PR でも毎回走る（完了済みはスキップされる）
-- ビルド時に `VITE_CONVEX_URL` を環境変数として埋め込む
-
-## 注意事項
-
-- PR Full RegressionとCloudflare Previewが作るConvex PreviewはPR close時のcleanup対象とし、cleanup失敗時は自動失効で回収する
-- Full Regressionは専用Convex Preview `preview/pr-{N}-e2e`で実行し、同じworkflowがopen PRへ結果、Actions、hosting-pages reportを返す
-- `build.yml`はdevelop pushだけで実行する。`test-ui.yml`はConvex / ClerkのStorybook mockを使い、credentialを渡さない
-- credential付きPR workflowはsame-repository PRだけに限定し、fork PRを対象にしない。PR headのworkflowとpackage scriptを実行するため、same-repositoryへpushできるactor自体を信頼境界に含める
-- Cloudflare、Convex、ClerkのcredentialとVRT・E2Eのhosting-pages credentialは、必要なPR jobの`Preview` Environment Secretsから参照する
-- PR close cleanupはsame-repository PRだけを対象にし、base SHAのcodeをcheckoutする。PR headのcode、shell、local action、package scriptをcleanup credentialと組み合わせない
+- YAML構文だけでなく、trigger、permissions、if条件、job依存、concurrencyを差分で確認する。
+- 変更したworkflowが参照するscriptとpackage scriptも確認する。
+- GitHub Actionsのsecurity scanが失敗した場合は、根拠なく除外を追加せず、原因と適用範囲を特定する。
+- 実行方法と確認手順は `doc/manual/ci-cd.md` に置き、このファイルへ手順を重複させない。

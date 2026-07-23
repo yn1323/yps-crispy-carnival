@@ -3,6 +3,17 @@
 Common migration patterns, zero-downtime strategies, and verification techniques
 for Convex schema and data migrations.
 
+## Contents
+
+- Adding a Required Field
+- Deleting a Field
+- Changing a Field Type
+- Splitting Nested Data Into a Separate Table
+- Cleaning Up Orphaned Documents
+- Zero-Downtime Strategies
+- Bounded Migrations
+- Verifying a Migration
+
 ## Adding a Required Field
 
 ```typescript
@@ -187,32 +198,20 @@ function getTeamPlan(team: Doc<"teams">): "basic" | "pro" {
 }
 ```
 
-## Small Table Shortcut
+## Bounded Migrations
 
-For small tables (a few thousand documents at most), you can migrate in a single
-`internalMutation` without the component:
+Do not choose a single-mutation backfill from a rough document-count threshold.
+Check the current Convex read, write, bandwidth, and execution limits, then
+measure the actual table volume and expected growth.
 
-```typescript
-import { internalMutation } from "./_generated/server";
+Use the migrations component or indexed pagination when the full data set is not
+provably bounded well below every applicable limit. A snapshot count alone is
+not a durable bound. If a table has a schema-level or business invariant that
+keeps it bounded, document that invariant and still leave enough headroom for
+retries and concurrent writes.
 
-export const backfillSmallTable = internalMutation({
-  handler: async (ctx) => {
-    const docs = await ctx.db.query("smallConfig").collect();
-    for (const doc of docs) {
-      if (doc.newField === undefined) {
-        await ctx.db.patch(doc._id, { newField: "default" });
-      }
-    }
-  },
-});
-```
-
-```bash
-npx convex run migrations:backfillSmallTable
-```
-
-Only use `.collect()` when you are certain the table is small. For anything
-larger, use the migrations component.
+Avoid unbounded `.collect()` in migration code. Prefer resumable batches with a
+cursor, progress reporting, idempotent updates, and a separate completion check.
 
 ## Verifying a Migration
 

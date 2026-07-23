@@ -37,11 +37,18 @@ if [[ "$extension" == "webp" ]]; then
 fi
 
 if [[ -z "$output" ]]; then output="${input%.*}.webp"; fi
+output_dir="$(dirname "$output")"
+mkdir -p "$output_dir"
+input_abs="$(cd "$(dirname "$input")" && printf '%s/%s\n' "$(pwd -P)" "$(basename "$input")")"
+output_abs="$(cd "$output_dir" && printf '%s/%s\n' "$(pwd -P)" "$(basename "$output")")"
+if [[ "$input_abs" == "$output_abs" ]]; then
+  echo "Input and output must be different files" >&2
+  exit 2
+fi
 if [[ -e "$output" && "$force" != true ]]; then
   echo "Output already exists (use --force): $output" >&2
   exit 1
 fi
-mkdir -p "$(dirname "$output")"
 input_size=$(stat -f %z "$input")
 
 metadata="none"

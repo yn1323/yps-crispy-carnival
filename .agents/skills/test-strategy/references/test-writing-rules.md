@@ -23,15 +23,7 @@
 
 実装変更では、先に「何を保証したいか」を書き出す。
 テスト層はファイルの場所ではなく、保証したい契約で選ぶ。
-
-- 純粋関数、schema、表示変換、日付/時刻、ソートなら Logic UT。
-- React hook、jsdom、DOM API、Visual Viewport、同期ガードなら Frontend Unit。
-- UI の状態一覧や見た目の退行なら Storybook Story / VRT。
-- UI 上の操作後の振る舞いなら Storybook play function。
-- Convex query/mutation/action/HTTP Action単体の契約なら Convex Function Test。
-- 複数 API をまたいだ業務状態遷移なら Convex Scenario Test。
-- 実ブラウザ、認証、frontend と backend の接続なら E2E。
-- `apps/analytics-dashboard/` は本人用の内部BIなので自動テストとFull Regressionの対象外。新しいテストを追加せず、既存テストの維持も要求しない。
+層と契約の対応は`doc/rules/testing-strategy.md`の表を正本とし、このリファレンスへ再掲しない。
 
 既存テストの扱い:
 
@@ -41,7 +33,7 @@
 - 共有schemaの境界値は定義元で一度だけ検証し、利用側で同じ入力表を複製しない。
 - 本番コードから参照されないhelperは、将来利用の可能性だけを理由に実装とテストを維持しない。
 - 失敗しているテストを、理由なく期待値だけ緩めない。先に仕様変更、テストドリフト、実装バグ、環境問題を切り分ける。
-- GitHub Actionsのworkflow YAMLをparseし、step名、job順序、権限値、埋め込みscriptの部分文字列をLogic UTや専用の静的解析CIで固定しない。Action参照のcommit SHA固定はレビューで確認し、workflowの実行契約はActions上のjob結果で検証する。再利用する純粋helperをworkflow外へ切り出した場合だけ、その公開入出力を通常のLogic UTとして検証する。
+- GitHub Actionsのworkflow YAMLをparseし、step名、job順序、権限値、埋め込みscriptの部分文字列をLogic UTや専用の静的解析CIで固定しない。Action参照は既存workflowのversion参照と更新方法に従い、追従参照がないことをレビューする。workflowの実行契約はActions上のjob結果で検証する。再利用する純粋helperをworkflow外へ切り出した場合だけ、その公開入出力を通常のLogic UTとして検証する。
 
 ## Full Regression の契約マップ
 
@@ -49,8 +41,8 @@
 
 1. 機能ドキュメント、route、管理者・スタッフ・公開画面、通知目的から業務契約を列挙する。
 2. 機能×テスト層のトレーサビリティ表を作り、P0契約の未分類をなくす。
-3. 利用中のpublic query / mutation / actionとHTTP routeへFunction Testを対応付け、認証、店舗境界、論理削除、token状態、正常DTOまたはresponse、request制約、副作用なしを直接保証する。
-4. 複数API後の状態、通知、snapshot、旧新capabilityはScenario Test、実ブラウザとfrontend/backend接続はE2Eへ分ける。
+3. 利用中のpublic query、mutation、action、HTTP routeと、複数API後の状態、通知、snapshot、実ブラウザ接続を契約として列挙する。
+4. 各契約を`doc/rules/testing-strategy.md`の主担当層へ対応付け、異なる失敗境界だけを別層で補う。
 5. 利用箇所がないpublic functionまたはHTTP routeは、テストで固定する前に削除またはinternal化を検討する。
 
 同じユーザーストーリーを各層へ丸ごと複製しない。
@@ -159,7 +151,7 @@ Storybook play function は振る舞い、VRT は見た目で役割を分ける�
 - VRT 差分だけでロジックの正しさを判断しない。
 - 静的文言の追加・削除・改行・長文崩れはVRTで確認し、同じStoryへ存在確認だけのplayを足さない。
 - PRではbaseline欠落を成功扱いにせず、意図した差分だけを承認する。
-- CIではPR / develop・main pushの単一workflowがcapture・compareし、`Preview` Environmentのcredentialでreportとbaselineをhosting-pagesへ公開する。PRではreport URLと差分件数をコメントへ返し、差分がある場合だけ同じworkflowの`approve` jobを`vrt-approval` Environmentで待つ。base更新後はPR branchをupdateして`synchronize`を発生させ、現baselineで再比較する。
+- CIでの対象、承認、レポート公開、baseline更新は、現在の `.github/workflows/` と `.github/AGENTS.md` を正本とする。
 
 ## Convex Function Test
 
@@ -202,7 +194,7 @@ Convex query/mutation/action/HTTP Action単体の契約を細かく見る。
 
 避けること:
 
-- 複数 useCase をまたぐ長い業務フローを Function Test に詰め込まない。
+- 複数ユースケースをまたぐ長い業務フローをFunction Testに詰め込まない。
 - `convex-test` の mock 差異に依存する期待値を書かない。ID形式や実 backend のエラーメッセージ詳細に依存しない。
 
 ## Convex Scenario Test
@@ -262,11 +254,10 @@ E2E で見ると遅すぎる DB 状態遷移、通知、集計、dashboard 表�
 
 ## E2E
 
-E2E は、same-repositoryのdevelop向けopen PRで、exact PR headごとの専用Convex Preview `preview/pr-{N}-e2e`を使う認証付きFull Regressionと、Cloudflare PR Previewの`@deployed` Smokeを分けて運用する。
-`@deployed` Smokeは公開5routeだけを認証情報とstorageStateなしで確認し、`@release` Full Regressionは主要ハッピーパスに加えて通知・復旧・モバイル・公開面・axe検査まで含める。
-credential付きworkflowはbase repositoryとhead repositoryが同じPRだけを対象にする。fork PR、developからmainへのPR、`release.yml`では認証付きFull Regressionを実行しない。same-repositoryへpushできるactorを信頼境界内とし、`pull_request_target`でPR headのcodeやpackage scriptを実行しない。
-ブラウザprojectはChrome系に限定し、Desktop ChromeとMobile Chromeの代表導線を分けて確認する。
-機能棚卸し、機能×テスト層のトレーサビリティ、通知目的の分類、方式別ライフサイクル、CI結果の扱いは `e2e-full-regression-rules.md` に従う。この節ではE2Eコードの実装規約を扱う。
+E2Eは、ブラウザ、認証、フロントエンド、実バックエンドを結ぶ主要導線を検証する。
+デプロイ済みURLのSmokeは公開接続の確認に絞り、認証付きFull Regressionと分ける。
+現在の実行対象、ブラウザ、tag、Preview、credential、レポート公開は `.github/workflows/` とPlaywright設定を正本とする。
+機能棚卸し、テスト層との対応付け、通知目的、ライフサイクルは `e2e-full-regression-rules.md` に従う。
 
 書き方:
 
@@ -277,33 +268,16 @@ credential付きworkflowはbase repositoryとhead repositoryが同じPRだけを
 - `page.waitForTimeout()` は禁止。`expect(locator).toBeVisible()` など web-first assertion で待つ。
 - mutation 成功はトーストや画面の表示状態で判定する。
 - DB の細かい最終状態確認は Convex Scenario Test に寄せる。
-- PR Previewの`@deployed` SmokeはTOP、機能、FAQ、使い方、お問い合わせの公開5routeについて、HTTP成功、固有ランドマーク、URLだけを確認する。
+- デプロイ済みURLのSmokeは、対象routeのHTTP成功、固有ランドマーク、主要CTA、URLを軽量に確認する。
 - 通知E2Eでは、検証対象のmagic link、LINE link token、outbox、FailureInboxをテストhelperで人工生成しない。本番と同じUI操作・mutation・scheduled actionから生成された証跡を待つ。
 - 通知のDB確認が必要な場合は、E2E環境だけで動くinternal testing APIから、目的、channel、対象ID、status、dedupe、CTA整合だけを返す。redacted通知probeは生メールアドレス、LINE userId、token、本文、provider error全文を返さない。画面遷移にtokenが必要な場合だけ、同じE2Eゲートを持つ専用token helperを分離して使う。
 - 正常通知は `notificationOutbox`、retry/fallbackは `notificationDeliveryEvents`、最終失敗だけ `notificationFailureInbox` を見る。
-- `playwright.yml`はPlaywright HTML reportをActions artifactへ30日保存し、同じreportを`hosting-pages`へ直接pushする。
-- open PRのE2E結果はVRTと別のコメントへ返し、status、Passed / Failed / Skipped、失敗テスト、全テスト、Actions、hosting-pages URLを表示する。
-- PRコメントにはworkflowの`issues: write`と`pull-requests: write`を使い、hosting-pagesへのpushには`Preview` Environmentの`HOSTING_PAGES_TOKEN`を使う。
 
 避けること:
 
-- 外部サービスの実配送、Clerk の認証画面そのもの、ピクセルパーフェクトな UI を通常E2Eで検証しない。実配送は隔離した `@provider-canary` に分離する。
+- 外部サービスの実配送、Clerkの認証画面そのもの、ピクセル単位のUIを通常E2Eで検証しない。
 - CSS クラスや Chakra の内部構造に依存しない。
 - ガントチャートの精密なドラッグ座標や時間計算を E2E に寄せない。必要なら Logic UT に切り出す。
-
-## Codex での実行権限
-
-Codex sandbox では IPC、ブラウザ起動、ローカルサーバー接続が失敗しやすい。
-次のコマンドは、Codexで実行する必要がある場合は最初から権限付きで実行する。
-
-- `pnpm lint`
-- `pnpm test:ui`
-- `pnpm e2e`
-- `pnpm vrt`
-- その他 Playwright / ブラウザ起動 / storycap / ローカルサーバー接続を伴う検証
-
-`EPERM`、ブラウザ起動不可、IPC/listen 失敗はテスト失敗と区別する。
-コード修正で追いかける前に、実行環境由来の失敗として扱う。
 
 ## 高リスク観点
 
@@ -315,7 +289,7 @@ Codex sandbox では IPC、ブラウザ起動、ローカルサーバー接続�
 - Magic Link、招待、公開登録linkのdigest保存、期限、使用済み、失効、rotate、newest-only。
 - HTTP Action、Webhook、service credentialのmethod、body上限、署名、CORS、replay、event dedupe。
 - 論理削除済みデータの除外。
-- 既存データ互換、スナップショット、schema / persisted shape の変更。
+- 既存データ互換、スナップショット、schema、保存済みデータの形式変更。
 - 通知outbox、fanout cursor、lease再回収、stale worker、削除競合、retrying、final failure。
 - 個人情報を含むpayloadのretention、redaction、prune、店舗消去。
 - Dashboard の `今やること`、通知失敗、スタッフ申請、シフト一覧のグルーピング。

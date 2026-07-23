@@ -1,62 +1,59 @@
 # 公開サブページ
 
-公開用コンテンツを役割別に再利用し、検索結果に法務ページ以外の自然な導線を出すためのページ群。
-FAQの質問・回答は`FaqSite`をSingle Source of Truthとし、詳しい操作手順は`HowToSite`のMDXで管理する。
+製品理解、疑問の解消、操作支援、登録前の体験を目的とする公開ページ群である。
+現在のコンテンツとメタデータは、各featureのコードとMDXを正本とする。
 
-## 関連ファイル
-
-- `src/routes/features.tsx` / `src/pages/features/index.tsx` — できることページ
-- `src/routes/faq.tsx` / `src/pages/faq/index.tsx` / `src/pages/faq/meta.ts` — 総合FAQページとメタデータ
-- `src/routes/articles.tsx` / `src/routes/articles.index.tsx` / `src/routes/articles.$slug.tsx` / `src/routes/articles.categories.$categorySlug.tsx` — 記事レイアウト・記事一覧・記事詳細・カテゴリページ
-- `src/routes/demo.flow.tsx` / `src/pages/demo-flow/index.tsx` — 募集から確定通知までのフローデモ（`_unregistered` 外に置き、Clerk/Convexバンドルを載せない）
-- `src/routes/demo.shiftboard.tsx` / `src/pages/demo-shift-board/index.tsx` — 店長・シフト担当者向けシフト表デモ（同上）
-- `src/components/features/Demo/` — 公開デモ用コンポーネント
-- `src/components/features/LandingPage/FaqArticlesSection/index.tsx` — TOPの注目FAQ 7問と総合FAQへの導線
-- `src/components/features/FaqSite/landingFaqContent.ts` — TOPの注目FAQ 7問と表示内容に対応する構造化データ
-- `src/components/features/FaqSite/faqContent.ts` — 注目FAQを含む全質問、カテゴリ、検索語、HowTo導線、総合FAQの構造化データ
-- `src/components/features/FaqSite/index.tsx` / `FaqVisual.tsx` — 総合FAQの検索・表示、補助図、表示内容に対応する構造化データの出力
-- `src/components/templates/PublicPageLayout/` / `PublicFooter/` — Header・main・Footerを揃える公開ページ共通レイアウト
-- `src/components/features/FeatureSection/` / `BenefitsSection/` — `/features`が所有する公開section
-- `src/components/features/ArticleSite/` — MDX管理の記事サイトとLP記事ミニ導線のソース
-- `src/components/features/HowToSite/` — MDX管理の使い方・ヘルプとページ内検索のソース
-- `scripts/prerender.ts` / `public/sitemap.xml` — 静的HTML生成と検索エンジン向けURL一覧。記事詳細・カテゴリ詳細はMDXディレクトリから自動収集する
-- `scripts/generateArticleOgp.ts` / `public/ogp/articles/` — 記事別OGP画像の生成スクリプトと生成物（`pnpm ogp:articles`。記事の追加・タイトル変更時に再生成してコミットする）
-- `src/pages/*/meta.ts` — routeごとのメタデータ組み立て
-- `src/lib/seo/index.ts` — メタタグ・JSON-LDヘルパー（`ogType` / `ogImage` で記事別OGPを上書き）
-
-## OGP・構造化データ
-
-- `index.html` — 全ページ共通の既定値（og:type=website、共通OGP画像、SoftwareApplication / Organization / WebSite）
-- `/` — `FAQPage`（`FaqSite`で注目対象にした7問のみ）
-- `/faq` — `FAQPage`（総合FAQに掲載する全質問）
-- `/articles/:slug` — og:type=article、記事別OGP画像、`BlogPosting` + `BreadcrumbList`
-- `/articles/categories/:categorySlug` — `BreadcrumbList`
-- ルート側で og:type / og:image を出すと、prerender が index.html の既定タグと重複排除して後勝ちで焼き込む（`scripts/prerender.ts` の `ROUTE_MANAGED_META_*`）
-
-## 画面一覧
+## 画面
 
 | パス | 内容 |
 |---|---|
 | `/features` | 希望回収、未提出確認、シフト作成、確定通知の紹介 |
-| `/faq` | カテゴリ、ページ内検索、図、HowTo導線を備えた総合FAQ |
-| `/howto` | 利用中の管理者・スタッフ向けの詳しい操作手順とトラブル対応 |
-| `/articles` | シフト作成ガイド記事一覧 |
+| `/faq` | カテゴリ、検索、図、HowTo導線を備えた総合FAQ |
+| `/howto` | 利用中の店舗運営者とスタッフ向けの操作手順とトラブル対応 |
+| `/articles` | シフト作成ガイドの記事一覧 |
 | `/articles/:slug` | 記事詳細 |
-| `/articles/categories/:categorySlug` | 困りごとカテゴリ別の記事一覧 |
-| `/demo/flow` | 募集作成、希望提出、調整、確定通知まで試せるフローデモ |
-| `/demo/shiftboard` | 登録なしで試せる店長・シフト担当者向けデモ |
+| `/articles/categories/:categorySlug` | カテゴリ別の記事一覧 |
+| `/demo/flow` | 募集作成から確定通知までのフローデモ |
+| `/demo/shiftboard` | 登録なしで試せるシフト表デモ |
 
-## FAQとHowToの責務
+## コンテンツの責務
 
 | 場所 | 役割 |
 |---|---|
-| TOP（`/`） | 最初に確認したい注目FAQ 7問を短く示し、必要に応じて`/faq`へ案内する |
-| 総合FAQ（`/faq`） | よくある疑問をカテゴリと検索で探せるようにし、その場で結論と注意点まで回答する |
-| 使い方・ヘルプ（`/howto`） | 画面上の場所、操作手順、失敗時の対処を一つの目的ごとに詳しく説明する |
+| TOP | 最初に確認したいFAQを短く示し、総合FAQへ案内する |
+| 総合FAQ | よくある疑問へ、その場で結論と注意点を回答する |
+| HowTo | 画面上の場所、操作、結果、失敗時の対処を説明する |
+| 記事 | 検索者の課題を整理し、判断材料と製品への導線を示す |
+| デモ | 登録前に主要な操作と結果を試せるようにする |
 
-総合FAQでは、通知先の決まり方、グループと店舗の関係、下書き保存後の再提出など、文章だけでは関係を捉えにくい回答に図を添える。
-実際の操作が必要な回答からは、該当するHowToへ直接移動できるようにする。
+FAQの質問と回答は `src/components/features/FaqSite/`、HowToは `src/components/features/HowToSite/content/`、記事は `src/components/features/ArticleSite/content/` が所有する。
+HowToの追加と更新には `write-help-content`、デモの設計には `demo-ux` を使う。
+記事では、ユーザーが明示した場合だけ `$seo-article-writer` を使う。
+共通のUI原則は `doc/rules/ui-design.md` を参照する。
 
-## API一覧
+## 関連ファイル
 
-なし。FAQのカテゴリ、検索、図、HowTo導線は静的コンテンツで構成し、Convex APIは追加しない。
+- `src/routes/features.tsx`、`src/pages/features/`：できること
+- `src/routes/faq.tsx`、`src/pages/faq/`：総合FAQ
+- `src/routes/howto.tsx`、`src/pages/howto/`：使い方とヘルプ
+- `src/routes/articles*.tsx`、`src/pages/articles/`：記事一覧、記事詳細、カテゴリ
+- `src/routes/demo.*.tsx`、`src/pages/demo-*/`：公開デモ
+- `src/components/features/FaqSite/`：FAQコンテンツと表示
+- `src/components/features/HowToSite/`：HowToコンテンツと表示
+- `src/components/features/ArticleSite/`：記事コンテンツと表示
+- `src/components/features/Demo/`：公開デモ
+- `src/components/templates/PublicPageLayout/`：公開ページ共通レイアウト
+- `src/pages/*/meta.ts`、`src/lib/seo/`：ページ別メタデータと共通SEO処理
+- `scripts/prerender.ts`、`public/sitemap.xml`：静的HTMLと公開URL
+- `scripts/generateArticleOgp.ts`、`public/ogp/articles/`：記事別OGP画像
+
+## メタデータ
+
+全ページの既定値は `index.html`、route別の値は対応する `src/pages/*/meta.ts` が所有する。
+FAQ、BlogPosting、BreadcrumbListなどの構造化データは、画面へ表示する現在内容と一致させる。
+prerender時の重複排除と出力規則は `scripts/prerender.ts` を正本とする。
+
+## API
+
+FAQ、HowTo、記事、デモの公開コンテンツを表示するためのConvex APIはない。
+問い合わせなど、別機能が所有するAPIは対応する機能文書を参照する。
