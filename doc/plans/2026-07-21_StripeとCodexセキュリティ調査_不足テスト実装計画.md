@@ -4,7 +4,7 @@
 - 対象: Stripeの日本向けセキュリティ要件、2026-07-18のCodex Security調査、2026-07-21時点の現行worktree
 - ステータス: リポジトリ実装・自動検証完了（実環境証跡は別途）
 - 基準計画: `doc/plans/2026-07-20_Stripeセキュリティ対策_テスト計画.md`
-- 再検証台帳: `doc/manual/security-validation-2026-07-21.md`
+- 再検証台帳: `doc/archive/audits/2026/security-validation-2026-07-21.md`
 
 ## 1. 結論
 

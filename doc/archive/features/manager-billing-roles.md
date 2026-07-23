@@ -1,7 +1,13 @@
 # 店舗単位の請求管理者ロールに関する旧検討
 
-この文書名は既存リンクを維持するために残している。
-現在の権限と招待の契約は[グループ課金、複数店舗、複数管理者](organization-billing.md)と[業務フロー](../specs/organization-billing-business-flow.md)を参照する。
+> Archive日: 2026-07-23
+>
+> 理由: `superseded`
+>
+> 後継: [グループ課金、複数店舗、複数管理者](../../features/organization-billing.md)、[業務フロー](../../specs/organization-billing-business-flow.md)
+
+この文書は、店舗単位の請求管理者ロールを検討していた時点の資料である。
+現在の権限と招待の契約には後継文書を使う。
 
 ## 現行仕様との違い
 

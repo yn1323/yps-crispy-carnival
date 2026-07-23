@@ -6,7 +6,10 @@
 
 ## トリガー方式
 
-スタッフ向け提出催促（`reminderScheduledAt` / `sendReminderEmails`）と同じく、募集作成時に `ctx.scheduler.runAt` で締切翌日17:00に予約する。締切は作成後に編集できない（`recruitment/mutations.ts` は作成・削除のみ）ため再スケジュールは不要。発火時に募集が削除済み / 確定済みなら送信しない。
+スタッフ向け提出催促（`reminderScheduledAt` / `sendReminderEmails`）と同じく、募集作成時に`ctx.scheduler.runAt`で締切翌日17:00に予約する。
+予定時刻が募集作成時点より未来の場合だけ予約する。
+締切は作成後に編集できない（`recruitment/mutations.ts`は作成・削除のみ）ため再スケジュールは不要である。
+発火時に募集が削除済みまたは確定済みなら送信しない。
 
 - 既知の制限: 本機能のデプロイ前から存在する募集には予約が付かない（スタッフ催促と同じ割り切り）。
 

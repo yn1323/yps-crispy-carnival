@@ -1,7 +1,13 @@
 # 店舗単位課金プランの旧検討
 
-この文書名は既存リンクを維持するために残している。
-現在の課金契約はグループ単位であり、実装と業務判断は[グループ課金、複数店舗、複数管理者](organization-billing.md)と[業務フロー](../specs/organization-billing-business-flow.md)を参照する。
+> Archive日: 2026-07-23
+>
+> 理由: `superseded`
+>
+> 後継: [グループ課金、複数店舗、複数管理者](../../features/organization-billing.md)、[業務フロー](../../specs/organization-billing-business-flow.md)
+
+この文書は、店舗単位課金を検討していた時点の資料である。
+現在の課金契約はグループ単位であり、実装と業務判断には後継文書を使う。
 
 ## 現行仕様との違い
 

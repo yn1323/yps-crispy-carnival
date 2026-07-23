@@ -37,8 +37,8 @@ WorkerがConvex HTTP Actionへ問い合わせるため、共有secretをブラ�
 
 | 境界 | 入口 | 用途 |
 |---|---|---|
-| Cloudflare Worker | `src/worker.ts:fetch` | `/api/analytics` を処理し、ほかをStatic Assetsへ渡す |
-| BFF | `src/server/analyticsProxy.ts:handleAnalyticsApi` | requestを検証用情報とともにConvexへ転送する |
+| Cloudflare Worker | `apps/analytics-dashboard/src/worker.ts:fetch` | `/api/analytics` を処理し、ほかをStatic Assetsへ渡す |
+| BFF | `apps/analytics-dashboard/src/server/analyticsProxy.ts:handleAnalyticsApi` | requestを検証用情報とともにConvexへ転送する |
 | Convex HTTP Action | `analyticsDashboard/httpActions:query` | service credentialと入力を検証し、internal queryを呼ぶ |
 | Convex internal query | `analyticsDashboard/queries.ts` | KPI、店舗、募集履歴、要望を読み取る |
 

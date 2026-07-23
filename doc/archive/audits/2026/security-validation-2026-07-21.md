@@ -1,5 +1,11 @@
 # StripeとCodex Security候補の再検証台帳
 
+> Archive日: 2026-07-23
+>
+> 理由: `point-in-time-audit`
+>
+> 後継: [セキュリティ再検証](../../../manual/security-validation.md)
+
 - 再検証日: 2026-07-21
 - 実装開始時のcommit: `871d049205a459cf25e428c49960124414a67144`
 - 調査snapshot: `codex-security-snapshot/v1:sha256:2a5473a45f43f70d2746e6aa5309415d7201fa54d697d163ff69362d921c090e`

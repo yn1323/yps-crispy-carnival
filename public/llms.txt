@@ -93,6 +93,7 @@
 - [提出締切を過ぎるとどうなりますか](https://shiftori.app/howto#after-submission-deadline): 締切後の確認、変更、初回提出の扱い
 - [自動催促はいつ送られますか](https://shiftori.app/howto#automatic-reminder): 未提出スタッフへ自動催促が送られる時間と条件
 - [集まった希望からシフトを作る](https://shiftori.app/howto#build-shift-from-requests): 希望を確認しながらシフト表を調整する方法
+- [勤務時間の入力方法がわからない](https://shiftori.app/howto#input-work-time): PCのシフト表で勤務時間を追加、変更する方法
 - [作成途中のシフトを保存する](https://shiftori.app/howto#save-shift-draft): スタッフへ通知せず下書き保存する方法
 - [シフト表の確認事項とエラーは何が違いますか](https://shiftori.app/howto#assignment-warnings-and-errors): オレンジの確認事項と赤いエラーの違い
 - [シフトを確定できないとき](https://shiftori.app/howto#cannot-confirm-shift): 確定を止めているエラーの確認方法

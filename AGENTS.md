@@ -35,7 +35,8 @@
 - 保存済みデータ形式の変更やbackfill: `convex-migration-helper`
 - E2E: `e2e/AGENTS.md`
 - CI/CD: `.github/AGENTS.md`
-- 現在の機能概要: `doc/features/` と `doc/INDEX.md`
+- 現在の機能概要: `doc/features/` と `doc/features/INDEX.md`
+- 文書全体の入口: `doc/INDEX.md`
 - 人が行う運用手順: `doc/manual/`
 
 同じ層の近い実装を追従更新するだけなら、既存パターンを優先する。
@@ -66,7 +67,7 @@ Skillは特定作業の進め方であり、常時制約や設計原則の正本
 - 依頼外の既存変更は残し、revert、削除、stageをしない。
 - commit、push、Pull Request作成は、ユーザーが明示した場合だけ行う。
 - Convex、Storybook、Viteの開発サーバーはユーザーが起動しているため、新規起動しない。
-- `.env`は直接複製せず、環境変数同期には `pnpm convex:env:setup` を使う。
+- `.env`は直接複製しない。`pnpm convex:env:setup`は`scripts/setupEnv.ts`のallowlistにある変数を、現在選択中のdeploymentへ同期する。Productionまたは別projectでは使わず、完全修飾deployment名を指定したConvex CLIまたはDashboardで設定する。
 - 秘密値や個人情報をログ、文書、コミットへ含めない。
 
 ## 自動生成ファイル
@@ -97,7 +98,9 @@ pnpm build
 ## 文書
 
 - 現在の機能概要を変えた場合は、対応する `doc/features/` を更新する。
-- 新しい機能文書を追加した場合は `doc/INDEX.md` にリンクする。
+- 新しい機能文書を追加した場合は`doc/features/INDEX.md`にリンクする。
 - 詳細な実装仕様はコードと設定を正とし、文書へ複製しない。
 - `doc/plans/` は意思決定と実装計画の履歴であり、現在仕様の正本にしない。
+- `doc/plans/INDEX.md` で未決提案を `Proposed`、進行中を `Active`、完了済みを `History` に分類する。
+- 廃止、置換、棄却された資料と時点監査は `doc/archive/` へ移し、現行文書の正本にしない。
 - plan文書には参考にしたファイルのパスを記載する。

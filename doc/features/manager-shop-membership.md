@@ -23,8 +23,8 @@
 - `shopMembers`は`m010_shop_members_to_organization_members`の完了と新クライアントの配布を確認するまでfallbackと互換書き込みに使う。
 - 管理者交代では対応する旧`shopMembers`も削除済みにし、legacy fallbackから管理権限が復活しないようにする。
 - `m013_former_managers_remove_manager_access`と`m014_removed_organization_members_delete_legacy_shop_members`は、既存の交代済み旧管理者にも同じ権限失効を適用する。
-- `shops.organizationId`と`shops.operatingStatus`はWiden期間中だけoptionalであり、`m009_shops_to_organizations`の本番完了と観測後にNarrowする。
-- 本番migration、Narrow、旧所属データの物理削除は今回の実装で実行しない。
+- `shops.organizationId`と`shops.operatingStatus`はWiden期間中だけoptionalである。対象deploymentで`m009_shops_to_organizations`の完走と互換readの安定を確認した後にだけNarrowする。
+- 固定seriesへの登録から実環境でのmigration完了、Narrow、旧所属データの物理削除を推測しない。対象deploymentの確認結果は[リリース状態](../manual/release-status.md)を参照する。
 
 ## 参考ファイル
 

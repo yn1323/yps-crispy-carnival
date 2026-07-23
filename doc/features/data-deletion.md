@@ -36,7 +36,10 @@ LINE IDの置換値は`deleted:<documentId>`として行IDから決定的に作�
 
 - 店舗削除は対象グループの有効管理者だけが行え、最後の未削除店舗は削除できない。
 - グループ削除は対象グループで唯一の`active`管理者だけが行える。`readOnly`を含むほかの管理者がいる場合は先に整理する。
-- グループ削除を許可する課金状態は、有料プラン未選択のTrial、Free、料金なしのProである。有料契約中またはプラン変更中は受け付けない。
+- グループ削除を許可する課金状態は、有料プラン未選択のTrial、Free、支払い不要Businessである。
+  旧`complimentary.pro`は移行互換状態として支払い不要Businessと同じ扱いにし、有料契約中またはプラン変更中は受け付けない。
+- 有料プラン未選択のTrialでも、Stripe Subscription、進行中のTrial作成operation、または一意な終了証跡がない過去の作成operationがあれば削除しない。
+  provider上の契約が終了済みであることを、保存済みSubscriptionとcleanup operationの対応から確認できる場合だけ受け付ける。
 - グループ削除は未完了の店舗削除jobがない場合だけ受け付ける。
 - clientの店舗ID、グループID、確認ID、更新時刻は認可の根拠にせず、Clerk identityから解決した所属とサーバー上の最新状態へ照合する。
 - 同じ操作意図では固定request IDを再利用し、監査とcleanup jobを重複作成しない。
@@ -91,7 +94,7 @@ LINE IDの置換値は`deleted:<documentId>`として行IDから決定的に作�
 
 ## 移行と運用
 
-`m016`と`m017`は固定migration seriesへ登録済みだが、この実装作業では本番データへ実行しない。
-本番では事前export、対象件数、migration componentの完了状態、cleanup jobの非終端件数、アクセス失効状態、業務識別情報の保持を別々に確認する。
+`m016`と`m017`は固定migration seriesへ登録されているが、登録だけでは実環境での完走を証明しない。
+対象deploymentでは、事前export、対象件数、migration componentの完了状態、cleanup jobの非終端件数、アクセス失効状態、業務識別情報の保持を別々に確認し、結果を[リリース状態](../manual/release-status.md)へ記録する。
 既に削除済みの値へ置き換えられた業務識別情報は、この変更で推測またはバックアップから自動復元しない。
 新しいschema fieldやデータ形状の変更はないため、この保持方針のためのmigrationは追加しない。
