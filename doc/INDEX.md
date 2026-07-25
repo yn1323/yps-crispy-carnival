@@ -1,56 +1,41 @@
-# 機能インデックス
+# ドキュメント
 
-このドキュメントは、各機能の概要ドキュメントへのインデックスです。詳細な仕様はコードを参照します。
+知りたいことに合う入口を選んでください。
+現在の挙動はコードと設定、承認済みの業務契約は`specs/`、実環境で確認した公開状態は`manual/release-status.md`を正とします。
+
+| 知りたいこと | 入口 | ここで分かること |
+|---|---|---|
+| 現在のコードに実装されている機能 | [機能インデックス](features/INDEX.md) | 利用者の仕事ごとの機能概要と主な画面 |
+| システム全体とコード配置 | [システム構成](ARCHITECTURE.md) | フロントエンド、Convex、外部サービス、非同期処理の境界 |
+| 承認済みの業務契約 | [業務仕様](#業務仕様) | プラン、状態遷移、受入条件などの確定事項 |
+| 実装とレビューの判断基準 | [設計・開発規約](#設計開発規約) | 対象作業で読む規約と責務分担 |
+| リリースや外部設定を確認する | [運用手順インデックス](manual/INDEX.md) | CI/CD、migration、法務更新、外部サービス、実環境証跡 |
+| 未決提案、進行中の作業、過去の判断を調べる | [計画インデックス](plans/INDEX.md) | `Proposed`、`Active`、`History`に分けた計画 |
+| 廃止・置換された資料や時点監査を調べる | [Archiveインデックス](archive/INDEX.md) | Archive理由と現在の参照先 |
+
+`plans/`と`archive/`は現在仕様の正本ではありません。
+計画の結論を現在の挙動として使う前に、機能文書、業務仕様、コードの順で確かめてください。
 
 ## 業務仕様
 
-| 仕様 | 概要 | 状況 |
-|---|---|---|
-| [グループ課金、複数店舗、複数管理者の業務フロー](specs/organization-billing-business-flow.md) | Free、Trial、Pro、Business、支払い不要Business、利用人数、下位プラン移行、支払い失敗、Stripe、通知、管理者招待の業務基準 | Business再導入と上限変更を実装、Stripe公開は`off`、実価格と外部設定は未登録、production migrationは未実施 |
+- [グループ課金、複数店舗、複数管理者の業務フロー](specs/organization-billing-business-flow.md)：プラン、利用人数、店舗と管理者の上限、支払い状態、Stripe連携、管理者招待の業務契約です。
 
-## 機能一覧
+## 設計・開発規約
 
-| 機能 | 概要 | 実装状況 |
-|---|---|---|
-| [認証画面](features/auth-pages.md) | Clerk認証を利用したログイン・新規登録・パスワード再設定の自作UI | 実装済 |
-| [法務同意フロー](features/legal-consent.md) | 管理ユーザー/スタッフ向け利用規約・プライバシーポリシー同意を記録 | 実装済 |
-| [LINE通知連携](features/line-notification.md) | スタッフ向け通知をLINE Push / メールで自動振り分け（設定UIなし） | 実装済 |
-| [通知配送outbox](features/notification-outbox.md) | LINE / メール通知を予約し、少量ずつ配送・再試行するバックエンドキュー | 実装済 |
-| [スタッフ通知履歴](features/notification-history.md) | スタッフごとのメール・LINE通知日時、タイトル、送信・配信状況をスタッフ詳細で確認 | 実装済 |
-| [通知不達Dashboard](features/notification-failure-dashboard.md) | 送信できなかった通知をDashboardで確認し、個別/一斉に再通知を受け付ける導線 | 実装済 |
-| [Dashboardお知らせ](features/dashboard-announcements.md) | 有事のお知らせを全体、グループ、店舗、Free、Trial、Pro、Businessの対象別にDashboard上部へ1件表示 | 実装済 |
-| [トライアル終了前Dashboard案内](features/trial-ending-dashboard-callout.md) | 有料プラン継続未登録のグループへ終了7日前から制限内容と支払い導線を全店舗で表示 | 実装済 |
-| [グループ課金、複数店舗、複数管理者](features/organization-billing.md) | Free、Trial、Pro、Business、支払い不要Businessの課金状態、Stripe連携、人物、管理者招待、店舗管理、店舗切り替え、移行互換 | Business再導入、Stripeプラン変更、人物削除、migrationを実装、公開`off`、外部設定とproduction migration待ち |
-| [ユーザー詳細](features/user-detail.md) | グループ人物を正本として、共通プロフィールと店舗別のスタッフ設定、通知、LINE連携を一つのページで管理 | 実装済 |
-| [店舗・グループ削除](features/data-deletion.md) | 業務識別情報を保持した論理削除、Capability失効、永続cleanupの保証範囲 | 実装済、本番migration未実行 |
-| [所属なしユーザーのアカウント削除](features/account-deletion.md) | 所属のない管理ユーザーが再認証後にローカル利用停止とClerk削除を依頼する導線 | 実装済、段階公開前 |
-| [スタッフ参加QR・承認導線](features/staff-registration.md) | 店舗専用QR/URLからスタッフ本人が参加申請し、シフト担当者が承認する導線 | 実装済 |
-| [店舗設定](features/shop-settings.md) | 店舗名、シフト時間帯、定休日などシフト作成の前提になる店舗情報を管理 | 実装済 |
-| [ログイン後オンボーディング](features/dashboard-onboarding.md) | 店舗登録後にシフト担当者自身で募集作成・通知確認・提出確認を試すDashboard内Callout | 実装済 |
-| [店舗登録後の本番募集リマインダー](features/shop-activation-reminder.md) | 初回店舗登録から7日後17:00 JSTに、本番募集作成の再開きっかけをactive managerへ送る補助通知 | 実装済 |
-| [シフト募集管理](features/shift-recruitment-management.md) | シフト担当者がシフト募集を作成・確認・削除する管理導線 | 実装済 |
-| [希望シフト提出](features/shift-submission.md) | スタッフの希望提出と前回シフトあり週パターンの再利用 | 実装済 |
-| [シフト対象外スタッフ](features/shift-exclusion.md) | 店舗共通アドレス等シフトを出さないスタッフを表示・シフト関連通知の対象から外す | 実装済 |
-| [シフト確定催促リマインダー](features/shift-confirmation-reminder.md) | 締切翌日17時に未確定の募集があれば店舗マネージャー全員へ確定を催促（失敗は要対応Inbox対象外） | 実装済 |
-| [公開サブページ](features/public-pages.md) | TOPの注目7問と、カテゴリ・検索・図・HowTo導線を備えた総合FAQを含む公開導線 | 実装済 |
-| [使い方・ヘルプ](features/howto.md) | FAQから案内する詳しい操作手順とトラブル対応をMDXで管理する公開ヘルプ | 実装済 |
-| [問い合わせ](features/contact.md) | 公開フォームから問い合わせメールを送り、成功後にSlackへ社内通知 | 実装済 |
-| [要望受付](features/feature-requests.md) | ログイン後の要望DialogでDBへ保存し、分析画面で新しい順に確認 | 実装済 |
-| [分析KPI蓄積基盤](features/analytics.md) | サービス利用状況KPIを日次cronで蓄積し時系列分析できるようにするinternal専用基盤 | 実装済 |
-| [分析KPI可視化アプリ](features/analytics-dashboard.md) | 蓄積済みKPIを本人用の内部BIとしてCloudflare Pages別アプリで可視化 | 実装済 |
+- [エージェント指示の配置方針](rules/agent-instructions.md)：Rule、`AGENTS.md`、Skill、機能文書、運用文書の役割を分けます。
+- [UI設計方針](rules/ui-design.md)：プロダクトの約束、利用者、画面と文言の判断基準を定めます。
+- [フロントエンド設計](rules/frontend-architecture.md)：ディレクトリ、依存方向、ファイル責務を定めます。
+- [Convex設計方針](rules/convex-design-strategy.md)：認証境界、public API、Capability、永続ワークフロー、データ保持を定めます。
+- [セキュリティ設計方針](rules/security-strategy.md)：認証、認可、token、通知、課金、個人情報の安全契約を定めます。
+- [テスト方針](rules/testing-strategy.md)：変更契約を守るテスト層と配置を定めます。
 
-## 旧検討資料
+## 文書を更新するとき
 
-- [店舗単位課金プランの旧検討](features/billing-plans.md)
-- [店舗単位の請求管理者ロールに関する旧検討](features/manager-billing-roles.md)
-- [店舗単位管理者所属の移行互換](features/manager-shop-membership.md)
+機能文書を追加したら`features/INDEX.md`、計画を追加または完了したら`plans/INDEX.md`も同じ変更で更新します。
+Archiveへ移す場合は、理由と後継文書を本文と`archive/INDEX.md`の両方に記録します。
 
-## 関連ドキュメント
+更新後は次のコマンドで、相対リンク、見出しanchor、repo内パス、Convex API・HTTP route・cron・migrationの参照、INDEX所属、Archive metadataを確認します。
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) - 全体構造、機能マッピング、データフロー
-- [rules/frontend-architecture.md](rules/frontend-architecture.md) - フロントエンドのディレクトリ、依存方向、ファイル責務
-- [rules/convex-design-strategy.md](rules/convex-design-strategy.md) - Convexの認証境界、公開API、Capability、durable workflow、データ保持、運用契約
-- [rules/security-strategy.md](rules/security-strategy.md) - セキュリティ設計、認証/認可境界、token/通知/billingレビュー方針
-- [rules/testing-strategy.md](rules/testing-strategy.md) - テスト種別、テスト層の分担、Convex Function TestとScenario Testの方針
-- [plans/2026-07-21_課金プラン改定_Business再導入_実装計画.md](plans/2026-07-21_課金プラン改定_Business再導入_実装計画.md) - Business再導入、利用上限、Stripeプラン変更、人物削除、migration、全テスト層の現行実装計画
-- [plans/2026-07-20_Stripe課金連携_実装計画.md](plans/2026-07-20_Stripe課金連携_実装計画.md) - BusinessをProへ統合した時点のStripe連携と移行に関する履歴計画
+```bash
+pnpm docs:check
+```

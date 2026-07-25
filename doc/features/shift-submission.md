@@ -6,10 +6,13 @@
 
 | 種別 | パス |
 |---|---|
-| 画面 | `src/pages/staff-shift-submit/index.tsx` |
+| 希望シフト提出画面 | `src/pages/staff-shift-submit/index.tsx` |
+| 提出完了画面 | `src/pages/staff-shift-submit-completed/index.tsx` |
 | 確定シフト閲覧画面 | `src/pages/staff-shift-view/index.tsx`, `src/components/features/StaffView/ShiftViewPage/` |
+| 閲覧リンク再発行画面 | `src/pages/staff-shift-reissue/index.tsx`, `src/components/features/StaffShiftReissue/` |
+| 提出完了・再発行ルート | `src/routes/_unregistered/shifts.submit_.completed.tsx`, `src/routes/_unregistered/shifts.reissue.tsx` |
 | UI | `src/components/features/StaffSubmit/`, `src/components/features/StaffSubmit/SubmitForm/` |
-| リンク認証 | `convex/staffAuth/mutations.ts`, `src/components/features/StaffAccess/` |
+| リンク認証 | `convex/staffAuth/queries.ts`, `convex/staffAuth/mutations.ts`, `src/components/features/StaffAccess/` |
 | API | `convex/shiftSubmission/queries.ts`, `convex/shiftSubmission/mutations.ts`, `convex/shiftView/queries.ts` |
 | 通知 | `convex/notification/queries.ts`, `convex/notification/templates.ts` |
 | 提出方法 | `convex/_lib/submissionPattern.ts`, `convex/shop/schemas.ts` |
@@ -22,12 +25,15 @@
 | `/shifts/submit?token=...` | 希望シフト提出フォーム |
 | `/shifts/submit/completed` | 提出完了画面 |
 | `/shifts/view?token=...` | 確定シフト閲覧画面 |
+| `/shifts/reissue?recruitmentId=...` | 確定シフト閲覧リンクの再発行画面 |
 
 ## API一覧
 
 | API | 種別 | 概要 |
 |---|---|---|
 | `api.staffAuth.mutations.verifyToken` | mutation | 提出/閲覧リンクを検証し、利用できない場合は失効理由を返す |
+| `api.staffAuth.queries.getRecruitmentInfo` | query | 再発行画面に店舗名と募集期間の最小情報を返す |
+| `api.staffAuth.mutations.requestReissue` | mutation | 登録メールと確定済み募集の対象スタッフが一致する場合に、新しい閲覧リンクの通知を予約する |
 | `api.shiftSubmission.queries.getSubmissionPageData` | query | 提出画面データ、提出方法、既存提出、前回シフトあり週パターンを取得 |
 | `api.shiftSubmission.mutations.submitShiftRequests` | mutation | 提出方法別の入力を保存形式へ変換し、希望シフトを提出・再提出する |
 | `api.shiftView.queries.getShiftViewData` | query | 確定シフト閲覧用に提出方法スナップショット、確定割当、定休日を取得 |
@@ -44,3 +50,5 @@
 - 適用はフォーム入力だけを更新し、提出はスタッフが明示的に押す。
 - 提出リンクは募集が open で、シフト開始日 0:00 JST より前まで開ける。提出・再提出は提出締切日 23:59 JST まで可能。締切後は提出済みなら閲覧のみ、未提出なら確認ダイアログ後に初回提出だけ許可する。
 - リンク無効、募集削除済み、提出受付終了は提出画面の unavailable 状態として返し、それぞれ専用の Empty 表示に分ける。存在しない token、用途違い、使用済み view link、スタッフ削除済みなどは詳細を出さずリンク無効として扱う。
+- 確定シフト閲覧リンクを利用できず募集IDを復元できる場合は、閲覧画面から再発行画面へ案内する。
+- 再発行要求はメールアドレスと募集の一致有無にかかわらず同じ応答を返し、短時間の重複要求と連続試行を制限する。

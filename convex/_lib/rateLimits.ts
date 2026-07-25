@@ -6,6 +6,7 @@ import {
   LINE_LINK_REDEEM_GLOBAL_LIMIT,
   LINE_WEBHOOK_MESSAGE_REQUEST_LIMIT,
   MINUTE_MS,
+  ORGANIZATION_CREATE_DAILY_LIMIT,
   STAFF_NOTIFICATION_RESEND_ACTOR_DAILY_LIMIT,
   STAFF_NOTIFICATION_RESEND_ORGANIZATION_DAILY_LIMIT,
   STAFF_REGISTRATION_EMAIL_DAILY_LIMIT,
@@ -177,6 +178,25 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     rate: 5,
     period: MINUTE_MS,
     capacity: 5,
+  },
+
+  // 新しいグループの作成: userId 単位
+  // 1回/分 — 連打と、requestIdを替えた二重作成を抑止する。
+  organizationCreateShort: {
+    kind: "token bucket",
+    rate: 1,
+    period: MINUTE_MS,
+    capacity: 1,
+  },
+
+  // 新しいグループの作成: userId 単位
+  // 同時に保持できる数は ORGANIZATION_SELF_CREATED_LIMIT が決めるため、
+  // ここでは削除と再作成を繰り返して通知予約とメールを積む操作だけを抑える。
+  organizationCreateDaily: {
+    kind: "token bucket",
+    rate: ORGANIZATION_CREATE_DAILY_LIMIT,
+    period: DAY_MS,
+    capacity: ORGANIZATION_CREATE_DAILY_LIMIT,
   },
 
   // 店舗・プラン・所属を変える事業者設定操作の同期的な連打防止。

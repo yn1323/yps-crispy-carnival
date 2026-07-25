@@ -495,9 +495,10 @@ export class DashboardPage {
 
   async expectOrganizationGroupsInShopSwitcher(organizationNames: string[]) {
     await this.page.getByRole("button", { name: /店舗を切り替える。現在は/ }).click();
-    const menu = this.page.getByRole("menu");
+    // グループ名と店舗名が同じ場合でも見出しだけを対象にするため、グループ見出しの要素へ限定する。
+    const groupLabels = this.page.getByRole("menu").locator('[data-part="item-group-label"]');
     for (const organizationName of organizationNames) {
-      await expect(menu.getByText(organizationName, { exact: true })).toBeVisible();
+      await expect(groupLabels.filter({ hasText: organizationName })).toHaveCount(1);
     }
     await this.page.keyboard.press("Escape");
   }

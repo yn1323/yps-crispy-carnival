@@ -97,6 +97,31 @@ export function createScenario(t: ScenarioTest) {
           selectedShopId = shopId;
           return shopId;
         },
+        async createOrganization(args: ShopSettingsInput) {
+          return asManager.mutation(api.setup.mutations.createOrganization, {
+            shopName: args.shopName,
+            submissionPattern: resolveSubmissionPattern(args),
+            requestId: generateUUID(),
+          });
+        },
+        // 複数グループのシナリオでは、操作対象の店舗を明示して選択中店舗の暗黙解決に依存しない。
+        selectShop(shopId: Id<"shops">) {
+          selectedShopId = shopId;
+        },
+        getMyShops() {
+          return asManager.query(api.dashboard.queries.getMyShops, {});
+        },
+        async getOrganizationSettings() {
+          return asManager.query(api.organization.queries.getSettings, { shopId: await getSelectedShopId() });
+        },
+        async addShop(args: ShopSettingsInput) {
+          return asManager.mutation(api.organization.mutations.addShop, {
+            shopName: args.shopName,
+            submissionPattern: resolveSubmissionPattern(args),
+            requestId: generateUUID(),
+            shopId: await getSelectedShopId(),
+          });
+        },
         async createRecruitment(args: RecruitmentInput) {
           return asManager.mutation(api.recruitment.mutations.createRecruitment, {
             ...args,

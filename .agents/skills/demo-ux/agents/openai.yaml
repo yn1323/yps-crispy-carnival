@@ -1,0 +1,4 @@
+interface:
+  display_name: "体験型デモUX"
+  short_description: "製品デモとプロダクトツアーの価値体験と導線を設計する"
+  default_prompt: "Use $demo-ux to design the shortest path from demo entry to a product value action."

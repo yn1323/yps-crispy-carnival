@@ -4,6 +4,15 @@
 
 現在の機能、シナリオ名、ファイル名を固定リストとして書かない。毎回、実装と機能ドキュメントから再棚卸しする。
 
+## 目次
+
+- 目的と非目的
+- 機能棚卸しとトレーサビリティ
+- E2Eシナリオ契約と層の選択
+- ライフサイクル、通知、認証、永続化
+- Deployed SmokeとCI結果の扱い
+- 追加・レビュー時チェックリスト
+
 ## 目的と非目的
 
 Full Regressionで守る契約:
@@ -52,7 +61,7 @@ Full Regressionだけで総当たりしないもの:
 | 下流影響 | 一覧、ShiftForm、dashboard、集計、通知、閲覧画面 |
 | 負の契約 | 余計な対象なし、旧link失効、他店舗拒否、重複なし |
 | 通知 | purpose、channel、対象、CTA、fallback |
-| 主担当層 | Logic / Behavior / VRT / Function / Scenario / E2E / canary |
+| 主担当層 | Logic / Behavior / VRT / Function / Scenario / E2E |
 | 端末 | Desktop Chrome / Mobile Chrome / 非該当 |
 | 状態 | 実装済み / 一部 / 未実装 / 対象外と理由 |
 
@@ -84,7 +93,7 @@ reload / 再アクセス / 別context:
 締切 / 日付 / タイムゾーン境界:
 Mobile / a11y:
 別層で保証する範囲:
-手動canaryへ残す範囲:
+通常E2Eの対象外にする範囲:
 ```
 
 テスト名の最も深い動詞まで実行してassertする。「提出」「再送」「閲覧」「復旧」と名付けたら、途中の画面やoutbox作成だけで完了扱いにしない。
@@ -107,7 +116,7 @@ E2Eの主担当:
 - 複数API後の対象集合、snapshot、dedupe、完全なDB状態: Scenario。
 - UI単体の操作とvalidation表示: Behavior。
 - 見た目、長文、静的文言: VRT。
-- 外部provider実到着: provider canary。
+- 外部providerの実到着: 通常E2Eの対象外。
 
 E2Eでは、境界値によって業務結果や画面遷移が変わる代表点だけを選ぶ。最大件数の大量操作は、必要ならFull Regressionと分離したcapacity jobへ置く。
 
@@ -209,46 +218,20 @@ probeはPII、本文、raw token、provider error全文を返さない。画面�
 ## 10. Deployed Smokeと外部challenge
 
 - ローカルE2Eとデプロイ済みURLのSmokeを分ける。
-- same-repositoryのdevelop向けopen PRでは、exact PR headをCloudflareの`pr-{N}` branchへデプロイし、TOP、機能、FAQ、使い方、お問い合わせの公開5routeを`@deployed` Smokeする。
-- PR Preview Smoke自体は認証情報とstorageStateを使用しない。credential付きdeploy workflowはsame-repository PRだけを対象にし、fork PRへEnvironment Secretsを渡さない。
 - Deployed Smokeは公開主要route、固有ランドマーク、主要CTA、HTTP成功を軽量に確認する。
-- E2EとVRTは別の結果コメントで扱う。E2Eコメントにはstatus、Passed / Failed / Skipped、失敗テスト、全テスト、Actions、`yps-crispy-carnival/{PR番号}`のhosting-pages URLを表示する。
-- `playwright.yml`はPlaywright HTML reportをActions artifactへ30日保存し、同じreportを`hosting-pages`へ直接pushする。
-- VRTはPR / develop・main pushでcapture・compareし、同じworkflowからreportとbaselineをhosting-pagesへ公開する。PRではreport URLと差分件数をコメントし、差分がある場合だけ`approve` jobを`vrt-approval` Environmentで待つ。
-- production Turnstileなど外部challengeを自動化するために、アプリ側の検証やセキュリティを弱めない。
-- challengeを安定して自動化できない問い合わせ等は、route / CTA Smokeと内部受付contractを自動化し、実送信を手動provider canaryへ明示的に残す。
+- Smoke対象を固定リストへ複製せず、現在のroute、Playwright設定、workflowから選ぶ。
+- 外部challengeを自動化するために、アプリ側の検証やセキュリティを弱めない。
+- challengeを安定して自動化できない場合は、routeとCTAのSmoke、内部受付契約までを自動化し、外部到達を保証したとは表現しない。
 
-## 11. Full RegressionのCI実行
+## 11. CI結果の扱い
 
-現在のリポジトリ方針:
+実行対象が確認したいcommit、build、artifactと一致しない場合は、その差を残課題として報告する。
+自動化されていない検証を、リリースゲート完了と表現しない。
 
-- ブラウザはChrome系だけを使う。
-- Desktop Chromeと代表Mobile Chromeを分ける。
-- same-repositoryのdevelop向けPRごとに専用Convex Preview `preview/pr-{N}-e2e`を作ってFull Regressionを実行し、同じworkflowから結果をopen PRへ返す。
-- Full Regression用Convex PreviewではE2E helperを明示的に有効化し、通知をdry-runへ固定する。
-- open PRでは認証付きFull Regressionと、Cloudflare PR Previewの公開5route Smokeを別workflowで実行する。
-- developからmainへのPRと`release.yml`ではE2Eを実行しない。
-- fork PRではcredential付きFull RegressionとPreview deployを実行しない。
-- PR close時にCloudflare PreviewとPR用Convex Previewをcleanupし、cleanup失敗時は自動失効で回収する。
+現在のtrigger、Preview、credential、ブラウザ、tag、reporter、artifact、コメント、cleanupは、`.github/workflows/`、Playwright設定、`.github/AGENTS.md`、`doc/manual/ci-cd.md`を正本とする。
+このリファレンスへ現在値を複製しない。
 
-- `pnpm e2e:release`の終了結果をPlaywright checkの成否とする。failureとretry後成功はPlaywright設定でcheckを失敗させる。
-- テスト失敗後も`if: !cancelled()`のreport保存、hosting-pagesへのpush、PRコメント更新を実行する。
-- `test-results.json`をPRコメントのPassed / Failed / Skipped件数とテスト一覧へ使う。
-
-実行対象が統合後またはRCのexact SHA、production相当build、実際にリリースするartifactと一致しない場合は、その差を残課題として報告する。自動化されていないのに本番リリースゲート完了とは表現しない。
-
-## 12. Provider Canary
-
-通常E2Eとは分けた隔離先で、必要に応じて次を手動確認する。
-
-- emailとLINEの実到着、CTA、reply。
-- Slack等の運用通知の実到着。
-- production Turnstileを通した実問い合わせ。
-- provider側の失敗有無とrequestの対応。
-
-証跡にはexact SHA、時刻、環境、確認者、個人情報を含まない証跡、全項目の結果を残す。canaryは外部境界の補完であり、自動E2Eの代替にしない。
-
-## 13. 追加・レビュー時チェックリスト
+## 12. 追加・レビュー時チェックリスト
 
 - [ ] 機能一覧を既存テストより先に作った。
 - [ ] P0契約に未分類または理由のない一部実装がない。
@@ -262,8 +245,8 @@ probeはPII、本文、raw token、provider error全文を返さない。画面�
 - [ ] 同時操作、通信再送、部分失敗からの復旧を検討した。
 - [ ] 締切、日付、タイムゾーン境界を下位層へ配置し、必要な代表E2Eだけを選んだ。
 - [ ] 境界値と容量をE2Eへ寄せすぎていない。
-- [ ] Desktop / Mobile / a11y / deployed Smoke / canaryの担当を決めた。
-- [ ] open PRのDeployed SmokeへEnvironment、Secrets、認証、storageState、PR head codeを渡していない。
-- [ ] Playwright HTML reportがhosting-pagesのPR番号別pathへ公開され、PRコメントから到達できる。
+- [ ] Desktop / Mobile / a11y / Deployed Smokeの担当を決めた。
+- [ ] 外部サービスの実到着を通常E2Eの保証として扱っていない。
+- [ ] 現在のCI条件と結果の確認先を、workflowと設定から特定した。
 - [ ] test名の最終動詞までassertした。
 - [ ] 件数・ファイル名ではなく契約内容で網羅性を説明できる。

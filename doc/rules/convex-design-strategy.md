@@ -1,238 +1,186 @@
-# Convex 設計方針
+# Convex設計方針
 
 ## 目的
 
-このドキュメントは、シフトリの Convex バックエンドで維持する設計契約を定義する。
+この文書は、シフトリのConvex backendで維持する責務、境界、状態設計の原則を定める。
+個別機能の現在仕様はコードと `doc/features/`、実装時の常設制約は `convex/AGENTS.md`、横断レビューの手順は `convex-design-review` が所有する。
 
-個別機能の仕様は `doc/features/` とコードを正とし、このドキュメントでは認証境界、公開 API、非同期処理、データ寿命、運用設計の共通方針を扱う。
+認証、認可、abuse対策、機密情報は `security-strategy.md`、テスト層は `testing-strategy.md`、schema移行の手順は `convex-migration-helper` を参照する。
 
-実装配置と技術的な書き方は `convex/AGENTS.md`、セキュリティは `doc/rules/security-strategy.md`、テスト層は `doc/rules/testing-strategy.md`、schema 変更は `convex-migration-helper` を併用する。
+## ユースケース単位とCQRS
 
-既存コードがこの方針と異なる場合、その実装を新規変更の前例にしない。
-互換性、persisted shape、公開APIへ影響する修正は、実装計画とmigrationを分けて適用する。
+APIはDB tableではなく、利用者とユースケースで分ける。
+query、mutation、actionを役割で分け、外部API呼出しをmutationへ混ぜない。
 
-## 設計の基本形
+queryとmutationは `ctx.db` を直接使ってよい。
+全処理へrepository interfaceを挟まず、複数ユースケースで意味が同じpolicy、validator、純粋処理だけを共通化する。
 
-Convex 配下は Use-Case Slices + CQRS を維持する。
+ファイルの大きさだけで全面再編しない。
+状態遷移、呼出し主体、変更理由が異なる責務を局所的に分ける。
 
-- API は DB テーブルではなく、利用者とユースケースで分割する。
-- query、mutation、action は役割を分け、外部 API 呼び出しを mutation に混ぜない。
-- query と mutation から `ctx.db` を直接使ってよく、全処理へ repository interface を挟まない。
-- 共通層には、複数ユースケースで意味が同じ policy、validator、純粋 helper だけを置く。
-- ファイルの大きさだけで全面再編せず、状態遷移や変更理由が異なる責務を局所的に分ける。
+## 呼出し主体と境界
 
-## 呼び出し主体と信頼境界
+public functionまたはHTTP routeを作る前に、呼出し主体を分類する。
 
-public functionまたはHTTP routeを作る前に、呼び出し主体を少なくとも次の一つへ分類する。
-CapabilityをHTTP Actionで受ける場合など複数の境界に該当するときは、それぞれの検証契約を重ねる。
+| 境界 | 主な用途 |
+|---|---|
+| authenticated | 店舗が確定する前も必要なsetupと所属取得 |
+| manager | 店舗単位の管理操作 |
+| staff session | スタッフの提出と閲覧 |
+| public capability | magic link、登録、同意、連携 |
+| anonymous HTTP | identityを持たない公開受付 |
+| provider / service HTTP | Webhook、service間連携、内部BI |
+| internal | cron、fanout、集計、migration、worker |
 
-| 境界 | 権限の正または受付条件 | 主な用途 |
-|---|---|---|
-| authenticated | Clerk identity と `users` | 初回 setup、所属店舗一覧など、店舗未確定でも必要な処理 |
-| manager | Clerk identity、active `shopMembers`、非削除 `shops` | 店舗単位の管理処理 |
-| staff session | session、staff、shop、recruitment、access kind | スタッフの提出と閲覧 |
-| public capability | bearer token の scope と状態 | magic link、登録、同意、LINE OAuth |
-| anonymous HTTP | 権限なし。network metadata、bot proof、rate limitはabuse controlにだけ使う | 公開登録、問い合わせなどidentityを持たない受付 |
-| provider / service HTTP | provider署名またはservice credential、event identity | LINE、Resend、内部BIなどの外部連携 |
-| internal | Convex の internal function 境界 | cron、fanout、集計、migration、配送 worker |
+複数の境界に該当する場合は、それぞれの契約を重ねる。
+認証方式とサーバー側の検証は `security-strategy.md` を正本とする。
 
-店舗スコープの manager API は `shopId` を必須とする。
+新しい店舗スコープのmanager APIは、対象の `shopId` を明示的に受け取る。
+最初の所属店舗へのfallbackは、setupや店舗選択の初期化に加え、追跡中の移行互換として残る既存APIだけに限定する。
+移行互換のfallbackには終了条件を持たせ、呼出し元の移行後に削除する。
 
-先頭の所属店舗へ暗黙にフォールバックできるのは、初回 setup や店舗選択の初期化など、対象店舗がまだ確定していない API に限定する。
+## Public API
 
-店舗単位の role と permission は `shopMembers` を正とし、グローバル user role で店舗権限を代用しない。
+public query、mutation、action、HTTP Actionは外部契約として扱う。
+各APIは、次を設計時に明確にする。
 
-## Public APIとHTTPの契約
+- 呼出し主体と対象店舗。
+- user-controlledなIDと所属検証。
+- runtime `args` validatorと`returns` validator。
+- 最小DTOまたは最小response。
+- 入力件数、返却量、走査量の上限。
+- rate limit、冪等性、dedupeの要否。
+- DB、scheduler、外部APIへの副作用。
+- 主担当となるFunction TestまたはScenario Test。
 
-public query、mutation、actionとHTTP Actionは、外部から呼べるAPIとして設計する。
+HTTP Actionでは、method、path、content type、body上限、CORS、署名またはcredential、replayとevent重複も契約に含める。
 
-各 API は少なくとも次を定義する。
+利用箇所がないpublic functionとHTTP routeは、形状をテストで固定する前に削除またはinternal化を検討する。
+匿名またはcapability境界を意図しないpublic functionは、既存の認証wrapperを使う。
 
-- actor と認証方式
-- 対象店舗と asset
-- user-controlled な ID と取得後の所属検証
-- public query、mutation、actionのruntime `args` validatorと`returns` validator
-- 最小DTOまたは最小response
-- 最大入力件数、返却量の契約、最大走査量またはread budget
-- rate limit、冪等性、dedupe の要否
-- DB 更新、scheduler、外部 API などの副作用
-- 対応する Function Test または Scenario Test
+## Capabilityのライフサイクル
 
-HTTP Actionでは、method、path、content type、body上限、CORS、署名またはcredential、replayとevent重複の扱いも定義する。
+magic link、session、登録URL、招待、法務同意、連携tokenは、用途ごとにライフサイクルを定義する。
 
-HTTP routeはallowlistとして管理し、認証、bot proof、署名、request制約を検証した後だけinternal mutationへ状態変更を渡す。
-
-生の `query`、`mutation`、`action` を使う public function は、匿名または capability 境界として意図したものだけに限定する。
-
-許可するファイルを明示し、認証ラッパーの迂回が無制限に増えないよう CI または静的検査で確認する。
-
-利用箇所がないpublic functionまたはHTTP routeは、互換性をテストで固定する前に削除し、必要な処理だけinternal化することを検討する。
-
-## Capability の寿命
-
-magic link、session、登録 URL、招待、法務同意、LINE 連携 token は、用途ごとに次の契約を決める。
-
-| 項目 | 決める内容 |
+| 項目 | 定義する内容 |
 |---|---|
 | scope | shop、subject、recruitment、access kind、purpose |
-| 保管 | raw token を再表示する必要がなければ digest を保存する |
+| 保管 | raw tokenまたはdigest |
 | 有効期間 | `createdAt`、`expiresAt`、業務上の失効条件 |
-| 使用回数 | single-use または reusable |
-| 再発行 | newest-only または複数有効 |
+| 使用回数 | single-useまたはreusable |
+| 再発行 | newest-onlyまたは複数有効 |
 | 無効化 | `usedAt`、`revokedAt`、version、rotation |
-| abuse 対策 | token、IP、店舗、global の rate limit と試行上限 |
-| 応答 | account、staff、申請状態を列挙できない外部応答 |
-| 後処理 | 期限切れ、使用済み、失効済み record の保持期限と prune |
+| abuse対策 | token、IP、店舗、globalのrate limitと試行上限 |
+| 後処理 | 期限切れ、使用済み、失効済みrecordの保持とprune |
 
-newest-only の capability は、発行と同じ transaction で同じ scope の古い未使用 token を revoke する。
+newest-onlyのcapabilityは、発行と同じtransactionで同じscopeの古い未使用tokenをrevokeする。
+検証と消費が別処理になる場合は、消費時にもversionと状態を確認する。
 
-検証と消費が別処理になる場合は、消費時にも最新 version と状態を再確認する。
+期限切れ、使用済み、失効済みのrecordは、indexを使ったbounded batchで処理する。
+credentialとしての扱いと外部応答は `security-strategy.md` を正本とする。
 
-不特定の利用者が使う登録フォームは、HTTP Action の body 上限、bot proof、多層 rate limit、店舗ごとの pending hard cap、rotation、revoke を組み合わせる。
+## Durable Workflow
 
-既存、申請中、新規を外部応答で区別せず、承認権限は manager 境界に残す。
+外部副作用または多数の対象へfanoutする処理は、mutationが処理意図を永続化してから開始する。
+scheduled actionは実行手段であり、処理全体の進捗を保持するworkflowとして扱わない。
 
-## Durable workflow
+中断後の再開が必要な処理は、永続jobへ次の状態を持たせる。
 
-外部副作用や多数の対象へ fanout する処理は、mutation が永続的な処理意図を保存してから開始する。
+- status、cursor、attempt count。
+- 次回実行時刻と処理開始時刻。
+- leaseまたはprocessing deadline。
+- operation epochまたはversion。
+- 安全なerror code。
+- 作成時刻と更新時刻。
 
-scheduled action は外部副作用の実行手段であり、処理全体の進捗を保持する workflow として扱わない。
-
-中断後の再開が必要な処理には、永続 job と次の情報を持たせる。
-
-- `status`
-- `cursor`
-- `attemptCount`
-- `nextRunAt`
-- `processingStartedAt`
-- lease または processing deadline
-- operation epoch または version
-- `lastErrorCode`
-- `createdAt` と `updatedAt`
-
-worker の状態遷移は、たとえば次の形で明示する。
+代表的な状態遷移は次の形になる。
 
 ```text
-pending -> processing -> sent
+pending -> processing -> completed
                      -> pending
                      -> failed
                      -> cancelled
 ```
 
-- claimは`nextRunAt <= now`など実行可能な`pending`またはretry対象だけを排他的に取得する。
-- `processing`を再取得できるのはleaseが失効した場合だけとする。
-- stale な `processing` は reaper が回収する。
-- `markSent`、retry、failure は期待する status、lease、epoch が一致する場合だけ更新する。
-- 外部送信には安定した operation ID 由来の idempotency key を使う。
-- fanout は bounded batch で進め、cursor と完了状態を永続化する。
-- action が記録を残す前に停止しても、未完了 job と最終成功時刻から検知できるようにする。
+claimは実行可能なrecordだけを排他的に取得する。
+`processing` を再取得できるのはleaseが失効した場合に限り、staleな処理はreaperが回収する。
 
-店舗削除や通知停止は `cancelled` を終端状態として扱い、削除開始後の enqueue を拒否する。
+完了、retry、failureは、期待するstatus、lease、epochが一致するときだけ更新する。
+古いworkerが新しい状態またはterminal stateを上書きさせない。
 
-claim 後に削除状態が変わる競合へ備え、外部 API 呼び出し直前に店舗状態と operation epoch を再確認する。
+外部副作用は複数回実行される可能性がある。
+providerが対応する場合は、安定したoperation IDに基づくidempotency keyを渡す。
 
-外部 API 呼び出し開始後の完全な取り消しは保証できないため、削除時の in-flight 処理をどう扱うかも仕様に含める。
+fanoutはbounded batchで進め、cursorと完了状態を永続化する。
+actionが完了記録を残す前に停止しても、未完了jobと最終成功時刻から検知できる状態にする。
+
+削除または通知停止の開始後は新規enqueueを拒否し、必要なjobを `cancelled` へ遷移させる。
+claim後の競合に備え、外部API呼出しの直前に対象状態とoperation epochを確認する。
+
+## Schemaの不変条件
+
+schemaは保存形式だけでなく、業務上あり得る組合せを表す。
+
+- actorやsubjectの種類でfieldが変わる場合はdiscriminated unionを使う。
+- both-or-neitherを許さないoptional IDの組合せを作らない。
+- singletonまたは一意性は、indexと同じtransaction内のwrite policyで守る。
+- `v.optional()` は、業務上任意、移行中、未計算のどれかを区別する。
+- 移行中のoptionalとfallbackは、対象migrationと狭める条件を追跡できるようにする。
+- 集計またはsnapshotの定義が変わる場合は、算出versionで混在を検出できるようにする。
+
+保存済みデータの形式を変更するときは、互換期間とmigrationを実装変更から分けて設計する。
+widen-migrate-narrowの手順は `convex-migration-helper` が所有する。
+
+## Bounded Readと集計
+
+一覧と集計は、現在件数ではなく増加後の上限を基準に設計する。
+indexでtenantと主要条件を絞り、入力件数、走査量、返却量を別の上限として扱う。
+
+native paginationでは、validatorが保証するpagination optionsを失わない形で `.paginate()` へ渡す。
+初期page sizeを最大返却件数と誤認しない。
+
+固定件数のsnapshot APIとcursor paginationを同じ返却契約に見せない。
+上限超過で正確性が失われる値を、正確な集計として保存または表示しない。
+
+全件集計が契約なら、write時に維持するcounterまたはcursorと中間結果を永続化するjobを使う。
+小さな上限が保証されない限り、単一function内で全pageを読み切らない。
+
+capped valueが契約なら、切り詰めの有無、下限、対象上限などを値とともに持たせる。
+digest table、document分割、counter、shardingは、unboundedな処理、既知のhot path、実測のいずれかを根拠に導入する。
 
 ## データ寿命と監査
 
-論理削除はアクセス停止の手段であり、個人情報の消去を完了したことにはならない。
+論理削除はアクセス停止であり、個人情報の消去完了ではない。
+永続tableごとに、目的、owner、tenant key、active期間、保持期間、論理削除、redact、物理削除、backup上の扱いを定義する。
 
-永続テーブルごとに次を定義する。
+通知payloadと監査metadataを分ける。
+宛先、本文、raw capability URL、providerのraw errorは、再送と調査に必要な期間を過ぎたらredactまたは削除する。
 
-- データの目的と owner
-- tenant key
-- active 期間
-- retry、問い合わせ、監査のための保持期間
-- 論理削除時の動作
-- redact、anonymize、物理削除の条件
-- backup 上の保持方針
+責任追跡が必要な操作は、actor、shop、action、target、時刻、correlation ID、安全なmetadataを持つ追記型audit eventを検討する。
+document全体や不要な個人情報を監査記録へ保存しない。
 
-通知 payload と監査 metadata は分離する。
+大量のredactまたは削除は、cursorと進捗を持つ再開可能なjobで行う。
 
-送信後に不要になった宛先、本文、token URL、provider の raw error は、再送や調査に必要な期間を過ぎたら redact または削除する。
+## Test Helperの隔離
 
-provider error は `provider`、`status`、`code`、`retryable` などの安全な分類値へ変換し、raw response body を保存しない。
+全件削除やseedなどの破壊的internal functionは、internalであることだけを本番防御にしない。
+E2E専用deploymentと明示的なenable条件を必要とし、productionでは起動できない状態にする。
 
-権限変更、billing、店舗削除、スタッフ削除、募集削除、シフト確定、手動再送など、責任追跡が必要な操作は追記型 audit event を検討する。
+読み取りprobeと破壊的commandを同じ権限へまとめない。
+可能な場合は、破壊的helperをproduction artifactから分ける。
 
-audit event には actor、shop、action、target、occurredAt、correlation ID、安全な metadata を持たせ、不要な PII や document 全体を保存しない。
+## 運用可能性
 
-## Schema の不変条件
+非同期処理は、未完了と停滞をログ以外から確認できる状態を持つ。
+少なくともbacklog、最古のpending、lease超過、retry回数、最終成功時刻を安全な集計値または状態tableから確認できるようにする。
 
-schema は保存形式だけでなく、業務上あり得る組み合わせを表す。
-
-- actor や subject の種類で field が変わる場合は discriminated union を使う。
-- both-or-neither を許さない optional ID の組み合わせを作らない。
-- singleton や一意性は、`.unique()` と同一 transaction 内の write policy で守る。
-- `v.optional()` は「業務上任意」「移行中」「未計算」のどれかをコメントや型で区別する。
-- 移行中の optional と fallback には `TODO[narrow]`、対象 migration、完了条件を残す。
-- 集計や snapshot の定義が変わる場合は、算出 version を保存して混在を検出できるようにする。
-
-## Bounded read と集計
-
-一覧と集計は、現在の件数ではなく増加後の上限を基準に設計する。
-
-- index で tenant と主要条件を絞る。
-- `paginationOpts.numItems` は初期page sizeの目標であり、reactive paginationの結果件数を保証するhard capではない。
-- 異常に大きい`numItems`やread budgetはhandlerで拒否してよいが、検証した`numItems`を最大返却件数として扱わない。
-- Convexのnative paginationでは`paginationOptsValidator`を使い、`endCursor`、`maximumRowsRead`、`maximumBytesRead`、`id`を失わないよう`args.paginationOpts`を変形せず`.paginate()`へ渡す。
-- 固定件数の snapshot API と cursor pagination を同じ返却契約に見せない。
-- 上限超過で正確性が失われる集計は、黙って正確値として保存しない。
-
-全件集計が契約なら、write時に維持するcounterか、cursorと中間結果を永続化するboundedな集計jobを使う。
-writeで保証された小さな上限がない限り、単一function内で全pageを読み切らない。
-
-capped value が契約なら `isTruncated`、`lowerBound`、対象上限などを保存し、利用側もその意味を表示する。
-
-digest table、document 分割、counter、sharding は、明確に unbounded な処理、既知の hot path、または Convex Insights の実測がある場合に導入する。
-
-## Test helper の隔離
-
-全件削除や seed のような破壊的 internal function は、internal であることだけを本番防御にしない。
-
-- E2E 専用 deployment を固定する。
-- production deployment では enable 設定を拒否する。
-- deployment identity と明示 enable の二重条件を使う。
-- 可能なら destructive helper を通常の production artifact から分離する。
-- 読み取り probe と破壊的 command を同じ権限にまとめない。
-- CI で production の禁止設定を検査する。
-
-## 運用契約
-
-次の状態を計測し、閾値と確認手順を決める。
-
-- 最古の pending 経過時間
-- processing lease 超過件数
-- workflow と Outbox の backlog
-- retry attempt 別件数
-- cron、fanout、集計、migration の最終成功時刻
-- token と session の期限切れ未処理件数
-- webhook の署名不正、重複、処理失敗
-- rate limit と bot proof の拒否件数
-- 集計の truncation と version 混在
-
-ログだけで判定せず、状態テーブルまたは安全な集計値から未完了処理を確認できるようにする。
+token、session、Webhook、rate limit、migration、集計についても、期限切れ未処理、失敗、重複、version混在を検知できる状態を設計する。
+閾値と人間の確認手順は、対象機能の運用文書が所有する。
 
 ## テストの分担
 
-Function Test では、単一 public API の actor、店舗境界、return DTO、上限、token 状態、rate limit、冪等性、異常時の副作用ゼロを検証する。
+Function Testは、単一public APIのactor、店舗境界、validator、最小DTO、上限、直接副作用を守る。
+Scenario Testは、capability再発行、workflow中断、stale lease、削除との競合、fanout、retentionの状態遷移を守る。
 
-HTTP ActionのFunction Testでは、method、content type、body上限、CORS、署名またはservice credential、replay、event dedupe、外部応答を`t.fetch()`で検証する。
-
-Scenario Test では、再発行後の旧 capability 失効、workflow の中断と再開、stale lease 回収、削除と worker の競合、fanout 完了、retention job の再実行可能性を検証する。
-
-provider の実到着は通常の Function Test と Scenario Test へ含めず、隔離した canary へ分ける。
-
-## 設計レビューの成果物
-
-Convex の横断設計をレビューするときは、次の順でまとめる。
-
-1. 結論
-2. 現在の構造と維持する設計
-3. 確認できた事実と推測を分けた、優先度付きfindings
-4. 最終状態の設計契約
-5. migrationと互換性の制約
-6. Function TestとScenario Testの追加契約
-7. 運用指標と障害復旧手順
-8. 未決定事項と実測が必要な事項
-9. 過剰設計として採用しない案
+providerへの実到着と本番容量は、通常のFunction TestとScenario Testへ含めない。
+必要な場合は、対象、環境、判定、復旧を定めた運用確認または容量検証として分ける。

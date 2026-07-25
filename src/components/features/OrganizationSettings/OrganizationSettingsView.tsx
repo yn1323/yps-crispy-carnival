@@ -1,6 +1,7 @@
 import { Box, Skeleton, Stack, Tabs } from "@chakra-ui/react";
 import { LuCreditCard, LuSettings, LuStore, LuUsers } from "react-icons/lu";
 import { OrganizationContext } from "./OrganizationContext";
+import { OrganizationCreationSection } from "./OrganizationCreation/OrganizationCreationSection";
 import { OrganizationDeletionSection } from "./OrganizationDeletion/OrganizationDeletionSection";
 import { PeopleSection } from "./PeopleSection";
 import { PlanAndPaymentSection } from "./PlanAndPaymentSection";
@@ -23,6 +24,9 @@ export const OrganizationSettingsView = ({
   addShopDisabledReason,
   canDeleteOrganization,
   deleteOrganizationDisabledReason,
+  canCreateOrganization,
+  createOrganizationDisabledReason,
+  features,
   actions,
   defaultTab = "people",
   onTabChange,
@@ -55,10 +59,12 @@ export const OrganizationSettingsView = ({
           <LuStore aria-hidden />
           店舗
         </Tabs.Trigger>
-        <Tabs.Trigger value="billing" flexShrink={0} gap={2}>
-          <LuCreditCard aria-hidden />
-          プランと支払い
-        </Tabs.Trigger>
+        {features.billing && (
+          <Tabs.Trigger value="billing" flexShrink={0} gap={2}>
+            <LuCreditCard aria-hidden />
+            プランと支払い
+          </Tabs.Trigger>
+        )}
         <Tabs.Trigger value="settings" flexShrink={0} gap={2}>
           <LuSettings aria-hidden />
           設定
@@ -83,6 +89,7 @@ export const OrganizationSettingsView = ({
       <Tabs.Content value="shops" p={0} pt={{ base: 5, md: 6 }}>
         <ShopsSection
           shops={shops}
+          showAddShop={features.shopAddition}
           canAddShop={canAddShop}
           addShopDisabledReason={addShopDisabledReason}
           onAddShop={actions.onAddShop}
@@ -90,24 +97,35 @@ export const OrganizationSettingsView = ({
         />
       </Tabs.Content>
 
-      <Tabs.Content value="billing" p={0} pt={{ base: 5, md: 6 }}>
-        <PlanAndPaymentSection
-          billing={billing}
-          planPrices={planPrices}
-          onManagePlan={actions.onManagePlan}
-          onRetryPlanPrice={actions.onRetryPlanPrice}
-          onUpdatePaymentMethod={actions.onUpdatePaymentMethod}
-          onUpdateBillingEmail={actions.onUpdateBillingEmail}
-          onOpenBillingDocuments={actions.onOpenBillingDocuments}
-        />
-      </Tabs.Content>
+      {features.billing && (
+        <Tabs.Content value="billing" p={0} pt={{ base: 5, md: 6 }}>
+          <PlanAndPaymentSection
+            billing={billing}
+            planPrices={planPrices}
+            onManagePlan={actions.onManagePlan}
+            onRetryPlanPrice={actions.onRetryPlanPrice}
+            onUpdatePaymentMethod={actions.onUpdatePaymentMethod}
+            onUpdateBillingEmail={actions.onUpdateBillingEmail}
+            onOpenBillingDocuments={actions.onOpenBillingDocuments}
+          />
+        </Tabs.Content>
+      )}
 
       <Tabs.Content value="settings" p={0} pt={{ base: 5, md: 6 }}>
-        <OrganizationDeletionSection
-          canDelete={canDeleteOrganization}
-          disabledReason={deleteOrganizationDisabledReason}
-          onDelete={actions.onDeleteOrganization}
-        />
+        <Stack gap={{ base: 5, md: 6 }}>
+          {features.organizationCreation && (
+            <OrganizationCreationSection
+              canCreate={canCreateOrganization}
+              disabledReason={createOrganizationDisabledReason}
+              onCreate={actions.onCreateOrganization}
+            />
+          )}
+          <OrganizationDeletionSection
+            canDelete={canDeleteOrganization}
+            disabledReason={deleteOrganizationDisabledReason}
+            onDelete={actions.onDeleteOrganization}
+          />
+        </Stack>
       </Tabs.Content>
     </Tabs.Root>
   </Stack>

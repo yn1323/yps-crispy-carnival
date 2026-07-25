@@ -48,6 +48,13 @@ export const ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT = 100;
 export const ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT = 100;
 // 人物削除を単一transactionで確定できる、今日以降のシフト割当上限。
 export const ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT = 500;
+// 一人の利用者が自分で作成して保持できるグループ数。招待による所属は数えない。
+export const ORGANIZATION_SELF_CREATED_LIMIT = 3;
+// グループ作成の日次上限。同時保持数は上記で決まるため、ここでは作り直しの回数だけを抑える。
+export const ORGANIZATION_CREATE_DAILY_LIMIT = 10;
+// TODO[narrow]: m009_shops_to_organizationsの完走後、グループ未所属の旧店舗の走査ごと削除する。
+//   グループ作成上限を数えるとき、移行前の店舗を1グループとして扱うための走査上限。
+export const ORGANIZATION_LEGACY_SHOP_SCAN_LIMIT = 50;
 export const SHIFT_BOARD_SHIFT_REQUEST_LIMIT = 2000;
 export const SHIFT_ASSIGNMENT_LIMIT = 2000;
 // スタッフ個別通知の再送上限。actorを替えた回避も組織単位の上限で抑止する。

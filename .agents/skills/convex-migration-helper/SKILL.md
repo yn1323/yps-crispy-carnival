@@ -1,178 +1,64 @@
 ---
 name: convex-migration-helper
-description:
-  Plans Convex schema and data migrations with widen-migrate-narrow and
-  @convex-dev/migrations. Use for breaking schema changes, backfills, table
-  reshaping, or zero-downtime rollouts.
+description: Convexの保存済みデータ形式変更をwiden-migrate-narrowで計画し、互換期間、backfill、検証、rollbackを設計・実装する。required field追加、型変更、table分割・統合、rename・削除、既存dataのbackfillに使う。既存dataへ影響しないschema追加や設計レビューだけには使わない。
 ---
 
 # Convex Migration Helper
 
-Safely migrate Convex schemas and data when making breaking changes.
+稼働中のcodeとdataを両立させながら、Convexのschemaとpersisted dataを段階的に移行する。
 
-## When to Use
+## 最初に読む
 
-- Adding new required fields to existing tables
-- Changing field types or structure
-- Splitting or merging tables
-- Renaming or deleting fields
-- Migrating from nested to relational data
+1. `convex/_generated/ai/guidelines.md`
+2. `convex/AGENTS.md`
+3. 現在のschema、reader、writer、index、近いmigrationとテスト
+4. 関連するFeature Docとdeployment手順
 
-## When Not to Use
+securityやtenant境界が変わる場合は`shiftori-security-review`を併用する。
+複数ユースケースの最終設計を決める場合は`convex-design-review`を併用する。
 
-- Greenfield schema with no existing data in production or dev
-- Adding optional fields that do not need backfilling
-- Adding new tables with no existing data to migrate
-- Adding or removing indexes with no correctness concern
-- Questions about Convex schema design without a migration need
+## Workflow
 
-## Key Concepts
+1. 旧shape、新shape、既存dataの有無、data量、全reader・writerを特定する。
+2. 変更を互換、非互換、data削除に分類する。
+3. widen、migrate、narrowの各deployで許容するshapeとcode behaviorを定義する。
+4. 移行中に作られるdataを取りこぼさないwrite strategyを決める。
+5. backfillを再実行可能かつboundedにし、停止・再開・失敗時の挙動を定義する。
+6. dry run、進捗、残件、完了条件、rollback条件を決める。
+7. 実装を依頼された場合だけcodeとmigrationを変更する。
+8. `convex/AGENTS.md`の命名、連番、runner、追跡コメントの制約に従ってmigrationを追加する。
+9. 後で外すschema互換とfallbackが追跡されていることを確認する。
+10. 対象deploymentを再確認してから、明示的に許可された環境だけでmigrationを実行する。
+11. 完了確認後に`TODO[narrow]:`を検索し、schemaをnarrowして互換codeと追跡コメントを削除する。
 
-### Schema Validation Drives the Workflow
+## Widen-Migrate-Narrow
 
-Convex will not let you deploy a schema that does not match the data at rest.
-This is the fundamental constraint that shapes every migration:
+1. Widen: 新旧shapeを受け入れ、readerは両方を扱い、writerは移行戦略に従う。
+2. Migrate: 既存dataをbatchでbackfillし、並行writeを含む残件が0であることを確認する。
+3. Narrow: 新shapeだけを要求し、旧shapeのread/write互換を外す。
 
-- You cannot add a required field if existing documents don't have it
-- You cannot change a field's type if existing documents have the old type
-- You cannot remove a field from the schema if existing documents still have it
+非自明なbackfillでは`@convex-dev/migrations`を優先し、具体的なAPIはinstalled versionと公式文書で確認する。
+代表的なshape変換は`references/migration-patterns.md`、componentの定義・実行・status確認は`references/migrations-component.md`を必要な場合だけ読む。
 
-This means migrations follow a predictable pattern: **widen the schema, migrate
-the data, narrow the schema**.
+## Safety Rules
 
-### Online Migrations
+- migration関数は再実行しても同じ最終状態になるようにする。
+- data量の根拠なしに`.collect()`を使わない。
+- migration期間中の新規writeを必ず計画へ含める。
+- fieldやdocumentの削除は、保持要件、復旧可能性、ユーザーの依頼範囲を確認してから行う。
+- plan依頼ではproduction dataを変更しない。
+- production実行では省略名を信用せず、対象deploymentとcommand出力を照合する。
+- export検証、migration status、schema整合を別々の完了条件として扱う。
 
-Convex migrations run online, meaning the app continues serving requests while
-data is updated asynchronously in batches. During the migration window, your
-code must handle both old and new data formats.
+## Output
 
-### Prefer New Fields Over Changing Types
+計画には次を含める。
 
-When changing the shape of data, create a new field rather than modifying an
-existing one. This makes the transition safer and easier to roll back.
+1. 変更前後のshapeと影響するreader・writer
+2. deployごとのschema・read・write契約
+3. backfillの単位、再実行性、停止・再開方法
+4. dry run、進捗、残件、完了条件
+5. rollbackとcleanup
+6. Function TestとScenario Testの契約
 
-### Don't Delete Data
-
-Unless you are certain, prefer deprecating fields over deleting them. Mark the
-field as `v.optional` and add a code comment explaining it is deprecated and why
-it existed.
-
-## Safe Changes (No Migration Needed)
-
-### Adding Optional Field
-
-```typescript
-// Before
-users: defineTable({
-  name: v.string(),
-});
-
-// After - safe, new field is optional
-users: defineTable({
-  name: v.string(),
-  bio: v.optional(v.string()),
-});
-```
-
-### Adding New Table
-
-```typescript
-posts: defineTable({
-  userId: v.id("users"),
-  title: v.string(),
-}).index("by_user", ["userId"]);
-```
-
-### Adding Index
-
-```typescript
-users: defineTable({
-  name: v.string(),
-  email: v.string(),
-}).index("by_email", ["email"]);
-```
-
-## Breaking Changes: The Deployment Workflow
-
-Every breaking migration follows the same multi-deploy pattern:
-
-**Deploy 1 - Widen the schema:**
-
-1. Update schema to allow both old and new formats (e.g., add optional new
-   field)
-2. Update code to handle both formats when reading
-3. Update code to write the new format for new documents
-4. Deploy
-
-**Between deploys - Migrate data:**
-
-5. Run migration to backfill existing documents
-6. Verify all documents are migrated
-
-**Deploy 2 - Narrow the schema:**
-
-7. Update schema to require the new format only
-8. Remove code that handles the old format
-9. Deploy
-
-## Using the Migrations Component
-
-For any non-trivial migration, use the
-[`@convex-dev/migrations`](https://www.convex.dev/components/migrations)
-component. It handles batching, cursor-based pagination, state tracking, resume
-from failure, dry runs, and progress monitoring.
-
-See `references/migrations-component.md` for installation, setup, defining and
-running migrations directly with `npx convex run migrations:myMigration`, dry
-runs, status monitoring, and configuration options.
-
-## Common Migration Patterns
-
-See `references/migration-patterns.md` for complete patterns with code examples
-covering:
-
-- Adding a required field
-- Deleting a field
-- Changing a field type
-- Splitting nested data into a separate table
-- Cleaning up orphaned documents
-- Zero-downtime strategies (dual write, dual read)
-- Small table shortcut (single internalMutation without the component)
-- Verifying a migration is complete
-
-## Common Pitfalls
-
-1. **Making a field required before migrating data**: Convex rejects the deploy
-   because existing documents lack the field. Always widen the schema first.
-2. **Using `.collect()` on large tables**: Hits transaction limits or causes
-   timeouts. Use the migrations component for proper batched pagination.
-   `.collect()` is only safe for tables you know are small.
-3. **Not writing the new format before migrating**: Documents created during the
-   migration window will be missed, leaving unmigrated data after the migration
-   "completes."
-4. **Skipping the dry run**: Use `dryRun: true` to validate migration logic
-   before committing changes to production data. Catches bugs before they touch
-   real documents.
-5. **Deleting fields prematurely**: Prefer deprecating with `v.optional` and a
-   comment. Only delete after you are confident the data is no longer needed and
-   no code references it.
-6. **Using crons for migration batches**: The migrations component handles
-   batching via recursive scheduling internally. Crons require manual cleanup
-   and an extra deploy to remove.
-
-## Migration Checklist
-
-- [ ] Identify the breaking change and plan the multi-deploy workflow
-- [ ] Update schema to allow both old and new formats
-- [ ] Update code to handle both formats when reading
-- [ ] Update code to write the new format for new documents
-- [ ] Deploy widened schema and updated code
-- [ ] Define migration using the `@convex-dev/migrations` component
-- [ ] Test with `npx convex run migrations:myMigration '{"dryRun": true}'`
-- [ ] Run migration directly with `npx convex run migrations:myMigration` and
-      monitor status
-- [ ] Verify all documents are migrated
-- [ ] Update schema to require new format only
-- [ ] Clean up code that handled old format
-- [ ] Deploy final schema and code
-- [ ] Remove migration code once confirmed stable
+実行した場合は、対象deployment、実行command、status、残件確認を根拠付きで報告する。

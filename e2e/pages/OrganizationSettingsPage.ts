@@ -159,7 +159,8 @@ export class OrganizationSettingsPage {
     await this.expectBillingUsage("利用人数", current, max);
   }
 
-  async expectBillingPlan(plan: "Free" | "Pro" | "Business") {
+  // 画面のプラン見出しはFreeを「無料」と表示するため、表示ラベルをそのまま受け取る。
+  async expectBillingPlan(plan: "無料" | "Pro" | "Business") {
     await this.openBillingTab();
     await expect(this.page.getByRole("heading", { name: plan, exact: true }).first()).toBeVisible({
       timeout: SETTINGS_DATA_TIMEOUT,
@@ -247,6 +248,63 @@ export class OrganizationSettingsPage {
     await dialog.getByRole("button", { name: "店舗を追加" }).click();
     await this.expectToast("店舗を追加しました");
     await expect(dialog).not.toBeVisible();
+  }
+
+  /** 「設定」タブから新しいグループを作り、最初の店舗のDashboardへ遷移するまで待つ。 */
+  async createOrganization(shopName: string) {
+    await this.openSettingsTab();
+    await this.page.getByRole("button", { name: "新しいグループを作る" }).click();
+    const dialog = this.page.getByRole("dialog", { name: "新しいグループを作る" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText(/新しいグループは無料プランで始まります。/)).toBeVisible();
+    await dialog.getByLabel(/店舗名|お店の名前/).fill(shopName);
+
+    for (let step = 0; step < 3; step += 1) {
+      await dialog.getByRole("button", { name: "次へ" }).click();
+    }
+
+    await expect(dialog.getByText("定休日", { exact: true }).first()).toBeVisible();
+    await dialog.getByRole("button", { name: "グループを作る" }).click();
+    await this.expectToast("新しいグループを作りました");
+    await expect(dialog).not.toBeVisible();
+
+    await expect(this.page).toHaveURL((url) => url.pathname === "/dashboard" && url.searchParams.get("shop") !== null, {
+      timeout: SETTINGS_DATA_TIMEOUT,
+    });
+    const shopId = new URL(this.page.url()).searchParams.get("shop");
+    if (!shopId) throw new Error("作成したグループの店舗IDを取得できませんでした");
+    return shopId;
+  }
+
+  async expectCreateOrganizationDisabled(reason: string) {
+    await this.openSettingsTab();
+    const createButton = this.page.getByRole("button", { name: "新しいグループを作る" });
+    await expect(createButton).toBeDisabled({ timeout: SETTINGS_DATA_TIMEOUT });
+    await expect(this.page.getByText(reason, { exact: true })).toBeVisible();
+  }
+
+  /**
+   * ダークローンチの公開状態と、画面に出ている導線が一致することを確認する。
+   *
+   * 公開済みの導線は上限に達していればdisabledで描画されるため、有無だけを見る。
+   */
+  async expectFeatureEntrypoints(features: { organizationCreation: boolean; shopAddition: boolean; billing: boolean }) {
+    const billingTab = this.tabTrigger("billing");
+    if (features.billing) await expect(billingTab).toBeVisible({ timeout: SETTINGS_DATA_TIMEOUT });
+    else await expect(billingTab).toHaveCount(0);
+
+    await this.openShopsTab();
+    const addShopButton = this.page.getByRole("button", { name: "店舗を追加" });
+    if (features.shopAddition) await expect(addShopButton).toBeVisible();
+    else await expect(addShopButton).toHaveCount(0);
+
+    await this.openSettingsTab();
+    const createOrganizationButton = this.page.getByRole("button", { name: "新しいグループを作る" });
+    if (features.organizationCreation) await expect(createOrganizationButton).toBeVisible();
+    else await expect(createOrganizationButton).toHaveCount(0);
+
+    // グループ削除は退会導線のため、ダークローンチ中も残す。
+    await expect(this.page.getByRole("button", { name: "削除", exact: true })).toBeVisible();
   }
 
   async expectShopVisible(shopName: string) {

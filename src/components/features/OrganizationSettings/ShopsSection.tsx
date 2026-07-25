@@ -7,13 +7,22 @@ import type { OrganizationShopView } from "./types";
 
 type Props = {
   shops: OrganizationShopView[];
+  /** 店舗追加が公開されているか。未公開ではボタンと理由の両方を描画しない。 */
+  showAddShop: boolean;
   canAddShop: boolean;
   addShopDisabledReason?: string;
   onAddShop: () => void;
   onOpenShop: (shopId: string) => void;
 };
 
-export const ShopsSection = ({ shops, canAddShop, addShopDisabledReason, onAddShop, onOpenShop }: Props) => (
+export const ShopsSection = ({
+  shops,
+  showAddShop,
+  canAddShop,
+  addShopDisabledReason,
+  onAddShop,
+  onOpenShop,
+}: Props) => (
   <Stack as="section" gap={4} aria-labelledby="organization-shops-heading">
     <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} gap={3} wrap="wrap">
       <HStack gap={2}>
@@ -22,21 +31,23 @@ export const ShopsSection = ({ shops, canAddShop, addShopDisabledReason, onAddSh
           グループの店舗
         </Heading>
       </HStack>
-      <Button
-        size="sm"
-        colorPalette="teal"
-        onClick={onAddShop}
-        disabled={!canAddShop}
-        title={!canAddShop ? addShopDisabledReason : undefined}
-        aria-describedby={!canAddShop && addShopDisabledReason ? "organization-shop-add-disabled-reason" : undefined}
-        gap={1.5}
-      >
-        <LuPlus aria-hidden />
-        店舗を追加
-      </Button>
+      {showAddShop && (
+        <Button
+          size="sm"
+          colorPalette="teal"
+          onClick={onAddShop}
+          disabled={!canAddShop}
+          title={!canAddShop ? addShopDisabledReason : undefined}
+          aria-describedby={!canAddShop && addShopDisabledReason ? "organization-shop-add-disabled-reason" : undefined}
+          gap={1.5}
+        >
+          <LuPlus aria-hidden />
+          店舗を追加
+        </Button>
+      )}
     </Flex>
 
-    {!canAddShop && addShopDisabledReason && (
+    {showAddShop && !canAddShop && addShopDisabledReason && (
       <Text id="organization-shop-add-disabled-reason" fontSize="sm" color="orange.700">
         {addShopDisabledReason}
       </Text>

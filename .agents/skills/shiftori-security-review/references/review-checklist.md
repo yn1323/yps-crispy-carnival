@@ -1,6 +1,20 @@
 # Shiftori Security Review Checklist
 
 Use this checklist for both pre-implementation plans and code review. Focus on the sections matching the touched surface.
+Use `doc/rules/security-strategy.md` as the canonical source for Shiftori's security model and rationale.
+
+## Contents
+
+- Planning Checklist
+- Public Convex API
+- Manager / Billing Authorization
+- Staff Token / Session Flow
+- Registration / Invite / Legal Consent / LINE Link Tokens
+- Notification / LINE / Resend / Webhook
+- HTTP Actions / CORS
+- Logging / Observability
+- Test Mapping
+- Review Output Format
 
 ## Planning Checklist
 

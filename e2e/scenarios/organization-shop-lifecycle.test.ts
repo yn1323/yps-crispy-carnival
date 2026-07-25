@@ -1,4 +1,5 @@
 import { test } from "../fixtures/e2eTest";
+import { isShopAdditionEnabled } from "../helpers/featureFlags";
 import { seedManagerScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 import { OrganizationSettingsPage } from "../pages/OrganizationSettingsPage";
@@ -15,6 +16,7 @@ test.describe("グループの店舗追加・切り替え・編集", { tag: ["@r
   test.setTimeout(75_000);
 
   test("MS-P0-01: B店の追加と編集をreload後も維持し、A店へ混入させない", async ({ page }) => {
+    test.skip(!isShopAdditionEnabled(), "店舗追加はダークローンチ中で、この環境では公開していない");
     const seed = seedManagerScenario<SingleShopSeed>("testing:seedStaffRegistrationReviewScenario", {
       shopName: PRIMARY_SHOP_NAME,
     });

@@ -1,6 +1,6 @@
 interface:
   display_name: "シフトリ画像生成"
-  short_description: "用途に合う表現を選びシフトリらしい画像を生成します"
+  short_description: "用途に合う表現を選びシフトリらしい画像を生成する手順"
   default_prompt: "Use $generate-image to help me choose and generate an illustration for Shiftori."
 policy:
   allow_implicit_invocation: false

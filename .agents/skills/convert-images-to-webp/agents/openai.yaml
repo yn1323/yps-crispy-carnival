@@ -1,4 +1,4 @@
 interface:
   display_name: "画像をWebPに変換"
   short_description: "添付画像を用途に合わせて軽量なWebPへ安全に変換"
-  default_prompt: "Use $convert-images-to-webp to convert the attached images to WebP and use the converted files in this project."
+  default_prompt: "Use $convert-images-to-webp to convert the attached raster image to WebP while preserving the source."

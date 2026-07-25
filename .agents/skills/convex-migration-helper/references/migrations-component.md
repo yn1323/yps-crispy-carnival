@@ -4,6 +4,14 @@ Complete guide to the
 [`@convex-dev/migrations`](https://www.convex.dev/components/migrations)
 component for batched, resumable Convex data migrations.
 
+## Contents
+
+- Installation and Setup
+- Define and Run a Migration
+- Ordered Migrations
+- Dry Run, Restart, Status, and Cancel
+- Batch, Range, and Parallelization Options
+
 ## Installation
 
 ```bash
@@ -66,10 +74,11 @@ From the CLI:
 
 ```bash
 npx convex run migrations:addDefaultRole
-
-# Pass --prod to run in production.
-npx convex run migrations:addDefaultRole --prod
 ```
+
+This command is an API-shape example, not permission to modify a deployment.
+Use the repository's current command and run it only against an explicitly
+confirmed deployment.
 
 The migration exported by `migrations.define` is directly callable from the CLI
 or dashboard. You do not need a separate one-off runner for normal single
@@ -166,14 +175,6 @@ Or programmatically:
 
 ```typescript
 await migrations.cancel(ctx, internal.migrations.addDefaultRole);
-```
-
-## Run Migrations on Deploy
-
-Chain migration execution after deploying:
-
-```bash
-npx convex deploy --cmd 'npm run build' && npx convex run migrations:runAll --prod
 ```
 
 ## Configuration Options

@@ -3,6 +3,13 @@
 Use these rules when functions are hitting execution limits, transaction size
 errors, or returning excessively large payloads to the client.
 
+## Contents
+
+- Core Principle and Limits
+- Symptoms and Common Causes
+- Fix Order
+- Verification
+
 ## Core Principle
 
 Convex functions run inside transactions with budgets for time, reads, and
@@ -11,21 +18,13 @@ reduces latency and contention.
 
 ## Limits to Know
 
-These are the current values from the
-[Convex limits docs](https://docs.convex.dev/production/state/limits). Check
-that page for the latest numbers.
+Do not copy numeric limits into a plan from this repository.
+Confirm the applicable values in the
+[Convex limits docs](https://docs.convex.dev/production/state/limits) and the
+installed Convex version when the diagnosis depends on a limit.
 
-| Resource                          | Limit                                                 |
-| --------------------------------- | ----------------------------------------------------- |
-| Query/mutation execution time     | 1 second (user code only, excludes DB operations)     |
-| Action execution time             | 10 minutes                                            |
-| Data read per transaction         | 16 MiB                                                |
-| Data written per transaction      | 16 MiB                                                |
-| Documents scanned per transaction | 32,000 (includes documents filtered out by `.filter`) |
-| Index ranges read per transaction | 4,096 (each `db.get` and `db.query` call)             |
-| Documents written per transaction | 16,000                                                |
-| Individual document size          | 1 MiB                                                 |
-| Function return value size        | 16 MiB                                                |
+Check execution time, data read and written, documents scanned and written,
+index ranges, document size, and return-value size for the affected function.
 
 ## Symptoms
 

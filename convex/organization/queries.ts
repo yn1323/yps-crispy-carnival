@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
+import { isBillingEnabled, isOrganizationCreationEnabled, isShopAdditionEnabled } from "../_lib/config";
 import { formatDateJa, formatDateTimeJa } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
@@ -22,6 +23,7 @@ import {
   resolveOrganizationInvitationEligibility,
 } from "../organizationInvitation/service";
 import { getStripeBillingConfiguration } from "../organizationStripe/config";
+import { getOrganizationCreationAvailability, type OrganizationCreationAvailability } from "../setup/service";
 import { getOrganizationDeletionEligibility } from "./deletion";
 import { deriveOrganizationPersonCapabilities, type ManagerRole } from "./personCapabilities";
 import { getOrganizationBillingState, organizationPersonCountsTowardPeopleLimit } from "./service";
@@ -140,6 +142,15 @@ const organizationSettingsValidator = v.object({
   addShopDisabledReason: v.optional(v.string()),
   canDeleteOrganization: v.boolean(),
   deleteOrganizationDisabledReason: v.optional(v.string()),
+  canCreateOrganization: v.boolean(),
+  createOrganizationDisabledReason: v.optional(v.string()),
+  // 公開していない導線の表示判定。可否（can*）とは別に持ち、
+  // 「上限に達したので理由を出す」と「未公開なので何も出さない」を画面が描き分けられるようにする。
+  features: v.object({
+    organizationCreation: v.boolean(),
+    shopAddition: v.boolean(),
+    billing: v.boolean(),
+  }),
 });
 
 type BillingPlan = "trial" | "free" | "pro" | "business";
@@ -177,7 +188,11 @@ type BillingView = {
   billingEmailDisabledReason?: string;
 };
 
-function legacyMigrationPendingSettings(user: Doc<"users">, shop: Doc<"shops">) {
+function legacyMigrationPendingSettings(
+  user: Doc<"users">,
+  shop: Doc<"shops">,
+  creationAvailability: OrganizationCreationAvailability,
+) {
   const migrationReason = "グループ単位の設定を移行しています。完了するまで既存データを閲覧できます。";
   return {
     organizationName: shop.name,
@@ -243,6 +258,19 @@ function legacyMigrationPendingSettings(user: Doc<"users">, shop: Doc<"shops">) 
     addShopDisabledReason: migrationReason,
     canDeleteOrganization: false,
     deleteOrganizationDisabledReason: migrationReason,
+    // グループ作成は選択中グループの移行状態と独立しているため、移行待ちでも利用者単位で判定する。
+    canCreateOrganization: creationAvailability.canCreate,
+    ...(creationAvailability.canCreate ? {} : { createOrganizationDisabledReason: creationAvailability.reason }),
+    features: getOrganizationSettingsFeatures(),
+  };
+}
+
+/** ダークローンチ中に公開していない導線を、画面の描画判定へ渡す。認可根拠には使わない。 */
+function getOrganizationSettingsFeatures() {
+  return {
+    organizationCreation: isOrganizationCreationEnabled(),
+    shopAddition: isShopAdditionEnabled(),
+    billing: isBillingEnabled(),
   };
 }
 
@@ -269,7 +297,9 @@ export const getSettings = managerQuery({
   returns: v.union(organizationSettingsValidator, v.null()),
   handler: async (ctx) => {
     if (!ctx.user || !ctx.shop) return null;
-    if (!ctx.organization) return legacyMigrationPendingSettings(ctx.user, ctx.shop);
+    // 新しいグループを作れるかは選択中グループの課金状態や所属状態と独立しており、利用者単位で決まる。
+    const creationAvailability = await getOrganizationCreationAvailability(ctx, ctx.user);
+    if (!ctx.organization) return legacyMigrationPendingSettings(ctx.user, ctx.shop, creationAvailability);
 
     const organization = ctx.organization;
     const now = Date.now();
@@ -1075,6 +1105,9 @@ export const getSettings = managerQuery({
       ...(addShopDisabledReason ? { addShopDisabledReason } : {}),
       canDeleteOrganization: deletionEligibility.canDelete,
       ...(!deletionEligibility.canDelete ? { deleteOrganizationDisabledReason: deletionEligibility.reason } : {}),
+      canCreateOrganization: creationAvailability.canCreate,
+      ...(creationAvailability.canCreate ? {} : { createOrganizationDisabledReason: creationAvailability.reason }),
+      features: getOrganizationSettingsFeatures(),
     };
   },
 });
