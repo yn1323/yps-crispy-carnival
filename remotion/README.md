@@ -10,6 +10,9 @@ pnpm video:render   # out/promo-video.mp4 を書き出し
 pnpm video:still    # out/promo-still.png を書き出し（--frame=N でフレーム指定）
 ```
 
+書き出し済みの動画は `doc/assets/promo-video.mp4` に置いてある（レビュー用のスナップショット）。
+`out/` は作業用ディレクトリでgit管理外なので、更新したら `doc/assets/` にコピーし直すこと。
+
 ## 構成
 
 | # | シーン | 尺 | 内容 |
