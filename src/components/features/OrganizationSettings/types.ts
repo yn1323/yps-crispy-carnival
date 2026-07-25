@@ -143,6 +143,18 @@ export type OrganizationSettingsActions = {
   onCreateOrganization: () => void;
 };
 
+/**
+ * ダークローンチ中に公開している導線。サーバー側の判定結果をそのまま受け取る。
+ *
+ * 可否（`can*`）とは別に持つ。可否は「上限に達したので理由を出す」を表し、
+ * こちらは「未公開なので何も出さない」を表す。
+ */
+export type OrganizationSettingsFeatures = {
+  organizationCreation: boolean;
+  shopAddition: boolean;
+  billing: boolean;
+};
+
 export type OrganizationSettingsViewProps = {
   organizationContext: OrganizationContextModel;
   organizationId?: string;
@@ -165,6 +177,7 @@ export type OrganizationSettingsViewProps = {
   deleteOrganizationDisabledReason?: string;
   canCreateOrganization: boolean;
   createOrganizationDisabledReason?: string;
+  features: OrganizationSettingsFeatures;
   actions: OrganizationSettingsActions;
   defaultTab?: OrganizationSettingsTab;
   onTabChange?: (tab: OrganizationSettingsTab) => void;

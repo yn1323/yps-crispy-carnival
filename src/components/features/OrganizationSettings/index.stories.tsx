@@ -64,6 +64,8 @@ const baseArgs: OrganizationSettingsViewProps = {
   freeManagerExchangeCandidates: [],
   canUpdateOrganizationName: true,
   canCreateOrganization: true,
+  // 既存Storyは公開済みの状態を表す。未公開の描画は`ダークローンチ`のStoryで確認する。
+  features: { organizationCreation: true, shopAddition: true, billing: true },
   people: [
     {
       id: "person-manager",
@@ -322,6 +324,37 @@ export const ManagerRoleRemoval: Story = {
 export const Shops: Story = { name: "店舗｜通常", args: { defaultTab: "shops" } };
 
 export const Settings: Story = { name: "設定｜通常", args: { defaultTab: "settings" } };
+
+const darkLaunchArgs = {
+  features: { organizationCreation: false, shopAddition: false, billing: false },
+} satisfies Partial<OrganizationSettingsViewProps>;
+
+export const DarkLaunchSettings: Story = {
+  name: "設定｜ダークローンチ中",
+  args: { defaultTab: "settings", ...darkLaunchArgs },
+};
+
+export const DarkLaunchShops: Story = {
+  name: "店舗｜ダークローンチ中",
+  args: { defaultTab: "shops", ...darkLaunchArgs },
+};
+
+export const DarkLaunchHiddenEntrypointsBehavior: Story = {
+  name: "画面全体｜ダークローンチ中の未公開導線（操作確認）",
+  parameters: { screenshot: { skip: true } },
+  args: { defaultTab: "shops", ...darkLaunchArgs },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.queryByRole("tab", { name: "プランと支払い" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: "店舗を追加" })).not.toBeInTheDocument();
+
+    await userEvent.click(canvas.getByRole("tab", { name: "設定" }));
+    await expect(canvas.queryByRole("button", { name: "新しいグループを作る" })).not.toBeInTheDocument();
+    // グループ削除は退会導線のため、ダークローンチ中も残す。
+    await expect(canvas.getByRole("button", { name: /^削除$/ })).toBeEnabled();
+  },
+};
 
 export const SettingsDeletionUnavailable: Story = {
   name: "設定｜削除不可",

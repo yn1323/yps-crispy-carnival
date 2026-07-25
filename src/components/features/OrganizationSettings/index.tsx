@@ -43,6 +43,8 @@ export function OrganizationSettings({
   onVisibleUserCountChange,
 }: Props) {
   const navigate = useNavigate();
+  // 支払いを公開していない間はbillingタブ自体が無いため、URLで指定されても空欄を表示しない。
+  const visibleTab = defaultTab === "billing" && !settings.features.billing ? "people" : defaultTab;
   const organizationContext = useMemo(
     () => buildOrganizationContextModel(context.shops, context.selectedShopId),
     [context.selectedShopId, context.shops],
@@ -88,7 +90,7 @@ export function OrganizationSettings({
         {...settings}
         planPrices={stripeBilling.planPrices}
         organizationContext={organizationContext}
-        defaultTab={defaultTab}
+        defaultTab={visibleTab}
         onTabChange={onTabChange}
         initialVisibleUserCount={initialVisibleUserCount}
         focusedPersonId={focusedPersonId}
@@ -97,7 +99,7 @@ export function OrganizationSettings({
           onSelectOrganization: (shopId) =>
             void navigate({
               to: "/settings",
-              search: { shop: shopId, tab: defaultTab },
+              search: { shop: shopId, tab: visibleTab },
             }),
           onUpdateOrganizationName: organizationName.open,
           onInviteManager: managerInvitation.open,
