@@ -927,7 +927,7 @@ const collectPathsToCheck = (documents: Readonly<Record<string, string>>) => {
 type ConvexApiTypes = {
   checker: ts.TypeChecker;
   sourceFile: ts.SourceFile;
-  roots: ReadonlyMap<"api" | "internal", ts.Type>;
+  moduleTypeNodes: ReadonlyMap<string, ts.TypeNode>;
 };
 
 const getSymbolType = (apiTypes: Pick<ConvexApiTypes, "checker" | "sourceFile">, symbol: ts.Symbol) =>
@@ -935,6 +935,31 @@ const getSymbolType = (apiTypes: Pick<ConvexApiTypes, "checker" | "sourceFile">,
     symbol,
     symbol.valueDeclaration ?? symbol.declarations?.[0] ?? apiTypes.sourceFile,
   );
+
+// `api`と`internal`は生成module全体を畳むmapped typeで解決が重いため、`fullApi`のmodule一覧から参照先moduleだけを解決する。
+const collectConvexApiModuleTypeNodes = (sourceFile: ts.SourceFile) => {
+  const moduleTypeNodes = new Map<string, ts.TypeNode>();
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name) || declaration.name.text !== "fullApi") continue;
+
+      const moduleMap =
+        declaration.type && ts.isTypeReferenceNode(declaration.type) && declaration.type.typeArguments?.[0];
+      if (!moduleMap || !ts.isTypeLiteralNode(moduleMap)) continue;
+
+      for (const member of moduleMap.members) {
+        if (!ts.isPropertySignature(member) || !member.type) continue;
+        if (!ts.isStringLiteral(member.name) && !ts.isIdentifier(member.name)) continue;
+        moduleTypeNodes.set(member.name.text, member.type);
+      }
+    }
+  }
+
+  return moduleTypeNodes;
+};
 
 const loadConvexApiTypes = (rootDir: string): ConvexApiTypes => {
   const declarationPath = path.resolve(rootDir, "convex/_generated/api.d.ts");
@@ -948,37 +973,52 @@ const loadConvexApiTypes = (rootDir: string): ConvexApiTypes => {
   const sourceFile = program.getSourceFile(declarationPath);
   if (!sourceFile) throw new Error("convex/_generated/api.d.tsを読み込めませんでした");
 
-  const moduleSymbol = checker.getSymbolAtLocation(sourceFile);
-  if (!moduleSymbol) throw new Error("convex/_generated/api.d.tsのmodule情報を解決できませんでした");
+  const moduleTypeNodes = collectConvexApiModuleTypeNodes(sourceFile);
+  if (moduleTypeNodes.size === 0)
+    throw new Error("convex/_generated/api.d.tsのfullApiからmodule一覧を解決できませんでした");
 
-  const exports = checker.getExportsOfModule(moduleSymbol);
-  const apiTypes = { checker, sourceFile };
-  const roots = new Map<"api" | "internal", ts.Type>();
+  return { checker, sourceFile, moduleTypeNodes };
+};
 
-  for (const rootName of ["api", "internal"] as const) {
-    const rootSymbol = exports.find((candidate) => candidate.name === rootName);
-    if (!rootSymbol) throw new Error(`convex/_generated/api.d.tsに${rootName}がありません`);
-    roots.set(rootName, getSymbolType(apiTypes, rootSymbol));
-  }
+const CONVEX_FUNCTION_KIND_PROPERTIES = ["isQuery", "isMutation", "isAction"];
+const CONVEX_API_ROOT_VISIBILITIES = { api: "public", internal: "internal" } as const;
 
-  return { checker, sourceFile, roots };
+const isRegisteredConvexFunction = (
+  apiTypes: ConvexApiTypes,
+  exportType: ts.Type,
+  visibility: "public" | "internal",
+) => {
+  const properties = new Set(apiTypes.checker.getPropertiesOfType(exportType).map((property) => property.name));
+  if (!properties.has("isConvexFunction")) return false;
+  if (!CONVEX_FUNCTION_KIND_PROPERTIES.some((name) => properties.has(name))) return false;
+
+  const visibilityProperty = apiTypes.checker.getPropertyOfType(exportType, "_visibility");
+  if (!visibilityProperty) return false;
+
+  const visibilityType = getSymbolType(apiTypes, visibilityProperty);
+  return visibilityType.isStringLiteral() && visibilityType.value === visibility;
 };
 
 const isValidDottedConvexReference = (apiTypes: ConvexApiTypes, reference: string) => {
   const [rootName, ...segments] = reference.split(".");
   if (rootName !== "api" && rootName !== "internal") return false;
 
-  let currentType = apiTypes.roots.get(rootName);
-  if (!currentType) return false;
+  const exportName = segments.at(-1);
+  const modulePath = segments.slice(0, -1).join("/");
+  if (!exportName || !modulePath) return false;
 
-  for (const segment of segments) {
-    const property = apiTypes.checker.getPropertyOfType(currentType, segment);
-    if (!property) return false;
-    currentType = getSymbolType(apiTypes, property);
-  }
+  const moduleTypeNode = apiTypes.moduleTypeNodes.get(modulePath);
+  if (!moduleTypeNode) return false;
 
-  const properties = new Set(apiTypes.checker.getPropertiesOfType(currentType).map((property) => property.name));
-  return properties.has("_type") && properties.has("_visibility") && properties.has("_args");
+  const moduleType = apiTypes.checker.getTypeAtLocation(moduleTypeNode);
+  const exportSymbol = apiTypes.checker.getPropertyOfType(moduleType, exportName);
+  if (!exportSymbol) return false;
+
+  return isRegisteredConvexFunction(
+    apiTypes,
+    getSymbolType(apiTypes, exportSymbol),
+    CONVEX_API_ROOT_VISIBILITIES[rootName],
+  );
 };
 
 const getExportedNames = (sourceFile: ts.SourceFile) => {
@@ -1197,7 +1237,7 @@ const isValidColonConvexReference = async (
   return exportedNames.has(exportName);
 };
 
-export const buildConvexReferenceRegistry = async (
+const buildConvexReferenceRegistry = async (
   rootDir: string,
   documents: Readonly<Record<string, string>>,
 ): Promise<ConvexReferenceRegistry> => {

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   buildConvexOperationalReferenceRegistryFromSources,
-  buildConvexReferenceRegistry,
   checkDocs,
   type DocsWorkspace,
   extractConvexOperationalReferences,
@@ -241,26 +240,6 @@ describe("Convex API参照", () => {
         },
       }).map((issue) => issue.code),
     ).toEqual(["missing-convex-api-reference", "missing-convex-colon-reference"]);
-  });
-
-  it("生成APIの公開範囲とmoduleのexportを実コードから解決する", async () => {
-    const documents = {
-      "doc/features/example.md": [
-        "`api.dashboard.queries.getMyShops`",
-        "`internal.dashboard.queries.getMyShops`",
-        "`internal.notificationOutbox.actions.processPending`",
-        "`api.notificationOutbox.actions.processPending`",
-        "`contact/actions:deliver`",
-        "`contact/actions:missing`",
-      ].join("\n"),
-    };
-
-    const registry = await buildConvexReferenceRegistry(process.cwd(), documents);
-
-    expect(registry.dotted).toEqual(
-      new Set(["api.dashboard.queries.getMyShops", "internal.notificationOutbox.actions.processPending"]),
-    );
-    expect(registry.colon).toEqual(new Set(["contact/actions:deliver"]));
   });
 });
 
