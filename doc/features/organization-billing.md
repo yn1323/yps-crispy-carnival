@@ -253,7 +253,6 @@ Widen期間中の`complimentary.pro`は、画面、利用上限、targetingで�
 - `convex/_scenario/staffManagerInvitation.test.ts`と`organizationManagerExchange.test.ts`：既存人物の招待とFree管理者交代を検証する。
 - `convex/setup/mutations.test.ts`と`convex/_scenario/organizationCreation.test.ts`：グループ作成の上限、冪等性、rate limit、Free開始、既存グループへの非混入を検証する。
 - `e2e/scenarios/organization-creation-flow.test.ts`：画面から作った二つ目のグループへ遷移し、無料で始まることを検証する。
-- `scripts/verifyComplimentaryBusinessM021Export.test.ts`：m021のpre/post export契約を検証する。
 - `src/components/features/OrganizationSettings/**/*.stories.tsx`：プランと支払い、管理者招待の代表状態と操作を検証する。
 - `e2e/scenarios/organization-billing-plan-change.test.ts`：Free、Pro、Businessの主要変更導線を検証する。
 
