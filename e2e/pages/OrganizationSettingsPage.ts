@@ -283,6 +283,30 @@ export class OrganizationSettingsPage {
     await expect(this.page.getByText(reason, { exact: true })).toBeVisible();
   }
 
+  /**
+   * ダークローンチの公開状態と、画面に出ている導線が一致することを確認する。
+   *
+   * 公開済みの導線は上限に達していればdisabledで描画されるため、有無だけを見る。
+   */
+  async expectFeatureEntrypoints(features: { organizationCreation: boolean; shopAddition: boolean; billing: boolean }) {
+    const billingTab = this.tabTrigger("billing");
+    if (features.billing) await expect(billingTab).toBeVisible({ timeout: SETTINGS_DATA_TIMEOUT });
+    else await expect(billingTab).toHaveCount(0);
+
+    await this.openShopsTab();
+    const addShopButton = this.page.getByRole("button", { name: "店舗を追加" });
+    if (features.shopAddition) await expect(addShopButton).toBeVisible();
+    else await expect(addShopButton).toHaveCount(0);
+
+    await this.openSettingsTab();
+    const createOrganizationButton = this.page.getByRole("button", { name: "新しいグループを作る" });
+    if (features.organizationCreation) await expect(createOrganizationButton).toBeVisible();
+    else await expect(createOrganizationButton).toHaveCount(0);
+
+    // グループ削除は退会導線のため、ダークローンチ中も残す。
+    await expect(this.page.getByRole("button", { name: "削除", exact: true })).toBeVisible();
+  }
+
   async expectShopVisible(shopName: string) {
     await this.openShopsTab();
     await expect(this.shopRow(shopName)).toBeVisible({ timeout: SETTINGS_DATA_TIMEOUT });

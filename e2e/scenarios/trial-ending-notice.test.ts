@@ -1,4 +1,5 @@
 import { test } from "../fixtures/e2eTest";
+import { isBillingEnabled } from "../helpers/featureFlags";
 import { resetCurrentManagerScenarioData, seedTrialEndingNoticeScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 import { OrganizationSettingsPage } from "../pages/OrganizationSettingsPage";
@@ -13,6 +14,8 @@ test.describe("トライアル終了前の支払い案内", { tag: ["@release"] 
   });
 
   test("BILL-P0-01: 全店舗で案内し、選択中店舗を保って支払い設定へ移動する", async ({ page }) => {
+    // 案内の遷移先が支払いタブのため、支払いを公開していない間は成立しない。
+    test.skip(!isBillingEnabled(), "支払いはダークローンチ中で、この環境では公開していない");
     const seed = seedTrialEndingNoticeScenario({
       trialEndsAt: Date.now() + 6 * DAY_MS,
       organizationName: "トライアル終了案内E2Eグループ",

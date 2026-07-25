@@ -1,4 +1,5 @@
 import { test } from "../fixtures/e2eTest";
+import { isBillingEnabled, isOrganizationCreationEnabled, isShopAdditionEnabled } from "../helpers/featureFlags";
 import { assertNotificationDeliverySuppressed } from "../helpers/notificationProbe";
 import { seedManagerScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
@@ -16,6 +17,8 @@ test.describe("新しいグループの作成", { tag: ["@release"] }, () => {
   test.setTimeout(90_000);
 
   test("MG-P0-02: 画面から作った二つ目のグループを無料で開始し、一つ目のデータへ混入させない", async ({ page }) => {
+    test.skip(!isOrganizationCreationEnabled(), "グループ追加はダークローンチ中で、この環境では公開していない");
+
     const seed = seedManagerScenario<SingleShopSeed>("testing:seedStaffRegistrationReviewScenario", {
       shopName: FIRST_SHOP_NAME,
       existingStaff: { name: FIRST_GROUP_STAFF_NAME, email: "first-group-staff@example.com" },
@@ -66,6 +69,23 @@ test.describe("新しいグループの作成", { tag: ["@release"] }, () => {
     await test.step("Step 6: 一つ目のグループのスタッフとプランは残っている", async () => {
       await dashboard.switchShop(FIRST_SHOP_NAME, seed.shopId);
       await dashboard.expectStaffVisible(FIRST_GROUP_STAFF_NAME);
+    });
+  });
+
+  // 公開状態にかかわらず常に実行する。
+  // `.env`とdeploymentの設定がずれた場合は、ここで落ちて検知できる。
+  test("MG-P0-03: ダークローンチの公開状態と、グループ設定に出る導線が一致する", async ({ page }) => {
+    const seed = seedManagerScenario<SingleShopSeed>("testing:seedStaffRegistrationReviewScenario", {
+      shopName: FIRST_SHOP_NAME,
+      existingStaff: { name: FIRST_GROUP_STAFF_NAME, email: "first-group-staff@example.com" },
+    });
+    const settings = new OrganizationSettingsPage(page);
+
+    await settings.goto(seed.shopId);
+    await settings.expectFeatureEntrypoints({
+      organizationCreation: isOrganizationCreationEnabled(),
+      shopAddition: isShopAdditionEnabled(),
+      billing: isBillingEnabled(),
     });
   });
 });

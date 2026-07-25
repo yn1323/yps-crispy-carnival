@@ -1,4 +1,5 @@
 import { test } from "../fixtures/e2eTest";
+import { isBillingEnabled } from "../helpers/featureFlags";
 import { resetCurrentManagerScenarioData, seedOrganizationBillingPlanChangeScenario } from "../helpers/scenarioSeeds";
 import { OrganizationSettingsPage } from "../pages/OrganizationSettingsPage";
 
@@ -12,6 +13,7 @@ test.describe("グループ課金プランの表示と上限復旧", { tag: ["@r
   test("BILL-P0-02: 支払い不要Businessを保ち、BusinessからProへの変更後の超過を人物削除で復旧する", async ({
     page,
   }) => {
+    test.skip(!isBillingEnabled(), "支払いはダークローンチ中で、この環境では公開していない");
     const seed = seedOrganizationBillingPlanChangeScenario({
       complimentaryOrganizationName: "支払い不要Business E2Eグループ",
       complimentaryShopName: "支払い不要Business E2E店舗",
