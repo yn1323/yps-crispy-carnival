@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
+import { isBillingEnabled, isOrganizationCreationEnabled, isShopAdditionEnabled } from "../_lib/config";
 import { formatDateJa, formatDateTimeJa } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
@@ -143,6 +144,13 @@ const organizationSettingsValidator = v.object({
   deleteOrganizationDisabledReason: v.optional(v.string()),
   canCreateOrganization: v.boolean(),
   createOrganizationDisabledReason: v.optional(v.string()),
+  // 公開していない導線の表示判定。可否（can*）とは別に持ち、
+  // 「上限に達したので理由を出す」と「未公開なので何も出さない」を画面が描き分けられるようにする。
+  features: v.object({
+    organizationCreation: v.boolean(),
+    shopAddition: v.boolean(),
+    billing: v.boolean(),
+  }),
 });
 
 type BillingPlan = "trial" | "free" | "pro" | "business";
@@ -253,6 +261,16 @@ function legacyMigrationPendingSettings(
     // グループ作成は選択中グループの移行状態と独立しているため、移行待ちでも利用者単位で判定する。
     canCreateOrganization: creationAvailability.canCreate,
     ...(creationAvailability.canCreate ? {} : { createOrganizationDisabledReason: creationAvailability.reason }),
+    features: getOrganizationSettingsFeatures(),
+  };
+}
+
+/** ダークローンチ中に公開していない導線を、画面の描画判定へ渡す。認可根拠には使わない。 */
+function getOrganizationSettingsFeatures() {
+  return {
+    organizationCreation: isOrganizationCreationEnabled(),
+    shopAddition: isShopAdditionEnabled(),
+    billing: isBillingEnabled(),
   };
 }
 
@@ -1089,6 +1107,7 @@ export const getSettings = managerQuery({
       ...(!deletionEligibility.canDelete ? { deleteOrganizationDisabledReason: deletionEligibility.reason } : {}),
       canCreateOrganization: creationAvailability.canCreate,
       ...(creationAvailability.canCreate ? {} : { createOrganizationDisabledReason: creationAvailability.reason }),
+      features: getOrganizationSettingsFeatures(),
     };
   },
 });

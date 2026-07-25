@@ -867,6 +867,8 @@ describe("事業者課金ライフサイクル", () => {
   });
 
   it("料金なしのBusinessは40人5店舗まで利用でき、Stripeデータと課金通知を作らない", async () => {
+    // 検証対象は支払い不要Businessの上限であり、ダークローンチの公開状態ではない。
+    vi.stubEnv("FEATURE_SHOP_ADDITION", "enabled");
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {

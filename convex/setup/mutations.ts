@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
+import { isOrganizationCreationEnabled } from "../_lib/config";
 import { authenticatedMutation } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
@@ -13,6 +14,7 @@ import { createOrganizationWithFirstShop, getOrganizationCreationAvailability } 
 
 const WEEKDAY_ORDER = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 const PRIOR_OPERATION_ERROR = "以前の操作結果を確認できません";
+const ORGANIZATION_CREATION_UNAVAILABLE_MESSAGE = "新しいグループの作成は現在ご利用いただけません";
 
 export const setupShopAndManager = authenticatedMutation({
   args: {
@@ -134,6 +136,9 @@ export const createOrganization = authenticatedMutation({
   handler: async (ctx, args) => {
     const user = ctx.user;
     if (!user) throw new ConvexError("グループを作成する前に、初期設定を完了してください");
+
+    // 冪等recordとrate limit budgetより前に判定し、閉じている間はどちらも消費しない。
+    if (!isOrganizationCreationEnabled()) throw new ConvexError(ORGANIZATION_CREATION_UNAVAILABLE_MESSAGE);
 
     const requestKey = await toAuditRequestKey(args.requestId);
     const correlationId = `user:${user._id}:organization:create:${requestKey}`;

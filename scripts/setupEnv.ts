@@ -16,6 +16,9 @@
  * - STRIPE_PRO_PRICE_ID
  * - STRIPE_BUSINESS_PRICE_ID
  * - STRIPE_PORTAL_CONFIGURATION_ID
+ * - FEATURE_SHOP_ADDITION
+ * - FEATURE_BILLING
+ * - FEATURE_ORGANIZATION_CREATION
  */
 import { execFileSync } from "node:child_process";
 import { config } from "dotenv";
@@ -33,6 +36,10 @@ const CONVEX_ENV_KEYS = [
   "STRIPE_PRO_PRICE_ID",
   "STRIPE_BUSINESS_PRICE_ID",
   "STRIPE_PORTAL_CONFIGURATION_ID",
+  // ダークローンチの段階解放用。未設定のdeploymentでは閉じた状態になる。
+  "FEATURE_SHOP_ADDITION",
+  "FEATURE_BILLING",
+  "FEATURE_ORGANIZATION_CREATION",
 ] as const;
 const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 

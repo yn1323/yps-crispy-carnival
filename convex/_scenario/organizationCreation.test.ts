@@ -13,8 +13,13 @@ describe("グループ追加作成シナリオ", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(SCENARIO_NOW);
+    // ダークローンチ中は既定で閉じている。このシナリオは公開済みの契約を検証する。
+    vi.stubEnv("FEATURE_ORGANIZATION_CREATION", "enabled");
   });
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
 
   it("二つ目のグループはFreeで始まり、既存グループの権限とデータへ混入しない", async () => {
     const t = convexTest(schema, modules);

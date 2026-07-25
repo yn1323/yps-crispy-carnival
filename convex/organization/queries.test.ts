@@ -191,6 +191,7 @@ describe("organization/queries.getSettings", () => {
       "canInviteManager",
       "canUpdateOrganizationName",
       "deleteOrganizationDisabledReason",
+      "features",
       "freeManagerExchangeCandidates",
       "managerInvitationMode",
       "managerInvitations",
@@ -207,6 +208,8 @@ describe("organization/queries.getSettings", () => {
       canAddShop: true,
       canCreateOrganization: true,
       canInviteManager: true,
+      // ダークローンチの公開状態は環境変数で決まり、上限由来の可否とは独立する。
+      features: { organizationCreation: false, shopAddition: false, billing: false },
       managerInvitationMode: "addition",
       freeManagerExchangeCandidates: [],
       managerInvitations: [

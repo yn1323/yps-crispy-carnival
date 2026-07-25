@@ -504,6 +504,10 @@ describe("setup/mutations", () => {
   });
 
   describe("createOrganization", () => {
+    // ダークローンチ中は既定で閉じている。この describe は公開済みの契約を検証する。
+    beforeEach(() => vi.stubEnv("FEATURE_ORGANIZATION_CREATION", "enabled"));
+    afterEach(() => vi.unstubAllEnvs());
+
     const createArgs = {
       shopName: "二つ目の店舗",
       submissionPattern: { kind: "dateOnly" as const },
@@ -825,6 +829,40 @@ describe("setup/mutations", () => {
           shopName: "あ".repeat(SHOP_NAME_MAX_LENGTH + 1),
         }),
       ).rejects.toThrow(ConvexError);
+    });
+
+    describe("ダークローンチ中", () => {
+      beforeEach(() => vi.stubEnv("FEATURE_ORGANIZATION_CREATION", ""));
+
+      it("未公開の間は作成を拒否し、冪等recordとrate limit budgetを消費しない", async () => {
+        const t = convexTest(schema, modules);
+        await seedExistingManager(t, "create_org_dark_launch");
+        const asUser = t.withIdentity({ subject: "create_org_dark_launch" });
+
+        await expect(asUser.mutation(api.setup.mutations.createOrganization, createArgs)).rejects.toThrow(
+          "新しいグループの作成は現在ご利用いただけません",
+        );
+
+        const state = await t.run(async (ctx) => ({
+          organizations: await ctx.db.query("organizations").collect(),
+          shops: await ctx.db.query("shops").collect(),
+          audits: await ctx.db
+            .query("organizationAuditEvents")
+            .filter((q) => q.eq(q.field("action"), "organization.created"))
+            .collect(),
+          scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+        }));
+        // seedした一つ目のグループ以外は増えない。
+        expect(state.organizations).toHaveLength(1);
+        expect(state.shops).toHaveLength(1);
+        expect(state.audits).toHaveLength(0);
+        expect(state.scheduled).toHaveLength(0);
+
+        // budgetを消費していないため、公開後は同じrequestIdでそのまま作成できる。
+        vi.stubEnv("FEATURE_ORGANIZATION_CREATION", "enabled");
+        const created = await asUser.mutation(api.setup.mutations.createOrganization, createArgs);
+        expect(created.created).toBe(true);
+      });
     });
   });
 });

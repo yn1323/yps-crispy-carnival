@@ -41,6 +41,28 @@ export function isDebugNotifyFailEnabled(): boolean {
   return (process.env.DEBUG_NOTIFY_FAIL ?? "").trim().length > 0;
 }
 
+/**
+ * ダークローンチ中に公開していない導線の設定。
+ *
+ * 未設定は閉じた状態として扱う。新しいdeploymentと設定漏れが閉じる側に倒れる。
+ * 段階解放の順序と各段階の作業は`doc/plans/2026-07-25_ダークローンチ_実装計画.md`にある。
+ */
+function isFeatureEnabled(value: string | undefined): boolean {
+  return (value ?? "").trim() === "enabled";
+}
+
+export function isOrganizationCreationEnabled(): boolean {
+  return isFeatureEnabled(process.env.FEATURE_ORGANIZATION_CREATION);
+}
+
+export function isShopAdditionEnabled(): boolean {
+  return isFeatureEnabled(process.env.FEATURE_SHOP_ADDITION);
+}
+
+export function isBillingEnabled(): boolean {
+  return isFeatureEnabled(process.env.FEATURE_BILLING);
+}
+
 export function getOrganizationInvitationSigningSecret(): string {
   const secret = (process.env.ORGANIZATION_INVITATION_SIGNING_SECRET ?? "").trim();
   if (secret.length < 32) {
