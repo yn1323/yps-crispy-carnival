@@ -49,6 +49,15 @@ merge前に次を確認する。
 
 外部Action、permission、credentialを使うjobを変更するときは、`.github/AGENTS.md` の常設制約に従い、差分がその制約を満たすことを確認する。
 
+## 依存更新のsupply-chainポリシー
+
+pnpm 11は`minimumReleaseAge`の既定値が1440分であり、公開から24時間以内のversionを含むlockfileは`pnpm i --frozen-lockfile`で拒否される。
+このため依存更新branchのCIが `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION` で失敗することがある。
+
+対応は、公開から24時間経過後にjobを再実行することである。
+`pnpm-workspace.yaml`の`minimumReleaseAgeExclude`へ個別versionを追加して通さない。
+このlistは恒久的な除外であり、待てば解消する失敗の回避策にすると、検査対象から外れたversionが残り続ける。
+
 ## 失敗時の確認順
 
 1. Pull Requestまたはcommitの最新SHAに対するjobか確認する。

@@ -6,7 +6,7 @@
   "baseBranchPatterns": ["develop"],
   "automerge": true,
   "platformAutomerge": false,
-  "rebaseWhen": "behind-base-branch",
+  "rebaseWhen": "conflicted",
   "minimumReleaseAge": "2 days",
   "prCreation": "not-pending",
   "internalChecksFilter": "strict",
