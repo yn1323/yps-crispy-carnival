@@ -178,6 +178,7 @@ import type * as recruitment_schemas from "../recruitment/schemas.js";
 import type * as recruitment_service from "../recruitment/service.js";
 import type * as setup_mutations from "../setup/mutations.js";
 import type * as setup_schemas from "../setup/schemas.js";
+import type * as setup_service from "../setup/service.js";
 import type * as shiftBoard_mutations from "../shiftBoard/mutations.js";
 import type * as shiftBoard_queries from "../shiftBoard/queries.js";
 import type * as shiftBoard_validation from "../shiftBoard/validation.js";
@@ -384,6 +385,7 @@ declare const fullApi: ApiFromModules<{
   "recruitment/service": typeof recruitment_service;
   "setup/mutations": typeof setup_mutations;
   "setup/schemas": typeof setup_schemas;
+  "setup/service": typeof setup_service;
   "shiftBoard/mutations": typeof shiftBoard_mutations;
   "shiftBoard/queries": typeof shiftBoard_queries;
   "shiftBoard/validation": typeof shiftBoard_validation;

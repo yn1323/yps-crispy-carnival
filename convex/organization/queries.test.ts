@@ -186,6 +186,7 @@ describe("organization/queries.getSettings", () => {
     expect(Object.keys(result ?? {}).sort()).toEqual([
       "billing",
       "canAddShop",
+      "canCreateOrganization",
       "canDeleteOrganization",
       "canInviteManager",
       "canUpdateOrganizationName",
@@ -204,6 +205,7 @@ describe("organization/queries.getSettings", () => {
       organizationUpdatedAt: expect.any(Number),
       organizationName: "設定対象店事業者",
       canAddShop: true,
+      canCreateOrganization: true,
       canInviteManager: true,
       managerInvitationMode: "addition",
       freeManagerExchangeCandidates: [],
@@ -402,6 +404,65 @@ describe("organization/queries.getSettings", () => {
 
     expect(result?.billing.state).toBe("migrationPending");
     expect(result?.people).toEqual([expect.objectContaining({ id: ids.userId, shopIds: [] })]);
+    // グループ作成は選択中グループの移行状態に依存しない。移行前の店舗も上限へ1件として数える。
+    expect(result?.canCreateOrganization).toBe(true);
+    expect(result?.createOrganizationDisabledReason).toBeUndefined();
+  });
+
+  it("上限まで作成済みの利用者にはグループ作成不可と理由を返す", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, { subject: "settings_create_limit", plan: "pro" });
+      const now = Date.now();
+      for (const name of ["二つ目", "三つ目"]) {
+        await ctx.db.insert("organizations", {
+          createdByUserId: base.userId,
+          name,
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+      return base;
+    });
+
+    const result = await t
+      .withIdentity({ subject: "settings_create_limit" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+    expect(result?.canCreateOrganization).toBe(false);
+    expect(result?.createOrganizationDisabledReason).toBe(
+      "作成できるグループは3つまでです。使っていないグループを削除すると、また作成できます。",
+    );
+  });
+
+  it("契約制限中でも新しいグループの作成可否は下げない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, { subject: "settings_create_restricted", plan: "free" });
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      await ctx.db.patch(billingState._id, {
+        state: {
+          kind: "restricted",
+          reason: "freeConditionsNotMet",
+          recoveryManagerPersonIds: [base.personId],
+          previousActiveShopIds: [base.shopId],
+          restrictedAt: Date.now(),
+        },
+      });
+      return base;
+    });
+
+    const result = await t
+      .withIdentity({ subject: "settings_create_restricted" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+    expect(result?.canAddShop).toBe(false);
+    expect(result?.canCreateOrganization).toBe(true);
   });
 
   it("Freeかつ唯一の有効管理者には、最新組織IDと更新時刻を含む削除可能状態を返す", async () => {
