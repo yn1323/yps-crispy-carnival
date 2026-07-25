@@ -17,6 +17,7 @@ Stripe設定、migration確認、障害対応は[グループ課金の運用](..
 | 利用者・処理主体 | 完了できること | 主な条件 |
 |---|---|---|
 | 有効な管理者 | 同じグループの店舗、人物、管理者、プラン、支払い方法を管理する | 認証済み利用者、`active`所属、選択店舗のグループ一致をサーバーで再確認する |
+| 既に利用中の管理ユーザー | グループ設定の「設定」から、いまのグループとは別のグループを新しく作る | 自分で作成した有効なグループが3件未満であること。作成回数はrate limitで抑える |
 | 復旧担当の管理者 | 契約制限中に、許可されたFree選択、請求先変更、Customer Portalなどの復旧操作を行う | `readOnly`だけでは通常の業務更新やグループ名変更を許可しない |
 | 管理者招待の受取人 | 招待先グループを確認し、ログインまたは登録後に管理者アカウントを連携する | 期限内の最新招待、確認済みメールの一致、連携時点の上限と所属を満たす |
 | Stripe Webhookと内部worker | 支払い結果、期間末変更、取消、再試行を検証して課金状態へ反映する | 署名、接続mode、provider objectの対応、version、冪等性を検証する |
@@ -73,9 +74,31 @@ Trialの利用権限はProと同じである。
 - カード番号、CVC、有効期限をアプリの引数、DB、ログへ保存しない。
 - 課金・招待通知はNotification Outboxへ積み、外部送信直前にグループ、所属、課金version、現在の宛先を再確認する。
 
+## グループの作成
+
+グループを作る入口は二つあり、開始プランが異なる。
+
+| 入口 | 対象 | 開始プラン |
+|---|---|---|
+| 初回セットアップ（`/dashboard`の店舗登録） | 所属がまだない利用者 | `complimentary.business` |
+| グループ設定の「設定」タブ | 既に管理者として利用している利用者 | `active.free` |
+
+支払い不要Businessは製品を体験してもらうための一度きりの提供であり、二つ目以降のグループには付けない。
+二つ目以降はFreeの5名、1店舗、管理者1名から始まり、増やす場合は各グループでプランを選ぶ。
+
+自分で作成して保持できるグループは3件までとする。
+招待されて所属しているグループはこの上限に数えない。
+削除したグループも数えないため、削除すれば再び作成できる。
+
+作成は`requestId`由来のcorrelationIdで冪等化し、同じ要求の再実行でグループを重複作成しない。
+利用者単位のrate limitで、連打と削除・再作成の繰り返しを抑える。
+
+新しいグループには、作成した利用者だけが人物と管理者として登録される。
+既存グループの人物、スタッフ、店舗、シフトは引き継がない。
+
 ## 支払い不要Businessとm021
 
-新規初期設定で作るグループは`complimentary.business`として開始する。
+初回セットアップで作るグループは`complimentary.business`として開始する。
 期限と利用料金はなく、Businessの40名、5店舗、管理者5名を利用できる。
 
 支払い不要Businessでは、Stripe Customer、Subscription、Checkout Session、Portal Session、Invoice、Subscription Schedule、課金operation、課金通知を作らない。
@@ -138,7 +161,8 @@ Widen期間中の`complimentary.pro`は、画面、利用上限、targetingで�
 
 | パス | 責務 |
 |---|---|
-| `convex/setup/mutations.ts` | グループ、最初の管理者、店舗、支払い不要Businessを一つの初期設定で作る |
+| `convex/setup/mutations.ts` | 初回セットアップと、既存管理者による二つ目以降のグループ作成を受け付ける |
+| `convex/setup/service.ts` | グループ、最初の管理者、店舗、初期課金状態を作る共通処理と、作成可否の判定 |
 | `convex/_lib/functions.ts` | 認証、グループ所属、選択店舗、課金状態を検証するAPI wrapper |
 | `convex/organization/` | グループ、店舗、人物、管理者、利用状況、削除可否を扱う |
 | `convex/organizationBilling/` | プラン上限、課金policy、期限、Free選択、請求先メール、通知を扱う |
@@ -153,7 +177,7 @@ Widen期間中の`complimentary.pro`は、画面、利用上限、targetingで�
 | パス | 責務 |
 |---|---|
 | `src/pages/settings/` | グループ設定画面の取得と配置 |
-| `src/components/features/OrganizationSettings/` | ユーザー、店舗、プランと支払い、管理者招待、削除UI |
+| `src/components/features/OrganizationSettings/` | ユーザー、店舗、プランと支払い、管理者招待、グループ作成、削除UI |
 | `src/components/features/OrganizationSettings/BillingSettings/` | 価格表示、プラン変更、Portal、請求先メールのcontrollerとdialog |
 | `src/components/features/ManagerInvitationAcceptance/` | 招待preview、認証導線、連携結果 |
 | `src/components/features/AuthenticatedApp/AuthGuard.tsx` | URLと利用可能店舗から有効な操作contextを解決する |
@@ -167,6 +191,7 @@ Widen期間中の`complimentary.pro`は、画面、利用上限、targetingで�
 | 入口 | 用途 |
 |---|---|
 | `api.setup.mutations.setupShopAndManager` | 初期設定と支払い不要Businessの作成 |
+| `api.setup.mutations.createOrganization` | 既存管理者による二つ目以降のグループ作成（Free開始、上限3件、冪等） |
 | `api.dashboard.queries.getMyShops` | 利用可能な店舗、グループ、所属状態の取得 |
 | `api.organization.queries.getSettings` | グループ設定、利用状況、課金状態、操作可否の取得 |
 | `api.organization.mutations.*` | グループ名、店舗、人物、管理者、削除の更新 |
@@ -197,6 +222,8 @@ Widen期間中の`complimentary.pro`は、画面、利用上限、targetingで�
 - `convex/organizationInvitation/*.test.ts`：token、期限、メール一致、予約枠、再送、連携を検証する。
 - `convex/_scenario/organizationBillingLifecycle.test.ts`と`organizationPaidPlanChanges.test.ts`：時間と複数APIをまたぐ課金ライフサイクルを検証する。
 - `convex/_scenario/staffManagerInvitation.test.ts`と`organizationManagerExchange.test.ts`：既存人物の招待とFree管理者交代を検証する。
+- `convex/setup/mutations.test.ts`と`convex/_scenario/organizationCreation.test.ts`：グループ作成の上限、冪等性、rate limit、Free開始、既存グループへの非混入を検証する。
+- `e2e/scenarios/organization-creation-flow.test.ts`：画面から作った二つ目のグループへ遷移し、無料で始まることを検証する。
 - `scripts/verifyComplimentaryBusinessM021Export.test.ts`：m021のpre/post export契約を検証する。
 - `src/components/features/OrganizationSettings/**/*.stories.tsx`：プランと支払い、管理者招待の代表状態と操作を検証する。
 - `e2e/scenarios/organization-billing-plan-change.test.ts`：Free、Pro、Businessの主要変更導線を検証する。
