@@ -12,6 +12,30 @@
 料金、状態遷移、招待、削除を含む詳細な業務契約は[グループ課金の業務仕様](../specs/organization-billing-business-flow.md)を正本とする。
 Stripe設定、migration確認、障害対応は[グループ課金の運用](../manual/organization-billing.md)を参照する。
 
+## ダークローンチ中の公開範囲
+
+グループ追加、店舗追加、支払いの三つは実装済みだが、現在は利用者へ公開していない。
+公開状態はConvexの環境変数で決まり、`convex/_lib/config.ts`が読む。
+未設定のdeploymentでは閉じた状態になる。
+
+| 環境変数 | 対象 | 閉じている間の挙動 |
+|---|---|---|
+| `FEATURE_ORGANIZATION_CREATION` | 二つ目以降のグループ作成 | `createOrganization`が拒否し、「設定」タブに作成セクションを描画しない |
+| `FEATURE_SHOP_ADDITION` | 店舗の追加 | `addShop`が拒否し、「店舗」タブに追加ボタンを描画しない |
+| `FEATURE_BILLING` | プランと支払い | 「プランと支払い」タブを描画しない |
+
+拒否はサーバー側で行い、画面から導線を消すだけにはしない。
+`getSettings`は公開状態を`features`で返すが、これは表示判定であり認可根拠ではない。
+
+`m022_organization_billing_to_complimentary_business`は、全グループの課金状態を支払い不要Businessへ寄せる。
+支払い不要BusinessはStripe objectを作らない隔離契約を持つため、この状態でStripeへ到達する経路がなくなる。
+
+グループ削除は閉じない。
+所属があるとアカウント削除を依頼できないため、閉じると管理ユーザーが退会できなくなる。
+詳細は[アカウント削除](account-deletion.md)を参照する。
+
+解放の順序と各段階の作業は[ダークローンチ実装計画](../plans/2026-07-25_ダークローンチ_実装計画.md)にある。
+
 ## 誰が何を完了できるか
 
 | 利用者・処理主体 | 完了できること | 主な条件 |
@@ -75,6 +99,9 @@ Trialの利用権限はProと同じである。
 - 課金・招待通知はNotification Outboxへ積み、外部送信直前にグループ、所属、課金version、現在の宛先を再確認する。
 
 ## グループの作成
+
+グループ設定からの追加作成は、現在ダークローンチで閉じている。
+この節は解放後の契約を示す。
 
 グループを作る入口は二つあり、開始プランが異なる。
 
@@ -170,6 +197,8 @@ Widen期間中の`complimentary.pro`は、画面、利用上限、targetingで�
 | `convex/organizationInvitation/` | 管理者招待の発行、再送、取消、preview、アカウント連携を扱う |
 | `convex/notificationOutbox/` | 外部送信前の宛先・所属・課金状態再確認と重複排除を行う |
 | `convex/migrations/m021_organization_billing_complimentary_pro_to_business.ts` | Stripeから隔離された`complimentary.pro`だけを移行する |
+| `convex/migrations/m022_organization_billing_to_complimentary_business.ts` | ダークローンチのため、全課金状態を支払い不要Businessへ寄せる |
+| `convex/_lib/config.ts` | ダークローンチ中に公開している導線を環境変数から読む |
 | `scripts/verifyComplimentaryBusinessM021Export.ts` | m021前後のexportをfail-closedに検証する |
 
 ### フロントエンド

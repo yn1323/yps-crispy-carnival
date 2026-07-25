@@ -22,6 +22,7 @@
 | [AIシフト下書き機能 実装仕様書](2026-07-03_AIシフト下書き機能_実装仕様書.md) | `reviewing` | 詳細設計の採否後に実装仕様を確定する | 現行のシフト作成は[シフト表](../features/shift-board.md) |
 | [スタッフのメールアドレス任意化](2026-07-04_メールアドレス任意化_設計.md) | `reviewing` | 通知手段、認証境界、既存データmigrationを含めて採否を決める | 現行のスタッフ管理は[ユーザー詳細](../features/user-detail.md)と[LINE通知連携](../features/line-notification.md) |
 | [新規グループ作成導線](2026-07-25_新規グループ作成導線_実装計画.md) | `reviewing` | 二つ目以降をFree開始とする方針と作成上限3の採否を決める | 現行のグループ作成は[グループ課金、複数店舗、複数管理者](../features/organization-billing.md) |
+| [グループ追加、店舗追加、支払いのダークローンチ](2026-07-25_ダークローンチ_実装計画.md) | `reviewing` | 全グループを支払い不要Businessへ寄せるm022の採否と、各段階を開ける時期を決める | 現行のグループ課金と複数店舗は[グループ課金、複数店舗、複数管理者](../features/organization-billing.md) |
 
 ## Active
 
