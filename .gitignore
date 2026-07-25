@@ -37,6 +37,9 @@ convex-seeds/backup
 
 .serena
 
+# Remotion
+out/
+
 settings.local.json
 CLAUDE.local.md
 
