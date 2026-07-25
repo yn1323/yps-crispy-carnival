@@ -17,6 +17,7 @@ const actions = {
   onUpdateBillingEmail: fn(),
   onOpenBillingDocuments: fn(),
   onDeleteOrganization: fn(),
+  onCreateOrganization: fn(),
 };
 
 const organizationContext: OrganizationContextModel = {
@@ -62,6 +63,7 @@ const baseArgs: OrganizationSettingsViewProps = {
   managerInvitationMode: "addition",
   freeManagerExchangeCandidates: [],
   canUpdateOrganizationName: true,
+  canCreateOrganization: true,
   people: [
     {
       id: "person-manager",

@@ -76,6 +76,7 @@ vi.mock("jotai", async (importOriginal) => ({
 import { useBillingSettingsController } from "./BillingSettings/useBillingSettingsController";
 import { useStripeBillingController } from "./BillingSettings/useStripeBillingController";
 import { useManagerInvitationController } from "./ManagerInvitation/useManagerInvitationController";
+import { useOrganizationCreationController } from "./OrganizationCreation/useOrganizationCreationController";
 import { useOrganizationDeletionController } from "./OrganizationDeletion/useOrganizationDeletionController";
 import { useOrganizationNameController } from "./OrganizationName/useOrganizationNameController";
 import { useShopManagementController } from "./ShopManagement/useShopManagementController";
@@ -204,6 +205,68 @@ describe("OrganizationSettings controllers", () => {
         title: "店舗を追加しました",
       }),
     );
+  });
+
+  it("グループ作成は選択中店舗を送らず一度だけ実行し、作成した店舗へ遷移する", async () => {
+    let resolveMutation: ((shopId: string) => void) | undefined;
+    mocks.mutation.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveMutation = (shopId: string) => resolve({ shopId, created: true });
+        }),
+    );
+    const onCreated = vi.fn();
+    const { result } = renderHook((input) => useOrganizationCreationController(input), {
+      initialProps: { canCreateOrganization: true, onCreated },
+    });
+    const data = {
+      shopName: "二つ目の店舗",
+      regularClosedDays: [],
+      submissionPattern: { kind: "dateOnly" as const },
+    };
+
+    act(() => result.current.createOrganization());
+    act(() => {
+      result.current.dialog.onSubmit(data);
+      result.current.dialog.onSubmit(data);
+    });
+
+    await waitFor(() =>
+      expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
+        ...data,
+        requestId: "request-1",
+      }),
+    );
+    await act(async () => resolveMutation?.("shop-created"));
+    await waitFor(() =>
+      expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
+        title: "新しいグループを作りました",
+      }),
+    );
+    expect(onCreated).toHaveBeenCalledExactlyOnceWith("shop-created");
+    expect(result.current.dialog.dialog).toBeNull();
+  });
+
+  it("グループ作成の権限を失うとDialogを閉じ、古いsubmitからmutationを呼ばない", async () => {
+    const onCreated = vi.fn();
+    const { result, rerender } = renderHook((input) => useOrganizationCreationController(input), {
+      initialProps: { canCreateOrganization: true, onCreated },
+    });
+    act(() => result.current.createOrganization());
+    const staleSubmit = result.current.dialog.onSubmit;
+
+    rerender({ canCreateOrganization: false, onCreated });
+
+    await waitFor(() => expect(result.current.dialog.dialog).toBeNull());
+    await act(async () => {
+      await staleSubmit({
+        shopName: "二つ目の店舗",
+        regularClosedDays: [],
+        submissionPattern: { kind: "dateOnly" },
+      });
+    });
+    await waitFor(() => expect(mocks.mutation).not.toHaveBeenCalled());
+    expect(onCreated).not.toHaveBeenCalled();
   });
 
   it("グループ削除は名前を送信せず固定した対象情報で一度だけ実行する", async () => {

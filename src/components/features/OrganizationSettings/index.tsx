@@ -9,6 +9,8 @@ import { useStripeBillingController } from "./BillingSettings/useStripeBillingCo
 import { ManagerInvitationDialog } from "./ManagerInvitation/ManagerInvitationDialog";
 import { useManagerInvitationController } from "./ManagerInvitation/useManagerInvitationController";
 import { buildOrganizationContextModel } from "./OrganizationContext/script";
+import { OrganizationCreationDialog } from "./OrganizationCreation/OrganizationCreationDialog";
+import { useOrganizationCreationController } from "./OrganizationCreation/useOrganizationCreationController";
 import { OrganizationDeletionDialog } from "./OrganizationDeletion/OrganizationDeletionDialog";
 import { useOrganizationDeletionController } from "./OrganizationDeletion/useOrganizationDeletionController";
 import { OrganizationNameDialog } from "./OrganizationName/OrganizationNameDialog";
@@ -59,6 +61,11 @@ export function OrganizationSettings({
     people: settings.people,
   });
   const shopManagement = useShopManagementController({ canAddShop: settings.canAddShop });
+  const organizationCreation = useOrganizationCreationController({
+    canCreateOrganization: settings.canCreateOrganization,
+    // 作成直後は新しいグループを操作対象にしたいので、そのグループの店舗を選んでDashboardへ移す。
+    onCreated: (shopId) => void navigate({ to: "/dashboard", search: { shop: shopId } }),
+  });
   const billingEmailSettings = useBillingSettingsController({ billing: settings.billing });
   const stripeBilling = useStripeBillingController({
     organizationName: settings.organizationName,
@@ -117,11 +124,13 @@ export function OrganizationSettings({
           onUpdateBillingEmail: billingEmailSettings.updateBillingEmail,
           onOpenBillingDocuments: stripeBilling.openBillingDocuments,
           onDeleteOrganization: organizationDeletion.open,
+          onCreateOrganization: organizationCreation.createOrganization,
         }}
       />
       <OrganizationNameDialog {...organizationName.dialog} />
       <ManagerInvitationDialog {...managerInvitation.dialog} />
       <ShopManagementDialog {...shopManagement.dialog} />
+      <OrganizationCreationDialog {...organizationCreation.dialog} />
       <BillingEmailDialog {...billingEmailSettings.dialog} />
       <BillingActionDialog {...stripeBilling.dialog} />
       <OrganizationDeletionDialog {...organizationDeletion.dialog} />

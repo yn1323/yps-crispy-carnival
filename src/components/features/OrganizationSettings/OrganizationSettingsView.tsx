@@ -1,6 +1,7 @@
 import { Box, Skeleton, Stack, Tabs } from "@chakra-ui/react";
 import { LuCreditCard, LuSettings, LuStore, LuUsers } from "react-icons/lu";
 import { OrganizationContext } from "./OrganizationContext";
+import { OrganizationCreationSection } from "./OrganizationCreation/OrganizationCreationSection";
 import { OrganizationDeletionSection } from "./OrganizationDeletion/OrganizationDeletionSection";
 import { PeopleSection } from "./PeopleSection";
 import { PlanAndPaymentSection } from "./PlanAndPaymentSection";
@@ -23,6 +24,8 @@ export const OrganizationSettingsView = ({
   addShopDisabledReason,
   canDeleteOrganization,
   deleteOrganizationDisabledReason,
+  canCreateOrganization,
+  createOrganizationDisabledReason,
   actions,
   defaultTab = "people",
   onTabChange,
@@ -103,11 +106,18 @@ export const OrganizationSettingsView = ({
       </Tabs.Content>
 
       <Tabs.Content value="settings" p={0} pt={{ base: 5, md: 6 }}>
-        <OrganizationDeletionSection
-          canDelete={canDeleteOrganization}
-          disabledReason={deleteOrganizationDisabledReason}
-          onDelete={actions.onDeleteOrganization}
-        />
+        <Stack gap={{ base: 5, md: 6 }}>
+          <OrganizationCreationSection
+            canCreate={canCreateOrganization}
+            disabledReason={createOrganizationDisabledReason}
+            onCreate={actions.onCreateOrganization}
+          />
+          <OrganizationDeletionSection
+            canDelete={canDeleteOrganization}
+            disabledReason={deleteOrganizationDisabledReason}
+            onDelete={actions.onDeleteOrganization}
+          />
+        </Stack>
       </Tabs.Content>
     </Tabs.Root>
   </Stack>

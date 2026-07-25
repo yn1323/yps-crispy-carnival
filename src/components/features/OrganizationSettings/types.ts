@@ -140,6 +140,7 @@ export type OrganizationSettingsActions = {
   onUpdateBillingEmail: () => void;
   onOpenBillingDocuments: () => void;
   onDeleteOrganization: () => void;
+  onCreateOrganization: () => void;
 };
 
 export type OrganizationSettingsViewProps = {
@@ -162,6 +163,8 @@ export type OrganizationSettingsViewProps = {
   addShopDisabledReason?: string;
   canDeleteOrganization: boolean;
   deleteOrganizationDisabledReason?: string;
+  canCreateOrganization: boolean;
+  createOrganizationDisabledReason?: string;
   actions: OrganizationSettingsActions;
   defaultTab?: OrganizationSettingsTab;
   onTabChange?: (tab: OrganizationSettingsTab) => void;
