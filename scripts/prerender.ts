@@ -20,6 +20,7 @@
 import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, extname, join, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { chromium, type Page } from "playwright";
 
 const DIST_DIR = "dist";
@@ -124,8 +125,20 @@ function createShellHandler(shell: Buffer) {
   };
 }
 
-function routeToOutputPath(route: string): string {
-  return route === "/" ? join(DIST_DIR, "index.html") : join(DIST_DIR, route.replace(/^\//, ""), "index.html");
+/**
+ * ルートを dist/ の出力先パスへ変換する。
+ *
+ * ディレクトリ index (`dist/features/index.html`) ではなくフラットな
+ * `dist/features.html` に書き出す。Cloudflare Pages は前者を「正規URLは
+ * `/features/`」と解釈して `/features` を 308 リダイレクトするが、
+ * sitemap.xml と canonical (src/helpers/seo) はどちらも末尾スラッシュなしの
+ * `/features` を指すため、送信URL ⇄ 正規URL が循環し Google Search Console で
+ * リダイレクトエラーになる。
+ * フラット形式なら `/features` が 200、`/features/` が `/features` へ 308 となり、
+ * 送信URLと正規URLが一致する。
+ */
+export function routeToOutputPath(route: string): string {
+  return route === "/" ? join(DIST_DIR, "index.html") : join(DIST_DIR, `${route.replace(/^\//, "")}.html`);
 }
 
 function recordPageEvent(events: string[], event: string): void {
@@ -507,7 +520,9 @@ async function main(): Promise<void> {
   console.log("[prerender] Done");
 }
 
-main().catch((err: unknown) => {
-  console.error("[prerender] Failed:", err);
-  process.exit(1);
-});
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((err: unknown) => {
+    console.error("[prerender] Failed:", err);
+    process.exit(1);
+  });
+}
