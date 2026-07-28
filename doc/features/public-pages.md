@@ -27,7 +27,7 @@ TOPは`src/routes/index.tsx`から`HomePage`を呼び、`HomePage`が`LandingPag
 `LandingPage`は`PublicPageLayout`の中に、Hero、課題の軽減、利用の流れ、提出方法、比較、利用例、FAQと記事、CTAの各sectionを並べる。
 
 FAQ、HowTo、記事、デモは同じ公開サイトに属するが、内容の置き場所は分かれている。
-FAQは`FaqSite`、HowToはMDXを含む`HowToSite`、記事は`ArticleSite`、操作できるデモは`Demo`が所有する。
+FAQはMDXを含む`FaqSite`、HowToはMDXを含む`HowToSite`、記事は`ArticleSite`、操作できるデモは`Demo`が所有する。
 HowToの詳細な編集規則は [`howto.md`](howto.md) を参照する。
 
 ## 公開サイトから接続する機能
@@ -73,8 +73,10 @@ FAQ、HowTo、記事、デモを表示するためのConvex APIもない。
 | 記事 | シフト運営の課題をどう判断するか | 課題の整理、選択肢、関連する製品導線を示す |
 | デモ | 登録前に操作と結果を確かめたい | 実データを保存せず、主要な操作の流れを体験できるようにする |
 
-TOPのFAQ抜粋は`src/components/features/FaqSite/landingFaqContent.ts`、総合FAQは`faqContent.ts`が所有する。
-同じ質問を両方へ置く場合も、表示内容と構造化データが一致するようにする。
+FAQは一つの質問を一つのMDXで管理し、ファイル名を`/faq#id`のアンカーに使う。
+TOPへ掲載する質問は`content/featured/`に置き、`landingFaqContent.ts`はその質問だけから表示と構造化データを生成する。
+総合FAQは同じMDX群から本文、検索対象、構造化データを生成する。
+frontmatterの項目と許可値は`faqMetadata.ts`、本文で利用できる表示部品は`mdxComponents.tsx`を正本とする。
 
 HowToの追加と更新には`write-help-content`、デモの設計には`demo-ux`を使う。
 記事の構造とメタデータは`src/components/features/ArticleSite/AGENTS.md`に従う。
@@ -97,7 +99,9 @@ buildとprerender後の`dist/`はCloudflare Pagesへ配信する。
 
 - `src/routes/index.tsx`、`src/pages/home/`、`src/components/features/LandingPage/`：公開TOP
 - `src/routes/features.tsx`、`src/pages/features/`：機能紹介
-- `src/routes/faq.tsx`、`src/pages/faq/`、`src/components/features/FaqSite/`：総合FAQ
+- `src/routes/faq.tsx`、`src/pages/faq/`、`src/components/features/FaqSite/`：総合FAQとTOP向けFAQ抜粋
+- `src/components/features/FaqSite/content/**/*.mdx`：質問、回答、検索用メタデータ、表示順
+- `src/components/features/FaqSite/faqMetadata.ts`、`faqContent.ts`、`landingFaqContent.ts`：frontmatter検証、検索、構造化データ
 - `src/routes/howto.tsx`、`src/pages/howto/`、`src/components/features/HowToSite/`：使い方とヘルプ
 - `src/routes/articles*.tsx`、`src/pages/articles/`、`src/components/features/ArticleSite/`：記事一覧、記事詳細、カテゴリ
 - `src/routes/demo.*.tsx`、`src/pages/demo-*/`、`src/components/features/Demo/`：公開デモ

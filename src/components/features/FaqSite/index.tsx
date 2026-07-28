@@ -5,7 +5,6 @@ import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { PublicPageLayout } from "@/src/components/templates/PublicPageLayout";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
-import { FaqVisual } from "./FaqVisual";
 import {
   createFaqPageJsonLd,
   FAQ_CATEGORIES,
@@ -14,6 +13,7 @@ import {
   faqEntries,
   searchFaqEntries,
 } from "./faqContent";
+import { faqMdxComponents } from "./mdxComponents";
 
 type FaqSiteProps = {
   entries?: FaqEntry[];
@@ -208,6 +208,8 @@ function FaqCategorySection({ category, entries }: { category: (typeof FAQ_CATEG
 }
 
 function FaqItem({ entry }: { entry: FaqEntry }) {
+  const Content = entry.Content;
+
   return (
     <Accordion.Item
       id={entry.id}
@@ -249,21 +251,7 @@ function FaqItem({ entry }: { entry: FaqEntry }) {
       <Accordion.ItemContent borderTopWidth="1px" borderTopColor="gray.100">
         <Accordion.ItemBody px={{ base: 4, md: 6 }} py={{ base: 5, md: 6 }}>
           <Stack gap={4}>
-            {entry.answer.map((paragraph) => (
-              <Text key={paragraph} color="gray.800" lineHeight="1.9">
-                {paragraph}
-              </Text>
-            ))}
-            {entry.points && (
-              <Box as="ul" ps={5} color="gray.800">
-                {entry.points.map((point) => (
-                  <Text as="li" key={point} lineHeight="1.9" _marker={{ color: "teal.600" }}>
-                    {point}
-                  </Text>
-                ))}
-              </Box>
-            )}
-            {entry.visual && <FaqVisual type={entry.visual} />}
+            <Content components={faqMdxComponents} />
             {entry.howTo && (
               <Link
                 href={entry.howTo.href}
