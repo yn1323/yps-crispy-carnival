@@ -27,6 +27,12 @@ LPの既存コンテンツを流用し、検索結果に法務ページ以外の
 - `/articles/categories/:categorySlug` — `BreadcrumbList`
 - ルート側で og:type / og:image を出すと、prerender が index.html の既定タグと重複排除して後勝ちで焼き込む（`scripts/prerender.ts` の `ROUTE_MANAGED_META_*`）
 
+## URL正規化（末尾スラッシュ）
+
+- prerender は `dist/features.html` のようにフラットな `.html` で出力する（`routeToOutputPath`）。ディレクトリ index（`dist/features/index.html`）にすると Cloudflare Pages が正規URLを `/features/` と判定し、`/features` を308リダイレクトする
+- sitemap.xml と canonical（`buildLinks`）はどちらも末尾スラッシュ**なし**。ここが出力形式とズレると、送信URL ⇄ 正規URL が循環して Google Search Console でリダイレクトエラーになる
+- `dist/404.html` は置かないこと。置くと未知パスがSPAフォールバック（ルートの `index.html` を200で返す）ではなく404になり、`/dashboard` などアプリ内ルートの直リロードが壊れる
+
 ## 画面一覧
 
 | パス | 内容 |
