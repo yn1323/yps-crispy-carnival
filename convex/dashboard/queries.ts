@@ -2,6 +2,7 @@ import type { GenericDatabaseReader } from "convex/server";
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { v } from "convex/values";
 import type { DataModel, Doc, Id } from "../_generated/dataModel";
+import { getFeatureVisibility } from "../_lib/config";
 import { todayJST } from "../_lib/dateFormat";
 import { authenticatedQuery, managerQuery } from "../_lib/functions";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
@@ -73,6 +74,12 @@ const dashboardAnnouncementValidator = v.object({
   displayDate: v.string(),
 });
 
+const featureVisibilityValidator = v.object({
+  organizationSettingsNavigation: v.boolean(),
+  billing: v.boolean(),
+  shopMembershipAddition: v.boolean(),
+});
+
 const currentUserValidator = v.union(
   v.object({
     accountDeleted: v.literal(true),
@@ -82,12 +89,14 @@ const currentUserValidator = v.union(
     isNewUser: v.literal(true),
     name: v.string(),
     email: v.string(),
+    featureVisibility: v.optional(featureVisibilityValidator),
   }),
   v.object({
     isNewUser: v.literal(false),
     name: v.string(),
     email: v.string(),
     dashboardOnboardingDismissedAt: v.optional(v.number()),
+    featureVisibility: v.optional(featureVisibilityValidator),
   }),
 );
 
@@ -663,11 +672,13 @@ export const getCurrentUser = authenticatedQuery({
         accountDeletionRequested: user.accountDeletionRequestedAt !== undefined,
       };
     }
+    const featureVisibility = getFeatureVisibility();
     if (!user) {
       return {
         isNewUser: true as const,
         name: identity.name ?? "",
         email: identity.email ?? "",
+        featureVisibility,
       };
     }
     return {
@@ -675,6 +686,7 @@ export const getCurrentUser = authenticatedQuery({
       name: user.name,
       email: user.email,
       dashboardOnboardingDismissedAt: user.dashboardOnboardingDismissedAt,
+      featureVisibility,
     };
   },
 });

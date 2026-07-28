@@ -1,5 +1,5 @@
 import { useMutation } from "convex/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
@@ -19,6 +19,8 @@ export function useUserMembershipActions({
   isReadOnly: boolean;
   canAddMembership: boolean;
 }) {
+  const canAddMembershipRef = useRef(canAddMembership);
+  canAddMembershipRef.current = canAddMembership;
   const [dialog, setDialog] = useState<UserDetailDialog>(null);
   const [addingShopId, setAddingShopId] = useState<Id<"shops"> | null>(null);
   const setShiftExclusion = useShopMutation(api.staff.mutations.setShiftExclusion);
@@ -89,14 +91,15 @@ export function useUserMembershipActions({
 
   const { run: addMembership, isRunning: isAddingMembership } = useSingleFlight(
     async (personId: Id<"organizationPeople">, shopId: Id<"shops">) => {
-      if (!canAddMembership) return false;
+      if (!canAddMembershipRef.current) return false;
       setAddingShopId(shopId);
       try {
         await addOrganizationPersonToShop({ shopId, personId, requestId: crypto.randomUUID() });
+        if (!canAddMembershipRef.current) return false;
         showSuccessToast({ title: "店舗にユーザーを追加しました" });
         return true;
       } catch (error) {
-        showErrorToast(error);
+        if (canAddMembershipRef.current) showErrorToast(error);
         return false;
       } finally {
         setAddingShopId(null);

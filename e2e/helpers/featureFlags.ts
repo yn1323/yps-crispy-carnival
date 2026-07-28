@@ -12,3 +12,4 @@ function isFeatureEnabled(value: string | undefined): boolean {
 export const isOrganizationCreationEnabled = () => isFeatureEnabled(process.env.FEATURE_ORGANIZATION_CREATION);
 export const isShopAdditionEnabled = () => isFeatureEnabled(process.env.FEATURE_SHOP_ADDITION);
 export const isBillingEnabled = () => isFeatureEnabled(process.env.FEATURE_BILLING);
+export const isManagerInvitationEnabled = () => isFeatureEnabled(process.env.FEATURE_MANAGER_INVITATION);

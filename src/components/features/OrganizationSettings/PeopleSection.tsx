@@ -10,6 +10,7 @@ import type { OrganizationPersonView } from "./types";
 
 type Props = {
   people: OrganizationPersonView[];
+  showManagerInvitation: boolean;
   canInviteManager: boolean;
   canOpenManagerInvitation: boolean;
   managerInvitationMode: "addition" | "freeManagerExchange";
@@ -23,6 +24,7 @@ type Props = {
 
 export const PeopleSection = ({
   people,
+  showManagerInvitation,
   canInviteManager,
   canOpenManagerInvitation,
   managerInvitationMode,
@@ -62,29 +64,31 @@ export const PeopleSection = ({
             全ユーザー
           </Heading>
         </HStack>
-        <Button
-          size="sm"
-          colorPalette="teal"
-          gap={1.5}
-          onClick={onInviteManager}
-          disabled={!canOpenManagerInvitation}
-          title={!canOpenManagerInvitation ? inviteManagerDisabledReason : undefined}
-          aria-describedby={
-            !canOpenManagerInvitation && inviteManagerDisabledReason
-              ? "organization-manager-invitation-disabled-reason"
-              : undefined
-          }
-        >
-          <LuMailPlus aria-hidden />
-          {!canInviteManager && canOpenManagerInvitation
-            ? "ログイン案内を再送"
-            : managerInvitationMode === "freeManagerExchange"
-              ? "次の管理者を招待"
-              : "管理者を招待"}
-        </Button>
+        {showManagerInvitation && (
+          <Button
+            size="sm"
+            colorPalette="teal"
+            gap={1.5}
+            onClick={onInviteManager}
+            disabled={!canOpenManagerInvitation}
+            title={!canOpenManagerInvitation ? inviteManagerDisabledReason : undefined}
+            aria-describedby={
+              !canOpenManagerInvitation && inviteManagerDisabledReason
+                ? "organization-manager-invitation-disabled-reason"
+                : undefined
+            }
+          >
+            <LuMailPlus aria-hidden />
+            {!canInviteManager && canOpenManagerInvitation
+              ? "ログイン案内を再送"
+              : managerInvitationMode === "freeManagerExchange"
+                ? "次の管理者を招待"
+                : "管理者を招待"}
+          </Button>
+        )}
       </Flex>
 
-      {!canOpenManagerInvitation && inviteManagerDisabledReason && (
+      {showManagerInvitation && !canOpenManagerInvitation && inviteManagerDisabledReason && (
         <Text id="organization-manager-invitation-disabled-reason" fontSize="sm" color="orange.700">
           {inviteManagerDisabledReason}
         </Text>

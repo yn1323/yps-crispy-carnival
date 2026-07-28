@@ -1,6 +1,8 @@
 import { Alert } from "@chakra-ui/react";
+import { useAtomValue } from "jotai";
 import { Button } from "@/src/components/ui/Button";
 import type { PeopleCapacityResolution } from "@/src/domains/organizationBilling/peopleCapacity";
+import { featureVisibilityAtom } from "@/src/stores/user";
 
 type Props = {
   resolution: PeopleCapacityResolution;
@@ -8,7 +10,8 @@ type Props = {
 };
 
 export function PeopleCapacityResolutionAlert({ resolution, retryActionLabel }: Props) {
-  const presentation = getPresentation(resolution, retryActionLabel);
+  const featureVisibility = useAtomValue(featureVisibilityAtom);
+  const presentation = getPresentation(resolution, retryActionLabel, featureVisibility.billing);
 
   return (
     <Alert.Root status="warning" alignItems="flex-start">
@@ -24,9 +27,11 @@ export function PeopleCapacityResolutionAlert({ resolution, retryActionLabel }: 
   );
 }
 
-function getPresentation(resolution: PeopleCapacityResolution, retryActionLabel: string) {
+function getPresentation(resolution: PeopleCapacityResolution, retryActionLabel: string, isBillingVisible: boolean) {
   switch (resolution.kind) {
     case "choosePaidPlan":
+      if (!isBillingVisible) return getContactPresentation(resolution);
+
       return {
         title: "Proへの変更が必要です",
         description: `現在の利用状況は${resolution.current}名 / ${resolution.max}名です。Proへの変更と支払い結果の確認が完了してから、改めて${retryActionLabel}してください。`,
@@ -34,11 +39,13 @@ function getPresentation(resolution: PeopleCapacityResolution, retryActionLabel:
         href: "/settings?tab=billing",
       };
     case "contact":
-      return {
-        title: "利用人数の上限に達しています",
-        description: `現在の利用状況は${resolution.current}名 / ${resolution.max}名です。これ以上利用者を追加する場合はお問い合わせください。`,
-        actionLabel: "利用上限について問い合わせる",
-        href: "/contact",
-      };
+      return getContactPresentation(resolution);
   }
 }
+
+const getContactPresentation = (resolution: Pick<PeopleCapacityResolution, "current" | "max">) => ({
+  title: "利用人数の上限に達しています",
+  description: `現在の利用状況は${resolution.current}名 / ${resolution.max}名です。これ以上利用者を追加する場合はお問い合わせください。`,
+  actionLabel: "利用上限について問い合わせる",
+  href: "/contact",
+});

@@ -44,7 +44,7 @@ describe("管理者セットアップシナリオ", () => {
       asManager.getDashboardStaffs(),
       asManager.getManagerConsentStatus(),
     ]);
-    expect(currentUser).toEqual({ isNewUser: false, name: "山田 太郎", email: "manager@example.com" });
+    expect(currentUser).toMatchObject({ isNewUser: false, name: "山田 太郎", email: "manager@example.com" });
     expect(shop).toEqual({
       businessWriteBlockReason: null,
       canWriteBusinessData: true,
@@ -117,7 +117,11 @@ describe("管理者セットアップシナリオ", () => {
     // Assert: スタッフ表示名と管理者プロフィールが同期される。
     const updatedUser = await asManager.getCurrentUser();
     const updatedStaffPage = await asManager.getDashboardStaffs();
-    expect(updatedUser).toEqual({ isNewUser: false, name: "山田 太郎 更新", email: "manager-updated@example.com" });
+    expect(updatedUser).toMatchObject({
+      isNewUser: false,
+      name: "山田 太郎 更新",
+      email: "manager-updated@example.com",
+    });
     expect(updatedStaffPage.page[0]).toMatchObject({
       name: "山田 太郎 更新",
       email: "manager-updated@example.com",

@@ -63,6 +63,7 @@ type Props = {
   operationContextData?: OperationContextData;
   trialEndingNotice?: TrialEndingNoticeData | null;
   billingSettingsShopId?: string;
+  isBillingFeatureVisible?: boolean;
 };
 
 export const DashboardContent = ({
@@ -95,6 +96,7 @@ export const DashboardContent = ({
   operationContextData,
   trialEndingNotice,
   billingSettingsShopId,
+  isBillingFeatureVisible = false,
 }: Props) => {
   // Storyはqueryに依存せず募集・スタッフの代表状態を固定する。本番の募集・スタッフは各子featureが購読する。
   const usesInjectedData = recruitments !== undefined || staffs !== undefined;
@@ -187,6 +189,7 @@ export const DashboardContent = ({
                                       <TrialEndingCallout
                                         notice={trialEndingNotice ?? null}
                                         shopId={billingSettingsShopId}
+                                        isBillingVisible={isBillingFeatureVisible}
                                       />
                                     )}
                                     <HeroSummary

@@ -14,6 +14,7 @@ describe("Free管理者交代シナリオ", () => {
     vi.useFakeTimers();
     vi.setSystemTime(SCENARIO_NOW);
     vi.stubEnv("ORGANIZATION_INVITATION_SIGNING_SECRET", SIGNING_SECRET);
+    vi.stubEnv("FEATURE_MANAGER_INVITATION", "enabled");
   });
 
   afterEach(() => {

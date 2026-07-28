@@ -19,8 +19,10 @@ Dashboardのスタッフ一覧とグループ設定のユーザー一覧は、�
 ページ本文は、基本情報を開くコンパクトな行、所属店舗一覧、ユーザー削除カードで構成する。
 所属店舗一覧には有効な`staffs`がある店舗だけを表示し、未所属店舗は表示しない。
 基本情報の行から、共通プロフィールと管理者権限を扱うレスポンシブDialogを開く。
+`FEATURE_MANAGER_INVITATION`が閉じている間も氏名とメールアドレスの編集は残し、管理者招待・交代・権限解除のセクションと招待中Badgeだけを非表示にする。
 グループからの削除は、所属店舗一覧の下にあるユーザー削除カードから確認表示を開く。
-「店舗を追加」から、稼働中かつ未所属の店舗だけを表示する追加Dialogを開く。
+`FEATURE_SHOP_ADDITION`が公開中なら、「店舗を追加」から稼働中かつ未所属の店舗だけを表示する追加Dialogを開く。
+閉じている間はボタン、空状態の操作案内、追加Dialogを描画せず、`panel=addShop`の直指定や古いcallbackからも追加処理を始めない。
 所属店舗の行から、URLの`shop`で選択した店舗を扱う店舗Dialogを開く。
 店舗Dialogは、LINE連携、通知、店舗操作をタブに分けず縦に並べる。
 
@@ -64,13 +66,14 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 - 存在しない人物、削除済み人物、別グループの人物には同じ「ユーザーを表示できません」を表示し、存在や所属を区別して漏らさない。
 - 基本情報Dialog、店舗追加Dialog、店舗Dialogは、PCではモーダル、SPではフルスクリーンで表示する。
 - 所属店舗一覧には未所属店舗を表示しない。
-- 店舗追加Dialogには、`active`で未所属の店舗だけを表示する。
+- `FEATURE_SHOP_ADDITION`が公開中の場合だけ店舗追加のボタンとDialogを表示し、Dialogには`active`で未所属の店舗だけを表示する。
 - `archived`、`planSuspended`、削除済み、所属済みの店舗は追加候補に含めない。
 - 店舗追加後は詳細Queryの更新に従って所属店舗一覧と追加候補を更新する。
-- 店舗未所属の管理者もユーザー詳細ページを持ち、基本情報と店舗追加の導線を表示する。
+- 店舗未所属の管理者もユーザー詳細ページを持つ。店舗追加の導線は`FEATURE_SHOP_ADDITION`が公開中の場合だけ表示する。
 - 店舗DialogではLINE連携、通知送信と履歴、シフト対象設定、店舗所属解除を縦に表示する。
 - 閲覧専用または契約制限中は、サーバーが返す操作可否と理由を表示する。
 - 管理者権限解除と店舗所属解除は各Dialog内、グループ削除はページ下部の確認表示から実行し、最後の有効管理者などの制約に違反した場合はサーバーのエラーを表示する。
+- `managerInvitationState.kind`が`hidden`のときは管理者権限セクションを描画せず、開いていた招待・権限解除の確認も閉じ、古いcallbackからmutationを実行しない。
 - mutationは実行時に権限、グループ、店舗、対象人物を再検証し、フロントエンドの表示状態だけを認可判断に使わない。
 - 個別通知の再送は、募集通知と現在の確定シフト通知の両方でactor単位とグループ単位の短時間・日次quotaを適用する。client request IDはquota keyに使わず、別managerへ切り替えてもグループquotaを共有する。
 - 自分自身の管理者権限解除またはグループ削除後は、失効した店舗をURLに残さずダッシュボードへ戻る。
@@ -107,7 +110,7 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 | `api.organization.userDetailQueries.getUserDetail` | `managerQuery` | URLの人物が選択店舗と同じグループに属することを確認し、共通プロフィール、管理者権限、操作可否、グループ内店舗、店舗別所属を返す |
 | `api.dashboard.queries.getDashboardStaffs` | `managerQuery` | 店舗スタッフと対応する`organizationPersonId`をページングして返す |
 | `api.organization.mutations.updatePersonProfile` | `authenticatedMutation` | グループ共通プロフィールを更新し、有効な店舗スタッフ行へ同期する |
-| `api.organizationInvitation.mutations.createForPerson` | `authenticatedMutation` | 人物IDと現在のメールアドレスへ固定して管理者招待を発行または再送する |
+| `api.organizationInvitation.mutations.createForPerson` | `authenticatedMutation` | 公開中は人物IDと現在のメールアドレスへ固定して管理者招待を発行または再送し、ダークローンチ中は拒否する |
 | `api.organization.mutations.removeManagerRole` | `authenticatedMutation` | 人物とシフト記録を維持し、グループの管理者権限だけを外す。店舗所属がなければ管理アクセスを終了する |
 | `api.organization.mutations.removePersonFromShop` | `authenticatedMutation` | 指定店舗のスタッフ所属とアクセスだけを終了する |
 | `api.organization.mutations.removePersonFromOrganization` | `authenticatedMutation` | グループ内の全所属とアクセスを終了する |

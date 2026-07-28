@@ -13,7 +13,7 @@ import { selectedShopAtom } from "@/src/stores/shop";
 type Props = {
   shopId: string;
   selectedShopId?: string;
-  returnTo?: "dashboard";
+  returnTo?: "dashboard" | "settings";
 };
 
 export function ShopDetailPage({ shopId, selectedShopId, returnTo }: Props) {
@@ -57,9 +57,15 @@ export function ShopDetailPage({ shopId, selectedShopId, returnTo }: Props) {
           }}
           action={
             <Button asChild colorPalette="teal">
-              <RouterLink to="/settings" search={{ shop: contextShopId ?? undefined, tab: "shops" }}>
-                グループ設定へ戻る
-              </RouterLink>
+              {returnTo === "settings" ? (
+                <RouterLink to="/settings" search={{ shop: contextShopId ?? undefined, tab: "shops" }}>
+                  グループ設定へ戻る
+                </RouterLink>
+              ) : (
+                <RouterLink to="/dashboard" search={{ shop: contextShopId ?? undefined }}>
+                  ダッシュボードへ戻る
+                </RouterLink>
+              )}
             </Button>
           }
         />

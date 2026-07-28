@@ -6,6 +6,7 @@ import { StaffNotificationHistory } from "@/src/components/features/StaffNotific
 import { useShopPaginatedQuery } from "@/src/hooks/useShopPaginatedQuery";
 import { DEFAULT_USER_LIST_COUNT, toUserListCountSearch, USER_LIST_PAGE_SIZE } from "@/src/lib/userListSearch";
 import { selectedShopAtom } from "@/src/stores/shop";
+import { featureVisibilityAtom } from "@/src/stores/user";
 import type { PaginationStatus, Recruitment, Staff } from "../types";
 import { StaffManagementView } from "./StaffManagementView";
 import { useStaffInvitation } from "./useStaffInvitation";
@@ -50,6 +51,7 @@ export function StaffManagement({
 }: Props) {
   const navigate = useNavigate();
   const selectedShop = useAtomValue(selectedShopAtom);
+  const featureVisibility = useAtomValue(featureVisibilityAtom);
   const [visibleStaffCount, setVisibleStaffCount] = useState(initialVisibleUserCount);
   const staffQuery = useShopPaginatedQuery(api.dashboard.queries.getDashboardStaffs, data ? "skip" : {}, {
     initialNumItems: initialVisibleUserCount + 1,
@@ -78,7 +80,7 @@ export function StaffManagement({
       }
     });
 
-  const invitation = useStaffInvitation(isReadOnly);
+  const invitation = useStaffInvitation(isReadOnly, featureVisibility.shopMembershipAddition);
   const lineConnection = useStaffLineConnection(isReadOnly);
   const profile = useStaffProfileManagement(staffs, { onResetDetail: lineConnection.reset, isReadOnly });
   const managerInvitation = useStaffManagerInvitation(profile.staff, { isReadOnly });

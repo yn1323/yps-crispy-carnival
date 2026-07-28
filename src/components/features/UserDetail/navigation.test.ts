@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getUserDetailBackDestination, mergeUserDetailSearch } from "./navigation";
+import { getUserDetailBackDestination, getUserDetailRemovedDestination, mergeUserDetailSearch } from "./navigation";
 
 describe("ユーザー詳細のURL遷移", () => {
   it("店舗を切り替えても表示パネルと戻り先を維持する", () => {
@@ -56,6 +56,28 @@ describe("ユーザー詳細のURL遷移", () => {
 
   it("Dashboard起点の店舗詳細へ戻る場合は、その戻り先も引き継ぐ", () => {
     expect(getUserDetailBackDestination("shopDetail", "shop-b", 10, "person-b", "shop-a", "dashboard")).toEqual({
+      to: "/shops/$shopId",
+      params: { shopId: "shop-a" },
+      search: { shop: "shop-a", returnTo: "dashboard" },
+    });
+  });
+
+  it("Dashboard起点で人物を削除した後は削除済み人物へfocusしない", () => {
+    expect(getUserDetailRemovedDestination("dashboard", "shop-b", 30)).toEqual({
+      to: "/dashboard",
+      search: { shop: "shop-b", users: 30 },
+    });
+  });
+
+  it("設定起点で人物を削除した後はユーザー一覧へ戻り、削除済み人物へfocusしない", () => {
+    expect(getUserDetailRemovedDestination("settings", "shop-b", 30)).toEqual({
+      to: "/settings",
+      search: { shop: "shop-b", tab: "people", users: 30 },
+    });
+  });
+
+  it("店舗詳細起点で人物を削除した後は出発元の店舗詳細へ戻る", () => {
+    expect(getUserDetailRemovedDestination("shopDetail", "shop-b", 10, "shop-a", "dashboard")).toEqual({
       to: "/shops/$shopId",
       params: { shopId: "shop-a" },
       search: { shop: "shop-a", returnTo: "dashboard" },

@@ -288,7 +288,12 @@ export class OrganizationSettingsPage {
    *
    * 公開済みの導線は上限に達していればdisabledで描画されるため、有無だけを見る。
    */
-  async expectFeatureEntrypoints(features: { organizationCreation: boolean; shopAddition: boolean; billing: boolean }) {
+  async expectFeatureEntrypoints(features: {
+    organizationCreation: boolean;
+    shopAddition: boolean;
+    billing: boolean;
+    managerInvitation: boolean;
+  }) {
     const billingTab = this.tabTrigger("billing");
     if (features.billing) await expect(billingTab).toBeVisible({ timeout: SETTINGS_DATA_TIMEOUT });
     else await expect(billingTab).toHaveCount(0);
@@ -297,6 +302,13 @@ export class OrganizationSettingsPage {
     const addShopButton = this.page.getByRole("button", { name: "店舗を追加" });
     if (features.shopAddition) await expect(addShopButton).toBeVisible();
     else await expect(addShopButton).toHaveCount(0);
+
+    await this.openPeopleTab();
+    const managerInvitationButton = this.page.getByRole("button", {
+      name: /管理者を招待|次の管理者を招待|ログイン案内を再送/,
+    });
+    if (features.managerInvitation) await expect(managerInvitationButton).toBeVisible();
+    else await expect(managerInvitationButton).toHaveCount(0);
 
     await this.openSettingsTab();
     const createOrganizationButton = this.page.getByRole("button", { name: "新しいグループを作る" });

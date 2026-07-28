@@ -8,6 +8,12 @@ import { ChakraProvider } from "@/src/providers/ChakraProvider";
 const mocks = vi.hoisted(() => ({
   getMyShops: Symbol("getMyShops"),
   selectedShopAtom: Symbol("selectedShopAtom"),
+  featureVisibilityAtom: Symbol("featureVisibilityAtom"),
+  featureVisibility: {
+    organizationSettingsNavigation: true,
+    billing: true,
+    shopMembershipAddition: true,
+  },
   navigate: vi.fn(),
   useQuery: vi.fn(),
   useAtomValue: vi.fn(),
@@ -33,6 +39,10 @@ vi.mock("@/convex/_generated/api", () => ({
 vi.mock("@/src/stores/shop", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/src/stores/shop")>()),
   selectedShopAtom: mocks.selectedShopAtom,
+}));
+
+vi.mock("@/src/stores/user", () => ({
+  featureVisibilityAtom: mocks.featureVisibilityAtom,
 }));
 
 import { OperationContext } from ".";
@@ -88,7 +98,14 @@ beforeEach(() => {
   }));
   mocks.navigate.mockReset();
   mocks.useQuery.mockReturnValue(shops);
-  mocks.useAtomValue.mockReturnValue(shops[0]);
+  Object.assign(mocks.featureVisibility, {
+    organizationSettingsNavigation: true,
+    billing: true,
+    shopMembershipAddition: true,
+  });
+  mocks.useAtomValue.mockImplementation((target) =>
+    target === mocks.featureVisibilityAtom ? mocks.featureVisibility : shops[0],
+  );
 });
 
 const renderContext = (
@@ -146,6 +163,19 @@ describe("OperationContext", () => {
     await waitFor(() => {
       expect(mocks.navigate).toHaveBeenCalledWith({ to: "/settings", search: { shop: "shop-a" } });
     });
+  });
+
+  it("設定内の機能がすべて非公開ならグループ設定への導線を表示しない", () => {
+    Object.assign(mocks.featureVisibility, {
+      organizationSettingsNavigation: false,
+      billing: false,
+      shopMembershipAddition: false,
+    });
+
+    renderContext();
+
+    expect(screen.queryByRole("button", { name: "グループ設定" })).toBeNull();
+    expect(screen.getByRole("button", { name: "店舗詳細を開く" })).not.toBeNull();
   });
 
   it("1グループ1店舗ではグループ名と切替操作を表示しない", () => {

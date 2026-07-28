@@ -25,7 +25,7 @@ type ShopRow = {
 };
 
 type CurrentUser =
-  | { name: string; email: string }
+  | { name: string; email: string; featureVisibility?: unknown }
   | { accountDeleted: true; accountDeletionRequested?: boolean }
   | undefined;
 
@@ -42,11 +42,29 @@ const mocks = vi.hoisted(() => ({
   setSelectedShop: vi.fn(),
   setUser: vi.fn(),
   managerChildRender: vi.fn(),
-  emptyUser: { authId: "", name: "", email: "" },
+  emptyUser: {
+    authId: "",
+    name: "",
+    email: "",
+    featureVisibility: {
+      organizationSettingsNavigation: false,
+      billing: false,
+      shopMembershipAddition: false,
+    },
+  },
   currentUser: { name: "管理者", email: "manager@example.com" } as CurrentUser,
   myShops: [{ shopId: "active-shop", shopName: "所属店舗" }] as ShopRow[],
   selectedShop: null as SelectedShop,
-  user: { authId: "manager-user", name: "管理者", email: "manager@example.com" },
+  user: {
+    authId: "manager-user",
+    name: "管理者",
+    email: "manager@example.com",
+    featureVisibility: {
+      organizationSettingsNavigation: false,
+      billing: false,
+      shopMembershipAddition: false,
+    },
+  },
 }));
 
 vi.mock("@clerk/react", () => ({
@@ -148,7 +166,16 @@ beforeEach(() => {
     organizationPlan: null,
     memberStatus: "active",
   };
-  mocks.user = { authId: "manager-user", name: "管理者", email: "manager@example.com" };
+  mocks.user = {
+    authId: "manager-user",
+    name: "管理者",
+    email: "manager@example.com",
+    featureVisibility: {
+      organizationSettingsNavigation: false,
+      billing: false,
+      shopMembershipAddition: false,
+    },
+  };
 
   mocks.useAuth.mockReturnValue({
     isLoaded: true,
@@ -169,6 +196,112 @@ beforeEach(() => {
 });
 
 describe("AuthGuard", () => {
+  it("古いbackendが公開状態を返さない場合は全機能を閉じてatomの同期完了まで子画面を描画しない", async () => {
+    mocks.selectedShop = {
+      shopId: "active-shop",
+      shopName: "所属店舗",
+      shopStatus: "active",
+      organizationId: null,
+      organizationName: null,
+      organizationPlan: null,
+      memberStatus: "active",
+    };
+    mocks.user.featureVisibility = {
+      organizationSettingsNavigation: true,
+      billing: true,
+      shopMembershipAddition: true,
+    };
+
+    const { rerender } = render(
+      <AuthGuard requestedShopId="active-shop">
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    expect(screen.queryByTestId("manager-child")).toBeNull();
+    expect(screen.queryByTestId("full-page-spinner")).not.toBeNull();
+    await waitFor(() => {
+      expect(mocks.setUser).toHaveBeenCalledWith({
+        authId: "manager-user",
+        name: "管理者",
+        email: "manager@example.com",
+        featureVisibility: {
+          organizationSettingsNavigation: false,
+          billing: false,
+          shopMembershipAddition: false,
+        },
+      });
+    });
+
+    mocks.user.featureVisibility = {
+      organizationSettingsNavigation: false,
+      billing: false,
+      shopMembershipAddition: false,
+    };
+    rerender(
+      <AuthGuard requestedShopId="active-shop">
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    expect(screen.queryByTestId("manager-child")).not.toBeNull();
+    expect(screen.queryByTestId("full-page-spinner")).toBeNull();
+  });
+
+  it("backendの公開状態をatomへ同期するまでは子画面を描画しない", async () => {
+    mocks.currentUser = {
+      name: "管理者",
+      email: "manager@example.com",
+      featureVisibility: {
+        organizationSettingsNavigation: true,
+        billing: true,
+        shopMembershipAddition: false,
+      },
+    };
+    mocks.selectedShop = {
+      shopId: "active-shop",
+      shopName: "所属店舗",
+      shopStatus: "active",
+      organizationId: null,
+      organizationName: null,
+      organizationPlan: null,
+      memberStatus: "active",
+    };
+
+    const { rerender } = render(
+      <AuthGuard requestedShopId="active-shop">
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    expect(screen.queryByTestId("manager-child")).toBeNull();
+    await waitFor(() => {
+      expect(mocks.setUser).toHaveBeenCalledWith({
+        authId: "manager-user",
+        name: "管理者",
+        email: "manager@example.com",
+        featureVisibility: {
+          organizationSettingsNavigation: true,
+          billing: true,
+          shopMembershipAddition: false,
+        },
+      });
+    });
+
+    mocks.user.featureVisibility = {
+      organizationSettingsNavigation: true,
+      billing: true,
+      shopMembershipAddition: false,
+    };
+    rerender(
+      <AuthGuard requestedShopId="active-shop">
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    expect(screen.queryByTestId("manager-child")).not.toBeNull();
+  });
+
   it("保存済みの不所属店舗を整合するまではmanager子画面を描画しない", async () => {
     const { rerender } = render(
       <AuthGuard requestedShopId="active-shop">

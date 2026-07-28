@@ -1,4 +1,5 @@
 import type { ShopFormData } from "@/src/components/features/ShopForm";
+import type { OrganizationSettingsFeatures } from "@/src/domains/featureVisibility";
 import type { OrganizationContextModel } from "./OrganizationContext/script";
 
 export type OrganizationSettingsTab = "people" | "shops" | "billing" | "settings";
@@ -149,12 +150,6 @@ export type OrganizationSettingsActions = {
  * 可否（`can*`）とは別に持つ。可否は「上限に達したので理由を出す」を表し、
  * こちらは「未公開なので何も出さない」を表す。
  */
-export type OrganizationSettingsFeatures = {
-  organizationCreation: boolean;
-  shopAddition: boolean;
-  billing: boolean;
-};
-
 export type OrganizationSettingsViewProps = {
   organizationContext: OrganizationContextModel;
   organizationId?: string;
@@ -196,4 +191,5 @@ export type OrganizationSettingsData = Omit<
   | "initialVisibleUserCount"
   | "focusedPersonId"
   | "onVisibleUserCountChange"
->;
+  | "features"
+> & { features?: OrganizationSettingsFeatures };

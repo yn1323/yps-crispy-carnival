@@ -40,6 +40,7 @@ function createInvitation(
   return {
     dialog: { isOpen: true, onOpenChange: noop },
     activeTab,
+    showOrganizationPeopleAddition: true,
     registrationUrl: "https://shiftori.example.com/staff/register/shop_123",
     peopleCapacityResolution: null,
     isRegistrationUrlLoading: false,
@@ -90,6 +91,20 @@ export const ManualRegistration: Story = {
 export const OrganizationPeople: Story = {
   args: {
     invitation: createInvitation("organization"),
+  },
+};
+
+export const OrganizationPeopleDarkLaunchBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: {
+    invitation: createInvitation("organization", { showOrganizationPeopleAddition: false }),
+  },
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+
+    await expect(page.queryByRole("tab", { name: "他店舗スタッフを招待" })).not.toBeInTheDocument();
+    await expect(page.queryByRole("button", { name: "佐藤 真由美をこの店舗に追加" })).not.toBeInTheDocument();
+    await expect(await page.findByRole("tab", { name: "リンクから招待" })).toHaveAttribute("aria-selected", "true");
   },
 };
 

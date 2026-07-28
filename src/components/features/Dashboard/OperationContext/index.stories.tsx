@@ -71,6 +71,21 @@ export const MultipleGroupsMultipleShops: Story = {
   },
 };
 
+export const SettingsEntryHidden: Story = {
+  args: {
+    model: createModel(multipleShops, "shop-a-1"),
+    onOpenGroupSettings: undefined,
+  },
+  parameters: {
+    screenshot: { skip: true },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("button", { name: "グループ設定" })).toBeNull();
+    await expect(canvas.getByRole("button", { name: "店舗詳細を開く" })).toBeVisible();
+  },
+};
+
 export const LongNamesReadOnly: Story = {
   args: {
     model: createModel(

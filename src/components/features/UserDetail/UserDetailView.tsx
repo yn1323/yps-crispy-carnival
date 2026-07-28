@@ -17,6 +17,7 @@ import { UserSummary } from "./UserSummary";
 
 export type UserDetailViewProps = {
   data: UserDetailData;
+  showShopMembershipAddition: boolean;
   selectedShopId: string | null;
   activePanel?: UserDetailPanel;
   notificationHistory: ReactNode;
@@ -77,6 +78,7 @@ export type UserDetailViewProps = {
 
 export function UserDetailView({
   data,
+  showShopMembershipAddition,
   selectedShopId,
   activePanel,
   notificationHistory,
@@ -116,7 +118,9 @@ export function UserDetailView({
           leading={<BasicInformationIcon />}
           secondary={
             <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-              名前・メールアドレス・権限を管理します
+              {data.managerInvitationState.kind === "hidden"
+                ? "名前・メールアドレスを管理します"
+                : "名前・メールアドレス・権限を管理します"}
             </Text>
           }
           onClick={actions.onOpenBasic}
@@ -128,22 +132,28 @@ export function UserDetailView({
           <Text as="h2" fontSize="md" fontWeight="semibold" color="gray.900">
             所属店舗
           </Text>
-          <Button
-            type="button"
-            variant="ghost"
-            colorPalette="teal"
-            size="sm"
-            gap={1.5}
-            fontWeight="semibold"
-            disabled={!data.canWrite || state.membership.isAdding}
-            onClick={actions.onOpenAddShop}
-          >
-            <LuPlus aria-hidden />
-            店舗を追加
-          </Button>
+          {showShopMembershipAddition && (
+            <Button
+              type="button"
+              variant="ghost"
+              colorPalette="teal"
+              size="sm"
+              gap={1.5}
+              fontWeight="semibold"
+              disabled={!data.canWrite || state.membership.isAdding}
+              onClick={actions.onOpenAddShop}
+            >
+              <LuPlus aria-hidden />
+              店舗を追加
+            </Button>
+          )}
         </Flex>
         <Box p={{ base: 3, md: 4 }}>
-          <UserShopMembershipList data={data} onOpenShop={actions.onOpenShop} />
+          <UserShopMembershipList
+            data={data}
+            showShopMembershipAddition={showShopMembershipAddition}
+            onOpenShop={actions.onOpenShop}
+          />
         </Box>
       </Box>
 
@@ -184,15 +194,17 @@ export function UserDetailView({
         onCancelManagerSetting={actions.onCloseManagerDialog}
       />
 
-      <UserShopAdditionDialog
-        data={data}
-        isOpen={activePanel === "addShop"}
-        addingShopId={state.membership.addingShopId}
-        isAdding={state.membership.isAdding}
-        onOpenChange={handleDialogOpenChange}
-        onClose={actions.onClosePanel}
-        onAddShop={actions.onAddMembership}
-      />
+      {showShopMembershipAddition && (
+        <UserShopAdditionDialog
+          data={data}
+          isOpen={activePanel === "addShop"}
+          addingShopId={state.membership.addingShopId}
+          isAdding={state.membership.isAdding}
+          onOpenChange={handleDialogOpenChange}
+          onClose={actions.onClosePanel}
+          onAddShop={actions.onAddMembership}
+        />
+      )}
 
       <UserShopDetailDialog
         data={data}

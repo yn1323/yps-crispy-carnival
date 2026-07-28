@@ -1640,6 +1640,53 @@ describe("dashboard/queries", () => {
   });
 
   describe("getDashboardStaffs", () => {
+    beforeEach(() => {
+      vi.stubEnv("FEATURE_MANAGER_INVITATION", "enabled");
+    });
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("管理者招待のダークローンチ中はスタッフの管理者操作状態をhiddenへ投影する", async () => {
+      vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "dashboard_manager_hidden_owner",
+          plan: "pro",
+        });
+        const now = Date.now();
+        const personId = await ctx.db.insert("organizationPeople", {
+          organizationId: base.organizationId,
+          name: "非公開対象スタッフ",
+          email: "hidden-staff@example.com",
+          emailNormalized: "hidden-staff@example.com",
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+        const staffId = await ctx.db.insert("staffs", {
+          shopId: base.shopId,
+          organizationId: base.organizationId,
+          organizationPersonId: personId,
+          name: "非公開対象スタッフ",
+          email: "hidden-staff@example.com",
+          emailNormalized: "hidden-staff@example.com",
+          isDeleted: false,
+        });
+        return { ...base, staffId };
+      });
+
+      const result = await t
+        .withIdentity({ subject: "dashboard_manager_hidden_owner" })
+        .query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
+
+      expect(result.page.find((staff) => staff._id === ids.staffId)?.managerInvitationState).toEqual({
+        kind: "hidden",
+      });
+    });
+
     it("未認証の場合、空ページを返す（ログアウト時の再実行でエラーにしない）", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => await seedShop(ctx, "対象店舗"));
@@ -1953,6 +2000,17 @@ describe("dashboard/queries", () => {
   });
 
   describe("getCurrentUser", () => {
+    beforeEach(() => {
+      vi.stubEnv("FEATURE_ORGANIZATION_CREATION", "");
+      vi.stubEnv("FEATURE_SHOP_ADDITION", "");
+      vi.stubEnv("FEATURE_BILLING", "");
+      vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
+    });
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
     it("未認証の場合 null を返す", async () => {
       const t = convexTest(schema, modules);
       const result = await t.query(api.dashboard.queries.getCurrentUser, {});
@@ -1964,7 +2022,16 @@ describe("dashboard/queries", () => {
       const result = await t
         .withIdentity({ subject: "new_user", name: "New User", email: "new@example.com" })
         .query(api.dashboard.queries.getCurrentUser, {});
-      expect(result).toEqual({ isNewUser: true, name: "New User", email: "new@example.com" });
+      expect(result).toEqual({
+        isNewUser: true,
+        name: "New User",
+        email: "new@example.com",
+        featureVisibility: {
+          organizationSettingsNavigation: false,
+          billing: false,
+          shopMembershipAddition: false,
+        },
+      });
     });
 
     it("既存ユーザーは isNewUser: false を返す", async () => {
@@ -1979,7 +2046,60 @@ describe("dashboard/queries", () => {
         });
       });
       const result = await t.withIdentity({ subject: "existing_user" }).query(api.dashboard.queries.getCurrentUser, {});
-      expect(result).toEqual({ isNewUser: false, name: "既存ユーザー", email: "existing@example.com" });
+      expect(result).toEqual({
+        isNewUser: false,
+        name: "既存ユーザー",
+        email: "existing@example.com",
+        featureVisibility: {
+          organizationSettingsNavigation: false,
+          billing: false,
+          shopMembershipAddition: false,
+        },
+      });
+    });
+
+    it.each([
+      {
+        envName: "FEATURE_ORGANIZATION_CREATION",
+        expected: {
+          organizationSettingsNavigation: true,
+          billing: false,
+          shopMembershipAddition: false,
+        },
+      },
+      {
+        envName: "FEATURE_SHOP_ADDITION",
+        expected: {
+          organizationSettingsNavigation: true,
+          billing: false,
+          shopMembershipAddition: true,
+        },
+      },
+      {
+        envName: "FEATURE_BILLING",
+        expected: {
+          organizationSettingsNavigation: true,
+          billing: true,
+          shopMembershipAddition: false,
+        },
+      },
+      {
+        envName: "FEATURE_MANAGER_INVITATION",
+        expected: {
+          organizationSettingsNavigation: true,
+          billing: false,
+          shopMembershipAddition: false,
+        },
+      },
+    ])("$envName が有効なら対応するUI公開状態を返す", async ({ envName, expected }) => {
+      vi.stubEnv(envName, "enabled");
+      const t = convexTest(schema, modules);
+
+      const result = await t
+        .withIdentity({ subject: `feature_visibility_${envName}`, name: "New User", email: "new@example.com" })
+        .query(api.dashboard.queries.getCurrentUser, {});
+
+      expect(result).toMatchObject({ featureVisibility: expected });
     });
 
     it("削除済みユーザーはClerkの氏名とメールを返さず、終了状態だけを返す", async () => {

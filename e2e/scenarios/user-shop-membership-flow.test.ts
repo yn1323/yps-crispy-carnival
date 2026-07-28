@@ -1,4 +1,5 @@
 import { test } from "../fixtures/e2eTest";
+import { isShopAdditionEnabled } from "../helpers/featureFlags";
 import { seedMultiShopOrganizationScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 
@@ -6,6 +7,7 @@ test.describe("ユーザー詳細の店舗所属管理", { tag: ["@release", "@s
   test.setTimeout(60_000);
 
   test("MS-P0-04: 未所属店舗を一覧から隠し、追加ダイアログから所属を追加・解除できる", async ({ page }) => {
+    test.skip(!isShopAdditionEnabled(), "店舗所属追加はダークローンチ中のためスキップします");
     const seed = seedMultiShopOrganizationScenario({
       organizationName: "ユーザー所属E2Eグループ",
       primaryShopName: "ユーザー所属E2E A店",

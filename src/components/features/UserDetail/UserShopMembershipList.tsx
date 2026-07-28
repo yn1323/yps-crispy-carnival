@@ -7,10 +7,11 @@ import type { UserDetailData } from "./types";
 
 type Props = {
   data: UserDetailData;
+  showShopMembershipAddition: boolean;
   onOpenShop: (shopId: string) => void;
 };
 
-export function UserShopMembershipList({ data, onOpenShop }: Props) {
+export function UserShopMembershipList({ data, showShopMembershipAddition, onOpenShop }: Props) {
   if (data.memberships.length === 0) {
     return (
       <Empty
@@ -18,7 +19,9 @@ export function UserShopMembershipList({ data, onOpenShop }: Props) {
         title="所属店舗はありません"
         titleAs="h4"
         description={
-          data.canWrite ? "「店舗を追加」から、このユーザーを店舗に追加できます。" : "所属している店舗はありません。"
+          showShopMembershipAddition && data.canWrite
+            ? "「店舗を追加」から、このユーザーを店舗に追加できます。"
+            : "所属している店舗はありません。"
         }
         variant="section"
         py={8}

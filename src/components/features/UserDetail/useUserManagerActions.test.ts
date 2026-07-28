@@ -143,6 +143,43 @@ describe("useUserManagerActions", () => {
     expect(crypto.randomUUID).not.toHaveBeenCalled();
   });
 
+  it("管理者招待がhiddenへ変わると確認を閉じ、古いcallbackでも招待・権限解除を実行しない", async () => {
+    const { result, rerender } = renderHook(
+      ({ data }: { data: UserDetailData }) =>
+        useUserManagerActions({ data, selectedShopId: shopId, onPersonRemoved: vi.fn() }),
+      { initialProps: { data: removableManagerData } },
+    );
+
+    act(() => result.current.onRequestRemoveManagerRole());
+    expect(result.current.dialog?.kind).toBe("removeManagerRole");
+    const staleConfirmRemoval = result.current.onConfirmRemoval;
+
+    rerender({
+      data: {
+        ...removableManagerData,
+        managerInvitationState: { kind: "hidden" },
+      },
+    });
+    expect(result.current.dialog).toBeNull();
+    await act(async () => {
+      await staleConfirmRemoval();
+    });
+    expect(mocks.removeManagerRole).not.toHaveBeenCalled();
+
+    rerender({ data: removablePersonData });
+    const staleAssignManager = result.current.onAssignManager;
+    rerender({
+      data: {
+        ...removablePersonData,
+        managerInvitationState: { kind: "hidden" },
+      },
+    });
+    await act(async () => {
+      await staleAssignManager();
+    });
+    expect(mocks.createManagerInvitation).not.toHaveBeenCalled();
+  });
+
   it.each([null, "unknown-shop"])(
     "選択店舗が未指定または不正な場合はグループ内の店舗を削除操作のコンテキストに使う: %s",
     async (selectedShopId) => {

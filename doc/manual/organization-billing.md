@@ -16,6 +16,7 @@ Stripe設定、日常probe、`m021`の確認、販売停止、Price rotation、�
 | 作業 | 参照する節 |
 |---|---|
 | 実環境での完了条件と作業前確認 | [完了の判定](#完了の判定)、[作業前の共通確認](#作業前の共通確認) |
+| ダークローンチ機能の公開・停止 | [ダークローンチ公開フラグ](#ダークローンチ公開フラグ) |
 | Stripeの環境変数、Price、Portal、Webhook設定 | [Stripeの設定](#stripeの設定) |
 | Webhook、operation、対応不整合の日常確認 | [日常probe](#日常probe) |
 | `complimentary.pro`から`complimentary.business`へのm021 | [m021の確認](#m021の確認) |
@@ -48,6 +49,34 @@ Stripe設定、日常probe、`m021`の確認、販売停止、Price rotation、�
 
 `--deployment prod`のような短縮指定は使わない。
 短縮指定は現在選択中のConvex projectに依存し、別projectのdeploymentを選ぶおそれがある。
+
+## ダークローンチ公開フラグ
+
+次の公開フラグは、値が完全に`enabled`である場合だけ対象機能を開く。
+未設定、空文字、別の値は閉状態として扱う。
+
+| 変数 | 開く対象 |
+|---|---|
+| `FEATURE_ORGANIZATION_CREATION` | 二つ目以降のグループ作成 |
+| `FEATURE_SHOP_ADDITION` | 店舗追加と既存人物の複数店舗所属UI |
+| `FEATURE_BILLING` | プランと支払いのUI |
+| `FEATURE_MANAGER_INVITATION` | 管理者の追加、Free管理者交代、再送、preview、受諾、招待通知、管理者連携完了通知 |
+
+公開または停止は、対象commitのdeploy後に完全修飾deployment名を確認して実施する。
+値はコマンド行へ直接書かず、対象キーだけを指定して対話入力する。
+
+```bash
+pnpm exec convex env set --deployment <fully-qualified-deployment> FEATURE_MANAGER_INVITATION
+```
+
+管理者招待を開ける前に、追加とFree交代の両方について、発行、メールまたはLINE通知、preview、受諾、権限反映、再送、取消を対象環境で確認する。
+閉じるときは、発行・再送・受諾だけでなく、招待通知と管理者連携完了通知が新しくOutboxへ積まれず、投入済みOutboxも外部providerを呼ばず取消されることを確認する。
+E2Eは同じ`.env`の値を読み、閉状態では招待を前提とするシナリオを`test.skip`する。
+店舗所属追加を前提とするE2Eも、`FEATURE_SHOP_ADDITION`が閉じている間は`test.skip`する。
+公開FAQはフラグを購読しないため、管理者招待を開けるreleaseで追加・交代の操作手順を復元し、利用不可中の案内も公開状態へ戻す。
+
+作業後は`env list --names-only`でキーの存在だけを確認し、対象deployment、commit、確認日時、結果を[リリース状態](release-status.md)へ記録する。
+値そのものをログや証跡へ残さない。
 
 ## Stripeの設定
 

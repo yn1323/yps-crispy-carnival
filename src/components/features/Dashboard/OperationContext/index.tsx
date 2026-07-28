@@ -10,6 +10,7 @@ import {
   type ShopContextOption,
 } from "@/src/domains/shop/context";
 import { selectedShopAtom } from "@/src/stores/shop";
+import { featureVisibilityAtom } from "@/src/stores/user";
 import { buildOperationContextModel } from "./script";
 import { OperationContextSkeleton, OperationContextView } from "./View";
 
@@ -29,6 +30,8 @@ export const OperationContext = ({ data }: Props) => {
   const navigate = useNavigate();
   const rawShops = useQuery(api.dashboard.queries.getMyShops, data ? "skip" : {});
   const storedSelectedShop = useAtomValue(selectedShopAtom);
+  const featureVisibility = useAtomValue(featureVisibilityAtom);
+  const showGroupSettings = featureVisibility.organizationSettingsNavigation;
   const shops = useMemo(
     () => data?.shops ?? normalizeShopContextOptions(rawShops ?? []).filter(isSelectableShop),
     [data?.shops, rawShops],
@@ -57,6 +60,7 @@ export const OperationContext = ({ data }: Props) => {
   };
 
   const handleOpenGroupSettings = () => {
+    if (!showGroupSettings) return;
     void navigate({ to: "/settings", search: { shop: model.selectedShop.shopId } });
   };
 
@@ -73,7 +77,7 @@ export const OperationContext = ({ data }: Props) => {
       model={model}
       onShopSelect={handleShopSelect}
       onOpenShopDetail={handleOpenShopDetail}
-      onOpenGroupSettings={handleOpenGroupSettings}
+      onOpenGroupSettings={showGroupSettings ? handleOpenGroupSettings : undefined}
     />
   );
 };

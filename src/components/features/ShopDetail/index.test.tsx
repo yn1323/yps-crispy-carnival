@@ -66,8 +66,20 @@ describe("店舗詳細の戻り先", () => {
     });
   });
 
-  it("戻り先の指定がない場合は店舗設定へ戻る", () => {
+  it("戻り先の指定がない直URLではDashboardへ戻る", () => {
     render(<ShopDetail shop={shop} people={[]} selectedShopId="shop-context" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "前の画面に戻る" }));
+
+    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
+      to: "/dashboard",
+      search: { shop: "shop-context" },
+      replace: true,
+    });
+  });
+
+  it("グループ設定から開いた場合だけ同じグループ設定へ戻る", () => {
+    render(<ShopDetail shop={shop} people={[]} selectedShopId="shop-context" returnTo="settings" />);
 
     fireEvent.click(screen.getByRole("button", { name: "前の画面に戻る" }));
 

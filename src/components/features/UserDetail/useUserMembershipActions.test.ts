@@ -117,6 +117,62 @@ describe("useUserMembershipActions", () => {
     expect(result.current.addingShopId).toBeNull();
   });
 
+  it("店舗所属追加が非公開へ切り替わると古い追加handlerからもmutationを開始しない", async () => {
+    const { result, rerender } = renderHook(
+      ({ canAddMembership }) =>
+        useUserMembershipActions({
+          membership: null,
+          selectedShopId: null,
+          isReadOnly: false,
+          canAddMembership,
+        }),
+      { initialProps: { canAddMembership: true } },
+    );
+    const previousAddMembership = result.current.onAddMembership;
+
+    rerender({ canAddMembership: false });
+    await act(async () => {
+      await previousAddMembership(personId, shopId);
+    });
+
+    expect(mocks.addMembership).not.toHaveBeenCalled();
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+  });
+
+  it("店舗所属追加の処理中に非公開へ切り替わった場合は結果toastを表示しない", async () => {
+    const error = new Error("追加できませんでした");
+    let rejectMutation: ((error: Error) => void) | undefined;
+    mocks.addMembership.mockReturnValue(
+      new Promise<void>((_resolve, reject) => {
+        rejectMutation = reject;
+      }),
+    );
+    const { result, rerender } = renderHook(
+      ({ canAddMembership }) =>
+        useUserMembershipActions({
+          membership: null,
+          selectedShopId: null,
+          isReadOnly: false,
+          canAddMembership,
+        }),
+      { initialProps: { canAddMembership: true } },
+    );
+
+    let addition: Promise<unknown> | undefined;
+    act(() => {
+      addition = result.current.onAddMembership(personId, shopId);
+    });
+    rerender({ canAddMembership: false });
+    await act(async () => {
+      rejectMutation?.(error);
+      await addition;
+    });
+
+    expect(mocks.addMembership).toHaveBeenCalledOnce();
+    expect(mocks.showErrorToast).not.toHaveBeenCalled();
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+  });
+
   it("確認時に固定した割当previewを付けて店舗所属を削除する", async () => {
     const { result } = renderHook(() =>
       useUserMembershipActions({

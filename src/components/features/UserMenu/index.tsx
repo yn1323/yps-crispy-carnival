@@ -4,7 +4,7 @@ import { Link as RouterLink } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { LuBookOpen, LuBuilding2, LuChevronDown, LuLogOut, LuMailQuestion, LuUserRound } from "react-icons/lu";
 import { selectedShopAtom } from "@/src/stores/shop";
-import { userAtom } from "@/src/stores/user";
+import { featureVisibilityAtom, userAtom } from "@/src/stores/user";
 
 type Props = {
   tone?: "dark" | "light";
@@ -13,8 +13,10 @@ type Props = {
 export const UserMenu = ({ tone = "dark" }: Props) => {
   const user = useAtomValue(userAtom);
   const selectedShop = useAtomValue(selectedShopAtom);
+  const featureVisibility = useAtomValue(featureVisibilityAtom);
   const displayName = user.name || "ユーザー";
   const isLight = tone === "light";
+  const showGroupSettings = featureVisibility.organizationSettingsNavigation;
 
   return (
     <Menu.Root positioning={{ placement: "bottom-end" }}>
@@ -78,12 +80,14 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
               </Text>
             </Box>
             <Menu.Separator />
-            <Menu.Item asChild value="group-settings" cursor="pointer">
-              <RouterLink to="/settings" search={{ shop: selectedShop?.shopId }}>
-                <LuBuilding2 aria-hidden />
-                グループ設定
-              </RouterLink>
-            </Menu.Item>
+            {showGroupSettings && (
+              <Menu.Item asChild value="group-settings" cursor="pointer">
+                <RouterLink to="/settings" search={{ shop: selectedShop?.shopId }}>
+                  <LuBuilding2 aria-hidden />
+                  グループ設定
+                </RouterLink>
+              </Menu.Item>
+            )}
             <Menu.Item asChild value="howto" cursor="pointer">
               <a href="/howto" target="_blank" rel="noreferrer">
                 <LuBookOpen />

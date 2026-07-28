@@ -1,6 +1,11 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
-import { isBillingEnabled, isOrganizationCreationEnabled, isShopAdditionEnabled } from "../_lib/config";
+import {
+  isBillingEnabled,
+  isManagerInvitationEnabled,
+  isOrganizationCreationEnabled,
+  isShopAdditionEnabled,
+} from "../_lib/config";
 import { formatDateJa, formatDateTimeJa } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
@@ -146,11 +151,14 @@ const organizationSettingsValidator = v.object({
   createOrganizationDisabledReason: v.optional(v.string()),
   // 公開していない導線の表示判定。可否（can*）とは別に持ち、
   // 「上限に達したので理由を出す」と「未公開なので何も出さない」を画面が描き分けられるようにする。
-  features: v.object({
-    organizationCreation: v.boolean(),
-    shopAddition: v.boolean(),
-    billing: v.boolean(),
-  }),
+  features: v.optional(
+    v.object({
+      organizationCreation: v.boolean(),
+      shopAddition: v.boolean(),
+      billing: v.boolean(),
+      managerInvitation: v.boolean(),
+    }),
+  ),
 });
 
 type BillingPlan = "trial" | "free" | "pro" | "business";
@@ -271,6 +279,7 @@ function getOrganizationSettingsFeatures() {
     organizationCreation: isOrganizationCreationEnabled(),
     shopAddition: isShopAdditionEnabled(),
     billing: isBillingEnabled(),
+    managerInvitation: isManagerInvitationEnabled(),
   };
 }
 

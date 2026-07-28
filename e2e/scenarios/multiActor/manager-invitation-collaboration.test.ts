@@ -1,6 +1,7 @@
 import { expect, test } from "../../fixtures/multiActorTest";
 import { convexRunJson } from "../../helpers/convex";
 import { getNextWeekDates } from "../../helpers/date";
+import { isManagerInvitationEnabled } from "../../helpers/featureFlags";
 import { waitForManagerInvitationTokenProbe } from "../../helpers/managerInvitationProbe";
 import {
   assertNoNotificationOutbox,
@@ -24,6 +25,8 @@ test.describe("複数管理者の招待と共同管理", { tag: ["@release", "@n
     browser,
     multiActorPool,
   }) => {
+    test.skip(!isManagerInvitationEnabled(), "管理者の招待・交代はダークローンチ中で、この環境では公開していない");
+
     const seed = seedMultiActorOrganizationScenario(multiActorPool, {
       organizationName: "共同管理E2Eグループ",
       primaryShopName: "共同管理E2E A店",

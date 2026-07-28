@@ -1,9 +1,10 @@
 import { useNavigate } from "@tanstack/react-router";
+import { useAtomValue } from "jotai";
 import { useRef } from "react";
 import { StaffNotificationHistory } from "@/src/components/features/StaffNotificationHistory";
 import { clearRequestedShopSearch } from "@/src/lib/authenticatedSearch";
-import { toUserListCountSearch } from "@/src/lib/userListSearch";
-import { getUserDetailBackDestination, mergeUserDetailSearch } from "./navigation";
+import { featureVisibilityAtom } from "@/src/stores/user";
+import { getUserDetailBackDestination, getUserDetailRemovedDestination, mergeUserDetailSearch } from "./navigation";
 import type { UserDetailData, UserDetailPanel, UserDetailReturnTo } from "./types";
 import { UserDetailView } from "./UserDetailView";
 import { useUserLineActions } from "./useUserLineActions";
@@ -32,6 +33,10 @@ export function UserDetail({
   visibleUserCount,
 }: Props) {
   const navigate = useNavigate();
+  const featureVisibility = useAtomValue(featureVisibilityAtom);
+  const showShopMembershipAddition = featureVisibility.shopMembershipAddition;
+  const showShopMembershipAdditionRef = useRef(showShopMembershipAddition);
+  showShopMembershipAdditionRef.current = showShopMembershipAddition;
   const activePanelRef = useRef(activePanel);
   activePanelRef.current = activePanel;
   const visibleTargetRef = useRef({ personId: data.person.id, selectedShopId });
@@ -52,7 +57,7 @@ export function UserDetail({
     membership: selectedMembership,
     selectedShopId,
     isReadOnly: isStoreReadOnly,
-    canAddMembership: data.canWrite,
+    canAddMembership: data.canWrite && showShopMembershipAddition,
   });
   const manager = useUserManagerActions({
     data,
@@ -63,15 +68,14 @@ export function UserDetail({
         void navigate({ to: "/dashboard", search: clearRequestedShopSearch(), replace: true });
         return;
       }
-      void navigate({
-        to: "/settings",
-        search: {
-          shop: selectedShopId ?? undefined,
-          tab: "people",
-          users: toUserListCountSearch(visibleUserCount),
-        },
-        replace: true,
-      });
+      const destination = getUserDetailRemovedDestination(
+        returnTo,
+        selectedShopId,
+        visibleUserCount,
+        returnShopId,
+        returnShopTo,
+      );
+      void navigate({ ...destination, replace: true });
     },
   });
 
@@ -108,6 +112,7 @@ export function UserDetail({
   return (
     <UserDetailView
       data={data}
+      showShopMembershipAddition={showShopMembershipAddition}
       selectedShopId={selectedShopId}
       activePanel={activePanel}
       notificationHistory={
@@ -136,7 +141,10 @@ export function UserDetail({
       actions={{
         onBack: handleBack,
         onOpenBasic: () => updateSearch({ panel: "basic" }),
-        onOpenAddShop: () => updateSearch({ panel: "addShop" }),
+        onOpenAddShop: () => {
+          if (!showShopMembershipAdditionRef.current) return;
+          updateSearch({ panel: "addShop" });
+        },
         onOpenShop: (shopId) => updateSearch({ shop: shopId, panel: "shop" }),
         onClosePanel: handleClosePanel,
         onUpdateProfile: async (formData) => {
@@ -158,6 +166,7 @@ export function UserDetail({
           await membership.onChangeShiftTarget(isShiftTarget);
         },
         onAddMembership: async (shopId) => {
+          if (!showShopMembershipAdditionRef.current) return;
           const personId = data.person.id;
           const added = await membership.onAddMembership(data.person.id, shopId);
           if (added && activePanelRef.current === "addShop" && visibleTargetRef.current.personId === personId) {
