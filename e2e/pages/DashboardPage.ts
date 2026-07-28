@@ -613,7 +613,10 @@ export class DashboardPage {
     // 座標クリックだと、トースト消滅の瞬間に下のダイアログへクリックが落ちることがある。
     await toast.locator("[data-part='close-trigger']").evaluate((element: HTMLElement) => element.click());
     // exit animation中も表示扱いになるため、閉じた状態またはDOMからの削除を完了条件にする。
-    await expect(toast).not.toHaveAttribute("data-state", "open");
+    const openToast = this.page
+      .locator("[data-scope='toast'][data-part='root'][data-state='open']")
+      .filter({ hasText: title });
+    await expect(openToast).toHaveCount(0);
   }
 
   private async openStaffDetail(staffName: string) {
