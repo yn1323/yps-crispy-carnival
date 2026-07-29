@@ -47,7 +47,7 @@ export const HeroSummary = ({
               <LuCircleCheck />
             </Box>
             <Heading as="h2" textStyle="sectionTitle" color="gray.900">
-              今やること
+              TODO
             </Heading>
           </HStack>
 

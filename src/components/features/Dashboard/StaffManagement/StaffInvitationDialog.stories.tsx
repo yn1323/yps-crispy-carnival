@@ -176,10 +176,21 @@ export const TabSwitchBehavior: Story = {
     const page = within(canvasElement.ownerDocument.body);
 
     await userEvent.click(await page.findByRole("tab", { name: "管理者が登録" }));
-    await expect(await page.findByRole("button", { name: "スタッフを追加する" })).toBeInTheDocument();
+    await expect(await page.findByRole("button", { name: "スタッフを登録する" })).toBeInTheDocument();
 
     await userEvent.click(await page.findByRole("tab", { name: "他店舗スタッフを招待" }));
     await expect(await page.findByRole("button", { name: "佐藤 真由美をこの店舗に追加" })).toBeInTheDocument();
+  },
+};
+
+export const LinkTabCloseBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <InteractiveDialog initialTab="link" onAdd={noop} />,
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(await page.findByRole("button", { name: "スタッフ招待を閉じる" }));
+    await waitFor(() => expect(page.queryByRole("dialog", { name: "スタッフを招待" })).not.toBeInTheDocument());
   },
 };
 

@@ -106,7 +106,7 @@ export function StaffInvitationDialogView({ invitation, isReadOnly = false, orga
               loading={invitation.isAddingStaffs}
               disabled={isReadOnly || invitation.isAddingOrganizationPerson}
             >
-              スタッフを追加する
+              スタッフを登録する
             </Button>
           </Flex>
         ) : undefined
@@ -126,6 +126,10 @@ export function StaffInvitationDialogView({ invitation, isReadOnly = false, orga
         onValueChange={({ value }) => invitation.onTabChange(value as StaffInvitationTab)}
         colorPalette="teal"
         variant="line"
+        h="full"
+        minH={0}
+        display="flex"
+        flexDirection="column"
       >
         <Tabs.List overflowX="auto" overflowY="hidden" whiteSpace="nowrap" borderBottomWidth="1px">
           <Tabs.Trigger value="link" flexShrink={0} disabled={isBusy}>
@@ -141,11 +145,23 @@ export function StaffInvitationDialogView({ invitation, isReadOnly = false, orga
           )}
         </Tabs.List>
 
-        <Tabs.Content value="link" pt={4}>
-          <StaffRegistrationLinkPanel
-            registrationUrl={invitation.registrationUrl}
-            isLoading={invitation.isRegistrationUrlLoading}
-          />
+        <Tabs.Content value="link" pt={4} flex={1} minH={0}>
+          <Stack h="full" gap={6}>
+            <StaffRegistrationLinkPanel
+              registrationUrl={invitation.registrationUrl}
+              isLoading={invitation.isRegistrationUrlLoading}
+            />
+            <Button
+              w="full"
+              variant="outline"
+              mt="auto"
+              aria-label="スタッフ招待を閉じる"
+              onClick={invitation.onClose}
+              disabled={isBusy}
+            >
+              閉じる
+            </Button>
+          </Stack>
         </Tabs.Content>
 
         <Tabs.Content value="manual" pt={4}>

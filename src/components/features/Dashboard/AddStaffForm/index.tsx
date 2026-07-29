@@ -41,7 +41,7 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
   return (
     <form id="add-staff-form" noValidate onSubmit={handleSubmit(onSubmit)}>
       <Stack gap={4}>
-        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+        <Text fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
           {STAFF_ADDITION_EMAIL_NOTICE}
         </Text>
 
