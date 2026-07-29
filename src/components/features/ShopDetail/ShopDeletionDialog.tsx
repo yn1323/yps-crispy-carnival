@@ -16,7 +16,7 @@ export function ShopDeletionDialog({ shop, isOpen, isDeleting, onClose, onDelete
 
   return (
     <Dialog
-      title="店舗を削除"
+      title={`${shop.name}を削除しますか？`}
       isOpen
       role="alertdialog"
       submitColorPalette="red"
@@ -43,15 +43,14 @@ export function ShopDeletionDialog({ shop, isOpen, isDeleting, onClose, onDelete
       }
       maxW={{ base: "calc(100vw - 24px)", md: "560px" }}
     >
-      <Stack gap={3}>
-        <Text fontWeight="semibold">「{shop.name}」を削除しますか？</Text>
-        <Stack gap={1.5} fontSize="sm" color="fg.muted" lineHeight="tall">
-          <Text>
-            この店舗と所属スタッフは利用できなくなり、この店舗の管理権限、LINE連携、提出・閲覧用リンクを停止します。
-          </Text>
-          <Text>店舗名、スタッフの氏名・メールアドレス、過去のシフトなどの履歴は、業務記録として残ります。</Text>
-          <Text>グループのユーザーと、ほかの店舗の管理権限は残ります。</Text>
+      <Stack gap={3} fontSize="sm" color="fg.muted" lineHeight="tall">
+        <Stack gap={1}>
+          <Text>削除すると、この店舗と所属スタッフは利用できなくなります。</Text>
+          <Text>この店舗の管理権限、LINE連携、シフトの提出・閲覧用リンクも停止します。</Text>
         </Stack>
+        <Text color="red.700" fontWeight="semibold">
+          この操作は元に戻せません。
+        </Text>
       </Stack>
     </Dialog>
   );

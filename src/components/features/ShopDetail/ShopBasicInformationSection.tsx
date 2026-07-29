@@ -1,7 +1,8 @@
 import { Box, Flex, Grid, Stack, Text } from "@chakra-ui/react";
+import { Fragment } from "react";
 import { LuPencil } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
-import { getShopBasicInformationRows } from "./script";
+import { getShopBasicInformationRows, WEEKDAYS } from "./script";
 import type { ShopDetailData } from "./types";
 
 type Props = {
@@ -11,6 +12,7 @@ type Props = {
 
 export function ShopBasicInformationSection({ shop, onEdit }: Props) {
   const rows = getShopBasicInformationRows(shop);
+  const closedDays = WEEKDAYS.filter((day) => shop.regularClosedDays.includes(day.value));
 
   return (
     <Stack as="section" gap={3} aria-labelledby="shop-detail-basic-information-heading">
@@ -45,7 +47,7 @@ export function ShopBasicInformationSection({ shop, onEdit }: Props) {
           {rows.map((row) => (
             <Grid
               key={row.label}
-              templateColumns={{ base: "minmax(0, 7rem) minmax(0, 1fr)", md: "200px minmax(0, 1fr)" }}
+              templateColumns={{ base: "minmax(0, 9rem) minmax(0, 1fr)", md: "200px minmax(0, 1fr)" }}
               gap={{ base: 3, md: 5 }}
               alignItems="start"
               px={{ base: 4, md: 5 }}
@@ -54,9 +56,26 @@ export function ShopBasicInformationSection({ shop, onEdit }: Props) {
               <Text fontSize="sm" fontWeight="semibold" color="gray.700">
                 {row.label}
               </Text>
-              <Text fontSize="sm" color="gray.900" lineHeight="tall" overflowWrap="anywhere">
-                {row.value}
-              </Text>
+              {row.label === "定休日" && closedDays.length > 0 ? (
+                <Text fontSize="sm" color="gray.900" lineHeight="tall">
+                  毎週{" "}
+                  {closedDays.map((day, index) => (
+                    <Fragment key={day.value}>
+                      {index > 0 && "・"}
+                      <Text
+                        as="span"
+                        color={day.value === "sat" ? "blue.600" : day.value === "sun" ? "red.600" : undefined}
+                      >
+                        {day.label}
+                      </Text>
+                    </Fragment>
+                  ))}
+                </Text>
+              ) : (
+                <Text fontSize="sm" color="gray.900" lineHeight="tall" overflowWrap="anywhere">
+                  {row.value}
+                </Text>
+              )}
             </Grid>
           ))}
         </Stack>

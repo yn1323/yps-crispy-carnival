@@ -2,14 +2,14 @@ import type { RegularClosedDay, ShiftSubmissionPattern } from "@/convex/shop/sch
 import { formatShiftClockTimeRange } from "@/src/domains/shift/time";
 import type { ShopDetailData, ShopDetailPerson } from "./types";
 
-const WEEKDAYS: Array<{ value: RegularClosedDay; label: string }> = [
-  { value: "sun", label: "日曜日" },
-  { value: "mon", label: "月曜日" },
-  { value: "tue", label: "火曜日" },
-  { value: "wed", label: "水曜日" },
-  { value: "thu", label: "木曜日" },
-  { value: "fri", label: "金曜日" },
-  { value: "sat", label: "土曜日" },
+export const WEEKDAYS: Array<{ value: RegularClosedDay; label: string }> = [
+  { value: "mon", label: "月" },
+  { value: "tue", label: "火" },
+  { value: "wed", label: "水" },
+  { value: "thu", label: "木" },
+  { value: "fri", label: "金" },
+  { value: "sat", label: "土" },
+  { value: "sun", label: "日" },
 ];
 
 const SUBMISSION_PATTERN_LABELS: Record<ShiftSubmissionPattern["kind"], string> = {
