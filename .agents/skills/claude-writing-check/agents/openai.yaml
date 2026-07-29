@@ -1,0 +1,6 @@
+interface:
+  display_name: "Claude文章推敲"
+  short_description: "Claude Fable 5で日本語原稿を単発推敲する"
+  default_prompt: "Use $claude-writing-check to polish this Japanese text with Claude Fable 5."
+policy:
+  allow_implicit_invocation: false
