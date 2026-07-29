@@ -19,6 +19,7 @@
  * - FEATURE_SHOP_ADDITION
  * - FEATURE_BILLING
  * - FEATURE_ORGANIZATION_CREATION
+ * - FEATURE_MANAGER_INVITATION
  */
 import { execFileSync } from "node:child_process";
 import { config } from "dotenv";
@@ -40,7 +41,14 @@ const CONVEX_ENV_KEYS = [
   "FEATURE_SHOP_ADDITION",
   "FEATURE_BILLING",
   "FEATURE_ORGANIZATION_CREATION",
+  "FEATURE_MANAGER_INVITATION",
 ] as const;
+const DARK_LAUNCH_ENV_KEYS = new Set<string>([
+  "FEATURE_SHOP_ADDITION",
+  "FEATURE_BILLING",
+  "FEATURE_ORGANIZATION_CREATION",
+  "FEATURE_MANAGER_INVITATION",
+]);
 const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 const main = () => {
@@ -53,7 +61,8 @@ const main = () => {
   let successCount = 0;
 
   for (const key of CONVEX_ENV_KEYS) {
-    const value = process.env[key];
+    // deploymentに過去のenabledが残っていても、.envの未指定を明示的な閉状態として同期する。
+    const value = DARK_LAUNCH_ENV_KEYS.has(key) ? process.env[key]?.trim() || "disabled" : process.env[key];
 
     if (!value) {
       console.log(`⏭️  ${key}: .env に未設定のためスキップ`);

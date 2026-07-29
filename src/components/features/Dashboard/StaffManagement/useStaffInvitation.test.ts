@@ -45,7 +45,7 @@ beforeEach(() => {
 describe("useStaffInvitation", () => {
   it("利用人数上限エラーを解決導線へ変換し、自動で再追加しない", async () => {
     mocks.addStaffs.mockRejectedValue(new Error("利用人数が現在のプラン上限を超えます（現在 30名 / 上限 30名）"));
-    const { result } = renderHook(() => useStaffInvitation());
+    const { result } = renderHook(() => useStaffInvitation(false, true));
 
     await act(async () => {
       await result.current.onAddStaffs({ entries: [{ name: "31人目", email: "staff31@example.com" }] });
@@ -182,7 +182,7 @@ describe("useStaffInvitation", () => {
           resolveAddition = resolve;
         }),
     );
-    const { result } = renderHook(() => useStaffInvitation());
+    const { result } = renderHook(() => useStaffInvitation(false, true));
 
     await act(async () => {
       result.current.onOpen();
@@ -220,7 +220,7 @@ describe("useStaffInvitation", () => {
     mocks.ensureShopRegistrationLink.mockResolvedValue({ registrationUrl: "https://example.com/register" });
     const error = new Error("追加できませんでした");
     mocks.addOrganizationPersonToShop.mockRejectedValue(error);
-    const { result } = renderHook(() => useStaffInvitation());
+    const { result } = renderHook(() => useStaffInvitation(false, true));
 
     await act(async () => {
       result.current.onOpen();
@@ -233,5 +233,60 @@ describe("useStaffInvitation", () => {
     expect(result.current.dialog.isOpen).toBe(true);
     expect(mocks.showErrorToast).toHaveBeenCalledWith(error);
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+  });
+
+  it("他店舗スタッフ追加が非公開ならタブ切替と古い追加handlerを無効化する", async () => {
+    const { result, rerender } = renderHook(
+      ({ showOrganizationPeopleAddition }) => useStaffInvitation(false, showOrganizationPeopleAddition),
+      { initialProps: { showOrganizationPeopleAddition: true } },
+    );
+    const previousAddOrganizationPerson = result.current.onAddOrganizationPerson;
+
+    act(() => result.current.onTabChange("organization"));
+    expect(result.current.activeTab).toBe("organization");
+    rerender({ showOrganizationPeopleAddition: false });
+    expect(result.current.activeTab).toBe("link");
+
+    act(() => result.current.onTabChange("organization"));
+    await act(async () => {
+      await previousAddOrganizationPerson(personId("person-1"));
+    });
+
+    expect(result.current.activeTab).toBe("link");
+    expect(result.current.showOrganizationPeopleAddition).toBe(false);
+    expect(mocks.addOrganizationPersonToShop).not.toHaveBeenCalled();
+  });
+
+  it("他店舗スタッフ追加の処理中に非公開へ切り替わった場合はDialogを閉じずtoastを表示しない", async () => {
+    mocks.ensureShopRegistrationLink.mockResolvedValue({ registrationUrl: "https://example.com/register" });
+    let resolveAddition: ((value: { staffId: string }) => void) | undefined;
+    mocks.addOrganizationPersonToShop.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveAddition = resolve;
+        }),
+    );
+    const { result, rerender } = renderHook(
+      ({ showOrganizationPeopleAddition }) => useStaffInvitation(false, showOrganizationPeopleAddition),
+      { initialProps: { showOrganizationPeopleAddition: true } },
+    );
+    await act(async () => {
+      result.current.onOpen();
+      await Promise.resolve();
+    });
+
+    let addition: Promise<unknown> | undefined;
+    act(() => {
+      addition = result.current.onAddOrganizationPerson(personId("person-1"));
+    });
+    rerender({ showOrganizationPeopleAddition: false });
+    await act(async () => {
+      resolveAddition?.({ staffId: "staff-1" });
+      await addition;
+    });
+
+    expect(result.current.dialog.isOpen).toBe(true);
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+    expect(mocks.showErrorToast).not.toHaveBeenCalled();
   });
 });

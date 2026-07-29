@@ -80,7 +80,7 @@ export const StaffDetailDialog = ({
   const [directAction, setDirectAction] = useState<DirectAction | null>(null);
   const managerInvitationState = staff?.managerInvitationState;
   const managerInvitationCapability =
-    managerInvitationState && managerInvitationState.kind !== "unavailable"
+    managerInvitationState && (managerInvitationState.kind === "available" || managerInvitationState.kind === "pending")
       ? `${managerInvitationState.kind}:${managerInvitationState.mode}:${
           managerInvitationState.kind === "available" ? managerInvitationState.replacesStaleInvitation : true
         }`

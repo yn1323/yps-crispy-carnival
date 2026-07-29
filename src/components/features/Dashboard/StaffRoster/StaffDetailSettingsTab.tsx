@@ -81,76 +81,84 @@ export const StaffDetailSettingsTab = ({
         </Text>
       </Stack>
 
-      <Stack gap={3}>
-        <Heading as="h3" fontSize="sm" fontWeight="semibold" color="gray.900">
-          管理者権限
-        </Heading>
+      {managerInvitationState.kind !== "hidden" && (
+        <Stack gap={3}>
+          <Heading as="h3" fontSize="sm" fontWeight="semibold" color="gray.900">
+            管理者権限
+          </Heading>
 
-        {isManager ? (
-          <Stack gap={2} align="flex-end">
-            <Button aria-describedby="staff-manager-invitation-already-manager-reason" disabled>
-              {invitationButtonLabel}
-            </Button>
-            <Text id="staff-manager-invitation-already-manager-reason" fontSize="sm" color="fg.muted" textAlign="right">
-              すでに管理者です
-            </Text>
-          </Stack>
-        ) : managerInvitationState.kind === "pending" ? (
-          <Flex justify="flex-end">
-            <Button
-              colorPalette="teal"
-              variant="outline"
-              loading={isInvitingManager}
-              disabled={isInvitingManager}
-              onClick={onRequestManagerInvitation}
-            >
-              ログイン案内を再送
-            </Button>
-          </Flex>
-        ) : managerInvitationState.kind === "available" ? (
-          <Flex justify="flex-end">
-            <Button
-              colorPalette="teal"
-              loading={isInvitingManager}
-              disabled={isInvitingManager}
-              onClick={onRequestManagerInvitation}
-            >
-              {invitationButtonLabel}
-            </Button>
-          </Flex>
-        ) : (
-          <Stack gap={2} align="flex-end">
-            <Button aria-describedby="staff-manager-invitation-unavailable-reason" disabled>
-              {invitationButtonLabel}
-            </Button>
-            <Text
-              id="staff-manager-invitation-unavailable-reason"
-              maxW="560px"
-              fontSize="sm"
-              color="fg.muted"
-              lineHeight="tall"
-              textAlign="right"
-            >
-              {managerInvitationState.reason}
-            </Text>
-          </Stack>
-        )}
+          {isManager ? (
+            <Stack gap={2} align="flex-end">
+              <Button aria-describedby="staff-manager-invitation-already-manager-reason" disabled>
+                {invitationButtonLabel}
+              </Button>
+              <Text
+                id="staff-manager-invitation-already-manager-reason"
+                fontSize="sm"
+                color="fg.muted"
+                textAlign="right"
+              >
+                すでに管理者です
+              </Text>
+            </Stack>
+          ) : managerInvitationState.kind === "pending" ? (
+            <Flex justify="flex-end">
+              <Button
+                colorPalette="teal"
+                variant="outline"
+                loading={isInvitingManager}
+                disabled={isInvitingManager}
+                onClick={onRequestManagerInvitation}
+              >
+                ログイン案内を再送
+              </Button>
+            </Flex>
+          ) : managerInvitationState.kind === "available" ? (
+            <Flex justify="flex-end">
+              <Button
+                colorPalette="teal"
+                loading={isInvitingManager}
+                disabled={isInvitingManager}
+                onClick={onRequestManagerInvitation}
+              >
+                {invitationButtonLabel}
+              </Button>
+            </Flex>
+          ) : (
+            <Stack gap={2} align="flex-end">
+              <Button aria-describedby="staff-manager-invitation-unavailable-reason" disabled>
+                {invitationButtonLabel}
+              </Button>
+              <Text
+                id="staff-manager-invitation-unavailable-reason"
+                maxW="560px"
+                fontSize="sm"
+                color="fg.muted"
+                lineHeight="tall"
+                textAlign="right"
+              >
+                {managerInvitationState.reason}
+              </Text>
+            </Stack>
+          )}
 
-        {isManagerInvitationConfirmationOpen && managerInvitationState.kind !== "unavailable" && (
-          <ManagerAssignmentConfirmation
-            personName={staffName}
-            personEmail={staffEmail}
-            mode={managerInvitationState.mode}
-            replacesStaleInvitation={
-              managerInvitationState.kind === "available" && managerInvitationState.replacesStaleInvitation
-            }
-            isResend={managerInvitationState.kind === "pending"}
-            isRunning={isInvitingManager}
-            onCancel={onCancelManagerInvitation}
-            onConfirm={onConfirmManagerInvitation}
-          />
-        )}
-      </Stack>
+          {isManagerInvitationConfirmationOpen &&
+            (managerInvitationState.kind === "available" || managerInvitationState.kind === "pending") && (
+              <ManagerAssignmentConfirmation
+                personName={staffName}
+                personEmail={staffEmail}
+                mode={managerInvitationState.mode}
+                replacesStaleInvitation={
+                  managerInvitationState.kind === "available" && managerInvitationState.replacesStaleInvitation
+                }
+                isResend={managerInvitationState.kind === "pending"}
+                isRunning={isInvitingManager}
+                onCancel={onCancelManagerInvitation}
+                onConfirm={onConfirmManagerInvitation}
+              />
+            )}
+        </Stack>
+      )}
 
       <Stack gap={3}>
         <Flex justify="flex-end">

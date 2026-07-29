@@ -43,7 +43,7 @@ export function UserInformationTab({ data, isReadOnly, isUpdating, managerSettin
           </fieldset>
         </Stack>
       </Box>
-      <Box pt={6}>{managerSettings}</Box>
+      {managerSettings && <Box pt={6}>{managerSettings}</Box>}
     </Stack>
   );
 }

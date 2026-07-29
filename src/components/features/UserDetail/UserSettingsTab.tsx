@@ -137,6 +137,8 @@ export function UserManagerSettings({
   onCancelRemoveManagerRole: () => void;
   onConfirmRemoveManagerRole: () => void | Promise<void>;
 }) {
+  if (data.managerInvitationState.kind === "hidden") return null;
+
   return (
     <Stack gap={4}>
       <Stack gap={1}>
@@ -299,7 +301,8 @@ function ManagerRoleAction({
   }
 
   const invitation = data.managerInvitationState;
-  const canAssign = data.canWrite && invitation.kind !== "unavailable" && data.person.email.length > 0;
+  const canAssign =
+    data.canWrite && (invitation.kind === "available" || invitation.kind === "pending") && data.person.email.length > 0;
   const isResend = invitation.kind === "pending";
   const buttonLabel =
     invitation.kind === "pending"
@@ -336,18 +339,21 @@ function ManagerRoleAction({
         )}
       </Stack>
 
-      {isAssignmentConfirmationOpen && canAssign && data.person.email && (
-        <ManagerAssignmentConfirmation
-          personName={data.person.name}
-          personEmail={data.person.email}
-          mode={invitation.mode}
-          replacesStaleInvitation={invitation.kind === "available" && invitation.replacesStaleInvitation}
-          isResend={isResend}
-          isRunning={isAssigningManager}
-          onCancel={onCancelManagerAssignment}
-          onConfirm={onAssignManager}
-        />
-      )}
+      {isAssignmentConfirmationOpen &&
+        canAssign &&
+        data.person.email &&
+        (invitation.kind === "available" || invitation.kind === "pending") && (
+          <ManagerAssignmentConfirmation
+            personName={data.person.name}
+            personEmail={data.person.email}
+            mode={invitation.mode}
+            replacesStaleInvitation={invitation.kind === "available" && invitation.replacesStaleInvitation}
+            isResend={isResend}
+            isRunning={isAssigningManager}
+            onCancel={onCancelManagerAssignment}
+            onConfirm={onAssignManager}
+          />
+        )}
     </Stack>
   );
 }

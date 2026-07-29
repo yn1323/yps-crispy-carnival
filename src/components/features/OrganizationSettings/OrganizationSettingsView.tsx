@@ -74,8 +74,12 @@ export const OrganizationSettingsView = ({
       <Tabs.Content value="people" p={0} pt={{ base: 5, md: 6 }}>
         <PeopleSection
           people={people}
+          showManagerInvitation={features.managerInvitation}
           canInviteManager={canInviteManager}
-          canOpenManagerInvitation={canInviteManager || managerInvitations.some((invitation) => invitation.canResend)}
+          canOpenManagerInvitation={
+            features.managerInvitation &&
+            (canInviteManager || managerInvitations.some((invitation) => invitation.canResend))
+          }
           managerInvitationMode={managerInvitationMode}
           inviteManagerDisabledReason={inviteManagerDisabledReason}
           onInviteManager={actions.onInviteManager}

@@ -1,4 +1,5 @@
 import { expect, test } from "../../fixtures/multiActorTest";
+import { isManagerInvitationEnabled } from "../../helpers/featureFlags";
 import { waitForManagerInvitationTokenProbe } from "../../helpers/managerInvitationProbe";
 import { waitForOrganizationNotificationOutbox } from "../../helpers/notificationProbe";
 import { seedMultiActorOrganizationScenario } from "../../helpers/scenarioSeeds";
@@ -20,6 +21,8 @@ test.describe("グループからの利用者削除", { tag: ["@release", "@secu
     actorB,
     multiActorPool,
   }) => {
+    test.skip(!isManagerInvitationEnabled(), "管理者の招待・交代はダークローンチ中で、この環境では公開していない");
+
     const seed = seedMultiActorOrganizationScenario(multiActorPool, {
       organizationName: "利用者削除E2E主グループ",
       primaryShopName: "利用者削除E2E A店",

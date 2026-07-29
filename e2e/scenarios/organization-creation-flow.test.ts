@@ -1,5 +1,10 @@
 import { test } from "../fixtures/e2eTest";
-import { isBillingEnabled, isOrganizationCreationEnabled, isShopAdditionEnabled } from "../helpers/featureFlags";
+import {
+  isBillingEnabled,
+  isManagerInvitationEnabled,
+  isOrganizationCreationEnabled,
+  isShopAdditionEnabled,
+} from "../helpers/featureFlags";
 import { assertNotificationDeliverySuppressed } from "../helpers/notificationProbe";
 import { seedManagerScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
@@ -86,6 +91,7 @@ test.describe("新しいグループの作成", { tag: ["@release"] }, () => {
       organizationCreation: isOrganizationCreationEnabled(),
       shopAddition: isShopAdditionEnabled(),
       billing: isBillingEnabled(),
+      managerInvitation: isManagerInvitationEnabled(),
     });
   });
 });

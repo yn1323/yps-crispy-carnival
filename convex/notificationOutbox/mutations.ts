@@ -3,6 +3,7 @@ import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { internalMutation } from "../_generated/server";
+import { isManagerInvitationEnabled } from "../_lib/config";
 import { monthJST } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
 import { isNotificationDeliverySuppressed } from "../_lib/notificationDelivery";
@@ -974,6 +975,13 @@ async function getNotificationEligibility(
   if (notification.channel !== notificationChannelForPayload(notification.payload)) {
     return { cancelReason: "unsupported_channel" };
   }
+  if (
+    !isManagerInvitationEnabled() &&
+    notification.payload.kind === "email" &&
+    notification.payload.context === "organizationInvitation.linked"
+  ) {
+    return { cancelReason: "invitation_inactive" };
+  }
   const isInvitationPayload =
     notification.payload.kind === "organizationManagerInvitationEmail" ||
     notification.payload.kind === "organizationManagerInvitationLine";
@@ -1127,6 +1135,8 @@ async function getInvitationCancellationReason(
   organizationId: Id<"organizations">,
   now: number,
 ): Promise<NotificationCancelReason | undefined> {
+  if (!isManagerInvitationEnabled()) return "invitation_inactive";
+
   if (
     notification.purpose === "billing" ||
     !notification.organizationInvitationId ||

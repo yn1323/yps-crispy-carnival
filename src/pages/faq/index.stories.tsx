@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { faqEntries } from "@/src/components/features/FaqSite/faqContent";
 import { FaqPage } from ".";
 
@@ -61,5 +61,33 @@ export const Search: Story = {
 
     await expect(searchbox).toHaveFocus();
     await expect(searchbox).toHaveValue("");
+  },
+};
+
+export const AnswerDetails: Story = {
+  parameters: {
+    screenshot: { skip: true },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const searchbox = canvas.getByRole("searchbox", { name: "よくある質問を検索" });
+
+    await userEvent.type(searchbox, "LINEかメール 通知先 送り分け");
+    await userEvent.click(
+      canvas.getByRole("button", {
+        name: "スタッフへのシフト通知はLINEとメールのどちらへ送られますか？",
+      }),
+    );
+
+    const visual = await canvas.findByRole("img", {
+      name: "LINEで受け取れる場合は通常LINEへ送り、利用できない場合やLINE送信の上限に達した場合はメールへ切り替える流れ",
+    });
+    await waitFor(() => expect(visual).toBeVisible());
+    await expect(canvas.getByText("LINE連携済みのスタッフには、通常LINEで届きます。", { exact: false })).toBeVisible();
+    await expect(canvas.getByText("LINE送信の上限に達した")).toBeVisible();
+    await expect(await canvas.findByRole("link", { name: "通知先の確認方法を見る" })).toHaveAttribute(
+      "href",
+      "/howto#notification-channel",
+    );
   },
 };

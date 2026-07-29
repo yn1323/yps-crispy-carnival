@@ -20,6 +20,7 @@ export type StaffInvitationTab = "link" | "manual" | "organization";
 export type StaffInvitationViewModel = {
   dialog: DialogState;
   activeTab: StaffInvitationTab;
+  showOrganizationPeopleAddition: boolean;
   registrationUrl: string | null;
   peopleCapacityResolution: PeopleCapacityResolution | null;
   isRegistrationUrlLoading: boolean;
@@ -56,7 +57,12 @@ export function StaffInvitationDialog({ invitation, isReadOnly = false }: Props)
       isReadOnly={isReadOnly}
       organizationPeopleContent={
         <OrganizationPeopleCandidateList
-          enabled={!isReadOnly && invitation.dialog.isOpen && invitation.activeTab === "organization"}
+          enabled={
+            !isReadOnly &&
+            invitation.showOrganizationPeopleAddition &&
+            invitation.dialog.isOpen &&
+            invitation.activeTab === "organization"
+          }
           isReadOnly={isReadOnly}
           addingPersonId={invitation.addingOrganizationPersonId}
           isAdding={invitation.isAddingOrganizationPerson}
@@ -72,7 +78,11 @@ type ViewProps = Props & {
 };
 
 export function StaffInvitationDialogView({ invitation, isReadOnly = false, organizationPeopleContent }: ViewProps) {
-  const isManualTab = invitation.activeTab === "manual";
+  const activeTab =
+    !invitation.showOrganizationPeopleAddition && invitation.activeTab === "organization"
+      ? "link"
+      : invitation.activeTab;
+  const isManualTab = activeTab === "manual";
   const isBusy = invitation.isAddingStaffs || invitation.isAddingOrganizationPerson;
 
   return (
@@ -112,7 +122,7 @@ export function StaffInvitationDialogView({ invitation, isReadOnly = false, orga
       bodyProps={{ pt: 0 }}
     >
       <Tabs.Root
-        value={invitation.activeTab}
+        value={activeTab}
         onValueChange={({ value }) => invitation.onTabChange(value as StaffInvitationTab)}
         colorPalette="teal"
         variant="line"
@@ -124,9 +134,11 @@ export function StaffInvitationDialogView({ invitation, isReadOnly = false, orga
           <Tabs.Trigger value="manual" flexShrink={0} disabled={isBusy}>
             管理者が登録
           </Tabs.Trigger>
-          <Tabs.Trigger value="organization" flexShrink={0} disabled={isBusy}>
-            他店舗スタッフを招待
-          </Tabs.Trigger>
+          {invitation.showOrganizationPeopleAddition && (
+            <Tabs.Trigger value="organization" flexShrink={0} disabled={isBusy}>
+              他店舗スタッフを招待
+            </Tabs.Trigger>
+          )}
         </Tabs.List>
 
         <Tabs.Content value="link" pt={4}>
@@ -148,9 +160,11 @@ export function StaffInvitationDialogView({ invitation, isReadOnly = false, orga
           </Stack>
         </Tabs.Content>
 
-        <Tabs.Content value="organization" pt={4}>
-          {organizationPeopleContent}
-        </Tabs.Content>
+        {invitation.showOrganizationPeopleAddition && (
+          <Tabs.Content value="organization" pt={4}>
+            {organizationPeopleContent}
+          </Tabs.Content>
+        )}
       </Tabs.Root>
     </Dialog>
   );

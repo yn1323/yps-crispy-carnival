@@ -22,7 +22,7 @@ export type OperationContextViewProps = {
   model: OperationContextModel;
   onShopSelect: (shopId: string) => void;
   onOpenShopDetail: () => void;
-  onOpenGroupSettings: () => void;
+  onOpenGroupSettings?: () => void;
 };
 
 export const OperationContextView = ({
@@ -48,19 +48,21 @@ export const OperationContextView = ({
             店舗名
           </Heading>
         </HStack>
-        <Button
-          type="button"
-          variant="ghost"
-          colorPalette="teal"
-          size="sm"
-          gap={1.5}
-          fontWeight="semibold"
-          flexShrink={0}
-          onClick={onOpenGroupSettings}
-        >
-          <LuBuilding2 aria-hidden />
-          グループ設定
-        </Button>
+        {onOpenGroupSettings && (
+          <Button
+            type="button"
+            variant="ghost"
+            colorPalette="teal"
+            size="sm"
+            gap={1.5}
+            fontWeight="semibold"
+            flexShrink={0}
+            onClick={onOpenGroupSettings}
+          >
+            <LuBuilding2 aria-hidden />
+            グループ設定
+          </Button>
+        )}
       </Flex>
 
       <Flex align="center" justify="space-between" direction="row" gap={3} minW={0}>

@@ -1,6 +1,7 @@
 import { expect, test } from "../fixtures/e2eTest";
 import { convexRunJson } from "../helpers/convex";
 import { formatDateWithWeekday, getNextWeekDates } from "../helpers/date";
+import { isShopAdditionEnabled } from "../helpers/featureFlags";
 import {
   assertNoNotificationOutbox,
   assertNotificationDeliverySuppressed,
@@ -20,6 +21,7 @@ test.describe("募集中の追加スタッフ通知", { tag: ["@release", "@noti
   test.setTimeout(90_000);
 
   test("MS-P0-02: A店スタッフをB店へ再利用し、B店の希望提出まで完了できる", async ({ browser, page }) => {
+    test.skip(!isShopAdditionEnabled(), "店舗所属追加はダークローンチ中のためスキップします");
     const dates = getNextWeekDates();
     const seed = seedMultiShopOrganizationScenario({
       primaryShopName: "他店舗スタッフ再利用E2E A店",

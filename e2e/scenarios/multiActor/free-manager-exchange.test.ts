@@ -1,4 +1,5 @@
 import { expect, test } from "../../fixtures/multiActorTest";
+import { isManagerInvitationEnabled } from "../../helpers/featureFlags";
 import { waitForManagerInvitationTokenProbe } from "../../helpers/managerInvitationProbe";
 import { waitForOrganizationNotificationOutbox } from "../../helpers/notificationProbe";
 import { seedFreeManagerMultiOrganizationScenario } from "../../helpers/scenarioSeeds";
@@ -14,6 +15,8 @@ test.describe("Free管理者交代", { tag: ["@release", "@notification", "@secu
     actorB,
     multiActorPool,
   }) => {
+    test.skip(!isManagerInvitationEnabled(), "管理者の招待・交代はダークローンチ中で、この環境では公開していない");
+
     const seed = seedFreeManagerMultiOrganizationScenario(multiActorPool, {
       targetOrganizationName: "Free管理者交代E2Eグループ",
       targetShopName: "Free管理者交代E2E店舗",

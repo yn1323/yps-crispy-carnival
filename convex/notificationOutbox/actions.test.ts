@@ -119,6 +119,7 @@ describe("notificationOutbox/actions", () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
     vi.stubEnv("DEBUG_NOTIFY_FAIL", "");
+    vi.stubEnv("FEATURE_MANAGER_INVITATION", "enabled");
     resetResendEmailQueueForTest();
   });
   afterEach(() => {
@@ -1108,6 +1109,38 @@ describe("notificationOutbox/actions", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     const job = await t.run(async (ctx) => await ctx.db.get(outboxId));
     expect(job).toMatchObject({ status: "cancelled", cancelReason: reason });
+  });
+
+  it("管理者招待を閉じた後は投入済みOutboxもproviderを呼ばずに停止する", async () => {
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    const { t, outboxId } = await setupOrganizationInvitationJob("valid");
+    vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    const job = await t.run(async (ctx) => await ctx.db.get(outboxId));
+    expect(job).toMatchObject({ status: "cancelled", cancelReason: "invitation_inactive" });
+  });
+
+  it("管理者招待を閉じた後は投入済みの連携完了メールもproviderを呼ばずに停止する", async () => {
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    const { t } = await setupEmailJob({
+      dedupeKey: "email:test:manager-invitation-linked",
+      context: "organizationInvitation.linked",
+    });
+    vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({ status: "cancelled", cancelReason: "invitation_inactive" });
   });
 
   it("Resend 429 はretry-afterに従って再予約する", async () => {

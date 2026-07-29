@@ -1,5 +1,6 @@
 import { Badge, Box, Flex, Grid, Stack, Text } from "@chakra-ui/react";
-import type { FaqVisual as FaqVisualType } from "./faqContent";
+
+export type FaqVisualType = "notification-channel" | "organization" | "draft-resubmission";
 
 type Props = {
   type: FaqVisualType;
@@ -8,7 +9,8 @@ type Props = {
 export function FaqVisual({ type }: Props) {
   if (type === "notification-channel") return <NotificationChannelVisual />;
   if (type === "organization") return <OrganizationVisual />;
-  return <DraftResubmissionVisual />;
+  if (type === "draft-resubmission") return <DraftResubmissionVisual />;
+  throw new Error(`未対応のFAQ図です: ${type}`);
 }
 
 function NotificationChannelVisual() {

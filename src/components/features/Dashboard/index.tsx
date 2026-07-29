@@ -24,6 +24,7 @@ type Props = {
   operationContextData?: DashboardContentProps["operationContextData"];
   trialEndingNotice?: DashboardContentProps["trialEndingNotice"];
   billingSettingsShopId?: DashboardContentProps["billingSettingsShopId"];
+  isBillingFeatureVisible?: DashboardContentProps["isBillingFeatureVisible"];
 };
 
 export function Dashboard({
@@ -37,6 +38,7 @@ export function Dashboard({
   operationContextData,
   trialEndingNotice,
   billingSettingsShopId,
+  isBillingFeatureVisible,
 }: Props) {
   return (
     <DashboardContent
@@ -48,6 +50,7 @@ export function Dashboard({
       operationContextData={operationContextData}
       trialEndingNotice={trialEndingNotice}
       billingSettingsShopId={billingSettingsShopId}
+      isBillingFeatureVisible={isBillingFeatureVisible}
       isDashboardOnboardingDismissed={Boolean(
         currentUser && !currentUser.isNewUser && currentUser.dashboardOnboardingDismissedAt,
       )}

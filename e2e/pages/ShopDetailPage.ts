@@ -144,7 +144,10 @@ export class ShopDetailPage {
     const toast = this.page.locator("[data-scope='toast'][data-part='root']").filter({ hasText: title }).first();
     await expect(toast).toBeVisible();
     await toast.locator("[data-part='close-trigger']").evaluate((element: HTMLElement) => element.click());
-    await expect(toast).not.toHaveAttribute("data-state", "open");
+    const openToast = this.page
+      .locator("[data-scope='toast'][data-part='root'][data-state='open']")
+      .filter({ hasText: title });
+    await expect(openToast).toHaveCount(0);
   }
 }
 

@@ -12,6 +12,7 @@ import { Button } from "@/src/components/ui/Button";
 import { isSelectableShop, normalizeShopContextOptions } from "@/src/domains/shop/context";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
 import { selectedShopAtom } from "@/src/stores/shop";
+import { featureVisibilityAtom } from "@/src/stores/user";
 
 type Props = {
   visibleUserCount?: number;
@@ -21,6 +22,8 @@ type Props = {
 
 export function DashboardPage({ visibleUserCount, focusedPersonId, onVisibleUserCountChange }: Props) {
   const selectedContext = useAtomValue(selectedShopAtom);
+  const featureVisibility = useAtomValue(featureVisibilityAtom);
+  const showGroupSettings = featureVisibility.organizationSettingsNavigation;
   const myShops = useQuery(api.dashboard.queries.getMyShops, {});
   const selectedShop = useShopQuery(api.dashboard.queries.getDashboardShop, {});
   const selectableShops =
@@ -62,16 +65,22 @@ export function DashboardPage({ visibleUserCount, focusedPersonId, onVisibleUser
                 <Alert.Title>この店舗は閲覧のみです</Alert.Title>
                 <Alert.Description>
                   {selectedContext.shopStatus === "archived"
-                    ? "アーカイブ済みのため、新しいシフトや利用者は変更できません。再開するときはグループ設定から再稼働してください。"
+                    ? showGroupSettings
+                      ? "アーカイブ済みのため、新しいシフトや利用者は変更できません。再開するときはグループ設定から再稼働してください。"
+                      : "アーカイブ済みのため、新しいシフトや利用者は変更できません。"
                     : selectedContext.shopStatus === "planSuspended"
                       ? "現在のプランでは停止中です。既存データは削除されていません。"
                       : shop?.businessWriteBlockReason === "paymentResultPending"
                         ? "支払い結果を確認中です。確認が完了するまで、既存データを閲覧できますが変更や通知送信はできません。"
                         : shop?.businessWriteBlockReason === "restricted"
-                          ? "契約制限中です。既存データを閲覧しながら、グループ設定で契約の復旧や利用状況の整理を進めてください。"
+                          ? featureVisibility.billing
+                            ? "契約制限中です。既存データを閲覧しながら、グループ設定で契約の復旧や利用状況の整理を進めてください。"
+                            : showGroupSettings
+                              ? "契約制限中です。既存データを閲覧しながら、グループ設定で利用状況の整理を進めてください。"
+                              : "契約制限中です。既存データは引き続き確認できます。"
                           : "閲覧のみの管理者は既存データを確認できますが、変更や通知送信はできません。"}
                 </Alert.Description>
-                {(selectedContext.shopStatus !== "active" || isBillingReadOnly) && (
+                {showGroupSettings && (selectedContext.shopStatus !== "active" || isBillingReadOnly) && (
                   <Button asChild size="sm" variant="outline" mt={3} alignSelf="flex-start">
                     <RouterLink to="/settings" search={{ shop: selectedContext.shopId }}>
                       グループ設定を開く
@@ -91,6 +100,7 @@ export function DashboardPage({ visibleUserCount, focusedPersonId, onVisibleUser
             onVisibleUserCountChange={onVisibleUserCountChange}
             trialEndingNotice={shop?.trialEndingNotice ?? null}
             billingSettingsShopId={selectedContext?.shopId}
+            isBillingFeatureVisible={featureVisibility.billing}
             operationContextData={
               selectedContext && selectableShops ? { shops: selectableShops, selectedShop: selectedContext } : undefined
             }

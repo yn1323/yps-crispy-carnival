@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
+import { normalizeOrganizationSettingsFeatures } from "@/src/domains/featureVisibility";
 import type { ShopContextOption } from "@/src/domains/shop/context";
 import { toUserListCountSearch } from "@/src/lib/userListSearch";
 import { BillingActionDialog } from "./BillingSettings/BillingActionDialog";
@@ -43,8 +44,9 @@ export function OrganizationSettings({
   onVisibleUserCountChange,
 }: Props) {
   const navigate = useNavigate();
+  const features = normalizeOrganizationSettingsFeatures(settings.features);
   // 支払いを公開していない間はbillingタブ自体が無いため、URLで指定されても空欄を表示しない。
-  const visibleTab = defaultTab === "billing" && !settings.features.billing ? "people" : defaultTab;
+  const visibleTab = defaultTab === "billing" && !features.billing ? "people" : defaultTab;
   const organizationContext = useMemo(
     () => buildOrganizationContextModel(context.shops, context.selectedShopId),
     [context.selectedShopId, context.shops],
@@ -54,17 +56,18 @@ export function OrganizationSettings({
     canUpdateOrganizationName: settings.canUpdateOrganizationName,
   });
   const canOpenManagerInvitation =
-    settings.canInviteManager || settings.managerInvitations.some((invitation) => invitation.canResend);
+    features.managerInvitation &&
+    (settings.canInviteManager || settings.managerInvitations.some((invitation) => invitation.canResend));
   const managerInvitation = useManagerInvitationController({
-    canInviteManager: settings.canInviteManager,
+    canInviteManager: features.managerInvitation && settings.canInviteManager,
     canOpenManagerInvitation,
     managerInvitationMode: settings.managerInvitationMode,
     freeManagerExchangeCandidates: settings.freeManagerExchangeCandidates,
     people: settings.people,
   });
-  const shopManagement = useShopManagementController({ canAddShop: settings.canAddShop });
+  const shopManagement = useShopManagementController({ canAddShop: features.shopAddition && settings.canAddShop });
   const organizationCreation = useOrganizationCreationController({
-    canCreateOrganization: settings.canCreateOrganization,
+    canCreateOrganization: features.organizationCreation && settings.canCreateOrganization,
     // 作成直後は新しいグループを操作対象にしたいので、そのグループの店舗を選んでDashboardへ移す。
     onCreated: (shopId) => void navigate({ to: "/dashboard", search: { shop: shopId } }),
   });
@@ -88,6 +91,7 @@ export function OrganizationSettings({
     <>
       <OrganizationSettingsView
         {...settings}
+        features={features}
         planPrices={stripeBilling.planPrices}
         organizationContext={organizationContext}
         defaultTab={visibleTab}
@@ -118,7 +122,7 @@ export function OrganizationSettings({
             void navigate({
               to: "/shops/$shopId",
               params: { shopId },
-              search: { shop: context.selectedShopId },
+              search: { shop: context.selectedShopId, returnTo: "settings" },
             }),
           onManagePlan: stripeBilling.managePlan,
           onRetryPlanPrice: stripeBilling.retryPlanPrice,
@@ -130,11 +134,11 @@ export function OrganizationSettings({
         }}
       />
       <OrganizationNameDialog {...organizationName.dialog} />
-      <ManagerInvitationDialog {...managerInvitation.dialog} />
-      <ShopManagementDialog {...shopManagement.dialog} />
-      <OrganizationCreationDialog {...organizationCreation.dialog} />
-      <BillingEmailDialog {...billingEmailSettings.dialog} />
-      <BillingActionDialog {...stripeBilling.dialog} />
+      {features.managerInvitation && <ManagerInvitationDialog {...managerInvitation.dialog} />}
+      {features.shopAddition && <ShopManagementDialog {...shopManagement.dialog} />}
+      {features.organizationCreation && <OrganizationCreationDialog {...organizationCreation.dialog} />}
+      {features.billing && <BillingEmailDialog {...billingEmailSettings.dialog} />}
+      {features.billing && <BillingActionDialog {...stripeBilling.dialog} />}
       <OrganizationDeletionDialog {...organizationDeletion.dialog} />
     </>
   );

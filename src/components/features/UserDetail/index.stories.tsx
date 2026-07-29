@@ -1,7 +1,7 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, screen, userEvent, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
   type StaffNotificationHistoryItem,
@@ -98,6 +98,12 @@ const multipleStoresData: UserDetailData = {
   canRemoveManagerRole: false,
   shops: [shibuyaShop, shinjukuShop, ikebukuroShop, yokohamaShop],
   memberships: [shibuyaMembership, shinjukuMembership],
+};
+
+const managerInvitationHiddenData: UserDetailData = {
+  ...multipleStoresData,
+  hasManagerInvitation: true,
+  managerInvitationState: { kind: "hidden" },
 };
 
 const unlinkedLineData: UserDetailData = {
@@ -213,6 +219,7 @@ const meta = {
   ],
   args: {
     data: multipleStoresData,
+    showShopMembershipAddition: true,
     selectedShopId: shibuyaShopId,
     notificationHistory,
     state: baseState,
@@ -229,6 +236,17 @@ export const BasicInformationDialog: Story = {
   args: { activePanel: "basic" },
 };
 
+export const ManagerInvitationDarkLaunchBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: { activePanel: "basic", data: managerInvitationHiddenData },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "基本情報" });
+    await expect(within(dialog).getByRole("textbox", { name: "名前" })).toBeInTheDocument();
+    await expect(within(dialog).queryByRole("heading", { name: "管理者権限" })).not.toBeInTheDocument();
+    await expect(screen.queryByText("管理者招待中")).not.toBeInTheDocument();
+  },
+};
+
 export const BasicInformationDialogMobile: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
@@ -237,6 +255,23 @@ export const BasicInformationDialogMobile: Story = {
 
 export const AddShopDialog: Story = {
   args: { activePanel: "addShop" },
+};
+
+export const ShopMembershipAdditionDarkLaunchBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: {
+    activePanel: "addShop",
+    data: { ...multipleStoresData, memberships: [] },
+    showShopMembershipAddition: false,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.queryByRole("button", { name: "店舗を追加" })).not.toBeInTheDocument();
+    await expect(screen.queryByRole("dialog", { name: "店舗を追加" })).not.toBeInTheDocument();
+    await expect(canvas.getByText("所属している店舗はありません。")).toBeInTheDocument();
+    await expect(canvas.queryByText("「店舗を追加」から、このユーザーを店舗に追加できます。")).not.toBeInTheDocument();
+  },
 };
 
 export const AssignedShopDialog: Story = {
@@ -376,6 +411,7 @@ function PanelNavigationHarness({ data = multipleStoresData }: { data?: UserDeta
       </output>
       <UserDetailView
         data={data}
+        showShopMembershipAddition
         selectedShopId={selectedShopId}
         activePanel={activePanel}
         notificationHistory={notificationHistory}

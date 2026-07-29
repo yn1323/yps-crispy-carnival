@@ -7,21 +7,34 @@ import { useTrialEndingCallout } from "./useTrialEndingCallout";
 type Props = {
   notice: TrialEndingNoticeData | null;
   shopId: string;
+  isBillingVisible: boolean;
 };
 
-export function TrialEndingCallout({ notice, shopId }: Props) {
+export function TrialEndingCallout({ notice, shopId, isBillingVisible }: Props) {
+  if (!isBillingVisible) return null;
+
   const noticeKey = notice ? `${notice.visibleFrom}:${notice.trialEndsAt}` : "none";
-  return <TrialEndingCalloutController key={noticeKey} notice={notice} shopId={shopId} />;
+  return <TrialEndingCalloutController key={noticeKey} notice={notice} shopId={shopId} isBillingVisible />;
 }
 
 function TrialEndingCalloutController({ notice, shopId }: Props) {
   const viewModel = useTrialEndingCallout(notice);
   if (!viewModel) return null;
 
-  return <TrialEndingCalloutView finalDateLabel={viewModel.finalDateLabel} shopId={shopId} />;
+  return <TrialEndingCalloutView finalDateLabel={viewModel.finalDateLabel} shopId={shopId} isBillingVisible />;
 }
 
-export function TrialEndingCalloutView({ finalDateLabel, shopId }: { finalDateLabel: string; shopId: string }) {
+export function TrialEndingCalloutView({
+  finalDateLabel,
+  shopId,
+  isBillingVisible,
+}: {
+  finalDateLabel: string;
+  shopId: string;
+  isBillingVisible: boolean;
+}) {
+  if (!isBillingVisible) return null;
+
   return (
     <Alert.Root
       as="section"

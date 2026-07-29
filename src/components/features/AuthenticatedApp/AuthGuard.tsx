@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import { FullPageSpinner } from "@/src/components/templates/FullPageSpinner";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
+import { normalizeFeatureVisibility } from "@/src/domains/featureVisibility";
 import {
   isSameSelectedShop,
   isSelectableShop,
@@ -40,6 +41,13 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
       "accountDeletionRequested" in currentUser &&
       currentUser.accountDeletionRequested === true,
   );
+  const currentFeatureVisibility = useMemo(
+    () =>
+      normalizeFeatureVisibility(
+        currentUser && !("accountDeleted" in currentUser) ? currentUser.featureVisibility : undefined,
+      ),
+    [currentUser],
+  );
   const myShops = useQuery(
     api.dashboard.queries.getMyShops,
     isSignedIn && currentUser !== undefined && !isAccountDeleted ? {} : "skip",
@@ -66,9 +74,10 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
         authId: userId,
         name: currentUser.name ?? "",
         email: currentUser.email ?? "",
+        featureVisibility: currentFeatureVisibility,
       });
     }
-  }, [userId, currentUser, setUser]);
+  }, [userId, currentUser, currentFeatureVisibility, setUser]);
 
   useEffect(() => {
     if (!isAccountDeleted) return;
@@ -110,6 +119,15 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
         !shopContextResolution.shouldNormalizeUrl &&
         isSameSelectedShop(selectedShop, shopContextResolution.shop);
 
+  // 古いbackendの欠損値も「全て非公開」に正規化し、atomへ反映されるまで子画面を描画しない。
+  const isUserContextReady =
+    Boolean(userId && currentUser && !isAccountDeleted) &&
+    user.authId === userId &&
+    user.featureVisibility?.organizationSettingsNavigation ===
+      currentFeatureVisibility.organizationSettingsNavigation &&
+    user.featureVisibility?.billing === currentFeatureVisibility.billing &&
+    user.featureVisibility?.shopMembershipAddition === currentFeatureVisibility.shopMembershipAddition;
+
   // ログアウト・セッション失効時は userAtom が残っていても必ずログインへ戻す。
   // （queryは未認証時にthrowせず空を返すため、エラー経由のリダイレクトは発生しない）
   if (isLoaded && !isSignedIn) {
@@ -120,10 +138,6 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
 
   // 古いatomやURLが残っていても、削除済み状態を通常画面より先に確定する。
   if (isAccountDeleted) return <DeletedAccountState accountDeletionRequested={accountDeletionRequested} />;
-
-  if (user.authId && isShopContextReady) {
-    return children;
-  }
 
   if (!isLoaded) {
     return <FullPageSpinner showHeader />;
@@ -150,7 +164,7 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
     );
   }
 
-  if (!isShopContextReady) {
+  if (!isUserContextReady || !isShopContextReady) {
     return <FullPageSpinner showHeader />;
   }
 

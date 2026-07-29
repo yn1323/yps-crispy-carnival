@@ -22,7 +22,6 @@
 | [AIシフト下書き機能 実装仕様書](2026-07-03_AIシフト下書き機能_実装仕様書.md) | `reviewing` | 詳細設計の採否後に実装仕様を確定する | 現行のシフト作成は[シフト表](../features/shift-board.md) |
 | [スタッフのメールアドレス任意化](2026-07-04_メールアドレス任意化_設計.md) | `reviewing` | 通知手段、認証境界、既存データmigrationを含めて採否を決める | 現行のスタッフ管理は[ユーザー詳細](../features/user-detail.md)と[LINE通知連携](../features/line-notification.md) |
 | [新規グループ作成導線](2026-07-25_新規グループ作成導線_実装計画.md) | `reviewing` | 二つ目以降をFree開始とする方針と作成上限3の採否を決める | 現行のグループ作成は[グループ課金、複数店舗、複数管理者](../features/organization-billing.md) |
-| [グループ追加、店舗追加、支払いのダークローンチ](2026-07-25_ダークローンチ_実装計画.md) | `reviewing` | 全グループを支払い不要Businessへ寄せるm022の採否と、各段階を開ける時期を決める | 現行のグループ課金と複数店舗は[グループ課金、複数店舗、複数管理者](../features/organization-billing.md) |
 
 ## Active
 
@@ -37,6 +36,7 @@
 | [スタッフ通知履歴](2026-07-19_スタッフ通知履歴_実装計画.md) | `rollout` | リリースとResendの`email.delivered` Webhook設定を証跡付きで確認する | [スタッフ通知履歴](../features/notification-history.md)、[リリース状態](../manual/release-status.md) |
 | [Stripeセキュリティ対策](2026-07-20_Stripeセキュリティ対策_テスト計画.md) | `blocked` | Stripe sandbox canary、Clerk・Cloudflare・端末保護などの実環境証跡 | [セキュリティ再検証](../manual/security-validation.md)、[リリース状態](../manual/release-status.md) |
 | [課金プラン改定・Business再導入](2026-07-21_課金プラン改定_Business再導入_実装計画.md) | `rollout` | Stripe外部設定、Convex deploy、snapshot、m021、公開判定の証跡 | [課金業務フロー](../specs/organization-billing-business-flow.md)、[グループ課金の運用](../manual/organization-billing.md)、[リリース状態](../manual/release-status.md) |
+| [グループ追加、店舗追加、支払い、管理者招待・交代のダークローンチ](2026-07-25_ダークローンチ_実装計画.md) | `rollout` | 対象deploymentへのdeploy、4フラグの設定値、m022、閉状態の実環境表示を証跡付きで確認する | [グループ課金、複数店舗、複数管理者](../features/organization-billing.md)、[グループ課金の運用](../manual/organization-billing.md)、[リリース状態](../manual/release-status.md) |
 | [doc現行コード差分調査](2026-07-23_doc現行コード差分調査.md) | `reviewing` | 10論点のProduct、Security、Backend、運用判断を確定し、必要な別計画へ引き渡す | [現行コード差分調査](2026-07-23_doc現行コード差分調査.md) |
 
 `frontend-test-vrt-refactor`は本文に実施結果がないため、完了済みと推測せず`Active`に残しています。

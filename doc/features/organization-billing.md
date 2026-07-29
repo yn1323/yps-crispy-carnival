@@ -14,18 +14,23 @@ Stripe設定、migration確認、障害対応は[グループ課金の運用](..
 
 ## ダークローンチ中の公開範囲
 
-グループ追加、店舗追加、支払いの三つは実装済みだが、現在は利用者へ公開していない。
+グループ追加、店舗追加、支払い、管理者招待・交代の四つは実装済みで、コード上は未設定時に非公開となる。
+実deploymentの設定値と公開状態はこの文書から推定せず、[リリース状態](../manual/release-status.md)の証跡で確認する。
 公開状態はConvexの環境変数で決まり、`convex/_lib/config.ts`が読む。
 未設定のdeploymentでは閉じた状態になる。
 
 | 環境変数 | 対象 | 閉じている間の挙動 |
 |---|---|---|
 | `FEATURE_ORGANIZATION_CREATION` | 二つ目以降のグループ作成 | `createOrganization`が拒否し、「設定」タブに作成セクションを描画しない |
-| `FEATURE_SHOP_ADDITION` | 店舗の追加 | `addShop`が拒否し、「店舗」タブに追加ボタンを描画しない |
+| `FEATURE_SHOP_ADDITION` | 店舗の追加と既存人物の複数店舗所属UI | `addShop`が拒否し、「店舗」タブの追加ボタン、ユーザー詳細の「店舗を追加」、スタッフ招待の「他店舗スタッフを招待」を描画しない |
 | `FEATURE_BILLING` | プランと支払い | 「プランと支払い」タブを描画しない |
+| `FEATURE_MANAGER_INVITATION` | 管理者の追加・交代 | 発行・再送を拒否し、preview・受諾を利用不可へ寄せ、新規・投入済み通知を送らない。設定、ユーザー詳細、スタッフ詳細の管理者操作UIを描画しない |
 
 拒否はサーバー側で行い、画面から導線を消すだけにはしない。
 `getSettings`は公開状態を`features`で返すが、これは表示判定であり認可根拠ではない。
+`getCurrentUser`は通常画面の入口用に、四つのフラグのORと支払い・店舗所属追加の表示可否を返す。
+四つがすべて閉じている間はUserMenuとDashboardから「グループ設定」を描画しないが、`/settings`のrouteと直URLは運用・復旧用に維持する。
+旧backendの応答に表示DTOが無い場合は、frontendがfalseへ正規化して入口を表示しない。
 
 `m022_organization_billing_to_complimentary_business`は、全グループの課金状態を支払い不要Businessへ寄せる。
 支払い不要BusinessはStripe objectを作らない隔離契約を持つため、この状態でStripeへ到達する経路がなくなる。
@@ -33,6 +38,9 @@ Stripe設定、migration確認、障害対応は[グループ課金の運用](..
 グループ削除は閉じない。
 所属があるとアカウント削除を依頼できないため、閉じると管理ユーザーが退会できなくなる。
 詳細は[アカウント削除](account-deletion.md)を参照する。
+
+管理者招待では、残存招待を減らす`revoke`とinternal `expire`だけを閉じない。
+`removeManagerRole`も管理者を増やさない縮退経路としてサーバーAPIを維持するが、管理者招待フラグが閉じている間はユーザー詳細の管理者権限セクションごと非表示にする。
 
 解放の順序と各段階の作業は[ダークローンチ実装計画](../plans/2026-07-25_ダークローンチ_実装計画.md)にある。
 
@@ -43,7 +51,7 @@ Stripe設定、migration確認、障害対応は[グループ課金の運用](..
 | 有効な管理者 | 同じグループの店舗、人物、管理者、プラン、支払い方法を管理する | 認証済み利用者、`active`所属、選択店舗のグループ一致をサーバーで再確認する |
 | 既に利用中の管理ユーザー | グループ設定の「設定」から、いまのグループとは別のグループを新しく作る | 自分で作成した有効なグループが3件未満であること。作成回数はrate limitで抑える |
 | 復旧担当の管理者 | 契約制限中に、許可されたFree選択、請求先変更、Customer Portalなどの復旧操作を行う | `readOnly`だけでは通常の業務更新やグループ名変更を許可しない |
-| 管理者招待の受取人 | 招待先グループを確認し、ログインまたは登録後に管理者アカウントを連携する | 期限内の最新招待、確認済みメールの一致、連携時点の上限と所属を満たす |
+| 管理者招待の受取人 | 公開後、招待先グループを確認し、ログインまたは登録後に管理者アカウントを連携する | `FEATURE_MANAGER_INVITATION=enabled`、期限内の最新招待、確認済みメールの一致、連携時点の上限と所属を満たす |
 | Stripe Webhookと内部worker | 支払い結果、期間末変更、取消、再試行を検証して課金状態へ反映する | 署名、接続mode、provider objectの対応、version、冪等性を検証する |
 | 運用担当者 | Stripe設定、probe、m021確認、販売停止、Price rotation、復旧を行う | 実環境を一意に特定し、[運用手順](../manual/organization-billing.md)に従って証跡を残す |
 
@@ -143,6 +151,11 @@ Widen期間中の`complimentary.pro`は、画面、利用上限、targetingで�
 
 ## 管理者招待の安全契約
 
+この節は`FEATURE_MANAGER_INVITATION=enabled`で公開した後の契約を示す。
+閉状態では、発行・再送・preview・`linkAccount`・legacy `accept`・招待通知と管理者連携完了通知の配送をサーバー側で止める。
+切替直前に連携が完了していても、新しい連携完了通知はenqueueせず、既にOutboxへ投入済みの通知はproviderを呼ばず取消する。
+発行済みtokenも受諾できず、フラグを閉じる前にOutboxへ投入済みのメール・LINE通知もprovider呼出前に取消す。
+
 - 招待はメールで送り、発行から7日間有効な一回限りのtokenを使う。
 - 受取人の確認済みメールを正規化し、招待先メールとの完全一致を連携時に確認する。
 - 発行時と連携時の両方で、管理者追加権限、人物上限、管理者上限、予約枠をサーバー側で確認する。
@@ -175,9 +188,9 @@ Widen期間中の`complimentary.pro`は、画面、利用上限、targetingで�
 
 | 画面 | 役割 |
 |---|---|
-| `/settings?shop=<shopId>` | 選択店舗からグループを解決し、ユーザー、店舗、プランと支払い、設定を管理する |
+| `/settings?shop=<shopId>` | 選択店舗からグループを解決し、ユーザー、店舗、プランと支払い、設定を管理する。四つのフラグがすべて閉じている間も直URLは利用できるが、通常画面からの入口は描画しない |
 | `/settings?shop=<shopId>&tab=billing` | 現在のプラン、価格、変更予定、支払い方法、請求先メール、復旧操作を扱う |
-| `/manager-invite?token=...` | 公開範囲を限定した招待previewを表示し、認証後にアカウントを連携する |
+| `/manager-invite?token=...` | 公開中は招待previewとアカウント連携を扱う。ダークローンチ中は利用不可を表示する |
 | `/dashboard?shop=<shopId>` | 現在のグループと店舗、業務更新可否を表示する |
 | `/shops/<shopId>?shop=<contextShopId>` | 同じグループの店舗情報、所属、稼働状態を管理する |
 | `/users/<personId>?shop=<shopId>` | グループ人物、管理者権限、店舗所属、招待再送を管理する |
@@ -224,9 +237,9 @@ Widen期間中の`complimentary.pro`は、画面、利用上限、targetingで�
 | `api.dashboard.queries.getMyShops` | 利用可能な店舗、グループ、所属状態の取得 |
 | `api.organization.queries.getSettings` | グループ設定、利用状況、課金状態、操作可否の取得 |
 | `api.organization.mutations.*` | グループ名、店舗、人物、管理者、削除の更新 |
-| `api.organizationInvitation.queries.getPreview` | 招待先グループと期限だけを返す公開preview |
+| `api.organizationInvitation.queries.getPreview` | 公開中は招待先グループと期限だけを返し、閉状態ではtokenを解決せず`unavailable`を返す |
 | `api.organizationInvitation.mutations.createExternal` / `createForPerson` / `createForStaff` | 外部人物または既存人物への管理者招待 |
-| `api.organizationInvitation.mutations.resend` / `revoke` / `linkAccount` | 招待の再送、取消、アカウント連携 |
+| `api.organizationInvitation.mutations.resend` / `revoke` / `linkAccount` | 招待の再送、取消、アカウント連携。閉状態では再送と連携を止め、取消だけを維持する |
 | `api.organizationBilling.mutations.setFreeSelection` | Freeで残す管理者と店舗の選択 |
 | `api.organizationBilling.mutations.updateBillingEmail` | 請求先メールの更新とStripe同期予約 |
 | `api.organizationStripe.actions.getPlanPrice` / `startPaidCheckout` | Pro・Businessの価格確認と契約開始 |

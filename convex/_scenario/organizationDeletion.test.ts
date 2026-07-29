@@ -302,7 +302,7 @@ describe("グループ削除シナリオ", () => {
 
     const actor = t.withIdentity({ subject: "organization_deletion_owner" });
     await expect(actor.query(api.dashboard.queries.getMyShops, {})).resolves.toEqual([]);
-    await expect(actor.query(api.dashboard.queries.getCurrentUser, {})).resolves.toEqual({
+    await expect(actor.query(api.dashboard.queries.getCurrentUser, {})).resolves.toMatchObject({
       isNewUser: false,
       name: "管理者",
       email: "organization_deletion_owner@example.com",

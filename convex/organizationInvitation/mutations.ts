@@ -4,7 +4,7 @@ import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
-import { getOrganizationInvitationSigningSecret } from "../_lib/config";
+import { getOrganizationInvitationSigningSecret, isManagerInvitationEnabled } from "../_lib/config";
 import { authenticatedMutation } from "../_lib/functions";
 import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
 import { generateUUID } from "../_lib/uuid";
@@ -80,6 +80,12 @@ const linkAccountResultValidator = v.union(
   v.object({ status: v.literal("unavailable") }),
   v.object({ status: v.literal("conflict") }),
 );
+
+const MANAGER_INVITATION_UNAVAILABLE_MESSAGE = "管理者の招待は現在ご利用いただけません";
+
+function requireManagerInvitationEnabled() {
+  if (!isManagerInvitationEnabled()) throw new ConvexError(MANAGER_INVITATION_UNAVAILABLE_MESSAGE);
+}
 
 type OrganizationInvitationLinkCtx = MutationCtx & {
   identity: UserIdentity;
@@ -267,6 +273,8 @@ async function createManagerInvitation(
     reissueExisting?: boolean;
   },
 ) {
+  // 新しい発行入口が増えても公開フラグを迂回しないよう、public handlerに加えて共通処理でも閉じる。
+  requireManagerInvitationEnabled();
   const { organization, inviterMember } = args;
   let targetPerson = args.targetPerson;
   await requireOrganizationBusinessWrite(ctx, organization._id);
@@ -492,6 +500,7 @@ export const create = authenticatedMutation({
   returns: invitationMutationResultValidator,
   handler: async (ctx, args) => {
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
+    requireManagerInvitationEnabled();
     const parsed = createOrganizationManagerInvitationSchema.safeParse(args);
     if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
     return await createManagerInvitation(ctx, {
@@ -508,6 +517,7 @@ export const createExternal = authenticatedMutation({
   returns: invitationIssueResultValidator,
   handler: async (ctx, args) => {
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
+    requireManagerInvitationEnabled();
     const parsed = createExternalOrganizationManagerInvitationSchema.safeParse(args);
     if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
     const result = await createManagerInvitation(ctx, {
@@ -527,6 +537,7 @@ export const createForPerson = authenticatedMutation({
   returns: invitationIssueResultValidator,
   handler: async (ctx, args) => {
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
+    requireManagerInvitationEnabled();
     const parsed = organizationInvitationRequestSchema.safeParse({ requestId: args.requestId });
     if (!parsed.success) throw new ConvexError("入力内容を確認してください");
     const targetPerson = await ctx.db.get(args.personId);
@@ -555,6 +566,7 @@ export const createForStaff = authenticatedMutation({
   returns: invitationMutationResultValidator,
   handler: async (ctx, args) => {
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
+    requireManagerInvitationEnabled();
     const parsed = organizationInvitationRequestSchema.safeParse({ requestId: args.requestId });
     if (!parsed.success) throw new ConvexError("入力内容を確認してください");
     const staff = await getActiveStaffInShop(ctx, args.shopId, args.staffId);
@@ -624,6 +636,7 @@ export const resend = authenticatedMutation({
   returns: invitationMutationResultValidator,
   handler: async (ctx, args) => {
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
+    requireManagerInvitationEnabled();
     const organization = actor.organization;
     const organizationMember = actor.member;
     await requireOrganizationBusinessWrite(ctx, organization._id);
@@ -789,6 +802,7 @@ async function linkAccountWithToken(
   args: { token: string },
   options?: { linkedInvitationResult?: "linked" | "used" },
 ) {
+  if (!isManagerInvitationEnabled()) return { status: "unavailable" as const };
   if (args.token.length !== 43) return { status: "invalid" as const };
   const actorLimit = await rateLimit(ctx, {
     name: "organizationManagerInviteAcceptActor",

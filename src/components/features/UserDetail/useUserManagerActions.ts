@@ -26,11 +26,14 @@ export function useUserManagerActions({
     data.shops.find((shop) => shop.shopStatus === "active")?.shopId ??
     data.shops[0]?.shopId ??
     null;
+  const isManagerInvitationVisible = data.managerInvitationState.kind !== "hidden";
+  const canUseManagerInvitation =
+    data.managerInvitationState.kind === "available" || data.managerInvitationState.kind === "pending";
   const canAssignManager =
     data.canWrite &&
     selectedShopId !== null &&
     data.managerRole === "none" &&
-    data.managerInvitationState.kind !== "unavailable" &&
+    canUseManagerInvitation &&
     data.person.email.length > 0;
 
   useEffect(() => {
@@ -41,10 +44,19 @@ export function useUserManagerActions({
     setDialog((current) => {
       if (!current || current.kind === "removeMembership") return current;
       if (current.personId !== data.person.id || !operationShopId || current.shopId !== operationShopId) return null;
-      if (current.kind === "removeManagerRole") return data.canRemoveManagerRole ? current : null;
+      if (current.kind === "removeManagerRole") {
+        return isManagerInvitationVisible && data.canRemoveManagerRole ? current : null;
+      }
       return data.canRemove && hasSameRemovalPreview(current.removalPreview, data.removalPreview) ? current : null;
     });
-  }, [data.canRemove, data.canRemoveManagerRole, data.person.id, data.removalPreview, operationShopId]);
+  }, [
+    data.canRemove,
+    data.canRemoveManagerRole,
+    data.person.id,
+    data.removalPreview,
+    isManagerInvitationVisible,
+    operationShopId,
+  ]);
 
   const { run: assignManager, isRunning: isAssigningManager } = useSingleFlight(async (): Promise<boolean> => {
     if (!canAssignManager || !selectedShopId) return false;
@@ -74,7 +86,7 @@ export function useUserManagerActions({
 
     try {
       if (dialog.kind === "removeManagerRole") {
-        if (!data.canRemoveManagerRole) return;
+        if (!isManagerInvitationVisible || !data.canRemoveManagerRole) return;
         await removeManagerRole({ shopId, personId: dialog.personId, requestId: dialog.requestId });
         showSuccessToast({
           title: "管理者権限を外しました",
@@ -121,7 +133,7 @@ export function useUserManagerActions({
     onCancelManagerAssignment: () => setIsAssignmentConfirmationOpen(false),
     onAssignManager: assignManager,
     onRequestRemoveManagerRole: () => {
-      if (operationShopId && data.canRemoveManagerRole) {
+      if (isManagerInvitationVisible && operationShopId && data.canRemoveManagerRole) {
         setDialog({
           kind: "removeManagerRole",
           personId: data.person.id,

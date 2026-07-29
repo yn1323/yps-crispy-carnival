@@ -65,7 +65,7 @@ const baseArgs: OrganizationSettingsViewProps = {
   canUpdateOrganizationName: true,
   canCreateOrganization: true,
   // 既存Storyは公開済みの状態を表す。未公開の描画は`ダークローンチ`のStoryで確認する。
-  features: { organizationCreation: true, shopAddition: true, billing: true },
+  features: { organizationCreation: true, shopAddition: true, billing: true, managerInvitation: true },
   people: [
     {
       id: "person-manager",
@@ -326,7 +326,7 @@ export const Shops: Story = { name: "店舗｜通常", args: { defaultTab: "shop
 export const Settings: Story = { name: "設定｜通常", args: { defaultTab: "settings" } };
 
 const darkLaunchArgs = {
-  features: { organizationCreation: false, shopAddition: false, billing: false },
+  features: { organizationCreation: false, shopAddition: false, billing: false, managerInvitation: false },
 } satisfies Partial<OrganizationSettingsViewProps>;
 
 export const DarkLaunchSettings: Story = {
@@ -348,6 +348,11 @@ export const DarkLaunchHiddenEntrypointsBehavior: Story = {
 
     await expect(canvas.queryByRole("tab", { name: "プランと支払い" })).not.toBeInTheDocument();
     await expect(canvas.queryByRole("button", { name: "店舗を追加" })).not.toBeInTheDocument();
+
+    await userEvent.click(canvas.getByRole("tab", { name: "ユーザー" }));
+    await expect(
+      canvas.queryByRole("button", { name: /管理者を招待|次の管理者を招待|ログイン案内を再送/ }),
+    ).not.toBeInTheDocument();
 
     await userEvent.click(canvas.getByRole("tab", { name: "設定" }));
     await expect(canvas.queryByRole("button", { name: "新しいグループを作る" })).not.toBeInTheDocument();

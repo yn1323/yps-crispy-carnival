@@ -26,7 +26,8 @@ export function useStaffManagerInvitation(selectedStaff: Staff | null, { isReadO
       latest.isReadOnly ||
       !currentTarget ||
       currentTarget._id !== target._id ||
-      currentTarget.managerInvitationState.kind === "unavailable"
+      (currentTarget.managerInvitationState.kind !== "available" &&
+        currentTarget.managerInvitationState.kind !== "pending")
     ) {
       return false;
     }

@@ -17,6 +17,20 @@ describe("organization/queries.getSettings", () => {
     vi.unstubAllEnvs();
   });
 
+  it("管理者招待の公開フラグを画面用DTOへ反映する", async () => {
+    vi.stubEnv("FEATURE_MANAGER_INVITATION", "enabled");
+    const t = convexTest(schema, modules);
+    const ids = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: "settings_manager_invitation_feature", plan: "pro" }),
+    );
+
+    const result = await t
+      .withIdentity({ subject: "settings_manager_invitation_feature" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+    expect(result?.features.managerInvitation).toBe(true);
+  });
+
   it("トライアルを利用できる最終日のJST日付を返す", async () => {
     const t = convexTest(schema, modules);
     const trialEndsAt = Date.parse("2026-09-01T00:00:00+09:00");
@@ -209,7 +223,7 @@ describe("organization/queries.getSettings", () => {
       canCreateOrganization: true,
       canInviteManager: true,
       // ダークローンチの公開状態は環境変数で決まり、上限由来の可否とは独立する。
-      features: { organizationCreation: false, shopAddition: false, billing: false },
+      features: { organizationCreation: false, shopAddition: false, billing: false, managerInvitation: false },
       managerInvitationMode: "addition",
       freeManagerExchangeCandidates: [],
       managerInvitations: [

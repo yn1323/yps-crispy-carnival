@@ -171,6 +171,22 @@ describe("useStaffManagerInvitation", () => {
     expect(mocks.createForStaff).not.toHaveBeenCalled();
   });
 
+  it("古いcallbackは管理者招待がhiddenになった後に送信しない", async () => {
+    const target = staff();
+    const hiddenTarget = staff({ managerInvitationState: { kind: "hidden" } });
+    const { result, rerender } = renderHook(({ selectedStaff }) => useStaffManagerInvitation(selectedStaff), {
+      initialProps: { selectedStaff: target },
+    });
+    const staleCallback = result.current.onInvite;
+
+    rerender({ selectedStaff: hiddenTarget });
+    await act(async () => {
+      await staleCallback(target);
+    });
+
+    expect(mocks.createForStaff).not.toHaveBeenCalled();
+  });
+
   it("失敗を表示してfalseを返し、自動再送しない", async () => {
     const error = new Error("管理者と招待中の管理者は、グループ全体で5名までです。");
     mocks.createForStaff.mockRejectedValue(error);

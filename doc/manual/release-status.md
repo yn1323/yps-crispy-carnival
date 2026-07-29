@@ -1,6 +1,6 @@
 # リリース状態
 
-> 最終更新: 2026-07-23
+> 最終更新: 2026-07-28
 >
 > 実環境確認: 未確認
 
@@ -9,7 +9,7 @@
 
 ## 現在の確認状態
 
-2026-07-23時点で、この文書へ必要な実環境証跡は登録されていません。
+2026-07-28時点で、この文書へ必要な実環境証跡は登録されていません。
 次の状態はすべて**未確認**です。
 
 | 確認対象 | 状態 | 最終確認日時 | 対象環境・deployment | 証跡 |
@@ -17,6 +17,7 @@
 | Productionのフロントエンドartifactとcommit SHA | 未確認 | 未確認 | 未確認 | 未登録 |
 | ProductionのConvex deployとcommit SHA | 未確認 | 未確認 | 未確認 | 未登録 |
 | Productionのmigration seriesと各migrationの完了 | 未確認 | 未確認 | 未確認 | 未登録 |
+| ダークローンチ4フラグのdeployment別設定値と画面表示 | 未確認 | 未確認 | 未確認 | 未登録 |
 | StripeのPro・Business公開設定、Price、Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
 | Resendの`email.delivered` Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
 | Clerk、Cloudflare、Stripeのセキュリティ設定とprovider canary | 未確認 | 未確認 | 未確認 | 未登録 |

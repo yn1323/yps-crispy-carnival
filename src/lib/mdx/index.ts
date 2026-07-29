@@ -1,7 +1,7 @@
 import type { ComponentType, ElementType } from "react";
 
 /**
- * MDXコンテンツ（HowToSite / ArticleSite / 法務文書）で共有する型とユーティリティ。
+ * MDXコンテンツ（FaqSite / HowToSite / ArticleSite / 法務文書）で共有する型とユーティリティ。
  * `vite/mdxPlugin.ts` が `?mdx-component` で生成するコンポーネントの契約と、
  * frontmatter・目次の抽出ロジックをここに集約する（Node側のプラグイン・スクリプトからも使う）。
  */

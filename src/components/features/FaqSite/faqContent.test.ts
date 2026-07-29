@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { helpArticles } from "../HowToSite/helpContent";
 import {
+  buildFaqEntries,
   createFaqPageJsonLd,
   FAQ_CATEGORIES,
   type FaqEntry,
@@ -10,7 +11,7 @@ import {
 } from "./faqContent";
 import { createLandingFaqPageJsonLd, featuredFaqEntries as landingFaqEntries, landingFaqs } from "./landingFaqContent";
 
-const expectedFaqJsonLd = (entries: Array<Pick<FaqEntry, "question" | "answer" | "points">>) => ({
+const expectedFaqJsonLd = (entries: Array<Pick<FaqEntry, "question" | "answerText">>) => ({
   "@context": "https://schema.org",
   "@type": "FAQPage",
   mainEntity: entries.map((entry) => ({
@@ -18,15 +19,76 @@ const expectedFaqJsonLd = (entries: Array<Pick<FaqEntry, "question" | "answer" |
     name: entry.question,
     acceptedAnswer: {
       "@type": "Answer",
-      text: [...entry.answer, ...(entry.points ?? [])].join("\n"),
+      text: entry.answerText,
     },
   })),
 });
 
+const examplePath = "./content/example.mdx";
+const ExampleContent = () => null;
+const exampleFrontmatter = {
+  question: "テストの質問ですか？",
+  category: "before-start",
+  keywords: ["テスト"],
+  audience: "all",
+  order: 10,
+};
+
 describe("FAQコンテンツ", () => {
-  it("IDと質問が重複せず、すべて既存カテゴリに属する", () => {
-    expect(new Set(faqEntries.map((entry) => entry.id)).size).toBe(faqEntries.length);
+  it("現在の49件をファイル名由来のIDと表示順で読み込む", () => {
+    expect(faqEntries.map((entry) => entry.id)).toEqual([
+      "submit-with-line",
+      "pricing",
+      "staff-account",
+      "without-line",
+      "mobile-support",
+      "automatic-reminder",
+      "move-from-paper-or-excel",
+      "shift-workflow",
+      "submission-patterns",
+      "shop-setting-changes",
+      "add-staff",
+      "registration-approval",
+      "registration-status",
+      "add-staff-during-recruitment",
+      "staff-membership-differences",
+      "create-recruitment",
+      "change-recruitment",
+      "submission-status",
+      "edit-submission",
+      "after-deadline",
+      "reuse-previous-pattern",
+      "build-before-all-submissions",
+      "input-work-time",
+      "warnings-and-errors",
+      "save-draft",
+      "draft-after-resubmission",
+      "confirm-shift",
+      "staff-confirmed-shift-view",
+      "edit-confirmed-shift",
+      "notify-confirmed-changes",
+      "past-shift",
+      "delete-recruitment",
+      "notification-channel",
+      "connect-line",
+      "line-not-delivered",
+      "failed-notifications",
+      "individual-notification-resend",
+      "notification-history",
+      "confirmation-reminder",
+      "organization-and-shop",
+      "switch-shop",
+      "manager-invite-unavailable",
+      "usage-count",
+      "delete-shop-or-organization",
+      "submission-link-unavailable",
+      "confirmed-link-unavailable",
+      "login-trouble",
+      "legal-consent",
+      "contact-support",
+    ]);
     expect(new Set(faqEntries.map((entry) => entry.question)).size).toBe(faqEntries.length);
+    expect(faqEntries.every((entry) => entry.answerText.length > 0)).toBe(true);
 
     const categoryIds = new Set(FAQ_CATEGORIES.map((category) => category.id));
     expect(
@@ -36,7 +98,38 @@ describe("FAQコンテンツ", () => {
     ).toEqual([]);
   });
 
-  it("トップページにはfeaturedの7件だけを表示する", () => {
+  it("MDX component、frontmatter、表示テキストを一つのFAQへ結合する", () => {
+    const [entry] = buildFaqEntries(
+      { [examplePath]: ExampleContent },
+      { [examplePath]: exampleFrontmatter },
+      { [examplePath]: ["最初の回答です。", "次の回答です。"] },
+    );
+
+    expect(entry).toMatchObject({
+      id: "example",
+      question: "テストの質問ですか？",
+      summary: "最初の回答です。",
+      answerText: "最初の回答です。\n次の回答です。",
+      featured: false,
+      Content: ExampleContent,
+    });
+  });
+
+  it("不正なfrontmatterと本文の欠落を読み込み時に拒否する", () => {
+    expect(() =>
+      buildFaqEntries(
+        { [examplePath]: ExampleContent },
+        { [examplePath]: { ...exampleFrontmatter, category: "unknown" } },
+        { [examplePath]: ["回答です。"] },
+      ),
+    ).toThrow("カテゴリ「unknown」が見つかりません");
+
+    expect(() => buildFaqEntries({ [examplePath]: ExampleContent }, { [examplePath]: exampleFrontmatter }, {})).toThrow(
+      "回答本文が見つかりません",
+    );
+  });
+
+  it("トップページにはfeaturedディレクトリの7件だけを表示する", () => {
     expect(landingFaqEntries).toHaveLength(7);
     expect(landingFaqEntries.map((entry) => entry.id)).toEqual(
       faqEntries.filter((entry) => entry.featured).map((entry) => entry.id),
@@ -44,7 +137,7 @@ describe("FAQコンテンツ", () => {
     expect(landingFaqs).toEqual(
       landingFaqEntries.map((entry) => ({
         q: entry.question,
-        a: entry.answer[0],
+        a: entry.summary,
       })),
     );
   });
@@ -56,8 +149,6 @@ describe("FAQコンテンツ", () => {
     ["時間指定 日ごと 勤務区分", ["submission-patterns"]],
     ["スタッフ 別店舗", ["add-staff"]],
     ["催促 予約されない", ["automatic-reminder"]],
-    ["管理者追加 管理者枠", ["invite-manager"]],
-    ["無料プラン 管理者 交代", ["replace-manager"]],
     ["管理者 招待 期限切れ", ["manager-invite-unavailable"]],
   ])("複数語の検索「%s」で該当するFAQだけを返す", (query, expectedIds) => {
     expect(searchFaqEntries(faqEntries, query).map((entry) => entry.id)).toEqual(expectedIds);
@@ -71,7 +162,7 @@ describe("FAQコンテンツ", () => {
     ]);
   });
 
-  it("FAQページのJSON-LDが全FAQの表示内容と一致する", () => {
+  it("FAQページのJSON-LDがMDXから抽出した全FAQの表示内容と一致する", () => {
     expect(createFaqPageJsonLd()).toEqual(expectedFaqJsonLd(faqEntries));
   });
 

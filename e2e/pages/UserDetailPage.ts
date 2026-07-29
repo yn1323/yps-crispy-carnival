@@ -228,7 +228,10 @@ export class UserDetailPage {
     const toast = this.page.locator("[data-scope='toast'][data-part='root']").filter({ hasText: title }).first();
     await expect(toast).toBeVisible();
     await toast.getByLabel("通知を閉じる").click();
-    await expect(toast).not.toHaveAttribute("data-state", "open");
+    const openToast = this.page
+      .locator("[data-scope='toast'][data-part='root'][data-state='open']")
+      .filter({ hasText: title });
+    await expect(openToast).toHaveCount(0);
     if (dialogToRemainOpen) await expect(dialogToRemainOpen).toBeVisible();
   }
 }

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { extractFrontmatterSource, extractMdxToc, stripFrontmatter, toHeadingId } from "./index";
 
+const textModules = import.meta.glob<string[]>("./test-content/*.mdx", {
+  eager: true,
+  query: "?mdx-text",
+  import: "default",
+});
+
 const source = `---
 title: "テスト記事"
 ---
@@ -54,5 +60,15 @@ describe("toHeadingId", () => {
 
   it("記号だけの見出しはフォールバックする", () => {
     expect(toHeadingId("!!!")).toBe("section");
+  });
+});
+
+describe("mdx-text", () => {
+  it("表示テキストだけを段落とリスト項目の配列にする", () => {
+    expect(textModules["./test-content/plain-text.mdx"]).toEqual([
+      "最初の回答とリンクの文言です。",
+      "一つ目",
+      "二つ目",
+    ]);
   });
 });

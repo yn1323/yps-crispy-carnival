@@ -63,19 +63,21 @@ export function UserInformationDialog({
         isReadOnly={!data.canWrite}
         isUpdating={isUpdatingProfile}
         managerSettings={
-          <UserManagerSettings
-            data={data}
-            isAssignmentConfirmationOpen={isManagerAssignmentConfirmationOpen}
-            isAssigningManager={isAssigningManager}
-            onRequestManagerAssignment={onRequestManagerAssignment}
-            onCancelManagerAssignment={onCancelManagerAssignment}
-            onAssignManager={onAssignManager}
-            onRequestRemoveManagerRole={onRequestRemoveManagerRole}
-            isRemovalConfirmationOpen={managerDialog?.kind === "removeManagerRole"}
-            isRemovingManagerRole={isRemovingManagerSetting}
-            onCancelRemoveManagerRole={onCancelManagerSetting}
-            onConfirmRemoveManagerRole={onConfirmManagerSetting}
-          />
+          data.managerInvitationState.kind === "hidden" ? null : (
+            <UserManagerSettings
+              data={data}
+              isAssignmentConfirmationOpen={isManagerAssignmentConfirmationOpen}
+              isAssigningManager={isAssigningManager}
+              onRequestManagerAssignment={onRequestManagerAssignment}
+              onCancelManagerAssignment={onCancelManagerAssignment}
+              onAssignManager={onAssignManager}
+              onRequestRemoveManagerRole={onRequestRemoveManagerRole}
+              isRemovalConfirmationOpen={managerDialog?.kind === "removeManagerRole"}
+              isRemovingManagerRole={isRemovingManagerSetting}
+              onCancelRemoveManagerRole={onCancelManagerSetting}
+              onConfirmRemoveManagerRole={onConfirmManagerSetting}
+            />
+          )
         }
         onUpdate={onUpdateProfile}
       />

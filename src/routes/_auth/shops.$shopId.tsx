@@ -4,7 +4,7 @@ import { buildShopDetailPageHead } from "@/src/pages/shop-detail/meta";
 
 type ShopDetailSearch = {
   shop?: string;
-  returnTo?: "dashboard";
+  returnTo?: "dashboard" | "settings";
 };
 
 export const Route = createFileRoute("/_auth/shops/$shopId")({
@@ -15,7 +15,7 @@ export const Route = createFileRoute("/_auth/shops/$shopId")({
 
 export function validateShopDetailSearch(search: Record<string, unknown>): ShopDetailSearch {
   const shop = typeof search.shop === "string" && search.shop.trim() !== "" ? search.shop : undefined;
-  const returnTo = search.returnTo === "dashboard" ? "dashboard" : undefined;
+  const returnTo = search.returnTo === "dashboard" || search.returnTo === "settings" ? search.returnTo : undefined;
   return { ...(shop ? { shop } : {}), ...(returnTo ? { returnTo } : {}) };
 }
 

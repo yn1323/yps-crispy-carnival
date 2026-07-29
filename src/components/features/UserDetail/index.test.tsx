@@ -8,11 +8,28 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   addMembership: vi.fn(),
   confirmRemoveMembership: vi.fn(),
+  featureVisibilityAtom: Symbol("featureVisibilityAtom"),
+  featureVisibility: {
+    organizationSettingsNavigation: true,
+    billing: true,
+    shopMembershipAddition: true,
+  },
   managerOptions: undefined as undefined | { onPersonRemoved: (personId: string) => void },
 }));
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mocks.navigate,
+}));
+
+vi.mock("jotai", () => ({
+  useAtomValue: (target: unknown) => {
+    if (target === mocks.featureVisibilityAtom) return mocks.featureVisibility;
+    throw new Error("Unexpected atom");
+  },
+}));
+
+vi.mock("@/src/stores/user", () => ({
+  featureVisibilityAtom: mocks.featureVisibilityAtom,
 }));
 
 vi.mock("@/src/components/features/StaffNotificationHistory", () => ({
@@ -140,6 +157,7 @@ beforeEach(() => {
   mocks.addMembership.mockResolvedValue(false);
   mocks.confirmRemoveMembership.mockReset();
   mocks.confirmRemoveMembership.mockResolvedValue(false);
+  mocks.featureVisibility.shopMembershipAddition = true;
   mocks.managerOptions = undefined;
 });
 
@@ -165,6 +183,18 @@ describe("UserDetail", () => {
       panel: "addShop",
       returnTo: "dashboard",
     });
+  });
+
+  it("店舗所属追加が非公開ならURL操作と追加処理を開始しない", async () => {
+    mocks.featureVisibility.shopMembershipAddition = false;
+    render(<UserDetail data={data} selectedShopId={null} returnTo="dashboard" visibleUserCount={10} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "店舗追加を開く" }));
+    fireEvent.click(screen.getByRole("button", { name: "店舗に追加する" }));
+    await act(async () => Promise.resolve());
+
+    expect(mocks.navigate).not.toHaveBeenCalled();
+    expect(mocks.addMembership).not.toHaveBeenCalled();
   });
 
   it("所属店舗を押すと店舗とshopパネルを同時にURLへ反映し、閉じるとpanelだけを解除する", () => {
@@ -307,5 +337,65 @@ describe("UserDetail", () => {
     previousRemovalCallback?.("person-1");
 
     expect(mocks.navigate).not.toHaveBeenCalled();
+  });
+
+  it("Dashboard起点で人物を削除すると削除済み人物へfocusせずDashboardへ戻る", () => {
+    render(<UserDetail data={data} selectedShopId="shop-a" returnTo="dashboard" visibleUserCount={30} />);
+
+    mocks.managerOptions?.onPersonRemoved("person-1");
+
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/dashboard",
+      search: { shop: "shop-a", users: 30 },
+      replace: true,
+    });
+  });
+
+  it("設定起点では人物削除後に削除済み人物へfocusせずユーザー一覧へ戻る", () => {
+    render(<UserDetail data={data} selectedShopId="shop-a" returnTo="settings" visibleUserCount={30} />);
+
+    mocks.managerOptions?.onPersonRemoved("person-1");
+
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/settings",
+      search: { shop: "shop-a", tab: "people", users: 30 },
+      replace: true,
+    });
+  });
+
+  it("本人削除後は起点にかかわらず店舗指定を外してDashboardへ戻る", () => {
+    render(
+      <UserDetail data={{ ...data, isSelf: true }} selectedShopId="shop-a" returnTo="settings" visibleUserCount={30} />,
+    );
+
+    mocks.managerOptions?.onPersonRemoved("person-1");
+
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/dashboard",
+      search: { shop: undefined },
+      replace: true,
+    });
+  });
+
+  it("店舗詳細起点で人物を削除すると出発元の店舗詳細へ戻る", () => {
+    render(
+      <UserDetail
+        data={data}
+        selectedShopId="shop-b"
+        returnTo="shopDetail"
+        returnShopId="shop-a"
+        returnShopTo="dashboard"
+        visibleUserCount={10}
+      />,
+    );
+
+    mocks.managerOptions?.onPersonRemoved("person-1");
+
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/shops/$shopId",
+      params: { shopId: "shop-a" },
+      search: { shop: "shop-a", returnTo: "dashboard" },
+      replace: true,
+    });
   });
 });

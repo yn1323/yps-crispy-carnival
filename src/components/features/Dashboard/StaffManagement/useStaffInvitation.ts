@@ -13,10 +13,12 @@ import { getConvexErrorMessage } from "@/src/lib/convex/error";
 import type { AddStaffFormData } from "../AddStaffForm";
 import type { StaffInvitationTab } from "./StaffInvitationDialog";
 
-export function useStaffInvitation(isReadOnly = false) {
+export function useStaffInvitation(isReadOnly = false, showOrganizationPeopleAddition = false) {
   const isReadOnlyRef = useRef(isReadOnly);
+  const showOrganizationPeopleAdditionRef = useRef(showOrganizationPeopleAddition);
   const invitationMutationInFlightRef = useRef(false);
   isReadOnlyRef.current = isReadOnly;
+  showOrganizationPeopleAdditionRef.current = showOrganizationPeopleAddition;
   const dialog = useDialog();
   const reactivationDialog = useDialog();
   const [activeTab, setActiveTab] = useState<StaffInvitationTab>("link");
@@ -46,6 +48,12 @@ export function useStaffInvitation(isReadOnly = false) {
     setAddingOrganizationPersonId(null);
     setPendingReactivation(null);
   }, [dialog.close, isReadOnly, reactivationDialog.close]);
+
+  useEffect(() => {
+    if (showOrganizationPeopleAddition) return;
+    setActiveTab((current) => (current === "organization" ? "link" : current));
+    setAddingOrganizationPersonId(null);
+  }, [showOrganizationPeopleAddition]);
 
   const { run: handleAddStaffs, isRunning: isAddingStaffs } = useSingleFlight(async (data: AddStaffFormData) => {
     if (isReadOnlyRef.current || invitationMutationInFlightRef.current) return;
@@ -124,20 +132,21 @@ export function useStaffInvitation(isReadOnly = false) {
 
   const { run: handleAddOrganizationPerson, isRunning: isAddingOrganizationPerson } = useSingleFlight(
     async (personId: Id<"organizationPeople">) => {
-      if (isReadOnlyRef.current || invitationMutationInFlightRef.current) return;
+      if (isReadOnlyRef.current || !showOrganizationPeopleAdditionRef.current || invitationMutationInFlightRef.current)
+        return;
 
       invitationMutationInFlightRef.current = true;
       setAddingOrganizationPersonId(personId);
       try {
         await addOrganizationPersonToShop({ personId, requestId: crypto.randomUUID() });
-        if (isReadOnlyRef.current) return;
+        if (isReadOnlyRef.current || !showOrganizationPeopleAdditionRef.current) return;
         dialog.close();
         showSuccessToast({
           title: "スタッフを追加しました",
           description: "この店舗のスタッフとして追加しました。",
         });
       } catch (error) {
-        if (!isReadOnlyRef.current) showErrorToast(error);
+        if (!isReadOnlyRef.current && showOrganizationPeopleAdditionRef.current) showErrorToast(error);
       } finally {
         setAddingOrganizationPersonId(null);
         invitationMutationInFlightRef.current = false;
@@ -174,6 +183,7 @@ export function useStaffInvitation(isReadOnly = false) {
       },
     },
     activeTab,
+    showOrganizationPeopleAddition,
     registrationUrl,
     peopleCapacityResolution,
     isRegistrationUrlLoading,
@@ -184,6 +194,7 @@ export function useStaffInvitation(isReadOnly = false) {
     onClose: handleClose,
     onTabChange: (tab: StaffInvitationTab) => {
       if (isReadOnlyRef.current || invitationMutationInFlightRef.current) return;
+      if (tab === "organization" && !showOrganizationPeopleAdditionRef.current) return;
       setPeopleCapacityResolution(null);
       setActiveTab(tab);
     },
