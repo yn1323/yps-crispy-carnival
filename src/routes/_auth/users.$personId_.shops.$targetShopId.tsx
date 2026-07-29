@@ -1,27 +1,25 @@
 import { createFileRoute } from "@tanstack/react-router";
-import type { UserDetailPanel } from "@/src/components/features/UserDetail";
+import type { UserDetailReturnTo } from "@/src/components/features/UserDetail";
 import { parseUserListCount } from "@/src/lib/userListSearch";
-import { UserDetailPage, type UserDetailReturnTo } from "@/src/pages/user-detail";
-import { buildUserDetailPageHead } from "@/src/pages/user-detail/meta";
+import { UserShopDetailPage } from "@/src/pages/user-shop-detail";
+import { buildUserShopDetailPageHead } from "@/src/pages/user-shop-detail/meta";
 
-type UserDetailSearch = {
+type UserShopDetailSearch = {
   shop?: string;
-  panel?: UserDetailPanel;
   returnTo?: UserDetailReturnTo;
   returnShop?: string;
   returnShopTo?: "dashboard";
   users?: number;
 };
 
-export const Route = createFileRoute("/_auth/users/$personId")({
-  head: buildUserDetailPageHead,
-  validateSearch: validateUserDetailSearch,
-  component: UserDetailRoute,
+export const Route = createFileRoute("/_auth/users/$personId_/shops/$targetShopId")({
+  head: buildUserShopDetailPageHead,
+  validateSearch: validateUserShopDetailSearch,
+  component: UserShopDetailRoute,
 });
 
-export function validateUserDetailSearch(search: Record<string, unknown>): UserDetailSearch {
+export function validateUserShopDetailSearch(search: Record<string, unknown>): UserShopDetailSearch {
   const shop = typeof search.shop === "string" && search.shop.trim() !== "" ? search.shop : undefined;
-  const panel = isUserDetailPanel(search.panel) ? search.panel : undefined;
   const validReturnTo = isUserDetailReturnTo(search.returnTo) ? search.returnTo : undefined;
   const requestedReturnShop =
     typeof search.returnShop === "string" && search.returnShop.trim() !== "" ? search.returnShop : undefined;
@@ -29,9 +27,9 @@ export function validateUserDetailSearch(search: Record<string, unknown>): UserD
   const returnTo = validReturnTo === "shopDetail" && !returnShop ? undefined : validReturnTo;
   const returnShopTo = returnTo === "shopDetail" && search.returnShopTo === "dashboard" ? "dashboard" : undefined;
   const users = parseUserListCount(search.users);
+
   return {
     ...(shop ? { shop } : {}),
-    ...(panel ? { panel } : {}),
     ...(returnTo ? { returnTo } : {}),
     ...(returnShop ? { returnShop } : {}),
     ...(returnShopTo ? { returnShopTo } : {}),
@@ -39,14 +37,15 @@ export function validateUserDetailSearch(search: Record<string, unknown>): UserD
   };
 }
 
-function UserDetailRoute() {
-  const { personId } = Route.useParams();
-  const { shop, panel, returnTo, returnShop, returnShopTo, users } = Route.useSearch();
+function UserShopDetailRoute() {
+  const { personId, targetShopId } = Route.useParams();
+  const { shop, returnTo, returnShop, returnShopTo, users } = Route.useSearch();
+
   return (
-    <UserDetailPage
+    <UserShopDetailPage
       personId={personId}
+      targetShopId={targetShopId}
       selectedShopId={shop}
-      activePanel={panel}
       returnTo={returnTo}
       returnShopId={returnShop}
       returnShopTo={returnShopTo}
@@ -57,8 +56,4 @@ function UserDetailRoute() {
 
 function isUserDetailReturnTo(value: unknown): value is UserDetailReturnTo {
   return value === "dashboard" || value === "settings" || value === "shopDetail";
-}
-
-function isUserDetailPanel(value: unknown): value is UserDetailPanel {
-  return value === "basic" || value === "addShop";
 }

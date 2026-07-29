@@ -3,10 +3,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, screen, userEvent, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
-import {
-  type StaffNotificationHistoryItem,
-  StaffNotificationHistoryView,
-} from "@/src/components/features/StaffNotificationHistory";
 import type { UserDetailData, UserDetailDialog, UserDetailPanel } from "./types";
 import { UserDetailSkeleton } from "./UserDetailSkeleton";
 import { UserDetailView, type UserDetailViewProps } from "./UserDetailView";
@@ -106,65 +102,9 @@ const managerInvitationHiddenData: UserDetailData = {
   managerInvitationState: { kind: "hidden" },
 };
 
-const unlinkedLineData: UserDetailData = {
-  ...multipleStoresData,
-  memberships: [{ ...shibuyaMembership, line: { isLinked: false, isFollowing: false } }, shinjukuMembership],
-};
-
-const notificationItems: StaffNotificationHistoryItem[] = [
-  {
-    _id: "history-1",
-    requestedAt: new Date("2026-07-19T01:00:00Z").getTime(),
-    sentAt: new Date("2026-07-19T01:00:10Z").getTime(),
-    channel: "line",
-    displayTitle: "7月後半のシフト募集のお知らせ",
-    displayStatus: "sent",
-  },
-  {
-    _id: "history-2",
-    requestedAt: new Date("2026-07-18T01:00:00Z").getTime(),
-    sentAt: new Date("2026-07-18T01:00:08Z").getTime(),
-    channel: "email",
-    displayTitle: "確定シフトのお知らせ",
-    displayStatus: "delivered",
-  },
-];
-
-const notificationHistory = <StaffNotificationHistoryView items={notificationItems} />;
-
 const baseState: UserDetailViewProps["state"] = {
   isUpdatingProfile: false,
-  notification: {
-    isLoading: false,
-    openRecruitments: [
-      {
-        _id: "recruitment-open",
-        periodStart: "2026-07-21",
-        periodEnd: "2026-07-31",
-        status: "open",
-      },
-    ],
-    currentRecruitments: [
-      {
-        _id: "recruitment-current",
-        periodStart: "2026-07-11",
-        periodEnd: "2026-07-20",
-        status: "confirmed",
-      },
-    ],
-    isSendingRecruitments: false,
-    isSendingCurrentShift: false,
-  },
-  line: {
-    authorizeUrl: null,
-    showQr: false,
-    isQrLoading: false,
-    isSendingInvite: false,
-  },
   membership: {
-    dialog: null,
-    isChangingShiftTarget: false,
-    isRemoving: false,
     isAdding: false,
     addingShopId: null,
   },
@@ -186,15 +126,7 @@ const baseActions: UserDetailViewProps["actions"] = {
   onOpenShop: noop,
   onClosePanel: noop,
   onUpdateProfile: asyncNoop,
-  onSendRecruitments: asyncNoop,
-  onSendCurrentShift: asyncNoop,
-  onShowLineQr: asyncNoop,
-  onSendLineInvite: asyncNoop,
-  onChangeShiftTarget: asyncNoop,
   onAddMembership: asyncNoop,
-  onRequestRemoveMembership: noop,
-  onConfirmRemoveMembership: asyncNoop,
-  onCloseMembershipDialog: noop,
   onRequestManagerAssignment: noop,
   onCancelManagerAssignment: noop,
   onAssignManager: asyncNoop,
@@ -220,8 +152,6 @@ const meta = {
   args: {
     data: multipleStoresData,
     showShopMembershipAddition: true,
-    selectedShopId: shibuyaShopId,
-    notificationHistory,
     state: baseState,
     actions: baseActions,
   },
@@ -271,22 +201,6 @@ export const ShopMembershipAdditionDarkLaunchBehavior: Story = {
     await expect(screen.queryByRole("dialog", { name: "店舗を追加" })).not.toBeInTheDocument();
     await expect(canvas.getByText("所属している店舗はありません。")).toBeInTheDocument();
     await expect(canvas.queryByText("「店舗を追加」から、このユーザーを店舗に追加できます。")).not.toBeInTheDocument();
-  },
-};
-
-export const AssignedShopDialog: Story = {
-  args: {
-    activePanel: "shop",
-    data: unlinkedLineData,
-  },
-};
-
-export const AssignedShopDialogMobile: Story = {
-  tags: ["vrt-mobile2"],
-  globals: { viewport: { value: "mobile2", isRotated: false } },
-  args: {
-    activePanel: "shop",
-    data: unlinkedLineData,
   },
 };
 
@@ -394,11 +308,8 @@ export const Loading: Story = {
 
 function PanelNavigationHarness({ data = multipleStoresData }: { data?: UserDetailData }) {
   const [activePanel, setActivePanel] = useState<UserDetailPanel>();
-  const [selectedShopId, setSelectedShopId] = useState<string | null>(shibuyaShopId);
-  const [showQr, setShowQr] = useState(false);
   const [addedShopId, setAddedShopId] = useState<Id<"shops"> | null>(null);
   const [addCallCount, setAddCallCount] = useState(0);
-  const [membershipDialog, setMembershipDialog] = useState<UserDetailDialog>(null);
   const [managerDialog, setManagerDialog] = useState<UserDetailDialog>(null);
 
   return (
@@ -412,32 +323,16 @@ function PanelNavigationHarness({ data = multipleStoresData }: { data?: UserDeta
       <UserDetailView
         data={data}
         showShopMembershipAddition
-        selectedShopId={selectedShopId}
         activePanel={activePanel}
-        notificationHistory={notificationHistory}
         state={{
           ...baseState,
-          line: {
-            ...baseState.line,
-            authorizeUrl: showQr ? "https://example.com/line/authorize" : null,
-            showQr,
-          },
-          membership: { ...baseState.membership, dialog: membershipDialog },
           manager: { ...baseState.manager, dialog: managerDialog },
         }}
         actions={{
           ...baseActions,
           onOpenBasic: () => setActivePanel("basic"),
           onOpenAddShop: () => setActivePanel("addShop"),
-          onOpenShop: (shopId) => {
-            setSelectedShopId(shopId);
-            setActivePanel("shop");
-          },
           onClosePanel: () => setActivePanel(undefined),
-          onShowLineQr: async () => setShowQr(true),
-          onRequestRemoveMembership: () =>
-            setMembershipDialog({ kind: "removeMembership", membership: shibuyaMembership, requestId: storyRequestId }),
-          onCloseMembershipDialog: () => setMembershipDialog(null),
           onRequestRemovePerson: () =>
             setManagerDialog({
               kind: "removePerson",
@@ -525,60 +420,5 @@ export const AddShopFlowBehavior: Story = {
     await userEvent.click(additionDialog.getByRole("button", { name: "池袋店に追加" }));
     await expect(canvas.getByTestId("added-shop-id")).toHaveTextContent(ikebukuroShop.shopId);
     await expect(canvas.getByTestId("add-call-count")).toHaveTextContent("1");
-  },
-};
-
-export const AssignedShopFlowBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  render: () => <PanelNavigationHarness data={unlinkedLineData} />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const page = within(canvasElement.ownerDocument.body);
-
-    await userEvent.click(canvas.getByRole("button", { name: "渋谷店の詳細を開く" }));
-    const dialog = await page.findByRole("dialog", { name: "渋谷店" });
-    const shopDialog = within(dialog);
-
-    await expect(shopDialog.queryByRole("tablist")).not.toBeInTheDocument();
-  },
-};
-
-export const LineQrButtonDisablesAfterDisplayBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  render: () => <PanelNavigationHarness data={unlinkedLineData} />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const page = within(canvasElement.ownerDocument.body);
-
-    await userEvent.click(canvas.getByRole("button", { name: "渋谷店の詳細を開く" }));
-    const dialog = await page.findByRole("dialog", { name: "渋谷店" });
-    const showQrButton = within(dialog).getByRole("button", { name: "LINE連携リンクを表示" });
-
-    await expect(showQrButton).toBeEnabled();
-    await userEvent.click(showQrButton);
-    await expect(await within(dialog).findByRole("img", { name: "LINE連携用QRコード" })).toBeInTheDocument();
-    await expect(showQrButton).toBeDisabled();
-  },
-};
-
-export const MembershipRemovalConfirmationAccessibilityBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  render: () => <PanelNavigationHarness data={unlinkedLineData} />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const page = within(canvasElement.ownerDocument.body);
-
-    await userEvent.click(canvas.getByRole("button", { name: "渋谷店の詳細を開く" }));
-    const dialog = await page.findByRole("dialog", { name: "渋谷店" });
-    const shopDialog = within(dialog);
-    const requestButton = shopDialog.getByRole("button", { name: "店舗から外す" });
-    await userEvent.click(requestButton);
-
-    const confirmation = await shopDialog.findByRole("alertdialog", {
-      name: "田中 花子さんを渋谷店から外しますか？",
-    });
-    await expect(confirmation).toHaveFocus();
-    await userEvent.click(within(confirmation).getByRole("button", { name: "やめる" }));
-    await expect(requestButton).toHaveFocus();
   },
 };

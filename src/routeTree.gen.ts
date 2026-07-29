@@ -46,6 +46,7 @@ import { Route as UnregisteredStaffRegisterRouteImport } from './routes/_unregis
 import { Route as ArticlesCategoriesCategorySlugRouteImport } from './routes/articles.categories.$categorySlug'
 import { Route as UnregisteredLegalStaffConsentRouteImport } from './routes/_unregistered/legal.staff.consent'
 import { Route as UnregisteredShiftsSubmitCompletedRouteImport } from './routes/_unregistered/shifts.submit_.completed'
+import { Route as AuthUsersPersonIdShopsTargetShopIdRouteImport } from './routes/_auth/users.$personId_.shops.$targetShopId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -238,6 +239,12 @@ const UnregisteredShiftsSubmitCompletedRoute =
     path: '/shifts/submit/completed',
     getParentRoute: () => UnregisteredRoute,
   } as any)
+const AuthUsersPersonIdShopsTargetShopIdRoute =
+  AuthUsersPersonIdShopsTargetShopIdRouteImport.update({
+    id: '/users/$personId_/shops/$targetShopId',
+    path: '/users/$personId/shops/$targetShopId',
+    getParentRoute: () => AuthRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -275,6 +282,7 @@ export interface FileRoutesByFullPath {
   '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
   '/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/shifts/submit/completed': typeof UnregisteredShiftsSubmitCompletedRoute
+  '/users/$personId/shops/$targetShopId': typeof AuthUsersPersonIdShopsTargetShopIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -311,6 +319,7 @@ export interface FileRoutesByTo {
   '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
   '/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/shifts/submit/completed': typeof UnregisteredShiftsSubmitCompletedRoute
+  '/users/$personId/shops/$targetShopId': typeof AuthUsersPersonIdShopsTargetShopIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -351,6 +360,7 @@ export interface FileRoutesById {
   '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
   '/_unregistered/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/_unregistered/shifts/submit_/completed': typeof UnregisteredShiftsSubmitCompletedRoute
+  '/_auth/users/$personId_/shops/$targetShopId': typeof AuthUsersPersonIdShopsTargetShopIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -390,6 +400,7 @@ export interface FileRouteTypes {
     | '/articles/categories/$categorySlug'
     | '/legal/staff/consent'
     | '/shifts/submit/completed'
+    | '/users/$personId/shops/$targetShopId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -426,6 +437,7 @@ export interface FileRouteTypes {
     | '/articles/categories/$categorySlug'
     | '/legal/staff/consent'
     | '/shifts/submit/completed'
+    | '/users/$personId/shops/$targetShopId'
   id:
     | '__root__'
     | '/'
@@ -465,6 +477,7 @@ export interface FileRouteTypes {
     | '/articles/categories/$categorySlug'
     | '/_unregistered/legal/staff/consent'
     | '/_unregistered/shifts/submit_/completed'
+    | '/_auth/users/$personId_/shops/$targetShopId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -753,6 +766,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UnregisteredShiftsSubmitCompletedRouteImport
       parentRoute: typeof UnregisteredRoute
     }
+    '/_auth/users/$personId_/shops/$targetShopId': {
+      id: '/_auth/users/$personId_/shops/$targetShopId'
+      path: '/users/$personId/shops/$targetShopId'
+      fullPath: '/users/$personId/shops/$targetShopId'
+      preLoaderRoute: typeof AuthUsersPersonIdShopsTargetShopIdRouteImport
+      parentRoute: typeof AuthRoute
+    }
   }
 }
 
@@ -762,6 +782,7 @@ interface AuthRouteChildren {
   AuthShiftboardRecruitmentIdRoute: typeof AuthShiftboardRecruitmentIdRoute
   AuthShopsShopIdRoute: typeof AuthShopsShopIdRoute
   AuthUsersPersonIdRoute: typeof AuthUsersPersonIdRoute
+  AuthUsersPersonIdShopsTargetShopIdRoute: typeof AuthUsersPersonIdShopsTargetShopIdRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
@@ -770,6 +791,8 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthShiftboardRecruitmentIdRoute: AuthShiftboardRecruitmentIdRoute,
   AuthShopsShopIdRoute: AuthShopsShopIdRoute,
   AuthUsersPersonIdRoute: AuthUsersPersonIdRoute,
+  AuthUsersPersonIdShopsTargetShopIdRoute:
+    AuthUsersPersonIdShopsTargetShopIdRoute,
 }
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)

@@ -1,15 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { getUserDetailBackDestination, getUserDetailRemovedDestination, mergeUserDetailSearch } from "./navigation";
+import {
+  getUserDetailBackDestination,
+  getUserDetailRemovedDestination,
+  getUserShopDetailBackDestination,
+  getUserShopDetailDestination,
+  mergeUserDetailSearch,
+} from "./navigation";
 
 describe("ユーザー詳細のURL遷移", () => {
-  it("店舗を切り替えても表示パネルと戻り先を維持する", () => {
-    expect(mergeUserDetailSearch({ shop: "shop-a", panel: "shop", returnTo: "settings" }, { shop: "shop-b" })).toEqual({
-      shop: "shop-b",
-      panel: "shop",
-      returnTo: "settings",
-    });
-  });
-
   it("パネルを開いても表示店舗と戻り先を維持する", () => {
     expect(mergeUserDetailSearch({ shop: "shop-b", returnTo: "dashboard" }, { panel: "basic" })).toEqual({
       shop: "shop-b",
@@ -22,6 +20,46 @@ describe("ユーザー詳細のURL遷移", () => {
     expect(
       mergeUserDetailSearch({ shop: "shop-b", panel: "addShop", returnTo: "dashboard" }, { panel: undefined }),
     ).toEqual({ shop: "shop-b", panel: undefined, returnTo: "dashboard" });
+  });
+
+  it("店舗別設定へは対象店舗をpathに置き、出発店舗と全戻り先情報をsearchに維持する", () => {
+    expect(
+      getUserShopDetailDestination(
+        "person-a",
+        "shop-target",
+        "shop-source",
+        "shopDetail",
+        30,
+        "shop-origin",
+        "dashboard",
+      ),
+    ).toEqual({
+      to: "/users/$personId/shops/$targetShopId",
+      params: { personId: "person-a", targetShopId: "shop-target" },
+      search: {
+        shop: "shop-source",
+        returnTo: "shopDetail",
+        returnShop: "shop-origin",
+        returnShopTo: "dashboard",
+        users: 30,
+      },
+    });
+  });
+
+  it("店舗別設定からユーザー詳細へ戻ると出発店舗と全戻り先情報を復元する", () => {
+    expect(
+      getUserShopDetailBackDestination("person-a", "shop-source", "shopDetail", 30, "shop-origin", "dashboard"),
+    ).toEqual({
+      to: "/users/$personId",
+      params: { personId: "person-a" },
+      search: {
+        shop: "shop-source",
+        returnTo: "shopDetail",
+        returnShop: "shop-origin",
+        returnShopTo: "dashboard",
+        users: 30,
+      },
+    });
   });
 
   it("グループ設定へ現在表示中の店舗を引き継いで戻る", () => {

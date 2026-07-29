@@ -3,11 +3,11 @@ import type { ReactNode } from "react";
 import { LuMail, LuMessageCircle, LuQrCode } from "react-icons/lu";
 import { LineLinkQrDialog } from "@/src/components/features/Line";
 import { Button } from "@/src/components/ui/Button";
-import type { UserDetailData, UserDetailMembership } from "./types";
+import type { UserShopDetailData, UserShopDetailMembership } from "./types";
 
 type Props = {
-  data: UserDetailData;
-  membership: UserDetailMembership;
+  data: UserShopDetailData;
+  membership: UserShopDetailMembership;
   isReadOnly: boolean;
   authorizeUrl: string | null;
   showQr: boolean;
@@ -17,7 +17,7 @@ type Props = {
   onSendInvite: () => void | Promise<void>;
 };
 
-export function UserLineTab({
+export function UserShopLineSection({
   data,
   membership,
   isReadOnly,
@@ -35,11 +35,11 @@ export function UserLineTab({
   return (
     <Stack gap={6}>
       <Stack gap={1}>
-        <Text as="h3" fontSize="md" fontWeight="semibold" color="gray.900">
+        <Text as="h2" fontSize="md" fontWeight="semibold" color="gray.900">
           LINE連携
         </Text>
-        <Text fontSize="sm" color="fg.muted">
-          LINE連携は店舗ごとに設定します。
+        <Text fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
+          {"LINE連携設定は店舗ごとに設定をお願いします。\nいずれかの方法でスタッフを招待してください。"}
         </Text>
       </Stack>
 
@@ -66,22 +66,28 @@ export function UserLineTab({
       {!isLineActive ? (
         <fieldset disabled={isReadOnly} style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}>
           <Stack gap={6}>
-            <LineConnectionMethod
-              number="1"
-              title="LINE連携リンクを表示"
-              description="スタッフに直接共有してください。"
-            >
+            <LineConnectionMethod number="1" title="LINE連携リンクを表示">
               <Button
                 alignSelf="flex-end"
                 colorPalette="teal"
                 gap={1.5}
                 onClick={onShowQr}
                 disabled={isReadOnly || showQr}
+                loading={isQrLoading}
               >
                 <LuQrCode aria-hidden />
                 LINE連携リンクを表示
               </Button>
-              {showQr && <LineLinkQrDialog authorizeUrl={authorizeUrl} isLoading={isQrLoading} />}
+              {showQr && (
+                <Stack gap={3} w="full">
+                  <Stack gap={1} fontSize="sm" color="fg.muted" lineHeight="tall">
+                    <Text>{data.person.name}専用のURL（QRコード）です。</Text>
+                    <Text>スタッフに直接共有してください。</Text>
+                    <Text>ほかのスタッフには教えないようにしてください。</Text>
+                  </Stack>
+                  <LineLinkQrDialog authorizeUrl={authorizeUrl} isLoading={isQrLoading} />
+                </Stack>
+              )}
             </LineConnectionMethod>
 
             <LineConnectionMethod number="2" title="LINE連携リンクをメールで送る">
@@ -113,29 +119,12 @@ export function UserLineTab({
   );
 }
 
-function LineConnectionMethod({
-  number,
-  title,
-  description,
-  children,
-}: {
-  number: string;
-  title: string;
-  description?: string;
-  children: ReactNode;
-}) {
+function LineConnectionMethod({ number, title, children }: { number: string; title: string; children: ReactNode }) {
   return (
     <Stack gap={3}>
-      <Stack gap={1}>
-        <Heading as="h4" fontSize="sm" fontWeight="semibold" color="gray.900">
-          {number}. {title}
-        </Heading>
-        {description && (
-          <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            {description}
-          </Text>
-        )}
-      </Stack>
+      <Heading as="h3" fontSize="sm" fontWeight="semibold" color="gray.900">
+        {number}. {title}
+      </Heading>
       <Stack gap={3} align="flex-start">
         {children}
       </Stack>
@@ -143,13 +132,9 @@ function LineConnectionMethod({
   );
 }
 
-function getLineStatus(membership: UserDetailMembership) {
+function getLineStatus(membership: UserShopDetailMembership) {
   if (!membership.line.isLinked) {
-    return {
-      label: "LINE未連携",
-      description: undefined,
-      isActive: false,
-    };
+    return { label: "LINE未連携", description: undefined, isActive: false };
   }
   if (!membership.line.isFollowing) {
     return {
