@@ -3,6 +3,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { useCallback, useState } from "react";
 import { Button } from "@/src/components/ui/Button";
 import { TOASTER_LAYER_SELECTOR } from "@/src/components/ui/toaster";
+import { useCloseDialogOnBrowserBack } from "@/src/hooks/useCloseDialogOnBrowserBack";
 import {
   DIALOG_VISUAL_VIEWPORT_HEIGHT,
   DIALOG_VISUAL_VIEWPORT_OFFSET_TOP,
@@ -98,6 +99,7 @@ export const Dialog = ({
   bodyProps,
 }: DialogProps) => {
   const viewportStyle = useDialogVisualViewportStyle(isOpen && keyboardAwareViewport);
+  useCloseDialogOnBrowserBack(isOpen, () => onOpenChange({ open: false }));
   const { style: positionerStyle, ...restPositionerProps } = positionerProps ?? {};
 
   return (

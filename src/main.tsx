@@ -6,6 +6,7 @@ import z from "zod";
 import { RouteErrorFallback } from "@/src/components/ui/ErrorBoundary";
 import { GTM_ID } from "@/src/configs/env";
 import { customErrorMap } from "@/src/configs/zod/zop-setup.ts";
+import { registerDialogBackNavigation } from "@/src/hooks/useCloseDialogOnBrowserBack";
 import { initGTM } from "@/src/lib/gtm";
 import { isPrerendering } from "@/src/lib/seo";
 import { ChakraProvider } from "@/src/providers/ChakraProvider";
@@ -30,6 +31,9 @@ const router = createRouter({
   defaultPreloadStaleTime: 0,
   defaultErrorComponent: RouteErrorFallback,
 });
+
+// Dialogの戻る操作を、各画面の未保存変更blockerより先に処理する。
+registerDialogBackNavigation(router.history);
 
 // Register the router instance for type safety
 declare module "@tanstack/react-router" {
