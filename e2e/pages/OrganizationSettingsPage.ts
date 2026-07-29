@@ -392,11 +392,17 @@ export class OrganizationSettingsPage {
     await confirmation.getByRole("textbox").fill(organizationName);
     await expect(submit).toBeEnabled();
 
-    const destination = expectedShopId
-      ? new RegExp(`/dashboard\\?shop=${escapeRegExp(encodeURIComponent(expectedShopId))}(?:&|$)`)
-      : /\/dashboard$/;
+    // location.replaceで旧documentが切り離されても、最終URLの到達を同期値から検証する。
     await Promise.all([
-      this.page.waitForURL(destination, { waitUntil: "commit", timeout: SETTINGS_DATA_TIMEOUT }),
+      expect
+        .poll(
+          () => {
+            const url = new URL(this.page.url());
+            return { pathname: url.pathname, shopId: url.searchParams.get("shop") };
+          },
+          { timeout: SETTINGS_DATA_TIMEOUT },
+        )
+        .toEqual({ pathname: "/dashboard", shopId: expectedShopId }),
       submit.click({ noWaitAfter: true }),
     ]);
   }
