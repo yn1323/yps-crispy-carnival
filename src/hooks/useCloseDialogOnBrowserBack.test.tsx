@@ -1,97 +1,178 @@
 // @vitest-environment jsdom
 
-import type { BlockerFn, RouterHistory } from "@tanstack/react-router";
-import { renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useCloseDialogOnBrowserBack } from "./useCloseDialogOnBrowserBack";
+import type { BlockerFn, HistoryLocation, RouterHistory } from "@tanstack/react-router";
+import { cleanup, renderHook } from "@testing-library/react";
+import { StrictMode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { registerDialogBackNavigation, useCloseDialogOnBrowserBack } from "./useCloseDialogOnBrowserBack";
 
-type NavigationBlocker = Parameters<RouterHistory["block"]>[0];
 type BlockerFnArgs = Parameters<BlockerFn>[0];
+type NavigationBlocker = Parameters<RouterHistory["block"]>[0];
+
+const initialLocation = {
+  href: "/shift-board",
+  pathname: "/shift-board",
+  search: "",
+  hash: "",
+  state: { __TSR_index: 0, __TSR_key: "initial" },
+} satisfies HistoryLocation;
 
 const mockState = vi.hoisted(() => ({
-  blockers: [] as NavigationBlocker[],
   router: undefined as unknown,
 }));
 
-vi.mock("@tanstack/react-router", () => ({
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+  ...(await importOriginal()),
   useRouter: () => mockState.router,
 }));
 
-const createRouterMock = () => ({
-  history: {
-    block: (blocker: NavigationBlocker) => {
-      mockState.blockers.push(blocker);
-      return () => {
-        const index = mockState.blockers.indexOf(blocker);
-        if (index !== -1) mockState.blockers.splice(index, 1);
+const createHistoryMock = () => {
+  const blockers: NavigationBlocker[] = [];
+  const history: RouterHistory = {
+    location: initialLocation,
+    length: 1,
+    subscribers: new Set(),
+    subscribe: vi.fn(() => vi.fn()),
+    push: vi.fn((path: string, state?: Record<string, unknown>) => {
+      history.location = {
+        href: path,
+        pathname: path,
+        search: "",
+        hash: "",
+        state: {
+          ...state,
+          __TSR_index: history.location.state.__TSR_index + 1,
+          __TSR_key: "guard",
+        },
       };
-    },
-  },
-});
+      history.length += 1;
+    }),
+    replace: vi.fn(),
+    go: vi.fn(),
+    back: vi.fn((options?: { ignoreBlocker?: boolean }) => {
+      const { ignoreBlocker } = options ?? {};
+      if (ignoreBlocker) history.location = initialLocation;
+    }),
+    forward: vi.fn(),
+    canGoBack: vi.fn(() => history.location.state.__TSR_index !== 0),
+    createHref: vi.fn((href: string) => href),
+    block: vi.fn((blocker: NavigationBlocker) => {
+      blockers.push(blocker);
+      return () => {
+        const index = blockers.indexOf(blocker);
+        if (index !== -1) blockers.splice(index, 1);
+      };
+    }),
+    flush: vi.fn(),
+    destroy: vi.fn(),
+    notify: vi.fn(),
+  } satisfies RouterHistory;
 
-// @tanstack/historyはブラウザ戻る時に登録順でblockerFnを評価し、
-// trueが返った時点で遷移を取り消す。その評価順を再現する。
-const simulate = async (action: BlockerFnArgs["action"]) => {
-  for (const blocker of [...mockState.blockers]) {
-    if (await blocker.blockerFn({ action } as BlockerFnArgs)) return "blocked";
+  return { blockers, history };
+};
+
+const simulate = async (blockers: NavigationBlocker[], action: BlockerFnArgs["action"]) => {
+  for (const blocker of [...blockers]) {
+    if (
+      await blocker.blockerFn({
+        action,
+        currentLocation: initialLocation,
+        nextLocation: initialLocation,
+      })
+    ) {
+      return "blocked";
+    }
   }
   return "navigated";
 };
 
+let history: RouterHistory;
+let blockers: NavigationBlocker[];
+
 beforeEach(() => {
-  mockState.blockers = [];
-  mockState.router = createRouterMock();
+  vi.useFakeTimers();
+  ({ blockers, history } = createHistoryMock());
+  mockState.router = { history };
+  // main.tsxと同じく、画面固有のblockerがmountする前に登録する。
+  registerDialogBackNavigation(history);
+});
+
+afterEach(() => {
+  cleanup();
+  vi.runAllTimers();
+  vi.useRealTimers();
 });
 
 describe("useCloseDialogOnBrowserBack", () => {
-  it("閉じている間はblockerを登録しない", () => {
+  it("閉じている間は履歴entryを追加しない", () => {
     renderHook(() => useCloseDialogOnBrowserBack(false, vi.fn()));
 
-    expect(mockState.blockers).toHaveLength(0);
+    expect(history.push).not.toHaveBeenCalled();
   });
 
-  it("表示中のブラウザ戻るでDialogを閉じ、ページ遷移を止める", async () => {
+  it("表示時に同一document内の戻り先を用意する", () => {
+    renderHook(() => useCloseDialogOnBrowserBack(true, vi.fn()));
+
+    expect(history.push).toHaveBeenCalledOnce();
+    expect(history.push).toHaveBeenCalledWith(
+      initialLocation.href,
+      expect.objectContaining({ __shiftoriDialogBackGuard: expect.any(String) }),
+      { ignoreBlocker: true },
+    );
+    expect(history.flush).toHaveBeenCalledOnce();
+  });
+
+  it("既存blockerより先にDialogを閉じ、ページ遷移を止める", async () => {
+    const existingBlocker = vi.fn(() => true);
+    history.block({ blockerFn: existingBlocker });
     const onClose = vi.fn();
     renderHook(() => useCloseDialogOnBrowserBack(true, onClose));
 
-    expect(mockState.blockers).toHaveLength(1);
-    expect(mockState.blockers[0]?.enableBeforeUnload).toBe(false);
+    await expect(simulate(blockers, "BACK")).resolves.toBe("blocked");
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(existingBlocker).not.toHaveBeenCalled();
 
-    await expect(simulate("BACK")).resolves.toBe("blocked");
-    expect(onClose).toHaveBeenCalledTimes(1);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(history.back).toHaveBeenCalledWith({ ignoreBlocker: true });
   });
 
   it("戻る以外の遷移は妨げず、Dialogも閉じない", async () => {
     const onClose = vi.fn();
     renderHook(() => useCloseDialogOnBrowserBack(true, onClose));
 
-    await expect(simulate("PUSH")).resolves.toBe("navigated");
-    await expect(simulate("FORWARD")).resolves.toBe("navigated");
+    await expect(simulate(blockers, "PUSH")).resolves.toBe("navigated");
+    await expect(simulate(blockers, "FORWARD")).resolves.toBe("navigated");
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("Dialogを閉じるとblockerを解除し、次の戻るは遷移になる", async () => {
-    const onClose = vi.fn();
-    const { rerender } = renderHook(({ isOpen }) => useCloseDialogOnBrowserBack(isOpen, onClose), {
+  it("閉じる操作では追加した履歴entryだけをblockerなしで取り除く", () => {
+    const { rerender } = renderHook(({ isOpen }) => useCloseDialogOnBrowserBack(isOpen, vi.fn()), {
       initialProps: { isOpen: true },
     });
 
     rerender({ isOpen: false });
+    vi.runAllTimers();
 
-    expect(mockState.blockers).toHaveLength(0);
-    await expect(simulate("BACK")).resolves.toBe("navigated");
-    expect(onClose).not.toHaveBeenCalled();
+    expect(history.back).toHaveBeenCalledOnce();
+    expect(history.back).toHaveBeenCalledWith({ ignoreBlocker: true });
   });
 
-  it("Dialogが重なっている場合は最前面だけを閉じる", async () => {
+  it("Dialogが重なっている場合は戻る一回につき最前面だけを閉じる", async () => {
     const onCloseFirst = vi.fn();
     const onCloseSecond = vi.fn();
     renderHook(() => useCloseDialogOnBrowserBack(true, onCloseFirst));
     renderHook(() => useCloseDialogOnBrowserBack(true, onCloseSecond));
 
-    await expect(simulate("BACK")).resolves.toBe("blocked");
+    expect(history.push).toHaveBeenCalledOnce();
+    await expect(simulate(blockers, "BACK")).resolves.toBe("blocked");
     expect(onCloseFirst).not.toHaveBeenCalled();
-    expect(onCloseSecond).toHaveBeenCalledTimes(1);
+    expect(onCloseSecond).toHaveBeenCalledOnce();
+    expect(history.back).not.toHaveBeenCalled();
+
+    await expect(simulate(blockers, "BACK")).resolves.toBe("blocked");
+    expect(onCloseFirst).toHaveBeenCalledOnce();
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(history.back).toHaveBeenCalledWith({ ignoreBlocker: true });
   });
 
   it("最新のonCloseを呼ぶ", async () => {
@@ -103,15 +184,24 @@ describe("useCloseDialogOnBrowserBack", () => {
 
     rerender({ onClose: latestOnClose });
 
-    await expect(simulate("BACK")).resolves.toBe("blocked");
+    await expect(simulate(blockers, "BACK")).resolves.toBe("blocked");
     expect(staleOnClose).not.toHaveBeenCalled();
-    expect(latestOnClose).toHaveBeenCalledTimes(1);
+    expect(latestOnClose).toHaveBeenCalledOnce();
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+
+  it("StrictModeのeffect再実行では履歴entryを重複追加・削除しない", () => {
+    renderHook(() => useCloseDialogOnBrowserBack(true, vi.fn()), { wrapper: StrictMode });
+    vi.runAllTimers();
+
+    expect(history.push).toHaveBeenCalledOnce();
+    expect(history.back).not.toHaveBeenCalled();
   });
 
   it("Router外の描画では何もしない", () => {
     mockState.router = undefined;
 
     expect(() => renderHook(() => useCloseDialogOnBrowserBack(true, vi.fn()))).not.toThrow();
-    expect(mockState.blockers).toHaveLength(0);
+    expect(history.push).not.toHaveBeenCalled();
   });
 });
