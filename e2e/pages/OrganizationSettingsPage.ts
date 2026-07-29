@@ -395,8 +395,10 @@ export class OrganizationSettingsPage {
     const destination = expectedShopId
       ? new RegExp(`/dashboard\\?shop=${escapeRegExp(encodeURIComponent(expectedShopId))}(?:&|$)`)
       : /\/dashboard$/;
-    await submit.click({ noWaitAfter: true });
-    await expect(this.page).toHaveURL(destination, { timeout: SETTINGS_DATA_TIMEOUT });
+    await Promise.all([
+      this.page.waitForURL(destination, { waitUntil: "commit", timeout: SETTINGS_DATA_TIMEOUT }),
+      submit.click({ noWaitAfter: true }),
+    ]);
   }
 
   async openUser(personName: string) {
