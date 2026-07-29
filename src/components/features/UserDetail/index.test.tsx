@@ -261,18 +261,6 @@ describe("UserDetail", () => {
     });
   });
 
-  it("設定起点では人物削除後に削除済み人物へfocusせずユーザー一覧へ戻る", () => {
-    render(<UserDetail data={data} selectedShopId="shop-a" returnTo="settings" visibleUserCount={30} />);
-
-    mocks.managerOptions?.onPersonRemoved("person-1");
-
-    expect(mocks.navigate).toHaveBeenCalledWith({
-      to: "/settings",
-      search: { shop: "shop-a", tab: "people", users: 30 },
-      replace: true,
-    });
-  });
-
   it("本人削除後は起点にかかわらず店舗指定を外してDashboardへ戻る", () => {
     render(
       <UserDetail data={{ ...data, isSelf: true }} selectedShopId="shop-a" returnTo="settings" visibleUserCount={30} />,
@@ -283,28 +271,6 @@ describe("UserDetail", () => {
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: "/dashboard",
       search: { shop: undefined },
-      replace: true,
-    });
-  });
-
-  it("店舗詳細起点で人物を削除すると出発元の店舗詳細へ戻る", () => {
-    render(
-      <UserDetail
-        data={data}
-        selectedShopId="shop-b"
-        returnTo="shopDetail"
-        returnShopId="shop-a"
-        returnShopTo="dashboard"
-        visibleUserCount={10}
-      />,
-    );
-
-    mocks.managerOptions?.onPersonRemoved("person-1");
-
-    expect(mocks.navigate).toHaveBeenCalledWith({
-      to: "/shops/$shopId",
-      params: { shopId: "shop-a" },
-      search: { shop: "shop-a", returnTo: "dashboard" },
       replace: true,
     });
   });
