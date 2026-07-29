@@ -83,7 +83,7 @@ export const AnswerDetails: Story = {
       name: "LINEで受け取れる場合は通常LINEへ送り、利用できない場合やLINE送信の上限に達した場合はメールへ切り替える流れ",
     });
     await waitFor(() => expect(visual).toBeVisible());
-    await expect(canvas.getByText("LINE連携済みのスタッフには、通常LINEで届きます。", { exact: false })).toBeVisible();
+    await expect(canvas.getByText(/LINE連携済みのスタッフには、通常LINEで届きます。/)).toBeVisible();
     await expect(canvas.getByText("LINE送信の上限に達した")).toBeVisible();
     await expect(await canvas.findByRole("link", { name: "通知先の確認方法を見る" })).toHaveAttribute(
       "href",
