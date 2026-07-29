@@ -289,8 +289,7 @@ export class DashboardPage {
   async deleteStaff(staffName: string) {
     const detail = await this.openStaffDetail(staffName);
     if (detail.kind === "user") {
-      await detail.user.removeFromShop();
-      await detail.user.returnToDashboard();
+      await detail.user.removeFromOrganization({ returnTo: "dashboard" });
       return;
     }
 

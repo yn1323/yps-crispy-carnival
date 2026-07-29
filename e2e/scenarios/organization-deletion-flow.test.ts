@@ -11,8 +11,8 @@ import { OrganizationSettingsPage } from "../pages/OrganizationSettingsPage";
 test.describe("最後のグループの削除", { tag: ["@release", "@security", "@a11y"] }, () => {
   test.setTimeout(75_000);
 
-  test.afterEach(() => {
-    resetCurrentManagerScenarioData();
+  test.afterEach(async () => {
+    await resetCurrentManagerScenarioData();
   });
 
   test("OD-P0-02: 名前確認を経て最後のグループを削除し、店舗登録へ戻っても個人情報を表示しない", async ({
@@ -73,8 +73,8 @@ test.describe("最後のグループの削除", { tag: ["@release", "@security",
 test.describe("支払い継続中のグループ削除制約", { tag: ["@release", "@security"] }, () => {
   test.setTimeout(60_000);
 
-  test.afterEach(() => {
-    resetCurrentManagerScenarioData();
+  test.afterEach(async () => {
+    await resetCurrentManagerScenarioData();
   });
 
   test("OD-P0-03: active Proの支払いが続く間はグループ削除を開始できない", async ({ page }) => {

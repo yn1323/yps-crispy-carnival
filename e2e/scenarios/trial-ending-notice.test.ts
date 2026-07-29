@@ -9,8 +9,8 @@ const DAY_MS = 24 * 60 * 60 * 1_000;
 test.describe("トライアル終了前の支払い案内", { tag: ["@release"] }, () => {
   test.setTimeout(60_000);
 
-  test.afterEach(() => {
-    resetCurrentManagerScenarioData();
+  test.afterEach(async () => {
+    await resetCurrentManagerScenarioData();
   });
 
   test("BILL-P0-01: 全店舗で案内し、選択中店舗を保って支払い設定へ移動する", async ({ page }) => {

@@ -77,7 +77,9 @@ export class UserDetailPage {
     await this.closeDialog(dialog);
   }
 
-  async removeFromOrganization(options: { expectedAssignmentCount?: number } = {}) {
+  async removeFromOrganization(
+    options: { expectedAssignmentCount?: number; returnTo?: "dashboard" | "settings" } = {},
+  ) {
     await this.page.getByRole("button", { name: "削除", exact: true }).click();
     const confirmation = this.page.getByRole("alertdialog", { name: "ユーザーを削除", exact: true });
     await expect(confirmation).toBeVisible();
@@ -98,7 +100,8 @@ export class UserDetailPage {
     }
     await confirmation.getByRole("button", { name: "グループから削除", exact: true }).click();
     await this.expectToastVisibleThenHidden("ユーザーをグループから削除しました");
-    await expect(this.page).toHaveURL(/\/settings\?/, { timeout: USER_DETAIL_DATA_TIMEOUT });
+    const destination = options.returnTo === "dashboard" ? /\/dashboard(?:\?|$)/ : /\/settings(?:\?|$)/;
+    await expect(this.page).toHaveURL(destination, { timeout: USER_DETAIL_DATA_TIMEOUT });
   }
 
   async expectAssignedShop(shop: UserDetailShop) {

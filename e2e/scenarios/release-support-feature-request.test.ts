@@ -7,7 +7,7 @@ test.describe("リリース前の要望受付回帰", { tag: ["@release"] }, () 
   test.setTimeout(45_000);
 
   test("管理ユーザーがDashboardから要望を送信できる", async ({ page, e2eClerkUser }) => {
-    resetCurrentManagerScenarioData();
+    await resetCurrentManagerScenarioData();
     const dashboard = new DashboardPage(page);
     const support = new ManagerSupportPage(page);
 

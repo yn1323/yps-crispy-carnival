@@ -48,7 +48,7 @@ test.describe("正規グループの通知目的別Full Regression", { tag: ["@r
 
   test("初期設定時に管理者へLINE連携案内を受け付ける", async ({ page, e2eClerkUser }) => {
     assertNotificationRecipientSuppressed(e2eClerkUser);
-    resetCurrentManagerScenarioData();
+    await resetCurrentManagerScenarioData();
     const dashboard = new DashboardPage(page);
 
     await test.step("Step 1: 管理者が初期設定を完了する", async () => {

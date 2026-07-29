@@ -23,7 +23,7 @@ test.describe("田中さんの初めてのシフト確定", { tag: ["@release", 
   });
 
   test("初回セットアップから下書き保存、確定、スタッフ閲覧まで", async ({ browser, e2eClerkUser }) => {
-    resetCurrentManagerScenarioData();
+    await resetCurrentManagerScenarioData();
 
     await test.step("Step 1: 初回セットアップを完了する", async () => {
       await dashboard.goto();

@@ -6,8 +6,8 @@ import { OrganizationSettingsPage } from "../pages/OrganizationSettingsPage";
 test.describe("グループ課金プランの表示と上限復旧", { tag: ["@release"] }, () => {
   test.setTimeout(60_000);
 
-  test.afterEach(() => {
-    resetCurrentManagerScenarioData();
+  test.afterEach(async () => {
+    await resetCurrentManagerScenarioData();
   });
 
   test("BILL-P0-02: 支払い不要Businessを保ち、BusinessからProへの変更後の超過を人物削除で復旧する", async ({
