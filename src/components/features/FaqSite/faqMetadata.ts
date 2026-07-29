@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { getUnderscorePrefixedMdxSlugs, mdxSlugFromPath } from "@/src/lib/mdx";
 
 export const FAQ_CATEGORIES = [
   { id: "before-start", label: "はじめる前に", order: 10 },
@@ -48,9 +49,26 @@ export type FaqMetadata = {
   searchText: string;
 };
 
+// FAQのHowTo導線を非公開記事へ向けない。Object.keysの直書きによりMDX本文はimportしない。
+const publishedHelpSlugs = new Set(
+  Object.keys(import.meta.glob(["../HowToSite/content/*.mdx", "!../HowToSite/content/_*.mdx"])).map(mdxSlugFromPath),
+);
+const draftHelpSlugs = getUnderscorePrefixedMdxSlugs(Object.keys(import.meta.glob("../HowToSite/content/_*.mdx")));
+
+type HelpSlugVisibility = {
+  published: ReadonlySet<string>;
+  draft: ReadonlySet<string>;
+};
+
+const helpSlugVisibility: HelpSlugVisibility = {
+  published: publishedHelpSlugs,
+  draft: draftHelpSlugs,
+};
+
 export function buildFaqMetadata(
   frontmatterByPath: Record<string, unknown>,
   textBlocksByPath: Record<string, string[]>,
+  helpSlugs: HelpSlugVisibility = helpSlugVisibility,
 ): FaqMetadata[] {
   const entries = Object.entries(frontmatterByPath).map(([path, frontmatter]) => {
     const id = faqIdFromPath(path);
@@ -70,12 +88,16 @@ export function buildFaqMetadata(
       throw new Error(`FAQ「${id}」の回答本文が見つかりません`);
     }
 
-    const howTo = parsed.data.howTo
-      ? {
-          href: parsed.data.howTo.href as FaqHowTo["href"],
-          label: parsed.data.howTo.label,
-        }
-      : undefined;
+    const howToSlug = parsed.data.howTo?.href.slice("/howto#".length);
+    const targetsDraftHelp =
+      howToSlug !== undefined && helpSlugs.draft.has(howToSlug) && !helpSlugs.published.has(howToSlug);
+    const howTo =
+      parsed.data.howTo && !targetsDraftHelp
+        ? {
+            href: parsed.data.howTo.href as FaqHowTo["href"],
+            label: parsed.data.howTo.label,
+          }
+        : undefined;
 
     return {
       id,

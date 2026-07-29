@@ -5,12 +5,16 @@ export type LandingFaq = {
   a: string;
 };
 
-const featuredFaqFrontmatterModules = import.meta.glob<unknown>("./content/featured/*.mdx", {
-  eager: true,
-  query: "?mdx-frontmatter",
-  import: "default",
-});
-const featuredFaqTextModules = import.meta.glob<string[]>("./content/featured/*.mdx", {
+// `_` 始まりのMDXは下書きとして扱い、TOP掲載の対象から除外する。
+const featuredFaqFrontmatterModules = import.meta.glob<unknown>(
+  ["./content/featured/*.mdx", "!./content/featured/_*.mdx"],
+  {
+    eager: true,
+    query: "?mdx-frontmatter",
+    import: "default",
+  },
+);
+const featuredFaqTextModules = import.meta.glob<string[]>(["./content/featured/*.mdx", "!./content/featured/_*.mdx"], {
   eager: true,
   query: "?mdx-text",
   import: "default",

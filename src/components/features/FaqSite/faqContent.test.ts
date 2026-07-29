@@ -115,6 +115,22 @@ describe("FAQコンテンツ", () => {
     });
   });
 
+  it("下書きHowToへの詳しい手順リンクを公開対象から除外する", () => {
+    const [entry] = buildFaqEntries(
+      { [examplePath]: ExampleContent },
+      {
+        [examplePath]: {
+          ...exampleFrontmatter,
+          howTo: { href: "/howto#draft-help", label: "詳しい手順を見る" },
+        },
+      },
+      { [examplePath]: ["回答です。"] },
+      { published: new Set(), draft: new Set(["draft-help"]) },
+    );
+
+    expect(entry.howTo).toBeUndefined();
+  });
+
   it("不正なfrontmatterと本文の欠落を読み込み時に拒否する", () => {
     expect(() =>
       buildFaqEntries(
@@ -181,7 +197,7 @@ describe("FAQコンテンツ", () => {
     });
   });
 
-  it("詳しい手順へのリンクがHowToページ内のアンカーを指す", () => {
+  it("詳しい手順へのリンクが公開中のHowToページ内アンカーを指す", () => {
     const howToHrefs = faqEntries.flatMap((entry) => (entry.howTo ? [entry.howTo.href] : []));
     const helpSlugs = new Set(helpArticles.map((article) => article.slug));
 

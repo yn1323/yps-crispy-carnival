@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { MdxComponent, MdxComponents } from "@/src/lib/mdx";
+import { getUnderscorePrefixedMdxSlugs, type MdxComponent, type MdxComponents, mdxSlugFromPath } from "@/src/lib/mdx";
 
 export const HELP_NAVIGATION_GROUPS = [
   { id: "task", label: "やりたいことから探す" },
@@ -50,31 +50,36 @@ export type HelpArticle = {
   searchText: string;
 };
 
-const helpModules = import.meta.glob<HelpMdxComponent>("./content/*.mdx", {
+// `_` 始まりのMDXは下書きとして扱い、バンドルにも公開ページにも含めない。
+const helpModules = import.meta.glob<HelpMdxComponent>(["./content/*.mdx", "!./content/_*.mdx"], {
   eager: true,
   query: "?mdx-component",
   import: "default",
 });
-const helpFrontmatterModules = import.meta.glob<unknown>("./content/*.mdx", {
+const helpFrontmatterModules = import.meta.glob<unknown>(["./content/*.mdx", "!./content/_*.mdx"], {
   eager: true,
   query: "?mdx-frontmatter",
   import: "default",
 });
-const helpSourceModules = import.meta.glob<string>("./content/*.mdx", {
+const helpSourceModules = import.meta.glob<string>(["./content/*.mdx", "!./content/_*.mdx"], {
   eager: true,
   query: "?mdx-source",
   import: "default",
 });
 
-export const helpArticles = buildHelpArticles(helpModules, helpFrontmatterModules, helpSourceModules);
+// Object.keysをglobへ直接適用すると、Viteはファイルpathだけを展開し、下書きMDXをimportしない。
+const draftHelpSlugs = getUnderscorePrefixedMdxSlugs(Object.keys(import.meta.glob("./content/_*.mdx")));
+
+export const helpArticles = buildHelpArticles(helpModules, helpFrontmatterModules, helpSourceModules, draftHelpSlugs);
 
 export function buildHelpArticles(
   modules: Record<string, HelpMdxComponent>,
   frontmatterByPath: Record<string, unknown>,
   sources: Record<string, string>,
+  draftSlugs: ReadonlySet<string> = new Set(),
 ): HelpArticle[] {
   const articles = Object.entries(modules).map(([path, Content]) => {
-    const slug = path.match(/\/([^/]+)\.mdx$/)?.[1] ?? path;
+    const slug = mdxSlugFromPath(path);
     const parsed = helpFrontmatterSchema.safeParse(frontmatterByPath[path]);
 
     if (!parsed.success) {
@@ -104,13 +109,23 @@ export function buildHelpArticles(
 
   const slugs = new Set(articles.map((article) => article.slug));
   for (const article of articles) {
-    const missingRelatedSlug = article.meta.related.find((relatedSlug) => !slugs.has(relatedSlug));
+    const missingRelatedSlug = article.meta.related.find(
+      (relatedSlug) => !slugs.has(relatedSlug) && !draftSlugs.has(relatedSlug),
+    );
     if (missingRelatedSlug) {
       throw new Error(`ヘルプ「${article.slug}」の関連記事「${missingRelatedSlug}」が見つかりません`);
     }
   }
 
-  return articles.sort(
+  const publishedArticles = articles.map((article) => ({
+    ...article,
+    meta: {
+      ...article.meta,
+      related: article.meta.related.filter((relatedSlug) => slugs.has(relatedSlug)),
+    },
+  }));
+
+  return publishedArticles.sort(
     (left, right) => left.category.order - right.category.order || left.meta.order - right.meta.order,
   );
 }
