@@ -42,7 +42,7 @@ export function UserShopMembershipList({ data, showShopMembershipAddition, onOpe
               title={membership.shopName}
               leading={<ShopIcon />}
               badges={
-                <HStack gap={1.5} wrap="wrap">
+                <HStack gap={1.5} wrap="wrap" ms="auto" flexShrink={0}>
                   {membership.shopStatus !== "active" && (
                     <StatusBadge colorPalette={membership.shopStatus === "archived" ? "gray" : "orange"}>
                       {membership.shopStatus === "archived" ? "アーカイブ済み" : "プラン停止中"}

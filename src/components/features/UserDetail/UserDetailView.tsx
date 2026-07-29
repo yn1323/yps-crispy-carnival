@@ -87,9 +87,9 @@ export function UserDetailView({ data, showShopMembershipAddition, activePanel, 
       </Box>
 
       <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
-        <Flex align="center" justify="space-between" gap={3} px={{ base: 4, md: 5 }} py={4}>
+        <Flex align="center" justify="space-between" gap={3} px={{ base: 4, md: 5 }} pt={4} pb={0}>
           <Text as="h2" fontSize="md" fontWeight="semibold" color="gray.900">
-            所属店舗
+            {data.person.name}の所属店舗
           </Text>
           {showShopMembershipAddition && (
             <Button

@@ -192,13 +192,13 @@ export class UserDetailPage {
 
   async returnToDashboard() {
     await this.expectLoaded();
-    await this.page.getByRole("button", { name: "前の画面に戻る", exact: true }).click();
+    await this.page.getByRole("button", { name: "ユーザー詳細", exact: true }).click();
     await expect(this.page).toHaveURL(/\/dashboard\?/, { timeout: USER_DETAIL_DATA_TIMEOUT });
   }
 
   async returnToSettings() {
     await this.expectLoaded();
-    await this.page.getByRole("button", { name: "前の画面に戻る", exact: true }).click();
+    await this.page.getByRole("button", { name: "ユーザー詳細", exact: true }).click();
     await expect(this.page).toHaveURL(/\/settings\?/, { timeout: USER_DETAIL_DATA_TIMEOUT });
   }
 
@@ -234,8 +234,10 @@ export class UserDetailPage {
     expect(url.searchParams.get("panel")).toBeNull();
   }
 
-  private async returnToUserDetail(_shop: UserDetailShop) {
-    await this.page.getByRole("button", { name: "ユーザー詳細へ戻る", exact: true }).click();
+  private async returnToUserDetail(shop: UserDetailShop) {
+    await this.shopPageHeading(shop)
+      .getByRole("button", { name: `${shop.name}：${this.personName}`, exact: true })
+      .click();
     await this.expectParentUserDetailRestored();
   }
 

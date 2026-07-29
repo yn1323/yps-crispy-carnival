@@ -4,6 +4,7 @@ import { LuShieldMinus, LuShieldPlus } from "react-icons/lu";
 import { DeletionActionSection } from "@/src/components/shared/DeletionActionSection";
 import { ManagerAssignmentConfirmation } from "@/src/components/shared/ManagerAssignmentConfirmation";
 import { Button } from "@/src/components/ui/Button";
+import { Dialog } from "@/src/components/ui/Dialog";
 import type { UserDetailData, UserDetailRemovalPreview } from "./types";
 
 export function UserManagerSettings({
@@ -86,28 +87,54 @@ export function UserGroupRemovalSection({
   const disabledReasonId = disabledReason ? "user-detail-group-removal-disabled-reason" : undefined;
 
   return (
-    <DeletionActionSection
-      title="ユーザーを削除する"
-      description="このグループからユーザーを削除します。ほかのグループへの所属には影響しません。この操作は元に戻せません。"
-      actionLabel="削除"
-      canDelete={!isDisabled}
-      disabledReason={disabledReason}
-      disabledReasonId={disabledReasonId}
-      onDelete={onRequestRemovePerson}
-    >
+    <>
+      <DeletionActionSection
+        title="ユーザーを削除する"
+        actionLabel="削除"
+        actionVariant="solid"
+        canDelete={!isDisabled}
+        disabledReason={disabledReason}
+        disabledReasonId={disabledReasonId}
+        onDelete={onRequestRemovePerson}
+      />
+
       {isConfirmationOpen && (
-        <InlineDestructiveConfirmation
-          title={`${personName}さんをグループから削除しますか？`}
-          description="このグループのすべての店舗所属、管理権限、スタッフ権限、閲覧権限を終了します。ほかのグループへの所属には影響しません。過去のシフト履歴は保持します。この操作は元に戻せません。"
-          warning={getAssignmentRemovalDescription(removalPreview)}
-          confirmLabel="グループから削除"
+        <Dialog
+          title="ユーザーを削除"
+          isOpen
+          role="alertdialog"
+          submitLabel="グループから削除"
+          submitColorPalette="red"
+          closeLabel="やめる"
           isLoading={isRemoving}
-          isDisabled={removalPreview.kind === "tooMany"}
-          onCancel={onCancelRemovePerson}
-          onConfirm={onConfirmRemovePerson}
-        />
+          isSubmitDisabled={removalPreview.kind === "tooMany" || isRemoving}
+          onOpenChange={({ open }) => {
+            if (!open && !isRemoving) onCancelRemovePerson();
+          }}
+          onClose={() => {
+            if (!isRemoving) onCancelRemovePerson();
+          }}
+          onSubmit={onConfirmRemovePerson}
+          maxW={{ base: "calc(100vw - 24px)", md: "560px" }}
+        >
+          <Stack gap={3} fontSize="sm" color="fg.muted" lineHeight="tall">
+            <Text fontWeight="semibold" color="gray.900">
+              {personName}さんをこのグループから削除しますか？
+            </Text>
+            <Text>{personName}さんは、店舗への所属と権限（管理・スタッフ・閲覧）を失います。</Text>
+            <Stack gap={1}>
+              <Text>過去のシフト履歴は保持されます。</Text>
+              <Text color="orange.700" fontWeight="medium">
+                {getAssignmentRemovalDescription(removalPreview)}
+              </Text>
+            </Stack>
+            <Text color="red.700" fontWeight="semibold">
+              この操作は元に戻せません。
+            </Text>
+          </Stack>
+        </Dialog>
       )}
-    </DeletionActionSection>
+    </>
   );
 }
 
@@ -328,6 +355,8 @@ function getAssignmentRemovalDescription(preview: UserDetailRemovalPreview) {
   if (preview.kind === "tooMany") {
     return `今日以降のシフト割当が${preview.limit}件を超えています。先にシフトを整理してから削除してください。`;
   }
-  if (preview.assignmentCount === 0) return "今日以降のシフトから外れる割当はありません。";
+  if (preview.assignmentCount === 0) {
+    return "今日以降のシフトに割り当てはないため、シフトへの影響もありません。";
+  }
   return `今日以降のシフト${preview.assignmentCount}件からも外れます。`;
 }

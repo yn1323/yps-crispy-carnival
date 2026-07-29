@@ -372,17 +372,29 @@ export const BasicInformationFlowBehavior: Story = {
 
 export const PersonRemovalConfirmationAccessibilityBehavior: Story = {
   parameters: { screenshot: { skip: true } },
-  render: () => <PanelNavigationHarness />,
+  render: () => <PanelNavigationHarness data={{ ...multipleStoresData, removalPreview: removalPreview(0) }} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    const confirmationQuestion = "田中 花子さんをこのグループから削除しますか？";
     const requestButton = canvas.getByRole("button", { name: "削除" });
+
+    await expect(canvas.queryByText(confirmationQuestion)).not.toBeInTheDocument();
     await userEvent.click(requestButton);
 
-    const confirmation = await canvas.findByRole("alertdialog", {
-      name: "田中 花子さんをグループから削除しますか？",
-    });
-    await expect(confirmation).toHaveFocus();
+    const confirmation = await page.findByRole("alertdialog", { name: "ユーザーを削除" });
+    const confirmationContent = within(confirmation);
+    await expect(confirmationContent.getByText(confirmationQuestion)).toBeInTheDocument();
+    await expect(
+      confirmationContent.getByText("田中 花子さんは、店舗への所属と権限（管理・スタッフ・閲覧）を失います。"),
+    ).toBeInTheDocument();
+    await expect(confirmationContent.getByText("過去のシフト履歴は保持されます。")).toBeInTheDocument();
+    await expect(
+      confirmationContent.getByText("今日以降のシフトに割り当てはないため、シフトへの影響もありません。"),
+    ).toBeInTheDocument();
+    await expect(confirmationContent.getByText("この操作は元に戻せません。")).toBeInTheDocument();
     await userEvent.click(within(confirmation).getByRole("button", { name: "やめる" }));
+    await expect(page.queryByRole("alertdialog", { name: "ユーザーを削除" })).not.toBeInTheDocument();
     await expect(requestButton).toHaveFocus();
   },
 };
