@@ -78,6 +78,9 @@ TOPへ掲載する質問は`content/featured/`に置き、`landingFaqContent.ts`
 総合FAQは同じMDX群から本文、検索対象、構造化データを生成する。
 frontmatterの項目と許可値は`faqMetadata.ts`、本文で利用できる表示部品は`mdxComponents.tsx`を正本とする。
 
+FAQ、HowTo、記事のいずれも、`_`始まりのMDX（記事とカテゴリは`_`始まりのディレクトリ）は下書きとして読み込まない。
+下書きは一覧、検索、構造化データ、prerender、記事別OGPのどれにも現れず、bundleにも含めない。
+
 HowToの追加と更新には`write-help-content`、デモの設計には`demo-ux`を使う。
 記事の構造とメタデータは`src/components/features/ArticleSite/AGENTS.md`に従う。
 

@@ -59,7 +59,8 @@ async function listArticleSources(): Promise<ArticleOgpSource[]> {
   const entries = await readdir(ARTICLES_DIR, { withFileTypes: true });
   const sources = await Promise.all(
     entries
-      .filter((entry) => entry.isDirectory())
+      // `_` 始まりは下書き。公開しないためOGP画像も生成しない。
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("_"))
       .map(async (entry) => {
         const mdx = await readFile(join(ARTICLES_DIR, entry.name, "index.mdx"), "utf-8");
         const frontmatterSource = extractFrontmatterSource(mdx);

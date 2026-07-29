@@ -7,6 +7,13 @@ const textModules = import.meta.glob<string[]>("./test-content/*.mdx", {
   import: "default",
 });
 
+// 各コンテンツfeature（ArticleSite / FaqSite / HowToSite）が使う下書き除外パターン
+const publishedTextModules = import.meta.glob<string[]>(["./test-content/*.mdx", "!./test-content/_*.mdx"], {
+  eager: true,
+  query: "?mdx-text",
+  import: "default",
+});
+
 const source = `---
 title: "テスト記事"
 ---
@@ -70,5 +77,12 @@ describe("mdx-text", () => {
       "一つ目",
       "二つ目",
     ]);
+  });
+});
+
+describe("下書きMDXの除外", () => {
+  it("`_` 始まりのMDXを読み込まない", () => {
+    expect(Object.keys(textModules)).toContain("./test-content/_draft.mdx");
+    expect(Object.keys(publishedTextModules)).toEqual(["./test-content/plain-text.mdx"]);
   });
 });

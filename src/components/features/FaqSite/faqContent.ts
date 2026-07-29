@@ -12,17 +12,18 @@ export type FaqEntry = FaqMetadata & {
   Content: MdxComponent;
 };
 
-const faqModules = import.meta.glob<MdxComponent>("./content/**/*.mdx", {
+// `_` 始まりのMDXは下書きとして扱い、バンドルにも公開ページにも含めない。
+const faqModules = import.meta.glob<MdxComponent>(["./content/**/*.mdx", "!./content/**/_*.mdx"], {
   eager: true,
   query: "?mdx-component",
   import: "default",
 });
-const faqFrontmatterModules = import.meta.glob<unknown>("./content/**/*.mdx", {
+const faqFrontmatterModules = import.meta.glob<unknown>(["./content/**/*.mdx", "!./content/**/_*.mdx"], {
   eager: true,
   query: "?mdx-frontmatter",
   import: "default",
 });
-const faqTextModules = import.meta.glob<string[]>("./content/**/*.mdx", {
+const faqTextModules = import.meta.glob<string[]>(["./content/**/*.mdx", "!./content/**/_*.mdx"], {
   eager: true,
   query: "?mdx-text",
   import: "default",

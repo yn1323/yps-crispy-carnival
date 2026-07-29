@@ -50,17 +50,18 @@ export type HelpArticle = {
   searchText: string;
 };
 
-const helpModules = import.meta.glob<HelpMdxComponent>("./content/*.mdx", {
+// `_` 始まりのMDXは下書きとして扱い、バンドルにも公開ページにも含めない。
+const helpModules = import.meta.glob<HelpMdxComponent>(["./content/*.mdx", "!./content/_*.mdx"], {
   eager: true,
   query: "?mdx-component",
   import: "default",
 });
-const helpFrontmatterModules = import.meta.glob<unknown>("./content/*.mdx", {
+const helpFrontmatterModules = import.meta.glob<unknown>(["./content/*.mdx", "!./content/_*.mdx"], {
   eager: true,
   query: "?mdx-frontmatter",
   import: "default",
 });
-const helpSourceModules = import.meta.glob<string>("./content/*.mdx", {
+const helpSourceModules = import.meta.glob<string>(["./content/*.mdx", "!./content/_*.mdx"], {
   eager: true,
   query: "?mdx-source",
   import: "default",
