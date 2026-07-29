@@ -332,20 +332,24 @@ export class OrganizationSettingsPage {
   async cancelShopDeletion(shopName: string) {
     const detail = await this.openShop(shopName);
     await detail.getByRole("button", { name: "削除", exact: true }).click();
-    const confirmation = this.page.getByRole("alertdialog", { name: "店舗を削除" });
-    await expect(confirmation.getByText(`「${shopName}」を削除しますか？`, { exact: true })).toBeVisible();
-    await confirmation.getByRole("button", { name: "キャンセル" }).click();
+    const confirmation = this.page.getByRole("alertdialog", { name: `${shopName}を削除しますか？`, exact: true });
+    await expect(
+      confirmation.getByText("削除すると、この店舗と所属スタッフは利用できなくなります。", { exact: true }),
+    ).toBeVisible();
+    await confirmation.getByRole("button", { name: "キャンセル", exact: true }).click();
     await expect(confirmation).not.toBeVisible();
-    await detail.getByRole("button", { name: "前の画面に戻る" }).click();
+    await detail.getByRole("button", { name: "店舗詳細", exact: true }).click();
     await expect(this.page.getByRole("tab", { name: "店舗" })).toBeVisible();
   }
 
   async deleteShop(shopName: string) {
     const detail = await this.openShop(shopName);
     await detail.getByRole("button", { name: "削除", exact: true }).click();
-    const confirmation = this.page.getByRole("alertdialog", { name: "店舗を削除" });
-    await expect(confirmation.getByText(`「${shopName}」を削除しますか？`, { exact: true })).toBeVisible();
-    await confirmation.getByRole("button", { name: "店舗を削除" }).click();
+    const confirmation = this.page.getByRole("alertdialog", { name: `${shopName}を削除しますか？`, exact: true });
+    await expect(
+      confirmation.getByText("削除すると、この店舗と所属スタッフは利用できなくなります。", { exact: true }),
+    ).toBeVisible();
+    await confirmation.getByRole("button", { name: "店舗を削除", exact: true }).click();
     await this.expectToast("店舗の削除を受け付けました");
     await expect(confirmation).not.toBeVisible();
   }

@@ -145,7 +145,7 @@ export class DashboardPage {
     if (!registrationUrl) throw new Error("スタッフ登録URLを取得できませんでした");
     const token = new URL(registrationUrl).searchParams.get("token");
     if (!token) throw new Error("スタッフ登録URLにtokenがありません");
-    await dialog.getByRole("button", { name: "閉じる" }).click();
+    await dialog.getByRole("button", { name: "スタッフ招待を閉じる", exact: true }).click();
     await expect(dialog).not.toBeVisible();
     return token;
   }

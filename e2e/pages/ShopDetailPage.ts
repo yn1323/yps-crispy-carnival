@@ -101,7 +101,7 @@ export class ShopDetailPage {
   }
 
   async returnToDashboard() {
-    await this.page.getByRole("button", { name: "前の画面に戻る" }).click();
+    await this.page.getByRole("button", { name: "店舗詳細", exact: true }).click();
     await expect(this.page).toHaveURL(/\/dashboard(?:\?|$)/, { timeout: SHOP_DETAIL_DATA_TIMEOUT });
   }
 
