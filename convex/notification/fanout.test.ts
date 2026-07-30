@@ -1,10 +1,15 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { internal } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { seedShop } from "../_test/seed";
+import { seedManagerShop, seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { NOTIFICATION_FANOUT_BATCH_SIZE, NOTIFICATION_FANOUT_PROCESSING_LEASE_MS } from "../constants";
+import {
+  NOTIFICATION_FANOUT_BATCH_SIZE,
+  NOTIFICATION_FANOUT_CANCELLATION_BATCH_SIZE,
+  NOTIFICATION_FANOUT_PROCESSING_LEASE_MS,
+} from "../constants";
+import { ensureNotificationFanoutOperation } from "./fanout";
 
 describe("notification fanout", () => {
   beforeEach(() => {
@@ -121,6 +126,245 @@ describe("notification fanout", () => {
       cursor: NOTIFICATION_FANOUT_BATCH_SIZE,
       targetStaffIds: [...staffIds].sort((left, right) => left.localeCompare(right)),
     });
+  });
+
+  it("旧undefinedをsupersedingとして扱い、個別再送falseは全体fanoutと相互にsupersedeしない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const shopId = await seedShop(ctx, "fanout coexist店舗");
+      const staffId = await ctx.db.insert("staffs", {
+        shopId,
+        name: "fanout coexistスタッフ",
+        email: "fanout-coexist@example.com",
+        isDeleted: false,
+      });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: "2026-07-01",
+        periodEnd: "2026-07-02",
+        deadline: "2026-06-25",
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      const legacyCanonicalId = await ctx.db.insert("notificationFanoutOperations", {
+        operationKey: "legacy-canonical",
+        kind: "confirmation",
+        purpose: "confirmation",
+        recruitmentId,
+        shopId,
+        targetStaffIds: [staffId],
+        cursor: 0,
+        status: "pending",
+        dedupeSuffix: "confirm",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      return { shopId, staffId, recruitmentId, legacyCanonicalId };
+    });
+
+    const manual = await t.run(async (ctx) =>
+      ensureNotificationFanoutOperation(ctx, {
+        operationKey: "manual-supplemental",
+        kind: "confirmation",
+        purpose: "confirmation",
+        recruitmentId: ids.recruitmentId,
+        shopId: ids.shopId,
+        targetStaffIds: [ids.staffId],
+        dedupeSuffix: "staff-resend:manual-supplemental",
+        supersedeActiveOperations: false,
+        confirmationOperationKeyAtOrigin: null,
+        recruitmentDraftSavedAtAtOrigin: null,
+      }),
+    );
+    const legacyBeforeCanonical = await t.run(async (ctx) => ctx.db.get(ids.legacyCanonicalId));
+    expect(legacyBeforeCanonical).toMatchObject({ status: "pending" });
+    expect(legacyBeforeCanonical?.supersedesActiveOperations).toBeUndefined();
+
+    const canonical = await t.run(async (ctx) =>
+      ensureNotificationFanoutOperation(ctx, {
+        operationKey: "new-canonical",
+        kind: "confirmation",
+        purpose: "confirmation_resend",
+        recruitmentId: ids.recruitmentId,
+        shopId: ids.shopId,
+        targetStaffIds: [ids.staffId],
+        dedupeSuffix: "resend:new-canonical",
+        previousOperationKey: "legacy-canonical",
+      }),
+    );
+    const coexistence = await t.run(async (ctx) => ({
+      legacy: await ctx.db.get(ids.legacyCanonicalId),
+      manual: await ctx.db.get(manual.operation._id),
+      canonical: await ctx.db.get(canonical.operation._id),
+    }));
+    expect(coexistence.legacy).toMatchObject({ status: "cancelled", cancelReason: "superseded" });
+    expect(coexistence.manual).toMatchObject({ status: "pending", supersedesActiveOperations: false });
+    expect(coexistence.canonical).toMatchObject({ status: "pending", supersedesActiveOperations: true });
+
+    const staleLegacyOperationId = await t.run(async (ctx) => {
+      await ctx.db.patch(ids.recruitmentId, {
+        lastConfirmationNotificationOperationKey: canonical.operation.operationKey,
+      });
+      return await ctx.db.insert("notificationFanoutOperations", {
+        operationKey: "stale-legacy-reader",
+        kind: "confirmation",
+        purpose: "confirmation",
+        recruitmentId: ids.recruitmentId,
+        shopId: ids.shopId,
+        targetStaffIds: [ids.staffId],
+        cursor: 0,
+        status: "processing",
+        dedupeSuffix: "confirm",
+        leaseToken: "stale-legacy-lease",
+        leaseExpiresAt: Date.now() + NOTIFICATION_FANOUT_PROCESSING_LEASE_MS,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    });
+    const enqueueForOperation = async (args: {
+      operationId: Id<"notificationFanoutOperations">;
+      operationKey: string;
+      leaseToken: string;
+      dedupeSuffix: string;
+    }) => {
+      const dedupeKey = `email:confirmation:${ids.recruitmentId}:${ids.staffId}:${args.dedupeSuffix}`;
+      return await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+        channel: "email",
+        shopId: ids.shopId,
+        recruitmentId: ids.recruitmentId,
+        staffId: ids.staffId,
+        history: { notificationKind: "shift.confirmation", displayTitle: "シフト変更のお知らせ" },
+        dedupeAcrossTerminal: true,
+        fanoutTargetKey: `fanout:${args.operationKey}:${ids.staffId}`,
+        fanoutOperationId: args.operationId,
+        fanoutLeaseToken: args.leaseToken,
+        legacyFanoutDedupeKeys: [dedupeKey],
+        dedupeKey,
+        payload: {
+          kind: "email",
+          from: "シフトリ <noreply@example.com>",
+          to: "fanout-coexist@example.com",
+          subject: "シフト変更のお知らせ",
+          html: "<p>シフト変更のお知らせ</p>",
+          context: "notification.sendConfirmationEmail",
+        },
+      });
+    };
+
+    await expect(
+      enqueueForOperation({
+        operationId: staleLegacyOperationId,
+        operationKey: "stale-legacy-reader",
+        leaseToken: "stale-legacy-lease",
+        dedupeSuffix: "confirm",
+      }),
+    ).resolves.toBeNull();
+
+    const claimedManual = await t.mutation(internal.notification.mutations.claimNotificationFanoutBatch, {
+      operationId: manual.operation._id,
+    });
+    expect(claimedManual).toEqual({ state: "cancelled" });
+
+    const invalidIntermediateOperationId = await t.run(async (ctx) =>
+      ctx.db.insert("notificationFanoutOperations", {
+        operationKey: "invalid-intermediate-manual",
+        kind: "confirmation",
+        purpose: "confirmation",
+        recruitmentId: ids.recruitmentId,
+        shopId: ids.shopId,
+        targetStaffIds: [ids.staffId],
+        cursor: 0,
+        status: "pending",
+        dedupeSuffix: "staff-resend:invalid-intermediate-manual",
+        supersedesActiveOperations: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }),
+    );
+    await expect(
+      t.mutation(internal.notification.mutations.claimNotificationFanoutBatch, {
+        operationId: invalidIntermediateOperationId,
+      }),
+    ).resolves.toEqual({ state: "cancelled" });
+  });
+
+  it("個別再送operationが取消batchを超えても全体fanout作成と募集削除を妨げない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: "fanout_many_manager",
+        email: "fanout-many-manager@example.com",
+        shopName: "fanout many店舗",
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId,
+        name: "fanout manyスタッフ",
+        email: "fanout-many@example.com",
+        isDeleted: false,
+      });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: "2026-07-01",
+        periodEnd: "2026-07-02",
+        deadline: "2026-06-25",
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      for (let index = 0; index <= NOTIFICATION_FANOUT_CANCELLATION_BATCH_SIZE; index += 1) {
+        await ctx.db.insert("notificationFanoutOperations", {
+          operationKey: `manual-many-${index}`,
+          kind: "confirmation",
+          purpose: "confirmation",
+          recruitmentId,
+          shopId,
+          targetStaffIds: [staffId],
+          cursor: 0,
+          status: "pending",
+          dedupeSuffix: `staff-resend:manual-many-${index}`,
+          supersedesActiveOperations: false,
+          confirmationOperationKeyAtOrigin: null,
+          recruitmentDraftSavedAtAtOrigin: null,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      }
+      return { shopId, staffId, recruitmentId };
+    });
+
+    const canonicalOperationId = await t.mutation(
+      internal.notification.mutations.ensureConfirmationNotificationFanout,
+      {
+        recruitmentId: ids.recruitmentId,
+        isResend: true,
+        targetStaffIds: [ids.staffId],
+        operationKey: "canonical-after-many-manuals",
+      },
+    );
+    expect(canonicalOperationId).toBeTypeOf("string");
+
+    await expect(
+      t.withIdentity({ subject: "fanout_many_manager" }).mutation(api.recruitment.mutations.deleteRecruitment, {
+        shopId: ids.shopId,
+        recruitmentId: ids.recruitmentId,
+      }),
+    ).resolves.toBeNull();
+    const state = await t.run(async (ctx) => ({
+      recruitment: await ctx.db.get(ids.recruitmentId),
+      operations: await ctx.db.query("notificationFanoutOperations").collect(),
+    }));
+    expect(state.recruitment).toMatchObject({ isDeleted: true });
+    const remaining = state.operations.find((operation) => operation.status === "pending");
+    expect(remaining).toBeDefined();
+    if (!remaining) throw new Error("bounded cancellation unexpectedly cancelled every operation");
+    await expect(
+      t.mutation(internal.notification.mutations.claimNotificationFanoutBatch, { operationId: remaining._id }),
+    ).resolves.toEqual({ state: "cancelled" });
   });
 
   it("回復処理は予約漏れpendingと期限切れprocessingだけをboundedに再予約する", async () => {

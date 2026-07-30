@@ -274,19 +274,12 @@ export const LineQrDisplayBehavior: Story = {
   },
 };
 
-export const LineLinkedGuidanceBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
+export const LineLinked: Story = {
   args: {
     membership: {
       ...membership,
       line: { isLinked: true, isFollowing: true },
     },
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-
-    await expect(canvas.getByText("LINE連携設定は店舗ごとに設定をお願いします。")).toBeInTheDocument();
-    await expect(canvas.queryByText("いずれかの方法でスタッフを招待してください。")).not.toBeInTheDocument();
   },
 };
 

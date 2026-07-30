@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
+import type { MutationCtx } from "../_generated/server";
 
 export const confirmationSnapshotAssignmentValidator = v.object({
   date: v.string(),
@@ -7,6 +8,11 @@ export const confirmationSnapshotAssignmentValidator = v.object({
   endTime: v.string(),
   positionId: v.id("positions"),
   optionId: v.optional(v.string()),
+});
+
+export const confirmationSnapshotInputValidator = v.object({
+  assignments: v.array(confirmationSnapshotAssignmentValidator),
+  signature: v.string(),
 });
 
 export type ConfirmationSnapshotAssignment = {
@@ -68,5 +74,39 @@ export function buildConfirmationSnapshotsForStaffs(
       assignments: normalizedAssignments,
       signature: buildConfirmationSnapshotSignature(normalizedAssignments),
     };
+  });
+}
+
+export async function upsertConfirmationSnapshotRecord(
+  ctx: MutationCtx,
+  args: {
+    recruitmentId: Id<"recruitments">;
+    staffId: Id<"staffs">;
+    signature: string;
+    assignments: ConfirmationSnapshotAssignment[];
+    sentAt: number;
+  },
+) {
+  const now = Date.now();
+  const existing = await ctx.db
+    .query("shiftConfirmationSnapshots")
+    .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", args.recruitmentId).eq("staffId", args.staffId))
+    .first();
+  if (existing) {
+    await ctx.db.patch(existing._id, {
+      signature: args.signature,
+      assignments: args.assignments,
+      sentAt: args.sentAt,
+      updatedAt: now,
+    });
+    return existing._id;
+  }
+  return await ctx.db.insert("shiftConfirmationSnapshots", {
+    recruitmentId: args.recruitmentId,
+    staffId: args.staffId,
+    signature: args.signature,
+    assignments: args.assignments,
+    sentAt: args.sentAt,
+    updatedAt: now,
   });
 }

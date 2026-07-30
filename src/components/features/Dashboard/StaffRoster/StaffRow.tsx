@@ -46,31 +46,33 @@ export function StaffRow({ staff, onOpenDetail }: Props) {
       >
         {initial}
       </Flex>
-      <Stack gap={0} flex={1} minW={0}>
-        <Text fontWeight={500} color="gray.900" truncate>
-          {staff.name}
-        </Text>
-        <Text fontSize="xs" color="fg.muted" display={{ base: "none", lg: "block" }} truncate>
-          {staff.email}
-        </Text>
-      </Stack>
-      <HStack gap={1.5} wrap="wrap" ms="auto" flexShrink={0} justify="flex-end">
-        {staff.isManager && (
-          <Badge colorPalette="teal" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
-            管理者
-          </Badge>
-        )}
-        {isLineActive && (
-          <Badge colorPalette="green" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
-            LINE連携済み
-          </Badge>
-        )}
-        {isExcluded && (
-          <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
-            シフト対象外
-          </Badge>
-        )}
-      </HStack>
+      <Flex flex={1} minW={0} align="center" gap={1.5} wrap="wrap">
+        <Stack gap={0} flex="1 1 96px" minW={0}>
+          <Text fontWeight={500} color="gray.900" truncate>
+            {staff.name}
+          </Text>
+          <Text fontSize="xs" color="fg.muted" display={{ base: "none", lg: "block" }} truncate>
+            {staff.email}
+          </Text>
+        </Stack>
+        <HStack gap={1.5} wrap="wrap" ms="auto" minW={0} maxW="full" justify="flex-end">
+          {staff.isManager && (
+            <Badge colorPalette="teal" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
+              管理者
+            </Badge>
+          )}
+          {isLineActive && (
+            <Badge colorPalette="green" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
+              LINE連携済み
+            </Badge>
+          )}
+          {isExcluded && (
+            <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
+              シフト対象外
+            </Badge>
+          )}
+        </HStack>
+      </Flex>
       <Flex color="fg.muted" fontSize="lg" flexShrink={0} aria-hidden>
         <LuChevronRight />
       </Flex>

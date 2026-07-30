@@ -21,7 +21,13 @@ import {
   NOTIFICATION_OUTBOX_WORKER_BATCH_SIZE,
 } from "../constants";
 import { getStaffLineAccount } from "../line/service";
-import { buildNotificationFanoutTargetKey } from "../notification/fanout";
+import {
+  buildConfirmationSnapshotSignature,
+  confirmationSnapshotInputValidator,
+  normalizeConfirmationSnapshotAssignments,
+  upsertConfirmationSnapshotRecord,
+} from "../notification/confirmationSnapshots";
+import { buildNotificationFanoutTargetKey, isSupplementalConfirmationFanoutStale } from "../notification/fanout";
 import {
   billingStateReferencesBusinessPlan,
   deriveOrganizationBillingPolicy,
@@ -168,6 +174,7 @@ export const enqueue = internalMutation({
     fanoutTargetKey: v.optional(v.string()),
     fanoutOperationId: v.optional(v.id("notificationFanoutOperations")),
     fanoutLeaseToken: v.optional(v.string()),
+    confirmationSnapshot: v.optional(confirmationSnapshotInputValidator),
     legacyFanoutDedupeKeys: v.optional(v.array(v.string())),
     dedupeKey: v.string(),
     payload: notificationPayloadValidator,
@@ -186,23 +193,42 @@ export const enqueue = internalMutation({
     ) {
       throw new ConvexError("Fanout operation scope is incomplete");
     }
+    let fanoutOperation: Doc<"notificationFanoutOperations"> | null = null;
     if (args.fanoutOperationId) {
-      const operation = await ctx.db.get(args.fanoutOperationId);
-      if (!operation) return null;
+      fanoutOperation = await ctx.db.get(args.fanoutOperationId);
+      if (!fanoutOperation) return null;
       if (
         !args.staffId ||
         !args.shopId ||
-        operation.recruitmentId !== args.recruitmentId ||
-        operation.shopId !== args.shopId ||
-        !operation.targetStaffIds.includes(args.staffId)
+        fanoutOperation.recruitmentId !== args.recruitmentId ||
+        fanoutOperation.shopId !== args.shopId ||
+        !fanoutOperation.targetStaffIds.includes(args.staffId)
       ) {
         throw new ConvexError("Fanout target does not match operation");
       }
       if (hasFanoutProducerScope) {
-        if (operation.status !== "processing" || operation.leaseToken !== args.fanoutLeaseToken) return null;
-        if (buildNotificationFanoutTargetKey(operation.operationKey, args.staffId) !== args.fanoutTargetKey) {
+        if (fanoutOperation.status !== "processing" || fanoutOperation.leaseToken !== args.fanoutLeaseToken)
+          return null;
+        if (buildNotificationFanoutTargetKey(fanoutOperation.operationKey, args.staffId) !== args.fanoutTargetKey) {
           throw new ConvexError("Fanout target does not match operation");
         }
+      }
+    }
+
+    const normalizedConfirmationSnapshot = args.confirmationSnapshot
+      ? normalizeConfirmationSnapshotAssignments(args.confirmationSnapshot.assignments)
+      : undefined;
+    if (args.confirmationSnapshot) {
+      if (
+        !hasFanoutProducerScope ||
+        fanoutOperation?.kind !== "confirmation" ||
+        !args.recruitmentId ||
+        !args.staffId ||
+        fanoutOperation.recruitmentId !== args.recruitmentId ||
+        !fanoutOperation.targetStaffIds.includes(args.staffId) ||
+        args.confirmationSnapshot.signature !== buildConfirmationSnapshotSignature(normalizedConfirmationSnapshot ?? [])
+      ) {
+        throw new ConvexError("Confirmation snapshot does not match fanout operation");
       }
     }
 
@@ -326,6 +352,15 @@ export const enqueue = internalMutation({
         channel: args.channel,
         history: historyTarget.history,
         requestedAt: now,
+      });
+    }
+    if (normalizedConfirmationSnapshot && args.confirmationSnapshot && args.recruitmentId && args.staffId) {
+      await upsertConfirmationSnapshotRecord(ctx, {
+        recruitmentId: args.recruitmentId,
+        staffId: args.staffId,
+        signature: args.confirmationSnapshot.signature,
+        assignments: normalizedConfirmationSnapshot,
+        sentAt: now,
       });
     }
     return { outboxId, deduped: false };
@@ -897,6 +932,10 @@ async function getFanoutCancellationReason(
   notification: NotificationEligibilityInput,
   recruitment: Doc<"recruitments"> | null,
 ): Promise<NotificationCancelReason | undefined> {
+  // rolling deploy前の旧個別通知は受付時baselineを持たず、現在値との同一性を復元できない。
+  if (notification.dedupeKey?.startsWith(`${notification.channel}:manualConfirmation:`)) {
+    return "notification_superseded";
+  }
   if (!notification.fanoutOperationId) {
     return await getLegacyConfirmationFanoutCancellationReason(ctx, notification, recruitment);
   }
@@ -922,10 +961,14 @@ async function getFanoutCancellationReason(
   const expectedRecruitmentStatus = operation.kind === "recruitment" ? "open" : "confirmed";
   if (recruitment.status !== expectedRecruitmentStatus) return "recruitment_inactive";
   if (
+    (operation.supersedesActiveOperations ?? true) &&
     operation.kind === "confirmation" &&
     recruitment.lastConfirmationNotificationOperationKey !== undefined &&
     recruitment.lastConfirmationNotificationOperationKey !== operation.operationKey
   ) {
+    return "notification_superseded";
+  }
+  if (isSupplementalConfirmationFanoutStale(operation, recruitment)) {
     return "notification_superseded";
   }
   return undefined;

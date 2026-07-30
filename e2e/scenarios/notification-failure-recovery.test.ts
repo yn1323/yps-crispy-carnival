@@ -18,7 +18,7 @@ type FailureRecoverySeed = {
 test.describe("送れなかった通知のDashboard対応", { tag: ["@release", "@notification"] }, () => {
   test.setTimeout(45_000);
 
-  test("対応不要・個別再通知・一斉再通知を使い分けられる", async ({ page }) => {
+  test("無視・個別再通知・一斉再通知を使い分けられる", async ({ page }) => {
     const seed = seedManagerScenario<FailureRecoverySeed>("testing:seedNotificationFailureRecoveryScenario", {
       dates: getNextWeekDates(),
     });
@@ -34,8 +34,8 @@ test.describe("送れなかった通知のDashboard対応", { tag: ["@release", 
       await failures.expectFailureVisible(THIRD_STAFF_NAME);
     });
 
-    await test.step("Step 2: 1件を対応不要にして一覧から外す", async () => {
-      await failures.markAsNoActionRequired(MANAGER_NAME);
+    await test.step("Step 2: 1件を無視して一覧から外す", async () => {
+      await failures.ignore(MANAGER_NAME);
     });
 
     await test.step("Step 3: 1件を個別に再通知する", async () => {
@@ -47,7 +47,7 @@ test.describe("送れなかった通知のDashboard対応", { tag: ["@release", 
       await failures.expectAcceptedCount(2);
     });
 
-    await test.step("Step 5: 対応不要にした通知は再送せず、残りだけ再通知受付状態になっている", async () => {
+    await test.step("Step 5: 無視した通知は再送せず、残りだけ再通知受付状態になっている", async () => {
       const probe = getNotificationProbe({
         shopId: seed.shopId,
         recruitmentId: seed.recruitmentId,

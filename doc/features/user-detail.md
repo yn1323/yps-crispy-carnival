@@ -38,7 +38,7 @@ Dialog下部は左に「キャンセル」、右に「変更を保存」を配�
 スタッフ詳細の`panel`は開いているDialogを表し、`basic`はスタッフ情報、`addShop`は店舗追加を開く。
 `panel`を省略したスタッフ詳細URLはDialogを開かないページ本体を表す。
 Dialogを閉じると`panel`をURLから外し、人物ID、店舗、戻り先、一覧表示件数は維持する。
-直接URLを開いた場合も、`panel`に基本情報または店舗追加Dialogの状態を追従させる。
+直接URLを開いた場合も、`panel`にスタッフ情報または店舗追加Dialogの状態を追従させる。
 ブラウザバックまたは画面内の閉じる操作でDialogを閉じた後は、履歴上の`panel`も除去し、別画面から戻ってもDialogを再表示しない。
 旧`tab`検索パラメータは受け付けず、スタッフ詳細の状態管理には使わない。
 
@@ -90,6 +90,7 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 - LINE連携済みの場合は店舗ごとの設定案内だけを表示し、スタッフ招待の案内と連携操作を表示しない。
 - LINE連携URLの発行中はSkeletonを表示し、成功後は対象ユーザー専用のURLとQRコードをページ内へ表示する。失敗時は既存のエラー通知を表示する。
 - 通知対象の募集と確定シフトは、Dashboardと同じ色・状態表現で期間、締切または確定日、提出人数を表示する。確定シフトは終了日が今日以降の現在分と将来分を表示して再送でき、過去分は表示しない。
+- 確定シフトの個別再送は1回につき40件までを対象とする。対象が40件を超える場合は一部だけ送らず、再送を開始できないことを表示する。
 - 管理者権限解除はスタッフ情報Dialog、店舗所属解除は店舗別設定ページの確認Dialog、グループ削除はページ下部の削除カードから開く確認Dialogで実行し、最後の有効管理者などの制約に違反した場合はサーバーのエラーを表示する。
 - `managerInvitationState.kind`が`hidden`のときは管理者権限セクションを描画せず、開いていた招待・権限解除の確認も閉じ、古いcallbackからmutationを実行しない。
 - 個別通知の再送は、募集通知と終了日が今日以降の確定シフト通知の両方でactor単位とグループ単位の短時間・日次quotaを適用する。client request IDはquota keyに使わず、別managerへ切り替えてもグループquotaを共有する。
@@ -101,7 +102,7 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 - 店舗別APIは、対象スタッフと`targetShopId`の所属関係、人物との対応、削除状態、店舗状態をサーバー側で再検証する。
 - 権限のない店舗、不正な人物・店舗・スタッフの組み合わせ、削除済み対象は拒否するか、存在を区別できない最小情報のEmpty状態へ寄せる。
 - 所属店舗一覧から選ばれたことや、フロントエンドが保持する`selectedShopAtom`は認可根拠にしない。
-- 通知とLINE案内は既存のrate limit、再送quota、Outboxの冪等性と配送直前の再検証を維持する。
+- 通知とLINE案内は既存のrate limit、再送quota、Outboxの冪等性と配送直前の再検証を維持する。確定シフトの個別再送は対象募集を受付時に固定したdurable fanoutとして処理し、中断後も同じoperationとdedupe keyで再開する。Outboxへの投入後は現在の割当を通知snapshotへ記録し、後続の差分再通知で同じ内容を重複送信しない。
 - メールアドレス、LINE token、連携URL、通知本文を新しいログへ出力しない。
 
 ## 関連ファイル
@@ -150,5 +151,5 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 | `api.line.mutations.generateLinkToken` | `managerMutation` | `targetShopId`で指定した店舗のスタッフ向けLINE連携リンクを発行する |
 | `api.line.mutations.sendInvite` | `managerMutation` | `targetShopId`で指定した店舗のスタッフへLINE連携案内を送る |
 | `api.staff.mutations.sendOpenRecruitmentNotifications` | `managerMutation` | `targetShopId`で指定した店舗のスタッフへ現在送れる募集通知を、actor・グループ単位の再送quota内で予約する |
-| `api.staff.mutations.sendCurrentShiftNotification` | `managerMutation` | `targetShopId`で指定した店舗のスタッフへ終了日が今日以降の確定シフト通知を、actor・グループ単位の再送quota内で予約する |
+| `api.staff.mutations.sendCurrentShiftNotification` | `managerMutation` | `targetShopId`で指定した店舗のスタッフへ終了日が今日以降の確定シフト通知を、actor・グループ単位の再送quota内かつ最大40件でdurable fanoutとして予約する。超過時は何も予約しない |
 | `api.notificationOutbox.queries.listStaffNotificationHistory` | `managerQuery` | `targetShopId`で指定した店舗のスタッフへ送った通知履歴を最小DTOでページングする |

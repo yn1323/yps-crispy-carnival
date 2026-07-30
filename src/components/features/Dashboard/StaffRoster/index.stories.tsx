@@ -51,6 +51,23 @@ export const WithExcluded: Story = {
   },
 };
 
+export const LongNameWithAllBadgesMobile: Story = {
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  args: {
+    staffs: [
+      {
+        ...mockStaffs[0],
+        name: "東日本エリア統括マネージャー 田中花子",
+        isManager: true,
+        isLineLinked: true,
+        isLineFollowing: true,
+        excludedFromShift: true,
+      },
+    ],
+  },
+};
+
 export const Empty: Story = {
   args: {
     staffs: [],

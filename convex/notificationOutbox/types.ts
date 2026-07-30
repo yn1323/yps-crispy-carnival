@@ -1,4 +1,5 @@
 import type { Id } from "../_generated/dataModel";
+import type { ConfirmationSnapshotAssignment } from "../notification/confirmationSnapshots";
 import type { LinePushMessage } from "../notification/templates";
 
 export type NotificationHistoryInput = {
@@ -130,6 +131,11 @@ type EnqueueNotificationCommon<TPayload extends NotificationPayload> = {
   fanoutTargetKey?: string;
   fanoutOperationId?: Id<"notificationFanoutOperations">;
   fanoutLeaseToken?: string;
+  /** confirmation fanoutのOutbox作成と同じtransactionで保存する配送内容snapshot。 */
+  confirmationSnapshot?: {
+    assignments: ConfirmationSnapshotAssignment[];
+    signature: string;
+  };
   /** Widen前のfanout rowをemail/LINEどちらのdedupeKeyでもlazy照合する。 */
   legacyFanoutDedupeKeys?: readonly string[];
   dedupeKey: string;

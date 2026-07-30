@@ -123,11 +123,11 @@ test.describe("正規グループの通知目的別Full Regression", { tag: ["@r
     });
   });
 
-  test("ユーザー詳細からLINE連携案内を手動再送できる", async ({ page, e2eClerkUser }) => {
+  test("スタッフ詳細からLINE連携案内を手動再送できる", async ({ page, e2eClerkUser }) => {
     const seed = seedManagerScenario<{ shopId: string }>("testing:seedLineLinkScenario");
     const dashboard = new DashboardPage(page);
 
-    await test.step("Step 1: ユーザー詳細の店舗ダイアログからLINE連携案内を送る", async () => {
+    await test.step("Step 1: スタッフ詳細の店舗別設定からLINE連携案内を再送する", async () => {
       assertNotificationDeliverySuppressed(seed.shopId);
       await dashboard.goto();
       await dashboard.sendLineInvite(MANAGER.name);
@@ -160,7 +160,7 @@ test.describe("正規グループの通知目的別Full Regression", { tag: ["@r
     });
     const dashboard = new DashboardPage(page);
 
-    await test.step("Step 1: ユーザー詳細から募集中シフトを送る", async () => {
+    await test.step("Step 1: スタッフ詳細から募集中シフトを再送する", async () => {
       assertNotificationDeliverySuppressed(seed.shopId);
       await dashboard.goto();
       await dashboard.sendOpenRecruitmentNotification(MANAGER.name);
@@ -227,13 +227,13 @@ test.describe("正規グループの通知目的別Full Regression", { tag: ["@r
     });
   });
 
-  test("ユーザー詳細から現在の確定シフトを手動通知できる", async ({ page, e2eClerkUser }) => {
+  test("スタッフ詳細から確定シフトを手動再送できる", async ({ page, e2eClerkUser }) => {
     const seed = seedManagerScenario<ShopSeed>("testing:seedCurrentShiftManualNotificationScenario", {
       dates: getCurrentShiftDates(),
     });
     const dashboard = new DashboardPage(page);
 
-    await test.step("Step 1: ユーザー詳細から現在の確定シフトを送る", async () => {
+    await test.step("Step 1: スタッフ詳細から確定シフトを再送する", async () => {
       assertNotificationDeliverySuppressed(seed.shopId);
       await dashboard.goto();
       await dashboard.sendCurrentShiftNotification(MANAGER.name);

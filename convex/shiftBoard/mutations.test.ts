@@ -99,6 +99,129 @@ async function seedCurrentConfirmationSnapshots(
   });
 }
 
+async function seedConfirmationEmailOutboxes(
+  t: TestConvex<typeof schema>,
+  recruitmentId: Id<"recruitments">,
+  staffIds: Id<"staffs">[],
+  status: "pending" | "processing" | "sent",
+) {
+  return await t.run(async (ctx) => {
+    const recruitment = await ctx.db.get(recruitmentId);
+    const operationKey = recruitment?.lastConfirmationNotificationOperationKey;
+    if (!recruitment || !operationKey) throw new Error("previous confirmation operation was not recorded");
+    const operation = await ctx.db
+      .query("notificationFanoutOperations")
+      .withIndex("by_operationKey", (q) => q.eq("operationKey", operationKey))
+      .unique();
+    if (!operation) throw new Error("previous confirmation operation was not created");
+    const now = Date.now();
+    const outboxIds: Id<"notificationOutbox">[] = [];
+
+    for (const staffId of staffIds) {
+      const staff = await ctx.db.get(staffId);
+      if (!staff) throw new Error("confirmation staff was not found");
+      outboxIds.push(
+        await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status,
+          dedupeKey: `email:confirmation:${recruitmentId}:${staffId}:${operation.dedupeSuffix}`,
+          fanoutTargetKey: `fanout:${operationKey}:${staffId}`,
+          fanoutOperationId: operation._id,
+          shopId: recruitment.shopId,
+          recruitmentId,
+          staffId,
+          purpose: "business",
+          payload: {
+            kind: "email",
+            from: "シフトリ <noreply@example.com>",
+            to: staff.email,
+            subject: "シフト確定のお知らせ",
+            html: "<p>シフト確定のお知らせ</p>",
+            context: "notification.sendConfirmationEmail",
+          },
+          attemptCount: status === "pending" ? 0 : 1,
+          nextRunAt: now,
+          ...(status === "processing" ? { processingStartedAt: now } : {}),
+          ...(status === "sent" ? { sentAt: now, terminalAt: now } : {}),
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
+    }
+    return outboxIds;
+  });
+}
+
+async function seedLineConfirmationWithFallback(
+  t: TestConvex<typeof schema>,
+  recruitmentId: Id<"recruitments">,
+  staffId: Id<"staffs">,
+  fallbackStatus: "processing" | "sent",
+) {
+  await t.run(async (ctx) => {
+    const recruitment = await ctx.db.get(recruitmentId);
+    const operationKey = recruitment?.lastConfirmationNotificationOperationKey;
+    if (!recruitment || !operationKey) throw new Error("previous confirmation operation was not recorded");
+    const operation = await ctx.db
+      .query("notificationFanoutOperations")
+      .withIndex("by_operationKey", (q) => q.eq("operationKey", operationKey))
+      .unique();
+    const staff = await ctx.db.get(staffId);
+    if (!operation || !staff) throw new Error("confirmation delivery target was not found");
+    const now = Date.now();
+    const fallbackDedupeKey = `email:confirmation:${recruitmentId}:${staffId}:${operation.dedupeSuffix}`;
+    const emailPayload = {
+      kind: "email" as const,
+      from: "シフトリ <noreply@example.com>",
+      to: staff.email,
+      subject: "シフト確定のお知らせ",
+      html: "<p>シフト確定のお知らせ</p>",
+      context: "notification.sendConfirmationEmail",
+    };
+
+    await ctx.db.insert("notificationOutbox", {
+      channel: "line",
+      status: "failed",
+      dedupeKey: `line:confirmation:${recruitmentId}:${staffId}:${operation.dedupeSuffix}`,
+      fanoutTargetKey: `fanout:${operationKey}:${staffId}`,
+      fanoutOperationId: operation._id,
+      shopId: recruitment.shopId,
+      recruitmentId,
+      staffId,
+      purpose: "business",
+      payload: {
+        kind: "line",
+        toUserId: `U-${staffId}`,
+        text: "シフト確定のお知らせ",
+        fallbackEmail: { dedupeKey: fallbackDedupeKey, payload: emailPayload },
+      },
+      attemptCount: 1,
+      nextRunAt: now,
+      lastError: "line_quota_fallback_enqueued",
+      failedAt: now,
+      terminalAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ctx.db.insert("notificationOutbox", {
+      channel: "email",
+      status: fallbackStatus,
+      dedupeKey: fallbackDedupeKey,
+      fanoutOperationId: operation._id,
+      shopId: recruitment.shopId,
+      recruitmentId,
+      staffId,
+      purpose: "business",
+      payload: emailPayload,
+      attemptCount: 1,
+      nextRunAt: now,
+      ...(fallbackStatus === "processing" ? { processingStartedAt: now } : { sentAt: now, terminalAt: now }),
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+}
+
 describe("shiftBoard/mutations", () => {
   describe("saveShiftAssignments", () => {
     beforeEach(() => {
@@ -873,6 +996,7 @@ describe("shiftBoard/mutations", () => {
       });
       await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, shopId });
       await seedCurrentConfirmationSnapshots(t, recruitmentId, [staffId1, staffId2]);
+      await seedConfirmationEmailOutboxes(t, recruitmentId, [staffId1, staffId2], "sent");
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
@@ -895,6 +1019,136 @@ describe("shiftBoard/mutations", () => {
       expect(result).toEqual({ status: "scheduled", notifiedStaffCount: 1 });
       expect(resendJob?.args[0]?.targetStaffIds).toEqual([staffId1]);
       expect(resendJob?.args[0]?.notificationRunId).toBeTypeOf("number");
+    });
+
+    it("前回Outboxが未送信または未作成なら次の再通知へ引き継ぎ、処理中なら再確定を止める", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, recruitmentId, staffId1, staffId2 } = await setupTestData(t);
+      const asManager = t.withIdentity({ subject: "user_manager" });
+
+      await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
+        recruitmentId,
+        assignments: [
+          { staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" },
+          { staffId: staffId2, date: "2026-01-20", startTime: "12:00", endTime: "20:00" },
+        ],
+      });
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, shopId });
+      await seedCurrentConfirmationSnapshots(t, recruitmentId, [staffId1, staffId2]);
+      await seedConfirmationEmailOutboxes(t, recruitmentId, [staffId1, staffId2], "pending");
+
+      await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
+        recruitmentId,
+        assignments: [
+          { staffId: staffId1, date: "2026-01-20", startTime: "11:00", endTime: "18:00" },
+          { staffId: staffId2, date: "2026-01-20", startTime: "12:00", endTime: "20:00" },
+        ],
+      });
+      const result = await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        shopId,
+        recruitmentId,
+        intent: "resend",
+      });
+      const firstResendOperation = await t.run(async (ctx) => {
+        const recruitment = await ctx.db.get(recruitmentId);
+        const operationKey = recruitment?.lastConfirmationNotificationOperationKey;
+        if (!operationKey) return null;
+        return await ctx.db
+          .query("notificationFanoutOperations")
+          .withIndex("by_operationKey", (q) => q.eq("operationKey", operationKey))
+          .unique();
+      });
+
+      expect(result).toEqual({ status: "scheduled", notifiedStaffCount: 2 });
+      expect(firstResendOperation?.targetStaffIds.toSorted()).toEqual([staffId1, staffId2].toSorted());
+
+      // 直前actionがまだOutboxを作っていなくても、さらに新しいoperationから対象を落とさない。
+      await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
+        recruitmentId,
+        assignments: [
+          { staffId: staffId1, date: "2026-01-20", startTime: "12:00", endTime: "18:00" },
+          { staffId: staffId2, date: "2026-01-20", startTime: "12:00", endTime: "20:00" },
+        ],
+      });
+      const chainedResult = await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        shopId,
+        recruitmentId,
+        intent: "resend",
+      });
+      const latestOperation = await t.run(async (ctx) => {
+        const recruitment = await ctx.db.get(recruitmentId);
+        const operationKey = recruitment?.lastConfirmationNotificationOperationKey;
+        if (!operationKey) return null;
+        return await ctx.db
+          .query("notificationFanoutOperations")
+          .withIndex("by_operationKey", (q) => q.eq("operationKey", operationKey))
+          .unique();
+      });
+
+      expect(chainedResult).toEqual({ status: "scheduled", notifiedStaffCount: 2 });
+      expect(latestOperation?.operationKey).not.toBe(firstResendOperation?.operationKey);
+      expect(latestOperation?.targetStaffIds.toSorted()).toEqual([staffId1, staffId2].toSorted());
+
+      // provider呼び出し中のOutboxを新operationで追い越すと二重送信になり得るため、一時的に拒否する。
+      if (!latestOperation) throw new Error("latest confirmation operation was not created");
+      const [processingOutboxId] = await seedConfirmationEmailOutboxes(t, recruitmentId, [staffId1], "processing");
+      await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
+        recruitmentId,
+        assignments: [
+          { staffId: staffId1, date: "2026-01-20", startTime: "13:00", endTime: "18:00" },
+          { staffId: staffId2, date: "2026-01-20", startTime: "12:00", endTime: "20:00" },
+        ],
+      });
+
+      await expect(
+        asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          shopId,
+          recruitmentId,
+          intent: "resend",
+        }),
+      ).rejects.toThrow("前回の確定シフト通知を送信中です");
+      const stateAfterBlockedResend = await t.run(async (ctx) => ({
+        recruitment: await ctx.db.get(recruitmentId),
+        jobs: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+          (job) => job.name === CONFIRMATION_EMAIL_JOB,
+        ),
+      }));
+      expect(stateAfterBlockedResend.recruitment?.lastConfirmationNotificationOperationKey).toBe(
+        latestOperation.operationKey,
+      );
+      expect(stateAfterBlockedResend.jobs).toHaveLength(3);
+
+      // LINE失敗後のfallbackメールもprovider呼び出し中なら、同じ境界で再確定を止める。
+      if (!processingOutboxId) throw new Error("processing confirmation outbox was not created");
+      await t.run(async (ctx) => {
+        const now = Date.now();
+        await ctx.db.patch(processingOutboxId, {
+          status: "failed",
+          processingStartedAt: undefined,
+          failedAt: now,
+          terminalAt: now,
+          updatedAt: now,
+        });
+      });
+      await seedLineConfirmationWithFallback(t, recruitmentId, staffId2, "processing");
+
+      await expect(
+        asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          shopId,
+          recruitmentId,
+          intent: "resend",
+        }),
+      ).rejects.toThrow("前回の確定シフト通知を送信中です");
+      const jobsAfterFallbackBlockedResend = await t.run(async (ctx) =>
+        (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+          (job) => job.name === CONFIRMATION_EMAIL_JOB,
+        ),
+      );
+      expect(jobsAfterFallbackBlockedResend).toHaveLength(3);
     });
 
     it("異なるmanager・requestId・時刻でも同じsemantic再送を一つのdurable operationへ収束させる", async () => {
@@ -920,6 +1174,7 @@ describe("shiftBoard/mutations", () => {
       });
       const confirmedOperation = await t.run(async (ctx) => await ctx.db.get(recruitmentId));
       await seedCurrentConfirmationSnapshots(t, recruitmentId, [staffId1, staffId2]);
+      await seedConfirmationEmailOutboxes(t, recruitmentId, [staffId1, staffId2], "sent");
 
       await firstManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
@@ -1015,6 +1270,8 @@ describe("shiftBoard/mutations", () => {
       });
       await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, shopId });
       await seedCurrentConfirmationSnapshots(t, recruitmentId, [staffId1, staffId2]);
+      await seedConfirmationEmailOutboxes(t, recruitmentId, [staffId1], "sent");
+      await seedLineConfirmationWithFallback(t, recruitmentId, staffId2, "sent");
 
       const result = await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
         shopId,

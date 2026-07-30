@@ -83,6 +83,7 @@ async function enqueueNotification(ctx: EnqueueCtx, input: EnqueueNotificationIn
       ...(input.fanoutTargetKey ? { fanoutTargetKey: input.fanoutTargetKey } : {}),
       ...(input.fanoutOperationId ? { fanoutOperationId: input.fanoutOperationId } : {}),
       ...(input.fanoutLeaseToken ? { fanoutLeaseToken: input.fanoutLeaseToken } : {}),
+      ...(input.confirmationSnapshot ? { confirmationSnapshot: input.confirmationSnapshot } : {}),
       ...(input.legacyFanoutDedupeKeys ? { legacyFanoutDedupeKeys: [...input.legacyFanoutDedupeKeys] } : {}),
       dedupeKey: input.dedupeKey,
       payload: input.payload,

@@ -441,7 +441,7 @@ export class OrganizationSettingsPage {
   }
 
   private personRow(personName: string) {
-    return this.page.getByRole("button", { name: `${personName}のユーザー詳細を開く` });
+    return this.page.getByRole("button", { name: `${personName}のスタッフ詳細を開く` });
   }
 
   private shopRow(shopName: string) {

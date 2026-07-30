@@ -129,4 +129,38 @@ describe("useUserShopNotificationActions", () => {
     expect(mocks.sendOpen).not.toHaveBeenCalled();
     expect(mocks.sendCurrent).not.toHaveBeenCalled();
   });
+
+  it("確定シフトが再送上限を超えた場合は処理を始めず理由を案内する", async () => {
+    mocks.sendCurrent.mockResolvedValue({ scheduled: false, reason: "tooManyCurrentShifts" });
+    const { result } = renderHook(() =>
+      useUserShopNotificationActions({ targetShopId, membership, isReadOnly: false }),
+    );
+
+    await act(async () => {
+      await result.current.sendCurrentShift();
+    });
+
+    expect(mocks.createToast).toHaveBeenCalledExactlyOnceWith({
+      title: "確定シフトが40件を超えるため、一度に再送できません",
+      type: "error",
+    });
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+  });
+
+  it("未確定の変更がある場合は確定後の再送を案内する", async () => {
+    mocks.sendCurrent.mockResolvedValue({ scheduled: false, reason: "unconfirmedChanges" });
+    const { result } = renderHook(() =>
+      useUserShopNotificationActions({ targetShopId, membership, isReadOnly: false }),
+    );
+
+    await act(async () => {
+      await result.current.sendCurrentShift();
+    });
+
+    expect(mocks.createToast).toHaveBeenCalledExactlyOnceWith({
+      title: "未確定の変更があるため、シフトを確定してから再送してください",
+      type: "error",
+    });
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+  });
 });

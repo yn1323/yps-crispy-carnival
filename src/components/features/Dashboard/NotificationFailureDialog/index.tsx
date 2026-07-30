@@ -27,8 +27,8 @@ type Props = {
 };
 
 const EMAIL_FAILURE_HELP_LINES = [
-  "何度も送れない場合は、メールアドレスが誤っている可能性があります。スタッフ詳細で登録メールアドレスを確認してください。",
-  "メールアドレスを直せない場合は、スタッフ詳細のLINEから連携リンクを案内できます。",
+  "スタッフ詳細で、登録メールアドレスに誤りがないか確認してください。問題が見つからない場合は、時間をおいて再送してください。",
+  "メールを利用できない場合は、スタッフ詳細で対象店舗を開き、LINE連携リンクを案内できます。",
 ];
 
 export const NotificationFailureDialogContent = ({
@@ -68,7 +68,7 @@ export const NotificationFailureDialogContent = ({
       >
         <Text fontSize="sm" color="fg.muted" whiteSpace="pre-line">
           {
-            "送れなかった通知の再送が可能です。\n送信に何度も失敗する場合、LINE、メールアドレスが誤っている可能性が高いです。"
+            "送れなかった通知は再送できます。\n何度も失敗する場合は、スタッフの通知先やLINE連携状態を確認してください。問題が見つからない場合は、時間をおいて再送してください。"
           }
         </Text>
         <Button

@@ -149,14 +149,16 @@ const StaffRowSkeleton = ({ isManager, showLineLinked }: { isManager: boolean; s
     minH="68px"
   >
     <Skeleton boxSize="40px" borderRadius="full" flexShrink={0} />
-    <Stack gap={0} flex={1} minW={0}>
-      <Skeleton h="20px" w={{ base: "96px", lg: "112px" }} />
-      <Skeleton h="16px" w="180px" display={{ base: "none", lg: "block" }} />
-    </Stack>
-    <HStack gap={1.5} ms="auto" flexShrink={0} justify="flex-end">
-      {isManager && <Skeleton h="20px" w="52px" borderRadius="full" />}
-      {showLineLinked && <Skeleton h="20px" w="78px" borderRadius="full" />}
-    </HStack>
+    <Flex flex={1} minW={0} align="center" gap={1.5} wrap="wrap">
+      <Stack gap={0} flex="1 1 96px" minW={0}>
+        <Skeleton h="20px" w={{ base: "96px", lg: "112px" }} maxW="full" />
+        <Skeleton h="16px" w="180px" maxW="full" display={{ base: "none", lg: "block" }} />
+      </Stack>
+      <HStack gap={1.5} wrap="wrap" ms="auto" minW={0} maxW="full" justify="flex-end">
+        {isManager && <Skeleton h="20px" w="52px" borderRadius="full" />}
+        {showLineLinked && <Skeleton h="20px" w="78px" borderRadius="full" />}
+      </HStack>
+    </Flex>
     <Skeleton boxSize="32px" borderRadius="md" flexShrink={0} />
   </HStack>
 );

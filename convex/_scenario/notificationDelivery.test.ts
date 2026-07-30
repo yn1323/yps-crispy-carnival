@@ -9,12 +9,14 @@ import { createScenario } from "../_test/scenarioFixtures";
 import { seedManagerShop, seedStaffLineAccount } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import {
+  MAGIC_LINK_DEFAULT_TTL_MS,
   NOTIFICATION_FANOUT_BATCH_SIZE,
   NOTIFICATION_FANOUT_PROCESSING_LEASE_MS,
   NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
   NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS,
   RESEND_EMAIL_SEND_INTERVAL_MS,
 } from "../constants";
+import { buildConfirmationSnapshotSignature } from "../notification/confirmationSnapshots";
 
 async function getOutboxJobs(t: ScenarioTest) {
   return await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
@@ -445,8 +447,32 @@ describe("通知配送outboxシナリオ", () => {
         fanoutOperationId: latestOperationId,
         fanoutTargetKey: `fanout:${latestOperationKey}:${staffId}`,
       });
-      return { oldOutboxId, legacyOldOutboxId, latestOutboxId };
+      // deploy前の旧個別通知は受付baselineを持たないため常にfail closedとする。
+      const legacyManualOutboxId = await insertOutbox({
+        dedupeKey: `email:manualConfirmation:${recruitmentId}:${staffId}:old-worker`,
+        subject: "旧個別確定通知",
+      });
+      return { shopId, staffId, recruitmentId, oldOutboxId, legacyOldOutboxId, legacyManualOutboxId, latestOutboxId };
     });
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.enqueue, {
+        channel: "email",
+        shopId: ids.shopId,
+        recruitmentId: ids.recruitmentId,
+        staffId: ids.staffId,
+        historyMode: "legacy_no_history",
+        dedupeKey: `email:manualConfirmation:${ids.recruitmentId}:${ids.staffId}:in-progress-worker`,
+        payload: {
+          kind: "email",
+          from: "シフトリ <noreply@example.com>",
+          to: "confirmation-epoch@example.com",
+          subject: "旧個別確定通知",
+          html: "<p>旧個別確定通知</p>",
+          context: "notification.sendConfirmationEmail",
+        },
+      }),
+    ).resolves.toBeNull();
 
     await t.action(internal.notificationOutbox.actions.processPending, {});
 
@@ -454,10 +480,12 @@ describe("通知配送outboxシナリオ", () => {
     const state = await t.run(async (ctx) => ({
       old: await ctx.db.get(ids.oldOutboxId),
       legacyOld: await ctx.db.get(ids.legacyOldOutboxId),
+      legacyManual: await ctx.db.get(ids.legacyManualOutboxId),
       latest: await ctx.db.get(ids.latestOutboxId),
     }));
     expect(state.old).toMatchObject({ status: "cancelled", cancelReason: "notification_superseded" });
     expect(state.legacyOld).toMatchObject({ status: "cancelled", cancelReason: "notification_superseded" });
+    expect(state.legacyManual).toMatchObject({ status: "cancelled", cancelReason: "notification_superseded" });
     expect(state.latest).toMatchObject({ status: "sent", resendEmailId: "email_latest_confirmation" });
   });
 
@@ -961,7 +989,9 @@ describe("通知配送outboxシナリオ", () => {
     ).toEqual([ids.emailStaffId, ids.lineStaffId].sort());
   });
 
-  it("手動の確定シフト通知は現在と将来の確定シフトを1スタッフへ送る", async () => {
+  it("手動の確定シフト通知はdurableに再開しても同じ内容を重複しない", async () => {
+    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "");
+    vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "");
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);
@@ -1004,7 +1034,218 @@ describe("通知配送outboxシナリオ", () => {
         endTime: "18:00",
         positionId,
       });
-      const futureRecruitmentId = await ctx.db.insert("recruitments", {
+      return { shopId, staffId, positionId, currentRecruitmentId };
+    });
+
+    await expect(asManager.sendCurrentShiftNotification(ids.staffId)).resolves.toEqual({ scheduled: true });
+    const scheduledBeforeDelivery = await t.run(async (ctx) =>
+      (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+        (job) =>
+          job.name === "notification/actions:sendShiftConfirmationEmails" &&
+          (job.state.kind === "pending" || job.state.kind === "inProgress"),
+      ),
+    );
+    expect(
+      scheduledBeforeDelivery
+        .map((job) => ({
+          recruitmentId: job.args[0]?.recruitmentId,
+          isResend: job.args[0]?.isResend,
+          fanoutOperationId: job.args[0]?.fanoutOperationId,
+        }))
+        .sort((left, right) => String(left.recruitmentId).localeCompare(String(right.recruitmentId))),
+    ).toEqual(
+      [ids.currentRecruitmentId]
+        .map((recruitmentId) => ({
+          recruitmentId,
+          isResend: false,
+          fanoutOperationId: expect.any(String),
+        }))
+        .sort((left, right) => String(left.recruitmentId).localeCompare(String(right.recruitmentId))),
+    );
+
+    vi.advanceTimersByTime(0);
+    await t.finishInProgressScheduledFunctions();
+
+    const state = await t.run(async (ctx) => ({
+      jobs: await ctx.db.query("notificationOutbox").collect(),
+      magicLinks: (await ctx.db.query("magicLinks").collect()).filter((link) => link.accessKind === "view"),
+      histories: await ctx.db.query("notificationHistory").collect(),
+      operations: (await ctx.db.query("notificationFanoutOperations").collect()).filter((operation) =>
+        operation.operationKey.startsWith("shift.confirmation.staff-resend:v1:"),
+      ),
+      scheduledFunctions: await ctx.db.system.query("_scheduled_functions").collect(),
+      snapshots: (await ctx.db.query("shiftConfirmationSnapshots").collect()).filter(
+        (snapshot) => snapshot.staffId === ids.staffId,
+      ),
+    }));
+    const operationByRecruitmentId = new Map(state.operations.map((operation) => [operation.recruitmentId, operation]));
+    const manualOperationIds = new Set(state.operations.map((operation) => operation.operationKey.split(":").at(-1)));
+
+    expect(state.operations).toHaveLength(1);
+    expect(manualOperationIds.size).toBe(1);
+    const manualOperationIdSet = new Set(state.operations.map((operation) => operation._id));
+    expect(
+      state.scheduledFunctions.filter(
+        (job) =>
+          job.name === "notification/actions:sendShiftConfirmationEmails" &&
+          manualOperationIdSet.has(job.args[0]?.fanoutOperationId) &&
+          (job.state.kind === "pending" || job.state.kind === "inProgress" || job.state.kind === "failed"),
+      ),
+    ).toEqual([]);
+    for (const recruitmentId of [ids.currentRecruitmentId]) {
+      expect(operationByRecruitmentId.get(recruitmentId)).toMatchObject({
+        kind: "confirmation",
+        purpose: "confirmation",
+        targetStaffIds: [ids.staffId],
+        cursor: 1,
+        status: "completed",
+        supersedesActiveOperations: false,
+        confirmationOperationKeyAtOrigin: null,
+        recruitmentDraftSavedAtAtOrigin: null,
+      });
+    }
+    expect(
+      state.jobs
+        .map((job) => ({
+          recruitmentId: job.recruitmentId,
+          staffId: job.staffId,
+          channel: job.channel,
+          dedupeKey: job.dedupeKey,
+          fanoutTargetKey: job.fanoutTargetKey,
+          fanoutOperationId: job.fanoutOperationId,
+        }))
+        .sort((left, right) => String(left.recruitmentId).localeCompare(String(right.recruitmentId))),
+    ).toEqual(
+      [ids.currentRecruitmentId]
+        .map((recruitmentId) => {
+          const operation = operationByRecruitmentId.get(recruitmentId);
+          return {
+            recruitmentId,
+            staffId: ids.staffId,
+            channel: "email",
+            dedupeKey: `email:confirmation:${recruitmentId}:${ids.staffId}:${operation?.dedupeSuffix}`,
+            fanoutTargetKey: `fanout:${operation?.operationKey}:${ids.staffId}`,
+            fanoutOperationId: operation?._id,
+          };
+        })
+        .sort((left, right) => String(left.recruitmentId).localeCompare(String(right.recruitmentId))),
+    );
+    expect(state.jobs[0]?.payload).toMatchObject({
+      kind: "email",
+      to: "manual-confirmation@example.com",
+      context: "notification.sendConfirmationEmail",
+      subject: expect.stringContaining("シフト確定のお知らせ"),
+    });
+    for (const job of state.jobs) {
+      if (job.payload.kind !== "email") throw new Error("manual confirmation was not enqueued as email");
+      expect(job.payload.subject).toContain("シフト確定のお知らせ");
+      expect(job.payload.subject).not.toContain("シフト変更のお知らせ");
+    }
+    expect(state.histories).toHaveLength(1);
+    for (const history of state.histories) {
+      expect(history.displayTitle).toContain("シフト確定のお知らせ");
+      expect(history.displayTitle).not.toContain("シフト変更のお知らせ");
+    }
+    expect(
+      state.magicLinks
+        .map((link) => ({
+          recruitmentId: link.recruitmentId,
+          staffId: link.staffId,
+          notificationOperationKey: link.notificationOperationKey,
+        }))
+        .sort((left, right) => String(left.recruitmentId).localeCompare(String(right.recruitmentId))),
+    ).toEqual(
+      [ids.currentRecruitmentId]
+        .map((recruitmentId) => ({
+          recruitmentId,
+          staffId: ids.staffId,
+          notificationOperationKey: operationByRecruitmentId.get(recruitmentId)?.operationKey,
+        }))
+        .sort((left, right) => String(left.recruitmentId).localeCompare(String(right.recruitmentId))),
+    );
+    const expectedSnapshots = [
+      {
+        recruitmentId: ids.currentRecruitmentId,
+        assignments: [
+          {
+            date: scenarioDate(0),
+            startTime: "10:00",
+            endTime: "18:00",
+            positionId: ids.positionId,
+          },
+        ],
+      },
+    ].map((snapshot) => ({
+      ...snapshot,
+      staffId: ids.staffId,
+      signature: buildConfirmationSnapshotSignature(snapshot.assignments),
+    }));
+    expect(
+      state.snapshots
+        .map(({ recruitmentId, staffId, assignments, signature }) => ({
+          recruitmentId,
+          staffId,
+          assignments,
+          signature,
+        }))
+        .sort((left, right) => left.recruitmentId.localeCompare(right.recruitmentId)),
+    ).toEqual(expectedSnapshots.sort((left, right) => left.recruitmentId.localeCompare(right.recruitmentId)));
+
+    for (const operation of state.operations) {
+      await t.action(internal.notification.actions.sendShiftConfirmationEmails, {
+        recruitmentId: operation.recruitmentId,
+        isResend: false,
+        fanoutOperationId: operation._id,
+      });
+    }
+    const afterCompletedRetry = await t.run(async (ctx) => ({
+      jobs: await ctx.db.query("notificationOutbox").collect(),
+      magicLinks: (await ctx.db.query("magicLinks").collect()).filter((link) => link.accessKind === "view"),
+      snapshots: (await ctx.db.query("shiftConfirmationSnapshots").collect()).filter(
+        (snapshot) => snapshot.staffId === ids.staffId,
+      ),
+    }));
+    expect(afterCompletedRetry).toEqual({
+      jobs: state.jobs,
+      magicLinks: state.magicLinks,
+      snapshots: state.snapshots,
+    });
+    for (const [index, recruitmentId] of [ids.currentRecruitmentId].entries()) {
+      await expect(
+        t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          shopId: ids.shopId,
+          recruitmentId,
+          intent: "resend",
+          requestId: `atomic-snapshot-no-changes-${index}`,
+        }),
+      ).resolves.toEqual({ status: "no_changes", notifiedStaffCount: 0 });
+    }
+  });
+
+  it("fanout recoveryは旧Outboxへのdedupeでsnapshotを進めず、現在Outboxの欠落snapshotだけを修復する", async () => {
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "snapshot-recovery-manager@example.com",
+        shopName: "snapshot recovery店舗",
+      });
+      const staffId = await seedStaff(ctx, {
+        shopId,
+        name: "snapshot recoveryスタッフ",
+        email: "snapshot-recovery@example.com",
+      });
+      const positionId = await ctx.db.insert("positions", {
+        shopId,
+        name: "シフト",
+        color: "#3b82f6",
+        sortOrder: 0,
+        isDefault: true,
+        isDeleted: false,
+      });
+      const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,
         periodStart: scenarioDate(7),
         periodEnd: scenarioDate(13),
@@ -1016,41 +1257,576 @@ describe("通知配送outboxシナリオ", () => {
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       await ctx.db.insert("shiftAssignments", {
-        recruitmentId: futureRecruitmentId,
+        recruitmentId,
         staffId,
         date: scenarioDate(7),
-        startTime: "12:00",
-        endTime: "20:00",
+        startTime: "09:00",
+        endTime: "17:00",
         positionId,
       });
-      return { staffId, currentRecruitmentId, futureRecruitmentId };
+      return { shopId, staffId, positionId, recruitmentId };
     });
-
-    await asManager.sendCurrentShiftNotification(ids.staffId);
-    await t.action(internal.notification.actions.sendCurrentShiftConfirmationForStaff, { staffId: ids.staffId });
-
-    const [jobs, magicLinks] = await Promise.all([getOutboxJobs(t), getMagicLinks(t)]);
-    expect(jobs.map((job) => job.dedupeKey)).toEqual([
-      `email:manualConfirmation:${ids.currentRecruitmentId}:${ids.staffId}:${SCENARIO_NOW}`,
-      `email:manualConfirmation:${ids.futureRecruitmentId}:${ids.staffId}:${SCENARIO_NOW}`,
-    ]);
-    expect(jobs[0]).toMatchObject({
+    const operationKey = "snapshot-recovery-operation";
+    const operationId = await t.mutation(internal.notification.mutations.ensureConfirmationNotificationFanout, {
+      recruitmentId: ids.recruitmentId,
+      isResend: false,
+      targetStaffIds: [ids.staffId],
+      operationKey,
+    });
+    if (!operationId) throw new Error("snapshot recovery operation was not created");
+    await t.run(async (ctx) =>
+      ctx.db.patch(ids.recruitmentId, { lastConfirmationNotificationOperationKey: operationKey }),
+    );
+    const claimed = await t.mutation(internal.notification.mutations.claimNotificationFanoutBatch, { operationId });
+    if (claimed.state !== "claimed") throw new Error("snapshot recovery operation was not claimed");
+    const dedupeKey = `email:confirmation:${ids.recruitmentId}:${ids.staffId}:confirm`;
+    const firstEnqueue = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
       channel: "email",
+      shopId: ids.shopId,
+      recruitmentId: ids.recruitmentId,
       staffId: ids.staffId,
-      payload: expect.objectContaining({
+      history: { notificationKind: "shift.confirmation", displayTitle: "Aを送信" },
+      dedupeAcrossTerminal: true,
+      fanoutTargetKey: `fanout:${operationKey}:${ids.staffId}`,
+      fanoutOperationId: operationId,
+      fanoutLeaseToken: claimed.leaseToken,
+      confirmationSnapshot: {
+        assignments: [
+          {
+            date: scenarioDate(7),
+            startTime: "09:00",
+            endTime: "17:00",
+            positionId: ids.positionId,
+          },
+        ],
+        signature: buildConfirmationSnapshotSignature([
+          {
+            date: scenarioDate(7),
+            startTime: "09:00",
+            endTime: "17:00",
+            positionId: ids.positionId,
+          },
+        ]),
+      },
+      legacyFanoutDedupeKeys: [dedupeKey, `line:confirmation:${ids.recruitmentId}:${ids.staffId}:confirm`],
+      dedupeKey,
+      payload: {
         kind: "email",
-        to: "manual-confirmation@example.com",
+        from: "シフトリ <noreply@example.com>",
+        to: "snapshot-recovery@example.com",
+        subject: "Aを送信",
+        html: "<p>Aを送信</p>",
         context: "notification.sendConfirmationEmail",
-      }),
+      },
     });
-    expect(
-      magicLinks
-        .filter((link) => link.accessKind === "view")
-        .map((link) => ({ recruitmentId: link.recruitmentId, staffId: link.staffId })),
-    ).toEqual([
-      { recruitmentId: ids.currentRecruitmentId, staffId: ids.staffId },
-      { recruitmentId: ids.futureRecruitmentId, staffId: ids.staffId },
+    expect(firstEnqueue).toMatchObject({ outboxId: expect.any(String), deduped: false });
+
+    vi.advanceTimersByTime(1);
+    await asManager.saveShiftAssignments({
+      recruitmentId: ids.recruitmentId,
+      assignments: [
+        {
+          staffId: ids.staffId,
+          date: scenarioDate(8),
+          startTime: "12:00",
+          endTime: "20:00",
+          positionId: ids.positionId,
+        },
+      ],
+    });
+    await t.run(async (ctx) => ctx.db.patch(operationId, { leaseExpiresAt: Date.now() - 1 }));
+    await t.action(internal.notification.actions.sendShiftConfirmationEmails, {
+      recruitmentId: ids.recruitmentId,
+      isResend: false,
+      fanoutOperationId: operationId,
+    });
+
+    const afterRecovery = await t.run(async (ctx) => ({
+      operation: await ctx.db.get(operationId),
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+      snapshots: await ctx.db.query("shiftConfirmationSnapshots").collect(),
+    }));
+    expect(afterRecovery.operation).toMatchObject({ status: "completed", cursor: 1 });
+    expect(afterRecovery.outbox).toEqual([
+      expect.objectContaining({
+        _id: firstEnqueue?.outboxId,
+        dedupeKey,
+        payload: expect.objectContaining({ kind: "email", subject: "Aを送信" }),
+      }),
     ]);
+    expect(afterRecovery.snapshots).toEqual([
+      expect.objectContaining({
+        recruitmentId: ids.recruitmentId,
+        staffId: ids.staffId,
+        assignments: [
+          {
+            date: scenarioDate(7),
+            startTime: "09:00",
+            endTime: "17:00",
+            positionId: ids.positionId,
+          },
+        ],
+      }),
+    ]);
+
+    await expect(
+      t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        shopId: ids.shopId,
+        recruitmentId: ids.recruitmentId,
+        intent: "resend",
+        requestId: "snapshot-recovery-resend",
+      }),
+    ).resolves.toEqual({ status: "scheduled", notifiedStaffCount: 1 });
+
+    const currentOperation = await t.run(async (ctx) => {
+      const recruitment = await ctx.db.get(ids.recruitmentId);
+      const operations = await ctx.db
+        .query("notificationFanoutOperations")
+        .withIndex("by_recruitmentId_status", (q) => q.eq("recruitmentId", ids.recruitmentId).eq("status", "pending"))
+        .collect();
+      return operations.find(
+        (operation) => operation.operationKey === recruitment?.lastConfirmationNotificationOperationKey,
+      );
+    });
+    if (!currentOperation) throw new Error("current snapshot recovery operation was not created");
+    const currentClaim = await t.mutation(internal.notification.mutations.claimNotificationFanoutBatch, {
+      operationId: currentOperation._id,
+    });
+    if (currentClaim.state !== "claimed") throw new Error("current snapshot recovery operation was not claimed");
+    const currentDedupeKey = `email:confirmation:${ids.recruitmentId}:${ids.staffId}:${currentOperation.dedupeSuffix}`;
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.enqueue, {
+        channel: "email",
+        shopId: ids.shopId,
+        recruitmentId: ids.recruitmentId,
+        staffId: ids.staffId,
+        history: { notificationKind: "shift.confirmation", displayTitle: "Bを送信" },
+        dedupeAcrossTerminal: true,
+        fanoutTargetKey: `fanout:${currentOperation.operationKey}:${ids.staffId}`,
+        fanoutOperationId: currentOperation._id,
+        fanoutLeaseToken: currentClaim.leaseToken,
+        legacyFanoutDedupeKeys: [
+          currentDedupeKey,
+          `line:confirmation:${ids.recruitmentId}:${ids.staffId}:${currentOperation.dedupeSuffix}`,
+        ],
+        dedupeKey: currentDedupeKey,
+        payload: {
+          kind: "email",
+          from: "シフトリ <noreply@example.com>",
+          to: "snapshot-recovery@example.com",
+          subject: "Bを送信",
+          html: "<p>Bを送信</p>",
+          context: "notification.sendConfirmationEmail",
+        },
+      }),
+    ).resolves.toMatchObject({ deduped: false });
+    await expect(
+      t.run(async (ctx) =>
+        ctx.db
+          .query("shiftConfirmationSnapshots")
+          .withIndex("by_recruitmentId_staffId", (q) =>
+            q.eq("recruitmentId", ids.recruitmentId).eq("staffId", ids.staffId),
+          )
+          .unique(),
+      ),
+    ).resolves.toMatchObject({ assignments: afterRecovery.snapshots[0]?.assignments });
+
+    await t.run(async (ctx) => ctx.db.patch(currentOperation._id, { leaseExpiresAt: Date.now() - 1 }));
+    await t.action(internal.notification.actions.sendShiftConfirmationEmails, {
+      recruitmentId: ids.recruitmentId,
+      isResend: true,
+      fanoutOperationId: currentOperation._id,
+    });
+
+    const healedSnapshot = await t.run(async (ctx) =>
+      ctx.db
+        .query("shiftConfirmationSnapshots")
+        .withIndex("by_recruitmentId_staffId", (q) =>
+          q.eq("recruitmentId", ids.recruitmentId).eq("staffId", ids.staffId),
+        )
+        .unique(),
+    );
+    expect(healedSnapshot).toMatchObject({
+      signature: buildConfirmationSnapshotSignature([
+        {
+          date: scenarioDate(8),
+          startTime: "12:00",
+          endTime: "20:00",
+          positionId: ids.positionId,
+        },
+      ]),
+      assignments: [
+        {
+          date: scenarioDate(8),
+          startTime: "12:00",
+          endTime: "20:00",
+          positionId: ids.positionId,
+        },
+      ],
+    });
+    await expect(
+      t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        shopId: ids.shopId,
+        recruitmentId: ids.recruitmentId,
+        intent: "resend",
+        requestId: "snapshot-recovery-healed-no-changes",
+      }),
+    ).resolves.toEqual({ status: "no_changes", notifiedStaffCount: 0 });
+  });
+
+  it("個別再送受付後にdraftが変わった場合は実schedulerが配送前に全件停止する", async () => {
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "manual-draft-race-manager@example.com",
+        shopName: "manual draft race店舗",
+      });
+      const staffId = await seedStaff(ctx, {
+        shopId,
+        name: "manual draft raceスタッフ",
+        email: "manual-draft-race@example.com",
+      });
+      const positionId = await ctx.db.insert("positions", {
+        shopId,
+        name: "シフト",
+        color: "#3b82f6",
+        sortOrder: 0,
+        isDefault: true,
+        isDeleted: false,
+      });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: scenarioDate(-1),
+        periodEnd: scenarioDate(3),
+        deadline: scenarioDate(-2),
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      await ctx.db.insert("shiftAssignments", {
+        recruitmentId,
+        staffId,
+        date: scenarioDate(0),
+        startTime: "09:00",
+        endTime: "17:00",
+        positionId,
+      });
+      return { staffId, positionId, recruitmentId };
+    });
+
+    await expect(asManager.sendCurrentShiftNotification(ids.staffId)).resolves.toEqual({ scheduled: true });
+    await asManager.saveShiftAssignments({
+      recruitmentId: ids.recruitmentId,
+      assignments: [
+        {
+          staffId: ids.staffId,
+          date: scenarioDate(1),
+          startTime: "12:00",
+          endTime: "20:00",
+          positionId: ids.positionId,
+        },
+      ],
+    });
+
+    vi.advanceTimersByTime(0);
+    await t.finishInProgressScheduledFunctions();
+    const state = await t.run(async (ctx) => ({
+      operations: (await ctx.db.query("notificationFanoutOperations").collect()).filter((operation) =>
+        operation.operationKey.startsWith("shift.confirmation.staff-resend:v1:"),
+      ),
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+      viewLinks: (await ctx.db.query("magicLinks").collect()).filter((link) => link.accessKind === "view"),
+      snapshots: await ctx.db.query("shiftConfirmationSnapshots").collect(),
+    }));
+    expect(state.operations).toEqual([
+      expect.objectContaining({ status: "cancelled", cancelReason: "superseded", cursor: 0 }),
+    ]);
+    expect(state.outbox).toEqual([]);
+    expect(state.viewLinks).toEqual([]);
+    expect(state.snapshots).toEqual([]);
+  });
+
+  it("個別再送outbox作成後に新しい全体確定が始まった場合はprovider直前に旧配送を止める", async () => {
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "manual-canonical-race-manager@example.com",
+        shopName: "manual canonical race店舗",
+      });
+      const staffId = await seedStaff(ctx, {
+        shopId,
+        name: "manual canonical raceスタッフ",
+        email: "manual-canonical-race@example.com",
+      });
+      const positionId = await ctx.db.insert("positions", {
+        shopId,
+        name: "シフト",
+        color: "#3b82f6",
+        sortOrder: 0,
+        isDefault: true,
+        isDeleted: false,
+      });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: scenarioDate(-1),
+        periodEnd: scenarioDate(3),
+        deadline: scenarioDate(-2),
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      await ctx.db.insert("shiftAssignments", {
+        recruitmentId,
+        staffId,
+        date: scenarioDate(0),
+        startTime: "09:00",
+        endTime: "17:00",
+        positionId,
+      });
+      return { shopId, staffId, positionId, recruitmentId };
+    });
+
+    await expect(asManager.sendCurrentShiftNotification(ids.staffId)).resolves.toEqual({ scheduled: true });
+    vi.advanceTimersByTime(0);
+    await t.finishInProgressScheduledFunctions();
+    const manualOutboxBefore = (await getOutboxJobs(t)).find((job) => job.staffId === ids.staffId);
+    expect(manualOutboxBefore).toMatchObject({ status: "pending" });
+
+    vi.setSystemTime(new Date(Date.now() + 1));
+    await asManager.saveShiftAssignments({
+      recruitmentId: ids.recruitmentId,
+      assignments: [
+        {
+          staffId: ids.staffId,
+          date: scenarioDate(1),
+          startTime: "12:00",
+          endTime: "20:00",
+          positionId: ids.positionId,
+        },
+      ],
+    });
+    await expect(
+      t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        shopId: ids.shopId,
+        recruitmentId: ids.recruitmentId,
+        intent: "resend",
+        requestId: "manual-canonical-race-resend",
+      }),
+    ).resolves.toEqual({ status: "scheduled", notifiedStaffCount: 1 });
+
+    vi.setSystemTime(new Date(Date.now() + NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS));
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+    expect(fetchMock).not.toHaveBeenCalled();
+    await expect(
+      t.run(async (ctx) => (manualOutboxBefore ? ctx.db.get(manualOutboxBefore._id) : null)),
+    ).resolves.toMatchObject({
+      status: "cancelled",
+      cancelReason: "notification_superseded",
+    });
+  });
+
+  it("enqueue前に長時間中断したview linkだけを同じtokenのまま延長し、Outbox作成後は固定する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "view-link-recovery-manager@example.com",
+        shopName: "view link recovery店舗",
+      });
+      const staffId = await seedStaff(ctx, {
+        shopId,
+        name: "view link recoveryスタッフ",
+        email: "view-link-recovery@example.com",
+      });
+      const positionId = await ctx.db.insert("positions", {
+        shopId,
+        name: "シフト",
+        color: "#3b82f6",
+        sortOrder: 0,
+        isDefault: true,
+        isDeleted: false,
+      });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: scenarioDate(7),
+        periodEnd: scenarioDate(13),
+        deadline: scenarioDate(3),
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      await ctx.db.insert("shiftAssignments", {
+        recruitmentId,
+        staffId,
+        date: scenarioDate(7),
+        startTime: "09:00",
+        endTime: "17:00",
+        positionId,
+      });
+      return { shopId, staffId, recruitmentId };
+    });
+    const operationKey = "view-link-long-interruption";
+    const operationId = await t.mutation(internal.notification.mutations.ensureConfirmationNotificationFanout, {
+      recruitmentId: ids.recruitmentId,
+      isResend: false,
+      targetStaffIds: [ids.staffId],
+      operationKey,
+    });
+    if (!operationId) throw new Error("view link recovery operation was not created");
+
+    const first = await t.mutation(internal.notification.mutations.getOrCreateNotificationViewMagicLink, {
+      staffId: ids.staffId,
+      shopId: ids.shopId,
+      recruitmentId: ids.recruitmentId,
+      notificationOperationKey: operationKey,
+    });
+    const original = (await getMagicLinks(t))[0];
+    if (!original) throw new Error("view link was not created");
+
+    vi.advanceTimersByTime(MAGIC_LINK_DEFAULT_TTL_MS + 1);
+    const extendedExpiresAt = Date.now() + MAGIC_LINK_DEFAULT_TTL_MS;
+    await t.action(internal.notification.actions.sendShiftConfirmationEmails, {
+      recruitmentId: ids.recruitmentId,
+      isResend: false,
+      fanoutOperationId: operationId,
+    });
+    let state = await t.run(async (ctx) => ({
+      links: await ctx.db.query("magicLinks").collect(),
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+    }));
+    expect(state.links).toEqual([
+      expect.objectContaining({ _id: original._id, token: first.token, expiresAt: extendedExpiresAt }),
+    ]);
+    expect(state.outbox).toHaveLength(1);
+    expect(state.outbox[0]?.fanoutTargetKey).toBe(`fanout:${operationKey}:${ids.staffId}`);
+    if (state.outbox[0]?.payload.kind !== "email") throw new Error("view link recovery did not enqueue email");
+    expect(state.outbox[0].payload.html).toContain(first.token);
+
+    vi.advanceTimersByTime(MAGIC_LINK_DEFAULT_TTL_MS + 1);
+    await expect(
+      t.mutation(internal.notification.mutations.getOrCreateNotificationViewMagicLink, {
+        staffId: ids.staffId,
+        shopId: ids.shopId,
+        recruitmentId: ids.recruitmentId,
+        notificationOperationKey: operationKey,
+      }),
+    ).resolves.toEqual(first);
+    state = await t.run(async (ctx) => ({
+      links: await ctx.db.query("magicLinks").collect(),
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+    }));
+    expect(state.links).toEqual([expect.objectContaining({ _id: original._id, expiresAt: extendedExpiresAt })]);
+    expect(state.outbox).toHaveLength(1);
+  });
+
+  it("旧個別通知entrypointは旧argsのままdurable fanoutへexact-onceで収束する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "legacy-current-manager@example.com",
+        shopName: "legacy current notification店舗",
+      });
+      const staffId = await seedStaff(ctx, {
+        shopId,
+        name: "legacy current notificationスタッフ",
+        email: "legacy-current@example.com",
+      });
+      const positionId = await ctx.db.insert("positions", {
+        shopId,
+        name: "シフト",
+        color: "#3b82f6",
+        sortOrder: 0,
+        isDefault: true,
+        isDeleted: false,
+      });
+      const recruitmentIds: Id<"recruitments">[] = [];
+      for (const offset of [0]) {
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: scenarioDate(offset),
+          periodEnd: scenarioDate(offset + 2),
+          deadline: scenarioDate(offset - 1),
+          shopClosedDates: [],
+          status: "confirmed",
+          confirmedAt: Date.now(),
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        recruitmentIds.push(recruitmentId);
+        await ctx.db.insert("shiftAssignments", {
+          recruitmentId,
+          staffId,
+          date: scenarioDate(offset),
+          startTime: "09:00",
+          endTime: "17:00",
+          positionId,
+        });
+      }
+      return { staffId, recruitmentIds };
+    });
+
+    const legacyArgs = { staffId: ids.staffId, organizationBillingVersionAtOrigin: 7 };
+    await t.action(internal.notification.actions.sendCurrentShiftConfirmationForStaff, legacyArgs);
+    await t.action(internal.notification.actions.sendCurrentShiftConfirmationForStaff, legacyArgs);
+    const scheduledBeforeRun = await t.run(async (ctx) =>
+      (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+        (job) =>
+          job.name === "notification/actions:sendShiftConfirmationEmails" &&
+          (job.state.kind === "pending" || job.state.kind === "inProgress"),
+      ),
+    );
+    expect(scheduledBeforeRun).toHaveLength(1);
+
+    vi.advanceTimersByTime(0);
+    await t.finishInProgressScheduledFunctions();
+    const firstState = await t.run(async (ctx) => ({
+      operations: (await ctx.db.query("notificationFanoutOperations").collect()).filter((operation) =>
+        operation.operationKey.includes(`:legacy:${ids.staffId}`),
+      ),
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+      links: (await ctx.db.query("magicLinks").collect()).filter((link) => link.accessKind === "view"),
+      snapshots: await ctx.db.query("shiftConfirmationSnapshots").collect(),
+    }));
+    expect(firstState.operations).toHaveLength(1);
+    expect(firstState.operations.every((operation) => operation.status === "completed")).toBe(true);
+    expect(firstState.operations.every((operation) => operation.organizationBillingVersionAtOrigin === 7)).toBe(true);
+    expect(firstState.outbox).toHaveLength(1);
+    expect(firstState.links).toHaveLength(1);
+    expect(firstState.snapshots).toHaveLength(1);
+
+    await t.action(internal.notification.actions.sendCurrentShiftConfirmationForStaff, legacyArgs);
+    const afterRetry = await t.run(async (ctx) => ({
+      operations: await ctx.db.query("notificationFanoutOperations").collect(),
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+      links: (await ctx.db.query("magicLinks").collect()).filter((link) => link.accessKind === "view"),
+      snapshots: await ctx.db.query("shiftConfirmationSnapshots").collect(),
+      liveScheduled: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+        (job) =>
+          job.name === "notification/actions:sendShiftConfirmationEmails" &&
+          (job.state.kind === "pending" || job.state.kind === "inProgress"),
+      ),
+    }));
+    expect(afterRetry.operations).toHaveLength(1);
+    expect(afterRetry.outbox).toEqual(firstState.outbox);
+    expect(afterRetry.links).toEqual(firstState.links);
+    expect(afterRetry.snapshots).toEqual(firstState.snapshots);
+    expect(afterRetry.liveScheduled).toEqual([]);
   });
 
   it("確定済み募集の配送失敗はFailureInboxに残すが再送モーダルには出さない", async () => {

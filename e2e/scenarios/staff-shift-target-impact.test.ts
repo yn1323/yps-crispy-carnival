@@ -17,7 +17,7 @@ type OpenRecruitmentSeed = {
   recruitmentId: string;
 };
 
-test.describe("ユーザー詳細のシフト対象設定", { tag: ["@release", "@notification", "@security"] }, () => {
+test.describe("スタッフ詳細のシフト対象設定", { tag: ["@release", "@notification", "@security"] }, () => {
   test.setTimeout(60_000);
 
   test("下書き後の追加を反映し、対象外ではShiftFormと古いリンクから除外して復帰後に再送できる", async ({
@@ -96,7 +96,7 @@ test.describe("ユーザー詳細のシフト対象設定", { tag: ["@release", 
       await shiftBoard.expectStaffVisible(TARGET_STAFF.name);
     });
 
-    await test.step("Step 6: 店舗ダイアログから個別再送すると新しいリンクで提出できる", async () => {
+    await test.step("Step 6: スタッフ詳細の店舗別設定から個別再送すると新しいリンクで提出できる", async () => {
       await dashboard.goto();
       await dashboard.sendOpenRecruitmentNotification(TARGET_STAFF.name);
 

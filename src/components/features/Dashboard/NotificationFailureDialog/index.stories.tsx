@@ -137,7 +137,7 @@ export const EmailHelpBehavior: Story = {
     const canvas = within(canvasElement);
 
     await userEvent.click(canvas.getAllByRole("button", { name: "メール通知について" })[0]);
-    const helpText = await canvas.findByText(/何度も送れない場合は/);
+    const helpText = await canvas.findByText(/登録メールアドレスに誤りがないか/);
     await waitFor(() => expect(helpText).toBeVisible());
   },
 };

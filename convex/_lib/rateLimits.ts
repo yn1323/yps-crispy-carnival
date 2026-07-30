@@ -9,6 +9,8 @@ import {
   ORGANIZATION_CREATE_DAILY_LIMIT,
   STAFF_NOTIFICATION_RESEND_ACTOR_DAILY_LIMIT,
   STAFF_NOTIFICATION_RESEND_ORGANIZATION_DAILY_LIMIT,
+  STAFF_NOTIFICATION_RESEND_SCOPE_TARGET_DAILY_LIMIT,
+  STAFF_NOTIFICATION_RESEND_SCOPE_TARGET_SHORT_LIMIT,
   STAFF_REGISTRATION_EMAIL_DAILY_LIMIT,
   STAFF_REGISTRATION_EMAIL_SHORT_LIMIT,
   STAFF_REGISTRATION_GLOBAL_SHORT_LIMIT,
@@ -120,6 +122,21 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     rate: STAFF_NOTIFICATION_RESEND_ORGANIZATION_DAILY_LIMIT,
     period: DAY_MS,
     capacity: STAFF_NOTIFICATION_RESEND_ORGANIZATION_DAILY_LIMIT,
+  },
+
+  // 宛先を替えた分散操作も合算する、organization（legacy店舗ではshop）×通知種別の対象数上限。
+  staffNotificationResendScopeTargetShort: {
+    kind: "token bucket",
+    rate: STAFF_NOTIFICATION_RESEND_SCOPE_TARGET_SHORT_LIMIT,
+    period: MINUTE_MS,
+    capacity: STAFF_NOTIFICATION_RESEND_SCOPE_TARGET_SHORT_LIMIT,
+  },
+
+  staffNotificationResendScopeTargetDaily: {
+    kind: "token bucket",
+    rate: STAFF_NOTIFICATION_RESEND_SCOPE_TARGET_DAILY_LIMIT,
+    period: DAY_MS,
+    capacity: STAFF_NOTIFICATION_RESEND_SCOPE_TARGET_DAILY_LIMIT,
   },
 
   // 通知失敗Inboxからの手動再送: shopId+failureId をキーに

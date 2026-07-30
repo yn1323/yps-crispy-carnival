@@ -13,6 +13,7 @@ import { selectChannel } from "../_lib/notification";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
 import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
 import type { NotificationHistoryInput, NotificationRenderedEmailPayload } from "../notificationOutbox/types";
+import type { ConfirmationSnapshotAssignment } from "./confirmationSnapshots";
 import { recordNotificationPreparationFailure } from "./failureRecording";
 import { buildNotificationFanoutTargetKey } from "./fanout";
 import {
@@ -155,6 +156,10 @@ export const sendShiftConfirmationEmails = internalAction({
             fanoutTargetKey,
             fanoutOperationId: operationId,
             fanoutLeaseToken: batch.leaseToken,
+            confirmationSnapshot: {
+              assignments: staffData.snapshotAssignments,
+              signature: staffData.snapshotSignature,
+            },
             legacyFanoutDedupeKeys,
             dedupeKey: lineDedupeKey,
             payload: linePayload({
@@ -165,9 +170,7 @@ export const sendShiftConfirmationEmails = internalAction({
               ...(fallbackEmail ? { fallbackEmail } : {}),
             }),
           });
-          if (result) {
-            await recordConfirmationSnapshotSentSafely(ctx, recruitmentId, staffData);
-          }
+          await healConfirmationSnapshotForDedupedOutbox(ctx, recruitmentId, staffData, result);
           continue;
         }
 
@@ -187,9 +190,7 @@ export const sendShiftConfirmationEmails = internalAction({
           legacyFanoutDedupeKeys,
           dedupeKey: emailDedupeKey,
         });
-        if (result) {
-          await recordConfirmationSnapshotSentSafely(ctx, recruitmentId, staffData);
-        }
+        await healConfirmationSnapshotForDedupedOutbox(ctx, recruitmentId, staffData, result);
       } catch (e) {
         await recordNotificationPreparationFailure(
           ctx,
@@ -219,6 +220,8 @@ async function buildConfirmationEmail(opts: {
     lineUserId?: string;
     lineFollowing?: boolean;
     shifts: { date: string; timeLabel?: string | null; startTime?: string | null; endTime?: string | null }[];
+    snapshotAssignments: ConfirmationSnapshotAssignment[];
+    snapshotSignature: string;
   };
   data: { shopId: Id<"shops">; shopName: string; periodLabel: string };
   recruitmentId: Id<"recruitments">;
@@ -292,27 +295,32 @@ async function enqueueConfirmationEmail(opts: Parameters<typeof buildConfirmatio
     ...(opts.fanoutTargetKey ? { fanoutTargetKey: opts.fanoutTargetKey } : {}),
     ...(opts.fanoutOperationId ? { fanoutOperationId: opts.fanoutOperationId } : {}),
     ...(opts.fanoutLeaseToken ? { fanoutLeaseToken: opts.fanoutLeaseToken } : {}),
+    ...(opts.fanoutOperationId && opts.fanoutLeaseToken
+      ? {
+          confirmationSnapshot: {
+            assignments: opts.staffData.snapshotAssignments,
+            signature: opts.staffData.snapshotSignature,
+          },
+        }
+      : {}),
     ...(opts.legacyFanoutDedupeKeys ? { legacyFanoutDedupeKeys: opts.legacyFanoutDedupeKeys } : {}),
     dedupeKey: email.dedupeKey,
     payload: email.payload,
   });
 }
 
-async function recordConfirmationSnapshotSent(
+/** atomic snapshot導入前のOutboxだけが残る中断を、compat evidence gate経由で限定的に修復する。 */
+async function healConfirmationSnapshotForDedupedOutbox(
   ctx: ActionCtx,
   recruitmentId: Id<"recruitments">,
   staffData: {
     staffId: Id<"staffs">;
-    snapshotAssignments: Array<{
-      date: string;
-      startTime: string;
-      endTime: string;
-      positionId: Id<"positions">;
-      optionId?: string;
-    }>;
+    snapshotAssignments: ConfirmationSnapshotAssignment[];
     snapshotSignature: string;
   },
+  enqueueResult: { deduped: boolean } | null,
 ) {
+  if (!enqueueResult?.deduped) return;
   await ctx.runMutation(internal.notification.mutations.upsertConfirmationSnapshot, {
     recruitmentId,
     staffId: staffData.staffId,
@@ -320,20 +328,6 @@ async function recordConfirmationSnapshotSent(
     signature: staffData.snapshotSignature,
     sentAt: Date.now(),
   });
-}
-
-async function recordConfirmationSnapshotSentSafely(
-  ctx: ActionCtx,
-  recruitmentId: Id<"recruitments">,
-  staffData: Parameters<typeof recordConfirmationSnapshotSent>[2],
-) {
-  try {
-    await recordConfirmationSnapshotSent(ctx, recruitmentId, staffData);
-  } catch {
-    console.error("Shift confirmation snapshot recording failed after notification enqueue", {
-      errorCode: "notification_snapshot_record_failed",
-    });
-  }
 }
 
 /**
@@ -1190,117 +1184,12 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
 });
 
 /**
- * 手動再送: 1スタッフへ、今日以降にかかる確定シフトを送る。
+ * 旧deploymentから予約済みのaction名と引数を維持するcompatibility wrapper。
+ * 送信処理は新しいbounded durable fanoutへ委譲し、ここでは認可・quotaを再消費しない。
  */
 export const sendCurrentShiftConfirmationForStaff = internalAction({
   args: { staffId: v.id("staffs"), ...businessNotificationOriginArgs },
-  handler: async (ctx, { staffId, organizationBillingVersionAtOrigin }) => {
-    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
-    const data = await ctx.runQuery(internal.notification.queries.getCurrentConfirmationEmailDataForStaff, {
-      staffId,
-    });
-    if (!data || data.recruitments.length === 0) return;
-
-    const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
-    const suppressDelivery = await ctx.runQuery(
-      internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
-      { shopId: data.shopId },
-    );
-    const manualRunId = Date.now();
-
-    for (const recruitment of data.recruitments) {
-      const staffData = recruitment.staffEntry;
-      const channel = selectChannel(
-        { lineUserId: staffData.lineUserId, lineFollowing: staffData.lineFollowing },
-        quota,
-      );
-      const selectedChannel = channel === "line" && staffData.lineUserId ? "line" : "email";
-      const emailDedupeKey = `email:manualConfirmation:${recruitment.recruitmentId}:${staffData.staffId}:${manualRunId}`;
-      const lineDedupeKey = `line:manualConfirmation:${recruitment.recruitmentId}:${staffData.staffId}:${manualRunId}`;
-      const dedupeKey = selectedChannel === "line" ? lineDedupeKey : emailDedupeKey;
-      if (selectedChannel === "email" && !staffData.email) continue;
-      const confirmationData = {
-        shopId: data.shopId,
-        shopName: data.shopName,
-        periodLabel: recruitment.periodLabel,
-      };
-
-      try {
-        const { token: viewToken } = await ctx.runMutation(internal.notification.mutations.createMagicLink, {
-          staffId: staffData.staffId,
-          shopId: data.shopId,
-          recruitmentId: recruitment.recruitmentId,
-          accessKind: "view",
-        });
-        const magicLinkUrl = `${APP_URL}/shifts/view?token=${viewToken}`;
-
-        if (selectedChannel === "line" && staffData.lineUserId) {
-          const lineParams = {
-            staffName: staffData.name,
-            shopName: data.shopName,
-            periodLabel: recruitment.periodLabel,
-            shifts: staffData.shifts,
-            magicLinkUrl,
-            isResend: false,
-          };
-          const fallbackEmail = await buildConfirmationEmail({
-            ctx,
-            ...notificationOrigin,
-            staffData,
-            data: confirmationData,
-            recruitmentId: recruitment.recruitmentId,
-            magicLinkUrl,
-            isResend: false,
-            suppressDelivery,
-            dedupeKey: emailDedupeKey,
-          });
-          await enqueueLine(ctx, {
-            shopId: data.shopId,
-            ...notificationOrigin,
-            recruitmentId: recruitment.recruitmentId,
-            staffId: staffData.staffId,
-            history: {
-              notificationKind: SHIFT_CONFIRMATION_NOTIFICATION_KIND,
-              displayTitle: "確定シフトのお知らせ",
-            },
-            dedupeKey: lineDedupeKey,
-            payload: linePayload({
-              toUserId: staffData.lineUserId,
-              text: buildShiftConfirmationLineText(lineParams),
-              message: buildShiftConfirmationLineFlexMessage(lineParams),
-              suppressDelivery,
-              ...(fallbackEmail ? { fallbackEmail } : {}),
-            }),
-          });
-          continue;
-        }
-
-        await enqueueConfirmationEmail({
-          ctx,
-          ...notificationOrigin,
-          staffData,
-          data: confirmationData,
-          recruitmentId: recruitment.recruitmentId,
-          magicLinkUrl,
-          isResend: false,
-          suppressDelivery,
-          dedupeKey: emailDedupeKey,
-        });
-      } catch (e) {
-        await recordNotificationPreparationFailure(
-          ctx,
-          {
-            shopId: data.shopId,
-            recruitmentId: recruitment.recruitmentId,
-            staffId: staffData.staffId,
-            channel: selectedChannel,
-            dedupeKey,
-            notificationContext: "notification.sendCurrentShiftConfirmationForStaff",
-          },
-          e,
-          "Manual current shift notification preparation failed",
-        );
-      }
-    }
+  handler: async (ctx, args) => {
+    await ctx.runMutation(internal.staff.mutations.prepareLegacyCurrentShiftConfirmationFanout, args);
   },
 });

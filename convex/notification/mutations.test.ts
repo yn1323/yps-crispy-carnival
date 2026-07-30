@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { buildConfirmationSnapshotSignature } from "./confirmationSnapshots";
 
 describe("notification/mutations", () => {
   async function setupSubmitLinkTestData(t: TestConvex<typeof schema>) {
@@ -199,6 +200,172 @@ describe("notification/mutations", () => {
       const links = await t.run(async (ctx) => await ctx.db.query("magicLinks").collect());
       expect(links).toHaveLength(2);
       expect(links.find((link) => link.token === submit.token)?.accessKind).toBe("submit");
+    });
+  });
+
+  describe("upsertConfirmationSnapshot compatibility", () => {
+    it("現在のcanonical Outboxが実在する確定内容だけをsnapshotへ反映する", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const shopId = await seedShop(ctx, "snapshot compatibility店舗");
+        const staffId = await ctx.db.insert("staffs", {
+          shopId,
+          name: "snapshot compatibilityスタッフ",
+          email: "snapshot-compatibility@example.com",
+          isDeleted: false,
+        });
+        const positionId = await ctx.db.insert("positions", {
+          shopId,
+          name: "通常",
+          color: "#3b82f6",
+          sortOrder: 0,
+          isDefault: true,
+          isDeleted: false,
+        });
+        const currentOperationKey = "shift.confirmation:compatibility:current";
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-08-01",
+          periodEnd: "2026-08-07",
+          deadline: "2026-07-28",
+          shopClosedDates: [],
+          status: "confirmed",
+          confirmedAt: 1_000,
+          draftSavedAt: 2_000,
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          lastConfirmationNotificationOperationKey: currentOperationKey,
+        });
+        const currentAssignment = {
+          date: "2026-08-02",
+          startTime: "12:00",
+          endTime: "20:00",
+          positionId,
+        };
+        await ctx.db.insert("shiftAssignments", { recruitmentId, staffId, ...currentAssignment });
+        const oldAssignment = {
+          date: "2026-08-01",
+          startTime: "09:00",
+          endTime: "17:00",
+          positionId,
+        };
+        const snapshotId = await ctx.db.insert("shiftConfirmationSnapshots", {
+          recruitmentId,
+          staffId,
+          signature: buildConfirmationSnapshotSignature([oldAssignment]),
+          assignments: [oldAssignment],
+          sentAt: 500,
+          updatedAt: 500,
+        });
+        const insertOperation = async (operationKey: string) =>
+          await ctx.db.insert("notificationFanoutOperations", {
+            operationKey,
+            kind: "confirmation",
+            purpose: "confirmation",
+            recruitmentId,
+            shopId,
+            targetStaffIds: [staffId],
+            cursor: 1,
+            status: "completed",
+            dedupeSuffix: "confirm",
+            completedAt: 3_000,
+            createdAt: 500,
+            updatedAt: 3_000,
+          });
+        const oldOperationKey = "shift.confirmation:compatibility:old";
+        const oldOperationId = await insertOperation(oldOperationKey);
+        const currentOperationId = await insertOperation(currentOperationKey);
+        await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status: "sent",
+          dedupeKey: `email:confirmation:${recruitmentId}:${staffId}:old`,
+          fanoutTargetKey: `fanout:${oldOperationKey}:${staffId}`,
+          fanoutOperationId: oldOperationId,
+          shopId,
+          recruitmentId,
+          staffId,
+          purpose: "business",
+          payload: {
+            kind: "email",
+            from: "シフトリ <noreply@example.com>",
+            to: "snapshot-compatibility@example.com",
+            subject: "旧確定通知",
+            html: "<p>旧確定通知</p>",
+            context: "notification.sendConfirmationEmail",
+          },
+          attemptCount: 1,
+          nextRunAt: 500,
+          sentAt: 500,
+          terminalAt: 500,
+          createdAt: 500,
+          updatedAt: 500,
+        });
+        return {
+          shopId,
+          recruitmentId,
+          staffId,
+          snapshotId,
+          currentOperationId,
+          currentOperationKey,
+          currentAssignment,
+        };
+      });
+      const currentSignature = buildConfirmationSnapshotSignature([ids.currentAssignment]);
+      const args = {
+        recruitmentId: ids.recruitmentId,
+        staffId: ids.staffId,
+        signature: currentSignature,
+        assignments: [ids.currentAssignment],
+        sentAt: 4_000,
+      };
+
+      // A Outboxだけが存在しBはdirtyな間は、現在値Bを記録しない。
+      await expect(t.mutation(internal.notification.mutations.upsertConfirmationSnapshot, args)).resolves.toBeNull();
+      await t.run(async (ctx) => ctx.db.patch(ids.recruitmentId, { confirmedAt: 2_000 }));
+      // cleanでもBのcanonical Outboxがなければ反映しない。
+      await expect(t.mutation(internal.notification.mutations.upsertConfirmationSnapshot, args)).resolves.toBeNull();
+      await expect(t.run(async (ctx) => ctx.db.get(ids.snapshotId))).resolves.toMatchObject({ sentAt: 500 });
+
+      await t.run(async (ctx) => {
+        await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status: "sent",
+          dedupeKey: `email:confirmation:${ids.recruitmentId}:${ids.staffId}:current`,
+          fanoutTargetKey: `fanout:${ids.currentOperationKey}:${ids.staffId}`,
+          fanoutOperationId: ids.currentOperationId,
+          shopId: ids.shopId,
+          recruitmentId: ids.recruitmentId,
+          staffId: ids.staffId,
+          purpose: "business",
+          payload: {
+            kind: "email",
+            from: "シフトリ <noreply@example.com>",
+            to: "snapshot-compatibility@example.com",
+            subject: "現在の確定通知",
+            html: "<p>現在の確定通知</p>",
+            context: "notification.sendConfirmationEmail",
+          },
+          attemptCount: 1,
+          nextRunAt: 4_000,
+          sentAt: 4_000,
+          terminalAt: 4_000,
+          createdAt: 4_000,
+          updatedAt: 4_000,
+        });
+      });
+
+      await expect(t.mutation(internal.notification.mutations.upsertConfirmationSnapshot, args)).resolves.toBe(
+        ids.snapshotId,
+      );
+      await expect(t.run(async (ctx) => ctx.db.get(ids.snapshotId))).resolves.toMatchObject({
+        signature: currentSignature,
+        assignments: [ids.currentAssignment],
+        sentAt: 4_000,
+      });
+      await expect(
+        t.mutation(internal.notification.mutations.upsertConfirmationSnapshot, { ...args, sentAt: 5_000 }),
+      ).resolves.toBe(ids.snapshotId);
+      await expect(t.run(async (ctx) => ctx.db.get(ids.snapshotId))).resolves.toMatchObject({ sentAt: 4_000 });
     });
   });
 });

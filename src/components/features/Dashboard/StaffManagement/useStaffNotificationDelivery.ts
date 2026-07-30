@@ -37,8 +37,14 @@ export function useStaffNotificationDelivery(isReadOnly = false) {
       }
       toaster.create({
         title:
-          result.reason === "rateLimited" ? "少し時間をおいて再送してください" : "送信できる確定シフトがありません",
-        type: result.reason === "rateLimited" ? "error" : "info",
+          result.reason === "rateLimited"
+            ? "少し時間をおいて再送してください"
+            : result.reason === "unconfirmedChanges"
+              ? "未確定の変更があるため、シフトを確定してから再送してください"
+              : result.reason === "tooManyCurrentShifts"
+                ? "確定シフトが40件を超えるため、一度に再送できません"
+                : "送信できる確定シフトがありません",
+        type: result.reason === "noCurrentShift" ? "info" : "error",
       });
     } catch (error) {
       showErrorToast(error);

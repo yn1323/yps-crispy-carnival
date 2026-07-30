@@ -1,6 +1,6 @@
 # 通知配送outbox
 
-LINE / メール通知を同期送信せず、Convex の `notificationOutbox` に `pending` ジョブとして予約し、worker が少量ずつ配送する仕組み。通常運用の30人・100人規模通知を入口でエラーにせず、外部APIの一時制限は再試行で吸収する。
+LINE / メール通知を同期送信せず、Convex の `notificationOutbox` に `pending` ジョブとして予約し、worker が少量ずつ配送する仕組み。最大40人規模の通知を入口でエラーにせず、外部APIの一時制限は再試行で吸収する。
 
 `notificationOutbox`はactive中だけ宛先・本文を含む配送ジョブの正とし、terminal化から30日後に機密payloadと生errorをredactする。管理画面で長期表示する安全なmetadataは`notificationHistory`へ分離する。
 
@@ -59,6 +59,7 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 | `notificationOutbox.mutations.resolveFailure` | managerMutation | 同一店舗の open かつDashboard表示対象の失敗を手動で `resolved/dismissed` にする |
 | `internal.notificationOutbox.actions.processPending` | internalAction | claim 済みジョブを配送し、成功・再試行・失敗へ分類する |
 | `internal.notification.mutations.recoverNotificationFanoutOperations` | internalMutation | 予約漏れのpending fanoutと期限切れprocessing leaseをboundedに再予約する |
+| `internal.notification.actions.sendCurrentShiftConfirmationForStaff` | internalAction | rolling deploy前に予約済みの旧個別通知を、新しい40件上限のdurable fanoutへ収束させる互換入口 |
 | `POST /resend/webhook` | HTTP action | Resend の `email.delivered` / `email.delivery_delayed` / `email.failed` / `email.bounced` / `email.suppressed` を受信する |
 
 ## 配送ルール
@@ -80,10 +81,13 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - LINE quota が `exceeded` の場合、fallback email があれば email ジョブを enqueue して LINE ジョブは `failed` にする。
 - `DEBUG_NOTIFY_FAIL` に空でない値がある場合、メール/LINE送信は dry-run より優先して非リトライの失敗にする。FailureInbox の確認用デバッグスイッチとして扱い、実送信は行わない。
 - `dedupeKey` が同じ active ジョブ（`pending` / `processing`）は重複作成しない。
+- 募集・確定fanoutは対象スタッフを最大40人で固定し、10人ずつ処理する。確定通知の各batchは`targetStaffIds`ごとの`by_recruitmentId_staffId` indexだけを読み、募集全体のassignmentを毎回走査しない。
 - 募集・確定のdurable fanoutは `fanoutTargetKey`（semantic operation × staff）でchannelをまたいで同じOutboxを再利用する。`sent` / `failed` / `cancelled`後やemail/LINE選択の変更後にactionが再開しても、outbox ID由来のprovider idempotency keyを変えない。Widen前のrowはemail/LINE両方の旧dedupe keyを照合し、`fanoutTargetKey`と`fanoutOperationId`をlazy付与する。
+- 確定fanoutの新規Outbox作成は、その本文に対応する`shiftConfirmationSnapshots`更新と同じtransactionで行う。通常のdedupe時は現在のsnapshotを上書きせず、先に固定済みのOutbox Aへ再開時のBを誤対応させない。例外としてatomic導入前の現在canonical Outboxにsnapshotだけが欠落した場合は、rolling互換のevidence gateが現在の割当・operation・Outboxの一致を確認できたときだけ修復する。
 - `fanoutOperationId`を持つOutboxはprovider呼び出し直前にoperation、募集、店舗、対象スタッフを再照合する。確定通知は募集の`lastConfirmationNotificationOperationKey`と一致する最新世代だけを許可し、完走済みでも旧世代なら`notification_superseded`でcancelする。
 - deploy前にenqueue済みで`fanoutOperationId`を持たない確定通知は、最新operationの対象とdedupe suffixに一致する場合だけ互換配送を許可する。別semantic rowは`notification_superseded`へ収束し、旧rowが最新operationからlazy参照された場合はIDを付与する。
 - LINE fallback emailは元の`recruitmentId`と`fanoutOperationId`を継承し、fallback予約後に募集削除や世代更新が起きても同じ送信直前ゲートを通る。
+- 確定通知のview linkは同じoperation × staffでtokenを再利用する。link作成後からOutbox作成前に24時間を超えて中断した場合だけ同じtokenの期限を延長し、Outbox作成後は保存済みpayloadとのURL不一致を避けるため延長しない。
 - `recruitmentId`を持つ通知はprovider呼び出し直前に募集の存在、論理削除、スタッフのshift対象性を再確認し、削除済みなら`recruitment_inactive`、対象外なら`recipient_inactive`でcancelする。
 - worker の高頻度な status 更新と衝突しないよう、`enqueue` は重複排除に必要な `dedupeKey` 範囲だけを読む。
 
@@ -134,6 +138,7 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - `notificationFanoutOperations` は新規tableのため既存rowのbackfillを必要としない。旧scheduled actionは引数を変えずにcompatibility wrapperへ入り、初回実行時にoperationを作成または既存semantic keyへ収束する。
 - `magicLinks.notificationOperationKey` と `notificationOutbox.fanoutTargetKey` / `fanoutOperationId` はoptional wideningとする。旧view linkへ誤ったoperationを割り当てる方が危険なため一括backfillは行わず、旧Outboxは再開時にemail/LINE両方の既存dedupe keyを照合してtarget keyとoperation IDをlazy付与する。旧scheduled actionが残っていないことと、optional field未設定の新規fanout link/Outboxが0件であることを確認できた後にだけnarrowを検討する。
 - `notificationFanoutOperations.scheduledFunctionId`もoptional wideningとし、既存operationに一括backfillしない。回復cronが予約漏れ・失敗済みscheduler rowだけを再予約してIDを保存し、生存中のpending / in-progress scheduler rowは重ねない。batch完了時はlease回収予約をcancelしてから次batchを予約する。
+- rolling deployでは旧`sendCurrentShiftConfirmationForStaff` action名・旧query return shape・旧`upsertConfirmationSnapshot` mutation名を1互換期間残す。pendingの旧actionは新しいdurable fanoutへ移す。in-progress旧actionのsnapshot mutationは、現在の募集がcleanで、渡されたsignatureが現在の割当と一致し、最新確定operation×staffのcanonical Outboxが実在する場合だけ互換snapshotを保存する。受付時baselineを復元できない旧`manualConfirmation` Outboxは、enqueue時とprovider呼び出し直前の両方で`notification_superseded`へfail closedする。
 - `m019`と`m020`は`@convex-dev/migrations`のcursor / batchを使う。各rowのmarkerを確認してpatchするため、停止後のresumeと再実行はidempotentである。
 
 deploy前後の確認は次の順で行う。
@@ -146,6 +151,8 @@ npx convex run notificationOutbox/maintenance:getRedactionReadiness --deployment
 ```
 
 `lib:getStatus`はm019 / m020のcursor完走を確認する正とし、両方が`isDone: true`かつ`state: "success"`であることを確認する。`getRedactionReadiness`はindexでboundedに走査し、terminal時刻欠落、期限切れterminal未redact、期限切れFailureInbox未redactがすべて0で`ready: true`になることを別に確認する。m019完走とreadiness成立の両方を対象deploymentで確認した後だけ、`notificationContext` / `deliverySuppressed`のrequired化と旧payload fallback削除を別deployで検討する。
+
+個別再送behaviorをrollbackする場合は、最初にmanual受付を停止する。`supersedesActiveOperations: false`のoperationと参照Outboxをdrainまたはcancelし、欠落0を確認するまではundefinedを旧canonicalとして読むcompat readerとprovider直前gateを維持する。false operation / Outboxの残件と通知欠落が0になった後にだけbehaviorを戻し、optional fieldは互換期間が終わるまで残す。
 
 ## 通知使用量カウント（`notificationUsage`）
 

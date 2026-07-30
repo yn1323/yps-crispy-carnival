@@ -14,8 +14,18 @@ import {
   NOTIFICATION_FANOUT_SCOPE_LIMIT,
 } from "../constants";
 import { isShiftTargetStaff } from "../staff/service";
-import { confirmationSnapshotAssignmentValidator } from "./confirmationSnapshots";
-import { ensureNotificationFanoutOperation, normalizeNotificationFanoutTargetStaffIds } from "./fanout";
+import {
+  buildConfirmationSnapshotSignature,
+  confirmationSnapshotAssignmentValidator,
+  normalizeConfirmationSnapshotAssignments,
+  upsertConfirmationSnapshotRecord,
+} from "./confirmationSnapshots";
+import {
+  buildNotificationFanoutTargetKey,
+  ensureNotificationFanoutOperation,
+  isSupplementalConfirmationFanoutStale,
+  normalizeNotificationFanoutTargetStaffIds,
+} from "./fanout";
 
 /**
  * マジックリンクトークンを生成してDBに保存
@@ -131,6 +141,7 @@ export const getOrCreateNotificationViewMagicLink = internalMutation({
     notificationOperationKey: v.string(),
   },
   handler: async (ctx, args) => {
+    const now = Date.now();
     const [staff, shop, recruitment] = await Promise.all([
       ctx.db.get(args.staffId),
       ctx.db.get(args.shopId),
@@ -159,7 +170,18 @@ export const getOrCreateNotificationViewMagicLink = internalMutation({
           .eq("notificationOperationKey", args.notificationOperationKey),
       )
       .first();
-    if (existing && !existing.revokedAt) return { token: existing.token };
+    if (existing && !existing.revokedAt) {
+      if (existing.expiresAt <= now) {
+        const fanoutTargetKey = `fanout:${args.notificationOperationKey}:${args.staffId}`;
+        const outbox = await ctx.db
+          .query("notificationOutbox")
+          .withIndex("by_fanoutTargetKey", (q) => q.eq("fanoutTargetKey", fanoutTargetKey))
+          .first();
+        // enqueue前の中断だけを回復する。Outbox作成後は保存済みpayloadとのURL不一致を起こさない。
+        if (!outbox) await ctx.db.patch(existing._id, { expiresAt: now + MAGIC_LINK_DEFAULT_TTL_MS });
+      }
+      return { token: existing.token };
+    }
 
     const token = generateUUID();
     await ctx.db.insert("magicLinks", {
@@ -169,7 +191,7 @@ export const getOrCreateNotificationViewMagicLink = internalMutation({
       recruitmentId: args.recruitmentId,
       accessKind: "view",
       notificationOperationKey: args.notificationOperationKey,
-      expiresAt: Date.now() + MAGIC_LINK_DEFAULT_TTL_MS,
+      expiresAt: now + MAGIC_LINK_DEFAULT_TTL_MS,
     });
     return { token };
   },
@@ -188,6 +210,10 @@ export const markReminderSent = internalMutation({
   },
 });
 
+/**
+ * rolling deploy中に旧actionが呼ぶ互換entrypoint。
+ * 現在の確定内容とcanonical Outboxが一致する場合だけ保存し、遅延Aのdedupe後にBを誤記録しない。
+ */
 export const upsertConfirmationSnapshot = internalMutation({
   args: {
     recruitmentId: v.id("recruitments"),
@@ -197,31 +223,83 @@ export const upsertConfirmationSnapshot = internalMutation({
     sentAt: v.number(),
   },
   handler: async (ctx, args) => {
-    const now = Date.now();
-    const existing = await ctx.db
+    const recruitment = await ctx.db.get(args.recruitmentId);
+    if (
+      !recruitment ||
+      recruitment.isDeleted ||
+      recruitment.status !== "confirmed" ||
+      (recruitment.draftSavedAt !== undefined &&
+        (recruitment.confirmedAt === undefined || recruitment.draftSavedAt > recruitment.confirmedAt))
+    ) {
+      return null;
+    }
+
+    const normalizedAssignments = normalizeConfirmationSnapshotAssignments(args.assignments);
+    if (args.signature !== buildConfirmationSnapshotSignature(normalizedAssignments)) return null;
+
+    const currentAssignments = await ctx.db
+      .query("shiftAssignments")
+      .withIndex("by_recruitmentId_staffId", (q) =>
+        q.eq("recruitmentId", args.recruitmentId).eq("staffId", args.staffId),
+      )
+      .collect();
+    const currentSnapshotAssignments = normalizeConfirmationSnapshotAssignments(
+      currentAssignments.map((assignment) => ({
+        date: assignment.date,
+        startTime: assignment.startTime,
+        endTime: assignment.endTime,
+        positionId: assignment.positionId,
+        ...(assignment.optionId ? { optionId: assignment.optionId } : {}),
+      })),
+    );
+    if (args.signature !== buildConfirmationSnapshotSignature(currentSnapshotAssignments)) return null;
+
+    const operationKey = recruitment.lastConfirmationNotificationOperationKey;
+    if (!operationKey) return null;
+    const operations = await ctx.db
+      .query("notificationFanoutOperations")
+      .withIndex("by_operationKey", (q) => q.eq("operationKey", operationKey))
+      .take(2);
+    if (operations.length !== 1) return null;
+    const operation = operations[0];
+    if (
+      operation.kind !== "confirmation" ||
+      operation.recruitmentId !== args.recruitmentId ||
+      operation.shopId !== recruitment.shopId ||
+      !operation.targetStaffIds.includes(args.staffId)
+    ) {
+      return null;
+    }
+
+    const fanoutTargetKey = buildNotificationFanoutTargetKey(operationKey, args.staffId);
+    const outbox = await ctx.db
+      .query("notificationOutbox")
+      .withIndex("by_fanoutTargetKey", (q) => q.eq("fanoutTargetKey", fanoutTargetKey))
+      .first();
+    if (
+      !outbox ||
+      outbox.fanoutOperationId !== operation._id ||
+      outbox.recruitmentId !== args.recruitmentId ||
+      outbox.shopId !== recruitment.shopId ||
+      outbox.staffId !== args.staffId
+    ) {
+      return null;
+    }
+
+    const existingSnapshot = await ctx.db
       .query("shiftConfirmationSnapshots")
       .withIndex("by_recruitmentId_staffId", (q) =>
         q.eq("recruitmentId", args.recruitmentId).eq("staffId", args.staffId),
       )
       .first();
+    if (existingSnapshot?.signature === args.signature) return existingSnapshot._id;
 
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        signature: args.signature,
-        assignments: args.assignments,
-        sentAt: args.sentAt,
-        updatedAt: now,
-      });
-      return existing._id;
-    }
-
-    return await ctx.db.insert("shiftConfirmationSnapshots", {
+    return await upsertConfirmationSnapshotRecord(ctx, {
       recruitmentId: args.recruitmentId,
       staffId: args.staffId,
       signature: args.signature,
-      assignments: args.assignments,
+      assignments: normalizedAssignments,
       sentAt: args.sentAt,
-      updatedAt: now,
     });
   },
 });
@@ -493,6 +571,20 @@ export const claimNotificationFanoutBatch = internalMutation({
       await ctx.db.patch(operationId, {
         status: "cancelled",
         cancelReason: "recruitment_inactive",
+        cancelledAt: now,
+        scheduledFunctionId: undefined,
+        leaseToken: undefined,
+        leaseExpiresAt: undefined,
+        updatedAt: now,
+      });
+      return { state: "cancelled" as const };
+    }
+
+    if (isSupplementalConfirmationFanoutStale(operation, recruitment)) {
+      const now = Date.now();
+      await ctx.db.patch(operationId, {
+        status: "cancelled",
+        cancelReason: "superseded",
         cancelledAt: now,
         scheduledFunctionId: undefined,
         leaseToken: undefined,

@@ -331,7 +331,7 @@ export const WithNotificationFailures: Story = {
     await expect(dialogView.getAllByText("佐藤 真由美").length).toBeGreaterThan(0);
 
     await userEvent.click(dialogView.getAllByRole("button", { name: "メール通知について" })[0]);
-    await dialogView.findByText(/何度も送れない場合は/);
+    await dialogView.findByText(/登録メールアドレスに誤りがないか/);
 
     const closeButtons = dialogView.getAllByRole("button", { name: "閉じる" });
     await userEvent.click(closeButtons[closeButtons.length - 1]);
