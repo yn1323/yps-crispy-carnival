@@ -1,6 +1,6 @@
 ---
 name: ship-green-pr
-description: ユーザーが`$ship-green-pr`を明示したとき、現在のcheckoutで依頼範囲の実装とテストを完成させ、全VitestとE2Eを含むローカル検証、commit、push、Pull Request作成、CI失敗の修正を行い、VRTApprove以外のPR checkがすべて成功するまで継続する。通常の実装、テスト実行、commit、PR相談では自動的に使わない。
+description: ユーザーが`$ship-green-pr`を明示したとき、現在のcheckoutで依頼範囲の実装とテストを完成させ、全VitestとE2Eを含むローカル検証、commit、push、Pull Request作成、CI失敗の修正を行い、VRTのcompare以降を除くPR checkがすべて成功するまで継続する。通常の実装、テスト実行、commit、PR相談では自動的に使わない。
 ---
 
 # PRをオールグリーンまで完遂する
@@ -12,7 +12,7 @@ description: ユーザーが`$ship-green-pr`を明示したとき、現在のche
 
 goal追跡機能を利用でき、未完了のgoalがない場合は、次の内容を一つのgoalとして設定する。
 
-> E2Eを含む全テストがローカルで成功した変更をcommit、pushしてPull Requestを作成し、最新head SHAのVRTApprove以外のcheckをすべて成功させる。
+> E2Eを含む全テストがローカルで成功した変更をcommit、pushしてPull Requestを作成し、最新head SHAのVRT compare以降を除くcheckをすべて成功させる。
 
 未完了のgoalがある場合は勝手に置き換えず、今回の完了条件を作業基準として扱う。
 長い処理ではplanを更新し、進捗、失敗原因、次の対応を簡潔に共有する。
@@ -112,7 +112,6 @@ PR URL、number、base、head branch、head SHAを記録する。
 gh pr view <pr> --json headRefOid,url
 gh pr checks <pr> --json name,workflow,bucket,state,link
 gh run list --workflow=vrt.yml --commit <head-sha> --event pull_request --json attempt,conclusion,databaseId,headSha,status,url --limit 10
-gh pr view <pr> --json comments --jq '.comments | map(select(.body | contains("## VRT Report"))) | last | .body'
 ```
 
 - PRの`headRefOid`がpushしたcommit SHAと一致することを確認する。
@@ -123,19 +122,19 @@ gh pr view <pr> --json comments --jq '.comments | map(select(.body | contains("#
 - flaky testは成功するまで再実行せず、共有状態、時刻、待機、selector、fixtureの原因を直す。
 - workflowやテストを無効化し、必須checkを減らして成功させない。
 - 新しいpush後は古いrunを捨て、最新head SHAのcheckを最初から確認する。
-- VRT workflowは最新head SHAに一致するrunの`databaseId`と`attempt`を記録し、最新のVRT Reportコメントが
-  `?v=<databaseId>-<attempt>`を指すことを確認する。対応するrunまたはコメントがなければ待つ。
-- VRT Reportが`No baseline`の場合は、checkがsuccessでも成功扱いにしない。baselineの復旧後に同じhead SHAの
-  VRT workflowを再実行し、baselineを使ったcompare結果を確認する。
+- VRT workflowは最新head SHAに一致するrunを確認し、`prepare`、`build`、全`capture`が成功して`compare`が開始されるまで待つ。
+- `compare`が開始された後は、`compare`の完了、VRT Reportの公開、VRT Reportコメント、`VRTApprove`を待たない。
 
-### VRTApproveの例外
+### VRT compare以降の例外
 
-例外にできるのは、VRT差分を人が確認するためのapproval gateである`VRTApprove`だけとする。
+例外にできるのは、`compare`が開始された後の`compare`、VRT Reportの公開、VRT Reportコメント、
+VRT差分を人が確認するためのapproval gateである`VRTApprove`とする。
+`prepare`、`build`、全`capture`の成功前はこの例外を適用しない。
 表示名が変わっている場合は、`.github/workflows/vrt.yml`のapproval jobと`vrt-approval` environmentの組合せで同一性を確認する。
-名前に`VRT`を含むbuild、capture、compare、report公開などは例外にしない。
+名前に`VRT`を含むprepare、build、captureなど、`compare`より前のjobは例外にしない。
 `VRTApprove`を自動承認したり、environment protectionを回避したりしない。
 
-`VRTApprove`以外は、最新head SHAに対する全checkが成功状態であることを要求する。
+VRTの`compare`以降を除き、最新head SHAに対する全checkが成功状態であることを要求する。
 cancelled、failure、pending、想定外のskippedまたはmissingをオールグリーンと数えない。
 
 ## 7. 完了を判定する
@@ -144,12 +143,12 @@ cancelled、failure、pending、想定外のskippedまたはmissingをオール�
 
 - 最後の変更後に、lint、type-check、全Vitest、build、全E2Eがローカルで成功した。
 - 依頼範囲の変更がcommit、push済みで、Pull Requestのhead SHAと一致する。
-- 最新head SHAの`VRTApprove`以外の全checkが成功した。
-- 最新head SHAのVRT Reportが対応するrunの結果であり、baseline欠落ではない。
+- 最新head SHAのVRT `prepare`、`build`、全`capture`が成功し、`compare`が開始された。
+- 最新head SHAのVRT `compare`以降を除く全checkが成功した。
 - 依頼外の既存変更を編集、stage、commitしていない。
 
 goal追跡を開始していた場合は、この時点でだけcompleteにする。
-PR URL、最新SHA、ローカル検証結果、PR check結果、例外にした`VRTApprove`の状態、残した依頼外変更を報告する。
+PR URL、最新SHA、ローカル検証結果、PR check結果、VRTが`compare`へ到達したこと、残した依頼外変更を報告する。
 
 現在branchの履歴が安全にPR化できない、必要なserverやcredentialがない、`VRTApprove`以外の人手承認が必要、または外部障害が続く場合は、勝手にbranch作成、secret変更、check回避を行わない。
 確認済みの事実と必要な対応を示し、完了条件を未達のまま報告する。
