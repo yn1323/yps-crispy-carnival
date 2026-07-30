@@ -1,6 +1,6 @@
 # 通知不達Dashboard
 
-送信できなかった通知を `notificationFailureInbox` から店舗単位で読み取り、Dashboard の「TODO」から再通知または「対応不要」を受け付ける機能。再通知は配送完了ではなく、Outbox または再通知 action に載った時点で受付済みとして扱う。
+送信できなかった通知を `notificationFailureInbox` から店舗単位で読み取り、Dashboard の「TODO」から再通知または「無視する」を受け付ける機能。再通知は配送完了ではなく、Outbox または再通知 action に載った時点で受付済みとして扱う。
 
 マネージャーがDashboardを開かないと不達に気づけないため、open 不達通知がある店舗のmanager usersへ、毎日 JST 17:00 に「Dashboardから再通知してください」というリマインダー（日次ダイジェスト）を送る。
 
@@ -9,13 +9,13 @@
 ### フロントエンド（`src/`）
 
 - `src/components/features/Dashboard/HeroSummary/index.tsx` — 「TODO」に不達通知カードを表示する
-- `src/components/features/Dashboard/NotificationFailureRecovery/` — open 不達通知query、Dialogの開閉、個別/一斉再通知・対応不要mutation、受付済み状態を所有する
+- `src/components/features/Dashboard/NotificationFailureRecovery/` — open 不達通知query、Dialogの開閉、個別/一斉再通知・無視操作のmutation、受付済み状態を所有する
 - `src/components/features/Dashboard/NotificationFailureDialog/` — 不達通知一覧、PCテーブル、SPリスト、Storybook
 
 ### バックエンド（`convex/`）
 
 - `convex/notificationOutbox/queries.ts` — `notificationFailureInbox` の open 件をUI向けDTOで返す
-- `convex/notificationOutbox/mutations.ts` — 個別/一斉再通知を受け付けて対象 failure を `retrying` にするほか、対応不要を `resolved/dismissed` として記録する
+- `convex/notificationOutbox/mutations.ts` — 個別/一斉再通知を受け付けて対象 failure を `retrying` にするほか、無視操作を `resolved/dismissed` として記録する
 - `convex/notificationOutbox/resendWebhook.ts` — Resend provider の配送遅延・失敗を `notificationFailureInbox` に反映する
 - `convex/notification/actions.ts` / `convex/notification/reminderActions.ts` — enqueue/preparation 失敗の再通知を1スタッフ・1募集単位でOutboxに載せる
 - `convex/notificationOutbox/failureReminderActions.ts` / `failureReminderQueries.ts` — open 不達通知がある店舗のmanagerへ日次リマインダーを送る（cron `notification-failure-reminder-digest`）
@@ -33,8 +33,8 @@
 
 | 画面 | 役割 |
 |---|---|
-| シフト担当者ダッシュボード | open 不達通知がある場合に `不達通知があります` カードを表示する |
-| 送れなかった通知Dialog | スタッフ名、通知種別、募集期間、チャネル、検知日時を表示し、個別/一斉の再通知または対応不要を受け付ける |
+| シフト担当者ダッシュボード | open 不達通知がある場合に `送れなかった通知があります` カードを表示する |
+| 送れなかった通知Dialog | スタッフ名、通知種別、募集期間、チャネル、検知日時を表示し、個別/一斉の再通知または無視操作を受け付ける |
 
 ## API 一覧
 
@@ -51,18 +51,18 @@
 
 ## 表示ルール
 
-- 通知種別が`通知`（`other` = どの通知種別にもマッピングされないcontext）の不達は、管理画面から対応できる対象として扱わず、一覧・要対応有無（HeroSummaryの「不達通知があります」カード）・日次リマインダーのいずれにも出さない。判定は`isManagerActionableNotificationFailure`（`convex/notificationOutbox/failureResend.ts`）。記録自体は`notificationFailureInbox`に残す（配送ログ・Resend webhook突合のため）。
+- 通知種別が`通知`（`other` = どの通知種別にもマッピングされないcontext）の不達は、管理画面から対応できる対象として扱わず、一覧・要対応有無（HeroSummaryの「送れなかった通知があります」カード）・日次リマインダーのいずれにも出さない。判定は`isManagerActionableNotificationFailure`（`convex/notificationOutbox/failureResend.ts`）。記録自体は`notificationFailureInbox`に残す（配送ログ・Resend webhook突合のため）。
 - 個別の`resendFailure`は、IDを直接指定した`other`由来のOutbox失敗にactionable判定を再適用しない。管理画面の非表示とpublic mutationの保証を揃えるかは、[現行コードとの差分調査](../plans/2026-07-23_doc現行コード差分調査.md#4-コードと文書のどちらを直すか決める差分)に残す。
 - 募集に紐づく不達は、対象 `recruitments` が非削除かつ `status = open` の場合だけ一覧・要対応有無・日次リマインダー・一斉再通知の対象にする。募集終了後の不達行は記録としては残すが、Dashboard では扱わない。
 - エラー理由、スタッフID、解決済み操作は表示しない。
-- メール channel の不達が含まれる場合は「メールが届かない場合は、メールアドレスに誤りがないか確認ください。それでも失敗する場合は、スタッフ詳細のLINE連携から連携リンクを案内できます。」と補足する。
+- メール channel の不達が含まれる場合は「何度も送れない場合は、メールアドレスが誤っている可能性があります。スタッフ詳細で登録メールアドレスを確認してください。メールアドレスを直せない場合は、スタッフ詳細のLINEから連携リンクを案内できます。」と補足する。
 - Resend provider 由来の遅延・失敗・拒否・抑止は、既存行と同じ `送れなかった通知` として表示する。細かい provider 状態ラベルは出さない。
 - 再通知受付に成功した行は、開いているDialog内では `再通知済み` として押せなくする。
-- 「対応不要」は確認Dialogを経て実行し、成功後は対象行を一覧から即時に外す。確認文は「対応不要にすると一覧から削除され、再送されません。」とする。
-- 対応不要にした行は物理削除せず、`resolved/dismissed` と解決した担当者・日時を記録する。一覧・要対応有無・日次リマインダー・再通知対象からは外す。
+- 「無視する」は確認Dialogを経て実行し、成功後は対象行を一覧から即時に外す。確認文は「無視すると一覧から削除され、再送されません。」とする。
+- 無視した行は物理削除せず、`resolved/dismissed` と解決した担当者・日時を記録する。一覧・要対応有無・日次リマインダー・再通知対象からは外す。
 - `resolveFailure` は現在店舗の `status = open` かつDashboard表示対象の行だけを受け付ける。再通知直後の `retrying`、解決済み、募集終了後、再通知不能な通知種別は `Not found` として扱う。
 - Dialogを開き直すと `status = open` の不達通知だけを表示するため、`retrying` の行は表示されない。
-- 対応不要または再通知のあとに同じ通知が再度失敗した場合は、同じ failure 記録が `open` に戻り再表示される。
+- 無視操作または再通知のあとに同じ通知が再度失敗した場合は、同じ failure 記録が `open` に戻り再表示される。
 - 最終失敗から30日を過ぎた不達通知は日次cronで `resolved/expired` になり、行は残したままDashboard表示と再通知対象から外れる。
 - 同じ通知種別・募集・スタッフの不達は最新1件だけを `open` として扱う。古い重複行は `resolved/superseded` になり、一覧や一斉再通知の対象にはしない。
 - `LINE連携案内`（context `line.sendInviteEmail`）の不達は募集に紐づかないため、PCテーブルの募集期間セルは `-`（ダッシュ）を表示し、SPカードでは募集期間行自体を出さない。
