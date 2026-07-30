@@ -126,7 +126,7 @@ function assertCloudflareFiles(publicRoutes: string[], redirects: string, header
     const matches = rules.filter(([source, target]) => source === `${route}/` && target === route);
     assert(matches.length === 1, `${route}/ must have exactly one public 200 proxy`);
     assert(
-      !rules.some(([source, target]) => source === route && target === "/_shell.html"),
+      !rules.some(([source, target]) => source === route && target === "/_shell"),
       `${route} is shadowed by shell`,
     );
   }
@@ -134,7 +134,7 @@ function assertCloudflareFiles(publicRoutes: string[], redirects: string, header
   for (const route of [...CSR_SHELL_STATIC_ROUTES, ...CSR_SHELL_DYNAMIC_ROUTES]) {
     for (const source of [route, `${route}/`]) {
       assert(
-        rules.some(([candidate, target]) => candidate === source && target === "/_shell.html"),
+        rules.some(([candidate, target]) => candidate === source && target === "/_shell"),
         `${source} must proxy to the SPA shell`,
       );
     }

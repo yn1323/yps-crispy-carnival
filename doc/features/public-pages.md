@@ -111,7 +111,7 @@ sitemap、canonical、内部リンクは、ルート以外を末尾スラッシ�
 既知の公開routeの末尾スラッシュ付きURLは、生成した`_redirects`で末尾スラッシュなしのHTMLへ`200` proxyする。
 3xxを返さないため、既存端末に残ったno-slashからslashへの308 cacheが適用されても、slash側の`200`でループを終端できる。
 
-認証、店舗、スタッフ用Capabilityのrouteは、末尾スラッシュの有無を問わず`_shell.html`へ明示的に`200` proxyする。
+認証、店舗、スタッフ用Capabilityのrouteは、末尾スラッシュの有無を問わずclean URLの`/_shell`へ明示的に`200` proxyする。  実体はビルド成果物の`_shell.html`だが、`.html`をproxy先へ指定するとCloudflare Pagesが`/_shell`への308を返すため、配信規則では拡張子を付けない。
 shellは`noindex`、`no-store`、`no-referrer`で公開canonicalを持たず、queryや利用者情報をbuild artifactへ固定しない。
 全URLをshellへ渡すcatch-allは置かず、トップレベルの`404.html`により未知URLと未知の記事slugは404にする。
 

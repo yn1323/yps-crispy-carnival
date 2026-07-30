@@ -1,4 +1,4 @@
-import { type APIResponse, expect, request as requestFactory, test } from "@playwright/test";
+import { type APIResponse, expect, type Page, request as requestFactory, test } from "@playwright/test";
 import {
   CSR_SHELL_DYNAMIC_ROUTES,
   CSR_SHELL_STATIC_ROUTES,
@@ -36,9 +36,13 @@ function materializeDynamicRoute(route: string): string {
   return route.replace(/:([A-Za-z][A-Za-z0-9_]*)/g, "preview-$1");
 }
 
-async function expectNoRedirect(response: APIResponse): Promise<void> {
-  expect(response.status()).toBe(200);
-  expect(response.headers().location).toBeUndefined();
+async function expectNoRedirect(response: APIResponse, path: string): Promise<void> {
+  expect(response.status(), path).toBe(200);
+  expect(response.headers().location, path).toBeUndefined();
+}
+
+async function expectHydrated(page: Page): Promise<void> {
+  await expect(page.locator("html")).toHaveAttribute("data-app-hydrated", "true", { timeout: 15_000 });
 }
 
 test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deployed"] }, () => {
@@ -49,7 +53,7 @@ test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deploye
 
       for (const path of paths) {
         const response = await request.get(path, { maxRedirects: 0 });
-        await expectNoRedirect(response);
+        await expectNoRedirect(response, path);
 
         const html = await response.text();
         expect(html, `${path} must contain server-rendered content`).toMatch(/<h1[\s>]/i);
@@ -63,7 +67,7 @@ test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deploye
     }
 
     const queryResponse = await request.get("/features/?utm_source=preview", { maxRedirects: 0 });
-    await expectNoRedirect(queryResponse);
+    await expectNoRedirect(queryResponse, "/features/?utm_source=preview");
     expect(getCanonical(await queryResponse.text())).toBe("https://shiftori.app/features");
   });
 
@@ -73,7 +77,7 @@ test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deploye
     for (const route of routes) {
       for (const path of [route, `${route}/`]) {
         const response = await request.get(path, { maxRedirects: 0 });
-        await expectNoRedirect(response);
+        await expectNoRedirect(response, path);
 
         const html = await response.text();
         const head = getHead(html);
@@ -90,7 +94,7 @@ test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deploye
     const capabilityResponse = await request.get("/manager-invite?token=preview-dummy", {
       maxRedirects: 0,
     });
-    await expectNoRedirect(capabilityResponse);
+    await expectNoRedirect(capabilityResponse, "/manager-invite?token=preview-dummy");
     expect(capabilityResponse.headers()["referrer-policy"]).toBe("no-referrer");
     expect(await capabilityResponse.text()).not.toContain("preview-dummy");
   });
@@ -110,7 +114,7 @@ test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deploye
 
     for (const path of ["/cache-reset", "/cache-reset/"]) {
       const cacheReset = await request.get(path, { maxRedirects: 0 });
-      await expectNoRedirect(cacheReset);
+      await expectNoRedirect(cacheReset, path);
       expect(cacheReset.headers()["clear-site-data"]).toBe('"cache"');
       expect(cacheReset.headers()["cache-control"]).toContain("no-store");
     }
@@ -157,7 +161,7 @@ test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deploye
         "/cache-reset",
         "/cache-reset/",
       ]) {
-        await expectNoRedirect(await androidRequest.get(path, { maxRedirects: 0 }));
+        await expectNoRedirect(await androidRequest.get(path, { maxRedirects: 0 }), path);
       }
 
       for (const path of ["/articles/not-a-real-slug", "/articles/not-a-real-slug/"]) {
@@ -186,6 +190,7 @@ test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deploye
       const response = await page.goto(route.path);
       expect(response?.ok(), `${route.path} returned ${response?.status() ?? "no response"}`).toBe(true);
       await expect(page.getByRole("heading", { level: 1, name: route.heading })).toBeVisible();
+      await expectHydrated(page);
       await expect(page).toHaveURL((url) => url.origin === expectedOrigin && url.pathname === route.path);
 
       if (route.path === "/faq") {
@@ -218,16 +223,19 @@ test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deploye
 
     const loginResponse = await page.goto("/login");
     expect(loginResponse?.status()).toBe(200);
+    await expectHydrated(page);
     await expect(page).toHaveURL((url) => url.origin === expectedOrigin && url.pathname === "/login");
     await expect(page.getByRole("heading", { level: 1, name: "シフトリにログイン" })).toBeVisible();
 
     const forgotPasswordResponse = await page.goto("/forgot-password/");
     expect(forgotPasswordResponse?.status()).toBe(200);
+    await expectHydrated(page);
     await expect(page).toHaveURL((url) => url.origin === expectedOrigin && url.pathname === "/forgot-password/");
     await expect(page.getByRole("heading", { level: 1, name: "パスワードを再設定" })).toBeVisible();
 
     const notFoundResponse = await page.goto("/__preview-404-probe");
     expect(notFoundResponse?.status()).toBe(404);
+    await expectHydrated(page);
     await expect(page).toHaveURL((url) => url.origin === expectedOrigin && url.pathname === "/__preview-404-probe");
     await expect(page.getByRole("heading", { level: 1, name: "ページが見つかりません" })).toBeVisible();
 

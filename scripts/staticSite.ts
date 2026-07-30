@@ -133,10 +133,10 @@ export function createCloudflareRedirects(publicRoutes: readonly string[]): stri
     .map((route) => `${route}/ ${route} 200`);
 
   const staticShellRules = CSR_SHELL_STATIC_ROUTES.flatMap(withOptionalTrailingSlash).map(
-    (route) => `${route} /_shell.html 200`,
+    (route) => `${route} /_shell 200`,
   );
   const dynamicShellRules = CSR_SHELL_DYNAMIC_ROUTES.flatMap(withOptionalTrailingSlash).map(
-    (route) => `${route} /_shell.html 200`,
+    (route) => `${route} /_shell 200`,
   );
 
   return [

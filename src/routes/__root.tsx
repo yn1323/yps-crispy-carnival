@@ -51,6 +51,15 @@ const PageViewTracker = () => {
   return null;
 };
 
+const HydrationReadyMarker = () => {
+  useEffect(() => {
+    // SSR本文が見えた段階と、操作できる段階をPreview smokeで区別する。
+    document.documentElement.dataset.appHydrated = "true";
+  }, []);
+
+  return null;
+};
+
 export const Route = createRootRoute({
   head: () => ({
     meta: [
@@ -96,6 +105,7 @@ function RootComponent() {
     <RootDocument>
       <ChakraProvider>
         <PageViewTracker />
+        <HydrationReadyMarker />
         <Outlet />
         <Toaster />
       </ChakraProvider>

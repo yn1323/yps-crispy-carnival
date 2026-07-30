@@ -129,8 +129,8 @@ describe("static site manifest", () => {
     expect(redirects).not.toContain("/*");
 
     for (const route of [...CSR_SHELL_STATIC_ROUTES, ...CSR_SHELL_DYNAMIC_ROUTES]) {
-      expect(redirects).toContain(`${route} /_shell.html 200`);
-      expect(redirects).toContain(`${route}/ /_shell.html 200`);
+      expect(redirects).toContain(`${route} /_shell 200`);
+      expect(redirects).toContain(`${route}/ /_shell 200`);
     }
   });
 
