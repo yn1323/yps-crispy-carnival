@@ -177,7 +177,8 @@ async function listContentSlugs(kind: "articles" | "categories"): Promise<string
   const entries = await readdir(contentDir, { withFileTypes: true });
   const slugs = await Promise.all(
     entries
-      .filter((entry) => entry.isDirectory())
+      // `_` 始まりは下書き。ArticleSite側のglobも除外しているためrouteが存在しない。
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("_"))
       .map(async (entry) => {
         try {
           await readFile(join(contentDir, entry.name, "index.mdx"));

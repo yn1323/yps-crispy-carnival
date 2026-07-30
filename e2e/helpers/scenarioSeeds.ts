@@ -84,10 +84,21 @@ export function seedManagerScenario<T>(fn: string, args: Record<string, unknown>
   return result;
 }
 
-export function resetCurrentManagerScenarioData() {
-  return convexRunJson("testing:resetManagerScenarioData", {
+export async function resetCurrentManagerScenarioData() {
+  const args = {
     managerAuthTokenIdentifier: getE2EManagerAuthTokenIdentifier(),
-  });
+  };
+
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return convexRunJson("testing:resetManagerScenarioData", args);
+    } catch (error) {
+      const delayMs = RESET_OCC_RETRY_DELAYS_MS[attempt];
+      if (delayMs === undefined || !isOptimisticConcurrencyControlFailure(error)) throw error;
+      // 削除workflowのscheduled mutationが完了するまで、E2E専用resetだけをboundedに再試行する。
+      await wait(delayMs);
+    }
+  }
 }
 
 export function forceResetManagerScenarioData(userIndex: number) {

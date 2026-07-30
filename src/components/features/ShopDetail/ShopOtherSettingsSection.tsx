@@ -25,8 +25,8 @@ export function ShopOtherSettingsSection({ shop, onRequestDelete }: Props) {
       <DeletionActionSection
         title="店舗を削除する"
         headingAs="h3"
-        description="この店舗を利用できない状態にします。この操作は元に戻せません。"
         actionLabel="削除"
+        actionVariant="solid"
         canDelete={shop.canDelete}
         disabledReason={shop.deleteDisabledReason}
         disabledReasonId={disabledReasonId}

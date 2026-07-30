@@ -11,6 +11,24 @@ export type MdxComponent = ComponentType<{ components?: MdxComponents }>;
 
 export type MdxTocItem = { id: string; text: string };
 
+export function mdxSlugFromPath(path: string): string {
+  return path.match(/\/([^/]+)\.mdx$/)?.[1] ?? path;
+}
+
+export function getUnderscorePrefixedMdxSlugs(paths: Iterable<string>): Set<string> {
+  const slugs = new Set<string>();
+
+  for (const path of paths) {
+    const fileSlug = mdxSlugFromPath(path);
+    if (!fileSlug.startsWith("_")) continue;
+
+    const publishedSlug = fileSlug.replace(/^_+/, "");
+    if (publishedSlug) slugs.add(publishedSlug);
+  }
+
+  return slugs;
+}
+
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---/;
 
 function normalizeNewlines(source: string): string {

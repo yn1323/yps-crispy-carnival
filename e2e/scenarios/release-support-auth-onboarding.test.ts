@@ -40,7 +40,7 @@ test.describe("リリース前の認証・オンボーディング回帰", { tag
   });
 
   test("閉じたDashboardオンボーディングはreload後も再表示されない", async ({ page, e2eClerkUser }) => {
-    resetCurrentManagerScenarioData();
+    await resetCurrentManagerScenarioData();
     const dashboard = new DashboardPage(page);
     const support = new ManagerSupportPage(page);
 

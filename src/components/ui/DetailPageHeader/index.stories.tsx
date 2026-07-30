@@ -17,7 +17,9 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
   play: async ({ args, canvasElement }) => {
-    await userEvent.click(within(canvasElement).getByRole("button", { name: "前の画面に戻る" }));
+    const backButton = within(canvasElement).getByRole("button", { name: "店舗詳細" });
+    await expect(backButton).toHaveAccessibleDescription("前の画面に戻る");
+    await userEvent.click(backButton);
     await expect(args.onBack).toHaveBeenCalledOnce();
   },
 };

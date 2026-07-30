@@ -79,6 +79,7 @@ describe("line/mutations", () => {
       const t = convexTest(schema, modules);
       const { shopId, staffId } = await setupShop(t);
       await expect(t.mutation(api.line.mutations.generateLinkToken, { shopId, staffId })).rejects.toThrow();
+      expect(await t.run(async (ctx) => await ctx.db.query("lineLinkTokens").collect())).toEqual([]);
     });
 
     it("認証済みシフト担当者は自店舗スタッフにトークンを発行できる", async () => {
@@ -119,6 +120,32 @@ describe("line/mutations", () => {
           staffId: otherStaffId,
         }),
       ).rejects.toThrow("Not found");
+      expect(await t.run(async (ctx) => await ctx.db.query("lineLinkTokens").collect())).toEqual([]);
+    });
+
+    it("削除済みスタッフへのトークン発行を拒否し、既存トークンも変更しない", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, staffId } = await setupShop(t);
+      await seedLineLinkToken(t, { shopId, staffId, token: "deleted-staff-existing-token" });
+      await t.run(async (ctx) => await ctx.db.patch(staffId, { isDeleted: true }));
+      const before = await t.run(async (ctx) =>
+        ctx.db
+          .query("lineLinkTokens")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+          .collect(),
+      );
+
+      await expect(
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.generateLinkToken, { shopId, staffId }),
+      ).rejects.toThrow("Not found");
+
+      const after = await t.run(async (ctx) =>
+        ctx.db
+          .query("lineLinkTokens")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+          .collect(),
+      );
+      expect(after).toEqual(before);
     });
 
     it("複数店舗マネージャーは shopId 指定でその店舗のスタッフにトークンを発行できる", async () => {
@@ -170,6 +197,7 @@ describe("line/mutations", () => {
           .withIdentity({ subject: "user_mgr" })
           .mutation(api.line.mutations.generateLinkToken, { staffId, shopId: foreignShopId }),
       ).rejects.toThrow("Not found");
+      expect(await t.run(async (ctx) => await ctx.db.query("lineLinkTokens").collect())).toEqual([]);
     });
   });
 
@@ -1144,6 +1172,21 @@ describe("line/mutations", () => {
           .withIdentity({ subject: "user_mgr" })
           .mutation(api.line.mutations.sendInvite, { shopId, staffId: otherStaffId }),
       ).rejects.toThrow("Not found");
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(scheduled.filter((job) => job.name === "line/actions:sendInviteEmail")).toHaveLength(0);
+    });
+
+    it("削除済みスタッフへの送信を拒否し、メール送信を予約しない", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, staffId } = await setupShop(t);
+      await t.run(async (ctx) => await ctx.db.patch(staffId, { isDeleted: true }));
+
+      await expect(
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.sendInvite, { shopId, staffId }),
+      ).rejects.toThrow("Not found");
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(scheduled.filter((job) => job.name === "line/actions:sendInviteEmail")).toHaveLength(0);
     });
 
     it("メールアドレス未登録なら拒否", async () => {

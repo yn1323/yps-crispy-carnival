@@ -1,5 +1,4 @@
 import { Box, Flex, Stack, Text } from "@chakra-ui/react";
-import type { ReactNode } from "react";
 import { LuPlus, LuUserRound } from "react-icons/lu";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { PersonProfileFormData } from "@/src/components/shared/PersonProfileForm";
@@ -7,39 +6,20 @@ import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
 import { Button } from "@/src/components/ui/Button";
 import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import { DrilldownRow } from "@/src/components/ui/DrilldownRow";
-import type { UserDetailData, UserDetailDialog, UserDetailPanel, UserDetailRecruitment } from "./types";
+import type { UserDetailData, UserDetailDialog, UserDetailPanel } from "./types";
 import { UserInformationDialog } from "./UserInformationDialog";
 import { UserGroupRemovalSection } from "./UserSettingsTab";
 import { UserShopAdditionDialog } from "./UserShopAdditionDialog";
-import { UserShopDetailDialog } from "./UserShopDetailDialog";
 import { UserShopMembershipList } from "./UserShopMembershipList";
 import { UserSummary } from "./UserSummary";
 
 export type UserDetailViewProps = {
   data: UserDetailData;
   showShopMembershipAddition: boolean;
-  selectedShopId: string | null;
   activePanel?: UserDetailPanel;
-  notificationHistory: ReactNode;
   state: {
     isUpdatingProfile: boolean;
-    notification: {
-      isLoading: boolean;
-      openRecruitments: UserDetailRecruitment[];
-      currentRecruitments: UserDetailRecruitment[];
-      isSendingRecruitments: boolean;
-      isSendingCurrentShift: boolean;
-    };
-    line: {
-      authorizeUrl: string | null;
-      showQr: boolean;
-      isQrLoading: boolean;
-      isSendingInvite: boolean;
-    };
     membership: {
-      dialog: UserDetailDialog;
-      isChangingShiftTarget: boolean;
-      isRemoving: boolean;
       isAdding: boolean;
       addingShopId: Id<"shops"> | null;
     };
@@ -57,15 +37,7 @@ export type UserDetailViewProps = {
     onOpenShop: (shopId: string) => void;
     onClosePanel: () => void;
     onUpdateProfile: (data: PersonProfileFormData) => void | Promise<void>;
-    onSendRecruitments: () => void | Promise<void>;
-    onSendCurrentShift: () => void | Promise<void>;
-    onShowLineQr: () => void | Promise<void>;
-    onSendLineInvite: () => void | Promise<void>;
-    onChangeShiftTarget: (isShiftTarget: boolean) => void | Promise<void>;
     onAddMembership: (shopId: Id<"shops">) => void | Promise<void>;
-    onRequestRemoveMembership: () => void;
-    onConfirmRemoveMembership: () => void | Promise<void>;
-    onCloseMembershipDialog: () => void;
     onRequestManagerAssignment: () => void;
     onCancelManagerAssignment: () => void;
     onAssignManager: () => void | Promise<void>;
@@ -76,20 +48,7 @@ export type UserDetailViewProps = {
   };
 };
 
-export function UserDetailView({
-  data,
-  showShopMembershipAddition,
-  selectedShopId,
-  activePanel,
-  notificationHistory,
-  state,
-  actions,
-}: UserDetailViewProps) {
-  const selectedMembership = data.memberships.find((membership) => membership.shopId === selectedShopId) ?? null;
-  const isStoreReadOnly = !data.canWrite || selectedMembership?.shopStatus !== "active";
-  const storeDisabledReason = selectedMembership
-    ? getStoreDisabledReason(data, selectedMembership.shopStatus)
-    : data.writeDisabledReason;
+export function UserDetailView({ data, showShopMembershipAddition, activePanel, state, actions }: UserDetailViewProps) {
   const handleDialogOpenChange = ({ open }: { open: boolean }) => {
     if (!open) actions.onClosePanel();
   };
@@ -128,9 +87,9 @@ export function UserDetailView({
       </Box>
 
       <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
-        <Flex align="center" justify="space-between" gap={3} px={{ base: 4, md: 5 }} py={4}>
+        <Flex align="center" justify="space-between" gap={3} px={{ base: 4, md: 5 }} pt={4} pb={0}>
           <Text as="h2" fontSize="md" fontWeight="semibold" color="gray.900">
-            所属店舗
+            {data.person.name}の所属店舗
           </Text>
           {showShopMembershipAddition && (
             <Button
@@ -205,38 +164,6 @@ export function UserDetailView({
           onAddShop={actions.onAddMembership}
         />
       )}
-
-      <UserShopDetailDialog
-        data={data}
-        membership={selectedMembership}
-        isOpen={activePanel === "shop"}
-        isStoreReadOnly={isStoreReadOnly}
-        storeDisabledReason={storeDisabledReason}
-        notificationHistory={notificationHistory}
-        notification={state.notification}
-        line={state.line}
-        membershipState={{
-          isChangingShiftTarget: state.membership.isChangingShiftTarget,
-          isRemovalConfirmationOpen:
-            state.membership.dialog?.kind === "removeMembership" &&
-            state.membership.dialog.membership.staffId === selectedMembership?.staffId,
-          isRemoving: state.membership.isRemoving,
-          removalPreview:
-            state.membership.dialog?.kind === "removeMembership"
-              ? state.membership.dialog.membership.removalPreview
-              : (selectedMembership?.removalPreview ?? null),
-        }}
-        onOpenChange={handleDialogOpenChange}
-        onClose={actions.onClosePanel}
-        onSendRecruitments={actions.onSendRecruitments}
-        onSendCurrentShift={actions.onSendCurrentShift}
-        onShowLineQr={actions.onShowLineQr}
-        onSendLineInvite={actions.onSendLineInvite}
-        onChangeShiftTarget={actions.onChangeShiftTarget}
-        onRequestRemoveMembership={actions.onRequestRemoveMembership}
-        onCancelRemoveMembership={actions.onCloseMembershipDialog}
-        onConfirmRemoveMembership={actions.onConfirmRemoveMembership}
-      />
     </Stack>
   );
 }
@@ -257,20 +184,4 @@ function BasicInformationIcon() {
       <LuUserRound />
     </Flex>
   );
-}
-
-function getStoreDisabledReason(data: UserDetailData, shopStatus: UserDetailData["memberships"][number]["shopStatus"]) {
-  if (!data.canWrite) return data.writeDisabledReason ?? "現在、このグループの情報を変更できません。";
-  return shopStatus === "active" ? undefined : getShopStatusDescription(shopStatus);
-}
-
-function getShopStatusDescription(shopStatus: UserDetailData["memberships"][number]["shopStatus"]) {
-  switch (shopStatus) {
-    case "archived":
-      return "アーカイブ済みの店舗では、通知送信やスタッフ設定を変更できません。";
-    case "planSuspended":
-      return "現在のプランでは停止中のため、通知送信やスタッフ設定を変更できません。";
-    case "active":
-      return "";
-  }
 }

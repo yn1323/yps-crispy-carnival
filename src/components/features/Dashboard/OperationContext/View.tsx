@@ -12,7 +12,7 @@ import {
   Text,
   VisuallyHidden,
 } from "@chakra-ui/react";
-import { LuBuilding2, LuCheck, LuChevronDown, LuSettings, LuStore } from "react-icons/lu";
+import { LuBuilding2, LuCheck, LuChevronDown, LuSettings } from "react-icons/lu";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/tooltip";
 import type { ShopContextOption } from "@/src/domains/shop/context";
@@ -33,22 +33,8 @@ export const OperationContextView = ({
 }: OperationContextViewProps) => {
   return (
     <Stack gap={3} pb={{ base: 4, lg: 6 }} borderBottomWidth="1px" borderColor="gray.200">
-      <Flex align="center" justify="space-between" gap={3} minW={0}>
-        <HStack gap={2.5} align="center" minW={0}>
-          <Box color="fg.muted" fontSize={{ base: "xl", lg: "2xl" }} flexShrink={0}>
-            <LuStore aria-hidden />
-          </Box>
-          <Heading
-            as="h2"
-            fontSize={{ base: "lg", lg: "xl" }}
-            lineHeight={{ base: "1.75rem", lg: "1.875rem" }}
-            fontWeight="bold"
-            color="gray.900"
-          >
-            店舗名
-          </Heading>
-        </HStack>
-        {onOpenGroupSettings && (
+      {onOpenGroupSettings && (
+        <Flex justify="flex-end" minW={0}>
           <Button
             type="button"
             variant="ghost"
@@ -62,8 +48,8 @@ export const OperationContextView = ({
             <LuBuilding2 aria-hidden />
             グループ設定
           </Button>
-        )}
-      </Flex>
+        </Flex>
+      )}
 
       <Flex align="center" justify="space-between" direction="row" gap={3} minW={0}>
         <ShopSelector model={model} onSelect={onShopSelect} />
@@ -220,11 +206,7 @@ export const OperationContextSkeleton = () => (
     borderColor="gray.200"
     aria-label="現在の店舗を読み込み中"
   >
-    <Flex align="center" justify="space-between" gap={3}>
-      <HStack gap={2.5}>
-        <Skeleton h={{ base: "24px", lg: "28px" }} w={{ base: "24px", lg: "28px" }} borderRadius="sm" />
-        <Skeleton h={{ base: "28px", lg: "30px" }} w="72px" />
-      </HStack>
+    <Flex justify="flex-end">
       <Skeleton h="32px" w="120px" />
     </Flex>
     <Flex align="center" justify="space-between" gap={3}>

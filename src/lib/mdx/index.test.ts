@@ -1,11 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { extractFrontmatterSource, extractMdxToc, stripFrontmatter, toHeadingId } from "./index";
+import {
+  extractFrontmatterSource,
+  extractMdxToc,
+  getUnderscorePrefixedMdxSlugs,
+  mdxSlugFromPath,
+  stripFrontmatter,
+  toHeadingId,
+} from "./index";
 
 const textModules = import.meta.glob<string[]>("./test-content/*.mdx", {
   eager: true,
   query: "?mdx-text",
   import: "default",
 });
+
+// 公開コンテンツが使う、`_` 始まりのMDXを除外するglob。
+const publishedTextModules = import.meta.glob<string[]>(["./test-content/*.mdx", "!./test-content/_*.mdx"], {
+  eager: true,
+  query: "?mdx-text",
+  import: "default",
+});
+const draftMdxSlugs = getUnderscorePrefixedMdxSlugs(Object.keys(import.meta.glob("./test-content/_*.mdx")));
 
 const source = `---
 title: "テスト記事"
@@ -70,5 +85,17 @@ describe("mdx-text", () => {
       "一つ目",
       "二つ目",
     ]);
+  });
+});
+
+describe("下書きMDXの除外", () => {
+  it("`_` 始まりのMDXを読み込まない", () => {
+    expect(Object.keys(textModules)).toContain("./test-content/_draft.mdx");
+    expect(Object.keys(publishedTextModules)).toEqual(["./test-content/plain-text.mdx"]);
+    expect([...draftMdxSlugs]).toEqual(["draft"]);
+  });
+
+  it("MDX pathからファイル名由来のslugを取得する", () => {
+    expect(mdxSlugFromPath("./content/example-help.mdx")).toBe("example-help");
   });
 });

@@ -1,9 +1,10 @@
 import { Badge, Box, Flex, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
+import dayjs from "dayjs";
 import type { ReactNode } from "react";
-import { LuBell, LuCalendarCheck, LuSend } from "react-icons/lu";
+import { LuBell, LuCalendarCheck, LuCalendarClock, LuSend } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { formatDateShort } from "@/src/domains/shift/date";
-import type { UserDetailData, UserDetailMembership, UserDetailRecruitment } from "./types";
+import type { UserShopDetailData, UserShopDetailMembership, UserShopDetailRecruitment } from "./types";
 
 type NotificationAction = {
   isDisabled: boolean;
@@ -12,18 +13,18 @@ type NotificationAction = {
 };
 
 type Props = {
-  data: UserDetailData;
-  membership: UserDetailMembership;
+  data: UserShopDetailData;
+  membership: UserShopDetailMembership;
   isReadOnly: boolean;
   isLoading: boolean;
-  openRecruitments: UserDetailRecruitment[];
-  currentRecruitments: UserDetailRecruitment[];
+  openRecruitments: UserShopDetailRecruitment[];
+  currentRecruitments: UserShopDetailRecruitment[];
   notificationHistory: ReactNode;
   sendRecruitmentsAction: NotificationAction;
   sendCurrentShiftAction: NotificationAction;
 };
 
-export function UserNotificationTab({
+export function UserShopNotificationSection({
   data,
   membership,
   isReadOnly,
@@ -42,7 +43,7 @@ export function UserNotificationTab({
     <Stack gap={10}>
       <fieldset disabled={isReadOnly} style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}>
         <Stack gap={6}>
-          <Text as="h3" fontSize="md" fontWeight="semibold" color="gray.900">
+          <Text as="h2" fontSize="md" fontWeight="semibold" color="gray.900">
             通知
           </Text>
 
@@ -116,7 +117,7 @@ function NotificationSection({
 }: {
   title: string;
   icon: ReactNode;
-  recruitments: UserDetailRecruitment[];
+  recruitments: UserShopDetailRecruitment[];
   emptyText: string;
   actionLabel: string;
   action: NotificationAction;
@@ -126,7 +127,7 @@ function NotificationSection({
       <Flex align={{ base: "flex-start", sm: "center" }} gap={3} justify="space-between">
         <HStack gap={2} color="gray.900" minW={0}>
           {icon}
-          <Text as="h4" fontSize="sm" fontWeight="semibold">
+          <Text as="h3" fontSize="sm" fontWeight="semibold">
             {title}
           </Text>
         </HStack>
@@ -146,24 +147,7 @@ function NotificationSection({
       {recruitments.length > 0 ? (
         <Stack gap={2}>
           {recruitments.map((recruitment) => (
-            <Flex
-              key={recruitment._id}
-              align={{ base: "flex-start", sm: "center" }}
-              justify="space-between"
-              gap={3}
-              borderWidth="1px"
-              borderColor="blackAlpha.100"
-              borderRadius="lg"
-              px={4}
-              py={3}
-            >
-              <Text fontSize="sm" fontWeight="semibold" color="gray.900">
-                {formatDateShort(recruitment.periodStart)} 〜 {formatDateShort(recruitment.periodEnd)}
-              </Text>
-              <Badge colorPalette={recruitment.status === "open" ? "green" : "blue"} variant="subtle">
-                {recruitment.status === "open" ? "募集中" : "確定済み"}
-              </Badge>
-            </Flex>
+            <RecruitmentNotificationCard key={recruitment._id} recruitment={recruitment} />
           ))}
         </Stack>
       ) : (
@@ -173,6 +157,101 @@ function NotificationSection({
       )}
     </Stack>
   );
+}
+
+function RecruitmentNotificationCard({ recruitment }: { recruitment: UserShopDetailRecruitment }) {
+  const today = dayjs().format("YYYY-MM-DD");
+  const isActionRequired = recruitment.status === "open" && recruitment.deadline < today;
+  const isCurrent =
+    recruitment.status === "confirmed" && recruitment.periodStart <= today && today <= recruitment.periodEnd;
+  const colorPalette = isActionRequired ? "orange" : recruitment.status === "open" ? "green" : "blue";
+  const accent = isActionRequired ? "orange.400" : recruitment.status === "open" ? "green.400" : "blue.400";
+  const borderColor = isActionRequired ? "orange.200" : isCurrent ? "blue.200" : "blackAlpha.50";
+  const bg = isActionRequired ? "orange.50/30" : isCurrent ? "blue.50/30" : "white";
+  const deadlineLabel = getRecruitmentMetaLabel(recruitment, today);
+
+  return (
+    <Flex
+      align="stretch"
+      bg={bg}
+      borderRadius="xl"
+      overflow="hidden"
+      borderWidth="1px"
+      borderColor={borderColor}
+      boxShadow="xs"
+      textAlign="left"
+      w="full"
+    >
+      <Box w="4px" bg={accent} flexShrink={0} />
+      <Flex
+        flex={1}
+        minW={0}
+        px={{ base: 3.5, lg: 4 }}
+        py={{ base: 2.5, lg: 3 }}
+        direction={{ base: "column", lg: "row" }}
+        align={{ base: "stretch", lg: "center" }}
+        gap={{ base: 1.5, lg: 4 }}
+      >
+        <Text fontSize="md" fontWeight="semibold" color="gray.900" lineHeight="short" whiteSpace="nowrap">
+          {formatDateShort(recruitment.periodStart)} 〜 {formatDateShort(recruitment.periodEnd)}
+        </Text>
+
+        <Flex
+          flex={1}
+          minW={0}
+          direction="row"
+          align="center"
+          justify={{ base: "space-between", md: "flex-end" }}
+          gap={{ base: 2, md: 4 }}
+          wrap={{ base: "wrap", sm: "nowrap" }}
+        >
+          <HStack gap={2} flexShrink={0} wrap="wrap">
+            <Badge colorPalette={colorPalette} variant="subtle" borderRadius="full" px={2.5} fontSize="xs">
+              {isActionRequired ? "要シフト調整" : recruitment.status === "open" ? "募集中" : "確定済み"}
+            </Badge>
+            {isCurrent && (
+              <Badge colorPalette="blue" variant="solid" borderRadius="full" px={2.5} fontSize="xs">
+                現在利用中
+              </Badge>
+            )}
+          </HStack>
+
+          <HStack
+            gap={{ base: 3, lg: 8 }}
+            flex={1}
+            justify="flex-end"
+            align="center"
+            color="fg.muted"
+            fontSize="xs"
+            minW={0}
+            wrap="nowrap"
+          >
+            <HStack gap={1} color={isActionRequired ? "orange.700" : undefined} minW={0}>
+              <LuCalendarClock aria-hidden />
+              <Text whiteSpace="nowrap" fontWeight={isActionRequired ? "semibold" : "normal"}>
+                {deadlineLabel}
+              </Text>
+            </HStack>
+            <Text whiteSpace="nowrap" flexShrink={0}>
+              提出 {recruitment.responseCount}/{recruitment.totalStaffCount}人
+            </Text>
+          </HStack>
+        </Flex>
+      </Flex>
+    </Flex>
+  );
+}
+
+function getRecruitmentMetaLabel(recruitment: UserShopDetailRecruitment, today: string) {
+  if (recruitment.status === "confirmed") {
+    return recruitment.confirmedAt
+      ? `確定 ${formatDateShort(dayjs(recruitment.confirmedAt).format("YYYY-MM-DD"))}`
+      : "確定済み";
+  }
+  if (recruitment.deadline < today) return `${formatDateShort(recruitment.deadline)} 締切済み`;
+
+  const days = dayjs(recruitment.deadline).startOf("day").diff(dayjs().startOf("day"), "day");
+  return days === 0 ? "今日が締切！" : `締切まで${days}日`;
 }
 
 function NotificationSkeleton() {

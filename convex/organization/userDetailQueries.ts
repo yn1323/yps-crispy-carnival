@@ -64,7 +64,12 @@ const userDetailValidator = v.object({
 
 export const getUserDetail = managerQuery({
   // route paramは任意文字列になり得るため、validatorでquery errorにせずgeneric not-foundへ寄せる。
-  args: { personId: v.string(), now: v.number() },
+  args: {
+    personId: v.string(),
+    now: v.number(),
+    // 店舗別設定では、personと対象店舗の所属関係をブラウザへ返す前に検証する。
+    requireTargetShopMembership: v.optional(v.boolean()),
+  },
   returns: v.union(userDetailValidator, v.null()),
   handler: async (ctx, args) => {
     const { shop, organization, organizationMember } = ctx;
@@ -167,6 +172,9 @@ export const getUserDetail = managerQuery({
     );
     if (membershipRows.some((row) => row === null)) return null;
     const validMembershipRows = membershipRows.filter((row) => row !== null);
+    if (args.requireTargetShopMembership && !validMembershipRows.some((row) => row.staff.shopId === shop._id)) {
+      return null;
+    }
     const seenShopIds = new Set<string>();
     for (const row of validMembershipRows) {
       if (seenShopIds.has(row.view.shopId)) return null;

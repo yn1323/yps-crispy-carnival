@@ -11,7 +11,7 @@
 
 ## 機能の範囲
 
-シフト担当者は、ユーザー詳細から連携用URLを表示し、スタッフへ連携依頼を送れる。
+シフト担当者は、ユーザーの店舗別設定ページから連携用URLを表示し、スタッフへ連携依頼を送れる。
 スタッフはLINE Loginを完了すると、その店舗のスタッフ情報へLINEアカウントを紐づけられる。
 
 連携済みで友だち追加中ならLINEを優先し、それ以外はメールを使う。
@@ -26,13 +26,14 @@ LINE APIの429はquota fallbackとは別に再試行し、通常のLINE通知で
 
 | 画面 | 利用者ができること |
 |---|---|
-| `/users/<personId>?shop=<shopId>&panel=shop` | 選択店舗の通知履歴、LINE連携状態、連携URL、個別の通知再送を確認する |
-| LINE連携URLのDialog | QRを表示し、URLをコピーする |
+| `/users/<personId>/shops/<targetShopId>?shop=<sourceShopId>` | `targetShopId`で指定した店舗の通知履歴、LINE連携状態、連携URL、個別の通知再送を確認する。`shop`は出発元店舗として維持する |
+| 店舗別設定ページのLINE連携セクション | 発行したQRとURLをページ内へ表示し、URLをコピーする |
 | `/line/callback` | LINE Loginの成功、期限切れ、試行上限、エラーを確認する |
 | LINE公式アカウントのトーク画面 | 受信メッセージに対する定型応答を受け取る |
 
 個別再送は、通常の募集作成時またはシフト確定時に通知できなかった場合の補助導線である。
 操作後の画面は「送りました」と案内し、配送済みとは表現しない。
+店舗別設定ではパスの`targetShopId`を各queryとmutationの`shopId`へ明示して渡し、出発元を表す`shop`や`selectedShopAtom`を送信対象に使わない。
 
 ## 連携token
 
@@ -81,6 +82,14 @@ followとunfollowは、同じ`lineUserId`へ紐づく全店舗の連携状態へ
 スタッフへの募集通知と確定通知の個別再送は、`api.staff.mutations.sendOpenRecruitmentNotifications`と`api.staff.mutations.sendCurrentShiftNotification`が受け付ける。
 外部送信、fallback、retry、redactionは[Notification Outbox](notification-outbox.md)を正本とする。
 
+## 認可と機密情報
+
+ブラウザから渡される`personId`、`targetShopId`、`staffId`や、所属店舗一覧からの遷移は認可根拠にしない。
+Convexは認証identityから管理アクセスを解決し、対象店舗への権限、スタッフと店舗・人物の対応、削除状態、店舗状態を各操作で再検証する。
+権限のない店舗、不正な組み合わせ、削除済み対象は拒否するか、存在を区別できない最小情報の状態へ寄せる。
+連携URL発行は既存tokenの失効を維持し、メール送信は既存のrate limitとOutboxの再検証を維持する。
+メールアドレス、LINE token、連携URL、通知本文を新しいログへ出力しない。
+
 ## コードの入口
 
 | 責務 | 主な入口 |
@@ -91,7 +100,7 @@ followとunfollowは、同じ`lineUserId`へ紐づく全店舗の連携状態へ
 | 通知文面 | `convex/notification/templates.ts` |
 | 外部送信 | `convex/notificationOutbox/` |
 | OAuth callback | `src/routes/_unregistered/line.callback.tsx`, `src/components/features/LineCallback/` |
-| 管理者向け連携UI | `src/components/features/UserDetail/`, `src/components/features/Line/LineLinkQrDialog/` |
+| 管理者向け連携UI | `src/components/features/UserShopDetail/`, `src/components/features/Line/LineLinkQrDialog/` |
 
 ## 関連文書
 

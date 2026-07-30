@@ -21,8 +21,7 @@ export const Route = createFileRoute("/_auth/users/$personId")({
 
 export function validateUserDetailSearch(search: Record<string, unknown>): UserDetailSearch {
   const shop = typeof search.shop === "string" && search.shop.trim() !== "" ? search.shop : undefined;
-  const requestedPanel = isUserDetailPanel(search.panel) ? search.panel : undefined;
-  const panel = requestedPanel === "shop" && !shop ? undefined : requestedPanel;
+  const panel = isUserDetailPanel(search.panel) ? search.panel : undefined;
   const validReturnTo = isUserDetailReturnTo(search.returnTo) ? search.returnTo : undefined;
   const requestedReturnShop =
     typeof search.returnShop === "string" && search.returnShop.trim() !== "" ? search.returnShop : undefined;
@@ -61,5 +60,5 @@ function isUserDetailReturnTo(value: unknown): value is UserDetailReturnTo {
 }
 
 function isUserDetailPanel(value: unknown): value is UserDetailPanel {
-  return value === "basic" || value === "addShop" || value === "shop";
+  return value === "basic" || value === "addShop";
 }

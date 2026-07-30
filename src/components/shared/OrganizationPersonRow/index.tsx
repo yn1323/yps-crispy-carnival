@@ -53,7 +53,7 @@ export function OrganizationPersonRow({
         </Flex>
       }
       badges={
-        <HStack gap={1.5} wrap="wrap">
+        <HStack gap={1.5} wrap="wrap" ms="auto" flexShrink={0}>
           <Badge colorPalette={isManager ? "teal" : "gray"} variant="subtle" borderRadius="full" px={2} textStyle="2xs">
             {roleLabel}
           </Badge>

@@ -1,40 +1,37 @@
+import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { toaster } from "@/src/components/ui/toaster";
-import { useShopMutation } from "@/src/hooks/useShopMutation";
-import { useShopPaginatedQuery } from "@/src/hooks/useShopPaginatedQuery";
-import { useShopQuery } from "@/src/hooks/useShopQuery";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
-import type { UserDetailMembership, UserDetailRecruitment } from "./types";
+import type { UserShopDetailMembership, UserShopDetailRecruitment } from "./types";
 
 const RECRUITMENT_QUERY_PAGE_SIZE = 100;
 
-export function useUserNotificationActions({
+export function useUserShopNotificationActions({
+  targetShopId,
   membership,
-  enabled,
   isReadOnly,
 }: {
-  membership: UserDetailMembership | null;
-  enabled: boolean;
+  targetShopId: Id<"shops">;
+  membership: UserShopDetailMembership;
   isReadOnly: boolean;
 }) {
-  const shouldQuery = enabled && membership !== null;
-  const recruitments = useShopPaginatedQuery(
+  const recruitments = usePaginatedQuery(
     api.dashboard.queries.getDashboardRecruitments,
-    shouldQuery ? {} : "skip",
+    { shopId: targetShopId },
     { initialNumItems: RECRUITMENT_QUERY_PAGE_SIZE },
   );
-  const currentRecruitments = useShopQuery(
-    api.dashboard.queries.getDashboardCurrentRecruitments,
-    shouldQuery ? {} : "skip",
-  );
-  const sendOpenRecruitmentNotifications = useShopMutation(api.staff.mutations.sendOpenRecruitmentNotifications);
-  const sendCurrentShiftNotification = useShopMutation(api.staff.mutations.sendCurrentShiftNotification);
+  const currentRecruitments = useQuery(api.dashboard.queries.getDashboardCurrentRecruitments, {
+    shopId: targetShopId,
+  });
+  const sendOpenRecruitmentNotifications = useMutation(api.staff.mutations.sendOpenRecruitmentNotifications);
+  const sendCurrentShiftNotification = useMutation(api.staff.mutations.sendCurrentShiftNotification);
 
   const { run: sendRecruitments, isRunning: isSendingRecruitments } = useSingleFlight(async () => {
-    if (isReadOnly || !membership) return;
+    if (isReadOnly || membership.shopId !== targetShopId) return;
     try {
-      const result = await sendOpenRecruitmentNotifications({ staffId: membership.staffId });
+      const result = await sendOpenRecruitmentNotifications({ shopId: targetShopId, staffId: membership.staffId });
       if (result.scheduled) {
         showSuccessToast({ title: "シフト募集通知を送りました" });
         return;
@@ -50,9 +47,9 @@ export function useUserNotificationActions({
   });
 
   const { run: sendCurrentShift, isRunning: isSendingCurrentShift } = useSingleFlight(async () => {
-    if (isReadOnly || !membership) return;
+    if (isReadOnly || membership.shopId !== targetShopId) return;
     try {
-      const result = await sendCurrentShiftNotification({ staffId: membership.staffId });
+      const result = await sendCurrentShiftNotification({ shopId: targetShopId, staffId: membership.staffId });
       if (result.scheduled) {
         showSuccessToast({ title: "現在の確定シフトを送りました" });
         return;
@@ -68,11 +65,11 @@ export function useUserNotificationActions({
   });
 
   return {
-    openRecruitments: (shouldQuery
-      ? recruitments.results.filter((recruitment) => recruitment.status === "open")
-      : []) as UserDetailRecruitment[],
-    currentRecruitments: (currentRecruitments ?? []) as UserDetailRecruitment[],
-    isLoading: shouldQuery && (recruitments.status === "LoadingFirstPage" || currentRecruitments === undefined),
+    openRecruitments: recruitments.results.filter(
+      (recruitment) => recruitment.status === "open",
+    ) as UserShopDetailRecruitment[],
+    currentRecruitments: (currentRecruitments ?? []) as UserShopDetailRecruitment[],
+    isLoading: recruitments.status === "LoadingFirstPage" || currentRecruitments === undefined,
     sendRecruitments,
     sendCurrentShift,
     isSendingRecruitments,

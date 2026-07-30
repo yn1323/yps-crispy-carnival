@@ -427,6 +427,17 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       memberships: [],
     });
 
+    await expect(
+      t
+        .withIdentity({ subject: "user_detail_manager_without_shop" })
+        .query(api.organization.userDetailQueries.getUserDetail, {
+          shopId: ids.shopId,
+          personId: ids.targetPersonId,
+          now: NOW,
+          requireTargetShopMembership: true,
+        }),
+    ).resolves.toBeNull();
+
     const self = await t
       .withIdentity({ subject: "user_detail_manager_without_shop" })
       .query(api.organization.userDetailQueries.getUserDetail, {

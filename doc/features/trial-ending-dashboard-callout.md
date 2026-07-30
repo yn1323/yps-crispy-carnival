@@ -9,7 +9,7 @@ Pro継続を登録していないグループに対し、トライアル最終�
 ### フロントエンド（`src/`）
 
 - `src/pages/dashboard/index.tsx` — 選択中店舗の通知DTOと支払い設定への店舗コンテキストを渡す
-- `src/components/features/Dashboard/DashboardContent/index.tsx` — 法務再同意と通常の「今やること」の間へCalloutを合成する
+- `src/components/features/Dashboard/DashboardContent/index.tsx` — 法務再同意と通常の「TODO」の間へCalloutを合成する
 - `src/components/features/Dashboard/TrialEndingCallout/` — 表示期間、JST日付、時刻境界の再評価、Callout UI、Storybookを所有する
 
 ### バックエンド（`convex/`）

@@ -24,7 +24,7 @@ test.describe("シフト募集削除", { tag: ["@release"] }, () => {
   });
 
   test("未確定・確定済みの募集をダッシュボードから削除できる", async () => {
-    resetCurrentManagerScenarioData();
+    await resetCurrentManagerScenarioData();
 
     await test.step("Step 1: 店舗とスタッフを準備する", async () => {
       await dashboard.goto();

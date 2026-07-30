@@ -42,7 +42,7 @@ export function useUserManagerActions({
 
   useEffect(() => {
     setDialog((current) => {
-      if (!current || current.kind === "removeMembership") return current;
+      if (!current) return current;
       if (current.personId !== data.person.id || !operationShopId || current.shopId !== operationShopId) return null;
       if (current.kind === "removeManagerRole") {
         return isManagerInvitationVisible && data.canRemoveManagerRole ? current : null;
@@ -80,7 +80,7 @@ export function useUserManagerActions({
   });
 
   const { run: confirmRemoval, isRunning: isRemoving } = useSingleFlight(async () => {
-    if (!operationShopId || !dialog || dialog.kind === "removeMembership") return;
+    if (!operationShopId || !dialog) return;
     if (dialog.personId !== data.person.id || dialog.shopId !== operationShopId) return;
     const shopId = dialog.shopId as Id<"shops">;
 

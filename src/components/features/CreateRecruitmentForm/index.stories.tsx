@@ -430,9 +430,17 @@ export const InteractiveDoubleSubmitGuard: Story = {
 };
 
 async function getTestRoot(canvasElement: HTMLElement): Promise<HTMLElement> {
-  const root = await within(canvasElement.ownerDocument.body).findByRole("dialog");
-  await waitFor(() => expect(root).toBeVisible());
-  return root;
+  const body = within(canvasElement.ownerDocument.body);
+
+  // 前のStoryの閉じかけたPortalを固定参照せず、現在表示中のDialogを待つ。
+  return waitFor(
+    () => {
+      const dialog = body.getByRole("dialog", { name: "新しい募集をつくる" });
+      expect(dialog).toBeVisible();
+      return dialog;
+    },
+    { timeout: 5_000 },
+  );
 }
 
 function getCalendarRoot(root: HTMLElement): HTMLElement {

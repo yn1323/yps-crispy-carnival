@@ -4,20 +4,24 @@ import { StaffNotificationHistoryView } from "./StaffNotificationHistoryView";
 import { useStaffNotificationHistory } from "./useStaffNotificationHistory";
 
 type Props = {
+  shopId: Id<"shops">;
   staffId: Id<"staffs">;
   enabled: boolean;
 };
 
-export function StaffNotificationHistory({ staffId, enabled }: Props) {
+export function StaffNotificationHistory({ shopId, staffId, enabled }: Props) {
   return (
-    <ErrorBoundary key={`${staffId}:${enabled}`} fallback={<StaffNotificationHistoryView items={[]} isError />}>
-      <ConnectedStaffNotificationHistory staffId={staffId} enabled={enabled} />
+    <ErrorBoundary
+      key={`${shopId}:${staffId}:${enabled}`}
+      fallback={<StaffNotificationHistoryView items={[]} isError />}
+    >
+      <ConnectedStaffNotificationHistory shopId={shopId} staffId={staffId} enabled={enabled} />
     </ErrorBoundary>
   );
 }
 
-function ConnectedStaffNotificationHistory({ staffId, enabled }: Props) {
-  const history = useStaffNotificationHistory(staffId, enabled);
+function ConnectedStaffNotificationHistory({ shopId, staffId, enabled }: Props) {
+  const history = useStaffNotificationHistory(shopId, staffId, enabled);
   return <StaffNotificationHistoryView {...history} />;
 }
 

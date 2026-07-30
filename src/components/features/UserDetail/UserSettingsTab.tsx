@@ -1,116 +1,11 @@
-import { Box, Flex, Heading, HStack, Stack, Switch, Text, VisuallyHidden } from "@chakra-ui/react";
+import { Box, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import { useEffect, useId, useRef } from "react";
-import { LuShieldMinus, LuShieldPlus, LuTrash2 } from "react-icons/lu";
+import { LuShieldMinus, LuShieldPlus } from "react-icons/lu";
 import { DeletionActionSection } from "@/src/components/shared/DeletionActionSection";
 import { ManagerAssignmentConfirmation } from "@/src/components/shared/ManagerAssignmentConfirmation";
 import { Button } from "@/src/components/ui/Button";
-import type { UserDetailData, UserDetailMembership, UserDetailRemovalPreview } from "./types";
-
-type Props = {
-  personName: string;
-  membership: UserDetailMembership;
-  removalPreview: UserDetailRemovalPreview;
-  isStoreReadOnly: boolean;
-  storeDisabledReason?: string;
-  isChangingShiftTarget: boolean;
-  isRemovalConfirmationOpen: boolean;
-  isRemovingMembership: boolean;
-  onChangeShiftTarget: (isShiftTarget: boolean) => void | Promise<void>;
-  onRequestRemoveMembership: () => void;
-  onCancelRemoveMembership: () => void;
-  onConfirmRemoveMembership: () => void | Promise<void>;
-};
-
-export function UserSettingsTab({
-  personName,
-  membership,
-  removalPreview,
-  isStoreReadOnly,
-  storeDisabledReason,
-  isChangingShiftTarget,
-  isRemovalConfirmationOpen,
-  isRemovingMembership,
-  onChangeShiftTarget,
-  onRequestRemoveMembership,
-  onCancelRemoveMembership,
-  onConfirmRemoveMembership,
-}: Props) {
-  const storeActionDisabledReasonId = `user-detail-store-action-disabled-${membership.staffId}`;
-  const membershipRemovalDisabled = isStoreReadOnly || !membership.canRemove;
-  const membershipRemovalDisabledReason = membershipRemovalDisabled
-    ? isStoreReadOnly
-      ? storeDisabledReason
-      : "この店舗から外せません。"
-    : undefined;
-  return (
-    <Stack gap={6}>
-      <Stack gap={2}>
-        <Flex align="center" justify="space-between" gap={4}>
-          <Heading as="h3" fontSize="sm" fontWeight="semibold" color="gray.900">
-            シフト対象
-          </Heading>
-          <Switch.Root
-            checked={!membership.excludedFromShift}
-            disabled={isStoreReadOnly || isChangingShiftTarget}
-            colorPalette="teal"
-            onCheckedChange={(details) => onChangeShiftTarget(details.checked)}
-          >
-            <Switch.HiddenInput
-              aria-describedby={isStoreReadOnly && storeDisabledReason ? storeActionDisabledReasonId : undefined}
-            />
-            <Switch.Control>
-              <Switch.Thumb />
-            </Switch.Control>
-            <Switch.Label>
-              <VisuallyHidden>シフト対象</VisuallyHidden>
-            </Switch.Label>
-          </Switch.Root>
-        </Flex>
-        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          OFFにするとシフト表から非表示になり、シフト募集、確定通知も来なくなります。
-        </Text>
-      </Stack>
-
-      <Box borderTopWidth="1px" borderColor="blackAlpha.100" pt={6}>
-        <Stack gap={3}>
-          <Heading as="h3" fontSize="sm" fontWeight="semibold" color="gray.900">
-            このスタッフを店舗から外す
-          </Heading>
-          <Stack gap={2} align="flex-end">
-            <Button
-              colorPalette="red"
-              variant="solid"
-              gap={1.5}
-              disabled={membershipRemovalDisabled}
-              aria-describedby={membershipRemovalDisabledReason ? storeActionDisabledReasonId : undefined}
-              onClick={onRequestRemoveMembership}
-            >
-              <LuTrash2 aria-hidden />
-              店舗から外す
-            </Button>
-            {membershipRemovalDisabledReason && (
-              <Text id={storeActionDisabledReasonId} fontSize="xs" color="orange.700" textAlign="right">
-                {membershipRemovalDisabledReason}
-              </Text>
-            )}
-          </Stack>
-          {isRemovalConfirmationOpen && (
-            <InlineDestructiveConfirmation
-              title={`${personName}さんを${membership.shopName}から外しますか？`}
-              description="この店舗のスタッフ所属、既存のシフト用リンク、LINE連携を終了します。グループのユーザー情報、ほかの店舗所属、管理者権限は変更しません。"
-              warning={getAssignmentRemovalDescription(removalPreview)}
-              confirmLabel="店舗から外す"
-              isLoading={isRemovingMembership}
-              isDisabled={removalPreview.kind === "tooMany"}
-              onCancel={onCancelRemoveMembership}
-              onConfirm={onConfirmRemoveMembership}
-            />
-          )}
-        </Stack>
-      </Box>
-    </Stack>
-  );
-}
+import { Dialog } from "@/src/components/ui/Dialog";
+import type { UserDetailData, UserDetailRemovalPreview } from "./types";
 
 export function UserManagerSettings({
   data,
@@ -192,28 +87,54 @@ export function UserGroupRemovalSection({
   const disabledReasonId = disabledReason ? "user-detail-group-removal-disabled-reason" : undefined;
 
   return (
-    <DeletionActionSection
-      title="ユーザーを削除する"
-      description="このグループからユーザーを削除します。ほかのグループへの所属には影響しません。この操作は元に戻せません。"
-      actionLabel="削除"
-      canDelete={!isDisabled}
-      disabledReason={disabledReason}
-      disabledReasonId={disabledReasonId}
-      onDelete={onRequestRemovePerson}
-    >
+    <>
+      <DeletionActionSection
+        title="ユーザーを削除する"
+        actionLabel="削除"
+        actionVariant="solid"
+        canDelete={!isDisabled}
+        disabledReason={disabledReason}
+        disabledReasonId={disabledReasonId}
+        onDelete={onRequestRemovePerson}
+      />
+
       {isConfirmationOpen && (
-        <InlineDestructiveConfirmation
-          title={`${personName}さんをグループから削除しますか？`}
-          description="このグループのすべての店舗所属、管理権限、スタッフ権限、閲覧権限を終了します。ほかのグループへの所属には影響しません。過去のシフト履歴は保持します。この操作は元に戻せません。"
-          warning={getAssignmentRemovalDescription(removalPreview)}
-          confirmLabel="グループから削除"
+        <Dialog
+          title="ユーザーを削除"
+          isOpen
+          role="alertdialog"
+          submitLabel="グループから削除"
+          submitColorPalette="red"
+          closeLabel="やめる"
           isLoading={isRemoving}
-          isDisabled={removalPreview.kind === "tooMany"}
-          onCancel={onCancelRemovePerson}
-          onConfirm={onConfirmRemovePerson}
-        />
+          isSubmitDisabled={removalPreview.kind === "tooMany" || isRemoving}
+          onOpenChange={({ open }) => {
+            if (!open && !isRemoving) onCancelRemovePerson();
+          }}
+          onClose={() => {
+            if (!isRemoving) onCancelRemovePerson();
+          }}
+          onSubmit={onConfirmRemovePerson}
+          maxW={{ base: "calc(100vw - 24px)", md: "560px" }}
+        >
+          <Stack gap={3} fontSize="sm" color="fg.muted" lineHeight="tall">
+            <Text fontWeight="semibold" color="gray.900">
+              {personName}さんをこのグループから削除しますか？
+            </Text>
+            <Text>{personName}さんは、店舗への所属と権限（管理・スタッフ・閲覧）を失います。</Text>
+            <Stack gap={1}>
+              <Text>過去のシフト履歴は保持されます。</Text>
+              <Text color="orange.700" fontWeight="medium">
+                {getAssignmentRemovalDescription(removalPreview)}
+              </Text>
+            </Stack>
+            <Text color="red.700" fontWeight="semibold">
+              この操作は元に戻せません。
+            </Text>
+          </Stack>
+        </Dialog>
       )}
-    </DeletionActionSection>
+    </>
   );
 }
 
@@ -434,6 +355,8 @@ function getAssignmentRemovalDescription(preview: UserDetailRemovalPreview) {
   if (preview.kind === "tooMany") {
     return `今日以降のシフト割当が${preview.limit}件を超えています。先にシフトを整理してから削除してください。`;
   }
-  if (preview.assignmentCount === 0) return "今日以降のシフトから外れる割当はありません。";
+  if (preview.assignmentCount === 0) {
+    return "今日以降のシフトに割り当てはないため、シフトへの影響もありません。";
+  }
   return `今日以降のシフト${preview.assignmentCount}件からも外れます。`;
 }

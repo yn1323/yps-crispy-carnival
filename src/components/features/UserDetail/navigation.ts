@@ -2,12 +2,60 @@ import { toUserListCountSearch } from "@/src/lib/userListSearch";
 import type { UserDetailPanel, UserDetailReturnTo } from "./types";
 
 type UserDetailSearchUpdate = {
-  shop?: string;
   panel?: UserDetailPanel;
 };
 
 export function mergeUserDetailSearch<T extends Record<string, unknown>>(previous: T, next: UserDetailSearchUpdate) {
   return { ...previous, ...next };
+}
+
+export function getUserDetailRouteSearch(
+  selectedShopId: string | null,
+  returnTo: UserDetailReturnTo,
+  visibleUserCount: number,
+  returnShopId?: string | null,
+  returnShopTo?: "dashboard",
+) {
+  return {
+    shop: selectedShopId ?? undefined,
+    returnTo,
+    ...(returnTo === "shopDetail" && (returnShopId ?? selectedShopId)
+      ? { returnShop: returnShopId ?? selectedShopId ?? undefined }
+      : {}),
+    ...(returnTo === "shopDetail" && returnShopTo === "dashboard" ? { returnShopTo } : {}),
+    users: toUserListCountSearch(visibleUserCount),
+  };
+}
+
+export function getUserShopDetailDestination(
+  personId: string,
+  targetShopId: string,
+  selectedShopId: string | null,
+  returnTo: UserDetailReturnTo,
+  visibleUserCount: number,
+  returnShopId?: string | null,
+  returnShopTo?: "dashboard",
+) {
+  return {
+    to: "/users/$personId/shops/$targetShopId" as const,
+    params: { personId, targetShopId },
+    search: getUserDetailRouteSearch(selectedShopId, returnTo, visibleUserCount, returnShopId, returnShopTo),
+  };
+}
+
+export function getUserShopDetailBackDestination(
+  personId: string,
+  selectedShopId: string | null,
+  returnTo: UserDetailReturnTo,
+  visibleUserCount: number,
+  returnShopId?: string | null,
+  returnShopTo?: "dashboard",
+) {
+  return {
+    to: "/users/$personId" as const,
+    params: { personId },
+    search: getUserDetailRouteSearch(selectedShopId, returnTo, visibleUserCount, returnShopId, returnShopTo),
+  };
 }
 
 export function getUserDetailBackDestination(

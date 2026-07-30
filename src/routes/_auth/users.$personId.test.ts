@@ -6,14 +6,13 @@ describe("ユーザー詳細URL", () => {
     expect(validateUserDetailSearch({ panel })).toEqual({ panel });
   });
 
-  it("shopとpanel=shopを店舗詳細の表示対象として受け付ける", () => {
+  it("廃止したpanel=shopはshopを維持して破棄する", () => {
     expect(validateUserDetailSearch({ shop: "shop-b", panel: "shop" })).toEqual({
       shop: "shop-b",
-      panel: "shop",
     });
   });
 
-  it("shopがないpanel=shopは破棄する", () => {
+  it("shopがなくても廃止したpanel=shopは破棄する", () => {
     expect(validateUserDetailSearch({ panel: "shop" })).toEqual({});
   });
 
@@ -29,18 +28,18 @@ describe("ユーザー詳細URL", () => {
     expect(validateUserDetailSearch({ tab: "line" })).toEqual({});
   });
 
-  it("表示店舗、パネル、戻り先の有効値を保持する", () => {
+  it("表示店舗、有効なパネル、戻り先の有効値を保持する", () => {
     expect(
       validateUserDetailSearch({
         shop: "shop-b",
-        panel: "shop",
+        panel: "basic",
         returnTo: "settings",
         returnShopTo: "dashboard",
         users: "30",
       }),
     ).toEqual({
       shop: "shop-b",
-      panel: "shop",
+      panel: "basic",
       returnTo: "settings",
       users: 30,
     });

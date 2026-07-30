@@ -67,12 +67,10 @@ export function StaffRegistrationLinkPanel({ registrationUrl, isLoading, manualE
     <Stack gap={5}>
       <Stack gap={2}>
         <Text fontSize="sm" color="gray.800" lineHeight="tall">
-          スタッフにQRコードを読み取ってもらうと、スタッフ本人が登録できます。
-          <br />
-          人数が多い場合は、招待リンクの共有がおすすめです。
+          QRコードを対面で読み取ってもらうと、スタッフ本人がその場で登録できます。人数が多い場合は、招待リンクをまとめて共有する方法が便利です。
         </Text>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          申請を承認すると、LINE連携案内を送ります。募集中シフトがある場合は提出リンクも送ります。
+          登録申請を承認すると、スタッフにLINE連携の案内を送ります。募集中のシフトがある場合は、シフト提出リンクもあわせて送ります。
         </Text>
       </Stack>
 

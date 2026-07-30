@@ -6,7 +6,7 @@ import { DashboardPage } from "../pages/DashboardPage";
 test.describe("ユーザー詳細の店舗所属管理", { tag: ["@release", "@security"] }, () => {
   test.setTimeout(60_000);
 
-  test("MS-P0-04: 未所属店舗を一覧から隠し、追加ダイアログから所属を追加・解除できる", async ({ page }) => {
+  test("MS-P0-04: 選択店舗を維持したまま専用ページで店舗所属を追加・解除できる", async ({ page }) => {
     test.skip(!isShopAdditionEnabled(), "店舗所属追加はダークローンチ中のためスキップします");
     const seed = seedMultiShopOrganizationScenario({
       organizationName: "ユーザー所属E2Eグループ",
@@ -25,7 +25,7 @@ test.describe("ユーザー詳細の店舗所属管理", { tag: ["@release", "@s
     await test.step("Step 1: ユーザー詳細には所属中のA店だけを表示する", async () => {
       await detail.expectAssignedShop(primaryShop);
       await detail.expectShopNotAssigned(secondaryShop);
-      await detail.expectShopDialogStructure(primaryShop);
+      await detail.expectShopPageStructure(primaryShop, primaryShop);
     });
 
     await test.step("Step 2: 店舗追加ダイアログから未所属のB店へ追加する", async () => {
@@ -33,16 +33,15 @@ test.describe("ユーザー詳細の店舗所属管理", { tag: ["@release", "@s
       await detail.expectAssignedShop(secondaryShop);
     });
 
-    await test.step("Step 3: B店の縦並び設定から店舗所属だけを解除する", async () => {
-      await detail.expectShopDialogStructure(secondaryShop);
+    await test.step("Step 3: A店を選択したままB店の専用ページから店舗所属だけを解除する", async () => {
+      await detail.expectShopPageStructure(secondaryShop, primaryShop);
       await detail.removeFromShop(secondaryShop);
       await detail.expectAssignedShop(primaryShop);
     });
 
-    await test.step("Step 4: ユーザー詳細を開き直してもA店所属だけを維持する", async () => {
+    await test.step("Step 4: Dashboardへ戻ってもA店の選択と所属を維持する", async () => {
       await detail.returnToDashboard();
-      await dashboard.expectStaffNotVisible(seed.primaryMarkerPersonName);
-      await dashboard.goto(seed.primaryShopId);
+      await dashboard.expectStaffVisible(seed.primaryMarkerPersonName);
       detail = await dashboard.openUserDetail(seed.primaryMarkerPersonName);
       await detail.expectAssignedShop(primaryShop);
       await detail.expectShopNotAssigned(secondaryShop);

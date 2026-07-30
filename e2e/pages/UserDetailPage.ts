@@ -8,6 +8,11 @@ export type UserDetailShop = Readonly<{
 }>;
 
 export class UserDetailPage {
+  private parentUserDetailUrl?: Readonly<{
+    pathname: string;
+    search: Record<string, string>;
+  }>;
+
   constructor(
     private page: Page,
     private personName: string,
@@ -15,7 +20,9 @@ export class UserDetailPage {
   ) {}
 
   async expectLoaded() {
-    await expect(this.page).toHaveURL(/\/users\/[^/?]+/, { timeout: USER_DETAIL_DATA_TIMEOUT });
+    await this.page.waitForURL((url) => /^\/users\/[^/]+$/.test(url.pathname), {
+      timeout: USER_DETAIL_DATA_TIMEOUT,
+    });
     await expect(this.page.getByRole("heading", { name: "ユーザー詳細", exact: true })).toBeVisible({
       timeout: USER_DETAIL_DATA_TIMEOUT,
     });
@@ -70,13 +77,20 @@ export class UserDetailPage {
     await this.closeDialog(dialog);
   }
 
-  async removeFromOrganization(options: { expectedAssignmentCount?: number } = {}) {
+  async removeFromOrganization(
+    options: { expectedAssignmentCount?: number; returnTo?: "dashboard" | "settings" } = {},
+  ) {
     await this.page.getByRole("button", { name: "削除", exact: true }).click();
-    const confirmation = this.page.getByRole("alertdialog", {
-      name: `${this.personName}さんをグループから削除しますか？`,
-    });
+    const confirmation = this.page.getByRole("alertdialog", { name: "ユーザーを削除", exact: true });
     await expect(confirmation).toBeVisible();
-    await expect(confirmation.getByText(/ほかのグループへの所属には影響しません/)).toBeVisible();
+    await expect(
+      confirmation.getByText(`${this.personName}さんをこのグループから削除しますか？`, { exact: true }),
+    ).toBeVisible();
+    await expect(
+      confirmation.getByText(`${this.personName}さんは、店舗への所属と権限（管理・スタッフ・閲覧）を失います。`, {
+        exact: true,
+      }),
+    ).toBeVisible();
     if (options.expectedAssignmentCount !== undefined) {
       await expect(
         confirmation.getByText(`今日以降のシフト${options.expectedAssignmentCount}件からも外れます。`, {
@@ -84,9 +98,10 @@ export class UserDetailPage {
         }),
       ).toBeVisible();
     }
-    await confirmation.getByRole("button", { name: "グループから削除" }).click();
+    await confirmation.getByRole("button", { name: "グループから削除", exact: true }).click();
     await this.expectToastVisibleThenHidden("ユーザーをグループから削除しました");
-    await expect(this.page).toHaveURL(/\/settings\?/, { timeout: USER_DETAIL_DATA_TIMEOUT });
+    const destination = options.returnTo === "dashboard" ? /\/dashboard(?:\?|$)/ : /\/settings(?:\?|$)/;
+    await expect(this.page).toHaveURL(destination, { timeout: USER_DETAIL_DATA_TIMEOUT });
   }
 
   async expectAssignedShop(shop: UserDetailShop) {
@@ -111,87 +126,87 @@ export class UserDetailPage {
     await this.expectAssignedShop(shop);
   }
 
-  async expectShopDialogStructure(shop = this.requireContextShop()) {
-    const dialog = await this.openShopDialog(shop);
-    await expect(dialog.getByRole("tab")).toHaveCount(0);
-    await expect(dialog.getByRole("heading", { name: "LINE連携", exact: true })).toBeVisible();
-    await expect(dialog.getByRole("heading", { name: "通知", exact: true })).toBeVisible();
-    await expect(dialog.getByRole("heading", { level: 3 }).first()).toHaveText("LINE連携");
-    await expect(dialog.getByRole("heading", { name: "店舗設定", exact: true })).toHaveCount(0);
-    await expect(dialog.getByRole("checkbox", { name: "シフト対象" })).toBeVisible();
-    await expect(dialog.getByRole("button", { name: "店舗から外す" })).toBeVisible();
-    await this.closeDialog(dialog);
+  async expectShopPageStructure(shop = this.requireContextShop(), sourceShop = this.requireContextShop()) {
+    await this.openShopPage(shop);
+    await this.expectSourceShopPreserved(sourceShop);
+    await expect(this.page.getByRole("dialog", { name: shop.name })).toHaveCount(0);
+    await expect(this.page.getByRole("tab")).toHaveCount(0);
+    await expect(this.page.getByRole("heading", { name: "LINE連携", exact: true })).toBeVisible();
+    await expect(this.page.getByRole("heading", { name: "通知", exact: true })).toBeVisible();
+    await expect(this.page.getByRole("heading", { name: "店舗設定", exact: true })).toHaveCount(0);
+    await expect(this.page.getByRole("checkbox", { name: /シフト対象/ })).toBeVisible();
+    await expect(this.page.getByRole("button", { name: "店舗から外す" })).toBeVisible();
+    await this.returnToUserDetail(shop);
   }
 
   async removeFromShop(shop = this.requireContextShop()) {
-    const dialog = await this.openShopDialog(shop);
-    await dialog.getByRole("button", { name: "店舗から外す" }).click();
-    const confirmation = dialog.getByRole("alertdialog", {
-      name: `${this.personName}さんを${shop.name}から外しますか？`,
+    await this.openShopPage(shop);
+    await this.page.getByRole("button", { name: "店舗から外す" }).click();
+    const confirmation = this.page.getByRole("alertdialog", {
+      name: "店舗から外す",
     });
     await expect(confirmation).toBeVisible();
+    await expect(confirmation.getByText(`${this.personName}さんを${shop.name}から外しますか？`)).toBeVisible();
     await confirmation.getByRole("button", { name: "店舗から外す" }).click();
     await this.expectToastVisibleThenHidden("この店舗のスタッフ所属を削除しました");
-    await expect(dialog).not.toBeVisible();
+    await this.expectParentUserDetailRestored();
     await this.expectShopNotAssigned(shop);
   }
 
   async setShiftTarget(isShiftTarget: boolean, shop = this.requireContextShop()) {
-    const dialog = await this.openShopDialog(shop);
-    const shiftTargetSwitch = dialog.getByRole("checkbox", { name: "シフト対象" });
+    await this.openShopPage(shop);
+    const shiftTargetSwitch = this.page.getByRole("checkbox", { name: /シフト対象/ });
     await expect(shiftTargetSwitch).toBeVisible();
     if ((await shiftTargetSwitch.isChecked()) !== isShiftTarget) {
       await shiftTargetSwitch.press("Space");
-      await this.expectToastVisibleThenHidden(
-        isShiftTarget ? "シフト対象に戻しました" : "シフト対象外にしました",
-        dialog,
-      );
+      await this.expectToastVisibleThenHidden(isShiftTarget ? "シフト対象に戻しました" : "シフト対象外にしました");
       await expect(shiftTargetSwitch).toBeChecked({ checked: isShiftTarget });
     }
-    await this.closeDialog(dialog);
+    await this.returnToUserDetail(shop);
   }
 
   async sendOpenRecruitmentNotification(shop = this.requireContextShop()) {
-    const dialog = await this.openShopDialog(shop);
-    await dialog.getByRole("button", { name: "募集中のシフトを送る" }).click();
-    await this.expectToastVisibleThenHidden("シフト募集通知を送りました", dialog);
-    await this.closeDialog(dialog);
+    await this.openShopPage(shop);
+    await this.page.getByRole("button", { name: "募集中のシフトを送る" }).click();
+    await this.expectToastVisibleThenHidden("シフト募集通知を送りました");
+    await this.returnToUserDetail(shop);
   }
 
   async sendCurrentShiftNotification(shop = this.requireContextShop()) {
-    const dialog = await this.openShopDialog(shop);
-    await dialog.getByRole("button", { name: "確定シフトを送る" }).click();
-    await this.expectToastVisibleThenHidden("現在の確定シフトを送りました", dialog);
-    await this.closeDialog(dialog);
+    await this.openShopPage(shop);
+    await this.page.getByRole("button", { name: "確定シフトを送る" }).click();
+    await this.expectToastVisibleThenHidden("現在の確定シフトを送りました");
+    await this.returnToUserDetail(shop);
   }
 
   async sendLineInvite(shop = this.requireContextShop()) {
-    const dialog = await this.openShopDialog(shop);
-    await dialog.getByRole("button", { name: "メールでLINE連携リンクを送る" }).click();
+    await this.openShopPage(shop);
+    await this.page.getByRole("button", { name: "メールでLINE連携リンクを送る" }).click();
     await this.expectToastVisibleThenHidden(
       /LINE連携URLをメールで送信しました|LINE連携リンクをメールで送信しました|LINE連携リンクをメールで送りました/,
-      dialog,
     );
-    await this.closeDialog(dialog);
+    await this.returnToUserDetail(shop);
   }
 
   async openLineQr(shop = this.requireContextShop()) {
-    const dialog = await this.openShopDialog(shop);
-    await dialog.getByRole("button", { name: "LINE連携リンクを表示" }).click();
-    await expect(dialog.getByRole("img", { name: "LINE連携用QRコード" })).toBeVisible({
+    await this.openShopPage(shop);
+    await this.page.getByRole("button", { name: "LINE連携リンクを表示" }).click();
+    await expect(this.page.getByRole("img", { name: "LINE連携用QRコード" })).toBeVisible({
       timeout: USER_DETAIL_DATA_TIMEOUT,
     });
-    await expect(dialog.getByTitle(/^https:\/\//)).toBeVisible();
-    await expect(dialog.getByRole("button", { name: "リンクをコピー" })).toBeVisible();
+    await expect(this.page.getByTitle(/^https:\/\//)).toBeVisible();
+    await expect(this.page.getByRole("button", { name: "リンクをコピー" })).toBeVisible();
   }
 
   async returnToDashboard() {
-    await this.page.getByRole("button", { name: "前の画面に戻る" }).click();
+    await this.expectLoaded();
+    await this.page.getByRole("button", { name: "ユーザー詳細", exact: true }).click();
     await expect(this.page).toHaveURL(/\/dashboard\?/, { timeout: USER_DETAIL_DATA_TIMEOUT });
   }
 
   async returnToSettings() {
-    await this.page.getByRole("button", { name: "前の画面に戻る" }).click();
+    await this.expectLoaded();
+    await this.page.getByRole("button", { name: "ユーザー詳細", exact: true }).click();
     await expect(this.page).toHaveURL(/\/settings\?/, { timeout: USER_DETAIL_DATA_TIMEOUT });
   }
 
@@ -203,11 +218,56 @@ export class UserDetailPage {
     return dialog;
   }
 
-  private async openShopDialog(shop: UserDetailShop) {
+  private async openShopPage(shop: UserDetailShop) {
+    const parentUrl = new URL(this.page.url());
+    if (!/^\/users\/[^/]+$/.test(parentUrl.pathname)) {
+      throw new Error(`店舗別設定の遷移元がユーザー詳細ではありません: ${parentUrl.pathname}`);
+    }
+    this.parentUserDetailUrl = {
+      pathname: parentUrl.pathname,
+      search: Object.fromEntries(parentUrl.searchParams.entries()),
+    };
+
     await this.assignedShopButton(shop).click();
-    const dialog = this.page.getByRole("dialog", { name: shop.name });
-    await expect(dialog).toBeVisible({ timeout: USER_DETAIL_DATA_TIMEOUT });
-    return dialog;
+    const expectedPathname = `${parentUrl.pathname}/shops/${shop.id}`;
+    await this.page.waitForURL((url) => url.pathname === expectedPathname, {
+      timeout: USER_DETAIL_DATA_TIMEOUT,
+    });
+    await expect(this.shopPageHeading(shop)).toBeVisible({ timeout: USER_DETAIL_DATA_TIMEOUT });
+  }
+
+  private async expectSourceShopPreserved(sourceShop: UserDetailShop) {
+    const url = new URL(this.page.url());
+    expect(url.searchParams.get("shop")).toBe(sourceShop.id);
+    expect(url.searchParams.get("panel")).toBeNull();
+  }
+
+  private async returnToUserDetail(shop: UserDetailShop) {
+    await this.shopPageHeading(shop)
+      .getByRole("button", { name: `${shop.name}：${this.personName}`, exact: true })
+      .click();
+    await this.expectParentUserDetailRestored();
+  }
+
+  private async expectParentUserDetailRestored() {
+    const expectedUrl = this.parentUserDetailUrl;
+    if (!expectedUrl) throw new Error("店舗別設定の遷移元URLを取得できませんでした");
+
+    await this.page.waitForURL((url) => url.pathname === expectedUrl.pathname, {
+      timeout: USER_DETAIL_DATA_TIMEOUT,
+    });
+    const actualUrl = new URL(this.page.url());
+    expect(Object.fromEntries(actualUrl.searchParams.entries())).toEqual(expectedUrl.search);
+    this.parentUserDetailUrl = undefined;
+    await this.expectLoaded();
+  }
+
+  private shopPageHeading(shop: UserDetailShop) {
+    return this.page.getByRole("heading", {
+      level: 1,
+      name: `${shop.name}：${this.personName}`,
+      exact: true,
+    });
   }
 
   private assignedShopButton(shop: UserDetailShop) {

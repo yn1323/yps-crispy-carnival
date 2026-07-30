@@ -23,7 +23,7 @@ export const ShiftBoardPageView = ({ viewModel, intents }: ShiftBoardPageViewPro
       minH={0}
     >
       <Grid
-        templateColumns={{ base: "40px minmax(0, 1fr) 40px", lg: "minmax(0, 1fr) auto minmax(0, 1fr)" }}
+        templateColumns={{ base: "56px minmax(0, 1fr) 56px", lg: "minmax(0, 1fr) auto minmax(0, 1fr)" }}
         alignItems="center"
         bg="white"
         px={{ base: 4, lg: 6 }}
@@ -32,7 +32,14 @@ export const ShiftBoardPageView = ({ viewModel, intents }: ShiftBoardPageViewPro
       >
         <Box justifySelf="start">
           <Link to="/dashboard" search={{ shop: shiftForm.shopId }}>
-            <Flex align="center" gap={1} color="gray.500" _hover={{ color: "gray.700" }} cursor="pointer">
+            <Flex
+              align="center"
+              gap={1}
+              color="gray.500"
+              whiteSpace="nowrap"
+              _hover={{ color: "gray.700" }}
+              cursor="pointer"
+            >
               <Icon boxSize={4}>
                 <LuChevronLeft />
               </Icon>
@@ -40,7 +47,15 @@ export const ShiftBoardPageView = ({ viewModel, intents }: ShiftBoardPageViewPro
             </Flex>
           </Link>
         </Box>
-        <Text fontSize={{ base: "sm", lg: "md" }} fontWeight={600} color="gray.900" textAlign="center">
+        <Text
+          fontSize={{ base: "sm", lg: "md" }}
+          fontWeight={600}
+          color="gray.900"
+          textAlign="center"
+          whiteSpace="nowrap"
+          overflow="hidden"
+          textOverflow="ellipsis"
+        >
           {viewModel.periodLabel}
         </Text>
         <Flex justifySelf="end" align="center" gap={3} minW={0}>

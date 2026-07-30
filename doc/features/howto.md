@@ -34,6 +34,9 @@ PCでは分類別ナビゲーションと回答を並べ、SPでは一列に表�
 各MDXは `title`、`description`、`category`、`keywords`、`features`、`related`、`order` をfrontmatterに持つ。
 許可する値と検証条件は `helpContent.ts`、本文の現在内容は各MDXを正本とする。
 
+ファイル名が`_`始まりのMDXは非公開として読み込まない。
+公開中のヘルプから非公開ヘルプへの`related`参照は表示対象から外し、公開・非公開のどちらにも存在しない参照は入力誤りとして拒否する。
+
 検索対象はタイトル、description、カテゴリ、keywords、本文である。
 回答の件数はMDXファイルから確認する。
 

@@ -332,20 +332,24 @@ export class OrganizationSettingsPage {
   async cancelShopDeletion(shopName: string) {
     const detail = await this.openShop(shopName);
     await detail.getByRole("button", { name: "削除", exact: true }).click();
-    const confirmation = this.page.getByRole("alertdialog", { name: "店舗を削除" });
-    await expect(confirmation.getByText(`「${shopName}」を削除しますか？`, { exact: true })).toBeVisible();
-    await confirmation.getByRole("button", { name: "キャンセル" }).click();
+    const confirmation = this.page.getByRole("alertdialog", { name: `${shopName}を削除しますか？`, exact: true });
+    await expect(
+      confirmation.getByText("削除すると、この店舗と所属スタッフは利用できなくなります。", { exact: true }),
+    ).toBeVisible();
+    await confirmation.getByRole("button", { name: "キャンセル", exact: true }).click();
     await expect(confirmation).not.toBeVisible();
-    await detail.getByRole("button", { name: "前の画面に戻る" }).click();
+    await detail.getByRole("button", { name: "店舗詳細", exact: true }).click();
     await expect(this.page.getByRole("tab", { name: "店舗" })).toBeVisible();
   }
 
   async deleteShop(shopName: string) {
     const detail = await this.openShop(shopName);
     await detail.getByRole("button", { name: "削除", exact: true }).click();
-    const confirmation = this.page.getByRole("alertdialog", { name: "店舗を削除" });
-    await expect(confirmation.getByText(`「${shopName}」を削除しますか？`, { exact: true })).toBeVisible();
-    await confirmation.getByRole("button", { name: "店舗を削除" }).click();
+    const confirmation = this.page.getByRole("alertdialog", { name: `${shopName}を削除しますか？`, exact: true });
+    await expect(
+      confirmation.getByText("削除すると、この店舗と所属スタッフは利用できなくなります。", { exact: true }),
+    ).toBeVisible();
+    await confirmation.getByRole("button", { name: "店舗を削除", exact: true }).click();
     await this.expectToast("店舗の削除を受け付けました");
     await expect(confirmation).not.toBeVisible();
   }
@@ -388,10 +392,19 @@ export class OrganizationSettingsPage {
     await confirmation.getByRole("textbox").fill(organizationName);
     await expect(submit).toBeEnabled();
 
-    const destination = expectedShopId
-      ? new RegExp(`/dashboard\\?shop=${escapeRegExp(encodeURIComponent(expectedShopId))}(?:&|$)`)
-      : /\/dashboard$/;
-    await Promise.all([this.page.waitForURL(destination, { timeout: SETTINGS_DATA_TIMEOUT }), submit.click()]);
+    // location.replaceで旧documentが切り離されても、最終URLの到達を同期値から検証する。
+    await Promise.all([
+      expect
+        .poll(
+          () => {
+            const url = new URL(this.page.url());
+            return { pathname: url.pathname, shopId: url.searchParams.get("shop") };
+          },
+          { timeout: SETTINGS_DATA_TIMEOUT },
+        )
+        .toEqual({ pathname: "/dashboard", shopId: expectedShopId }),
+      submit.click({ noWaitAfter: true }),
+    ]);
   }
 
   async openUser(personName: string) {

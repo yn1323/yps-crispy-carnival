@@ -147,30 +147,40 @@ export type BreadcrumbJsonLd = {
 };
 
 // frontmatter だけをYAMLパース済みオブジェクトとして受け取る（vite/mdxPlugin.ts）。本文は含まれない。
-const pageFrontmatterModules = import.meta.glob<unknown>("./content/pages/*.mdx", {
+// `_` 始まりのファイル・ディレクトリは下書きとして扱い、公開対象から除外する。
+const pageFrontmatterModules = import.meta.glob<unknown>(["./content/pages/*.mdx", "!./content/pages/_*.mdx"], {
   eager: true,
   query: "?mdx-frontmatter",
   import: "default",
 });
 
-const categoryFrontmatterModules = import.meta.glob<unknown>("./content/categories/*/index.mdx", {
-  eager: true,
-  query: "?mdx-frontmatter",
-  import: "default",
-});
+const categoryFrontmatterModules = import.meta.glob<unknown>(
+  ["./content/categories/*/index.mdx", "!./content/categories/_*/index.mdx"],
+  {
+    eager: true,
+    query: "?mdx-frontmatter",
+    import: "default",
+  },
+);
 
-const articleFrontmatterModules = import.meta.glob<unknown>("./content/articles/*/index.mdx", {
-  eager: true,
-  query: "?mdx-frontmatter",
-  import: "default",
-});
+const articleFrontmatterModules = import.meta.glob<unknown>(
+  ["./content/articles/*/index.mdx", "!./content/articles/_*/index.mdx"],
+  {
+    eager: true,
+    query: "?mdx-frontmatter",
+    import: "default",
+  },
+);
 
 // 画像は URL 文字列のみ（`?url`）なので軽量。heroImage・本文画像の解決で共有する。
-const imageModules = import.meta.glob<string>("./content/**/*.{avif,gif,jpeg,jpg,png,svg,webp}", {
-  eager: true,
-  query: "?url",
-  import: "default",
-});
+const imageModules = import.meta.glob<string>(
+  ["./content/**/*.{avif,gif,jpeg,jpg,png,svg,webp}", "!./content/articles/_*/**", "!./content/categories/_*/**"],
+  {
+    eager: true,
+    query: "?url",
+    import: "default",
+  },
+);
 
 const ARTICLE_HERO_IMAGE_DEFAULT_WIDTH = 320;
 const ARTICLE_HERO_IMAGE_MIN_WIDTH = 240;

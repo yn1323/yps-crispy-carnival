@@ -1,6 +1,7 @@
-import { HStack, Text } from "@chakra-ui/react";
+import { Heading, HStack, Text, VisuallyHidden } from "@chakra-ui/react";
+import { useId } from "react";
 import { LuChevronLeft } from "react-icons/lu";
-import { IconButton } from "@/src/components/ui/Button";
+import { Button } from "@/src/components/ui/Button";
 
 type Props = {
   title: string;
@@ -9,14 +10,31 @@ type Props = {
 };
 
 export function DetailPageHeader({ title, onBack, backLabel = "前の画面に戻る" }: Props) {
+  const descriptionId = useId();
+
   return (
-    <HStack gap={2} minW={0}>
-      <IconButton aria-label={backLabel} variant="ghost" size="sm" onClick={onBack}>
-        <LuChevronLeft aria-hidden />
-      </IconButton>
-      <Text as="h1" textStyle={{ base: "sectionTitle", md: "pageTitle" }} color="gray.900">
-        {title}
-      </Text>
+    <HStack gap={0} minW={0}>
+      <Heading as="h1" minW={0}>
+        <Button
+          type="button"
+          variant="plain"
+          minH="44px"
+          h="auto"
+          px={0}
+          gap={2}
+          color="gray.900"
+          textStyle={{ base: "sectionTitle", md: "pageTitle" }}
+          justifyContent="flex-start"
+          aria-describedby={descriptionId}
+          onClick={onBack}
+        >
+          <LuChevronLeft aria-hidden />
+          <Text as="span" truncate minW={0}>
+            {title}
+          </Text>
+        </Button>
+      </Heading>
+      <VisuallyHidden id={descriptionId}>{backLabel}</VisuallyHidden>
     </HStack>
   );
 }

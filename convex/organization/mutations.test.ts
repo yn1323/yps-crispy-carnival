@@ -1,3 +1,4 @@
+import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
@@ -177,6 +178,72 @@ async function seedOutbox(
   });
 }
 
+type RejectedShopRemovalCase = "unauthenticated" | "foreignShop" | "mismatchedStaff" | "deletedStaff";
+
+async function seedRejectedShopRemovalCase(t: TestConvex<typeof schema>, scenario: RejectedShopRemovalCase) {
+  return await t.run(async (ctx) => {
+    const actorSubject = `rejected_shop_removal_${scenario}_actor`;
+    const actorBase = await seedOrganizationManagerShop(ctx, { subject: actorSubject, plan: "pro" });
+    let targetBase = actorBase;
+    let operationShopId = actorBase.shopId;
+    let targetShopId = actorBase.shopId;
+
+    if (scenario === "foreignShop") {
+      targetBase = await seedOrganizationManagerShop(ctx, {
+        subject: `rejected_shop_removal_${scenario}_foreign_manager`,
+        plan: "pro",
+      });
+      operationShopId = targetBase.shopId;
+      targetShopId = targetBase.shopId;
+    } else if (scenario === "mismatchedStaff") {
+      targetShopId = await seedOrganizationShop(ctx, actorBase.organizationId, "対象外店舗");
+    }
+
+    const target = await seedTargetPerson(ctx, {
+      base: targetBase,
+      subject: `rejected_shop_removal_${scenario}_target`,
+      shopIds: [targetShopId],
+    });
+    const { assignmentId } = await seedAssignment(ctx, {
+      shopId: targetShopId,
+      staffId: target.staffIds[0],
+      date: addDays(todayJST(), 1),
+    });
+    const outboxId = await seedOutbox(ctx, {
+      organizationId: targetBase.organizationId,
+      shopId: targetShopId,
+      staffId: target.staffIds[0],
+      dedupeKey: `rejected-shop-removal-${scenario}`,
+    });
+    if (scenario === "deletedStaff") {
+      await ctx.db.patch(target.staffIds[0], { isDeleted: true });
+    }
+
+    return {
+      actorSubject,
+      assignmentId,
+      operationShopId,
+      outboxId,
+      personId: target.personId,
+      staffId: target.staffIds[0],
+    };
+  });
+}
+
+async function readRejectedShopRemovalState(
+  t: TestConvex<typeof schema>,
+  ids: Awaited<ReturnType<typeof seedRejectedShopRemovalCase>>,
+) {
+  return await t.run(async (ctx) => ({
+    assignment: await ctx.db.get(ids.assignmentId),
+    auditEvents: await ctx.db.query("organizationAuditEvents").collect(),
+    outbox: await ctx.db.get(ids.outboxId),
+    person: await ctx.db.get(ids.personId),
+    scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    staff: await ctx.db.get(ids.staffId),
+  }));
+}
+
 describe("organization person removal", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -326,6 +393,32 @@ describe("organization person removal", () => {
       await expect(t.run(async (ctx) => (await ctx.db.get(ids.staffIds[0]))?.isDeleted)).resolves.toBe(false);
     },
   );
+
+  it.each([
+    ["未認証", "unauthenticated", "Unauthenticated"],
+    ["権限のない店舗", "foreignShop", "Not found"],
+    ["店舗とスタッフの不一致", "mismatchedStaff", "Not found"],
+    ["削除済みスタッフ", "deletedStaff", "Not found"],
+  ] as const)("%sでは店舗所属を削除せず、副作用も起こさない", async (_label, scenario, expectedError) => {
+    const t = convexTest(schema, modules);
+    const ids = await seedRejectedShopRemovalCase(t, scenario);
+    const before = await readRejectedShopRemovalState(t, ids);
+    const request = {
+      shopId: ids.operationShopId,
+      staffId: ids.staffId,
+      requestId: `rejected-shop-removal-${scenario}`,
+    };
+
+    const mutation =
+      scenario === "unauthenticated"
+        ? t.mutation(api.organization.mutations.removePersonFromShop, request)
+        : t
+            .withIdentity({ subject: ids.actorSubject })
+            .mutation(api.organization.mutations.removePersonFromShop, request);
+    await expect(mutation).rejects.toThrow(expectedError);
+
+    expect(await readRejectedShopRemovalState(t, ids)).toEqual(before);
+  });
 
   it("事業者から削除すると全所属・権限・招待・リンク・業務通知を失効し、他事業者と履歴は残す", async () => {
     const t = convexTest(schema, modules);

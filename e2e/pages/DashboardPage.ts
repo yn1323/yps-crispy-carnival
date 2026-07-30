@@ -117,7 +117,7 @@ export class DashboardPage {
   }
 
   async addOrganizationStaff(personName: string, sourceShopName?: string) {
-    const inviteButton = this.page.getByRole("button", { name: "スタッフを招待" });
+    const inviteButton = this.page.getByRole("button", { name: "スタッフを招待する" });
     await expect(inviteButton).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
     await inviteButton.click({ noWaitAfter: true });
     const dialog = this.page.getByRole("dialog", { name: "スタッフを招待" });
@@ -134,7 +134,7 @@ export class DashboardPage {
   }
 
   async getStaffRegistrationToken() {
-    const inviteButton = this.page.getByRole("button", { name: "スタッフを招待" });
+    const inviteButton = this.page.getByRole("button", { name: "スタッフを招待する" });
     await expect(inviteButton).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
     await inviteButton.click({ noWaitAfter: true });
     const dialog = this.page.getByRole("dialog", { name: "スタッフを招待" });
@@ -145,13 +145,13 @@ export class DashboardPage {
     if (!registrationUrl) throw new Error("スタッフ登録URLを取得できませんでした");
     const token = new URL(registrationUrl).searchParams.get("token");
     if (!token) throw new Error("スタッフ登録URLにtokenがありません");
-    await dialog.getByRole("button", { name: "閉じる" }).click();
+    await dialog.getByRole("button", { name: "スタッフ招待を閉じる", exact: true }).click();
     await expect(dialog).not.toBeVisible();
     return token;
   }
 
   async expectOrganizationStaffNotCandidate(personName: string) {
-    const inviteButton = this.page.getByRole("button", { name: "スタッフを招待" });
+    const inviteButton = this.page.getByRole("button", { name: "スタッフを招待する" });
     await expect(inviteButton).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
     await inviteButton.click({ noWaitAfter: true });
     const dialog = this.page.getByRole("dialog", { name: "スタッフを招待" });
@@ -171,7 +171,7 @@ export class DashboardPage {
   }
 
   private async fillAddStaffForm(entries: Array<{ name: string; email: string }>) {
-    const inviteButton = this.page.getByRole("button", { name: "スタッフを招待" });
+    const inviteButton = this.page.getByRole("button", { name: "スタッフを招待する" });
     await expect(inviteButton).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
     await inviteButton.click({ noWaitAfter: true });
     const dialog = this.page.getByRole("dialog", { name: "スタッフを招待" });
@@ -193,7 +193,7 @@ export class DashboardPage {
       await deleteButtons.last().click();
     }
 
-    await dialog.getByRole("button", { name: "スタッフを追加する" }).click();
+    await dialog.getByRole("button", { name: "スタッフを登録する" }).click();
   }
 
   async createRecruitment(
@@ -289,8 +289,7 @@ export class DashboardPage {
   async deleteStaff(staffName: string) {
     const detail = await this.openStaffDetail(staffName);
     if (detail.kind === "user") {
-      await detail.user.removeFromShop();
-      await detail.user.returnToDashboard();
+      await detail.user.removeFromOrganization({ returnTo: "dashboard" });
       return;
     }
 
