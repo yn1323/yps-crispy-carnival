@@ -22,10 +22,13 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type Page } from "playwright";
+import { assertNoLoopbackUrls, normalizePrerenderedHtml } from "./prerenderHtml";
 
 const DIST_DIR = "dist";
 const DIST_ABS = resolve(DIST_DIR);
 const ARTICLE_CONTENT_DIR = join("src", "components", "features", "ArticleSite", "content");
+const SITE_URL = "https://shiftori.app";
+const NOINDEX_ROUTES = new Set(["/privacy", "/terms"]);
 const STATIC_ROUTES = [
   "/",
   "/features",
@@ -148,6 +151,10 @@ function recordPageEvent(events: string[], event: string): void {
   }
 }
 
+function getHtmlAttribute(tag: string, attribute: string): string | undefined {
+  return tag.match(new RegExp(`\\b${attribute}=(['"])(.*?)\\1`, "i"))?.[2];
+}
+
 async function buildPageDiagnostics(route: string, page: Page, events: string[]): Promise<string> {
   let snapshot = "unavailable";
 
@@ -250,6 +257,8 @@ async function collectPrerenderRoutes(): Promise<string[]> {
  * 不完全な HTML を CF Pages にデプロイするのを防ぐ。
  */
 function assertRenderedHtml(route: string, html: string): void {
+  assertNoLoopbackUrls(route, html);
+
   if (html.length < MIN_HTML_BYTES) {
     throw new Error(`[prerender] ${route} produced suspiciously small HTML (${html.length} bytes < ${MIN_HTML_BYTES})`);
   }
@@ -295,6 +304,17 @@ function assertRenderedHtml(route: string, html: string): void {
   if (duplicatedOptionalMeta) {
     const [name, count] = duplicatedOptionalMeta;
     throw new Error(`[prerender] ${route} produced ${count} ${name} meta tags — expected at most one`);
+  }
+  const canonicalTag = html.match(/<link\b[^>]*\brel=["']canonical["'][^>]*>/i)?.[0];
+  const canonicalHref = canonicalTag ? getHtmlAttribute(canonicalTag, "href") : undefined;
+  const expectedCanonical = new URL(route, SITE_URL).href;
+  if (canonicalHref !== expectedCanonical) {
+    throw new Error(`[prerender] ${route} canonical is ${canonicalHref ?? "missing"} — expected ${expectedCanonical}`);
+  }
+  const robotsTags = html.match(/<meta\b[^>]*\bname=["']robots["'][^>]*>/gi) ?? [];
+  const robotsContent = robotsTags.map((tag) => getHtmlAttribute(tag, "content") ?? "").join(",");
+  if (!NOINDEX_ROUTES.has(route) && /(?:^|[\s,])noindex(?:[\s,]|$)/i.test(robotsContent)) {
+    throw new Error(`[prerender] ${route} must be indexable but contains robots noindex`);
   }
   // GTM が prerender 中に起動すると、注入されたタグ (Clarity / GA4 等) が焼き込まれて
   // 実行時に二重初期化される (initGTM は isPrerendering() で起動を抑止している)。
@@ -499,7 +519,7 @@ async function main(): Promise<void> {
         }
       });
 
-      const html = await page.content();
+      const html = normalizePrerenderedHtml(await page.content(), baseUrl);
       await page.close();
 
       assertRenderedHtml(route, html);
