@@ -119,6 +119,15 @@ const baseState: UserDetailViewProps["state"] = {
 const noop = () => undefined;
 const asyncNoop = async () => undefined;
 
+const settleBasicInformationDialogFocus = async () => {
+  const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
+  const nameInput = within(dialog).getByRole("textbox", { name: "名前" });
+
+  await waitFor(() => expect(nameInput).toHaveFocus());
+  dialog.focus();
+  await expect(dialog).toHaveFocus();
+};
+
 const baseActions: UserDetailViewProps["actions"] = {
   onBack: noop,
   onOpenBasic: noop,
@@ -164,6 +173,7 @@ export const MainView: Story = {};
 
 export const BasicInformationDialog: Story = {
   args: { activePanel: "basic" },
+  play: settleBasicInformationDialogFocus,
 };
 
 export const ManagerInvitationDarkLaunchBehavior: Story = {
@@ -181,10 +191,19 @@ export const BasicInformationDialogMobile: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
   args: { activePanel: "basic" },
+  play: settleBasicInformationDialogFocus,
 };
 
 export const AddShopDialog: Story = {
   args: { activePanel: "addShop" },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "店舗を追加" });
+    const candidate = within(dialog).getByRole("button", { name: "池袋店に追加" });
+
+    await waitFor(() => expect(candidate).toHaveFocus());
+    dialog.focus();
+    await expect(dialog).toHaveFocus();
+  },
 };
 
 export const ShopMembershipAdditionDarkLaunchBehavior: Story = {
