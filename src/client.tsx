@@ -11,15 +11,20 @@ const scheduleGtmInit =
     ? (callback: () => void) => window.requestIdleCallback(callback, { timeout: 5000 })
     : (callback: () => void) => window.setTimeout(callback, 3000);
 
-scheduleGtmInit(() => initGTM(GTM_ID));
+const isStaticNotFoundDocument = document.querySelector("[data-static-not-found]") !== null;
 
-startTransition(() => {
-  hydrateRoot(
-    document,
-    <StrictMode>
-      <StartClient />
-    </StrictMode>,
-  );
-});
+// Cloudflareは任意の未知URLへ同じ404.htmlを返すため、build時URLを持つReact treeはhydrateしない。
+if (!isStaticNotFoundDocument) {
+  scheduleGtmInit(() => initGTM(GTM_ID));
 
-reportWebVitals();
+  startTransition(() => {
+    hydrateRoot(
+      document,
+      <StrictMode>
+        <StartClient />
+      </StrictMode>,
+    );
+  });
+
+  reportWebVitals();
+}

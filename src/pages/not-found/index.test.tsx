@@ -5,7 +5,13 @@ import type { ReactNode } from "react";
 import { expect, it, vi } from "vitest";
 
 vi.mock("@chakra-ui/react", () => ({
-  Container: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Container: ({
+    children,
+    "data-static-not-found": staticNotFound,
+  }: {
+    children: ReactNode;
+    "data-static-not-found"?: boolean;
+  }) => <div data-static-not-found={staticNotFound}>{children}</div>,
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -37,8 +43,9 @@ vi.mock("@/src/components/ui/Empty", () => ({
 import { NotFoundPage } from ".";
 
 it("未知URLからトップページへ戻れる", () => {
-  render(<NotFoundPage />);
+  const { container } = render(<NotFoundPage />);
 
+  expect(container.querySelector("[data-static-not-found]")).not.toBeNull();
   expect(screen.getByRole("heading", { name: "ページが見つかりません" })).not.toBeNull();
   expect(screen.getByRole("link", { name: "トップページへ戻る" }).getAttribute("href")).toBe("/");
 });

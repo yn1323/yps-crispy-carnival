@@ -113,7 +113,7 @@ sitemap、canonical、内部リンクは、ルート以外を末尾スラッシ�
 
 認証、店舗、スタッフ用Capabilityのrouteは、末尾スラッシュの有無を問わずclean URLの`/_shell`へ明示的に`200` proxyする。  実体はビルド成果物の`_shell.html`だが、`.html`をproxy先へ指定するとCloudflare Pagesが`/_shell`への308を返すため、配信規則では拡張子を付けない。
 shellは`noindex`、`no-store`、`no-referrer`で公開canonicalを持たず、queryや利用者情報をbuild artifactへ固定しない。
-全URLをshellへ渡すcatch-allは置かず、トップレベルの`404.html`により未知URLと未知の記事slugは404にする。
+全URLをshellへ渡すcatch-allは置かず、トップレベルの`404.html`により未知URLと未知の記事slugは404にする。  Cloudflare Pagesは任意の未知URLへ同じ`404.html`を返すため、このdocumentだけはbuild時URLとのhydration mismatchを避けて静的表示のままにする。
 
 `/cache-reset`だけは`Clear-Site-Data: "cache"`を返す。
 cookieとstorageは消去せず、旧308 cacheが残る端末の回復導線として使う。

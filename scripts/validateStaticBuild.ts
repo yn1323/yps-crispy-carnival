@@ -232,6 +232,7 @@ export async function validateStaticBuild(
   const notFoundHtml = await readFile(notFoundPath, "utf8");
   assert(/ページが見つかりません/.test(notFoundHtml), "404.html has no not-found content");
   assert(/<meta\b[^>]*name=["']robots["'][^>]*content=["'][^"']*noindex/i.test(notFoundHtml), "404 is not noindex");
+  assert(/\bdata-static-not-found(?:=["'][^"']*["'])?/.test(notFoundHtml), "404 is not marked as static");
 
   const [redirects, headers] = await Promise.all([
     readFile(join(resolvedOutput, "_redirects"), "utf8"),

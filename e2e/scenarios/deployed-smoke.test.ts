@@ -209,7 +209,7 @@ test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deploye
     expect(runtimeErrors).toEqual([]);
   });
 
-  test("CSR shellと404をブラウザで描画できる", async ({ baseURL, page }) => {
+  test("CSR shellをhydrationし、静的404をブラウザで描画できる", async ({ baseURL, page }) => {
     if (!baseURL) throw new Error("Deployed Smoke requires a configured baseURL.");
     const expectedOrigin = new URL(baseURL).origin;
     const runtimeErrors: string[] = [];
@@ -235,8 +235,9 @@ test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deploye
 
     const notFoundResponse = await page.goto("/__preview-404-probe");
     expect(notFoundResponse?.status()).toBe(404);
-    await expectHydrated(page);
     await expect(page).toHaveURL((url) => url.origin === expectedOrigin && url.pathname === "/__preview-404-probe");
+    await expect(page.locator("[data-static-not-found]")).toBeVisible();
+    await expect(page.locator("html")).not.toHaveAttribute("data-app-hydrated", "true");
     await expect(page.getByRole("heading", { level: 1, name: "ページが見つかりません" })).toBeVisible();
 
     expect(runtimeErrors).toEqual([]);

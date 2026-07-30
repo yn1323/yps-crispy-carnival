@@ -9,7 +9,7 @@ import { Empty } from "@/src/components/ui/Empty";
 export function NotFoundPage() {
   return (
     <PublicPageLayout showFooter={false} headerProps={{ showLinks: false, showLogin: false }}>
-      <Container maxW="720px" px={{ base: 4, md: 6 }}>
+      <Container data-static-not-found maxW="720px" px={{ base: 4, md: 6 }}>
         <Empty
           icon={LuFileQuestion}
           iconVariant="circle"
