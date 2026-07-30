@@ -1,4 +1,4 @@
-import { TURNSTILE_SITE_KEY } from "@/src/configs/env";
+import { TURNSTILE_SITE_KEY } from "@/src/configs/publicEnv";
 import { ContactFormController } from "./ContactFormController";
 import { submitContactRequest } from "./submitContactRequest";
 

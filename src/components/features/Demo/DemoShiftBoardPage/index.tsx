@@ -1,4 +1,5 @@
 import { Box, Flex, Grid, Heading, Icon, Text } from "@chakra-ui/react";
+import { ClientOnly } from "@tanstack/react-router";
 import dayjs from "dayjs";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { LuCircleCheck } from "react-icons/lu";
@@ -26,9 +27,9 @@ type Props = {
   height?: string;
 };
 
-/** 来週の月曜（ローカルタイム）。シフトは将来の予定を立てる用途なので、今週ではなく来週を起点にする */
+/** SSG生成日を基準にした来週の月曜。server HTMLとhydration初回で同じ日付を使う。 */
 function getNextMonday(): string {
-  const today = dayjs();
+  const today = dayjs(__BUILD_DATE_JST__);
   const diffToThisMonday = today.day() === 0 ? -6 : 1 - today.day();
   return today.add(diffToThisMonday + 7, "day").format("YYYY-MM-DD");
 }
@@ -191,21 +192,23 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }:
         />
       </Dialog>
 
-      {tourPhase === "idle" && viewMode === "daily" && (
-        <DemoLauncherFab onStart={() => setTourPhase("running")} onDismiss={() => setTourPhase("done")} />
-      )}
+      <ClientOnly>
+        {tourPhase === "idle" && viewMode === "daily" && (
+          <DemoLauncherFab onStart={() => setTourPhase("running")} onDismiss={() => setTourPhase("done")} />
+        )}
 
-      {/* idle/running はマウント継続で run だけトグル。done で unmount する前に
-          ref.skip() で portal を片付け済みにしておく（handleConfirm / handleTourCloseRequest） */}
-      {tourPhase !== "done" && (
-        <DemoIntroTour
-          ref={tourRef}
-          run={tourPhase === "running"}
-          shifts={shifts}
-          day1={day1}
-          onClose={handleTourCloseRequest}
-        />
-      )}
+        {/* idle/running はマウント継続で run だけトグル。done で unmount する前に
+            ref.skip() で portal を片付け済みにしておく（handleConfirm / handleTourCloseRequest） */}
+        {tourPhase !== "done" && (
+          <DemoIntroTour
+            ref={tourRef}
+            run={tourPhase === "running"}
+            shifts={shifts}
+            day1={day1}
+            onClose={handleTourCloseRequest}
+          />
+        )}
+      </ClientOnly>
     </Flex>
   );
 };

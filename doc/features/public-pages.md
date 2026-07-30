@@ -2,9 +2,7 @@
 
 > 文書種別: feature
 >
-> 最終コード照合: 2026-07-23
->
-> 基準commit: `b61100a680e80d154a74f576d03c53712846e062`
+> 最終コード照合: 2026-07-30（この変更を含む）
 
 公開サイトは、登録前の製品理解と、利用中の疑問解消をつなぐ認証不要のページ群である。
 ルート`/`を入口に、機能紹介、FAQ、HowTo、記事、操作デモへ利用者を案内する。
@@ -56,8 +54,9 @@ src/routes/index.tsx
 ```
 
 公開コンテンツの表示にはClerkとConvexを使わない。
-`vite.config.ts`はTanStack Routerの自動code splittingを有効にし、`AuthProviders`は認証route、未登録スタッフroute、認証画面の近くに置いている。
-このため、TOP、FAQ、HowTo、記事、デモの初期bundleにはClerkとConvexを含めない。
+`vite.config.ts`はTanStack StartのStatic Prerendering対象を公開routeのallowlistから組み立て、`AuthProviders`は認証route、未登録スタッフroute、認証画面の近くに置いている。
+公開HTMLはbuild時に生成し、ブラウザでは同じReact treeをhydrateする。
+認証、店舗、スタッフ用Capabilityのrouteは`ssr: false`とし、利用者固有の情報を静的HTMLへ含めずCSRで表示する。
 
 FAQ、HowTo、記事、デモを表示するためのConvex APIもない。
 問い合わせなど、公開サイトから遷移する別機能のAPIは、その機能文書を参照する。
@@ -79,7 +78,7 @@ TOPへ掲載する質問は`content/featured/`に置き、`landingFaqContent.ts`
 frontmatterの項目と許可値は`faqMetadata.ts`、本文で利用できる表示部品は`mdxComponents.tsx`を正本とする。
 
 FAQ、HowTo、記事のいずれも、`_`始まりのMDX（記事とカテゴリは`_`始まりのディレクトリ）は下書きとして読み込まない。
-下書きは一覧、検索、構造化データ、prerender、記事別OGPのどれにも現れず、bundleにも含めない。
+下書きは一覧、検索、構造化データ、SSG、記事別OGPのどれにも現れず、bundleにも含めない。
 HowToを下書きにした場合は、公開中のHowToからの関連記事参照とFAQからの詳細リンクも自動的に外す。
 
 HowToの追加と更新には`write-help-content`、デモの設計には`demo-ux`を使う。
@@ -87,25 +86,37 @@ HowToの追加と更新には`write-help-content`、デモの設計には`demo-u
 
 ## 静的生成とメタデータ
 
-`scripts/prerender.ts`はTOP、機能紹介、FAQ、HowTo、問い合わせ、記事一覧、汎用の法務文書、二つのデモを固定routeとしてprerenderする。
-記事詳細とカテゴリは`ArticleSite/content/`のslugから対象routeを組み立てる。
+`scripts/staticSite.ts`はTOP、機能紹介、FAQ、HowTo、問い合わせ、記事一覧、汎用の法務文書、二つのデモなどを固定の公開routeとして持つ。
+記事詳細とカテゴリは`ArticleSite/content/`の公開済みslugから対象routeを組み立てる。
+TanStack StartはこのallowlistだけをStatic Prerenderingし、認証routeやCapability routeを自動探索しない。
 
 `public/sitemap.xml`は検索エンジンへ公開するURL、`public/llms.txt`は機械可読な公開コンテンツの入口を持つ。
-記事別OGPは`scripts/generateArticleOgp.ts`と`public/ogp/articles/`が所有し、prerender時に不足を検出する。
+記事別OGPは`scripts/generateArticleOgp.ts`と`public/ogp/articles/`が所有し、生成物検証時に不足を検出する。
 
-全ページのfallback metadataは`index.html`、route別metadataとJSON-LDは対応する`src/pages/*/meta.ts`とコンテンツfeatureが所有する。
+全ページのfallback metadataは`src/routes/__root.tsx`、route別metadataとJSON-LDは対応する`src/pages/*/meta.ts`とコンテンツfeatureが所有する。
 FAQ、BlogPosting、BreadcrumbListなどの構造化データは、画面に表示する現在内容と一致させる。
 
-buildとprerender後の`dist/`はCloudflare Pagesへ配信する。
+`pnpm build`はStatic Prerendering、Cloudflare用ルール生成、生成物検証、型検査を行う。
+Cloudflare Pagesへ配信するのは`dist/client/`だけであり、`dist/server/`はbuild時のrenderにだけ使う。
+`scripts/validateStaticBuild.ts`は公開HTMLのcanonical、metadata、Emotion style、hydration payload、記事OGP、sitemapとの一致、CSR shell、404、Cloudflareルールを検証する。
 実際のdeployment状態はこの機能文書から推測せず、CI/CDの手順と実行結果で確認する。
 
 ### URLの正規化
 
-prerenderは、ルート以外を`dist/features.html`のようなフラットなHTMLへ出力する。
+Static Prerenderingは、ルート以外を`dist/client/features.html`のようなフラットなHTMLへ出力する。
 ディレクトリindexへ出力すると、Cloudflare Pagesが末尾スラッシュ付きURLへリダイレクトし、sitemapとcanonicalが示す末尾スラッシュなしURLと食い違うためである。
 
 sitemap、canonical、内部リンクは、ルート以外を末尾スラッシュなしで統一する。
-トップレベルの`404.html`は置かず、認証後を含むSPA routeへの直接アクセスではルートの`index.html`をfallbackとして使う。
+公開済みの旧記事slugは互換URLとしてSSG対象に残し、HTMLと`Link` headerのcanonicalは現slugへ向ける。
+既知の公開routeの末尾スラッシュ付きURLは、生成した`_redirects`で末尾スラッシュなしのHTMLへ`200` proxyする。
+3xxを返さないため、既存端末に残ったno-slashからslashへの308 cacheが適用されても、slash側の`200`でループを終端できる。
+
+認証、店舗、スタッフ用Capabilityのrouteは、末尾スラッシュの有無を問わず`_shell.html`へ明示的に`200` proxyする。
+shellは`noindex`、`no-store`、`no-referrer`で公開canonicalを持たず、queryや利用者情報をbuild artifactへ固定しない。
+全URLをshellへ渡すcatch-allは置かず、トップレベルの`404.html`により未知URLと未知の記事slugは404にする。
+
+`/cache-reset`だけは`Clear-Site-Data: "cache"`を返す。
+cookieとstorageは消去せず、旧308 cacheが残る端末の回復導線として使う。
 
 ## 関連ファイル
 
@@ -118,7 +129,9 @@ sitemap、canonical、内部リンクは、ルート以外を末尾スラッシ�
 - `src/routes/articles*.tsx`、`src/pages/articles/`、`src/components/features/ArticleSite/`：記事一覧、記事詳細、カテゴリ
 - `src/routes/demo.*.tsx`、`src/pages/demo-*/`、`src/components/features/Demo/`：公開デモ
 - `src/components/templates/PublicPageLayout/`：公開ページ共通layout
-- `vite.config.ts`：route単位の自動code splitting
+- `vite.config.ts`、`src/router.tsx`、`src/client.tsx`：TanStack StartのSSG、CSR shell、hydration
 - `src/pages/*/meta.ts`、`src/lib/seo/`：ページ別metadataと共通SEO処理
-- `scripts/prerender.ts`、`public/sitemap.xml`、`public/llms.txt`：静的HTMLと公開URL
+- `scripts/staticSite.ts`、`scripts/prepareStaticDeployment.ts`、`scripts/validateStaticBuild.ts`：公開route、静的配信ルール、生成物検証
+- `src/routes/cache-reset.tsx`、`src/routes/$.tsx`：旧cache回復と404
+- `public/sitemap.xml`、`public/llms.txt`：検索エンジンと機械向けの公開URL
 - `scripts/generateArticleOgp.ts`、`public/ogp/articles/`：記事別OGP画像

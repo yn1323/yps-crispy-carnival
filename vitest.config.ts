@@ -8,9 +8,14 @@ import { mdxPlugin } from "./vite/mdxPlugin";
 
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 const storybookAppVersion = "0.0.0-vrt";
+const testBuildDateJst = "2026-01-13";
 
 const logicProject = defineConfig({
   plugins: [mdxPlugin()],
+  define: {
+    __APP_VERSION__: JSON.stringify(storybookAppVersion),
+    __BUILD_DATE_JST__: JSON.stringify(testBuildDateJst),
+  },
   resolve: {
     tsconfigPaths: true,
   },
@@ -40,6 +45,7 @@ const uiProject = defineConfig({
   ],
   define: {
     __APP_VERSION__: JSON.stringify(storybookAppVersion),
+    __BUILD_DATE_JST__: JSON.stringify(testBuildDateJst),
   },
   resolve: {
     tsconfigPaths: true,

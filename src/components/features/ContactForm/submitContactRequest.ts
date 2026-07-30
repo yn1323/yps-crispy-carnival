@@ -1,5 +1,5 @@
 import type { SubmitContactInput } from "@/convex/contact/schemas";
-import { CONVEX_SITE_URL } from "@/src/configs/env";
+import { CONVEX_SITE_URL } from "@/src/configs/publicEnv";
 
 export type ContactSubmitData = Omit<SubmitContactInput, "turnstileToken" | "requestId"> & {
   turnstileToken: string;

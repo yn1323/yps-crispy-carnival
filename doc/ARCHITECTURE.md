@@ -101,7 +101,7 @@ secretとprovider payloadをフロントエンドの状態や公開responseへ�
 | LINE | `convex/line/actions.ts`、`convex/line/webhook.ts`、`convex/_lib/lineClient.ts` | LINE Loginのcode交換、プロフィールと友だち状態の取得、署名済みWebhook、PushとReply、quota取得を扱う。業務通知の配送はnotification outboxから呼ぶ |
 | Resend | `convex/_lib/resend.ts`、`convex/notificationOutbox/actions.ts`、`convex/notificationOutbox/resendWebhook.ts` | 業務メールをidempotency key付きで送信し、署名済みprovider eventを通知履歴とFailure Inboxへ反映する。問い合わせメールは`convex/contact/actions.ts`が同じclientを直接使う |
 | Stripe | `convex/organizationStripe/actions.ts`、`convex/organizationStripe/webhook.ts` | Checkout、Portal、プラン変更、既存契約の収束をoperation単位で扱う。Webhookはraw bodyの署名とlivemodeを検証し、受信eventを保存してから処理する |
-| Cloudflare | `wrangler.jsonc`、`.github/workflows/deploy.yml`、`src/components/shared/TurnstileWidget/`、`convex/_lib/turnstile.ts` | buildとprerender後の`dist/`をCloudflare Pagesへ配信する。問い合わせとスタッフ登録ではTurnstile tokenのaction、hostname、許可Originをserver-sideで検証する |
+| Cloudflare | `wrangler.jsonc`、`.github/workflows/deploy.yml`、`scripts/staticSite.ts`、`src/components/shared/TurnstileWidget/`、`convex/_lib/turnstile.ts` | TanStack Startが生成した`dist/client/`だけをCloudflare Pagesへ配信し、公開SSG、認証後CSR shell、URL正規化、404を静的ルールで分ける。問い合わせとスタッフ登録ではTurnstile tokenのaction、hostname、許可Originをserver-sideで検証する |
 
 公開サイトはCloudflare Pagesで配信される静的HTMLとSPAの組み合わせである。
 認証済み画面とスタッフ画面は表示後にConvexへ接続し、公開コンテンツは初期表示にClerkとConvexを要求しない。

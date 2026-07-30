@@ -37,6 +37,16 @@ describe("artifact privacy gate", () => {
     expect(result.stdout).toContain("1 files");
   });
 
+  it("accepts and scans Cloudflare Pages text configuration", () => {
+    writeFileSync(path.join(testDirectory, "_headers"), '/cache-reset\n  Clear-Site-Data: "cache"');
+    writeFileSync(path.join(testDirectory, "_redirects"), "/features/ /features 200");
+
+    const result = runGate("_headers", "_redirects");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("2 files");
+  });
+
   it.each([
     ["Stripe key", STRIPE_KEY_FIXTURE],
     ["private key", "-----BEGIN PRIVATE KEY-----"],
@@ -91,6 +101,12 @@ describe("artifact privacy gate", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("unsupported file type");
+  });
+
+  it("rejects other extensionless files", () => {
+    writeFileSync(path.join(testDirectory, "opaque"), "text-like but unsupported");
+
+    expect(runGate("opaque").status).toBe(1);
   });
 
   it("rejects a binary extension whose magic bytes do not match", () => {

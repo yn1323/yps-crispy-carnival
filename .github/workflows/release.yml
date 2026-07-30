@@ -75,15 +75,9 @@ jobs:
           VITE_GTM_ID: ${{ secrets.VITE_GTM_ID }}
           VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
 
-      - name: Setup Playwright
-        uses: ./.github/actions/playwright
-
-      - name: Prerender static routes
-        run: pnpm prerender
-
       - name: Deploy to Cloudflare Pages
         run: |
-          npx wrangler pages deploy dist \
+          npx wrangler pages deploy dist/client \
             --project-name shiftori \
             --branch main
         env:

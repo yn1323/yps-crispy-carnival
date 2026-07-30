@@ -9,6 +9,7 @@ import { mdxPlugin } from "./vite/mdxPlugin";
 
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 const storybookAppVersion = "0.0.0-vrt";
+const testBuildDateJst = "2026-01-13";
 const vrtOutputDir = path.join(dirname, "vrt-actual");
 
 type VrtViewportName = "desktop" | "mobile1" | "mobile2";
@@ -55,6 +56,7 @@ const createVrtProject = (
     ],
     define: {
       __APP_VERSION__: JSON.stringify(storybookAppVersion),
+      __BUILD_DATE_JST__: JSON.stringify(testBuildDateJst),
       __VRT_VIEWPORT__: JSON.stringify(viewport),
     },
     resolve: {

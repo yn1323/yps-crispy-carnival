@@ -1,5 +1,3 @@
-import { isPrerendering } from "@/src/lib/seo";
-
 declare global {
   interface Window {
     dataLayer: Record<string, unknown>[];
@@ -31,9 +29,8 @@ function hasNoscriptFallback(gtmId: string): boolean {
 }
 
 export const initGTM = (gtmId: string): void => {
-  // prerender 中に起動すると、GTM が注入したタグ (Clarity 等) が page.content() で
-  // 静的 HTML に焼き込まれ、実行時に GTM 発火分と二重初期化されてしまうため起動しない
-  if (!gtmId || initialized || isPrerendering()) return;
+  // StartのSSGはNodeで実行され、この関数はclient entryからだけ呼ばれる。
+  if (!gtmId || initialized) return;
   initialized = true;
 
   window.dataLayer = window.dataLayer || [];

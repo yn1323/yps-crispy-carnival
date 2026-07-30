@@ -12,6 +12,9 @@
 workflowの一覧と起動条件は `.github/workflows/` を確認する。
 
 workflowの対象条件を満たす同一リポジトリからのPull Requestでは、`.github/workflows/deploy.yml` がConvex PreviewとCloudflare Pagesのプレビューを作成し、URLをPull Requestへ通知する。
+`pnpm build`はTanStack Startで公開HTMLとCSR shellを生成し、`dist/client/`だけをCloudflare Pagesへdeployする。
+deploy後は`pnpm e2e:deployed`が公開URLのSSG HTML、末尾スラッシュ、CSR shell、404、cache reset、hashed asset、hydrationを実URLで確認する。
+同じsuiteはAndroid Chrome相当のUser-Agentでも代表URLを確認し、3xxや`Location`が返らないことを守る。
 Pull Requestを閉じると、同workflowがプレビューの後処理を行う。
 
 認証付きE2Eは `.github/workflows/playwright.yml` が専用Convex Previewで実行する。
@@ -22,7 +25,7 @@ VRTの差分とレポート公開は `.github/workflows/vrt.yml` が管理する
 
 ## `develop` への反映
 
-`develop` へのpushでは、`.github/workflows/deploy.yml` がDevelop環境のConvex deploy、migration、build、prerender、Cloudflare Pages deployを順に実行する。
+`develop` へのpushでは、`.github/workflows/deploy.yml` がDevelop環境のConvex deploy、migration、TanStack Start build、Cloudflare Pages deployを順に実行する。
 ビルド単体の確認は `.github/workflows/build.yml` も実行する。
 
 失敗した場合は、失敗したjobとstepを特定し、同じcommit SHAに対する結果かを確認する。
@@ -31,7 +34,7 @@ VRTの差分とレポート公開は `.github/workflows/vrt.yml` が管理する
 ## Productionリリース
 
 Productionリリースは、`main` 向けPull Requestをmergeしたときに `.github/workflows/release.yml` が判定する。
-release label、version更新、tag、Convex deploy、migration、build、prerender、Cloudflare Pages deploy、GitHub Releaseの順序はworkflowを正とする。
+release label、version更新、tag、Convex deploy、migration、TanStack Start build、Cloudflare Pages deploy、GitHub Releaseの順序はworkflowを正とする。
 
 merge前に次を確認する。
 
@@ -41,6 +44,29 @@ merge前に次を確認する。
 - schemaまたは保存済みデータ形式を変更した場合は、migration計画と復旧手順がある。
 
 リリース後は、GitHub Release、production deployment、migration結果、主要導線を確認する。
+
+## 旧308 cacheからの移行確認
+
+公開URLは、ルート以外を末尾スラッシュなしで正規化する。
+新しい静的artifactは、既知の公開URLについて末尾スラッシュの有無を問わず`200`を返す。
+端末に旧no-slashからslashへの308が残っていても、移動先のslash URLが`200`を返すためredirect loopは終端する。
+
+Pull RequestのPreviewでは、まず自動テストで次を確認する。
+
+- 公開URLのslashあり・なしが`200`で、`Location`を返さない。
+- canonicalは両方とも本番originのno-slash URLである。
+- 認証routeとCapability routeは`no-store`、`noindex`、`no-referrer`のCSR shellを返す。
+- 未知URLと未知の記事slugは`404`である。
+- `/cache-reset`は`Clear-Site-Data: "cache"`だけを返し、cookieとstorageを消さない。
+
+旧308を実際に保持した端末で確認する場合は、同じCloudflare Pages branch aliasと同じChrome profileを使う。
+旧deploymentで308を保存した後にaliasを新deploymentへ更新し、profileを閉じずにno-slash URLを開く。
+slash URLの`200`で表示できることを確認してから`/cache-reset`を開き、再びno-slash URLがnetworkから`200`で取得されることを確認する。
+commitごとに変わるhash URLではoriginが変わるため、このcache移行確認の代わりにはならない。
+
+公開artifactのrollbackはCloudflare Pagesのdeployment履歴から行う。
+ただし、rollback先がslash URLで3xxを返す場合は旧308とのloopを再発させるため、そのdeploymentへ戻さない。
+その場合は、公開slash URLを`200`で終端する`_redirects`を維持したforward fixを優先する。
 
 ## セキュリティ検証
 

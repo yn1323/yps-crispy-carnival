@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CONVEX_SITE_URL } from "@/src/configs/env";
+import { CONVEX_SITE_URL } from "@/src/configs/publicEnv";
 import { submitStaffRegistrationRequest } from "./submitStaffRegistrationRequest";
 
 const input = {

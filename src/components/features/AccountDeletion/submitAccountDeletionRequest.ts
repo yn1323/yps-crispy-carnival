@@ -1,4 +1,4 @@
-import { CONVEX_SITE_URL } from "@/src/configs/env";
+import { CONVEX_SITE_URL } from "@/src/configs/publicEnv";
 
 export type AccountDeletionFailureReason =
   | "invalidRequest"

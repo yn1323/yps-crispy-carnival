@@ -50,8 +50,8 @@ jobs:
         uses: ./.github/actions/setup
       - name: Build public artifact
         run: pnpm build
-      - name: Scan public and dist
-        run: node scripts/assertNoSensitiveArtifacts.mjs --root public --root dist
+      - name: Scan public deployment artifact
+        run: node scripts/assertNoSensitiveArtifacts.mjs --root public --root dist/client
 
   dependency-review:
     name: Dependency change review

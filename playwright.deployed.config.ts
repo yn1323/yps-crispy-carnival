@@ -9,6 +9,7 @@ if (!baseURL) {
 export default defineConfig({
   testDir: "./e2e",
   testMatch: /scenarios\/deployed-smoke\.test\.ts/,
+  timeout: 180_000,
   fullyParallel: false,
   forbidOnly: true,
   retries: process.env.CI ? 1 : 0,
@@ -24,6 +25,8 @@ export default defineConfig({
     baseURL,
     actionTimeout: 10_000,
     navigationTimeout: 20_000,
+    locale: "ja-JP",
+    timezoneId: "Asia/Tokyo",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },

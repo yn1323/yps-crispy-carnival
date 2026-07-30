@@ -3,6 +3,7 @@ import { ForgotPasswordPage } from "@/src/pages/auth";
 import { buildForgotPasswordPageHead } from "@/src/pages/auth/meta";
 
 export const Route = createFileRoute("/forgot-password")({
+  ssr: false,
   validateSearch: (search: Record<string, unknown>) => ({
     redirect: (search.redirect as string) || undefined,
   }),
