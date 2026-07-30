@@ -36,6 +36,10 @@ export function UserShopDetail({ data, membership, targetShopId, onBack, onMembe
     isReadOnly: isStoreReadOnly,
     canRemoveMembership: showMembershipRemoval,
   });
+  const viewMembership =
+    membership.excludedFromShift === membershipActions.excludedFromShift
+      ? membership
+      : { ...membership, excludedFromShift: membershipActions.excludedFromShift };
 
   const handleConfirmRemoveMembership = async () => {
     const target = visibleTargetRef.current;
@@ -54,7 +58,7 @@ export function UserShopDetail({ data, membership, targetShopId, onBack, onMembe
   return (
     <UserShopDetailView
       data={data}
-      membership={membership}
+      membership={viewMembership}
       isStoreReadOnly={isStoreReadOnly}
       storeDisabledReason={storeDisabledReason}
       showMembershipRemoval={showMembershipRemoval}

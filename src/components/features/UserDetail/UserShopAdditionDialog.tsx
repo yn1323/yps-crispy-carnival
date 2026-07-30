@@ -34,6 +34,7 @@ export function UserShopAdditionDialog({
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       onClose={onClose}
+      onBackGuardRemoved={onClose}
       hideFooter
       maxW={{ base: "100vw", lg: "640px" }}
       maxH={{ base: "100dvh", lg: "86dvh" }}

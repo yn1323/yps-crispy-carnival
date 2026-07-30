@@ -14,7 +14,7 @@ export function useStaffNotificationDelivery(isReadOnly = false) {
     try {
       const result = await sendOpenRecruitmentNotifications({ staffId: staff._id });
       if (result.scheduled) {
-        showSuccessToast({ title: "シフト募集通知を送りました" });
+        showSuccessToast({ title: "シフト募集通知を再送しました" });
         return;
       }
       toaster.create({
@@ -32,14 +32,12 @@ export function useStaffNotificationDelivery(isReadOnly = false) {
     try {
       const result = await sendCurrentShiftNotification({ staffId: staff._id });
       if (result.scheduled) {
-        showSuccessToast({ title: "現在の確定シフトを送りました" });
+        showSuccessToast({ title: "確定シフト通知を再送しました" });
         return;
       }
       toaster.create({
         title:
-          result.reason === "rateLimited"
-            ? "少し時間をおいて再送してください"
-            : "送信できる現在の確定シフトがありません",
+          result.reason === "rateLimited" ? "少し時間をおいて再送してください" : "送信できる確定シフトがありません",
         type: result.reason === "rateLimited" ? "error" : "info",
       });
     } catch (error) {

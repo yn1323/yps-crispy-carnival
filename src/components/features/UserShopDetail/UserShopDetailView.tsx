@@ -62,8 +62,8 @@ export function UserShopDetailView({
   return (
     <Stack gap={{ base: 4, md: 6 }}>
       <DetailPageHeader
-        title={`${membership.shopName}：${data.person.name}`}
-        backLabel="ユーザー詳細へ戻る"
+        title={`${membership.shopName}：${data.person.name}さん`}
+        backLabel="スタッフ詳細へ戻る"
         onBack={actions.onBack}
       />
 

@@ -110,8 +110,8 @@ describe("useUserShopNotificationActions", () => {
     expect(mocks.sendOpen).toHaveBeenCalledExactlyOnceWith({ shopId: targetShopId, staffId });
     expect(mocks.sendCurrent).toHaveBeenCalledExactlyOnceWith({ shopId: targetShopId, staffId });
     expect(mocks.showSuccessToast.mock.calls).toEqual([
-      [{ title: "シフト募集通知を送りました" }],
-      [{ title: "現在の確定シフトを送りました" }],
+      [{ title: "シフト募集通知を再送しました" }],
+      [{ title: "確定シフト通知を再送しました" }],
     ]);
   });
 

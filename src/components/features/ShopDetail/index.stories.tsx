@@ -125,7 +125,7 @@ export const StaffAccordionOpen: Story = {
     const trigger = canvas.getByRole("button", { name: /スタッフ一覧を見る/ });
     await userEvent.click(trigger);
     await expect(trigger).toHaveAttribute("aria-expanded", "true");
-    const staffButton = await canvas.findByRole("button", { name: "佐藤 花子のユーザー詳細を開く" });
+    const staffButton = await canvas.findByRole("button", { name: "佐藤 花子のスタッフ詳細を開く" });
     await waitFor(() => expect(staffButton).toBeVisible());
   },
 };
@@ -192,7 +192,7 @@ export const StaffNavigationBehavior: Story = {
     const trigger = canvas.getByRole("button", { name: /スタッフ一覧を見る/ });
     await userEvent.click(trigger);
     await expect(trigger).toHaveAttribute("aria-expanded", "true");
-    const staffButton = await canvas.findByRole("button", { name: "佐藤 花子のユーザー詳細を開く" });
+    const staffButton = await canvas.findByRole("button", { name: "佐藤 花子のスタッフ詳細を開く" });
     await waitFor(() => expect(staffButton).toBeVisible());
     await userEvent.click(staffButton);
     await expect(await canvas.findByLabelText("操作結果")).toHaveTextContent("open:person-staff");
@@ -319,7 +319,7 @@ export const MobileStaffAccordionOpen: Story = {
     const trigger = canvas.getByRole("button", { name: /スタッフ一覧を見る/ });
     await userEvent.click(trigger);
     await expect(trigger).toHaveAttribute("aria-expanded", "true");
-    const staffButton = await canvas.findByRole("button", { name: "佐藤 花子のユーザー詳細を開く" });
+    const staffButton = await canvas.findByRole("button", { name: "佐藤 花子のスタッフ詳細を開く" });
     await waitFor(() => expect(staffButton).toBeVisible());
   },
 };

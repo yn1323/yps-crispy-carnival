@@ -19,6 +19,20 @@ export function useUserShopMembershipActions({
   canRemoveMembership: boolean;
 }) {
   const [dialog, setDialog] = useState<UserShopDetailDialog>(null);
+  const [optimisticShiftExclusion, setOptimisticShiftExclusion] = useState<{
+    targetShopId: Id<"shops">;
+    staffId: Id<"staffs">;
+    excluded: boolean;
+  } | null>(null);
+  const [shiftTargetCooldown, setShiftTargetCooldown] = useState<{
+    targetShopId: Id<"shops">;
+    staffId: Id<"staffs">;
+  } | null>(null);
+  const shiftTargetCooldownTimerRef = useRef<{
+    targetShopId: Id<"shops">;
+    staffId: Id<"staffs">;
+    timerId: number;
+  } | null>(null);
   const currentTargetRef = useRef({ targetShopId, staffId: membership.staffId, isReadOnly, canRemoveMembership });
   currentTargetRef.current = { targetShopId, staffId: membership.staffId, isReadOnly, canRemoveMembership };
   const setShiftExclusion = useMutation(api.staff.mutations.setShiftExclusion);
@@ -38,12 +52,69 @@ export function useUserShopMembershipActions({
     }
   }, [canRemoveMembership, dialog, isReadOnly, membership, targetShopId]);
 
+  useEffect(() => {
+    setOptimisticShiftExclusion((current) => {
+      if (!current) return current;
+      if (
+        current.targetShopId !== targetShopId ||
+        current.staffId !== membership.staffId ||
+        current.excluded === membership.excludedFromShift
+      ) {
+        return null;
+      }
+      return current;
+    });
+  }, [membership.excludedFromShift, membership.staffId, targetShopId]);
+
+  useEffect(() => {
+    return () => {
+      if (shiftTargetCooldownTimerRef.current) {
+        window.clearTimeout(shiftTargetCooldownTimerRef.current.timerId);
+        shiftTargetCooldownTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  const hasOptimisticShiftExclusion =
+    optimisticShiftExclusion?.targetShopId === targetShopId && optimisticShiftExclusion.staffId === membership.staffId;
+  const excludedFromShift = hasOptimisticShiftExclusion
+    ? optimisticShiftExclusion.excluded
+    : membership.excludedFromShift;
+  const isShiftTargetCoolingDown =
+    shiftTargetCooldown?.targetShopId === targetShopId && shiftTargetCooldown.staffId === membership.staffId;
+
   const { run: changeShiftTarget, isRunning: isChangingShiftTarget } = useSingleFlight(
     async (isShiftTarget: boolean) => {
       const target = currentTargetRef.current;
-      if (target.isReadOnly || membership.shopId !== target.targetShopId || membership.staffId !== target.staffId)
+      const currentCooldown = shiftTargetCooldownTimerRef.current;
+      if (
+        (currentCooldown?.targetShopId === target.targetShopId && currentCooldown.staffId === target.staffId) ||
+        target.isReadOnly ||
+        membership.shopId !== target.targetShopId ||
+        membership.staffId !== target.staffId
+      )
         return;
+      if (currentCooldown) window.clearTimeout(currentCooldown.timerId);
+      const cooldownTarget = { targetShopId: target.targetShopId, staffId: target.staffId };
+      setShiftTargetCooldown(cooldownTarget);
+      const timerId = window.setTimeout(() => {
+        const latestCooldown = shiftTargetCooldownTimerRef.current;
+        if (
+          latestCooldown?.targetShopId !== cooldownTarget.targetShopId ||
+          latestCooldown.staffId !== cooldownTarget.staffId
+        ) {
+          return;
+        }
+        shiftTargetCooldownTimerRef.current = null;
+        setShiftTargetCooldown((current) =>
+          current?.targetShopId === cooldownTarget.targetShopId && current.staffId === cooldownTarget.staffId
+            ? null
+            : current,
+        );
+      }, 1000);
+      shiftTargetCooldownTimerRef.current = { ...cooldownTarget, timerId };
       const excluded = !isShiftTarget;
+      setOptimisticShiftExclusion({ targetShopId: target.targetShopId, staffId: target.staffId, excluded });
       try {
         await setShiftExclusion({ shopId: target.targetShopId, staffId: target.staffId, excluded });
         const current = currentTargetRef.current;
@@ -52,7 +123,14 @@ export function useUserShopMembershipActions({
         }
       } catch (error) {
         const current = currentTargetRef.current;
-        if (current.targetShopId === target.targetShopId && current.staffId === target.staffId) showErrorToast(error);
+        if (current.targetShopId === target.targetShopId && current.staffId === target.staffId) {
+          setOptimisticShiftExclusion((optimistic) =>
+            optimistic?.targetShopId === target.targetShopId && optimistic.staffId === target.staffId
+              ? null
+              : optimistic,
+          );
+          showErrorToast(error);
+        }
       }
     },
   );
@@ -103,7 +181,8 @@ export function useUserShopMembershipActions({
 
   return {
     dialog,
-    isChangingShiftTarget,
+    excludedFromShift,
+    isChangingShiftTarget: isChangingShiftTarget || isShiftTargetCoolingDown,
     isRemovingMembership,
     onChangeShiftTarget: changeShiftTarget,
     onRequestRemoveMembership: () => {

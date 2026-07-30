@@ -33,7 +33,7 @@ export function useUserShopNotificationActions({
     try {
       const result = await sendOpenRecruitmentNotifications({ shopId: targetShopId, staffId: membership.staffId });
       if (result.scheduled) {
-        showSuccessToast({ title: "シフト募集通知を送りました" });
+        showSuccessToast({ title: "シフト募集通知を再送しました" });
         return;
       }
       toaster.create({
@@ -51,7 +51,7 @@ export function useUserShopNotificationActions({
     try {
       const result = await sendCurrentShiftNotification({ shopId: targetShopId, staffId: membership.staffId });
       if (result.scheduled) {
-        showSuccessToast({ title: "現在の確定シフトを送りました" });
+        showSuccessToast({ title: "確定シフト通知を再送しました" });
         return;
       }
       toaster.create({

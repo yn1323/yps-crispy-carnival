@@ -1,4 +1,6 @@
+import { Flex } from "@chakra-ui/react";
 import type { PersonProfileFormData } from "@/src/components/shared/PersonProfileForm";
+import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import type { UserDetailData, UserDetailDialog } from "./types";
 import { UserInformationTab } from "./UserInformationTab";
@@ -41,13 +43,31 @@ export function UserInformationDialog({
   onConfirmManagerSetting,
   onCancelManagerSetting,
 }: Props) {
+  const formId = `user-profile-${data.person.id}`;
+
   return (
     <Dialog
-      title="基本情報"
+      title="スタッフ情報"
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       onClose={onClose}
-      hideFooter
+      onBackGuardRemoved={onClose}
+      footer={
+        <Flex justify="space-between" gap={3} w="full">
+          <Button type="button" variant="outline" onClick={onClose}>
+            キャンセル
+          </Button>
+          <Button
+            type="submit"
+            form={formId}
+            colorPalette="teal"
+            loading={isUpdatingProfile}
+            disabled={!data.canWrite || isUpdatingProfile}
+          >
+            変更を保存
+          </Button>
+        </Flex>
+      }
       maxW={{ base: "100vw", lg: "720px" }}
       maxH={{ base: "100dvh", lg: "86dvh" }}
       contentProps={{
@@ -60,8 +80,8 @@ export function UserInformationDialog({
     >
       <UserInformationTab
         data={data}
+        formId={formId}
         isReadOnly={!data.canWrite}
-        isUpdating={isUpdatingProfile}
         managerSettings={
           data.managerInvitationState.kind === "hidden" ? null : (
             <UserManagerSettings

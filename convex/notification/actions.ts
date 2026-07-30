@@ -1190,7 +1190,7 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
 });
 
 /**
- * 手動再送: 1スタッフへ、現在の確定シフトを送る。
+ * 手動再送: 1スタッフへ、今日以降にかかる確定シフトを送る。
  */
 export const sendCurrentShiftConfirmationForStaff = internalAction({
   args: { staffId: v.id("staffs"), ...businessNotificationOriginArgs },

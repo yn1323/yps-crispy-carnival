@@ -1,7 +1,7 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, screen, userEvent, within } from "storybook/test";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { UserDetailData, UserDetailDialog, UserDetailPanel } from "./types";
 import { UserDetailSkeleton } from "./UserDetailSkeleton";
@@ -170,7 +170,7 @@ export const ManagerInvitationDarkLaunchBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   args: { activePanel: "basic", data: managerInvitationHiddenData },
   play: async () => {
-    const dialog = await screen.findByRole("dialog", { name: "基本情報" });
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
     await expect(within(dialog).getByRole("textbox", { name: "名前" })).toBeInTheDocument();
     await expect(within(dialog).queryByRole("heading", { name: "管理者権限" })).not.toBeInTheDocument();
     await expect(screen.queryByText("管理者招待中")).not.toBeInTheDocument();
@@ -360,13 +360,15 @@ export const BasicInformationFlowBehavior: Story = {
     const page = within(canvasElement.ownerDocument.body);
 
     await expect(canvas.queryByRole("textbox", { name: "名前" })).not.toBeInTheDocument();
-    await userEvent.click(canvas.getByRole("button", { name: "基本情報を開く" }));
+    await userEvent.click(canvas.getByRole("button", { name: "スタッフ情報を開く" }));
 
-    const dialog = await page.findByRole("dialog", { name: "基本情報" });
+    const dialog = await page.findByRole("dialog", { name: "スタッフ情報" });
     const basicDialog = within(dialog);
     await expect(basicDialog.getByRole("textbox", { name: "名前" })).toHaveValue("田中 花子");
     await expect(basicDialog.getByRole("textbox", { name: "メールアドレス" })).toHaveValue("hanako.tanaka@example.com");
     await expect(basicDialog.getByRole("heading", { name: "管理者権限" })).toBeInTheDocument();
+    await userEvent.click(basicDialog.getByRole("button", { name: "キャンセル" }));
+    await waitFor(() => expect(page.queryByRole("dialog", { name: "スタッフ情報" })).not.toBeInTheDocument());
   },
 };
 

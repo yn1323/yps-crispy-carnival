@@ -961,7 +961,7 @@ describe("通知配送outboxシナリオ", () => {
     ).toEqual([ids.emailStaffId, ids.lineStaffId].sort());
   });
 
-  it("手動の現在の確定シフト通知は期間内の確定シフトだけを1スタッフへ送る", async () => {
+  it("手動の確定シフト通知は現在と将来の確定シフトを1スタッフへ送る", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);
@@ -1023,7 +1023,7 @@ describe("通知配送outboxシナリオ", () => {
         endTime: "20:00",
         positionId,
       });
-      return { staffId, currentRecruitmentId };
+      return { staffId, currentRecruitmentId, futureRecruitmentId };
     });
 
     await asManager.sendCurrentShiftNotification(ids.staffId);
@@ -1032,6 +1032,7 @@ describe("通知配送outboxシナリオ", () => {
     const [jobs, magicLinks] = await Promise.all([getOutboxJobs(t), getMagicLinks(t)]);
     expect(jobs.map((job) => job.dedupeKey)).toEqual([
       `email:manualConfirmation:${ids.currentRecruitmentId}:${ids.staffId}:${SCENARIO_NOW}`,
+      `email:manualConfirmation:${ids.futureRecruitmentId}:${ids.staffId}:${SCENARIO_NOW}`,
     ]);
     expect(jobs[0]).toMatchObject({
       channel: "email",
@@ -1046,7 +1047,10 @@ describe("通知配送outboxシナリオ", () => {
       magicLinks
         .filter((link) => link.accessKind === "view")
         .map((link) => ({ recruitmentId: link.recruitmentId, staffId: link.staffId })),
-    ).toEqual([{ recruitmentId: ids.currentRecruitmentId, staffId: ids.staffId }]);
+    ).toEqual([
+      { recruitmentId: ids.currentRecruitmentId, staffId: ids.staffId },
+      { recruitmentId: ids.futureRecruitmentId, staffId: ids.staffId },
+    ]);
   });
 
   it("確定済み募集の配送失敗はFailureInboxに残すが再送モーダルには出さない", async () => {

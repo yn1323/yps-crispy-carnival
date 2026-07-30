@@ -261,9 +261,9 @@ export const UserListLoadMoreBehavior: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.queryByRole("button", { name: "追加ユーザー 9のユーザー詳細を開く" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: "追加ユーザー 9のスタッフ詳細を開く" })).not.toBeInTheDocument();
     await userEvent.click(canvas.getByRole("button", { name: "もっと見る" }));
-    await expect(canvas.getByRole("button", { name: "追加ユーザー 9のユーザー詳細を開く" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "追加ユーザー 9のスタッフ詳細を開く" })).toBeVisible();
   },
 };
 
@@ -290,7 +290,7 @@ export const UserNavigationBehavior: Story = {
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "鈴木 次郎のユーザー詳細を開く" }));
+    await userEvent.click(canvas.getByRole("button", { name: "鈴木 次郎のスタッフ詳細を開く" }));
     await expect(args.actions.onOpenUser).toHaveBeenCalledTimes(1);
     await expect(args.actions.onOpenUser).toHaveBeenCalledWith("person-staff", 10);
   },

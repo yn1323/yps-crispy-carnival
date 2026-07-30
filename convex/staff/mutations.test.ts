@@ -2539,7 +2539,7 @@ describe("staff/mutations", () => {
       expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(0);
     });
 
-    it("現在の確定シフトだけを対象に通知を1件予約する", async () => {
+    it("現在と将来の確定シフトだけを対象に通知を1件予約する", async () => {
       const t = convexTest(schema, modules);
       const { shopId, staffId, recruitmentIds } = await setupCurrentShiftNotification(t, {
         windows: ["past", "current", "future"],
@@ -2555,15 +2555,35 @@ describe("staff/mutations", () => {
 
       expect(notificationData?.recruitments.map((recruitment) => recruitment.recruitmentId)).toEqual([
         recruitmentIds.current,
+        recruitmentIds.future,
       ]);
       expect(result).toEqual({ scheduled: true });
       expect(jobs).toHaveLength(1);
       expect(jobs[0]).toMatchObject({ args: [{ staffId }] });
     });
 
-    it("現在の確定シフトがなく過去・未来のシフトだけなら予約しない", async () => {
+    it("将来の確定シフトだけでも通知を予約する", async () => {
       const t = convexTest(schema, modules);
-      const { shopId, staffId } = await setupCurrentShiftNotification(t, { windows: ["past", "future"] });
+      const { shopId, staffId, recruitmentIds } = await setupCurrentShiftNotification(t, { windows: ["future"] });
+
+      const notificationData = await t.query(internal.notification.queries.getCurrentConfirmationEmailDataForStaff, {
+        staffId,
+      });
+
+      const result = await t
+        .withIdentity({ subject: "current_shift_manager" })
+        .mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId });
+
+      expect(notificationData?.recruitments.map((recruitment) => recruitment.recruitmentId)).toEqual([
+        recruitmentIds.future,
+      ]);
+      expect(result).toEqual({ scheduled: true });
+      expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(1);
+    });
+
+    it("過去の確定シフトしかなければ通知を予約しない", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, staffId } = await setupCurrentShiftNotification(t, { windows: ["past"] });
 
       const result = await t
         .withIdentity({ subject: "current_shift_manager" })

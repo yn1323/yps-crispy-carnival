@@ -307,7 +307,7 @@ export const getRecruitmentNotificationDataForStaff = internalQuery({
 });
 
 /**
- * 現在の確定シフト通知を、指定スタッフ1人へ送るためのデータを取得する。
+ * 今日以降にかかる確定シフト通知を、指定スタッフ1人へ送るためのデータを取得する。
  */
 export const getCurrentConfirmationEmailDataForStaff = internalQuery({
   args: { staffId: v.id("staffs") },
@@ -321,17 +321,16 @@ export const getCurrentConfirmationEmailDataForStaff = internalQuery({
     const today = todayJST();
     const recruitments = await ctx.db
       .query("recruitments")
-      .withIndex("by_shopId_and_isDeleted_and_status_and_periodStart", (q) =>
-        q.eq("shopId", staff.shopId).eq("isDeleted", false).eq("status", "confirmed").lte("periodStart", today),
+      .withIndex("by_shopId_and_isDeleted_and_status_and_periodEnd", (q) =>
+        q.eq("shopId", staff.shopId).eq("isDeleted", false).eq("status", "confirmed").gte("periodEnd", today),
       )
-      .order("desc")
+      .order("asc")
       .take(DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT);
 
-    const currentRecruitments = recruitments.filter((recruitment) => recruitment.periodEnd >= today);
     const lineAccount = await getStaffLineAccount(ctx, staff._id);
 
     const recruitmentEntries = await Promise.all(
-      currentRecruitments.map(async (recruitment) => {
+      recruitments.map(async (recruitment) => {
         const assignments = await ctx.db
           .query("shiftAssignments")
           .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitment._id).eq("staffId", staff._id))

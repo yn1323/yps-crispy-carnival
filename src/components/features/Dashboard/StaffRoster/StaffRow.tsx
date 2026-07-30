@@ -12,13 +12,12 @@ export function StaffRow({ staff, onOpenDetail }: Props) {
   const avatarPalette = staff.isManager ? { bg: "teal.500", fg: "white" } : { bg: "teal.50", fg: "teal.700" };
   const isLineActive = staff.isLineLinked && staff.isLineFollowing;
   const isExcluded = staff.excludedFromShift;
-  const hasUserDetail = Boolean(staff.organizationPersonId);
 
   return (
     <HStack
       as="button"
       id={staff.organizationPersonId ? `dashboard-user-${staff.organizationPersonId}` : undefined}
-      aria-label={hasUserDetail ? `${staff.name}のユーザー詳細を開く` : `${staff.name}のスタッフ詳細を開く`}
+      aria-label={`${staff.name}のスタッフ詳細を開く`}
       gap={3}
       px={{ base: 3, lg: 4 }}
       py={3.5}
@@ -48,30 +47,30 @@ export function StaffRow({ staff, onOpenDetail }: Props) {
         {initial}
       </Flex>
       <Stack gap={0} flex={1} minW={0}>
-        <HStack gap={2} align="center" wrap="wrap">
-          <Text fontWeight={500} color="gray.900" truncate>
-            {staff.name}
-          </Text>
-          {staff.isManager && (
-            <Badge colorPalette="teal" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
-              管理者
-            </Badge>
-          )}
-          {isLineActive && (
-            <Badge colorPalette="green" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
-              LINE連携済み
-            </Badge>
-          )}
-          {isExcluded && (
-            <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
-              シフト対象外
-            </Badge>
-          )}
-        </HStack>
+        <Text fontWeight={500} color="gray.900" truncate>
+          {staff.name}
+        </Text>
         <Text fontSize="xs" color="fg.muted" display={{ base: "none", lg: "block" }} truncate>
           {staff.email}
         </Text>
       </Stack>
+      <HStack gap={1.5} wrap="wrap" ms="auto" flexShrink={0} justify="flex-end">
+        {staff.isManager && (
+          <Badge colorPalette="teal" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
+            管理者
+          </Badge>
+        )}
+        {isLineActive && (
+          <Badge colorPalette="green" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
+            LINE連携済み
+          </Badge>
+        )}
+        {isExcluded && (
+          <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
+            シフト対象外
+          </Badge>
+        )}
+      </HStack>
       <Flex color="fg.muted" fontSize="lg" flexShrink={0} aria-hidden>
         <LuChevronRight />
       </Flex>

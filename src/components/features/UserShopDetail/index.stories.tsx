@@ -72,9 +72,7 @@ const notificationItems: StaffNotificationHistoryItem[] = [
   },
 ];
 
-const notificationHistory = (
-  <StaffNotificationHistoryView items={notificationItems} canLoadMore onLoadMore={() => undefined} />
-);
+const notificationHistory = <StaffNotificationHistoryView items={notificationItems} />;
 
 const baseState: UserShopDetailViewProps["state"] = {
   line: {
@@ -267,12 +265,28 @@ export const LineQrDisplayBehavior: Story = {
     const canvas = within(canvasElement);
     const showQrButton = canvas.getByRole("button", { name: "LINE連携リンクを表示" });
 
-    await expect(canvas.queryByText("田中 花子専用のURL（QRコード）です。")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("田中 花子さん専用のURL（QRコード）です。")).not.toBeInTheDocument();
     await expect(showQrButton).toBeEnabled();
     await userEvent.click(showQrButton);
-    await expect(await canvas.findByText("田中 花子専用のURL（QRコード）です。")).toBeInTheDocument();
+    await expect(await canvas.findByText("田中 花子さん専用のURL（QRコード）です。")).toBeInTheDocument();
     await expect(await canvas.findByRole("img", { name: "LINE連携用QRコード" })).toBeInTheDocument();
     await expect(showQrButton).toBeDisabled();
+  },
+};
+
+export const LineLinkedGuidanceBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: {
+    membership: {
+      ...membership,
+      line: { isLinked: true, isFollowing: true },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByText("LINE連携設定は店舗ごとに設定をお願いします。")).toBeInTheDocument();
+    await expect(canvas.queryByText("いずれかの方法でスタッフを招待してください。")).not.toBeInTheDocument();
   },
 };
 
@@ -281,7 +295,7 @@ export const RecruitmentNotificationSendingBehavior: Story = {
   render: () => <InteractionHarness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const sendButton = canvas.getByRole("button", { name: "募集中のシフトを送る" });
+    const sendButton = canvas.getByRole("button", { name: "募集中のシフトを再送する" });
 
     await expect(sendButton).toBeEnabled();
     await userEvent.click(sendButton);

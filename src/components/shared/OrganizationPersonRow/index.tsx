@@ -33,7 +33,7 @@ export function OrganizationPersonRow({
   return (
     <DrilldownRow
       id={`${idPrefix}-${person.id}`}
-      ariaLabel={`${person.name}のユーザー詳細を開く`}
+      ariaLabel={`${person.name}のスタッフ詳細を開く`}
       title={person.name}
       highlighted={isManager}
       onClick={onOpen}

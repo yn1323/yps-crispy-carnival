@@ -35,15 +35,18 @@ vi.mock("@/src/components/features/StaffNotificationHistory", () => ({
 vi.mock("./UserShopDetailView", () => ({
   UserShopDetailView: ({
     isStoreReadOnly,
+    membership,
     notificationHistory,
     actions,
   }: {
     isStoreReadOnly: boolean;
+    membership: UserShopDetailMembership;
     notificationHistory: ReactNode;
     actions: { onBack: () => void; onConfirmRemoveMembership: () => void };
   }) => (
     <div>
       <output data-testid="read-only">{String(isStoreReadOnly)}</output>
+      <output data-testid="excluded-from-shift">{String(membership.excludedFromShift)}</output>
       {notificationHistory}
       <button type="button" onClick={actions.onBack}>
         戻る
@@ -108,6 +111,7 @@ beforeEach(() => {
   });
   mocks.useMembershipActions.mockReturnValue({
     dialog: { kind: "removeMembership" },
+    excludedFromShift: membership.excludedFromShift,
     isChangingShiftTarget: false,
     isRemovingMembership: false,
     onChangeShiftTarget: vi.fn(),
@@ -179,5 +183,30 @@ describe("UserShopDetail", () => {
       membership: archivedMembership,
       isReadOnly: true,
     });
+  });
+
+  it("シフト対象設定の楽観値を画面全体へ反映する", () => {
+    mocks.useMembershipActions.mockReturnValue({
+      dialog: null,
+      excludedFromShift: true,
+      isChangingShiftTarget: true,
+      isRemovingMembership: false,
+      onChangeShiftTarget: vi.fn(),
+      onRequestRemoveMembership: vi.fn(),
+      onConfirmRemoveMembership: vi.fn(),
+      onCloseDialog: vi.fn(),
+    });
+
+    render(
+      <UserShopDetail
+        data={data}
+        membership={membership}
+        targetShopId={targetShopId}
+        onBack={vi.fn()}
+        onMembershipRemoved={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("excluded-from-shift").textContent).toBe("true");
   });
 });

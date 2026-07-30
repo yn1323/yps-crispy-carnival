@@ -7,6 +7,7 @@ type OpenDialog = {
   history: RouterHistory;
   id: symbol;
   onCloseRef: MutableRefObject<() => void>;
+  onBackGuardRemovedRef: MutableRefObject<(() => void) | undefined>;
 };
 
 type DialogBackGuard = {
@@ -29,25 +30,26 @@ const clearScheduledBackGuardRemoval = () => {
   removeBackGuardTimer = undefined;
 };
 
-const removeBackGuard = (guard: DialogBackGuard) => {
+const removeBackGuard = (guard: DialogBackGuard, onRemoved?: () => void) => {
   if (backGuard !== guard || !isCurrentBackGuard(guard.history, guard)) return;
   backGuard = undefined;
+  if (onRemoved) window.addEventListener("popstate", onRemoved, { once: true });
   guard.history.back({ ignoreBlocker: true });
 };
 
-const scheduleBackGuardRemoval = (guard: DialogBackGuard) => {
+const scheduleBackGuardRemoval = (guard: DialogBackGuard, onRemoved?: () => void) => {
   clearScheduledBackGuardRemoval();
   removeBackGuardTimer = window.setTimeout(() => {
     removeBackGuardTimer = undefined;
-    if (openDialogs.length === 0) removeBackGuard(guard);
+    if (openDialogs.length === 0) removeBackGuard(guard, onRemoved);
   }, 0);
 };
 
-const removeBackGuardAfterRollback = (guard: DialogBackGuard) => {
+const removeBackGuardAfterRollback = (guard: DialogBackGuard, onRemoved?: () => void) => {
   window.addEventListener(
     "popstate",
     () => {
-      if (openDialogs.length === 0) removeBackGuard(guard);
+      if (openDialogs.length === 0) removeBackGuard(guard, onRemoved);
     },
     { once: true },
   );
@@ -75,7 +77,7 @@ export const registerDialogBackNavigation = (history: RouterHistory) => {
       const guard = backGuard;
       if (guard?.history === history && openDialogs.length === 0) {
         // TanStack HistoryがblockしたBACKを現在位置へ戻した後、guardだけをblockerなしで取り除く。
-        removeBackGuardAfterRollback(guard);
+        removeBackGuardAfterRollback(guard, dialog?.onBackGuardRemovedRef.current);
       }
       return true;
     },
@@ -104,13 +106,15 @@ const addBackGuard = (history: RouterHistory) => {
  * 進むやアプリ内遷移は妨げない。
  * StorybookやテストなどRouter外の描画では何もしない。
  */
-export const useCloseDialogOnBrowserBack = (isOpen: boolean, onClose: () => void) => {
+export const useCloseDialogOnBrowserBack = (isOpen: boolean, onClose: () => void, onBackGuardRemoved?: () => void) => {
   const router = useRouter({ warn: false }) as ReturnType<typeof useRouter> | undefined;
   const onCloseRef = useRef(onClose);
+  const onBackGuardRemovedRef = useRef(onBackGuardRemoved);
 
   useEffect(() => {
     onCloseRef.current = onClose;
-  }, [onClose]);
+    onBackGuardRemovedRef.current = onBackGuardRemoved;
+  }, [onBackGuardRemoved, onClose]);
 
   useEffect(() => {
     if (!isOpen || !router) return;
@@ -122,6 +126,7 @@ export const useCloseDialogOnBrowserBack = (isOpen: boolean, onClose: () => void
       history: router.history,
       id: Symbol("dialog"),
       onCloseRef,
+      onBackGuardRemovedRef,
     };
     openDialogs.push(dialog);
     addBackGuard(router.history);
@@ -134,7 +139,7 @@ export const useCloseDialogOnBrowserBack = (isOpen: boolean, onClose: () => void
       const guard = backGuard;
       if (openDialogs.length === 0 && guard && guard.history === router.history) {
         // StrictModeのeffect再実行では、直後の再登録がこの削除を取り消す。
-        scheduleBackGuardRemoval(guard);
+        scheduleBackGuardRemoval(guard, dialog.onBackGuardRemovedRef.current);
       }
     };
   }, [isOpen, router]);

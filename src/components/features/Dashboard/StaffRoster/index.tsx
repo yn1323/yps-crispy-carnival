@@ -149,14 +149,14 @@ const StaffRowSkeleton = ({ isManager, showLineLinked }: { isManager: boolean; s
     minH="68px"
   >
     <Skeleton boxSize="40px" borderRadius="full" flexShrink={0} />
-    <Stack gap={2} flex={1} minW={0}>
-      <HStack gap={2} align="center" wrap="wrap">
-        <Skeleton h="20px" w={{ base: "96px", lg: "112px" }} />
-        {isManager && <Skeleton h="20px" w="52px" borderRadius="full" />}
-        {showLineLinked && <Skeleton h="20px" w="78px" borderRadius="full" />}
-      </HStack>
+    <Stack gap={0} flex={1} minW={0}>
+      <Skeleton h="20px" w={{ base: "96px", lg: "112px" }} />
       <Skeleton h="16px" w="180px" display={{ base: "none", lg: "block" }} />
     </Stack>
+    <HStack gap={1.5} ms="auto" flexShrink={0} justify="flex-end">
+      {isManager && <Skeleton h="20px" w="52px" borderRadius="full" />}
+      {showLineLinked && <Skeleton h="20px" w="78px" borderRadius="full" />}
+    </HStack>
     <Skeleton boxSize="32px" borderRadius="md" flexShrink={0} />
   </HStack>
 );
