@@ -92,10 +92,10 @@ export function StaffInvitationDialogView({ invitation, isReadOnly = false, orga
       onOpenChange={invitation.dialog.onOpenChange}
       formId={isManualTab ? "add-staff-form" : undefined}
       onClose={invitation.onClose}
-      hideFooter={!isManualTab}
+      hideFooter={activeTab === "organization"}
       footer={
         isManualTab ? (
-          <Flex w="full" align="center" justify="space-between" gap={3}>
+          <Flex w="full" align="center" justify="flex-end" gap={3}>
             <Button variant="outline" onClick={invitation.onClose} disabled={isReadOnly || isBusy}>
               閉じる
             </Button>
@@ -107,6 +107,12 @@ export function StaffInvitationDialogView({ invitation, isReadOnly = false, orga
               disabled={isReadOnly || invitation.isAddingOrganizationPerson}
             >
               スタッフを登録する
+            </Button>
+          </Flex>
+        ) : activeTab === "link" ? (
+          <Flex w="full" justify="flex-end">
+            <Button variant="outline" aria-label="スタッフ招待を閉じる" onClick={invitation.onClose} disabled={isBusy}>
+              閉じる
             </Button>
           </Flex>
         ) : undefined
@@ -146,21 +152,11 @@ export function StaffInvitationDialogView({ invitation, isReadOnly = false, orga
         </Tabs.List>
 
         <Tabs.Content value="link" pt={4} flex={1} minH={0}>
-          <Stack h="full" gap={6}>
+          <Stack gap={6}>
             <StaffRegistrationLinkPanel
               registrationUrl={invitation.registrationUrl}
               isLoading={invitation.isRegistrationUrlLoading}
             />
-            <Button
-              w="full"
-              variant="outline"
-              mt="auto"
-              aria-label="スタッフ招待を閉じる"
-              onClick={invitation.onClose}
-              disabled={isBusy}
-            >
-              閉じる
-            </Button>
           </Stack>
         </Tabs.Content>
 
