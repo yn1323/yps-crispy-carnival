@@ -27,12 +27,20 @@ type DeletionIntent = {
   requestId: string;
 };
 
-export function useOrganizationDeletionController(input: Input) {
+type ControllerOptions = {
+  replaceLocation?: (path: string) => void;
+};
+
+export function useOrganizationDeletionController(
+  input: Input,
+  { replaceLocation = (path) => window.location.replace(path) }: ControllerOptions = {},
+) {
   const deleteOrganization = useMutation(api.organization.mutations.deleteOrganization);
   const setSelectedShop = useSetAtom(selectedShopAtom);
   const setUser = useSetAtom(userAtom);
   const [intent, setIntent] = useState<DeletionIntent | null>(null);
   const latestRef = useRef(input);
+  const pendingRedirectRef = useRef<string | null>(null);
   latestRef.current = input;
 
   useEffect(() => {
@@ -71,12 +79,13 @@ export function useOrganizationDeletionController(input: Input) {
         requestId: intent.requestId,
       });
       const nextShop = latest.shops.find((shop) => shop.organizationId !== intent.organizationId);
+      const nextUrl = nextShop ? `/dashboard?shop=${encodeURIComponent(nextShop.shopId)}` : "/dashboard";
+      // Dialogの履歴guardを先に戻し、そのhistory.back()に遷移を上書きされないようにする。
+      pendingRedirectRef.current = nextUrl;
       setSelectedShop(nextShop ? toSelectedShop(nextShop) : null);
       setUser(EMPTY_USER);
       setIntent(null);
       showSuccessToast({ title: "グループの削除を受け付けました" });
-      const nextUrl = nextShop ? `/dashboard?shop=${encodeURIComponent(nextShop.shopId)}` : "/dashboard";
-      window.location.replace(nextUrl);
     } catch (error) {
       showErrorToast(error);
       throw error;
@@ -107,6 +116,12 @@ export function useOrganizationDeletionController(input: Input) {
       isRunning,
       onClose: () => {
         if (!isRunning) setIntent(null);
+      },
+      onBackGuardRemoved: () => {
+        const nextUrl = pendingRedirectRef.current;
+        if (!nextUrl) return;
+        pendingRedirectRef.current = null;
+        replaceLocation(nextUrl);
       },
       onSubmit: () => run().catch(() => undefined),
     },

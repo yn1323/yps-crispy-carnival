@@ -312,6 +312,39 @@ describe("OrganizationSettings controllers", () => {
     );
   });
 
+  it("グループ削除成功後はDialogの履歴guardを除去してから次の画面へ遷移する", async () => {
+    mocks.mutation.mockResolvedValue(undefined);
+    const replaceLocation = vi.fn();
+    const input = {
+      organizationId: "organization-1",
+      organizationUpdatedAt: 1_721_286_400_000,
+      organizationName: "さくらダイニング",
+      canDeleteOrganization: true,
+      selectedShopId: "shop-current",
+      shops: [
+        {
+          shopId: "shop-current",
+          shopName: "渋谷店",
+          shopStatus: "active" as const,
+          organizationId: "organization-1",
+          organizationName: "さくらダイニング",
+          organizationPlan: "free" as const,
+          memberStatus: "active" as const,
+        },
+      ],
+    };
+    const { result } = renderHook(() => useOrganizationDeletionController(input, { replaceLocation }));
+
+    act(() => result.current.open());
+    await act(async () => result.current.dialog.onSubmit());
+
+    expect(replaceLocation).not.toHaveBeenCalled();
+    act(() => result.current.dialog.onBackGuardRemoved());
+    expect(replaceLocation).toHaveBeenCalledExactlyOnceWith("/dashboard");
+    act(() => result.current.dialog.onBackGuardRemoved());
+    expect(replaceLocation).toHaveBeenCalledTimes(1);
+  });
+
   it("グループ削除の可否や対象が変わると古い確定操作を拒否する", async () => {
     const initialInput = {
       organizationId: "organization-1",
