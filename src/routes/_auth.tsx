@@ -9,6 +9,7 @@ import { AuthProviders } from "@/src/providers/AuthProviders";
 type AuthSearch = { shop?: string };
 
 export const Route = createFileRoute("/_auth")({
+  ssr: false,
   validateSearch: (search: Record<string, unknown>): AuthSearch => {
     const shop = typeof search.shop === "string" && search.shop.trim() !== "" ? search.shop : undefined;
     return shop ? { shop } : {};

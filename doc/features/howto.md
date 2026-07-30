@@ -14,7 +14,7 @@
 - `src/components/features/HowToSite/content/*.mdx`：回答本文
 - `src/components/features/HowToSite/helpContent.test.ts`：読込と検索のLogic Test
 - `src/components/features/HowToSite/index.stories.tsx`：ページ全体の代表状態
-- `scripts/prerender.ts`、`public/sitemap.xml`：静的HTMLと公開URL
+- `scripts/staticSite.ts`、`public/sitemap.xml`：SSG対象と公開URL
 
 コードとMDXを現在仕様の正本とする。
 回答の追加と更新には `write-help-content`、UIの設計判断には `doc/rules/ui-design.md` を使う。

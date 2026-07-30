@@ -93,7 +93,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   ({ blockers, history } = createHistoryMock());
   mockState.router = { history };
-  // main.tsxと同じく、画面固有のblockerがmountする前に登録する。
+  // router.tsxと同じく、画面固有のblockerがmountする前に登録する。
   registerDialogBackNavigation(history);
 });
 

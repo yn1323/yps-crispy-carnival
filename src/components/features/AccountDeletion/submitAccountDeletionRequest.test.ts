@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CONVEX_SITE_URL } from "@/src/configs/env";
+import { CONVEX_SITE_URL } from "@/src/configs/publicEnv";
 import { submitAccountDeletionRequest } from "./submitAccountDeletionRequest";
 
 const requestId = "6ec31541-7f1a-42d9-9659-a4cc66ab477f";

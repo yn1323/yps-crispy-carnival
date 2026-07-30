@@ -55,7 +55,7 @@ export const PublicFooter = () => (
       gap={2}
     >
       <Box as="span">
-        © {new Date().getFullYear()} シフトリ v{__APP_VERSION__}
+        © {__BUILD_DATE_JST__.slice(0, 4)} シフトリ v{__APP_VERSION__}
       </Box>
     </Flex>
   </Box>

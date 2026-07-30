@@ -1,5 +1,8 @@
-import { buildMeta } from "@/src/lib/seo";
+import { buildLinks, buildMeta } from "@/src/lib/seo";
 
 export function buildAccountDeletionAcceptedPageHead() {
-  return { meta: buildMeta({ title: "アカウント削除の受付完了", noindex: true }) };
+  return {
+    links: buildLinks({ canonical: "/account-deletion-accepted" }),
+    meta: buildMeta({ title: "アカウント削除の受付完了", canonical: "/account-deletion-accepted", noindex: true }),
+  };
 }

@@ -10,10 +10,12 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SplatRouteImport } from './routes/$'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as UnregisteredRouteImport } from './routes/_unregistered'
 import { Route as AccountDeletionAcceptedRouteImport } from './routes/account-deletion-accepted'
 import { Route as ArticlesRouteImport } from './routes/articles'
+import { Route as CacheResetRouteImport } from './routes/cache-reset'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as FeaturesRouteImport } from './routes/features'
@@ -53,6 +55,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SplatRoute = SplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
   getParentRoute: () => rootRouteImport,
@@ -69,6 +76,11 @@ const AccountDeletionAcceptedRoute = AccountDeletionAcceptedRouteImport.update({
 const ArticlesRoute = ArticlesRouteImport.update({
   id: '/articles',
   path: '/articles',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CacheResetRoute = CacheResetRouteImport.update({
+  id: '/cache-reset',
+  path: '/cache-reset',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContactRoute = ContactRouteImport.update({
@@ -248,8 +260,10 @@ const AuthUsersPersonIdShopsTargetShopIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/$': typeof SplatRoute
   '/account-deletion-accepted': typeof AccountDeletionAcceptedRoute
   '/articles': typeof ArticlesRouteWithChildren
+  '/cache-reset': typeof CacheResetRoute
   '/contact': typeof ContactRoute
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
@@ -286,7 +300,9 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/$': typeof SplatRoute
   '/account-deletion-accepted': typeof AccountDeletionAcceptedRoute
+  '/cache-reset': typeof CacheResetRoute
   '/contact': typeof ContactRoute
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
@@ -324,10 +340,12 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/$': typeof SplatRoute
   '/_auth': typeof AuthRouteWithChildren
   '/_unregistered': typeof UnregisteredRouteWithChildren
   '/account-deletion-accepted': typeof AccountDeletionAcceptedRoute
   '/articles': typeof ArticlesRouteWithChildren
+  '/cache-reset': typeof CacheResetRoute
   '/contact': typeof ContactRoute
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
@@ -366,8 +384,10 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/$'
     | '/account-deletion-accepted'
     | '/articles'
+    | '/cache-reset'
     | '/contact'
     | '/faq'
     | '/features'
@@ -404,7 +424,9 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/$'
     | '/account-deletion-accepted'
+    | '/cache-reset'
     | '/contact'
     | '/faq'
     | '/features'
@@ -441,10 +463,12 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/$'
     | '/_auth'
     | '/_unregistered'
     | '/account-deletion-accepted'
     | '/articles'
+    | '/cache-reset'
     | '/contact'
     | '/faq'
     | '/features'
@@ -482,10 +506,12 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SplatRoute: typeof SplatRoute
   AuthRoute: typeof AuthRouteWithChildren
   UnregisteredRoute: typeof UnregisteredRouteWithChildren
   AccountDeletionAcceptedRoute: typeof AccountDeletionAcceptedRoute
   ArticlesRoute: typeof ArticlesRouteWithChildren
+  CacheResetRoute: typeof CacheResetRoute
   ContactRoute: typeof ContactRoute
   FaqRoute: typeof FaqRoute
   FeaturesRoute: typeof FeaturesRoute
@@ -514,6 +540,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$': {
+      id: '/$'
+      path: '/$'
+      fullPath: '/$'
+      preLoaderRoute: typeof SplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_auth': {
       id: '/_auth'
       path: ''
@@ -540,6 +573,13 @@ declare module '@tanstack/react-router' {
       path: '/articles'
       fullPath: '/articles'
       preLoaderRoute: typeof ArticlesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cache-reset': {
+      id: '/cache-reset'
+      path: '/cache-reset'
+      fullPath: '/cache-reset'
+      preLoaderRoute: typeof CacheResetRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/contact': {
@@ -840,10 +880,12 @@ const ArticlesRouteWithChildren = ArticlesRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SplatRoute: SplatRoute,
   AuthRoute: AuthRouteWithChildren,
   UnregisteredRoute: UnregisteredRouteWithChildren,
   AccountDeletionAcceptedRoute: AccountDeletionAcceptedRoute,
   ArticlesRoute: ArticlesRouteWithChildren,
+  CacheResetRoute: CacheResetRoute,
   ContactRoute: ContactRoute,
   FaqRoute: FaqRoute,
   FeaturesRoute: FeaturesRoute,

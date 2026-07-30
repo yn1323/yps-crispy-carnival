@@ -29,12 +29,12 @@ type BuildMetaOptions = {
   noindex?: boolean;
   /** Canonical path (e.g. "/terms"). Adds `og:url`. */
   canonical?: string;
-  /** og:type override. Omit to keep the static `website` from index.html. */
+  /** og:type override. Omit to keep the root document's `website` default. */
   ogType?: "article";
   /**
-   * Page-specific OGP image. Omit to keep the static /ogp.png from index.html.
-   * `path` is a site-absolute path to a 1200x630 PNG (og:image:width/height/type
-   * in index.html stay valid, so only the URL/alt tags are overridden).
+   * Page-specific OGP image. Omit to keep the root document's /ogp.png default.
+   * `path` is a site-absolute path to a 1200x630 PNG. The root document owns
+   * og:image:width/height/type, so route metadata overrides only URL and alt.
    */
   ogImage?: { path: string; alt: string };
 };
@@ -99,12 +99,3 @@ export const buildLinks = ({ canonical }: Pick<BuildMetaOptions, "canonical">): 
  */
 export const jsonLdMeta = (payload: Record<string, unknown>): MetaList =>
   [{ "script:ld+json": payload }] as unknown as MetaList;
-
-/**
- * `scripts/prerender.ts` が `addInitScript` で `window.__PRERENDER__ = true` を
- * 注入する。コンポーネントから「これは prerender 中か」を判定する共通ヘルパ。
- * SSR/Node 実行時にも安全に false を返すため `typeof window` ガード込み。
- */
-export function isPrerendering(): boolean {
-  return typeof window !== "undefined" && (window as unknown as { __PRERENDER__?: boolean }).__PRERENDER__ === true;
-}

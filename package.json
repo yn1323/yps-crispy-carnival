@@ -5,10 +5,10 @@
   "packageManager": "pnpm@11.15.1",
   "type": "module",
   "engines": {
-    "node": "^20.19.0 || >=22.12.0"
+    "node": ">=22.12.0"
   },
   "scripts": {
-    "build": "vite build && tsc",
+    "build": "vite build && pnpm static:prepare && pnpm static:validate && tsc",
     "analytics:dev": "pnpm --filter @shiftori/analytics-dashboard dev",
     "analytics:dev:production": "pnpm --filter @shiftori/analytics-dashboard dev:production",
     "analytics:build": "pnpm --filter @shiftori/analytics-dashboard build",
@@ -17,7 +17,8 @@
     "analytics:serve": "pnpm --filter @shiftori/analytics-dashboard serve",
     "analytics:type-check": "pnpm --filter @shiftori/analytics-dashboard type-check",
     "analytics:lint": "pnpm --filter @shiftori/analytics-dashboard lint",
-    "prerender": "tsx scripts/prerender.ts",
+    "static:prepare": "tsx scripts/prepareStaticDeployment.ts",
+    "static:validate": "tsx scripts/validateStaticBuild.ts",
     "ogp:articles": "tsx scripts/generateArticleOgp.ts",
     "dev": "vite --port 3000",
     "dev:ngrok": "concurrently -n dev,ngrok -c blue,cyan \"vite --port 3000 --host 0.0.0.0\" \"tsx scripts/startNgrok.ts\"",
@@ -91,7 +92,7 @@
     "@emotion/react": "catalog:",
     "@hookform/resolvers": "5.4.0",
     "@tanstack/react-router": "1.170.18",
-    "@tanstack/router-plugin": "1.168.23",
+    "@tanstack/react-start": "1.168.32",
     "convex": "1.42.3",
     "convex-helpers": "^0.1.120",
     "dayjs": "^1.11.21",

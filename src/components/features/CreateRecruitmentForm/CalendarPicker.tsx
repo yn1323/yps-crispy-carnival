@@ -103,7 +103,7 @@ export const CalendarPicker = ({
   highlightSelectableDates = false,
   onValueChange,
 }: CalendarPickerProps) => {
-  const isDesktop = useBreakpointValue({ base: false, md: true }, { ssr: false }) ?? false;
+  const isDesktop = useBreakpointValue({ base: false, md: true }, { fallback: "base" }) ?? false;
   const monthCount = isDesktop ? desktopMonths : 1;
   const showMonthDivider = monthCount > 1;
 

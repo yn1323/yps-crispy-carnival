@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { SITE_URL } from "@/src/lib/seo";
+import { resolveArticleSlug } from "./articleAliases";
+
+export { articleSlugAliases, resolveArticleSlug } from "./articleAliases";
 
 /**
  * 記事サイトの「メタデータ」層。
@@ -202,10 +205,6 @@ export const articleMetas = Object.entries(articleFrontmatterModules)
   })
   .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 
-export const articleSlugAliases = {
-  "line-shift-collection-guide": "shiftori-line-workflow",
-} as const;
-
 export const concerns = sitePage.concernSlugs
   .map((slug) => getCategoryMeta(slug))
   .filter((category): category is CategoryMetadata => Boolean(category))
@@ -216,11 +215,6 @@ export const concerns = sitePage.concernSlugs
     href: `/articles/categories/${category.slug}`,
     representativeSlug: category.representativeSlug,
   }));
-
-/** slug の別名（旧slug）を解決する。 */
-export function resolveArticleSlug(slug: string): string {
-  return articleSlugAliases[slug as keyof typeof articleSlugAliases] ?? slug;
-}
 
 export function getArticleMeta(slug?: string): ArticleMetadata | undefined {
   if (!slug) {

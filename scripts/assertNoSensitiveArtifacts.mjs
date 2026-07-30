@@ -21,6 +21,7 @@ const TEXT_EXTENSIONS = new Set([
   ".yaml",
   ".yml",
 ]);
+const TEXT_FILENAMES = new Set(["_headers", "_redirects"]);
 const BINARY_SIGNATURES = new Map([
   [".avif", (contents) => contents.length >= 12 && contents.toString("ascii", 4, 8) === "ftyp"],
   [".gif", (contents) => ["GIF87a", "GIF89a"].includes(contents.toString("ascii", 0, 6))],
@@ -198,8 +199,9 @@ async function scanArtifacts(rootArguments) {
     }
 
     const extension = path.extname(normalizedPath).toLowerCase();
+    const isText = TEXT_EXTENSIONS.has(extension) || TEXT_FILENAMES.has(path.basename(normalizedPath));
     const binarySignature = BINARY_SIGNATURES.get(extension);
-    if (!TEXT_EXTENSIONS.has(extension) && !binarySignature) {
+    if (!isText && !binarySignature) {
       throw new Error(`Artifact privacy gate found an unsupported file type: ${JSON.stringify(normalizedPath)}`);
     }
 
@@ -209,13 +211,13 @@ async function scanArtifacts(rootArguments) {
     }
     let searchableContents;
     try {
-      searchableContents = TEXT_EXTENSIONS.has(extension)
+      searchableContents = isText
         ? new TextDecoder("utf-8", { fatal: true }).decode(contents)
         : contents.toString("latin1");
     } catch {
       throw new Error(`Artifact privacy gate found invalid UTF-8 text: ${JSON.stringify(normalizedPath)}`);
     }
-    const sensitiveContent = findSensitiveContent(searchableContents, TEXT_EXTENSIONS.has(extension));
+    const sensitiveContent = findSensitiveContent(searchableContents, isText);
     if (sensitiveContent) {
       throw new Error(`Artifact privacy gate found ${sensitiveContent}: ${JSON.stringify(normalizedPath)}`);
     }

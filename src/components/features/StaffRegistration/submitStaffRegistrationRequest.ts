@@ -1,5 +1,5 @@
 import type { SubmitStaffRegistrationInput } from "@/convex/staffRegistration/schemas";
-import { CONVEX_SITE_URL } from "@/src/configs/env";
+import { CONVEX_SITE_URL } from "@/src/configs/publicEnv";
 
 export type StaffRegistrationSubmitData = SubmitStaffRegistrationInput;
 

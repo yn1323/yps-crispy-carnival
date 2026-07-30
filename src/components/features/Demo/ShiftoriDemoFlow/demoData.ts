@@ -18,6 +18,7 @@ export const SHOP_NAME = "カフェ シフトリ";
 export const PERIOD_START = "2027-06-07";
 export const PERIOD_END = "2027-06-13";
 export const DEADLINE = "2027-06-05";
+export const DEMO_TODAY = "2027-06-01";
 export const TIME_RANGE: TimeRange = { start: 9, end: 22, unit: 30 };
 export const POSITIONS: PositionType[] = [
   DEFAULT_POSITION,

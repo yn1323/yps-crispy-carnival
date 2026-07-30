@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import type { StaffRegistrationFormData } from "@/convex/staffRegistration/schemas";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
-import { TURNSTILE_SITE_KEY } from "@/src/configs/env";
+import { TURNSTILE_SITE_KEY } from "@/src/configs/publicEnv";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { StaffRegistrationFlow } from "./StaffRegistrationFlow";
 import { submitStaffRegistrationRequest } from "./submitStaffRegistrationRequest";

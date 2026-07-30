@@ -3,6 +3,7 @@ import { SignupPage } from "@/src/pages/auth";
 import { buildSignupPageHead } from "@/src/pages/auth/meta";
 
 export const Route = createFileRoute("/signup")({
+  ssr: false,
   validateSearch: (search: Record<string, unknown>) => ({
     redirect: (search.redirect as string) || undefined,
   }),
