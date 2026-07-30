@@ -26,6 +26,8 @@ import { assertNoLoopbackUrls, normalizePrerenderedHtml } from "./prerenderHtml"
 const DIST_DIR = "dist";
 const DIST_ABS = resolve(DIST_DIR);
 const ARTICLE_CONTENT_DIR = join("src", "components", "features", "ArticleSite", "content");
+const SITE_URL = "https://shiftori.app";
+const NOINDEX_ROUTES = new Set(["/privacy", "/terms"]);
 const STATIC_ROUTES = [
   "/",
   "/features",
@@ -125,8 +127,12 @@ function createShellHandler(shell: Buffer) {
   };
 }
 
+/**
+ * Cloudflare Pagesはディレクトリindexを末尾スラッシュ付きURLとして扱う。
+ * sitemapとcanonicalの末尾スラッシュなしURLを直接200にするため、非ルートはフラットなHTMLへ出力する。
+ */
 function routeToOutputPath(route: string): string {
-  return route === "/" ? join(DIST_DIR, "index.html") : join(DIST_DIR, route.replace(/^\//, ""), "index.html");
+  return route === "/" ? join(DIST_DIR, "index.html") : join(DIST_DIR, `${route.replace(/^\//, "")}.html`);
 }
 
 function recordPageEvent(events: string[], event: string): void {
@@ -134,6 +140,10 @@ function recordPageEvent(events: string[], event: string): void {
   if (events.length > MAX_PAGE_EVENTS) {
     events.shift();
   }
+}
+
+function getHtmlAttribute(tag: string, attribute: string): string | undefined {
+  return tag.match(new RegExp(`\\b${attribute}=(['"])(.*?)\\1`, "i"))?.[2];
 }
 
 async function buildPageDiagnostics(route: string, page: Page, events: string[]): Promise<string> {
@@ -286,6 +296,17 @@ function assertRenderedHtml(route: string, html: string): void {
   if (duplicatedOptionalMeta) {
     const [name, count] = duplicatedOptionalMeta;
     throw new Error(`[prerender] ${route} produced ${count} ${name} meta tags — expected at most one`);
+  }
+  const canonicalTag = html.match(/<link\b[^>]*\brel=["']canonical["'][^>]*>/i)?.[0];
+  const canonicalHref = canonicalTag ? getHtmlAttribute(canonicalTag, "href") : undefined;
+  const expectedCanonical = new URL(route, SITE_URL).href;
+  if (canonicalHref !== expectedCanonical) {
+    throw new Error(`[prerender] ${route} canonical is ${canonicalHref ?? "missing"} — expected ${expectedCanonical}`);
+  }
+  const robotsTags = html.match(/<meta\b[^>]*\bname=["']robots["'][^>]*>/gi) ?? [];
+  const robotsContent = robotsTags.map((tag) => getHtmlAttribute(tag, "content") ?? "").join(",");
+  if (!NOINDEX_ROUTES.has(route) && /(?:^|[\s,])noindex(?:[\s,]|$)/i.test(robotsContent)) {
+    throw new Error(`[prerender] ${route} must be indexable but contains robots noindex`);
   }
   // GTM が prerender 中に起動すると、注入されたタグ (Clarity / GA4 等) が焼き込まれて
   // 実行時に二重初期化される (initGTM は isPrerendering() で起動を抑止している)。
