@@ -29,17 +29,23 @@ goal追跡機能を利用でき、未完了のgoalがない場合は、次の内
 
 ## 1. 変更範囲とpushの安全性を確認する
 
-次を確認し、会話上の依頼に属する変更だけを特定する。
+default branchの最新remote-tracking refを取得してから、会話上の依頼に属する変更だけを特定する。
+bareなlocal branchは更新が遅れている可能性があるため、比較元に使わない。
 
 ```bash
 git status --short
 git branch --show-current
-gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'
-git log <base>..HEAD --oneline
-git diff <base>...HEAD --stat
+base_branch="$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')"
+git fetch --no-tags origin "refs/heads/${base_branch}:refs/remotes/origin/${base_branch}"
+base_ref="origin/${base_branch}"
+git rev-parse --verify "$base_ref"
+git merge-base "$base_ref" HEAD
+git log "$base_ref"..HEAD --oneline
+git diff "$base_ref"...HEAD --stat
 ```
 
 - 現在のcheckoutから移動せず、新しいbranchやworktreeを作らない。
+- fetchまたはremote base refの検証に失敗した場合は、古いlocal refへfallbackせず停止する。
 - 現在branchが空、base branchそのもの、またはPRに不要なcommitを含む場合はpushしない。
 - 既存の未commit変更はユーザーの変更として扱う。依頼範囲だと確認できないファイルを編集、復元、stageしない。
 - stage済みの依頼外変更を安全に分離できない場合はcommit前に停止する。
@@ -70,7 +76,9 @@ pnpm e2e
 
 ここで全テストとは、rootの`test`が実行する全Vitest projectと、tagやfileで絞らないrootの`e2e`が実行する全Playwright testを指す。
 変更対象のworkspaceに独自のlint、type-check、build、testがあれば、そのscriptも実行する。
-StoryまたはVRT対象を変更した場合は、現在のVRT scriptに従って少なくともbuildとcaptureをローカルで確認し、比較と承認はPRのVRT workflowでも確認する。
+StoryまたはVRT対象を変更した場合は、Storybook testで対象Storyの描画と必要なinteractionを確認する。
+Storybook testで描画まで確認できるため、VRTのbuildとcaptureをローカル検証の必須項目にはしない。
+画像差分の比較と承認はPRのVRT workflowで確認する。
 
 失敗したら原因を修正し、targeted testからやり直す。
 最後のコードまたはテスト変更後に上記の全検証を再実行し、同じworktree状態ですべて成功したことを確認する。
@@ -88,7 +96,8 @@ sandbox、browser、外部service、設定不足による失敗をコード成�
 
 ## 5. pushしてPull Requestを作成する
 
-push直前に`<base>...HEAD`のcommitとdiffを再確認する。
+push直前に上記のfetchとremote base refの解決をもう一度行い、`origin/<base>..HEAD`のcommit、
+`origin/<base>...HEAD`のdiff、merge-baseを再確認する。
 依頼外の履歴がなく、対象変更がすべてcommit済みの場合だけ現在branchをpushする。
 
 同じhead branchのopen Pull Requestがあれば重複作成せず再利用する。
@@ -102,6 +111,8 @@ PR URL、number、base、head branch、head SHAを記録する。
 ```bash
 gh pr view <pr> --json headRefOid,url
 gh pr checks <pr> --json name,workflow,bucket,state,link
+gh run list --workflow=vrt.yml --commit <head-sha> --event pull_request --json attempt,conclusion,databaseId,headSha,status,url --limit 10
+gh pr view <pr> --json comments --jq '.comments | map(select(.body | contains("## VRT Report"))) | last | .body'
 ```
 
 - PRの`headRefOid`がpushしたcommit SHAと一致することを確認する。
@@ -112,6 +123,10 @@ gh pr checks <pr> --json name,workflow,bucket,state,link
 - flaky testは成功するまで再実行せず、共有状態、時刻、待機、selector、fixtureの原因を直す。
 - workflowやテストを無効化し、必須checkを減らして成功させない。
 - 新しいpush後は古いrunを捨て、最新head SHAのcheckを最初から確認する。
+- VRT workflowは最新head SHAに一致するrunの`databaseId`と`attempt`を記録し、最新のVRT Reportコメントが
+  `?v=<databaseId>-<attempt>`を指すことを確認する。対応するrunまたはコメントがなければ待つ。
+- VRT Reportが`No baseline`の場合は、checkがsuccessでも成功扱いにしない。baselineの復旧後に同じhead SHAの
+  VRT workflowを再実行し、baselineを使ったcompare結果を確認する。
 
 ### VRTApproveの例外
 
@@ -130,6 +145,7 @@ cancelled、failure、pending、想定外のskippedまたはmissingをオール�
 - 最後の変更後に、lint、type-check、全Vitest、build、全E2Eがローカルで成功した。
 - 依頼範囲の変更がcommit、push済みで、Pull Requestのhead SHAと一致する。
 - 最新head SHAの`VRTApprove`以外の全checkが成功した。
+- 最新head SHAのVRT Reportが対応するrunの結果であり、baseline欠落ではない。
 - 依頼外の既存変更を編集、stage、commitしていない。
 
 goal追跡を開始していた場合は、この時点でだけcompleteにする。
