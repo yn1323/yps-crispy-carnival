@@ -39,7 +39,8 @@ export function UserShopLineSection({
           LINE連携
         </Text>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
-          {"LINE連携設定は店舗ごとに設定をお願いします。\nいずれかの方法でスタッフを招待してください。"}
+          LINE連携設定は店舗ごとに設定をお願いします。
+          {!isLineActive && "\nいずれかの方法でスタッフを招待してください。"}
         </Text>
       </Stack>
 
@@ -63,7 +64,7 @@ export function UserShopLineSection({
         </Stack>
       </Box>
 
-      {!isLineActive ? (
+      {!isLineActive && (
         <fieldset disabled={isReadOnly} style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}>
           <Stack gap={6}>
             <LineConnectionMethod number="1" title="LINE連携リンクを表示">
@@ -81,7 +82,7 @@ export function UserShopLineSection({
               {showQr && (
                 <Stack gap={3} w="full">
                   <Stack gap={1} fontSize="sm" color="fg.muted" lineHeight="tall">
-                    <Text>{data.person.name}専用のURL（QRコード）です。</Text>
+                    <Text>{data.person.name}さん専用のURL（QRコード）です。</Text>
                     <Text>スタッフに直接共有してください。</Text>
                     <Text>ほかのスタッフには教えないようにしてください。</Text>
                   </Stack>
@@ -110,10 +111,6 @@ export function UserShopLineSection({
             </LineConnectionMethod>
           </Stack>
         </fieldset>
-      ) : (
-        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          この店舗ではLINE連携済みです。必要な場合は、通知からシフト関連の通知を再送できます。
-        </Text>
       )}
     </Stack>
   );

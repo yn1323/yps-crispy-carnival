@@ -61,14 +61,14 @@ export const DismissBehavior: Story = {
     const failureDialog = await body.findByRole("dialog", { name: "送れなかった通知" });
     const row = within(failureDialog).getByRole("row", { name: /佐藤 真由美/ });
 
-    await userEvent.click(within(row).getByRole("button", { name: "対応不要" }));
+    await userEvent.click(within(row).getByRole("button", { name: "無視する" }));
 
     const confirmation = await body.findByRole("alertdialog", {
-      name: "送れなかった通知を対応不要にする",
+      name: "送れなかった通知を無視する",
     });
-    const description = within(confirmation).getByText("対応不要にすると一覧から削除され、再送されません。");
+    const description = within(confirmation).getByText("無視すると一覧から削除され、再送されません。");
     await waitFor(() => expect(description).toBeVisible());
-    await userEvent.click(within(confirmation).getByRole("button", { name: "対応不要にする" }));
+    await userEvent.click(within(confirmation).getByRole("button", { name: "無視する" }));
 
     await waitFor(() =>
       expect(within(failureDialog).queryByRole("row", { name: /佐藤 真由美/ })).not.toBeInTheDocument(),

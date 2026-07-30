@@ -136,6 +136,23 @@ describe("useCloseDialogOnBrowserBack", () => {
     expect(history.back).toHaveBeenCalledWith({ ignoreBlocker: true });
   });
 
+  it("guard削除後にURL同期Dialogの検索条件をもう一度閉じられる", async () => {
+    const onClose = vi.fn();
+    const onBackGuardRemoved = vi.fn();
+    renderHook(() => useCloseDialogOnBrowserBack(true, onClose, onBackGuardRemoved));
+
+    await expect(simulate(blockers, "BACK")).resolves.toBe("blocked");
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onBackGuardRemoved).not.toHaveBeenCalled();
+
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(history.back).toHaveBeenCalledWith({ ignoreBlocker: true });
+    expect(onBackGuardRemoved).not.toHaveBeenCalled();
+
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(onBackGuardRemoved).toHaveBeenCalledOnce();
+  });
+
   it("戻る以外の遷移は妨げず、Dialogも閉じない", async () => {
     const onClose = vi.fn();
     renderHook(() => useCloseDialogOnBrowserBack(true, onClose));
@@ -145,8 +162,9 @@ describe("useCloseDialogOnBrowserBack", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("閉じる操作では追加した履歴entryだけをblockerなしで取り除く", () => {
-    const { rerender } = renderHook(({ isOpen }) => useCloseDialogOnBrowserBack(isOpen, vi.fn()), {
+  it("閉じる操作では追加した履歴entryを取り除き、URL同期状態を再度閉じる", () => {
+    const onBackGuardRemoved = vi.fn();
+    const { rerender } = renderHook(({ isOpen }) => useCloseDialogOnBrowserBack(isOpen, vi.fn(), onBackGuardRemoved), {
       initialProps: { isOpen: true },
     });
 
@@ -155,6 +173,10 @@ describe("useCloseDialogOnBrowserBack", () => {
 
     expect(history.back).toHaveBeenCalledOnce();
     expect(history.back).toHaveBeenCalledWith({ ignoreBlocker: true });
+    expect(onBackGuardRemoved).not.toHaveBeenCalled();
+
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(onBackGuardRemoved).toHaveBeenCalledOnce();
   });
 
   it("Dialogが重なっている場合は戻る一回につき最前面だけを閉じる", async () => {

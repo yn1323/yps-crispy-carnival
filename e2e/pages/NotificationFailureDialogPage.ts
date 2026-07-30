@@ -18,7 +18,7 @@ export class NotificationFailureDialogPage {
   }
 
   async open() {
-    const openButton = this.page.getByRole("button", { name: "通知を確認" });
+    const openButton = this.page.getByRole("button", { name: "通知を確認する", exact: true });
     await expect(openButton).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
     await openButton.click();
     await expect(this.dialog()).toBeVisible();
@@ -41,19 +41,19 @@ export class NotificationFailureDialogPage {
     await expect(this.page.getByText(/送れなかった通知を再送しました|一部の通知を再送しました/)).toBeVisible();
   }
 
-  async markAsNoActionRequired(staffName: string) {
+  async ignore(staffName: string) {
     const row = this.failureRow(staffName);
     await expect(row).toBeVisible();
-    await row.getByRole("button", { name: "対応不要" }).click();
+    await row.getByRole("button", { name: "無視する" }).click();
 
     const confirmation = this.page.getByRole("alertdialog", {
-      name: "送れなかった通知を対応不要にする",
+      name: "送れなかった通知を無視する",
     });
     await expect(confirmation).toBeVisible();
-    await expect(confirmation.getByText("対応不要にすると一覧から削除され、再送されません。")).toBeVisible();
-    await confirmation.getByRole("button", { name: "対応不要にする" }).click();
+    await expect(confirmation.getByText("無視すると一覧から削除され、再送されません。")).toBeVisible();
+    await confirmation.getByRole("button", { name: "無視する" }).click();
 
-    await expect(this.page.getByText("送れなかった通知を対応不要にしました")).toBeVisible();
+    await expect(this.page.getByText("送れなかった通知を無視しました")).toBeVisible();
     await expect(row).not.toBeVisible();
   }
 

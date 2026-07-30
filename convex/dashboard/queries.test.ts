@@ -1281,7 +1281,7 @@ describe("dashboard/queries", () => {
       expect(past.page.map((recruitment) => recruitment._id)).toEqual([recruitmentId]);
     });
 
-    it("現在のシフトだけを終了日が近い順に返す", async () => {
+    it("今日以降にかかる確定シフトを終了日が近い順に返し、過去と未確定は除外する", async () => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date("2026-06-16T00:00:00+09:00"));
       try {
@@ -1338,7 +1338,7 @@ describe("dashboard/queries", () => {
           .withIdentity({ subject: "user_current_rec" })
           .query(api.dashboard.queries.getDashboardCurrentRecruitments, { shopId });
 
-        expect(result.map((recruitment) => recruitment.periodEnd)).toEqual(["2026-06-20", "2026-06-30"]);
+        expect(result.map((recruitment) => recruitment.periodEnd)).toEqual(["2026-06-20", "2026-06-30", "2026-07-31"]);
         expect(result.every((recruitment) => recruitment.status === "confirmed")).toBe(true);
       } finally {
         vi.useRealTimers();

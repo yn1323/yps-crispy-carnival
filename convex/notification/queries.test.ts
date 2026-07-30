@@ -337,4 +337,75 @@ describe("notification/queries", () => {
       expect(result?.staffEntries[0].shifts).toEqual([{ date: "1/20(火)", timeLabel: "遅番（15:00-22:00）" }]);
     });
   });
+
+  describe("getCurrentConfirmationEmailDataForStaff compatibility", () => {
+    it("旧return shapeで現在の確定内容を返し、dirtyな募集はfail closedする", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const shopId = await seedShop(ctx, "rolling compatibility店舗");
+        const staffId = await ctx.db.insert("staffs", {
+          shopId,
+          name: "rolling compatibilityスタッフ",
+          email: "rolling-compatibility@example.com",
+          isDeleted: false,
+        });
+        const positionId = await ctx.db.insert("positions", {
+          shopId,
+          name: "通常",
+          color: "#3b82f6",
+          sortOrder: 0,
+          isDefault: true,
+          isDeleted: false,
+        });
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-01-20",
+          periodEnd: "2026-01-21",
+          deadline: "2026-01-17",
+          shopClosedDates: [],
+          status: "confirmed",
+          confirmedAt: 1_000,
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        await ctx.db.insert("shiftAssignments", {
+          recruitmentId,
+          staffId,
+          date: "2026-01-20",
+          startTime: "10:00",
+          endTime: "18:00",
+          positionId,
+        });
+        return { shopId, staffId, recruitmentId };
+      });
+
+      await expect(
+        t.query(internal.notification.queries.getCurrentConfirmationEmailDataForStaff, { staffId: ids.staffId }),
+      ).resolves.toMatchObject({
+        shopId: ids.shopId,
+        staff: {
+          staffId: ids.staffId,
+          name: "rolling compatibilityスタッフ",
+          email: "rolling-compatibility@example.com",
+        },
+        recruitments: [
+          {
+            recruitmentId: ids.recruitmentId,
+            staffEntry: {
+              staffId: ids.staffId,
+              shifts: [
+                { date: "1/20(火)", timeLabel: "10:00-18:00" },
+                { date: "1/21(水)", timeLabel: null },
+              ],
+            },
+          },
+        ],
+      });
+
+      await t.run(async (ctx) => ctx.db.patch(ids.recruitmentId, { draftSavedAt: 2_000 }));
+      await expect(
+        t.query(internal.notification.queries.getCurrentConfirmationEmailDataForStaff, { staffId: ids.staffId }),
+      ).resolves.toBeNull();
+    });
+  });
 });

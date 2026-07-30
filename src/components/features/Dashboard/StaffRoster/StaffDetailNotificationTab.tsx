@@ -58,15 +58,15 @@ export const StaffDetailNotificationTab = ({
           icon={<LuSend />}
           recruitments={openRecruitments}
           emptyText="送信できる募集中シフトはありません。"
-          actionLabel="募集中のシフトを送る"
+          actionLabel="募集中のシフトを再送する"
           {...sendRecruitmentsAction}
         />
         <NotificationSection
           title="確定シフト"
           icon={<LuCalendarCheck />}
           recruitments={currentRecruitments}
-          emptyText="送信できる現在の確定シフトはありません。"
-          actionLabel="確定シフトを送る"
+          emptyText="送信できる確定シフトはありません。"
+          actionLabel="確定シフトを再送する"
           {...sendCurrentShiftAction}
         />
       </Stack>

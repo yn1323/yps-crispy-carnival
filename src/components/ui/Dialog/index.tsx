@@ -57,6 +57,7 @@ type DialogProps = {
   onSubmit?: () => void | Promise<void>;
   submitLabel?: string;
   onClose?: () => void;
+  onBackGuardRemoved?: () => void;
   closeLabel?: string;
   isLoading?: boolean;
   isSubmitDisabled?: boolean;
@@ -82,6 +83,7 @@ export const Dialog = ({
   onSubmit,
   submitLabel = "送信",
   onClose,
+  onBackGuardRemoved,
   closeLabel = "キャンセル",
   isLoading = false,
   isSubmitDisabled = false,
@@ -99,7 +101,7 @@ export const Dialog = ({
   bodyProps,
 }: DialogProps) => {
   const viewportStyle = useDialogVisualViewportStyle(isOpen && keyboardAwareViewport);
-  useCloseDialogOnBrowserBack(isOpen, () => onOpenChange({ open: false }));
+  useCloseDialogOnBrowserBack(isOpen, () => onOpenChange({ open: false }), onBackGuardRemoved);
   const { style: positionerStyle, ...restPositionerProps } = positionerProps ?? {};
 
   return (

@@ -11,10 +11,11 @@ type Props = {
   dialog: OrganizationDeletionDialogState | null;
   isRunning: boolean;
   onClose: () => void;
+  onBackGuardRemoved?: () => void;
   onSubmit: () => void;
 };
 
-export function OrganizationDeletionDialog({ dialog, isRunning, onClose, onSubmit }: Props) {
+export function OrganizationDeletionDialog({ dialog, isRunning, onClose, onBackGuardRemoved, onSubmit }: Props) {
   const [confirmationName, setConfirmationName] = useState("");
   const intentKey = dialog?.intentKey;
   useEffect(() => {
@@ -32,6 +33,7 @@ export function OrganizationDeletionDialog({ dialog, isRunning, onClose, onSubmi
         if (!open && !isRunning) onClose();
       }}
       onClose={onClose}
+      onBackGuardRemoved={onBackGuardRemoved}
       formId="organization-deletion-form"
       submitLabel="このグループを削除"
       submitColorPalette="red"

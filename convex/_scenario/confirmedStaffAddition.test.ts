@@ -19,7 +19,7 @@ describe("確定後スタッフ追加シナリオ", () => {
     const asManager = scenario.manager(MANAGER_SUBJECT);
     const staff = scenario.staff();
 
-    // Arrange: 既存スタッフだけを割り当てたシフトを確定し、初回通知を完了させる。
+    // Arrange: 既存スタッフだけを割り当てたシフトを確定し、初回通知を配送済みにする。
     const { existingStaffId, shopId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: MANAGER_SUBJECT,
@@ -61,6 +61,15 @@ describe("確定後スタッフ追加シナリオ", () => {
     ]);
     expect(initialState.viewLinks).toHaveLength(1);
     expect(initialState.viewLinks[0].staffId).toBe(existingStaffId);
+    await t.run(async (ctx) => {
+      const [initialOutbox] = initialState.outbox;
+      if (!initialOutbox) throw new Error("初回確定通知のOutboxが見つかりません");
+      await ctx.db.patch(initialOutbox._id, {
+        status: "sent",
+        sentAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    });
 
     // Act: 確定後に追加したスタッフを割当に加え、変更対象への再通知を予約する。
     const [addedStaffId] = await asManager.addStaffs([

@@ -821,6 +821,13 @@ const schema = defineSchema({
     cursor: v.number(),
     status: notificationFanoutStatusValidator,
     dedupeSuffix: v.string(),
+    // falseの個別再送は、同じ募集で進行中の全体fanoutを置き換えず並行して配る。
+    // rollbackはmanual受付停止後、false operation/Outboxのdrain・cancelと欠落0確認までcompat reader/provider gateを維持する。
+    // その確認後にだけbehaviorを戻し、optional field/indexは互換期間中そのまま残す。
+    supersedesActiveOperations: v.optional(v.boolean()),
+    // 個別再送受付時のbaseline。nullは値なし、undefinedは途中deploy等の不正rowとしてfail closedする。
+    confirmationOperationKeyAtOrigin: v.optional(v.union(v.string(), v.null())),
+    recruitmentDraftSavedAtAtOrigin: v.optional(v.union(v.number(), v.null())),
     organizationBillingVersionAtOrigin: v.optional(v.number()),
     notificationRunId: v.optional(v.number()),
     // pending actionのscheduler identity。cronが生存予約を重ねず、失敗済み予約だけを置き換える。

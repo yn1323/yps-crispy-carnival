@@ -63,7 +63,7 @@ export function UserShopNotificationSection({
               <Stack gap={1}>
                 <Text fontWeight="semibold">通知手段がありません</Text>
                 <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-                  基本情報でメールアドレスを登録するか、LINE連携からこの店舗のLINEを連携してください。
+                  スタッフ情報でメールアドレスを登録するか、LINE連携からこの店舗のLINEを連携してください。
                 </Text>
               </Stack>
             </Box>
@@ -78,7 +78,7 @@ export function UserShopNotificationSection({
                 icon={<LuSend aria-hidden />}
                 recruitments={openRecruitments}
                 emptyText="送信できる募集中シフトはありません。"
-                actionLabel="募集中のシフトを送る"
+                actionLabel="募集中のシフトを再送する"
                 action={{
                   ...sendRecruitmentsAction,
                   isDisabled:
@@ -90,7 +90,7 @@ export function UserShopNotificationSection({
                 icon={<LuCalendarCheck aria-hidden />}
                 recruitments={currentRecruitments}
                 emptyText="送信できる確定シフトはありません。"
-                actionLabel="確定シフトを送る"
+                actionLabel="確定シフトを再送する"
                 action={{
                   ...sendCurrentShiftAction,
                   isDisabled:

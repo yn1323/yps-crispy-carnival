@@ -73,7 +73,7 @@ export function NotificationFailureRecoveryView({
       </Dialog>
 
       <Dialog
-        title="送れなかった通知を対応不要にする"
+        title="送れなかった通知を無視する"
         role="alertdialog"
         isOpen={dismissTarget !== null && !isReadOnly}
         onOpenChange={({ open }) => {
@@ -83,7 +83,7 @@ export function NotificationFailureRecoveryView({
           if (!isDismissing) onCancelDismiss();
         }}
         onSubmit={onConfirmDismiss}
-        submitLabel="対応不要にする"
+        submitLabel="無視する"
         submitColorPalette="red"
         isLoading={isDismissing}
         isSubmitDisabled={isReadOnly || dismissTarget === null}
@@ -92,10 +92,10 @@ export function NotificationFailureRecoveryView({
         <Stack gap={2}>
           {dismissTarget && (
             <Text color="gray.800">
-              「{dismissTarget.staffName}」さんへの{dismissTarget.notificationKindLabel}を対応不要にしますか？
+              「{dismissTarget.staffName}」さんへの{dismissTarget.notificationKindLabel}を無視しますか？
             </Text>
           )}
-          <Text color="fg.muted">対応不要にすると一覧から削除され、再送されません。</Text>
+          <Text color="fg.muted">無視すると一覧から削除され、再送されません。</Text>
         </Stack>
       </Dialog>
     </>

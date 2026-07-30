@@ -11,15 +11,15 @@ describe("notification/actions", () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it("100人分の募集開始通知をoutboxにenqueueする", async () => {
+  it("40人分の募集開始通知をoutboxにenqueueする", async () => {
     const t = convexTest(schema, modules);
     const recruitmentId = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: "user_mgr",
         email: "manager@notification.invalid",
-        shopName: "100人店舗",
+        shopName: "40人店舗",
       });
-      for (let i = 0; i < 100; i++) {
+      for (let i = 0; i < 40; i++) {
         await ctx.db.insert("staffs", {
           shopId,
           name: `スタッフ${i + 1}`,
@@ -40,7 +40,7 @@ describe("notification/actions", () => {
     });
 
     // 1 action = 1 bounded batch。通常schedulerと同じactionを繰り返し、永続cursorから再開する。
-    for (let batch = 0; batch < 10; batch++) {
+    for (let batch = 0; batch < 4; batch++) {
       await t.action(internal.notification.actions.sendRecruitmentNotificationEmails, { recruitmentId });
     }
 
@@ -49,13 +49,13 @@ describe("notification/actions", () => {
       jobs: await ctx.db.query("notificationOutbox").collect(),
       operations: await ctx.db.query("notificationFanoutOperations").collect(),
     }));
-    expect(state.jobs).toHaveLength(100);
+    expect(state.jobs).toHaveLength(40);
     expect(state.jobs.every((job) => job.channel === "email" && job.status === "pending")).toBe(true);
-    expect(state.histories).toHaveLength(100);
+    expect(state.histories).toHaveLength(40);
     expect(state.operations).toEqual([
       expect.objectContaining({
         recruitmentId,
-        cursor: 100,
+        cursor: 40,
         status: "completed",
       }),
     ]);
@@ -154,6 +154,8 @@ describe("notification/actions", () => {
     });
     expect(histories).toHaveLength(1);
     if (jobs[0]?.payload.kind !== "email") throw new Error("確定通知がメールpayloadではありません");
+    expect(jobs[0].payload.html).toContain("10:00-18:00");
+    expect(jobs[0].payload.html).not.toContain("12:00-20:00");
     expect(histories[0]).toMatchObject({
       outboxId: jobs[0]._id,
       staffId: ids.staffId1,

@@ -1,7 +1,7 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, screen, userEvent, within } from "storybook/test";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { UserDetailData, UserDetailDialog, UserDetailPanel } from "./types";
 import { UserDetailSkeleton } from "./UserDetailSkeleton";
@@ -119,6 +119,15 @@ const baseState: UserDetailViewProps["state"] = {
 const noop = () => undefined;
 const asyncNoop = async () => undefined;
 
+const settleBasicInformationDialogFocus = async () => {
+  const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
+  const nameInput = within(dialog).getByRole("textbox", { name: "名前" });
+
+  await waitFor(() => expect(nameInput).toHaveFocus());
+  dialog.focus();
+  await expect(dialog).toHaveFocus();
+};
+
 const baseActions: UserDetailViewProps["actions"] = {
   onBack: noop,
   onOpenBasic: noop,
@@ -164,13 +173,14 @@ export const MainView: Story = {};
 
 export const BasicInformationDialog: Story = {
   args: { activePanel: "basic" },
+  play: settleBasicInformationDialogFocus,
 };
 
 export const ManagerInvitationDarkLaunchBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   args: { activePanel: "basic", data: managerInvitationHiddenData },
   play: async () => {
-    const dialog = await screen.findByRole("dialog", { name: "基本情報" });
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
     await expect(within(dialog).getByRole("textbox", { name: "名前" })).toBeInTheDocument();
     await expect(within(dialog).queryByRole("heading", { name: "管理者権限" })).not.toBeInTheDocument();
     await expect(screen.queryByText("管理者招待中")).not.toBeInTheDocument();
@@ -181,10 +191,19 @@ export const BasicInformationDialogMobile: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
   args: { activePanel: "basic" },
+  play: settleBasicInformationDialogFocus,
 };
 
 export const AddShopDialog: Story = {
   args: { activePanel: "addShop" },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "店舗を追加" });
+    const candidate = within(dialog).getByRole("button", { name: "池袋店に追加" });
+
+    await waitFor(() => expect(candidate).toHaveFocus());
+    dialog.focus();
+    await expect(dialog).toHaveFocus();
+  },
 };
 
 export const ShopMembershipAdditionDarkLaunchBehavior: Story = {
@@ -360,13 +379,15 @@ export const BasicInformationFlowBehavior: Story = {
     const page = within(canvasElement.ownerDocument.body);
 
     await expect(canvas.queryByRole("textbox", { name: "名前" })).not.toBeInTheDocument();
-    await userEvent.click(canvas.getByRole("button", { name: "基本情報を開く" }));
+    await userEvent.click(canvas.getByRole("button", { name: "スタッフ情報を開く" }));
 
-    const dialog = await page.findByRole("dialog", { name: "基本情報" });
+    const dialog = await page.findByRole("dialog", { name: "スタッフ情報" });
     const basicDialog = within(dialog);
     await expect(basicDialog.getByRole("textbox", { name: "名前" })).toHaveValue("田中 花子");
     await expect(basicDialog.getByRole("textbox", { name: "メールアドレス" })).toHaveValue("hanako.tanaka@example.com");
     await expect(basicDialog.getByRole("heading", { name: "管理者権限" })).toBeInTheDocument();
+    await userEvent.click(basicDialog.getByRole("button", { name: "キャンセル" }));
+    await waitFor(() => expect(page.queryByRole("dialog", { name: "スタッフ情報" })).not.toBeInTheDocument());
   },
 };
 

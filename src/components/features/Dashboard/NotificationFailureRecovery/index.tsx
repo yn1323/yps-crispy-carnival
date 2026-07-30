@@ -162,7 +162,7 @@ export function NotificationFailureRecovery({ failures: failureOverrides, isRead
       setDismissedFailureIds((current) => new Set(current).add(dismissTarget._id));
       setDialogRows((current) => current.filter((failure) => failure._id !== dismissTarget._id));
       setDismissTarget(null);
-      showSuccessToast({ title: "送れなかった通知を対応不要にしました" });
+      showSuccessToast({ title: "送れなかった通知を無視しました" });
     } catch (error) {
       showErrorToast(error);
     }

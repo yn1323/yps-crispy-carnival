@@ -1,0 +1,6 @@
+interface:
+  display_name: "PRをオールグリーンまで完遂"
+  short_description: "ローカル全検証からPRチェック収束まで完遂する手順"
+  default_prompt: "Use $ship-green-pr to run every local test, commit and push the scoped changes, open a PR, and fix it until all checks except VRTApprove pass."
+policy:
+  allow_implicit_invocation: false

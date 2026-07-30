@@ -99,6 +99,14 @@ FAQ、BlogPosting、BreadcrumbListなどの構造化データは、画面に表�
 buildとprerender後の`dist/`はCloudflare Pagesへ配信する。
 実際のdeployment状態はこの機能文書から推測せず、CI/CDの手順と実行結果で確認する。
 
+### URLの正規化
+
+prerenderは、ルート以外を`dist/features.html`のようなフラットなHTMLへ出力する。
+ディレクトリindexへ出力すると、Cloudflare Pagesが末尾スラッシュ付きURLへリダイレクトし、sitemapとcanonicalが示す末尾スラッシュなしURLと食い違うためである。
+
+sitemap、canonical、内部リンクは、ルート以外を末尾スラッシュなしで統一する。
+トップレベルの`404.html`は置かず、認証後を含むSPA routeへの直接アクセスではルートの`index.html`をfallbackとして使う。
+
 ## 関連ファイル
 
 - `src/routes/index.tsx`、`src/pages/home/`、`src/components/features/LandingPage/`：公開TOP

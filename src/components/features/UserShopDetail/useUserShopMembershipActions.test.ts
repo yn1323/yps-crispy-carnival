@@ -90,7 +90,75 @@ describe("useUserShopMembershipActions", () => {
       staffId,
       excluded: true,
     });
+    expect(result.current.excludedFromShift).toBe(true);
     expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "シフト対象外にしました" });
+  });
+
+  it("切り替え直後はmutation完了後も1000ms再操作を受け付けない", async () => {
+    vi.useFakeTimers();
+    const { result, unmount } = renderHook(() =>
+      useUserShopMembershipActions({
+        targetShopId,
+        membership,
+        isReadOnly: false,
+        canRemoveMembership: true,
+      }),
+    );
+
+    try {
+      await act(async () => {
+        await result.current.onChangeShiftTarget(false);
+      });
+
+      expect(result.current.isChangingShiftTarget).toBe(true);
+      await act(async () => {
+        await result.current.onChangeShiftTarget(true);
+      });
+      expect(mocks.setShiftExclusion).toHaveBeenCalledOnce();
+
+      act(() => vi.advanceTimersByTime(999));
+      expect(result.current.isChangingShiftTarget).toBe(true);
+
+      act(() => vi.advanceTimersByTime(1));
+      expect(result.current.isChangingShiftTarget).toBe(false);
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it("mutationの完了前にシフト対象表示を切り替え、失敗時は元へ戻す", async () => {
+    const error = new Error("更新に失敗しました");
+    let rejectMutation: ((reason: unknown) => void) | undefined;
+    const pendingMutation = new Promise<void>((_resolve, reject) => {
+      rejectMutation = reject;
+    });
+    mocks.setShiftExclusion.mockReturnValue(pendingMutation);
+    const { result } = renderHook(() =>
+      useUserShopMembershipActions({
+        targetShopId,
+        membership,
+        isReadOnly: false,
+        canRemoveMembership: true,
+      }),
+    );
+
+    let request: Promise<unknown> | undefined;
+    act(() => {
+      request = result.current.onChangeShiftTarget(false);
+    });
+
+    expect(result.current.excludedFromShift).toBe(true);
+    expect(result.current.isChangingShiftTarget).toBe(true);
+
+    await act(async () => {
+      rejectMutation?.(error);
+      await request;
+    });
+
+    expect(result.current.excludedFromShift).toBe(false);
+    expect(result.current.isChangingShiftTarget).toBe(true);
+    expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error);
   });
 
   it("確認時に固定したpreviewとrequestIdを付け、pathのtargetShopIdから所属を削除する", async () => {

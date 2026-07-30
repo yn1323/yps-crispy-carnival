@@ -47,12 +47,11 @@ export const ShareCompleteCtaBehavior: Story = {
     const canvas = within(canvasElement);
     const screen = within(canvasElement.ownerDocument.body);
     const emailFrame = (await canvas.findByTitle("確定シフトメール")) as HTMLIFrameElement;
-    const emailBody = await waitFor(() => {
+    const emailLink = await waitFor(() => {
       const body = emailFrame.contentDocument?.body;
       if (!body) throw new Error("確定シフトメールが読み込まれていません");
-      return body;
+      return within(body).getByRole("link", { name: "全員のシフトを確認する" });
     });
-    const emailLink = await within(emailBody).findByRole("link", { name: "全員のシフトを確認する" });
 
     await userEvent.click(emailLink);
 

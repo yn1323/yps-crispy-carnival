@@ -189,6 +189,20 @@ async function getCurrentRecruitmentDocs(ctx: { db: GenericDatabaseReader<DataMo
     .sort((a, b) => a.periodEnd.localeCompare(b.periodEnd) || b._creationTime - a._creationTime);
 }
 
+async function getNonPastConfirmedRecruitmentDocs(
+  ctx: { db: GenericDatabaseReader<DataModel> },
+  shopId: Doc<"shops">["_id"],
+) {
+  const today = todayJST();
+  return await ctx.db
+    .query("recruitments")
+    .withIndex("by_shopId_and_isDeleted_and_status_and_periodEnd", (q) =>
+      q.eq("shopId", shopId).eq("isDeleted", false).eq("status", "confirmed").gte("periodEnd", today),
+    )
+    .order("asc")
+    .take(DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT);
+}
+
 async function getDashboardRecruitmentCandidateDocs(
   ctx: { db: GenericDatabaseReader<DataModel> },
   shopId: Doc<"shops">["_id"],
@@ -574,7 +588,7 @@ export const getDashboardCurrentRecruitments = managerQuery({
     const shop = ctx.shop;
     if (!shop) return [];
 
-    const currentRecruitments = await getCurrentRecruitmentDocs(ctx, shop._id);
+    const currentRecruitments = await getNonPastConfirmedRecruitmentDocs(ctx, shop._id);
     const totalStaffCount = await getTotalStaffCount(ctx, shop._id);
 
     return await Promise.all(

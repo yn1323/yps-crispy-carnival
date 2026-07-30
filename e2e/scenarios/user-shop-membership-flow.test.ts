@@ -3,7 +3,7 @@ import { isShopAdditionEnabled } from "../helpers/featureFlags";
 import { seedMultiShopOrganizationScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 
-test.describe("ユーザー詳細の店舗所属管理", { tag: ["@release", "@security"] }, () => {
+test.describe("スタッフ詳細の店舗所属管理", { tag: ["@release", "@security"] }, () => {
   test.setTimeout(60_000);
 
   test("MS-P0-04: 選択店舗を維持したまま専用ページで店舗所属を追加・解除できる", async ({ page }) => {
@@ -22,7 +22,7 @@ test.describe("ユーザー詳細の店舗所属管理", { tag: ["@release", "@s
     await dashboard.goto(seed.primaryShopId);
     let detail = await dashboard.openUserDetail(seed.primaryMarkerPersonName);
 
-    await test.step("Step 1: ユーザー詳細には所属中のA店だけを表示する", async () => {
+    await test.step("Step 1: スタッフ詳細には所属中のA店だけを表示する", async () => {
       await detail.expectAssignedShop(primaryShop);
       await detail.expectShopNotAssigned(secondaryShop);
       await detail.expectShopPageStructure(primaryShop, primaryShop);

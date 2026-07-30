@@ -230,7 +230,7 @@ const RecruitmentRowSkeleton = ({ tone }: { tone: "current" | "collecting" }) =>
           gap={{ base: 1.5, lg: 4 }}
         >
           <HStack gap={3} flexShrink={0} minW={{ lg: "140px" }}>
-            <Skeleton h="22px" w={{ base: "152px", lg: "140px" }} />
+            <Skeleton h="22px" w={{ base: "116px", lg: "140px" }} />
           </HStack>
           <Flex
             flex={1}
@@ -242,18 +242,20 @@ const RecruitmentRowSkeleton = ({ tone }: { tone: "current" | "collecting" }) =>
             wrap={{ base: "wrap", sm: "nowrap" }}
           >
             <HStack minW={{ lg: tone === "current" ? "176px" : "84px" }} flexShrink={0} gap={2} wrap="wrap">
-              <Skeleton h="22px" w="72px" borderRadius="full" />
+              <Skeleton h="22px" w="56px" borderRadius="full" />
               {tone === "current" && <Skeleton h="22px" w="84px" borderRadius="full" />}
             </HStack>
             <HStack gap={{ base: 3, lg: 8 }} flex={1} justify="flex-end" align="center" minW={0} wrap="nowrap">
-              <Skeleton h="18px" w={{ base: "96px", lg: "112px" }} />
-              <Skeleton h="18px" w="88px" flexShrink={0} />
+              <Skeleton h="18px" w={{ base: "88px", lg: "96px" }} />
+              <Skeleton h="18px" w="72px" flexShrink={0} />
             </HStack>
           </Flex>
         </Flex>
       </Flex>
       <Flex align="center" justify="center" pe={{ base: 2, lg: 3 }} flexShrink={0}>
-        <Skeleton boxSize="32px" borderRadius="md" />
+        <Flex boxSize="32px" align="center" justify="center">
+          <Skeleton h="20px" w="4px" borderRadius="full" />
+        </Flex>
       </Flex>
     </Flex>
   );

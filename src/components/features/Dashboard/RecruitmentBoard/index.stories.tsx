@@ -262,3 +262,11 @@ export const PastLoadedExhausted: Story = {
 export const Loading: Story = {
   render: () => <RecruitmentBoardSkeleton />,
 };
+
+export const LoadingMobile: Story = {
+  tags: ["vrt-mobile1"],
+  parameters: {
+    viewport: { value: "mobile1", isRotated: false },
+  },
+  render: () => <RecruitmentBoardSkeleton />,
+};

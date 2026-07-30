@@ -259,7 +259,7 @@ export class DashboardPage {
   async openUserDetail(staffName: string) {
     const detail = await this.openStaffDetail(staffName);
     if (detail.kind === "legacy") {
-      throw new Error(`${staffName}は組織ユーザー詳細へ移行されていません`);
+      throw new Error(`${staffName}はグループ共通のスタッフ詳細へ移行されていません`);
     }
     return detail.user;
   }
@@ -330,8 +330,8 @@ export class DashboardPage {
     }
 
     await detail.dialog.getByRole("tab", { name: "通知" }).click();
-    await detail.dialog.getByRole("button", { name: "募集中のシフトを送る" }).click();
-    await this.expectToastVisibleThenHidden("シフト募集通知を送りました");
+    await detail.dialog.getByRole("button", { name: "募集中のシフトを再送する" }).click();
+    await this.expectToastVisibleThenHidden("シフト募集通知を再送しました");
     await this.closeLegacyStaffDialog(detail.dialog);
   }
 
@@ -344,8 +344,8 @@ export class DashboardPage {
     }
 
     await detail.dialog.getByRole("tab", { name: "通知" }).click();
-    await detail.dialog.getByRole("button", { name: "確定シフトを送る" }).click();
-    await this.expectToastVisibleThenHidden("現在の確定シフトを送りました");
+    await detail.dialog.getByRole("button", { name: "確定シフトを再送する" }).click();
+    await this.expectToastVisibleThenHidden("確定シフト通知を再送しました");
     await this.closeLegacyStaffDialog(detail.dialog);
   }
 
@@ -644,9 +644,7 @@ export class DashboardPage {
   }
 
   private staffRow(staffName: string) {
-    return this.staffSection()
-      .getByRole("button", { name: `${staffName}のユーザー詳細を開く` })
-      .or(this.staffSection().getByRole("button", { name: `${staffName}のスタッフ詳細を開く` }));
+    return this.staffSection().getByRole("button", { name: `${staffName}のスタッフ詳細を開く` });
   }
 
   // 同名オプションが複数Select間で重複するため、listbox にスコープして選択

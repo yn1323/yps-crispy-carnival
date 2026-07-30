@@ -30,7 +30,8 @@ export const NOTIFICATION_OUTBOX_TERMINAL_REDACTION_BATCH_SIZE = 100;
 export const NOTIFICATION_DRY_RUN_MANAGER_SCAN_LIMIT = 20;
 // 募集・確定通知は対象を永続化し、この件数ずつcursorを進める。
 export const NOTIFICATION_FANOUT_BATCH_SIZE = 10;
-export const NOTIFICATION_FANOUT_SCOPE_LIMIT = 200;
+export const NOTIFICATION_FANOUT_SCOPE_LIMIT = 40;
+export const NOTIFICATION_FANOUT_CANCELLATION_BATCH_SIZE = 20;
 // cron一回で再予約するfanout operation上限。予約漏れと期限切れleaseをboundedに回収する。
 export const NOTIFICATION_FANOUT_RECOVERY_BATCH_SIZE = 20;
 // Node action上限より長く保ち、中断時だけ通常schedulerから回収する。
@@ -60,8 +61,13 @@ export const SHIFT_ASSIGNMENT_LIMIT = 2000;
 // スタッフ個別通知の再送上限。actorを替えた回避も組織単位の上限で抑止する。
 export const STAFF_NOTIFICATION_RESEND_ACTOR_DAILY_LIMIT = 10;
 export const STAFF_NOTIFICATION_RESEND_ORGANIZATION_DAILY_LIMIT = 20;
+// 宛先を替えた回避も、organization（legacy店舗ではshop）×通知種別の配送対象数で抑止する。
+export const STAFF_NOTIFICATION_RESEND_SCOPE_TARGET_SHORT_LIMIT = 200;
+export const STAFF_NOTIFICATION_RESEND_SCOPE_TARGET_DAILY_LIMIT = 1000;
 export const RECRUITMENT_DUPLICATE_SCAN_LIMIT = 500;
 export const OPEN_RECRUITMENT_NOTIFICATION_LIMIT = 50;
+// スタッフ個別の確定シフト再送で、一度の操作に固定できる募集数。
+export const CURRENT_SHIFT_NOTIFICATION_LIMIT = 40;
 export const SHIFT_REQUESTS_PER_SUBMISSION_LIMIT = 31;
 export const SHIFT_BOARD_TIME_UNIT_MINUTES = 30;
 // 未認証のLINE OAuth callback全体で、無効stateによるDB lookupを抑止する上限。

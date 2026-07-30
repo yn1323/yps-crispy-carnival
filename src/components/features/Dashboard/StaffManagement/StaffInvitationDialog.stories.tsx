@@ -169,6 +169,22 @@ export const Mobile: Story = {
   },
 };
 
+export const LinkInvitationMobile: Story = {
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  args: {
+    invitation: createInvitation("link"),
+  },
+};
+
+export const ManualRegistrationMobile: Story = {
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  args: {
+    invitation: createInvitation("manual"),
+  },
+};
+
 export const TabSwitchBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   render: () => <InteractiveDialog initialTab="link" onAdd={noop} />,

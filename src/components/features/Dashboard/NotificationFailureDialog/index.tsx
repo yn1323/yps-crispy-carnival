@@ -27,8 +27,8 @@ type Props = {
 };
 
 const EMAIL_FAILURE_HELP_LINES = [
-  "メールが届かない場合は、メールアドレスに誤りがないか確認してください。",
-  "それでも送れない場合は、スタッフ詳細のLINEから連携リンクを案内できます。",
+  "スタッフ詳細で、登録メールアドレスに誤りがないか確認してください。問題が見つからない場合は、時間をおいて再送してください。",
+  "メールを利用できない場合は、スタッフ詳細で対象店舗を開き、LINE連携リンクを案内できます。",
 ];
 
 export const NotificationFailureDialogContent = ({
@@ -66,8 +66,10 @@ export const NotificationFailureDialogContent = ({
         gap={3}
         direction={{ base: "column", md: "row" }}
       >
-        <Text fontSize="sm" color="fg.muted">
-          送れなかった相手を確認して、再送または対応不要にできます。
+        <Text fontSize="sm" color="fg.muted" whiteSpace="pre-line">
+          {
+            "送れなかった通知は再送できます。\n何度も失敗する場合は、スタッフの通知先やLINE連携状態を確認してください。問題が見つからない場合は、時間をおいて再送してください。"
+          }
         </Text>
         <Button
           size="sm"
@@ -290,7 +292,7 @@ const FailureActionButtons = ({
       />
       <Button
         size="sm"
-        variant="outline"
+        variant="solid"
         colorPalette="red"
         disabled={isReadOnly || isLoading}
         onClick={() => onDismiss(failure)}
@@ -298,7 +300,7 @@ const FailureActionButtons = ({
         gap={1.5}
       >
         <LuCircleX />
-        対応不要
+        無視する
       </Button>
     </HStack>
   );

@@ -248,7 +248,7 @@ export const ReadOnlyTransitionBehavior: Story = {
     await body.findByRole("dialog", { name: "スタッフ登録申請" });
     await expectDialogClosedByReadOnly("スタッフ登録申請");
 
-    await userEvent.click(await canvas.findByRole("button", { name: "通知を確認" }));
+    await userEvent.click(await canvas.findByRole("button", { name: "通知を確認する" }));
     await body.findByRole("dialog", { name: "送れなかった通知" });
     await expectDialogClosedByReadOnly("送れなかった通知");
   },
@@ -324,14 +324,14 @@ export const WithNotificationFailures: Story = {
     const body = within(document.body);
 
     await expect(canvas.queryByText("佐藤 真由美")).not.toBeInTheDocument();
-    await userEvent.click(canvas.getByRole("button", { name: "通知を確認" }));
+    await userEvent.click(canvas.getByRole("button", { name: "通知を確認する" }));
 
     const dialog = await body.findByRole("dialog", { name: "送れなかった通知" });
     const dialogView = within(dialog);
     await expect(dialogView.getAllByText("佐藤 真由美").length).toBeGreaterThan(0);
 
     await userEvent.click(dialogView.getAllByRole("button", { name: "メール通知について" })[0]);
-    await dialogView.findByText(/メールが届かない場合は/);
+    await dialogView.findByText(/登録メールアドレスに誤りがないか/);
 
     const closeButtons = dialogView.getAllByRole("button", { name: "閉じる" });
     await userEvent.click(closeButtons[closeButtons.length - 1]);

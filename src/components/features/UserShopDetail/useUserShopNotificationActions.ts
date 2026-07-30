@@ -33,7 +33,7 @@ export function useUserShopNotificationActions({
     try {
       const result = await sendOpenRecruitmentNotifications({ shopId: targetShopId, staffId: membership.staffId });
       if (result.scheduled) {
-        showSuccessToast({ title: "シフト募集通知を送りました" });
+        showSuccessToast({ title: "シフト募集通知を再送しました" });
         return;
       }
       toaster.create({
@@ -51,13 +51,19 @@ export function useUserShopNotificationActions({
     try {
       const result = await sendCurrentShiftNotification({ shopId: targetShopId, staffId: membership.staffId });
       if (result.scheduled) {
-        showSuccessToast({ title: "現在の確定シフトを送りました" });
+        showSuccessToast({ title: "確定シフト通知を再送しました" });
         return;
       }
       toaster.create({
         title:
-          result.reason === "rateLimited" ? "少し時間をおいて再送してください" : "送信できる確定シフトがありません",
-        type: result.reason === "rateLimited" ? "error" : "info",
+          result.reason === "rateLimited"
+            ? "少し時間をおいて再送してください"
+            : result.reason === "unconfirmedChanges"
+              ? "未確定の変更があるため、シフトを確定してから再送してください"
+              : result.reason === "tooManyCurrentShifts"
+                ? "確定シフトが40件を超えるため、一度に再送できません"
+                : "送信できる確定シフトがありません",
+        type: result.reason === "noCurrentShift" ? "info" : "error",
       });
     } catch (error) {
       showErrorToast(error);

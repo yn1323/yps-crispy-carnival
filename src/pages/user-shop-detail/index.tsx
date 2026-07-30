@@ -80,7 +80,7 @@ function ConnectedUserShopDetailPage({
         minH={pageMinimumHeight}
         action={
           <Button colorPalette="teal" onClick={handleBack}>
-            ユーザー詳細へ戻る
+            スタッフ詳細へ戻る
           </Button>
         }
       />

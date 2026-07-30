@@ -23,7 +23,7 @@ export class UserDetailPage {
     await this.page.waitForURL((url) => /^\/users\/[^/]+$/.test(url.pathname), {
       timeout: USER_DETAIL_DATA_TIMEOUT,
     });
-    await expect(this.page.getByRole("heading", { name: "ユーザー詳細", exact: true })).toBeVisible({
+    await expect(this.page.getByRole("heading", { name: "スタッフ詳細", exact: true })).toBeVisible({
       timeout: USER_DETAIL_DATA_TIMEOUT,
     });
     await expect(this.page.getByText(this.personName, { exact: true }).first()).toBeVisible({
@@ -167,15 +167,15 @@ export class UserDetailPage {
 
   async sendOpenRecruitmentNotification(shop = this.requireContextShop()) {
     await this.openShopPage(shop);
-    await this.page.getByRole("button", { name: "募集中のシフトを送る" }).click();
-    await this.expectToastVisibleThenHidden("シフト募集通知を送りました");
+    await this.page.getByRole("button", { name: "募集中のシフトを再送する" }).click();
+    await this.expectToastVisibleThenHidden("シフト募集通知を再送しました");
     await this.returnToUserDetail(shop);
   }
 
   async sendCurrentShiftNotification(shop = this.requireContextShop()) {
     await this.openShopPage(shop);
-    await this.page.getByRole("button", { name: "確定シフトを送る" }).click();
-    await this.expectToastVisibleThenHidden("現在の確定シフトを送りました");
+    await this.page.getByRole("button", { name: "確定シフトを再送する" }).click();
+    await this.expectToastVisibleThenHidden("確定シフト通知を再送しました");
     await this.returnToUserDetail(shop);
   }
 
@@ -200,19 +200,19 @@ export class UserDetailPage {
 
   async returnToDashboard() {
     await this.expectLoaded();
-    await this.page.getByRole("button", { name: "ユーザー詳細", exact: true }).click();
+    await this.page.getByRole("button", { name: "スタッフ詳細", exact: true }).click();
     await expect(this.page).toHaveURL(/\/dashboard\?/, { timeout: USER_DETAIL_DATA_TIMEOUT });
   }
 
   async returnToSettings() {
     await this.expectLoaded();
-    await this.page.getByRole("button", { name: "ユーザー詳細", exact: true }).click();
+    await this.page.getByRole("button", { name: "スタッフ詳細", exact: true }).click();
     await expect(this.page).toHaveURL(/\/settings\?/, { timeout: USER_DETAIL_DATA_TIMEOUT });
   }
 
   private async openBasicInformation() {
-    await this.page.getByRole("button", { name: "基本情報を開く" }).click();
-    const dialog = this.page.getByRole("dialog", { name: "基本情報" });
+    await this.page.getByRole("button", { name: "スタッフ情報を開く" }).click();
+    const dialog = this.page.getByRole("dialog", { name: "スタッフ情報" });
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole("tab")).toHaveCount(0);
     return dialog;
@@ -221,7 +221,7 @@ export class UserDetailPage {
   private async openShopPage(shop: UserDetailShop) {
     const parentUrl = new URL(this.page.url());
     if (!/^\/users\/[^/]+$/.test(parentUrl.pathname)) {
-      throw new Error(`店舗別設定の遷移元がユーザー詳細ではありません: ${parentUrl.pathname}`);
+      throw new Error(`店舗別設定の遷移元がスタッフ詳細ではありません: ${parentUrl.pathname}`);
     }
     this.parentUserDetailUrl = {
       pathname: parentUrl.pathname,
@@ -244,7 +244,7 @@ export class UserDetailPage {
 
   private async returnToUserDetail(shop: UserDetailShop) {
     await this.shopPageHeading(shop)
-      .getByRole("button", { name: `${shop.name}：${this.personName}`, exact: true })
+      .getByRole("button", { name: `${shop.name}：${this.personName}さん`, exact: true })
       .click();
     await this.expectParentUserDetailRestored();
   }
@@ -265,7 +265,7 @@ export class UserDetailPage {
   private shopPageHeading(shop: UserDetailShop) {
     return this.page.getByRole("heading", {
       level: 1,
-      name: `${shop.name}：${this.personName}`,
+      name: `${shop.name}：${this.personName}さん`,
       exact: true,
     });
   }
@@ -280,7 +280,7 @@ export class UserDetailPage {
   }
 
   private requireContextShop() {
-    if (!this.contextShop) throw new Error("ユーザー詳細を開いた店舗を取得できませんでした");
+    if (!this.contextShop) throw new Error("スタッフ詳細を開いた店舗を取得できませんでした");
     return this.contextShop;
   }
 

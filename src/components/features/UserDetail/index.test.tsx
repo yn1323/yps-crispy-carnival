@@ -52,7 +52,7 @@ vi.mock("./UserDetailView", () => ({
         戻る
       </button>
       <button type="button" onClick={actions.onOpenBasic}>
-        基本情報を開く
+        スタッフ情報を開く
       </button>
       <button type="button" onClick={actions.onOpenAddShop}>
         店舗追加を開く
@@ -123,7 +123,7 @@ describe("UserDetail", () => {
   it("基本情報と店舗追加のパネルをURL検索条件で開く", () => {
     render(<UserDetail data={data} selectedShopId={null} returnTo="dashboard" visibleUserCount={10} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "基本情報を開く" }));
+    fireEvent.click(screen.getByRole("button", { name: "スタッフ情報を開く" }));
     fireEvent.click(screen.getByRole("button", { name: "店舗追加を開く" }));
 
     const openBasicNavigation = mocks.navigate.mock.calls[0]?.[0];

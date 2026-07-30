@@ -2,7 +2,7 @@ import { Box, Flex, Skeleton, Stack } from "@chakra-ui/react";
 
 export function UserDetailSkeleton() {
   return (
-    <Stack gap={{ base: 4, md: 6 }} aria-label="ユーザー詳細を読み込み中">
+    <Stack gap={{ base: 4, md: 6 }} aria-label="スタッフ詳細を読み込み中">
       <Flex align="center" gap={3}>
         <Skeleton boxSize="32px" borderRadius="md" />
         <Skeleton h="30px" w="160px" />

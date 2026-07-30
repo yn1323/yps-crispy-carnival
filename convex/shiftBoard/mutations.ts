@@ -1,11 +1,13 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
+import type { Doc, Id } from "../_generated/dataModel";
+import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { isPastShiftPeriod } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
 import { SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT } from "../constants";
 import { buildConfirmationSnapshotsForStaffs } from "../notification/confirmationSnapshots";
-import { ensureNotificationFanoutOperation } from "../notification/fanout";
+import { buildNotificationFanoutTargetKey, ensureNotificationFanoutOperation } from "../notification/fanout";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { ensureDefaultPosition } from "../position/service";
 import { getActiveRecruitmentInShop } from "../recruitment/service";
@@ -14,7 +16,96 @@ import { buildAssignmentIssue, SHIFT_ASSIGNMENT_VALIDATION, validateShiftAssignm
 
 const PAST_SHIFT_SAVE_ERROR = "過去のシフトは保存できません";
 const PAST_SHIFT_NOTIFY_ERROR = "過去のシフトはスタッフに通知できません";
+const PREVIOUS_CONFIRMATION_NOTIFICATION_PROCESSING_ERROR =
+  "前回の確定シフト通知を送信中です。少し時間をおいて、もう一度お試しください";
 const SHIFT_CONFIRMATION_OPERATION_VERSION = 1;
+
+type PreviousConfirmationDeliveryState = "delivered" | "undelivered" | "processing";
+
+function belongsToConfirmationOperation(
+  outbox: Doc<"notificationOutbox"> | null,
+  operation: Doc<"notificationFanoutOperations">,
+  staffId: Id<"staffs">,
+) {
+  return (
+    outbox?.fanoutOperationId === operation._id &&
+    outbox.recruitmentId === operation.recruitmentId &&
+    outbox.shopId === operation.shopId &&
+    outbox.staffId === staffId
+  );
+}
+
+async function getPreviousConfirmationDeliveryState(
+  ctx: MutationCtx,
+  operation: Doc<"notificationFanoutOperations">,
+  staffId: Id<"staffs">,
+): Promise<PreviousConfirmationDeliveryState> {
+  const emailDedupeKey = `email:confirmation:${operation.recruitmentId}:${staffId}:${operation.dedupeSuffix}`;
+  const [primaryOutbox, sentEmail, processingEmail] = await Promise.all([
+    ctx.db
+      .query("notificationOutbox")
+      .withIndex("by_fanoutTargetKey", (q) =>
+        q.eq("fanoutTargetKey", buildNotificationFanoutTargetKey(operation.operationKey, staffId)),
+      )
+      .first(),
+    ctx.db
+      .query("notificationOutbox")
+      .withIndex("by_dedupeKey_status", (q) => q.eq("dedupeKey", emailDedupeKey).eq("status", "sent"))
+      .first(),
+    ctx.db
+      .query("notificationOutbox")
+      .withIndex("by_dedupeKey_status", (q) => q.eq("dedupeKey", emailDedupeKey).eq("status", "processing"))
+      .first(),
+  ]);
+  const primaryStatus = belongsToConfirmationOperation(primaryOutbox, operation, staffId)
+    ? primaryOutbox?.status
+    : undefined;
+  if (primaryStatus === "sent" || belongsToConfirmationOperation(sentEmail, operation, staffId)) {
+    return "delivered";
+  }
+  if (primaryStatus === "processing" || belongsToConfirmationOperation(processingEmail, operation, staffId)) {
+    return "processing";
+  }
+  return "undelivered";
+}
+
+async function getUndeliveredPreviousConfirmationStaffIds(
+  ctx: MutationCtx,
+  args: {
+    operationKey?: string;
+    recruitmentId: Id<"recruitments">;
+    shopId: Id<"shops">;
+    staffIds: readonly Id<"staffs">[];
+  },
+) {
+  const operationKey = args.operationKey;
+  if (!operationKey) return new Set<Id<"staffs">>();
+  const operation = await ctx.db
+    .query("notificationFanoutOperations")
+    .withIndex("by_operationKey", (q) => q.eq("operationKey", operationKey))
+    .unique();
+  if (
+    operation?.kind !== "confirmation" ||
+    operation.recruitmentId !== args.recruitmentId ||
+    operation.shopId !== args.shopId ||
+    operation.supersedesActiveOperations === false
+  ) {
+    return new Set<Id<"staffs">>();
+  }
+
+  const operationStaffIds = new Set(operation.targetStaffIds);
+  const deliveryStates = await Promise.all(
+    args.staffIds.flatMap((staffId) =>
+      operationStaffIds.has(staffId)
+        ? [getPreviousConfirmationDeliveryState(ctx, operation, staffId).then((state) => ({ staffId, state }))]
+        : [],
+    ),
+  );
+  if (deliveryStates.some(({ state }) => state === "processing")) {
+    throw new ConvexError(PREVIOUS_CONFIRMATION_NOTIFICATION_PROCESSING_ERROR);
+  }
+  return new Set(deliveryStates.flatMap(({ staffId, state }) => (state === "undelivered" ? [staffId] : [])));
+}
 
 async function buildConfirmationNotificationOperationKey(args: {
   organizationId?: string;
@@ -219,12 +310,25 @@ export const confirmRecruitment = managerMutation({
     const sentSnapshotByStaffId = new Map(
       sentSnapshots.flatMap((snapshot) => (snapshot ? [[snapshot.staffId, snapshot] as const] : [])),
     );
+    const previousOperationKey = recruitment.lastConfirmationNotificationOperationKey;
+    const undeliveredPreviousStaffIds = isResend
+      ? await getUndeliveredPreviousConfirmationStaffIds(ctx, {
+          ...(previousOperationKey ? { operationKey: previousOperationKey } : {}),
+          recruitmentId: args.recruitmentId,
+          shopId: ctx.shop._id,
+          staffIds: currentSnapshots.map((snapshot) => snapshot.staffId),
+        })
+      : new Set<Id<"staffs">>();
 
     const targetStaffIds = isResend
       ? currentSnapshots
           .filter((snapshot) => {
             const sentSnapshot = sentSnapshotByStaffId.get(snapshot.staffId);
-            return !sentSnapshot || sentSnapshot.signature !== snapshot.signature;
+            return (
+              !sentSnapshot ||
+              sentSnapshot.signature !== snapshot.signature ||
+              undeliveredPreviousStaffIds.has(snapshot.staffId)
+            );
           })
           .map((snapshot) => snapshot.staffId)
       : currentSnapshots.map((snapshot) => snapshot.staffId);
@@ -252,7 +356,7 @@ export const confirmRecruitment = managerMutation({
           snapshotSignature: currentSnapshotByStaffId.get(staff._id)?.signature ?? "",
         })),
     });
-    if (recruitment.lastConfirmationNotificationOperationKey === operationKey) {
+    if (previousOperationKey === operationKey) {
       return isResend ? { status: "no_changes" as const, notifiedStaffCount: 0 } : null;
     }
     const notificationRunId = (recruitment.lastConfirmationNotificationRunId ?? 0) + 1;
@@ -276,6 +380,7 @@ export const confirmRecruitment = managerMutation({
       shopId: ctx.shop._id,
       targetStaffIds,
       dedupeSuffix: isResend ? `resend:${notificationRunId}` : "confirm",
+      ...(previousOperationKey ? { previousOperationKey } : {}),
       notificationRunId,
       ...notificationOrigin,
     });

@@ -18,7 +18,7 @@ type ConfirmedShiftSeed = {
 test.describe("確定後に追加したスタッフ", { tag: ["@release", "@notification"] }, () => {
   test.setTimeout(75_000);
 
-  test("既存シフトを保持して新しい行を追加し、割当後は変更対象だけへ閲覧通知する", async ({
+  test("既存シフトを保持して新しい行を追加し、割当後は変更対象と未送信対象だけへ通知する", async ({
     browser,
     page,
     e2eClerkUser,
@@ -76,7 +76,7 @@ test.describe("確定後に追加したスタッフ", { tag: ["@release", "@noti
       await shiftBoard.expectStaffVisible(ADDED_STAFF.name);
     });
 
-    await test.step("Step 4: 追加スタッフだけを編集して変更通知する", async () => {
+    await test.step("Step 4: 追加スタッフを編集し、変更対象と前回未送信対象へ通知する", async () => {
       await shiftBoard.assignShift(ADDED_STAFF.name, { startTime: "11:00", endTime: "17:00" });
       await shiftBoard.notifyChangedStaff();
 
@@ -98,7 +98,11 @@ test.describe("確定後に追加したスタッフ", { tag: ["@release", "@noti
         notificationContext: "notification.sendConfirmationEmail",
         channel: "email",
       });
-      expect(managerProbe.outbox.filter((job) => job.isResend)).toHaveLength(0);
+      // 初回通知がsentなら維持し、未送信なら再送へ引き継ぐ。superseded Outboxのcancel反映は非同期。
+      const managerNotificationKinds = managerProbe.outbox.map((job) => (job.isResend ? "resend" : "initial")).sort();
+      expect([["initial"], ["resend"], ["initial", "resend"]]).toContainEqual(managerNotificationKinds);
+      expect(managerProbe.failureInbox).toHaveLength(0);
+      expect(managerProbe.duplicateDedupeKeyCount).toBe(0);
     });
 
     await test.step("Step 5: 追加スタッフが通知URLから確定シフトを閲覧する", async () => {

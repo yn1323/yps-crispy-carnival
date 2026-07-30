@@ -55,7 +55,7 @@ export function UserDetailView({ data, showShopMembershipAddition, activePanel, 
 
   return (
     <Stack gap={{ base: 4, md: 6 }}>
-      <DetailPageHeader title="ユーザー詳細" onBack={actions.onBack} />
+      <DetailPageHeader title="スタッフ詳細" onBack={actions.onBack} />
 
       <UserSummary data={data} />
 
@@ -72,8 +72,8 @@ export function UserDetailView({ data, showShopMembershipAddition, activePanel, 
 
       <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
         <DrilldownRow
-          ariaLabel="基本情報を開く"
-          title="基本情報"
+          ariaLabel="スタッフ情報を開く"
+          title="スタッフ情報"
           leading={<BasicInformationIcon />}
           secondary={
             <Text fontSize="sm" color="fg.muted" lineHeight="tall">

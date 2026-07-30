@@ -99,9 +99,8 @@ const createNotificationFailureTask = (onClick: () => void): ActionTask => ({
   iconFg: "orange.600",
   title: "送れなかった通知があります",
   titleColor: "orange.800",
-  description: "送れなかった相手を確認して、もう一度送れます。",
   rowBg: "orange.50/30",
-  cta: { label: "通知を確認", palette: "orange", variant: "outline", onClick },
+  cta: { label: "通知を確認する", palette: "orange", variant: "outline", onClick },
 });
 
 const createStaffRegistrationRequestTask = (count: number, onClick: () => void): ActionTask => ({

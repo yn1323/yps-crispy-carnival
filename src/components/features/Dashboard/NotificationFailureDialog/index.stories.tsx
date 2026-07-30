@@ -96,7 +96,7 @@ export const ReadOnlyBehavior: Story = {
     for (const button of canvas.getAllByRole("button", { name: /^再送$/ })) {
       await expect(button).toBeDisabled();
     }
-    for (const button of canvas.getAllByRole("button", { name: "対応不要" })) {
+    for (const button of canvas.getAllByRole("button", { name: "無視する" })) {
       await expect(button).toBeDisabled();
     }
   },
@@ -137,7 +137,7 @@ export const EmailHelpBehavior: Story = {
     const canvas = within(canvasElement);
 
     await userEvent.click(canvas.getAllByRole("button", { name: "メール通知について" })[0]);
-    const helpText = await canvas.findByText(/メールが届かない場合は/);
+    const helpText = await canvas.findByText(/登録メールアドレスに誤りがないか/);
     await waitFor(() => expect(helpText).toBeVisible());
   },
 };

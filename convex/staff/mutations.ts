@@ -2,11 +2,16 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
+import { internalMutation } from "../_generated/server";
+import { isShopParentActive } from "../_lib/activeShop";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
+import { todayJST } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
 import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
 import { normalizeEmail } from "../_lib/validation";
+import { CURRENT_SHIFT_NOTIFICATION_LIMIT } from "../constants";
 import { getStaffLineAccount } from "../line/service";
+import { ensureNotificationFanoutOperation } from "../notification/fanout";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { recordOrganizationAuditEvent } from "../organization/audit";
 import { updateOrganizationPersonProfile } from "../organization/personProfile";
@@ -15,6 +20,7 @@ import { addStaffsSchema, editStaffSchema } from "./schemas";
 import {
   findActiveStaffByEmail,
   getActiveStaffInShop,
+  isShiftTargetStaff,
   materializeOrganizationPeopleForStaffAddition,
   prepareOrganizationPeopleForStaffAddition,
   releasePendingInvitationReservationsForStaffAddition,
@@ -125,16 +131,23 @@ async function allowStaffNotificationResend(
   ctx: ManagerStaffMutationCtx,
   staffId: Id<"staffs">,
   kind: StaffNotificationKind,
+  targetCount: number,
 ) {
+  if (!Number.isSafeInteger(targetCount) || targetCount < 1) {
+    throw new Error("Staff notification resend target count must be a positive integer");
+  }
   const recipientScope = `${ctx.shop._id}:${staffId}:${kind}`;
   const actorKey = `${ctx.user._id}:${recipientScope}`;
   const organizationScope = ctx.organization?._id ?? ctx.shop._id;
   const organizationKey = `${organizationScope}:${recipientScope}`;
+  const scopeTargetKey = `${organizationScope}:${kind}`;
   const limits = [
-    { name: "staffNotificationResendActorShort", key: actorKey },
-    { name: "staffNotificationResendActorDaily", key: actorKey },
-    { name: "staffNotificationResendOrganizationShort", key: organizationKey },
-    { name: "staffNotificationResendOrganizationDaily", key: organizationKey },
+    { name: "staffNotificationResendActorShort", key: actorKey, count: 1 },
+    { name: "staffNotificationResendActorDaily", key: actorKey, count: 1 },
+    { name: "staffNotificationResendOrganizationShort", key: organizationKey, count: 1 },
+    { name: "staffNotificationResendOrganizationDaily", key: organizationKey, count: 1 },
+    { name: "staffNotificationResendScopeTargetShort", key: scopeTargetKey, count: targetCount },
+    { name: "staffNotificationResendScopeTargetDaily", key: scopeTargetKey, count: targetCount },
   ] as const;
 
   const statuses = await Promise.all(limits.map(async (limit) => await checkRateLimit(ctx, limit)));
@@ -155,6 +168,84 @@ async function validateOptionalNotificationRequestId(requestId: string | undefin
     // client request IDは入力契約だけ検証し、quotaや通知operationのidentityには使わない。
     await toAuditRequestKey(requestId);
   }
+}
+
+type CurrentShiftNotificationScope =
+  | { recruitments: Doc<"recruitments">[] }
+  | { reason: "noCurrentShift" | "tooManyCurrentShifts" | "unconfirmedChanges" };
+
+async function getCurrentShiftNotificationScope(
+  ctx: MutationCtx,
+  shopId: Id<"shops">,
+): Promise<CurrentShiftNotificationScope> {
+  const today = todayJST();
+  const recruitments = await ctx.db
+    .query("recruitments")
+    .withIndex("by_shopId_and_isDeleted_and_status_and_periodEnd", (q) =>
+      q.eq("shopId", shopId).eq("isDeleted", false).eq("status", "confirmed").gte("periodEnd", today),
+    )
+    .order("asc")
+    .take(CURRENT_SHIFT_NOTIFICATION_LIMIT + 1);
+  if (recruitments.length > CURRENT_SHIFT_NOTIFICATION_LIMIT) return { reason: "tooManyCurrentShifts" };
+  if (recruitments.length === 0) return { reason: "noCurrentShift" };
+  if (
+    recruitments.some(
+      (recruitment) =>
+        recruitment.draftSavedAt !== undefined &&
+        (recruitment.confirmedAt === undefined || recruitment.draftSavedAt > recruitment.confirmedAt),
+    )
+  ) {
+    return { reason: "unconfirmedChanges" };
+  }
+  return { recruitments };
+}
+
+async function createCurrentShiftNotificationFanouts(
+  ctx: MutationCtx,
+  args: {
+    staffId: Id<"staffs">;
+    shopId: Id<"shops">;
+    recruitments: readonly Doc<"recruitments">[];
+    operationGroupKey: string;
+    organizationBillingVersionAtOrigin?: number;
+  },
+) {
+  let createdOperationCount = 0;
+  for (const recruitment of args.recruitments) {
+    const operationKey = `shift.confirmation.staff-resend:v1:${recruitment._id}:${args.staffId}:${args.operationGroupKey}`;
+    const { operation, created } = await ensureNotificationFanoutOperation(ctx, {
+      operationKey,
+      kind: "confirmation",
+      purpose: "confirmation",
+      recruitmentId: recruitment._id,
+      shopId: args.shopId,
+      targetStaffIds: [args.staffId],
+      dedupeSuffix: `staff-resend:${args.operationGroupKey}`,
+      supersedeActiveOperations: false,
+      confirmationOperationKeyAtOrigin: recruitment.lastConfirmationNotificationOperationKey ?? null,
+      recruitmentDraftSavedAtAtOrigin: recruitment.draftSavedAt ?? null,
+      ...(args.organizationBillingVersionAtOrigin === undefined
+        ? {}
+        : { organizationBillingVersionAtOrigin: args.organizationBillingVersionAtOrigin }),
+    });
+    if (!created) continue;
+
+    const scheduledFunctionId = await ctx.scheduler.runAfter(
+      0,
+      internal.notification.actions.sendShiftConfirmationEmails,
+      {
+        recruitmentId: recruitment._id,
+        isResend: false,
+        fanoutOperationId: operation._id,
+        ...(args.organizationBillingVersionAtOrigin === undefined
+          ? {}
+          : { organizationBillingVersionAtOrigin: args.organizationBillingVersionAtOrigin }),
+      },
+    );
+    await ctx.db.patch(operation._id, { scheduledFunctionId });
+    createdOperationCount += 1;
+  }
+  return createdOperationCount;
 }
 
 type AddStaffEntriesArgs = {
@@ -505,7 +596,12 @@ export const sendOpenRecruitmentNotifications = managerMutation({
       return { scheduled: false, reason: "noEligibleRecruitments" as const };
     }
 
-    const allowed = await allowStaffNotificationResend(ctx, staff._id, "openRecruitments");
+    const allowed = await allowStaffNotificationResend(
+      ctx,
+      staff._id,
+      "openRecruitments",
+      notificationData.recruitments.length,
+    );
     if (!allowed) return { scheduled: false, reason: "rateLimited" as const };
     const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
 
@@ -526,28 +622,71 @@ export const sendCurrentShiftNotification = managerMutation({
     v.object({ scheduled: v.literal(true) }),
     v.object({
       scheduled: v.literal(false),
-      reason: v.union(v.literal("noCurrentShift"), v.literal("rateLimited")),
+      reason: v.union(
+        v.literal("noCurrentShift"),
+        v.literal("tooManyCurrentShifts"),
+        v.literal("unconfirmedChanges"),
+        v.literal("rateLimited"),
+      ),
     }),
   ),
   handler: async (ctx, args) => {
     await validateOptionalNotificationRequestId(args.requestId);
     const staff = await getSendableStaff(ctx, args.staffId);
-    const notificationData = await ctx.runQuery(internal.notification.queries.getCurrentConfirmationEmailDataForStaff, {
-      staffId: staff._id,
-    });
-    if (!notificationData || notificationData.shopId !== ctx.shop._id || notificationData.recruitments.length === 0) {
+    if (!isShiftTargetStaff(staff)) {
       return { scheduled: false, reason: "noCurrentShift" as const };
     }
+    const scope = await getCurrentShiftNotificationScope(ctx, ctx.shop._id);
+    if ("reason" in scope) return { scheduled: false, reason: scope.reason };
 
-    const allowed = await allowStaffNotificationResend(ctx, staff._id, "currentShift");
+    const allowed = await allowStaffNotificationResend(ctx, staff._id, "currentShift", scope.recruitments.length);
     if (!allowed) return { scheduled: false, reason: "rateLimited" as const };
     const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
-
-    await ctx.scheduler.runAfter(0, internal.notification.actions.sendCurrentShiftConfirmationForStaff, {
+    await createCurrentShiftNotificationFanouts(ctx, {
       staffId: staff._id,
+      shopId: ctx.shop._id,
+      recruitments: scope.recruitments,
+      operationGroupKey: crypto.randomUUID(),
       ...notificationOrigin,
     });
     return { scheduled: true as const };
+  },
+});
+
+/**
+ * 旧deploymentが予約済みの個別確定通知actionを、同じdurable operationへexact-onceで収束させる。
+ * 認可とquotaは旧public mutationで完了済みのため再消費せず、現在の配送scopeだけをfail closedで再検証する。
+ */
+export const prepareLegacyCurrentShiftConfirmationFanout = internalMutation({
+  args: {
+    staffId: v.id("staffs"),
+    organizationBillingVersionAtOrigin: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const staff = await ctx.db.get(args.staffId);
+    const shop = staff ? await ctx.db.get(staff.shopId) : null;
+    if (!staff || staff.isDeleted || !isShiftTargetStaff(staff) || !(await isShopParentActive(ctx, shop))) {
+      return { status: "skipped" as const, reason: "noCurrentShift" as const };
+    }
+    const lineAccount = await getStaffLineAccount(ctx, staff._id);
+    if (staff.email.length === 0 && !(lineAccount?.lineUserId && lineAccount.following)) {
+      return { status: "skipped" as const, reason: "noCurrentShift" as const };
+    }
+
+    const scope = await getCurrentShiftNotificationScope(ctx, staff.shopId);
+    if ("reason" in scope) return { status: "skipped" as const, reason: scope.reason };
+
+    const createdOperationCount = await createCurrentShiftNotificationFanouts(ctx, {
+      staffId: staff._id,
+      shopId: staff.shopId,
+      recruitments: scope.recruitments,
+      // 旧argsにはrequest identityがないため、staff単位の安定keyでaction retryと重複予約を一つへ寄せる。
+      operationGroupKey: `legacy:${staff._id}`,
+      ...(args.organizationBillingVersionAtOrigin === undefined
+        ? {}
+        : { organizationBillingVersionAtOrigin: args.organizationBillingVersionAtOrigin }),
+    });
+    return { status: "accepted" as const, createdOperationCount };
   },
 });
 
