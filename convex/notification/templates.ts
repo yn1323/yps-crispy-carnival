@@ -19,6 +19,7 @@ const FLEX_ALT_TEXT_MAX_LENGTH = 1500;
 const FLEX_PRIMARY_COLOR = "#319795";
 const FLEX_TEXT_COLOR = "#1A202C";
 const FLEX_MUTED_COLOR = "#718096";
+const CLOSED_DAY_COLOR = "#E53E3E";
 const FLEX_BORDER_COLOR = "#E2E8F0";
 
 export type LineTextMessage = {
@@ -194,14 +195,16 @@ function flexShiftRows(shifts: ShiftEntry[]): FlexBoxComponent {
       flexText("▼あなたのシフト", { size: "sm", weight: "bold" }),
       ...shifts.map((shift) => {
         const timeLabel = shiftTimeLabel(shift);
+        const isClosedDay = timeLabel === "定休日";
         const isRest = !timeLabel;
+        const timeColor = isClosedDay ? CLOSED_DAY_COLOR : isRest ? FLEX_MUTED_COLOR : FLEX_TEXT_COLOR;
         return flexBox(
           "horizontal",
           [
             flexText(shift.date, { size: "sm", color: isRest ? FLEX_MUTED_COLOR : FLEX_TEXT_COLOR, flex: 2 }),
             flexText(timeLabel ?? "休み", {
               size: "sm",
-              color: isRest ? FLEX_MUTED_COLOR : FLEX_TEXT_COLOR,
+              color: timeColor,
               weight: isRest ? "regular" : "bold",
               align: "end",
               flex: 3,
@@ -545,9 +548,10 @@ function shiftRow(shift: ShiftEntry): string {
   const timeLabel = shiftTimeLabel(shift);
   const date = escapeEmailHtml(shift.date);
   if (timeLabel) {
+    const timeLabelColor = timeLabel === "定休日" ? CLOSED_DAY_COLOR : "#1a202c";
     return `<tr>
       <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-weight:600;color:#1a202c;">${date}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-weight:600;color:#1a202c;">${escapeEmailHtml(timeLabel)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-weight:600;color:${timeLabelColor};">${escapeEmailHtml(timeLabel)}</td>
     </tr>`;
   }
   return `<tr>

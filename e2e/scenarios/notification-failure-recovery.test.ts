@@ -42,9 +42,9 @@ test.describe("送れなかった通知のDashboard対応", { tag: ["@release", 
       await failures.resend(SECOND_STAFF_NAME);
     });
 
-    await test.step("Step 4: 残りを一斉再通知する", async () => {
+    await test.step("Step 4: 残りを一斉再通知してモーダルを閉じる", async () => {
       await failures.resendAll();
-      await failures.expectAcceptedCount(2);
+      await failures.expectClosed();
     });
 
     await test.step("Step 5: 無視した通知は再送せず、残りだけ再通知受付状態になっている", async () => {

@@ -208,6 +208,17 @@ const seedOrganizationBillingPlanChangeScenarioRef = makeFunctionReference<
   OrganizationBillingPlanChangeSeedResult
 >("testing:seedOrganizationBillingPlanChangeScenario");
 
+type ClearAllTablesResult = {
+  cleared: string[];
+  deleted: number;
+  nextTable: string | null;
+  done: boolean;
+};
+
+const clearAllTablesRef = makeFunctionReference<"mutation", { tableName?: string }, ClearAllTablesResult>(
+  "testing:clearAllTables",
+);
+
 describe("E2E testing helpers", () => {
   beforeEach(() => {
     vi.stubEnv("CONVEX_CLOUD_URL", "https://e2e-test.convex.cloud");
@@ -222,25 +233,40 @@ describe("E2E testing helpers", () => {
     vi.stubEnv("E2E_TESTING_ENABLED", "");
     const t = convexTest(schema, modules);
 
-    await expect(t.mutation(internal.testing.clearAllTables, {})).rejects.toThrow("E2E testing helpers are disabled");
+    await expect(t.mutation(clearAllTablesRef, {})).rejects.toThrow("E2E testing helpers are disabled");
   });
 
   it("allows clearAllTables when E2E testing helpers are enabled", async () => {
     vi.stubEnv("E2E_TESTING_ENABLED", "true");
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
-      await ctx.db.insert("users", {
-        authTokenIdentifier: "manager_test",
-        name: "Test Manager",
-        email: "manager@example.com",
-        role: "manager",
-        isDeleted: false,
-      });
+      for (let index = 0; index < 105; index++) {
+        await ctx.db.insert("users", {
+          authTokenIdentifier: `manager_test_${index}`,
+          name: `Test Manager ${index}`,
+          email: `manager-${index}@example.com`,
+          role: "manager",
+          isDeleted: false,
+        });
+      }
     });
 
-    await expect(t.mutation(internal.testing.clearAllTables, {})).resolves.toEqual(
-      expect.objectContaining({ cleared: expect.arrayContaining(["users"]) }),
-    );
+    const clearedTables = new Set<string>();
+    let nextTable: string | undefined;
+    let totalDeleted = 0;
+    let result: ClearAllTablesResult | undefined;
+    do {
+      result = await t.mutation(clearAllTablesRef, nextTable ? { tableName: nextTable } : {});
+      result.cleared.forEach((tableName) => {
+        clearedTables.add(tableName);
+      });
+      totalDeleted += result.deleted;
+      nextTable = result.nextTable ?? undefined;
+    } while (!result.done);
+
+    expect(result).toEqual(expect.objectContaining({ done: true, nextTable: null }));
+    expect(clearedTables).toContain("users");
+    expect(totalDeleted).toBe(105);
     const users = await t.run(async (ctx) => await ctx.db.query("users").collect());
     expect(users).toEqual([]);
   });
@@ -254,7 +280,7 @@ describe("E2E testing helpers", () => {
     vi.stubEnv("E2E_TESTING_DEPLOYMENT_URL", allowed);
     const t = convexTest(schema, modules);
 
-    await expect(t.mutation(internal.testing.clearAllTables, {})).rejects.toThrow(
+    await expect(t.mutation(clearAllTablesRef, {})).rejects.toThrow(
       "E2E testing helpers are disabled for this deployment",
     );
   });

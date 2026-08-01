@@ -7,6 +7,7 @@ import type { UserDetailData, UserDetailPanel } from "./types";
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   addMembership: vi.fn(),
+  updateProfile: vi.fn(),
   featureVisibilityAtom: Symbol("featureVisibilityAtom"),
   featureVisibility: {
     organizationSettingsNavigation: true,
@@ -43,6 +44,7 @@ vi.mock("./UserDetailView", () => ({
       onOpenAddShop: () => void;
       onOpenShop: (shopId: string) => void;
       onClosePanel: () => void;
+      onUpdateProfile: (data: { name: string; email: string }) => void | Promise<void>;
       onAddMembership: (shopId: string) => void;
     };
   }) => (
@@ -63,6 +65,9 @@ vi.mock("./UserDetailView", () => ({
       <button type="button" onClick={actions.onClosePanel}>
         閉じる
       </button>
+      <button type="button" onClick={() => actions.onUpdateProfile({ name: "更新後", email: "updated@example.com" })}>
+        スタッフ情報を保存
+      </button>
       <button type="button" onClick={() => actions.onAddMembership("shop-c")}>
         店舗に追加する
       </button>
@@ -71,7 +76,7 @@ vi.mock("./UserDetailView", () => ({
 }));
 
 vi.mock("./useUserProfileUpdate", () => ({
-  useUserProfileUpdate: () => ({ isUpdating: false, update: vi.fn() }),
+  useUserProfileUpdate: () => ({ isUpdating: false, update: mocks.updateProfile }),
 }));
 
 vi.mock("./useUserMembershipActions", () => ({
@@ -114,12 +119,47 @@ const data = {
 beforeEach(() => {
   mocks.navigate.mockReset();
   mocks.addMembership.mockReset();
+  mocks.updateProfile.mockReset();
   mocks.addMembership.mockResolvedValue(false);
+  mocks.updateProfile.mockResolvedValue(false);
   mocks.featureVisibility.shopMembershipAddition = true;
   mocks.managerOptions = undefined;
 });
 
 describe("UserDetail", () => {
+  it("スタッフ情報の更新が成功したら編集モーダルを閉じる", async () => {
+    mocks.updateProfile.mockResolvedValue(true);
+    render(
+      <UserDetail data={data} selectedShopId="shop-a" activePanel="basic" returnTo="dashboard" visibleUserCount={10} />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "スタッフ情報を保存" }));
+    });
+
+    expect(mocks.navigate).toHaveBeenCalledTimes(1);
+    const closeNavigation = mocks.navigate.mock.calls[0]?.[0];
+    expect(closeNavigation).toMatchObject({ to: ".", replace: true, resetScroll: false });
+    expect(closeNavigation.search({ shop: "shop-a", panel: "basic", returnTo: "dashboard" })).toEqual({
+      shop: "shop-a",
+      panel: undefined,
+      returnTo: "dashboard",
+    });
+  });
+
+  it("スタッフ情報の更新に失敗したら編集モーダルを閉じない", async () => {
+    mocks.updateProfile.mockResolvedValue(false);
+    render(
+      <UserDetail data={data} selectedShopId="shop-a" activePanel="basic" returnTo="dashboard" visibleUserCount={10} />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "スタッフ情報を保存" }));
+    });
+
+    expect(mocks.navigate).not.toHaveBeenCalled();
+  });
+
   it("基本情報と店舗追加のパネルをURL検索条件で開く", () => {
     render(<UserDetail data={data} selectedShopId={null} returnTo="dashboard" visibleUserCount={10} />);
 
