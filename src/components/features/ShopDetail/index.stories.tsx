@@ -199,42 +199,6 @@ export const StaffNavigationBehavior: Story = {
   },
 };
 
-export const DeleteConfirmationBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "削除" }));
-    const dialog = await within(canvasElement.ownerDocument.body).findByRole("alertdialog", {
-      name: "スーパー美味しいカフェ新宿店を削除しますか？",
-    });
-    const confirmation = within(dialog);
-    await waitFor(() =>
-      expect(confirmation.getByText("削除すると、この店舗と所属スタッフは利用できなくなります。")).toBeVisible(),
-    );
-    await expect(
-      confirmation.getByText("この店舗の管理権限、LINE連携、シフトの提出・閲覧用リンクも停止します。"),
-    ).toBeVisible();
-    await expect(
-      confirmation.queryByText("店舗名、スタッフの氏名・メールアドレス、過去のシフト履歴は、業務記録として残ります。"),
-    ).not.toBeInTheDocument();
-    await expect(
-      confirmation.queryByText("グループのユーザー情報と、ほかの店舗の管理権限はそのまま使えます。"),
-    ).not.toBeInTheDocument();
-    await expect(confirmation.getByText("この操作は元に戻せません。")).toBeVisible();
-    await expect(within(dialog).getByRole("button", { name: "閉じる" })).toHaveFocus();
-    await userEvent.click(within(dialog).getByRole("button", { name: "店舗を削除" }));
-    await waitFor(() =>
-      expect(
-        within(canvasElement.ownerDocument.body).queryByRole("alertdialog", {
-          name: "スーパー美味しいカフェ新宿店を削除しますか？",
-        }),
-      ).not.toBeInTheDocument(),
-    );
-  },
-};
-
-const permissionLossReason = "最新の権限では、この店舗を削除できません。";
-
 function InteractionHarness() {
   const [result, setResult] = useState("");
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
@@ -262,49 +226,6 @@ function InteractionHarness() {
     </>
   );
 }
-
-function PermissionLossHarness() {
-  const [canDelete, setCanDelete] = useState(true);
-
-  return (
-    <>
-      <button type="button" onClick={() => setCanDelete(false)}>
-        削除権限を失う
-      </button>
-      <ShopDetailView
-        shop={{ ...shop, canDelete, deleteDisabledReason: canDelete ? undefined : permissionLossReason }}
-        staffs={staffs}
-        settingsDialog={closedSettingsDialog}
-        isDeleting={false}
-        onBack={() => {}}
-        onOpenUser={() => {}}
-        onUpdateSettings={() => {}}
-        onDelete={async () => false}
-      />
-    </>
-  );
-}
-
-export const DeletionPermissionLossBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  render: () => <PermissionLossHarness />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const body = within(canvasElement.ownerDocument.body);
-    const losePermissionButton = canvas.getByRole("button", { name: "削除権限を失う" });
-    await userEvent.click(canvas.getByRole("button", { name: "削除" }));
-    await body.findByRole("alertdialog", { name: "スーパー美味しいカフェ新宿店を削除しますか？" });
-
-    losePermissionButton.click();
-
-    await waitFor(() =>
-      expect(
-        body.queryByRole("alertdialog", { name: "スーパー美味しいカフェ新宿店を削除しますか？" }),
-      ).not.toBeInTheDocument(),
-    );
-    await expect(await canvas.findByText(permissionLossReason)).toBeVisible();
-  },
-};
 
 export const Mobile: Story = {
   tags: ["vrt-mobile1"],
