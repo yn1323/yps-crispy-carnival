@@ -386,6 +386,37 @@ describe("notification/templates", () => {
     expect(flexButtonLabels(flex)).toContain("全員のシフトを確認する");
   });
 
+  it("確定・変更通知Flexでは定休日を赤字で表示する", () => {
+    for (const isResend of [false, true]) {
+      const flex = buildShiftConfirmationLineFlexMessage({
+        staffName: "田中太郎",
+        shopName: "テスト店舗",
+        periodLabel: "1/20(火)〜1/22(木)",
+        shifts: [{ date: "1/21(水)", timeLabel: "定休日" }],
+        magicLinkUrl: "https://example.com/shifts/view?token=test",
+        isResend,
+      });
+
+      const closedDayLabel = flexTextComponents(flex).find((component) => component.text === "定休日");
+      expect(closedDayLabel).toMatchObject({ color: "#E53E3E" });
+    }
+  });
+
+  it("確定・変更通知メールでは定休日を赤字で表示する", () => {
+    for (const isResend of [false, true]) {
+      const emailHtml = buildConfirmationEmailHtml({
+        staffName: "田中太郎",
+        periodLabel: "1/20(火)〜1/22(木)",
+        shifts: [{ date: "1/21(水)", timeLabel: "定休日" }],
+        magicLinkUrl: "https://example.com/shifts/view?token=test",
+        reissueUrl: "https://example.com/shifts/reissue?recruitmentId=test",
+        isResend,
+      });
+
+      expect(emailHtml).toContain('font-weight:600;color:#E53E3E;">定休日</td>');
+    }
+  });
+
   it("各LINE通知の1行目に状態ラベル（絵文字 + 種別）を置く", () => {
     const recruitment = buildRecruitmentLineText({
       staffName: "田中太郎",
@@ -593,6 +624,16 @@ function flexTexts(message: NotificationLineFlexMessage): string[] {
   visitFlex(message.contents, (value) => {
     if (isRecord(value) && value.type === "text" && typeof value.text === "string") {
       result.push(value.text);
+    }
+  });
+  return result;
+}
+
+function flexTextComponents(message: NotificationLineFlexMessage): Record<string, unknown>[] {
+  const result: Record<string, unknown>[] = [];
+  visitFlex(message.contents, (value) => {
+    if (isRecord(value) && value.type === "text" && typeof value.text === "string") {
+      result.push(value);
     }
   });
   return result;
