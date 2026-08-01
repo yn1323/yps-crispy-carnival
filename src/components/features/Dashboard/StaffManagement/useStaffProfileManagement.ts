@@ -47,6 +47,7 @@ export function useStaffProfileManagement(staffs: Staff[], { onResetDetail, isRe
     if (isReadOnly || !staff) return;
     try {
       await editStaff({ staffId: staff._id, name: data.name, email: data.email });
+      handleClose();
       showSuccessToast({ title: "スタッフ情報を更新しました" });
     } catch (error) {
       showErrorToast(error);

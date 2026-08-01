@@ -55,6 +55,36 @@ beforeEach(() => {
 });
 
 describe("useStaffProfileManagement", () => {
+  it("スタッフ情報の更新が成功したら詳細モーダルを閉じる", async () => {
+    mocks.editStaff.mockResolvedValue(undefined);
+    const onResetDetail = vi.fn();
+    const target = staff();
+    const { result } = renderHook(() => useStaffProfileManagement([target], { onResetDetail }));
+
+    act(() => result.current.onOpen(target));
+    expect(result.current.dialog.isOpen).toBe(true);
+
+    await act(async () => {
+      await result.current.onEdit({ name: "変更後", email: "updated@example.com" });
+    });
+
+    expect(result.current.dialog.isOpen).toBe(false);
+    expect(onResetDetail).toHaveBeenCalledTimes(2);
+  });
+
+  it("スタッフ情報の更新に失敗したら詳細モーダルを閉じない", async () => {
+    mocks.editStaff.mockRejectedValue(new Error("update failed"));
+    const target = staff();
+    const { result } = renderHook(() => useStaffProfileManagement([target], { onResetDetail: vi.fn() }));
+
+    act(() => result.current.onOpen(target));
+    await act(async () => {
+      await result.current.onEdit({ name: "変更後", email: "updated@example.com" });
+    });
+
+    expect(result.current.dialog.isOpen).toBe(true);
+  });
+
   it("移行済みスタッフは事業者人物を残す店舗所属削除mutationへ送る", async () => {
     mocks.removePersonFromShop.mockResolvedValue({ changed: true });
     const target = staff({ isOrganizationLinked: true });
