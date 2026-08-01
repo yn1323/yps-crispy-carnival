@@ -5,7 +5,7 @@ import { expect, userEvent, within } from "storybook/test";
 import { SHOP_STAFF_COUNT_MAX } from "@/convex/constants";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
-import { Toaster } from "@/src/components/ui/toaster";
+import { Toaster, toaster } from "@/src/components/ui/toaster";
 import { StaffRegistrationLinkPanel } from "../StaffRegistrationLinkPanel";
 import { AddStaffForm } from "./index.tsx";
 
@@ -139,6 +139,48 @@ export const StaffCountLimitReached: Story = {
 
     // 行追加時と送信時でそれぞれトーストが出る
     await expect(await page.findAllByText(`スタッフは${SHOP_STAFF_COUNT_MAX}人まで登録できます`)).toHaveLength(2);
+    expect(page.queryByText("onSubmitが呼ばれました")).not.toBeInTheDocument();
+  },
+};
+
+function StaffCountOneSlotRemainingFixture() {
+  const [isSubmitted, setIsSubmitted] = useState(false);
+
+  return (
+    <Dialog
+      title="スタッフを招待"
+      isOpen={true}
+      onOpenChange={() => {}}
+      formId="add-staff-form"
+      submitLabel="スタッフを追加する"
+      onClose={() => {}}
+      closeLabel="戻る"
+    >
+      <Toaster />
+      {isSubmitted && <p>onSubmitが呼ばれました</p>}
+      <AddStaffForm onSubmit={() => setIsSubmitted(true)} currentStaffCount={SHOP_STAFF_COUNT_MAX - 1} />
+    </Dialog>
+  );
+}
+
+export const StaffCountLimitPreventsBatchOverflow: Story = {
+  parameters: {
+    chromatic: { disableSnapshot: true },
+  },
+  render: () => <StaffCountOneSlotRemainingFixture />,
+  play: async ({ canvasElement }) => {
+    toaster.dismiss();
+    const page = within(canvasElement.ownerDocument.body);
+
+    const nameInputs = await page.findAllByPlaceholderText("例：田中 花子");
+    const emailInputs = await page.findAllByPlaceholderText("例：hanako@example.com");
+    await userEvent.type(nameInputs[0], "田中 花子");
+    await userEvent.type(emailInputs[0], "hanako@example.com");
+    await userEvent.type(nameInputs[1], "佐藤 花子");
+    await userEvent.type(emailInputs[1], "hanako2@example.com");
+    await userEvent.click(await page.findByRole("button", { name: "スタッフを追加する" }));
+
+    await expect(await page.findByText(`スタッフは${SHOP_STAFF_COUNT_MAX}人まで登録できます`)).toBeInTheDocument();
     expect(page.queryByText("onSubmitが呼ばれました")).not.toBeInTheDocument();
   },
 };

@@ -1,7 +1,7 @@
 import { Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LuSparkles, LuUserPlus } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -153,6 +153,40 @@ export const DashboardContent = ({
   const [dismissedOnboardingStages, setDismissedOnboardingStages] = useState<DashboardOnboardingStage[]>([]);
   const [autoDismissedOnboarding, setAutoDismissedOnboarding] = useState(false);
   const [reviewedRecruitmentIds, setReviewedRecruitmentIds] = useState(readReviewedRecruitmentIds);
+  // Convexの購読更新前に追加・承認を続けても、同じ画面内で枠を二重に使わないための予約数。
+  const [reservedStaffCount, setReservedStaffCount] = useState(0);
+  const staffCountRef = useRef(staffCount);
+  const reservedStaffCountRef = useRef(0);
+
+  useEffect(() => {
+    const queryCountDelta = staffCount - staffCountRef.current;
+    if (queryCountDelta > 0) {
+      const nextReservedStaffCount = Math.max(0, reservedStaffCountRef.current - queryCountDelta);
+      reservedStaffCountRef.current = nextReservedStaffCount;
+      setReservedStaffCount(nextReservedStaffCount);
+    }
+    staffCountRef.current = staffCount;
+  }, [staffCount]);
+
+  const effectiveStaffCount = staffCount + reservedStaffCount;
+  const reserveStaffSlots = (count: number) => {
+    const nextReservedStaffCount = reservedStaffCountRef.current + count;
+    const observedStaffCount = Math.max(staffCountRef.current, staffCount);
+    if (observedStaffCount + nextReservedStaffCount > SHOP_STAFF_COUNT_MAX) {
+      toaster.create({ ...STAFF_COUNT_LIMIT_TOAST, type: "warning" });
+      return false;
+    }
+    reservedStaffCountRef.current = nextReservedStaffCount;
+    setReservedStaffCount(nextReservedStaffCount);
+    return true;
+  };
+
+  const releaseStaffSlots = (count: number) => {
+    const nextReservedStaffCount = Math.max(0, reservedStaffCountRef.current - count);
+    reservedStaffCountRef.current = nextReservedStaffCount;
+    setReservedStaffCount(nextReservedStaffCount);
+  };
+
   const knownRecruitments = sortRecruitmentsByCreatedAt(
     Array.from(
       new Map([...recruitments, ...currentRecruitments].map((recruitment) => [recruitment._id, recruitment])).values(),
@@ -395,6 +429,9 @@ export const DashboardContent = ({
 
   const { run: handleAddStaffs, isRunning: isAddingStaffs } = useSingleFlight(
     async (data: { entries: Array<{ name: string; email: string }> }) => {
+      const addedStaffCount = data.entries.filter((entry) => entry.name !== "").length;
+      if (!reserveStaffSlots(addedStaffCount)) return;
+
       try {
         await addStaffs({ entries: data.entries });
         staffModal.close();
@@ -403,6 +440,7 @@ export const DashboardContent = ({
           description: "同意依頼とLINE連携案内をメールで送りました。募集中シフトがある場合は提出リンクも届きます。",
         });
       } catch (error) {
+        releaseStaffSlots(addedStaffCount);
         showErrorToast(error);
       }
     },
@@ -432,10 +470,8 @@ export const DashboardContent = ({
 
   const { run: handleApproveStaffRequest, isRunning: isApprovingStaffRequest } = useSingleFlight(
     async (request: StaffRegistrationRequest) => {
-      if (staffCount >= SHOP_STAFF_COUNT_MAX) {
-        toaster.create({ ...STAFF_COUNT_LIMIT_TOAST, type: "warning" });
-        return;
-      }
+      if (!reserveStaffSlots(1)) return;
+
       try {
         await approveStaffRequest({ requestId: request._id });
         showSuccessToast({
@@ -443,6 +479,7 @@ export const DashboardContent = ({
           description: "LINE連携案内をメールで送りました。募集中シフトがある場合は提出リンクも届きます。",
         });
       } catch (error) {
+        releaseStaffSlots(1);
         showErrorToast(error);
       }
     },
@@ -752,7 +789,7 @@ export const DashboardContent = ({
             }
           />
         ) : (
-          <AddStaffForm onSubmit={handleAddStaffs} currentStaffCount={staffCount} />
+          <AddStaffForm onSubmit={handleAddStaffs} currentStaffCount={effectiveStaffCount} />
         )}
       </Dialog>
 

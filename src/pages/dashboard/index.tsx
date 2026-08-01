@@ -91,6 +91,7 @@ export function DashboardPage() {
         managerLegalConsentStatus === undefined ||
         pendingStaffRequests === undefined ||
         hasPastRecruitments === undefined ||
+        staffCount === undefined ||
         recruitments.status === "LoadingFirstPage" ||
         staffs.status === "LoadingFirstPage"));
 
@@ -123,7 +124,7 @@ export function DashboardPage() {
           staffStatus={staffs.status}
           canLoadMoreStaffs={canLoadMoreStaffs}
           loadMoreStaffs={handleLoadMoreStaffs}
-          staffCount={staffCount ?? 0}
+          staffCount={staffCount}
           pendingStaffRequests={pendingStaffRequests ?? []}
           notificationFailures={notificationFailures.results}
           announcement={announcement ?? null}

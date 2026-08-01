@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import { seedManagerShop, seedShop, seedShopMembership, seedUser, testAuthTokenIdentifier } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { SHOP_STAFF_COUNT_MAX } from "../constants";
 
 const PAGINATION_FIRST_PAGE = { paginationOpts: { numItems: 10, cursor: null } };
 
@@ -791,6 +792,54 @@ describe("dashboard/queries", () => {
         "isManager",
         "name",
       ]);
+    });
+  });
+
+  describe("getDashboardStaffCount", () => {
+    it("未認証の場合、0を返す", async () => {
+      const t = convexTest(schema, modules);
+      const result = await t.query(api.dashboard.queries.getDashboardStaffCount, {});
+      expect(result).toBe(0);
+    });
+
+    it("店舗未登録の場合、0を返す", async () => {
+      const t = convexTest(schema, modules);
+      const result = await t
+        .withIdentity({ subject: "user_staff_count_no_shop" })
+        .query(api.dashboard.queries.getDashboardStaffCount, {});
+      expect(result).toBe(0);
+    });
+
+    it("論理削除済みスタッフを除外して登録済みスタッフ数を返す", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: "user_staff_count",
+          email: "staff-count@example.com",
+          shopName: "スタッフ数店舗",
+        });
+
+        for (let index = 0; index < SHOP_STAFF_COUNT_MAX + 1; index += 1) {
+          await ctx.db.insert("staffs", {
+            shopId,
+            name: `スタッフ${index + 1}`,
+            email: `staff-${index + 1}@example.com`,
+            isDeleted: false,
+          });
+        }
+        await ctx.db.insert("staffs", {
+          shopId,
+          name: "削除済みスタッフ",
+          email: "deleted-staff-count@example.com",
+          isDeleted: true,
+        });
+      });
+
+      const result = await t
+        .withIdentity({ subject: "user_staff_count" })
+        .query(api.dashboard.queries.getDashboardStaffCount, {});
+
+      expect(result).toBe(SHOP_STAFF_COUNT_MAX + 1);
     });
   });
 
