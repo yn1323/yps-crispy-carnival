@@ -12,7 +12,7 @@ export function ShopOtherSettingsSection({ shop, onRequestDelete }: Props) {
 
   return (
     <Stack as="section" gap={3} aria-labelledby="shop-detail-other-settings-heading">
-      <Text
+      {/*<Text
         id="shop-detail-other-settings-heading"
         as="h2"
         fontSize={{ base: "lg", lg: "xl" }}
@@ -31,7 +31,7 @@ export function ShopOtherSettingsSection({ shop, onRequestDelete }: Props) {
         disabledReason={shop.deleteDisabledReason}
         disabledReasonId={disabledReasonId}
         onDelete={onRequestDelete}
-      />
+      />*/}
     </Stack>
   );
 }
