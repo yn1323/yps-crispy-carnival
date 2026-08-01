@@ -79,6 +79,8 @@ export const STAFF_REGISTRATION_DAILY_DIGEST_PENDING_PAGE_SIZE = 100;
 export const STAFF_REGISTRATION_DAILY_DIGEST_MANAGER_LIMIT = 20;
 export const SHOP_NAME_MAX_LENGTH = 80;
 export const ORGANIZATION_NAME_MAX_LENGTH = 80;
+// 作成時の初期値にだけ使い、編集時は強制しない。
+export const ORGANIZATION_NAME_SUFFIX = "グループ";
 export const PERSON_NAME_MAX_LENGTH = 80;
 export const SHIFT_TYPE_NAME_MAX_LENGTH = 30;
 export const EMAIL_MAX_LENGTH = 254;

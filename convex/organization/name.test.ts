@@ -50,6 +50,32 @@ describe("organization.mutations.updateOrganizationName", () => {
     expect(state.audits[0]?.correlationId).not.toContain(requestId);
   });
 
+  it("初期名のグループ接尾辞は編集時に外せる", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "organization_name_remove_suffix",
+        shopName: "編集対象店舗",
+        plan: "pro",
+      });
+      await ctx.db.patch(base.organizationId, { name: "編集対象店舗グループ" });
+      return base;
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "organization_name_remove_suffix" })
+        .mutation(api.organization.mutations.updateOrganizationName, {
+          shopId: ids.shopId,
+          name: "編集対象店舗",
+          requestId: "organization-name-remove-suffix",
+        }),
+    ).resolves.toEqual({ changed: true });
+
+    const organization = await t.run(async (ctx) => await ctx.db.get(ids.organizationId));
+    expect(organization?.name).toBe("編集対象店舗");
+  });
+
   it("閲覧のみ管理者による変更を拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {

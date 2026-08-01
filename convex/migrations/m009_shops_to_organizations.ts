@@ -1,3 +1,4 @@
+import { ORGANIZATION_NAME_SUFFIX } from "../constants";
 import { migrations } from "./index";
 import {
   recordOrganizationMigrationConflict,
@@ -85,7 +86,7 @@ export const migration = migrations.define({
     const organizationId = await ctx.db.insert("organizations", {
       createdByUserId: creator?._id,
       migrationSourceShopId: shop._id,
-      name: shop.name,
+      name: `${shop.name}${ORGANIZATION_NAME_SUFFIX}`,
       isDeleted: shop.isDeleted,
       createdAt: now,
       updatedAt: now,

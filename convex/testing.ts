@@ -9,7 +9,7 @@ import { isDryRunManagerEmail, isNotificationDeliverySuppressed } from "./_lib/n
 import { normalizeSubmissionPattern, submissionPatternValidator } from "./_lib/submissionPattern";
 import { generateUUID } from "./_lib/uuid";
 import { normalizeEmail } from "./_lib/validation";
-import { LEGAL_CONSENT_TOKEN_TTL_MS, MAGIC_LINK_DEFAULT_TTL_MS } from "./constants";
+import { LEGAL_CONSENT_TOKEN_TTL_MS, MAGIC_LINK_DEFAULT_TTL_MS, ORGANIZATION_NAME_SUFFIX } from "./constants";
 import { getLegalConsentVersions, type LegalAudience } from "./legal/documents";
 import { getStaffLineAccount, upsertStaffLineAccount } from "./line/service";
 import { deriveInvitationToken, digestInvitationToken } from "./organizationInvitation/token";
@@ -871,7 +871,7 @@ async function createManagerScenario(
     ownerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
     ownerName: DEFAULT_MANAGER.name,
     ownerEmail: managerEmail,
-    organizationName: args.organizationName ?? `${args.shopName}グループ`,
+    organizationName: args.organizationName ?? `${args.shopName}${ORGANIZATION_NAME_SUFFIX}`,
     shopName: args.shopName,
   });
   const { organizationId, ownerMemberId, ownerPersonId, shopId, userId } = fixture;

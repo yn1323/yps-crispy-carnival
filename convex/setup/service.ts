@@ -5,7 +5,11 @@ import { getShopActivationReminderAt } from "../_lib/dateFormat";
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { normalizeSubmissionPattern } from "../_lib/submissionPattern";
 import { normalizeEmail } from "../_lib/validation";
-import { ORGANIZATION_LEGACY_SHOP_SCAN_LIMIT, ORGANIZATION_SELF_CREATED_LIMIT } from "../constants";
+import {
+  ORGANIZATION_LEGACY_SHOP_SCAN_LIMIT,
+  ORGANIZATION_NAME_SUFFIX,
+  ORGANIZATION_SELF_CREATED_LIMIT,
+} from "../constants";
 import { recordStaffLegalConsent } from "../legal/service";
 import { recordOrganizationAuditEvent } from "../organization/audit";
 import { ensureDefaultPosition } from "../position/service";
@@ -81,7 +85,6 @@ export type CreateOrganizationWithFirstShopArgs = {
   userId: Id<"users">;
   managerName: string;
   managerEmail: string;
-  organizationName: string;
   shopName: string;
   regularClosedDays: RegularClosedDay[];
   submissionPattern: ShiftSubmissionPattern;
@@ -112,7 +115,7 @@ export async function createOrganizationWithFirstShop(
 
   const organizationId = await ctx.db.insert("organizations", {
     createdByUserId: userId,
-    name: args.organizationName,
+    name: `${args.shopName}${ORGANIZATION_NAME_SUFFIX}`,
     billingEmail: args.managerEmail,
     billingEmailNormalized: managerEmailNormalized,
     isDeleted: false,
