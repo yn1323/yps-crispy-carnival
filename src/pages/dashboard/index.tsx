@@ -43,6 +43,7 @@ export function DashboardPage() {
   const staffs = usePaginatedQuery(api.dashboard.queries.getDashboardStaffs, skipPagination ? "skip" : {}, {
     initialNumItems: STAFF_QUERY_PAGE_SIZE,
   });
+  const staffCount = useQuery(api.dashboard.queries.getDashboardStaffCount, skipPagination ? "skip" : {});
   const pendingStaffRequests = useQuery(
     api.staffRegistration.queries.getPendingRequests,
     shop === undefined || shop === null ? "skip" : {},
@@ -122,6 +123,7 @@ export function DashboardPage() {
           staffStatus={staffs.status}
           canLoadMoreStaffs={canLoadMoreStaffs}
           loadMoreStaffs={handleLoadMoreStaffs}
+          staffCount={staffCount ?? 0}
           pendingStaffRequests={pendingStaffRequests ?? []}
           notificationFailures={notificationFailures.results}
           announcement={announcement ?? null}

@@ -39,6 +39,8 @@ export const PERSON_NAME_MAX_LENGTH = 80;
 export const SHIFT_TYPE_NAME_MAX_LENGTH = 30;
 export const EMAIL_MAX_LENGTH = 254;
 export const STAFF_ADD_ENTRIES_MAX = 50;
+// 1店舗に登録できるスタッフ数の上限。現状はフロント（スタッフ追加・登録申請の承認）でのみ判定する
+export const SHOP_STAFF_COUNT_MAX = 40;
 export const RECRUITMENT_PERIOD_DAYS_MAX = 62;
 export const FEATURE_REQUEST_COMMENT_MAX_LENGTH = 200;
 export const FEATURE_REQUEST_REQUEST_ID_MAX_LENGTH = 64;

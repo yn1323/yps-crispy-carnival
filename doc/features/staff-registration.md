@@ -13,6 +13,9 @@
 - `src/components/features/StaffRegistration/` — 登録フォーム、メールtypo警告、確認表示
 - `src/components/features/Dashboard/StaffRegistrationLinkPanel/` — シフト担当者向けQR/URL表示
 - `src/components/features/Dashboard/StaffRegistrationRequests/` — スタッフ参加申請カード、モーダル、承認/却下リスト
+- `src/components/features/Dashboard/AddStaffForm/` — 手入力追加フォーム（スタッフ数上限の判定を含む）
+- `src/components/features/Dashboard/staffAdditionCopy.ts` — 追加時の案内文と上限到達トーストの文言
+- `convex/constants.ts` — `SHOP_STAFF_COUNT_MAX`（1店舗のスタッフ数上限）
 
 ## 画面一覧
 
@@ -32,6 +35,7 @@
 | `api.staffRegistration.mutations.approveRequest` | mutation | 申請を承認し、正式スタッフ作成・同意コピー・通知予約を行う |
 | `api.staffRegistration.mutations.rejectRequest` | mutation | 申請を却下する |
 | `api.staffRegistration.mutations.ensureShopRegistrationLink` | mutation | 店舗固定の登録リンクを作成/取得 |
+| `api.dashboard.queries.getDashboardStaffCount` | query | 登録済みスタッフ数を取得（スタッフ数上限の判定に使う） |
 | `api.dashboard.mutations.dismissOnboarding` | mutation | ダッシュボードチュートリアル終了をDB保存 |
 | `internal.staffRegistration.actions.sendOwnerDailyDigest` | internalAction | 毎日17:00 JSTに承認待ち申請がある店舗のmanager usersへ通知 |
 | `internal.staffRegistration.notificationQueries.listPendingRequestShopIdsPage` | internalQuery | 3日以内に作成された承認待ち申請がある店舗IDをページング取得 |
@@ -47,3 +51,11 @@
 - 承認待ち申請が残っている店舗には、毎日17:00 JSTに店舗のmanager usersへ短い確認通知を送る。manager userに紐づくstaffがLINE連携済みならLINE、未連携・友達解除・Quota超過時はusers.emailへメールで送る。
 - 通知コスト抑制のため、通知は最新の承認待ち申請から3日間（72時間、`STAFF_REGISTRATION_DIGEST_WINDOW_MS`）だけ送る。日次cronなので最大3回で打ち切られ、4日目以降は承認されていなくても送らない。
 - 承認待ち通知には申請者名・メールアドレス・件数は載せず、ダッシュボードリンクだけを案内する。
+
+## スタッフ数の上限
+
+- 1店舗に登録できるスタッフ数の上限は `SHOP_STAFF_COUNT_MAX`（40人、`convex/constants.ts`）。
+- 判定するのは「手入力追加」と「参加申請の承認」の2箇所。上限に達している場合はトーストを出して処理を中断する（追加フォームでは行追加も送信も止まる）。
+- スタッフ本人の参加申請（`/staff/register`）は上限に関係なく受け付ける。上限で止まるのはシフト担当者の承認側。
+- 現状はフロントのみの判定で、mutation側では強制しない。
+- 課金プランの `maxStaffCount`（`convex/billing/service.ts`）とは別物。プラン別上限は現在も未強制。

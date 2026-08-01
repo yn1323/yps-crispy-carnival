@@ -20,6 +20,8 @@
 
 スタッフ上限は料金設計のメタデータとして定義しているが、課金機能公開前のためまだ強制しない。既存店舗はスタッフ数に関係なくそのまま利用できる。
 
+なお、プランとは別に全店舗共通のスタッフ数上限 `SHOP_STAFF_COUNT_MAX`（40人）をフロントで判定している（`doc/features/staff-registration.md` 参照）。プラン別上限を強制するときは、この定数との関係を整理する。
+
 ## 判定方針
 
 有料機能をConvex側で実装するときは、画面やmutation内で `planKey` を直接判定しない。必ず `convex/billing/service.ts` の `requirePaidFeature(ctx, shopId)` または `getShopEntitlements(ctx, shopId)` を使う。

@@ -2,15 +2,23 @@ import { Box, Field, Flex, Input, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useFieldArray, useForm } from "react-hook-form";
 import { LuPlus, LuX } from "react-icons/lu";
-import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH, STAFF_ADD_ENTRIES_MAX } from "@/convex/constants";
+import {
+  EMAIL_MAX_LENGTH,
+  PERSON_NAME_MAX_LENGTH,
+  SHOP_STAFF_COUNT_MAX,
+  STAFF_ADD_ENTRIES_MAX,
+} from "@/convex/constants";
 import { Button, IconButton } from "@/src/components/ui/Button";
-import { STAFF_ADDITION_EMAIL_NOTICE } from "../staffAdditionCopy";
+import { toaster } from "@/src/components/ui/toaster";
+import { STAFF_ADDITION_EMAIL_NOTICE, STAFF_COUNT_LIMIT_TOAST } from "../staffAdditionCopy";
 import { type AddStaffFormData, addStaffSchema } from "./index";
 
 const EMPTY_ENTRY = { name: "", email: "" } as const;
 
 type Props = {
   onSubmit: (data: AddStaffFormData) => void | Promise<void>;
+  /** 登録済みスタッフ数。これと入力行数の合計が上限を超える場合は追加・送信をさせない */
+  currentStaffCount?: number;
 };
 
 function RemoveButton({ onClick }: { onClick: () => void }) {
@@ -21,7 +29,7 @@ function RemoveButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-export const AddStaffForm = ({ onSubmit }: Props) => {
+export const AddStaffForm = ({ onSubmit, currentStaffCount = 0 }: Props) => {
   const {
     register,
     control,
@@ -35,9 +43,33 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
   const { fields, append, remove } = useFieldArray({ control, name: "entries" });
   const entriesErrorMessage = errors.entries?.root?.message ?? errors.entries?.message;
   const canAppend = fields.length < STAFF_ADD_ENTRIES_MAX;
+  // あと何人追加できるか。上限を超えている店舗は 0 になり、追加も送信もできない
+  const remainingSlots = Math.max(0, SHOP_STAFF_COUNT_MAX - currentStaffCount);
+
+  const notifyStaffCountLimit = () => {
+    toaster.create({ ...STAFF_COUNT_LIMIT_TOAST, type: "warning" });
+  };
+
+  const handleAppend = () => {
+    if (!canAppend) return;
+    if (fields.length >= remainingSlots) {
+      notifyStaffCountLimit();
+      return;
+    }
+    append(EMPTY_ENTRY);
+  };
+
+  const handleValidSubmit = (data: AddStaffFormData) => {
+    const filledCount = data.entries.filter((entry) => entry.name !== "").length;
+    if (filledCount > remainingSlots) {
+      notifyStaffCountLimit();
+      return;
+    }
+    return onSubmit(data);
+  };
 
   return (
-    <form id="add-staff-form" noValidate onSubmit={handleSubmit(onSubmit)}>
+    <form id="add-staff-form" noValidate onSubmit={handleSubmit(handleValidSubmit)}>
       <Stack gap={4}>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
           {STAFF_ADDITION_EMAIL_NOTICE}
@@ -107,9 +139,7 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
           colorPalette="teal"
           alignSelf="flex-start"
           disabled={!canAppend}
-          onClick={() => {
-            if (canAppend) append(EMPTY_ENTRY);
-          }}
+          onClick={handleAppend}
         >
           <LuPlus />
           スタッフをもう1人追加

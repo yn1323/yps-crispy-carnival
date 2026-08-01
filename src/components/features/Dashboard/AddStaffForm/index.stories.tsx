@@ -2,8 +2,10 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { LuUserPlus } from "react-icons/lu";
 import { expect, userEvent, within } from "storybook/test";
+import { SHOP_STAFF_COUNT_MAX } from "@/convex/constants";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
+import { Toaster } from "@/src/components/ui/toaster";
 import { StaffRegistrationLinkPanel } from "../StaffRegistrationLinkPanel";
 import { AddStaffForm } from "./index.tsx";
 
@@ -94,6 +96,50 @@ export const BackToQrFromManual: Story = {
     await userEvent.click(await page.findByRole("button", { name: "戻る" }));
     await expect(await page.findByRole("button", { name: "スタッフ情報を手入力する" })).toBeInTheDocument();
     expect(page.queryByRole("button", { name: "スタッフを追加する" })).not.toBeInTheDocument();
+  },
+};
+
+function StaffCountLimitFixture() {
+  const [isSubmitted, setIsSubmitted] = useState(false);
+
+  return (
+    <Dialog
+      title="スタッフを招待"
+      isOpen={true}
+      onOpenChange={() => {}}
+      formId="add-staff-form"
+      submitLabel="スタッフを追加する"
+      onClose={() => {}}
+      closeLabel="戻る"
+    >
+      <Toaster />
+      {isSubmitted && <p>onSubmitが呼ばれました</p>}
+      <AddStaffForm onSubmit={() => setIsSubmitted(true)} currentStaffCount={SHOP_STAFF_COUNT_MAX} />
+    </Dialog>
+  );
+}
+
+export const StaffCountLimitReached: Story = {
+  parameters: {
+    chromatic: { disableSnapshot: true },
+  },
+  render: () => <StaffCountLimitFixture />,
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(await page.findByRole("button", { name: /スタッフをもう1人追加/ }));
+    await expect(await page.findByText(`スタッフは${SHOP_STAFF_COUNT_MAX}人まで登録できます`)).toBeInTheDocument();
+
+    await userEvent.type(await page.findAllByPlaceholderText("例：田中 花子").then((inputs) => inputs[0]), "田中 花子");
+    await userEvent.type(
+      await page.findAllByPlaceholderText("例：hanako@example.com").then((inputs) => inputs[0]),
+      "hanako@example.com",
+    );
+    await userEvent.click(await page.findByRole("button", { name: "スタッフを追加する" }));
+
+    // 行追加時と送信時でそれぞれトーストが出る
+    await expect(await page.findAllByText(`スタッフは${SHOP_STAFF_COUNT_MAX}人まで登録できます`)).toHaveLength(2);
+    expect(page.queryByText("onSubmitが呼ばれました")).not.toBeInTheDocument();
   },
 };
 

@@ -7,6 +7,7 @@ import {
   DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT,
   DASHBOARD_RECRUITMENT_CANDIDATE_GROUP_LIMIT,
   DASHBOARD_RESPONSE_COUNT_LIMIT,
+  SHIFT_BOARD_STAFF_LIMIT,
 } from "../constants";
 import { getStaffLineAccount } from "../line/service";
 
@@ -305,6 +306,24 @@ export const getDashboardStaffs = authenticatedQuery({
       ...paginatedResult,
       page,
     };
+  },
+});
+
+/**
+ * 登録済み（論理削除されていない）スタッフ数。
+ * スタッフ追加・登録申請の承認で SHOP_STAFF_COUNT_MAX を超えないかを画面側で判定するために使う。
+ */
+export const getDashboardStaffCount = authenticatedQuery({
+  args: {},
+  handler: async (ctx) => {
+    const shop = await getManagerShop(ctx);
+    if (!shop) return 0;
+
+    const staffs = await ctx.db
+      .query("staffs")
+      .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
+      .take(SHIFT_BOARD_STAFF_LIMIT);
+    return staffs.length;
   },
 });
 

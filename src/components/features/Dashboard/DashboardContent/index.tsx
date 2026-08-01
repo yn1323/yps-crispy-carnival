@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { LuSparkles, LuUserPlus } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { SHOP_STAFF_COUNT_MAX } from "@/convex/constants";
 import { ContentWrapper } from "@/src/components/templates/ContentWrapper";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
@@ -31,6 +32,7 @@ import { StaffRegistrationLinkPanel } from "../StaffRegistrationLinkPanel";
 import { StaffRegistrationRequestDialog } from "../StaffRegistrationRequests";
 import { StaffRoster, StaffRosterSkeleton } from "../StaffRoster";
 import { StaffDetailDialog } from "../StaffRoster/StaffDetailDialog";
+import { STAFF_COUNT_LIMIT_TOAST } from "../staffAdditionCopy";
 import {
   buildDashboardRecruitmentGroups,
   type DashboardAnnouncement as DashboardAnnouncementData,
@@ -88,6 +90,8 @@ type Props = {
   staffStatus: PaginationStatus;
   canLoadMoreStaffs: boolean;
   loadMoreStaffs: () => void;
+  /** 登録済みスタッフ数（一覧のページングとは別に全件をカウントした値） */
+  staffCount?: number;
   pendingStaffRequests?: StaffRegistrationRequest[];
   notificationFailures?: DashboardNotificationFailure[];
   isDashboardOnboardingDismissed?: boolean;
@@ -112,6 +116,7 @@ export const DashboardContent = ({
   staffStatus,
   canLoadMoreStaffs,
   loadMoreStaffs,
+  staffCount = 0,
   pendingStaffRequests = [],
   notificationFailures = [],
   isDashboardOnboardingDismissed = false,
@@ -427,6 +432,10 @@ export const DashboardContent = ({
 
   const { run: handleApproveStaffRequest, isRunning: isApprovingStaffRequest } = useSingleFlight(
     async (request: StaffRegistrationRequest) => {
+      if (staffCount >= SHOP_STAFF_COUNT_MAX) {
+        toaster.create({ ...STAFF_COUNT_LIMIT_TOAST, type: "warning" });
+        return;
+      }
       try {
         await approveStaffRequest({ requestId: request._id });
         showSuccessToast({
@@ -743,7 +752,7 @@ export const DashboardContent = ({
             }
           />
         ) : (
-          <AddStaffForm onSubmit={handleAddStaffs} />
+          <AddStaffForm onSubmit={handleAddStaffs} currentStaffCount={staffCount} />
         )}
       </Dialog>
 
