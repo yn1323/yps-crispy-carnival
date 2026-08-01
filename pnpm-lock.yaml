@@ -95,7 +95,7 @@ importers:
         version: 11.14.0(@types/react@19.2.17)(react@19.2.7)(supports-color@10.2.2)
       '@hookform/resolvers':
         specifier: 5.4.0
-        version: 5.4.0(react-hook-form@7.83.0(react@19.2.7))
+        version: 5.4.0(react-hook-form@7.84.0(react@19.2.7))
       '@tanstack/react-router':
         specifier: 1.170.18
         version: 1.170.18(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -130,8 +130,8 @@ importers:
         specifier: 'catalog:'
         version: 19.2.7(react@19.2.7)
       react-hook-form:
-        specifier: 7.83.0
-        version: 7.83.0(react@19.2.7)
+        specifier: 7.84.0
+        version: 7.84.0(react@19.2.7)
       react-icons:
         specifier: 5.7.0
         version: 5.7.0(react@19.2.7)
@@ -5022,8 +5022,8 @@ packages:
     peerDependencies:
       react: ^19.2.7
 
-  react-hook-form@7.83.0:
-    resolution: {integrity: sha512-AXt8cMCmx5a7u4uvpb2uRFVrWQhllI4pV+LSykxIac/hjt44TnQkmX9BKuQi2i+LDC62esmiLpilkav+kjVf/A==}
+  react-hook-form@7.84.0:
+    resolution: {integrity: sha512-+hWvQP6GLco56mDwrbU4XnHix8t1z90ltZsDIrREl+jnQFQxYLX8oAzqe/Xn8nHpmoXTY5M6oEXrAhbP1qevNQ==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^16.8.0 || ^17 || ^18 || ^19
@@ -6927,10 +6927,10 @@ snapshots:
     dependencies:
       type-fest: 4.41.0
 
-  '@hookform/resolvers@5.4.0(react-hook-form@7.83.0(react@19.2.7))':
+  '@hookform/resolvers@5.4.0(react-hook-form@7.84.0(react@19.2.7))':
     dependencies:
       '@standard-schema/utils': 0.3.0
-      react-hook-form: 7.83.0(react@19.2.7)
+      react-hook-form: 7.84.0(react@19.2.7)
 
   '@inquirer/figures@1.0.13': {}
 
@@ -11410,7 +11410,7 @@ snapshots:
       react: 19.2.7
       scheduler: 0.27.0
 
-  react-hook-form@7.83.0(react@19.2.7):
+  react-hook-form@7.84.0(react@19.2.7):
     dependencies:
       react: 19.2.7
 
