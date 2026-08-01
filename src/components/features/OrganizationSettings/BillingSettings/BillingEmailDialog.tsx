@@ -43,7 +43,11 @@ export function BillingEmailDialog({ isOpen, billingEmail, isRunning, onClose, o
       >
         <Stack gap={4}>
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            請求先は通知先です。契約操作の権限は付与されません。変更すると現存する管理者へメールで通知します。
+            請求先は、通知の宛先です。
+            <br />
+            契約操作の権限は付与されません。
+            <br />
+            変更すると、現在の管理者へメールで通知します。
           </Text>
           <Field.Root required>
             <Field.Label>新しい請求先メールアドレス</Field.Label>

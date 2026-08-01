@@ -96,7 +96,7 @@ export const submit = httpAction(async (ctx, request) => {
   if (!parsed.success) {
     return jsonResponse(
       origin,
-      { error: parsed.error.issues[0]?.message ?? "送信内容を確認してください" },
+      { error: parsed.error.issues[0]?.message ?? "送信内容を確認してください。" },
       { status: 400 },
     );
   }
@@ -106,7 +106,7 @@ export const submit = httpAction(async (ctx, request) => {
   if (!turnstileRateLimit.allowed) {
     return jsonResponse(
       origin,
-      { error: "送信回数が多くなっています。少し時間をおいてお試しください" },
+      { error: "送信回数が多くなっています。\n少し時間をおいて、もう一度お試しください。" },
       { status: 429 },
     );
   }
@@ -120,10 +120,14 @@ export const submit = httpAction(async (ctx, request) => {
         allowedOrigins: allowedOrigins(),
       }))
     ) {
-      return jsonResponse(origin, { error: "セキュリティ確認をやり直してください" }, { status: 400 });
+      return jsonResponse(origin, { error: "セキュリティ確認をやり直してください。" }, { status: 400 });
     }
   } catch {
-    return jsonResponse(origin, { error: "セキュリティ確認を完了できませんでした" }, { status: 503 });
+    return jsonResponse(
+      origin,
+      { error: "セキュリティ確認を完了できませんでした。\nもう一度お試しください。" },
+      { status: 503 },
+    );
   }
 
   const emailKey = await hashRateLimitKey(input.email.trim().toLowerCase());
@@ -133,7 +137,7 @@ export const submit = httpAction(async (ctx, request) => {
   if (!rateLimitResult.allowed) {
     return jsonResponse(
       origin,
-      { error: "送信回数が多くなっています。少し時間をおいてお試しください" },
+      { error: "送信回数が多くなっています。\n少し時間をおいて、もう一度お試しください。" },
       { status: 429 },
     );
   }
@@ -149,12 +153,12 @@ export const submit = httpAction(async (ctx, request) => {
     },
   });
   if (delivery.status === "not_configured") {
-    return jsonResponse(origin, { error: "問い合わせを送信できませんでした" }, { status: 503 });
+    return jsonResponse(origin, { error: "問い合わせを送信できませんでした。" }, { status: 503 });
   }
   if (delivery.status === "delivery_failed") {
     return jsonResponse(
       origin,
-      { error: "問い合わせを送信できませんでした。少し時間をおいてお試しください" },
+      { error: "問い合わせを送信できませんでした。\n少し時間をおいて、もう一度お試しください。" },
       { status: 502 },
     );
   }

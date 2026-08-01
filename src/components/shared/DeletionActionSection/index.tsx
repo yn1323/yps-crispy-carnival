@@ -41,7 +41,7 @@ export function DeletionActionSection({
             {title}
           </Heading>
           {description && (
-            <Text id={descriptionId} fontSize="sm" color="fg.muted" lineHeight="tall">
+            <Text id={descriptionId} fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
               {description}
             </Text>
           )}
@@ -61,7 +61,13 @@ export function DeletionActionSection({
             {actionLabel}
           </Button>
           {!canDelete && disabledReason && (
-            <Text id={resolvedDisabledReasonId} fontSize="xs" color="orange.700" textAlign="right">
+            <Text
+              id={resolvedDisabledReasonId}
+              fontSize="xs"
+              color="orange.700"
+              textAlign="right"
+              whiteSpace="pre-line"
+            >
               {disabledReason}
             </Text>
           )}

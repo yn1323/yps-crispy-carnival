@@ -101,7 +101,7 @@ export function StaffManagementView({
               retryActionLabel="スタッフを再追加"
             />
           )}
-          <Text fontSize="sm">入力したメールアドレスは、以前このグループから削除された人物と一致しました。</Text>
+          <Text fontSize="sm">入力したメールアドレスは、以前このグループから削除されたユーザーのものです。</Text>
           <Stack gap={2}>
             {invitation.reactivationConfirmation.candidates.map((candidate) => (
               <Stack key={candidate.personId} gap={0} rounded="md" borderWidth="1px" px={3} py={2}>
@@ -117,7 +117,9 @@ export function StaffManagementView({
             <Alert.Content>
               <Alert.Title>この店舗のスタッフとしてのみ再追加します</Alert.Title>
               <Alert.Description>
-                以前の管理者権限や他店舗への所属は復元しません。必要な権限と店舗所属は、再追加後に個別に設定してください。
+                以前の管理者権限や、ほかの店舗への所属は復元しません。
+                <br />
+                必要な権限と店舗所属は、再追加後に個別に設定してください。
               </Alert.Description>
             </Alert.Content>
           </Alert.Root>

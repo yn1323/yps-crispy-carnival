@@ -27,7 +27,7 @@ export const TourTooltip = ({ index, size, step, tooltipProps }: TooltipRenderPr
     )}
 
     {step.content && (
-      <Text mt={1.5} textStyle="bodySm" color="gray.600" lineHeight="1.75">
+      <Text mt={1.5} textStyle="bodySm" color="gray.600" lineHeight="1.75" whiteSpace="pre-line">
         {step.content}
       </Text>
     )}

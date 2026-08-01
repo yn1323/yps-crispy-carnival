@@ -65,7 +65,7 @@ export function ContactFormView(props: ContactFormViewProps) {
           お問い合わせを受け付けました
         </Text>
         <Text color="fg.muted" fontSize="sm" lineHeight="tall">
-          内容を確認してご連絡します。
+          内容を確認のうえ、ご連絡します。
         </Text>
         <Button asChild colorPalette="teal" minW="160px" mt={2}>
           <RouterLink to="/">TOPに戻る</RouterLink>
@@ -80,7 +80,7 @@ export function ContactFormView(props: ContactFormViewProps) {
         {props.serverError ? (
           <Alert.Root status="error" borderRadius="md">
             <Alert.Indicator />
-            <Alert.Description>{props.serverError}</Alert.Description>
+            <Alert.Description whiteSpace="pre-line">{props.serverError}</Alert.Description>
           </Alert.Root>
         ) : null}
 
@@ -147,7 +147,7 @@ export function ContactFormView(props: ContactFormViewProps) {
           />
           {props.showTroubleGuidance ? (
             <Text color="fg.muted" fontSize="xs" lineHeight="tall">
-              エラーメッセージや直前の操作もご記載いただくと、解決時間が早くなります。
+              エラーメッセージや直前の操作もご記載いただくと、より早く確認できます。
             </Text>
           ) : null}
           <Text alignSelf="flex-end" color="fg.muted" fontSize="xs">

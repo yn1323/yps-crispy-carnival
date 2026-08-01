@@ -13,7 +13,7 @@ export const AuthError = ({ message }: { message?: string }) => {
   return (
     <Alert.Root status="error" borderRadius="lg">
       <Alert.Indicator />
-      <Alert.Description>{message}</Alert.Description>
+      <Alert.Description whiteSpace="pre-line">{message}</Alert.Description>
     </Alert.Root>
   );
 };
@@ -32,7 +32,9 @@ export const OAuthSection = ({ label, isLineBrowser, isSubmitting, onClick }: OA
       <Alert.Root status="warning" borderRadius="lg">
         <Alert.Indicator />
         <Alert.Description>
-          LINEアプリ内ではGoogleログインを利用できません。Googleのボタンを押すと、外部ブラウザでこのページを開き直します。
+          LINEアプリ内では、Googleログインを利用できません。
+          <br />
+          Googleのボタンを押すと、このページを外部ブラウザで開き直します。
         </Alert.Description>
       </Alert.Root>
     )}

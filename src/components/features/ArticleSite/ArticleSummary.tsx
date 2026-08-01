@@ -84,7 +84,7 @@ function ArticleRow({ article, hideOnMobile = false }: { article: ArticleContent
           <Heading as="h3" color="gray.950" fontSize={{ base: "md", md: "lg" }} lineHeight="1.55" letterSpacing="0">
             {article.meta.title}
           </Heading>
-          <Text hideBelow="md" color="gray.700" textStyle="sm" lineHeight="1.7" lineClamp={2}>
+          <Text hideBelow="md" color="gray.700" textStyle="sm" lineHeight="1.7" lineClamp={2} whiteSpace="pre-line">
             {article.meta.description}
           </Text>
           <HStack gap={4} color="gray.500" textStyle="sm" wrap="wrap">
@@ -137,7 +137,7 @@ function SmallArticleCard({ article }: { article: ArticleContent }): ReactNode {
         <Heading as="h3" color="gray.950" fontSize="sm" lineHeight="1.55" letterSpacing="0">
           {article.meta.title}
         </Heading>
-        <Text color="gray.700" textStyle="sm" lineHeight="1.7" lineClamp={{ base: 2, md: 1 }}>
+        <Text color="gray.700" textStyle="sm" lineHeight="1.7" lineClamp={{ base: 2, md: 1 }} whiteSpace="pre-line">
           {article.meta.description}
         </Text>
         <HStack gap={3} color="gray.500" textStyle="sm" wrap="wrap">

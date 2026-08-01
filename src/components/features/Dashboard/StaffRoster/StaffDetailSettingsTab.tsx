@@ -76,8 +76,8 @@ export const StaffDetailSettingsTab = ({
             </Switch.Label>
           </Switch.Root>
         </Flex>
-        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          OFFにするとシフト表から非表示になり、シフト募集、確定通知も来なくなります。
+        <Text fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
+          OFFにするとシフト表に表示されなくなり、シフト募集や確定通知の対象からも外れます。
         </Text>
       </Stack>
 
@@ -204,8 +204,8 @@ const DeleteStaffConfirmation = ({
         </Text>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
           {isOrganizationLinked
-            ? "この店舗の所属と既存のシフト用リンク、LINE連携を終了します。グループのユーザー情報、ほかの店舗所属、管理者権限は変更せず、利用人数にも引き続き含まれます。将来のシフトに割り当てられている場合は削除できません。"
-            : "削除すると元に戻せません。既存のシフト用リンクやLINE連携も使えなくなります。"}
+            ? "将来のシフトに割り当てられている場合は削除できません。\n削除すると、この店舗の所属と既存のシフト用リンク、LINE連携を終了します。\nグループのユーザー情報、ほかの店舗所属、管理者権限は変更せず、利用人数にも引き続き含まれます。"
+            : "削除すると元に戻せません。\n既存のシフト用リンクやLINE連携も使えなくなります。"}
         </Text>
       </Stack>
       <HStack justify="flex-end" gap={2}>

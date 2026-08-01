@@ -31,7 +31,11 @@ export function OrganizationCreationDialog({ dialog, onClose, onSubmit }: Props)
         {/* 一つ目のグループと開始プランが違うため、作る前に見える位置へ置く。 */}
         <Box borderRadius="lg" bg="blue.50" px={4} py={3}>
           <Text fontSize="sm" color="blue.900" lineHeight="tall">
-            新しいグループは無料プランで始まります。ユーザー5名、お店1つ、管理者1名まで使えます。増やす場合は、作成後に「プランと支払い」から変更してください。
+            新しいグループは無料プランで始まります。
+            <br />
+            ユーザー5名、店舗1件、管理者1名まで利用できます。
+            <br />
+            上限を増やす場合は、作成後に「プランと支払い」から変更してください。
           </Text>
         </Box>
         <ShopForm

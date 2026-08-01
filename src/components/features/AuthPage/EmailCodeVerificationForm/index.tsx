@@ -38,12 +38,12 @@ export function EmailCodeVerificationForm({
       <AuthError message={errorMessage} />
       <Alert.Root status="info" borderRadius="lg">
         <Alert.Indicator />
-        <Alert.Description>{description}</Alert.Description>
+        <Alert.Description whiteSpace="pre-line">{description}</Alert.Description>
       </Alert.Root>
       {infoMessage && (
         <Alert.Root status="success" borderRadius="lg">
           <Alert.Indicator />
-          <Alert.Description>{infoMessage}</Alert.Description>
+          <Alert.Description whiteSpace="pre-line">{infoMessage}</Alert.Description>
         </Alert.Root>
       )}
       <Field.Root invalid={!!errors.code}>

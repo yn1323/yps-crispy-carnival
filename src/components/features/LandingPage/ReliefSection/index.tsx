@@ -9,17 +9,17 @@ const reliefItems: Array<{ imageSrc: string; title: string; body: string }> = [
   {
     imageSrc: collectShiftImage,
     title: "LINEで希望シフトを回収",
-    body: "募集開始時に提出リンクをLINE・メールで自動送信。スタッフはアプリを入れずに、スマホから希望を出せます。",
+    body: "募集開始時に、提出リンクをLINE・メールで自動送信します。\nスタッフはアプリを入れずに、スマホから希望シフトを提出できます。",
   },
   {
     imageSrc: autoReminderImage,
     title: "自動リマインド",
-    body: "シフトを出していない人へ自動でお知らせを送ります。「シフトまだ？」と個別に聞いて回る手間が減ります。",
+    body: "希望シフトを提出していないスタッフへ、自動でお知らせを送ります。\n「シフトまだ？」と個別に聞いて回る手間が減ります。",
   },
   {
     imageSrc: shareConfirmedShiftImage,
     title: "確定シフトを自動共有",
-    body: "確定したシフトをLINEやメールで全員へ送ります。「見てなかった」を防げます。",
+    body: "確定したシフトをLINEやメールで全員へ送ります。\n「見てなかった」を防げます。",
   },
 ];
 
@@ -58,7 +58,7 @@ const ReliefCard = ({ imageSrc, title, body }: { imageSrc: string; title: string
       <Text color="gray.950" fontSize="lg" fontWeight="bold" lineHeight="1.55">
         {title}
       </Text>
-      <Text mt={2} color="gray.700" fontSize="sm" lineHeight="1.8" fontWeight="semibold">
+      <Text mt={2} color="gray.700" fontSize="sm" lineHeight="1.8" fontWeight="semibold" whiteSpace="pre-line">
         {body}
       </Text>
     </Box>

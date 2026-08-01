@@ -29,10 +29,10 @@ export function ManagerAssignmentConfirmation({
       ? `${personName}さんへログイン案内を再送しますか？`
       : `${personName}さんを管理者として招待しますか？`;
   const description = isFreeManagerExchange
-    ? `${personName}さんがログインして招待を受け入れると、このグループの唯一の管理者になります。その時点で、あなたのこのグループの管理者権限は終了し、グループ設定と店舗情報へアクセスできなくなります。`
+    ? `${personName}さんがログインして招待を受け入れると、このグループの唯一の管理者になります。\nその時点で、あなたはこのグループの管理者ではなくなり、グループ設定や店舗情報へアクセスできなくなります。`
     : isResend
-      ? `${personEmail}へ新しいログイン案内を送ります。以前のURLは利用できなくなります。`
-      : `${personEmail}へログイン案内を送ります。本人が案内先のメールアドレスでログインし、招待を受け入れると管理者になります。`;
+      ? `${personEmail}へ新しいログイン案内を送ります。\n以前のURLは利用できなくなります。`
+      : `${personEmail}へログイン案内を送ります。\n本人が案内先のメールアドレスでログインし、招待を受け入れると管理者になります。`;
   const confirmLabel = isFreeManagerExchange
     ? isResend
       ? "交代の案内を再送"
@@ -48,12 +48,14 @@ export function ManagerAssignmentConfirmation({
           <Heading as="h4" fontSize="sm" fontWeight="semibold" color="gray.900">
             {heading}
           </Heading>
-          <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+          <Text fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
             {description}
           </Text>
           {isFreeManagerExchange && isResend && (
             <Text fontSize="sm" color="orange.700" lineHeight="tall">
-              {personEmail}へ新しい管理者交代の案内を送ります。以前のURLは利用できなくなります。
+              {personEmail}へ新しい管理者交代の案内を送ります。
+              <br />
+              以前のURLは利用できなくなります。
             </Text>
           )}
           {replacesStaleInvitation && !isResend && (
@@ -63,7 +65,9 @@ export function ManagerAssignmentConfirmation({
           )}
           {isFreeManagerExchange && (
             <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-              交代が完了するまでは、あなたが引き続き管理できます。現在の管理者のスタッフ所属、シフト対象、通知設定は変更されません。
+              交代が完了するまでは、あなたが引き続き管理できます。
+              <br />
+              現在の管理者のスタッフとしての所属、シフト対象の設定、通知設定は変更されません。
             </Text>
           )}
         </Stack>

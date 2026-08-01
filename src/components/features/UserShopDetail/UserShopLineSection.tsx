@@ -39,7 +39,7 @@ export function UserShopLineSection({
           LINE連携
         </Text>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
-          LINE連携設定は店舗ごとに設定をお願いします。
+          LINE連携は店舗ごとに設定してください。
           {!isLineActive && "\nいずれかの方法でスタッフを招待してください。"}
         </Text>
       </Stack>
@@ -57,7 +57,7 @@ export function UserShopLineSection({
             <Text fontWeight="semibold">{lineStatus.label}</Text>
           </HStack>
           {lineStatus.description && (
-            <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+            <Text fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
               {lineStatus.description}
             </Text>
           )}
@@ -83,8 +83,8 @@ export function UserShopLineSection({
                 <Stack gap={3} w="full">
                   <Stack gap={1} fontSize="sm" color="fg.muted" lineHeight="tall">
                     <Text>{data.person.name}さん専用のURL（QRコード）です。</Text>
-                    <Text>スタッフに直接共有してください。</Text>
-                    <Text>ほかのスタッフには教えないようにしてください。</Text>
+                    <Text>スタッフ本人に直接共有してください。</Text>
+                    <Text>ほかのスタッフには共有しないでください。</Text>
                   </Stack>
                   <LineLinkQrDialog authorizeUrl={authorizeUrl} isLoading={isQrLoading} />
                 </Stack>
@@ -105,7 +105,9 @@ export function UserShopLineSection({
               </Button>
               {!hasEmail && (
                 <Text fontSize="xs" color="fg.muted">
-                  メールアドレスがないため、メールでは送れません。リンクを直接共有してください。
+                  メールアドレスが未登録のため、メールでは送れません。
+                  <br />
+                  リンクを直接共有してください。
                 </Text>
               )}
             </LineConnectionMethod>
@@ -136,7 +138,7 @@ function getLineStatus(membership: UserShopDetailMembership) {
   if (!membership.line.isFollowing) {
     return {
       label: "LINE通知を利用できません",
-      description: "LINEアカウントとの連携はありますが、現在は通知を送れません。もう一度連携してください。",
+      description: "LINEアカウントと連携済みですが、現在は通知を送れません。\nもう一度連携してください。",
       isActive: false,
     };
   }

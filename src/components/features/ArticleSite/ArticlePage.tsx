@@ -109,7 +109,14 @@ function ArticleHero({ article }: { article: ArticleContent }): ReactNode {
               >
                 {article.meta.title}
               </Heading>
-              <Text color="gray.700" textStyle="body" lineHeight="1.8" maxW="640px" textWrap="pretty">
+              <Text
+                color="gray.700"
+                textStyle="body"
+                lineHeight="1.8"
+                maxW="640px"
+                textWrap="pretty"
+                whiteSpace="pre-line"
+              >
                 {article.meta.description}
               </Text>
             </VStack>
