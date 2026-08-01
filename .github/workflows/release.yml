@@ -90,3 +90,10 @@ jobs:
           tag_name: ${{ steps.bump.outputs.tag }}
           name: ${{ steps.bump.outputs.tag }}
           generate_release_notes: true
+
+  sync-version-to-develop:
+    if: needs.release.result == 'success'
+    needs: release
+    uses: ./.github/workflows/sync-release-version-to-develop.yml
+    secrets:
+      RELEASE_SYNC_TOKEN: ${{ secrets.RELEASE_SYNC_TOKEN }}

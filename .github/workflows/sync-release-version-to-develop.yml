@@ -1,0 +1,151 @@
+name: Merge Main into Develop
+
+on:
+  workflow_call:
+    secrets:
+      RELEASE_SYNC_TOKEN:
+        required: true
+  workflow_dispatch:
+
+# The write-capable RELEASE_SYNC_TOKEN is passed explicitly to checkout and gh.
+# Keep the default GITHUB_TOKEN read-only so this privileged workflow cannot
+# accidentally create a second write path.
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: sync-release-version-to-develop
+  cancel-in-progress: false
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Validate sync token
+        env:
+          RELEASE_SYNC_TOKEN: ${{ secrets.RELEASE_SYNC_TOKEN }}
+        run: |
+          if [ -z "$RELEASE_SYNC_TOKEN" ]; then
+            echo "::error title=RELEASE_SYNC_TOKEN is not configured::Configure a repository token with contents:write and pull_requests:write so the sync branch can run normal Pull Request checks."
+            exit 1
+          fi
+
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: develop
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ secrets.RELEASE_SYNC_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge main into develop
+        id: sync
+        run: |
+          set -euo pipefail
+
+          SYNC_BRANCH="ci/sync-release-version-to-develop"
+          VERSION_PATTERN='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+
+          git fetch origin main develop --prune
+
+          if git ls-remote --exit-code --heads origin "$SYNC_BRANCH" >/dev/null 2>&1; then
+            git fetch origin "refs/heads/${SYNC_BRANCH}:refs/remotes/origin/${SYNC_BRANCH}"
+          fi
+
+          read_version() {
+            git show "$1:package.json" | node -e '
+              let input = "";
+              process.stdin.on("data", (chunk) => input += chunk);
+              process.stdin.on("end", () => {
+                const packageJson = JSON.parse(input);
+                process.stdout.write(String(packageJson.version ?? ""));
+              });
+            '
+          }
+
+          MAIN_VERSION="$(read_version origin/main)"
+          DEVELOP_VERSION="$(read_version origin/develop)"
+
+          if [[ ! "$MAIN_VERSION" =~ $VERSION_PATTERN ]]; then
+            echo "::error title=Invalid main package version::main package.json must contain a final major.minor.patch version."
+            exit 1
+          fi
+          if [[ ! "$DEVELOP_VERSION" =~ $VERSION_PATTERN ]]; then
+            echo "::error title=Invalid develop package version::develop package.json must contain a final major.minor.patch version."
+            exit 1
+          fi
+
+          {
+            echo "branch=$SYNC_BRANCH"
+            echo "main_version=$MAIN_VERSION"
+            echo "develop_version=$DEVELOP_VERSION"
+          } >> "$GITHUB_OUTPUT"
+
+          if git merge-base --is-ancestor origin/main origin/develop; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "main is already contained in develop."
+            exit 0
+          fi
+
+          if git diff --quiet origin/develop origin/main --; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "main and develop have the same tree."
+            exit 0
+          fi
+
+          git switch -C "$SYNC_BRANCH" origin/develop
+          git merge --no-ff origin/main -m "chore: merge main into develop"
+          git push --force-with-lease origin "$SYNC_BRANCH"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update pull request
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_SYNC_TOKEN }}
+          SYNC_BRANCH: ${{ steps.sync.outputs.branch }}
+          MAIN_VERSION: ${{ steps.sync.outputs.main_version }}
+          DEVELOP_VERSION: ${{ steps.sync.outputs.develop_version }}
+        run: |
+          set -euo pipefail
+
+          TITLE="chore: merge main into develop"
+          BODY="$(cat <<EOF
+          main のリリース後に、main の変更全体を develop に取り込みます。
+          リリースversionの更新に加えて、mainへ先行して入ったhotfixも対象です。
+
+          - develop: ${DEVELOP_VERSION}
+          - main: ${MAIN_VERSION}
+
+          このPRは main から develop への逆マージを対象にします。
+          EOF
+          )"
+
+          PR_NUMBER="$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --head "$SYNC_BRANCH" \
+            --base develop \
+            --state open \
+            --json number \
+            --jq '.[0].number // ""')"
+
+          if [ -n "$PR_NUMBER" ]; then
+            gh pr edit "$PR_NUMBER" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$TITLE" \
+              --body "$BODY"
+          else
+            gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base develop \
+              --head "$SYNC_BRANCH" \
+              --title "$TITLE" \
+              --body "$BODY"
+          fi
