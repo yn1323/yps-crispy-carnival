@@ -68,13 +68,6 @@ commitごとに変わるhash URLではoriginが変わるため、このcache移�
 ただし、rollback先がslash URLで3xxを返す場合は旧308とのloopを再発させるため、そのdeploymentへ戻さない。
 その場合は、公開slash URLを`200`で終端する`_redirects`を維持したforward fixを優先する。
 
-## セキュリティ検証
-
-`.github/workflows/security.yml` は、secret履歴、公開artifact、依存関係、CodeQLをイベント別に検査する。
-検出を一時的に無効化して通すのではなく、検出対象、誤検知の根拠、代替の保証を確認する。
-
-外部Action、permission、credentialを使うjobを変更するときは、`.github/AGENTS.md` の常設制約に従い、差分がその制約を満たすことを確認する。
-
 ## 依存更新のsupply-chainポリシー
 
 pnpm 11は`minimumReleaseAge`の既定値が1440分であり、公開から24時間以内のversionを含むlockfileは`pnpm i --frozen-lockfile`で拒否される。
