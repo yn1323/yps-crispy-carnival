@@ -89,6 +89,7 @@ const currentUserValidator = v.union(
     isNewUser: v.literal(true),
     name: v.string(),
     email: v.string(),
+    // TODO[narrow]: feature visibilityを返すbackendが全deploymentへ反映され、旧client互換期間が終わった後にrequired化する。
     featureVisibility: v.optional(featureVisibilityValidator),
   }),
   v.object({
@@ -96,6 +97,7 @@ const currentUserValidator = v.union(
     name: v.string(),
     email: v.string(),
     dashboardOnboardingDismissedAt: v.optional(v.number()),
+    // TODO[narrow]: feature visibilityを返すbackendが全deploymentへ反映され、旧client互換期間が終わった後にrequired化する。
     featureVisibility: v.optional(featureVisibilityValidator),
   }),
 );
@@ -165,6 +167,8 @@ async function toDashboardRecruitment(
     periodStart: recruitment.periodStart,
     periodEnd: recruitment.periodEnd,
     deadline: recruitment.deadline,
+    // TODO[narrow]: 全deploymentでm040が完走し、
+    // verifyRecruitments.missingShopClosedDatesが0件になった後にfallbackを削除する。
     shopClosedDates: recruitment.shopClosedDates ?? [],
     status: recruitment.status,
     confirmedAt: recruitment.confirmedAt ?? null,
@@ -309,8 +313,11 @@ export const getDashboardShop = managerQuery({
 
     return {
       name: shop.name,
-      regularClosedDays: shop.regularClosedDays,
+      // TODO[narrow]: 全deploymentでm039のshop workerが完走し、
+      // verifyShops.missingRegularClosedDaysが0件になった後にfallbackを削除する。
+      regularClosedDays: shop.regularClosedDays ?? [],
       submissionPattern: shop.submissionPattern,
+      // TODO[narrow]: 全deploymentでm025完走・verifyOrganizationsのbilling state残件0確認後にfallbackを外す。
       // 課金state未作成の移行中orgは、managerMutationの旧導線互換と同じく許可扱いにする。
       canWriteBusinessData: billingPolicy?.canWriteBusinessData ?? true,
       businessWriteBlockReason: billingPolicy?.businessWriteBlockReason ?? null,
@@ -381,6 +388,7 @@ export const getMyShops = authenticatedQuery({
           result.set(shop._id, {
             shopId: shop._id,
             shopName: shop.name,
+            // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
             shopStatus: shop.operatingStatus ?? "active",
             organizationId: organization._id,
             organizationName: organization.name,
@@ -391,9 +399,8 @@ export const getMyShops = authenticatedQuery({
       }
     }
 
-    // TODO[narrow]: develop/prodでm009_shops_to_organizationsと
-    //   m010_shop_members_to_organization_membersが完走していることを
-    //   `pnpm convex:migrate:status`（state: done）で確認後、このlegacyMemberships fallbackを削除する。
+    // TODO[narrow]: 全deploymentでm025/m029が完走し、verifyShops/verifyLegacyShopMembersの
+    //   全pageが0件になった後、このlegacyMemberships fallbackを削除する。
     const legacyMemberships = await ctx.db
       .query("shopMembers")
       .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
@@ -415,6 +422,7 @@ export const getMyShops = authenticatedQuery({
         result.set(shop._id, {
           shopId: shop._id,
           shopName: shop.name,
+          // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
           shopStatus: shop.operatingStatus ?? "active",
           organizationId: null,
           organizationName: null,
@@ -438,6 +446,7 @@ export const getMyShops = authenticatedQuery({
       result.set(shop._id, {
         shopId: shop._id,
         shopName: shop.name,
+        // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
         shopStatus: shop.operatingStatus ?? "active",
         organizationId: organization._id,
         organizationName: organization.name,
@@ -656,6 +665,7 @@ export const getDashboardStaffs = managerQuery({
           isManager,
           isLineLinked: Boolean(lineAccount?.lineUserId),
           isLineFollowing: Boolean(lineAccount?.following),
+          // TODO[narrow]: 全deploymentでm027完走・missingExcludedFromShift=0確認後にfallbackを外す。
           excludedFromShift: s.excludedFromShift ?? false,
           isOrganizationLinked,
           organizationPersonId:

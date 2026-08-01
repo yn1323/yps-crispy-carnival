@@ -5,7 +5,7 @@ import {
   createConvexTestWithMigrations,
   createMigrationHistoryTestWithMigrations,
 } from "../_test/migrations.test-helper";
-import { seedManagerShop, seedOrganizationManagerShop } from "../_test/seed";
+import { seedLegacyManagerShop, seedOrganizationManagerShop } from "../_test/seed";
 
 const migrationArgs = { batchSize: 100, cursor: null, dryRun: false } as const;
 const m021Migration = internal.migrations.m021_organization_billing_complimentary_pro_to_business.migration;
@@ -390,7 +390,7 @@ describe("m021 complimentary Pro to Business migration", () => {
   it("freshなm012が作るcomplimentary.businessをm018とm021の再生後も維持する", async () => {
     const t = createMigrationHistoryTestWithMigrations();
     const seeded = await t.run(async (ctx) =>
-      seedManagerShop(ctx, {
+      seedLegacyManagerShop(ctx, {
         subject: "m021_fresh_series",
         shopName: "m021 fresh series",
       }),

@@ -18,7 +18,10 @@ export async function getOrganizationBillingPolicy(ctx: DbCtx, organizationId: I
   return billingState ? deriveOrganizationBillingPolicy(billingState.state) : null;
 }
 
-/** 通常の店舗業務mutationから呼ぶ。未移行orgは旧導線を止めないが、新機能では別途state必須にする。 */
+/**
+ * 通常の店舗業務mutationから呼ぶ。
+ * TODO[narrow]: 全deploymentでm025完走・verifyOrganizationsのbilling state残件0確認後、state欠損を拒否する。
+ */
 export async function requireOrganizationBusinessWrite(ctx: DbCtx, organizationId: Id<"organizations">) {
   const policy = await getOrganizationBillingPolicy(ctx, organizationId);
   if (!policy) return null;

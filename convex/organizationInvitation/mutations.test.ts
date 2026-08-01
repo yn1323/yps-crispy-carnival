@@ -2015,8 +2015,7 @@ describe("organizationInvitation/mutations", () => {
       freeManagerPersonId: ids.target.personId,
       version: 2,
     });
-    expect(result.legacyMemberships).toHaveLength(1);
-    expect(result.legacyMemberships[0]?.isDeleted).toBe(false);
+    expect(result.legacyMemberships).toEqual([]);
     expect(result.ownerLegacyMemberships).toHaveLength(1);
     expect(result.ownerLegacyMemberships[0]?.isDeleted).toBe(true);
     expect(result.managerNotification).toMatchObject({ status: "cancelled", cancelReason: "recipient_inactive" });

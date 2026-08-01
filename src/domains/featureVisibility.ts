@@ -24,7 +24,10 @@ export const CLOSED_ORGANIZATION_SETTINGS_FEATURES: OrganizationSettingsFeatures
   managerInvitation: false,
 };
 
-/** 旧backendの欠損やpartialな応答は、一部だけ公開せず全機能を閉じる。 */
+/**
+ * 旧backendの欠損やpartialな応答は、一部だけ公開せず全機能を閉じる。
+ * TODO[narrow]: 対応backendの全deployment反映と旧atom互換期間終了後にfallbackを削除する。
+ */
 export function normalizeFeatureVisibility(value: unknown): FeatureVisibility {
   if (
     !isRecord(value) ||
@@ -42,7 +45,10 @@ export function normalizeFeatureVisibility(value: unknown): FeatureVisibility {
   };
 }
 
-/** Widen中の旧getSettingsや不完全な応答は、四機能すべてを非公開として扱う。 */
+/**
+ * Widen中の旧getSettingsや不完全な応答は、四機能すべてを非公開として扱う。
+ * TODO[narrow]: 対応backendの全deployment反映と旧frontend互換期間終了後にfallbackを削除する。
+ */
 export function normalizeOrganizationSettingsFeatures(value: unknown): OrganizationSettingsFeatures {
   if (
     !isRecord(value) ||

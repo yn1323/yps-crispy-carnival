@@ -95,6 +95,7 @@ export const sendReminderEmails = internalAction({
           const result = await enqueueLine(ctx, {
             shopId: data.shopId,
             ...notificationOrigin,
+            purpose: "business",
             recruitmentId,
             staffId: staff.staffId,
             history: {
@@ -125,6 +126,7 @@ export const sendReminderEmails = internalAction({
         const result = await enqueueEmail(ctx, {
           shopId: data.shopId,
           ...notificationOrigin,
+          purpose: "business",
           recruitmentId,
           staffId: staff.staffId,
           history: {
@@ -260,6 +262,7 @@ export const sendReminderEmailForStaff = internalAction({
         await enqueueLine(ctx, {
           shopId: data.shopId,
           ...notificationOrigin,
+          purpose: "business",
           recruitmentId,
           staffId: data.staff.staffId,
           history: {
@@ -288,6 +291,7 @@ export const sendReminderEmailForStaff = internalAction({
       await enqueueEmail(ctx, {
         shopId: data.shopId,
         ...notificationOrigin,
+        purpose: "business",
         recruitmentId,
         staffId: data.staff.staffId,
         history: {

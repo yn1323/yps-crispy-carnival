@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { api, internal } from "../_generated/api";
 import { createConvexTestWithMigrations } from "../_test/migrations.test-helper";
-import { seedManagerShop, seedShopMembership } from "../_test/seed";
+import { seedLegacyManagerShop, seedLegacyShopMembership } from "../_test/seed";
 
 function createOrganizationTest() {
   return createConvexTestWithMigrations();
@@ -18,7 +18,7 @@ describe("organization migrations", () => {
   it("店舗・管理者・スタッフを再実行可能に移行し、旧課金プランは変換しない", async () => {
     const t = createOrganizationTest();
     const { managerStaffId, mismatchedStaffId, samePersonStaffIds, shopId, userId } = await t.run(async (ctx) => {
-      const { shopId, userId } = await seedManagerShop(ctx, {
+      const { shopId, userId } = await seedLegacyManagerShop(ctx, {
         subject: "organization_migration_manager",
         email: "manager@example.com",
         shopName: "移行対象店舗",
@@ -132,7 +132,7 @@ describe("organization migrations", () => {
   it("m009はdangling organizationを修復しても既存店舗状態を保全し、conflictを解消する", async () => {
     const t = createOrganizationTest();
     const seeded = await t.run(async (ctx) => {
-      const manager = await seedManagerShop(ctx, {
+      const manager = await seedLegacyManagerShop(ctx, {
         subject: "organization_shop_conflict_migration",
         shopName: "店舗衝突修復",
       });
@@ -180,7 +180,7 @@ describe("organization migrations", () => {
   it("m009は同じ移行元店舗の事業者が複数ある間は店舗を変更せず、修復後に既存事業者へ紐付ける", async () => {
     const t = createOrganizationTest();
     const seeded = await t.run(async (ctx) => {
-      const manager = await seedManagerShop(ctx, {
+      const manager = await seedLegacyManagerShop(ctx, {
         subject: "organization_duplicate_migration_source",
         shopName: "重複移行元店舗",
       });
@@ -245,7 +245,7 @@ describe("organization migrations", () => {
   it("m009は紐付け済み店舗の再実行でも後発の移行元重複を見逃さず、修復まで店舗状態を保全する", async () => {
     const t = createOrganizationTest();
     const seeded = await t.run(async (ctx) =>
-      seedManagerShop(ctx, {
+      seedLegacyManagerShop(ctx, {
         subject: "organization_linked_duplicate_migration_source",
         shopName: "紐付け後の重複移行元店舗",
       }),
@@ -306,7 +306,7 @@ describe("organization migrations", () => {
   it("m010は曖昧な人物を安全側で止め、修復後もcanonical statusを保全してconflictを解消する", async () => {
     const t = createOrganizationTest();
     const seeded = await t.run(async (ctx) =>
-      seedManagerShop(ctx, {
+      seedLegacyManagerShop(ctx, {
         subject: "organization_member_conflict_migration",
         email: "member-conflict@example.com",
         shopName: "管理者衝突修復",
@@ -374,7 +374,7 @@ describe("organization migrations", () => {
   it("m010はactive旧所属が重複する間は推測統合せず、修復後に一意なcanonical所属へ移行する", async () => {
     const t = createOrganizationTest();
     const seeded = await t.run(async (ctx) =>
-      seedManagerShop(ctx, {
+      seedLegacyManagerShop(ctx, {
         subject: "organization_duplicate_legacy_shop_membership",
         email: "duplicate-legacy-membership@example.com",
         shopName: "旧所属重複識別",
@@ -390,7 +390,7 @@ describe("organization migrations", () => {
         .withIndex("by_userId_and_shopId", (q) => q.eq("userId", seeded.userId).eq("shopId", seeded.shopId))
         .unique();
       if (!originalMembership) throw new Error("shop member not found");
-      const duplicateMembershipId = await seedShopMembership(ctx, {
+      const duplicateMembershipId = await seedLegacyShopMembership(ctx, {
         userId: seeded.userId,
         shopId: seeded.shopId,
       });
@@ -452,7 +452,7 @@ describe("organization migrations", () => {
   it("m010は同一emailの複数人物・別user人物を統合せず、一意な未紐付人物へだけuserIdを付与する", async () => {
     const t = createOrganizationTest();
     const seeded = await t.run(async (ctx) =>
-      seedManagerShop(ctx, {
+      seedLegacyManagerShop(ctx, {
         subject: "organization_member_email_identity",
         email: "manager-email-identity@example.com",
         shopName: "管理者email識別",
@@ -565,7 +565,7 @@ describe("organization migrations", () => {
   it("m010はmember競合を解消するまで未紐付人物へuserIdを部分書込しない", async () => {
     const t = createOrganizationTest();
     const seeded = await t.run(async (ctx) =>
-      seedManagerShop(ctx, {
+      seedLegacyManagerShop(ctx, {
         subject: "organization_member_partial_write",
         email: "member-partial-write@example.com",
         shopName: "管理者部分移行防止",
@@ -671,7 +671,7 @@ describe("organization migrations", () => {
   it("m010は同一事業者・利用者の既存memberが複数ある間は部分移行せず、修復後に既存人物とmemberを再利用する", async () => {
     const t = createOrganizationTest();
     const seeded = await t.run(async (ctx) =>
-      seedManagerShop(ctx, {
+      seedLegacyManagerShop(ctx, {
         subject: "organization_duplicate_user_member",
         email: "duplicate-user-member@example.com",
         shopName: "既存管理者所属再利用",
@@ -767,7 +767,7 @@ describe("organization migrations", () => {
   it("userId一致人物がいても同一emailの別人物が残る間はm010とm011を解決扱いにしない", async () => {
     const t = createOrganizationTest();
     const seeded = await t.run(async (ctx) => {
-      const manager = await seedManagerShop(ctx, {
+      const manager = await seedLegacyManagerShop(ctx, {
         subject: "organization_duplicate_email_identity",
         email: "duplicate-identity@example.com",
         shopName: "重複email識別",
@@ -876,7 +876,7 @@ describe("organization migrations", () => {
   it("canonical lifecycle変更後に全migrationを再実行しても店舗・人物・管理者状態を上書きしない", async () => {
     const t = createOrganizationTest();
     const seeded = await t.run(async (ctx) => {
-      const manager = await seedManagerShop(ctx, {
+      const manager = await seedLegacyManagerShop(ctx, {
         subject: "organization_lifecycle_migration",
         email: "lifecycle-manager@example.com",
         shopName: "ライフサイクル店舗",
@@ -962,7 +962,7 @@ describe("organization migrations", () => {
   it("人物を一意に解決できないstaffは部分移行せず、既存session導線を維持する", async () => {
     const t = createOrganizationTest();
     const seeded = await t.run(async (ctx) => {
-      const { shopId } = await seedManagerShop(ctx, {
+      const { shopId } = await seedLegacyManagerShop(ctx, {
         subject: "organization_staff_conflict_migration",
         email: "migration-owner@example.com",
         shopName: "衝突移行店舗",
@@ -1086,7 +1086,7 @@ describe("organization migrations", () => {
   it("m011は別userの同一email人物とmissing userを結び付けず、修復後だけ明示的に人物を確定する", async () => {
     const t = createOrganizationTest();
     const seeded = await t.run(async (ctx) => {
-      const manager = await seedManagerShop(ctx, {
+      const manager = await seedLegacyManagerShop(ctx, {
         subject: "organization_staff_user_identity",
         email: "staff-user-identity@example.com",
         shopName: "スタッフuser識別",
@@ -1212,7 +1212,7 @@ describe("organization migrations", () => {
   it("衝突原因を修復してcanonical linkを作れた再実行だけresolvedAtを記録する", async () => {
     const t = createOrganizationTest();
     const seeded = await t.run(async (ctx) => {
-      const manager = await seedManagerShop(ctx, {
+      const manager = await seedLegacyManagerShop(ctx, {
         subject: "organization_conflict_resolution_migration",
         shopName: "衝突修復店舗",
       });
@@ -1262,7 +1262,7 @@ describe("organization migrations", () => {
   it("同じ管理者でも異なる既存店舗を同一事業者へ自動統合しない", async () => {
     const t = createOrganizationTest();
     const { firstShopId, secondShopId } = await t.run(async (ctx) => {
-      const { shopId: firstShopId, userId } = await seedManagerShop(ctx, {
+      const { shopId: firstShopId, userId } = await seedLegacyManagerShop(ctx, {
         subject: "organization_multi_shop_migration",
         shopName: "既存店舗A",
       });
@@ -1302,7 +1302,7 @@ describe("m012 complimentary business migration", () => {
   it("削除済みを含む移行元markerがある事業者だけに課金状態と監査を一件作成し、再実行しても重複しない", async () => {
     const t = createOrganizationTest();
     const seeded = await t.run(async (ctx) => {
-      const migrated = await seedManagerShop(ctx, {
+      const migrated = await seedLegacyManagerShop(ctx, {
         subject: "complimentary_business_migration",
         shopName: "無償Business移行店舗",
       });
@@ -1371,7 +1371,7 @@ describe("m012 complimentary business migration", () => {
   it("既存課金状態を上書きせず、修復後はm012所有のconflictだけを解消する", async () => {
     const t = createOrganizationTest();
     const seeded = await t.run(async (ctx) =>
-      seedManagerShop(ctx, {
+      seedLegacyManagerShop(ctx, {
         subject: "complimentary_business_existing_billing",
         shopName: "既存課金状態店舗",
       }),
@@ -1475,7 +1475,7 @@ describe("m012 complimentary business migration", () => {
   it("重複課金状態を任意に採用せず、一件のconflictとして再実行可能に停止する", async () => {
     const t = createOrganizationTest();
     const seeded = await t.run(async (ctx) =>
-      seedManagerShop(ctx, {
+      seedLegacyManagerShop(ctx, {
         subject: "complimentary_business_duplicate_billing",
         shopName: "課金状態重複店舗",
       }),
@@ -1539,15 +1539,15 @@ describe("m012 complimentary business migration", () => {
   it("移行元店舗の欠損・相互リンク不一致・marker重複をcode別conflictにして付与を止める", async () => {
     const t = createOrganizationTest();
     const seeded = await t.run(async (ctx) => {
-      const missing = await seedManagerShop(ctx, {
+      const missing = await seedLegacyManagerShop(ctx, {
         subject: "complimentary_business_missing_source",
         shopName: "移行元欠損店舗",
       });
-      const mismatch = await seedManagerShop(ctx, {
+      const mismatch = await seedLegacyManagerShop(ctx, {
         subject: "complimentary_business_link_mismatch",
         shopName: "相互リンク不一致店舗",
       });
-      const duplicate = await seedManagerShop(ctx, {
+      const duplicate = await seedLegacyManagerShop(ctx, {
         subject: "complimentary_business_duplicate_marker",
         shopName: "移行元marker重複店舗",
       });

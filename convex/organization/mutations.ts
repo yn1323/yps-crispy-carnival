@@ -63,6 +63,7 @@ const WEEKDAY_ORDER = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const
 const SHOP_ADDITION_UNAVAILABLE_MESSAGE = "店舗の追加は現在ご利用いただけません";
 
 function shopStatus(shop: Doc<"shops">) {
+  // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
   return shop.operatingStatus ?? ("active" as const);
 }
 
@@ -124,22 +125,15 @@ function isMatchingShopDeletionAudit(
   );
 }
 
-async function materializeLegacyManagerMemberships(
-  ctx: MutationCtx,
-  args: { organizationId: Id<"organizations">; shopId: Id<"shops"> },
-) {
+async function validateCanonicalManagersForShopAddition(ctx: MutationCtx, organizationId: Id<"organizations">) {
   const [activeMembers, readOnlyMembers] = await Promise.all([
     ctx.db
       .query("organizationMembers")
-      .withIndex("by_organizationId_and_status", (q) =>
-        q.eq("organizationId", args.organizationId).eq("status", "active"),
-      )
+      .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "active"))
       .collect(),
     ctx.db
       .query("organizationMembers")
-      .withIndex("by_organizationId_and_status", (q) =>
-        q.eq("organizationId", args.organizationId).eq("status", "readOnly"),
-      )
+      .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "readOnly"))
       .collect(),
   ]);
   const userIds = new Set<Id<"users">>();
@@ -148,7 +142,7 @@ async function materializeLegacyManagerMemberships(
     const [person, user] = await Promise.all([ctx.db.get(member.personId), ctx.db.get(member.userId)]);
     if (
       !person ||
-      person.organizationId !== args.organizationId ||
+      person.organizationId !== organizationId ||
       person.userId !== member.userId ||
       person.status !== "active" ||
       !user ||
@@ -158,24 +152,6 @@ async function materializeLegacyManagerMemberships(
       throw new ConvexError("管理者所属を確認できません");
     }
     userIds.add(member.userId);
-
-    const legacyMemberships = await ctx.db
-      .query("shopMembers")
-      .withIndex("by_userId_and_shopId", (q) => q.eq("userId", member.userId).eq("shopId", args.shopId))
-      .take(2);
-    if (legacyMemberships.length > 1) throw new ConvexError("店舗所属を一意に確認できません");
-    if (legacyMemberships[0]) {
-      if (legacyMemberships[0].isDeleted) {
-        await ctx.db.patch(legacyMemberships[0]._id, { role: "manager", isDeleted: false });
-      }
-    } else {
-      await ctx.db.insert("shopMembers", {
-        userId: member.userId,
-        shopId: args.shopId,
-        role: "manager",
-        isDeleted: false,
-      });
-    }
   }
 }
 
@@ -286,6 +262,7 @@ export const addShop = authenticatedMutation({
   args: {
     shopId: v.id("shops"),
     shopName: v.string(),
+    // TODO[narrow]: m039の完走と旧frontend互換期間の終了後にrequired化する。
     regularClosedDays: v.optional(
       v.array(
         v.union(
@@ -311,6 +288,7 @@ export const addShop = authenticatedMutation({
     await requireOrganizationBusinessWrite(ctx, actor.organization._id);
     const parsed = updateShopSettingsSchema.safeParse({
       shopName: args.shopName,
+      // TODO[narrow]: m039の完走と旧frontend互換期間の終了後にargsをrequired化し、fallbackを削除する。
       regularClosedDays: args.regularClosedDays ?? [],
       submissionPattern: args.submissionPattern,
     });
@@ -327,6 +305,7 @@ export const addShop = authenticatedMutation({
       organizationId: organization._id,
       additionalActiveShops: 1,
     });
+    await validateCanonicalManagersForShopAddition(ctx, organization._id);
 
     const now = Date.now();
     const shopId = await ctx.db.insert("shops", {
@@ -338,7 +317,6 @@ export const addShop = authenticatedMutation({
       isDeleted: false,
     });
     await ensureDefaultPosition(ctx, shopId);
-    await materializeLegacyManagerMemberships(ctx, { organizationId: organization._id, shopId });
     await recordOrganizationAuditEvent(ctx, {
       organizationId: organization._id,
       actorUserId: actor.member.userId,

@@ -266,6 +266,7 @@ const AdjustStep = ({
         initialShifts={shifts}
         dates={dates}
         timeRange={TIME_RANGE}
+        submissionPattern={SUBMISSION_DATA.submissionPattern}
         initialViewMode="daily"
         isConfirmed={isConfirmed}
         onShiftsChange={onShiftsChange}

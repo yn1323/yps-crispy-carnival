@@ -358,6 +358,7 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
 
   const inserted: Id<"staffs">[] = [];
   for (const entry of staffEntries) {
+    // TODO[narrow]: 全deploymentでm025/m027完走・staff readiness 0確認後、canonical IDsを必須にする。
     const id = await ctx.db.insert("staffs", {
       shopId: ctx.shop._id,
       ...(entry.organizationId && entry.organizationPersonId
@@ -366,6 +367,7 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
       name: entry.name,
       email: entry.email,
       emailNormalized: entry.email,
+      excludedFromShift: false,
       isDeleted: false,
     });
     inserted.push(id);
@@ -549,6 +551,7 @@ export const editStaff = managerMutation({
       throw new ConvexError("このメールアドレスはすでに使用されています。");
     }
 
+    // TODO[narrow]: 全deploymentでm032が完走し、verifyStaffsのemail残件が全pageで0になった後にemail fallbackを削除する。
     const previousEmailNormalized = normalizeEmail(staff.emailNormalized ?? staff.email);
     const emailChanged = trimmedEmail !== previousEmailNormalized;
     const emailChangedAt = Date.now();
@@ -733,6 +736,10 @@ export const setShiftExclusion = managerMutation({
   },
 });
 
+/**
+ * organization link未設定staffだけを扱う旧削除API。
+ * TODO[narrow]: 全deploymentでm027完走・verifyStaffsのlink残件0・旧client配布終了を確認後に削除する。
+ */
 export const deleteStaff = managerMutation({
   args: {
     staffId: v.id("staffs"),

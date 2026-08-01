@@ -355,9 +355,7 @@ describe("既存スタッフの管理者招待シナリオ", () => {
     });
     expect(finalRoleState.staff?.excludedFromShift).not.toBe(true);
     expect(finalRoleState.members).toEqual([expect.objectContaining({ status: "removed", userId: targetUserId })]);
-    expect(finalRoleState.legacyMemberships).toEqual([
-      expect.objectContaining({ isDeleted: true, userId: targetUserId }),
-    ]);
+    expect(finalRoleState.legacyMemberships).toEqual([]);
   });
 });
 

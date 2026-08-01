@@ -6,6 +6,7 @@ import { APP_URL, getOrganizationInvitationSigningSecret } from "./_lib/config";
 import { addDays, getReminderScheduledAt, getSubmitLinkCutoff } from "./_lib/dateFormat";
 import { buildLineAuthorizeUrl } from "./_lib/lineClient";
 import { isDryRunManagerEmail, isNotificationDeliverySuppressed } from "./_lib/notificationDelivery";
+import { loadShopManagerUsers } from "./_lib/shopManagerRecipients";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "./_lib/submissionPattern";
 import { generateUUID } from "./_lib/uuid";
 import { normalizeEmail } from "./_lib/validation";
@@ -137,7 +138,7 @@ function assertE2EHelpersEnabled() {
 }
 
 function notificationContextForProbe(job: Doc<"notificationOutbox">) {
-  // TODO[narrow]: m019のisDone/successとredaction readiness確認後にpayload fallbackを削除する。
+  // TODO[narrow]: 全deploymentでm024が完走し、readinessの3 field欠損が0件になった後にfallbackを削除する。
   if (job.notificationContext) return job.notificationContext;
   if (job.payload.kind !== "line") return job.payload.context;
   return job.payload.fallbackEmail?.payload.context ?? job.dedupeKey.split(":").slice(0, 2).join(":");
@@ -262,18 +263,74 @@ async function findManagerShopByAuthTokenIdentifier(ctx: TestCtx, managerAuthTok
     .first();
   if (!user || user.isDeleted) return null;
 
-  const memberships = await ctx.db
-    .query("shopMembers")
-    .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
-    .order("desc")
-    .take(10);
-
-  for (const membership of memberships) {
-    const shop = await ctx.db.get(membership.shopId);
-    if (shop && !shop.isDeleted) return shop;
-  }
+  const shops = await listManagedShopsForUser(ctx, user);
+  const activeShop = shops.find((shop) => shop.operatingStatus === "active");
+  if (activeShop) return activeShop;
+  if (shops[0]) return shops[0];
 
   return null;
+}
+
+async function listManagedShopsForUser(ctx: TestCtx, user: Doc<"users">) {
+  const result = new Map<Id<"shops">, Doc<"shops">>();
+  for (const status of ["active", "readOnly"] as const) {
+    const memberships = await ctx.db
+      .query("organizationMembers")
+      .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", status))
+      .collect();
+    for (const membership of memberships) {
+      const [person, organization, userMemberships] = await Promise.all([
+        ctx.db.get(membership.personId),
+        ctx.db.get(membership.organizationId),
+        ctx.db
+          .query("organizationMembers")
+          .withIndex("by_userId_and_organizationId", (q) =>
+            q.eq("userId", user._id).eq("organizationId", membership.organizationId),
+          )
+          .take(2),
+      ]);
+      if (
+        userMemberships.length !== 1 ||
+        userMemberships[0]._id !== membership._id ||
+        !person ||
+        person.organizationId !== membership.organizationId ||
+        person.userId !== user._id ||
+        person.status !== "active" ||
+        !organization ||
+        organization.isDeleted
+      ) {
+        continue;
+      }
+      const shops = await ctx.db
+        .query("shops")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", membership.organizationId))
+        .collect();
+      for (const shop of shops) {
+        if (!shop.isDeleted) result.set(shop._id, shop);
+      }
+    }
+  }
+
+  // TODO[narrow]: 全deploymentでm029が完走し、verifyLegacyShopMembersの全pageが0件になった後に削除する。
+  const legacyMemberships = await ctx.db
+    .query("shopMembers")
+    .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
+    .collect();
+  for (const membership of legacyMemberships) {
+    if (result.has(membership.shopId)) continue;
+    const shop = await ctx.db.get(membership.shopId);
+    if (!shop || shop.isDeleted) continue;
+    const organizationId = shop.organizationId;
+    if (organizationId) {
+      const canonicalMemberships = await ctx.db
+        .query("organizationMembers")
+        .withIndex("by_userId_and_organizationId", (q) => q.eq("userId", user._id).eq("organizationId", organizationId))
+        .take(2);
+      if (canonicalMemberships.length > 0) continue;
+    }
+    result.set(shop._id, shop);
+  }
+  return [...result.values()];
 }
 
 function matchesPurpose(status: "open" | "confirmed", purpose: MagicLinkPurpose) {
@@ -990,22 +1047,13 @@ async function createScenarioMember(
   });
 }
 
-async function createScenarioShop(
-  ctx: MutationCtx,
-  args: { organizationId: Id<"organizations">; name: string; managerUserId: Id<"users"> },
-) {
+async function createScenarioShop(ctx: MutationCtx, args: { organizationId: Id<"organizations">; name: string }) {
   const shopId = await ctx.db.insert("shops", {
     organizationId: args.organizationId,
     operatingStatus: "active",
     name: args.name,
     submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     regularClosedDays: [],
-    isDeleted: false,
-  });
-  await ctx.db.insert("shopMembers", {
-    shopId,
-    userId: args.managerUserId,
-    role: "manager",
     isDeleted: false,
   });
   return shopId;
@@ -1086,6 +1134,7 @@ async function createScenarioStaff(
     email: normalizeScenarioEmail(args.email),
     emailNormalized: normalizeScenarioEmail(args.email),
     userId: args.userId,
+    excludedFromShift: false,
     isDeleted: false,
   });
   return { personId, staffId };
@@ -1125,7 +1174,6 @@ async function createCanonicalOrganizationFixture(
   const shopId = await createScenarioShop(ctx, {
     organizationId,
     name: args.shopName,
-    managerUserId: userId,
   });
   await createComplimentaryBusinessEntitlement(ctx, organizationId);
   return { organizationId, ownerMemberId, ownerPersonId, shopId, userId };
@@ -1155,7 +1203,6 @@ export const seedMultiShopOrganizationScenario = internalMutation({
     const secondaryShopId = await createScenarioShop(ctx, {
       organizationId: base.organizationId,
       name: secondaryShopName,
-      managerUserId: base.userId,
     });
     const primaryMarker = await createScenarioStaff(ctx, {
       organizationId: base.organizationId,
@@ -1219,7 +1266,6 @@ export const seedTrialEndingNoticeScenario = internalMutation({
     const secondaryShopId = await createScenarioShop(ctx, {
       organizationId: base.organizationId,
       name: secondaryShopName,
-      managerUserId: base.userId,
     });
 
     // selectedPaidPlanを設定せず、Stripe行も作らない未登録トライアルを再現する。
@@ -1306,7 +1352,7 @@ export const seedOrganizationBillingPlanChangeScenario = internalMutation({
         email: args.managerEmail,
       });
       await createScenarioMember(ctx, { organizationId, personId: ownerPersonId, userId });
-      const shopId = await createScenarioShop(ctx, { organizationId, name: shopName, managerUserId: userId });
+      const shopId = await createScenarioShop(ctx, { organizationId, name: shopName });
       await createScenarioStaff(ctx, {
         organizationId,
         shopId,
@@ -1455,12 +1501,10 @@ export const seedMultiActorOrganizationScenario = internalMutation({
     const primaryShopId = await createScenarioShop(ctx, {
       organizationId: primaryOrganizationId,
       name: primaryShopName,
-      managerUserId: ownerUserId,
     });
     const secondaryShopId = await createScenarioShop(ctx, {
       organizationId: primaryOrganizationId,
       name: secondaryShopName,
-      managerUserId: ownerUserId,
     });
     await createComplimentaryBusinessEntitlement(ctx, primaryOrganizationId);
     const actorBPersonId = await createScenarioPerson(ctx, {
@@ -1475,6 +1519,7 @@ export const seedMultiActorOrganizationScenario = internalMutation({
       name: actorBName,
       email: normalizeScenarioEmail(args.actorBManagerEmail),
       emailNormalized: normalizeScenarioEmail(args.actorBManagerEmail),
+      excludedFromShift: false,
       isDeleted: false,
     });
     let personRemovalRecruitmentId: Id<"recruitments"> | undefined;
@@ -1529,7 +1574,6 @@ export const seedMultiActorOrganizationScenario = internalMutation({
     const alternateShopId = await createScenarioShop(ctx, {
       organizationId: alternateOrganizationId,
       name: alternateShopName,
-      managerUserId: actorBUserId,
     });
     await createComplimentaryBusinessEntitlement(ctx, alternateOrganizationId);
 
@@ -1622,7 +1666,6 @@ export const seedFreeManagerMultiOrganizationScenario = internalMutation({
     const targetShopId = await createScenarioShop(ctx, {
       organizationId: targetOrganizationId,
       name: targetShopName,
-      managerUserId: actorAUserId,
     });
     await createActiveFreeEntitlement(ctx, {
       organizationId: targetOrganizationId,
@@ -1671,7 +1714,6 @@ export const seedFreeManagerMultiOrganizationScenario = internalMutation({
     const alternateShopId = await createScenarioShop(ctx, {
       organizationId: alternateOrganizationId,
       name: alternateShopName,
-      managerUserId: actorAUserId,
     });
     await createActiveFreeEntitlement(ctx, {
       organizationId: alternateOrganizationId,
@@ -1728,6 +1770,38 @@ export const resetMultiActorOrganizationScenarioData = internalMutation({
   },
 });
 
+async function createCanonicalStaffRecord(
+  ctx: MutationCtx,
+  args: {
+    shopId: Id<"shops">;
+    name: string;
+    email: string;
+    userId?: Id<"users">;
+  },
+) {
+  const shop = await ctx.db.get(args.shopId);
+  if (!shop?.organizationId) {
+    throw new Error("E2E staff fixture requires a canonical organization shop");
+  }
+  const personId = await createScenarioPerson(ctx, {
+    organizationId: shop.organizationId,
+    name: args.name,
+    email: args.email,
+    userId: args.userId,
+  });
+  return await ctx.db.insert("staffs", {
+    shopId: args.shopId,
+    organizationId: shop.organizationId,
+    organizationPersonId: personId,
+    name: args.name,
+    email: args.email,
+    emailNormalized: args.email.trim().toLowerCase(),
+    userId: args.userId,
+    excludedFromShift: false,
+    isDeleted: false,
+  });
+}
+
 async function createStaff(
   ctx: MutationCtx,
   args: {
@@ -1739,13 +1813,7 @@ async function createStaff(
     legalConsentState?: LegalConsentState;
   },
 ) {
-  const staffId = await ctx.db.insert("staffs", {
-    shopId: args.shopId,
-    name: args.name,
-    email: args.email,
-    emailNormalized: args.email.trim().toLowerCase(),
-    isDeleted: false,
-  });
+  const staffId = await createCanonicalStaffRecord(ctx, args);
   if (args.lineUserId) {
     await upsertStaffLineAccount(ctx, {
       staffId,
@@ -1761,6 +1829,18 @@ async function createStaff(
     staffId,
   });
   return staffId;
+}
+
+async function createStandaloneScenarioShop(ctx: MutationCtx, shopName: string) {
+  const fixtureKey = generateUUID();
+  const ownerEmail = `e2e-${fixtureKey}@shiftori.invalid`;
+  return await createCanonicalOrganizationFixture(ctx, {
+    ownerAuthTokenIdentifier: `https://convex.e2e|standalone_${fixtureKey}`,
+    ownerName: "E2E管理者",
+    ownerEmail,
+    organizationName: `${shopName}${ORGANIZATION_NAME_SUFFIX}`,
+    shopName,
+  });
 }
 
 async function setStaffLineDeliveryState(
@@ -1843,6 +1923,8 @@ async function createFailedRecruitmentNotification(
   },
 ) {
   const now = Date.now();
+  const shop = await ctx.db.get(args.shopId);
+  if (!shop?.organizationId) throw new Error("Failed notification fixture requires a canonical shop");
   const dedupeKey = `email:recruitment:${args.recruitmentId}:${args.staffId}:e2e-failed`;
   const notificationContext = "notification.sendRecruitmentNotificationEmails";
   const outboxId = await ctx.db.insert("notificationOutbox", {
@@ -1850,6 +1932,8 @@ async function createFailedRecruitmentNotification(
     status: "failed",
     dedupeKey,
     shopId: args.shopId,
+    organizationId: shop.organizationId,
+    purpose: "business",
     recruitmentId: args.recruitmentId,
     staffId: args.staffId,
     notificationContext,
@@ -2037,11 +2121,10 @@ export const seedPaginationTestData = internalMutation({
 
     // スタッフ12人を追加
     for (let i = 1; i <= 12; i++) {
-      await ctx.db.insert("staffs", {
+      await createCanonicalStaffRecord(ctx, {
         shopId: shop._id,
         name: `スタッフ${String(i).padStart(2, "0")}`,
         email: `staff${i}@example.com`,
-        isDeleted: false,
       });
     }
 
@@ -2206,11 +2289,10 @@ export const seedRealisticStaffRequests = internalMutation({
     let submissionsInserted = 0;
 
     for (const p of patterns) {
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await createCanonicalStaffRecord(ctx, {
         shopId: shop._id,
         name: p.name,
         email: p.email,
-        isDeleted: false,
       });
       staffInserted++;
 
@@ -2270,23 +2352,13 @@ export const seedSubmitTestData = internalMutation({
     const periodEnd = "2037-04-13";
     const deadline = args.deadlinePassed ? "2026-01-01" : "2037-04-06";
 
-    const shopId = await ctx.db.insert("shops", {
-      name: "テスト居酒屋さくら",
-      submissionPattern,
-      regularClosedDays: [],
-      isDeleted: false,
-    });
-    const staffId = await ctx.db.insert("staffs", {
+    const { shopId } = await createStandaloneScenarioShop(ctx, "テスト居酒屋さくら");
+    await ctx.db.patch(shopId, { submissionPattern });
+    const staffId = await createStaff(ctx, {
       shopId,
       name: "田中太郎",
       email: "tanaka@example.com",
-      isDeleted: false,
-    });
-    await seedLegalConsentState(ctx, {
-      audience: "staff",
-      state: args.legalConsentState,
-      shopId,
-      staffId,
+      legalConsentState: args.legalConsentState,
     });
     const recruitmentId = await ctx.db.insert("recruitments", {
       shopId,
@@ -2406,12 +2478,10 @@ export const seedStaffRegistrationReviewScenario = internalMutation({
     });
 
     if (args.existingStaff) {
-      await ctx.db.insert("staffs", {
+      await createCanonicalStaffRecord(ctx, {
         shopId,
         name: args.existingStaff.name,
         email: args.existingStaff.email,
-        emailNormalized: args.existingStaff.email.trim().toLowerCase(),
-        isDeleted: false,
       });
     }
 
@@ -2501,12 +2571,7 @@ export const seedLegalStaffConsentPageScenario = internalMutation({
   },
   handler: async (ctx, args) => {
     assertE2EHelpersEnabled();
-    const shopId = await ctx.db.insert("shops", {
-      name: "法務同意テスト店舗",
-      submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-      regularClosedDays: [],
-      isDeleted: false,
-    });
+    const { shopId } = await createStandaloneScenarioShop(ctx, "法務同意テスト店舗");
     const staffId = await createStaff(ctx, {
       shopId,
       name: "佐藤花子",
@@ -2532,12 +2597,7 @@ export const seedLegalStaffSubmitScenario = internalMutation({
   },
   handler: async (ctx, args) => {
     assertE2EHelpersEnabled();
-    const shopId = await ctx.db.insert("shops", {
-      name: "法務同意テスト店舗",
-      submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-      regularClosedDays: [],
-      isDeleted: false,
-    });
+    const { shopId } = await createStandaloneScenarioShop(ctx, "法務同意テスト店舗");
     const staffId = await createStaff(ctx, {
       shopId,
       name: "佐藤花子",
@@ -2969,7 +3029,7 @@ export const getNotificationProbe = internalQuery({
         status: job.status,
         notificationContext: notificationContextForProbe(job),
         attemptCount: job.attemptCount,
-        // TODO[narrow]: m019のisDone/successとredaction readiness確認後にpayload fallbackを削除する。
+        // TODO[narrow]: 全deploymentでm024が完走し、readinessの3 field欠損が0件になった後にfallbackを削除する。
         deliverySuppressed: isNotificationDeliverySuppressed({
           suppressDelivery: job.deliverySuppressed ?? job.payload.suppressDelivery,
         }),
@@ -3057,7 +3117,7 @@ export const getOrganizationNotificationProbe = internalQuery({
           // 将来dedupe構成へ宛先が混ざってもprobeからPIIが漏れないよう、同一性だけを返す。
           dedupeKey: `sha256:${await digestInvitationToken(job.dedupeKey)}`,
           attemptCount: job.attemptCount,
-          // TODO[narrow]: m019のisDone/successとredaction readiness確認後にpayload fallbackを削除する。
+          // TODO[narrow]: 全deploymentでm024が完走し、readinessの3 field欠損が0件になった後にfallbackを削除する。
           deliverySuppressed: isNotificationDeliverySuppressed({
             suppressDelivery: job.deliverySuppressed ?? job.payload.suppressDelivery,
           }),
@@ -3142,14 +3202,9 @@ export const getE2EBackendAudit = internalQuery({
     const e2eShopIds = new Set<Id<"shops">>();
     const e2eOrganizationIds = new Set<Id<"organizations">>();
     for (const user of e2eUsers) {
-      const memberships = await ctx.db
-        .query("shopMembers")
-        .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
-        .collect();
-      for (const membership of memberships) {
-        const shop = await ctx.db.get(membership.shopId);
-        if (!shop || shop.isDeleted) continue;
-        e2eShopIds.add(membership.shopId);
+      const shops = await listManagedShopsForUser(ctx, user);
+      for (const shop of shops) {
+        e2eShopIds.add(shop._id);
         if (shop.organizationId) e2eOrganizationIds.add(shop.organizationId);
         managerEmailsWithShop.add((user.emailNormalized ?? user.email).trim().toLowerCase());
       }
@@ -3255,15 +3310,14 @@ export const getE2EShopSafetyState = internalQuery({
     const shop = await ctx.db.get(shopId);
     if (!shop || shop.isDeleted) return { notificationDeliverySuppressed: false };
 
-    const memberships = await ctx.db
-      .query("shopMembers")
-      .withIndex("by_shopId_and_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
-      .take(10);
-    const managerMembership = memberships.find((membership) => membership.role === "manager");
-    const manager = managerMembership ? await ctx.db.get(managerMembership.userId) : null;
+    const managers = await loadShopManagerUsers(ctx, shopId, 10);
+    const allManagersAreDryRun =
+      !managers.candidateLimitExceeded &&
+      managers.users.length > 0 &&
+      managers.users.every((manager) => isDryRunManagerEmail(manager.email));
 
     return {
-      notificationDeliverySuppressed: isNotificationDeliverySuppressed() || isDryRunManagerEmail(manager?.email),
+      notificationDeliverySuppressed: isNotificationDeliverySuppressed() || allManagersAreDryRun,
     };
   },
 });

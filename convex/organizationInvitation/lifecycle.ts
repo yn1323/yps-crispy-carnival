@@ -4,8 +4,8 @@ import type { DataModel, Doc, Id } from "../_generated/dataModel";
 export type OrganizationInvitationLifecycleStatus = "issued" | "linked" | "revoked" | "expired";
 
 /**
- * TODO[narrow]: Remove the legacy pending/accepted fallbacks after m015 has
- * completed in every deployment and no old application version is running.
+ * TODO[narrow]: Remove the legacy pending/accepted fallbacks after m023 has
+ * completed in every deployment, readiness is zero, and no old application version is running.
  */
 export function getOrganizationInvitationLifecycleStatus(
   invitation: Pick<Doc<"organizationInvitations">, "status">,
@@ -26,14 +26,14 @@ export function isOrganizationInvitationLinked(invitation: Pick<Doc<"organizatio
 export function getOrganizationInvitationLinkedAt(
   invitation: Pick<Doc<"organizationInvitations">, "linkedAt" | "acceptedAt">,
 ) {
-  // TODO[narrow]: Remove acceptedAt after m015 verification and Narrow.
+  // TODO[narrow]: Remove acceptedAt after m023 verification and Narrow.
   return invitation.linkedAt ?? invitation.acceptedAt;
 }
 
 export function getOrganizationInvitationLinkedByPersonId(
   invitation: Pick<Doc<"organizationInvitations">, "linkedByPersonId" | "acceptedByPersonId">,
 ) {
-  // TODO[narrow]: Remove acceptedByPersonId after m015 verification and Narrow.
+  // TODO[narrow]: Remove acceptedByPersonId after m023 verification and Narrow.
   return invitation.linkedByPersonId ?? invitation.acceptedByPersonId;
 }
 

@@ -53,7 +53,8 @@ export const ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT = 500;
 export const ORGANIZATION_SELF_CREATED_LIMIT = 3;
 // グループ作成の日次上限。同時保持数は上記で決まるため、ここでは作り直しの回数だけを抑える。
 export const ORGANIZATION_CREATE_DAILY_LIMIT = 10;
-// TODO[narrow]: m009_shops_to_organizationsの完走後、グループ未所属の旧店舗の走査ごと削除する。
+// TODO[narrow]: 全deploymentでm025〜m029が完走し、verifyShops/verifyLegacyShopMembersの全pageが0件になった後、
+//   グループ未所属の旧店舗の走査ごと削除する。
 //   グループ作成上限を数えるとき、移行前の店舗を1グループとして扱うための走査上限。
 export const ORGANIZATION_LEGACY_SHOP_SCAN_LIMIT = 50;
 export const SHIFT_BOARD_SHIFT_REQUEST_LIMIT = 2000;

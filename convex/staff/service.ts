@@ -33,6 +33,8 @@ export async function findActiveStaffByEmail(
     .first();
   if (byNormalized) return byNormalized;
 
+  // TODO[narrow]: 全deploymentでm032が完走し、verifyStaffsのemail残件が全pageで0になった後、
+  //   email indexと全staff走査による旧emailNormalized fallbackを削除する。
   const byExactEmail = await ctx.db
     .query("staffs")
     .withIndex("by_shopId_email_isDeleted", (q) =>

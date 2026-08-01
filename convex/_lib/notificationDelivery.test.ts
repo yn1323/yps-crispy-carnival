@@ -1,7 +1,13 @@
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
-import { seedManagerShop, seedShopMembership, seedUser } from "../_test/seed";
+import {
+  seedLegacyShopMembership,
+  seedManagerShop,
+  seedOrganizationManagerShop,
+  seedOrganizationMembership,
+  seedUser,
+} from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { NOTIFICATION_DRY_RUN_MANAGER_SCAN_LIMIT } from "../constants";
 import { isDryRunManagerEmail, isNotificationDeliverySuppressed } from "./notificationDelivery";
@@ -76,7 +82,7 @@ describe("isNotificationDeliverySuppressedForShop", () => {
     vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "example.com,test2");
     const t = convexTest(schema, modules);
     const shopId = await t.run(async (ctx) => {
-      const seeded = await seedManagerShop(ctx, {
+      const seeded = await seedOrganizationManagerShop(ctx, {
         subject: "manager_1",
         email: "manager@example.com",
         shopName: "Shop",
@@ -93,7 +99,7 @@ describe("isNotificationDeliverySuppressedForShop", () => {
     vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "e2e-user-1@test.com,test2");
     const t = convexTest(schema, modules);
     const shopId = await t.run(async (ctx) => {
-      const seeded = await seedManagerShop(ctx, {
+      const seeded = await seedOrganizationManagerShop(ctx, {
         subject: "manager_2",
         email: "manager@example.com",
         shopName: "Shop",
@@ -122,7 +128,7 @@ describe("isNotificationDeliverySuppressedForShop", () => {
           `manager_mixed_secondary_${order}`,
           order === "allowlisted-first" ? "owner@real.example" : "preview@test.example",
         );
-        await seedShopMembership(ctx, { userId: secondUserId, shopId: seeded.shopId });
+        await seedOrganizationMembership(ctx, { userId: secondUserId, shopId: seeded.shopId });
         return seeded.shopId;
       });
 
@@ -141,7 +147,25 @@ describe("isNotificationDeliverySuppressedForShop", () => {
         email: "preview-1@test.example",
       });
       const secondUserId = await seedUser(ctx, "manager_all_allowlisted_secondary", "preview-2@test.example");
-      await seedShopMembership(ctx, { userId: secondUserId, shopId: seeded.shopId });
+      await seedOrganizationMembership(ctx, { userId: secondUserId, shopId: seeded.shopId });
+      return seeded.shopId;
+    });
+
+    await expect(
+      t.query(internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop, { shopId }),
+    ).resolves.toBe(true);
+  });
+
+  it("m010処理途中はcanonical所属がない旧managerだけを通知判定へ補う", async () => {
+    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "@test.example");
+    const t = convexTest(schema, modules);
+    const shopId = await t.run(async (ctx) => {
+      const seeded = await seedManagerShop(ctx, {
+        subject: "manager_partial_primary",
+        email: "preview-primary@test.example",
+      });
+      const legacyUserId = await seedUser(ctx, "manager_partial_legacy", "preview-legacy@test.example");
+      await seedLegacyShopMembership(ctx, { userId: legacyUserId, shopId: seeded.shopId });
       return seeded.shopId;
     });
 
@@ -160,7 +184,7 @@ describe("isNotificationDeliverySuppressedForShop", () => {
       });
       for (let index = 1; index <= NOTIFICATION_DRY_RUN_MANAGER_SCAN_LIMIT; index += 1) {
         const userId = await seedUser(ctx, `manager_overflow_${index}`, `preview-${index}@test.example`);
-        await seedShopMembership(ctx, { userId, shopId: seeded.shopId });
+        await seedOrganizationMembership(ctx, { userId, shopId: seeded.shopId });
       }
       return seeded.shopId;
     });
@@ -179,7 +203,7 @@ describe("isNotificationDeliverySuppressedForShop", () => {
         email: "preview@test.example",
       });
       const removedUserId = await seedUser(ctx, "manager_removed_secondary", "owner@real.example");
-      await seedShopMembership(ctx, { userId: removedUserId, shopId: seeded.shopId, isDeleted: true });
+      await seedOrganizationMembership(ctx, { userId: removedUserId, shopId: seeded.shopId, isDeleted: true });
       return seeded.shopId;
     });
 
@@ -197,6 +221,25 @@ describe("isNotificationDeliverySuppressedForShop", () => {
         email: "preview@test.example",
         membershipDeleted: true,
       });
+      return seeded.shopId;
+    });
+
+    await expect(
+      t.query(internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop, { shopId }),
+    ).resolves.toBe(false);
+  });
+
+  it("canonical所属がremovedならactiveな旧所属が残っていてもdry-run managerとして復活させない", async () => {
+    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "@test.example");
+    const t = convexTest(schema, modules);
+    const shopId = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "manager_canonical_removed",
+        email: "preview@test.example",
+        shopName: "Canonical removed manager",
+      });
+      await ctx.db.patch(seeded.memberId, { status: "removed", updatedAt: Date.now() });
+      await seedLegacyShopMembership(ctx, { userId: seeded.userId, shopId: seeded.shopId });
       return seeded.shopId;
     });
 

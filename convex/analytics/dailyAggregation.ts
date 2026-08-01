@@ -12,6 +12,7 @@ import {
 } from "../constants";
 import { describeNotificationFailureContext } from "../notificationOutbox/failureResend";
 import { notificationContextForJob, notificationDeliverySuppressedForJob } from "../notificationOutbox/mutations";
+import { resolveOrganizationBillingPlans } from "../organizationBilling/policy";
 import { ANALYTICS_METRICS, allNotificationEventMetrics, notificationMetric } from "./metrics";
 import { setDailyEventCount, setServiceSnapshot, setShopSnapshot } from "./mutations";
 import { classifyShopStage, type ShopStage, type ShopStageInputs } from "./stage";
@@ -161,10 +162,12 @@ async function computeSubmissionTimingKpis(
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitment._id))
       .take(SHIFT_BOARD_STAFF_LIMIT);
     const visibleSubmissions = submissions.filter((submission) => {
+      // TODO[narrow]: 全deploymentでm033が完走し、verifyShiftSubmissionsの全pageが0になった後にfallbackを削除する。
       const firstSubmittedAt = submission.firstSubmittedAt ?? submission.submittedAt;
       return firstSubmittedAt <= snapshotAt;
     });
     const firstSubmittedAtValues = visibleSubmissions.map(
+      // TODO[narrow]: 全deploymentでm033が完走し、verifyShiftSubmissionsの全pageが0になった後にfallbackを削除する。
       (submission) => submission.firstSubmittedAt ?? submission.submittedAt,
     );
     if (firstSubmittedAtValues.length > 0) {
@@ -185,6 +188,7 @@ async function computeSubmissionTimingKpis(
       if (stats && stats.activeStaffCountSnapshot > 0) {
         postReminderExpectedStaff += stats.activeStaffCountSnapshot;
         postReminderSubmittedRows += visibleSubmissions.filter((submission) => {
+          // TODO[narrow]: 全deploymentでm033が完走し、verifyShiftSubmissionsの全pageが0になった後にfallbackを削除する。
           const firstSubmittedAt = submission.firstSubmittedAt ?? submission.submittedAt;
           return firstSubmittedAt > lastReminderSentAt;
         }).length;
@@ -217,10 +221,19 @@ async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">, s
     (account) => staffIds.has(account.staffId) && account.linkedAt <= snapshot.snapshotAt,
   );
 
-  const billingState = await ctx.db
+  // TODO[narrow]: 全deploymentでm025/m028完走・billing readiness 0・canonical分析切替を確認後、
+  //   shopBillingStatesのdual-readと下流のlegacy/free fallbackを削除する。旧rowの物理削除は別gateで行う。
+  const legacyBillingState = await ctx.db
     .query("shopBillingStates")
     .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
     .first();
+  const organizationId = shop.organizationId;
+  const organizationBillingState = organizationId
+    ? await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+        .unique()
+    : null;
 
   const allRecruitments = await ctx.db
     .query("recruitments")
@@ -414,7 +427,9 @@ async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">, s
   return {
     shopName: shop.name,
     shopCreatedAt: shop._creationTime,
-    planKey: billingState?.planKey ?? ("free" as const),
+    planKey: organizationBillingState
+      ? analyticsPlanKeyForOrganizationBillingState(organizationBillingState.state)
+      : (legacyBillingState?.planKey ?? ("free" as const)),
     staffCount: staffs.length,
     shiftTargetStaffCount: stageInputs.realStaffCount,
     lineLinkedStaffCount: linkedAccounts.length,
@@ -473,6 +488,15 @@ async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">, s
     ...(lastRecruitmentConfirmedAt === null ? {} : { lastRecruitmentConfirmedAt }),
     ...(lastConfirmedRecruitmentLeadTimeMs === null ? {} : { lastConfirmedRecruitmentLeadTimeMs }),
   };
+}
+
+function analyticsPlanKeyForOrganizationBillingState(
+  state: Doc<"organizationBillingStates">["state"],
+): "free" | "standard" | "premium" {
+  const plan = resolveOrganizationBillingPlans(state).targetingPlan;
+  if (plan === "business") return "premium";
+  if (plan === "trial" || plan === "pro") return "standard";
+  return "free";
 }
 
 // ========================================

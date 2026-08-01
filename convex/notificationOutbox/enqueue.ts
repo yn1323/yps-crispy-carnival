@@ -47,12 +47,12 @@ export async function enqueueLine(
   ctx: EnqueueCtx,
   input:
     | (EnqueueNotificationInput<Extract<NotificationLinePayload, { kind: "line" }>> & {
-        purpose?: "business";
+        purpose: "business";
         organizationInvitationId?: never;
         organizationInvitationVersion?: never;
       })
     | (EnqueueNotificationInput<NotificationOrganizationManagerInvitationLinePayload> & {
-        purpose?: "business";
+        purpose: "business";
         organizationInvitationId: Id<"organizationInvitations">;
         organizationInvitationVersion: number;
       }),
@@ -73,7 +73,7 @@ async function enqueueNotification(ctx: EnqueueCtx, input: EnqueueNotificationIn
       ...(input.organizationInvitationVersion !== undefined
         ? { organizationInvitationVersion: input.organizationInvitationVersion }
         : {}),
-      ...(input.purpose ? { purpose: input.purpose } : {}),
+      purpose: input.purpose,
       ...(input.recruitmentId ? { recruitmentId: input.recruitmentId } : {}),
       ...(input.staffId ? { staffId: input.staffId } : {}),
       ...(input.history ? { history: input.history } : {}),

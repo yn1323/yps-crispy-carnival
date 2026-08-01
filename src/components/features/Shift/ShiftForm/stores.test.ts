@@ -1,6 +1,7 @@
 import { createStore } from "jotai/vanilla";
 import { describe, expect, it } from "vitest";
 import type { PositionType, ShiftData, StaffType } from "@/src/domains/shift/types";
+import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
 import {
   clearShiftDraftPositionsAtom,
   deleteShiftPositionAtom,
@@ -26,6 +27,7 @@ function createShiftStore() {
     timeRange: { start: 9, end: 18, unit: 30 },
     holidays: [],
     isReadOnly: false,
+    submissionPattern: DEFAULT_TIME_PATTERN,
     displayMode: "request",
   });
   return store;

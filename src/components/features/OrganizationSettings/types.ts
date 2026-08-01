@@ -10,6 +10,7 @@ export type OrganizationPersonView = {
   email: string | null;
   managerRole: "active" | "readOnly" | "none";
   isStaff: boolean;
+  // TODO[narrow]: 対応queryの全deployment反映と旧frontendのdrain後にrequired化する。
   isLineConnected?: boolean;
   hasManagerInvitation?: boolean;
   shopNames: string[];
@@ -22,11 +23,9 @@ export type OrganizationPersonView = {
 
 export type ManagerInvitationStatus =
   | "pending"
-  | "issued"
   | "expired"
   | "revoked"
   | "accepted"
-  | "linked"
   | "sendFailed"
   | "limitReached"
   | "conflict";
@@ -63,13 +62,14 @@ export type BillingDisplayState =
   | "grace"
   | "restricted"
   | "scheduledChange"
-  // Widen中の旧DTOを表示し続けるための互換値。新runtimeはscheduledChangeを返す。
+  // TODO[narrow]: billing viewの全deployment反映と旧DTO callerのdrain後に削除する。
   | "scheduledFree"
   | "migrationPending";
 
 export type BillingUsageView = {
   current: number;
   max: number;
+  // TODO[narrow]: billing viewの全deployment反映と旧frontendのdrain後にrequired化する。
   pendingInvitations?: number;
 };
 
@@ -108,6 +108,7 @@ export type OrganizationBillingView = {
   hasStripeCustomer: boolean;
   targetPlan?: BillingProductPlan;
   limitPlan?: "free" | "pro";
+  // TODO[narrow]: billing viewの全deployment反映と旧frontendのdrain後にrequired化する。
   requiredReductions?: BillingRequiredReductions;
   peopleUsage: BillingUsageView;
   shopUsage: BillingUsageView;
@@ -192,4 +193,7 @@ export type OrganizationSettingsData = Omit<
   | "focusedPersonId"
   | "onVisibleUserCountChange"
   | "features"
-> & { features?: OrganizationSettingsFeatures };
+> & {
+  // TODO[narrow]: 対応backendの全deployment反映と旧frontend互換期間終了後にrequired化する。
+  features?: OrganizationSettingsFeatures;
+};

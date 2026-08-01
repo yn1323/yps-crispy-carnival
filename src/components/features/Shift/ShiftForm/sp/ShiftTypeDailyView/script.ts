@@ -96,13 +96,13 @@ export const buildSPShiftTypeDailyViewModel = ({
   staffs,
   isConfirmedDisplay,
 }: {
-  submissionPattern: ShiftSubmissionPattern | undefined;
+  submissionPattern: ShiftSubmissionPattern;
   shifts: ShiftData[];
   staffs: StaffType[];
   isConfirmedDisplay: boolean;
 }): SPShiftTypeDailyViewModel => {
   const options =
-    submissionPattern?.kind === "shiftType"
+    submissionPattern.kind === "shiftType"
       ? [...submissionPattern.options].sort((a, b) => a.sortOrder - b.sortOrder)
       : [];
   const countsByOptionId = countShiftTypeAssignments(

@@ -815,6 +815,7 @@ export const selectTrialPro = internalMutation({
     organizationId: v.id("organizations"),
     expectedVersion: v.number(),
     correlationId: v.string(),
+    // TODO[narrow]: planを送らない旧checkout actionと予約済みcallerがdrainした後にrequired化する。
     plan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
   },
   returns: transitionResultValidator,
@@ -832,6 +833,7 @@ export const selectTrialPro = internalMutation({
       .query("organizationAuditEvents")
       .withIndex("by_correlationId", (q) => q.eq("correlationId", args.correlationId))
       .first();
+    // TODO[narrow]: 旧caller drainとtrialSetupCheckout targetPlan欠損0確認後にPro fallbackを削除する。
     const selectedPaidPlan = args.plan ?? "pro";
     if (existingAudit || billingState.state.selectedPaidPlan === selectedPaidPlan) {
       return { changed: false, stateKind: "trial" };

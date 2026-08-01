@@ -62,6 +62,7 @@ export const updateShopSettings = managerMutation({
 });
 
 // 個別保存時に、別項目の最新値を古いフォーム値で巻き戻さないため、選択項目だけを更新する。
+// TODO[narrow]: 旧client配布終了を確認後、未参照の個別保存APIとvalidatorを削除する。
 export const updateShopSetting = managerMutation({
   // managerMutation全体の旧クライアント互換fallbackは、新規APIでは許可しない。
   args: { shopId: v.id("shops"), change: updateShopSettingValidator },
@@ -92,7 +93,10 @@ export const updateShopSetting = managerMutation({
   },
 });
 
-/** legacy organizationId未設定店舗を論理削除し、永続cleanup jobへ接続する。 */
+/**
+ * legacy organizationId未設定店舗を論理削除し、永続cleanup jobへ接続する。
+ * TODO[narrow]: 全deploymentでm025完走・verifyShopsの組織link残件0・旧client配布終了を確認後に削除する。
+ */
 export const deleteShop = managerMutation({
   args: { confirmShopId: v.id("shops") },
   returns: v.null(),
@@ -111,7 +115,11 @@ export const deleteShop = managerMutation({
   },
 });
 
-/** 旧scheduled function名を維持し、未完了処理を永続jobへ引き継ぐ互換delegate。 */
+/**
+ * 旧scheduled function名を維持し、未完了処理を永続jobへ引き継ぐ互換delegate。
+ * TODO[narrow]: 全deploymentで旧functionのscheduler残件0とcleanup jobの収束を確認し、
+ * 旧deploymentのdrain期間が終わった後にphase validatorと共に削除する。
+ */
 export const cleanupDeletedShop = internalMutation({
   args: {
     shopId: v.id("shops"),
@@ -132,7 +140,11 @@ export const cleanupDeletedShop = internalMutation({
   },
 });
 
-/** processing Outbox用の旧scheduled functionも同じ永続jobへ引き継ぐ。 */
+/**
+ * processing Outbox用の旧scheduled functionも同じ永続jobへ引き継ぐ。
+ * TODO[narrow]: 全deploymentで旧functionのscheduler残件0とcleanup jobの収束を確認し、
+ * 旧deploymentのdrain期間が終わった後に削除する。
+ */
 export const cleanupDeletedShopProcessingOutbox = internalMutation({
   args: { shopId: v.id("shops") },
   returns: v.null(),

@@ -3,7 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import dayjs from "dayjs";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
-import type { RegularClosedDay, ShiftSubmissionPattern } from "@/convex/shop/schemas";
+import type { RegularClosedDay } from "@/convex/shop/schemas";
 import { formatDateWithWeekday } from "@/src/domains/shift/date";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { CreateRecruitmentFormView } from "./CreateRecruitmentFormView";
@@ -27,7 +27,6 @@ export type { CreateRecruitmentData } from "./script";
 type Props = {
   defaultValues?: CreateRecruitmentData;
   regularClosedDays?: RegularClosedDay[];
-  submissionPattern?: ShiftSubmissionPattern;
   displayMode?: "full" | "periodOnly";
   onSubmit: (data: CreateRecruitmentData) => void | Promise<void>;
   onCancel?: () => void;

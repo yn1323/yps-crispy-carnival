@@ -259,7 +259,8 @@ async function enqueueLineFallback(
       ...(job.organizationBillingVersionAtEnqueue !== undefined
         ? { organizationBillingVersionAtOrigin: job.organizationBillingVersionAtEnqueue }
         : {}),
-      ...(job.purpose ? { purpose: job.purpose } : {}),
+      // TODO[narrow]: 全deploymentでm024完走・missingPurpose=0確認後はjob.purposeを直接渡す。
+      purpose: job.purpose ?? "business",
       ...(job.recruitmentId ? { recruitmentId: job.recruitmentId } : {}),
       ...(job.staffId ? { staffId: job.staffId } : {}),
       ...(job.fanoutOperationId ? { fanoutOperationId: job.fanoutOperationId } : {}),

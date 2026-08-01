@@ -6,7 +6,7 @@ import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { addDays, todayJST } from "../_lib/dateFormat";
-import { seedOrganizationManagerShop, seedShopMembership, seedStaffLineAccount, seedUser } from "../_test/seed";
+import { seedLegacyShopMembership, seedOrganizationManagerShop, seedStaffLineAccount, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 const NOW = new Date("2026-07-16T00:00:00.000Z").getTime();
@@ -69,7 +69,7 @@ async function seedTargetPerson(
         isDeleted: false,
       }),
     );
-    if (args.manager) await seedShopMembership(ctx, { shopId, userId });
+    if (args.manager) await seedLegacyShopMembership(ctx, { shopId, userId });
   }
   return { email, memberId, personId, staffIds, userId };
 }
@@ -442,7 +442,7 @@ describe("organization person removal", () => {
         subject: "org_remove_other_actor",
         plan: "pro",
       });
-      const otherOrganizationMembershipId = await seedShopMembership(ctx, {
+      const otherOrganizationMembershipId = await seedLegacyShopMembership(ctx, {
         shopId: otherOrganization.shopId,
         userId: target.userId,
       });

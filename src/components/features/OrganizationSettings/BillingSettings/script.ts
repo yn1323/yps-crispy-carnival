@@ -127,11 +127,6 @@ export function formatPlanPrice(price: BillingPlanPrice): { amount: string; inte
   };
 }
 
-// 既存importを壊さず、名称だけ汎用化する。
-export const formatProPrice = formatPlanPrice;
-export type ProPrice = BillingPlanPrice;
-export type ProPriceState = BillingPlanPriceState;
-
 export function formatCurrencyAmount(currencyValue: string, amountInMinorUnit: number): string {
   const currency = currencyValue.toUpperCase();
   const formatter = new Intl.NumberFormat("ja-JP", {

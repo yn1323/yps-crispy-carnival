@@ -2,7 +2,13 @@ import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { seedManagerShop, seedOrganizationManagerShop, seedShop, seedShopMembership, seedUser } from "../_test/seed";
+import {
+  seedLegacyShopMembership,
+  seedManagerShop,
+  seedOrganizationManagerShop,
+  seedShop,
+  seedUser,
+} from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH, STAFF_REGISTRATION_PENDING_LIMIT } from "../constants";
 
@@ -492,10 +498,10 @@ describe("staffRegistration/mutations", () => {
       const userId = await seedUser(ctx, "manager_deleted_first", "manager-deleted-first@example.com");
       const deletedShopId = await seedShop(ctx, "削除済み店舗");
       await ctx.db.patch(deletedShopId, { isDeleted: true });
-      await seedShopMembership(ctx, { userId, shopId: deletedShopId });
+      await seedLegacyShopMembership(ctx, { userId, shopId: deletedShopId });
 
       const activeShopId = await seedShop(ctx, "残っている店舗");
-      await seedShopMembership(ctx, { userId, shopId: activeShopId });
+      await seedLegacyShopMembership(ctx, { userId, shopId: activeShopId });
       await ctx.db.insert("staffRegistrationRequests", {
         shopId: activeShopId,
         name: "承認待ちスタッフ",

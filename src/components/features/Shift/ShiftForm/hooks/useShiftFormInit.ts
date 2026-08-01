@@ -38,7 +38,7 @@ type UseShiftFormInitParams = {
   currentStaffId?: string;
   allShifts?: ShiftData[];
   requiredStaffing?: RequiredStaffingData[];
-  submissionPattern?: ShiftSubmissionPattern;
+  submissionPattern: ShiftSubmissionPattern;
   displayMode?: "request" | "confirmed";
   defaultToToday?: boolean;
   initialViewMode?: ViewMode;
@@ -87,7 +87,7 @@ export const useShiftFormInit = ({
     setSelectedDate(initialDate);
     if (initialDate && staffs.length > 0) {
       const shiftByStaffId = indexShiftsByStaffId(initialShifts.filter((shift) => shift.date === initialDate));
-      const mode = submissionPattern?.kind === "dateOnly" ? "dateOnly" : (submissionPattern?.kind ?? "time");
+      const mode = submissionPattern.kind === "dateOnly" ? "dateOnly" : submissionPattern.kind;
       const staffIds = sortDailyStaffs({
         staffs,
         shiftByStaffId,

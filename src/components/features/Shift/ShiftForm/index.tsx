@@ -45,7 +45,7 @@ type ShiftFormProps = {
   currentStaffId?: string;
   allShifts?: ShiftData[];
   requiredStaffing?: RequiredStaffingData[];
-  submissionPattern?: ShiftSubmissionPattern;
+  submissionPattern: ShiftSubmissionPattern;
   displayMode?: "request" | "confirmed";
   defaultToToday?: boolean;
   initialViewMode?: ViewMode;
@@ -131,8 +131,8 @@ const ShiftFormInner = ({
     onViewModeChangeRef.current?.(viewMode);
   }, [viewMode]);
   const unsubmittedNames = useMemo(() => staffs.filter((s) => !s.isSubmitted).map((s) => s.name), [staffs]);
-  const isShiftTypePattern = submissionPattern?.kind === "shiftType";
-  const isDateOnlyPattern = submissionPattern?.kind === "dateOnly";
+  const isShiftTypePattern = submissionPattern.kind === "shiftType";
+  const isDateOnlyPattern = submissionPattern.kind === "dateOnly";
 
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const displayIssues = useMemo(() => toDisplayIssues(validationIssues ?? [], staffs), [validationIssues, staffs]);

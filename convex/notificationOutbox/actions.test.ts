@@ -2,7 +2,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import { resetResendEmailQueueForTest } from "../_lib/resend";
-import { seedManagerShop, seedStaffLineAccount } from "../_test/seed";
+import { seedLegacyManagerShop, seedManagerShop, seedStaffLineAccount } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import {
   NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
@@ -1581,11 +1581,13 @@ async function setupOrganizationEmailJob(removedTarget: "person" | "member") {
 async function setupStaleEmailJob(target: "staff" | "organizationPerson" | "legacyUser") {
   const t = convexTest(schema, modules);
   const outboxId = await t.run(async (ctx) => {
-    const seeded = await seedManagerShop(ctx, {
+    const seedArgs = {
       subject: `stale_email_${target}`,
       email: "old-recipient@example.com",
       shopName: "宛先変更確認店舗",
-    });
+    };
+    const seeded =
+      target === "legacyUser" ? await seedLegacyManagerShop(ctx, seedArgs) : await seedManagerShop(ctx, seedArgs);
     const now = Date.now();
     if (target === "staff") {
       const staffId = await ctx.db.insert("staffs", {

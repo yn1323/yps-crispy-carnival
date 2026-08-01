@@ -129,6 +129,7 @@ export const submitShiftRequests = staffSessionMutation({
   args: {
     recruitmentId: v.id("recruitments"),
     acceptedLegal: v.optional(v.boolean()),
+    // TODO[narrow]: 新submission形式のfrontendが全deploymentへ反映され、旧clientがdrainした後に削除する。
     requests: v.optional(
       v.array(
         v.object({
@@ -138,6 +139,7 @@ export const submitShiftRequests = staffSessionMutation({
         }),
       ),
     ),
+    // TODO[narrow]: 旧requests callerのdrain確認後にrequired化し、time形式への変換fallbackと同時に削除する。
     submission: v.optional(shiftSubmissionInputValidator),
   },
   returns: v.null(),
@@ -180,6 +182,7 @@ export const submitShiftRequests = staffSessionMutation({
     }
 
     const pattern = recruitment.submissionPattern;
+    // TODO[narrow]: 旧frontendのrequests callerが0になった後はargs.submissionを直接検証する。
     const rawSubmission = args.submission ?? { kind: "time", requests: args.requests ?? [] };
     const parsed = submitShiftSelectionSchema.safeParse(rawSubmission);
     if (!parsed.success) {

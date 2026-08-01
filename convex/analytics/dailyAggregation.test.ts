@@ -4,7 +4,7 @@ import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { jstDayRangeMs } from "../_lib/dateFormat";
-import { seedShop } from "../_test/seed";
+import { seedOrganizationManagerShop, seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { ANALYTICS_AGGREGATION_PAGE_SIZE } from "../constants";
 import { ANALYTICS_METRICS, notificationMetric } from "./metrics";
@@ -1017,5 +1017,33 @@ describe("analytics/dailyAggregation", () => {
     expect(await getEventCount(t, TARGET_DATE, ANALYTICS_METRICS.lineLinked)).toMatchObject({ count: 1 });
     expect(await getEventCount(t, TARGET_DATE, ANALYTICS_METRICS.registrationApproved)).toMatchObject({ count: 1 });
     expect(await getEventCount(t, TARGET_DATE, ANALYTICS_METRICS.registrationRejected)).toMatchObject({ count: 1 });
+  });
+
+  it("canonicalなグループ課金状態を旧店舗課金rowより優先してplan区分へ変換する", async () => {
+    const t = setup();
+    const shopId = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "analytics_canonical_billing",
+        complimentary: true,
+      });
+      await ctx.db.insert("shopBillingStates", {
+        shopId: seeded.shopId,
+        planKey: "standard",
+        source: "manual",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      return seeded.shopId;
+    });
+
+    await runDailyAggregation(t, TARGET_DATE);
+
+    const snapshot = await t.run(async (ctx) =>
+      ctx.db
+        .query("analyticsDailyShopSnapshots")
+        .withIndex("by_date_shopId", (q) => q.eq("date", TARGET_DATE).eq("shopId", shopId))
+        .unique(),
+    );
+    expect(snapshot?.planKey).toBe("premium");
   });
 });

@@ -236,7 +236,7 @@ export const StaffDetailDialog = ({
                 managerInvitationState={staff.managerInvitationState}
                 isManagerInvitationConfirmationOpen={activePendingAction === "managerInvitation"}
                 isInvitingManager={isInvitingManager}
-                isOrganizationLinked={staff.isOrganizationLinked ?? false}
+                isOrganizationLinked={staff.isOrganizationLinked}
                 isDeleteConfirmationOpen={activePendingAction === "delete"}
                 isDeleting={isDeleting}
                 onChangeShiftTarget={(nextIsShiftTarget) => onChangeShiftTarget(staff, nextIsShiftTarget)}

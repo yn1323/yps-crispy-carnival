@@ -27,16 +27,16 @@ export type AssignmentWarningPattern =
 export type AssignmentWarningInput = {
   shifts: ShiftData[];
   staffs: Array<{ id: string; isSubmitted: boolean }>;
-  pattern?: AssignmentWarningPattern;
+  pattern: AssignmentWarningPattern;
 };
 
 // 各セル（スタッフ×日付）の「割当」と「希望」を比べ、食い違いを1セルあたり最大1件で収集する。
 // NOT_SUBMITTED / OFF_REQUEST / 枠外・区分外 は提出状況と希望有無で自然に排他になる。
 export function computeAssignmentWarnings(input: AssignmentWarningInput): AssignmentWarning[] {
   const isSubmittedById = new Map(input.staffs.map((staff) => [staff.id, staff.isSubmitted]));
-  const kind = input.pattern?.kind ?? "time";
+  const kind = input.pattern.kind;
   const optionNameById = new Map(
-    input.pattern?.kind === "shiftType" ? input.pattern.options.map((option) => [option.id, option.name]) : [],
+    input.pattern.kind === "shiftType" ? input.pattern.options.map((option) => [option.id, option.name]) : [],
   );
 
   const warnings: AssignmentWarning[] = [];

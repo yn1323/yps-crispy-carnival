@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { seedManagerShop, seedShopMembership, seedStaffLineAccount, seedUser } from "../_test/seed";
+import { seedLegacyShopMembership, seedManagerShop, seedStaffLineAccount, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 async function insertRecruitment(
@@ -48,7 +48,7 @@ describe("shiftConfirmationReminder/queries", () => {
         });
 
         const secondUserId = await seedUser(ctx, "reminder_email", "owner-email@example.com");
-        await seedShopMembership(ctx, { shopId: seeded.shopId, userId: secondUserId });
+        await seedLegacyShopMembership(ctx, { shopId: seeded.shopId, userId: secondUserId });
 
         return await insertRecruitment(ctx, { shopId: seeded.shopId, status: "open" });
       });

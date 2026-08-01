@@ -51,9 +51,8 @@ export const setupShopAndManager = authenticatedMutation({
         throw new ConvexError("自分で作成できるグループは1つまでです。");
       }
 
-      // TODO[narrow]: develop/prodでm009_shops_to_organizationsと
-      //   m010_shop_members_to_organization_membersが完走していることを
-      //   `pnpm convex:migrate:status`（state: done）で確認後、このlegacy shopMembers guardを削除する。
+      // TODO[narrow]: 全deploymentでm025/m029が完走し、verifyShops/verifyLegacyShopMembersの
+      //   全pageが0件になった後、このlegacy shopMembers guardを削除する。
       //   事業者へ招待された所属は自分で作成した事業者ではないため、org付き店舗はここで拒否しない。
       const legacyMemberships = ctx.db
         .query("shopMembers")
@@ -117,6 +116,7 @@ export const setupShopAndManager = authenticatedMutation({
 export const createOrganization = authenticatedMutation({
   args: {
     shopName: v.string(),
+    // TODO[narrow]: m039の完走と旧frontend互換期間の終了後にrequired化する。
     regularClosedDays: v.optional(
       v.array(
         v.union(
@@ -159,6 +159,7 @@ export const createOrganization = authenticatedMutation({
 
     const parsed = updateShopSettingsSchema.safeParse({
       shopName: args.shopName,
+      // TODO[narrow]: m039の完走と旧frontend互換期間の終了後にargsをrequired化し、fallbackを削除する。
       regularClosedDays: args.regularClosedDays ?? [],
       submissionPattern: args.submissionPattern,
     });

@@ -307,12 +307,14 @@ export const approveRequest = managerMutation({
       staffEmailNormalized = materialized.email;
     }
 
+    // TODO[narrow]: 全deploymentでm025/m027完走・staff readiness 0確認後、canonical IDsを必須にする。
     const staffId = await ctx.db.insert("staffs", {
       shopId: ctx.shop._id,
       ...(organizationId && organizationPersonId ? { organizationId, organizationPersonId } : {}),
       name: staffName,
       email: staffEmail,
       emailNormalized: staffEmailNormalized,
+      excludedFromShift: false,
       isDeleted: false,
     });
 

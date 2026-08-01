@@ -253,7 +253,7 @@ describe("スタッフ通知履歴シナリオ", () => {
       return { shopId, staffId };
     });
 
-    await asManager.deleteStaff(ids.staffId);
+    await asManager.removePersonFromShop(ids.staffId);
     const hiddenPage = await listHistory(t, ids);
     expect(hiddenPage.page).toEqual([]);
 

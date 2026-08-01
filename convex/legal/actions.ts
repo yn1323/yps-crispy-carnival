@@ -40,6 +40,7 @@ export const sendStaffConsentEmail = internalAction({
     await enqueueEmail(ctx, {
       shopId: data.shopId,
       ...notificationOrigin,
+      purpose: "business",
       staffId: data.staffId,
       history: {
         notificationKind: LEGAL_CONSENT_NOTIFICATION_KIND,
@@ -116,6 +117,7 @@ export const sendStaffConsentLine = internalAction({
       await enqueueLine(ctx, {
         shopId: data.shopId,
         ...notificationOrigin,
+        purpose: "business",
         staffId: data.staffId,
         history: {
           notificationKind: LEGAL_CONSENT_NOTIFICATION_KIND,

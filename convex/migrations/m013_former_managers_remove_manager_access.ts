@@ -54,7 +54,7 @@ async function m012GateIsComplete(
   billingState: Doc<"organizationBillingStates">,
 ) {
   if (!organization.migrationSourceShopId) return true;
-  // TODO[narrow]: The `business` variant remains readable until m018 has completed everywhere.
+  // 移行元グループは、m012/m022が作るcanonicalなcomplimentary状態を確認できる場合だけ処理する。
   if (billingState.state.kind !== "complimentary") return false;
   const unresolved = await ctx.db
     .query("organizationMigrationConflicts")

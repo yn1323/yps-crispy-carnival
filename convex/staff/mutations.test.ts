@@ -16,6 +16,7 @@ import {
   STAFF_NOTIFICATION_RESEND_SCOPE_TARGET_SHORT_LIMIT,
 } from "../constants";
 import { getLegalConsentVersions } from "../legal/documents";
+import { ORGANIZATION_PLAN_LIMITS } from "../organizationBilling/policy";
 
 function dateFromToday(daysFromNow: number): string {
   const d = new Date(Date.now() + 9 * 60 * 60 * 1000);
@@ -1164,7 +1165,7 @@ describe("staff/mutations", () => {
       ).rejects.toThrow("スタッフは一度に50件まで追加できます");
     });
 
-    it("上限ちょうど50件のスタッフを一括追加できる", async () => {
+    it("Businessの残り利用枠までスタッフを一括追加できる", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => {
         const seeded = await seedManagerShop(ctx, {
@@ -1174,7 +1175,8 @@ describe("staff/mutations", () => {
         });
         return seeded.shopId;
       });
-      const entries = Array.from({ length: STAFF_ADD_ENTRIES_MAX }, (_, index) => ({
+      const remainingPeopleCapacity = ORGANIZATION_PLAN_LIMITS.business.maxPeople - 1;
+      const entries = Array.from({ length: remainingPeopleCapacity }, (_, index) => ({
         name: `スタッフ${index + 1}`,
         email: `staff-${index + 1}@example.com`,
       }));
@@ -1187,14 +1189,14 @@ describe("staff/mutations", () => {
         }),
       );
 
-      expect(ids).toHaveLength(STAFF_ADD_ENTRIES_MAX);
+      expect(ids).toHaveLength(remainingPeopleCapacity);
       const staffs = await t.run(async (ctx) =>
         ctx.db
           .query("staffs")
           .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
           .collect(),
       );
-      expect(staffs).toHaveLength(STAFF_ADD_ENTRIES_MAX);
+      expect(staffs).toHaveLength(remainingPeopleCapacity);
     });
 
     it("過長名・制御文字入り名・不正メールはスタッフ追加で拒否する", async () => {

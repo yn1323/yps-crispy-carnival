@@ -4,10 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import { getShopActivationReminderAt } from "../_lib/dateFormat";
 import {
+  seedLegacyManagerShop,
+  seedLegacyShop,
+  seedLegacyShopMembership,
   seedManagerShop,
   seedOrganizationManagerShop,
-  seedShop,
-  seedShopMembership,
   seedUser,
   testAuthTokenIdentifier,
 } from "../_test/seed";
@@ -273,11 +274,7 @@ describe("setup/mutations", () => {
           .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
           .unique(),
       );
-      expect(billingState).toMatchObject({
-        shopId,
-        planKey: "free",
-        source: "system",
-      });
+      expect(billingState).toBeNull();
 
       const user = await t.run(async (ctx) =>
         ctx.db
@@ -308,6 +305,13 @@ describe("setup/mutations", () => {
           .unique(),
       );
       expect(organizationMember).toMatchObject({ status: "active", personId: organizationPerson?._id });
+      const legacyMembership = await t.run(async (ctx) =>
+        ctx.db
+          .query("shopMembers")
+          .withIndex("by_userId_and_shopId", (q) => q.eq("userId", user._id).eq("shopId", shopId))
+          .unique(),
+      );
+      expect(legacyMembership).toBeNull();
       const consentState = await t.run(async (ctx) =>
         ctx.db
           .query("legalConsentStates")
@@ -418,13 +422,13 @@ describe("setup/mutations", () => {
       const t = convexTest(schema, modules);
 
       await t.run(async (ctx) => {
-        await seedManagerShop(ctx, {
+        await seedLegacyManagerShop(ctx, {
           subject: "user_deleted_membership",
           email: "deleted-membership@example.com",
           shopName: "削除済みmembership店舗",
           membershipDeleted: true,
         });
-        await seedManagerShop(ctx, {
+        await seedLegacyManagerShop(ctx, {
           subject: "user_deleted_shop",
           email: "deleted-shop@example.com",
           shopName: "削除済み店舗",
@@ -447,10 +451,10 @@ describe("setup/mutations", () => {
 
       const { userId, activeShopId, deletedShopId } = await t.run(async (ctx) => {
         const userId = await seedUser(ctx, "membership_lookup", "lookup@example.com");
-        const activeShopId = await seedShop(ctx, "Active店舗");
-        const deletedShopId = await seedShop(ctx, "Deleted membership店舗");
-        await seedShopMembership(ctx, { userId, shopId: activeShopId });
-        await seedShopMembership(ctx, { userId, shopId: deletedShopId, isDeleted: true });
+        const activeShopId = await seedLegacyShop(ctx, "Active店舗");
+        const deletedShopId = await seedLegacyShop(ctx, "Deleted membership店舗");
+        await seedLegacyShopMembership(ctx, { userId, shopId: activeShopId });
+        await seedLegacyShopMembership(ctx, { userId, shopId: deletedShopId, isDeleted: true });
         return { userId, activeShopId, deletedShopId };
       });
 
@@ -771,8 +775,8 @@ describe("setup/mutations", () => {
       const t = convexTest(schema, modules);
       const userId = await t.run(async (ctx) => {
         const userId = await seedUser(ctx, "create_org_legacy", "create-org-legacy@example.com");
-        const legacyShopId = await seedShop(ctx, "移行前店舗");
-        await seedShopMembership(ctx, { userId, shopId: legacyShopId });
+        const legacyShopId = await seedLegacyShop(ctx, "移行前店舗");
+        await seedLegacyShopMembership(ctx, { userId, shopId: legacyShopId });
         const now = Date.now();
         for (const name of ["一つ目", "二つ目"]) {
           await ctx.db.insert("organizations", {

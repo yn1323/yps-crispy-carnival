@@ -2,7 +2,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { seedManagerShop, seedOrganizationManagerShop, seedUser } from "../_test/seed";
+import { seedLegacyManagerShop, seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("organization/queries.getSettings", () => {
@@ -415,7 +415,7 @@ describe("organization/queries.getSettings", () => {
   it("グループ移行前のDTOでは所属店舗IDを空配列で返す", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(
-      async (ctx) => await seedManagerShop(ctx, { subject: "settings_legacy_shop_ids", shopName: "移行前店舗" }),
+      async (ctx) => await seedLegacyManagerShop(ctx, { subject: "settings_legacy_shop_ids", shopName: "移行前店舗" }),
     );
 
     const result = await t

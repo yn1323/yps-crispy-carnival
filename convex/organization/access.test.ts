@@ -2,7 +2,7 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import type { MutationCtx } from "../_generated/server";
-import { seedShop, seedShopMembership, seedUser } from "../_test/seed";
+import { seedLegacyShop, seedLegacyShopMembership, seedShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 const validShopUpdate = {
@@ -21,7 +21,6 @@ async function seedOrganizationAccess(
   },
 ) {
   const userId = await seedUser(ctx, args.subject);
-  const shopId = await seedShop(ctx, "組織店舗");
   const now = Date.now();
   const organizationId = await ctx.db.insert("organizations", {
     createdByUserId: userId,
@@ -32,9 +31,13 @@ async function seedOrganizationAccess(
     createdAt: now,
     updatedAt: now,
   });
-  await ctx.db.patch(shopId, {
+  const shopId = await ctx.db.insert("shops", {
     organizationId,
     operatingStatus: args.operatingStatus ?? "active",
+    name: "組織店舗",
+    submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+    regularClosedDays: [],
+    isDeleted: false,
   });
   const personId = await ctx.db.insert("organizationPeople", {
     organizationId,
@@ -55,7 +58,7 @@ async function seedOrganizationAccess(
     updatedAt: now,
   });
   if (args.withLegacyMembership) {
-    await seedShopMembership(ctx, { userId, shopId });
+    await seedLegacyShopMembership(ctx, { userId, shopId });
   }
   return { memberId, organizationId, personId, shopId, userId };
 }
@@ -154,7 +157,7 @@ describe("organization manager access", () => {
     const subject = "organization_widen_fallback";
     const shopId = await t.run(async (ctx) => {
       const userId = await seedUser(ctx, subject);
-      const shopId = await seedShop(ctx, "移行途中店舗");
+      const shopId = await seedLegacyShop(ctx, "移行途中店舗");
       const now = Date.now();
       const organizationId = await ctx.db.insert("organizations", {
         migrationSourceShopId: shopId,
@@ -164,7 +167,7 @@ describe("organization manager access", () => {
         updatedAt: now,
       });
       await ctx.db.patch(shopId, { organizationId, operatingStatus: "active" });
-      await seedShopMembership(ctx, { userId, shopId });
+      await seedLegacyShopMembership(ctx, { userId, shopId });
       return shopId;
     });
 
@@ -178,7 +181,7 @@ describe("organization manager access", () => {
     const subject = "organization_duplicate_widen_membership";
     const shopId = await t.run(async (ctx) => {
       const userId = await seedUser(ctx, subject);
-      const shopId = await seedShop(ctx, "重複移行途中店舗");
+      const shopId = await seedLegacyShop(ctx, "重複移行途中店舗");
       const now = Date.now();
       const organizationId = await ctx.db.insert("organizations", {
         migrationSourceShopId: shopId,
@@ -188,8 +191,8 @@ describe("organization manager access", () => {
         updatedAt: now,
       });
       await ctx.db.patch(shopId, { organizationId, operatingStatus: "active" });
-      await seedShopMembership(ctx, { userId, shopId });
-      await seedShopMembership(ctx, { userId, shopId });
+      await seedLegacyShopMembership(ctx, { userId, shopId });
+      await seedLegacyShopMembership(ctx, { userId, shopId });
       return shopId;
     });
     const actor = t.withIdentity({ subject });
@@ -205,9 +208,9 @@ describe("organization manager access", () => {
     const subject = "legacy_duplicate_membership";
     const shopId = await t.run(async (ctx) => {
       const userId = await seedUser(ctx, subject);
-      const shopId = await seedShop(ctx, "重複legacy店舗");
-      await seedShopMembership(ctx, { userId, shopId });
-      await seedShopMembership(ctx, { userId, shopId });
+      const shopId = await seedLegacyShop(ctx, "重複legacy店舗");
+      await seedLegacyShopMembership(ctx, { userId, shopId });
+      await seedLegacyShopMembership(ctx, { userId, shopId });
       return shopId;
     });
 

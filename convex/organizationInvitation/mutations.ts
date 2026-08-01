@@ -1070,19 +1070,6 @@ async function linkAccountWithToken(
     .query("shops")
     .withIndex("by_organizationId", (q) => q.eq("organizationId", invitation.organizationId))
     .collect();
-  for (const shop of shops) {
-    if (shop.isDeleted) continue;
-    const legacyMemberships = await ctx.db
-      .query("shopMembers")
-      .withIndex("by_userId_and_shopId", (q) => q.eq("userId", userId).eq("shopId", shop._id))
-      .take(2);
-    if (legacyMemberships.length > 1) throw new ConvexError("所属を一意に確認できません");
-    if (!legacyMemberships[0]) {
-      await ctx.db.insert("shopMembers", { shopId: shop._id, userId, role: "manager", isDeleted: false });
-    } else if (legacyMemberships[0].isDeleted) {
-      await ctx.db.patch(legacyMemberships[0]._id, { isDeleted: false });
-    }
-  }
 
   await ctx.db.patch(invitation._id, {
     status: "linked",
@@ -1125,6 +1112,7 @@ export const linkAccount = authenticatedMutation({
   handler: async (ctx, args) => await linkAccountWithToken(ctx, args),
 });
 
+// TODO[narrow]: 全deploymentでm023完走・旧client配布終了後、accepted DTOを返すlegacy入口ごと削除する。
 export const accept = authenticatedMutation({
   args: { token: v.string() },
   returns: acceptInvitationResultValidator,

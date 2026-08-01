@@ -65,12 +65,12 @@ export const buildShiftTypeOverviewViewModel = ({
   holidays: string[];
   staffs: StaffType[];
   shifts: ShiftData[];
-  submissionPattern: ShiftSubmissionPattern | undefined;
+  submissionPattern: ShiftSubmissionPattern;
   warningCounts: ReadonlyMap<string, number>;
   isReadOnly: boolean;
 }): ShiftTypeOverviewViewModel => {
   const options =
-    submissionPattern?.kind === "shiftType"
+    submissionPattern.kind === "shiftType"
       ? [...submissionPattern.options].sort((a, b) => a.sortOrder - b.sortOrder)
       : [];
   const optionIds = options.map((option) => option.id);

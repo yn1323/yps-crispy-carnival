@@ -3,12 +3,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import {
-  seedManagerShop,
-  seedOrganizationManagerShop,
-  seedShopMembership,
-  testAuthTokenIdentifier,
-} from "./_test/seed";
+import { seedManagerShop, seedOrganizationManagerShop, testAuthTokenIdentifier } from "./_test/seed";
 import { modules, schema } from "./_test/setup.test-helper";
 import { getLegalConsentVersions } from "./legal/documents";
 import { deriveInvitationToken, digestInvitationToken } from "./organizationInvitation/token";
@@ -536,12 +531,11 @@ describe("E2E testing helpers", () => {
     vi.stubEnv("E2E_TESTING_ENABLED", "true");
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
-      const audited = await seedOrganizationManagerShop(ctx, {
+      await seedOrganizationManagerShop(ctx, {
         subject: "manager_backend_audit",
         email: "audited@example.com",
         shopName: "E2E監査対象店舗",
       });
-      await seedShopMembership(ctx, { userId: audited.userId, shopId: audited.shopId });
       await ctx.db.insert("users", {
         authTokenIdentifier: testAuthTokenIdentifier("manager_without_shop"),
         name: "店舗未所属管理者",
@@ -595,7 +589,6 @@ describe("E2E testing helpers", () => {
         email: "organization-audit@example.com",
         shopName: "組織通知監査対象店舗",
       });
-      await seedShopMembership(ctx, { userId: seeded.userId, shopId: seeded.shopId });
       const now = Date.now();
       const baseJob = {
         organizationId: seeded.organizationId,
@@ -715,7 +708,7 @@ describe("E2E testing helpers", () => {
       emailNormalized: "canonical-manager@example.com",
     });
     expect(snapshot.billing).toMatchObject({ state: { kind: "complimentary", plan: "business" }, version: 1 });
-    expect(snapshot.legacyMembership).toMatchObject({ role: "manager", isDeleted: false });
+    expect(snapshot.legacyMembership).toBeNull();
   });
 
   it("2店舗seedは同一organization配下に識別用personとstaffを作る", async () => {

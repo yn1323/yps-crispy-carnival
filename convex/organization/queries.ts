@@ -151,6 +151,7 @@ const organizationSettingsValidator = v.object({
   createOrganizationDisabledReason: v.optional(v.string()),
   // 公開していない導線の表示判定。可否（can*）とは別に持ち、
   // 「上限に達したので理由を出す」と「未公開なので何も出さない」を画面が描き分けられるようにする。
+  // TODO[narrow]: featuresを返すbackendが全deploymentへ反映され、旧frontend互換期間が終わった後にrequired化する。
   features: v.optional(
     v.object({
       organizationCreation: v.boolean(),
@@ -226,7 +227,9 @@ function legacyMigrationPendingSettings(
       {
         id: shop._id,
         name: shop.name,
-        regularClosedDays: shop.regularClosedDays,
+        // TODO[narrow]: 全deploymentでm039のshop workerが完走し、
+        // verifyShops.missingRegularClosedDaysが0件になった後にfallbackを削除する。
+        regularClosedDays: shop.regularClosedDays ?? [],
         submissionPattern: shop.submissionPattern,
         staffCount: 0,
         canUpdateSettings: false,
@@ -792,7 +795,9 @@ export const getSettings = managerQuery({
         return {
           id: shop._id,
           name: shop.name,
-          regularClosedDays: shop.regularClosedDays,
+          // TODO[narrow]: 全deploymentでm039のshop workerが完走し、
+          // verifyShops.missingRegularClosedDaysが0件になった後にfallbackを削除する。
+          regularClosedDays: shop.regularClosedDays ?? [],
           submissionPattern: shop.submissionPattern,
           staffCount: staffCountByShopId.get(shop._id) ?? 0,
           canUpdateSettings,
@@ -931,6 +936,8 @@ export const getSettings = managerQuery({
     };
 
     let billing: BillingView;
+    // TODO[narrow]: 全deploymentでm025完走・verifyOrganizationsのbilling state残件0確認後、
+    //   migrationPending DTOと関連するUI fallbackを削除する。
     if (!billingState) {
       billing = {
         ...billingBase,

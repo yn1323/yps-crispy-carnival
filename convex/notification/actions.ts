@@ -43,6 +43,8 @@ export const sendShiftConfirmationEmails = internalAction({
     isResend: v.boolean(),
     targetStaffIds: v.optional(v.array(v.id("staffs"))),
     notificationRunId: v.optional(v.number()),
+    // TODO[narrow]: 全deploymentの旧scheduled actionがdrainし、fanout/outbox readinessで
+    //   operation link欠損が0件になった後にrequired化してensure fallbackを削除する。
     fanoutOperationId: v.optional(v.id("notificationFanoutOperations")),
     ...businessNotificationOriginArgs,
   },
@@ -146,6 +148,7 @@ export const sendShiftConfirmationEmails = internalAction({
           const result = await enqueueLine(ctx, {
             shopId: data.shopId,
             ...notificationOrigin,
+            purpose: "business",
             recruitmentId,
             staffId: staffData.staffId,
             history: {
@@ -288,6 +291,7 @@ async function enqueueConfirmationEmail(opts: Parameters<typeof buildConfirmatio
   return await enqueueEmail(opts.ctx, {
     shopId: opts.data.shopId,
     ...businessNotificationOriginFrom(opts),
+    purpose: "business",
     recruitmentId: opts.recruitmentId,
     staffId: opts.staffData.staffId,
     history: email.history,
@@ -403,6 +407,7 @@ export const sendReissueEmail = internalAction({
       const result = await enqueueLine(ctx, {
         shopId: data.shopId,
         ...notificationOrigin,
+        purpose: "business",
         staffId,
         history: {
           notificationKind: SHIFT_REISSUE_NOTIFICATION_KIND,
@@ -426,6 +431,7 @@ export const sendReissueEmail = internalAction({
       const result = await enqueueEmail(ctx, {
         shopId: data.shopId,
         ...notificationOrigin,
+        purpose: "business",
         staffId,
         history: {
           notificationKind: SHIFT_REISSUE_NOTIFICATION_KIND,
@@ -462,6 +468,8 @@ export const sendReissueEmail = internalAction({
 export const sendRecruitmentNotificationEmails = internalAction({
   args: {
     recruitmentId: v.id("recruitments"),
+    // TODO[narrow]: 全deploymentの旧scheduled actionがdrainし、fanout/outbox readinessで
+    //   operation link欠損が0件になった後にrequired化してensure fallbackを削除する。
     fanoutOperationId: v.optional(v.id("notificationFanoutOperations")),
     ...businessNotificationOriginArgs,
   },
@@ -547,6 +555,7 @@ export const sendRecruitmentNotificationEmails = internalAction({
           await enqueueLine(ctx, {
             shopId: data.shopId,
             ...notificationOrigin,
+            purpose: "business",
             recruitmentId,
             staffId: staff.staffId,
             history: {
@@ -587,6 +596,7 @@ export const sendRecruitmentNotificationEmails = internalAction({
           await enqueueEmail(ctx, {
             shopId: data.shopId,
             ...notificationOrigin,
+            purpose: "business",
             recruitmentId,
             staffId: staff.staffId,
             history: email.history,
@@ -763,6 +773,7 @@ export const sendRecruitmentNotificationForStaff = internalAction({
         await enqueueLine(ctx, {
           shopId: data.shopId,
           ...notificationOrigin,
+          purpose: "business",
           recruitmentId,
           staffId: data.staff.staffId,
           history: {
@@ -798,6 +809,7 @@ export const sendRecruitmentNotificationForStaff = internalAction({
       await enqueueEmail(ctx, {
         shopId: data.shopId,
         ...notificationOrigin,
+        purpose: "business",
         recruitmentId,
         staffId: data.staff.staffId,
         history: email.history,
@@ -868,6 +880,7 @@ export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
         await enqueueEmail(ctx, {
           shopId: data.shopId,
           ...notificationOrigin,
+          purpose: "business",
           recruitmentId: recruitment.recruitmentId,
           staffId: data.staff.staffId,
           history: email.history,
@@ -954,6 +967,7 @@ export const sendOpenRecruitmentNotificationEmailsForStaffEmailChange = internal
         await enqueueEmail(ctx, {
           shopId: data.shopId,
           ...notificationOrigin,
+          purpose: "business",
           recruitmentId: recruitment.recruitmentId,
           staffId: data.staff.staffId,
           history: email.history,
@@ -1044,6 +1058,7 @@ export const sendOpenRecruitmentNotificationsForStaff = internalAction({
           await enqueueLine(ctx, {
             shopId: data.shopId,
             ...notificationOrigin,
+            purpose: "business",
             recruitmentId: recruitment.recruitmentId,
             staffId: data.staff.staffId,
             history: {
@@ -1079,6 +1094,7 @@ export const sendOpenRecruitmentNotificationsForStaff = internalAction({
         await enqueueEmail(ctx, {
           shopId: data.shopId,
           ...notificationOrigin,
+          purpose: "business",
           recruitmentId: recruitment.recruitmentId,
           staffId: data.staff.staffId,
           history: email.history,
@@ -1150,6 +1166,7 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
         await enqueueLine(ctx, {
           shopId: data.shopId,
           ...notificationOrigin,
+          purpose: "business",
           recruitmentId: recruitment.recruitmentId,
           staffId: data.staff.staffId,
           history: {
@@ -1186,6 +1203,8 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
 /**
  * 旧deploymentから予約済みのaction名と引数を維持するcompatibility wrapper。
  * 送信処理は新しいbounded durable fanoutへ委譲し、ここでは認可・quotaを再消費しない。
+ * TODO[narrow]: 全deploymentでこの旧functionを参照するpending/in-progress schedulerが0件になり、
+ * 旧deploymentのdrain期間が終わった後に削除する。
  */
 export const sendCurrentShiftConfirmationForStaff = internalAction({
   args: { staffId: v.id("staffs"), ...businessNotificationOriginArgs },
