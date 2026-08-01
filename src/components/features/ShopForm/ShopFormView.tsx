@@ -25,7 +25,7 @@ const BASE_STEPS: StepperDialogStep<ShopFormStep>[] = [
     label: "集め方",
     icon: LuListChecks,
     title: "希望シフトの集め方",
-    description: "スタッフが希望シフトを提出する方法を設定します。",
+    description: "スタッフが希望シフトを提出する方法を設定します。\n今後作成するシフトに適用されます。",
   },
   {
     value: "patternSettings",
