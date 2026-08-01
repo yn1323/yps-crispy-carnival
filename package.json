@@ -95,7 +95,7 @@
     "@emotion/react": "catalog:",
     "@hookform/resolvers": "5.4.0",
     "@tanstack/react-router": "1.170.18",
-    "@tanstack/react-start": "1.168.32",
+    "@tanstack/react-start": "1.168.33",
     "convex": "1.42.3",
     "convex-helpers": "^0.1.120",
     "dayjs": "^1.11.21",
