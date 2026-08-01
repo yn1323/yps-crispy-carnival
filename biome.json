@@ -15,6 +15,7 @@
       "!.scaffdog",
       "!convex/_generated",
       "!.claude",
+      "!.codex",
       "!src/routeTree.gen.ts",
       "index.html"
     ]
