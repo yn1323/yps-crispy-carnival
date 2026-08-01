@@ -75,7 +75,7 @@ function ConnectedUserShopDetailPage({
       <Empty
         icon={LuStore}
         title="店舗別設定を表示できません"
-        description="ユーザーまたは店舗所属が削除されたか、この店舗を表示する権限がありません。"
+        description="ユーザーまたは店舗への所属が削除されたか、この店舗を表示する権限がありません。"
         tone="warning"
         minH={pageMinimumHeight}
         action={

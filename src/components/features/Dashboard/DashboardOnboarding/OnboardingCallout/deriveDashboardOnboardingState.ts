@@ -41,8 +41,8 @@ export function deriveDashboardOnboardingState({
     : visibleState({
         stage: "create_recruitment",
         progressLabel: "1/4",
-        title: "シフト作成から提出までの流れを体験しましょう",
-        description: "期間を決めてシフトを募集してみましょう。（作成したシフトはあとで削除可能です）",
+        title: "シフト募集から希望提出までの流れを体験しましょう",
+        description: "期間を決めて、シフト募集を作成してみましょう。\n作成した募集はあとで削除できます。",
         tour: {
           target: DASHBOARD_TOUR_TARGET.createRecruitment,
           placement: "bottom",
@@ -66,8 +66,8 @@ function deriveStateWithRecruitment(
     return visibleState({
       stage: "add_staff",
       progressLabel: "4/4",
-      title: "スタッフを追加してシフト提出をお願いしましょう",
-      description: "スタッフ追加時にシフト提出依頼のメール・LINE連携案内を送ります。",
+      title: "スタッフを追加して、希望シフトの提出を依頼しましょう",
+      description: "スタッフを追加すると、希望シフトの提出依頼メールとLINE連携案内を送ります。",
       tour: {
         target: DASHBOARD_TOUR_TARGET.addStaff,
         placement: "top",
@@ -92,7 +92,7 @@ function deriveStateWithRecruitment(
     stage: "submit_self",
     progressLabel: "2/4",
     title: "希望シフトを提出してみましょう",
-    description: "登録したメールに届いたリンクからシフトを提出してみましょう。",
+    description: "登録したメールアドレスに届いたリンクから、希望シフトを提出してみましょう。",
   });
 }
 

@@ -28,7 +28,7 @@ export function ShopDetailPage({ shopId, selectedShopId, returnTo }: Props) {
         <Empty
           icon={LuStore}
           title="利用できる店舗がありません"
-          description="店舗を登録すると、店舗詳細を確認できます。"
+          description="店舗を登録すると、店舗の詳細を確認できます。"
           minH={{
             base: `calc(100dvh - ${HEADER_HEIGHT.base} - 32px)`,
             md: `calc(100dvh - ${HEADER_HEIGHT.md} - 64px)`,
@@ -49,7 +49,7 @@ export function ShopDetailPage({ shopId, selectedShopId, returnTo }: Props) {
         <Empty
           icon={LuStore}
           title="店舗を表示できません"
-          description="店舗が削除されたか、このグループで表示する権限がありません。"
+          description="店舗が削除されたか、表示する権限がありません。"
           tone="warning"
           minH={{
             base: `calc(100dvh - ${HEADER_HEIGHT.base} - 32px)`,

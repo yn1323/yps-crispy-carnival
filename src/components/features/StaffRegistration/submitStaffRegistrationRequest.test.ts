@@ -40,7 +40,7 @@ describe("submitStaffRegistrationRequest", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ error: "セキュリティ確認をやり直してください" }), {
+        new Response(JSON.stringify({ error: "セキュリティ確認をやり直してください。" }), {
           status: 400,
           headers: { "content-type": "application/json" },
         }),
@@ -48,9 +48,9 @@ describe("submitStaffRegistrationRequest", () => {
       .mockResolvedValueOnce(new Response("provider details", { status: 502 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(submitStaffRegistrationRequest(input)).rejects.toThrow("セキュリティ確認をやり直してください");
+    await expect(submitStaffRegistrationRequest(input)).rejects.toThrow("セキュリティ確認をやり直してください。");
     await expect(submitStaffRegistrationRequest(input)).rejects.toThrow(
-      "スタッフ登録を申請できませんでした。少し時間をおいてお試しください",
+      "スタッフ登録を申請できませんでした。\n少し時間をおいてお試しください",
     );
   });
 });

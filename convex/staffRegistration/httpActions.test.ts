@@ -210,7 +210,7 @@ describe("staffRegistration/httpActions", () => {
     const response = await post(t, validBody(token));
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: "セキュリティ確認をやり直してください" });
+    await expect(response.json()).resolves.toEqual({ error: "セキュリティ確認をやり直してください。" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     await expect(businessSideEffects(t)).resolves.toEqual(before);
   });
@@ -403,7 +403,7 @@ describe("staffRegistration/httpActions", () => {
     const response = await post(t, validBody(duplicateToken));
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: "登録リンクの有効期限が切れています" });
+    await expect(response.json()).resolves.toEqual({ error: "登録リンクの有効期限が切れています。" });
     const state = await t.run(async (ctx) => ({
       requests: await ctx.db.query("staffRegistrationRequests").collect(),
       rateLimitRows: await ctx.db.query("rateLimits").collect(),
@@ -426,7 +426,7 @@ describe("staffRegistration/httpActions", () => {
     const response = await post(t, validBody(token));
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: "登録リンクの有効期限が切れています" });
+    await expect(response.json()).resolves.toEqual({ error: "登録リンクの有効期限が切れています。" });
     expect(errorSpy).not.toHaveBeenCalled();
     const requests = await t.run(async (ctx) => await ctx.db.query("staffRegistrationRequests").collect());
     expect(requests).toEqual([]);

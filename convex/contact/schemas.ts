@@ -21,10 +21,10 @@ const optionalOrganizationSchema = z
   .trim()
   .max(
     CONTACT_ORGANIZATION_MAX_LENGTH,
-    `店舗名または会社名は${CONTACT_ORGANIZATION_MAX_LENGTH}文字以内で入力してください`,
+    `店舗名または会社名は${CONTACT_ORGANIZATION_MAX_LENGTH}文字以内で入力してください。`,
   )
   .refine((value) => !hasControlCharacter(value), {
-    message: "店舗名または会社名に使用できない文字が含まれています",
+    message: "店舗名または会社名に使用できない文字が含まれています。",
   });
 
 function hasUnsupportedContactControlCharacter(value: string): boolean {
@@ -38,9 +38,9 @@ const contactMessageSchema = z
   .string()
   .trim()
   .min(1, "問い合わせ内容を入力してください")
-  .max(CONTACT_MESSAGE_MAX_LENGTH, `問い合わせ内容は${CONTACT_MESSAGE_MAX_LENGTH}文字以内で入力してください`)
+  .max(CONTACT_MESSAGE_MAX_LENGTH, `問い合わせ内容は${CONTACT_MESSAGE_MAX_LENGTH}文字以内で入力してください。`)
   .refine((value) => !hasUnsupportedContactControlCharacter(value), {
-    message: "問い合わせ内容に使用できない文字が含まれています",
+    message: "問い合わせ内容に使用できない文字が含まれています。",
   });
 
 export const contactFormSchema = z.object({

@@ -566,7 +566,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
 
     expect(result).toMatchObject({
       canRemove: false,
-      removeDisabledReason: "最後の復旧担当者は、引き継ぎまたは契約復旧まで削除できません。",
+      removeDisabledReason: "最後の復旧担当者は、引き継ぎまたは契約の復旧が完了するまで削除できません。",
     });
   });
 
@@ -774,7 +774,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
 
     expect(await actor.query(api.organization.userDetailQueries.getUserDetail, args)).toMatchObject({
       canWrite: false,
-      writeDisabledReason: "閲覧のみの管理者は変更できません。",
+      writeDisabledReason: "閲覧のみの管理者は、ユーザー情報を変更できません。",
     });
 
     await t.run(async (ctx) => {
@@ -787,7 +787,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     });
     expect(await actor.query(api.organization.userDetailQueries.getUserDetail, args)).toMatchObject({
       canWrite: false,
-      writeDisabledReason: "グループの契約情報を確認しているため変更できません。",
+      writeDisabledReason: "グループの契約情報を確認中のため、ユーザー情報を変更できません。",
     });
   });
 });

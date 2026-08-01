@@ -77,7 +77,7 @@ export const BenefitsSection = () => (
             imageSrc={userImage}
             imageAlt="シフトを出す人のイメージ"
             lead="いつものLINEから提出"
-            body="新しいアプリや難しい操作なしで使えます。"
+            body="新しいアプリの導入も、難しい操作も必要ありません。"
             tone="amber"
             items={staffBenefits}
           />

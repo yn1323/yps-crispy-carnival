@@ -1010,7 +1010,7 @@ describe("OrganizationSettings controllers", () => {
           ...billing,
           hasStripeCustomer: false,
           canUpdatePaymentMethod: false,
-          paymentMethodDisabledReason: "Stripeの契約情報を準備中です。しばらくしてからもう一度お試しください。",
+          paymentMethodDisabledReason: "Stripeの契約情報を準備中です。\nしばらくしてから、もう一度お試しください。",
         },
       }),
     );

@@ -44,7 +44,7 @@ async function issueLinkToken(ctx: MutationCtx, args: { staffId: Id<"staffs">; s
     .withIndex("by_staffId_and_expiresAt", (q) => q.eq("staffId", args.staffId).gte("expiresAt", now))
     .take(LINE_LINK_ACTIVE_TOKEN_SCAN_LIMIT + 1);
   if (activeCandidates.length > LINE_LINK_ACTIVE_TOKEN_SCAN_LIMIT) {
-    throw new ConvexError("LINE連携トークンを発行できませんでした");
+    throw new ConvexError("LINE連携に必要な情報を発行できませんでした。");
   }
   for (const token of activeCandidates) {
     if (!token.revokedAt && !token.usedAt) {

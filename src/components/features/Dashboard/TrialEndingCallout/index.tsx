@@ -48,7 +48,7 @@ export function TrialEndingCalloutView({
         <Flex direction={{ base: "column", md: "row" }} align={{ base: "stretch", md: "center" }} gap={4}>
           <Stack gap={1} flex={1}>
             <Text>{finalDateLabel}にトライアルが終了します。</Text>
-            <Text>終了後は、利用人数が5名まで、店舗数が1店舗までに制限されます。</Text>
+            <Text>終了後は、利用人数が5名、店舗数が1店舗までに制限されます。</Text>
             <Text>現在の利用人数・店舗数を維持するには、Proプランへの変更が必要です。</Text>
           </Stack>
           <Button

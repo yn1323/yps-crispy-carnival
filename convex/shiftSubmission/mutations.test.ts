@@ -266,7 +266,7 @@ describe("shiftSubmission/mutations", () => {
           recruitmentId,
           requests: validRequests,
         }),
-      ).rejects.toThrow("契約を確認するまで、閲覧と復旧に必要な操作だけ利用できます");
+      ).rejects.toThrow("契約状態を確認できるまで、閲覧と復旧に必要な操作のみ利用できます。");
       expect(await t.run((ctx) => ctx.db.query("shiftSubmissions").collect())).toEqual([]);
     });
 
@@ -504,7 +504,7 @@ describe("shiftSubmission/mutations", () => {
           recruitmentId,
           submission: { kind: "dateOnly", workingDates: ["2026-04-07", "2026-04-07"] },
         }),
-      ).rejects.toThrow("同じ日の希望シフトは1件だけ登録できます");
+      ).rejects.toThrow("同じ日に登録できる希望シフトは1件だけです。");
     });
 
     it("日付のみ提出で不正な日付形式は拒否する", async () => {
@@ -891,7 +891,7 @@ describe("shiftSubmission/mutations", () => {
             { date: "2026-04-07", startTime: "13:00", endTime: "18:00" },
           ],
         }),
-      ).rejects.toThrow("同じ日の希望シフトは1件だけ登録できます");
+      ).rejects.toThrow("同じ日に登録できる希望シフトは1件だけです。");
     });
   });
 });

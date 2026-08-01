@@ -19,7 +19,7 @@ export function StaffShiftSubmitCompletedPage({ shopName = "シフト提出" }: 
           icon={LuCheck}
           title="提出が完了しました"
           description={
-            "希望シフトを提出しました。\nシフトが確定すると、LINEまたはメールへお知らせを送ります。\nこのページは閉じて大丈夫です"
+            "希望シフトを提出しました。\nシフトが確定すると、LINEまたはメールへお知らせを送ります。\nこのページは閉じて大丈夫です。"
           }
           tone="brand"
           iconVariant="circle"

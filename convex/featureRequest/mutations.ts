@@ -13,7 +13,7 @@ export const submit = managerMutation({
   handler: async (ctx, args) => {
     const parsed = submitFeatureRequestSchema.safeParse(args);
     if (!parsed.success) {
-      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
     }
 
     const existing = await ctx.db
@@ -24,11 +24,11 @@ export const submit = managerMutation({
 
     const shortLimit = await rateLimit(ctx, { name: "featureRequestShort", key: ctx.user._id });
     if (!shortLimit.ok) {
-      throw new ConvexError("少し時間をおいて、もう一度お試しください");
+      throw new ConvexError("少し時間をおいて、もう一度お試しください。");
     }
     const dailyLimit = await rateLimit(ctx, { name: "featureRequestDaily", key: ctx.user._id });
     if (!dailyLimit.ok) {
-      throw new ConvexError("本日の送信回数が上限に達しました。時間をおいて、もう一度お試しください");
+      throw new ConvexError("本日の送信回数が上限に達しました。\n少し時間をおいて、もう一度お試しください。");
     }
 
     await ctx.db.insert("featureRequests", {
@@ -55,7 +55,7 @@ export const submitFromStaff = staffSessionMutation({
 
     const parsed = submitFeatureRequestSchema.safeParse(args);
     if (!parsed.success) {
-      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
     }
 
     const existing = await ctx.db
@@ -68,11 +68,11 @@ export const submitFromStaff = staffSessionMutation({
 
     const shortLimit = await rateLimit(ctx, { name: "staffFeatureRequestShort", key: ctx.staff._id });
     if (!shortLimit.ok) {
-      throw new ConvexError("少し時間をおいて、もう一度お試しください");
+      throw new ConvexError("少し時間をおいて、もう一度お試しください。");
     }
     const dailyLimit = await rateLimit(ctx, { name: "staffFeatureRequestDaily", key: ctx.staff._id });
     if (!dailyLimit.ok) {
-      throw new ConvexError("本日の送信回数が上限に達しました。時間をおいて、もう一度お試しください");
+      throw new ConvexError("本日の送信回数が上限に達しました。\n少し時間をおいて、もう一度お試しください。");
     }
 
     await ctx.db.insert("featureRequests", {

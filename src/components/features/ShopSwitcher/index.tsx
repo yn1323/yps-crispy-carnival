@@ -51,7 +51,7 @@ export const ShopSwitcherView = ({ shops, selectedShopId, onSelect }: ShopSwitch
       <Menu.Trigger asChild>
         <Box
           as="button"
-          aria-label={`店舗を切り替える。現在は${currentContextLabel}`}
+          aria-label={`店舗を切り替える（現在：${currentContextLabel}）`}
           display="flex"
           alignItems="center"
           gap={{ base: 0, md: 2 }}

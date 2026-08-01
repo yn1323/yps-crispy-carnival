@@ -132,7 +132,7 @@ export const SPDailyView = () => {
               定休日
             </Box>
             <Box textStyle="sm" color="fg.muted" textAlign="center" lineHeight={1.7}>
-              この日はお店のお休みとして設定されているため、シフトは登録できません。
+              この日は店舗の定休日のため、シフトを登録できません。
             </Box>
           </Flex>
         ) : (

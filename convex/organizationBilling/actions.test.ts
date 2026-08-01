@@ -286,7 +286,7 @@ describe("organizationBilling/actions", () => {
     expect(jobs[0].payload.html).toContain("今回の請求額は");
     expect(jobs[0].payload.html).toContain("1,480");
     expect(jobs[0].payload.html).toContain("適用日時は7/20(月) 09:00です。");
-    expect(jobs[0].payload.html).toContain("利用人数、管理者、店舗を上限以内に整理してください");
+    expect(jobs[0].payload.html).toContain("利用人数・店舗数・管理者数を上限以内に整理してください。");
   });
 
   it("Trial終了通知は選択済みプランと終了時刻をDTOから本文へ反映する", async () => {

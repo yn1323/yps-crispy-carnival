@@ -68,7 +68,7 @@ export async function getOrganizationDeletionEligibility(
     return {
       canDelete: false,
       code: "manager",
-      reason: "ほかの管理者を整理してからグループを削除してください。",
+      reason: "グループを削除するには、先にほかの管理者の権限を外してください。",
     };
   }
 
@@ -76,7 +76,7 @@ export async function getOrganizationDeletionEligibility(
     return {
       canDelete: false,
       code: "billing",
-      reason: "有料契約やプラン変更を終了してからグループを削除してください。",
+      reason: "グループを削除するには、先に有料契約やプラン変更を終了してください。",
     };
   }
 
@@ -84,7 +84,7 @@ export async function getOrganizationDeletionEligibility(
     return {
       canDelete: false,
       code: "billing",
-      reason: "Stripeの契約終了を確認してからグループを削除してください。",
+      reason: "グループを削除するには、先にStripeの契約終了を確認してください。",
     };
   }
 

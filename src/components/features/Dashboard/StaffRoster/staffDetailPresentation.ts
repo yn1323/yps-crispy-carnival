@@ -21,7 +21,7 @@ export function getStaffLineStatus(staff: Staff): StaffLineStatus {
     return {
       label: "LINEで受け取れません",
       description:
-        "LINE連携されていますが、友だち追加を解除している可能性があります。シフトのお知らせはメールで送ります。",
+        "LINE連携済みですが、友だち追加を解除している可能性があります。\nシフトのお知らせはメールで送ります。",
       colorPalette: "orange",
       tone: "muted",
     };
@@ -29,7 +29,7 @@ export function getStaffLineStatus(staff: Staff): StaffLineStatus {
 
   return {
     label: "LINE未連携",
-    description: "LINE未連携です。シフトのお知らせはメールで送ります。",
+    description: "LINE未連携です。\nシフトのお知らせはメールで送ります。",
     colorPalette: "gray",
     tone: "muted",
   };

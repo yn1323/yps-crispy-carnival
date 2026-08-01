@@ -98,7 +98,7 @@ describe("useForgotPasswordFlowController", () => {
       await result.current.onRequestReset({ email: "manager@example.com" });
     });
 
-    expect(result.current.errorMessage).toBe("試行回数が多すぎます。時間をおいてもう一度お試しください。");
+    expect(result.current.errorMessage).toBe("試行回数が多すぎます。\n時間をおいて、もう一度お試しください。");
     expect(result.current.step).toBe("request");
     expect(result.current.email).toBe("");
     expect(signIn.finalize).not.toHaveBeenCalled();

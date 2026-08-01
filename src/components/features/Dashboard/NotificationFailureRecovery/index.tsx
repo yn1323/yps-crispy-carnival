@@ -152,7 +152,7 @@ export function NotificationFailureRecovery({ failures: failureOverrides, isRead
         });
         toaster.create({
           title: result.hasRemainingFailures ? "一部の通知を再送しました" : "送れなかった通知を再送しました",
-          description: result.hasRemainingFailures ? "残りの通知は少し時間をおいてから再送してください。" : undefined,
+          description: result.hasRemainingFailures ? "残りの通知は、少し時間をおいてから再送してください。" : undefined,
           type: result.hasRemainingFailures ? "warning" : "success",
         });
         const allDialogRowsProcessed = dialogRows.every(
@@ -163,7 +163,7 @@ export function NotificationFailureRecovery({ failures: failureOverrides, isRead
       }
       toaster.create({
         title: result.hasRemainingFailures ? "一部の通知を再送できませんでした" : "再送できる通知がありません",
-        description: result.hasRemainingFailures ? "残りの通知は少し時間をおいてから再送してください。" : undefined,
+        description: result.hasRemainingFailures ? "残りの通知は、少し時間をおいてから再送してください。" : undefined,
         type: result.hasRemainingFailures ? "warning" : "info",
       });
     } catch (error) {

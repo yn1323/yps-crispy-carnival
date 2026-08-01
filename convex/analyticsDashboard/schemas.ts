@@ -25,7 +25,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function parseDateParts(value: string): ParseResult<{ utcMs: number }> {
-  if (!DATE_PATTERN.test(value)) return { ok: false, message: "日付はYYYY-MM-DDで指定してください" };
+  if (!DATE_PATTERN.test(value)) return { ok: false, message: "日付はYYYY-MM-DD形式で指定してください。" };
   const utcMs = dateToUtcMs(value);
   if (formatUtcDate(utcMs) !== value) {
     return { ok: false, message: "日付が正しくありません" };

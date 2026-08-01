@@ -882,7 +882,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
         state: { kind: "active", plan: "pro" },
         correlationId: "complimentary-verified-transition",
       }),
-    ).rejects.toThrow("現在の契約状態からこの変更は適用できません");
+    ).rejects.toThrow("現在の契約状態では、この変更を適用できません");
 
     const result = await t.run(async (ctx) => ({
       audits: await ctx.db
@@ -916,7 +916,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
         state: { kind: "grace", plan: "pro", firstFailureAt: Date.now() },
         correlationId: "invalid-free-to-grace",
       }),
-    ).rejects.toThrow("現在の契約状態からこの変更は適用できません");
+    ).rejects.toThrow("現在の契約状態では、この変更を適用できません");
 
     const billingState = await t.run((ctx) =>
       ctx.db
@@ -957,7 +957,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
         state: { kind: "grace", plan: "pro", firstFailureAt: Date.now() },
         correlationId: "invalid-restricted-to-grace",
       }),
-    ).rejects.toThrow("現在の契約状態からこの変更は適用できません");
+    ).rejects.toThrow("現在の契約状態では、この変更を適用できません");
   });
 
   it("Trialから期間末プラン変更への飛び越しを拒否する", async () => {
@@ -987,7 +987,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
         },
         correlationId: "invalid-trial-to-scheduled",
       }),
-    ).rejects.toThrow("現在の契約状態からこの変更は適用できません");
+    ).rejects.toThrow("現在の契約状態では、この変更を適用できません");
   });
 
   it("Pro上限を超えていてもBusinessからの変更予約を保存し、適用時の整理対象にする", async () => {
@@ -1374,7 +1374,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
         state: { kind: "paymentFailed" },
         correlationId: "invalid-payment-failed-event",
       }),
-    ).rejects.toThrow("現在の契約状態からこの変更は適用できません");
+    ).rejects.toThrow("現在の契約状態では、この変更を適用できません");
   });
 
   it("Freeからの有料契約開始は管理者と店舗の復旧対象を両方指定するまで確定しない", async () => {

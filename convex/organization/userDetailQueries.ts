@@ -158,7 +158,9 @@ export const getUserDetail = managerQuery({
               staffId: staff._id,
               shopId: targetShop._id,
               shopName: targetShop.name,
+              // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
               shopStatus: targetShop.operatingStatus ?? "active",
+              // TODO[narrow]: 全deploymentでm027完走・missingExcludedFromShift=0確認後にfallbackを外す。
               excludedFromShift: staff.excludedFromShift ?? false,
               canRemove: true,
               removalPreview: toPublicPersonRemovalPreview(membershipRemovalPreview),
@@ -187,6 +189,7 @@ export const getUserDetail = managerQuery({
       .map((targetShop) => ({
         shopId: targetShop._id,
         shopName: targetShop.name,
+        // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
         shopStatus: targetShop.operatingStatus ?? "active",
       }))
       .sort((a, b) => a.shopName.localeCompare(b.shopName, "ja") || a.shopId.localeCompare(b.shopId));
@@ -240,12 +243,12 @@ export const getUserDetail = managerQuery({
     const writeDisabledReason = canWriteNormally
       ? undefined
       : !isActiveActor
-        ? "閲覧のみの管理者は変更できません。"
+        ? "閲覧のみの管理者は、ユーザー情報を変更できません。"
         : !billingState
-          ? "グループの契約情報を確認しているため変更できません。"
+          ? "グループの契約情報を確認中のため、ユーザー情報を変更できません。"
           : policy?.businessWriteBlockReason === "paymentResultPending"
-            ? "支払い結果が確定してから変更できます。"
-            : "契約を確認するまで変更できません。";
+            ? "支払い結果が確定してから、ユーザー情報を変更できます。"
+            : "契約状態を確認できるまで、ユーザー情報を変更できません。";
 
     return {
       person: { id: person._id, name: person.name, email: person.email },

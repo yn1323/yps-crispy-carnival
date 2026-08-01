@@ -120,7 +120,7 @@ export const EmptySubmitShowsError: Story = {
 
     await userEvent.click(await page.findByRole("button", { name: "スタッフを登録する" }));
 
-    await expect(await page.findByText("少なくとも1人のスタッフ名を入力してください")).toBeInTheDocument();
+    await expect(await page.findByText("スタッフ名を1人以上入力してください。")).toBeInTheDocument();
   },
 };
 

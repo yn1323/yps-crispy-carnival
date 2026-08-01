@@ -55,7 +55,7 @@ export function useForgotPasswordFlowController({ redirectTo }: UseForgotPasswor
       try {
         throwIfClerkOperationFailed(await signIn.resetPasswordEmailCode.verifyCode({ code: values.code }));
         if (signIn.status !== "needs_new_password") {
-          setErrorMessage("パスワードを再設定できませんでした。コードを確認してもう一度お試しください。");
+          setErrorMessage("パスワードを再設定できませんでした。\nコードを確認して、もう一度お試しください。");
           return;
         }
         throwIfClerkOperationFailed(await signIn.resetPasswordEmailCode.submitPassword({ password: values.password }));
@@ -65,7 +65,7 @@ export function useForgotPasswordFlowController({ redirectTo }: UseForgotPasswor
           return;
         }
 
-        setErrorMessage("パスワードを再設定できませんでした。コードを確認してもう一度お試しください。");
+        setErrorMessage("パスワードを再設定できませんでした。\nコードを確認して、もう一度お試しください。");
       } catch (error) {
         setErrorMessage(getClerkErrorMessage(error));
       }

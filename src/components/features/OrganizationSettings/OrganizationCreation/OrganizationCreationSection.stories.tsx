@@ -22,7 +22,7 @@ export const LimitReached: Story = {
   name: "上限に達している",
   args: {
     canCreate: false,
-    disabledReason: "作成できるグループは3つまでです。使っていないグループを削除すると、また作成できます。",
+    disabledReason: "作成できるグループは3つまでです。\n使っていないグループを削除すると、また作成できます。",
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);

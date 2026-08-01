@@ -37,7 +37,7 @@ export const UnsavedChangesDialog = ({
     }
   >
     <Text fontSize="sm" lineHeight="tall">
-      このまま戻ると、シフトの変更は失われます。
+      このまま戻ると、シフトの変更内容は失われます。
       <br />
       これまでの編集内容を保存しますか？
     </Text>

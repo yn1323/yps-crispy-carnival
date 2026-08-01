@@ -82,7 +82,8 @@ describe("ArticleSite frontmatter", () => {
 
     expect(parseSitePageFrontmatter(rest, "articles")).toMatchObject({
       landingPreviewTitle: "シフト作成のヒント",
-      landingPreviewDescription: "LINE回収やExcel転記など、シフト作成でつまずきやすいポイントを整理しています。",
+      landingPreviewDescription:
+        "LINEでの回収やExcelへの転記など、シフト作成でつまずきやすいポイントを整理しています。",
       landingPreviewLimit: 3,
       landingPreviewLinkLabel: "記事一覧を見る",
     });

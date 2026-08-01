@@ -71,7 +71,7 @@ export function useStaffInvitation(isReadOnly = false, showOrganizationPeopleAdd
       showSuccessToast({
         title: "スタッフを追加し、案内通知を送りました",
         description:
-          "同意依頼とLINE連携案内をメールで送りました。募集中のシフトがある場合は、提出リンクもメールで送ります。",
+          "同意依頼とLINE連携案内をメールで送りました。\n募集中のシフトがある場合は、提出リンクもメールで送ります。",
       });
     } catch (error) {
       const resolution = classifyPeopleCapacityError(getConvexErrorMessage(error));
@@ -97,14 +97,15 @@ export function useStaffInvitation(isReadOnly = false, showOrganizationPeopleAdd
         confirmReactivationPersonIds: pendingReactivation.candidates.map((candidate) => candidate.personId),
       });
       if (result.status !== "added") {
-        throw new Error("確認対象が変わりました。追加内容をもう一度確認してください");
+        throw new Error("確認対象が変わりました。\n追加内容をもう一度確認してください。");
       }
       reactivationDialog.close();
       dialog.close();
       setPendingReactivation(null);
       showSuccessToast({
         title: "スタッフを再追加し、案内通知を送りました",
-        description: "この店舗のスタッフとして再追加しました。以前の管理者権限や他店舗所属は復元していません。",
+        description:
+          "この店舗のスタッフとして再追加しました。\n以前の管理者権限や、ほかの店舗への所属は復元していません。",
       });
     } catch (error) {
       const resolution = classifyPeopleCapacityError(getConvexErrorMessage(error));

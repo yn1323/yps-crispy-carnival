@@ -234,7 +234,7 @@ describe("organization deletion", () => {
 
     await expect(actor.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toMatchObject({
       canDeleteOrganization: false,
-      deleteOrganizationDisabledReason: "Stripeの契約終了を確認してからグループを削除してください。",
+      deleteOrganizationDisabledReason: "グループを削除するには、先にStripeの契約終了を確認してください。",
     });
 
     await t.run(async (ctx) => {
@@ -276,7 +276,7 @@ describe("organization deletion", () => {
     });
     await expect(actor.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toMatchObject({
       canDeleteOrganization: false,
-      deleteOrganizationDisabledReason: "Stripeの契約終了を確認してからグループを削除してください。",
+      deleteOrganizationDisabledReason: "グループを削除するには、先にStripeの契約終了を確認してください。",
     });
     await expect(
       actor.mutation(api.organization.mutations.deleteOrganization, {
@@ -286,7 +286,7 @@ describe("organization deletion", () => {
         expectedOrganizationUpdatedAt: ids.organizationUpdatedAt,
         requestId: "delete-stripe-guard-request",
       }),
-    ).rejects.toThrow("Stripeの契約終了を確認してからグループを削除してください");
+    ).rejects.toThrow("グループを削除するには、先にStripeの契約終了を確認してください。");
     await expect(t.run((ctx) => ctx.db.get(ids.organizationId))).resolves.toMatchObject({ isDeleted: false });
   });
 
@@ -341,7 +341,7 @@ describe("organization deletion", () => {
     const expectDeletionBlocked = async () => {
       await expect(actor.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toMatchObject({
         canDeleteOrganization: false,
-        deleteOrganizationDisabledReason: "Stripeの契約終了を確認してからグループを削除してください。",
+        deleteOrganizationDisabledReason: "グループを削除するには、先にStripeの契約終了を確認してください。",
       });
     };
 
@@ -428,7 +428,7 @@ describe("organization deletion", () => {
       }),
     ).resolves.toMatchObject({
       canDeleteOrganization: false,
-      deleteOrganizationDisabledReason: "Stripeの契約終了を確認してからグループを削除してください。",
+      deleteOrganizationDisabledReason: "グループを削除するには、先にStripeの契約終了を確認してください。",
     });
   });
 
@@ -466,7 +466,7 @@ describe("organization deletion", () => {
       }),
     ).resolves.toMatchObject({
       canDeleteOrganization: false,
-      deleteOrganizationDisabledReason: "Stripeの契約終了を確認してからグループを削除してください。",
+      deleteOrganizationDisabledReason: "グループを削除するには、先にStripeの契約終了を確認してください。",
     });
   });
 
@@ -759,7 +759,7 @@ describe("organization deletion", () => {
         expectedOrganizationUpdatedAt: ids.updatedAt,
         requestId: "paid-delete-rejected",
       }),
-    ).rejects.toThrow("有料契約やプラン変更を終了してから");
+    ).rejects.toThrow("グループを削除するには、先に有料契約やプラン変更を終了してください。");
 
     await t.run(async (ctx) => {
       const billing = await ctx.db
@@ -833,7 +833,7 @@ describe("organization deletion", () => {
     ).rejects.toThrow("Not found");
     await expect(
       t.withIdentity({ subject: "delete_with_managers" }).mutation(api.organization.mutations.deleteOrganization, args),
-    ).rejects.toThrow("ほかの管理者を整理してから");
+    ).rejects.toThrow("グループを削除するには、先にほかの管理者の権限を外してください。");
 
     const state = await t.run(async (ctx) => ({
       organization: await ctx.db.get(ids.organizationId),

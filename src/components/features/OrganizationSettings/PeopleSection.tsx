@@ -95,7 +95,7 @@ export const PeopleSection = ({
       )}
 
       {visiblePeople.length === 0 ? (
-        <Empty icon={LuUsers} title="グループのユーザーはいません。" titleAs="h3" variant="section" py={6} />
+        <Empty icon={LuUsers} title="このグループにユーザーはいません。" titleAs="h3" variant="section" py={6} />
       ) : (
         <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.100" overflow="hidden">
           <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">

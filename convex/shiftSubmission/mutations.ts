@@ -47,7 +47,7 @@ function assertValidDateForSubmission(date: string, recruitment: Doc<"recruitmen
 
 function assertUniqueDate(date: string, requestedDates: Set<string>) {
   if (requestedDates.has(date)) {
-    throw new ConvexError("同じ日の希望シフトは1件だけ登録できます");
+    throw new ConvexError("同じ日に登録できる希望シフトは1件だけです。");
   }
   requestedDates.add(date);
 }
@@ -73,6 +73,8 @@ function normalizeSubmissionInput(
     throw new ConvexError("提出方法がこの募集の設定と一致しません");
   }
 
+  // TODO[narrow]: 全deploymentでm040が完走し、
+  // verifyRecruitments.missingShopClosedDatesが0件になった後にfallbackを削除する。
   const shopClosedDateSet = new Set(recruitment.shopClosedDates ?? []);
   const requestedDates = new Set<string>();
 
@@ -225,6 +227,7 @@ export const submitShiftRequests = staffSessionMutation({
     let submissionId: Id<"shiftSubmissions">;
     if (existingSubmission) {
       await ctx.db.patch(existingSubmission._id, {
+        // TODO[narrow]: 全deploymentでm033が完走し、verifyShiftSubmissionsの全pageが0になった後にfallbackを削除する。
         // 既存データは firstSubmittedAt がないため、再提出直前の submittedAt を初回扱いにする。
         firstSubmittedAt: existingSubmission.firstSubmittedAt ?? existingSubmission.submittedAt,
         submittedAt: now,

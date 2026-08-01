@@ -32,14 +32,14 @@ const BASE_STEPS: StepperDialogStep<ShopFormStep>[] = [
     label: "勤務時間",
     icon: LuClock3,
     title: "勤務時間",
-    description: "スタッフが選択可能な時間帯を設定します。",
+    description: "スタッフが選択できる時間帯を設定します。",
   },
   {
     value: "regularClosedDays",
     label: "定休日",
     icon: LuCalendarDays,
     title: "定休日",
-    description: "定休日があれば選択してください。休みはシフト募集時にも変更できます。",
+    description: "定休日があれば選択してください。\n定休日はシフト募集時にも変更できます。",
   },
 ];
 

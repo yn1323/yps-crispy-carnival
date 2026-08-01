@@ -60,15 +60,15 @@ export function useStaffProfileManagement(staffs: Staff[], { onResetDetail, isRe
       if (target.isOrganizationLinked) {
         await removePersonFromShop({ staffId: target._id, requestId: crypto.randomUUID() });
       } else {
-        // TODO[narrow]: develop/prodでm011_staffs_to_organization_peopleが完走したことを
-        // `pnpm convex:migrate:status`で確認し、移行済みフロント配布後にこの分岐とdeleteStaff hookを削除する。
+        // TODO[narrow]: 全deploymentでm027が完走し、verifyStaffsの全pageが0件になった後、
+        // 移行済みフロント配布と同時にこの分岐とdeleteStaff hookを削除する。
         await deleteStaff({ staffId: target._id });
       }
       handleClose();
       showSuccessToast({
         title: target.isOrganizationLinked ? "この店舗のスタッフ所属を削除しました" : "スタッフを削除しました",
         ...(target.isOrganizationLinked
-          ? { description: "グループのユーザー情報、ほかの店舗所属、管理者権限は変更していません。" }
+          ? { description: "グループのユーザー情報、ほかの店舗への所属、管理者権限は変更していません。" }
           : {}),
       });
     } catch (error) {

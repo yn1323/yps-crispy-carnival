@@ -122,7 +122,7 @@ describe("OperationContext", () => {
   it("店舗セレクトで選んだ店舗をshop queryに指定してDashboardへ遷移する", async () => {
     renderContext();
 
-    fireEvent.click(screen.getByRole("button", { name: "店舗を切り替える。現在はA店" }));
+    fireEvent.click(screen.getByRole("button", { name: "店舗を切り替える（現在：A店）" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /B店/ }));
 
     await waitFor(() => {
@@ -133,7 +133,7 @@ describe("OperationContext", () => {
   it("別グループの店舗も同じ店舗セレクトから選べる", async () => {
     renderContext();
 
-    fireEvent.click(screen.getByRole("button", { name: "店舗を切り替える。現在はA店" }));
+    fireEvent.click(screen.getByRole("button", { name: "店舗を切り替える（現在：A店）" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /C店/ }));
 
     await waitFor(() => {

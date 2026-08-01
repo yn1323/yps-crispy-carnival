@@ -14,10 +14,10 @@ import { getActiveRecruitmentInShop } from "../recruitment/service";
 import { getActiveStaffInShop, isShiftTargetStaff } from "../staff/service";
 import { buildAssignmentIssue, SHIFT_ASSIGNMENT_VALIDATION, validateShiftAssignments } from "./validation";
 
-const PAST_SHIFT_SAVE_ERROR = "過去のシフトは保存できません";
-const PAST_SHIFT_NOTIFY_ERROR = "過去のシフトはスタッフに通知できません";
+const PAST_SHIFT_SAVE_ERROR = "過去のシフトは保存できません。";
+const PAST_SHIFT_NOTIFY_ERROR = "過去のシフトはスタッフに通知できません。";
 const PREVIOUS_CONFIRMATION_NOTIFICATION_PROCESSING_ERROR =
-  "前回の確定シフト通知を送信中です。少し時間をおいて、もう一度お試しください";
+  "前回の確定シフト通知を送信中です。\n少し時間をおいて、もう一度お試しください。";
 const SHIFT_CONFIRMATION_OPERATION_VERSION = 1;
 
 type PreviousConfirmationDeliveryState = "delivered" | "undelivered" | "processing";
@@ -165,6 +165,8 @@ export const saveShiftAssignments = managerMutation({
       assignments: args.assignments,
       periodStart: recruitment.periodStart,
       periodEnd: recruitment.periodEnd,
+      // TODO[narrow]: 全deploymentでm040が完走し、
+      // verifyRecruitments.missingShopClosedDatesが0件になった後にfallbackを削除する。
       closedDates: recruitment.shopClosedDates ?? [],
       pattern: submissionPattern,
     });
@@ -257,6 +259,8 @@ export const confirmRecruitment = managerMutation({
       return null;
     }
 
+    // TODO[narrow]: 全deploymentでm040が完走し、
+    // verifyRecruitments.missingShopClosedDatesが0件になった後にfallbackを削除する。
     const shopClosedDateSet = new Set(recruitment.shopClosedDates ?? []);
     const existingAssignments = await ctx.db
       .query("shiftAssignments")

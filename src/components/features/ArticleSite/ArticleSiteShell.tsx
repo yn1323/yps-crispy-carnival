@@ -53,7 +53,7 @@ export function ArticleNotFound({ title = "記事が見つかりません" }: { 
             {title}
           </Heading>
           <Text color="gray.700" lineHeight="1.8">
-            指定されたページは、現在の記事一覧に含まれていません。
+            指定されたページは、現在の記事一覧にありません。
           </Text>
         </VStack>
       </Container>

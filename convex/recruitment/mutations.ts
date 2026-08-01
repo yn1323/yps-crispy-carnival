@@ -26,15 +26,15 @@ function normalizeShopClosedDates(dates: string[], periodStart: string, periodEn
 
   for (const date of uniqueDates) {
     if (!isValidIsoDateString(date)) {
-      throw new ConvexError("定休日の日付形式が正しくありません");
+      throw new ConvexError("定休日の日付形式が正しくありません。");
     }
     if (date < periodStart || date > periodEnd) {
-      throw new ConvexError("定休日は募集期間内の日付を選んでください");
+      throw new ConvexError("定休日は募集期間内の日付から選んでください。");
     }
   }
 
   if (periodDateCount > 0 && uniqueDates.length >= periodDateCount) {
-    throw new ConvexError("シフト期間のすべてを定休日にはできません");
+    throw new ConvexError("シフト期間のすべての日を定休日にすることはできません。");
   }
 
   return uniqueDates;
@@ -55,7 +55,7 @@ export const createRecruitment = managerMutation({
   handler: async (ctx, args) => {
     const parsed = createRecruitmentSchema.safeParse(args);
     if (!parsed.success) {
-      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
     }
     const input = parsed.data;
     const today = todayJST();
@@ -82,6 +82,8 @@ export const createRecruitment = managerMutation({
         candidate.periodStart === input.periodStart &&
         candidate.periodEnd === input.periodEnd &&
         candidate.deadline === input.deadline &&
+        // TODO[narrow]: 全deploymentでm040が完走し、
+        // verifyRecruitments.missingShopClosedDatesが0件になった後にfallbackを削除する。
         sameStringArray(candidate.shopClosedDates ?? [], shopClosedDates),
     );
     if (duplicate) throw new ConvexError(RECRUITMENT_DUPLICATE_ERROR_CODE);

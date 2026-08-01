@@ -53,7 +53,7 @@ function resolveNotificationDetails(
         : undefined;
   const stateEffectiveAt = nextState.kind === "scheduledChange" ? nextState.effectiveAt : undefined;
   if (supplied?.targetPlan && stateTargetPlan && supplied.targetPlan !== stateTargetPlan) {
-    throw new ConvexError("通知の変更先プランが契約状態と一致しません");
+    throw new ConvexError("通知の変更先プランが、現在の契約状態と一致しません");
   }
   if (
     supplied?.effectiveAt !== undefined &&
@@ -604,7 +604,7 @@ async function resolvePendingActivationFailure(
     | "paidActivationFailedRestrictedContinued";
 }> {
   if (billingState.state.kind !== "pendingActivation") {
-    throw new ConvexError("現在の契約状態からこの変更は適用できません");
+    throw new ConvexError("現在の契約状態では、この変更を適用できません");
   }
   if (billingState.state.fallback === "restricted") {
     if (!billingState.state.restrictedFallbackState) {
@@ -703,10 +703,10 @@ export const setFreeSelection = authenticatedMutation({
       throw new ConvexError("支払い不要Businessでは無料設定を変更できません");
     }
     if (billingState.state.kind === "initialPaymentPending") {
-      throw new ConvexError("支払い結果の確認中は無料設定を変更できません");
+      throw new ConvexError("支払い結果を確認中のため、無料設定を変更できません");
     }
     if (billingState.state.kind === "pendingActivation" && billingState.state.fallback === "free") {
-      throw new ConvexError("支払い結果の確認中は無料設定を変更できません");
+      throw new ConvexError("支払い結果を確認中のため、無料設定を変更できません");
     }
     const restrictedState = getEffectiveRestrictedBillingState(billingState.state);
     const canSetFreeSelection =
@@ -1123,7 +1123,7 @@ async function transitionTrialToInitialPaymentPending(
     billingState.state.trialEndsAt !== args.trialEndsAt ||
     args.now < args.trialEndsAt
   ) {
-    throw new ConvexError("トライアルの初回請求を開始できる状態ではありません");
+    throw new ConvexError("現在は、トライアルの初回請求を開始できる状態ではありません");
   }
 
   const nextState = {
@@ -1429,7 +1429,7 @@ export const confirmScheduledPaidPlanDeadline = internalMutation({
           })
         : createPaymentGraceState("business", args.firstFailureAt as number, "pro");
     if (!isVerifiedBillingTransitionAllowed(billingState.state, nextState)) {
-      throw new ConvexError("現在の契約状態からこの変更は適用できません");
+      throw new ConvexError("現在の契約状態では、この変更を適用できません");
     }
     const nextVersion = billingState.version + 1;
     await ctx.db.patch(billingState._id, { state: nextState, version: nextVersion, updatedAt: now });
@@ -1669,7 +1669,7 @@ export const setStateFromVerifiedBilling = internalMutation({
       }
       case "scheduledChangeCanceled":
         if (billingState.state.kind !== "scheduledChange") {
-          throw new ConvexError("現在の契約状態からこの変更は適用できません");
+          throw new ConvexError("現在の契約状態では、この変更を適用できません");
         }
         nextState = { kind: "active", plan: billingState.state.currentPlan };
         scheduledChangeCanceled = true;
@@ -1703,7 +1703,7 @@ export const setStateFromVerifiedBilling = internalMutation({
             : "stateUpdate",
       )
     ) {
-      throw new ConvexError("現在の契約状態からこの変更は適用できません");
+      throw new ConvexError("現在の契約状態では、この変更を適用できません");
     }
     const notificationDetails = resolveNotificationDetails(nextState, args.notificationDetails);
     if (nextState.kind === "active" && nextState.plan !== "free" && !scheduledChangeCanceled) {
