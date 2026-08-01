@@ -2,7 +2,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { todayJST } from "../_lib/dateFormat";
+import { getManagerConfirmationReminderAt, todayJST } from "../_lib/dateFormat";
 import { seedManagerShop, seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { NOTIFICATION_FANOUT_SCOPE_LIMIT, RECRUITMENT_PERIOD_DAYS_MAX } from "../constants";
@@ -247,6 +247,11 @@ describe("recruitment/mutations", () => {
       expect(
         state.scheduled.filter((job) => job.name === "notification/reminderActions:sendReminderEmails"),
       ).toHaveLength(1);
+      expect(
+        state.scheduled
+          .filter((job) => job.name === "shiftConfirmationReminder/actions:sendManagerConfirmationReminder")
+          .map((job) => ({ scheduledTime: job.scheduledTime, recruitmentId: job.args[0]?.recruitmentId })),
+      ).toEqual([{ scheduledTime: getManagerConfirmationReminderAt("2026-01-05"), recruitmentId }]);
     });
 
     it("提出締切日前日17:00を過ぎている募集では自動催促を予約しない", async () => {
@@ -272,6 +277,11 @@ describe("recruitment/mutations", () => {
       expect(
         state.scheduled.filter((job) => job.name === "notification/reminderActions:sendReminderEmails"),
       ).toHaveLength(0);
+      expect(
+        state.scheduled
+          .filter((job) => job.name === "shiftConfirmationReminder/actions:sendManagerConfirmationReminder")
+          .map((job) => ({ scheduledTime: job.scheduledTime, recruitmentId: job.args[0]?.recruitmentId })),
+      ).toEqual([{ scheduledTime: getManagerConfirmationReminderAt("2026-01-05"), recruitmentId }]);
     });
 
     it("同じ期間でも定休日が違う募集は別に作成できる", async () => {
