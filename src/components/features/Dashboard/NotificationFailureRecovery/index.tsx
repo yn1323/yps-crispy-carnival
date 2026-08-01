@@ -98,8 +98,19 @@ export function NotificationFailureRecovery({ failures: failureOverrides, isRead
     resetDialogState();
   };
 
+  const closeAfterAllProcessed = () => {
+    dialog.close();
+    setAcceptedFailureIds(new Set());
+    setResendingFailureIds(new Set());
+    setDismissTarget(null);
+  };
+
   const handleResend = async (failureId: Id<"notificationFailureInbox">) => {
     if (isReadOnly || acceptedFailureIds.has(failureId) || resendingFailureIds.has(failureId) || isResendingAll) return;
+
+    const allOtherFailuresProcessed = dialogRows.every(
+      (failure) => failure._id === failureId || acceptedFailureIds.has(failure._id),
+    );
 
     setResendingFailureIds((current) => new Set(current).add(failureId));
     try {
@@ -107,6 +118,7 @@ export function NotificationFailureRecovery({ failures: failureOverrides, isRead
       if (result.scheduled) {
         setAcceptedFailureIds((current) => new Set(current).add(failureId));
         showSuccessToast({ title: "通知を再送しました" });
+        if (allOtherFailuresProcessed) closeAfterAllProcessed();
         return;
       }
       toaster.create({
@@ -132,6 +144,7 @@ export function NotificationFailureRecovery({ failures: failureOverrides, isRead
     try {
       const result = await resendAllOpenNotificationFailuresBatches(() => resendOpenFailures({}));
       if (result.scheduledFailureIds.length > 0) {
+        const scheduledFailureIds = new Set(result.scheduledFailureIds);
         setAcceptedFailureIds((current) => {
           const next = new Set(current);
           for (const failureId of result.scheduledFailureIds) next.add(failureId);
@@ -142,6 +155,10 @@ export function NotificationFailureRecovery({ failures: failureOverrides, isRead
           description: result.hasRemainingFailures ? "残りの通知は少し時間をおいてから再送してください。" : undefined,
           type: result.hasRemainingFailures ? "warning" : "success",
         });
+        const allDialogRowsProcessed = dialogRows.every(
+          (failure) => acceptedFailureIds.has(failure._id) || scheduledFailureIds.has(failure._id),
+        );
+        if (!result.hasRemainingFailures && allDialogRowsProcessed) closeAfterAllProcessed();
         return;
       }
       toaster.create({
@@ -157,12 +174,17 @@ export function NotificationFailureRecovery({ failures: failureOverrides, isRead
   const { run: handleDismiss, isRunning: isDismissing } = useSingleFlight(async () => {
     if (isReadOnly || !dismissTarget) return;
 
+    const dismissedFailureId = dismissTarget._id;
+    const remainingRows = dialogRows.filter((failure) => failure._id !== dismissedFailureId);
+    const allRemainingFailuresProcessed = remainingRows.every((failure) => acceptedFailureIds.has(failure._id));
+
     try {
-      await resolveFailure({ failureId: dismissTarget._id });
-      setDismissedFailureIds((current) => new Set(current).add(dismissTarget._id));
-      setDialogRows((current) => current.filter((failure) => failure._id !== dismissTarget._id));
+      await resolveFailure({ failureId: dismissedFailureId });
+      setDismissedFailureIds((current) => new Set(current).add(dismissedFailureId));
+      setDialogRows(remainingRows);
       setDismissTarget(null);
       showSuccessToast({ title: "送れなかった通知を無視しました" });
+      if (allRemainingFailuresProcessed) closeAfterAllProcessed();
     } catch (error) {
       showErrorToast(error);
     }
