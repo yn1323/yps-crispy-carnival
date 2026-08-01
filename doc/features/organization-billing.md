@@ -207,6 +207,9 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 | `convex/organizationBilling/` | プラン上限、課金policy、期限、Free選択、請求先メール、通知を扱う |
 | `convex/organizationStripe/` | Stripe API、Price、Checkout、Portal、Webhook、再照合、probeを扱う |
 | `convex/organizationInvitation/` | 管理者招待の発行、再送、取消、preview、アカウント連携を扱う |
+| `convex/migrations/m023_organization_invitations_narrow_prep.ts` | 旧招待lifecycleと欠損fieldをNarrow前に補完する |
+| `convex/migrations/m028_shop_billing_states_narrow_prep.ts` | 旧店舗課金rowを保持したままcanonical課金状態との対応異常を記録する |
+| `convex/narrowReadiness/queries.ts` | 招待、請求先、Subscription、制限状態をPIIなしで全ページ確認する |
 | `convex/notificationOutbox/` | 外部送信前の宛先・所属・課金状態再確認と重複排除を行う |
 | `convex/migrations/m021_organization_billing_complimentary_pro_to_business.ts` | 旧`complimentary.pro`を変換した履歴migrationとMigration Testの契約 |
 | `convex/migrations/m022_organization_billing_to_complimentary_business.ts` | ダークローンチのため、全課金状態を支払い不要Businessへ寄せる |
