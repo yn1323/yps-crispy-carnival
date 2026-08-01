@@ -4,12 +4,12 @@ import { fileURLToPath } from "node:url";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import storycap from "@storycap-testrun/browser/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
-import tsconfigPaths from "vite-tsconfig-paths";
 import { defineConfig, defineProject } from "vitest/config";
 import { mdxPlugin } from "./vite/mdxPlugin";
 
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 const storybookAppVersion = "0.0.0-vrt";
+const testBuildDateJst = "2026-01-13";
 const vrtOutputDir = path.join(dirname, "vrt-actual");
 
 type VrtViewportName = "desktop" | "mobile1" | "mobile2";
@@ -38,8 +38,6 @@ const createVrtProject = (
   defineConfig({
     plugins: [
       mdxPlugin(),
-      // biome-ignore lint/suspicious/noExplicitAny: temp
-      tsconfigPaths() as any,
       storybookTest({
         configDir: path.join(dirname, ".storybook"),
         storybookScript: "pnpm storybook",
@@ -58,13 +56,16 @@ const createVrtProject = (
     ],
     define: {
       __APP_VERSION__: JSON.stringify(storybookAppVersion),
+      __BUILD_DATE_JST__: JSON.stringify(testBuildDateJst),
       __VRT_VIEWPORT__: JSON.stringify(viewport),
     },
     resolve: {
+      tsconfigPaths: true,
       alias: {
         "convex/react": path.resolve(dirname, ".storybook/mocks/convex-react.ts"),
         "convex/react-clerk": path.resolve(dirname, ".storybook/mocks/convex-react.ts"),
-        "@clerk/clerk-react": path.resolve(dirname, ".storybook/mocks/clerk-react.tsx"),
+        "@clerk/react/errors": path.resolve(dirname, ".storybook/mocks/clerk-react-errors.ts"),
+        "@clerk/react": path.resolve(dirname, ".storybook/mocks/clerk-react.tsx"),
       },
     },
     test: {

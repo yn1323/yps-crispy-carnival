@@ -134,7 +134,7 @@ export function ShiftViewPage({
     <Flex direction="column" h="full" minH={0}>
       <Box px={4} py={3}>
         <Text fontSize="sm" fontWeight="semibold">
-          {periodLabel} のシフト
+          {periodLabel}のシフト
         </Text>
       </Box>
 

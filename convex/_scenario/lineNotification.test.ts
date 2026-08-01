@@ -88,7 +88,14 @@ describe("LINE通知連携シナリオ", () => {
     ).toBe(true);
 
     // Act: LINE webhookでunfollowを受け取る。
-    await line.dispatchWebhookEvents([{ type: "unfollow", userId: "U_line_scenario" }]);
+    await line.dispatchWebhookEvents([
+      {
+        type: "unfollow",
+        userId: "U_line_scenario",
+        webhookEventId: "line-scenario-unfollow",
+        timestamp: Date.now(),
+      },
+    ]);
 
     // Assert: 一覧表示のfollow状態が落ちる。
     const staffPageAfterUnfollow = await asManager.getDashboardStaffs();
@@ -98,7 +105,14 @@ describe("LINE通知連携シナリオ", () => {
     });
 
     // Act: 同じLINEユーザーが再followする。
-    await line.dispatchWebhookEvents([{ type: "follow", userId: "U_line_scenario" }]);
+    await line.dispatchWebhookEvents([
+      {
+        type: "follow",
+        userId: "U_line_scenario",
+        webhookEventId: "line-scenario-refollow",
+        timestamp: Date.now() + 1,
+      },
+    ]);
 
     // Assert: follow状態が復帰し、募集中通知が再度予約される。
     const staffPageAfterRefollow = await asManager.getDashboardStaffs();

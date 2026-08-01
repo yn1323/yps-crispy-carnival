@@ -1,9 +1,7 @@
-import { Field, Input, Stack } from "@chakra-ui/react";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH } from "@/convex/constants";
+import { PersonProfileForm, type PersonProfileFormData } from "@/src/components/shared/PersonProfileForm";
 import type { Staff } from "../types";
-import { type EditStaffFormData, editStaffSchema } from "./index";
+
+export type EditStaffFormData = PersonProfileFormData;
 
 type Props = {
   staff: Staff;
@@ -11,38 +9,11 @@ type Props = {
 };
 
 export const EditStaffForm = ({ staff, onSubmit }: Props) => {
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<EditStaffFormData>({
-    resolver: zodResolver(editStaffSchema),
-    defaultValues: { name: staff.name, email: staff.email },
-  });
-
-  const nameError = errors.name;
-  const emailError = errors.email;
-
   return (
-    <form id="edit-staff-form" noValidate onSubmit={handleSubmit(onSubmit)}>
-      <Stack gap={4}>
-        <Field.Root invalid={!!nameError}>
-          <Field.Label>名前</Field.Label>
-          <Input placeholder="例：田中 花子" maxLength={PERSON_NAME_MAX_LENGTH} {...register("name")} />
-          {nameError && <Field.ErrorText>{nameError.message}</Field.ErrorText>}
-        </Field.Root>
-
-        <Field.Root invalid={!!emailError}>
-          <Field.Label>メールアドレス</Field.Label>
-          <Input
-            type="email"
-            placeholder="例：hanako@example.com"
-            maxLength={EMAIL_MAX_LENGTH}
-            {...register("email")}
-          />
-          {emailError && <Field.ErrorText>{emailError.message}</Field.ErrorText>}
-        </Field.Root>
-      </Stack>
-    </form>
+    <PersonProfileForm
+      formId="edit-staff-form"
+      initialValues={{ name: staff.name, email: staff.email }}
+      onSubmit={onSubmit}
+    />
   );
 };

@@ -2,12 +2,18 @@ import { v } from "convex/values";
 import { internalMutation } from "../_generated/server";
 import { rateLimit } from "../_lib/rateLimits";
 
+/** Siteverifyへの外部callより先に、固定global budgetを消費する。 */
+export const checkTurnstileRateLimit = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const result = await rateLimit(ctx, { name: "contactGlobal", key: "global" });
+    return { allowed: result.ok };
+  },
+});
+
 export const checkSubmissionRateLimit = internalMutation({
   args: { emailKey: v.string(), ipKey: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const global = await rateLimit(ctx, { name: "contactGlobal", key: "global" });
-    if (!global.ok) return { allowed: false as const };
-
     const shortEmail = await rateLimit(ctx, { name: "contactEmailShort", key: args.emailKey });
     if (!shortEmail.ok) return { allowed: false as const };
 

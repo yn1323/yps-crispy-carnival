@@ -1,6 +1,6 @@
 import { Text } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, within } from "storybook/test";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import { Button } from "@/src/components/ui/Button";
 import { Toaster, toaster } from "@/src/components/ui/toaster";
 import { Dialog, useDialog } from "./index";
@@ -48,12 +48,11 @@ export const ToastCloseKeepsDialogOpen: Story = {
 
     const toastTitle = await screen.findByText("保存しました");
     const toastRoot = toastTitle.closest('[data-scope="toast"][data-part="root"]');
-    if (!toastRoot) throw new Error("Toast root was not found");
-    const toastCloseButton = toastRoot.querySelector<HTMLButtonElement>('[data-part="close-trigger"]');
-    if (!toastCloseButton) throw new Error("Toast close button was not found");
+    if (!(toastRoot instanceof HTMLElement)) throw new Error("Toast root was not found");
 
-    await userEvent.click(toastCloseButton);
-    await expect(screen.getByRole("dialog", { name: "Snackbar確認" })).toBeInTheDocument();
+    await userEvent.click(within(toastRoot).getByLabelText("通知を閉じる"));
+    await waitFor(() => expect(screen.queryByText("保存しました")).not.toBeInTheDocument());
+    await expect(dialog).toBeVisible();
     toaster.dismiss();
   },
 };

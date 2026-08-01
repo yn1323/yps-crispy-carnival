@@ -1,10 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { buildMeta } from "@/src/helpers/seo";
 import { SsoCallbackRoutePage } from "@/src/pages/auth";
+import { buildSsoCallbackPageHead } from "@/src/pages/auth/meta";
 
 export const Route = createFileRoute("/sso-callback")({
-  head: () => ({
-    meta: buildMeta({ title: "認証処理中", noindex: true }),
+  ssr: false,
+  validateSearch: (search: Record<string, unknown>) => ({
+    redirect: (search.redirect as string) || undefined,
   }),
-  component: SsoCallbackRoutePage,
+  head: buildSsoCallbackPageHead,
+  component: SsoCallbackRoute,
 });
+
+function SsoCallbackRoute() {
+  const { redirect } = Route.useSearch();
+  return <SsoCallbackRoutePage redirect={redirect} />;
+}

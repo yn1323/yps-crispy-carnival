@@ -1,6 +1,6 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ConfirmShiftContent } from "./ConfirmShiftContent";
+import { ConfirmShiftContent } from "@/src/components/shared/ShiftConfirmationContent";
 import { RemindUnsubmittedContent } from "./RemindUnsubmittedContent";
 
 const meta = {

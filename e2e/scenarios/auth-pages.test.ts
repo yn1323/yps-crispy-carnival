@@ -1,7 +1,10 @@
 import { expect, test } from "../fixtures/e2eTest";
 import { AuthPage } from "../pages/AuthPage";
 
-test.describe("ログイン周り", () => {
+// password入力を含むため、retry時も平文のfill引数をtraceへ保存しない。
+test.use({ trace: "off" });
+
+test.describe("ログイン周り", { tag: ["@release", "@smoke"] }, () => {
   let authPage: AuthPage;
 
   test.beforeEach(async ({ page }) => {

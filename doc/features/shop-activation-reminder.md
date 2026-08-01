@@ -11,7 +11,7 @@
 - `convex/shopActivationReminder/refs.ts` - 生成API更新前でも参照できる function reference
 - `convex/notification/templates.ts` - メール / LINE 文面
 - `convex/notificationOutbox/failureSuppress.ts` - failureInbox 抑止 context
-- `src/components/devtools/NotificationPreview/ShopActivationReminder/index.stories.tsx` - メール / LINE 文面プレビュー
+- `src/devtools/NotificationPreview/ShopActivationReminder/index.stories.tsx` - メール / LINE 文面プレビュー
 
 ## 画面一覧
 
@@ -26,4 +26,5 @@
 
 - setup時点では outbox に入れず、7日後の発火時に必要な場合だけ outbox を作成する。
 - active manager staff が LINE 連携済みなら LINE を優先し、未連携・友達解除・Quota超過時はメールへ送る。LINE job には Quota 超過時用の `fallbackEmail` を付ける。
+- メール / LINE のCTAは通知元店舗を `shop` クエリで指定したDashboard URLを使う。
 - context は `shopActivationReminder.sendReminder`。配送イベントは残すが、失敗しても Dashboard の再送モーダルに出る `notificationFailureInbox` は作らない。

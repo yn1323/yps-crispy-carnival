@@ -2,6 +2,7 @@
 
 import { execSync } from "node:child_process";
 import { promises as fs } from "node:fs";
+import { clearConvexTables } from "../../scripts/clearConvexTables";
 
 const main = async () => {
   try {
@@ -13,11 +14,8 @@ const main = async () => {
     console.log("\n全テーブルのデータをクリア中...");
     console.log("----------------------------------------");
     try {
-      execSync("npx convex run testing:clearAllTables", {
-        stdio: "inherit",
-        cwd: process.cwd(),
-      });
-      console.log("✅ 全テーブルのクリアが完了しました\n");
+      clearConvexTables();
+      console.log();
     } catch {
       console.log("⚠️ テーブルクリアをスキップしました（Convexが起動していない可能性があります）\n");
     }

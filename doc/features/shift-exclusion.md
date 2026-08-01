@@ -1,11 +1,14 @@
 # シフト対象外スタッフ
 
-実際にはシフトを出さないスタッフ（店舗初回登録時の店舗共通アドレス等）を、シフト表示と「シフト関連通知」の対象から外す機能。スタッフ詳細モーダルの設定タブから個別に切り替える。LINE連携依頼・規約同意などシフト以外の通知は従来どおり送る。
+実際にはシフトを出さないスタッフ（店舗初回登録時の店舗共通アドレス等）を、シフト表示と「シフト関連通知」の対象から外す機能。
+スタッフ詳細ページで対象店舗を選び、店舗別設定ページから店舗ごとに切り替える。
+LINE連携依頼や規約同意など、シフト以外の通知は従来どおり送る。
 
 ## 切り替え方法・挙動
 
-- スタッフ一覧の各行を押してスタッフ詳細モーダルを開き、設定タブの「シフト対象」トグルで切り替える（管理者本人も対象外にできる）
-- 対象外スタッフは行に「シフト対象外」バッジが付き、「現在募集中のシフトを送る」「現在の確定シフトを送る」が無効になる
+- Dashboardまたはグループ設定のユーザー一覧からスタッフ詳細ページを開き、対象店舗を選んで「このユーザーをシフト対象とする」トグルで切り替える（管理者本人も対象外にできる）
+- トグルは先に表示を切り替え、更新に失敗した場合は元へ戻す。切り替え直後から最低1000msは再操作を無効にする
+- 対象外スタッフは行に「シフト対象外」バッジが付き、「募集中のシフトを再送する」「確定シフトを再送する」が無効になる
 - 対象外スタッフは以下から除外される:
   - シフトボード（ShiftForm）・スタッフ向け確定シフト表示
   - 募集開始 / 提出催促リマインダー / 確定シフト の各通知（一括・個別手動再送・追加/メール変更/LINE follow 追送すべて）
@@ -30,10 +33,9 @@
 ### フロントエンド（`src/`）
 
 - `src/components/features/Dashboard/types.ts` — `Staff.excludedFromShift`
-- `src/components/features/Dashboard/StaffRoster/StaffRow.tsx` — バッジ・スタッフ詳細モーダル入口
-- `src/components/features/Dashboard/StaffRoster/StaffDetailDialog.tsx` — シフト対象トグル・通知項目の無効化
-- `src/components/features/Dashboard/StaffRoster/index.tsx` — 詳細表示コールバック中継
-- `src/components/features/Dashboard/DashboardContent/index.tsx` — `setShiftExclusion` 接続・トースト
+- `src/components/features/Dashboard/StaffRoster/StaffRow.tsx` — バッジとスタッフ詳細ページへの入口
+- `src/components/features/UserShopDetail/` — シフト対象トグル、楽観更新、通知操作の無効化
+- `src/components/features/Dashboard/StaffManagement/` — スタッフ詳細ページへの遷移と、人物IDが未移行のスタッフに限った旧詳細モーダルの暫定接続
 
 ## API 一覧
 

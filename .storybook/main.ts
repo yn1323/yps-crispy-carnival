@@ -1,10 +1,22 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { StorybookConfig } from "@storybook/react-vite";
+import type { PluginOption } from "vite";
 import { mdxPlugin } from "../vite/mdxPlugin.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const storybookAppVersion = "0.0.0-vrt";
+const storybookBuildDateJst = "2026-01-13";
+
+/** Storybookはroot Vite configを読むため、複数entryを扱えないStartのapp pluginだけを外す。 */
+function withoutApplicationPlugins(plugins: PluginOption[]): PluginOption[] {
+  return plugins.flatMap((plugin) => {
+    if (Array.isArray(plugin)) return withoutApplicationPlugins(plugin);
+    if (!plugin) return [];
+    if (typeof plugin.name === "string" && (plugin.name === "mdx" || plugin.name.startsWith("tanstack"))) return [];
+    return [plugin];
+  });
+}
 
 const config: StorybookConfig = {
   refs: {
@@ -25,6 +37,7 @@ const config: StorybookConfig = {
     config.define = {
       ...config.define,
       __APP_VERSION__: JSON.stringify(storybookAppVersion),
+      __BUILD_DATE_JST__: JSON.stringify(storybookBuildDateJst),
     };
     config.resolve = {
       ...config.resolve,
@@ -45,7 +58,7 @@ const config: StorybookConfig = {
     // convex/react 等のモック差し替えには resolveId フックを使う
     config.plugins = [
       mdxPlugin(),
-      ...(config.plugins ?? []),
+      ...withoutApplicationPlugins(config.plugins ?? []),
       {
         name: "storybook-mock-modules",
         enforce: "pre" as const,
@@ -53,7 +66,10 @@ const config: StorybookConfig = {
           if (id === "convex/react" || id === "convex/react-clerk") {
             return path.resolve(__dirname, "mocks/convex-react.ts");
           }
-          if (id === "@clerk/clerk-react") {
+          if (id === "@clerk/react/errors") {
+            return path.resolve(__dirname, "mocks/clerk-react-errors.ts");
+          }
+          if (id === "@clerk/react") {
             return path.resolve(__dirname, "mocks/clerk-react.tsx");
           }
         },
@@ -62,8 +78,5 @@ const config: StorybookConfig = {
 
     return config;
   },
-  env: (config) => ({
-    ...config,
-  }),
 };
 export default config;

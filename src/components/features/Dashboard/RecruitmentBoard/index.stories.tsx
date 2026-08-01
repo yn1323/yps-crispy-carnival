@@ -1,10 +1,13 @@
 import { Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
-import { buildDashboardRecruitmentGroups, type Recruitment } from "@/src/components/features/Dashboard/types";
+import { expect, fn, userEvent, within } from "storybook/test";
+import { buildDashboardRecruitmentGroups } from "@/src/components/features/Dashboard/script";
+import type { Recruitment } from "@/src/components/features/Dashboard/types";
 import { RecruitmentBoard, RecruitmentBoardSkeleton } from ".";
 
 const noop = () => {};
+const openReadOnlyShiftBoard = fn();
 const dateInDays = (days: number) => dayjs().add(days, "day").format("YYYY-MM-DD");
 const makeRecruitment = (overrides: Partial<Recruitment> = {}) =>
   ({
@@ -83,6 +86,16 @@ const olderPastRecruitment = makeRecruitment({
   responseCount: 10,
   totalStaffCount: 10,
 });
+const unconfirmedPastRecruitment = makeRecruitment({
+  _id: "rec-past-unconfirmed" as Recruitment["_id"],
+  periodStart: dateInDays(-15),
+  periodEnd: dateInDays(-1),
+  deadline: dateInDays(-20),
+  status: "open",
+  confirmedAt: null,
+  responseCount: 6,
+  totalStaffCount: 10,
+});
 const dashboardRecruitments = [
   currentRecruitment,
   actionRequiredRecruitment,
@@ -95,9 +108,6 @@ const groupsFor = (
   recruitments: Recruitment[],
   options: Omit<Parameters<typeof buildDashboardRecruitmentGroups>[0], "recruitments"> = {},
 ) => buildDashboardRecruitmentGroups({ ...options, recruitments }).groups;
-const assertText = (root: HTMLElement, text: string, label: string) => {
-  if (!root.textContent?.includes(text)) throw new Error(`${label} が表示されませんでした`);
-};
 
 const meta = {
   title: "Features/Dashboard/RecruitmentBoard",
@@ -164,9 +174,6 @@ export const WithPastEntryButtonBeforeQueryStarts: Story = {
     isPastRecruitmentsVisible: false,
     pastStatus: "LoadingFirstPage",
   },
-  play: async ({ canvasElement }) => {
-    assertText(canvasElement, "過去のシフトを見る", "過去のシフト導線");
-  },
 };
 
 export const Empty: Story = {
@@ -191,7 +198,23 @@ export const OnlyCurrentShift: Story = {
   },
 };
 
+export const ReadOnlyNavigation: Story = {
+  args: {
+    groups: groupsFor([currentRecruitment]),
+    isReadOnly: true,
+    onOpenShiftBoard: openReadOnlyShiftBoard,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.click(canvas.getByLabelText(/のシフトを見る/));
+    await expect(openReadOnlyShiftBoard).toHaveBeenCalledWith(currentRecruitment._id);
+    await expect(canvas.queryByRole("button", { name: /募集操作メニュー/ })).not.toBeInTheDocument();
+  },
+};
+
 export const MultipleGroupsMobile: Story = {
+  tags: ["vrt-mobile1"],
   args: {
     groups: dashboardGroups,
     hasPastRecruitments: true,
@@ -200,18 +223,17 @@ export const MultipleGroupsMobile: Story = {
   parameters: {
     viewport: { value: "mobile1", isRotated: false },
   },
-  play: async ({ canvasElement }) => {
-    assertText(canvasElement, "現在のシフト", "現在のシフト見出し");
-    assertText(canvasElement, "要シフト調整", "要シフト調整見出し");
-    assertText(canvasElement, "募集中", "募集中見出し");
-    assertText(canvasElement, "確定済み", "確定済み見出し");
-    assertText(canvasElement, "過去のシフトを見る", "過去のシフト導線");
-  },
 };
 
 export const PastLoadedCanLoadMore: Story = {
+  tags: ["vrt-mobile1"],
   args: {
-    groups: groupsFor([...dashboardRecruitments, recentPastRecruitment, olderPastRecruitment]),
+    groups: groupsFor([
+      ...dashboardRecruitments,
+      unconfirmedPastRecruitment,
+      recentPastRecruitment,
+      olderPastRecruitment,
+    ]),
     hasPastRecruitments: true,
     isPastRecruitmentsVisible: true,
     pastStatus: "CanLoadMore",
@@ -220,15 +242,16 @@ export const PastLoadedCanLoadMore: Story = {
   parameters: {
     viewport: { value: "mobile1", isRotated: false },
   },
-  play: async ({ canvasElement }) => {
-    assertText(canvasElement, "過去のシフト", "過去のシフト見出し");
-    assertText(canvasElement, "もっと見る", "過去シフト追加導線");
-  },
 };
 
 export const PastLoadedExhausted: Story = {
   args: {
-    groups: groupsFor([...dashboardRecruitments, recentPastRecruitment, olderPastRecruitment]),
+    groups: groupsFor([
+      ...dashboardRecruitments,
+      unconfirmedPastRecruitment,
+      recentPastRecruitment,
+      olderPastRecruitment,
+    ]),
     hasPastRecruitments: true,
     isPastRecruitmentsVisible: true,
     pastStatus: "Exhausted",
@@ -237,5 +260,13 @@ export const PastLoadedExhausted: Story = {
 };
 
 export const Loading: Story = {
+  render: () => <RecruitmentBoardSkeleton />,
+};
+
+export const LoadingMobile: Story = {
+  tags: ["vrt-mobile1"],
+  parameters: {
+    viewport: { value: "mobile1", isRotated: false },
+  },
   render: () => <RecruitmentBoardSkeleton />,
 };

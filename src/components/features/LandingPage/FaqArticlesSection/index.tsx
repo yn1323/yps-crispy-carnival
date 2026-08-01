@@ -3,8 +3,8 @@ import type { IconType } from "react-icons";
 import { LuArrowRight, LuBookOpen, LuFileSpreadsheet, LuMessageCircle, LuMonitorCheck } from "react-icons/lu";
 import type { ArticleMetadata } from "@/src/components/features/ArticleSite/articleMeta";
 import { articleMetas } from "@/src/components/features/ArticleSite/articleMeta";
+import { landingFaqs } from "@/src/components/features/FaqSite/landingFaqContent";
 import { LANDING_HEADER_SCROLL_MARGIN_TOP } from "../constants";
-import { landingFaqs } from "../faqs";
 import { SectionHeading } from "../SectionHeading";
 
 const articleIcons = [LuMessageCircle, LuMonitorCheck, LuFileSpreadsheet, LuBookOpen];
@@ -45,6 +45,21 @@ export const FaqArticlesSection = () => (
               ))}
             </VStack>
           </Accordion.Root>
+          <Flex justify="flex-end" mt={4}>
+            <Link
+              href="/faq"
+              color="teal.700"
+              fontSize="sm"
+              fontWeight="bold"
+              display="inline-flex"
+              alignItems="center"
+              gap={2}
+              _hover={{ textDecoration: "none", color: "teal.900" }}
+            >
+              すべての質問を見る
+              <Icon as={LuArrowRight} boxSize={4} />
+            </Link>
+          </Flex>
         </Box>
 
         <Box id="articles" scrollMarginTop={LANDING_HEADER_SCROLL_MARGIN_TOP}>

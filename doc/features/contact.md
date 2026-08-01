@@ -9,13 +9,14 @@
 - `src/routes/contact.tsx`
 - `src/pages/contact/index.tsx`
 - `src/components/features/ContactForm/`
-- `src/components/features/LandingPage/FooterSection/index.tsx`
+- `src/components/templates/PublicPageLayout/`
 - `convex/contact/schemas.ts`
 - `convex/contact/mutations.ts`
 - `convex/contact/httpActions.ts`
 - `convex/contact/actions.ts`
 - `convex/http.ts`
 - `convex/_lib/rateLimits.ts`
+- `convex/_lib/notificationDelivery.ts`
 
 ## 画面一覧
 
@@ -29,7 +30,8 @@
 |---|---|---|
 | `/contact/submit` | Convex HTTP action | V8 runtimeでOrigin、入力、Turnstile、送信頻度を検証する |
 | `contact/actions:deliver` | internal action | Node.js runtimeでResend送信後にSlackへ通知する |
-| `contact/mutations:checkSubmissionRateLimit` | internal mutation | メールアドレスと送信元IPのhash、全体件数で送信頻度を制限する |
+| `contact/mutations:checkTurnstileRateLimit` | internal mutation | Siteverify前に固定global budgetで検証要求の集中を止める |
+| `contact/mutations:checkSubmissionRateLimit` | internal mutation | Turnstile通過後、メールアドレスと送信元IPのhashで送信頻度を制限する |
 
 ## 送信順序
 
@@ -60,9 +62,10 @@ Slack通知だけが失敗した場合も、メールの送信受付が成功し
 
 ## セキュリティ境界
 
-- Turnstile tokenはサーバー側のSiteverifyで検証する。
+- Turnstile tokenはサーバー側のSiteverifyで検証し、`contact` actionと許可Originのhostnameが一致する場合だけ受け付ける。
 - Cloudflare公式のalways-passテストキーは、localhostからの開発時だけテスト用hostnameを許可する。
 - HTTP actionは明示したOriginだけを許可する。
+- `NOTIFICATION_DELIVERY_MODE`がdry-run、disabled、mockの場合は、ResendとSlackの外部配送を抑止する。
 - 氏名、メールアドレス、問い合わせ本文、Turnstile token、Slack Webhook URLをログへ出さない。
 - Slackのmrkdwnに埋め込む利用者入力はエスケープし、意図しないメンションを防ぐ。
 - レート制限キーにはメールアドレスやIPの生値ではなくSHA-256 hashを使う。

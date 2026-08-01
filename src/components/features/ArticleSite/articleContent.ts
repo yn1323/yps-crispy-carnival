@@ -1,4 +1,4 @@
-import type { MdxComponent, MdxTocItem } from "@/src/helpers/mdx";
+import type { MdxComponent, MdxTocItem } from "@/src/lib/mdx";
 import {
   type ArticleMetadata,
   articleMetas,
@@ -21,18 +21,25 @@ export type ArticleContent = {
   resolveImageSrc: (src: string) => string;
 };
 
-const articleComponentModules = import.meta.glob<MdxComponent>("./content/articles/*/index.mdx", {
-  eager: true,
-  query: "?mdx-component",
-  import: "default",
-});
+// `_` 始まりのディレクトリは下書きとして扱い、バンドルにも公開ページにも含めない。
+const articleComponentModules = import.meta.glob<MdxComponent>(
+  ["./content/articles/*/index.mdx", "!./content/articles/_*/index.mdx"],
+  {
+    eager: true,
+    query: "?mdx-component",
+    import: "default",
+  },
+);
 
 // 目次はビルド時に抽出済み（vite/mdxPlugin.ts の `?mdx-toc`）。生ソースはバンドルに含めない。
-const articleTocModules = import.meta.glob<MdxTocItem[]>("./content/articles/*/index.mdx", {
-  eager: true,
-  query: "?mdx-toc",
-  import: "default",
-});
+const articleTocModules = import.meta.glob<MdxTocItem[]>(
+  ["./content/articles/*/index.mdx", "!./content/articles/_*/index.mdx"],
+  {
+    eager: true,
+    query: "?mdx-toc",
+    import: "default",
+  },
+);
 
 export const articles = Object.entries(articleComponentModules)
   .map(([path, Content]) => {

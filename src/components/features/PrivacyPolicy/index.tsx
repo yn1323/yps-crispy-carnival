@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { getLegalDocumentsForAudience, type LegalAudience } from "@/convex/legal/documents";
-import { LegalDocumentPage } from "@/src/components/features/LegalPage";
-import { buildLegalDocuments, type LegalMdxComponent } from "@/src/components/features/LegalPage/legalContent";
+import { LegalDocumentPage } from "@/src/components/shared/LegalDocumentPage";
+import { buildLegalDocuments, type LegalMdxComponent } from "@/src/components/shared/LegalDocumentPage/legalContent";
 
 const componentModules = import.meta.glob<LegalMdxComponent>("./content/*.mdx", {
   eager: true,

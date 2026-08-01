@@ -35,7 +35,27 @@ export const DialogOpen: Story = {
   render: () => <DialogOpenStory />,
 };
 
+export const ProCapacityReached: Story = {
+  parameters: {
+    layout: "fullscreen",
+  },
+  render: () => (
+    <Stack minH="100vh" bg="gray.50">
+      <StaffRegistrationRequestDialog
+        isOpen
+        onOpenChange={() => {}}
+        onClose={() => {}}
+        requests={requests}
+        peopleCapacityResolution={{ kind: "contact", current: 30, max: 30 }}
+        onApprove={() => {}}
+        onReject={() => {}}
+      />
+    </Stack>
+  ),
+};
+
 export const MobileDialogOpen: Story = {
+  tags: ["vrt-mobile1"],
   parameters: {
     layout: "fullscreen",
     viewport: { value: "mobile1", isRotated: false },

@@ -8,8 +8,15 @@ import {
 } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
 import { isValidIsoDateString } from "../_lib/validation";
-import { RECRUITMENT_DUPLICATE_SCAN_LIMIT } from "../constants";
+import { NOTIFICATION_FANOUT_SCOPE_LIMIT, RECRUITMENT_DUPLICATE_SCAN_LIMIT } from "../constants";
+import {
+  cancelNotificationFanoutOperationsForRecruitment,
+  ensureNotificationFanoutOperation,
+} from "../notification/fanout";
+import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
+import { isShiftTargetStaff } from "../staff/service";
 import { createRecruitmentSchema } from "./schemas";
+import { getActiveRecruitmentInShop } from "./service";
 
 const RECRUITMENT_DUPLICATE_ERROR_CODE = "RECRUITMENT_DUPLICATE";
 
@@ -44,6 +51,7 @@ export const createRecruitment = managerMutation({
     deadline: v.string(),
     shopClosedDates: v.array(v.string()),
   },
+  returns: v.id("recruitments"),
   handler: async (ctx, args) => {
     const parsed = createRecruitmentSchema.safeParse(args);
     if (!parsed.success) {
@@ -97,7 +105,10 @@ export const createRecruitment = managerMutation({
     const activeStaffs = await ctx.db
       .query("staffs")
       .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", ctx.shop._id).eq("isDeleted", false))
-      .collect();
+      .take(NOTIFICATION_FANOUT_SCOPE_LIMIT + 1);
+    if (activeStaffs.length > NOTIFICATION_FANOUT_SCOPE_LIMIT) {
+      throw new ConvexError("通知対象が上限を超えています");
+    }
     await ctx.db.insert("recruitmentStats", {
       recruitmentId,
       shopId: ctx.shop._id,
@@ -105,14 +116,33 @@ export const createRecruitment = managerMutation({
       activeStaffCountSnapshot: activeStaffs.length,
       updatedAt: now,
     });
+    const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
+    const { operation: fanoutOperation } = await ensureNotificationFanoutOperation(ctx, {
+      operationKey: `shift.recruitment:v1:${recruitmentId}`,
+      kind: "recruitment",
+      purpose: "recruitment",
+      recruitmentId,
+      shopId: ctx.shop._id,
+      targetStaffIds: activeStaffs.filter(isShiftTargetStaff).map((staff) => staff._id),
+      dedupeSuffix: "recruitment",
+      ...notificationOrigin,
+    });
 
     // 募集作成はDB更新を先に完了させ、通知は action 側で LINE / email / dry-run を振り分ける。
-    await ctx.scheduler.runAfter(0, internal.notification.actions.sendRecruitmentNotificationEmails, {
-      recruitmentId,
-    });
+    const fanoutScheduledFunctionId = await ctx.scheduler.runAfter(
+      0,
+      internal.notification.actions.sendRecruitmentNotificationEmails,
+      {
+        recruitmentId,
+        fanoutOperationId: fanoutOperation._id,
+        ...notificationOrigin,
+      },
+    );
+    await ctx.db.patch(fanoutOperation._id, { scheduledFunctionId: fanoutScheduledFunctionId });
     if (shouldScheduleReminder) {
       await ctx.scheduler.runAt(reminderScheduledAt, internal.notification.reminderActions.sendReminderEmails, {
         recruitmentId,
+        ...notificationOrigin,
       });
     }
 
@@ -122,7 +152,7 @@ export const createRecruitment = managerMutation({
       await ctx.scheduler.runAt(
         confirmationReminderAt,
         internal.shiftConfirmationReminder.actions.sendManagerConfirmationReminder,
-        { recruitmentId },
+        { recruitmentId, ...notificationOrigin },
       );
     }
 
@@ -134,14 +164,16 @@ export const deleteRecruitment = managerMutation({
   args: {
     recruitmentId: v.id("recruitments"),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
-    const recruitment = await ctx.db.get(args.recruitmentId);
-    if (!recruitment || recruitment.shopId !== ctx.shop._id || recruitment.isDeleted) {
+    const recruitment = await getActiveRecruitmentInShop(ctx, ctx.shop._id, args.recruitmentId);
+    if (!recruitment) {
       throw new ConvexError("Not found");
     }
 
     // 周辺データは監査・集計のため残し、募集を失効させることで提出/閲覧/通知導線から外す。
     await ctx.db.patch(args.recruitmentId, { isDeleted: true });
+    await cancelNotificationFanoutOperationsForRecruitment(ctx, args.recruitmentId);
     return null;
   },
 });

@@ -2,13 +2,35 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { queryByRole } from "@testing-library/dom";
 import { createStore, Provider } from "jotai";
 import { expect, userEvent, within } from "storybook/test";
+import { UserMenu } from "@/src/components/features/UserMenu";
 import { Button } from "@/src/components/ui/Button";
+import { selectedShopAtom } from "@/src/stores/shop";
 import { userAtom } from "@/src/stores/user";
 import { Header, type HeaderProps } from "./index";
 
-const createStoreWithUser = () => {
+const createStoreWithUser = (
+  featureVisibility = {
+    organizationSettingsNavigation: true,
+    billing: true,
+    shopMembershipAddition: true,
+  },
+) => {
   const store = createStore();
-  store.set(userAtom, { authId: "test", name: "田中太郎", email: "tanaka@example.com" });
+  store.set(userAtom, {
+    authId: "test",
+    name: "田中太郎",
+    email: "tanaka@example.com",
+    featureVisibility,
+  });
+  store.set(selectedShopAtom, {
+    shopId: "shop-a",
+    shopName: "A店舗",
+    shopStatus: "active",
+    organizationId: "organization-a",
+    organizationName: "Aグループ",
+    organizationPlan: "pro",
+    memberStatus: "active",
+  });
   return store;
 };
 
@@ -31,7 +53,9 @@ export default meta;
 type Story = StoryObj<HeaderProps>;
 
 export const User: Story = {
-  args: {},
+  args: {
+    userActions: <UserMenu tone="light" />,
+  },
   play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("link", { name: "ダッシュボードへ" })).toHaveAttribute("href", "/dashboard");
@@ -40,12 +64,10 @@ export const User: Story = {
 
 export const UserWithoutShopDeletionEntry: Story = {
   args: {
-    deleteShopAction: {
-      onSelect: () => {},
-    },
+    userActions: <UserMenu tone="light" />,
   },
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   play: async () => {
     const screen = within(document.body);
@@ -55,31 +77,70 @@ export const UserWithoutShopDeletionEntry: Story = {
     const contactLink = await screen.findByRole("menuitem", { name: "お問い合わせ" });
     await expect(contactLink).toHaveAttribute("href", "/contact");
     await expect(contactLink).toHaveAttribute("target", "_blank");
+    await expect(screen.getByRole("menuitem", { name: "グループ設定" })).toHaveAttribute(
+      "href",
+      "/settings?shop=shop-a",
+    );
     await screen.findByRole("menuitem", { name: "ログアウト" });
     await expect(screen.queryByRole("menuitem", { name: "店舗削除" })).toBeNull();
     await userEvent.keyboard("{Escape}");
   },
 };
 
-export const UserWithoutMenu: Story = {
+export const UserWithoutSettingsEntry: Story = {
   args: {
-    showUserMenu: false,
+    userActions: <UserMenu tone="light" />,
   },
+  render: (args: HeaderProps) => (
+    <Provider
+      store={createStoreWithUser({
+        organizationSettingsNavigation: false,
+        billing: false,
+        shopMembershipAddition: false,
+      })}
+    >
+      <Header {...args} />
+    </Provider>
+  ),
+  parameters: {
+    screenshot: { skip: true },
+  },
+  play: async () => {
+    const screen = within(document.body);
+    const trigger = await screen.findByRole("button", { name: "ユーザーメニュー" });
+    await userEvent.click(trigger);
+
+    await expect(screen.queryByRole("menuitem", { name: "グループ設定" })).toBeNull();
+    await screen.findByRole("menuitem", { name: "お問い合わせ" });
+    await screen.findByRole("menuitem", { name: "ログアウト" });
+    await userEvent.keyboard("{Escape}");
+  },
+};
+
+export const UserWithoutMenu: Story = {
+  args: {},
 };
 
 export const UserWithAction: Story = {
   args: {
-    userActions: <Button size="sm">要望を送る</Button>,
-  },
-  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
-    await expect(within(canvasElement).getByRole("button", { name: "要望を送る" })).toBeVisible();
+    userActions: (
+      <>
+        <Button size="sm">要望を送る</Button>
+        <UserMenu tone="light" />
+      </>
+    ),
   },
 };
 
 export const MobileUserWithAction: Story = {
   tags: ["vrt-mobile2"],
   args: {
-    userActions: <Button size="sm">要望</Button>,
+    userActions: (
+      <>
+        <Button size="sm">要望</Button>
+        <UserMenu tone="light" />
+      </>
+    ),
   },
   globals: {
     viewport: { value: "mobile2", isRotated: false },
@@ -119,9 +180,6 @@ export const StaffWithAction: Story = {
     actions: <Button size="sm">要望を送る</Button>,
     maxW: "1024px",
     px: { base: 4, lg: 6 },
-  },
-  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
-    await expect(within(canvasElement).getByRole("button", { name: "要望を送る" })).toBeVisible();
   },
 };
 

@@ -1,5 +1,7 @@
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import { todayJST } from "../_lib/dateFormat";
+import { generateUUID } from "../_lib/uuid";
 import type { ScenarioTest } from "./scenarioBuilders";
 
 type ManagerIdentity =
@@ -8,6 +10,7 @@ type ManagerIdentity =
       subject: string;
       name?: string;
       email?: string;
+      emailVerified?: boolean;
     };
 
 type RecruitmentInput = {
@@ -68,76 +71,179 @@ export function createScenario(t: ScenarioTest) {
   return {
     manager(identity: ManagerIdentity) {
       const asManager = t.withIdentity(typeof identity === "string" ? { subject: identity } : identity);
+      let selectedShopId: Id<"shops"> | null = null;
+
+      // Scenario fixture では単一店舗を選択中店舗として解決し、public API には必ず shopId を明示する。
+      const getSelectedShopId = async () => {
+        if (selectedShopId) return selectedShopId;
+        const [selectedShop] = await asManager.query(api.dashboard.queries.getMyShops, {});
+        const shopId = selectedShop?.shopId ?? null;
+        if (!shopId) throw new Error("Scenario manager shop is not selected");
+        selectedShopId = shopId;
+        return shopId;
+      };
 
       return {
-        setupShopAndManager(
+        async setupShopAndManager(
           args: ShopSettingsInput & { managerName: string; managerEmail: string; acceptedLegal: true },
         ) {
-          return asManager.mutation(api.setup.mutations.setupShopAndManager, {
+          const shopId = await asManager.mutation(api.setup.mutations.setupShopAndManager, {
             shopName: args.shopName,
             submissionPattern: resolveSubmissionPattern(args),
             managerName: args.managerName,
             managerEmail: args.managerEmail,
             acceptedLegal: args.acceptedLegal,
           });
+          selectedShopId = shopId;
+          return shopId;
         },
-        createRecruitment(args: RecruitmentInput) {
+        async createOrganization(args: ShopSettingsInput) {
+          return asManager.mutation(api.setup.mutations.createOrganization, {
+            shopName: args.shopName,
+            submissionPattern: resolveSubmissionPattern(args),
+            requestId: generateUUID(),
+          });
+        },
+        // 複数グループのシナリオでは、操作対象の店舗を明示して選択中店舗の暗黙解決に依存しない。
+        selectShop(shopId: Id<"shops">) {
+          selectedShopId = shopId;
+        },
+        getMyShops() {
+          return asManager.query(api.dashboard.queries.getMyShops, {});
+        },
+        async getOrganizationSettings() {
+          return asManager.query(api.organization.queries.getSettings, { shopId: await getSelectedShopId() });
+        },
+        async addShop(args: ShopSettingsInput) {
+          return asManager.mutation(api.organization.mutations.addShop, {
+            shopName: args.shopName,
+            submissionPattern: resolveSubmissionPattern(args),
+            requestId: generateUUID(),
+            shopId: await getSelectedShopId(),
+          });
+        },
+        async createRecruitment(args: RecruitmentInput) {
           return asManager.mutation(api.recruitment.mutations.createRecruitment, {
             ...args,
             shopClosedDates: args.shopClosedDates ?? [],
+            shopId: await getSelectedShopId(),
           });
         },
-        deleteRecruitment(recruitmentId: Id<"recruitments">) {
-          return asManager.mutation(api.recruitment.mutations.deleteRecruitment, { recruitmentId });
+        async deleteRecruitment(recruitmentId: Id<"recruitments">) {
+          return asManager.mutation(api.recruitment.mutations.deleteRecruitment, {
+            recruitmentId,
+            shopId: await getSelectedShopId(),
+          });
         },
-        updateShopSettings(args: UpdateShopSettingsInput) {
+        async updateShopSettings(args: UpdateShopSettingsInput) {
           return asManager.mutation(api.shop.mutations.updateShopSettings, {
             shopName: args.shopName,
             regularClosedDays: args.regularClosedDays,
             submissionPattern: resolveSubmissionPattern(args),
+            shopId: await getSelectedShopId(),
           });
         },
-        addStaffs(entries: StaffEntry[]) {
-          return asManager.mutation(api.staff.mutations.addStaffs, { entries });
+        async addStaffs(entries: StaffEntry[]) {
+          const result = await asManager.mutation(api.staff.mutations.addStaffs, {
+            entries,
+            requestId: generateUUID(),
+            shopId: await getSelectedShopId(),
+          });
+          if (result.status !== "added") {
+            throw new Error("Scenario staff addition unexpectedly requires confirmation");
+          }
+          return result.staffIds;
         },
-        editStaff(args: { staffId: Id<"staffs">; name: string; email: string }) {
-          return asManager.mutation(api.staff.mutations.editStaff, args);
+        async inviteStaffAsManager(staffId: Id<"staffs">) {
+          return asManager.mutation(api.organizationInvitation.mutations.createForStaff, {
+            staffId,
+            requestId: generateUUID(),
+            shopId: await getSelectedShopId(),
+          });
         },
-        sendOpenRecruitmentNotifications(staffId: Id<"staffs">) {
-          return asManager.mutation(api.staff.mutations.sendOpenRecruitmentNotifications, { staffId });
+        acceptManagerInvitation(token: string) {
+          return asManager.mutation(api.organizationInvitation.mutations.accept, { token });
         },
-        sendCurrentShiftNotification(staffId: Id<"staffs">) {
-          return asManager.mutation(api.staff.mutations.sendCurrentShiftNotification, { staffId });
+        linkManagerInvitationAccount(token: string) {
+          return asManager.mutation(api.organizationInvitation.mutations.linkAccount, { token });
         },
-        deleteStaff(staffId: Id<"staffs">) {
-          return asManager.mutation(api.staff.mutations.deleteStaff, { staffId });
+        async removeManagerRole(personId: Id<"organizationPeople">) {
+          return asManager.mutation(api.organization.mutations.removeManagerRole, {
+            shopId: await getSelectedShopId(),
+            personId,
+            requestId: generateUUID(),
+          });
         },
-        saveShiftAssignments(args: { recruitmentId: Id<"recruitments">; assignments: ShiftAssignment[] }) {
-          return asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, args);
+        async editStaff(args: { staffId: Id<"staffs">; name: string; email: string }) {
+          return asManager.mutation(api.staff.mutations.editStaff, { ...args, shopId: await getSelectedShopId() });
         },
-        confirmRecruitment(recruitmentId: Id<"recruitments">) {
-          return asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId });
+        async sendOpenRecruitmentNotifications(staffId: Id<"staffs">) {
+          return asManager.mutation(api.staff.mutations.sendOpenRecruitmentNotifications, {
+            staffId,
+            shopId: await getSelectedShopId(),
+          });
         },
-        generateLineLinkToken(staffId: Id<"staffs">) {
-          return asManager.mutation(api.line.mutations.generateLinkToken, { staffId });
+        async sendCurrentShiftNotification(staffId: Id<"staffs">) {
+          return asManager.mutation(api.staff.mutations.sendCurrentShiftNotification, {
+            staffId,
+            shopId: await getSelectedShopId(),
+          });
+        },
+        async deleteStaff(staffId: Id<"staffs">) {
+          return asManager.mutation(api.staff.mutations.deleteStaff, { staffId, shopId: await getSelectedShopId() });
+        },
+        async setShiftExclusion(staffId: Id<"staffs">, excluded: boolean) {
+          return asManager.mutation(api.staff.mutations.setShiftExclusion, {
+            staffId,
+            excluded,
+            shopId: await getSelectedShopId(),
+          });
+        },
+        async saveShiftAssignments(args: { recruitmentId: Id<"recruitments">; assignments: ShiftAssignment[] }) {
+          return asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+            ...args,
+            shopId: await getSelectedShopId(),
+          });
+        },
+        async confirmRecruitment(recruitmentId: Id<"recruitments">) {
+          return asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+            recruitmentId,
+            shopId: await getSelectedShopId(),
+          });
+        },
+        async generateLineLinkToken(staffId: Id<"staffs">) {
+          return asManager.mutation(api.line.mutations.generateLinkToken, {
+            staffId,
+            shopId: await getSelectedShopId(),
+          });
         },
         getCurrentUser() {
           return asManager.query(api.dashboard.queries.getCurrentUser, {});
         },
-        getDashboardShop() {
-          return asManager.query(api.dashboard.queries.getDashboardShop, {});
+        async getDashboardShop() {
+          return asManager.query(api.dashboard.queries.getDashboardShop, { shopId: await getSelectedShopId() });
         },
-        getDashboardStaffs(paginationOpts = { numItems: 20, cursor: null as string | null }) {
-          return asManager.query(api.dashboard.queries.getDashboardStaffs, { paginationOpts });
+        async getDashboardStaffs(paginationOpts = { numItems: 20, cursor: null as string | null }) {
+          return asManager.query(api.dashboard.queries.getDashboardStaffs, {
+            paginationOpts,
+            shopId: await getSelectedShopId(),
+          });
         },
-        getDashboardRecruitments(paginationOpts = { numItems: 20, cursor: null as string | null }) {
-          return asManager.query(api.dashboard.queries.getDashboardRecruitments, { paginationOpts });
+        async getDashboardRecruitments(paginationOpts = { numItems: 20, cursor: null as string | null }) {
+          return asManager.query(api.dashboard.queries.getDashboardRecruitments, {
+            paginationOpts,
+            shopId: await getSelectedShopId(),
+          });
         },
         getManagerConsentStatus() {
           return asManager.query(api.legal.queries.getManagerConsentStatus, {});
         },
-        getShiftBoardData(recruitmentId: Id<"recruitments">) {
-          return asManager.query(api.shiftBoard.queries.getShiftBoardData, { recruitmentId });
+        async getShiftBoardData(recruitmentId: Id<"recruitments">, refreshDayKey: string = todayJST()) {
+          return asManager.query(api.shiftBoard.queries.getShiftBoardData, {
+            recruitmentId,
+            shopId: await getSelectedShopId(),
+            refreshDayKey,
+          });
         },
       };
     },
@@ -148,16 +254,6 @@ export function createScenario(t: ScenarioTest) {
         },
         getSubmissionPageData(args: { sessionToken: string; recruitmentId: Id<"recruitments"> }) {
           return t.query(api.shiftSubmission.queries.getSubmissionPageData, { ...args, accessKind: "submit" });
-        },
-        async getOkSubmissionPageData(args: { sessionToken: string; recruitmentId: Id<"recruitments"> }) {
-          const result = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
-            ...args,
-            accessKind: "submit",
-          });
-          if (result.status !== "ok") {
-            throw new Error(`expected submission page data, got ${result.status}`);
-          }
-          return result.data;
         },
         getRecruitmentInfo(recruitmentId: Id<"recruitments">) {
           return t.query(api.staffAuth.queries.getRecruitmentInfo, { recruitmentId });
@@ -202,7 +298,14 @@ export function createScenario(t: ScenarioTest) {
         }) {
           return t.mutation(internal.line.mutations.finalizeLinking, args);
         },
-        dispatchWebhookEvents(events: Array<{ type: "follow" | "unfollow"; userId: string }>) {
+        dispatchWebhookEvents(
+          events: Array<{
+            type: "follow" | "unfollow";
+            userId: string;
+            webhookEventId: string;
+            timestamp: number;
+          }>,
+        ) {
           return t.mutation(internal.line.mutations.dispatchWebhookEvents, { events });
         },
       };

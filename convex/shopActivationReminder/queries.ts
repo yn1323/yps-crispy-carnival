@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { internalQuery } from "../_generated/server";
-import { APP_URL } from "../_lib/config";
+import { buildShopDashboardUrl } from "../_lib/dashboardUrl";
 import { loadShopManagerRecipients } from "../_lib/shopManagerRecipients";
 import { SHIFT_BOARD_STAFF_LIMIT, SHOP_ACTIVATION_REMINDER_MANAGER_LIMIT } from "../constants";
 import { isShiftTargetStaff } from "../staff/service";
@@ -47,7 +47,7 @@ export const getReminderTarget = internalQuery({
     return {
       shopId,
       shopName: shop.name,
-      dashboardUrl: `${APP_URL}/dashboard`,
+      dashboardUrl: buildShopDashboardUrl(shopId),
       recipients,
     };
   },

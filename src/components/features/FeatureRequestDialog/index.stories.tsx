@@ -31,7 +31,7 @@ export const Mobile: Story = {
 };
 
 export const Validation: Story = {
-  parameters: { chromatic: { disableSnapshot: true } },
+  parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "要望を送る" }));
@@ -44,7 +44,7 @@ export const Validation: Story = {
 
 export const SuccessfulSubmission: Story = {
   args: { onSubmit: fn() },
-  parameters: { chromatic: { disableSnapshot: true } },
+  parameters: { screenshot: { skip: true } },
   play: async ({ args, canvasElement }) => {
     const screen = within(document.body);
     const canvas = within(canvasElement);

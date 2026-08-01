@@ -1,16 +1,15 @@
 import { internal } from "../_generated/api";
 import { httpAction } from "../_generated/server";
+import { readBoundedJsonBody } from "../_lib/httpBody";
 import { verifyLineSignature } from "../_lib/lineSignature";
+import { LINE_WEBHOOK_BODY_MAX_BYTES, LINE_WEBHOOK_EVENT_MAX_COUNT } from "../constants";
 
-type LineEvent =
-  | { type: "follow"; source: { userId?: string } }
-  | { type: "unfollow"; source: { userId?: string } }
-  | { type: "message"; replyToken: string; source: { userId?: string }; message: { type: string } }
-  | { type: string; source?: { userId?: string }; replyToken?: string };
-
-type LineWebhookBody = {
-  destination: string;
-  events: LineEvent[];
+type DispatchEvent = {
+  type: string;
+  userId?: string;
+  replyToken?: string;
+  webhookEventId: string;
+  timestamp: number;
 };
 
 /**
@@ -26,27 +25,35 @@ export const webhookHandler = httpAction(async (ctx, request) => {
     return new Response("Server misconfigured", { status: 500 });
   }
 
-  const rawBody = await request.text();
+  const bodyResult = await readBoundedJsonBody(request, LINE_WEBHOOK_BODY_MAX_BYTES);
+  if (!bodyResult.ok) return bodyErrorResponse(bodyResult.error);
+
+  const rawBody = bodyResult.rawBody;
   const signature = request.headers.get("x-line-signature");
   const valid = await verifyLineSignature(channelSecret, rawBody, signature);
   if (!valid) {
     return new Response("Invalid signature", { status: 401 });
   }
 
-  let body: LineWebhookBody;
+  let body: unknown;
   try {
-    body = JSON.parse(rawBody) as LineWebhookBody;
+    body = JSON.parse(rawBody) as unknown;
   } catch {
     return new Response("Invalid JSON", { status: 400 });
   }
 
-  const events = body.events ?? [];
+  if (!isRecord(body) || !Array.isArray(body.events)) {
+    return new Response("Invalid webhook payload", { status: 400 });
+  }
+  if (body.events.length > LINE_WEBHOOK_EVENT_MAX_COUNT) {
+    return new Response("Too many events", { status: 413 });
+  }
+
+  const events = parseDispatchEvents(body.events);
+  if (!events) return new Response("Invalid webhook payload", { status: 400 });
+
   const dispatched = await ctx.runMutation(internal.line.mutations.dispatchWebhookEvents, {
-    events: events.map((e) => ({
-      type: e.type,
-      userId: e.source?.userId,
-      replyToken: "replyToken" in e ? e.replyToken : undefined,
-    })),
+    events,
   });
 
   // message イベントだけ Reply API（外部 fetch）が必要なので action に流す
@@ -56,3 +63,54 @@ export const webhookHandler = httpAction(async (ctx, request) => {
 
   return new Response("OK", { status: 200 });
 });
+
+function parseDispatchEvents(events: unknown[]): DispatchEvent[] | null {
+  const parsed: DispatchEvent[] = [];
+  for (const event of events) {
+    if (!isRecord(event) || typeof event.type !== "string") return null;
+    if (
+      typeof event.webhookEventId !== "string" ||
+      event.webhookEventId.length === 0 ||
+      event.webhookEventId.length > 200 ||
+      typeof event.timestamp !== "number" ||
+      !Number.isSafeInteger(event.timestamp) ||
+      event.timestamp < 0
+    ) {
+      return null;
+    }
+
+    const source = event.source;
+    if (source !== undefined && (!isRecord(source) || !isOptionalString(source.userId))) return null;
+    if (!isOptionalString(event.replyToken)) return null;
+    if (
+      ((event.type === "follow" || event.type === "unfollow") &&
+        (!isRecord(source) || typeof source.userId !== "string")) ||
+      (event.type === "message" && typeof event.replyToken !== "string")
+    ) {
+      return null;
+    }
+
+    parsed.push({
+      type: event.type,
+      webhookEventId: event.webhookEventId,
+      timestamp: event.timestamp,
+      ...(isRecord(source) && typeof source.userId === "string" ? { userId: source.userId } : {}),
+      ...(typeof event.replyToken === "string" ? { replyToken: event.replyToken } : {}),
+    });
+  }
+  return parsed;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isOptionalString(value: unknown): value is string | undefined {
+  return value === undefined || typeof value === "string";
+}
+
+function bodyErrorResponse(error: "unsupported_media_type" | "body_too_large" | "invalid_body") {
+  if (error === "unsupported_media_type") return new Response("Unsupported media type", { status: 415 });
+  if (error === "body_too_large") return new Response("Request body too large", { status: 413 });
+  return new Response("Invalid request body", { status: 400 });
+}

@@ -12,7 +12,7 @@ const confirmedDates = {
   deadline: dayjs(dates.deadline).add(14, "day").format("YYYY-MM-DD"),
 };
 
-test.describe("シフト募集削除", () => {
+test.describe("シフト募集削除", { tag: ["@release"] }, () => {
   test.setTimeout(60_000);
 
   let dashboard: DashboardPage;
@@ -24,7 +24,7 @@ test.describe("シフト募集削除", () => {
   });
 
   test("未確定・確定済みの募集をダッシュボードから削除できる", async () => {
-    resetCurrentManagerScenarioData();
+    await resetCurrentManagerScenarioData();
 
     await test.step("Step 1: 店舗とスタッフを準備する", async () => {
       await dashboard.goto();

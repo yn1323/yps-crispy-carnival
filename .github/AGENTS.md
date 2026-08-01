@@ -1,136 +1,49 @@
 # .github/AGENTS.md
 
-CI/CDパイプラインの構成と運用ルール。
+このファイルは `.github/` 配下へ適用する。
+ルートの `AGENTS.md` と併せて読む。
 
-## ブランチ戦略
+## 正本
 
-| ブランチ | 用途 | デプロイ先 | トリガー |
-|---|---|---|---|
-| `main` | 本番環境 | CF `yps-crispy-carnival` + Convex `yps-crispy-carnival` | `release:*` ラベル付き PR のマージ時のみ |
-| `develop` | ステージング環境 | CF `dev-yps-crispy-carnival` + Convex `dev-yps-crispy-carnival` | push 毎 |
-| PR → develop | プレビュー環境 | CF `dev-yps-crispy-carnival` (branch: pr-{N}) + Convex preview（一時的） | PR open/sync |
+- workflow、trigger、権限、environment、job依存、現在のリリース条件は `.github/workflows/*.yml` を正とする。
+- 人が行うブランチ、Preview、release、障害対応は `doc/manual/ci-cd.md` を参照する。
+- テスト層とFull Regressionの役割は `doc/rules/testing-strategy.md` を参照する。
+- セキュリティ境界を変更する場合は `doc/rules/security-strategy.md` を読み、`shiftori-security-review` を使う。
 
-### リリースラベル
+このファイルへworkflow一覧、secret名、environment値、現在件数を複製しない。
 
-`main` への本番デプロイは PR に以下のいずれかのラベルを付けてマージしたときのみ実行される。
+## 常時制約
 
-| ラベル | 挙動 |
-|---|---|
-| `release:major` | `npm version major`（例: 1.2.3 → 2.0.0） |
-| `release:minor` | `npm version minor`（例: 1.2.3 → 1.3.0） |
-| `release:patch` | `npm version patch`（例: 1.2.3 → 1.2.4） |
+- `permissions` はworkflowまたはjobの責務に必要な最小限へ限定する。
+- third-party Actionはversionを明示し、`main`や`master`などの追従参照を使わない。
+- secret、token、credential、個人情報をworkflow、ログ、artifact、summaryへ出さない。
+- fork由来の未信頼コードへsecretやwrite権限を渡さない。
+- `pull_request_target` でPull Requestのheadをcheckoutして実行しない。
+- cleanupや削除処理では対象を明示し、credentialを渡した状態で未信頼のPull Requestコードを実行しない。
+- same-repository Pull Requestだけに権限を与える場合は、repository一致を明示的に検証する。
+- user-controlledなbranch名、label、artifact名、outputをshellへ直接展開しない。
+- environment protectionとapprovalを回避する別経路を追加しない。
+- security scan、lint、type-check、test、migration確認を `continue-on-error` で無効化しない。
+- deploy、migration、cleanupの依存順を変更する場合は、失敗時と再実行時の状態を設計する。
+- concurrencyを変更する場合は、古い実行による上書き、二重deploy、cleanup競合を防ぐ。
 
-ラベルなしでマージした場合はデプロイされない（`release.yml` が skip される）。
+## PreviewとFull Regression
 
-## 外部サービス構成
+- Previewは未信頼コードを扱う境界として設計する。
+- Full Regressionは主要導線の退行を検知するもので、実装詳細や静的文言を網羅しない。
+- E2Eを変更する場合は `e2e/AGENTS.md` も読む。
+- reportの公開処理は、artifactの出所、保存期間、公開範囲、失敗時の表示を確認する。
+- cleanupは対象を明示し、別branchや別Pull Requestの資産を削除しない。
 
-### CloudFlare Pages
+## Release
 
-2プロジェクト体制:
-- `yps-crispy-carnival` — 本番専用（mainブランチのみデプロイ）
-- `dev-yps-crispy-carnival` — 開発用（developのメインデプロイ + PRプレビュー）
+- developとproductionの昇格条件は、workflowに定義されたbranch、label、environment gateを維持する。
+- schemaや保存済みデータを変えるreleaseでは、`convex-migration-helper` の計画とmigration完了確認を先に行う。
+- rollbackはコードだけでなく、schema、migration、外部副作用の互換性を確認する。
 
-### Convex
+## 検証
 
-2プロジェクト体制:
-- `yps-crispy-carnival` — 本番DB
-- `dev-yps-crispy-carnival` — 開発DB（永続） + PRプレビュー環境（数日で自動消滅）
-
-### Clerk
-
-1アプリ・2モード:
-- 本番環境 → Clerk本番キー（Production環境シークレット）
-- 開発/プレビュー環境 → Clerk開発キー（Preview環境シークレット）
-
-## GitHub Environments
-
-シークレットはGitHub Environmentsで環境別に管理する。同じキー名で環境ごとに異なる値を設定。
-
-### Preview 環境（PRプレビュー、CI品質チェックで使用）
-
-| シークレット | 用途 |
-|---|---|
-| `CONVEX_DEPLOY_KEY` | dev Convexプロジェクトのデプロイキー |
-| `CONVEX_MANAGEMENT_TOKEN` | PRマージ時のConvex preview削除に使うManagement APIトークン |
-| `VITE_CONVEX_URL` | dev Convexの永続URL |
-| `VITE_CLERK_PUBLISHABLE_KEY` | Clerk開発用Publishableキー |
-| `VITE_TURNSTILE_SITE_KEY` | 問い合わせフォームのCloudflare Turnstile Site Key |
-| `CLERK_SECRET_KEY` | Clerk開発用シークレットキー |
-| `CLOUDFLARE_API_TOKEN` | CloudFlare APIトークン |
-| `CLOUDFLARE_ACCOUNT_ID` | CloudFlareアカウントID |
-| `VITE_GTM_ID` | Google Tag Manager ID |
-
-### Develop 環境（developブランチのデプロイで使用）
-
-| シークレット | 用途 |
-|---|---|
-| `CONVEX_DEPLOY_KEY` | dev Convexプロジェクトのデプロイキー |
-| `VITE_CONVEX_URL` | dev Convexの永続URL |
-| `VITE_CLERK_PUBLISHABLE_KEY` | Clerk開発用Publishableキー |
-| `VITE_TURNSTILE_SITE_KEY` | 問い合わせフォームのCloudflare Turnstile Site Key |
-| `CLERK_SECRET_KEY` | Clerk開発用シークレットキー |
-| `CLOUDFLARE_API_TOKEN` | CloudFlare APIトークン |
-| `CLOUDFLARE_ACCOUNT_ID` | CloudFlareアカウントID |
-| `VITE_GTM_ID` | Google Tag Manager ID |
-
-### Production 環境（mainで使用）
-
-| シークレット | 用途 |
-|---|---|
-| `CONVEX_DEPLOY_KEY` | prod Convexプロジェクトのデプロイキー |
-| `VITE_CONVEX_URL` | prod Convexの永続URL |
-| `VITE_CLERK_PUBLISHABLE_KEY` | Clerk本番用Publishableキー |
-| `VITE_TURNSTILE_SITE_KEY` | 問い合わせフォームのCloudflare Turnstile Site Key |
-| `CLERK_SECRET_KEY` | Clerk本番用シークレットキー |
-| `CLOUDFLARE_API_TOKEN` | CloudFlare APIトークン |
-| `CLOUDFLARE_ACCOUNT_ID` | CloudFlareアカウントID |
-| `VITE_GTM_ID` | Google Tag Manager ID |
-
-## ワークフロー一覧
-
-### デプロイ (`deploy.yml`)
-
-| ジョブ | トリガー | 処理 |
-|---|---|---|
-| `deploy-preview` | PR to develop (open/sync) | Convex preview作成 → seed → ビルド → CF dev プレビューデプロイ |
-| `cleanup-preview` | PR to develop (close) | CF dev プレビュー削除。merged時のみ `dev-yps-crispy-carnival` のConvex previewも削除 |
-| `deploy-develop` | push to develop | Convex devデプロイ → ビルド → CF dev メインデプロイ |
-
-### リリース (`release.yml`)
-
-| ジョブ | トリガー | 処理 |
-|---|---|---|
-| `release` | PR merged to main w/ `release:*` ラベル | version bump → commit + tag push → Convex prodデプロイ → ビルド → CF prodデプロイ → GitHub Release作成 |
-
-バージョン bump コミットは `github-actions[bot]` が `main` に直 push する。`main` に branch protection がある場合は bot を bypass 許可するか PAT を用意する必要がある。
-
-### テスト・品質チェック
-
-| ワークフロー | トリガー | 内容 |
-|---|---|---|
-| `lint.yml` | 全push | Biome lint |
-| `type-check.yml` | 全push | TypeScript型チェック |
-| `test-logic.yml` | 全push | ロジックテスト（sharding 2分割） |
-| `test-ui.yml` | 全push | UIテスト（sharding 2分割、Convex dev使用） |
-| `build.yml` | 全push | ビルド確認（Convex dev使用） |
-| `playwright.yml` | PR to develop | E2Eテスト（Convex preview使用） |
-
-### Storybook / VRT (`vrt.yml`)
-
-| ワークフロー | トリガー | 内容 |
-|---|---|---|
-| `vrt.yml` | PR to develop/main、push to develop/main | Storycap testrunでPNG生成 → RegSuit比較 → hosting-pagesへレポート公開。main/developのみbaseline更新 |
-
-## デプロイ順序
-
-Convex deploy → Convex migrations → ビルド → CloudFlare の順で実行する。
-- Convex を先にデプロイすることで、スキーマ変更がビルド時に反映される
-- `convex deploy` 直後に `npx convex run migrations/index:run` を実行し、データのバックフィルを完了させてからビルドに進む（develop / release のみ、preview は実行しない）
-- マイグレーションは `@convex-dev/migrations` で冪等に管理されるため、変更のない PR でも毎回走る（完了済みはスキップされる）
-- ビルド時に `VITE_CONVEX_URL` を環境変数として埋め込む
-
-## 注意事項
-
-- PRプレビューのConvex環境は数日で自動消滅するため、明示的な削除は不要
-- `build.yml` と `test-ui.yml` は `npx convex dev` でコード生成を行うため Preview 環境のシークレットが必要
-- E2Eテストはプレビュー環境（PR）でのみ実施
+- YAML構文だけでなく、trigger、permissions、if条件、job依存、concurrencyを差分で確認する。
+- 変更したworkflowが参照するscriptとpackage scriptも確認する。
+- GitHub Actionsのsecurity scanが失敗した場合は、根拠なく除外を追加せず、原因と適用範囲を特定する。
+- 実行方法と確認手順は `doc/manual/ci-cd.md` に置き、このファイルへ手順を重複させない。

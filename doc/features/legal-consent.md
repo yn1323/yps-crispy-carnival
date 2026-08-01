@@ -7,16 +7,19 @@
 - `convex/legal/documents.ts` — 文書版、同意要求版、公開パス、同意判定 helper
 - `convex/legal/queries.ts` / `convex/legal/mutations.ts` / `convex/legal/actions.ts` — スタッフ同意ページ、同意記録、同意依頼メール/LINE
 - `convex/schema.ts` — `legalConsentTokens` / `legalConsentEvents` と `users` / `staffs` の最新同意トップレベル項目
-- `src/components/features/StaffLegalConsent/ConsentPage/` — スタッフ同意ページ UI
+- `src/components/features/StaffLegalConsent/` — 同意mutation・状態遷移を持つfeature root
+- `src/components/features/StaffLegalConsent/ConsentView/` — スタッフ同意ページ UI
 - `src/components/features/Dashboard/LegalReconsentBanner/` — 管理ユーザー再同意バナー
 - `src/components/features/Terms/content/` / `src/components/features/PrivacyPolicy/content/` — 法務文書本文（audience別MDX）
-- `src/components/features/LegalPage/` — 法務文書ページの共通シェルとMDXレンダラー（`legalContent.ts`）
+- `src/components/shared/LegalDocumentPage/` — 法務文書ページの共通シェルとMDXレンダラー（`legalContent.ts`）
 - `doc/manual/legal-versioning.md` — 文書更新時のバージョン更新メモ
 
 ## 画面一覧
 
 | 画面 | 役割 |
 |---|---|
+| `/terms` | audienceを指定しない公開利用規約。管理ユーザー向け本文を表示する |
+| `/privacy` | audienceを指定しない公開プライバシーポリシー。管理ユーザー向け本文を表示する |
 | `/terms/manager` | 管理ユーザー向け利用規約 |
 | `/privacy/manager` | 管理ユーザー向けプライバシーポリシー |
 | `/terms/staff` | スタッフ向け利用規約 |

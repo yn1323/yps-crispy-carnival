@@ -1,14 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { buildMeta } from "@/src/helpers/seo";
 import { StaffLegalConsentRoutePage } from "@/src/pages/staff-legal-consent";
+import { buildStaffLegalConsentPageHead } from "@/src/pages/staff-legal-consent/meta";
 
 export const Route = createFileRoute("/_unregistered/legal/staff/consent")({
   validateSearch: (search: Record<string, unknown>) => ({
     token: typeof search.token === "string" ? search.token : undefined,
   }),
-  head: () => ({
-    meta: buildMeta({ title: "規約の確認", noindex: true }),
-  }),
+  head: buildStaffLegalConsentPageHead,
   component: StaffLegalConsentRoute,
 });
 

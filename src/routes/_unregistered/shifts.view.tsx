@@ -1,14 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { buildMeta } from "@/src/helpers/seo";
 import { StaffShiftViewRoutePage } from "@/src/pages/staff-shift-view";
+import { buildStaffShiftViewPageHead } from "@/src/pages/staff-shift-view/meta";
 
 export const Route = createFileRoute("/_unregistered/shifts/view")({
   validateSearch: (search: Record<string, unknown>) => ({
     token: (search.token as string) || undefined,
   }),
-  head: () => ({
-    meta: buildMeta({ title: "シフト確認", noindex: true }),
-  }),
+  head: buildStaffShiftViewPageHead,
   component: ShiftViewRoute,
 });
 

@@ -101,6 +101,79 @@ describe("legal/mutations", () => {
     expect(result.status).toBe("expired");
   });
 
+  it("同一tokenが異なるスタッフに重複している場合は同意状態を変更しない", async () => {
+    const t = convexTest(schema, modules);
+    const first = await setupStaff(t);
+    const second = await setupStaff(t);
+    const token = "duplicate-target-consent-token";
+    await t.run(async (ctx) => {
+      for (const target of [first, second]) {
+        await ctx.db.insert("legalConsentTokens", {
+          staffId: target.staffId,
+          shopId: target.shopId,
+          token,
+          method: "staff_email_link",
+          expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+        });
+      }
+    });
+
+    await expect(
+      t.mutation(api.legal.mutations.acceptStaffLegalConsent, {
+        token,
+        acceptedLegal: true,
+      }),
+    ).resolves.toEqual({ status: "expired" });
+
+    const state = await t.run(async (ctx) => ({
+      consentStates: await ctx.db.query("legalConsentStates").collect(),
+      consentEvents: await ctx.db.query("legalConsentEvents").collect(),
+      tokens: await ctx.db
+        .query("legalConsentTokens")
+        .withIndex("by_token", (q) => q.eq("token", token))
+        .collect(),
+    }));
+    expect(state.consentStates).toEqual([]);
+    expect(state.consentEvents).toEqual([]);
+    expect(state.tokens).toHaveLength(2);
+    expect(new Set(state.tokens.map((tokenDoc) => tokenDoc.staffId))).toEqual(new Set([first.staffId, second.staffId]));
+    expect(state.tokens.every((tokenDoc) => tokenDoc.usedAt === undefined)).toBe(true);
+  });
+
+  it("tokenの店舗とスタッフ所属店舗が一致しない場合は同意を記録しない", async () => {
+    const t = convexTest(schema, modules);
+    const { staffId } = await setupStaff(t);
+    await t.run(async (ctx) => {
+      const otherShopId = await seedShop(ctx, "別店舗");
+      await ctx.db.insert("legalConsentTokens", {
+        staffId,
+        shopId: otherShopId,
+        token: "cross-shop-consent-token",
+        method: "staff_email_link",
+        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      });
+    });
+
+    await expect(
+      t.mutation(api.legal.mutations.acceptStaffLegalConsent, {
+        token: "cross-shop-consent-token",
+        acceptedLegal: true,
+      }),
+    ).resolves.toEqual({ status: "expired" });
+    await expect(
+      t.run(async (ctx) => ({
+        state: await ctx.db
+          .query("legalConsentStates")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+          .first(),
+        events: await ctx.db
+          .query("legalConsentEvents")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+          .collect(),
+      })),
+    ).resolves.toEqual({ state: null, events: [] });
+  });
+
   it("管理ユーザーの再同意を記録する", async () => {
     const t = convexTest(schema, modules);
     const { shopId, userId } = await t.run(async (ctx) => {
@@ -125,7 +198,7 @@ describe("legal/mutations", () => {
 
     const result = await t
       .withIdentity({ subject: "manager_1" })
-      .mutation(api.legal.mutations.acceptManagerLegalConsent, { acceptedLegal: true });
+      .mutation(api.legal.mutations.acceptManagerLegalConsent, { acceptedLegal: true, shopId });
 
     expect(result.status).toBe("ok");
     const [state, events] = await t.run(async (ctx) => {

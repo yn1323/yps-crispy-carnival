@@ -10,9 +10,9 @@ import {
   LuSmartphone,
 } from "react-icons/lu";
 import { SiLine } from "react-icons/si";
+import heroPcImage from "@/src/assets/hero-pc.webp";
+import heroSpImage from "@/src/assets/hero-sp.webp";
 import { Button } from "@/src/components/ui/Button";
-import heroPcImage from "../hero-pc.webp";
-import heroSpImage from "../hero-sp.webp";
 
 const heroBenefits: Array<{ icon: IconType; label: string }> = [
   { icon: SiLine, label: "LINEで希望シフト回収" },

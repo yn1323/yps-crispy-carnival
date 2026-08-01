@@ -1,107 +1,65 @@
 ---
 name: shiftori-security-review
-description: シフトリ / yps-crispy-carnival 固有のセキュリティ設計・コードレビュー・修正・自己更新を扱う。Use at the plan/spec/design stage before implementation when a task mentions or touches security, authn/authz, IDOR, magic link, token, invite, Webhook, LINE, Resend, billing, personal-data logs, Convex public query/mutation, staff token/session, manager/billing permissions, external HTTP actions, notification delivery, or registration/invitation flows. Also use during implementation/review of those areas and when the user corrects security perspective so this skill, references, and docs can self-repair.
+description: シフトリのsecurity-sensitiveな計画・設計・実装・レビューに、actor、asset、trust boundary、abuse case、server-side enforcementの観点を適用する。認証・認可、IDOR、token/capability、招待・登録、Webhook・通知、billing、PII・log・retention、Convex public APIを触る時に使う。一般的なSASTや無関係な局所実装には使わない。
 ---
 
 # Shiftori Security Review
 
-Use this skill to put a security lens into Shiftori work before a plan is finalized, then carry that lens through code review, implementation, tests, and skill/doc self-repair.
+security-sensitiveな変更では、UIより先にserver側の権限とlifecycleを確定する。
 
-This is not a generic SAST skill. Treat it as Shiftori-specific application security guidance for a React + Convex + Clerk app with manager accounts, staff magic links, LINE/Resend notification delivery, store-scoped permissions, and billing-sensitive operations.
+## 最初に読む
 
-## First Read
+1. `doc/rules/security-strategy.md`
+2. `references/review-checklist.md`
+3. 対象に近いpublic API、schema、認証wrapper、policy、test、scenario fixture
 
-1. Read `doc/rules/security-strategy.md`.
-2. Read `doc/rules/testing-strategy.md` because security changes need the right test layer.
-3. For Convex code, read `convex/AGENTS.md` and `convex/_generated/ai/guidelines.md`.
-4. Read `references/shiftori-security-model.md` for the local trust boundaries.
-5. Read `references/review-checklist.md` for plan/code review checks.
-6. Inspect nearby public API, schema, helper, policy, tests, and scenario fixture before deciding.
+Convexを扱う場合は`convex/_generated/ai/guidelines.md`、`doc/rules/convex-design-strategy.md`、`convex/AGENTS.md`も読む。
+テスト層を選ぶ場合は`test-strategy`、保存済みデータ形式を変える場合は`convex-migration-helper`を併用する。
 
-Use `test-strategy` with this skill when choosing regression tests.
-Use `shiftori-coding` with this skill when implementing repo code.
-Use `convex-migration-helper` if a security fix changes persisted shape.
+## Plan Workflow
 
-## Plan Stage Workflow
+1. 対象surfaceとpublic entrypointを列挙する。
+2. actor、asset、trust boundary、user-controlled inputを特定する。
+3. tenant越境、stale token、replay、spam、重複delivery、削除競合など現実的なabuse caseを作る。
+4. authorityを導くserver-side checkと、rate limit・idempotency・lifecycle・recoveryを決める。
+5. unsafe behaviorを再現できる回帰testを決める。
+6. planへSecurity Lensを記載してから実装詳細を確定する。
 
-Run this before implementation plans are finalized for any security-sensitive task.
+### Security Lens
 
-1. Classify the surface:
-   - manager app with Clerk auth
-   - staff magic-link or session flow
-   - registration/invite flow
-   - LINE/Resend/webhook/notification delivery
-   - billing or paid-feature guard
-   - public Convex query/mutation/action or HTTP action
-   - logging or personal-data exposure
-2. Write a short Security Lens in the plan:
-   - Actor: who can call or trigger this?
-   - Asset: what data, permission, delivery channel, or cost is protected?
-   - Trust boundary: what user-controlled input crosses into server logic?
-   - Abuse case: how could another shop, staff member, bot, or stale token misuse it?
-   - Server-side check: what exact helper, relationship, token state, or rate limit must enforce the rule?
-3. Decide the enforcement point before UI details:
-   - Do not accept frontend visibility, local state, hidden form fields, long UUIDs, or route guards as authorization.
-   - Prefer existing `managerQuery`, `managerMutation`, `staffSessionQuery`, `staffSessionMutation`, `rateLimit`, and internal functions.
-4. Decide tests in the plan:
-   - Function Test for single public query/mutation auth, IDOR, return DTO, token states, and rate limits.
-   - Scenario Test for cross-use-case flows like notification fanout, staff sessions, dashboard, billing, and multi-shop isolation.
+- Actor:
+- Asset:
+- Trust boundary:
+- Abuse case:
+- Server-side enforcement:
+- Rate limit / idempotency:
+- Lifecycle / recovery:
+- Logs / PII:
+- Regression test:
 
-## Code Review Workflow
+## Review and Implementation
 
-Review findings before summaries. For each finding, include the attack path, affected boundary, code pointer, fix shape, and regression test.
+- authorityはfrontend stateやclient-provided IDではなく、認証identity、active membership、staff session、対象objectの関係から導く。
+- user-supplied IDは取得後にtenant、owner、deleted stateを確認する。
+- public APIを増やす前にinternal functionと既存wrapperで閉じられないか確認する。
+- public responseとlogは必要最小限にし、token、secret、raw provider response、PIIを露出しない。
+- capabilityにはscope、TTL、reuse/revoke規則、cleanupを定義する。
+- 外部副作用にはdedupe、idempotency、retry、failure recovery、deletionとの競合規則を定義する。
+- review依頼ではfindingを先に示し、実装を依頼されていなければcodeを変更しない。
+- 実装を依頼された場合は、該当する回帰testを同じ変更に含める。
 
-Check these first:
+詳細なsurface別確認は`references/review-checklist.md`だけに置き、このSKILL.mdへ複製しない。
 
-- Every public Convex function has runtime argument validators and only exposes needed fields.
-- Every user-supplied ID is checked after fetch against `ctx.shop._id`, session shop, membership, owner relation, and `isDeleted` as applicable.
-- Manager authority is derived from Clerk identity and active `shopMembers`, not client-provided `userId`, `shopId`, or role.
-- Staff authority is derived from token/session rows plus staff/shop/recruitment consistency, not from staffId alone.
-- Tokens are random, scoped, time-limited, revocable, and single-use when the flow requires it.
-- Registration, invite, LINE linking, and legal consent tokens do not leak or grant cross-shop authority.
-- Notification and external delivery flows have dedupe, rate limits, idempotency, and safe retry semantics.
-- Logs avoid raw email addresses, tokens, webhook payloads, secrets, and third-party error bodies that may include PII.
-- HTTP actions verify signatures/authentication/CORS intentionally and keep public route surface small.
-- Billing-sensitive paths re-check server-side store membership and billing role/entitlement.
+## Review Output
 
-## Implementation Rules
+各findingに次を含める。
 
-- Prefer narrowing public surface with internal functions before adding a new public API.
-- Use `ConvexError("Not found")` or the existing local pattern when distinguishing Forbidden would leak object existence.
-- Return `null` or a minimal status object for public queries where the local pattern avoids throwing.
-- Do not return full documents when a minimal DTO is enough.
-- Use constants for TTL, limits, and retry windows.
-- Keep security comments short and explain business rules or fragile assumptions.
-- Add or update tests in the same change. Do not ship a security-sensitive behavior change without regression coverage unless the user explicitly accepts the risk.
+1. severityとcode pointer
+2. attack pathと影響する境界
+3. 現在のserver-side enforcement
+4. 修正後の契約
+5. 回帰test
 
-## Self-Repair
+findingがない場合も、確認したsurfaceと未確認範囲を示す。
 
-When the user points out a missing security concern, weak threat model, unsafe wording, bad trigger condition, or preferred security pattern, do not stop at code changes.
-
-1. Decide whether the feedback is one-off or durable guidance.
-2. For durable guidance, update one or more of:
-   - `references/review-checklist.md` for concrete review checks.
-   - `references/shiftori-security-model.md` for trust-boundary or domain-model rules.
-   - `doc/rules/security-strategy.md` for repo-level policy.
-   - this `SKILL.md` and `agents/openai.yaml` if trigger wording or workflow changed.
-3. Add a regression test when the feedback maps to code behavior.
-4. State in the final response which code, tests, and skill/doc files changed.
-
-## Validation
-
-For skill/doc-only changes, run or explain why you could not run:
-
-```bash
-pnpm lint
-pnpm type-check
-```
-
-For code touching Convex security boundaries, choose from:
-
-```bash
-pnpm test:convex:logic
-pnpm test:convex:scenario
-pnpm test:convex
-```
-
-Use `convex/_scenario/securityBoundaries.test.ts` as the first place to look for cross-shop, token/session, and notification-target regression patterns.
+durableな追加指示を文書へ反映する依頼では`doc/rules/agent-instructions.md`の配置基準に従い、security原則は`doc/rules/security-strategy.md`、作業手順はこのSkillまたはchecklistへ置く。

@@ -12,11 +12,12 @@ type SignInAttempt = {
 };
 
 type ClientTrustSignInApi = {
-  prepareSecondFactor: (params: { strategy: "email_code"; emailAddressId: string }) => Promise<unknown>;
-  attemptSecondFactor: (params: {
-    strategy: "email_code";
-    code: string;
-  }) => Promise<{ status: string | null; createdSessionId: string | null }>;
+  status: string | null;
+  createdSessionId: string | null;
+  mfa: {
+    sendEmailCode: () => Promise<{ error: unknown | null }>;
+    verifyEmailCode: (params: { code: string }) => Promise<{ error: unknown | null }>;
+  };
 };
 
 function isEmailCodeFactor(factor: unknown): factor is EmailCodeFactor {
@@ -45,18 +46,19 @@ export function isCompletedSignIn(attempt: { status: string | null; createdSessi
   return attempt.status === "complete" && Boolean(attempt.createdSessionId);
 }
 
-export async function prepareClientTrustEmailCode(
-  signIn: Pick<ClientTrustSignInApi, "prepareSecondFactor">,
-  emailAddressId: string,
-): Promise<void> {
-  await signIn.prepareSecondFactor({ strategy: "email_code", emailAddressId });
+export async function prepareClientTrustEmailCode(signIn: Pick<ClientTrustSignInApi, "mfa">): Promise<void> {
+  const { error } = await signIn.mfa.sendEmailCode();
+  if (error) throw error;
 }
 
 export async function verifyClientTrustEmailCode(
-  signIn: Pick<ClientTrustSignInApi, "attemptSecondFactor">,
+  signIn: ClientTrustSignInApi,
   code: string,
 ): Promise<{ status: string | null; createdSessionId: string | null }> {
-  return await signIn.attemptSecondFactor({ strategy: "email_code", code });
+  const { error } = await signIn.mfa.verifyEmailCode({ code });
+  if (error) throw error;
+
+  return { status: signIn.status, createdSessionId: signIn.createdSessionId };
 }
 
 export function maskEmailAddress(email: string): string {

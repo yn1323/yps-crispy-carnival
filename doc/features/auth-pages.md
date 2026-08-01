@@ -13,10 +13,18 @@
 - `src/routes/forgot-password.tsx`
 - `src/routes/sso-callback.tsx`
 - `src/pages/auth/index.tsx`
-- `src/components/features/AuthPage/index.tsx`
+- `src/pages/auth/meta.ts`
+- `src/components/features/AuthPage/index.tsx`：認証済み判定とログイン、新規登録、パスワード再設定のflow選択
+- `src/components/features/AuthPage/LoginFlow/`：パスワードログインとClient Trust本人確認のcontroller/View
+- `src/components/features/AuthPage/SignupFlow/`：メール確認を含む新規登録のcontroller/View
+- `src/components/features/AuthPage/ForgotPasswordFlow/`：再設定コード送信とパスワード変更のcontroller/View
+- `src/components/features/AuthPage/SsoCallback/`：Google OAuth callbackのcontroller
+- `src/components/features/AuthPage/*Form/`：ログイン、本人確認、新規登録、パスワード再設定のViewと固有schema
+- `src/components/features/AuthPage/useGoogleOAuthController.ts`：Google OAuthとLINE外部ブラウザ遷移の共通controller hook
+- `src/components/features/AuthPage/completeAuthSession.ts`：Clerk sessionの有効化と正規化済みURLへの遷移
+- `src/components/features/AuthPage/script.ts`：LINEアプリ内ブラウザ判定
 - `src/components/features/AuthPage/loginVerification.ts`：Client Trustの判定、メール確認factorの選択、表示用メールアドレスのマスク
 - `src/components/features/AuthPage/loginVerification.test.ts`
-- `src/utils/inAppBrowser.ts` — LINEアプリ内ブラウザ判定
 - `convex/_lib/lineUrl.ts` — `openExternalBrowser=1` 付与（フロントと共有）
 
 ## LINEアプリ内ブラウザ対応

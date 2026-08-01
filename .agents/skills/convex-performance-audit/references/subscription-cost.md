@@ -4,6 +4,13 @@ Use these rules when the problem is too many reactive subscriptions, queries
 invalidating too frequently, or React components re-rendering excessively due to
 Convex state changes.
 
+## Contents
+
+- Core Principle
+- Symptoms and Common Causes
+- Fix Order
+- Verification
+
 ## Core Principle
 
 Every `useQuery` and `usePaginatedQuery` call creates a live subscription. The

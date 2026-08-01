@@ -3,7 +3,6 @@ import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import {
   type AssignmentIssue,
   buildAssignmentIssue,
-  getBoardTimeRange,
   parseShiftAssignmentValidationError,
   SHIFT_ASSIGNMENT_VALIDATION,
   validateShiftAssignments,
@@ -33,20 +32,6 @@ const assignment = (
   startTime: "10:00",
   endTime: "18:00",
   ...overrides,
-});
-
-describe("getBoardTimeRange", () => {
-  it("time提出はそのままの時間範囲を返す", () => {
-    expect(getBoardTimeRange(TIME_PATTERN)).toEqual({ startTime: "09:00", endTime: "22:00" });
-  });
-
-  it("shiftType提出は全区分の最小開始〜最大終了を返す", () => {
-    expect(getBoardTimeRange(SHIFT_TYPE_PATTERN)).toEqual({ startTime: "09:00", endTime: "21:00" });
-  });
-
-  it("dateOnly提出はデフォルトの時間範囲を返す", () => {
-    expect(getBoardTimeRange({ kind: "dateOnly" })).toEqual({ startTime: "09:00", endTime: "22:00" });
-  });
 });
 
 describe("validateShiftAssignments", () => {

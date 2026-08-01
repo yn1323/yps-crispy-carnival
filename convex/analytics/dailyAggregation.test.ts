@@ -70,6 +70,7 @@ async function insertOutbox(
     at: number;
     context: string;
     suppressDelivery?: boolean;
+    staffId?: Id<"staffs">;
   },
 ) {
   dedupeSeq += 1;
@@ -88,6 +89,7 @@ async function insertOutbox(
     status: args.status,
     dedupeKey: `test:${dedupeSeq}`,
     shopId: args.shopId,
+    ...(args.staffId ? { staffId: args.staffId } : {}),
     payload,
     attemptCount: 1,
     nextRunAt: args.at,
@@ -605,13 +607,15 @@ describe("analytics/dailyAggregation", () => {
         status: "sent",
         at: startMs + 2 * 60 * 60 * 1000,
         context: "notification.sendReminderEmails",
+        staffId: staffIds[0],
       });
       await insertOutbox(ctx, {
         shopId,
         channel: "line",
         status: "sent",
         at: startMs + 3 * 60 * 60 * 1000,
-        context: "notification.sendRecruitmentNotificationEmails",
+        context: "notification.sendReminderEmails",
+        staffId: staffIds[1],
       });
     });
 
@@ -683,6 +687,7 @@ describe("analytics/dailyAggregation", () => {
       recruitmentCreatedLast30Days: expected.recruitmentCreatedLast30Days,
       submittedRecruitmentCount: expected.submittedRecruitmentCount,
       submissionRate: 6 / 9,
+      confirmedSubmissionRate: 6 / 9,
       averageFirstSubmissionLeadTimeMs: expected.averageFirstSubmissionLeadTimeMs,
       averageConfirmationLeadTimeMs: expected.averageConfirmationLeadTimeMs,
       emailNotificationSentCount: 2,
@@ -690,6 +695,9 @@ describe("analytics/dailyAggregation", () => {
       postReminderSubmissionRate: 6 / 9,
       resubmissionRate: 1 / 6,
       lastRecruitmentSubmissionRate: 2 / 3,
+      lastShiftSubmissionRate: 2 / 3,
+      reminderSentStaffRate: 2 / 3,
+      shopName: "運用中KPI店舗",
       lastRecruitmentConfirmedAt: expected.lastRecruitmentConfirmedAt,
       lastConfirmedRecruitmentLeadTimeMs: expected.lastConfirmedRecruitmentLeadTimeMs,
     });
@@ -699,6 +707,7 @@ describe("analytics/dailyAggregation", () => {
     const row = stages.rows.find((item) => item.shopId === shopId);
     expect(row).toMatchObject({
       submissionRate: 6 / 9,
+      confirmedSubmissionRate: 6 / 9,
       submittedRecruitmentCount: expected.submittedRecruitmentCount,
       averageFirstSubmissionLeadTimeMs: expected.averageFirstSubmissionLeadTimeMs,
       lastConfirmedRecruitmentLeadTimeMs: expected.lastConfirmedRecruitmentLeadTimeMs,
@@ -706,6 +715,8 @@ describe("analytics/dailyAggregation", () => {
       postReminderSubmissionRate: 6 / 9,
       resubmissionRate: 1 / 6,
       lastRecruitmentSubmissionRate: 2 / 3,
+      lastShiftSubmissionRate: 2 / 3,
+      reminderSentStaffRate: 2 / 3,
     });
   });
 

@@ -60,6 +60,66 @@ export async function seedManagerShop(
   return { userId, shopId };
 }
 
+export async function seedOrganizationManagerShop(
+  ctx: MutationCtx,
+  args: {
+    subject: string;
+    email?: string;
+    shopName?: string;
+    // Legacy `business` remains available to compatibility tests during m018.
+    plan?: "free" | "pro" | "business";
+    complimentary?: boolean;
+  },
+) {
+  const email = (args.email ?? `${args.subject}@example.com`).trim().toLowerCase();
+  const userId = await seedUser(ctx, args.subject, email);
+  const now = Date.now();
+  const organizationId = await ctx.db.insert("organizations", {
+    createdByUserId: userId,
+    name: `${args.shopName ?? "テスト店舗"}事業者`,
+    billingEmail: email,
+    billingEmailNormalized: email,
+    isDeleted: false,
+    createdAt: now,
+    updatedAt: now,
+  });
+  const personId = await ctx.db.insert("organizationPeople", {
+    organizationId,
+    userId,
+    name: "管理者",
+    email,
+    emailNormalized: email,
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  });
+  const memberId = await ctx.db.insert("organizationMembers", {
+    organizationId,
+    personId,
+    userId,
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  });
+  const shopId = await ctx.db.insert("shops", {
+    organizationId,
+    operatingStatus: "active",
+    name: args.shopName ?? "テスト店舗",
+    submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+    regularClosedDays: [],
+    isDeleted: false,
+  });
+  await ctx.db.insert("organizationBillingStates", {
+    organizationId,
+    state: args.complimentary ? { kind: "complimentary", plan: "pro" } : { kind: "active", plan: args.plan ?? "free" },
+    ...(args.complimentary ? {} : { freeManagerPersonId: personId, freeShopId: shopId }),
+    version: 1,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return { userId, organizationId, personId, memberId, shopId };
+}
+
 export async function seedStaffLineAccount(
   ctx: MutationCtx,
   args: { staffId: Id<"staffs">; shopId: Id<"shops">; lineUserId: string; following?: boolean },

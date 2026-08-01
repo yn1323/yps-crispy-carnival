@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { previousWeeklyPattern, submitStoryBaseData, submittedRequests } from "../storyData";
+import { previousWeeklyPattern, submitStoryBaseData, submittedRequests } from "../fixtures";
 import { ShiftSubmitPage } from "./index";
 
 const meta = {

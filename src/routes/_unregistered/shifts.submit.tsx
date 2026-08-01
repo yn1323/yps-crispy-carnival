@@ -1,14 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { buildMeta } from "@/src/helpers/seo";
 import { StaffShiftSubmitPage } from "@/src/pages/staff-shift-submit";
+import { buildStaffShiftSubmitPageHead } from "@/src/pages/staff-shift-submit/meta";
 
 export const Route = createFileRoute("/_unregistered/shifts/submit")({
   validateSearch: (search: Record<string, unknown>) => ({
     token: (search.token as string) || undefined,
   }),
-  head: () => ({
-    meta: buildMeta({ title: "希望シフト提出", noindex: true }),
-  }),
+  head: buildStaffShiftSubmitPageHead,
   component: ShiftSubmitRoute,
 });
 

@@ -81,8 +81,3 @@ body:
       placeholder: "例: 対象読者、配置場所、スタイルガイドなど"
     validations:
       required: false
-
-  - type: markdown
-    attributes:
-      value: |
-        **@claude** 上記の要件に基づいてドキュメントを作成・更新してください。

@@ -1,14 +1,25 @@
-import { atom, useSetAtom } from "jotai";
+import { atom } from "jotai";
+import {
+  CLOSED_FEATURE_VISIBILITY,
+  type FeatureVisibility,
+  normalizeFeatureVisibility,
+} from "@/src/domains/featureVisibility";
 
-const DefaultValue = {
+export type AuthenticatedUser = {
+  authId: string;
+  name: string;
+  email: string;
+  // 既存のStoryや永続化済みatomとの互換期間中は欠損し得る。派生atom側で必ず閉じる。
+  featureVisibility?: FeatureVisibility;
+};
+
+export const EMPTY_USER: AuthenticatedUser = {
   authId: "",
   name: "",
   email: "",
+  featureVisibility: CLOSED_FEATURE_VISIBILITY,
 };
 
-export const userAtom = atom(DefaultValue);
+export const userAtom = atom<AuthenticatedUser>(EMPTY_USER);
 
-export const resetUserAtom = () => {
-  const setUser = useSetAtom(userAtom);
-  setUser(DefaultValue);
-};
+export const featureVisibilityAtom = atom((get) => normalizeFeatureVisibility(get(userAtom).featureVisibility));

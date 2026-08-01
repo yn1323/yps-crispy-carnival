@@ -110,7 +110,7 @@ ArticleSiteの記事を検索対象にしたい場合は、実装上のindex可�
 - 対象routeの `buildMeta` に `noindex: true` が指定されていない。
 - 対象routeにcanonicalがある。
 - `public/sitemap.xml` に対象URLがある。
-- `scripts/prerender.ts` の対象に記事一覧、記事詳細、カテゴリ詳細が含まれている。
+- `scripts/staticSite.ts` の自動探索と `static:validate` で、記事一覧、公開記事、公開カテゴリがSSG対象になっている。
 - トップページ、ヘッダー、フッター、記事一覧、関連記事など、クロールしやすい内部リンクがある。
 
 コード上でindex可能でも、Googleに実際にindexされるとは限りません。

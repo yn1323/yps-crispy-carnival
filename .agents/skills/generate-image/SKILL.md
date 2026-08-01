@@ -1,16 +1,16 @@
 ---
 name: generate-image
-description: Manually invoked skill for planning and generating Shiftori illustrations and visual explanations. Use only when the user explicitly invokes `$generate-image`; do not invoke implicitly for ordinary UI, image, design, or development requests. Elicit the intended message and placement, recommend suitable formats from the supported catalog, let the user select one, then generate the image using `public/sample-touch.png` as a mandatory visual reference.
+description: シフトリ向けのイラストや図解について、用途に合う形式を提案し、ユーザーの選択後に基準画像を参照して生成する。ユーザーが`$generate-image`を明示した場合だけ使い、通常のUI、画像、デザイン、実装依頼では暗黙に使わない。
 ---
 
-# Generate Shiftori Image
+# シフトリ向け画像を生成する
 
 Guide the user from an unclear visual need to a selected format and generated image. Do not generate before the user chooses a proposed direction.
 
 ## Workflow
 
-1. Confirm that `/Users/natani/work/yps-crispy-carnival/public/sample-touch.png` exists and inspect it with the image-viewing tool.
-2. If the image will contain text, read `@src/configs/theme/tokens/fonts.ts` and use the application's current `heading` or `body` font stack. Treat this file as the source of truth instead of copying a font name into this skill.
+1. Confirm that `doc/assets/article-hero-style-reference.png` exists and inspect it with the image-viewing tool.
+2. If the image will contain text, read `src/configs/theme/tokens/fonts.ts` and use the application's current `heading` or `body` font stack. Treat this file as the source of truth instead of copying a font name into this skill.
 3. Ask only for missing information:
    - what the image should communicate;
    - where it will appear and the desired aspect ratio or dimensions;
@@ -18,7 +18,7 @@ Guide the user from an unclear visual need to a selected format and generated im
 4. Recommend two or three suitable formats from the catalog. Put the strongest recommendation first and explain each in one sentence.
 5. Ask the user to select a format or adjust the proposed direction. Do not generate during this turn.
 6. After selection, summarize the final direction briefly only if clarification remains necessary.
-7. Generate with the image-generation tool. Always provide `public/sample-touch.png` through `referenced_image_paths`; mentioning it in the prompt alone is insufficient.
+7. Generate with the image-generation tool. Resolve `doc/assets/article-hero-style-reference.png` from the repository root, then pass its absolute path through `referenced_image_paths`; mentioning it in the prompt alone is insufficient.
 8. Follow explicit user instructions over defaults. If the output will be added to the web application, convert it with `$convert-images-to-webp` before referencing it in code.
 
 ## Format catalog
@@ -47,7 +47,7 @@ Use the reference image as the source of truth for the visual language:
 - simple faces, rounded forms, approachable expressions, and uncluttered compositions;
 - calendars, shift grids, smartphones, notifications, check marks, stores, and staff communication when relevant.
 
-Keep the selected format recognizable while preserving this touch. Avoid photorealism, glossy 3D rendering, dense gradients, generic corporate stock-art styling, excessive decoration, and invented logos. Avoid text inside the image unless the user explicitly requires it; image models often render Japanese text poorly. When text is required, match the application's current typography from `@src/configs/theme/tokens/fonts.ts`, including its fallback stack, and verify the generated glyphs and wording visually.
+Keep the selected format recognizable while preserving this touch. Avoid photorealism, glossy 3D rendering, dense gradients, generic corporate stock-art styling, excessive decoration, and invented logos. Avoid text inside the image unless the user explicitly requires it; image models often render Japanese text poorly. When text is required, match the application's current typography from `src/configs/theme/tokens/fonts.ts`, including its fallback stack, and verify the generated glyphs and wording visually.
 
 ## Generation prompt
 
@@ -58,5 +58,5 @@ Include the following in the image-generation prompt:
 - the required aspect ratio or dimensions;
 - the reference-derived visual direction above;
 - a request to preserve whitespace for adjacent copy when applicable;
-- when text is required, the exact wording and the font stack read from `@src/configs/theme/tokens/fonts.ts`;
+- when text is required, the exact wording and the font stack read from `src/configs/theme/tokens/fonts.ts`;
 - explicit exclusions, including unwanted text and visual styles.

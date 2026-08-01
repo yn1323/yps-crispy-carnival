@@ -1,5 +1,8 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { ComponentProps } from "react";
+import { useLayoutEffect, useRef } from "react";
+import { expect, userEvent, within } from "storybook/test";
 import type { DisplayIssue } from "@/src/domains/shift/assignmentIssues";
 import { ValidationErrorPanel } from ".";
 
@@ -119,8 +122,46 @@ export const SPCompactExpanded: Story = {
   globals: {
     viewport: { value: "mobile1", isRotated: false },
   },
+  render: (args) => <ExpandedPanelStory {...args} />,
+};
+
+export const SPCompactExpandBehavior: Story = {
+  args: {
+    ...baseArgs,
+    compact: true,
+  },
+  globals: {
+    viewport: { value: "mobile1", isRotated: false },
+  },
+  parameters: {
+    screenshot: { skip: true },
+  },
   play: async ({ canvasElement }) => {
-    const toggle = canvasElement.querySelector<HTMLButtonElement>("button[aria-expanded]");
-    toggle?.click();
+    const canvas = within(canvasElement);
+    const toggle = canvas.getByRole("button", { name: /確定する前に3件修正してください/ });
+
+    await userEvent.click(toggle);
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(await canvas.findByText("修正する項目をタップすると該当の日付に移動します")).toBeVisible();
   },
 };
+
+function ExpandedPanelStory(props: ComponentProps<typeof ValidationErrorPanel>) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const hasExpanded = useRef(false);
+
+  useLayoutEffect(() => {
+    if (hasExpanded.current) return;
+    const toggle = rootRef.current?.querySelector<HTMLButtonElement>('button[aria-expanded="false"]');
+    if (!toggle) return;
+
+    hasExpanded.current = true;
+    toggle.click();
+  }, []);
+
+  return (
+    <div ref={rootRef}>
+      <ValidationErrorPanel {...props} />
+    </div>
+  );
+}

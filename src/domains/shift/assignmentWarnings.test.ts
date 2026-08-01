@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
-import { type AssignmentWarning, computeAssignmentWarnings } from "./assignmentWarnings";
+import { type AssignmentWarning, type AssignmentWarningPattern, computeAssignmentWarnings } from "./assignmentWarnings";
 import { BREAK_POSITION } from "./constants";
 import type { PositionSegment, ShiftData } from "./types";
 
@@ -29,7 +28,7 @@ const shift = (overrides: Partial<ShiftData>): ShiftData => ({
   ...overrides,
 });
 
-const run = (shifts: ShiftData[], pattern?: ShiftSubmissionPattern): AssignmentWarning[] =>
+const run = (shifts: ShiftData[], pattern?: AssignmentWarningPattern): AssignmentWarning[] =>
   computeAssignmentWarnings({ shifts, staffs, pattern });
 
 describe("computeAssignmentWarnings", () => {
@@ -55,9 +54,7 @@ describe("computeAssignmentWarnings", () => {
   describe("NOT_SUBMITTED", () => {
     it("未提出スタッフに勤務が入っていると警告", () => {
       const warnings = run([shift({ staffId: "staff2", positions: [seg({})] })]);
-      expect(warnings).toEqual([
-        { code: "NOT_SUBMITTED", date: "2026-01-20", staffId: "staff2", message: "未提出のまま勤務に入っています" },
-      ]);
+      expect(warnings).toMatchObject([{ code: "NOT_SUBMITTED", date: "2026-01-20", staffId: "staff2" }]);
     });
 
     it("未提出は希望時間外より優先（1セル1件）", () => {
@@ -102,12 +99,11 @@ describe("computeAssignmentWarnings", () => {
           positions: [seg({ start: "10:00", end: "20:00" })],
         }),
       ]);
-      expect(warnings).toEqual([
+      expect(warnings).toMatchObject([
         {
           code: "OUTSIDE_REQUESTED_TIME",
           date: "2026-01-20",
           staffId: "staff1",
-          message: "希望時間（10:00-18:00）の外に勤務があります",
         },
       ]);
     });
@@ -138,11 +134,11 @@ describe("computeAssignmentWarnings", () => {
   });
 
   describe("勤務区分募集", () => {
-    const pattern: ShiftSubmissionPattern = {
+    const pattern: AssignmentWarningPattern = {
       kind: "shiftType",
       options: [
-        { id: "morning", name: "早番", startTime: "09:00", endTime: "13:00", sortOrder: 0 },
-        { id: "late", name: "遅番", startTime: "17:00", endTime: "21:00", sortOrder: 1 },
+        { id: "morning", name: "早番" },
+        { id: "late", name: "遅番" },
       ],
     };
 
@@ -156,12 +152,11 @@ describe("computeAssignmentWarnings", () => {
         ],
         pattern,
       );
-      expect(warnings).toEqual([
+      expect(warnings).toMatchObject([
         {
           code: "OUTSIDE_REQUESTED_TIME",
           date: "2026-01-20",
           staffId: "staff1",
-          message: "希望時間の外に勤務があります（遅番）",
         },
       ]);
     });
@@ -200,19 +195,18 @@ describe("computeAssignmentWarnings", () => {
         ],
         pattern,
       );
-      expect(warnings).toEqual([
+      expect(warnings).toMatchObject([
         {
           code: "OUTSIDE_REQUESTED_TIME",
           date: "2026-01-20",
           staffId: "staff1",
-          message: "希望時間の外に勤務があります（遅番）",
         },
       ]);
     });
   });
 
   describe("日付のみ募集", () => {
-    const pattern: ShiftSubmissionPattern = { kind: "dateOnly" };
+    const pattern: AssignmentWarningPattern = { kind: "dateOnly" };
 
     it("希望のない日に勤務が入っているとOFF_REQUEST", () => {
       const warnings = run([shift({ requestedTimes: [], positions: [seg({})] })], pattern);

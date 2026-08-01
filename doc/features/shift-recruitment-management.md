@@ -1,59 +1,83 @@
 # シフト募集管理
 
-シフト担当者がダッシュボードからシフト募集を作成・確認・削除する機能。削除は募集単位の論理削除で、誤作成や不要になった募集を通常の管理導線とスタッフ向けリンクから失効させる。
+> 文書種別: feature
+>
+> 最終コード照合: 2026-07-23
+>
+> 基準commit: `b61100a680e80d154a74f576d03c53712846e062`
 
-## 関連ファイル
+シフト担当者が募集を作り、進行中と過去の募集を確認し、不要な募集を削除する機能である。
+募集後の割当編集と確定は[シフト表](shift-board.md)、スタッフの提出は[希望シフト提出](shift-submission.md)が所有する。
 
-| 種別 | パス |
+## 機能の範囲
+
+募集管理は、募集の作成、Dashboardでの状態別表示、論理削除を扱う。
+割当の下書き、確定validation、確定通知の差分判定は扱わない。
+
+募集削除では`recruitments.isDeleted`を設定する。
+提出、割当、集計、link、sessionの関連データは物理削除せず、管理画面とスタッフ向け導線から利用できない状態にする。
+
+## 画面と状態
+
+| 画面 | 利用者ができること |
 |---|---|
-| 画面 | `src/pages/dashboard/index.tsx`, `src/pages/shift-board/index.tsx` |
-| UI | `src/components/features/Dashboard/RecruitmentBoard/`, `src/components/features/Dashboard/DashboardContent/index.tsx`, `src/components/features/Shift/ShiftForm/`, `src/components/features/Shift/ShiftForm/ValidationErrorPanel/` |
-| API | `convex/recruitment/mutations.ts`, `convex/dashboard/queries.ts`, `convex/shiftBoard/queries.ts`, `convex/shiftBoard/mutations.ts` |
-| バリデーション | `convex/shiftBoard/validation.ts`（サーバー/フロント共有の純粋関数）, `src/domains/shift/buildAssignments.ts`, `src/domains/shift/assignmentIssues.ts`, `src/domains/shift/assignmentWarnings.ts`（確認事項＝クライアントのみの助言） |
-| テスト | `convex/recruitment/mutations.test.ts`, `convex/shiftBoard/validation.test.ts`, `convex/shiftBoard/mutations.test.ts`, `convex/_scenario/recruitmentDeletion.test.ts`, `e2e/scenarios/recruitment-deletion.test.ts` |
+| `/dashboard?shop=<shopId>` | 募集を作成し、状態別の募集一覧を確認し、募集を削除する |
+| `/shiftboard/<recruitmentId>?shop=<shopId>` | 対象募集のシフト表へ進む。詳しい挙動は[シフト表](shift-board.md)を参照する |
 
-## 画面一覧
+Dashboardは募集を次の順で表示し、空の分類は表示しない。
 
-| 画面 | 概要 |
+1. 現在のシフト
+2. 要シフト調整
+3. 募集中
+4. 確定済み
+5. 過去のシフト
+
+現在、調整待ち、募集中、未来の確定済み募集は初期表示する。
+過去の募集は存在だけを先に確認し、利用者が「過去のシフトを見る」を選んだ後にページングして取得する。
+
+シフト終了日当日は過去に含めず、翌日から過去として扱う。
+確定済み募集も削除できるが、削除前に確認する。
+
+## 通知との境界
+
+募集作成時は、対象スタッフへの募集通知を予約する。
+提出締切日前日17:00の自動催促は、その予定時刻が募集作成時点より未来の場合だけ予約する。
+提出締切翌日17:00の管理者向け確定催促も、予定時刻が未来の場合だけ予約する。詳細は[シフト確定リマインダー](shift-confirmation-reminder.md)を参照する。
+募集作成の完了画面では「スタッフに通知しました」と案内するが、外部送信はNotification Outboxが非同期で行う。
+
+募集を削除すると、進行中の通知fanoutを同じtransactionで停止する。
+すでにOutboxへ入った通知も、provider呼出し直前に募集の有効性を再確認する。
+
+lease、cursor、dedupe、再開、保持期限は[Notification Outbox](notification-outbox.md)を正本とする。
+
+## Public API
+
+| API | 用途 |
 |---|---|
-| `/dashboard` | TODO、シフト一覧、募集作成、募集削除の入口 |
-| `/shiftboard/$recruitmentId` | 募集期間のシフト表確認・下書き保存・確定 |
+| `api.recruitment.mutations.createRecruitment` | 募集を作成し、募集通知と、予定時刻が未来にある提出催促・確定催促を予約する |
+| `api.recruitment.mutations.deleteRecruitment` | 募集を論理削除し、スタッフ向け導線と未完了fanoutを失効させる |
+| `api.dashboard.queries.getDashboardRecruitments` | 初期表示する現在、調整待ち、募集中、未来確定の候補を返す |
+| `api.dashboard.queries.hasDashboardPastRecruitments` | 過去の募集が存在するかを返す |
+| `api.dashboard.queries.getDashboardPastRecruitments` | 過去の募集を終了日の新しい順でページングして返す |
+| `api.dashboard.queries.getDashboardCurrentRecruitments` | 現在日付が期間内にある確定済みシフトを返す |
 
-## API一覧
+管理者APIは選択店舗と所属をサーバー側で確認する。
+削除済み募集は一覧とスタッフ向けデータ取得から除外する。
 
-| API | 種別 | 概要 |
-|---|---|---|
-| `api.recruitment.mutations.createRecruitment` | mutation | シフト募集を作成し、募集通知と提出締切日前日17:00の自動催促を予約する |
-| `api.recruitment.mutations.deleteRecruitment` | mutation | シフト募集を論理削除し、管理画面・スタッフ向け導線から失効させる |
-| `api.dashboard.queries.getDashboardRecruitments` | query | ダッシュボード初期表示用のシフト候補と提出人数/現在の有効スタッフ数を取得する。削除済み募集と過去の確定済みシフトは返さず、現在・要シフト調整・募集中・未来確定の表示に必要な候補を返す |
-| `api.dashboard.queries.hasDashboardPastRecruitments` | query | ダッシュボードで過去のシフト導線を出すため、過去の確定済みシフトが存在するかを取得する |
-| `api.dashboard.queries.getDashboardPastRecruitments` | query | `過去のシフトを見る` 押下後に、過去の確定済みシフトを終了日が新しい順でページング取得する |
-| `api.dashboard.queries.getDashboardCurrentRecruitments` | query | 現在日付がシフト期間内に含まれる確定済みシフトを取得する |
-| `api.shiftBoard.queries.getShiftBoardData` | query | シフト表画面のデータを取得する。削除済み募集は `null` を返す |
-| `api.shiftBoard.mutations.saveShiftAssignments` | mutation | シフト表の下書き割当を保存する |
+## コードの入口
 
-## 仕様メモ
+| 責務 | 主な入口 |
+|---|---|
+| RouteとPage | `src/routes/_auth/dashboard.tsx`, `src/pages/dashboard/` |
+| 募集の作成 | `src/components/features/Dashboard/RecruitmentManagement/` |
+| 募集の一覧 | `src/components/features/Dashboard/RecruitmentBoard/` |
+| 募集API | `convex/recruitment/mutations.ts`, `convex/recruitment/service.ts` |
+| Dashboard query | `convex/dashboard/queries.ts` |
+| 通知fanout | `convex/notification/fanout.ts` |
 
-- 募集削除は `recruitments.isDeleted` による論理削除。提出・割当・統計・リンク・セッションの関連データは物理削除しない。
-- 削除済み募集はダッシュボード一覧に表示しない。
-- ダッシュボードのシフト一覧は、SPでもスタッフ一覧へ到達しやすいように、運用中/未来の候補を初期表示し、増え続ける過去シフトだけを遅延取得する。参考実装: `src/components/features/Dashboard/types.ts`, `src/components/features/Dashboard/RecruitmentBoard/`, `src/pages/dashboard/index.tsx`, `convex/dashboard/queries.ts`。
-- グループは `現在のシフト` → `要シフト調整` → `募集中` → `確定済み` → `過去のシフト` の順に表示し、空グループは見せない。`現在のシフト` は確定済みかつ今日がシフト期間内、`要シフト調整` は未確定で締切済みまたは未確定のまま期間終了、`募集中` は未確定で締切前、`確定済み` は未来の確定済みシフト、`過去のシフト` は終了済みの確定済みシフトを指す。
-- 初期表示では `現在のシフト`、`要シフト調整`、`募集中`、`確定済み` をすべて表示する。過去シフトは一覧を初期取得せず、存在する場合だけ `過去のシフトを見る` ボタンを表示する。押下後は `過去のシフト` グループをページング表示し、まだ残りがある場合だけ `もっと見る` を表示する。
-- グループ内の並び順は、`現在のシフト` は終了日が近い順、`要シフト調整` は締切が古い順、`募集中` は締切が近い順、`確定済み` は開始日が近い順、`過去のシフト` は終了日が新しい順にする。
-- 状態色は、募集中を緑、要シフト調整をオレンジ、現在または未来の確定済みを青系、終了済みを灰色にする。`要シフト調整` バッジでは行動の必要性を示し、締切日は `7/5 締切済み` のように別テキストで残す。
-- 削除済み募集のスタッフ向け提出リンク・閲覧リンク・再発行導線・通知用データ取得は失効扱いにする。
-- 募集開始通知、スタッフ追加通知、LINE連携時通知、自動催促は同じ submit マジックリンクを再利用する。自動催促は作成時に未来の予定時刻だけ予約し、既存 open 募集へのバックフィルはしない。
-- Dashboardの募集作成完了時は「スタッフに通知しました」と明示する。内部配送は `notificationOutbox` で非同期処理するが、シフト担当者には送信済みとして案内する。
-- 未提出者バーは open 募集かつ未提出者がいる場合だけ表示し、手動送信は置かない。予約済み、送信済み、予約なしの状態文言のみ表示する。
-- 確定済み募集も削除できる。削除前に確認ダイアログを表示する。
-- シフト表で未保存のユーザー編集がある状態で離脱（アプリ内の戻る・ブラウザバック）しようとすると、確認ダイアログで「保存する」「保存しない」を選ばせる。ダイアログを閉じるとその場に留まる（`useBlocker` + `src/domains/shift/isAssignmentsEqual.ts`）。シフト申請の到着などサーバー由来のデータ変化はdirty扱いにしない。タブを閉じる/リロード時はブラウザ標準の離脱確認のみ表示する。
-- 確定済みシフトの再通知は、前回通知時点のスタッフ別スナップショットと現在の割当を比較し、変更があるスタッフだけに送る。変更対象が0人なら通知は予約しない。スナップショットがない既存の確定済み募集では、導入後の初回再通知だけ全員を対象にする。
-- シフト終了日を過ぎた過去シフトは、下書き保存・確定通知・再通知をできない。ボタンは押せるままにし、押下後に理由をtoastで表示する。サーバー側でも同じ条件で保存・通知予約を拒否し、直接API呼び出しでも副作用を起こさない。
-- 日ごと募集のPCシフト表では、日別/一覧タブを出さず、左サイドバーで週を選び、`ユーザー × 日付` のテーブルでセル押下により勤務させる/勤務させないを切り替える。週は月曜始まりの7日固定で表示し、募集期間外の日は薄く表示して入力できない。
-- 日ごと募集のSPシフト表では、日別/一覧タブを表示する。日別は募集期間内の日付チップで日付を選び、スタッフ行の `○/×` でその日の割当を切り替える。一覧は週ごとのカードで日付別に勤務するスタッフだけを表示し、期間外の日も一覧上で確認できる。
-- 勤務区分募集のPCシフト表では、日別ビューに `スタッフ × 勤務区分` の表を表示し、セル押下で勤務させる/勤務させないを切り替える。
-- 勤務区分募集の割当は `shiftAssignments.optionId` に募集作成時点の勤務区分IDを保存し、勤務区分の時間と一致する場合だけ保存できる。
-- シフト確定時のバリデーションは二重防御。確定ボタン押下時にフロントで `validateShiftAssignments`（`convex/shiftBoard/validation.ts`、全件収集型の純粋関数）を実行し、エラーがあれば確認ダイアログを開かずシフト表上部にエラー一覧パネルを表示する。サーバー（`saveShiftAssignments` / `confirmRecruitment`）も同じ関数で全違反を収集し、構造化 `ConvexError`（`{ code: "SHIFT_ASSIGNMENT_VALIDATION", issues }`）で返す。構造化エラー以外は従来どおりtoast表示。
-- エラー一覧の行クリックで該当日付の日別ビューへジャンプし、該当スタッフ行を赤くハイライトする。DateRailの該当日には件数バッジを表示する。エラー検出後はシフト編集のたびに再検証し、修正するとエラー一覧・ハイライトがライブに減っていく。
-- 確定をブロックしない「確認事項」（ワーニング、オレンジ）も同じ仕組みで表示する。`computeAssignmentWarnings`（`src/domains/shift/assignmentWarnings.ts`、クライアントのみの純粋関数）が希望と割当の食い違いを検出する: 未提出スタッフが勤務（`NOT_SUBMITTED`）/ 休み希望の日に勤務（`OFF_REQUEST`）/ 希望時間の枠外にはみ出した勤務（`OUTSIDE_REQUESTED_TIME`・時間募集）/ 希望していない勤務区分（`UNREQUESTED_SHIFT_TYPE`・勤務区分募集）。1セルあたり最大1件。
-- 確認事項は確定をブロックせず、確認ダイアログ内のサマリーと盤面のオレンジパネル・バッジ・行ハイライトで知らせる（同セルにエラーがあれば赤を優先）。希望可能枠の判定は「枠をはみ出したときだけ」警告し、枠内で短く割り当てるのは正常扱い。
+## 関連文書
+
+- [シフト表](shift-board.md)
+- [希望シフト提出](shift-submission.md)
+- [Notification Outbox](notification-outbox.md)
+- [シフト確定リマインダー](shift-confirmation-reminder.md)

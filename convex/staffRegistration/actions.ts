@@ -1,5 +1,6 @@
 "use node";
 
+import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
@@ -23,8 +24,14 @@ type PendingRequestShopIdsPage = {
 };
 
 export const sendOwnerDailyDigest = internalAction({
-  args: {},
-  handler: async (ctx) => {
+  args: { shopId: v.optional(v.id("shops")) },
+  handler: async (ctx, { shopId }) => {
+    // E2Eや運用確認では対象店舗だけを実行し、同じdeploymentの他店舗へ影響させない。
+    if (shopId) {
+      await sendOwnerDigestForShop(ctx, shopId);
+      return;
+    }
+
     const notifiedShopIds = new Set<string>();
     let cursor: string | null = null;
     let isDone = false;
@@ -58,9 +65,12 @@ async function sendOwnerDigestForShop(ctx: ActionCtx, shopId: Id<"shops">) {
   });
   if (!data) return;
 
-  const [quota, suppressDelivery] = await Promise.all([
+  const [quota, suppressDelivery, notificationOrigin] = await Promise.all([
     ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {}),
     ctx.runQuery(internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop, {
+      shopId: data.shopId,
+    }),
+    ctx.runQuery(internal.notificationOutbox.origin.captureCurrentBusinessNotificationOrigin, {
       shopId: data.shopId,
     }),
   ]);
@@ -71,6 +81,7 @@ async function sendOwnerDigestForShop(ctx: ActionCtx, shopId: Id<"shops">) {
     if (channel === "line" && recipient.lineUserId) {
       await enqueueLine(ctx, {
         shopId: data.shopId,
+        ...notificationOrigin,
         userId: recipient.userId,
         dedupeKey: `line:staffRegistrationDailyDigest:${data.shopId}:${recipient.userId}`,
         payload: linePayload({
@@ -104,6 +115,7 @@ async function sendOwnerDigestForShop(ctx: ActionCtx, shopId: Id<"shops">) {
 
     await enqueueEmail(ctx, {
       shopId: data.shopId,
+      ...notificationOrigin,
       userId: recipient.userId,
       dedupeKey: `email:staffRegistrationDailyDigest:${data.shopId}:${recipient.userId}`,
       payload: emailPayload({

@@ -1,14 +1,9 @@
 import { Box, Flex, Stack } from "@chakra-ui/react";
-import dayjs from "dayjs";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
-import { buildWeeklyGrid, formatDateShort, getWeekdayLabel } from "@/src/domains/shift/date";
-import { getAssignedShiftTypeOptionIdsInOptionOrder } from "@/src/domains/shift/shiftTypeAssignments";
-import { sortDailyStaffsByDate } from "@/src/domains/shift/sortStaffs";
-import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { IssueCountBadge } from "../../components";
-import { getShiftTypeOptionColor, type ShiftTypeOptionColor } from "../../pc/shiftTypeOptionStyles";
+import { getShiftTypeOptionColor } from "../../shiftTypeOptionStyles";
 import {
   selectDateWithDailyStaffOrderAtom,
   shiftConfigAtom,
@@ -16,39 +11,18 @@ import {
   viewModeAtom,
   warningCountByDateAtom,
 } from "../../stores";
+import {
+  buildShiftTypeOverviewViewModel,
+  type ShiftTypeOverviewDayRowViewModel,
+  type ShiftTypeOverviewStaffRowViewModel,
+  type ShiftTypeOverviewWeekdayTone,
+} from "./script";
 
-type DateInfo = {
-  iso: string;
-  label: string;
-  wk: string;
-  inRange: boolean;
-};
-
-type OptionDisplay = {
-  name: string;
-  color: ShiftTypeOptionColor;
-};
-
-const toDateInfo = (cell: { iso: string; inRange: boolean }): DateInfo => ({
-  iso: cell.iso,
-  label: formatDateShort(cell.iso),
-  wk: getWeekdayLabel(cell.iso),
-  inRange: cell.inRange,
-});
-
-const buildWeeks = (dates: string[]): DateInfo[][] => buildWeeklyGrid(dates).map((week) => week.map(toDateInfo));
-
-const formatWeekLabel = (dates: DateInfo[]): string => {
-  const start = dates[0]?.iso ?? "";
-  const end = dates[dates.length - 1]?.iso ?? start;
-  return start === end ? formatDateShort(start) : `${formatDateShort(start)} – ${formatDateShort(end)}`;
-};
-
-const dayColor = (iso: string): string => {
-  const day = dayjs(iso).day();
-  if (day === 0) return "#ef4444";
-  if (day === 6) return "#3b82f6";
-  return "#3f3f46";
+const weekdayColor: Record<ShiftTypeOverviewWeekdayTone, string> = {
+  weekday: "#3f3f46",
+  saturday: "#3b82f6",
+  sunday: "#ef4444",
+  muted: "#a1a1aa",
 };
 
 export const SPShiftTypeOverviewView = () => {
@@ -58,50 +32,25 @@ export const SPShiftTypeOverviewView = () => {
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const setViewMode = useSetAtom(viewModeAtom);
   const { dates, holidays, staffs, isReadOnly, submissionPattern } = config;
-
-  const options = useMemo(
+  const viewModel = useMemo(
     () =>
-      submissionPattern?.kind === "shiftType"
-        ? [...submissionPattern.options].sort((a, b) => a.sortOrder - b.sortOrder)
-        : [],
-    [submissionPattern],
+      buildShiftTypeOverviewViewModel({
+        dates,
+        holidays,
+        staffs,
+        shifts,
+        submissionPattern,
+        warningCounts,
+        isReadOnly,
+      }),
+    [dates, holidays, staffs, shifts, submissionPattern, warningCounts, isReadOnly],
   );
-  const sortedOptionIds = useMemo(() => options.map((option) => option.id), [options]);
-  const optionDisplayById = useMemo(
-    () =>
-      new Map(
-        options.map((option, index) => [
-          option.id,
-          {
-            name: option.name,
-            color: getShiftTypeOptionColor(index),
-          },
-        ]),
-      ),
-    [options],
-  );
-
-  const weeks = useMemo(() => buildWeeks(dates), [dates]);
   const initialOpen = useMemo(() => {
     const state: Record<number, boolean> = {};
-    for (let index = 0; index < weeks.length; index++) state[index] = true;
+    for (let index = 0; index < viewModel.weeks.length; index++) state[index] = true;
     return state;
-  }, [weeks.length]);
+  }, [viewModel.weeks.length]);
   const [open, setOpen] = useState(initialOpen);
-
-  const shiftByStaffDate = useMemo(() => {
-    const map = new Map<string, ShiftData>();
-    for (const shift of shifts) {
-      map.set(`${shift.staffId}-${shift.date}`, shift);
-    }
-    return map;
-  }, [shifts]);
-
-  // 日別ビューと同じ「早い順」で日付ごとにスタッフを並べ替える。
-  const sortedStaffsByDate = useMemo(
-    () => sortDailyStaffsByDate({ staffs, shifts, mode: "shiftType" }),
-    [staffs, shifts],
-  );
 
   const handleDateTap = useCallback(
     (iso: string) => {
@@ -115,12 +64,11 @@ export const SPShiftTypeOverviewView = () => {
   return (
     <Box flex={1} minH={0} overflow="auto" bg="gray.50" px={3} py={3}>
       <Stack gap={2}>
-        {weeks.map((weekDates, weekIndex) => {
-          if (weekDates.length === 0) return null;
-          const isOpen = !!open[weekIndex];
+        {viewModel.weeks.map((week) => {
+          const isOpen = !!open[week.key];
           return (
             <Box
-              key={weekIndex}
+              key={week.key}
               bg="white"
               borderRadius="lg"
               borderWidth="1px"
@@ -134,7 +82,7 @@ export const SPShiftTypeOverviewView = () => {
                 px={3}
                 py={3}
                 cursor="pointer"
-                onClick={() => setOpen({ ...open, [weekIndex]: !isOpen })}
+                onClick={() => setOpen({ ...open, [week.key]: !isOpen })}
                 borderBottomWidth={isOpen ? "1px" : "0"}
                 borderColor="gray.100"
               >
@@ -150,90 +98,15 @@ export const SPShiftTypeOverviewView = () => {
                   {isOpen ? <LuChevronDown size={14} /> : <LuChevronRight size={14} />}
                 </Flex>
                 <Box textStyle="numeric" fontWeight={700} color="gray.800">
-                  {formatWeekLabel(weekDates)}
+                  {week.label}
                 </Box>
               </Flex>
 
               {isOpen && (
                 <Box>
-                  {weekDates.map((date, index) => {
-                    const isClosed = date.inRange && holidays.includes(date.iso);
-                    const dailyStaffs = sortedStaffsByDate.get(date.iso) ?? staffs;
-                    const workingStaffs =
-                      !date.inRange || isClosed
-                        ? []
-                        : dailyStaffs
-                            .map((staff) => {
-                              const shift = shiftByStaffDate.get(`${staff.id}-${date.iso}`);
-                              const assignedOptionIds = getAssignedShiftTypeOptionIdsInOptionOrder(
-                                shift,
-                                sortedOptionIds,
-                              );
-                              return { staff, assignedOptionIds };
-                            })
-                            .filter((item) => item.assignedOptionIds.length > 0);
-                    const canOpenDaily = !isReadOnly && date.inRange;
-                    const warningCount = warningCounts.get(date.iso) ?? 0;
-                    return (
-                      <Flex
-                        key={date.iso}
-                        gap={3}
-                        px={3}
-                        py={3}
-                        borderTopWidth={index > 0 ? "1px" : "0"}
-                        borderColor="gray.100"
-                        bg={isClosed || !date.inRange ? "gray.50" : "white"}
-                        cursor={canOpenDaily ? "pointer" : "default"}
-                        _active={canOpenDaily ? { bg: "gray.50" } : undefined}
-                        onClick={canOpenDaily ? () => handleDateTap(date.iso) : undefined}
-                      >
-                        <Box w="68px" flexShrink={0} position="relative">
-                          {warningCount > 0 && <IssueCountBadge count={warningCount} tone="warning" />}
-                          <Flex align="baseline" gap="4px" whiteSpace="nowrap">
-                            <Box
-                              textStyle="numeric"
-                              fontWeight={700}
-                              color={date.inRange ? "gray.800" : "gray.400"}
-                              lineHeight="1.1"
-                              style={{ fontVariantNumeric: "tabular-nums" }}
-                            >
-                              {date.label}
-                            </Box>
-                            <Box
-                              textStyle="2xs"
-                              fontWeight={700}
-                              flexShrink={0}
-                              style={{ color: date.inRange ? dayColor(date.iso) : "#a1a1aa" }}
-                            >
-                              {date.wk}
-                            </Box>
-                          </Flex>
-                          {isClosed && (
-                            <Box textStyle="2xs" fontWeight={700} mt="2px" color="gray.500">
-                              定休日
-                            </Box>
-                          )}
-                        </Box>
-                        <Box flex={1} minW={0}>
-                          {!date.inRange ? (
-                            <Box textStyle="caption" color="gray.400" fontWeight={500}>
-                              期間外
-                            </Box>
-                          ) : isClosed ? (
-                            <Box textStyle="caption" color="gray.500" fontWeight={700}>
-                              定休日
-                            </Box>
-                          ) : workingStaffs.length > 0 ? (
-                            <DayShiftTypeStaffList rows={workingStaffs} optionDisplayById={optionDisplayById} />
-                          ) : (
-                            <Box textStyle="caption" color="gray.400">
-                              出勤なし
-                            </Box>
-                          )}
-                        </Box>
-                      </Flex>
-                    );
-                  })}
+                  {week.rows.map((row) => (
+                    <DayRow key={row.key} row={row} onDateTap={() => handleDateTap(row.iso)} />
+                  ))}
                 </Box>
               )}
             </Box>
@@ -244,34 +117,78 @@ export const SPShiftTypeOverviewView = () => {
   );
 };
 
-const DayShiftTypeStaffList = ({
-  rows,
-  optionDisplayById,
-}: {
-  rows: { staff: StaffType; assignedOptionIds: string[] }[];
-  optionDisplayById: Map<string, OptionDisplay>;
-}) => (
+const DayRow = ({ row, onDateTap }: { row: ShiftTypeOverviewDayRowViewModel; onDateTap: () => void }) => (
+  <Flex
+    gap={3}
+    px={3}
+    py={3}
+    borderTopWidth={row.hasTopBorder ? "1px" : "0"}
+    borderColor="gray.100"
+    bg={row.surfaceTone === "muted" ? "gray.50" : "white"}
+    cursor={row.canOpenDaily ? "pointer" : "default"}
+    _active={row.canOpenDaily ? { bg: "gray.50" } : undefined}
+    onClick={row.canOpenDaily ? onDateTap : undefined}
+  >
+    <Box w="68px" flexShrink={0} position="relative">
+      {row.warningCount > 0 && <IssueCountBadge count={row.warningCount} tone="warning" />}
+      <Flex align="baseline" gap="4px" whiteSpace="nowrap">
+        <Box
+          textStyle="numeric"
+          fontWeight={700}
+          color={row.dateTone === "default" ? "gray.800" : "gray.400"}
+          lineHeight="1.1"
+          style={{ fontVariantNumeric: "tabular-nums" }}
+        >
+          {row.dateLabel}
+        </Box>
+        <Box textStyle="2xs" fontWeight={700} flexShrink={0} style={{ color: weekdayColor[row.weekdayTone] }}>
+          {row.weekdayLabel}
+        </Box>
+      </Flex>
+      {row.closedLabel && (
+        <Box textStyle="2xs" fontWeight={700} mt="2px" color="gray.500">
+          {row.closedLabel}
+        </Box>
+      )}
+    </Box>
+    <Box flex={1} minW={0}>
+      {row.staffRows.length > 0 ? (
+        <DayShiftTypeStaffList rows={row.staffRows} />
+      ) : (
+        <Box
+          textStyle="caption"
+          color={row.statusTone === "closed" ? "gray.500" : "gray.400"}
+          fontWeight={row.statusTone === "closed" ? 700 : row.statusTone === "outOfRange" ? 500 : undefined}
+        >
+          {row.statusLabel}
+        </Box>
+      )}
+    </Box>
+  </Flex>
+);
+
+const DayShiftTypeStaffList = ({ rows }: { rows: ShiftTypeOverviewStaffRowViewModel[] }) => (
   <Stack gap="6px">
-    {rows.map(({ staff, assignedOptionIds }) => (
-      <Flex key={staff.id} align="center" gap={2} textStyle="tableDense">
+    {rows.map((staff) => (
+      <Flex key={staff.key} align="center" gap={2} textStyle="tableDense">
         <Box color="gray.800" fontWeight={600} flex={1} minW={0}>
           {staff.name}
         </Box>
         <Flex gap={1} justify="flex-end" wrap="wrap">
-          {assignedOptionIds.map((optionId) => {
-            const optionDisplay = optionDisplayById.get(optionId);
+          {staff.optionChips.map((option) => {
+            const color = getShiftTypeOptionColor(option.colorIndex);
             return (
               <Box
-                key={optionId}
+                key={option.key}
                 px={2}
                 py="2px"
                 borderRadius="full"
-                bg={optionDisplay?.color.requestedBg ?? "gray.100"}
-                color={optionDisplay?.color.accent ?? "gray.700"}
+                bg={color.requestedBg}
+                color={color.accent}
                 textStyle="2xs"
                 fontWeight={700}
               >
-                {optionDisplay?.name ?? "勤務"}
+                {option.label}
               </Box>
             );
           })}

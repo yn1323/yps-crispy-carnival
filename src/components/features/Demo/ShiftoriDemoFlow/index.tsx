@@ -2,10 +2,9 @@ import { Box, Flex, Heading, HStack, Icon, Stack, Text } from "@chakra-ui/react"
 import { Link as RouterLink } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { LuChevronRight, LuUserPlus } from "react-icons/lu";
-import { CreateRecruitmentForm } from "@/src/components/features/Dashboard/CreateRecruitmentForm/index.tsx";
+import { CreateRecruitmentForm } from "@/src/components/features/CreateRecruitmentForm";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
-import { ShiftSubmitPage } from "@/src/components/features/StaffSubmit/ShiftSubmitPage";
-import type { SubmitShiftSelectionInput } from "@/src/components/features/StaffSubmit/SubmitFormView";
+import { ShiftSubmitPage, type SubmitShiftSelectionInput } from "@/src/components/features/StaffSubmit";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import type { ShiftData } from "@/src/domains/shift/types";
@@ -13,6 +12,7 @@ import { DemoHighlightStyles } from "./DemoHighlightStyles";
 import {
   buildDemoShifts,
   DEFAULT_RECRUITMENT,
+  DEMO_TODAY,
   type DemoStep,
   dates,
   FORM_ID,
@@ -190,7 +190,12 @@ const RecruitStep = ({ onSubmit }: { onSubmit: () => void }) => (
   <Surface>
     <Flex minH="640px" align="center" justify="center" px={{ base: 4, md: 6 }} py={{ base: 8, md: 12 }}>
       <Stack w="full" maxW="620px" gap={6}>
-        <CreateRecruitmentForm defaultValues={DEFAULT_RECRUITMENT} displayMode="periodOnly" onSubmit={onSubmit} />
+        <CreateRecruitmentForm
+          defaultValues={DEFAULT_RECRUITMENT}
+          displayMode="periodOnly"
+          today={DEMO_TODAY}
+          onSubmit={onSubmit}
+        />
         <Button type="submit" form={FORM_ID} colorPalette="teal" h="48px" fontWeight="bold" data-demo-primary>
           募集をつくる
         </Button>

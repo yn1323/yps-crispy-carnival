@@ -3,10 +3,13 @@ import { dirname } from "node:path";
 import { clerk, clerkSetup } from "@clerk/testing/playwright";
 import { test as setup } from "@playwright/test";
 import { getE2EClerkUsers } from "../helpers/e2eUsers";
+import { forceResetManagerScenarioData } from "../helpers/scenarioSeeds";
 
 const E2E_CLERK_USERS = getE2EClerkUsers();
 
-setup.describe.configure({ mode: "parallel" });
+// 前回のmulti-actor runが途中終了した場合、A/Bが同じグループを参照している可能性がある。
+// user単位のforce resetを直列化し、同じgraphを並行削除しない。
+setup.describe.configure({ mode: "serial" });
 
 for (const user of E2E_CLERK_USERS) {
   setup(`prepare Clerk testing token and sign in: user-${user.index + 1}`, async ({ page }) => {
@@ -31,6 +34,9 @@ for (const user of E2E_CLERK_USERS) {
 
     mkdirSync(dirname(user.storageStatePath), { recursive: true });
     await page.context().storageState({ path: user.storageStatePath });
+    // 前回runが通知異常で停止していても再実行できるよう、setup時にこの管理者のデータだけ回収する。
+    // 同一run内の各seedはstrict resetを使い、通知異常を削除前に必ず検出する。
+    forceResetManagerScenarioData(user.index);
     writeFileSync(
       user.metaPath,
       `${JSON.stringify({ email: user.email, index: user.index, storageStatePath: user.storageStatePath }, null, 2)}\n`,

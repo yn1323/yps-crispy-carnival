@@ -23,9 +23,6 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const SHOP = {
-  name: "居酒屋たなか",
-};
 const today = dayjs().format("YYYY-MM-DD");
 const inDays = (n: number) => dayjs().add(n, "day").format("YYYY-MM-DD");
 
@@ -34,8 +31,8 @@ const id = (s: string) => s as unknown as Id<"recruitments">;
 const make = (over: Partial<Recruitment>): Recruitment => ({
   _id: id("base"),
   createdAt: Date.now(),
-  periodStart: "2026-05-01",
-  periodEnd: "2026-05-07",
+  periodStart: inDays(7),
+  periodEnd: inDays(14),
   deadline: inDays(7),
   shopClosedDates: [],
   status: "open",
@@ -53,14 +50,12 @@ const zeroTotal = make({ _id: id("zero-total"), deadline: inDays(10), responseCo
 const confirmed = make({ _id: id("conf"), status: "confirmed", deadline: inDays(-30), responseCount: 10 });
 
 const NOOP = {
-  onEditClick: () => {},
   onOpenShiftBoard: () => {},
   onCreateRecruitment: () => {},
   onNotificationFailuresClick: () => {},
 };
 
 const baseArgs = {
-  shop: SHOP,
   ...NOOP,
 };
 const allTasksArgs = {
@@ -111,6 +106,7 @@ export const AllTasksDesktop: Story = {
 };
 
 export const AllTasksMobile: Story = {
+  tags: ["vrt-mobile1"],
   args: allTasksArgs,
   decorators: [
     (Story) => (
@@ -144,6 +140,7 @@ export const Loading: Story = {
 };
 
 export const MetaItemsMobile: Story = {
+  tags: ["vrt-mobile1"],
   args: {
     ...baseArgs,
     recruitments: [dueSoon, confirmed],
@@ -166,6 +163,7 @@ export const WelcomeDesktop: Story = {
 };
 
 export const WelcomeMobile: Story = {
+  tags: ["vrt-mobile1"],
   args: {
     ...baseArgs,
     recruitments: [],

@@ -44,6 +44,12 @@ describe("pickNextAction", () => {
     if (result.kind === "past-deadline") expect(result.recruitment._id).toBe(id("past"));
   });
 
+  it("期間が終了した未確定シフトはTODOの対象にしない", () => {
+    const ended = make({ periodStart: "2026-04-01", periodEnd: "2026-04-17", deadline: "2026-04-10" });
+
+    expect(pickNextAction([ended], NOW)).toEqual({ kind: "idle" });
+  });
+
   it("picks the oldest past-deadline first", () => {
     const oldest = make({ _id: id("oldest"), deadline: "2026-04-10" });
     const newer = make({ _id: id("newer"), deadline: "2026-04-15" });

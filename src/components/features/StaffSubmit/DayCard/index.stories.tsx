@@ -1,8 +1,9 @@
 import { Flex, Text } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { generateTimeOptions } from "../utils/timeOptions";
-import { DayCard, type DayEntry } from "./index";
+import { generateTimeOptions } from "../timeOptions";
+import type { DayEntry } from "../types";
+import { DayCard } from "./index";
 
 const timeOptions = generateTimeOptions("09:00", "22:00");
 const noop = () => {};

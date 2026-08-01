@@ -1,6 +1,5 @@
 import { Box, Flex, Icon, Text } from "@chakra-ui/react";
 import { LuPlay, LuX } from "react-icons/lu";
-import { isPrerendering } from "@/src/helpers/seo";
 
 type Props = {
   onStart: () => void;
@@ -13,9 +12,6 @@ type Props = {
  * 他UIと誤接触しないよう視覚・当たり判定を1つの塊にしている。
  */
 export const DemoLauncherFab = ({ onStart, onDismiss }: Props) => {
-  // prerender 時はFABを焼き込まない（HTMLに残るとツアー誘導が初期表示で固定されてしまう）
-  if (isPrerendering()) return null;
-
   return (
     <Flex
       position="fixed"

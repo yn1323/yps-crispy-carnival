@@ -12,6 +12,11 @@ export function dateToUtcMs(date: string): number {
   return Date.UTC(year, month - 1, day);
 }
 
+/** 指定した年月の1日 0:00 JSTをUnix msで返す。monthはDateと同じ0始まり。 */
+export function jstMonthStartMs(year: number, month: number): number {
+  return Date.UTC(year, month, 1) - JST_OFFSET_MS;
+}
+
 export function formatUtcDate(ms: number): string {
   const date = new Date(ms);
   const year = date.getUTCFullYear();
@@ -115,6 +120,12 @@ export function formatDateTimeLabel(ms: number): string {
   const hours = String(jst.getUTCHours()).padStart(2, "0");
   const minutes = String(jst.getUTCMinutes()).padStart(2, "0");
   return `${month}/${day}(${dayName}) ${hours}:${minutes}`;
+}
+
+/** Unix ms → "YYYY年M月D日"（JST） */
+export function formatDateJa(ms: number): string {
+  const jst = new Date(ms + JST_OFFSET_MS);
+  return `${jst.getUTCFullYear()}年${jst.getUTCMonth() + 1}月${jst.getUTCDate()}日`;
 }
 
 export function formatDateTimeJa(ms: number): string {

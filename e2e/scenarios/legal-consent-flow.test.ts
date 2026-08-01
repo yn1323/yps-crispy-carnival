@@ -13,7 +13,7 @@ type StaffSubmitSeed = {
   token: string;
 };
 
-test.describe("法務同意フロー", () => {
+test.describe("法務同意フロー", { tag: ["@release"] }, () => {
   test.setTimeout(45_000);
 
   test("管理者はダッシュボード上で再同意できる", async ({ page }) => {

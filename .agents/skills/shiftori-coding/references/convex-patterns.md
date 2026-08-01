@@ -5,8 +5,9 @@
 Convex コードを触る時は必ず以下を読む。
 
 1. `convex/_generated/ai/guidelines.md`
-2. `convex/AGENTS.md`
-3. 近い useCase の `queries.ts` / `mutations.ts` / `schemas.ts` / tests
+2. `doc/rules/convex-design-strategy.md`
+3. `convex/AGENTS.md`
+4. 近い useCase の `queries.ts` / `mutations.ts` / `schemas.ts` / tests
 
 ## 配置
 
@@ -25,19 +26,25 @@ DBテーブル名ではなく「誰がどの画面/機能で使う API か」で
 
 ## 公開 API と認可
 
-- Convex の public query/mutation/action はインターネットから叩ける前提で設計する。
+- Convexのpublic query/mutation/actionとHTTP routeはインターネットから叩ける前提で設計する。
 - 原則として `convex/_lib/functions.ts` の `authenticatedQuery`、`authenticatedMutation`、`managerQuery`、`managerMutation`、`staffSessionQuery`、`staffSessionMutation` を使う。
-- 生の `_generated/server` の `query` / `mutation` を新しい public API に直接使わない。
+- 生の `_generated/server` の`query`、`mutation`、`action`は公開Capabilityなど明示されたallowlistだけで使い、個別実装で境界を増やさない。
+- 外部副作用はmutationから`internalAction`へ渡し、public `action`を増やさない。
+- 店舗スコープのmanager APIは`shopId`を必須にし、先頭所属店舗への暗黙fallbackはbootstrap系へ限定する。
+- public functionは`args`と`returns`のruntime validatorを持ち、最小DTOだけを返す。
 - query は未認証/未準備状態で `null`、空配列、空ページを返す設計が多い。mutation は `ConvexError` を throw する。
 - クライアントから渡された ID は信頼しない。取得後に `shopId`、`isDeleted`、session/access kind を必ず確認する。
 - `Not found` と `Forbidden` を分けて外部に漏らさない。
 - query はドキュメントをそのまま返さず、必要な DTO だけ返す。
+- HTTP Actionはmethod、body上限、CORS、署名またはcredential、replay、rate limitを定義し、検証後だけinternal mutationへ状態変更を渡す。
 
 ## Query
 
 - index を使う。`filter` や無制限 `.collect()` に寄せない。
 - 一覧は `take()`、`paginate()`、または上限定数で必ず bounded にする。
-- `.collect().length` による件数取得は避ける。必要なら denormalized counter / stats table を検討する。
+- native paginationの`numItems`は初期目標でありhard capではない。異常値を拒否しても最大返却件数とは扱わず、検証済み`paginationOpts`は再構築せず渡す。
+- 固定上限で集計を打ち切る場合は、正確値を装わず`isTruncated`や下限値として契約化する。
+- `.collect().length` による件数取得は避ける。全件の正確値が必要ならwrite時に維持するcounterか、cursorと中間結果を永続化するbounded jobを使う。
 - 論理削除は `isDeleted` を常に除外する。
 - Dashboard のような作業リストは、frontend-only resorting ではなく Convex の取得契約、index、上限、grouping semantics から見る。
 
@@ -48,14 +55,17 @@ DBテーブル名ではなく「誰がどの画面/機能で使う API か」で
 - 重複作成、短時間連打、再送受付などは backend 側でも重複・状態遷移を守る。
 - 外部副作用は DB 更新後に `ctx.scheduler` で internal action へ渡す。
 - 削除は原則 `isDeleted` の論理削除。監査・通知・集計のため周辺データを残すか確認する。
+- 論理削除、契約終了、retention後のredactや物理削除を区別する。
 
 ## Action と通知
 
-- 外部 API 呼び出しは `actions.ts` の `internalAction` に置く。
+- 外部API呼び出しは原則`actions.ts`の`internalAction`に置く。allowlist化した公開Capabilityだけpublic `action`を許可する。
 - Node built-in が必要な action ファイルだけ先頭に `"use node";` を付ける。query/mutation と同じファイルに混ぜない。
 - action では `ctx.db` を使わない。必要なDB操作は query/mutation に寄せる。
 - LINE メッセージ本文の URL は `convex/_lib/lineUrl.ts` の `withOpenExternalBrowser()` を通す。メールHTMLのURLには付けない。
 - 通知の成功文言は実際に何が成功したかで分ける。enqueue / retry acceptance は配送成功ではない。
+- scheduled actionだけにfanout完了を依存させない。中断復旧が必要な処理は永続job、cursor、lease、attemptを持つ。
+- Outboxのterminal更新は期待status、lease、epochが一致する場合だけ許可し、stale workerの上書きを防ぐ。
 
 ## 日付と時刻
 

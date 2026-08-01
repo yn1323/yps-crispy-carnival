@@ -4,6 +4,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { seedManagerShop, seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { getFeatureRequestsRef, getShopRecruitmentsRef, getShopStagesRef } from "./refs";
+import { ANALYTICS_DASHBOARD_SHOP_SCAN_LIMIT } from "./schemas";
 
 function setup() {
   return convexTest(schema, modules);
@@ -272,7 +273,7 @@ describe("analyticsDashboard/queries", () => {
     });
   });
 
-  it("ステージ表の提出率は現在のシフト対象スタッフ数を母数にして100%を超えない", async () => {
+  it("ステージ表は現在の業務データを再走査せず日次snapshotの提出率を返す", async () => {
     const t = setup();
     const { shopId } = await t.run(async (ctx) => {
       const now = Date.now();
@@ -316,7 +317,9 @@ describe("analyticsDashboard/queries", () => {
           shiftTargetStaffCount: 22,
           stage: "activeTrial",
           staffCount: 22,
-          submissionRate: 7,
+          submissionRate: 0.75,
+          lastRecruitmentSubmissionRate: 0.5,
+          lastShiftSubmissionRate: 0.25,
         }),
       );
 
@@ -326,10 +329,10 @@ describe("analyticsDashboard/queries", () => {
     const result = await t.query(getShopStagesRef, { date: "2026-07-08" });
     const row = result.rows.find((candidate) => candidate.shopId === shopId);
 
-    expect(row?.submissionRate).toBe(1);
+    expect(row?.submissionRate).toBe(0.75);
     expect(row?.confirmedSubmissionRate).toBeNull();
-    expect(row?.lastRecruitmentSubmissionRate).toBe(1);
-    expect(row?.lastShiftSubmissionRate).toBe(1);
+    expect(row?.lastRecruitmentSubmissionRate).toBe(0.5);
+    expect(row?.lastShiftSubmissionRate).toBe(0.25);
   });
 
   it("ステージ表の確定済み提出率は募集中シフトを含めない", async () => {
@@ -386,7 +389,8 @@ describe("analyticsDashboard/queries", () => {
           shiftTargetStaffCount: 10,
           stage: "retained",
           staffCount: 10,
-          submissionRate: 0.2,
+          submissionRate: 0.5,
+          confirmedSubmissionRate: 0.8,
         }),
       );
 
@@ -400,7 +404,7 @@ describe("analyticsDashboard/queries", () => {
     expect(row?.confirmedSubmissionRate).toBe(0.8);
   });
 
-  it("ステージ表の催促送信スタッフ率は送信済み催促通知のユニークスタッフ数を母数にする", async () => {
+  it("ステージ表は催促送信スタッフ率も日次snapshotから返す", async () => {
     const t = setup();
     const { shopId } = await t.run(async (ctx) => {
       const now = Date.now();
@@ -530,6 +534,7 @@ describe("analyticsDashboard/queries", () => {
           staffCount: 6,
           stage: "retained",
           stageReferenceAt: now,
+          reminderSentStaffRate: 0.5,
         }),
       );
 
@@ -540,5 +545,22 @@ describe("analyticsDashboard/queries", () => {
     const row = result.rows.find((candidate) => candidate.shopId === shopId);
 
     expect(row?.reminderSentStaffRate).toBe(0.5);
+  });
+
+  it("日次snapshotが走査上限を超える場合は一部店舗を返さずfail-closedにする", async () => {
+    const t = setup();
+    await t.run(async (ctx) => {
+      const shopId = await seedShop(ctx, "容量上限検証店舗");
+      for (let index = 0; index <= ANALYTICS_DASHBOARD_SHOP_SCAN_LIMIT; index += 1) {
+        await ctx.db.insert(
+          "analyticsDailyShopSnapshots",
+          shopSnapshotInput(shopId, { computedAt: Date.now() + index }),
+        );
+      }
+    });
+
+    await expect(t.query(getShopStagesRef, { date: "2026-07-08" })).rejects.toThrow(
+      "Analytics shop snapshot page limit exceeded",
+    );
   });
 });

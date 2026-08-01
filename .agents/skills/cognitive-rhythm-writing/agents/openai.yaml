@@ -1,0 +1,4 @@
+interface:
+  display_name: "認知リズムライティング"
+  short_description: "長い説明文の緩急、文の拍、問いの回収を整える文章規範"
+  default_prompt: "Use $cognitive-rhythm-writing to revise this long Japanese explanation so its reasoning has readable rhythm."

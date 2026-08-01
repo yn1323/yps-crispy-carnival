@@ -9,13 +9,7 @@ import {
   isSaturday,
   isSunday,
 } from "@/src/domains/shift/date";
-import {
-  countDateOnlyAssignmentsByDate,
-  hasDateOnlyAssignment,
-  hasDateOnlyRequest,
-  toggleDateOnlyAssignment,
-} from "@/src/domains/shift/dateOnlyAssignments";
-import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import type { StaffType } from "@/src/domains/shift/types";
 import { Avatar, DateIssueBadge, dateIssueBorderColor, StaffWarningIcon } from "../../components";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
@@ -26,21 +20,11 @@ import {
   selectedDateAtom,
   shiftConfigAtom,
   shiftsAtom,
+  toggleDateOnlyAssignmentAtom,
   warningCountByDateAtom,
   warningMessagesByStaffIdForSelectedDateAtom,
 } from "../../stores";
-
-type DateInfo = {
-  iso: string;
-  inRange: boolean;
-};
-
-type StaffDateRow = {
-  staff: StaffType;
-  shift?: ShiftData;
-  requested: boolean;
-  assigned: boolean;
-};
+import { buildSPDateOnlyDailyViewModel, type SPDateInfo, type SPDateOnlyStaffRowViewModel } from "./script";
 
 const dayColor = (iso: string): string => {
   if (isSunday(iso)) return "red.500";
@@ -51,7 +35,7 @@ const dayColor = (iso: string): string => {
 export const SPDateOnlyDailyView = () => {
   const config = useAtomValue(shiftConfigAtom);
   const shifts = useAtomValue(shiftsAtom);
-  const setShifts = useSetAtom(shiftsAtom);
+  const toggleAssignment = useSetAtom(toggleDateOnlyAssignmentAtom);
   const sortedStaffs = useAtomValue(dailySortedStaffsAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
@@ -59,60 +43,28 @@ export const SPDateOnlyDailyView = () => {
   const warningCounts = useAtomValue(warningCountByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
 
-  const { dates, holidays, isReadOnly, positions, timeRange } = config;
+  const { dates, holidays, isReadOnly } = config;
   const isConfirmedDisplay = config.displayMode === "confirmed";
-  const fallbackPosition = positions[0];
-  const dateInfos = useMemo(() => dates.map((iso) => ({ iso, inRange: true })), [dates]);
-  const selectedDateInfo = useMemo(
-    () => dateInfos.find((date) => date.iso === selectedDate) ?? dateInfos.find((date) => date.inRange) ?? dateInfos[0],
-    [dateInfos, selectedDate],
-  );
-  const activeDate = selectedDateInfo?.iso ?? selectedDate;
-  const isInRange = selectedDateInfo?.inRange ?? dates.includes(activeDate);
-  const isShopClosedDate = isInRange && holidays.includes(activeDate);
-  useLockedDailyStaffOrder(activeDate);
-
-  const shiftByStaffDate = useMemo(() => {
-    const map = new Map<string, ShiftData>();
-    for (const shift of shifts) {
-      map.set(`${shift.staffId}-${shift.date}`, shift);
-    }
-    return map;
-  }, [shifts]);
-
-  const rows = useMemo<StaffDateRow[]>(
+  const viewModel = useMemo(
     () =>
-      sortedStaffs.map((staff) => {
-        const shift = shiftByStaffDate.get(`${staff.id}-${activeDate}`);
-        return {
-          staff,
-          shift,
-          requested: isInRange && hasDateOnlyRequest(shift),
-          assigned: isInRange && hasDateOnlyAssignment(shift),
-        };
+      buildSPDateOnlyDailyViewModel({
+        dates,
+        selectedDate,
+        holidays,
+        staffs: sortedStaffs,
+        shifts,
+        isConfirmedDisplay,
       }),
-    [activeDate, isInRange, shiftByStaffDate, sortedStaffs],
+    [dates, holidays, isConfirmedDisplay, selectedDate, shifts, sortedStaffs],
   );
-
-  const assignedCount = useMemo(
-    () => (isInRange ? (countDateOnlyAssignmentsByDate(shifts, [activeDate]).get(activeDate) ?? 0) : 0),
-    [activeDate, isInRange, shifts],
-  );
+  const { activeDate, assignedCount, isInRange, isShopClosedDate, rows } = viewModel;
+  useLockedDailyStaffOrder(activeDate);
 
   const handleToggle = useCallback(
     (staff: StaffType) => {
-      if (isReadOnly || !isInRange || isShopClosedDate) return;
-      setShifts((current) =>
-        toggleDateOnlyAssignment({
-          shifts: current,
-          staff,
-          date: activeDate,
-          timeRange,
-          ...(fallbackPosition ? { position: fallbackPosition } : {}),
-        }),
-      );
+      toggleAssignment({ staff, date: activeDate });
     },
-    [activeDate, fallbackPosition, isInRange, isReadOnly, isShopClosedDate, setShifts, timeRange],
+    [activeDate, toggleAssignment],
   );
 
   const handleDateSelect = useCallback(
@@ -135,7 +87,7 @@ export const SPDateOnlyDailyView = () => {
   return (
     <Flex direction="column" flex={1} minH={0} bg="gray.50">
       <DateRail
-        dates={dateInfos}
+        dates={viewModel.dates}
         holidays={holidays}
         selectedDate={activeDate}
         issueCounts={issueCounts}
@@ -179,7 +131,6 @@ export const SPDateOnlyDailyView = () => {
                 row={row}
                 activeDate={activeDate}
                 isReadOnly={isReadOnly}
-                confirmed={isConfirmedDisplay}
                 warningMessages={warningMessagesByStaffId.get(row.staff.id) ?? []}
                 onToggle={() => handleToggle(row.staff)}
               />
@@ -199,7 +150,7 @@ const DateRail = ({
   warningCounts,
   onSelect,
 }: {
-  dates: DateInfo[];
+  dates: SPDateInfo[];
   holidays: string[];
   selectedDate: string;
   issueCounts: ReadonlyMap<string, number>;
@@ -290,37 +241,24 @@ const StaffToggleRow = ({
   row,
   activeDate,
   isReadOnly,
-  confirmed,
   warningMessages,
   onToggle,
 }: {
-  row: StaffDateRow;
+  row: SPDateOnlyStaffRowViewModel;
   activeDate: string;
   isReadOnly: boolean;
-  confirmed: boolean;
   warningMessages: string[];
   onToggle: () => void;
 }) => {
-  const status = !row.staff.isSubmitted
-    ? "未提出"
-    : row.requested
-      ? confirmed
-        ? "勤務あり"
-        : "希望あり"
-      : confirmed
-        ? "勤務なし"
-        : "希望なし";
-  const statusTone = !row.staff.isSubmitted ? "warning" : row.requested ? "positive" : "muted";
-
   return (
     <Flex bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" px={3} py={3} align="center" gap={3}>
       <Avatar staff={row.staff} size={28} />
       <Box flex={1} minW={0}>
-        <Text textStyle="sm" fontWeight={600} color={row.staff.isSubmitted ? "gray.800" : "gray.500"} truncate>
+        <Text textStyle="sm" fontWeight={600} color={row.isNameMuted ? "gray.500" : "gray.800"} truncate>
           {row.staff.name}
         </Text>
         <Flex mt={1} align="center" gap={2}>
-          <StatusBadge tone={statusTone}>{status}</StatusBadge>
+          <StatusBadge tone={row.statusTone}>{row.statusLabel}</StatusBadge>
         </Flex>
       </Box>
       <StaffWarningIcon messages={warningMessages} />

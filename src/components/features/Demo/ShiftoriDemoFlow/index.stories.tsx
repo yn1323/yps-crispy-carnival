@@ -1,15 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import {
-  findByText,
-  findByTitle,
-  getAllByText,
-  getByRole,
-  getByText,
-  queryByRole,
-  queryByText,
-  waitFor,
-} from "@testing-library/dom";
-import { expect } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { ShiftoriDemoFlow } from "./index";
 
 const meta = {
@@ -34,34 +24,15 @@ export const RecruitStepSimplifiedBehavior: Story = {
     initialStep: "recruit",
   },
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   play: async ({ canvasElement }) => {
-    expect(getByText(canvasElement, "シフト期間を選択")).toBeTruthy();
-    expect(queryByRole(canvasElement, "button", { name: "キャンセル" })).toBeNull();
-    expect(queryByRole(canvasElement, "button", { name: "次へ" })).toBeNull();
-    expect(queryByText(canvasElement, "お休み")).toBeNull();
-    expect(queryByText(canvasElement, "提出期限")).toBeNull();
-    expect(queryByText(canvasElement, "確認")).toBeNull();
-    expect(canvasElement.textContent).not.toContain("締切");
+    const canvas = within(canvasElement);
+    expect(canvas.queryByRole("button", { name: "キャンセル" })).not.toBeInTheDocument();
+    expect(canvas.queryByRole("button", { name: "次へ" })).not.toBeInTheDocument();
 
-    getByRole(canvasElement, "button", { name: "募集をつくる" }).click();
-    await findByText(canvasElement, "シフトを提出してみよう");
-  },
-};
-
-export const SubmitStepDefaultRestBehavior: Story = {
-  args: {
-    initialStep: "submit",
-  },
-  parameters: {
-    chromatic: { disableSnapshot: true },
-  },
-  play: async ({ canvasElement }) => {
-    expect(getAllByText(canvasElement, "休み")).toHaveLength(7);
-    expect(queryByText(canvasElement, "10:00")).toBeNull();
-    expect(queryByText(canvasElement, "11:00")).toBeNull();
-    expect(queryByText(canvasElement, "15:00")).toBeNull();
+    await userEvent.click(canvas.getByRole("button", { name: "募集をつくる" }));
+    await expect(await canvas.findByText("シフトを提出してみよう")).toBeInTheDocument();
   },
 };
 
@@ -70,23 +41,23 @@ export const ShareCompleteCtaBehavior: Story = {
     initialStep: "share",
   },
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   play: async ({ canvasElement }) => {
-    const emailFrame = (await findByTitle(canvasElement, "確定シフトメール")) as HTMLIFrameElement;
+    const canvas = within(canvasElement);
+    const screen = within(canvasElement.ownerDocument.body);
+    const emailFrame = (await canvas.findByTitle("確定シフトメール")) as HTMLIFrameElement;
     const emailLink = await waitFor(() => {
-      const link = emailFrame.contentDocument?.querySelector<HTMLAnchorElement>("a[href]");
-      if (!link) throw new Error("確定シフトメール内のリンクが見つかりませんでした");
-      return link;
+      const body = emailFrame.contentDocument?.body;
+      if (!body) throw new Error("確定シフトメールが読み込まれていません");
+      return within(body).getByRole("link", { name: "全員のシフトを確認する" });
     });
 
-    emailLink.click();
+    await userEvent.click(emailLink);
 
-    await findByText(document.body, "このまま無料で始められます");
-    expect(queryByText(document.body, "スタッフ登録なしで、募集作成から共有まで試せます。")).toBeNull();
-    expect(getByRole(document.body, "link", { name: /無料ではじめる/ })).toBeTruthy();
-    expect(getByRole(document.body, "button", { name: "もう1回試す" })).toBeTruthy();
-    expect(getByRole(document.body, "button", { name: "デモを閉じる" })).toBeTruthy();
+    await expect(await screen.findByRole("link", { name: /無料ではじめる/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "もう1回試す" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "デモを閉じる" })).toBeInTheDocument();
   },
 };
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "シフトリUI設計"
+  short_description: "シフトリUIを利用者のタスクから状態と検証まで設計する"
+  default_prompt: "Use $ui-architect to design this Shiftori UI from its primary user task through verification."

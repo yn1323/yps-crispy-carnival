@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect } from "storybook/test";
+import { useRef, useState } from "react";
+import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
+import { createDeferred } from "@/src/devtools/createDeferred";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { SetupModal } from "./index";
 
@@ -22,154 +24,127 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
-let doubleSubmitCount = 0;
 
 export const Step1: Story = {};
 
-const waitForElement = async <T extends HTMLElement>(
-  finder: () => T | null,
-  message: string,
-  timeout = 2000,
-): Promise<T> => {
-  const start = performance.now();
-  while (performance.now() - start < timeout) {
-    const element = finder();
-    if (element) return element;
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-  }
-  throw new Error(message);
+const getDialog = async (canvasElement: HTMLElement) => {
+  const screen = within(canvasElement.ownerDocument.body);
+  return within(await screen.findByRole("dialog"));
 };
 
-const setInputValue = (input: HTMLInputElement, value: string) => {
-  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
-  setter?.call(input, value);
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-  input.dispatchEvent(new Event("change", { bubbles: true }));
-};
-
-const clickButton = async (text: string, match: "exact" | "includes" = "exact") => {
-  const button = await waitForElement(
-    () =>
-      Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find((candidate) =>
-        match === "exact" ? candidate.textContent?.trim() === text : candidate.textContent?.includes(text),
-      ) ?? null,
-    `${text} ボタンが見つかりませんでした`,
-  );
-  button.click();
-};
-
-const inputShopName = async () => {
-  const shopNameInput = await waitForElement(
-    () => document.querySelector<HTMLInputElement>('input[name="shopName"]'),
-    "店舗名の入力欄が見つかりませんでした",
-  );
-  setInputValue(shopNameInput, "居酒屋たなか");
+const inputShopName = async (dialog: ReturnType<typeof within>) => {
+  await userEvent.type(await dialog.findByRole("textbox", { name: "お店の名前" }), "居酒屋たなか");
 };
 
 export const DateOnlySkipsSettings: Story = {
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
-  play: async () => {
-    await inputShopName();
+  play: async ({ canvasElement }) => {
+    const dialog = await getDialog(canvasElement);
+    const dateOnlyButton = dialog.getByRole("button", { pressed: true });
+    await expect(dateOnlyButton).toHaveAttribute("aria-pressed", "true");
+    await inputShopName(dialog);
 
-    await clickButton("次へ");
-    await waitForElement(
-      () => document.querySelector<HTMLInputElement>('input[name="name"]'),
-      "あなたの名前ステップの入力欄が表示されませんでした",
-    );
+    await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
+
+    await expect(await dialog.findByRole("textbox", { name: "あなたの名前" })).toBeInTheDocument();
   },
 };
 
 export const TimeSettingsStep: Story = {
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
-  play: async () => {
-    await inputShopName();
-    await clickButton("時間指定", "includes");
-    await clickButton("次へ");
+  play: async ({ canvasElement }) => {
+    const dialog = await getDialog(canvasElement);
+    await inputShopName(dialog);
+    const timeButton = dialog.getByRole("button", { name: /時間指定/ });
+    await userEvent.click(timeButton);
+    await expect(timeButton).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
 
-    await waitForElement(
-      () =>
-        Array.from(document.querySelectorAll<HTMLElement>("label")).find(
-          (candidate) => candidate.textContent?.trim() === "シフト開始時間",
-        ) ?? null,
-      "勤務時間ステップが表示されませんでした",
-    );
+    await expect(await dialog.findByRole("combobox", { name: "シフト開始時間" })).toBeInTheDocument();
   },
 };
 
 export const ShiftTypeSettingsStep: Story = {
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
-  play: async () => {
-    await inputShopName();
-    await clickButton("勤務区分", "includes");
-    await clickButton("次へ");
+  play: async ({ canvasElement }) => {
+    const dialog = await getDialog(canvasElement);
+    await inputShopName(dialog);
+    const shiftTypeButton = dialog.getByRole("button", { name: /勤務区分/ });
+    await userEvent.click(shiftTypeButton);
+    await expect(shiftTypeButton).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
 
-    await waitForElement(
-      () =>
-        Array.from(document.querySelectorAll<HTMLElement>("label")).find(
-          (candidate) => candidate.textContent?.trim() === "区分名",
-        ) ?? null,
-      "勤務区分ステップが表示されませんでした",
-    );
+    await expect(await dialog.findAllByRole("textbox", { name: "区分名" })).toHaveLength(2);
   },
 };
 
 export const InteractiveDoubleSubmitGuard: Story = {
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   render: () => <GuardedSetupModalStory />,
-  play: async () => {
-    doubleSubmitCount = 0;
-    await inputShopName();
-    await clickButton("次へ");
+  play: async ({ canvasElement }) => {
+    const screen = within(canvasElement.ownerDocument.body);
+    const dialog = await getDialog(canvasElement);
+    await inputShopName(dialog);
+    await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
 
-    await waitForElement(
-      () => document.querySelector<HTMLInputElement>('input[name="name"]'),
-      "あなたの名前ステップの入力欄が表示されませんでした",
-    );
-    const consentCheckbox = await waitForElement(
-      () => document.querySelector<HTMLInputElement>('input[type="checkbox"]'),
-      "規約同意のチェックボックスが見つかりませんでした",
-    );
-    consentCheckbox.click();
+    await dialog.findByRole("textbox", { name: "あなたの名前" });
+    await userEvent.click(dialog.getByRole("checkbox", { name: /利用規約.*プライバシーポリシー.*同意/ }));
+    const submit = dialog.getByRole("button", { name: "お店を登録する" });
+    fireEvent.click(submit);
+    fireEvent.click(submit);
 
-    const submitButton = await waitForElement(
-      () =>
-        Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find(
-          (candidate) => candidate.textContent?.trim() === "お店を登録する",
-        ) ?? null,
-      "お店を登録するボタンが見つかりませんでした",
-    );
-    submitButton.click();
-    submitButton.click();
-    await new Promise((resolve) => requestAnimationFrame(resolve));
+    await expect(await screen.findByTestId("setup-complete-count")).toHaveTextContent("1");
+    await expect(submit).toBeDisabled();
 
-    expect(doubleSubmitCount).toBe(1);
+    fireEvent.click(screen.getByTestId("release-setup-completion"));
+    await waitFor(() => expect(submit).toBeEnabled());
   },
 };
 
 function GuardedSetupModalStory() {
+  const [completeCount, setCompleteCount] = useState(0);
+  const pendingCompletion = useRef<ReturnType<typeof createDeferred> | null>(null);
   const { run: handleComplete, isRunning: isSubmitting } = useSingleFlight(async () => {
-    doubleSubmitCount += 1;
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    setCompleteCount((count) => count + 1);
+    const completion = createDeferred();
+    pendingCompletion.current = completion;
+    await completion.promise;
+    if (pendingCompletion.current === completion) pendingCompletion.current = null;
   });
 
   return (
-    <SetupModal
-      isOpen={true}
-      onOpenChange={() => {}}
-      onComplete={handleComplete}
-      isSubmitting={isSubmitting}
-      managerProfileDefaults={{
-        name: "山田 太郎",
-        email: "yamada@example.com",
-      }}
-    />
+    <>
+      <SetupModal
+        isOpen={true}
+        onOpenChange={() => {}}
+        onComplete={handleComplete}
+        isSubmitting={isSubmitting}
+        managerProfileDefaults={{
+          name: "山田 太郎",
+          email: "yamada@example.com",
+        }}
+      />
+      {completeCount > 0 ? (
+        <output data-testid="setup-complete-count" hidden>
+          {completeCount}
+        </output>
+      ) : null}
+      <button
+        type="button"
+        hidden
+        data-testid="release-setup-completion"
+        onClick={() => pendingCompletion.current?.resolve()}
+      >
+        店舗登録処理を完了する
+      </button>
+    </>
   );
 }

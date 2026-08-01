@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { SITE_URL } from "@/src/helpers/seo";
+import { SITE_URL } from "@/src/lib/seo";
+import { resolveArticleSlug } from "./articleAliases";
+
+export { articleSlugAliases, resolveArticleSlug } from "./articleAliases";
 
 /**
  * 記事サイトの「メタデータ」層。
@@ -147,30 +150,40 @@ export type BreadcrumbJsonLd = {
 };
 
 // frontmatter だけをYAMLパース済みオブジェクトとして受け取る（vite/mdxPlugin.ts）。本文は含まれない。
-const pageFrontmatterModules = import.meta.glob<unknown>("./content/pages/*.mdx", {
+// `_` 始まりのファイル・ディレクトリは下書きとして扱い、公開対象から除外する。
+const pageFrontmatterModules = import.meta.glob<unknown>(["./content/pages/*.mdx", "!./content/pages/_*.mdx"], {
   eager: true,
   query: "?mdx-frontmatter",
   import: "default",
 });
 
-const categoryFrontmatterModules = import.meta.glob<unknown>("./content/categories/*/index.mdx", {
-  eager: true,
-  query: "?mdx-frontmatter",
-  import: "default",
-});
+const categoryFrontmatterModules = import.meta.glob<unknown>(
+  ["./content/categories/*/index.mdx", "!./content/categories/_*/index.mdx"],
+  {
+    eager: true,
+    query: "?mdx-frontmatter",
+    import: "default",
+  },
+);
 
-const articleFrontmatterModules = import.meta.glob<unknown>("./content/articles/*/index.mdx", {
-  eager: true,
-  query: "?mdx-frontmatter",
-  import: "default",
-});
+const articleFrontmatterModules = import.meta.glob<unknown>(
+  ["./content/articles/*/index.mdx", "!./content/articles/_*/index.mdx"],
+  {
+    eager: true,
+    query: "?mdx-frontmatter",
+    import: "default",
+  },
+);
 
 // 画像は URL 文字列のみ（`?url`）なので軽量。heroImage・本文画像の解決で共有する。
-const imageModules = import.meta.glob<string>("./content/**/*.{avif,gif,jpeg,jpg,png,svg,webp}", {
-  eager: true,
-  query: "?url",
-  import: "default",
-});
+const imageModules = import.meta.glob<string>(
+  ["./content/**/*.{avif,gif,jpeg,jpg,png,svg,webp}", "!./content/articles/_*/**", "!./content/categories/_*/**"],
+  {
+    eager: true,
+    query: "?url",
+    import: "default",
+  },
+);
 
 const ARTICLE_HERO_IMAGE_DEFAULT_WIDTH = 320;
 const ARTICLE_HERO_IMAGE_MIN_WIDTH = 240;
@@ -192,10 +205,6 @@ export const articleMetas = Object.entries(articleFrontmatterModules)
   })
   .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 
-export const articleSlugAliases = {
-  "line-shift-collection-guide": "shiftori-line-workflow",
-} as const;
-
 export const concerns = sitePage.concernSlugs
   .map((slug) => getCategoryMeta(slug))
   .filter((category): category is CategoryMetadata => Boolean(category))
@@ -206,11 +215,6 @@ export const concerns = sitePage.concernSlugs
     href: `/articles/categories/${category.slug}`,
     representativeSlug: category.representativeSlug,
   }));
-
-/** slug の別名（旧slug）を解決する。 */
-export function resolveArticleSlug(slug: string): string {
-  return articleSlugAliases[slug as keyof typeof articleSlugAliases] ?? slug;
-}
 
 export function getArticleMeta(slug?: string): ArticleMetadata | undefined {
   if (!slug) {

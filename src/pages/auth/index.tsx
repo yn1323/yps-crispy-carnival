@@ -1,5 +1,6 @@
-import { AuthProviders } from "@/src/components/config/AuthProviders";
 import { AuthPage, SsoCallbackPage } from "@/src/components/features/AuthPage";
+import { normalizeAuthRedirect } from "@/src/lib/auth/redirect";
+import { AuthProviders } from "@/src/providers/AuthProviders";
 
 type AuthRoutePageProps = {
   redirect?: string;
@@ -29,10 +30,12 @@ export function ForgotPasswordPage({ redirect }: AuthRoutePageProps) {
   );
 }
 
-export function SsoCallbackRoutePage() {
+export function SsoCallbackRoutePage({ redirect }: AuthRoutePageProps) {
+  const redirectTo = normalizeAuthRedirect(redirect);
+
   return (
     <AuthProviders>
-      <SsoCallbackPage />
+      <SsoCallbackPage redirectTo={redirectTo} />
     </AuthProviders>
   );
 }

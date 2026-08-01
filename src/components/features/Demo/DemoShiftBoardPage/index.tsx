@@ -1,18 +1,19 @@
 import { Box, Flex, Grid, Heading, Icon, Text } from "@chakra-ui/react";
+import { ClientOnly } from "@tanstack/react-router";
 import dayjs from "dayjs";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { LuCircleCheck } from "react-icons/lu";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
+import { showSuccessToast } from "@/src/components/shared/feedback";
+import { ConfirmShiftContent } from "@/src/components/shared/ShiftConfirmationContent";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import type { TourHandle } from "@/src/components/ui/Tour";
-import { showSuccessToast } from "@/src/components/ui/toaster";
 import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import { formatDateShort, formatDateTime, getWeekdayLabel } from "@/src/domains/shift/date";
 import type { ShiftData, ViewMode } from "@/src/domains/shift/types";
-import { ConfirmShiftContent } from "../../ShiftBoard/ConfirmShiftContent";
-import { mockDates, mockShifts, mockStaffs, mockTimeRange } from "../../ShiftBoard/mocks";
 import { DemoIntroTour } from "./DemoIntroTour";
 import { DemoLauncherFab } from "./DemoLauncherFab";
+import { mockDates, mockShifts, mockStaffs, mockTimeRange } from "./demoData";
 
 type TourPhase = "idle" | "running" | "done";
 
@@ -26,9 +27,9 @@ type Props = {
   height?: string;
 };
 
-/** 来週の月曜（ローカルタイム）。シフトは将来の予定を立てる用途なので、今週ではなく来週を起点にする */
+/** SSG生成日を基準にした来週の月曜。server HTMLとhydration初回で同じ日付を使う。 */
 function getNextMonday(): string {
-  const today = dayjs();
+  const today = dayjs(__BUILD_DATE_JST__);
   const diffToThisMonday = today.day() === 0 ? -6 : 1 - today.day();
   return today.add(diffToThisMonday + 7, "day").format("YYYY-MM-DD");
 }
@@ -92,7 +93,7 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }:
     // tour は handleOpenConfirm 時点で skip + idle 済み。確定後も FAB を出しておきたいので idle のまま
     setConfirmedAt(Date.now());
     confirmModal.close();
-    showSuccessToast({ title: "確定しました" });
+    showSuccessToast({ title: "確定後の画面を表示しました" });
   }, [confirmModal]);
 
   const handleTourCloseRequest = useCallback(() => {
@@ -104,9 +105,7 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }:
     showSuccessToast({ title: "保存しました" });
   }, []);
 
-  const confirmTitle = isConfirmed
-    ? "確定済みのシフトをもう一度通知しますか？"
-    : "このシフトをスタッフに通知しますか？";
+  const confirmTitle = isConfirmed ? "再通知後の画面を確認しますか？" : "確定後の画面を確認しますか？";
 
   return (
     <Flex direction="column" h={height} minH={0}>
@@ -156,7 +155,7 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }:
             <Text color="orange.900" fontSize="xs" fontWeight={700} lineHeight="1.5">
               このページはデモ画面です。
               <br />
-              変更が反映されたり、シフトが送信されることはありません。
+              このデモでの操作は保存されず、スタッフへの通知も送られません。
             </Text>
           </Box>
         </Flex>
@@ -183,27 +182,33 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }:
         isOpen={confirmModal.isOpen}
         onOpenChange={confirmModal.onOpenChange}
         onSubmit={handleConfirm}
-        submitLabel="シフトを確定して通知"
+        submitLabel={isConfirmed ? "再通知後の画面を見る" : "確定後の画面を見る"}
         onClose={confirmModal.close}
       >
-        <ConfirmShiftContent staffCount={mockStaffs.length} periodLabel={periodLabel} />
+        <ConfirmShiftContent
+          staffCount={mockStaffs.length}
+          periodLabel={periodLabel}
+          notificationDescription="このデモでの操作は保存されず、スタッフへの通知も送られません。"
+        />
       </Dialog>
 
-      {tourPhase === "idle" && viewMode === "daily" && (
-        <DemoLauncherFab onStart={() => setTourPhase("running")} onDismiss={() => setTourPhase("done")} />
-      )}
+      <ClientOnly>
+        {tourPhase === "idle" && viewMode === "daily" && (
+          <DemoLauncherFab onStart={() => setTourPhase("running")} onDismiss={() => setTourPhase("done")} />
+        )}
 
-      {/* idle/running はマウント継続で run だけトグル。done で unmount する前に
-          ref.skip() で portal を片付け済みにしておく（handleConfirm / handleTourCloseRequest） */}
-      {tourPhase !== "done" && (
-        <DemoIntroTour
-          ref={tourRef}
-          run={tourPhase === "running"}
-          shifts={shifts}
-          day1={day1}
-          onClose={handleTourCloseRequest}
-        />
-      )}
+        {/* idle/running はマウント継続で run だけトグル。done で unmount する前に
+            ref.skip() で portal を片付け済みにしておく（handleConfirm / handleTourCloseRequest） */}
+        {tourPhase !== "done" && (
+          <DemoIntroTour
+            ref={tourRef}
+            run={tourPhase === "running"}
+            shifts={shifts}
+            day1={day1}
+            onClose={handleTourCloseRequest}
+          />
+        )}
+      </ClientOnly>
     </Flex>
   );
 };

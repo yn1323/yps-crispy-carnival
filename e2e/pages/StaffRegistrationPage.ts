@@ -7,19 +7,14 @@ export class StaffRegistrationPage {
     await this.page.goto(`/staff/register?token=${token}`);
   }
 
-  async submitRequest(data: { name: string; email: string }) {
-    await this.fillRequestForm(data);
-    await this.page.getByRole("button", { name: "申請する" }).click();
-
-    await expect(this.page.getByRole("heading", { name: "スタッフ登録申請を送りました" })).toBeVisible();
+  async expectShopName(shopName: string) {
+    await expect(this.page.getByText(shopName, { exact: true }).first()).toBeVisible();
   }
 
-  async submitRequestAndExpectError(data: { name: string; email: string }, errorMessage: string | RegExp) {
+  async fillRequestAndExpectSecurityBoundary(data: { name: string; email: string }) {
     await this.fillRequestForm(data);
-    await this.page.getByRole("button", { name: "申請する" }).click();
-
-    await expect(this.page.getByText(errorMessage).first()).toBeVisible();
-    await expect(this.page.getByRole("heading", { name: "スタッフ登録申請を送りました" })).toBeHidden();
+    await expect(this.page.getByRole("group", { name: "セキュリティ確認" })).toBeVisible();
+    await expect(this.page.getByRole("button", { name: "申請する" })).toBeVisible();
   }
 
   private async fillRequestForm(data: { name: string; email: string }) {

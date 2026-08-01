@@ -1,69 +1,125 @@
-import { paginationOptsValidator } from "convex/server";
+import { paginationOptsValidator, paginationResultValidator } from "convex/server";
+import { v } from "convex/values";
 import { filter } from "convex-helpers/server/filter";
+import { paginator } from "convex-helpers/server/pagination";
 import type { Doc } from "../_generated/dataModel";
 import { formatPeriodLabel } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
+import schema from "../schema";
 import { isManagerVisibleNotificationFailure } from "./failureEligibility";
 import {
-  ACTIONABLE_NOTIFICATION_FAILURE_CONTEXTS,
   describeNotificationFailureContext,
   getNotificationFailureResendKind,
   isLineInviteResendContext,
 } from "./failureResend";
+import { notificationHistoryDisplayStatus } from "./history";
+import {
+  notificationChannelValidator,
+  notificationFailureInboxSourceTypeValidator,
+  notificationFailureInboxStatusValidator,
+  notificationHistoryDisplayStatusValidator,
+} from "./schemas";
 
 const EMPTY_PAGE = { page: [], isDone: true, continueCursor: "" } as {
   page: never[];
   isDone: boolean;
   continueCursor: string;
 };
-const VISIBLE_FAILURE_PAGINATION_SCAN_LIMIT = 20;
+const VISIBLE_FAILURE_PAGINATION_SCAN_MULTIPLIER = 20;
+
+const managerNotificationHistoryValidator = v.object({
+  _id: v.id("notificationHistory"),
+  requestedAt: v.number(),
+  sentAt: v.optional(v.number()),
+  channel: notificationChannelValidator,
+  displayTitle: v.string(),
+  displayStatus: notificationHistoryDisplayStatusValidator,
+});
+
+const managerNotificationFailureValidator = v.object({
+  _id: v.id("notificationFailureInbox"),
+  sourceType: notificationFailureInboxSourceTypeValidator,
+  status: notificationFailureInboxStatusValidator,
+  shopId: v.id("shops"),
+  recruitmentId: v.optional(v.id("recruitments")),
+  staffId: v.optional(v.id("staffs")),
+  userId: v.optional(v.id("users")),
+  outboxId: v.optional(v.id("notificationOutbox")),
+  channel: v.optional(notificationChannelValidator),
+  dedupeKey: v.string(),
+  notificationContext: v.string(),
+  notificationKind: v.union(
+    v.literal("recruitment"),
+    v.literal("reminder"),
+    v.literal("confirmation"),
+    v.literal("lineInvite"),
+    v.literal("other"),
+  ),
+  notificationKindLabel: v.string(),
+  staffName: v.string(),
+  periodLabel: v.union(v.string(), v.null()),
+  firstFailedAt: v.number(),
+  lastFailedAt: v.number(),
+  attemptCount: v.optional(v.number()),
+  canRetry: v.boolean(),
+});
+
+export const listStaffNotificationHistory = managerQuery({
+  args: {
+    staffId: v.id("staffs"),
+    paginationOpts: paginationOptsValidator,
+  },
+  returns: paginationResultValidator(managerNotificationHistoryValidator),
+  handler: async (ctx, { staffId, paginationOpts }) => {
+    if (!ctx.shop) return EMPTY_PAGE;
+    const shop = ctx.shop;
+
+    const staff = await ctx.db.get(staffId);
+    if (!staff || staff.isDeleted || staff.shopId !== shop._id) return EMPTY_PAGE;
+
+    const histories = await ctx.db
+      .query("notificationHistory")
+      .withIndex("by_shopId_and_staffId_and_requestedAt", (q) => q.eq("shopId", shop._id).eq("staffId", staffId))
+      .order("desc")
+      .paginate(paginationOpts);
+
+    return {
+      ...histories,
+      page: histories.page.map((history) => ({
+        _id: history._id,
+        requestedAt: history.requestedAt,
+        ...(history.sentAt !== undefined ? { sentAt: history.sentAt } : {}),
+        channel: history.channel,
+        displayTitle: history.displayTitle,
+        displayStatus: notificationHistoryDisplayStatus(history),
+      })),
+    };
+  },
+});
 
 export const listOpenFailures = managerQuery({
   args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(managerNotificationFailureValidator),
   handler: async (ctx, { paginationOpts }) => {
     if (!ctx.shop) return EMPTY_PAGE;
     const shop = ctx.shop;
 
     // 再通知できない種別や終了済み募集はマネージャーが対応しようがないため一覧に出さない。
-    // 終了済み募集の判定は recruitment 参照が必要なので、非表示レコードでページが埋まらないように走査する。
-    const buildBaseQuery = () =>
-      ctx.db
-        .query("notificationFailureInbox")
-        .withIndex("by_shopId_status_lastFailedAt", (q) => q.eq("shopId", shop._id).eq("status", "open"))
-        .order("desc")
-        .filter((q) =>
-          q.or(
-            ...ACTIONABLE_NOTIFICATION_FAILURE_CONTEXTS.map((context) => q.eq(q.field("notificationContext"), context)),
-          ),
-        );
-
-    let cursor = paginationOpts.cursor;
-    let isDone = false;
-    let continueCursor = "";
-    const visibleFailures: Doc<"notificationFailureInbox">[] = [];
-
-    for (
-      let scanCount = 0;
-      scanCount < VISIBLE_FAILURE_PAGINATION_SCAN_LIMIT && visibleFailures.length < paginationOpts.numItems;
-      scanCount++
-    ) {
-      const result = await buildBaseQuery().paginate({
-        cursor,
-        numItems: paginationOpts.numItems - visibleFailures.length,
+    // filterWith をページング前に適用し、1回の paginate で非表示レコードを越えて可視件数を満たす。
+    const scanLimit = Math.max(1, paginationOpts.numItems) * VISIBLE_FAILURE_PAGINATION_SCAN_MULTIPLIER;
+    const maximumRowsRead = Math.max(1, Math.min(paginationOpts.maximumRowsRead ?? scanLimit, scanLimit));
+    const visibleFailures = await paginator(ctx.db, schema)
+      .query("notificationFailureInbox")
+      .withIndex("by_shopId_status_lastFailedAt", (q) => q.eq("shopId", shop._id).eq("status", "open"))
+      .order("desc")
+      .filterWith(async (failure) => await isManagerVisibleNotificationFailure(ctx, failure))
+      .paginate({
+        ...paginationOpts,
+        maximumRowsRead,
       });
-      for (const failure of result.page) {
-        if (await isManagerVisibleNotificationFailure(ctx, failure)) {
-          visibleFailures.push(failure);
-        }
-      }
-      isDone = result.isDone;
-      continueCursor = result.continueCursor;
-      if (result.isDone) break;
-      cursor = result.continueCursor;
-    }
 
     const page = await Promise.all(
-      visibleFailures.map(async (failure) => {
+      visibleFailures.page.map(async (failure) => {
         const [staff, recruitment] = await Promise.all([
           failure.staffId ? ctx.db.get(failure.staffId) : null,
           failure.recruitmentId ? ctx.db.get(failure.recruitmentId) : null,
@@ -95,8 +151,7 @@ export const listOpenFailures = managerQuery({
     );
 
     return {
-      isDone,
-      continueCursor,
+      ...visibleFailures,
       page,
     };
   },
@@ -104,6 +159,7 @@ export const listOpenFailures = managerQuery({
 
 export const hasOpenFailures = managerQuery({
   args: {},
+  returns: v.boolean(),
   handler: async (ctx) => {
     if (!ctx.shop) return false;
     const shop = ctx.shop;

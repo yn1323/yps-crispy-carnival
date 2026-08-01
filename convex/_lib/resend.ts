@@ -98,9 +98,10 @@ export async function sendResendEmail(
     });
 
     if (!retryable || isLastAttempt) {
+      const errorCode = safeResendErrorCode(result.error, retryable);
       throw new ResendEmailError(
-        `Resend email send failed: ${result.error.name} ${result.error.message}`,
-        result.error.name,
+        errorCode,
+        errorCode,
         result.error.statusCode,
         retryable,
         retryable ? resolveRetryDelayMs(result.headers, attempt) : null,
@@ -156,11 +157,11 @@ async function sendResendEmailAttempt(
 
   try {
     return await Promise.race([
-      resend.emails.send(payload, requestOptions).catch((e) => createNetworkErrorResponse(errorMessage(e))),
+      resend.emails.send(payload, requestOptions).catch(() => createNetworkErrorResponse()),
       new Promise<SendEmailResponse>((resolve) => {
         timeoutId = setTimeout(() => {
           controller.abort();
-          resolve(createNetworkErrorResponse(`Resend email send timed out after ${RESEND_EMAIL_SEND_TIMEOUT_MS}ms`));
+          resolve(createNetworkErrorResponse());
         }, RESEND_EMAIL_SEND_TIMEOUT_MS);
       }),
     ]);
@@ -169,13 +170,13 @@ async function sendResendEmailAttempt(
   }
 }
 
-function createNetworkErrorResponse(message: string): SendEmailResponse {
+function createNetworkErrorResponse(): SendEmailResponse {
   return {
     data: null,
     error: {
       name: "application_error",
       statusCode: null,
-      message,
+      message: "email_provider_unavailable",
     },
     headers: null,
   };
@@ -201,11 +202,15 @@ function logResendEmailFailure(opts: {
     attempt,
     maxAttempts,
     statusCode: error.statusCode,
-    name: error.name,
-    message: error.message,
-    retryAfter: headers?.["retry-after"],
-    rateLimitReset: headers?.["ratelimit-reset"],
+    errorCode: safeResendErrorCode(error, retryable),
+    retryAfterMs: retryable ? resolveRetryDelayMs(headers, attempt) : null,
   });
+}
+
+function safeResendErrorCode(error: SendEmailError, retryable: boolean) {
+  if (retryable && error.name === "rate_limit_exceeded") return "email_rate_limited";
+  if (retryable) return "email_provider_unavailable";
+  return "email_recipient_rejected";
 }
 
 function resolveRetryDelayMs(headers: Record<string, string> | null, attempt: number) {
@@ -224,10 +229,6 @@ function createIdempotencyKey(context: string): string {
   const normalizedContext = context.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 80);
   const random = Math.random().toString(36).slice(2, 10);
   return `${normalizedContext}-${Date.now()}-${random}`;
-}
-
-function errorMessage(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
 }
 
 function sleep(ms: number) {

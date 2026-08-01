@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { internalQuery } from "../_generated/server";
+import { isShopParentActive } from "../_lib/activeShop";
 import {
   formatDateLabel,
   formatPeriodLabel,
@@ -11,7 +12,12 @@ import {
   todayJST,
 } from "../_lib/dateFormat";
 import { buildShiftTimeLabel } from "../_lib/time";
-import { DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT, OPEN_RECRUITMENT_NOTIFICATION_LIMIT } from "../constants";
+import {
+  CURRENT_SHIFT_NOTIFICATION_LIMIT,
+  NOTIFICATION_FANOUT_SCOPE_LIMIT,
+  OPEN_RECRUITMENT_NOTIFICATION_LIMIT,
+  SHIFT_ASSIGNMENT_LIMIT,
+} from "../constants";
 import { getStaffLineAccount } from "../line/service";
 import { isShiftTargetStaff } from "../staff/service";
 import {
@@ -148,6 +154,9 @@ export const getConfirmationEmailData = internalQuery({
     targetStaffIds: v.optional(v.array(v.id("staffs"))),
   },
   handler: async (ctx, { recruitmentId, targetStaffIds }) => {
+    if (targetStaffIds && targetStaffIds.length > NOTIFICATION_FANOUT_SCOPE_LIMIT) {
+      throw new Error("Notification fanout scope exceeds the supported limit");
+    }
     const recruitment = await ctx.db.get(recruitmentId);
     if (!recruitment || recruitment.isDeleted) return null;
     if (recruitment.status !== "confirmed") return null;
@@ -155,16 +164,35 @@ export const getConfirmationEmailData = internalQuery({
     const shop = await ctx.db.get(recruitment.shopId);
     if (!shop || shop.isDeleted) return null;
 
-    const [staffs, assignments] = await Promise.all([
-      ctx.db
-        .query("staffs")
-        .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", recruitment.shopId).eq("isDeleted", false))
-        .collect(),
-      ctx.db
-        .query("shiftAssignments")
-        .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
-        .collect(),
+    const [allStaffs, assignments] = await Promise.all([
+      targetStaffIds
+        ? Promise.all(targetStaffIds.map((staffId) => ctx.db.get(staffId)))
+        : ctx.db
+            .query("staffs")
+            .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", recruitment.shopId).eq("isDeleted", false))
+            .take(NOTIFICATION_FANOUT_SCOPE_LIMIT + 1),
+      targetStaffIds
+        ? Promise.all(
+            targetStaffIds.map((staffId) =>
+              ctx.db
+                .query("shiftAssignments")
+                .withIndex("by_recruitmentId_staffId", (q) =>
+                  q.eq("recruitmentId", recruitmentId).eq("staffId", staffId),
+                )
+                .collect(),
+            ),
+          ).then((assignmentsByStaff) => assignmentsByStaff.flat())
+        : ctx.db
+            .query("shiftAssignments")
+            .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+            .take(SHIFT_ASSIGNMENT_LIMIT),
     ]);
+    if (allStaffs.length > NOTIFICATION_FANOUT_SCOPE_LIMIT) {
+      throw new Error("Notification fanout scope exceeds the supported limit");
+    }
+    const staffs = allStaffs.flatMap((staff) =>
+      staff && !staff.isDeleted && staff.shopId === recruitment.shopId ? [staff] : [],
+    );
 
     const targetStaffIdSet = targetStaffIds ? new Set(targetStaffIds) : null;
     // シフト対象外スタッフには確定通知を送らない。
@@ -187,8 +215,14 @@ export const getConfirmationEmailData = internalQuery({
  * 募集開始メール送信に必要なデータを取得
  */
 export const getRecruitmentEmailData = internalQuery({
-  args: { recruitmentId: v.id("recruitments") },
-  handler: async (ctx, { recruitmentId }) => {
+  args: {
+    recruitmentId: v.id("recruitments"),
+    targetStaffIds: v.optional(v.array(v.id("staffs"))),
+  },
+  handler: async (ctx, { recruitmentId, targetStaffIds }) => {
+    if (targetStaffIds && targetStaffIds.length > NOTIFICATION_FANOUT_SCOPE_LIMIT) {
+      throw new Error("Notification fanout scope exceeds the supported limit");
+    }
     const recruitment = await ctx.db.get(recruitmentId);
     if (!recruitment || recruitment.isDeleted) return null;
     const now = Date.now();
@@ -203,10 +237,17 @@ export const getRecruitmentEmailData = internalQuery({
     const shop = await ctx.db.get(recruitment.shopId);
     if (!shop || shop.isDeleted) return null;
 
-    const staffs = await ctx.db
-      .query("staffs")
-      .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", recruitment.shopId).eq("isDeleted", false))
-      .collect();
+    const staffs = targetStaffIds
+      ? (await Promise.all(targetStaffIds.map((staffId) => ctx.db.get(staffId)))).flatMap((staff) =>
+          staff && !staff.isDeleted && staff.shopId === recruitment.shopId ? [staff] : [],
+        )
+      : await ctx.db
+          .query("staffs")
+          .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", recruitment.shopId).eq("isDeleted", false))
+          .take(NOTIFICATION_FANOUT_SCOPE_LIMIT + 1);
+    if (staffs.length > NOTIFICATION_FANOUT_SCOPE_LIMIT) {
+      throw new Error("Notification fanout scope exceeds the supported limit");
+    }
 
     return {
       shopId: recruitment.shopId,
@@ -278,7 +319,8 @@ export const getRecruitmentNotificationDataForStaff = internalQuery({
 });
 
 /**
- * 現在の確定シフト通知を、指定スタッフ1人へ送るためのデータを取得する。
+ * rolling deploy中にin-progressの旧個別通知actionが読む互換query。
+ * 旧return shapeを維持しつつ、40件上限・dirty・tenant状態を現在値でfail closedに再検証する。
  */
 export const getCurrentConfirmationEmailDataForStaff = internalQuery({
   args: { staffId: v.id("staffs") },
@@ -287,34 +329,42 @@ export const getCurrentConfirmationEmailDataForStaff = internalQuery({
     if (!staff || !isShiftTargetStaff(staff)) return null;
 
     const shop = await ctx.db.get(staff.shopId);
-    if (!shop || shop.isDeleted) return null;
+    if (!shop || !(await isShopParentActive(ctx, shop))) return null;
 
-    const today = todayJST();
     const recruitments = await ctx.db
       .query("recruitments")
-      .withIndex("by_shopId_and_isDeleted_and_status_and_periodStart", (q) =>
-        q.eq("shopId", staff.shopId).eq("isDeleted", false).eq("status", "confirmed").lte("periodStart", today),
+      .withIndex("by_shopId_and_isDeleted_and_status_and_periodEnd", (q) =>
+        q.eq("shopId", staff.shopId).eq("isDeleted", false).eq("status", "confirmed").gte("periodEnd", todayJST()),
       )
-      .order("desc")
-      .take(DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT);
+      .order("asc")
+      .take(CURRENT_SHIFT_NOTIFICATION_LIMIT + 1);
+    if (
+      recruitments.length > CURRENT_SHIFT_NOTIFICATION_LIMIT ||
+      recruitments.some(
+        (recruitment) =>
+          recruitment.draftSavedAt !== undefined &&
+          (recruitment.confirmedAt === undefined || recruitment.draftSavedAt > recruitment.confirmedAt),
+      )
+    ) {
+      return null;
+    }
 
-    const currentRecruitments = recruitments.filter((recruitment) => recruitment.periodEnd >= today);
     const lineAccount = await getStaffLineAccount(ctx, staff._id);
-
     const recruitmentEntries = await Promise.all(
-      currentRecruitments.map(async (recruitment) => {
+      recruitments.map(async (recruitment) => {
         const assignments = await ctx.db
           .query("shiftAssignments")
           .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitment._id).eq("staffId", staff._id))
           .collect();
         const staffEntries = await buildConfirmationStaffEntries(ctx, recruitment, [staff], assignments, lineAccount);
         const staffEntry = staffEntries[0];
-        if (!staffEntry) return null;
-        return {
-          recruitmentId: recruitment._id,
-          periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
-          staffEntry,
-        };
+        return staffEntry
+          ? {
+              recruitmentId: recruitment._id,
+              periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
+              staffEntry,
+            }
+          : null;
       }),
     );
 

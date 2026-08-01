@@ -1,139 +1,111 @@
-import { Box } from "@chakra-ui/react";
-import { usePaginatedQuery, useQuery } from "convex/react";
-import { type ReactNode, useState } from "react";
+import { Alert, Box, Stack } from "@chakra-ui/react";
+import { Link as RouterLink } from "@tanstack/react-router";
+import { useQuery } from "convex/react";
+import { useAtomValue } from "jotai";
+import type { ReactNode } from "react";
 import { api } from "@/convex/_generated/api";
-import { DashboardContent, DashboardContentSkeleton } from "@/src/components/features/Dashboard/DashboardContent";
-import { buildDashboardRecruitmentGroups } from "@/src/components/features/Dashboard/types";
+import { Dashboard, DashboardSkeleton } from "@/src/components/features/Dashboard";
 import { Animation } from "@/src/components/templates/Animation";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
+import { Button } from "@/src/components/ui/Button";
+import { isSelectableShop, normalizeShopContextOptions } from "@/src/domains/shop/context";
+import { useShopQuery } from "@/src/hooks/useShopQuery";
+import { selectedShopAtom } from "@/src/stores/shop";
+import { featureVisibilityAtom } from "@/src/stores/user";
 
-const ACTIVE_RECRUITMENT_QUERY_PAGE_SIZE = 100;
-const PAST_RECRUITMENT_PAGE_SIZE = 5;
-const NOTIFICATION_FAILURE_PAGE_SIZE = 50;
-const STAFF_INITIAL_VISIBLE_COUNT = 10;
-const STAFF_LOAD_MORE_COUNT = 10;
-const STAFF_QUERY_PAGE_SIZE = STAFF_INITIAL_VISIBLE_COUNT + 1;
+type Props = {
+  visibleUserCount?: number;
+  focusedPersonId?: string;
+  onVisibleUserCountChange?: (count: number) => void;
+};
 
-export function DashboardPage() {
-  const [isPastRecruitmentsVisible, setIsPastRecruitmentsVisible] = useState(false);
-  const [visibleStaffCount, setVisibleStaffCount] = useState(STAFF_INITIAL_VISIBLE_COUNT);
-  const shop = useQuery(api.dashboard.queries.getDashboardShop);
+export function DashboardPage({ visibleUserCount, focusedPersonId, onVisibleUserCountChange }: Props) {
+  const selectedContext = useAtomValue(selectedShopAtom);
+  const featureVisibility = useAtomValue(featureVisibilityAtom);
+  const showGroupSettings = featureVisibility.organizationSettingsNavigation;
+  const myShops = useQuery(api.dashboard.queries.getMyShops, {});
+  const selectedShop = useShopQuery(api.dashboard.queries.getDashboardShop, {});
+  const selectableShops =
+    myShops === undefined ? undefined : normalizeShopContextOptions(myShops).filter(isSelectableShop);
+  const shop = selectableShops === undefined ? undefined : selectableShops.length === 0 ? null : selectedShop;
   const currentUser = useQuery(api.dashboard.queries.getCurrentUser, {});
-  const announcement = useQuery(api.dashboard.queries.getActiveDashboardAnnouncement, {});
-  const skipPagination = shop === undefined || shop === null;
   const managerLegalConsentStatus = useQuery(
     api.legal.queries.getManagerConsentStatus,
     shop === undefined || shop === null ? "skip" : {},
   );
-  const recruitments = usePaginatedQuery(api.dashboard.queries.getDashboardRecruitments, skipPagination ? "skip" : {}, {
-    initialNumItems: ACTIVE_RECRUITMENT_QUERY_PAGE_SIZE,
-  });
-  const hasPastRecruitments = useQuery(
-    api.dashboard.queries.hasDashboardPastRecruitments,
-    skipPagination ? "skip" : {},
-  );
-  const pastRecruitments = usePaginatedQuery(
-    api.dashboard.queries.getDashboardPastRecruitments,
-    skipPagination || !isPastRecruitmentsVisible ? "skip" : {},
-    {
-      initialNumItems: PAST_RECRUITMENT_PAGE_SIZE,
-    },
-  );
-  const staffs = usePaginatedQuery(api.dashboard.queries.getDashboardStaffs, skipPagination ? "skip" : {}, {
-    initialNumItems: STAFF_QUERY_PAGE_SIZE,
-  });
-  const pendingStaffRequests = useQuery(
-    api.staffRegistration.queries.getPendingRequests,
-    shop === undefined || shop === null ? "skip" : {},
-  );
-  const notificationFailures = usePaginatedQuery(
-    api.notificationOutbox.queries.listOpenFailures,
-    skipPagination ? "skip" : {},
-    {
-      initialNumItems: NOTIFICATION_FAILURE_PAGE_SIZE,
-    },
-  );
-
-  const dashboardRecruitmentGroups = buildDashboardRecruitmentGroups({
-    recruitments: [...recruitments.results, ...pastRecruitments.results],
-  });
-  const currentRecruitments =
-    dashboardRecruitmentGroups.groups.find((group) => group.key === "current")?.recruitments ?? [];
-
-  const canLoadMorePastRecruitments =
-    isPastRecruitmentsVisible &&
-    (pastRecruitments.status === "CanLoadMore" || pastRecruitments.status === "LoadingMore");
-  const canLoadMoreStaffs =
-    staffs.results.length > visibleStaffCount || staffs.status === "CanLoadMore" || staffs.status === "LoadingMore";
-
-  const handleShowPastRecruitments = () => {
-    setIsPastRecruitmentsVisible(true);
-  };
-
-  const handleLoadMorePastRecruitments = () => {
-    pastRecruitments.loadMore(PAST_RECRUITMENT_PAGE_SIZE);
-  };
-
-  const handleLoadMoreStaffs = () => {
-    const nextVisibleCount = visibleStaffCount + STAFF_LOAD_MORE_COUNT;
-    setVisibleStaffCount(nextVisibleCount);
-    if (staffs.status === "CanLoadMore" && staffs.results.length <= nextVisibleCount) {
-      staffs.loadMore(STAFF_LOAD_MORE_COUNT);
-    }
-  };
 
   const isDashboardInitialLoading =
-    shop === undefined ||
-    (shop !== null &&
-      (currentUser === undefined ||
-        managerLegalConsentStatus === undefined ||
-        pendingStaffRequests === undefined ||
-        hasPastRecruitments === undefined ||
-        recruitments.status === "LoadingFirstPage" ||
-        staffs.status === "LoadingFirstPage"));
+    shop === undefined || (shop !== null && (currentUser === undefined || managerLegalConsentStatus === undefined));
 
   if (isDashboardInitialLoading) {
     return (
       <DashboardPageShell>
         <Animation>
-          <DashboardContentSkeleton />
+          <DashboardSkeleton />
         </Animation>
       </DashboardPageShell>
     );
   }
 
+  const isShopOrMemberReadOnly = Boolean(
+    selectedContext && (selectedContext.shopStatus !== "active" || selectedContext.memberStatus === "readOnly"),
+  );
+  const isBillingReadOnly = shop?.canWriteBusinessData === false;
+  const isReadOnly = isShopOrMemberReadOnly || isBillingReadOnly;
+
   return (
     <DashboardPageShell>
       <Animation>
-        <DashboardContent
-          shop={shop}
-          recruitments={recruitments.results}
-          recruitmentGroups={dashboardRecruitmentGroups.groups}
-          currentRecruitments={currentRecruitments}
-          recruitmentStatus={recruitments.status}
-          hasPastRecruitments={hasPastRecruitments ?? false}
-          isPastRecruitmentsVisible={isPastRecruitmentsVisible}
-          pastRecruitmentStatus={pastRecruitments.status}
-          canLoadMorePastRecruitments={canLoadMorePastRecruitments}
-          showPastRecruitments={handleShowPastRecruitments}
-          loadMorePastRecruitments={handleLoadMorePastRecruitments}
-          staffs={staffs.results.slice(0, visibleStaffCount)}
-          staffStatus={staffs.status}
-          canLoadMoreStaffs={canLoadMoreStaffs}
-          loadMoreStaffs={handleLoadMoreStaffs}
-          pendingStaffRequests={pendingStaffRequests ?? []}
-          notificationFailures={notificationFailures.results}
-          announcement={announcement ?? null}
-          isDashboardOnboardingDismissed={Boolean(
-            currentUser && !currentUser.isNewUser && currentUser.dashboardOnboardingDismissedAt,
+        <Stack gap={5}>
+          {selectedContext && isReadOnly && (
+            <Alert.Root status="warning" borderRadius="xl" alignItems="flex-start">
+              <Alert.Indicator mt={1} />
+              <Alert.Content>
+                <Alert.Title>この店舗は閲覧のみです</Alert.Title>
+                <Alert.Description>
+                  {selectedContext.shopStatus === "archived"
+                    ? showGroupSettings
+                      ? "アーカイブ済みのため、新しいシフトや利用者は変更できません。再開するときはグループ設定から再稼働してください。"
+                      : "アーカイブ済みのため、新しいシフトや利用者は変更できません。"
+                    : selectedContext.shopStatus === "planSuspended"
+                      ? "現在のプランでは停止中です。既存データは削除されていません。"
+                      : shop?.businessWriteBlockReason === "paymentResultPending"
+                        ? "支払い結果を確認中です。確認が完了するまで、既存データを閲覧できますが変更や通知送信はできません。"
+                        : shop?.businessWriteBlockReason === "restricted"
+                          ? featureVisibility.billing
+                            ? "契約制限中です。既存データを閲覧しながら、グループ設定で契約の復旧や利用状況の整理を進めてください。"
+                            : showGroupSettings
+                              ? "契約制限中です。既存データを閲覧しながら、グループ設定で利用状況の整理を進めてください。"
+                              : "契約制限中です。既存データは引き続き確認できます。"
+                          : "閲覧のみの管理者は既存データを確認できますが、変更や通知送信はできません。"}
+                </Alert.Description>
+                {showGroupSettings && (selectedContext.shopStatus !== "active" || isBillingReadOnly) && (
+                  <Button asChild size="sm" variant="outline" mt={3} alignSelf="flex-start">
+                    <RouterLink to="/settings" search={{ shop: selectedContext.shopId }}>
+                      グループ設定を開く
+                    </RouterLink>
+                  </Button>
+                )}
+              </Alert.Content>
+            </Alert.Root>
           )}
-          managerLegalConsentStatus={managerLegalConsentStatus}
-          managerProfileDefaults={{
-            name: currentUser?.name ?? "",
-            email: currentUser?.email ?? "",
-          }}
-        />
+          <Dashboard
+            shop={shop}
+            currentUser={currentUser && "accountDeleted" in currentUser ? null : currentUser}
+            managerLegalConsentStatus={managerLegalConsentStatus}
+            isReadOnly={isReadOnly}
+            visibleUserCount={visibleUserCount}
+            focusedPersonId={focusedPersonId}
+            onVisibleUserCountChange={onVisibleUserCountChange}
+            trialEndingNotice={shop?.trialEndingNotice ?? null}
+            billingSettingsShopId={selectedContext?.shopId}
+            isBillingFeatureVisible={featureVisibility.billing}
+            operationContextData={
+              selectedContext && selectableShops ? { shops: selectableShops, selectedShop: selectedContext } : undefined
+            }
+          />
+        </Stack>
       </Animation>
     </DashboardPageShell>
   );
@@ -145,7 +117,7 @@ const DashboardPageShell = ({ children }: { children: ReactNode }) => (
       base: `calc(100dvh - ${HEADER_HEIGHT.base})`,
       md: `calc(100dvh - ${HEADER_HEIGHT.md})`,
     }}
-    bg="white"
+    bg="gray.50"
   >
     <RootContentWrapper>{children}</RootContentWrapper>
   </Box>

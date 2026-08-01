@@ -1,28 +1,29 @@
-import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 import { LuTriangleAlert, LuWifiOff } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { StaffFeatureRequestAction } from "@/src/components/features/FeatureRequestDialog";
-import { ShiftSubmitPage } from "@/src/components/features/StaffSubmit/ShiftSubmitPage";
-import type { SubmitShiftSelectionInput } from "@/src/components/features/StaffSubmit/SubmitFormView";
-import { SubmitUnavailableView } from "@/src/components/features/StaffSubmit/SubmitUnavailableView";
-import { useSubmitShiftRequests } from "@/src/components/features/StaffSubmit/useSubmitShiftRequests";
+import { StaffAccessBoundary, type StaffAccessState } from "@/src/components/features/StaffAccess";
+import { StaffSubmit, SubmitUnavailableView } from "@/src/components/features/StaffSubmit";
+import { FullPageSpinner } from "@/src/components/templates/FullPageSpinner";
 import { StaffCenteredContent, StaffLayout } from "@/src/components/templates/StaffLayout";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
-import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
-import { useSingleFlight } from "@/src/hooks/useSingleFlight";
-import { useStaffSession } from "@/src/hooks/useStaffSession";
 
 type Props = {
   token: string | undefined;
 };
 
 export function StaffShiftSubmitPage({ token }: Props) {
-  const state = useStaffSession(token, "submit");
+  return (
+    <StaffAccessBoundary token={token} accessKind="submit">
+      {(state) => <StaffShiftSubmitState state={state} />}
+    </StaffAccessBoundary>
+  );
+}
 
+function StaffShiftSubmitState({ state }: { state: StaffAccessState }) {
   if (state.status === "loading") return <FullPageSpinner />;
   if (state.status === "rateLimited") {
     return (
@@ -78,31 +79,20 @@ export function StaffShiftSubmitPage({ token }: Props) {
 }
 
 function ShiftSubmitContent({ session }: { session: { sessionToken: string; recruitmentId: string } }) {
-  const navigate = useNavigate();
   const data = useQuery(api.shiftSubmission.queries.getSubmissionPageData, {
     sessionToken: session.sessionToken,
     accessKind: "submit",
     recruitmentId: session.recruitmentId as Id<"recruitments">,
   });
-  const submitShiftRequests = useSubmitShiftRequests(session);
-  const { run: handleSubmit } = useSingleFlight(
-    async (submission: SubmitShiftSelectionInput, acceptedLegal?: boolean) => {
-      if (data?.status !== "ok") return;
-
-      await submitShiftRequests(submission, acceptedLegal);
-      await navigate({ to: "/shifts/submit/completed", search: { shopName: data.data.shopName } });
-    },
-  );
-
   if (data === undefined) return <FullPageSpinner />;
   if (data.status === "unavailable") {
     return <SubmitUnavailableView reason={data.reason} />;
   }
 
   return (
-    <ShiftSubmitPage
+    <StaffSubmit
       data={data.data}
-      onSubmit={handleSubmit}
+      session={session}
       headerAction={<StaffFeatureRequestAction sessionToken={session.sessionToken} />}
     />
   );

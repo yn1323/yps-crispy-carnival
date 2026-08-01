@@ -31,6 +31,8 @@ import { SPShiftTypeOverviewView } from "./sp/ShiftTypeOverviewView";
 import { selectDateWithDailyStaffOrderAtom, shiftsAtom, viewModeAtom } from "./stores";
 import { ValidationErrorPanel } from "./ValidationErrorPanel";
 
+export type { ReminderStatus } from "./components";
+
 type ShiftFormProps = {
   shopId: string;
   staffs: StaffType[];

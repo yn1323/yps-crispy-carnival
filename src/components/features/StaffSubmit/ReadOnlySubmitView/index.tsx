@@ -3,11 +3,12 @@ import { type ReactNode, useMemo } from "react";
 import { LuInfo } from "react-icons/lu";
 import { STAFF_CONTENT_MAX_W } from "@/src/components/templates/Header";
 import { formatDatePeriodWithWeekday, getDateRange } from "@/src/domains/shift/date";
-import { DayCard, type DayEntry } from "../DayCard";
-import { DateOnlySubmissionDayCard, ShiftTypeSubmissionDayCard, type SubmissionData } from "../SubmitFormView";
+import { DateOnlySubmissionDayCard } from "../DateOnlySubmissionDayCard";
+import { DayCard } from "../DayCard";
+import { ShiftTypeSubmissionDayCard } from "../ShiftTypeSubmissionDayCard";
 import { SubmitPageContent, SubmitPageHeader, SubmitPageLayout } from "../SubmitPageLayout";
-import { buildRestEntry } from "../utils/dayEntryState";
-import { buildEntries } from "../utils/timeOptions";
+import { buildInitialEntries } from "../script";
+import type { DayEntry, SubmissionData } from "../types";
 
 type Props = {
   data: SubmissionData;
@@ -17,45 +18,7 @@ type Props = {
 export const ReadOnlySubmitView = ({ data, headerAction }: Props) => {
   const dates = useMemo(() => getDateRange(data.periodStart, data.periodEnd), [data.periodStart, data.periodEnd]);
 
-  const entries = useMemo(() => {
-    if (data.submissionPattern.kind === "dateOnly" && data.existingSelection.kind === "dateOnly") {
-      const workingDateSet = new Set(data.existingSelection.workingDates);
-      return dates.map((date) => {
-        const entry = {
-          date,
-          isWorking: workingDateSet.has(date),
-          startTime: data.timeRange.startTime,
-          endTime: data.timeRange.endTime,
-        };
-        return data.shopClosedDates.includes(entry.date) ? buildRestEntry(entry) : entry;
-      });
-    }
-    if (data.submissionPattern.kind === "shiftType" && data.existingSelection.kind === "shiftType") {
-      const selectionsByDate = new Map<string, string[]>();
-      for (const selection of data.existingSelection.selections) {
-        selectionsByDate.set(selection.date, [...(selectionsByDate.get(selection.date) ?? []), selection.optionId]);
-      }
-      const optionMap = new Map(data.submissionPattern.options.map((option) => [option.id, option]));
-      return dates.map((date) => {
-        const optionIds = (selectionsByDate.get(date) ?? []).filter((optionId) => optionMap.has(optionId));
-        const firstOption = optionIds.length > 0 ? optionMap.get(optionIds[0]) : undefined;
-        const entry = firstOption
-          ? {
-              date,
-              isWorking: true,
-              startTime: firstOption.startTime,
-              endTime: firstOption.endTime,
-              optionId: firstOption.id,
-              optionIds,
-            }
-          : { date, isWorking: false, startTime: data.timeRange.startTime, endTime: data.timeRange.endTime };
-        return data.shopClosedDates.includes(entry.date) ? buildRestEntry(entry) : entry;
-      });
-    }
-    return buildEntries(dates, data.existingRequests, data.timeRange).map((entry) =>
-      data.shopClosedDates.includes(entry.date) ? buildRestEntry(entry) : entry,
-    );
-  }, [dates, data]);
+  const entries = useMemo(() => buildInitialEntries(dates, data), [dates, data]);
 
   return (
     <SubmitPageLayout>

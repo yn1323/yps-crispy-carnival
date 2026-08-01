@@ -1,6 +1,6 @@
 ---
 name: seo-article-writer
-description: シフトリの日本語SEO記事・ヘルプ記事を、手動呼び出し専用で作成・改稿するスキル。src/components/features/ArticleSite/content/articles 配下の記事MDX、カテゴリ、関連記事、内部リンク、検索意図に沿った日本語SEOライティング、読みやすい改行、public/sample-touch.png のタッチに合わせた記事画像生成を扱う。ユーザーが $seo-article-writer を明示したときだけ使い、通常のSEO・記事・ブログ依頼では暗黙起動しない。
+description: シフトリのArticleSite向け日本語SEO記事を、検索意図と現在の実装に基づいて作成または改稿する。ユーザーが`$seo-article-writer`を明示した場合だけ使う。HowToSiteのヘルプ記事、通常の技術文書、UI文言、機能実装には使わない。
 ---
 
 # SEO Article Writer
@@ -10,21 +10,17 @@ description: シフトリの日本語SEO記事・ヘルプ記事を、手動呼�
 このスキルは、ユーザーが `$seo-article-writer` を明示したときだけ使う。
 通常の「記事を書いて」「SEOを見て」だけでは使わない。
 
-既存の別記事スキルには依存しない。
-このスキル、現在のリポジトリ、必要に応じた最新のWeb調査だけを使う。
+HowToSiteの記事には `$write-help-content` を使う。
 
 ## 必ず読むもの
 
 記事の新規作成・改稿の前に読む。
 
-- `doc/rules/testing-strategy.md`
+- `doc/features/public-pages.md`
 - `src/components/features/ArticleSite/AGENTS.md`
-- `references/article-site.md`
-- `references/seo-writing-guide.md`
-- `references/image-generation.md`（画像を作る場合）
+- `$japanese-tech-writing`
 
-frontmatter、画像解決、MDXレンダリングが不明なときは `src/components/features/ArticleSite/articleMeta.ts`・`articleContent.ts`・`mdxComponents.tsx` も読む。
-Convexコードに触る場合は `convex/_generated/ai/guidelines.md` も読む。
+frontmatter、画像解決、MDXレンダリングは、現在のschema、読み込み処理、近い既存記事を正本として確認する。
 
 ## 作業手順
 
@@ -47,6 +43,8 @@ Convexコードに触る場合は `convex/_generated/ai/guidelines.md` も読む
    - CTAの置き方
    - 画像の有無、枚数、置き場所
 
+   制度、料金、統計、検索エンジンの仕様など変わり得る事実を扱う場合は、公開時点の一次情報をWebで確認する。
+
 4. 日本語SEO記事として書く。
    - 冒頭2段落で答えを出す。
    - 商品紹介より先に、手順、判断基準、例、チェックリストを置く。
@@ -59,27 +57,24 @@ Convexコードに触る場合は `convex/_generated/ai/guidelines.md` も読む
    - 記事：`src/components/features/ArticleSite/content/articles/{slug}/index.mdx`
    - カテゴリ：`src/components/features/ArticleSite/content/categories/{categorySlug}/index.mdx`
    - 画像：基本は記事ディレクトリに同梱する。
-   - Sitemap：`public/sitemap.xml`
+   - Sitemapの現在値：`public/sitemap.xml`
    - `canonicalPath` は `/articles/{slug}` にする。
    - 新規記事は `publishedAt` と `updatedAt` を今日の日付にする。
    - 既存記事の `updatedAt` は本文の意味が変わったときだけ更新する。
-   - 新規記事、新規カテゴリ、slug変更、公開対象の削除をしたら、`public/sitemap.xml` のURLも追加・更新・削除する。
-   - 記事URLの `lastmod` は記事frontmatterの `updatedAt` に合わせる。記事一覧やカテゴリページを変えた場合は、そのページの `lastmod` も更新する。
+   - 新規記事、新規カテゴリ、slug変更、公開対象の削除をしたら、`public/sitemap.xml`のURLを現在の形式に合わせて追加、更新、削除する。
+   - 本文やfrontmatterの更新だけを理由に、`lastmod`の運用を新しく定義しない。現在の公開手順またはユーザーの明示指示に従う。
 
-6. 画像を作る。
-   - `public/sample-touch.png` を見て、タッチを合わせる。
+6. 必要な場合だけ画像を作る。
+   - ユーザーが `$generate-image` を明示した場合だけ同Skillを使う。
    - 画像は理解を助けるときだけ入れる。
    - サムネイル専用画像は作らない。記事カード用だけの画像追加やサムネイル管理はしない。
-   - SEO記事用画像は枠線や外枠を入れず、画像内の線がキャンバス端に触れないようにする。
-   - 短い記事は0〜1枚、標準記事は1〜2枚、長い比較・手順記事は最大4枚を目安にする。
+   - 画像は理解に必要な最小限の枚数にする。
    - 画像の近くの本文、alt、キャプションの意味をそろえる。
 
 7. 検証する。
-   - MDXやschemaに関わる変更後は `pnpm vitest --project=logic src/components/features/ArticleSite/articleContent.test.ts` を実行する。
-   - 完了前に `pnpm lint` と `pnpm type-check` を実行する。
+   - 対象範囲の`AGENTS.md`に従ってMDX、schema、lint、型を検証する。
    - index対象にしたい記事は、`robots.txt`、`noindex`、canonical、`public/sitemap.xml`、内部リンク導線を確認する。
    - Google検索結果でサイトリンクを狙う場合は、直接指定できない前提で、トップページ・ヘッダー・フッター・記事一覧・関連記事から重要ページへ自然にリンクされているか確認する。
-   - Vite、Storybook、Convex dev serverは起動しない。ユーザーが起動済みなら、実際の記事ページをPCと390x844程度のSP幅で確認する。
 
 ## 品質基準
 
@@ -93,7 +88,7 @@ Convexコードに触る場合は `convex/_generated/ai/guidelines.md` も読む
 - 改行が読みやすい。長い段落、詰まった箇条書き、1文だけの連打を避けている。
 - キーワード詰め込み、根拠のない断定、使い回しの導入、AIっぽい空句がない。
 - シフトリの機能・料金・実績・外部制度について未確認の断定がない。
-- 画像が本文理解に役立ち、sample-touchの方向性から外れていない。
-- 新規・変更した公開記事やカテゴリが `public/sitemap.xml` に反映されている。
+- 画像を追加した場合は本文理解に役立ち、現在のArticleSiteの表現と整合している。
+- 追加、変更、削除した公開URLが `public/sitemap.xml` と矛盾していない。
 - 検索結果のサイトリンクに出したい重要ページは、サイト内の目立つ導線から説明的なアンカーテキストでリンクされている。
-- ArticleSiteの対象テストが通っている。
+- 対象範囲の検証が通っている。

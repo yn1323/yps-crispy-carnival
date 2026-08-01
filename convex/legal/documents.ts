@@ -57,7 +57,9 @@ export const LEGAL_DOCUMENTS = {
   },
 } as const satisfies Record<LegalAudience, Record<LegalDocumentKind, LegalDocumentInfo>>;
 
-export function getLegalDocumentsForAudience(audience: LegalAudience) {
+export function getLegalDocumentsForAudience<TAudience extends LegalAudience>(
+  audience: TAudience,
+): (typeof LEGAL_DOCUMENTS)[TAudience] {
   return LEGAL_DOCUMENTS[audience];
 }
 

@@ -5,7 +5,7 @@ import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { seedManagerShop, seedShop, seedShopMembership, seedStaffLineAccount, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { HOUR_MS, STAFF_REGISTRATION_DIGEST_WINDOW_MS } from "../constants";
+import { DAY_MS, HOUR_MS } from "../constants";
 
 async function insertPendingRequest(
   ctx: MutationCtx,
@@ -54,18 +54,18 @@ describe("staffRegistration/notificationQueries", () => {
       expect(result.page.map(String)).not.toContain(ids.rejectedShopId);
     });
 
-    it("最新のpending申請が3日を超えた店舗は返さない", async () => {
+    it("最新のpending申請が24時間を超えた店舗は返さない", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const recent = await seedManagerShop(ctx, { subject: "recent_shop", shopName: "Recent" });
         const stale = await seedManagerShop(ctx, { subject: "stale_shop", shopName: "Stale" });
         await insertPendingRequest(ctx, {
           shopId: recent.shopId,
-          createdAt: Date.now() - STAFF_REGISTRATION_DIGEST_WINDOW_MS + HOUR_MS,
+          createdAt: Date.now() - DAY_MS + HOUR_MS,
         });
         await insertPendingRequest(ctx, {
           shopId: stale.shopId,
-          createdAt: Date.now() - STAFF_REGISTRATION_DIGEST_WINDOW_MS - HOUR_MS,
+          createdAt: Date.now() - DAY_MS - HOUR_MS,
         });
         return idsToStrings({ recentShopId: recent.shopId, staleShopId: stale.shopId });
       });
@@ -78,14 +78,14 @@ describe("staffRegistration/notificationQueries", () => {
       expect(result.page.map(String)).not.toContain(ids.staleShopId);
     });
 
-    it("3日超の申請と3日以内の申請が混在する店舗は返す（最新申請基準）", async () => {
+    it("24時間超の申請と24時間以内の申請が混在する店舗は返す（最新申請基準）", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const mixed = await seedManagerShop(ctx, { subject: "mixed_shop", shopName: "Mixed" });
         await insertPendingRequest(ctx, {
           shopId: mixed.shopId,
           email: "old@example.com",
-          createdAt: Date.now() - STAFF_REGISTRATION_DIGEST_WINDOW_MS - HOUR_MS,
+          createdAt: Date.now() - DAY_MS - HOUR_MS,
         });
         await insertPendingRequest(ctx, {
           shopId: mixed.shopId,
@@ -141,7 +141,11 @@ describe("staffRegistration/notificationQueries", () => {
         shopId,
         shopName: "通知店舗",
       });
-      expect(result?.dashboardUrl).toMatch(/\/dashboard$/);
+      expect(result).not.toBeNull();
+      if (!result) return;
+      const dashboardUrl = new URL(result.dashboardUrl);
+      expect(dashboardUrl.pathname).toBe("/dashboard");
+      expect([...dashboardUrl.searchParams.entries()]).toEqual([["shop", String(shopId)]]);
       expect(result?.recipients).toEqual(
         expect.arrayContaining([
           expect.objectContaining({

@@ -7,12 +7,19 @@ import { RecruitmentSummaryRow } from "./RecruitmentSummaryRow";
 
 type Props = {
   recruitment: Recruitment;
+  isReadOnly?: boolean;
   dataTour?: string;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onDeleteRecruitment: (recruitment: Recruitment) => void;
 };
 
-export function RecruitmentRow({ recruitment, dataTour, onOpenShiftBoard, onDeleteRecruitment }: Props) {
+export function RecruitmentRow({
+  recruitment,
+  isReadOnly = false,
+  dataTour,
+  onOpenShiftBoard,
+  onDeleteRecruitment,
+}: Props) {
   const { _id, periodStart, periodEnd } = recruitment;
   const periodLabel = `${formatDateShort(periodStart)} 〜 ${formatDateShort(periodEnd)}`;
 
@@ -23,28 +30,30 @@ export function RecruitmentRow({ recruitment, dataTour, onOpenShiftBoard, onDele
       ariaLabel={`${periodLabel}のシフトを見る`}
       onClick={() => onOpenShiftBoard(_id)}
       endSlot={
-        <Menu.Root positioning={{ placement: "bottom-end" }}>
-          <Menu.Trigger asChild>
-            <IconButton aria-label={`${periodLabel}の募集操作メニュー`} variant="ghost" size="sm" color="fg.muted">
-              <LuEllipsisVertical />
-            </IconButton>
-          </Menu.Trigger>
-          <Portal>
-            <Menu.Positioner>
-              <Menu.Content minW="180px">
-                <Menu.Item
-                  value="delete"
-                  color="red.600"
-                  cursor="pointer"
-                  onClick={() => onDeleteRecruitment(recruitment)}
-                >
-                  <LuTrash2 />
-                  募集を削除
-                </Menu.Item>
-              </Menu.Content>
-            </Menu.Positioner>
-          </Portal>
-        </Menu.Root>
+        isReadOnly ? undefined : (
+          <Menu.Root positioning={{ placement: "bottom-end" }}>
+            <Menu.Trigger asChild>
+              <IconButton aria-label={`${periodLabel}の募集操作メニュー`} variant="ghost" size="sm" color="fg.muted">
+                <LuEllipsisVertical />
+              </IconButton>
+            </Menu.Trigger>
+            <Portal>
+              <Menu.Positioner>
+                <Menu.Content minW="180px">
+                  <Menu.Item
+                    value="delete"
+                    color="red.600"
+                    cursor="pointer"
+                    onClick={() => onDeleteRecruitment(recruitment)}
+                  >
+                    <LuTrash2 />
+                    募集を削除
+                  </Menu.Item>
+                </Menu.Content>
+              </Menu.Positioner>
+            </Portal>
+          </Menu.Root>
+        )
       }
     />
   );

@@ -5,7 +5,7 @@ import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { seedManagerShop, seedShopMembership, seedStaffLineAccount, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { HOUR_MS, NOTIFICATION_FAILURE_REMINDER_WINDOW_MS } from "../constants";
+import { DAY_MS, HOUR_MS } from "../constants";
 
 async function insertFailure(
   ctx: MutationCtx,
@@ -83,18 +83,18 @@ describe("notificationOutbox/failureReminderQueries", () => {
       expect(result.page.map(String)).not.toContain(ids.closedShopId);
     });
 
-    it("最新の失敗が3日を超えた店舗は返さない", async () => {
+    it("最新の失敗が24時間を超えた店舗は返さない", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const recent = await seedManagerShop(ctx, { subject: "recent_shop", shopName: "Recent" });
         const stale = await seedManagerShop(ctx, { subject: "stale_shop", shopName: "Stale" });
         await insertFailure(ctx, {
           shopId: recent.shopId,
-          lastFailedAt: Date.now() - NOTIFICATION_FAILURE_REMINDER_WINDOW_MS + HOUR_MS,
+          lastFailedAt: Date.now() - DAY_MS + HOUR_MS,
         });
         await insertFailure(ctx, {
           shopId: stale.shopId,
-          lastFailedAt: Date.now() - NOTIFICATION_FAILURE_REMINDER_WINDOW_MS - HOUR_MS,
+          lastFailedAt: Date.now() - DAY_MS - HOUR_MS,
         });
         return idsToStrings({ recentShopId: recent.shopId, staleShopId: stale.shopId });
       });
@@ -127,10 +127,11 @@ describe("notificationOutbox/failureReminderQueries", () => {
       expect(result.page.map(String)).not.toContain(ids.otherKindShopId);
     });
 
-    it("募集終了済み失敗がページを埋めても対応可能な店舗を初回ページで返す", async () => {
+    it("募集終了済み失敗を挟んでも対応可能な店舗を欠落なくページングする", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const actionable = await seedManagerShop(ctx, { subject: "actionable_pagination_shop" });
+        const olderActionable = await seedManagerShop(ctx, { subject: "older_actionable_pagination_shop" });
         const closed = await seedManagerShop(ctx, { subject: "closed_pagination_shop" });
         const closedRecruitmentId = await ctx.db.insert("recruitments", {
           shopId: closed.shopId,
@@ -146,32 +147,58 @@ describe("notificationOutbox/failureReminderQueries", () => {
         await insertFailure(ctx, {
           shopId: closed.shopId,
           recruitmentId: closedRecruitmentId,
-          lastFailedAt: Date.now() - NOTIFICATION_FAILURE_REMINDER_WINDOW_MS + HOUR_MS,
+          lastFailedAt: Date.now() - (3 * HOUR_MS) / 2,
         });
         await insertFailure(ctx, {
           shopId: actionable.shopId,
           lastFailedAt: Date.now() - HOUR_MS,
         });
-        return idsToStrings({ actionableShopId: actionable.shopId, closedShopId: closed.shopId });
+        await insertFailure(ctx, {
+          shopId: olderActionable.shopId,
+          lastFailedAt: Date.now() - 2 * HOUR_MS,
+        });
+        return idsToStrings({
+          actionableShopId: actionable.shopId,
+          olderActionableShopId: olderActionable.shopId,
+          closedShopId: closed.shopId,
+        });
       });
 
-      const result = await t.query(
+      const first = await t.query(
         internal.notificationOutbox.failureReminderQueries.listShopIdsWithRecentOpenFailuresPage,
         { paginationOpts: { numItems: 1, cursor: null } },
       );
 
-      expect(result.page.map(String)).toEqual([ids.actionableShopId]);
-      expect(result.page.map(String)).not.toContain(ids.closedShopId);
+      expect(first.page.map(String)).toEqual([ids.olderActionableShopId]);
+      expect(first.page.map(String)).not.toContain(ids.closedShopId);
+      expect(first.isDone).toBe(false);
+
+      const second = await t.query(
+        internal.notificationOutbox.failureReminderQueries.listShopIdsWithRecentOpenFailuresPage,
+        { paginationOpts: { numItems: 1, cursor: first.continueCursor } },
+      );
+
+      expect(second.page.map(String)).toEqual([ids.actionableShopId]);
+      expect(second.page.map(String)).not.toContain(ids.closedShopId);
+      expect(second.isDone).toBe(false);
+
+      const last = await t.query(
+        internal.notificationOutbox.failureReminderQueries.listShopIdsWithRecentOpenFailuresPage,
+        { paginationOpts: { numItems: 1, cursor: second.continueCursor } },
+      );
+
+      expect(last.page).toEqual([]);
+      expect(last.isDone).toBe(true);
     });
 
-    it("古い失敗と3日以内の失敗が混在する店舗は返す（最新失敗基準）", async () => {
+    it("古い失敗と24時間以内の失敗が混在する店舗は返す（最新失敗基準）", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const mixed = await seedManagerShop(ctx, { subject: "mixed_shop", shopName: "Mixed" });
         await insertFailure(ctx, {
           shopId: mixed.shopId,
           dedupeKey: "old",
-          lastFailedAt: Date.now() - NOTIFICATION_FAILURE_REMINDER_WINDOW_MS - HOUR_MS,
+          lastFailedAt: Date.now() - DAY_MS - HOUR_MS,
         });
         await insertFailure(ctx, {
           shopId: mixed.shopId,
@@ -225,7 +252,11 @@ describe("notificationOutbox/failureReminderQueries", () => {
       });
 
       expect(result).toMatchObject({ shopId, shopName: "通知店舗" });
-      expect(result?.dashboardUrl).toMatch(/\/dashboard$/);
+      expect(result).not.toBeNull();
+      if (!result) return;
+      const dashboardUrl = new URL(result.dashboardUrl);
+      expect(dashboardUrl.pathname).toBe("/dashboard");
+      expect([...dashboardUrl.searchParams.entries()]).toEqual([["shop", String(shopId)]]);
       expect(result?.recipients).toEqual(
         expect.arrayContaining([
           expect.objectContaining({

@@ -44,11 +44,14 @@ describe("管理者セットアップシナリオ", () => {
       asManager.getDashboardStaffs(),
       asManager.getManagerConsentStatus(),
     ]);
-    expect(currentUser).toEqual({ isNewUser: false, name: "山田 太郎", email: "manager@example.com" });
+    expect(currentUser).toMatchObject({ isNewUser: false, name: "山田 太郎", email: "manager@example.com" });
     expect(shop).toEqual({
+      businessWriteBlockReason: null,
+      canWriteBusinessData: true,
       name: "初回セットアップ店舗",
       regularClosedDays: [],
       submissionPattern: { kind: "dateOnly" },
+      trialEndingNotice: null,
     });
     expect(staffPage.page).toMatchObject([{ name: "山田 太郎", email: "manager@example.com", isManager: true }]);
     expect(consentStatus.required).toBe(false);
@@ -93,11 +96,13 @@ describe("管理者セットアップシナリオ", () => {
       });
     });
     const staff = scenario.staff();
-    const submissionPageData = await staff.getOkSubmissionPageData({
+    const submissionPageResult = await staff.getSubmissionPageData({
       sessionToken: "manager-staff-submit-session",
       recruitmentId,
     });
-    expect(submissionPageData.legalConsentRequired).toBe(false);
+    expect(submissionPageResult.status).toBe("ok");
+    if (submissionPageResult.status !== "ok") throw new Error("提出画面を取得できませんでした");
+    expect(submissionPageResult.data.legalConsentRequired).toBe(false);
 
     const scheduled = await readScheduledFunctions(t);
     expect(hasScheduledJob(scheduled, "line/actions:sendInviteEmail", { staffId: managerStaff._id })).toBe(true);
@@ -112,7 +117,11 @@ describe("管理者セットアップシナリオ", () => {
     // Assert: スタッフ表示名と管理者プロフィールが同期される。
     const updatedUser = await asManager.getCurrentUser();
     const updatedStaffPage = await asManager.getDashboardStaffs();
-    expect(updatedUser).toEqual({ isNewUser: false, name: "山田 太郎 更新", email: "manager-updated@example.com" });
+    expect(updatedUser).toMatchObject({
+      isNewUser: false,
+      name: "山田 太郎 更新",
+      email: "manager-updated@example.com",
+    });
     expect(updatedStaffPage.page[0]).toMatchObject({
       name: "山田 太郎 更新",
       email: "manager-updated@example.com",

@@ -1,7 +1,7 @@
 import { Box, Grid, Heading, Image, Link, List, Separator, Table, Text } from "@chakra-ui/react";
 import { Children, type ComponentProps, isValidElement, type ReactNode } from "react";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
-import { type MdxComponents, toHeadingId } from "@/src/helpers/mdx";
+import { type MdxComponents, toHeadingId } from "@/src/lib/mdx";
 
 type ResolveImageSrc = (src: string) => string;
 
@@ -49,7 +49,6 @@ export function createArticleMdxComponents(resolveImageSrc: ResolveImageSrc): Md
 
   const Media = ({ image, alt, caption, align = "right", width, children }: MediaProps) => (
     <Grid
-      as="section"
       templateColumns={{
         base: "1fr",
         md: width ? (align === "right" ? `minmax(0, 1fr) ${width}px` : `${width}px minmax(0, 1fr)`) : "1fr 1fr",
@@ -75,25 +74,25 @@ export function createArticleMdxComponents(resolveImageSrc: ResolveImageSrc): Md
       if (items.length === 1 && isValidElement(items[0]) && items[0].type === Img) {
         return <>{children}</>;
       }
-      return <ArticleText preserveLineBreaks>{children}</ArticleText>;
+      return <ArticleText>{children}</ArticleText>;
     },
     ul: (props: ComponentProps<"ul">) => (
-      <List.Root as="ul" gap={3} ps={6} color="gray.700" textStyle={{ base: "bodySm", md: "body" }} {...props} />
+      <List.Root as="ul" gap={3} ps={6} color="gray.700" textStyle="body" {...props} />
     ),
     ol: (props: ComponentProps<"ol">) => (
-      <List.Root as="ol" gap={3} ps={6} color="gray.700" textStyle={{ base: "bodySm", md: "body" }} {...props} />
+      <List.Root as="ol" gap={3} ps={6} color="gray.700" textStyle="body" {...props} />
     ),
     li: (props: ComponentProps<"li">) => <List.Item lineHeight="1.8" {...props} />,
     blockquote: ({ children }: ComponentProps<"blockquote">) => (
       <Box
         as="blockquote"
         borderLeftWidth="4px"
-        borderColor="orange.300"
-        bg="orange.50"
+        borderColor="teal.300"
+        bg="gray.50"
         px={{ base: 4, lg: 5 }}
         py={4}
         borderRadius="md"
-        css={{ "& p": { color: "colors.gray.800", fontWeight: "medium" } }}
+        css={{ "& p": { color: "colors.gray.800", fontWeight: "medium", whiteSpace: "pre-line" } }}
       >
         {children}
       </Box>
@@ -112,7 +111,7 @@ export function createArticleMdxComponents(resolveImageSrc: ResolveImageSrc): Md
     td: (props: ComponentProps<"td">) => <Table.Cell color="gray.700" lineHeight="1.7" {...props} />,
     hr: () => <Separator />,
     a: (props: ComponentProps<"a">) => (
-      <Link color="teal.700" fontWeight="bold" textDecoration="underline" {...props} />
+      <Link color="teal.700" fontWeight="bold" textDecoration="underline" textUnderlineOffset="3px" {...props} />
     ),
     strong: (props: ComponentProps<"strong">) => <Box as="strong" color="gray.950" fontWeight="bold" {...props} />,
     code: (props: ComponentProps<"code">) => (
@@ -132,7 +131,8 @@ function ArticleHeading({ level, children }: { level: 2 | 3; children: ReactNode
       color="gray.950"
       textStyle={level === 2 ? "sectionTitle" : { base: "lg", md: "xl" }}
       letterSpacing="0"
-      pt={level === 2 ? 3 : 1}
+      mt={level === 2 ? { base: 8, md: 12 } : { base: 4, md: 6 }}
+      textWrap="pretty"
       scrollMarginTop={`calc(${HEADER_HEIGHT.md} + 24px)`}
     >
       {children}
@@ -154,20 +154,9 @@ function reactNodeToText(node: ReactNode): string {
   return "";
 }
 
-export function ArticleText({
-  children,
-  preserveLineBreaks = false,
-}: {
-  children: ReactNode;
-  preserveLineBreaks?: boolean;
-}): ReactNode {
+export function ArticleText({ children }: { children: ReactNode }): ReactNode {
   return (
-    <Text
-      color="gray.700"
-      textStyle={{ base: "bodySm", md: "body" }}
-      lineHeight="1.8"
-      whiteSpace={preserveLineBreaks ? "pre-line" : undefined}
-    >
+    <Text color="gray.700" textStyle="body" lineHeight="1.8">
       {children}
     </Text>
   );

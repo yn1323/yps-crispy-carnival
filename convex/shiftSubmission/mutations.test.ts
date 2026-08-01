@@ -3,14 +3,21 @@ import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { SHIFT_REQUESTS_PER_SUBMISSION_LIMIT } from "../constants";
 
 /** テスト用にshop + staff + recruitment + sessionをセットアップ */
 async function setupTestData(
   t: TestConvex<typeof schema>,
-  options?: { deadlinePassed?: boolean; shopClosedDates?: string[]; submissionPattern?: ShiftSubmissionPattern },
+  options?: {
+    deadlinePassed?: boolean;
+    periodEnd?: string;
+    shopClosedDates?: string[];
+    submissionPattern?: ShiftSubmissionPattern;
+  },
 ) {
   return await t.run(async (ctx) => {
     const shopId = await seedShop(ctx, "テスト店舗");
@@ -34,7 +41,7 @@ async function setupTestData(
     const recruitmentId = await ctx.db.insert("recruitments", {
       shopId,
       periodStart: "2026-04-07",
-      periodEnd: "2026-04-13",
+      periodEnd: options?.periodEnd ?? "2026-04-13",
       deadline: options?.deadlinePassed ? "2026-01-01" : "2026-12-31",
       shopClosedDates: options?.shopClosedDates ?? [],
       status: "open",
@@ -54,6 +61,43 @@ async function setupTestData(
   });
 }
 
+async function migrateShopWithoutMigratingStaff(
+  t: TestConvex<typeof schema>,
+  args: {
+    shopId: Id<"shops">;
+    operatingStatus: "active" | "planSuspended";
+    billingState: "active" | "restricted";
+  },
+) {
+  await t.run(async (ctx) => {
+    const now = Date.now();
+    const organizationId = await ctx.db.insert("organizations", {
+      name: "移行中テスト事業者",
+      isDeleted: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ctx.db.patch(args.shopId, { organizationId, operatingStatus: args.operatingStatus });
+    await ctx.db.insert("organizationBillingStates", {
+      organizationId,
+      state:
+        args.billingState === "active"
+          ? { kind: "active", plan: "pro" }
+          : {
+              kind: "restricted",
+              reason: "paymentGraceExpired",
+              previousPlan: "pro",
+              recoveryManagerPersonIds: [],
+              previousActiveShopIds: [args.shopId],
+              restrictedAt: now,
+            },
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+}
+
 const validRequests = [
   { date: "2026-04-07", startTime: "09:00", endTime: "18:00" },
   { date: "2026-04-09", startTime: "10:00", endTime: "15:00" },
@@ -67,6 +111,51 @@ describe("shiftSubmission/mutations", () => {
   afterEach(() => vi.useRealTimers());
 
   describe("submitShiftRequests", () => {
+    it("スタッフ所属店舗と異なる店舗を指すsessionでは提出できない", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, sessionToken } = await setupTestData(t);
+      const otherRecruitmentId = await t.run(async (ctx) => {
+        const otherShopId = await seedShop(ctx, "別店舗");
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          shopId: otherShopId,
+          periodStart: "2026-04-07",
+          periodEnd: "2026-04-13",
+          deadline: "2026-12-31",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        const session = await ctx.db
+          .query("sessions")
+          .withIndex("by_sessionToken", (q) => q.eq("sessionToken", sessionToken))
+          .first();
+        if (!session) throw new Error("テスト用sessionが見つかりません");
+        await ctx.db.patch(session._id, { shopId: otherShopId, recruitmentId });
+        return recruitmentId;
+      });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId: otherRecruitmentId,
+          requests: [],
+        }),
+      ).rejects.toThrowError(ConvexError);
+
+      expect(
+        await t.run(async (ctx) =>
+          ctx.db
+            .query("shiftSubmissions")
+            .withIndex("by_recruitmentId_staffId", (q) =>
+              q.eq("recruitmentId", otherRecruitmentId).eq("staffId", staffId),
+            )
+            .first(),
+        ),
+      ).toBeNull();
+    });
+
     it("セッション期限切れでエラー", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId } = await setupTestData(t);
@@ -96,6 +185,89 @@ describe("shiftSubmission/mutations", () => {
           requests: [],
         }),
       ).rejects.toThrow("Session expired");
+    });
+
+    it("同じsessionTokenが複数staffへ紐づく場合は任意のstaffとして認証しない", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId, sessionToken } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        const otherShopId = await seedShop(ctx, "重複session別店舗");
+        const otherStaffId = await ctx.db.insert("staffs", {
+          shopId: otherShopId,
+          name: "別スタッフ",
+          email: "duplicate-session@example.com",
+          isDeleted: false,
+        });
+        const otherRecruitmentId = await ctx.db.insert("recruitments", {
+          shopId: otherShopId,
+          periodStart: "2026-04-07",
+          periodEnd: "2026-04-13",
+          deadline: "2026-12-31",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        await ctx.db.insert("sessions", {
+          sessionToken,
+          staffId: otherStaffId,
+          shopId: otherShopId,
+          recruitmentId: otherRecruitmentId,
+          accessKind: "submit",
+          expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000,
+        });
+      });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          requests: validRequests,
+        }),
+      ).rejects.toThrow("Session expired");
+      const submissions = await t.run((ctx) => ctx.db.query("shiftSubmissions").collect());
+      expect(submissions).toEqual([]);
+    });
+
+    it("未リンクの移行中staffでもplanSuspended店舗では提出できない", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, recruitmentId, sessionToken } = await setupTestData(t);
+      await migrateShopWithoutMigratingStaff(t, {
+        shopId,
+        operatingStatus: "planSuspended",
+        billingState: "active",
+      });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          requests: validRequests,
+        }),
+      ).rejects.toThrow("Not found");
+      expect(await t.run((ctx) => ctx.db.query("shiftSubmissions").collect())).toEqual([]);
+    });
+
+    it("未リンクの移行中staffでもactive店舗が契約制限中なら提出できない", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, recruitmentId, sessionToken } = await setupTestData(t);
+      await migrateShopWithoutMigratingStaff(t, {
+        shopId,
+        operatingStatus: "active",
+        billingState: "restricted",
+      });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          requests: validRequests,
+        }),
+      ).rejects.toThrow("契約を確認するまで、閲覧と復旧に必要な操作だけ利用できます");
+      expect(await t.run((ctx) => ctx.db.query("shiftSubmissions").collect())).toEqual([]);
     });
 
     it("recruitmentId不一致でエラー", async () => {
@@ -193,6 +365,41 @@ describe("shiftSubmission/mutations", () => {
       expect(submission).not.toBeNull();
       expect(submission?.firstSubmittedAt).toBeTypeOf("number");
       expect(submission?.submittedAt).toBeTypeOf("number");
+    });
+
+    it("希望枠は上限31件を受理し、32件目を拒否して既存提出を保持する", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId, staffId } = await setupTestData(t, { periodEnd: "2026-05-08" });
+      const requests = Array.from({ length: SHIFT_REQUESTS_PER_SUBMISSION_LIMIT + 1 }, (_, index) => {
+        const date = new Date(Date.UTC(2026, 3, 7 + index));
+        return { date: date.toISOString().slice(0, 10), startTime: "09:00", endTime: "18:00" };
+      });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          requests: requests.slice(0, SHIFT_REQUESTS_PER_SUBMISSION_LIMIT),
+        }),
+      ).resolves.toBeNull();
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          requests,
+        }),
+      ).rejects.toThrow("Invalid request data");
+
+      const slots = await t.run(async (ctx) =>
+        ctx.db
+          .query("shiftSubmissionSlots")
+          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
+          .collect(),
+      );
+      expect(slots).toHaveLength(SHIFT_REQUESTS_PER_SUBMISSION_LIMIT);
     });
 
     it("不正な日付・時刻形式の希望提出は保存前に拒否する", async () => {

@@ -1,51 +1,137 @@
-# 公開サブページ
+# 公開サイト
 
-LPの既存コンテンツを流用し、検索結果に法務ページ以外の自然な導線を出すための公開ページ群。
-新規説明文は最小限にし、詳細な訴求はLPセクションをSingle Source of Truthとして扱う。
+> 文書種別: feature
+>
+> 最終コード照合: 2026-07-30（この変更を含む）
+
+公開サイトは、登録前の製品理解と、利用中の疑問解消をつなぐ認証不要のページ群である。
+ルート`/`を入口に、機能紹介、FAQ、HowTo、記事、操作デモへ利用者を案内する。
+
+## ページの役割
+
+| パス | 役割 | 主な実装 |
+|---|---|---|
+| `/` | 価値、利用の流れ、提出方法、利用例、FAQと記事への入口、登録導線をまとめるTOP | `src/pages/home/`、`src/components/features/LandingPage/` |
+| `/features` | 希望回収、未提出確認、シフト作成、確定通知など、できることを詳しく示す | `src/pages/features/`、`FeatureSection`、`BenefitsSection` |
+| `/faq` | 導入前から利用中までの質問を、カテゴリと検索から探せるようにする | `src/pages/faq/`、`src/components/features/FaqSite/` |
+| `/howto` | 画面上の場所、操作、結果、失敗時の対処を、利用場面から探せるようにする | `src/pages/howto/`、`src/components/features/HowToSite/` |
+| `/articles` | シフト運営に関する記事とカテゴリへの入口を示す | `src/pages/articles/`、`ArticleListPage` |
+| `/articles/:slug` | 一つの記事を表示し、関連する製品情報へつなぐ | `ArticlePage`、`ArticleSite/content/articles/` |
+| `/articles/categories/:categorySlug` | 同じ課題領域の記事をまとめる | `ArticleCategoryPage`、`ArticleSite/content/categories/` |
+| `/demo/flow` | 募集作成から確定通知までの流れを、登録なしで順番に試せるようにする | `src/pages/demo-flow/`、`Demo/ShiftoriDemoFlow/` |
+| `/demo/shiftboard` | PC向けシフト表の入力と調整を、登録なしで試せるようにする | `src/pages/demo-shift-board/`、`Demo/DemoShiftBoardPage/` |
+
+TOPは`src/routes/index.tsx`から`HomePage`を呼び、`HomePage`が`LandingPage`を構成する。
+`LandingPage`は`PublicPageLayout`の中に、Hero、課題の軽減、利用の流れ、提出方法、比較、利用例、FAQと記事、CTAの各sectionを並べる。
+
+FAQ、HowTo、記事、デモは同じ公開サイトに属するが、内容の置き場所は分かれている。
+FAQはMDXを含む`FaqSite`、HowToはMDXを含む`HowToSite`、記事は`ArticleSite`、操作できるデモは`Demo`が所有する。
+HowToの詳細な編集規則は [`howto.md`](howto.md) を参照する。
+
+## 公開サイトから接続する機能
+
+問い合わせ、法務文書、認証は公開URLを持つが、公開サイトのコンテンツとは別の機能契約を持つ。
+
+| 接続先 | 公開URL | 正本 |
+|---|---|---|
+| 問い合わせ | `/contact` | [`contact.md`](contact.md) |
+| 利用規約とプライバシーポリシー | `/terms`、`/privacy`と対象別URL | [`legal-consent.md`](legal-consent.md) |
+| ログインと登録 | `/login`、`/signup`、`/forgot-password` | [`auth-pages.md`](auth-pages.md) |
+
+`PublicPageLayout`のheaderとfooterがこれらの入口を接続する。
+問い合わせの送信、法務同意の保存、認証処理は、それぞれの機能文書とConvex実装が所有する。
+
+## コード境界
+
+公開サイトのrouteはURLとheadだけを定義し、対応する`src/pages/*`を呼ぶ。
+pageは公開featureを構成し、ページ固有のtitle、description、canonical、構造化データは同じpageの`meta.ts`が組み立てる。
+
+```text
+src/routes/index.tsx
+  -> src/pages/home/index.tsx
+    -> src/components/features/LandingPage/index.tsx
+      -> src/components/templates/PublicPageLayout/
+```
+
+公開コンテンツの表示にはClerkとConvexを使わない。
+`vite.config.ts`はTanStack StartのStatic Prerendering対象を公開routeのallowlistから組み立て、`AuthProviders`は認証route、未登録スタッフroute、認証画面の近くに置いている。
+公開HTMLはbuild時に生成し、ブラウザでは同じReact treeをhydrateする。
+認証、店舗、スタッフ用Capabilityのrouteは`ssr: false`とし、利用者固有の情報を静的HTMLへ含めずCSRで表示する。
+
+FAQ、HowTo、記事、デモを表示するためのConvex APIもない。
+問い合わせなど、公開サイトから遷移する別機能のAPIは、その機能文書を参照する。
+
+## コンテンツと導線の分担
+
+| 場所 | 利用者の問い | 内容の責務 |
+|---|---|---|
+| TOP | 自分の店舗で何が楽になるか | 価値と利用の流れを短く示し、詳しい入口を選べるようにする |
+| 機能紹介 | どの作業を支援できるか | 主な機能と利用場面を比較できるようにする |
+| FAQ | 料金、通知、導入、運用について結論を知りたい | 質問ごとに結論と必要な注意点を示す |
+| HowTo | 画面でどう操作し、失敗時にどう戻るか | 操作場所、手順、結果、回復方法を示す |
+| 記事 | シフト運営の課題をどう判断するか | 課題の整理、選択肢、関連する製品導線を示す |
+| デモ | 登録前に操作と結果を確かめたい | 実データを保存せず、主要な操作の流れを体験できるようにする |
+
+FAQは一つの質問を一つのMDXで管理し、ファイル名を`/faq#id`のアンカーに使う。
+TOPへ掲載する質問は`content/featured/`に置き、`landingFaqContent.ts`はその質問だけから表示と構造化データを生成する。
+総合FAQは同じMDX群から本文、検索対象、構造化データを生成する。
+frontmatterの項目と許可値は`faqMetadata.ts`、本文で利用できる表示部品は`mdxComponents.tsx`を正本とする。
+
+FAQ、HowTo、記事のいずれも、`_`始まりのMDX（記事とカテゴリは`_`始まりのディレクトリ）は下書きとして読み込まない。
+下書きは一覧、検索、構造化データ、SSG、記事別OGPのどれにも現れず、bundleにも含めない。
+HowToを下書きにした場合は、公開中のHowToからの関連記事参照とFAQからの詳細リンクも自動的に外す。
+
+HowToの追加と更新には`write-help-content`、デモの設計には`demo-ux`を使う。
+記事の構造とメタデータは`src/components/features/ArticleSite/AGENTS.md`に従う。
+
+## 静的生成とメタデータ
+
+`scripts/staticSite.ts`はTOP、機能紹介、FAQ、HowTo、問い合わせ、記事一覧、汎用の法務文書、二つのデモなどを固定の公開routeとして持つ。
+記事詳細とカテゴリは`ArticleSite/content/`の公開済みslugから対象routeを組み立てる。
+TanStack StartはこのallowlistだけをStatic Prerenderingし、認証routeやCapability routeを自動探索しない。
+
+`public/sitemap.xml`は検索エンジンへ公開するURL、`public/llms.txt`は機械可読な公開コンテンツの入口を持つ。
+記事別OGPは`scripts/generateArticleOgp.ts`と`public/ogp/articles/`が所有し、生成物検証時に不足を検出する。
+
+全ページのfallback metadataは`src/routes/__root.tsx`、route別metadataとJSON-LDは対応する`src/pages/*/meta.ts`とコンテンツfeatureが所有する。
+FAQ、BlogPosting、BreadcrumbListなどの構造化データは、画面に表示する現在内容と一致させる。
+
+`pnpm build`はStatic Prerendering、Cloudflare用ルール生成、生成物検証、型検査を行う。
+Cloudflare Pagesへ配信するのは`dist/client/`だけであり、`dist/server/`はbuild時のrenderにだけ使う。
+`scripts/validateStaticBuild.ts`は公開HTMLのcanonical、metadata、Emotion style、hydration payload、記事OGP、sitemapとの一致、CSR shell、404、Cloudflareルールを検証する。
+実際のdeployment状態はこの機能文書から推測せず、CI/CDの手順と実行結果で確認する。
+
+### URLの正規化
+
+Static Prerenderingは、ルート以外を`dist/client/features.html`のようなフラットなHTMLへ出力する。
+ディレクトリindexへ出力すると、Cloudflare Pagesが末尾スラッシュ付きURLへリダイレクトし、sitemapとcanonicalが示す末尾スラッシュなしURLと食い違うためである。
+
+sitemap、canonical、内部リンクは、ルート以外を末尾スラッシュなしで統一する。
+公開済みの旧記事slugは互換URLとしてSSG対象に残し、HTMLと`Link` headerのcanonicalは現slugへ向ける。
+既知の公開routeの末尾スラッシュ付きURLは、生成した`_redirects`で末尾スラッシュなしのHTMLへ`200` proxyする。
+3xxを返さないため、既存端末に残ったno-slashからslashへの308 cacheが適用されても、slash側の`200`でループを終端できる。
+
+認証、店舗、スタッフ用Capabilityのrouteは、末尾スラッシュの有無を問わずclean URLの`/_shell`へ明示的に`200` proxyする。  実体はビルド成果物の`_shell.html`だが、`.html`をproxy先へ指定するとCloudflare Pagesが`/_shell`への308を返すため、配信規則では拡張子を付けない。
+shellは`noindex`、`no-store`、`no-referrer`で公開canonicalを持たず、queryや利用者情報をbuild artifactへ固定しない。
+全URLをshellへ渡すcatch-allは置かず、トップレベルの`404.html`により未知URLと未知の記事slugは404にする。  Cloudflare Pagesは任意の未知URLへ同じ`404.html`を返すため、このdocumentだけはbuild時URLとのhydration mismatchを避けて静的表示のままにする。
+
+`/cache-reset`だけは`Clear-Site-Data: "cache"`を返す。
+cookieとstorageは消去せず、旧308 cacheが残る端末の回復導線として使う。
 
 ## 関連ファイル
 
-- `src/routes/features.tsx` / `src/pages/features/index.tsx` — できることページ
-- `src/routes/faq.tsx` / `src/pages/faq/index.tsx` — よくある質問ページ
-- `src/routes/articles.tsx` / `src/routes/articles.$slug.tsx` / `src/routes/articles.categories.$categorySlug.tsx` — 記事一覧・記事詳細・カテゴリページ
-- `src/routes/demo.flow.tsx` / `src/pages/demo-flow/index.tsx` — 募集から確定通知までのフローデモ（`_unregistered` 外に置き、Clerk/Convexバンドルを載せない）
-- `src/routes/demo.shiftboard.tsx` / `src/pages/demo-shift-board/index.tsx` — 店長・シフト担当者向けシフト表デモ（同上）
-- `src/components/features/Demo/` — 公開デモ用コンポーネント
-- `src/components/features/LandingPage/` — TOPのLP本体、FAQデータ、公開ページ共通フッター
-- `src/components/features/LandingPage/FeatureSection.tsx` / `BenefitsSection.tsx` / `FaqSection.tsx` — `/features`・`/faq`で流用している既存LPセクション
-- `src/components/features/ArticleSite/` — MDX管理の記事サイトとLP記事ミニ導線のソース
-- `src/components/features/HowToSite/` — MDX管理の使い方・ヘルプとページ内検索のソース
-- `scripts/prerender.ts` / `public/sitemap.xml` — 静的HTML生成と検索エンジン向けURL一覧。記事詳細・カテゴリ詳細はMDXディレクトリから自動収集する
-- `scripts/generateArticleOgp.ts` / `public/ogp/articles/` — 記事別OGP画像の生成スクリプトと生成物（`pnpm ogp:articles`。記事の追加・タイトル変更時に再生成してコミットする）
-- `src/helpers/seo/index.ts` — メタタグ・JSON-LDヘルパー（`ogType` / `ogImage` で記事別OGPを上書き）
-
-## OGP・構造化データ
-
-- `index.html` — 全ページ共通の既定値（og:type=website、共通OGP画像、SoftwareApplication / Organization / WebSite）
-- `/`・`/faq` — `FAQPage`（`landingFaqs` を共有）
-- `/articles/:slug` — og:type=article、記事別OGP画像、`BlogPosting` + `BreadcrumbList`
-- `/articles/categories/:categorySlug` — `BreadcrumbList`
-- ルート側で og:type / og:image を出すと、prerender が index.html の既定タグと重複排除して後勝ちで焼き込む（`scripts/prerender.ts` の `ROUTE_MANAGED_META_*`）
-
-## URL正規化（末尾スラッシュ）
-
-- prerender は `dist/features.html` のようにフラットな `.html` で出力する（`routeToOutputPath`）。ディレクトリ index（`dist/features/index.html`）にすると Cloudflare Pages が正規URLを `/features/` と判定し、`/features` を308リダイレクトする
-- sitemap.xml と canonical（`buildLinks`）はどちらも末尾スラッシュ**なし**。ここが出力形式とズレると、送信URL ⇄ 正規URL が循環して Google Search Console でリダイレクトエラーになる
-- `dist/404.html` は置かないこと。置くと未知パスがSPAフォールバック（ルートの `index.html` を200で返す）ではなく404になり、`/dashboard` などアプリ内ルートの直リロードが壊れる
-
-## 画面一覧
-
-| パス | 内容 |
-|---|---|
-| `/features` | 希望回収、未提出確認、シフト作成、確定通知の紹介 |
-| `/faq` | 導入前によくある質問 |
-| `/howto` | 利用中の管理者・スタッフ向けの使い方とトラブル対応 |
-| `/articles` | シフト作成ガイド記事一覧 |
-| `/articles/:slug` | 記事詳細 |
-| `/articles/categories/:categorySlug` | 困りごとカテゴリ別の記事一覧 |
-| `/demo/flow` | 募集作成、希望提出、調整、確定通知まで試せるフローデモ |
-| `/demo/shiftboard` | 登録なしで試せる店長・シフト担当者向けデモ |
-
-## API一覧
-
-なし。公開サブページはLPコンテンツの静的表示のみで、Convex APIは利用しない。
+- `src/routes/index.tsx`、`src/pages/home/`、`src/components/features/LandingPage/`：公開TOP
+- `src/routes/features.tsx`、`src/pages/features/`：機能紹介
+- `src/routes/faq.tsx`、`src/pages/faq/`、`src/components/features/FaqSite/`：総合FAQとTOP向けFAQ抜粋
+- `src/components/features/FaqSite/content/**/*.mdx`：質問、回答、検索用メタデータ、表示順
+- `src/components/features/FaqSite/faqMetadata.ts`、`faqContent.ts`、`landingFaqContent.ts`：frontmatter検証、検索、構造化データ
+- `src/routes/howto.tsx`、`src/pages/howto/`、`src/components/features/HowToSite/`：使い方とヘルプ
+- `src/routes/articles*.tsx`、`src/pages/articles/`、`src/components/features/ArticleSite/`：記事一覧、記事詳細、カテゴリ
+- `src/routes/demo.*.tsx`、`src/pages/demo-*/`、`src/components/features/Demo/`：公開デモ
+- `src/components/templates/PublicPageLayout/`：公開ページ共通layout
+- `vite.config.ts`、`src/router.tsx`、`src/client.tsx`：TanStack StartのSSG、CSR shell、hydration
+- `src/pages/*/meta.ts`、`src/lib/seo/`：ページ別metadataと共通SEO処理
+- `scripts/staticSite.ts`、`scripts/prepareStaticDeployment.ts`、`scripts/validateStaticBuild.ts`：公開route、静的配信ルール、生成物検証
+- `src/routes/cache-reset.tsx`、`src/routes/$.tsx`：旧cache回復と404
+- `public/sitemap.xml`、`public/llms.txt`：検索エンジンと機械向けの公開URL
+- `scripts/generateArticleOgp.ts`、`public/ogp/articles/`：記事別OGP画像

@@ -5,7 +5,9 @@ import { LuPlus, LuX } from "react-icons/lu";
 import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH, STAFF_ADD_ENTRIES_MAX } from "@/convex/constants";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { STAFF_ADDITION_EMAIL_NOTICE } from "../staffAdditionCopy";
-import { type AddStaffFormData, addStaffSchema } from "./index";
+import { type AddStaffFormData, addStaffSchema } from "./script";
+
+export type { AddStaffFormData } from "./script";
 
 const EMPTY_ENTRY = { name: "", email: "" } as const;
 
@@ -39,7 +41,7 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
   return (
     <form id="add-staff-form" noValidate onSubmit={handleSubmit(onSubmit)}>
       <Stack gap={4}>
-        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+        <Text fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
           {STAFF_ADDITION_EMAIL_NOTICE}
         </Text>
 

@@ -39,8 +39,8 @@ describe("スタッフ参加QRシナリオ", () => {
 
     const link = await t
       .withIdentity({ subject: MANAGER_SUBJECT })
-      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {});
-    await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
+    await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "QR申請スタッフ",
       email: "qr-staff@example.com",
@@ -59,12 +59,12 @@ describe("スタッフ参加QRシナリオ", () => {
 
     const pending = await t
       .withIdentity({ subject: MANAGER_SUBJECT })
-      .query(api.staffRegistration.queries.getPendingRequests, {});
+      .query(api.staffRegistration.queries.getPendingRequests, { shopId });
     expect(pending).toMatchObject([{ name: "QR申請スタッフ", email: "qr-staff@example.com" }]);
 
     const { staffId } = await t
       .withIdentity({ subject: MANAGER_SUBJECT })
-      .mutation(api.staffRegistration.mutations.approveRequest, { requestId: pending[0]._id });
+      .mutation(api.staffRegistration.mutations.approveRequest, { requestId: pending[0]._id, shopId });
 
     const staffPage = await asManager.getDashboardStaffs();
     expect(staffPage.page.find((staff) => staff._id === staffId)).toMatchObject({

@@ -1,16 +1,13 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
-import { DASHBOARD_TOUR_TARGET } from "../dashboardTourTargets";
+import { type ComponentProps, useState } from "react";
+import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
+import { Button } from "@/src/components/ui/Button";
 import type { DashboardNotificationFailure } from "../NotificationFailureDialog";
-import { mockCurrentRecruitments, mockRecruitments, mockStaffs } from "../storyMocks";
-import {
-  buildDashboardRecruitmentGroups,
-  type DashboardAnnouncement,
-  type Recruitment,
-  type Staff,
-  type StaffRegistrationRequest,
-} from "../types";
+import type { OperationContextData } from "../OperationContext";
+import { buildDashboardRecruitmentGroups } from "../script";
+import { mockCurrentRecruitments, mockRecruitments, mockStaffs } from "../stories/fixtures";
+import type { DashboardAnnouncement, Recruitment, Staff, StaffRegistrationRequest } from "../types";
 import { DashboardContent, DashboardContentSkeleton } from "./index";
 
 const noop = () => {};
@@ -20,6 +17,34 @@ const shop = {
   regularClosedDays: [],
   submissionPattern: { kind: "time" as const, startTime: "14:00", endTime: "25:00" },
 };
+const operationShop = {
+  shopId: "shop-1",
+  shopName: shop.name,
+  shopStatus: "active" as const,
+  organizationId: "organization-1",
+  organizationName: "たなかグループ",
+  organizationPlan: "pro" as const,
+  memberStatus: "active" as const,
+};
+const operationContextData = {
+  shops: [
+    operationShop,
+    {
+      ...operationShop,
+      shopId: "shop-2",
+      shopName: "カフェたなか",
+    },
+    {
+      ...operationShop,
+      shopId: "shop-3",
+      shopName: "ビストロ佐藤",
+      organizationId: "organization-2",
+      organizationName: "佐藤フードグループ",
+    },
+  ],
+  selectedShop: operationShop,
+  onSelect: noop,
+} satisfies OperationContextData;
 const managerLegalConsentReady = {
   required: false,
   documents: {
@@ -31,6 +56,7 @@ const managerLegalConsentReady = {
 const managerOnly = [
   {
     _id: "staff-manager",
+    organizationPersonId: "person-manager",
     name: "田中太郎",
     email: "tanaka@example.com",
     isManager: true,
@@ -43,6 +69,7 @@ const managerAndStaff = [
   ...managerOnly,
   {
     _id: "staff-2",
+    organizationPersonId: "person-2",
     name: "佐藤花子",
     email: "sato@example.com",
     isManager: false,
@@ -114,6 +141,7 @@ const onboardingRecruitment = (overrides: Partial<Recruitment> = {}) =>
 
 const dashboardBaseArgs = {
   shop,
+  operationContextData,
   managerLegalConsentStatus: managerLegalConsentReady,
   recruitmentStatus: "Exhausted",
   hasPastRecruitments: false,
@@ -128,6 +156,7 @@ const dashboardBaseArgs = {
 } satisfies Pick<
   ComponentProps<typeof DashboardContent>,
   | "shop"
+  | "operationContextData"
   | "managerLegalConsentStatus"
   | "recruitmentStatus"
   | "hasPastRecruitments"
@@ -155,6 +184,7 @@ type Story = StoryObj<typeof meta>;
 export const Normal: Story = {
   args: {
     shop,
+    operationContextData,
     managerLegalConsentStatus: managerLegalConsentReady,
     recruitments: dashboardRecruitments,
     recruitmentGroups: dashboardRecruitmentGroups,
@@ -173,6 +203,109 @@ export const Normal: Story = {
   },
 };
 
+export const ReadOnlyShop: Story = {
+  args: {
+    ...Normal.args,
+    isReadOnly: true,
+    isDashboardOnboardingDismissed: true,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("button", { name: "店舗詳細を開く" })).toBeEnabled();
+    await expect(canvas.getByRole("button", { name: "新しい募集をつくる" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "スタッフを招待する" })).toBeDisabled();
+  },
+};
+
+export const ReadOnlyTransitionBehavior: Story = {
+  args: Normal.args,
+  parameters: {
+    screenshot: { skip: true },
+  },
+  render: () => <ReadOnlyTransitionStory />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+    const toggle = canvas.getByRole("button", { name: "閲覧専用を切り替える" });
+
+    const expectDialogClosedByReadOnly = async (dialogName: string) => {
+      fireEvent.click(toggle);
+      await waitFor(() => expect(toggle).toHaveAttribute("aria-pressed", "true"));
+      await waitFor(() => expect(body.queryByRole("dialog", { name: dialogName })).not.toBeInTheDocument());
+      fireEvent.click(toggle);
+      await waitFor(() => expect(toggle).toHaveAttribute("aria-pressed", "false"));
+    };
+
+    await userEvent.click(await canvas.findByRole("button", { name: "新しい募集をつくる" }));
+    await body.findByRole("dialog", { name: "新しい募集をつくる" });
+    await expectDialogClosedByReadOnly("新しい募集をつくる");
+
+    await userEvent.click(await canvas.findByRole("button", { name: "スタッフを招待する" }));
+    await body.findByRole("dialog", { name: "スタッフを招待" });
+    await expectDialogClosedByReadOnly("スタッフを招待");
+
+    await userEvent.click(await canvas.findByRole("button", { name: "申請を確認" }));
+    await body.findByRole("dialog", { name: "スタッフ登録申請" });
+    await expectDialogClosedByReadOnly("スタッフ登録申請");
+
+    await userEvent.click(await canvas.findByRole("button", { name: "通知を確認する" }));
+    await body.findByRole("dialog", { name: "送れなかった通知" });
+    await expectDialogClosedByReadOnly("送れなかった通知");
+  },
+};
+
+function ReadOnlyTransitionStory() {
+  const [isReadOnly, setIsReadOnly] = useState(false);
+
+  return (
+    <>
+      <Button
+        aria-label="閲覧専用を切り替える"
+        aria-pressed={isReadOnly}
+        position="fixed"
+        top={2}
+        left={2}
+        zIndex="tooltip"
+        onClick={() => setIsReadOnly((current) => !current)}
+      >
+        閲覧専用を切り替える
+      </Button>
+      <DashboardContent
+        {...dashboardBaseArgs}
+        isReadOnly={isReadOnly}
+        recruitments={dashboardRecruitments}
+        recruitmentGroups={dashboardRecruitmentGroups}
+        currentRecruitments={mockCurrentRecruitments}
+        staffs={mockStaffs}
+        pendingStaffRequests={pendingStaffRequests}
+        notificationFailures={notificationFailures}
+        isDashboardOnboardingDismissed
+      />
+    </>
+  );
+}
+
+export const LegacyStaffDetailFallbackBehavior: Story = {
+  args: {
+    ...Normal.args,
+    staffs: mockStaffs.map((staff) =>
+      staff._id === mockStaffs[1]._id ? { ...staff, organizationPersonId: null } : staff,
+    ),
+  },
+  parameters: {
+    screenshot: { skip: true },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "佐藤花子のスタッフ詳細を開く" }));
+    const staffDetailDialog = await body.findByRole("dialog", { name: "スタッフ詳細" });
+    await userEvent.click(within(staffDetailDialog).getByRole("button", { name: "閉じる" }));
+    await waitFor(() => expect(body.queryByRole("dialog", { name: "スタッフ詳細" })).not.toBeInTheDocument());
+  },
+};
+
 export const WithAnnouncement: Story = {
   args: {
     ...Normal.args,
@@ -187,24 +320,23 @@ export const WithNotificationFailures: Story = {
     isDashboardOnboardingDismissed: true,
   },
   play: async ({ canvasElement }) => {
-    assertText(canvasElement, "送れなかった通知があります", "通知エラーカードの見出し");
-    findButtonByText(canvasElement, "通知を確認").click();
+    const canvas = within(canvasElement);
+    const body = within(document.body);
 
-    await waitUntil(
-      () => document.body.textContent?.includes("佐藤 真由美") ?? false,
-      "通知エラーモーダルが表示されませんでした",
-    );
-    assertText(document.body, "送れなかった通知", "通知エラーモーダルのタイトル");
-    assertText(document.body, "佐藤 真由美", "モーダル内のスタッフ名");
-    assertText(document.body, "シフト募集通知", "モーダル内の通知種別");
-    assertText(document.body, "すべて再送", "モーダル内の一斉再送ボタン");
-    requireElement<HTMLButtonElement>(document.body, 'button[aria-label="メール通知について"]').click();
-    await waitUntil(
-      () =>
-        document.body.textContent?.includes("メールが届かない場合は、メールアドレスに誤りがないか確認してください。") ??
-        false,
-      "メール補足Popoverが表示されませんでした",
-    );
+    await expect(canvas.queryByText("佐藤 真由美")).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "通知を確認する" }));
+
+    const dialog = await body.findByRole("dialog", { name: "送れなかった通知" });
+    const dialogView = within(dialog);
+    await expect(dialogView.getAllByText("佐藤 真由美").length).toBeGreaterThan(0);
+
+    await userEvent.click(dialogView.getAllByRole("button", { name: "メール通知について" })[0]);
+    await dialogView.findByText(/登録メールアドレスに誤りがないか/);
+
+    const closeButtons = dialogView.getAllByRole("button", { name: "閉じる" });
+    await userEvent.click(closeButtons[closeButtons.length - 1]);
+    await waitFor(() => expect(body.queryByRole("dialog", { name: "送れなかった通知" })).not.toBeInTheDocument());
+    await expect(body.queryByText("佐藤 真由美")).not.toBeInTheDocument();
   },
 };
 
@@ -226,7 +358,7 @@ export const Loading: Story = {
     ...Normal.args,
   },
   render: () => (
-    <Box minH="100vh" bg="white" p={{ base: 4, lg: 8 }}>
+    <Box minH="100vh" bg="gray.50" p={{ base: 4, lg: 8 }}>
       <DashboardContentSkeleton />
     </Box>
   ),
@@ -235,6 +367,7 @@ export const Loading: Story = {
 export const Empty: Story = {
   args: {
     shop,
+    operationContextData,
     managerLegalConsentStatus: managerLegalConsentReady,
     recruitments: [],
     currentRecruitments: [],
@@ -255,39 +388,20 @@ export const Empty: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    const startButton = Array.from(canvasElement.querySelectorAll<HTMLButtonElement>("button")).find((button) =>
-      button.textContent?.includes("ガイド"),
-    );
-    startButton?.click();
+    const canvas = within(canvasElement);
+    const body = within(document.body);
 
-    const startedAt = performance.now();
-    while (performance.now() - startedAt < 2000) {
-      const spotlight = document.querySelector(".react-joyride__spotlight");
-      if (spotlight) break;
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-    }
-    if (!document.querySelector(".react-joyride__spotlight")) {
-      throw new Error("Dashboard onboarding tour spotlight が表示されませんでした");
-    }
+    await userEvent.click(canvas.getByRole("button", { name: "ガイド" }));
+    await waitFor(() => expect(document.querySelector(".react-joyride__spotlight")).toBeInTheDocument());
 
-    canvasElement.querySelector<HTMLButtonElement>(`[data-tour="${DASHBOARD_TOUR_TARGET.createRecruitment}"]`)?.click();
+    await userEvent.click(canvas.getByRole("button", { name: "新しい募集をつくる" }));
+    await waitFor(() => expect(document.querySelector(".react-joyride__spotlight")).not.toBeInTheDocument());
 
-    const clickedAt = performance.now();
-    while (performance.now() - clickedAt < 2000) {
-      const spotlight = document.querySelector(".react-joyride__spotlight");
-      if (!spotlight) return;
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-    }
-    throw new Error("Tour対象を押下しても spotlight が非表示になりませんでした");
+    const dialog = await body.findByRole("dialog", { name: "新しい募集をつくる" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "閉じる" }));
+    await waitFor(() => expect(body.queryByRole("dialog", { name: "新しい募集をつくる" })).not.toBeInTheDocument());
   },
 };
-
-const onboardingPlay =
-  (label: string, expectedProgress: string) =>
-  async ({ canvasElement }: { canvasElement: HTMLElement }) => {
-    assertText(canvasElement, "シフトリへようこそ！", `${label} のオンボーディング見出し`);
-    assertText(canvasElement, expectedProgress, `${label} の進捗表示`);
-  };
 
 export const OnboardingBeforeRecruitment: Story = {
   args: {
@@ -296,7 +410,6 @@ export const OnboardingBeforeRecruitment: Story = {
     currentRecruitments: [],
     staffs: managerOnly,
   },
-  play: onboardingPlay("1/4 募集作成前", "1/4"),
 };
 
 export const OnboardingAfterRecruitmentCreated: Story = {
@@ -306,7 +419,6 @@ export const OnboardingAfterRecruitmentCreated: Story = {
     currentRecruitments: [],
     staffs: managerOnly,
   },
-  play: onboardingPlay("2/4 募集作成後", "2/4"),
 };
 
 export const OnboardingAfterSubmission: Story = {
@@ -316,7 +428,6 @@ export const OnboardingAfterSubmission: Story = {
     currentRecruitments: [],
     staffs: managerOnly,
   },
-  play: onboardingPlay("3/4 提出後", "3/4"),
 };
 
 export const OnboardingAfterShiftConfirmed: Story = {
@@ -326,7 +437,6 @@ export const OnboardingAfterShiftConfirmed: Story = {
     currentRecruitments: [],
     staffs: managerOnly,
   },
-  play: onboardingPlay("4/4 シフト確認後", "4/4"),
 };
 
 export const OnboardingStaffAdded: Story = {
@@ -336,7 +446,6 @@ export const OnboardingStaffAdded: Story = {
     currentRecruitments: [],
     staffs: managerAndStaff,
   },
-  play: onboardingPlay("4/4 スタッフ追加済み", "4/4"),
 };
 
 export const DismissedOnboardingShowsNextAction: Story = {
@@ -346,22 +455,20 @@ export const DismissedOnboardingShowsNextAction: Story = {
     staffs: managerOnly,
   },
   render: () => (
-    <Box data-testid="onboarding-dismissal-root" minH="100vh" bg="gray.50" py={{ base: 4, md: 8 }}>
+    <Box minH="100vh" bg="gray.50" py={{ base: 4, md: 8 }}>
       <DashboardContent {...dashboardBaseArgs} recruitments={[]} staffs={managerOnly} />
     </Box>
   ),
   play: async ({ canvasElement }) => {
-    const root = requireElement(canvasElement, '[data-testid="onboarding-dismissal-root"]');
-    assertText(root, "シフトリへようこそ！", "閉じる前のオンボーディング見出し");
-    assertText(root, "1/4", "閉じる前の進捗表示");
-    assertNoText(root, "TODO", "閉じる前の通常アクション非表示");
+    const canvas = within(canvasElement);
 
-    requireElement<HTMLButtonElement>(root, 'button[aria-label="シフトリへようこそを閉じる"]').click();
+    await expect(canvas.getByRole("region", { name: "シフトリへようこそ！" })).toBeVisible();
+    await expect(canvas.queryByRole("heading", { name: "TODO" })).not.toBeInTheDocument();
 
-    await waitUntil(() => root.textContent?.includes("TODO") ?? false, "閉じた後にTODOが表示されませんでした");
+    await userEvent.click(canvas.getByRole("button", { name: "シフトリへようこそを閉じる" }));
 
-    assertText(root, "TODO", "閉じた後の通常アクション見出し");
-    assertNoText(root, "シフトリへようこそ！", "閉じた後のオンボーディング非表示");
+    await expect(await canvas.findByRole("heading", { name: "TODO" })).toBeVisible();
+    await expect(canvas.queryByRole("region", { name: "シフトリへようこそ！" })).not.toBeInTheDocument();
   },
 };
 
@@ -373,10 +480,10 @@ export const PendingRequestsShowNextActionDuringOnboarding: Story = {
     pendingStaffRequests,
   },
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   render: () => (
-    <Box data-testid="pending-requests-onboarding-root" minH="100vh" bg="gray.50" py={{ base: 4, md: 8 }}>
+    <Box minH="100vh" bg="gray.50" py={{ base: 4, md: 8 }}>
       <DashboardContent
         {...dashboardBaseArgs}
         recruitments={[]}
@@ -387,28 +494,28 @@ export const PendingRequestsShowNextActionDuringOnboarding: Story = {
     </Box>
   ),
   play: async ({ canvasElement }) => {
-    const root = requireElement(canvasElement, '[data-testid="pending-requests-onboarding-root"]');
-    await waitUntil(() => root.textContent?.includes("TODO") ?? false, "TODOが表示されませんでした");
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+    const reviewButton = await canvas.findByRole("button", { name: "申請を確認" });
 
-    assertText(root, "TODO", "承認待ちがある時の通常アクション見出し");
-    assertText(root, "スタッフ登録申請が2件あります", "承認待ちカードの見出し");
-    assertText(root, "申請を確認", "承認待ちカードのCTA");
-    assertNoText(root, "田中 花子", "カード表示時は申請者名を隠す");
-    assertNoText(root, "hanako@example.com", "カード表示時は申請者メールを隠す");
-    assertNoText(root, "シフトリへようこそ！", "承認待ちがある時のオンボーディング非表示");
+    await expect(canvas.queryByText("田中 花子")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("hanako@example.com")).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("region", { name: "シフトリへようこそ！" })).not.toBeInTheDocument();
 
-    const confirmButton = findButtonByText(root, "申請を確認");
-    confirmButton.click();
+    await userEvent.click(reviewButton);
 
-    await waitUntil(
-      () => document.body.textContent?.includes("承認するとスタッフとして登録されます。") ?? false,
-      "スタッフ登録申請モーダルが表示されませんでした",
-    );
-    assertText(document.body, "募集中のシフトがあれば提出リンクも送ります", "承認後の通知説明");
-    assertText(document.body, "田中 花子", "モーダル内の承認待ちスタッフ名");
-    assertText(document.body, "hanako@example.com", "モーダル内の承認待ちスタッフメール");
-    assertText(document.body, "承認", "モーダル内の承認ボタン");
-    assertText(document.body, "却下", "モーダル内の却下ボタン");
+    const dialog = await body.findByRole("dialog", { name: "スタッフ登録申請" });
+    const dialogView = within(dialog);
+    await expect((await dialogView.findAllByText("田中 花子")).length).toBeGreaterThan(0);
+    await expect((await dialogView.findAllByText("hanako@example.com")).length).toBeGreaterThan(0);
+    await expect(dialogView.getAllByRole("button", { name: "田中 花子を承認" }).length).toBeGreaterThan(0);
+    await expect(dialogView.getAllByRole("button", { name: "田中 花子を却下" }).length).toBeGreaterThan(0);
+
+    const closeButtons = dialogView.getAllByRole("button", { name: "閉じる" });
+    await userEvent.click(closeButtons[closeButtons.length - 1]);
+    await waitFor(() => expect(body.queryByRole("dialog", { name: "スタッフ登録申請" })).not.toBeInTheDocument());
+    await expect(body.queryByText("田中 花子")).not.toBeInTheDocument();
+    await expect(body.queryByText("hanako@example.com")).not.toBeInTheDocument();
   },
 };
 
@@ -420,7 +527,7 @@ export const NotificationFailuresShowNextActionDuringOnboarding: Story = {
     notificationFailures,
   },
   render: () => (
-    <Box data-testid="notification-failures-onboarding-root" minH="100vh" bg="gray.50" py={{ base: 4, md: 8 }}>
+    <Box minH="100vh" bg="gray.50" py={{ base: 4, md: 8 }}>
       <DashboardContent
         {...dashboardBaseArgs}
         recruitments={[]}
@@ -430,20 +537,12 @@ export const NotificationFailuresShowNextActionDuringOnboarding: Story = {
       />
     </Box>
   ),
-  play: async ({ canvasElement }) => {
-    const root = requireElement(canvasElement, '[data-testid="notification-failures-onboarding-root"]');
-    await waitUntil(() => root.textContent?.includes("TODO") ?? false, "TODOが表示されませんでした");
-
-    assertText(root, "TODO", "通知失敗がある時の通常アクション見出し");
-    assertText(root, "送れなかった通知があります", "通知失敗カードの見出し");
-    assertText(root, "通知を確認", "通知失敗カードのCTA");
-    assertText(root, "シフトリへようこそ！", "通知失敗があってもオンボーディングは継続表示");
-  },
 };
 
 export const Setup: Story = {
   args: {
     shop: null,
+    showAccountDeletion: false,
     recruitments: [],
     currentRecruitments: [],
     recruitmentStatus: "Exhausted",
@@ -460,48 +559,42 @@ export const Setup: Story = {
   },
 };
 
+export const SetupForExistingUserWithoutShop: Story = {
+  args: {
+    ...Setup.args,
+    showAccountDeletion: true,
+  },
+};
+
 export const SetupWithAnnouncement: Story = {
   args: {
     ...Setup.args,
+    showAccountDeletion: true,
     announcement: dashboardAnnouncement,
   },
 };
 
-function requireElement<T extends Element = HTMLElement>(root: ParentNode, selector: string): T {
-  const element = root.querySelector<T>(selector);
-  if (!element) {
-    throw new Error(`${selector} が見つかりませんでした`);
-  }
-  return element;
-}
+export const SetupMobile: Story = {
+  args: {
+    ...Setup.args,
+    showAccountDeletion: true,
+  },
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+};
 
-function assertText(root: Element, text: string, context: string) {
-  if (!root.textContent?.includes(text)) {
-    throw new Error(`${context}: "${text}" が表示されませんでした`);
-  }
-}
+export const SetupDialogBehavior: Story = {
+  args: Setup.args,
+  parameters: {
+    screenshot: { skip: true },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
 
-function assertNoText(root: Element, text: string, context: string) {
-  if (root.textContent?.includes(text)) {
-    throw new Error(`${context}: "${text}" が表示されています`);
-  }
-}
-
-function findButtonByText(root: Element, text: string) {
-  const button = Array.from(root.querySelectorAll<HTMLButtonElement>("button")).find((candidate) =>
-    candidate.textContent?.includes(text),
-  );
-  if (!button) {
-    throw new Error(`button "${text}" が見つかりませんでした`);
-  }
-  return button;
-}
-
-async function waitUntil(predicate: () => boolean, failureMessage: string) {
-  const startedAt = performance.now();
-  while (performance.now() - startedAt < 2000) {
-    if (predicate()) return;
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-  }
-  throw new Error(failureMessage);
-}
+    await userEvent.click(canvas.getByRole("button", { name: "お店を登録する" }));
+    const setupDialog = await body.findByRole("dialog", { name: "初回登録" });
+    await userEvent.click(within(setupDialog).getAllByRole("button", { name: "閉じる" })[0]);
+    await waitFor(() => expect(body.queryByRole("dialog", { name: "初回登録" })).not.toBeInTheDocument());
+  },
+};

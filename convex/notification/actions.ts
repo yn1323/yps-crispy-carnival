@@ -11,8 +11,11 @@ import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
-import type { NotificationEmailPayload } from "../notificationOutbox/types";
+import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
+import type { NotificationHistoryInput, NotificationRenderedEmailPayload } from "../notificationOutbox/types";
+import type { ConfirmationSnapshotAssignment } from "./confirmationSnapshots";
 import { recordNotificationPreparationFailure } from "./failureRecording";
+import { buildNotificationFanoutTargetKey } from "./fanout";
 import {
   buildConfirmationEmailHtml,
   buildRecruitmentEmailHtml,
@@ -25,6 +28,10 @@ import {
   buildShiftConfirmationLineText,
 } from "./templates";
 
+const SHIFT_CONFIRMATION_NOTIFICATION_KIND = "shift.confirmation";
+const SHIFT_REISSUE_NOTIFICATION_KIND = "shift.reissue";
+const SHIFT_RECRUITMENT_NOTIFICATION_KIND = "shift.recruitment";
+
 /**
  * シフト確定通知の配信
  * - 連携済みかつ友達追加中 → LINE Push
@@ -36,20 +43,60 @@ export const sendShiftConfirmationEmails = internalAction({
     isResend: v.boolean(),
     targetStaffIds: v.optional(v.array(v.id("staffs"))),
     notificationRunId: v.optional(v.number()),
+    fanoutOperationId: v.optional(v.id("notificationFanoutOperations")),
+    ...businessNotificationOriginArgs,
   },
-  handler: async (ctx, { recruitmentId, isResend, targetStaffIds, notificationRunId }) => {
+  handler: async (
+    ctx,
+    {
+      recruitmentId,
+      isResend,
+      targetStaffIds,
+      notificationRunId,
+      fanoutOperationId,
+      organizationBillingVersionAtOrigin,
+    },
+  ) => {
+    const operationId =
+      fanoutOperationId ??
+      (await ctx.runMutation(internal.notification.mutations.ensureConfirmationNotificationFanout, {
+        recruitmentId,
+        isResend,
+        ...(targetStaffIds ? { targetStaffIds } : {}),
+        ...(notificationRunId === undefined ? {} : { notificationRunId }),
+        ...(organizationBillingVersionAtOrigin === undefined ? {} : { organizationBillingVersionAtOrigin }),
+      }));
+    if (!operationId) return;
+    const batch = await ctx.runMutation(internal.notification.mutations.claimNotificationFanoutBatch, {
+      operationId,
+    });
+    if (batch.state !== "claimed") return;
+
+    const completeBatch = () =>
+      ctx.runMutation(internal.notification.mutations.completeNotificationFanoutBatch, {
+        operationId,
+        leaseToken: batch.leaseToken,
+        expectedCursor: batch.cursor,
+      });
+    const operationIsResend = batch.purpose === "confirmation_resend";
+    const notificationOrigin = businessNotificationOriginFrom({
+      organizationBillingVersionAtOrigin: batch.organizationBillingVersionAtOrigin,
+    });
     const data = await ctx.runQuery(internal.notification.queries.getConfirmationEmailData, {
       recruitmentId,
-      ...(targetStaffIds ? { targetStaffIds } : {}),
+      targetStaffIds: batch.targetStaffIds,
     });
-    if (!data) return;
+    if (!data) {
+      await completeBatch();
+      return;
+    }
 
     const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
     const suppressDelivery = await ctx.runQuery(
       internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
       { shopId: data.shopId },
     );
-    const dedupeSuffix = isResend ? `resend:${notificationRunId ?? Date.now()}` : "confirm";
+    const dedupeSuffix = batch.dedupeSuffix;
 
     for (const staffData of data.staffEntries) {
       const channel = selectChannel(
@@ -58,17 +105,22 @@ export const sendShiftConfirmationEmails = internalAction({
       );
       const emailDedupeKey = `email:confirmation:${recruitmentId}:${staffData.staffId}:${dedupeSuffix}`;
       const lineDedupeKey = `line:confirmation:${recruitmentId}:${staffData.staffId}:${dedupeSuffix}`;
+      const fanoutTargetKey = buildNotificationFanoutTargetKey(batch.operationKey, staffData.staffId);
+      const legacyFanoutDedupeKeys = [emailDedupeKey, lineDedupeKey];
       const selectedChannel = channel === "line" && staffData.lineUserId ? "line" : "email";
       const dedupeKey = selectedChannel === "line" ? lineDedupeKey : emailDedupeKey;
       if (selectedChannel === "email" && !staffData.email) continue;
 
       try {
-        const { token: viewToken } = await ctx.runMutation(internal.notification.mutations.createMagicLink, {
-          staffId: staffData.staffId,
-          shopId: data.shopId,
-          recruitmentId,
-          accessKind: "view",
-        });
+        const { token: viewToken } = await ctx.runMutation(
+          internal.notification.mutations.getOrCreateNotificationViewMagicLink,
+          {
+            staffId: staffData.staffId,
+            shopId: data.shopId,
+            recruitmentId,
+            notificationOperationKey: batch.operationKey,
+          },
+        );
         const magicLinkUrl = `${APP_URL}/shifts/view?token=${viewToken}`;
 
         if (selectedChannel === "line" && staffData.lineUserId) {
@@ -78,7 +130,7 @@ export const sendShiftConfirmationEmails = internalAction({
             periodLabel: data.periodLabel,
             shifts: staffData.shifts,
             magicLinkUrl,
-            isResend,
+            isResend: operationIsResend,
           };
           const text = buildShiftConfirmationLineText(lineParams);
           const fallbackEmail = await buildConfirmationEmail({
@@ -87,14 +139,28 @@ export const sendShiftConfirmationEmails = internalAction({
             data,
             recruitmentId,
             magicLinkUrl,
-            isResend,
+            isResend: operationIsResend,
             suppressDelivery,
             dedupeKey: emailDedupeKey,
           });
           const result = await enqueueLine(ctx, {
             shopId: data.shopId,
+            ...notificationOrigin,
             recruitmentId,
             staffId: staffData.staffId,
+            history: {
+              notificationKind: SHIFT_CONFIRMATION_NOTIFICATION_KIND,
+              displayTitle: operationIsResend ? "シフト変更のお知らせ" : "確定シフトのお知らせ",
+            },
+            dedupeAcrossTerminal: true,
+            fanoutTargetKey,
+            fanoutOperationId: operationId,
+            fanoutLeaseToken: batch.leaseToken,
+            confirmationSnapshot: {
+              assignments: staffData.snapshotAssignments,
+              signature: staffData.snapshotSignature,
+            },
+            legacyFanoutDedupeKeys,
             dedupeKey: lineDedupeKey,
             payload: linePayload({
               toUserId: staffData.lineUserId,
@@ -104,25 +170,27 @@ export const sendShiftConfirmationEmails = internalAction({
               ...(fallbackEmail ? { fallbackEmail } : {}),
             }),
           });
-          if (result) {
-            await recordConfirmationSnapshotSentSafely(ctx, recruitmentId, staffData);
-          }
+          await healConfirmationSnapshotForDedupedOutbox(ctx, recruitmentId, staffData, result);
           continue;
         }
 
         const result = await enqueueConfirmationEmail({
           ctx,
+          ...notificationOrigin,
           staffData,
           data,
           recruitmentId,
           magicLinkUrl,
-          isResend,
+          isResend: operationIsResend,
           suppressDelivery,
+          dedupeAcrossTerminal: true,
+          fanoutTargetKey,
+          fanoutOperationId: operationId,
+          fanoutLeaseToken: batch.leaseToken,
+          legacyFanoutDedupeKeys,
           dedupeKey: emailDedupeKey,
         });
-        if (result) {
-          await recordConfirmationSnapshotSentSafely(ctx, recruitmentId, staffData);
-        }
+        await healConfirmationSnapshotForDedupedOutbox(ctx, recruitmentId, staffData, result);
       } catch (e) {
         await recordNotificationPreparationFailure(
           ctx,
@@ -139,6 +207,7 @@ export const sendShiftConfirmationEmails = internalAction({
         );
       }
     }
+    await completeBatch();
   },
 });
 
@@ -151,14 +220,26 @@ async function buildConfirmationEmail(opts: {
     lineUserId?: string;
     lineFollowing?: boolean;
     shifts: { date: string; timeLabel?: string | null; startTime?: string | null; endTime?: string | null }[];
+    snapshotAssignments: ConfirmationSnapshotAssignment[];
+    snapshotSignature: string;
   };
   data: { shopId: Id<"shops">; shopName: string; periodLabel: string };
   recruitmentId: Id<"recruitments">;
   magicLinkUrl: string;
   isResend: boolean;
   suppressDelivery: boolean;
+  organizationBillingVersionAtOrigin?: number;
+  dedupeAcrossTerminal?: boolean;
+  fanoutTargetKey?: string;
+  fanoutOperationId?: Id<"notificationFanoutOperations">;
+  fanoutLeaseToken?: string;
+  legacyFanoutDedupeKeys?: readonly string[];
   dedupeKey?: string;
-}): Promise<{ dedupeKey: string; payload: NotificationEmailPayload } | null> {
+}): Promise<{
+  dedupeKey: string;
+  history: NotificationHistoryInput;
+  payload: NotificationRenderedEmailPayload;
+} | null> {
   const { ctx, staffData, data, recruitmentId, magicLinkUrl, isResend, suppressDelivery, dedupeKey } = opts;
   if (!staffData.email) return null;
 
@@ -171,15 +252,21 @@ async function buildConfirmationEmail(opts: {
     appUrl: APP_URL,
   });
 
+  const subject = isResend
+    ? formatResendSubject(data.shopName, `${data.periodLabel} シフト変更のお知らせ`)
+    : formatResendSubject(data.shopName, `${data.periodLabel} シフト確定のお知らせ`);
+
   return {
     dedupeKey:
       dedupeKey ?? `email:confirmation:${recruitmentId}:${staffData.staffId}:${isResend ? "resend" : "confirm"}`,
+    history: {
+      notificationKind: SHIFT_CONFIRMATION_NOTIFICATION_KIND,
+      displayTitle: subject,
+    },
     payload: emailPayload({
       from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
       to: staffData.email,
-      subject: isResend
-        ? formatResendSubject(data.shopName, `${data.periodLabel} シフト変更のお知らせ`)
-        : formatResendSubject(data.shopName, `${data.periodLabel} シフト確定のお知らせ`),
+      subject,
       html: buildConfirmationEmailHtml({
         staffName: staffData.name,
         periodLabel: data.periodLabel,
@@ -200,28 +287,40 @@ async function enqueueConfirmationEmail(opts: Parameters<typeof buildConfirmatio
   if (!email) return null;
   return await enqueueEmail(opts.ctx, {
     shopId: opts.data.shopId,
+    ...businessNotificationOriginFrom(opts),
     recruitmentId: opts.recruitmentId,
     staffId: opts.staffData.staffId,
+    history: email.history,
+    ...(opts.dedupeAcrossTerminal ? { dedupeAcrossTerminal: true } : {}),
+    ...(opts.fanoutTargetKey ? { fanoutTargetKey: opts.fanoutTargetKey } : {}),
+    ...(opts.fanoutOperationId ? { fanoutOperationId: opts.fanoutOperationId } : {}),
+    ...(opts.fanoutLeaseToken ? { fanoutLeaseToken: opts.fanoutLeaseToken } : {}),
+    ...(opts.fanoutOperationId && opts.fanoutLeaseToken
+      ? {
+          confirmationSnapshot: {
+            assignments: opts.staffData.snapshotAssignments,
+            signature: opts.staffData.snapshotSignature,
+          },
+        }
+      : {}),
+    ...(opts.legacyFanoutDedupeKeys ? { legacyFanoutDedupeKeys: opts.legacyFanoutDedupeKeys } : {}),
     dedupeKey: email.dedupeKey,
     payload: email.payload,
   });
 }
 
-async function recordConfirmationSnapshotSent(
+/** atomic snapshot導入前のOutboxだけが残る中断を、compat evidence gate経由で限定的に修復する。 */
+async function healConfirmationSnapshotForDedupedOutbox(
   ctx: ActionCtx,
   recruitmentId: Id<"recruitments">,
   staffData: {
     staffId: Id<"staffs">;
-    snapshotAssignments: Array<{
-      date: string;
-      startTime: string;
-      endTime: string;
-      positionId: Id<"positions">;
-      optionId?: string;
-    }>;
+    snapshotAssignments: ConfirmationSnapshotAssignment[];
     snapshotSignature: string;
   },
+  enqueueResult: { deduped: boolean } | null,
 ) {
+  if (!enqueueResult?.deduped) return;
   await ctx.runMutation(internal.notification.mutations.upsertConfirmationSnapshot, {
     recruitmentId,
     staffId: staffData.staffId,
@@ -229,18 +328,6 @@ async function recordConfirmationSnapshotSent(
     signature: staffData.snapshotSignature,
     sentAt: Date.now(),
   });
-}
-
-async function recordConfirmationSnapshotSentSafely(
-  ctx: ActionCtx,
-  recruitmentId: Id<"recruitments">,
-  staffData: Parameters<typeof recordConfirmationSnapshotSent>[2],
-) {
-  try {
-    await recordConfirmationSnapshotSent(ctx, recruitmentId, staffData);
-  } catch (e) {
-    console.error("Shift confirmation snapshot recording failed after notification enqueue", e);
-  }
 }
 
 /**
@@ -252,8 +339,10 @@ export const sendReissueEmail = internalAction({
   args: {
     staffId: v.id("staffs"),
     recruitmentId: v.id("recruitments"),
+    ...businessNotificationOriginArgs,
   },
-  handler: async (ctx, { staffId, recruitmentId }) => {
+  handler: async (ctx, { staffId, recruitmentId, organizationBillingVersionAtOrigin }) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const log = (level: "log" | "warn" | "error", event: string, extra: Record<string, unknown> = {}) =>
       console[level](`[sendReissueEmail] ${event}`, { staffId, recruitmentId, ...extra });
 
@@ -281,6 +370,7 @@ export const sendReissueEmail = internalAction({
       accessKind: "view",
     });
     const magicLinkUrl = `${APP_URL}/shifts/view?token=${token}`;
+    const reissueSubject = formatResendSubject(data.shopName, `${data.periodLabel} シフト閲覧リンク`);
 
     if (channel === "line" && data.lineUserId) {
       const lineParams = {
@@ -292,10 +382,14 @@ export const sendReissueEmail = internalAction({
       const fallbackEmail = data.staffEmail
         ? {
             dedupeKey: `email:reissue:${recruitmentId}:${staffId}`,
+            history: {
+              notificationKind: SHIFT_REISSUE_NOTIFICATION_KIND,
+              displayTitle: reissueSubject,
+            },
             payload: emailPayload({
               from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
               to: data.staffEmail,
-              subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト閲覧リンク`),
+              subject: reissueSubject,
               html: buildReissueEmailHtml({
                 staffName: data.staffName,
                 periodLabel: data.periodLabel,
@@ -308,7 +402,12 @@ export const sendReissueEmail = internalAction({
         : undefined;
       const result = await enqueueLine(ctx, {
         shopId: data.shopId,
+        ...notificationOrigin,
         staffId,
+        history: {
+          notificationKind: SHIFT_REISSUE_NOTIFICATION_KIND,
+          displayTitle: "シフト閲覧リンク",
+        },
         dedupeKey: `line:reissue:${recruitmentId}:${staffId}`,
         payload: linePayload({
           toUserId: data.lineUserId,
@@ -326,12 +425,17 @@ export const sendReissueEmail = internalAction({
     try {
       const result = await enqueueEmail(ctx, {
         shopId: data.shopId,
+        ...notificationOrigin,
         staffId,
+        history: {
+          notificationKind: SHIFT_REISSUE_NOTIFICATION_KIND,
+          displayTitle: reissueSubject,
+        },
         dedupeKey: `email:reissue:${recruitmentId}:${staffId}`,
         payload: emailPayload({
           from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
           to: data.staffEmail,
-          subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト閲覧リンク`),
+          subject: reissueSubject,
           html: buildReissueEmailHtml({
             staffName: data.staffName,
             periodLabel: data.periodLabel,
@@ -346,24 +450,50 @@ export const sendReissueEmail = internalAction({
       } else {
         log("error", "email_enqueue_failed");
       }
-    } catch (e) {
-      log("error", "email_enqueue_failed", { error: errorMessage(e) });
+    } catch {
+      log("error", "email_enqueue_failed");
     }
   },
 });
-
-function errorMessage(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
-}
 
 /**
  * 募集開始通知の配信（LINE 振り分け対応）
  */
 export const sendRecruitmentNotificationEmails = internalAction({
-  args: { recruitmentId: v.id("recruitments") },
-  handler: async (ctx, { recruitmentId }) => {
-    const data = await ctx.runQuery(internal.notification.queries.getRecruitmentEmailData, { recruitmentId });
-    if (!data) return;
+  args: {
+    recruitmentId: v.id("recruitments"),
+    fanoutOperationId: v.optional(v.id("notificationFanoutOperations")),
+    ...businessNotificationOriginArgs,
+  },
+  handler: async (ctx, { recruitmentId, fanoutOperationId, organizationBillingVersionAtOrigin }) => {
+    const operationId =
+      fanoutOperationId ??
+      (await ctx.runMutation(internal.notification.mutations.ensureRecruitmentNotificationFanout, {
+        recruitmentId,
+        ...(organizationBillingVersionAtOrigin === undefined ? {} : { organizationBillingVersionAtOrigin }),
+      }));
+    if (!operationId) return;
+    const batch = await ctx.runMutation(internal.notification.mutations.claimNotificationFanoutBatch, {
+      operationId,
+    });
+    if (batch.state !== "claimed") return;
+    const completeBatch = () =>
+      ctx.runMutation(internal.notification.mutations.completeNotificationFanoutBatch, {
+        operationId,
+        leaseToken: batch.leaseToken,
+        expectedCursor: batch.cursor,
+      });
+    const notificationOrigin = businessNotificationOriginFrom({
+      organizationBillingVersionAtOrigin: batch.organizationBillingVersionAtOrigin,
+    });
+    const data = await ctx.runQuery(internal.notification.queries.getRecruitmentEmailData, {
+      recruitmentId,
+      targetStaffIds: batch.targetStaffIds,
+    });
+    if (!data) {
+      await completeBatch();
+      return;
+    }
 
     const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
     const suppressDelivery = await ctx.runQuery(
@@ -377,6 +507,8 @@ export const sendRecruitmentNotificationEmails = internalAction({
       const selectedChannel = channel === "line" && staff.lineUserId ? "line" : "email";
       const emailDedupeKey = `email:recruitment:${recruitmentId}:${staff.staffId}`;
       const lineDedupeKey = `line:recruitment:${recruitmentId}:${staff.staffId}`;
+      const fanoutTargetKey = buildNotificationFanoutTargetKey(batch.operationKey, staff.staffId);
+      const legacyFanoutDedupeKeys = [emailDedupeKey, lineDedupeKey];
       const dedupeKey = selectedChannel === "line" ? lineDedupeKey : emailDedupeKey;
       if (selectedChannel === "email" && !staff.email) continue;
 
@@ -414,8 +546,18 @@ export const sendRecruitmentNotificationEmails = internalAction({
             : null;
           await enqueueLine(ctx, {
             shopId: data.shopId,
+            ...notificationOrigin,
             recruitmentId,
             staffId: staff.staffId,
+            history: {
+              notificationKind: SHIFT_RECRUITMENT_NOTIFICATION_KIND,
+              displayTitle: "シフト募集のお知らせ",
+            },
+            dedupeAcrossTerminal: true,
+            fanoutTargetKey,
+            fanoutOperationId: operationId,
+            fanoutLeaseToken: batch.leaseToken,
+            legacyFanoutDedupeKeys,
             dedupeKey: lineDedupeKey,
             payload: linePayload({
               toUserId: staff.lineUserId,
@@ -444,8 +586,15 @@ export const sendRecruitmentNotificationEmails = internalAction({
         if (email) {
           await enqueueEmail(ctx, {
             shopId: data.shopId,
+            ...notificationOrigin,
             recruitmentId,
             staffId: staff.staffId,
+            history: email.history,
+            dedupeAcrossTerminal: true,
+            fanoutTargetKey,
+            fanoutOperationId: operationId,
+            fanoutLeaseToken: batch.leaseToken,
+            legacyFanoutDedupeKeys,
             dedupeKey: email.dedupeKey,
             payload: email.payload,
           });
@@ -466,6 +615,7 @@ export const sendRecruitmentNotificationEmails = internalAction({
         );
       }
     }
+    await completeBatch();
   },
 });
 
@@ -487,7 +637,11 @@ async function buildRecruitmentEmail(opts: {
   suppressDelivery: boolean;
   context: string;
   dedupeKey?: string;
-}): Promise<{ dedupeKey: string; payload: NotificationEmailPayload } | null> {
+}): Promise<{
+  dedupeKey: string;
+  history: NotificationHistoryInput;
+  payload: NotificationRenderedEmailPayload;
+} | null> {
   const {
     ctx,
     shopId,
@@ -511,12 +665,18 @@ async function buildRecruitmentEmail(opts: {
     appUrl: APP_URL,
   });
 
+  const subject = formatResendSubject(shopName, `${periodLabel} シフト希望の提出をお願いします`);
+
   return {
     dedupeKey: dedupeKey ?? `email:recruitment:${recruitmentId}:${staff.staffId}`,
+    history: {
+      notificationKind: SHIFT_RECRUITMENT_NOTIFICATION_KIND,
+      displayTitle: subject,
+    },
     payload: emailPayload({
       from: formatResendFrom(shopName, RESEND_FROM_EMAIL),
       to: staff.email,
-      subject: formatResendSubject(shopName, `${periodLabel} シフト希望の提出をお願いします`),
+      subject,
       html: buildRecruitmentEmailHtml({
         staffName: staff.name,
         periodLabel,
@@ -539,8 +699,13 @@ export const sendRecruitmentNotificationForStaff = internalAction({
     staffId: v.id("staffs"),
     notificationContext: v.string(),
     notificationRunId: v.optional(v.number()),
+    ...businessNotificationOriginArgs,
   },
-  handler: async (ctx, { recruitmentId, staffId, notificationContext, notificationRunId }) => {
+  handler: async (
+    ctx,
+    { recruitmentId, staffId, notificationContext, notificationRunId, organizationBillingVersionAtOrigin },
+  ) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.notification.queries.getRecruitmentNotificationDataForStaff, {
       recruitmentId,
       staffId,
@@ -597,8 +762,13 @@ export const sendRecruitmentNotificationForStaff = internalAction({
           : null;
         await enqueueLine(ctx, {
           shopId: data.shopId,
+          ...notificationOrigin,
           recruitmentId,
           staffId: data.staff.staffId,
+          history: {
+            notificationKind: SHIFT_RECRUITMENT_NOTIFICATION_KIND,
+            displayTitle: "シフト募集のお知らせ",
+          },
           dedupeKey: lineDedupeKey,
           payload: linePayload({
             toUserId: data.staff.lineUserId,
@@ -627,8 +797,10 @@ export const sendRecruitmentNotificationForStaff = internalAction({
       if (!email) return;
       await enqueueEmail(ctx, {
         shopId: data.shopId,
+        ...notificationOrigin,
         recruitmentId,
         staffId: data.staff.staffId,
+        history: email.history,
         dedupeKey: email.dedupeKey,
         payload: email.payload,
       });
@@ -654,8 +826,9 @@ export const sendRecruitmentNotificationForStaff = internalAction({
  * スタッフ追加時: 追加された1スタッフへ、現在募集中の希望提出リンクをメールで送る。
  */
 export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
-  args: { staffId: v.id("staffs") },
-  handler: async (ctx, { staffId }) => {
+  args: { staffId: v.id("staffs"), ...businessNotificationOriginArgs },
+  handler: async (ctx, { staffId, organizationBillingVersionAtOrigin }) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.notification.queries.getOpenRecruitmentNotificationDataForStaff, {
       staffId,
     });
@@ -694,8 +867,10 @@ export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
         if (!email) continue;
         await enqueueEmail(ctx, {
           shopId: data.shopId,
+          ...notificationOrigin,
           recruitmentId: recruitment.recruitmentId,
           staffId: data.staff.staffId,
+          history: email.history,
           dedupeKey: email.dedupeKey,
           payload: email.payload,
         });
@@ -726,8 +901,10 @@ export const sendOpenRecruitmentNotificationEmailsForStaffEmailChange = internal
     staffId: v.id("staffs"),
     expectedEmailNormalized: v.string(),
     emailChangedAt: v.number(),
+    ...businessNotificationOriginArgs,
   },
-  handler: async (ctx, { staffId, expectedEmailNormalized, emailChangedAt }) => {
+  handler: async (ctx, { staffId, expectedEmailNormalized, emailChangedAt, organizationBillingVersionAtOrigin }) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(
       internal.notification.queries.getOpenRecruitmentEmailChangeNotificationDataForStaff,
       {
@@ -776,8 +953,10 @@ export const sendOpenRecruitmentNotificationEmailsForStaffEmailChange = internal
         if (!email) continue;
         await enqueueEmail(ctx, {
           shopId: data.shopId,
+          ...notificationOrigin,
           recruitmentId: recruitment.recruitmentId,
           staffId: data.staff.staffId,
+          history: email.history,
           dedupeKey: email.dedupeKey,
           payload: email.payload,
         });
@@ -804,8 +983,9 @@ export const sendOpenRecruitmentNotificationEmailsForStaffEmailChange = internal
  * 手動再送: 1スタッフへ、現在送れる募集中シフトを通常の LINE / メール振り分けで送る。
  */
 export const sendOpenRecruitmentNotificationsForStaff = internalAction({
-  args: { staffId: v.id("staffs") },
-  handler: async (ctx, { staffId }) => {
+  args: { staffId: v.id("staffs"), ...businessNotificationOriginArgs },
+  handler: async (ctx, { staffId, organizationBillingVersionAtOrigin }) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.notification.queries.getOpenRecruitmentNotificationDataForStaff, {
       staffId,
     });
@@ -863,8 +1043,13 @@ export const sendOpenRecruitmentNotificationsForStaff = internalAction({
             : null;
           await enqueueLine(ctx, {
             shopId: data.shopId,
+            ...notificationOrigin,
             recruitmentId: recruitment.recruitmentId,
             staffId: data.staff.staffId,
+            history: {
+              notificationKind: SHIFT_RECRUITMENT_NOTIFICATION_KIND,
+              displayTitle: "シフト募集のお知らせ",
+            },
             dedupeKey: lineDedupeKey,
             payload: linePayload({
               toUserId: data.staff.lineUserId,
@@ -893,8 +1078,10 @@ export const sendOpenRecruitmentNotificationsForStaff = internalAction({
         if (!email) continue;
         await enqueueEmail(ctx, {
           shopId: data.shopId,
+          ...notificationOrigin,
           recruitmentId: recruitment.recruitmentId,
           staffId: data.staff.staffId,
+          history: email.history,
           dedupeKey: email.dedupeKey,
           payload: email.payload,
         });
@@ -921,8 +1108,9 @@ export const sendOpenRecruitmentNotificationsForStaff = internalAction({
  * LINE連携・follow時: 1スタッフへ、現在募集中の希望提出リンクをLINEで送る。
  */
 export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
-  args: { staffId: v.id("staffs") },
-  handler: async (ctx, { staffId }) => {
+  args: { staffId: v.id("staffs"), ...businessNotificationOriginArgs },
+  handler: async (ctx, { staffId, organizationBillingVersionAtOrigin }) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.notification.queries.getOpenRecruitmentNotificationDataForStaff, {
       staffId,
     });
@@ -961,8 +1149,13 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
         };
         await enqueueLine(ctx, {
           shopId: data.shopId,
+          ...notificationOrigin,
           recruitmentId: recruitment.recruitmentId,
           staffId: data.staff.staffId,
+          history: {
+            notificationKind: SHIFT_RECRUITMENT_NOTIFICATION_KIND,
+            displayTitle: "シフト募集のお知らせ",
+          },
           dedupeKey,
           payload: linePayload({
             toUserId: data.staff.lineUserId,
@@ -991,109 +1184,12 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
 });
 
 /**
- * 手動再送: 1スタッフへ、現在の確定シフトを送る。
+ * 旧deploymentから予約済みのaction名と引数を維持するcompatibility wrapper。
+ * 送信処理は新しいbounded durable fanoutへ委譲し、ここでは認可・quotaを再消費しない。
  */
 export const sendCurrentShiftConfirmationForStaff = internalAction({
-  args: { staffId: v.id("staffs") },
-  handler: async (ctx, { staffId }) => {
-    const data = await ctx.runQuery(internal.notification.queries.getCurrentConfirmationEmailDataForStaff, {
-      staffId,
-    });
-    if (!data || data.recruitments.length === 0) return;
-
-    const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
-    const suppressDelivery = await ctx.runQuery(
-      internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
-      { shopId: data.shopId },
-    );
-    const manualRunId = Date.now();
-
-    for (const recruitment of data.recruitments) {
-      const staffData = recruitment.staffEntry;
-      const channel = selectChannel(
-        { lineUserId: staffData.lineUserId, lineFollowing: staffData.lineFollowing },
-        quota,
-      );
-      const selectedChannel = channel === "line" && staffData.lineUserId ? "line" : "email";
-      const emailDedupeKey = `email:manualConfirmation:${recruitment.recruitmentId}:${staffData.staffId}:${manualRunId}`;
-      const lineDedupeKey = `line:manualConfirmation:${recruitment.recruitmentId}:${staffData.staffId}:${manualRunId}`;
-      const dedupeKey = selectedChannel === "line" ? lineDedupeKey : emailDedupeKey;
-      if (selectedChannel === "email" && !staffData.email) continue;
-      const confirmationData = {
-        shopId: data.shopId,
-        shopName: data.shopName,
-        periodLabel: recruitment.periodLabel,
-      };
-
-      try {
-        const { token: viewToken } = await ctx.runMutation(internal.notification.mutations.createMagicLink, {
-          staffId: staffData.staffId,
-          shopId: data.shopId,
-          recruitmentId: recruitment.recruitmentId,
-          accessKind: "view",
-        });
-        const magicLinkUrl = `${APP_URL}/shifts/view?token=${viewToken}`;
-
-        if (selectedChannel === "line" && staffData.lineUserId) {
-          const lineParams = {
-            staffName: staffData.name,
-            shopName: data.shopName,
-            periodLabel: recruitment.periodLabel,
-            shifts: staffData.shifts,
-            magicLinkUrl,
-            isResend: false,
-          };
-          const fallbackEmail = await buildConfirmationEmail({
-            ctx,
-            staffData,
-            data: confirmationData,
-            recruitmentId: recruitment.recruitmentId,
-            magicLinkUrl,
-            isResend: false,
-            suppressDelivery,
-            dedupeKey: emailDedupeKey,
-          });
-          await enqueueLine(ctx, {
-            shopId: data.shopId,
-            recruitmentId: recruitment.recruitmentId,
-            staffId: staffData.staffId,
-            dedupeKey: lineDedupeKey,
-            payload: linePayload({
-              toUserId: staffData.lineUserId,
-              text: buildShiftConfirmationLineText(lineParams),
-              message: buildShiftConfirmationLineFlexMessage(lineParams),
-              suppressDelivery,
-              ...(fallbackEmail ? { fallbackEmail } : {}),
-            }),
-          });
-          continue;
-        }
-
-        await enqueueConfirmationEmail({
-          ctx,
-          staffData,
-          data: confirmationData,
-          recruitmentId: recruitment.recruitmentId,
-          magicLinkUrl,
-          isResend: false,
-          suppressDelivery,
-          dedupeKey: emailDedupeKey,
-        });
-      } catch (e) {
-        await recordNotificationPreparationFailure(
-          ctx,
-          {
-            shopId: data.shopId,
-            recruitmentId: recruitment.recruitmentId,
-            staffId: staffData.staffId,
-            channel: selectedChannel,
-            dedupeKey,
-            notificationContext: "notification.sendCurrentShiftConfirmationForStaff",
-          },
-          e,
-          "Manual current shift notification preparation failed",
-        );
-      }
-    }
+  args: { staffId: v.id("staffs"), ...businessNotificationOriginArgs },
+  handler: async (ctx, args) => {
+    await ctx.runMutation(internal.staff.mutations.prepareLegacyCurrentShiftConfirmationFanout, args);
   },
 });

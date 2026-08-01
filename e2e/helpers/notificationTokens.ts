@@ -6,6 +6,7 @@ type MagicLinkResult = {
   token: string | null;
   recruitmentId?: string;
   staffId?: string;
+  usedAt?: number | null;
 };
 
 type LineLinkResult = {
@@ -64,13 +65,31 @@ export async function waitForMagicLinkToken(args: {
   throw new Error(`Magic link token was not issued for ${args.staffEmail}`);
 }
 
-export async function getOrCreateLineLinkToken(args: {
+export async function waitForFreshMagicLinkToken(args: {
+  recruitmentId?: string;
+  shopId?: string;
+  staffEmail: string;
+  purpose: MagicLinkPurpose;
+  previousToken: string;
+}): Promise<CreatedMagicLinkResult> {
+  const { previousToken, ...lookupArgs } = args;
+  for (let attempt = 0; attempt < POLL_ATTEMPTS * 2; attempt++) {
+    const result = convexRunJson<MagicLinkResult>("testing:getLatestMagicLinkToken", lookupArgs);
+    if (result.token && result.token !== previousToken && !result.usedAt) {
+      return result as CreatedMagicLinkResult;
+    }
+    await sleep(POLL_INTERVAL_MS);
+  }
+
+  throw new Error(`A fresh magic link token was not issued for ${args.staffEmail}`);
+}
+
+export async function waitForLineLinkToken(args: {
   shopId?: string;
   staffEmail: string;
 }): Promise<CreatedLineLinkResult> {
-  // LINE Login の外部画面には遷移しない。E2Eではアプリ側で連携URLを発行できることだけ確認する。
-  const existing = await pollConvexToken<LineLinkResult>("testing:getLatestLineLinkToken", args, POLL_ATTEMPTS);
-  if (existing) return existing;
+  const issued = await pollConvexToken<LineLinkResult>("testing:getLatestLineLinkToken", args, POLL_ATTEMPTS * 2);
+  if (issued) return issued;
 
-  return convexRunJson<CreatedLineLinkResult>("testing:createLineLinkTokenForStaff", args);
+  throw new Error(`LINE link token was not issued for ${args.staffEmail}`);
 }

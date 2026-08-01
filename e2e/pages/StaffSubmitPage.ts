@@ -6,11 +6,26 @@ export class StaffSubmitPage {
   constructor(private page: Page) {}
 
   async goto(token: string) {
-    await this.page.goto(`/shifts/submit?token=${token}`);
+    await this.page.goto(`/shifts/submit?token=${token}`, { waitUntil: "domcontentloaded" });
+    await expect(this.page).toHaveURL(
+      (url) => url.pathname === "/shifts/submit" && url.searchParams.get("token") === token,
+      {
+        timeout: STAFF_SUBMIT_DATA_TIMEOUT,
+      },
+    );
+    const loadedState = this.submitButton()
+      .or(this.page.getByText("締切を過ぎたため変更できません", { exact: true }))
+      .or(
+        this.page.getByRole("heading", {
+          name: /このリンクでは提出できません|このシフト募集は削除されました|このシフト募集の提出受付は終了しました/,
+        }),
+      )
+      .first();
+    await expect(loadedState).toBeVisible({ timeout: STAFF_SUBMIT_DATA_TIMEOUT });
   }
 
   async expectFormVisible() {
-    await expect(this.page.getByRole("button", { name: /提出|更新/ })).toBeVisible({
+    await expect(this.submitButton()).toBeVisible({
       timeout: STAFF_SUBMIT_DATA_TIMEOUT,
     });
   }
@@ -40,8 +55,14 @@ export class StaffSubmitPage {
     await expect(this.page.getByText(/提出締切を過ぎています|提出締切を過ぎました/)).toBeVisible();
   }
 
+  async expectUnavailableVisible() {
+    await expect(this.page.getByRole("heading", { name: "このリンクでは提出できません" })).toBeVisible({
+      timeout: STAFF_SUBMIT_DATA_TIMEOUT,
+    });
+  }
+
   async expectSubmitButtonNotVisible() {
-    await expect(this.page.getByRole("button", { name: /提出|更新/ })).not.toBeVisible();
+    await expect(this.submitButton()).not.toBeVisible();
   }
 
   async expectLegalConsentVisible() {
@@ -74,7 +95,7 @@ export class StaffSubmitPage {
   }
 
   async submit() {
-    await this.page.getByRole("button", { name: /提出|更新/ }).click();
+    await this.submitButton().click();
   }
 
   async expectLateInitialConfirmVisible() {
@@ -119,12 +140,24 @@ export class StaffSubmitPage {
     await this.page.getByLabel(`${dateText}の${optionName} 未選択`).click();
   }
 
+  async deselectShiftTypeOption(dateText: string, optionName: string) {
+    await this.page.getByLabel(`${dateText}の${optionName} 選択済み`).click();
+  }
+
   async expectShiftTypeOptionSelected(dateText: string, optionName: string) {
     await expect(this.page.getByLabel(`${dateText}の${optionName} 選択済み`)).toBeVisible();
   }
 
+  async expectShiftTypeOptionNotSelected(dateText: string, optionName: string) {
+    await expect(this.page.getByLabel(`${dateText}の${optionName} 未選択`)).toBeVisible();
+  }
+
   private dateRow(dateText: string) {
     return this.page.getByText(dateText, { exact: true }).locator("..");
+  }
+
+  private submitButton() {
+    return this.page.getByRole("button", { name: /提出|更新/ });
   }
 
   private legalConsentCheckbox() {

@@ -1,4 +1,4 @@
-import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
+import { getSubmissionPatternTimeRange, type ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { isSupportedShiftTime, timeToMinutes } from "../_lib/time";
 import { isValidIsoDateString } from "../_lib/validation";
 
@@ -51,18 +51,6 @@ export function buildAssignmentIssue(code: AssignmentIssueCode, date: string, st
   return { code, date, staffId, message: ISSUE_MESSAGES[code] };
 }
 
-export function getBoardTimeRange(pattern: ShiftSubmissionPattern): { startTime: string; endTime: string } {
-  if (pattern.kind === "time") return { startTime: pattern.startTime, endTime: pattern.endTime };
-  if (pattern.kind === "shiftType" && pattern.options.length > 0) {
-    const starts = pattern.options
-      .map((option) => option.startTime)
-      .sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
-    const ends = pattern.options.map((option) => option.endTime).sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
-    return { startTime: starts[0], endTime: ends[ends.length - 1] };
-  }
-  return { startTime: "09:00", endTime: "22:00" };
-}
-
 export type ShiftAssignmentValidationInput = {
   assignments: Array<{ staffId: string; date: string; startTime: string; endTime: string; optionId?: string }>;
   periodStart: string;
@@ -75,7 +63,7 @@ export type ShiftAssignmentValidationInput = {
 // 1つのassignmentに複数の違反がある場合はチェック順で最初の1件のみ報告する
 // （例: 時間順序が不正なら、ボード時間外チェックの誤検知を重ねて出さない）。
 export function validateShiftAssignments(input: ShiftAssignmentValidationInput): AssignmentIssue[] {
-  const { startTime, endTime } = getBoardTimeRange(input.pattern);
+  const { startTime, endTime } = getSubmissionPatternTimeRange(input.pattern);
   const boardStartMinutes = timeToMinutes(startTime);
   const boardEndMinutes = timeToMinutes(endTime);
   const closedDateSet = new Set(input.closedDates);

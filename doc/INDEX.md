@@ -1,36 +1,41 @@
-# 機能インデックス
+# ドキュメント
 
-このドキュメントは、各機能の概要ドキュメントへのインデックスです。詳細な仕様はコードを参照します。
+知りたいことに合う入口を選んでください。
+現在の挙動はコードと設定、承認済みの業務契約は`specs/`、実環境で確認した公開状態は`manual/release-status.md`を正とします。
 
-## 機能一覧
-
-| 機能 | 概要 | 実装状況 |
+| 知りたいこと | 入口 | ここで分かること |
 |---|---|---|
-| [認証画面](features/auth-pages.md) | Clerk認証を利用したログイン・新規登録・パスワード再設定の自作UI | 実装済 |
-| [法務同意フロー](features/legal-consent.md) | 管理ユーザー/スタッフ向け利用規約・プライバシーポリシー同意を記録 | 実装済 |
-| [LINE通知連携](features/line-notification.md) | スタッフ向け通知をLINE Push / メールで自動振り分け（設定UIなし） | 実装済 |
-| [通知配送outbox](features/notification-outbox.md) | LINE / メール通知を予約し、少量ずつ配送・再試行するバックエンドキュー | 実装済 |
-| [通知不達Dashboard](features/notification-failure-dashboard.md) | 送信できなかった通知をDashboardで確認し、個別/一斉に再通知を受け付ける導線 | 実装済 |
-| [Dashboardお知らせ](features/dashboard-announcements.md) | 有事の全店舗共通お知らせをDashboard上部に1件だけ表示 | 実装済 |
-| [管理ユーザーと店舗所属](features/manager-shop-membership.md) | 管理ユーザーと店舗を `shopMembers` で結ぶ所属モデル。複数店舗対応のDB土台 | 準備中 |
-| [課金プラン管理](features/billing-plans.md) | 店舗単位で課金プラン状態を持ち、有料機能guardを通して機能出し分けするDB土台 | 準備中 |
-| [管理者と請求管理者の権限方針](features/manager-billing-roles.md) | 既存スタッフのmanager化、billingManager、Stripe Portal操作、複数店舗切り替えの仕様方針 | 準備中 |
-| [スタッフ参加QR・承認導線](features/staff-registration.md) | 店舗専用QR/URLからスタッフ本人が参加申請し、シフト担当者が承認する導線 | 実装済 |
-| [店舗設定](features/shop-settings.md) | 店舗名、シフト時間帯、定休日などシフト作成の前提になる店舗情報を管理 | 実装済 |
-| [ログイン後オンボーディング](features/dashboard-onboarding.md) | 店舗登録後にシフト担当者自身で募集作成・通知確認・提出確認を試すDashboard内Callout | 実装済 |
-| [店舗登録後の本番募集リマインダー](features/shop-activation-reminder.md) | 初回店舗登録から7日後17:00 JSTに、本番募集作成の再開きっかけをactive managerへ送る補助通知 | 実装済 |
-| [シフト募集管理](features/shift-recruitment-management.md) | シフト担当者がシフト募集を作成・確認・削除する管理導線 | 実装済 |
-| [希望シフト提出](features/shift-submission.md) | スタッフの希望提出と前回シフトあり週パターンの再利用 | 実装済 |
-| [シフト対象外スタッフ](features/shift-exclusion.md) | 店舗共通アドレス等シフトを出さないスタッフを表示・シフト関連通知の対象から外す | 実装済 |
-| [シフト確定催促リマインダー](features/shift-confirmation-reminder.md) | 締切翌日17時に未確定の募集があれば店舗マネージャー全員へ確定を催促（失敗は要対応Inbox対象外） | 実装済 |
-| [公開サブページ](features/public-pages.md) | LPコンテンツを流用した、できること・FAQ・デモへの公開導線 | 実装済 |
-| [使い方・ヘルプ](features/howto.md) | 操作方法、通知の仕組み、困ったときの対処方法をMDXで管理する公開ヘルプ | 実装済 |
-| [問い合わせ](features/contact.md) | 公開フォームから問い合わせメールを送り、成功後にSlackへ社内通知 | 実装済 |
-| [要望受付](features/feature-requests.md) | ログイン後の要望DialogでDBへ保存し、分析画面で新しい順に確認 | 実装済 |
-| [分析KPI蓄積基盤](features/analytics.md) | サービス利用状況KPIを日次cronで蓄積し時系列分析できるようにするinternal専用基盤 | 実装済 |
-| [分析KPI可視化アプリ](features/analytics-dashboard.md) | 蓄積済みKPIを本人用の内部BIとしてCloudflare Pages別アプリで可視化 | 実装済 |
+| 現在のコードに実装されている機能 | [機能インデックス](features/INDEX.md) | 利用者の仕事ごとの機能概要と主な画面 |
+| システム全体とコード配置 | [システム構成](ARCHITECTURE.md) | フロントエンド、Convex、外部サービス、非同期処理の境界 |
+| 承認済みの業務契約 | [業務仕様](#業務仕様) | プラン、状態遷移、受入条件などの確定事項 |
+| 実装とレビューの判断基準 | [設計・開発規約](#設計開発規約) | 対象作業で読む規約と責務分担 |
+| リリースや外部設定を確認する | [運用手順インデックス](manual/INDEX.md) | CI/CD、migration、法務更新、外部サービス、実環境証跡 |
+| 未決提案、進行中の作業、過去の判断を調べる | [計画インデックス](plans/INDEX.md) | `Proposed`、`Active`、`History`に分けた計画 |
+| 廃止・置換された資料や時点監査を調べる | [Archiveインデックス](archive/INDEX.md) | Archive理由と現在の参照先 |
 
-## 関連ドキュメント
+`plans/`と`archive/`は現在仕様の正本ではありません。
+計画の結論を現在の挙動として使う前に、機能文書、業務仕様、コードの順で確かめてください。
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) - 全体構造、機能マッピング、データフロー
-- [rules/security-strategy.md](rules/security-strategy.md) - セキュリティ設計、認証/認可境界、token/通知/billingレビュー方針
+## 業務仕様
+
+- [グループ課金、複数店舗、複数管理者の業務フロー](specs/organization-billing-business-flow.md)：プラン、利用人数、店舗と管理者の上限、支払い状態、Stripe連携、管理者招待の業務契約です。
+
+## 設計・開発規約
+
+- [エージェント指示の配置方針](rules/agent-instructions.md)：Rule、`AGENTS.md`、Skill、機能文書、運用文書の役割を分けます。
+- [UI設計方針](rules/ui-design.md)：プロダクトの約束、利用者、画面と文言の判断基準を定めます。
+- [フロントエンド設計](rules/frontend-architecture.md)：ディレクトリ、依存方向、ファイル責務を定めます。
+- [Convex設計方針](rules/convex-design-strategy.md)：認証境界、public API、Capability、永続ワークフロー、データ保持を定めます。
+- [セキュリティ設計方針](rules/security-strategy.md)：認証、認可、token、通知、課金、個人情報の安全契約を定めます。
+- [テスト方針](rules/testing-strategy.md)：変更契約を守るテスト層と配置を定めます。
+
+## 文書を更新するとき
+
+機能文書を追加したら`features/INDEX.md`、計画を追加または完了したら`plans/INDEX.md`も同じ変更で更新します。
+Archiveへ移す場合は、理由と後継文書を本文と`archive/INDEX.md`の両方に記録します。
+
+更新後は次のコマンドで、相対リンク、見出しanchor、repo内パス、Convex API・HTTP route・cron・migrationの参照、INDEX所属、Archive metadataを確認します。
+
+```bash
+pnpm docs:check
+```

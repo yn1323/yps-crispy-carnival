@@ -1,7 +1,8 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
-import { AuthProviders } from "@/src/components/config/AuthProviders";
+import { AuthProviders } from "@/src/providers/AuthProviders";
 
 export const Route = createFileRoute("/_unregistered")({
+  ssr: false,
   component: RouteComponent,
 });
 

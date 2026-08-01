@@ -42,7 +42,7 @@
 | 30+択 | `Combobox` + 仮想スクロール + カテゴリグループ |
 | 階層選択 | `Cascader` / `TreeSelect` |
 | 国・地域 | `Combobox` + 検索（ISOコード対応） |
-| 色 | `ColorPicker` or 限定パレット選択 |
+| 色 | Chakra UIのColor Picker、または限定パレット（要件に合う方を選ぶ） |
 
 **選択肢の数だけでなく**「全部見せたい？」も判断軸：
 - 見せたい（オプションが少なく、視認性が大事）→ Radio / SegmentedControl

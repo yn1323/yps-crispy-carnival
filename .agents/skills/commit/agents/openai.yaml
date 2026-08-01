@@ -1,0 +1,6 @@
+interface:
+  display_name: "変更をコミット"
+  short_description: "依頼範囲の変更だけを論理単位で安全にコミットする手順"
+  default_prompt: "Use $commit to commit only the changes that belong to this request in logical units."
+policy:
+  allow_implicit_invocation: false

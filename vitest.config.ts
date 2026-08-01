@@ -3,24 +3,27 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
-import tsconfigPaths from "vite-tsconfig-paths";
 import { defineConfig, defineProject } from "vitest/config";
 import { mdxPlugin } from "./vite/mdxPlugin";
 
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 const storybookAppVersion = "0.0.0-vrt";
+const testBuildDateJst = "2026-01-13";
 
 const logicProject = defineConfig({
-  plugins: [
-    mdxPlugin(),
-    // biome-ignore lint/suspicious/noExplicitAny: temp
-    tsconfigPaths() as any,
-  ],
+  plugins: [mdxPlugin()],
+  define: {
+    __APP_VERSION__: JSON.stringify(storybookAppVersion),
+    __BUILD_DATE_JST__: JSON.stringify(testBuildDateJst),
+  },
+  resolve: {
+    tsconfigPaths: true,
+  },
   test: {
     globals: true,
     name: "logic",
     setupFiles: ["./src/configs/vitest/vitest-setup.ts"],
-    include: ["./src/**/*.test.ts", "./scripts/**/*.test.ts"],
+    include: ["./src/**/*.test.ts", "./src/**/*.test.tsx", "./scripts/**/*.test.ts"],
     exclude: ["node_modules"],
     env: {
       VITE_CLERK_PUBLISHABLE_KEY: process.env.VITE_CLERK_PUBLISHABLE_KEY,
@@ -29,24 +32,9 @@ const logicProject = defineConfig({
   },
 });
 
-const analyticsDashboardProject = defineConfig({
-  root: path.join(dirname, "apps/analytics-dashboard"),
-  plugins: [
-    // biome-ignore lint/suspicious/noExplicitAny: temp
-    tsconfigPaths({ projects: [path.join(dirname, "apps/analytics-dashboard/tsconfig.json")] }) as any,
-  ],
-  test: {
-    name: "analytics-dashboard",
-    include: ["./src/**/*.test.ts"],
-    exclude: ["node_modules"],
-  },
-});
-
 const uiProject = defineConfig({
   plugins: [
     mdxPlugin(),
-    // biome-ignore lint/suspicious/noExplicitAny: temp
-    tsconfigPaths() as any,
     storybookTest({
       // The location of your Storybook config, main.js|ts
       configDir: path.join(dirname, ".storybook"),
@@ -57,12 +45,15 @@ const uiProject = defineConfig({
   ],
   define: {
     __APP_VERSION__: JSON.stringify(storybookAppVersion),
+    __BUILD_DATE_JST__: JSON.stringify(testBuildDateJst),
   },
   resolve: {
+    tsconfigPaths: true,
     alias: {
       "convex/react": path.resolve(dirname, ".storybook/mocks/convex-react.ts"),
       "convex/react-clerk": path.resolve(dirname, ".storybook/mocks/convex-react.ts"),
-      "@clerk/clerk-react": path.resolve(dirname, ".storybook/mocks/clerk-react.tsx"),
+      "@clerk/react/errors": path.resolve(dirname, ".storybook/mocks/clerk-react-errors.ts"),
+      "@clerk/react": path.resolve(dirname, ".storybook/mocks/clerk-react.tsx"),
     },
   },
   test: {
@@ -75,7 +66,6 @@ const uiProject = defineConfig({
       headless: true,
       instances: [{ browser: "chromium" }],
     },
-    setupFiles: ["./.storybook/vitest.setup.ts"],
   },
 });
 
@@ -83,6 +73,8 @@ const convexLogicProject = defineConfig({
   test: {
     name: "convex(logic)",
     environment: "edge-runtime",
+    // 全project同時実行時も、HTTP Actionや100人規模の回帰を環境負荷だけで失敗させない。
+    testTimeout: 30_000,
     include: ["./convex/**/*.test.ts"],
     exclude: ["node_modules", "./convex/_generated/**", "./convex/_scenario/**"],
   },
@@ -99,6 +91,6 @@ const convexScenarioProject = defineConfig({
 
 export default defineProject({
   test: {
-    projects: [logicProject, analyticsDashboardProject, uiProject, convexLogicProject, convexScenarioProject],
+    projects: [logicProject, uiProject, convexLogicProject, convexScenarioProject],
   },
 });

@@ -40,7 +40,7 @@ export const Animated: Story = {
     minH: "360px",
   },
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
 };
 

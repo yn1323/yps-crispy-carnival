@@ -2,21 +2,119 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
+import { internalMutation } from "../_generated/server";
+import { isShopParentActive } from "../_lib/activeShop";
+import { toAuditRequestKey } from "../_lib/auditCorrelation";
+import { todayJST } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
-import { rateLimit } from "../_lib/rateLimits";
+import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
+import { normalizeEmail } from "../_lib/validation";
+import { CURRENT_SHIFT_NOTIFICATION_LIMIT } from "../constants";
 import { getStaffLineAccount } from "../line/service";
+import { ensureNotificationFanoutOperation } from "../notification/fanout";
+import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
+import { recordOrganizationAuditEvent } from "../organization/audit";
+import { updateOrganizationPersonProfile } from "../organization/personProfile";
+import { requireOrganizationCapacity } from "../organizationBilling/service";
 import { addStaffsSchema, editStaffSchema } from "./schemas";
-import { findActiveStaffByEmail, normalizeEmail } from "./service";
+import {
+  findActiveStaffByEmail,
+  getActiveStaffInShop,
+  isShiftTargetStaff,
+  materializeOrganizationPeopleForStaffAddition,
+  prepareOrganizationPeopleForStaffAddition,
+  releasePendingInvitationReservationsForStaffAddition,
+} from "./service";
 
 type StaffNotificationKind = "openRecruitments" | "currentShift";
 type ManagerStaffMutationCtx = MutationCtx & {
   user: Doc<"users">;
   shop: Doc<"shops">;
+  organization: Doc<"organizations"> | null;
+  organizationMember: Doc<"organizationMembers"> | null;
 };
 
+const staffAddResultValidator = v.union(
+  v.object({ status: v.literal("added"), staffIds: v.array(v.id("staffs")) }),
+  v.object({
+    status: v.literal("requiresConfirmation"),
+    candidates: v.array(v.object({ personId: v.id("organizationPeople"), name: v.string(), email: v.string() })),
+  }),
+);
+
+function sameIds(left: readonly Id<"organizationPeople">[], right: readonly Id<"organizationPeople">[]) {
+  if (left.length !== right.length) return false;
+  const leftSet = new Set(left);
+  return leftSet.size === left.length && right.every((id) => leftSet.has(id));
+}
+
+async function recoverCompletedStaffAddition(
+  ctx: ManagerStaffMutationCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    entries: ReadonlyArray<{ name: string; email: string }>;
+    confirmedPersonIds: readonly Id<"organizationPeople">[];
+    requestId: string;
+  },
+) {
+  const correlationBase = `${args.organizationId}:staff-add:${args.requestId}`;
+  const firstAudit = await ctx.db
+    .query("organizationAuditEvents")
+    .withIndex("by_correlationId", (q) => q.eq("correlationId", `${correlationBase}:staff:0`))
+    .first();
+  if (!firstAudit) return null;
+  if (
+    firstAudit.action !== "organization.staff_added" ||
+    firstAudit.actorUserId !== ctx.user._id ||
+    firstAudit.toState !== `active:${ctx.shop._id}:batch:${args.entries.length}`
+  ) {
+    throw new ConvexError("同じリクエストIDが別の追加操作で使用されています");
+  }
+
+  const staffIds: Id<"staffs">[] = [];
+  const reactivatedPersonIds: Id<"organizationPeople">[] = [];
+  for (const [index, entry] of args.entries.entries()) {
+    const audit =
+      index === 0
+        ? firstAudit
+        : await ctx.db
+            .query("organizationAuditEvents")
+            .withIndex("by_correlationId", (q) => q.eq("correlationId", `${correlationBase}:staff:${index}`))
+            .first();
+    const staffId = audit?.targetId ? ctx.db.normalizeId("staffs", audit.targetId) : null;
+    const staff = staffId ? await ctx.db.get(staffId) : null;
+    if (
+      audit?.action !== "organization.staff_added" ||
+      audit.organizationId !== args.organizationId ||
+      audit.actorUserId !== ctx.user._id ||
+      audit.targetKind !== "staff" ||
+      audit.correlationId !== `${correlationBase}:staff:${index}` ||
+      audit.toState !== `active:${ctx.shop._id}:batch:${args.entries.length}` ||
+      !["new", "activePerson", "removedPerson"].includes(audit.fromState ?? "") ||
+      !staff ||
+      staff.shopId !== ctx.shop._id ||
+      staff.organizationId !== args.organizationId ||
+      staff.isDeleted ||
+      normalizeEmail(staff.email) !== entry.email ||
+      (audit.fromState === "new" && staff.name !== entry.name)
+    ) {
+      throw new ConvexError("以前のスタッフ追加結果を確認できません");
+    }
+    staffIds.push(staff._id);
+    if (audit.fromState === "removedPerson") {
+      if (!staff.organizationPersonId) throw new ConvexError("以前のスタッフ追加結果を確認できません");
+      reactivatedPersonIds.push(staff.organizationPersonId);
+    }
+  }
+  if (!sameIds(reactivatedPersonIds, args.confirmedPersonIds)) {
+    throw new ConvexError("確認対象が変わりました。追加内容をもう一度確認してください");
+  }
+  return { status: "added" as const, staffIds };
+}
+
 async function getSendableStaff(ctx: ManagerStaffMutationCtx, staffId: Id<"staffs">) {
-  const staff = await ctx.db.get(staffId);
-  if (!staff || staff.shopId !== ctx.shop._id || staff.isDeleted) {
+  const staff = await getActiveStaffInShop(ctx, ctx.shop._id, staffId);
+  if (!staff) {
     throw new ConvexError("Not found");
   }
 
@@ -33,75 +131,351 @@ async function allowStaffNotificationResend(
   ctx: ManagerStaffMutationCtx,
   staffId: Id<"staffs">,
   kind: StaffNotificationKind,
+  targetCount: number,
 ) {
-  const shortLimit = await rateLimit(ctx, {
-    name: "staffNotificationResendShort",
-    key: `${ctx.shop._id}:${staffId}:${kind}`,
-  });
-  return shortLimit.ok;
+  if (!Number.isSafeInteger(targetCount) || targetCount < 1) {
+    throw new Error("Staff notification resend target count must be a positive integer");
+  }
+  const recipientScope = `${ctx.shop._id}:${staffId}:${kind}`;
+  const actorKey = `${ctx.user._id}:${recipientScope}`;
+  const organizationScope = ctx.organization?._id ?? ctx.shop._id;
+  const organizationKey = `${organizationScope}:${recipientScope}`;
+  const scopeTargetKey = `${organizationScope}:${kind}`;
+  const limits = [
+    { name: "staffNotificationResendActorShort", key: actorKey, count: 1 },
+    { name: "staffNotificationResendActorDaily", key: actorKey, count: 1 },
+    { name: "staffNotificationResendOrganizationShort", key: organizationKey, count: 1 },
+    { name: "staffNotificationResendOrganizationDaily", key: organizationKey, count: 1 },
+    { name: "staffNotificationResendScopeTargetShort", key: scopeTargetKey, count: targetCount },
+    { name: "staffNotificationResendScopeTargetDaily", key: scopeTargetKey, count: targetCount },
+  ] as const;
+
+  const statuses = await Promise.all(limits.map(async (limit) => await checkRateLimit(ctx, limit)));
+  if (statuses.some((status) => !status.ok)) return false;
+
+  for (const limit of limits) {
+    const consumed = await rateLimit(ctx, limit);
+    if (!consumed.ok) {
+      // 同じtransaction内のnon-mutating確認後なので通常は到達しない。throwして先行consumeもrollbackする。
+      throw new Error("Staff notification resend rate limit changed during consumption");
+    }
+  }
+  return true;
+}
+
+async function validateOptionalNotificationRequestId(requestId: string | undefined) {
+  if (requestId !== undefined) {
+    // client request IDは入力契約だけ検証し、quotaや通知operationのidentityには使わない。
+    await toAuditRequestKey(requestId);
+  }
+}
+
+type CurrentShiftNotificationScope =
+  | { recruitments: Doc<"recruitments">[] }
+  | { reason: "noCurrentShift" | "tooManyCurrentShifts" | "unconfirmedChanges" };
+
+async function getCurrentShiftNotificationScope(
+  ctx: MutationCtx,
+  shopId: Id<"shops">,
+): Promise<CurrentShiftNotificationScope> {
+  const today = todayJST();
+  const recruitments = await ctx.db
+    .query("recruitments")
+    .withIndex("by_shopId_and_isDeleted_and_status_and_periodEnd", (q) =>
+      q.eq("shopId", shopId).eq("isDeleted", false).eq("status", "confirmed").gte("periodEnd", today),
+    )
+    .order("asc")
+    .take(CURRENT_SHIFT_NOTIFICATION_LIMIT + 1);
+  if (recruitments.length > CURRENT_SHIFT_NOTIFICATION_LIMIT) return { reason: "tooManyCurrentShifts" };
+  if (recruitments.length === 0) return { reason: "noCurrentShift" };
+  if (
+    recruitments.some(
+      (recruitment) =>
+        recruitment.draftSavedAt !== undefined &&
+        (recruitment.confirmedAt === undefined || recruitment.draftSavedAt > recruitment.confirmedAt),
+    )
+  ) {
+    return { reason: "unconfirmedChanges" };
+  }
+  return { recruitments };
+}
+
+async function createCurrentShiftNotificationFanouts(
+  ctx: MutationCtx,
+  args: {
+    staffId: Id<"staffs">;
+    shopId: Id<"shops">;
+    recruitments: readonly Doc<"recruitments">[];
+    operationGroupKey: string;
+    organizationBillingVersionAtOrigin?: number;
+  },
+) {
+  let createdOperationCount = 0;
+  for (const recruitment of args.recruitments) {
+    const operationKey = `shift.confirmation.staff-resend:v1:${recruitment._id}:${args.staffId}:${args.operationGroupKey}`;
+    const { operation, created } = await ensureNotificationFanoutOperation(ctx, {
+      operationKey,
+      kind: "confirmation",
+      purpose: "confirmation",
+      recruitmentId: recruitment._id,
+      shopId: args.shopId,
+      targetStaffIds: [args.staffId],
+      dedupeSuffix: `staff-resend:${args.operationGroupKey}`,
+      supersedeActiveOperations: false,
+      confirmationOperationKeyAtOrigin: recruitment.lastConfirmationNotificationOperationKey ?? null,
+      recruitmentDraftSavedAtAtOrigin: recruitment.draftSavedAt ?? null,
+      ...(args.organizationBillingVersionAtOrigin === undefined
+        ? {}
+        : { organizationBillingVersionAtOrigin: args.organizationBillingVersionAtOrigin }),
+    });
+    if (!created) continue;
+
+    const scheduledFunctionId = await ctx.scheduler.runAfter(
+      0,
+      internal.notification.actions.sendShiftConfirmationEmails,
+      {
+        recruitmentId: recruitment._id,
+        isResend: false,
+        fanoutOperationId: operation._id,
+        ...(args.organizationBillingVersionAtOrigin === undefined
+          ? {}
+          : { organizationBillingVersionAtOrigin: args.organizationBillingVersionAtOrigin }),
+      },
+    );
+    await ctx.db.patch(operation._id, { scheduledFunctionId });
+    createdOperationCount += 1;
+  }
+  return createdOperationCount;
+}
+
+type AddStaffEntriesArgs = {
+  entries: Array<{ name: string; email: string }>;
+  confirmReactivationPersonIds?: Array<Id<"organizationPeople">>;
+  requestId: string;
+};
+
+async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntriesArgs) {
+  const parsed = addStaffsSchema.safeParse(args);
+  if (!parsed.success) {
+    throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+  }
+  const requestId = await toAuditRequestKey(args.requestId);
+  const validEntries = parsed.data.entries
+    .map((entry) => ({ name: entry.name, email: normalizeEmail(entry.email) }))
+    .filter((e) => e.name !== "");
+  const confirmedPersonIds = args.confirmReactivationPersonIds ?? [];
+  if (new Set(confirmedPersonIds).size !== confirmedPersonIds.length) {
+    throw new ConvexError("確認対象が重複しています。追加内容をもう一度確認してください");
+  }
+
+  const organizationId = ctx.shop.organizationId;
+  if (organizationId) {
+    if (ctx.organization?._id !== organizationId) throw new ConvexError("Not found");
+    const completed = await recoverCompletedStaffAddition(ctx, {
+      organizationId,
+      entries: validEntries,
+      confirmedPersonIds,
+      requestId,
+    });
+    if (completed) return completed;
+  } else if (confirmedPersonIds.length > 0) {
+    throw new ConvexError("確認対象が変わりました。追加内容をもう一度確認してください");
+  }
+
+  const inputEmails = new Set<string>();
+  for (const entry of validEntries) {
+    if (inputEmails.has(entry.email)) {
+      throw new ConvexError("同じメールアドレスが入力されています");
+    }
+    inputEmails.add(entry.email);
+
+    const existingStaff = await findActiveStaffByEmail(ctx, ctx.shop._id, entry.email);
+    if (existingStaff) {
+      throw new ConvexError("このメールアドレスはすでに登録されています");
+    }
+
+    const pendingRequest = await ctx.db
+      .query("staffRegistrationRequests")
+      .withIndex("by_shopId_emailNormalized_status", (q) =>
+        q.eq("shopId", ctx.shop._id).eq("emailNormalized", entry.email).eq("status", "pending"),
+      )
+      .first();
+    if (pendingRequest) {
+      throw new ConvexError("このメールアドレスは承認待ちです");
+    }
+  }
+
+  type StaffInsertEntry = {
+    name: string;
+    email: string;
+    organizationId?: Id<"organizations">;
+    organizationPersonId?: Id<"organizationPeople">;
+    sourceState: "new" | "activePerson" | "removedPerson";
+    reactivatedPersonId?: Id<"organizationPeople">;
+  };
+  let staffEntries: StaffInsertEntry[] = validEntries.map((entry) => ({ ...entry, sourceState: "new" }));
+  if (organizationId) {
+    const prepared = await prepareOrganizationPeopleForStaffAddition(ctx, {
+      organizationId,
+      shopId: ctx.shop._id,
+      entries: validEntries,
+      allowRemovedPeople: true,
+      deferCapacityCheck: true,
+    });
+    const reactivationCandidates = prepared.flatMap((entry) =>
+      entry.personState === "removed" && entry.existingPersonId
+        ? [{ personId: entry.existingPersonId, name: entry.name, email: entry.registeredEmail }]
+        : [],
+    );
+    const reactivationPersonIds = reactivationCandidates.map((candidate) => candidate.personId);
+    if (reactivationCandidates.length > 0 && args.confirmReactivationPersonIds === undefined) {
+      return { status: "requiresConfirmation" as const, candidates: reactivationCandidates };
+    }
+    if (!sameIds(reactivationPersonIds, confirmedPersonIds)) {
+      throw new ConvexError("確認対象が変わりました。追加内容をもう一度確認してください");
+    }
+    if (reactivationCandidates.length > 0 && !ctx.organizationMember) throw new ConvexError("Not found");
+
+    // pending manager招待の予約枠を、これから保存する同一人物へtransaction内で付け替える。
+    await releasePendingInvitationReservationsForStaffAddition(ctx, organizationId, prepared);
+    const additionalPeople = prepared.filter((entry) => entry.addsPersonToUsage).length;
+    if (additionalPeople > 0) {
+      // pending招待の予約枠も含め、明示確認後の最新read setで再検証する。
+      await requireOrganizationCapacity(ctx, { organizationId, additionalPeople });
+    }
+    const materialized = await materializeOrganizationPeopleForStaffAddition(ctx, organizationId, prepared);
+    staffEntries = materialized.map((entry) => ({
+      name: entry.name,
+      email: entry.email,
+      organizationId,
+      organizationPersonId: entry.personId,
+      sourceState: entry.reactivated ? "removedPerson" : entry.personState === "active" ? "activePerson" : "new",
+      ...(entry.reactivated ? { reactivatedPersonId: entry.personId } : {}),
+    }));
+  }
+
+  const inserted: Id<"staffs">[] = [];
+  for (const entry of staffEntries) {
+    const id = await ctx.db.insert("staffs", {
+      shopId: ctx.shop._id,
+      ...(entry.organizationId && entry.organizationPersonId
+        ? { organizationId: entry.organizationId, organizationPersonId: entry.organizationPersonId }
+        : {}),
+      name: entry.name,
+      email: entry.email,
+      emailNormalized: entry.email,
+      isDeleted: false,
+    });
+    inserted.push(id);
+  }
+  const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
+  for (const staffId of inserted) {
+    // スタッフ追加直後に必要な案内をまとめて fire-and-forget する。
+    // mutation は登録完了を優先し、外部送信の失敗や dry-run 判定は action 側で扱う。
+    await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentEmail, {
+      staffId,
+      ...notificationOrigin,
+    });
+    await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
+      staffId,
+      ...notificationOrigin,
+    });
+    await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaff, {
+      staffId,
+      ...notificationOrigin,
+    });
+  }
+
+  if (organizationId) {
+    const correlationBase = `${organizationId}:staff-add:${requestId}`;
+    const now = Date.now();
+    for (const [index, staffId] of inserted.entries()) {
+      const entry = staffEntries[index];
+      if (!entry) throw new ConvexError("スタッフ追加結果を確認できません");
+      await recordOrganizationAuditEvent(ctx, {
+        organizationId,
+        actorUserId: ctx.user._id,
+        actorPersonId: ctx.organizationMember?.personId,
+        action: "organization.staff_added",
+        targetKind: "staff",
+        targetId: staffId,
+        fromState: entry.sourceState,
+        toState: `active:${ctx.shop._id}:batch:${inserted.length}`,
+        correlationId: `${correlationBase}:staff:${index}`,
+        occurredAt: now,
+      });
+      if (entry.reactivatedPersonId) {
+        await recordOrganizationAuditEvent(ctx, {
+          organizationId,
+          actorUserId: ctx.user._id,
+          actorPersonId: ctx.organizationMember?.personId,
+          action: "organization.person_reactivated",
+          targetKind: "person",
+          targetId: entry.reactivatedPersonId,
+          fromState: "removed",
+          toState: "active",
+          correlationId: `${correlationBase}:person:${entry.reactivatedPersonId}`,
+          occurredAt: now,
+        });
+      }
+    }
+  }
+  return { status: "added" as const, staffIds: inserted };
 }
 
 export const addStaffs = managerMutation({
   args: {
     entries: v.array(v.object({ name: v.string(), email: v.string() })),
+    confirmReactivationPersonIds: v.optional(v.array(v.id("organizationPeople"))),
+    requestId: v.string(),
   },
+  returns: staffAddResultValidator,
+  handler: addStaffEntries,
+});
+
+export const addOrganizationPersonToShop = managerMutation({
+  args: {
+    personId: v.id("organizationPeople"),
+    requestId: v.string(),
+  },
+  returns: v.object({ staffId: v.id("staffs") }),
   handler: async (ctx, args) => {
-    const parsed = addStaffsSchema.safeParse(args);
-    if (!parsed.success) {
-      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
-    }
-    const validEntries = parsed.data.entries
-      .map((entry) => ({ name: entry.name, email: normalizeEmail(entry.email) }))
-      .filter((e) => e.name !== "");
-
-    const inputEmails = new Set<string>();
-    for (const entry of validEntries) {
-      if (inputEmails.has(entry.email)) {
-        throw new ConvexError("同じメールアドレスが入力されています");
-      }
-      inputEmails.add(entry.email);
-
-      const existingStaff = await findActiveStaffByEmail(ctx, ctx.shop._id, entry.email);
-      if (existingStaff) {
-        throw new ConvexError("このメールアドレスはすでに登録されています");
-      }
-
-      const pendingRequest = await ctx.db
-        .query("staffRegistrationRequests")
-        .withIndex("by_shopId_emailNormalized_status", (q) =>
-          q.eq("shopId", ctx.shop._id).eq("emailNormalized", entry.email).eq("status", "pending"),
-        )
-        .first();
-      if (pendingRequest) {
-        throw new ConvexError("このメールアドレスは承認待ちです");
-      }
+    if (!ctx.organization || ctx.shop.organizationId !== ctx.organization._id) {
+      throw new ConvexError("Not found");
     }
 
-    const inserted: Id<"staffs">[] = [];
-    for (const entry of validEntries) {
-      const id = await ctx.db.insert("staffs", {
-        shopId: ctx.shop._id,
-        name: entry.name,
-        email: entry.email,
-        emailNormalized: entry.email,
-        isDeleted: false,
-      });
-      inserted.push(id);
+    const person = await ctx.db.get(args.personId);
+    if (
+      !person ||
+      person.organizationId !== ctx.organization._id ||
+      person.status !== "active" ||
+      normalizeEmail(person.email) !== person.emailNormalized
+    ) {
+      throw new ConvexError("Not found");
     }
-    for (const staffId of inserted) {
-      // スタッフ追加直後に必要な案内をまとめて fire-and-forget する。
-      // mutation は登録完了を優先し、外部送信の失敗や dry-run 判定は action 側で扱う。
-      await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentEmail, {
-        staffId,
-      });
-      await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
-        staffId,
-      });
-      await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaff, {
-        staffId,
-      });
+
+    const result = await addStaffEntries(ctx, {
+      entries: [{ name: person.name, email: person.email }],
+      requestId: args.requestId,
+    });
+    if (result.status !== "added" || result.staffIds.length !== 1) {
+      throw new ConvexError("スタッフ追加結果を確認できません");
     }
-    return inserted;
+    const staffId = result.staffIds[0];
+    const staff = await ctx.db.get(staffId);
+    if (
+      !staff ||
+      staff.isDeleted ||
+      staff.shopId !== ctx.shop._id ||
+      staff.organizationId !== ctx.organization._id ||
+      staff.organizationPersonId !== person._id ||
+      staff.name !== person.name ||
+      staff.email !== person.emailNormalized ||
+      staff.emailNormalized !== person.emailNormalized
+    ) {
+      throw new ConvexError("スタッフ追加結果を確認できません");
+    }
+    return { staffId };
   },
 });
 
@@ -111,18 +485,48 @@ export const editStaff = managerMutation({
     name: v.string(),
     email: v.string(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const parsed = editStaffSchema.safeParse({ name: args.name, email: args.email });
     if (!parsed.success) {
       throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
     }
     const input = parsed.data;
-    const staff = await ctx.db.get(args.staffId);
-    if (!staff || staff.shopId !== ctx.shop._id || staff.isDeleted) {
+    const staff = await getActiveStaffInShop(ctx, ctx.shop._id, args.staffId);
+    if (!staff) {
       throw new ConvexError("Not found");
     }
 
     const trimmedEmail = normalizeEmail(input.email);
+    const trimmedName = input.name;
+    const organizationId = staff.organizationId;
+    const organizationPersonId = staff.organizationPersonId;
+    const hasOrganizationLink = Boolean(organizationId || organizationPersonId);
+    if (hasOrganizationLink && (!organizationId || !organizationPersonId)) {
+      throw new ConvexError("スタッフの人物情報を確認できません");
+    }
+    const organizationPerson = organizationId && organizationPersonId ? await ctx.db.get(organizationPersonId) : null;
+    if (
+      organizationId &&
+      (!organizationPerson ||
+        organizationPerson.organizationId !== organizationId ||
+        organizationPerson.status !== "active")
+    ) {
+      throw new ConvexError("スタッフの人物情報を確認できません");
+    }
+
+    if (organizationPerson && organizationId) {
+      await updateOrganizationPersonProfile(ctx, {
+        organizationId,
+        personId: organizationPerson._id,
+        actorUser: ctx.user,
+        notificationShopId: ctx.shop._id,
+        name: trimmedName,
+        email: trimmedEmail,
+      });
+      return null;
+    }
+
     const duplicateByNormalized = await ctx.db
       .query("staffs")
       .withIndex("by_shopId_emailNormalized_isDeleted", (q) =>
@@ -141,35 +545,46 @@ export const editStaff = managerMutation({
       throw new ConvexError("このメールアドレスは既に使用されています");
     }
 
-    const trimmedName = input.name;
-    const previousEmailNormalized = (staff.emailNormalized ?? staff.email).trim().toLowerCase();
+    const previousEmailNormalized = normalizeEmail(staff.emailNormalized ?? staff.email);
     const emailChanged = trimmedEmail !== previousEmailNormalized;
     const emailChangedAt = Date.now();
-    await ctx.db.patch(args.staffId, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail });
+    await ctx.db.patch(staff._id, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail });
     if (staff.userId === ctx.user._id) {
       // manager 自身をスタッフとして持つ店舗では、スタッフ名と管理者名を同じ表示名として同期する。
       await ctx.db.patch(ctx.user._id, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail });
     }
 
     if (emailChanged) {
+      const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
       await ctx.scheduler.runAfter(
         0,
         internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaffEmailChange,
         {
-          staffId: args.staffId,
+          staffId: staff._id,
           expectedEmailNormalized: trimmedEmail,
           emailChangedAt,
+          ...notificationOrigin,
         },
       );
     }
+    return null;
   },
 });
 
 export const sendOpenRecruitmentNotifications = managerMutation({
   args: {
     staffId: v.id("staffs"),
+    requestId: v.optional(v.string()),
   },
+  returns: v.union(
+    v.object({ scheduled: v.literal(true) }),
+    v.object({
+      scheduled: v.literal(false),
+      reason: v.union(v.literal("noEligibleRecruitments"), v.literal("rateLimited")),
+    }),
+  ),
   handler: async (ctx, args) => {
+    await validateOptionalNotificationRequestId(args.requestId);
     const staff = await getSendableStaff(ctx, args.staffId);
     const notificationData = await ctx.runQuery(
       internal.notification.queries.getOpenRecruitmentNotificationDataForStaff,
@@ -181,11 +596,18 @@ export const sendOpenRecruitmentNotifications = managerMutation({
       return { scheduled: false, reason: "noEligibleRecruitments" as const };
     }
 
-    const allowed = await allowStaffNotificationResend(ctx, staff._id, "openRecruitments");
+    const allowed = await allowStaffNotificationResend(
+      ctx,
+      staff._id,
+      "openRecruitments",
+      notificationData.recruitments.length,
+    );
     if (!allowed) return { scheduled: false, reason: "rateLimited" as const };
+    const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
 
     await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationsForStaff, {
       staffId: staff._id,
+      ...notificationOrigin,
     });
     return { scheduled: true as const };
   },
@@ -194,23 +616,77 @@ export const sendOpenRecruitmentNotifications = managerMutation({
 export const sendCurrentShiftNotification = managerMutation({
   args: {
     staffId: v.id("staffs"),
+    requestId: v.optional(v.string()),
   },
+  returns: v.union(
+    v.object({ scheduled: v.literal(true) }),
+    v.object({
+      scheduled: v.literal(false),
+      reason: v.union(
+        v.literal("noCurrentShift"),
+        v.literal("tooManyCurrentShifts"),
+        v.literal("unconfirmedChanges"),
+        v.literal("rateLimited"),
+      ),
+    }),
+  ),
   handler: async (ctx, args) => {
+    await validateOptionalNotificationRequestId(args.requestId);
     const staff = await getSendableStaff(ctx, args.staffId);
-    const notificationData = await ctx.runQuery(internal.notification.queries.getCurrentConfirmationEmailDataForStaff, {
-      staffId: staff._id,
-    });
-    if (!notificationData || notificationData.shopId !== ctx.shop._id || notificationData.recruitments.length === 0) {
+    if (!isShiftTargetStaff(staff)) {
       return { scheduled: false, reason: "noCurrentShift" as const };
     }
+    const scope = await getCurrentShiftNotificationScope(ctx, ctx.shop._id);
+    if ("reason" in scope) return { scheduled: false, reason: scope.reason };
 
-    const allowed = await allowStaffNotificationResend(ctx, staff._id, "currentShift");
+    const allowed = await allowStaffNotificationResend(ctx, staff._id, "currentShift", scope.recruitments.length);
     if (!allowed) return { scheduled: false, reason: "rateLimited" as const };
-
-    await ctx.scheduler.runAfter(0, internal.notification.actions.sendCurrentShiftConfirmationForStaff, {
+    const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
+    await createCurrentShiftNotificationFanouts(ctx, {
       staffId: staff._id,
+      shopId: ctx.shop._id,
+      recruitments: scope.recruitments,
+      operationGroupKey: crypto.randomUUID(),
+      ...notificationOrigin,
     });
     return { scheduled: true as const };
+  },
+});
+
+/**
+ * 旧deploymentが予約済みの個別確定通知actionを、同じdurable operationへexact-onceで収束させる。
+ * 認可とquotaは旧public mutationで完了済みのため再消費せず、現在の配送scopeだけをfail closedで再検証する。
+ */
+export const prepareLegacyCurrentShiftConfirmationFanout = internalMutation({
+  args: {
+    staffId: v.id("staffs"),
+    organizationBillingVersionAtOrigin: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const staff = await ctx.db.get(args.staffId);
+    const shop = staff ? await ctx.db.get(staff.shopId) : null;
+    if (!staff || staff.isDeleted || !isShiftTargetStaff(staff) || !(await isShopParentActive(ctx, shop))) {
+      return { status: "skipped" as const, reason: "noCurrentShift" as const };
+    }
+    const lineAccount = await getStaffLineAccount(ctx, staff._id);
+    if (staff.email.length === 0 && !(lineAccount?.lineUserId && lineAccount.following)) {
+      return { status: "skipped" as const, reason: "noCurrentShift" as const };
+    }
+
+    const scope = await getCurrentShiftNotificationScope(ctx, staff.shopId);
+    if ("reason" in scope) return { status: "skipped" as const, reason: scope.reason };
+
+    const createdOperationCount = await createCurrentShiftNotificationFanouts(ctx, {
+      staffId: staff._id,
+      shopId: staff.shopId,
+      recruitments: scope.recruitments,
+      // 旧argsにはrequest identityがないため、staff単位の安定keyでaction retryと重複予約を一つへ寄せる。
+      operationGroupKey: `legacy:${staff._id}`,
+      ...(args.organizationBillingVersionAtOrigin === undefined
+        ? {}
+        : { organizationBillingVersionAtOrigin: args.organizationBillingVersionAtOrigin }),
+    });
+    return { status: "accepted" as const, createdOperationCount };
   },
 });
 
@@ -219,9 +695,10 @@ export const setShiftExclusion = managerMutation({
     staffId: v.id("staffs"),
     excluded: v.boolean(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
-    const staff = await ctx.db.get(args.staffId);
-    if (!staff || staff.shopId !== ctx.shop._id || staff.isDeleted) {
+    const staff = await getActiveStaffInShop(ctx, ctx.shop._id, args.staffId);
+    if (!staff) {
       throw new ConvexError("Not found");
     }
     // 削除と異なり、管理者（店舗共通アドレス本人）もシフト対象外にできる（主ユースケース）。
@@ -248,6 +725,7 @@ export const setShiftExclusion = managerMutation({
         ...magicLinks.filter((link) => !link.revokedAt).map((link) => ctx.db.patch(link._id, { revokedAt: now })),
       ]);
     }
+    return null;
   },
 });
 
@@ -255,10 +733,14 @@ export const deleteStaff = managerMutation({
   args: {
     staffId: v.id("staffs"),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
-    const staff = await ctx.db.get(args.staffId);
-    if (!staff || staff.shopId !== ctx.shop._id || staff.isDeleted) {
+    const staff = await getActiveStaffInShop(ctx, ctx.shop._id, args.staffId);
+    if (!staff) {
       throw new ConvexError("Not found");
+    }
+    if (staff.organizationId || staff.organizationPersonId) {
+      throw new ConvexError("グループ設定から店舗所属を解除してください");
     }
 
     if (staff.userId === ctx.user._id) {
@@ -266,6 +748,10 @@ export const deleteStaff = managerMutation({
     }
 
     await ctx.db.patch(args.staffId, { isDeleted: true });
+    await ctx.scheduler.runAfter(0, internal.notificationOutbox.mutations.deleteStaffNotificationHistoryBatch, {
+      shopId: ctx.shop._id,
+      staffId: args.staffId,
+    });
 
     const [sessions, magicLinks, lineLinkTokens, lineAccounts] = await Promise.all([
       ctx.db
@@ -292,5 +778,6 @@ export const deleteStaff = managerMutation({
       ...lineLinkTokens.map((token) => ctx.db.patch(token._id, { revokedAt: now })),
       ...lineAccounts.map((account) => ctx.db.patch(account._id, { isDeleted: true, following: false })),
     ]);
+    return null;
   },
 });

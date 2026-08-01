@@ -1,15 +1,34 @@
 import { v } from "convex/values";
 import { internalQuery, query } from "../_generated/server";
-import { managerQuery } from "../_lib/functions";
+import { isShopParentActive } from "../_lib/activeShop";
+import { authenticatedQuery } from "../_lib/functions";
 import { getStaffLineAccount } from "../line/service";
 import { getLegalDocumentsForAudience } from "./documents";
 import { hasCurrentStaffLegalConsent, hasCurrentUserLegalConsent } from "./service";
 
-export const getManagerConsentStatus = managerQuery({
+const legalDocumentValidator = v.object({
+  audience: v.union(v.literal("manager"), v.literal("staff")),
+  kind: v.union(v.literal("terms"), v.literal("privacy")),
+  title: v.string(),
+  documentVersion: v.string(),
+  requiredConsentVersion: v.string(),
+  path: v.string(),
+});
+
+const legalDocumentsValidator = v.object({
+  terms: legalDocumentValidator,
+  privacy: legalDocumentValidator,
+});
+
+export const getManagerConsentStatus = authenticatedQuery({
   args: {},
+  returns: v.object({
+    required: v.boolean(),
+    documents: legalDocumentsValidator,
+  }),
   handler: async (ctx) => {
     const documents = getLegalDocumentsForAudience("manager");
-    if (!ctx.user || !ctx.shop) {
+    if (!ctx.identity || !ctx.user || ctx.user.isDeleted) {
       return {
         required: false,
         documents,
@@ -25,18 +44,44 @@ export const getManagerConsentStatus = managerQuery({
 
 export const getStaffConsentPageData = query({
   args: { token: v.string() },
+  returns: v.union(
+    v.object({ status: v.literal("expired"), documents: legalDocumentsValidator }),
+    v.object({
+      status: v.literal("accepted"),
+      staffName: v.string(),
+      shopName: v.string(),
+      documents: legalDocumentsValidator,
+    }),
+    v.object({
+      status: v.literal("ok"),
+      staffName: v.string(),
+      shopName: v.string(),
+      expiresAt: v.number(),
+      documents: legalDocumentsValidator,
+    }),
+  ),
   handler: async (ctx, { token }) => {
     const documents = getLegalDocumentsForAudience("staff");
-    const tokenDoc = await ctx.db
+    const tokenDocs = await ctx.db
       .query("legalConsentTokens")
       .withIndex("by_token", (q) => q.eq("token", token))
-      .first();
-    if (!tokenDoc || tokenDoc.revokedAt || tokenDoc.expiresAt < Date.now()) {
+      .take(2);
+    if (tokenDocs.length !== 1) {
+      return { status: "expired" as const, documents };
+    }
+    const tokenDoc = tokenDocs[0];
+    if (tokenDoc.revokedAt || tokenDoc.expiresAt < Date.now()) {
       return { status: "expired" as const, documents };
     }
 
     const [staff, shop] = await Promise.all([ctx.db.get(tokenDoc.staffId), ctx.db.get(tokenDoc.shopId)]);
-    if (!staff || staff.isDeleted || !shop || shop.isDeleted) {
+    if (
+      !staff ||
+      staff.isDeleted ||
+      staff.shopId !== tokenDoc.shopId ||
+      !shop ||
+      !(await isShopParentActive(ctx, shop))
+    ) {
       return { status: "expired" as const, documents };
     }
 
@@ -71,7 +116,7 @@ export const getStaffConsentNotificationDataInternal = internalQuery({
     if (!includeConsented && (await hasCurrentStaffLegalConsent(ctx, staff._id))) return null;
 
     const shop = await ctx.db.get(staff.shopId);
-    if (!shop || shop.isDeleted) return null;
+    if (!shop || !(await isShopParentActive(ctx, shop))) return null;
     const lineAccount = await getStaffLineAccount(ctx, staff._id);
 
     return {

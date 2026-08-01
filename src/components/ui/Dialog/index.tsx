@@ -3,6 +3,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { useCallback, useState } from "react";
 import { Button } from "@/src/components/ui/Button";
 import { TOASTER_LAYER_SELECTOR } from "@/src/components/ui/toaster";
+import { useCloseDialogOnBrowserBack } from "@/src/hooks/useCloseDialogOnBrowserBack";
 import {
   DIALOG_VISUAL_VIEWPORT_HEIGHT,
   DIALOG_VISUAL_VIEWPORT_OFFSET_TOP,
@@ -10,10 +11,12 @@ import {
 } from "@/src/hooks/useDialogVisualViewportStyle";
 
 const getInteractOutsideTarget = (event: Event) => {
-  if (event.target instanceof Element) return event.target;
+  // ZagはDialog nodeからCustomEventをdispatchし、実際の操作対象をdetailへ保持する。
+  const detail = (event as { detail?: { target?: EventTarget | null; originalEvent?: Event } }).detail;
+  if (detail?.target instanceof Element) return detail.target;
+  if (detail?.originalEvent?.target instanceof Element) return detail.originalEvent.target;
 
-  const originalEvent = (event as { detail?: { originalEvent?: Event } }).detail?.originalEvent;
-  return originalEvent?.target instanceof Element ? originalEvent.target : null;
+  return event.target instanceof Element ? event.target : null;
 };
 
 const preventCloseWhenInteractingWithToaster: NonNullable<
@@ -54,6 +57,7 @@ type DialogProps = {
   onSubmit?: () => void | Promise<void>;
   submitLabel?: string;
   onClose?: () => void;
+  onBackGuardRemoved?: () => void;
   closeLabel?: string;
   isLoading?: boolean;
   isSubmitDisabled?: boolean;
@@ -79,6 +83,7 @@ export const Dialog = ({
   onSubmit,
   submitLabel = "送信",
   onClose,
+  onBackGuardRemoved,
   closeLabel = "キャンセル",
   isLoading = false,
   isSubmitDisabled = false,
@@ -96,6 +101,7 @@ export const Dialog = ({
   bodyProps,
 }: DialogProps) => {
   const viewportStyle = useDialogVisualViewportStyle(isOpen && keyboardAwareViewport);
+  useCloseDialogOnBrowserBack(isOpen, () => onOpenChange({ open: false }), onBackGuardRemoved);
   const { style: positionerStyle, ...restPositionerProps } = positionerProps ?? {};
 
   return (

@@ -7,7 +7,7 @@ import { modules, schema } from "../_test/setup.test-helper";
 describe("staffRegistration/actions", () => {
   it("店舗担当者digestのoutboxにuserIdを残す", async () => {
     const t = convexTest(schema, modules);
-    const { userId } = await t.run(async (ctx) => {
+    const { shopId, userId } = await t.run(async (ctx) => {
       return await seedManagerShop(ctx, {
         subject: "user_mgr",
         email: "owner-digest@example.com",
@@ -15,8 +15,10 @@ describe("staffRegistration/actions", () => {
       });
     });
     const asManager = t.withIdentity({ subject: "user_mgr" });
-    const registrationLink = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {});
-    await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    const registrationLink = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      shopId,
+    });
+    await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: registrationLink.token,
       name: "申請スタッフ",
       email: "digest-staff@example.com",

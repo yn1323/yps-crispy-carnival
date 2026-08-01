@@ -87,8 +87,8 @@
 
 ### 共通バリデーションパターン
 
-このプロジェクトで使えるヘルパー：
-- フロント専用: `src/helpers/validation/`（`betweenLength`, `time`, `select` 等）
+このプロジェクトの配置ルール：
+- フロント固有のスキーマやrefinementは、所有featureの `schema.ts` または `script.ts` に置く
 - mutation共通: `convex/_lib/validation.ts`（`optionalEmail` 等）
 - mutation Zodスキーマは `convex/{useCase}/schemas.ts` 起点（フロントから `@/convex/{useCase}/schemas` で import）
 

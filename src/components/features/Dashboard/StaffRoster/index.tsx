@@ -4,21 +4,38 @@ import { LuChevronDown, LuPlus, LuUsers } from "react-icons/lu";
 import type { Staff } from "@/src/components/features/Dashboard/types";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
+import { useScrollToListItem } from "@/src/hooks/useScrollToListItem";
 import { DASHBOARD_TOUR_TARGET } from "../dashboardTourTargets";
 import { StaffRow } from "./StaffRow";
 
 type Props = {
   staffs: Staff[];
+  isReadOnly?: boolean;
   status: PaginationStatus;
   canLoadMore: boolean;
   onAddClick: () => void;
   onOpenDetail: (staff: Staff) => void;
   onLoadMore: () => void;
+  focusedPersonId?: string;
 };
 
-export const StaffRoster = ({ staffs, status, canLoadMore, onAddClick, onOpenDetail, onLoadMore }: Props) => {
+export const StaffRoster = ({
+  staffs,
+  isReadOnly = false,
+  status,
+  canLoadMore,
+  onAddClick,
+  onOpenDetail,
+  onLoadMore,
+  focusedPersonId,
+}: Props) => {
   const showLoadMore = canLoadMore && status !== "LoadingFirstPage";
   const sorted = [...staffs].sort((a, b) => Number(b.isManager) - Number(a.isManager));
+  const focusedItemId = focusedPersonId ? `dashboard-user-${focusedPersonId}` : undefined;
+  const isFocusedItemRendered = Boolean(
+    focusedPersonId && sorted.some((staff) => staff.organizationPersonId === focusedPersonId),
+  );
+  useScrollToListItem(focusedItemId, isFocusedItemRendered);
 
   return (
     <Stack as="section" aria-label="スタッフ一覧" gap={{ base: 4, lg: 5 }}>
@@ -46,11 +63,13 @@ export const StaffRoster = ({ staffs, status, canLoadMore, onAddClick, onOpenDet
             colorPalette="teal"
             size="sm"
             onClick={onAddClick}
+            disabled={isReadOnly}
+            title={isReadOnly ? "閲覧のみの店舗ではスタッフを招待できません" : undefined}
             gap={1.5}
             fontWeight="semibold"
           >
             <LuPlus />
-            スタッフを招待
+            スタッフを招待する
           </Button>
         </Flex>
       </Flex>
@@ -130,14 +149,16 @@ const StaffRowSkeleton = ({ isManager, showLineLinked }: { isManager: boolean; s
     minH="68px"
   >
     <Skeleton boxSize="40px" borderRadius="full" flexShrink={0} />
-    <Stack gap={2} flex={1} minW={0}>
-      <HStack gap={2} align="center" wrap="wrap">
-        <Skeleton h="20px" w={{ base: "96px", lg: "112px" }} />
+    <Flex flex={1} minW={0} align="center" gap={1.5} wrap="wrap">
+      <Stack gap={0} flex="1 1 96px" minW={0}>
+        <Skeleton h="20px" w={{ base: "96px", lg: "112px" }} maxW="full" />
+        <Skeleton h="16px" w="180px" maxW="full" display={{ base: "none", lg: "block" }} />
+      </Stack>
+      <HStack gap={1.5} wrap="wrap" ms="auto" minW={0} maxW="full" justify="flex-end">
         {isManager && <Skeleton h="20px" w="52px" borderRadius="full" />}
         {showLineLinked && <Skeleton h="20px" w="78px" borderRadius="full" />}
       </HStack>
-      <Skeleton h="16px" w="180px" display={{ base: "none", lg: "block" }} />
-    </Stack>
+    </Flex>
     <Skeleton boxSize="32px" borderRadius="md" flexShrink={0} />
   </HStack>
 );

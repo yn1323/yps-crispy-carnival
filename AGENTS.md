@@ -1,134 +1,126 @@
 # AGENTS.md
 
-This file provides guidance to Codex and other coding agents when working with code in this repository.
+このファイルは、リポジトリ全体で常に守る制約と参照先を示す。
+設計原則や作業手順をここへ複製しない。
 
-# Review language
+## 適用範囲
 
-All pull request review comments must be written in Japanese.
-Keep explanations concise.
+- このファイルはリポジトリ全体に適用する。
+- 対象ファイルに近い `AGENTS.md` がある場合は、ルートと併せて読む。
+- 下位の `AGENTS.md` は、その配下に限り、ルートより具体的な指示を追加する。
+- 新しいルールを追加する前に `doc/rules/agent-instructions.md` で配置先を決め、既存の正本を更新する。
+- 同じ規則を複数のファイルへ書かず、正本へのリンクだけを置く。
 
-## プロジェクト概要
+## プロジェクト
 
-店舗スタッフのシフト管理SaaSアプリケーション。
-React + Vite + TanStack Router + Chakra UI v3 + Convex 構成。
+店舗スタッフのシフト管理SaaS。
+主要構成は React、Vite、TanStack Router、Chakra UI v3、Convex である。
 
-## 必読ドキュメント / スキル
+## 言語
 
-- 作業開始時に必ず `doc/rules/testing-strategy.md` を読み、テスト種別・粒度・Convex Scenario Test の配置方針に従うこと。
-- コード実装・修正・レビュー時は `.agents/skills/shiftori-coding/SKILL.md` を読み、配置判断・技術スタック別の書き方・自己修復ルールに従うこと。
-- セキュリティ、認証、認可、IDOR、magic link、token、招待、Webhook、LINE、Resend、billing、個人情報ログに触れる相談・プラン・設計・実装・レビューでは、プラン確定前に `shiftori-security-review` を使い、`doc/rules/security-strategy.md` を読むこと。
-- Convex public query/mutation/action、staff token/session、manager/billing権限、外部HTTP action、通知配送、登録/招待導線に触る可能性がある場合も同様に扱うこと。
-- `src/` 配下を扱う場合は `src/AGENTS.md` を読むこと。
-- Convexコードを扱う場合は、`convex/_generated/ai/guidelines.md` と `convex/AGENTS.md` を必ず読むこと。
-- E2Eを扱う場合は `e2e/AGENTS.md`、CI/CDを扱う場合は `.github/AGENTS.md` を読むこと。
-- UI/UXや文言は `ui-architect`、テスト設計は `test-strategy`、Convex migration は `convex-migration-helper` を併用すること。
+- Pull Requestのレビューコメントは日本語で簡潔に書く。
+- レビュー結果をユーザーへ伝える場合も日本語で説明する。
 
-## コマンド
+## 正本と参照順
 
-```bash
-pnpm dev              # 開発サーバー起動 (port 3000)
-pnpm dev:all          # dev + convex + storybook を並列起動
-pnpm build            # ビルド (vite build && tsc)
-pnpm lint             # Biomeでlint
-pnpm format           # Biomeでフォーマット (--write)
-pnpm type-check       # TypeScriptの型チェック
-pnpm test             # 全テスト (vitest: logic + ui + convex)
-pnpm test:logic       # ロジックテストのみ (src/**/*.test.ts)
-pnpm test:ui          # UIテスト (Storybook + Playwright browser)
-pnpm test:convex      # Convexテスト (Function Test + Scenario Test)
-pnpm e2e              # E2Eテスト (Playwright)
-pnpm storybook        # Storybook起動 (port 6006)
-pnpm scaffdog         # コンポーネントの雛形生成
-pnpm convex:dev       # Convex開発サーバー
-```
+作業対象に応じて、次の正本を読む。
 
-### Codex sandboxで失敗しやすいコマンド
+- 指示の配置: `doc/rules/agent-instructions.md`
+- フロントエンド: `doc/rules/frontend-architecture.md` と `src/AGENTS.md`
+- UI/UX: `doc/rules/ui-design.md` と `ui-architect`
+- テストの層・配置・検証契約: `doc/rules/testing-strategy.md` と `test-strategy`
+- セキュリティ: `doc/rules/security-strategy.md` と `shiftori-security-review`
+- Convexの横断設計: `doc/rules/convex-design-strategy.md` と `convex-design-review`
+- Convex実装: `convex/_generated/ai/guidelines.md` と `convex/AGENTS.md`
+- 保存済みデータ形式の変更やbackfill: `convex-migration-helper`
+- E2E: `e2e/AGENTS.md`
+- CI/CD: `.github/AGENTS.md`
+- 現在の機能概要: `doc/features/` と `doc/features/INDEX.md`
+- 文書全体の入口: `doc/INDEX.md`
+- 人が行う運用手順: `doc/manual/`
 
-- `pnpm lint` は `tsx scripts/check-convex-timezone.ts` が IPC pipe を作るため、Codex sandbox内では `EPERM: operation not permitted ... tsx-*.pipe` で失敗しやすい。Codexで実行する場合は最初から権限付きで実行すること。
-- `pnpm test:ui` / `pnpm e2e` / `pnpm vrt` など Playwright / ブラウザ起動を伴う検証は、Codex sandbox内ではブラウザ起動・IPC・ローカルサーバー接続で失敗しやすい。Codexで実行する必要がある場合は最初から権限付きで実行すること。
-- これらはテスト・lintの失敗とは区別する。`EPERM`、ブラウザ起動不可、IPC/listen失敗など実行環境由来のエラーは、コード修正ではなく実行権限の問題として扱う。
+同じ層の近い実装を追従更新するだけなら、既存パターンを優先する。
+設計方針や検証契約を新設・変更する場合は、対応する規約とSkillを使う。
 
-### 単一テスト実行
+## Skillの発動条件
 
-```bash
-pnpm vitest --project=logic src/path/to/file.test.ts
-pnpm vitest --project=logic -t "テスト名"
-pnpm vitest --project=ui
-pnpm vitest --project=convex convex/path/to/file.test.ts
-pnpm e2e e2e/path/to/file.spec.ts
-```
+- UI/UX、画面構造、レイアウト、状態、マイクロコピーを変更する場合は `ui-architect` を使う。
+- テスト層、配置、新しい検証契約を判断する場合は `test-strategy` を使う。
+- 認証、認可、IDOR、token、Capability、Webhook、外部副作用、billing、個人情報、retention、redactionに触れる相談・計画・設計・実装・レビューでは、プラン確定前に `shiftori-security-review` を使う。
+- Convexの複数ユースケース、public API境界、Capability、永続ワークフロー、データ寿命、運用契約を横断して扱う場合は `convex-design-review` を使う。
+- 保存済みデータの形を変える、既存documentが新schemaに合わなくなる、またはbackfillが必要な場合は `convex-migration-helper` を使う。
 
-## Git Worktree運用
+Skillは特定作業の進め方であり、常時制約や設計原則の正本にしない。
 
-- 同じブランチは複数のworktreeで同時にcheckoutできないため、作業ごとに `codex/...` などの専用ブランチを切ること。
-- worktreeごとに `node_modules` は別管理になるため、新しいworktreeでは必要に応じて `pnpm install` を実行すること。
-- `.env` はGoogle Driveへのシンボリックリンクなので、新しいworktree側でも `ls -l .env` でリンクが正しいか確認すること。
-- `pnpm dev` はport 3000、`pnpm storybook` はport 6006を使う。複数worktreeで同時起動する場合は、片方を `pnpm exec vite --port 3001` や `pnpm exec storybook dev -p 6007` のように明示的にずらすこと。
-- `pnpm convex:dev` は同じConvex deploymentに対して関数を同期するため、複数worktreeで同時起動すると別ブランチのbackend変更が押し合う可能性がある。基本は1つのworktreeだけで起動し、必要な時だけ切り替えること。
-- 不要になったworktreeは `git worktree remove <path>` で削除し、状態確認には `git worktree list` を使うこと。
+## 変更範囲
 
-## ペルソナ
+- 近い既存実装と同じ境界に置く最小差分を基本とする。
+- 依頼に関係しない監査、汎用基盤化、大規模リファクタへ広げない。
+- 新しいtable、job、queue、state machine、service、helper、wrapper、registry、runner、監視基盤は、現在の問題または依頼された契約に必要な場合だけ追加する。
+- 認証、認可、店舗境界、入力検証、migration、外部副作用の冪等性など、変更に直接関係する安全契約は省略しない。
+- 既存のwrapper、policy、共通基盤を優先する。
+- テストは変更契約を直接検証する主担当層を一つ選び、異なる失敗境界を検知する場合だけ他層を追加する。
 
-- あなたはUX、UI、エンジニアリングのプロです。UX駆動開発を行っていることを強く意識してください。
+## 作業環境とGit
 
-## 実装の強いルール
-
-- Submit系ボタンは二重送信に注意すること。UIのloading/disabledだけに依存せず、短時間の連続クリックでも同じ処理が複数回走らないよう、フロントの同期ガードやバックエンドの冪等性を必要に応じて設計すること。
-- 実装変更に合わせた自動テストの追加・更新・削除は、`doc/rules/testing-strategy.md` と `test-strategy` に従うこと。
-- ブラウザをAI Agentが動かしてやるテストは不要。必要な確認は自動テストとして設計すること。
-- Convex起動、Storybook起動、Vite起動はユーザーが実施しています。新規でコマンドを叩かないでください。
-- `.env`ファイルはGoogle Drive（`/g/マイドライブ/80_環境変数/yps-crispy-carnival/`）にシンボリックリンク。環境変数同期は `pnpm convex:env:setup` を使う。
-
-## 実装完了後
-
-- 変更範囲に応じて `pnpm lint`, `pnpm type-check`, `pnpm test` を実行すること。
-- `lint`はwarningでも修正すること。
-- 実装後にコードレビュー観点で自己確認し、要修正の指摘があれば修正すること。
-- 最後に不要な複雑さや重複を見直し、必要な範囲で簡素化すること。
-- 最後にCodexのレビューを実施し、指摘があれば修正してから完了すること。
-- レビュー結果をユーザーに伝える場合は、日本語で説明すること。
+- 新しいbranchやworktreeを作らず、現在のcheckoutで作業する。
+- 依頼外の既存変更は残し、revert、削除、stageをしない。
+- commit、push、Pull Request作成は、ユーザーが明示した場合だけ行う。
+- Convex、Storybook、Viteの開発サーバーはユーザーが起動しているため、新規起動しない。
+- `.env`は直接複製しない。`pnpm convex:env:setup`は`scripts/setupEnv.ts`のallowlistにある変数を、現在選択中のdeploymentへ同期する。Productionまたは別projectでは使わず、完全修飾deployment名を指定したConvex CLIまたはDashboardで設定する。
+- 秘密値や個人情報をログ、文書、コミットへ含めない。
 
 ## 自動生成ファイル
 
-以下の自動生成ファイルは絶対に手動で編集しないこと。
+次のファイルは手動で編集しない。
 
-- `convex/_generated/` — Convex CLIが生成（`pnpm convex:dev`）
-- `src/routeTree.gen.ts` — TanStack Routerが生成（`pnpm dev`）
-- `pnpm-lock.yaml` — pnpmが管理
+- `convex/_generated/`
+- `src/routeTree.gen.ts`
+- `pnpm-lock.yaml`
 
-## プラン
+## 検証
 
-- planドキュメント保存時は参考ファイルのパスも記載すること。
+変更範囲に応じて、`package.json` に定義された検証を実行する。
 
-## ドキュメント
+```bash
+pnpm lint
+pnpm type-check
+pnpm test
+pnpm build
+```
 
-- `doc/ARCHITECTURE.md`: 全体構造、機能→ファイルマッピング、データフロー
-- `doc/INDEX.md`: 機能仕様ドキュメントのインデックス
-- `doc/features/`: 各機能の概要（関連ファイル・画面一覧・API一覧）。詳細な仕様はコードを参照（Single Source of Truth）
-- `doc/plans/`: 実装計画
-- `doc/rules/testing-strategy.md`: テスト種別、粒度、Convex Scenario Test の設計方針
-- `doc/rules/security-strategy.md`: セキュリティ設計、認証/認可境界、token/通知/billing レビュー方針
-- `doc/claude/soul.md`: 設計判断の指針
-- `convex/AGENTS.md`: Convexアーキテクチャ、実装観点の詳細
-- `e2e/AGENTS.md`: E2Eアーキテクチャ、実装観点の詳細
+- 局所変更では対象test projectや対象ファイルを先に実行してよい。
+- `lint`のwarningも解消する。
+- `pnpm lint`やブラウザを使う検証がsandboxのIPC、listen、ブラウザ起動制限で失敗した場合は、コードの失敗と区別する。
+- 実装後に自己レビューを行い、不要な複雑さと重複を除く。
+- ブラウザをAI Agentが手動操作する確認は追加せず、必要な契約は自動テストで検証する。
 
-### ドキュメント運用ルール
+## 文書
 
-- 新機能を実装したら `doc/features/` に概要ドキュメントを作成・更新する。
-- 機能概要には、機能説明（1-2文）、関連ファイルパス、画面一覧、API一覧を含める。
-- 詳細な仕様・ロジックはコードに書く（ドキュメントとコードの二重管理を避ける）。
-- `doc/INDEX.md` に新規ドキュメントへのリンクを追加する。
+- 現在の機能概要を変えた場合は、対応する `doc/features/` を更新する。
+- 新しい機能文書を追加した場合は`doc/features/INDEX.md`にリンクする。
+- 詳細な実装仕様はコードと設定を正とし、文書へ複製しない。
+- `doc/plans/` は意思決定と実装計画の履歴であり、現在仕様の正本にしない。
+- `doc/plans/INDEX.md` で未決提案を `Proposed`、進行中を `Active`、完了済みを `History` に分類する。
+- 廃止、置換、棄却された資料と時点監査は `doc/archive/` へ移し、現行文書の正本にしない。
+- plan文書には参考にしたファイルのパスを記載する。
 
-<!-- convex-ai-start -->
 
-This project uses [Convex](https://convex.dev) as its backend.
+## mdファイルのコツ
 
-When working on Convex code, **always read
-`convex/_generated/ai/guidelines.md` first** for important guidelines on
-how to correctly use Convex APIs and patterns. The file contains rules that
-override what you may have learned about Convex from training data.
+改行は2種類あります。
+段落を意識した文章を書くようにしてください。
+また、段落内の文章の`。`後は空白を2つ入れて改行することをおすすめします。
 
-Convex agent skills for common tasks can be installed by running
-`npx convex ai-files install`.
+- 半角スペースを2つ入れる方法
+```md
+1行目  
+2行目
+```
 
-<!-- convex-ai-end -->
+- 段落を分ける方法
+```md
+1段落目
+
+2段落目
+```

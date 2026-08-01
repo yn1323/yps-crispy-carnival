@@ -1,6 +1,10 @@
 import { Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { mockStaffs, mockStaffsMany, mockStaffsWithExcluded } from "@/src/components/features/Dashboard/storyMocks";
+import {
+  mockStaffs,
+  mockStaffsMany,
+  mockStaffsWithExcluded,
+} from "@/src/components/features/Dashboard/stories/fixtures";
 import { StaffRoster, StaffRosterSkeleton } from ".";
 
 const noop = () => {};
@@ -44,6 +48,23 @@ export const CanLoadMore: Story = {
 export const WithExcluded: Story = {
   args: {
     staffs: mockStaffsWithExcluded,
+  },
+};
+
+export const LongNameWithAllBadgesMobile: Story = {
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  args: {
+    staffs: [
+      {
+        ...mockStaffs[0],
+        name: "東日本エリア統括マネージャー 田中花子",
+        isManager: true,
+        isLineLinked: true,
+        isLineFollowing: true,
+        excludedFromShift: true,
+      },
+    ],
   },
 };
 

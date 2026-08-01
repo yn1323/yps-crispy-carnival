@@ -6,12 +6,15 @@ runs:
   steps:
     - name: Setup Playwright cache
       id: playwright-cache
-      uses: actions/cache@v5
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
       with:
         path: /home/runner/.cache/ms-playwright
-        key: ${{ runner.os }}-playwright-ms-cache-${{ hashFiles('pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-playwright-ms-cache-
-    - name: Install Playwright
+        key: ${{ runner.os }}-playwright-chromium-cache-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-playwright-chromium-cache-
+    - name: Install Playwright Chromium
       shell: bash
       if: steps.playwright-cache.outputs.cache-hit != 'true'
-      run: npx playwright install chromium --with-deps
+      run: npx playwright install chromium
+    - name: Install Playwright Chromium OS dependencies
+      shell: bash
+      run: npx playwright install-deps chromium

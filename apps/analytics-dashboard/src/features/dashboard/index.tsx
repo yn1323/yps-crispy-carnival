@@ -749,14 +749,25 @@ function stageTrendData(snapshots: ServiceSnapshotDto[]) {
   });
 }
 
-function StageTrendPanel({ isLoading, snapshots }: { isLoading: boolean; snapshots: ServiceSnapshotDto[] }) {
-  const data = stageTrendData(snapshots);
+function TrendChartPanel({
+  children,
+  data,
+  height,
+  isLoading,
+  title,
+}: {
+  children: ReactNode;
+  data: object[];
+  height: { base: string; md: string };
+  isLoading: boolean;
+  title: string;
+}) {
   return (
     <Box bg="white" border="1px solid" borderColor="gray.200" borderRadius="md" minW={0} p={{ base: 4, md: 6 }}>
       <Text color="gray.950" fontSize={{ base: "md", md: "lg" }} fontWeight="bold">
-        ステージ別店舗数の推移（日次）
+        {title}
       </Text>
-      <Box h={{ base: "260px", md: "340px" }} mt={5}>
+      <Box h={height} mt={5}>
         {isLoading ? (
           <Skeleton h="full" w="full" />
         ) : data.length === 0 ? (
@@ -781,30 +792,63 @@ function StageTrendPanel({ isLoading, snapshots }: { isLoading: boolean; snapsho
                 contentStyle={{ fontSize: 12 }}
                 formatter={(value, name) => [`${formatNumber(Number(value))}店舗`, name]}
               />
-              <Legend
-                align="center"
-                height={32}
-                iconType="circle"
-                verticalAlign="top"
-                wrapperStyle={{ fontSize: 12 }}
-              />
-              {STAGE_CHART_SERIES.map((series) => (
-                <Line
-                  key={series.key}
-                  activeDot={{ r: 5 }}
-                  dataKey={series.key}
-                  dot={{ r: 3 }}
-                  name={series.label}
-                  stroke={series.color}
-                  strokeWidth={3}
-                  type="monotone"
-                />
-              ))}
+              {children}
             </LineChart>
           </ResponsiveContainer>
         )}
       </Box>
     </Box>
+  );
+}
+
+function TotalShopTrendPanel({ isLoading, snapshots }: { isLoading: boolean; snapshots: ServiceSnapshotDto[] }) {
+  const data = snapshots.map((snapshot) => ({
+    date: formatChartDate(snapshot.date),
+    shopCount: snapshot.shopCount,
+  }));
+  return (
+    <TrendChartPanel
+      data={data}
+      height={{ base: "220px", md: "280px" }}
+      isLoading={isLoading}
+      title="全店舗数の推移（日次）"
+    >
+      <Line
+        activeDot={{ r: 5 }}
+        dataKey="shopCount"
+        dot={{ r: 3 }}
+        name="全店舗数"
+        stroke="#0f766e"
+        strokeWidth={3}
+        type="monotone"
+      />
+    </TrendChartPanel>
+  );
+}
+
+function StageTrendPanel({ isLoading, snapshots }: { isLoading: boolean; snapshots: ServiceSnapshotDto[] }) {
+  const data = stageTrendData(snapshots);
+  return (
+    <TrendChartPanel
+      data={data}
+      height={{ base: "260px", md: "340px" }}
+      isLoading={isLoading}
+      title="ステージ別店舗数の推移（日次）"
+    >
+      <Legend align="center" height={32} iconType="circle" verticalAlign="top" wrapperStyle={{ fontSize: 12 }} />
+      {STAGE_CHART_SERIES.map((series) => (
+        <Line
+          key={series.key}
+          activeDot={{ r: 5 }}
+          dataKey={series.key}
+          dot={{ r: 3 }}
+          name={series.label}
+          stroke={series.color}
+          strokeWidth={3}
+          type="monotone"
+        />
+      ))}
+    </TrendChartPanel>
   );
 }
 
@@ -893,17 +937,21 @@ export const DashboardTop = ({
             activeView === "dormant" ||
             activeView === "shops" ||
             activeView === "featureRequests" ? null : (
-              <Box>
-                <Text color="gray.950" fontSize={{ base: "md", md: "lg" }} fontWeight="bold" mb={4}>
-                  ステージ別店舗数
-                </Text>
-                <StageCards
-                  activeView={activeView}
-                  counts={counts}
-                  isLoading={isLoading}
-                  previousCounts={previousCounts}
-                />
-              </Box>
+              <>
+                <TotalShopTrendPanel isLoading={isLoading} snapshots={serviceSnapshots} />
+
+                <Box>
+                  <Text color="gray.950" fontSize={{ base: "md", md: "lg" }} fontWeight="bold" mb={4}>
+                    ステージ別店舗数
+                  </Text>
+                  <StageCards
+                    activeView={activeView}
+                    counts={counts}
+                    isLoading={isLoading}
+                    previousCounts={previousCounts}
+                  />
+                </Box>
+              </>
             )}
 
             {activeView === "beforeStart" ? (
