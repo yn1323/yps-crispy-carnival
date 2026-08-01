@@ -124,7 +124,7 @@ export function RecruitmentManagement({
       createDialog.close();
       showSuccessToast({
         title: "募集をつくり、スタッフに通知しました",
-        description: "LINE連携済みのスタッフには通常LINE、それ以外にはメールで送ります。",
+        description: "LINE連携済みのスタッフには通常LINEで、それ以外のスタッフにはメールで送ります。",
       });
     } catch (error) {
       const message = getCreateRecruitmentErrorMessage(error);

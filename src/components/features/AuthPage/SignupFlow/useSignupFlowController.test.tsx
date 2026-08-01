@@ -79,7 +79,9 @@ describe("useSignupFlowController", () => {
       await result.current.onSignup({ email: "manager@example.com", password: "password123" });
     });
 
-    expect(result.current.errorMessage).toBe("このメールアドレスはすでに登録されています。ログインをお試しください。");
+    expect(result.current.errorMessage).toBe(
+      "このメールアドレスはすでに登録されています。\nログインをお試しください。",
+    );
     expect(result.current.isVerificationStep).toBe(false);
     expect(signUp.verifications.sendEmailCode).not.toHaveBeenCalled();
     expect(signUp.finalize).not.toHaveBeenCalled();
@@ -95,7 +97,7 @@ describe("useSignupFlowController", () => {
       await result.current.onSignup({ email: "manager@example.com", password: "password123" });
     });
 
-    expect(result.current.errorMessage).toBe("試行回数が多すぎます。時間をおいてもう一度お試しください。");
+    expect(result.current.errorMessage).toBe("試行回数が多すぎます。\n時間をおいて、もう一度お試しください。");
     expect(result.current.isVerificationStep).toBe(false);
     expect(signUp.finalize).not.toHaveBeenCalled();
   });
@@ -134,7 +136,7 @@ describe("useSignupFlowController", () => {
       redirectCallbackUrl: "/sso-callback?redirect=%2Fdashboard%3Ftab%3Dstaff",
       redirectUrl: "/dashboard?tab=staff",
     });
-    expect(result.current.errorMessage).toBe("試行回数が多すぎます。時間をおいてもう一度お試しください。");
+    expect(result.current.errorMessage).toBe("試行回数が多すぎます。\n時間をおいて、もう一度お試しください。");
     expect(signUp.finalize).not.toHaveBeenCalled();
   });
 });

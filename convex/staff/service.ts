@@ -74,7 +74,9 @@ export async function releasePendingInvitationReservationsForStaffAddition(
         invitation.emailNormalized === entry.email && invitation.reservedSeat && invitation.expiresAt > now,
     );
     if (pendingInvitations.length > 1) {
-      throw new ConvexError("このメールアドレスの管理者招待を一意に確認できません");
+      throw new ConvexError(
+        "このメールアドレスへの管理者招待を確認できません。\nグループ設定で招待状況を確認してください。",
+      );
     }
     const invitation = pendingInvitations[0];
     if (invitation) await ctx.db.patch(invitation._id, { reservedSeat: false, updatedAt: now });
@@ -102,7 +104,7 @@ export async function prepareOrganizationPeopleForStaffAddition(
   for (const entry of args.entries) {
     const email = normalizeEmail(entry.email);
     if (inputEmails.has(email)) {
-      throw new ConvexError("同じメールアドレスが入力されています");
+      throw new ConvexError("同じメールアドレスが複数入力されています。");
     }
     inputEmails.add(email);
 
@@ -113,12 +115,14 @@ export async function prepareOrganizationPeopleForStaffAddition(
       )
       .take(2);
     if (matchingPeople.length > 1) {
-      throw new ConvexError("このメールアドレスの人物情報を確認できません。人物管理で登録内容を確認してください");
+      throw new ConvexError(
+        "このメールアドレスのユーザー情報を確認できません。\nユーザー画面で登録内容を確認してください。",
+      );
     }
 
     const person = matchingPeople[0] ?? null;
     if (person?.status === "removed" && !args.allowRemovedPeople) {
-      throw new ConvexError("削除済みの人物です。人物管理から再有効化してから追加してください");
+      throw new ConvexError("削除済みのユーザーです。\nユーザー画面で再追加したうえで、店舗に追加してください。");
     }
 
     let addsPersonToUsage = false;
@@ -139,17 +143,21 @@ export async function prepareOrganizationPeopleForStaffAddition(
       ]);
       if (person.status === "removed") {
         if (managerMemberships.some((membership) => membership.status !== "removed")) {
-          throw new ConvexError("削除済み人物の管理者権限を確認できません。人物管理で登録内容を確認してください");
+          throw new ConvexError(
+            "削除済みユーザーの管理者権限を確認できません。\nユーザー画面で登録内容を確認してください。",
+          );
         }
       }
       const activeStaffRows = staffRows.filter((staff) => !staff.isDeleted);
       const existingStaffInShop = activeStaffRows.find((staff) => staff.shopId === args.shopId);
       if (existingStaffInShop) {
-        throw new ConvexError("この人物はすでに店舗へ登録されています");
+        throw new ConvexError("このユーザーはすでに店舗へ登録されています。");
       }
       // removed人物をactiveへ戻した瞬間に、過去の別店舗staffが暗黙復元されないことを保証する。
       if (person.status === "removed" && activeStaffRows.length > 0) {
-        throw new ConvexError("削除済み人物の店舗所属を確認できません。人物管理で登録内容を確認してください");
+        throw new ConvexError(
+          "削除済みユーザーの店舗所属を確認できません。\nユーザー画面で登録内容を確認してください。",
+        );
       }
       addsPersonToUsage =
         person.status === "removed" ||
@@ -204,12 +212,12 @@ export async function materializeOrganizationPeopleForStaffAddition(
         person.status !== "removed" ||
         normalizeEmail(person.email) !== entry.email
       ) {
-        throw new ConvexError("確認した人物情報が変わりました。もう一度追加内容を確認してください");
+        throw new ConvexError("確認したユーザー情報が変わりました。\n追加内容をもう一度確認してください。");
       }
       if (person.userId) {
         const user = await ctx.db.get(person.userId);
         if (!user || user.isDeleted || user.accountDeletionRequestedAt !== undefined) {
-          throw new ConvexError("この人物は再追加できません");
+          throw new ConvexError("このユーザーは再追加できません。");
         }
       }
       await ctx.db.patch(personId, { status: "active", updatedAt: now });

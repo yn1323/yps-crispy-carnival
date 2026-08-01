@@ -238,7 +238,7 @@ describe("staff/mutations", () => {
             email: `additional-${index}@example.com`,
           })),
         }),
-      ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 1名 / 上限 5名）");
+      ).rejects.toThrow("利用人数が現在のプラン上限を超えます。\n現在1名、上限5名です。");
 
       const state = await t.run(async (ctx) => {
         const people = await ctx.db
@@ -523,7 +523,9 @@ describe("staff/mutations", () => {
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "追加対象", email: "duplicate-reservation@example.com" }],
         }),
-      ).rejects.toThrow("管理者招待を一意に確認できません");
+      ).rejects.toThrow(
+        "このメールアドレスへの管理者招待を確認できません。\nグループ設定で招待状況を確認してください。",
+      );
 
       const state = await t.run(async (ctx) => ({
         audits: await ctx.db.query("organizationAuditEvents").collect(),
@@ -799,7 +801,7 @@ describe("staff/mutations", () => {
           entries,
           confirmReactivationPersonIds: preview.candidates.map((candidate) => candidate.personId),
         }),
-      ).rejects.toThrow("この人物は再追加できません");
+      ).rejects.toThrow("このユーザーは再追加できません。");
 
       const state = await t.run(async (ctx) => ({
         person: await ctx.db.get(seeded.removedPersonId),
@@ -867,7 +869,7 @@ describe("staff/mutations", () => {
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "再追加", email: "stale-manager@example.com" }],
         }),
-      ).rejects.toThrow("削除済み人物の管理者権限を確認できません");
+      ).rejects.toThrow("削除済みユーザーの管理者権限を確認できません。\nユーザー画面で登録内容を確認してください。");
 
       const state = await t.run(async (ctx) => ({
         member: await ctx.db.get(seeded.memberId),
@@ -1072,7 +1074,7 @@ describe("staff/mutations", () => {
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "重複人物", email: "person@example.com" }],
         }),
-      ).rejects.toThrow("この人物はすでに店舗へ登録されています");
+      ).rejects.toThrow("このユーザーはすでに店舗へ登録されています。");
 
       const staffs = await t.run(async (ctx) =>
         ctx.db
@@ -1257,7 +1259,7 @@ describe("staff/mutations", () => {
             { name: "重複スタッフ", email: "existing@example.com" },
           ],
         }),
-      ).rejects.toThrow("このメールアドレスはすでに登録されています");
+      ).rejects.toThrow("このメールアドレスはすでに登録されています。");
 
       const allStaffs = await t.run(async (ctx) =>
         ctx.db
@@ -1294,7 +1296,7 @@ describe("staff/mutations", () => {
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "田中太郎", email: "Tanaka@Example.com" }],
         }),
-      ).rejects.toThrow("このメールアドレスはすでに登録されています");
+      ).rejects.toThrow("このメールアドレスはすでに登録されています。");
 
       expect(firstIds).toHaveLength(1);
       const state = await t.run(async (ctx) => {
@@ -1339,7 +1341,7 @@ describe("staff/mutations", () => {
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "新規スタッフ", email: "legacy@example.com" }],
         }),
-      ).rejects.toThrow("このメールアドレスはすでに登録されています");
+      ).rejects.toThrow("このメールアドレスはすでに登録されています。");
     });
 
     it("承認待ち申請と同じメールアドレスはエラーにする", async () => {
@@ -1372,7 +1374,7 @@ describe("staff/mutations", () => {
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "新規スタッフ", email: "Pending@Example.com" }],
         }),
-      ).rejects.toThrow("このメールアドレスは承認待ちです");
+      ).rejects.toThrow("このメールアドレスはスタッフ登録の承認待ちです。");
     });
 
     it("追加スタッフ向け通知データは締切前のopen募集だけを返す", async () => {
@@ -1956,7 +1958,7 @@ describe("staff/mutations", () => {
           name: "変更後",
           email: "second@example.com",
         }),
-      ).rejects.toThrow("グループ内の別の利用者");
+      ).rejects.toThrow("このメールアドレスは、グループ内の別のユーザーが使用しています。");
     });
 
     it("メールアドレス変更時は募集中シフト通知の追送actionをスケジュールする", async () => {
@@ -2127,7 +2129,7 @@ describe("staff/mutations", () => {
           name: "田中太郎",
           email: "sato@example.com",
         }),
-      ).rejects.toThrow("このメールアドレスは既に使用されています");
+      ).rejects.toThrow("このメールアドレスはすでに使用されています。");
     });
 
     it("自分自身のメールアドレスはそのまま更新可能", async () => {
@@ -2247,7 +2249,7 @@ describe("staff/mutations", () => {
           t
             .withIdentity({ subject: `organization_staff_delete_${hasFutureAssignment}` })
             .mutation(api.staff.mutations.deleteStaff, { shopId: ids.shopId, staffId: ids.staffId }),
-        ).rejects.toThrow("グループ設定から店舗所属を解除してください");
+        ).rejects.toThrow("この店舗への所属は、グループ設定のユーザー画面から解除してください。");
         await expect(t.run(async (ctx) => (await ctx.db.get(ids.staffId))?.isDeleted)).resolves.toBe(false);
         await expect(t.run(async (ctx) => (await ctx.db.get(ids.personId))?.status)).resolves.toBe("active");
       },
@@ -2297,7 +2299,7 @@ describe("staff/mutations", () => {
         t
           .withIdentity({ subject: "user_mgr" })
           .mutation(api.staff.mutations.deleteStaff, { shopId, staffId: adminStaffId }),
-      ).rejects.toThrow("自分のアカウントは削除できません");
+      ).rejects.toThrow("自分のアカウントは削除できません。");
     });
   });
 
@@ -2756,7 +2758,7 @@ describe("staff/mutations", () => {
         t
           .withIdentity({ subject: "current_shift_manager" })
           .mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId }),
-      ).rejects.toThrowError("メールアドレスまたはLINE連携が必要です");
+      ).rejects.toThrowError("メールアドレスの登録またはLINE連携が必要です。");
       expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(0);
     });
 

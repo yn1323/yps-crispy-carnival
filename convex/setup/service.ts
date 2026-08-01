@@ -18,8 +18,8 @@ import { sendReminderRef } from "../shopActivationReminder/refs";
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
 
-export const ORGANIZATION_CREATE_LIMIT_REACHED_MESSAGE = `作成できるグループは${ORGANIZATION_SELF_CREATED_LIMIT}つまでです。使っていないグループを削除すると、また作成できます。`;
-const ORGANIZATION_CREATE_UNAVAILABLE_MESSAGE = "無効になったアカウントではグループを作成できません。";
+export const ORGANIZATION_CREATE_LIMIT_REACHED_MESSAGE = `作成できるグループは${ORGANIZATION_SELF_CREATED_LIMIT}つまでです。\n使っていないグループを削除すると、また作成できます。`;
+const ORGANIZATION_CREATE_UNAVAILABLE_MESSAGE = "無効になったアカウントでは、グループを作成できません。";
 
 export type OrganizationCreationAvailability = { canCreate: true } | { canCreate: false; reason: string };
 

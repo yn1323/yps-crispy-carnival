@@ -535,7 +535,7 @@ describe("AuthGuard", () => {
     );
 
     expect(screen.getByRole("heading", { name: "アカウントの削除を受け付けました" })).not.toBeNull();
-    expect(screen.getByText(/ログイン用アカウントの削除は通常、数分以内に完了します/)).not.toBeNull();
+    expect(screen.getByText(/ログイン用アカウントの削除は、通常は数分以内に完了します/)).not.toBeNull();
     expect(screen.getByText(/このページを閉じても処理は続きます/)).not.toBeNull();
     expect(screen.queryByRole("heading", { name: "シフトリの利用は終了しています" })).toBeNull();
     expect(screen.queryByTestId("account-deletion-entry")).toBeNull();

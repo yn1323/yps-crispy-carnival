@@ -227,7 +227,7 @@ describe("organization shop management", () => {
         submissionPattern,
         requestId: "sixth-shop-request",
       }),
-    ).rejects.toThrow("稼働店舗数が現在のプラン上限を超えます");
+    ).rejects.toThrow("店舗数が現在のプラン上限を超えます。");
 
     await expect(
       t.run(async (ctx) =>
@@ -253,7 +253,7 @@ describe("organization shop management", () => {
         submissionPattern,
         requestId: "free-add-shop",
       }),
-    ).rejects.toThrow("この機能はトライアルまたはProで利用できます");
+    ).rejects.toThrow("この機能はトライアルまたはProで利用できます。");
   });
 
   it("ダークローンチ中は、上限に空きがあっても店舗を追加できない", async () => {
@@ -434,7 +434,7 @@ describe("organization shop management", () => {
         shopId: ids.targetShopId,
         requestId: "reactivate-at-capacity",
       }),
-    ).rejects.toThrow("稼働店舗数が現在のプラン上限を超えます");
+    ).rejects.toThrow("店舗数が現在のプラン上限を超えます。");
 
     await t.run(async (ctx) => await ctx.db.patch(ids.activeShopIds[0], { operatingStatus: "archived" }));
     await expect(

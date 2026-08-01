@@ -1021,7 +1021,7 @@ describe("organizationInvitation/mutations", () => {
     expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(4);
     expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
     expect(String(results.find((result) => result.status === "rejected")?.reason)).toContain(
-      "管理者と招待中の管理者が現在のプラン上限を超えます",
+      "招待中を含めた管理者の合計が、現在のプラン上限を超えます。",
     );
     const pending = await t.run((ctx) =>
       ctx.db
@@ -1361,7 +1361,7 @@ describe("organizationInvitation/mutations", () => {
         email: ids.targetEmail,
         requestId: "readonly-invite-create",
       }),
-    ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 20名 / 上限 20名）");
+    ).rejects.toThrow("利用人数が現在のプラン上限を超えます。\n現在20名、上限20名です。");
 
     const invitations = await t.run((ctx) =>
       ctx.db

@@ -42,7 +42,7 @@ describe("setup/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "deleted_setup_user" }).mutation(api.setup.mutations.setupShopAndManager, setupArgs),
-      ).rejects.toThrow("無効になったアカウントでは初期設定を開始できません");
+      ).rejects.toThrow("無効になったアカウントでは、初期設定を開始できません。");
 
       const state = await t.run(async (ctx) => ({
         user: await ctx.db.get(userId),
@@ -72,7 +72,7 @@ describe("setup/mutations", () => {
         t
           .withIdentity({ subject: "requested_setup_user" })
           .mutation(api.setup.mutations.setupShopAndManager, setupArgs),
-      ).rejects.toThrow("無効になったアカウントでは初期設定を開始できません");
+      ).rejects.toThrow("無効になったアカウントでは、初期設定を開始できません。");
 
       const state = await t.run(async (ctx) => ({
         user: await ctx.db.get(userId),
@@ -144,7 +144,9 @@ describe("setup/mutations", () => {
         t
           .withIdentity({ subject: "duplicate_created_organizations" })
           .mutation(api.setup.mutations.setupShopAndManager, setupArgs),
-      ).rejects.toThrow("作成済みのグループを一意に確認できません");
+      ).rejects.toThrow(
+        "作成済みのグループ情報を確認できません。\n画面を更新しても解消しない場合は、お問い合わせください。",
+      );
       await expect(t.run(async (ctx) => ctx.db.query("shops").collect())).resolves.toEqual([]);
     });
 
@@ -535,7 +537,7 @@ describe("setup/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "user_without_record" }).mutation(api.setup.mutations.createOrganization, createArgs),
-      ).rejects.toThrow("グループを作成する前に、初期設定を完了してください");
+      ).rejects.toThrow("グループを作成する前に、初期設定を完了してください。");
 
       const state = await t.run(async (ctx) => ({
         organizations: await ctx.db.query("organizations").collect(),
@@ -556,7 +558,7 @@ describe("setup/mutations", () => {
         t
           .withIdentity({ subject: "create_org_deletion_requested" })
           .mutation(api.setup.mutations.createOrganization, createArgs),
-      ).rejects.toThrow("無効になったアカウントではグループを作成できません。");
+      ).rejects.toThrow("無効になったアカウントでは、グループを作成できません。");
 
       const state = await t.run(async (ctx) => ({
         organizations: await ctx.db.query("organizations").collect(),
@@ -802,7 +804,7 @@ describe("setup/mutations", () => {
           ...createArgs,
           requestId: "create-organization-request-2",
         }),
-      ).rejects.toThrow("グループの作成が続いています。時間をおいてお試しください");
+      ).rejects.toThrow("グループの作成処理が進行中です。\n少し時間をおいてから、もう一度お試しください。");
 
       const state = await t.run(async (ctx) => ({
         organizations: await ctx.db.query("organizations").collect(),
@@ -840,7 +842,7 @@ describe("setup/mutations", () => {
         const asUser = t.withIdentity({ subject: "create_org_dark_launch" });
 
         await expect(asUser.mutation(api.setup.mutations.createOrganization, createArgs)).rejects.toThrow(
-          "新しいグループの作成は現在ご利用いただけません",
+          "現在、新しいグループは作成できません。",
         );
 
         const state = await t.run(async (ctx) => ({

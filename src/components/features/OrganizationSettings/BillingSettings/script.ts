@@ -170,13 +170,13 @@ export function billingUnavailableMessage(reason: BillingUnavailableReason): {
     case "provider_unavailable":
       return {
         title: "決済処理を完了できませんでした",
-        description: "少し時間をおいて、画面の契約状態を確認してからもう一度お試しください。",
+        description: "少し時間をおき、画面の契約状態を確認してから、もう一度お試しください。",
         type: "info",
       };
     case "not_allowed":
       return {
         title: "現在はこの操作を行えません",
-        description: "契約状態または操作権限が変わっている可能性があります。画面を更新してご確認ください。",
+        description: "契約状態または操作権限が変わっている可能性があります。\n画面を更新して確認してください。",
         type: "warning",
       };
     case "in_progress":

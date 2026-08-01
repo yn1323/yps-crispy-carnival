@@ -185,7 +185,7 @@ export const updateOrganizationName = authenticatedMutation({
   handler: async (ctx, args) => {
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
     const parsed = organizationNameSchema.safeParse(args.name);
-    if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+    if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
     const requestKey = await toAuditRequestKey(args.requestId);
     const correlationId = `${actor.organization._id}:organization:name:${requestKey}`;
     const prior = await ctx.db
@@ -237,7 +237,7 @@ export const updatePersonProfile = authenticatedMutation({
     await requireOrganizationBusinessWrite(ctx, actor.organization._id);
     const parsed = editStaffSchema.safeParse({ name: args.name, email: args.email });
     if (!parsed.success) {
-      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
     }
 
     const requestKey = await toAuditRequestKey(args.requestId);
@@ -314,7 +314,7 @@ export const addShop = authenticatedMutation({
       regularClosedDays: args.regularClosedDays ?? [],
       submissionPattern: args.submissionPattern,
     });
-    if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+    if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
     const requestId = await toAuditRequestKey(args.requestId);
     const organization = actor.organization;
     const correlationId = `${organization._id}:shop:add:${requestId}`;
@@ -639,7 +639,7 @@ export const deleteOrganization = authenticatedMutation({
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
     if (actor.organization._id !== args.organizationId) throw new ConvexError("Not found");
     if (actor.organization.updatedAt !== args.expectedOrganizationUpdatedAt) {
-      throw new ConvexError("グループの状態が変わりました。画面を更新してからもう一度お試しください");
+      throw new ConvexError("グループの状態が変わりました。\n画面を更新してから、もう一度お試しください。");
     }
 
     const billingState = await requireOrganizationBillingState(ctx, actor.organization._id);
@@ -686,7 +686,7 @@ export const deleteOrganization = authenticatedMutation({
 
 const personRemovalResultValidator = v.object({ changed: v.boolean() });
 const STALE_PERSON_REMOVAL_PREVIEW_ERROR =
-  "今日以降のシフト割当が変更されました。内容を確認して、もう一度削除してください";
+  "今日以降のシフトの割り当てが変更されました。\n内容を確認してから、もう一度削除してください。";
 
 type PersonRemovalCtx = MutationCtx & { user: Doc<"users"> | null };
 
@@ -762,7 +762,8 @@ function assertPersonRemovalPreview(
 ) {
   if (preview.kind === "tooMany") {
     throw new ConvexError(
-      `今日以降のシフト割当が${preview.limit}件を超えています。先にシフトを整理してから削除してください`,
+      `今日以降のシフトの割り当てが${preview.limit}件を超えています。
+先にシフトを整理してから、削除してください。`,
     );
   }
   // 旧クライアントは0件だけ互換許容する。割当がある削除は必ず明示確認を要求する。
@@ -1012,7 +1013,7 @@ async function prepareFullOrganizationPersonRemoval(
   },
 ): Promise<FullOrganizationPersonRemovalPlan> {
   if (isOrganizationBillingContact(args.actor.organization, args.person)) {
-    throw new ConvexError("請求先メールアドレスを変更してから削除してください");
+    throw new ConvexError("削除するには、先に請求先メールアドレスを変更してください。");
   }
   const billingReferenceUpdate = await planBillingReferenceUpdate(ctx, args.billingState, args.person._id);
   if (args.member?.status === "active") {
@@ -1327,7 +1328,7 @@ export const removeManagerRole = authenticatedMutation({
     await requireOrganizationBusinessWrite(ctx, actor.organization._id);
     await requireOrganizationPaidFeature(ctx, actor.organization._id);
     if (!(await hasOtherValidActiveManager(ctx, actor.organization._id, person._id))) {
-      throw new ConvexError("最後の有効管理者の管理者権限は外せません");
+      throw new ConvexError("最後の有効管理者の管理者権限は外せません。");
     }
 
     const staffs = await ctx.db
@@ -1338,7 +1339,7 @@ export const removeManagerRole = authenticatedMutation({
       .collect();
     const hasActiveStaffRole = staffs.some((staff) => !staff.isDeleted);
     if (!hasActiveStaffRole && isOrganizationBillingContact(actor.organization, person)) {
-      throw new ConvexError("請求先メールアドレスを変更してから管理者権限を外してください");
+      throw new ConvexError("管理者権限を外すには、先に請求先メールアドレスを変更してください。");
     }
     const now = Date.now();
     const billingReferenceUpdate = await planBillingReferenceUpdate(ctx, billingState, person._id);

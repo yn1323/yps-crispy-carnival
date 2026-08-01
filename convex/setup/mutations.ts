@@ -13,8 +13,8 @@ import { setupShopAndManagerSchema } from "./schemas";
 import { createOrganizationWithFirstShop, getOrganizationCreationAvailability } from "./service";
 
 const WEEKDAY_ORDER = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
-const PRIOR_OPERATION_ERROR = "以前の操作結果を確認できません";
-const ORGANIZATION_CREATION_UNAVAILABLE_MESSAGE = "新しいグループの作成は現在ご利用いただけません";
+const PRIOR_OPERATION_ERROR = "以前の操作結果を確認できません。";
+const ORGANIZATION_CREATION_UNAVAILABLE_MESSAGE = "現在、新しいグループは作成できません。";
 
 export const setupShopAndManager = authenticatedMutation({
   args: {
@@ -28,12 +28,12 @@ export const setupShopAndManager = authenticatedMutation({
   handler: async (ctx, args) => {
     const parsed = setupShopAndManagerSchema.safeParse(args);
     if (!parsed.success) {
-      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
     }
     const input = parsed.data;
     const currentUser = ctx.user;
     if (currentUser?.isDeleted || currentUser?.accountDeletionRequestedAt !== undefined) {
-      throw new ConvexError("無効になったアカウントでは初期設定を開始できません");
+      throw new ConvexError("無効になったアカウントでは、初期設定を開始できません。");
     }
     if (currentUser) {
       const selfCreatedOrganizations = await ctx.db
@@ -43,10 +43,12 @@ export const setupShopAndManager = authenticatedMutation({
         )
         .take(2);
       if (selfCreatedOrganizations.length > 1) {
-        throw new ConvexError("作成済みのグループを一意に確認できません");
+        throw new ConvexError(
+          "作成済みのグループ情報を確認できません。\n画面を更新しても解消しない場合は、お問い合わせください。",
+        );
       }
       if (selfCreatedOrganizations.length === 1) {
-        throw new ConvexError("自分で作成できるグループは一つまでです");
+        throw new ConvexError("自分で作成できるグループは1つまでです。");
       }
 
       // TODO[narrow]: develop/prodでm009_shops_to_organizationsと
@@ -59,7 +61,7 @@ export const setupShopAndManager = authenticatedMutation({
       for await (const membership of legacyMemberships) {
         const legacyShop = await ctx.db.get(membership.shopId);
         if (legacyShop && !legacyShop.isDeleted && !legacyShop.organizationId) {
-          throw new ConvexError("既に店舗が登録されています");
+          throw new ConvexError("すでに店舗が登録されています。");
         }
       }
     }
@@ -134,7 +136,7 @@ export const createOrganization = authenticatedMutation({
   returns: v.object({ shopId: v.id("shops"), created: v.boolean() }),
   handler: async (ctx, args) => {
     const user = ctx.user;
-    if (!user) throw new ConvexError("グループを作成する前に、初期設定を完了してください");
+    if (!user) throw new ConvexError("グループを作成する前に、初期設定を完了してください。");
 
     // 冪等recordとrate limit budgetより前に判定し、閉じている間はどちらも消費しない。
     if (!isOrganizationCreationEnabled()) throw new ConvexError(ORGANIZATION_CREATION_UNAVAILABLE_MESSAGE);
@@ -149,7 +151,7 @@ export const createOrganization = authenticatedMutation({
       rateLimit(ctx, { name: "organizationCreateDaily", key: user._id }),
     ]);
     if (!shortLimit.ok || !dailyLimit.ok) {
-      throw new ConvexError("グループの作成が続いています。時間をおいてお試しください");
+      throw new ConvexError("グループの作成処理が進行中です。\n少し時間をおいてから、もう一度お試しください。");
     }
 
     const availability = await getOrganizationCreationAvailability(ctx, user);
@@ -160,7 +162,7 @@ export const createOrganization = authenticatedMutation({
       regularClosedDays: args.regularClosedDays ?? [],
       submissionPattern: args.submissionPattern,
     });
-    if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+    if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
 
     const { shopId } = await createOrganizationWithFirstShop(ctx, {
       userId: user._id,

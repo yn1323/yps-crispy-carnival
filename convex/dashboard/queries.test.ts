@@ -1923,7 +1923,7 @@ describe("dashboard/queries", () => {
       const conflicted = await owner.query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
       expect(conflicted.page.find((staff) => staff._id === ids.targetStaffId)?.managerInvitationState).toEqual({
         kind: "unavailable",
-        reason: "このユーザーへの招待状態を確認できません。グループ設定を確認してください。",
+        reason: "このユーザーへの管理者招待の状態を確認できません。\nグループ設定を確認してください。",
       });
 
       await t.run(async (ctx) => {
@@ -1959,7 +1959,7 @@ describe("dashboard/queries", () => {
       const wrongTarget = await owner.query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
       expect(wrongTarget.page.find((staff) => staff._id === ids.targetStaffId)?.managerInvitationState).toEqual({
         kind: "unavailable",
-        reason: "このユーザーへの招待状態を確認できません。グループ設定を確認してください。",
+        reason: "このユーザーへの管理者招待の状態を確認できません。\nグループ設定を確認してください。",
       });
       expect(await t.run((ctx) => ctx.db.get(invitationId))).toMatchObject({ status: "revoked" });
     });

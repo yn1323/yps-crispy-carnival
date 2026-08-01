@@ -173,7 +173,9 @@ async function sendJob(ctx: ActionCtx, job: NotificationJob): Promise<SendJobRes
       fallbackEmail: job.payload.fallbackEmail,
       message: {
         type: "text",
-        text: `${invitation.organizationName}の管理者として招待されました。\nログインしてアカウント連携を完了してください。\n${externalBrowserUrl}`,
+        text: `${invitation.organizationName}の管理者として招待されました。
+ログインして、アカウント連携を完了してください。
+${externalBrowserUrl}`,
       },
     });
   }

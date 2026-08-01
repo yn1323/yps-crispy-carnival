@@ -112,7 +112,9 @@ async function requireInvitationResendBudget(
   ] as const;
   const statuses = await Promise.all(limits.map(async (limit) => await checkRateLimit(ctx, limit)));
   if (statuses.some((status) => !status.ok)) {
-    throw new ConvexError("招待回数が多いため、少し時間をおいてお試しください");
+    throw new ConvexError(
+      "招待回数が多いため、送信を一時制限しています。\n少し時間をおいてから、もう一度お試しください。",
+    );
   }
 
   for (const limit of limits) {
@@ -295,9 +297,13 @@ async function createManagerInvitation(
         q.eq("organizationId", organization._id).eq("emailNormalized", emailNormalized),
       )
       .take(2);
-    if (people.length > 1) throw new ConvexError("同じメールアドレスの利用者を一意に確認できません");
+    if (people.length > 1) {
+      throw new ConvexError(
+        "同じメールアドレスのユーザーが複数見つかりました。\nグループのユーザー情報を確認してください。",
+      );
+    }
     if (people[0]?.status === "removed") {
-      throw new ConvexError("削除済みの利用者です。利用者画面から再追加してください");
+      throw new ConvexError("このユーザーは削除済みです。\nユーザー画面から再追加してください。");
     }
     targetPerson = people[0];
   }
@@ -399,7 +405,11 @@ async function createManagerInvitation(
     rateLimit(ctx, { name: "organizationManagerInviteCreateShort", key }),
     rateLimit(ctx, { name: "organizationManagerInviteCreateDaily", key }),
   ]);
-  if (!shortLimit.ok || !dailyLimit.ok) throw new ConvexError("招待回数が多いため、時間をおいてお試しください");
+  if (!shortLimit.ok || !dailyLimit.ok) {
+    throw new ConvexError(
+      "招待回数が多いため、送信を一時制限しています。\n少し時間をおいてから、もう一度お試しください。",
+    );
+  }
 
   let purpose: OrganizationInvitationPurpose = "managerAddition";
   let reservedSeat = false;
@@ -411,17 +421,21 @@ async function createManagerInvitation(
       ...(targetPerson ? { targetPersonId: targetPerson._id } : {}),
     });
     if (!exchange) {
-      throw new ConvexError("無料ではグループ内の既存スタッフとの管理者交代だけを招待できます");
+      throw new ConvexError("無料プランでは、グループ内の既存スタッフへの管理者交代のみ行えます。");
     }
     await requireNoOtherPendingFreeManagerExchange(ctx, organization._id, now, staleTargetInvitation?._id);
     await requireOrganizationCapacity(ctx, { organizationId: organization._id });
     purpose = "freeManagerExchange";
   } else {
     const people = targetPerson ? [targetPerson] : [];
-    if (people.length > 1) throw new ConvexError("同じメールアドレスの利用者を一意に確認できません");
+    if (people.length > 1) {
+      throw new ConvexError(
+        "同じメールアドレスのユーザーが複数見つかりました。\nグループのユーザー情報を確認してください。",
+      );
+    }
     const existingPerson = people[0];
     if (existingPerson?.status === "removed") {
-      throw new ConvexError("削除済みの利用者です。利用者画面から再追加してください");
+      throw new ConvexError("このユーザーは削除済みです。\nユーザー画面から再追加してください。");
     }
     if (existingPerson) {
       const members = await ctx.db
@@ -502,7 +516,7 @@ export const create = authenticatedMutation({
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
     requireManagerInvitationEnabled();
     const parsed = createOrganizationManagerInvitationSchema.safeParse(args);
-    if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+    if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
     return await createManagerInvitation(ctx, {
       organization: actor.organization,
       inviterMember: actor.member,
@@ -519,7 +533,7 @@ export const createExternal = authenticatedMutation({
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
     requireManagerInvitationEnabled();
     const parsed = createExternalOrganizationManagerInvitationSchema.safeParse(args);
-    if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+    if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
     const result = await createManagerInvitation(ctx, {
       organization: actor.organization,
       inviterMember: actor.member,
@@ -539,7 +553,7 @@ export const createForPerson = authenticatedMutation({
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
     requireManagerInvitationEnabled();
     const parsed = organizationInvitationRequestSchema.safeParse({ requestId: args.requestId });
-    if (!parsed.success) throw new ConvexError("入力内容を確認してください");
+    if (!parsed.success) throw new ConvexError("入力内容を確認してください。");
     const targetPerson = await ctx.db.get(args.personId);
     if (
       !targetPerson ||
@@ -568,7 +582,7 @@ export const createForStaff = authenticatedMutation({
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
     requireManagerInvitationEnabled();
     const parsed = organizationInvitationRequestSchema.safeParse({ requestId: args.requestId });
-    if (!parsed.success) throw new ConvexError("入力内容を確認してください");
+    if (!parsed.success) throw new ConvexError("入力内容を確認してください。");
     const staff = await getActiveStaffInShop(ctx, args.shopId, args.staffId);
     if (!staff?.organizationId || !staff.organizationPersonId || staff.organizationId !== actor.organization._id) {
       throw new ConvexError("Not found");
@@ -601,7 +615,7 @@ export const revoke = authenticatedMutation({
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
     await requireOrganizationBusinessWrite(ctx, actor.organization._id);
     const parsed = organizationInvitationRequestSchema.safeParse({ requestId: args.requestId });
-    if (!parsed.success) throw new ConvexError("入力内容を確認してください");
+    if (!parsed.success) throw new ConvexError("入力内容を確認してください。");
     const requestKey = await toAuditRequestKey(parsed.data.requestId);
     const invitation = await ctx.db.get(args.invitationId);
     if (!invitation || invitation.organizationId !== actor.organization._id) throw new ConvexError("Not found");
@@ -641,7 +655,7 @@ export const resend = authenticatedMutation({
     const organizationMember = actor.member;
     await requireOrganizationBusinessWrite(ctx, organization._id);
     const parsed = organizationInvitationRequestSchema.safeParse({ requestId: args.requestId });
-    if (!parsed.success) throw new ConvexError("入力内容を確認してください");
+    if (!parsed.success) throw new ConvexError("入力内容を確認してください。");
     const requestKey = await toAuditRequestKey(parsed.data.requestId);
     const correlationId = `${organization._id}:manager-invite:resend:${requestKey}`;
     const priorAudit = await ctx.db

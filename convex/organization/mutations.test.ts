@@ -825,7 +825,7 @@ describe("organization person removal", () => {
           fingerprint: stalePreview.fingerprint,
         },
       }),
-    ).rejects.toThrow("今日以降のシフト割当が変更されました");
+    ).rejects.toThrow("今日以降のシフトの割り当てが変更されました");
 
     const unchanged = await t.run(async (ctx) => ({
       person: await ctx.db.get(ids.personId),
@@ -906,7 +906,7 @@ describe("organization person removal", () => {
           personId: ids.personId,
           requestId: "billing-owner",
         }),
-    ).rejects.toThrow("請求先メールアドレスを変更してから削除してください");
+    ).rejects.toThrow("削除するには、先に請求先メールアドレスを変更してください。");
   });
 
   it("最後の有効管理者は自分自身でも事業者から削除できない", async () => {
@@ -1393,7 +1393,7 @@ describe("organization person removal", () => {
         personId: ids.personId,
         requestId: "role-billing-request",
       }),
-    ).rejects.toThrow("請求先メールアドレスを変更してから管理者権限を外してください");
+    ).rejects.toThrow("管理者権限を外すには、先に請求先メールアドレスを変更してください。");
   });
 
   it("スタッフ所属がなく将来シフトが残る管理者の権限解除は人物と割当を維持する", async () => {
@@ -1474,7 +1474,7 @@ describe("organization person removal", () => {
         personId: ids.personId,
         requestId: "role-free-request",
       }),
-    ).rejects.toThrow("この機能はトライアルまたはProで利用できます");
+    ).rejects.toThrow("この機能はトライアルまたはProで利用できます。");
   });
 
   it("契約制限中は最後の復旧担当者の保護を優先して管理権限解除を拒否する", async () => {
@@ -1697,7 +1697,7 @@ describe("organization person profile update", () => {
         email: "profile-used@example.com",
         requestId: "person-profile-duplicate",
       }),
-    ).rejects.toThrow("グループ内の別の利用者");
+    ).rejects.toThrow("このメールアドレスは、グループ内の別のユーザーが使用しています。");
   });
 
   it("未正規化の旧スタッフが使うメールアドレスへの変更を拒否する", async () => {
@@ -1746,7 +1746,7 @@ describe("organization person profile update", () => {
           email: "legacy-used@example.com",
           requestId: "person-profile-legacy-duplicate",
         }),
-    ).rejects.toThrow("このメールアドレスは既に使用されています");
+    ).rejects.toThrow("このメールアドレスはすでに使用されています。");
 
     const state = await t.run(async (ctx) => ({
       person: await ctx.db.get(ids.personId),

@@ -62,7 +62,7 @@ async function submitRegistrationRequestImpl(
     acceptedLegal: args.acceptedLegal,
   });
   if (!parsed.success) {
-    throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+    throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
   }
 
   const links = await ctx.db
@@ -270,7 +270,7 @@ export const approveRequest = managerMutation({
 
     const existingStaff = await findActiveStaffByEmail(ctx, ctx.shop._id, request.emailNormalized);
     if (existingStaff) {
-      throw new ConvexError("このメールアドレスは既に使用されています");
+      throw new ConvexError("このメールアドレスはすでに使用されています。");
     }
 
     const organizationId = ctx.shop.organizationId;

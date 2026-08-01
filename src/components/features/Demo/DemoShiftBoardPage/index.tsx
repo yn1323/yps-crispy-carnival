@@ -155,7 +155,7 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }:
             <Text color="orange.900" fontSize="xs" fontWeight={700} lineHeight="1.5">
               このページはデモ画面です。
               <br />
-              このデモでの操作は保存されず、スタッフへの通知も送られません。
+              デモでの操作は保存されず、スタッフへの通知も送られません。
             </Text>
           </Box>
         </Flex>
@@ -188,7 +188,7 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }:
         <ConfirmShiftContent
           staffCount={mockStaffs.length}
           periodLabel={periodLabel}
-          notificationDescription="このデモでの操作は保存されず、スタッフへの通知も送られません。"
+          notificationDescription="デモでの操作は保存されず、スタッフへの通知も送られません。"
         />
       </Dialog>
 

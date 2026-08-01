@@ -31,7 +31,7 @@ export async function updateOrganizationPersonProfile(
     )
     .take(2);
   if (matchingPeople.some((candidate) => candidate._id !== person._id)) {
-    throw new ConvexError("このメールアドレスはグループ内の別の利用者が使用しています");
+    throw new ConvexError("このメールアドレスは、グループ内の別のユーザーが使用しています。");
   }
 
   const linkedStaffs = await ctx.db
@@ -45,7 +45,11 @@ export async function updateOrganizationPersonProfile(
   for (const staff of activeStaffs) {
     const count = (targetCountByShop.get(staff.shopId) ?? 0) + 1;
     targetCountByShop.set(staff.shopId, count);
-    if (count > 1) throw new ConvexError("スタッフの店舗所属を一意に確認できません");
+    if (count > 1) {
+      throw new ConvexError(
+        "スタッフの店舗所属を確認できません。\n画面を更新しても解消しない場合は、お問い合わせください。",
+      );
+    }
 
     const [normalizedMatches, legacyMatches] = await Promise.all([
       ctx.db
@@ -76,7 +80,7 @@ export async function updateOrganizationPersonProfile(
           candidate.organizationPersonId !== person._id && normalizeEmail(candidate.email) === emailNormalized,
       );
     if (hasIndexedConflict || hasLegacyConflict) {
-      throw new ConvexError("このメールアドレスは既に使用されています");
+      throw new ConvexError("このメールアドレスはすでに使用されています。");
     }
   }
 

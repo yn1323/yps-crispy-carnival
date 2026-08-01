@@ -25,8 +25,8 @@ export async function requireOrganizationBusinessWrite(ctx: DbCtx, organizationI
   if (!policy.canWriteBusinessData) {
     throw new ConvexError(
       policy.businessWriteBlockReason === "paymentResultPending"
-        ? "支払い結果を確認中のため、業務操作はまだ利用できません"
-        : "契約を確認するまで、閲覧と復旧に必要な操作だけ利用できます",
+        ? "支払い結果を確認中のため、業務操作はまだ利用できません。"
+        : "契約状態を確認できるまで、閲覧と復旧に必要な操作のみ利用できます。",
     );
   }
   return policy;
@@ -37,8 +37,8 @@ export async function requireOrganizationPaidFeature(ctx: DbCtx, organizationId:
   if (!policy?.canUsePaidFeatures) {
     throw new ConvexError(
       policy?.paidFeatureBlockReason === "paymentResultPending"
-        ? "支払い結果の確認後に利用できます"
-        : "この機能はトライアルまたはProで利用できます",
+        ? "支払い結果が確定すると利用できます。"
+        : "この機能はトライアルまたはProで利用できます。",
     );
   }
   return policy;
@@ -56,11 +56,11 @@ export async function requireOrganizationCapacity(
 ) {
   const billingState = await getOrganizationBillingState(ctx, args.organizationId);
   if (!billingState) {
-    throw new ConvexError("グループの契約情報を確認中のため、この追加操作はまだ利用できません");
+    throw new ConvexError("グループの契約情報を確認中のため、この追加操作はまだ利用できません。");
   }
   const policy = deriveOrganizationBillingPolicy(billingState.state);
   if (!policy.entitlementPlan || !policy.limits || !policy.canWriteBusinessData) {
-    throw new ConvexError("現在の契約状態では追加できません");
+    throw new ConvexError("現在の契約状態では、この追加操作を行えません。");
   }
 
   const usage = await getOrganizationUsageSnapshot(ctx, args.organizationId, Date.now(), {
@@ -74,10 +74,10 @@ export async function requireOrganizationCapacity(
   const evaluation = evaluatePlanLimits(policy.entitlementPlan, projectedUsage);
   if (!evaluation.withinLimits) {
     const message = evaluation.violations.includes("people")
-      ? `利用人数が現在のプラン上限を超えます（現在 ${usage.projectedPersonCount}名 / 上限 ${policy.limits.maxPeople}名）`
+      ? `利用人数が現在のプラン上限を超えます。\n現在${usage.projectedPersonCount}名、上限${policy.limits.maxPeople}名です。`
       : evaluation.violations.includes("activeShops")
-        ? "稼働店舗数が現在のプラン上限を超えます"
-        : "管理者と招待中の管理者が現在のプラン上限を超えます";
+        ? "店舗数が現在のプラン上限を超えます。"
+        : "招待中を含めた管理者の合計が、現在のプラン上限を超えます。";
     throw new ConvexError(message);
   }
   return { billingState, policy, usage };

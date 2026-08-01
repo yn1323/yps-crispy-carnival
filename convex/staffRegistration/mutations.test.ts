@@ -843,7 +843,7 @@ describe("staffRegistration/mutations", () => {
         requestId,
         shopId: seeded.shopId,
       }),
-    ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 20名 / 上限 20名）");
+    ).rejects.toThrow("利用人数が現在のプラン上限を超えます。\n現在20名、上限20名です。");
 
     const state = await t.run(async (ctx) => ({
       request: await ctx.db.get(requestId),
@@ -975,7 +975,7 @@ describe("staffRegistration/mutations", () => {
         requestId,
         shopId: seeded.shopId,
       }),
-    ).rejects.toThrow("人物管理から再有効化してから追加してください");
+    ).rejects.toThrow("削除済みのユーザーです。\nユーザー画面で再追加したうえで、店舗に追加してください。");
 
     const state = await t.run(async (ctx) => ({
       request: await ctx.db.get(requestId),
@@ -1048,7 +1048,7 @@ describe("staffRegistration/mutations", () => {
         requestId,
         shopId: seeded.shopId,
       }),
-    ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 5名 / 上限 5名）");
+    ).rejects.toThrow("利用人数が現在のプラン上限を超えます。\n現在5名、上限5名です。");
 
     const state = await t.run(async (ctx) => {
       const people = await ctx.db

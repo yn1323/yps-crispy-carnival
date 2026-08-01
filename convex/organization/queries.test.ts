@@ -58,7 +58,9 @@ describe("organization/queries.getSettings", () => {
     expect(result.billing.trialEndsAt).toBe(trialEndsAt);
     expect(result.billing.hasTrialContinuation).toBe(false);
     expect(result.billing.canUpdatePaymentMethod).toBe(false);
-    expect(result.billing.paymentMethodDisabledReason).toBe("Pro継続を登録すると、Stripeで支払い情報を管理できます。");
+    expect(result.billing.paymentMethodDisabledReason).toBe(
+      "トライアル終了後のPro継続を登録すると、Stripeで支払い情報を管理できます。",
+    );
     expect(result.billing.canScheduleFree).toBe(false);
   });
 
@@ -121,7 +123,7 @@ describe("organization/queries.getSettings", () => {
       state: "pro",
       hasStripeCustomer: false,
       canUpdatePaymentMethod: false,
-      paymentMethodDisabledReason: "Stripeの契約情報を準備中です。しばらくしてからもう一度お試しください。",
+      paymentMethodDisabledReason: "Stripeの契約情報を準備中です。\nしばらくしてから、もう一度お試しください。",
     });
   });
 
@@ -152,7 +154,8 @@ describe("organization/queries.getSettings", () => {
       stripeBillingAvailable: true,
       hasStripeCustomer: true,
       canUpdatePaymentMethod: false,
-      paymentMethodDisabledReason: "Stripeの契約情報と決済設定を確認中です。しばらくしてからもう一度お試しください。",
+      paymentMethodDisabledReason:
+        "Stripeの契約情報と決済設定を確認中です。\nしばらくしてから、もう一度お試しください。",
     });
   });
 
@@ -237,7 +240,7 @@ describe("organization/queries.getSettings", () => {
       ],
       canUpdateOrganizationName: true,
       canDeleteOrganization: false,
-      deleteOrganizationDisabledReason: "有料契約やプラン変更を終了してからグループを削除してください。",
+      deleteOrganizationDisabledReason: "グループを削除するには、先に有料契約やプラン変更を終了してください。",
       billing: {
         state: "pro",
         currentPlan: "pro",
@@ -449,7 +452,7 @@ describe("organization/queries.getSettings", () => {
 
     expect(result?.canCreateOrganization).toBe(false);
     expect(result?.createOrganizationDisabledReason).toBe(
-      "作成できるグループは3つまでです。使っていないグループを削除すると、また作成できます。",
+      "作成できるグループは3つまでです。\n使っていないグループを削除すると、また作成できます。",
     );
   });
 
@@ -883,7 +886,7 @@ describe("organization/queries.getSettings", () => {
     });
     expect(result?.people.find((person) => person.id === ids.personId)).toMatchObject({
       canRemoveManagerRole: false,
-      managerRoleRemovalDisabledReason: "請求先メールアドレスを変更してから管理者権限を外してください。",
+      managerRoleRemovalDisabledReason: "管理者権限を外すには、先に請求先メールアドレスを変更してください。",
     });
   });
 
@@ -948,25 +951,25 @@ describe("organization/queries.getSettings", () => {
     expect(result?.shops).toHaveLength(2);
     expect(result?.canAddShop).toBe(false);
     expect(result?.canUpdateOrganizationName).toBe(false);
-    expect(result?.updateOrganizationNameDisabledReason).toBe("閲覧のみの管理者はグループ名を変更できません。");
+    expect(result?.updateOrganizationNameDisabledReason).toBe("閲覧のみの管理者は、グループ名を変更できません。");
     expect(result?.billing).toMatchObject({
       canManagePlan: false,
-      managePlanDisabledReason: "閲覧のみの管理者はこの操作を行えません。",
+      managePlanDisabledReason: "閲覧のみの管理者は、この操作を行えません。",
       canUpdatePaymentMethod: false,
-      paymentMethodDisabledReason: "閲覧のみの管理者はこの操作を行えません。",
+      paymentMethodDisabledReason: "閲覧のみの管理者は、この操作を行えません。",
       canUpdateBillingEmail: false,
-      billingEmailDisabledReason: "閲覧のみの管理者はこの操作を行えません。",
+      billingEmailDisabledReason: "閲覧のみの管理者は、この操作を行えません。",
       canScheduleFree: false,
     });
     expect(result?.people.every((person) => !person.canRemove)).toBe(true);
     expect(result?.shops.every((shop) => !shop.canDelete)).toBe(true);
     expect(result?.shops.find((shop) => shop.id === ids.shopId)).toMatchObject({
       canUpdateSettings: false,
-      settingsDisabledReason: "閲覧のみの管理者は店舗設定を変更できません。",
+      settingsDisabledReason: "閲覧のみの管理者は、店舗設定を変更できません。",
     });
     expect(result?.shops.find((shop) => shop.name === "履歴店舗")).toMatchObject({
       canUpdateSettings: false,
-      settingsDisabledReason: "利用できない状態の店舗設定は変更できません。",
+      settingsDisabledReason: "利用停止中の店舗は、設定を変更できません。",
     });
   });
 
@@ -1080,21 +1083,21 @@ describe("organization/queries.getSettings", () => {
 
     expect(result?.managerInvitations.find((invitation) => invitation.id === ids.expiredInvitationId)).toMatchObject({
       status: "expired",
-      statusDetail: "この招待は再送できません。権限、利用者、契約状態を確認してください。",
+      statusDetail: "この招待は再送できません。\n権限・ユーザー・契約状態を確認してください。",
       canResend: false,
       canRevoke: false,
     });
     expect(result?.managerInvitations.find((invitation) => invitation.id === ids.sendFailedInvitationId)).toMatchObject(
       {
         status: "sendFailed",
-        statusDetail: "この招待は再送できません。権限、利用者、契約状態を確認してください。",
+        statusDetail: "この招待は再送できません。\n権限・ユーザー・契約状態を確認してください。",
         canResend: false,
         canRevoke: false,
       },
     );
     expect(result?.managerInvitations.find((invitation) => invitation.id === ids.conflictInvitationId)).toMatchObject({
       status: "conflict",
-      statusDetail: "招待後に利用者または契約の状態が変わりました。権限、利用者、契約状態を確認してください。",
+      statusDetail: "招待後に、ユーザーまたは契約の状態が変わりました。\n権限・ユーザー・契約状態を確認してください。",
       canResend: false,
       canRevoke: false,
     });
@@ -1277,7 +1280,7 @@ describe("organization/queries.getSettings", () => {
       canManagePlan: false,
       managePlanDisabledReason: "初回支払いの結果を確認中のため、プランを変更できません。",
       canUpdatePaymentMethod: false,
-      paymentMethodDisabledReason: "初回支払いの結果を確認中です。確定後にStripeで支払い情報を管理できます。",
+      paymentMethodDisabledReason: "初回支払いの結果を確認中です。\n確定後に、Stripeで支払い情報を管理できます。",
       canUpdateBillingEmail: true,
       canScheduleFree: false,
     });
@@ -1312,9 +1315,9 @@ describe("organization/queries.getSettings", () => {
       currentPlan: "free",
       targetPlan: "pro",
       canManagePlan: false,
-      managePlanDisabledReason: "支払い結果を確認中のため、別のプラン変更はできません。",
+      managePlanDisabledReason: "支払い結果を確認中のため、別のプランへは変更できません。",
       canUpdatePaymentMethod: false,
-      paymentMethodDisabledReason: "支払い結果を確認中です。確定後にStripeで支払い情報を管理できます。",
+      paymentMethodDisabledReason: "支払い結果を確認中です。\n確定後に、Stripeで支払い情報を管理できます。",
       canUpdateBillingEmail: true,
     });
     expect(result?.billing.blockedReason).toContain("無料の基本機能");
@@ -1364,9 +1367,9 @@ describe("organization/queries.getSettings", () => {
       currentPlan: null,
       targetPlan: "business",
       canManagePlan: false,
-      managePlanDisabledReason: "支払い結果を確認中のため、別のプラン変更はできません。",
+      managePlanDisabledReason: "支払い結果を確認中のため、別のプランへは変更できません。",
       canUpdatePaymentMethod: false,
-      paymentMethodDisabledReason: "支払い結果を確認中です。確定後にStripeで支払い情報を管理できます。",
+      paymentMethodDisabledReason: "支払い結果を確認中です。\n確定後に、Stripeで支払い情報を管理できます。",
       canUpdateBillingEmail: true,
     });
     expect(result?.billing.blockedReason).toContain("支払い猶予");
@@ -1479,7 +1482,7 @@ describe("organization/queries.getSettings", () => {
     expect(result?.shops).toHaveLength(2);
     expect(result?.shops.every((shop) => !shop.canDelete)).toBe(true);
     expect(
-      result?.shops.every((shop) => shop.deleteDisabledReason === "閲覧のみの管理者は店舗を削除できません。"),
+      result?.shops.every((shop) => shop.deleteDisabledReason === "閲覧のみの管理者は、店舗を削除できません。"),
     ).toBe(true);
   });
 

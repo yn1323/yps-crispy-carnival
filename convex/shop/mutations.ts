@@ -48,7 +48,7 @@ export const updateShopSettings = managerMutation({
   handler: async (ctx, args) => {
     const parsed = updateShopSettingsSchema.safeParse(args);
     if (!parsed.success) {
-      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
     }
     const input = parsed.data;
     const submissionPattern = normalizeSubmissionPattern(input.submissionPattern);
@@ -69,7 +69,7 @@ export const updateShopSetting = managerMutation({
   handler: async (ctx, args) => {
     const parsed = updateShopSettingSchema.safeParse(args.change);
     if (!parsed.success) {
-      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
     }
 
     const change = parsed.data;
