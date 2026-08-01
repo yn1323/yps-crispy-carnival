@@ -37,7 +37,7 @@ LINE IDの置換値は`deleted:<documentId>`として行IDから決定的に作�
 - 店舗削除は対象グループの有効管理者だけが行え、最後の未削除店舗は削除できない。
 - グループ削除は対象グループで唯一の`active`管理者だけが行える。`readOnly`を含むほかの管理者がいる場合は先に整理する。
 - グループ削除を許可する課金状態は、有料プラン未選択のTrial、Free、支払い不要Businessである。
-  旧`complimentary.pro`は移行互換状態として支払い不要Businessと同じ扱いにし、有料契約中またはプラン変更中は受け付けない。
+  支払い不要Businessの保存状態は`complimentary.business`だけであり、旧`complimentary.pro`を現行の削除可否判定へ入力しない。
 - 有料プラン未選択のTrialでも、Stripe Subscription、進行中のTrial作成operation、または一意な終了証跡がない過去の作成operationがあれば削除しない。
   provider上の契約が終了済みであることを、保存済みSubscriptionとcleanup operationの対応から確認できる場合だけ受け付ける。
 - グループ削除は未完了の店舗削除jobがない場合だけ受け付ける。

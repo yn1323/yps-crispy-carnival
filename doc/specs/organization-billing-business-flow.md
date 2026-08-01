@@ -58,6 +58,9 @@
 利用者向け表示は「グループ」とし、コード、DB、APIなどの内部名は`Organization` / `organization`を維持する。
 画面では技術用語のOrganizationやOrgを原則として表示しない。
 
+支払い不要Businessの現行保存状態は`complimentary.business`だけとする。
+旧`complimentary.pro`はm021のMigration Testと運用履歴だけに残し、通常の状態遷移や業務判定へ入力しない。
+
 ## 4. 基本原則
 
 ### 4.1 契約単位
@@ -1068,8 +1071,6 @@ Stripeの支払い失敗メールも有効にし、請求先メールアドレ�
 | Pro向け契約制限中 | 人物削除などでPro条件内 | Pro | Proの機能を利用可 |
 | 契約制限中 | 再契約成功 | ProまたはBusiness | 条件に応じて復旧 |
 | 契約制限中 | Free条件を満たす | Free | 基本機能のみ利用可 |
-| `complimentary.pro` | Stripe課金証跡がないことをmigrationで確認 | 支払い不要Business | 期限と請求なしでBusinessの機能を利用可 |
-
 支払い不要Businessは、新規初回設定と適格な既存グループの移行処理だけで作成し、その後は通常の管理者操作、課金API、管理用処理、Stripeイベント、再同期処理で解除または変更しない。
 
 ## 23. 業務上の不変条件
@@ -1243,7 +1244,7 @@ Secret keyとWebhook署名シークレットを新規販売の停止手段とし
 - 稼働店舗の5店舗目までは利用できる。
 - 6店舗目は追加せず、問い合わせへ誘導する。
 - 人数が減っても自動でプランを変更しない。
-- 適格な`complimentary.pro`が支払い不要Businessへ移行する。
+- 支払い不要Businessの保存状態として`complimentary.business`だけを受け入れる。
 - 新規初期設定で作成したグループも支払い不要Businessから開始する。
 - 支払い不要Businessで40名、5店舗、5管理者、Businessの機能を利用できる。
 - 無料体験、Pro、Business、支払い不要Businessで有効管理者と有効な追加招待を合わせて五名までに制限する。
@@ -1361,7 +1362,7 @@ Business再導入、上限変更、人物削除、Stripeプラン変更、migrat
 - `convex/organizationStripe/actions.ts`
 - `convex/organization/personRemoval.ts`
 - `convex/organization/mutations.ts`
-- `convex/migrations/m021_organization_billing_complimentary_pro_to_business.ts`
+- `convex/migrations/m021_organization_billing_complimentary_pro_to_business.ts`（旧shape移行の履歴）
 - `src/components/features/OrganizationSettings/PlanAndPaymentSection.tsx`
 - `src/components/features/OrganizationSettings/BillingSettings/`
 - `convex/_scenario/organizationPaidPlanChanges.test.ts`
