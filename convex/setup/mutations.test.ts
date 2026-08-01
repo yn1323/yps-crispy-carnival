@@ -239,7 +239,7 @@ describe("setup/mutations", () => {
 
       const organization = await t.run(async (ctx) => ctx.db.get(organizationId));
       expect(organization).toMatchObject({
-        name: "テスト店舗",
+        name: "テスト店舗グループ",
         billingEmail: "yamada@example.com",
         billingEmailNormalized: "yamada@example.com",
         isDeleted: false,
@@ -613,7 +613,7 @@ describe("setup/mutations", () => {
       });
 
       expect(state.shop).toMatchObject({ name: "二つ目の店舗", operatingStatus: "active", isDeleted: false });
-      expect(state.organization).toMatchObject({ name: "二つ目の店舗", createdByUserId: seed.userId });
+      expect(state.organization).toMatchObject({ name: "二つ目の店舗グループ", createdByUserId: seed.userId });
       const newBillingState = state.billingStates.find((billing) => billing.organizationId !== seed.organizationId);
       const existingBillingState = state.billingStates.find(
         (billing) => billing.organizationId === seed.organizationId,

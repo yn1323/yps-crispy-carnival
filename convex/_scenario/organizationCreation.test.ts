@@ -73,7 +73,7 @@ describe("グループ追加作成シナリオ", () => {
     // Assert: 二つ目のグループには自分だけが居て、一つ目のスタッフを引き継がない。
     asManager.selectShop(created.shopId);
     const secondSettings = await asManager.getOrganizationSettings();
-    expect(secondSettings?.organizationName).toBe(SECOND_SHOP_NAME);
+    expect(secondSettings?.organizationName).toBe(`${SECOND_SHOP_NAME}グループ`);
     expect(secondSettings?.people).toEqual([
       expect.objectContaining({ name: "山田 太郎", email: "manager@example.com", managerRole: "active" }),
     ]);
@@ -92,7 +92,7 @@ describe("グループ追加作成シナリオ", () => {
     // Assert: 一つ目のグループの権限とスタッフは変わらない。
     asManager.selectShop(firstShopId);
     const firstSettings = await asManager.getOrganizationSettings();
-    expect(firstSettings?.organizationName).toBe(FIRST_SHOP_NAME);
+    expect(firstSettings?.organizationName).toBe(`${FIRST_SHOP_NAME}グループ`);
     expect(firstSettings?.billing.currentPlan).toBe("business");
     expect(firstSettings?.billing.isComplimentary).toBe(true);
     expect(firstSettings?.canAddShop).toBe(true);

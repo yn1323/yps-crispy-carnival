@@ -105,7 +105,7 @@ describe("organization migrations", () => {
     expect(result.organizations[0]).toMatchObject({
       createdByUserId: userId,
       migrationSourceShopId: shopId,
-      name: "移行対象店舗",
+      name: "移行対象店舗グループ",
     });
     expect(result.organizations[0].billingEmail).toBeUndefined();
     expect(result.shop).toMatchObject({
