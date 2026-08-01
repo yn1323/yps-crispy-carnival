@@ -35,10 +35,9 @@ const exampleFrontmatter = {
 };
 
 describe("FAQコンテンツ", () => {
-  it("現在の49件をファイル名由来のIDと表示順で読み込む", () => {
+  it("現在の42件をファイル名由来のIDと表示順で読み込む", () => {
     expect(faqEntries.map((entry) => entry.id)).toEqual([
       "submit-with-line",
-      "pricing",
       "staff-account",
       "without-line",
       "mobile-support",
@@ -51,7 +50,6 @@ describe("FAQコンテンツ", () => {
       "registration-approval",
       "registration-status",
       "add-staff-during-recruitment",
-      "staff-membership-differences",
       "create-recruitment",
       "change-recruitment",
       "submission-status",
@@ -76,11 +74,6 @@ describe("FAQコンテンツ", () => {
       "individual-notification-resend",
       "notification-history",
       "confirmation-reminder",
-      "organization-and-shop",
-      "switch-shop",
-      "manager-invite-unavailable",
-      "usage-count",
-      "delete-shop-or-organization",
       "submission-link-unavailable",
       "confirmed-link-unavailable",
       "login-trouble",
@@ -145,8 +138,8 @@ describe("FAQコンテンツ", () => {
     );
   });
 
-  it("トップページにはfeaturedディレクトリの7件だけを表示する", () => {
-    expect(landingFaqEntries).toHaveLength(7);
+  it("トップページにはfeaturedディレクトリの6件だけを表示する", () => {
+    expect(landingFaqEntries).toHaveLength(6);
     expect(landingFaqEntries.map((entry) => entry.id)).toEqual(
       faqEntries.filter((entry) => entry.featured).map((entry) => entry.id),
     );
@@ -161,11 +154,9 @@ describe("FAQコンテンツ", () => {
   it.each([
     ["LINE 届かない", ["line-not-delivered", "confirmed-link-unavailable"]],
     ["下書き 再提出", ["draft-after-resubmission"]],
-    ["利用人数 複数店舗", ["usage-count"]],
     ["時間指定 日ごと 勤務区分", ["submission-patterns"]],
     ["スタッフ 別店舗", ["add-staff"]],
     ["催促 予約されない", ["automatic-reminder"]],
-    ["管理者 招待 期限切れ", ["manager-invite-unavailable"]],
   ])("複数語の検索「%s」で該当するFAQだけを返す", (query, expectedIds) => {
     expect(searchFaqEntries(faqEntries, query).map((entry) => entry.id)).toEqual(expectedIds);
   });

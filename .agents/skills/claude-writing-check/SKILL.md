@@ -35,6 +35,10 @@ python3 .agents/skills/claude-writing-check/scripts/run_claude_writing_check.py 
   --source-file path/to/draft.md
 ```
 
+Codexからこのスクリプトを実行するときは、`exec_command`へ`sandbox_permissions: "require_escalated"`を指定し、サンドボックス外で実行する。  macOSに保存されたClaude CLIの認証情報はサンドボックス内から参照できないため、通常のターミナルでログイン済みでも`Not logged in · Please run /login`になることがある。
+
+認証状態だけを確認するときも、`claude auth status`をサンドボックス外で実行する。  サンドボックス内だけで未ログインになった場合は再ログインを案内せず、先にサンドボックス外の結果を確認する。
+
 新規執筆では `--source-text` と `--source-file` を省略する。  状況、目的、文章要件が長い場合は、それぞれ `--context-file`、`--purpose-file`、`--instruction-file` でUTF-8ファイルを渡す。
 
 スクリプトは次のClaude CLI設定を固定する。

@@ -19,6 +19,7 @@ import { sendReminderRef as sendShopActivationReminderRef } from "./shopActivati
 import { staffRegistrationFormSchema } from "./staffRegistration/schemas";
 
 const TABLE_NAMES = Object.keys(schema.tables) as (keyof typeof schema.tables)[];
+const CLEAR_TABLE_BATCH_SIZE = 1000;
 const magicLinkPurposeValidator = v.union(v.literal("submit"), v.literal("view"));
 const staffEmailScopeArgs = {
   shopId: v.optional(v.id("shops")),
@@ -1922,16 +1923,38 @@ async function findRecruitmentForPurpose(
  * E2Eテスト用：全テーブルのデータをクリア
  * GitHub Actionsでseed import前に実行
  */
-export const clearAllTables = internalMutation(async ({ db }) => {
-  assertE2EHelpersEnabled();
+export const clearAllTables = internalMutation({
+  args: { tableName: v.optional(v.string()) },
+  returns: v.object({
+    cleared: v.array(v.string()),
+    deleted: v.number(),
+    nextTable: v.union(v.string(), v.null()),
+    done: v.boolean(),
+  }),
+  handler: async ({ db }, args) => {
+    assertE2EHelpersEnabled();
 
-  for (const tableName of TABLE_NAMES) {
-    const docs = await db.query(tableName).collect();
+    const tableName = args.tableName ?? TABLE_NAMES[0];
+    if (!tableName || !TABLE_NAMES.includes(tableName as (typeof TABLE_NAMES)[number])) {
+      throw new Error(`Unknown table name: ${args.tableName ?? "<first>"}`);
+    }
+
+    const tableIndex = TABLE_NAMES.indexOf(tableName as (typeof TABLE_NAMES)[number]);
+    const docs = await db.query(tableName as (typeof TABLE_NAMES)[number]).take(CLEAR_TABLE_BATCH_SIZE);
     for (const doc of docs) {
       await db.delete(doc._id);
     }
-  }
-  return { cleared: TABLE_NAMES };
+
+    const hasMore = docs.length === CLEAR_TABLE_BATCH_SIZE;
+    const nextTable = hasMore ? tableName : (TABLE_NAMES[tableIndex + 1] ?? null);
+
+    return {
+      cleared: hasMore ? [] : [tableName],
+      deleted: docs.length,
+      nextTable,
+      done: nextTable === null,
+    };
+  },
 });
 
 /**

@@ -1,5 +1,4 @@
-import { Stack, Text } from "@chakra-ui/react";
-import { DeletionActionSection } from "@/src/components/shared/DeletionActionSection";
+import { Stack } from "@chakra-ui/react";
 import type { ShopDetailData } from "./types";
 
 type Props = {
@@ -7,12 +6,10 @@ type Props = {
   onRequestDelete: () => void;
 };
 
-export function ShopOtherSettingsSection({ shop, onRequestDelete }: Props) {
-  const disabledReasonId = shop.deleteDisabledReason ? `shop-detail-${shop.id}-delete-disabled-reason` : undefined;
-
+export function ShopOtherSettingsSection(_props: Props) {
   return (
     <Stack as="section" gap={3} aria-labelledby="shop-detail-other-settings-heading">
-      <Text
+      {/*<Text
         id="shop-detail-other-settings-heading"
         as="h2"
         fontSize={{ base: "lg", lg: "xl" }}
@@ -31,7 +28,7 @@ export function ShopOtherSettingsSection({ shop, onRequestDelete }: Props) {
         disabledReason={shop.deleteDisabledReason}
         disabledReasonId={disabledReasonId}
         onDelete={onRequestDelete}
-      />
+      />*/}
     </Stack>
   );
 }

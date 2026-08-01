@@ -68,7 +68,7 @@ export const NotificationFailureDialogContent = ({
       >
         <Text fontSize="sm" color="fg.muted" whiteSpace="pre-line">
           {
-            "送れなかった通知は再送できます。\n何度も失敗する場合は、スタッフの通知先やLINE連携状態を確認してください。問題が見つからない場合は、時間をおいて再送してください。"
+            "送れなかった通知は再送できます。\n何度も失敗する場合は、スタッフの通知先やLINE連携状態を確認してください。\n問題が見つからない場合は、時間をおいて再送してください。"
           }
         </Text>
         <Button

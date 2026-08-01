@@ -1,6 +1,6 @@
 ---
-name: ship-green-pr
-description: ユーザーが`$ship-green-pr`を明示したとき、現在のcheckoutで依頼範囲の実装とテストを完成させ、全VitestとE2Eを含むローカル検証、commit、push、Pull Request作成、CI失敗の修正を行い、VRTのcompare以降を除くPR checkがすべて成功するまで継続する。通常の実装、テスト実行、commit、PR相談では自動的に使わない。
+name: babysit-pr
+description: ユーザーが`$babysit-pr`を明示したとき、現在のcheckoutで依頼範囲の実装とテストを完成させ、全VitestとE2Eを含むローカル検証、commit、push、Pull Request作成、CI失敗の修正を行い、VRTのcompare以降を除くPR checkがすべて成功するまで継続する。通常の実装、テスト実行、commit、PR相談では自動的に使わない。
 ---
 
 # PRをオールグリーンまで完遂する

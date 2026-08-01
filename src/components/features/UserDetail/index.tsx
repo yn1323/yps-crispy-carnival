@@ -135,7 +135,10 @@ export function UserDetail({
         },
         onClosePanel: handleClosePanel,
         onUpdateProfile: async (formData) => {
-          await profile.update(formData);
+          const updated = await profile.update(formData);
+          if (updated && activePanelRef.current === "basic" && visiblePersonIdRef.current === data.person.id) {
+            handleClosePanel();
+          }
         },
         onAddMembership: async (shopId) => {
           if (!showShopMembershipAdditionRef.current) return;
