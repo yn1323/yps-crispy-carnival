@@ -85,9 +85,7 @@ export const organizationBillingStateValidator = v.union(
   }),
   v.object({
     kind: v.literal("complimentary"),
-    // TODO[narrow]: m021が全deploymentで完走後（確認: pnpm convex:migrate:status）、
-    //   `pro`互換を外して`v.literal("business")`へ変更する。
-    plan: v.union(v.literal("pro"), v.literal("business")),
+    plan: v.literal("business"),
   }),
   v.union(
     v.object({

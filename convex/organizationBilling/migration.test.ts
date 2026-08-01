@@ -16,7 +16,11 @@ describe("m018 organization billing Business to Pro migration", () => {
 
   it("normalizes every legacy state shape without rewriting historical audits", async () => {
     const t = createConvexTestWithMigrations();
-    const cases: Array<{ state: OrganizationBillingState; expected: OrganizationBillingState }> = [
+    const cases: Array<{
+      state: OrganizationBillingState;
+      expected: OrganizationBillingState;
+      expectedVersion?: number;
+    }> = [
       {
         state: { kind: "trial", trialEndsAt: 1_000, selectedPaidPlan: "business" },
         expected: { kind: "trial", trialEndsAt: 1_000, selectedPaidPlan: "pro" },
@@ -58,7 +62,8 @@ describe("m018 organization billing Business to Pro migration", () => {
       { state: { kind: "active", plan: "business" }, expected: { kind: "active", plan: "pro" } },
       {
         state: { kind: "complimentary", plan: "business" },
-        expected: { kind: "complimentary", plan: "pro" },
+        expected: { kind: "complimentary", plan: "business" },
+        expectedVersion: 1,
       },
       {
         state: { kind: "scheduledChange", currentPlan: "business", targetPlan: "free", effectiveAt: 2_000 },
@@ -105,7 +110,11 @@ describe("m018 organization billing Business to Pro migration", () => {
           .unique();
         if (!billingState) throw new Error("billing state not found");
         await ctx.db.patch(billingState._id, { state: migrationCase.state });
-        result.push({ billingStateId: billingState._id, expected: migrationCase.expected });
+        result.push({
+          billingStateId: billingState._id,
+          expected: migrationCase.expected,
+          expectedVersion: migrationCase.expectedVersion ?? 2,
+        });
       }
       const auditBillingState = await ctx.db.get(result[4].billingStateId);
       if (!auditBillingState) throw new Error("audit billing state not found");
@@ -132,7 +141,10 @@ describe("m018 organization billing Business to Pro migration", () => {
       audit: await ctx.db.get(rows.auditId),
     }));
     for (const [index, row] of snapshot.billingStates.entries()) {
-      expect(row).toMatchObject({ state: rows.result[index].expected, version: 2 });
+      expect(row).toMatchObject({
+        state: rows.result[index].expected,
+        version: rows.result[index].expectedVersion,
+      });
     }
     expect(snapshot.audit?.toState).toBe("complimentary.business");
   });

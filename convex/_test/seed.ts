@@ -111,7 +111,9 @@ export async function seedOrganizationManagerShop(
   });
   await ctx.db.insert("organizationBillingStates", {
     organizationId,
-    state: args.complimentary ? { kind: "complimentary", plan: "pro" } : { kind: "active", plan: args.plan ?? "free" },
+    state: args.complimentary
+      ? { kind: "complimentary", plan: "business" }
+      : { kind: "active", plan: args.plan ?? "free" },
     ...(args.complimentary ? {} : { freeManagerPersonId: personId, freeShopId: shopId }),
     version: 1,
     createdAt: now,

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
-import { createConvexTestWithMigrations } from "../_test/migrations.test-helper";
+import type { Doc, Id } from "../_generated/dataModel";
+import {
+  createConvexTestWithMigrations,
+  createMigrationHistoryTestWithMigrations,
+} from "../_test/migrations.test-helper";
 import { seedManagerShop, seedOrganizationManagerShop } from "../_test/seed";
 
 const migrationArgs = { batchSize: 100, cursor: null, dryRun: false } as const;
@@ -10,9 +13,35 @@ const m021Migration = internal.migrations.m021_organization_billing_complimentar
 const correlationId = (organizationId: Id<"organizations">) =>
   `${organizationId}:migration:m021:complimentary-pro-to-business`;
 
+const legacyComplimentaryProState = () =>
+  ({ kind: "complimentary", plan: "pro" }) as unknown as Doc<"organizationBillingStates">["state"];
+
 describe("m021 complimentary Pro to Business migration", () => {
-  it("complimentary.proだけを一度だけBusinessへ移し、versionと監査を重複させない", async () => {
+  it("現行schemaはcomplimentary.proを拒否する", async () => {
     const t = createConvexTestWithMigrations();
+    const seeded = await t.run(async (ctx) =>
+      seedOrganizationManagerShop(ctx, {
+        subject: "m021_narrow_schema_rejection",
+        plan: "pro",
+      }),
+    );
+
+    await expect(
+      t.run(
+        async (ctx) =>
+          await ctx.db.insert("organizationBillingStates", {
+            organizationId: seeded.organizationId,
+            state: legacyComplimentaryProState(),
+            version: 1,
+            createdAt: 1,
+            updatedAt: 1,
+          }),
+      ),
+    ).rejects.toThrow("Validator error");
+  });
+
+  it("complimentary.proだけを一度だけBusinessへ移し、versionと監査を重複させない", async () => {
+    const t = createMigrationHistoryTestWithMigrations();
     const seeded = await t.run(async (ctx) => {
       const target = await seedOrganizationManagerShop(ctx, {
         subject: "m021_success_target",
@@ -32,7 +61,7 @@ describe("m021 complimentary Pro to Business migration", () => {
         .unique();
       if (!targetState) throw new Error("target billing state not found");
       await ctx.db.patch(targetState._id, {
-        state: { kind: "complimentary", plan: "pro" },
+        state: legacyComplimentaryProState(),
         version: 4,
         updatedAt: 10,
       });
@@ -104,7 +133,7 @@ describe("m021 complimentary Pro to Business migration", () => {
   });
 
   it("organization欠損・重複課金状態・全Stripe証跡・課金通知・先行監査を一意なconflictで停止する", async () => {
-    const t = createConvexTestWithMigrations();
+    const t = createMigrationHistoryTestWithMigrations();
     const seeded = await t.run(async (ctx) => {
       const createTarget = async (subject: string) => {
         const target = await seedOrganizationManagerShop(ctx, { subject, plan: "pro" });
@@ -113,7 +142,7 @@ describe("m021 complimentary Pro to Business migration", () => {
           .withIndex("by_organizationId", (q) => q.eq("organizationId", target.organizationId))
           .unique();
         if (!billingState) throw new Error("billing state not found");
-        await ctx.db.patch(billingState._id, { state: { kind: "complimentary", plan: "pro" } });
+        await ctx.db.patch(billingState._id, { state: legacyComplimentaryProState() });
         return { ...target, billingStateId: billingState._id };
       };
       const missing = await createTarget("m021_missing_organization");
@@ -129,7 +158,7 @@ describe("m021 complimentary Pro to Business migration", () => {
       await ctx.db.delete(missing.organizationId);
       await ctx.db.insert("organizationBillingStates", {
         organizationId: duplicate.organizationId,
-        state: { kind: "complimentary", plan: "pro" },
+        state: legacyComplimentaryProState(),
         version: 9,
         createdAt: now,
         updatedAt: now,
@@ -290,7 +319,7 @@ describe("m021 complimentary Pro to Business migration", () => {
   });
 
   it("証跡を裁定して再実行するとm021所有conflictだけを解消して一度だけ移行する", async () => {
-    const t = createConvexTestWithMigrations();
+    const t = createMigrationHistoryTestWithMigrations();
     const seeded = await t.run(async (ctx) => {
       const target = await seedOrganizationManagerShop(ctx, {
         subject: "m021_repair_target",
@@ -301,7 +330,7 @@ describe("m021 complimentary Pro to Business migration", () => {
         .withIndex("by_organizationId", (q) => q.eq("organizationId", target.organizationId))
         .unique();
       if (!billingState) throw new Error("billing state not found");
-      await ctx.db.patch(billingState._id, { state: { kind: "complimentary", plan: "pro" } });
+      await ctx.db.patch(billingState._id, { state: legacyComplimentaryProState() });
       const operationId = await ctx.db.insert("organizationStripeOperations", {
         organizationId: target.organizationId,
         kind: "reconcileSubscription",
@@ -358,8 +387,8 @@ describe("m021 complimentary Pro to Business migration", () => {
     ]);
   });
 
-  it("freshなm012からm018を経由してもm021でcomplimentary.businessへ収束する", async () => {
-    const t = createConvexTestWithMigrations();
+  it("freshなm012が作るcomplimentary.businessをm018とm021の再生後も維持する", async () => {
+    const t = createMigrationHistoryTestWithMigrations();
     const seeded = await t.run(async (ctx) =>
       seedManagerShop(ctx, {
         subject: "m021_fresh_series",
@@ -400,15 +429,13 @@ describe("m021 complimentary Pro to Business migration", () => {
     expect(snapshot.billingStates).toHaveLength(1);
     expect(snapshot.billingStates[0]).toMatchObject({
       state: { kind: "complimentary", plan: "business" },
-      version: 2,
+      version: 1,
     });
     expect(snapshot.m012Audits).toHaveLength(1);
-    expect(snapshot.m021Audits).toEqual([
-      expect.objectContaining({
-        targetId: snapshot.billingStates[0]._id,
-        fromState: "complimentary.pro",
-        toState: "complimentary.business",
-      }),
-    ]);
+    expect(snapshot.m012Audits[0]).toMatchObject({
+      targetId: snapshot.billingStates[0]._id,
+      toState: "complimentary.business",
+    });
+    expect(snapshot.m021Audits).toEqual([]);
   });
 });

@@ -872,11 +872,11 @@ describe("事業者課金ライフサイクル", () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
-        subject: "complimentary_pro_limits",
+        subject: "complimentary_business_limits",
         complimentary: true,
       });
       for (let index = 1; index < 40; index += 1) {
-        await addStaffPerson(ctx, seeded.organizationId, seeded.shopId, `complimentary_pro_staff_${index}`);
+        await addStaffPerson(ctx, seeded.organizationId, seeded.shopId, `complimentary_business_staff_${index}`);
       }
       const billingState = await ctx.db
         .query("organizationBillingStates")
@@ -885,7 +885,7 @@ describe("事業者課金ライフサイクル", () => {
       if (!billingState) throw new Error("billing state not found");
       return { ...seeded, billingStateId: billingState._id };
     });
-    const actor = t.withIdentity({ subject: "complimentary_pro_limits" });
+    const actor = t.withIdentity({ subject: "complimentary_business_limits" });
 
     for (let index = 2; index <= 5; index += 1) {
       await expect(
@@ -894,7 +894,7 @@ describe("事業者課金ライフサイクル", () => {
           shopName: `第${index}店舗`,
           regularClosedDays: [],
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-          requestId: `complimentary-pro-shop-${index}`,
+          requestId: `complimentary-business-shop-${index}`,
         }),
       ).resolves.toMatchObject({ changed: true, shopStatus: "active" });
     }
@@ -925,7 +925,7 @@ describe("事業者課金ライフサイクル", () => {
         (job) => job.payload.kind === "email" && job.payload.context.startsWith("organizationBilling."),
       ),
     }));
-    expect(result.billingState?.state).toEqual({ kind: "complimentary", plan: "pro" });
+    expect(result.billingState?.state).toEqual({ kind: "complimentary", plan: "business" });
     expect(result.stripeCustomers).toEqual([]);
     expect(result.stripeSubscriptions).toEqual([]);
     expect(result.stripeOperations).toEqual([]);

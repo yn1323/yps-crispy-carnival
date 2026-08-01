@@ -275,7 +275,7 @@ describe("organizationBilling/mutations Free管理者選択", () => {
           freeShopId: ids.shopId,
           requestId: "complimentary-free-selection",
         }),
-    ).rejects.toThrow("先行登録特典のProでは無料設定を変更できません");
+    ).rejects.toThrow("支払い不要Businessでは無料設定を変更できません");
 
     const result = await t.run(async (ctx) => ({
       audits: await ctx.db
@@ -289,7 +289,7 @@ describe("organizationBilling/mutations Free管理者選択", () => {
       scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
     }));
     expect(result.billingState).toMatchObject({
-      state: { kind: "complimentary", plan: "pro" },
+      state: { kind: "complimentary", plan: "business" },
       version: 1,
     });
     expect(result.billingState?.freeManagerPersonId).toBeUndefined();
@@ -691,7 +691,7 @@ describe("organizationBilling/mutations 請求先メール", () => {
           email: "must-not-change@example.com",
           requestId: "complimentary-billing-email",
         }),
-    ).rejects.toThrow("料金なしのProでは請求先メールアドレスを変更できません");
+    ).rejects.toThrow("支払い不要Businessでは請求先メールアドレスを変更できません");
 
     const result = await t.run(async (ctx) => ({
       audits: await ctx.db
@@ -708,7 +708,7 @@ describe("organizationBilling/mutations 請求先メール", () => {
     }));
     expect(result.organization).toEqual(before);
     expect(result.billingState).toMatchObject({
-      state: { kind: "complimentary", plan: "pro" },
+      state: { kind: "complimentary", plan: "business" },
       version: 1,
     });
     expect(result.audits).toEqual([]);
@@ -897,7 +897,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
       scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
     }));
     expect(result.billingState).toMatchObject({
-      state: { kind: "complimentary", plan: "pro" },
+      state: { kind: "complimentary", plan: "business" },
       version: 1,
     });
     expect(result.audits).toEqual([]);

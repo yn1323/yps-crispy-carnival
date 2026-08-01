@@ -125,13 +125,12 @@ describe("organizationStripe/actions", () => {
     vi.unstubAllEnvs();
   });
 
-  it("complimentary.proでは3 Actionともprovider通信せずStripe 4表を空のまま保つ", async () => {
+  it("complimentary.businessでは3 Actionともprovider通信せずStripe 4表を空のまま保つ", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(
       async (ctx) =>
         await seedOrganizationManagerShop(ctx, {
           subject: "stripe_complimentary",
-          plan: "pro",
           complimentary: true,
         }),
     );

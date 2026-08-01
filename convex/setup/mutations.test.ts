@@ -620,7 +620,7 @@ describe("setup/mutations", () => {
       );
       expect(newBillingState?.state).toEqual({ kind: "active", plan: "free" });
       expect(newBillingState?.version).toBe(1);
-      expect(existingBillingState?.state).toEqual({ kind: "complimentary", plan: "pro" });
+      expect(existingBillingState?.state).toEqual({ kind: "complimentary", plan: "business" });
       expect(state.people).toHaveLength(1);
       expect(state.members).toHaveLength(1);
       expect(state.staffs).toHaveLength(1);

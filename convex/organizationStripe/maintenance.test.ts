@@ -1122,7 +1122,6 @@ describe("organizationStripe/maintenance", () => {
     const ids = await t.run(async (ctx) => {
       const complimentary = await seedOrganizationManagerShop(ctx, {
         subject: "stripe_probe_complimentary",
-        plan: "pro",
         complimentary: true,
       });
       const missing = await seedOrganizationManagerShop(ctx, {
@@ -1264,7 +1263,6 @@ describe("organizationStripe/maintenance", () => {
       organizationsWithMultipleStripeCustomers: { observedCount: 0, hasMore: false },
       subscriptionsWithoutMatchingLocalCustomer: { observedCount: 2, hasMore: false },
       stripeCustomersWithoutBillingState: { observedCount: 0, hasMore: false },
-      complimentaryProAwaitingM021: { observedCount: 1, hasMore: false },
       unresolvedM018MigrationConflicts: { observedCount: 0, hasMore: false },
     });
 
