@@ -41,6 +41,10 @@ export class NotificationFailureDialogPage {
     await expect(this.page.getByText(/送れなかった通知を再送しました|一部の通知を再送しました/)).toBeVisible();
   }
 
+  async expectClosed() {
+    await expect(this.dialog()).not.toBeVisible();
+  }
+
   async ignore(staffName: string) {
     const row = this.failureRow(staffName);
     await expect(row).toBeVisible();
@@ -55,10 +59,5 @@ export class NotificationFailureDialogPage {
 
     await expect(this.page.getByText("送れなかった通知を無視しました")).toBeVisible();
     await expect(row).not.toBeVisible();
-  }
-
-  async expectAcceptedCount(count: number) {
-    await expect(this.dialog().getByRole("button", { name: "再送済み" })).toHaveCount(count);
-    await expect(this.dialog().getByRole("button", { name: "すべて再送" })).toBeDisabled();
   }
 }

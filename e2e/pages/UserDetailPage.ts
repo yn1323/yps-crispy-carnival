@@ -41,8 +41,7 @@ export class UserDetailPage {
     await emailInput.clear();
     await emailInput.fill(data.email);
     await dialog.getByRole("button", { name: "変更を保存" }).click();
-    await this.expectToastVisibleThenHidden("ユーザー情報を更新しました", dialog);
-    await this.closeDialog(dialog);
+    await this.expectToastVisibleThenHidden("ユーザー情報を更新しました");
     this.personName = data.name;
   }
 

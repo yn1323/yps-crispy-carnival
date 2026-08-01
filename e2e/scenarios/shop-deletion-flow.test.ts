@@ -7,6 +7,8 @@ test.describe("グループ設定からの店舗削除", { tag: ["@release", "@s
   test.setTimeout(60_000);
 
   test("MS-P0-03: 選択中のB店を削除し、B店専属スタッフを店舗所属なしで維持する", async ({ page }) => {
+    test.skip(true, "店舗削除機能は非表示中のためスキップします");
+
     const seed = seedMultiShopOrganizationScenario({
       organizationName: "店舗削除E2Eグループ",
       primaryShopName: "店舗削除E2E A店",
