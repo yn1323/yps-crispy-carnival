@@ -4,6 +4,7 @@ import { internal } from "../_generated/api";
 import { SCENARIO_NOW } from "../_test/scenarioBuilders";
 import { seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { ANALYTICS_PIPELINE_KEY, ANALYTICS_SCHEMA_VERSION } from "./model";
 
 const GENERATION = "manager-membership-bootstrap";
 
@@ -66,5 +67,59 @@ describe("Analytics bootstrap", () => {
         validTo: undefined,
       },
     ]);
+  });
+});
+
+describe("Analytics projection", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(SCENARIO_NOW);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("追随済みの空heartbeatでは分析asOfを更新しない", async () => {
+    const t = convexTest(schema, modules);
+    const previousProjectedAt = SCENARIO_NOW - 60_000;
+    const leaseToken = "projection-heartbeat-lease";
+    const jobId = await t.run(async (ctx) => {
+      await ctx.db.insert("analyticsPipelineStates", {
+        schemaVersion: ANALYTICS_SCHEMA_VERSION,
+        pipelineKey: ANALYTICS_PIPELINE_KEY,
+        activeGeneration: GENERATION,
+        dataStartDate: "2026-08-01",
+        lastProjectedAt: previousProjectedAt,
+        projectionCaughtUpAt: previousProjectedAt,
+        status: "active",
+        updatedAt: previousProjectedAt,
+      });
+      return await ctx.db.insert("analyticsAggregationJobs", {
+        schemaVersion: ANALYTICS_SCHEMA_VERSION,
+        jobKey: `projection:${ANALYTICS_PIPELINE_KEY}`,
+        jobType: "projection",
+        generation: GENERATION,
+        phase: "events",
+        status: "processing",
+        attemptCount: 0,
+        leaseToken,
+        leaseUntil: SCENARIO_NOW + 60_000,
+        nextRunAt: SCENARIO_NOW,
+        processedCount: 0,
+        updatedAt: SCENARIO_NOW,
+      });
+    });
+
+    await t.mutation(internal.analytics.pipeline.processJob, { jobId, leaseToken });
+
+    const state = await t.run(async (ctx) =>
+      ctx.db
+        .query("analyticsPipelineStates")
+        .withIndex("by_pipelineKey", (q) => q.eq("pipelineKey", ANALYTICS_PIPELINE_KEY))
+        .unique(),
+    );
+    expect(state?.lastProjectedAt).toBe(previousProjectedAt);
+    expect(state?.projectionCaughtUpAt).toBe(SCENARIO_NOW);
   });
 });

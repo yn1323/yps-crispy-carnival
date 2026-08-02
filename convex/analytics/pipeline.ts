@@ -1168,9 +1168,12 @@ async function processProjectionPage(ctx: MutationCtx, job: Job) {
   }
   const now = Date.now();
   const caughtUp = page.page.length === 0 && page.isDone;
+  // 追随済みの空pageは定常heartbeatなので、export整合性tokenのasOfは進めない。
+  const shouldAdvanceAsOf =
+    page.page.length > 0 || (caughtUp && state.projectionCaughtUpAt === undefined);
   await ctx.db.patch(state._id, {
     sourceEventCursor: page.continueCursor,
-    lastProjectedAt: now,
+    ...(shouldAdvanceAsOf ? { lastProjectedAt: now } : {}),
     ...(caughtUp ? { projectionCaughtUpAt: now } : { projectionCaughtUpAt: undefined }),
     updatedAt: now,
   });
