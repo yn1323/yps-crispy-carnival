@@ -5,6 +5,7 @@ import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { isPastShiftPeriod } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
+import { recordAnalyticsSourceEvent } from "../analytics/sourceEvents";
 import { SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT } from "../constants";
 import { buildConfirmationSnapshotsForStaffs } from "../notification/confirmationSnapshots";
 import { buildNotificationFanoutTargetKey, ensureNotificationFanoutOperation } from "../notification/fanout";
@@ -375,6 +376,24 @@ export const confirmRecruitment = managerMutation({
       lastConfirmationNotificationOperationKey: operationKey,
       lastConfirmationNotificationRunId: notificationRunId,
     });
+    if (ctx.shop.organizationId)
+      await recordAnalyticsSourceEvent(ctx, {
+        eventKey: `cycle:${args.recruitmentId}:confirmed:run:${notificationRunId}`,
+        eventType: "cycle.changed",
+        occurredAt: confirmedAt,
+        organizationId: ctx.shop.organizationId,
+        shopId: ctx.shop._id,
+        recruitmentId: args.recruitmentId,
+        payload: {
+          kind: "cycle",
+          status: "confirmed",
+          createdAt: recruitment._creationTime,
+          periodStart: recruitment.periodStart,
+          periodEnd: recruitment.periodEnd,
+          deadline: recruitment.deadline,
+          confirmedAt,
+        },
+      });
     const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
     const { operation: fanoutOperation } = await ensureNotificationFanoutOperation(ctx, {
       operationKey,

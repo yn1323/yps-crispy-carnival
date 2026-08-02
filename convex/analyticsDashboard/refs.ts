@@ -1,81 +1,93 @@
-import type { FunctionReference } from "convex/server";
+import type { DefaultFunctionArgs, FunctionReference } from "convex/server";
 import { makeFunctionReference } from "convex/server";
-import type { Id } from "../_generated/dataModel";
 import type {
-  EventTrendsResponse,
+  CycleDetailResponse,
   FeatureRequestsResponse,
-  NotificationBreakdownResponse,
+  HealthResponse,
+  MilestonesResponse,
+  OrganizationDetailResponse,
+  OrganizationsResponse,
   OverviewResponse,
+  SegmentsResponse,
+  ShopCyclesResponse,
   ShopDetailResponse,
-  ShopRankingResponse,
-  ShopRankingSort,
-  ShopRecruitmentsResponse,
-  ShopStagesResponse,
+  ShopsResponse,
+  TrendsResponse,
 } from "./dto";
+import type {
+  AnalyticsCycleRequest,
+  AnalyticsHealthRequest,
+  AnalyticsMilestonesRequest,
+  AnalyticsOrganizationRequest,
+  AnalyticsOrganizationsRequest,
+  AnalyticsOverviewRequest,
+  AnalyticsSegmentsRequest,
+  AnalyticsShopCyclesRequest,
+  AnalyticsShopRequest,
+  AnalyticsShopsRequest,
+  AnalyticsTrendsRequest,
+  FeatureRequestsRequest,
+} from "./schemas";
 
-export const getOverviewRef = makeFunctionReference<"query", { from: string; to: string }, OverviewResponse>(
+type WithoutEndpoint<T extends { endpoint: string }> = Omit<T, "endpoint">;
+
+function internalQueryRef<Args extends DefaultFunctionArgs, Result>(name: string) {
+  return makeFunctionReference<"query", Args, Result>(name) as unknown as FunctionReference<
+    "query",
+    "internal",
+    Args,
+    Result
+  >;
+}
+
+export const getOverviewRef = internalQueryRef<WithoutEndpoint<AnalyticsOverviewRequest>, OverviewResponse | null>(
   "analyticsDashboard/queries:getOverview",
-) as unknown as FunctionReference<"query", "internal", { from: string; to: string }, OverviewResponse>;
+);
+export const getTrendsRef = internalQueryRef<WithoutEndpoint<AnalyticsTrendsRequest>, TrendsResponse | null>(
+  "analyticsDashboard/queries:getTrends",
+);
+export const getMilestonesRef = internalQueryRef<
+  WithoutEndpoint<AnalyticsMilestonesRequest>,
+  MilestonesResponse | null
+>("analyticsDashboard/queries:getMilestones");
+export const getHealthRef = internalQueryRef<WithoutEndpoint<AnalyticsHealthRequest>, HealthResponse | null>(
+  "analyticsDashboard/queries:getHealth",
+);
+export const getOrganizationsRef = internalQueryRef<
+  WithoutEndpoint<AnalyticsOrganizationsRequest>,
+  OrganizationsResponse
+>("analyticsDashboard/queries:getOrganizations");
+export const getOrganizationRef = internalQueryRef<
+  WithoutEndpoint<AnalyticsOrganizationRequest>,
+  OrganizationDetailResponse | null
+>("analyticsDashboard/queries:getOrganization");
+export const getShopsRef = internalQueryRef<WithoutEndpoint<AnalyticsShopsRequest>, ShopsResponse | null>(
+  "analyticsDashboard/queries:getShops",
+);
+export const getShopRef = internalQueryRef<WithoutEndpoint<AnalyticsShopRequest>, ShopDetailResponse | null>(
+  "analyticsDashboard/queries:getShop",
+);
+export const getShopCyclesRef = internalQueryRef<
+  WithoutEndpoint<AnalyticsShopCyclesRequest>,
+  ShopCyclesResponse | null
+>("analyticsDashboard/queries:getShopCycles");
+export const getCycleRef = internalQueryRef<WithoutEndpoint<AnalyticsCycleRequest>, CycleDetailResponse | null>(
+  "analyticsDashboard/queries:getCycle",
+);
+export const getSegmentsRef = internalQueryRef<WithoutEndpoint<AnalyticsSegmentsRequest>, SegmentsResponse>(
+  "analyticsDashboard/queries:getSegments",
+);
+export const getFeatureRequestsRef = internalQueryRef<WithoutEndpoint<FeatureRequestsRequest>, FeatureRequestsResponse>(
+  "analyticsDashboard/queries:getFeatureRequests",
+);
 
-export const getEventTrendsRef = makeFunctionReference<
-  "query",
-  { from: string; to: string; metrics: string[] },
-  EventTrendsResponse
->("analyticsDashboard/queries:getEventTrends") as unknown as FunctionReference<
-  "query",
+export const consumeServiceRequestRef = makeFunctionReference<
+  "mutation",
+  Record<string, never>,
+  { allowed: boolean; retryAt: number | null }
+>("analyticsDashboard/rateLimit:consumeServiceRequest") as unknown as FunctionReference<
+  "mutation",
   "internal",
-  { from: string; to: string; metrics: string[] },
-  EventTrendsResponse
->;
-
-export const getNotificationBreakdownRef = makeFunctionReference<
-  "query",
-  { from: string; to: string },
-  NotificationBreakdownResponse
->("analyticsDashboard/queries:getNotificationBreakdown") as unknown as FunctionReference<
-  "query",
-  "internal",
-  { from: string; to: string },
-  NotificationBreakdownResponse
->;
-
-export const getShopStagesRef = makeFunctionReference<"query", { date: string }, ShopStagesResponse>(
-  "analyticsDashboard/queries:getShopStages",
-) as unknown as FunctionReference<"query", "internal", { date: string }, ShopStagesResponse>;
-
-export const getShopRankingRef = makeFunctionReference<
-  "query",
-  { date: string; sort: ShopRankingSort; limit: number },
-  ShopRankingResponse
->("analyticsDashboard/queries:getShopRanking") as unknown as FunctionReference<
-  "query",
-  "internal",
-  { date: string; sort: ShopRankingSort; limit: number },
-  ShopRankingResponse
->;
-
-export const getShopDetailRef = makeFunctionReference<
-  "query",
-  { shopId: Id<"shops">; from: string; to: string },
-  ShopDetailResponse
->("analyticsDashboard/queries:getShopDetail") as unknown as FunctionReference<
-  "query",
-  "internal",
-  { shopId: Id<"shops">; from: string; to: string },
-  ShopDetailResponse
->;
-
-export const getShopRecruitmentsRef = makeFunctionReference<"query", { shopId: Id<"shops"> }, ShopRecruitmentsResponse>(
-  "analyticsDashboard/queries:getShopRecruitments",
-) as unknown as FunctionReference<"query", "internal", { shopId: Id<"shops"> }, ShopRecruitmentsResponse>;
-
-export const getFeatureRequestsRef = makeFunctionReference<
-  "query",
-  { cursor: string | null; limit: number },
-  FeatureRequestsResponse
->("analyticsDashboard/queries:getFeatureRequests") as unknown as FunctionReference<
-  "query",
-  "internal",
-  { cursor: string | null; limit: number },
-  FeatureRequestsResponse
+  Record<string, never>,
+  { allowed: boolean; retryAt: number | null }
 >;

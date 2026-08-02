@@ -4,6 +4,11 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { authenticatedMutation } from "../_lib/functions";
+import {
+  type AnalyticsSourceEventPayload,
+  analyticsPlanForBillingState,
+  recordAnalyticsSourceEvent,
+} from "../analytics/sourceEvents";
 import { requireOrganizationActorForShop } from "../organization/access";
 import { recordOrganizationAuditEvent } from "../organization/audit";
 import {
@@ -40,6 +45,51 @@ const transitionResultValidator = v.object({
 
 const GRACE_ENDING_REMINDER_LEAD_MS = 3 * 24 * 60 * 60 * 1000;
 const INITIAL_PAYMENT_RECONCILE_DELAY_MS = 15 * 60 * 1000;
+
+type AnalyticsPlanPayload = Extract<AnalyticsSourceEventPayload, { kind: "plan" }>;
+type AnalyticsBillingStatusDelta = AnalyticsPlanPayload["statusDeltas"][number];
+
+function billingAnalyticsEvent(
+  state: OrganizationBillingState,
+  billingVersion: number,
+  effectiveAt: number,
+  statusDeltas: AnalyticsBillingStatusDelta[],
+) {
+  const plan = analyticsPlanForBillingState(state);
+  if (!plan) return undefined;
+  return {
+    eventType: "plan.changed" as const,
+    payload: {
+      kind: "plan" as const,
+      plan,
+      billingVersion,
+      effectiveAt,
+      statusDeltas,
+    },
+  };
+}
+
+async function recordStandaloneBillingAnalyticsEvent(
+  ctx: MutationCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    correlationId: string;
+    state: OrganizationBillingState;
+    billingVersion: number;
+    effectiveAt: number;
+    statusDeltas: AnalyticsBillingStatusDelta[];
+  },
+) {
+  const event = billingAnalyticsEvent(args.state, args.billingVersion, args.effectiveAt, args.statusDeltas);
+  // planだけが変わる遷移もあるため、status差分が空でもsource eventを残す。
+  if (!event) return;
+  await recordAnalyticsSourceEvent(ctx, {
+    ...event,
+    eventKey: `billingProjection:${args.correlationId}:${args.billingVersion}`,
+    organizationId: args.organizationId,
+    occurredAt: args.effectiveAt,
+  });
+}
 
 function resolveNotificationDetails(
   nextState: OrganizationBillingState,
@@ -236,6 +286,7 @@ async function applyVerifiedPaidRestoration(
     now: number;
   },
 ) {
+  const statusDeltas: AnalyticsBillingStatusDelta[] = [];
   const needsExplicitRestoration = paidActivationNeedsExplicitRestoration(args.currentState);
   const hasManagerSelection = args.restoreManagerPersonIds !== undefined;
   const hasShopSelection = args.restoreShopIds !== undefined;
@@ -254,7 +305,7 @@ async function applyVerifiedPaidRestoration(
       activeShopCount: usage.activeShopCount,
     });
     if (!eligibility.withinLimits) throw new ConvexError("復旧後の利用状況がプラン上限を超えます");
-    return;
+    return statusDeltas;
   }
 
   const managerPersonIds = args.restoreManagerPersonIds ?? [];
@@ -318,13 +369,25 @@ async function applyVerifiedPaidRestoration(
   for (const member of members) {
     if (member.status === "removed") continue;
     const targetStatus = selectedManagerIds.has(member.personId) ? "active" : "readOnly";
-    if (member.status !== targetStatus) await ctx.db.patch(member._id, { status: targetStatus, updatedAt: args.now });
+    if (member.status !== targetStatus) {
+      await ctx.db.patch(member._id, { status: targetStatus, updatedAt: args.now });
+      statusDeltas.push({
+        kind: "manager",
+        memberId: member._id,
+        personId: member.personId,
+        status: targetStatus,
+      });
+    }
   }
   for (const shop of shops) {
     if (shop.isDeleted || shop.operatingStatus === "archived") continue;
     const targetStatus = selectedShopIds.has(shop._id) ? "active" : "planSuspended";
-    if (shop.operatingStatus !== targetStatus) await ctx.db.patch(shop._id, { operatingStatus: targetStatus });
+    if (shop.operatingStatus !== targetStatus) {
+      await ctx.db.patch(shop._id, { operatingStatus: targetStatus });
+      statusDeltas.push({ kind: "shop", shopId: shop._id, status: targetStatus });
+    }
   }
+  return statusDeltas;
 }
 
 async function applyFreeOrRestricted(
@@ -340,6 +403,7 @@ async function applyFreeOrRestricted(
 ) {
   const { billingState, now } = args;
   const organizationId = billingState.organizationId;
+  const analyticsStatusDeltas: AnalyticsBillingStatusDelta[] = [];
   const { people, members, inputs } = await getPersonUsageInputs(ctx, organizationId);
   const transitionRecipientUserIds = await getBillingRecipientUserIds(ctx, organizationId, billingState.state);
   const personById = new Map(people.map((person) => [person._id, person]));
@@ -428,7 +492,10 @@ async function applyFreeOrRestricted(
       const shop = allOrganizationShops.find((candidate) => candidate._id === shopId);
       if (!shop) continue;
       const targetStatus = shopId === selectedShopId ? "active" : "planSuspended";
-      if (shop.operatingStatus !== targetStatus) await ctx.db.patch(shop._id, { operatingStatus: targetStatus });
+      if (shop.operatingStatus !== targetStatus) {
+        await ctx.db.patch(shop._id, { operatingStatus: targetStatus });
+        analyticsStatusDeltas.push({ kind: "shop", shopId: shop._id, status: targetStatus });
+      }
     }
   }
 
@@ -447,6 +514,12 @@ async function applyFreeOrRestricted(
         member.personId === selectedManagerId ? "active" : nextState.kind === "active" ? "removed" : "readOnly";
       if (member.status === targetStatus) continue;
       await ctx.db.patch(member._id, { status: targetStatus, updatedAt: now });
+      analyticsStatusDeltas.push({
+        kind: "manager",
+        memberId: member._id,
+        personId: member.personId,
+        status: targetStatus,
+      });
       if (targetStatus !== "removed") continue;
 
       await removeLegacyOrganizationManagerAccess(ctx, organizationId, member.userId);
@@ -468,6 +541,7 @@ async function applyFreeOrRestricted(
         toState: activeStaff ? "staffOnly" : "personOnly",
         correlationId: `${args.correlationId}:manager-role-removed:${member._id}`,
         occurredAt: now,
+        suppressAnalyticsEvent: true,
       });
     }
   }
@@ -494,17 +568,34 @@ async function applyFreeOrRestricted(
             : { ...restrictedState, recoveryManagerPersonIds: [selectedManagerId] },
       });
     }
+    await recordStandaloneBillingAnalyticsEvent(ctx, {
+      organizationId,
+      correlationId: args.correlationId,
+      state: billingState.state,
+      billingVersion: billingState.version,
+      effectiveAt: now,
+      statusDeltas: analyticsStatusDeltas,
+    });
     return { changed: true, stateKind: billingState.state.kind };
   }
 
   if (billingState.state.kind === "pendingActivation" && restrictedState && nextState.kind === "active") {
+    const pendingActivationState: OrganizationBillingState = {
+      kind: "pendingActivation",
+      plan: billingState.state.plan,
+      fallback: "free",
+      startedAt: billingState.state.startedAt,
+    };
     await ctx.db.patch(billingState._id, {
-      state: {
-        kind: "pendingActivation",
-        plan: billingState.state.plan,
-        fallback: "free",
-        startedAt: billingState.state.startedAt,
-      },
+      state: pendingActivationState,
+    });
+    await recordStandaloneBillingAnalyticsEvent(ctx, {
+      organizationId,
+      correlationId: args.correlationId,
+      state: pendingActivationState,
+      billingVersion: billingState.version,
+      effectiveAt: now,
+      statusDeltas: analyticsStatusDeltas,
     });
     return { changed: true, stateKind: "pendingActivation" };
   }
@@ -525,6 +616,7 @@ async function applyFreeOrRestricted(
     cutoffAt: now,
     cutoffVersion: nextVersion,
   });
+  const analyticsEvent = billingAnalyticsEvent(nextState, nextVersion, now, analyticsStatusDeltas);
   await recordOrganizationAuditEvent(ctx, {
     organizationId,
     actorUserId: args.actorUserId,
@@ -536,6 +628,7 @@ async function applyFreeOrRestricted(
     toState: nextState.kind === "active" ? "free" : "restricted",
     correlationId: args.correlationId,
     occurredAt: now,
+    ...(analyticsEvent ? { analyticsEvent } : {}),
   });
   await ctx.scheduler.runAfter(0, internal.organizationBilling.actions.enqueueBillingNotification, {
     organizationId,
@@ -1708,8 +1801,9 @@ export const setStateFromVerifiedBilling = internalMutation({
       throw new ConvexError("現在の契約状態では、この変更を適用できません");
     }
     const notificationDetails = resolveNotificationDetails(nextState, args.notificationDetails);
+    let analyticsStatusDeltas: AnalyticsBillingStatusDelta[] = [];
     if (nextState.kind === "active" && nextState.plan !== "free" && !scheduledChangeCanceled) {
-      await applyVerifiedPaidRestoration(ctx, {
+      analyticsStatusDeltas = await applyVerifiedPaidRestoration(ctx, {
         organizationId: args.organizationId,
         plan: nextState.plan,
         currentState: billingState.state,
@@ -1724,6 +1818,7 @@ export const setStateFromVerifiedBilling = internalMutation({
       version: nextVersion,
       updatedAt: now,
     });
+    const analyticsEvent = billingAnalyticsEvent(nextState, nextVersion, now, analyticsStatusDeltas);
     await recordOrganizationAuditEvent(ctx, {
       organizationId: args.organizationId,
       action: "organization.billing_state_changed",
@@ -1733,6 +1828,7 @@ export const setStateFromVerifiedBilling = internalMutation({
       toState: nextState.kind === "active" ? nextState.plan : nextState.kind,
       correlationId: args.correlationId,
       occurredAt: now,
+      ...(analyticsEvent ? { analyticsEvent } : {}),
     });
     const updated = { ...billingState, state: nextState, version: nextVersion, updatedAt: now };
     await scheduleOrganizationBillingStateDeadline(ctx, updated);

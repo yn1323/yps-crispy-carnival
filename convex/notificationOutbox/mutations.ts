@@ -2402,7 +2402,7 @@ function deliveryEventFromJob(
   };
 }
 
-// 分析KPI（analytics/dailyAggregation）でも通知種別の分類に再利用する
+// 分析KPIのbounded集計でも通知種別の分類に再利用する
 export function notificationContextForJob(job: Doc<"notificationOutbox">) {
   // TODO[narrow]: 全deploymentのm024完走と3 field欠損0確認後にpayload fallbackを削除する。
   return job.notificationContext ?? notificationContextForPayload(job.payload, job.dedupeKey);

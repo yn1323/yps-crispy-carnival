@@ -3,6 +3,25 @@ import { v } from "convex/values";
 import { rateLimitTables } from "convex-helpers/server/rateLimit";
 import { submissionPatternValidator } from "./_lib/submissionPattern";
 import {
+  analyticsCadenceValidator,
+  analyticsCompletenessValidator,
+  analyticsHealthSignalCountsValidator,
+  analyticsHealthSignalStateValidator,
+  analyticsInvariantRollupValidator,
+  analyticsJobPhaseValidator,
+  analyticsJobStatusValidator,
+  analyticsJobTypeValidator,
+  analyticsMilestoneCountsValidator,
+  analyticsMilestoneDatesValidator,
+  analyticsNotificationKindValidator,
+  analyticsPipelineStatusValidator,
+  analyticsPlanValidator,
+  analyticsRatePairValidator,
+  analyticsSegmentDimensionValidator,
+  analyticsSourceEventPayloadValidator,
+  analyticsSourceEventTypeValidator,
+} from "./analytics/model";
+import {
   notificationFanoutCancelReasonValidator,
   notificationFanoutKindValidator,
   notificationFanoutPurposeValidator,
@@ -1025,7 +1044,7 @@ const schema = defineSchema({
 
   // ========================================
   // 分析KPI蓄積（internal専用、公開queryなし）
-  // 日次cron（analytics/dailyAggregation）が前日分を絶対値upsertで書き込む
+  // 旧Analyticsの日次snapshot。新pipelineのcutover後も0件証跡とNarrowまでは定義を残す
   // ========================================
   // サービス全体×日次の状態スナップショット（1日1行、cron導入日から蓄積）
   analyticsDailyServiceSnapshots: defineTable({
@@ -1042,7 +1061,7 @@ const schema = defineSchema({
     lineFollowingStaffCount: v.number(),
     openRecruitmentCount: v.number(),
     pendingRegistrationRequestCount: v.number(),
-    // 店舗ライフサイクルステージ別の店舗数（analytics/stage.ts で分類。導入前の行は undefined）
+    // 旧Analyticsの店舗ライフサイクルステージ別店舗数
     shopStageCounts: v.optional(
       v.object({
         beforeStart: v.number(),
@@ -1068,7 +1087,7 @@ const schema = defineSchema({
     lineLinkedStaffCount: v.number(),
     lineFollowingStaffCount: v.number(),
     openRecruitmentCount: v.number(),
-    // 店舗ライフサイクルステージ（analytics/stage.ts で分類。導入前の行は undefined）
+    // 旧Analyticsの店舗ライフサイクルステージ
     stage: v.optional(
       v.union(
         v.literal("beforeStart"),
@@ -1132,6 +1151,485 @@ const schema = defineSchema({
   })
     .index("by_date_metric", ["date", "metric"])
     .index("by_metric_date", ["metric", "date"]),
+
+  // ========================================
+  // Analytics v2（generation分離された分析専用基盤）
+  // 旧Analytics 3 tableはProduction cleanupと0件確認後の別deployまで共存させる。
+  // ========================================
+  analyticsSourceEvents: defineTable({
+    schemaVersion: v.number(),
+    eventKey: v.string(),
+    eventType: analyticsSourceEventTypeValidator,
+    occurredAt: v.number(),
+    organizationId: v.optional(v.id("organizations")),
+    shopId: v.optional(v.id("shops")),
+    recruitmentId: v.optional(v.id("recruitments")),
+    subjectId: v.optional(v.union(v.id("organizationPeople"), v.id("organizationMembers"), v.id("staffs"))),
+    payloadVersion: v.number(),
+    payload: analyticsSourceEventPayloadValidator,
+    createdAt: v.number(),
+  })
+    .index("by_eventKey", ["eventKey"])
+    .index("by_occurredAt", ["occurredAt"])
+    .index("by_organizationId_and_occurredAt", ["organizationId", "occurredAt"])
+    .index("by_shopId_and_occurredAt", ["shopId", "occurredAt"]),
+
+  analyticsOrganizations: defineTable({
+    schemaVersion: v.number(),
+    generation: v.string(),
+    organizationId: v.id("organizations"),
+    displayName: v.string(),
+    registeredAt: v.number(),
+    deletedAt: v.optional(v.number()),
+    currentPlan: v.optional(analyticsPlanValidator),
+    planEffectiveAt: v.optional(v.number()),
+    pendingOrganizationProjectionJobKey: v.optional(v.string()),
+    firstShopId: v.optional(v.id("shops")),
+    secondShopId: v.optional(v.id("shops")),
+    firstShopAt: v.optional(v.number()),
+    secondShopAt: v.optional(v.number()),
+    secondShopFirstConfirmedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index("by_generation_and_organizationId", ["generation", "organizationId"])
+    .index("by_generation_and_registeredAt", ["generation", "registeredAt"])
+    .index("by_generation_and_deletedAt_and_registeredAt", ["generation", "deletedAt", "registeredAt"])
+    .index("by_generation_and_deletedAt_and_currentPlan_and_registeredAt", [
+      "generation",
+      "deletedAt",
+      "currentPlan",
+      "registeredAt",
+    ])
+    .index("by_generation_and_currentPlan", ["generation", "currentPlan"]),
+
+  analyticsShops: defineTable({
+    schemaVersion: v.number(),
+    generation: v.string(),
+    organizationId: v.id("organizations"),
+    shopId: v.id("shops"),
+    displayName: v.string(),
+    registeredAt: v.number(),
+    deletedAt: v.optional(v.number()),
+    currentPlan: v.optional(analyticsPlanValidator),
+    planEffectiveAt: v.optional(v.number()),
+    statusEffectiveAt: v.optional(v.number()),
+    firstRecruitmentAt: v.optional(v.number()),
+    firstSubmissionAt: v.optional(v.number()),
+    firstConfirmedRecruitmentId: v.optional(v.id("recruitments")),
+    secondConfirmedRecruitmentId: v.optional(v.id("recruitments")),
+    firstConfirmedAt: v.optional(v.number()),
+    secondConfirmedAt: v.optional(v.number()),
+    latestActivityAt: v.optional(v.number()),
+    estimatedCadenceDays: v.optional(v.number()),
+    cadenceConfidence: v.union(v.literal("insufficientData"), v.literal("low"), v.literal("medium"), v.literal("high")),
+    updatedAt: v.number(),
+  })
+    .index("by_generation_and_shopId", ["generation", "shopId"])
+    .index("by_generation_and_organizationId", ["generation", "organizationId"])
+    .index("by_generation_and_registeredAt", ["generation", "registeredAt"])
+    .index("by_generation_and_deletedAt_and_registeredAt", ["generation", "deletedAt", "registeredAt"])
+    .index("by_generation_and_deletedAt_and_currentPlan_and_registeredAt", [
+      "generation",
+      "deletedAt",
+      "currentPlan",
+      "registeredAt",
+    ])
+    .index("by_gen_deleted_activity_registered", ["generation", "deletedAt", "latestActivityAt", "registeredAt"])
+    .index("by_generation_and_organizationId_and_deletedAt_and_registeredAt", [
+      "generation",
+      "organizationId",
+      "deletedAt",
+      "registeredAt",
+    ])
+    .index("by_gen_org_deleted_plan_registered", [
+      "generation",
+      "organizationId",
+      "deletedAt",
+      "currentPlan",
+      "registeredAt",
+    ])
+    .index("by_gen_org_deleted_activity_registered", [
+      "generation",
+      "organizationId",
+      "deletedAt",
+      "latestActivityAt",
+      "registeredAt",
+    ])
+    .index("by_generation_and_currentPlan", ["generation", "currentPlan"])
+    .index("by_generation_and_latestActivityAt", ["generation", "latestActivityAt"]),
+
+  analyticsPeople: defineTable({
+    schemaVersion: v.number(),
+    generation: v.string(),
+    organizationId: v.id("organizations"),
+    organizationPersonId: v.id("organizationPeople"),
+    firstObservedAt: v.number(),
+    deletedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index("by_generation_and_organizationPersonId", ["generation", "organizationPersonId"])
+    .index("by_generation_and_organizationId", ["generation", "organizationId"]),
+
+  analyticsMemberships: defineTable(
+    v.union(
+      v.object({
+        schemaVersion: v.number(),
+        generation: v.string(),
+        membershipKey: v.string(),
+        organizationId: v.id("organizations"),
+        organizationPersonId: v.id("organizationPeople"),
+        role: v.literal("manager"),
+        validFrom: v.number(),
+        validTo: v.optional(v.number()),
+        isShiftTarget: v.literal(false),
+        lineLinked: v.literal(false),
+        lineFollowing: v.literal(false),
+        updatedAt: v.number(),
+      }),
+      v.object({
+        schemaVersion: v.number(),
+        generation: v.string(),
+        membershipKey: v.string(),
+        organizationId: v.id("organizations"),
+        shopId: v.id("shops"),
+        organizationPersonId: v.optional(v.id("organizationPeople")),
+        staffId: v.id("staffs"),
+        role: v.literal("staff"),
+        validFrom: v.number(),
+        validTo: v.optional(v.number()),
+        isShiftTarget: v.boolean(),
+        lineLinked: v.boolean(),
+        lineFollowing: v.boolean(),
+        updatedAt: v.number(),
+      }),
+    ),
+  )
+    .index("by_generation_and_membershipKey_and_validFrom", ["generation", "membershipKey", "validFrom"])
+    .index("by_generation_and_organizationId_and_role_and_validFrom", [
+      "generation",
+      "organizationId",
+      "role",
+      "validFrom",
+    ])
+    .index("by_generation_and_shopId_and_role_and_validFrom", ["generation", "shopId", "role", "validFrom"])
+    .index("by_generation_and_shopId_and_organizationPersonId_and_validFrom", [
+      "generation",
+      "shopId",
+      "organizationPersonId",
+      "validFrom",
+    ])
+    .index("by_generation_and_organizationPersonId_and_validFrom", ["generation", "organizationPersonId", "validFrom"]),
+
+  analyticsShiftCycles: defineTable({
+    schemaVersion: v.number(),
+    generation: v.string(),
+    recruitmentId: v.id("recruitments"),
+    organizationId: v.id("organizations"),
+    shopId: v.id("shops"),
+    sequenceNumber: v.optional(v.number()),
+    createdAt: v.number(),
+    submitDeadlineAt: v.number(),
+    periodStart: v.string(),
+    periodEnd: v.string(),
+    confirmedAt: v.optional(v.number()),
+    deletedAt: v.optional(v.number()),
+    closedAt: v.optional(v.number()),
+    targetAtDeadline: v.optional(v.number()),
+    submittedAtDeadline: v.optional(v.number()),
+    targetAtClose: v.optional(v.number()),
+    submittedAtClose: v.optional(v.number()),
+    notificationSentCount: v.number(),
+    notificationFailedCount: v.number(),
+    lastNotificationFailedAt: v.optional(v.number()),
+    reminderSentCount: v.number(),
+    creationLeadTimeMs: v.optional(v.number()),
+    confirmationLeadTimeMs: v.optional(v.number()),
+    confirmationSlackMs: v.optional(v.number()),
+    confirmedBeforeStart: v.optional(v.boolean()),
+    completeness: analyticsCompletenessValidator,
+    finalizedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index("by_generation_and_recruitmentId", ["generation", "recruitmentId"])
+    .index("by_generation_and_shopId_and_periodStart", ["generation", "shopId", "periodStart"])
+    .index("by_generation_and_shopId_and_deletedAt_and_periodStart", [
+      "generation",
+      "shopId",
+      "deletedAt",
+      "periodStart",
+    ])
+    .index("by_gen_shop_deleted_complete_period", ["generation", "shopId", "deletedAt", "completeness", "periodStart"])
+    .index("by_gen_shop_complete_lead_time", ["generation", "shopId", "completeness", "confirmationLeadTimeMs"])
+    .index("by_generation_and_organizationId_and_periodStart", ["generation", "organizationId", "periodStart"])
+    .index("by_generation_and_periodStart", ["generation", "periodStart"])
+    .index("by_generation_and_completeness_and_periodStart", ["generation", "completeness", "periodStart"])
+    .index("by_generation_and_completeness_and_submitDeadlineAt", ["generation", "completeness", "submitDeadlineAt"]),
+
+  analyticsShiftCycleOpportunities: defineTable({
+    schemaVersion: v.number(),
+    generation: v.string(),
+    recruitmentId: v.id("recruitments"),
+    organizationId: v.id("organizations"),
+    shopId: v.id("shops"),
+    staffId: v.optional(v.id("staffs")),
+    organizationPersonId: v.optional(v.id("organizationPeople")),
+    targetedAtDeadline: v.boolean(),
+    targetedAtClose: v.boolean(),
+    firstSubmittedAt: v.optional(v.number()),
+    lineLinkedAtCutoff: v.optional(v.boolean()),
+    reminderCount: v.number(),
+    completeness: analyticsCompletenessValidator,
+    identityState: v.union(v.literal("active"), v.literal("redacted")),
+    expiresAt: v.number(),
+  })
+    .index("by_generation_and_recruitmentId_and_staffId", ["generation", "recruitmentId", "staffId"])
+    .index("by_generation_and_shopId_and_firstSubmittedAt", ["generation", "shopId", "firstSubmittedAt"])
+    .index("by_identityState_and_expiresAt", ["identityState", "expiresAt"])
+    .index("by_expiresAt", ["expiresAt"]),
+
+  analyticsDailyServiceKpis: defineTable({
+    schemaVersion: v.number(),
+    generation: v.string(),
+    snapshotDate: v.string(),
+    organizationCount: v.number(),
+    shopCount: v.number(),
+    kpiEligibleShopCount: v.number(),
+    activeShopCount: v.number(),
+    personCount: v.number(),
+    staffMembershipCount: v.number(),
+    unlinkedStaffCount: v.number(),
+    shiftTargetCount: v.number(),
+    managerMembershipCount: v.number(),
+    managerStaffCount: v.number(),
+    milestoneCounts: analyticsMilestoneCountsValidator,
+    healthSignalCounts: analyticsHealthSignalCountsValidator,
+    northStar: analyticsRatePairValidator,
+    deadlineSubmission: analyticsRatePairValidator,
+    finalSubmission: analyticsRatePairValidator,
+    completeness: analyticsCompletenessValidator,
+    computedAt: v.number(),
+  }).index("by_generation_and_snapshotDate", ["generation", "snapshotDate"]),
+
+  analyticsDailyNotificationKpis: defineTable({
+    schemaVersion: v.number(),
+    generation: v.string(),
+    snapshotDate: v.string(),
+    scope: v.union(v.literal("service"), v.literal("shop"), v.literal("recruitment")),
+    scopeKey: v.string(),
+    recruitmentId: v.optional(v.id("recruitments")),
+    organizationId: v.optional(v.id("organizations")),
+    shopId: v.optional(v.id("shops")),
+    channel: notificationChannelValidator,
+    kind: analyticsNotificationKindValidator,
+    sentCount: v.number(),
+    failedCount: v.number(),
+    lastFailedAt: v.optional(v.number()),
+    completeness: analyticsCompletenessValidator,
+    computedAt: v.number(),
+  })
+    .index("by_generation_and_snapshotDate", ["generation", "snapshotDate"])
+    .index("by_generation_and_shopId_and_snapshotDate", ["generation", "shopId", "snapshotDate"])
+    .index("by_generation_and_recruitmentId_and_snapshotDate", ["generation", "recruitmentId", "snapshotDate"])
+    .index("by_gen_date_scope_channel_kind", ["generation", "snapshotDate", "scopeKey", "channel", "kind"]),
+
+  analyticsDailyOrganizationKpis: defineTable({
+    schemaVersion: v.number(),
+    generation: v.string(),
+    organizationId: v.id("organizations"),
+    snapshotDate: v.string(),
+    currentPlan: v.optional(analyticsPlanValidator),
+    shopCount: v.number(),
+    kpiEligibleShopCount: v.number(),
+    activeShopCount: v.number(),
+    uniquePersonCount: v.number(),
+    staffMembershipCount: v.number(),
+    unlinkedStaffCount: v.number(),
+    shiftTargetCount: v.number(),
+    managerMembershipCount: v.number(),
+    managerStaffCount: v.number(),
+    milestoneCounts: analyticsMilestoneCountsValidator,
+    healthSignalCounts: analyticsHealthSignalCountsValidator,
+    northStar: analyticsRatePairValidator,
+    deadlineSubmission: analyticsRatePairValidator,
+    finalSubmission: analyticsRatePairValidator,
+    completeness: analyticsCompletenessValidator,
+    computedAt: v.number(),
+  })
+    .index("by_generation_and_organizationId_and_snapshotDate", ["generation", "organizationId", "snapshotDate"])
+    .index("by_generation_and_snapshotDate", ["generation", "snapshotDate"]),
+
+  analyticsDailyShopKpis: defineTable({
+    schemaVersion: v.number(),
+    generation: v.string(),
+    organizationId: v.id("organizations"),
+    shopId: v.id("shops"),
+    snapshotDate: v.string(),
+    staffMembershipCount: v.number(),
+    shiftTargetCount: v.number(),
+    uniquePersonCount: v.number(),
+    unlinkedStaffCount: v.number(),
+    managerMembershipCount: v.number(),
+    managerStaffCount: v.number(),
+    lineLinkedCount: v.number(),
+    lineFollowingCount: v.number(),
+    hasRecentActivity: v.boolean(),
+    cycleCount: v.number(),
+    confirmedCycleCount: v.number(),
+    confirmedBeforeStartCycleCount: v.number(),
+    nextCyclePeriodStart: v.optional(v.string()),
+    issueHealthSignalCount: v.number(),
+    milestoneDates: analyticsMilestoneDatesValidator,
+    healthSignals: v.array(analyticsHealthSignalStateValidator),
+    cadence: analyticsCadenceValidator,
+    northStar: analyticsRatePairValidator,
+    deadlineSubmission: analyticsRatePairValidator,
+    finalSubmission: analyticsRatePairValidator,
+    cumulativeDeadlineSubmission: analyticsRatePairValidator,
+    cumulativeFinalSubmission: analyticsRatePairValidator,
+    cumulativeNotificationSentCount: v.number(),
+    cumulativeNotificationFailedCount: v.number(),
+    confirmationLeadTimeMedianMs: v.optional(v.number()),
+    confirmationLeadTimeP90Ms: v.optional(v.number()),
+    lastNotificationFailedAt: v.optional(v.number()),
+    completeness: analyticsCompletenessValidator,
+    computedAt: v.number(),
+  })
+    .index("by_generation_and_shopId_and_snapshotDate", ["generation", "shopId", "snapshotDate"])
+    .index("by_generation_and_organizationId_and_snapshotDate", ["generation", "organizationId", "snapshotDate"])
+    .index("by_generation_and_snapshotDate", ["generation", "snapshotDate"])
+    .index("by_generation_and_snapshotDate_and_issueHealthSignalCount", [
+      "generation",
+      "snapshotDate",
+      "issueHealthSignalCount",
+    ]),
+
+  analyticsDailySegmentKpis: defineTable({
+    schemaVersion: v.number(),
+    generation: v.string(),
+    snapshotDate: v.string(),
+    dimension: analyticsSegmentDimensionValidator,
+    bucket: v.string(),
+    shopCount: v.number(),
+    milestoneCounts: analyticsMilestoneCountsValidator,
+    healthSignalCounts: analyticsHealthSignalCountsValidator,
+    northStar: analyticsRatePairValidator,
+    deadlineSubmission: analyticsRatePairValidator,
+    finalSubmission: analyticsRatePairValidator,
+    completeness: analyticsCompletenessValidator,
+    computedAt: v.number(),
+  })
+    .index("by_generation_and_snapshotDate_and_dimension_and_bucket", [
+      "generation",
+      "snapshotDate",
+      "dimension",
+      "bucket",
+    ])
+    .index("by_gen_date_complete_dimension_bucket", [
+      "generation",
+      "snapshotDate",
+      "completeness",
+      "dimension",
+      "bucket",
+    ])
+    .index("by_generation_and_dimension_and_bucket_and_snapshotDate", [
+      "generation",
+      "dimension",
+      "bucket",
+      "snapshotDate",
+    ]),
+
+  analyticsAggregationJobs: defineTable({
+    schemaVersion: v.number(),
+    jobKey: v.string(),
+    jobType: analyticsJobTypeValidator,
+    generation: v.string(),
+    targetDate: v.optional(v.string()),
+    phase: analyticsJobPhaseValidator,
+    cursor: v.optional(v.string()),
+    parentCursor: v.optional(v.string()),
+    snapshotCursor: v.optional(v.string()),
+    lastVerifiedSnapshotDate: v.optional(v.string()),
+    sourceWatermarkAt: v.optional(v.number()),
+    invariantSourceEventCursor: v.optional(v.string()),
+    invariantSnapshotDate: v.optional(v.string()),
+    aggregationPartial: v.optional(v.boolean()),
+    invariantServiceRollup: v.optional(analyticsInvariantRollupValidator),
+    invariantOrganizationRollup: v.optional(analyticsInvariantRollupValidator),
+    status: analyticsJobStatusValidator,
+    attemptCount: v.number(),
+    leaseToken: v.optional(v.string()),
+    leaseUntil: v.optional(v.number()),
+    nextRunAt: v.number(),
+    processedCount: v.number(),
+    targetCount: v.optional(v.number()),
+    submittedCount: v.optional(v.number()),
+    notificationSentCount: v.optional(v.number()),
+    notificationFailedCount: v.optional(v.number()),
+    reminderSentCount: v.optional(v.number()),
+    lastNotificationFailedAt: v.optional(v.number()),
+    confirmationLeadTimeCount: v.optional(v.number()),
+    confirmationLeadTimeRankOffset: v.optional(v.number()),
+    confirmationLeadTimeMedianLowerMs: v.optional(v.number()),
+    confirmationLeadTimeMedianUpperMs: v.optional(v.number()),
+    confirmationLeadTimeP90Ms: v.optional(v.number()),
+    lastTransactionMetrics: v.optional(
+      v.object({
+        executedPhase: analyticsJobPhaseValidator,
+        documentsRead: v.number(),
+        bytesRead: v.number(),
+        documentsWritten: v.number(),
+        bytesWritten: v.number(),
+        databaseQueries: v.number(),
+        functionsScheduled: v.number(),
+        measuredAt: v.number(),
+      }),
+    ),
+    shopId: v.optional(v.id("shops")),
+    organizationId: v.optional(v.id("organizations")),
+    organizationPersonId: v.optional(v.id("organizationPeople")),
+    sourceEventId: v.optional(v.id("analyticsSourceEvents")),
+    dependsOnJobKey: v.optional(v.string()),
+    billingVersion: v.optional(v.number()),
+    batchOffset: v.optional(v.number()),
+    recruitmentId: v.optional(v.id("recruitments")),
+    cutoffKind: v.optional(v.union(v.literal("deadline"), v.literal("close"))),
+    cutoffAt: v.optional(v.number()),
+    cleanupBefore: v.optional(v.number()),
+    lastErrorCode: v.optional(v.string()),
+    startedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index("by_jobKey", ["jobKey"])
+    .index("by_generation", ["generation"])
+    .index("by_generation_and_jobType_and_status", ["generation", "jobType", "status"])
+    .index("by_generation_and_jobType_and_status_and_cutoffAt", ["generation", "jobType", "status", "cutoffAt"])
+    .index("by_status_and_nextRunAt", ["status", "nextRunAt"])
+    .index("by_status_and_leaseUntil", ["status", "leaseUntil"])
+    .index("by_completedAt", ["completedAt"]),
+
+  analyticsPipelineStates: defineTable({
+    schemaVersion: v.number(),
+    pipelineKey: v.string(),
+    activeGeneration: v.optional(v.string()),
+    buildingGeneration: v.optional(v.string()),
+    statusBeforeBuilding: v.optional(analyticsPipelineStatusValidator),
+    dataStartDate: v.string(),
+    buildingDataStartDate: v.optional(v.string()),
+    buildingSourceEventCursor: v.optional(v.string()),
+    buildingCaughtUpAt: v.optional(v.number()),
+    sourceEventCursor: v.optional(v.string()),
+    lastProjectedAt: v.optional(v.number()),
+    projectionCaughtUpAt: v.optional(v.number()),
+    activeNotificationCompleteDate: v.optional(v.string()),
+    activeNotificationCompleteAt: v.optional(v.number()),
+    buildingNotificationCompleteDate: v.optional(v.string()),
+    buildingNotificationCompleteAt: v.optional(v.number()),
+    latestCompleteSnapshotDate: v.optional(v.string()),
+    latestCompleteSnapshotAt: v.optional(v.number()),
+    status: analyticsPipelineStatusValidator,
+    updatedAt: v.number(),
+  }).index("by_pipelineKey", ["pipelineKey"]),
 
   legalConsentTokens: defineTable({
     staffId: v.id("staffs"),

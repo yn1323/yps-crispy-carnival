@@ -1,237 +1,376 @@
-export type AnalyticsPlanKey = "free" | "standard" | "premium";
+export type AnalyticsCompleteness = "complete" | "partial" | "unavailable";
 
-export type AnalyticsDashboardRange = {
-  from: string;
-  to: string;
+export type AnalyticsResponseCompleteness = AnalyticsCompleteness | "pending";
+
+export type AnalyticsGranularity = "day" | "week" | "month";
+
+export type AnalyticsPlanKey = "trial" | "free" | "pro" | "business";
+
+export type AnalyticsDirection = "asc" | "desc";
+
+export type AnalyticsMilestoneKey =
+  | "registered"
+  | "firstRecruitment"
+  | "firstSubmission"
+  | "firstConfirmed"
+  | "secondConfirmed";
+
+export type AnalyticsHealthSignalKey =
+  | "hasUpcomingCycle"
+  | "nextCycleMissing"
+  | "cadenceDelayed"
+  | "notificationFailure"
+  | "submissionDrop"
+  | "confirmationDelay"
+  | "longInactive"
+  | "insufficientData";
+
+export type AnalyticsSegmentDimension =
+  | "registrationCohort"
+  | "plan"
+  | "organizationShopCount"
+  | "shopStaffSize"
+  | "cadence"
+  | "lineUsage"
+  | "submissionTrend"
+  | "adoptionAge";
+
+export type AnalyticsTrendMetric =
+  | "organizationCount"
+  | "shopCount"
+  | "kpiEligibleShopCount"
+  | "activeShopCount"
+  | "personCount"
+  | "staffMembershipCount"
+  | "unlinkedStaffCount"
+  | "shiftTargetCount"
+  | "managerMembershipCount"
+  | "managerStaffCount"
+  | "northStarRate"
+  | "deadlineSubmissionRate"
+  | "finalSubmissionRate";
+
+export type AnalyticsPageInfoDto = {
+  cursor: string | null;
+  continueCursor: string | null;
+  isDone: boolean;
+  pageSize: number;
+  returnedCount: number;
 };
 
-export type AnalyticsDashboardRequest =
-  | { kind: "overview"; from: string; to: string }
-  | { kind: "eventTrends"; from: string; to: string; metrics: string[] }
-  | { kind: "notificationBreakdown"; from: string; to: string }
-  | { kind: "shopStages"; date: string }
-  | { kind: "shopRanking"; date: string; sort: ShopRankingSort; limit: number }
-  | { kind: "shopRecruitments"; shopId: string }
-  | { kind: "featureRequests"; cursor: string | null; limit: number }
-  | { kind: "shopDetail"; shopId: string; from: string; to: string };
-
-export type AnalyticsDashboardResponse =
-  | OverviewResponse
-  | EventTrendsResponse
-  | NotificationBreakdownResponse
-  | ShopStagesResponse
-  | ShopRankingResponse
-  | ShopRecruitmentsResponse
-  | FeatureRequestsResponse
-  | ShopDetailResponse;
-
-export type ServiceSnapshotDto = {
-  date: string;
-  shopCount: number;
-  shopCountByPlan: Record<AnalyticsPlanKey, number>;
-  staffCount: number;
-  shiftTargetStaffCount: number;
-  lineLinkedStaffCount: number;
-  lineFollowingStaffCount: number;
-  openRecruitmentCount: number;
-  pendingRegistrationRequestCount: number;
-  // ステージ集計導入前のスナップショットは null
-  shopStageCounts: ShopStageCounts | null;
-  computedAt: number;
+export type AnalyticsResponseMetadata = {
+  asOf: number | null;
+  dataStartDate: string | null;
+  latestCompleteSnapshotDate: string | null;
+  computedAt: number | null;
+  completeness: AnalyticsResponseCompleteness;
+  warnings: string[];
+  pageInfo: AnalyticsPageInfoDto;
 };
 
-// ========================================
-// 店舗ライフサイクルステージ（convex/analytics/stage.ts の分類結果）
-// ========================================
-
-export type ShopStageKey = "beforeStart" | "activeTrial" | "activeTrialDormant" | "retained" | "retainedDormant";
-
-export type ShopStageCounts = Record<ShopStageKey, number>;
-
-export type StageTransitionMetricDto = {
+export type AnalyticsRateDto = {
   numerator: number;
   denominator: number;
   rate: number | null;
 };
 
-export type StageTransitionSummaryDto = {
-  fromDate: string;
-  toDate: string;
-  beforeStartToActiveTrial: StageTransitionMetricDto;
-  activeTrialToRetained: StageTransitionMetricDto;
-  retainedToDormant: StageTransitionMetricDto;
-  dormantToRecovered: StageTransitionMetricDto;
+export type AnalyticsRateRangeDto = {
+  from: string;
+  to: string;
 };
 
-export type ShopStageRowDto = {
-  shopId: string;
-  shopName: string;
-  shopCreatedAt: number | null;
-  planKey: AnalyticsPlanKey;
-  /** ステージ集計導入前のスナップショットは null（再集計待ち） */
-  stage: ShopStageKey | null;
-  staffCount: number;
-  shiftTargetStaffCount: number;
-  lineLinkedStaffCount: number;
-  recruitmentCount: number | null;
-  confirmedRecruitmentCount: number | null;
-  openRecruitmentCount: number;
-  openRecruitmentSubmittedCount: number | null;
-  submittedRecruitmentCount: number | null;
-  openNotificationFailureCount: number | null;
-  recruitmentCreatedLast30Days: number | null;
-  submissionRate: number | null;
-  confirmedSubmissionRate: number | null;
-  averageFirstSubmissionLeadTimeMs: number | null;
-  averageConfirmationLeadTimeMs: number | null;
-  emailNotificationSentCount: number | null;
-  lineNotificationSentCount: number | null;
-  notificationLineSentRate: number | null;
-  postReminderSubmissionRate: number | null;
-  resubmissionRate: number | null;
-  lastRecruitmentSubmissionRate: number | null;
-  lastRecruitmentCreatedAt: number | null;
-  lastRecruitmentConfirmedAt: number | null;
-  lastConfirmedRecruitmentLeadTimeMs: number | null;
-  firstRecruitmentCreatedAt: number | null;
-  firstRecruitmentDeadline: string | null;
-  /** 最後のシフト期間として扱う募集の作成時刻 */
-  lastShiftCreatedAt: number | null;
-  /** 最後のシフト期間の開始日 */
-  lastShiftPeriodStart: string | null;
-  /** 最後のシフト期間の終了日 */
-  lastShiftPeriodEnd: string | null;
-  /** 最後のシフト期間として扱う募集の提出率 */
-  lastShiftSubmissionRate: number | null;
-  /** 募集作成日から締切日までの平均日数 */
-  averageRecruitmentOpenDays: number | null;
-  /** 締切日から確定日までの平均日数 */
-  averageDeadlineToConfirmationDays: number | null;
-  /** 現在のシフト対象スタッフのうち、催促通知を実送信したスタッフの割合 */
-  reminderSentStaffRate: number | null;
-  hasSubmission: boolean | null;
-  hasNotificationSent: boolean | null;
-  hasCurrentOrFutureConfirmedShift: boolean | null;
-  hasCurrentConfirmedShift: boolean | null;
-  hasFutureOpenRecruitment: boolean | null;
-  hasFutureConfirmedShift: boolean | null;
-  hadActiveOrRetainedStage: boolean | null;
-  hadRetainedStage: boolean | null;
-  lastActivityAt: number | null;
-  /** ステージ判定の基準時刻（対象JST日の終端） */
-  stageReferenceAt: number | null;
-  /** 最終活動からの停止日数（スナップショット計算時点基準） */
-  stalledDays: number | null;
-  /** オンボーディングの最終到達ステップ（日本語ラベル） */
-  onboardingStepLabel: string | null;
-  /** 気になる点タグ（原因断定はしない） */
-  alerts: string[];
+export type AnalyticsNullableRateDto = {
+  numerator: number | null;
+  denominator: number | null;
+  rate: number | null;
+};
+
+export type AnalyticsCountSummaryDto = {
+  organizationCount: number;
+  shopCount: number;
+  kpiEligibleShopCount: number;
+  activeShopCount: number;
+  personCount: number;
+  staffMembershipCount: number;
+  unlinkedStaffCount: number;
+  shiftTargetCount: number;
+  managerMembershipCount: number;
+  managerStaffCount: number;
+};
+
+export type AnalyticsMilestoneCountsDto = Record<AnalyticsMilestoneKey, number>;
+
+export type AnalyticsMilestoneRatesDto = Record<
+  AnalyticsMilestoneKey,
+  {
+    reach: AnalyticsRateDto;
+    previousStepConversion: AnalyticsRateDto;
+  }
+>;
+
+export type AnalyticsHealthSignalCountsDto = Record<AnalyticsHealthSignalKey, number>;
+
+export type AnalyticsServiceKpiSnapshotDto = {
+  snapshotDate: string;
+  rateRange: AnalyticsRateRangeDto;
+  counts: AnalyticsCountSummaryDto;
+  milestoneCounts: AnalyticsMilestoneCountsDto;
+  healthSignalCounts: AnalyticsHealthSignalCountsDto;
+  northStar: AnalyticsRateDto;
+  deadlineSubmission: AnalyticsRateDto;
+  finalSubmission: AnalyticsRateDto;
+  completeness: AnalyticsCompleteness;
   computedAt: number;
 };
 
-export type ShopStagesResponse = {
-  kind: "shopStages";
-  date: string;
-  stageCounts: ShopStageCounts;
-  /** ステージ集計導入前のスナップショットしかない店舗数 */
-  unclassifiedCount: number;
-  rows: ShopStageRowDto[];
+export type AnalyticsTrendValueDto = {
+  value: number | null;
+  numerator: number | null;
+  denominator: number | null;
 };
 
-export type EventCountDto = {
+export type AnalyticsTrendPointDto = {
   date: string;
-  metric: string;
-  count: number;
-  valueSum: number | null;
+  values: Partial<Record<AnalyticsTrendMetric, AnalyticsTrendValueDto>>;
+  completeness: AnalyticsCompleteness;
+  computedAt: number;
 };
 
-export type EventMetricTotalDto = {
-  metric: string;
-  count: number;
-  valueSum: number | null;
+export type AnalyticsMilestonePointDto = {
+  date: string;
+  counts: AnalyticsMilestoneCountsDto;
+  rates: AnalyticsMilestoneRatesDto;
+  completeness: AnalyticsCompleteness;
+  computedAt: number;
+};
+
+export type AnalyticsHealthPointDto = {
+  date: string;
+  counts: AnalyticsHealthSignalCountsDto;
+  completeness: AnalyticsCompleteness;
+  computedAt: number;
+};
+
+export type AnalyticsMilestoneDatesDto = {
+  registeredAt: number;
+  firstRecruitmentAt: number | null;
+  firstSubmissionAt: number | null;
+  firstConfirmedAt: number | null;
+  secondConfirmedAt: number | null;
+};
+
+export type AnalyticsCadenceDto = {
+  estimatedDays: number | null;
+  confidence: "high" | "medium" | "low" | "insufficientData";
+};
+
+export type AnalyticsHealthSignalDto = {
+  signal: AnalyticsHealthSignalKey;
+  startedAt: number;
+};
+
+export type AnalyticsOrganizationKpiDto = {
+  snapshotDate: string;
+  rateRange: AnalyticsRateRangeDto;
+  shopCount: number;
+  kpiEligibleShopCount: number;
+  activeShopCount: number;
+  uniquePersonCount: number;
+  staffMembershipCount: number;
+  unlinkedStaffCount: number;
+  shiftTargetCount: number;
+  managerMembershipCount: number;
+  managerStaffCount: number;
+  milestoneCounts: AnalyticsMilestoneCountsDto;
+  healthSignalCounts: AnalyticsHealthSignalCountsDto;
+  northStar: AnalyticsRateDto;
+  deadlineSubmission: AnalyticsRateDto;
+  finalSubmission: AnalyticsRateDto;
+  completeness: AnalyticsCompleteness;
+  computedAt: number;
+};
+
+export type AnalyticsOrganizationRowDto = {
+  organizationId: string;
+  displayName: string;
+  registeredAt: number;
+  deletedAt: number | null;
+  currentPlan: AnalyticsPlanKey | null;
+  firstShopAt: number | null;
+  secondShopAt: number | null;
+  secondShopFirstConfirmedAt: number | null;
+  kpis: AnalyticsOrganizationKpiDto | null;
+};
+
+export type AnalyticsShopKpiDto = {
+  snapshotDate: string;
+  rateRange: AnalyticsRateRangeDto;
+  staffMembershipCount: number;
+  shiftTargetCount: number;
+  uniquePersonCount: number;
+  unlinkedStaffCount: number;
+  managerMembershipCount: number;
+  managerStaffCount: number;
+  lineLinkedCount: number;
+  lineFollowingCount: number;
+  lineLinkedRate: number | null;
+  lineFollowingRate: number | null;
+  cycleCountAsOfSnapshot: number;
+  confirmedCycleCountAsOfSnapshot: number;
+  confirmedBeforeStartCycleCountAsOfSnapshot: number;
+  nextCyclePeriodStart: string | null;
+  milestoneDates: AnalyticsMilestoneDatesDto;
+  healthSignals: AnalyticsHealthSignalDto[];
+  issueHealthSignalCount: number;
+  cadence: AnalyticsCadenceDto;
+  northStar: AnalyticsRateDto;
+  deadlineSubmission: AnalyticsRateDto;
+  finalSubmission: AnalyticsRateDto;
+  cumulativeDeadlineSubmission: AnalyticsRateDto;
+  cumulativeFinalSubmission: AnalyticsRateDto;
+  cumulativeNotificationSentCount: number;
+  cumulativeNotificationFailedCount: number;
+  confirmationLeadTimeMedianMs: number | null;
+  confirmationLeadTimeP90Ms: number | null;
+  completeness: AnalyticsCompleteness;
+  computedAt: number;
+};
+
+export type AnalyticsShopRowDto = {
+  organizationId: string;
+  organizationDisplayName: string;
+  shopId: string;
+  displayName: string;
+  registeredAt: number;
+  deletedAt: number | null;
+  currentPlan: AnalyticsPlanKey | null;
+  milestoneDates: AnalyticsMilestoneDatesDto;
+  latestActivityAt: number | null;
+  nextCyclePeriodStart: string | null;
+  cadence: AnalyticsCadenceDto;
+  kpis: AnalyticsShopKpiDto | null;
+};
+
+export type AnalyticsCycleRowDto = {
+  recruitmentId: string;
+  organizationId: string;
+  organizationDisplayName: string;
+  shopId: string;
+  shopDisplayName: string;
+  sequenceNumber: number | null;
+  createdAt: number;
+  submitDeadlineAt: number;
+  periodStart: string;
+  periodEnd: string;
+  confirmedAt: number | null;
+  deletedAt: number | null;
+  closedAt: number | null;
+  deadlineSubmission: AnalyticsNullableRateDto;
+  finalSubmission: AnalyticsNullableRateDto;
+  notificationSentCount: number;
+  notificationFailedCount: number;
+  reminderSentCount: number;
+  creationLeadTimeMs: number | null;
+  confirmationLeadTimeMs: number | null;
+  confirmedBeforeStart: boolean | null;
+  completeness: AnalyticsCompleteness;
+  finalizedAt: number | null;
+  updatedAt: number;
+};
+
+export type AnalyticsSegmentRowDto = {
+  snapshotDate: string;
+  dimension: AnalyticsSegmentDimension;
+  bucket: string;
+  shopCount: number;
+  milestoneCounts: AnalyticsMilestoneCountsDto;
+  healthSignalCounts: AnalyticsHealthSignalCountsDto;
+  northStar: AnalyticsRateDto;
+  deadlineSubmission: AnalyticsRateDto;
+  finalSubmission: AnalyticsRateDto;
+  completeness: AnalyticsCompleteness;
+  computedAt: number;
 };
 
 export type OverviewResponse = {
   kind: "overview";
-  range: AnalyticsDashboardRange;
-  latestServiceSnapshot: ServiceSnapshotDto | null;
-  serviceSnapshots: ServiceSnapshotDto[];
-  eventTotals: EventMetricTotalDto[];
-  stageTransitions: StageTransitionSummaryDto | null;
+  metadata: AnalyticsResponseMetadata;
+  current: AnalyticsServiceKpiSnapshotDto | null;
+  comparison: AnalyticsServiceKpiSnapshotDto | null;
 };
 
-export type EventTrendsResponse = {
-  kind: "eventTrends";
-  range: AnalyticsDashboardRange;
-  metrics: string[];
-  series: EventCountDto[];
-  totals: EventMetricTotalDto[];
+export type TrendsResponse = {
+  kind: "trends";
+  metadata: AnalyticsResponseMetadata;
+  range: { from: string; to: string };
+  granularity: AnalyticsGranularity;
+  metrics: AnalyticsTrendMetric[];
+  series: AnalyticsTrendPointDto[];
 };
 
-export type NotificationBreakdownRow = {
-  metric: string;
-  channel: "email" | "line";
-  outcome: "sent" | "failed";
-  notificationKind: "recruitment" | "reminder" | "confirmation" | "lineInvite" | "other";
-  count: number;
+export type MilestonesResponse = {
+  kind: "milestones";
+  metadata: AnalyticsResponseMetadata;
+  range: { from: string; to: string };
+  granularity: AnalyticsGranularity;
+  current: AnalyticsMilestoneCountsDto | null;
+  currentRates: AnalyticsMilestoneRatesDto | null;
+  series: AnalyticsMilestonePointDto[];
 };
 
-export type NotificationBreakdownResponse = {
-  kind: "notificationBreakdown";
-  range: AnalyticsDashboardRange;
-  rows: NotificationBreakdownRow[];
-  series: EventCountDto[];
+export type HealthResponse = {
+  kind: "health";
+  metadata: AnalyticsResponseMetadata;
+  range: { from: string; to: string };
+  granularity: AnalyticsGranularity;
+  current: AnalyticsHealthSignalCountsDto | null;
+  series: AnalyticsHealthPointDto[];
 };
 
-export type ShopRankingSort = "staffCount" | "shiftTargetStaffCount" | "lineLinkedRate" | "openRecruitmentCount";
-
-export type ShopSnapshotDto = {
-  date: string;
-  shopId: string;
-  shopName: string;
-  planKey: AnalyticsPlanKey;
-  staffCount: number;
-  shiftTargetStaffCount: number;
-  lineLinkedStaffCount: number;
-  lineFollowingStaffCount: number;
-  openRecruitmentCount: number;
-  lineLinkedRate: number | null;
-  lineFollowingRate: number | null;
-  computedAt: number;
+export type OrganizationsResponse = {
+  kind: "organizations";
+  metadata: AnalyticsResponseMetadata;
+  rows: AnalyticsOrganizationRowDto[];
 };
 
-export type ShopRankingResponse = {
-  kind: "shopRanking";
-  date: string;
-  sort: ShopRankingSort;
-  rows: ShopSnapshotDto[];
+export type OrganizationDetailResponse = {
+  kind: "organization";
+  metadata: AnalyticsResponseMetadata;
+  organization: AnalyticsOrganizationRowDto | null;
+  series: AnalyticsOrganizationKpiDto[];
+  shops: AnalyticsShopRowDto[];
+};
+
+export type ShopsResponse = {
+  kind: "shops";
+  metadata: AnalyticsResponseMetadata;
+  rows: AnalyticsShopRowDto[];
 };
 
 export type ShopDetailResponse = {
-  kind: "shopDetail";
-  range: AnalyticsDashboardRange;
-  shopId: string;
-  shopName: string;
-  series: ShopSnapshotDto[];
+  kind: "shop";
+  metadata: AnalyticsResponseMetadata;
+  shop: AnalyticsShopRowDto | null;
+  series: AnalyticsShopKpiDto[];
 };
 
-export type ShopRecruitmentRowDto = {
-  recruitmentId: string;
-  status: "open" | "confirmed";
-  periodStart: string;
-  periodEnd: string;
-  deadline: string;
-  submittedCount: number | null;
-  currentShiftTargetStaffCount: number;
-  createdAt: number;
-  confirmedAt: number | null;
+export type ShopCyclesResponse = {
+  kind: "shopCycles";
+  metadata: AnalyticsResponseMetadata;
+  shopId: string;
+  rows: AnalyticsCycleRowDto[];
 };
 
-export type ShopRecruitmentsResponse = {
-  kind: "shopRecruitments";
-  shopId: string;
-  shopName: string;
-  rows: ShopRecruitmentRowDto[];
+export type CycleDetailResponse = {
+  kind: "cycle";
+  metadata: AnalyticsResponseMetadata;
+  cycle: AnalyticsCycleRowDto | null;
+};
+
+export type SegmentsResponse = {
+  kind: "segments";
+  metadata: AnalyticsResponseMetadata;
+  rows: AnalyticsSegmentRowDto[];
 };
 
 export type FeatureRequestRowDto = {
@@ -244,8 +383,22 @@ export type FeatureRequestRowDto = {
 };
 
 export type FeatureRequestsResponse = {
-  kind: "featureRequests";
+  kind: "requests";
+  metadata: AnalyticsResponseMetadata;
   rows: FeatureRequestRowDto[];
-  continueCursor: string;
-  isDone: boolean;
+  pageInfo: AnalyticsPageInfoDto;
 };
+
+export type AnalyticsDashboardResponse =
+  | OverviewResponse
+  | TrendsResponse
+  | MilestonesResponse
+  | HealthResponse
+  | OrganizationsResponse
+  | OrganizationDetailResponse
+  | ShopsResponse
+  | ShopDetailResponse
+  | ShopCyclesResponse
+  | CycleDetailResponse
+  | SegmentsResponse
+  | FeatureRequestsResponse;

@@ -12,7 +12,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { ChartDatum } from "@/domains/analytics/chartSeries";
+
+export type ChartDatum = Record<string, number | string | null>;
 
 const COLORS = ["#0f766e", "#2563eb", "#16a34a", "#ea580c", "#7c3aed", "#475569"];
 
@@ -20,9 +21,10 @@ type TrendChartProps = {
   data: ChartDatum[];
   keys: string[];
   kind?: "line" | "bar";
+  valueKind?: "count" | "percent";
 };
 
-export const TrendChart = ({ data, keys, kind = "line" }: TrendChartProps) => {
+export const TrendChart = ({ data, keys, kind = "line", valueKind = "count" }: TrendChartProps) => {
   const chart = useChart<ChartDatum>({
     data,
     series: keys.map((key, index) => ({ color: COLORS[index % COLORS.length], name: key })),
@@ -40,12 +42,19 @@ export const TrendChart = ({ data, keys, kind = "line" }: TrendChartProps) => {
 
   if (kind === "bar") {
     return (
-      <Chart.Root chart={chart} h="full">
+      <Chart.Root aria-label={`${keys.join("、")}の推移グラフ`} chart={chart} h="full" role="img">
         <ResponsiveContainer height="100%" width="100%">
           <BarChart data={chart.data} margin={{ bottom: 8, left: 0, right: 16, top: 8 }}>
             <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="date" fontSize={12} tickLine={false} />
-            <YAxis allowDecimals={false} fontSize={12} tickLine={false} width={44} />
+            <YAxis
+              allowDecimals={valueKind === "percent"}
+              domain={valueKind === "percent" ? [0, 1] : undefined}
+              fontSize={12}
+              tickFormatter={valueKind === "percent" ? (value) => `${Math.round(Number(value) * 100)}%` : undefined}
+              tickLine={false}
+              width={52}
+            />
             <Tooltip content={<Chart.Tooltip />} cursor={{ fill: "#f1f5f9" }} />
             <Legend content={<Chart.Legend />} />
             {chart.series.map((item) => (
@@ -63,12 +72,19 @@ export const TrendChart = ({ data, keys, kind = "line" }: TrendChartProps) => {
   }
 
   return (
-    <Chart.Root chart={chart} h="full">
+    <Chart.Root aria-label={`${keys.join("、")}の推移グラフ`} chart={chart} h="full" role="img">
       <ResponsiveContainer height="100%" width="100%">
         <LineChart data={chart.data} margin={{ bottom: 8, left: 0, right: 16, top: 8 }}>
           <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" vertical={false} />
           <XAxis dataKey="date" fontSize={12} tickLine={false} />
-          <YAxis allowDecimals={false} fontSize={12} tickLine={false} width={44} />
+          <YAxis
+            allowDecimals={valueKind === "percent"}
+            domain={valueKind === "percent" ? [0, 1] : undefined}
+            fontSize={12}
+            tickFormatter={valueKind === "percent" ? (value) => `${Math.round(Number(value) * 100)}%` : undefined}
+            tickLine={false}
+            width={52}
+          />
           <Tooltip content={<Chart.Tooltip />} />
           <Legend content={<Chart.Legend />} />
           {chart.series.map((item) => (
@@ -77,6 +93,7 @@ export const TrendChart = ({ data, keys, kind = "line" }: TrendChartProps) => {
               activeDot={{ r: 5 }}
               dataKey={chart.key(item.name)}
               dot={false}
+              connectNulls={false}
               stroke={chart.color(item.color)}
               strokeWidth={2}
               type="monotone"

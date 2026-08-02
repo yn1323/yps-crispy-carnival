@@ -12,7 +12,7 @@ export default {
   async fetch(request: Request, env: AnalyticsWorkerEnv): Promise<Response> {
     const url = new URL(request.url);
 
-    if (url.pathname === "/api/analytics") {
+    if (url.pathname.startsWith("/api/analytics/") || url.pathname === "/api/requests") {
       return handleAnalyticsApi(request, env, "worker");
     }
 

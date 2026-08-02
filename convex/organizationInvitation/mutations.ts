@@ -960,6 +960,7 @@ async function linkAccountWithToken(
   }
 
   const now = Date.now();
+  const nextPersonFirstObservedAt = people[0]?.createdAt ?? now;
   const personId = people[0]
     ? people[0]._id
     : await ctx.db.insert("organizationPeople", {
@@ -1046,6 +1047,7 @@ async function linkAccountWithToken(
       toState: formerManagerStaff ? "staffOnly" : "personOnly",
       correlationId: `${invitation._id}:manager-role-removed:${invitation.version}`,
       occurredAt: now,
+      suppressAnalyticsEvent: true,
     });
     await ctx.db.patch(eligibility.billingState._id, {
       freeManagerPersonId: personId,
@@ -1090,6 +1092,30 @@ async function linkAccountWithToken(
     toState: "linked",
     correlationId: `${invitation._id}:link:${invitation.version}`,
     occurredAt: now,
+    analyticsEvent:
+      purpose === "freeManagerExchange"
+        ? {
+            eventType: "managerMembership.changed",
+            subjectId: personId,
+            payload: {
+              kind: "managerMembershipExchange",
+              formerPersonId: inviter.personId,
+              nextPersonId: personId,
+              validFrom: now,
+              nextPersonFirstObservedAt,
+            },
+          }
+        : {
+            eventType: "managerMembership.changed",
+            subjectId: personId,
+            payload: {
+              kind: "managerMembership",
+              personId,
+              personFirstObservedAt: nextPersonFirstObservedAt,
+              status: "active",
+              validFrom: now,
+            },
+          },
   });
   await ctx.scheduler.runAfter(0, internal.organizationInvitation.actions.enqueueAcceptanceNotifications, {
     invitationId: invitation._id,

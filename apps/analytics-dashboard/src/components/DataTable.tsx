@@ -13,6 +13,9 @@ type DataTableProps<T> = {
   rows: T[];
   getRowKey: (row: T) => string;
   emptyText?: string;
+  getRowHref?: (row: T) => string;
+  getRowLabel?: (row: T) => string;
+  onNavigate?: (href: string) => void;
 };
 
 export function DataTable<T>({
@@ -20,6 +23,9 @@ export function DataTable<T>({
   rows,
   getRowKey,
   emptyText = "この期間のデータはありません",
+  getRowHref,
+  getRowLabel,
+  onNavigate,
 }: DataTableProps<T>) {
   if (rows.length === 0) {
     return (
@@ -54,21 +60,53 @@ export function DataTable<T>({
           </Table.Row>
         </Table.Header>
         <Table.Body>
-          {rows.map((row) => (
-            <Table.Row key={getRowKey(row)}>
-              {columns.map((column) => (
-                <Table.Cell
-                  key={column.key}
-                  lineHeight="1.6"
-                  textAlign={column.align}
-                  verticalAlign="top"
-                  whiteSpace={column.align ? "nowrap" : "normal"}
-                >
-                  {column.render(row)}
-                </Table.Cell>
-              ))}
-            </Table.Row>
-          ))}
+          {rows.map((row) => {
+            const href = getRowHref?.(row);
+            return (
+              <Table.Row
+                key={getRowKey(row)}
+                aria-label={href ? `${getRowLabel?.(row) ?? "選択した行"}の詳細を開く` : undefined}
+                cursor={href ? "pointer" : undefined}
+                onClick={
+                  href
+                    ? (event) => {
+                        if (event.target instanceof Element && event.target.closest("a, button")) return;
+                        if (onNavigate) onNavigate(href);
+                        else window.location.assign(href);
+                      }
+                    : undefined
+                }
+                onKeyDown={
+                  href
+                    ? (event) => {
+                        if (event.key === "Enter") {
+                          if (onNavigate) onNavigate(href);
+                          else window.location.assign(href);
+                        }
+                      }
+                    : undefined
+                }
+                role={href ? "link" : undefined}
+                tabIndex={href ? 0 : undefined}
+                _hover={href ? { bg: "blue.50" } : undefined}
+                _focusVisible={
+                  href ? { outline: "2px solid", outlineColor: "blue.500", outlineOffset: "-2px" } : undefined
+                }
+              >
+                {columns.map((column) => (
+                  <Table.Cell
+                    key={column.key}
+                    lineHeight="1.6"
+                    textAlign={column.align}
+                    verticalAlign="top"
+                    whiteSpace={column.align ? "nowrap" : "normal"}
+                  >
+                    {column.render(row)}
+                  </Table.Cell>
+                ))}
+              </Table.Row>
+            );
+          })}
         </Table.Body>
       </Table.Root>
     </Box>

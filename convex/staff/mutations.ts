@@ -9,6 +9,7 @@ import { todayJST } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
 import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
 import { normalizeEmail } from "../_lib/validation";
+import { recordAnalyticsSourceEvent } from "../analytics/sourceEvents";
 import { CURRENT_SHIFT_NOTIFICATION_LIMIT } from "../constants";
 import { getStaffLineAccount } from "../line/service";
 import { ensureNotificationFanoutOperation } from "../notification/fanout";
@@ -409,6 +410,34 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
         toState: `active:${ctx.shop._id}:batch:${inserted.length}`,
         correlationId: `${correlationBase}:staff:${index}`,
         occurredAt: now,
+        ...(index === 0
+          ? {
+              analyticsEvent: {
+                eventType: "staffMembership.changed" as const,
+                shopId: ctx.shop._id,
+                payload: {
+                  kind: "staffMembershipBatch" as const,
+                  memberships: inserted.map((insertedStaffId, insertedIndex) => {
+                    const insertedEntry = staffEntries[insertedIndex];
+                    if (!insertedEntry) throw new ConvexError("スタッフの追加結果を確認できません。");
+                    return {
+                      staffId: insertedStaffId,
+                      ...(insertedEntry.organizationPersonId
+                        ? {
+                            organizationPersonId: insertedEntry.organizationPersonId,
+                            personFirstObservedAt: now,
+                          }
+                        : {}),
+                      isShiftTarget: true,
+                      validFrom: now,
+                      lineLinked: false,
+                      lineFollowing: false,
+                    };
+                  }),
+                },
+              },
+            }
+          : {}),
       });
       if (entry.reactivatedPersonId) {
         await recordOrganizationAuditEvent(ctx, {
@@ -422,6 +451,7 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
           toState: "active",
           correlationId: `${correlationBase}:person:${entry.reactivatedPersonId}`,
           occurredAt: now,
+          suppressAnalyticsEvent: true,
         });
       }
     }
@@ -709,7 +739,27 @@ export const setShiftExclusion = managerMutation({
       throw new ConvexError("Not found");
     }
     // 削除と異なり、管理者（店舗共通アドレス本人）もシフト対象外にできる（主ユースケース）。
+    const now = Date.now();
     await ctx.db.patch(args.staffId, { excludedFromShift: args.excluded });
+    const organizationId = staff.organizationId ?? ctx.shop.organizationId;
+    if (organizationId) {
+      await recordAnalyticsSourceEvent(ctx, {
+        eventKey: `staffMembership:${staff._id}:shiftTarget:${now}`,
+        eventType: "staffMembership.changed",
+        occurredAt: now,
+        organizationId,
+        shopId: staff.shopId,
+        subjectId: staff._id,
+        payload: {
+          kind: "staffMembership",
+          staffId: staff._id,
+          ...(staff.organizationPersonId ? { organizationPersonId: staff.organizationPersonId } : {}),
+          status: "active",
+          isShiftTarget: !args.excluded,
+          validFrom: now,
+        },
+      });
+    }
 
     // 対象外にする場合は、発行済みのシフト用セッション・マジックリンクを失効させ、
     // 古いリンクでのシフト閲覧・希望提出を即座に遮断する（LINE連携は他通知で使うため残す）。
@@ -724,7 +774,6 @@ export const setShiftExclusion = managerMutation({
           .withIndex("by_staffId", (q) => q.eq("staffId", args.staffId))
           .collect(),
       ]);
-      const now = Date.now();
       await Promise.all([
         ...sessions
           .filter((session) => !session.revokedAt)
@@ -758,7 +807,26 @@ export const deleteStaff = managerMutation({
       throw new ConvexError("自分のアカウントは削除できません。");
     }
 
+    const now = Date.now();
     await ctx.db.patch(args.staffId, { isDeleted: true });
+    if (ctx.shop.organizationId) {
+      await recordAnalyticsSourceEvent(ctx, {
+        eventKey: `staffMembership:${staff._id}:deleted:${now}`,
+        eventType: "staffMembership.changed",
+        occurredAt: now,
+        organizationId: ctx.shop.organizationId,
+        shopId: staff.shopId,
+        subjectId: staff._id,
+        payload: {
+          kind: "staffMembership",
+          staffId: staff._id,
+          status: "removed",
+          isShiftTarget: !staff.excludedFromShift,
+          validFrom: staff._creationTime,
+          validTo: now,
+        },
+      });
+    }
     await ctx.scheduler.runAfter(0, internal.notificationOutbox.mutations.deleteStaffNotificationHistoryBatch, {
       shopId: ctx.shop._id,
       staffId: args.staffId,
@@ -782,7 +850,6 @@ export const deleteStaff = managerMutation({
         .withIndex("by_staffId", (q) => q.eq("staffId", args.staffId))
         .collect(),
     ]);
-    const now = Date.now();
     await Promise.all([
       ...sessions.map((session) => ctx.db.patch(session._id, { revokedAt: now })),
       ...magicLinks.map((token) => ctx.db.patch(token._id, { revokedAt: now })),

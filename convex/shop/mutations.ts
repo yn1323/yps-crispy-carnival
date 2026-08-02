@@ -3,6 +3,7 @@ import { internal } from "../_generated/api";
 import { internalMutation } from "../_generated/server";
 import { managerMutation } from "../_lib/functions";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
+import { recordAnalyticsSourceEvent } from "../analytics/sourceEvents";
 import { ensureDeletionCleanupJob } from "../deletionCleanup/service";
 import { updateShopSettingSchema, updateShopSettingsSchema } from "./schemas";
 
@@ -52,11 +53,22 @@ export const updateShopSettings = managerMutation({
     }
     const input = parsed.data;
     const submissionPattern = normalizeSubmissionPattern(input.submissionPattern);
+    const occurredAt = Date.now();
     await ctx.db.patch(ctx.shop._id, {
       name: input.shopName,
       regularClosedDays: WEEKDAY_ORDER.filter((day) => input.regularClosedDays.includes(day)),
       submissionPattern,
     });
+    if (ctx.shop.organizationId) {
+      await recordAnalyticsSourceEvent(ctx, {
+        eventKey: `shop:${ctx.shop._id}:updated:${occurredAt}`,
+        eventType: "shop.changed",
+        occurredAt,
+        organizationId: ctx.shop.organizationId,
+        shopId: ctx.shop._id,
+        payload: { kind: "shop", change: "updated", displayName: input.shopName },
+      });
+    }
     return null;
   },
 });
@@ -76,7 +88,20 @@ export const updateShopSetting = managerMutation({
     const change = parsed.data;
     switch (change.kind) {
       case "shopName":
-        await ctx.db.patch(ctx.shop._id, { name: change.shopName });
+        {
+          const occurredAt = Date.now();
+          await ctx.db.patch(ctx.shop._id, { name: change.shopName });
+          if (ctx.shop.organizationId) {
+            await recordAnalyticsSourceEvent(ctx, {
+              eventKey: `shop:${ctx.shop._id}:updated:${occurredAt}`,
+              eventType: "shop.changed",
+              occurredAt,
+              organizationId: ctx.shop.organizationId,
+              shopId: ctx.shop._id,
+              payload: { kind: "shop", change: "updated", displayName: change.shopName },
+            });
+          }
+        }
         break;
       case "submissionPattern":
         await ctx.db.patch(ctx.shop._id, {

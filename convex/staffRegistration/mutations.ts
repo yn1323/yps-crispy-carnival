@@ -351,6 +351,22 @@ export const approveRequest = managerMutation({
         toState: `active:${ctx.shop._id}:batch:1`,
         correlationId: `${organizationId}:staff-registration:${request._id}:staff`,
         occurredAt: reviewedAt,
+        analyticsEvent: {
+          eventType: "staffMembership.changed",
+          shopId: ctx.shop._id,
+          subjectId: staffId,
+          payload: {
+            kind: "staffMembership",
+            staffId,
+            ...(organizationPersonId ? { organizationPersonId } : {}),
+            ...(organizationPersonId ? { personFirstObservedAt: reviewedAt } : {}),
+            status: "active",
+            isShiftTarget: true,
+            validFrom: reviewedAt,
+            lineLinked: false,
+            lineFollowing: false,
+          },
+        },
       });
     }
     const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });

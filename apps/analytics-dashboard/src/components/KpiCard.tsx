@@ -42,9 +42,9 @@ export const KpiCard = ({ label, value, helper, accent = "teal", isLoading = fal
         </Text>
       )}
       {helper ? (
-        <Text color="gray.500" fontSize="xs" mt={3} overflowWrap="break-word" wordBreak="keep-all">
+        <Box color="gray.500" fontSize="xs" mt={3} overflowWrap="break-word" wordBreak="keep-all">
           {helper}
-        </Text>
+        </Box>
       ) : null}
     </Box>
   );

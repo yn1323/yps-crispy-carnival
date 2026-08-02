@@ -5,6 +5,7 @@ import { getShopActivationReminderAt } from "../_lib/dateFormat";
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { normalizeSubmissionPattern } from "../_lib/submissionPattern";
 import { normalizeEmail } from "../_lib/validation";
+import { analyticsPlanForBillingState } from "../analytics/sourceEvents";
 import {
   ORGANIZATION_LEGACY_SHOP_SCAN_LIMIT,
   ORGANIZATION_NAME_SUFFIX,
@@ -189,6 +190,27 @@ export async function createOrganizationWithFirstShop(
     toState: `${args.billingState.kind}.${args.billingState.plan}`,
     correlationId: args.correlationId,
     occurredAt: now,
+    analyticsEvent: {
+      eventType: "organization.changed",
+      shopId,
+      subjectId: personId,
+      payload: {
+        kind: "organization",
+        change: "created",
+        displayName: `${args.shopName}${ORGANIZATION_NAME_SUFFIX}`,
+        registeredAt: now,
+        currentPlan: analyticsPlanForBillingState(args.billingState),
+        initialShop: { shopId, displayName: args.shopName, registeredAt: now },
+        initialPersonId: personId,
+        initialStaff: {
+          staffId,
+          organizationPersonId: personId,
+          shopId,
+          validFrom: now,
+          isShiftTarget: true,
+        },
+      },
+    },
   });
 
   await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
