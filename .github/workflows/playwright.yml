@@ -9,6 +9,10 @@ permissions:
   issues: write
   pull-requests: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   test:
     if: github.event.pull_request.head.repo.full_name == github.repository
@@ -53,7 +57,7 @@ jobs:
         id: playwright
         run: |
           node -e 'const escape = (value) => value.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A"); const values = [process.env.E2E_CLERK_PASSWORD, ...(process.env.E2E_CLERK_USERS || "").split(",").map((value) => value.trim())]; for (const value of values.filter(Boolean)) console.log(`::add-mask::${escape(value)}`)'
-          pnpm e2e:release
+          pnpm e2e:ci
         env:
           TZ: Asia/Tokyo
           VITE_CONVEX_URL: ${{ steps.preview.outputs.PREVIEW_URL }}
@@ -66,8 +70,12 @@ jobs:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
           E2E_TESTING_ENABLED: "true"
           NOTIFICATION_DELIVERY_MODE: dry-run
+      - name: Verify Playwright artifact privacy
+        id: privacy
+        if: ${{ !cancelled() && hashFiles('playwright-report/index.html') != '' }}
+        run: node scripts/assertNoSensitiveArtifacts.mjs --root playwright-report --root test-results.json
       - name: Upload Playwright report
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.privacy.outcome == 'success' }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: playwright-report
@@ -76,7 +84,7 @@ jobs:
           overwrite: true
           retention-days: 30
       - name: Deploy Report to GitHub Pages
-        if: ${{ !cancelled() && hashFiles('playwright-report/index.html') != '' }}
+        if: ${{ !cancelled() && steps.privacy.outcome == 'success' && hashFiles('playwright-report/index.html') != '' }}
         env:
           HOSTING_PAGES_TOKEN: ${{ secrets.HOSTING_PAGES_TOKEN }}
         run: |
@@ -96,10 +104,13 @@ jobs:
           git pull --rebase
           git push origin HEAD:main
       - name: Comment PR with Report Link
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.privacy.outcome == 'success' }}
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           TEST_RESULT: ${{ steps.playwright.outcome }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUN_ID: ${{ github.run_id }}
         with:
           script: |
             const fs = require('node:fs');
@@ -130,7 +141,11 @@ jobs:
                       else if (status === 'skipped') skipped += 1;
                       const icon = status === 'expected' ? '✅' : status === 'unexpected' || status === 'flaky' ? '❌' : '⏭';
                       const title = String(spec.title).replaceAll('|', '\\|').replace(/[\r\n]+/g, ' ');
-                      const row = `| ${icon} | ${title} |`;
+                      const project = String(test.projectName || 'unknown').replaceAll('|', '\\|');
+                      const retries = Math.max(0, (test.results || []).length - 1);
+                      const duration = (test.results || []).reduce((total, result) => total + Number(result.duration || 0), 0);
+                      const category = (test.annotations || []).find((annotation) => annotation.type === 'failure-category')?.description || (status === 'expected' ? '-' : 'unknown');
+                      const row = `| ${icon} | ${title} | ${project} | ${retries} | ${duration}ms | ${category} |`;
                       allRows.push(row);
                       if (status === 'unexpected' || status === 'flaky') failedRows.push(row);
                     }
@@ -144,10 +159,10 @@ jobs:
               failedCount = String(failed);
               skippedCount = String(skipped);
               if (failedRows.length > 0) {
-                testDetails += `\n\n### 失敗したテスト\n\n| Status | Test |\n|---|---|\n${failedRows.join('\n')}`;
+                testDetails += `\n\n### 失敗したテスト\n\n| Status | Test | Project | Retry | Duration | Category |\n|---|---|---|---:|---:|---|\n${failedRows.join('\n')}`;
               }
               if (allRows.length > 0) {
-                testDetails += `\n\n<details>\n<summary>すべてのテスト結果を表示</summary>\n\n| Status | Test |\n|---|---|\n${allRows.join('\n')}\n\n</details>`;
+                testDetails += `\n\n<details>\n<summary>すべてのテスト結果を表示</summary>\n\n| Status | Test | Project | Retry | Duration | Category |\n|---|---|---|---:|---:|---|\n${allRows.join('\n')}\n\n</details>`;
               }
             } catch {
               testDetails = '\n\n⚠️ テスト結果JSONの読み込みに失敗しました';
@@ -158,12 +173,16 @@ jobs:
               '',
               `Status: ${statusText}`,
               `Results: Passed ${passedCount} / Failed ${failedCount} / Skipped ${skippedCount}`,
+              `Head SHA: ${process.env.HEAD_SHA}`,
+              `Run: ${process.env.RUN_ID} (attempt ${process.env.RUN_ATTEMPT})`,
               '',
               '| Action | Link |',
               '|---|---|',
               `| レポート確認 | [Playwrightレポートを見る](${reportUrl}) |`,
               `| Actions | [実行ログを見る](${actionsUrl}) |`,
             ].join('\n') + testDetails;
+
+            await core.summary.addRaw(body).write();
 
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner: context.repo.owner,

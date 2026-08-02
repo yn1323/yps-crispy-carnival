@@ -77,8 +77,8 @@ LINE IDの置換値は`deleted:<documentId>`として行IDから決定的に作�
 - `src/components/features/ShopDetail/` — 店舗詳細と店舗削除UI。
 - `src/components/features/OrganizationSettings/OrganizationDeletion/` — グループ削除UI。
 - `src/components/features/AuthenticatedApp/DeletedAccountState.tsx` — 削除済みuserの終了状態。
-- `e2e/scenarios/shop-deletion-flow.test.ts` — 店舗削除の実画面接続。
-- `e2e/scenarios/organization-deletion-flow.test.ts` — グループ削除の実画面接続。
+- `src/components/features/ShopDetail/index.stories.tsx`と`useShopDeletionController.test.tsx` — 店舗削除の表示状態、確認、mutation接続。
+- `src/components/features/OrganizationSettings/OrganizationDeletion/OrganizationDeletionDialog.stories.tsx`と`controllers.test.tsx` — グループ削除の確認、状態変化、mutation接続。
 
 ## API一覧
 

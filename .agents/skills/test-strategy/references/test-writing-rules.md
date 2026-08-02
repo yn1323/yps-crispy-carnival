@@ -268,30 +268,71 @@ E2Eは、ブラウザ、認証、フロントエンド、実バックエンド�
 現在の実行対象、ブラウザ、tag、Preview、credential、レポート公開は `.github/workflows/` とPlaywright設定を正本とする。
 機能棚卸し、テスト層との対応付け、通知目的、ライフサイクルは `e2e-full-regression-rules.md` に従う。
 
-書き方:
+### 失敗を分類する
 
-- `e2e/pages/` の Page Object に画面操作を切り出す。
-- シナリオ側はユーザーストーリー名のファイルにし、`test.step()` で区切る。
-- セレクター優先順は `getByRole` / `getByText`、次に `getByTestId`、最後に CSS。
-- `data-testid` はセマンティックなセレクターで取れない場合だけ使う。
-- `page.waitForTimeout()` は禁止。`expect(locator).toBeVisible()` など web-first assertion で待つ。
-- `page.waitForLoadState("networkidle")`を遅延queryの完了条件にしない。ConvexのWebSocketや継続購読では、通信全体の静止が利用者向け完了状態と一致しない。
+- 失敗したE2Eだけを根拠に製品回帰と判断しない。現在の実装、機能文書、Story、主担当層のtestを確認し、製品回帰、test drift、共有状態、待機、環境・外部依存に分類する。
+- 意図したfrontend変更によるtest driftでは、製品コードを以前の挙動へ戻さず、selector、待機、fixture、assertionを現行contractへ合わせる。
+- 現行contractに反する製品回帰では、assertionを曖昧にする、待機を延ばす、retryを増やす方法で隠さない。
+- 実ブラウザ境界を必要としないscenarioは、既存のE2E helperを拡張する前にLogic、Behavior、Function、Scenarioへ移す。
+
+### スコープ縮小とbrowser-only contract
+
+- E2Eを削除または統合するときは、件数をcoverageの根拠にせず、契約ID、移管先、残るbrowser-onlyの失敗境界を記録する。
+- 匿名の保護route redirectとlogout後の保護route再アクセスは、coreまたは独立browser smokeで確認する。storageStateの生成やFunction、Scenario、Behaviorの成功だけをlogout契約の代替にしない。
+- a11y検査をcoreから分離する場合は、独立a11y smokeまたはStorybook accessibilityを主担当として明示し、見た目をVRT、操作後の状態をBehaviorへ分ける。代替検査がない削除は未完了として扱う。
+- feature flagでskipされたtestをpassまたはcoverage済みとして数えない。公開条件のenabled環境で実行するtestと、閉状態を守るtestを分けて記録する。
+
+### Scenarioとselector
+
+- E2Eにはファイル名と独立した安定contract IDを付け、scenario側はユーザーストーリー名と`test.step()`で利用者の操作を表す。
+- `e2e/pages/`のPage Objectには、現在のcore scenarioが使う画面操作だけを置く。使われないmethodや将来用wrapperを維持しない。
+- selectorは一意な`getByRole`とaccessible nameを優先し、次にlabel、安定した表示文言、`getByTestId`、最後にCSSを使う。
+- `data-testid`は、利用者が認識できるrole、label、nameで一意に取得できない場合に限る。
+- CSS class、Chakraの内部構造、`nth()`、広い部分一致を、画面構造の偶然へ依存するselectorとして使わない。
+- 複数の正当な画面状態から次へ進む場合は、各状態をweb-first assertionで待ってから決定的に分岐する。例外をcatchして別selectorを試す方法で状態判定しない。
+
+### 待機と非同期処理
+
+- `page.waitForTimeout()`と固定秒待ちは使わない。locator、URL、操作可能状態、局所Loadingの消滅など、利用者に見える完了条件をweb-first assertionで待つ。
+- `page.waitForLoadState("networkidle")`を完了条件にしない。ConvexのWebSocketや継続購読では、通信全体の静止が利用者向け完了状態と一致しない。
 - lazy mountする領域は、click、tab選択、Dialog表示など実際の開始操作を行ってから、その領域固有のLoadingまたは完了landmarkを待つ。
 - viewportで開始する領域は、対象locatorの`scrollIntoViewIfNeeded()`など意味のある操作で表示領域へ移し、座標や固定scroll量に依存しない。
-- preload対象のrequestはhoverやfocusでclick前に始まり得るため、request順序や開始時刻をE2Eのassertionにしない。非表示中の`"skip"`や開始回数はFrontend Unit Testで守る。
-- 通常E2Eで遷移や表示の経過時間を固定閾値へassertしない。性能予算は専用の計測または監視へ分ける。
-- mutation 成功はトーストや画面の表示状態で判定する。
-- DB の細かい最終状態確認は Convex Scenario Test に寄せる。
-- デプロイ済みURLのSmokeは、対象routeのHTTP成功、固有ランドマーク、主要CTA、URLを軽量に確認する。
-- 通知E2Eでは、検証対象のmagic link、LINE link token、outbox、FailureInboxをテストhelperで人工生成しない。本番と同じUI操作・mutation・scheduled actionから生成された証跡を待つ。
-- 通知のDB確認が必要な場合は、E2E環境だけで動くinternal testing APIから、目的、channel、対象ID、status、dedupe、CTA整合だけを返す。redacted通知probeは生メールアドレス、LINE userId、token、本文、provider error全文を返さない。画面遷移にtokenが必要な場合だけ、同じE2Eゲートを持つ専用token helperを分離して使う。
-- 正常通知は `notificationOutbox`、retry/fallbackは `notificationDeliveryEvents`、最終失敗だけ `notificationFailureInbox` を見る。
+- preload対象のrequestはclick前に始まり得るため、request順序や開始時刻をassertionにしない。非表示中の`"skip"`や開始回数はFrontend Unit Testで守る。
+- browserから観測できないcapability発行などを待つ場合だけpollingを使う。pollingには総deadline、即時の初回probe、一回ごとのcommand timeout、成功時の即時終了を持たせ、deadline後の最終sleepを入れない。
+- OCCだけを再試行する場合は、対象を分類して上限付きbackoffにする。認証、入力不正、設定不備、未知の失敗を同じretry loopへ入れない。
+- suite全体を救う長いblanket timeoutを置かず、外部境界ごとに短いtimeoutとsafeな失敗分類を持たせる。
+- test timeoutは固定sleepと区別する。成功時に満額を消費しない失敗上限として、retryなし・通常worker数の実測へseed、外部境界、fixture cleanupの余裕を加え、長いcontractだけに設定する。
+- 通常E2Eで経過時間を固定閾値へassertしない。性能予算は専用の計測または監視へ分ける。
+
+### Fixtureと並列実行
+
+- 認証actorはworkerへ決定的に割り当て、test ordinal、実行順序、retryごとにrotateしない。
+- 同じactorまたは同じ永続状態を使うprojectは同時実行しない。並列化は、actor、seed、cleanupの所有権が分離できる範囲だけで行う。
+- seedとresetは対象actorまたはownerのデータだけを扱う。広い全件削除や別workerのデータを含むcleanupで隔離を作らない。
+- test dataは再実行しても衝突しない一意性を持たせ、fixtureは期待値や暗黙の成功判定を隠さない。
+- localeとtimezoneに依存するE2EはPlaywright設定で固定し、境界値そのものは注入可能な純粋処理のLogic Testで守る。
+
+### 通知、capability、artifact
+
+- 通知対象、channel、件数、dedupe、Outbox、retry、FailureInboxはFunction TestまたはScenario Testで完全一致させ、通常E2Eで集合をpollingしない。
+- E2Eへ残すのは、代表的なUI操作から匿名CTAや利用者に見える復旧導線へ到達できるブラウザ境界である。
+- 匿名CTAにcapabilityが必要な場合は、E2E専用gateを持つ最小helperから必要なtokenだけを取得する。token、引数、stdout、stderr、メールアドレスをerror、attachment、reportへ出さない。
+- capability URLまたは個人情報を扱うtestでは、trace、video、screenshotを保存しない。診断はredact済みのcategory、duration、retry、project、worker、poll回数など、原因分類に必要な最小値へ限定する。
+- report、trace、ZIP、attachmentを公開する前に、token、credential、メールアドレス、storage state、危険なarchive構造を検査し、検査が失敗したartifactは公開しない。
+
+### Result gateと検証順序
+
+- core E2Eの結果は件数下限だけで判定しない。期待するcontract IDとprojectを完全一致させ、missing、duplicate、unknown、unexpected、理由のないskip、flaky、retryを失敗にする。
+- retryなしの反復実行も終了codeだけで判定しない。phaseごとに結果JSONを確定してから、各contract IDの反復数、project、初回成功、skip、flakyを機械検証し、次phaseによるreport上書き前にartifact privacyを検査する。
+- mutation成功は内部DBではなく、トースト、画面遷移、利用者に見える最終状態で判定する。DBの完全な最終状態はScenario Testへ置く。
+- デプロイ済みURLのSmokeは、対象routeのHTTP成功、固有landmark、主要CTA、URLを軽量に確認し、認証付きcore E2Eと分ける。
+- 安定化確認は、対象testをretryなしの1 worker、通常worker数、retryなしの反復実行、同一commitのCI反復の順に広げる。
+- CIでretryを診断用に残す場合も、retry成功をpassへ変換せずflakyとして失敗させる。異なるcommitの履歴をflake率の根拠にしない。
 
 避けること:
 
 - 外部サービスの実配送、Clerkの認証画面そのもの、ピクセル単位のUIを通常E2Eで検証しない。
-- CSS クラスや Chakra の内部構造に依存しない。
-- ガントチャートの精密なドラッグ座標や時間計算を E2E に寄せない。必要なら Logic UT に切り出す。
+- ガントチャートの精密なドラッグ座標や時間計算をE2Eに寄せない。必要ならLogic Testへ切り出す。
 
 ## 高リスク観点
 
@@ -316,6 +357,7 @@ E2Eは、ブラウザ、認証、フロントエンド、実バックエンド�
 
 - 変更した契約を、最も速く安定した層で保証しているか。
 - E2E や broad integration test に寄せすぎていないか。
+- E2Eを削減した場合、契約IDの移管先、logout後の認証境界、a11yの代替検査、feature flagのenabled条件を説明できるか。
 - 正常系だけでなく、壊れると運用影響が大きい派生を見ているか。
 - テスト名から業務上の意味が分かるか。
 - assertion が「何を保証しているか」を読み取れるか。

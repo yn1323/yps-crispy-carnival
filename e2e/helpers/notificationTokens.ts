@@ -1,4 +1,5 @@
 import { convexRunJson } from "./convex";
+import { pollUntil } from "./poll";
 
 type MagicLinkPurpose = "submit" | "view";
 
@@ -9,87 +10,38 @@ type MagicLinkResult = {
   usedAt?: number | null;
 };
 
-type LineLinkResult = {
-  token: string | null;
-  authorizeUrl?: string | null;
-};
-
 type CreatedMagicLinkResult = Omit<MagicLinkResult, "token"> & { token: string };
-type CreatedLineLinkResult = Omit<LineLinkResult, "token"> & { token: string };
 
-const POLL_ATTEMPTS = 6;
+const POLL_DEADLINE_MS = 10_000;
 const POLL_INTERVAL_MS = 500;
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function pollConvexToken<T extends { token: string | null }>(
-  fn: string,
-  args: Record<string, unknown>,
-  attempts: number,
-): Promise<(T & { token: string }) | null> {
-  for (let i = 0; i < attempts; i++) {
-    const result = convexRunJson<T>(fn, args);
-    if (result.token) return result as T & { token: string };
-    await sleep(POLL_INTERVAL_MS);
-  }
-
-  return null;
-}
-
-export async function getOrCreateMagicLinkToken(args: {
+type MagicLinkArgs = {
   recruitmentId?: string;
   shopId?: string;
   staffEmail: string;
   purpose: MagicLinkPurpose;
-}): Promise<CreatedMagicLinkResult> {
-  // 通知 action は scheduler 経由で非同期実行される。
-  // まず実際に発行された token を待ち、無ければテスト用 internal API で補助発行してシナリオを進める。
-  const existing = await pollConvexToken<MagicLinkResult>("testing:getLatestMagicLinkToken", args, POLL_ATTEMPTS);
-  if (existing) return existing;
+};
 
+export function createMagicLinkTokenForLatestRecruitment(args: MagicLinkArgs): CreatedMagicLinkResult {
   return convexRunJson<CreatedMagicLinkResult>("testing:createMagicLinkTokenForLatestRecruitment", args);
 }
 
-export async function waitForMagicLinkToken(args: {
-  recruitmentId?: string;
-  shopId?: string;
-  staffEmail: string;
-  purpose: MagicLinkPurpose;
-}): Promise<CreatedMagicLinkResult> {
-  // 追送・follow起点の通知は「発行されること」自体が検証対象なので、補助発行せず待ち切れなければ失敗にする。
-  const issued = await pollConvexToken<MagicLinkResult>("testing:getLatestMagicLinkToken", args, POLL_ATTEMPTS * 2);
-  if (issued) return issued;
-
-  throw new Error(`Magic link token was not issued for ${args.staffEmail}`);
-}
-
-export async function waitForFreshMagicLinkToken(args: {
-  recruitmentId?: string;
-  shopId?: string;
-  staffEmail: string;
-  purpose: MagicLinkPurpose;
-  previousToken: string;
-}): Promise<CreatedMagicLinkResult> {
-  const { previousToken, ...lookupArgs } = args;
-  for (let attempt = 0; attempt < POLL_ATTEMPTS * 2; attempt++) {
-    const result = convexRunJson<MagicLinkResult>("testing:getLatestMagicLinkToken", lookupArgs);
-    if (result.token && result.token !== previousToken && !result.usedAt) {
-      return result as CreatedMagicLinkResult;
+export async function waitForMagicLinkToken(args: MagicLinkArgs): Promise<CreatedMagicLinkResult> {
+  try {
+    const result = await pollUntil({
+      deadlineMs: POLL_DEADLINE_MS,
+      commandTimeoutMs: 8_000,
+      intervalMs: POLL_INTERVAL_MS,
+      errorCode: "magic-link-token-unavailable",
+      probe: ({ commandTimeoutMs }) =>
+        convexRunJson<MagicLinkResult>("testing:getLatestMagicLinkToken", args, { timeoutMs: commandTimeoutMs }),
+      accept: (candidate) => Boolean(candidate.token),
+    });
+    return result as CreatedMagicLinkResult;
+  } catch (error) {
+    if (error instanceof Error && error.name === "E2EPollDeadlineError") {
+      throw new Error("E2E capability was not issued: magic-link-token");
     }
-    await sleep(POLL_INTERVAL_MS);
+    throw error;
   }
-
-  throw new Error(`A fresh magic link token was not issued for ${args.staffEmail}`);
-}
-
-export async function waitForLineLinkToken(args: {
-  shopId?: string;
-  staffEmail: string;
-}): Promise<CreatedLineLinkResult> {
-  const issued = await pollConvexToken<LineLinkResult>("testing:getLatestLineLinkToken", args, POLL_ATTEMPTS * 2);
-  if (issued) return issued;
-
-  throw new Error(`LINE link token was not issued for ${args.staffEmail}`);
 }

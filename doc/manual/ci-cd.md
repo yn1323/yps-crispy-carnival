@@ -20,6 +20,35 @@ Pull Requestを閉じると、同workflowがプレビューの後処理を行う
 認証付きE2Eは `.github/workflows/playwright.yml` が専用Convex Previewで実行する。
 外部forkにはリポジトリのcredentialを渡さないため、同じ条件では実行されない。
 
+認証付きE2Eの必須gateは`pnpm e2e:ci`である。
+このcommandは、実ブラウザ境界を持つ次の5契約だけを実行し、JSON resultから契約ID、project、初回成功、skipなしを検証する。
+
+- `E2E-AUTH-01`：匿名利用者の保護route redirect。
+- `E2E-SETUP-01`：認証済み管理者の初期設定。
+- `E2E-SHIFT-01`：募集、匿名提出、確定、匿名閲覧の代表導線。
+- `E2E-TENANT-01`：同じ管理者による2グループの切り替え。
+- `E2E-MOBILE-01`：Mobile Chromeでの代表提出。
+
+通常実行はE2E用Clerk user 0から2を`parallelIndex`へ固定し、最大3 workerで動かす。
+desktop完了後にmobileを実行するため、異なるprojectが同じユーザーを同時に操作しない。
+
+同じPull Requestの新旧runはworkflowの`concurrency`で直列化し、古いrunをcancelする。
+cancel済みrunはreport upload、Pages公開、Pull Requestコメントを行わない。
+
+Playwright reportと`test-results.json`は、公開前にprivacy gateで検査する。
+privacy gateがtoken、credential、非placeholder email、認証storage、検査不能なartifactを検出した場合は、reportを公開しない。
+
+flake調査はretryを無効にした次のcommandで行う。
+
+```bash
+pnpm e2e:burn-in
+```
+
+このcommandはdesktop 4契約を各10回実行した後、mobile 1契約を依存projectなしで10回実行する。
+Playwrightのproject dependencyを含む一括`repeat-each`では依存側のdesktopが1回しか反復されないため、2段階を直列実行する。
+各段階は次の段階が`test-results.json`とreportを上書きする前に、contract ID別の反復数、project、初回成功、skip、flakyを結果ゲートで確認し、artifact privacy検査を通す。
+Full Regressionは認証付きE2Eだけで担わず、Logic、Frontend Unit、Behavior、VRT、Convex Function、Convex Scenario、Deployed Smokeへ分担する。
+
 VRTの差分とレポート公開は `.github/workflows/vrt.yml` が管理する。
 差分承認の条件と承認環境はworkflowを確認し、レポートURLだけを根拠に成功扱いしない。
 

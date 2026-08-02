@@ -15,18 +15,32 @@
 - 実ユーザー、実店舗、本番データを使わない。
 - 認証状態は既存のsetupとstorage stateを使う。
 - テストデータはworkerまたはtestごとに一意にし、並列実行で衝突させない。
+- 通常E2Eはuser 0から2を`parallelIndex`へ固定し、test順序やretryでユーザーをrotateしない。
 - teardownは自分が作成したデータだけを対象にする。
 - testing helperやtesting HTTP APIは、E2E専用credentialを検証してから状態を変更する。
 - token、credential、メール本文、LINE payload、個人情報をreport、trace、artifact、ログへ出さない。
 - 外部サービスの実到着を通常E2Eの成功条件にしない。
 - E2Eの構造、selector、待機、通知検証の手順は `test-strategy` に従う。
+- core E2Eを削減または統合するときは、件数ではなく契約IDの移管表でレビューし、`doc/rules/testing-strategy.md`のbrowser-only保全条件を満たす。
+- 匿名の保護route redirectとlogout後の保護route再アクセスを、coreまたは独立browser smokeで維持する。
+- coreからa11y検査を分離する場合は、独立a11y smokeまたはStorybook accessibilityを代替の主担当にし、代替なしの削除を完了扱いにしない。
+- feature flagでskipされる契約はカバレッジ済みとみなさず、公開条件のenabled環境で実行する。
 
 ## 実行
 
 サーバーはユーザーが起動しているため、E2E作業のために新規起動しない。
 
 ```bash
-pnpm e2e e2e/path/to/file.spec.ts
+pnpm e2e:ci
+pnpm e2e e2e/path/to/file.test.ts --retries=0 --workers=1
+pnpm e2e:burn-in
 ```
+
+`pnpm e2e:ci`は5個のcore契約とresult gateを実行する。
+`pnpm e2e:burn-in`は局所E2Eが成功した後に使い、desktopとmobileを直列化したまま、retryなしで各core契約を10回反復する。
+各phaseは次のphaseがreportを上書きする前に、contract ID別の反復数、project、初回成功、skip、flakyとartifact privacyを検査する。
+
+Full RegressionをE2Eへ追加しない。
+実ブラウザ境界を持たない契約は、`doc/rules/testing-strategy.md`に従って下位層へ置く。
 
 Playwrightやブラウザ起動がsandbox制限で失敗した場合は、コードの失敗と区別する。
