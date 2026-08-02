@@ -19,7 +19,7 @@ const SummaryLine = ({ label, value, detail }: { label: string; value: string; d
         {value}
       </Text>
       {detail && (
-        <Text fontSize="xs" color="fg.muted" lineHeight={1.6}>
+        <Text fontSize="xs" color="fg.muted" lineHeight={1.6} whiteSpace="pre-line">
           {detail}
         </Text>
       )}
@@ -39,7 +39,9 @@ export const RecruitmentConfirmation = ({ periodLabel, holidaySummary, deadlineL
       <SummaryLine
         label="通知"
         value="スタッフにシフト提出案内を送ります"
-        detail="LINE連携済みは通常LINE、それ以外はメールで送ります。締切前日17:00には催促通知も自動で送ります。"
+        detail={
+          "LINE連携済みのスタッフには通常LINEで、それ以外のスタッフにはメールで送ります。\n締切前日の17:00には、催促通知も自動で送ります。"
+        }
       />
     </Stack>
   </Box>

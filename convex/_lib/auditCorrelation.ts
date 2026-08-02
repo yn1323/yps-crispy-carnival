@@ -7,7 +7,7 @@ const REQUEST_ID_MAX_LENGTH = 100;
 export async function toAuditRequestKey(requestId: string): Promise<string> {
   const value = requestId.trim();
   if (value.length < REQUEST_ID_MIN_LENGTH || value.length > REQUEST_ID_MAX_LENGTH) {
-    throw new ConvexError("入力内容を確認してください");
+    throw new ConvexError("入力内容を確認してください。");
   }
 
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));

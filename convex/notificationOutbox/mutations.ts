@@ -164,6 +164,7 @@ export const enqueue = internalMutation({
     organizationBillingVersionAtOrigin: v.optional(v.number()),
     organizationInvitationId: v.optional(v.id("organizationInvitations")),
     organizationInvitationVersion: v.optional(v.number()),
+    // TODO[narrow]: m024完走・旧scheduled callerのdrain確認後にrequired化し、business既定値を削除する。
     purpose: v.optional(notificationPurposeValidator),
     recruitmentId: v.optional(v.id("recruitments")),
     staffId: v.optional(v.id("staffs")),
@@ -175,6 +176,7 @@ export const enqueue = internalMutation({
     fanoutOperationId: v.optional(v.id("notificationFanoutOperations")),
     fanoutLeaseToken: v.optional(v.string()),
     confirmationSnapshot: v.optional(confirmationSnapshotInputValidator),
+    // TODO[narrow]: 旧fanout schedulerのdrainとOutbox/fanout readiness確認後に、この旧dedupe key照合を削除する。
     legacyFanoutDedupeKeys: v.optional(v.array(v.string())),
     dedupeKey: v.string(),
     payload: notificationPayloadValidator,
@@ -233,6 +235,7 @@ export const enqueue = internalMutation({
     }
 
     const now = Date.now();
+    // TODO[narrow]: 全deploymentでm024完走・missingPurpose=0・旧caller drain確認後はargs.purposeを直接使う。
     const purpose = args.purpose ?? "business";
     const eligibility = await getNotificationEligibility(ctx, { ...args, purpose, payload }, now);
     if (eligibility.cancelReason) {
@@ -243,6 +246,7 @@ export const enqueue = internalMutation({
     }
 
     // worker が別ジョブの status を高頻度に更新するため、enqueue の読み取りは dedupeKey 単位に絞る。
+    // TODO[narrow]: 全deploymentで旧schedulerが消え、fanout linkの不完全rowが0件になった後はcanonical keyだけを見る。
     if ((args.fanoutTargetKey === undefined) !== (args.legacyFanoutDedupeKeys === undefined)) {
       throw new ConvexError("Fanout dedupe scope is incomplete");
     }
@@ -741,6 +745,7 @@ export async function cancelOrganizationRecipientBusinessNotifications(
       for (const job of jobs) candidates.set(job._id, job);
     }
     if (invitationIds.size > 0) {
+      // TODO[narrow]: 全deploymentでm024完走・missingPurpose=0確認後はbusiness indexだけを読む。
       for (const purpose of ["business", undefined] as const) {
         const jobs = await ctx.db
           .query("notificationOutbox")
@@ -788,6 +793,7 @@ async function notificationBelongsToOrganization(
   job: Doc<"notificationOutbox">,
   organizationId: Id<"organizations">,
 ) {
+  // TODO[narrow]: 全deploymentでm037完走・scope readiness異常0確認後はorganizationIdだけを比較する。
   if (job.organizationId !== undefined) return job.organizationId === organizationId;
   if (!job.shopId) return false;
   const shop = await ctx.db.get(job.shopId);
@@ -888,6 +894,7 @@ function existingBelongsToNotificationScope(
   organizationId?: Id<"organizations">,
 ) {
   if (organizationId && existing.organizationId === organizationId) return true;
+  // TODO[narrow]: 全deploymentでm037完走・missingOrganizationId=0確認後にshop-only比較を削除する。
   return (
     existing.organizationId === undefined &&
     notification.shopId !== undefined &&
@@ -961,6 +968,7 @@ async function getFanoutCancellationReason(
   const expectedRecruitmentStatus = operation.kind === "recruitment" ? "open" : "confirmed";
   if (recruitment.status !== expectedRecruitmentStatus) return "recruitment_inactive";
   if (
+    // TODO[narrow]: 全deploymentでm030完走・missingSupersedesActiveOperations=0確認後にfallbackを外す。
     (operation.supersedesActiveOperations ?? true) &&
     operation.kind === "confirmation" &&
     recruitment.lastConfirmationNotificationOperationKey !== undefined &&
@@ -1014,6 +1022,7 @@ async function getNotificationEligibility(
   notification: NotificationEligibilityInput,
   now: number,
 ): Promise<NotificationEligibility> {
+  // TODO[narrow]: 全deploymentでm024完走・missingPurpose=0確認後は保存済みjobのpurpose fallbackを削除する。
   const purpose = notification.purpose ?? "business";
   if (notification.channel !== notificationChannelForPayload(notification.payload)) {
     return { cancelReason: "unsupported_channel" };
@@ -1050,6 +1059,7 @@ async function getNotificationEligibility(
     return { organizationId, cancelReason: "invalid_scope" };
   }
   if (purpose === "business" && notification.shopId) {
+    // TODO[narrow]: 全deploymentでm025完走・missingOperatingStatus=0確認後はundefinedをactive扱いしない。
     if (!shop || shop.isDeleted || (shop.operatingStatus !== undefined && shop.operatingStatus !== "active")) {
       return { organizationId, cancelReason: "shop_inactive" };
     }
@@ -1067,6 +1077,7 @@ async function getNotificationEligibility(
   const fanoutReason = await getFanoutCancellationReason(ctx, notification, recruitment);
   if (fanoutReason) return { organizationId, cancelReason: fanoutReason };
   if (!organizationId) {
+    // TODO[narrow]: 全deploymentでm025/m037完走・scope readiness異常0確認後にlegacy eligibilityを削除する。
     return notification.shopId
       ? await getLegacyShopRecipientEligibility(ctx, notification)
       : { cancelReason: "invalid_scope" };
@@ -1397,6 +1408,7 @@ async function findOrganizationBusinessNotificationsToCancel(
     businessNotificationCutoffVersion: args.cutoffVersion,
   };
 
+  // TODO[narrow]: 全deploymentでm024完走・missingPurpose=0確認後はbusiness indexだけを読む。
   for (const purpose of ["business", undefined] as const) {
     for (const status of ACTIVE_STATUSES) {
       const remaining = ORGANIZATION_NOTIFICATION_CANCEL_BATCH_SIZE - jobs.length;
@@ -1415,6 +1427,7 @@ async function findOrganizationBusinessNotificationsToCancel(
     }
   }
 
+  // TODO[narrow]: 全deploymentでm037完走・scope readiness異常0確認後に、このWiden前shop scanを削除する。
   // Widen前に作られたshop-scoped行にはorganizationId/purposeがないため、店舗indexでも拾う。
   const shops = await ctx.db
     .query("shops")
@@ -2389,14 +2402,14 @@ function deliveryEventFromJob(
   };
 }
 
-// 分析KPI（analytics/dailyAggregation）でも通知種別の分類に再利用する
+// 分析KPIのbounded集計でも通知種別の分類に再利用する
 export function notificationContextForJob(job: Doc<"notificationOutbox">) {
-  // TODO[narrow]: m019のisDone/successとredaction readiness確認後にpayload fallbackを削除する。
+  // TODO[narrow]: 全deploymentのm024完走と3 field欠損0確認後にpayload fallbackを削除する。
   return job.notificationContext ?? notificationContextForPayload(job.payload, job.dedupeKey);
 }
 
 export function notificationDeliverySuppressedForJob(job: Doc<"notificationOutbox">) {
-  // TODO[narrow]: m019のisDone/successとredaction readiness確認後にpayload fallbackを削除する。
+  // TODO[narrow]: 全deploymentのm024完走と3 field欠損0確認後にpayload fallbackを削除する。
   return job.deliverySuppressed ?? notificationDeliverySuppressedForPayload(job.payload);
 }
 

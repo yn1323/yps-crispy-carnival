@@ -12,7 +12,7 @@ export function ContactPage() {
               お問い合わせ
             </Text>
             <Text color="fg.muted" lineHeight="tall" mt={3}>
-              導入のご相談や機能についてのご質問を受け付けています。
+              導入のご相談や、機能についてのご質問を受け付けています。
             </Text>
           </Box>
           <Box bg="white" border="1px solid" borderColor="gray.200" borderRadius="xl" p={{ base: 5, md: 8 }}>

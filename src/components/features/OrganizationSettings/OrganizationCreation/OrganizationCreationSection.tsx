@@ -25,7 +25,11 @@ export function OrganizationCreationSection({ canCreate, disabledReason, onCreat
             新しいグループ
           </Heading>
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            別の会社や別ブランドのお店を、いまのグループとは分けて管理できます。ユーザー、プラン、支払いはグループごとに分かれます。同じ会社でお店を増やす場合は、「店舗」タブから店舗を追加してください。
+            別の会社やブランドの店舗を、現在のグループと分けて管理できます。
+            <br />
+            ユーザー、プラン、支払いはグループごとに分かれます。
+            <br />
+            同じ会社で店舗を増やす場合は、「店舗」タブから追加してください。
           </Text>
         </Stack>
 

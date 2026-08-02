@@ -15,7 +15,7 @@ export const organizationMemberStatusValidator = v.union(
 );
 
 export const organizationInvitationStatusValidator = v.union(
-  // TODO[narrow]: Remove pending/accepted after m015 has completed everywhere.
+  // TODO[narrow]: Remove pending/accepted after m023 and invitation readiness have completed everywhere.
   v.literal("pending"),
   v.literal("accepted"),
   v.literal("issued"),
@@ -46,8 +46,8 @@ const organizationRestrictedBillingStateValidator = v.object({
   kind: v.literal("restricted"),
   reason: organizationRestrictionReasonValidator,
   previousPlan: v.optional(organizationActivePlanValidator),
-  // TODO[narrow]: m021と新runtime stateの全deployment収束後、reason別の必須条件へ分割する。
-  //   確認: pnpm convex:migrate:status。対応: planLimitExceededではlimitPlanを必須にする。
+  // TODO[narrow]: verifyOrganizationBillingStatesの全pageで欠損を確認し、必要なら新しいforward migrationで
+  //   補完した後、reason別の必須条件へ分割する。planLimitExceededではlimitPlanを必須にする。
   limitPlan: v.optional(v.union(v.literal("free"), v.literal("pro"))),
   // grace/pendingからの有料復旧先。既存行は未設定を現在planとして解釈する。
   targetPlan: v.optional(organizationPaidPlanValidator),
@@ -85,9 +85,7 @@ export const organizationBillingStateValidator = v.union(
   }),
   v.object({
     kind: v.literal("complimentary"),
-    // TODO[narrow]: m021が全deploymentで完走後（確認: pnpm convex:migrate:status）、
-    //   `pro`互換を外して`v.literal("business")`へ変更する。
-    plan: v.union(v.literal("pro"), v.literal("business")),
+    plan: v.literal("business"),
   }),
   v.union(
     v.object({

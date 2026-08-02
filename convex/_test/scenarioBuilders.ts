@@ -28,6 +28,62 @@ export async function seedStaff(
     excludedFromShift?: boolean;
   },
 ) {
+  const shop = await ctx.db.get(args.shopId);
+  if (!shop?.organizationId) {
+    throw new Error("seedStaff requires a canonical shop; use seedLegacyStaff explicitly");
+  }
+  const organizationId = shop.organizationId;
+
+  const email = args.email ?? "";
+  const emailNormalized = email.trim().toLowerCase();
+  const now = Date.now();
+  let organizationPersonId: Id<"organizationPeople"> | undefined;
+  if (args.userId) {
+    const people = await ctx.db
+      .query("organizationPeople")
+      .withIndex("by_organizationId_and_userId", (q) =>
+        q.eq("organizationId", organizationId).eq("userId", args.userId),
+      )
+      .take(2);
+    if (people.length > 1) throw new Error("seedStaff found ambiguous organization people");
+    organizationPersonId = people[0]?._id;
+  }
+  organizationPersonId ??= await ctx.db.insert("organizationPeople", {
+    organizationId,
+    userId: args.userId,
+    name: args.name,
+    email,
+    emailNormalized,
+    status: args.isDeleted ? "removed" : "active",
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  return await ctx.db.insert("staffs", {
+    shopId: args.shopId,
+    organizationId,
+    organizationPersonId,
+    name: args.name,
+    email,
+    emailNormalized,
+    userId: args.userId,
+    excludedFromShift: args.excludedFromShift ?? false,
+    isDeleted: args.isDeleted ?? false,
+  });
+}
+
+/** Migration履歴・rolling互換だけで使う、organization link未設定の旧staff fixture。 */
+export async function seedLegacyStaff(
+  ctx: MutationCtx,
+  args: {
+    shopId: Id<"shops">;
+    name: string;
+    email?: string;
+    userId?: Id<"users">;
+    isDeleted?: boolean;
+    excludedFromShift?: boolean;
+  },
+) {
   return await ctx.db.insert("staffs", {
     shopId: args.shopId,
     name: args.name,

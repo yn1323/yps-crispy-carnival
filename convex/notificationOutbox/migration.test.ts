@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
-import { createConvexTestWithMigrations, runMigrationToCompletion } from "../_test/migrations.test-helper";
+import {
+  createConvexTestWithMigrations,
+  createMigrationHistoryTestWithMigrations,
+  runMigrationToCompletion,
+} from "../_test/migrations.test-helper";
 import { seedManagerShop } from "../_test/seed";
 import {
   NOTIFICATION_FAILURE_INBOX_RETENTION_MS,
@@ -21,8 +25,19 @@ async function runM020(t: ReturnType<typeof createMigrationTest>, batchSize: num
   });
 }
 
+async function runM024(t: ReturnType<typeof createNarrowPrepMigrationTest>, batchSize: number) {
+  return await runMigrationToCompletion(t, internal.migrations.m024_notification_outbox_narrow_prep.migration, {
+    batchSize,
+    cursor: null,
+  });
+}
+
 function createMigrationTest() {
   return createConvexTestWithMigrations();
+}
+
+function createNarrowPrepMigrationTest() {
+  return createMigrationHistoryTestWithMigrations();
 }
 
 describe("notification terminal redaction migrations", () => {
@@ -201,9 +216,130 @@ describe("notification terminal redaction migrations", () => {
   });
 });
 
+describe("notification outbox narrow prep migration", () => {
+  it("旧shapeを現行規則で補完し、既存値と再実行後の状態を変えない", async () => {
+    const t = createNarrowPrepMigrationTest();
+    const ids = await t.run(async (ctx) => {
+      const legacyEmailId = await ctx.db.insert("notificationOutbox", {
+        channel: "email",
+        status: "pending",
+        dedupeKey: "email:m024:legacy-email",
+        fanoutTargetKey: "m024:legacy-target",
+        payload: {
+          kind: "email",
+          from: "sender@example.com",
+          to: "recipient@example.com",
+          subject: "legacy email",
+          html: "legacy body",
+          context: "notification.sendReminderEmails",
+          suppressDelivery: true,
+        },
+        attemptCount: 0,
+        nextRunAt: 100,
+        createdAt: 100,
+        updatedAt: 100,
+      });
+      const legacyLineId = await ctx.db.insert("notificationOutbox", {
+        channel: "line",
+        status: "pending",
+        dedupeKey: "line:m024:legacy-line",
+        payload: {
+          kind: "line",
+          toUserId: "U_legacy_recipient",
+          text: "legacy line",
+          fallbackEmail: {
+            dedupeKey: "email:m024:legacy-line",
+            payload: {
+              kind: "email",
+              from: "sender@example.com",
+              to: "recipient@example.com",
+              subject: "legacy fallback",
+              html: "legacy fallback body",
+              context: "notification.sendRecruitmentNotificationEmails",
+              suppressDelivery: true,
+            },
+          },
+        },
+        attemptCount: 0,
+        nextRunAt: 200,
+        createdAt: 200,
+        updatedAt: 200,
+      });
+      const existingBillingId = await ctx.db.insert("notificationOutbox", {
+        channel: "email",
+        status: "pending",
+        dedupeKey: "email:m024:existing-billing",
+        fanoutTargetKey: "m024:existing-target",
+        purpose: "billing",
+        notificationContext: "existing.context",
+        deliverySuppressed: false,
+        payload: {
+          kind: "email",
+          from: "sender@example.com",
+          to: "billing@example.com",
+          subject: "billing",
+          html: "billing body",
+          context: "payload.context.must.not.replace.existing",
+          suppressDelivery: true,
+        },
+        attemptCount: 0,
+        nextRunAt: 300,
+        createdAt: 300,
+        updatedAt: 300,
+      });
+      return { existingBillingId, legacyEmailId, legacyLineId };
+    });
+    const beforeMigration = await outboxSnapshot(t);
+
+    const firstProgress = await runM024(t, 1);
+    expect(firstProgress.processed).toBe(3);
+
+    const migrated = await outboxSnapshot(t);
+    const legacyEmail = migrated.find((job) => job._id === ids.legacyEmailId);
+    const legacyLine = migrated.find((job) => job._id === ids.legacyLineId);
+    const existingBilling = migrated.find((job) => job._id === ids.existingBillingId);
+    const existingBillingBefore = beforeMigration.find((job) => job._id === ids.existingBillingId);
+    expect(legacyEmail).toBeDefined();
+    expect(legacyLine).toBeDefined();
+    expect(existingBilling).toBeDefined();
+    expect(existingBillingBefore).toBeDefined();
+    expect(legacyEmail).toMatchObject({
+      purpose: "business",
+      notificationContext: "notification.sendReminderEmails",
+      deliverySuppressed: true,
+      fanoutTargetKey: "m024:legacy-target",
+      updatedAt: 100,
+    });
+    expect(legacyLine).toMatchObject({
+      purpose: "business",
+      notificationContext: "notification.sendRecruitmentNotificationEmails",
+      // fallback emailの抑止ではなく、Outbox本体のLINE payloadを正とする。
+      deliverySuppressed: false,
+      updatedAt: 200,
+    });
+    expect(existingBilling).toEqual(existingBillingBefore);
+
+    const beforeRerun = await outboxSnapshot(t);
+    const rerunProgress = await t.mutation(internal.migrations.m024_notification_outbox_narrow_prep.migration, {
+      batchSize: 100,
+      cursor: null,
+      dryRun: false,
+      reset: true,
+    });
+    expect(rerunProgress.processed).toBe(3);
+    expect(await outboxSnapshot(t)).toEqual(beforeRerun);
+  });
+});
+
 async function migrationSnapshot(t: ReturnType<typeof createMigrationTest>) {
   return await t.run(async (ctx) => ({
     outbox: (await ctx.db.query("notificationOutbox").collect()).sort((a, b) => a._id.localeCompare(b._id)),
     failure: (await ctx.db.query("notificationFailureInbox").collect()).sort((a, b) => a._id.localeCompare(b._id)),
   }));
+}
+
+async function outboxSnapshot(t: ReturnType<typeof createNarrowPrepMigrationTest>) {
+  return await t.run(async (ctx) =>
+    (await ctx.db.query("notificationOutbox").collect()).sort((a, b) => a._id.localeCompare(b._id)),
+  );
 }

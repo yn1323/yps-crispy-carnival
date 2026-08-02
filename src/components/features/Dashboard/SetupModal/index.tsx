@@ -29,7 +29,7 @@ const baseSteps: StepperDialogStep<Step>[] = [
     label: "お店",
     icon: LuStore,
     title: "お店の情報",
-    description: "お店の名前と、スタッフから希望シフトを集める方法を選びます。",
+    description: "お店の名前と、希望シフトの集め方を選びます。",
   },
   {
     value: "patternSettings",
@@ -53,7 +53,7 @@ const getPatternSettingsStep = (kind: Step1Data["submissionPattern"]["kind"]): S
   description:
     kind === "shiftType"
       ? "スタッフが選べる早番・遅番などの区分を設定します。"
-      : "スタッフが選択できる開始時間と終了時間の範囲を設定します。",
+      : "スタッフが選べる開始時間と終了時間の範囲を設定します。",
 });
 
 const normalizeSetupData = (data: Step1Data): Step1Data => ({

@@ -42,6 +42,9 @@ git status --short
 安全契約は、変更した境界に近いテストで確認する。
 たとえば、Convexの認可、token、Webhook、通知、課金は該当するFunction TestまたはScenario Testを使い、Playwright設定と環境変数の秘匿は`scripts/playwrightConfigSecurity.test.ts`と`scripts/setupEnv.test.ts`で確認する。
 
+明示された計画でtestの追加、更新、実行を除外する場合は、実行しなかったcommandとsuite、残留risk、代替した静的検証またはdata invariantを証跡へ記録する。  
+testを実行していないrevisionを「test成功」として扱わず、環境確認や静的検証からtest結果を推測しない。
+
 過去の監査台帳に記載された`scripts/githubWorkflowSecurity.test.ts`は現行リポジトリに存在しない。
 GitHub Actionsの権限、trigger、Environment gate、artifactの信頼境界は、`.github/workflows/`の実装と実行履歴を組み合わせて確認する。
 
@@ -52,8 +55,10 @@ GitHub Actionsの権限、trigger、Environment gate、artifactの信頼境界�
 | Test ID | 対象 | 完了条件 |
 |---|---|---|
 | `ENV-BI-01` | Cloudflare Access | 未認証の別browser contextからHTMLとAPIの両方がWorker到達前に拒否される |
-| `ENV-BI-02` | Worker body上限 | Content-Lengthなしの16 KiB超過requestが全量読取前に413となり、Convex callが0件になる |
-| `ENV-BI-03` | Analytics容量 | 最大想定店舗数でread量、実行時間、応答size、page上限を記録する |
+| `ENV-BI-02` | Analytics credential | Workerのservice credentialがHTML、JavaScript、API response、browser logへ露出しない |
+| `ENV-BI-03` | Analytics完全性 | pipeline停止時またはpartial時に、古い値や不完全な率を正常値として表示しない |
+| `ENV-BI-04` | Worker body上限 | Content-Lengthなしの16 KiB超過requestが全量読取前に413となり、Convex callが0件になる |
+| `ENV-BI-05` | Analytics容量 | 最大想定店舗数でread document数とbytes、write document数とbytes、実行時間をphase別に記録し、Analytics一覧が初期50件・最大100件、`/requests`が最大50件、trendが最大366点、responseが512 KiB未満であることを確認する |
 | `ENV-CI-01` | GitHub Actions公開境界 | 対象branch、trigger、fork制約、最小permissions、Environment gate、同じworkflowで検証したartifactだけを公開する契約が実行履歴と一致する |
 | `ENV-REL-01` | Production release | canary head、merge SHA、tree SHA、tag、Convex、Cloudflare metadataが同じreleaseを示す |
 | `ENV-STRIPE-01` | Stripe sandbox | 通常、3DS成功、3DS失敗、高risk、Trial SetupIntent、Portal、実Webhookをtest値で確認する |
@@ -108,6 +113,7 @@ dual-read、migration完走、readiness成立の三条件を対象deploymentで�
 - `doc/rules/convex-design-strategy.md`
 - `doc/rules/testing-strategy.md`
 - `doc/manual/ci-cd.md`
+- `doc/manual/analytics-rollout.md`
 - `doc/features/notification-outbox.md`
 - `.github/AGENTS.md`
 - `convex/AGENTS.md`

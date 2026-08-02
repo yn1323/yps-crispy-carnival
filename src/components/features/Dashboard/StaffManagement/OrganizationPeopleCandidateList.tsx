@@ -77,7 +77,7 @@ export function OrganizationPeopleCandidateListView({
         <Alert.Indicator />
         <Alert.Content>
           <Alert.Title>スタッフ候補を読み込めませんでした</Alert.Title>
-          <Alert.Description>{errorMessage}</Alert.Description>
+          <Alert.Description whiteSpace="pre-line">{errorMessage}</Alert.Description>
         </Alert.Content>
       </Alert.Root>
     );
@@ -92,7 +92,9 @@ export function OrganizationPeopleCandidateListView({
   return (
     <Stack gap={4}>
       <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-        同じグループに所属し、この店舗にはまだ登録されていないスタッフです。スタッフを押すと、この店舗に追加します。
+        同じグループに所属し、この店舗にはまだ登録されていないスタッフです。
+        <br />
+        追加するスタッフを押してください。
       </Text>
       <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.100" boxShadow="xs" overflow="hidden">
         <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">

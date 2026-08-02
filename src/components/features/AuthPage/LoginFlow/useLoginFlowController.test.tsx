@@ -142,7 +142,7 @@ describe("useLoginFlowController", () => {
       await result.current.onLogin({ email: "manager@example.com", password: "password123" });
     });
 
-    expect(result.current.errorMessage).toBe("確認コードの有効期限が切れています。もう一度お試しください。");
+    expect(result.current.errorMessage).toBe("確認コードの有効期限が切れています。\nもう一度お試しください。");
     expect(result.current.loginStep).toBe("credentials");
     expect(signIn.finalize).not.toHaveBeenCalled();
   });
@@ -163,7 +163,7 @@ describe("useLoginFlowController", () => {
       redirectCallbackUrl: "/sso-callback?redirect=%2Fdashboard%3Ftab%3Dstaff",
       redirectUrl: "/dashboard?tab=staff",
     });
-    expect(result.current.errorMessage).toBe("試行回数が多すぎます。時間をおいてもう一度お試しください。");
+    expect(result.current.errorMessage).toBe("試行回数が多すぎます。\n時間をおいて、もう一度お試しください。");
     expect(signIn.finalize).not.toHaveBeenCalled();
   });
 });

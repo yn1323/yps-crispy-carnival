@@ -15,7 +15,7 @@ describe("toAuditRequestKey", () => {
   });
 
   it("短すぎる入力と長すぎる入力を拒否する", async () => {
-    await expect(toAuditRequestKey("short")).rejects.toThrow("入力内容を確認してください");
-    await expect(toAuditRequestKey("a".repeat(101))).rejects.toThrow("入力内容を確認してください");
+    await expect(toAuditRequestKey("short")).rejects.toThrow("入力内容を確認してください。");
+    await expect(toAuditRequestKey("a".repeat(101))).rejects.toThrow("入力内容を確認してください。");
   });
 });

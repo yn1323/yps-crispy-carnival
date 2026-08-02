@@ -11,19 +11,19 @@ const PRESENTATION = {
   invalid_link: {
     icon: LuTriangleAlert,
     title: "このリンクでは提出できません",
-    description: "新しいリンクが必要な場合は、\nシフト作成担当者に連絡してください。",
+    description: "新しいリンクが必要な場合は、シフト作成担当者に連絡してください。",
     tone: "warning" as const,
   },
   recruitment_deleted: {
     icon: LuCalendarX,
     title: "このシフト募集は削除されました",
-    description: "提出や確認が必要な場合は、\nシフト作成担当者に連絡してください。",
+    description: "提出や確認が必要な場合は、シフト作成担当者に連絡してください。",
     tone: "neutral" as const,
   },
   submission_closed: {
     icon: LuCalendarX,
     title: "このシフト募集の提出受付は終了しました",
-    description: "変更したい日がある場合は、\nシフト作成担当者に連絡してください。",
+    description: "変更したい日がある場合は、シフト作成担当者に連絡してください。",
     tone: "neutral" as const,
   },
 } satisfies Record<

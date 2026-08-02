@@ -6,6 +6,7 @@ export type ShopContextOption = {
   shopId: string;
   shopName: string;
   shopStatus: ShopStatus;
+  // TODO[narrow]: 全deploymentでm025/m026が完走し、shop/member readinessが0件になった後にnullを外す。
   organizationId: string | null;
   organizationName: string | null;
   organizationPlan: OrganizationPlan | null;
@@ -78,6 +79,7 @@ export function groupShopsByOrganization(shops: readonly ShopContextOption[]): S
 
   for (const shop of shops) {
     const organizationName = shop.organizationName ?? `${shop.shopName}のグループ`;
+    // TODO[narrow]: backendのgetMyShopsからlegacy fallbackを外した後、このlegacy keyも削除する。
     // organizationId がまだない移行中店舗を、表示名だけで同一グループと誤認しない。
     const key = shop.organizationId ?? `legacy:${shop.shopId}`;
     const group = groups.get(key) ?? { key, organizationName, shops: [] };

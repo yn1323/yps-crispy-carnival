@@ -18,25 +18,25 @@ const STEPS: TourStep[] = [
     target: `[data-tour="shift-row-${STAFF_ID.add}"]`,
     placement: "bottom",
     title: "朝9時が手薄です",
-    content: "田中さんの行を9時から13時までドラッグして追加しましょう。",
+    content: "田中さんの行を9時から13時までドラッグして、勤務時間を追加しましょう。",
   },
   {
     target: `[data-tour="shift-row-${STAFF_ID.edit}"]`,
     placement: "bottom",
     title: "高橋さんが11時間連続",
-    content: "バーの右端をつまんで16時まで短くしましょう。",
+    content: "バーの右端を左へドラッグして、終了時刻を16時に変更しましょう。",
   },
   {
     target: `[data-tour="shift-row-${STAFF_ID.delete}"]`,
     placement: "bottom",
     title: "伊藤さんから連絡",
-    content: "月曜は都合が悪いそうです。バーをクリックして「削除」（ゴミ箱アイコン）を選びましょう。",
+    content: "月曜は都合が悪いそうです。\nバーをクリックして「削除」（ゴミ箱アイコン）を選びましょう。",
   },
   {
     target: '[data-tour="confirm-button"]',
     placement: "top-end",
     title: "いい感じになりました！",
-    content: "確定ボタンを押すと、確定後の画面を確認できます。このデモでは通知は送られません。",
+    content: "確定ボタンを押すと、確定後の画面を確認できます。\nこのデモでは通知は送られません。",
   },
 ];
 

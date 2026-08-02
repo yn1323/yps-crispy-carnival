@@ -8,8 +8,8 @@ const OPTIONS: Array<{
   label: string;
   description: string;
 }> = [
-  { kind: "dateOnly", label: "日ごと", description: "出勤可能な日付だけを収集します。" },
-  { kind: "time", label: "時間指定", description: "スタッフが日ごとに働ける時間を自由に入力します。" },
+  { kind: "dateOnly", label: "日ごと", description: "出勤できる日付だけを集めます。" },
+  { kind: "time", label: "時間指定", description: "日ごとに働ける時間を、スタッフが自由に入力します。" },
   {
     kind: "shiftType",
     label: "勤務区分",

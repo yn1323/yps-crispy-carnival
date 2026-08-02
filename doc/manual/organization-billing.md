@@ -7,7 +7,7 @@
 > 実環境の公開・設定・migration状況: [リリース状態](release-status.md)
 
 この文書は、グループ課金に関する人の運用を扱う。
-Stripe設定、日常probe、`m021`の確認、販売停止、Price rotation、障害復旧を、実環境を推測せずに進めるための手順である。
+Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotation、障害復旧を、実環境を推測せずに進めるための手順である。
 
 利用者向けの機能とコードの入口は[グループ課金、複数店舗、複数管理者](../features/organization-billing.md)、詳細な業務契約は[グループ課金の業務仕様](../specs/organization-billing-business-flow.md)を参照する。
 
@@ -19,7 +19,7 @@ Stripe設定、日常probe、`m021`の確認、販売停止、Price rotation、�
 | ダークローンチ機能の公開・停止 | [ダークローンチ公開フラグ](#ダークローンチ公開フラグ) |
 | Stripeの環境変数、Price、Portal、Webhook設定 | [Stripeの設定](#stripeの設定) |
 | Webhook、operation、対応不整合の日常確認 | [日常probe](#日常probe) |
-| `complimentary.pro`から`complimentary.business`へのm021 | [m021の確認](#m021の確認) |
+| m021の履歴確認とNarrow deploy前ゲート | [m021の履歴とNarrow deploy前確認](#m021の履歴とnarrow-deploy前確認) |
 | 新規販売の停止と支払い不要プランのP0 | [販売停止](#販売停止) |
 | ProまたはBusinessのPrice切替 | [Price rotation](#price-rotation) |
 | Webhookと安全operationの再開 | [Webhookとoperationの復旧](#webhookとoperationの復旧) |
@@ -194,7 +194,6 @@ probeは全件集計ではなく、項目ごとに`observedCount`と`hasMore`を
 | `anomalies.organizationsWithMultipleStripeCustomers` | 一グループに複数Customerがある不整合 |
 | `anomalies.subscriptionsWithoutMatchingLocalCustomer` | SubscriptionとローカルCustomerの対応不整合 |
 | `anomalies.stripeCustomersWithoutBillingState` | Customerに対応する課金状態の欠落 |
-| `anomalies.complimentaryProAwaitingM021` | m021前の互換状態。migration状況と合わせて判断する |
 | `anomalies.unresolvedM018MigrationConflicts` | Business廃止時の履歴migrationで未解消のconflict |
 
 いずれかの`observedCount`が0でも、対応する`hasMore`が`true`なら解消済みと判定しない。
@@ -202,14 +201,27 @@ probeだけでは、Stripe上のPriceのactive状態、Subscription ItemのPrice
 必要な項目はStripe APIの再取得結果とDashboardの対象objectを照合する。
 
 `verifyLegacyBusinessStates`はm018の履歴確認専用である。
-現行のBusinessやm021の日常確認には使わない。
+現行のBusinessやm021の履歴確認には使わない。
 
-## m021の確認
+`anomalies.complimentaryProAwaitingM021`はNarrow後のmaintenance probeから削除されている。
+probeにこの項目がないことはm021の完走や旧形式の残件0を証明しないため、Narrow deploy前はmigration statusとexportを別々に確認する。
+
+## m021の履歴とNarrow deploy前確認
+
+現行コードの保存契約は`complimentary.business`だけを許可する。
+`complimentary.pro`はm021のMigration Testとこの運用履歴だけに残し、通常runtimeでは読み書きしない。
+
+対象deploymentのm021 statusとexport検証状況は、[リリース状態](release-status.md)を正とする。
+対象revisionがNarrow済みでも、両方の証跡が未確認なら実環境の移行完了とは判定しない。
+完全修飾deployment名を固定したstatusとexport証跡が揃うまで、Narrow版をそのdeploymentへdeployしない。
 
 ### 対象と停止条件
 
-`m021_organization_billing_complimentary_pro_to_business`は、Stripeから隔離された`complimentary.pro`だけを`complimentary.business`へ変更する。
+`m021_organization_billing_complimentary_pro_to_business`は、Widen期間にStripeから隔離された旧`complimentary.pro`だけを`complimentary.business`へ変更するための履歴migrationである。
 グループ欠落、課金状態重複、Stripe Customer、Subscription、全statusのoperation、Webhook、課金通知、先行監査のいずれかがあれば変更せずconflictへ残す。
+
+未移行の旧形式が見つかった場合はNarrow版をdeployしない。
+Widen版の対象revisionへ戻ってm021と検証を完了し、その証跡を固定してからNarrow deployへ進む。
 
 事前検証で次のいずれかが起きたら、migrationを開始しない。
 
@@ -289,13 +301,13 @@ pnpm convex:verify-complimentary-m021-export -- \
 
 reportの`migrationStatus: "not_verified_by_export"`は意図した値である。
 exportはworkerの完走を証明しないため、component statusとpost verifierの両方を証跡に残す。
-全対象deploymentの完走と互換readの安定を[リリース状態](release-status.md)で確認するまで、schemaをNarrowへ進めない。
+全対象deploymentの完走、旧形式の残件0、未解消conflict 0を[リリース状態](release-status.md)で確認するまで、Narrow版をdeployしない。
 
 ### 失敗時の復旧
 
 - productionでm021をresetしない。
 - 課金証跡、監査、conflictを手動削除しない。
-- `complimentary.pro`や`complimentary.business`を手動patchしない。
+- 旧`complimentary.pro`や`complimentary.business`を手動patchしない。
 - m021後にpre-Widen版へ戻さない。
 - snapshot Aを即時restoreする前提にせず、影響とprovider状態を確認する。
 - 修復が必要ならm022以降のforward migrationを作り、同じpre/status/postの証跡を設計する。

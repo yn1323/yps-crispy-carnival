@@ -6,7 +6,7 @@ export function buildDemoShiftBoardPageHead() {
     meta: buildMeta({
       title: "勤務時間入力デモ",
       description:
-        "スタッフの勤務時間をドラッグして追加、変更する操作をPCで試せるデモです。変更は保存されず、スタッフへシフトは送信されません。",
+        "スタッフの勤務時間をドラッグして追加・変更する操作を、PCで試せるデモです。\n変更は保存されず、スタッフへシフトは送信されません。",
       canonical: "/demo/shiftboard",
     }),
   };

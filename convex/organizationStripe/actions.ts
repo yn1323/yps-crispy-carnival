@@ -203,6 +203,7 @@ export const getPlanPrice = action({
   },
 });
 
+/** TODO[narrow]: 旧client配布終了を確認後、targetPlan付きgetPlanPriceへ一本化して削除する。 */
 export const getProPrice = action({
   args: { shopId: v.id("shops") },
   returns: priceResultValidator,
@@ -236,7 +237,10 @@ export const startPaidCheckout = action({
   handler: async (ctx, args): Promise<AvailableUrlResult> => await startPaidCheckoutForPlan(ctx, args),
 });
 
-/** Trialの継続登録とFree/制限中からのPro開始を、現在状態からサーバー側で振り分ける。 */
+/**
+ * Trialの継続登録とFree/制限中からのPro開始を、現在状態からサーバー側で振り分ける。
+ * TODO[narrow]: 旧client配布終了とimmediateProCheckout row 0を確認後、startPaidCheckoutへ一本化して削除する。
+ */
 export const startProCheckout = action({
   args: { shopId: v.id("shops"), requestId: v.string() },
   returns: redirectResultValidator,
@@ -706,6 +710,7 @@ export const openCustomerPortal = action({
   },
 });
 
+/** TODO[narrow]: 旧client配布終了を確認後、schedulePaidPlanChange(targetPlan: free)へ一本化して削除する。 */
 export const scheduleFreeAtPeriodEnd = action({
   args: { shopId: v.id("shops"), requestId: v.string() },
   returns: changeResultValidator,
@@ -718,6 +723,7 @@ export const scheduleFreeAtPeriodEnd = action({
     }),
 });
 
+/** TODO[narrow]: 旧client配布終了を確認後、cancelScheduledPlanChangeへ一本化して削除する。 */
 export const cancelScheduledFree = action({
   args: { shopId: v.id("shops"), requestId: v.string() },
   returns: changeResultValidator,
@@ -4830,6 +4836,8 @@ function resolveSubscriptionSnapshotPlan(
   if (configuredPlan) return configuredPlan;
   if (providerPriceId === organization.latestStripePriceId) {
     // plan field追加前の保存済みSubscriptionは、Business再導入前のPro契約だけである。
+    // TODO[narrow]: 全deploymentでSubscription planをprovider snapshotから補完し、
+    //   verifyStripeSubscriptionsのmissingPlanが0件になった後に`?? "pro"`を削除する。
     return organization.latestStripePlan ?? "pro";
   }
   return null;
@@ -4934,6 +4942,7 @@ async function recoverTrialCreationAfterInactivePrice(
     operationLeaseToken: string,
     subscription?: Stripe.Subscription,
   ): Promise<WebhookProcessResult> => {
+    // TODO[narrow]: 旧trialSetupCheckoutのtargetPlan欠損0と旧scheduler drainを確認後にfallbackを削除する。
     const targetPlan = source.targetPlan ?? "pro";
     const snapshot = source.trialSubscriptionCreateSnapshot;
     if (
@@ -5736,6 +5745,7 @@ async function preservePaidTrialContinuation(
       : context.billingState.kind === "initialPaymentPending"
         ? context.billingState.plan
         : undefined;
+  // TODO[narrow]: Subscription plan補完と旧trial operationのtargetPlan欠損0を確認後、Pro fallbackを削除する。
   const targetPlan = context.subscription.plan ?? billingPlan ?? "pro";
   if (billingPlan && billingPlan !== targetPlan) throw new Error("subscription_plan_mismatch");
 

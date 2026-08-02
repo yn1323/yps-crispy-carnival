@@ -87,7 +87,7 @@ describe("スタッフ管理シナリオ", () => {
     });
 
     // Act: シフト担当者がスタッフを削除する。
-    await asManager.deleteStaff(staffId);
+    await asManager.removePersonFromShop(staffId);
 
     // Assert: スタッフと関連トークン/セッション/LINE連携が無効化される。
     const stateAfterDelete = await t.run(async (ctx) => {

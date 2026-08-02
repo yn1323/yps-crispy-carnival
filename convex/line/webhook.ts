@@ -52,8 +52,22 @@ export const webhookHandler = httpAction(async (ctx, request) => {
   const events = parseDispatchEvents(body.events);
   if (!events) return new Response("Invalid webhook payload", { status: 400 });
 
+  // 状態変更はprovider eventごとにtransactionを分け、一つのbounded source eventへ対応させる。
+  for (const event of events) {
+    if ((event.type === "follow" || event.type === "unfollow") && event.userId) {
+      await ctx.runMutation(internal.line.mutations.dispatchWebhookStateEvent, {
+        event: {
+          userId: event.userId,
+          following: event.type === "follow",
+          webhookEventId: event.webhookEventId,
+          timestamp: event.timestamp,
+        },
+      });
+    }
+  }
+  const messageEvents = events.filter((event) => event.type === "message");
   const dispatched = await ctx.runMutation(internal.line.mutations.dispatchWebhookEvents, {
-    events,
+    events: messageEvents,
   });
 
   // message イベントだけ Reply API（外部 fetch）が必要なので action に流す

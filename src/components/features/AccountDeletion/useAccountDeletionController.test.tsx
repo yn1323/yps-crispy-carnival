@@ -211,15 +211,18 @@ describe("useAccountDeletionController", () => {
 
     await waitFor(() => expect(result.current.isRunning).toBe(false));
     expect(result.current.error).toEqual({
-      message: "アカウントの削除を受け付けられませんでした。時間をおいてもう一度お試しください。",
+      message: "アカウントの削除を受け付けられませんでした。\n時間をおいて、もう一度お試しください。",
       showContactLink: true,
     });
     expect(result.current.isOpen).toBe(true);
   });
 
   it.each([
-    ["associationChanged", "所属情報が更新されたため削除できません。画面を更新してご確認ください。"],
-    ["rateLimited", "操作回数が多すぎます。時間をおいてもう一度お試しください。"],
+    [
+      "associationChanged",
+      "所属情報が更新されたため、アカウントを削除できません。\n画面を更新して、最新の内容をご確認ください。",
+    ],
+    ["rateLimited", "操作回数が多すぎます。\n時間をおいて、もう一度お試しください。"],
   ] as const)("既知の%s errorでは問い合わせ導線を表示しない", async (reason, message) => {
     const submitRequest = vi
       .fn<typeof submitAccountDeletionRequest>()
@@ -302,7 +305,7 @@ describe("useAccountDeletionController", () => {
 
     await waitFor(() => expect(result.current.isRunning).toBe(false));
     expect(result.current.error).toEqual({
-      message: "アカウントの削除を受け付けられませんでした。時間をおいてもう一度お試しください。",
+      message: "アカウントの削除を受け付けられませんでした。\n時間をおいて、もう一度お試しください。",
       showContactLink: true,
     });
     expect(mocks.setUser).not.toHaveBeenCalled();

@@ -38,18 +38,20 @@ export function AccountDeletionDialog({ isOpen, isRunning, error, onClose, onOpe
           <Text fontWeight="bold">この操作は元に戻せません。</Text>
           <Stack gap={2} fontSize="sm" color="fg" lineHeight="tall">
             <Text>
-              シフトリへのログインに使うアカウントを削除します。削除後は、このアカウントでシフトリを利用できません。
+              シフトリへのログインに使うアカウントを削除します。
+              <br />
+              削除後は、このアカウントでシフトリを利用できなくなります。
             </Text>
             <Text>
               シフトリ内の氏名、メールアドレス、店舗名、過去のシフト・同意・請求などの履歴は、業務記録として残ります。
             </Text>
-            <Text>同じメールアドレスで登録し直しても、削除前の履歴を新しいアカウントへ自動で紐付けません。</Text>
+            <Text>同じメールアドレスで登録し直しても、削除前の履歴は新しいアカウントへ自動では引き継がれません。</Text>
           </Stack>
           {error ? (
             <Alert.Root status="error" borderRadius="lg" alignItems="flex-start">
               <Alert.Indicator mt={0.5} />
               <Alert.Content gap={2}>
-                <Alert.Description>{error.message}</Alert.Description>
+                <Alert.Description whiteSpace="pre-line">{error.message}</Alert.Description>
                 {error.showContactLink ? (
                   <Link asChild alignSelf="flex-start" color="red.700" fontSize="sm" fontWeight="semibold">
                     <RouterLink to="/contact">お問い合わせへ</RouterLink>

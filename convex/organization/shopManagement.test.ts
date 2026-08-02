@@ -4,7 +4,7 @@ import { api, internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
-import { seedOrganizationManagerShop, seedShopMembership, seedUser } from "../_test/seed";
+import { seedLegacyShopMembership, seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { getOrganizationUsageSnapshot } from "./service";
 
@@ -58,7 +58,7 @@ async function seedAdditionalManager(
     createdAt: now,
     updatedAt: now,
   });
-  await seedShopMembership(ctx, { userId, shopId: args.shopId });
+  await seedLegacyShopMembership(ctx, { userId, shopId: args.shopId });
   return { memberId, personId, userId };
 }
 
@@ -67,7 +67,7 @@ describe("organization shop management", () => {
   beforeEach(() => vi.stubEnv("FEATURE_SHOP_ADDITION", "enabled"));
   afterEach(() => vi.unstubAllEnvs());
 
-  it("店舗追加は上限確認後に事業者所属・初期ポジション・全管理者の互換所属・監査を一括作成する", async () => {
+  it("店舗追加は上限確認後に初期ポジション・監査を作成し、旧店舗所属を再生成しない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -126,9 +126,7 @@ describe("organization shop management", () => {
     });
     expect(state.positions).toHaveLength(1);
     expect(state.positions[0]).toMatchObject({ isDefault: true, isDeleted: false });
-    expect(new Set(state.memberships.map((membership) => membership.userId))).toEqual(
-      new Set([ids.userId, ids.activeManager.userId, ids.readOnlyManager.userId]),
-    );
+    expect(state.memberships).toEqual([]);
     expect(state.audit).toMatchObject({ action: "organization.shop_added", targetId: created.shopId });
 
     await expect(
@@ -142,7 +140,7 @@ describe("organization shop management", () => {
     ).resolves.toEqual({ shopId: created.shopId, shopStatus: "active", changed: false });
   });
 
-  it("アカウント削除受付済みuserを管理者所属へ再関連付けする店舗追加はtransactionごと拒否する", async () => {
+  it("アカウント削除受付済みuserがcanonical管理者に残る場合は店舗追加をtransactionごと拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
@@ -227,7 +225,7 @@ describe("organization shop management", () => {
         submissionPattern,
         requestId: "sixth-shop-request",
       }),
-    ).rejects.toThrow("稼働店舗数が現在のプラン上限を超えます");
+    ).rejects.toThrow("店舗数が現在のプラン上限を超えます。");
 
     await expect(
       t.run(async (ctx) =>
@@ -253,7 +251,7 @@ describe("organization shop management", () => {
         submissionPattern,
         requestId: "free-add-shop",
       }),
-    ).rejects.toThrow("この機能はトライアルまたはProで利用できます");
+    ).rejects.toThrow("この機能はトライアルまたはProで利用できます。");
   });
 
   it("ダークローンチ中は、上限に空きがあっても店舗を追加できない", async () => {
@@ -434,7 +432,7 @@ describe("organization shop management", () => {
         shopId: ids.targetShopId,
         requestId: "reactivate-at-capacity",
       }),
-    ).rejects.toThrow("稼働店舗数が現在のプラン上限を超えます");
+    ).rejects.toThrow("店舗数が現在のプラン上限を超えます。");
 
     await t.run(async (ctx) => await ctx.db.patch(ids.activeShopIds[0], { operatingStatus: "archived" }));
     await expect(

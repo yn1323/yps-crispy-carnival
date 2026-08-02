@@ -2,7 +2,11 @@ import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { scheduleOrganizationBillingStateDeadline } from "../organizationBilling/deadline";
-import { hasLegacyBusinessBillingState, normalizeOrganizationBillingState } from "../organizationBilling/policy";
+import {
+  hasLegacyBusinessBillingState,
+  normalizeOrganizationBillingState,
+  type OrganizationBillingState,
+} from "../organizationBilling/policy";
 import { migrations } from "./index";
 import {
   recordOrganizationMigrationConflict,
@@ -12,8 +16,8 @@ import {
 const DUPLICATE_BILLING_STATES_CONFLICT = "billing_business_to_pro_ambiguous_billing_states";
 
 /**
- * Collapses persisted Business variants into Pro while keeping validators wide
- * until the migration has completed in every deployment.
+ * m018実行当時のBusiness variantsをProへ畳む履歴migration。
+ * Narrow後のfresh replayでは、m021以降の正規形であるcomplimentary.businessを変更しない。
  */
 export const migration = migrations.define({
   table: "organizationBillingStates",
@@ -37,7 +41,10 @@ export const migration = migrations.define({
       codes: [DUPLICATE_BILLING_STATES_CONFLICT],
     });
 
-    const normalizedState = normalizeOrganizationBillingState(billingState.state);
+    // complimentary.businessはm021以降の正規形。完了済みm018のfresh replayでもProへ戻さない。
+    if (billingState.state.kind === "complimentary") return;
+
+    const normalizedState = normalizeOrganizationBillingState(billingState.state) as OrganizationBillingState;
     const shouldNormalize = hasLegacyBusinessBillingState(billingState.state);
     const nextVersion = shouldNormalize ? billingState.version + 1 : billingState.version;
 

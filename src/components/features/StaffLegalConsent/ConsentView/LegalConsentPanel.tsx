@@ -19,7 +19,7 @@ export function LegalConsentPanel({ data, checked, error, isSubmitting, onChecke
     return (
       <PanelFrame tone="neutral" icon={<LuClock />} title="このリンクでは同意できません">
         <Text color="fg.muted" lineHeight={1.8}>
-          リンクが無効または使用済みの可能性があります。
+          このリンクは無効か、すでに使用された可能性があります。
           <br />
           初回のシフト提出時にも、内容を確認して同意できます。
         </Text>

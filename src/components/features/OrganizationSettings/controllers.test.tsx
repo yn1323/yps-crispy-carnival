@@ -815,6 +815,36 @@ describe("OrganizationSettings controllers", () => {
     );
   });
 
+  it("旧scheduledFree DTOでも引数なしの操作から予約取消を開く", async () => {
+    mocks.actions.cancelScheduledFree.mockResolvedValue({ status: "accepted" });
+    const legacyScheduledFreeBilling: OrganizationBillingView = {
+      ...billing,
+      state: "scheduledFree",
+      currentPlan: "pro",
+      targetPlan: "free",
+      nextEvent: { label: "無料適用予定日", date: "2026年8月31日" },
+      canScheduleFree: false,
+    };
+    const { result } = renderHook(() =>
+      useStripeBillingController({ organizationName: "さくらダイニング", billing: legacyScheduledFreeBilling }),
+    );
+
+    act(() => result.current.managePlan());
+    expect(result.current.dialog.dialog).toMatchObject({
+      kind: "cancelScheduledPlanChange",
+      targetPlan: "free",
+      effectiveOn: "2026年8月31日",
+    });
+    act(() => result.current.dialog.onSubmit());
+
+    await waitFor(() =>
+      expect(mocks.actions.cancelScheduledFree).toHaveBeenCalledExactlyOnceWith({
+        shopId: "shop-current",
+        requestId: "request-1",
+      }),
+    );
+  });
+
   it("ProからBusinessは同じproration dateの見積もり確認後に一度だけ即時変更する", async () => {
     mocks.actions.previewPaidPlanChange.mockResolvedValue({
       status: "available",
@@ -1010,7 +1040,7 @@ describe("OrganizationSettings controllers", () => {
           ...billing,
           hasStripeCustomer: false,
           canUpdatePaymentMethod: false,
-          paymentMethodDisabledReason: "Stripeの契約情報を準備中です。しばらくしてからもう一度お試しください。",
+          paymentMethodDisabledReason: "Stripeの契約情報を準備中です。\nしばらくしてから、もう一度お試しください。",
         },
       }),
     );

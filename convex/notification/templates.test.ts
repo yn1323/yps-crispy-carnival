@@ -65,7 +65,7 @@ describe("notification/templates", () => {
           paragraphs: [dangerousText],
           action: { label: dangerousText, url: dangerousUrl },
         }),
-      staticMarkup: ["このメールは送信専用です。返信しても届きません。"],
+      staticMarkup: ["このメールは送信専用です。<br />返信しても届きません。"],
     },
     {
       name: "シフト確定",
@@ -78,7 +78,7 @@ describe("notification/templates", () => {
           reissueUrl: dangerousUrl,
           isResend: true,
         }),
-      staticMarkup: ["<br/>", "<tr>"],
+      staticMarkup: ["<br />", "<tr>"],
     },
     {
       name: "シフト募集",
@@ -189,6 +189,53 @@ describe("notification/templates", () => {
     }
   });
 
+  it("メール本文の文間改行はHTMLをescapeしたまま表示改行へ変換する", () => {
+    const billingHtml = buildOrganizationBillingEmailHtml({
+      recipientName: "田中太郎",
+      organizationName: "テストグループ",
+      heading: "契約のお知らせ",
+      paragraphs: [`最初の文です。\n${dangerousText}`],
+    });
+    const inviteHtml = buildLineInviteEmailHtml({
+      staffName: "田中太郎",
+      shopName: "テスト店舗",
+      authorizeUrl: "https://example.com/line/authorize",
+      context: "registration_approved",
+    });
+    const reLinkCta = buildLineCtaSection({
+      authorizeUrl: "https://example.com/line/authorize",
+      reLink: true,
+    });
+    const legalConsentHtml = buildStaffLegalConsentEmailHtml({
+      staffName: "田中太郎",
+      shopName: "テスト店舗",
+      consentUrl: "https://example.com/legal/consent",
+      expiresAt: new Date("2026-05-31T12:00:00+09:00").getTime(),
+      documents: LEGAL_DOCUMENTS.staff,
+    });
+    const reissueHtml = buildReissueEmailHtml({
+      staffName: "田中太郎",
+      periodLabel: "2026年6月",
+      magicLinkUrl: "https://example.com/shift/reissue",
+    });
+
+    expect(billingHtml).toContain(`最初の文です。<br />${escapedText}`);
+    expect(billingHtml).not.toContain("最初の文です。\n");
+    expect(inviteHtml).toContain(
+      "スタッフ登録が承認されました。<br />LINEと連携すると、シフトのお知らせをLINEで受け取れます。",
+    );
+    expect(reLinkCta).toContain(
+      "シフトリ公式アカウントの友だち追加が解除されています。<br />もう一度友だち追加すると、シフトのお知らせをLINEで受け取れます。<br />LINEで送れない場合は、メールでお知らせすることがあります。",
+    );
+    expect(inviteHtml).toContain(
+      "LINEと連携すると、シフトのお知らせをLINEで送ります。<br />LINEで送れない場合は、メールでお知らせすることがあります。",
+    );
+    expect(legalConsentHtml).toContain(
+      "このリンクの期限が切れても、次回のシフト提出時に確認して同意できます。<br />お知らせは同意前でも送られます。",
+    );
+    expect(reissueHtml).toContain("このリンクは24時間有効です。<br />リンクを開くと14日間閲覧できます。");
+  });
+
   it("LINE CTAは内部生成したHTMLを維持し、authorizeUrlだけをescapeする", () => {
     const lineCtaHtml = buildLineCtaSection({ authorizeUrl: dangerousUrl, reLink: false });
     const emailHtml = buildRecruitmentEmailHtml({
@@ -225,7 +272,7 @@ describe("notification/templates", () => {
       expect(html).toContain("LINEで送れない場合は、メールでお知らせすることがあります。");
       expect(html).not.toContain("次回からメールではなく");
     }
-    expect(reLinkCta).toContain("友だち追加し直すと、シフトのお知らせをLINEで受け取れます。");
+    expect(reLinkCta).toContain("もう一度友だち追加すると、シフトのお知らせをLINEで受け取れます。");
   });
 
   it("法務同意案内は通知用途、確認操作、期限後の同意方法を簡潔に伝える", () => {
@@ -245,7 +292,7 @@ describe("notification/templates", () => {
     });
     const copy = `${emailHtml}\n${flex.altText}\n${flexTexts(flex).join("\n")}`;
 
-    expect(copy).toContain("シフト希望の提出依頼と確定シフトのお知らせを送ります。");
+    expect(copy).toContain("シフト希望の提出依頼や確定シフトのお知らせにシフトリを利用します。");
     expect(copy).toContain("次回のシフト提出時に確認して同意できます。");
     expect(copy).toContain("お知らせは同意前でも送られます。");
     expect(copy).not.toContain("シフトリでは、メール・LINEで届くリンクから");
@@ -482,7 +529,7 @@ describe("notification/templates", () => {
           magicLinkUrl: submitUrl,
         }),
         title: "テスト店舗\n🔔 提出締切が近づいています",
-        text: "まだ提出していない場合は、提出締切までに希望シフトを提出してください。",
+        text: "まだ提出していない場合は、締切までにシフト希望を提出してください。",
         label: "シフト希望を提出する",
         uri: `${submitUrl}&openExternalBrowser=1`,
       },
@@ -539,7 +586,7 @@ describe("notification/templates", () => {
           expiresAt: new Date("2026-05-31T12:00:00+09:00").getTime(),
         }),
         title: "テスト店舗\n📄 シフトリの案内と規約",
-        text: "使い方と利用規約、プライバシーポリシーを確認してください。",
+        text: "使い方、利用規約、プライバシーポリシーを確認してください。",
         label: "案内と規約を確認する",
         uri: "https://shiftori.app/legal/staff/consent?token=test&openExternalBrowser=1",
       },
@@ -594,7 +641,7 @@ describe("notification/templates", () => {
       [
         "📅 シフト作成の続き",
         "",
-        "シフトリで店舗登録が完了してから1週間経過しました。",
+        "店舗を登録してから1週間が経過しました。",
         "",
         "スタッフを追加して実際にシフトを回収してみましょう！",
         "",
@@ -604,7 +651,7 @@ describe("notification/templates", () => {
     );
     expect(emailHtml).toContain("佐藤 店長さん");
     expect(emailHtml).toContain("📅 シフト作成の続き");
-    expect(emailHtml).toContain("シフトリで店舗登録が完了してから1週間経過しました。");
+    expect(emailHtml).toContain("店舗を登録してから1週間が経過しました。");
     expect(emailHtml).toContain("スタッフを追加して実際にシフトを回収してみましょう！");
     expect(emailHtml).toContain("シフト募集をつくる");
     expect(emailHtml).toContain(dashboardUrl);
@@ -615,7 +662,9 @@ describe("notification/templates", () => {
     const text = buildLineDefaultReplyText();
 
     expect(text).toContain("シフトリの通知用アカウントです。");
-    expect(text).toContain("メールまたはLINEのリンクからお願いします。");
+    expect(text).toContain(
+      "シフトの確認や提出は、シフト作成担当者から届くメールまたはLINEのリンクから行ってください。",
+    );
   });
 });
 

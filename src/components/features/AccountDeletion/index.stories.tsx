@@ -109,7 +109,7 @@ export const DialogError: Story = {
     initialOpen: true,
     showTrigger: false,
     error: {
-      message: "所属情報が更新されたため削除できません。画面を更新してご確認ください。",
+      message: "所属情報が更新されたため、アカウントを削除できません。\n画面を更新して、最新の内容をご確認ください。",
       showContactLink: false,
     },
   },
@@ -120,7 +120,7 @@ export const DialogGeneralError: Story = {
     initialOpen: true,
     showTrigger: false,
     error: {
-      message: "アカウントの削除を受け付けられませんでした。時間をおいてもう一度お試しください。",
+      message: "アカウントの削除を受け付けられませんでした。\n時間をおいて、もう一度お試しください。",
       showContactLink: true,
     },
   },

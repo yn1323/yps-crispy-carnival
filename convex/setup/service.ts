@@ -5,6 +5,7 @@ import { getShopActivationReminderAt } from "../_lib/dateFormat";
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { normalizeSubmissionPattern } from "../_lib/submissionPattern";
 import { normalizeEmail } from "../_lib/validation";
+import { analyticsPlanForBillingState } from "../analytics/sourceEvents";
 import {
   ORGANIZATION_LEGACY_SHOP_SCAN_LIMIT,
   ORGANIZATION_NAME_SUFFIX,
@@ -18,8 +19,8 @@ import { sendReminderRef } from "../shopActivationReminder/refs";
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
 
-export const ORGANIZATION_CREATE_LIMIT_REACHED_MESSAGE = `作成できるグループは${ORGANIZATION_SELF_CREATED_LIMIT}つまでです。使っていないグループを削除すると、また作成できます。`;
-const ORGANIZATION_CREATE_UNAVAILABLE_MESSAGE = "無効になったアカウントではグループを作成できません。";
+export const ORGANIZATION_CREATE_LIMIT_REACHED_MESSAGE = `作成できるグループは${ORGANIZATION_SELF_CREATED_LIMIT}つまでです。\n使っていないグループを削除すると、また作成できます。`;
+const ORGANIZATION_CREATE_UNAVAILABLE_MESSAGE = "無効になったアカウントでは、グループを作成できません。";
 
 export type OrganizationCreationAvailability = { canCreate: true } | { canCreate: false; reason: string };
 
@@ -36,9 +37,8 @@ async function countSelfCreatedOrganizations(ctx: DbCtx, userId: Id<"users">): P
     .take(ORGANIZATION_SELF_CREATED_LIMIT + 1);
   if (selfCreated.length > ORGANIZATION_SELF_CREATED_LIMIT) return selfCreated.length;
 
-  // TODO[narrow]: develop/prodでm009_shops_to_organizationsと
-  //   m010_shop_members_to_organization_membersが完走していることを
-  //   `pnpm convex:migrate:status`（state: done）で確認後、このlegacy shopMembers走査を削除する。
+  // TODO[narrow]: 全deploymentでm025/m029が完走し、verifyShops/verifyLegacyShopMembersの
+  //   全pageが0件になった後、このlegacy shopMembers走査を削除する。
   const legacyMemberships = await ctx.db
     .query("shopMembers")
     .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", userId).eq("isDeleted", false))
@@ -157,23 +157,6 @@ export async function createOrganizationWithFirstShop(
     updatedAt: now,
   });
 
-  // TODO[narrow]: develop/prodでm009〜m011が完走し、分析と旧読み取りがorganizationBillingStatesへ
-  //   切り替わったことを `pnpm convex:migrate:status` と `rg -n "shopBillingStates" convex apps` で確認後、
-  //   このshopBillingStates互換書き込みを削除する。
-  await ctx.db.insert("shopBillingStates", {
-    shopId,
-    planKey: "free",
-    source: "system",
-    createdAt: now,
-    updatedAt: now,
-  });
-
-  await ctx.db.insert("shopMembers", {
-    shopId,
-    userId,
-    role: "manager",
-    isDeleted: false,
-  });
   await ensureDefaultPosition(ctx, shopId);
 
   // manager もスタッフ一覧に含める。自分のシフトやLINE通知を同じ画面で扱うため、
@@ -186,6 +169,7 @@ export async function createOrganizationWithFirstShop(
     email: args.managerEmail,
     emailNormalized: managerEmailNormalized,
     userId,
+    excludedFromShift: false,
     isDeleted: false,
   });
 
@@ -206,6 +190,27 @@ export async function createOrganizationWithFirstShop(
     toState: `${args.billingState.kind}.${args.billingState.plan}`,
     correlationId: args.correlationId,
     occurredAt: now,
+    analyticsEvent: {
+      eventType: "organization.changed",
+      shopId,
+      subjectId: personId,
+      payload: {
+        kind: "organization",
+        change: "created",
+        displayName: `${args.shopName}${ORGANIZATION_NAME_SUFFIX}`,
+        registeredAt: now,
+        currentPlan: analyticsPlanForBillingState(args.billingState),
+        initialShop: { shopId, displayName: args.shopName, registeredAt: now },
+        initialPersonId: personId,
+        initialStaff: {
+          staffId,
+          organizationPersonId: personId,
+          shopId,
+          validFrom: now,
+          isShiftTarget: true,
+        },
+      },
+    },
   });
 
   await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {

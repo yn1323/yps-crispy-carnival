@@ -45,6 +45,12 @@ merge前に次を確認する。
 
 リリース後は、GitHub Release、production deployment、migration結果、主要導線を確認する。
 
+`Release to Production` が成功すると、`Merge Main into Develop` が `main` と `develop` の履歴・treeを比較する。
+`main` がまだ `develop` に含まれていない場合、`develop` を起点に `main` を逆マージした1コミットを専用ブランチへpushし、`develop` 向けPull Requestを作成または更新する。
+このPRにはリリースversionの更新だけでなく、`main` に先行して入ったhotfixなどの変更も含める。
+同期workflowを手動で再実行する場合も、同じ履歴・tree比較と既存Pull Requestの更新を行う。
+この処理には、通常のPull Request検証を起動できる権限を持つrepository secret `RELEASE_SYNC_TOKEN` が必要である。
+
 ## 旧308 cacheからの移行確認
 
 公開URLは、ルート以外を末尾スラッシュなしで正規化する。

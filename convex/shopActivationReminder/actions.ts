@@ -63,6 +63,7 @@ export const sendReminder = internalAction({
         await enqueueLine(ctx, {
           shopId: data.shopId,
           ...notificationOrigin,
+          purpose: "business",
           userId: recipient.userId,
           dedupeKey: lineDedupeKey,
           payload: linePayload({
@@ -82,6 +83,7 @@ export const sendReminder = internalAction({
       await enqueueEmail(ctx, {
         shopId: data.shopId,
         ...notificationOrigin,
+        purpose: "business",
         userId: recipient.userId,
         dedupeKey: emailDedupeKey,
         payload: emailPayloadValue,

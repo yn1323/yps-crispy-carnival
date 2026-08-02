@@ -44,7 +44,7 @@ export function BillingActionDialog({ dialog, isRunning, onClose, onRetryPrice, 
     >
       <Stack gap={4}>
         {content.description && (
-          <Text fontSize="sm" lineHeight="tall">
+          <Text fontSize="sm" lineHeight="tall" whiteSpace="pre-line">
             {content.description}
           </Text>
         )}
@@ -70,7 +70,7 @@ export function BillingActionDialog({ dialog, isRunning, onClose, onRetryPrice, 
 
         {content.note && (
           <Box borderRadius="lg" bg="blue.50" px={4} py={3}>
-            <Text fontSize="sm" color="blue.900" lineHeight="tall">
+            <Text fontSize="sm" color="blue.900" lineHeight="tall" whiteSpace="pre-line">
               {content.note}
             </Text>
           </Box>
@@ -151,7 +151,7 @@ function ScheduledPlanChangeSummary({
       {reductions.people > 0 && <SummaryRow label="利用人数" value={`あと${reductions.people}名削除してください`} />}
       {reductions.shops > 0 && <SummaryRow label="店舗" value={`あと${reductions.shops}店舗を整理してください`} />}
       {reductions.managers > 0 && (
-        <SummaryRow label="管理者" value={`あと${reductions.managers}名の権限または招待を整理してください`} />
+        <SummaryRow label="管理者" value={`あと${reductions.managers}名分の権限または招待を整理してください`} />
       )}
     </>
   );
@@ -196,18 +196,18 @@ function dialogContent(dialog: BillingActionDialogState): {
           }
         : {
             title: `${planLabel(dialog.targetPlan)}を開始しますか？`,
-            description: "表示内容を確認して、Stripeの決済画面へ進みます。",
+            description: "表示内容を確認し、Stripeの決済画面へ進みます。",
             submitLabel: "Stripeで支払いを続ける",
             submitColorPalette: "teal",
-            note: "支払い結果がこの画面に反映されるまで、現在のプランを利用します。",
+            note: "支払い結果がこの画面に反映されるまでは、現在のプランを利用します。",
           };
     case "changePaidPlanNow":
       return {
         title: "Businessへ変更しますか？",
-        description: "残りの契約期間との差額を日割りで直ちに請求します。次回更新日は変わりません。",
+        description: "残りの契約期間に応じた差額を日割りで直ちに請求します。\n次回更新日は変わりません。",
         submitLabel: "Businessへ変更",
         submitColorPalette: "teal",
-        note: "支払い成功を確認するまではProを利用します。",
+        note: "支払いの成功を確認するまでは、Proを利用します。",
       };
     case "cancelTrialContinuation":
       return {
@@ -223,7 +223,7 @@ function dialogContent(dialog: BillingActionDialogState): {
         description: "現在の支払い済み期間が終わるまでは、現在のプランを利用します。",
         submitLabel: "プラン変更を予約",
         submitColorPalette: "orange",
-        note: "変更予定日までに上限を超える利用人数、店舗、管理者を整理してください。余剰のユーザーは自動では削除されません。",
+        note: "変更予定日までに、利用人数・店舗数・管理者数を変更先プランの上限以内に整理してください。\n上限を超えるユーザーは自動では削除されません。",
       };
     case "cancelScheduledPlanChange":
       return {

@@ -39,6 +39,7 @@ const staff = (overrides: Partial<Staff> = {}): Staff => ({
   isLineLinked: false,
   isLineFollowing: false,
   excludedFromShift: false,
+  isOrganizationLinked: true,
   managerInvitationState: { kind: "available", mode: "addition", replacesStaleInvitation: false },
   ...overrides,
 });
@@ -106,7 +107,7 @@ describe("useStaffProfileManagement", () => {
 
   it("移行前スタッフだけは段階移行中の旧削除mutationへ送る", async () => {
     mocks.deleteStaff.mockResolvedValue(undefined);
-    const target = staff();
+    const target = staff({ isOrganizationLinked: false, organizationPersonId: null });
     const { result } = renderHook(() => useStaffProfileManagement([target], { onResetDetail: vi.fn() }));
 
     await act(async () => {

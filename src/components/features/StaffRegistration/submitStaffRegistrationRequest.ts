@@ -11,6 +11,6 @@ export async function submitStaffRegistrationRequest(data: StaffRegistrationSubm
   });
   const body = (await response.json().catch(() => null)) as { error?: string; status?: string } | null;
   if (!response.ok || body?.status !== "accepted") {
-    throw new Error(body?.error ?? "スタッフ登録を申請できませんでした。少し時間をおいてお試しください");
+    throw new Error(body?.error ?? "スタッフ登録を申請できませんでした。\n少し時間をおいてお試しください。");
   }
 }

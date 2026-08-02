@@ -53,7 +53,7 @@ export function buildFaqEntries(
   });
 
   if (entries.length !== Object.keys(modules).length) {
-    throw new Error("frontmatterがないFAQ本文があります");
+    throw new Error("frontmatterのないFAQ本文があります");
   }
 
   return entries;

@@ -11,7 +11,7 @@ export type PeopleCapacityResolution =
     };
 
 const PEOPLE_CAPACITY_ERROR_PREFIX = "利用人数が現在のプラン上限を超えます";
-const USAGE_PATTERN = /現在\s*(\d+)名\s*[／/]\s*上限\s*(\d+)名/;
+const USAGE_PATTERN = /現在\s*(\d+)名(?:\s*[／/]\s*|\s*、\s*)上限\s*(\d+)名/;
 
 /**
  * 追加系mutationで共通化している安定したエラー文言を、画面に依存しない解決方法へ変換する。

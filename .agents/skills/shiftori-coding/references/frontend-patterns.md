@@ -59,7 +59,7 @@
 - Chakra UI v3 の recipe / token / semantic token を使い、局所的な色・余白のばら撒きを避ける。
 - アイコンは既存に合わせて `react-icons/lu` の Lucide 系を優先する。
 - 薄い wrapper を増やす前に、その名前が業務意味、状態分岐、レイアウト責務を持つか確認する。
-- Dashboard の主導線は `今やること`。通知失敗、スタッフ申請、調整が必要なシフトは独立ページより Dashboard の作業導線に寄せる。
+- Dashboard の主導線は `TODO`。通知失敗、スタッフ申請、調整が必要なシフトは独立ページより Dashboard の作業導線に寄せる。
 
 ## Storybook
 

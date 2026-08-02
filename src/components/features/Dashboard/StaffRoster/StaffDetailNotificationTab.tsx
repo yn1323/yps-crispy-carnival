@@ -40,7 +40,7 @@ export const StaffDetailNotificationTab = ({
           <Text fontSize="sm" color="fg.muted">
             シフト関連の重要な通知を再送します。
             <br />
-            通常はスタッフ登録時、シフト作成・確定時に自動で送信しています。
+            通常は、スタッフ登録時やシフトの作成・確定時に自動で送信します。
           </Text>
         </Stack>
         {!isShiftTarget && (

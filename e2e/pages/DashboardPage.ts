@@ -5,6 +5,7 @@ import { UserDetailPage } from "./UserDetailPage";
 
 const JAPANESE_WEEKDAYS = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"] as const;
 const DASHBOARD_DATA_TIMEOUT = 20_000;
+const SHOP_SWITCHER_BUTTON_NAME = /^店舗を切り替える/;
 const SHIFT_BOARD_OPEN_BUTTON_NAME = /回収状況を見る|シフトを組む|シフトを見る/;
 const STAFF_ADDED_TOAST_TITLE = /スタッフを追加しました|スタッフを追加し、案内通知を送りました/;
 const RECRUITMENT_CREATED_TOAST_TITLE = /募集をつくりました|募集をつくり、スタッフに通知しました/;
@@ -176,9 +177,16 @@ export class DashboardPage {
     await inviteButton.click({ noWaitAfter: true });
     const dialog = this.page.getByRole("dialog", { name: "スタッフを招待" });
     await expect(dialog).toBeVisible();
-    await dialog.getByRole("tab", { name: "管理者が登録" }).click();
+    const manualTab = dialog.getByRole("tab", { name: "管理者が登録", exact: true });
+    const form = dialog.locator("[id='add-staff-form']");
+    await expect(async () => {
+      if ((await manualTab.getAttribute("aria-selected")) !== "true") {
+        await manualTab.click({ noWaitAfter: true });
+      }
+      await expect(manualTab).toHaveAttribute("aria-selected", "true", { timeout: 1_000 });
+      await expect(form).toBeVisible({ timeout: 1_000 });
+    }).toPass({ timeout: DASHBOARD_DATA_TIMEOUT });
 
-    const form = this.page.locator("[id='add-staff-form']");
     const nameInputs = form.getByPlaceholder("例：田中 花子");
     const emailInputs = form.getByPlaceholder("例：hanako@example.com");
 
@@ -483,7 +491,7 @@ export class DashboardPage {
   }
 
   async switchShop(shopName: string, expectedShopId?: string) {
-    await this.page.getByRole("button", { name: /店舗を切り替える。現在は/ }).click();
+    await this.page.getByRole("button", { name: SHOP_SWITCHER_BUTTON_NAME }).click();
     await this.page.getByRole("menuitem").filter({ hasText: shopName }).click();
     await expect(this.page).toHaveURL(/\/dashboard\?shop=/, { timeout: DASHBOARD_DATA_TIMEOUT });
     const selectedShopId = new URL(this.page.url()).searchParams.get("shop");
@@ -493,7 +501,7 @@ export class DashboardPage {
   }
 
   async expectOrganizationGroupsInShopSwitcher(organizationNames: string[]) {
-    await this.page.getByRole("button", { name: /店舗を切り替える。現在は/ }).click();
+    await this.page.getByRole("button", { name: SHOP_SWITCHER_BUTTON_NAME }).click();
     // グループ名と店舗名が同じ場合でも見出しだけを対象にするため、グループ見出しの要素へ限定する。
     const groupLabels = this.page.getByRole("menu").locator('[data-part="item-group-label"]');
     for (const organizationName of organizationNames) {
@@ -504,7 +512,7 @@ export class DashboardPage {
 
   async expectShopNotSelectable(shopName: string, currentShopName: string, currentShopId: string) {
     await this.expectSelectedShop(currentShopName, currentShopId);
-    const switcher = this.page.getByRole("button", { name: /店舗を切り替える。現在は/ });
+    const switcher = this.page.getByRole("button", { name: SHOP_SWITCHER_BUTTON_NAME });
     if ((await switcher.count()) === 0) return;
     await switcher.click();
     await expect(this.page.getByRole("menuitem").filter({ hasText: shopName })).toHaveCount(0);

@@ -22,16 +22,17 @@ type Props = {
   periodLabel: string;
   periodStart: string;
   periodEnd: string;
+  // TODO[narrow]: m040とverifyRecruitmentsが全deploymentで完了し、backend fallback削除後にrequired化する。
   shopClosedDates?: string[];
-  submissionPattern?: ShiftSubmissionPattern;
+  submissionPattern: ShiftSubmissionPattern;
   staffs: { _id: Id<"staffs">; name: string }[];
   positions: { _id: Id<"positions">; name: string; color: string; isDefault: boolean }[];
   assignments: Assignment[];
   timeRange: TimeRange;
 };
 
-function getShiftTypeOptionIdForAssignment(assignment: Assignment, pattern: ShiftSubmissionPattern | undefined) {
-  if (pattern?.kind !== "shiftType") return undefined;
+function getShiftTypeOptionIdForAssignment(assignment: Assignment, pattern: ShiftSubmissionPattern) {
+  if (pattern.kind !== "shiftType") return undefined;
   if (assignment.optionId) return assignment.optionId;
   return pattern.options.find(
     (option) => option.startTime === assignment.startTime && option.endTime === assignment.endTime,
@@ -43,8 +44,9 @@ function buildShiftData(
   dates: string[],
   assignments: Assignment[],
   positions: { _id: Id<"positions">; name: string; color: string; isDefault: boolean }[],
-  submissionPattern: ShiftSubmissionPattern | undefined,
+  submissionPattern: ShiftSubmissionPattern,
 ): ShiftData[] {
+  // TODO[narrow]: m034とposition readinessが全deploymentで完了後、先頭positionへの旧fallbackを削除する。
   const fallbackPosition = positions.find((position) => position.isDefault) ?? positions[0];
   const positionById = new Map(
     positions.map((position) => [position._id, { name: position.name, color: position.color }]),
@@ -77,13 +79,13 @@ function buildShiftData(
       });
       const requestedTimes = assignment.map((item) => ({ start: item.startTime, end: item.endTime }));
       const requestedShiftTypeOptionIds =
-        submissionPattern?.kind === "shiftType"
+        submissionPattern.kind === "shiftType"
           ? positionSegments
               .map((position) => position.shiftTypeOptionId)
               .filter((optionId): optionId is string => !!optionId)
           : undefined;
       const mirrorsAssignmentAsRequest =
-        submissionPattern?.kind === "dateOnly" || submissionPattern?.kind === "shiftType";
+        submissionPattern.kind === "dateOnly" || submissionPattern.kind === "shiftType";
       shifts.push({
         id: `shift-${staff.id}-${date}`,
         staffId: staff.id,
@@ -103,6 +105,7 @@ export function ShiftViewPage({
   periodLabel,
   periodStart,
   periodEnd,
+  // TODO[narrow]: backendのshopClosedDates fallback削除と同時に、このfrontend fallbackも削除する。
   shopClosedDates = [],
   submissionPattern,
   staffs,

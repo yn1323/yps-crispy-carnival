@@ -62,7 +62,7 @@ async function submitRegistrationRequestImpl(
     acceptedLegal: args.acceptedLegal,
   });
   if (!parsed.success) {
-    throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+    throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
   }
 
   const links = await ctx.db
@@ -270,7 +270,7 @@ export const approveRequest = managerMutation({
 
     const existingStaff = await findActiveStaffByEmail(ctx, ctx.shop._id, request.emailNormalized);
     if (existingStaff) {
-      throw new ConvexError("このメールアドレスは既に使用されています");
+      throw new ConvexError("このメールアドレスはすでに使用されています。");
     }
 
     const organizationId = ctx.shop.organizationId;
@@ -307,12 +307,14 @@ export const approveRequest = managerMutation({
       staffEmailNormalized = materialized.email;
     }
 
+    // TODO[narrow]: 全deploymentでm025/m027完走・staff readiness 0確認後、canonical IDsを必須にする。
     const staffId = await ctx.db.insert("staffs", {
       shopId: ctx.shop._id,
       ...(organizationId && organizationPersonId ? { organizationId, organizationPersonId } : {}),
       name: staffName,
       email: staffEmail,
       emailNormalized: staffEmailNormalized,
+      excludedFromShift: false,
       isDeleted: false,
     });
 
@@ -349,6 +351,22 @@ export const approveRequest = managerMutation({
         toState: `active:${ctx.shop._id}:batch:1`,
         correlationId: `${organizationId}:staff-registration:${request._id}:staff`,
         occurredAt: reviewedAt,
+        analyticsEvent: {
+          eventType: "staffMembership.changed",
+          shopId: ctx.shop._id,
+          subjectId: staffId,
+          payload: {
+            kind: "staffMembership",
+            staffId,
+            ...(organizationPersonId ? { organizationPersonId } : {}),
+            ...(organizationPersonId ? { personFirstObservedAt: reviewedAt } : {}),
+            status: "active",
+            isShiftTarget: true,
+            validFrom: reviewedAt,
+            lineLinked: false,
+            lineFollowing: false,
+          },
+        },
       });
     }
     const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });

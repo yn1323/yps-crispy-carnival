@@ -8,6 +8,7 @@ import {
 } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
 import { isValidIsoDateString } from "../_lib/validation";
+import { recordAnalyticsSourceEvent } from "../analytics/sourceEvents";
 import { NOTIFICATION_FANOUT_SCOPE_LIMIT, RECRUITMENT_DUPLICATE_SCAN_LIMIT } from "../constants";
 import {
   cancelNotificationFanoutOperationsForRecruitment,
@@ -26,15 +27,15 @@ function normalizeShopClosedDates(dates: string[], periodStart: string, periodEn
 
   for (const date of uniqueDates) {
     if (!isValidIsoDateString(date)) {
-      throw new ConvexError("定休日の日付形式が正しくありません");
+      throw new ConvexError("定休日の日付形式が正しくありません。");
     }
     if (date < periodStart || date > periodEnd) {
-      throw new ConvexError("定休日は募集期間内の日付を選んでください");
+      throw new ConvexError("定休日は募集期間内の日付から選んでください。");
     }
   }
 
   if (periodDateCount > 0 && uniqueDates.length >= periodDateCount) {
-    throw new ConvexError("シフト期間のすべてを定休日にはできません");
+    throw new ConvexError("シフト期間のすべての日を定休日にすることはできません。");
   }
 
   return uniqueDates;
@@ -55,7 +56,7 @@ export const createRecruitment = managerMutation({
   handler: async (ctx, args) => {
     const parsed = createRecruitmentSchema.safeParse(args);
     if (!parsed.success) {
-      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
     }
     const input = parsed.data;
     const today = todayJST();
@@ -82,6 +83,8 @@ export const createRecruitment = managerMutation({
         candidate.periodStart === input.periodStart &&
         candidate.periodEnd === input.periodEnd &&
         candidate.deadline === input.deadline &&
+        // TODO[narrow]: 全deploymentでm040が完走し、
+        // verifyRecruitments.missingShopClosedDatesが0件になった後にfallbackを削除する。
         sameStringArray(candidate.shopClosedDates ?? [], shopClosedDates),
     );
     if (duplicate) throw new ConvexError(RECRUITMENT_DUPLICATE_ERROR_CODE);
@@ -102,6 +105,23 @@ export const createRecruitment = managerMutation({
       submissionPattern: ctx.shop.submissionPattern,
       ...(shouldScheduleReminder ? { reminderScheduledAt } : {}),
     });
+    if (ctx.shop.organizationId)
+      await recordAnalyticsSourceEvent(ctx, {
+        eventKey: `cycle:${recruitmentId}:created`,
+        eventType: "cycle.changed",
+        occurredAt: now,
+        organizationId: ctx.shop.organizationId,
+        shopId: ctx.shop._id,
+        recruitmentId,
+        payload: {
+          kind: "cycle",
+          status: "open",
+          createdAt: now,
+          periodStart: input.periodStart,
+          periodEnd: input.periodEnd,
+          deadline: input.deadline,
+        },
+      });
     const activeStaffs = await ctx.db
       .query("staffs")
       .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", ctx.shop._id).eq("isDeleted", false))
@@ -172,7 +192,26 @@ export const deleteRecruitment = managerMutation({
     }
 
     // 周辺データは監査・集計のため残し、募集を失効させることで提出/閲覧/通知導線から外す。
+    const now = Date.now();
     await ctx.db.patch(args.recruitmentId, { isDeleted: true });
+    if (ctx.shop.organizationId)
+      await recordAnalyticsSourceEvent(ctx, {
+        eventKey: `cycle:${args.recruitmentId}:deleted:${now}`,
+        eventType: "cycle.changed",
+        occurredAt: now,
+        organizationId: ctx.shop.organizationId,
+        shopId: ctx.shop._id,
+        recruitmentId: args.recruitmentId,
+        payload: {
+          kind: "cycle",
+          status: "deleted",
+          createdAt: recruitment._creationTime,
+          periodStart: recruitment.periodStart,
+          periodEnd: recruitment.periodEnd,
+          deadline: recruitment.deadline,
+          ...(recruitment.confirmedAt ? { confirmedAt: recruitment.confirmedAt } : {}),
+        },
+      });
     await cancelNotificationFanoutOperationsForRecruitment(ctx, args.recruitmentId);
     return null;
   },

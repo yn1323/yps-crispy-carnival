@@ -14,9 +14,9 @@ export const useLockedDailyStaffOrder = (date: string | null | undefined) => {
     () => ({
       date,
       hasStaffs,
-      scope: `${staffOrderKey}:${config.submissionPattern?.kind ?? "time"}`,
+      scope: `${staffOrderKey}:${config.submissionPattern.kind}`,
     }),
-    [date, hasStaffs, staffOrderKey, config.submissionPattern?.kind],
+    [date, hasStaffs, staffOrderKey, config.submissionPattern.kind],
   );
 
   useEffect(() => {

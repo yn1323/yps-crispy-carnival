@@ -4,10 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import {
+  seedLegacyShopMembership,
   seedManagerShop,
   seedOrganizationManagerShop,
   seedShop,
-  seedShopMembership,
   seedStaffLineAccount,
 } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
@@ -157,7 +157,7 @@ describe("line/mutations", () => {
           shopName: "店舗A",
         });
         const shopBId = await seedShop(ctx, "店舗B");
-        await seedShopMembership(ctx, { userId, shopId: shopBId });
+        await seedLegacyShopMembership(ctx, { userId, shopId: shopBId });
         const staffBId = await ctx.db.insert("staffs", {
           shopId: shopBId,
           name: "B店スタッフ",

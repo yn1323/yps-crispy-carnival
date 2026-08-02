@@ -46,43 +46,43 @@ const STATE_PRESENTATION: Record<
   trial: {
     label: "トライアル",
     status: "info",
-    description: "利用人数20名・5店舗・管理者5名まで、Proと同じ機能を利用できます。",
+    description: "利用人数20名・店舗5件・管理者5名まで、Proと同じ機能を利用できます。",
   },
   free: {
     label: "無料",
     status: "info",
-    description: "利用人数5名・1店舗・管理者1名まで、基本的なシフト運用を利用できます。",
+    description: "利用人数5名・店舗1件・管理者1名まで、基本的なシフト運用を利用できます。",
   },
   pro: {
     label: "Pro",
     status: "success",
-    description: "利用人数20名・5店舗・管理者5名まで利用できます。",
+    description: "利用人数20名・店舗5件・管理者5名まで利用できます。",
   },
   business: {
     label: "Business",
     status: "success",
-    description: "利用人数40名・5店舗・管理者5名まで利用できます。",
+    description: "利用人数40名・店舗5件・管理者5名まで利用できます。",
   },
   initialPaymentPending: {
     label: "初回請求を確認中",
     status: "info",
-    description: "初回支払いの結果を確認しています。確認中も選択した有料プランを利用できます。",
+    description: "初回支払いの結果を確認しています。\n確認中も、選択した有料プランを利用できます。",
   },
   pendingActivation: {
     label: "支払い結果を確認中",
     status: "info",
-    description: "支払い成功を確認するまで有料プランは開始されず、業務データの更新もできません。",
+    description: "支払いの成功を確認するまで、有料プランは開始されず、業務データも更新できません。",
   },
   grace: {
     label: "支払い猶予中",
     status: "warning",
-    description: "期限までは現在のプランを利用できます。支払い方法を確認してください。",
+    description: "支払い方法を確認してください。\n期限までは現在のプランを利用できます。",
   },
   restricted: {
     label: "契約制限中",
     status: "error",
     description:
-      "プラン移行に伴い、機能を制限しています。\n支払いを確認するか、人数、店舗数を変更先プランの枠に収まるよう調整してください。",
+      "プラン移行に伴い、機能を制限しています。\n支払いを確認するか、利用人数・店舗数を変更先プランの上限内に調整してください。",
   },
   scheduledFree: {
     label: "無料へ変更予定",
@@ -97,7 +97,7 @@ const STATE_PRESENTATION: Record<
   migrationPending: {
     label: "設定を移行中",
     status: "info",
-    description: "グループ単位のプラン設定を準備しています。完了するまで既存データを閲覧できます。",
+    description: "グループ単位のプラン設定を準備しています。\n完了するまでは、既存データを閲覧できます。",
   },
 };
 
@@ -114,12 +114,13 @@ export const PlanAndPaymentSection = ({
     billing.state === "restricted" && billing.limitPlan
       ? {
           ...STATE_PRESENTATION.restricted,
-          description: `${planLabel(billing.limitPlan)}の上限に収まるよう、利用人数、店舗、管理者を整理してください。`,
+          description: `${planLabel(billing.limitPlan)}の上限に収まるよう、利用人数・店舗数・管理者数を整理してください。`,
         }
       : billing.state === "pendingActivation" && billing.currentPlan === "free"
         ? {
             ...STATE_PRESENTATION.pendingActivation,
-            description: "支払い成功を確認するまで有料プランは開始されません。確認中も無料の基本機能は利用できます。",
+            description:
+              "支払いの成功を確認するまで、有料プランは開始されません。\n確認中も、無料の基本機能は利用できます。",
           }
         : STATE_PRESENTATION[billing.state];
   const currentPlan =
@@ -562,7 +563,7 @@ function BillingStateAlert({
               </Badge>
             )}
           </HStack>
-          <Alert.Description whiteSpace={billing.state === "restricted" ? "pre-line" : undefined}>
+          <Alert.Description whiteSpace="pre-line">
             <Stack gap={1}>
               <Text>{presentation.description}</Text>
               {billing.blockedReason && <Text>{billing.blockedReason}</Text>}
@@ -606,7 +607,7 @@ function ReductionGuidance({ reductions }: { reductions: ReturnType<typeof getRe
     <Stack gap={0.5} fontWeight="semibold">
       {reductions.people > 0 && <Text>あと{reductions.people}名削除してください</Text>}
       {reductions.shops > 0 && <Text>あと{reductions.shops}店舗を整理してください</Text>}
-      {reductions.managers > 0 && <Text>あと{reductions.managers}名の管理者権限または招待を整理してください</Text>}
+      {reductions.managers > 0 && <Text>あと{reductions.managers}名分の管理者権限または招待を整理してください</Text>}
     </Stack>
   );
 }
@@ -680,7 +681,7 @@ function usageHelperText(base: string | undefined, pendingInvitations: number | 
 function trialContinuationDescription(billing: OrganizationBillingView) {
   if (billing.targetPlan === "business") return "終了後はBusinessへ継続する予定です。";
   if (billing.targetPlan === "pro") return "終了後はProへ継続する予定です。";
-  return "継続登録がない場合、終了後は利用人数5名・1店舗までとなります。";
+  return "継続登録がない場合、終了後は利用人数5名・店舗1件までとなります。";
 }
 
 function PaymentInformation({
@@ -702,7 +703,9 @@ function PaymentInformation({
       <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
         {billing.isComplimentary ? (
           <Text px={{ base: 4, md: 5 }} py={4} fontSize="sm">
-            現在の利用料金はかかりません。支払い方法の登録は不要です。
+            現在の利用料金はかかりません。
+            <br />
+            支払い方法の登録は不要です。
           </Text>
         ) : (
           <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">

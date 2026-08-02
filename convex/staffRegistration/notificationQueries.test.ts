@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { seedManagerShop, seedShop, seedShopMembership, seedStaffLineAccount, seedUser } from "../_test/seed";
+import { seedLegacyShopMembership, seedManagerShop, seedShop, seedStaffLineAccount, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { DAY_MS, HOUR_MS } from "../constants";
 
@@ -128,7 +128,7 @@ describe("staffRegistration/notificationQueries", () => {
         });
 
         const secondUserId = await seedUser(ctx, "owner_email", "owner-email@example.com");
-        await seedShopMembership(ctx, { shopId: seeded.shopId, userId: secondUserId });
+        await seedLegacyShopMembership(ctx, { shopId: seeded.shopId, userId: secondUserId });
         await insertPendingRequest(ctx, { shopId: seeded.shopId, status: "pending" });
         return { shopId: seeded.shopId };
       });
@@ -205,7 +205,7 @@ describe("staffRegistration/notificationQueries", () => {
           shopName: "対象店舗",
         });
         const otherShopId = await seedShop(ctx, "別店舗");
-        await seedShopMembership(ctx, { shopId: otherShopId, userId: seeded.userId });
+        await seedLegacyShopMembership(ctx, { shopId: otherShopId, userId: seeded.userId });
         const otherShopManagerStaffId = await ctx.db.insert("staffs", {
           shopId: otherShopId,
           userId: seeded.userId,

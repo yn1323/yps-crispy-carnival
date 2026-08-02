@@ -292,7 +292,7 @@ E2Eは、ブラウザ、認証、フロントエンド、実バックエンド�
 - 既存データ互換、スナップショット、schema、保存済みデータの形式変更。
 - 通知outbox、fanout cursor、lease再回収、stale worker、削除競合、retrying、final failure。
 - 個人情報を含むpayloadのretention、redaction、prune、店舗消去。
-- Dashboard の `今やること`、通知失敗、スタッフ申請、シフト一覧のグルーピング。
+- Dashboard の `TODO`、通知失敗、スタッフ申請、シフト一覧のグルーピング。
 - Storybook と E2E の UI 文言ドリフト。
 - ArticleSite は個別記事 Markdown だけなら個別テスト不要。parser、frontmatter schema、一覧/カテゴリ/詳細レイアウトを変えた場合だけ既存 Story や `articleContent.test.ts` を更新する。
 

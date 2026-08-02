@@ -95,7 +95,7 @@ function InvitationContent({ state, actions }: ManagerInvitationAcceptanceViewPr
           <Heading as="h1" size={{ base: "lg", md: "xl" }} color="gray.950">
             {content.title}
           </Heading>
-          <Text color="gray.700" fontSize="sm" lineHeight="tall">
+          <Text color="gray.700" fontSize="sm" lineHeight="tall" whiteSpace="pre-line">
             {content.description}
           </Text>
         </Stack>
@@ -158,7 +158,7 @@ function ReadyInvitation({
             {state.organizationName}から管理者として招待されています
           </Heading>
           <Text color="gray.700" fontSize="sm" lineHeight="tall">
-            招待内容を確認し、招待メールを受け取ったメールアドレスのアカウントで参加してください。
+            招待内容を確認のうえ、招待メールを受け取ったメールアドレスでログインして参加してください。
           </Text>
         </Stack>
       </VStack>
@@ -181,7 +181,7 @@ function ReadyInvitation({
         <VStack role="status" gap={3} py={2}>
           <Spinner size="md" color="teal.600" borderWidth="2px" />
           <Text color="gray.700" fontSize="sm" lineHeight="tall" textAlign="center">
-            招待内容を確認し、管理者として参加しています。
+            招待内容を確認し、管理者として参加する処理を進めています。
           </Text>
         </VStack>
       ) : (
@@ -252,7 +252,7 @@ function getStatusContent(
     case "unavailable":
       return {
         title: "この招待は現在利用できません",
-        description: "グループの契約や利用状況が変わった可能性があります。招待を送った管理者に確認してください。",
+        description: "グループの契約や利用状況が変わった可能性があります。\n招待を送った管理者に確認してください。",
         icon: LuCircleAlert,
         iconBg: "orange.50",
         iconColor: "orange.700",
@@ -268,7 +268,7 @@ function getStatusContent(
     case "emailMismatch":
       return {
         title: "ログイン中のメールアドレスが招待先と一致しません",
-        description: "招待メールを受け取ったメールアドレスのアカウントで、もう一度ログインしてください。",
+        description: "招待メールを受け取ったメールアドレスで、もう一度ログインしてください。",
         icon: LuCircleAlert,
         iconBg: "orange.50",
         iconColor: "orange.700",
@@ -284,7 +284,7 @@ function getStatusContent(
     case "retryableError":
       return {
         title: "管理者として参加できませんでした",
-        description: "通信が一時的に不安定な可能性があります。時間をおいて、もう一度お試しください。",
+        description: "通信が一時的に不安定な可能性があります。\n時間をおいて、もう一度お試しください。",
         icon: LuRefreshCw,
         iconBg: "orange.50",
         iconColor: "orange.700",
@@ -294,10 +294,10 @@ function getStatusContent(
         ? `${state.organizationName}の管理者として参加しました。`
         : "管理者として参加しました。";
       const description = state.isPreparingDestination
-        ? `${participationLabel}対象店舗を開いています。`
+        ? `${participationLabel}\n対象店舗を開いています。`
         : state.hasDestination
-          ? `${participationLabel}対象店舗へ移動します。`
-          : `${participationLabel}現在、表示できる店舗がありません。案内を送った管理者に、店舗の登録状況を確認してください。`;
+          ? `${participationLabel}\n対象店舗へ移動します。`
+          : `${participationLabel}\n現在、表示できる店舗がありません。\n案内を送った管理者に、店舗の登録状況を確認してください。`;
       return {
         title: "管理者として参加しました",
         description,

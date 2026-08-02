@@ -3,10 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import {
+  seedLegacyManagerShop,
+  seedLegacyShop,
+  seedLegacyShopMembership,
   seedManagerShop,
   seedOrganizationManagerShop,
+  seedOrganizationMembership,
   seedShop,
-  seedShopMembership,
   seedUser,
   testAuthTokenIdentifier,
 } from "../_test/seed";
@@ -147,10 +150,10 @@ describe("dashboard/queries", () => {
       const t = convexTest(schema, modules);
       const { firstShopId, secondShopId } = await t.run(async (ctx) => {
         const userId = await seedUser(ctx, "multi_shop_dashboard_user");
-        const firstShopId = await seedShop(ctx, "有効店舗A");
-        const secondShopId = await seedShop(ctx, "有効店舗B");
-        await seedShopMembership(ctx, { userId, shopId: firstShopId });
-        await seedShopMembership(ctx, { userId, shopId: secondShopId });
+        const firstShopId = await seedLegacyShop(ctx, "有効店舗A");
+        const secondShopId = await seedLegacyShop(ctx, "有効店舗B");
+        await seedLegacyShopMembership(ctx, { userId, shopId: firstShopId });
+        await seedLegacyShopMembership(ctx, { userId, shopId: secondShopId });
         return { firstShopId, secondShopId };
       });
       const asManager = t.withIdentity({ subject: "multi_shop_dashboard_user" });
@@ -167,14 +170,14 @@ describe("dashboard/queries", () => {
       await t.run(async (ctx) => {
         const userId = await seedUser(ctx, "legacy_multi_shop_dashboard_user");
 
-        const deletedShopId = await seedShop(ctx, "削除済み店舗");
+        const deletedShopId = await seedLegacyShop(ctx, "削除済み店舗");
         await ctx.db.patch(deletedShopId, { isDeleted: true });
-        await seedShopMembership(ctx, { userId, shopId: deletedShopId });
+        await seedLegacyShopMembership(ctx, { userId, shopId: deletedShopId });
 
-        const firstActiveShopId = await seedShop(ctx, "先頭の有効店舗");
-        const secondActiveShopId = await seedShop(ctx, "2件目の有効店舗");
-        await seedShopMembership(ctx, { userId, shopId: firstActiveShopId });
-        await seedShopMembership(ctx, { userId, shopId: secondActiveShopId });
+        const firstActiveShopId = await seedLegacyShop(ctx, "先頭の有効店舗");
+        const secondActiveShopId = await seedLegacyShop(ctx, "2件目の有効店舗");
+        await seedLegacyShopMembership(ctx, { userId, shopId: firstActiveShopId });
+        await seedLegacyShopMembership(ctx, { userId, shopId: secondActiveShopId });
       });
 
       const result = await t
@@ -182,6 +185,22 @@ describe("dashboard/queries", () => {
         .query(api.dashboard.queries.getDashboardShop, {});
 
       expect(result?.name).toBe("先頭の有効店舗");
+    });
+
+    it("shopId省略時は旧所属よりcanonical所属店舗を優先する", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        const userId = await seedUser(ctx, "canonical_first_dashboard_user");
+        const legacyShopId = await seedLegacyShop(ctx, "旧所属店舗");
+        await seedLegacyShopMembership(ctx, { userId, shopId: legacyShopId });
+
+        const canonicalShopId = await seedShop(ctx, "canonical所属店舗");
+        await seedOrganizationMembership(ctx, { userId, shopId: canonicalShopId });
+      });
+
+      await expect(
+        t.withIdentity({ subject: "canonical_first_dashboard_user" }).query(api.dashboard.queries.getDashboardShop, {}),
+      ).resolves.toMatchObject({ name: "canonical所属店舗" });
     });
 
     it("論理削除された店舗は null を返す", async () => {
@@ -201,12 +220,12 @@ describe("dashboard/queries", () => {
       const t = convexTest(schema, modules);
       const deletedShopId = await t.run(async (ctx) => {
         const userId = await seedUser(ctx, "user_deleted_first");
-        const deletedShopId = await seedShop(ctx, "削除済み店舗");
+        const deletedShopId = await seedLegacyShop(ctx, "削除済み店舗");
         await ctx.db.patch(deletedShopId, { isDeleted: true });
-        await seedShopMembership(ctx, { userId, shopId: deletedShopId });
+        await seedLegacyShopMembership(ctx, { userId, shopId: deletedShopId });
 
-        const activeShopId = await seedShop(ctx, "残っている店舗");
-        await seedShopMembership(ctx, { userId, shopId: activeShopId });
+        const activeShopId = await seedLegacyShop(ctx, "残っている店舗");
+        await seedLegacyShopMembership(ctx, { userId, shopId: activeShopId });
         return deletedShopId;
       });
 
@@ -344,25 +363,25 @@ describe("dashboard/queries", () => {
       const t = convexTest(schema, modules);
       const { activeShopIds } = await t.run(async (ctx) => {
         const userId = await seedUser(ctx, "multi_shop_user");
-        const firstShopId = await seedShop(ctx, "有効店舗A");
-        const secondShopId = await seedShop(ctx, "有効店舗B");
-        await seedShopMembership(ctx, { userId, shopId: firstShopId });
-        await seedShopMembership(ctx, { userId, shopId: secondShopId });
+        const firstShopId = await seedLegacyShop(ctx, "有効店舗A");
+        const secondShopId = await seedLegacyShop(ctx, "有効店舗B");
+        await seedLegacyShopMembership(ctx, { userId, shopId: firstShopId });
+        await seedLegacyShopMembership(ctx, { userId, shopId: secondShopId });
 
-        const deletedShopId = await seedShop(ctx, "削除済み店舗");
+        const deletedShopId = await seedLegacyShop(ctx, "削除済み店舗");
         await ctx.db.patch(deletedShopId, { isDeleted: true });
-        await seedShopMembership(ctx, { userId, shopId: deletedShopId });
+        await seedLegacyShopMembership(ctx, { userId, shopId: deletedShopId });
 
-        const deletedMembershipShopId = await seedShop(ctx, "所属解除済み店舗");
-        await seedShopMembership(ctx, {
+        const deletedMembershipShopId = await seedLegacyShop(ctx, "所属解除済み店舗");
+        await seedLegacyShopMembership(ctx, {
           userId,
           shopId: deletedMembershipShopId,
           isDeleted: true,
         });
 
         const otherUserId = await seedUser(ctx, "other_shop_user");
-        const otherShopId = await seedShop(ctx, "他ユーザーの店舗");
-        await seedShopMembership(ctx, { userId: otherUserId, shopId: otherShopId });
+        const otherShopId = await seedLegacyShop(ctx, "他ユーザーの店舗");
+        await seedLegacyShopMembership(ctx, { userId: otherUserId, shopId: otherShopId });
 
         return { activeShopIds: [firstShopId, secondShopId] };
       });
@@ -403,11 +422,11 @@ describe("dashboard/queries", () => {
     it("旧shopMembersが同じ店舗で重複する場合は店舗切替候補にも表示しない", async () => {
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {
-        const { shopId, userId } = await seedManagerShop(ctx, {
+        const { shopId, userId } = await seedLegacyManagerShop(ctx, {
           subject: "duplicate_legacy_shop_memberships_in_switcher",
           shopName: "重複旧所属店舗",
         });
-        await seedShopMembership(ctx, { userId, shopId });
+        await seedLegacyShopMembership(ctx, { userId, shopId });
       });
 
       const result = await t
@@ -1923,7 +1942,7 @@ describe("dashboard/queries", () => {
       const conflicted = await owner.query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
       expect(conflicted.page.find((staff) => staff._id === ids.targetStaffId)?.managerInvitationState).toEqual({
         kind: "unavailable",
-        reason: "このユーザーへの招待状態を確認できません。グループ設定を確認してください。",
+        reason: "このユーザーへの管理者招待の状態を確認できません。\nグループ設定を確認してください。",
       });
 
       await t.run(async (ctx) => {
@@ -1959,7 +1978,7 @@ describe("dashboard/queries", () => {
       const wrongTarget = await owner.query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
       expect(wrongTarget.page.find((staff) => staff._id === ids.targetStaffId)?.managerInvitationState).toEqual({
         kind: "unavailable",
-        reason: "このユーザーへの招待状態を確認できません。グループ設定を確認してください。",
+        reason: "このユーザーへの管理者招待の状態を確認できません。\nグループ設定を確認してください。",
       });
       expect(await t.run((ctx) => ctx.db.get(invitationId))).toMatchObject({ status: "revoked" });
     });

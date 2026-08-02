@@ -83,6 +83,7 @@ async function sendFailureReminderForShop(ctx: ActionCtx, shopId: Id<"shops">) {
       await enqueueLine(ctx, {
         shopId: data.shopId,
         ...notificationOrigin,
+        purpose: "business",
         userId: recipient.userId,
         dedupeKey: `line:notificationFailureReminder:${data.shopId}:${recipient.userId}`,
         payload: linePayload({
@@ -115,6 +116,7 @@ async function sendFailureReminderForShop(ctx: ActionCtx, shopId: Id<"shops">) {
     await enqueueEmail(ctx, {
       shopId: data.shopId,
       ...notificationOrigin,
+      purpose: "business",
       userId: recipient.userId,
       dedupeKey: `email:notificationFailureReminder:${data.shopId}:${recipient.userId}`,
       payload: emailPayload({

@@ -1,5 +1,6 @@
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
+import { LINE_USER_ACTIVE_ACCOUNT_MAX } from "../constants";
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
 
@@ -20,14 +21,14 @@ export async function findStaffLineAccountByLineUserId(ctx: DbCtx, lineUserId: s
 }
 
 /**
- * 同じ lineUserId に紐づくアクティブなアカウントを全件取得する。
- * 同一人物が複数店舗にLINE連携しているケース（店舗ごとに別 staff レコード）を扱う。
+ * 同じ lineUserId に紐づくアクティブなアカウントを、上限超過を判定できる1件分まで取得する。
+ * 呼び出し側は上限超過時に更新前に停止し、部分反映してはならない。
  */
 export async function findStaffLineAccountsByLineUserId(ctx: DbCtx, lineUserId: string) {
   return await ctx.db
     .query("staffLineAccounts")
     .withIndex("by_lineUserId_and_isDeleted", (q) => q.eq("lineUserId", lineUserId).eq("isDeleted", false))
-    .collect();
+    .take(LINE_USER_ACTIVE_ACCOUNT_MAX + 1);
 }
 
 export async function upsertStaffLineAccount(

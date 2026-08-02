@@ -159,7 +159,7 @@ const restrictedPeople = baseArgs.people.map((person) =>
     ? {
         ...person,
         canRemove: false,
-        removeDisabledReason: "最後の復旧担当者は、引き継ぎまたは契約復旧まで削除できません。",
+        removeDisabledReason: "最後の復旧担当者は、引き継ぎまたは契約の復旧が完了するまで削除できません。",
       }
     : person,
 );
@@ -185,11 +185,11 @@ const disabledActionReasonArgs: Pick<
   canInviteManager: false,
   managerInvitationMode: "addition",
   freeManagerExchangeCandidates: [],
-  inviteManagerDisabledReason: "閲覧のみの管理者は管理者を招待できません。",
+  inviteManagerDisabledReason: "閲覧のみの管理者は、管理者を招待できません。",
   canUpdateOrganizationName: false,
-  updateOrganizationNameDisabledReason: "閲覧のみの管理者はグループ名を変更できません。",
+  updateOrganizationNameDisabledReason: "閲覧のみの管理者は、グループ名を変更できません。",
   canAddShop: false,
-  addShopDisabledReason: "閲覧のみの管理者は店舗を追加できません。",
+  addShopDisabledReason: "閲覧のみの管理者は、店舗を追加できません。",
   canDeleteOrganization: false,
   deleteOrganizationDisabledReason: "閲覧のみの管理者はグループを削除できません。",
   billing: billing({
@@ -208,7 +208,7 @@ const disabledActionReasonArgs: Pick<
   shops: baseArgs.shops.map((shop) => ({
     ...shop,
     canUpdateSettings: false,
-    settingsDisabledReason: "閲覧のみの管理者は店舗設定を変更できません。",
+    settingsDisabledReason: "閲覧のみの管理者は、店舗設定を変更できません。",
   })),
 };
 
@@ -275,7 +275,7 @@ export const FutureAssignmentRemovalBlocked: Story = {
         ? {
             ...person,
             canRemove: false,
-            removeDisabledReason: "将来のシフト割当を解除してから削除してください。",
+            removeDisabledReason: "将来のシフトの割り当てを解除してから削除してください。",
           }
         : person,
     ),
@@ -366,14 +366,14 @@ export const SettingsDeletionUnavailable: Story = {
   args: {
     defaultTab: "settings",
     canDeleteOrganization: false,
-    deleteOrganizationDisabledReason: "有料契約やプラン変更を終了してからグループを削除してください。",
+    deleteOrganizationDisabledReason: "グループを削除するには、先に有料契約やプラン変更を終了してください。",
   },
   play: async ({ canvasElement }) => {
     const deleteButton = within(canvasElement).getByRole("button", { name: /^削除$/ });
 
     await expect(deleteButton).toBeDisabled();
     await expect(deleteButton).toHaveAccessibleDescription(
-      "有料契約またはプラン変更の予約が残っています。「プランと支払い」で契約や予約を終了してから、グループを削除してください。",
+      "グループを削除するには、先に有料契約やプラン変更を終了してください。",
     );
   },
 };
@@ -383,14 +383,14 @@ export const SettingsDeletionUnavailableWithStripeSubscription: Story = {
   args: {
     defaultTab: "settings",
     canDeleteOrganization: false,
-    deleteOrganizationDisabledReason: "Stripeの契約終了を確認してからグループを削除してください。",
+    deleteOrganizationDisabledReason: "グループを削除するには、先にStripeの契約終了を確認してください。",
   },
   play: async ({ canvasElement }) => {
     const deleteButton = within(canvasElement).getByRole("button", { name: /^削除$/ });
 
     await expect(deleteButton).toBeDisabled();
     await expect(deleteButton).toHaveAccessibleDescription(
-      "有料契約またはプラン変更の予約が残っています。「プランと支払い」で契約や予約を終了してから、グループを削除してください。",
+      "グループを削除するには、先にStripeの契約終了を確認してください。",
     );
   },
 };
@@ -428,16 +428,16 @@ export const DisabledActionReasonsBehavior: Story = {
     const canvas = within(canvasElement);
     await expectDisabledActionDescription(
       canvas.getByRole("button", { name: "管理者を招待" }),
-      "閲覧のみの管理者は管理者を招待できません。",
+      "閲覧のみの管理者は、管理者を招待できません。",
     );
     await expectDisabledActionDescription(
       canvas.getByRole("button", { name: "グループ名を変更" }),
-      "閲覧のみの管理者はグループ名を変更できません。",
+      "閲覧のみの管理者は、グループ名を変更できません。",
     );
     await userEvent.click(canvas.getByRole("tab", { name: "店舗" }));
     await expectDisabledActionDescription(
       canvas.getByRole("button", { name: "店舗を追加" }),
-      "閲覧のみの管理者は店舗を追加できません。",
+      "閲覧のみの管理者は、店舗を追加できません。",
     );
     await userEvent.click(canvas.getByRole("tab", { name: "プランと支払い" }));
     await expect(canvas.queryByRole("button", { name: /へ変更|変更予約を取り消す/ })).not.toBeInTheDocument();
@@ -523,7 +523,8 @@ export const Free: Story = {
       nextEvent: undefined,
       hasStripeCustomer: false,
       canUpdatePaymentMethod: false,
-      paymentMethodDisabledReason: "無料プランでは支払い情報の管理は不要です。有料プランの契約時にStripeで登録します。",
+      paymentMethodDisabledReason:
+        "無料プランでは、支払い情報の管理は不要です。\n有料プランを契約するときに、Stripeで登録します。",
       canUpdateBillingEmail: true,
       canScheduleFree: false,
     }),
@@ -593,7 +594,7 @@ export const ShopCapacityReachedBehavior: Story = {
   args: {
     defaultTab: "shops",
     canAddShop: false,
-    addShopDisabledReason: "店舗はグループごとに5件まで登録できます。",
+    addShopDisabledReason: "店舗は、グループごとに5件まで登録できます。",
     billing: billing({
       state: "pro",
       currentPlan: "pro",
@@ -604,7 +605,7 @@ export const ShopCapacityReachedBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const addShopButton = canvas.getByRole("button", { name: "店舗を追加" });
-    await expectDisabledActionDescription(addShopButton, "店舗はグループごとに5件まで登録できます。");
+    await expectDisabledActionDescription(addShopButton, "店舗は、グループごとに5件まで登録できます。");
     await expect(canvas.queryByRole("link", { name: "利用上限について問い合わせる" })).not.toBeInTheDocument();
   },
 };
@@ -620,7 +621,7 @@ export const InitialPaymentPending: Story = {
       canManagePlan: false,
       canUpdatePaymentMethod: false,
       managePlanDisabledReason: "初回支払いの結果を確認中のため、プランを変更できません。",
-      paymentMethodDisabledReason: "初回支払いの結果を確認中です。確定後にStripeで支払い情報を管理できます。",
+      paymentMethodDisabledReason: "初回支払いの結果を確認中です。\n確定後に、Stripeで支払い情報を管理できます。",
       canScheduleFree: false,
     }),
   },
@@ -641,21 +642,21 @@ export const PendingActivationFreeFallback: Story = {
       },
     ],
     canAddShop: false,
-    addShopDisabledReason: "支払い結果が確定してから店舗を追加できます。",
+    addShopDisabledReason: "支払い結果が確定してから、店舗を追加できます。",
     billing: billing({
       state: "pendingActivation",
       currentPlan: "free",
       targetPlan: "pro",
       peopleUsage: { current: 5, max: 5 },
       shopUsage: { current: 1, max: 1 },
-      blockedReason: "有料プランの支払い結果を確認中です。無料の基本機能は引き続き利用できます。",
+      blockedReason: "有料プランの支払い結果を確認中です。\n無料の基本機能は引き続き利用できます。",
       nextEvent: { label: "支払い結果", date: "確認中" },
       canManagePlan: false,
       canUpdatePaymentMethod: false,
       canUpdateBillingEmail: true,
       canScheduleFree: false,
-      managePlanDisabledReason: "支払い結果を確認中のため、別のプラン変更はできません。",
-      paymentMethodDisabledReason: "支払い結果を確認中です。確定後にStripeで支払い情報を管理できます。",
+      managePlanDisabledReason: "支払い結果を確認中のため、別のプランへは変更できません。",
+      paymentMethodDisabledReason: "支払い結果を確認中です。\n確定後に、Stripeで支払い情報を管理できます。",
     }),
   },
 };
@@ -668,9 +669,9 @@ export const PendingActivationRestrictedRecovery: Story = {
     canInviteManager: false,
     managerInvitationMode: "addition",
     freeManagerExchangeCandidates: [],
-    inviteManagerDisabledReason: "契約制限中は管理者を招待できません。",
+    inviteManagerDisabledReason: "契約制限中は、管理者を招待できません。",
     canAddShop: false,
-    addShopDisabledReason: "契約制限中は店舗を追加できません。",
+    addShopDisabledReason: "契約制限中は、店舗を追加できません。",
     people: restrictedPeople,
     shops: baseArgs.shops,
     billing: billing({
@@ -700,9 +701,9 @@ export const MigrationPending: Story = {
     canInviteManager: false,
     managerInvitationMode: "addition",
     freeManagerExchangeCandidates: [],
-    inviteManagerDisabledReason: "グループ単位の設定を移行しています。完了までお待ちください。",
+    inviteManagerDisabledReason: "グループ単位の設定を移行しています。\n完了するまでお待ちください。",
     canAddShop: false,
-    addShopDisabledReason: "グループ単位のプラン設定を移行しています。完了までお待ちください。",
+    addShopDisabledReason: "グループ単位のプラン設定を移行しています。\n完了するまでお待ちください。",
     billing: billing({
       state: "migrationPending",
       currentPlan: null,
@@ -727,7 +728,7 @@ export const Grace: Story = {
     billing: billing({
       state: "grace",
       currentPlan: "pro",
-      blockedReason: "支払い方法を更新しないまま期限を過ぎると、契約制限中へ移行します。",
+      blockedReason: "期限までに支払い方法を更新しないと、契約制限中になります。",
       nextEvent: { label: "支払い猶予期限", date: "2026年8月14日 10:30" },
       canScheduleFree: false,
     }),
@@ -742,9 +743,9 @@ export const Restricted: Story = {
     canInviteManager: false,
     managerInvitationMode: "addition",
     freeManagerExchangeCandidates: [],
-    inviteManagerDisabledReason: "契約制限中は管理者を招待できません。",
+    inviteManagerDisabledReason: "契約制限中は、管理者を招待できません。",
     canAddShop: false,
-    addShopDisabledReason: "契約制限中は店舗を追加できません。",
+    addShopDisabledReason: "契約制限中は、店舗を追加できません。",
     people: restrictedPeople,
     shops: baseArgs.shops,
     billing: billing({

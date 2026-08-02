@@ -796,7 +796,7 @@ describe("セキュリティ境界シナリオ", () => {
     });
     await t.mutation(internal.line.mutations.createLinkTokenInternal, { staffId: ids.staffId, shopId: ids.shopId });
 
-    await asManager.deleteStaff(ids.staffId);
+    await asManager.removePersonFromShop(ids.staffId);
 
     await expect(staff.verifyMagicLink(magicToken)).resolves.toMatchObject({
       status: "expired",

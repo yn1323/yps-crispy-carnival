@@ -35,7 +35,9 @@ export function LegalReconsentBanner({ documents, isSubmitting = false, onAccept
             利用規約・プライバシーポリシーを更新しました
           </Text>
           <Text mt={1} fontSize="sm" color="teal.800" lineHeight={1.7}>
-            内容をご確認のうえ、同意をお願いします。確認中でもダッシュボードの操作は続けられます。
+            内容をご確認のうえ、同意をお願いします。
+            <br />
+            確認中でもダッシュボードの操作は続けられます。
           </Text>
           <Box mt={3}>
             <Checkbox.Root

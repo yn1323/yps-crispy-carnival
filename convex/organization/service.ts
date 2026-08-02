@@ -33,7 +33,7 @@ export async function requireOrganizationBillingState(ctx: DbCtx, organizationId
   const billingState = await getOrganizationBillingState(ctx, organizationId);
   if (!billingState) {
     // m012未完了またはmigration conflictの可能性があるため、移行元や利用状況からプランを推測しない。
-    throw new ConvexError("グループの契約情報を確認中です。しばらくしてからもう一度お試しください");
+    throw new ConvexError("グループの契約情報を確認中です。\nしばらくしてから、もう一度お試しください。");
   }
   return billingState;
 }

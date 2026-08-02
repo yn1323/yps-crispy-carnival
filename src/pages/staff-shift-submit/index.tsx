@@ -32,7 +32,7 @@ function StaffShiftSubmitState({ state }: { state: StaffAccessState }) {
           <Empty
             icon={LuTriangleAlert}
             title="アクセスが集中しています"
-            description={"少し時間をおいて、\nもう一度お試しください。"}
+            description="少し時間をおいて、もう一度お試しください。"
             tone="warning"
           />
         </StaffCenteredContent>

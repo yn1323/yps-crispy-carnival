@@ -2,6 +2,7 @@ import type { Decorator } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { expect, waitFor } from "storybook/test";
 import { buildAssignmentIssue } from "@/convex/shiftBoard/validation";
+import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
 import type { ShiftForm } from "..";
 import {
   mockDateOnlyDates,
@@ -56,6 +57,7 @@ const baseArgs = {
   dates: mockDates,
   timeRange: mockTimeRange,
   holidays: [],
+  submissionPattern: DEFAULT_TIME_PATTERN,
 } satisfies ShiftFormArgs;
 
 export const allPatternsArgs = {

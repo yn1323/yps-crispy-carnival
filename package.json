@@ -70,8 +70,6 @@
     "convex:notify:cron": "tsx scripts/runNotificationDebug.ts cron",
     "convex:notify:recruitment": "tsx scripts/runNotificationDebug.ts recruitment",
     "convex:notify:shop": "tsx scripts/runNotificationDebug.ts shop",
-    "convex:local:backfill": "pnpm convex:run:local analytics/backfill:start '{}'",
-    "convex:dev:backfill": "pnpm convex:run:dev analytics/backfill:start '{}'",
     "convex:clear:local": "tsx scripts/clearConvexTables.ts",
     "convex:clear:dev": "tsx scripts/clearConvexTables.ts --env-file .env.develop",
     "convex:restore": "tsx convex-seeds/scripts/import.ts",
@@ -80,7 +78,8 @@
     "convex:env:setup": "tsx scripts/setupEnv.ts",
     "convex:migrate": "convex run migrations/index:run",
     "convex:migrate:status": "convex run --component migrations lib:getStatus --watch",
-    "convex:verify-complimentary-m021-export": "tsx scripts/verifyComplimentaryBusinessM021Export.ts"
+    "convex:verify-complimentary-m021-export": "tsx scripts/verifyComplimentaryBusinessM021Export.ts",
+    "convex:verify-analytics-line-readiness": "tsx scripts/verifyAnalyticsLineReadinessExport.ts"
   },
   "dependencies": {
     "@chakra-ui/react": "catalog:",
@@ -95,7 +94,7 @@
     "@emotion/react": "catalog:",
     "@hookform/resolvers": "5.4.0",
     "@tanstack/react-router": "1.170.18",
-    "@tanstack/react-start": "1.168.33",
+    "@tanstack/react-start": "1.168.34",
     "convex": "1.42.3",
     "convex-helpers": "^0.1.120",
     "dayjs": "^1.11.21",

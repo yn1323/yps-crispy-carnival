@@ -37,10 +37,10 @@ export const requiredEmailSchema = z
   .string()
   .trim()
   .min(1, "メールアドレスを入力してください")
-  .max(EMAIL_MAX_LENGTH, `メールアドレスは${EMAIL_MAX_LENGTH}文字以内で入力してください`)
+  .max(EMAIL_MAX_LENGTH, `メールアドレスは${EMAIL_MAX_LENGTH}文字以内で入力してください。`)
   .email("メールアドレスの形式で入力してください")
   .refine((value) => !hasControlCharacter(value), {
-    message: "メールアドレスに使用できない文字が含まれています",
+    message: "メールアドレスに使用できない文字が含まれています。",
   });
 
 export function normalizeEmail(email: string) {

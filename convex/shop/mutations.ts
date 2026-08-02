@@ -3,6 +3,7 @@ import { internal } from "../_generated/api";
 import { internalMutation } from "../_generated/server";
 import { managerMutation } from "../_lib/functions";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
+import { recordAnalyticsSourceEvent } from "../analytics/sourceEvents";
 import { ensureDeletionCleanupJob } from "../deletionCleanup/service";
 import { updateShopSettingSchema, updateShopSettingsSchema } from "./schemas";
 
@@ -48,20 +49,32 @@ export const updateShopSettings = managerMutation({
   handler: async (ctx, args) => {
     const parsed = updateShopSettingsSchema.safeParse(args);
     if (!parsed.success) {
-      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
     }
     const input = parsed.data;
     const submissionPattern = normalizeSubmissionPattern(input.submissionPattern);
+    const occurredAt = Date.now();
     await ctx.db.patch(ctx.shop._id, {
       name: input.shopName,
       regularClosedDays: WEEKDAY_ORDER.filter((day) => input.regularClosedDays.includes(day)),
       submissionPattern,
     });
+    if (ctx.shop.organizationId) {
+      await recordAnalyticsSourceEvent(ctx, {
+        eventKey: `shop:${ctx.shop._id}:updated:${crypto.randomUUID()}`,
+        eventType: "shop.changed",
+        occurredAt,
+        organizationId: ctx.shop.organizationId,
+        shopId: ctx.shop._id,
+        payload: { kind: "shop", change: "updated", displayName: input.shopName },
+      });
+    }
     return null;
   },
 });
 
 // 個別保存時に、別項目の最新値を古いフォーム値で巻き戻さないため、選択項目だけを更新する。
+// TODO[narrow]: 旧client配布終了を確認後、未参照の個別保存APIとvalidatorを削除する。
 export const updateShopSetting = managerMutation({
   // managerMutation全体の旧クライアント互換fallbackは、新規APIでは許可しない。
   args: { shopId: v.id("shops"), change: updateShopSettingValidator },
@@ -69,13 +82,26 @@ export const updateShopSetting = managerMutation({
   handler: async (ctx, args) => {
     const parsed = updateShopSettingSchema.safeParse(args.change);
     if (!parsed.success) {
-      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
     }
 
     const change = parsed.data;
     switch (change.kind) {
       case "shopName":
-        await ctx.db.patch(ctx.shop._id, { name: change.shopName });
+        {
+          const occurredAt = Date.now();
+          await ctx.db.patch(ctx.shop._id, { name: change.shopName });
+          if (ctx.shop.organizationId) {
+            await recordAnalyticsSourceEvent(ctx, {
+              eventKey: `shop:${ctx.shop._id}:updated:${crypto.randomUUID()}`,
+              eventType: "shop.changed",
+              occurredAt,
+              organizationId: ctx.shop.organizationId,
+              shopId: ctx.shop._id,
+              payload: { kind: "shop", change: "updated", displayName: change.shopName },
+            });
+          }
+        }
         break;
       case "submissionPattern":
         await ctx.db.patch(ctx.shop._id, {
@@ -92,7 +118,10 @@ export const updateShopSetting = managerMutation({
   },
 });
 
-/** legacy organizationId未設定店舗を論理削除し、永続cleanup jobへ接続する。 */
+/**
+ * legacy organizationId未設定店舗を論理削除し、永続cleanup jobへ接続する。
+ * TODO[narrow]: 全deploymentでm025完走・verifyShopsの組織link残件0・旧client配布終了を確認後に削除する。
+ */
 export const deleteShop = managerMutation({
   args: { confirmShopId: v.id("shops") },
   returns: v.null(),
@@ -111,7 +140,11 @@ export const deleteShop = managerMutation({
   },
 });
 
-/** 旧scheduled function名を維持し、未完了処理を永続jobへ引き継ぐ互換delegate。 */
+/**
+ * 旧scheduled function名を維持し、未完了処理を永続jobへ引き継ぐ互換delegate。
+ * TODO[narrow]: 全deploymentで旧functionのscheduler残件0とcleanup jobの収束を確認し、
+ * 旧deploymentのdrain期間が終わった後にphase validatorと共に削除する。
+ */
 export const cleanupDeletedShop = internalMutation({
   args: {
     shopId: v.id("shops"),
@@ -132,7 +165,11 @@ export const cleanupDeletedShop = internalMutation({
   },
 });
 
-/** processing Outbox用の旧scheduled functionも同じ永続jobへ引き継ぐ。 */
+/**
+ * processing Outbox用の旧scheduled functionも同じ永続jobへ引き継ぐ。
+ * TODO[narrow]: 全deploymentで旧functionのscheduler残件0とcleanup jobの収束を確認し、
+ * 旧deploymentのdrain期間が終わった後に削除する。
+ */
 export const cleanupDeletedShopProcessingOutbox = internalMutation({
   args: { shopId: v.id("shops") },
   returns: v.null(),

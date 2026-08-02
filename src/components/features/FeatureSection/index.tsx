@@ -20,19 +20,19 @@ const featureCards: {
   {
     number: "1",
     title: "かんたんにはじめる",
-    body: "店舗名と営業時間など基本情報だけではじめられます。",
+    body: "店舗名や営業時間など、基本情報だけで始められます。",
     visual: "start",
   },
   {
     number: "2",
     title: "希望を集める",
-    body: "スタッフはいつものLINEから提出。専用アプリなしで始められます。",
+    body: "スタッフはいつものLINEから提出。\n専用アプリなしで始められます。",
     visual: "collect",
   },
   {
     number: "3",
     title: "未提出の催促",
-    body: "提出忘れを一覧で表示。必要な人だけに声をかけられます。",
+    body: "提出忘れを一覧で表示。\n必要な人だけに声をかけられます。",
     visual: "notice",
   },
   {
@@ -85,7 +85,7 @@ export const FeatureSection = ({ headingAs = "h2" }: FeatureSectionProps) => (
             で、希望回収から確定までひとつに
           </Heading>
           <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" maxW="720px">
-            基本情報の設定から未提出確認、シフト表の作成、スタッフへの通知まで、シフトリ1つで進められます。
+            基本情報の設定から未提出確認、シフト表の作成、スタッフへの通知まで、シフトリだけで進められます。
           </Text>
         </VStack>
 
@@ -185,7 +185,13 @@ const CapabilityCard = ({
           <Heading as="h3" color="teal.700" fontSize={{ base: "xl", md: "2xl" }} lineHeight="1.35">
             {title}
           </Heading>
-          <Text color="gray.800" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" fontWeight="semibold">
+          <Text
+            color="gray.800"
+            textStyle={{ base: "bodySm", md: "body" }}
+            lineHeight="1.8"
+            fontWeight="semibold"
+            whiteSpace="pre-line"
+          >
             {body}
           </Text>
         </VStack>

@@ -152,7 +152,9 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
       <Empty
         icon={LuStore}
         title="この店舗を開けません"
-        description="店舗が削除されたか、この店舗を利用する権限がありません。ダッシュボードから利用できる店舗を選び直してください。"
+        description={
+          "店舗が削除されたか、この店舗を利用する権限がありません。\nダッシュボードから、利用できる店舗を選び直してください。"
+        }
         tone="warning"
         minH="100dvh"
         action={

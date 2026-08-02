@@ -69,7 +69,7 @@ describe("useStaffNotificationDelivery", () => {
     });
 
     expect(mocks.createToast).toHaveBeenCalledExactlyOnceWith({
-      title: "確定シフトが40件を超えるため、一度に再送できません",
+      title: "確定シフトが40件を超えるため、一度に再送できません。",
       type: "error",
     });
   });
@@ -86,7 +86,7 @@ describe("useStaffNotificationDelivery", () => {
     });
 
     expect(mocks.createToast).toHaveBeenCalledExactlyOnceWith({
-      title: "未確定の変更があるため、シフトを確定してから再送してください",
+      title: "未確定の変更があります。\nシフトを確定してから再送してください。",
       type: "error",
     });
   });

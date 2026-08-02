@@ -173,11 +173,12 @@ const ActionTaskRow = ({ task, isFirst }: { task: ActionTask; isFirst: boolean }
             fontWeight="bold"
             color={task.titleColor ?? "gray.900"}
             lineHeight="short"
+            whiteSpace="pre-line"
           >
             {task.title}
           </Text>
           {task.description && (
-            <Text fontSize={{ base: "sm", md: "sm" }} color="gray.700" lineHeight="tall">
+            <Text fontSize={{ base: "sm", md: "sm" }} color="gray.700" lineHeight="tall" whiteSpace="pre-line">
               {task.description}
             </Text>
           )}
@@ -282,7 +283,7 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         icon: LuCalendarClock,
         iconBg: "teal.100",
         iconFg: "teal.700",
-        title: "シフト回収中です。しばらくお待ちください。",
+        title: "シフト回収中です。\nしばらくお待ちください。",
         metaItems: [
           createPeriodMeta(periodStart, periodEnd),
           createResponseMeta(responseCount, totalStaffCount),
@@ -297,7 +298,7 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         icon: LuCalendarClock,
         iconBg: "teal.50",
         iconFg: "teal.700",
-        title: "シフト回収中です。しばらくお待ちください。",
+        title: "シフト回収中です。\nしばらくお待ちください。",
         metaItems: [
           createPeriodMeta(periodStart, periodEnd),
           createResponseMeta(responseCount, totalStaffCount),

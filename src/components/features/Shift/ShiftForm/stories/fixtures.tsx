@@ -10,6 +10,7 @@ import type {
   TimeRange,
   ViewMode,
 } from "@/src/domains/shift/types";
+import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
 import { useShiftFormInit } from "../hooks/useShiftFormInit";
 
 export const mockStaffs: StaffType[] = [
@@ -491,7 +492,7 @@ function JotaiInitializer({
     currentStaffId: overrides?.currentStaffId,
     allShifts: overrides?.allShifts,
     requiredStaffing: overrides?.requiredStaffing,
-    submissionPattern: overrides?.submissionPattern,
+    submissionPattern: overrides?.submissionPattern ?? DEFAULT_TIME_PATTERN,
     initialViewMode: overrides?.initialViewMode,
     initialSortMode: overrides?.initialSortMode,
   });

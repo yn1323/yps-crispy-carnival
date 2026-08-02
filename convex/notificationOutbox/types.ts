@@ -120,7 +120,7 @@ type NotificationHistoryTarget =
 
 type EnqueueNotificationCommon<TPayload extends NotificationPayload> = {
   organizationBillingVersionAtOrigin?: number;
-  purpose?: NotificationPurpose;
+  purpose: NotificationPurpose;
   organizationInvitationId?: Id<"organizationInvitations">;
   organizationInvitationVersion?: number;
   recruitmentId?: Id<"recruitments">;

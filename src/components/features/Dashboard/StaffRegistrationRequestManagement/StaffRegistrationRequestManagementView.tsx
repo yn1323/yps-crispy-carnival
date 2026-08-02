@@ -66,7 +66,9 @@ export function StaffRegistrationRequestManagementView({
       >
         <Text>「{rejectTarget?.name}」さんのスタッフ登録申請を却下しますか？</Text>
         <Text fontSize="sm" color="gray.600">
-          却下してもスタッフには通知されません。必要な場合はシフト作成担当者から直接案内してください。
+          却下してもスタッフには通知されません。
+          <br />
+          必要な場合はシフト作成担当者から直接案内してください。
         </Text>
       </Dialog>
     </>

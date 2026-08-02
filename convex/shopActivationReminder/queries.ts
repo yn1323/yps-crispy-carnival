@@ -16,12 +16,8 @@ export const getReminderTarget = internalQuery({
     const shop = await ctx.db.get(shopId);
     if (!shop || shop.isDeleted) return null;
 
-    const [recipients, activeManagerMembers, activeStaffs] = await Promise.all([
+    const [recipients, activeStaffs] = await Promise.all([
       loadShopManagerRecipients(ctx, shopId, SHOP_ACTIVATION_REMINDER_MANAGER_LIMIT),
-      ctx.db
-        .query("shopMembers")
-        .withIndex("by_shopId_and_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
-        .take(SHIFT_BOARD_STAFF_LIMIT),
       ctx.db
         .query("staffs")
         .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
@@ -30,13 +26,7 @@ export const getReminderTarget = internalQuery({
     if (recipients.length === 0) return null;
     if (activeStaffs.length > SHIFT_BOARD_STAFF_LIMIT) return null;
 
-    const activeManagerUsers = await Promise.all(
-      activeManagerMembers.map(async (member) => await ctx.db.get(member.userId)),
-    );
-    const activeManagerUserIds = new Set<Id<"users">>();
-    for (const user of activeManagerUsers) {
-      if (user && !user.isDeleted) activeManagerUserIds.add(user._id);
-    }
+    const activeManagerUserIds = new Set<Id<"users">>(recipients.map((recipient) => recipient.userId));
     if (activeManagerUserIds.size === 0) return null;
 
     const hasStaffOtherThanManagers = activeStaffs.some(

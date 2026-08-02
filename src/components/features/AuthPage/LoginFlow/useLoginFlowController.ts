@@ -99,8 +99,8 @@ export function useLoginFlowController({ redirectTo, initialErrorMessage }: UseL
         const status = signIn.status as string | null;
         setErrorMessage(
           status === "needs_client_trust" || status === "needs_second_factor"
-            ? "この方法では本人確認を続けられません。お問い合わせください。"
-            : "ログインを完了できませんでした。時間をおいてもう一度お試しください。",
+            ? "この方法では本人確認を続けられません。\nお問い合わせください。"
+            : "ログインを完了できませんでした。\n時間をおいて、もう一度お試しください。",
         );
       } catch (error) {
         setErrorMessage(getClerkErrorMessage(error));
@@ -120,7 +120,7 @@ export function useLoginFlowController({ redirectTo, initialErrorMessage }: UseL
           return;
         }
 
-        setErrorMessage("本人確認が完了しませんでした。コードを確認してもう一度お試しください。");
+        setErrorMessage("本人確認が完了しませんでした。\nコードを確認して、もう一度お試しください。");
       } catch (error) {
         setErrorMessage(getClerkErrorMessage(error));
       }
@@ -133,7 +133,7 @@ export function useLoginFlowController({ redirectTo, initialErrorMessage }: UseL
       setErrorMessage(undefined);
       setVerificationInfoMessage(undefined);
       if (loginStep !== "verify-email-code") {
-        setErrorMessage("確認コードを再送できませんでした。ログイン画面に戻ってもう一度お試しください。");
+        setErrorMessage("確認コードを再送できませんでした。\nログイン画面に戻って、もう一度お試しください。");
         return;
       }
 

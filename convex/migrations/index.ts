@@ -38,6 +38,23 @@ export const run = migrations.runner([
   internal.migrations.m020_notification_failure_inbox_redaction.migration,
   internal.migrations.m021_organization_billing_complimentary_pro_to_business.migration,
   internal.migrations.m022_organization_billing_to_complimentary_business.migration,
+  internal.migrations.m023_organization_invitations_narrow_prep.migration,
+  internal.migrations.m024_notification_outbox_narrow_prep.migration,
+  internal.migrations.m025_shops_narrow_prep.migration,
+  internal.migrations.m026_shop_members_narrow_prep.migration,
+  internal.migrations.m027_staffs_narrow_prep.migration,
+  internal.migrations.m028_shop_billing_states_narrow_prep.migration,
+  internal.migrations.m030_notification_fanout_operations_narrow_prep.migration,
+  internal.migrations.m031_users_email_normalized_narrow_prep.migration,
+  internal.migrations.m032_staffs_email_normalized_narrow_prep.migration,
+  internal.migrations.m033_shift_submissions_first_submitted_at_narrow_prep.migration,
+  internal.migrations.m034_positions_is_default_narrow_prep.migration,
+  internal.migrations.m035_magic_links_access_kind_narrow_prep.migration,
+  internal.migrations.m036_sessions_access_kind_narrow_prep.migration,
+  internal.migrations.m037_notification_outbox_scope_narrow_prep.migration,
+  internal.migrations.m038_recruitments_draft_saved_at_narrow_prep.migration,
+  internal.migrations.m039_shops_regular_closed_days_narrow_prep.migration,
+  internal.migrations.m040_recruitments_shop_closed_dates_narrow_prep.migration,
 ]);
 
 // Widen対応版の確認と、衝突修復後にm012だけを限定再実行するために使う。
@@ -54,6 +71,33 @@ export const runM021 = migrations.runner(
 // m022の限定dry runと、conflict裁定後に対象だけを再評価するために使う。
 export const runM022 = migrations.runner(
   internal.migrations.m022_organization_billing_to_complimentary_business.migration,
+);
+
+// Narrow前の補完・再流入修復を、既存migration historyを書き換えずforward-onlyで実行する。
+export const runNarrowPreparation = migrations.runner([
+  internal.migrations.m023_organization_invitations_narrow_prep.migration,
+  internal.migrations.m024_notification_outbox_narrow_prep.migration,
+  internal.migrations.m025_shops_narrow_prep.migration,
+  internal.migrations.m026_shop_members_narrow_prep.migration,
+  internal.migrations.m027_staffs_narrow_prep.migration,
+  internal.migrations.m028_shop_billing_states_narrow_prep.migration,
+  internal.migrations.m030_notification_fanout_operations_narrow_prep.migration,
+  internal.migrations.m031_users_email_normalized_narrow_prep.migration,
+  internal.migrations.m032_staffs_email_normalized_narrow_prep.migration,
+  internal.migrations.m033_shift_submissions_first_submitted_at_narrow_prep.migration,
+  internal.migrations.m034_positions_is_default_narrow_prep.migration,
+  internal.migrations.m035_magic_links_access_kind_narrow_prep.migration,
+  internal.migrations.m036_sessions_access_kind_narrow_prep.migration,
+  internal.migrations.m037_notification_outbox_scope_narrow_prep.migration,
+  internal.migrations.m038_recruitments_draft_saved_at_narrow_prep.migration,
+  internal.migrations.m039_shops_regular_closed_days_narrow_prep.migration,
+  internal.migrations.m040_recruitments_shop_closed_dates_narrow_prep.migration,
+]);
+
+// canonical authorityとconflictの運用確認後にだけ、旧shopMembersを論理削除する明示runner。
+// fixed seriesや包括prepへ含めず、dry runとreadinessを記録してから対象deploymentで実行する。
+export const runShopMembersNarrowPreparation = migrations.runner(
+  internal.migrations.m029_shop_members_narrow_prep.migration,
 );
 
 // NOT-03のWiden migration。runner/component標準のdryRun・cursor進捗・lib:getStatusで確認する。

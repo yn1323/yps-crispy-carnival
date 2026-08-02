@@ -850,6 +850,7 @@ export const resolveInactivePriceTrialSubscription = internalMutation({
         .query("organizationBillingStates")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", args.organizationId))
         .unique();
+      // TODO[narrow]: 旧trialSetupCheckoutのtargetPlan欠損0と旧scheduler drainを確認後にfallbackを削除する。
       const targetPlan = source.targetPlan ?? "pro";
       const trialConverged =
         mapping.status === "trialing" &&
@@ -1115,6 +1116,7 @@ export const retryExpiredGraceSafetyOperation = internalMutation({
     expectedBillingVersion: v.number(),
     requestId: v.string(),
     errorCode: v.string(),
+    // TODO[narrow]: 全deploymentで旧scheduled argsがdrainし、対象operationの回復処理が収束した後にrequired化する。
     action: v.optional(
       v.union(
         v.literal("expiredGrace"),
@@ -1834,7 +1836,7 @@ async function requireStripeEligibleOrganization(
   ]);
   if (!organization || organization.isDeleted || !billingState) throw new ConvexError("Not found");
   if (billingState.state.kind === "complimentary") {
-    throw new ConvexError("支払い不要プランではStripeを利用しません");
+    throw new ConvexError("支払い不要プランではStripeを利用しません。");
   }
   return { organization, billingState };
 }

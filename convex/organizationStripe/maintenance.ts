@@ -621,7 +621,6 @@ export const getProbe = internalQuery({
       organizationsWithMultipleStripeCustomers: boundedCountValidator,
       subscriptionsWithoutMatchingLocalCustomer: boundedCountValidator,
       stripeCustomersWithoutBillingState: boundedCountValidator,
-      complimentaryProAwaitingM021: boundedCountValidator,
       unresolvedM018MigrationConflicts: boundedCountValidator,
     }),
   }),
@@ -874,7 +873,6 @@ async function probeRelationshipAnomalies(ctx: QueryCtx) {
   let complimentaryStripeMappingP0 = 0;
   let activePaidWithoutCurrentSubscription = 0;
   let activeFreeWithCurrentSubscription = 0;
-  let complimentaryProAwaitingM021 = 0;
 
   for (const billing of sampled) {
     const currentSubscriptions = await ctx.db
@@ -889,7 +887,6 @@ async function probeRelationshipAnomalies(ctx: QueryCtx) {
         .withIndex("by_organizationId", (q) => q.eq("organizationId", billing.organizationId))
         .first();
       if (customer || currentSubscriptions.length > 0) complimentaryStripeMappingP0 += 1;
-      if (billing.state.plan === "pro") complimentaryProAwaitingM021 += 1;
     }
 
     if (billing.state.kind === "active" && billing.state.plan !== "free") {
@@ -936,10 +933,6 @@ async function probeRelationshipAnomalies(ctx: QueryCtx) {
     stripeCustomersWithoutBillingState: {
       observedCount: stripeCustomersWithoutBillingState,
       hasMore: hasMoreCustomerRelationships,
-    },
-    complimentaryProAwaitingM021: {
-      observedCount: complimentaryProAwaitingM021,
-      hasMore: hasMoreBillingStates,
     },
     unresolvedM018MigrationConflicts: {
       observedCount: Math.min(unresolvedM018MigrationConflicts.length, PROBE_LIMIT_PER_STATUS),

@@ -51,6 +51,7 @@ const getShiftTypeOptionIdForRange = (
 export const buildShiftData = (data: ShiftBoardData, staffs: StaffType[], dates: string[]): ShiftData[] => {
   const shopClosedDateSet = new Set(data.recruitment.shopClosedDates);
   const positions = data.positions;
+  // TODO[narrow]: m034とposition readinessが全deploymentで完了後、先頭positionへの旧fallbackを削除する。
   const defaultPosition = positions.find((position) => position.isDefault) ?? positions[0];
   const fallbackPosition = defaultPosition
     ? { id: defaultPosition._id, name: defaultPosition.name, color: defaultPosition.color }

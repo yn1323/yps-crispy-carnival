@@ -117,12 +117,9 @@ export const SPDateOnlyDailyView = () => {
 
       <Box flex={1} minH={0} overflow="auto" px={3} py={3} data-tour="shift-grid">
         {!isInRange ? (
-          <UnavailableState title="期間外" body="この日は募集期間外のため、割当は編集できません。" />
+          <UnavailableState title="期間外" body="この日は募集期間外のため、割当を編集できません。" />
         ) : isShopClosedDate ? (
-          <UnavailableState
-            title="定休日"
-            body="この日はお店のお休みとして設定されているため、割当は編集できません。"
-          />
+          <UnavailableState title="定休日" body="この日は店舗の定休日のため、割当を編集できません。" />
         ) : (
           <Stack gap={2}>
             {rows.map((row) => (

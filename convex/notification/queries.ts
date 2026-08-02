@@ -51,6 +51,8 @@ async function buildConfirmationStaffEntries(
   knownLineAccount?: Doc<"staffLineAccounts"> | null,
 ): Promise<ConfirmationStaffEntry[]> {
   const dates = generateDateRange(recruitment.periodStart, recruitment.periodEnd);
+  // TODO[narrow]: 全deploymentでm040が完走し、
+  // verifyRecruitments.missingShopClosedDatesが0件になった後にfallbackを削除する。
   const shopClosedDateSet = new Set(recruitment.shopClosedDates ?? []);
   const submissionPattern = recruitment.submissionPattern;
 
@@ -321,6 +323,7 @@ export const getRecruitmentNotificationDataForStaff = internalQuery({
 /**
  * rolling deploy中にin-progressの旧個別通知actionが読む互換query。
  * 旧return shapeを維持しつつ、40件上限・dirty・tenant状態を現在値でfail closedに再検証する。
+ * TODO[narrow]: 全deploymentで旧個別通知actionのschedulerが0件になり、drain期間が終わった後に削除する。
  */
 export const getCurrentConfirmationEmailDataForStaff = internalQuery({
   args: { staffId: v.id("staffs") },
@@ -408,6 +411,7 @@ export const getOpenRecruitmentEmailChangeNotificationDataForStaff = internalQue
     const data = await getOpenRecruitmentNotificationDataForStaffInternal(ctx, staffId);
     if (!data) return null;
 
+    // TODO[narrow]: 全deploymentでm032が完走し、verifyStaffsのemail残件が全pageで0になった後にemail fallbackを削除する。
     const currentEmailNormalized = (data.staff.emailNormalized ?? data.staff.email).trim().toLowerCase();
     if (currentEmailNormalized === "" || currentEmailNormalized !== expectedEmailNormalized) return null;
 

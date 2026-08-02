@@ -266,6 +266,7 @@ const AdjustStep = ({
         initialShifts={shifts}
         dates={dates}
         timeRange={TIME_RANGE}
+        submissionPattern={SUBMISSION_DATA.submissionPattern}
         initialViewMode="daily"
         isConfirmed={isConfirmed}
         onShiftsChange={onShiftsChange}
@@ -331,7 +332,7 @@ const ShareStep = ({ shifts, onReplay }: { shifts: ShiftData[]; onReplay: () => 
       >
         <Stack gap={3}>
           <Text color="fg.muted" lineHeight={1.8}>
-            募集から共有の体験は終わりです。
+            募集作成から確定シフトの共有まで、ひととおりの体験はこれで終了です。
           </Text>
           <Text color="fg.muted" lineHeight={1.8}>
             このデモページは閉じて大丈夫です。
@@ -339,13 +340,15 @@ const ShareStep = ({ shifts, onReplay }: { shifts: ShiftData[]; onReplay: () => 
           <Text color="fg.muted" lineHeight={1.8}>
             各画面はこのあとも操作できます。
             <br />
-            時間があれば、もう一度触って使い心地を試してみてください。
+            時間があれば、もう一度操作して使い心地を確かめてみてください。
           </Text>
           <DemoCompleteCta />
           {showCloseHelp && (
             <Box bg="teal.50" borderWidth="1px" borderColor="teal.200" borderRadius="md" px={4} py={3}>
               <Text color="teal.800" fontSize="sm" lineHeight={1.7}>
-                ブラウザの制限により自動で閉じられませんでした。お手数ですが、このタブを閉じてください。
+                ブラウザの制限により、このタブを自動で閉じられませんでした。
+                <br />
+                お手数ですが、このタブを閉じてください。
               </Text>
             </Box>
           )}

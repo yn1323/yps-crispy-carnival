@@ -16,8 +16,10 @@ export function CacheResetPage() {
           size="lg"
           title="ページ情報を更新しました"
           titleAs="h1"
-          description="この端末に残っていた古いページ情報を消去しました。トップページへ戻り、もう一度お試しください。"
-          secondaryDescription="同じエラーが続く場合は、Chromeの閲覧履歴からキャッシュされた画像とファイルを削除してください。"
+          description={
+            "この端末に残っていた古いページ情報を消去しました。\nトップページへ戻り、もう一度お試しください。"
+          }
+          secondaryDescription="同じエラーが続く場合は、Chromeの閲覧履歴から「キャッシュされた画像とファイル」を削除してください。"
           tone="brand"
           minH={{ base: `calc(100dvh - ${HEADER_HEIGHT.base})`, md: `calc(100dvh - ${HEADER_HEIGHT.md})` }}
           px={{ base: 2, md: 4 }}

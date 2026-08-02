@@ -45,7 +45,7 @@ const sitePageSchema = z.object({
   landingPreviewDescription: z
     .string()
     .min(1)
-    .catch("LINE回収やExcel転記など、シフト作成でつまずきやすいポイントを整理しています。"),
+    .catch("LINEでの回収やExcelへの転記など、シフト作成でつまずきやすいポイントを整理しています。"),
   landingPreviewLimit: z.coerce.number().int().positive().catch(3),
   landingPreviewLinkLabel: z.string().min(1).catch("記事一覧を見る"),
 });
@@ -332,7 +332,7 @@ function parseArticleHeroImage(
   }
 
   if (!fields.heroImageAlt) {
-    throw new Error(`記事 "${slug}" の heroImageSrc には heroImageAlt が必要です`);
+    throw new Error(`記事 "${slug}" で heroImageSrc を指定する場合は heroImageAlt も必要です`);
   }
 
   return {

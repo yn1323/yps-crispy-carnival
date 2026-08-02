@@ -23,21 +23,21 @@ const COPY: Record<
     icon: LuCircleCheck,
     tone: "success",
     title: "シフト通知をLINEで受け取れます",
-    description: "シフト確定や提出依頼をLINEへ送ります。このページは閉じて構いません。",
+    description: "シフト確定や提出依頼をLINEへ送ります。\nこのページは閉じて構いません。",
   },
   needs_follow: {
     icon: LuCircleAlert,
     tone: "warning",
     title: "LINE連携は完了しました",
     description:
-      "シフト通知をLINEで受け取るには、シフトリ公式アカウントを友だち追加してください。友だち追加後、募集中のシフトがある場合はLINEで案内します。",
+      "シフト通知をLINEで受け取るには、シフトリ公式アカウントを友だち追加してください。\n募集中のシフトがある場合は、友だち追加後にLINEで案内します。",
   },
   expired: {
     icon: LuClock,
     tone: "warning",
     title: "このリンクではLINE連携できません",
     description:
-      "リンクが無効または使用済みの可能性があります。シフト作成担当者に、新しい連携リンクをお願いしてください。",
+      "このリンクは無効か、すでに使用された可能性があります。\nシフト作成担当者に、新しい連携リンクの発行を依頼してください。",
   },
   rate_limited: {
     icon: LuCircleAlert,
@@ -49,7 +49,7 @@ const COPY: Record<
     icon: LuCircleAlert,
     tone: "danger",
     title: "LINE連携を完了できませんでした",
-    description: "通信が切れた可能性があります。少し待ってからもう一度お試しください。",
+    description: "通信が切れた可能性があります。\n少し待ってから、もう一度お試しください。",
   },
 };
 

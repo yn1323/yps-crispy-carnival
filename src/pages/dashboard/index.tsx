@@ -63,22 +63,22 @@ export function DashboardPage({ visibleUserCount, focusedPersonId, onVisibleUser
               <Alert.Indicator mt={1} />
               <Alert.Content>
                 <Alert.Title>この店舗は閲覧のみです</Alert.Title>
-                <Alert.Description>
+                <Alert.Description whiteSpace="pre-line">
                   {selectedContext.shopStatus === "archived"
                     ? showGroupSettings
-                      ? "アーカイブ済みのため、新しいシフトや利用者は変更できません。再開するときはグループ設定から再稼働してください。"
-                      : "アーカイブ済みのため、新しいシフトや利用者は変更できません。"
+                      ? "アーカイブ済みのため、シフトや利用者の追加・変更はできません。\n再開するときは、グループ設定から再稼働してください。"
+                      : "アーカイブ済みのため、シフトや利用者の追加・変更はできません。"
                     : selectedContext.shopStatus === "planSuspended"
-                      ? "現在のプランでは停止中です。既存データは削除されていません。"
+                      ? "現在のプランでは、この店舗を利用できません。\n既存データは削除されていません。"
                       : shop?.businessWriteBlockReason === "paymentResultPending"
-                        ? "支払い結果を確認中です。確認が完了するまで、既存データを閲覧できますが変更や通知送信はできません。"
+                        ? "支払い結果を確認中です。\n確認が完了するまで、既存データの閲覧はできますが、変更や通知送信はできません。"
                         : shop?.businessWriteBlockReason === "restricted"
                           ? featureVisibility.billing
-                            ? "契約制限中です。既存データを閲覧しながら、グループ設定で契約の復旧や利用状況の整理を進めてください。"
+                            ? "契約制限中です。\n既存データを閲覧しながら、グループ設定で契約の復旧や利用状況の整理を進めてください。"
                             : showGroupSettings
-                              ? "契約制限中です。既存データを閲覧しながら、グループ設定で利用状況の整理を進めてください。"
-                              : "契約制限中です。既存データは引き続き確認できます。"
-                          : "閲覧のみの管理者は既存データを確認できますが、変更や通知送信はできません。"}
+                              ? "契約制限中です。\n既存データを閲覧しながら、グループ設定で利用状況の整理を進めてください。"
+                              : "契約制限中です。\n既存データは引き続き確認できます。"
+                          : "閲覧のみの管理者は、既存データを確認できますが、変更や通知送信はできません。"}
                 </Alert.Description>
                 {showGroupSettings && (selectedContext.shopStatus !== "active" || isBillingReadOnly) && (
                   <Button asChild size="sm" variant="outline" mt={3} alignSelf="flex-start">

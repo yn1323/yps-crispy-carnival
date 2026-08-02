@@ -75,7 +75,7 @@ export const InteractiveFormFlow: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "確認へ" }));
     await expect(await canvas.findByText("名前を入力してください")).toBeInTheDocument();
     await expect(await canvas.findByText("メールアドレスを入力してください")).toBeInTheDocument();
-    await expect(await canvas.findByText("利用規約とプライバシーポリシーに同意してください")).toBeInTheDocument();
+    await expect(await canvas.findByText("利用規約とプライバシーポリシーに同意してください。")).toBeInTheDocument();
 
     await userEvent.type(canvas.getByRole("textbox", { name: "名前" }), "田中 花子");
     await userEvent.type(canvas.getByRole("textbox", { name: "メールアドレス" }), "hanako@gmai.com");

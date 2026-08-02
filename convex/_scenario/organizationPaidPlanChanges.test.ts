@@ -177,30 +177,21 @@ async function seedTrialBusiness(ctx: MutationCtx, subject: string, trialEndsAt:
   return { ...seeded, billingStateId: billingState._id };
 }
 
-async function seedComplimentaryAtLimits(ctx: MutationCtx, args: { subject: string; storedPlan: "pro" | "business" }) {
+async function seedComplimentaryAtLimits(ctx: MutationCtx, subject: string) {
   const seeded = await seedOrganizationManagerShop(ctx, {
-    subject: args.subject,
+    subject,
     complimentary: true,
-  });
-  const billingState = await ctx.db
-    .query("organizationBillingStates")
-    .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
-    .unique();
-  if (!billingState) throw new Error("billing state not found");
-  await ctx.db.patch(billingState._id, {
-    state: { kind: "complimentary", plan: args.storedPlan },
-    updatedAt: Date.now(),
   });
 
   for (let index = 1; index <= 4; index += 1) {
-    await addManager(ctx, seeded.organizationId, `${args.subject}_manager_${index}`);
-    await addShop(ctx, seeded.organizationId, `${args.subject} 第${index + 1}店舗`);
+    await addManager(ctx, seeded.organizationId, `${subject}_manager_${index}`);
+    await addShop(ctx, seeded.organizationId, `${subject} 第${index + 1}店舗`);
   }
   const staffPeople = [];
   for (let index = 1; index <= 35; index += 1) {
-    staffPeople.push(await addStaffPerson(ctx, seeded.organizationId, seeded.shopId, `${args.subject}_staff_${index}`));
+    staffPeople.push(await addStaffPerson(ctx, seeded.organizationId, seeded.shopId, `${subject}_staff_${index}`));
   }
-  return { ...seeded, billingStateId: billingState._id, staffPeople };
+  return { ...seeded, staffPeople };
 }
 
 type PaidStripeContext = Awaited<ReturnType<typeof seedPaidStripeContext>>;
@@ -1525,42 +1516,26 @@ describe("有料プラン変更シナリオ", () => {
     expect(restored.staff?.isDeleted).toBe(true);
   });
 
-  it("complimentary.proとcomplimentary.businessはともにBusiness上限を使い、Stripe行と課金通知を作らない", async () => {
+  it("complimentary.businessはBusiness上限を使い、Stripe行と課金通知を作らない", async () => {
     const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => ({
-      legacy: await seedComplimentaryAtLimits(ctx, {
-        subject: "complimentary_pro_compatibility",
-        storedPlan: "pro",
-      }),
-      current: await seedComplimentaryAtLimits(ctx, {
-        subject: "complimentary_business",
-        storedPlan: "business",
-      }),
-    }));
+    const ids = await t.run((ctx) => seedComplimentaryAtLimits(ctx, "complimentary_business"));
 
-    const [legacySettings, currentSettings] = await Promise.all([
-      t
-        .withIdentity({ subject: "complimentary_pro_compatibility" })
-        .query(api.organization.queries.getSettings, { shopId: ids.legacy.shopId }),
-      t
-        .withIdentity({ subject: "complimentary_business" })
-        .query(api.organization.queries.getSettings, { shopId: ids.current.shopId }),
-    ]);
-    for (const settings of [legacySettings, currentSettings]) {
-      expect(settings?.billing).toMatchObject({
-        state: "business",
-        currentPlan: "business",
-        isComplimentary: true,
-        peopleUsage: { current: 40, max: 40, pendingInvitations: 0 },
-        shopUsage: { current: 5, max: 5, pendingInvitations: 0 },
-        managerUsage: { current: 5, max: 5, pendingInvitations: 0 },
-        requiredReductions: { people: 0, shops: 0, managers: 0 },
-        canManagePlan: false,
-        canUpdatePaymentMethod: false,
-        canUpdateBillingEmail: false,
-        canScheduleFree: false,
-      });
-    }
+    const settings = await t
+      .withIdentity({ subject: "complimentary_business" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+    expect(settings?.billing).toMatchObject({
+      state: "business",
+      currentPlan: "business",
+      isComplimentary: true,
+      peopleUsage: { current: 40, max: 40, pendingInvitations: 0 },
+      shopUsage: { current: 5, max: 5, pendingInvitations: 0 },
+      managerUsage: { current: 5, max: 5, pendingInvitations: 0 },
+      requiredReductions: { people: 0, shops: 0, managers: 0 },
+      canManagePlan: false,
+      canUpdatePaymentMethod: false,
+      canUpdateBillingEmail: false,
+      canScheduleFree: false,
+    });
 
     const sideEffects = await t.run(async (ctx) => ({
       stripeCustomers: await ctx.db.query("organizationStripeCustomers").collect(),

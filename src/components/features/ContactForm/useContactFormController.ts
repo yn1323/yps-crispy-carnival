@@ -6,7 +6,7 @@ import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { createContactFormDefaultValues, getContactMessagePresentation } from "./script";
 import type { ContactSubmitData } from "./submitContactRequest";
 
-const SUBMISSION_ERROR_MESSAGE = "問い合わせを送信できませんでした。少し時間をおいてお試しください";
+const SUBMISSION_ERROR_MESSAGE = "問い合わせを送信できませんでした。\n少し時間をおいて、もう一度お試しください。";
 
 export type ContactVerification = { siteKey: string } | { token: string };
 

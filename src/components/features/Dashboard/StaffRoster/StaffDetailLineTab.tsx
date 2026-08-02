@@ -43,7 +43,7 @@ export const StaffDetailLineTab = ({
           <LuMessageCircle />
           <Text fontWeight="semibold">{lineStatus.label}</Text>
         </HStack>
-        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+        <Text fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
           {lineStatus.description}
         </Text>
       </Stack>
@@ -56,7 +56,7 @@ export const StaffDetailLineTab = ({
             次のいずれかの方法でLINE連携できます。
           </Text>
           <Text fontSize="xs" color="fg.muted" lineHeight="tall">
-            ※シフトリ登録時、自動でLINE連携リンクをメールでお送りしています。
+            ※スタッフ登録時に、LINE連携リンクをメールで自動送信しています。
           </Text>
         </Stack>
 
@@ -71,7 +71,7 @@ export const StaffDetailLineTab = ({
         <LineConnectionMethod
           number="2"
           title="LINE連携リンクをメールで送る"
-          description="スタッフのメールアドレスにLINE連携リンクをお送りします。"
+          description="スタッフのメールアドレスにLINE連携リンクを送ります。"
         >
           <Button
             colorPalette="teal"
@@ -85,7 +85,9 @@ export const StaffDetailLineTab = ({
           </Button>
           {!hasEmail && (
             <Text fontSize="xs" color="fg.muted">
-              メールアドレスがないため、メールでは送れません。リンクを直接共有してください。
+              メールアドレスが未登録のため、メールでは送れません。
+              <br />
+              リンクを直接共有してください。
             </Text>
           )}
         </LineConnectionMethod>
@@ -93,8 +95,10 @@ export const StaffDetailLineTab = ({
     )}
 
     {isLineActive && (
-      <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-        このスタッフはLINE連携済みです。必要な場合は、通知タブからシフト関連の通知を再送できます。
+      <Text fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
+        このスタッフはLINE連携済みです。
+        <br />
+        必要な場合は、通知タブからシフト関連の通知を再送できます。
       </Text>
     )}
   </Stack>

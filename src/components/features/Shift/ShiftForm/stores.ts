@@ -19,6 +19,7 @@ import type {
   TimeRange,
   ViewMode,
 } from "@/src/domains/shift/types";
+import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
 
 // ==========================================
 // 外部設定（propsから初期化、子コンポーネントは読み取り専用）
@@ -34,7 +35,7 @@ export const shiftConfigAtom = atom<{
   currentStaffId?: string;
   allShifts?: ShiftData[];
   requiredStaffing?: RequiredStaffingData[];
-  submissionPattern?: ShiftSubmissionPattern;
+  submissionPattern: ShiftSubmissionPattern;
   displayMode?: "request" | "confirmed";
 }>({
   shopId: "",
@@ -44,6 +45,7 @@ export const shiftConfigAtom = atom<{
   timeRange: { start: 9, end: 22, unit: 30 },
   holidays: [],
   isReadOnly: false,
+  submissionPattern: DEFAULT_TIME_PATTERN,
   displayMode: "request",
 });
 
@@ -188,7 +190,7 @@ const buildDailyStaffOrder = (get: Getter, date: string): string[] | null => {
   if (!date || config.staffs.length === 0) return null;
 
   const shiftByStaffId = indexShiftsByStaffId(get(shiftsAtom).filter((shift) => shift.date === date));
-  const mode = config.submissionPattern?.kind === "dateOnly" ? "dateOnly" : (config.submissionPattern?.kind ?? "time");
+  const mode = config.submissionPattern.kind === "dateOnly" ? "dateOnly" : config.submissionPattern.kind;
   return sortDailyStaffs({
     staffs: config.staffs,
     shiftByStaffId,

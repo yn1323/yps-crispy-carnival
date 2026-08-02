@@ -35,29 +35,29 @@ export function deriveOrganizationPersonCapabilities(input: OrganizationPersonCa
       : input.activeManagerCount <= 1
         ? "最後の有効管理者の管理者権限は外せません。"
         : !input.isActiveActor
-          ? "閲覧のみの管理者は管理者権限を変更できません。"
+          ? "閲覧のみの管理者は、管理者権限を変更できません。"
           : input.isRestricted
-            ? "契約制限中は管理者権限を外せません。"
+            ? "契約制限中は、管理者権限を外せません。"
             : input.policy?.paidFeatureBlockReason === "freePlan"
-              ? "無料では管理者の個別解除はできません。"
+              ? "無料プランでは、管理者の個別解除はできません。"
               : input.policy?.paidFeatureBlockReason === "paymentResultPending"
-                ? "支払い結果が確定してから管理者権限を変更できます。"
+                ? "支払い結果が確定するまで、管理者権限を変更できません。"
                 : !input.isStaff && input.isBillingContact
-                  ? "請求先メールアドレスを変更してから管理者権限を外してください。"
-                  : "現在の契約状態では管理者権限を変更できません。";
+                  ? "管理者権限を外すには、先に請求先メールアドレスを変更してください。"
+                  : "現在の契約状態では、管理者権限を変更できません。";
   const removeDisabledReason = canRemove
     ? undefined
     : input.isLastRecoveryManager
-      ? "最後の復旧担当者は、引き継ぎまたは契約復旧まで削除できません。"
+      ? "最後の復旧担当者は、引き継ぎまたは契約の復旧が完了するまで削除できません。"
       : isLastActiveManager
         ? "最後の有効管理者は削除できません。"
         : input.isBillingContact
-          ? "請求先メールアドレスを変更してから削除してください。"
+          ? "削除するには、先に請求先メールアドレスを変更してください。"
           : input.isRestrictedRecovery
-            ? "現在の契約状態ではこのユーザーを削除できません。"
+            ? "現在の契約状態では、このユーザーを削除できません。"
             : !input.isActiveActor
-              ? "閲覧のみの管理者はユーザーを削除できません。"
-              : "現在の契約状態ではユーザーを削除できません。";
+              ? "閲覧のみの管理者は、ユーザーを削除できません。"
+              : "現在の契約状態では、ユーザーを削除できません。";
 
   return {
     canRemoveManagerRole,
