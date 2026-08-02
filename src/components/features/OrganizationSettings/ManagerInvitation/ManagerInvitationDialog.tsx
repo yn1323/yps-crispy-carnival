@@ -145,6 +145,7 @@ export function ManagerInvitationDialog({
             }}
             colorPalette="teal"
             variant="line"
+            lazyMount
           >
             <Tabs.List overflowX="auto" overflowY="hidden" whiteSpace="nowrap" borderBottomWidth="1px">
               <Tabs.Trigger value="staff" flexShrink={0} disabled={isRunning}>

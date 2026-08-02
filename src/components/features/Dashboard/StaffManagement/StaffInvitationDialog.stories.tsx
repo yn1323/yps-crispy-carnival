@@ -191,6 +191,8 @@ export const TabSwitchBehavior: Story = {
   play: async ({ canvasElement }) => {
     const page = within(canvasElement.ownerDocument.body);
 
+    await expect(page.queryByRole("button", { name: "スタッフを登録する" })).not.toBeInTheDocument();
+    await expect(page.queryByRole("button", { name: "佐藤 真由美をこの店舗に追加" })).not.toBeInTheDocument();
     await userEvent.click(await page.findByRole("tab", { name: "管理者が登録" }));
     await expect(await page.findByRole("button", { name: "スタッフを登録する" })).toBeInTheDocument();
 

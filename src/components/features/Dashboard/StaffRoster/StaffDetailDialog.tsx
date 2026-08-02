@@ -15,12 +15,13 @@ type PendingAction = {
   contextKey: string;
 };
 type DirectAction = "sendRecruitments" | "sendCurrentShift" | "sendLineInvite";
+type StaffDetailTab = "basic" | "notification" | "line" | "settings";
 
 type Props = {
   staff: Staff | null;
   isReadOnly?: boolean;
   isOpen: boolean;
-  defaultTab?: "basic" | "notification" | "line" | "settings";
+  defaultTab?: StaffDetailTab;
   onOpenChange: (details: { open: boolean }) => void;
   onClose: () => void;
   openRecruitments: Recruitment[];
@@ -75,6 +76,7 @@ export const StaffDetailDialog = ({
   onInviteManager,
   isInvitingManager,
 }: Props) => {
+  const [activeTab, setActiveTab] = useState<StaffDetailTab>(defaultTab);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const directActionRef = useRef<DirectAction | null>(null);
   const [directAction, setDirectAction] = useState<DirectAction | null>(null);
@@ -164,7 +166,13 @@ export const StaffDetailDialog = ({
       <Stack gap={5}>
         <StaffDetailSummary staff={staff} lineStatus={lineStatus} />
 
-        <Tabs.Root defaultValue={defaultTab} colorPalette="teal" variant="line">
+        <Tabs.Root
+          value={activeTab}
+          onValueChange={({ value }) => setActiveTab(value as StaffDetailTab)}
+          colorPalette="teal"
+          variant="line"
+          lazyMount
+        >
           <Tabs.List overflowX="auto" overflowY="hidden" whiteSpace="nowrap" borderBottomWidth="1px">
             <Tabs.Trigger value="basic" flexShrink={0}>
               情報
@@ -192,7 +200,7 @@ export const StaffDetailDialog = ({
               isShiftTarget={isShiftTarget}
               openRecruitments={openRecruitments}
               currentRecruitments={currentRecruitments}
-              notificationHistory={notificationHistory}
+              notificationHistory={activeTab === "notification" ? notificationHistory : null}
               sendRecruitmentsAction={{
                 isDisabled: !canSendRecruitments || isDirectActionRunning,
                 isLoading: isSendingRecruitments || directAction === "sendRecruitments",

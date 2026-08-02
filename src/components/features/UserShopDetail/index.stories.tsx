@@ -200,6 +200,51 @@ export const Loading: Story = {
   render: () => <UserShopDetailSkeleton />,
 };
 
+function NotificationLoadingHarness() {
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  return (
+    <>
+      <button type="button" onClick={() => setIsLoaded(true)}>
+        通知情報の取得を完了
+      </button>
+      <UserShopDetailView
+        data={data}
+        membership={membership}
+        isStoreReadOnly={false}
+        showMembershipRemoval
+        notificationHistory={isLoaded ? notificationHistory : null}
+        state={{
+          ...baseState,
+          notifications: {
+            ...baseState.notifications,
+            isLoading: !isLoaded,
+            openRecruitments: isLoaded ? baseState.notifications.openRecruitments : [],
+            currentRecruitments: isLoaded ? baseState.notifications.currentRecruitments : [],
+          },
+        }}
+        actions={baseActions}
+      />
+    </>
+  );
+}
+
+export const NotificationLoadingBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <NotificationLoadingHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole("heading", { name: "LINE連携" })).toBeInTheDocument();
+    await expect(canvas.getByLabelText("通知情報を読み込み中")).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "通知情報の取得を完了" }));
+
+    await expect(await canvas.findByRole("button", { name: "募集中のシフトを再送する" })).toBeEnabled();
+    await expect(canvas.queryByLabelText("通知情報を読み込み中")).not.toBeInTheDocument();
+    await expect(canvas.getByRole("heading", { name: "LINE連携" })).toBeInTheDocument();
+  },
+};
+
 function InteractionHarness() {
   const [showQr, setShowQr] = useState(false);
   const [isSendingRecruitments, setIsSendingRecruitments] = useState(false);

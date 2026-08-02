@@ -88,7 +88,7 @@ beforeEach(() => {
 describe("useUserShopNotificationActions", () => {
   it("募集・確定シフトのqueryと通知mutationへpathのtargetShopIdを明示する", async () => {
     const { result } = renderHook(() =>
-      useUserShopNotificationActions({ targetShopId, membership, isReadOnly: false }),
+      useUserShopNotificationActions({ targetShopId, membership, isReadOnly: false, enabled: true }),
     );
 
     expect(mocks.usePaginatedQuery).toHaveBeenCalledWith(
@@ -118,7 +118,12 @@ describe("useUserShopNotificationActions", () => {
   it("membershipとpathの店舗が一致しなければ通知mutationを送らない", async () => {
     const mismatchedShopId = "shop-other" as Id<"shops">;
     const { result } = renderHook(() =>
-      useUserShopNotificationActions({ targetShopId: mismatchedShopId, membership, isReadOnly: false }),
+      useUserShopNotificationActions({
+        targetShopId: mismatchedShopId,
+        membership,
+        isReadOnly: false,
+        enabled: true,
+      }),
     );
 
     await act(async () => {
@@ -133,7 +138,7 @@ describe("useUserShopNotificationActions", () => {
   it("確定シフトが再送上限を超えた場合は処理を始めず理由を案内する", async () => {
     mocks.sendCurrent.mockResolvedValue({ scheduled: false, reason: "tooManyCurrentShifts" });
     const { result } = renderHook(() =>
-      useUserShopNotificationActions({ targetShopId, membership, isReadOnly: false }),
+      useUserShopNotificationActions({ targetShopId, membership, isReadOnly: false, enabled: true }),
     );
 
     await act(async () => {
@@ -150,7 +155,7 @@ describe("useUserShopNotificationActions", () => {
   it("未確定の変更がある場合は確定後の再送を案内する", async () => {
     mocks.sendCurrent.mockResolvedValue({ scheduled: false, reason: "unconfirmedChanges" });
     const { result } = renderHook(() =>
-      useUserShopNotificationActions({ targetShopId, membership, isReadOnly: false }),
+      useUserShopNotificationActions({ targetShopId, membership, isReadOnly: false, enabled: true }),
     );
 
     await act(async () => {
@@ -162,5 +167,33 @@ describe("useUserShopNotificationActions", () => {
       type: "error",
     });
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+  });
+
+  it("非表示中はqueryをskipし、再表示時だけ購読を開始する", () => {
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useUserShopNotificationActions({ targetShopId, membership, isReadOnly: false, enabled }),
+      { initialProps: { enabled: false } },
+    );
+
+    expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(mocks.recruitmentsRef, "skip", {
+      initialNumItems: 100,
+    });
+    expect(mocks.useQuery).toHaveBeenLastCalledWith(mocks.currentRecruitmentsRef, "skip");
+    expect(result.current.openRecruitments).toEqual([]);
+    expect(result.current.currentRecruitments).toEqual([]);
+
+    rerender({ enabled: true });
+    expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(
+      mocks.recruitmentsRef,
+      { shopId: targetShopId },
+      { initialNumItems: 100 },
+    );
+    expect(mocks.useQuery).toHaveBeenLastCalledWith(mocks.currentRecruitmentsRef, { shopId: targetShopId });
+
+    rerender({ enabled: false });
+    expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(mocks.recruitmentsRef, "skip", {
+      initialNumItems: 100,
+    });
+    expect(mocks.useQuery).toHaveBeenLastCalledWith(mocks.currentRecruitmentsRef, "skip");
   });
 });

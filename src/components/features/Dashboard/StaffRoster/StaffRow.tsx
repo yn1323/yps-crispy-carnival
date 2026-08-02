@@ -5,9 +5,10 @@ import type { Staff } from "@/src/components/features/Dashboard/types";
 type Props = {
   staff: Staff;
   onOpenDetail: (staff: Staff) => void;
+  onOpenDetailIntent?: () => void;
 };
 
-export function StaffRow({ staff, onOpenDetail }: Props) {
+export function StaffRow({ staff, onOpenDetail, onOpenDetailIntent }: Props) {
   const initial = staff.name.trim().charAt(0) || "?";
   const avatarPalette = staff.isManager ? { bg: "teal.500", fg: "white" } : { bg: "teal.50", fg: "teal.700" };
   const isLineActive = staff.isLineLinked && staff.isLineFollowing;
@@ -30,6 +31,8 @@ export function StaffRow({ staff, onOpenDetail }: Props) {
       transition="background-color 150ms ease"
       _hover={{ bg: staff.isManager ? "teal.50" : "blackAlpha.50" }}
       _focusVisible={{ outlineWidth: "2px", outlineStyle: "solid", outlineColor: "teal.500", outlineOffset: "-2px" }}
+      onPointerEnter={onOpenDetailIntent}
+      onFocus={onOpenDetailIntent}
       onClick={() => onOpenDetail(staff)}
     >
       <Flex

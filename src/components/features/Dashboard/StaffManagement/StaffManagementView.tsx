@@ -1,12 +1,29 @@
 import { Alert, Stack, Text } from "@chakra-ui/react";
-import type { ReactNode } from "react";
+import { lazy, type ReactNode } from "react";
 import { PeopleCapacityResolutionAlert } from "@/src/components/shared/PeopleCapacityResolutionAlert";
 import { Dialog } from "@/src/components/ui/Dialog";
+import { DeferredDialogBoundary } from "@/src/components/ui/Dialog/DeferredDialogBoundary";
 import type { EditStaffFormData } from "../EditStaffForm";
 import { StaffRoster } from "../StaffRoster";
-import { StaffDetailDialog } from "../StaffRoster/StaffDetailDialog";
 import type { PaginationStatus, Recruitment, Staff } from "../types";
-import { StaffInvitationDialog, type StaffInvitationViewModel } from "./StaffInvitationDialog";
+import type { StaffInvitationViewModel } from "./StaffInvitationDialog";
+
+const loadStaffInvitationDialog = () => import("./StaffInvitationDialog");
+const loadStaffDetailDialog = () => import("../StaffRoster/StaffDetailDialog");
+const LazyStaffInvitationDialog = lazy(() =>
+  loadStaffInvitationDialog().then((module) => ({ default: module.StaffInvitationDialog })),
+);
+const LazyStaffDetailDialog = lazy(() =>
+  loadStaffDetailDialog().then((module) => ({ default: module.StaffDetailDialog })),
+);
+
+function preloadStaffInvitationDialog() {
+  void loadStaffInvitationDialog().catch(() => undefined);
+}
+
+function preloadStaffDetailDialog() {
+  void loadStaffDetailDialog().catch(() => undefined);
+}
 
 type DialogState = {
   isOpen: boolean;
@@ -76,12 +93,23 @@ export function StaffManagementView({
         status={status}
         canLoadMore={canLoadMore}
         onAddClick={invitation.onOpen}
+        onAddIntent={preloadStaffInvitationDialog}
         onOpenDetail={onOpenDetail}
+        onOpenDetailIntent={preloadStaffDetailDialog}
         onLoadMore={onLoadMore}
         focusedPersonId={focusedPersonId}
       />
 
-      <StaffInvitationDialog invitation={invitation} isReadOnly={isReadOnly} />
+      {invitation.dialog.isOpen && (
+        <DeferredDialogBoundary
+          title="スタッフを招待"
+          isOpen
+          onOpenChange={invitation.dialog.onOpenChange}
+          onClose={invitation.onClose}
+        >
+          <LazyStaffInvitationDialog invitation={invitation} isReadOnly={isReadOnly} />
+        </DeferredDialogBoundary>
+      )}
 
       <Dialog
         title="削除済みの人物を再追加しますか？"
@@ -126,32 +154,36 @@ export function StaffManagementView({
         </Stack>
       </Dialog>
 
-      <StaffDetailDialog
-        staff={detail.staff}
-        isReadOnly={isReadOnly}
-        isOpen={detail.dialog.isOpen}
-        onOpenChange={detail.onOpenChange}
-        onClose={detail.onClose}
-        openRecruitments={openRecruitments}
-        currentRecruitments={currentRecruitments}
-        onEdit={detail.onEdit}
-        isEditing={detail.isEditing}
-        onDelete={detail.onDelete}
-        isDeleting={detail.isDeleting}
-        onShowLineQr={detail.onShowLineQr}
-        lineQrState={detail.lineQrState}
-        onSendLineInvite={detail.onSendLineInvite}
-        isSendingLineInvite={detail.isSendingLineInvite}
-        onSendRecruitments={detail.onSendRecruitments}
-        isSendingRecruitments={detail.isSendingRecruitments}
-        onSendCurrentShift={detail.onSendCurrentShift}
-        isSendingCurrentShift={detail.isSendingCurrentShift}
-        notificationHistory={detail.notificationHistory}
-        onChangeShiftTarget={detail.onChangeShiftTarget}
-        isChangingShiftTarget={detail.isChangingShiftTarget}
-        onInviteManager={detail.onInviteManager}
-        isInvitingManager={detail.isInvitingManager}
-      />
+      {detail.staff && detail.dialog.isOpen && (
+        <DeferredDialogBoundary title="スタッフ詳細" isOpen onOpenChange={detail.onOpenChange} onClose={detail.onClose}>
+          <LazyStaffDetailDialog
+            staff={detail.staff}
+            isReadOnly={isReadOnly}
+            isOpen
+            onOpenChange={detail.onOpenChange}
+            onClose={detail.onClose}
+            openRecruitments={openRecruitments}
+            currentRecruitments={currentRecruitments}
+            onEdit={detail.onEdit}
+            isEditing={detail.isEditing}
+            onDelete={detail.onDelete}
+            isDeleting={detail.isDeleting}
+            onShowLineQr={detail.onShowLineQr}
+            lineQrState={detail.lineQrState}
+            onSendLineInvite={detail.onSendLineInvite}
+            isSendingLineInvite={detail.isSendingLineInvite}
+            onSendRecruitments={detail.onSendRecruitments}
+            isSendingRecruitments={detail.isSendingRecruitments}
+            onSendCurrentShift={detail.onSendCurrentShift}
+            isSendingCurrentShift={detail.isSendingCurrentShift}
+            notificationHistory={detail.notificationHistory}
+            onChangeShiftTarget={detail.onChangeShiftTarget}
+            isChangingShiftTarget={detail.isChangingShiftTarget}
+            onInviteManager={detail.onInviteManager}
+            isInvitingManager={detail.isInvitingManager}
+          />
+        </DeferredDialogBoundary>
+      )}
     </>
   );
 }
