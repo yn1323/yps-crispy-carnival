@@ -21,6 +21,52 @@ const MANAGER_SUBJECT = "user_manager";
 
 describe("shop/mutations", () => {
   describe("updateShopSettings", () => {
+    it("同じ時刻の複数更新を別の分析source eventとして記録する", async () => {
+      const occurredAt = Date.parse("2026-08-02T00:00:00.000Z");
+      vi.useFakeTimers();
+      vi.setSystemTime(occurredAt);
+
+      try {
+        const t = convexTest(schema, modules);
+        const { shopId } = await t.run(async (ctx) =>
+          seedOrganizationManagerShop(ctx, {
+            subject: MANAGER_SUBJECT,
+            email: "analytics-shop-manager@example.com",
+            shopName: "更新前店舗",
+            plan: "pro",
+          }),
+        );
+        const asManager = t.withIdentity({ subject: MANAGER_SUBJECT });
+
+        await asManager.mutation(api.shop.mutations.updateShopSettings, {
+          ...validArgs,
+          shopId,
+          shopName: "1回目の店舗名",
+        });
+        await asManager.mutation(api.shop.mutations.updateShopSettings, {
+          ...validArgs,
+          shopId,
+          shopName: "2回目の店舗名",
+        });
+
+        const events = await t.run(async (ctx) =>
+          ctx.db
+            .query("analyticsSourceEvents")
+            .withIndex("by_shopId_and_occurredAt", (q) => q.eq("shopId", shopId))
+            .collect(),
+        );
+        expect(events).toHaveLength(2);
+        expect(new Set(events.map((event) => event.eventKey)).size).toBe(2);
+        expect(events.map((event) => event.payload)).toEqual([
+          { kind: "shop", change: "updated", displayName: "1回目の店舗名" },
+          { kind: "shop", change: "updated", displayName: "2回目の店舗名" },
+        ]);
+        expect(events.map((event) => event.occurredAt)).toEqual([occurredAt, occurredAt]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("shopIdを省略した旧クライアントは先頭の有効所属店舗を更新できる", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => {

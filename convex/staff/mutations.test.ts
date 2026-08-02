@@ -2306,6 +2306,69 @@ describe("staff/mutations", () => {
   });
 
   describe("setShiftExclusion", () => {
+    it("同じ時刻の対象外化と復帰を別の分析source eventとして記録する", async () => {
+      const occurredAt = Date.parse("2026-08-02T00:00:00.000Z");
+      vi.useFakeTimers();
+      vi.setSystemTime(occurredAt);
+
+      try {
+        const t = convexTest(schema, modules);
+        const { personId, shopId, staffId } = await t.run(async (ctx) => {
+          const seeded = await seedOrganizationManagerShop(ctx, {
+            subject: "analytics_shift_target_manager",
+            email: "analytics-shift-target@example.com",
+            shopName: "分析対象店舗",
+            plan: "pro",
+          });
+          const staffId = await ctx.db.insert("staffs", {
+            organizationId: seeded.organizationId,
+            organizationPersonId: seeded.personId,
+            shopId: seeded.shopId,
+            userId: seeded.userId,
+            name: "分析対象スタッフ",
+            email: "analytics-shift-target@example.com",
+            emailNormalized: "analytics-shift-target@example.com",
+            excludedFromShift: false,
+            isDeleted: false,
+          });
+          return { personId: seeded.personId, shopId: seeded.shopId, staffId };
+        });
+        const asManager = t.withIdentity({ subject: "analytics_shift_target_manager" });
+
+        await asManager.mutation(api.staff.mutations.setShiftExclusion, { shopId, staffId, excluded: true });
+        await asManager.mutation(api.staff.mutations.setShiftExclusion, { shopId, staffId, excluded: false });
+
+        const events = await t.run(async (ctx) =>
+          ctx.db
+            .query("analyticsSourceEvents")
+            .withIndex("by_shopId_and_occurredAt", (q) => q.eq("shopId", shopId))
+            .collect(),
+        );
+        expect(events).toHaveLength(2);
+        expect(new Set(events.map((event) => event.eventKey)).size).toBe(2);
+        expect(events.map((event) => event.payload)).toEqual([
+          {
+            kind: "staffMembership",
+            staffId,
+            organizationPersonId: personId,
+            status: "active",
+            isShiftTarget: false,
+            validFrom: occurredAt,
+          },
+          {
+            kind: "staffMembership",
+            staffId,
+            organizationPersonId: personId,
+            status: "active",
+            isShiftTarget: true,
+            validFrom: occurredAt,
+          },
+        ]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("未認証の場合エラーをthrow", async () => {
       const { t, data } = setupShopWithStaff();
       const { shopId, staffId } = await data;

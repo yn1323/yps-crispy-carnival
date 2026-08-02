@@ -1,6 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 
 const STAFF_SUBMIT_DATA_TIMEOUT = 20_000;
+const LEGAL_CONSENT_GUIDANCE = /初めて提出するときや、規約に大きな変更があったとき/;
 
 export class StaffSubmitPage {
   constructor(private page: Page) {}
@@ -66,12 +67,12 @@ export class StaffSubmitPage {
   }
 
   async expectLegalConsentVisible() {
-    await expect(this.page.getByText(/初めての提出時や、規約の大きな変更があったときのみ/)).toBeVisible();
+    await expect(this.page.getByText(LEGAL_CONSENT_GUIDANCE)).toBeVisible();
     await expect(this.legalConsentCheckbox()).toBeVisible();
   }
 
   async expectLegalConsentNotVisible() {
-    await expect(this.page.getByText(/初めての提出時や、規約の大きな変更があったときのみ/)).not.toBeVisible();
+    await expect(this.page.getByText(LEGAL_CONSENT_GUIDANCE)).not.toBeVisible();
     await expect(this.legalConsentCheckbox()).not.toBeVisible();
   }
 
@@ -103,7 +104,7 @@ export class StaffSubmitPage {
     await expect(dialog.getByRole("heading", { name: "提出締切を過ぎています" })).toBeVisible();
     await expect(
       dialog.getByText(
-        /提出締切を過ぎています。提出後(?:はこのリンクから|、このリンクでは)変更できません。変更が必要な場合はシフト作成担当者に連絡してください。/,
+        /提出締切を過ぎています。\s*提出後は、このリンクから変更できません。\s*変更が必要な場合は、シフト作成担当者に連絡してください。/,
       ),
     ).toBeVisible();
   }

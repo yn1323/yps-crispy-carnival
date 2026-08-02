@@ -61,7 +61,7 @@ export const updateShopSettings = managerMutation({
     });
     if (ctx.shop.organizationId) {
       await recordAnalyticsSourceEvent(ctx, {
-        eventKey: `shop:${ctx.shop._id}:updated:${occurredAt}`,
+        eventKey: `shop:${ctx.shop._id}:updated:${crypto.randomUUID()}`,
         eventType: "shop.changed",
         occurredAt,
         organizationId: ctx.shop.organizationId,
@@ -93,7 +93,7 @@ export const updateShopSetting = managerMutation({
           await ctx.db.patch(ctx.shop._id, { name: change.shopName });
           if (ctx.shop.organizationId) {
             await recordAnalyticsSourceEvent(ctx, {
-              eventKey: `shop:${ctx.shop._id}:updated:${occurredAt}`,
+              eventKey: `shop:${ctx.shop._id}:updated:${crypto.randomUUID()}`,
               eventType: "shop.changed",
               occurredAt,
               organizationId: ctx.shop.organizationId,

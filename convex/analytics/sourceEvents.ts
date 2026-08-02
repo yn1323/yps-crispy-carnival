@@ -119,10 +119,6 @@ async function insertAnalyticsSourceEvent(ctx: MutationCtx, args: AnalyticsSourc
   });
 }
 
-export function makeAnalyticsEventKey(prefix: string, subjectId: string, occurredAt: number): string {
-  return `${prefix}:${subjectId}:${occurredAt}`;
-}
-
 export function analyticsPlanForBillingState(
   state: OrganizationBillingState,
 ): "trial" | "free" | "pro" | "business" | undefined {

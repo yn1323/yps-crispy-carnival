@@ -744,7 +744,7 @@ export const setShiftExclusion = managerMutation({
     const organizationId = staff.organizationId ?? ctx.shop.organizationId;
     if (organizationId) {
       await recordAnalyticsSourceEvent(ctx, {
-        eventKey: `staffMembership:${staff._id}:shiftTarget:${now}`,
+        eventKey: `staffMembership:${staff._id}:shiftTarget:${crypto.randomUUID()}`,
         eventType: "staffMembership.changed",
         occurredAt: now,
         organizationId,
