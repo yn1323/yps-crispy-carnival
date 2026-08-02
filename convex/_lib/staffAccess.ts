@@ -17,6 +17,7 @@ export function sessionMatchesAccessKind(
   expectedAccessKind: StaffAccessKind,
 ): boolean {
   if (session.accessKind) return session.accessKind === expectedAccessKind;
+  // TODO[narrow]: 全deploymentでm036が完走し、verifySessionsの全pageが0になった後にmissing fallbackを削除する。
   // accessKind 導入前の session は提出リンクの救済だけに使い、確定シフト閲覧には流用しない。
   return expectedAccessKind === "submit";
 }

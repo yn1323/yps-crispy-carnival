@@ -3,9 +3,9 @@
 `doc/plans/`は、計画を作成した時点の判断、実装順序、受入条件を残す場所です。
 現在の機能や常設規約は、各表の「現在の正本」を参照してください。
 
-> 分類日: 2026-07-23
+> 分類日: 2026-08-02
 >
-> 分類基準: 2026-07-23のworktreeと各計画本文
+> 分類基準: 既存計画は2026-07-23のworktree、2026-08-02追加計画は作成時点のworktreeと各計画本文
 
 - **Proposed**：採否または設計レビューが終わっていない提案。
 - **Active**：コード、判断、外部設定、migration、実環境証跡のいずれかに未完了条件がある計画。
@@ -27,6 +27,7 @@
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
+| [分析KPIと内部BI再設計](2026-08-02_分析KPIと内部BI再設計_実装計画.md) | `rollout` | Production deploy、bootstrap、invariant確認、generation cutover、実負荷計測、旧3テーブルのbounded cleanupと0件証跡、別deployでのschema Narrow、Cloudflare環境確認 | [分析KPI蓄積基盤](../features/analytics.md)、[分析KPI可視化アプリ](../features/analytics-dashboard.md)、[Analytics rollout](../manual/analytics-rollout.md) |
 | [別端末ログイン本人確認](2026-07-11_別端末ログイン本人確認_実装計画.md) | `rollout` | Production相当のClerk設定、返却status、メール確認の実環境証跡 | [認証画面](../features/auth-pages.md)、[リリース状態](../manual/release-status.md) |
 | [E2E Full Regression](2026-07-13-e2e-full-regression.md) | `implementing` | 計画内で未実装のexact SHA、production build、runtime errorと、部分実装のmobile・a11yを再確認する | [テスト方針](../rules/testing-strategy.md)、[CI/CD運用](../manual/ci-cd.md) |
 | [フロントエンド単体テスト、Storybook、VRTリファクタ](2026-07-13-frontend-test-vrt-refactor.md) | `approved` | 完了記録がないため、各完了条件を現行テストとCIへ再照合する | [テスト方針](../rules/testing-strategy.md) |

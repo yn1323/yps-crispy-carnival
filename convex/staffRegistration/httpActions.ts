@@ -127,22 +127,22 @@ export const submit = httpAction(async (ctx, request) => {
     return jsonResponse(origin, { error: "JSON形式で送信してください" }, { status: 415 });
   }
   if (!body.ok && body.error === "body_too_large") {
-    return jsonResponse(origin, { error: "送信内容が大きすぎます" }, { status: 413 });
+    return jsonResponse(origin, { error: "送信内容が大きすぎます。" }, { status: 413 });
   }
-  if (!body.ok) return jsonResponse(origin, { error: "送信内容を確認してください" }, { status: 400 });
+  if (!body.ok) return jsonResponse(origin, { error: "送信内容を確認してください。" }, { status: 400 });
 
   let raw: unknown;
   try {
     raw = JSON.parse(body.rawBody) as unknown;
   } catch {
-    return jsonResponse(origin, { error: "送信内容を確認してください" }, { status: 400 });
+    return jsonResponse(origin, { error: "送信内容を確認してください。" }, { status: 400 });
   }
 
   const parsed = submitStaffRegistrationSchema.safeParse(raw);
   if (!parsed.success) {
     return jsonResponse(
       origin,
-      { error: parsed.error.issues[0]?.message ?? "送信内容を確認してください" },
+      { error: parsed.error.issues[0]?.message ?? "送信内容を確認してください。" },
       { status: 400 },
     );
   }
@@ -155,7 +155,7 @@ export const submit = httpAction(async (ctx, request) => {
   if (!ingressRateLimit.allowed) {
     return jsonResponse(
       origin,
-      { error: "申請回数が多くなっています。少し時間をおいてお試しください" },
+      { error: "申請回数が多くなっています。\n少し時間をおいて、もう一度お試しください。" },
       { status: 429 },
     );
   }
@@ -168,10 +168,14 @@ export const submit = httpAction(async (ctx, request) => {
       allowedOrigins: origins,
     });
     if (!verified) {
-      return jsonResponse(origin, { error: "セキュリティ確認をやり直してください" }, { status: 400 });
+      return jsonResponse(origin, { error: "セキュリティ確認をやり直してください。" }, { status: 400 });
     }
   } catch {
-    return jsonResponse(origin, { error: "セキュリティ確認を完了できませんでした" }, { status: 503 });
+    return jsonResponse(
+      origin,
+      { error: "セキュリティ確認を完了できませんでした。\nもう一度お試しください。" },
+      { status: 503 },
+    );
   }
 
   const normalizedEmail = input.email.trim().toLowerCase();
@@ -183,12 +187,12 @@ export const submit = httpAction(async (ctx, request) => {
   if (rateLimitResult.status === "rate_limited") {
     return jsonResponse(
       origin,
-      { error: "申請回数が多くなっています。少し時間をおいてお試しください" },
+      { error: "申請回数が多くなっています。\n少し時間をおいて、もう一度お試しください。" },
       { status: 429 },
     );
   }
   if (rateLimitResult.status === "unavailable") {
-    return jsonResponse(origin, { error: "登録リンクの有効期限が切れています" }, { status: 400 });
+    return jsonResponse(origin, { error: "登録リンクの有効期限が切れています。" }, { status: 400 });
   }
 
   try {
@@ -199,11 +203,11 @@ export const submit = httpAction(async (ctx, request) => {
       acceptedLegal: input.acceptedLegal,
     });
     if (result.status === "unavailable") {
-      return jsonResponse(origin, { error: "登録リンクの有効期限が切れています" }, { status: 400 });
+      return jsonResponse(origin, { error: "登録リンクの有効期限が切れています。" }, { status: 400 });
     }
   } catch {
     console.error("Staff registration submission failed", { errorCode: "staff_registration_submit_failed" });
-    return jsonResponse(origin, { error: "スタッフ登録を申請できませんでした" }, { status: 503 });
+    return jsonResponse(origin, { error: "スタッフ登録を申請できませんでした。" }, { status: 503 });
   }
 
   return jsonResponse(origin, RESPONSE_ACCEPTED);

@@ -76,8 +76,8 @@ export function OrganizationPersonRow({
       }
       accessibleDescription={
         <>
-          {roleLabel}。{showLineConnection && person.isLineConnected ? "LINE連携済み。" : ""}
-          {showShopNames ? `所属店舗: ${shopNames}。` : ""}
+          {roleLabel}です。{showLineConnection && person.isLineConnected ? "LINEと連携済みです。" : ""}
+          {showShopNames ? (shopNames === "なし" ? "所属店舗はありません。" : `所属店舗は${shopNames}です。`) : ""}
         </>
       }
     />

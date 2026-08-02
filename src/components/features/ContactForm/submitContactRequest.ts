@@ -14,6 +14,6 @@ export async function submitContactRequest(data: ContactSubmitData): Promise<voi
   });
   const body = (await response.json().catch(() => null)) as { error?: string; status?: string } | null;
   if (!response.ok || body?.status !== "accepted") {
-    throw new Error(body?.error ?? "問い合わせを送信できませんでした。少し時間をおいてお試しください");
+    throw new Error(body?.error ?? "問い合わせを送信できませんでした。\n少し時間をおいて、もう一度お試しください。");
   }
 }

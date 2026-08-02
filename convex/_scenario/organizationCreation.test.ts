@@ -83,7 +83,9 @@ describe("グループ追加作成シナリオ", () => {
 
     // Assert: Freeの上限がそのまま効き、店舗追加も管理者招待もできない。
     expect(secondSettings?.canAddShop).toBe(false);
-    expect(secondSettings?.addShopDisabledReason).toBe("無料では店舗を追加できません。有料プランを選択してください。");
+    expect(secondSettings?.addShopDisabledReason).toBe(
+      "無料プランでは、店舗を追加できません。\n有料プランを選択してください。",
+    );
     expect(secondSettings?.billing.peopleUsage).toMatchObject({ current: 1, max: 5 });
     expect(secondSettings?.billing.shopUsage).toMatchObject({ current: 1, max: 1 });
     expect(secondSettings?.billing.managerUsage).toMatchObject({ current: 1, max: 1 });
@@ -139,7 +141,7 @@ describe("グループ追加作成シナリオ", () => {
     const firstSettings = await asManager.getOrganizationSettings();
     expect(firstSettings?.canCreateOrganization).toBe(false);
     expect(firstSettings?.createOrganizationDisabledReason).toBe(
-      "作成できるグループは3つまでです。使っていないグループを削除すると、また作成できます。",
+      "作成できるグループは3つまでです。\n使っていないグループを削除すると、また作成できます。",
     );
 
     asManager.selectShop(third.shopId);

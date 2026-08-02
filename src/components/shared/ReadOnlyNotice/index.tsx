@@ -13,7 +13,7 @@ export function ReadOnlyNotice({ title, description, borderRadius = "xl" }: Prop
       <Alert.Indicator mt={1} />
       <Alert.Content>
         <Alert.Title>{title}</Alert.Title>
-        <Alert.Description>{description}</Alert.Description>
+        <Alert.Description whiteSpace="pre-line">{description}</Alert.Description>
       </Alert.Content>
     </Alert.Root>
   );

@@ -139,7 +139,6 @@ export const DashboardContent = ({
         return (
           <RecruitmentManagement
             regularClosedDays={shop.regularClosedDays}
-            submissionPattern={shop.submissionPattern}
             data={recruitmentData}
             isReadOnly={isReadOnly}
           >

@@ -119,7 +119,7 @@ export function OnboardingCallout({ state, showLabel = true, onDismiss }: Props)
                 <Text fontSize={{ base: "md", md: "lg" }} fontWeight="bold" color="gray.900" lineHeight="short">
                   {state.title}
                 </Text>
-                <Text fontSize="sm" color="gray.700" lineHeight="tall">
+                <Text fontSize="sm" color="gray.700" lineHeight="tall" whiteSpace="pre-line">
                   {state.description}
                 </Text>
               </Stack>

@@ -4,7 +4,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { seedManagerShop, seedShopMembership, seedUser, testAuthTokenIdentifier } from "../_test/seed";
+import { seedLegacyShopMembership, seedManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { SHIFT_BOARD_STAFF_LIMIT } from "../constants";
 import { buildConfirmationSnapshotsForStaffs } from "../notification/confirmationSnapshots";
@@ -849,22 +849,25 @@ describe("shiftBoard/mutations", () => {
       const { shopId, recruitmentId } = await setupTestData(t);
 
       const deletedStaffId = await t.run(async (ctx) => {
-        const user = await ctx.db
-          .query("users")
-          .withIndex("by_authTokenIdentifier", (q) =>
-            q.eq("authTokenIdentifier", testAuthTokenIdentifier("user_manager")),
-          )
-          .first();
-        if (!user) throw new Error("user not found");
-        const membership = await ctx.db
-          .query("shopMembers")
-          .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
-          .first();
-        if (!membership) throw new Error("shop not found");
-        return await ctx.db.insert("staffs", {
-          shopId: membership.shopId,
+        const shop = await ctx.db.get(shopId);
+        if (!shop?.organizationId) throw new Error("canonical shop not found");
+        const now = Date.now();
+        const organizationPersonId = await ctx.db.insert("organizationPeople", {
+          organizationId: shop.organizationId,
           name: "削除済み",
           email: "deleted@example.com",
+          emailNormalized: "deleted@example.com",
+          status: "removed",
+          createdAt: now,
+          updatedAt: now,
+        });
+        return await ctx.db.insert("staffs", {
+          shopId,
+          organizationId: shop.organizationId,
+          organizationPersonId,
+          name: "削除済み",
+          email: "deleted@example.com",
+          emailNormalized: "deleted@example.com",
           isDeleted: true,
         });
       });
@@ -979,6 +982,16 @@ describe("shiftBoard/mutations", () => {
       );
       expect(confirmationJobs).toHaveLength(2);
       expect(confirmationJobs.map((job) => job.args[0]?.isResend)).toEqual([false, true]);
+
+      const analyticsEvents = await t.run(async (ctx) =>
+        ctx.db
+          .query("analyticsSourceEvents")
+          .filter((q) => q.eq(q.field("recruitmentId"), recruitmentId))
+          .collect(),
+      );
+      expect(analyticsEvents.map((event) => event.eventKey).toSorted()).toEqual(
+        [`cycle:${recruitmentId}:confirmed:run:1`, `cycle:${recruitmentId}:confirmed:run:2`].toSorted(),
+      );
     });
 
     it("再通知は前回通知時点から変更されたスタッフだけを対象にする", async () => {
@@ -1156,7 +1169,7 @@ describe("shiftBoard/mutations", () => {
       const { shopId, recruitmentId, staffId1, staffId2 } = await setupTestData(t);
       await t.run(async (ctx) => {
         const secondManagerUserId = await seedUser(ctx, "user_manager_second", "manager-second@example.com");
-        await seedShopMembership(ctx, { userId: secondManagerUserId, shopId });
+        await seedLegacyShopMembership(ctx, { userId: secondManagerUserId, shopId });
       });
       const firstManager = t.withIdentity({ subject: "user_manager" });
       const secondManager = t.withIdentity({ subject: "user_manager_second" });

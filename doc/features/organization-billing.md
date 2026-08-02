@@ -53,7 +53,7 @@ Stripe設定、migration確認、障害対応は[グループ課金の運用](..
 | 復旧担当の管理者 | 契約制限中に、許可されたFree選択、請求先変更、Customer Portalなどの復旧操作を行う | `readOnly`だけでは通常の業務更新やグループ名変更を許可しない |
 | 管理者招待の受取人 | 公開後、招待先グループを確認し、ログインまたは登録後に管理者アカウントを連携する | `FEATURE_MANAGER_INVITATION=enabled`、期限内の最新招待、確認済みメールの一致、連携時点の上限と所属を満たす |
 | Stripe Webhookと内部worker | 支払い結果、期間末変更、取消、再試行を検証して課金状態へ反映する | 署名、接続mode、provider objectの対応、version、冪等性を検証する |
-| 運用担当者 | Stripe設定、probe、m021確認、販売停止、Price rotation、復旧を行う | 実環境を一意に特定し、[運用手順](../manual/organization-billing.md)に従って証跡を残す |
+| 運用担当者 | Stripe設定、probe、Narrow deploy前確認、販売停止、Price rotation、復旧を行う | 実環境を一意に特定し、[運用手順](../manual/organization-billing.md)に従って証跡を残す |
 
 同じ管理者が無関係な複数グループに所属していても、`?shop=`で選択した店舗から操作対象のグループを一意に解決する。
 クライアントが渡すグループID、店舗ID、人物IDは対象の指定であり、認可根拠には使わない。
@@ -131,7 +131,7 @@ Trialの利用権限はProと同じである。
 新しいグループには、作成した利用者だけが人物と管理者として登録される。
 既存グループの人物、スタッフ、店舗、シフトは引き継がない。
 
-## 支払い不要Businessとm021
+## 支払い不要Business
 
 初回セットアップで作るグループは`complimentary.business`として開始する。
 期限と利用料金はなく、Businessの40名、5店舗、管理者5名を利用できる。
@@ -139,15 +139,15 @@ Trialの利用権限はProと同じである。
 支払い不要Businessでは、Stripe Customer、Subscription、Checkout Session、Portal Session、Invoice、Subscription Schedule、課金operation、課金通知を作らない。
 公開API、管理処理、Stripeイベント、再同期処理から通常課金や別状態へ変更しない。
 
-Widen期間中の`complimentary.pro`は、画面、利用上限、targetingで支払い不要Businessとして扱う。
-`m021_organization_billing_complimentary_pro_to_business`は、次の条件をすべて満たす行だけを`complimentary.business`へ変更する。
+現行コードの保存契約は`complimentary.business`だけを許可する。
+`complimentary.pro`は通常runtimeのreader、writer、画面、利用上限、targetingでは扱わない。
 
-- グループが存在し、課金状態が一意である。
-- Stripe Customer、Subscription、全statusのoperation、Webhook証跡がない。
-- 課金通知と先行したm021監査がない。
+`m021_organization_billing_complimentary_pro_to_business`とexport verifierは、旧`complimentary.pro`を新形式へ移した履歴を検証するために残す。
+Migration Testの旧shape fixture以外で、`complimentary.pro`を現行契約として作成しない。
 
-条件を満たさない行は推測で変更せず、理由別のmigration conflictへ残す。
-実環境でm021が完了したかはこの文書から推測せず、[リリース状態](../manual/release-status.md)で確認する。
+対象deploymentのmigration statusとexport検証状況は、[リリース状態](../manual/release-status.md)を正とする。
+Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を固定し、m021の完走、旧形式の残件0、未解消conflict 0を[運用手順](../manual/organization-billing.md)で確認して記録する。
+このコード契約やローカルテストから、実環境の移行完了を推測しない。
 
 ## 管理者招待の安全契約
 
@@ -177,7 +177,6 @@ Widen期間中の`complimentary.pro`は、画面、利用上限、targetingで�
 | `active.pro` | Proを利用中 | 20名、5店舗、管理者5名を許可する |
 | `active.business` | Businessを利用中 | 40名、5店舗、管理者5名を許可する |
 | `complimentary.business` | 支払い不要Businessを利用中 | Business権限を許可し、Stripe処理を拒否する |
-| `complimentary.pro` | m021前の保存互換状態 | 支払い不要Businessと同じ権限で読み取る |
 | `scheduledChange` | 期間末のプラン変更を予約済み | 期間末までは現在の有料プランを維持する |
 | `grace` | 最初に検証された支払い失敗から14日間の猶予中 | 現在の有料権限と復旧操作を維持する |
 | `restricted` | 上限超過または課金復旧待ち | 閲覧と許可された復旧操作だけを認める |
@@ -208,11 +207,14 @@ Widen期間中の`complimentary.pro`は、画面、利用上限、targetingで�
 | `convex/organizationBilling/` | プラン上限、課金policy、期限、Free選択、請求先メール、通知を扱う |
 | `convex/organizationStripe/` | Stripe API、Price、Checkout、Portal、Webhook、再照合、probeを扱う |
 | `convex/organizationInvitation/` | 管理者招待の発行、再送、取消、preview、アカウント連携を扱う |
+| `convex/migrations/m023_organization_invitations_narrow_prep.ts` | 旧招待lifecycleと欠損fieldをNarrow前に補完する |
+| `convex/migrations/m028_shop_billing_states_narrow_prep.ts` | 旧店舗課金rowを保持したままcanonical課金状態との対応異常を記録する |
+| `convex/narrowReadiness/queries.ts` | 招待、請求先、Subscription、制限状態をPIIなしで全ページ確認する |
 | `convex/notificationOutbox/` | 外部送信前の宛先・所属・課金状態再確認と重複排除を行う |
-| `convex/migrations/m021_organization_billing_complimentary_pro_to_business.ts` | Stripeから隔離された`complimentary.pro`だけを移行する |
+| `convex/migrations/m021_organization_billing_complimentary_pro_to_business.ts` | 旧`complimentary.pro`を変換した履歴migrationとMigration Testの契約 |
 | `convex/migrations/m022_organization_billing_to_complimentary_business.ts` | ダークローンチのため、全課金状態を支払い不要Businessへ寄せる |
 | `convex/_lib/config.ts` | ダークローンチ中に公開している導線を環境変数から読む |
-| `scripts/verifyComplimentaryBusinessM021Export.ts` | m021前後のexportをfail-closedに検証する |
+| `scripts/verifyComplimentaryBusinessM021Export.ts` | Narrow deploy前にm021前後のexport証跡をfail-closedに検証する |
 
 ### フロントエンド
 
@@ -253,13 +255,13 @@ Widen期間中の`complimentary.pro`は、画面、利用上限、targetingで�
 | `internal.organizationStripe.actions.processWebhookEvent` | 受信済みWebhookの再取得、重複排除、状態反映 |
 | `internal.organizationStripe.maintenance.getProbe` | Webhook、operation、対応関係、異常のbounded観測 |
 | `internal.organizationStripe.maintenance.recoverWebhookEvents` / `recoverSafeOperations` | 再開可能なWebhookと安全operationのbounded回収 |
-| `internal.migrations.index.runM021` | m021限定のdevelopment dry runと限定再評価 |
+| `internal.migrations.index.runM021` | Widen期間にm021だけをdry runまたは限定再評価した履歴用runner |
 
 `getProPrice`、`startProCheckout`、`scheduleFreeAtPeriodEnd`、`cancelScheduledFree`、`organizationInvitation.mutations.accept`は旧クライアント向け互換入口として残す。
 
 ## 検証の入口
 
-- `convex/organizationBilling/*.test.ts`：プラン上限、課金状態、期限、通知、m021を検証する。
+- `convex/organizationBilling/*.test.ts`：プラン上限、課金状態、期限、通知とm021の旧shape移行fixtureを検証する。
 - `convex/organizationStripe/*.test.ts`：Price、Checkout、Webhook、再照合、支払い不要BusinessのStripe隔離、probeを検証する。
 - `convex/organizationInvitation/*.test.ts`：token、期限、メール一致、予約枠、再送、連携を検証する。
 - `convex/_scenario/organizationBillingLifecycle.test.ts`と`organizationPaidPlanChanges.test.ts`：時間と複数APIをまたぐ課金ライフサイクルを検証する。

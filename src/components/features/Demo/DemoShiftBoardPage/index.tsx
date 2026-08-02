@@ -11,6 +11,7 @@ import type { TourHandle } from "@/src/components/ui/Tour";
 import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import { formatDateShort, formatDateTime, getWeekdayLabel } from "@/src/domains/shift/date";
 import type { ShiftData, ViewMode } from "@/src/domains/shift/types";
+import { DEFAULT_TIME_PATTERN } from "@/src/domains/shop/submissionPattern";
 import { DemoIntroTour } from "./DemoIntroTour";
 import { DemoLauncherFab } from "./DemoLauncherFab";
 import { mockDates, mockShifts, mockStaffs, mockTimeRange } from "./demoData";
@@ -155,7 +156,7 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }:
             <Text color="orange.900" fontSize="xs" fontWeight={700} lineHeight="1.5">
               このページはデモ画面です。
               <br />
-              このデモでの操作は保存されず、スタッフへの通知も送られません。
+              デモでの操作は保存されず、スタッフへの通知も送られません。
             </Text>
           </Box>
         </Flex>
@@ -169,6 +170,7 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }:
           initialShifts={initialShifts}
           dates={dates}
           timeRange={mockTimeRange}
+          submissionPattern={DEFAULT_TIME_PATTERN}
           isConfirmed={isConfirmed}
           onSaveDraft={handleSaveDraft}
           onConfirm={handleOpenConfirm}
@@ -188,7 +190,7 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }:
         <ConfirmShiftContent
           staffCount={mockStaffs.length}
           periodLabel={periodLabel}
-          notificationDescription="このデモでの操作は保存されず、スタッフへの通知も送られません。"
+          notificationDescription="デモでの操作は保存されず、スタッフへの通知も送られません。"
         />
       </Dialog>
 

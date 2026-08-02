@@ -13,7 +13,9 @@ export const BottomCtaSection = () => (
           </Box>
         </Heading>
         <Text color="gray.800" fontSize="md" lineHeight="1.9" fontWeight="semibold" maxW="620px">
-          希望シフトを集めるところから、確定を知らせるところまで。まずは無料で、毎月のシフト連絡をラクにしませんか。
+          希望シフトを集めるところから、確定を知らせるところまで。
+          <br />
+          まずは無料で、毎月のシフト連絡をラクにしませんか。
         </Text>
         <Stack direction={{ base: "column", md: "row" }} gap={4} w={{ base: "full", md: "auto" }}>
           <BottomButton href="/signup" label="無料で試してみる" primary />

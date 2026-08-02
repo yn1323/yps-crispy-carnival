@@ -58,7 +58,7 @@ export function UserShopAdditionDialog({
       ) : (
         <Stack gap={4}>
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            このユーザーがまだ所属していない店舗です。店舗を押すと、その店舗に追加します。
+            追加する店舗を選んでください。
           </Text>
           <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.100" overflow="hidden">
             <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">

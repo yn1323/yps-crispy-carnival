@@ -28,77 +28,94 @@ const shift = (overrides: Partial<ShiftData>): ShiftData => ({
   ...overrides,
 });
 
-const run = (shifts: ShiftData[], pattern?: AssignmentWarningPattern): AssignmentWarning[] =>
+const timePattern: AssignmentWarningPattern = { kind: "time" };
+
+const run = (shifts: ShiftData[], pattern: AssignmentWarningPattern): AssignmentWarning[] =>
   computeAssignmentWarnings({ shifts, staffs, pattern });
 
 describe("computeAssignmentWarnings", () => {
   it("勤務が割り当てられていないセルは対象外", () => {
-    expect(run([shift({ requestedTime: { start: "10:00", end: "18:00" }, positions: [] })])).toEqual([]);
+    expect(run([shift({ requestedTime: { start: "10:00", end: "18:00" }, positions: [] })], timePattern)).toEqual([]);
   });
 
   it("休憩のみのセルは対象外", () => {
-    expect(run([shift({ positions: [seg({ positionId: BREAK_POSITION.id })] })])).toEqual([]);
+    expect(run([shift({ positions: [seg({ positionId: BREAK_POSITION.id })] })], timePattern)).toEqual([]);
   });
 
   it("保存前の希望プレビュー（positions＝希望と一致）では警告しない", () => {
     // 保存済み割当がないセルでは希望がpositionsにプレビュー表示されるが、希望と一致するため食い違いは出ない
-    const warnings = run([
-      shift({
-        requestedTimes: [{ start: "10:00", end: "18:00" }],
-        positions: [seg({ start: "10:00", end: "18:00" })],
-      }),
-    ]);
+    const warnings = run(
+      [
+        shift({
+          requestedTimes: [{ start: "10:00", end: "18:00" }],
+          positions: [seg({ start: "10:00", end: "18:00" })],
+        }),
+      ],
+      timePattern,
+    );
     expect(warnings).toEqual([]);
   });
 
   describe("NOT_SUBMITTED", () => {
     it("未提出スタッフに勤務が入っていると警告", () => {
-      const warnings = run([shift({ staffId: "staff2", positions: [seg({})] })]);
+      const warnings = run([shift({ staffId: "staff2", positions: [seg({})] })], timePattern);
       expect(warnings).toMatchObject([{ code: "NOT_SUBMITTED", date: "2026-01-20", staffId: "staff2" }]);
     });
 
     it("未提出は希望時間外より優先（1セル1件）", () => {
       // 未提出スタッフは希望データを持たないので、NOT_SUBMITTEDのみ
-      const warnings = run([shift({ staffId: "staff2", positions: [seg({ start: "06:00", end: "23:00" })] })]);
+      const warnings = run(
+        [shift({ staffId: "staff2", positions: [seg({ start: "06:00", end: "23:00" })] })],
+        timePattern,
+      );
       expect(warnings.map((w) => w.code)).toEqual(["NOT_SUBMITTED"]);
     });
   });
 
   describe("OFF_REQUEST", () => {
     it("提出済みで希望のない日に勤務が入っていると警告", () => {
-      const warnings = run([shift({ requestedTime: null, requestedTimes: [], positions: [seg({})] })]);
+      const warnings = run([shift({ requestedTime: null, requestedTimes: [], positions: [seg({})] })], timePattern);
       expect(warnings.map((w) => w.code)).toEqual(["OFF_REQUEST"]);
     });
   });
 
   describe("OUTSIDE_REQUESTED_TIME（時間募集）", () => {
     it("希望枠内（短い割当）は警告しない", () => {
-      const warnings = run([
-        shift({
-          requestedTimes: [{ start: "10:00", end: "18:00" }],
-          positions: [seg({ start: "10:00", end: "15:00" })],
-        }),
-      ]);
+      const warnings = run(
+        [
+          shift({
+            requestedTimes: [{ start: "10:00", end: "18:00" }],
+            positions: [seg({ start: "10:00", end: "15:00" })],
+          }),
+        ],
+        timePattern,
+      );
       expect(warnings).toEqual([]);
     });
 
     it("希望枠ぴったりは警告しない", () => {
-      const warnings = run([
-        shift({
-          requestedTimes: [{ start: "10:00", end: "18:00" }],
-          positions: [seg({ start: "10:00", end: "18:00" })],
-        }),
-      ]);
+      const warnings = run(
+        [
+          shift({
+            requestedTimes: [{ start: "10:00", end: "18:00" }],
+            positions: [seg({ start: "10:00", end: "18:00" })],
+          }),
+        ],
+        timePattern,
+      );
       expect(warnings).toEqual([]);
     });
 
     it("終了が希望より後にはみ出すと警告", () => {
-      const warnings = run([
-        shift({
-          requestedTimes: [{ start: "10:00", end: "18:00" }],
-          positions: [seg({ start: "10:00", end: "20:00" })],
-        }),
-      ]);
+      const warnings = run(
+        [
+          shift({
+            requestedTimes: [{ start: "10:00", end: "18:00" }],
+            positions: [seg({ start: "10:00", end: "20:00" })],
+          }),
+        ],
+        timePattern,
+      );
       expect(warnings).toMatchObject([
         {
           code: "OUTSIDE_REQUESTED_TIME",
@@ -109,25 +126,31 @@ describe("computeAssignmentWarnings", () => {
     });
 
     it("開始が希望より前にはみ出すと警告", () => {
-      const warnings = run([
-        shift({
-          requestedTimes: [{ start: "10:00", end: "18:00" }],
-          positions: [seg({ start: "08:00", end: "15:00" })],
-        }),
-      ]);
+      const warnings = run(
+        [
+          shift({
+            requestedTimes: [{ start: "10:00", end: "18:00" }],
+            positions: [seg({ start: "08:00", end: "15:00" })],
+          }),
+        ],
+        timePattern,
+      );
       expect(warnings.map((w) => w.code)).toEqual(["OUTSIDE_REQUESTED_TIME"]);
     });
 
     it("複数の希望枠は最早開始〜最遅終了の枠で判定する", () => {
-      const warnings = run([
-        shift({
-          requestedTimes: [
-            { start: "10:00", end: "12:00" },
-            { start: "15:00", end: "18:00" },
-          ],
-          positions: [seg({ start: "13:00", end: "14:00" })],
-        }),
-      ]);
+      const warnings = run(
+        [
+          shift({
+            requestedTimes: [
+              { start: "10:00", end: "12:00" },
+              { start: "15:00", end: "18:00" },
+            ],
+            positions: [seg({ start: "13:00", end: "14:00" })],
+          }),
+        ],
+        timePattern,
+      );
       // 10:00-18:00 の枠内なので警告しない（枠の隙間は許容する v1 仕様）
       expect(warnings).toEqual([]);
     });
@@ -228,16 +251,19 @@ describe("computeAssignmentWarnings", () => {
   });
 
   it("複数セルの警告を全件収集する", () => {
-    const warnings = run([
-      shift({ staffId: "staff2", date: "2026-01-20", positions: [seg({})] }),
-      shift({ staffId: "staff1", date: "2026-01-21", requestedTimes: [], positions: [seg({})] }),
-      shift({
-        staffId: "staff1",
-        date: "2026-01-22",
-        requestedTimes: [{ start: "10:00", end: "18:00" }],
-        positions: [seg({ start: "10:00", end: "21:00" })],
-      }),
-    ]);
+    const warnings = run(
+      [
+        shift({ staffId: "staff2", date: "2026-01-20", positions: [seg({})] }),
+        shift({ staffId: "staff1", date: "2026-01-21", requestedTimes: [], positions: [seg({})] }),
+        shift({
+          staffId: "staff1",
+          date: "2026-01-22",
+          requestedTimes: [{ start: "10:00", end: "18:00" }],
+          positions: [seg({ start: "10:00", end: "21:00" })],
+        }),
+      ],
+      timePattern,
+    );
     expect(warnings.map((w) => `${w.date}:${w.code}`)).toEqual([
       "2026-01-20:NOT_SUBMITTED",
       "2026-01-21:OFF_REQUEST",

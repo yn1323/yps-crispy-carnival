@@ -36,10 +36,8 @@ export function StaffShiftReissue({ recruitmentId }: Props) {
         <Empty
           icon={LuSend}
           title="再発行を受け付けました"
-          description={
-            "入力内容が登録情報と一致し、\n再発行できる場合は、LINEまたはメールへ\n新しい閲覧リンクを送ります。"
-          }
-          secondaryDescription={"届かない場合は\nシフト作成担当者に連絡してください。"}
+          description={"入力内容が登録情報と一致し、再発行できる場合は、新しい閲覧リンクをLINEまたはメールへ送ります。"}
+          secondaryDescription="届かない場合は、シフト作成担当者に連絡してください。"
           tone="brand"
         />
       </StaffNarrowContent>

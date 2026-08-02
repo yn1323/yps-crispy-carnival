@@ -10,6 +10,7 @@ const mockStaffs = [
 
 const defaultPositionId = "position-1" as Id<"positions">;
 const mockPositions = [{ _id: defaultPositionId, name: "シフト", color: "#3b82f6", isDefault: true }];
+const timePattern = { kind: "time" as const, startTime: "09:00", endTime: "23:00" };
 const shiftTypePattern = {
   kind: "shiftType" as const,
   options: [
@@ -79,6 +80,7 @@ export const Basic: Story = {
     periodLabel: "1/20(月)〜1/26(日)",
     periodStart: "2026-01-20",
     periodEnd: "2026-01-26",
+    submissionPattern: timePattern,
     staffs: mockStaffs,
     positions: mockPositions,
     assignments: mockAssignments,
@@ -91,6 +93,7 @@ export const Empty: Story = {
     periodLabel: "1/20(月)〜1/26(日)",
     periodStart: "2026-01-20",
     periodEnd: "2026-01-26",
+    submissionPattern: timePattern,
     staffs: [],
     positions: mockPositions,
     assignments: [],

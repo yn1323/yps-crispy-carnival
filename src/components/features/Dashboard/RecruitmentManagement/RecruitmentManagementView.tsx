@@ -1,5 +1,5 @@
 import { Text } from "@chakra-ui/react";
-import type { RegularClosedDay, ShiftSubmissionPattern } from "@/convex/shop/schemas";
+import type { RegularClosedDay } from "@/convex/shop/schemas";
 import { type CreateRecruitmentData, CreateRecruitmentForm } from "@/src/components/features/CreateRecruitmentForm";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
@@ -9,7 +9,6 @@ import type { DashboardRecruitmentGroup, PaginationStatus, Recruitment } from ".
 
 type Props = {
   regularClosedDays: RegularClosedDay[];
-  submissionPattern: ShiftSubmissionPattern;
   groups: DashboardRecruitmentGroup[];
   isReadOnly: boolean;
   pastStatus: PaginationStatus;
@@ -40,7 +39,6 @@ type Props = {
 
 export function RecruitmentManagementView({
   regularClosedDays,
-  submissionPattern,
   groups,
   isReadOnly,
   pastStatus,
@@ -89,7 +87,6 @@ export function RecruitmentManagementView({
       >
         <CreateRecruitmentForm
           regularClosedDays={regularClosedDays}
-          submissionPattern={submissionPattern}
           onSubmit={onCreate}
           onCancel={createDialog.close}
         />

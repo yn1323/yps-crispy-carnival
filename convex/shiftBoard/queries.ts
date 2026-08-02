@@ -139,6 +139,8 @@ export const getShiftBoardData = managerQuery({
     const submissionByStaffId = new Map(submissions.map((s) => [s.staffId, s]));
     const submittedStaffIds = new Set(submissions.map((s) => s.staffId));
     // draftSavedAt 導入前の既存データは、保存済み assignment の作成時刻を暫定の保存時刻として扱う。
+    // TODO[narrow]: 全deploymentでm038が完走し、
+    // verifyRecruitments.assignmentsWithoutDraftSavedAtが0件になった後にfallbackを削除する。
     const effectiveDraftSavedAt =
       recruitment.draftSavedAt ??
       (shiftAssignments.length > 0 ? Math.max(...shiftAssignments.map((a) => a._creationTime)) : null);
@@ -150,6 +152,7 @@ export const getShiftBoardData = managerQuery({
     const editableEndMinutes = timeToMinutes(endTimeStr);
     const startHour = Math.floor(editableStartMinutes / 60);
     const endHour = Math.ceil(editableEndMinutes / 60);
+    // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
     const shopStatus = shop.operatingStatus ?? "active";
     const billingPolicy = ctx.organization ? await getOrganizationBillingPolicy(ctx, ctx.organization._id) : null;
     const businessWriteBlockReason =
@@ -170,6 +173,8 @@ export const getShiftBoardData = managerQuery({
         periodStart: recruitment.periodStart,
         periodEnd: recruitment.periodEnd,
         deadline: recruitment.deadline,
+        // TODO[narrow]: 全deploymentでm040が完走し、
+        // verifyRecruitments.missingShopClosedDatesが0件になった後にfallbackを削除する。
         shopClosedDates: recruitment.shopClosedDates ?? [],
         status: recruitment.status,
         confirmedAt: recruitment.confirmedAt ?? null,
@@ -182,6 +187,7 @@ export const getShiftBoardData = managerQuery({
         ...activeShiftTargetStaffs.map((s) => {
           const submission = submissionByStaffId.get(s._id);
           // firstSubmittedAt がない既存 submission は submittedAt を初回提出時刻として扱う。
+          // TODO[narrow]: 全deploymentでm033が完走し、verifyShiftSubmissionsの全pageが0になった後にsubmittedAt fallbackを削除する。
           const firstSubmittedAt = submission ? (submission.firstSubmittedAt ?? submission.submittedAt) : null;
           return {
             _id: s._id,
@@ -204,6 +210,7 @@ export const getShiftBoardData = managerQuery({
           wasSubmittedAtDraft: false,
         })),
       ],
+      // TODO[narrow]: 全deploymentでm034が完走し、verifyPositionsの全pageが0になった後にBoolean fallbackを削除する。
       positions: positions.map((p) => ({ _id: p._id, name: p.name, color: p.color, isDefault: Boolean(p.isDefault) })),
       requestedSlots: shiftSlots.map((r) => ({
         staffId: r.staffId,

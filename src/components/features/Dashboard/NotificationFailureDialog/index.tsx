@@ -27,7 +27,7 @@ type Props = {
 };
 
 const EMAIL_FAILURE_HELP_LINES = [
-  "スタッフ詳細で、登録メールアドレスに誤りがないか確認してください。問題が見つからない場合は、時間をおいて再送してください。",
+  "スタッフ詳細で、登録メールアドレスに誤りがないか確認してください。\n誤りがない場合は、時間をおいて再送してください。",
   "メールを利用できない場合は、スタッフ詳細で対象店舗を開き、LINE連携リンクを案内できます。",
 ];
 
@@ -52,7 +52,7 @@ export const NotificationFailureDialogContent = ({
           送れなかった通知はありません
         </Text>
         <Text mt={1} fontSize="sm" color="fg.muted">
-          もう一度送る必要がある通知はすべて処理済みです。
+          再送が必要な通知はすべて処理済みです。
         </Text>
       </Box>
     );
@@ -232,7 +232,7 @@ const ChannelText = ({ channel }: { channel?: "email" | "line" }) => {
             <Popover.Arrow>
               <Popover.ArrowTip />
             </Popover.Arrow>
-            <Text fontSize="sm" color="gray.800" lineHeight="1.7">
+            <Text fontSize="sm" color="gray.800" lineHeight="1.7" whiteSpace="pre-line">
               {EMAIL_FAILURE_HELP_LINES[0]}
               <br />
               {EMAIL_FAILURE_HELP_LINES[1]}

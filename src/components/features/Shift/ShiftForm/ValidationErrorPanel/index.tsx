@@ -28,7 +28,7 @@ const TONE_CONFIG: Record<
     focus: "red.400",
     icon: LuCircleAlert,
     title: (count) => `確定する前に${count}件修正してください`,
-    hint: (verb) => `修正する項目を${verb}と該当の日付に移動します`,
+    hint: (verb) => `修正する項目を${verb}と、該当の日付へ移動します。`,
     dismissLabel: "修正項目を閉じる",
   },
   warning: {
@@ -39,7 +39,7 @@ const TONE_CONFIG: Record<
     focus: "orange.400",
     icon: LuTriangleAlert,
     title: (count) => `確認事項（${count}件）`,
-    hint: (verb) => `気になる項目を${verb}と該当の日付に移動します`,
+    hint: (verb) => `気になる項目を${verb}と、該当の日付へ移動します。`,
     dismissLabel: "確認事項を閉じる",
   },
 };

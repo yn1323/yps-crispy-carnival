@@ -26,13 +26,17 @@ export function DemoShiftBoardRoutePage() {
             <Box>
               <Alert.Title>このデモはPCで操作できます</Alert.Title>
               <Alert.Description fontSize="sm" mt={1}>
-                スマホでは閲覧のみで、ガントチャートの操作はできません。PCのブラウザで開いてご確認ください。
+                スマホでは閲覧のみで、ガントチャートの操作はできません。
+                <br />
+                PCのブラウザで開いてご確認ください。
               </Alert.Description>
             </Box>
           </Alert.Root>
 
           <Text color="fg.muted" lineHeight={1.7}>
-            シフトリは、シフト希望の回収から確定共有までをひとつにまとめる無料ツールです。このデモでは、店長・シフト作成担当者の操作画面を会員登録なしで試せます。
+            シフトリは、シフト希望の回収から確定共有までをひとつにまとめる無料ツールです。
+            <br />
+            このデモでは、店長・シフト作成担当者の操作画面を会員登録なしで試せます。
           </Text>
 
           <Box>
@@ -53,7 +57,9 @@ export function DemoShiftBoardRoutePage() {
               どんな場面で使える？
             </Heading>
             <Text color="fg.muted" lineHeight={1.7}>
-              飲食店、カフェ、美容室、小売店、クリニックなど、シフトづくりが必要なお店で使えます。希望回収、調整、確定シフトの共有までの流れを試せます。
+              飲食店、カフェ、美容室、小売店、クリニックなど、シフト作成が必要なお店で使えます。
+              <br />
+              希望回収、調整、確定シフトの共有までの流れを試せます。
             </Text>
           </Box>
         </VStack>

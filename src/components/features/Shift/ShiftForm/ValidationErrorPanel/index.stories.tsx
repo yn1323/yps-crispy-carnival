@@ -142,7 +142,7 @@ export const SPCompactExpandBehavior: Story = {
 
     await userEvent.click(toggle);
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
-    await expect(await canvas.findByText("修正する項目をタップすると該当の日付に移動します")).toBeVisible();
+    await expect(await canvas.findByText("修正する項目をタップすると、該当の日付へ移動します。")).toBeVisible();
   },
 };
 

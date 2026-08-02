@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { createConvexTestWithMigrations } from "../_test/migrations.test-helper";
-import { seedManagerShop, seedOrganizationManagerShop, seedShopMembership, seedUser } from "../_test/seed";
+import { seedLegacyShopMembership, seedManagerShop, seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import {
   NOTIFICATION_DELIVERY_EVENT_PRUNE_BATCH_SIZE,
   NOTIFICATION_DELIVERY_EVENT_RETENTION_MS,
@@ -405,7 +405,12 @@ describe("notificationOutbox", () => {
   });
 
   it("legacy shopMembersが重複した受信者は送信直前にfail-closedにする", async () => {
-    const { t, shopId, userId } = await setupShop();
+    const { t, shopId } = await setupShop();
+    const userId = await t.run(async (ctx) => {
+      const legacyUserId = await seedUser(ctx, "duplicate_legacy_recipient", "duplicate-legacy-recipient@example.com");
+      await seedLegacyShopMembership(ctx, { shopId, userId: legacyUserId });
+      return legacyUserId;
+    });
     const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
       channel: "email",
       shopId,
@@ -415,7 +420,7 @@ describe("notificationOutbox", () => {
       payload: {
         kind: "email",
         from: "シフトリ <noreply@example.com>",
-        to: "manager@example.com",
+        to: "duplicate-legacy-recipient@example.com",
         subject: "業務通知",
         html: "<p>test</p>",
         context: "test.duplicateLegacyRecipient",
@@ -424,7 +429,7 @@ describe("notificationOutbox", () => {
     });
     if (!enqueued) throw new Error("notification was not enqueued");
     await t.run(async (ctx) => {
-      await seedShopMembership(ctx, { shopId, userId });
+      await seedLegacyShopMembership(ctx, { shopId, userId });
       await ctx.db.patch(enqueued.outboxId, { status: "processing" });
     });
 

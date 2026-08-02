@@ -20,5 +20,5 @@ export const customErrorMap: z.ZodErrorMap = (issue) => {
       return { message: `${issue.maximum}文字以内で入力してください` };
   }
 
-  return { message: "入力内容を確認してください" };
+  return { message: "入力内容を確認してください。" };
 };

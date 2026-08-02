@@ -19,8 +19,8 @@ type GuideItem = {
   body: string;
 };
 
-const shiftreeDescription = "勤務先のお店が、シフト希望の受付と確定シフトの共有に使うサービスです。";
-const staffGuideLead = "お店から案内が届いたら、リンクを開いて内容を確認してください。";
+const shiftreeDescription = "勤務先の店舗が、シフト希望の受付と確定シフトの共有に使うサービスです。";
+const staffGuideLead = "勤務先から案内が届いたら、リンクを開いて内容を確認してください。";
 
 const quickPoints: QuickPoint[] = [
   { icon: LuTabletSmartphone, label: "専用アプリ不要" },
@@ -31,22 +31,22 @@ const guideItems: GuideItem[] = [
   {
     icon: LuBell,
     title: "シフト募集のお知らせ",
-    body: "シフト希望の受付が始まると提出依頼を送り、まだ提出していない場合は締切前にもお知らせします。",
+    body: "シフト希望の受付が始まると、提出依頼が届きます。\nまだ提出していない場合は、締切前にもお知らせします。",
   },
   {
     icon: LuCalendarCheck,
     title: "確定シフトのお知らせ",
-    body: "お店でシフトが確定すると、自分の勤務予定を確認できるリンクを送ります。",
+    body: "勤務先でシフトが確定すると、自分の勤務予定を確認できるリンクが届きます。",
   },
   {
     icon: LuMail,
     title: "メールまたはLINEでお知らせします",
-    body: "お知らせは、登録済みのメールアドレスまたは連携済みのLINEへ送られます。LINEで送れない場合は、メールでお知らせすることがあります。",
+    body: "お知らせは、登録済みのメールアドレスまたは連携済みのLINEへ送られます。\nLINEで送れない場合は、メールでお知らせすることがあります。",
   },
   {
     icon: LuSmartphone,
     title: "届いたリンクから操作できます",
-    body: "専用アプリをインストールせず、シフト希望の提出や確定シフトの確認ができます。",
+    body: "専用アプリをインストールしなくても、シフト希望の提出や確定シフトの確認ができます。",
   },
 ];
 
@@ -186,7 +186,7 @@ function GuideRow({ index, item, isLast }: { index: number; item: GuideItem; isL
           <Text color="teal.900" fontSize={{ base: "md", md: "xl" }} fontWeight="bold">
             {item.title}
           </Text>
-          <Text mt={2} color="gray.800" fontSize={{ base: "sm", md: "md" }} lineHeight={1.9}>
+          <Text mt={2} color="gray.800" fontSize={{ base: "sm", md: "md" }} lineHeight={1.9} whiteSpace="pre-line">
             {item.body}
           </Text>
         </Box>

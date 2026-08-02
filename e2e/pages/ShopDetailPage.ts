@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
 const SHOP_DETAIL_DATA_TIMEOUT = 20_000;
+const SHOP_SWITCHER_BUTTON_NAME = /^店舗を切り替える/;
 const CLOSED_DAY_LABELS = {
   sun: "日曜日",
   mon: "月曜日",
@@ -42,7 +43,7 @@ export class ShopDetailPage {
     await expect(this.page.getByRole("heading", { name: "店舗詳細", exact: true })).toBeVisible({
       timeout: SHOP_DETAIL_DATA_TIMEOUT,
     });
-    await expect(this.page.getByRole("button", { name: /店舗を切り替える。現在は/ })).toHaveCount(0);
+    await expect(this.page.getByRole("button", { name: SHOP_SWITCHER_BUTTON_NAME })).toHaveCount(0);
   }
 
   async editSettings(data: ShopSettingsEdit) {

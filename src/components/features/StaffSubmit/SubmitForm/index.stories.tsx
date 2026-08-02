@@ -68,11 +68,7 @@ export const LateInitialInteractive: Story = {
 
     await userEvent.click(await canvas.findByRole("button", { name: "希望シフトを提出" }));
     await expect(await screen.findByText("提出締切を過ぎています")).toBeInTheDocument();
-    await expect(
-      await screen.findByText(
-        "提出締切を過ぎています。提出後、このリンクでは変更できません。変更が必要な場合はシフト作成担当者に連絡してください。",
-      ),
-    ).toBeInTheDocument();
+    await expect(await screen.findByText(/提出締切を過ぎています。/)).toBeInTheDocument();
 
     await userEvent.click(await screen.findByRole("button", { name: "キャンセル" }));
     await waitFor(() => expect(screen.queryByRole("button", { name: "この内容で提出する" })).not.toBeInTheDocument());

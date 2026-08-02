@@ -44,7 +44,7 @@ const ISSUE_MESSAGES: Record<AssignmentIssueCode, string> = {
   SHIFT_TYPE_TIME_MISMATCH: "勤務区分の時間と一致しません",
   SHIFT_TYPE_NOT_ALLOWED: "勤務区分の募集ではありません",
   OUT_OF_BOARD_RANGE: "設定したシフト時間内にしてください",
-  OVERLAP: "同じスタッフの同じ日に、シフト時間が重なっています",
+  OVERLAP: "同じスタッフの同じ日で、シフトの時間帯が重なっています。",
 };
 
 export function buildAssignmentIssue(code: AssignmentIssueCode, date: string, staffId: string): AssignmentIssue {

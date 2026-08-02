@@ -213,6 +213,7 @@ export const markReminderSent = internalMutation({
 /**
  * rolling deploy中に旧actionが呼ぶ互換entrypoint。
  * 現在の確定内容とcanonical Outboxが一致する場合だけ保存し、遅延Aのdedupe後にBを誤記録しない。
+ * TODO[narrow]: 全deploymentで旧個別通知actionのschedulerが0件になり、drain期間が終わった後に削除する。
  */
 export const upsertConfirmationSnapshot = internalMutation({
   args: {

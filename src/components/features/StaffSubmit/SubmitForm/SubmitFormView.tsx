@@ -160,7 +160,7 @@ export function SubmitFormView({
           {data.legalConsentRequired && (
             <Box mb={4} p={4} bg="white" borderWidth={1} borderColor="border.default" borderRadius="md">
               <Text mb={3} fontSize="xs" color="fg.muted" lineHeight={1.7}>
-                初めての提出時や、規約の大きな変更があったときのみ確認をお願いしています。
+                初めて提出するときや、規約に大きな変更があったときに、確認をお願いしています。
               </Text>
               <Checkbox.Root
                 colorPalette="teal"
@@ -208,7 +208,11 @@ export function SubmitFormView({
         isSubmitDisabled={isLateSubmitting}
       >
         <Text fontSize="sm" lineHeight="tall" color="fg.default">
-          提出締切を過ぎています。提出後、このリンクでは変更できません。変更が必要な場合はシフト作成担当者に連絡してください。
+          提出締切を過ぎています。
+          <br />
+          提出後は、このリンクから変更できません。
+          <br />
+          変更が必要な場合は、シフト作成担当者に連絡してください。
         </Text>
       </Dialog>
     </SubmitPageLayout>

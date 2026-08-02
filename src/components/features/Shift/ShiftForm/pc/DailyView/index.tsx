@@ -86,7 +86,7 @@ export const DailyView = () => {
               定休日
             </Text>
             <Text fontSize="sm" color="fg.muted" textAlign="center">
-              この日はお店のお休みとして設定されているため、シフトは登録できません。
+              この日は店舗の定休日のため、シフトを登録できません。
             </Text>
           </Flex>
         ) : (

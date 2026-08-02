@@ -98,7 +98,7 @@ const ShopSelector = ({ model, onSelect }: { model: OperationContextModel; onSel
           <Button
             type="button"
             variant="outline"
-            aria-label={`店舗を切り替える。現在は${model.selectedShop.shopName}`}
+            aria-label={`店舗を切り替える（現在：${model.selectedShop.shopName}）`}
             display="flex"
             alignItems="center"
             justifyContent="space-between"

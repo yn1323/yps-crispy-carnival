@@ -23,6 +23,7 @@ const NOTIFICATION_STATUSES = ["pending", "processing", "sent", "failed", "cance
 const AUDIT_SUFFIX = ":migration:m021:complimentary-pro-to-business";
 
 type M021ConflictCode = (typeof CONFLICT_CODES)[keyof typeof CONFLICT_CODES];
+type LegacyComplimentaryState = { kind: "complimentary"; plan: "pro" | "business" };
 
 /**
  * Stripeと完全に分離された無償Proだけを、同じ無償契約のBusiness表記へ移す。
@@ -31,7 +32,9 @@ type M021ConflictCode = (typeof CONFLICT_CODES)[keyof typeof CONFLICT_CODES];
 export const migration = migrations.define({
   table: "organizationBillingStates",
   migrateOne: async (ctx, billingState) => {
-    if (billingState.state.kind !== "complimentary" || billingState.state.plan !== "pro") return;
+    // m021は完了済みの履歴だが、旧fixtureを使うMigration Testのため旧shapeの読み取りを保持する。
+    const legacyState = billingState.state as typeof billingState.state | LegacyComplimentaryState;
+    if (legacyState.kind !== "complimentary" || legacyState.plan !== "pro") return;
 
     const organizationId = billingState.organizationId;
     const organization = await ctx.db.get(organizationId);

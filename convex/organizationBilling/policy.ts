@@ -36,8 +36,13 @@ export type OrganizationPlanLimits = (typeof ORGANIZATION_PLAN_LIMITS)[Organizat
 export type OrganizationBillingState = Infer<typeof organizationBillingStateValidator>;
 type PersistedRestrictedOrganizationBillingState = Extract<OrganizationBillingState, { kind: "restricted" }>;
 export type RestrictedOrganizationBillingState = PersistedRestrictedOrganizationBillingState;
+export type LegacyOrganizationBillingState =
+  | Exclude<OrganizationBillingState, { kind: "complimentary" }>
+  | { kind: "complimentary"; plan: "pro" | "business" };
 /** m018だけが利用するBusiness→Pro履歴正規化後のshape。 */
-export type CanonicalOrganizationBillingState = OrganizationBillingState;
+export type CanonicalOrganizationBillingState =
+  | Exclude<OrganizationBillingState, { kind: "complimentary" }>
+  | { kind: "complimentary"; plan: "pro" };
 export type VerifiedBillingTransitionCause = "stateUpdate" | "paymentFailed" | "scheduledChangeCanceled";
 
 /** m018用の履歴互換helper。通常runtimeでは使用しない。 */
@@ -61,7 +66,9 @@ function normalizeRestrictedState(
 }
 
 /** m018用の履歴互換helper。BusinessをProへ畳む意味を変更しない。 */
-export function normalizeOrganizationBillingState(state: OrganizationBillingState): CanonicalOrganizationBillingState {
+export function normalizeOrganizationBillingState(
+  state: LegacyOrganizationBillingState,
+): CanonicalOrganizationBillingState {
   switch (state.kind) {
     case "trial": {
       const { selectedPaidPlan, ...rest } = state;
@@ -144,7 +151,6 @@ export function resolveOrganizationBillingPlans(state: OrganizationBillingState)
         targetingPlan: state.plan,
       };
     case "complimentary":
-      // m021前のcomplimentary.proも、画面と権限を変化させずBusinessとして扱う。
       return {
         paidPlan: null,
         entitlementPlan: "business",
@@ -195,7 +201,7 @@ function resolveRestrictedDisplayPlan(state: RestrictedOrganizationBillingState)
   return resolveRestrictedLimitPlan(state) ?? state.previousPlan ?? state.targetPlan ?? null;
 }
 
-export function hasLegacyBusinessBillingState(state: OrganizationBillingState): boolean {
+export function hasLegacyBusinessBillingState(state: LegacyOrganizationBillingState): boolean {
   switch (state.kind) {
     case "trial":
       return state.selectedPaidPlan === "business";

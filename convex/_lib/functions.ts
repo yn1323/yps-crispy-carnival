@@ -53,8 +53,7 @@ async function resolveOrganizationShopAccess(
   if (memberships.length === 0) {
     if (mode === "mutation" && shop.operatingStatus !== "active") return null;
 
-    // TODO[narrow]: develop/prodでm010_shop_members_to_organization_membersが完走していることを
-    //   `pnpm convex:migrate:status`（state: done）で確認後、m009完了後/m010完了前だけに必要な
+    // TODO[narrow]: 全deploymentでm029が完走し、verifyLegacyShopMembersの全pageが0件になった後、
     //   このshopMembers fallbackを削除する。organizationMemberが1件でも存在する場合は使用しない。
     const legacyMemberships = await ctx.db
       .query("shopMembers")
@@ -92,9 +91,8 @@ async function resolveLegacyShopAccess(
 ): Promise<ManagerShopAccess | null> {
   if (shop.organizationId || shop.isDeleted) return null;
 
-  // TODO[narrow]: develop/prodでm009_shops_to_organizationsと
-  //   m010_shop_members_to_organization_membersが完走していることを
-  //   `pnpm convex:migrate:status`（state: done）で確認後、このshopMembers fallbackを削除する。
+  // TODO[narrow]: 全deploymentでm025/m029が完走し、verifyShops/verifyLegacyShopMembersの
+  //   全pageが0件になった後、このshopMembers fallbackを削除する。
   const memberships = await ctx.db
     .query("shopMembers")
     .withIndex("by_userId_and_shopId_and_isDeleted", (q) =>
@@ -129,17 +127,6 @@ async function resolveShopForUser(
 ): Promise<ManagerShopAccess | null> {
   if (shopId) return await resolveExplicitShopForUser(ctx, user, shopId, mode);
 
-  // TODO[narrow]: develop/prodでm009_shops_to_organizationsと
-  //   m010_shop_members_to_organization_membersが完走し、shopId必須のクライアント配布も完了したことを
-  //   `pnpm convex:migrate:status`（state: done）で確認後、このshopMembers探索を削除する。
-  const legacyMemberships = ctx.db
-    .query("shopMembers")
-    .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false));
-  for await (const membership of legacyMemberships) {
-    const access = await resolveExplicitShopForUser(ctx, user, membership.shopId, mode);
-    if (access) return access;
-  }
-
   const allowedStatuses = mode === "mutation" ? (["active"] as const) : (["active", "readOnly"] as const);
   for (const status of allowedStatuses) {
     const memberships = ctx.db
@@ -167,6 +154,16 @@ async function resolveShopForUser(
         }
       }
     }
+  }
+
+  // TODO[narrow]: 全deploymentでm025/m029が完走し、verifyShops/verifyLegacyShopMembersの全pageが0件、
+  //   shopId必須のクライアント配布も完了した後、このshopMembers探索を削除する。
+  const legacyMemberships = ctx.db
+    .query("shopMembers")
+    .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false));
+  for await (const membership of legacyMemberships) {
+    const access = await resolveExplicitShopForUser(ctx, user, membership.shopId, mode);
+    if (access) return access;
   }
   return null;
 }
@@ -321,8 +318,7 @@ async function resolveStaffSession(
       return { status: "notFound" };
     }
 
-    // TODO[narrow]: develop/prodでm011_staffs_to_organization_peopleが完走し、未リンクstaffが0件であることを
-    //   `pnpm convex:migrate:status`（state: done）と管理用集計で確認後、
+    // TODO[narrow]: 全deploymentでm027が完走し、verifyStaffsの全pageが0件であることを確認後、
     //   organizationId/organizationPersonId未設定staffを許可するisLegacyStaffDuringMigration fallbackを削除する。
     const isLegacyStaffDuringMigration = !staff.organizationId && !staff.organizationPersonId;
     if (!isLegacyStaffDuringMigration) {

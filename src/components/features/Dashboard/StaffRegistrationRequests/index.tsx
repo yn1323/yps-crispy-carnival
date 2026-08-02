@@ -61,7 +61,9 @@ export const StaffRegistrationRequestDialog = ({
         <PeopleCapacityResolutionAlert resolution={peopleCapacityResolution} retryActionLabel="申請を承認" />
       )}
       <Text fontSize="sm" color="fg.muted">
-        承認するとスタッフとして登録されます。LINE連携の案内を送り、募集中のシフトがあれば提出リンクも送ります。
+        承認するとスタッフとして登録されます。
+        <br />
+        LINE連携の案内を送り、募集中のシフトがあれば提出リンクも送ります。
       </Text>
       <StaffRegistrationRequestList
         requests={requests}

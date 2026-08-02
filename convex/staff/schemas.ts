@@ -39,7 +39,7 @@ export const addStaffsSchema = z
     }),
   })
   .refine((data) => data.entries.some((e) => e.name !== ""), {
-    message: "少なくとも1人のスタッフ名を入力してください",
+    message: "スタッフ名を1人以上入力してください。",
     path: ["entries"],
   });
 

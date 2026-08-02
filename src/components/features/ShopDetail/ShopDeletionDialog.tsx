@@ -45,8 +45,8 @@ export function ShopDeletionDialog({ shop, isOpen, isDeleting, onClose, onDelete
     >
       <Stack gap={3} fontSize="sm" color="fg.muted" lineHeight="tall">
         <Stack gap={1}>
-          <Text>削除すると、この店舗と所属スタッフは利用できなくなります。</Text>
-          <Text>この店舗の管理権限、LINE連携、シフトの提出・閲覧用リンクも停止します。</Text>
+          <Text>削除すると、この店舗は利用できなくなり、所属スタッフもアクセスできなくなります。</Text>
+          <Text>この店舗の管理権限、LINE連携、シフトの提出・閲覧用リンクも無効になります。</Text>
         </Stack>
         <Text color="red.700" fontWeight="semibold">
           この操作は元に戻せません。

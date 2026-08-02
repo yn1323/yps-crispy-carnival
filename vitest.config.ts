@@ -22,6 +22,8 @@ const logicProject = defineConfig({
   test: {
     globals: true,
     name: "logic",
+    // Playwright設定検証やChakra操作テストを、full regression時の並列負荷だけで失敗させない。
+    testTimeout: 15_000,
     setupFiles: ["./src/configs/vitest/vitest-setup.ts"],
     include: ["./src/**/*.test.ts", "./src/**/*.test.tsx", "./scripts/**/*.test.ts"],
     exclude: ["node_modules"],
@@ -84,6 +86,8 @@ const convexScenarioProject = defineConfig({
   test: {
     name: "convex(scenario)",
     environment: "edge-runtime",
+    // 複数のschedulerと通知配送を通すscenarioを、project全体の並列負荷だけで失敗させない。
+    testTimeout: 30_000,
     include: ["./convex/_scenario/**/*.test.ts"],
     exclude: ["node_modules", "./convex/_generated/**"],
   },

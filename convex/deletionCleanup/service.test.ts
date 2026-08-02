@@ -1,6 +1,6 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
-import { seedOrganizationManagerShop, seedShop, seedShopMembership, seedUser } from "../_test/seed";
+import { seedLegacyShop, seedLegacyShopMembership, seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { getActiveUserAssociationStatus, getOtherActiveUserAssociationStatus } from "./service";
 
@@ -55,7 +55,7 @@ describe("deletionCleanup association scan", () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const missingStaffShopUserId = await seedUser(ctx, "association_missing_staff_shop");
-      const missingStaffShopId = await seedShop(ctx, "削除するstaff親店舗");
+      const missingStaffShopId = await seedLegacyShop(ctx, "削除するstaff親店舗");
       await ctx.db.insert("staffs", {
         shopId: missingStaffShopId,
         userId: missingStaffShopUserId,
@@ -67,8 +67,8 @@ describe("deletionCleanup association scan", () => {
       await ctx.db.delete(missingStaffShopId);
 
       const missingMemberShopUserId = await seedUser(ctx, "association_missing_member_shop");
-      const missingMemberShopId = await seedShop(ctx, "削除するmember親店舗");
-      await seedShopMembership(ctx, { userId: missingMemberShopUserId, shopId: missingMemberShopId });
+      const missingMemberShopId = await seedLegacyShop(ctx, "削除するmember親店舗");
+      await seedLegacyShopMembership(ctx, { userId: missingMemberShopUserId, shopId: missingMemberShopId });
       await ctx.db.delete(missingMemberShopId);
 
       const mismatchedStaffUserId = await seedUser(ctx, "association_mismatched_staff");

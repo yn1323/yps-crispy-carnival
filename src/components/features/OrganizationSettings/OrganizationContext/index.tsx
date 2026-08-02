@@ -83,7 +83,7 @@ function OrganizationSelector({
           <Button
             type="button"
             variant="outline"
-            aria-label={`グループを切り替える。現在は${model.selectedOrganizationName}`}
+            aria-label={`グループを切り替える（現在：${model.selectedOrganizationName}）`}
             display="flex"
             alignItems="center"
             justifyContent="space-between"

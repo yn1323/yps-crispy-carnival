@@ -21,6 +21,14 @@ import {
 } from "../constants";
 
 export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
+  // Cloudflare Access配下の内部BIからConvexへ入るservice requestの全体上限。
+  analyticsDashboardService: {
+    kind: "token bucket",
+    rate: 120,
+    period: MINUTE_MS,
+    capacity: 120,
+  },
+
   // マジックリンクトークン検証: トークン先頭8文字をキーに
   // 5回/分 — ブルートフォース保険
   verifyToken: {

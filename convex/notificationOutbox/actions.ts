@@ -173,7 +173,9 @@ async function sendJob(ctx: ActionCtx, job: NotificationJob): Promise<SendJobRes
       fallbackEmail: job.payload.fallbackEmail,
       message: {
         type: "text",
-        text: `${invitation.organizationName}の管理者として招待されました。\nログインしてアカウント連携を完了してください。\n${externalBrowserUrl}`,
+        text: `${invitation.organizationName}の管理者として招待されました。
+ログインして、アカウント連携を完了してください。
+${externalBrowserUrl}`,
       },
     });
   }
@@ -257,7 +259,8 @@ async function enqueueLineFallback(
       ...(job.organizationBillingVersionAtEnqueue !== undefined
         ? { organizationBillingVersionAtOrigin: job.organizationBillingVersionAtEnqueue }
         : {}),
-      ...(job.purpose ? { purpose: job.purpose } : {}),
+      // TODO[narrow]: 全deploymentでm024完走・missingPurpose=0確認後はjob.purposeを直接渡す。
+      purpose: job.purpose ?? "business",
       ...(job.recruitmentId ? { recruitmentId: job.recruitmentId } : {}),
       ...(job.staffId ? { staffId: job.staffId } : {}),
       ...(job.fanoutOperationId ? { fanoutOperationId: job.fanoutOperationId } : {}),

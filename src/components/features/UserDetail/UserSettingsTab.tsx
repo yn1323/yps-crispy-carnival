@@ -41,7 +41,7 @@ export function UserManagerSettings({
           管理者権限
         </Heading>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          シフト調整、店舗追加編集、支払いが可能になります。
+          シフト調整、店舗の追加・編集、支払いが可能になります。
         </Text>
       </Stack>
       <ManagerRoleAction
@@ -124,7 +124,7 @@ export function UserGroupRemovalSection({
             <Text>{personName}さんは、店舗への所属と権限（管理・スタッフ・閲覧）を失います。</Text>
             <Stack gap={1}>
               <Text>過去のシフト履歴は保持されます。</Text>
-              <Text color="orange.700" fontWeight="medium">
+              <Text color="orange.700" fontWeight="medium" whiteSpace="pre-line">
                 {getAssignmentRemovalDescription(removalPreview)}
               </Text>
             </Stack>
@@ -195,8 +195,8 @@ function ManagerRoleAction({
             title={`${data.person.name}さんの管理者権限を外しますか？`}
             description={
               data.memberships.length > 0
-                ? "グループ全体の管理権限を終了します。スタッフとしての店舗所属は維持します。このユーザーが発行した未連携のログイン案内は無効になります。"
-                : "店舗所属がないため、管理者権限を外すと、このグループへのアクセスも終了します。グループのユーザー情報とシフト記録は残ります。このユーザーが発行した未連携のログイン案内は無効になります。"
+                ? "このユーザーのグループ全体に対する管理権限を外します。\nスタッフとしての店舗所属は維持します。\nこのユーザーが発行した未連携のログイン案内は無効になります。"
+                : "店舗所属がないため、管理者権限を外すと、このグループへのアクセスも終了します。\nグループのユーザー情報とシフト記録は残ります。\nこのユーザーが発行した未連携のログイン案内は無効になります。"
             }
             confirmLabel="管理者権限を外す"
             isLoading={isRemovingManagerRole}
@@ -255,7 +255,7 @@ function ManagerRoleAction({
               ? (data.writeDisabledReason ?? "現在、このグループの情報を変更できません。")
               : invitation.kind === "unavailable"
                 ? invitation.reason
-                : "メールアドレスを登録してから管理者にしてください。"}
+                : "メールアドレスを登録してから、管理者に設定してください。"}
           </Text>
         )}
       </Stack>
@@ -329,7 +329,7 @@ function InlineDestructiveConfirmation({
           <Text id={titleId} fontWeight="semibold" color="red.700">
             {title}
           </Text>
-          <Text id={descriptionId} fontSize="sm" color="fg.muted" lineHeight="tall">
+          <Text id={descriptionId} fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
             {description}
           </Text>
           {warning && (
@@ -353,10 +353,11 @@ function InlineDestructiveConfirmation({
 
 function getAssignmentRemovalDescription(preview: UserDetailRemovalPreview) {
   if (preview.kind === "tooMany") {
-    return `今日以降のシフト割当が${preview.limit}件を超えています。先にシフトを整理してから削除してください。`;
+    return `今日以降のシフトの割り当てが${preview.limit}件を超えています。
+シフトを整理してから削除してください。`;
   }
   if (preview.assignmentCount === 0) {
-    return "今日以降のシフトに割り当てはないため、シフトへの影響もありません。";
+    return "今日以降のシフトには割り当てられていないため、シフトへの影響はありません。";
   }
   return `今日以降のシフト${preview.assignmentCount}件からも外れます。`;
 }

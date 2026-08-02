@@ -9,6 +9,7 @@ import { todayJST } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
 import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
 import { normalizeEmail } from "../_lib/validation";
+import { recordAnalyticsSourceEvent } from "../analytics/sourceEvents";
 import { CURRENT_SHIFT_NOTIFICATION_LIMIT } from "../constants";
 import { getStaffLineAccount } from "../line/service";
 import { ensureNotificationFanoutOperation } from "../notification/fanout";
@@ -68,7 +69,7 @@ async function recoverCompletedStaffAddition(
     firstAudit.actorUserId !== ctx.user._id ||
     firstAudit.toState !== `active:${ctx.shop._id}:batch:${args.entries.length}`
   ) {
-    throw new ConvexError("同じリクエストIDが別の追加操作で使用されています");
+    throw new ConvexError("以前の追加操作と内容が一致しません。\n画面を更新して、もう一度お試しください。");
   }
 
   const staffIds: Id<"staffs">[] = [];
@@ -98,16 +99,18 @@ async function recoverCompletedStaffAddition(
       normalizeEmail(staff.email) !== entry.email ||
       (audit.fromState === "new" && staff.name !== entry.name)
     ) {
-      throw new ConvexError("以前のスタッフ追加結果を確認できません");
+      throw new ConvexError("以前のスタッフ追加結果を確認できません。\n画面を更新して、もう一度お試しください。");
     }
     staffIds.push(staff._id);
     if (audit.fromState === "removedPerson") {
-      if (!staff.organizationPersonId) throw new ConvexError("以前のスタッフ追加結果を確認できません");
+      if (!staff.organizationPersonId) {
+        throw new ConvexError("以前のスタッフ追加結果を確認できません。\n画面を更新して、もう一度お試しください。");
+      }
       reactivatedPersonIds.push(staff.organizationPersonId);
     }
   }
   if (!sameIds(reactivatedPersonIds, args.confirmedPersonIds)) {
-    throw new ConvexError("確認対象が変わりました。追加内容をもう一度確認してください");
+    throw new ConvexError("確認対象が変わりました。\n追加内容をもう一度確認してください。");
   }
   return { status: "added" as const, staffIds };
 }
@@ -121,7 +124,7 @@ async function getSendableStaff(ctx: ManagerStaffMutationCtx, staffId: Id<"staff
   const lineAccount = await getStaffLineAccount(ctx, staff._id);
   const canSend = staff.email.length > 0 || Boolean(lineAccount?.lineUserId && lineAccount.following);
   if (!canSend) {
-    throw new ConvexError("メールアドレスまたはLINE連携が必要です");
+    throw new ConvexError("メールアドレスの登録またはLINE連携が必要です。");
   }
 
   return staff;
@@ -257,7 +260,7 @@ type AddStaffEntriesArgs = {
 async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntriesArgs) {
   const parsed = addStaffsSchema.safeParse(args);
   if (!parsed.success) {
-    throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+    throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
   }
   const requestId = await toAuditRequestKey(args.requestId);
   const validEntries = parsed.data.entries
@@ -265,7 +268,7 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
     .filter((e) => e.name !== "");
   const confirmedPersonIds = args.confirmReactivationPersonIds ?? [];
   if (new Set(confirmedPersonIds).size !== confirmedPersonIds.length) {
-    throw new ConvexError("確認対象が重複しています。追加内容をもう一度確認してください");
+    throw new ConvexError("確認対象が重複しています。\n追加内容をもう一度確認してください。");
   }
 
   const organizationId = ctx.shop.organizationId;
@@ -279,19 +282,19 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
     });
     if (completed) return completed;
   } else if (confirmedPersonIds.length > 0) {
-    throw new ConvexError("確認対象が変わりました。追加内容をもう一度確認してください");
+    throw new ConvexError("確認対象が変わりました。\n追加内容をもう一度確認してください。");
   }
 
   const inputEmails = new Set<string>();
   for (const entry of validEntries) {
     if (inputEmails.has(entry.email)) {
-      throw new ConvexError("同じメールアドレスが入力されています");
+      throw new ConvexError("同じメールアドレスが複数入力されています。");
     }
     inputEmails.add(entry.email);
 
     const existingStaff = await findActiveStaffByEmail(ctx, ctx.shop._id, entry.email);
     if (existingStaff) {
-      throw new ConvexError("このメールアドレスはすでに登録されています");
+      throw new ConvexError("このメールアドレスはすでに登録されています。");
     }
 
     const pendingRequest = await ctx.db
@@ -301,7 +304,7 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
       )
       .first();
     if (pendingRequest) {
-      throw new ConvexError("このメールアドレスは承認待ちです");
+      throw new ConvexError("このメールアドレスはスタッフ登録の承認待ちです。");
     }
   }
 
@@ -332,7 +335,7 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
       return { status: "requiresConfirmation" as const, candidates: reactivationCandidates };
     }
     if (!sameIds(reactivationPersonIds, confirmedPersonIds)) {
-      throw new ConvexError("確認対象が変わりました。追加内容をもう一度確認してください");
+      throw new ConvexError("確認対象が変わりました。\n追加内容をもう一度確認してください。");
     }
     if (reactivationCandidates.length > 0 && !ctx.organizationMember) throw new ConvexError("Not found");
 
@@ -356,6 +359,7 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
 
   const inserted: Id<"staffs">[] = [];
   for (const entry of staffEntries) {
+    // TODO[narrow]: 全deploymentでm025/m027完走・staff readiness 0確認後、canonical IDsを必須にする。
     const id = await ctx.db.insert("staffs", {
       shopId: ctx.shop._id,
       ...(entry.organizationId && entry.organizationPersonId
@@ -364,6 +368,7 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
       name: entry.name,
       email: entry.email,
       emailNormalized: entry.email,
+      excludedFromShift: false,
       isDeleted: false,
     });
     inserted.push(id);
@@ -391,7 +396,9 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
     const now = Date.now();
     for (const [index, staffId] of inserted.entries()) {
       const entry = staffEntries[index];
-      if (!entry) throw new ConvexError("スタッフ追加結果を確認できません");
+      if (!entry) {
+        throw new ConvexError("スタッフの追加結果を確認できません。\n画面を更新して、もう一度お試しください。");
+      }
       await recordOrganizationAuditEvent(ctx, {
         organizationId,
         actorUserId: ctx.user._id,
@@ -403,6 +410,34 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
         toState: `active:${ctx.shop._id}:batch:${inserted.length}`,
         correlationId: `${correlationBase}:staff:${index}`,
         occurredAt: now,
+        ...(index === 0
+          ? {
+              analyticsEvent: {
+                eventType: "staffMembership.changed" as const,
+                shopId: ctx.shop._id,
+                payload: {
+                  kind: "staffMembershipBatch" as const,
+                  memberships: inserted.map((insertedStaffId, insertedIndex) => {
+                    const insertedEntry = staffEntries[insertedIndex];
+                    if (!insertedEntry) throw new ConvexError("スタッフの追加結果を確認できません。");
+                    return {
+                      staffId: insertedStaffId,
+                      ...(insertedEntry.organizationPersonId
+                        ? {
+                            organizationPersonId: insertedEntry.organizationPersonId,
+                            personFirstObservedAt: now,
+                          }
+                        : {}),
+                      isShiftTarget: true,
+                      validFrom: now,
+                      lineLinked: false,
+                      lineFollowing: false,
+                    };
+                  }),
+                },
+              },
+            }
+          : {}),
       });
       if (entry.reactivatedPersonId) {
         await recordOrganizationAuditEvent(ctx, {
@@ -416,6 +451,7 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
           toState: "active",
           correlationId: `${correlationBase}:person:${entry.reactivatedPersonId}`,
           occurredAt: now,
+          suppressAnalyticsEvent: true,
         });
       }
     }
@@ -459,7 +495,7 @@ export const addOrganizationPersonToShop = managerMutation({
       requestId: args.requestId,
     });
     if (result.status !== "added" || result.staffIds.length !== 1) {
-      throw new ConvexError("スタッフ追加結果を確認できません");
+      throw new ConvexError("スタッフの追加結果を確認できません。\n画面を更新して、もう一度お試しください。");
     }
     const staffId = result.staffIds[0];
     const staff = await ctx.db.get(staffId);
@@ -473,7 +509,7 @@ export const addOrganizationPersonToShop = managerMutation({
       staff.email !== person.emailNormalized ||
       staff.emailNormalized !== person.emailNormalized
     ) {
-      throw new ConvexError("スタッフ追加結果を確認できません");
+      throw new ConvexError("スタッフの追加結果を確認できません。\n画面を更新して、もう一度お試しください。");
     }
     return { staffId };
   },
@@ -489,7 +525,7 @@ export const editStaff = managerMutation({
   handler: async (ctx, args) => {
     const parsed = editStaffSchema.safeParse({ name: args.name, email: args.email });
     if (!parsed.success) {
-      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
     }
     const input = parsed.data;
     const staff = await getActiveStaffInShop(ctx, ctx.shop._id, args.staffId);
@@ -503,7 +539,7 @@ export const editStaff = managerMutation({
     const organizationPersonId = staff.organizationPersonId;
     const hasOrganizationLink = Boolean(organizationId || organizationPersonId);
     if (hasOrganizationLink && (!organizationId || !organizationPersonId)) {
-      throw new ConvexError("スタッフの人物情報を確認できません");
+      throw new ConvexError("スタッフのユーザー情報を確認できません。\nグループ設定で登録内容を確認してください。");
     }
     const organizationPerson = organizationId && organizationPersonId ? await ctx.db.get(organizationPersonId) : null;
     if (
@@ -512,7 +548,7 @@ export const editStaff = managerMutation({
         organizationPerson.organizationId !== organizationId ||
         organizationPerson.status !== "active")
     ) {
-      throw new ConvexError("スタッフの人物情報を確認できません");
+      throw new ConvexError("スタッフのユーザー情報を確認できません。\nグループ設定で登録内容を確認してください。");
     }
 
     if (organizationPerson && organizationId) {
@@ -542,9 +578,10 @@ export const editStaff = managerMutation({
         )
         .first());
     if (duplicate && duplicate._id !== args.staffId) {
-      throw new ConvexError("このメールアドレスは既に使用されています");
+      throw new ConvexError("このメールアドレスはすでに使用されています。");
     }
 
+    // TODO[narrow]: 全deploymentでm032が完走し、verifyStaffsのemail残件が全pageで0になった後にemail fallbackを削除する。
     const previousEmailNormalized = normalizeEmail(staff.emailNormalized ?? staff.email);
     const emailChanged = trimmedEmail !== previousEmailNormalized;
     const emailChangedAt = Date.now();
@@ -702,7 +739,27 @@ export const setShiftExclusion = managerMutation({
       throw new ConvexError("Not found");
     }
     // 削除と異なり、管理者（店舗共通アドレス本人）もシフト対象外にできる（主ユースケース）。
+    const now = Date.now();
     await ctx.db.patch(args.staffId, { excludedFromShift: args.excluded });
+    const organizationId = staff.organizationId ?? ctx.shop.organizationId;
+    if (organizationId) {
+      await recordAnalyticsSourceEvent(ctx, {
+        eventKey: `staffMembership:${staff._id}:shiftTarget:${crypto.randomUUID()}`,
+        eventType: "staffMembership.changed",
+        occurredAt: now,
+        organizationId,
+        shopId: staff.shopId,
+        subjectId: staff._id,
+        payload: {
+          kind: "staffMembership",
+          staffId: staff._id,
+          ...(staff.organizationPersonId ? { organizationPersonId: staff.organizationPersonId } : {}),
+          status: "active",
+          isShiftTarget: !args.excluded,
+          validFrom: now,
+        },
+      });
+    }
 
     // 対象外にする場合は、発行済みのシフト用セッション・マジックリンクを失効させ、
     // 古いリンクでのシフト閲覧・希望提出を即座に遮断する（LINE連携は他通知で使うため残す）。
@@ -717,7 +774,6 @@ export const setShiftExclusion = managerMutation({
           .withIndex("by_staffId", (q) => q.eq("staffId", args.staffId))
           .collect(),
       ]);
-      const now = Date.now();
       await Promise.all([
         ...sessions
           .filter((session) => !session.revokedAt)
@@ -729,6 +785,10 @@ export const setShiftExclusion = managerMutation({
   },
 });
 
+/**
+ * organization link未設定staffだけを扱う旧削除API。
+ * TODO[narrow]: 全deploymentでm027完走・verifyStaffsのlink残件0・旧client配布終了を確認後に削除する。
+ */
 export const deleteStaff = managerMutation({
   args: {
     staffId: v.id("staffs"),
@@ -740,14 +800,33 @@ export const deleteStaff = managerMutation({
       throw new ConvexError("Not found");
     }
     if (staff.organizationId || staff.organizationPersonId) {
-      throw new ConvexError("グループ設定から店舗所属を解除してください");
+      throw new ConvexError("この店舗への所属は、グループ設定のユーザー画面から解除してください。");
     }
 
     if (staff.userId === ctx.user._id) {
-      throw new ConvexError("自分のアカウントは削除できません");
+      throw new ConvexError("自分のアカウントは削除できません。");
     }
 
+    const now = Date.now();
     await ctx.db.patch(args.staffId, { isDeleted: true });
+    if (ctx.shop.organizationId) {
+      await recordAnalyticsSourceEvent(ctx, {
+        eventKey: `staffMembership:${staff._id}:deleted:${now}`,
+        eventType: "staffMembership.changed",
+        occurredAt: now,
+        organizationId: ctx.shop.organizationId,
+        shopId: staff.shopId,
+        subjectId: staff._id,
+        payload: {
+          kind: "staffMembership",
+          staffId: staff._id,
+          status: "removed",
+          isShiftTarget: !staff.excludedFromShift,
+          validFrom: staff._creationTime,
+          validTo: now,
+        },
+      });
+    }
     await ctx.scheduler.runAfter(0, internal.notificationOutbox.mutations.deleteStaffNotificationHistoryBatch, {
       shopId: ctx.shop._id,
       staffId: args.staffId,
@@ -771,7 +850,6 @@ export const deleteStaff = managerMutation({
         .withIndex("by_staffId", (q) => q.eq("staffId", args.staffId))
         .collect(),
     ]);
-    const now = Date.now();
     await Promise.all([
       ...sessions.map((session) => ctx.db.patch(session._id, { revokedAt: now })),
       ...magicLinks.map((token) => ctx.db.patch(token._id, { revokedAt: now })),

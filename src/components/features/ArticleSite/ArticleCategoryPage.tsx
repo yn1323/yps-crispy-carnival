@@ -71,7 +71,13 @@ function CategoryHero({ category }: { category: CategoryMetadata }): ReactNode {
             <Heading as="h1" color="gray.950" textStyle="pageTitle" letterSpacing="0">
               {category.title}
             </Heading>
-            <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" maxW="680px">
+            <Text
+              color="gray.700"
+              textStyle={{ base: "bodySm", md: "body" }}
+              lineHeight="1.8"
+              maxW="680px"
+              whiteSpace="pre-line"
+            >
               {category.description}
             </Text>
           </VStack>
@@ -88,7 +94,7 @@ function PointBox({ category }: { category: CategoryMetadata }): ReactNode {
         <Text color="green.700" fontWeight="bold">
           このカテゴリで扱う悩み
         </Text>
-        <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8">
+        <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" whiteSpace="pre-line">
           {category.pointDescription}
         </Text>
         <Grid as="ul" templateColumns={{ base: "1fr", md: "repeat(2, minmax(0, 1fr))" }} gap={3} listStyleType="none">
@@ -135,7 +141,7 @@ function RepresentativeArticle({ article }: { article: ArticleContent }): ReactN
             <Heading as="h3" color="gray.950" textStyle={{ base: "lg", md: "xl" }} letterSpacing="0">
               {article.meta.title}
             </Heading>
-            <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8">
+            <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" whiteSpace="pre-line">
               {article.meta.description}
             </Text>
             <HStack gap={4} color="gray.500" textStyle="sm" wrap="wrap">

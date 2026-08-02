@@ -26,7 +26,7 @@ export class ManagerSupportPage {
     await expect(dialog).toBeVisible();
     await dialog.getByLabel("どんな機能や改善があるとうれしいですか？").fill(comment);
     await dialog.getByRole("button", { name: "要望を送る" }).click();
-    await expect(this.page.getByText("要望を送信しました。ご協力ありがとうございます！")).toBeVisible();
+    await expect(this.page.getByText(/要望を送信しました。\s*ご協力ありがとうございます！/)).toBeVisible();
     await expect(dialog).not.toBeVisible();
   }
 

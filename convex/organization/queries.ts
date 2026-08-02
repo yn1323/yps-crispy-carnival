@@ -151,6 +151,7 @@ const organizationSettingsValidator = v.object({
   createOrganizationDisabledReason: v.optional(v.string()),
   // 公開していない導線の表示判定。可否（can*）とは別に持ち、
   // 「上限に達したので理由を出す」と「未公開なので何も出さない」を画面が描き分けられるようにする。
+  // TODO[narrow]: featuresを返すbackendが全deploymentへ反映され、旧frontend互換期間が終わった後にrequired化する。
   features: v.optional(
     v.object({
       organizationCreation: v.boolean(),
@@ -201,7 +202,7 @@ function legacyMigrationPendingSettings(
   shop: Doc<"shops">,
   creationAvailability: OrganizationCreationAvailability,
 ) {
-  const migrationReason = "グループ単位の設定を移行しています。完了するまで既存データを閲覧できます。";
+  const migrationReason = "グループ単位の設定を移行しています。\n完了するまで、既存データを閲覧できます。";
   return {
     organizationName: shop.name,
     people: [
@@ -226,7 +227,9 @@ function legacyMigrationPendingSettings(
       {
         id: shop._id,
         name: shop.name,
-        regularClosedDays: shop.regularClosedDays,
+        // TODO[narrow]: 全deploymentでm039のshop workerが完走し、
+        // verifyShops.missingRegularClosedDaysが0件になった後にfallbackを削除する。
+        regularClosedDays: shop.regularClosedDays ?? [],
         submissionPattern: shop.submissionPattern,
         staffCount: 0,
         canUpdateSettings: false,
@@ -246,7 +249,7 @@ function legacyMigrationPendingSettings(
       shopUsage: { current: 1, max: 0, pendingInvitations: 0 },
       managerUsage: { current: 1, max: 0, pendingInvitations: 0 },
       requiredReductions: { people: 0, shops: 0, managers: 0 },
-      blockedReason: "グループ単位のプラン設定を移行しています。完了後に利用状態を再確認します。",
+      blockedReason: "グループ単位のプラン設定を移行しています。\n完了後、利用状態を再確認します。",
       billingEmail: user.email,
       canManagePlan: false,
       canUpdatePaymentMethod: false,
@@ -287,17 +290,17 @@ function restrictedBlockedReason(state: Extract<Doc<"organizationBillingStates">
   switch (state.reason) {
     case "trialFreeConditionsNotMet":
     case "freeConditionsNotMet":
-      return "無料の利用人数または店舗数を超えています。ユーザーまたは店舗を削除してから再確認してください。";
+      return "無料プランの利用人数または店舗数の上限を超えています。\nユーザーまたは店舗を削除してから、再確認してください。";
     case "paymentGraceExpired":
-      return "支払い猶予が終了しています。支払い方法を更新するか、有料プランを再開してください。";
+      return "支払い猶予が終了しています。\n支払い方法を更新するか、有料プランを再開してください。";
     case "paymentActivationFailed":
-      return "有料プランの支払いを確認できませんでした。有料プランを再契約してください。";
+      return "有料プランの支払いを確認できませんでした。\n有料プランを再契約してください。";
     case "unexpectedCancellation":
-      return "契約状態を確認できません。有料プランを再契約してください。";
+      return "契約状態を確認できません。\n有料プランを再契約してください。";
     case "planLimitExceeded":
       return state.limitPlan === "pro"
-        ? "Proの利用人数を超えています。必要な人数を削除すると、Proを利用できます。"
-        : "無料の利用上限を超えています。必要なユーザー、店舗、管理者を整理してください。";
+        ? "Proの利用人数上限を超えています。\n利用人数を上限以内に整理すると、Proを利用できます。"
+        : "無料プランの利用上限を超えています。\n利用人数・店舗数・管理者数を上限以内に整理してください。";
   }
 }
 
@@ -678,20 +681,20 @@ export const getSettings = managerQuery({
         const statusDetail =
           status === "expired"
             ? canResend
-              ? "有効期限が切れました。再送すると新しいURLを発行します。"
-              : "この招待は再送できません。権限、利用者、契約状態を確認してください。"
+              ? "有効期限が切れました。\n再送すると、新しいURLが発行されます。"
+              : "この招待は再送できません。\n権限・ユーザー・契約状態を確認してください。"
             : status === "sendFailed"
               ? canResend
-                ? "ログイン案内を送信できませんでした。連絡先を確認して再送してください。"
-                : "この招待は再送できません。権限、利用者、契約状態を確認してください。"
+                ? "ログイン案内を送信できませんでした。\n招待先のメールアドレスを確認してから、再送してください。"
+                : "この招待は再送できません。\n権限・ユーザー・契約状態を確認してください。"
               : status === "limitReached"
-                ? "現在のプラン上限に達しているため、アカウントを連携できません。利用状況またはプランを確認してください。"
+                ? "現在のプランの上限に達しているため、アカウントを連携できません。\n利用状況またはプランを確認してください。"
                 : status === "conflict"
                   ? canRevoke
-                    ? "招待後に利用者または契約の状態が変わりました。この招待を取り消して内容を確認してください。"
-                    : "招待後に利用者または契約の状態が変わりました。権限、利用者、契約状態を確認してください。"
+                    ? "招待後に、ユーザーまたは契約の状態が変わりました。\nこの招待を取り消して、内容を確認してください。"
+                    : "招待後に、ユーザーまたは契約の状態が変わりました。\n権限・ユーザー・契約状態を確認してください。"
                   : status === "pending" && purpose === "freeManagerExchange"
-                    ? "アカウント連携が完了するまでは、現在の管理者が操作を継続します。"
+                    ? "アカウント連携が完了するまでは、現在の管理者が引き続き操作できます。"
                     : undefined;
         return {
           id: invitation._id,
@@ -771,28 +774,30 @@ export const getSettings = managerQuery({
       : shops.length <= 1
         ? "グループには少なくとも1店舗が必要です。"
         : !isActiveActor
-          ? "閲覧のみの管理者は店舗を削除できません。"
+          ? "閲覧のみの管理者は、店舗を削除できません。"
           : restrictedState
-            ? "契約の復旧担当者だけが店舗を削除できます。"
-            : "現在の契約状態では店舗を削除できません。";
+            ? "店舗を削除できるのは、契約の復旧担当者だけです。"
+            : "現在の契約状態では、店舗を削除できません。";
     const shopsView = shops
       .map((shop) => {
         const canUpdateSettings = Boolean(canWriteNormally && shop.operatingStatus === "active");
         const settingsDisabledReason = canUpdateSettings
           ? undefined
           : shop.operatingStatus !== "active"
-            ? "利用できない状態の店舗設定は変更できません。"
+            ? "利用停止中の店舗は、設定を変更できません。"
             : !billingState
-              ? "グループ単位の設定を移行しています。完了までお待ちください。"
+              ? "グループ単位の設定を移行しています。\n完了するまでお待ちください。"
               : !isActiveActor
-                ? "閲覧のみの管理者は店舗設定を変更できません。"
+                ? "閲覧のみの管理者は、店舗設定を変更できません。"
                 : restrictedState
-                  ? "契約制限中は店舗設定を変更できません。"
-                  : "支払い結果が確定してから店舗設定を変更できます。";
+                  ? "契約制限中は、店舗設定を変更できません。"
+                  : "支払い結果が確定するまで、店舗設定を変更できません。";
         return {
           id: shop._id,
           name: shop.name,
-          regularClosedDays: shop.regularClosedDays,
+          // TODO[narrow]: 全deploymentでm039のshop workerが完走し、
+          // verifyShops.missingRegularClosedDaysが0件になった後にfallbackを削除する。
+          regularClosedDays: shop.regularClosedDays ?? [],
           submissionPattern: shop.submissionPattern,
           staffCount: staffCountByShopId.get(shop._id) ?? 0,
           canUpdateSettings,
@@ -879,8 +884,8 @@ export const getSettings = managerQuery({
     const accessDisabledReason =
       !isActiveActor && !isRestrictedRecovery
         ? restrictedState
-          ? "契約の復旧担当者だけがこの操作を行えます。"
-          : "閲覧のみの管理者はこの操作を行えません。"
+          ? "この操作を行えるのは、契約の復旧担当者だけです。"
+          : "閲覧のみの管理者は、この操作を行えません。"
         : undefined;
     const managePlanDisabledReason =
       billingCapabilities.canManagePlan || isComplimentary
@@ -893,8 +898,8 @@ export const getSettings = managerQuery({
               (billingState.state.kind === "initialPaymentPending"
                 ? "初回支払いの結果を確認中のため、プランを変更できません。"
                 : billingState.state.kind === "pendingActivation"
-                  ? "支払い結果を確認中のため、別のプラン変更はできません。"
-                  : "現在の契約状態ではプランを変更できません。"));
+                  ? "支払い結果を確認中のため、別のプランへは変更できません。"
+                  : "現在の契約状態では、プランを変更できません。"));
     const paymentMethodDisabledReason =
       billingCapabilities.canUpdatePaymentMethod || isComplimentary
         ? undefined
@@ -905,25 +910,25 @@ export const getSettings = managerQuery({
             : (accessDisabledReason ??
               (!canAccessCustomerPortal
                 ? billingState.state.kind === "trial" && !billingState.state.selectedPaidPlan
-                  ? "Pro継続を登録すると、Stripeで支払い情報を管理できます。"
+                  ? "トライアル終了後のPro継続を登録すると、Stripeで支払い情報を管理できます。"
                   : billingState.state.kind === "initialPaymentPending"
-                    ? "初回支払いの結果を確認中です。確定後にStripeで支払い情報を管理できます。"
+                    ? "初回支払いの結果を確認中です。\n確定後に、Stripeで支払い情報を管理できます。"
                     : billingState.state.kind === "active" && billingState.state.plan === "free"
-                      ? "無料プランでは支払い情報の管理は不要です。有料プランの契約時にStripeで登録します。"
+                      ? "無料プランでは、支払い情報の管理は不要です。\n有料プランを契約するときに、Stripeで登録します。"
                       : billingState.state.kind === "pendingActivation"
-                        ? "支払い結果を確認中です。確定後にStripeで支払い情報を管理できます。"
-                        : "現在の契約状態ではStripeの支払い情報を管理できません。"
+                        ? "支払い結果を確認中です。\n確定後に、Stripeで支払い情報を管理できます。"
+                        : "現在の契約状態では、Stripeの支払い情報を管理できません。"
                 : !hasStripeCustomer
-                  ? "Stripeの契約情報を準備中です。しばらくしてからもう一度お試しください。"
+                  ? "Stripeの契約情報を準備中です。\nしばらくしてから、もう一度お試しください。"
                   : !stripeCustomerMatchesConfiguration
-                    ? "Stripeの契約情報と決済設定を確認中です。しばらくしてからもう一度お試しください。"
-                    : "現在の契約状態ではStripeの支払い情報を管理できません。"));
+                    ? "Stripeの契約情報と決済設定を確認中です。\nしばらくしてから、もう一度お試しください。"
+                    : "現在の契約状態では、Stripeの支払い情報を管理できません。"));
     const billingEmailDisabledReason =
       billingCapabilities.canUpdateBillingEmail || isComplimentary
         ? undefined
         : !billingState
           ? "設定の移行が完了するまでお待ちください。"
-          : (accessDisabledReason ?? "現在の契約状態では請求先メールアドレスを変更できません。");
+          : (accessDisabledReason ?? "現在の契約状態では、請求先メールアドレスを変更できません。");
     const billingCapabilityReasons = {
       ...(managePlanDisabledReason ? { managePlanDisabledReason } : {}),
       ...(paymentMethodDisabledReason ? { paymentMethodDisabledReason } : {}),
@@ -931,13 +936,15 @@ export const getSettings = managerQuery({
     };
 
     let billing: BillingView;
+    // TODO[narrow]: 全deploymentでm025完走・verifyOrganizationsのbilling state残件0確認後、
+    //   migrationPending DTOと関連するUI fallbackを削除する。
     if (!billingState) {
       billing = {
         ...billingBase,
         ...billingCapabilityReasons,
         state: "migrationPending",
         currentPlan: null,
-        blockedReason: "グループ単位のプラン設定を移行しています。完了後に利用状態を再確認します。",
+        blockedReason: "グループ単位のプラン設定を移行しています。\n完了後、利用状態を再確認します。",
       };
     } else {
       const state = billingState.state;
@@ -974,10 +981,10 @@ export const getSettings = managerQuery({
             targetPlan: state.plan,
             blockedReason:
               state.fallback === "free"
-                ? "有料プランの支払い結果を確認中です。無料の基本機能は引き続き利用できます。"
+                ? "有料プランの支払い結果を確認中です。\n無料の基本機能は引き続き利用できます。"
                 : restrictedState
                   ? restrictedBlockedReason(restrictedState)
-                  : "契約制限を維持したまま支払い結果を確認しています。",
+                  : "支払い結果を確認しています。\n確認が終わるまで、契約制限中のままになります。",
             nextEvent: { label: "支払い結果", date: "確認中" },
           };
           break;
@@ -1027,7 +1034,7 @@ export const getSettings = managerQuery({
             state: "grace",
             currentPlan: state.plan,
             ...(state.targetPlan ? { targetPlan: state.targetPlan } : {}),
-            blockedReason: "支払い方法を更新しないまま期限を過ぎると、契約制限中へ移行します。",
+            blockedReason: "期限までに支払い方法を更新しないと、契約制限中になります。",
             nextEvent: { label: "支払い猶予期限", date: formatDateTimeJa(state.endsAt) },
           };
           break;
@@ -1048,19 +1055,19 @@ export const getSettings = managerQuery({
     const inviteManagerDisabledReason = canInviteManager
       ? undefined
       : !billingState
-        ? "グループ単位のプラン設定を移行しています。完了までお待ちください。"
+        ? "グループ単位のプラン設定を移行しています。\n完了するまでお待ちください。"
         : !isActiveActor
-          ? "閲覧のみの管理者は管理者を招待できません。"
+          ? "閲覧のみの管理者は、管理者を招待できません。"
           : restrictedState
-            ? "契約制限中は管理者を招待できません。"
+            ? "契約制限中は、管理者を招待できません。"
             : managerInvitationMode === "freeManagerExchange" && activeFreeManagerExchangeInvitations.length > 0
-              ? "次の管理者のアカウント連携を待っています。連携完了までは現在の管理者が操作を継続します。"
+              ? "次の管理者のアカウント連携を待っています。\n連携が完了するまでは、現在の管理者が引き続き操作できます。"
               : managerInvitationMode === "freeManagerExchange"
-                ? "無料では、グループ内の既存スタッフとの管理者交代だけを利用できます。"
+                ? "無料プランでは、グループ内の既存スタッフへの管理者交代のみ行えます。"
                 : policy?.paidFeatureBlockReason === "freePlan"
-                  ? "無料では管理者を追加できません。有料プランを選択してください。"
+                  ? "無料プランでは、管理者を追加できません。\n有料プランを選択してください。"
                   : policy?.paidFeatureBlockReason === "paymentResultPending"
-                    ? "支払い結果が確定してから管理者を招待できます。"
+                    ? "支払い結果が確定してから、管理者を招待できます。"
                     : "管理者と招待中の管理者は、グループ全体で5名までです。";
     const canAddShop = Boolean(
       isActiveActor && policy?.canUsePaidFeatures && policy.limits && activeShopCount < policy.limits.maxActiveShops,
@@ -1068,22 +1075,22 @@ export const getSettings = managerQuery({
     const addShopDisabledReason = canAddShop
       ? undefined
       : !billingState
-        ? "グループ単位のプラン設定を移行しています。完了までお待ちください。"
+        ? "グループ単位のプラン設定を移行しています。\n完了するまでお待ちください。"
         : !isActiveActor
-          ? "閲覧のみの管理者は店舗を追加できません。"
+          ? "閲覧のみの管理者は、店舗を追加できません。"
           : restrictedState
-            ? "契約制限中は店舗を追加できません。"
+            ? "契約制限中は、店舗を追加できません。"
             : policy?.paidFeatureBlockReason === "freePlan"
-              ? "無料では店舗を追加できません。有料プランを選択してください。"
+              ? "無料プランでは、店舗を追加できません。\n有料プランを選択してください。"
               : policy?.paidFeatureBlockReason === "paymentResultPending"
-                ? "支払い結果が確定してから店舗を追加できます。"
-                : "店舗はグループごとに5件まで登録できます。";
+                ? "支払い結果が確定してから、店舗を追加できます。"
+                : "店舗は、グループごとに5件まで登録できます。";
     const canUpdateOrganizationName = isActiveActor;
     const updateOrganizationNameDisabledReason = canUpdateOrganizationName
       ? undefined
       : !ctx.organizationMember
-        ? "グループ単位の設定を移行しています。完了までお待ちください。"
-        : "閲覧のみの管理者はグループ名を変更できません。";
+        ? "グループ単位の設定を移行しています。\n完了するまでお待ちください。"
+        : "閲覧のみの管理者は、グループ名を変更できません。";
 
     const deletionEligibility = ctx.organizationMember
       ? await getOrganizationDeletionEligibility(ctx, {
@@ -1093,7 +1100,7 @@ export const getSettings = managerQuery({
         })
       : {
           canDelete: false as const,
-          reason: "グループ単位の設定を移行しています。完了までお待ちください。",
+          reason: "グループ単位の設定を移行しています。\n完了するまでお待ちください。",
         };
 
     return {

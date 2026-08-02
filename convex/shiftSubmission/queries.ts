@@ -171,6 +171,8 @@ export const getSubmissionPageData = staffSessionQuery({
         periodStart: recruitment.periodStart,
         periodEnd: recruitment.periodEnd,
         deadline: recruitment.deadline,
+        // TODO[narrow]: 全deploymentでm040が完走し、
+        // verifyRecruitments.missingShopClosedDatesが0件になった後にfallbackを削除する。
         shopClosedDates: recruitment.shopClosedDates ?? [],
         submissionPattern,
         isBeforeDeadline,

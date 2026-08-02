@@ -62,7 +62,7 @@ export function HowToSite({ articles = helpArticles }: HowToSiteProps) {
           <Empty
             icon={LuSearch}
             title="該当する使い方が見つかりません"
-            description="言葉を短くするか、別の言い方で検索してください。"
+            description="キーワードを短くするか、別の言い方で検索してください。"
             variant="section"
             tone="neutral"
             minH="280px"

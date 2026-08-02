@@ -16,7 +16,9 @@ export function NotFoundPage() {
           size="lg"
           title="ページが見つかりません"
           titleAs="h1"
-          description="URLが正しいか確認するか、トップページから目的のページをお探しください。"
+          description={
+            "URLが正しいか確認してください。\n見つからない場合は、トップページから目的のページをお探しください。"
+          }
           tone="neutral"
           minH={{ base: `calc(100dvh - ${HEADER_HEIGHT.base})`, md: `calc(100dvh - ${HEADER_HEIGHT.md})` }}
           px={{ base: 2, md: 4 }}

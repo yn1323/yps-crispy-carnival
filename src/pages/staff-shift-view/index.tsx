@@ -32,7 +32,7 @@ function StaffShiftViewState({ state }: { state: StaffAccessState }) {
           <Empty
             icon={LuTriangleAlert}
             title="アクセスが集中しています"
-            description={"少し時間をおいて、\nもう一度お試しください。"}
+            description="少し時間をおいて、もう一度お試しください。"
             tone="warning"
           />
         </StaffCenteredContent>
@@ -67,7 +67,7 @@ function StaffShiftViewState({ state }: { state: StaffAccessState }) {
           <Empty
             icon={LuTriangleAlert}
             title="このリンクではシフトを確認できません"
-            description="下のボタンから新しい閲覧リンクを受け取ってください"
+            description="下のボタンから、新しい閲覧リンクを受け取ってください。"
             tone="warning"
             action={
               state.recruitmentId ? (
@@ -92,7 +92,7 @@ function StaffShiftViewState({ state }: { state: StaffAccessState }) {
             <Empty
               icon={LuTriangleAlert}
               title="このリンクではシフトを確認できません"
-              description="下のボタンから新しい閲覧リンクを受け取ってください"
+              description="下のボタンから、新しい閲覧リンクを受け取ってください。"
               tone="warning"
               action={
                 <Link to="/shifts/reissue" search={{ recruitmentId: state.session.recruitmentId }}>
@@ -132,7 +132,7 @@ function ShiftViewContent({ session }: { session: { sessionToken: string; recrui
           <Empty
             icon={LuTriangleAlert}
             title="このリンクではシフトを確認できません"
-            description="下のボタンから新しい閲覧リンクを受け取ってください"
+            description="下のボタンから、新しい閲覧リンクを受け取ってください。"
             tone="warning"
             action={
               <Link to="/shifts/reissue" search={{ recruitmentId: session.recruitmentId }}>

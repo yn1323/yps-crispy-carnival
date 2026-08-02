@@ -76,6 +76,7 @@ export const sendManagerConfirmationReminder = internalAction({
         await enqueueLine(ctx, {
           shopId: data.shopId,
           ...notificationOrigin,
+          purpose: "business",
           recruitmentId,
           userId: recipient.userId,
           dedupeKey: lineDedupeKey,
@@ -93,6 +94,7 @@ export const sendManagerConfirmationReminder = internalAction({
       await enqueueEmail(ctx, {
         shopId: data.shopId,
         ...notificationOrigin,
+        purpose: "business",
         recruitmentId,
         userId: recipient.userId,
         dedupeKey: emailDedupeKey,

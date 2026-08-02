@@ -20,7 +20,9 @@
 
 ## 移行互換
 
-- `shopMembers`は`m010_shop_members_to_organization_members`の完了と新クライアントの配布を確認するまでfallbackと互換書き込みに使う。
+- 新しい管理者所属は`organizationMembers`だけへ保存し、`shopMembers`への互換書き込みは行わない。
+- `shopMembers`は、canonical所属がまだない利用者を移行中も締め出さないためのread fallbackとしてだけ使う。canonical所属が1件でもあれば、状態にかかわらず旧所属を認可根拠にしない。
+- `m029_shop_members_narrow_prep`は、canonical所属と一意に対応するactiveな旧所属を論理削除する。  権限を変えるため固定seriesには含めず、dry run、m025からm028のstatus、readiness、未解消conflict 0件を確認したdeploymentだけで専用runnerを明示実行する。  未移行または対応が曖昧な旧所属は削除せず、migration conflictへ記録する。
 - 管理者交代では対応する旧`shopMembers`も削除済みにし、legacy fallbackから管理権限が復活しないようにする。
 - `m013_former_managers_remove_manager_access`と`m014_removed_organization_members_delete_legacy_shop_members`は、既存の交代済み旧管理者にも同じ権限失効を適用する。
 - `shops.organizationId`と`shops.operatingStatus`はWiden期間中だけoptionalである。対象deploymentで`m009_shops_to_organizations`の完走と互換readの安定を確認した後にだけNarrowする。
@@ -33,8 +35,13 @@
 - `convex/dashboard/queries.ts`
 - `convex/migrations/m009_shops_to_organizations.ts`
 - `convex/migrations/m010_shop_members_to_organization_members.ts`
+- `convex/migrations/m025_shops_narrow_prep.ts`
+- `convex/migrations/m026_shop_members_narrow_prep.ts`
+- `convex/migrations/m027_staffs_narrow_prep.ts`
+- `convex/migrations/m029_shop_members_narrow_prep.ts`
 - `convex/migrations/m013_former_managers_remove_manager_access.ts`
 - `convex/migrations/m014_removed_organization_members_delete_legacy_shop_members.ts`
+- `convex/narrowReadiness/queries.ts`
 - `src/components/features/AuthenticatedApp/AuthGuard.tsx`
 - `src/components/features/Dashboard/OperationContext/`
 - `src/components/features/ShopSwitcher/`

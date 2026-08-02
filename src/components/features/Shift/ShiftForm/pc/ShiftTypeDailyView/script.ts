@@ -117,7 +117,7 @@ export const buildShiftTypeDailyViewModel = ({
   isConfirmedDisplay,
   warningMessagesByStaffId,
 }: {
-  submissionPattern: ShiftSubmissionPattern | undefined;
+  submissionPattern: ShiftSubmissionPattern;
   shifts: ShiftData[];
   staffs: StaffType[];
   selectedDate: string;
@@ -126,7 +126,7 @@ export const buildShiftTypeDailyViewModel = ({
   warningMessagesByStaffId: ReadonlyMap<string, string[]>;
 }): ShiftTypeDailyViewModel => {
   const options =
-    submissionPattern?.kind === "shiftType"
+    submissionPattern.kind === "shiftType"
       ? [...submissionPattern.options].sort((a, b) => a.sortOrder - b.sortOrder)
       : [];
   const countsByOptionId = countShiftTypeAssignments(

@@ -157,10 +157,10 @@ export function ManagerInvitationDialog({
 
             <Tabs.Content value="staff" pt={4}>
               <Stack gap={4}>
-                <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+                <Text fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
                   {isFreeManagerExchange
-                    ? "次の管理者にするスタッフを1名選んでください。本人がログインして招待を受け入れるまでは、現在の管理者が利用を継続します。"
-                    : "管理者として招待するスタッフを1名選んでください。本人が案内先のメールアドレスでログインし、招待を受け入れると管理者になります。"}
+                    ? "次の管理者にするスタッフを1名選んでください。\n本人がログインして招待を受け入れるまでは、現在の管理者が利用を継続します。"
+                    : "管理者として招待するスタッフを1名選んでください。\n本人が案内先のメールアドレスでログインし、招待を受け入れると管理者になります。"}
                 </Text>
                 {staffCandidates.length === 0 ? (
                   <Stack
@@ -174,7 +174,7 @@ export function ManagerInvitationDialog({
                   >
                     <Text fontWeight="medium">招待できるスタッフはいません</Text>
                     <Text fontSize="sm" color="fg.muted">
-                      スタッフのメールアドレスと管理者の招待状況を確認してください。
+                      スタッフのメールアドレスと、管理者への招待状況を確認してください。
                     </Text>
                   </Stack>
                 ) : (
@@ -276,18 +276,18 @@ export function ManagerInvitationDialog({
                 <Alert.Root status="info" alignItems="flex-start" borderRadius="lg">
                   <Alert.Indicator />
                   <Alert.Content>
-                    <Alert.Title>無料では現在のスタッフから選択してください</Alert.Title>
+                    <Alert.Title>無料プランでは、現在のスタッフから選んでください</Alert.Title>
                     <Alert.Description>
-                      名前とメールアドレスを入力して、新しいユーザーを管理者として招待することはできません。
+                      無料プランでは、名前とメールアドレスを入力して新しいユーザーを管理者に招待することはできません。
                     </Alert.Description>
                   </Alert.Content>
                 </Alert.Root>
               ) : (
                 <Stack gap={4}>
-                  <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+                  <Text fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
                     {isResendOnly
-                      ? "送信済みの案内と同じ対象者を入力してください。新しいURLを送り、以前のURLは利用できなくなります。"
-                      : "本人へログイン案内を送ります。既にシフトリを利用している場合も、案内先のメールアドレスでログインすると管理者になります。"}
+                      ? "送信済みの案内と同じユーザーを指定してください。\n新しいURLを送信すると、以前のURLは利用できなくなります。"
+                      : "本人へログイン案内を送ります。\nすでにシフトリを利用している場合も、案内先のメールアドレスでログインすると管理者になります。"}
                   </Text>
                   <Field.Root required={activeTab === "external"}>
                     <Field.Label>名前</Field.Label>

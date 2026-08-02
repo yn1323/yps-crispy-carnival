@@ -70,7 +70,7 @@ export function useUserManagerActions({
       setIsAssignmentConfirmationOpen(false);
       showSuccessToast({
         title: "ログイン案内を送りました",
-        description: "本人のアカウントとユーザー情報の連携後に管理者になります。",
+        description: "本人のアカウントとユーザー情報が連携されると、管理者になります。",
       });
       return true;
     } catch (error) {
@@ -93,7 +93,7 @@ export function useUserManagerActions({
           description:
             data.memberships.length > 0
               ? "スタッフとしての店舗所属は維持しています。"
-              : "このグループへのアクセスを終了しました。ユーザー情報とシフト記録は残しています。",
+              : "このグループへのアクセスを終了しました。\nユーザー情報とシフト記録は残しています。",
         });
         setDialog(null);
         if (data.isSelf || data.memberships.length === 0) onPersonRemoved(dialog.personId);
@@ -117,7 +117,7 @@ export function useUserManagerActions({
       });
       onPersonRemoved(dialog.personId);
     } catch (error) {
-      if (getConvexErrorMessage(error)?.includes("今日以降のシフト割当が変更されました")) setDialog(null);
+      if (getConvexErrorMessage(error)?.includes("今日以降のシフトの割り当てが変更されました")) setDialog(null);
       showErrorToast(error);
     }
   });

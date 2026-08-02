@@ -65,7 +65,7 @@ export function useSignupFlowController({ redirectTo }: UseSignupFlowControllerP
           return;
         }
 
-        setErrorMessage("登録に追加情報が必要です。Google登録を使うか、時間をおいてもう一度お試しください。");
+        setErrorMessage("登録には追加情報が必要です。\nGoogleで登録するか、時間をおいてもう一度お試しください。");
       } catch (error) {
         setErrorMessage(getClerkErrorMessage(error));
       }
@@ -84,7 +84,7 @@ export function useSignupFlowController({ redirectTo }: UseSignupFlowControllerP
           return;
         }
 
-        setErrorMessage("メール確認が完了しませんでした。コードを確認してもう一度お試しください。");
+        setErrorMessage("メール確認が完了しませんでした。\nコードを確認して、もう一度お試しください。");
       } catch (error) {
         setErrorMessage(getClerkErrorMessage(error));
       }

@@ -5,7 +5,7 @@ import { addShiftSubmissionPatternIssues, shiftSubmissionPatternSchema, shopName
 
 const managerNameSchema = requiredDisplayTextSchema({ label: "名前", maxLength: PERSON_NAME_MAX_LENGTH });
 const acceptedManagerLegalSchema = z.boolean().refine((value) => value, {
-  message: "利用規約とプライバシーポリシーに同意してください",
+  message: "利用規約とプライバシーポリシーに同意してください。",
 });
 
 const createShopBaseSchema = z.object({

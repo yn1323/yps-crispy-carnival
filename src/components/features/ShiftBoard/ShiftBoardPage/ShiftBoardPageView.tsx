@@ -100,7 +100,7 @@ export const ShiftBoardPageView = ({ viewModel, intents }: ShiftBoardPageViewPro
           <Alert.Indicator />
           <Alert.Content>
             <Alert.Title>このシフトは閲覧のみです</Alert.Title>
-            <Alert.Description>{viewModel.readOnlyReason}</Alert.Description>
+            <Alert.Description whiteSpace="pre-line">{viewModel.readOnlyReason}</Alert.Description>
           </Alert.Content>
         </Alert.Root>
       )}

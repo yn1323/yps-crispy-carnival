@@ -2,6 +2,7 @@ import { expect, type Locator, type Page } from "@playwright/test";
 import { UserDetailPage } from "./UserDetailPage";
 
 const SETTINGS_DATA_TIMEOUT = 20_000;
+const ORGANIZATION_SWITCHER_BUTTON_NAME = /^グループを切り替える/;
 const SETTINGS_TAB_LABELS = {
   people: "ユーザー",
   shops: "店舗",
@@ -9,8 +10,7 @@ const SETTINGS_TAB_LABELS = {
   settings: "設定",
 } as const;
 type SettingsTab = keyof typeof SETTINGS_TAB_LABELS;
-const SUBSCRIPTION_DELETION_DISABLED_REASON =
-  "有料契約またはプラン変更の予約が残っています。「プランと支払い」で契約や予約を終了してから、グループを削除してください。";
+const SUBSCRIPTION_DELETION_DISABLED_REASON = "グループを削除するには、先に有料契約やプラン変更を終了してください。";
 
 export class OrganizationSettingsPage {
   constructor(private page: Page) {}
@@ -40,7 +40,7 @@ export class OrganizationSettingsPage {
   }
 
   async switchOrganization(organizationName: string, expectedShopId: string) {
-    const selector = this.page.getByRole("button", { name: /グループを切り替える。現在は/ });
+    const selector = this.page.getByRole("button", { name: ORGANIZATION_SWITCHER_BUTTON_NAME });
     await expect(selector).toBeVisible({ timeout: SETTINGS_DATA_TIMEOUT });
     await selector.click();
     await this.page.getByRole("menuitem", { name: organizationName, exact: true }).click();

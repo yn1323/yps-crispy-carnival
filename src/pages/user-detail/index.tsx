@@ -55,7 +55,7 @@ export function UserDetailPage({
         <Empty
           icon={LuUserRoundX}
           title="ユーザーを表示できません"
-          description="ユーザーが削除されたか、このグループで表示する権限がありません。"
+          description="ユーザーが削除されたか、表示する権限がありません。"
           tone="warning"
           minH={{
             base: `calc(100dvh - ${HEADER_HEIGHT.base} - 32px)`,

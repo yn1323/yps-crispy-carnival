@@ -81,6 +81,7 @@ describe("notificationOutbox/enqueue", () => {
 
     const result = await enqueueEmail({ runMutation } as unknown as Parameters<typeof enqueueEmail>[0], {
       shopId,
+      purpose: "business",
       userId,
       dedupeKey,
       payload: emailPayload({
@@ -96,6 +97,7 @@ describe("notificationOutbox/enqueue", () => {
 
     expect(result).toBeNull();
     expect(runMutation).toHaveBeenCalledTimes(2);
+    expect(runMutation.mock.calls[0]?.[1]).toMatchObject({ purpose: "business" });
     expect(runMutation).toHaveBeenNthCalledWith(2, internal.notificationOutbox.mutations.recordDeliveryEvent, {
       eventType: "enqueue_failed",
       shopId,

@@ -269,7 +269,7 @@ describe("useUserManagerActions", () => {
     expect(mocks.removePerson).not.toHaveBeenCalled();
     expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
       title: "管理者権限を外しました",
-      description: "このグループへのアクセスを終了しました。ユーザー情報とシフト記録は残しています。",
+      description: "このグループへのアクセスを終了しました。\nユーザー情報とシフト記録は残しています。",
     });
     expect(onPersonRemoved).toHaveBeenCalledOnce();
     expect(result.current.dialog).toBeNull();
@@ -361,7 +361,9 @@ describe("useUserManagerActions", () => {
   });
 
   it("確認後に割当が変わった場合は古い確認を閉じて再確認を求める", async () => {
-    const error = new ConvexError("今日以降のシフト割当が変更されました。内容を確認して、もう一度削除してください");
+    const error = new ConvexError(
+      "今日以降のシフトの割り当てが変更されました。\n内容を確認してから、もう一度削除してください。",
+    );
     mocks.removePerson.mockRejectedValue(error);
     const { result } = renderHook(() =>
       useUserManagerActions({ data: removablePersonData, selectedShopId: shopId, onPersonRemoved: vi.fn() }),

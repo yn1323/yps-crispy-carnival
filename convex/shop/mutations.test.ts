@@ -2,7 +2,7 @@ import { ConvexError } from "convex/values";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
-import { seedManagerShop, seedOrganizationManagerShop, seedShop, seedUser } from "../_test/seed";
+import { seedLegacyManagerShop, seedManagerShop, seedOrganizationManagerShop, seedShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import {
   NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS,
@@ -21,6 +21,52 @@ const MANAGER_SUBJECT = "user_manager";
 
 describe("shop/mutations", () => {
   describe("updateShopSettings", () => {
+    it("同じ時刻の複数更新を別の分析source eventとして記録する", async () => {
+      const occurredAt = Date.parse("2026-08-02T00:00:00.000Z");
+      vi.useFakeTimers();
+      vi.setSystemTime(occurredAt);
+
+      try {
+        const t = convexTest(schema, modules);
+        const { shopId } = await t.run(async (ctx) =>
+          seedOrganizationManagerShop(ctx, {
+            subject: MANAGER_SUBJECT,
+            email: "analytics-shop-manager@example.com",
+            shopName: "更新前店舗",
+            plan: "pro",
+          }),
+        );
+        const asManager = t.withIdentity({ subject: MANAGER_SUBJECT });
+
+        await asManager.mutation(api.shop.mutations.updateShopSettings, {
+          ...validArgs,
+          shopId,
+          shopName: "1回目の店舗名",
+        });
+        await asManager.mutation(api.shop.mutations.updateShopSettings, {
+          ...validArgs,
+          shopId,
+          shopName: "2回目の店舗名",
+        });
+
+        const events = await t.run(async (ctx) =>
+          ctx.db
+            .query("analyticsSourceEvents")
+            .withIndex("by_shopId_and_occurredAt", (q) => q.eq("shopId", shopId))
+            .collect(),
+        );
+        expect(events).toHaveLength(2);
+        expect(new Set(events.map((event) => event.eventKey)).size).toBe(2);
+        expect(events.map((event) => event.payload)).toEqual([
+          { kind: "shop", change: "updated", displayName: "1回目の店舗名" },
+          { kind: "shop", change: "updated", displayName: "2回目の店舗名" },
+        ]);
+        expect(events.map((event) => event.occurredAt)).toEqual([occurredAt, occurredAt]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("shopIdを省略した旧クライアントは先頭の有効所属店舗を更新できる", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => {
@@ -755,7 +801,7 @@ describe("shop/mutations", () => {
     it("confirmShopId が解決された店舗と一致しない場合は削除しない", async () => {
       const t = convexTest(schema, modules);
       const { ownShopId, otherShopId } = await t.run(async (ctx) => {
-        const { shopId } = await seedManagerShop(ctx, {
+        const { shopId } = await seedLegacyManagerShop(ctx, {
           subject: MANAGER_SUBJECT,
           email: "yamada@example.com",
           shopName: "居酒屋たなか",
@@ -800,7 +846,7 @@ describe("shop/mutations", () => {
     it("店舗・所属スタッフ・所属マネージャーを論理削除し、アクセス経路を無効化する", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
-        const { userId, shopId } = await seedManagerShop(ctx, {
+        const { userId, shopId } = await seedLegacyManagerShop(ctx, {
           subject: MANAGER_SUBJECT,
           email: "yamada@example.com",
           shopName: "居酒屋たなか",
@@ -901,12 +947,12 @@ describe("shop/mutations", () => {
     it("他店舗のデータは削除しない", async () => {
       const t = convexTest(schema, modules);
       const { ownShopId, otherShopId, otherStaffId } = await t.run(async (ctx) => {
-        const own = await seedManagerShop(ctx, {
+        const own = await seedLegacyManagerShop(ctx, {
           subject: MANAGER_SUBJECT,
           email: "yamada@example.com",
           shopName: "居酒屋たなか",
         });
-        const other = await seedManagerShop(ctx, {
+        const other = await seedLegacyManagerShop(ctx, {
           subject: "user_other",
           email: "other@example.com",
           shopName: "別店舗",
@@ -935,7 +981,7 @@ describe("shop/mutations", () => {
     it("pending通知はすぐ停止し、processing通知はlease終了後に回収して送信済みは変更しない", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
-        const { shopId } = await seedManagerShop(ctx, {
+        const { shopId } = await seedLegacyManagerShop(ctx, {
           subject: MANAGER_SUBJECT,
           email: "yamada@example.com",
           shopName: "居酒屋たなか",
@@ -1019,7 +1065,7 @@ describe("shop/mutations", () => {
       const t = convexTest(schema, modules);
       const startedAt = Date.now();
       const ids = await t.run(async (ctx) => {
-        const { shopId } = await seedManagerShop(ctx, {
+        const { shopId } = await seedLegacyManagerShop(ctx, {
           subject: MANAGER_SUBJECT,
           email: "yamada@example.com",
           shopName: "削除対象店",
@@ -1072,7 +1118,7 @@ describe("shop/mutations", () => {
       const t = convexTest(schema, modules);
       const COUNT = 150; // SHOP_CLEANUP_BATCH_SIZE(100) を跨いで再スケジュールされること
       const { shopId, magicLinkIds } = await t.run(async (ctx) => {
-        const { shopId } = await seedManagerShop(ctx, {
+        const { shopId } = await seedLegacyManagerShop(ctx, {
           subject: MANAGER_SUBJECT,
           email: "yamada@example.com",
           shopName: "居酒屋たなか",

@@ -2,7 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 import { api } from "@/convex/_generated/api";
-import type { RegularClosedDay, ShiftSubmissionPattern } from "@/convex/shop/schemas";
+import type { RegularClosedDay } from "@/convex/shop/schemas";
 import type { CreateRecruitmentData } from "@/src/components/features/CreateRecruitmentForm";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useDialog } from "@/src/components/ui/Dialog";
@@ -54,19 +54,12 @@ export type RecruitmentManagementState = {
 
 type Props = {
   regularClosedDays: RegularClosedDay[];
-  submissionPattern: ShiftSubmissionPattern;
   data?: RecruitmentManagementData;
   isReadOnly?: boolean;
   children: (state: RecruitmentManagementState) => ReactNode;
 };
 
-export function RecruitmentManagement({
-  regularClosedDays,
-  submissionPattern,
-  data,
-  isReadOnly = false,
-  children,
-}: Props) {
+export function RecruitmentManagement({ regularClosedDays, data, isReadOnly = false, children }: Props) {
   const navigate = useNavigate();
   const selectedShop = useAtomValue(selectedShopAtom);
   const createDialog = useDialog();
@@ -124,7 +117,7 @@ export function RecruitmentManagement({
       createDialog.close();
       showSuccessToast({
         title: "募集をつくり、スタッフに通知しました",
-        description: "LINE連携済みのスタッフには通常LINE、それ以外にはメールで送ります。",
+        description: "LINE連携済みのスタッフには通常LINEで、それ以外のスタッフにはメールで送ります。",
       });
     } catch (error) {
       const message = getCreateRecruitmentErrorMessage(error);
@@ -174,7 +167,6 @@ export function RecruitmentManagement({
   const renderContent = ({ onBeforeOpenShiftBoard }: RenderContentOptions = {}) => (
     <RecruitmentManagementView
       regularClosedDays={regularClosedDays}
-      submissionPattern={submissionPattern}
       groups={groups}
       isReadOnly={isReadOnly}
       pastStatus={resolvedPastStatus}

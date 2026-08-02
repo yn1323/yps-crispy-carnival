@@ -44,7 +44,7 @@ beforeEach(() => {
 
 describe("useStaffInvitation", () => {
   it("利用人数上限エラーを解決導線へ変換し、自動で再追加しない", async () => {
-    mocks.addStaffs.mockRejectedValue(new Error("利用人数が現在のプラン上限を超えます（現在 30名 / 上限 30名）"));
+    mocks.addStaffs.mockRejectedValue(new Error("利用人数が現在のプラン上限を超えます。\n現在30名、上限30名です。"));
     const { result } = renderHook(() => useStaffInvitation(false, true));
 
     await act(async () => {

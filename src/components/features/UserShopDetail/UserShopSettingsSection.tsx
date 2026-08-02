@@ -67,7 +67,7 @@ export function UserShopSettingsSection({
           </Switch.Root>
         </Flex>
         <Stack gap={1} fontSize="sm" color="fg.muted" lineHeight="tall">
-          <Text>シフトに含めない管理者専用ユーザーはオフに設定してください。</Text>
+          <Text>シフトに含めない管理者専用ユーザーは、「このユーザーをシフト対象とする」をオフにしてください。</Text>
           <Text>オフにすると次の状態になります。</Text>
           <Box as="ul" ps={5}>
             <Box as="li">シフト募集、確定を通知しない</Box>
@@ -134,9 +134,11 @@ export function UserShopSettingsSection({
             </Text>
             <Stack gap={1.5} fontSize="sm" color="fg.muted" lineHeight="tall">
               <Text>
-                この店舗のスタッフ所属、既存のシフト用リンク、LINE連携を終了します。グループのユーザー情報、ほかの店舗所属、管理者権限は変更しません。
+                この店舗のスタッフ所属、既存のシフト用リンク、LINE連携を終了します。
+                <br />
+                グループのユーザー情報、ほかの店舗への所属、管理者権限は変更しません。
               </Text>
-              <Text color="orange.700" fontWeight="medium">
+              <Text color="orange.700" fontWeight="medium" whiteSpace="pre-line">
                 {getAssignmentRemovalDescription(removalPreview)}
               </Text>
             </Stack>
@@ -149,8 +151,9 @@ export function UserShopSettingsSection({
 
 function getAssignmentRemovalDescription(preview: UserShopDetailRemovalPreview) {
   if (preview.kind === "tooMany") {
-    return `今日以降のシフト割当が${preview.limit}件を超えています。先にシフトを整理してから削除してください。`;
+    return `今日以降のシフトの割り当てが${preview.limit}件を超えています。
+シフトを整理してから削除してください。`;
   }
-  if (preview.assignmentCount === 0) return "今日以降のシフトから外れる割当はありません。";
+  if (preview.assignmentCount === 0) return "今日以降のシフトで外れる割り当てはありません。";
   return `今日以降のシフト${preview.assignmentCount}件からも外れます。`;
 }

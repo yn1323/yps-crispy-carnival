@@ -150,6 +150,7 @@ export const sendInviteEmail = internalAction({
     await enqueueEmail(ctx, {
       shopId: data.shopId,
       ...notificationOrigin,
+      purpose: "business",
       staffId: data.staffId,
       history: {
         notificationKind: LINE_INVITE_NOTIFICATION_KIND,

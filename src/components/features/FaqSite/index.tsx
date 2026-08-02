@@ -76,7 +76,7 @@ export function FaqSite({ entries = faqEntries }: FaqSiteProps) {
           <Empty
             icon={LuSearch}
             title="該当する質問が見つかりません"
-            description="言葉を短くするか、別の言い方で検索してください。"
+            description="キーワードを短くするか、別の言い方で検索してください。"
             action={
               <Button type="button" variant="outline" onClick={clearSearch}>
                 検索をクリア
@@ -111,7 +111,7 @@ function FaqHero({ query, onQueryChange }: { query: string; onQueryChange: (valu
             よくある質問
           </Heading>
           <Text color="gray.700" lineHeight="1.8">
-            導入前の確認から、シフトの募集・作成、通知、料金、困ったときの対処までまとめています。
+            導入前の確認から、シフト募集・作成、通知、料金、トラブルへの対処までをまとめています。
           </Text>
           <Box position="relative">
             <Icon

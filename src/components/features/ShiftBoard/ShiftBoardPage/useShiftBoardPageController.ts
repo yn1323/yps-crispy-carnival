@@ -41,17 +41,17 @@ function getReadOnlyReason(reason: ShiftBoardData["businessWriteBlockReason"], s
     case "memberReadOnly":
       return "管理者権限が閲覧のみに制限されているため、シフトを変更できません。";
     case "shopArchived":
-      return "アーカイブ済みの店舗では、シフトを変更できません。";
+      return "アーカイブ済みの店舗のため、シフトを変更できません。";
     case "shopPlanSuspended":
       return showGroupSettings
-        ? "現在のプランではこの店舗のシフトを変更できません。グループ設定で利用店舗を確認してください。"
-        : "現在のプランではこの店舗のシフトを変更できません。";
+        ? "現在のプランでは、この店舗のシフトを変更できません。\nグループ設定で利用店舗を確認してください。"
+        : "現在のプランでは、この店舗のシフトを変更できません。";
     case "paymentResultPending":
       return "支払い結果を確認中のため、シフトを変更できません。";
     case "restricted":
       return showGroupSettings
-        ? "契約を確認するまで、シフトを変更できません。グループ設定で契約状態を確認してください。"
-        : "契約を確認するまで、シフトを変更できません。";
+        ? "契約状態を確認できるまで、シフトを変更できません。\nグループ設定で契約状態を確認してください。"
+        : "契約状態を確認できるまで、シフトを変更できません。";
     case null:
       return "現在、このシフトは変更できません。";
   }
@@ -228,7 +228,7 @@ export const useShiftBoardPageController = (
     if (data.recruitment.reminderScheduledAt && data.recruitment.reminderScheduledAt > Date.now()) {
       return {
         kind: "scheduled",
-        label: "締切前日17:00に自動で催促通知を送ります。",
+        label: "締切前日の17:00に、催促通知を自動で送ります。",
       };
     }
     return {
@@ -300,7 +300,7 @@ export const useShiftBoardPageController = (
       }
       confirmModal.close();
       if (result?.status === "no_changes") {
-        toaster.create({ title: "前回通知から変更されたスタッフはいません", type: "info" });
+        toaster.create({ title: "前回の通知から変更されたスタッフはいません", type: "info" });
         return;
       }
       showSuccessToast({

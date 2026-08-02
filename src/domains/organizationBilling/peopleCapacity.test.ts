@@ -3,7 +3,7 @@ import { classifyPeopleCapacityError, resolvePeopleCapacityLimit } from "./peopl
 
 describe("classifyPeopleCapacityError", () => {
   it("Proの30名上限は問い合わせとして現在の利用状況を保持する", () => {
-    expect(classifyPeopleCapacityError("利用人数が現在のプラン上限を超えます（現在 30名 / 上限 30名）")).toEqual({
+    expect(classifyPeopleCapacityError("利用人数が現在のプラン上限を超えます。\n現在30名、上限30名です。")).toEqual({
       kind: "contact",
       current: 30,
       max: 30,
@@ -11,7 +11,7 @@ describe("classifyPeopleCapacityError", () => {
   });
 
   it("Freeの5名上限はProの選択として分類する", () => {
-    expect(classifyPeopleCapacityError("利用人数が現在のプラン上限を超えます（現在 5名 / 上限 5名）")).toEqual({
+    expect(classifyPeopleCapacityError("利用人数が現在のプラン上限を超えます。\n現在5名、上限5名です。")).toEqual({
       kind: "choosePaidPlan",
       current: 5,
       max: 5,
@@ -19,7 +19,7 @@ describe("classifyPeopleCapacityError", () => {
   });
 
   it("別の業務エラーや利用状況を含まない文言は分類しない", () => {
-    expect(classifyPeopleCapacityError("このメールアドレスは既に使用されています")).toBeNull();
+    expect(classifyPeopleCapacityError("このメールアドレスはすでに使用されています。")).toBeNull();
     expect(classifyPeopleCapacityError("利用人数が現在のプラン上限を超えます")).toBeNull();
     expect(classifyPeopleCapacityError(undefined)).toBeNull();
   });

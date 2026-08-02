@@ -166,13 +166,13 @@ export function useUserShopMembershipActions({
       if (current.targetShopId === target.targetShopId && current.staffId === target.staffId) {
         showSuccessToast({
           title: "この店舗のスタッフ所属を削除しました",
-          description: "グループのユーザー情報、ほかの店舗所属、管理者権限は変更していません。",
+          description: "グループのユーザー情報、ほかの店舗への所属、管理者権限は変更していません。",
         });
         return true;
       }
       return false;
     } catch (error) {
-      if (getConvexErrorMessage(error)?.includes("今日以降のシフト割当が変更されました")) setDialog(null);
+      if (getConvexErrorMessage(error)?.includes("今日以降のシフトの割り当てが変更されました")) setDialog(null);
       const current = currentTargetRef.current;
       if (current.targetShopId === target.targetShopId && current.staffId === target.staffId) showErrorToast(error);
       return false;

@@ -275,7 +275,7 @@ describe("organizationBilling/mutations Free管理者選択", () => {
           freeShopId: ids.shopId,
           requestId: "complimentary-free-selection",
         }),
-    ).rejects.toThrow("先行登録特典のProでは無料設定を変更できません");
+    ).rejects.toThrow("支払い不要Businessでは無料設定を変更できません");
 
     const result = await t.run(async (ctx) => ({
       audits: await ctx.db
@@ -289,7 +289,7 @@ describe("organizationBilling/mutations Free管理者選択", () => {
       scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
     }));
     expect(result.billingState).toMatchObject({
-      state: { kind: "complimentary", plan: "pro" },
+      state: { kind: "complimentary", plan: "business" },
       version: 1,
     });
     expect(result.billingState?.freeManagerPersonId).toBeUndefined();
@@ -691,7 +691,7 @@ describe("organizationBilling/mutations 請求先メール", () => {
           email: "must-not-change@example.com",
           requestId: "complimentary-billing-email",
         }),
-    ).rejects.toThrow("料金なしのProでは請求先メールアドレスを変更できません");
+    ).rejects.toThrow("支払い不要Businessでは請求先メールアドレスを変更できません");
 
     const result = await t.run(async (ctx) => ({
       audits: await ctx.db
@@ -708,7 +708,7 @@ describe("organizationBilling/mutations 請求先メール", () => {
     }));
     expect(result.organization).toEqual(before);
     expect(result.billingState).toMatchObject({
-      state: { kind: "complimentary", plan: "pro" },
+      state: { kind: "complimentary", plan: "business" },
       version: 1,
     });
     expect(result.audits).toEqual([]);
@@ -882,7 +882,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
         state: { kind: "active", plan: "pro" },
         correlationId: "complimentary-verified-transition",
       }),
-    ).rejects.toThrow("現在の契約状態からこの変更は適用できません");
+    ).rejects.toThrow("現在の契約状態では、この変更を適用できません");
 
     const result = await t.run(async (ctx) => ({
       audits: await ctx.db
@@ -897,7 +897,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
       scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
     }));
     expect(result.billingState).toMatchObject({
-      state: { kind: "complimentary", plan: "pro" },
+      state: { kind: "complimentary", plan: "business" },
       version: 1,
     });
     expect(result.audits).toEqual([]);
@@ -916,7 +916,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
         state: { kind: "grace", plan: "pro", firstFailureAt: Date.now() },
         correlationId: "invalid-free-to-grace",
       }),
-    ).rejects.toThrow("現在の契約状態からこの変更は適用できません");
+    ).rejects.toThrow("現在の契約状態では、この変更を適用できません");
 
     const billingState = await t.run((ctx) =>
       ctx.db
@@ -957,7 +957,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
         state: { kind: "grace", plan: "pro", firstFailureAt: Date.now() },
         correlationId: "invalid-restricted-to-grace",
       }),
-    ).rejects.toThrow("現在の契約状態からこの変更は適用できません");
+    ).rejects.toThrow("現在の契約状態では、この変更を適用できません");
   });
 
   it("Trialから期間末プラン変更への飛び越しを拒否する", async () => {
@@ -987,7 +987,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
         },
         correlationId: "invalid-trial-to-scheduled",
       }),
-    ).rejects.toThrow("現在の契約状態からこの変更は適用できません");
+    ).rejects.toThrow("現在の契約状態では、この変更を適用できません");
   });
 
   it("Pro上限を超えていてもBusinessからの変更予約を保存し、適用時の整理対象にする", async () => {
@@ -1374,7 +1374,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
         state: { kind: "paymentFailed" },
         correlationId: "invalid-payment-failed-event",
       }),
-    ).rejects.toThrow("現在の契約状態からこの変更は適用できません");
+    ).rejects.toThrow("現在の契約状態では、この変更を適用できません");
   });
 
   it("Freeからの有料契約開始は管理者と店舗の復旧対象を両方指定するまで確定しない", async () => {

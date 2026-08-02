@@ -43,7 +43,7 @@ const unavailableManagerInvitationStaff = {
   managerInvitationState: {
     kind: "unavailable",
     reason:
-      "管理者と招待中の管理者は、グループ全体で5名までです。管理者権限を外すか、招待を取り消してからもう一度お試しください。",
+      "管理者と招待中の管理者は、グループ全体で5名までです。\n管理者権限を外すか招待を取り消してから、もう一度お試しください。",
   },
 } as Staff;
 const hiddenManagerInvitationStaff = {
@@ -480,7 +480,7 @@ export const FreeManagerExchangeConfirmationBehavior: Story = {
       await within(dialog).findByRole("heading", { name: "佐藤花子さんへ管理者交代の案内を送りますか？" }),
     ).toBeInTheDocument();
     await expect(within(dialog).getByText(/このグループの唯一の管理者になります/)).toBeInTheDocument();
-    await expect(within(dialog).getByText(/あなたのこのグループの管理者権限は終了し/)).toBeInTheDocument();
+    await expect(within(dialog).getByText(/あなたはこのグループの管理者ではなくなり/)).toBeInTheDocument();
     await expect(within(dialog).getByText(/交代が完了するまでは、あなたが引き続き管理できます/)).toBeInTheDocument();
 
     await userEvent.click(within(dialog).getByRole("button", { name: "交代の案内を送る" }));

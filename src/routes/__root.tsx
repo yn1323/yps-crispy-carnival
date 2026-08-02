@@ -6,7 +6,7 @@ import { buildMeta, jsonLdMeta } from "@/src/lib/seo";
 import { ChakraProvider } from "@/src/providers/ChakraProvider";
 
 const SITE_DESCRIPTION =
-  "LINEでスタッフにシフト希望を依頼し、提出状況の確認からシフト作成・確定共有まで進められます。スタッフはアプリ不要で、そのまま希望シフトを提出できます。";
+  "LINEでスタッフにシフト希望を依頼し、提出状況の確認からシフト作成・確定共有まで進められます。\nスタッフはアプリ不要で、そのまま希望シフトを提出できます。";
 
 const softwareApplicationJsonLd = {
   "@context": "https://schema.org",

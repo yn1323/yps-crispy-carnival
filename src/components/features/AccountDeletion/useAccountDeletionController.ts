@@ -10,7 +10,7 @@ import type { AccountDeletionErrorState } from "./types";
 
 const ACCEPTED_PAGE_PATH = "/account-deletion-accepted";
 const GENERAL_ERROR: AccountDeletionErrorState = {
-  message: "アカウントの削除を受け付けられませんでした。時間をおいてもう一度お試しください。",
+  message: "アカウントの削除を受け付けられませんでした。\n時間をおいて、もう一度お試しください。",
   showContactLink: true,
 };
 
@@ -126,18 +126,18 @@ function toErrorState(reason: AccountDeletionFailureReason): AccountDeletionErro
 function toUserMessage(reason: AccountDeletionFailureReason): string {
   switch (reason) {
     case "invalidRequest":
-      return "画面の状態を確認できませんでした。画面を更新してもう一度お試しください。";
+      return "画面の状態を確認できませんでした。\n画面を更新して、もう一度お試しください。";
     case "authenticationRequired":
-      return "ログイン情報を確認できませんでした。再度ログインしてお試しください。";
+      return "ログイン情報を確認できませんでした。\nもう一度ログインしてからお試しください。";
     case "associationChanged":
-      return "所属情報が更新されたため削除できません。画面を更新してご確認ください。";
+      return "所属情報が更新されたため、アカウントを削除できません。\n画面を更新して、最新の内容をご確認ください。";
     case "rateLimited":
-      return "操作回数が多すぎます。時間をおいてもう一度お試しください。";
+      return "操作回数が多すぎます。\n時間をおいて、もう一度お試しください。";
     case "unavailable":
-      return "現在アカウントを削除できません。時間をおいてもう一度お試しください。";
+      return "現在、アカウントを削除できません。\n時間をおいて、もう一度お試しください。";
     case "networkError":
-      return "通信に失敗しました。接続を確認してもう一度お試しください。";
+      return "通信に失敗しました。\n接続を確認して、もう一度お試しください。";
     case "unexpectedError":
-      return "アカウントの削除を受け付けられませんでした。時間をおいてもう一度お試しください。";
+      return "アカウントの削除を受け付けられませんでした。\n時間をおいて、もう一度お試しください。";
   }
 }

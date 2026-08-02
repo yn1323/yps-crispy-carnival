@@ -189,8 +189,12 @@ export function createScenario(t: ScenarioTest) {
             shopId: await getSelectedShopId(),
           });
         },
-        async deleteStaff(staffId: Id<"staffs">) {
-          return asManager.mutation(api.staff.mutations.deleteStaff, { staffId, shopId: await getSelectedShopId() });
+        async removePersonFromShop(staffId: Id<"staffs">) {
+          return asManager.mutation(api.organization.mutations.removePersonFromShop, {
+            staffId,
+            shopId: await getSelectedShopId(),
+            requestId: generateUUID(),
+          });
         },
         async setShiftExclusion(staffId: Id<"staffs">, excluded: boolean) {
           return asManager.mutation(api.staff.mutations.setShiftExclusion, {

@@ -121,13 +121,13 @@ export const SelectionBehavior: Story = {
     const canvas = within(canvasElement);
     const body = within(document.body);
 
-    await userEvent.click(canvas.getByRole("button", { name: "店舗を切り替える。現在はA店舗" }));
+    await userEvent.click(canvas.getByRole("button", { name: "店舗を切り替える（現在：A店舗）" }));
     await userEvent.click(await body.findByRole("menuitem", { name: /C店舗/ }));
-    await waitFor(() => expect(canvas.getByRole("button", { name: "店舗を切り替える。現在はC店舗" })).toBeVisible());
+    await waitFor(() => expect(canvas.getByRole("button", { name: "店舗を切り替える（現在：C店舗）" })).toBeVisible());
 
-    await userEvent.click(canvas.getByRole("button", { name: "店舗を切り替える。現在はC店舗" }));
+    await userEvent.click(canvas.getByRole("button", { name: "店舗を切り替える（現在：C店舗）" }));
     await userEvent.click(await body.findByRole("menuitem", { name: /D店舗/ }));
-    await waitFor(() => expect(canvas.getByRole("button", { name: "店舗を切り替える。現在はD店舗" })).toBeVisible());
+    await waitFor(() => expect(canvas.getByRole("button", { name: "店舗を切り替える（現在：D店舗）" })).toBeVisible());
   },
 };
 

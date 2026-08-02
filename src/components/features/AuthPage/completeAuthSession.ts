@@ -1,6 +1,6 @@
 import type { SetActiveNavigate } from "@clerk/shared/types";
 
-const SESSION_CREATION_ERROR = "セッションを作成できませんでした。時間をおいてもう一度お試しください。";
+const SESSION_CREATION_ERROR = "セッションを作成できませんでした。\n時間をおいて、もう一度お試しください。";
 
 type FinalizableAuthResource = {
   createdSessionId: string | null;

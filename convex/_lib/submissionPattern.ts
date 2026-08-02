@@ -98,7 +98,8 @@ export function normalizeSubmissionPattern(pattern: ShiftSubmissionPattern | und
     const start = timeToMinutes(option.startTime);
     const end = timeToMinutes(option.endTime);
     if (end <= start) {
-      throw new ConvexError(`勤務区分「${option.name}」の終了時間は開始時間より後にしてください`);
+      throw new ConvexError(`勤務区分「${option.name}」の終了時間が開始時間より前になっています。
+終了時間は開始時間より後にしてください。`);
     }
 
     idSet.add(option.id);

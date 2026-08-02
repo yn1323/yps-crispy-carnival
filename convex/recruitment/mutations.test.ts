@@ -369,7 +369,7 @@ describe("recruitment/mutations", () => {
           shopId,
           shopClosedDates: [futureDate(15)],
         }),
-      ).rejects.toThrow("定休日は募集期間内の日付を選んでください");
+      ).rejects.toThrow("定休日は募集期間内の日付から選んでください。");
     });
 
     it("募集期間のすべてを定休日にするとエラー", async () => {
@@ -383,7 +383,7 @@ describe("recruitment/mutations", () => {
           deadline: futureDate(3),
           shopClosedDates: [futureDate(7), futureDate(8)],
         }),
-      ).rejects.toThrow("シフト期間のすべてを定休日にはできません");
+      ).rejects.toThrow("シフト期間のすべての日を定休日にすることはできません。");
     });
 
     it("日付形式が不正な定休日はエラー", async () => {

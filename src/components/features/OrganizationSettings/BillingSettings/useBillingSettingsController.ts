@@ -46,7 +46,7 @@ export function useBillingSettingsController(input: Input) {
   const openExternalBillingNotice = () => {
     toaster.create({
       title: "決済機能は準備中です",
-      description: "料金と外部決済の接続が完了するまで、プラン・支払い方法・請求書の操作は利用できません。",
+      description: "料金設定と外部決済サービスの接続が完了するまで、プラン・支払い方法・請求書の操作は利用できません。",
       type: "info",
       duration: 8000,
     });

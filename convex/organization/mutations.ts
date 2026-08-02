@@ -63,6 +63,7 @@ const WEEKDAY_ORDER = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const
 const SHOP_ADDITION_UNAVAILABLE_MESSAGE = "店舗の追加は現在ご利用いただけません";
 
 function shopStatus(shop: Doc<"shops">) {
+  // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
   return shop.operatingStatus ?? ("active" as const);
 }
 
@@ -124,22 +125,15 @@ function isMatchingShopDeletionAudit(
   );
 }
 
-async function materializeLegacyManagerMemberships(
-  ctx: MutationCtx,
-  args: { organizationId: Id<"organizations">; shopId: Id<"shops"> },
-) {
+async function validateCanonicalManagersForShopAddition(ctx: MutationCtx, organizationId: Id<"organizations">) {
   const [activeMembers, readOnlyMembers] = await Promise.all([
     ctx.db
       .query("organizationMembers")
-      .withIndex("by_organizationId_and_status", (q) =>
-        q.eq("organizationId", args.organizationId).eq("status", "active"),
-      )
+      .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "active"))
       .collect(),
     ctx.db
       .query("organizationMembers")
-      .withIndex("by_organizationId_and_status", (q) =>
-        q.eq("organizationId", args.organizationId).eq("status", "readOnly"),
-      )
+      .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "readOnly"))
       .collect(),
   ]);
   const userIds = new Set<Id<"users">>();
@@ -148,7 +142,7 @@ async function materializeLegacyManagerMemberships(
     const [person, user] = await Promise.all([ctx.db.get(member.personId), ctx.db.get(member.userId)]);
     if (
       !person ||
-      person.organizationId !== args.organizationId ||
+      person.organizationId !== organizationId ||
       person.userId !== member.userId ||
       person.status !== "active" ||
       !user ||
@@ -158,24 +152,6 @@ async function materializeLegacyManagerMemberships(
       throw new ConvexError("管理者所属を確認できません");
     }
     userIds.add(member.userId);
-
-    const legacyMemberships = await ctx.db
-      .query("shopMembers")
-      .withIndex("by_userId_and_shopId", (q) => q.eq("userId", member.userId).eq("shopId", args.shopId))
-      .take(2);
-    if (legacyMemberships.length > 1) throw new ConvexError("店舗所属を一意に確認できません");
-    if (legacyMemberships[0]) {
-      if (legacyMemberships[0].isDeleted) {
-        await ctx.db.patch(legacyMemberships[0]._id, { role: "manager", isDeleted: false });
-      }
-    } else {
-      await ctx.db.insert("shopMembers", {
-        userId: member.userId,
-        shopId: args.shopId,
-        role: "manager",
-        isDeleted: false,
-      });
-    }
   }
 }
 
@@ -185,7 +161,7 @@ export const updateOrganizationName = authenticatedMutation({
   handler: async (ctx, args) => {
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
     const parsed = organizationNameSchema.safeParse(args.name);
-    if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+    if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
     const requestKey = await toAuditRequestKey(args.requestId);
     const correlationId = `${actor.organization._id}:organization:name:${requestKey}`;
     const prior = await ctx.db
@@ -237,7 +213,7 @@ export const updatePersonProfile = authenticatedMutation({
     await requireOrganizationBusinessWrite(ctx, actor.organization._id);
     const parsed = editStaffSchema.safeParse({ name: args.name, email: args.email });
     if (!parsed.success) {
-      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
     }
 
     const requestKey = await toAuditRequestKey(args.requestId);
@@ -286,6 +262,7 @@ export const addShop = authenticatedMutation({
   args: {
     shopId: v.id("shops"),
     shopName: v.string(),
+    // TODO[narrow]: m039の完走と旧frontend互換期間の終了後にrequired化する。
     regularClosedDays: v.optional(
       v.array(
         v.union(
@@ -311,10 +288,11 @@ export const addShop = authenticatedMutation({
     await requireOrganizationBusinessWrite(ctx, actor.organization._id);
     const parsed = updateShopSettingsSchema.safeParse({
       shopName: args.shopName,
+      // TODO[narrow]: m039の完走と旧frontend互換期間の終了後にargsをrequired化し、fallbackを削除する。
       regularClosedDays: args.regularClosedDays ?? [],
       submissionPattern: args.submissionPattern,
     });
-    if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+    if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
     const requestId = await toAuditRequestKey(args.requestId);
     const organization = actor.organization;
     const correlationId = `${organization._id}:shop:add:${requestId}`;
@@ -327,6 +305,7 @@ export const addShop = authenticatedMutation({
       organizationId: organization._id,
       additionalActiveShops: 1,
     });
+    await validateCanonicalManagersForShopAddition(ctx, organization._id);
 
     const now = Date.now();
     const shopId = await ctx.db.insert("shops", {
@@ -338,7 +317,6 @@ export const addShop = authenticatedMutation({
       isDeleted: false,
     });
     await ensureDefaultPosition(ctx, shopId);
-    await materializeLegacyManagerMemberships(ctx, { organizationId: organization._id, shopId });
     await recordOrganizationAuditEvent(ctx, {
       organizationId: organization._id,
       actorUserId: actor.member.userId,
@@ -349,6 +327,16 @@ export const addShop = authenticatedMutation({
       toState: "active",
       correlationId,
       occurredAt: now,
+      analyticsEvent: {
+        eventType: "shop.changed",
+        shopId,
+        payload: {
+          kind: "shop",
+          change: "created",
+          displayName: parsed.data.shopName,
+          registeredAt: now,
+        },
+      },
     });
     return shopMutationResult(shopId, "active", true);
   },
@@ -639,7 +627,7 @@ export const deleteOrganization = authenticatedMutation({
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
     if (actor.organization._id !== args.organizationId) throw new ConvexError("Not found");
     if (actor.organization.updatedAt !== args.expectedOrganizationUpdatedAt) {
-      throw new ConvexError("グループの状態が変わりました。画面を更新してからもう一度お試しください");
+      throw new ConvexError("グループの状態が変わりました。\n画面を更新してから、もう一度お試しください。");
     }
 
     const billingState = await requireOrganizationBillingState(ctx, actor.organization._id);
@@ -686,7 +674,7 @@ export const deleteOrganization = authenticatedMutation({
 
 const personRemovalResultValidator = v.object({ changed: v.boolean() });
 const STALE_PERSON_REMOVAL_PREVIEW_ERROR =
-  "今日以降のシフト割当が変更されました。内容を確認して、もう一度削除してください";
+  "今日以降のシフトの割り当てが変更されました。\n内容を確認してから、もう一度削除してください。";
 
 type PersonRemovalCtx = MutationCtx & { user: Doc<"users"> | null };
 
@@ -762,7 +750,8 @@ function assertPersonRemovalPreview(
 ) {
   if (preview.kind === "tooMany") {
     throw new ConvexError(
-      `今日以降のシフト割当が${preview.limit}件を超えています。先にシフトを整理してから削除してください`,
+      `今日以降のシフトの割り当てが${preview.limit}件を超えています。
+先にシフトを整理してから、削除してください。`,
     );
   }
   // 旧クライアントは0件だけ互換許容する。割当がある削除は必ず明示確認を要求する。
@@ -1012,7 +1001,7 @@ async function prepareFullOrganizationPersonRemoval(
   },
 ): Promise<FullOrganizationPersonRemovalPlan> {
   if (isOrganizationBillingContact(args.actor.organization, args.person)) {
-    throw new ConvexError("請求先メールアドレスを変更してから削除してください");
+    throw new ConvexError("削除するには、先に請求先メールアドレスを変更してください。");
   }
   const billingReferenceUpdate = await planBillingReferenceUpdate(ctx, args.billingState, args.person._id);
   if (args.member?.status === "active") {
@@ -1097,6 +1086,15 @@ async function applyFullOrganizationPersonRemoval(
     toState: args.auditToState,
     correlationId: args.correlationId,
     occurredAt: args.now,
+    analyticsEvent: {
+      eventType: "person.changed",
+      subjectId: args.plan.person._id,
+      payload: {
+        kind: "person",
+        status: "removed",
+        firstObservedAt: args.plan.person.createdAt,
+      },
+    },
   });
   if (args.billingState.state.kind === "restricted") {
     const billingVersionAfterRemoval =
@@ -1194,6 +1192,22 @@ export const removePersonFromShop = authenticatedMutation({
       toState: `removed:${actor.shop._id}`,
       correlationId,
       occurredAt: now,
+      analyticsEvent: {
+        eventType: "staffMembership.changed",
+        shopId: actor.shop._id,
+        subjectId: staff._id,
+        payload: {
+          kind: "staffMembership",
+          staffId: staff._id,
+          ...(staff.organizationPersonId ? { organizationPersonId: staff.organizationPersonId } : {}),
+          status: "removed",
+          isShiftTarget: !staff.excludedFromShift,
+          validFrom: now,
+          validTo: now,
+          lineLinked: false,
+          lineFollowing: false,
+        },
+      },
     });
     return { changed: true };
   },
@@ -1327,7 +1341,7 @@ export const removeManagerRole = authenticatedMutation({
     await requireOrganizationBusinessWrite(ctx, actor.organization._id);
     await requireOrganizationPaidFeature(ctx, actor.organization._id);
     if (!(await hasOtherValidActiveManager(ctx, actor.organization._id, person._id))) {
-      throw new ConvexError("最後の有効管理者の管理者権限は外せません");
+      throw new ConvexError("最後の有効管理者の管理者権限は外せません。");
     }
 
     const staffs = await ctx.db
@@ -1338,7 +1352,7 @@ export const removeManagerRole = authenticatedMutation({
       .collect();
     const hasActiveStaffRole = staffs.some((staff) => !staff.isDeleted);
     if (!hasActiveStaffRole && isOrganizationBillingContact(actor.organization, person)) {
-      throw new ConvexError("請求先メールアドレスを変更してから管理者権限を外してください");
+      throw new ConvexError("管理者権限を外すには、先に請求先メールアドレスを変更してください。");
     }
     const now = Date.now();
     const billingReferenceUpdate = await planBillingReferenceUpdate(ctx, billingState, person._id);

@@ -196,7 +196,7 @@ test.describe("シフト担当者によるスタッフ招待", { tag: ["@release
     await dashboard.goto();
     await dashboard.addStaffsAndExpectError(
       [{ name: "重複招待スタッフ", email: EXISTING_STAFF.email }],
-      "このメールアドレスはすでに登録されています",
+      "このメールアドレスはすでに登録されています。",
     );
     await dashboard.expectStaffNotVisible("重複招待スタッフ");
   });
@@ -211,7 +211,7 @@ test.describe("シフト担当者によるスタッフ招待", { tag: ["@release
     await dashboard.goto();
     await dashboard.addStaffsAndExpectError(
       [{ name: "承認待ち重複スタッフ", email: PENDING_STAFF.email }],
-      "このメールアドレスは承認待ちです",
+      "このメールアドレスはスタッフ登録の承認待ちです。",
     );
     await dashboard.expectStaffNotVisible("承認待ち重複スタッフ");
   });

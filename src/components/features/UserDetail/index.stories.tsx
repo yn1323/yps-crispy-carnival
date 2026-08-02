@@ -411,7 +411,7 @@ export const PersonRemovalConfirmationAccessibilityBehavior: Story = {
     ).toBeInTheDocument();
     await expect(confirmationContent.getByText("過去のシフト履歴は保持されます。")).toBeInTheDocument();
     await expect(
-      confirmationContent.getByText("今日以降のシフトに割り当てはないため、シフトへの影響もありません。"),
+      confirmationContent.getByText("今日以降のシフトには割り当てられていないため、シフトへの影響はありません。"),
     ).toBeInTheDocument();
     await expect(confirmationContent.getByText("この操作は元に戻せません。")).toBeInTheDocument();
     await userEvent.click(within(confirmation).getByRole("button", { name: "やめる" }));

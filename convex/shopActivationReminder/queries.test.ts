@@ -1,7 +1,7 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import type { Id } from "../_generated/dataModel";
-import { seedManagerShop } from "../_test/seed";
+import { seedLegacyShopMembership, seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { getReminderTargetRef } from "./refs";
 
@@ -13,20 +13,22 @@ type TestConvexInstance = ReturnType<typeof createTest>;
 
 async function seedShopWithManagerStaff(t: TestConvexInstance) {
   return await t.run(async (ctx) => {
-    const { shopId, userId } = await seedManagerShop(ctx, {
+    const { shopId, userId, organizationId, personId, memberId } = await seedOrganizationManagerShop(ctx, {
       subject: "manager",
       email: "manager@example.com",
       shopName: "通知店舗",
     });
     const managerStaffId = await ctx.db.insert("staffs", {
       shopId,
+      organizationId,
+      organizationPersonId: personId,
       name: "店長",
       email: "manager@example.com",
       emailNormalized: "manager@example.com",
       userId,
       isDeleted: false,
     });
-    return { shopId, userId, managerStaffId };
+    return { shopId, userId, memberId, managerStaffId };
   });
 }
 
@@ -108,6 +110,17 @@ describe("shopActivationReminder/queries", () => {
     const { shopId } = await seedShopWithManagerStaff(t);
     await t.run(async (ctx) => {
       await ctx.db.patch(shopId, { isDeleted: true });
+    });
+
+    await expect(t.query(getReminderTargetRef, { shopId })).resolves.toBeNull();
+  });
+
+  it("canonical管理者がreadOnlyならactiveな旧所属が残っていても対象外にする", async () => {
+    const t = createTest();
+    const { shopId, userId, memberId } = await seedShopWithManagerStaff(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(memberId, { status: "readOnly", updatedAt: Date.now() });
+      await seedLegacyShopMembership(ctx, { shopId, userId });
     });
 
     await expect(t.query(getReminderTargetRef, { shopId })).resolves.toBeNull();
