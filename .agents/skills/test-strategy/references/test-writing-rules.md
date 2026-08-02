@@ -87,6 +87,8 @@
 - frontendとbackendの責務を分け、引数生成やsession cacheだけを検証する。
 - 認証、認可、IDOR、永続化は対応するConvex Function TestまたはScenario Testで保証する。
 - listener登録とcleanup、enabled切り替え、malformed storage、access kindの分離を必要に応じて確認する。
+- 遅延queryは、非表示中に`"skip"`または無効状態になり、表示条件を満たした時に正しい引数へ切り替わることを確認する。
+- Intersection Observerやidle callbackで開始する処理は、対象callbackを制御して、開始前、開始後、cleanupを別々に確認する。
 - Submit系の同期ガードは、hook単体だけでなく代表componentのBehavior Testでも接続を確認する。
 
 避けること:
@@ -119,6 +121,9 @@ play function の書き方:
 - カスタム helper が手動で throw するより、Testing Library の query と `expect` で意図を見せる。
 - 初期表示の静的文言があることだけを確認するplay functionは書かない。`assertText`、`textContent.includes`、`getByText`だけで終わるplayは原則削除する。
 - 操作によって初めて表示・非表示・更新されるvalidation error、確認画面、成功・失敗状態、件数変化はBehavior Testで検証する。
+- lazy mountするtabまたはDialogは、利用者の操作で表示を開始し、`findBy...`で局所Loading後の内容を確認する。
+- 再表示時の入力保持またはresetが製品契約なら、閉じる前の状態を作ってから再表示して確認する。
+- dynamic importの失敗が利用者に見える場合は、代表Storyで局所Errorと再試行または再読み込みの導線を確認する。
 - 操作対象を取得するためのrole/name指定はテスト手段として使ってよいが、同じ静的文言を別assertで重複確認しない。
 - URL、status、error code、JSON-LD、検索対象データ、法務version、sanitize結果、個人情報のマスキングは、文字列自体が機械契約またはセキュリティ契約なのでVRTだけに委ねない。
 
@@ -144,10 +149,14 @@ Storybook play function は振る舞い、VRT は見た目で役割を分ける�
 - モバイルStoryはviewport指定と対応する`vrt-mobile1`または`vrt-mobile2` tagをセットで付ける。
 - viewport指定だけではモバイルVRT projectの対象にならないため、tagなしを見逃さない。
 
-確認:
+実行と確認:
 
-- `pnpm vrt` は `storybook:build`、capture、RegSuit compare を通す。
-- 差分が意図したものなら理由を説明できる状態にする。
+- VRT対象のStory、`parameters`、tagは変更契約に合わせて更新する。
+- 通常の実装作業では、ローカルの`pnpm vrt`、screenshot capture、RegSuit compare、画像差分の目視確認を実行しない。
+- VRTのbuild、capture、差分確認、承認、baseline更新はGitHub ActionsのVRT workflowへ委ねる。
+- ユーザーがローカル実行を明示した場合、またはVRT workflow自体を診断する場合だけ、必要なVRT commandをローカルで実行する。
+- 既定方針によりVRTをローカル実行しなかった場合は、完了報告で「VRTはCI確認方針のため未実行」と示し、環境失敗や検証漏れとして扱わない。
+- CIで差分が出た場合は、意図した変更かを確認し、理由を説明できる状態にする。
 - VRT 差分だけでロジックの正しさを判断しない。
 - 静的文言の追加・削除・改行・長文崩れはVRTで確認し、同じStoryへ存在確認だけのplayを足さない。
 - PRではbaseline欠落を成功扱いにせず、意図した差分だけを承認する。
@@ -266,6 +275,11 @@ E2Eは、ブラウザ、認証、フロントエンド、実バックエンド�
 - セレクター優先順は `getByRole` / `getByText`、次に `getByTestId`、最後に CSS。
 - `data-testid` はセマンティックなセレクターで取れない場合だけ使う。
 - `page.waitForTimeout()` は禁止。`expect(locator).toBeVisible()` など web-first assertion で待つ。
+- `page.waitForLoadState("networkidle")`を遅延queryの完了条件にしない。ConvexのWebSocketや継続購読では、通信全体の静止が利用者向け完了状態と一致しない。
+- lazy mountする領域は、click、tab選択、Dialog表示など実際の開始操作を行ってから、その領域固有のLoadingまたは完了landmarkを待つ。
+- viewportで開始する領域は、対象locatorの`scrollIntoViewIfNeeded()`など意味のある操作で表示領域へ移し、座標や固定scroll量に依存しない。
+- preload対象のrequestはhoverやfocusでclick前に始まり得るため、request順序や開始時刻をE2Eのassertionにしない。非表示中の`"skip"`や開始回数はFrontend Unit Testで守る。
+- 通常E2Eで遷移や表示の経過時間を固定閾値へassertしない。性能予算は専用の計測または監視へ分ける。
 - mutation 成功はトーストや画面の表示状態で判定する。
 - DB の細かい最終状態確認は Convex Scenario Test に寄せる。
 - デプロイ済みURLのSmokeは、対象routeのHTTP成功、固有ランドマーク、主要CTA、URLを軽量に確認する。

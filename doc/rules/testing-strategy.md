@@ -121,6 +121,25 @@ LINE、メール、決済providerなど外部サービスの実到着は、通�
 認証付きCIの信頼境界、Previewの作成、worker数、対象tagは `.github/workflows/` とPlaywright設定を正本とする。
 E2E固有の常設制約は `e2e/AGENTS.md`、実装手順は `test-strategy` が所有する。
 
+### 遅延読み込みと事前読み込み
+
+遅延mount、dynamic import、tabまたはDialogの表示条件、viewport進入で開始するAPIは、それぞれの開始条件と利用者に見える完了状態を契約にする。
+「非表示中は購読しない」「初回表示で一度開始する」「再表示時に状態を保持またはresetする」はFrontend Unit TestまたはBehavior Testを主担当にする。
+E2Eは内部の購読数やrequest順序を直接固定せず、実際のclick、tab選択、Dialog表示、scrollを行った後に、対象領域のLoadingと完了状態を確認する。
+
+preloadは任意の最適化として扱い、hoverやfocusでmoduleまたはreadが先に始まっても、始まらなくても同じ利用者向け結果になることを前提にする。
+E2Eの成功条件をpreload完了やrequest開始時刻へ依存させない。
+
+Convexの継続購読やWebSocketがあるため、通信全体の静止を画面完了の条件にしない。
+固定時間、`networkidle`、任意のresponse待ちではなく、対象sectionのlandmark、見出し、操作可能状態、局所Loadingの消滅をweb-first assertionで待つ。
+
+viewportで開始する領域は、対象を表示領域へ移す操作と、その領域固有の完了状態を一つのE2E stepとして扱う。
+viewportの座標値やIntersection Observerの内部発火回数はFrontend Unit Testへ分ける。
+
+通常E2Eでは、遷移や表示完了までの経過時間を固定閾値でassertしない。
+CSR遷移の性能回帰は、正規化したrouteごとの計測、production buildのbundle分析、または性能専用の監視で扱い、機能E2Eの成否と分ける。
+dynamic importの失敗時に局所Errorと回復操作を表示する契約は、代表的なBehavior Testを主担当にする。
+
 ## Full Regression
 
 Full Regressionはテスト件数ではなく、主要な失敗境界がすべて主担当層へ対応している状態を指す。
