@@ -2,15 +2,15 @@ import { useReverification, useUser } from "@clerk/react";
 import { isReverificationCancelledError } from "@clerk/react/errors";
 import type { EmailAddressResource } from "@clerk/shared/types";
 import { useAction, useMutation } from "convex/react";
-import { useSetAtom } from "jotai";
-import { useRef, useState } from "react";
+import { useAtomValue, useSetAtom } from "jotai";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { normalizeEmail, requiredEmailSchema } from "@/convex/_lib/validation";
 import { getClerkErrorMessage } from "@/src/components/features/AuthPage/errorPresentation";
 import { maskEmailAddress } from "@/src/components/features/AuthPage/loginVerification";
 import { getUserFacingErrorMessage } from "@/src/components/shared/feedback/presentation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
-import { accountEmailChangeSessionAtom } from "@/src/stores/accountEmail";
+import { accountEmailChangeSessionAtom, accountEmailCleanupSessionAtom } from "@/src/stores/accountEmail";
 
 export type AccountEmailChangeStep =
   | "input"
@@ -25,12 +25,24 @@ export type AccountEmailChangeStep =
 
 export type AccountEmailChangeController = ReturnType<typeof useAccountEmailChangeController>;
 
-export function useAccountEmailChangeController({ source = "app" }: { source?: "app" | "recovery" } = {}) {
+export function useAccountEmailChangeController({
+  source = "app",
+  resumeCleanup = false,
+}: {
+  source?: "app" | "recovery";
+  resumeCleanup?: boolean;
+} = {}) {
   const { isLoaded, user } = useUser();
   const setAccountEmailChangeSession = useSetAtom(accountEmailChangeSessionAtom);
+  const cleanupSession = useAtomValue(accountEmailCleanupSessionAtom);
+  const setAccountEmailCleanupSession = useSetAtom(accountEmailCleanupSessionAtom);
   const preflight = useMutation(api.accountEmail.mutations.preflight);
   const syncMyPrimaryEmail = useAction(api.accountEmail.actions.syncMyPrimaryEmail);
-  const [step, setStep] = useState<AccountEmailChangeStep>("input");
+  const [step, setStep] = useState<AccountEmailChangeStep>(() => {
+    if (!resumeCleanup) return "input";
+    return cleanupSession?.kind === "rolledBackTarget" ? "rollbackCleanupFailed" : "cleanupFailed";
+  });
+  const [isRestoringCleanup, setIsRestoringCleanup] = useState(resumeCleanup);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [targetMaskedEmail, setTargetMaskedEmail] = useState("");
@@ -39,11 +51,17 @@ export function useAccountEmailChangeController({ source = "app" }: { source?: "
   const oldPrimaryRef = useRef<EmailAddressResource | null>(null);
   const targetRef = useRef<EmailAddressResource | null>(null);
   const requestIdRef = useRef<string | null>(null);
+  const cleanupResumeAttemptedRef = useRef(false);
 
   const clearAccountEmailChangeSession = () => {
     const clerkUserId = user?.id;
     setAccountEmailChangeSession((current) => (current && current.clerkUserId === clerkUserId ? null : current));
   };
+
+  const clearAccountEmailCleanupSession = useCallback(() => {
+    const clerkUserId = user?.id;
+    setAccountEmailCleanupSession((current) => (current && current.clerkUserId === clerkUserId ? null : current));
+  }, [setAccountEmailCleanupSession, user?.id]);
 
   const setPrimaryWithReverification = useReverification(async (emailAddressId: string) => {
     if (!user) throw new Error("Unauthenticated");
@@ -58,12 +76,20 @@ export function useAccountEmailChangeController({ source = "app" }: { source?: "
     const target = targetRef.current;
     if (!user || !target) return false;
     if (!oldPrimary || oldPrimary.id === target.id) {
+      clearAccountEmailCleanupSession();
       setStep("complete");
       return true;
     }
+    setAccountEmailCleanupSession({
+      clerkUserId: user.id,
+      kind: "oldPrimary",
+      emailAddressId: oldPrimary.id,
+      primaryEmailAddressId: target.id,
+    });
     try {
       await user.reload();
       if (!user.emailAddresses.some((emailAddress) => emailAddress.id === oldPrimary.id)) {
+        clearAccountEmailCleanupSession();
         setStep("complete");
         return true;
       }
@@ -77,12 +103,14 @@ export function useAccountEmailChangeController({ source = "app" }: { source?: "
         return false;
       }
       await user.reload();
+      clearAccountEmailCleanupSession();
       setStep("complete");
       return true;
     } catch (error) {
       try {
         await user.reload();
         if (!user.emailAddresses.some((emailAddress) => emailAddress.id === oldPrimary.id)) {
+          clearAccountEmailCleanupSession();
           setStep("complete");
           return true;
         }
@@ -99,7 +127,7 @@ export function useAccountEmailChangeController({ source = "app" }: { source?: "
 
   const syncPrimaryAndCleanup = async () => {
     const requestId = requestIdRef.current;
-    if (!requestId) return false;
+    if (!requestId || !user) return false;
     let result: Awaited<ReturnType<typeof syncMyPrimaryEmail>>;
     try {
       result = await syncMyPrimaryEmail({ requestId });
@@ -116,6 +144,16 @@ export function useAccountEmailChangeController({ source = "app" }: { source?: "
           : "ログインメールは変更済みですが、シフトリ内の同期が完了していません。",
       );
       return false;
+    }
+    const oldPrimary = oldPrimaryRef.current;
+    const target = targetRef.current;
+    if (oldPrimary && target && oldPrimary.id !== target.id) {
+      setAccountEmailCleanupSession({
+        clerkUserId: user.id,
+        kind: "oldPrimary",
+        emailAddressId: oldPrimary.id,
+        primaryEmailAddressId: target.id,
+      });
     }
     return await finishOldEmailCleanup();
   };
@@ -255,9 +293,22 @@ export function useAccountEmailChangeController({ source = "app" }: { source?: "
   const cleanupRolledBackTarget = async () => {
     const target = targetRef.current;
     if (!target || !user) return false;
+    const oldPrimary = oldPrimaryRef.current;
+    if (!oldPrimary || oldPrimary.id === target.id) {
+      setErrorMessage("削除対象のメールアドレスを安全に確認できません。画面を再読み込みしてください。");
+      setStep("rollbackCleanupFailed");
+      return false;
+    }
+    setAccountEmailCleanupSession({
+      clerkUserId: user.id,
+      kind: "rolledBackTarget",
+      emailAddressId: target.id,
+      primaryEmailAddressId: oldPrimary.id,
+    });
     try {
       await user.reload();
       if (!user.emailAddresses.some((emailAddress) => emailAddress.id === target.id)) {
+        clearAccountEmailCleanupSession();
         setStep("rolledBack");
         return true;
       }
@@ -271,12 +322,14 @@ export function useAccountEmailChangeController({ source = "app" }: { source?: "
         return false;
       }
       await user.reload();
+      clearAccountEmailCleanupSession();
       setStep("rolledBack");
       return true;
     } catch (error) {
       try {
         await user.reload();
         if (!user.emailAddresses.some((emailAddress) => emailAddress.id === target.id)) {
+          clearAccountEmailCleanupSession();
           setStep("rolledBack");
           return true;
         }
@@ -355,8 +408,57 @@ export function useAccountEmailChangeController({ source = "app" }: { source?: "
 
   const { run: retryRollbackCleanup, isRunning: isRetryingRollbackCleanup } = useSingleFlight(cleanupRolledBackTarget);
 
+  useEffect(() => {
+    if (!resumeCleanup || cleanupResumeAttemptedRef.current || !isLoaded || !user) return;
+    cleanupResumeAttemptedRef.current = true;
+
+    if (!cleanupSession || cleanupSession.clerkUserId !== user.id) {
+      setIsRestoringCleanup(false);
+      setStep("input");
+      return;
+    }
+
+    const storedEmailAddress = user.emailAddresses.find(
+      (emailAddress) => emailAddress.id === cleanupSession.emailAddressId,
+    );
+    const currentPrimary = user.primaryEmailAddress;
+    const hasExpectedPrimary =
+      currentPrimary?.id === cleanupSession.primaryEmailAddressId &&
+      user.primaryEmailAddressId === cleanupSession.primaryEmailAddressId;
+
+    if (!storedEmailAddress) {
+      clearAccountEmailCleanupSession();
+      setStep(cleanupSession.kind === "rolledBackTarget" ? "rolledBack" : "complete");
+      setIsRestoringCleanup(false);
+      return;
+    }
+
+    if (!currentPrimary || !hasExpectedPrimary || storedEmailAddress.id === currentPrimary.id) {
+      setErrorMessage(
+        "メールアドレスの状態が変わったため、安全のため削除を停止しました。画面を再読み込みしてください。",
+      );
+      setStep(cleanupSession.kind === "rolledBackTarget" ? "rollbackCleanupFailed" : "cleanupFailed");
+      setIsRestoringCleanup(false);
+      return;
+    }
+
+    if (cleanupSession.kind === "rolledBackTarget") {
+      oldPrimaryRef.current = currentPrimary;
+      targetRef.current = storedEmailAddress;
+      setTargetMaskedEmail(maskEmailAddress(storedEmailAddress.emailAddress));
+      setStep("rollbackCleanupFailed");
+    } else {
+      oldPrimaryRef.current = storedEmailAddress;
+      targetRef.current = currentPrimary;
+      setTargetMaskedEmail(maskEmailAddress(storedEmailAddress.emailAddress));
+      setStep("cleanupFailed");
+    }
+    setIsRestoringCleanup(false);
+  }, [cleanupSession, clearAccountEmailCleanupSession, isLoaded, resumeCleanup, user]);
+
   const reset = () => {
     clearAccountEmailChangeSession();
+    clearAccountEmailCleanupSession();
     setStep("input");
     setErrorMessage(null);
     setInfoMessage(null);
@@ -384,7 +486,8 @@ export function useAccountEmailChangeController({ source = "app" }: { source?: "
       isRetryingCleanup ||
       isRollingBack ||
       isRetryingRollbackSync ||
-      isRetryingRollbackCleanup,
+      isRetryingRollbackCleanup ||
+      isRestoringCleanup,
     start,
     verify,
     resendCode,

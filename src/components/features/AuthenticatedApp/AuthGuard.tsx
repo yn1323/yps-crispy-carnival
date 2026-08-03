@@ -17,9 +17,10 @@ import {
   toSelectedShop,
 } from "@/src/domains/shop/context";
 import { normalizeAuthRedirect } from "@/src/lib/auth/redirect";
-import { accountEmailChangeSessionAtom } from "@/src/stores/accountEmail";
+import { accountEmailChangeSessionAtom, accountEmailCleanupSessionAtom } from "@/src/stores/accountEmail";
 import { selectedShopAtom } from "@/src/stores/shop";
 import { EMPTY_USER, userAtom } from "@/src/stores/user";
+import { AccountEmailCleanupRecovery } from "./AccountEmailCleanupRecovery";
 import { AccountEmailMismatchRecovery } from "./AccountEmailMismatchRecovery";
 import { DeletedAccountState } from "./DeletedAccountState";
 import { resolveShopContext } from "./shopContextResolver";
@@ -38,6 +39,7 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
   const [user, setUser] = useAtom(userAtom);
   const [selectedShop, setSelectedShop] = useAtom(selectedShopAtom);
   const accountEmailChangeSession = useAtomValue(accountEmailChangeSessionAtom);
+  const accountEmailCleanupSession = useAtomValue(accountEmailCleanupSessionAtom);
   const currentUser = useQuery(api.dashboard.queries.getCurrentUser, isSignedIn ? {} : "skip");
   const isAccountDeleted = Boolean(currentUser && "accountDeleted" in currentUser);
   const clerkPrimaryEmail = clerkUser?.primaryEmailAddress;
@@ -48,6 +50,8 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
     verifiedClerkEmail && convexEmail && normalizeEmail(verifiedClerkEmail) !== normalizeEmail(convexEmail),
   );
   const activeAccountEmailChange = accountEmailChangeSession?.clerkUserId === userId ? accountEmailChangeSession : null;
+  const hasPendingAccountEmailCleanup = accountEmailCleanupSession?.clerkUserId === userId;
+  const shouldResumeAccountEmailCleanup = hasPendingAccountEmailCleanup && !activeAccountEmailChange;
   const isAppEmailChangeActive = activeAccountEmailChange?.source === "app";
   const isRecoveryEmailChangeActive = activeAccountEmailChange?.source === "recovery";
   const accountDeletionRequested = Boolean(
@@ -68,6 +72,7 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
     isSignedIn &&
       currentUser !== undefined &&
       !isAccountDeleted &&
+      !shouldResumeAccountEmailCleanup &&
       !isRecoveryEmailChangeActive &&
       (!hasEmailMismatch || isAppEmailChangeActive)
       ? {}
@@ -176,6 +181,8 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
       />
     );
   }
+
+  if (shouldResumeAccountEmailCleanup) return <AccountEmailCleanupRecovery />;
 
   if (
     (isRecoveryEmailChangeActive || (hasEmailMismatch && !isAppEmailChangeActive)) &&

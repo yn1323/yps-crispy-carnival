@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   selectedShopAtom: Symbol("selectedShopAtom"),
   userAtom: Symbol("userAtom"),
   accountEmailChangeSessionAtom: Symbol("accountEmailChangeSessionAtom"),
+  accountEmailCleanupSessionAtom: Symbol("accountEmailCleanupSessionAtom"),
   useAuth: vi.fn(),
   useUser: vi.fn(),
   useQuery: vi.fn(),
@@ -61,6 +62,12 @@ const mocks = vi.hoisted(() => ({
   accountEmailChangeSession: null as null | {
     clerkUserId: string;
     source: "app" | "recovery";
+  },
+  accountEmailCleanupSession: null as null | {
+    clerkUserId: string;
+    kind: "oldPrimary" | "rolledBackTarget";
+    emailAddressId: string;
+    primaryEmailAddressId: string;
   },
   user: {
     authId: "manager-user",
@@ -125,6 +132,10 @@ vi.mock("./AccountEmailMismatchRecovery", () => ({
   ),
 }));
 
+vi.mock("./AccountEmailCleanupRecovery", () => ({
+  AccountEmailCleanupRecovery: () => <div data-testid="account-email-cleanup-recovery" />,
+}));
+
 vi.mock("@/src/components/templates/FullPageSpinner", () => ({
   FullPageSpinner: () => <div data-testid="full-page-spinner" />,
 }));
@@ -163,6 +174,7 @@ vi.mock("@/src/stores/user", () => ({
 
 vi.mock("@/src/stores/accountEmail", () => ({
   accountEmailChangeSessionAtom: mocks.accountEmailChangeSessionAtom,
+  accountEmailCleanupSessionAtom: mocks.accountEmailCleanupSessionAtom,
 }));
 
 import { AuthGuard } from "./AuthGuard";
@@ -196,6 +208,7 @@ beforeEach(() => {
     memberStatus: "active",
   };
   mocks.accountEmailChangeSession = null;
+  mocks.accountEmailCleanupSession = null;
   mocks.user = {
     authId: "manager-user",
     name: "管理者",
@@ -234,6 +247,7 @@ beforeEach(() => {
   });
   mocks.useAtomValue.mockImplementation((targetAtom: unknown) => {
     if (targetAtom === mocks.accountEmailChangeSessionAtom) return mocks.accountEmailChangeSession;
+    if (targetAtom === mocks.accountEmailCleanupSessionAtom) return mocks.accountEmailCleanupSession;
     throw new Error("Unexpected atom");
   });
 });
@@ -305,6 +319,26 @@ describe("AuthGuard", () => {
     );
 
     expect(screen.queryByTestId("account-email-recovery")).not.toBeNull();
+    expect(screen.queryByTestId("manager-child")).toBeNull();
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.myShopsQuery, "skip");
+  });
+
+  it("ConvexとClerkが一致していても未完了のメール削除を再読み込み後に復旧する", () => {
+    mocks.accountEmailCleanupSession = {
+      clerkUserId: "manager-user",
+      kind: "oldPrimary",
+      emailAddressId: "email-old",
+      primaryEmailAddressId: "email-new",
+    };
+
+    render(
+      <AuthGuard requestedShopId="active-shop">
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    expect(screen.queryByTestId("account-email-cleanup-recovery")).not.toBeNull();
+    expect(screen.queryByTestId("account-email-recovery")).toBeNull();
     expect(screen.queryByTestId("manager-child")).toBeNull();
     expect(mocks.useQuery).toHaveBeenCalledWith(mocks.myShopsQuery, "skip");
   });

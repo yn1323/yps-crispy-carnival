@@ -25,7 +25,7 @@ vi.mock("convex/react", () => ({
   useAction: () => mocks.syncPrimary,
 }));
 
-import { accountEmailChangeSessionAtom } from "@/src/stores/accountEmail";
+import { accountEmailChangeSessionAtom, accountEmailCleanupSessionAtom } from "@/src/stores/accountEmail";
 import { useAccountEmailChangeController } from "./useAccountEmailChangeController";
 
 describe("useAccountEmailChangeController", () => {
@@ -35,6 +35,8 @@ describe("useAccountEmailChangeController", () => {
     mocks.syncPrimary.mockResolvedValue({ status: "synced", changed: true });
     mocks.isReverificationCancelledError.mockReturnValue(false);
     getDefaultStore().set(accountEmailChangeSessionAtom, null);
+    getDefaultStore().set(accountEmailCleanupSessionAtom, null);
+    sessionStorage.clear();
   });
 
   it("新メールをverifyしてprimary化・Convex同期した後にだけ旧メールを削除する", async () => {
@@ -115,6 +117,34 @@ describe("useAccountEmailChangeController", () => {
 
     await waitFor(() => expect(result.current.step).toBe("complete"));
     expect(fixture.oldEmail.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("再読み込み後も未完了の旧メール削除を復元して再試行できる", async () => {
+    const fixture = clerkFixture();
+    fixture.user.primaryEmailAddressId = fixture.target.id;
+    fixture.user.primaryEmailAddress = fixture.target as never;
+    fixture.target.verification.status = "verified";
+    fixture.user.emailAddresses = [fixture.oldEmail as never, fixture.target as never];
+    getDefaultStore().set(accountEmailCleanupSessionAtom, {
+      clerkUserId: fixture.user.id,
+      kind: "oldPrimary",
+      emailAddressId: fixture.oldEmail.id,
+      primaryEmailAddressId: fixture.target.id,
+    });
+    mocks.useUser.mockReturnValue({ isLoaded: true, user: fixture.user });
+
+    const { result } = renderHook(() => useAccountEmailChangeController({ resumeCleanup: true }));
+
+    await waitFor(() => expect(result.current.step).toBe("cleanupFailed"));
+    expect(fixture.oldEmail.destroy).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.retryCleanup();
+    });
+
+    await waitFor(() => expect(result.current.step).toBe("complete"));
+    expect(fixture.oldEmail.destroy).toHaveBeenCalledTimes(1);
+    expect(getDefaultStore().get(accountEmailCleanupSessionAtom)).toBeNull();
   });
 
   it("同期失敗後のrollbackは旧メールをprimaryへ戻してから追加メールを削除する", async () => {

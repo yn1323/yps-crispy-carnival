@@ -6,6 +6,7 @@ type Props = {
   initialEmail?: string;
   lockTargetEmail?: boolean;
   source?: "app" | "recovery";
+  resumeCleanup?: boolean;
   onClose: () => void;
   onFinished: (outcome: AccountEmailChangeOutcome) => void;
 };
@@ -17,10 +18,11 @@ export function AccountEmailChange({
   initialEmail,
   lockTargetEmail,
   source = "app",
+  resumeCleanup = false,
   onClose,
   onFinished,
 }: Props) {
-  const controller = useAccountEmailChangeController({ source });
+  const controller = useAccountEmailChangeController({ source, resumeCleanup });
   const finish = () => {
     const outcome: AccountEmailChangeOutcome = controller.step === "rolledBack" ? "rolledBack" : "changed";
     controller.reset();
