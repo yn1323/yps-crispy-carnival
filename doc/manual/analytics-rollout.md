@@ -32,6 +32,50 @@
 `--deployment prod`のような短縮名は使いません。  
 secret、認証header、要望本文、氏名、email、電話番号、LINE user ID、通知payloadをコマンド出力や証跡へ残しません。
 
+### ローカル複製DBでの検証
+
+共有DevまたはProductionの代わりに、snapshotをlocal deploymentへ取り込んで検証する場合は、接続先の表示名ではなくURLとportでlocalであることを証明します。cloud向けの`convex dev`とAnalytics Viteを停止してから、local deploymentを選択します。
+
+```bash
+pnpm exec convex deployment select local
+pnpm convex
+```
+
+別terminalで、既定portの`3210`と`3211`がloopbackでlistenしていることを確認します。`convex run`には、選択状態に依存しない`--deployment local`を付けます。
+
+```bash
+lsof -nP -iTCP:3210 -sTCP:LISTEN
+lsof -nP -iTCP:3211 -sTCP:LISTEN
+pnpm exec convex run --deployment local --inline-query \
+  'return { organizations: (await ctx.db.query("organizations").collect()).length, pipelineStates: (await ctx.db.query("analyticsPipelineStates").collect()).length };'
+```
+
+既存local DBを置き換える場合は、先に`.convex/local`をリポジトリ外のアクセス制限された一意な場所へ退避します。対象ZIPと`--deployment local`を再確認してから、snapshotを取り込みます。`--replace-all`はlocal DB全体を置き換えるため、共有DevやProductionを示すdeployment名では実行しません。
+
+```bash
+pnpm exec convex import <local-snapshot.zip> \
+  --deployment local \
+  --replace-all
+```
+
+local ConvexとAnalytics BFFには同じ`SHIFTORI_INTERNAL_API_SECRET`を設定します。secretは引数やログへ残さず、値を省略した対話入力を使います。
+
+```bash
+pnpm exec convex env set SHIFTORI_INTERNAL_API_SECRET --deployment local
+```
+
+Analytics Viteを再起動する前に、rootの`.env.local`を次の接続へ向けます。
+
+```dotenv
+VITE_CONVEX_URL=http://127.0.0.1:3210
+VITE_CONVEX_SITE_URL=http://127.0.0.1:3211
+ANALYTICS_ENV_LABEL=local
+```
+
+`VITE_CONVEX_URL`の`3210`はConvex client用、`VITE_CONVEX_SITE_URL`の`3211`はHTTP Action用です。片方だけを変更しません。画面上の環境ラベルが`local`でも、それだけを接続証明には使いません。
+
+以降のbootstrap、status、activationもすべて`--deployment local`を明示します。操作前後で元データの件数を読み取り比較し、Analyticsの再構築では`organizations`、`shops`、`staffs`、`recruitments`、`shiftSubmissions`を変更していないことを確認します。検証終了後は、PIIを含むsnapshotと展開directoryをアクセス制限された場所から削除します。
+
 ## Widenと構築
 
 最初のdeployでは、新しいAnalytics tableとpipelineを追加し、旧3 tableのschema定義を残します。  
@@ -171,6 +215,8 @@ pnpm exec convex run analytics/pipeline:getStatus \
 ```
 
 日次jobは、同じ日付とsource watermarkのdaily invariantが完了するまでservice snapshotを`partial`に保ち、`latestCompleteSnapshotDate`を進めません。cutoverでは、そのうち`buildingDataStartDate`のbaseline jobに紐づくinvariantを要求します。invariantの走査中にsource cursorが変わった場合は、古い走査結果を採用せず先頭から再検証します。
+
+bootstrap開始前に作成され、履歴を完全には復元できないcycleは`unavailable`として率から除外されます。この`unavailable`だけでbaselineが`partial`になることはありません。baselineが最終的に`partial`なら`activateGeneration`を再試行せず、failed jobと、`dataStartDate`以後に作成された`partial` cycleを確認します。修正前revisionで作成済みのgenerationはそのままcutoverせず、修正をdeployしてbuilding generationをcleanupした後、新しいgeneration名でbootstrapをやり直します。
 
 cutover直前には、generationが`ready`、bootstrap jobが完了、bootstrap完了後のprojection catch-up証明あり、source event backlog 0件、blocking projection子job 0件、baseline snapshotがcomplete、baseline daily jobが完了、baseline invariantの日付・source watermark・source cursorが現在値と一致、全job種別のfailed 0件であることを確認します。  
 `activateGeneration`はこれらを同じtransactionで再確認してから、一度だけ切り替えます。manual invariantの完了だけでは切り替えません。  

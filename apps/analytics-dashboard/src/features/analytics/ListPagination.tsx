@@ -24,7 +24,7 @@ export function ListPagination({
       </Text>
       {hasNext ? (
         <Button onClick={() => onNext(pageInfo.continueCursor as string)} size="sm" variant="outline">
-          次の候補を確認
+          {emptyWithMoreCandidates ? "次の候補を確認" : "次の50件"}
         </Button>
       ) : null}
     </Flex>

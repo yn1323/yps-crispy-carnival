@@ -1,4 +1,4 @@
-import { Button, Stack, Text } from "@chakra-ui/react";
+import { Box, Button, Stack, Text } from "@chakra-ui/react";
 import { useRef, useState } from "react";
 import { AnalyticsApiError } from "@/api/analyticsClient";
 import { AnalyticsExportError, buildAnalyticsJsonlExport, downloadAnalyticsJsonl } from "./buildAnalyticsJsonlExport";
@@ -46,11 +46,14 @@ export function AnalyticsExportButton({ search }: { search: AnalyticsSearchState
         size="sm"
         variant="outline"
       >
-        AI向けJSONLを出力
+        データを書き出す
       </Button>
-      <Text color="gray.500" fontSize="xs" textAlign={{ base: "left", md: "right" }}>
-        選択期間の分析データを1行1レコードで保存します。グループ・店舗はIDだけを含み、名前・個人情報・要望は含みません。
-      </Text>
+      <Box as="details" color="gray.500" fontSize="xs" textAlign={{ base: "left", md: "right" }}>
+        <Box as="summary" cursor="pointer">
+          書き出す内容
+        </Box>
+        <Text mt={1}>選択期間の分析データをJSONLで保存します。名前、個人情報、要望は含みません。</Text>
+      </Box>
       {status ? (
         <Text aria-live="polite" color="blue.700" fontSize="xs" textAlign={{ base: "left", md: "right" }}>
           {status}

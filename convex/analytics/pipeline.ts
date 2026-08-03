@@ -2313,6 +2313,16 @@ async function processCycleFinalizationPage(ctx: MutationCtx, job: Job) {
       const hasDeadline = job.cutoffKind === "deadline" || cycle.targetAtDeadline !== undefined;
       const hasClose = job.cutoffKind === "close" || cycle.targetAtClose !== undefined;
       const complete = hasDeadline && hasClose && !job.aggregationPartial;
+      const state = await getPipelineState(ctx);
+      const generationDataStartDate =
+        state?.buildingGeneration === job.generation
+          ? state.buildingDataStartDate
+          : state?.activeGeneration === job.generation
+            ? state.dataStartDate
+            : undefined;
+      const predatesGeneration =
+        generationDataStartDate !== undefined && cycle.createdAt < jstDayRangeMs(generationDataStartDate).startMs;
+      const completeness: Completeness = complete ? "complete" : predatesGeneration ? "unavailable" : "partial";
       await ctx.db.patch(cycle._id, {
         ...patch,
         ...(job.cutoffKind === "close"
@@ -2323,7 +2333,7 @@ async function processCycleFinalizationPage(ctx: MutationCtx, job: Job) {
               reminderSentCount: job.reminderSentCount ?? 0,
             }
           : {}),
-        completeness: complete ? "complete" : "partial",
+        completeness,
         ...(complete ? { finalizedAt: Date.now() } : {}),
         updatedAt: Date.now(),
       });
@@ -3142,8 +3152,10 @@ async function processDailyShopCyclePage(ctx: MutationCtx, job: Job) {
       lastNotificationFailedAt = Math.max(lastNotificationFailedAt ?? 0, cycle.lastNotificationFailedAt);
     }
     if (cycle.periodStart !== job.targetDate) continue;
-    if (cycle.completeness !== "complete") {
+    if (cycle.completeness === "partial") {
       partial = true;
+    }
+    if (cycle.completeness !== "complete") {
       continue;
     }
     northStar.denominator += 1;

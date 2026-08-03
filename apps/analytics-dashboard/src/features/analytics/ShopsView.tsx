@@ -8,7 +8,6 @@ import type { AnalyticsSearchState } from "./useAnalyticsSearch";
 import type { ShopRowViewModel } from "./viewModels";
 
 export function ShopsView({
-  envLabel,
   metadata,
   navigate,
   pageInfo,
@@ -16,7 +15,6 @@ export function ShopsView({
   search,
   updateSearch,
 }: {
-  envLabel?: string;
   metadata: AnalyticsMetadata;
   navigate: (href: string) => void;
   pageInfo: PageInfoViewModel;
@@ -26,32 +24,25 @@ export function ShopsView({
 }) {
   return (
     <Stack gap={{ base: 6, md: 8 }}>
-      <PageHeading description="店舗の導入到達度、現在のhealth、提出傾向を横断して比較します。" title="店舗比較" />
-      <DataStatus envLabel={envLabel} metadata={metadata} />
+      <PageHeading description="要確認状態と利用状況から、次に見る店舗を選びます。" title="店舗" />
+      <DataStatus metadata={metadata} />
       <AnalysisControls
-        advancedFilterKeys={[
-          "organizationId",
-          "cohort",
-          "plan",
-          "shopSize",
-          "cadence",
-          "lineUsage",
-          "health",
-          "completeness",
-        ]}
+        advancedFilterKeys={["organizationId", "plan", "shopSize", "cadence", "lineUsage", "health"]}
+        dataStartDate={metadata.dataStartDate}
+        helperText="期間、グループ、利用状況、要確認状態、並び順を変更できます。"
         search={search}
+        showComparison={false}
+        showGranularity={false}
         sortOptions={[
           { label: "登録日", value: "registeredAt" },
           { label: "プラン", value: "currentPlan" },
           { label: "最終活動日", value: "latestActivityAt" },
         ]}
         update={updateSearch}
+        warnings={metadata.warnings}
       />
       <Stack bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" gap={4} p={{ base: 4, md: 5 }}>
-        <SectionHeading
-          description="導入到達度は履歴、health signalは現在状態として別々に表示しています。"
-          title="店舗一覧"
-        />
+        <SectionHeading description="導入到達は履歴、要確認状態は現在の状態として表示しています。" title="店舗一覧" />
         <ShopsTable
           emptyText={analyticsEmptyText(metadata, "この条件に一致する店舗はありません", pageInfo)}
           navigate={navigate}

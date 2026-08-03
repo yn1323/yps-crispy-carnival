@@ -1,4 +1,4 @@
-import { Alert, Badge, Box, Flex, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
+import { Alert, Badge, Box, Flex, Skeleton, Stack, Text } from "@chakra-ui/react";
 
 export type DataCompleteness = "complete" | "partial" | "unavailable" | "pending" | "error" | string;
 
@@ -12,11 +12,37 @@ export type AnalyticsMetadata = {
 };
 
 const COMPLETENESS_PRESENTATION: Record<string, { color: string; label: string }> = {
-  complete: { color: "green", label: "完全" },
+  complete: { color: "green", label: "集計済み" },
   error: { color: "red", label: "取得失敗" },
-  partial: { color: "orange", label: "一部集計" },
-  pending: { color: "blue", label: "集計待ち" },
-  unavailable: { color: "gray", label: "算出不可" },
+  partial: { color: "orange", label: "一部のみ集計" },
+  pending: { color: "blue", label: "集計中" },
+  unavailable: { color: "gray", label: "算出できない" },
+};
+
+const PAGE_STATUS_PRESENTATION: Record<
+  string,
+  { description: string; status: "error" | "info" | "warning"; title: string }
+> = {
+  error: {
+    description: "集計処理の状態を確認してください。値を0としては扱いません。",
+    status: "error",
+    title: "集計状態を確認できません",
+  },
+  partial: {
+    description: "取得できた範囲だけを表示しています。未完了の値は個別に除外します。",
+    status: "warning",
+    title: "一部の集計が未完了です",
+  },
+  pending: {
+    description: "集計が完了すると、この画面へ値が表示されます。",
+    status: "info",
+    title: "初回集計中です",
+  },
+  unavailable: {
+    description: "蓄積期間と表示条件を確認してください。値がない区間は0として扱いません。",
+    status: "warning",
+    title: "選択期間の値を算出できません",
+  },
 };
 
 function formatTimestamp(value: number | string | null) {
@@ -30,9 +56,19 @@ function formatTimestamp(value: number | string | null) {
   }).format(date);
 }
 
-function warningMessage(warning: string | { code: string; message: string }) {
+export function analyticsWarningMessage(warning: string | { code: string; message: string }) {
   const message = typeof warning === "string" ? warning : warning.message;
   return message.replace(/^filtered_page_incomplete:\s*/, "");
+}
+
+export function isPeriodWarning(warning: string | { code: string; message: string }) {
+  const message = analyticsWarningMessage(warning);
+  return message.startsWith("データ蓄積開始日") || message.startsWith("指定期間");
+}
+
+function isPaginationWarning(warning: string | { code: string; message: string }) {
+  const message = typeof warning === "string" ? warning : warning.message;
+  return message.startsWith("filtered_page_incomplete:");
 }
 
 export function CompletenessBadge({ value }: { value: DataCompleteness }) {
@@ -44,52 +80,66 @@ export function CompletenessBadge({ value }: { value: DataCompleteness }) {
   );
 }
 
-export function DataStatus({
-  envLabel,
-  isLoading,
-  metadata,
-}: {
-  envLabel?: string;
-  isLoading?: boolean;
-  metadata?: AnalyticsMetadata;
-}) {
+export function DataStatus({ isLoading, metadata }: { isLoading?: boolean; metadata?: AnalyticsMetadata }) {
   if (isLoading) return <Skeleton borderRadius="lg" h="88px" w="full" />;
   if (!metadata) return null;
-  const stalled = metadata.completeness !== "complete";
+  const pageStatus = PAGE_STATUS_PRESENTATION[metadata.completeness];
+  const operationalWarnings = metadata.warnings.filter(
+    (warning) => !isPeriodWarning(warning) && !isPaginationWarning(warning),
+  );
   return (
     <Stack gap={3}>
+      {pageStatus ? (
+        <Alert.Root borderRadius="lg" status={pageStatus.status}>
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>{pageStatus.title}</Alert.Title>
+            <Alert.Description>{pageStatus.description}</Alert.Description>
+          </Alert.Content>
+        </Alert.Root>
+      ) : null}
       <Flex
-        align={{ base: "start", lg: "center" }}
-        bg={stalled ? "orange.50" : "white"}
+        align={{ base: "start", md: "center" }}
+        bg="white"
         border="1px solid"
-        borderColor={stalled ? "orange.200" : "gray.200"}
+        borderColor="gray.200"
         borderRadius="lg"
-        direction={{ base: "column", lg: "row" }}
-        gap={4}
+        direction={{ base: "column", md: "row" }}
+        gap={3}
         justify="space-between"
-        p={4}
+        px={4}
+        py={3}
       >
-        <HStack gap={2} wrap="wrap">
-          <CompletenessBadge value={metadata.completeness} />
-          {envLabel ? <Badge variant="surface">{envLabel}</Badge> : null}
-          <Badge variant="surface">蓄積開始 {metadata.dataStartDate ?? "未開始"}</Badge>
-          <Badge variant="surface">最新完全日 {metadata.latestCompleteSnapshotDate ?? "未集計"}</Badge>
-        </HStack>
-        <Box>
-          <Text color="gray.600" fontSize="xs">
-            基準日時 {formatTimestamp(metadata.asOf)}
-          </Text>
-          <Text color="gray.500" fontSize="xs" mt={1}>
-            集計完了 {formatTimestamp(metadata.computedAt)}
-          </Text>
+        <Text color="gray.600" fontSize="sm">
+          {metadata.latestCompleteSnapshotDate
+            ? `${metadata.latestCompleteSnapshotDate}時点`
+            : `基準日時 ${formatTimestamp(metadata.asOf)}`}
+          {metadata.computedAt ? ` · 集計完了 ${formatTimestamp(metadata.computedAt)}` : ""}
+        </Text>
+        <Box as="details" color="gray.600" fontSize="xs">
+          <Box as="summary" cursor="pointer" fontWeight="bold">
+            集計の詳細
+          </Box>
+          <Stack gap={1} mt={2} minW={{ md: "240px" }}>
+            <Text>蓄積開始日: {metadata.dataStartDate ?? "未開始"}</Text>
+            <Text>最新の完全な集計日: {metadata.latestCompleteSnapshotDate ?? "未集計"}</Text>
+            <Text>基準日時: {formatTimestamp(metadata.asOf)}</Text>
+          </Stack>
         </Box>
       </Flex>
-      {metadata.warnings.length > 0 ? (
+      {operationalWarnings.length > 0 ? (
         <Alert.Root borderRadius="lg" status="warning">
           <Alert.Indicator />
           <Alert.Content>
-            <Alert.Title>データの注意事項</Alert.Title>
-            <Alert.Description>{metadata.warnings.map(warningMessage).join(" / ")}</Alert.Description>
+            <Alert.Title>集計処理の注意事項</Alert.Title>
+            <Alert.Description>
+              <Box as="ul" listStylePosition="inside">
+                {operationalWarnings.map((warning) => {
+                  const message = analyticsWarningMessage(warning);
+                  return <li key={message}>{message}</li>;
+                })}
+              </Box>
+            </Alert.Description>
           </Alert.Content>
         </Alert.Root>
       ) : null}
@@ -103,7 +153,10 @@ export function QueryError({ message }: { message: string }) {
       <Alert.Indicator />
       <Alert.Content>
         <Alert.Title>データを取得できませんでした</Alert.Title>
-        <Alert.Description>{message}</Alert.Description>
+        <Alert.Description>
+          <Text>{message}</Text>
+          <Text mt={1}>表示条件を確認するか、ページを再読み込みしてください。</Text>
+        </Alert.Description>
       </Alert.Content>
     </Alert.Root>
   );
@@ -115,13 +168,13 @@ export function analyticsEmptyText(
   pageInfo?: { continueCursor: string | null; isDone: boolean; returnedCount: number },
 ) {
   if (metadata.completeness === "pending" || metadata.dataStartDate === null) {
-    return "データ蓄積前、または集計待ちです";
+    return "データ蓄積前、または集計中です";
   }
   if (metadata.completeness === "unavailable") return "この期間の値は算出できません";
   if (pageInfo?.returnedCount === 0 && !pageInfo.isDone && pageInfo.continueCursor) {
     return "このページには一致するデータがありません。次の候補を確認できます";
   }
-  if (metadata.completeness === "partial") return "一部集計のため、対象の有無を確定できません";
+  if (metadata.completeness === "partial") return "一部のみ集計されているため、対象の有無を確定できません";
   return filteredText;
 }
 
@@ -133,6 +186,12 @@ export function mergeMetadata(primary: AnalyticsMetadata, ...others: AnalyticsMe
       (completenessRank[metadata.completeness] ?? 3) > (completenessRank[worst] ?? 3) ? metadata.completeness : worst,
     primary.completeness,
   );
-  const warnings = [...new Set(all.flatMap((metadata) => metadata.warnings.map(warningMessage)))];
+  const warnings = [
+    ...new Set(
+      all.flatMap((metadata) =>
+        metadata.warnings.map((warning) => (typeof warning === "string" ? warning : warning.message)),
+      ),
+    ),
+  ];
   return { ...primary, completeness, warnings };
 }

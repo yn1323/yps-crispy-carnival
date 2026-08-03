@@ -1,7 +1,7 @@
 import { Badge, Box, Flex, HStack, Icon, Stack, Text } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { LuCheck, LuCircleAlert, LuClock3 } from "react-icons/lu";
-import { CompletenessBadge, type DataCompleteness } from "./DataStatus";
+import type { DataCompleteness } from "./DataStatus";
 import { formatCount, formatDate, formatRate } from "./format";
 
 export type HealthSignalKey =
@@ -38,12 +38,12 @@ export function HealthSignals({
   if (signals.length === 0) {
     const emptyLabel =
       completeness === "pending"
-        ? "集計待ち"
+        ? "要確認状態を集計中"
         : completeness === "partial"
-          ? "一部集計"
+          ? "要確認状態は未確定"
           : completeness === "unavailable"
-            ? "算出不可"
-            : "要確認signalなし";
+            ? "要確認状態を判定できません"
+            : "要確認なし";
     return (
       <Badge colorPalette={completeness === "complete" ? "green" : "gray"} variant="subtle">
         {emptyLabel}
@@ -143,11 +143,6 @@ export function MilestoneTimeline({ items }: { items: MilestoneItem[] }) {
 
 function GridList({ children }: { children: ReactNode }) {
   return <Stack gap={0}>{children}</Stack>;
-}
-
-export function MetricAvailability({ completeness }: { completeness: DataCompleteness }) {
-  if (completeness === "complete") return null;
-  return <CompletenessBadge value={completeness} />;
 }
 
 export function Comparison({

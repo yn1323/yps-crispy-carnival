@@ -1,4 +1,5 @@
 import type {
+  AnalyticsCadenceDto,
   AnalyticsCycleRowDto,
   AnalyticsHealthSignalCountsDto,
   AnalyticsMilestoneCountsDto,
@@ -15,7 +16,7 @@ import type {
   AnalyticsTrendMetric,
   AnalyticsTrendPointDto,
 } from "@/api/analyticsTypes";
-import { formatCount, formatDurationMs, formatRate } from "./format";
+import { formatCount, formatCountWithUnit, formatDurationMs, formatPlan, formatRate } from "./format";
 import type {
   CycleRowViewModel,
   HealthViewModel,
@@ -52,21 +53,21 @@ const TREND_LABELS: Record<AnalyticsTrendMetric, string> = {
   managerMembershipCount: "管理者所属数",
   northStarRate: "開始前確定周期率",
   organizationCount: "グループ数",
-  personCount: "unique person数",
+  personCount: "重複を除いた利用者数",
   kpiEligibleShopCount: "KPI対象店舗数",
   shiftTargetCount: "シフト対象人数",
   shopCount: "店舗数",
   staffMembershipCount: "スタッフ所属数",
-  unlinkedStaffCount: "person未接続スタッフ数",
+  unlinkedStaffCount: "重複判定できないスタッフ数",
 };
 
 const SEGMENT_DIMENSION_LABELS: Record<string, string> = {
-  adoptionAge: "導入cohort",
+  adoptionAge: "導入時期",
   cadence: "通常周期",
   lineUsage: "LINE利用",
   organizationShopCount: "グループ店舗数",
   plan: "プラン",
-  registrationCohort: "登録cohort",
+  registrationCohort: "登録時期",
   shopStaffSize: "店舗スタッフ規模",
   submissionTrend: "最近の提出傾向",
 };
@@ -121,59 +122,69 @@ export function serviceKpis(
 ): KpiViewModel[] {
   // requested rangeがwatermark外へはみ出す場合は、取得できた行自体がcompleteでも
   // 期間全体の値としてはpartial/unavailableなのでresponse metadataを優先する。
-  const completeness =
+  const rateCompleteness =
     fallbackCompleteness === "complete" ? (current?.completeness ?? "unavailable") : fallbackCompleteness;
+  // 店舗数は期間集計ではなく、選択期間内の最新snapshot時点の値として返される。
+  // 比較期間が欠けていても、current snapshot自体が完全なら現在値は表示できる。
+  const countCompleteness = current?.completeness ?? "unavailable";
+  const noCompleteCycleDetail =
+    current?.completeness === "complete" && current.northStar.denominator === 0
+      ? "集計対象となる完全な周期がまだありません"
+      : null;
   const comparable = fallbackCompleteness === "complete" && comparison?.completeness === "complete";
   return [
     kpi(
       "northStar",
       "開始前確定周期率",
-      formatRate(current?.northStar.rate, completeness),
-      `${formatCount(current?.northStar.numerator, completeness)} / ${formatCount(current?.northStar.denominator, completeness)}周期`,
-      completeness,
+      formatRate(current?.northStar.rate, rateCompleteness),
+      noCompleteCycleDetail ??
+        `${formatCount(current?.northStar.numerator, rateCompleteness)} / ${formatCountWithUnit(current?.northStar.denominator, "周期", rateCompleteness)}`,
+      rateCompleteness,
       current?.northStar.rate ?? null,
       comparable ? (comparison?.northStar.rate ?? null) : null,
-      { accent: "teal", deltaSuffix: "pt", comparisonEnabled: true },
+      { accent: "teal", deltaSuffix: "pt", comparisonEnabled: comparable },
     ),
     kpi(
       "deadlineSubmission",
       "期限内提出率",
-      formatRate(current?.deadlineSubmission.rate, completeness),
-      `${formatCount(current?.deadlineSubmission.numerator, completeness)} / ${formatCount(current?.deadlineSubmission.denominator, completeness)}人`,
-      completeness,
+      formatRate(current?.deadlineSubmission.rate, rateCompleteness),
+      noCompleteCycleDetail ??
+        `${formatCount(current?.deadlineSubmission.numerator, rateCompleteness)} / ${formatCountWithUnit(current?.deadlineSubmission.denominator, "人", rateCompleteness)}`,
+      rateCompleteness,
       current?.deadlineSubmission.rate ?? null,
       comparable ? (comparison?.deadlineSubmission.rate ?? null) : null,
-      { accent: "blue", deltaSuffix: "pt", comparisonEnabled: true },
+      { accent: "blue", deltaSuffix: "pt", comparisonEnabled: comparable },
     ),
     kpi(
       "finalSubmission",
       "最終提出率",
-      formatRate(current?.finalSubmission.rate, completeness),
-      `${formatCount(current?.finalSubmission.numerator, completeness)} / ${formatCount(current?.finalSubmission.denominator, completeness)}人`,
-      completeness,
+      formatRate(current?.finalSubmission.rate, rateCompleteness),
+      noCompleteCycleDetail ??
+        `${formatCount(current?.finalSubmission.numerator, rateCompleteness)} / ${formatCountWithUnit(current?.finalSubmission.denominator, "人", rateCompleteness)}`,
+      rateCompleteness,
       current?.finalSubmission.rate ?? null,
       comparable ? (comparison?.finalSubmission.rate ?? null) : null,
-      { accent: "green", deltaSuffix: "pt", comparisonEnabled: true },
+      { accent: "green", deltaSuffix: "pt", comparisonEnabled: comparable },
     ),
     kpi(
       "activeShops",
       "稼働店舗数",
-      `${formatCount(current?.counts.activeShopCount, completeness)}店舗`,
-      `全 ${formatCount(current?.counts.shopCount, completeness)}店舗`,
-      completeness,
+      formatCountWithUnit(current?.counts.activeShopCount, "店舗", countCompleteness),
+      `全 ${formatCountWithUnit(current?.counts.shopCount, "店舗", countCompleteness)}`,
+      countCompleteness,
       current?.counts.activeShopCount ?? null,
       comparable ? (comparison?.counts.activeShopCount ?? null) : null,
-      { accent: "orange", deltaSuffix: "店舗", comparisonEnabled: true },
+      { accent: "orange", deltaSuffix: "店舗", comparisonEnabled: comparable },
     ),
     kpi(
       "kpiEligibleShops",
       "KPI対象店舗数",
-      `${formatCount(current?.counts.kpiEligibleShopCount, completeness)}店舗`,
-      `全 ${formatCount(current?.counts.shopCount, completeness)}店舗`,
-      completeness,
+      formatCountWithUnit(current?.counts.kpiEligibleShopCount, "店舗", countCompleteness),
+      `全 ${formatCountWithUnit(current?.counts.shopCount, "店舗", countCompleteness)}`,
+      countCompleteness,
       current?.counts.kpiEligibleShopCount ?? null,
       comparable ? (comparison?.counts.kpiEligibleShopCount ?? null) : null,
-      { accent: "blue", deltaSuffix: "店舗", comparisonEnabled: true },
+      { accent: "blue", deltaSuffix: "店舗", comparisonEnabled: comparable },
     ),
   ];
 }
@@ -239,7 +250,7 @@ export function organizationRowModel(row: AnalyticsOrganizationRowDto): Organiza
     managerStaffCount: row.kpis?.managerStaffCount ?? null,
     northStarRate: row.kpis?.northStar.rate ?? null,
     organizationId: row.organizationId,
-    plan: row.currentPlan ?? "未設定",
+    plan: formatPlan(row.currentPlan),
     shiftTargetCount: row.kpis?.shiftTargetCount ?? null,
     shopCount: row.kpis?.shopCount ?? null,
     staffMembershipCount: row.kpis?.staffMembershipCount ?? null,
@@ -275,7 +286,7 @@ export function shopRowModel(row: AnalyticsShopRowDto): ShopRowViewModel {
     nextCycleDate: row.nextCyclePeriodStart,
     organizationId: row.organizationId,
     organizationName: row.organizationDisplayName,
-    plan: row.currentPlan ?? "未設定",
+    plan: formatPlan(row.currentPlan),
     registeredAt: row.registeredAt,
     shiftTargetCount: row.kpis?.shiftTargetCount ?? null,
     shopId: row.shopId,
@@ -343,15 +354,15 @@ export function organizationKpis(
     ["shops", "店舗数", kpis?.shopCount, "店舗"],
     ["kpiEligibleShops", "KPI対象店舗数", kpis?.kpiEligibleShopCount, "店舗"],
     ["activeShops", "稼働店舗数", kpis?.activeShopCount, "店舗"],
-    ["people", "unique person数", kpis?.uniquePersonCount, "人"],
+    ["people", "重複を除いた利用者", kpis?.uniquePersonCount, "人"],
     ["staff", "スタッフ所属数", kpis?.staffMembershipCount, "件"],
-    ["unlinkedStaff", "person未接続staff数", kpis?.unlinkedStaffCount, "件"],
+    ["unlinkedStaff", "重複判定できないスタッフ", kpis?.unlinkedStaffCount, "件"],
     ["targets", "シフト対象人数", kpis?.shiftTargetCount, "人"],
-    ["managers", "有効管理者数", kpis?.managerMembershipCount, "人"],
+    ["managers", "管理者所属数", kpis?.managerMembershipCount, "件"],
     ["managerStaff", "管理者兼スタッフ数", kpis?.managerStaffCount, "人"],
   ] as const;
   return values.map(([key, label, value, unit]) =>
-    kpi(key, label, `${formatCount(value, completeness)}${unit}`, "現在値", completeness, value ?? null, null, {
+    kpi(key, label, formatCountWithUnit(value, unit, completeness), "現在値", completeness, value ?? null, null, {
       accent: "blue",
       deltaSuffix: unit,
     }),
@@ -408,14 +419,14 @@ export function shopCurrentKpis(
   const completeness = kpis?.completeness ?? fallbackCompleteness;
   const values = [
     ["staff", "スタッフ所属数", kpis?.staffMembershipCount, "人"],
-    ["unlinkedStaff", "person未接続staff数", kpis?.unlinkedStaffCount, "人"],
+    ["unlinkedStaff", "重複判定できないスタッフ", kpis?.unlinkedStaffCount, "人"],
     ["targets", "シフト対象人数", kpis?.shiftTargetCount, "人"],
-    ["people", "unique person数", kpis?.uniquePersonCount, "人"],
-    ["managers", "有効管理者数", kpis?.managerMembershipCount, "人"],
+    ["people", "重複を除いた利用者", kpis?.uniquePersonCount, "人"],
+    ["managers", "管理者所属数", kpis?.managerMembershipCount, "件"],
     ["managerStaff", "管理者兼スタッフ数", kpis?.managerStaffCount, "人"],
   ] as const;
   const result = values.map(([key, label, value, unit]) =>
-    kpi(key, label, `${formatCount(value, completeness)}${unit}`, "現在値", completeness, value ?? null, null, {
+    kpi(key, label, formatCountWithUnit(value, unit, completeness), "現在値", completeness, value ?? null, null, {
       accent: "blue",
       deltaSuffix: unit,
     }),
@@ -424,8 +435,8 @@ export function shopCurrentKpis(
     kpi(
       "lineLinked",
       "LINE連携",
-      `${formatCount(kpis?.lineLinkedCount, completeness)}人`,
-      `連携率 ${formatRate(kpis?.lineLinkedRate, completeness)} / follow中 ${formatCount(kpis?.lineFollowingCount, completeness)}人`,
+      formatCountWithUnit(kpis?.lineLinkedCount, "人", completeness),
+      `連携率 ${formatRate(kpis?.lineLinkedRate, completeness)} / フォロー中 ${formatCountWithUnit(kpis?.lineFollowingCount, "人", completeness)}`,
       completeness,
       kpis?.lineLinkedCount ?? null,
       null,
@@ -433,6 +444,32 @@ export function shopCurrentKpis(
     ),
   );
   return result;
+}
+
+export function shopCadenceKpi(
+  cadence: AnalyticsCadenceDto,
+  completeness: AnalyticsResponseCompleteness,
+): KpiViewModel {
+  const confidenceLabel = {
+    high: "判定精度 高",
+    insufficientData: "判定材料不足",
+    low: "判定精度 低",
+    medium: "判定精度 中",
+  }[cadence.confidence];
+  return kpi(
+    "cadence",
+    "通常周期",
+    completeness === "complete"
+      ? cadence.estimatedDays === null
+        ? "判定材料不足"
+        : `${cadence.estimatedDays}日`
+      : formatCount(undefined, completeness),
+    confidenceLabel,
+    completeness,
+    cadence.estimatedDays,
+    null,
+    { accent: "gray" },
+  );
 }
 
 export function shopCumulativeKpis(
@@ -444,8 +481,8 @@ export function shopCumulativeKpis(
     kpi(
       "cycles",
       "累積シフト周期",
-      `${formatCount(kpis?.cycleCountAsOfSnapshot, completeness)}周期`,
-      "最新snapshot時点の作成済みcycle",
+      formatCountWithUnit(kpis?.cycleCountAsOfSnapshot, "周期", completeness),
+      "最新の集計日時点で作成済みのシフト周期",
       completeness,
       kpis?.cycleCountAsOfSnapshot ?? null,
       null,
@@ -454,8 +491,8 @@ export function shopCumulativeKpis(
     kpi(
       "confirmed",
       "累積確定周期",
-      `${formatCount(kpis?.confirmedCycleCountAsOfSnapshot, completeness)}周期`,
-      "最新snapshot時点の確定済みcycle",
+      formatCountWithUnit(kpis?.confirmedCycleCountAsOfSnapshot, "周期", completeness),
+      "最新の集計日時点で確定済みのシフト周期",
       completeness,
       kpis?.confirmedCycleCountAsOfSnapshot ?? null,
       null,
@@ -464,8 +501,8 @@ export function shopCumulativeKpis(
     kpi(
       "beforeStart",
       "累積開始前確定周期",
-      `${formatCount(kpis?.confirmedBeforeStartCycleCountAsOfSnapshot, completeness)}周期`,
-      "最新snapshot時点の開始前確定cycle",
+      formatCountWithUnit(kpis?.confirmedBeforeStartCycleCountAsOfSnapshot, "周期", completeness),
+      "最新の集計日時点で開始前に確定したシフト周期",
       completeness,
       kpis?.confirmedBeforeStartCycleCountAsOfSnapshot ?? null,
       null,
@@ -475,7 +512,7 @@ export function shopCumulativeKpis(
       "cumulativeDeadlineSubmission",
       "累積期限内提出率",
       formatRate(kpis?.cumulativeDeadlineSubmission.rate, completeness),
-      `提出 ${formatCount(kpis?.cumulativeDeadlineSubmission.numerator, completeness)} / 対象 ${formatCount(kpis?.cumulativeDeadlineSubmission.denominator, completeness)}人`,
+      `提出 ${formatCount(kpis?.cumulativeDeadlineSubmission.numerator, completeness)} / 対象 ${formatCountWithUnit(kpis?.cumulativeDeadlineSubmission.denominator, "人", completeness)}`,
       completeness,
       kpis?.cumulativeDeadlineSubmission.rate ?? null,
       null,
@@ -485,7 +522,7 @@ export function shopCumulativeKpis(
       "cumulativeFinalSubmission",
       "累積最終提出率",
       formatRate(kpis?.cumulativeFinalSubmission.rate, completeness),
-      `提出 ${formatCount(kpis?.cumulativeFinalSubmission.numerator, completeness)} / 対象 ${formatCount(kpis?.cumulativeFinalSubmission.denominator, completeness)}人`,
+      `提出 ${formatCount(kpis?.cumulativeFinalSubmission.numerator, completeness)} / 対象 ${formatCountWithUnit(kpis?.cumulativeFinalSubmission.denominator, "人", completeness)}`,
       completeness,
       kpis?.cumulativeFinalSubmission.rate ?? null,
       null,
@@ -494,8 +531,8 @@ export function shopCumulativeKpis(
     kpi(
       "cumulativeNotificationSent",
       "累積通知送信",
-      `${formatCount(kpis?.cumulativeNotificationSentCount, completeness)}件`,
-      "最新snapshotまでの通知送信数",
+      formatCountWithUnit(kpis?.cumulativeNotificationSentCount, "件", completeness),
+      "最新の集計日時までの通知送信数",
       completeness,
       kpis?.cumulativeNotificationSentCount ?? null,
       null,
@@ -504,8 +541,8 @@ export function shopCumulativeKpis(
     kpi(
       "cumulativeNotificationFailed",
       "累積通知失敗",
-      `${formatCount(kpis?.cumulativeNotificationFailedCount, completeness)}件`,
-      "最新snapshotまでの最終失敗数",
+      formatCountWithUnit(kpis?.cumulativeNotificationFailedCount, "件", completeness),
+      "最新の集計日時までの最終失敗数",
       completeness,
       kpis?.cumulativeNotificationFailedCount ?? null,
       null,
@@ -513,7 +550,7 @@ export function shopCumulativeKpis(
     ),
     kpi(
       "confirmationLeadTimeMedian",
-      "確定lead time 中央値",
+      "確定までの時間 中央値",
       formatDurationMs(kpis?.confirmationLeadTimeMedianMs, completeness),
       "シフト作成から確定までの中央値",
       completeness,
@@ -523,7 +560,7 @@ export function shopCumulativeKpis(
     ),
     kpi(
       "confirmationLeadTimeP90",
-      "確定lead time P90",
+      "確定までの時間 P90",
       formatDurationMs(kpis?.confirmationLeadTimeP90Ms, completeness),
       "シフト作成から確定までの90パーセンタイル",
       completeness,

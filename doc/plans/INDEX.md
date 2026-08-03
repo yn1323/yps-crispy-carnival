@@ -124,6 +124,7 @@ Historyの本文には、現在と異なる名称、パス、状態、上限、�
 
 | 計画 | 分類根拠 | 現在の正本 |
 |---|---|---|
+| [Analytics画面情報設計改善](2026-08-03_Analytics画面情報設計改善_実装計画.md) | 初期期間、状態表示、一覧・詳細の縮退表示、mobile表示、navigation、要望画面をfrontendへ実装し、静的検証を完了 | [分析KPI可視化アプリ](../features/analytics-dashboard.md)、[UI設計方針](../rules/ui-design.md) |
 | [CSR画面遷移パフォーマンス改善](2026-08-03_CSR画面遷移パフォーマンス改善_実装計画.md) | 4導線のfrontend実装、Unit・Behavior Test、production bundle比較を完了 | [フロントエンドアーキテクチャ](../rules/frontend-architecture.md)、[UI設計方針](../rules/ui-design.md)、[テスト方針](../rules/testing-strategy.md) |
 
 ### 日付形式が異なる既存計画

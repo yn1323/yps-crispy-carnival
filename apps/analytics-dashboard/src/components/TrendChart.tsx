@@ -24,6 +24,10 @@ type TrendChartProps = {
   valueKind?: "count" | "percent";
 };
 
+export function hasPlottableTrendData(data: ChartDatum[], keys: string[]) {
+  return keys.some((key) => data.filter((point) => typeof point[key] === "number").length >= 2);
+}
+
 export const TrendChart = ({ data, keys, kind = "line", valueKind = "count" }: TrendChartProps) => {
   const chart = useChart<ChartDatum>({
     data,

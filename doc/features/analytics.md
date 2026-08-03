@@ -87,7 +87,8 @@ source eventのLINE batchは、最大50件のstaff ID、linked・following状態
 | `snapshotDate` | JST日次終了時点の状態 |
 | `computedAt` | 集計処理が完了した時刻 |
 
-`complete`なcycleだけを率の上位rollupへ含めます。  
+`complete`なcycleだけを率の上位rollupへ含めます。bootstrap開始前に作成され、履歴を完全には復元できないcycleは、finalization後も`unavailable`のまま率から除外します。`unavailable`だけを理由に日次snapshotを`partial`にはしません。
+
 日次処理が途中停止した場合は`partial`として残し、最新完全日を更新しません。service、organization、shopのrollupと率を全page検証する日次invariantが同じsource watermarkに対して完了した後だけ、snapshotを`complete`にして最新完全日を更新します。
 
 通常の日次snapshotは、JSTで終了済みの日だけを対象にします。bootstrap時のbaselineだけは例外で、構築開始時のsource watermarkに固定したpoint-in-time snapshotを当日の`buildingDataStartDate`へ作ります。このbaselineを一日の終了値として扱いません。

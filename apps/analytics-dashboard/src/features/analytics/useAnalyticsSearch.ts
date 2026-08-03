@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   OrganizationParams,
   OrganizationsParams,
@@ -27,8 +27,8 @@ export type SortDirection = "asc" | "desc";
 export type AnalyticsSearchState = {
   from: string;
   to: string;
-  compareFrom: string;
-  compareTo: string;
+  compareFrom?: string;
+  compareTo?: string;
   granularity: AnalyticsGranularity;
   organizationId?: string;
   shopId?: string;
@@ -121,40 +121,52 @@ function differenceInDays(from: string, to: string) {
   return Math.max(0, Math.round((toTime - fromTime) / 86_400_000));
 }
 
+export function comparisonPeriodFor(from: string, to: string, dataStartDate?: string | null) {
+  const days = differenceInDays(from, to) + 1;
+  const compareFrom = addDays(from, -days);
+  const compareTo = addDays(from, -1);
+  if (dataStartDate && compareFrom < dataStartDate) return null;
+  return { compareFrom, compareTo };
+}
+
 function defaultRange() {
   const to = toJstDateString(new Date());
   const from = addDays(to, -29);
-  const days = differenceInDays(from, to) + 1;
   return {
-    compareFrom: addDays(from, -days),
-    compareTo: addDays(from, -1),
     from,
     to,
   };
 }
 
-function parseSearch(search: string): AnalyticsSearchState {
+function parseSearch(search: string) {
   const params = new URLSearchParams(search);
   const defaults = defaultRange();
   const from = params.get("from") ?? defaults.from;
   const to = params.get("to") ?? defaults.to;
-  const days = differenceInDays(from, to) + 1;
   const granularity = params.get("granularity");
   const direction = params.get("direction");
   const result: AnalyticsSearchState = {
-    compareFrom: params.get("compareFrom") ?? addDays(from, -days),
-    compareTo: params.get("compareTo") ?? addDays(from, -1),
     direction: direction === "asc" ? "asc" : "desc",
     from,
     granularity: granularity === "day" || granularity === "month" ? granularity : "week",
     to,
   };
 
+  const compareFrom = params.get("compareFrom");
+  const compareTo = params.get("compareTo");
+  if (compareFrom && compareTo) {
+    result.compareFrom = compareFrom;
+    result.compareTo = compareTo;
+  }
+
   for (const key of OPTIONAL_KEYS) {
     const value = params.get(key);
     if (value) result[key] = value;
   }
-  return result;
+  return {
+    hasExplicitRange: params.has("from") && params.has("to"),
+    search: result,
+  };
 }
 
 export function overviewParams(search: AnalyticsSearchState): OverviewParams {
@@ -194,7 +206,6 @@ export function trendsParams(search: AnalyticsSearchState): Omit<TrendsParams, "
 
 export function organizationsParams(search: AnalyticsSearchState): OrganizationsParams {
   return {
-    completeness: valueIn(search.completeness, COMPLETENESS) as AnalyticsCompleteness | undefined,
     cursor: search.cursor,
     direction: search.direction,
     from: search.from,
@@ -208,8 +219,6 @@ export function organizationsParams(search: AnalyticsSearchState): Organizations
 export function shopsParams(search: AnalyticsSearchState): ShopsParams {
   return {
     cadence: valueIn(search.cadence, CADENCES) as AnalyticsCadenceFilter | undefined,
-    cohort: search.cohort,
-    completeness: valueIn(search.completeness, COMPLETENESS) as AnalyticsCompleteness | undefined,
     cursor: search.cursor,
     direction: search.direction,
     from: search.from,
@@ -228,7 +237,7 @@ export function shopCyclesParams(search: AnalyticsSearchState): ShopCyclesParams
   return {
     completeness: valueIn(search.completeness, COMPLETENESS) as AnalyticsCompleteness | undefined,
     cursor: search.cursor,
-    direction: search.direction,
+    direction: "desc",
     from: search.from,
     limit: 50,
     sort: "periodStart",
@@ -250,15 +259,23 @@ export function segmentsParams(search: AnalyticsSearchState): SegmentsParams {
 }
 
 export function useAnalyticsSearch() {
-  const [search, setSearch] = useState(() => parseSearch(window.location.search));
+  const initial = useRef<ReturnType<typeof parseSearch> | null>(null);
+  if (initial.current === null) initial.current = parseSearch(window.location.search);
+  const [search, setSearch] = useState(initial.current.search);
+  const hasExplicitRange = useRef(initial.current.hasExplicitRange);
 
   useEffect(() => {
-    const handlePopState = () => setSearch(parseSearch(window.location.search));
+    const handlePopState = () => {
+      const parsed = parseSearch(window.location.search);
+      hasExplicitRange.current = parsed.hasExplicitRange;
+      setSearch(parsed.search);
+    };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
   const update = useCallback((patch: Partial<AnalyticsSearchState>, replace = false) => {
+    if ("from" in patch || "to" in patch) hasExplicitRange.current = true;
     const params = new URLSearchParams(window.location.search);
     for (const [key, value] of Object.entries(patch)) {
       if (value === undefined || value === "") params.delete(key);
@@ -274,5 +291,55 @@ export function useAnalyticsSearch() {
     window.dispatchEvent(new PopStateEvent("popstate"));
   }, []);
 
-  return { search, update };
+  const applyMetadataDefaults = useCallback(
+    (metadata?: { dataStartDate: string | null; latestCompleteSnapshotDate: string | null }) => {
+      if (hasExplicitRange.current || !metadata?.dataStartDate) return;
+
+      const fallbackTo = defaultRange().to;
+      const toCandidate = metadata.latestCompleteSnapshotDate ?? fallbackTo;
+      const to = toCandidate < metadata.dataStartDate ? metadata.dataStartDate : toCandidate;
+      const rangeStart = addDays(to, -29);
+      const from = rangeStart < metadata.dataStartDate ? metadata.dataStartDate : rangeStart;
+      const comparison = comparisonPeriodFor(from, to, metadata.dataStartDate);
+      const nextSearch: AnalyticsSearchState = {
+        ...search,
+        compareFrom: comparison?.compareFrom,
+        compareTo: comparison?.compareTo,
+        from,
+        to,
+      };
+
+      if (
+        search.from === nextSearch.from &&
+        search.to === nextSearch.to &&
+        search.compareFrom === nextSearch.compareFrom &&
+        search.compareTo === nextSearch.compareTo
+      ) {
+        return;
+      }
+
+      const params = new URLSearchParams(window.location.search);
+      params.set("from", from);
+      params.set("to", to);
+      if (comparison) {
+        params.set("compareFrom", comparison.compareFrom);
+        params.set("compareTo", comparison.compareTo);
+      } else {
+        params.delete("compareFrom");
+        params.delete("compareTo");
+      }
+      params.delete("cursor");
+      params.delete("segmentCursor");
+      const serialized = params.toString();
+      window.history.replaceState(
+        null,
+        "",
+        serialized ? `${window.location.pathname}?${serialized}` : window.location.pathname,
+      );
+      setSearch(nextSearch);
+    },
+    [search],
+  );
+
+  return { applyMetadataDefaults, search, update };
 }
