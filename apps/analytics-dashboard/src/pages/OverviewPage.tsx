@@ -10,6 +10,8 @@ import {
 } from "@/api/analyticsClient";
 import { useReportAnalyticsEnvironment } from "@/app/analyticsEnvironment";
 import {
+  COUNT_TREND_LABELS,
+  COUNT_TREND_METRICS,
   healthCountItems,
   milestoneItems,
   RATE_TREND_LABELS,
@@ -35,7 +37,10 @@ export function OverviewPage({ navigate }: { navigate: (href: string) => void })
   const [detailsOpen, setDetailsOpen] = useState(false);
   const overviewRequest = overviewParams(search);
   const scopedSeriesRequest = trendsParams(search);
-  const trendsRequest = { ...scopedSeriesRequest, metrics: [...RATE_TREND_METRICS] };
+  const trendsRequest = {
+    ...scopedSeriesRequest,
+    metrics: [...RATE_TREND_METRICS, ...COUNT_TREND_METRICS],
+  };
   const attentionShopsRequest = {
     direction: "asc" as const,
     from: search.from,
@@ -129,6 +134,8 @@ export function OverviewPage({ navigate }: { navigate: (href: string) => void })
   ].filter((section): section is OverviewSection => section !== null);
   const model: OverviewViewModel = {
     attentionShops: attentionShopsQuery.data?.data.rows.map(shopRowModel) ?? [],
+    countTrend: trendChartData(trendsQuery.data?.data.series ?? [], [...COUNT_TREND_METRICS]),
+    countTrendKeys: [...COUNT_TREND_LABELS],
     healthCompleteness: healthQuery.data?.data.metadata.completeness ?? "pending",
     healthSignals: healthCountItems(healthQuery.data?.data.current ?? null, previousHealthCounts),
     kpis: serviceKpis(overview.current, overview.comparison, overview.metadata.completeness),
@@ -139,6 +146,12 @@ export function OverviewPage({ navigate }: { navigate: (href: string) => void })
       milestones?.metadata.completeness ?? "pending",
     ),
     segments: segmentsQuery.data?.data.rows.map(segmentRowModel) ?? [],
+    shopCounts: {
+      active: overview.current?.counts.activeShopCount ?? null,
+      completeness: overview.current?.completeness ?? overview.metadata.completeness,
+      kpiEligible: overview.current?.counts.kpiEligibleShopCount ?? null,
+      total: overview.current?.counts.shopCount ?? null,
+    },
     trend: trendChartData(trendsQuery.data?.data.series ?? [], [...RATE_TREND_METRICS]),
     trendKeys: [...RATE_TREND_LABELS],
   };

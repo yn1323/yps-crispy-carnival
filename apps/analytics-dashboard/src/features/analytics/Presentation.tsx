@@ -28,6 +28,10 @@ const HEALTH_LABELS: Record<string, { color: string; label: string }> = {
   longInactive: { color: "purple", label: "長期無活動" },
 };
 
+export function healthSignalPresentation(key: HealthSignalKey) {
+  return HEALTH_LABELS[key] ?? { color: "gray", label: key };
+}
+
 export function HealthSignals({
   completeness = "complete",
   signals,
@@ -53,7 +57,7 @@ export function HealthSignals({
   return (
     <HStack align="start" gap={2} wrap="wrap">
       {signals.map((signal) => {
-        const presentation = HEALTH_LABELS[signal.key] ?? { color: "gray", label: signal.key };
+        const presentation = healthSignalPresentation(signal.key);
         const suffix = signal.count === undefined ? "" : ` ${formatCount(signal.count, completeness)}店舗`;
         const delta =
           signal.delta === null || signal.delta === undefined

@@ -5,10 +5,12 @@ import { hasPlottableTrendData, TrendChart } from "@/components/TrendChart";
 import { routePath, withCurrentSearch } from "@/routes/appRoute";
 import { AnalysisControls } from "./AnalysisControls";
 import { CyclesTable } from "./AnalyticsTables";
+import { CycleListCharts } from "./CycleCharts";
 import { type AnalyticsMetadata, analyticsEmptyText, CompletenessBadge, DataStatus, QueryError } from "./DataStatus";
 import { formatCount, formatDate } from "./format";
 import { KpiGrid } from "./KpiGrid";
 import { ListPagination, type PageInfoViewModel } from "./ListPagination";
+import { DonutChart, hasPlottableKpis, KpiComparisonChart, partitionRemainder } from "./MetricVisualizations";
 import { HealthSignals, MilestoneTimeline } from "./Presentation";
 import type { AnalyticsSearchState } from "./useAnalyticsSearch";
 import type { KpiViewModel, ShopDetailViewModel } from "./viewModels";
@@ -69,10 +71,30 @@ export function ShopDetailView({
   const currentDetails = model.kpis.filter((item) => !PRIMARY_CURRENT_KPI_KEYS.has(item.key));
   const primaryCumulativeKpis = model.cumulativeKpis.filter((item) => PRIMARY_CUMULATIVE_KPI_KEYS.has(item.key));
   const cumulativeDetails = model.cumulativeKpis.filter((item) => !PRIMARY_CUMULATIVE_KPI_KEYS.has(item.key));
+  const cumulativeStageKpis = model.cumulativeKpis.filter((item) =>
+    ["cycles", "confirmed", "beforeStart"].includes(item.key),
+  );
+  const cumulativeRateKpis = model.cumulativeKpis.filter((item) =>
+    ["cumulativeDeadlineSubmission", "cumulativeFinalSubmission"].includes(item.key),
+  );
+  const notificationKpis = model.cumulativeKpis.filter((item) =>
+    ["cumulativeNotificationSent", "cumulativeNotificationFailed"].includes(item.key),
+  );
+  const leadTimeKpis = model.cumulativeKpis.filter((item) =>
+    ["confirmationLeadTimeMedian", "confirmationLeadTimeP90"].includes(item.key),
+  );
   const cumulativeCompleteness = model.cumulativeKpis[0]?.completeness;
   const periodCompleteness = model.periodRateKpis[0]?.completeness;
   const hasNoCycles = model.cycleCount === 0 && cumulativeCompleteness === "complete";
   const canPlotTrend = hasPlottableTrendData(model.trend, model.trendKeys);
+  const targetKpi = model.kpis.find((item) => item.key === "targets");
+  const lineLinkedKpi = model.kpis.find((item) => item.key === "lineLinked");
+  const lineCompleteness = lineLinkedKpi?.completeness ?? "unavailable";
+  const lineUnlinkedCount = partitionRemainder(
+    targetKpi?.numericValue ?? null,
+    lineLinkedKpi?.numericValue ?? null,
+    lineCompleteness,
+  );
 
   return (
     <Stack gap={{ base: 6, md: 8 }}>
@@ -129,6 +151,51 @@ export function ShopDetailView({
       <Stack gap={4}>
         <SectionHeading description="スタッフ所属数と、シフト提出対象人数を表示します。" title="店舗の現在" />
         <KpiGrid items={primaryCurrentKpis} />
+        <Grid gap={4} templateColumns={{ base: "1fr", xl: "repeat(2, minmax(0, 1fr))" }}>
+          {hasPlottableKpis(primaryCurrentKpis) ? (
+            <ChartPanel
+              contentHeight="auto"
+              description="スタッフ所属数とシフト対象人数を同じ人数尺度で比較します。"
+              title="スタッフとシフト対象"
+            >
+              <KpiComparisonChart ariaLabel="スタッフ所属数とシフト対象人数" items={primaryCurrentKpis} />
+            </ChartPanel>
+          ) : null}
+          {targetKpi?.numericValue !== null &&
+          targetKpi?.numericValue !== undefined &&
+          targetKpi.numericValue > 0 &&
+          lineUnlinkedCount !== null ? (
+            <ChartPanel
+              contentHeight="auto"
+              description="シフト対象者を、LINE連携済みと未連携に分けています。"
+              title="LINE連携構成"
+            >
+              <DonutChart
+                ariaLabel="シフト対象者のLINE連携済みと未連携の構成比"
+                centerLabel="シフト対象"
+                centerValue={`${formatCount(targetKpi.numericValue, lineCompleteness)}人`}
+                items={[
+                  {
+                    color: "green.500",
+                    completeness: lineCompleteness,
+                    displayValue: `${formatCount(lineLinkedKpi?.numericValue, lineCompleteness)}人`,
+                    key: "linked",
+                    label: "連携済み",
+                    value: lineLinkedKpi?.numericValue ?? null,
+                  },
+                  {
+                    color: "gray.500",
+                    completeness: lineCompleteness,
+                    displayValue: `${formatCount(lineUnlinkedCount, lineCompleteness)}人`,
+                    key: "unlinked",
+                    label: "未連携",
+                    value: lineUnlinkedCount,
+                  },
+                ]}
+              />
+            </ChartPanel>
+          ) : null}
+        </Grid>
         <ExpandableKpis
           description="LINE連携、重複を除いた利用者、重複判定できないスタッフ、管理者の内訳です。"
           items={currentDetails}
@@ -165,6 +232,52 @@ export function ShopDetailView({
               title="累積KPI"
             />
             <KpiGrid items={primaryCumulativeKpis} />
+            <Grid gap={4} templateColumns={{ base: "1fr", xl: "repeat(2, minmax(0, 1fr))" }}>
+              {hasPlottableKpis(cumulativeStageKpis) ? (
+                <ChartPanel
+                  contentHeight="auto"
+                  description="作成済み、確定済み、開始前確定済みを同じ周期数の尺度で比較します。"
+                  title="周期の確定段階"
+                >
+                  <KpiComparisonChart ariaLabel="周期の確定段階" items={cumulativeStageKpis} />
+                </ChartPanel>
+              ) : null}
+              {hasPlottableKpis(cumulativeRateKpis) ? (
+                <ChartPanel
+                  contentHeight="auto"
+                  description="期限時点と周期終了時点を同じ0〜100%の尺度で比較します。"
+                  title="累積提出率"
+                >
+                  <KpiComparisonChart
+                    ariaLabel="累積期限内提出率と累積最終提出率"
+                    items={cumulativeRateKpis}
+                    maxValue={1}
+                  />
+                </ChartPanel>
+              ) : null}
+              {hasPlottableKpis(notificationKpis) ? (
+                <ChartPanel
+                  contentHeight="auto"
+                  description="送信数と最終失敗数は積み上げず、個別の件数として表示します。"
+                  title="累積通知結果"
+                >
+                  <KpiComparisonChart ariaLabel="累積通知送信数と最終失敗数" items={notificationKpis} />
+                </ChartPanel>
+              ) : null}
+              {hasPlottableKpis(leadTimeKpis) ? (
+                <ChartPanel
+                  contentHeight="auto"
+                  description="中央値とP90を同じ時間尺度で比較し、遅い周期の影響を確認します。"
+                  title="確定までの時間"
+                >
+                  <KpiComparisonChart
+                    ariaLabel="確定までの時間の中央値とP90"
+                    items={leadTimeKpis}
+                    valueKind="duration"
+                  />
+                </ChartPanel>
+              ) : null}
+            </Grid>
             <ExpandableKpis
               description="期限内提出率、通知送信と失敗、作成から確定までの時間です。"
               items={cumulativeDetails}
@@ -184,7 +297,22 @@ export function ShopDetailView({
                 </Text>
               </Box>
             ) : (
-              <KpiGrid items={model.periodRateKpis} />
+              <Stack gap={4}>
+                <KpiGrid items={model.periodRateKpis} />
+                {hasPlottableKpis(model.periodRateKpis) ? (
+                  <ChartPanel
+                    contentHeight="auto"
+                    description="期限時点と周期終了時点を同じ0〜100%の尺度で比較します。"
+                    title="期間内の提出率"
+                  >
+                    <KpiComparisonChart
+                      ariaLabel="期間内の期限内提出率と最終提出率"
+                      items={model.periodRateKpis}
+                      maxValue={1}
+                    />
+                  </ChartPanel>
+                ) : null}
+              </Stack>
             )}
           </Stack>
 
@@ -222,6 +350,7 @@ export function ShopDetailView({
                 </NativeSelect.Root>
               </HStack>
             </Flex>
+            {!cyclesErrorMessage && !cyclesLoading ? <CycleListCharts rows={model.cycles} /> : null}
             {cyclesErrorMessage ? (
               <QueryError message={cyclesErrorMessage} />
             ) : cyclesLoading ? (

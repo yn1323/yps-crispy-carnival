@@ -7,9 +7,18 @@ import { AnalysisControls } from "./AnalysisControls";
 import { AnalyticsExportButton } from "./AnalyticsExportButton";
 import { SegmentsTable, ShopsTable } from "./AnalyticsTables";
 import { analyticsEmptyText, DataStatus, QueryError } from "./DataStatus";
+import { formatCount } from "./format";
 import { KpiGrid } from "./KpiGrid";
 import { ListPagination, type PageInfoViewModel } from "./ListPagination";
+import {
+  DonutChart,
+  HealthDistributionChart,
+  KpiComparisonChart,
+  MilestoneConversionChart,
+  partitionRemainder,
+} from "./MetricVisualizations";
 import { HealthSignals, MilestoneTimeline } from "./Presentation";
+import { SegmentComparisonCharts } from "./SegmentCharts";
 import type { AnalyticsSearchState } from "./useAnalyticsSearch";
 import type { OverviewViewModel } from "./viewModels";
 
@@ -62,6 +71,18 @@ export function OverviewView({
 }) {
   const isLoading = (section: OverviewSection) => loading.includes(section);
   const canPlotTrend = hasPlottableTrendData(model.trend, model.trendKeys);
+  const canPlotCountTrend = hasPlottableTrendData(model.countTrend, model.countTrendKeys);
+  const currentRateKpis = model.kpis.filter((item) =>
+    ["northStar", "deadlineSubmission", "finalSubmission"].includes(item.key),
+  );
+  const hasCurrentRates = currentRateKpis.some(
+    (item) => item.completeness === "complete" && item.numericValue !== null,
+  );
+  const inactiveShopCount = partitionRemainder(
+    model.shopCounts.total,
+    model.shopCounts.active,
+    model.shopCounts.completeness,
+  );
 
   return (
     <Stack gap={{ base: 6, md: 8 }}>
@@ -105,6 +126,46 @@ export function OverviewView({
           title="現在の利用状況"
         />
         <KpiGrid items={model.kpis} />
+        <Grid gap={4} templateColumns={{ base: "1fr", xl: "repeat(2, minmax(0, 1fr))" }}>
+          {hasCurrentRates ? (
+            <ChartPanel
+              contentHeight="auto"
+              description="現在の3つの率を同じ0〜100%の尺度で比較します。"
+              title="現在の運用KPI"
+            >
+              <KpiComparisonChart ariaLabel="現在の運用KPI" items={currentRateKpis} maxValue={1} />
+            </ChartPanel>
+          ) : null}
+          <ChartPanel
+            contentHeight="auto"
+            description="現在の全店舗を、最近の活動がある店舗とそれ以外に分けています。"
+            title="店舗の稼働構成"
+          >
+            <DonutChart
+              ariaLabel="稼働店舗と非稼働店舗の構成比"
+              centerLabel="全店舗"
+              centerValue={`${formatCount(model.shopCounts.total, model.shopCounts.completeness)}店舗`}
+              items={[
+                {
+                  color: "green.500",
+                  completeness: model.shopCounts.completeness,
+                  displayValue: `${formatCount(model.shopCounts.active, model.shopCounts.completeness)}店舗`,
+                  key: "active",
+                  label: "稼働中",
+                  value: model.shopCounts.active,
+                },
+                {
+                  color: "gray.500",
+                  completeness: model.shopCounts.completeness,
+                  displayValue: `${formatCount(inactiveShopCount, model.shopCounts.completeness)}店舗`,
+                  key: "inactive",
+                  label: "非稼働",
+                  value: inactiveShopCount,
+                },
+              ]}
+            />
+          </ChartPanel>
+        </Grid>
       </Stack>
 
       <AnalysisControls
@@ -127,14 +188,27 @@ export function OverviewView({
         >
           <Box />
         </ChartPanel>
-      ) : canPlotTrend ? (
-        <ChartPanel
-          contentHeight={{ base: "240px", md: "320px" }}
-          description="日次・週次・月次を切り替えて傾向を確認できます。欠損区間は0として結びません。"
-          title="KPI推移"
-        >
-          <TrendChart data={model.trend} keys={model.trendKeys} valueKind="percent" />
-        </ChartPanel>
+      ) : canPlotTrend || canPlotCountTrend ? (
+        <Grid gap={4} templateColumns={{ base: "1fr", xl: "repeat(2, minmax(0, 1fr))" }}>
+          {canPlotTrend ? (
+            <ChartPanel
+              contentHeight={{ base: "240px", md: "320px" }}
+              description="率は0〜100%で比較し、欠損区間は0として結びません。"
+              title="運用KPIの推移"
+            >
+              <TrendChart data={model.trend} keys={model.trendKeys} valueKind="percent" />
+            </ChartPanel>
+          ) : null}
+          {canPlotCountTrend ? (
+            <ChartPanel
+              contentHeight={{ base: "240px", md: "320px" }}
+              description="全店舗、稼働店舗、KPI対象店舗を同じ店舗数の尺度で比較します。"
+              title="店舗基盤の推移"
+            >
+              <TrendChart data={model.countTrend} keys={model.countTrendKeys} valueKind="count" />
+            </ChartPanel>
+          ) : null}
+        </Grid>
       ) : (
         <TrendUnavailable />
       )}
@@ -147,7 +221,12 @@ export function OverviewView({
           ) : isLoading("milestones") ? (
             <Skeleton h="240px" />
           ) : (
-            <MilestoneTimeline items={model.milestones} />
+            <Stack gap={5}>
+              <MilestoneConversionChart items={model.milestones} />
+              <Box borderTop="1px solid" borderColor="gray.100" pt={5}>
+                <MilestoneTimeline items={model.milestones} />
+              </Box>
+            </Stack>
           )}
         </Stack>
         <Stack bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" gap={5} p={5}>
@@ -157,7 +236,20 @@ export function OverviewView({
           ) : isLoading("health") ? (
             <Skeleton h="120px" />
           ) : (
-            <HealthSignals completeness={model.healthCompleteness} signals={model.healthSignals} />
+            <Stack gap={5}>
+              <HealthDistributionChart
+                completeness={model.healthCompleteness}
+                signals={model.healthSignals}
+                totalCount={model.shopCounts.total}
+              />
+              <Box
+                borderTop={model.healthSignals.length > 0 ? "1px solid" : undefined}
+                borderColor="gray.100"
+                pt={model.healthSignals.length > 0 ? 4 : 0}
+              >
+                <HealthSignals completeness={model.healthCompleteness} signals={model.healthSignals} />
+              </Box>
+            </Stack>
           )}
         </Stack>
       </Grid>
@@ -198,14 +290,22 @@ export function OverviewView({
             ) : isLoading("segments") ? (
               <Skeleton h="200px" />
             ) : (
-              <SegmentsTable
-                emptyText={analyticsEmptyText(
-                  model.metadata,
-                  "この条件に一致する比較結果はありません",
-                  segmentPageInfo,
-                )}
-                rows={model.segments}
-              />
+              <Stack gap={5}>
+                <SegmentComparisonCharts dimension={search.dimension ?? "registrationCohort"} rows={model.segments} />
+                <Box>
+                  <Text color="gray.700" fontSize="sm" fontWeight="bold" mb={3}>
+                    正確な値
+                  </Text>
+                  <SegmentsTable
+                    emptyText={analyticsEmptyText(
+                      model.metadata,
+                      "この条件に一致する比較結果はありません",
+                      segmentPageInfo,
+                    )}
+                    rows={model.segments}
+                  />
+                </Box>
+              </Stack>
             )}
             {!errors.segments && !isLoading("segments") ? (
               <ListPagination pageInfo={segmentPageInfo} onNext={(segmentCursor) => updateSearch({ segmentCursor })} />

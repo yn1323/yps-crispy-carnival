@@ -6,6 +6,7 @@ export type KpiViewModel = {
   key: string;
   label: string;
   value: string;
+  numericValue: number | null;
   detail: string;
   delta: number | null;
   deltaSuffix?: string;
@@ -101,8 +102,16 @@ export type SegmentRowViewModel = {
 export type OverviewViewModel = {
   metadata: AnalyticsMetadata;
   kpis: KpiViewModel[];
+  shopCounts: {
+    total: number | null;
+    active: number | null;
+    kpiEligible: number | null;
+    completeness: DataCompleteness;
+  };
   trend: ChartDatum[];
   trendKeys: string[];
+  countTrend: ChartDatum[];
+  countTrendKeys: string[];
   milestones: MilestoneItem[];
   healthSignals: HealthViewModel[];
   healthCompleteness: DataCompleteness;

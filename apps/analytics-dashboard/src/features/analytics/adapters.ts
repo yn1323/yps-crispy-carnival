@@ -89,6 +89,10 @@ export const RATE_TREND_METRICS = ["northStarRate", "deadlineSubmissionRate", "f
 
 export const RATE_TREND_LABELS = RATE_TREND_METRICS.map((metric) => TREND_LABELS[metric]);
 
+export const COUNT_TREND_METRICS = ["shopCount", "activeShopCount", "kpiEligibleShopCount"] as const;
+
+export const COUNT_TREND_LABELS = COUNT_TREND_METRICS.map((metric) => TREND_LABELS[metric]);
+
 function kpi(
   key: string,
   label: string,
@@ -107,6 +111,7 @@ function kpi(
     detail,
     key,
     label,
+    numericValue: currentValue,
     value,
   };
 }

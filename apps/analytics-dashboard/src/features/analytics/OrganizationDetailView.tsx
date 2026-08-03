@@ -6,9 +6,16 @@ import { routePath, withCurrentSearch } from "@/routes/appRoute";
 import { AnalysisControls } from "./AnalysisControls";
 import { ShopsTable } from "./AnalyticsTables";
 import { analyticsEmptyText, DataStatus } from "./DataStatus";
-import { formatDate } from "./format";
+import { formatCount, formatDate } from "./format";
 import { KpiGrid } from "./KpiGrid";
 import { ListPagination, type PageInfoViewModel } from "./ListPagination";
+import {
+  DonutChart,
+  HealthDistributionChart,
+  hasPlottableKpis,
+  KpiComparisonChart,
+  partitionRemainder,
+} from "./MetricVisualizations";
 import { HealthSignals } from "./Presentation";
 import type { AnalyticsSearchState } from "./useAnalyticsSearch";
 import type { OrganizationDetailViewModel } from "./viewModels";
@@ -43,8 +50,15 @@ export function OrganizationDetailView({
 }) {
   const primaryKpis = model.kpis.filter((item) => PRIMARY_KPI_KEYS.has(item.key));
   const peopleKpis = model.kpis.filter((item) => !PRIMARY_KPI_KEYS.has(item.key));
+  const shopCountKpi = model.kpis.find((item) => item.key === "shops");
+  const activeShopKpi = model.kpis.find((item) => item.key === "activeShops");
   const canPlotTrend = hasPlottableTrendData(model.trend, model.trendKeys);
-  const shopCountCompleteness = model.kpis.find((item) => item.key === "shops")?.completeness;
+  const shopCountCompleteness = shopCountKpi?.completeness ?? "unavailable";
+  const inactiveShopCount = partitionRemainder(
+    model.shopCount,
+    activeShopKpi?.numericValue ?? null,
+    shopCountCompleteness,
+  );
   const expansionNotApplicable =
     shopCountCompleteness === "complete" && model.shopCount !== null && model.shopCount < 2;
 
@@ -76,9 +90,51 @@ export function OrganizationDetailView({
       <Stack gap={4}>
         <SectionHeading description="店舗数、稼働店舗数、スタッフ所属を最初に確認します。" title="グループの現在" />
         <KpiGrid items={primaryKpis} />
+        {model.shopCount !== null && model.shopCount > 0 && inactiveShopCount !== null ? (
+          <ChartPanel
+            contentHeight="auto"
+            description="グループ内の全店舗を、最近の活動がある店舗とそれ以外に分けています。"
+            title="店舗の稼働構成"
+          >
+            <DonutChart
+              ariaLabel="グループ内の稼働店舗と非稼働店舗の構成比"
+              centerLabel="全店舗"
+              centerValue={`${formatCount(model.shopCount, shopCountCompleteness)}店舗`}
+              items={[
+                {
+                  color: "green.500",
+                  completeness: shopCountCompleteness,
+                  displayValue: `${formatCount(activeShopKpi?.numericValue, shopCountCompleteness)}店舗`,
+                  key: "active",
+                  label: "稼働中",
+                  value: activeShopKpi?.numericValue ?? null,
+                },
+                {
+                  color: "gray.500",
+                  completeness: shopCountCompleteness,
+                  displayValue: `${formatCount(inactiveShopCount, shopCountCompleteness)}店舗`,
+                  key: "inactive",
+                  label: "非稼働",
+                  value: inactiveShopCount,
+                },
+              ]}
+            />
+          </ChartPanel>
+        ) : null}
         <Stack bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" gap={3} p={4}>
           <SectionHeading description="一店舗に複数の状態が同時に成立します。" title="要確認状態" />
-          <HealthSignals completeness={model.healthCompleteness} signals={model.healthSignals} />
+          <HealthDistributionChart
+            completeness={model.healthCompleteness}
+            signals={model.healthSignals}
+            totalCount={model.shopCount}
+          />
+          <Box
+            borderTop={model.healthSignals.length > 0 ? "1px solid" : undefined}
+            borderColor="gray.100"
+            pt={model.healthSignals.length > 0 ? 3 : 0}
+          >
+            <HealthSignals completeness={model.healthCompleteness} signals={model.healthSignals} />
+          </Box>
         </Stack>
         {peopleKpis.length > 0 ? (
           <Box as="details" bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" p={4}>
@@ -111,6 +167,15 @@ export function OrganizationDetailView({
             title="多店舗展開"
           />
           <KpiGrid items={model.expansionKpis} />
+          {hasPlottableKpis(model.expansionKpis) ? (
+            <ChartPanel
+              contentHeight="auto"
+              description="2店舗目の登録と初回確定までに要した時間を同じ尺度で比較します。"
+              title="多店舗展開に要した時間"
+            >
+              <KpiComparisonChart ariaLabel="多店舗展開に要した時間" items={model.expansionKpis} valueKind="duration" />
+            </ChartPanel>
+          ) : null}
         </Stack>
       )}
 

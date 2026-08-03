@@ -2,6 +2,7 @@ import { Badge, Box, Grid, HStack, Stack, Text } from "@chakra-ui/react";
 import { KpiCard } from "@/components/KpiCard";
 import { PageHeading, SectionHeading } from "@/components/PageHeading";
 import { routePath, withCurrentSearch } from "@/routes/appRoute";
+import { CycleSummaryCharts } from "./CycleCharts";
 import { CompletenessBadge, DataStatus } from "./DataStatus";
 import { formatCount, formatDateTime, formatDurationMs, formatRate } from "./format";
 import type { CycleDetailViewModel } from "./viewModels";
@@ -83,6 +84,8 @@ export function CycleDetailView({ model }: { model: CycleDetailViewModel }) {
           value={formatDurationMs(model.confirmationLeadTimeMs, model.completeness)}
         />
       </Grid>
+
+      <CycleSummaryCharts model={model} />
 
       <Stack bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" gap={5} p={{ base: 4, md: 5 }}>
         <SectionHeading

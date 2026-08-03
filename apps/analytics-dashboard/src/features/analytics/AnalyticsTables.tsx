@@ -1,4 +1,4 @@
-import { Badge, Grid, HStack, Link, Stack, Text } from "@chakra-ui/react";
+import { Badge, Box, Grid, HStack, Link, Stack, Text } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { routePath, withCurrentSearch } from "@/routes/appRoute";
@@ -24,11 +24,15 @@ function MobileMetric({ label, value }: { label: string; value: ReactNode }) {
       <Text color="gray.500" fontSize="xs">
         {label}
       </Text>
-      <Text color="gray.900" fontSize="sm" fontWeight="semibold">
+      <Box color="gray.900" fontSize="sm" fontWeight="semibold">
         {value}
-      </Text>
+      </Box>
     </Stack>
   );
+}
+
+function formatCountPair(numerator: number | null, denominator: number | null, completeness: DataCompleteness) {
+  return `${formatCount(numerator, completeness)} / ${formatCount(denominator, completeness)}`;
 }
 
 const organizationColumns: DataTableColumn<OrganizationRowViewModel>[] = [
@@ -58,8 +62,7 @@ const organizationColumns: DataTableColumn<OrganizationRowViewModel>[] = [
     header: "稼働 / 全店舗",
     align: "right",
     width: "13%",
-    render: (row) =>
-      `${formatCount(row.activeShopCount, row.completeness)} / ${formatCount(row.shopCount, row.completeness)}`,
+    render: (row) => formatCountPair(row.activeShopCount, row.shopCount, row.completeness),
   },
   {
     key: "staffs",
@@ -106,7 +109,7 @@ function OrganizationMobileRow({ row }: { row: OrganizationRowViewModel }) {
       <Grid gap={3} templateColumns="repeat(2, minmax(0, 1fr))">
         <MobileMetric
           label="稼働 / 全店舗"
-          value={`${formatCount(row.activeShopCount, row.completeness)} / ${formatCount(row.shopCount, row.completeness)}`}
+          value={formatCountPair(row.activeShopCount, row.shopCount, row.completeness)}
         />
         <MobileMetric
           label="スタッフ / 対象"
@@ -444,7 +447,7 @@ const segmentColumns: DataTableColumn<SegmentRowViewModel>[] = [
     key: "secondConfirmed",
     header: "2回目確定",
     align: "right",
-    render: (row) => formatCount(row.secondConfirmedCount, row.completeness),
+    render: (row) => formatCountPair(row.secondConfirmedCount, row.shopCount, row.completeness),
   },
   {
     key: "northStar",
@@ -490,7 +493,10 @@ export function SegmentsTable({ emptyText, rows }: { emptyText?: string; rows: S
           </HStack>
           <Grid gap={3} templateColumns="repeat(2, minmax(0, 1fr))">
             <MobileMetric label="店舗数" value={formatCount(row.shopCount, row.completeness)} />
-            <MobileMetric label="2回目確定" value={formatCount(row.secondConfirmedCount, row.completeness)} />
+            <MobileMetric
+              label="2回目確定"
+              value={formatCountPair(row.secondConfirmedCount, row.shopCount, row.completeness)}
+            />
             <MobileMetric label="開始前確定率" value={formatRate(row.northStarRate, row.completeness)} />
             <MobileMetric label="最終提出率" value={formatRate(row.finalSubmissionRate, row.completeness)} />
           </Grid>
