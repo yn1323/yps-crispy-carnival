@@ -823,14 +823,16 @@ async function processBootstrapPage(ctx: MutationCtx, job: Job) {
           )
           .unique();
         if (!organization) throw new Error("analytics_invariant_shop_organization_missing");
-        const milestones = [
-          shop.registeredAt,
-          shop.firstRecruitmentAt,
-          shop.firstSubmissionAt,
-          shop.firstConfirmedAt,
-          shop.secondConfirmedAt,
-        ].filter((value): value is number => value !== undefined);
-        if (milestones.some((value, index) => index > 0 && value < (milestones[index - 1] ?? 0))) {
+        const milestonePaths = [
+          [shop.registeredAt, shop.firstRecruitmentAt, shop.firstSubmissionAt],
+          [shop.registeredAt, shop.firstRecruitmentAt, shop.firstConfirmedAt, shop.secondConfirmedAt],
+        ];
+        if (
+          milestonePaths.some((path) => {
+            const milestones = path.filter((value): value is number => value !== undefined);
+            return milestones.some((value, index) => index > 0 && value < (milestones[index - 1] ?? 0));
+          })
+        ) {
           throw new Error("analytics_invariant_shop_milestone_order");
         }
       }
@@ -5540,8 +5542,12 @@ async function processInvariantPage(ctx: MutationCtx, job: Job) {
           .order("desc")
           .first();
         const shouldBeOpen = sourceMember.status === "active";
+        if (!membership) {
+          if (shouldBeOpen) throw new Error("analytics_invariant_source_manager_missing");
+          continue;
+        }
         if (
-          membership?.role !== "manager" ||
+          membership.role !== "manager" ||
           membership.organizationId !== sourceMember.organizationId ||
           membership.organizationPersonId !== sourceMember.personId ||
           shouldBeOpen !== (membership.validTo === undefined)

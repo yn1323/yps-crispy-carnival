@@ -1,4 +1,4 @@
-import { convexTest } from "convex-test";
+import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
 import { SCENARIO_NOW } from "../_test/scenarioBuilders";
@@ -7,6 +7,22 @@ import { modules, schema } from "../_test/setup.test-helper";
 import { ANALYTICS_PIPELINE_KEY, ANALYTICS_SCHEMA_VERSION } from "./model";
 
 const GENERATION = "manager-membership-bootstrap";
+
+async function runAnalyticsJobToTerminal(t: TestConvex<typeof schema>, jobKey: string) {
+  let job = null;
+  for (let step = 0; step < 120; step += 1) {
+    vi.advanceTimersByTime(0);
+    await t.finishInProgressScheduledFunctions();
+    job = await t.run((ctx) =>
+      ctx.db
+        .query("analyticsAggregationJobs")
+        .withIndex("by_jobKey", (q) => q.eq("jobKey", jobKey))
+        .unique(),
+    );
+    if (job?.status === "completed" || job?.status === "failed") break;
+  }
+  return job;
+}
 
 describe("Analytics bootstrap", () => {
   beforeEach(() => {
@@ -28,18 +44,7 @@ describe("Analytics bootstrap", () => {
     );
 
     await t.mutation(internal.analytics.pipeline.startBootstrap, { generation: GENERATION });
-    let bootstrap = null;
-    for (let step = 0; step < 40; step += 1) {
-      vi.advanceTimersByTime(0);
-      await t.finishInProgressScheduledFunctions();
-      bootstrap = await t.run((ctx) =>
-        ctx.db
-          .query("analyticsAggregationJobs")
-          .withIndex("by_jobKey", (q) => q.eq("jobKey", `bootstrap:${GENERATION}`))
-          .unique(),
-      );
-      if (bootstrap?.status === "completed") break;
-    }
+    const bootstrap = await runAnalyticsJobToTerminal(t, `bootstrap:${GENERATION}`);
     expect(bootstrap?.status).toBe("completed");
 
     await t.mutation(internal.analytics.pipeline.startBootstrap, { generation: GENERATION });
@@ -67,6 +72,94 @@ describe("Analytics bootstrap", () => {
         validTo: undefined,
       },
     ]);
+  });
+
+  it("初回提出より先に初回確定した店舗でもbootstrapを完了する", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, {
+        subject: "analytics_confirmation_before_submission",
+        shopName: "提出前確定店舗",
+      }),
+    );
+
+    vi.setSystemTime(SCENARIO_NOW + 1_000);
+    const { recruitmentId, staffId } = await t.run(async (ctx) => {
+      const staffId = await ctx.db.insert("staffs", {
+        organizationId: seeded.organizationId,
+        shopId: seeded.shopId,
+        name: "提出スタッフ",
+        email: "submission@example.com",
+        isDeleted: false,
+      });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId: seeded.shopId,
+        periodStart: "2026-05-11",
+        periodEnd: "2026-05-17",
+        deadline: "2026-05-09",
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: SCENARIO_NOW + 2_000,
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      return { recruitmentId, staffId };
+    });
+    vi.setSystemTime(SCENARIO_NOW + 3_000);
+    await t.run((ctx) =>
+      ctx.db.insert("shiftSubmissions", {
+        recruitmentId,
+        staffId,
+        firstSubmittedAt: SCENARIO_NOW + 3_000,
+        submittedAt: SCENARIO_NOW + 3_000,
+      }),
+    );
+
+    vi.setSystemTime(SCENARIO_NOW + 4_000);
+    await t.mutation(internal.analytics.pipeline.startBootstrap, { generation: GENERATION });
+    const bootstrap = await runAnalyticsJobToTerminal(t, `bootstrap:${GENERATION}`);
+
+    expect(bootstrap?.status).toBe("completed");
+    const shop = await t.run((ctx) =>
+      ctx.db
+        .query("analyticsShops")
+        .withIndex("by_generation_and_shopId", (q) => q.eq("generation", GENERATION).eq("shopId", seeded.shopId))
+        .unique(),
+    );
+    expect(shop).not.toBeNull();
+    expect(shop?.firstRecruitmentAt).toBeGreaterThanOrEqual(SCENARIO_NOW + 1_000);
+    expect(shop?.firstRecruitmentAt).toBeLessThan(SCENARIO_NOW + 2_000);
+    expect(shop?.firstConfirmedAt).toBe(SCENARIO_NOW + 2_000);
+    expect(shop?.firstSubmissionAt).toBe(SCENARIO_NOW + 3_000);
+  });
+
+  it("readOnly管理者の履歴を保持しないgenerationでもmanual invariantを完了する", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, {
+        subject: "analytics_read_only_manager",
+        shopName: "参照専用管理者店舗",
+      }),
+    );
+    await t.run((ctx) => ctx.db.patch(seeded.memberId, { status: "readOnly", updatedAt: SCENARIO_NOW }));
+
+    await t.mutation(internal.analytics.pipeline.startBootstrap, { generation: GENERATION });
+    const bootstrap = await runAnalyticsJobToTerminal(t, `bootstrap:${GENERATION}`);
+    expect(bootstrap?.status).toBe("completed");
+
+    const memberships = await t.run((ctx) =>
+      ctx.db
+        .query("analyticsMemberships")
+        .withIndex("by_generation_and_membershipKey_and_validFrom", (q) =>
+          q.eq("generation", GENERATION).eq("membershipKey", `manager:${seeded.organizationId}:${seeded.personId}`),
+        )
+        .collect(),
+    );
+    expect(memberships).toEqual([]);
+
+    await t.mutation(internal.analytics.pipeline.checkGenerationInvariants, { generation: GENERATION });
+    const invariant = await runAnalyticsJobToTerminal(t, `invariant:${GENERATION}:manual`);
+    expect(invariant?.status).toBe("completed");
   });
 });
 
