@@ -161,6 +161,43 @@ describe("Analytics bootstrap", () => {
     const invariant = await runAnalyticsJobToTerminal(t, `invariant:${GENERATION}:manual`);
     expect(invariant?.status).toBe("completed");
   });
+
+  it("削除前の履歴がないstaffを含むgenerationでもmanual invariantを完了する", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, {
+        subject: "analytics_deleted_staff_without_history",
+        shopName: "削除済みスタッフ店舗",
+      }),
+    );
+    const staffId = await t.run((ctx) =>
+      ctx.db.insert("staffs", {
+        organizationId: seeded.organizationId,
+        shopId: seeded.shopId,
+        name: "削除済みスタッフ",
+        email: "deleted@example.com",
+        isDeleted: true,
+      }),
+    );
+
+    await t.mutation(internal.analytics.pipeline.startBootstrap, { generation: GENERATION });
+    const bootstrap = await runAnalyticsJobToTerminal(t, `bootstrap:${GENERATION}`);
+    expect(bootstrap?.status).toBe("completed");
+
+    const memberships = await t.run((ctx) =>
+      ctx.db
+        .query("analyticsMemberships")
+        .withIndex("by_generation_and_membershipKey_and_validFrom", (q) =>
+          q.eq("generation", GENERATION).eq("membershipKey", `staff:${staffId}`),
+        )
+        .collect(),
+    );
+    expect(memberships).toEqual([]);
+
+    await t.mutation(internal.analytics.pipeline.checkGenerationInvariants, { generation: GENERATION });
+    const invariant = await runAnalyticsJobToTerminal(t, `invariant:${GENERATION}:manual`);
+    expect(invariant?.status).toBe("completed");
+  });
 });
 
 describe("Analytics projection", () => {

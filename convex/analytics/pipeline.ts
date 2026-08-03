@@ -5583,9 +5583,14 @@ async function processInvariantPage(ctx: MutationCtx, job: Job) {
         ]);
         if (!sourceShop?.organizationId) throw new Error("analytics_invariant_source_staff_shop_missing");
         const organizationId = sourceStaff.organizationId ?? sourceShop.organizationId;
+        if (!membership) {
+          if (!sourceStaff.isDeleted || organizationId !== sourceShop.organizationId) {
+            throw new Error("analytics_invariant_source_staff_missing");
+          }
+          continue;
+        }
         if (
           organizationId !== sourceShop.organizationId ||
-          !membership ||
           membership.role !== "staff" ||
           membership.organizationId !== organizationId ||
           membership.shopId !== sourceStaff.shopId ||
