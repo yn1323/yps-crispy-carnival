@@ -66,7 +66,7 @@ describe("Playwright config artifact security", () => {
     const webServer = report.config?.webServer ?? {};
     expect(Object.keys(webServer).length > 0).toBe(true);
     expect(Object.hasOwn(webServer, "env")).toBe(false);
-    expect(report.config?.metadata?.gitDiff).toBeUndefined();
+    expect(JSON.stringify(report.config?.metadata ?? {})).not.toMatch(/git(?:Diff|Commit)/i);
     for (const sentinel of [...Object.values(SECRET_SENTINELS), USER_SENTINELS.join(","), ...USER_SENTINELS]) {
       expect(result.stdout.includes(sentinel)).toBe(false);
     }
