@@ -109,6 +109,7 @@ describe("artifact privacy gate", () => {
     const result = runGate("report.json");
 
     expect(result.status).toBe(1);
+    if (_label === "secret identifier") expect(result.stderr).toContain('in JSON field "$.value"');
     expect(result.stderr).not.toContain(sensitiveValue);
   });
 
