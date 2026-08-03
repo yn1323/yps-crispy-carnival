@@ -6,6 +6,7 @@ export type KpiViewModel = {
   key: string;
   label: string;
   value: string;
+  numericValue: number | null;
   detail: string;
   delta: number | null;
   deltaSuffix?: string;
@@ -100,27 +101,35 @@ export type SegmentRowViewModel = {
 
 export type OverviewViewModel = {
   metadata: AnalyticsMetadata;
-  envLabel?: string;
   kpis: KpiViewModel[];
+  shopCounts: {
+    total: number | null;
+    active: number | null;
+    kpiEligible: number | null;
+    completeness: DataCompleteness;
+  };
   trend: ChartDatum[];
   trendKeys: string[];
+  countTrend: ChartDatum[];
+  countTrendKeys: string[];
   milestones: MilestoneItem[];
   healthSignals: HealthViewModel[];
   healthCompleteness: DataCompleteness;
-  organizations: OrganizationRowViewModel[];
   attentionShops: ShopRowViewModel[];
   segments: SegmentRowViewModel[];
 };
 
 export type OrganizationDetailViewModel = {
   metadata: AnalyticsMetadata;
-  envLabel?: string;
   organizationId: string;
   displayName: string;
   plan: string;
   registeredAt: string | number | null;
+  shopCount: number | null;
   kpis: KpiViewModel[];
   expansionKpis: KpiViewModel[];
+  healthSignals: HealthViewModel[];
+  healthCompleteness: DataCompleteness;
   trend: ChartDatum[];
   trendKeys: string[];
   shops: ShopRowViewModel[];
@@ -128,16 +137,18 @@ export type OrganizationDetailViewModel = {
 
 export type ShopDetailViewModel = {
   metadata: AnalyticsMetadata;
-  envLabel?: string;
   shopId: string;
   displayName: string;
   organizationId: string;
   organizationName: string;
   plan: string;
   registeredAt: string | number | null;
+  cycleCount: number | null;
+  nextCycleDate: string | null;
   kpis: KpiViewModel[];
   cumulativeKpis: KpiViewModel[];
   periodRateKpis: KpiViewModel[];
+  periodRateTargetCount: number | null;
   rateRange: { from: string; to: string } | null;
   snapshotDate: string | null;
   milestones: MilestoneItem[];
@@ -150,7 +161,6 @@ export type ShopDetailViewModel = {
 
 export type CycleDetailViewModel = CycleRowViewModel & {
   metadata: AnalyticsMetadata;
-  envLabel?: string;
   shopId: string;
   shopName: string;
   organizationId: string;

@@ -1,5 +1,5 @@
 import { Box, Flex, Icon, Menu, Portal, Text } from "@chakra-ui/react";
-import { SignOutButton } from "@clerk/react";
+import { SignOutButton, useUser } from "@clerk/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { LuBookOpen, LuBuilding2, LuChevronDown, LuLogOut, LuMailQuestion, LuUserRound } from "react-icons/lu";
@@ -12,11 +12,15 @@ type Props = {
 
 export const UserMenu = ({ tone = "dark" }: Props) => {
   const user = useAtomValue(userAtom);
+  const { isLoaded: isClerkLoaded, user: clerkUser } = useUser();
   const selectedShop = useAtomValue(selectedShopAtom);
   const featureVisibility = useAtomValue(featureVisibilityAtom);
   const displayName = user.name || "ユーザー";
   const isLight = tone === "light";
   const showGroupSettings = featureVisibility.organizationSettingsNavigation;
+  const loginEmail = isClerkLoaded
+    ? (clerkUser?.primaryEmailAddress?.emailAddress ?? "メールアドレスを確認できません")
+    : "メールアドレスを確認中";
 
   return (
     <Menu.Root positioning={{ placement: "bottom-end" }}>
@@ -76,7 +80,7 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
                 {displayName}
               </Text>
               <Text fontSize="xs" color="fg.muted">
-                {user.email}
+                {loginEmail}
               </Text>
             </Box>
             <Menu.Separator />

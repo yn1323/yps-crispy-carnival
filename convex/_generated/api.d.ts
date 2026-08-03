@@ -46,6 +46,11 @@ import type * as accountDeletion_mutations from "../accountDeletion/mutations.js
 import type * as accountDeletion_provider from "../accountDeletion/provider.js";
 import type * as accountDeletion_queries from "../accountDeletion/queries.js";
 import type * as accountDeletion_schemas from "../accountDeletion/schemas.js";
+import type * as accountEmail_actions from "../accountEmail/actions.js";
+import type * as accountEmail_mutations from "../accountEmail/mutations.js";
+import type * as accountEmail_provider from "../accountEmail/provider.js";
+import type * as accountEmail_schemas from "../accountEmail/schemas.js";
+import type * as accountEmail_service from "../accountEmail/service.js";
 import type * as analytics_model from "../analytics/model.js";
 import type * as analytics_pipeline from "../analytics/pipeline.js";
 import type * as analytics_refs from "../analytics/refs.js";
@@ -275,6 +280,11 @@ declare const fullApi: ApiFromModules<{
   "accountDeletion/provider": typeof accountDeletion_provider;
   "accountDeletion/queries": typeof accountDeletion_queries;
   "accountDeletion/schemas": typeof accountDeletion_schemas;
+  "accountEmail/actions": typeof accountEmail_actions;
+  "accountEmail/mutations": typeof accountEmail_mutations;
+  "accountEmail/provider": typeof accountEmail_provider;
+  "accountEmail/schemas": typeof accountEmail_schemas;
+  "accountEmail/service": typeof accountEmail_service;
   "analytics/model": typeof analytics_model;
   "analytics/pipeline": typeof analytics_pipeline;
   "analytics/refs": typeof analytics_refs;

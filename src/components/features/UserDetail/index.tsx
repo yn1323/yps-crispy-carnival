@@ -1,6 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { useRef } from "react";
+import { toaster } from "@/src/components/ui/toaster";
 import { clearRequestedShopSearch } from "@/src/lib/authenticatedSearch";
 import { featureVisibilityAtom } from "@/src/stores/user";
 import {
@@ -117,6 +118,7 @@ export function UserDetail({
       actions={{
         onBack: handleBack,
         onOpenBasic: () => updateSearch({ panel: "basic" }),
+        onOpenEmailChange: () => updateSearch({ panel: "email" }),
         onOpenAddShop: () => {
           if (!showShopMembershipAdditionRef.current) return;
           updateSearch({ panel: "addShop" });
@@ -159,6 +161,12 @@ export function UserDetail({
           await manager.onConfirmRemoval();
         },
         onCloseManagerDialog: manager.onCloseDialog,
+        onAccountEmailFinished: (outcome) => {
+          if (outcome === "changed") {
+            toaster.create({ title: "メールアドレスを変更しました", type: "success" });
+          }
+          handleClosePanel();
+        },
       }}
     />
   );

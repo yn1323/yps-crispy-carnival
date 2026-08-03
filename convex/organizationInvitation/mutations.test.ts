@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { seedOrganizationManagerShop, seedStaffLineAccount, seedUser } from "../_test/seed";
+import { seedOrganizationManagerShop, seedStaffLineAccount, seedUser, testAuthTokenIdentifier } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { deriveInvitationToken, digestInvitationToken } from "./token";
 
@@ -815,11 +815,10 @@ describe("organizationInvitation/mutations", () => {
       signingSecret: SIGNING_SECRET,
     });
 
-    await owner.mutation(api.staff.mutations.editStaff, {
-      shopId: ids.shopId,
-      staffId: ids.target.staffId,
-      name: "現在メールのスタッフ",
+    await t.mutation(internal.accountEmail.mutations.syncPrimary, {
+      authTokenIdentifier: testAuthTokenIdentifier("staff_invite_target"),
       email: "staff-target-after@example.com",
+      requestKey: "c".repeat(64),
     });
     await expect(t.query(api.organizationInvitation.queries.getPreview, { token: firstToken })).resolves.toEqual({
       status: "unavailable",
@@ -1485,11 +1484,10 @@ describe("organizationInvitation/mutations", () => {
       signingSecret: SIGNING_SECRET,
     });
 
-    await owner.mutation(api.staff.mutations.editStaff, {
-      shopId: ids.shopId,
-      staffId: ids.target.staffId,
-      name: "変更後スタッフ",
+    await t.mutation(internal.accountEmail.mutations.syncPrimary, {
+      authTokenIdentifier: testAuthTokenIdentifier("invitation_email_drift_staff"),
       email: "after-change@example.com",
+      requestKey: "d".repeat(64),
     });
     await expect(
       t

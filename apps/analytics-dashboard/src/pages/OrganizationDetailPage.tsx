@@ -1,12 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { fetchOrganization } from "@/api/analyticsClient";
+import { useReportAnalyticsEnvironment } from "@/app/analyticsEnvironment";
 import {
+  healthCountItems,
   organizationExpansionKpis,
   organizationKpis,
   organizationTrendChartData,
   RATE_TREND_LABELS,
   shopRowModel,
 } from "@/features/analytics/adapters";
+import { formatPlan } from "@/features/analytics/format";
 import { OrganizationDetailView } from "@/features/analytics/OrganizationDetailView";
 import {
   AnalyticsEntityPending,
@@ -23,12 +27,17 @@ export function OrganizationDetailPage({
   navigate: (href: string) => void;
   organizationId: string;
 }) {
-  const { search, update } = useAnalyticsSearch();
+  const { applyMetadataDefaults, search, update } = useAnalyticsSearch();
   const request = organizationDetailParams(search);
   const query = useQuery({
     queryFn: () => fetchOrganization(organizationId, request),
     queryKey: ["analytics", "organization", organizationId, request],
   });
+  useReportAnalyticsEnvironment(query.data?.env.label);
+  const metadata = query.data?.data.metadata;
+  useEffect(() => {
+    applyMetadataDefaults(metadata);
+  }, [applyMetadataDefaults, metadata]);
   if (query.isLoading)
     return <AnalyticsPageLoading description="グループ詳細を読み込んでいます。" title="グループ詳細" />;
   if (query.error) {
@@ -46,7 +55,6 @@ export function OrganizationDetailPage({
     return (
       <AnalyticsEntityPending
         description="グループ内の店舗構成とKPI推移を確認します。"
-        envLabel={query.data.env.label}
         metadata={response.metadata}
         title="グループ詳細"
       />
@@ -57,13 +65,15 @@ export function OrganizationDetailPage({
     <OrganizationDetailView
       model={{
         displayName: response.organization.displayName,
-        envLabel: query.data.env.label,
         expansionKpis: organizationExpansionKpis(response.organization),
+        healthCompleteness: currentKpis?.completeness ?? response.metadata.completeness,
+        healthSignals: healthCountItems(currentKpis?.healthSignalCounts ?? null),
         kpis: organizationKpis(currentKpis, response.metadata.completeness),
         metadata: response.metadata,
         organizationId: response.organization.organizationId,
-        plan: response.organization.currentPlan ?? "未設定",
+        plan: formatPlan(response.organization.currentPlan),
         registeredAt: response.organization.registeredAt,
+        shopCount: currentKpis?.shopCount ?? null,
         shops: response.shops.map(shopRowModel),
         trend: organizationTrendChartData(response.series),
         trendKeys: [...RATE_TREND_LABELS],

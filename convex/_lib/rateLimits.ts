@@ -241,6 +241,22 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     capacity: 3,
   },
 
+  // 本人メール変更の候補確認。Clerkへのコード送信前にactor単位で連打を抑える。
+  accountEmailPreflight: {
+    kind: "token bucket",
+    rate: 10,
+    period: HOUR_MS,
+    capacity: 10,
+  },
+
+  // Clerk primaryのserver-side確認と全所属同期。部分失敗からの再試行余地を残す。
+  accountEmailSync: {
+    kind: "token bucket",
+    rate: 6,
+    period: HOUR_MS,
+    capacity: 6,
+  },
+
   // ログイン後の要望送信: userId 単位
   // 1回/分 — 連打と意図しない二重投稿を抑止
   featureRequestShort: {

@@ -8,7 +8,6 @@ import type { AnalyticsSearchState } from "./useAnalyticsSearch";
 import type { OrganizationRowViewModel } from "./viewModels";
 
 export function OrganizationsView({
-  envLabel,
   metadata,
   navigate,
   pageInfo,
@@ -16,7 +15,6 @@ export function OrganizationsView({
   search,
   updateSearch,
 }: {
-  envLabel?: string;
   metadata: AnalyticsMetadata;
   navigate: (href: string) => void;
   pageInfo: PageInfoViewModel;
@@ -26,16 +24,21 @@ export function OrganizationsView({
 }) {
   return (
     <Stack gap={{ base: 6, md: 8 }}>
-      <PageHeading description="グループごとの規模、人員構成、KPI、health signalを比較します。" title="グループ比較" />
-      <DataStatus envLabel={envLabel} metadata={metadata} />
+      <PageHeading description="グループごとの利用状況と要確認状態を比較します。" title="グループ" />
+      <DataStatus metadata={metadata} />
       <AnalysisControls
-        advancedFilterKeys={["plan", "completeness"]}
+        advancedFilterKeys={["plan"]}
+        dataStartDate={metadata.dataStartDate}
+        helperText="期間、プラン、並び順を変更できます。"
         search={search}
+        showComparison={false}
+        showGranularity={false}
         sortOptions={[
           { label: "登録日", value: "registeredAt" },
           { label: "プラン", value: "currentPlan" },
         ]}
         update={updateSearch}
+        warnings={metadata.warnings}
       />
       <Stack bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" gap={4} p={{ base: 4, md: 5 }}>
         <SectionHeading description="行を選ぶとグループ内の店舗とKPI推移を確認できます。" title="グループ一覧" />

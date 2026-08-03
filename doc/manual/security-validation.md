@@ -65,10 +65,31 @@ GitHub Actionsの権限、trigger、Environment gate、artifactの信頼境界�
 | `ENV-STRIPE-02` | Stripe設定 | 公開文書で申告するRadar、3DS、card testing対策と実account設定が一致する |
 | `ENV-REG-01` | 公開スタッフ登録 | 本番Turnstile、許可Origin、8 KiB超過拒否をdeployed canaryで確認する |
 | `ENV-CLERK-01` | Clerk | MFA、lockout、server throttle、loginまたはaccount変更通知を負の試験で確認する |
+| `ENV-CLERK-02` | 管理者メール変更 | 同じClerk Userのまま新メールをverified primaryにし、通常メールログイン、全所属同期、旧メール無効化、他者変更拒否、部分失敗からの復旧を確認する |
 | `ENV-OPS-01` | 端末と診断 | EDR、signature更新、full scan、隔離、credential rotation、DASTまたは第三者診断を記録する |
 
 IP由来の制限を有効にする場合は、ingressが利用者指定headerを破棄し、信頼できる値へ上書きする証跡を先に確認する。
 確認できないheaderを、認証や単独の許可条件に使わない。
+
+## 管理者メール変更の実環境受入
+
+`ENV-CLERK-02`は、実在顧客ではなく、確認者が変更前後の両方のメールを受信できる専用テスト管理者で行う。  Production相当環境のClerk instance、Convex deployment、対象revisionを先に固定し、通常顧客のメールアドレスや画面を開かない。
+
+変更前メールからテスト用Gmailへの変更を、次の順序で確認する。
+
+1. 変更前のClerk User IDが存在することを確認する。証跡にはIDやメール本文を転記せず、後で同一性を比較できる内部テストケース番号だけを記録する。
+2. 本人のスタッフ情報からメール変更を開始し、新しいGmailへ届いた確認コードを入力する。コード値、受信画面、メール全文は保存しない。
+3. Clerkのreverificationを完了し、変更後も手順1と同じClerk Userであること、Gmailがverified primaryであることを確認する。
+4. 完全にsign outし、Googleボタンではなく、ログイン画面のメールアドレスと既存パスワードを使って新しいGmailで通常ログインする。
+5. 変更前メールがClerk Userから削除され、変更前メールではログインできないことを確認する。旧メールがsecondaryとして残る場合は未完了とする。
+6. Dashboardヘッダー、`users`、全グループの有効な`organizationPeople`、未削除`staffs`が同じ正規化メールであることを確認する。証跡には対象件数と一致・不一致だけを残し、メール値を含めない。
+7. 別の管理者で対象人物を開き、メールがread-onlyであることと、旧frontend相当の直接profile mutationもserverで拒否されることを確認する。
+8. テスト環境でprimary変更後の通信失敗を再現し、同期再試行または以前のメールへのロールバックでClerkとConvexが再び一致することを確認する。Convex同期前に以前のメールが削除されないことも確認する。
+9. Clerk、Convex、browser console、audit、analyticsの確認可能な範囲に、メール全文、確認コード、Clerk User payloadが新規記録されていないことを確認する。
+
+Google OAuthの自動連携はこの受入の対象外である。  Gmailへの変更だけを根拠にGoogleボタンでログインできるとは判定しない。
+
+証跡には各手順の成功・失敗、同一Clerk Userか、対象件数が一致したかをbooleanまたは件数で記録する。  スクリーンショットが必要な場合は、保存前にメール、コード、user ID、tokenを除き、アクセス制限された保管先だけを使う。
 
 ## Convex migrationの再検証
 

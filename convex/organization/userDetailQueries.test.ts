@@ -182,6 +182,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
         id: ids.personId,
         name: "詳細対象ユーザー",
         email: "detail-person@example.com",
+        hasLinkedAccount: false,
       },
       isSelf: false,
       managerRole: "none",
@@ -446,6 +447,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
         now: NOW,
       });
     expect(self?.isSelf).toBe(true);
+    expect(self?.person.hasLinkedAccount).toBe(true);
   });
 
   it("本人性を確認できないactive memberを有効な後任管理者として数えない", async () => {

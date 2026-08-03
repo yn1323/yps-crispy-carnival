@@ -1,7 +1,7 @@
 import { Badge, Box, Flex, HStack, Icon, Stack, Text } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { LuCheck, LuCircleAlert, LuClock3 } from "react-icons/lu";
-import { CompletenessBadge, type DataCompleteness } from "./DataStatus";
+import type { DataCompleteness } from "./DataStatus";
 import { formatCount, formatDate, formatRate } from "./format";
 
 export type HealthSignalKey =
@@ -28,6 +28,10 @@ const HEALTH_LABELS: Record<string, { color: string; label: string }> = {
   longInactive: { color: "purple", label: "長期無活動" },
 };
 
+export function healthSignalPresentation(key: HealthSignalKey) {
+  return HEALTH_LABELS[key] ?? { color: "gray", label: key };
+}
+
 export function HealthSignals({
   completeness = "complete",
   signals,
@@ -38,12 +42,12 @@ export function HealthSignals({
   if (signals.length === 0) {
     const emptyLabel =
       completeness === "pending"
-        ? "集計待ち"
+        ? "要確認状態を集計中"
         : completeness === "partial"
-          ? "一部集計"
+          ? "要確認状態は未確定"
           : completeness === "unavailable"
-            ? "算出不可"
-            : "要確認signalなし";
+            ? "要確認状態を判定できません"
+            : "要確認なし";
     return (
       <Badge colorPalette={completeness === "complete" ? "green" : "gray"} variant="subtle">
         {emptyLabel}
@@ -53,7 +57,7 @@ export function HealthSignals({
   return (
     <HStack align="start" gap={2} wrap="wrap">
       {signals.map((signal) => {
-        const presentation = HEALTH_LABELS[signal.key] ?? { color: "gray", label: signal.key };
+        const presentation = healthSignalPresentation(signal.key);
         const suffix = signal.count === undefined ? "" : ` ${formatCount(signal.count, completeness)}店舗`;
         const delta =
           signal.delta === null || signal.delta === undefined
@@ -143,11 +147,6 @@ export function MilestoneTimeline({ items }: { items: MilestoneItem[] }) {
 
 function GridList({ children }: { children: ReactNode }) {
   return <Stack gap={0}>{children}</Stack>;
-}
-
-export function MetricAvailability({ completeness }: { completeness: DataCompleteness }) {
-  if (completeness === "complete") return null;
-  return <CompletenessBadge value={completeness} />;
 }
 
 export function Comparison({

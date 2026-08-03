@@ -11,6 +11,7 @@ type AnalyticsDevEnv = {
 };
 
 type RawAnalyticsDevEnv = {
+  ANALYTICS_ENV_LABEL?: string;
   SHIFTORI_INTERNAL_API_SECRET?: string;
   VITE_CONVEX_SITE_URL?: string;
   VITE_CONVEX_URL?: string;
@@ -45,8 +46,21 @@ function resolveAnalyticsDevEnv(env: RawAnalyticsDevEnv, envLabel: string): Anal
   };
 }
 
-function getEnvLabel(mode: string) {
-  return mode === "development" ? "local" : mode;
+function getEnvLabel(mode: string, env: RawAnalyticsDevEnv) {
+  const explicitLabel = env.ANALYTICS_ENV_LABEL?.trim();
+  if (explicitLabel) return explicitLabel;
+  if (mode !== "development") return mode;
+
+  const convexUrl = env.VITE_CONVEX_SITE_URL ?? env.VITE_CONVEX_URL;
+  if (!convexUrl) return "development";
+  try {
+    const { hostname } = new URL(convexUrl);
+    if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") return "local";
+    const deployment = hostname.match(/^([^.]+)\.convex\.(?:cloud|site)$/)?.[1];
+    return deployment ? `development:${deployment}` : "development";
+  } catch {
+    return "development";
+  }
 }
 
 function analyticsLocalApiPlugin(env: AnalyticsDevEnv): Plugin {
@@ -88,14 +102,13 @@ function analyticsLocalApiPlugin(env: AnalyticsDevEnv): Plugin {
 }
 
 export default defineConfig(({ mode }) => {
-  const env = resolveAnalyticsDevEnv(
-    {
-      ...loadEnv(mode, workspaceRoot, "SHIFTORI_"),
-      ...loadEnv(mode, workspaceRoot, "VITE_"),
-      ...process.env,
-    },
-    getEnvLabel(mode),
-  );
+  const rawEnv = {
+    ...loadEnv(mode, workspaceRoot, "ANALYTICS_"),
+    ...loadEnv(mode, workspaceRoot, "SHIFTORI_"),
+    ...loadEnv(mode, workspaceRoot, "VITE_"),
+    ...process.env,
+  };
+  const env = resolveAnalyticsDevEnv(rawEnv, getEnvLabel(mode, rawEnv));
 
   return {
     envDir: workspaceRoot,

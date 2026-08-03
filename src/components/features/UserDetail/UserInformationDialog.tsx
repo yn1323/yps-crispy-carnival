@@ -1,7 +1,9 @@
 import { Flex } from "@chakra-ui/react";
+import { useState } from "react";
 import type { PersonProfileFormData } from "@/src/components/shared/PersonProfileForm";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
+import { toaster } from "@/src/components/ui/toaster";
 import type { UserDetailData, UserDetailDialog } from "./types";
 import { UserInformationTab } from "./UserInformationTab";
 import { UserManagerSettings } from "./UserSettingsTab";
@@ -17,6 +19,7 @@ type Props = {
   onOpenChange: (details: { open: boolean }) => void;
   onClose: () => void;
   onUpdateProfile: (data: PersonProfileFormData) => void | Promise<void>;
+  onOpenEmailChange: () => void;
   onRequestManagerAssignment: () => void;
   onCancelManagerAssignment: () => void;
   onAssignManager: () => void | Promise<void>;
@@ -36,6 +39,7 @@ export function UserInformationDialog({
   onOpenChange,
   onClose,
   onUpdateProfile,
+  onOpenEmailChange,
   onRequestManagerAssignment,
   onCancelManagerAssignment,
   onAssignManager,
@@ -44,6 +48,17 @@ export function UserInformationDialog({
   onCancelManagerSetting,
 }: Props) {
   const formId = `user-profile-${data.person.id}`;
+  const [isProfileDirty, setIsProfileDirty] = useState(false);
+  const handleOpenEmailChange = () => {
+    if (isProfileDirty) {
+      toaster.create({
+        title: "名前の変更を先に保存するか、入力を取り消してください。",
+        type: "info",
+      });
+      return;
+    }
+    onOpenEmailChange();
+  };
 
   return (
     <Dialog
@@ -82,6 +97,8 @@ export function UserInformationDialog({
         data={data}
         formId={formId}
         isReadOnly={!data.canWrite}
+        onDirtyChange={setIsProfileDirty}
+        onOpenEmailChange={handleOpenEmailChange}
         managerSettings={
           data.managerInvitationState.kind === "hidden" ? null : (
             <UserManagerSettings

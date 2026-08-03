@@ -38,19 +38,17 @@ export function AnalyticsPageError({
 
 export function AnalyticsEntityPending({
   description,
-  envLabel,
   metadata,
   title,
 }: {
   description: string;
-  envLabel?: string;
   metadata: AnalyticsMetadata;
   title: string;
 }) {
   return (
     <Stack gap={{ base: 6, md: 8 }}>
       <PageHeading description={description} title={title} />
-      <DataStatus envLabel={envLabel} metadata={metadata} />
+      <DataStatus metadata={metadata} />
       <Alert.Root borderRadius="lg" status="info">
         <Alert.Indicator />
         <Alert.Content>

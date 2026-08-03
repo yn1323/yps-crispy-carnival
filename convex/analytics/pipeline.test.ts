@@ -8,10 +8,14 @@ import { ANALYTICS_PIPELINE_KEY, ANALYTICS_SCHEMA_VERSION } from "./model";
 
 const GENERATION = "manager-membership-bootstrap";
 
-async function runAnalyticsJobToTerminal(t: TestConvex<typeof schema>, jobKey: string) {
+async function runAnalyticsJobToTerminal(
+  t: TestConvex<typeof schema>,
+  jobKey: string,
+  options: { maxSteps?: number; stepMs?: number } = {},
+) {
   let job = null;
-  for (let step = 0; step < 120; step += 1) {
-    vi.advanceTimersByTime(0);
+  for (let step = 0; step < (options.maxSteps ?? 120); step += 1) {
+    vi.advanceTimersByTime(options.stepMs ?? 0);
     await t.finishInProgressScheduledFunctions();
     job = await t.run((ctx) =>
       ctx.db
@@ -197,6 +201,132 @@ describe("Analytics bootstrap", () => {
     await t.mutation(internal.analytics.pipeline.checkGenerationInvariants, { generation: GENERATION });
     const invariant = await runAnalyticsJobToTerminal(t, `invariant:${GENERATION}:manual`);
     expect(invariant?.status).toBe("completed");
+  });
+
+  it("bootstrap以前のunavailable cycleを除外してbaselineをcompleteにする", async () => {
+    const t = convexTest(schema, modules);
+    vi.setSystemTime(SCENARIO_NOW - 60_000);
+    const seeded = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, {
+        subject: "analytics_historical_unavailable_cycle",
+        shopName: "過去cycle検証店舗",
+      }),
+    );
+    const recruitmentId = await t.run((ctx) =>
+      ctx.db.insert("recruitments", {
+        shopId: seeded.shopId,
+        periodStart: "2026-05-10",
+        periodEnd: "2026-05-16",
+        deadline: "2026-05-08",
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      }),
+    );
+
+    vi.setSystemTime(SCENARIO_NOW);
+    await t.mutation(internal.analytics.pipeline.startBootstrap, { generation: GENERATION });
+    const bootstrap = await runAnalyticsJobToTerminal(t, `bootstrap:${GENERATION}`);
+    expect(bootstrap?.status).toBe("completed");
+
+    const daily = await runAnalyticsJobToTerminal(t, `daily:${GENERATION}:2026-05-10`, {
+      maxSteps: 240,
+      stepMs: 60_000,
+    });
+    expect(daily?.status).toBe("completed");
+
+    const result = await t.run(async (ctx) => {
+      const cycle = await ctx.db
+        .query("analyticsShiftCycles")
+        .withIndex("by_generation_and_recruitmentId", (q) =>
+          q.eq("generation", GENERATION).eq("recruitmentId", recruitmentId),
+        )
+        .unique();
+      const shop = await ctx.db
+        .query("analyticsDailyShopKpis")
+        .withIndex("by_generation_and_shopId_and_snapshotDate", (q) =>
+          q.eq("generation", GENERATION).eq("shopId", seeded.shopId).eq("snapshotDate", "2026-05-10"),
+        )
+        .unique();
+      const service = await ctx.db
+        .query("analyticsDailyServiceKpis")
+        .withIndex("by_generation_and_snapshotDate", (q) =>
+          q.eq("generation", GENERATION).eq("snapshotDate", "2026-05-10"),
+        )
+        .unique();
+      return { cycle, shop, service };
+    });
+
+    expect(result.cycle?.completeness).toBe("unavailable");
+    expect(result.shop?.northStar).toEqual({ numerator: 0, denominator: 0 });
+    expect(result.shop?.completeness).toBe("complete");
+    expect(result.service?.completeness).toBe("complete");
+    await expect(
+      t.mutation(internal.analytics.pipeline.activateGeneration, {
+        generation: GENERATION,
+        confirmed: true,
+      }),
+    ).resolves.toEqual({ activeGeneration: GENERATION, previousGeneration: undefined });
+  });
+
+  it("dataStart以後のpartial cycleがあるbaselineはactivationを拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, {
+        subject: "analytics_current_partial_cycle",
+        shopName: "現行partial検証店舗",
+      }),
+    );
+    vi.setSystemTime(SCENARIO_NOW + 1_000);
+    const recruitmentId = await t.run((ctx) =>
+      ctx.db.insert("recruitments", {
+        shopId: seeded.shopId,
+        periodStart: "2026-05-10",
+        periodEnd: "2026-05-16",
+        deadline: "2026-05-08",
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      }),
+    );
+
+    vi.setSystemTime(SCENARIO_NOW + 2_000);
+    await t.mutation(internal.analytics.pipeline.startBootstrap, { generation: GENERATION });
+    const bootstrap = await runAnalyticsJobToTerminal(t, `bootstrap:${GENERATION}`);
+    expect(bootstrap?.status).toBe("completed");
+
+    const daily = await runAnalyticsJobToTerminal(t, `daily:${GENERATION}:2026-05-10`, {
+      maxSteps: 240,
+      stepMs: 60_000,
+    });
+    expect(daily?.status).toBe("completed");
+
+    const result = await t.run(async (ctx) => {
+      const cycle = await ctx.db
+        .query("analyticsShiftCycles")
+        .withIndex("by_generation_and_recruitmentId", (q) =>
+          q.eq("generation", GENERATION).eq("recruitmentId", recruitmentId),
+        )
+        .unique();
+      const service = await ctx.db
+        .query("analyticsDailyServiceKpis")
+        .withIndex("by_generation_and_snapshotDate", (q) =>
+          q.eq("generation", GENERATION).eq("snapshotDate", "2026-05-10"),
+        )
+        .unique();
+      return { cycle, service };
+    });
+
+    expect(result.cycle?.completeness).toBe("partial");
+    expect(result.service?.completeness).toBe("partial");
+    await expect(
+      t.mutation(internal.analytics.pipeline.activateGeneration, {
+        generation: GENERATION,
+        confirmed: true,
+      }),
+    ).rejects.toThrow("Analytics baseline snapshot is incomplete");
   });
 });
 

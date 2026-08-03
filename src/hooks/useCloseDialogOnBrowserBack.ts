@@ -8,6 +8,7 @@ type OpenDialog = {
   id: symbol;
   onCloseRef: MutableRefObject<() => void>;
   onBackGuardRemovedRef: MutableRefObject<(() => void) | undefined>;
+  canCloseRef: MutableRefObject<boolean>;
 };
 
 type DialogBackGuard = {
@@ -71,7 +72,10 @@ export const registerDialogBackNavigation = (history: RouterHistory) => {
       const dialogIndex = openDialogs.findLastIndex((dialog) => dialog.history === history);
       if (dialogIndex === -1) return false;
 
-      const [dialog] = openDialogs.splice(dialogIndex, 1);
+      const dialog = openDialogs[dialogIndex];
+      if (dialog && !dialog.canCloseRef.current) return true;
+
+      openDialogs.splice(dialogIndex, 1);
       dialog?.onCloseRef.current();
 
       const guard = backGuard;
@@ -106,15 +110,22 @@ const addBackGuard = (history: RouterHistory) => {
  * 進むやアプリ内遷移は妨げない。
  * StorybookやテストなどRouter外の描画では何もしない。
  */
-export const useCloseDialogOnBrowserBack = (isOpen: boolean, onClose: () => void, onBackGuardRemoved?: () => void) => {
+export const useCloseDialogOnBrowserBack = (
+  isOpen: boolean,
+  onClose: () => void,
+  onBackGuardRemoved?: () => void,
+  canClose = true,
+) => {
   const router = useRouter({ warn: false }) as ReturnType<typeof useRouter> | undefined;
   const onCloseRef = useRef(onClose);
   const onBackGuardRemovedRef = useRef(onBackGuardRemoved);
+  const canCloseRef = useRef(canClose);
 
   useEffect(() => {
     onCloseRef.current = onClose;
     onBackGuardRemovedRef.current = onBackGuardRemoved;
-  }, [onBackGuardRemoved, onClose]);
+    canCloseRef.current = canClose;
+  }, [canClose, onBackGuardRemoved, onClose]);
 
   useEffect(() => {
     if (!isOpen || !router) return;
@@ -127,6 +138,7 @@ export const useCloseDialogOnBrowserBack = (isOpen: boolean, onClose: () => void
       id: Symbol("dialog"),
       onCloseRef,
       onBackGuardRemovedRef,
+      canCloseRef,
     };
     openDialogs.push(dialog);
     addBackGuard(router.history);
