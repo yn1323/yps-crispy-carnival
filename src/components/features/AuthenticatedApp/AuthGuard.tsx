@@ -1,10 +1,11 @@
-import { useAuth } from "@clerk/react";
+import { useAuth, useUser } from "@clerk/react";
 import { Navigate, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { useEffect, useMemo } from "react";
 import { LuStore } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
+import { normalizeEmail } from "@/convex/_lib/validation";
 import { FullPageSpinner } from "@/src/components/templates/FullPageSpinner";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
@@ -16,8 +17,10 @@ import {
   toSelectedShop,
 } from "@/src/domains/shop/context";
 import { normalizeAuthRedirect } from "@/src/lib/auth/redirect";
+import { accountEmailChangeSessionAtom } from "@/src/stores/accountEmail";
 import { selectedShopAtom } from "@/src/stores/shop";
 import { EMPTY_USER, userAtom } from "@/src/stores/user";
+import { AccountEmailMismatchRecovery } from "./AccountEmailMismatchRecovery";
 import { DeletedAccountState } from "./DeletedAccountState";
 import { resolveShopContext } from "./shopContextResolver";
 
@@ -30,11 +33,23 @@ type Props = {
 
 export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onReturnToDashboard }: Props) => {
   const { isSignedIn, userId, isLoaded } = useAuth();
+  const { isLoaded: isClerkUserLoaded, user: clerkUser } = useUser();
   const location = useRouterState({ select: (state) => state.location });
   const [user, setUser] = useAtom(userAtom);
   const [selectedShop, setSelectedShop] = useAtom(selectedShopAtom);
+  const accountEmailChangeSession = useAtomValue(accountEmailChangeSessionAtom);
   const currentUser = useQuery(api.dashboard.queries.getCurrentUser, isSignedIn ? {} : "skip");
   const isAccountDeleted = Boolean(currentUser && "accountDeleted" in currentUser);
+  const clerkPrimaryEmail = clerkUser?.primaryEmailAddress;
+  const verifiedClerkEmail =
+    clerkPrimaryEmail?.verification?.status === "verified" ? clerkPrimaryEmail.emailAddress : null;
+  const convexEmail = currentUser && !("accountDeleted" in currentUser) ? currentUser.email : null;
+  const hasEmailMismatch = Boolean(
+    verifiedClerkEmail && convexEmail && normalizeEmail(verifiedClerkEmail) !== normalizeEmail(convexEmail),
+  );
+  const activeAccountEmailChange = accountEmailChangeSession?.clerkUserId === userId ? accountEmailChangeSession : null;
+  const isAppEmailChangeActive = activeAccountEmailChange?.source === "app";
+  const isRecoveryEmailChangeActive = activeAccountEmailChange?.source === "recovery";
   const accountDeletionRequested = Boolean(
     isAccountDeleted &&
       currentUser &&
@@ -50,7 +65,13 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
   );
   const myShops = useQuery(
     api.dashboard.queries.getMyShops,
-    isSignedIn && currentUser !== undefined && !isAccountDeleted ? {} : "skip",
+    isSignedIn &&
+      currentUser !== undefined &&
+      !isAccountDeleted &&
+      !isRecoveryEmailChangeActive &&
+      (!hasEmailMismatch || isAppEmailChangeActive)
+      ? {}
+      : "skip",
   );
   const selectableShops = useMemo(
     () => (myShops ? normalizeShopContextOptions(myShops).filter(isSelectableShop) : []),
@@ -141,6 +162,27 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
 
   if (!isLoaded) {
     return <FullPageSpinner showHeader />;
+  }
+
+  if (!isClerkUserLoaded) return <FullPageSpinner showHeader />;
+
+  if (currentUser && !("accountDeleted" in currentUser) && !verifiedClerkEmail) {
+    return (
+      <Empty
+        title="ログインメールを確認できません"
+        description="認証サービスで確認済みのログインメールを取得できません。画面を再読み込みしてください。"
+        tone="warning"
+        minH="100dvh"
+      />
+    );
+  }
+
+  if (
+    (isRecoveryEmailChangeActive || (hasEmailMismatch && !isAppEmailChangeActive)) &&
+    verifiedClerkEmail &&
+    convexEmail
+  ) {
+    return <AccountEmailMismatchRecovery clerkEmail={verifiedClerkEmail} convexEmail={convexEmail} />;
   }
 
   if (currentUser === undefined || shopContextResolution === null) {

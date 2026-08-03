@@ -22,12 +22,12 @@
 | [AIシフト下書き機能 実装仕様書](2026-07-03_AIシフト下書き機能_実装仕様書.md) | `reviewing` | 詳細設計の採否後に実装仕様を確定する | 現行のシフト作成は[シフト表](../features/shift-board.md) |
 | [スタッフのメールアドレス任意化](2026-07-04_メールアドレス任意化_設計.md) | `reviewing` | 通知手段、認証境界、既存データmigrationを含めて採否を決める | 現行のスタッフ管理は[ユーザー詳細](../features/user-detail.md)と[LINE通知連携](../features/line-notification.md) |
 | [新規グループ作成導線](2026-07-25_新規グループ作成導線_実装計画.md) | `reviewing` | 二つ目以降をFree開始とする方針と作成上限3の採否を決める | 現行のグループ作成は[グループ課金、複数店舗、複数管理者](../features/organization-billing.md) |
-| [管理者メールアドレス変更とClerk同期](2026-08-03_管理者メールアドレス変更_実装計画.md) | `reviewing` | 本人限定のClerk変更、全所属同期、既存不一致の復旧方針をレビューして実装へ進める | 現行の人物メールは[ユーザー詳細](../features/user-detail.md)、認証は[認証画面](../features/auth-pages.md) |
 
 ## Active
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
+| [管理者メールアドレス変更とClerk同期](2026-08-03_管理者メールアドレス変更_実装計画.md) | `rollout` | code、local test、文書は完了。CIのVRTと`ENV-CLERK-02`による同一Clerk User、新Gmailでの通常メールログイン、旧メール無効化、全所属同期、部分失敗復旧の実環境証跡 | [ユーザー詳細](../features/user-detail.md)、[認証画面](../features/auth-pages.md)、[セキュリティ再検証](../manual/security-validation.md) |
 | [E2E安定性改善・スコープ再設計](2026-08-03_E2E安定性改善_実行計画.md) | `rollout` | code、local contract test、50回burn-inは完了。同一SHA 3回、workflow cancel、30%短縮をActionsで確認 | [テスト方針](../rules/testing-strategy.md)、[セキュリティ方針](../rules/security-strategy.md)、[CI/CD運用](../manual/ci-cd.md) |
 | [分析KPIと内部BI再設計](2026-08-02_分析KPIと内部BI再設計_実装計画.md) | `rollout` | Production deploy、bootstrap、invariant確認、generation cutover、実負荷計測、旧3テーブルのbounded cleanupと0件証跡、別deployでのschema Narrow、Cloudflare環境確認 | [分析KPI蓄積基盤](../features/analytics.md)、[分析KPI可視化アプリ](../features/analytics-dashboard.md)、[Analytics rollout](../manual/analytics-rollout.md) |
 | [別端末ログイン本人確認](2026-07-11_別端末ログイン本人確認_実装計画.md) | `rollout` | Production相当のClerk設定、返却status、メール確認の実環境証跡 | [認証画面](../features/auth-pages.md)、[リリース状態](../manual/release-status.md) |

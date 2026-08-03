@@ -59,6 +59,7 @@ const lastActiveManagerData: UserDetailData = {
     id: personId,
     name: "対象ユーザー",
     email: "target@example.com",
+    hasLinkedAccount: true,
   },
   isSelf: false,
   managerRole: "active",

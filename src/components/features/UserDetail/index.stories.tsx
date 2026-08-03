@@ -72,6 +72,7 @@ const baseData: UserDetailData = {
     id: personId,
     name: "田中 花子",
     email: "hanako.tanaka@example.com",
+    hasLinkedAccount: true,
   },
   isSelf: false,
   managerRole: "active",
@@ -100,6 +101,17 @@ const managerInvitationHiddenData: UserDetailData = {
   ...multipleStoresData,
   hasManagerInvitation: true,
   managerInvitationState: { kind: "hidden" },
+};
+
+const unlinkedData: UserDetailData = {
+  ...multipleStoresData,
+  person: { ...multipleStoresData.person, hasLinkedAccount: false },
+  managerRole: "none",
+};
+
+const selfLinkedData: UserDetailData = {
+  ...multipleStoresData,
+  isSelf: true,
 };
 
 const baseState: UserDetailViewProps["state"] = {
@@ -131,6 +143,7 @@ const settleBasicInformationDialogFocus = async () => {
 const baseActions: UserDetailViewProps["actions"] = {
   onBack: noop,
   onOpenBasic: noop,
+  onOpenEmailChange: noop,
   onOpenAddShop: noop,
   onOpenShop: noop,
   onClosePanel: noop,
@@ -143,6 +156,7 @@ const baseActions: UserDetailViewProps["actions"] = {
   onRequestRemovePerson: noop,
   onConfirmManagerSetting: asyncNoop,
   onCloseManagerDialog: noop,
+  onAccountEmailFinished: noop,
 };
 
 const meta = {
@@ -174,6 +188,39 @@ export const MainView: Story = {};
 export const BasicInformationDialog: Story = {
   args: { activePanel: "basic" },
   play: settleBasicInformationDialogFocus,
+};
+
+export const LinkedOtherEmailReadOnly: Story = {
+  args: { activePanel: "basic", data: multipleStoresData },
+  parameters: { screenshot: { skip: true } },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
+    await expect(within(dialog).queryByRole("textbox", { name: "メールアドレス" })).not.toBeInTheDocument();
+    await expect(
+      within(dialog).getByText("アカウント連携済みのメールアドレスは、本人のみ変更できます。"),
+    ).toBeInTheDocument();
+  },
+};
+
+export const UnlinkedStaffEmailEditable: Story = {
+  args: { activePanel: "basic", data: unlinkedData },
+  parameters: { screenshot: { skip: true } },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
+    await expect(within(dialog).getByRole("textbox", { name: "メールアドレス" })).toHaveValue(
+      "hanako.tanaka@example.com",
+    );
+  },
+};
+
+export const SelfLinkedEmailEntry: Story = {
+  args: { activePanel: "basic", data: selfLinkedData },
+  parameters: { screenshot: { skip: true } },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
+    await expect(within(dialog).getByText("login@example.com")).toBeInTheDocument();
+    await expect(within(dialog).getByRole("button", { name: "メールアドレスを変更" })).toBeInTheDocument();
+  },
 };
 
 export const ManagerInvitationDarkLaunchBehavior: Story = {
@@ -325,7 +372,7 @@ export const Loading: Story = {
   render: () => <UserDetailSkeleton />,
 };
 
-function PanelNavigationHarness({ data = multipleStoresData }: { data?: UserDetailData }) {
+function PanelNavigationHarness({ data = unlinkedData }: { data?: UserDetailData }) {
   const [activePanel, setActivePanel] = useState<UserDetailPanel>();
   const [addedShopId, setAddedShopId] = useState<Id<"shops"> | null>(null);
   const [addCallCount, setAddCallCount] = useState(0);
@@ -350,6 +397,7 @@ function PanelNavigationHarness({ data = multipleStoresData }: { data?: UserDeta
         actions={{
           ...baseActions,
           onOpenBasic: () => setActivePanel("basic"),
+          onOpenEmailChange: () => setActivePanel("email"),
           onOpenAddShop: () => setActivePanel("addShop"),
           onClosePanel: () => setActivePanel(undefined),
           onRequestRemovePerson: () =>

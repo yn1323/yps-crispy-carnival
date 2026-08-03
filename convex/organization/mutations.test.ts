@@ -1539,7 +1539,7 @@ describe("organization person profile update", () => {
 
   afterEach(() => vi.useRealTimers());
 
-  it("店舗所属なしの人物正本と自分自身の管理者表示を更新し、同じrequestIdは再適用しない", async () => {
+  it("連携済み本人のメール変更を拒否し、同じメールでの名前変更だけを反映する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(
       async (ctx) =>
@@ -1549,26 +1549,27 @@ describe("organization person profile update", () => {
           plan: "pro",
         }),
     );
-    const requestId = "person-profile-self-request";
     const actor = t.withIdentity({ subject: "profile_self_actor" });
 
-    const first = await actor.mutation(api.organization.mutations.updatePersonProfile, {
-      shopId: ids.shopId,
-      personId: ids.personId,
-      name: "  更新後の管理者  ",
-      email: "  Profile-Self-After@Example.com  ",
-      requestId,
-    });
-    const second = await actor.mutation(api.organization.mutations.updatePersonProfile, {
+    await expect(
+      actor.mutation(api.organization.mutations.updatePersonProfile, {
+        shopId: ids.shopId,
+        personId: ids.personId,
+        name: "更新後の管理者",
+        email: "profile-self-after@example.com",
+        requestId: "person-profile-self-email",
+      }),
+    ).rejects.toThrow("アカウント連携済みユーザーのメールアドレスは、本人だけが変更できます。");
+
+    const result = await actor.mutation(api.organization.mutations.updatePersonProfile, {
       shopId: ids.shopId,
       personId: ids.personId,
       name: "更新後の管理者",
-      email: "profile-self-after@example.com",
-      requestId,
+      email: "profile-self-before@example.com",
+      requestId: "person-profile-self-name",
     });
 
-    expect(first).toEqual({ changed: true });
-    expect(second).toEqual({ changed: false });
+    expect(result).toEqual({ changed: true });
     const state = await t.run(async (ctx) => ({
       person: await ctx.db.get(ids.personId),
       user: await ctx.db.get(ids.userId),
@@ -1580,13 +1581,13 @@ describe("organization person profile update", () => {
     }));
     expect(state.person).toMatchObject({
       name: "更新後の管理者",
-      email: "profile-self-after@example.com",
-      emailNormalized: "profile-self-after@example.com",
+      email: "profile-self-before@example.com",
+      emailNormalized: "profile-self-before@example.com",
     });
     expect(state.user).toMatchObject({
       name: "更新後の管理者",
-      email: "profile-self-after@example.com",
-      emailNormalized: "profile-self-after@example.com",
+      email: "profile-self-before@example.com",
+      emailNormalized: "profile-self-before@example.com",
     });
     expect(state.audits).toHaveLength(1);
     expect(state.audits[0]).toMatchObject({
@@ -1594,8 +1595,8 @@ describe("organization person profile update", () => {
       targetKind: "person",
       targetId: ids.personId,
     });
-    expect(JSON.stringify(state.audits[0])).not.toContain(requestId);
-    expect(JSON.stringify(state.audits[0])).not.toContain("profile-self-after@example.com");
+    expect(JSON.stringify(state.audits[0])).not.toContain("person-profile-self-name");
+    expect(JSON.stringify(state.audits[0])).not.toContain("profile-self-before@example.com");
   });
 
   it("人物正本の変更を全店舗の有効スタッフへ同期し、メール変更通知を店舗ごとに予約する", async () => {

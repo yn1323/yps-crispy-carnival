@@ -34,11 +34,14 @@ const mocks = vi.hoisted(() => ({
   myShopsQuery: Symbol("getMyShops"),
   selectedShopAtom: Symbol("selectedShopAtom"),
   userAtom: Symbol("userAtom"),
+  accountEmailChangeSessionAtom: Symbol("accountEmailChangeSessionAtom"),
   useAuth: vi.fn(),
+  useUser: vi.fn(),
   useQuery: vi.fn(),
   useRouterState: vi.fn(),
   navigate: vi.fn(),
   useAtom: vi.fn(),
+  useAtomValue: vi.fn(),
   setSelectedShop: vi.fn(),
   setUser: vi.fn(),
   managerChildRender: vi.fn(),
@@ -55,6 +58,10 @@ const mocks = vi.hoisted(() => ({
   currentUser: { name: "管理者", email: "manager@example.com" } as CurrentUser,
   myShops: [{ shopId: "active-shop", shopName: "所属店舗" }] as ShopRow[],
   selectedShop: null as SelectedShop,
+  accountEmailChangeSession: null as null | {
+    clerkUserId: string;
+    source: "app" | "recovery";
+  },
   user: {
     authId: "manager-user",
     name: "管理者",
@@ -70,6 +77,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@clerk/react", () => ({
   SignOutButton: ({ children }: { children: ReactNode }) => children,
   useAuth: mocks.useAuth,
+  useUser: mocks.useUser,
 }));
 
 vi.mock("@chakra-ui/react", async (importOriginal) => ({
@@ -84,11 +92,13 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("convex/react", () => ({
   useQuery: mocks.useQuery,
+  useAction: vi.fn(),
 }));
 
 vi.mock("jotai", async (importOriginal) => ({
   ...(await importOriginal<typeof import("jotai")>()),
   useAtom: mocks.useAtom,
+  useAtomValue: mocks.useAtomValue,
 }));
 
 vi.mock("@/convex/_generated/api", () => ({
@@ -99,7 +109,20 @@ vi.mock("@/convex/_generated/api", () => ({
         getMyShops: mocks.myShopsQuery,
       },
     },
+    accountEmail: {
+      actions: {
+        syncMyPrimaryEmail: Symbol("syncMyPrimaryEmail"),
+      },
+    },
   },
+}));
+
+vi.mock("./AccountEmailMismatchRecovery", () => ({
+  AccountEmailMismatchRecovery: ({ clerkEmail, convexEmail }: { clerkEmail: string; convexEmail: string }) => (
+    <div data-testid="account-email-recovery">
+      {clerkEmail}:{convexEmail}
+    </div>
+  ),
 }));
 
 vi.mock("@/src/components/templates/FullPageSpinner", () => ({
@@ -138,6 +161,10 @@ vi.mock("@/src/stores/user", () => ({
   userAtom: mocks.userAtom,
 }));
 
+vi.mock("@/src/stores/accountEmail", () => ({
+  accountEmailChangeSessionAtom: mocks.accountEmailChangeSessionAtom,
+}));
+
 import { AuthGuard } from "./AuthGuard";
 
 const ManagerChild = () => {
@@ -147,10 +174,12 @@ const ManagerChild = () => {
 
 beforeEach(() => {
   mocks.useAuth.mockReset();
+  mocks.useUser.mockReset();
   mocks.useQuery.mockReset();
   mocks.useRouterState.mockReset();
   mocks.navigate.mockReset();
   mocks.useAtom.mockReset();
+  mocks.useAtomValue.mockReset();
   mocks.setSelectedShop.mockReset();
   mocks.setUser.mockReset();
   mocks.managerChildRender.mockReset();
@@ -166,6 +195,7 @@ beforeEach(() => {
     organizationPlan: null,
     memberStatus: "active",
   };
+  mocks.accountEmailChangeSession = null;
   mocks.user = {
     authId: "manager-user",
     name: "管理者",
@@ -182,6 +212,15 @@ beforeEach(() => {
     isSignedIn: true,
     userId: "manager-user",
   });
+  mocks.useUser.mockReturnValue({
+    isLoaded: true,
+    user: {
+      primaryEmailAddress: {
+        emailAddress: "manager@example.com",
+        verification: { status: "verified" },
+      },
+    },
+  });
   mocks.useRouterState.mockReturnValue({ pathname: "/dashboard", searchStr: "" });
   mocks.useQuery.mockImplementation((queryReference: unknown) => {
     if (queryReference === mocks.currentUserQuery) return mocks.currentUser;
@@ -193,9 +232,83 @@ beforeEach(() => {
     if (targetAtom === mocks.selectedShopAtom) return [mocks.selectedShop, mocks.setSelectedShop];
     throw new Error("Unexpected atom");
   });
+  mocks.useAtomValue.mockImplementation((targetAtom: unknown) => {
+    if (targetAtom === mocks.accountEmailChangeSessionAtom) return mocks.accountEmailChangeSession;
+    throw new Error("Unexpected atom");
+  });
 });
 
 describe("AuthGuard", () => {
+  it("Clerk primaryとConvexが不一致なら自動上書きせず復旧状態を通常画面より先に表示する", () => {
+    mocks.currentUser = { name: "管理者", email: "convex@example.com" };
+    mocks.useUser.mockReturnValue({
+      isLoaded: true,
+      user: {
+        primaryEmailAddress: {
+          emailAddress: "login@example.com",
+          verification: { status: "verified" },
+        },
+      },
+    });
+
+    render(
+      <AuthGuard requestedShopId="active-shop">
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    expect(screen.queryByTestId("account-email-recovery")).not.toBeNull();
+    expect(screen.queryByTestId("manager-child")).toBeNull();
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.myShopsQuery, "skip");
+  });
+
+  it("通常画面から開始したメール変更中はprimary更新直後の不一致で画面を差し替えない", () => {
+    mocks.currentUser = { name: "管理者", email: "before@example.com" };
+    mocks.useUser.mockReturnValue({
+      isLoaded: true,
+      user: {
+        primaryEmailAddress: {
+          emailAddress: "after@example.com",
+          verification: { status: "verified" },
+        },
+      },
+    });
+    mocks.accountEmailChangeSession = { clerkUserId: "manager-user", source: "app" };
+    mocks.selectedShop = {
+      shopId: "active-shop",
+      shopName: "所属店舗",
+      shopStatus: "active",
+      organizationId: null,
+      organizationName: null,
+      organizationPlan: null,
+      memberStatus: "active",
+    };
+
+    render(
+      <AuthGuard requestedShopId="active-shop">
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    expect(screen.queryByTestId("manager-child")).not.toBeNull();
+    expect(screen.queryByTestId("account-email-recovery")).toBeNull();
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.myShopsQuery, {});
+  });
+
+  it("不一致復旧から開始したメール変更は両方が一致した後も完了画面まで保持する", () => {
+    mocks.accountEmailChangeSession = { clerkUserId: "manager-user", source: "recovery" };
+
+    render(
+      <AuthGuard requestedShopId="active-shop">
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    expect(screen.queryByTestId("account-email-recovery")).not.toBeNull();
+    expect(screen.queryByTestId("manager-child")).toBeNull();
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.myShopsQuery, "skip");
+  });
+
   it("古いbackendが公開状態を返さない場合は全機能を閉じてatomの同期完了まで子画面を描画しない", async () => {
     mocks.selectedShop = {
       shopId: "active-shop",

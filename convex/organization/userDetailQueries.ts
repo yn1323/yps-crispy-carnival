@@ -25,6 +25,7 @@ const userDetailValidator = v.object({
     id: v.id("organizationPeople"),
     name: v.string(),
     email: v.string(),
+    hasLinkedAccount: v.boolean(),
   }),
   isSelf: v.boolean(),
   managerRole: v.union(v.literal("active"), v.literal("readOnly"), v.literal("none")),
@@ -251,7 +252,12 @@ export const getUserDetail = managerQuery({
             : "契約状態を確認できるまで、ユーザー情報を変更できません。";
 
     return {
-      person: { id: person._id, name: person.name, email: person.email },
+      person: {
+        id: person._id,
+        name: person.name,
+        email: person.email,
+        hasLinkedAccount: person.userId !== undefined,
+      },
       isSelf: person._id === organizationMember.personId,
       managerRole,
       hasManagerInvitation: activePendingInvitations.some((invitation) => invitation.targetPersonId === person._id),

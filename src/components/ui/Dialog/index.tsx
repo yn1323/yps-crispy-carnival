@@ -73,6 +73,7 @@ type DialogProps = {
   positionerProps?: ComponentProps<typeof ChakraDialog.Positioner>;
   contentProps?: ComponentProps<typeof ChakraDialog.Content>;
   bodyProps?: ComponentProps<typeof ChakraDialog.Body>;
+  preventClose?: boolean;
 };
 
 export const Dialog = ({
@@ -99,16 +100,24 @@ export const Dialog = ({
   positionerProps,
   contentProps,
   bodyProps,
+  preventClose = false,
 }: DialogProps) => {
   const viewportStyle = useDialogVisualViewportStyle(isOpen && keyboardAwareViewport);
-  useCloseDialogOnBrowserBack(isOpen, () => onOpenChange({ open: false }), onBackGuardRemoved);
+  const handleOpenChange = useCallback(
+    (details: { open: boolean }) => {
+      if (preventClose && !details.open) return;
+      onOpenChange(details);
+    },
+    [onOpenChange, preventClose],
+  );
+  useCloseDialogOnBrowserBack(isOpen, () => handleOpenChange({ open: false }), onBackGuardRemoved, !preventClose);
   const { style: positionerStyle, ...restPositionerProps } = positionerProps ?? {};
 
   return (
     <ChakraDialog.Root
       open={isOpen}
       lazyMount
-      onOpenChange={onOpenChange}
+      onOpenChange={handleOpenChange}
       role={role}
       placement="center"
       modal={modal}
@@ -165,9 +174,11 @@ export const Dialog = ({
                 )}
               </ChakraDialog.Footer>
             )}
-            <ChakraDialog.CloseTrigger asChild position="absolute" top="2" insetEnd="2">
-              <CloseButton size="sm" aria-label="閉じる" />
-            </ChakraDialog.CloseTrigger>
+            {!preventClose && (
+              <ChakraDialog.CloseTrigger asChild position="absolute" top="2" insetEnd="2">
+                <CloseButton size="sm" aria-label="閉じる" />
+              </ChakraDialog.CloseTrigger>
+            )}
           </ChakraDialog.Content>
         </ChakraDialog.Positioner>
       </Portal>

@@ -82,6 +82,8 @@ export const UserWithoutShopDeletionEntry: Story = {
       "/settings?shop=shop-a",
     );
     await screen.findByRole("menuitem", { name: "ログアウト" });
+    await expect(screen.getByText("login@example.com")).toBeInTheDocument();
+    await expect(screen.queryByText("tanaka@example.com")).toBeNull();
     await expect(screen.queryByRole("menuitem", { name: "店舗削除" })).toBeNull();
     await userEvent.keyboard("{Escape}");
   },
