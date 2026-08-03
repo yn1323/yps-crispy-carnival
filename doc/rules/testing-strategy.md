@@ -17,6 +17,10 @@
 不具合修正では、修正前の実装で失敗する回帰テストを先に作れるか検討する。
 境界値、状態遷移、実接続、見た目を一つのテストへ詰め込まない。
 
+意図した仕様変更が完了している場合は、現在の実装、機能文書、主担当層のテストから現行契約を確定してから、失敗した上位層テストを評価する。
+古いE2Eを通すためだけに製品コードを以前の挙動へ戻さず、selector、待機、fixture、assertionを現行契約へ合わせる。
+現行契約に反する製品回帰が確認できた場合は、E2Eの期待値を緩めて隠さない。
+
 ## テスト層
 
 | 層 | 主な配置 | 守る契約 | 主担当にしないもの |
@@ -114,16 +118,65 @@ schedulerを含むflowはinternal actionを手書き引数で直呼びせず、�
 E2Eは、実ブラウザ、認証provider、frontend、実Convex backendの接続を守る。
 主要導線の開始、画面遷移、利用者に見える完了状態を確認する。
 
+core E2Eは、実ブラウザ境界が失敗条件になる少数の主要契約へ絞る。
+Full Regressionを一つのE2E suiteとして表現せず、安定した契約IDを各主担当層へ対応付ける。
+
+E2Eの削減または統合は、テスト件数の減少だけで正当化しない。
+削除前に契約ID単位で、Function、Scenario、Behavior、VRT、Deployed Smokeのどこへ移管したかと、実ブラウザにしかない失敗境界を記録する。
+認証E2Eを縮小しても、匿名で保護routeへ到達したときのredirectと、logout後に同じ保護routeへ再アクセスしたときの認証境界をcoreまたは独立browser smokeで維持する。
+Function、Scenario、Behaviorだけでの代替は、logout後のブラウザ境界の完了条件にしない。
+
+a11y検査をcore業務E2Eから分離する場合は、独立a11y smokeまたはStorybook accessibilityを主担当にし、見た目はVRT、操作後の状態はBehaviorへ対応付ける。
+代替検査の担当と完了条件がないa11y検査の削除は、完了扱いにしない。
+
+feature flagでskipされる契約はカバレッジ済みとみなさない。
+公開条件が変わるときにenabled環境で実行する契約を持ち、閉状態の拒否や非表示はFunction、Scenario、Behaviorで別に守る。
+
 DBの細部、全validation分岐、pixel差分は下位層へ分ける。
 LINE、メール、決済providerなど外部サービスの実到着は、通常E2Eへ含めない。
 実到着の確認が必要な場合は、対象、環境、判定、復旧を定めた人間向け運用手順として分ける。
 
+通知対象、channel、件数、dedupe、Outbox、retry、最終失敗はFunction TestまたはScenario Testを主担当にする。
+E2Eへ残す通知契約は、代表的なUI操作から匿名CTAや利用者に見える復旧導線へ到達できるブラウザ境界に限る。
+
+並列E2Eでは、actor、認証状態、seed、cleanupの所有者をworker間で共有しない。
+同じactorまたは同じ状態を使うprojectは同時実行せず、test順序やretryによってactorを入れ替えない。
+
+retry成功を安定性の証拠にしない。
+局所確認とburn-inはretryなしで初回成功を検証し、CIではmissing、duplicate、unexpected、理由のないskip、flakyを契約単位で失敗させる。
+反復実行は終了codeだけで判定せず、各contract IDの反復数、project、初回成功、skipなしを結果JSONから検証する。
+
+test timeoutは成功時にも消費する固定待機ではなく、失敗時の上限として扱う。
+suite全体へ長い値を置かず、retryなしの通常worker数で得た実測にseed、外部境界、fixture cleanupの余裕を加えて、長い主要契約だけを局所校正する。
+
+失敗診断は、secret、capability、credential、個人情報を含まない分類と計測値を基本にする。
+trace、video、screenshot、HTML reportを公開する場合は、公開前に機密情報検査を通す。
+
 認証付きCIの信頼境界、Previewの作成、worker数、対象tagは `.github/workflows/` とPlaywright設定を正本とする。
 E2E固有の常設制約は `e2e/AGENTS.md`、実装手順は `test-strategy` が所有する。
 
+### 遅延読み込みと事前読み込み
+
+遅延mount、dynamic import、tabまたはDialogの表示条件、viewport進入で開始するAPIは、それぞれの開始条件と利用者に見える完了状態を契約にする。
+「非表示中は購読しない」「初回表示で一度開始する」「再表示時に状態を保持またはresetする」はFrontend Unit TestまたはBehavior Testを主担当にする。
+E2Eは内部の購読数やrequest順序を直接固定せず、実際のclick、tab選択、Dialog表示、scrollを行った後に、対象領域のLoadingと完了状態を確認する。
+
+preloadは任意の最適化として扱い、hoverやfocusでmoduleまたはreadが先に始まっても、始まらなくても同じ利用者向け結果になることを前提にする。
+E2Eの成功条件をpreload完了やrequest開始時刻へ依存させない。
+
+Convexの継続購読やWebSocketがあるため、通信全体の静止を画面完了の条件にしない。
+固定時間、`networkidle`、任意のresponse待ちではなく、対象sectionのlandmark、見出し、操作可能状態、局所Loadingの消滅をweb-first assertionで待つ。
+
+viewportで開始する領域は、対象を表示領域へ移す操作と、その領域固有の完了状態を一つのE2E stepとして扱う。
+viewportの座標値やIntersection Observerの内部発火回数はFrontend Unit Testへ分ける。
+
+通常E2Eでは、遷移や表示完了までの経過時間を固定閾値でassertしない。
+CSR遷移の性能回帰は、正規化したrouteごとの計測、production buildのbundle分析、または性能専用の監視で扱い、機能E2Eの成否と分ける。
+dynamic importの失敗時に局所Errorと回復操作を表示する契約は、代表的なBehavior Testを主担当にする。
+
 ## Full Regression
 
-Full Regressionはテスト件数ではなく、主要な失敗境界がすべて主担当層へ対応している状態を指す。
+Full Regressionは単一のE2E suiteではなく、主要な失敗境界がすべて主担当層へ対応している状態を指す。
 
 監査では次を対応付ける。
 
@@ -140,6 +193,9 @@ Full Regressionはテスト件数ではなく、主要な失敗境界がすべ�
 
 workflow YAMLのstep名、job構成、埋込みscriptをLogic Testで固定しない。
 workflowから独立した純粋処理へ切り出した場合だけ、その公開入出力をテストする。
+
+core E2EのCI gateは、実行件数の下限だけでなく、期待する契約ID、project、skip、retry、最終statusを検証する。
+同一commitの反復実行と初回失敗0件を確認し、異なるcommitの成功率からflake率を推定しない。
 
 CI/CDを人が確認する手順は `doc/manual/ci-cd.md` を参照する。
 テストコマンド、project、shard、tagの現在値は設定ファイルを正本とする。

@@ -3,9 +3,9 @@
 `doc/plans/`は、計画を作成した時点の判断、実装順序、受入条件を残す場所です。
 現在の機能や常設規約は、各表の「現在の正本」を参照してください。
 
-> 分類日: 2026-08-02
+> 分類日: 2026-08-03
 >
-> 分類基準: 既存計画は2026-07-23のworktree、2026-08-02追加計画は作成時点のworktreeと各計画本文
+> 分類基準: 既存計画は2026-07-23のworktree、2026-08-02以降の追加計画は作成時点のworktreeと各計画本文
 
 - **Proposed**：採否または設計レビューが終わっていない提案。
 - **Active**：コード、判断、外部設定、migration、実環境証跡のいずれかに未完了条件がある計画。
@@ -27,9 +27,9 @@
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
+| [E2E安定性改善・スコープ再設計](2026-08-03_E2E安定性改善_実行計画.md) | `rollout` | code、local contract test、50回burn-inは完了。同一SHA 3回、workflow cancel、30%短縮をActionsで確認 | [テスト方針](../rules/testing-strategy.md)、[セキュリティ方針](../rules/security-strategy.md)、[CI/CD運用](../manual/ci-cd.md) |
 | [分析KPIと内部BI再設計](2026-08-02_分析KPIと内部BI再設計_実装計画.md) | `rollout` | Production deploy、bootstrap、invariant確認、generation cutover、実負荷計測、旧3テーブルのbounded cleanupと0件証跡、別deployでのschema Narrow、Cloudflare環境確認 | [分析KPI蓄積基盤](../features/analytics.md)、[分析KPI可視化アプリ](../features/analytics-dashboard.md)、[Analytics rollout](../manual/analytics-rollout.md) |
 | [別端末ログイン本人確認](2026-07-11_別端末ログイン本人確認_実装計画.md) | `rollout` | Production相当のClerk設定、返却status、メール確認の実環境証跡 | [認証画面](../features/auth-pages.md)、[リリース状態](../manual/release-status.md) |
-| [E2E Full Regression](2026-07-13-e2e-full-regression.md) | `implementing` | 計画内で未実装のexact SHA、production build、runtime errorと、部分実装のmobile・a11yを再確認する | [テスト方針](../rules/testing-strategy.md)、[CI/CD運用](../manual/ci-cd.md) |
 | [フロントエンド単体テスト、Storybook、VRTリファクタ](2026-07-13-frontend-test-vrt-refactor.md) | `approved` | 完了記録がないため、各完了条件を現行テストとCIへ再照合する | [テスト方針](../rules/testing-strategy.md) |
 | [グループ課金、複数店舗、複数管理者](2026-07-14_事業者課金_複数店舗_複数管理者_実装計画.md) | `rollout` | Production migration、互換期間後のNarrow、実環境証跡。旧プラン記述は後続計画で置換済み | [課金業務フロー](../specs/organization-billing-business-flow.md)、[グループ課金](../features/organization-billing.md)、[リリース状態](../manual/release-status.md) |
 | [所属なしユーザーのアカウント削除](2026-07-18_所属なしユーザーのアカウント削除_実装計画.md) | `rollout` | 段階公開の判断と実環境での受付・復旧確認 | [アカウント削除](../features/account-deletion.md)、[リリース状態](../manual/release-status.md) |
@@ -41,7 +41,7 @@
 | [doc現行コード差分調査](2026-07-23_doc現行コード差分調査.md) | `reviewing` | 10論点のProduct、Security、Backend、運用判断を確定し、必要な別計画へ引き渡す | [現行コード差分調査](2026-07-23_doc現行コード差分調査.md) |
 
 `frontend-test-vrt-refactor`は本文に実施結果がないため、完了済みと推測せず`Active`に残しています。
-`E2E Full Regression`も明示された未実装条件が残るため、同じ扱いです。
+`E2E Full Regression`は2026-08-03にE2E単独の完了条件から外し、現行作業を`E2E安定性改善・スコープ再設計`へ移しました。
 
 ## History
 
@@ -64,8 +64,8 @@ Historyの本文には、現在と異なる名称、パス、状態、上限、�
 | [シフトボードヘッダー再構成](2026-03-29_コード改修_シフトボードヘッダー再構成.md) | 局所改修の実装プロンプト | [店舗所属の移行互換](../features/manager-shop-membership.md)、[システム構成](../ARCHITECTURE.md) |
 | [メール通知・マジックリンク実装設計](2026-03-30_メール通知・マジックリンク実装設計.md) | 初期通知設計。現行機能へ移管 | [通知配送outbox](../features/notification-outbox.md)、[希望シフト提出](../features/shift-submission.md) |
 | [メール通知・マジックリンク設計](2026-03-30_メール通知・マジックリンク設計.md) | 初期通知設計。現行機能へ移管 | [通知配送outbox](../features/notification-outbox.md)、[希望シフト提出](../features/shift-submission.md) |
-| [初回シフト確定E2E実装プロンプト](2026-03-31_E2Eテスト実装プロンプト.md) | 初回E2Eの実装指示 | [テスト方針](../rules/testing-strategy.md)、[E2E Full Regression](2026-07-13-e2e-full-regression.md) |
-| [E2Eテスト方針](2026-03-31_E2Eテスト方針.md) | 初期方針。現行規約へ移管 | [テスト方針](../rules/testing-strategy.md)、[E2E Full Regression](2026-07-13-e2e-full-regression.md) |
+| [初回シフト確定E2E実装プロンプト](2026-03-31_E2Eテスト実装プロンプト.md) | 初回E2Eの実装指示 | [テスト方針](../rules/testing-strategy.md)、[E2E安定性改善・スコープ再設計](2026-08-03_E2E安定性改善_実行計画.md) |
+| [E2Eテスト方針](2026-03-31_E2Eテスト方針.md) | 初期方針。現行規約へ移管 | [テスト方針](../rules/testing-strategy.md)、[E2E安定性改善・スコープ再設計](2026-08-03_E2E安定性改善_実行計画.md) |
 
 ### 2026年4月
 
@@ -78,7 +78,7 @@ Historyの本文には、現在と異なる名称、パス、状態、上限、�
 | [Google Form目安箱](2026-04-09_GoogleForm目安箱.md) | 後続のアプリ内要望受付へ置換 | [要望受付](../features/feature-requests.md) |
 | [LP実装](2026-04-09_LP実装計画.md) | 公開TOPの初期実装計画 | [公開サイト](../features/public-pages.md) |
 | [OGP設定](2026-04-09_OGP設定.md) | 公開サイトの初期設定 | [公開サイト](../features/public-pages.md) |
-| [staging通しテスト](2026-04-09_staging通しテスト計画.md) | 初回リリース向け確認計画 | [CI/CD運用](../manual/ci-cd.md)、[E2E Full Regression](2026-07-13-e2e-full-regression.md) |
+| [staging通しテスト](2026-04-09_staging通しテスト計画.md) | 初回リリース向け確認計画 | [CI/CD運用](../manual/ci-cd.md)、[E2E安定性改善・スコープ再設計](2026-08-03_E2E安定性改善_実行計画.md) |
 | [初回リリース タスクインデックス](2026-04-09_リリースタスク_インデックス.md) | 初回リリースの時点計画 | [CI/CD運用](../manual/ci-cd.md)、[リリース状態](../manual/release-status.md) |
 | [利用規約・プライバシーポリシー](2026-04-09_利用規約プライバシーポリシー.md) | 法務画面の初期実装計画 | [法務同意フロー](../features/legal-consent.md)、[法務文書の更新](../manual/legal-versioning.md) |
 | [OGP・SEO設定](2026-04-11_OGPとSEO設定.md) | 公開サイト設定の実装履歴 | [公開サイト](../features/public-pages.md) |
@@ -102,6 +102,7 @@ Historyの本文には、現在と異なる名称、パス、状態、上限、�
 
 | 計画 | 分類根拠 | 現在の正本 |
 |---|---|---|
+| [E2E Full Regression](2026-07-13-e2e-full-regression.md) | E2E単独でFull Regressionを担う方針を終了し、代表導線と下位層への契約分担を後続計画へ移管 | [E2E安定性改善・スコープ再設計](2026-08-03_E2E安定性改善_実行計画.md)、[テスト方針](../rules/testing-strategy.md) |
 | [複数店舗・複数マネージャー旧設計](2026-07-03_複数店舗・複数マネージャー設計.md) | グループ単位課金と現行招待設計により置換 | [グループ課金](../features/organization-billing.md)、[課金業務フロー](../specs/organization-billing-business-flow.md) |
 | [分析KPI蓄積基盤 設計](2026-07-04_分析KPI蓄積基盤_設計.md) | 現行基盤を実装済み | [分析KPI蓄積基盤](../features/analytics.md) |
 | [スタッフ詳細モーダル設計](2026-07-05_スタッフ詳細モーダル設計.md) | 後続のユーザー詳細機能へ置換 | [ユーザー詳細](../features/user-detail.md) |
@@ -113,11 +114,17 @@ Historyの本文には、現在と異なる名称、パス、状態、上限、�
 | [スタッフ詳細からの管理者招待と5名上限](2026-07-17_スタッフ詳細_管理者招待_5名上限_実装計画.md) | 実装済みを本文で確認 | [ユーザー詳細](../features/user-detail.md)、[グループ課金](../features/organization-billing.md) |
 | [Free管理者交代・複数グループ](2026-07-18_Free管理者交代_複数グループ_追加実装計画.md) | 完了を本文で確認 | [グループ課金](../features/organization-billing.md) |
 | [店舗と組織の削除・個人情報匿名化](2026-07-18_店舗と組織の削除_個人情報匿名化_実装計画.md) | 識別情報の置換契約を後続計画で変更 | [識別情報保持計画](2026-07-19_削除後の業務識別情報保持と認証切り離し_実装計画.md)、[店舗・グループ削除](../features/data-deletion.md) |
-| [複数管理者・複数店舗 E2E](2026-07-18_複数管理者_複数店舗_E2E実装計画.md) | 完了を本文で確認 | [テスト方針](../rules/testing-strategy.md)、[E2E Full Regression](2026-07-13-e2e-full-regression.md) |
+| [複数管理者・複数店舗 E2E](2026-07-18_複数管理者_複数店舗_E2E実装計画.md) | 完了を本文で確認 | [テスト方針](../rules/testing-strategy.md)、[E2E安定性改善・スコープ再設計](2026-08-03_E2E安定性改善_実行計画.md) |
 | [Stripe課金連携・4プラン化](2026-07-20_Stripe課金連携_実装計画.md) | プラン構成と上限をBusiness再導入計画で置換 | [Business再導入計画](2026-07-21_課金プラン改定_Business再導入_実装計画.md)、[グループ課金](../features/organization-billing.md) |
 | [StripeとCodexセキュリティ調査](2026-07-21_StripeとCodexセキュリティ調査_不足テスト実装計画.md) | リポジトリ実装と自動検証を完了。外部証跡は運用文書へ移管 | [セキュリティ再検証](../manual/security-validation.md)、[リリース状態](../manual/release-status.md) |
 | [エージェント指示体系の再構成](2026-07-23_エージェント指示体系_再構成計画.md) | 指示体系を現行Ruleと`AGENTS.md`へ反映済み | [エージェント指示の配置方針](../rules/agent-instructions.md) |
 | [doc情報設計と現行コード整合の再構成](2026-07-23_doc情報設計と現行コード整合の再構成計画.md) | 目的別INDEX、Archive、明確な差分修正、長大文書の再構成、自動検査を完了。判断待ちは差分調査へ移管 | [ドキュメント入口](../INDEX.md)、[現行コード差分調査](2026-07-23_doc現行コード差分調査.md) |
+
+### 2026年8月
+
+| 計画 | 分類根拠 | 現在の正本 |
+|---|---|---|
+| [CSR画面遷移パフォーマンス改善](2026-08-03_CSR画面遷移パフォーマンス改善_実装計画.md) | 4導線のfrontend実装、Unit・Behavior Test、production bundle比較を完了 | [フロントエンドアーキテクチャ](../rules/frontend-architecture.md)、[UI設計方針](../rules/ui-design.md)、[テスト方針](../rules/testing-strategy.md) |
 
 ### 日付形式が異なる既存計画
 

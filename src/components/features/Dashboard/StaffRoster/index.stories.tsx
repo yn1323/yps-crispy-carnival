@@ -1,5 +1,6 @@
 import { Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, fn, userEvent, within } from "storybook/test";
 import {
   mockStaffs,
   mockStaffsMany,
@@ -48,6 +49,28 @@ export const CanLoadMore: Story = {
 export const WithExcluded: Story = {
   args: {
     staffs: mockStaffsWithExcluded,
+  },
+};
+
+export const DialogIntentBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: {
+    onAddIntent: fn(),
+    onOpenDetailIntent: fn(),
+    onOpenDetail: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const invitationButton = canvas.getByRole("button", { name: "スタッフを招待する" });
+    const detailButton = canvas.getAllByRole("button", { name: /スタッフ詳細を開く/ })[0];
+
+    await userEvent.hover(invitationButton);
+    await expect(args.onAddIntent).toHaveBeenCalled();
+
+    detailButton.focus();
+    await expect(args.onOpenDetailIntent).toHaveBeenCalled();
+    await userEvent.click(detailButton);
+    await expect(args.onOpenDetail).toHaveBeenCalledTimes(1);
   },
 };
 

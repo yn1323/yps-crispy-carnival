@@ -28,6 +28,21 @@ security-sensitiveな変更では`shiftori-security-review`を併用する。
 7. 仕様から消えたcontractを固定するtestは削除する。
 8. targeted testから実行し、最後に変更層のsuiteとrepoの必須検証を行う。
 
+## E2E安定化Workflow
+
+1. 失敗したE2Eより先に、現在の画面、機能文書、Story、主担当層のtestを確認し、現行contractを特定する。
+2. 失敗を製品回帰、test drift、共有状態、待機、環境・外部依存に分類し、retry後の成功だけで解消扱いにしない。
+3. scenarioごとに実ブラウザ境界が必要かを再判定し、DB詳細、通知集合、全validation、時刻境界を主担当層へ移してからE2E基盤を直す。
+4. E2Eを削除または統合するときは、件数ではなく契約IDの移管表を作り、logout後の認証境界、分離したa11y検査、feature flag公開時のenabled pathをbrowser-only保全条件として確認する。
+5. actor、認証状態、seed、cleanupをworkerへ決定的に割り当て、test順序、project、retryによる共有をなくす。
+6. 意図したfrontend変更によるtest driftなら、製品コードを以前の挙動へ戻さず、selector、待機、fixture、assertionを現行contractへ合わせる。
+7. 固定時間待機を利用者に見える状態へ置き換え、browserから観測できない非同期境界だけを総deadline付きpollingにする。
+8. 対象testを`retries=0`、1 workerで確認し、通常worker数、retryなしの反復実行、同一commitのCI反復へ広げる。test timeoutは通常worker数の実測とcleanup余裕から長い契約だけを局所校正する。
+9. 結果JSONからcontract ID、project、反復数、skip、retry、初回失敗を検証し、所要時間、artifact privacy、未実行項目、環境要因を分けて報告する。
+
+selector、待機、fixture、診断、result gate、burn-inの具体的な書き方は`references/test-writing-rules.md`を正本とする。
+Full RegressionからE2Eへ残すcontractの選び方は`references/e2e-full-regression-rules.md`を正本とする。
+
 ## 主担当層を選ぶ
 
 テスト層と責務の対応表は`doc/rules/testing-strategy.md`だけを正本とする。
@@ -50,6 +65,8 @@ Full Regressionの監査手順は`references/e2e-full-regression-rules.md`だけ
 
 計画またはreviewでは、contract、主担当層、追加・更新・削除するtest、重複させない層を示す。
 実装後は、実行したcommand、結果、未実行の検証と理由を報告する。
+E2E安定化では、現行contractの根拠、製品コードとtestのどちらを直したか、retryなしの初回成功、同一commitの反復結果も示す。
+E2E縮小のreviewでは、削除または統合したcontract ID、移管先、browser-only保全条件、feature flagで未実行の条件を分けて示す。
 
 commandとsandbox注意事項はroot、近い`AGENTS.md`、`package.json`を正本とし、このSkillへ複製しない。
 

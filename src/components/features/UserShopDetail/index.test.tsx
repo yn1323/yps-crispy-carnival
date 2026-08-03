@@ -14,6 +14,9 @@ const mocks = vi.hoisted(() => ({
   useMembershipActions: vi.fn(),
   confirmRemoveMembership: vi.fn(),
   historyProps: undefined as undefined | { shopId: string; staffId: string; enabled: boolean },
+  notificationSectionActive: true,
+  notificationSectionRef: vi.fn(),
+  activateNotificationSection: vi.fn(),
 }));
 
 vi.mock("jotai", () => ({
@@ -24,6 +27,14 @@ vi.mock("jotai", () => ({
 }));
 
 vi.mock("@/src/stores/user", () => ({ featureVisibilityAtom: mocks.featureVisibilityAtom }));
+
+vi.mock("@/src/hooks/useViewportActivation", () => ({
+  useViewportActivation: () => ({
+    ref: mocks.notificationSectionRef,
+    isActive: mocks.notificationSectionActive,
+    activate: mocks.activateNotificationSection,
+  }),
+}));
 
 vi.mock("@/src/components/features/StaffNotificationHistory", () => ({
   StaffNotificationHistory: (props: { shopId: string; staffId: string; enabled: boolean }) => {
@@ -91,6 +102,9 @@ beforeEach(() => {
   mocks.confirmRemoveMembership.mockReset();
   mocks.confirmRemoveMembership.mockResolvedValue(true);
   mocks.historyProps = undefined;
+  mocks.notificationSectionActive = true;
+  mocks.notificationSectionRef.mockReset();
+  mocks.activateNotificationSection.mockReset();
   mocks.featureVisibility.shopMembershipAddition = true;
   mocks.useLineActions.mockReturnValue({
     authorizeUrl: null,
@@ -134,7 +148,12 @@ describe("UserShopDetail", () => {
     );
 
     expect(mocks.useLineActions).toHaveBeenCalledWith({ targetShopId, membership, isReadOnly: false });
-    expect(mocks.useNotificationActions).toHaveBeenCalledWith({ targetShopId, membership, isReadOnly: false });
+    expect(mocks.useNotificationActions).toHaveBeenCalledWith({
+      targetShopId,
+      membership,
+      isReadOnly: false,
+      enabled: true,
+    });
     expect(mocks.useMembershipActions).toHaveBeenCalledWith({
       targetShopId,
       membership,
@@ -143,6 +162,29 @@ describe("UserShopDetail", () => {
     });
     expect(mocks.historyProps).toEqual({ shopId: targetShopId, staffId: membership.staffId, enabled: true });
     expect(screen.getByTestId("history-shop").textContent).toBe("shop-target");
+  });
+
+  it("通知sectionがviewport外の間は通知queryと履歴を開始しない", () => {
+    mocks.notificationSectionActive = false;
+
+    render(
+      <UserShopDetail
+        data={data}
+        membership={membership}
+        targetShopId={targetShopId}
+        onBack={vi.fn()}
+        onMembershipRemoved={vi.fn()}
+      />,
+    );
+
+    expect(mocks.useNotificationActions).toHaveBeenCalledWith({
+      targetShopId,
+      membership,
+      isReadOnly: false,
+      enabled: false,
+    });
+    expect(mocks.historyProps).toBeUndefined();
+    expect(screen.queryByTestId("history-shop")).toBeNull();
   });
 
   it("店舗所属の削除成功後にユーザー詳細への復帰callbackを呼ぶ", async () => {

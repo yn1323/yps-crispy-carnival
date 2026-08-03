@@ -267,9 +267,9 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 - `convex/_scenario/organizationBillingLifecycle.test.ts`と`organizationPaidPlanChanges.test.ts`：時間と複数APIをまたぐ課金ライフサイクルを検証する。
 - `convex/_scenario/staffManagerInvitation.test.ts`と`organizationManagerExchange.test.ts`：既存人物の招待とFree管理者交代を検証する。
 - `convex/setup/mutations.test.ts`と`convex/_scenario/organizationCreation.test.ts`：グループ作成の上限、冪等性、rate limit、Free開始、既存グループへの非混入を検証する。
-- `e2e/scenarios/organization-creation-flow.test.ts`：画面から作った二つ目のグループへ遷移し、無料で始まることを検証する。
-- `src/components/features/OrganizationSettings/**/*.stories.tsx`：プランと支払い、管理者招待の代表状態と操作を検証する。
-- `e2e/scenarios/organization-billing-plan-change.test.ts`：Free、Pro、Businessの主要変更導線を検証する。
+- `src/components/features/OrganizationSettings/OrganizationCreation/OrganizationCreationSection.stories.tsx`と`controllers.test.tsx`：グループ作成の代表状態、mutation引数、作成後の遷移を検証する。
+- `src/components/features/OrganizationSettings/PlanAndPaymentSection.stories.tsx`と`BillingSettings/`配下のStory・Logic Test：Free、Pro、Businessの代表状態と主要変更操作を検証する。
+- `src/components/features/OrganizationSettings/ManagerInvitation/ManagerInvitationDialog.stories.tsx`：管理者招待の代表状態と操作を検証する。
 
 ## 仕様・規約・運用
 

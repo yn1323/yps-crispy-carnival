@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import dotenv from "dotenv";
-import { getE2EMultiActorWorkerCount, getE2EWorkerCount } from "./e2e/helpers/e2eUsers";
+import { getE2EWorkerCount } from "./e2e/helpers/e2eUsers";
 
 dotenv.config({ debug: false, quiet: true });
 
@@ -8,19 +8,20 @@ dotenv.config({ debug: false, quiet: true });
  * E2Eテスト実行順序と依存関係:
  *
  * 1. setup
- *    ├── E2E_CLERK_USERS の6ユーザーでログイン認証を実行
+ *    ├── E2E_CLERK_USERS の通常用3ユーザーでログイン認証を実行
  *    └── 認証状態をファイルに保存
  *
- * 2. 複数actorテスト
- *    └── 3ユーザーずつの2 poolを使い、ファイル間を2 workerで並列実行
+ * 2. 通常の認証済みテスト
+ *    └── parallelIndexごとに固定したユーザーとowner graphで並列実行
  *
- * 3. 通常の認証済みテスト
- *    └── 各workerが割り当てられたユーザーの storageState をテストごとに切り替え、owner単位のseedで並列実行
+ * 3. モバイル代表テスト
+ *    └── Desktop完了後に通常用ユーザーを再利用し、同じownerの同時利用を避ける
  *
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: "./e2e/fixtures/globalSetup.ts",
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
@@ -29,7 +30,9 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   /* A retry-pass is still a release risk and must fail the CI gate. */
   failOnFlakyTests: !!process.env.CI,
-  /* 未指定時は6 worker。CIではE2E_WORKERSで6ユーザーを重複なく分割できるworker数へ抑える。 */
+  /* 公開レポートへGit差分・author情報を収録しない。workflow側でhead SHAを管理する。 */
+  captureGitInfo: { commit: false, diff: false },
+  /* 通常用3ユーザーとparallelIndexを固定対応させる。 */
   workers: getE2EWorkerCount(),
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: [["list", { printSteps: true }], ["html"], ["json", { outputFile: "test-results.json" }]],
@@ -41,6 +44,8 @@ export default defineConfig({
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: "http://localhost:3000",
+    locale: "ja-JP",
+    timezoneId: "Asia/Tokyo",
 
     /* worker数にかかわらず、ローカルとCIで待機上限を揃える。 */
     actionTimeout: 10_000,
@@ -62,40 +67,29 @@ export default defineConfig({
       testMatch: /fixtures\/.*\.setup\.ts/,
       // password入力を含む認証setupはtraceへ保存しない。
       use: {
+        screenshot: "off",
         trace: "off",
+        video: "off",
       },
     },
 
-    // Step 2: 複数管理者を同時に扱うテスト
+    // Step 2: 通常のメインユーザー（管理者）のテスト
     {
-      name: "multi-actor-chromium",
-      testMatch: /scenarios\/multiActor\/.*\.test\.ts/,
-      fullyParallel: false,
-      workers: getE2EMultiActorWorkerCount(),
+      name: "desktop-chromium",
+      testMatch: /scenarios\/.*\.test\.ts/,
+      testIgnore: [/\.mobile\.test\.ts$/, /deployed-smoke\.test\.ts$/],
       use: {
         ...devices["Desktop Chrome"],
       },
       dependencies: ["setup"],
     },
-
-    // Step 3: 通常のメインユーザー（管理者）のテスト
-    {
-      name: "desktop-chromium",
-      testMatch: /scenarios\/(?!userB\/).*\.test\.ts/,
-      testIgnore: [/scenarios\/multiActor\/.*\.test\.ts$/, /\.mobile\.test\.ts$/, /deployed-smoke\.test\.ts$/],
-      use: {
-        ...devices["Desktop Chrome"],
-      },
-      dependencies: ["multi-actor-chromium"],
-    },
     {
       name: "mobile-chrome",
       testMatch: /scenarios\/.*\.mobile\.test\.ts/,
-      testIgnore: [/scenarios\/multiActor\/.*\.test\.ts$/],
       use: {
         ...devices["Pixel 7"],
       },
-      dependencies: ["multi-actor-chromium"],
+      dependencies: ["desktop-chromium"],
     },
   ],
 

@@ -1367,7 +1367,6 @@ Business再導入、上限変更、人物削除、Stripeプラン変更、migrat
 - `src/components/features/OrganizationSettings/BillingSettings/`
 - `convex/_scenario/organizationPaidPlanChanges.test.ts`
 - `convex/_scenario/organizationPersonRemoval.test.ts`
-- `e2e/scenarios/multiActor/organization-person-removal.test.ts`
 
 ### 29.2 Stripe公式
 

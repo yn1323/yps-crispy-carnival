@@ -1,11 +1,23 @@
 import { lstat, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { inflateRawSync } from "node:zlib";
 
 const MEBIBYTE = 1024 * 1024;
 const MAX_FILES = 20_000;
 const MAX_FILE_BYTES = 50 * MEBIBYTE;
 const MAX_TOTAL_BYTES = 1024 * MEBIBYTE;
-const PLACEHOLDER_EMAIL_DOMAINS = new Set(["clerk.com", "email.com", "example.com", "example.net", "example.org"]);
+const MAX_ARCHIVE_ENTRIES = 20_000;
+const MAX_ARCHIVE_DEPTH = 2;
+const MAX_ARCHIVE_UNCOMPRESSED_BYTES = 200 * MEBIBYTE;
+const PLACEHOLDER_EMAIL_DOMAINS = new Set([
+  "clerk.com",
+  "email.com",
+  "example.com",
+  "example.net",
+  "example.org",
+  "example.test",
+  "test.com",
+]);
 const TEXT_EXTENSIONS = new Set([
   ".css",
   ".csv",
@@ -17,6 +29,9 @@ const TEXT_EXTENSIONS = new Set([
   ".mjs",
   ".svg",
   ".txt",
+  ".network",
+  ".stacks",
+  ".trace",
   ".xml",
   ".yaml",
   ".yml",
@@ -62,6 +77,7 @@ const FORBIDDEN_FILE_PATTERNS = [
   },
   { label: "access log", pattern: /(^|\/)(?:access|nginx[-_.]?access)[-_.]?(?:log|jsonl)(?:\.[^/]*)?$/i },
 ];
+const UUID_TOKEN_PATTERN = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const SENSITIVE_CONTENT_PATTERNS = [
   {
     label: "private key",
@@ -86,9 +102,25 @@ const SENSITIVE_CONTENT_PATTERNS = [
     label: "JWT or session token",
     pattern: /\beyJ[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}\b/,
   },
+  { label: "Clerk session identifier", pattern: /\b(?:dvb|sess)_[A-Za-z0-9_-]{8,}\b/ },
+  {
+    label: "bearer capability URL",
+    pattern: new RegExp(
+      `/(?:legal/staff/consent|manager-invite|shifts/(?:submit|view)|staff/register)\\?[^\\s"'<>]{0,512}\\btoken=${UUID_TOKEN_PATTERN}`,
+      "i",
+    ),
+  },
+  {
+    label: "bearer capability field",
+    pattern: new RegExp(
+      `[\\\\]?["'](?:capability|sessionToken|token)[\\\\]?["']\\s*[:=]\\s*[\\\\]?["']${UUID_TOKEN_PATTERN}[\\\\]?["']`,
+      "i",
+    ),
+  },
   { label: "inline source map", pattern: /sourceMappingURL\s*=/ },
 ];
-const EMAIL_PATTERN = /[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)/g;
+const EMAIL_LOCAL_SUFFIX_PATTERN = /[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}$/;
+const EMAIL_DOMAIN_PREFIX_PATTERN = /^([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)/;
 const PLAYWRIGHT_STORAGE_PATTERN = /"cookies"\s*:\s*\[[\s\S]*?"origins"\s*:\s*\[/;
 
 function parseArguments(argv) {
@@ -122,19 +154,189 @@ function findSensitiveContent(contents, includeEmail) {
   if (PLAYWRIGHT_STORAGE_PATTERN.test(contents)) return "authenticated browser storage state";
 
   if (includeEmail) {
-    EMAIL_PATTERN.lastIndex = 0;
-    for (const match of contents.matchAll(EMAIL_PATTERN)) {
-      const domain = match[1]?.toLowerCase();
+    let searchFrom = 0;
+    while (searchFrom < contents.length) {
+      const atIndex = contents.indexOf("@", searchFrom);
+      if (atIndex === -1) break;
+      const localPart = contents.slice(Math.max(0, atIndex - 64), atIndex).match(EMAIL_LOCAL_SUFFIX_PATTERN)?.[0];
+      const domain = contents
+        .slice(atIndex + 1, Math.min(contents.length, atIndex + 255))
+        .match(EMAIL_DOMAIN_PREFIX_PATTERN)?.[1]
+        ?.toLowerCase();
       if (
+        localPart &&
         domain &&
         !PLACEHOLDER_EMAIL_DOMAINS.has(domain) &&
         ![...PLACEHOLDER_EMAIL_DOMAINS].some((placeholder) => domain.endsWith(`.${placeholder}`))
       ) {
         return "non-placeholder email address";
       }
+      searchFrom = atIndex + 1;
     }
   }
   return undefined;
+}
+
+function findRecognizedBinary(contents) {
+  return [...BINARY_SIGNATURES.values()].some((matchesSignature) => matchesSignature(contents));
+}
+
+function decodeUtf8(contents) {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(contents);
+  } catch {
+    return undefined;
+  }
+}
+
+function assertSafeArchivePath(entryPath) {
+  assertSafeDisplayPath(entryPath);
+  if (
+    entryPath.startsWith("/") ||
+    entryPath.split("/").some((segment) => segment === "..") ||
+    path.posix.normalize(entryPath) !== entryPath
+  ) {
+    throw new Error(`Artifact ZIP entry path is unsafe: ${JSON.stringify(entryPath)}`);
+  }
+}
+
+function findZipEndOfCentralDirectory(contents) {
+  const minimumOffset = Math.max(0, contents.length - 22 - 0xffff);
+  for (let offset = contents.length - 22; offset >= minimumOffset; offset -= 1) {
+    if (contents.readUInt32LE(offset) === 0x06054b50) return offset;
+  }
+  throw new Error("Artifact privacy gate found an invalid ZIP archive.");
+}
+
+function scanRegularContents(contents, normalizedPath, allowInferredText = false) {
+  const extension = path.extname(normalizedPath).toLowerCase();
+  const isNamedText = TEXT_EXTENSIONS.has(extension) || TEXT_FILENAMES.has(path.basename(normalizedPath));
+  const binarySignature = BINARY_SIGNATURES.get(extension);
+
+  if (binarySignature && !binarySignature(contents)) {
+    throw new Error(`Artifact privacy gate found invalid binary file data: ${JSON.stringify(normalizedPath)}`);
+  }
+
+  const decodedText = isNamedText ? decodeUtf8(contents) : undefined;
+  if (isNamedText && decodedText === undefined) {
+    throw new Error(`Artifact privacy gate found invalid UTF-8 text: ${JSON.stringify(normalizedPath)}`);
+  }
+
+  const inferredText = allowInferredText && !isNamedText && !binarySignature ? decodeUtf8(contents) : undefined;
+  const recognizedBinary = Boolean(binarySignature) || findRecognizedBinary(contents);
+  if (!isNamedText && inferredText === undefined && !recognizedBinary) {
+    throw new Error(`Artifact privacy gate found an unsupported file type: ${JSON.stringify(normalizedPath)}`);
+  }
+
+  const searchableContents = decodedText ?? inferredText ?? contents.toString("latin1");
+  const sensitiveContent = findSensitiveContent(
+    searchableContents,
+    decodedText !== undefined || inferredText !== undefined,
+  );
+  if (sensitiveContent) {
+    throw new Error(`Artifact privacy gate found ${sensitiveContent}: ${JSON.stringify(normalizedPath)}`);
+  }
+}
+
+function scanZipContents(contents, archivePath, state, depth = 0) {
+  if (depth > MAX_ARCHIVE_DEPTH) {
+    throw new Error(`Artifact privacy gate exceeds the bounded ZIP depth: ${JSON.stringify(archivePath)}`);
+  }
+  const eocdOffset = findZipEndOfCentralDirectory(contents);
+  const diskNumber = contents.readUInt16LE(eocdOffset + 4);
+  const centralDirectoryDisk = contents.readUInt16LE(eocdOffset + 6);
+  const diskEntries = contents.readUInt16LE(eocdOffset + 8);
+  const totalEntries = contents.readUInt16LE(eocdOffset + 10);
+  const centralDirectorySize = contents.readUInt32LE(eocdOffset + 12);
+  const centralDirectoryOffset = contents.readUInt32LE(eocdOffset + 16);
+  const commentLength = contents.readUInt16LE(eocdOffset + 20);
+  if (
+    diskNumber !== 0 ||
+    centralDirectoryDisk !== 0 ||
+    diskEntries !== totalEntries ||
+    totalEntries === 0xffff ||
+    centralDirectorySize === 0xffffffff ||
+    centralDirectoryOffset === 0xffffffff ||
+    eocdOffset + 22 + commentLength !== contents.length ||
+    centralDirectoryOffset + centralDirectorySize > eocdOffset
+  ) {
+    throw new Error(`Artifact privacy gate found an unsupported ZIP structure: ${JSON.stringify(archivePath)}`);
+  }
+
+  let offset = centralDirectoryOffset;
+  for (let index = 0; index < totalEntries; index += 1) {
+    if (offset + 46 > contents.length || contents.readUInt32LE(offset) !== 0x02014b50) {
+      throw new Error(`Artifact privacy gate found an invalid ZIP directory: ${JSON.stringify(archivePath)}`);
+    }
+    const flags = contents.readUInt16LE(offset + 8);
+    const compressionMethod = contents.readUInt16LE(offset + 10);
+    const compressedSize = contents.readUInt32LE(offset + 20);
+    const uncompressedSize = contents.readUInt32LE(offset + 24);
+    const fileNameLength = contents.readUInt16LE(offset + 28);
+    const extraLength = contents.readUInt16LE(offset + 30);
+    const entryCommentLength = contents.readUInt16LE(offset + 32);
+    const localHeaderOffset = contents.readUInt32LE(offset + 42);
+    const nextOffset = offset + 46 + fileNameLength + extraLength + entryCommentLength;
+    if (nextOffset > contents.length) {
+      throw new Error(`Artifact privacy gate found an invalid ZIP entry: ${JSON.stringify(archivePath)}`);
+    }
+    const entryNameBytes = contents.subarray(offset + 46, offset + 46 + fileNameLength);
+    const entryName = decodeUtf8(entryNameBytes);
+    if (!entryName) throw new Error(`Artifact privacy gate found a non-UTF-8 ZIP path: ${JSON.stringify(archivePath)}`);
+    assertSafeArchivePath(entryName);
+
+    state.entryCount += 1;
+    state.uncompressedBytes += uncompressedSize;
+    if (
+      state.entryCount > MAX_ARCHIVE_ENTRIES ||
+      uncompressedSize > MAX_FILE_BYTES ||
+      state.uncompressedBytes > MAX_ARCHIVE_UNCOMPRESSED_BYTES
+    ) {
+      throw new Error("Artifact privacy gate exceeds the bounded ZIP size or entry count.");
+    }
+    if ((flags & 0x1) !== 0 || ![0, 8].includes(compressionMethod)) {
+      throw new Error(
+        `Artifact privacy gate found an encrypted or unsupported ZIP entry: ${JSON.stringify(entryName)}`,
+      );
+    }
+
+    if (!entryName.endsWith("/")) {
+      if (localHeaderOffset + 30 > contents.length || contents.readUInt32LE(localHeaderOffset) !== 0x04034b50) {
+        throw new Error(`Artifact privacy gate found an invalid ZIP local header: ${JSON.stringify(entryName)}`);
+      }
+      const localNameLength = contents.readUInt16LE(localHeaderOffset + 26);
+      const localExtraLength = contents.readUInt16LE(localHeaderOffset + 28);
+      const dataOffset = localHeaderOffset + 30 + localNameLength + localExtraLength;
+      const dataEnd = dataOffset + compressedSize;
+      if (dataEnd > contents.length) {
+        throw new Error(`Artifact privacy gate found truncated ZIP data: ${JSON.stringify(entryName)}`);
+      }
+      const compressed = contents.subarray(dataOffset, dataEnd);
+      let entryContents;
+      try {
+        entryContents =
+          compressionMethod === 0
+            ? Buffer.from(compressed)
+            : inflateRawSync(compressed, { maxOutputLength: Math.max(1, uncompressedSize) });
+      } catch {
+        throw new Error(`Artifact privacy gate could not inspect a ZIP entry: ${JSON.stringify(entryName)}`);
+      }
+      if (entryContents.length !== uncompressedSize) {
+        throw new Error(`Artifact privacy gate found a ZIP size mismatch: ${JSON.stringify(entryName)}`);
+      }
+
+      const nestedPath = `${archivePath}!/${entryName}`;
+      if (path.extname(entryName).toLowerCase() === ".zip") {
+        scanZipContents(entryContents, nestedPath, state, depth + 1);
+      } else {
+        scanRegularContents(entryContents, nestedPath, true);
+      }
+    }
+    offset = nextOffset;
+  }
+  if (offset !== centralDirectoryOffset + centralDirectorySize) {
+    throw new Error(`Artifact privacy gate found an invalid ZIP directory size: ${JSON.stringify(archivePath)}`);
+  }
 }
 
 async function collectFiles(rootArgument) {
@@ -185,6 +387,7 @@ async function scanArtifacts(rootArguments) {
   if (files.length > MAX_FILES) throw new Error("Artifact privacy gate exceeds the bounded file count.");
 
   let totalBytes = 0;
+  const archiveState = { entryCount: 0, uncompressedBytes: 0 };
   for (const file of files) {
     totalBytes += file.size;
     if (file.size > MAX_FILE_BYTES || totalBytes > MAX_TOTAL_BYTES) {
@@ -198,37 +401,22 @@ async function scanArtifacts(rootArguments) {
       );
     }
 
-    const extension = path.extname(normalizedPath).toLowerCase();
-    const isText = TEXT_EXTENSIONS.has(extension) || TEXT_FILENAMES.has(path.basename(normalizedPath));
-    const binarySignature = BINARY_SIGNATURES.get(extension);
-    if (!isText && !binarySignature) {
-      throw new Error(`Artifact privacy gate found an unsupported file type: ${JSON.stringify(normalizedPath)}`);
-    }
-
     const contents = await readFile(file.filePath);
-    if (binarySignature && !binarySignature(contents)) {
-      throw new Error(`Artifact privacy gate found invalid binary file data: ${JSON.stringify(normalizedPath)}`);
-    }
-    let searchableContents;
-    try {
-      searchableContents = isText
-        ? new TextDecoder("utf-8", { fatal: true }).decode(contents)
-        : contents.toString("latin1");
-    } catch {
-      throw new Error(`Artifact privacy gate found invalid UTF-8 text: ${JSON.stringify(normalizedPath)}`);
-    }
-    const sensitiveContent = findSensitiveContent(searchableContents, isText);
-    if (sensitiveContent) {
-      throw new Error(`Artifact privacy gate found ${sensitiveContent}: ${JSON.stringify(normalizedPath)}`);
+    if (path.extname(normalizedPath).toLowerCase() === ".zip") {
+      scanZipContents(contents, normalizedPath, archiveState);
+    } else {
+      scanRegularContents(contents, normalizedPath);
     }
   }
-  return { fileCount: files.length, totalBytes };
+  return { archiveEntryCount: archiveState.entryCount, fileCount: files.length, totalBytes };
 }
 
 try {
   const roots = parseArguments(process.argv.slice(2));
   const result = await scanArtifacts(roots);
-  console.log(`Artifact privacy gate passed: ${result.fileCount} files, ${result.totalBytes} bytes.`);
+  console.log(
+    `Artifact privacy gate passed: ${result.fileCount} files, ${result.archiveEntryCount} archive entries, ${result.totalBytes} bytes.`,
+  );
 } catch (error) {
   console.error(error instanceof Error ? error.message : "Artifact privacy gate failed.");
   process.exit(1);

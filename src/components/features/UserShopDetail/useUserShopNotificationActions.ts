@@ -12,24 +12,27 @@ export function useUserShopNotificationActions({
   targetShopId,
   membership,
   isReadOnly,
+  enabled,
 }: {
   targetShopId: Id<"shops">;
   membership: UserShopDetailMembership;
   isReadOnly: boolean;
+  enabled: boolean;
 }) {
   const recruitments = usePaginatedQuery(
     api.dashboard.queries.getDashboardRecruitments,
-    { shopId: targetShopId },
+    enabled ? { shopId: targetShopId } : "skip",
     { initialNumItems: RECRUITMENT_QUERY_PAGE_SIZE },
   );
-  const currentRecruitments = useQuery(api.dashboard.queries.getDashboardCurrentRecruitments, {
-    shopId: targetShopId,
-  });
+  const currentRecruitments = useQuery(
+    api.dashboard.queries.getDashboardCurrentRecruitments,
+    enabled ? { shopId: targetShopId } : "skip",
+  );
   const sendOpenRecruitmentNotifications = useMutation(api.staff.mutations.sendOpenRecruitmentNotifications);
   const sendCurrentShiftNotification = useMutation(api.staff.mutations.sendCurrentShiftNotification);
 
   const { run: sendRecruitments, isRunning: isSendingRecruitments } = useSingleFlight(async () => {
-    if (isReadOnly || membership.shopId !== targetShopId) return;
+    if (!enabled || isReadOnly || membership.shopId !== targetShopId) return;
     try {
       const result = await sendOpenRecruitmentNotifications({ shopId: targetShopId, staffId: membership.staffId });
       if (result.scheduled) {
@@ -47,7 +50,7 @@ export function useUserShopNotificationActions({
   });
 
   const { run: sendCurrentShift, isRunning: isSendingCurrentShift } = useSingleFlight(async () => {
-    if (isReadOnly || membership.shopId !== targetShopId) return;
+    if (!enabled || isReadOnly || membership.shopId !== targetShopId) return;
     try {
       const result = await sendCurrentShiftNotification({ shopId: targetShopId, staffId: membership.staffId });
       if (result.scheduled) {
@@ -71,11 +74,11 @@ export function useUserShopNotificationActions({
   });
 
   return {
-    openRecruitments: recruitments.results.filter(
-      (recruitment) => recruitment.status === "open",
-    ) as UserShopDetailRecruitment[],
-    currentRecruitments: (currentRecruitments ?? []) as UserShopDetailRecruitment[],
-    isLoading: recruitments.status === "LoadingFirstPage" || currentRecruitments === undefined,
+    openRecruitments: (enabled
+      ? recruitments.results.filter((recruitment) => recruitment.status === "open")
+      : []) as UserShopDetailRecruitment[],
+    currentRecruitments: (enabled ? (currentRecruitments ?? []) : []) as UserShopDetailRecruitment[],
+    isLoading: enabled && (recruitments.status === "LoadingFirstPage" || currentRecruitments === undefined),
     sendRecruitments,
     sendCurrentShift,
     isSendingRecruitments,

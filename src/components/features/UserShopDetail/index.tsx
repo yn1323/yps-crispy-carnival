@@ -2,6 +2,7 @@ import { useAtomValue } from "jotai";
 import { useRef } from "react";
 import type { Id } from "@/convex/_generated/dataModel";
 import { StaffNotificationHistory } from "@/src/components/features/StaffNotificationHistory";
+import { useViewportActivation } from "@/src/hooks/useViewportActivation";
 import { featureVisibilityAtom } from "@/src/stores/user";
 import type { UserShopDetailData, UserShopDetailMembership } from "./types";
 import { UserShopDetailView } from "./UserShopDetailView";
@@ -24,11 +25,15 @@ export function UserShopDetail({ data, membership, targetShopId, onBack, onMembe
   visibleTargetRef.current = { personId: data.person.id, targetShopId, staffId: membership.staffId };
   const isStoreReadOnly = !data.canWrite || membership.shopStatus !== "active";
   const storeDisabledReason = getStoreDisabledReason(data, membership);
+  const notificationSection = useViewportActivation<HTMLDivElement>({
+    activationKey: `${data.person.id}:${targetShopId}:${membership.staffId}`,
+  });
   const line = useUserShopLineActions({ targetShopId, membership, isReadOnly: isStoreReadOnly });
   const notifications = useUserShopNotificationActions({
     targetShopId,
     membership,
     isReadOnly: isStoreReadOnly,
+    enabled: notificationSection.isActive,
   });
   const membershipActions = useUserShopMembershipActions({
     targetShopId,
@@ -62,7 +67,13 @@ export function UserShopDetail({ data, membership, targetShopId, onBack, onMembe
       isStoreReadOnly={isStoreReadOnly}
       storeDisabledReason={storeDisabledReason}
       showMembershipRemoval={showMembershipRemoval}
-      notificationHistory={<StaffNotificationHistory shopId={targetShopId} staffId={membership.staffId} enabled />}
+      notificationSectionRef={notificationSection.ref}
+      onNotificationSectionFocus={notificationSection.activate}
+      notificationHistory={
+        notificationSection.isActive ? (
+          <StaffNotificationHistory shopId={targetShopId} staffId={membership.staffId} enabled />
+        ) : null
+      }
       state={{
         line: {
           authorizeUrl: line.authorizeUrl,
@@ -71,7 +82,7 @@ export function UserShopDetail({ data, membership, targetShopId, onBack, onMembe
           isSendingInvite: line.isSendingInvite,
         },
         notifications: {
-          isLoading: notifications.isLoading,
+          isLoading: !notificationSection.isActive || notifications.isLoading,
           openRecruitments: notifications.openRecruitments,
           currentRecruitments: notifications.currentRecruitments,
           isSendingRecruitments: notifications.isSendingRecruitments,

@@ -163,11 +163,7 @@ export const DashboardContent = ({
                         isReadOnly={isReadOnly}
                       >
                         {(notificationFailure) => {
-                          if (
-                            recruitment.isInitialLoading ||
-                            staff.isInitialLoading ||
-                            registrationRequests.isInitialLoading
-                          ) {
+                          if (recruitment.isInitialLoading) {
                             return <DashboardContentSkeleton />;
                           }
 
@@ -177,7 +173,12 @@ export const DashboardContent = ({
                               staffs={staff.staffs}
                               pendingStaffRequestCount={registrationRequests.requests.length}
                               isDismissed={isDashboardOnboardingDismissed}
-                              canShow={!isReadOnly && managerLegalConsentStatus?.required === false}
+                              canShow={
+                                !staff.isInitialLoading &&
+                                !registrationRequests.isInitialLoading &&
+                                !isReadOnly &&
+                                managerLegalConsentStatus?.required === false
+                              }
                             >
                               {(onboarding) => (
                                 <>

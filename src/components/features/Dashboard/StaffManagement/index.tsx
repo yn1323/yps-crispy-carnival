@@ -150,7 +150,7 @@ export function StaffManagement({
   );
 
   return children({
-    isInitialLoading: !data && staffQuery.status === "LoadingFirstPage",
+    isInitialLoading: status === "LoadingFirstPage",
     staffs,
     content,
   });

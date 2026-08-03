@@ -1,25 +1,33 @@
 import { test } from "../fixtures/e2eTest";
-import { convexRunJson } from "../helpers/convex";
+import { formatDateWithWeekday, getNextWeekDates } from "../helpers/date";
+import { createMagicLinkTokenForLatestRecruitment } from "../helpers/notificationTokens";
+import { seedManagerScenario } from "../helpers/scenarioSeeds";
 import { StaffSubmitPage } from "../pages/StaffSubmitPage";
 
-test.describe("スタッフ提出のモバイル回帰", { tag: ["@release", "@mobile"] }, () => {
-  test("スマートフォンで希望日を選び提出を完了できる", async ({ page }) => {
-    const { token } = convexRunJson<{ token: string }>("testing:seedSubmitTestData", {
-      submissionPattern: { kind: "dateOnly" },
+type MobileScenarioSeed = {
+  recruitmentId: string;
+  shopId: string;
+};
+
+// bearer capabilityを開くため、URLを保持し得るartifactを作らない。
+test.use({ trace: "off", screenshot: "off", video: "off" });
+
+test.describe("スタッフ提出のモバイル境界", { tag: ["@e2e-core", "@capability"] }, () => {
+  test("[E2E-MOBILE-01] Mobile Chromeで代表日を選び提出を完了する", async ({ e2eClerkUser, page }) => {
+    const dates = getNextWeekDates();
+    const seed = seedManagerScenario<MobileScenarioSeed>("testing:seedOpenRecruitmentNotificationScenario", { dates });
+    const capability = createMagicLinkTokenForLatestRecruitment({
+      recruitmentId: seed.recruitmentId,
+      shopId: seed.shopId,
+      staffEmail: e2eClerkUser,
+      purpose: "submit",
     });
     const submitPage = new StaffSubmitPage(page);
 
-    await test.step("Step 1: モバイル幅で提出フォームを開く", async () => {
-      await submitPage.goto(token);
-      await submitPage.expectFormVisible();
-      await submitPage.expectUnsubmittedBadge();
-    });
-
-    await test.step("Step 2: 希望日を選択して提出する", async () => {
-      await submitPage.toggleDay("4/7(火)");
-      await submitPage.expectDateWorking("4/7(火)");
-      await submitPage.submit();
-      await submitPage.expectCompletionVisible();
-    });
+    await submitPage.goto(capability.token);
+    await submitPage.expectFormVisible();
+    await submitPage.toggleDay(formatDateWithWeekday(dates.dates[0]));
+    await submitPage.submit();
+    await submitPage.expectCompletionVisible();
   });
 });

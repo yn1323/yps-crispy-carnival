@@ -107,6 +107,7 @@ export const Dialog = ({
   return (
     <ChakraDialog.Root
       open={isOpen}
+      lazyMount
       onOpenChange={onOpenChange}
       role={role}
       placement="center"

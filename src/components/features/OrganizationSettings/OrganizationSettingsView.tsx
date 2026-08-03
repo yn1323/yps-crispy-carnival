@@ -49,6 +49,7 @@ export const OrganizationSettingsView = ({
       onValueChange={onTabChange ? ({ value }) => onTabChange(value as OrganizationSettingsTab) : undefined}
       colorPalette="teal"
       variant="outline"
+      lazyMount
     >
       <Tabs.List overflowX="auto" overflowY="hidden" whiteSpace="nowrap">
         <Tabs.Trigger value="people" flexShrink={0} gap={2}>

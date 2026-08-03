@@ -82,6 +82,76 @@ route全体が成立するために必要なqueryと主要entityの存在判定�
 
 route groupのguardはアクセス可否を表示上で制御できるが、サーバー側の認可を代替しない。
 
+## 表示ライフサイクルと読み込み
+
+### route成立と段階表示
+
+ページ全体をLoadingにするqueryは、認証、routeの主要entity、画面を安全に成立させる判定に限る。
+補助情報や独立したsectionのqueryは、未取得でもpage shellと取得済みのsectionを表示できる構造にする。
+一つの子featureがLoadingであることを理由に、取得済みの兄弟featureまでpage全体のSkeletonへ戻さない。
+互いの結果を引数に使わないqueryは並列に開始し、一方の完了を待ってから次を開始するwaterfallを作らない。
+
+再取得中も直前の値を表示してよい場合は、最後に成立した値を保持し、更新中であることだけを対象sectionで示す。
+権限、対象店舗、削除状態など、古い値の表示が誤操作につながる場合は保持せず、成立判定をやり直す。
+
+### 非表示UIと購読
+
+componentがReact treeに存在することと、APIを購読する必要があることを同一視しない。
+Dialog、非選択tab、折りたたみ領域、viewport外の下位sectionが専用に使うqueryは、表示中または利用者が短時間で到達する状態になってから開始する。
+feature containerまたはcontrollerが表示条件を所有し、`enabled`または`"skip"`で購読開始を制御する。
+CSSによる非表示やTabsの非選択状態だけでは、hookと購読が停止したとみなさない。
+
+mount、module取得、API購読は別のライフサイクルとして設計する。
+
+- **lazy mount（`lazyMount`）**：初回表示までsubtreeをmountしない。重いフォーム、専用query、複数tabを持つDialogと非選択tabでは既定候補とする。
+- **再非表示時のunmount（`unmountOnExit`）**：閉じるたびにsubtreeを破棄する。入力、scroll位置、未確定の局所状態を失ってよい場合か、非表示中の継続コストを止める必要がある場合だけ使う。
+- **moduleのlazy load**：dynamic importでJSの取得と評価を初回利用まで遅らせる。大きなフォーム、editor、tour、chart、任意の外部SDKを候補とし、小さなleaf componentを無条件に分割しない。
+
+moduleのlazy loadには、対象領域と同じ大きさのLoadingとError Boundaryを置く。
+chunkの取得失敗やdeployment更新後の不整合が起きても、認証済み画面全体を空白にせず、対象領域で再試行または再読み込みへ回復できるようにする。
+
+表示条件が成立し、query引数も確定している場合は、module取得と副作用のないreadを独立して開始してよい。
+lazy moduleの評価とmountが終わるまでread開始も待つ直列処理を既定にせず、待ち時間が問題になるfeatureではcontrollerから同じ開始条件でpreloadとprewarmを行う。
+
+一度表示したtabやDialogの入力状態を保持する必要がある場合は、subtreeをmountしたまま専用queryだけ停止してよい。
+再表示時は、保持した状態と再取得したserver stateの競合をfeatureの契約として処理する。
+
+mutation、外部副作用を持つaction、課金状態の変更、通知送信は、preload、hover、focus、viewport進入だけを理由に実行しない。
+データの事前取得は、認可済みで副作用がなく、呼び出しコストを制限できるreadに限る。
+
+### preloadとviewport
+
+preloadは待ち時間を利用者の操作前へ移す最適化であり、成功しなくても通常のclickまたは表示開始から同じ結果へ到達できなければならない。
+route navigationはTanStack RouterのLinkを優先し、buttonから命令的に遷移する場合は、同等のintent preloadが必要か確認する。
+
+route moduleは、hover、focus、pointer intentなど、遷移確率が高まった時点でpreloadしてよい。
+一覧の全行や未表示の全routeを一括でpreloadせず、通信量、module size、遷移確率から対象を絞る。
+
+Convex queryをprewarmする場合は、queryと引数が遷移先の購読と一致し、引数が決定的で、保持時間が有限であることを確認する。
+paginated query、時刻や乱数で毎回変わる引数、一覧行ごとの大量購読は、共有可能なquery keyと総購読数を設計できない限りprewarmしない。
+
+長いページの下位sectionは、Intersection Observerなどでviewportへ入る少し前にmodule取得と副作用のないreadを開始してよい。
+初期viewport内の主作業、認可判定、操作可否に必要なデータはviewport依存で遅延しない。
+anchor linkやfocus移動などで下位sectionが直接対象になった場合は、viewportの監視結果を待たずに表示を開始する。
+
+### 計測と分割の判断
+
+APIの呼び出し箇所数だけで画面の遅さを判断しない。
+同じqueryと引数の購読がclient内で共有される場合もあるが、それを重複した取得責務の根拠にはしない。
+利用者を待たせる依存関係、購読の生存時間、再評価される範囲、queryの読み取り量を合わせて確認する。
+
+CSR遷移は初回表示のWeb Vitalsだけでは評価できない。
+利用者のclickまたはkeyboardによる遷移開始から、route moduleの取得と評価、route成立、主要contentの表示、遅延sectionの表示までを分けて計測する。
+hoverやfocusからclickまでのintent preloadは別に記録し、preloadのhitとmiss、cache条件が異なる値を一つの分布へ混ぜない。
+最適化前後は、正規化したroute単位のp50とp95で比較し、最も遅い依存を特定してから変更する。
+計測名へdocument ID、店舗ID、検索語、個人情報を含めない。
+
+module分割はproduction buildで、初期routeが読む総量、遅延chunkの大きさと個数、共通chunkの重複を変更前後で確認する。
+小さなcomponentを細かく分割してrequestと失敗境界だけを増やさず、routeまたは独立したfeatureの境界を優先する。
+
+遅延境界のテスト層と待機契約は `testing-strategy.md` が所有する。
+利用者へ見せるLoadingとErrorの状態は `ui-design.md` が所有する。
+
 ## feature、shared、template
 
 featureは、一つの操作、ユースケース、独立した変更理由のいずれかで切る。
