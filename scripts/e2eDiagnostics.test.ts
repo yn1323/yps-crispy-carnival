@@ -39,6 +39,16 @@ describe("E2E safe diagnostics", () => {
     expect(sanitized).not.toContain(rawAuthorization);
   });
 
+  it("診断メッセージからsecret環境変数名を出力しない", () => {
+    const sanitized = sanitizeDiagnosticMessage(
+      "configuration warning: CLERK_SECRET_KEY and CONVEX_DEPLOY_KEY are present",
+    );
+
+    expect(sanitized).toContain("[secret-env-redacted]");
+    expect(sanitized).not.toContain("CLERK_SECRET_KEY");
+    expect(sanitized).not.toContain("CONVEX_DEPLOY_KEY");
+  });
+
   it("Clerk FAPI URLのsession識別子とqueryを出力しない", () => {
     const sessionId = ["sess", "3HMzXdDIrBEahLYAhJlnHtXsPPj"].join("_");
     const databaseJwt = ["dvb", "3HMzXevYlhQxPkZGU9dzLpLXgIu"].join("_");

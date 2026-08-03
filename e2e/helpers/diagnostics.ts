@@ -6,6 +6,8 @@ const QUOTED_SENSITIVE_FIELD_PATTERN =
   /(["'](?:authorization|token|secret|session|credential)["']\s*[:=]\s*)["'][^"'\\]*(?:\\.[^"'\\]*)*["']/gi;
 const AUTHORIZATION_PATTERN = /\bauthorization\s*[:=]\s*(?:bearer\s+)?[^\s,;]+/gi;
 const TOKEN_FIELD_PATTERN = /\b(token|secret|session|credential)\s*[:=]\s*[^\s,;]+/gi;
+const SECRET_ENV_IDENTIFIER_PATTERN =
+  /\b(?:ANTHROPIC_API_KEY|CLERK_SECRET_KEY|CLOUDFLARE_API_TOKEN|CONVEX_DEPLOY_KEY|CONVEX_MANAGEMENT_TOKEN|HOSTING_PAGES_TOKEN|LINE_CHANNEL_ACCESS_TOKEN|LINE_CHANNEL_SECRET|ORGANIZATION_INVITATION_SIGNING_SECRET|REG_SUIT_CLIENT_ID|REPORT_PUBLISHER_HOSTING_PAGES_TOKEN|RESEND_API_KEY|SLACK_WEBHOOK_URL|STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET)\b/g;
 const MAX_MESSAGE_INPUT_LENGTH = 10_000;
 const MAX_MESSAGE_LENGTH = 500;
 
@@ -32,6 +34,7 @@ export function sanitizeDiagnosticMessage(message: string) {
     .replace(QUOTED_SENSITIVE_FIELD_PATTERN, '$1"[redacted]"')
     .replace(AUTHORIZATION_PATTERN, "authorization=[redacted]")
     .replace(TOKEN_FIELD_PATTERN, "$1=[redacted]")
+    .replace(SECRET_ENV_IDENTIFIER_PATTERN, "[secret-env-redacted]")
     .slice(0, MAX_MESSAGE_LENGTH);
 }
 
