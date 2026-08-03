@@ -30,6 +30,8 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   /* A retry-pass is still a release risk and must fail the CI gate. */
   failOnFlakyTests: !!process.env.CI,
+  /* 公開レポートへworkflow差分を収録しない。差分にはsecret環境変数名が含まれ得る。 */
+  captureGitInfo: { diff: false },
   /* 通常用3ユーザーとparallelIndexを固定対応させる。 */
   workers: getE2EWorkerCount(),
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */

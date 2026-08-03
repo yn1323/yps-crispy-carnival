@@ -177,39 +177,6 @@ function findSensitiveContent(contents, includeEmail) {
   return undefined;
 }
 
-function findJsonSensitiveLocation(contents, sensitiveContent) {
-  let parsed;
-  try {
-    parsed = JSON.parse(contents);
-  } catch {
-    return undefined;
-  }
-
-  function visit(value, location) {
-    if (typeof value === "string") {
-      return findSensitiveContent(value, false) === sensitiveContent ? location : undefined;
-    }
-    if (Array.isArray(value)) {
-      for (let index = 0; index < value.length; index += 1) {
-        const childLocation = visit(value[index], `${location}[${index}]`);
-        if (childLocation) return childLocation;
-      }
-      return undefined;
-    }
-    if (value && typeof value === "object") {
-      for (const [key, child] of Object.entries(value)) {
-        const safeKey = /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key) ? `.${key}` : ".[redacted-key]";
-        const childLocation = visit(child, `${location}${safeKey}`);
-        if (childLocation) return childLocation;
-      }
-      return findSensitiveContent(JSON.stringify(value), false) === sensitiveContent ? location : undefined;
-    }
-    return undefined;
-  }
-
-  return visit(parsed, "$");
-}
-
 function findRecognizedBinary(contents) {
   return [...BINARY_SIGNATURES.values()].some((matchesSignature) => matchesSignature(contents));
 }
@@ -267,12 +234,7 @@ function scanRegularContents(contents, normalizedPath, allowInferredText = false
     decodedText !== undefined || inferredText !== undefined,
   );
   if (sensitiveContent) {
-    const jsonLocation =
-      extension === ".json" ? findJsonSensitiveLocation(searchableContents, sensitiveContent) : undefined;
-    const locationSuffix = jsonLocation ? ` in JSON field ${JSON.stringify(jsonLocation)}` : "";
-    throw new Error(
-      `Artifact privacy gate found ${sensitiveContent}${locationSuffix}: ${JSON.stringify(normalizedPath)}`,
-    );
+    throw new Error(`Artifact privacy gate found ${sensitiveContent}: ${JSON.stringify(normalizedPath)}`);
   }
 }
 
