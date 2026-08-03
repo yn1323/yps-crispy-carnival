@@ -161,7 +161,8 @@ export async function handleAnalyticsApi(request: Request, env: AnalyticsProxyEn
   try {
     upstream = await fetch(getConvexEndpoint(convexHttpUrl), {
       method: "POST",
-      redirect: "error",
+      // secret付きのservice requestはredirect先へ追従せず、3xxを下で502に変換する。
+      redirect: "manual",
       headers: {
         "content-type": "application/json",
         "x-shiftori-internal-api-secret": env.SHIFTORI_INTERNAL_API_SECRET,
