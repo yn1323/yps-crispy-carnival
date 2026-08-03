@@ -37,10 +37,10 @@ function TrendUnavailable() {
   return (
     <Box bg="gray.50" border="1px solid" borderColor="gray.200" borderRadius="lg" p={4}>
       <Text color="gray.700" fontSize="sm" fontWeight="bold">
-        推移は2日分以上の集計後に表示されます
+        この期間には推移を描ける値がありません
       </Text>
       <Text color="gray.500" fontSize="xs" mt={1}>
-        欠損区間を0として結ばず、描画できる値がそろうまでグラフを省略しています。
+        分母が0または欠損している値は、0として描画しません。
       </Text>
     </Box>
   );
@@ -193,7 +193,7 @@ export function OverviewView({
           {canPlotTrend ? (
             <ChartPanel
               contentHeight={{ base: "240px", md: "320px" }}
-              description="率は0〜100%で比較し、欠損区間は0として結びません。"
+              description="単一時点の場合は棒で示し、複数時点の欠損区間は0として結びません。"
               title="運用KPIの推移"
             >
               <TrendChart data={model.trend} keys={model.trendKeys} valueKind="percent" />
@@ -202,7 +202,7 @@ export function OverviewView({
           {canPlotCountTrend ? (
             <ChartPanel
               contentHeight={{ base: "240px", md: "320px" }}
-              description="全店舗、稼働店舗、KPI対象店舗を同じ店舗数の尺度で比較します。"
+              description="全店舗、稼働店舗、KPI対象店舗を比較します。1日分だけでも現在値として表示します。"
               title="店舗基盤の推移"
             >
               <TrendChart data={model.countTrend} keys={model.countTrendKeys} valueKind="count" />

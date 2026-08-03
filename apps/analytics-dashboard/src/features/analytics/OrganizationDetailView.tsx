@@ -26,10 +26,10 @@ function TrendUnavailable() {
   return (
     <Box bg="gray.50" border="1px solid" borderColor="gray.200" borderRadius="lg" p={4}>
       <Text color="gray.700" fontSize="sm" fontWeight="bold">
-        推移は2日分以上の集計後に表示されます
+        この期間には推移を描ける値がありません
       </Text>
       <Text color="gray.500" fontSize="xs" mt={1}>
-        描画できる値がそろうまで、空のグラフは表示しません。
+        分母が0または欠損している値は、0として描画しません。
       </Text>
     </Box>
   );

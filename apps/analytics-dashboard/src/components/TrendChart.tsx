@@ -65,7 +65,9 @@ function TrendTooltip({
 }
 
 export function hasPlottableTrendData(data: ChartDatum[], keys: string[]) {
-  return keys.some((key) => data.filter((point) => typeof point[key] === "number").length >= 2);
+  return keys.some((key) =>
+    data.some((point) => typeof point[key] === "number" && Number.isFinite(point[key] as number)),
+  );
 }
 
 export const TrendChart = ({ data, keys, kind = "line", valueKind = "count" }: TrendChartProps) => {
@@ -73,6 +75,7 @@ export const TrendChart = ({ data, keys, kind = "line", valueKind = "count" }: T
     data,
     series: keys.map((key, index) => ({ color: COLORS[index % COLORS.length], name: key })),
   });
+  const effectiveKind = data.length === 1 ? "bar" : kind;
 
   if (data.length === 0) {
     return (
@@ -84,7 +87,7 @@ export const TrendChart = ({ data, keys, kind = "line", valueKind = "count" }: T
     );
   }
 
-  if (kind === "bar") {
+  if (effectiveKind === "bar") {
     return (
       <Chart.Root aria-label={`${keys.join("、")}の推移グラフ`} chart={chart} h="full" role="img">
         <ResponsiveContainer height="100%" width="100%">
@@ -139,7 +142,7 @@ export const TrendChart = ({ data, keys, kind = "line", valueKind = "count" }: T
               key={String(item.name)}
               activeDot={{ r: 5 }}
               dataKey={chart.key(item.name)}
-              dot={false}
+              dot={{ r: 3, strokeWidth: 0 }}
               connectNulls={false}
               stroke={chart.color(item.color)}
               strokeWidth={2}
