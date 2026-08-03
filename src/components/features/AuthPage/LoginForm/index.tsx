@@ -30,6 +30,9 @@ export function LoginForm({
 
   return (
     <Stack as="form" gap={5} onSubmit={handleSubmit(onSubmit)}>
+      <Text color="red" textStyle="sm">
+        管理者メールアドレス変更時にログインできなくなる事象が発生しています。メールアドレス変更時は、旧メールアドレスでログインしてください。
+      </Text>
       <OAuthSection
         isLineBrowser={isLineBrowser}
         isSubmitting={isSubmitting}
