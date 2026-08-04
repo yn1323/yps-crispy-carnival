@@ -105,12 +105,14 @@ Googleとメール・パスワードの両方を持つ状態では、同じメ�
 4. メール・パスワードのみのUserへGoogle ExternalAccountを追加し、同じメールアドレスと異なるメールアドレスのどちらでも、current Userへの接続として完了することを確認する。
 5. 別のClerk Userへ接続済みのGoogleアカウントを追加し、Userの統合や既存方法の変更を行わず、衝突として失敗することを確認する。
 6. Google OAuthの成功、利用者による取消、provider失敗、帰還後のUser不一致を区別し、失敗時に既存のメール・パスワードが残ることを確認する。
-7. Googleとメール・パスワードの両方を持つUserでは、有効なパスワードと確認済みEmailAddressを直前のreloadで確認した場合だけGoogleを解除できることを確認する。
-8. GoogleのみのUserでは解除操作へ到達できず、直接操作を試みても拒否されることを確認する。
-9. Google解除の応答が失われた場合は、reloadした最新状態から成功または未完了を判定できることを確認する。
-10. 同じtab内の連打はsingle-flightで抑止され、確認コード送信とGoogle OAuth開始は画面遷移やOAuth往復後も30秒の絶対期限まで再送されないことを確認する。  2つのtabから同じ操作を開始した場合は、各操作直前のreloadとClerk serverの拒否により、少なくとも一つのログイン方法が残ることを確認する。
-11. EmailAddress削除、パスワード削除、専用のGoogle置換操作が画面とURL状態に存在しないことを確認する。
-12. Gmail以外のメールアドレスと通常buildでも、状態に応じたGoogle追加または解除へ到達できることを確認する。
+7. 衝突、取消、provider失敗後に`failed`または`unverified`のGoogle ExternalAccountが一件だけ残った場合は、「Googleを再接続」を押す。  同じUser、同じPrimary、メール・パスワードの退避方法、exact resourceの所属を再確認した後、その未完了resourceだけを破棄し、新しいGoogleアカウント選択画面を開くことを確認する。
+8. 未完了Googleの破棄応答が失われた場合は、reloadでexact resourceの不在を証明できたときだけ新しいOAuthを開始することを確認する。  resourceが残る場合、検証済みになった場合、Google resourceが複数ある場合、verification statusが未知の場合は、推測削除や新しいOAuthを行わないことを確認する。
+9. Googleとメール・パスワードの両方を持つUserでは、有効なパスワードと確認済みEmailAddressを直前のreloadで確認した場合だけGoogleを解除できることを確認する。
+10. GoogleのみのUserでは解除操作へ到達できず、直接操作を試みても拒否されることを確認する。
+11. Google解除の応答が失われた場合は、reloadした最新状態から成功または未完了を判定できることを確認する。
+12. 同じtab内の連打はsingle-flightで抑止され、確認コード送信とGoogle OAuth開始は画面遷移やOAuth往復後も30秒の絶対期限まで再送されないことを確認する。  2つのtabから同じ操作を開始した場合は、各操作直前のreloadとClerk serverの拒否により、少なくとも一つのログイン方法が残ることを確認する。
+13. EmailAddress削除、パスワード削除、専用のGoogle置換操作が画面とURL状態に存在しないことを確認する。
+14. Gmail以外のメールアドレスと通常buildでも、状態に応じたGoogle追加または解除へ到達できることを確認する。
 
 ### 分離契約とPIIの確認
 

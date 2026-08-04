@@ -82,6 +82,8 @@ Google認証を保持したまま、Googleとメール・パスワードの両�
 OAuth帰還後に同じClerk Userと、そこへ属する確認済みGoogle ExternalAccountを再取得してから完了とする。
 別のClerk Userへ接続済みのGoogleアカウントは自動統合せず、既存のメール・パスワードを維持してエラーを表示する。
 
+Google追加の失敗後に`failed`または`unverified`のGoogle ExternalAccountが一件だけ残った場合は、「Googleを再接続」から同じ追加フローを明示的に再試行できる。  再試行時はcurrent User、Primaryメールアドレス、パスワードと確認済みEmailAddressを再取得し、対象がそのUserに属する一件だけの未完了resourceであることを確認してから破棄する。破棄後のreloadで不在を確認できた場合だけ、新しい`select_account`付きOAuthとexact resourceの相関を開始する。  確認済みGoogle、複数resource、未知のverification statusは推測削除せず、新しいOAuthも開始しない。
+
 Google認証の解除は、操作直前のreloadで有効なパスワードと確認済みEmailAddressが残る場合だけ許可する。
 Googleのみの状態では解除操作を表示しない。
 解除後もメールアドレスでログインできることを示す既存の補足は、この解除条件を満たす場合だけ表示する。
@@ -140,7 +142,7 @@ ClerkのEmailAddress: 1件または複数件
 - Clerk `User.update()`：確認済みEmailAddressへのPrimary切替
 - Clerk `User.updatePassword()`：初回パスワード設定と既存パスワード変更
 - Clerk `User.createExternalAccount()`：current UserへのGoogle認証追加
-- Clerk `ExternalAccount.destroy()`：メール・パスワードを退避方法として確認した後のGoogle認証解除
+- Clerk `ExternalAccount.destroy()`：メール・パスワードを退避方法として確認した後のGoogle認証解除と、明示的な再試行で安全性を再確認した未完了Google resourceの整理
 - Clerk `useReverification()`：sensitiveな本人操作の追加確認
 - `api.organizationInvitation.acceptanceActions.accept`：管理者招待の新しい受諾入口
 - `api.accountEmail.actions.syncMyPrimaryEmail`：旧clientを変更なしで停止させる互換stub
