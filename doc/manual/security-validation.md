@@ -65,49 +65,63 @@ GitHub Actionsの権限、trigger、Environment gate、artifactの信頼境界�
 | `ENV-STRIPE-02` | Stripe設定 | 公開文書で申告するRadar、3DS、card testing対策と実account設定が一致する |
 | `ENV-REG-01` | 公開スタッフ登録 | 本番Turnstile、許可Origin、8 KiB超過拒否をdeployed canaryで確認する |
 | `ENV-CLERK-01` | Clerk | MFA、lockout、server throttle、loginまたはaccount変更通知を負の試験で確認する |
-| `ENV-CLERK-02` | ログイン方法とシフト連絡先の分離 | Google、email/password、email code、account linking、redirect、reverification、最後の方法の削除拒否、既存のメール不一致状態と管理者招待を、同じClerk Userのまま確認する |
+| `ENV-CLERK-02` | Clerk Developmentのログイン方法 | 3状態でPrimaryメール変更、メール・パスワード追加、Google追加と条件付き解除が同じClerk Userのまま完了し、失敗時も既存方法を維持する。Productionを変更していないことも記録する |
 | `ENV-OPS-01` | 端末と診断 | EDR、signature更新、full scan、隔離、credential rotation、DASTまたは第三者診断を記録する |
 
 IP由来の制限を有効にする場合は、ingressが利用者指定headerを破棄し、信頼できる値へ上書きする証跡を先に確認する。
 確認できないheaderを、認証や単独の許可条件に使わない。
 
-## ログイン方法とシフト連絡先分離の実環境受入
+## Clerk Developmentでのログイン方法受入
 
-`ENV-CLERK-02`は、実在顧客ではなく、確認者がすべてのメールを受信できる専用テスト利用者で行う。  DevelopmentとProduction相当のClerk instance、対象revision、Convex deploymentを先に固定し、通常顧客のメールアドレスや画面を開かない。
+`ENV-CLERK-02`は、Clerk Development instanceと、確認者が管理する専用テスト利用者で行う。
+共有E2E利用者、実在顧客、用途を確認できない既存利用者は変更しない。
+対象revisionとDevelopment instanceを固定し、操作前にClerk `user.id`、Primary EmailAddress、確認済みEmailAddress、`passwordEnabled`、Google ExternalAccountの状態をアクセス制限された証跡へ記録する。
 
-最初に両instanceで、Google social connection、email/password sign-in、EmailAddressの`email_code`確認、account linking、reverification、許可redirectを確認する。  Account linkingのredirectは`/account/security`専用とし、sign-in用`/sso-callback`や任意originへ流さない。
+この受入ではProductionの設定、利用者、ExternalAccount、EmailAddressを変更しない。
+Developmentの結果からProductionでの成立や公開済み状態を推測せず、将来Productionで確認する場合は対象revisionと変更許可を改めて固定する。
 
-次の4状態を別々のテスト利用者で用意する。
+### 事前確認
+
+最初に、DevelopmentでGoogle social connection、email/password sign-in、EmailAddressの`email_code`確認、account linking、reverification、利用者によるメール識別子の変更が有効であることを確認する。
+Account linkingのredirectは`/account/security`専用とし、sign-in用`/sso-callback`や任意originへ流さない。
+
+テスト利用者は、次の3状態をそれぞれ用意する。
+Googleとメール・パスワードの両方を持つ状態では、同じメールアドレスを使うケースと異なるメールアドレスを使うケースを分ける。
 
 | ケース | 初期状態 |
 |---|---|
-| A | verifiedなGoogleだけ |
-| B | verified EmailAddressとパスワードだけ |
-| C | 同じGmailでGoogleとパスワードの両方 |
-| D | GoogleはGmail、EmailAddressとパスワードはYahoo |
+| A | 確認済みGoogle ExternalAccountだけ |
+| B | 確認済みEmailAddressとパスワードだけ |
+| C | Google ExternalAccount、確認済みEmailAddress、パスワードの両方 |
 
-各ケースで、次を確認する。
+### 状態変更の確認
 
-1. 操作の前後で同じClerk Userであり、別Userの作成やsessionの取り違えがない。
-2. GoogleのみのUserへ初回パスワードを設定できる条件と、利用可能になるEmailAddressを確認する。
-3. verified EmailAddressの追加だけでログイン識別子になるか、primary変更が必要かを確認する。
-4. 同じメールと異なるメールのGoogleを、現在のUserへ安全に連携できるかを分けて確認する。
-5. Google連携の成功、キャンセル、provider失敗後に、account linking用callbackと`user.reload()`で同じresourceへ収束する。
-6. Google、パスワード、EmailAddressを一つずつ削除し、最後の利用可能な方法とlinked EmailAddressをClerk serverが拒否する。
-7. Google再接続、パスワード変更・削除、EmailAddress確認・削除のreverification成功、取消、期限切れを確認する。
-8. 2つのtabから同時に解除しても、直前reloadとClerk serverの拒否により少なくとも一つの方法が残る。
-9. パスワード変更時の他session無効化と現在sessionの扱いを確認し、画面説明と一致させる。
-10. LINEアプリ内browserからGoogle連携を始めた場合の外部browser遷移とsession維持を確認する。
-11. GmailのGoogleログイン、Yahooのシフト連絡先、Clerkに複数EmailAddressがある状態で、通常画面と`/account/security`を開ける。
-12. シフト連絡先を変更しても、Clerk、`users.email`、別グループ、`organizations.billingEmail`が変わらない。
-13. 管理者通知は対象グループのcanonical `organizationPeople.email`へ送られ、Clerkのメールへ自動同期されない。
-14. linked targetの管理者招待は内部user ID、未連携・外部招待はClerk Backend APIのverified EmailAddress所有で受諾できる。
-15. Clerk照会失敗、確認コード誤り、並行更新では招待を消費せず、メール一覧やprovider payloadをclientへ返さない。
-16. Clerk、Convex、browser console、audit、analyticsに、メール全文、確認コード、Clerk User payload、tokenが新規記録されていない。
+各操作では開始前と完了後にcurrent Userをreloadし、同じClerk `user.id`であることと、操作対象のresourceがそのUserに属することを確認する。
+別Userの作成、User間の自動統合、sessionの取り違えがあれば失敗とする。
 
-操作能力は、Google連携、Google解除、email/password設定、パスワード削除、EmailAddress削除、Google再接続ごとに判定する。  必須条件を確認できない能力は有効化せず、別の能力の成功から推測しない。  とくに、GmailのEmailAddress追加だけをGoogle連携成功の根拠にしない。
+1. 3状態すべてでPrimaryメールアドレスを変更し、以前のEmailAddressと既存のGoogle ExternalAccount、パスワードが維持されることを確認する。
+2. 未確認の変更先は正しい確認コードを受け付けるまでPrimaryにならず、誤ったコード、期限切れ、取消後も元のPrimaryが維持されることを確認する。
+3. GoogleのみのUserへ、Googleと同じ確認済みEmailAddressまたは新たに確認したEmailAddressを使ってパスワードを追加し、Google ExternalAccountが残ることを確認する。
+4. メール・パスワードのみのUserへGoogle ExternalAccountを追加し、同じメールアドレスと異なるメールアドレスのどちらでも、current Userへの接続として完了することを確認する。
+5. 別のClerk Userへ接続済みのGoogleアカウントを追加し、Userの統合や既存方法の変更を行わず、衝突として失敗することを確認する。
+6. Google OAuthの成功、利用者による取消、provider失敗、帰還後のUser不一致を区別し、失敗時に既存のメール・パスワードが残ることを確認する。
+7. Googleとメール・パスワードの両方を持つUserでは、有効なパスワードと確認済みEmailAddressを直前のreloadで確認した場合だけGoogleを解除できることを確認する。
+8. GoogleのみのUserでは解除操作へ到達できず、直接操作を試みても拒否されることを確認する。
+9. Google解除の応答が失われた場合は、reloadした最新状態から成功または未完了を判定できることを確認する。
+10. 2つのtabから同じ操作を開始してもsingle-flightと最新状態の確認が働き、少なくとも一つのログイン方法が残ることを確認する。
+11. EmailAddress削除、パスワード削除、専用のGoogle置換操作が画面とURL状態に存在しないことを確認する。
+12. Gmail以外のメールアドレスと通常buildでも、状態に応じたGoogle追加または解除へ到達できることを確認する。
 
-証跡には各能力の成功・失敗・保留、同一Clerk Userか、server-side拒否が成立したかをbooleanまたは件数で記録する。  スクリーンショットが必要な場合は、保存前にメール、コード、user ID、tokenを除き、アクセス制限された保管先だけを使う。
+### 分離契約とPIIの確認
+
+Primaryメールアドレスやログイン方法を変更しても、`users.email`、`organizationPeople.email`、`staffs.email`、`organizations.billingEmail`は変更されないことを確認する。
+管理者招待では、接続済みpersonを内部user IDで、未接続・外部招待をClerk Backend APIの確認済みEmailAddress所有で検証する既存契約を維持する。
+
+メールアドレス、確認コード、Clerk User payload、user ID、resource ID、tokenがURL、browser console、Convex log、audit、analyticsへ新規記録されていないことを確認する。
+スクリーンショットを保存する場合はPIIを除き、アクセス制限された保管先だけを使う。
+
+証跡には各操作の成功、失敗、保留と、操作前後で`user.id`が一致したかを記録する。
+Developmentの事前設定確認と、対象revisionを使った操作受入は別の結果として記録し、片方の成功からもう片方を推測しない。
 
 ## Convex migrationの再検証
 
