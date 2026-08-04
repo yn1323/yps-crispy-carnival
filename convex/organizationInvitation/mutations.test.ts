@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { seedOrganizationManagerShop, seedStaffLineAccount, seedUser, testAuthTokenIdentifier } from "../_test/seed";
+import { seedOrganizationManagerShop, seedStaffLineAccount, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { deriveInvitationToken, digestInvitationToken } from "./token";
 
@@ -815,10 +815,16 @@ describe("organizationInvitation/mutations", () => {
       signingSecret: SIGNING_SECRET,
     });
 
-    await t.mutation(internal.accountEmail.mutations.syncPrimary, {
-      authTokenIdentifier: testAuthTokenIdentifier("staff_invite_target"),
-      email: "staff-target-after@example.com",
-      requestKey: "c".repeat(64),
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.target.personId, {
+        email: "staff-target-after@example.com",
+        emailNormalized: "staff-target-after@example.com",
+        updatedAt: Date.now(),
+      });
+      await ctx.db.patch(ids.target.staffId, {
+        email: "staff-target-after@example.com",
+        emailNormalized: "staff-target-after@example.com",
+      });
     });
     await expect(t.query(api.organizationInvitation.queries.getPreview, { token: firstToken })).resolves.toEqual({
       status: "unavailable",
@@ -1484,10 +1490,16 @@ describe("organizationInvitation/mutations", () => {
       signingSecret: SIGNING_SECRET,
     });
 
-    await t.mutation(internal.accountEmail.mutations.syncPrimary, {
-      authTokenIdentifier: testAuthTokenIdentifier("invitation_email_drift_staff"),
-      email: "after-change@example.com",
-      requestKey: "d".repeat(64),
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.target.personId, {
+        email: "after-change@example.com",
+        emailNormalized: "after-change@example.com",
+        updatedAt: Date.now(),
+      });
+      await ctx.db.patch(ids.target.staffId, {
+        email: "after-change@example.com",
+        emailNormalized: "after-change@example.com",
+      });
     });
     await expect(
       t
@@ -2432,7 +2444,232 @@ describe("organizationInvitation/mutations", () => {
       reservedSeat: false,
     });
   });
+
+  it("連携済み人物はClerkメールが異なっても内部userIdで承認し、既存の連絡先を変更しない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const manager = await seedOrganizationManagerShop(ctx, { subject: "proof_linked_owner", plan: "pro" });
+      const target = await seedActiveOrganizationStaff(ctx, {
+        organizationId: manager.organizationId,
+        shopId: manager.shopId,
+        subject: "proof_linked_target",
+        email: "shift-contact@example.com",
+      });
+      return { ...manager, target };
+    });
+    const created = await t
+      .withIdentity({ subject: "proof_linked_owner" })
+      .mutation(api.organizationInvitation.mutations.createForStaff, {
+        shopId: ids.shopId,
+        staffId: ids.target.staffId,
+        requestId: "proof-linked-create",
+      });
+    const invitation = await t.run((ctx) => ctx.db.get(created.invitationId));
+    if (!invitation) throw new Error("invitation not found");
+    const token = await deriveInvitationToken({
+      invitationId: invitation._id,
+      version: invitation.version,
+      signingSecret: SIGNING_SECRET,
+    });
+    const actor = t.withIdentity({
+      subject: "proof_linked_target",
+      email: "google-login@example.com",
+      emailVerified: true,
+    });
+    const prepared = await actor.mutation(internal.organizationInvitation.mutations.prepareAcceptance, { token });
+    if (prepared.status !== "ready") throw new Error(`unexpected prepare status: ${prepared.status}`);
+    expect(prepared.requiresVerifiedEmail).toBe(false);
+
+    await expect(
+      actor.mutation(internal.organizationInvitation.mutations.finalizeAcceptance, {
+        token,
+        proof: {
+          actorTokenIdentifier: testAuthTokenIdentifierForSubject("proof_linked_target"),
+          actorSubject: "proof_linked_target",
+          invitationId: prepared.invitationId,
+          expectedVersion: prepared.expectedVersion,
+          tokenDigest: prepared.tokenDigest,
+        },
+      }),
+    ).resolves.toMatchObject({ status: "linked", organizationId: ids.organizationId });
+
+    const contact = await t.run(async (ctx) => ({
+      user: await ctx.db.get(ids.target.userId),
+      person: await ctx.db.get(ids.target.personId),
+      staff: await ctx.db.get(ids.target.staffId),
+    }));
+    expect(contact.user).toMatchObject({ email: "shift-contact@example.com" });
+    expect(contact.person).toMatchObject({ email: "shift-contact@example.com" });
+    expect(contact.staff).toMatchObject({ email: "shift-contact@example.com" });
+  });
+
+  it("準備時と確定時のactorまたは招待versionが変わった場合は招待を消費しない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const manager = await seedOrganizationManagerShop(ctx, { subject: "proof_binding_owner", plan: "pro" });
+      const target = await seedActiveOrganizationStaff(ctx, {
+        organizationId: manager.organizationId,
+        shopId: manager.shopId,
+        subject: "proof_binding_target",
+      });
+      return { ...manager, target };
+    });
+    const created = await t
+      .withIdentity({ subject: "proof_binding_owner" })
+      .mutation(api.organizationInvitation.mutations.createForStaff, {
+        shopId: ids.shopId,
+        staffId: ids.target.staffId,
+        requestId: "proof-binding-create",
+      });
+    const invitation = await t.run((ctx) => ctx.db.get(created.invitationId));
+    if (!invitation) throw new Error("invitation not found");
+    const token = await deriveInvitationToken({
+      invitationId: invitation._id,
+      version: invitation.version,
+      signingSecret: SIGNING_SECRET,
+    });
+    const target = t.withIdentity({ subject: "proof_binding_target" });
+    const prepared = await target.mutation(internal.organizationInvitation.mutations.prepareAcceptance, { token });
+    if (prepared.status !== "ready") throw new Error(`unexpected prepare status: ${prepared.status}`);
+    const proof = {
+      actorTokenIdentifier: testAuthTokenIdentifierForSubject("proof_binding_target"),
+      actorSubject: "proof_binding_target",
+      invitationId: prepared.invitationId,
+      expectedVersion: prepared.expectedVersion,
+      tokenDigest: prepared.tokenDigest,
+    };
+
+    await expect(
+      t
+        .withIdentity({ subject: "proof_binding_other" })
+        .mutation(internal.organizationInvitation.mutations.finalizeAcceptance, { token, proof }),
+    ).resolves.toEqual({ status: "conflict" });
+    await t.run((ctx) => ctx.db.patch(invitation._id, { version: invitation.version + 1 }));
+    await expect(
+      target.mutation(internal.organizationInvitation.mutations.finalizeAcceptance, { token, proof }),
+    ).resolves.toEqual({ status: "conflict" });
+    expect(await t.run((ctx) => ctx.db.get(invitation._id))).toMatchObject({ status: "issued", reservedSeat: false });
+  });
+
+  it("未連携の招待は招待先メールのserver-side証明がある時だけ新規userへ連携する", async () => {
+    const t = convexTest(schema, modules);
+    const manager = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: "proof_unlinked_owner", plan: "pro" }),
+    );
+    const created = await t
+      .withIdentity({ subject: "proof_unlinked_owner" })
+      .mutation(api.organizationInvitation.mutations.createExternal, {
+        shopId: manager.shopId,
+        name: "未連携 招待者",
+        email: "proof-unlinked@example.com",
+        requestId: "proof-unlinked-create",
+      });
+    const invitation = await t.run((ctx) => ctx.db.get(created.invitationId));
+    if (!invitation) throw new Error("invitation not found");
+    const token = await deriveInvitationToken({
+      invitationId: invitation._id,
+      version: invitation.version,
+      signingSecret: SIGNING_SECRET,
+    });
+    const actor = t.withIdentity({ subject: "proof_unlinked_target", email: "other-login@example.com" });
+    const prepared = await actor.mutation(internal.organizationInvitation.mutations.prepareAcceptance, { token });
+    if (prepared.status !== "ready") throw new Error(`unexpected prepare status: ${prepared.status}`);
+    expect(prepared.requiresVerifiedEmail).toBe(true);
+    const baseProof = {
+      actorTokenIdentifier: testAuthTokenIdentifierForSubject("proof_unlinked_target"),
+      actorSubject: "proof_unlinked_target",
+      invitationId: prepared.invitationId,
+      expectedVersion: prepared.expectedVersion,
+      tokenDigest: prepared.tokenDigest,
+    };
+
+    await expect(
+      actor.mutation(internal.organizationInvitation.mutations.finalizeAcceptance, { token, proof: baseProof }),
+    ).resolves.toEqual({ status: "conflict" });
+    await expect(
+      actor.mutation(internal.organizationInvitation.mutations.finalizeAcceptance, {
+        token,
+        proof: { ...baseProof, verifiedEmailNormalized: "proof-unlinked@example.com" },
+      }),
+    ).resolves.toMatchObject({ status: "linked", organizationId: manager.organizationId });
+    const createdUser = await t.run((ctx) =>
+      ctx.db
+        .query("users")
+        .withIndex("by_authTokenIdentifier", (q) =>
+          q.eq("authTokenIdentifier", testAuthTokenIdentifierForSubject("proof_unlinked_target")),
+        )
+        .unique(),
+    );
+    expect(createdUser).toMatchObject({
+      email: "proof-unlinked@example.com",
+      emailNormalized: "proof-unlinked@example.com",
+    });
+  });
+
+  it("外部招待は同じuserIdの人物が後から見つかってもverified招待先の証明を省略しない", async () => {
+    const t = convexTest(schema, modules);
+    const manager = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: "proof_external_owner", plan: "pro" }),
+    );
+    const created = await t
+      .withIdentity({ subject: "proof_external_owner" })
+      .mutation(api.organizationInvitation.mutations.createExternal, {
+        shopId: manager.shopId,
+        name: "外部 招待者",
+        email: "external-invite@example.com",
+        requestId: "proof-external-create",
+      });
+    const invitation = await t.run((ctx) => ctx.db.get(created.invitationId));
+    if (!invitation) throw new Error("invitation not found");
+    expect(invitation.targetPersonId).toBeUndefined();
+    const actor = await t.run(async (ctx) => {
+      const userId = await seedUser(ctx, "proof_external_target", "existing-login@example.com");
+      const now = Date.now();
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId: manager.organizationId,
+        userId,
+        name: "外部 招待者",
+        email: "external-invite@example.com",
+        emailNormalized: "external-invite@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { userId, personId };
+    });
+    const token = await deriveInvitationToken({
+      invitationId: invitation._id,
+      version: invitation.version,
+      signingSecret: SIGNING_SECRET,
+    });
+    const target = t.withIdentity({ subject: "proof_external_target", email: "existing-login@example.com" });
+    const prepared = await target.mutation(internal.organizationInvitation.mutations.prepareAcceptance, { token });
+    if (prepared.status !== "ready") throw new Error(`unexpected prepare status: ${prepared.status}`);
+    expect(prepared.requiresVerifiedEmail).toBe(true);
+    const proof = {
+      actorTokenIdentifier: testAuthTokenIdentifierForSubject("proof_external_target"),
+      actorSubject: "proof_external_target",
+      invitationId: prepared.invitationId,
+      expectedVersion: prepared.expectedVersion,
+      tokenDigest: prepared.tokenDigest,
+      verifiedEmailNormalized: "external-invite@example.com",
+    };
+
+    await expect(
+      target.mutation(internal.organizationInvitation.mutations.finalizeAcceptance, { token, proof }),
+    ).resolves.toMatchObject({ status: "linked", organizationId: manager.organizationId });
+    const state = await t.run(async (ctx) => ({
+      user: await ctx.db.get(actor.userId),
+      person: await ctx.db.get(actor.personId),
+    }));
+    expect(state.user).toMatchObject({ email: "existing-login@example.com" });
+    expect(state.person).toMatchObject({ email: "external-invite@example.com", userId: actor.userId });
+  });
 });
+
+function testAuthTokenIdentifierForSubject(subject: string) {
+  return `https://convex.test|${subject}`;
+}
 
 function extractOrganizationSettingsActionUrl(html: string) {
   const href = html.match(/<a href="([^"]+)"[^>]*>グループ設定を確認する<\/a>/)?.[1];

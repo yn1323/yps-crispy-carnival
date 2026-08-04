@@ -1,7 +1,6 @@
 import { Box, Flex, Stack, Text } from "@chakra-ui/react";
 import { LuPlus, LuUserRound } from "react-icons/lu";
 import type { Id } from "@/convex/_generated/dataModel";
-import { AccountEmailChange, type AccountEmailChangeOutcome } from "@/src/components/features/AccountEmailChange";
 import type { PersonProfileFormData } from "@/src/components/shared/PersonProfileForm";
 import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
 import { Button } from "@/src/components/ui/Button";
@@ -34,7 +33,6 @@ export type UserDetailViewProps = {
   actions: {
     onBack: () => void;
     onOpenBasic: () => void;
-    onOpenEmailChange: () => void;
     onOpenAddShop: () => void;
     onOpenShop: (shopId: string) => void;
     onClosePanel: () => void;
@@ -47,7 +45,6 @@ export type UserDetailViewProps = {
     onRequestRemovePerson: () => void;
     onConfirmManagerSetting: () => void | Promise<void>;
     onCloseManagerDialog: () => void;
-    onAccountEmailFinished: (outcome: AccountEmailChangeOutcome) => void;
   };
 };
 
@@ -81,8 +78,8 @@ export function UserDetailView({ data, showShopMembershipAddition, activePanel, 
           secondary={
             <Text fontSize="sm" color="fg.muted" lineHeight="tall">
               {data.managerInvitationState.kind === "hidden"
-                ? "名前・メールアドレスを管理します"
-                : "名前・メールアドレス・権限を管理します"}
+                ? "名前・シフト連絡先を管理します"
+                : "名前・シフト連絡先・権限を管理します"}
             </Text>
           }
           onClick={actions.onOpenBasic}
@@ -148,7 +145,6 @@ export function UserDetailView({ data, showShopMembershipAddition, activePanel, 
         onOpenChange={handleDialogOpenChange}
         onClose={actions.onClosePanel}
         onUpdateProfile={actions.onUpdateProfile}
-        onOpenEmailChange={actions.onOpenEmailChange}
         onRequestManagerAssignment={actions.onRequestManagerAssignment}
         onCancelManagerAssignment={actions.onCancelManagerAssignment}
         onAssignManager={actions.onAssignManager}
@@ -156,14 +152,6 @@ export function UserDetailView({ data, showShopMembershipAddition, activePanel, 
         onConfirmManagerSetting={actions.onConfirmManagerSetting}
         onCancelManagerSetting={actions.onCloseManagerDialog}
       />
-
-      {data.isSelf && data.person.hasLinkedAccount && (
-        <AccountEmailChange
-          isOpen={activePanel === "email"}
-          onClose={actions.onClosePanel}
-          onFinished={actions.onAccountEmailFinished}
-        />
-      )}
 
       {showShopMembershipAddition && (
         <UserShopAdditionDialog

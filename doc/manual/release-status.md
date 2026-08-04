@@ -1,6 +1,6 @@
 # リリース状態
 
-> 最終更新: 2026-07-28
+> 最終更新: 2026-08-04
 >
 > 実環境確認: 未確認
 
@@ -9,7 +9,7 @@
 
 ## 現在の確認状態
 
-2026-07-28時点で、この文書へ必要な実環境証跡は登録されていません。
+2026-08-04時点で、この文書へ必要な実環境証跡は登録されていません。
 次の状態はすべて**未確認**です。
 
 | 確認対象 | 状態 | 最終確認日時 | 対象環境・deployment | 証跡 |
@@ -21,6 +21,8 @@
 | StripeのPro・Business公開設定、Price、Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
 | Resendの`email.delivered` Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
 | Clerk、Cloudflare、Stripeのセキュリティ設定とprovider canary | 未確認 | 未確認 | 未確認 | 未登録 |
+| `ENV-CLERK-02`のログイン方法・シフト連絡先分離canary | 未確認 | 未確認 | 未確認 | 未登録 |
+| `verifyStaffs.activeStaffPersonEmailMismatch`の全ページ合計0件 | Development確認済み・Production未確認 | 2026-08-04 09:18 JST | `dev:fortunate-mallard-809` | 本文のDevelopment確認記録 |
 
 「未確認」は未実施を意味しません。
 この文書に、対象と時刻を特定できる証跡がまだないことを表します。
@@ -40,6 +42,8 @@
 - 失敗時の停止位置、復旧先、再確認条件。
 
 秘密値、個人情報、token、Webhook URLは記録しません。
+
+ログイン方法とシフト連絡先の分離を公開する前に、対象となる完全修飾Convex deploymentで`narrowReadiness/queries:verifyStaffs`を`isDone: true`まで全ページ実行し、`activeStaffPersonEmailMismatch`の合計が0件であることを記録します。  1件以上の場合は公開を停止し、連絡先を推測して修復せず、別のmigration判定へ分けます。
 
 ## 確認記録の様式
 
@@ -61,6 +65,22 @@
 - 停止位置・復旧先:
 - 次の確認条件:
 ```
+
+### 2026-08-04 09:18 JST：シフト連絡先projection（Development）
+
+- 状態: Development確認済み・Production未確認
+- 確認者: Codex（読み取り専用）
+- 環境: Development
+- 完全修飾deployment名: `dev:fortunate-mallard-809`
+- commit SHA: `0a850a78998026cfc6cd65f7de2bb8b9b52451a8`をbaseとする未コミットworktree。Production artifactとの一致は未確認
+- artifact: 未登録
+- 実行または確認内容: `narrowReadiness/queries:verifyStaffs`を100件単位で5ページ、合計471件走査
+- CLIが表示した対象: `fortunate-mallard-809`
+- 結果: 最終ページで`isDone: true`。`activeStaffPersonEmailMismatch`の全ページ合計は0件
+- 併記する既存anomaly: `missingOrganizationId`と`missingOrganizationPersonId`は各355件。その他の`verifyStaffs` anomalyは0件
+- 証跡: 本節に集計した5回のConvex CLI出力。PIIとrow IDは出力されていない
+- 停止位置・復旧先: Production公開判定、全体Narrow、schema変更には使用しない
+- 次の確認条件: release対象と同じSHA・artifactの完全修飾deploymentで全ページ走査し、Production証跡を別途記録する
 
 ## Migrationの記録
 

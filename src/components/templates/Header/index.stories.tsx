@@ -81,8 +81,9 @@ export const UserWithoutShopDeletionEntry: Story = {
       "href",
       "/settings?shop=shop-a",
     );
+    await expect(screen.getByRole("menuitem", { name: "ログイン設定" })).toHaveAttribute("href", "/account/security");
     await screen.findByRole("menuitem", { name: "ログアウト" });
-    await expect(screen.getByText("login@example.com")).toBeInTheDocument();
+    await expect(screen.queryByText("login@example.com")).toBeNull();
     await expect(screen.queryByText("tanaka@example.com")).toBeNull();
     await expect(screen.queryByRole("menuitem", { name: "店舗削除" })).toBeNull();
     await userEvent.keyboard("{Escape}");

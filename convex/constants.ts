@@ -47,10 +47,6 @@ export const DASHBOARD_RECRUITMENT_CANDIDATE_GROUP_LIMIT = 100;
 export const ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT = 100;
 // ユーザー詳細へ返す同一グループ店舗を安全に走査する上限。
 export const ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT = 100;
-// 本人メール同期は全所属を一transactionで更新するため、異常な紐づき数ではfail closedにする。
-export const ACCOUNT_EMAIL_PERSON_SCAN_LIMIT = 50;
-export const ACCOUNT_EMAIL_STAFF_SCAN_LIMIT = 200;
-export const ACCOUNT_EMAIL_SHOP_STAFF_SCAN_LIMIT = SHIFT_BOARD_STAFF_LIMIT;
 // 人物削除を単一transactionで確定できる、今日以降のシフト割当上限。
 export const ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT = 500;
 // 一人の利用者が自分で作成して保持できるグループ数。招待による所属は数えない。

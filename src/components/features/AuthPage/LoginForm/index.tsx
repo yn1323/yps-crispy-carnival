@@ -30,19 +30,20 @@ export function LoginForm({
 
   return (
     <Stack as="form" gap={5} onSubmit={handleSubmit(onSubmit)}>
-      <Text color="red" textStyle="sm">
-        管理者メールアドレス変更時にログインできなくなる事象が発生しています。メールアドレス変更時は、旧メールアドレスでログインしてください。
-      </Text>
       <OAuthSection
         isLineBrowser={isLineBrowser}
         isSubmitting={isSubmitting}
         onClick={onGoogle}
         label="Googleでログイン"
       />
+      <Text as="h2" color="gray.900" fontWeight="semibold">
+        メールアドレスとパスワードでログイン
+      </Text>
       <AuthError message={errorMessage} />
       <Field.Root invalid={!!errors.email}>
-        <Field.Label>メールアドレス</Field.Label>
+        <Field.Label>ログインに使うメールアドレス</Field.Label>
         <Input type="email" autoComplete="email" placeholder="example@example.com" {...register("email")} />
+        <Field.HelperText>ログイン設定に登録したメールアドレスを入力してください。</Field.HelperText>
         <Field.ErrorText>{errors.email?.message}</Field.ErrorText>
       </Field.Root>
       <Field.Root invalid={!!errors.password}>

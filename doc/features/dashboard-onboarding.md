@@ -12,12 +12,14 @@
 - `src/components/features/Dashboard/dashboardTourTargets.ts` — Dashboard内Tourターゲットの共有定数
 - `src/components/features/Dashboard/RecruitmentBoard/` — 募集作成ボタンと最新募集カードのTourターゲット
 - `src/components/features/Dashboard/StaffRoster/` — スタッフ追加ボタンのTourターゲット
+- `src/components/features/Dashboard/SetupModal/` — 初回セットアップで店舗情報、本人の表示名、シフト連絡先を登録する
 - `src/components/ui/Tour/` — Dashboard用の説明なしスポットライト表示に対応した既存Tourラッパー
 
 ### バックエンド（`convex/`）
 
 - `convex/dashboard/queries.ts` — Dashboard上の店舗情報・募集一覧・スタッフ一覧取得
 - `convex/dashboard/mutations.ts` — チュートリアル終了状態のDB保存
+- `convex/setup/mutations.ts` / `convex/setup/service.ts` — 初回セットアップでグループ、本人、最初の店舗、シフト連絡先、初期請求先を作成する
 
 ## 画面一覧
 
@@ -36,6 +38,15 @@
 | `api.dashboard.queries.getDashboardRecruitments` | query | 最新募集・提出人数/現在の有効スタッフ数・確定状態から進捗を派生 |
 | `api.dashboard.queries.getDashboardStaffs` | query | Dashboard上のスタッフ一覧取得 |
 | `api.dashboard.mutations.dismissOnboarding` | mutation | チュートリアル終了状態をDB保存 |
+| `api.setup.mutations.setupShopAndManager` | mutation | 初回セットアップの店舗、本人、シフト連絡先を登録し、支払い不要Businessのグループを作成 |
+
+## 初回セットアップとの境界
+
+- 初回セットアップの「シフト連絡先メールアドレス」は、本人のシフト通知と管理者向け連絡に使う連絡先であり、Clerkのログイン方法ではない。
+- 登録した氏名とシフト連絡先は、最初の`organizationPeople`と`staffs`へ保存する。
+- 同じメールアドレスをグループの初期`billingEmail`にも設定するが、請求先はグループ設定から独立して変更できる。
+- `users.email`にも初回値を保存するが、これは初期化と旧データ互換のための値であり、以後のログイン方法やシフト連絡先の正本にはしない。
+- 本文のDashboardオンボーディングは初回セットアップ完了後に始まり、ログイン方法の追加・削除・再接続は扱わない。
 
 ## 表示ルール
 

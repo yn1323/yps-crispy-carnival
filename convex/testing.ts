@@ -3,7 +3,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { getReminderScheduledAt, getSubmitLinkCutoff } from "./_lib/dateFormat";
 import { isDryRunManagerEmail, isNotificationDeliverySuppressed } from "./_lib/notificationDelivery";
-import { loadShopManagerUsers } from "./_lib/shopManagerRecipients";
+import { loadShopManagerContacts } from "./_lib/shopManagerRecipients";
 import { normalizeSubmissionPattern } from "./_lib/submissionPattern";
 import { generateUUID } from "./_lib/uuid";
 import { MAGIC_LINK_DEFAULT_TTL_MS, ORGANIZATION_NAME_SUFFIX } from "./constants";
@@ -1320,11 +1320,13 @@ export const getE2EShopSafetyState = internalQuery({
     const shop = await ctx.db.get(shopId);
     if (!shop || shop.isDeleted) return { notificationDeliverySuppressed: false };
 
-    const managers = await loadShopManagerUsers(ctx, shopId, 10);
+    const managers = await loadShopManagerContacts(ctx, shopId, 10);
     const allManagersAreDryRun =
       !managers.candidateLimitExceeded &&
-      managers.users.length > 0 &&
-      managers.users.every((manager) => isDryRunManagerEmail(manager.email));
+      managers.contacts.length > 0 &&
+      managers.contacts.every((manager) =>
+        isDryRunManagerEmail(manager.kind === "canonical" ? manager.person.email : manager.user.email),
+      );
 
     return {
       notificationDeliverySuppressed: isNotificationDeliverySuppressed() || allManagersAreDryRun,

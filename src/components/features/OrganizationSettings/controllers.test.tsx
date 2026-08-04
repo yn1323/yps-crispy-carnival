@@ -207,7 +207,7 @@ describe("OrganizationSettings controllers", () => {
     );
   });
 
-  it("グループ作成は選択中店舗を送らず一度だけ実行し、作成した店舗へ遷移する", async () => {
+  it("グループ作成は連絡先の引継元店舗を送り、一度だけ実行して作成した店舗へ遷移する", async () => {
     let resolveMutation: ((shopId: string) => void) | undefined;
     mocks.mutation.mockImplementation(
       () =>
@@ -234,6 +234,7 @@ describe("OrganizationSettings controllers", () => {
     await waitFor(() =>
       expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
         ...data,
+        sourceShopId: "shop-current",
         requestId: "request-1",
       }),
     );

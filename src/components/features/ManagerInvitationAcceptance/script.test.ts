@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ShopContextOption } from "@/src/domains/shop/context";
-import {
-  buildManagerInvitationLoginUrl,
-  buildManagerInvitationRedirect,
-  findAcceptedShopContext,
-  formatManagerInvitationExpiry,
-} from "./script";
+import { buildManagerInvitationRedirect, findAcceptedShopContext, formatManagerInvitationExpiry } from "./script";
 
 const shop = (overrides: Partial<ShopContextOption> = {}): ShopContextOption => ({
   shopId: "shop-a",
@@ -22,13 +17,6 @@ describe("manager invitation helpers", () => {
   it("招待tokenをquery値としてencodeして認証後の戻り先を作る", () => {
     expect(buildManagerInvitationRedirect("token&redirect=https://evil.example")).toBe(
       "/manager-invite?token=token%26redirect%3Dhttps%3A%2F%2Fevil.example",
-    );
-  });
-
-  it("ログインURLのredirect queryを二重のquery注入から守る", () => {
-    const invitationRedirect = buildManagerInvitationRedirect("token&next=/settings");
-    expect(buildManagerInvitationLoginUrl(invitationRedirect)).toBe(
-      "/login?redirect=%2Fmanager-invite%3Ftoken%3Dtoken%2526next%253D%252Fsettings",
     );
   });
 

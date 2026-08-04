@@ -36,20 +36,28 @@ const inputShopName = async (dialog: ReturnType<typeof within>) => {
   await userEvent.type(await dialog.findByRole("textbox", { name: "お店の名前" }), "居酒屋たなか");
 };
 
+const openDateOnlyManagerStep = async (canvasElement: HTMLElement) => {
+  const dialog = await getDialog(canvasElement);
+  const dateOnlyButton = dialog.getByRole("button", { pressed: true });
+  await expect(dateOnlyButton).toHaveAttribute("aria-pressed", "true");
+  await inputShopName(dialog);
+
+  await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
+
+  await expect(await dialog.findByText("あなたの情報")).toBeInTheDocument();
+  await expect(dialog.getByRole("textbox", { name: "シフト連絡先メールアドレス" })).toBeInTheDocument();
+};
+
 export const DateOnlySkipsSettings: Story = {
-  parameters: {
-    screenshot: { skip: true },
-  },
-  play: async ({ canvasElement }) => {
-    const dialog = await getDialog(canvasElement);
-    const dateOnlyButton = dialog.getByRole("button", { pressed: true });
-    await expect(dateOnlyButton).toHaveAttribute("aria-pressed", "true");
-    await inputShopName(dialog);
+  play: async ({ canvasElement }) => openDateOnlyManagerStep(canvasElement),
+};
 
-    await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
-
-    await expect(await dialog.findByRole("textbox", { name: "あなたの名前" })).toBeInTheDocument();
+export const DateOnlySkipsSettingsMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: {
+    viewport: { value: "mobile2", isRotated: false },
   },
+  play: async ({ canvasElement }) => openDateOnlyManagerStep(canvasElement),
 };
 
 export const TimeSettingsStep: Story = {

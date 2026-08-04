@@ -85,6 +85,7 @@ export type CreateOrganizationWithFirstShopArgs = {
   userId: Id<"users">;
   managerName: string;
   managerEmail: string;
+  managerProfileSource?: "canonicalPerson" | "legacySourceUserSnapshot" | "omittedSourceUserSnapshot";
   shopName: string;
   regularClosedDays: RegularClosedDay[];
   submissionPattern: ShiftSubmissionPattern;
@@ -187,6 +188,7 @@ export async function createOrganizationWithFirstShop(
     action: "organization.created",
     targetKind: "organization",
     targetId: organizationId,
+    ...(args.managerProfileSource ? { fromState: `managerProfile.${args.managerProfileSource}` } : {}),
     toState: `${args.billingState.kind}.${args.billingState.plan}`,
     correlationId: args.correlationId,
     occurredAt: now,
