@@ -44,17 +44,10 @@ type InternalFactor =
       factor: SessionVerificationSecondFactor;
     };
 
-type HookOptions = {
-  /** Passkeyは実Clerk canaryが完了したbuildだけで明示的に有効化する。 */
-  allowPasskey?: boolean;
-};
-
 const GENERAL_FAILURE_MESSAGE = "本人確認を完了できませんでした。変更は行っていません。もう一度お試しください。";
 const UNAVAILABLE_MESSAGE = "このアカウントで利用できる本人確認方法がありません。変更は行っていません。";
 
-export function useLoginMethodReverification({
-  allowPasskey = false,
-}: HookOptions = {}): LoginMethodReverificationController {
+export function useLoginMethodReverification(): LoginMethodReverificationController {
   const { session } = useSession();
   const sessionRef = useRef<SignedInSessionResource | null>(session ?? null);
   sessionRef.current = session ?? null;
@@ -139,7 +132,7 @@ export function useLoginMethodReverification({
         return;
       }
 
-      const factors = buildSupportedFactors(resource, stage, allowPasskey);
+      const factors = buildSupportedFactors(resource, stage);
       if (factors.length === 0) {
         failClosed(request, UNAVAILABLE_MESSAGE);
         return;
@@ -156,7 +149,7 @@ export function useLoginMethodReverification({
         message: null,
       });
     },
-    [allowPasskey, commitState, failClosed, isCurrent],
+    [commitState, failClosed, isCurrent],
   );
 
   const handleStartedResource = useCallback(
@@ -490,17 +483,12 @@ export function useLoginMethodReverification({
 function buildSupportedFactors(
   resource: SessionVerificationResource,
   stage: LoginMethodReverificationStage,
-  allowPasskey: boolean,
 ): InternalFactor[] {
   if (stage === "first") {
     return (resource.supportedFirstFactors ?? []).flatMap((factor, index): InternalFactor[] => {
-      if (factor.strategy === "enterprise_sso" || (factor.strategy === "passkey" && !allowPasskey)) return [];
-      if (
-        factor.strategy !== "password" &&
-        factor.strategy !== "email_code" &&
-        factor.strategy !== "phone_code" &&
-        factor.strategy !== "passkey"
-      ) {
+      // custom UIに実装していないfactorは、別のstrategyとして推測せず除外する。
+      if (factor.strategy === "enterprise_sso" || factor.strategy === "passkey") return [];
+      if (factor.strategy !== "password" && factor.strategy !== "email_code" && factor.strategy !== "phone_code") {
         return [];
       }
       return [
@@ -511,7 +499,7 @@ function buildSupportedFactors(
             key: `first-${index}`,
             stage: "first",
             strategy: factor.strategy,
-            input: factor.strategy === "password" ? "password" : factor.strategy === "passkey" ? "passkey" : "code",
+            input: factor.strategy === "password" ? "password" : "code",
             safeIdentifier: maskReverificationIdentifier(
               factor.strategy,
               "safeIdentifier" in factor && typeof factor.safeIdentifier === "string" ? factor.safeIdentifier : null,

@@ -3,20 +3,17 @@ import { isReverificationCancelledError } from "@clerk/react/errors";
 import type { UserResource } from "@clerk/shared/types";
 import { useState } from "react";
 import { normalizeEmail, requiredEmailSchema } from "@/convex/_lib/validation";
-import { getClerkErrorMessage } from "@/src/components/features/AuthPage/errorPresentation";
 import { showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { toLoginMethodsUserSnapshot } from "./adapter";
 import { getLoginMethodAccountErrorMessage } from "./loginMethodErrorPresentation";
 import type { LoginMethodOnNeedsReverification } from "./reverificationTypes";
-import { buildLoginMethodsViewModel, DISABLED_LOGIN_METHOD_CAPABILITIES } from "./script";
+import { buildLoginMethodsViewModel } from "./script";
 import type {
   EmailPasswordDialogState,
   LoginEmailChangeDialogState,
-  LoginMethodCapabilities,
   LoginMethodsCardState,
   LoginMethodsController,
-  LoginMethodsViewModel,
 } from "./types";
 
 const ACCOUNT_SECURITY_PATH = "/account/security";
@@ -26,52 +23,66 @@ const LOADING_STATE: LoginMethodsCardState = { status: "loading", message: null 
 type ControllerOptions = {
   isLoaded: boolean;
   user: UserResource | null | undefined;
-  capabilities?: LoginMethodCapabilities;
+  getCurrentActorId: () => string | null;
   navigateToExternalVerification?: (url: string) => void;
   onNeedsReverification?: LoginMethodOnNeedsReverification;
   runOperation?: <T>(operation: () => Promise<T>) => Promise<T | undefined>;
 };
 
+type EmailOperation =
+  | "startLoginEmail"
+  | "continueLoginEmail"
+  | "verifyLoginEmail"
+  | "resendLoginEmail"
+  | "updatePassword";
+
+type PasswordUpdate = {
+  currentPassword?: string;
+  newPassword: string;
+  signOutOfOtherSessions: boolean;
+};
+
+type PrimaryChangeBaseline = {
+  previousPrimaryEmailAddressId: string;
+  passwordEnabled: boolean;
+  googleAccounts: string[];
+};
+
 export function useLoginMethodsController({
   isLoaded,
   user,
-  capabilities = DISABLED_LOGIN_METHOD_CAPABILITIES,
+  getCurrentActorId,
   navigateToExternalVerification = (url) => window.location.assign(url),
   onNeedsReverification,
   runOperation = async (operation) => operation(),
 }: ControllerOptions): LoginMethodsController {
+  const actorUserId = user?.id ?? null;
   const [, setResourceRevision] = useState(0);
   const [googleState, setGoogleState] = useState<LoginMethodsCardState>(IDLE_STATE);
   const [emailPasswordState, setEmailPasswordState] = useState<LoginMethodsCardState>(IDLE_STATE);
   const [emailPasswordDialog, setEmailPasswordDialog] = useState<EmailPasswordDialogState>({ isOpen: false });
   const [emailChangeDialog, setEmailChangeDialog] = useState<LoginEmailChangeDialogState>({ isOpen: false });
-  const showEmailChangeSuccess = () => {
-    setEmailChangeDialog({ isOpen: false });
-    setEmailPasswordState(IDLE_STATE);
-    showSuccessToast({
-      title: "メインのメールアドレスを変更しました",
-      description: "以前のメールアドレスも登録されたままです。",
-    });
-  };
 
-  const viewModel = user
-    ? buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(user), capabilities)
-    : buildLoginMethodsViewModel(
-        { primaryEmailAddressId: null, passwordEnabled: false, emailAddresses: [], externalAccounts: [] },
-        DISABLED_LOGIN_METHOD_CAPABILITIES,
-      );
+  const viewModel = buildLoginMethodsViewModel(
+    user
+      ? toLoginMethodsUserSnapshot(user)
+      : { primaryEmailAddressId: null, passwordEnabled: false, emailAddresses: [], externalAccounts: [] },
+  );
 
   const reloadUser = async (): Promise<UserResource> => {
-    if (!isLoaded || !user) throw new Error("Unauthenticated");
+    if (!isLoaded || !user || !actorUserId || user.id !== actorUserId || getCurrentActorId() !== actorUserId) {
+      throw new Error("Unauthenticated");
+    }
     await user.reload();
+    if (user.id !== actorUserId || getCurrentActorId() !== actorUserId) throw new Error("Unauthenticated");
     setResourceRevision((current) => current + 1);
     return user;
   };
 
   const reverificationOptions = { onNeedsReverification };
-  const reauthorizeExternalAccountWithReverification = useReverification(async (externalAccountId: string) => {
+  const reauthorizeGoogleWithReverification = useReverification(async (externalAccountId: string) => {
     const currentUser = await reloadUser();
-    const freshViewModel = buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser), capabilities);
+    const freshViewModel = buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser));
     const freshAccount = currentUser.externalAccounts.find((account) => account.id === externalAccountId);
     if (freshAccount?.provider !== "google") return { status: "unavailable" } as const;
     if (freshAccount.verification?.status === "verified") return { status: "alreadyConnected" } as const;
@@ -79,9 +90,9 @@ export function useLoginMethodsController({
     const externalAccount = await freshAccount.reauthorize({ redirectUrl: ACCOUNT_SECURITY_PATH });
     return { status: "reauthorized", externalAccount } as const;
   }, reverificationOptions);
-  const destroyExternalAccountWithReverification = useReverification(async (externalAccountId: string) => {
+  const destroyGoogleWithReverification = useReverification(async (externalAccountId: string) => {
     const currentUser = await reloadUser();
-    const freshViewModel = buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser), capabilities);
+    const freshViewModel = buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser));
     const freshAccount = currentUser.externalAccounts.find((account) => account.id === externalAccountId);
     const accountViewModel = freshViewModel.google.accounts.find((account) => account.id === externalAccountId);
     if (freshAccount?.provider !== "google" || !accountViewModel?.canDisconnect) return "unavailable" as const;
@@ -90,8 +101,9 @@ export function useLoginMethodsController({
   }, reverificationOptions);
   const ensureEmailAddressWithReverification = useReverification(async (email: string) => {
     const currentUser = await reloadUser();
-    const freshViewModel = buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser), capabilities);
-    if (!freshViewModel.emailPassword.canChangeLoginEmail) return { status: "unavailable" } as const;
+    if (!buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser)).emailPassword.canChangeLoginEmail) {
+      return { status: "unavailable" } as const;
+    }
     const existing = findEmailAddress(currentUser, null, email);
     if (existing) return { status: "ready", emailAddressId: existing.id } as const;
     const created = await currentUser.createEmailAddress({ email });
@@ -99,45 +111,34 @@ export function useLoginMethodsController({
   }, reverificationOptions);
   const updatePrimaryEmailWithReverification = useReverification(async (emailAddressId: string) => {
     const currentUser = await reloadUser();
-    const freshViewModel = buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser), capabilities);
     const target = findEmailAddress(currentUser, emailAddressId);
-    if (target?.verification?.status !== "verified") return "targetUnavailable" as const;
+    if (
+      target?.verification?.status !== "verified" ||
+      !buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser)).emailPassword.canChangeLoginEmail
+    ) {
+      return "targetUnavailable" as const;
+    }
     if (currentUser.primaryEmailAddressId === target.id) return "alreadyPrimary" as const;
-    if (!freshViewModel.emailPassword.canChangeLoginEmail) return "targetUnavailable" as const;
     await currentUser.update({ primaryEmailAddressId: target.id });
     return "updated" as const;
   }, reverificationOptions);
-  const updatePasswordWithReverification = useReverification(
-    async (params: { currentPassword?: string; newPassword: string; signOutOfOtherSessions: boolean }) => {
-      const currentUser = await reloadUser();
-      const freshViewModel = buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser), capabilities);
-      if (!currentUser.passwordEnabled || !freshViewModel.emailPassword.canChangePassword) {
-        return "unavailable" as const;
-      }
-      await currentUser.updatePassword(params);
-      return "updated" as const;
-    },
-    reverificationOptions,
-  );
-  const removePasswordWithReverification = useReverification(async (currentPassword?: string) => {
+  const updatePasswordWithReverification = useReverification(async (params: PasswordUpdate) => {
     const currentUser = await reloadUser();
-    const freshViewModel = buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser), capabilities);
-    if (!freshViewModel.emailPassword.canRemovePassword) return "unavailable" as const;
-    await currentUser.removePassword({ currentPassword: emptyToUndefined(currentPassword) });
-    return "removed" as const;
+    if (!buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser)).emailPassword.canChangePassword) {
+      return "unavailable" as const;
+    }
+    await currentUser.updatePassword(params);
+    return "updated" as const;
   }, reverificationOptions);
-  const destroyEmailAddressWithReverification = useReverification(async (emailAddressId: string) => {
-    const currentUser = await reloadUser();
-    const freshViewModel = buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser), capabilities);
-    const emailViewModel = [
-      ...freshViewModel.emailPassword.verifiedEmails,
-      ...freshViewModel.emailPassword.unverifiedEmails,
-    ].find((emailAddress) => emailAddress.id === emailAddressId);
-    const freshEmail = findEmailAddress(currentUser, emailAddressId);
-    if (!freshEmail || !emailViewModel?.canRemove) return "unavailable" as const;
-    await freshEmail.destroy();
-    return "removed" as const;
-  }, reverificationOptions);
+
+  const showEmailChangeSuccess = () => {
+    setEmailChangeDialog({ isOpen: false });
+    setEmailPasswordState(IDLE_STATE);
+    showSuccessToast({
+      title: "メインのメールアドレスを変更しました",
+      description: "以前のメールアドレスも登録されたままです。",
+    });
+  };
 
   const { run: reload } = useSingleFlight(async () => {
     setGoogleState(LOADING_STATE);
@@ -155,38 +156,51 @@ export function useLoginMethodsController({
     }
   });
 
+  const primaryChangeCompleted = (
+    currentUser: UserResource,
+    targetEmailAddressId: string,
+    baseline: PrimaryChangeBaseline,
+  ) => {
+    const target = findEmailAddress(currentUser, targetEmailAddressId);
+    const previousEmailStillExists = currentUser.emailAddresses.some(
+      (emailAddress) => emailAddress.id === baseline.previousPrimaryEmailAddressId,
+    );
+    return (
+      currentUser.id === actorUserId &&
+      currentUser.primaryEmailAddressId === targetEmailAddressId &&
+      target?.verification?.status === "verified" &&
+      previousEmailStillExists &&
+      currentUser.passwordEnabled === baseline.passwordEnabled &&
+      equalStringSets(googleAccountKeys(currentUser), baseline.googleAccounts)
+    );
+  };
+
   const completeLoginEmailChange = async (
     currentUser: UserResource,
-    freshViewModel: LoginMethodsViewModel,
     targetEmailAddressId: string,
+    baseline: PrimaryChangeBaseline,
   ): Promise<boolean> => {
     const target = findEmailAddress(currentUser, targetEmailAddressId);
     if (target?.verification?.status !== "verified") {
       setEmailPasswordState(cardError("変更先のメールアドレスを確認できません。最新の状態を読み込んでください。"));
       return false;
     }
-    if (currentUser.primaryEmailAddressId === target.id) {
-      showEmailChangeSuccess();
-      return true;
-    }
-    if (!freshViewModel.emailPassword.canChangeLoginEmail) {
-      setEmailPasswordState(cardError("変更先のメールアドレスを確認できません。最新の状態を読み込んでください。"));
-      return false;
-    }
-    const updated = await updatePrimaryEmailWithReverification(target.id);
-    if (updated == null) {
-      setEmailPasswordState(IDLE_STATE);
-      return false;
-    }
-    if (updated === "targetUnavailable") {
-      setEmailPasswordState(
-        cardError("変更先のメールアドレスの確認状態が変わりました。最新の状態を読み込んでください。"),
-      );
-      return false;
+    if (currentUser.primaryEmailAddressId !== target.id) {
+      const updated = await updatePrimaryEmailWithReverification(target.id);
+      if (updated == null) {
+        setEmailPasswordState(IDLE_STATE);
+        return false;
+      }
+      if (updated === "targetUnavailable") {
+        setEmailPasswordState(
+          cardError("変更先のメールアドレスの確認状態が変わりました。最新の状態を読み込んでください。"),
+        );
+        return false;
+      }
     }
     await reloadUser();
-    if (currentUser.primaryEmailAddressId !== target.id) {
-      setEmailPasswordState(cardError("変更結果を確認できません。最新の状態を読み込んでください。"));
+    if (!primaryChangeCompleted(currentUser, target.id, baseline)) {
+      setEmailPasswordState(cardError("変更結果を安全に確認できません。最新の状態を読み込んでください。"));
       return false;
     }
     showEmailChangeSuccess();
@@ -194,16 +208,14 @@ export function useLoginMethodsController({
   };
 
   const { run: runGoogleOperation } = useSingleFlight(
-    async (operation: "reconnect" | "prepareDisconnect" | "disconnect", externalAccountId?: string) => {
+    async (operation: "reconnect" | "prepareDisconnect" | "disconnect", externalAccountId: string) => {
       setGoogleState(LOADING_STATE);
       try {
         const currentUser = await reloadUser();
-        const freshViewModel = buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser), capabilities);
-
-        if (!externalAccountId) return false;
+        const freshViewModel = buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser));
         const freshAccount = currentUser.externalAccounts.find((account) => account.id === externalAccountId);
         if (freshAccount?.provider !== "google") {
-          setGoogleState(cardError("Google連携の状態が変わりました。もう一度読み込んでください。"));
+          setGoogleState(cardError("Google連携の状態が変わりました。最新の状態を読み込んでください。"));
           return false;
         }
 
@@ -212,22 +224,26 @@ export function useLoginMethodsController({
             setGoogleState(cardError("このGoogle連携は再確認できません。最新の状態を読み込んでください。"));
             return false;
           }
-          const reauthorization = await reauthorizeExternalAccountWithReverification(externalAccountId);
-          if (reauthorization == null) {
+          const result = await reauthorizeGoogleWithReverification(externalAccountId);
+          if (result == null) {
             setGoogleState(IDLE_STATE);
             return false;
           }
-          if (reauthorization.status === "alreadyConnected") {
-            setGoogleState({ status: "success", message: googleConnectionSuccessMessage(currentUser) });
+          if (result.status === "alreadyConnected") {
+            setGoogleState(IDLE_STATE);
             return true;
           }
-          if (reauthorization.status === "unavailable") {
+          if (result.status === "unavailable") {
             setGoogleState(cardError("Google連携の状態が変わりました。最新の状態を読み込んでください。"));
             return false;
           }
-          const redirectUrl = reauthorization.externalAccount.verification?.externalVerificationRedirectURL?.toString();
+          const redirectUrl = result.externalAccount.verification?.externalVerificationRedirectURL?.toString();
           if (!redirectUrl) {
             setGoogleState(cardError("Googleの確認画面を開けませんでした。もう一度お試しください。"));
+            return false;
+          }
+          if (getCurrentActorId() !== actorUserId) {
+            setGoogleState(IDLE_STATE);
             return false;
           }
           navigateToExternalVerification(redirectUrl);
@@ -236,36 +252,30 @@ export function useLoginMethodsController({
 
         const accountViewModel = freshViewModel.google.accounts.find((account) => account.id === externalAccountId);
         if (!accountViewModel?.canDisconnect) {
-          setGoogleState(cardError(accountViewModel?.disconnectUnavailableReason ?? "Googleを解除できません。"));
+          setGoogleState(cardError(accountViewModel?.disconnectUnavailableReason ?? "Google連携を解除できません。"));
           return false;
         }
         if (operation === "prepareDisconnect") {
-          setGoogleState({ status: "success", message: "Google連携の最新の状態を確認しました。" });
+          setGoogleState(IDLE_STATE);
           return true;
         }
-        const destroyed = await destroyExternalAccountWithReverification(externalAccountId);
-        if (destroyed === null) {
+
+        const destroyed = await destroyGoogleWithReverification(externalAccountId);
+        if (destroyed == null) {
           setGoogleState(IDLE_STATE);
           return false;
         }
         if (destroyed === "unavailable") {
-          setGoogleState(cardError("Google連携の状態が変わりました。最新の状態を読み込んでください。"));
+          setGoogleState(cardError("ログイン方法の状態が変わったため、Google連携を解除していません。"));
           return false;
         }
         await reloadUser();
-        if (currentUser.externalAccounts.some((account) => account.id === externalAccountId)) {
-          setGoogleState(cardError("Google連携を解除できませんでした。最新の状態を確認してください。"));
+        if (!googleDisconnectCompleted(currentUser, externalAccountId)) {
+          setGoogleState(cardError("Google連携の解除結果を安全に確認できません。最新の状態を読み込んでください。"));
           return false;
         }
-        if (!hasSafePasswordFallback(currentUser)) {
-          setGoogleState(
-            cardError(
-              "Google連携は解除されましたが、代わりのログイン方法を確認できません。画面を再読み込みしてください。",
-            ),
-          );
-          return false;
-        }
-        setGoogleState({ status: "success", message: "Google連携を解除しました。" });
+        setGoogleState(IDLE_STATE);
+        showSuccessToast({ title: "Google連携を解除しました" });
         return true;
       } catch (error) {
         if (isReverificationCancelledError(error)) {
@@ -274,53 +284,34 @@ export function useLoginMethodsController({
         }
         try {
           const currentUser = await reloadUser();
-          if (
-            operation === "disconnect" &&
-            externalAccountId &&
-            !currentUser.externalAccounts.some((account) => account.id === externalAccountId) &&
-            hasSafePasswordFallback(currentUser)
-          ) {
-            setGoogleState({ status: "success", message: "Google連携を解除しました。" });
+          if (operation === "disconnect" && googleDisconnectCompleted(currentUser, externalAccountId)) {
+            setGoogleState(IDLE_STATE);
+            showSuccessToast({ title: "Google連携を解除しました" });
             return true;
           }
         } catch {
-          // 失敗後もresource再取得を試し、providerの生errorは画面へ出さない。
+          // 応答を失った場合も、最新resourceで完了を証明できなければ成功扱いにしない。
         }
-        setGoogleState(cardError(getClerkErrorMessage(error)));
+        setGoogleState(cardError(getLoginMethodAccountErrorMessage(error)));
         return false;
       }
     },
   );
 
-  const { run: runEmailPasswordOperation } = useSingleFlight(
-    async (
-      operation:
-        | "startLoginEmail"
-        | "continueLoginEmail"
-        | "verifyLoginEmail"
-        | "resendLoginEmail"
-        | "confirmLoginEmail"
-        | "updatePassword"
-        | "prepareRemovePassword"
-        | "removePassword"
-        | "removeEmail",
-      payload?: string | { currentPassword?: string; newPassword: string; signOutOfOtherSessions: boolean },
-    ) => {
+  const { run: runEmailOperation } = useSingleFlight(
+    async (operation: EmailOperation, payload?: string | PasswordUpdate) => {
       setEmailPasswordState(LOADING_STATE);
-      let primaryEmailTargetId: string | null = null;
-      let loginEmailTargetId: string | null = null;
-      let loginEmailTargetNormalized: string | null = null;
+      let targetId: string | null = null;
+      let targetEmail: string | null = null;
+      let baseline: PrimaryChangeBaseline | null = null;
       try {
         const currentUser = await reloadUser();
-        const freshViewModel = buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser), capabilities);
+        const freshViewModel = buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser));
 
         if (operation === "startLoginEmail") {
           if (!freshViewModel.emailPassword.canChangeLoginEmail || typeof payload !== "string") {
             setEmailPasswordState(
-              cardError(
-                freshViewModel.emailPassword.loginEmailChangeUnavailableReason ??
-                  "ログイン用メールアドレスを変更できません。",
-              ),
+              cardError("メインのメールアドレスを変更できません。最新の状態を読み込んでください。"),
             );
             return false;
           }
@@ -329,22 +320,20 @@ export function useLoginMethodsController({
             setEmailPasswordState(cardError(parsed.error.issues[0]?.message ?? "メールアドレスを確認してください。"));
             return false;
           }
-          const initialPrimary = findVerifiedPrimaryEmailAddress(currentUser);
-          if (!initialPrimary) {
-            setEmailPasswordState(
-              cardError("現在のログイン用メールアドレスを確認できません。最新の状態を読み込んでください。"),
-            );
+          const currentPrimary = findVerifiedPrimaryEmailAddress(currentUser);
+          if (!currentPrimary) {
+            setEmailPasswordState(cardError("現在のメインメールアドレスを確認できません。"));
             return false;
           }
-          const normalizedEmail = normalizeEmail(parsed.data);
-          loginEmailTargetNormalized = normalizedEmail;
-          if (normalizeEmail(initialPrimary.emailAddress) === normalizedEmail) {
+          baseline = primaryChangeBaseline(currentUser, currentPrimary.id);
+          targetEmail = normalizeEmail(parsed.data);
+          if (normalizeEmail(currentPrimary.emailAddress) === targetEmail) {
             setEmailPasswordState(cardError("現在とは異なるメールアドレスを入力してください。"));
             return false;
           }
-          let target = findEmailAddress(currentUser, null, normalizedEmail);
+          let target = findEmailAddress(currentUser, null, targetEmail);
           if (!target) {
-            const ensured = await ensureEmailAddressWithReverification(normalizedEmail);
+            const ensured = await ensureEmailAddressWithReverification(targetEmail);
             if (ensured == null) {
               setEmailPasswordState(IDLE_STATE);
               return false;
@@ -354,32 +343,23 @@ export function useLoginMethodsController({
               return false;
             }
             await reloadUser();
-            target = findEmailAddress(currentUser, ensured.emailAddressId, normalizedEmail);
+            target = findEmailAddress(currentUser, ensured.emailAddressId, targetEmail);
           }
-          const currentPrimary = findVerifiedPrimaryEmailAddress(currentUser);
-          if (!target || !currentPrimary) {
-            setEmailPasswordState(
-              cardError("変更先のメールアドレスを確認できません。最新の状態を読み込んでください。"),
-            );
+          const latestPrimary = findVerifiedPrimaryEmailAddress(currentUser);
+          if (!target || !latestPrimary) {
+            setEmailPasswordState(cardError("変更先のメールアドレスを確認できません。"));
             return false;
           }
-          const latestViewModel = buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser), capabilities);
-          if (target.id === currentPrimary.id) {
-            return await completeLoginEmailChange(currentUser, latestViewModel, target.id);
-          }
-          if (!latestViewModel.emailPassword.canChangeLoginEmail) {
-            setEmailPasswordState(cardError("ログイン方法の状態が変わりました。最新の状態を読み込んでください。"));
-            return false;
-          }
-          loginEmailTargetId = target.id;
+          baseline = primaryChangeBaseline(currentUser, latestPrimary.id);
+          targetId = target.id;
           if (target.verification?.status === "verified") {
-            return await completeLoginEmailChange(currentUser, latestViewModel, target.id);
+            return await completeLoginEmailChange(currentUser, target.id, baseline);
           }
           await target.prepareVerification({ strategy: "email_code" });
           setEmailChangeDialog({
             isOpen: true,
             step: "verification",
-            currentMaskedEmail: currentPrimary.emailAddress,
+            currentMaskedEmail: latestPrimary.emailAddress,
             targetEmailAddressId: target.id,
             targetMaskedEmail: target.emailAddress,
           });
@@ -388,23 +368,18 @@ export function useLoginMethodsController({
         }
 
         if (operation === "continueLoginEmail") {
-          if (!freshViewModel.emailPassword.canChangeLoginEmail || typeof payload !== "string") {
-            setEmailPasswordState(cardError("メールアドレスの変更を再開できません。最新の状態を読み込んでください。"));
-            return false;
-          }
+          if (!freshViewModel.emailPassword.canChangeLoginEmail || typeof payload !== "string") return false;
           const currentPrimary = findVerifiedPrimaryEmailAddress(currentUser);
           const target = findEmailAddress(currentUser, payload);
           if (!currentPrimary || !target) {
             setEmailPasswordState(cardError("メールアドレスの状態が変わりました。最新の状態を読み込んでください。"));
             return false;
           }
-          if (target.id === currentPrimary.id) {
-            return await completeLoginEmailChange(currentUser, freshViewModel, target.id);
-          }
-          loginEmailTargetId = target.id;
-          loginEmailTargetNormalized = normalizeEmail(target.emailAddress);
+          baseline = primaryChangeBaseline(currentUser, currentPrimary.id);
+          targetId = target.id;
+          targetEmail = normalizeEmail(target.emailAddress);
           if (target.verification?.status === "verified") {
-            return await completeLoginEmailChange(currentUser, freshViewModel, target.id);
+            return await completeLoginEmailChange(currentUser, target.id, baseline);
           }
           await target.prepareVerification({ strategy: "email_code" });
           setEmailChangeDialog({
@@ -420,169 +395,58 @@ export function useLoginMethodsController({
 
         if (operation === "verifyLoginEmail" || operation === "resendLoginEmail") {
           const target = resolveLoginEmailChangeDialogEmailAddress(currentUser, emailChangeDialog);
-          if (!target) {
+          const currentPrimary = findVerifiedPrimaryEmailAddress(currentUser);
+          if (!target || !currentPrimary) {
             setEmailPasswordState(
               cardError("確認中のメールアドレスを取得できません。最新の状態を読み込んでください。"),
             );
             return false;
           }
-          loginEmailTargetId = target.id;
-          loginEmailTargetNormalized = normalizeEmail(target.emailAddress);
+          baseline = primaryChangeBaseline(currentUser, currentPrimary.id);
+          targetId = target.id;
+          targetEmail = normalizeEmail(target.emailAddress);
           if (operation === "resendLoginEmail") {
             await target.prepareVerification({ strategy: "email_code" });
             setEmailPasswordState({ status: "success", message: "新しい確認コードを送りました。" });
             return true;
           }
-          if (typeof payload !== "string" || !payload.trim()) {
+          if (operation === "verifyLoginEmail" && (typeof payload !== "string" || !payload.trim())) {
             setEmailPasswordState(cardError("確認コードを入力してください。"));
             return false;
           }
-          const verifiedResource = await target.attemptVerification({ code: payload.trim() });
-          await reloadUser();
-          const verified = findEmailAddress(currentUser, verifiedResource.id);
-          if (verified?.verification?.status !== "verified") {
-            setEmailPasswordState(cardError("メールアドレスを確認できませんでした。もう一度お試しください。"));
-            return false;
+          if (operation === "verifyLoginEmail" && target.verification?.status !== "verified") {
+            await target.attemptVerification({ code: (payload as string).trim() });
+            await reloadUser();
           }
-          if (currentUser.primaryEmailAddressId === verified.id) {
-            return await completeLoginEmailChange(currentUser, freshViewModel, verified.id);
-          }
-          const currentPrimary = findVerifiedPrimaryEmailAddress(currentUser);
-          if (!currentPrimary) {
-            setEmailPasswordState(
-              cardError("現在のログイン用メールアドレスを確認できません。最新の状態を読み込んでください。"),
-            );
-            return false;
-          }
-          const latestViewModel = buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser), capabilities);
-          return await completeLoginEmailChange(currentUser, latestViewModel, verified.id);
+          return await completeLoginEmailChange(currentUser, target.id, baseline);
         }
 
-        if (operation === "confirmLoginEmail") {
-          const target = resolveLoginEmailChangeDialogEmailAddress(currentUser, emailChangeDialog);
-          if (!target) {
-            setEmailPasswordState(
-              cardError("変更先のメールアドレスを取得できません。最新の状態を読み込んでください。"),
-            );
-            return false;
-          }
-          primaryEmailTargetId = target.id;
-          return await completeLoginEmailChange(currentUser, freshViewModel, target.id);
-        }
-
-        if (operation === "updatePassword") {
-          if (typeof payload === "string" || !payload) return false;
-          if (!freshViewModel.emailPassword.canChangePassword) {
-            setEmailPasswordState(cardError("パスワードを変更できません。最新の状態を確認してください。"));
-            return false;
-          }
-          const updated = await updatePasswordWithReverification({
-            currentPassword: emptyToUndefined(payload.currentPassword),
-            newPassword: payload.newPassword,
-            signOutOfOtherSessions: payload.signOutOfOtherSessions,
-          });
-          if (updated == null) {
-            setEmailPasswordState(IDLE_STATE);
-            return false;
-          }
-          if (updated === "unavailable") {
-            setEmailPasswordState(
-              cardError("パスワードの状態が変わったため、設定・変更していません。最新の状態を確認してください。"),
-            );
-            return false;
-          }
-          await reloadUser();
-          if (!currentUser.passwordEnabled) {
-            setEmailPasswordState(cardError("パスワードの設定を確認できませんでした。もう一度お試しください。"));
-            return false;
-          }
-          setEmailPasswordDialog({ isOpen: false });
-          setEmailPasswordState({
-            status: "success",
-            message: "パスワードを変更しました。",
-          });
-          return true;
-        }
-
-        if (operation === "prepareRemovePassword" || operation === "removePassword") {
-          if (!freshViewModel.emailPassword.canRemovePassword) {
-            setEmailPasswordState(
-              cardError(
-                freshViewModel.emailPassword.passwordRemovalUnavailableReason ?? "パスワードを削除できません。",
-              ),
-            );
-            return false;
-          }
-          if (operation === "prepareRemovePassword") {
-            setEmailPasswordState({ status: "success", message: "Googleログインの最新の状態を確認しました。" });
-            return true;
-          }
-          const removed = await removePasswordWithReverification(typeof payload === "string" ? payload : undefined);
-          if (removed == null) {
-            setEmailPasswordState(IDLE_STATE);
-            return false;
-          }
-          if (removed === "unavailable") {
-            setEmailPasswordState(cardError("ほかのログイン方法の状態が変わったため、パスワードを削除していません。"));
-            return false;
-          }
-          await reloadUser();
-          if (currentUser.passwordEnabled) {
-            setEmailPasswordState(cardError("パスワードを削除できませんでした。最新の状態を確認してください。"));
-            return false;
-          }
-          if (!hasVerifiedGoogleMethod(currentUser)) {
-            setEmailPasswordState(
-              cardError(
-                "パスワードは削除されましたが、代わりのGoogleログインを確認できません。画面を再読み込みしてください。",
-              ),
-            );
-            return false;
-          }
-          setEmailPasswordState({ status: "success", message: "パスワードを削除しました。" });
-          return true;
-        }
-
-        if (typeof payload !== "string") return false;
-        const emailViewModel = [
-          ...freshViewModel.emailPassword.verifiedEmails,
-          ...freshViewModel.emailPassword.unverifiedEmails,
-        ].find((email) => email.id === payload);
-        if (!emailViewModel?.canRemove) {
-          setEmailPasswordState(
-            cardError(emailViewModel?.removeUnavailableReason ?? "メールアドレスを削除できません。"),
-          );
+        if (typeof payload === "string" || !payload) return false;
+        if (!freshViewModel.emailPassword.canChangePassword) {
+          setEmailPasswordState(cardError("パスワードを変更できません。最新の状態を確認してください。"));
           return false;
         }
-        if (!findEmailAddress(currentUser, payload)) {
-          setEmailPasswordState(cardError("メールアドレスの状態が変わりました。最新の状態を確認してください。"));
-          return false;
-        }
-        const destroyed = await destroyEmailAddressWithReverification(payload);
-        if (destroyed === null) {
+        const updated = await updatePasswordWithReverification({
+          currentPassword: emptyToUndefined(payload.currentPassword),
+          newPassword: payload.newPassword,
+          signOutOfOtherSessions: payload.signOutOfOtherSessions,
+        });
+        if (updated == null) {
           setEmailPasswordState(IDLE_STATE);
           return false;
         }
-        if (destroyed === "unavailable") {
-          setEmailPasswordState(
-            cardError("メールアドレスの状態が変わったため、削除していません。最新の状態を確認してください。"),
-          );
+        if (updated === "unavailable") {
+          setEmailPasswordState(cardError("パスワードの状態が変わったため、変更していません。"));
           return false;
         }
         await reloadUser();
-        if (currentUser.emailAddresses.some((email) => email.id === payload)) {
-          setEmailPasswordState(cardError("メールアドレスを削除できませんでした。最新の状態を確認してください。"));
+        if (!currentUser.passwordEnabled) {
+          setEmailPasswordState(cardError("パスワードの変更結果を確認できませんでした。"));
           return false;
         }
-        if (!hasAnyVerifiedLoginMethod(currentUser)) {
-          setEmailPasswordState(
-            cardError(
-              "メールアドレスは削除されましたが、代わりのログイン方法を確認できません。画面を再読み込みしてください。",
-            ),
-          );
-          return false;
-        }
-        setEmailPasswordState({ status: "success", message: "メールアドレスを削除しました。" });
+        setEmailPasswordDialog({ isOpen: false });
+        setEmailPasswordState(IDLE_STATE);
+        showSuccessToast({ title: "パスワードを変更しました" });
         return true;
       } catch (error) {
         if (isReverificationCancelledError(error)) {
@@ -591,88 +455,41 @@ export function useLoginMethodsController({
         }
         try {
           const currentUser = await reloadUser();
-          if (
-            operation === "confirmLoginEmail" &&
-            primaryEmailTargetId &&
-            currentUser.primaryEmailAddressId === primaryEmailTargetId &&
-            findEmailAddress(currentUser, primaryEmailTargetId)?.verification?.status === "verified"
-          ) {
+          const isEmailChangeOperation =
+            operation === "startLoginEmail" ||
+            operation === "continueLoginEmail" ||
+            operation === "verifyLoginEmail" ||
+            operation === "resendLoginEmail";
+          const recoveredTarget = isEmailChangeOperation
+            ? findEmailAddress(currentUser, targetId, targetEmail ?? undefined)
+            : undefined;
+          targetId ??= recoveredTarget?.id ?? null;
+          if (baseline && targetId && primaryChangeCompleted(currentUser, targetId, baseline)) {
             showEmailChangeSuccess();
             return true;
           }
-          if (operation === "verifyLoginEmail") {
-            const target = resolveLoginEmailChangeDialogEmailAddress(currentUser, emailChangeDialog);
-            if (target?.verification?.status === "verified") {
-              return completeLoginEmailChange(
-                currentUser,
-                buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser), capabilities),
-                target.id,
-              );
-            }
-          }
-          if (
-            operation === "startLoginEmail" ||
-            operation === "continueLoginEmail" ||
-            operation === "resendLoginEmail"
-          ) {
-            const target = findEmailAddress(currentUser, loginEmailTargetId, loginEmailTargetNormalized ?? undefined);
+          if (isEmailChangeOperation && recoveredTarget) {
             const currentPrimary = findVerifiedPrimaryEmailAddress(currentUser);
-            if (
-              target &&
-              target.verification?.status === "verified" &&
-              currentUser.primaryEmailAddressId === target.id
-            ) {
-              showEmailChangeSuccess();
-              return true;
-            }
-            if (target && currentPrimary && target.id !== currentPrimary.id) {
-              if (target.verification?.status === "verified") {
-                setEmailPasswordState(cardError(getClerkErrorMessage(error)));
-                return false;
-              }
+            if (currentPrimary && recoveredTarget.verification?.status !== "verified") {
               setEmailChangeDialog({
                 isOpen: true,
                 step: "verification",
                 currentMaskedEmail: currentPrimary.emailAddress,
-                targetEmailAddressId: target.id,
-                targetMaskedEmail: target.emailAddress,
+                targetEmailAddressId: recoveredTarget.id,
+                targetMaskedEmail: recoveredTarget.emailAddress,
               });
               setEmailPasswordState(
-                cardError("確認コードの送信結果を確認できません。必要な場合は確認コードを再送してください。"),
+                cardError(
+                  operation === "verifyLoginEmail"
+                    ? getLoginMethodAccountErrorMessage(error)
+                    : "確認コードの送信結果を確認できません。必要な場合は確認コードを再送してください。",
+                ),
               );
               return false;
             }
           }
-          if (operation === "removePassword" && !currentUser.passwordEnabled) {
-            if (hasVerifiedGoogleMethod(currentUser)) {
-              setEmailPasswordState({ status: "success", message: "パスワードを削除しました。" });
-              return true;
-            }
-            setEmailPasswordState(
-              cardError(
-                "パスワードは削除されましたが、代わりのGoogleログインを確認できません。画面を再読み込みしてください。",
-              ),
-            );
-            return false;
-          }
-          if (
-            operation === "removeEmail" &&
-            typeof payload === "string" &&
-            !currentUser.emailAddresses.some((email) => email.id === payload)
-          ) {
-            if (hasAnyVerifiedLoginMethod(currentUser)) {
-              setEmailPasswordState({ status: "success", message: "メールアドレスを削除しました。" });
-              return true;
-            }
-            setEmailPasswordState(
-              cardError(
-                "メールアドレスは削除されましたが、代わりのログイン方法を確認できません。画面を再読み込みしてください。",
-              ),
-            );
-            return false;
-          }
         } catch {
-          // 部分成功を失敗として巻き戻さず、次のrenderで最新resourceを表示する。
+          // 部分成功を推測せず、Clerkの最新状態で証明できる場合だけ成功へ収束する。
         }
         setEmailPasswordState(cardError(getLoginMethodAccountErrorMessage(error)));
         return false;
@@ -690,17 +507,26 @@ export function useLoginMethodsController({
     reload,
     reconnectGoogle: (externalAccountId) => runOperation(() => runGoogleOperation("reconnect", externalAccountId)),
     prepareGoogleDisconnect: (externalAccountId) => runGoogleOperation("prepareDisconnect", externalAccountId),
-    preparePasswordRemoval: () => runEmailPasswordOperation("prepareRemovePassword"),
     disconnectGoogle: (externalAccountId) => runOperation(() => runGoogleOperation("disconnect", externalAccountId)),
+    openPasswordChange: () => {
+      if (!viewModel.emailPassword.canChangePassword) {
+        setEmailPasswordState(cardError("パスワードの変更は現在利用できません。"));
+        return;
+      }
+      setEmailChangeDialog({ isOpen: false });
+      setEmailPasswordState(IDLE_STATE);
+      setEmailPasswordDialog({ isOpen: true });
+    },
+    closeEmailPasswordDialog: (force = false) => {
+      if (emailPasswordState.status === "loading" && !force) return;
+      setEmailPasswordDialog({ isOpen: false });
+      setEmailPasswordState(IDLE_STATE);
+    },
+    updatePassword: (values) => runOperation(() => runEmailOperation("updatePassword", values)),
     openLoginEmailChange: () => {
       const primaryEmail = viewModel.emailPassword.primaryEmail;
       if (!viewModel.emailPassword.canChangeLoginEmail || !primaryEmail) {
-        setEmailPasswordState(
-          cardError(
-            viewModel.emailPassword.loginEmailChangeUnavailableReason ??
-              "ログイン用メールアドレスの変更は現在利用できません。",
-          ),
-        );
+        setEmailPasswordState(cardError("メインのメールアドレスを変更できません。最新の状態を読み込んでください。"));
         return;
       }
       setEmailPasswordDialog({ isOpen: false });
@@ -715,7 +541,7 @@ export function useLoginMethodsController({
     },
     continueLoginEmailChange: (emailAddressId) => {
       setEmailPasswordDialog({ isOpen: false });
-      return runOperation(() => runEmailPasswordOperation("continueLoginEmail", emailAddressId));
+      return runOperation(() => runEmailOperation("continueLoginEmail", emailAddressId));
     },
     closeLoginEmailChangeDialog: (force = false) => {
       if (emailPasswordState.status === "loading" && !force) return;
@@ -733,29 +559,9 @@ export function useLoginMethodsController({
       });
       setEmailPasswordState(IDLE_STATE);
     },
-    startLoginEmailChange: (email) => runOperation(() => runEmailPasswordOperation("startLoginEmail", email)),
-    verifyLoginEmailCode: (code) => runOperation(() => runEmailPasswordOperation("verifyLoginEmail", code)),
-    resendLoginEmailCode: () => runOperation(() => runEmailPasswordOperation("resendLoginEmail")),
-    confirmLoginEmailChange: () => runOperation(() => runEmailPasswordOperation("confirmLoginEmail")),
-    openPasswordChange: () => {
-      if (!viewModel.emailPassword.canChangePassword) {
-        setEmailPasswordState(cardError("パスワードの変更は現在利用できません。"));
-        return;
-      }
-      setEmailChangeDialog({ isOpen: false });
-      setEmailPasswordState(IDLE_STATE);
-      setEmailPasswordDialog({ isOpen: true });
-    },
-    closeEmailPasswordDialog: (force = false) => {
-      if (emailPasswordState.status === "loading" && !force) return;
-      setEmailPasswordDialog({ isOpen: false });
-      setEmailPasswordState(IDLE_STATE);
-    },
-    updatePassword: (values) => runOperation(() => runEmailPasswordOperation("updatePassword", values)),
-    removePassword: (currentPassword) =>
-      runOperation(() => runEmailPasswordOperation("removePassword", currentPassword)),
-    removeEmailAddress: (emailAddressId) =>
-      runOperation(() => runEmailPasswordOperation("removeEmail", emailAddressId)),
+    startLoginEmailChange: (email) => runOperation(() => runEmailOperation("startLoginEmail", email)),
+    verifyLoginEmailCode: (code) => runOperation(() => runEmailOperation("verifyLoginEmail", code)),
+    resendLoginEmailCode: () => runOperation(() => runEmailOperation("resendLoginEmail")),
   };
 }
 
@@ -779,45 +585,35 @@ function resolveLoginEmailChangeDialogEmailAddress(user: UserResource, dialog: L
   return findEmailAddress(user, dialog.targetEmailAddressId);
 }
 
-function googleConnectionSuccessMessage(user: UserResource) {
-  const hasPasswordMethod =
+function primaryChangeBaseline(user: UserResource, previousPrimaryEmailAddressId: string): PrimaryChangeBaseline {
+  return {
+    previousPrimaryEmailAddressId,
+    passwordEnabled: user.passwordEnabled,
+    googleAccounts: googleAccountKeys(user),
+  };
+}
+
+function googleAccountKeys(user: UserResource) {
+  return user.externalAccounts
+    .filter((account) => account.provider === "google")
+    .map((account) => `${account.id}:${account.verification?.status ?? "unknown"}`);
+}
+
+function equalStringSets(left: string[], right: string[]) {
+  return left.length === right.length && left.every((value) => right.includes(value));
+}
+
+function googleDisconnectCompleted(user: UserResource, externalAccountId: string) {
+  return (
+    !user.externalAccounts.some((account) => account.id === externalAccountId) &&
     user.passwordEnabled &&
-    user.emailAddresses.some((emailAddress) => emailAddress.verification?.status === "verified");
-  return hasPasswordMethod
-    ? "Google連携を確認しました。パスワードを残すか確認してください。自動では削除していません。"
-    : "Google連携を確認しました。";
+    user.emailAddresses.some((emailAddress) => emailAddress.verification?.status === "verified")
+  );
 }
 
 function emptyToUndefined(value: string | undefined) {
   const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
-}
-
-function hasSafePasswordFallback(user: UserResource): boolean {
-  const snapshot = toLoginMethodsUserSnapshot(user);
-  return (
-    snapshot.passwordEnabled &&
-    snapshot.emailAddresses.some(
-      (emailAddress) => emailAddress.verificationStatus === "verified" && emailAddress.linkedTo.length === 0,
-    )
-  );
-}
-
-function hasVerifiedGoogleMethod(user: UserResource): boolean {
-  return toLoginMethodsUserSnapshot(user).externalAccounts.some(
-    (account) => account.provider === "google" && account.verificationStatus === "verified",
-  );
-}
-
-function hasAnyVerifiedLoginMethod(user: UserResource): boolean {
-  const snapshot = toLoginMethodsUserSnapshot(user);
-  return (
-    snapshot.externalAccounts.some(
-      (account) => account.provider === "google" && account.verificationStatus === "verified",
-    ) ||
-    (snapshot.passwordEnabled &&
-      snapshot.emailAddresses.some((emailAddress) => emailAddress.verificationStatus === "verified"))
-  );
+  return trimmed || undefined;
 }
 
 function cardError(message: string): LoginMethodsCardState {

@@ -1,14 +1,12 @@
 import { useUser } from "@clerk/react";
 import type { UserResource } from "@clerk/shared/types";
-import { LOGIN_METHOD_CAPABILITIES } from "./capabilities";
+import { useCallback, useEffect, useRef } from "react";
+import { showSuccessToast } from "@/src/components/shared/feedback";
 import { LoginMethodMigrationView } from "./LoginMethodMigrationView";
 import { LoginMethodsView } from "./LoginMethodsView";
 import type { LoginMethodMigrationFlow } from "./migrationTypes";
-import type { LoginMethodReverificationController } from "./reverificationTypes";
-import type { PendingLoginMethodRemovalKind } from "./types";
 import { useEmailPasswordMigrationController } from "./useEmailPasswordMigrationController";
 import { useGoogleConnectionController } from "./useGoogleConnectionController";
-import { useGoogleReplacementController } from "./useGoogleReplacementController";
 import { useLoginMethodReverification } from "./useLoginMethodReverification";
 import { useLoginMethodsController } from "./useLoginMethodsController";
 
@@ -18,161 +16,128 @@ type LoginMethodsProps = {
   onStartFlow?: (flow: LoginMethodMigrationFlow) => void;
   onBackToOverview?: () => void;
   onGoogleOAuthReturnHandled?: () => void;
-  onRequestPreviousMethodRemoval?: (kind: PendingLoginMethodRemovalKind) => void;
-  pendingRemovalKind?: PendingLoginMethodRemovalKind | null;
-  onPendingRemovalClaimed?: () => void;
 };
 
 const NOOP = () => undefined;
 
-export function LoginMethods({
+export function LoginMethods(props: LoginMethodsProps) {
+  const { isLoaded, user } = useUser();
+  const currentActorIdRef = useRef<string | null>(user?.id ?? null);
+  currentActorIdRef.current = user?.id ?? null;
+  const getCurrentActorId = useCallback(() => currentActorIdRef.current, []);
+  const actorKey = user?.id ?? (isLoaded ? "signed-out" : "loading");
+
+  return (
+    <CurrentUserLoginMethods
+      key={actorKey}
+      {...props}
+      isLoaded={isLoaded}
+      user={user}
+      getCurrentActorId={getCurrentActorId}
+    />
+  );
+}
+
+function CurrentUserLoginMethods({
+  isLoaded,
+  user,
+  getCurrentActorId,
   flow,
   oauth,
   onStartFlow = NOOP,
   onBackToOverview = NOOP,
   onGoogleOAuthReturnHandled,
-  onRequestPreviousMethodRemoval = NOOP,
-  pendingRemovalKind = null,
-  onPendingRemovalClaimed = NOOP,
-}: LoginMethodsProps) {
-  const { isLoaded, user } = useUser();
+}: LoginMethodsProps & {
+  isLoaded: boolean;
+  user: UserResource | null | undefined;
+  getCurrentActorId: () => string | null;
+}) {
   const reverification = useLoginMethodReverification();
   const controller = useLoginMethodsController({
     isLoaded,
     user,
-    // 実環境で確認済みの操作だけをdeployment単位のbuild-time設定から注入する。
-    capabilities: LOGIN_METHOD_CAPABILITIES,
+    getCurrentActorId,
     onNeedsReverification: reverification.onNeedsReverification,
     runOperation: reverification.runOperation,
   });
-
-  if (flow === "add-email-password") {
-    return (
-      <EmailPasswordMigration
-        isLoaded={isLoaded}
-        user={user}
-        reverification={reverification}
-        onBackToOverview={onBackToOverview}
-        onRequestPreviousMethodRemoval={() => onRequestPreviousMethodRemoval("google")}
-      />
-    );
-  }
-  if (flow === "connect-google") {
-    return (
-      <GoogleConnectionMigration
-        isLoaded={isLoaded}
-        user={user}
-        oauthReturn={oauth === "google"}
-        reverification={reverification}
-        onBackToOverview={onBackToOverview}
-        onGoogleOAuthReturnHandled={onGoogleOAuthReturnHandled}
-        onRequestPreviousMethodRemoval={() => onRequestPreviousMethodRemoval("password")}
-      />
-    );
-  }
-  if (flow === "replace-google") {
-    return (
-      <GoogleReplacementMigration
-        isLoaded={isLoaded}
-        user={user}
-        oauthReturn={oauth === "google"}
-        reverification={reverification}
-        onBackToOverview={onBackToOverview}
-        onGoogleOAuthReturnHandled={onGoogleOAuthReturnHandled}
-        onRequestPreviousMethodRemoval={NOOP}
-      />
-    );
-  }
-
-  return (
-    <LoginMethodsView
-      controller={controller}
-      onStartFlow={onStartFlow}
-      reverification={reverification}
-      pendingRemovalKind={pendingRemovalKind}
-      onPendingRemovalClaimed={onPendingRemovalClaimed}
-    />
-  );
-}
-
-type MigrationProps = {
-  isLoaded: boolean;
-  user: UserResource | null | undefined;
-  reverification: LoginMethodReverificationController;
-  onBackToOverview: () => void;
-  onRequestPreviousMethodRemoval: () => void;
-};
-
-function EmailPasswordMigration(props: MigrationProps) {
-  const controller = useEmailPasswordMigrationController({
-    isLoaded: props.isLoaded,
-    user: props.user,
-    enabled: LOGIN_METHOD_CAPABILITIES.setPassword,
-    onNeedsReverification: props.reverification.onNeedsReverification,
-    runOperation: props.reverification.runOperation,
+  const emailPasswordController = useEmailPasswordMigrationController({
+    isLoaded,
+    user,
+    getCurrentActorId,
+    onNeedsReverification: reverification.onNeedsReverification,
+    runOperation: reverification.runOperation,
   });
-  return (
-    <LoginMethodMigrationView
-      flow="add-email-password"
-      controller={controller}
-      reverification={props.reverification}
-      onBackToOverview={props.onBackToOverview}
-      onRequestPreviousMethodRemoval={props.onRequestPreviousMethodRemoval}
-      canRequestPreviousMethodRemoval={LOGIN_METHOD_CAPABILITIES.disconnectGoogle}
-    />
-  );
-}
-
-function GoogleConnectionMigration(
-  props: MigrationProps & { oauthReturn: boolean; onGoogleOAuthReturnHandled?: () => void },
-) {
-  const controller = useGoogleConnectionController({
-    isLoaded: props.isLoaded,
-    user: props.user,
-    enabled: LOGIN_METHOD_CAPABILITIES.connectGoogle,
-    flow: "connect-google",
-    oauthReturn: props.oauthReturn,
-    onOAuthReturnHandled: props.onGoogleOAuthReturnHandled,
-    onNeedsReverification: props.reverification.onNeedsReverification,
-    runOperation: props.reverification.runOperation,
+  const googleController = useGoogleConnectionController({
+    isLoaded,
+    user,
+    getCurrentActorId,
+    active: flow === "connect-google",
+    oauthReturn: flow === "connect-google" && oauth === "google",
+    onOAuthReturnHandled: onGoogleOAuthReturnHandled,
+    onNeedsReverification: reverification.onNeedsReverification,
+    runOperation: reverification.runOperation,
   });
-  return (
-    <LoginMethodMigrationView
-      flow="connect-google"
-      controller={controller}
-      reverification={props.reverification}
-      onBackToOverview={props.onBackToOverview}
-      onRequestPreviousMethodRemoval={props.onRequestPreviousMethodRemoval}
-      canRequestPreviousMethodRemoval={LOGIN_METHOD_CAPABILITIES.removePassword}
-    />
-  );
-}
+  const handledCompletionRef = useRef<string | null>(null);
 
-function GoogleReplacementMigration(
-  props: MigrationProps & { oauthReturn: boolean; onGoogleOAuthReturnHandled?: () => void },
-) {
-  const controller = useGoogleReplacementController({
-    isLoaded: props.isLoaded,
-    user: props.user,
-    capabilities: LOGIN_METHOD_CAPABILITIES,
-    oauthReturn: props.oauthReturn,
-    onOAuthReturnHandled: props.onGoogleOAuthReturnHandled,
-    onNeedsReverification: props.reverification.onNeedsReverification,
-    runOperation: props.reverification.runOperation,
-  });
+  useEffect(() => {
+    const migrationController =
+      flow === "add-email-password" ? emailPasswordController : flow === "connect-google" ? googleController : null;
+    if (migrationController?.state.phase !== "methodReady") {
+      handledCompletionRef.current = null;
+      return;
+    }
+
+    if (migrationController.state.feedback.status !== "success") {
+      onBackToOverview();
+      return;
+    }
+
+    const completionKey = `${flow}:${migrationController.state.feedback.message ?? "completed"}`;
+    if (handledCompletionRef.current === completionKey) return;
+    handledCompletionRef.current = completionKey;
+    const completionActorId = user?.id ?? null;
+
+    void controller.reload().finally(() => {
+      if (!completionActorId || getCurrentActorId() !== completionActorId) return;
+      if (flow === "add-email-password") {
+        showSuccessToast({
+          title: "メールアドレスとパスワードを設定しました",
+          description: "Google認証はそのまま利用できます。",
+        });
+      } else {
+        showSuccessToast({
+          title: "Googleログインを追加しました",
+          description: "メールアドレスとパスワードはそのまま利用できます。",
+        });
+      }
+      onBackToOverview();
+    });
+  }, [controller, emailPasswordController, flow, getCurrentActorId, googleController, onBackToOverview, user?.id]);
+
   return (
-    <LoginMethodMigrationView
-      flow="replace-google"
-      controller={controller}
-      reverification={props.reverification}
-      onBackToOverview={props.onBackToOverview}
-      onRequestPreviousMethodRemoval={props.onRequestPreviousMethodRemoval}
-      canRequestPreviousMethodRemoval={false}
-    />
+    <>
+      <LoginMethodsView controller={controller} onStartFlow={onStartFlow} reverification={reverification} />
+      {flow === "add-email-password" ? (
+        <LoginMethodMigrationView
+          flow="add-email-password"
+          controller={emailPasswordController}
+          reverification={reverification}
+          onBackToOverview={onBackToOverview}
+        />
+      ) : null}
+      {flow === "connect-google" ? (
+        <LoginMethodMigrationView
+          flow="connect-google"
+          controller={googleController}
+          reverification={reverification}
+          onBackToOverview={onBackToOverview}
+        />
+      ) : null}
+    </>
   );
 }
 
 export { LoginMethodMigrationView } from "./LoginMethodMigrationView";
 export { LoginMethodsView } from "./LoginMethodsView";
 export type { LoginMethodMigrationFlow } from "./migrationTypes";
-export type { LoginMethodsController, LoginMethodsViewModel, PendingLoginMethodRemovalKind } from "./types";
+export type { LoginMethodsController, LoginMethodsViewModel } from "./types";

@@ -1,10 +1,5 @@
 import { Heading, Stack } from "@chakra-ui/react";
-import { useCallback, useState } from "react";
-import {
-  type LoginMethodMigrationFlow,
-  LoginMethods,
-  type PendingLoginMethodRemovalKind,
-} from "@/src/components/features/LoginMethods";
+import { type LoginMethodMigrationFlow, LoginMethods } from "@/src/components/features/LoginMethods";
 import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
 
 export type AccountSecurityPageFlow = LoginMethodMigrationFlow;
@@ -24,25 +19,6 @@ export function AccountSecurityPage({
   onBackToOverview,
   onGoogleOAuthReturnHandled,
 }: AccountSecurityPageProps) {
-  const [pendingRemovalKind, setPendingRemovalKind] = useState<PendingLoginMethodRemovalKind | null>(null);
-  const handlePreviousMethodRemoval = useCallback(
-    (kind: PendingLoginMethodRemovalKind) => {
-      setPendingRemovalKind(kind);
-      onBackToOverview?.();
-    },
-    [onBackToOverview],
-  );
-  const handlePendingRemovalClaimed = useCallback(() => {
-    setPendingRemovalKind(null);
-  }, []);
-  const handleStartFlow = useCallback(
-    (nextFlow: AccountSecurityPageFlow) => {
-      setPendingRemovalKind(null);
-      onStartFlow?.(nextFlow);
-    },
-    [onStartFlow],
-  );
-
   return (
     <AuthenticatedPageContent>
       <Stack gap={6}>
@@ -52,15 +28,11 @@ export function AccountSecurityPage({
           </Heading>
         </Stack>
         <LoginMethods
-          key={flow ?? "overview"}
           flow={flow}
           oauth={oauth}
-          onStartFlow={handleStartFlow}
+          onStartFlow={onStartFlow}
           onBackToOverview={onBackToOverview}
           onGoogleOAuthReturnHandled={onGoogleOAuthReturnHandled}
-          onRequestPreviousMethodRemoval={handlePreviousMethodRemoval}
-          pendingRemovalKind={pendingRemovalKind}
-          onPendingRemovalClaimed={handlePendingRemovalClaimed}
         />
       </Stack>
     </AuthenticatedPageContent>

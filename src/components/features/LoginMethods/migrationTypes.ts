@@ -1,9 +1,9 @@
 import type { SessionVerificationLevel } from "@clerk/shared/types";
 
-export const LOGIN_METHOD_MIGRATION_FLOWS = ["add-email-password", "connect-google", "replace-google"] as const;
+export const LOGIN_METHOD_MIGRATION_FLOWS = ["add-email-password", "connect-google"] as const;
 
 export type LoginMethodMigrationFlow = (typeof LOGIN_METHOD_MIGRATION_FLOWS)[number];
-export type GoogleOAuthMigrationFlow = Extract<LoginMethodMigrationFlow, "connect-google" | "replace-google">;
+export type GoogleOAuthMigrationFlow = Extract<LoginMethodMigrationFlow, "connect-google">;
 
 /** `useReverification` のcustom UI所有者から各操作controllerへ注入する境界。 */
 export type LoginMethodReverificationHandler = (request: {
@@ -19,8 +19,6 @@ export type LoginMethodMigrationFeedback = {
   message: string | null;
 };
 
-export type EmailPasswordMigrationPurpose = "add-email-password" | "ensure-unlinked-fallback";
-
 export type EmailPasswordMigrationPhase =
   | "choosingEmail"
   | "verifyingEmail"
@@ -29,11 +27,3 @@ export type EmailPasswordMigrationPhase =
   | "unavailable";
 
 export type GoogleConnectionPhase = "readyToConnect" | "redirecting" | "settling" | "methodReady" | "unavailable";
-
-export type GoogleReplacementPhase =
-  | "ensuringFallback"
-  | "fallbackReady"
-  | "removingOldGoogle"
-  | "connectingNewGoogle"
-  | "newGoogleReady"
-  | "unavailable";

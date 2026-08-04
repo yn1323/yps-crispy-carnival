@@ -3,14 +3,12 @@ import { isReverificationCancelledError } from "@clerk/react/errors";
 import type { EmailAddressResource, UserResource } from "@clerk/shared/types";
 import { useEffect, useRef, useState } from "react";
 import { normalizeEmail, requiredEmailSchema } from "@/convex/_lib/validation";
-import { maskEmailAddress } from "@/src/components/features/AuthPage/loginVerification";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { toLoginMethodsUserSnapshot } from "./adapter";
 import { getLoginMethodAccountErrorMessage } from "./loginMethodErrorPresentation";
-import { deriveEmailPasswordMigration, hasSafeEmailPasswordFallback } from "./migrationScript";
+import { deriveEmailPasswordMigration } from "./migrationScript";
 import type {
   EmailPasswordMigrationPhase,
-  EmailPasswordMigrationPurpose,
   LoginMethodMigrationFeedback,
   LoginMethodOperationRunner,
   LoginMethodReverificationHandler,
@@ -19,8 +17,7 @@ import type {
 export type EmailPasswordMigrationState = {
   phase: EmailPasswordMigrationPhase;
   targetEmailAddressId: string | null;
-  targetMaskedEmail: string | null;
-  safeForGoogleDisconnect: boolean;
+  targetEmailAddress: string | null;
   feedback: LoginMethodMigrationFeedback;
 };
 
@@ -38,8 +35,7 @@ export type EmailPasswordMigrationController = {
 type Options = {
   isLoaded: boolean;
   user: UserResource | null | undefined;
-  enabled: boolean;
-  purpose?: EmailPasswordMigrationPurpose;
+  getCurrentActorId: () => string | null;
   onNeedsReverification: LoginMethodReverificationHandler;
   runOperation: LoginMethodOperationRunner;
 };
@@ -49,41 +45,35 @@ const IDLE_FEEDBACK: LoginMethodMigrationFeedback = { status: "idle", message: n
 export function useEmailPasswordMigrationController({
   isLoaded,
   user,
-  enabled,
-  purpose = "add-email-password",
+  getCurrentActorId,
   onNeedsReverification,
   runOperation,
 }: Options): EmailPasswordMigrationController {
-  const initializedForRef = useRef<{ userId: string; purpose: EmailPasswordMigrationPurpose } | null>(
-    user && enabled ? { userId: user.id, purpose } : null,
-  );
+  const actorUserId = user?.id ?? null;
+  const initializedForRef = useRef<string | null>(user?.id ?? null);
   const [state, setState] = useState<EmailPasswordMigrationState>(() =>
-    user && enabled ? stateFromUser(user, purpose) : unavailableState(),
+    user ? stateFromUser(user) : unavailableState(),
   );
 
   useEffect(() => {
-    if (!enabled) {
-      initializedForRef.current = null;
-      setState(unavailableState());
-      return;
-    }
     if (!isLoaded || !user) return;
-    const initializedFor = initializedForRef.current;
-    if (initializedFor?.userId === user.id && initializedFor?.purpose === purpose) return;
-    initializedForRef.current = { userId: user.id, purpose };
-    setState(stateFromUser(user, purpose));
-  }, [enabled, isLoaded, purpose, user]);
+    if (initializedForRef.current === user.id) return;
+    initializedForRef.current = user.id;
+    setState(stateFromUser(user));
+  }, [isLoaded, user]);
 
   const reloadUser = async () => {
-    if (!isLoaded || !user) throw new Error("Unauthenticated");
+    if (!isLoaded || !user || !actorUserId || user.id !== actorUserId || getCurrentActorId() !== actorUserId) {
+      throw new Error("Unauthenticated");
+    }
     await user.reload();
+    if (user.id !== actorUserId || getCurrentActorId() !== actorUserId) throw new Error("Unauthenticated");
     return user;
   };
 
   const ensureEmailAddressWithReverification = useReverification(
     async (normalizedEmail: string) => {
       const currentUser = await reloadUser();
-      if (!enabled) return { status: "unavailable" } as const;
       const existing = findEmailAddress(currentUser, null, normalizedEmail);
       if (existing) return { status: "ready", emailAddressId: existing.id } as const;
       const created = await currentUser.createEmailAddress({ email: normalizedEmail });
@@ -103,9 +93,8 @@ export function useEmailPasswordMigrationController({
       signOutOfOtherSessions: boolean;
     }) => {
       const currentUser = await reloadUser();
-      if (!enabled) return "unavailable" as const;
       const target = findEmailAddress(currentUser, targetEmailAddressId);
-      if (!isAllowedVerifiedTarget(target, purpose)) return "unavailable" as const;
+      if (!isVerifiedTarget(target)) return "unavailable" as const;
       if (currentUser.passwordEnabled) return "alreadyReady" as const;
       await currentUser.updatePassword({ newPassword, signOutOfOtherSessions });
       return "updated" as const;
@@ -118,7 +107,7 @@ export function useEmailPasswordMigrationController({
     feedback: LoginMethodMigrationFeedback,
     targetId?: string | null,
   ) => {
-    const next = stateFromUser(currentUser, purpose, targetId === undefined ? state.targetEmailAddressId : targetId);
+    const next = stateFromUser(currentUser, targetId === undefined ? state.targetEmailAddressId : targetId);
     setState({ ...next, feedback });
     return next;
   };
@@ -133,10 +122,6 @@ export function useEmailPasswordMigrationController({
       setState((current) => ({ ...current, feedback: { status: "loading", message: null } }));
       try {
         const currentUser = await reloadUser();
-        if (!enabled) {
-          setState(unavailableState("この変更は現在利用できません。"));
-          return false;
-        }
         syncFromUser(currentUser, { status: "success", message: "最新のログイン方法を確認しました。" });
         return true;
       } catch {
@@ -147,17 +132,6 @@ export function useEmailPasswordMigrationController({
   );
 
   const advanceWithEmail = async (currentUser: UserResource, target: EmailAddressResource) => {
-    if (!isAllowedTarget(target, purpose)) {
-      setState((current) => ({
-        ...current,
-        feedback: {
-          status: "error",
-          message: "Googleと接続していない別のメールアドレスを使用してください。",
-        },
-      }));
-      return false;
-    }
-
     if (target.verification?.status !== "verified") {
       await target.prepareVerification({ strategy: "email_code" });
       syncFromUser(currentUser, { status: "success", message: "確認コードを送信しました。" }, target.id);
@@ -182,18 +156,11 @@ export function useEmailPasswordMigrationController({
       setState((current) => ({ ...current, feedback: { status: "loading", message: null } }));
       try {
         const currentUser = await reloadUser();
-        if (!enabled) {
-          setState(unavailableState("この変更は現在利用できません。"));
-          return false;
-        }
         const target =
-          purpose === "ensure-unlinked-fallback"
-            ? currentUser.emailAddresses.find(isVerifiedUnlinkedEmail)
-            : (currentUser.emailAddresses.find(
-                (emailAddress) =>
-                  emailAddress.id === currentUser.primaryEmailAddressId &&
-                  emailAddress.verification?.status === "verified",
-              ) ?? currentUser.emailAddresses.find((emailAddress) => emailAddress.verification?.status === "verified"));
+          currentUser.emailAddresses.find(
+            (emailAddress) =>
+              emailAddress.id === currentUser.primaryEmailAddressId && emailAddress.verification?.status === "verified",
+          ) ?? currentUser.emailAddresses.find((emailAddress) => emailAddress.verification?.status === "verified");
         if (!target) {
           setState((current) => ({
             ...current,
@@ -232,14 +199,10 @@ export function useEmailPasswordMigrationController({
       let ensuredId: string | null = null;
       try {
         let currentUser = await reloadUser();
-        if (!enabled) {
-          setState(unavailableState("この変更は現在利用できません。"));
-          return false;
-        }
         let target = findEmailAddress(currentUser, null, normalizedEmail);
         if (!target) {
           const ensured = await ensureEmailAddressWithReverification(normalizedEmail);
-          if (ensured == null || ensured.status === "unavailable") {
+          if (ensured == null) {
             setState((current) => ({
               ...current,
               feedback: { status: "error", message: "メールアドレスを追加できません。最新の状態を確認してください。" },
@@ -303,14 +266,14 @@ export function useEmailPasswordMigrationController({
       try {
         let currentUser = await reloadUser();
         const target = findEmailAddress(currentUser, state.targetEmailAddressId);
-        if (!enabled || !target || !isAllowedTarget(target, purpose)) {
+        if (!target) {
           setState(unavailableState("確認中のメールアドレスを取得できません。最新の状態を確認してください。"));
           return false;
         }
         if (target.verification?.status !== "verified") await target.attemptVerification({ code: code.trim() });
         currentUser = await reloadUser();
         const verified = findEmailAddress(currentUser, target.id);
-        if (!isAllowedVerifiedTarget(verified, purpose)) {
+        if (!isVerifiedTarget(verified)) {
           setState((current) => ({
             ...current,
             feedback: { status: "error", message: "メールアドレスを確認できませんでした。もう一度お試しください。" },
@@ -323,7 +286,7 @@ export function useEmailPasswordMigrationController({
         try {
           const currentUser = await reloadUser();
           const recovered = findEmailAddress(currentUser, state.targetEmailAddressId);
-          if (isAllowedVerifiedTarget(recovered, purpose)) {
+          if (isVerifiedTarget(recovered)) {
             syncFromUser(currentUser, { status: "success", message: "メールアドレスを確認しました。" }, recovered.id);
             return true;
           }
@@ -342,7 +305,7 @@ export function useEmailPasswordMigrationController({
       try {
         const currentUser = await reloadUser();
         const target = findEmailAddress(currentUser, state.targetEmailAddressId);
-        if (!enabled || !target || !isAllowedTarget(target, purpose) || target.verification?.status === "verified") {
+        if (!target || target.verification?.status === "verified") {
           syncFromUser(currentUser, { status: "error", message: "確認コードを再送できません。" });
           return false;
         }
@@ -361,14 +324,18 @@ export function useEmailPasswordMigrationController({
       async ({ newPassword, signOutOfOtherSessions }: { newPassword: string; signOutOfOtherSessions: boolean }) => {
         setState((current) => ({ ...current, feedback: { status: "loading", message: null } }));
         let targetId = state.targetEmailAddressId;
+        let primaryEmailAddressId: string | null = null;
+        let googleAccounts: string[] = [];
         try {
           let currentUser = await reloadUser();
           const target = findEmailAddress(currentUser, targetId);
-          if (!enabled || !target || !isAllowedVerifiedTarget(target, purpose)) {
+          if (!isVerifiedTarget(target)) {
             setState(unavailableState("確認済みのメールアドレスを取得できません。最新の状態を確認してください。"));
             return false;
           }
           targetId = target.id;
+          primaryEmailAddressId = currentUser.primaryEmailAddressId;
+          googleAccounts = googleAccountKeys(currentUser);
           const result = await setPasswordWithReverification({
             targetEmailAddressId: target.id,
             newPassword,
@@ -382,7 +349,11 @@ export function useEmailPasswordMigrationController({
             return false;
           }
           currentUser = await reloadUser();
-          if (!currentUser.passwordEnabled) {
+          if (
+            !currentUser.passwordEnabled ||
+            currentUser.primaryEmailAddressId !== primaryEmailAddressId ||
+            !equalStringSets(googleAccountKeys(currentUser), googleAccounts)
+          ) {
             setState((current) => ({
               ...current,
               feedback: { status: "error", message: "パスワードの設定結果を確認できません。" },
@@ -404,7 +375,9 @@ export function useEmailPasswordMigrationController({
             const currentUser = await reloadUser();
             if (
               currentUser.passwordEnabled &&
-              isAllowedVerifiedTarget(findEmailAddress(currentUser, targetId), purpose)
+              currentUser.primaryEmailAddressId === primaryEmailAddressId &&
+              equalStringSets(googleAccountKeys(currentUser), googleAccounts) &&
+              isVerifiedTarget(findEmailAddress(currentUser, targetId))
             ) {
               syncFromUser(
                 currentUser,
@@ -431,24 +404,19 @@ export function useEmailPasswordMigrationController({
     verifyEmail,
     resendEmailCode,
     setPassword,
-    reset: () => setState(user && enabled ? stateFromUser(user, purpose) : unavailableState()),
+    reset: () => setState(user ? stateFromUser(user) : unavailableState()),
   };
 }
 
-function stateFromUser(
-  user: UserResource,
-  purpose: EmailPasswordMigrationPurpose,
-  targetEmailAddressId: string | null = null,
-): EmailPasswordMigrationState {
+function stateFromUser(user: UserResource, targetEmailAddressId: string | null = null): EmailPasswordMigrationState {
   const snapshot = toLoginMethodsUserSnapshot(user);
-  const derived = deriveEmailPasswordMigration(snapshot, purpose, targetEmailAddressId);
+  const derived = deriveEmailPasswordMigration(snapshot, targetEmailAddressId);
   const target = derived.targetEmailAddressId
     ? user.emailAddresses.find((emailAddress) => emailAddress.id === derived.targetEmailAddressId)
     : undefined;
   return {
     ...derived,
-    targetMaskedEmail: target ? maskEmailAddress(target.emailAddress) : null,
-    safeForGoogleDisconnect: hasSafeEmailPasswordFallback(snapshot),
+    targetEmailAddress: target?.emailAddress ?? null,
     feedback: IDLE_FEEDBACK,
   };
 }
@@ -457,8 +425,7 @@ function unavailableState(message: string | null = null): EmailPasswordMigration
   return {
     phase: "unavailable",
     targetEmailAddressId: null,
-    targetMaskedEmail: null,
-    safeForGoogleDisconnect: false,
+    targetEmailAddress: null,
     feedback: { status: message ? "error" : "idle", message },
   };
 }
@@ -472,23 +439,18 @@ function findEmailAddress(user: UserResource, id: string | null, normalizedEmail
   return user.emailAddresses.find((emailAddress) => normalizeEmail(emailAddress.emailAddress) === normalizedEmail);
 }
 
-function isVerifiedUnlinkedEmail(emailAddress: EmailAddressResource) {
-  return emailAddress.verification?.status === "verified" && emailAddress.linkedTo.length === 0;
+function isVerifiedTarget(emailAddress: EmailAddressResource | undefined): emailAddress is EmailAddressResource {
+  return emailAddress?.verification?.status === "verified";
 }
 
-function isAllowedTarget(
-  emailAddress: EmailAddressResource | undefined,
-  purpose: EmailPasswordMigrationPurpose,
-): emailAddress is EmailAddressResource {
-  if (!emailAddress) return false;
-  return purpose !== "ensure-unlinked-fallback" || emailAddress.linkedTo.length === 0;
+function googleAccountKeys(user: UserResource) {
+  return user.externalAccounts
+    .filter((account) => account.provider === "google")
+    .map((account) => `${account.id}:${account.verification?.status ?? "unknown"}`);
 }
 
-function isAllowedVerifiedTarget(
-  emailAddress: EmailAddressResource | undefined,
-  purpose: EmailPasswordMigrationPurpose,
-): emailAddress is EmailAddressResource {
-  return isAllowedTarget(emailAddress, purpose) && emailAddress.verification?.status === "verified";
+function equalStringSets(left: string[], right: string[]) {
+  return left.length === right.length && left.every((value) => right.includes(value));
 }
 
 function errorFeedback(error: unknown): LoginMethodMigrationFeedback {

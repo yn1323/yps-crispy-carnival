@@ -1,21 +1,9 @@
-export type LoginMethodCapabilities = {
-  connectGoogle: boolean;
-  reconnectGoogle: boolean;
-  disconnectGoogle: boolean;
-  setPassword: boolean;
-  changePassword: boolean;
-  removePassword: boolean;
-  removeEmailAddress: boolean;
-  replaceGoogleAccount: boolean;
-};
-
-export type PendingLoginMethodRemovalKind = "google" | "password";
+export type LoginMethodState = "googleOnly" | "passwordOnly" | "googleAndPassword";
 
 export type LoginMethodsEmailSnapshot = {
   id: string;
   emailAddress: string;
   verificationStatus: string | null;
-  linkedTo: readonly { id: string; type: string }[];
 };
 
 export type LoginMethodsExternalAccountSnapshot = {
@@ -37,10 +25,7 @@ export type LoginMethodsEmailViewModel = {
   maskedEmail: string;
   verificationStatus: "verified" | "unverified";
   isPrimary: boolean;
-  isLinked: boolean;
   loginEmailChangeAction: "verify" | "switch" | null;
-  canRemove: boolean;
-  removeUnavailableReason: string | null;
 };
 
 export type LoginMethodsGoogleAccountViewModel = {
@@ -53,13 +38,12 @@ export type LoginMethodsGoogleAccountViewModel = {
 
 export type LoginMethodsViewModel = {
   status: "ready" | "unavailable";
+  methodState: LoginMethodState | null;
   google: {
     accounts: LoginMethodsGoogleAccountViewModel[];
     canConnect: boolean;
     connectUnavailableReason: string | null;
     canReconnect: boolean;
-    canReplace: boolean;
-    replaceUnavailableReason: string | null;
   };
   emailPassword: {
     passwordEnabled: boolean;
@@ -70,8 +54,6 @@ export type LoginMethodsViewModel = {
     loginEmailChangeUnavailableReason: string | null;
     canSetPassword: boolean;
     canChangePassword: boolean;
-    canRemovePassword: boolean;
-    passwordRemovalUnavailableReason: string | null;
   };
 };
 
@@ -102,7 +84,6 @@ export type LoginMethodsController = {
   reload: () => Promise<unknown>;
   reconnectGoogle: (externalAccountId: string) => Promise<unknown>;
   prepareGoogleDisconnect: (externalAccountId: string) => Promise<boolean | undefined>;
-  preparePasswordRemoval: () => Promise<boolean | undefined>;
   disconnectGoogle: (externalAccountId: string) => Promise<unknown>;
   openPasswordChange: () => void;
   closeEmailPasswordDialog: (force?: boolean) => void;
@@ -111,8 +92,6 @@ export type LoginMethodsController = {
     newPassword: string;
     signOutOfOtherSessions: boolean;
   }) => Promise<unknown>;
-  removePassword: (currentPassword?: string) => Promise<unknown>;
-  removeEmailAddress: (emailAddressId: string) => Promise<unknown>;
   openLoginEmailChange: () => void;
   continueLoginEmailChange: (emailAddressId: string) => Promise<unknown>;
   closeLoginEmailChangeDialog: (force?: boolean) => void;
@@ -120,5 +99,4 @@ export type LoginMethodsController = {
   startLoginEmailChange: (email: string) => Promise<unknown>;
   verifyLoginEmailCode: (code: string) => Promise<unknown>;
   resendLoginEmailCode: () => Promise<unknown>;
-  confirmLoginEmailChange: () => Promise<unknown>;
 };

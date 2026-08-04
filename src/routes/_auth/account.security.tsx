@@ -93,9 +93,9 @@ function AccountSecurityRoute() {
 }
 
 function isAccountSecurityFlow(value: unknown): value is AccountSecurityPageFlow {
-  return value === "add-email-password" || value === "connect-google" || value === "replace-google";
+  return value === "add-email-password" || value === "connect-google";
 }
 
 function isGoogleOAuthFlow(flow: AccountSecurityPageFlow | undefined) {
-  return flow === "connect-google" || flow === "replace-google";
+  return flow === "connect-google";
 }

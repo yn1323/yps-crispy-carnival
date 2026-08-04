@@ -9,7 +9,6 @@
   },
   "scripts": {
     "build": "vite build && pnpm static:prepare && pnpm static:validate && tsc",
-    "build:clerk-canary": "vite build --mode clerk-canary && pnpm static:prepare && pnpm static:validate && tsc",
     "analytics:dev": "pnpm --filter @shiftori/analytics-dashboard dev",
     "analytics:dev:production": "pnpm --filter @shiftori/analytics-dashboard dev:production",
     "analytics:build": "pnpm --filter @shiftori/analytics-dashboard build",

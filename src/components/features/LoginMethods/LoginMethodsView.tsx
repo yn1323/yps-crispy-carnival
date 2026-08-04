@@ -1,5 +1,5 @@
 import { Alert, Badge, Box, Flex, HStack, Icon, Separator, Skeleton, Stack, Text } from "@chakra-ui/react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 import { LuMail } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
@@ -9,82 +9,18 @@ import { LoginEmailChangeDialog } from "./LoginEmailChangeDialog";
 import { LoginMethodReverificationView } from "./LoginMethodReverificationView";
 import type { LoginMethodMigrationFlow } from "./migrationTypes";
 import type { LoginMethodReverificationController } from "./reverificationTypes";
-import { hasGmailEmailAddress } from "./script";
-import type {
-  LoginMethodsCardState,
-  LoginMethodsController,
-  LoginMethodsEmailViewModel,
-  PendingLoginMethodRemovalKind,
-} from "./types";
-
-type Confirmation =
-  | { kind: "google"; id: string }
-  | { kind: "password" }
-  | { kind: "email"; id: string; maskedEmail: string };
+import type { LoginMethodsCardState, LoginMethodsController, LoginMethodsEmailViewModel } from "./types";
 
 export function LoginMethodsView({
   controller,
   onStartFlow,
   reverification,
-  pendingRemovalKind = null,
-  onPendingRemovalClaimed,
 }: {
   controller: LoginMethodsController;
   onStartFlow: (flow: LoginMethodMigrationFlow) => void;
   reverification: LoginMethodReverificationController;
-  pendingRemovalKind?: PendingLoginMethodRemovalKind | null;
-  onPendingRemovalClaimed?: () => void;
 }) {
-  const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
-  const pendingRemovalClaimedRef = useRef(false);
-  const controllerRef = useRef(controller);
-  controllerRef.current = controller;
-  const { viewModel } = controller;
-  const showLoginMethods = hasGmailEmailAddress(viewModel);
-  const hasEnabledOperation =
-    viewModel.google.canConnect ||
-    viewModel.google.canReconnect ||
-    viewModel.google.canReplace ||
-    viewModel.google.accounts.some((account) => account.canDisconnect) ||
-    viewModel.emailPassword.canChangeLoginEmail ||
-    viewModel.emailPassword.canSetPassword ||
-    viewModel.emailPassword.canChangePassword ||
-    viewModel.emailPassword.canRemovePassword ||
-    [...viewModel.emailPassword.verifiedEmails, ...viewModel.emailPassword.unverifiedEmails].some(
-      (email) => email.canRemove,
-    );
-
-  useEffect(() => {
-    if (!pendingRemovalKind) {
-      pendingRemovalClaimedRef.current = false;
-      return;
-    }
-    if (!controller.isLoaded || pendingRemovalClaimedRef.current) return;
-
-    pendingRemovalClaimedRef.current = true;
-    let cancelled = false;
-    const precheckAndOpen = async () => {
-      const currentController = controllerRef.current;
-      if (pendingRemovalKind === "password") {
-        const canRemove = await currentController.preparePasswordRemoval();
-        if (!cancelled && canRemove) setConfirmation({ kind: "password" });
-      } else {
-        const account =
-          currentController.viewModel.google.accounts.find((candidate) => candidate.canDisconnect) ??
-          currentController.viewModel.google.accounts[0];
-        if (account) {
-          const canDisconnect = await currentController.prepareGoogleDisconnect(account.id);
-          if (!cancelled && canDisconnect) setConfirmation({ kind: "google", id: account.id });
-        }
-      }
-      if (!cancelled) onPendingRemovalClaimed?.();
-    };
-    void precheckAndOpen();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [controller.isLoaded, onPendingRemovalClaimed, pendingRemovalKind]);
+  const [googleToDisconnect, setGoogleToDisconnect] = useState<string | null>(null);
 
   if (!controller.isLoaded) {
     return (
@@ -97,47 +33,26 @@ export function LoginMethodsView({
 
   return (
     <Stack gap={5}>
-      {!hasEnabledOperation ? (
-        <Alert.Root status="warning" borderRadius="xl">
-          <Alert.Indicator />
-          <Alert.Description>
-            現在はログイン方法の確認のみ利用できます。Google連携やパスワードなどの変更は、安全性の確認が完了してから利用できるようになります。
-          </Alert.Description>
-        </Alert.Root>
-      ) : null}
-
-      {viewModel.status === "unavailable" ? (
+      {controller.viewModel.status === "unavailable" ? (
         <Alert.Root status="error" borderRadius="xl">
           <Alert.Indicator />
           <Box>
             <Alert.Title>利用できるログイン方法を確認できません</Alert.Title>
-            <Alert.Description>削除操作は停止しています。最新の状態を読み込んでください。</Alert.Description>
+            <Alert.Description>画面を再読み込みして、もう一度お試しください。</Alert.Description>
           </Box>
         </Alert.Root>
       ) : null}
 
-      {showLoginMethods ? (
-        <LoginMethodsCard
-          controller={controller}
-          onSetPassword={() => onStartFlow("add-email-password")}
-          onConfirmRemovePassword={() => setConfirmation({ kind: "password" })}
-          onConfirmRemoveEmail={(id, maskedEmail) => setConfirmation({ kind: "email", id, maskedEmail })}
-          onConnect={() => onStartFlow("connect-google")}
-          onReplace={() => onStartFlow("replace-google")}
-          onRequestDisconnect={async (id) => {
-            if (await controller.prepareGoogleDisconnect(id)) {
-              setConfirmation({ kind: "google", id });
-            }
-          }}
-        />
-      ) : (
-        <EmailPasswordCard
-          controller={controller}
-          onSetPassword={() => onStartFlow("add-email-password")}
-          onConfirmRemovePassword={() => setConfirmation({ kind: "password" })}
-          onConfirmRemoveEmail={(id, maskedEmail) => setConfirmation({ kind: "email", id, maskedEmail })}
-        />
-      )}
+      <LoginMethodsCard
+        controller={controller}
+        onSetPassword={() => onStartFlow("add-email-password")}
+        onConnectGoogle={() => onStartFlow("connect-google")}
+        onRequestGoogleDisconnect={async (externalAccountId) => {
+          if (await controller.prepareGoogleDisconnect(externalAccountId)) {
+            setGoogleToDisconnect(externalAccountId);
+          }
+        }}
+      />
 
       <EmailPasswordDialog controller={controller} reverification={reverification} />
       <LoginEmailChangeDialog
@@ -146,6 +61,7 @@ export function LoginMethodsView({
         currentMaskedEmail={
           controller.emailChangeDialog.isOpen ? controller.emailChangeDialog.currentMaskedEmail : null
         }
+        targetEmailAddress={controller.emailChangeDialog.isOpen ? controller.emailChangeDialog.targetMaskedEmail : null}
         status={controller.emailPasswordState.status}
         message={controller.emailPasswordState.message}
         onClose={controller.closeLoginEmailChangeDialog}
@@ -155,68 +71,50 @@ export function LoginMethodsView({
         onBackToInput={controller.backToLoginEmailInput}
         reverification={reverification}
       />
-      <RemovalConfirmationDialog
-        confirmation={confirmation}
+      <GoogleDisconnectDialog
+        externalAccountId={googleToDisconnect}
         controller={controller}
-        onClose={() => setConfirmation(null)}
         reverification={reverification}
+        onClose={() => setGoogleToDisconnect(null)}
       />
       {reverification.state.status !== "idle" &&
       !controller.emailPasswordDialog.isOpen &&
       !controller.emailChangeDialog.isOpen &&
-      confirmation === null ? (
+      googleToDisconnect === null ? (
         <StandaloneReverificationDialog reverification={reverification} />
       ) : null}
     </Stack>
   );
 }
 
-type EmailPasswordActions = {
-  controller: LoginMethodsController;
-  onSetPassword: () => void;
-  onConfirmRemovePassword: () => void;
-  onConfirmRemoveEmail: (id: string, maskedEmail: string) => void;
-};
-
-type GoogleActions = {
-  controller: LoginMethodsController;
-  onConnect: () => void;
-  onReplace: () => void;
-  onRequestDisconnect: (id: string) => Promise<void>;
-};
-
 function LoginMethodsCard({
   controller,
   onSetPassword,
-  onConfirmRemovePassword,
-  onConfirmRemoveEmail,
-  onConnect,
-  onReplace,
-  onRequestDisconnect,
-}: EmailPasswordActions & GoogleActions) {
-  const { google } = controller.viewModel;
+  onConnectGoogle,
+  onRequestGoogleDisconnect,
+}: {
+  controller: LoginMethodsController;
+  onSetPassword: () => void;
+  onConnectGoogle: () => void;
+  onRequestGoogleDisconnect: (externalAccountId: string) => Promise<void>;
+}) {
+  const canDisconnectGoogle = controller.viewModel.google.accounts.some((account) => account.canDisconnect);
+
   return (
     <Stack gap={3}>
       <Stack gap={0} borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" overflow="hidden" bg="white">
         <Box p={{ base: 3, md: 4 }} bg="white">
-          <EmailPasswordContent
-            controller={controller}
-            onSetPassword={onSetPassword}
-            onConfirmRemovePassword={onConfirmRemovePassword}
-            onConfirmRemoveEmail={onConfirmRemoveEmail}
-            compact
-          />
+          <EmailContent controller={controller} onSetPassword={onSetPassword} />
         </Box>
         <Box borderTopWidth="1px" borderColor="blackAlpha.100" p={{ base: 3, md: 4 }}>
           <GoogleContent
             controller={controller}
-            onConnect={onConnect}
-            onReplace={onReplace}
-            onRequestDisconnect={onRequestDisconnect}
+            onConnect={onConnectGoogle}
+            onRequestDisconnect={onRequestGoogleDisconnect}
           />
         </Box>
       </Stack>
-      {google.accounts.length > 0 ? (
+      {canDisconnectGoogle ? (
         <Text color="fg.muted" fontSize="sm">
           Google認証を解除してもメールアドレスでログインできます
         </Text>
@@ -225,7 +123,140 @@ function LoginMethodsCard({
   );
 }
 
-function GoogleContent({ controller, onConnect, onReplace, onRequestDisconnect }: GoogleActions) {
+function EmailContent({
+  controller,
+  onSetPassword,
+}: {
+  controller: LoginMethodsController;
+  onSetPassword: () => void;
+}) {
+  const { emailPassword } = controller.viewModel;
+  const allEmails = [...emailPassword.verifiedEmails, ...emailPassword.unverifiedEmails];
+  const primaryEmail = allEmails.find((email) => email.isPrimary) ?? allEmails[0] ?? null;
+  const secondaryEmails = primaryEmail ? allEmails.filter((email) => email.id !== primaryEmail.id) : [];
+
+  return (
+    <Stack gap={2} as="section" aria-labelledby="login-methods-email-heading">
+      <Flex align="center" gap={{ base: 3, md: 4 }} flexWrap={{ base: "wrap", md: "nowrap" }}>
+        <Box
+          borderWidth="1px"
+          borderColor="blackAlpha.100"
+          borderRadius="lg"
+          boxSize={{ base: 10, md: 12 }}
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          flexShrink={0}
+        >
+          <Icon as={LuMail} boxSize={{ base: 5, md: 6 }} aria-hidden />
+        </Box>
+        <Stack gap={2} flex="1" minW={0}>
+          <Flex align="center" justify="space-between" gap={4} flexWrap={{ base: "wrap", md: "nowrap" }}>
+            <Stack gap={1} minW={0} flex="1">
+              <Text id="login-methods-email-heading" as="h3" fontSize="lg" fontWeight="semibold">
+                メールアドレス
+              </Text>
+              {primaryEmail ? (
+                <EmailAddressDetails email={primaryEmail} />
+              ) : (
+                <Text color="fg.muted" fontSize="sm">
+                  確認できるメールアドレスがありません。
+                </Text>
+              )}
+            </Stack>
+            {primaryEmail ? <EmailAddressActions email={primaryEmail} controller={controller} /> : null}
+          </Flex>
+          {secondaryEmails.length > 0 ? (
+            <Stack gap={2}>
+              {secondaryEmails.map((email) => (
+                <HStack key={email.id} justify="space-between" align="center" gap={4} flexWrap="wrap">
+                  <EmailAddressDetails email={email} />
+                  <EmailAddressActions email={email} controller={controller} />
+                </HStack>
+              ))}
+            </Stack>
+          ) : null}
+        </Stack>
+      </Flex>
+      <CardError state={controller.emailPasswordState} />
+      {emailPassword.canSetPassword || emailPassword.canChangePassword ? (
+        <>
+          <Separator />
+          <HStack gap={3} flexWrap="wrap">
+            {emailPassword.canSetPassword ? (
+              <Button colorPalette="teal" onClick={onSetPassword}>
+                メールアドレスとパスワードを設定
+              </Button>
+            ) : null}
+            {emailPassword.canChangePassword ? (
+              <Button colorPalette="teal" onClick={controller.openPasswordChange}>
+                パスワードを変更
+              </Button>
+            ) : null}
+          </HStack>
+        </>
+      ) : null}
+    </Stack>
+  );
+}
+
+function EmailAddressDetails({ email }: { email: LoginMethodsEmailViewModel }) {
+  return (
+    <Box minW={0} flex="1">
+      <Text fontSize="sm" fontWeight="medium" overflowWrap="anywhere">
+        {email.maskedEmail}
+      </Text>
+      {email.verificationStatus === "unverified" ? (
+        <Badge mt={1} colorPalette="orange">
+          メール確認が必要
+        </Badge>
+      ) : null}
+    </Box>
+  );
+}
+
+function EmailAddressActions({
+  email,
+  controller,
+}: {
+  email: LoginMethodsEmailViewModel;
+  controller: LoginMethodsController;
+}) {
+  return (
+    <HStack gap={2} flexWrap="wrap">
+      {email.isPrimary && controller.viewModel.emailPassword.canChangeLoginEmail ? (
+        <Button
+          variant="outline"
+          colorPalette="teal"
+          onClick={controller.openLoginEmailChange}
+          loading={controller.emailPasswordState.status === "loading"}
+        >
+          変更する
+        </Button>
+      ) : email.loginEmailChangeAction ? (
+        <Button
+          variant="outline"
+          loading={controller.emailPasswordState.status === "loading"}
+          onClick={() => {
+            void controller.continueLoginEmailChange(email.id);
+          }}
+        >
+          {email.loginEmailChangeAction === "verify" ? "メール確認を続ける" : "このメールに変更"}
+        </Button>
+      ) : null}
+    </HStack>
+  );
+}
+
+function GoogleContent({
+  controller,
+  onConnect,
+  onRequestDisconnect,
+}: {
+  controller: LoginMethodsController;
+  onConnect: () => void;
+  onRequestDisconnect: (externalAccountId: string) => Promise<void>;
+}) {
   const { google } = controller.viewModel;
   return (
     <Stack gap={2} as="section" aria-labelledby="login-methods-google-heading">
@@ -263,10 +294,10 @@ function GoogleContent({ controller, onConnect, onReplace, onRequestDisconnect }
                   {account.status === "needsReconnection" && google.canReconnect ? (
                     <Button
                       variant="outline"
+                      loading={controller.googleState.status === "loading"}
                       onClick={() => {
                         void controller.reconnectGoogle(account.id);
                       }}
-                      loading={controller.googleState.status === "loading"}
                     >
                       Googleを再接続
                     </Button>
@@ -288,7 +319,7 @@ function GoogleContent({ controller, onConnect, onReplace, onRequestDisconnect }
             ))
           )}
         </Stack>
-        {google.accounts.length === 0 ? (
+        {google.accounts.length === 0 && google.canConnect ? (
           <Button
             variant="outline"
             alignSelf="center"
@@ -301,312 +332,53 @@ function GoogleContent({ controller, onConnect, onReplace, onRequestDisconnect }
           </Button>
         ) : null}
       </Flex>
-      <CardStateMessage state={controller.googleState} />
-      {google.canReplace ? (
-        <Button alignSelf="flex-start" colorPalette="teal" onClick={onReplace}>
-          Googleアカウントを変更
-        </Button>
-      ) : null}
+      <CardError state={controller.googleState} />
     </Stack>
   );
 }
 
-function EmailPasswordCard({
-  controller,
-  onSetPassword,
-  onConfirmRemovePassword,
-  onConfirmRemoveEmail,
-}: EmailPasswordActions) {
+function CardError({ state }: { state: LoginMethodsCardState }) {
+  if (state.status !== "error" || !state.message) return null;
   return (
-    <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
-      <Stack gap={4} p={{ base: 4, md: 5 }}>
-        <EmailPasswordContent
-          controller={controller}
-          onSetPassword={onSetPassword}
-          onConfirmRemovePassword={onConfirmRemovePassword}
-          onConfirmRemoveEmail={onConfirmRemoveEmail}
-        />
-      </Stack>
-    </Box>
-  );
-}
-
-function EmailPasswordContent({
-  controller,
-  onSetPassword,
-  onConfirmRemovePassword,
-  onConfirmRemoveEmail,
-  compact = false,
-}: EmailPasswordActions & { compact?: boolean }) {
-  const { emailPassword } = controller.viewModel;
-  const allEmails = [...emailPassword.verifiedEmails, ...emailPassword.unverifiedEmails];
-  const compactPrimaryEmail = allEmails.find((email) => email.isPrimary) ?? allEmails[0] ?? null;
-  const compactSecondaryEmails = compactPrimaryEmail
-    ? allEmails.filter((email) => email.id !== compactPrimaryEmail.id)
-    : [];
-  const hasPasswordActions =
-    emailPassword.canSetPassword || emailPassword.canChangePassword || emailPassword.canRemovePassword;
-
-  return (
-    <Stack gap={compact ? 2 : 4} as="section" aria-labelledby="login-methods-email-heading">
-      {compact ? (
-        <Flex align="center" gap={{ base: 3, md: 4 }} flexWrap={{ base: "wrap", md: "nowrap" }}>
-          <Box
-            borderWidth="1px"
-            borderColor="blackAlpha.100"
-            borderRadius="lg"
-            boxSize={{ base: 10, md: 12 }}
-            display="flex"
-            alignItems="center"
-            justifyContent="center"
-            flexShrink={0}
-          >
-            <Icon as={LuMail} boxSize={{ base: 5, md: 6 }} aria-hidden />
-          </Box>
-          <Stack gap={2} flex="1" minW={0}>
-            <Flex align="center" justify="space-between" gap={4} flexWrap={{ base: "wrap", md: "nowrap" }}>
-              <Stack gap={1} minW={0} flex="1">
-                <Text id="login-methods-email-heading" as="h3" fontSize="lg" fontWeight="semibold">
-                  メールアドレス
-                </Text>
-                {compactPrimaryEmail ? (
-                  <EmailAddressDetails email={compactPrimaryEmail} />
-                ) : (
-                  <Text color="fg.muted" fontSize="sm">
-                    確認できるメールアドレスがありません。
-                  </Text>
-                )}
-              </Stack>
-              {compactPrimaryEmail ? (
-                <EmailAddressActions
-                  email={compactPrimaryEmail}
-                  emailPassword={emailPassword}
-                  controller={controller}
-                  onSetPassword={onSetPassword}
-                  onConfirmRemoveEmail={onConfirmRemoveEmail}
-                />
-              ) : null}
-            </Flex>
-            {compactSecondaryEmails.length > 0 ? (
-              <Stack gap={2}>
-                {compactSecondaryEmails.map((email) => (
-                  <EmailAddressRow
-                    key={email.id}
-                    email={email}
-                    emailPassword={emailPassword}
-                    controller={controller}
-                    onSetPassword={onSetPassword}
-                    onConfirmRemoveEmail={onConfirmRemoveEmail}
-                  />
-                ))}
-              </Stack>
-            ) : null}
-          </Stack>
-        </Flex>
-      ) : (
-        <HStack gap={3}>
-          <LuMail aria-hidden />
-          <Text id="login-methods-email-heading" as="h3" fontSize="lg" fontWeight="semibold">
-            メールアドレス
-          </Text>
-        </HStack>
-      )}
-      <CardStateMessage state={controller.emailPasswordState} />
-      {!compact && allEmails.length === 0 ? (
-        <Text color="fg.muted" fontSize="sm">
-          確認できるメールアドレスがありません。
-        </Text>
-      ) : !compact ? (
-        <Stack gap={3}>
-          {allEmails.map((email) => (
-            <EmailAddressRow
-              key={email.id}
-              email={email}
-              emailPassword={emailPassword}
-              controller={controller}
-              onSetPassword={onSetPassword}
-              onConfirmRemoveEmail={onConfirmRemoveEmail}
-            />
-          ))}
-        </Stack>
-      ) : null}
-      {hasPasswordActions ? (
-        <>
-          <Separator />
-          <HStack gap={3} flexWrap="wrap">
-            {emailPassword.canSetPassword ? (
-              <Button colorPalette="teal" onClick={onSetPassword}>
-                メールアドレスとパスワードを設定
-              </Button>
-            ) : null}
-            {emailPassword.canChangePassword ? (
-              <Button colorPalette="teal" onClick={controller.openPasswordChange}>
-                パスワードを変更
-              </Button>
-            ) : null}
-            {emailPassword.canRemovePassword ? (
-              <Button variant="outline" colorPalette="red" onClick={onConfirmRemovePassword}>
-                パスワードを削除
-              </Button>
-            ) : null}
-          </HStack>
-        </>
-      ) : null}
-    </Stack>
-  );
-}
-
-function EmailAddressRow({
-  email,
-  emailPassword,
-  controller,
-  onSetPassword,
-  onConfirmRemoveEmail,
-}: {
-  email: LoginMethodsEmailViewModel;
-  emailPassword: LoginMethodsController["viewModel"]["emailPassword"];
-  controller: LoginMethodsController;
-  onSetPassword: () => void;
-  onConfirmRemoveEmail: (id: string, maskedEmail: string) => void;
-}) {
-  return (
-    <HStack justify="space-between" align="center" gap={4} flexWrap="wrap">
-      <EmailAddressDetails email={email} />
-      <EmailAddressActions
-        email={email}
-        emailPassword={emailPassword}
-        controller={controller}
-        onSetPassword={onSetPassword}
-        onConfirmRemoveEmail={onConfirmRemoveEmail}
-      />
-    </HStack>
-  );
-}
-
-function EmailAddressDetails({ email }: { email: LoginMethodsEmailViewModel }) {
-  return (
-    <Box minW={0} flex="1">
-      <Text fontSize="sm" fontWeight="medium" overflowWrap="anywhere">
-        {email.maskedEmail}
-      </Text>
-      {email.verificationStatus === "unverified" ? (
-        <Badge mt={1} colorPalette="orange">
-          メール確認が必要
-        </Badge>
-      ) : null}
-    </Box>
-  );
-}
-
-function EmailAddressActions({
-  email,
-  emailPassword,
-  controller,
-  onSetPassword,
-  onConfirmRemoveEmail,
-}: {
-  email: LoginMethodsEmailViewModel;
-  emailPassword: LoginMethodsController["viewModel"]["emailPassword"];
-  controller: LoginMethodsController;
-  onSetPassword: () => void;
-  onConfirmRemoveEmail: (id: string, maskedEmail: string) => void;
-}) {
-  return (
-    <HStack gap={2} flexWrap="wrap">
-      {email.isPrimary && emailPassword.canChangeLoginEmail ? (
-        <Button
-          variant="outline"
-          colorPalette="teal"
-          onClick={controller.openLoginEmailChange}
-          loading={controller.emailPasswordState.status === "loading"}
-        >
-          変更する
-        </Button>
-      ) : email.loginEmailChangeAction ? (
-        <Button
-          variant="outline"
-          loading={controller.emailPasswordState.status === "loading"}
-          onClick={() => {
-            void controller.continueLoginEmailChange(email.id);
-          }}
-        >
-          {email.loginEmailChangeAction === "verify" ? "メール確認を続ける" : "このメールに変更"}
-        </Button>
-      ) : email.verificationStatus === "unverified" && emailPassword.canSetPassword ? (
-        <Button variant="outline" loading={controller.emailPasswordState.status === "loading"} onClick={onSetPassword}>
-          メール確認を続ける
-        </Button>
-      ) : null}
-      {email.canRemove ? (
-        <Button variant="outline" colorPalette="red" onClick={() => onConfirmRemoveEmail(email.id, email.maskedEmail)}>
-          削除
-        </Button>
-      ) : null}
-    </HStack>
-  );
-}
-
-function CardStateMessage({ state }: { state: LoginMethodsCardState }) {
-  if (!state.message || state.status === "idle" || state.status === "loading") return null;
-  return (
-    <Alert.Root
-      status={state.status === "error" ? "error" : "success"}
-      role={state.status === "error" ? "alert" : "status"}
-      aria-live={state.status === "error" ? "assertive" : "polite"}
-      borderRadius="lg"
-    >
+    <Alert.Root status="error" role="alert" aria-live="assertive" borderRadius="lg">
       <Alert.Indicator />
       <Alert.Description whiteSpace="pre-line">{state.message}</Alert.Description>
     </Alert.Root>
   );
 }
 
-function RemovalConfirmationDialog({
-  confirmation,
+function GoogleDisconnectDialog({
+  externalAccountId,
   controller,
-  onClose,
   reverification,
+  onClose,
 }: {
-  confirmation: Confirmation | null;
+  externalAccountId: string | null;
   controller: LoginMethodsController;
-  onClose: () => void;
   reverification: LoginMethodReverificationController;
+  onClose: () => void;
 }) {
-  const isGoogle = confirmation?.kind === "google";
-  const isPassword = confirmation?.kind === "password";
-  const isBusy = isGoogle
-    ? controller.googleState.status === "loading"
-    : controller.emailPasswordState.status === "loading";
+  const isBusy = controller.googleState.status === "loading";
   const isReverifying = reverification.state.status !== "idle";
   const isReverificationSubmitting =
     reverification.state.status === "submitting" || reverification.state.status === "completing";
-  const title = isGoogle ? "Google連携を解除" : isPassword ? "パスワードを削除" : "メールアドレスを削除";
-  const description = isGoogle
-    ? "このGoogleアカウントではログインできなくなります。ほかのログイン方法は残ります。"
-    : isPassword
-      ? "メールアドレスとパスワードではログインできなくなります。Googleでのログインは残ります。"
-      : `${confirmation?.kind === "email" ? confirmation.maskedEmail : "このメールアドレス"}をログイン設定から削除します。`;
-
-  const submit = async () => {
-    if (!confirmation) return;
-    if (confirmation.kind === "google") await controller.disconnectGoogle(confirmation.id);
-    if (confirmation.kind === "password") await controller.removePassword();
-    if (confirmation.kind === "email") await controller.removeEmailAddress(confirmation.id);
-    onClose();
-  };
   const requestClose = () => {
     if (isReverifying) {
       if (isReverificationSubmitting) return;
       reverification.cancel();
     }
-    onClose();
+    if (!isBusy) onClose();
+  };
+  const submit = async () => {
+    if (!externalAccountId) return;
+    if (await controller.disconnectGoogle(externalAccountId)) onClose();
   };
 
   return (
     <Dialog
-      title={isReverifying ? "確認が必要です" : title}
+      title={isReverifying ? "確認が必要です" : "Google連携を解除"}
       role="alertdialog"
-      isOpen={confirmation !== null}
+      isOpen={externalAccountId !== null}
       onOpenChange={({ open }) => {
         if (!open) requestClose();
       }}
@@ -614,7 +386,7 @@ function RemovalConfirmationDialog({
       onBackGuardRemoved={requestClose}
       preventClose={isReverifying ? isReverificationSubmitting : isBusy}
       onSubmit={isReverifying ? undefined : submit}
-      submitLabel={isGoogle ? "解除する" : "削除する"}
+      submitLabel="解除する"
       submitColorPalette="red"
       isLoading={isBusy && !isReverifying}
       hideFooter={isReverifying}
@@ -622,12 +394,10 @@ function RemovalConfirmationDialog({
       {isReverifying ? <LoginMethodReverificationView controller={reverification} /> : null}
       {!isReverifying ? (
         <Stack gap={4}>
-          <Text>{description}</Text>
+          <Text>このGoogleアカウントではログインできなくなります。メールアドレスとパスワードは残ります。</Text>
           <Alert.Root status="warning" borderRadius="lg">
             <Alert.Indicator />
-            <Alert.Description>
-              実行直前に最新の状態を確認し、最後のログイン方法になる場合は停止します。
-            </Alert.Description>
+            <Alert.Description>解除の直前に、メールアドレスとパスワードをもう一度確認します。</Alert.Description>
           </Alert.Root>
         </Stack>
       ) : null}

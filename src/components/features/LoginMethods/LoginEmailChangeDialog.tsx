@@ -20,6 +20,7 @@ type LoginEmailChangeDialogProps = {
   isOpen: boolean;
   step: LoginEmailChangeStep;
   currentMaskedEmail: string | null;
+  targetEmailAddress: string | null;
   status: LoginEmailChangeStatus;
   message: string | null;
   onClose: (force?: boolean) => void;
@@ -34,6 +35,7 @@ export function LoginEmailChangeDialog({
   isOpen,
   step,
   currentMaskedEmail,
+  targetEmailAddress,
   status,
   message,
   onClose,
@@ -91,33 +93,38 @@ export function LoginEmailChangeDialog({
         />
       ) : null}
       {!isReverifying && isOpen && step === "verification" ? (
-        <EmailCodeVerificationForm
-          errorMessage={status === "error" ? (message ?? undefined) : undefined}
-          infoMessage={status === "success" ? (message ?? undefined) : undefined}
-          isSubmitting={isBusy}
-          submitLabel="メールを確認"
-          submittingLabel="確認中"
-          onSubmit={async ({ code }) => {
-            await onSubmitCode(code);
-          }}
-          secondaryActions={
-            <Stack direction={{ base: "column", sm: "row" }} justify="space-between" gap={2}>
-              <Button type="button" variant="ghost" onClick={onBackToInput} disabled={isBusy}>
-                入力し直す
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  void onResendCode();
-                }}
-                disabled={isBusy}
-              >
-                確認コードを再送
-              </Button>
-            </Stack>
-          }
-        />
+        <Stack gap={5}>
+          <Text color="fg.muted">
+            {targetEmailAddress ?? "入力したメールアドレス"}
+            に確認コードを送りました。メールに届いたコードを入力してください。
+          </Text>
+          <EmailCodeVerificationForm
+            errorMessage={status === "error" ? (message ?? undefined) : undefined}
+            isSubmitting={isBusy}
+            submitLabel="メールを確認"
+            submittingLabel="確認中"
+            onSubmit={async ({ code }) => {
+              await onSubmitCode(code);
+            }}
+            secondaryActions={
+              <Stack direction={{ base: "column", sm: "row" }} justify="space-between" gap={2}>
+                <Button type="button" variant="ghost" onClick={onBackToInput} disabled={isBusy}>
+                  入力し直す
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    void onResendCode();
+                  }}
+                  disabled={isBusy}
+                >
+                  確認コードを再送
+                </Button>
+              </Stack>
+            }
+          />
+        </Stack>
       ) : null}
     </Dialog>
   );
@@ -180,10 +187,10 @@ function EmailInputStep({
 }
 
 function StepMessage({ status, message }: { status: LoginEmailChangeStatus; message: string | null }) {
-  if (!message || status === "idle" || status === "loading") return null;
+  if (!message || status !== "error") return null;
 
   return (
-    <Alert.Root status={status === "error" ? "error" : "success"} borderRadius="lg" alignItems="flex-start">
+    <Alert.Root status="error" borderRadius="lg" alignItems="flex-start">
       <Alert.Indicator />
       <Alert.Description whiteSpace="pre-line">{message}</Alert.Description>
     </Alert.Root>
