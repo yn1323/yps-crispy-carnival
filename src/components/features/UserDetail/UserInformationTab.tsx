@@ -38,7 +38,7 @@ export function UserInformationTab({ data, formId, isReadOnly, managerSettings, 
               <Alert.Indicator />
               <Alert.Description whiteSpace="pre-line" lineHeight="tall">
                 {
-                  "ここで変更するのは、このグループで使う連絡先です。\nログイン方法は変わりません。\nログインに使うメールアドレスやGoogle連携は、画面右上の「ログイン設定」から変更できます。"
+                  "ここで変更するのは、このグループで使う連絡先です。\nログイン方法は変わりません。\nログイン方法の確認と、現在利用できる変更操作は、画面右上の「ログイン設定」から行えます。"
                 }
               </Alert.Description>
             </Alert.Root>

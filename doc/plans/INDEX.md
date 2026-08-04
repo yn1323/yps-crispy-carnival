@@ -3,7 +3,7 @@
 `doc/plans/`は、計画を作成した時点の判断、実装順序、受入条件を残す場所です。
 現在の機能や常設規約は、各表の「現在の正本」を参照してください。
 
-> 分類日: 2026-08-04
+> 分類日: 2026-08-05
 >
 > 分類基準: 既存計画は2026-07-23のworktree、2026-08-02以降の追加計画は作成時点のworktreeと各計画本文
 
@@ -18,6 +18,7 @@
 
 | 計画 | 状態 | 次に必要な判断 | 現在の正本 |
 |---|---|---|---|
+| [Clerkログイン方法の保持と切替ルール](2026-08-05_Clerkログイン方法の保持と切替ルール_設計計画.md) | `reviewing` | 全認証状態でのPrimaryメール変更、同じメールアドレスでメール・パスを追加した後のGoogle解除をClerk Developmentで検証し、現行コードとの差分を確定する | 現行挙動は[認証画面](../features/auth-pages.md) |
 | [AIシフト下書き機能 詳細設計](2026-07-03_AIシフト下書き機能.md) | `reviewing` | 機能を採用するか、誰が再検討するかを決める | 現行のシフト作成は[シフト表](../features/shift-board.md) |
 | [AIシフト下書き機能 実装仕様書](2026-07-03_AIシフト下書き機能_実装仕様書.md) | `reviewing` | 詳細設計の採否後に実装仕様を確定する | 現行のシフト作成は[シフト表](../features/shift-board.md) |
 | [スタッフのメールアドレス任意化](2026-07-04_メールアドレス任意化_設計.md) | `reviewing` | 通知手段、認証境界、既存データmigrationを含めて採否を決める | 現行のスタッフ管理は[ユーザー詳細](../features/user-detail.md)と[LINE通知連携](../features/line-notification.md) |
@@ -27,6 +28,7 @@
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
+| [ログイン用メールアドレスと認証方法変更](2026-08-04_ログイン用メールアドレスと認証方法変更_実装計画.md) | `rollout` | 自作本人再確認、3移行flow、破壊操作、capability gate、local test、Storybook、文書は実装済み。メインメール変更はメール・パスワードログインの安全条件を満たせばflagなしで利用可能。ほかのcapabilityは通常buildで`false`とし、`ENV-CLERK-02`のDevelopment・本番相当canary、CI VRT、通常公開前の明示的なcode変更が必要。Google置換はOAuth完全reloadの相関を再設計するまで通常buildで無効 | 現行挙動は[認証画面](../features/auth-pages.md)、上位rolloutは[ログイン方法とシフト連絡先分離](2026-08-04_ログイン方法とシフト連絡先分離_実装計画.md) |
 | [ログイン方法とシフト連絡先の分離](2026-08-04_ログイン方法とシフト連絡先分離_実装計画.md) | `rollout` | code、local test、文書は完了。対象deploymentで`verifyStaffs.activeStaffPersonEmailMismatch`の全ページ合計0件、Clerkの4ケース成立性実験、成立した操作capabilityの有効化、CI VRT、協調リリース、監視後の旧互換stub・mutation撤去、新`ENV-CLERK-02`の実環境証跡 | 現行挙動は[ユーザー詳細](../features/user-detail.md)、[認証画面](../features/auth-pages.md)、[セキュリティ再検証](../manual/security-validation.md) |
 | [E2E安定性改善・スコープ再設計](2026-08-03_E2E安定性改善_実行計画.md) | `rollout` | code、local contract test、50回burn-inは完了。同一SHA 3回、workflow cancel、30%短縮をActionsで確認 | [テスト方針](../rules/testing-strategy.md)、[セキュリティ方針](../rules/security-strategy.md)、[CI/CD運用](../manual/ci-cd.md) |
 | [分析KPIと内部BI再設計](2026-08-02_分析KPIと内部BI再設計_実装計画.md) | `rollout` | Production deploy、bootstrap、invariant確認、generation cutover、実負荷計測、旧3テーブルのbounded cleanupと0件証跡、別deployでのschema Narrow、Cloudflare環境確認 | [分析KPI蓄積基盤](../features/analytics.md)、[分析KPI可視化アプリ](../features/analytics-dashboard.md)、[Analytics rollout](../manual/analytics-rollout.md) |
