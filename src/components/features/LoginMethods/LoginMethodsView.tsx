@@ -292,13 +292,7 @@ function GoogleContent({
                     {account.status === "connected" ? "連携済み" : "再確認が必要"}
                   </Badge>
                   {account.status === "needsReconnection" && google.canReconnect ? (
-                    <Button
-                      variant="outline"
-                      loading={controller.googleState.status === "loading"}
-                      onClick={() => {
-                        void controller.reconnectGoogle(account.id);
-                      }}
-                    >
+                    <Button variant="outline" loading={controller.googleState.status === "loading"} onClick={onConnect}>
                       Googleを再接続
                     </Button>
                   ) : null}

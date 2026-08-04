@@ -2,6 +2,7 @@ import type {
   LoginMethodState,
   LoginMethodsEmailSnapshot,
   LoginMethodsEmailViewModel,
+  LoginMethodsExternalAccountSnapshot,
   LoginMethodsUserSnapshot,
   LoginMethodsViewModel,
 } from "./types";
@@ -54,7 +55,8 @@ export function buildLoginMethodsViewModel(snapshot: LoginMethodsUserSnapshot): 
         };
       }),
       canConnect: hasEmailPasswordMethod && googleAccounts.length === 0,
-      canReconnect: googleAccounts.some((account) => account.verificationStatus !== "verified"),
+      canReconnect:
+        hasEmailPasswordMethod && googleAccounts.length === 1 && isRetryableGoogleAccount(googleAccounts[0]),
     },
     emailPassword: {
       primaryEmail: verifiedEmailViewModels.find((email) => email.isPrimary) ?? null,
@@ -76,4 +78,8 @@ function deriveLoginMethodState(hasEmailPasswordMethod: boolean, hasVerifiedGoog
 
 function isVerifiedEmail(email: LoginMethodsEmailSnapshot): boolean {
   return email.verificationStatus === "verified";
+}
+
+function isRetryableGoogleAccount(account: LoginMethodsExternalAccountSnapshot | undefined): boolean {
+  return account?.verificationStatus === "unverified" || account?.verificationStatus === "failed";
 }

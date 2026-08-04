@@ -10,7 +10,6 @@ import { getLoginMethodAccountErrorMessage } from "./loginMethodErrorPresentatio
 import {
   createLoginMethodOperationCooldown,
   emailVerificationCooldownScope,
-  GOOGLE_OAUTH_COOLDOWN_SCOPE,
   type LoginMethodOperationCooldown,
 } from "./operationCooldown";
 import type { LoginMethodOnNeedsReverification } from "./reverificationTypes";
@@ -22,7 +21,6 @@ import type {
   LoginMethodsController,
 } from "./types";
 
-const ACCOUNT_SECURITY_PATH = "/account/security";
 const IDLE_STATE: LoginMethodsCardState = { status: "idle", message: null };
 const LOADING_STATE: LoginMethodsCardState = { status: "loading", message: null };
 
@@ -30,7 +28,6 @@ type ControllerOptions = {
   isLoaded: boolean;
   user: UserResource | null | undefined;
   getCurrentActorId: () => string | null;
-  navigateToExternalVerification?: (url: string) => void;
   onNeedsReverification?: LoginMethodOnNeedsReverification;
   runOperation?: <T>(operation: () => Promise<T>) => Promise<T | undefined>;
   operationCooldown?: LoginMethodOperationCooldown;
@@ -59,7 +56,6 @@ export function useLoginMethodsController({
   isLoaded,
   user,
   getCurrentActorId,
-  navigateToExternalVerification = (url) => window.location.assign(url),
   onNeedsReverification,
   runOperation = async (operation) => operation(),
   operationCooldown,
@@ -90,16 +86,6 @@ export function useLoginMethodsController({
   };
 
   const reverificationOptions = { onNeedsReverification };
-  const reauthorizeGoogleWithReverification = useReverification(async (externalAccountId: string) => {
-    const currentUser = await reloadUser();
-    const freshViewModel = buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser));
-    const freshAccount = currentUser.externalAccounts.find((account) => account.id === externalAccountId);
-    if (freshAccount?.provider !== "google") return { status: "unavailable" } as const;
-    if (freshAccount.verification?.status === "verified") return { status: "alreadyConnected" } as const;
-    if (!freshViewModel.google.canReconnect) return { status: "unavailable" } as const;
-    const externalAccount = await freshAccount.reauthorize({ redirectUrl: ACCOUNT_SECURITY_PATH });
-    return { status: "reauthorized", externalAccount } as const;
-  }, reverificationOptions);
   const destroyGoogleWithReverification = useReverification(async (externalAccountId: string) => {
     const currentUser = await reloadUser();
     const freshViewModel = buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser));
@@ -218,7 +204,7 @@ export function useLoginMethodsController({
   };
 
   const { run: runGoogleOperation } = useSingleFlight(
-    async (operation: "reconnect" | "prepareDisconnect" | "disconnect", externalAccountId: string) => {
+    async (operation: "prepareDisconnect" | "disconnect", externalAccountId: string) => {
       setGoogleState(LOADING_STATE);
       try {
         const currentUser = await reloadUser();
@@ -227,42 +213,6 @@ export function useLoginMethodsController({
         if (freshAccount?.provider !== "google") {
           setGoogleState(cardError("Google連携の状態が変わりました。最新の状態を読み込んでください。"));
           return false;
-        }
-
-        if (operation === "reconnect") {
-          if (!freshViewModel.google.canReconnect || freshAccount.verification?.status === "verified") {
-            setGoogleState(cardError("このGoogle連携は再確認できません。最新の状態を読み込んでください。"));
-            return false;
-          }
-          const cooldown = retryCooldown.claim(currentUser.id, GOOGLE_OAUTH_COOLDOWN_SCOPE);
-          if (!cooldown.allowed) {
-            setGoogleState(cardError(oauthCooldownMessage(cooldown.retryAfterSeconds)));
-            return false;
-          }
-          const result = await reauthorizeGoogleWithReverification(externalAccountId);
-          if (result == null) {
-            setGoogleState(IDLE_STATE);
-            return false;
-          }
-          if (result.status === "alreadyConnected") {
-            setGoogleState(IDLE_STATE);
-            return true;
-          }
-          if (result.status === "unavailable") {
-            setGoogleState(cardError("Google連携の状態が変わりました。最新の状態を読み込んでください。"));
-            return false;
-          }
-          const redirectUrl = result.externalAccount.verification?.externalVerificationRedirectURL?.toString();
-          if (!redirectUrl) {
-            setGoogleState(cardError("Googleの確認画面を開けませんでした。もう一度お試しください。"));
-            return false;
-          }
-          if (getCurrentActorId() !== actorUserId) {
-            setGoogleState(IDLE_STATE);
-            return false;
-          }
-          navigateToExternalVerification(redirectUrl);
-          return true;
         }
 
         const accountViewModel = freshViewModel.google.accounts.find((account) => account.id === externalAccountId);
@@ -549,7 +499,6 @@ export function useLoginMethodsController({
     emailPasswordDialog,
     emailChangeDialog,
     reload,
-    reconnectGoogle: (externalAccountId) => runOperation(() => runGoogleOperation("reconnect", externalAccountId)),
     prepareGoogleDisconnect: (externalAccountId) => runGoogleOperation("prepareDisconnect", externalAccountId),
     disconnectGoogle: (externalAccountId) => runOperation(() => runGoogleOperation("disconnect", externalAccountId)),
     openPasswordChange: () => {
@@ -662,10 +611,6 @@ function emptyToUndefined(value: string | undefined) {
 
 function emailVerificationCooldownMessage(retryAfterSeconds: number) {
   return `確認コードを送信した直後です。あと${retryAfterSeconds}秒ほど待ってから再送してください。`;
-}
-
-function oauthCooldownMessage(retryAfterSeconds: number) {
-  return `Googleの確認を開始した直後です。あと${retryAfterSeconds}秒ほど待ってから再試行してください。`;
 }
 
 function cardError(message: string): LoginMethodsCardState {

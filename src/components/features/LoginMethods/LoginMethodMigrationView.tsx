@@ -148,7 +148,7 @@ function GoogleConnectionContent({ controller }: { controller: GoogleConnectionC
       {state.phase === "unavailable" ? (
         <UnavailableState
           message={state.feedback.message ?? "Googleログインは現在追加できません。"}
-          onRetry={controller.refresh}
+          onRetry={controller.start}
         />
       ) : null}
     </Stack>

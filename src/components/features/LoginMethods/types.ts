@@ -79,7 +79,6 @@ export type LoginMethodsController = {
   emailPasswordDialog: EmailPasswordDialogState;
   emailChangeDialog: LoginEmailChangeDialogState;
   reload: () => Promise<unknown>;
-  reconnectGoogle: (externalAccountId: string) => Promise<unknown>;
   prepareGoogleDisconnect: (externalAccountId: string) => Promise<boolean | undefined>;
   disconnectGoogle: (externalAccountId: string) => Promise<unknown>;
   openPasswordChange: () => void;
