@@ -28,6 +28,7 @@ vi.mock("@/src/components/shared/feedback", () => ({
 import { useLoginMethodsController } from "./useLoginMethodsController";
 
 beforeEach(() => {
+  window.sessionStorage.clear();
   mocks.runWithReverification.mockReset();
   mocks.isReverificationCancelledError.mockReset();
   mocks.showSuccessToast.mockReset();
@@ -82,6 +83,44 @@ describe("useLoginMethodsController", () => {
     expect(googleAccount.reauthorize).toHaveBeenCalledOnce();
     expect(navigate).not.toHaveBeenCalled();
     expect(result.current.googleState).toEqual({ status: "idle", message: null });
+  });
+
+  it("Google再接続のprovider失敗直後は再開始せず、30秒後にだけOAuth画面へ進む", async () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(3_000_000);
+    const primaryEmail = emailResource({ id: "email-primary", emailAddress: "login@example.com", status: "verified" });
+    const googleAccount = externalAccount({
+      id: "google-pending",
+      status: "unverified",
+      redirectUrl: "https://accounts.example.test/authorize",
+    });
+    vi.mocked(googleAccount.reauthorize)
+      .mockRejectedValueOnce(new Error("provider response lost"))
+      .mockResolvedValueOnce(googleAccount);
+    const user = userResource({
+      passwordEnabled: true,
+      emailAddresses: [primaryEmail],
+      externalAccounts: [googleAccount],
+      primaryEmailAddressId: primaryEmail.id,
+    });
+    const navigate = vi.fn();
+    const { result } = renderController(user, navigate);
+
+    await act(async () => result.current.reconnectGoogle(googleAccount.id));
+    await act(async () => result.current.reconnectGoogle(googleAccount.id));
+
+    expect(googleAccount.reauthorize).toHaveBeenCalledOnce();
+    expect(result.current.googleState).toEqual({
+      status: "error",
+      message: "Googleの確認を開始した直後です。あと30秒ほど待ってから再試行してください。",
+    });
+    expect(navigate).not.toHaveBeenCalled();
+
+    now.mockReturnValue(3_030_000);
+    await act(async () => result.current.reconnectGoogle(googleAccount.id));
+
+    expect(googleAccount.reauthorize).toHaveBeenCalledTimes(2);
+    expect(navigate).toHaveBeenCalledWith("https://accounts.example.test/authorize");
+    now.mockRestore();
   });
 
   it.each([
@@ -200,6 +239,81 @@ describe("useLoginMethodsController", () => {
     expect(primaryEmail.destroy).not.toHaveBeenCalled();
     expect(result.current.emailChangeDialog).toEqual({ isOpen: false });
     expect(mocks.showSuccessToast).toHaveBeenCalledOnce();
+  });
+
+  it("初回送信と再送は同じメールのcooldownを共有し、30秒後にだけ再送する", async () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    const primaryEmail = emailResource({
+      id: "email-primary",
+      emailAddress: "login@example.com",
+      status: "verified",
+    });
+    const pendingEmail = emailResource({
+      id: "email-pending",
+      emailAddress: "next@example.com",
+      status: "unverified",
+    });
+    const user = userResource({
+      passwordEnabled: true,
+      emailAddresses: [primaryEmail, pendingEmail],
+      primaryEmailAddressId: primaryEmail.id,
+    });
+    const { result } = renderController(user);
+
+    await act(async () => result.current.startLoginEmailChange(pendingEmail.emailAddress));
+    expect(pendingEmail.prepareVerification).toHaveBeenCalledOnce();
+
+    await act(async () => result.current.resendLoginEmailCode());
+    expect(pendingEmail.prepareVerification).toHaveBeenCalledOnce();
+    expect(result.current.emailPasswordState).toEqual({
+      status: "error",
+      message: "確認コードを送信した直後です。あと30秒ほど待ってから再送してください。",
+    });
+
+    now.mockReturnValue(1_030_000);
+    await act(async () => result.current.resendLoginEmailCode());
+    expect(pendingEmail.prepareVerification).toHaveBeenCalledTimes(2);
+    expect(result.current.emailPasswordState).toEqual({
+      status: "success",
+      message: "新しい確認コードを送りました。",
+    });
+
+    now.mockRestore();
+  });
+
+  it("初回送信の応答を失っても同じメールのcooldownを維持する", async () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(2_000_000);
+    const primaryEmail = emailResource({
+      id: "email-primary",
+      emailAddress: "login@example.com",
+      status: "verified",
+    });
+    const pendingEmail = emailResource({
+      id: "email-pending",
+      emailAddress: "next@example.com",
+      status: "unverified",
+    });
+    vi.mocked(pendingEmail.prepareVerification).mockRejectedValueOnce(new Error("response lost"));
+    const user = userResource({
+      passwordEnabled: true,
+      emailAddresses: [primaryEmail, pendingEmail],
+      primaryEmailAddressId: primaryEmail.id,
+    });
+    const { result } = renderController(user);
+
+    await act(async () => result.current.startLoginEmailChange(pendingEmail.emailAddress));
+    expect(pendingEmail.prepareVerification).toHaveBeenCalledOnce();
+    expect(result.current.emailChangeDialog).toMatchObject({
+      isOpen: true,
+      step: "verification",
+      targetEmailAddressId: pendingEmail.id,
+    });
+
+    await act(async () => result.current.resendLoginEmailCode());
+    expect(pendingEmail.prepareVerification).toHaveBeenCalledOnce();
+    expect(result.current.emailPasswordState.message).toContain("あと30秒");
+
+    now.mockRestore();
   });
 
   it("確認コードが失敗した場合は旧Primaryを維持し、再試行できるDialogを残す", async () => {

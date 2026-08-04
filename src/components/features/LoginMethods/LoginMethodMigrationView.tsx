@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requiredEmailSchema } from "@/convex/_lib/validation";
 import { EMAIL_MAX_LENGTH } from "@/convex/constants";
 import { EmailCodeVerificationForm } from "@/src/components/features/AuthPage/EmailCodeVerificationForm";
+import { maskEmailAddress } from "@/src/components/features/AuthPage/loginVerification";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { LoginMethodReverificationView } from "./LoginMethodReverificationView";
@@ -88,6 +89,9 @@ function EmailPasswordMigrationContent({ controller }: { controller: EmailPasswo
     <Stack gap={5}>
       {state.phase !== "unavailable" && state.phase !== "verifyingEmail" ? (
         <FeedbackError feedback={state.feedback} />
+      ) : null}
+      {state.phase === "loading" ? (
+        <StatusState title="最新のログイン方法を確認しています" description="確認が終わるまでお待ちください。" />
       ) : null}
       {state.phase === "choosingEmail" ? <EmailChoiceStep controller={controller} /> : null}
       {state.phase === "verifyingEmail" ? <EmailVerificationStep controller={controller} /> : null}
@@ -222,7 +226,9 @@ function EmailVerificationStep({ controller }: { controller: EmailPasswordMigrat
   return (
     <Stack gap={5}>
       <Text color="fg.muted">
-        {controller.state.targetEmailAddress ?? "入力したメールアドレス"}
+        {controller.state.targetEmailAddress
+          ? maskEmailAddress(controller.state.targetEmailAddress)
+          : "入力したメールアドレス"}
         に確認コードを送りました。メールに届いたコードを入力してください。
       </Text>
       <EmailCodeVerificationForm

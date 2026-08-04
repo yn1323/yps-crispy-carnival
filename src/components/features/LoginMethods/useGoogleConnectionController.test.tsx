@@ -2,7 +2,7 @@
 
 import type { EmailAddressResource, ExternalAccountResource, UserResource } from "@clerk/shared/types";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   reverificationOptions: [] as unknown[],
@@ -33,7 +33,55 @@ beforeEach(() => {
   mocks.isReverificationCancelledError.mockReturnValue(false);
 });
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe("Google接続controller", () => {
+  it("同じUserでflowを開き直す時もreloadした最新状態から再開する", async () => {
+    const loginEmail = emailResource("email-login", "login@example.com");
+    const connectedGoogle = googleResource({
+      id: "google-connected",
+      status: "verified",
+      emailAddress: loginEmail.emailAddress,
+    });
+    const user = userResource({ emailAddresses: [loginEmail], externalAccounts: [connectedGoogle] });
+    const getCurrentActorId = () => user.id;
+    const { result, rerender } = renderHook(
+      ({ active, currentUser }: { active: boolean; currentUser: UserResource }) =>
+        useGoogleConnectionController({
+          isLoaded: true,
+          user: currentUser,
+          getCurrentActorId,
+          active,
+          oauthReturn: false,
+          onNeedsReverification: vi.fn(),
+          runOperation: async (operation) => operation(),
+        }),
+      { initialProps: { active: true, currentUser: user } },
+    );
+
+    await act(async () => result.current.refresh());
+    expect(result.current.state.phase).toBe("methodReady");
+
+    rerender({ active: false, currentUser: user });
+    await waitFor(() => expect(result.current.state.phase).toBe("unavailable"));
+
+    const latestUser = userResource({ id: user.id, emailAddresses: [loginEmail], externalAccounts: [] });
+    const gate = deferred<void>();
+    vi.mocked(user.reload).mockImplementationOnce(async () => {
+      await gate.promise;
+      return user;
+    });
+    rerender({ active: true, currentUser: user });
+    expect(result.current.state.phase).toBe("settling");
+    rerender({ active: true, currentUser: latestUser });
+
+    await act(async () => gate.resolve());
+    await waitFor(() => expect(result.current.state.phase).toBe("readyToConnect"));
+    expect(result.current.state.feedback).toEqual({ status: "idle", message: null });
+  });
+
   it("reload中にcurrent Userが切り替わればOAuth副作用を開始しない", async () => {
     const user = userResource();
     let currentActorId = user.id;
@@ -47,7 +95,7 @@ describe("Google接続controller", () => {
 
     expect(user.createExternalAccount).not.toHaveBeenCalled();
     expect(result.current.state.feedback.status).toBe("error");
-    expect(window.sessionStorage).toHaveLength(0);
+    expect(readStoredCorrelation()).toBeNull();
   });
 
   it("current Userのaccount-management OAuthだけを相関情報付きで開始する", async () => {
@@ -126,7 +174,7 @@ describe("Google接続controller", () => {
     expect(result.current.state.errorKind).toBe("clerkConflict");
     expect(result.current.state.phase).toBe("unavailable");
     expect(navigate).not.toHaveBeenCalled();
-    expect(window.sessionStorage).toHaveLength(0);
+    expect(readStoredCorrelation()).toBeNull();
   });
 
   it("reload後も開始Userとexact accountを相関し、verified email所有まで確認して成功する", async () => {
@@ -163,15 +211,13 @@ describe("Google接続controller", () => {
 
     await waitFor(() => expect(secondMount.result.current.state.phase).toBe("methodReady"));
 
-    expect(secondMount.result.current.state.googleAccountId).toBe(connectedGoogle.id);
-    expect(secondMount.result.current.state.emailAddress).toBe(connectedGoogle.emailAddress);
     expect(secondMount.result.current.state.feedback).toEqual({
       status: "success",
       message: "Googleログインを追加しました。",
     });
     expect(user.reload).toHaveBeenCalledTimes(3);
     expect(onHandled).toHaveBeenCalledOnce();
-    expect(window.sessionStorage).toHaveLength(0);
+    expect(readStoredCorrelation()).toBeNull();
   });
 
   it("相関した開始Userと帰還時のUserが違えばresourceを利用可能にしない", async () => {
@@ -208,7 +254,7 @@ describe("Google接続controller", () => {
     expect(returningUser.reload).toHaveBeenCalledOnce();
     expect(result.current.state.errorKind).toBe("clerkConflict");
     expect(result.current.state.phase).toBe("unavailable");
-    expect(window.sessionStorage).toHaveLength(0);
+    expect(readStoredCorrelation()).toBeNull();
   });
 
   it("OAuth中にPrimaryメールまたはパスワード状態が変わった場合は追加成功にしない", async () => {
@@ -226,7 +272,7 @@ describe("Google接続controller", () => {
 
     expect(result.current.state.errorKind).toBe("clerkConflict");
     expect(result.current.state.phase).toBe("unavailable");
-    expect(window.sessionStorage).toHaveLength(0);
+    expect(readStoredCorrelation()).toBeNull();
   });
 
   it("相関情報のないOAuth帰還ではcurrent Userのverified Googleを推測採用しない", async () => {
@@ -244,8 +290,6 @@ describe("Google接続controller", () => {
     await waitFor(() => expect(result.current.state.feedback.status).toBe("error"));
 
     expect(result.current.state.errorKind).toBe("clerkConflict");
-    expect(result.current.state.googleAccountId).toBeNull();
-    expect(result.current.state.emailAddress).toBeNull();
   });
 
   it("利用者が再確認した時は既存のverified Googleを成功通知なしでoverviewへ収束できる", async () => {
@@ -263,7 +307,6 @@ describe("Google接続controller", () => {
     await act(async () => result.current.refresh());
 
     expect(result.current.state.phase).toBe("methodReady");
-    expect(result.current.state.googleAccountId).toBe(connectedGoogle.id);
     expect(result.current.state.feedback).toEqual({ status: "idle", message: null });
   });
 
@@ -284,7 +327,6 @@ describe("Google接続controller", () => {
     await waitFor(() => expect(result.current.state.feedback.status).toBe("error"));
 
     expect(result.current.state.errorKind).toBe("clerkConflict");
-    expect(result.current.state.googleAccountId).toBeNull();
   });
 
   it("exact Googleがverifiedでも対応するverified email resourceを所有しなければ成功扱いにしない", async () => {
@@ -344,7 +386,7 @@ describe("Google接続controller", () => {
       expect(result.current.state.errorKind).toBe(expectedKind);
       expect(result.current.state.feedback.message).toBe(expectedMessage);
       expect(result.current.state.feedback.message).not.toContain("private-google-account@example.com");
-      expect(window.sessionStorage).toHaveLength(0);
+      expect(readStoredCorrelation()).toBeNull();
     },
   );
 
@@ -367,11 +409,23 @@ describe("Google接続controller", () => {
   });
 
   it("一般的なprovider失敗はresponseを表示せず再試行可能エラーにする", async () => {
+    let currentTime = 1_000_000;
+    vi.spyOn(Date, "now").mockImplementation(() => currentTime);
+    const pendingGoogle = googleResource({
+      id: "google-retry",
+      status: "unverified",
+      emailAddress: "selected-google@example.com",
+      redirectUrl: "https://accounts.example.test/authorize",
+    });
     const user = userResource();
-    vi.mocked(user.createExternalAccount).mockRejectedValue(
-      new Error("provider failed for private-google-account@example.com"),
-    );
-    const { result } = renderGoogleHook({ user });
+    vi.mocked(user.createExternalAccount)
+      .mockRejectedValueOnce(new Error("provider failed for private-google-account@example.com"))
+      .mockImplementationOnce(async () => {
+        user.externalAccounts = [pendingGoogle];
+        return pendingGoogle;
+      });
+    const navigate = vi.fn();
+    const { result } = renderGoogleHook({ user, navigateToExternalVerification: navigate });
 
     await act(async () => result.current.start());
 
@@ -380,6 +434,65 @@ describe("Google接続controller", () => {
       "Googleログインを追加できませんでした。現在のログイン方法は変更されていません。もう一度お試しください。",
     );
     expect(result.current.state.feedback.message).not.toContain("private-google-account@example.com");
+
+    await act(async () => result.current.start());
+
+    expect(user.createExternalAccount).toHaveBeenCalledOnce();
+    expect(result.current.state).toMatchObject({
+      phase: "readyToConnect",
+      errorKind: "cooldown",
+      feedback: {
+        status: "error",
+        message: "Googleの確認を開始した直後です。あと30秒ほど待ってから再試行してください。",
+      },
+    });
+
+    currentTime += 30_000;
+    await act(async () => result.current.start());
+
+    expect(user.createExternalAccount).toHaveBeenCalledTimes(2);
+    expect(navigate).toHaveBeenCalledWith("https://accounts.example.test/authorize");
+  });
+
+  it("createExternalAccountの応答喪失後のcooldownをremount後も保持し30秒後だけ再開始する", async () => {
+    let currentTime = 2_000_000;
+    vi.spyOn(Date, "now").mockImplementation(() => currentTime);
+    const pendingGoogle = googleResource({
+      id: "google-after-remount",
+      status: "unverified",
+      emailAddress: "selected-google@example.com",
+      redirectUrl: "https://accounts.example.test/authorize",
+    });
+    const user = userResource();
+    vi.mocked(user.createExternalAccount)
+      .mockRejectedValueOnce(new Error("response lost"))
+      .mockImplementationOnce(async () => {
+        user.externalAccounts = [pendingGoogle];
+        return pendingGoogle;
+      });
+    const firstMount = renderGoogleHook({ user });
+
+    await act(async () => firstMount.result.current.start());
+
+    expect(firstMount.result.current.state.errorKind).toBe("retryable");
+    expect(readStoredCorrelation()).toBeNull();
+    expect(readStoredCooldown()).not.toBeNull();
+    firstMount.unmount();
+
+    const navigate = vi.fn();
+    const secondMount = renderGoogleHook({ user, navigateToExternalVerification: navigate });
+    await act(async () => secondMount.result.current.start());
+
+    expect(user.createExternalAccount).toHaveBeenCalledOnce();
+    expect(secondMount.result.current.state.errorKind).toBe("cooldown");
+    expect(readStoredCorrelation()).toBeNull();
+
+    currentTime += 30_000;
+    await act(async () => secondMount.result.current.start());
+
+    expect(user.createExternalAccount).toHaveBeenCalledTimes(2);
+    expect(navigate).toHaveBeenCalledWith("https://accounts.example.test/authorize");
+    expect(readOnlyStoredCorrelation()).toMatchObject({ externalAccountId: pendingGoogle.id });
   });
 
   it("createExternalAccountの応答喪失後は開始前との差分が一意なresourceだけを復旧する", async () => {
@@ -436,8 +549,7 @@ describe("Google接続controller", () => {
     await act(async () => result.current.start());
 
     expect(result.current.state.errorKind).toBe("retryable");
-    expect(result.current.state.googleAccountId).toBeNull();
-    expect(window.sessionStorage).toHaveLength(0);
+    expect(readStoredCorrelation()).toBeNull();
   });
 
   it("本人再確認を取り消した時はOAuth resourceも相関情報も作らない", async () => {
@@ -455,7 +567,7 @@ describe("Google接続controller", () => {
     expect(operationResult).toBe(false);
     expect(result.current.state.phase).toBe("readyToConnect");
     expect(result.current.state.feedback).toEqual({ status: "idle", message: null });
-    expect(window.sessionStorage).toHaveLength(0);
+    expect(readStoredCorrelation()).toBeNull();
   });
 
   it("同じmountへOAuth callback markerが再送されても一度だけclaimする", async () => {
@@ -535,7 +647,7 @@ describe("Google接続controller", () => {
 
     expect(operationResult).toBeUndefined();
     expect(user.createExternalAccount).not.toHaveBeenCalled();
-    expect(window.sessionStorage).toHaveLength(0);
+    expect(readStoredCorrelation()).toBeNull();
   });
 });
 
@@ -588,12 +700,37 @@ async function startPersistedConnection() {
 }
 
 function readOnlyStoredCorrelation() {
-  expect(window.sessionStorage).toHaveLength(1);
-  const key = window.sessionStorage.key(0);
-  expect(key).not.toBeNull();
-  const value = window.sessionStorage.getItem(key as string);
+  const value = readStoredCorrelation();
   expect(value).not.toBeNull();
-  return JSON.parse(value as string) as unknown;
+  return value;
+}
+
+function readStoredCorrelation() {
+  for (let index = 0; index < window.sessionStorage.length; index += 1) {
+    const key = window.sessionStorage.key(index);
+    if (!key?.includes(":google-connection:")) continue;
+    const value = window.sessionStorage.getItem(key);
+    return value ? (JSON.parse(value) as unknown) : null;
+  }
+  return null;
+}
+
+function readStoredCooldown() {
+  for (let index = 0; index < window.sessionStorage.length; index += 1) {
+    const key = window.sessionStorage.key(index);
+    if (!key?.includes(":operation-cooldown:")) continue;
+    const value = window.sessionStorage.getItem(key);
+    return value ? (JSON.parse(value) as unknown) : null;
+  }
+  return null;
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((innerResolve) => {
+    resolve = innerResolve;
+  });
+  return { promise, resolve };
 }
 
 function userResource({

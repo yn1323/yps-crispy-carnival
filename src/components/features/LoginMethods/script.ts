@@ -54,23 +54,13 @@ export function buildLoginMethodsViewModel(snapshot: LoginMethodsUserSnapshot): 
         };
       }),
       canConnect: hasEmailPasswordMethod && googleAccounts.length === 0,
-      connectUnavailableReason:
-        googleAccounts.length > 0
-          ? "Googleはすでに登録されています。"
-          : hasEmailPasswordMethod
-            ? null
-            : EMAIL_PASSWORD_REQUIRED_REASON,
       canReconnect: googleAccounts.some((account) => account.verificationStatus !== "verified"),
     },
     emailPassword: {
-      passwordEnabled: snapshot.passwordEnabled,
       primaryEmail: verifiedEmailViewModels.find((email) => email.isPrimary) ?? null,
       verifiedEmails: verifiedEmailViewModels,
       unverifiedEmails: unverifiedEmailViewModels,
       canChangeLoginEmail: hasVerifiedPrimaryEmail,
-      loginEmailChangeUnavailableReason: hasVerifiedPrimaryEmail
-        ? null
-        : "現在のログイン用メールアドレスを確認できません。",
       canSetPassword: !snapshot.passwordEnabled && verifiedEmails.length > 0,
       canChangePassword: hasEmailPasswordMethod,
     },

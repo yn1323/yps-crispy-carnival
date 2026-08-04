@@ -6,8 +6,9 @@ import type {
   SessionVerificationSecondFactor,
   SignedInSessionResource,
 } from "@clerk/react/types";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { maskEmailAddress } from "@/src/components/features/AuthPage/loginVerification";
+import { createLoginMethodOperationCooldown, type LoginMethodOperationCooldown } from "./operationCooldown";
 import {
   IDLE_LOGIN_METHOD_REVERIFICATION_STATE,
   type LoginMethodOnNeedsReverification,
@@ -47,8 +48,14 @@ type InternalFactor =
 const GENERAL_FAILURE_MESSAGE = "本人確認を完了できませんでした。変更は行っていません。もう一度お試しください。";
 const UNAVAILABLE_MESSAGE = "このアカウントで利用できる本人確認方法がありません。変更は行っていません。";
 
-export function useLoginMethodReverification(): LoginMethodReverificationController {
+export function useLoginMethodReverification({
+  operationCooldown,
+}: {
+  operationCooldown?: LoginMethodOperationCooldown;
+} = {}): LoginMethodReverificationController {
   const { session } = useSession();
+  const localOperationCooldown = useMemo(() => createLoginMethodOperationCooldown(), []);
+  const retryCooldown = operationCooldown ?? localOperationCooldown;
   const sessionRef = useRef<SignedInSessionResource | null>(session ?? null);
   sessionRef.current = session ?? null;
 
@@ -324,6 +331,22 @@ export function useLoginMethodReverification(): LoginMethodReverificationControl
         return;
       }
 
+      if (selectedFactor.canResend) {
+        const cooldown = retryCooldown.claim(request.sessionId, reverificationCooldownScope(internalFactor));
+        if (!cooldown.allowed) {
+          commitState({
+            status: "selecting_factor",
+            operationId: request.operationId,
+            level: request.level,
+            stage: selectedFactor.stage,
+            factors: stateRef.current.factors,
+            selectedFactor: null,
+            message: verificationCooldownMessage(cooldown.retryAfterSeconds),
+          });
+          return;
+        }
+      }
+
       actionRunningRef.current = true;
       commitState(submittingState(request, selectedFactor, stateRef.current.factors));
       try {
@@ -344,7 +367,7 @@ export function useLoginMethodReverification(): LoginMethodReverificationControl
         actionRunningRef.current = false;
       }
     },
-    [commitState, failClosed, handlePreparedResource, isCurrent, setAwaitingInput],
+    [commitState, failClosed, handlePreparedResource, isCurrent, retryCooldown, setAwaitingInput],
   );
 
   const submit = useCallback(
@@ -413,6 +436,12 @@ export function useLoginMethodReverification(): LoginMethodReverificationControl
       return;
     }
 
+    const cooldown = retryCooldown.claim(request.sessionId, reverificationCooldownScope(internalFactor));
+    if (!cooldown.allowed) {
+      setAwaitingInput(request, selectedFactor, verificationCooldownMessage(cooldown.retryAfterSeconds));
+      return;
+    }
+
     actionRunningRef.current = true;
     commitState(submittingState(request, selectedFactor, stateRef.current.factors));
     try {
@@ -426,7 +455,7 @@ export function useLoginMethodReverification(): LoginMethodReverificationControl
     } finally {
       actionRunningRef.current = false;
     }
-  }, [commitState, failClosed, handlePreparedResource, isCurrent]);
+  }, [commitState, failClosed, handlePreparedResource, isCurrent, retryCooldown, setAwaitingInput]);
 
   const useAnotherFactor = useCallback(() => {
     const request = activeRequestRef.current;
@@ -478,6 +507,20 @@ export function useLoginMethodReverification(): LoginMethodReverificationControl
     useAnotherFactor,
     cancel,
   };
+}
+
+function reverificationCooldownScope(internalFactor: InternalFactor) {
+  const resourceId =
+    "emailAddressId" in internalFactor.factor && typeof internalFactor.factor.emailAddressId === "string"
+      ? internalFactor.factor.emailAddressId
+      : "phoneNumberId" in internalFactor.factor && typeof internalFactor.factor.phoneNumberId === "string"
+        ? internalFactor.factor.phoneNumberId
+        : internalFactor.publicFactor.key;
+  return `session-verification:${internalFactor.stage}:${internalFactor.publicFactor.strategy}:${resourceId}`;
+}
+
+function verificationCooldownMessage(retryAfterSeconds: number) {
+  return `確認コードを送信した直後です。あと${retryAfterSeconds}秒ほど待ってから再送してください。`;
 }
 
 function buildSupportedFactors(

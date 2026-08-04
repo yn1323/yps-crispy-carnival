@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import type { EmailAddressResource, ExternalAccountResource, UserResource } from "@clerk/shared/types";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -27,12 +27,65 @@ import type { LoginMethodOperationRunner } from "./migrationTypes";
 import { useEmailPasswordMigrationController } from "./useEmailPasswordMigrationController";
 
 beforeEach(() => {
+  window.sessionStorage.clear();
   mocks.reverificationOptions.length = 0;
   mocks.isReverificationCancelledError.mockReset();
   mocks.isReverificationCancelledError.mockReturnValue(false);
 });
 
 describe("メールアドレスとパスワードの追加controller", () => {
+  it("同じUserでflowを開き直す時もreloadした最新状態から再開する", async () => {
+    const linkedEmail = emailResource("google-email", "staff@example.com", "verified", true);
+    const user = userResource({
+      emailAddresses: [linkedEmail],
+      externalAccounts: [googleResource("google-old")],
+      primaryEmailAddressId: linkedEmail.id,
+    });
+    vi.mocked(user.updatePassword).mockImplementation(async () => {
+      user.passwordEnabled = true;
+      return user;
+    });
+    const getCurrentActorId = () => user.id;
+    const { result, rerender } = renderHook(
+      ({ active, currentUser }: { active: boolean; currentUser: UserResource }) =>
+        useEmailPasswordMigrationController({
+          isLoaded: true,
+          user: currentUser,
+          getCurrentActorId,
+          active,
+          onNeedsReverification: vi.fn(),
+          runOperation: async (operation) => operation(),
+        }),
+      { initialProps: { active: true, currentUser: user } },
+    );
+
+    await act(async () => result.current.useCurrentEmail());
+    await act(async () => result.current.setPassword({ newPassword: "safe-password", signOutOfOtherSessions: false }));
+    expect(result.current.state).toMatchObject({ phase: "methodReady", feedback: { status: "success" } });
+
+    rerender({ active: false, currentUser: user });
+    await waitFor(() => expect(result.current.state.feedback.status).toBe("idle"));
+
+    const latestUser = userResource({
+      id: user.id,
+      emailAddresses: [linkedEmail],
+      externalAccounts: [googleResource("google-old")],
+      primaryEmailAddressId: linkedEmail.id,
+    });
+    const gate = deferred<void>();
+    vi.mocked(user.reload).mockImplementationOnce(async () => {
+      await gate.promise;
+      return user;
+    });
+    rerender({ active: true, currentUser: user });
+    expect(result.current.state.phase).toBe("loading");
+    rerender({ active: true, currentUser: latestUser });
+
+    await act(async () => gate.resolve());
+    await waitFor(() => expect(result.current.state.phase).toBe("choosingEmail"));
+    expect(result.current.state.feedback).toEqual({ status: "idle", message: null });
+  });
+
   it("reload中にcurrent Userが切り替わればEmailAddress追加を開始しない", async () => {
     const googleEmail = emailResource("google-email", "google@gmail.com", "verified", true);
     const user = userResource({
@@ -193,6 +246,80 @@ describe("メールアドレスとパスワードの追加controller", () => {
 
     expect(result.current.state.phase).toBe("methodReady");
     expect(google.destroy).not.toHaveBeenCalled();
+  });
+
+  it("初回送信と再送は同じメールのcooldownを共有し、30秒後にだけ再送する", async () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    const googleEmail = emailResource("google-email", "google@gmail.com", "verified", true);
+    const pendingEmail = emailResource("email-pending", "pending@example.com", "unverified");
+    const user = userResource({
+      emailAddresses: [googleEmail, pendingEmail],
+      externalAccounts: [googleResource("google-old")],
+      primaryEmailAddressId: googleEmail.id,
+    });
+    const { result } = renderHook(() =>
+      useEmailPasswordMigrationController({
+        isLoaded: true,
+        user,
+        getCurrentActorId: () => user.id,
+        onNeedsReverification: vi.fn(),
+        runOperation: async (operation) => operation(),
+      }),
+    );
+
+    await act(async () => result.current.useDifferentEmail(pendingEmail.emailAddress));
+    expect(pendingEmail.prepareVerification).toHaveBeenCalledOnce();
+
+    await act(async () => result.current.resendEmailCode());
+    expect(pendingEmail.prepareVerification).toHaveBeenCalledOnce();
+    expect(result.current.state.feedback).toEqual({
+      status: "error",
+      message: "確認コードを送信した直後です。あと30秒ほど待ってから再送してください。",
+    });
+
+    now.mockReturnValue(1_030_000);
+    await act(async () => result.current.resendEmailCode());
+    expect(pendingEmail.prepareVerification).toHaveBeenCalledTimes(2);
+    expect(result.current.state.feedback).toEqual({
+      status: "success",
+      message: "新しい確認コードを送りました。",
+    });
+
+    now.mockRestore();
+  });
+
+  it("初回送信の応答を失っても同じメールのcooldownを維持する", async () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(2_000_000);
+    const googleEmail = emailResource("google-email", "google@gmail.com", "verified", true);
+    const pendingEmail = emailResource("email-pending", "pending@example.com", "unverified");
+    vi.mocked(pendingEmail.prepareVerification).mockRejectedValueOnce(new Error("response lost"));
+    const user = userResource({
+      emailAddresses: [googleEmail, pendingEmail],
+      externalAccounts: [googleResource("google-old")],
+      primaryEmailAddressId: googleEmail.id,
+    });
+    const { result } = renderHook(() =>
+      useEmailPasswordMigrationController({
+        isLoaded: true,
+        user,
+        getCurrentActorId: () => user.id,
+        onNeedsReverification: vi.fn(),
+        runOperation: async (operation) => operation(),
+      }),
+    );
+
+    await act(async () => result.current.useDifferentEmail(pendingEmail.emailAddress));
+    expect(pendingEmail.prepareVerification).toHaveBeenCalledOnce();
+    expect(result.current.state).toMatchObject({
+      phase: "verifyingEmail",
+      targetEmailAddressId: pendingEmail.id,
+    });
+
+    await act(async () => result.current.resendEmailCode());
+    expect(pendingEmail.prepareVerification).toHaveBeenCalledOnce();
+    expect(result.current.state.feedback.message).toContain("あと30秒");
+
+    now.mockRestore();
   });
 
   it("メール確認に失敗した場合は確認待ちに留まり、パスワードとGoogleを変更しない", async () => {

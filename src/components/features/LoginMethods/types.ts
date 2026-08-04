@@ -42,16 +42,13 @@ export type LoginMethodsViewModel = {
   google: {
     accounts: LoginMethodsGoogleAccountViewModel[];
     canConnect: boolean;
-    connectUnavailableReason: string | null;
     canReconnect: boolean;
   };
   emailPassword: {
-    passwordEnabled: boolean;
     primaryEmail: LoginMethodsEmailViewModel | null;
     verifiedEmails: LoginMethodsEmailViewModel[];
     unverifiedEmails: LoginMethodsEmailViewModel[];
     canChangeLoginEmail: boolean;
-    loginEmailChangeUnavailableReason: string | null;
     canSetPassword: boolean;
     canChangePassword: boolean;
   };

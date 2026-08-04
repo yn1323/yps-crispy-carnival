@@ -44,6 +44,12 @@ export function LoginMethodReverificationView({ controller }: { controller: Logi
           </Text>
           <Text color="fg.muted">続行するため、利用できる方法から一つ選んでください。</Text>
         </Stack>
+        {state.message ? (
+          <Alert.Root status="info" borderRadius="lg" alignItems="flex-start" role="status" aria-live="polite">
+            <Alert.Indicator />
+            <Alert.Description>{state.message}</Alert.Description>
+          </Alert.Root>
+        ) : null}
         <Stack gap={2}>
           {state.factors.map((factor) => (
             <Button

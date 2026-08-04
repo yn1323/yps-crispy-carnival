@@ -88,7 +88,7 @@ Googleのみの状態では解除操作を表示しない。
 EmailAddressの削除とパスワードの削除は提供しない。
 別のGoogleアカウントへ切り替える場合は、メール・パスワードを保持した状態でGoogle解除とGoogle追加を別々に行い、専用のGoogle置換フローは設けない。
 
-変更操作はsingle-flightにし、操作直前と応答喪失後に`user.reload()`で最新状態を確認する。
+変更操作はsingle-flightにし、操作直前と応答喪失後に`user.reload()`で最新状態を確認する。  確認コード送信とGoogle OAuth開始は同じtabで30秒の絶対期限を共有し、画面遷移やOAuth往復の直後も連続送信しない。  このclient側の待機は補助であり、tabをまたぐ頻度制御はClerk serverを正本とする。
 EmailAddress IDやExternalAccount IDはcurrent Userへの所属を確認してから使い、OAuth開始時と帰還時のClerk `user.id`が一致しなければ完了扱いにしない。
 メールアドレス、Clerk User ID、resource ID、確認コード、tokenをURLやログへ含めない。
 

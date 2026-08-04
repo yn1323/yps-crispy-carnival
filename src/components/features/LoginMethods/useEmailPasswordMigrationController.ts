@@ -1,7 +1,7 @@
 import { useReverification } from "@clerk/react";
 import { isReverificationCancelledError } from "@clerk/react/errors";
 import type { EmailAddressResource, UserResource } from "@clerk/shared/types";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { normalizeEmail, requiredEmailSchema } from "@/convex/_lib/validation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { toLoginMethodsUserSnapshot } from "./adapter";
@@ -13,6 +13,11 @@ import type {
   LoginMethodOperationRunner,
   LoginMethodReverificationHandler,
 } from "./migrationTypes";
+import {
+  createLoginMethodOperationCooldown,
+  emailVerificationCooldownScope,
+  type LoginMethodOperationCooldown,
+} from "./operationCooldown";
 
 export type EmailPasswordMigrationState = {
   phase: EmailPasswordMigrationPhase;
@@ -36,8 +41,10 @@ type Options = {
   isLoaded: boolean;
   user: UserResource | null | undefined;
   getCurrentActorId: () => string | null;
+  active?: boolean;
   onNeedsReverification: LoginMethodReverificationHandler;
   runOperation: LoginMethodOperationRunner;
+  operationCooldown?: LoginMethodOperationCooldown;
 };
 
 const IDLE_FEEDBACK: LoginMethodMigrationFeedback = { status: "idle", message: null };
@@ -46,10 +53,17 @@ export function useEmailPasswordMigrationController({
   isLoaded,
   user,
   getCurrentActorId,
+  active = true,
   onNeedsReverification,
   runOperation,
+  operationCooldown,
 }: Options): EmailPasswordMigrationController {
   const actorUserId = user?.id ?? null;
+  const userRef = useRef(user);
+  userRef.current = user;
+  const localOperationCooldown = useMemo(() => createLoginMethodOperationCooldown(), []);
+  const retryCooldown = operationCooldown ?? localOperationCooldown;
+  const wasActiveRef = useRef(active);
   const initializedForRef = useRef<string | null>(user?.id ?? null);
   const [state, setState] = useState<EmailPasswordMigrationState>(() =>
     user ? stateFromUser(user) : unavailableState(),
@@ -61,6 +75,42 @@ export function useEmailPasswordMigrationController({
     initializedForRef.current = user.id;
     setState(stateFromUser(user));
   }, [isLoaded, user]);
+
+  const isActivating = active && !wasActiveRef.current;
+
+  useEffect(() => {
+    const becameActive = active && !wasActiveRef.current;
+    const becameInactive = !active && wasActiveRef.current;
+    wasActiveRef.current = active;
+    const currentUser = userRef.current;
+    if (!isLoaded || !currentUser || currentUser.id !== actorUserId) return;
+
+    if (becameInactive) {
+      setState(stateFromUser(currentUser));
+      return;
+    }
+    if (!becameActive) return;
+
+    let cancelled = false;
+    const activatingUserId = currentUser.id;
+    setState(loadingState());
+    void currentUser
+      .reload()
+      .then(() => {
+        const latestUser = userRef.current;
+        if (!cancelled && getCurrentActorId() === activatingUserId && latestUser?.id === activatingUserId) {
+          setState(stateFromUser(latestUser));
+        }
+      })
+      .catch(() => {
+        if (!cancelled && getCurrentActorId() === activatingUserId) {
+          setState(unavailableState("ログイン方法を確認できませんでした。画面を再読み込みしてください。"));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [active, actorUserId, getCurrentActorId, isLoaded]);
 
   const reloadUser = async () => {
     if (!isLoaded || !user || !actorUserId || user.id !== actorUserId || getCurrentActorId() !== actorUserId) {
@@ -133,6 +183,15 @@ export function useEmailPasswordMigrationController({
 
   const advanceWithEmail = async (currentUser: UserResource, target: EmailAddressResource) => {
     if (target.verification?.status !== "verified") {
+      const cooldown = retryCooldown.claim(currentUser.id, emailVerificationCooldownScope(target.id));
+      if (!cooldown.allowed) {
+        syncFromUser(
+          currentUser,
+          { status: "error", message: emailVerificationCooldownMessage(cooldown.retryAfterSeconds) },
+          target.id,
+        );
+        return false;
+      }
       await target.prepareVerification({ strategy: "email_code" });
       syncFromUser(currentUser, { status: "success", message: "確認コードを送信しました。" }, target.id);
       return true;
@@ -309,6 +368,15 @@ export function useEmailPasswordMigrationController({
           syncFromUser(currentUser, { status: "error", message: "確認コードを再送できません。" });
           return false;
         }
+        const cooldown = retryCooldown.claim(currentUser.id, emailVerificationCooldownScope(target.id));
+        if (!cooldown.allowed) {
+          syncFromUser(
+            currentUser,
+            { status: "error", message: emailVerificationCooldownMessage(cooldown.retryAfterSeconds) },
+            target.id,
+          );
+          return false;
+        }
         await target.prepareVerification({ strategy: "email_code" });
         syncFromUser(currentUser, { status: "success", message: "新しい確認コードを送りました。" }, target.id);
         return true;
@@ -397,7 +465,7 @@ export function useEmailPasswordMigrationController({
   );
 
   return {
-    state,
+    state: isActivating ? loadingState() : state,
     refresh,
     useCurrentEmail,
     useDifferentEmail,
@@ -430,6 +498,15 @@ function unavailableState(message: string | null = null): EmailPasswordMigration
   };
 }
 
+function loadingState(): EmailPasswordMigrationState {
+  return {
+    phase: "loading",
+    targetEmailAddressId: null,
+    targetEmailAddress: null,
+    feedback: { status: "loading", message: null },
+  };
+}
+
 function findEmailAddress(user: UserResource, id: string | null, normalizedEmail?: string) {
   if (id) {
     const byId = user.emailAddresses.find((emailAddress) => emailAddress.id === id);
@@ -451,6 +528,10 @@ function googleAccountKeys(user: UserResource) {
 
 function equalStringSets(left: string[], right: string[]) {
   return left.length === right.length && left.every((value) => right.includes(value));
+}
+
+function emailVerificationCooldownMessage(retryAfterSeconds: number) {
+  return `確認コードを送信した直後です。あと${retryAfterSeconds}秒ほど待ってから再送してください。`;
 }
 
 function errorFeedback(error: unknown): LoginMethodMigrationFeedback {

@@ -1,31 +1,8 @@
 import { describe, expect, it } from "vitest";
-import {
-  acceptsGoogleOAuthMarker,
-  buildGoogleOAuthReturnPath,
-  canStartGoogleConnection,
-  deriveEmailPasswordMigration,
-  hasEmailPasswordMethod,
-  hasVerifiedGoogle,
-  isLoginMethodMigrationFlow,
-} from "./migrationScript";
+import { deriveEmailPasswordMigration } from "./migrationScript";
 import type { LoginMethodsUserSnapshot } from "./types";
 
-describe("ログイン方法追加の純粋判定", () => {
-  it("メール・パス追加とGoogle追加だけをflowとして受理する", () => {
-    expect(isLoginMethodMigrationFlow("add-email-password")).toBe(true);
-    expect(isLoginMethodMigrationFlow("connect-google")).toBe(true);
-    expect(isLoginMethodMigrationFlow("replace-google")).toBe(false);
-    expect(isLoginMethodMigrationFlow("change-primary-email")).toBe(false);
-    expect(isLoginMethodMigrationFlow({ flow: "connect-google" })).toBe(false);
-  });
-
-  it("Google OAuth markerはconnect-googleだけへ結び付ける", () => {
-    expect(acceptsGoogleOAuthMarker("connect-google")).toBe(true);
-    expect(acceptsGoogleOAuthMarker("add-email-password")).toBe(false);
-    expect(acceptsGoogleOAuthMarker(undefined)).toBe(false);
-    expect(buildGoogleOAuthReturnPath("connect-google")).toBe("/account/security?flow=connect-google&oauth=google");
-  });
-
+describe("メール・パスワード追加のphase導出", () => {
   it("EmailAddressの確認とパスワード設定を別phaseとして導出する", () => {
     const pending = snapshot({ emailAddresses: [email("pending", "unverified")] });
     expect(deriveEmailPasswordMigration(pending, "pending")).toEqual({
@@ -74,51 +51,35 @@ describe("ログイン方法追加の純粋判定", () => {
       emailAddresses: [email("login", "verified")],
     });
 
-    expect(hasEmailPasswordMethod(passwordReady)).toBe(true);
     expect(deriveEmailPasswordMigration(passwordReady)).toEqual({
       phase: "methodReady",
       targetEmailAddressId: null,
     });
   });
 
-  it("Google追加はメール・パスがありGoogle ExternalAccountがない場合だけ開始できる", () => {
-    const passwordOnly = snapshot({
-      passwordEnabled: true,
-      emailAddresses: [email("login", "verified")],
-    });
-    const withoutVerifiedEmail = snapshot({
-      passwordEnabled: true,
-      emailAddresses: [email("pending", "unverified")],
-    });
-    const existingGoogle = snapshot({
-      passwordEnabled: true,
-      emailAddresses: [email("login", "verified")],
-      externalAccounts: [google("google-old", "verified")],
-    });
-    const pendingGoogle = snapshot({
-      passwordEnabled: true,
-      emailAddresses: [email("login", "verified")],
-      externalAccounts: [google("google-pending", "unverified")],
-    });
-
-    expect(canStartGoogleConnection(passwordOnly)).toBe(true);
-    expect(canStartGoogleConnection(withoutVerifiedEmail)).toBe(false);
-    expect(canStartGoogleConnection(existingGoogle)).toBe(false);
-    expect(canStartGoogleConnection(pendingGoogle)).toBe(false);
-  });
-
-  it("確認済みGoogleだけを利用可能なGoogle認証として数える", () => {
-    expect(hasVerifiedGoogle(snapshot({ externalAccounts: [google("verified", "verified")] }))).toBe(true);
-    expect(hasVerifiedGoogle(snapshot({ externalAccounts: [google("pending", "unverified")] }))).toBe(false);
+  it("確認済みメールとパスワードが揃わなければ選択状態を維持する", () => {
     expect(
-      hasVerifiedGoogle(
+      deriveEmailPasswordMigration(
         snapshot({
-          externalAccounts: [
-            { id: "github", provider: "github", emailAddress: "github@example.com", verificationStatus: "verified" },
-          ],
+          passwordEnabled: true,
+          emailAddresses: [email("pending", "unverified")],
         }),
       ),
-    ).toBe(false);
+    ).toEqual({
+      phase: "choosingEmail",
+      targetEmailAddressId: null,
+    });
+
+    expect(
+      deriveEmailPasswordMigration(
+        snapshot({
+          emailAddresses: [email("verified", "verified")],
+        }),
+      ),
+    ).toEqual({
+      phase: "choosingEmail",
+      targetEmailAddressId: null,
+    });
   });
 });
 

@@ -25,11 +25,9 @@ describe("ログイン方法の表示状態", () => {
           },
         ],
         canConnect: false,
-        connectUnavailableReason: "Googleはすでに登録されています。",
         canReconnect: false,
       },
       emailPassword: {
-        passwordEnabled: false,
         primaryEmail: {
           id: "email-google",
           maskedEmail: "google@example.com",
@@ -48,7 +46,6 @@ describe("ログイン方法の表示状態", () => {
         ],
         unverifiedEmails: [],
         canChangeLoginEmail: true,
-        loginEmailChangeUnavailableReason: null,
         canSetPassword: true,
         canChangePassword: false,
       },
@@ -141,9 +138,6 @@ describe("ログイン方法の表示状態", () => {
     expect(result.methodState).toBe("googleOnly");
     expect(result.emailPassword.primaryEmail).toBeNull();
     expect(result.emailPassword.canChangeLoginEmail).toBe(false);
-    expect(result.emailPassword.loginEmailChangeUnavailableReason).toBe(
-      "現在のログイン用メールアドレスを確認できません。",
-    );
     expect(
       [...result.emailPassword.verifiedEmails, ...result.emailPassword.unverifiedEmails].map(
         (item) => item.loginEmailChangeAction,

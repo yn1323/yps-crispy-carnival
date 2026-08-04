@@ -1,12 +1,18 @@
 import { useReverification } from "@clerk/react";
 import { isReverificationCancelledError } from "@clerk/react/errors";
 import type { UserResource } from "@clerk/shared/types";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { normalizeEmail, requiredEmailSchema } from "@/convex/_lib/validation";
 import { showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { toLoginMethodsUserSnapshot } from "./adapter";
 import { getLoginMethodAccountErrorMessage } from "./loginMethodErrorPresentation";
+import {
+  createLoginMethodOperationCooldown,
+  emailVerificationCooldownScope,
+  GOOGLE_OAUTH_COOLDOWN_SCOPE,
+  type LoginMethodOperationCooldown,
+} from "./operationCooldown";
 import type { LoginMethodOnNeedsReverification } from "./reverificationTypes";
 import { buildLoginMethodsViewModel } from "./script";
 import type {
@@ -27,6 +33,7 @@ type ControllerOptions = {
   navigateToExternalVerification?: (url: string) => void;
   onNeedsReverification?: LoginMethodOnNeedsReverification;
   runOperation?: <T>(operation: () => Promise<T>) => Promise<T | undefined>;
+  operationCooldown?: LoginMethodOperationCooldown;
 };
 
 type EmailOperation =
@@ -55,8 +62,11 @@ export function useLoginMethodsController({
   navigateToExternalVerification = (url) => window.location.assign(url),
   onNeedsReverification,
   runOperation = async (operation) => operation(),
+  operationCooldown,
 }: ControllerOptions): LoginMethodsController {
   const actorUserId = user?.id ?? null;
+  const localOperationCooldown = useMemo(() => createLoginMethodOperationCooldown(), []);
+  const retryCooldown = operationCooldown ?? localOperationCooldown;
   const [, setResourceRevision] = useState(0);
   const [googleState, setGoogleState] = useState<LoginMethodsCardState>(IDLE_STATE);
   const [emailPasswordState, setEmailPasswordState] = useState<LoginMethodsCardState>(IDLE_STATE);
@@ -224,6 +234,11 @@ export function useLoginMethodsController({
             setGoogleState(cardError("このGoogle連携は再確認できません。最新の状態を読み込んでください。"));
             return false;
           }
+          const cooldown = retryCooldown.claim(currentUser.id, GOOGLE_OAUTH_COOLDOWN_SCOPE);
+          if (!cooldown.allowed) {
+            setGoogleState(cardError(oauthCooldownMessage(cooldown.retryAfterSeconds)));
+            return false;
+          }
           const result = await reauthorizeGoogleWithReverification(externalAccountId);
           if (result == null) {
             setGoogleState(IDLE_STATE);
@@ -355,6 +370,18 @@ export function useLoginMethodsController({
           if (target.verification?.status === "verified") {
             return await completeLoginEmailChange(currentUser, target.id, baseline);
           }
+          const cooldown = retryCooldown.claim(currentUser.id, emailVerificationCooldownScope(target.id));
+          if (!cooldown.allowed) {
+            setEmailChangeDialog({
+              isOpen: true,
+              step: "verification",
+              currentMaskedEmail: latestPrimary.emailAddress,
+              targetEmailAddressId: target.id,
+              targetMaskedEmail: target.emailAddress,
+            });
+            setEmailPasswordState(cardError(emailVerificationCooldownMessage(cooldown.retryAfterSeconds)));
+            return false;
+          }
           await target.prepareVerification({ strategy: "email_code" });
           setEmailChangeDialog({
             isOpen: true,
@@ -381,6 +408,18 @@ export function useLoginMethodsController({
           if (target.verification?.status === "verified") {
             return await completeLoginEmailChange(currentUser, target.id, baseline);
           }
+          const cooldown = retryCooldown.claim(currentUser.id, emailVerificationCooldownScope(target.id));
+          if (!cooldown.allowed) {
+            setEmailChangeDialog({
+              isOpen: true,
+              step: "verification",
+              currentMaskedEmail: currentPrimary.emailAddress,
+              targetEmailAddressId: target.id,
+              targetMaskedEmail: target.emailAddress,
+            });
+            setEmailPasswordState(cardError(emailVerificationCooldownMessage(cooldown.retryAfterSeconds)));
+            return false;
+          }
           await target.prepareVerification({ strategy: "email_code" });
           setEmailChangeDialog({
             isOpen: true,
@@ -406,6 +445,11 @@ export function useLoginMethodsController({
           targetId = target.id;
           targetEmail = normalizeEmail(target.emailAddress);
           if (operation === "resendLoginEmail") {
+            const cooldown = retryCooldown.claim(currentUser.id, emailVerificationCooldownScope(target.id));
+            if (!cooldown.allowed) {
+              setEmailPasswordState(cardError(emailVerificationCooldownMessage(cooldown.retryAfterSeconds)));
+              return false;
+            }
             await target.prepareVerification({ strategy: "email_code" });
             setEmailPasswordState({ status: "success", message: "新しい確認コードを送りました。" });
             return true;
@@ -614,6 +658,14 @@ function googleDisconnectCompleted(user: UserResource, externalAccountId: string
 function emptyToUndefined(value: string | undefined) {
   const trimmed = value?.trim();
   return trimmed || undefined;
+}
+
+function emailVerificationCooldownMessage(retryAfterSeconds: number) {
+  return `確認コードを送信した直後です。あと${retryAfterSeconds}秒ほど待ってから再送してください。`;
+}
+
+function oauthCooldownMessage(retryAfterSeconds: number) {
+  return `Googleの確認を開始した直後です。あと${retryAfterSeconds}秒ほど待ってから再試行してください。`;
 }
 
 function cardError(message: string): LoginMethodsCardState {

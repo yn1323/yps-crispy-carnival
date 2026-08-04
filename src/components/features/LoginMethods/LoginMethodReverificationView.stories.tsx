@@ -137,6 +137,24 @@ export const SelectFactorBehavior: Story = {
   },
 };
 
+export const FactorCooldownBehavior: Story = {
+  args: {
+    controller: staticController({
+      ...selectingState("first", [emailFactor]),
+      message: "確認コードを送信した直後です。あと30秒ほど待ってから再送してください。",
+    }),
+  },
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(await canvas.findByRole("status")).toHaveTextContent(
+      "確認コードを送信した直後です。あと30秒ほど待ってから再送してください。",
+    );
+    await expect(canvas.getByRole("button", { name: "メールで確認（lo***@example.com）" })).toBeVisible();
+  },
+};
+
 export const ResendAndChangeFactorBehavior: Story = {
   render: () => <InteractiveReverificationPreview initialState={inputState(emailFactor, firstFactors)} />,
   parameters: { screenshot: { skip: true } },

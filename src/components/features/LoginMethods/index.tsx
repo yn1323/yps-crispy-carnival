@@ -1,10 +1,11 @@
 import { useUser } from "@clerk/react";
 import type { UserResource } from "@clerk/shared/types";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { showSuccessToast } from "@/src/components/shared/feedback";
 import { LoginMethodMigrationView } from "./LoginMethodMigrationView";
 import { LoginMethodsView } from "./LoginMethodsView";
 import type { LoginMethodMigrationFlow } from "./migrationTypes";
+import { createLoginMethodOperationCooldown } from "./operationCooldown";
 import { useEmailPasswordMigrationController } from "./useEmailPasswordMigrationController";
 import { useGoogleConnectionController } from "./useGoogleConnectionController";
 import { useLoginMethodReverification } from "./useLoginMethodReverification";
@@ -52,20 +53,24 @@ function CurrentUserLoginMethods({
   user: UserResource | null | undefined;
   getCurrentActorId: () => string | null;
 }) {
-  const reverification = useLoginMethodReverification();
+  const operationCooldown = useMemo(() => createLoginMethodOperationCooldown(), []);
+  const reverification = useLoginMethodReverification({ operationCooldown });
   const controller = useLoginMethodsController({
     isLoaded,
     user,
     getCurrentActorId,
     onNeedsReverification: reverification.onNeedsReverification,
     runOperation: reverification.runOperation,
+    operationCooldown,
   });
   const emailPasswordController = useEmailPasswordMigrationController({
     isLoaded,
     user,
     getCurrentActorId,
+    active: flow === "add-email-password",
     onNeedsReverification: reverification.onNeedsReverification,
     runOperation: reverification.runOperation,
+    operationCooldown,
   });
   const googleController = useGoogleConnectionController({
     isLoaded,
@@ -76,6 +81,7 @@ function CurrentUserLoginMethods({
     onOAuthReturnHandled: onGoogleOAuthReturnHandled,
     onNeedsReverification: reverification.onNeedsReverification,
     runOperation: reverification.runOperation,
+    operationCooldown,
   });
   const handledCompletionRef = useRef<string | null>(null);
 
@@ -117,7 +123,7 @@ function CurrentUserLoginMethods({
   return (
     <>
       <LoginMethodsView controller={controller} onStartFlow={onStartFlow} reverification={reverification} />
-      {flow === "add-email-password" ? (
+      {flow === "add-email-password" && emailPasswordController.state.phase !== "methodReady" ? (
         <LoginMethodMigrationView
           flow="add-email-password"
           controller={emailPasswordController}
@@ -125,7 +131,7 @@ function CurrentUserLoginMethods({
           onBackToOverview={onBackToOverview}
         />
       ) : null}
-      {flow === "connect-google" ? (
+      {flow === "connect-google" && googleController.state.phase !== "methodReady" ? (
         <LoginMethodMigrationView
           flow="connect-google"
           controller={googleController}

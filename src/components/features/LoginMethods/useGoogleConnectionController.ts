@@ -1,7 +1,7 @@
 import { useReverification } from "@clerk/react";
 import { isReverificationCancelledError } from "@clerk/react/errors";
 import type { ExternalAccountResource, UserResource } from "@clerk/shared/types";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import type {
   GoogleConnectionPhase,
@@ -9,18 +9,22 @@ import type {
   LoginMethodOperationRunner,
   LoginMethodReverificationHandler,
 } from "./migrationTypes";
+import {
+  createLoginMethodOperationCooldown,
+  GOOGLE_OAUTH_COOLDOWN_SCOPE,
+  type LoginMethodOperationCooldown,
+} from "./operationCooldown";
 
 export type GoogleConnectionErrorKind =
   | "providerCancelled"
   | "accountCollision"
   | "alreadyConnected"
   | "clerkConflict"
+  | "cooldown"
   | "retryable";
 
 export type GoogleConnectionState = {
   phase: GoogleConnectionPhase;
-  googleAccountId: string | null;
-  emailAddress: string | null;
   feedback: LoginMethodMigrationFeedback;
   /** 表示文言へClerk responseや識別子を渡さず、UIが失敗境界だけを判別するための値。 */
   errorKind?: GoogleConnectionErrorKind | null;
@@ -42,6 +46,7 @@ type Options = {
   onNeedsReverification: LoginMethodReverificationHandler;
   runOperation: LoginMethodOperationRunner;
   navigateToExternalVerification?: (url: string) => void;
+  operationCooldown?: LoginMethodOperationCooldown;
 };
 
 type OAuthCorrelation = {
@@ -63,6 +68,7 @@ const ERROR_PRESENTATION: Record<GoogleConnectionErrorKind, string> = {
     "このGoogleアカウントは追加できません。別のGoogleアカウントを選んでください。現在のログイン方法は変更されていません。",
   alreadyConnected: "このGoogleアカウントはすでに接続されています。画面を再読み込みして最新の状態を確認してください。",
   clerkConflict: "Google連携の状態が変わりました。画面を再読み込みしてからやり直してください。",
+  cooldown: "Googleの確認を開始した直後です。しばらく待ってから再試行してください。",
   retryable: "Googleログインを追加できませんでした。現在のログイン方法は変更されていません。もう一度お試しください。",
 };
 
@@ -76,8 +82,13 @@ export function useGoogleConnectionController({
   onNeedsReverification,
   runOperation,
   navigateToExternalVerification = (url) => window.location.assign(url),
+  operationCooldown,
 }: Options): GoogleConnectionController {
   const actorUserId = user?.id ?? null;
+  const userRef = useRef(user);
+  userRef.current = user;
+  const localOperationCooldown = useMemo(() => createLoginMethodOperationCooldown(), []);
+  const retryCooldown = operationCooldown ?? localOperationCooldown;
   const oauthClaimedRef = useRef(false);
   const wasActiveRef = useRef(active);
   const initializedForRef = useRef<string | null>(user?.id ?? null);
@@ -90,13 +101,40 @@ export function useGoogleConnectionController({
     setState(stateFromUser(user));
   }, [isLoaded, user]);
 
+  const isActivating = active && !wasActiveRef.current && !oauthReturn;
+
   useEffect(() => {
     const becameActive = active && !wasActiveRef.current;
+    const becameInactive = !active && wasActiveRef.current;
     wasActiveRef.current = active;
-    if (!becameActive || oauthReturn || !isLoaded || !user) return;
+    const currentUser = userRef.current;
+    if (!isLoaded || !currentUser || currentUser.id !== actorUserId) return;
+    if (becameInactive) {
+      oauthClaimedRef.current = false;
+      setState(stateFromUser(currentUser));
+      return;
+    }
+    if (!becameActive || oauthReturn) return;
+
     oauthClaimedRef.current = false;
-    setState(stateFromUser(user));
-  }, [active, isLoaded, oauthReturn, user]);
+    let cancelled = false;
+    const activatingUserId = currentUser.id;
+    setState(loadingState());
+    void currentUser
+      .reload()
+      .then(() => {
+        const latestUser = userRef.current;
+        if (!cancelled && getCurrentActorId() === activatingUserId && latestUser?.id === activatingUserId) {
+          setState(stateFromUser(latestUser));
+        }
+      })
+      .catch(() => {
+        if (!cancelled && getCurrentActorId() === activatingUserId) setState(errorState("retryable"));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [active, actorUserId, getCurrentActorId, isLoaded, oauthReturn]);
 
   const reloadUser = async () => {
     if (!isLoaded || !user || !actorUserId || user.id !== actorUserId || getCurrentActorId() !== actorUserId) {
@@ -141,7 +179,7 @@ export function useGoogleConnectionController({
           const settlement = settleCorrelatedAccount(currentUser, correlation);
           if (settlement.ok) {
             clearOAuthCorrelation();
-            setState(methodReadyState(settlement.account, true));
+            setState(methodReadyState(true));
             return true;
           }
           clearOAuthCorrelation();
@@ -153,7 +191,7 @@ export function useGoogleConnectionController({
           isVerifiedOwnedGoogle(currentUser, account),
         );
         if (connectedAccount) {
-          setState(methodReadyState(connectedAccount));
+          setState(methodReadyState());
           return true;
         }
 
@@ -191,6 +229,11 @@ export function useGoogleConnectionController({
           return false;
         }
 
+        const cooldown = retryCooldown.claim(currentUser.id, GOOGLE_OAUTH_COOLDOWN_SCOPE);
+        if (!cooldown.allowed) {
+          setState(cooldownState(cooldown.retryAfterSeconds));
+          return false;
+        }
         clearOAuthCorrelation();
         startingUserId = currentUser.id;
         baseline = {
@@ -263,7 +306,7 @@ export function useGoogleConnectionController({
 
     if (isVerifiedOwnedGoogle(currentUser, externalAccount)) {
       clearOAuthCorrelation();
-      setState(methodReadyState(externalAccount, true));
+      setState(methodReadyState(true));
       return true;
     }
 
@@ -276,8 +319,6 @@ export function useGoogleConnectionController({
 
     setState({
       phase: "redirecting",
-      googleAccountId: externalAccount.id,
-      emailAddress: null,
       errorKind: null,
       feedback: { status: "loading", message: "Googleのアカウント選択画面を開いています。" },
     });
@@ -324,8 +365,6 @@ export function useGoogleConnectionController({
     withOperationLock(async () => {
       setState({
         phase: "settling",
-        googleAccountId: null,
-        emailAddress: null,
         errorKind: null,
         feedback: { status: "loading", message: null },
       });
@@ -346,7 +385,7 @@ export function useGoogleConnectionController({
         }
 
         clearOAuthCorrelation();
-        setState(methodReadyState(settlement.account, true));
+        setState(methodReadyState(true));
         return true;
       } catch (error) {
         setState(errorState(classifyOAuthError(error)));
@@ -368,15 +407,13 @@ export function useGoogleConnectionController({
     });
   }, [isLoaded, oauthReturn, onOAuthReturnHandled, settleOAuthReturn, user]);
 
-  return { state, start, refresh };
+  return { state: isActivating ? loadingState() : state, start, refresh };
 }
 
 function stateFromUser(user: UserResource): GoogleConnectionState {
   if (!canConnectGoogle(user)) return unavailableState();
   return {
     phase: "readyToConnect",
-    googleAccountId: null,
-    emailAddress: null,
     errorKind: null,
     feedback: { status: "idle", message: null },
   };
@@ -427,11 +464,9 @@ function isVerifiedOwnedGoogle(user: UserResource, account: ExternalAccountResou
   );
 }
 
-function methodReadyState(account: ExternalAccountResource, announceCompletion = false): GoogleConnectionState {
+function methodReadyState(announceCompletion = false): GoogleConnectionState {
   return {
     phase: "methodReady",
-    googleAccountId: account.id,
-    emailAddress: account.emailAddress,
     errorKind: null,
     feedback: announceCompletion
       ? { status: "success", message: "Googleログインを追加しました。" }
@@ -442,18 +477,33 @@ function methodReadyState(account: ExternalAccountResource, announceCompletion =
 function unavailableState(): GoogleConnectionState {
   return {
     phase: "unavailable",
-    googleAccountId: null,
-    emailAddress: null,
     errorKind: null,
     feedback: { status: "idle", message: null },
+  };
+}
+
+function loadingState(): GoogleConnectionState {
+  return {
+    phase: "settling",
+    errorKind: null,
+    feedback: { status: "loading", message: null },
+  };
+}
+
+function cooldownState(retryAfterSeconds: number): GoogleConnectionState {
+  return {
+    phase: "readyToConnect",
+    errorKind: "cooldown",
+    feedback: {
+      status: "error",
+      message: `Googleの確認を開始した直後です。あと${retryAfterSeconds}秒ほど待ってから再試行してください。`,
+    },
   };
 }
 
 function errorState(errorKind: GoogleConnectionErrorKind): GoogleConnectionState {
   return {
     phase: "unavailable",
-    googleAccountId: null,
-    emailAddress: null,
     errorKind,
     feedback: { status: "error", message: ERROR_PRESENTATION[errorKind] },
   };

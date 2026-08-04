@@ -31,6 +31,7 @@ type PreviewProps = {
   scenario: Scenario;
   isLoaded?: boolean;
   showCardErrors?: boolean;
+  disconnectGoogleError?: boolean;
   showPasswordDialog?: boolean;
   showLoginEmailChangeDialog?: "input" | "verification";
   onStartFlow: (flow: LoginMethodMigrationFlow) => void;
@@ -53,6 +54,7 @@ function LoginMethodsPreview({
   scenario,
   isLoaded = true,
   showCardErrors = false,
+  disconnectGoogleError = false,
   showPasswordDialog = false,
   showLoginEmailChangeDialog,
   onStartFlow,
@@ -120,6 +122,10 @@ function LoginMethodsPreview({
     },
     prepareGoogleDisconnect: async () => true,
     disconnectGoogle: async () => {
+      if (disconnectGoogleError) {
+        setGoogleState({ status: "error", message: "Google連携を解除できませんでした。もう一度お試しください。" });
+        return false;
+      }
       setGoogleState(idle());
       showSuccessToast({ title: "Google連携を解除しました" });
       return true;
@@ -241,11 +247,11 @@ export const PasswordOnly: Story = {
   args: { scenario: "passwordOnly" },
 };
 
-export const BothSameEmail: Story = {
+export const GoogleAndPasswordSameEmail: Story = {
   args: { scenario: "bothSameEmail" },
 };
 
-export const BothDifferentEmail: Story = {
+export const GoogleAndPasswordDifferentEmails: Story = {
   args: { scenario: "bothDifferentEmail" },
 };
 
@@ -255,11 +261,11 @@ export const Mobile: Story = {
   globals: { viewport: { value: "mobile2", isRotated: false } },
 };
 
-export const UnverifiedSecondaryEmail: Story = {
+export const PendingEmail: Story = {
   args: { scenario: "unverifiedSecondary" },
 };
 
-export const LongAddresses: Story = {
+export const LongMaskedAddresses: Story = {
   args: { scenario: "longAddresses" },
 };
 
@@ -279,15 +285,15 @@ export const PasswordChangeDialog: Story = {
   args: { scenario: "passwordOnly", showPasswordDialog: true },
 };
 
-export const PrimaryEmailInputDialog: Story = {
+export const MainEmailInputDialog: Story = {
   args: { scenario: "passwordOnly", showLoginEmailChangeDialog: "input" },
 };
 
-export const PrimaryEmailVerificationDialog: Story = {
+export const MainEmailVerificationDialog: Story = {
   args: { scenario: "passwordOnly", showLoginEmailChangeDialog: "verification" },
 };
 
-export const MobilePrimaryEmailVerificationDialog: Story = {
+export const MobileMainEmailVerificationDialog: Story = {
   args: { scenario: "passwordOnly", showLoginEmailChangeDialog: "verification" },
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
@@ -303,6 +309,39 @@ export const GoogleDisconnectDialog: Story = {
 
     const dialog = await body.findByRole("alertdialog", { name: "Google連携を解除" });
     await waitFor(() => expect(within(dialog).getByRole("button", { name: "解除する" })).toBeVisible());
+  },
+};
+
+export const MobileGoogleDisconnectDialog: Story = {
+  args: { scenario: "bothDifferentEmail" },
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "連携を解除" }));
+
+    const dialog = await body.findByRole("alertdialog", { name: "Google連携を解除" });
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "解除する" })).toBeVisible());
+  },
+};
+
+export const GoogleDisconnectErrorBehavior: Story = {
+  args: { scenario: "bothDifferentEmail", disconnectGoogleError: true },
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "連携を解除" }));
+    const dialog = within(await body.findByRole("alertdialog", { name: "Google連携を解除" }));
+    await userEvent.click(dialog.getByRole("button", { name: "解除する" }));
+
+    await expect(await dialog.findByRole("alert")).toHaveTextContent(
+      "Google連携を解除できませんでした。もう一度お試しください。",
+    );
+    await expect(dialog.getByRole("button", { name: "解除する" })).toBeVisible();
   },
 };
 
@@ -346,9 +385,10 @@ async function primaryEmailChangeBehavior(canvasElement: HTMLElement, preservedA
   const codeDialogElement = await body.findByRole("dialog", { name: "確認コードを入力" });
   const codeDialog = within(codeDialogElement);
   const instruction = await codeDialog.findByText(
-    "new-login@example.comに確認コードを送りました。メールに届いたコードを入力してください。",
+    "ne***@example.comに確認コードを送りました。メールに届いたコードを入力してください。",
   );
   await expect(instruction.closest('[data-scope="alert"]')).toBeNull();
+  await expect(codeDialog.queryByText(/new-login@example\.com/)).not.toBeInTheDocument();
   await userEvent.type(codeDialog.getByRole("textbox", { name: "確認コード" }), "123456");
   await userEvent.click(codeDialog.getByRole("button", { name: "メールを確認" }));
 

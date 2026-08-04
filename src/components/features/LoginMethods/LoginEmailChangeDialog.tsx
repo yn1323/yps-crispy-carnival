@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requiredEmailSchema } from "@/convex/_lib/validation";
 import { EMAIL_MAX_LENGTH } from "@/convex/constants";
 import { EmailCodeVerificationForm } from "@/src/components/features/AuthPage/EmailCodeVerificationForm";
+import { maskEmailAddress } from "@/src/components/features/AuthPage/loginVerification";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { LoginMethodReverificationView } from "./LoginMethodReverificationView";
@@ -95,7 +96,7 @@ export function LoginEmailChangeDialog({
       {!isReverifying && isOpen && step === "verification" ? (
         <Stack gap={5}>
           <Text color="fg.muted">
-            {targetEmailAddress ?? "入力したメールアドレス"}
+            {targetEmailAddress ? maskEmailAddress(targetEmailAddress) : "入力したメールアドレス"}
             に確認コードを送りました。メールに届いたコードを入力してください。
           </Text>
           <EmailCodeVerificationForm

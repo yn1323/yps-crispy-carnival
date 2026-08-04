@@ -178,6 +178,10 @@ type Story = StoryObj<typeof meta>;
 
 export const EmailPasswordInput: Story = {};
 
+export const EmailPasswordLoading: Story = {
+  args: { phase: "loading", feedbackStatus: "loading" },
+};
+
 export const EmailPasswordSending: Story = {
   args: { feedbackStatus: "loading" },
 };
@@ -303,9 +307,10 @@ export const AddEmailPasswordBehavior: Story = {
     const codeDialog = within(await body.findByRole("dialog", { name: "メールアドレスとパスワードを設定" }));
     await expect(
       await codeDialog.findByText(
-        "login@example.comに確認コードを送りました。メールに届いたコードを入力してください。",
+        "lo***@example.comに確認コードを送りました。メールに届いたコードを入力してください。",
       ),
     ).toBeVisible();
+    await expect(codeDialog.queryByText(/login@example\.com/)).not.toBeInTheDocument();
     await userEvent.type(codeDialog.getByRole("textbox", { name: "確認コード" }), "123456");
     await userEvent.click(codeDialog.getByRole("button", { name: "メールを確認" }));
 
@@ -425,8 +430,6 @@ function googleConnectionState(
 ): GoogleConnectionState {
   return {
     phase,
-    googleAccountId: phase === "redirecting" || phase === "settling" || phase === "methodReady" ? "google-new" : null,
-    emailAddress: phase === "methodReady" ? "google@example.com" : null,
     errorKind: errorKind ?? null,
     feedback,
   };

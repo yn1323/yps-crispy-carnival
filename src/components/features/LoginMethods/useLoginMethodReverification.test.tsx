@@ -7,7 +7,7 @@ import type {
 } from "@clerk/react/types";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { type PropsWithChildren, StrictMode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   session: null as SignedInSessionResource | null,
@@ -24,7 +24,12 @@ vi.mock("@clerk/react", () => ({
 import { useLoginMethodReverification } from "./useLoginMethodReverification";
 
 beforeEach(() => {
+  window.sessionStorage.clear();
   mocks.session = sessionResource();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("useLoginMethodReverification", () => {
@@ -55,7 +60,9 @@ describe("useLoginMethodReverification", () => {
     expect(cancel).not.toHaveBeenCalled();
   });
 
-  it("email codeをprepare・再送・attemptし、rawの送信先は描画前に再マスクする", async () => {
+  it("email codeのinitial prepare直後は再送せず、30秒後に再送・attemptする", async () => {
+    let currentTime = 1_000_000;
+    vi.spyOn(Date, "now").mockImplementation(() => currentTime);
     const session = sessionResource();
     mocks.session = session;
     const awaiting = verificationResource({
@@ -78,10 +85,47 @@ describe("useLoginMethodReverification", () => {
       emailAddressId: "email_1",
     });
     await act(async () => result.current.resend());
+    expect(session.prepareFirstFactorVerification).toHaveBeenCalledOnce();
+    expect(result.current.state).toMatchObject({
+      status: "awaiting_input",
+      message: "確認コードを送信した直後です。あと30秒ほど待ってから再送してください。",
+    });
+
+    currentTime += 30_000;
+    await act(async () => result.current.resend());
     expect(session.prepareFirstFactorVerification).toHaveBeenCalledTimes(2);
     await act(async () => result.current.submit(" 123456 "));
     expect(session.attemptFirstFactorVerification).toHaveBeenCalledWith({ strategy: "email_code", code: "123456" });
     expect(complete).toHaveBeenCalledOnce();
+  });
+
+  it("code送信後に本人確認を開き直した場合はfactor選択のまま待機理由を表示する", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(1_500_000);
+    const session = sessionResource();
+    mocks.session = session;
+    const awaiting = verificationResource({
+      status: "needs_first_factor",
+      firstFactors: [{ strategy: "email_code", emailAddressId: "email_1", safeIdentifier: "account@example.com" }],
+    });
+    session.startVerification.mockResolvedValue(awaiting);
+    session.prepareFirstFactorVerification.mockResolvedValue(awaiting);
+    const { result } = renderReverification();
+
+    act(() => result.current.onNeedsReverification({ level: "first_factor", complete: vi.fn(), cancel: vi.fn() }));
+    await waitFor(() => expect(result.current.state.status).toBe("selecting_factor"));
+    await act(async () => result.current.selectFactor("first-0"));
+    act(() => result.current.cancel());
+
+    act(() => result.current.onNeedsReverification({ level: "first_factor", complete: vi.fn(), cancel: vi.fn() }));
+    await waitFor(() => expect(result.current.state.status).toBe("selecting_factor"));
+    await act(async () => result.current.selectFactor("first-0"));
+
+    expect(session.prepareFirstFactorVerification).toHaveBeenCalledOnce();
+    expect(result.current.state).toMatchObject({
+      status: "selecting_factor",
+      selectedFactor: null,
+      message: "確認コードを送信した直後です。あと30秒ほど待ってから再送してください。",
+    });
   });
 
   it("phone codeのfirst factorを正確なphoneNumberIdでprepareする", async () => {
@@ -144,7 +188,9 @@ describe("useLoginMethodReverification", () => {
     expect(complete).toHaveBeenCalledOnce();
   });
 
-  it("second factorのphone codeをprepareして再送できる", async () => {
+  it("second factorのphone codeのinitial prepare直後は再送せず、30秒後に再送できる", async () => {
+    let currentTime = 2_000_000;
+    vi.spyOn(Date, "now").mockImplementation(() => currentTime);
     const session = sessionResource();
     mocks.session = session;
     const awaiting = verificationResource({
@@ -162,6 +208,15 @@ describe("useLoginMethodReverification", () => {
     act(() => result.current.onNeedsReverification({ level: "multi_factor", complete: vi.fn(), cancel: vi.fn() }));
     await waitFor(() => expect(result.current.state.status).toBe("selecting_factor"));
     await act(async () => result.current.selectFactor("second-0"));
+    await act(async () => result.current.resend());
+
+    expect(session.prepareSecondFactorVerification).toHaveBeenCalledOnce();
+    expect(result.current.state).toMatchObject({
+      status: "awaiting_input",
+      message: "確認コードを送信した直後です。あと30秒ほど待ってから再送してください。",
+    });
+
+    currentTime += 30_000;
     await act(async () => result.current.resend());
     await act(async () => result.current.submit("222222"));
 

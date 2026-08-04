@@ -394,6 +394,7 @@ function GoogleDisconnectDialog({
       {isReverifying ? <LoginMethodReverificationView controller={reverification} /> : null}
       {!isReverifying ? (
         <Stack gap={4}>
+          <CardError state={controller.googleState} />
           <Text>このGoogleアカウントではログインできなくなります。メールアドレスとパスワードは残ります。</Text>
           <Alert.Root status="warning" borderRadius="lg">
             <Alert.Indicator />
