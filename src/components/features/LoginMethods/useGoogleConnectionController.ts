@@ -314,6 +314,14 @@ export function useGoogleConnectionController({
           passwordEnabled: currentUser.passwordEnabled,
         };
 
+        if (canStartGoogleConnection(currentUser)) {
+          const cooldown = retryCooldown.claim(currentUser.id, GOOGLE_OAUTH_COOLDOWN_SCOPE);
+          if (!cooldown.allowed) {
+            setState(cooldownState(cooldown.retryAfterSeconds));
+            return false;
+          }
+        }
+
         const prepared = await prepareGoogleStart(currentUser, baseline);
         if (prepared.status === "cancelled") {
           setState(stateFromUser(currentUser));
@@ -336,12 +344,6 @@ export function useGoogleConnectionController({
 
         clearOAuthCorrelation();
         externalAccountIdsBeforeStart = new Set(prepared.user.externalAccounts.map((account) => account.id));
-
-        const cooldown = retryCooldown.claim(prepared.user.id, GOOGLE_OAUTH_COOLDOWN_SCOPE);
-        if (!cooldown.allowed) {
-          setState(cooldownState(cooldown.retryAfterSeconds));
-          return false;
-        }
 
         const created = await createExternalAccountWithReverification(baseline);
         if (created == null) {

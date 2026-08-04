@@ -350,7 +350,7 @@ describe("Google接続controller", () => {
     expect(user.createExternalAccount).not.toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();
     expect(readStoredCorrelation()).toBeNull();
-    expect(readStoredCooldown()).toBeNull();
+    expect(readStoredCooldown()).not.toBeNull();
     expect(result.current.state).toMatchObject({ phase: "unavailable", errorKind: "retryable" });
   });
 
@@ -828,6 +828,27 @@ describe("Google接続controller", () => {
 
     expect(user.createExternalAccount).toHaveBeenCalledTimes(2);
     expect(navigate).toHaveBeenCalledWith("https://accounts.example.test/authorize");
+  });
+
+  it("cooldown中の再接続は未検証Googleを破棄しない", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(1_500_000);
+    const pendingGoogle = googleResource({
+      id: "google-cooldown-retry",
+      status: "failed",
+      emailAddress: "claimed-google@example.com",
+      errorCode: "oauth_identification_claimed",
+    });
+    const user = userResource();
+    vi.mocked(user.createExternalAccount).mockRejectedValue(new Error("provider failed"));
+    const { result } = renderGoogleHook({ user });
+
+    await act(async () => result.current.start());
+    user.externalAccounts = [pendingGoogle];
+    await act(async () => result.current.start());
+
+    expect(pendingGoogle.destroy).not.toHaveBeenCalled();
+    expect(user.createExternalAccount).toHaveBeenCalledOnce();
+    expect(result.current.state).toMatchObject({ phase: "readyToConnect", errorKind: "cooldown" });
   });
 
   it("createExternalAccountの応答喪失後のcooldownをremount後も保持し30秒後だけ再開始する", async () => {

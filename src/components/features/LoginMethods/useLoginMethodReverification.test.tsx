@@ -60,6 +60,21 @@ describe("useLoginMethodReverification", () => {
     expect(cancel).not.toHaveBeenCalled();
   });
 
+  it("levelが省略された場合はfirst factorで本人確認を開始する", async () => {
+    const session = sessionResource();
+    mocks.session = session;
+    session.startVerification.mockResolvedValue(
+      verificationResource({ status: "needs_first_factor", firstFactors: [{ strategy: "password" }] }),
+    );
+    const { result } = renderReverification();
+
+    act(() => result.current.onNeedsReverification({ level: undefined, complete: vi.fn(), cancel: vi.fn() }));
+    await waitFor(() => expect(result.current.state.status).toBe("selecting_factor"));
+
+    expect(session.startVerification).toHaveBeenCalledWith({ level: "first_factor" });
+    expect(result.current.state.level).toBe("first_factor");
+  });
+
   it("email codeのinitial prepare直後は再送せず、30秒後に再送・attemptする", async () => {
     let currentTime = 1_000_000;
     vi.spyOn(Date, "now").mockImplementation(() => currentTime);
@@ -291,6 +306,41 @@ describe("useLoginMethodReverification", () => {
     await waitFor(() => expect(result.current.state.status).toBe("idle"));
   });
 
+  it("同じoperation内の後続APIが要求した本人確認を直列に処理する", async () => {
+    const session = sessionResource();
+    mocks.session = session;
+    session.startVerification
+      .mockResolvedValueOnce(verificationResource({ status: "complete" }))
+      .mockResolvedValueOnce(verificationResource({ status: "complete", level: "second_factor" }));
+    const operation = deferred<string>();
+    const firstComplete = vi.fn();
+    const secondComplete = vi.fn();
+    const secondCancel = vi.fn();
+    const { result } = renderReverification();
+
+    const operationPromise = result.current.runOperation(() => operation.promise);
+    act(() =>
+      result.current.onNeedsReverification({ level: "first_factor", complete: firstComplete, cancel: vi.fn() }),
+    );
+    await waitFor(() => expect(firstComplete).toHaveBeenCalledOnce());
+
+    act(() =>
+      result.current.onNeedsReverification({
+        level: "second_factor",
+        complete: secondComplete,
+        cancel: secondCancel,
+      }),
+    );
+    await waitFor(() => expect(secondComplete).toHaveBeenCalledOnce());
+
+    expect(secondCancel).not.toHaveBeenCalled();
+    expect(session.startVerification).toHaveBeenNthCalledWith(1, { level: "first_factor" });
+    expect(session.startVerification).toHaveBeenNthCalledWith(2, { level: "second_factor" });
+    operation.resolve("done");
+    await expect(operationPromise).resolves.toBe("done");
+    await waitFor(() => expect(result.current.state.status).toBe("idle"));
+  });
+
   it("StrictModeのcloseとunmount競合でもcancelを一度だけ呼ぶ", async () => {
     const session = sessionResource();
     mocks.session = session;
@@ -357,7 +407,7 @@ describe("useLoginMethodReverification", () => {
     },
   );
 
-  it("未対応factorだけ、level不明、Session不在をfail-closedにする", async () => {
+  it("未対応factorだけの場合とSession不在をfail-closedにする", async () => {
     const session = sessionResource();
     mocks.session = session;
     session.startVerification.mockResolvedValue(
@@ -370,12 +420,6 @@ describe("useLoginMethodReverification", () => {
       result.current.onNeedsReverification({ level: "first_factor", complete: vi.fn(), cancel: unsupportedCancel }),
     );
     await waitFor(() => expect(unsupportedCancel).toHaveBeenCalledOnce());
-
-    const unknownLevelCancel = vi.fn();
-    act(() =>
-      result.current.onNeedsReverification({ level: undefined, complete: vi.fn(), cancel: unknownLevelCancel }),
-    );
-    expect(unknownLevelCancel).toHaveBeenCalledOnce();
 
     mocks.session = null;
     const { result: signedOutResult } = renderReverification();

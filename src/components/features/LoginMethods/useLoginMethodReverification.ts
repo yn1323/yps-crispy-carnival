@@ -30,7 +30,6 @@ type ActiveRequest = {
 
 type OperationLock = {
   operationId: number;
-  reverificationHandled: boolean;
 };
 
 type InternalFactor =
@@ -104,9 +103,10 @@ export function useLoginMethodReverification({
         });
         request.complete();
 
-        // runOperation利用時は、Clerkが再試行した元要求のsettleまでownerを保持する。
+        // 外側のoperation lockは保持しつつ、この確認要求だけを解放する。
+        // 同じ操作内の後続Clerk APIが別levelの再確認を要求した場合も、直列に扱えるようにする。
+        clearRequest(request);
         if (operationLockRef.current?.operationId !== request.operationId) {
-          clearRequest(request);
           commitState(IDLE_LOGIN_METHOD_REVERIFICATION_STATE);
         }
         return true;
@@ -187,22 +187,22 @@ export function useLoginMethodReverification({
   const onNeedsReverification = useCallback<LoginMethodOnNeedsReverification>(
     ({ cancel, complete, level }) => {
       const currentLock = operationLockRef.current;
-      if (activeRequestRef.current || currentLock?.reverificationHandled) {
+      if (activeRequestRef.current) {
         // 後続要求自身だけを即時cancelし、先行要求のcallbackには触れない。
         cancel();
         return;
       }
 
       const operationId = currentLock?.operationId ?? nextOperationIdRef.current++;
-      if (currentLock) currentLock.reverificationHandled = true;
       const currentSession = sessionRef.current;
+      const verificationLevel = level ?? "first_factor";
 
-      if (!currentSession || !level) {
+      if (!currentSession) {
         cancel();
         commitState({
           status: "error",
           operationId,
-          level: level ?? null,
+          level: verificationLevel,
           stage: null,
           factors: [],
           selectedFactor: null,
@@ -215,7 +215,7 @@ export function useLoginMethodReverification({
         operationId,
         sessionId: currentSession.id,
         session: currentSession,
-        level,
+        level: verificationLevel,
         cancel,
         complete,
         settled: false,
@@ -224,7 +224,7 @@ export function useLoginMethodReverification({
       commitState({
         status: "starting",
         operationId,
-        level,
+        level: verificationLevel,
         stage: null,
         factors: [],
         selectedFactor: null,
@@ -232,7 +232,7 @@ export function useLoginMethodReverification({
       });
 
       void currentSession
-        .startVerification({ level })
+        .startVerification({ level: verificationLevel })
         .then((resource) => handleStartedResource(request, resource))
         .catch(() => {
           if (isCurrent(request)) failClosed(request);
@@ -247,7 +247,6 @@ export function useLoginMethodReverification({
 
       const lock: OperationLock = {
         operationId: nextOperationIdRef.current++,
-        reverificationHandled: false,
       };
       operationLockRef.current = lock;
       try {
@@ -257,17 +256,15 @@ export function useLoginMethodReverification({
         if (active?.operationId === lock.operationId) {
           if (!active.settled) {
             settle(active, "cancel");
-          } else {
-            clearRequest(active);
-            if (stateRef.current.operationId === lock.operationId) {
-              commitState(IDLE_LOGIN_METHOD_REVERIFICATION_STATE);
-            }
           }
+        }
+        if (stateRef.current.operationId === lock.operationId && stateRef.current.status === "completing") {
+          commitState(IDLE_LOGIN_METHOD_REVERIFICATION_STATE);
         }
         if (operationLockRef.current === lock) operationLockRef.current = null;
       }
     },
-    [clearRequest, commitState, settle],
+    [commitState, settle],
   );
 
   const setAwaitingInput = useCallback(
