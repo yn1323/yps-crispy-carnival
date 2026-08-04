@@ -4,23 +4,23 @@ import {
   buildGoogleOAuthReturnPath,
   canStartGoogleConnection,
   deriveEmailPasswordMigration,
-  deriveGoogleReplacementPhase,
-  hasEffectiveGoogleReplacementCapability,
-  hasSafeEmailPasswordFallback,
+  hasEmailPasswordMethod,
+  hasVerifiedGoogle,
   isLoginMethodMigrationFlow,
 } from "./migrationScript";
 import type { LoginMethodsUserSnapshot } from "./types";
 
-describe("ログイン方法移行の純粋判定", () => {
-  it("許可したflowだけを受理し、Google OAuth markerはGoogle系flowだけへ結び付ける", () => {
+describe("ログイン方法追加の純粋判定", () => {
+  it("メール・パス追加とGoogle追加だけをflowとして受理する", () => {
     expect(isLoginMethodMigrationFlow("add-email-password")).toBe(true);
     expect(isLoginMethodMigrationFlow("connect-google")).toBe(true);
-    expect(isLoginMethodMigrationFlow("replace-google")).toBe(true);
+    expect(isLoginMethodMigrationFlow("replace-google")).toBe(false);
     expect(isLoginMethodMigrationFlow("change-primary-email")).toBe(false);
     expect(isLoginMethodMigrationFlow({ flow: "connect-google" })).toBe(false);
+  });
 
+  it("Google OAuth markerはconnect-googleだけへ結び付ける", () => {
     expect(acceptsGoogleOAuthMarker("connect-google")).toBe(true);
-    expect(acceptsGoogleOAuthMarker("replace-google")).toBe(true);
     expect(acceptsGoogleOAuthMarker("add-email-password")).toBe(false);
     expect(acceptsGoogleOAuthMarker(undefined)).toBe(false);
     expect(buildGoogleOAuthReturnPath("connect-google")).toBe("/account/security?flow=connect-google&oauth=google");
@@ -28,13 +28,13 @@ describe("ログイン方法移行の純粋判定", () => {
 
   it("EmailAddressの確認とパスワード設定を別phaseとして導出する", () => {
     const pending = snapshot({ emailAddresses: [email("pending", "unverified")] });
-    expect(deriveEmailPasswordMigration(pending, "add-email-password", "pending")).toEqual({
+    expect(deriveEmailPasswordMigration(pending, "pending")).toEqual({
       phase: "verifyingEmail",
       targetEmailAddressId: "pending",
     });
 
     const verified = snapshot({ emailAddresses: [email("verified", "verified")] });
-    expect(deriveEmailPasswordMigration(verified, "add-email-password", "verified")).toEqual({
+    expect(deriveEmailPasswordMigration(verified, "verified")).toEqual({
       phase: "settingPassword",
       targetEmailAddressId: "verified",
     });
@@ -42,93 +42,83 @@ describe("ログイン方法移行の純粋判定", () => {
     expect(
       deriveEmailPasswordMigration(
         snapshot({ passwordEnabled: true, emailAddresses: [email("verified", "verified")] }),
-        "add-email-password",
         "verified",
       ),
     ).toEqual({ phase: "methodReady", targetEmailAddressId: "verified" });
   });
 
-  it("Google linkedメールとパスワードだけの状態を安全な退避方法へ数えない", () => {
-    const linkedOnly = snapshot({
-      passwordEnabled: true,
-      emailAddresses: [email("google-email", "verified", true)],
+  it("Googleに紐づく確認済みメールもパスワード追加対象として扱う", () => {
+    const linkedEmail = snapshot({
+      emailAddresses: [email("google-email", "verified")],
       externalAccounts: [google("google-old", "verified")],
     });
 
-    expect(hasSafeEmailPasswordFallback(linkedOnly)).toBe(false);
-    expect(deriveEmailPasswordMigration(linkedOnly, "ensure-unlinked-fallback", "google-email")).toEqual({
+    expect(deriveEmailPasswordMigration(linkedEmail, "google-email")).toEqual({
+      phase: "settingPassword",
+      targetEmailAddressId: "google-email",
+    });
+  });
+
+  it("現在Userに属さないEmailAddress IDは選択状態へ戻す", () => {
+    const currentUser = snapshot({ emailAddresses: [email("current-email", "verified")] });
+
+    expect(deriveEmailPasswordMigration(currentUser, "other-user-email")).toEqual({
       phase: "choosingEmail",
       targetEmailAddressId: null,
     });
   });
 
-  it("Google接続は既存Googleを増やさず、置換時はunlinkedな退避方法も必須にする", () => {
+  it("既存のメール・パスがあれば追加済みとして判定する", () => {
+    const passwordReady = snapshot({
+      passwordEnabled: true,
+      emailAddresses: [email("login", "verified")],
+    });
+
+    expect(hasEmailPasswordMethod(passwordReady)).toBe(true);
+    expect(deriveEmailPasswordMigration(passwordReady)).toEqual({
+      phase: "methodReady",
+      targetEmailAddressId: null,
+    });
+  });
+
+  it("Google追加はメール・パスがありGoogle ExternalAccountがない場合だけ開始できる", () => {
     const passwordOnly = snapshot({
       passwordEnabled: true,
       emailAddresses: [email("login", "verified")],
     });
-    expect(canStartGoogleConnection(passwordOnly, "connect-google")).toBe(true);
-    expect(canStartGoogleConnection(passwordOnly, "replace-google")).toBe(true);
-
+    const withoutVerifiedEmail = snapshot({
+      passwordEnabled: true,
+      emailAddresses: [email("pending", "unverified")],
+    });
     const existingGoogle = snapshot({
       passwordEnabled: true,
       emailAddresses: [email("login", "verified")],
       externalAccounts: [google("google-old", "verified")],
     });
-    expect(canStartGoogleConnection(existingGoogle, "connect-google")).toBe(false);
-
-    const linkedFallback = snapshot({
+    const pendingGoogle = snapshot({
       passwordEnabled: true,
-      emailAddresses: [email("google-email", "verified", true)],
+      emailAddresses: [email("login", "verified")],
+      externalAccounts: [google("google-pending", "unverified")],
     });
-    expect(canStartGoogleConnection(linkedFallback, "replace-google")).toBe(false);
+
+    expect(canStartGoogleConnection(passwordOnly)).toBe(true);
+    expect(canStartGoogleConnection(withoutVerifiedEmail)).toBe(false);
+    expect(canStartGoogleConnection(existingGoogle)).toBe(false);
+    expect(canStartGoogleConnection(pendingGoogle)).toBe(false);
   });
 
-  it("Google置換は複合capabilityと退避状態をfail-closedに評価する", () => {
-    const allEnabled = {
-      replaceGoogleAccount: true,
-      setPassword: true,
-      disconnectGoogle: true,
-      connectGoogle: true,
-    };
-    expect(hasEffectiveGoogleReplacementCapability(allEnabled)).toBe(true);
-    expect(hasEffectiveGoogleReplacementCapability({ ...allEnabled, disconnectGoogle: false })).toBe(false);
-
-    const linkedOnly = snapshot({
-      passwordEnabled: true,
-      emailAddresses: [email("google-email", "verified", true)],
-      externalAccounts: [google("google-old", "verified")],
-    });
-    expect(deriveGoogleReplacementPhase(linkedOnly, allEnabled, "google-old")).toBe("ensuringFallback");
-
-    const fallbackReady = snapshot({
-      passwordEnabled: true,
-      emailAddresses: [email("fallback", "verified")],
-      externalAccounts: [google("google-old", "verified")],
-    });
-    expect(deriveGoogleReplacementPhase(fallbackReady, allEnabled, "google-old")).toBe("fallbackReady");
-    expect(deriveGoogleReplacementPhase(fallbackReady, allEnabled, null)).toBe("unavailable");
-
-    const multipleGoogle = snapshot({
-      passwordEnabled: true,
-      emailAddresses: [email("fallback", "verified")],
-      externalAccounts: [google("google-old", "verified"), google("google-other", "verified")],
-    });
-    expect(deriveGoogleReplacementPhase(multipleGoogle, allEnabled, "google-old")).toBe("unavailable");
-
-    const oldRemoved = snapshot({ passwordEnabled: true, emailAddresses: [email("fallback", "verified")] });
-    expect(deriveGoogleReplacementPhase(oldRemoved, allEnabled, "google-old")).toBe("connectingNewGoogle");
-    expect(deriveGoogleReplacementPhase(oldRemoved, allEnabled, null)).toBe("unavailable");
-
-    const newConnected = snapshot({
-      passwordEnabled: true,
-      emailAddresses: [email("fallback", "verified")],
-      externalAccounts: [google("google-new", "verified")],
-    });
-    expect(deriveGoogleReplacementPhase(newConnected, allEnabled, "google-old")).toBe("newGoogleReady");
-    expect(deriveGoogleReplacementPhase(newConnected, { ...allEnabled, connectGoogle: false }, "google-old")).toBe(
-      "unavailable",
-    );
+  it("確認済みGoogleだけを利用可能なGoogle認証として数える", () => {
+    expect(hasVerifiedGoogle(snapshot({ externalAccounts: [google("verified", "verified")] }))).toBe(true);
+    expect(hasVerifiedGoogle(snapshot({ externalAccounts: [google("pending", "unverified")] }))).toBe(false);
+    expect(
+      hasVerifiedGoogle(
+        snapshot({
+          externalAccounts: [
+            { id: "github", provider: "github", emailAddress: "github@example.com", verificationStatus: "verified" },
+          ],
+        }),
+      ),
+    ).toBe(false);
   });
 });
 
@@ -142,13 +132,8 @@ function snapshot(overrides: Partial<LoginMethodsUserSnapshot>): LoginMethodsUse
   };
 }
 
-function email(id: string, verificationStatus: string, linked = false) {
-  return {
-    id,
-    emailAddress: `${id}@example.com`,
-    verificationStatus,
-    linkedTo: linked ? [{ id: `link-${id}`, type: "oauth_google" }] : [],
-  };
+function email(id: string, verificationStatus: string) {
+  return { id, emailAddress: `${id}@example.com`, verificationStatus };
 }
 
 function google(id: string, verificationStatus: string) {

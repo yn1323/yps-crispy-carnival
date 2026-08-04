@@ -1,12 +1,13 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
+import { showSuccessToast } from "@/src/components/shared/feedback";
+import { Toaster, toaster } from "@/src/components/ui/toaster";
 import { LoginMethodMigrationView } from "./LoginMethodMigrationView";
 import type {
   EmailPasswordMigrationPhase,
   GoogleConnectionPhase,
-  GoogleReplacementPhase,
   LoginMethodMigrationFeedback,
   LoginMethodMigrationFlow,
 } from "./migrationTypes";
@@ -16,33 +17,32 @@ import type {
   EmailPasswordMigrationController,
   EmailPasswordMigrationState,
 } from "./useEmailPasswordMigrationController";
-import type { GoogleConnectionController, GoogleConnectionState } from "./useGoogleConnectionController";
-import type { GoogleReplacementController, GoogleReplacementState } from "./useGoogleReplacementController";
+import type {
+  GoogleConnectionController,
+  GoogleConnectionErrorKind,
+  GoogleConnectionState,
+} from "./useGoogleConnectionController";
 
 type FeedbackStatus = LoginMethodMigrationFeedback["status"];
 
 type PreviewProps = {
   flow: LoginMethodMigrationFlow;
-  phase: EmailPasswordMigrationPhase | GoogleConnectionPhase | GoogleReplacementPhase;
-  fallbackPhase?: EmailPasswordMigrationPhase;
+  phase: EmailPasswordMigrationPhase | GoogleConnectionPhase;
   feedbackStatus?: FeedbackStatus;
   feedbackMessage?: string;
+  googleErrorKind?: GoogleConnectionErrorKind;
   showReverification?: boolean;
-  canRequestPreviousMethodRemoval: boolean;
   onBackToOverview: () => void;
-  onRequestPreviousMethodRemoval: () => void;
 };
 
 function LoginMethodMigrationPreview({
   flow,
   phase,
-  fallbackPhase,
   feedbackStatus = "idle",
   feedbackMessage,
+  googleErrorKind,
   showReverification = false,
-  canRequestPreviousMethodRemoval,
   onBackToOverview,
-  onRequestPreviousMethodRemoval,
 }: PreviewProps) {
   const feedback = buildFeedback(feedbackStatus, feedbackMessage);
   const reverification = showReverification ? REVERIFICATION_CONTROLLER : IDLE_REVERIFICATION_CONTROLLER;
@@ -56,30 +56,16 @@ function LoginMethodMigrationPreview({
             initialFeedback={feedback}
             reverification={reverification}
             onBackToOverview={onBackToOverview}
-            onRequestPreviousMethodRemoval={onRequestPreviousMethodRemoval}
-            canRequestPreviousMethodRemoval={canRequestPreviousMethodRemoval}
           />
-        ) : null}
-        {flow === "connect-google" ? (
+        ) : (
           <GoogleConnectionPreview
             initialPhase={phase as GoogleConnectionPhase}
             initialFeedback={feedback}
+            initialErrorKind={googleErrorKind}
             reverification={reverification}
             onBackToOverview={onBackToOverview}
-            onRequestPreviousMethodRemoval={onRequestPreviousMethodRemoval}
-            canRequestPreviousMethodRemoval={canRequestPreviousMethodRemoval}
           />
-        ) : null}
-        {flow === "replace-google" ? (
-          <GoogleReplacementPreview
-            initialPhase={phase as GoogleReplacementPhase}
-            initialFallbackPhase={fallbackPhase}
-            initialFeedback={feedback}
-            reverification={reverification}
-            onBackToOverview={onBackToOverview}
-            onRequestPreviousMethodRemoval={onRequestPreviousMethodRemoval}
-          />
-        ) : null}
+        )}
       </Box>
     </Box>
   );
@@ -90,20 +76,25 @@ function EmailPasswordPreview({
   initialFeedback,
   reverification,
   onBackToOverview,
-  onRequestPreviousMethodRemoval,
-  canRequestPreviousMethodRemoval,
 }: {
   initialPhase: EmailPasswordMigrationPhase;
   initialFeedback: LoginMethodMigrationFeedback;
   reverification: LoginMethodReverificationController;
   onBackToOverview: () => void;
-  onRequestPreviousMethodRemoval: () => void;
-  canRequestPreviousMethodRemoval: boolean;
 }) {
+  const [completed, setCompleted] = useState(false);
   const [state, setState] = useState<EmailPasswordMigrationState>(() =>
     emailPasswordState(initialPhase, initialFeedback),
   );
-  const controller = buildEmailPasswordController(state, setState);
+  const controller = buildEmailPasswordController(state, setState, () => {
+    setCompleted(true);
+    showSuccessToast({
+      title: "メールアドレスとパスワードを設定しました",
+      description: "Google認証はそのまま利用できます。",
+    });
+  });
+
+  if (completed) return null;
 
   return (
     <LoginMethodMigrationView
@@ -111,8 +102,6 @@ function EmailPasswordPreview({
       controller={controller}
       reverification={reverification}
       onBackToOverview={onBackToOverview}
-      onRequestPreviousMethodRemoval={onRequestPreviousMethodRemoval}
-      canRequestPreviousMethodRemoval={canRequestPreviousMethodRemoval}
     />
   );
 }
@@ -120,19 +109,19 @@ function EmailPasswordPreview({
 function GoogleConnectionPreview({
   initialPhase,
   initialFeedback,
+  initialErrorKind,
   reverification,
   onBackToOverview,
-  onRequestPreviousMethodRemoval,
-  canRequestPreviousMethodRemoval,
 }: {
   initialPhase: GoogleConnectionPhase;
   initialFeedback: LoginMethodMigrationFeedback;
+  initialErrorKind?: GoogleConnectionErrorKind;
   reverification: LoginMethodReverificationController;
   onBackToOverview: () => void;
-  onRequestPreviousMethodRemoval: () => void;
-  canRequestPreviousMethodRemoval: boolean;
 }) {
-  const [state, setState] = useState<GoogleConnectionState>(() => googleConnectionState(initialPhase, initialFeedback));
+  const [state, setState] = useState<GoogleConnectionState>(() =>
+    googleConnectionState(initialPhase, initialFeedback, initialErrorKind),
+  );
   const controller: GoogleConnectionController = {
     state,
     start: async () => {
@@ -161,113 +150,6 @@ function GoogleConnectionPreview({
       controller={controller}
       reverification={reverification}
       onBackToOverview={onBackToOverview}
-      onRequestPreviousMethodRemoval={onRequestPreviousMethodRemoval}
-      canRequestPreviousMethodRemoval={canRequestPreviousMethodRemoval}
-    />
-  );
-}
-
-function GoogleReplacementPreview({
-  initialPhase,
-  initialFallbackPhase = "choosingEmail",
-  initialFeedback,
-  reverification,
-  onBackToOverview,
-  onRequestPreviousMethodRemoval,
-}: {
-  initialPhase: GoogleReplacementPhase;
-  initialFallbackPhase?: EmailPasswordMigrationPhase;
-  initialFeedback: LoginMethodMigrationFeedback;
-  reverification: LoginMethodReverificationController;
-  onBackToOverview: () => void;
-  onRequestPreviousMethodRemoval: () => void;
-}) {
-  const feedbackBelongsToFallback = initialPhase === "ensuringFallback";
-  const feedbackBelongsToNewGoogle = initialPhase === "connectingNewGoogle" || initialPhase === "newGoogleReady";
-  const [state, setState] = useState<GoogleReplacementState>(() => ({
-    phase: initialPhase,
-    oldGoogleAccountId:
-      initialPhase === "connectingNewGoogle" || initialPhase === "newGoogleReady" ? null : "google-old",
-    feedback: feedbackBelongsToFallback || feedbackBelongsToNewGoogle ? idleFeedback() : initialFeedback,
-  }));
-  const [fallbackState, setFallbackState] = useState<EmailPasswordMigrationState>(() =>
-    emailPasswordState(
-      initialPhase === "ensuringFallback" ? initialFallbackPhase : "methodReady",
-      feedbackBelongsToFallback ? initialFeedback : idleFeedback(),
-      true,
-    ),
-  );
-  const [newGoogleState, setNewGoogleState] = useState<GoogleConnectionState>(() =>
-    googleConnectionState(
-      initialPhase === "newGoogleReady" ? "methodReady" : "readyToConnect",
-      feedbackBelongsToNewGoogle ? initialFeedback : idleFeedback(),
-    ),
-  );
-  const baseFallbackController = buildEmailPasswordController(fallbackState, setFallbackState);
-  const fallback: EmailPasswordMigrationController = {
-    ...baseFallbackController,
-    setPassword: async (values) => {
-      await baseFallbackController.setPassword(values);
-      setState({ phase: "fallbackReady", oldGoogleAccountId: "google-old", feedback: idleFeedback() });
-      return true;
-    },
-  };
-  const newGoogle: GoogleConnectionController = {
-    state: newGoogleState,
-    start: async () => {
-      setNewGoogleState(googleConnectionState("redirecting", { status: "loading", message: null }));
-      return true;
-    },
-    refresh: async () => true,
-  };
-  const controller: GoogleReplacementController = {
-    state,
-    fallback,
-    newGoogle,
-    refresh: async () => {
-      setState({
-        phase: "ensuringFallback",
-        oldGoogleAccountId: "google-old",
-        feedback: { status: "success", message: "最新のログイン方法を確認しました。" },
-      });
-      setFallbackState(emailPasswordState("choosingEmail", idleFeedback(), true));
-      return true;
-    },
-    removeOldGoogle: async () => {
-      setState({
-        phase: "connectingNewGoogle",
-        oldGoogleAccountId: null,
-        feedback: {
-          status: "success",
-          message: "以前のGoogleを解除しました。メールアドレスとパスワードでログインできる状態は維持しています。",
-        },
-      });
-      return true;
-    },
-    startNewGoogle: async () => {
-      setNewGoogleState(
-        googleConnectionState("methodReady", {
-          status: "success",
-          message: "Googleログインを利用できる状態になりました。",
-        }),
-      );
-      setState({
-        phase: "newGoogleReady",
-        oldGoogleAccountId: null,
-        feedback: { status: "success", message: "新しいGoogleアカウントを確認しました。" },
-      });
-      return true;
-    },
-  };
-
-  return (
-    <LoginMethodMigrationView
-      flow="replace-google"
-      controller={controller}
-      reverification={reverification}
-      onBackToOverview={onBackToOverview}
-      onRequestPreviousMethodRemoval={onRequestPreviousMethodRemoval}
-      canRequestPreviousMethodRemoval={false}
     />
   );
 }
@@ -275,39 +157,48 @@ function GoogleReplacementPreview({
 const meta = {
   title: "Features/LoginMethods/LoginMethodMigrationView",
   component: LoginMethodMigrationPreview,
+  decorators: [
+    (Story) => (
+      <>
+        <Story />
+        <Toaster />
+      </>
+    ),
+  ],
   parameters: { layout: "fullscreen" },
   args: {
     flow: "add-email-password",
     phase: "choosingEmail",
-    canRequestPreviousMethodRemoval: true,
-    onBackToOverview: fn(),
-    onRequestPreviousMethodRemoval: fn(),
+    onBackToOverview: () => {},
   },
 } satisfies Meta<typeof LoginMethodMigrationPreview>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-// Googleのみからメールアドレスとパスワードを追加するflow。
-export const EmailPasswordChooseEmail: Story = {};
+export const EmailPasswordInput: Story = {};
 
-export const EmailPasswordVerifyEmail: Story = {
+export const EmailPasswordSending: Story = {
+  args: { feedbackStatus: "loading" },
+};
+
+export const EmailPasswordVerification: Story = {
   args: { phase: "verifyingEmail" },
+};
+
+export const EmailPasswordCodeMismatch: Story = {
+  args: {
+    phase: "verifyingEmail",
+    feedbackStatus: "error",
+    feedbackMessage: "確認コードが一致しません。もう一度入力してください。",
+  },
 };
 
 export const EmailPasswordSetPassword: Story = {
   args: { phase: "settingPassword" },
 };
 
-export const EmailPasswordMethodReady: Story = {
-  args: { phase: "methodReady" },
-};
-
-export const EmailPasswordLoading: Story = {
-  args: { phase: "choosingEmail", feedbackStatus: "loading" },
-};
-
-export const EmailPasswordError: Story = {
+export const EmailPasswordUnavailable: Story = {
   args: {
     phase: "unavailable",
     feedbackStatus: "error",
@@ -325,318 +216,180 @@ export const MobileEmailPasswordVerification: Story = {
   globals: { viewport: { value: "mobile2", isRotated: false } },
 };
 
-// メールアドレスとパスワードからGoogleを追加するflow。
 export const GoogleConnectionReady: Story = {
   args: { flow: "connect-google", phase: "readyToConnect" },
 };
 
-export const GoogleConnectionRedirecting: Story = {
-  args: { flow: "connect-google", phase: "redirecting", feedbackStatus: "loading" },
-};
-
-export const GoogleConnectionSettling: Story = {
-  args: { flow: "connect-google", phase: "settling", feedbackStatus: "loading" },
-};
-
-export const GoogleConnectionMethodReady: Story = {
-  args: { flow: "connect-google", phase: "methodReady" },
-};
-
-export const GoogleConnectionLoading: Story = {
+export const GoogleConnectionSending: Story = {
   args: { flow: "connect-google", phase: "readyToConnect", feedbackStatus: "loading" },
 };
 
-export const GoogleConnectionError: Story = {
+export const GoogleOAuthOpening: Story = {
+  args: { flow: "connect-google", phase: "redirecting", feedbackStatus: "loading" },
+};
+
+export const GoogleOAuthWaiting: Story = {
+  args: { flow: "connect-google", phase: "settling", feedbackStatus: "loading" },
+};
+
+export const GoogleOAuthCancelled: Story = {
   args: {
     flow: "connect-google",
     phase: "unavailable",
     feedbackStatus: "error",
-    feedbackMessage: "このGoogleアカウントを接続できませんでした。現在のログイン方法は変更されていません。",
+    googleErrorKind: "providerCancelled",
+    feedbackMessage: "Googleアカウントの追加をキャンセルしました。現在のログイン方法は変更されていません。",
   },
 };
 
-export const MobileGoogleConnectionSettling: Story = {
-  args: { flow: "connect-google", phase: "settling", feedbackStatus: "loading" },
-  tags: ["vrt-mobile2"],
-  globals: { viewport: { value: "mobile2", isRotated: false } },
-};
-
-// Googleから別のGoogleへ変更するflow。退避方法の内側のstepも個別に固定する。
-export const GoogleReplacementChooseFallbackEmail: Story = {
-  args: { flow: "replace-google", phase: "ensuringFallback", fallbackPhase: "choosingEmail" },
-};
-
-export const GoogleReplacementVerifyFallbackEmail: Story = {
-  args: { flow: "replace-google", phase: "ensuringFallback", fallbackPhase: "verifyingEmail" },
-};
-
-export const GoogleReplacementSetFallbackPassword: Story = {
-  args: { flow: "replace-google", phase: "ensuringFallback", fallbackPhase: "settingPassword" },
-};
-
-export const GoogleReplacementFallbackReady: Story = {
-  args: { flow: "replace-google", phase: "fallbackReady" },
-};
-
-export const GoogleReplacementRemovingOldGoogle: Story = {
-  args: { flow: "replace-google", phase: "removingOldGoogle", feedbackStatus: "loading" },
-};
-
-export const GoogleReplacementConnectingNewGoogle: Story = {
-  args: { flow: "replace-google", phase: "connectingNewGoogle" },
-};
-
-export const GoogleReplacementMethodReady: Story = {
-  args: { flow: "replace-google", phase: "newGoogleReady" },
-};
-
-export const GoogleReplacementFallbackError: Story = {
+export const GoogleAccountCollision: Story = {
   args: {
-    flow: "replace-google",
-    phase: "ensuringFallback",
-    fallbackPhase: "verifyingEmail",
-    feedbackStatus: "error",
-    feedbackMessage: "確認コードを確認できませんでした。もう一度入力してください。",
-  },
-};
-
-export const GoogleReplacementError: Story = {
-  args: {
-    flow: "replace-google",
+    flow: "connect-google",
     phase: "unavailable",
     feedbackStatus: "error",
-    feedbackMessage: "Googleアカウントの変更結果を確認できませんでした。退避方法は削除していません。",
+    googleErrorKind: "accountCollision",
+    feedbackMessage:
+      "このGoogleアカウントは追加できません。別のGoogleアカウントを選んでください。現在のログイン方法は変更されていません。",
   },
 };
 
-export const MobileGoogleReplacementFallbackReady: Story = {
-  args: { flow: "replace-google", phase: "fallbackReady" },
+export const GoogleAlreadyConnected: Story = {
+  args: {
+    flow: "connect-google",
+    phase: "unavailable",
+    feedbackStatus: "error",
+    googleErrorKind: "alreadyConnected",
+    feedbackMessage: "このGoogleアカウントはすでに接続されています。画面を再読み込みして最新の状態を確認してください。",
+  },
+};
+
+export const GoogleClerkConflict: Story = {
+  args: {
+    flow: "connect-google",
+    phase: "unavailable",
+    feedbackStatus: "error",
+    googleErrorKind: "clerkConflict",
+    feedbackMessage: "Google連携の状態が変わりました。画面を再読み込みしてからやり直してください。",
+  },
+};
+
+export const GoogleRetryableError: Story = {
+  args: {
+    flow: "connect-google",
+    phase: "unavailable",
+    feedbackStatus: "error",
+    googleErrorKind: "retryable",
+    feedbackMessage:
+      "Googleログインを追加できませんでした。現在のログイン方法は変更されていません。もう一度お試しください。",
+  },
+};
+
+export const MobileGoogleOAuthWaiting: Story = {
+  args: { flow: "connect-google", phase: "settling", feedbackStatus: "loading" },
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
 };
 
 export const AddEmailPasswordBehavior: Story = {
-  args: { flow: "add-email-password", phase: "choosingEmail" },
   parameters: { screenshot: { skip: true } },
-  play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
+  play: async () => {
+    toaster.dismiss();
+    const body = within(document.body);
 
-    await userEvent.type(canvas.getByRole("textbox", { name: "別のメールアドレス" }), "login@example.com");
-    await userEvent.click(canvas.getByRole("button", { name: "このメールを使う" }));
+    const inputDialog = within(await body.findByRole("dialog", { name: "メールアドレスとパスワードを設定" }));
+    await userEvent.type(inputDialog.getByRole("textbox", { name: "別のメールアドレス" }), "login@example.com");
+    await userEvent.click(inputDialog.getByRole("button", { name: "このメールを使う" }));
 
-    await expect(canvas.getByRole("heading", { name: "メールアドレスとパスワードを設定" })).toHaveFocus();
-    let codeInput = await canvas.findByRole("textbox", { name: "確認コード" });
-    await userEvent.click(canvas.getByRole("button", { name: "確認コードを再送" }));
-    const [resendMessage] = await canvas.findAllByText("新しい確認コードを送信しました。");
-    await expect(resendMessage).toBeVisible();
-    codeInput = await canvas.findByRole("textbox", { name: "確認コード" });
-    await userEvent.type(codeInput, "123456");
-    await userEvent.click(canvas.getByRole("button", { name: "メールを確認" }));
-
-    await userEvent.type(await canvas.findByLabelText("新しいパスワード"), "safe-password");
-    await userEvent.type(canvas.getByLabelText("新しいパスワード（確認）"), "safe-password");
-    await userEvent.click(canvas.getByRole("button", { name: "パスワードを設定" }));
-
-    await expect(await canvas.findByText("新しいログイン方法を設定しました")).toBeVisible();
+    const codeDialog = within(await body.findByRole("dialog", { name: "メールアドレスとパスワードを設定" }));
     await expect(
-      canvas.getByText(
-        "現在は2つのログイン方法を利用できます。ログイン時にGoogleかメールアドレス・パスワードのどちらか一方を選べます。",
+      await codeDialog.findByText(
+        "login@example.comに確認コードを送りました。メールに届いたコードを入力してください。",
       ),
     ).toBeVisible();
-    await userEvent.click(canvas.getByRole("button", { name: "以前の方法を停止して切替を完了" }));
-    await expect(args.onRequestPreviousMethodRemoval).toHaveBeenCalledOnce();
-    await expect(canvas.getByLabelText("現在のログイン方法")).toBeVisible();
+    await userEvent.type(codeDialog.getByRole("textbox", { name: "確認コード" }), "123456");
+    await userEvent.click(codeDialog.getByRole("button", { name: "メールを確認" }));
+
+    const passwordDialog = within(await body.findByRole("dialog", { name: "メールアドレスとパスワードを設定" }));
+    await userEvent.type(passwordDialog.getByLabelText("新しいパスワード"), "safe-password");
+    await userEvent.type(passwordDialog.getByLabelText("新しいパスワード（確認）"), "safe-password");
+    await userEvent.click(passwordDialog.getByRole("button", { name: "パスワードを設定" }));
+
+    await waitFor(() =>
+      expect(body.queryByRole("dialog", { name: "メールアドレスとパスワードを設定" })).not.toBeInTheDocument(),
+    );
+    const toastTitle = await body.findByText("メールアドレスとパスワードを設定しました");
+    await waitFor(() => expect(toastTitle).toBeVisible());
+    await waitFor(() => expect(body.queryByRole("dialog")).not.toBeInTheDocument());
   },
 };
 
-export const ReuseLinkedGoogleEmailBehavior: Story = {
-  args: {
-    flow: "add-email-password",
-    phase: "choosingEmail",
-    onRequestPreviousMethodRemoval: fn(),
-  },
+export const EmailPasswordCodeMismatchBehavior: Story = {
+  args: { phase: "verifyingEmail" },
   parameters: { screenshot: { skip: true } },
-  play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
+  play: async () => {
+    const body = within(document.body);
+    const dialog = within(await body.findByRole("dialog", { name: "メールアドレスとパスワードを設定" }));
 
-    await userEvent.click(canvas.getByRole("button", { name: "現在のメールを使う" }));
-    await userEvent.type(await canvas.findByLabelText("新しいパスワード"), "safe-password");
-    await userEvent.type(canvas.getByLabelText("新しいパスワード（確認）"), "safe-password");
-    await userEvent.click(canvas.getByRole("button", { name: "パスワードを設定" }));
+    await userEvent.type(dialog.getByRole("textbox", { name: "確認コード" }), "000000");
+    await userEvent.click(dialog.getByRole("button", { name: "メールを確認" }));
 
-    await expect(await canvas.findByText("新しいログイン方法を設定しました")).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "今は2つの方法を残す" })).toBeVisible();
-    await expect(canvas.queryByRole("button", { name: "以前の方法を停止して切替を完了" })).not.toBeInTheDocument();
-    await expect(canvas.getByText(/Googleと接続していない確認済みメールアドレスが必要です/)).toBeVisible();
-    await expect(args.onRequestPreviousMethodRemoval).not.toHaveBeenCalled();
-  },
-};
-
-export const PreviousMethodRemovalCapabilityClosedBehavior: Story = {
-  args: {
-    flow: "connect-google",
-    phase: "methodReady",
-    canRequestPreviousMethodRemoval: false,
-  },
-  parameters: { screenshot: { skip: true } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-
-    await expect(canvas.queryByRole("button", { name: "以前の方法を停止して切替を完了" })).not.toBeInTheDocument();
-    await expect(canvas.getByText(/パスワードを削除する操作は現在利用できません/)).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "今は2つの方法を残す" })).toBeVisible();
-  },
-};
-
-export const KeepBothMethodsBehavior: Story = {
-  args: {
-    flow: "connect-google",
-    phase: "methodReady",
-    onBackToOverview: fn(),
-  },
-  parameters: { screenshot: { skip: true } },
-  play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
-
-    await userEvent.click(canvas.getByRole("button", { name: "今は2つの方法を残す" }));
-
-    await expect(args.onBackToOverview).toHaveBeenCalledOnce();
+    await expect(await dialog.findByText("確認コードが一致しません。もう一度入力してください。")).toBeVisible();
+    await expect(dialog.getByRole("textbox", { name: "確認コード" })).toBeEnabled();
   },
 };
 
 export const ConnectGoogleBehavior: Story = {
   args: { flow: "connect-google", phase: "readyToConnect" },
   parameters: { screenshot: { skip: true } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
+  play: async () => {
+    const body = within(document.body);
+    const dialog = within(await body.findByRole("dialog", { name: "Googleログインを追加" }));
 
-    await userEvent.click(canvas.getByRole("button", { name: "Googleアカウントを選ぶ" }));
+    await userEvent.click(dialog.getByRole("button", { name: "Googleアカウントを選ぶ" }));
 
-    await expect(await canvas.findByText("Googleの画面を開いています")).toBeVisible();
-  },
-};
-
-export const ReplaceGoogleBehavior: Story = {
-  args: { flow: "replace-google", phase: "ensuringFallback", fallbackPhase: "choosingEmail" },
-  parameters: { screenshot: { skip: true } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-
-    await userEvent.type(canvas.getByRole("textbox", { name: "別のメールアドレス" }), "fallback@example.com");
-    await userEvent.click(canvas.getByRole("button", { name: "このメールを使う" }));
-    await userEvent.type(await canvas.findByRole("textbox", { name: "確認コード" }), "123456");
-    await userEvent.click(canvas.getByRole("button", { name: "メールを確認" }));
-    await userEvent.type(await canvas.findByLabelText("新しいパスワード"), "safe-password");
-    await userEvent.type(canvas.getByLabelText("新しいパスワード（確認）"), "safe-password");
-    await userEvent.click(canvas.getByRole("button", { name: "パスワードを設定" }));
-
-    await expect(await canvas.findByText("退避方法を確認しました")).toBeVisible();
-    await userEvent.click(canvas.getByRole("button", { name: "以前のGoogleを解除して続ける" }));
-    await expect(await canvas.findByText("新しいGoogleアカウントを選択します")).toBeVisible();
-    await userEvent.click(canvas.getByRole("button", { name: "新しいGoogleアカウントを選ぶ" }));
-
-    await expect(await canvas.findByText("Googleログインを利用できます")).toBeVisible();
-    await expect(canvas.getByText(/退避用のメールアドレスとパスワードは残しています/)).toBeVisible();
-    await expect(canvas.queryByRole("button", { name: "以前の方法を停止して切替を完了" })).not.toBeInTheDocument();
-  },
-};
-
-export const BackToOverviewBehavior: Story = {
-  args: {
-    flow: "add-email-password",
-    phase: "choosingEmail",
-    onBackToOverview: fn(),
-  },
-  parameters: { screenshot: { skip: true } },
-  play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
-
-    await userEvent.click(canvas.getByRole("button", { name: "ログイン設定に戻る" }));
-
-    await expect(args.onBackToOverview).toHaveBeenCalledOnce();
-  },
-};
-
-export const BusyFallbackPreventsBackBehavior: Story = {
-  args: {
-    flow: "replace-google",
-    phase: "ensuringFallback",
-    fallbackPhase: "verifyingEmail",
-    feedbackStatus: "loading",
-  },
-  parameters: { screenshot: { skip: true } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-
-    await expect(canvas.getByRole("button", { name: "ログイン設定に戻る" })).toBeDisabled();
-  },
-};
-
-export const BusyNewGooglePreventsBackBehavior: Story = {
-  args: {
-    flow: "replace-google",
-    phase: "connectingNewGoogle",
-    feedbackStatus: "loading",
-  },
-  parameters: { screenshot: { skip: true } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-
-    await expect(canvas.getByRole("button", { name: "ログイン設定に戻る" })).toBeDisabled();
-  },
-};
-
-export const ValidationErrorFocusBehavior: Story = {
-  args: { flow: "add-email-password", phase: "choosingEmail" },
-  parameters: { screenshot: { skip: true } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const emailInput = canvas.getByRole("textbox", { name: "別のメールアドレス" });
-
-    await userEvent.click(canvas.getByRole("button", { name: "このメールを使う" }));
-
-    await expect(await canvas.findByText("メールアドレスを入力してください")).toBeVisible();
-    await expect(emailInput).toHaveFocus();
+    const status = await dialog.findByText("Googleの画面を開いています");
+    await waitFor(() => expect(status).toBeVisible());
   },
 };
 
 function buildEmailPasswordController(
   state: EmailPasswordMigrationState,
   setState: (state: EmailPasswordMigrationState) => void,
+  onCompleted: () => void,
 ): EmailPasswordMigrationController {
-  const chooseTarget = (phase: "verifyingEmail" | "settingPassword") => {
-    setState({
-      phase,
-      targetEmailAddressId: phase === "settingPassword" ? "email-current" : "email-fallback",
-      targetMaskedEmail: phase === "settingPassword" ? "go***@example.com" : "fa***@example.com",
-      safeForGoogleDisconnect: false,
-      feedback:
-        phase === "verifyingEmail" ? { status: "success", message: "確認コードを送信しました。" } : idleFeedback(),
-    });
-  };
-
   return {
     state,
     refresh: async () => {
-      setState(
-        emailPasswordState("choosingEmail", { status: "success", message: "最新のログイン方法を確認しました。" }),
-      );
+      setState(emailPasswordState("choosingEmail", { status: "success", message: "最新の状態を確認しました。" }));
       return true;
     },
     useCurrentEmail: async () => {
-      chooseTarget("settingPassword");
-      return true;
-    },
-    useDifferentEmail: async () => {
-      chooseTarget("verifyingEmail");
-      return true;
-    },
-    verifyEmail: async () => {
       setState({
-        ...state,
         phase: "settingPassword",
-        feedback: { status: "success", message: "メールアドレスを確認しました。" },
+        targetEmailAddressId: "email-current",
+        targetEmailAddress: "google@example.com",
+        feedback: idleFeedback(),
       });
+      return true;
+    },
+    useDifferentEmail: async (emailAddress) => {
+      setState({
+        phase: "verifyingEmail",
+        targetEmailAddressId: "email-new",
+        targetEmailAddress: emailAddress,
+        feedback: { status: "success", message: "確認コードを送信しました。" },
+      });
+      return true;
+    },
+    verifyEmail: async (code) => {
+      if (code === "000000") {
+        setState({
+          ...state,
+          feedback: { status: "error", message: "確認コードが一致しません。もう一度入力してください。" },
+        });
+        return false;
+      }
+      setState({ ...state, phase: "settingPassword", feedback: idleFeedback() });
       return true;
     },
     resendEmailCode: async () => {
@@ -644,13 +397,8 @@ function buildEmailPasswordController(
       return true;
     },
     setPassword: async () => {
-      setState(
-        emailPasswordState(
-          "methodReady",
-          { status: "success", message: "設定が完了しました。" },
-          state.targetEmailAddressId === "email-fallback",
-        ),
-      );
+      setState({ ...state, phase: "methodReady", feedback: { status: "success", message: "設定が完了しました。" } });
+      onCompleted();
       return true;
     },
     reset: () => setState(emailPasswordState("choosingEmail", idleFeedback())),
@@ -660,14 +408,12 @@ function buildEmailPasswordController(
 function emailPasswordState(
   phase: EmailPasswordMigrationPhase,
   feedback: LoginMethodMigrationFeedback,
-  safeForGoogleDisconnect = false,
 ): EmailPasswordMigrationState {
   const hasTarget = phase === "verifyingEmail" || phase === "settingPassword" || phase === "methodReady";
   return {
     phase,
     targetEmailAddressId: hasTarget ? "email-target" : null,
-    targetMaskedEmail: hasTarget ? "lo***@example.com" : null,
-    safeForGoogleDisconnect,
+    targetEmailAddress: hasTarget ? "login@example.com" : null,
     feedback,
   };
 }
@@ -675,18 +421,20 @@ function emailPasswordState(
 function googleConnectionState(
   phase: GoogleConnectionPhase,
   feedback: LoginMethodMigrationFeedback,
+  errorKind?: GoogleConnectionErrorKind,
 ): GoogleConnectionState {
   return {
     phase,
-    googleAccountId: phase === "redirecting" || phase === "methodReady" ? "google-new" : null,
-    maskedEmail: phase === "methodReady" ? "ve***@very-long-google-account-name.example.com" : null,
+    googleAccountId: phase === "redirecting" || phase === "settling" || phase === "methodReady" ? "google-new" : null,
+    emailAddress: phase === "methodReady" ? "google@example.com" : null,
+    errorKind: errorKind ?? null,
     feedback,
   };
 }
 
 function buildFeedback(status: FeedbackStatus, message?: string): LoginMethodMigrationFeedback {
   if (status === "error") {
-    return { status, message: message ?? "処理を完了できませんでした。以前のログイン方法は変更していません。" };
+    return { status, message: message ?? "処理を完了できませんでした。現在のログイン方法は変更していません。" };
   }
   if (status === "success") return { status, message: message ?? "最新の状態を確認しました。" };
   return { status, message: null };

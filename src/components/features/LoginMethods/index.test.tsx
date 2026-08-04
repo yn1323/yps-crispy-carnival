@@ -1,38 +1,67 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DISABLED_LOGIN_METHOD_CAPABILITIES, LOGIN_METHOD_CAPABILITIES } from "./capabilities";
 
-const mocks = vi.hoisted(() => ({
-  useLoginMethodsController: vi.fn(() => ({ marker: "controller" })),
-  useEmailPasswordMigrationController: vi.fn(() => ({ marker: "email-migration" })),
-  useGoogleConnectionController: vi.fn(() => ({ marker: "google-migration" })),
-  useGoogleReplacementController: vi.fn(() => ({ marker: "replacement-migration" })),
-  loginMethodsView: vi.fn(),
-  migrationView: vi.fn(),
-  reverification: {
+const mocks = vi.hoisted(() => {
+  const overviewController = {
+    marker: "overview-controller",
+    reload: vi.fn(async () => true),
+  };
+  const emailPasswordController = {
+    marker: "email-password-controller",
     state: {
-      status: "idle",
-      operationId: null,
-      level: null,
-      stage: null,
-      factors: [],
-      selectedFactor: null,
-      message: null,
+      phase: "choosingEmail",
+      feedback: { status: "idle", message: null },
     },
-    onNeedsReverification: vi.fn(),
-    runOperation: vi.fn(),
-    selectFactor: vi.fn(),
-    submit: vi.fn(),
-    resend: vi.fn(),
-    useAnotherFactor: vi.fn(),
-    cancel: vi.fn(),
-  },
-}));
+  };
+  const googleController = {
+    marker: "google-controller",
+    state: {
+      phase: "readyToConnect",
+      feedback: { status: "idle", message: null },
+    },
+  };
+  return {
+    clerkState: { isLoaded: true, user: { id: "user-1" } },
+    overviewController,
+    emailPasswordController,
+    googleController,
+    useLoginMethodsController: vi.fn((_options: unknown) => overviewController),
+    useEmailPasswordMigrationController: vi.fn((_options: unknown) => emailPasswordController),
+    useGoogleConnectionController: vi.fn((_options: unknown) => googleController),
+    loginMethodsView: vi.fn(),
+    migrationView: vi.fn(),
+    loginMethodsViewMounted: vi.fn(),
+    loginMethodsViewUnmounted: vi.fn(),
+    showSuccessToast: vi.fn(),
+    reverification: {
+      state: {
+        status: "idle",
+        operationId: null,
+        level: null,
+        stage: null,
+        factors: [],
+        selectedFactor: null,
+        message: null,
+      },
+      onNeedsReverification: vi.fn(),
+      runOperation: vi.fn(),
+      selectFactor: vi.fn(),
+      submit: vi.fn(),
+      resend: vi.fn(),
+      useAnotherFactor: vi.fn(),
+      cancel: vi.fn(),
+    },
+  };
+});
 
 vi.mock("@clerk/react", () => ({
-  useUser: () => ({ isLoaded: true, user: { id: "user-1" } }),
+  useUser: () => mocks.clerkState,
+}));
+
+vi.mock("@/src/components/shared/feedback", () => ({
+  showSuccessToast: mocks.showSuccessToast,
 }));
 
 vi.mock("./useLoginMethodsController", () => ({
@@ -51,113 +80,245 @@ vi.mock("./useGoogleConnectionController", () => ({
   useGoogleConnectionController: mocks.useGoogleConnectionController,
 }));
 
-vi.mock("./useGoogleReplacementController", () => ({
-  useGoogleReplacementController: mocks.useGoogleReplacementController,
-}));
-
-vi.mock("./LoginMethodsView", () => ({
-  LoginMethodsView: (props: unknown) => {
-    mocks.loginMethodsView(props);
-    return null;
-  },
-}));
+vi.mock("./LoginMethodsView", async () => {
+  const { useEffect } = await import("react");
+  return {
+    LoginMethodsView: (props: unknown) => {
+      useEffect(() => {
+        mocks.loginMethodsViewMounted();
+        return () => mocks.loginMethodsViewUnmounted();
+      }, []);
+      mocks.loginMethodsView(props);
+      return <div data-testid="login-methods-overview" />;
+    },
+  };
+});
 
 vi.mock("./LoginMethodMigrationView", () => ({
-  LoginMethodMigrationView: (props: { flow: string; onRequestPreviousMethodRemoval: () => void }) => {
+  LoginMethodMigrationView: (props: { flow: string; controller: { marker: string } }) => {
     mocks.migrationView(props);
-    return (
-      <button type="button" data-testid="migration-flow" onClick={props.onRequestPreviousMethodRemoval}>
-        {props.flow}
-      </button>
-    );
+    return <div data-testid="login-method-flow">{`${props.flow}:${props.controller.marker}`}</div>;
   },
 }));
 
 import { LoginMethods } from "./index";
 
-describe("ログイン設定のcanary capability", () => {
+describe("ログイン方法のoverviewと追加Modal", () => {
   beforeEach(() => {
     mocks.useLoginMethodsController.mockClear();
     mocks.useEmailPasswordMigrationController.mockClear();
     mocks.useGoogleConnectionController.mockClear();
-    mocks.useGoogleReplacementController.mockClear();
     mocks.loginMethodsView.mockClear();
     mocks.migrationView.mockClear();
+    mocks.loginMethodsViewMounted.mockClear();
+    mocks.loginMethodsViewUnmounted.mockClear();
+    mocks.showSuccessToast.mockReset();
+    mocks.overviewController.reload.mockReset();
+    mocks.overviewController.reload.mockResolvedValue(true);
+    mocks.clerkState.isLoaded = true;
+    mocks.clerkState.user = { id: "user-1" };
+    Object.assign(mocks.emailPasswordController.state, {
+      phase: "choosingEmail",
+      feedback: { status: "idle", message: null },
+    });
+    Object.assign(mocks.googleController.state, {
+      phase: "readyToConnect",
+      feedback: { status: "idle", message: null },
+    });
   });
 
-  it("通常buildでは実験的な操作を閉じたcapabilityを注入する", () => {
+  it("overviewでは共通本人再確認だけをcontrollerへ渡し、旧capabilityを注入しない", () => {
     render(<LoginMethods />);
 
-    expect(LOGIN_METHOD_CAPABILITIES).toEqual(DISABLED_LOGIN_METHOD_CAPABILITIES);
-    expect(mocks.useLoginMethodsController).toHaveBeenCalledWith(
-      expect.objectContaining({ capabilities: LOGIN_METHOD_CAPABILITIES }),
-    );
-  });
+    expect(screen.getByTestId("login-methods-overview")).toBeDefined();
+    expect(screen.queryByTestId("login-method-flow")).toBeNull();
 
-  it("メール・パスワード移行へsetPassword capabilityと共通本人再確認を注入する", () => {
-    render(<LoginMethods flow="add-email-password" />);
-
-    expect(screen.getByTestId("migration-flow").textContent).toBe("add-email-password");
-    expect(mocks.useEmailPasswordMigrationController).toHaveBeenCalledWith(
+    const overviewOptions = mocks.useLoginMethodsController.mock.calls[0]?.[0];
+    expect(overviewOptions).toEqual(
       expect.objectContaining({
-        enabled: LOGIN_METHOD_CAPABILITIES.setPassword,
+        isLoaded: true,
+        user: { id: "user-1" },
         onNeedsReverification: mocks.reverification.onNeedsReverification,
         runOperation: mocks.reverification.runOperation,
       }),
     );
+    expect(overviewOptions).not.toHaveProperty("capabilities");
+
+    const emailOptions = mocks.useEmailPasswordMigrationController.mock.calls[0]?.[0];
+    expect(emailOptions).toEqual(
+      expect.objectContaining({
+        onNeedsReverification: mocks.reverification.onNeedsReverification,
+        runOperation: mocks.reverification.runOperation,
+      }),
+    );
+    expect(emailOptions).not.toHaveProperty("enabled");
+    expect(emailOptions).not.toHaveProperty("purpose");
+
+    expect(mocks.useGoogleConnectionController).toHaveBeenCalledWith(
+      expect.objectContaining({ active: false, oauthReturn: false }),
+    );
   });
 
-  it("Google追加の正当なOAuth markerだけを専用controllerへ渡す", () => {
-    const onHandled = vi.fn();
-    render(<LoginMethods flow="connect-google" oauth="google" onGoogleOAuthReturnHandled={onHandled} />);
+  it("current Userが切り替わると操作Modalを含む内部stateを破棄する", async () => {
+    const view = render(<LoginMethods flow="add-email-password" />);
+    await waitFor(() => expect(mocks.loginMethodsViewMounted).toHaveBeenCalledOnce());
 
-    expect(screen.getByTestId("migration-flow").textContent).toBe("connect-google");
+    mocks.clerkState.user = { id: "user-2" };
+    view.rerender(<LoginMethods flow="add-email-password" />);
+
+    await waitFor(() => {
+      expect(mocks.loginMethodsViewUnmounted).toHaveBeenCalledOnce();
+      expect(mocks.loginMethodsViewMounted).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("完了状態の再取得中にcurrent Userが切り替われば通知と画面遷移を行わない", async () => {
+    Object.assign(mocks.googleController.state, {
+      phase: "methodReady",
+      feedback: { status: "success", message: "Googleログインを追加しました。" },
+    });
+    let resolveReload: ((value: boolean) => void) | undefined;
+    const completionReload = new Promise<boolean>((resolve) => {
+      resolveReload = resolve;
+    });
+    mocks.overviewController.reload.mockReturnValueOnce(completionReload);
+    const onBackToOverview = vi.fn();
+    const view = render(<LoginMethods flow="connect-google" onBackToOverview={onBackToOverview} />);
+    await waitFor(() => expect(mocks.overviewController.reload).toHaveBeenCalledOnce());
+
+    Object.assign(mocks.googleController.state, {
+      phase: "readyToConnect",
+      feedback: { status: "idle", message: null },
+    });
+    mocks.clerkState.user = { id: "user-2" };
+    view.rerender(<LoginMethods flow="connect-google" onBackToOverview={onBackToOverview} />);
+    await act(async () => resolveReload?.(true));
+
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+    expect(onBackToOverview).not.toHaveBeenCalled();
+  });
+
+  it("メール・パスワード追加中もoverviewを残し、対応するcontrollerだけをModalへ渡す", () => {
+    const onBackToOverview = vi.fn();
+    render(<LoginMethods flow="add-email-password" onBackToOverview={onBackToOverview} />);
+
+    expect(screen.getByTestId("login-methods-overview")).toBeDefined();
+    expect(screen.getByTestId("login-method-flow").textContent).toBe("add-email-password:email-password-controller");
+    expect(mocks.migrationView).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: "add-email-password",
+        controller: mocks.emailPasswordController,
+        reverification: mocks.reverification,
+        onBackToOverview,
+      }),
+    );
+    expect(mocks.useGoogleConnectionController).toHaveBeenCalledWith(
+      expect.objectContaining({ active: false, oauthReturn: false }),
+    );
+  });
+
+  it("Google追加中もoverviewを残し、OAuth markerをGoogle controllerだけへ渡す", () => {
+    const onHandled = vi.fn();
+    const onBackToOverview = vi.fn();
+    render(
+      <LoginMethods
+        flow="connect-google"
+        oauth="google"
+        onGoogleOAuthReturnHandled={onHandled}
+        onBackToOverview={onBackToOverview}
+      />,
+    );
+
+    expect(screen.getByTestId("login-methods-overview")).toBeDefined();
+    expect(screen.getByTestId("login-method-flow").textContent).toBe("connect-google:google-controller");
     expect(mocks.useGoogleConnectionController).toHaveBeenCalledWith(
       expect.objectContaining({
-        enabled: LOGIN_METHOD_CAPABILITIES.connectGoogle,
-        flow: "connect-google",
+        active: true,
         oauthReturn: true,
         onOAuthReturnHandled: onHandled,
+        onNeedsReverification: mocks.reverification.onNeedsReverification,
+        runOperation: mocks.reverification.runOperation,
+      }),
+    );
+    expect(mocks.migrationView).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: "connect-google",
+        controller: mocks.googleController,
+        onBackToOverview,
       }),
     );
   });
 
-  it("Google置換へ構成capability全体を渡し、独立controllerで処理する", () => {
-    render(<LoginMethods flow="replace-google" />);
+  it("OAuth markerがなければGoogle追加Modalでも帰還処理を開始しない", () => {
+    render(<LoginMethods flow="connect-google" />);
 
-    expect(screen.getByTestId("migration-flow").textContent).toBe("replace-google");
-    expect(mocks.useGoogleReplacementController).toHaveBeenCalledWith(
-      expect.objectContaining({ capabilities: LOGIN_METHOD_CAPABILITIES, oauthReturn: false }),
+    expect(mocks.useGoogleConnectionController).toHaveBeenCalledWith(
+      expect.objectContaining({ active: true, oauthReturn: false }),
     );
   });
 
-  it.each([
-    ["add-email-password", "google"],
-    ["connect-google", "password"],
-  ] as const)("%sの結果から停止対象%sをPageへ通知する", (flow, expectedKind) => {
-    const onRequestPreviousMethodRemoval = vi.fn();
-    render(<LoginMethods flow={flow} onRequestPreviousMethodRemoval={onRequestPreviousMethodRemoval} />);
+  it("メール・パスワード追加の成功時は完了Modalを挟まずSnackbarを出してoverviewへ戻す", async () => {
+    Object.assign(mocks.emailPasswordController.state, {
+      phase: "methodReady",
+      feedback: { status: "success", message: "メールアドレスとパスワードを設定しました。" },
+    });
+    const onBackToOverview = vi.fn();
 
-    fireEvent.click(screen.getByTestId("migration-flow"));
+    render(<LoginMethods flow="add-email-password" onBackToOverview={onBackToOverview} />);
 
-    expect(onRequestPreviousMethodRemoval).toHaveBeenCalledWith(expectedKind);
+    expect(screen.getByTestId("login-methods-overview")).toBeDefined();
+    expect(screen.getByTestId("login-method-flow").textContent).toBe("add-email-password:email-password-controller");
+    await waitFor(() => expect(onBackToOverview).toHaveBeenCalledOnce());
+    expect(mocks.overviewController.reload).toHaveBeenCalledOnce();
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
+      title: "メールアドレスとパスワードを設定しました",
+      description: "Google認証はそのまま利用できます。",
+    });
+    expect(screen.queryByText("設定が完了しました")).toBeNull();
   });
 
-  it("Google置換の完了画面から追加flow用の停止選択を通知しない", () => {
-    const onRequestPreviousMethodRemoval = vi.fn();
-    render(<LoginMethods flow="replace-google" onRequestPreviousMethodRemoval={onRequestPreviousMethodRemoval} />);
+  it("Google追加の成功時は完了Modalを挟まずSnackbarを出してoverviewへ戻す", async () => {
+    Object.assign(mocks.googleController.state, {
+      phase: "methodReady",
+      feedback: { status: "success", message: "Googleログインを追加しました。" },
+    });
+    const onBackToOverview = vi.fn();
 
-    fireEvent.click(screen.getByTestId("migration-flow"));
+    render(<LoginMethods flow="connect-google" onBackToOverview={onBackToOverview} />);
 
-    expect(onRequestPreviousMethodRemoval).not.toHaveBeenCalled();
+    await waitFor(() => expect(onBackToOverview).toHaveBeenCalledOnce());
+    expect(mocks.overviewController.reload).toHaveBeenCalledOnce();
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
+      title: "Googleログインを追加しました",
+      description: "メールアドレスとパスワードはそのまま利用できます。",
+    });
+    expect(screen.queryByText("設定が完了しました")).toBeNull();
   });
 
-  it("overviewへ一時的な停止対象とclaim callbackを渡す", () => {
-    const onPendingRemovalClaimed = vi.fn();
-    render(<LoginMethods pendingRemovalKind="password" onPendingRemovalClaimed={onPendingRemovalClaimed} />);
+  it("overviewへ戻った後の2回目のGoogle追加もSnackbarと帰還を実行する", async () => {
+    Object.assign(mocks.googleController.state, {
+      phase: "methodReady",
+      feedback: { status: "success", message: "Googleログインを追加しました。" },
+    });
+    const onBackToOverview = vi.fn();
+    const view = render(<LoginMethods flow="connect-google" onBackToOverview={onBackToOverview} />);
 
-    expect(mocks.loginMethodsView).toHaveBeenCalledWith(
-      expect.objectContaining({ pendingRemovalKind: "password", onPendingRemovalClaimed }),
-    );
+    await waitFor(() => expect(onBackToOverview).toHaveBeenCalledOnce());
+
+    Object.assign(mocks.googleController.state, {
+      phase: "readyToConnect",
+      feedback: { status: "idle", message: null },
+    });
+    view.rerender(<LoginMethods onBackToOverview={onBackToOverview} />);
+
+    Object.assign(mocks.googleController.state, {
+      phase: "methodReady",
+      feedback: { status: "success", message: "Googleログインを追加しました。" },
+    });
+    view.rerender(<LoginMethods flow="connect-google" onBackToOverview={onBackToOverview} />);
+
+    await waitFor(() => expect(onBackToOverview).toHaveBeenCalledTimes(2));
+    expect(mocks.overviewController.reload).toHaveBeenCalledTimes(2);
+    expect(mocks.showSuccessToast).toHaveBeenCalledTimes(2);
   });
 });

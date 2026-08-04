@@ -14,10 +14,7 @@ describe("ログイン設定URL", () => {
       flow: "connect-google",
       oauth: "google",
     });
-    expect(validateAccountSecuritySearch({ flow: "replace-google", oauth: "google" })).toEqual({
-      flow: "replace-google",
-      oauth: "google",
-    });
+    expect(validateAccountSecuritySearch({ flow: "replace-google", oauth: "google" })).toEqual({});
     expect(validateAccountSecuritySearch({ oauth: "google" })).toEqual({});
     expect(validateAccountSecuritySearch({ flow: "add-email-password", oauth: "google" })).toEqual({
       flow: "add-email-password",
@@ -50,10 +47,7 @@ describe("ログイン設定URL", () => {
     expect(buildCanonicalAccountSecuritySearchString(valid)).toBe("?flow=connect-google&oauth=google");
     expect(needsAccountSecuritySearchCanonicalization("?flow=connect-google&oauth=google", valid)).toBe(false);
     expect(
-      needsAccountSecuritySearchCanonicalization(
-        "?flow=connect-google&flow=replace-google&oauth=google&oauth=google",
-        valid,
-      ),
+      needsAccountSecuritySearchCanonicalization("?flow=connect-google&flow=unknown&oauth=google&oauth=google", valid),
     ).toBe(true);
   });
 
