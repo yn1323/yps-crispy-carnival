@@ -47,7 +47,7 @@ describe("useLoginMethodsController", () => {
       currentActorId = "user-switched";
       return user;
     });
-    const { result } = renderController(user, vi.fn(), () => currentActorId);
+    const { result } = renderController(user, () => currentActorId);
 
     act(() => result.current.openLoginEmailChange());
     await act(async () => result.current.startLoginEmailChange("next@example.com"));
@@ -55,72 +55,6 @@ describe("useLoginMethodsController", () => {
     expect(user.createEmailAddress).not.toHaveBeenCalled();
     expect(user.update).not.toHaveBeenCalled();
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();
-  });
-
-  it("Google再接続中にcurrent Userが切り替わればOAuth画面へ遷移しない", async () => {
-    const primaryEmail = emailResource({ id: "email-primary", emailAddress: "login@example.com", status: "verified" });
-    const googleAccount = externalAccount({
-      id: "google-pending",
-      status: "unverified",
-      redirectUrl: "https://accounts.example.test/authorize",
-    });
-    const user = userResource({
-      passwordEnabled: true,
-      emailAddresses: [primaryEmail],
-      externalAccounts: [googleAccount],
-      primaryEmailAddressId: primaryEmail.id,
-    });
-    let currentActorId = user.id;
-    vi.mocked(googleAccount.reauthorize).mockImplementation(async () => {
-      currentActorId = "user-switched";
-      return googleAccount;
-    });
-    const navigate = vi.fn();
-    const { result } = renderController(user, navigate, () => currentActorId);
-
-    await act(async () => result.current.reconnectGoogle(googleAccount.id));
-
-    expect(googleAccount.reauthorize).toHaveBeenCalledOnce();
-    expect(navigate).not.toHaveBeenCalled();
-    expect(result.current.googleState).toEqual({ status: "idle", message: null });
-  });
-
-  it("Google再接続のprovider失敗直後は再開始せず、30秒後にだけOAuth画面へ進む", async () => {
-    const now = vi.spyOn(Date, "now").mockReturnValue(3_000_000);
-    const primaryEmail = emailResource({ id: "email-primary", emailAddress: "login@example.com", status: "verified" });
-    const googleAccount = externalAccount({
-      id: "google-pending",
-      status: "unverified",
-      redirectUrl: "https://accounts.example.test/authorize",
-    });
-    vi.mocked(googleAccount.reauthorize)
-      .mockRejectedValueOnce(new Error("provider response lost"))
-      .mockResolvedValueOnce(googleAccount);
-    const user = userResource({
-      passwordEnabled: true,
-      emailAddresses: [primaryEmail],
-      externalAccounts: [googleAccount],
-      primaryEmailAddressId: primaryEmail.id,
-    });
-    const navigate = vi.fn();
-    const { result } = renderController(user, navigate);
-
-    await act(async () => result.current.reconnectGoogle(googleAccount.id));
-    await act(async () => result.current.reconnectGoogle(googleAccount.id));
-
-    expect(googleAccount.reauthorize).toHaveBeenCalledOnce();
-    expect(result.current.googleState).toEqual({
-      status: "error",
-      message: "Googleの確認を開始した直後です。あと30秒ほど待ってから再試行してください。",
-    });
-    expect(navigate).not.toHaveBeenCalled();
-
-    now.mockReturnValue(3_030_000);
-    await act(async () => result.current.reconnectGoogle(googleAccount.id));
-
-    expect(googleAccount.reauthorize).toHaveBeenCalledTimes(2);
-    expect(navigate).toHaveBeenCalledWith("https://accounts.example.test/authorize");
-    now.mockRestore();
   });
 
   it.each([
@@ -660,17 +594,12 @@ describe("useLoginMethodsController", () => {
   });
 });
 
-function renderController(
-  user: UserResource,
-  navigateToExternalVerification = vi.fn(),
-  getCurrentActorId: () => string | null = () => user.id,
-) {
+function renderController(user: UserResource, getCurrentActorId: () => string | null = () => user.id) {
   return renderHook(() =>
     useLoginMethodsController({
       isLoaded: true,
       user,
       getCurrentActorId,
-      navigateToExternalVerification,
     }),
   );
 }
@@ -735,24 +664,14 @@ function emailResource({
   return resource as unknown as EmailAddressResource;
 }
 
-function externalAccount({
-  id,
-  status,
-  redirectUrl,
-}: {
-  id: string;
-  status: "verified" | "unverified";
-  redirectUrl?: string;
-}) {
+function externalAccount({ id, status }: { id: string; status: "verified" | "unverified" }) {
   const resource = {
     id,
     provider: "google",
     emailAddress: "google@gmail.com",
     verification: {
       status,
-      externalVerificationRedirectURL: redirectUrl ? new URL(redirectUrl) : null,
     },
-    reauthorize: vi.fn(async () => resource),
     destroy: vi.fn(async () => undefined),
   };
   return resource as unknown as ExternalAccountResource;

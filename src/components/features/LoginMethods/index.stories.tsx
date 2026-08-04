@@ -1,7 +1,7 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useMemo, useState } from "react";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { showSuccessToast } from "@/src/components/shared/feedback";
 import { Toaster, toaster } from "@/src/components/ui/toaster";
 import { LoginMethodsView } from "./LoginMethodsView";
@@ -24,6 +24,7 @@ type Scenario =
   | "bothSameEmail"
   | "bothDifferentEmail"
   | "unverifiedSecondary"
+  | "pendingGoogle"
   | "longAddresses"
   | "unavailable";
 
@@ -114,10 +115,6 @@ function LoginMethodsPreview({
     reload: async () => {
       setGoogleState(idle());
       setEmailPasswordState(idle());
-      return true;
-    },
-    reconnectGoogle: async () => {
-      setGoogleState(idle());
       return true;
     },
     prepareGoogleDisconnect: async () => true,
@@ -341,7 +338,20 @@ export const GoogleDisconnectErrorBehavior: Story = {
     await expect(await dialog.findByRole("alert")).toHaveTextContent(
       "Google連携を解除できませんでした。もう一度お試しください。",
     );
-    await expect(dialog.getByRole("button", { name: "解除する" })).toBeVisible();
+    await waitFor(() => expect(dialog.getByRole("button", { name: "解除する" })).toBeVisible());
+  },
+};
+
+export const PendingGoogleReconnectBehavior: Story = {
+  args: { scenario: "pendingGoogle", onStartFlow: fn() },
+  parameters: { screenshot: { skip: true } },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.click(canvas.getByRole("button", { name: "Googleを再接続" }));
+
+    await expect(args.onStartFlow).toHaveBeenCalledOnce();
+    await expect(args.onStartFlow).toHaveBeenCalledWith("connect-google");
   },
 };
 
@@ -451,6 +461,14 @@ function snapshotForScenario(
       primaryEmailAddressId: "email-login",
     });
   }
+  if (scenario === "pendingGoogle") {
+    return snapshot({
+      passwordEnabled: true,
+      emailAddresses: [email("email-login", "login@example.com")],
+      externalAccounts: [google("google-pending", "pending-google@example.com", "unverified")],
+      primaryEmailAddressId: "email-login",
+    });
+  }
   if (scenario === "longAddresses") {
     return snapshot({
       passwordEnabled: true,
@@ -485,8 +503,12 @@ function email(id: string, emailAddress: string, verificationStatus = "verified"
   return { id, emailAddress, verificationStatus };
 }
 
-function google(id: string, emailAddress: string): LoginMethodsExternalAccountSnapshot {
-  return { id, provider: "google", emailAddress, verificationStatus: "verified" };
+function google(
+  id: string,
+  emailAddress: string,
+  verificationStatus = "verified",
+): LoginMethodsExternalAccountSnapshot {
+  return { id, provider: "google", emailAddress, verificationStatus };
 }
 
 function primaryEmailForScenario(scenario: Scenario): string {

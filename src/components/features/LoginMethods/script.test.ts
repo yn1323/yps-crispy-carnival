@@ -216,6 +216,43 @@ describe("ログイン方法の表示状態", () => {
     expect(withPendingGoogle.google.canReconnect).toBe(true);
   });
 
+  it("Google再接続はメール・パスと一件だけのfailedまたはunverified resourceがある場合に限る", () => {
+    const pendingWithoutFallback = buildLoginMethodsViewModel(
+      snapshot({
+        externalAccounts: [google("google-pending", "google@example.com", "unverified")],
+      }),
+    );
+    const multiplePending = buildLoginMethodsViewModel(
+      snapshot({
+        passwordEnabled: true,
+        emailAddresses: [email("login", "login@example.com", "verified")],
+        externalAccounts: [
+          google("google-a", "google-a@example.com", "unverified"),
+          google("google-b", "google-b@example.com", "failed"),
+        ],
+      }),
+    );
+    const unknownStatus = buildLoginMethodsViewModel(
+      snapshot({
+        passwordEnabled: true,
+        emailAddresses: [email("login", "login@example.com", "verified")],
+        externalAccounts: [google("google-unknown", "google@example.com", "unknown")],
+      }),
+    );
+    const failed = buildLoginMethodsViewModel(
+      snapshot({
+        passwordEnabled: true,
+        emailAddresses: [email("login", "login@example.com", "verified")],
+        externalAccounts: [google("google-failed", "google@example.com", "failed")],
+      }),
+    );
+
+    expect(pendingWithoutFallback.google.canReconnect).toBe(false);
+    expect(multiplePending.google.canReconnect).toBe(false);
+    expect(unknownStatus.google.canReconnect).toBe(false);
+    expect(failed.google.canReconnect).toBe(true);
+  });
+
   it("Google解除は確認済みGoogleとメール・パスがそろう場合だけ許可する", () => {
     const withoutPassword = buildLoginMethodsViewModel(
       snapshot({

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   reverificationOptions: [] as unknown[],
+  reverificationRequiredError: null as unknown,
   isReverificationCancelledError: vi.fn(),
 }));
 
@@ -15,7 +16,14 @@ vi.mock("@clerk/react", () => ({
     options: { onNeedsReverification?: unknown },
   ) => {
     mocks.reverificationOptions.push(options);
-    return (...args: unknown[]) => operation(...args);
+    return async (...args: unknown[]) => {
+      try {
+        return await operation(...args);
+      } catch (error) {
+        if (error !== null && error === mocks.reverificationRequiredError) return operation(...args);
+        throw error;
+      }
+    };
   },
 }));
 
@@ -29,6 +37,7 @@ import { useGoogleConnectionController } from "./useGoogleConnectionController";
 beforeEach(() => {
   window.sessionStorage.clear();
   mocks.reverificationOptions.length = 0;
+  mocks.reverificationRequiredError = null;
   mocks.isReverificationCancelledError.mockReset();
   mocks.isReverificationCancelledError.mockReturnValue(false);
 });
@@ -145,6 +154,373 @@ describe("Google接続controller", () => {
         (options) => (options as { onNeedsReverification?: unknown }).onNeedsReverification === onNeedsReverification,
       ),
     ).toBe(true);
+  });
+
+  it("本人再確認後にcallbackが再実行されても同じ明示操作のcooldownで自己遮断しない", async () => {
+    const reverificationRequired = new Error("reverification required");
+    mocks.reverificationRequiredError = reverificationRequired;
+    const pendingGoogle = googleResource({
+      id: "google-after-reverification",
+      status: "unverified",
+      emailAddress: "selected-google@example.com",
+      redirectUrl: "https://accounts.example.test/after-reverification",
+    });
+    const user = userResource();
+    vi.mocked(user.createExternalAccount)
+      .mockRejectedValueOnce(reverificationRequired)
+      .mockImplementationOnce(async () => {
+        user.externalAccounts = [pendingGoogle];
+        return pendingGoogle;
+      });
+    const navigate = vi.fn();
+    const { result } = renderGoogleHook({ user, navigateToExternalVerification: navigate });
+
+    await act(async () => result.current.start());
+
+    expect(user.createExternalAccount).toHaveBeenCalledTimes(2);
+    expect(result.current.state.phase).toBe("redirecting");
+    expect(result.current.state.errorKind).toBeNull();
+    expect(navigate).toHaveBeenCalledWith("https://accounts.example.test/after-reverification");
+    expect(readOnlyStoredCorrelation()).toMatchObject({ externalAccountId: pendingGoogle.id });
+  });
+
+  it("未検証Googleの明示的な再試行ではexact resourceだけを破棄して新しい選択を開始する", async () => {
+    const loginEmail = emailResource("email-login", "login@example.com");
+    const pendingGoogle = googleResource({
+      id: "google-failed",
+      status: "failed",
+      emailAddress: "claimed-google@example.com",
+      errorCode: "oauth_identification_claimed",
+    });
+    const unrelatedAccount = externalAccountResource({
+      id: "github-existing",
+      provider: "github",
+      status: "verified",
+      emailAddress: "github@example.com",
+    });
+    const freshGoogle = googleResource({
+      id: "google-fresh",
+      status: "unverified",
+      emailAddress: "fresh-google@example.com",
+      redirectUrl: "https://accounts.example.test/fresh-authorize",
+    });
+    const user = userResource({
+      emailAddresses: [loginEmail],
+      externalAccounts: [unrelatedAccount, pendingGoogle],
+    });
+    const initialIdentity = {
+      userId: user.id,
+      primaryEmailAddressId: user.primaryEmailAddressId,
+      passwordEnabled: user.passwordEnabled,
+      emailAddressIds: user.emailAddresses.map((email) => email.id),
+    };
+    vi.mocked(pendingGoogle.destroy).mockImplementation(async () => {
+      user.externalAccounts = user.externalAccounts.filter((account) => account.id !== pendingGoogle.id);
+    });
+    vi.mocked(user.createExternalAccount).mockImplementation(async () => {
+      user.externalAccounts = [...user.externalAccounts, freshGoogle];
+      return freshGoogle;
+    });
+    const navigate = vi.fn();
+    const { result } = renderGoogleHook({ user, navigateToExternalVerification: navigate });
+
+    await act(async () => result.current.start());
+
+    expect(pendingGoogle.destroy).toHaveBeenCalledOnce();
+    expect(unrelatedAccount.destroy).not.toHaveBeenCalled();
+    expect(user.createExternalAccount).toHaveBeenCalledWith({
+      strategy: "oauth_google",
+      redirectUrl: "/account/security?flow=connect-google&oauth=google",
+      oidcPrompt: "select_account",
+    });
+    expect(navigate).toHaveBeenCalledWith("https://accounts.example.test/fresh-authorize");
+    expect(readOnlyStoredCorrelation()).toMatchObject({
+      userId: initialIdentity.userId,
+      externalAccountId: freshGoogle.id,
+      primaryEmailAddressId: initialIdentity.primaryEmailAddressId,
+      passwordEnabled: initialIdentity.passwordEnabled,
+    });
+    expect(user.id).toBe(initialIdentity.userId);
+    expect(user.primaryEmailAddressId).toBe(initialIdentity.primaryEmailAddressId);
+    expect(user.passwordEnabled).toBe(initialIdentity.passwordEnabled);
+    expect(user.emailAddresses.map((email) => email.id)).toEqual(initialIdentity.emailAddressIds);
+  });
+
+  it("状態の再確認だけでは未検証Googleを破棄せず再試行可能と判定する", async () => {
+    const pendingGoogle = googleResource({
+      id: "google-pending",
+      status: "unverified",
+      emailAddress: "pending-google@example.com",
+    });
+    const user = userResource({ externalAccounts: [pendingGoogle] });
+    const { result } = renderGoogleHook({ user });
+
+    await act(async () => result.current.refresh());
+
+    expect(pendingGoogle.destroy).not.toHaveBeenCalled();
+    expect(user.createExternalAccount).not.toHaveBeenCalled();
+    expect(result.current.state).toMatchObject({
+      phase: "readyToConnect",
+      errorKind: null,
+      feedback: { status: "success", message: "最新の状態を確認しました。" },
+    });
+  });
+
+  it("未検証Googleの破棄応答を失ってもreloadで消失を証明できれば新しい選択を開始する", async () => {
+    const pendingGoogle = googleResource({
+      id: "google-cleanup-response-lost",
+      status: "unverified",
+      emailAddress: "old-google@example.com",
+    });
+    const freshGoogle = googleResource({
+      id: "google-after-cleanup-response-loss",
+      status: "unverified",
+      emailAddress: "fresh-google@example.com",
+      redirectUrl: "https://accounts.example.test/after-cleanup-response-loss",
+    });
+    const user = userResource({ externalAccounts: [pendingGoogle] });
+    vi.mocked(pendingGoogle.destroy).mockImplementation(async () => {
+      user.externalAccounts = [];
+      throw new Error("cleanup response lost");
+    });
+    vi.mocked(user.createExternalAccount).mockImplementation(async () => {
+      user.externalAccounts = [freshGoogle];
+      return freshGoogle;
+    });
+    const navigate = vi.fn();
+    const { result } = renderGoogleHook({ user, navigateToExternalVerification: navigate });
+
+    await act(async () => result.current.start());
+
+    expect(pendingGoogle.destroy).toHaveBeenCalledOnce();
+    expect(user.createExternalAccount).toHaveBeenCalledOnce();
+    expect(navigate).toHaveBeenCalledWith("https://accounts.example.test/after-cleanup-response-loss");
+    expect(readOnlyStoredCorrelation()).toMatchObject({ externalAccountId: freshGoogle.id });
+  });
+
+  it("未検証Googleのcleanup後にOAuth作成応答を失っても新しいexact resourceだけを復旧する", async () => {
+    const pendingGoogle = googleResource({
+      id: "google-before-create-response-loss",
+      status: "failed",
+      emailAddress: "old-google@example.com",
+    });
+    const createdGoogle = googleResource({
+      id: "google-created-after-cleanup",
+      status: "unverified",
+      emailAddress: "fresh-google@example.com",
+      redirectUrl: "https://accounts.example.test/recovered-after-cleanup",
+    });
+    const user = userResource({ externalAccounts: [pendingGoogle] });
+    vi.mocked(pendingGoogle.destroy).mockImplementation(async () => {
+      user.externalAccounts = [];
+    });
+    vi.mocked(user.createExternalAccount).mockImplementation(async () => {
+      user.externalAccounts = [createdGoogle];
+      throw new Error("create response lost after cleanup");
+    });
+    const navigate = vi.fn();
+    const { result } = renderGoogleHook({ user, navigateToExternalVerification: navigate });
+
+    let operationResult: boolean | undefined;
+    await act(async () => {
+      operationResult = await result.current.start();
+    });
+
+    expect(operationResult).toBe(true);
+    expect(pendingGoogle.destroy).toHaveBeenCalledOnce();
+    expect(user.createExternalAccount).toHaveBeenCalledOnce();
+    expect(navigate).toHaveBeenCalledWith("https://accounts.example.test/recovered-after-cleanup");
+    expect(readOnlyStoredCorrelation()).toMatchObject({ externalAccountId: createdGoogle.id });
+  });
+
+  it("未検証Googleの破棄失敗後もresourceが残る場合は新しいOAuthを開始しない", async () => {
+    const pendingGoogle = googleResource({
+      id: "google-cleanup-failed",
+      status: "failed",
+      emailAddress: "pending-google@example.com",
+    });
+    const user = userResource({ externalAccounts: [pendingGoogle] });
+    vi.mocked(pendingGoogle.destroy).mockRejectedValue(new Error("cleanup failed"));
+    const navigate = vi.fn();
+    const { result } = renderGoogleHook({ user, navigateToExternalVerification: navigate });
+
+    await act(async () => result.current.start());
+
+    expect(pendingGoogle.destroy).toHaveBeenCalledOnce();
+    expect(user.createExternalAccount).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(readStoredCorrelation()).toBeNull();
+    expect(readStoredCooldown()).toBeNull();
+    expect(result.current.state).toMatchObject({ phase: "unavailable", errorKind: "retryable" });
+  });
+
+  it("未検証Googleの破棄中にcurrent Userが切り替われば新しいOAuthを開始しない", async () => {
+    const pendingGoogle = googleResource({
+      id: "google-actor-switch",
+      status: "unverified",
+      emailAddress: "pending-google@example.com",
+    });
+    const user = userResource({ externalAccounts: [pendingGoogle] });
+    let currentActorId = user.id;
+    vi.mocked(user.reload)
+      .mockImplementationOnce(async () => user)
+      .mockImplementationOnce(async () => {
+        currentActorId = "user-switched";
+        return user;
+      });
+    const navigate = vi.fn();
+    const { result } = renderGoogleHook({
+      user,
+      getCurrentActorId: () => currentActorId,
+      navigateToExternalVerification: navigate,
+    });
+
+    await act(async () => result.current.start());
+
+    expect(pendingGoogle.destroy).not.toHaveBeenCalled();
+    expect(user.createExternalAccount).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(readStoredCorrelation()).toBeNull();
+  });
+
+  it("未検証Googleの破棄中にPrimaryが変われば新しいOAuthを開始しない", async () => {
+    const originalEmail = emailResource("email-original", "original@example.com");
+    const changedEmail = emailResource("email-changed", "changed@example.com");
+    const pendingGoogle = googleResource({
+      id: "google-primary-switch",
+      status: "unverified",
+      emailAddress: "pending-google@example.com",
+    });
+    const user = userResource({ emailAddresses: [originalEmail, changedEmail], externalAccounts: [pendingGoogle] });
+    vi.mocked(user.reload)
+      .mockImplementationOnce(async () => user)
+      .mockImplementationOnce(async () => {
+        user.primaryEmailAddressId = changedEmail.id;
+        return user;
+      });
+    const navigate = vi.fn();
+    const { result } = renderGoogleHook({ user, navigateToExternalVerification: navigate });
+
+    await act(async () => result.current.start());
+
+    expect(pendingGoogle.destroy).not.toHaveBeenCalled();
+    expect(user.createExternalAccount).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(readStoredCorrelation()).toBeNull();
+    expect(result.current.state.errorKind).toBe("clerkConflict");
+  });
+
+  it("cleanup前にexact Googleが検証済みになれば破棄も新しいOAuthも行わず成功へ収束する", async () => {
+    const loginEmail = emailResource("email-login", "login@example.com");
+    const pendingGoogle = googleResource({
+      id: "google-became-verified",
+      status: "unverified",
+      emailAddress: "connected-google@example.com",
+    });
+    const connectedGoogle = googleResource({
+      id: pendingGoogle.id,
+      status: "verified",
+      emailAddress: pendingGoogle.emailAddress,
+    });
+    const user = userResource({ emailAddresses: [loginEmail], externalAccounts: [pendingGoogle] });
+    vi.mocked(user.reload)
+      .mockImplementationOnce(async () => user)
+      .mockImplementationOnce(async () => {
+        user.emailAddresses = [loginEmail, emailResource("email-google", connectedGoogle.emailAddress)];
+        user.externalAccounts = [connectedGoogle];
+        return user;
+      });
+    const navigate = vi.fn();
+    const { result } = renderGoogleHook({ user, navigateToExternalVerification: navigate });
+
+    await act(async () => result.current.start());
+
+    expect(pendingGoogle.destroy).not.toHaveBeenCalled();
+    expect(connectedGoogle.destroy).not.toHaveBeenCalled();
+    expect(user.createExternalAccount).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(result.current.state.phase).toBe("methodReady");
+    expect(readStoredCorrelation()).toBeNull();
+  });
+
+  it("Google resourceが複数または未知statusならどれも推測削除しない", async () => {
+    const pendingA = googleResource({
+      id: "google-a",
+      status: "unverified",
+      emailAddress: "google-a@example.com",
+    });
+    const pendingB = googleResource({
+      id: "google-b",
+      status: "failed",
+      emailAddress: "google-b@example.com",
+    });
+    const multipleUser = userResource({ externalAccounts: [pendingA, pendingB] });
+    const multiple = renderGoogleHook({ user: multipleUser });
+
+    await act(async () => multiple.result.current.start());
+
+    expect(pendingA.destroy).not.toHaveBeenCalled();
+    expect(pendingB.destroy).not.toHaveBeenCalled();
+    expect(multipleUser.createExternalAccount).not.toHaveBeenCalled();
+
+    const unknownStatusGoogle = googleResource({
+      id: "google-unknown",
+      status: "unverified",
+      emailAddress: "unknown-google@example.com",
+    });
+    Object.assign(unknownStatusGoogle.verification ?? {}, { status: "unknown" });
+    const unknownUser = userResource({ externalAccounts: [unknownStatusGoogle] });
+    const unknown = renderGoogleHook({ user: unknownUser });
+
+    await act(async () => unknown.result.current.start());
+
+    expect(unknownStatusGoogle.destroy).not.toHaveBeenCalled();
+    expect(unknownUser.createExternalAccount).not.toHaveBeenCalled();
+  });
+
+  it("未検証Googleの再試行を二重実行してもcleanupとOAuth作成は一度だけ行う", async () => {
+    const cleanupGate = deferred<void>();
+    const pendingGoogle = googleResource({
+      id: "google-cleanup-single-flight",
+      status: "unverified",
+      emailAddress: "pending-google@example.com",
+    });
+    const freshGoogle = googleResource({
+      id: "google-cleanup-single-flight-fresh",
+      status: "unverified",
+      emailAddress: "fresh-google@example.com",
+      redirectUrl: "https://accounts.example.test/single-flight",
+    });
+    const user = userResource({ externalAccounts: [pendingGoogle] });
+    vi.mocked(pendingGoogle.destroy).mockImplementation(async () => {
+      await cleanupGate.promise;
+      user.externalAccounts = [];
+    });
+    vi.mocked(user.createExternalAccount).mockImplementation(async () => {
+      user.externalAccounts = [freshGoogle];
+      return freshGoogle;
+    });
+    const { result } = renderGoogleHook({ user, navigateToExternalVerification: vi.fn() });
+
+    let first: Promise<boolean | undefined> | undefined;
+    await act(async () => {
+      first = result.current.start();
+    });
+    await waitFor(() => expect(pendingGoogle.destroy).toHaveBeenCalledOnce());
+
+    let secondResult: boolean | undefined;
+    await act(async () => {
+      secondResult = await result.current.start();
+    });
+    expect(secondResult).toBeUndefined();
+
+    await act(async () => {
+      cleanupGate.resolve();
+      await first;
+    });
+
+    expect(pendingGoogle.destroy).toHaveBeenCalledOnce();
+    expect(user.createExternalAccount).toHaveBeenCalledOnce();
   });
 
   it("OAuth resource作成中に開始時のPrimaryが変われば即時確認済みでも成功にしない", async () => {

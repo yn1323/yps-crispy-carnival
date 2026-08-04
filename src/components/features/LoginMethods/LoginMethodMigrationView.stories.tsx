@@ -288,6 +288,27 @@ export const GoogleRetryableError: Story = {
   },
 };
 
+export const GoogleRetryFromErrorBehavior: Story = {
+  args: {
+    flow: "connect-google",
+    phase: "unavailable",
+    feedbackStatus: "error",
+    googleErrorKind: "retryable",
+    feedbackMessage:
+      "Googleログインを追加できませんでした。現在のログイン方法は変更されていません。もう一度お試しください。",
+  },
+  parameters: { screenshot: { skip: true } },
+  play: async () => {
+    const body = within(document.body);
+    const dialog = within(await body.findByRole("dialog", { name: "Googleログインを追加" }));
+
+    await userEvent.click(dialog.getByRole("button", { name: "もう一度試す" }));
+
+    const status = await dialog.findByText("Googleの画面を開いています");
+    await waitFor(() => expect(status).toBeVisible());
+  },
+};
+
 export const MobileGoogleOAuthWaiting: Story = {
   args: { flow: "connect-google", phase: "settling", feedbackStatus: "loading" },
   tags: ["vrt-mobile2"],
