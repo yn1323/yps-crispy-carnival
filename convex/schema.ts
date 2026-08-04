@@ -458,6 +458,7 @@ const schema = defineSchema({
   users: defineTable({
     authTokenIdentifier: v.string(),
     name: v.string(),
+    // 初回bootstrapとcanonical personを持たないlegacy経路のsnapshot。Clerkやシフト連絡先とは同期しない。
     email: v.string(),
     // TODO[narrow]: 全deploymentでm031が完走し、verifyUsersのemail残件が全pageで0になった後にrequired化する。
     emailNormalized: v.optional(v.string()),

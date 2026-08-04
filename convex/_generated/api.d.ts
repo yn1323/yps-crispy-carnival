@@ -10,6 +10,7 @@
 
 import type * as _lib_activeShop from "../_lib/activeShop.js";
 import type * as _lib_auditCorrelation from "../_lib/auditCorrelation.js";
+import type * as _lib_clerkVerifiedEmailProvider from "../_lib/clerkVerifiedEmailProvider.js";
 import type * as _lib_config from "../_lib/config.js";
 import type * as _lib_dashboardUrl from "../_lib/dashboardUrl.js";
 import type * as _lib_dateFormat from "../_lib/dateFormat.js";
@@ -48,9 +49,6 @@ import type * as accountDeletion_queries from "../accountDeletion/queries.js";
 import type * as accountDeletion_schemas from "../accountDeletion/schemas.js";
 import type * as accountEmail_actions from "../accountEmail/actions.js";
 import type * as accountEmail_mutations from "../accountEmail/mutations.js";
-import type * as accountEmail_provider from "../accountEmail/provider.js";
-import type * as accountEmail_schemas from "../accountEmail/schemas.js";
-import type * as accountEmail_service from "../accountEmail/service.js";
 import type * as analytics_model from "../analytics/model.js";
 import type * as analytics_pipeline from "../analytics/pipeline.js";
 import type * as analytics_refs from "../analytics/refs.js";
@@ -183,6 +181,7 @@ import type * as organizationBilling_notification from "../organizationBilling/n
 import type * as organizationBilling_policy from "../organizationBilling/policy.js";
 import type * as organizationBilling_queries from "../organizationBilling/queries.js";
 import type * as organizationBilling_service from "../organizationBilling/service.js";
+import type * as organizationInvitation_acceptanceActions from "../organizationInvitation/acceptanceActions.js";
 import type * as organizationInvitation_actions from "../organizationInvitation/actions.js";
 import type * as organizationInvitation_constants from "../organizationInvitation/constants.js";
 import type * as organizationInvitation_lifecycle from "../organizationInvitation/lifecycle.js";
@@ -244,6 +243,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   "_lib/activeShop": typeof _lib_activeShop;
   "_lib/auditCorrelation": typeof _lib_auditCorrelation;
+  "_lib/clerkVerifiedEmailProvider": typeof _lib_clerkVerifiedEmailProvider;
   "_lib/config": typeof _lib_config;
   "_lib/dashboardUrl": typeof _lib_dashboardUrl;
   "_lib/dateFormat": typeof _lib_dateFormat;
@@ -282,9 +282,6 @@ declare const fullApi: ApiFromModules<{
   "accountDeletion/schemas": typeof accountDeletion_schemas;
   "accountEmail/actions": typeof accountEmail_actions;
   "accountEmail/mutations": typeof accountEmail_mutations;
-  "accountEmail/provider": typeof accountEmail_provider;
-  "accountEmail/schemas": typeof accountEmail_schemas;
-  "accountEmail/service": typeof accountEmail_service;
   "analytics/model": typeof analytics_model;
   "analytics/pipeline": typeof analytics_pipeline;
   "analytics/refs": typeof analytics_refs;
@@ -417,6 +414,7 @@ declare const fullApi: ApiFromModules<{
   "organizationBilling/policy": typeof organizationBilling_policy;
   "organizationBilling/queries": typeof organizationBilling_queries;
   "organizationBilling/service": typeof organizationBilling_service;
+  "organizationInvitation/acceptanceActions": typeof organizationInvitation_acceptanceActions;
   "organizationInvitation/actions": typeof organizationInvitation_actions;
   "organizationInvitation/constants": typeof organizationInvitation_constants;
   "organizationInvitation/lifecycle": typeof organizationInvitation_lifecycle;

@@ -9,13 +9,15 @@ import { sendReminderRef } from "./refs";
 async function setupReminderTarget() {
   const t = convexTest(schema, modules);
   const ids = await t.run(async (ctx) => {
-    const { shopId, userId } = await seedManagerShop(ctx, {
+    const { shopId, userId, organizationId, personId } = await seedManagerShop(ctx, {
       subject: "manager",
       email: "manager@example.com",
       shopName: "通知店舗",
     });
     const managerStaffId = await ctx.db.insert("staffs", {
       shopId,
+      organizationId,
+      organizationPersonId: personId,
       name: "店長",
       email: "manager@example.com",
       emailNormalized: "manager@example.com",

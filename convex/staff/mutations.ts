@@ -541,6 +541,9 @@ export const editStaff = managerMutation({
     if (hasOrganizationLink && (!organizationId || !organizationPersonId)) {
       throw new ConvexError("スタッフのユーザー情報を確認できません。\nグループ設定で登録内容を確認してください。");
     }
+    if (organizationId && (!ctx.organization || organizationId !== ctx.organization._id)) {
+      throw new ConvexError("スタッフのユーザー情報を確認できません。\nグループ設定で登録内容を確認してください。");
+    }
     const organizationPerson = organizationId && organizationPersonId ? await ctx.db.get(organizationPersonId) : null;
     if (
       organizationId &&
@@ -552,7 +555,7 @@ export const editStaff = managerMutation({
     }
 
     if (organizationPerson && organizationId) {
-      await updateOrganizationPersonProfile(ctx, {
+      const result = await updateOrganizationPersonProfile(ctx, {
         organizationId,
         personId: organizationPerson._id,
         actorUser: ctx.user,
@@ -560,6 +563,16 @@ export const editStaff = managerMutation({
         name: trimmedName,
         email: trimmedEmail,
       });
+      if (result.changed) {
+        await recordOrganizationAuditEvent(ctx, {
+          organizationId,
+          actorUserId: ctx.user._id,
+          actorPersonId: ctx.organizationMember?.personId,
+          action: "organization.person_profile_updated",
+          targetKind: "person",
+          targetId: organizationPerson._id,
+        });
+      }
       return null;
     }
 
@@ -587,8 +600,8 @@ export const editStaff = managerMutation({
     const emailChangedAt = Date.now();
     await ctx.db.patch(staff._id, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail });
     if (staff.userId === ctx.user._id) {
-      // manager 自身をスタッフとして持つ店舗では、スタッフ名と管理者名を同じ表示名として同期する。
-      await ctx.db.patch(ctx.user._id, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail });
+      // legacy staffでも表示名だけを同期し、シフト連絡先をusersのbootstrap snapshotへ逆同期しない。
+      await ctx.db.patch(ctx.user._id, { name: trimmedName });
     }
 
     if (emailChanged) {

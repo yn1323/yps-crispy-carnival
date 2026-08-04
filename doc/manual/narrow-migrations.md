@@ -99,6 +99,8 @@ Outbox scopeのNarrowでは`unresolvedNotificationOutboxScopeRows`も全ペー�
 合計が0でない項目は、次のNarrow deployを止める理由と修復方法を記録します。
 `verifyPositionShops.observations.shopsWithoutActivePositions`は、positionが不要な店舗もあり得るため観測値です。  `anomalies`とは分けて記録し、この値だけではNarrowを止めません。
 
+ログイン方法とシフト連絡先の分離を公開する前は、`verifyStaffs.activeStaffPersonEmailMismatch`も全ページ合計で0件であることを確認します。  0件でない場合はpersonと未削除staffの連絡先projectionが既存データ上で一致していないため、本実装の更新処理で推測修復せず、対象deploymentと件数を記録して別のmigration判定へ分けます。
+
 ## Conflict修復後の限定再実行
 
 固定seriesのrunnerは完了済みmigrationをskipします。  conflictを修復しただけで`runNarrowPreparation`を再実行しても、完了済みの対象tableは再走査されません。
@@ -230,7 +232,7 @@ Narrow deploy後も、旧形式を投入するMigration Testはschema validation
 
 `organizationInvitations`はm023のstatus、link evidence、target / linkedBy / acceptedBy人物のtenant scope、旧status、旧`accepted*`、未解消conflictがすべて0件になった後にだけ、旧literalと旧fieldをschema・validator・readerから削除します。  証跡が欠けた`accepted`や別事業者・danglingな人物を`linked`へ推測変換しません。
 
-`shops`、`staffs`、`shopMembers`、`shopBillingStates`はm025からm029の関係するstatusとreadinessを満たしてから、optionalなcanonical IDとlegacy authority fallbackを削除します。  `verifyStaffs.danglingStaffUser`、`verifyStaffs.missingPersonUserForLinkedStaff`、`verifyStaffs.personUserMismatch`も0件でなければならず、本人紐付けを推測して解消しません。  m029を実行していないdeploymentでは`shopMembers` fallbackを削除しません。
+`shops`、`staffs`、`shopMembers`、`shopBillingStates`はm025からm029の関係するstatusとreadinessを満たしてから、optionalなcanonical IDとlegacy authority fallbackを削除します。  `verifyStaffs.danglingStaffUser`、`verifyStaffs.missingPersonUserForLinkedStaff`、`verifyStaffs.personUserMismatch`、`verifyStaffs.activeStaffPersonEmailMismatch`も0件でなければならず、本人紐付けや連絡先projectionを推測して解消しません。  m029を実行していないdeploymentでは`shopMembers` fallbackを削除しません。
 
 `notificationOutbox`は、m024 / m025 / m030 / m037のstatus、全ページreadiness、Outbox所有conflictの未解消0件、旧scheduled callerのdrainが揃った後にだけNarrowします。  `organizationId` / `purpose` / `notificationContext` / `deliverySuppressed`をrequired化し、`purpose ?? "business"`、purpose未設定のindex分岐、Widen前shop-scoped scan、店舗所属へ戻すreader fallbackを同じ契約変更で削除します。  `shopId`はbilling等のorganization-only通知で、`organizationBillingVersionAtEnqueue`は履歴snapshotとして、どちらもoptionalのまま維持します。
 

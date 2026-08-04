@@ -143,7 +143,6 @@ const settleBasicInformationDialogFocus = async () => {
 const baseActions: UserDetailViewProps["actions"] = {
   onBack: noop,
   onOpenBasic: noop,
-  onOpenEmailChange: noop,
   onOpenAddShop: noop,
   onOpenShop: noop,
   onClosePanel: noop,
@@ -156,7 +155,6 @@ const baseActions: UserDetailViewProps["actions"] = {
   onRequestRemovePerson: noop,
   onConfirmManagerSetting: asyncNoop,
   onCloseManagerDialog: noop,
-  onAccountEmailFinished: noop,
 };
 
 const meta = {
@@ -190,37 +188,38 @@ export const BasicInformationDialog: Story = {
   play: settleBasicInformationDialogFocus,
 };
 
-export const LinkedOtherEmailReadOnly: Story = {
+export const LinkedStaffContactEditable: Story = {
   args: { activePanel: "basic", data: multipleStoresData },
   parameters: { screenshot: { skip: true } },
   play: async () => {
     const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
-    await expect(within(dialog).queryByRole("textbox", { name: "メールアドレス" })).not.toBeInTheDocument();
-    await expect(
-      within(dialog).getByText("アカウント連携済みのメールアドレスは、本人のみ変更できます。"),
-    ).toBeInTheDocument();
-  },
-};
-
-export const UnlinkedStaffEmailEditable: Story = {
-  args: { activePanel: "basic", data: unlinkedData },
-  parameters: { screenshot: { skip: true } },
-  play: async () => {
-    const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
-    await expect(within(dialog).getByRole("textbox", { name: "メールアドレス" })).toHaveValue(
+    await expect(within(dialog).getByRole("textbox", { name: "シフト連絡先メールアドレス" })).toHaveValue(
       "hanako.tanaka@example.com",
     );
   },
 };
 
-export const SelfLinkedEmailEntry: Story = {
-  args: { activePanel: "basic", data: selfLinkedData },
+export const UnlinkedStaffContactEditable: Story = {
+  args: { activePanel: "basic", data: unlinkedData },
   parameters: { screenshot: { skip: true } },
   play: async () => {
     const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
-    await expect(within(dialog).getByText("login@example.com")).toBeInTheDocument();
-    await expect(within(dialog).getByRole("button", { name: "メールアドレスを変更" })).toBeInTheDocument();
+    await expect(within(dialog).getByRole("textbox", { name: "シフト連絡先メールアドレス" })).toHaveValue(
+      "hanako.tanaka@example.com",
+    );
   },
+};
+
+export const SelfContactGuidance: Story = {
+  args: { activePanel: "basic", data: selfLinkedData },
+};
+
+export const SelfContactGuidanceMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: {
+    viewport: { value: "mobile2", isRotated: false },
+  },
+  args: { activePanel: "basic", data: selfLinkedData },
 };
 
 export const ManagerInvitationDarkLaunchBehavior: Story = {
@@ -397,7 +396,6 @@ function PanelNavigationHarness({ data = unlinkedData }: { data?: UserDetailData
         actions={{
           ...baseActions,
           onOpenBasic: () => setActivePanel("basic"),
-          onOpenEmailChange: () => setActivePanel("email"),
           onOpenAddShop: () => setActivePanel("addShop"),
           onClosePanel: () => setActivePanel(undefined),
           onRequestRemovePerson: () =>
@@ -432,7 +430,9 @@ export const BasicInformationFlowBehavior: Story = {
     const dialog = await page.findByRole("dialog", { name: "スタッフ情報" });
     const basicDialog = within(dialog);
     await expect(basicDialog.getByRole("textbox", { name: "名前" })).toHaveValue("田中 花子");
-    await expect(basicDialog.getByRole("textbox", { name: "メールアドレス" })).toHaveValue("hanako.tanaka@example.com");
+    await expect(basicDialog.getByRole("textbox", { name: "シフト連絡先メールアドレス" })).toHaveValue(
+      "hanako.tanaka@example.com",
+    );
     await expect(basicDialog.getByRole("heading", { name: "管理者権限" })).toBeInTheDocument();
     await userEvent.click(basicDialog.getByRole("button", { name: "キャンセル" }));
     await waitFor(() => expect(page.queryByRole("dialog", { name: "スタッフ情報" })).not.toBeInTheDocument());

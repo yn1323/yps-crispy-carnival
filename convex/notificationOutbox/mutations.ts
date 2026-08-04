@@ -8,6 +8,7 @@ import { monthJST } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
 import { isNotificationDeliverySuppressed } from "../_lib/notificationDelivery";
 import { rateLimit } from "../_lib/rateLimits";
+import { loadShopManagerStaffForContact, type ShopManagerContact } from "../_lib/shopManagerRecipients";
 import { normalizeEmail } from "../_lib/validation";
 import {
   NOTIFICATION_DELIVERY_EVENT_PRUNE_BATCH_SIZE,
@@ -1359,17 +1360,10 @@ async function getUserRecipientCancellationReason(
   const shopId = notification.shopId;
   if (notification.payload.kind === "line") {
     if (!shopId) return "recipient_inactive";
-    const managerStaffs = (
-      await ctx.db
-        .query("staffs")
-        .withIndex("by_userId_and_shopId", (q) => q.eq("userId", userId).eq("shopId", shopId))
-        .take(2)
-    ).filter((staff) => !staff.isDeleted);
-    if (managerStaffs.length !== 1) return "recipient_inactive";
-    const managerStaff = managerStaffs[0];
-    if (organizationId && managerStaff.organizationId && managerStaff.organizationId !== organizationId) {
-      return "recipient_inactive";
-    }
+    const managerContact: ShopManagerContact =
+      organizationId && person ? { kind: "canonical", user, person, organizationId } : { kind: "legacy", user };
+    const managerStaff = await loadShopManagerStaffForContact(ctx, shopId, managerContact);
+    if (!managerStaff) return "recipient_inactive";
     const lineAccount = await getStaffLineAccount(ctx, managerStaff._id);
     if (
       !lineAccount?.following ||

@@ -6,11 +6,6 @@ export function buildManagerInvitationRedirect(token: string | undefined): strin
   return normalizeAuthRedirect(`/manager-invite${search}`);
 }
 
-export function buildManagerInvitationLoginUrl(invitationRedirect: string): string {
-  const safeRedirect = normalizeAuthRedirect(invitationRedirect);
-  return `/login?redirect=${encodeURIComponent(safeRedirect)}`;
-}
-
 export function formatManagerInvitationExpiry(expiresAt: number): string {
   const parts = new Intl.DateTimeFormat("ja-JP", {
     timeZone: "Asia/Tokyo",

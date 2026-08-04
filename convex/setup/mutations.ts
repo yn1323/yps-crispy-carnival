@@ -116,6 +116,9 @@ export const setupShopAndManager = authenticatedMutation({
 export const createOrganization = authenticatedMutation({
   args: {
     shopName: v.string(),
+    // 追加グループの人物・連絡先は、操作中グループのcanonical personから引き継ぐ。
+    // 旧frontend互換中は省略を許し、その場合だけusers snapshotへfallbackする。
+    sourceShopId: v.optional(v.id("shops")),
     // TODO[narrow]: m039の完走と旧frontend互換期間の終了後にrequired化する。
     regularClosedDays: v.optional(
       v.array(
@@ -165,10 +168,13 @@ export const createOrganization = authenticatedMutation({
     });
     if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
 
+    const managerProfile = await resolveOrganizationCreationManagerProfile(ctx, user, args.sourceShopId);
+
     const { shopId } = await createOrganizationWithFirstShop(ctx, {
       userId: user._id,
-      managerName: user.name,
-      managerEmail: user.email,
+      managerName: managerProfile.name,
+      managerEmail: managerProfile.email,
+      managerProfileSource: managerProfile.source,
       shopName: parsed.data.shopName,
       regularClosedDays: WEEKDAY_ORDER.filter((day) => parsed.data.regularClosedDays.includes(day)),
       submissionPattern: parsed.data.submissionPattern,
@@ -180,6 +186,91 @@ export const createOrganization = authenticatedMutation({
     return { shopId, created: true };
   },
 });
+
+async function resolveOrganizationCreationManagerProfile(
+  ctx: MutationCtx,
+  user: { _id: Id<"users">; name: string; email: string },
+  sourceShopId: Id<"shops"> | undefined,
+): Promise<{
+  name: string;
+  email: string;
+  source: "canonicalPerson" | "legacySourceUserSnapshot" | "omittedSourceUserSnapshot";
+}> {
+  if (!sourceShopId) return { name: user.name, email: user.email, source: "omittedSourceUserSnapshot" };
+
+  const shop = await ctx.db.get(sourceShopId);
+  if (!shop || shop.isDeleted) throw new ConvexError("Not found");
+
+  const sourceOrganizationId = shop.organizationId;
+  if (!sourceOrganizationId) {
+    const legacyMemberships = await ctx.db
+      .query("shopMembers")
+      .withIndex("by_userId_and_shopId_and_isDeleted", (q) =>
+        q.eq("userId", user._id).eq("shopId", sourceShopId).eq("isDeleted", false),
+      )
+      .take(2);
+    if (legacyMemberships.length !== 1) throw new ConvexError("Not found");
+    return { name: user.name, email: user.email, source: "legacySourceUserSnapshot" };
+  }
+
+  const [organization, memberships, people, legacyMemberships] = await Promise.all([
+    ctx.db.get(sourceOrganizationId),
+    ctx.db
+      .query("organizationMembers")
+      .withIndex("by_userId_and_organizationId", (q) =>
+        q.eq("userId", user._id).eq("organizationId", sourceOrganizationId),
+      )
+      .take(2),
+    ctx.db
+      .query("organizationPeople")
+      .withIndex("by_organizationId_and_userId", (q) =>
+        q.eq("organizationId", sourceOrganizationId).eq("userId", user._id),
+      )
+      .take(2),
+    ctx.db
+      .query("shopMembers")
+      .withIndex("by_userId_and_shopId_and_isDeleted", (q) =>
+        q.eq("userId", user._id).eq("shopId", sourceShopId).eq("isDeleted", false),
+      )
+      .take(2),
+  ]);
+  if (!organization || organization.isDeleted) {
+    throw new ConvexError("Not found");
+  }
+
+  if (memberships.length === 0) {
+    if (legacyMemberships.length !== 1 || people.length > 1) throw new ConvexError("Not found");
+    const person = people[0];
+    if (!person) {
+      return { name: user.name, email: user.email, source: "legacySourceUserSnapshot" };
+    }
+    if (
+      person.organizationId !== organization._id ||
+      person.userId !== user._id ||
+      person.status !== "active" ||
+      normalizeEmail(person.email) !== person.emailNormalized
+    ) {
+      throw new ConvexError("Not found");
+    }
+    return { name: person.name, email: person.email, source: "canonicalPerson" };
+  }
+  if (memberships.length !== 1 || memberships[0].status !== "active" || people.length !== 1) {
+    throw new ConvexError("Not found");
+  }
+
+  const person = await ctx.db.get(memberships[0].personId);
+  if (
+    !person ||
+    people[0]._id !== person._id ||
+    person.organizationId !== organization._id ||
+    person.userId !== user._id ||
+    person.status !== "active" ||
+    normalizeEmail(person.email) !== person.emailNormalized
+  ) {
+    throw new ConvexError("Not found");
+  }
+  return { name: person.name, email: person.email, source: "canonicalPerson" };
+}
 
 /**
  * 同じrequestIdでの再実行を、二つ目のグループを増やさずに収束させる。

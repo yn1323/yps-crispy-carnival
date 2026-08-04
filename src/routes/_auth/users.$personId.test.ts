@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest";
 import { validateUserDetailSearch } from "./users.$personId";
 
 describe("ユーザー詳細URL", () => {
-  it.each(["basic", "email", "addShop"] as const)("panel=%sを表示対象として受け付ける", (panel) => {
+  it.each(["basic", "addShop"] as const)("panel=%sを表示対象として受け付ける", (panel) => {
     expect(validateUserDetailSearch({ panel })).toEqual({ panel });
+  });
+
+  it("廃止したpanel=emailは通常のスタッフ詳細へ収束する", () => {
+    expect(validateUserDetailSearch({ shop: "shop-b", panel: "email" })).toEqual({ shop: "shop-b" });
   });
 
   it("廃止したpanel=shopはshopを維持して破棄する", () => {

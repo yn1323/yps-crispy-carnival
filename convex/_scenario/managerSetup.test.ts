@@ -1,6 +1,5 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { internal } from "../_generated/api";
 import {
   hasScheduledJob,
   readScheduledFunctions,
@@ -9,7 +8,6 @@ import {
   seedSession,
 } from "../_test/scenarioBuilders";
 import { createScenario } from "../_test/scenarioFixtures";
-import { testAuthTokenIdentifier } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 const SETUP_MANAGER_SUBJECT = "scenario_setup_manager";
@@ -109,25 +107,20 @@ describe("管理者セットアップシナリオ", () => {
     const scheduled = await readScheduledFunctions(t);
     expect(hasScheduledJob(scheduled, "line/actions:sendInviteEmail", { staffId: managerStaff._id })).toBe(true);
 
-    // Act: 名前はprofile mutation、ログインメールはClerk primary確認後の専用同期として反映する。
+    // Act: 管理者自身の名前とシフト連絡先を、canonical person経由で更新する。
     await asManager.editStaff({
       staffId: managerStaff._id,
       name: "山田 太郎 更新",
-      email: "manager@example.com",
-    });
-    await t.mutation(internal.accountEmail.mutations.syncPrimary, {
-      authTokenIdentifier: testAuthTokenIdentifier(SETUP_MANAGER_SUBJECT),
       email: "manager-updated@example.com",
-      requestKey: "e".repeat(64),
     });
 
-    // Assert: スタッフ表示名と管理者プロフィールが同期される。
+    // Assert: person/staffの連絡先だけが変わり、usersのbootstrapメールは変わらない。
     const updatedUser = await asManager.getCurrentUser();
     const updatedStaffPage = await asManager.getDashboardStaffs();
     expect(updatedUser).toMatchObject({
       isNewUser: false,
       name: "山田 太郎 更新",
-      email: "manager-updated@example.com",
+      email: "manager@example.com",
     });
     expect(updatedStaffPage.page[0]).toMatchObject({
       name: "山田 太郎 更新",

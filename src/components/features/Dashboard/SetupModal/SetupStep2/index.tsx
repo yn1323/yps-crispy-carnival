@@ -40,13 +40,18 @@ export const SetupStep2 = ({ onSubmit, defaultValues, formId = "setup-step2" }: 
           {errors.name && <Field.ErrorText>{errors.name.message}</Field.ErrorText>}
         </Field.Root>
         <Field.Root invalid={!!errors.email}>
-          <Field.Label>メールアドレス</Field.Label>
+          <Field.Label>シフト連絡先メールアドレス</Field.Label>
           <Input
             type="email"
             {...register("email")}
             maxLength={EMAIL_MAX_LENGTH}
             placeholder="例：yamada@example.com"
           />
+          <Field.HelperText whiteSpace="pre-line" lineHeight="tall">
+            {
+              "ご自身のシフトのお知らせや確認・再発行リンク、管理者向けの連絡を送ります。\n最初の請求先にも設定され、請求先は後からグループ設定で変更できます。"
+            }
+          </Field.HelperText>
           {errors.email && <Field.ErrorText>{errors.email.message}</Field.ErrorText>}
         </Field.Root>
         <Text fontSize="xs" color="fg.muted">

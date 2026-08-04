@@ -1539,55 +1539,130 @@ describe("organization person profile update", () => {
 
   afterEach(() => vi.useRealTimers());
 
-  it("連携済み本人のメール変更を拒否し、同じメールでの名前変更だけを反映する", async () => {
+  it("連携済み本人の連絡先をpersonと同一グループの有効staffだけへ反映する", async () => {
     const t = convexTest(schema, modules);
-    const ids = await t.run(
-      async (ctx) =>
-        await seedOrganizationManagerShop(ctx, {
-          subject: "profile_self_actor",
-          email: "profile-self-before@example.com",
-          plan: "pro",
-        }),
-    );
-    const actor = t.withIdentity({ subject: "profile_self_actor" });
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "profile_self_actor",
+        email: "profile-self-login@example.com",
+        plan: "pro",
+      });
+      const activeStaffId = await ctx.db.insert("staffs", {
+        shopId: base.shopId,
+        organizationId: base.organizationId,
+        organizationPersonId: base.personId,
+        userId: base.userId,
+        name: "更新前の管理者",
+        email: "profile-self-login@example.com",
+        emailNormalized: "profile-self-login@example.com",
+        isDeleted: false,
+      });
+      const deletedStaffId = await ctx.db.insert("staffs", {
+        shopId: base.shopId,
+        organizationId: base.organizationId,
+        organizationPersonId: base.personId,
+        userId: base.userId,
+        name: "削除済み管理者",
+        email: "deleted-contact@example.com",
+        emailNormalized: "deleted-contact@example.com",
+        isDeleted: true,
+      });
 
-    await expect(
-      actor.mutation(api.organization.mutations.updatePersonProfile, {
-        shopId: ids.shopId,
-        personId: ids.personId,
-        name: "更新後の管理者",
-        email: "profile-self-after@example.com",
-        requestId: "person-profile-self-email",
-      }),
-    ).rejects.toThrow("アカウント連携済みユーザーのメールアドレスは、本人だけが変更できます。");
+      const otherOrganizationId = await ctx.db.insert("organizations", {
+        name: "別グループ",
+        billingEmail: "other-billing@example.com",
+        billingEmailNormalized: "other-billing@example.com",
+        isDeleted: false,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      const otherShopId = await seedOrganizationShop(ctx, otherOrganizationId, "別グループ店舗");
+      const otherPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: otherOrganizationId,
+        userId: base.userId,
+        name: "別グループの管理者",
+        email: "other-contact@example.com",
+        emailNormalized: "other-contact@example.com",
+        status: "active",
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      const otherStaffId = await ctx.db.insert("staffs", {
+        shopId: otherShopId,
+        organizationId: otherOrganizationId,
+        organizationPersonId: otherPersonId,
+        userId: base.userId,
+        name: "別グループの管理者",
+        email: "other-contact@example.com",
+        emailNormalized: "other-contact@example.com",
+        isDeleted: false,
+      });
+      return { ...base, activeStaffId, deletedStaffId, otherOrganizationId, otherPersonId, otherStaffId };
+    });
+    const actor = t.withIdentity({ subject: "profile_self_actor" });
 
     const result = await actor.mutation(api.organization.mutations.updatePersonProfile, {
       shopId: ids.shopId,
       personId: ids.personId,
       name: "更新後の管理者",
-      email: "profile-self-before@example.com",
-      requestId: "person-profile-self-name",
+      email: "profile-self-contact@example.com",
+      requestId: "person-profile-self-contact",
     });
 
     expect(result).toEqual({ changed: true });
     const state = await t.run(async (ctx) => ({
       person: await ctx.db.get(ids.personId),
+      activeStaff: await ctx.db.get(ids.activeStaffId),
+      deletedStaff: await ctx.db.get(ids.deletedStaffId),
       user: await ctx.db.get(ids.userId),
+      organization: await ctx.db.get(ids.organizationId),
+      otherOrganization: await ctx.db.get(ids.otherOrganizationId),
+      otherPerson: await ctx.db.get(ids.otherPersonId),
+      otherStaff: await ctx.db.get(ids.otherStaffId),
       audits: await ctx.db
         .query("organizationAuditEvents")
         .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
         .filter((q) => q.eq(q.field("action"), "organization.person_profile_updated"))
         .collect(),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
     }));
     expect(state.person).toMatchObject({
       name: "更新後の管理者",
-      email: "profile-self-before@example.com",
-      emailNormalized: "profile-self-before@example.com",
+      email: "profile-self-contact@example.com",
+      emailNormalized: "profile-self-contact@example.com",
+    });
+    expect(state.activeStaff).toMatchObject({
+      name: "更新後の管理者",
+      email: "profile-self-contact@example.com",
+      emailNormalized: "profile-self-contact@example.com",
+    });
+    expect(state.deletedStaff).toMatchObject({
+      name: "削除済み管理者",
+      email: "deleted-contact@example.com",
+      emailNormalized: "deleted-contact@example.com",
     });
     expect(state.user).toMatchObject({
       name: "更新後の管理者",
-      email: "profile-self-before@example.com",
-      emailNormalized: "profile-self-before@example.com",
+      email: "profile-self-login@example.com",
+      emailNormalized: "profile-self-login@example.com",
+    });
+    expect(state.organization).toMatchObject({
+      billingEmail: "profile-self-login@example.com",
+      billingEmailNormalized: "profile-self-login@example.com",
+    });
+    expect(state.otherOrganization).toMatchObject({
+      billingEmail: "other-billing@example.com",
+      billingEmailNormalized: "other-billing@example.com",
+    });
+    expect(state.otherPerson).toMatchObject({
+      name: "別グループの管理者",
+      email: "other-contact@example.com",
+      emailNormalized: "other-contact@example.com",
+    });
+    expect(state.otherStaff).toMatchObject({
+      name: "別グループの管理者",
+      email: "other-contact@example.com",
+      emailNormalized: "other-contact@example.com",
     });
     expect(state.audits).toHaveLength(1);
     expect(state.audits[0]).toMatchObject({
@@ -1595,11 +1670,22 @@ describe("organization person profile update", () => {
       targetKind: "person",
       targetId: ids.personId,
     });
-    expect(JSON.stringify(state.audits[0])).not.toContain("person-profile-self-name");
-    expect(JSON.stringify(state.audits[0])).not.toContain("profile-self-before@example.com");
+    expect(JSON.stringify(state.audits[0])).not.toContain("person-profile-self-contact");
+    expect(JSON.stringify(state.audits[0])).not.toContain("profile-self-login@example.com");
+    expect(JSON.stringify(state.audits[0])).not.toContain("profile-self-contact@example.com");
+    expect(
+      state.scheduled
+        .filter((job) => job.name === "notification/actions:sendOpenRecruitmentNotificationEmailsForStaffEmailChange")
+        .map((job) => job.args[0]),
+    ).toEqual([
+      expect.objectContaining({
+        staffId: ids.activeStaffId,
+        expectedEmailNormalized: "profile-self-contact@example.com",
+      }),
+    ]);
   });
 
-  it("人物正本の変更を全店舗の有効スタッフへ同期し、メール変更通知を店舗ごとに予約する", async () => {
+  it("別の連携済み人物の変更を全店舗の有効staffへ同期し、メール変更通知を店舗ごとに予約する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -1607,9 +1693,11 @@ describe("organization person profile update", () => {
         plan: "pro",
       });
       const otherShopId = await seedOrganizationShop(ctx, base.organizationId, "別店舗");
+      const targetUserId = await seedUser(ctx, "profile_multi_shop_target", "profile-before@example.com");
       const now = Date.now();
       const personId = await ctx.db.insert("organizationPeople", {
         organizationId: base.organizationId,
+        userId: targetUserId,
         name: "同期前",
         email: "profile-before@example.com",
         emailNormalized: "profile-before@example.com",
@@ -1624,6 +1712,7 @@ describe("organization person profile update", () => {
               shopId,
               organizationId: base.organizationId,
               organizationPersonId: personId,
+              userId: targetUserId,
               name: "同期前",
               email: "profile-before@example.com",
               emailNormalized: "profile-before@example.com",
@@ -1631,7 +1720,7 @@ describe("organization person profile update", () => {
             }),
         ),
       );
-      return { ...base, personId, staffIds };
+      return { ...base, personId, staffIds, targetUserId };
     });
 
     await t
@@ -1647,6 +1736,7 @@ describe("organization person profile update", () => {
     const state = await t.run(async (ctx) => ({
       person: await ctx.db.get(ids.personId),
       staffs: await Promise.all(ids.staffIds.map(async (staffId) => await ctx.db.get(staffId))),
+      targetUser: await ctx.db.get(ids.targetUserId),
       scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
     }));
     expect(state.person).toMatchObject({ name: "同期後", emailNormalized: "profile-after@example.com" });
@@ -1654,6 +1744,10 @@ describe("organization person profile update", () => {
       expect.objectContaining({ name: "同期後", emailNormalized: "profile-after@example.com" }),
       expect.objectContaining({ name: "同期後", emailNormalized: "profile-after@example.com" }),
     ]);
+    expect(state.targetUser).toMatchObject({
+      email: "profile-before@example.com",
+      emailNormalized: "profile-before@example.com",
+    });
     expect(
       state.scheduled.filter(
         (job) => job.name === "notification/actions:sendOpenRecruitmentNotificationEmailsForStaffEmailChange",

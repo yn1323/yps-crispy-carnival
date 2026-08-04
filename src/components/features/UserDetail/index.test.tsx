@@ -41,7 +41,6 @@ vi.mock("./UserDetailView", () => ({
     actions: {
       onBack: () => void;
       onOpenBasic: () => void;
-      onOpenEmailChange: () => void;
       onOpenAddShop: () => void;
       onOpenShop: (shopId: string) => void;
       onClosePanel: () => void;
@@ -56,9 +55,6 @@ vi.mock("./UserDetailView", () => ({
       </button>
       <button type="button" onClick={actions.onOpenBasic}>
         スタッフ情報を開く
-      </button>
-      <button type="button" onClick={actions.onOpenEmailChange}>
-        メール変更を開く
       </button>
       <button type="button" onClick={actions.onOpenAddShop}>
         店舗追加を開く
@@ -164,11 +160,10 @@ describe("UserDetail", () => {
     expect(mocks.navigate).not.toHaveBeenCalled();
   });
 
-  it("基本情報・本人メール変更・店舗追加のパネルをURL検索条件で開く", () => {
+  it("基本情報と店舗追加のパネルをURL検索条件で開く", () => {
     render(<UserDetail data={data} selectedShopId={null} returnTo="dashboard" visibleUserCount={10} />);
 
     fireEvent.click(screen.getByRole("button", { name: "スタッフ情報を開く" }));
-    fireEvent.click(screen.getByRole("button", { name: "メール変更を開く" }));
     fireEvent.click(screen.getByRole("button", { name: "店舗追加を開く" }));
 
     const openBasicNavigation = mocks.navigate.mock.calls[0]?.[0];
@@ -179,14 +174,7 @@ describe("UserDetail", () => {
       returnTo: "dashboard",
     });
 
-    const openEmailNavigation = mocks.navigate.mock.calls[1]?.[0];
-    expect(openEmailNavigation.search({ shop: "shop-a", returnTo: "dashboard" })).toEqual({
-      shop: "shop-a",
-      panel: "email",
-      returnTo: "dashboard",
-    });
-
-    const openAddShopNavigation = mocks.navigate.mock.calls[2]?.[0];
+    const openAddShopNavigation = mocks.navigate.mock.calls[1]?.[0];
     expect(openAddShopNavigation).toMatchObject({ to: ".", replace: true, resetScroll: false });
     expect(openAddShopNavigation.search({ shop: "shop-a", returnTo: "dashboard" })).toEqual({
       shop: "shop-a",

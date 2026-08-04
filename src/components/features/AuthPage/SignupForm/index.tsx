@@ -69,7 +69,7 @@ export function SignupForm({
       <OAuthSection isLineBrowser={isLineBrowser} isSubmitting={isSubmitting} onClick={onGoogle} label="Googleで登録" />
       <AuthError message={errorMessage} />
       <Field.Root invalid={!!errors.email}>
-        <Field.Label>メールアドレス</Field.Label>
+        <Field.Label>ログインに使うメールアドレス</Field.Label>
         <Input type="email" autoComplete="email" placeholder="example@example.com" {...register("email")} />
         <Field.ErrorText>{errors.email?.message}</Field.ErrorText>
       </Field.Root>

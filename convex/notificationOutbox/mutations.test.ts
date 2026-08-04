@@ -2,7 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { createConvexTestWithMigrations } from "../_test/migrations.test-helper";
-import { seedLegacyShopMembership, seedManagerShop, seedOrganizationManagerShop, seedUser } from "../_test/seed";
+import {
+  seedLegacyShopMembership,
+  seedManagerShop,
+  seedOrganizationManagerShop,
+  seedStaffLineAccount,
+  seedUser,
+} from "../_test/seed";
 import {
   NOTIFICATION_DELIVERY_EVENT_PRUNE_BATCH_SIZE,
   NOTIFICATION_DELIVERY_EVENT_RETENTION_MS,
@@ -443,6 +449,89 @@ describe("notificationOutbox", () => {
       status: "cancelled",
       cancelReason: "recipient_inactive",
     });
+  });
+
+  it("person作成後でorganizationMember作成前の管理者通知はperson連絡先とLINEで配送直前検証を通す", async () => {
+    const t = createConvexTestWithMigrations();
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "outbox_partial_person",
+        email: "outbox-login@example.com",
+        plan: "pro",
+      });
+      await ctx.db.delete(seeded.memberId);
+      await seedLegacyShopMembership(ctx, { shopId: seeded.shopId, userId: seeded.userId });
+      await ctx.db.patch(seeded.personId, {
+        email: "outbox-contact@example.com",
+        emailNormalized: "outbox-contact@example.com",
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: seeded.shopId,
+        organizationId: seeded.organizationId,
+        organizationPersonId: seeded.personId,
+        userId: seeded.userId,
+        name: "移行途中管理者",
+        email: "outbox-contact@example.com",
+        emailNormalized: "outbox-contact@example.com",
+        isDeleted: false,
+      });
+      await seedStaffLineAccount(ctx, {
+        shopId: seeded.shopId,
+        staffId,
+        lineUserId: "U_outbox_partial_person",
+        following: true,
+      });
+      return seeded;
+    });
+    const email = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      shopId: ids.shopId,
+      organizationId: ids.organizationId,
+      userId: ids.userId,
+      purpose: "business",
+      dedupeKey: "email:test:partial-person-recipient",
+      payload: {
+        kind: "email",
+        from: "シフトリ <noreply@example.com>",
+        to: "outbox-contact@example.com",
+        subject: "業務通知",
+        html: "<p>test</p>",
+        context: "test.partialPersonRecipient",
+        suppressDelivery: true,
+      },
+    });
+    const line = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "line",
+      shopId: ids.shopId,
+      organizationId: ids.organizationId,
+      userId: ids.userId,
+      purpose: "business",
+      dedupeKey: "line:test:partial-person-recipient",
+      payload: {
+        kind: "line",
+        toUserId: "U_outbox_partial_person",
+        text: "業務通知",
+        suppressDelivery: true,
+      },
+    });
+    if (!email || !line) throw new Error("notifications were not enqueued");
+    await t.run(async (ctx) => {
+      await ctx.db.patch(email.outboxId, { status: "processing" });
+      await ctx.db.patch(line.outboxId, { status: "processing" });
+    });
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
+        outboxId: email.outboxId,
+        now: Date.now(),
+      }),
+    ).resolves.toMatchObject({ _id: email.outboxId });
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
+        outboxId: line.outboxId,
+        now: Date.now(),
+      }),
+    ).resolves.toMatchObject({ _id: line.outboxId });
   });
 
   it.each(["restrictedStarted", "recovered"] as const)(
