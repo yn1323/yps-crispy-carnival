@@ -135,6 +135,7 @@ describe("ログイン方法のoverviewと追加Modal", () => {
 
     expect(screen.getByTestId("login-methods-overview")).toBeDefined();
     expect(screen.queryByTestId("login-method-flow")).toBeNull();
+    expect(mocks.loginMethodsView).toHaveBeenCalledWith(expect.objectContaining({ isMigrationDialogOpen: false }));
 
     const overviewOptions = mocks.useLoginMethodsController.mock.calls[0]?.[0] as {
       operationCooldown?: unknown;
@@ -221,6 +222,7 @@ describe("ログイン方法のoverviewと追加Modal", () => {
 
     expect(screen.getByTestId("login-methods-overview")).toBeDefined();
     expect(screen.getByTestId("login-method-flow").textContent).toBe("add-email-password:email-password-controller");
+    expect(mocks.loginMethodsView).toHaveBeenCalledWith(expect.objectContaining({ isMigrationDialogOpen: true }));
     expect(mocks.migrationView).toHaveBeenCalledWith(
       expect.objectContaining({
         flow: "add-email-password",
@@ -249,6 +251,7 @@ describe("ログイン方法のoverviewと追加Modal", () => {
 
     expect(screen.getByTestId("login-methods-overview")).toBeDefined();
     expect(screen.getByTestId("login-method-flow").textContent).toBe("connect-google:google-controller");
+    expect(mocks.loginMethodsView).toHaveBeenCalledWith(expect.objectContaining({ isMigrationDialogOpen: true }));
     expect(mocks.useGoogleConnectionController).toHaveBeenCalledWith(
       expect.objectContaining({
         active: true,

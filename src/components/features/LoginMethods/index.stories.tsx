@@ -33,6 +33,8 @@ type PreviewProps = {
   showCardErrors?: boolean;
   disconnectGoogleError?: boolean;
   showLoginEmailChangeDialog?: "input" | "verification";
+  showReverification?: boolean;
+  isMigrationDialogOpen?: boolean;
   onStartFlow: (flow: LoginMethodMigrationFlow) => void;
 };
 
@@ -49,12 +51,23 @@ const IDLE_REVERIFICATION_CONTROLLER: LoginMethodReverificationController = {
   cancel: () => {},
 };
 
+const STARTING_REVERIFICATION_CONTROLLER: LoginMethodReverificationController = {
+  ...IDLE_REVERIFICATION_CONTROLLER,
+  state: {
+    ...IDLE_LOGIN_METHOD_REVERIFICATION_STATE,
+    status: "starting",
+    operationId: 1,
+  },
+};
+
 function LoginMethodsPreview({
   scenario,
   isLoaded = true,
   showCardErrors = false,
   disconnectGoogleError = false,
   showLoginEmailChangeDialog,
+  showReverification = false,
+  isMigrationDialogOpen = false,
   onStartFlow,
 }: PreviewProps) {
   const [emailChangeDialog, setEmailChangeDialog] = useState<LoginEmailChangeDialogState>(
@@ -174,7 +187,8 @@ function LoginMethodsPreview({
         <LoginMethodsView
           controller={controller}
           onStartFlow={onStartFlow}
-          reverification={IDLE_REVERIFICATION_CONTROLLER}
+          reverification={showReverification ? STARTING_REVERIFICATION_CONTROLLER : IDLE_REVERIFICATION_CONTROLLER}
+          isMigrationDialogOpen={isMigrationDialogOpen}
         />
       </Box>
     </Box>
@@ -305,6 +319,34 @@ export const PendingGoogleReconnectBehavior: Story = {
 
     await expect(args.onStartFlow).toHaveBeenCalledOnce();
     await expect(args.onStartFlow).toHaveBeenCalledWith("connect-google");
+  },
+};
+
+export const StandaloneReverificationBehavior: Story = {
+  args: {
+    scenario: "googleOnly",
+    showReverification: true,
+  },
+  parameters: { screenshot: { skip: true } },
+  play: async () => {
+    const body = within(document.body);
+
+    const dialog = await body.findByRole("dialog", { name: "確認が必要です" });
+    await waitFor(() => expect(dialog).toBeVisible());
+  },
+};
+
+export const MigrationDialogOwnsReverificationBehavior: Story = {
+  args: {
+    scenario: "googleOnly",
+    showReverification: true,
+    isMigrationDialogOpen: true,
+  },
+  parameters: { screenshot: { skip: true } },
+  play: async () => {
+    const body = within(document.body);
+
+    await expect(body.queryByRole("dialog", { name: "確認が必要です" })).not.toBeInTheDocument();
   },
 };
 

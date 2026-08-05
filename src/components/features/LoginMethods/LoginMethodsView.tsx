@@ -14,10 +14,12 @@ export function LoginMethodsView({
   controller,
   onStartFlow,
   reverification,
+  isMigrationDialogOpen,
 }: {
   controller: LoginMethodsController;
   onStartFlow: (flow: LoginMethodMigrationFlow) => void;
   reverification: LoginMethodReverificationController;
+  isMigrationDialogOpen: boolean;
 }) {
   const [googleToDisconnect, setGoogleToDisconnect] = useState<string | null>(null);
 
@@ -77,7 +79,10 @@ export function LoginMethodsView({
         reverification={reverification}
         onClose={() => setGoogleToDisconnect(null)}
       />
-      {reverification.state.status !== "idle" && !controller.emailChangeDialog.isOpen && googleToDisconnect === null ? (
+      {reverification.state.status !== "idle" &&
+      !isMigrationDialogOpen &&
+      !controller.emailChangeDialog.isOpen &&
+      googleToDisconnect === null ? (
         <StandaloneReverificationDialog reverification={reverification} />
       ) : null}
     </Stack>
