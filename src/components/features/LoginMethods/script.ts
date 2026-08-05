@@ -11,28 +11,22 @@ const EMAIL_PASSWORD_REQUIRED_REASON = "確認済みメールアドレスとパ�
 
 export function buildLoginMethodsViewModel(snapshot: LoginMethodsUserSnapshot): LoginMethodsViewModel {
   const verifiedEmails = snapshot.emailAddresses.filter(isVerifiedEmail);
-  const unverifiedEmails = snapshot.emailAddresses.filter((email) => !isVerifiedEmail(email));
   const googleAccounts = snapshot.externalAccounts.filter((account) => account.provider === "google");
   const verifiedGoogleAccounts = googleAccounts.filter((account) => account.verificationStatus === "verified");
   const hasEmailPasswordMethod = snapshot.passwordEnabled && verifiedEmails.length > 0;
   const methodState = deriveLoginMethodState(hasEmailPasswordMethod, verifiedGoogleAccounts.length > 0);
-  const hasVerifiedPrimaryEmail = verifiedEmails.some((email) => email.id === snapshot.primaryEmailAddressId);
+  const primaryEmail = snapshot.emailAddresses.find((email) => email.id === snapshot.primaryEmailAddressId);
+  const hasVerifiedPrimaryEmail = primaryEmail ? isVerifiedEmail(primaryEmail) : false;
 
   const toEmailViewModel = (email: LoginMethodsEmailSnapshot): LoginMethodsEmailViewModel => {
-    const isPrimary = email.id === snapshot.primaryEmailAddressId;
     const verified = isVerifiedEmail(email);
 
     return {
       id: email.id,
-      maskedEmail: email.emailAddress,
+      emailAddress: email.emailAddress,
       verificationStatus: verified ? "verified" : "unverified",
-      isPrimary,
-      loginEmailChangeAction: hasVerifiedPrimaryEmail && !isPrimary ? (verified ? "switch" : "verify") : null,
     };
   };
-
-  const verifiedEmailViewModels = verifiedEmails.map(toEmailViewModel);
-  const unverifiedEmailViewModels = unverifiedEmails.map(toEmailViewModel);
 
   return {
     status: methodState ? "ready" : "unavailable",
@@ -44,7 +38,7 @@ export function buildLoginMethodsViewModel(snapshot: LoginMethodsUserSnapshot): 
 
         return {
           id: account.id,
-          maskedEmail: account.emailAddress,
+          emailAddress: account.emailAddress,
           status: connected ? "connected" : "needsReconnection",
           canDisconnect,
           disconnectUnavailableReason: canDisconnect
@@ -59,12 +53,9 @@ export function buildLoginMethodsViewModel(snapshot: LoginMethodsUserSnapshot): 
         hasEmailPasswordMethod && googleAccounts.length === 1 && isRetryableGoogleAccount(googleAccounts[0]),
     },
     emailPassword: {
-      primaryEmail: verifiedEmailViewModels.find((email) => email.isPrimary) ?? null,
-      verifiedEmails: verifiedEmailViewModels,
-      unverifiedEmails: unverifiedEmailViewModels,
+      primaryEmail: primaryEmail ? toEmailViewModel(primaryEmail) : null,
       canChangeLoginEmail: hasVerifiedPrimaryEmail,
       canSetPassword: !snapshot.passwordEnabled && verifiedEmails.length > 0,
-      canChangePassword: hasEmailPasswordMethod,
     },
   };
 }

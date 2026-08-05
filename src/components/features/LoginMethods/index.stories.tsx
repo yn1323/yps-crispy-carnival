@@ -23,7 +23,6 @@ type Scenario =
   | "passwordOnly"
   | "bothSameEmail"
   | "bothDifferentEmail"
-  | "unverifiedSecondary"
   | "pendingGoogle"
   | "longAddresses"
   | "unavailable";
@@ -33,7 +32,6 @@ type PreviewProps = {
   isLoaded?: boolean;
   showCardErrors?: boolean;
   disconnectGoogleError?: boolean;
-  showPasswordDialog?: boolean;
   showLoginEmailChangeDialog?: "input" | "verification";
   onStartFlow: (flow: LoginMethodMigrationFlow) => void;
 };
@@ -56,19 +54,17 @@ function LoginMethodsPreview({
   isLoaded = true,
   showCardErrors = false,
   disconnectGoogleError = false,
-  showPasswordDialog = false,
   showLoginEmailChangeDialog,
   onStartFlow,
 }: PreviewProps) {
-  const [passwordDialogOpen, setPasswordDialogOpen] = useState(showPasswordDialog);
   const [emailChangeDialog, setEmailChangeDialog] = useState<LoginEmailChangeDialogState>(
     showLoginEmailChangeDialog
       ? {
           isOpen: true,
           step: showLoginEmailChangeDialog,
-          currentMaskedEmail: primaryEmailForScenario(scenario),
+          currentEmailAddress: primaryEmailForScenario(scenario),
           targetEmailAddressId: showLoginEmailChangeDialog === "verification" ? "email-new" : null,
-          targetMaskedEmail: showLoginEmailChangeDialog === "verification" ? "new-login@example.com" : null,
+          targetEmailAddress: showLoginEmailChangeDialog === "verification" ? "new-login@example.com" : null,
         }
       : { isOpen: false },
   );
@@ -110,7 +106,6 @@ function LoginMethodsPreview({
     isLoaded,
     googleState,
     emailPasswordState,
-    emailPasswordDialog: { isOpen: passwordDialogOpen },
     emailChangeDialog,
     reload: async () => {
       setGoogleState(idle());
@@ -127,49 +122,15 @@ function LoginMethodsPreview({
       showSuccessToast({ title: "Google連携を解除しました" });
       return true;
     },
-    openPasswordChange: () => {
-      setEmailPasswordState(idle());
-      setPasswordDialogOpen(true);
-    },
-    closeEmailPasswordDialog: () => {
-      setPasswordDialogOpen(false);
-      setEmailPasswordState(idle());
-    },
-    updatePassword: async () => {
-      setPasswordDialogOpen(false);
-      setEmailPasswordState(idle());
-      showSuccessToast({ title: "パスワードを変更しました" });
-      return true;
-    },
     openLoginEmailChange: () => {
-      setPasswordDialogOpen(false);
       setEmailPasswordState(idle());
       setEmailChangeDialog({
         isOpen: true,
         step: "input",
-        currentMaskedEmail: viewModel.emailPassword.primaryEmail?.maskedEmail ?? primaryEmailForScenario(scenario),
+        currentEmailAddress: viewModel.emailPassword.primaryEmail?.emailAddress ?? primaryEmailForScenario(scenario),
         targetEmailAddressId: null,
-        targetMaskedEmail: null,
+        targetEmailAddress: null,
       });
-    },
-    continueLoginEmailChange: async (emailAddressId) => {
-      const target = [...viewModel.emailPassword.verifiedEmails, ...viewModel.emailPassword.unverifiedEmails].find(
-        (emailAddress) => emailAddress.id === emailAddressId,
-      );
-      if (target?.verificationStatus === "verified") {
-        completeEmailChange();
-        return true;
-      }
-      setEmailChangeTargetStatus("unverified");
-      setEmailPasswordState({ status: "success", message: "確認コードを送信しました。" });
-      setEmailChangeDialog({
-        isOpen: true,
-        step: "verification",
-        currentMaskedEmail: viewModel.emailPassword.primaryEmail?.maskedEmail ?? primaryEmailForScenario(scenario),
-        targetEmailAddressId: emailAddressId,
-        targetMaskedEmail: target?.maskedEmail ?? "new-login@example.com",
-      });
-      return true;
     },
     closeLoginEmailChangeDialog: () => {
       setEmailChangeDialog({ isOpen: false });
@@ -180,9 +141,9 @@ function LoginMethodsPreview({
       setEmailChangeDialog({
         isOpen: true,
         step: "input",
-        currentMaskedEmail: viewModel.emailPassword.primaryEmail?.maskedEmail ?? primaryEmailForScenario(scenario),
+        currentEmailAddress: viewModel.emailPassword.primaryEmail?.emailAddress ?? primaryEmailForScenario(scenario),
         targetEmailAddressId: null,
-        targetMaskedEmail: null,
+        targetEmailAddress: null,
       });
     },
     startLoginEmailChange: async () => {
@@ -191,9 +152,9 @@ function LoginMethodsPreview({
       setEmailChangeDialog({
         isOpen: true,
         step: "verification",
-        currentMaskedEmail: viewModel.emailPassword.primaryEmail?.maskedEmail ?? primaryEmailForScenario(scenario),
+        currentEmailAddress: viewModel.emailPassword.primaryEmail?.emailAddress ?? primaryEmailForScenario(scenario),
         targetEmailAddressId: "email-new",
-        targetMaskedEmail: "new-login@example.com",
+        targetEmailAddress: "new-login@example.com",
       });
       return true;
     },
@@ -258,11 +219,7 @@ export const Mobile: Story = {
   globals: { viewport: { value: "mobile2", isRotated: false } },
 };
 
-export const PendingEmail: Story = {
-  args: { scenario: "unverifiedSecondary" },
-};
-
-export const LongMaskedAddresses: Story = {
+export const LongAddresses: Story = {
   args: { scenario: "longAddresses" },
 };
 
@@ -276,10 +233,6 @@ export const Unavailable: Story = {
 
 export const CardErrors: Story = {
   args: { scenario: "bothDifferentEmail", showCardErrors: true },
-};
-
-export const PasswordChangeDialog: Story = {
-  args: { scenario: "passwordOnly", showPasswordDialog: true },
 };
 
 export const MainEmailInputDialog: Story = {
@@ -359,7 +312,7 @@ export const GoogleOnlyPrimaryEmailChangeBehavior: Story = {
   args: { scenario: "googleOnly" },
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
-    await primaryEmailChangeBehavior(canvasElement, ["メールアドレスとパスワードを設定"]);
+    await primaryEmailChangeBehavior(canvasElement, "google@gmail.com", ["メールアドレスとパスワードを設定"]);
   },
 };
 
@@ -367,7 +320,7 @@ export const PasswordOnlyPrimaryEmailChangeBehavior: Story = {
   args: { scenario: "passwordOnly" },
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
-    await primaryEmailChangeBehavior(canvasElement, ["パスワードを変更", "連携する"]);
+    await primaryEmailChangeBehavior(canvasElement, "login@example.com", ["連携する"]);
   },
 };
 
@@ -375,11 +328,15 @@ export const BothPrimaryEmailChangeBehavior: Story = {
   args: { scenario: "bothDifferentEmail" },
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
-    await primaryEmailChangeBehavior(canvasElement, ["パスワードを変更", "連携を解除"]);
+    await primaryEmailChangeBehavior(canvasElement, "login@example.com", ["連携を解除"]);
   },
 };
 
-async function primaryEmailChangeBehavior(canvasElement: HTMLElement, preservedActions: readonly string[]) {
+async function primaryEmailChangeBehavior(
+  canvasElement: HTMLElement,
+  previousPrimaryEmail: string,
+  preservedActions: readonly string[],
+) {
   toaster.dismiss();
   const canvas = within(canvasElement);
   const body = within(document.body);
@@ -406,7 +363,10 @@ async function primaryEmailChangeBehavior(canvasElement: HTMLElement, preservedA
   const toastTitle = await body.findByText("メインのメールアドレスを変更しました");
   await waitFor(() => expect(toastTitle).toBeVisible());
   await waitFor(() => expect(body.queryByRole("dialog")).not.toBeInTheDocument());
-  await expect(await canvas.findByText("new-login@example.com")).toBeVisible();
+  const emailSection = canvas.getByRole("region", { name: "メールアドレス" });
+  await expect(await within(emailSection).findByText("new-login@example.com")).toBeVisible();
+  await expect(within(emailSection).queryByText(previousPrimaryEmail)).not.toBeInTheDocument();
+  await expect(canvas.queryByRole("button", { name: "パスワードを変更" })).not.toBeInTheDocument();
   for (const action of preservedActions) {
     await expect(canvas.getByRole("button", { name: action })).toBeVisible();
   }
@@ -449,16 +409,6 @@ function snapshotForScenario(
       emailAddresses: appendEmailChangeTarget([email("email-google", "google@gmail.com", "verified")]),
       externalAccounts: [google("google-1", "google@gmail.com")],
       primaryEmailAddressId: emailChangeCompleted ? "email-new" : "email-google",
-    });
-  }
-  if (scenario === "unverifiedSecondary") {
-    return snapshot({
-      passwordEnabled: true,
-      emailAddresses: [
-        email("email-login", "login@example.com"),
-        email("email-pending", "pending@example.com", "unverified"),
-      ],
-      primaryEmailAddressId: "email-login",
     });
   }
   if (scenario === "pendingGoogle") {

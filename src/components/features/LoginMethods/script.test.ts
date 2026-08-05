@@ -18,7 +18,7 @@ describe("ログイン方法の表示状態", () => {
         accounts: [
           {
             id: "google-1",
-            maskedEmail: "google@example.com",
+            emailAddress: "google@example.com",
             status: "connected",
             canDisconnect: false,
             disconnectUnavailableReason: "確認済みメールアドレスとパスワードを設定してから操作してください。",
@@ -30,24 +30,11 @@ describe("ログイン方法の表示状態", () => {
       emailPassword: {
         primaryEmail: {
           id: "email-google",
-          maskedEmail: "google@example.com",
+          emailAddress: "google@example.com",
           verificationStatus: "verified",
-          isPrimary: true,
-          loginEmailChangeAction: null,
         },
-        verifiedEmails: [
-          {
-            id: "email-google",
-            maskedEmail: "google@example.com",
-            verificationStatus: "verified",
-            isPrimary: true,
-            loginEmailChangeAction: null,
-          },
-        ],
-        unverifiedEmails: [],
         canChangeLoginEmail: true,
         canSetPassword: true,
-        canChangePassword: false,
       },
     });
   });
@@ -66,7 +53,6 @@ describe("ログイン方法の表示状態", () => {
       expect(result.google.canConnect).toBe(true);
       expect(result.emailPassword.canChangeLoginEmail).toBe(true);
       expect(result.emailPassword.canSetPassword).toBe(false);
-      expect(result.emailPassword.canChangePassword).toBe(true);
     },
   );
 
@@ -83,7 +69,7 @@ describe("ログイン方法の表示状態", () => {
     expect(result.google.accounts).toEqual([
       {
         id: "google-1",
-        maskedEmail: "google@gmail.com",
+        emailAddress: "google@gmail.com",
         status: "connected",
         canDisconnect: true,
         disconnectUnavailableReason: null,
@@ -91,7 +77,6 @@ describe("ログイン方法の表示状態", () => {
     ]);
     expect(result.google.canConnect).toBe(false);
     expect(result.emailPassword.canChangeLoginEmail).toBe(true);
-    expect(result.emailPassword.canChangePassword).toBe(true);
   });
 
   it("確認済みPrimaryがあれば3状態すべてで同じPrimary変更操作を許可する", () => {
@@ -123,7 +108,7 @@ describe("ログイン方法の表示状態", () => {
     ]);
   });
 
-  it("確認済みPrimaryがない場合はPrimary変更を許可せず変更候補も作らない", () => {
+  it("Primaryが未確認でも表示対象はその1件だけにし、変更を許可しない", () => {
     const result = buildLoginMethodsViewModel(
       snapshot({
         primaryEmailAddressId: "email-pending",
@@ -136,16 +121,15 @@ describe("ログイン方法の表示状態", () => {
     );
 
     expect(result.methodState).toBe("googleOnly");
-    expect(result.emailPassword.primaryEmail).toBeNull();
+    expect(result.emailPassword.primaryEmail).toEqual({
+      id: "email-pending",
+      emailAddress: "pending@example.com",
+      verificationStatus: "unverified",
+    });
     expect(result.emailPassword.canChangeLoginEmail).toBe(false);
-    expect(
-      [...result.emailPassword.verifiedEmails, ...result.emailPassword.unverifiedEmails].map(
-        (item) => item.loginEmailChangeAction,
-      ),
-    ).toEqual([null, null]);
   });
 
-  it("確認済みPrimaryがある場合だけ別メールをPrimary変更候補にする", () => {
+  it("Clerkに複数のEmailAddressが残っていてもメールログイン対象はPrimaryの1件だけにする", () => {
     const result = buildLoginMethodsViewModel(
       snapshot({
         passwordEnabled: true,
@@ -157,16 +141,13 @@ describe("ログイン方法の表示状態", () => {
       }),
     );
 
-    expect(
-      [...result.emailPassword.verifiedEmails, ...result.emailPassword.unverifiedEmails].map((item) => [
-        item.id,
-        item.loginEmailChangeAction,
-      ]),
-    ).toEqual([
-      ["email-primary", null],
-      ["email-verified", "switch"],
-      ["email-pending", "verify"],
-    ]);
+    expect(result.emailPassword.primaryEmail).toEqual({
+      id: "email-primary",
+      emailAddress: "login@example.com",
+      verificationStatus: "verified",
+    });
+    expect("verifiedEmails" in result.emailPassword).toBe(false);
+    expect("unverifiedEmails" in result.emailPassword).toBe(false);
   });
 
   it("パスワード追加は確認済みメールがありpasswordEnabledがfalseの場合だけ許可する", () => {
@@ -290,7 +271,6 @@ describe("ログイン方法の表示状態", () => {
     expect(result.google.canConnect).toBe(false);
     expect(result.emailPassword.canChangeLoginEmail).toBe(false);
     expect(result.emailPassword.canSetPassword).toBe(false);
-    expect(result.emailPassword.canChangePassword).toBe(false);
   });
 
   it("メール・パス削除とGoogle置換のcapabilityを公開しない", () => {
@@ -303,8 +283,8 @@ describe("ログイン方法の表示状態", () => {
     );
 
     expect("canRemovePassword" in result.emailPassword).toBe(false);
+    expect("canChangePassword" in result.emailPassword).toBe(false);
     expect("canReplace" in result.google).toBe(false);
-    expect(result.emailPassword.verifiedEmails.every((item) => !("canRemove" in item))).toBe(true);
   });
 });
 

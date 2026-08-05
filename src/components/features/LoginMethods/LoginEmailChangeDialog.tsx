@@ -20,7 +20,7 @@ type LoginEmailChangeStatus = "idle" | "loading" | "success" | "error";
 type LoginEmailChangeDialogProps = {
   isOpen: boolean;
   step: LoginEmailChangeStep;
-  currentMaskedEmail: string | null;
+  currentEmailAddress: string | null;
   targetEmailAddress: string | null;
   status: LoginEmailChangeStatus;
   message: string | null;
@@ -35,7 +35,7 @@ type LoginEmailChangeDialogProps = {
 export function LoginEmailChangeDialog({
   isOpen,
   step,
-  currentMaskedEmail,
+  currentEmailAddress,
   targetEmailAddress,
   status,
   message,
@@ -85,7 +85,7 @@ export function LoginEmailChangeDialog({
       {isReverifying ? <LoginMethodReverificationView controller={reverification} /> : null}
       {!isReverifying && isOpen && step === "input" ? (
         <EmailInputStep
-          currentMaskedEmail={currentMaskedEmail}
+          currentEmailAddress={currentEmailAddress}
           isBusy={isBusy}
           status={status}
           message={message}
@@ -132,14 +132,14 @@ export function LoginEmailChangeDialog({
 }
 
 function EmailInputStep({
-  currentMaskedEmail,
+  currentEmailAddress,
   isBusy,
   status,
   message,
   onClose,
   onSubmit,
 }: {
-  currentMaskedEmail: string | null;
+  currentEmailAddress: string | null;
   isBusy: boolean;
   status: LoginEmailChangeStatus;
   message: string | null;
@@ -158,7 +158,7 @@ function EmailInputStep({
         <Text color="fg.muted" fontSize="sm">
           現在のメインメールアドレス
         </Text>
-        <Text fontWeight="medium">{currentMaskedEmail ?? "確認できません"}</Text>
+        <Text fontWeight="medium">{currentEmailAddress ?? "確認できません"}</Text>
       </Stack>
       <Text color="fg.muted">
         新しいメールアドレスが未確認の場合は、確認コードを送ります。シフト連絡先メールアドレスやGoogle連携は変わりません。

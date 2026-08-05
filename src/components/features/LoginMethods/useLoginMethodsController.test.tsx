@@ -271,7 +271,7 @@ describe("useLoginMethodsController", () => {
     });
     const { result } = renderController(user);
 
-    await act(async () => result.current.continueLoginEmailChange(pendingEmail.id));
+    await act(async () => result.current.startLoginEmailChange(pendingEmail.emailAddress));
     await act(async () => result.current.verifyLoginEmailCode("000000"));
 
     expect(user.primaryEmailAddressId).toBe(primaryEmail.id);
@@ -557,41 +557,6 @@ describe("useLoginMethodsController", () => {
     expect(result.current.googleState).toEqual({ status: "idle", message: null });
     expect(mocks.showSuccessToast).toHaveBeenCalledWith({ title: "Google連携を解除しました" });
   });
-
-  it("パスワード変更後はDialogを閉じてSnackbarを表示する", async () => {
-    const primaryEmail = emailResource({
-      id: "email-primary",
-      emailAddress: "login@example.com",
-      status: "verified",
-    });
-    const user = userResource({
-      passwordEnabled: true,
-      emailAddresses: [primaryEmail],
-      primaryEmailAddressId: primaryEmail.id,
-    });
-    const { result } = renderController(user);
-
-    act(() => result.current.openPasswordChange());
-    expect(result.current.emailPasswordDialog).toEqual({ isOpen: true });
-
-    await act(async () =>
-      result.current.updatePassword({
-        currentPassword: " current-password ",
-        newPassword: "new-password",
-        signOutOfOtherSessions: true,
-      }),
-    );
-
-    expect(user.updatePassword).toHaveBeenCalledWith({
-      currentPassword: "current-password",
-      newPassword: "new-password",
-      signOutOfOtherSessions: true,
-    });
-    expect(user.passwordEnabled).toBe(true);
-    expect(result.current.emailPasswordDialog).toEqual({ isOpen: false });
-    expect(result.current.emailPasswordState).toEqual({ status: "idle", message: null });
-    expect(mocks.showSuccessToast).toHaveBeenCalledWith({ title: "パスワードを変更しました" });
-  });
 });
 
 function renderController(user: UserResource, getCurrentActorId: () => string | null = () => user.id) {
@@ -628,10 +593,6 @@ function userResource({
     createEmailAddress: vi.fn(),
     update: vi.fn(async ({ primaryEmailAddressId }: { primaryEmailAddressId?: string | null }) => {
       if (primaryEmailAddressId !== undefined) user.primaryEmailAddressId = primaryEmailAddressId;
-      return user;
-    }),
-    updatePassword: vi.fn(async () => {
-      user.passwordEnabled = true;
       return user;
     }),
   };

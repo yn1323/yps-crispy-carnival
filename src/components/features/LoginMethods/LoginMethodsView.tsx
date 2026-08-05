@@ -4,7 +4,6 @@ import { FcGoogle } from "react-icons/fc";
 import { LuMail } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
-import { EmailPasswordDialog } from "./EmailPasswordDialog";
 import { LoginEmailChangeDialog } from "./LoginEmailChangeDialog";
 import { LoginMethodReverificationView } from "./LoginMethodReverificationView";
 import type { LoginMethodMigrationFlow } from "./migrationTypes";
@@ -54,14 +53,15 @@ export function LoginMethodsView({
         }}
       />
 
-      <EmailPasswordDialog controller={controller} reverification={reverification} />
       <LoginEmailChangeDialog
         isOpen={controller.emailChangeDialog.isOpen}
         step={controller.emailChangeDialog.isOpen ? controller.emailChangeDialog.step : "input"}
-        currentMaskedEmail={
-          controller.emailChangeDialog.isOpen ? controller.emailChangeDialog.currentMaskedEmail : null
+        currentEmailAddress={
+          controller.emailChangeDialog.isOpen ? controller.emailChangeDialog.currentEmailAddress : null
         }
-        targetEmailAddress={controller.emailChangeDialog.isOpen ? controller.emailChangeDialog.targetMaskedEmail : null}
+        targetEmailAddress={
+          controller.emailChangeDialog.isOpen ? controller.emailChangeDialog.targetEmailAddress : null
+        }
         status={controller.emailPasswordState.status}
         message={controller.emailPasswordState.message}
         onClose={controller.closeLoginEmailChangeDialog}
@@ -77,10 +77,7 @@ export function LoginMethodsView({
         reverification={reverification}
         onClose={() => setGoogleToDisconnect(null)}
       />
-      {reverification.state.status !== "idle" &&
-      !controller.emailPasswordDialog.isOpen &&
-      !controller.emailChangeDialog.isOpen &&
-      googleToDisconnect === null ? (
+      {reverification.state.status !== "idle" && !controller.emailChangeDialog.isOpen && googleToDisconnect === null ? (
         <StandaloneReverificationDialog reverification={reverification} />
       ) : null}
     </Stack>
@@ -131,9 +128,7 @@ function EmailContent({
   onSetPassword: () => void;
 }) {
   const { emailPassword } = controller.viewModel;
-  const allEmails = [...emailPassword.verifiedEmails, ...emailPassword.unverifiedEmails];
-  const primaryEmail = allEmails.find((email) => email.isPrimary) ?? allEmails[0] ?? null;
-  const secondaryEmails = primaryEmail ? allEmails.filter((email) => email.id !== primaryEmail.id) : [];
+  const primaryEmail = emailPassword.primaryEmail;
 
   return (
     <Stack gap={2} as="section" aria-labelledby="login-methods-email-heading">
@@ -164,35 +159,27 @@ function EmailContent({
                 </Text>
               )}
             </Stack>
-            {primaryEmail ? <EmailAddressActions email={primaryEmail} controller={controller} /> : null}
+            {primaryEmail && emailPassword.canChangeLoginEmail ? (
+              <Button
+                variant="outline"
+                colorPalette="teal"
+                onClick={controller.openLoginEmailChange}
+                loading={controller.emailPasswordState.status === "loading"}
+              >
+                変更する
+              </Button>
+            ) : null}
           </Flex>
-          {secondaryEmails.length > 0 ? (
-            <Stack gap={2}>
-              {secondaryEmails.map((email) => (
-                <HStack key={email.id} justify="space-between" align="center" gap={4} flexWrap="wrap">
-                  <EmailAddressDetails email={email} />
-                  <EmailAddressActions email={email} controller={controller} />
-                </HStack>
-              ))}
-            </Stack>
-          ) : null}
         </Stack>
       </Flex>
       <CardError state={controller.emailPasswordState} />
-      {emailPassword.canSetPassword || emailPassword.canChangePassword ? (
+      {emailPassword.canSetPassword ? (
         <>
           <Separator />
           <HStack gap={3} flexWrap="wrap">
-            {emailPassword.canSetPassword ? (
-              <Button colorPalette="teal" onClick={onSetPassword}>
-                メールアドレスとパスワードを設定
-              </Button>
-            ) : null}
-            {emailPassword.canChangePassword ? (
-              <Button colorPalette="teal" onClick={controller.openPasswordChange}>
-                パスワードを変更
-              </Button>
-            ) : null}
+            <Button colorPalette="teal" onClick={onSetPassword}>
+              メールアドレスとパスワードを設定
+            </Button>
           </HStack>
         </>
       ) : null}
@@ -204,7 +191,7 @@ function EmailAddressDetails({ email }: { email: LoginMethodsEmailViewModel }) {
   return (
     <Box minW={0} flex="1">
       <Text fontSize="sm" fontWeight="medium" overflowWrap="anywhere">
-        {email.maskedEmail}
+        {email.emailAddress}
       </Text>
       {email.verificationStatus === "unverified" ? (
         <Badge mt={1} colorPalette="orange">
@@ -212,39 +199,6 @@ function EmailAddressDetails({ email }: { email: LoginMethodsEmailViewModel }) {
         </Badge>
       ) : null}
     </Box>
-  );
-}
-
-function EmailAddressActions({
-  email,
-  controller,
-}: {
-  email: LoginMethodsEmailViewModel;
-  controller: LoginMethodsController;
-}) {
-  return (
-    <HStack gap={2} flexWrap="wrap">
-      {email.isPrimary && controller.viewModel.emailPassword.canChangeLoginEmail ? (
-        <Button
-          variant="outline"
-          colorPalette="teal"
-          onClick={controller.openLoginEmailChange}
-          loading={controller.emailPasswordState.status === "loading"}
-        >
-          変更する
-        </Button>
-      ) : email.loginEmailChangeAction ? (
-        <Button
-          variant="outline"
-          loading={controller.emailPasswordState.status === "loading"}
-          onClick={() => {
-            void controller.continueLoginEmailChange(email.id);
-          }}
-        >
-          {email.loginEmailChangeAction === "verify" ? "メール確認を続ける" : "このメールに変更"}
-        </Button>
-      ) : null}
-    </HStack>
   );
 }
 
@@ -285,7 +239,7 @@ function GoogleContent({
             google.accounts.map((account) => (
               <HStack key={account.id} justify="space-between" align="center" gap={4} flexWrap="wrap">
                 <Text color="fg.muted" fontSize="sm" minW={0} overflowWrap="anywhere">
-                  {account.maskedEmail}
+                  {account.emailAddress}
                 </Text>
                 <HStack gap={3} flexWrap="wrap">
                   <Badge colorPalette={account.status === "connected" ? "green" : "orange"}>

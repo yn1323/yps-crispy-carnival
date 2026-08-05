@@ -22,15 +22,13 @@ export type LoginMethodsUserSnapshot = {
 
 export type LoginMethodsEmailViewModel = {
   id: string;
-  maskedEmail: string;
+  emailAddress: string;
   verificationStatus: "verified" | "unverified";
-  isPrimary: boolean;
-  loginEmailChangeAction: "verify" | "switch" | null;
 };
 
 export type LoginMethodsGoogleAccountViewModel = {
   id: string;
-  maskedEmail: string;
+  emailAddress: string;
   status: "connected" | "needsReconnection";
   canDisconnect: boolean;
   disconnectUnavailableReason: string | null;
@@ -46,11 +44,8 @@ export type LoginMethodsViewModel = {
   };
   emailPassword: {
     primaryEmail: LoginMethodsEmailViewModel | null;
-    verifiedEmails: LoginMethodsEmailViewModel[];
-    unverifiedEmails: LoginMethodsEmailViewModel[];
     canChangeLoginEmail: boolean;
     canSetPassword: boolean;
-    canChangePassword: boolean;
   };
 };
 
@@ -59,16 +54,14 @@ export type LoginMethodsCardState = {
   message: string | null;
 };
 
-export type EmailPasswordDialogState = { isOpen: boolean };
-
 export type LoginEmailChangeDialogState =
   | { isOpen: false }
   | {
       isOpen: true;
       step: "input" | "verification";
-      currentMaskedEmail: string;
+      currentEmailAddress: string;
       targetEmailAddressId: string | null;
-      targetMaskedEmail: string | null;
+      targetEmailAddress: string | null;
     };
 
 export type LoginMethodsController = {
@@ -76,20 +69,11 @@ export type LoginMethodsController = {
   isLoaded: boolean;
   googleState: LoginMethodsCardState;
   emailPasswordState: LoginMethodsCardState;
-  emailPasswordDialog: EmailPasswordDialogState;
   emailChangeDialog: LoginEmailChangeDialogState;
   reload: () => Promise<unknown>;
   prepareGoogleDisconnect: (externalAccountId: string) => Promise<boolean | undefined>;
   disconnectGoogle: (externalAccountId: string) => Promise<unknown>;
-  openPasswordChange: () => void;
-  closeEmailPasswordDialog: (force?: boolean) => void;
-  updatePassword: (values: {
-    currentPassword?: string;
-    newPassword: string;
-    signOutOfOtherSessions: boolean;
-  }) => Promise<unknown>;
   openLoginEmailChange: () => void;
-  continueLoginEmailChange: (emailAddressId: string) => Promise<unknown>;
   closeLoginEmailChangeDialog: (force?: boolean) => void;
   backToLoginEmailInput: () => void;
   startLoginEmailChange: (email: string) => Promise<unknown>;

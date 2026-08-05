@@ -53,8 +53,8 @@ LINEアプリ内ブラウザではGoogle OAuthがprovider側で拒否される�
 
 このページはグループや店舗に依存しない本人専用画面である。  `?shop=`を引き継がず、店舗一覧取得、selected shop解決、無効店舗による全体blockを行わない。認証、削除済みアカウント判定などの共通契約だけを維持する。
 
-画面は既存のカード構成と行構成を維持し、Clerkのcurrent User resourceからメールアドレスとGoogle認証の状態を表示する。
-メールアドレスの表示形式、余白、色、ラベルは変更しない。
+画面はClerkのcurrent User resourceからメールアドレスとGoogle認証の状態を表示する。  メールログインの対象として表示・変更するメールアドレスは、Primaryの1件だけとする。  以前のEmailAddressや確認途中のEmailAddressをClerk上で保持していても、別のログイン対象行としては表示しない。
+メールアドレスは省略せず表示する。
 Clerk内部のprimary・secondaryという用語は製品UIに出さない。
 
 resourceを安全に判定できない場合や操作が失敗した場合は、ログイン設定内の局所errorとして表示する。
@@ -68,8 +68,8 @@ resourceを安全に判定できない場合や操作が失敗した場合は、
 | 状態 | 利用できる操作 |
 |---|---|
 | Googleのみ | Primaryメールアドレスの変更、メールアドレスとパスワードの追加 |
-| メール・パスワードのみ | Primaryメールアドレスとパスワードの変更、Google認証の追加 |
-| Googleとメール・パスワードの両方 | Primaryメールアドレスとパスワードの変更、Google認証の解除 |
+| メール・パスワードのみ | Primaryメールアドレスの変更、Google認証の追加 |
+| Googleとメール・パスワードの両方 | Primaryメールアドレスの変更、Google認証の解除 |
 
 Primaryメールアドレスの変更は3状態すべてで利用できる。
 変更先が未確認であれば`email_code`で所有を確認し、確認済みになったEmailAddressをPrimaryへ切り替える。
@@ -77,6 +77,8 @@ Primaryメールアドレスの変更は3状態すべてで利用できる。
 
 Googleのみの利用者は、既存の確認済みEmailAddressまたは新たに確認したEmailAddressへパスワードを設定できる。
 Google認証を保持したまま、Googleとメール・パスワードの両方を使える状態へ移る。
+
+既存パスワードを直接変更する操作はログイン設定に置かない。  パスワードを忘れた場合や変更したい場合は、ログイン画面のメールによるパスワード再設定を利用する。
 
 メール・パスワードのみの利用者がGoogle認証を追加するときは、ログイン中のcurrent Userへ`createExternalAccount`を実行する。
 OAuth帰還後に同じClerk Userと、そこへ属する確認済みGoogle ExternalAccountを再取得してから完了とする。
@@ -141,7 +143,7 @@ ClerkのEmailAddress: 1件または複数件
 - Clerk `useUser()`：本人のログイン方法resource取得
 - Clerk `User.createEmailAddress()`、`EmailAddress.prepareVerification()`、`EmailAddress.attemptVerification()`：招待先などのメール所有確認
 - Clerk `User.update()`：確認済みEmailAddressへのPrimary切替
-- Clerk `User.updatePassword()`：初回パスワード設定と既存パスワード変更
+- Clerk `User.updatePassword()`：Googleのみの利用者による初回パスワード設定
 - Clerk `User.createExternalAccount()`：current UserへのGoogle認証追加
 - Clerk `ExternalAccount.destroy()`：メール・パスワードを退避方法として確認した後のGoogle認証解除と、明示的な再試行で安全性を再確認した未完了Google resourceの整理
 - Clerk `useReverification()`：sensitiveな本人操作の追加確認
