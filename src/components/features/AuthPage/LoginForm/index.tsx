@@ -41,8 +41,9 @@ export function LoginForm({
       </Text>
       <AuthError message={errorMessage} />
       <Field.Root invalid={!!errors.email}>
-        <Field.Label>メールアドレス</Field.Label>
+        <Field.Label>ログインに使うメールアドレス</Field.Label>
         <Input type="email" autoComplete="email" placeholder="example@example.com" {...register("email")} />
+        <Field.HelperText>ログイン設定に登録したメールアドレスを入力してください。</Field.HelperText>
         <Field.ErrorText>{errors.email?.message}</Field.ErrorText>
       </Field.Root>
       <Field.Root invalid={!!errors.password}>

@@ -4,6 +4,7 @@ export type LoginMethodsEmailSnapshot = {
   id: string;
   emailAddress: string;
   verificationStatus: string | null;
+  linkedTo?: readonly { id: string; type: string }[];
 };
 
 export type LoginMethodsExternalAccountSnapshot = {
@@ -25,6 +26,7 @@ export type LoginMethodsEmailViewModel = {
   maskedEmail: string;
   verificationStatus: "verified" | "unverified";
   isPrimary: boolean;
+  isLinked: boolean;
   loginEmailChangeAction: "verify" | "switch" | null;
 };
 
@@ -45,6 +47,7 @@ export type LoginMethodsViewModel = {
     canReconnect: boolean;
   };
   emailPassword: {
+    passwordEnabled: boolean;
     primaryEmail: LoginMethodsEmailViewModel | null;
     verifiedEmails: LoginMethodsEmailViewModel[];
     unverifiedEmails: LoginMethodsEmailViewModel[];

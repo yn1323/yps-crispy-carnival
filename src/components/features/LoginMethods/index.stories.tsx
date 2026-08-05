@@ -2,6 +2,7 @@ import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useMemo, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { maskEmailAddress } from "@/src/components/features/AuthPage/loginVerification";
 import { showSuccessToast } from "@/src/components/shared/feedback";
 import { Toaster, toaster } from "@/src/components/ui/toaster";
 import { LoginMethodsView } from "./LoginMethodsView";
@@ -36,6 +37,7 @@ type PreviewProps = {
   showPasswordDialog?: boolean;
   showLoginEmailChangeDialog?: "input" | "verification";
   onStartFlow: (flow: LoginMethodMigrationFlow) => void;
+  onReload?: () => void;
 };
 
 type EmailChangeTargetStatus = "absent" | "unverified" | "verified";
@@ -59,6 +61,7 @@ function LoginMethodsPreview({
   showPasswordDialog = false,
   showLoginEmailChangeDialog,
   onStartFlow,
+  onReload,
 }: PreviewProps) {
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(showPasswordDialog);
   const [emailChangeDialog, setEmailChangeDialog] = useState<LoginEmailChangeDialogState>(
@@ -66,9 +69,10 @@ function LoginMethodsPreview({
       ? {
           isOpen: true,
           step: showLoginEmailChangeDialog,
-          currentMaskedEmail: primaryEmailForScenario(scenario),
+          currentMaskedEmail: maskEmailAddress(primaryEmailForScenario(scenario)),
           targetEmailAddressId: showLoginEmailChangeDialog === "verification" ? "email-new" : null,
-          targetMaskedEmail: showLoginEmailChangeDialog === "verification" ? "new-login@example.com" : null,
+          targetMaskedEmail:
+            showLoginEmailChangeDialog === "verification" ? maskEmailAddress("new-login@example.com") : null,
         }
       : { isOpen: false },
   );
@@ -113,6 +117,7 @@ function LoginMethodsPreview({
     emailPasswordDialog: { isOpen: passwordDialogOpen },
     emailChangeDialog,
     reload: async () => {
+      onReload?.();
       setGoogleState(idle());
       setEmailPasswordState(idle());
       return true;
@@ -147,7 +152,8 @@ function LoginMethodsPreview({
       setEmailChangeDialog({
         isOpen: true,
         step: "input",
-        currentMaskedEmail: viewModel.emailPassword.primaryEmail?.maskedEmail ?? primaryEmailForScenario(scenario),
+        currentMaskedEmail:
+          viewModel.emailPassword.primaryEmail?.maskedEmail ?? maskEmailAddress(primaryEmailForScenario(scenario)),
         targetEmailAddressId: null,
         targetMaskedEmail: null,
       });
@@ -165,9 +171,10 @@ function LoginMethodsPreview({
       setEmailChangeDialog({
         isOpen: true,
         step: "verification",
-        currentMaskedEmail: viewModel.emailPassword.primaryEmail?.maskedEmail ?? primaryEmailForScenario(scenario),
+        currentMaskedEmail:
+          viewModel.emailPassword.primaryEmail?.maskedEmail ?? maskEmailAddress(primaryEmailForScenario(scenario)),
         targetEmailAddressId: emailAddressId,
-        targetMaskedEmail: target?.maskedEmail ?? "new-login@example.com",
+        targetMaskedEmail: target?.maskedEmail ?? maskEmailAddress("new-login@example.com"),
       });
       return true;
     },
@@ -180,7 +187,8 @@ function LoginMethodsPreview({
       setEmailChangeDialog({
         isOpen: true,
         step: "input",
-        currentMaskedEmail: viewModel.emailPassword.primaryEmail?.maskedEmail ?? primaryEmailForScenario(scenario),
+        currentMaskedEmail:
+          viewModel.emailPassword.primaryEmail?.maskedEmail ?? maskEmailAddress(primaryEmailForScenario(scenario)),
         targetEmailAddressId: null,
         targetMaskedEmail: null,
       });
@@ -191,9 +199,10 @@ function LoginMethodsPreview({
       setEmailChangeDialog({
         isOpen: true,
         step: "verification",
-        currentMaskedEmail: viewModel.emailPassword.primaryEmail?.maskedEmail ?? primaryEmailForScenario(scenario),
+        currentMaskedEmail:
+          viewModel.emailPassword.primaryEmail?.maskedEmail ?? maskEmailAddress(primaryEmailForScenario(scenario)),
         targetEmailAddressId: "email-new",
-        targetMaskedEmail: "new-login@example.com",
+        targetMaskedEmail: maskEmailAddress("new-login@example.com"),
       });
       return true;
     },
@@ -238,7 +247,19 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const GoogleOnly: Story = {};
+export const GoogleOnly: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(
+      canvas.getByText("ここで変更しても、グループで使うシフト連絡先メールアドレスは変わりません。"),
+    ).toBeVisible();
+    await expect(canvas.getByText("Google")).toBeVisible();
+    await expect(canvas.getByText("メールアドレスとパスワード")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "最新の状態を読み込む" })).toBeVisible();
+    await expect(canvas.getAllByText("go***@gmail.com")).toHaveLength(2);
+  },
+};
 
 export const PasswordOnly: Story = {
   args: { scenario: "passwordOnly" },
@@ -278,6 +299,31 @@ export const CardErrors: Story = {
   args: { scenario: "bothDifferentEmail", showCardErrors: true },
 };
 
+export const ReloadRecoveryBehavior: Story = {
+  args: { scenario: "bothDifferentEmail", showCardErrors: true, onReload: fn() },
+  parameters: { screenshot: { skip: true } },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByText("Google連携を確認できませんでした。もう一度読み込んでください。")).toBeVisible();
+    await expect(
+      canvas.getByText("メールアドレスとパスワードを確認できませんでした。もう一度読み込んでください。"),
+    ).toBeVisible();
+
+    await userEvent.click(canvas.getByRole("button", { name: "最新の状態を読み込む" }));
+
+    await expect(args.onReload).toHaveBeenCalledOnce();
+    await waitFor(() => {
+      expect(
+        canvas.queryByText("Google連携を確認できませんでした。もう一度読み込んでください。"),
+      ).not.toBeInTheDocument();
+      expect(
+        canvas.queryByText("メールアドレスとパスワードを確認できませんでした。もう一度読み込んでください。"),
+      ).not.toBeInTheDocument();
+    });
+  },
+};
+
 export const PasswordChangeDialog: Story = {
   args: { scenario: "passwordOnly", showPasswordDialog: true },
 };
@@ -302,7 +348,7 @@ export const GoogleDisconnectDialog: Story = {
     const canvas = within(canvasElement);
     const body = within(document.body);
 
-    await userEvent.click(canvas.getByRole("button", { name: "連携を解除" }));
+    await userEvent.click(canvas.getByRole("button", { name: "解除" }));
 
     const dialog = await body.findByRole("alertdialog", { name: "Google連携を解除" });
     await waitFor(() => expect(within(dialog).getByRole("button", { name: "解除する" })).toBeVisible());
@@ -317,7 +363,7 @@ export const MobileGoogleDisconnectDialog: Story = {
     const canvas = within(canvasElement);
     const body = within(document.body);
 
-    await userEvent.click(canvas.getByRole("button", { name: "連携を解除" }));
+    await userEvent.click(canvas.getByRole("button", { name: "解除" }));
 
     const dialog = await body.findByRole("alertdialog", { name: "Google連携を解除" });
     await waitFor(() => expect(within(dialog).getByRole("button", { name: "解除する" })).toBeVisible());
@@ -331,7 +377,7 @@ export const GoogleDisconnectErrorBehavior: Story = {
     const canvas = within(canvasElement);
     const body = within(document.body);
 
-    await userEvent.click(canvas.getByRole("button", { name: "連携を解除" }));
+    await userEvent.click(canvas.getByRole("button", { name: "解除" }));
     const dialog = within(await body.findByRole("alertdialog", { name: "Google連携を解除" }));
     await userEvent.click(dialog.getByRole("button", { name: "解除する" }));
 
@@ -367,7 +413,7 @@ export const PasswordOnlyPrimaryEmailChangeBehavior: Story = {
   args: { scenario: "passwordOnly" },
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
-    await primaryEmailChangeBehavior(canvasElement, ["パスワードを変更", "連携する"]);
+    await primaryEmailChangeBehavior(canvasElement, ["パスワードを変更", "Googleを連携"]);
   },
 };
 
@@ -375,7 +421,7 @@ export const BothPrimaryEmailChangeBehavior: Story = {
   args: { scenario: "bothDifferentEmail" },
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
-    await primaryEmailChangeBehavior(canvasElement, ["パスワードを変更", "連携を解除"]);
+    await primaryEmailChangeBehavior(canvasElement, ["パスワードを変更", "解除"]);
   },
 };
 
@@ -406,7 +452,7 @@ async function primaryEmailChangeBehavior(canvasElement: HTMLElement, preservedA
   const toastTitle = await body.findByText("メインのメールアドレスを変更しました");
   await waitFor(() => expect(toastTitle).toBeVisible());
   await waitFor(() => expect(body.queryByRole("dialog")).not.toBeInTheDocument());
-  await expect(await canvas.findByText("new-login@example.com")).toBeVisible();
+  await expect(await canvas.findByText("ne***@example.com")).toBeVisible();
   for (const action of preservedActions) {
     await expect(canvas.getByRole("button", { name: action })).toBeVisible();
   }

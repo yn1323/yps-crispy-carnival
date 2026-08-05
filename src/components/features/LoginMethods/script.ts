@@ -1,3 +1,4 @@
+import { maskEmailAddress } from "@/src/components/features/AuthPage/loginVerification";
 import type {
   LoginMethodState,
   LoginMethodsEmailSnapshot,
@@ -21,12 +22,16 @@ export function buildLoginMethodsViewModel(snapshot: LoginMethodsUserSnapshot): 
   const toEmailViewModel = (email: LoginMethodsEmailSnapshot): LoginMethodsEmailViewModel => {
     const isPrimary = email.id === snapshot.primaryEmailAddressId;
     const verified = isVerifiedEmail(email);
+    const isLinked =
+      (email.linkedTo?.length ?? 0) > 0 ||
+      googleAccounts.some((account) => account.emailAddress.toLowerCase() === email.emailAddress.toLowerCase());
 
     return {
       id: email.id,
-      maskedEmail: email.emailAddress,
+      maskedEmail: maskEmailAddress(email.emailAddress),
       verificationStatus: verified ? "verified" : "unverified",
       isPrimary,
+      isLinked,
       loginEmailChangeAction: hasVerifiedPrimaryEmail && !isPrimary ? (verified ? "switch" : "verify") : null,
     };
   };
@@ -44,7 +49,7 @@ export function buildLoginMethodsViewModel(snapshot: LoginMethodsUserSnapshot): 
 
         return {
           id: account.id,
-          maskedEmail: account.emailAddress,
+          maskedEmail: maskEmailAddress(account.emailAddress),
           status: connected ? "connected" : "needsReconnection",
           canDisconnect,
           disconnectUnavailableReason: canDisconnect
@@ -59,6 +64,7 @@ export function buildLoginMethodsViewModel(snapshot: LoginMethodsUserSnapshot): 
         hasEmailPasswordMethod && googleAccounts.length === 1 && isRetryableGoogleAccount(googleAccounts[0]),
     },
     emailPassword: {
+      passwordEnabled: snapshot.passwordEnabled,
       primaryEmail: verifiedEmailViewModels.find((email) => email.isPrimary) ?? null,
       verifiedEmails: verifiedEmailViewModels,
       unverifiedEmails: unverifiedEmailViewModels,

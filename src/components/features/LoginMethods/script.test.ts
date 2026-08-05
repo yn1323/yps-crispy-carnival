@@ -18,7 +18,7 @@ describe("ログイン方法の表示状態", () => {
         accounts: [
           {
             id: "google-1",
-            maskedEmail: "google@example.com",
+            maskedEmail: "go***@example.com",
             status: "connected",
             canDisconnect: false,
             disconnectUnavailableReason: "確認済みメールアドレスとパスワードを設定してから操作してください。",
@@ -28,19 +28,22 @@ describe("ログイン方法の表示状態", () => {
         canReconnect: false,
       },
       emailPassword: {
+        passwordEnabled: false,
         primaryEmail: {
           id: "email-google",
-          maskedEmail: "google@example.com",
+          maskedEmail: "go***@example.com",
           verificationStatus: "verified",
           isPrimary: true,
+          isLinked: true,
           loginEmailChangeAction: null,
         },
         verifiedEmails: [
           {
             id: "email-google",
-            maskedEmail: "google@example.com",
+            maskedEmail: "go***@example.com",
             verificationStatus: "verified",
             isPrimary: true,
+            isLinked: true,
             loginEmailChangeAction: null,
           },
         ],
@@ -83,7 +86,7 @@ describe("ログイン方法の表示状態", () => {
     expect(result.google.accounts).toEqual([
       {
         id: "google-1",
-        maskedEmail: "google@gmail.com",
+        maskedEmail: "go***@gmail.com",
         status: "connected",
         canDisconnect: true,
         disconnectUnavailableReason: null,

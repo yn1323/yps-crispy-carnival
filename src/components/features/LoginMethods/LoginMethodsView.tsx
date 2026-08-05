@@ -1,7 +1,6 @@
-import { Alert, Badge, Box, Flex, HStack, Icon, Separator, Skeleton, Stack, Text } from "@chakra-ui/react";
+import { Alert, Badge, Box, Card, HStack, Icon, Separator, Skeleton, Stack, Text } from "@chakra-ui/react";
 import { useState } from "react";
-import { FcGoogle } from "react-icons/fc";
-import { LuMail } from "react-icons/lu";
+import { LuKeyRound, LuMail, LuRefreshCw, LuShieldCheck } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { EmailPasswordDialog } from "./EmailPasswordDialog";
@@ -33,6 +32,13 @@ export function LoginMethodsView({
 
   return (
     <Stack gap={5}>
+      <Alert.Root status="info" borderRadius="xl">
+        <Alert.Indicator />
+        <Alert.Description>
+          ここで変更しても、グループで使うシフト連絡先メールアドレスは変わりません。
+        </Alert.Description>
+      </Alert.Root>
+
       {controller.viewModel.status === "unavailable" ? (
         <Alert.Root status="error" borderRadius="xl">
           <Alert.Indicator />
@@ -43,16 +49,29 @@ export function LoginMethodsView({
         </Alert.Root>
       ) : null}
 
-      <LoginMethodsCard
+      <GoogleCard
         controller={controller}
-        onSetPassword={() => onStartFlow("add-email-password")}
-        onConnectGoogle={() => onStartFlow("connect-google")}
-        onRequestGoogleDisconnect={async (externalAccountId) => {
+        onConnect={() => onStartFlow("connect-google")}
+        onRequestDisconnect={async (externalAccountId) => {
           if (await controller.prepareGoogleDisconnect(externalAccountId)) {
             setGoogleToDisconnect(externalAccountId);
           }
         }}
       />
+      <EmailPasswordCard controller={controller} onSetPassword={() => onStartFlow("add-email-password")} />
+
+      <HStack justify="flex-end">
+        <Button
+          variant="outline"
+          onClick={() => {
+            void controller.reload();
+          }}
+          loading={controller.googleState.status === "loading" || controller.emailPasswordState.status === "loading"}
+        >
+          <LuRefreshCw aria-hidden />
+          最新の状態を読み込む
+        </Button>
+      </HStack>
 
       <EmailPasswordDialog controller={controller} reverification={reverification} />
       <LoginEmailChangeDialog
@@ -87,33 +106,85 @@ export function LoginMethodsView({
   );
 }
 
-function LoginMethodsCard({
+function GoogleCard({
   controller,
-  onSetPassword,
-  onConnectGoogle,
-  onRequestGoogleDisconnect,
+  onConnect,
+  onRequestDisconnect,
 }: {
   controller: LoginMethodsController;
-  onSetPassword: () => void;
-  onConnectGoogle: () => void;
-  onRequestGoogleDisconnect: (externalAccountId: string) => Promise<void>;
+  onConnect: () => void;
+  onRequestDisconnect: (externalAccountId: string) => Promise<void>;
 }) {
-  const canDisconnectGoogle = controller.viewModel.google.accounts.some((account) => account.canDisconnect);
+  const { google } = controller.viewModel;
+  const canDisconnectGoogle = google.accounts.some((account) => account.canDisconnect);
 
   return (
     <Stack gap={3}>
-      <Stack gap={0} borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" overflow="hidden" bg="white">
-        <Box p={{ base: 3, md: 4 }} bg="white">
-          <EmailContent controller={controller} onSetPassword={onSetPassword} />
-        </Box>
-        <Box borderTopWidth="1px" borderColor="blackAlpha.100" p={{ base: 3, md: 4 }}>
-          <GoogleContent
-            controller={controller}
-            onConnect={onConnectGoogle}
-            onRequestDisconnect={onRequestGoogleDisconnect}
-          />
-        </Box>
-      </Stack>
+      <Card.Root variant="outline" borderRadius="xl">
+        <Card.Header pb={3}>
+          <HStack gap={3}>
+            <Icon as={LuShieldCheck} color="teal.600" boxSize={5} />
+            <Card.Title fontSize="lg">Google</Card.Title>
+          </HStack>
+        </Card.Header>
+        <Card.Body pt={0}>
+          <Stack gap={4}>
+            <CardError state={controller.googleState} />
+            {google.accounts.length === 0 ? (
+              <Text color="fg.muted">Googleでのログインは設定されていません。</Text>
+            ) : (
+              google.accounts.map((account) => (
+                <Stack key={account.id} gap={2}>
+                  <HStack justify="space-between" align="start" gap={4} flexWrap="wrap">
+                    <Box minW={0}>
+                      <Text fontWeight="medium" overflowWrap="anywhere">
+                        {account.maskedEmail}
+                      </Text>
+                      <Badge mt={1} colorPalette={account.status === "connected" ? "green" : "orange"}>
+                        {account.status === "connected" ? "接続済み" : "再確認が必要"}
+                      </Badge>
+                    </Box>
+                    <HStack gap={2} flexWrap="wrap">
+                      {account.status === "needsReconnection" && google.canReconnect ? (
+                        <Button
+                          variant="outline"
+                          loading={controller.googleState.status === "loading"}
+                          onClick={onConnect}
+                        >
+                          Googleを再接続
+                        </Button>
+                      ) : null}
+                      {account.canDisconnect ? (
+                        <Button
+                          variant="outline"
+                          colorPalette="red"
+                          loading={controller.googleState.status === "loading"}
+                          onClick={() => {
+                            void onRequestDisconnect(account.id);
+                          }}
+                        >
+                          解除
+                        </Button>
+                      ) : null}
+                    </HStack>
+                  </HStack>
+                  <Separator />
+                </Stack>
+              ))
+            )}
+            {google.accounts.length === 0 && google.canConnect ? (
+              <Button
+                alignSelf="flex-start"
+                colorPalette="teal"
+                onClick={onConnect}
+                loading={controller.googleState.status === "loading"}
+              >
+                Googleを連携
+              </Button>
+            ) : null}
+          </Stack>
+        </Card.Body>
+      </Card.Root>
       {canDisconnectGoogle ? (
         <Text color="fg.muted" fontSize="sm">
           Google認証を解除してもメールアドレスでログインできます
@@ -123,7 +194,7 @@ function LoginMethodsCard({
   );
 }
 
-function EmailContent({
+function EmailPasswordCard({
   controller,
   onSetPassword,
 }: {
@@ -132,55 +203,36 @@ function EmailContent({
 }) {
   const { emailPassword } = controller.viewModel;
   const allEmails = [...emailPassword.verifiedEmails, ...emailPassword.unverifiedEmails];
-  const primaryEmail = allEmails.find((email) => email.isPrimary) ?? allEmails[0] ?? null;
-  const secondaryEmails = primaryEmail ? allEmails.filter((email) => email.id !== primaryEmail.id) : [];
 
   return (
-    <Stack gap={2} as="section" aria-labelledby="login-methods-email-heading">
-      <Flex align="center" gap={{ base: 3, md: 4 }} flexWrap={{ base: "wrap", md: "nowrap" }}>
-        <Box
-          borderWidth="1px"
-          borderColor="blackAlpha.100"
-          borderRadius="lg"
-          boxSize={{ base: 10, md: 12 }}
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-          flexShrink={0}
-        >
-          <Icon as={LuMail} boxSize={{ base: 5, md: 6 }} aria-hidden />
-        </Box>
-        <Stack gap={2} flex="1" minW={0}>
-          <Flex align="center" justify="space-between" gap={4} flexWrap={{ base: "wrap", md: "nowrap" }}>
-            <Stack gap={1} minW={0} flex="1">
-              <Text id="login-methods-email-heading" as="h3" fontSize="lg" fontWeight="semibold">
-                メールアドレス
-              </Text>
-              {primaryEmail ? (
-                <EmailAddressDetails email={primaryEmail} />
-              ) : (
-                <Text color="fg.muted" fontSize="sm">
-                  確認できるメールアドレスがありません。
-                </Text>
-              )}
-            </Stack>
-            {primaryEmail ? <EmailAddressActions email={primaryEmail} controller={controller} /> : null}
-          </Flex>
-          {secondaryEmails.length > 0 ? (
-            <Stack gap={2}>
-              {secondaryEmails.map((email) => (
-                <HStack key={email.id} justify="space-between" align="center" gap={4} flexWrap="wrap">
-                  <EmailAddressDetails email={email} />
-                  <EmailAddressActions email={email} controller={controller} />
-                </HStack>
-              ))}
-            </Stack>
-          ) : null}
-        </Stack>
-      </Flex>
-      <CardError state={controller.emailPasswordState} />
-      {emailPassword.canSetPassword || emailPassword.canChangePassword ? (
-        <>
+    <Card.Root variant="outline" borderRadius="xl">
+      <Card.Header pb={3}>
+        <HStack gap={3}>
+          <Icon as={LuKeyRound} color="teal.600" boxSize={5} />
+          <Card.Title fontSize="lg">メールアドレスとパスワード</Card.Title>
+        </HStack>
+      </Card.Header>
+      <Card.Body pt={0}>
+        <Stack gap={4}>
+          <CardError state={controller.emailPasswordState} />
+          <HStack justify="space-between" gap={4} flexWrap="wrap">
+            <Text fontWeight="medium">パスワード</Text>
+            <Badge colorPalette={emailPassword.passwordEnabled ? "green" : "gray"}>
+              {emailPassword.passwordEnabled ? "設定済み" : "未設定"}
+            </Badge>
+          </HStack>
+          <Separator />
+          <Stack gap={3}>
+            <HStack gap={2}>
+              <LuMail aria-hidden />
+              <Text fontWeight="medium">登録済みのメールアドレス</Text>
+            </HStack>
+            {allEmails.length === 0 ? (
+              <Text color="fg.muted">確認できるメールアドレスがありません。</Text>
+            ) : (
+              allEmails.map((email) => <EmailAddressRow key={email.id} email={email} controller={controller} />)
+            )}
+          </Stack>
           <Separator />
           <HStack gap={3} flexWrap="wrap">
             {emailPassword.canSetPassword ? (
@@ -194,28 +246,13 @@ function EmailContent({
               </Button>
             ) : null}
           </HStack>
-        </>
-      ) : null}
-    </Stack>
+        </Stack>
+      </Card.Body>
+    </Card.Root>
   );
 }
 
-function EmailAddressDetails({ email }: { email: LoginMethodsEmailViewModel }) {
-  return (
-    <Box minW={0} flex="1">
-      <Text fontSize="sm" fontWeight="medium" overflowWrap="anywhere">
-        {email.maskedEmail}
-      </Text>
-      {email.verificationStatus === "unverified" ? (
-        <Badge mt={1} colorPalette="orange">
-          メール確認が必要
-        </Badge>
-      ) : null}
-    </Box>
-  );
-}
-
-function EmailAddressActions({
+function EmailAddressRow({
   email,
   controller,
 }: {
@@ -223,111 +260,39 @@ function EmailAddressActions({
   controller: LoginMethodsController;
 }) {
   return (
-    <HStack gap={2} flexWrap="wrap">
-      {email.isPrimary && controller.viewModel.emailPassword.canChangeLoginEmail ? (
-        <Button
-          variant="outline"
-          colorPalette="teal"
-          onClick={controller.openLoginEmailChange}
-          loading={controller.emailPasswordState.status === "loading"}
-        >
-          変更する
-        </Button>
-      ) : email.loginEmailChangeAction ? (
-        <Button
-          variant="outline"
-          loading={controller.emailPasswordState.status === "loading"}
-          onClick={() => {
-            void controller.continueLoginEmailChange(email.id);
-          }}
-        >
-          {email.loginEmailChangeAction === "verify" ? "メール確認を続ける" : "このメールに変更"}
-        </Button>
-      ) : null}
-    </HStack>
-  );
-}
-
-function GoogleContent({
-  controller,
-  onConnect,
-  onRequestDisconnect,
-}: {
-  controller: LoginMethodsController;
-  onConnect: () => void;
-  onRequestDisconnect: (externalAccountId: string) => Promise<void>;
-}) {
-  const { google } = controller.viewModel;
-  return (
-    <Stack gap={2} as="section" aria-labelledby="login-methods-google-heading">
-      <Flex align="center" gap={{ base: 3, md: 4 }} flexWrap={{ base: "wrap", md: "nowrap" }}>
-        <Box
-          borderWidth="1px"
-          borderColor="blackAlpha.100"
-          borderRadius="lg"
-          boxSize={{ base: 10, md: 12 }}
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-          flexShrink={0}
-        >
-          <Icon as={FcGoogle} boxSize={{ base: 5, md: 6 }} aria-hidden />
-        </Box>
-        <Stack gap={1} flex="1" minW={0}>
-          <Text id="login-methods-google-heading" as="h3" fontSize="lg" fontWeight="semibold">
-            Google認証
-          </Text>
-          {google.accounts.length === 0 ? (
-            <Text color="fg.muted" fontSize="sm">
-              Googleでのログインは設定されていません。
-            </Text>
-          ) : (
-            google.accounts.map((account) => (
-              <HStack key={account.id} justify="space-between" align="center" gap={4} flexWrap="wrap">
-                <Text color="fg.muted" fontSize="sm" minW={0} overflowWrap="anywhere">
-                  {account.maskedEmail}
-                </Text>
-                <HStack gap={3} flexWrap="wrap">
-                  <Badge colorPalette={account.status === "connected" ? "green" : "orange"}>
-                    {account.status === "connected" ? "連携済み" : "再確認が必要"}
-                  </Badge>
-                  {account.status === "needsReconnection" && google.canReconnect ? (
-                    <Button variant="outline" loading={controller.googleState.status === "loading"} onClick={onConnect}>
-                      Googleを再接続
-                    </Button>
-                  ) : null}
-                  {account.canDisconnect ? (
-                    <Button
-                      variant="outline"
-                      colorPalette="red"
-                      loading={controller.googleState.status === "loading"}
-                      onClick={() => {
-                        void onRequestDisconnect(account.id);
-                      }}
-                    >
-                      連携を解除
-                    </Button>
-                  ) : null}
-                </HStack>
-              </HStack>
-            ))
-          )}
-        </Stack>
-        {google.accounts.length === 0 && google.canConnect ? (
+    <HStack justify="space-between" align="start" gap={4} flexWrap="wrap">
+      <Box minW={0}>
+        <Text overflowWrap="anywhere">{email.maskedEmail}</Text>
+        <HStack mt={1} gap={2} flexWrap="wrap">
+          <Badge colorPalette={email.verificationStatus === "verified" ? "green" : "orange"}>
+            {email.verificationStatus === "verified" ? "確認済み" : "メール確認が必要"}
+          </Badge>
+          {email.isLinked ? <Badge>Googleと接続中</Badge> : null}
+        </HStack>
+      </Box>
+      <HStack gap={2} flexWrap="wrap">
+        {email.isPrimary && controller.viewModel.emailPassword.canChangeLoginEmail ? (
           <Button
             variant="outline"
-            alignSelf="center"
-            flexShrink={0}
             colorPalette="teal"
-            onClick={onConnect}
-            loading={controller.googleState.status === "loading"}
+            onClick={controller.openLoginEmailChange}
+            loading={controller.emailPasswordState.status === "loading"}
           >
-            連携する
+            変更する
+          </Button>
+        ) : email.loginEmailChangeAction ? (
+          <Button
+            variant="outline"
+            loading={controller.emailPasswordState.status === "loading"}
+            onClick={() => {
+              void controller.continueLoginEmailChange(email.id);
+            }}
+          >
+            {email.loginEmailChangeAction === "verify" ? "メール確認を続ける" : "このメールに変更"}
           </Button>
         ) : null}
-      </Flex>
-      <CardError state={controller.googleState} />
-    </Stack>
+      </HStack>
+    </HStack>
   );
 }
 
