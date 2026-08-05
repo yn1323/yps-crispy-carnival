@@ -428,12 +428,16 @@ export function useLoginMethodReverification({
           return;
         }
         if (resource.status === (internalFactor.stage === "first" ? "needs_first_factor" : "needs_second_factor")) {
-          setAwaitingInput(request, selectedFactor, "本人確認に失敗しました。入力内容を確認してください。");
+          setAwaitingInput(request, selectedFactor, verificationFailureMessage(selectedFactor));
           return;
         }
         failClosed(request);
-      } catch {
-        if (isCurrent(request)) failClosed(request);
+      } catch (error) {
+        if (isCurrent(request) && isPasswordFactor(selectedFactor) && isIncorrectPasswordError(error)) {
+          setAwaitingInput(request, selectedFactor, "パスワードが正しくありません。入力内容を確認してください。");
+        } else if (isCurrent(request)) {
+          failClosed(request);
+        }
       } finally {
         actionRunningRef.current = false;
       }
@@ -534,6 +538,28 @@ function reverificationCooldownScope(internalFactor: InternalFactor) {
 
 function verificationCooldownMessage(retryAfterSeconds: number) {
   return `確認コードを送信した直後です。あと${retryAfterSeconds}秒ほど待ってから再送してください。`;
+}
+
+function verificationFailureMessage(factor: LoginMethodReverificationFactor) {
+  return isPasswordFactor(factor)
+    ? "パスワードが正しくありません。入力内容を確認してください。"
+    : "本人確認に失敗しました。入力内容を確認してください。";
+}
+
+function isPasswordFactor(factor: LoginMethodReverificationFactor) {
+  return factor.strategy === "password";
+}
+
+function isIncorrectPasswordError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const errors = "errors" in error && Array.isArray(error.errors) ? error.errors : [error];
+  return errors.some(
+    (entry) =>
+      entry !== null &&
+      typeof entry === "object" &&
+      "code" in entry &&
+      (entry.code === "form_password_incorrect" || entry.code === "form_password_validation_failed"),
+  );
 }
 
 function buildSupportedFactors(

@@ -517,7 +517,7 @@ describe("メールアドレスとパスワードの追加controller", () => {
 
     expect(result.current.state.feedback).toEqual({
       status: "error",
-      message: "このメールアドレスでは変更を続けられません。別のメールアドレスを入力してください。",
+      message: "このメールアドレスに変更できません。\n別のメールアドレスを入力してください。",
     });
     expect(result.current.state.feedback.message).not.toContain("登録");
     expect(result.current.state.feedback.message).not.toContain("別のユーザー");

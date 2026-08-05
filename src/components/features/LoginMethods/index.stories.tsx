@@ -345,9 +345,10 @@ export const GoogleDisconnectErrorBehavior: Story = {
     const dialog = within(await body.findByRole("alertdialog", { name: "Google連携を解除" }));
     await userEvent.click(dialog.getByRole("button", { name: "解除する" }));
 
-    await expect(await dialog.findByRole("alert")).toHaveTextContent(
-      "Google連携を解除できませんでした。もう一度お試しください。",
-    );
+    const alert = await dialog.findByRole("alert");
+    await expect(alert).toHaveTextContent("Google連携を解除できませんでした。もう一度お試しください。");
+    const explanation = dialog.getByText(/このGoogleアカウントではログインできなくなります/);
+    await expect(explanation.compareDocumentPosition(alert)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     await waitFor(() => expect(dialog.getByRole("button", { name: "解除する" })).toBeVisible());
   },
 };
@@ -428,10 +429,10 @@ async function primaryEmailChangeBehavior(
   const codeDialogElement = await body.findByRole("dialog", { name: "確認コードを入力" });
   const codeDialog = within(codeDialogElement);
   const instruction = await codeDialog.findByText(
-    "ne***@example.comに確認コードを送りました。メールに届いたコードを入力してください。",
+    "new-login@example.comに確認コードを送りました。メールに届いたコードを入力してください。",
   );
   await expect(instruction.closest('[data-scope="alert"]')).toBeNull();
-  await expect(codeDialog.queryByText(/new-login@example\.com/)).not.toBeInTheDocument();
+  await expect(codeDialog.getByText(/new-login@example\.com/)).toBeVisible();
   await userEvent.type(codeDialog.getByRole("textbox", { name: "確認コード" }), "123456");
   await userEvent.click(codeDialog.getByRole("button", { name: "メールを確認" }));
 

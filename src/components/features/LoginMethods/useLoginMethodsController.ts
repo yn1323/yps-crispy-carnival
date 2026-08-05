@@ -21,6 +21,9 @@ const LOADING_STATE: LoginMethodsCardState = { status: "loading", message: null 
 const LOGIN_EMAIL_CHANGE_REVERIFICATION_OPTIONS: LoginMethodOperationOptions = {
   preferredFirstFactorStrategy: "email_code",
 };
+const GOOGLE_DISCONNECT_REVERIFICATION_OPTIONS: LoginMethodOperationOptions = {
+  preferredFirstFactorStrategy: "password",
+};
 const GOOGLE_DISCONNECT_EMAIL_REQUIRED_MESSAGE =
   "メールアドレス未設定時はGoogle認証を解除できません。先にメールアドレスとパスワードを設定してください。";
 
@@ -74,7 +77,7 @@ export function useLoginMethodsController({
   };
 
   const reverificationOptions = { onNeedsReverification };
-  const destroyGoogle = async (externalAccountId: string) => {
+  const destroyGoogleWithReverification = useReverification(async (externalAccountId: string) => {
     const currentUser = await reloadUser();
     const freshViewModel = buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser));
     const freshAccount = currentUser.externalAccounts.find((account) => account.id === externalAccountId);
@@ -82,7 +85,7 @@ export function useLoginMethodsController({
     if (freshAccount?.provider !== "google" || !accountViewModel?.canDisconnect) return "unavailable" as const;
     await freshAccount.destroy();
     return "removed" as const;
-  };
+  }, reverificationOptions);
   const ensureEmailAddressWithReverification = useReverification(async (email: string) => {
     const currentUser = await reloadUser();
     if (!buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser)).emailPassword.canChangeLoginEmail) {
@@ -209,7 +212,7 @@ export function useLoginMethodsController({
           return true;
         }
 
-        const destroyed = await destroyGoogle(externalAccountId);
+        const destroyed = await destroyGoogleWithReverification(externalAccountId);
         if (destroyed === "unavailable") {
           setGoogleState(cardError("ログイン方法の状態が変わったため、Google連携を解除していません。"));
           return false;
@@ -407,7 +410,11 @@ export function useLoginMethodsController({
     emailChangeDialog,
     reload,
     prepareGoogleDisconnect: (externalAccountId) => runGoogleOperation("prepareDisconnect", externalAccountId),
-    disconnectGoogle: (externalAccountId) => runGoogleOperation("disconnect", externalAccountId),
+    disconnectGoogle: async (externalAccountId) =>
+      (await runOperation(
+        () => runGoogleOperation("disconnect", externalAccountId),
+        GOOGLE_DISCONNECT_REVERIFICATION_OPTIONS,
+      )) ?? false,
     openLoginEmailChange: () => {
       const primaryEmail = viewModel.emailPassword.primaryEmail;
       if (!viewModel.emailPassword.canChangeLoginEmail || !primaryEmail) {

@@ -100,7 +100,7 @@ function LoginMethodsCard({
   return (
     <Stack gap={3}>
       <Text color="fg.muted" fontSize="sm">
-        Google認証を解除してもメールアドレスでログインできます
+        Google認証、メールアドレス両方でログインできます。
       </Text>
       <Stack gap={0} borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" overflow="hidden" bg="white">
         <Box p={{ base: 3, md: 4 }} bg="white">
@@ -173,7 +173,6 @@ function EmailContent({
           </Flex>
         </Stack>
       </Flex>
-      <CardError state={controller.emailPasswordState} />
     </Stack>
   );
 }
@@ -288,7 +287,6 @@ function GoogleContent({
           </Button>
         ) : null}
       </Flex>
-      <CardError state={controller.googleState} />
     </Stack>
   );
 }
@@ -350,12 +348,12 @@ function GoogleDisconnectDialog({
       {isReverifying ? <LoginMethodReverificationView controller={reverification} /> : null}
       {!isReverifying ? (
         <Stack gap={4}>
-          <CardError state={controller.googleState} />
           <Text>
             このGoogleアカウントではログインできなくなります。
             <br />
             メールアドレスとパスワードは残ります。
           </Text>
+          <CardError state={controller.googleState} />
         </Stack>
       ) : null}
     </Dialog>

@@ -1,4 +1,4 @@
-import { Alert, Box, Field, HStack, Input, Skeleton, Stack, Text } from "@chakra-ui/react";
+import { Alert, Field, HStack, Input, Skeleton, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -117,16 +117,8 @@ function GoogleConnectionContent({ controller }: { controller: GoogleConnectionC
       {state.phase !== "unavailable" ? <FeedbackError feedback={state.feedback} /> : null}
       {state.phase === "readyToConnect" ? (
         <Stack gap={5}>
-          <Box>
-            <Text fontSize="lg" fontWeight="semibold">
-              Googleアカウントを選択します
-            </Text>
-            <Text mt={2} color="fg.muted">
-              Google側の画面で、シフトリへのログインに使うアカウントを選択してください。現在のメールアドレスとパスワードは残ります。
-            </Text>
-          </Box>
           <Button
-            alignSelf={{ base: "stretch", sm: "flex-start" }}
+            alignSelf="flex-end"
             colorPalette="teal"
             size="lg"
             loading={busy}

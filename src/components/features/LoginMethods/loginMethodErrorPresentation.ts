@@ -1,7 +1,6 @@
 import { getClerkErrorMessage } from "@/src/components/features/AuthPage/errorPresentation";
 
-const IDENTIFIER_COLLISION_MESSAGE =
-  "このメールアドレスでは変更を続けられません。別のメールアドレスを入力してください。";
+const IDENTIFIER_COLLISION_MESSAGE = "このメールアドレスに変更できません。\n別のメールアドレスを入力してください。";
 
 /** account管理では、別Userの識別子登録状態を推測できない文言へ揃える。 */
 export function getLoginMethodAccountErrorMessage(error: unknown): string {

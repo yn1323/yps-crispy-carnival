@@ -461,7 +461,7 @@ describe("useLoginMethodsController", () => {
     expect(result.current.emailChangeDialog).toMatchObject({ isOpen: true, step: "input" });
     expect(result.current.emailPasswordState).toEqual({
       status: "error",
-      message: "このメールアドレスでは変更を続けられません。別のメールアドレスを入力してください。",
+      message: "このメールアドレスに変更できません。\n別のメールアドレスを入力してください。",
     });
     expect(result.current.emailPasswordState.message).not.toContain("occupied@example.com");
   });
@@ -520,18 +520,32 @@ describe("useLoginMethodsController", () => {
       callOrder.push("destroy");
       user.externalAccounts = [];
     });
-    const { result } = renderController(user);
+    const runOperation = vi.fn(
+      async <T,>(operation: () => Promise<T>, _options?: LoginMethodOperationOptions): Promise<T | undefined> =>
+        operation(),
+    );
+    const { result } = renderController(
+      user,
+      () => user.id,
+      runOperation as unknown as <T>(
+        operation: () => Promise<T>,
+        options?: LoginMethodOperationOptions,
+      ) => Promise<T | undefined>,
+    );
 
     expect(result.current.viewModel.methodState).toBe("googleAndPassword");
     await act(async () => result.current.disconnectGoogle(account.id));
 
     expect(account.destroy).toHaveBeenCalledOnce();
     expect(callOrder).toEqual(["reload", "reload", "destroy", "reload"]);
+    expect(runOperation).toHaveBeenCalledWith(expect.any(Function), {
+      preferredFirstFactorStrategy: "password",
+    });
     expect(user.passwordEnabled).toBe(true);
     expect(user.emailAddresses).toEqual([linkedEmail]);
     expect(user.externalAccounts).toEqual([]);
     expect(result.current.googleState).toEqual({ status: "idle", message: null });
-    expect(mocks.runWithReverification).not.toHaveBeenCalled();
+    expect(mocks.runWithReverification).toHaveBeenCalledOnce();
     expect(mocks.showSuccessToast).toHaveBeenCalledWith({ title: "Google連携を解除しました" });
   });
 

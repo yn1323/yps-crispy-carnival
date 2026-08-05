@@ -36,7 +36,7 @@ export type LoginMethodOnNeedsReverification = (request: {
 }) => void;
 
 export type LoginMethodOperationOptions = {
-  preferredFirstFactorStrategy?: "email_code";
+  preferredFirstFactorStrategy?: "email_code" | "password";
 };
 
 export type LoginMethodReverificationController = {

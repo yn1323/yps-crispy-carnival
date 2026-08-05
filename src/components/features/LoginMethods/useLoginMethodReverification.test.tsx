@@ -86,6 +86,44 @@ describe("useLoginMethodReverification", () => {
     await operationPromise;
   });
 
+  it("パスワード優先の本人確認は選択画面を表示せず、誤入力後もパスワード入力を維持する", async () => {
+    const session = sessionResource();
+    mocks.session = session;
+    const awaiting = verificationResource({
+      status: "needs_first_factor",
+      firstFactors: [
+        { strategy: "password" },
+        { strategy: "email_code", emailAddressId: "email_1", safeIdentifier: "account@example.com" },
+      ],
+    });
+    session.startVerification.mockResolvedValue(awaiting);
+    session.prepareFirstFactorVerification.mockResolvedValue(awaiting);
+    session.attemptFirstFactorVerification.mockRejectedValueOnce({
+      errors: [{ code: "form_password_incorrect" }],
+    });
+    const operation = deferred<void>();
+    const { result } = renderReverification();
+
+    const operationPromise = result.current.runOperation(() => operation.promise, {
+      preferredFirstFactorStrategy: "password",
+    });
+    act(() => result.current.onNeedsReverification({ level: "first_factor", complete: vi.fn(), cancel: vi.fn() }));
+
+    await waitFor(() => expect(result.current.state.status).toBe("awaiting_input"));
+    expect(result.current.state.selectedFactor?.strategy).toBe("password");
+    expect(session.prepareFirstFactorVerification).not.toHaveBeenCalled();
+
+    await act(async () => result.current.submit("wrong-password"));
+
+    expect(result.current.state).toMatchObject({
+      status: "awaiting_input",
+      selectedFactor: { strategy: "password" },
+      message: "パスワードが正しくありません。入力内容を確認してください。",
+    });
+    operation.resolve();
+    await operationPromise;
+  });
+
   it("要求されたlevelで開始し、password完了後だけ元要求をcompleteする", async () => {
     const session = sessionResource();
     mocks.session = session;
