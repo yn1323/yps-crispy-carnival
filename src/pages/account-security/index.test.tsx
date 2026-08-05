@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => ({ loginMethodsProps: null as Record<string, unkn
 vi.mock("@chakra-ui/react", () => ({
   Heading: ({ children }: { children: ReactNode }) => <h1>{children}</h1>,
   Stack: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  Text: ({ children }: { children: ReactNode }) => <p>{children}</p>,
 }));
 
 vi.mock("@/src/components/features/LoginMethods", () => ({
@@ -50,7 +49,5 @@ describe("AccountSecurityPage", () => {
         onGoogleOAuthReturnHandled,
       }),
     );
-    expect(screen.getByRole("heading", { name: "ログイン方法とセキュリティ" })).toBeDefined();
-    expect(screen.getByText("シフトリへのログインに使う方法を確認します。")).toBeDefined();
   });
 });

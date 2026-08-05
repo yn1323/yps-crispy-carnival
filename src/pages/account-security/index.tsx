@@ -1,4 +1,4 @@
-import { Heading, Stack, Text } from "@chakra-ui/react";
+import { Heading, Stack } from "@chakra-ui/react";
 import { type LoginMethodMigrationFlow, LoginMethods } from "@/src/components/features/LoginMethods";
 import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
 
@@ -24,9 +24,8 @@ export function AccountSecurityPage({
       <Stack gap={6}>
         <Stack gap={2}>
           <Heading as="h1" textStyle={{ base: "sectionTitle", md: "pageTitle" }} color="gray.900">
-            ログイン方法とセキュリティ
+            ログイン設定
           </Heading>
-          <Text color="fg.muted">シフトリへのログインに使う方法を確認します。</Text>
         </Stack>
         <LoginMethods
           flow={flow}
