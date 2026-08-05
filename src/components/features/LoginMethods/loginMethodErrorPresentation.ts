@@ -7,6 +7,10 @@ export function getLoginMethodAccountErrorMessage(error: unknown): string {
   return isEmailIdentifierCollision(error) ? IDENTIFIER_COLLISION_MESSAGE : getClerkErrorMessage(error);
 }
 
+export function emailVerificationCooldownMessage(retryAfterSeconds: number) {
+  return `確認コードを送信した直後です。あと${retryAfterSeconds}秒ほど待ってから再送してください。`;
+}
+
 function isEmailIdentifierCollision(error: unknown) {
   if (!error || typeof error !== "object") return false;
   const firstError = "errors" in error && Array.isArray(error.errors) ? error.errors[0] : error;

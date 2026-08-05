@@ -6,7 +6,13 @@ import { normalizeEmail, requiredEmailSchema } from "@/convex/_lib/validation";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { toLoginMethodsUserSnapshot } from "./adapter";
-import { getLoginMethodAccountErrorMessage } from "./loginMethodErrorPresentation";
+import {
+  findLoginEmailAddress,
+  findVerifiedPrimaryLoginEmailAddress,
+  getGoogleExternalAccountStateKeys,
+  haveSameStringValues,
+} from "./clerkLoginMethodResource";
+import { emailVerificationCooldownMessage, getLoginMethodAccountErrorMessage } from "./loginMethodErrorPresentation";
 import {
   createLoginMethodOperationCooldown,
   emailVerificationCooldownScope,
@@ -91,14 +97,14 @@ export function useLoginMethodsController({
     if (!buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser)).emailPassword.canChangeLoginEmail) {
       return { status: "unavailable" } as const;
     }
-    const existing = findEmailAddress(currentUser, null, email);
+    const existing = findLoginEmailAddress(currentUser, null, email);
     if (existing) return { status: "ready", emailAddressId: existing.id } as const;
     const created = await currentUser.createEmailAddress({ email });
     return { status: "ready", emailAddressId: created.id } as const;
   }, reverificationOptions);
   const updatePrimaryEmailWithReverification = useReverification(async (emailAddressId: string) => {
     const currentUser = await reloadUser();
-    const target = findEmailAddress(currentUser, emailAddressId);
+    const target = findLoginEmailAddress(currentUser, emailAddressId);
     if (
       target?.verification?.status !== "verified" ||
       !buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser)).emailPassword.canChangeLoginEmail
@@ -139,7 +145,7 @@ export function useLoginMethodsController({
     targetEmailAddressId: string,
     baseline: PrimaryChangeBaseline,
   ) => {
-    const target = findEmailAddress(currentUser, targetEmailAddressId);
+    const target = findLoginEmailAddress(currentUser, targetEmailAddressId);
     const previousEmailStillExists = currentUser.emailAddresses.some(
       (emailAddress) => emailAddress.id === baseline.previousPrimaryEmailAddressId,
     );
@@ -149,7 +155,7 @@ export function useLoginMethodsController({
       target?.verification?.status === "verified" &&
       previousEmailStillExists &&
       currentUser.passwordEnabled === baseline.passwordEnabled &&
-      equalStringSets(googleAccountKeys(currentUser), baseline.googleAccounts)
+      haveSameStringValues(getGoogleExternalAccountStateKeys(currentUser), baseline.googleAccounts)
     );
   };
 
@@ -158,7 +164,7 @@ export function useLoginMethodsController({
     targetEmailAddressId: string,
     baseline: PrimaryChangeBaseline,
   ): Promise<boolean> => {
-    const target = findEmailAddress(currentUser, targetEmailAddressId);
+    const target = findLoginEmailAddress(currentUser, targetEmailAddressId);
     if (target?.verification?.status !== "verified") {
       setEmailPasswordState(cardError("変更先のメールアドレスを確認できません。最新の状態を読み込んでください。"));
       return false;
@@ -268,7 +274,7 @@ export function useLoginMethodsController({
             setEmailPasswordState(cardError(parsed.error.issues[0]?.message ?? "メールアドレスを確認してください。"));
             return false;
           }
-          const currentPrimary = findVerifiedPrimaryEmailAddress(currentUser);
+          const currentPrimary = findVerifiedPrimaryLoginEmailAddress(currentUser);
           if (!currentPrimary) {
             setEmailPasswordState(cardError("現在のメインメールアドレスを確認できません。"));
             return false;
@@ -279,7 +285,7 @@ export function useLoginMethodsController({
             setEmailPasswordState(cardError("現在とは異なるメールアドレスを入力してください。"));
             return false;
           }
-          let target = findEmailAddress(currentUser, null, targetEmail);
+          let target = findLoginEmailAddress(currentUser, null, targetEmail);
           if (!target) {
             const ensured = await ensureEmailAddressWithReverification(targetEmail);
             if (ensured == null) {
@@ -291,9 +297,9 @@ export function useLoginMethodsController({
               return false;
             }
             await reloadUser();
-            target = findEmailAddress(currentUser, ensured.emailAddressId, targetEmail);
+            target = findLoginEmailAddress(currentUser, ensured.emailAddressId, targetEmail);
           }
-          const latestPrimary = findVerifiedPrimaryEmailAddress(currentUser);
+          const latestPrimary = findVerifiedPrimaryLoginEmailAddress(currentUser);
           if (!target || !latestPrimary) {
             setEmailPasswordState(cardError("変更先のメールアドレスを確認できません。"));
             return false;
@@ -329,7 +335,7 @@ export function useLoginMethodsController({
 
         if (operation === "verifyLoginEmail" || operation === "resendLoginEmail") {
           const target = resolveLoginEmailChangeDialogEmailAddress(currentUser, emailChangeDialog);
-          const currentPrimary = findVerifiedPrimaryEmailAddress(currentUser);
+          const currentPrimary = findVerifiedPrimaryLoginEmailAddress(currentUser);
           if (!target || !currentPrimary) {
             setEmailPasswordState(
               cardError("確認中のメールアドレスを取得できません。最新の状態を読み込んでください。"),
@@ -367,14 +373,14 @@ export function useLoginMethodsController({
         }
         try {
           const currentUser = await reloadUser();
-          const recoveredTarget = findEmailAddress(currentUser, targetId, targetEmail ?? undefined);
+          const recoveredTarget = findLoginEmailAddress(currentUser, targetId, targetEmail ?? undefined);
           targetId ??= recoveredTarget?.id ?? null;
           if (baseline && targetId && primaryChangeCompleted(currentUser, targetId, baseline)) {
             showEmailChangeSuccess();
             return true;
           }
           if (recoveredTarget) {
-            const currentPrimary = findVerifiedPrimaryEmailAddress(currentUser);
+            const currentPrimary = findVerifiedPrimaryLoginEmailAddress(currentUser);
             if (currentPrimary && recoveredTarget.verification?.status !== "verified") {
               setEmailChangeDialog({
                 isOpen: true,
@@ -455,42 +461,17 @@ export function useLoginMethodsController({
   };
 }
 
-function findEmailAddress(user: UserResource, id: string | null, normalizedEmail?: string) {
-  if (id) {
-    const byId = user.emailAddresses.find((emailAddress) => emailAddress.id === id);
-    if (byId) return byId;
-  }
-  if (!normalizedEmail) return undefined;
-  return user.emailAddresses.find((emailAddress) => normalizeEmail(emailAddress.emailAddress) === normalizedEmail);
-}
-
-function findVerifiedPrimaryEmailAddress(user: UserResource) {
-  if (!user.primaryEmailAddressId) return undefined;
-  const primaryEmail = findEmailAddress(user, user.primaryEmailAddressId);
-  return primaryEmail?.verification?.status === "verified" ? primaryEmail : undefined;
-}
-
 function resolveLoginEmailChangeDialogEmailAddress(user: UserResource, dialog: LoginEmailChangeDialogState) {
   if (!dialog.isOpen || !dialog.targetEmailAddressId) return undefined;
-  return findEmailAddress(user, dialog.targetEmailAddressId);
+  return findLoginEmailAddress(user, dialog.targetEmailAddressId);
 }
 
 function primaryChangeBaseline(user: UserResource, previousPrimaryEmailAddressId: string): PrimaryChangeBaseline {
   return {
     previousPrimaryEmailAddressId,
     passwordEnabled: user.passwordEnabled,
-    googleAccounts: googleAccountKeys(user),
+    googleAccounts: getGoogleExternalAccountStateKeys(user),
   };
-}
-
-function googleAccountKeys(user: UserResource) {
-  return user.externalAccounts
-    .filter((account) => account.provider === "google")
-    .map((account) => `${account.id}:${account.verification?.status ?? "unknown"}`);
-}
-
-function equalStringSets(left: string[], right: string[]) {
-  return left.length === right.length && left.every((value) => right.includes(value));
 }
 
 function googleDisconnectCompleted(user: UserResource, externalAccountId: string) {
@@ -499,10 +480,6 @@ function googleDisconnectCompleted(user: UserResource, externalAccountId: string
     user.passwordEnabled &&
     user.emailAddresses.some((emailAddress) => emailAddress.verification?.status === "verified")
   );
-}
-
-function emailVerificationCooldownMessage(retryAfterSeconds: number) {
-  return `確認コードを送信した直後です。あと${retryAfterSeconds}秒ほど待ってから再送してください。`;
 }
 
 function cardError(message: string): LoginMethodsCardState {

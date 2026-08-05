@@ -60,8 +60,8 @@ describe("メールアドレスとパスワードの追加controller", () => {
       { initialProps: { active: true, currentUser: user } },
     );
 
-    await act(async () => result.current.useCurrentEmail());
-    await act(async () => result.current.setPassword({ newPassword: "safe-password", signOutOfOtherSessions: false }));
+    await act(async () => result.current.useDifferentEmail(linkedEmail.emailAddress));
+    await act(async () => result.current.setPassword("safe-password"));
     expect(result.current.state).toMatchObject({ phase: "methodReady", feedback: { status: "success" } });
 
     rerender({ active: false, currentUser: user });
@@ -196,7 +196,7 @@ describe("メールアドレスとパスワードの追加controller", () => {
       }),
     );
 
-    await act(async () => result.current.useCurrentEmail());
+    await act(async () => result.current.useDifferentEmail(linkedEmail.emailAddress));
 
     expect(result.current.state).toMatchObject({
       phase: "settingPassword",
@@ -205,7 +205,7 @@ describe("メールアドレスとパスワードの追加controller", () => {
     });
     expect(user.createEmailAddress).not.toHaveBeenCalled();
 
-    await act(async () => result.current.setPassword({ newPassword: "safe-password", signOutOfOtherSessions: false }));
+    await act(async () => result.current.setPassword("safe-password"));
 
     expect(user.id).toBe("user-current");
     expect(user.updatePassword).toHaveBeenCalledWith({
@@ -266,7 +266,7 @@ describe("メールアドレスとパスワードの追加controller", () => {
     await act(async () => result.current.verifyEmail("123456"));
     expect(result.current.state.phase).toBe("settingPassword");
 
-    await act(async () => result.current.setPassword({ newPassword: "safe-password", signOutOfOtherSessions: true }));
+    await act(async () => result.current.setPassword("safe-password"));
 
     expect(result.current.state.phase).toBe("methodReady");
     expect(google.destroy).not.toHaveBeenCalled();
@@ -401,13 +401,10 @@ describe("メールアドレスとパスワードの追加controller", () => {
       }),
     );
 
-    await act(async () => result.current.useCurrentEmail());
+    await act(async () => result.current.useDifferentEmail(linkedEmail.emailAddress));
     let completed: boolean | undefined;
     await act(async () => {
-      completed = await result.current.setPassword({
-        newPassword: "safe-password",
-        signOutOfOtherSessions: false,
-      });
+      completed = await result.current.setPassword("safe-password");
     });
 
     expect(completed).toBe(true);
@@ -442,7 +439,7 @@ describe("メールアドレスとパスワードの追加controller", () => {
       }),
     );
 
-    await act(async () => result.current.useCurrentEmail());
+    await act(async () => result.current.useDifferentEmail(linkedEmail.emailAddress));
 
     expect(result.current.state.feedback.status).toBe("error");
     expect(user.updatePassword).not.toHaveBeenCalled();

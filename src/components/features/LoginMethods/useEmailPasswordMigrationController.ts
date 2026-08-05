@@ -5,7 +5,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { normalizeEmail, requiredEmailSchema } from "@/convex/_lib/validation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { toLoginMethodsUserSnapshot } from "./adapter";
-import { getLoginMethodAccountErrorMessage } from "./loginMethodErrorPresentation";
+import {
+  findLoginEmailAddress,
+  getGoogleExternalAccountStateKeys,
+  haveSameStringValues,
+  isVerifiedLoginEmailAddress,
+} from "./clerkLoginMethodResource";
+import { emailVerificationCooldownMessage, getLoginMethodAccountErrorMessage } from "./loginMethodErrorPresentation";
 import { deriveEmailPasswordMigration } from "./migrationScript";
 import type {
   EmailPasswordMigrationPhase,
@@ -30,11 +36,10 @@ export type EmailPasswordMigrationState = {
 export type EmailPasswordMigrationController = {
   state: EmailPasswordMigrationState;
   refresh: () => Promise<boolean | undefined>;
-  useCurrentEmail: () => Promise<boolean | undefined>;
   useDifferentEmail: (email: string) => Promise<boolean | undefined>;
   verifyEmail: (code: string) => Promise<boolean | undefined>;
   resendEmailCode: () => Promise<boolean | undefined>;
-  setPassword: (values: { newPassword: string; signOutOfOtherSessions: boolean }) => Promise<boolean | undefined>;
+  setPassword: (newPassword: string) => Promise<boolean | undefined>;
   reset: () => void;
 };
 
@@ -128,7 +133,7 @@ export function useEmailPasswordMigrationController({
   const ensureEmailAddressWithReverification = useReverification(
     async (normalizedEmail: string) => {
       const currentUser = await reloadUser();
-      const existing = findEmailAddress(currentUser, null, normalizedEmail);
+      const existing = findLoginEmailAddress(currentUser, null, normalizedEmail);
       if (existing) return { status: "ready", emailAddressId: existing.id } as const;
       const created = await currentUser.createEmailAddress({ email: normalizedEmail });
       return { status: "ready", emailAddressId: created.id } as const;
@@ -137,20 +142,12 @@ export function useEmailPasswordMigrationController({
   );
 
   const setPasswordWithReverification = useReverification(
-    async ({
-      targetEmailAddressId,
-      newPassword,
-      signOutOfOtherSessions,
-    }: {
-      targetEmailAddressId: string;
-      newPassword: string;
-      signOutOfOtherSessions: boolean;
-    }) => {
+    async ({ targetEmailAddressId, newPassword }: { targetEmailAddressId: string; newPassword: string }) => {
       const currentUser = await reloadUser();
-      const target = findEmailAddress(currentUser, targetEmailAddressId);
-      if (!isVerifiedTarget(target)) return "unavailable" as const;
+      const target = findLoginEmailAddress(currentUser, targetEmailAddressId);
+      if (!isVerifiedLoginEmailAddress(target)) return "unavailable" as const;
       if (currentUser.passwordEnabled) return "alreadyReady" as const;
-      await currentUser.updatePassword({ newPassword, signOutOfOtherSessions });
+      await currentUser.updatePassword({ newPassword, signOutOfOtherSessions: false });
       return "updated" as const;
     },
     { onNeedsReverification },
@@ -214,35 +211,6 @@ export function useEmailPasswordMigrationController({
     return true;
   };
 
-  const { run: useCurrentEmail } = useSingleFlight(
-    withOperationLock(async () => {
-      setState((current) => ({ ...current, feedback: { status: "loading", message: null } }));
-      try {
-        const currentUser = await reloadUser();
-        const target =
-          currentUser.emailAddresses.find(
-            (emailAddress) =>
-              emailAddress.id === currentUser.primaryEmailAddressId && emailAddress.verification?.status === "verified",
-          ) ?? currentUser.emailAddresses.find((emailAddress) => emailAddress.verification?.status === "verified");
-        if (!target) {
-          setState((current) => ({
-            ...current,
-            feedback: { status: "error", message: "利用できるメールアドレスを確認できません。" },
-          }));
-          return false;
-        }
-        return advanceWithEmail(currentUser, target);
-      } catch (error) {
-        if (isReverificationCancelledError(error)) {
-          setState((current) => ({ ...current, feedback: IDLE_FEEDBACK }));
-          return false;
-        }
-        setState((current) => ({ ...current, feedback: errorFeedback(error) }));
-        return false;
-      }
-    }),
-  );
-
   const { run: useDifferentEmail } = useSingleFlight(
     withOperationLock(async (email: string) => {
       setState((current) => ({ ...current, feedback: { status: "loading", message: null } }));
@@ -262,7 +230,7 @@ export function useEmailPasswordMigrationController({
       let ensuredId: string | null = null;
       try {
         let currentUser = await reloadUser();
-        let target = findEmailAddress(currentUser, null, normalizedEmail);
+        let target = findLoginEmailAddress(currentUser, null, normalizedEmail);
         if (!target) {
           const ensured = await ensureEmailAddressWithReverification(normalizedEmail);
           if (ensured == null) {
@@ -274,7 +242,7 @@ export function useEmailPasswordMigrationController({
           }
           ensuredId = ensured.emailAddressId;
           currentUser = await reloadUser();
-          target = findEmailAddress(currentUser, ensuredId, normalizedEmail);
+          target = findLoginEmailAddress(currentUser, ensuredId, normalizedEmail);
         }
         if (!target) {
           setState((current) => ({
@@ -292,7 +260,7 @@ export function useEmailPasswordMigrationController({
         }
         try {
           const currentUser = await reloadUser();
-          const recovered = findEmailAddress(currentUser, ensuredId, normalizedEmail);
+          const recovered = findLoginEmailAddress(currentUser, ensuredId, normalizedEmail);
           if (recovered) {
             if (recovered.verification?.status !== "verified") {
               syncFromUser(
@@ -328,15 +296,15 @@ export function useEmailPasswordMigrationController({
       }
       try {
         let currentUser = await reloadUser();
-        const target = findEmailAddress(currentUser, state.targetEmailAddressId);
+        const target = findLoginEmailAddress(currentUser, state.targetEmailAddressId);
         if (!target) {
           setState(unavailableState("確認中のメールアドレスを取得できません。最新の状態を確認してください。"));
           return false;
         }
         if (target.verification?.status !== "verified") await target.attemptVerification({ code: code.trim() });
         currentUser = await reloadUser();
-        const verified = findEmailAddress(currentUser, target.id);
-        if (!isVerifiedTarget(verified)) {
+        const verified = findLoginEmailAddress(currentUser, target.id);
+        if (!isVerifiedLoginEmailAddress(verified)) {
           setState((current) => ({
             ...current,
             feedback: { status: "error", message: "メールアドレスを確認できませんでした。もう一度お試しください。" },
@@ -348,8 +316,8 @@ export function useEmailPasswordMigrationController({
       } catch (error) {
         try {
           const currentUser = await reloadUser();
-          const recovered = findEmailAddress(currentUser, state.targetEmailAddressId);
-          if (isVerifiedTarget(recovered)) {
+          const recovered = findLoginEmailAddress(currentUser, state.targetEmailAddressId);
+          if (isVerifiedLoginEmailAddress(recovered)) {
             syncFromUser(currentUser, { status: "success", message: "メールアドレスを確認しました。" }, recovered.id);
             return true;
           }
@@ -367,7 +335,7 @@ export function useEmailPasswordMigrationController({
       setState((current) => ({ ...current, feedback: { status: "loading", message: null } }));
       try {
         const currentUser = await reloadUser();
-        const target = findEmailAddress(currentUser, state.targetEmailAddressId);
+        const target = findLoginEmailAddress(currentUser, state.targetEmailAddressId);
         if (!target || target.verification?.status === "verified") {
           syncFromUser(currentUser, { status: "error", message: "確認コードを再送できません。" });
           return false;
@@ -392,86 +360,82 @@ export function useEmailPasswordMigrationController({
   );
 
   const { run: setPassword } = useSingleFlight(
-    withOperationLock(
-      async ({ newPassword, signOutOfOtherSessions }: { newPassword: string; signOutOfOtherSessions: boolean }) => {
-        setState((current) => ({ ...current, feedback: { status: "loading", message: null } }));
-        let targetId = state.targetEmailAddressId;
-        let primaryEmailAddressId: string | null = null;
-        let googleAccounts: string[] = [];
-        try {
-          let currentUser = await reloadUser();
-          const target = findEmailAddress(currentUser, targetId);
-          if (!isVerifiedTarget(target)) {
-            setState(unavailableState("確認済みのメールアドレスを取得できません。最新の状態を確認してください。"));
-            return false;
-          }
-          targetId = target.id;
-          primaryEmailAddressId = currentUser.primaryEmailAddressId;
-          googleAccounts = googleAccountKeys(currentUser);
-          const result = await setPasswordWithReverification({
-            targetEmailAddressId: target.id,
-            newPassword,
-            signOutOfOtherSessions,
-          });
-          if (result == null || result === "unavailable") {
-            setState((current) => ({
-              ...current,
-              feedback: { status: "error", message: "パスワードを設定できません。最新の状態を確認してください。" },
-            }));
-            return false;
-          }
-          currentUser = await reloadUser();
-          if (
-            !currentUser.passwordEnabled ||
-            currentUser.primaryEmailAddressId !== primaryEmailAddressId ||
-            !equalStringSets(googleAccountKeys(currentUser), googleAccounts)
-          ) {
-            setState((current) => ({
-              ...current,
-              feedback: { status: "error", message: "パスワードの設定結果を確認できません。" },
-            }));
-            return false;
-          }
-          syncFromUser(
-            currentUser,
-            { status: "success", message: "メールアドレスとパスワードを設定しました。Googleは解除していません。" },
-            target.id,
-          );
-          return true;
-        } catch (error) {
-          if (isReverificationCancelledError(error)) {
-            setState((current) => ({ ...current, feedback: IDLE_FEEDBACK }));
-            return false;
-          }
-          try {
-            const currentUser = await reloadUser();
-            if (
-              currentUser.passwordEnabled &&
-              currentUser.primaryEmailAddressId === primaryEmailAddressId &&
-              equalStringSets(googleAccountKeys(currentUser), googleAccounts) &&
-              isVerifiedTarget(findEmailAddress(currentUser, targetId))
-            ) {
-              syncFromUser(
-                currentUser,
-                { status: "success", message: "メールアドレスとパスワードを設定しました。Googleは解除していません。" },
-                targetId,
-              );
-              return true;
-            }
-          } catch {
-            // 応答喪失後の状態が不明なら完了扱いにしない。
-          }
-          setState((current) => ({ ...current, feedback: errorFeedback(error) }));
+    withOperationLock(async (newPassword: string) => {
+      setState((current) => ({ ...current, feedback: { status: "loading", message: null } }));
+      let targetId = state.targetEmailAddressId;
+      let primaryEmailAddressId: string | null = null;
+      let googleAccounts: string[] = [];
+      try {
+        let currentUser = await reloadUser();
+        const target = findLoginEmailAddress(currentUser, targetId);
+        if (!isVerifiedLoginEmailAddress(target)) {
+          setState(unavailableState("確認済みのメールアドレスを取得できません。最新の状態を確認してください。"));
           return false;
         }
-      },
-    ),
+        targetId = target.id;
+        primaryEmailAddressId = currentUser.primaryEmailAddressId;
+        googleAccounts = getGoogleExternalAccountStateKeys(currentUser);
+        const result = await setPasswordWithReverification({
+          targetEmailAddressId: target.id,
+          newPassword,
+        });
+        if (result == null || result === "unavailable") {
+          setState((current) => ({
+            ...current,
+            feedback: { status: "error", message: "パスワードを設定できません。最新の状態を確認してください。" },
+          }));
+          return false;
+        }
+        currentUser = await reloadUser();
+        if (
+          !currentUser.passwordEnabled ||
+          currentUser.primaryEmailAddressId !== primaryEmailAddressId ||
+          !haveSameStringValues(getGoogleExternalAccountStateKeys(currentUser), googleAccounts)
+        ) {
+          setState((current) => ({
+            ...current,
+            feedback: { status: "error", message: "パスワードの設定結果を確認できません。" },
+          }));
+          return false;
+        }
+        syncFromUser(
+          currentUser,
+          { status: "success", message: "メールアドレスとパスワードを設定しました。Googleは解除していません。" },
+          target.id,
+        );
+        return true;
+      } catch (error) {
+        if (isReverificationCancelledError(error)) {
+          setState((current) => ({ ...current, feedback: IDLE_FEEDBACK }));
+          return false;
+        }
+        try {
+          const currentUser = await reloadUser();
+          if (
+            currentUser.passwordEnabled &&
+            currentUser.primaryEmailAddressId === primaryEmailAddressId &&
+            haveSameStringValues(getGoogleExternalAccountStateKeys(currentUser), googleAccounts) &&
+            isVerifiedLoginEmailAddress(findLoginEmailAddress(currentUser, targetId))
+          ) {
+            syncFromUser(
+              currentUser,
+              { status: "success", message: "メールアドレスとパスワードを設定しました。Googleは解除していません。" },
+              targetId,
+            );
+            return true;
+          }
+        } catch {
+          // 応答喪失後の状態が不明なら完了扱いにしない。
+        }
+        setState((current) => ({ ...current, feedback: errorFeedback(error) }));
+        return false;
+      }
+    }),
   );
 
   return {
     state: isActivating ? loadingState() : state,
     refresh,
-    useCurrentEmail,
     useDifferentEmail,
     verifyEmail,
     resendEmailCode,
@@ -516,33 +480,6 @@ function loadingState(): EmailPasswordMigrationState {
     targetEmailAddress: null,
     feedback: { status: "loading", message: null },
   };
-}
-
-function findEmailAddress(user: UserResource, id: string | null, normalizedEmail?: string) {
-  if (id) {
-    const byId = user.emailAddresses.find((emailAddress) => emailAddress.id === id);
-    if (byId) return byId;
-  }
-  if (!normalizedEmail) return undefined;
-  return user.emailAddresses.find((emailAddress) => normalizeEmail(emailAddress.emailAddress) === normalizedEmail);
-}
-
-function isVerifiedTarget(emailAddress: EmailAddressResource | undefined): emailAddress is EmailAddressResource {
-  return emailAddress?.verification?.status === "verified";
-}
-
-function googleAccountKeys(user: UserResource) {
-  return user.externalAccounts
-    .filter((account) => account.provider === "google")
-    .map((account) => `${account.id}:${account.verification?.status ?? "unknown"}`);
-}
-
-function equalStringSets(left: string[], right: string[]) {
-  return left.length === right.length && left.every((value) => right.includes(value));
-}
-
-function emailVerificationCooldownMessage(retryAfterSeconds: number) {
-  return `確認コードを送信した直後です。あと${retryAfterSeconds}秒ほど待ってから再送してください。`;
 }
 
 function errorFeedback(error: unknown): LoginMethodMigrationFeedback {

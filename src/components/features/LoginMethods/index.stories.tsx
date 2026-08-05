@@ -30,7 +30,6 @@ type Scenario =
 type PreviewProps = {
   scenario: Scenario;
   isLoaded?: boolean;
-  showCardErrors?: boolean;
   disconnectGoogleError?: boolean;
   showLoginEmailChangeDialog?: "input" | "verification";
   showReverification?: boolean;
@@ -66,7 +65,6 @@ const STARTING_REVERIFICATION_CONTROLLER: LoginMethodReverificationController = 
 function LoginMethodsPreview({
   scenario,
   isLoaded = true,
-  showCardErrors = false,
   disconnectGoogleError = false,
   showLoginEmailChangeDialog,
   showReverification = false,
@@ -88,19 +86,8 @@ function LoginMethodsPreview({
     showLoginEmailChangeDialog === "verification" ? "unverified" : "absent",
   );
   const [emailChangeCompleted, setEmailChangeCompleted] = useState(false);
-  const [googleState, setGoogleState] = useState<LoginMethodsCardState>(
-    showCardErrors
-      ? { status: "error", message: "Google連携を確認できませんでした。もう一度読み込んでください。" }
-      : idle(),
-  );
-  const [emailPasswordState, setEmailPasswordState] = useState<LoginMethodsCardState>(
-    showCardErrors
-      ? {
-          status: "error",
-          message: "メールアドレスとパスワードを確認できませんでした。もう一度読み込んでください。",
-        }
-      : idle(),
-  );
+  const [googleState, setGoogleState] = useState<LoginMethodsCardState>(idle());
+  const [emailPasswordState, setEmailPasswordState] = useState<LoginMethodsCardState>(idle());
   const viewModel = useMemo(
     () => buildLoginMethodsViewModel(snapshotForScenario(scenario, emailChangeTargetStatus, emailChangeCompleted)),
     [emailChangeCompleted, emailChangeTargetStatus, scenario],
@@ -286,10 +273,6 @@ export const Loading: Story = {
 
 export const Unavailable: Story = {
   args: { scenario: "unavailable" },
-};
-
-export const CardErrors: Story = {
-  args: { scenario: "bothDifferentEmail", showCardErrors: true },
 };
 
 export const MainEmailInputDialog: Story = {

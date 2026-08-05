@@ -422,15 +422,6 @@ function buildEmailPasswordController(
       setState(emailPasswordState("choosingEmail", { status: "success", message: "最新の状態を確認しました。" }));
       return true;
     },
-    useCurrentEmail: async () => {
-      setState({
-        phase: "settingPassword",
-        targetEmailAddressId: "email-current",
-        targetEmailAddress: "google@example.com",
-        feedback: idleFeedback(),
-      });
-      return true;
-    },
     useDifferentEmail: async (emailAddress) => {
       setState({
         phase: "verifyingEmail",
@@ -455,7 +446,7 @@ function buildEmailPasswordController(
       setState({ ...state, feedback: { status: "success", message: "新しい確認コードを送信しました。" } });
       return true;
     },
-    setPassword: async () => {
+    setPassword: async (_newPassword) => {
       setState({ ...state, phase: "methodReady", feedback: { status: "success", message: "設定が完了しました。" } });
       onCompleted();
       return true;

@@ -3,6 +3,11 @@ import { isReverificationCancelledError } from "@clerk/react/errors";
 import type { ExternalAccountResource, UserResource } from "@clerk/shared/types";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import {
+  getGoogleExternalAccounts,
+  hasEmailPasswordLoginMethod,
+  isVerifiedOwnedGoogleExternalAccount,
+} from "./clerkLoginMethodResource";
 import type {
   GoogleConnectionPhase,
   LoginMethodMigrationFeedback,
@@ -175,7 +180,7 @@ export function useGoogleConnectionController({
       if (
         externalAccount &&
         matchesOAuthBaseline(currentUser, baseline) &&
-        isVerifiedOwnedGoogle(currentUser, externalAccount)
+        isVerifiedOwnedGoogleExternalAccount(currentUser, externalAccount)
       ) {
         return "alreadyConnected" as const;
       }
@@ -190,12 +195,14 @@ export function useGoogleConnectionController({
     currentUser: UserResource,
     baseline: OAuthBaseline,
   ): Promise<PreparedGoogleStart> => {
-    const verifiedGoogle = currentUser.externalAccounts.find((account) => isVerifiedOwnedGoogle(currentUser, account));
+    const verifiedGoogle = currentUser.externalAccounts.find((account) =>
+      isVerifiedOwnedGoogleExternalAccount(currentUser, account),
+    );
     if (verifiedGoogle) return { status: "alreadyConnected" };
     if (!matchesOAuthBaseline(currentUser, baseline)) return { status: "unavailable" };
     if (canConnectGoogle(currentUser)) return { status: "ready", user: currentUser };
 
-    const pendingGoogleAccounts = googleAccounts(currentUser).filter(isRetryablePendingGoogle);
+    const pendingGoogleAccounts = getGoogleExternalAccounts(currentUser).filter(isRetryablePendingGoogle);
     if (pendingGoogleAccounts.length !== 1) return { status: "unavailable" };
     const pendingGoogle = pendingGoogleAccounts[0];
     if (!pendingGoogle || !isDiscardablePendingGoogle(currentUser, pendingGoogle, baseline)) {
@@ -216,7 +223,7 @@ export function useGoogleConnectionController({
       if (
         connectedGoogle &&
         matchesOAuthBaseline(cleanedUser, baseline) &&
-        isVerifiedOwnedGoogle(cleanedUser, connectedGoogle)
+        isVerifiedOwnedGoogleExternalAccount(cleanedUser, connectedGoogle)
       ) {
         return { status: "alreadyConnected" };
       }
@@ -232,7 +239,7 @@ export function useGoogleConnectionController({
         if (
           connectedGoogle &&
           matchesOAuthBaseline(latestUser, baseline) &&
-          isVerifiedOwnedGoogle(latestUser, connectedGoogle)
+          isVerifiedOwnedGoogleExternalAccount(latestUser, connectedGoogle)
         ) {
           return { status: "alreadyConnected" };
         }
@@ -271,7 +278,7 @@ export function useGoogleConnectionController({
         }
 
         const connectedAccount = currentUser.externalAccounts.find((account) =>
-          isVerifiedOwnedGoogle(currentUser, account),
+          isVerifiedOwnedGoogleExternalAccount(currentUser, account),
         );
         if (connectedAccount) {
           setState(methodReadyState());
@@ -410,7 +417,7 @@ export function useGoogleConnectionController({
       return false;
     }
 
-    if (isVerifiedOwnedGoogle(currentUser, externalAccount)) {
+    if (isVerifiedOwnedGoogleExternalAccount(currentUser, externalAccount)) {
       clearOAuthCorrelation();
       setState(methodReadyState(true));
       return true;
@@ -526,13 +533,13 @@ function stateFromUser(user: UserResource): GoogleConnectionState {
 }
 
 function canConnectGoogle(user: UserResource) {
-  return hasEmailPasswordFallback(user) && googleAccounts(user).length === 0;
+  return hasEmailPasswordLoginMethod(user) && getGoogleExternalAccounts(user).length === 0;
 }
 
 function canRetryPendingGoogle(user: UserResource) {
-  const accounts = googleAccounts(user);
+  const accounts = getGoogleExternalAccounts(user);
   return (
-    hasEmailPasswordFallback(user) &&
+    hasEmailPasswordLoginMethod(user) &&
     accounts.length === 1 &&
     Boolean(accounts[0] && isRetryablePendingGoogle(accounts[0]))
   );
@@ -540,14 +547,6 @@ function canRetryPendingGoogle(user: UserResource) {
 
 function canStartGoogleConnection(user: UserResource) {
   return canConnectGoogle(user) || canRetryPendingGoogle(user);
-}
-
-function hasEmailPasswordFallback(user: UserResource) {
-  return user.passwordEnabled && user.emailAddresses.some((email) => email.verification?.status === "verified");
-}
-
-function googleAccounts(user: UserResource) {
-  return user.externalAccounts.filter((account) => account.provider === "google");
 }
 
 function isDiscardablePendingGoogle(
@@ -559,8 +558,8 @@ function isDiscardablePendingGoogle(
     account?.provider === "google" &&
     isRetryablePendingGoogle(account) &&
     matchesOAuthBaseline(user, baseline) &&
-    hasEmailPasswordFallback(user) &&
-    googleAccounts(user).length === 1
+    hasEmailPasswordLoginMethod(user) &&
+    getGoogleExternalAccounts(user).length === 1
   );
 }
 
@@ -590,7 +589,9 @@ function settleCorrelatedAccount(
 
   const resourceError = account.verification?.error;
   if (resourceError) return { ok: false, errorKind: classifyOAuthError(resourceError) };
-  if (!isVerifiedOwnedGoogle(user, account)) return { ok: false, errorKind: "clerkConflict" };
+  if (!isVerifiedOwnedGoogleExternalAccount(user, account)) {
+    return { ok: false, errorKind: "clerkConflict" };
+  }
   return { ok: true, account };
 }
 
@@ -599,18 +600,6 @@ function matchesOAuthBaseline(user: UserResource, baseline: OAuthBaseline) {
     user.id === baseline.userId &&
     user.primaryEmailAddressId === baseline.primaryEmailAddressId &&
     user.passwordEnabled === baseline.passwordEnabled
-  );
-}
-
-function isVerifiedOwnedGoogle(user: UserResource, account: ExternalAccountResource) {
-  return (
-    account.provider === "google" &&
-    account.verification?.status === "verified" &&
-    user.emailAddresses.some(
-      (email) =>
-        email.verification?.status === "verified" &&
-        email.emailAddress.toLowerCase() === account.emailAddress.toLowerCase(),
-    )
   );
 }
 
