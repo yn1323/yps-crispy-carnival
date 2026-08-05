@@ -6,12 +6,13 @@ import type {
   SessionVerificationSecondFactor,
   SignedInSessionResource,
 } from "@clerk/react/types";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { maskEmailAddress } from "@/src/components/features/AuthPage/loginVerification";
 import { createLoginMethodOperationCooldown, type LoginMethodOperationCooldown } from "./operationCooldown";
 import {
   IDLE_LOGIN_METHOD_REVERIFICATION_STATE,
   type LoginMethodOnNeedsReverification,
+  type LoginMethodOperationOptions,
   type LoginMethodReverificationController,
   type LoginMethodReverificationFactor,
   type LoginMethodReverificationStage,
@@ -25,11 +26,13 @@ type ActiveRequest = {
   level: SessionVerificationLevel;
   cancel: () => void;
   complete: () => void;
+  preferredFirstFactorStrategy?: LoginMethodOperationOptions["preferredFirstFactorStrategy"];
   settled: boolean;
 };
 
 type OperationLock = {
   operationId: number;
+  preferredFirstFactorStrategy?: LoginMethodOperationOptions["preferredFirstFactorStrategy"];
 };
 
 type InternalFactor =
@@ -63,6 +66,7 @@ export function useLoginMethodReverification({
   const operationLockRef = useRef<OperationLock | null>(null);
   const activeRequestRef = useRef<ActiveRequest | null>(null);
   const factorMapRef = useRef(new Map<string, InternalFactor>());
+  const autoSelectFactorKeyRef = useRef<string | null>(null);
   const actionRunningRef = useRef(false);
   const stateRef = useRef<LoginMethodReverificationState>(IDLE_LOGIN_METHOD_REVERIFICATION_STATE);
   const [state, setState] = useState<LoginMethodReverificationState>(IDLE_LOGIN_METHOD_REVERIFICATION_STATE);
@@ -145,7 +149,17 @@ export function useLoginMethodReverification({
         return;
       }
 
+      const preferredFactor =
+        stage === "first" && request.preferredFirstFactorStrategy
+          ? factors.find((factor) => factor.publicFactor.strategy === request.preferredFirstFactorStrategy)
+          : undefined;
+      if (stage === "first" && request.preferredFirstFactorStrategy && !preferredFactor) {
+        failClosed(request, UNAVAILABLE_MESSAGE);
+        return;
+      }
+
       factorMapRef.current = new Map(factors.map((factor) => [factor.publicFactor.key, factor]));
+      autoSelectFactorKeyRef.current = preferredFactor?.publicFactor.key ?? null;
       commitState({
         status: "selecting_factor",
         operationId: request.operationId,
@@ -218,6 +232,7 @@ export function useLoginMethodReverification({
         level: verificationLevel,
         cancel,
         complete,
+        preferredFirstFactorStrategy: currentLock?.preferredFirstFactorStrategy,
         settled: false,
       };
       activeRequestRef.current = request;
@@ -242,11 +257,12 @@ export function useLoginMethodReverification({
   );
 
   const runOperation = useCallback(
-    async <T>(operation: () => Promise<T>): Promise<T | undefined> => {
+    async <T>(operation: () => Promise<T>, options?: LoginMethodOperationOptions): Promise<T | undefined> => {
       if (operationLockRef.current) return undefined;
 
       const lock: OperationLock = {
         operationId: nextOperationIdRef.current++,
+        preferredFirstFactorStrategy: options?.preferredFirstFactorStrategy,
       };
       operationLockRef.current = lock;
       try {
@@ -331,15 +347,7 @@ export function useLoginMethodReverification({
       if (selectedFactor.canResend) {
         const cooldown = retryCooldown.claim(request.sessionId, reverificationCooldownScope(internalFactor));
         if (!cooldown.allowed) {
-          commitState({
-            status: "selecting_factor",
-            operationId: request.operationId,
-            level: request.level,
-            stage: selectedFactor.stage,
-            factors: stateRef.current.factors,
-            selectedFactor: null,
-            message: verificationCooldownMessage(cooldown.retryAfterSeconds),
-          });
+          setAwaitingInput(request, selectedFactor, verificationCooldownMessage(cooldown.retryAfterSeconds));
           return;
         }
       }
@@ -366,6 +374,14 @@ export function useLoginMethodReverification({
     },
     [commitState, failClosed, handlePreparedResource, isCurrent, retryCooldown, setAwaitingInput],
   );
+
+  useLayoutEffect(() => {
+    if (state.status !== "selecting_factor") return;
+    const factorKey = autoSelectFactorKeyRef.current;
+    if (!factorKey) return;
+    autoSelectFactorKeyRef.current = null;
+    void selectFactor(factorKey);
+  }, [selectFactor, state.status]);
 
   const submit = useCallback(
     async (value: string) => {

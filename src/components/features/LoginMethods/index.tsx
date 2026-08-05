@@ -84,6 +84,10 @@ function CurrentUserLoginMethods({
     operationCooldown,
   });
   const handledCompletionRef = useRef<string | null>(null);
+  const isEmailPasswordMigrationOpen =
+    flow === "add-email-password" && emailPasswordController.state.phase !== "methodReady";
+  const isGoogleConnectionOpen = flow === "connect-google" && googleController.state.phase !== "methodReady";
+  const isMigrationDialogOpen = isEmailPasswordMigrationOpen || isGoogleConnectionOpen;
 
   useEffect(() => {
     const migrationController =
@@ -113,7 +117,6 @@ function CurrentUserLoginMethods({
       } else {
         showSuccessToast({
           title: "Googleログインを追加しました",
-          description: "メールアドレスとパスワードはそのまま利用できます。",
         });
       }
       onBackToOverview();
@@ -122,8 +125,13 @@ function CurrentUserLoginMethods({
 
   return (
     <>
-      <LoginMethodsView controller={controller} onStartFlow={onStartFlow} reverification={reverification} />
-      {flow === "add-email-password" && emailPasswordController.state.phase !== "methodReady" ? (
+      <LoginMethodsView
+        controller={controller}
+        onStartFlow={onStartFlow}
+        reverification={reverification}
+        isMigrationDialogOpen={isMigrationDialogOpen}
+      />
+      {isEmailPasswordMigrationOpen ? (
         <LoginMethodMigrationView
           flow="add-email-password"
           controller={emailPasswordController}
@@ -131,7 +139,7 @@ function CurrentUserLoginMethods({
           onBackToOverview={onBackToOverview}
         />
       ) : null}
-      {flow === "connect-google" && googleController.state.phase !== "methodReady" ? (
+      {isGoogleConnectionOpen ? (
         <LoginMethodMigrationView
           flow="connect-google"
           controller={googleController}

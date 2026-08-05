@@ -33,6 +33,59 @@ afterEach(() => {
 });
 
 describe("useLoginMethodReverification", () => {
+  it("メールコード優先の本人確認は方式選択を表示せずコード入力へ進む", async () => {
+    const session = sessionResource();
+    mocks.session = session;
+    const awaiting = verificationResource({
+      status: "needs_first_factor",
+      firstFactors: [{ strategy: "email_code", emailAddressId: "email_1", safeIdentifier: "account@example.com" }],
+    });
+    session.startVerification.mockResolvedValue(awaiting);
+    session.prepareFirstFactorVerification.mockResolvedValue(awaiting);
+    const operation = deferred<void>();
+    const { result } = renderReverification();
+
+    const operationPromise = result.current.runOperation(() => operation.promise, {
+      preferredFirstFactorStrategy: "email_code",
+    });
+    act(() => result.current.onNeedsReverification({ level: "first_factor", complete: vi.fn(), cancel: vi.fn() }));
+
+    await waitFor(() => expect(result.current.state.status).toBe("awaiting_input"));
+    expect(result.current.state.selectedFactor?.strategy).toBe("email_code");
+    expect(session.prepareFirstFactorVerification).toHaveBeenCalledWith({
+      strategy: "email_code",
+      emailAddressId: "email_1",
+    });
+    expect(result.current.state.status).not.toBe("selecting_factor");
+
+    await act(async () => {
+      operation.resolve();
+      await operationPromise;
+    });
+  });
+
+  it("メールコード優先時に利用できなければ別方式へフォールバックせず中止する", async () => {
+    const session = sessionResource();
+    mocks.session = session;
+    session.startVerification.mockResolvedValue(
+      verificationResource({ status: "needs_first_factor", firstFactors: [{ strategy: "password" }] }),
+    );
+    const cancel = vi.fn();
+    const { result } = renderReverification();
+
+    const operation = deferred<void>();
+    const operationPromise = result.current.runOperation(() => operation.promise, {
+      preferredFirstFactorStrategy: "email_code",
+    });
+    act(() => result.current.onNeedsReverification({ level: "first_factor", complete: vi.fn(), cancel }));
+
+    await waitFor(() => expect(result.current.state.status).toBe("error"));
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(session.prepareFirstFactorVerification).not.toHaveBeenCalled();
+    operation.resolve();
+    await operationPromise;
+  });
+
   it("要求されたlevelで開始し、password完了後だけ元要求をcompleteする", async () => {
     const session = sessionResource();
     mocks.session = session;
@@ -114,7 +167,7 @@ describe("useLoginMethodReverification", () => {
     expect(complete).toHaveBeenCalledOnce();
   });
 
-  it("code送信後に本人確認を開き直した場合はfactor選択のまま待機理由を表示する", async () => {
+  it("code送信後に本人確認を開き直した場合は選択画面を挟まずコード入力へ進む", async () => {
     vi.spyOn(Date, "now").mockReturnValue(1_500_000);
     const session = sessionResource();
     mocks.session = session;
@@ -137,8 +190,8 @@ describe("useLoginMethodReverification", () => {
 
     expect(session.prepareFirstFactorVerification).toHaveBeenCalledOnce();
     expect(result.current.state).toMatchObject({
-      status: "selecting_factor",
-      selectedFactor: null,
+      status: "awaiting_input",
+      selectedFactor: { strategy: "email_code" },
       message: "確認コードを送信した直後です。あと30秒ほど待ってから再送してください。",
     });
   });

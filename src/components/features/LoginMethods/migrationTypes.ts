@@ -1,4 +1,5 @@
 import type { SessionVerificationLevel } from "@clerk/shared/types";
+import type { LoginMethodOperationOptions } from "./reverificationTypes";
 
 export type LoginMethodMigrationFlow = "add-email-password" | "connect-google";
 
@@ -9,7 +10,10 @@ export type LoginMethodReverificationHandler = (request: {
   level: SessionVerificationLevel | undefined;
 }) => void;
 
-export type LoginMethodOperationRunner = <Result>(operation: () => Promise<Result>) => Promise<Result | undefined>;
+export type LoginMethodOperationRunner = <Result>(
+  operation: () => Promise<Result>,
+  options?: LoginMethodOperationOptions,
+) => Promise<Result | undefined>;
 
 export type LoginMethodMigrationFeedback = {
   status: "idle" | "loading" | "success" | "error";

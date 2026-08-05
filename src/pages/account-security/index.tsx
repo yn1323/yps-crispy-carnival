@@ -21,7 +21,7 @@ export function AccountSecurityPage({
 }: AccountSecurityPageProps) {
   return (
     <AuthenticatedPageContent>
-      <Stack gap={6}>
+      <Stack gap={3}>
         <Stack gap={2}>
           <Heading as="h1" textStyle={{ base: "sectionTitle", md: "pageTitle" }} color="gray.900">
             ログイン設定

@@ -1,7 +1,7 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { showSuccessToast } from "@/src/components/shared/feedback";
 import { Toaster, toaster } from "@/src/components/ui/toaster";
 import { LoginMethodMigrationView } from "./LoginMethodMigrationView";
@@ -180,6 +180,13 @@ export const EmailPasswordInput: Story = {};
 
 export const EmailPasswordLoading: Story = {
   args: { phase: "loading", feedbackStatus: "loading" },
+  parameters: { screenshot: { skip: true } },
+  play: async () => {
+    const body = within(document.body);
+
+    await expect(await body.findByLabelText("メールアドレス設定フォームを読み込み中")).toBeInTheDocument();
+    await expect(body.queryByText("最新のログイン方法を確認しています")).not.toBeInTheDocument();
+  },
 };
 
 export const EmailPasswordSending: Story = {
@@ -304,8 +311,9 @@ export const GoogleRetryFromErrorBehavior: Story = {
 
     await userEvent.click(dialog.getByRole("button", { name: "もう一度試す" }));
 
-    const status = await dialog.findByText("Googleの画面を開いています");
-    await waitFor(() => expect(status).toBeVisible());
+    const skeleton = await dialog.findByLabelText("Googleログイン画面を読み込み中");
+    await waitFor(() => expect(skeleton).toBeVisible());
+    await expect(dialog.queryByText("Googleの画面を開いています")).not.toBeInTheDocument();
   },
 };
 
@@ -322,8 +330,15 @@ export const AddEmailPasswordBehavior: Story = {
     const body = within(document.body);
 
     const inputDialog = within(await body.findByRole("dialog", { name: "メールアドレスとパスワードを設定" }));
-    await userEvent.type(inputDialog.getByRole("textbox", { name: "別のメールアドレス" }), "login@example.com");
-    await userEvent.click(inputDialog.getByRole("button", { name: "このメールを使う" }));
+    const emailInput = inputDialog.getByRole("textbox", { name: "メールアドレス" });
+    await expect(emailInput).toHaveValue("google@gmail.com");
+    const cancelButton = inputDialog.getByRole("button", { name: "キャンセル" });
+    await expect(cancelButton).toBeInTheDocument();
+    const submitButton = inputDialog.getByRole("button", { name: "決定" });
+    await expect(submitButton).toBeInTheDocument();
+    await userEvent.clear(emailInput);
+    await userEvent.type(emailInput, "login@example.com");
+    await userEvent.click(inputDialog.getByRole("button", { name: "決定" }));
 
     const codeDialog = within(await body.findByRole("dialog", { name: "メールアドレスとパスワードを設定" }));
     await expect(
@@ -335,17 +350,34 @@ export const AddEmailPasswordBehavior: Story = {
     await userEvent.type(codeDialog.getByRole("textbox", { name: "確認コード" }), "123456");
     await userEvent.click(codeDialog.getByRole("button", { name: "メールを確認" }));
 
-    const passwordDialog = within(await body.findByRole("dialog", { name: "メールアドレスとパスワードを設定" }));
+    const passwordDialog = within(await body.findByRole("dialog", { name: "パスワード設定" }));
+    await expect(
+      passwordDialog.queryByText("確認済みのメールアドレスと組み合わせる新しいパスワードを入力してください。"),
+    ).not.toBeInTheDocument();
+    await expect(
+      passwordDialog.queryByRole("checkbox", { name: "ほかの端末からログアウトする" }),
+    ).not.toBeInTheDocument();
     await userEvent.type(passwordDialog.getByLabelText("新しいパスワード"), "safe-password");
     await userEvent.type(passwordDialog.getByLabelText("新しいパスワード（確認）"), "safe-password");
-    await userEvent.click(passwordDialog.getByRole("button", { name: "パスワードを設定" }));
+    await userEvent.click(passwordDialog.getByRole("button", { name: "決定" }));
 
-    await waitFor(() =>
-      expect(body.queryByRole("dialog", { name: "メールアドレスとパスワードを設定" })).not.toBeInTheDocument(),
-    );
+    await waitFor(() => expect(body.queryByRole("dialog", { name: "パスワード設定" })).not.toBeInTheDocument());
     const toastTitle = await body.findByText("メールアドレスとパスワードを設定しました");
     await waitFor(() => expect(toastTitle).toBeVisible());
     await waitFor(() => expect(body.queryByRole("dialog")).not.toBeInTheDocument());
+  },
+};
+
+export const AddEmailPasswordCancelBehavior: Story = {
+  args: { onBackToOverview: fn() },
+  parameters: { screenshot: { skip: true } },
+  play: async ({ args }) => {
+    const body = within(document.body);
+    const dialog = within(await body.findByRole("dialog", { name: "メールアドレスとパスワードを設定" }));
+
+    await userEvent.click(dialog.getByRole("button", { name: "キャンセル" }));
+
+    await expect(args.onBackToOverview).toHaveBeenCalledOnce();
   },
 };
 
@@ -373,8 +405,9 @@ export const ConnectGoogleBehavior: Story = {
 
     await userEvent.click(dialog.getByRole("button", { name: "Googleアカウントを選ぶ" }));
 
-    const status = await dialog.findByText("Googleの画面を開いています");
-    await waitFor(() => expect(status).toBeVisible());
+    const skeleton = await dialog.findByLabelText("Googleログイン画面を読み込み中");
+    await waitFor(() => expect(skeleton).toBeVisible());
+    await expect(dialog.queryByText("Googleの画面を開いています")).not.toBeInTheDocument();
   },
 };
 
@@ -439,7 +472,7 @@ function emailPasswordState(
   return {
     phase,
     targetEmailAddressId: hasTarget ? "email-target" : null,
-    targetEmailAddress: hasTarget ? "login@example.com" : null,
+    targetEmailAddress: phase === "choosingEmail" ? "google@gmail.com" : hasTarget ? "login@example.com" : null,
     feedback,
   };
 }
@@ -499,12 +532,12 @@ const IDLE_REVERIFICATION_CONTROLLER: LoginMethodReverificationController = {
 const REVERIFICATION_CONTROLLER: LoginMethodReverificationController = {
   ...IDLE_REVERIFICATION_CONTROLLER,
   state: {
-    status: "selecting_factor",
+    status: "awaiting_input",
     operationId: 1,
     level: "first_factor",
     stage: "first",
     factors: [passwordFactor, emailFactor],
-    selectedFactor: null,
+    selectedFactor: emailFactor,
     message: null,
   },
 };

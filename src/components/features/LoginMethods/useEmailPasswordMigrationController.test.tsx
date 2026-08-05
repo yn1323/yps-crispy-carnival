@@ -24,6 +24,7 @@ vi.mock("@clerk/react/errors", () => ({
 }));
 
 import type { LoginMethodOperationRunner } from "./migrationTypes";
+import type { LoginMethodOperationOptions } from "./reverificationTypes";
 import { useEmailPasswordMigrationController } from "./useEmailPasswordMigrationController";
 
 beforeEach(() => {
@@ -143,7 +144,28 @@ describe("メールアドレスとパスワードの追加controller", () => {
     expect(result.current.state).toMatchObject({
       phase: "choosingEmail",
       targetEmailAddressId: null,
-      targetEmailAddress: null,
+      targetEmailAddress: "google@gmail.com",
+    });
+  });
+
+  it("メール・パスワード初回設定では現在の確認済みGoogleメールを初期値にする", () => {
+    const google = googleResource("google-old");
+    const user = userResource({ externalAccounts: [google] });
+
+    const { result } = renderHook(() =>
+      useEmailPasswordMigrationController({
+        isLoaded: true,
+        user,
+        getCurrentActorId: () => user.id,
+        onNeedsReverification: vi.fn(),
+        runOperation: async (operation) => operation(),
+      }),
+    );
+
+    expect(result.current.state).toMatchObject({
+      phase: "choosingEmail",
+      targetEmailAddressId: null,
+      targetEmailAddress: google.emailAddress,
     });
   });
 
@@ -161,7 +183,9 @@ describe("メールアドレスとパスワードの追加controller", () => {
       return user;
     });
     const onNeedsReverification = vi.fn();
-    const runOperation = vi.fn(async (operation: () => Promise<unknown>) => operation());
+    const runOperation = vi.fn(async (operation: () => Promise<unknown>, _options?: LoginMethodOperationOptions) =>
+      operation(),
+    );
     const { result } = renderHook(() =>
       useEmailPasswordMigrationController({
         isLoaded: true,
@@ -465,6 +489,9 @@ describe("メールアドレスとパスワードの追加controller", () => {
     expect(user.createEmailAddress).toHaveBeenCalledOnce();
     expect(newEmail.prepareVerification).toHaveBeenCalledOnce();
     expect(runOperation).toHaveBeenCalledOnce();
+    expect(runOperation).toHaveBeenCalledWith(expect.any(Function), {
+      preferredFirstFactorStrategy: "email_code",
+    });
   });
 
   it("別accountとのメール衝突を列挙可能な文言へ変換しない", async () => {

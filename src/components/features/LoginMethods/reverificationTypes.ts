@@ -35,10 +35,14 @@ export type LoginMethodOnNeedsReverification = (request: {
   level: SessionVerificationLevel | undefined;
 }) => void;
 
+export type LoginMethodOperationOptions = {
+  preferredFirstFactorStrategy?: "email_code";
+};
+
 export type LoginMethodReverificationController = {
   state: LoginMethodReverificationState;
   onNeedsReverification: LoginMethodOnNeedsReverification;
-  runOperation: <T>(operation: () => Promise<T>) => Promise<T | undefined>;
+  runOperation: <T>(operation: () => Promise<T>, options?: LoginMethodOperationOptions) => Promise<T | undefined>;
   selectFactor: (factorKey: string) => Promise<void>;
   submit: (value: string) => Promise<void>;
   resend: () => Promise<void>;

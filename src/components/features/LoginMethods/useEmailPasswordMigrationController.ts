@@ -18,6 +18,7 @@ import {
   emailVerificationCooldownScope,
   type LoginMethodOperationCooldown,
 } from "./operationCooldown";
+import type { LoginMethodOperationOptions } from "./reverificationTypes";
 
 export type EmailPasswordMigrationState = {
   phase: EmailPasswordMigrationPhase;
@@ -48,6 +49,9 @@ type Options = {
 };
 
 const IDLE_FEEDBACK: LoginMethodMigrationFeedback = { status: "idle", message: null };
+const EMAIL_REVERIFICATION_OPTIONS: LoginMethodOperationOptions = {
+  preferredFirstFactorStrategy: "email_code",
+};
 
 export function useEmailPasswordMigrationController({
   isLoaded,
@@ -165,7 +169,7 @@ export function useEmailPasswordMigrationController({
   const withOperationLock =
     <Arguments extends unknown[], Result>(operation: (...args: Arguments) => Promise<Result>) =>
     (...args: Arguments) =>
-      runOperation(() => operation(...args));
+      runOperation(() => operation(...args), EMAIL_REVERIFICATION_OPTIONS);
 
   const { run: refresh } = useSingleFlight(
     withOperationLock(async () => {
@@ -482,9 +486,16 @@ function stateFromUser(user: UserResource, targetEmailAddressId: string | null =
   const target = derived.targetEmailAddressId
     ? user.emailAddresses.find((emailAddress) => emailAddress.id === derived.targetEmailAddressId)
     : undefined;
+  const googleEmailAddress =
+    derived.phase === "choosingEmail"
+      ? user.externalAccounts.find(
+          (externalAccount) =>
+            externalAccount.provider === "google" && externalAccount.verification?.status === "verified",
+        )?.emailAddress
+      : undefined;
   return {
     ...derived,
-    targetEmailAddress: target?.emailAddress ?? null,
+    targetEmailAddress: target?.emailAddress ?? googleEmailAddress ?? null,
     feedback: IDLE_FEEDBACK,
   };
 }

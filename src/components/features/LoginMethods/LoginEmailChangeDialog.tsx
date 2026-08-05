@@ -20,7 +20,6 @@ type LoginEmailChangeStatus = "idle" | "loading" | "success" | "error";
 type LoginEmailChangeDialogProps = {
   isOpen: boolean;
   step: LoginEmailChangeStep;
-  currentEmailAddress: string | null;
   targetEmailAddress: string | null;
   status: LoginEmailChangeStatus;
   message: string | null;
@@ -35,7 +34,6 @@ type LoginEmailChangeDialogProps = {
 export function LoginEmailChangeDialog({
   isOpen,
   step,
-  currentEmailAddress,
   targetEmailAddress,
   status,
   message,
@@ -85,7 +83,6 @@ export function LoginEmailChangeDialog({
       {isReverifying ? <LoginMethodReverificationView controller={reverification} /> : null}
       {!isReverifying && isOpen && step === "input" ? (
         <EmailInputStep
-          currentEmailAddress={currentEmailAddress}
           isBusy={isBusy}
           status={status}
           message={message}
@@ -132,14 +129,12 @@ export function LoginEmailChangeDialog({
 }
 
 function EmailInputStep({
-  currentEmailAddress,
   isBusy,
   status,
   message,
   onClose,
   onSubmit,
 }: {
-  currentEmailAddress: string | null;
   isBusy: boolean;
   status: LoginEmailChangeStatus;
   message: string | null;
@@ -154,18 +149,14 @@ function EmailInputStep({
 
   return (
     <Stack as="form" gap={5} onSubmit={handleSubmit(async ({ email }) => onSubmit(email))}>
-      <Stack gap={1}>
-        <Text color="fg.muted" fontSize="sm">
-          現在のメインメールアドレス
-        </Text>
-        <Text fontWeight="medium">{currentEmailAddress ?? "確認できません"}</Text>
-      </Stack>
       <Text color="fg.muted">
-        新しいメールアドレスが未確認の場合は、確認コードを送ります。シフト連絡先メールアドレスやGoogle連携は変わりません。
+        新しいメールアドレスが未確認の場合は、確認コードを送ります。
+        <br />
+        シフト連絡先メールアドレスやGoogle連携は変わりません。
       </Text>
       <StepMessage status={status} message={message} />
       <Field.Root invalid={Boolean(errors.email)}>
-        <Field.Label>新しいメインメールアドレス</Field.Label>
+        <Field.Label>新しいメールアドレス</Field.Label>
         <Input
           type="email"
           autoComplete="email"
@@ -200,5 +191,5 @@ function StepMessage({ status, message }: { status: LoginEmailChangeStatus; mess
 
 function dialogTitle(step: LoginEmailChangeStep) {
   if (step === "verification") return "確認コードを入力";
-  return "メインのメールアドレスを変更";
+  return "メールアドレスを変更";
 }

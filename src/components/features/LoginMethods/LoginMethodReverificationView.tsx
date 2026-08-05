@@ -1,4 +1,4 @@
-import { Alert, Field, Input, Spinner, Stack, Text } from "@chakra-ui/react";
+import { Alert, Field, Input, Skeleton, Stack, Text } from "@chakra-ui/react";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/Button";
 import type { LoginMethodReverificationController, LoginMethodReverificationFactor } from "./reverificationTypes";
@@ -21,18 +21,8 @@ export function LoginMethodReverificationView({ controller }: { controller: Logi
     );
   }
 
-  if (state.status === "starting" || state.status === "completing") {
-    return (
-      <Stack gap={4} align="center" py={6} aria-live="polite">
-        <Spinner color="teal.600" />
-        <Text>{state.status === "starting" ? "本人確認方法を確認しています。" : state.message}</Text>
-        {state.status === "starting" ? (
-          <Button type="button" variant="ghost" onClick={controller.cancel}>
-            変更をやめる
-          </Button>
-        ) : null}
-      </Stack>
-    );
+  if (state.status === "starting" || state.status === "completing" || state.status === "submitting") {
+    return <ReverificationSkeleton />;
   }
 
   if (state.status === "selecting_factor") {
@@ -66,7 +56,7 @@ export function LoginMethodReverificationView({ controller }: { controller: Logi
           ))}
         </Stack>
         <Button type="button" variant="ghost" alignSelf="flex-start" onClick={controller.cancel}>
-          変更をやめる
+          キャンセル
         </Button>
       </Stack>
     );
@@ -74,39 +64,45 @@ export function LoginMethodReverificationView({ controller }: { controller: Logi
 
   if (!state.selectedFactor) return null;
 
-  if (state.status === "submitting") {
-    return (
-      <Stack gap={4} align="center" py={6} aria-live="polite">
-        <Spinner color="teal.600" />
-        <Text>{state.selectedFactor.input === "passkey" ? "パスキーを確認しています。" : "確認しています。"}</Text>
-      </Stack>
-    );
-  }
-
   return (
     <FactorInput
       key={`${state.operationId}-${state.selectedFactor.key}`}
       factor={state.selectedFactor}
-      factorCount={state.factors.length}
       message={state.message}
       controller={controller}
     />
   );
 }
 
+function ReverificationSkeleton() {
+  return (
+    <Stack gap={5} aria-label="本人確認フォームを読み込み中">
+      <Stack gap={2}>
+        <Skeleton h="20px" w="176px" />
+        <Skeleton h="16px" w="300px" maxW="100%" />
+      </Stack>
+      <Skeleton h="40px" w="full" borderRadius="md" />
+      <Skeleton h="16px" w="128px" alignSelf="flex-end" />
+      <Stack direction={{ base: "column-reverse", sm: "row" }} justify="space-between" gap={3}>
+        <Skeleton h="40px" w="96px" borderRadius="md" />
+        <Skeleton h="40px" w="88px" borderRadius="md" />
+      </Stack>
+    </Stack>
+  );
+}
+
 function FactorInput({
   factor,
-  factorCount,
   message,
   controller,
 }: {
   factor: LoginMethodReverificationFactor;
-  factorCount: number;
   message: string | null;
   controller: LoginMethodReverificationController;
 }) {
   const [value, setValue] = useState("");
   const isPassword = factor.input === "password";
+  const heading = factorHeading(factor);
 
   return (
     <Stack
@@ -118,7 +114,7 @@ function FactorInput({
       }}
     >
       <Stack gap={1}>
-        <Text fontWeight="semibold">{factorHeading(factor)}</Text>
+        {heading ? <Text fontWeight="semibold">{heading}</Text> : null}
         <Text color="fg.muted">{factorDescription(factor)}</Text>
       </Stack>
       {message ? (
@@ -139,31 +135,28 @@ function FactorInput({
           onChange={(event) => setValue(event.currentTarget.value)}
         />
       </Field.Root>
+      {factor.canResend ? (
+        <Button
+          type="button"
+          variant="ghost"
+          colorPalette="teal"
+          size="sm"
+          alignSelf="flex-end"
+          fontWeight="semibold"
+          onClick={() => {
+            void controller.resend();
+          }}
+        >
+          確認コードを再送
+        </Button>
+      ) : null}
       <Stack direction={{ base: "column-reverse", sm: "row" }} justify="space-between" gap={3}>
         <Button type="button" variant="outline" onClick={controller.cancel}>
-          変更をやめる
+          キャンセル
         </Button>
         <Button type="submit" colorPalette="teal">
           続ける
         </Button>
-      </Stack>
-      <Stack direction={{ base: "column", sm: "row" }} gap={2}>
-        {factor.canResend ? (
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              void controller.resend();
-            }}
-          >
-            確認コードを再送
-          </Button>
-        ) : null}
-        {factorCount > 1 ? (
-          <Button type="button" variant="ghost" onClick={controller.useAnotherFactor}>
-            別の方法を使う
-          </Button>
-        ) : null}
       </Stack>
     </Stack>
   );
@@ -187,11 +180,11 @@ function factorLabel(factor: LoginMethodReverificationFactor) {
   }
 }
 
-function factorHeading(factor: LoginMethodReverificationFactor) {
+function factorHeading(factor: LoginMethodReverificationFactor): string | null {
   if (factor.strategy === "password") return "現在のパスワードを入力";
   if (factor.strategy === "totp") return "認証アプリのコードを入力";
   if (factor.strategy === "backup_code") return "バックアップコードを入力";
-  return "確認コードを入力";
+  return null;
 }
 
 function factorDescription(factor: LoginMethodReverificationFactor) {

@@ -100,6 +100,27 @@ export const BackupCodeInput: Story = {
   },
 };
 
+export const StartingSkeletonBehavior: Story = {
+  args: {
+    controller: staticController({
+      status: "starting",
+      operationId: 1,
+      level: "first_factor",
+      stage: null,
+      factors: [],
+      selectedFactor: null,
+      message: null,
+    }),
+  },
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(await canvas.findByLabelText("本人確認フォームを読み込み中")).toBeVisible();
+    await expect(canvas.queryByText("本人確認方法を確認しています。")).not.toBeInTheDocument();
+  },
+};
+
 export const NoSupportedFactorError: Story = {
   args: {
     controller: staticController({
@@ -140,7 +161,7 @@ export const SelectFactorBehavior: Story = {
 export const FactorCooldownBehavior: Story = {
   args: {
     controller: staticController({
-      ...selectingState("first", [emailFactor]),
+      ...inputState(emailFactor, [emailFactor]),
       message: "確認コードを送信した直後です。あと30秒ほど待ってから再送してください。",
     }),
   },
@@ -148,14 +169,15 @@ export const FactorCooldownBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(await canvas.findByRole("status")).toHaveTextContent(
-      "確認コードを送信した直後です。あと30秒ほど待ってから再送してください。",
-    );
-    await expect(canvas.getByRole("button", { name: "メールで確認（lo***@example.com）" })).toBeVisible();
+    await expect(
+      await canvas.findByText("確認コードを送信した直後です。あと30秒ほど待ってから再送してください。"),
+    ).toBeVisible();
+    await expect(canvas.queryByText("確認コードを入力")).not.toBeInTheDocument();
+    await expect(canvas.getByRole("textbox", { name: "確認コード" })).toBeVisible();
   },
 };
 
-export const ResendAndChangeFactorBehavior: Story = {
+export const ResendBehavior: Story = {
   render: () => <InteractiveReverificationPreview initialState={inputState(emailFactor, firstFactors)} />,
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
@@ -163,10 +185,7 @@ export const ResendAndChangeFactorBehavior: Story = {
 
     await userEvent.click(await canvas.findByRole("button", { name: "確認コードを再送" }));
     await expect(await canvas.findByText("新しい確認コードを送信しました。")).toBeVisible();
-
-    await userEvent.click(await canvas.findByRole("button", { name: "別の方法を使う" }));
-    await expect(await canvas.findByRole("button", { name: "現在のパスワード" })).toBeVisible();
-    await expect(await canvas.findByRole("button", { name: "SMSで確認（+81 *** **12）" })).toBeVisible();
+    await expect(canvas.queryByRole("button", { name: "別の方法を使う" })).not.toBeInTheDocument();
   },
 };
 
@@ -180,7 +199,8 @@ export const PasswordSubmitBehavior: Story = {
     await userEvent.type(password, "current-password");
     await userEvent.click(await canvas.findByRole("button", { name: "続ける" }));
 
-    await expect(await canvas.findByText("本人確認が完了しました。変更処理を続けています。")).toBeVisible();
+    await expect(await canvas.findByLabelText("本人確認フォームを読み込み中")).toBeInTheDocument();
+    await expect(canvas.queryByText("本人確認が完了しました。変更処理を続けています。")).not.toBeInTheDocument();
   },
 };
 

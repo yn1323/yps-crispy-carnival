@@ -56,6 +56,7 @@ LINEアプリ内ブラウザではGoogle OAuthがprovider側で拒否される�
 画面はClerkのcurrent User resourceからメールアドレスとGoogle認証の状態を表示する。  メールログインの対象として表示・変更するメールアドレスは、Primaryの1件だけとする。  以前のEmailAddressや確認途中のEmailAddressをClerk上で保持していても、別のログイン対象行としては表示しない。
 メールアドレスは省略せず表示する。
 Clerk内部のprimary・secondaryという用語は製品UIに出さない。
+Googleのみの状態ではメールログイン方法を未設定として扱い、EmailAddress resourceが存在してもメールアドレス欄は「未設定」と表示する。  「設定する」から既存のメールアドレス・パスワード設定モーダルを開く。
 
 resourceを安全に判定できない場合や操作が失敗した場合は、ログイン設定内の局所errorとして表示する。
 一つの操作の失敗で認証後アプリ全体を止めない。
@@ -67,15 +68,18 @@ resourceを安全に判定できない場合や操作が失敗した場合は、
 
 | 状態 | 利用できる操作 |
 |---|---|
-| Googleのみ | Primaryメールアドレスの変更、メールアドレスとパスワードの追加 |
+| Googleのみ | メールアドレスとパスワードの設定 |
 | メール・パスワードのみ | Primaryメールアドレスの変更、Google認証の追加 |
 | Googleとメール・パスワードの両方 | Primaryメールアドレスの変更、Google認証の解除 |
 
-Primaryメールアドレスの変更は3状態すべてで利用できる。
+Primaryメールアドレスの変更はメール・パスワードのみ、またはGoogleとメール・パスワードの両方の状態で利用できる。
 変更先が未確認であれば`email_code`で所有を確認し、確認済みになったEmailAddressをPrimaryへ切り替える。
-以前のEmailAddress、Google ExternalAccount、パスワードは変更または削除しないため、Googleのみの利用者は変更後もGoogleのみの状態を維持する。
+メールアドレスに関係する変更でClerkが本人再確認を要求した場合は、メール確認（`email_code`）を必須とし、方式選択を表示せず確認コード入力へ進める。メール確認を利用できない場合は変更を中止する。
+以前のEmailAddress、Google ExternalAccount、パスワードは変更または削除しないため、メール・パスワードのみの利用者は変更後もGoogleなしの状態を維持する。
 
 Googleのみの利用者は、既存の確認済みEmailAddressまたは新たに確認したEmailAddressへパスワードを設定できる。
+初回設定のメール入力欄には、現在の確認済みGoogle認証のメールアドレスを初期表示し、必要であれば別のメールアドレスへ変更できる。
+新しいメールアドレスを入力した後は、そのアドレスへ送信した6桁の確認コードを入力し、確認済みになってからパスワードを設定する。  本人再確認ではメールアドレスの選択画面を表示せず、入力済みのメールアドレスのコード入力へ進める。
 Google認証を保持したまま、Googleとメール・パスワードの両方を使える状態へ移る。
 
 既存パスワードを直接変更する操作はログイン設定に置かない。  パスワードを忘れた場合や変更したい場合は、ログイン画面のメールによるパスワード再設定を利用する。
@@ -86,8 +90,7 @@ OAuth帰還後に同じClerk Userと、そこへ属する確認済みGoogle Exte
 
 Google追加の失敗後に`failed`または`unverified`のGoogle ExternalAccountが一件だけ残った場合は、「Googleを再接続」から同じ追加フローを明示的に再試行できる。  再試行時はcurrent User、Primaryメールアドレス、パスワードと確認済みEmailAddressを再取得し、対象がそのUserに属する一件だけの未完了resourceであることを確認してから破棄する。破棄後のreloadで不在を確認できた場合だけ、新しい`select_account`付きOAuthとexact resourceの相関を開始する。  確認済みGoogle、複数resource、未知のverification statusは推測削除せず、新しいOAuthも開始しない。
 
-Google認証の解除は、操作直前のreloadで有効なパスワードと確認済みEmailAddressが残る場合だけ許可する。
-Googleのみの状態では解除操作を表示しない。
+Google認証の解除ボタンは、連携済みGoogle ExternalAccountに表示する。  操作直前のreloadで有効なパスワードと確認済みEmailAddressが残る場合だけ解除を許可し、Googleのみの状態では解除せず、メールアドレス未設定であることと先にメールアドレス・パスワードを設定する必要があることを赤いSnackbarで通知する。
 解除後もメールアドレスでログインできることを示す既存の補足は、この解除条件を満たす場合だけ表示する。
 EmailAddressの削除とパスワードの削除は提供しない。
 別のGoogleアカウントへ切り替える場合は、メール・パスワードを保持した状態でGoogle解除とGoogle追加を別々に行い、専用のGoogle置換フローは設けない。

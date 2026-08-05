@@ -1,4 +1,4 @@
-import { Alert, Box, Checkbox, Field, HStack, Input, Stack, Text } from "@chakra-ui/react";
+import { Alert, Box, Field, HStack, Input, Skeleton, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -19,7 +19,6 @@ const passwordSchema = z
   .object({
     newPassword: z.string().min(8, "パスワードは8文字以上で入力してください。"),
     confirmation: z.string(),
-    signOutOfOtherSessions: z.boolean(),
   })
   .refine((values) => values.newPassword === values.confirmation, {
     path: ["confirmation"],
@@ -52,7 +51,7 @@ export function LoginMethodMigrationView(props: LoginMethodMigrationViewProps) {
 
   return (
     <Dialog
-      title={isReverifying ? "確認が必要です" : flowTitle(props.flow)}
+      title={isReverifying ? "確認が必要です" : flowTitle(props)}
       isOpen
       onOpenChange={({ open }) => {
         if (!open) requestClose();
@@ -74,7 +73,7 @@ export function LoginMethodMigrationView(props: LoginMethodMigrationViewProps) {
     >
       {isReverifying ? <LoginMethodReverificationView controller={props.reverification} /> : null}
       {!isReverifying && props.flow === "add-email-password" ? (
-        <EmailPasswordMigrationContent controller={props.controller} />
+        <EmailPasswordMigrationContent controller={props.controller} onCancel={props.onBackToOverview} />
       ) : null}
       {!isReverifying && props.flow === "connect-google" ? (
         <GoogleConnectionContent controller={props.controller} />
@@ -83,17 +82,21 @@ export function LoginMethodMigrationView(props: LoginMethodMigrationViewProps) {
   );
 }
 
-function EmailPasswordMigrationContent({ controller }: { controller: EmailPasswordMigrationController }) {
+function EmailPasswordMigrationContent({
+  controller,
+  onCancel,
+}: {
+  controller: EmailPasswordMigrationController;
+  onCancel: () => void;
+}) {
   const { state } = controller;
   return (
     <Stack gap={5}>
       {state.phase !== "unavailable" && state.phase !== "verifyingEmail" ? (
         <FeedbackError feedback={state.feedback} />
       ) : null}
-      {state.phase === "loading" ? (
-        <StatusState title="最新のログイン方法を確認しています" description="確認が終わるまでお待ちください。" />
-      ) : null}
-      {state.phase === "choosingEmail" ? <EmailChoiceStep controller={controller} /> : null}
+      {state.phase === "loading" ? <EmailPasswordMigrationSkeleton /> : null}
+      {state.phase === "choosingEmail" ? <EmailChoiceStep controller={controller} onCancel={onCancel} /> : null}
       {state.phase === "verifyingEmail" ? <EmailVerificationStep controller={controller} /> : null}
       {state.phase === "settingPassword" ? <PasswordStep controller={controller} /> : null}
       {state.phase === "unavailable" ? (
@@ -136,15 +139,7 @@ function GoogleConnectionContent({ controller }: { controller: GoogleConnectionC
           </Button>
         </Stack>
       ) : null}
-      {state.phase === "redirecting" ? (
-        <StatusState title="Googleの画面を開いています" description="アカウント選択画面へ移動します。" />
-      ) : null}
-      {state.phase === "settling" ? (
-        <StatusState
-          title="Googleログインを確認しています"
-          description="確認が終わるまでこの画面を閉じないでください。"
-        />
-      ) : null}
+      {state.phase === "redirecting" || state.phase === "settling" ? <GoogleConnectionSkeleton /> : null}
       {state.phase === "unavailable" ? (
         <UnavailableState
           message={state.feedback.message ?? "Googleログインは現在追加できません。"}
@@ -155,8 +150,13 @@ function GoogleConnectionContent({ controller }: { controller: GoogleConnectionC
   );
 }
 
-function EmailChoiceStep({ controller }: { controller: EmailPasswordMigrationController }) {
-  const selectCurrentEmail = controller.useCurrentEmail;
+function EmailChoiceStep({
+  controller,
+  onCancel,
+}: {
+  controller: EmailPasswordMigrationController;
+  onCancel: () => void;
+}) {
   const selectDifferentEmail = controller.useDifferentEmail;
   const {
     register,
@@ -164,31 +164,13 @@ function EmailChoiceStep({ controller }: { controller: EmailPasswordMigrationCon
     formState: { errors },
   } = useForm<EmailValues>({
     resolver: zodResolver(emailSchema),
-    defaultValues: { email: "" },
+    defaultValues: { email: controller.state.targetEmailAddress ?? "" },
     shouldFocusError: true,
   });
   const busy = controller.state.feedback.status === "loading";
 
   return (
     <Stack gap={5}>
-      <Box>
-        <Text fontSize="lg" fontWeight="semibold">
-          ログインに使うメールアドレス
-        </Text>
-        <Text mt={2} color="fg.muted">
-          登録済みの確認済みメールを使うか、別のメールアドレスを追加できます。Google認証は解除しません。
-        </Text>
-      </Box>
-      <Button
-        variant="outline"
-        alignSelf={{ base: "stretch", sm: "flex-start" }}
-        disabled={busy}
-        onClick={() => {
-          void selectCurrentEmail();
-        }}
-      >
-        現在のメールを使う
-      </Button>
       <Stack
         as="form"
         gap={4}
@@ -197,7 +179,7 @@ function EmailChoiceStep({ controller }: { controller: EmailPasswordMigrationCon
         })}
       >
         <Field.Root invalid={Boolean(errors.email)}>
-          <Field.Label>別のメールアドレス</Field.Label>
+          <Field.Label>メールアドレス</Field.Label>
           <Input
             type="email"
             autoComplete="email"
@@ -207,15 +189,15 @@ function EmailChoiceStep({ controller }: { controller: EmailPasswordMigrationCon
           />
           <Field.ErrorText>{errors.email?.message}</Field.ErrorText>
         </Field.Root>
-        <Button
-          type="submit"
-          colorPalette="teal"
-          alignSelf={{ base: "stretch", sm: "flex-start" }}
-          loading={busy}
-          loadingText="確認中"
-        >
-          このメールを使う
-        </Button>
+        <Text color="fg.muted">Google認証は解除しません。</Text>
+        <Stack direction={{ base: "column-reverse", sm: "row" }} justify="space-between" gap={3}>
+          <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
+            キャンセル
+          </Button>
+          <Button type="submit" colorPalette="teal" loading={busy} loadingText="確認中">
+            決定
+          </Button>
+        </Stack>
       </Stack>
     </Stack>
   );
@@ -240,10 +222,7 @@ function EmailVerificationStep({ controller }: { controller: EmailPasswordMigrat
           await controller.verifyEmail(code);
         }}
         secondaryActions={
-          <HStack justify="space-between" flexWrap="wrap">
-            <Button type="button" variant="ghost" disabled={feedback.status === "loading"} onClick={controller.reset}>
-              メールアドレスを選び直す
-            </Button>
+          <HStack justify="flex-end" flexWrap="wrap">
             <Button
               type="button"
               variant="ghost"
@@ -268,7 +247,7 @@ function PasswordStep({ controller }: { controller: EmailPasswordMigrationContro
     formState: { errors },
   } = useForm<PasswordValues>({
     resolver: zodResolver(passwordSchema),
-    defaultValues: { newPassword: "", confirmation: "", signOutOfOtherSessions: false },
+    defaultValues: { newPassword: "", confirmation: "" },
     shouldFocusError: true,
   });
   const busy = controller.state.feedback.status === "loading";
@@ -277,18 +256,10 @@ function PasswordStep({ controller }: { controller: EmailPasswordMigrationContro
     <Stack
       as="form"
       gap={5}
-      onSubmit={handleSubmit(async ({ newPassword, signOutOfOtherSessions }) => {
-        await controller.setPassword({ newPassword, signOutOfOtherSessions });
+      onSubmit={handleSubmit(async ({ newPassword }) => {
+        await controller.setPassword({ newPassword, signOutOfOtherSessions: false });
       })}
     >
-      <Box>
-        <Text fontSize="lg" fontWeight="semibold">
-          パスワードを設定します
-        </Text>
-        <Text mt={2} color="fg.muted">
-          確認済みのメールアドレスと組み合わせる新しいパスワードを入力してください。
-        </Text>
-      </Box>
       <Field.Root invalid={Boolean(errors.newPassword)}>
         <Field.Label>新しいパスワード</Field.Label>
         <Input type="password" autoComplete="new-password" {...register("newPassword")} />
@@ -299,19 +270,14 @@ function PasswordStep({ controller }: { controller: EmailPasswordMigrationContro
         <Input type="password" autoComplete="new-password" {...register("confirmation")} />
         <Field.ErrorText>{errors.confirmation?.message}</Field.ErrorText>
       </Field.Root>
-      <Checkbox.Root>
-        <Checkbox.HiddenInput {...register("signOutOfOtherSessions")} />
-        <Checkbox.Control />
-        <Checkbox.Label>ほかの端末からログアウトする</Checkbox.Label>
-      </Checkbox.Root>
-      <HStack gap={3} flexWrap="wrap">
+      <Stack direction={{ base: "column-reverse", sm: "row" }} justify="space-between" gap={3}>
         <Button type="button" variant="ghost" disabled={busy} onClick={controller.reset}>
-          メールアドレスを選び直す
+          戻る
         </Button>
         <Button type="submit" colorPalette="teal" size="lg" loading={busy} loadingText="設定中">
-          パスワードを設定
+          決定
         </Button>
-      </HStack>
+      </Stack>
     </Stack>
   );
 }
@@ -326,13 +292,31 @@ function FeedbackError({ feedback }: { feedback: LoginMethodMigrationFeedback })
   );
 }
 
-function StatusState({ title, description }: { title: string; description: string }) {
+function EmailPasswordMigrationSkeleton() {
   return (
-    <Stack gap={2} aria-live="polite">
-      <Text fontSize="lg" fontWeight="semibold">
-        {title}
-      </Text>
-      <Text color="fg.muted">{description}</Text>
+    <Stack gap={5} aria-label="メールアドレス設定フォームを読み込み中">
+      <Stack gap={2}>
+        <Skeleton h="20px" w="112px" />
+        <Skeleton h="40px" w="full" borderRadius="md" />
+      </Stack>
+      <Skeleton h="16px" w="184px" />
+      <Stack direction={{ base: "column-reverse", sm: "row" }} justify="space-between" gap={3}>
+        <Skeleton h="40px" w="96px" borderRadius="md" />
+        <Skeleton h="40px" w="72px" borderRadius="md" />
+      </Stack>
+    </Stack>
+  );
+}
+
+function GoogleConnectionSkeleton() {
+  return (
+    <Stack gap={5} aria-label="Googleログイン画面を読み込み中">
+      <Stack gap={2}>
+        <Skeleton h="24px" w="208px" />
+        <Skeleton h="16px" w="full" />
+        <Skeleton h="16px" w="76%" />
+      </Stack>
+      <Skeleton h="48px" w="224px" borderRadius="md" />
     </Stack>
   );
 }
@@ -357,6 +341,9 @@ function UnavailableState({ message, onRetry }: { message: string; onRetry: () =
   );
 }
 
-function flowTitle(flow: LoginMethodMigrationViewProps["flow"]) {
-  return flow === "add-email-password" ? "メールアドレスとパスワードを設定" : "Googleログインを追加";
+function flowTitle(props: LoginMethodMigrationViewProps) {
+  if (props.flow === "add-email-password" && props.controller.state.phase === "settingPassword") {
+    return "パスワード設定";
+  }
+  return props.flow === "add-email-password" ? "メールアドレスとパスワードを設定" : "Googleログインを追加";
 }

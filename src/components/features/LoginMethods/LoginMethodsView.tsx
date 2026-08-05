@@ -1,4 +1,4 @@
-import { Alert, Badge, Box, Flex, HStack, Icon, Separator, Skeleton, Stack, Text } from "@chakra-ui/react";
+import { Alert, Badge, Box, Flex, HStack, Icon, Skeleton, Stack, Text } from "@chakra-ui/react";
 import { useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 import { LuMail } from "react-icons/lu";
@@ -14,10 +14,12 @@ export function LoginMethodsView({
   controller,
   onStartFlow,
   reverification,
+  isMigrationDialogOpen,
 }: {
   controller: LoginMethodsController;
   onStartFlow: (flow: LoginMethodMigrationFlow) => void;
   reverification: LoginMethodReverificationController;
+  isMigrationDialogOpen: boolean;
 }) {
   const [googleToDisconnect, setGoogleToDisconnect] = useState<string | null>(null);
 
@@ -56,9 +58,6 @@ export function LoginMethodsView({
       <LoginEmailChangeDialog
         isOpen={controller.emailChangeDialog.isOpen}
         step={controller.emailChangeDialog.isOpen ? controller.emailChangeDialog.step : "input"}
-        currentEmailAddress={
-          controller.emailChangeDialog.isOpen ? controller.emailChangeDialog.currentEmailAddress : null
-        }
         targetEmailAddress={
           controller.emailChangeDialog.isOpen ? controller.emailChangeDialog.targetEmailAddress : null
         }
@@ -77,7 +76,10 @@ export function LoginMethodsView({
         reverification={reverification}
         onClose={() => setGoogleToDisconnect(null)}
       />
-      {reverification.state.status !== "idle" && !controller.emailChangeDialog.isOpen && googleToDisconnect === null ? (
+      {reverification.state.status !== "idle" &&
+      !isMigrationDialogOpen &&
+      !controller.emailChangeDialog.isOpen &&
+      googleToDisconnect === null ? (
         <StandaloneReverificationDialog reverification={reverification} />
       ) : null}
     </Stack>
@@ -95,10 +97,11 @@ function LoginMethodsCard({
   onConnectGoogle: () => void;
   onRequestGoogleDisconnect: (externalAccountId: string) => Promise<void>;
 }) {
-  const canDisconnectGoogle = controller.viewModel.google.accounts.some((account) => account.canDisconnect);
-
   return (
     <Stack gap={3}>
+      <Text color="fg.muted" fontSize="sm">
+        Google認証を解除してもメールアドレスでログインできます
+      </Text>
       <Stack gap={0} borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" overflow="hidden" bg="white">
         <Box p={{ base: 3, md: 4 }} bg="white">
           <EmailContent controller={controller} onSetPassword={onSetPassword} />
@@ -111,11 +114,6 @@ function LoginMethodsCard({
           />
         </Box>
       </Stack>
-      {canDisconnectGoogle ? (
-        <Text color="fg.muted" fontSize="sm">
-          Google認証を解除してもメールアドレスでログインできます
-        </Text>
-      ) : null}
     </Stack>
   );
 }
@@ -129,6 +127,9 @@ function EmailContent({
 }) {
   const { emailPassword } = controller.viewModel;
   const primaryEmail = emailPassword.primaryEmail;
+  const isGoogleOnly = controller.viewModel.methodState === "googleOnly";
+  const canSetEmailPassword = isGoogleOnly && emailPassword.canSetPassword;
+  const canChangeEmail = !isGoogleOnly && primaryEmail && emailPassword.canChangeLoginEmail;
 
   return (
     <Stack gap={2} as="section" aria-labelledby="login-methods-email-heading">
@@ -151,38 +152,28 @@ function EmailContent({
               <Text id="login-methods-email-heading" as="h3" fontSize="lg" fontWeight="semibold">
                 メールアドレス
               </Text>
-              {primaryEmail ? (
+              {primaryEmail && !isGoogleOnly ? (
                 <EmailAddressDetails email={primaryEmail} />
               ) : (
                 <Text color="fg.muted" fontSize="sm">
-                  確認できるメールアドレスがありません。
+                  未設定
                 </Text>
               )}
             </Stack>
-            {primaryEmail && emailPassword.canChangeLoginEmail ? (
+            {canSetEmailPassword || canChangeEmail ? (
               <Button
                 variant="outline"
                 colorPalette="teal"
-                onClick={controller.openLoginEmailChange}
+                onClick={canSetEmailPassword ? onSetPassword : controller.openLoginEmailChange}
                 loading={controller.emailPasswordState.status === "loading"}
               >
-                変更する
+                {canSetEmailPassword ? "設定する" : "変更する"}
               </Button>
             ) : null}
           </Flex>
         </Stack>
       </Flex>
       <CardError state={controller.emailPasswordState} />
-      {emailPassword.canSetPassword ? (
-        <>
-          <Separator />
-          <HStack gap={3} flexWrap="wrap">
-            <Button colorPalette="teal" onClick={onSetPassword}>
-              メールアドレスとパスワードを設定
-            </Button>
-          </HStack>
-        </>
-      ) : null}
     </Stack>
   );
 }
@@ -212,6 +203,7 @@ function GoogleContent({
   onRequestDisconnect: (externalAccountId: string) => Promise<void>;
 }) {
   const { google } = controller.viewModel;
+  const googleNeedsReconnection = google.accounts.some((account) => account.status === "needsReconnection");
   return (
     <Stack gap={2} as="section" aria-labelledby="login-methods-google-heading">
       <Flex align="center" gap={{ base: 3, md: 4 }} flexWrap={{ base: "wrap", md: "nowrap" }}>
@@ -228,46 +220,62 @@ function GoogleContent({
           <Icon as={FcGoogle} boxSize={{ base: 5, md: 6 }} aria-hidden />
         </Box>
         <Stack gap={1} flex="1" minW={0}>
-          <Text id="login-methods-google-heading" as="h3" fontSize="lg" fontWeight="semibold">
-            Google認証
-          </Text>
+          <HStack gap={2} flexWrap="wrap">
+            <Text id="login-methods-google-heading" as="h3" fontSize="lg" fontWeight="semibold">
+              Google認証
+            </Text>
+            {google.accounts.length > 0 ? (
+              <Badge colorPalette={googleNeedsReconnection ? "orange" : "green"}>
+                {googleNeedsReconnection ? "再確認が必要" : "連携済み"}
+              </Badge>
+            ) : null}
+          </HStack>
           {google.accounts.length === 0 ? (
             <Text color="fg.muted" fontSize="sm">
               Googleでのログインは設定されていません。
             </Text>
           ) : (
             google.accounts.map((account) => (
-              <HStack key={account.id} justify="space-between" align="center" gap={4} flexWrap="wrap">
-                <Text color="fg.muted" fontSize="sm" minW={0} overflowWrap="anywhere">
-                  {account.emailAddress}
-                </Text>
-                <HStack gap={3} flexWrap="wrap">
-                  <Badge colorPalette={account.status === "connected" ? "green" : "orange"}>
-                    {account.status === "connected" ? "連携済み" : "再確認が必要"}
-                  </Badge>
-                  {account.status === "needsReconnection" && google.canReconnect ? (
-                    <Button variant="outline" loading={controller.googleState.status === "loading"} onClick={onConnect}>
-                      Googleを再接続
-                    </Button>
-                  ) : null}
-                  {account.canDisconnect ? (
-                    <Button
-                      variant="outline"
-                      colorPalette="red"
-                      loading={controller.googleState.status === "loading"}
-                      onClick={() => {
-                        void onRequestDisconnect(account.id);
-                      }}
-                    >
-                      連携を解除
-                    </Button>
-                  ) : null}
-                </HStack>
-              </HStack>
+              <Text key={account.id} color="fg.muted" fontSize="sm" minW={0} overflowWrap="anywhere">
+                {account.emailAddress}
+              </Text>
             ))
           )}
         </Stack>
-        {google.accounts.length === 0 && google.canConnect ? (
+        {google.accounts.length > 0 ? (
+          <HStack gap={3} flexWrap="wrap" alignSelf="center" flexShrink={0}>
+            {google.accounts.map((account) => {
+              if (account.status === "needsReconnection" && google.canReconnect) {
+                return (
+                  <Button
+                    key={`${account.id}-action`}
+                    variant="outline"
+                    loading={controller.googleState.status === "loading"}
+                    onClick={onConnect}
+                  >
+                    Googleを再接続
+                  </Button>
+                );
+              }
+              if (account.status === "connected") {
+                return (
+                  <Button
+                    key={`${account.id}-action`}
+                    variant="outline"
+                    colorPalette="teal"
+                    loading={controller.googleState.status === "loading"}
+                    onClick={() => {
+                      void onRequestDisconnect(account.id);
+                    }}
+                  >
+                    解除する
+                  </Button>
+                );
+              }
+              return null;
+            })}
+          </HStack>
+        ) : google.canConnect ? (
           <Button
             variant="outline"
             alignSelf="center"
@@ -343,11 +351,11 @@ function GoogleDisconnectDialog({
       {!isReverifying ? (
         <Stack gap={4}>
           <CardError state={controller.googleState} />
-          <Text>このGoogleアカウントではログインできなくなります。メールアドレスとパスワードは残ります。</Text>
-          <Alert.Root status="warning" borderRadius="lg">
-            <Alert.Indicator />
-            <Alert.Description>解除の直前に、メールアドレスとパスワードをもう一度確認します。</Alert.Description>
-          </Alert.Root>
+          <Text>
+            このGoogleアカウントではログインできなくなります。
+            <br />
+            メールアドレスとパスワードは残ります。
+          </Text>
         </Stack>
       ) : null}
     </Dialog>

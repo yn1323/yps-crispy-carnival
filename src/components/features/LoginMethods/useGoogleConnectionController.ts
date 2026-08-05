@@ -426,7 +426,7 @@ export function useGoogleConnectionController({
     setState({
       phase: "redirecting",
       errorKind: null,
-      feedback: { status: "loading", message: "Googleのアカウント選択画面を開いています。" },
+      feedback: { status: "loading", message: null },
     });
     navigateToExternalVerification(redirectUrl);
     return true;

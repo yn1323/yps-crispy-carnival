@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   runWithReverification: vi.fn(),
   isReverificationCancelledError: vi.fn(),
+  showErrorToast: vi.fn(),
   showSuccessToast: vi.fn(),
 }));
 
@@ -22,15 +23,18 @@ vi.mock("@clerk/react/errors", () => ({
 }));
 
 vi.mock("@/src/components/shared/feedback", () => ({
+  showErrorToast: mocks.showErrorToast,
   showSuccessToast: mocks.showSuccessToast,
 }));
 
+import type { LoginMethodOperationOptions } from "./reverificationTypes";
 import { useLoginMethodsController } from "./useLoginMethodsController";
 
 beforeEach(() => {
   window.sessionStorage.clear();
   mocks.runWithReverification.mockReset();
   mocks.isReverificationCancelledError.mockReset();
+  mocks.showErrorToast.mockReset();
   mocks.showSuccessToast.mockReset();
   mocks.runWithReverification.mockImplementation(
     async (operation: (...args: unknown[]) => Promise<unknown>, args: unknown[]) => operation(...args),
@@ -39,6 +43,38 @@ beforeEach(() => {
 });
 
 describe("useLoginMethodsController", () => {
+  it("メールアドレス変更の各操作でメールコードを本人確認方式として優先する", async () => {
+    const primaryEmail = emailResource({ id: "email-primary", emailAddress: "login@example.com", status: "verified" });
+    const targetEmail = emailResource({ id: "email-target", emailAddress: "next@example.com", status: "unverified" });
+    const user = userResource({
+      emailAddresses: [primaryEmail, targetEmail],
+      primaryEmailAddressId: primaryEmail.id,
+    });
+    const runOperation = vi.fn(
+      async <T,>(operation: () => Promise<T>, _options?: LoginMethodOperationOptions): Promise<T | undefined> =>
+        operation(),
+    );
+    const { result } = renderController(
+      user,
+      () => user.id,
+      runOperation as unknown as <T>(
+        operation: () => Promise<T>,
+        options?: LoginMethodOperationOptions,
+      ) => Promise<T | undefined>,
+    );
+
+    act(() => result.current.openLoginEmailChange());
+    await act(async () => result.current.startLoginEmailChange(targetEmail.emailAddress));
+    await act(async () => result.current.verifyLoginEmailCode("123456"));
+
+    expect(runOperation).toHaveBeenNthCalledWith(1, expect.any(Function), {
+      preferredFirstFactorStrategy: "email_code",
+    });
+    expect(runOperation).toHaveBeenNthCalledWith(2, expect.any(Function), {
+      preferredFirstFactorStrategy: "email_code",
+    });
+  });
+
   it("reload中にcurrent Userが切り替わればメール変更の副作用を開始しない", async () => {
     const primaryEmail = emailResource({ id: "email-primary", emailAddress: "login@example.com", status: "verified" });
     const user = userResource({ emailAddresses: [primaryEmail], primaryEmailAddressId: primaryEmail.id });
@@ -451,10 +487,13 @@ describe("useLoginMethodsController", () => {
 
     expect(account.destroy).not.toHaveBeenCalled();
     expect(user.externalAccounts).toEqual([account]);
-    expect(result.current.googleState).toEqual({
-      status: "error",
-      message: "確認済みメールアドレスとパスワードを設定してから操作してください。",
-    });
+    expect(result.current.googleState).toEqual({ status: "idle", message: null });
+    expect(mocks.showErrorToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message:
+          "メールアドレス未設定時はGoogle認証を解除できません。先にメールアドレスとパスワードを設定してください。",
+      }),
+    );
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();
   });
 
@@ -492,6 +531,7 @@ describe("useLoginMethodsController", () => {
     expect(user.emailAddresses).toEqual([linkedEmail]);
     expect(user.externalAccounts).toEqual([]);
     expect(result.current.googleState).toEqual({ status: "idle", message: null });
+    expect(mocks.runWithReverification).not.toHaveBeenCalled();
     expect(mocks.showSuccessToast).toHaveBeenCalledWith({ title: "Google連携を解除しました" });
   });
 
@@ -509,12 +549,12 @@ describe("useLoginMethodsController", () => {
       externalAccounts: [account],
       primaryEmailAddressId: linkedEmail.id,
     });
-    mocks.runWithReverification.mockImplementationOnce(
-      async (operation: (...args: unknown[]) => Promise<unknown>, args: unknown[]) => {
-        user.passwordEnabled = false;
-        return operation(...args);
-      },
-    );
+    let reloadCount = 0;
+    vi.mocked(user.reload).mockImplementation(async () => {
+      reloadCount += 1;
+      if (reloadCount === 2) user.passwordEnabled = false;
+      return user;
+    });
     const { result } = renderController(user);
 
     await act(async () => result.current.disconnectGoogle(account.id));
@@ -559,12 +599,17 @@ describe("useLoginMethodsController", () => {
   });
 });
 
-function renderController(user: UserResource, getCurrentActorId: () => string | null = () => user.id) {
+function renderController(
+  user: UserResource,
+  getCurrentActorId: () => string | null = () => user.id,
+  runOperation?: <T>(operation: () => Promise<T>, options?: LoginMethodOperationOptions) => Promise<T | undefined>,
+) {
   return renderHook(() =>
     useLoginMethodsController({
       isLoaded: true,
       user,
       getCurrentActorId,
+      runOperation,
     }),
   );
 }

@@ -3,7 +3,7 @@ import { isReverificationCancelledError } from "@clerk/react/errors";
 import type { UserResource } from "@clerk/shared/types";
 import { useMemo, useState } from "react";
 import { normalizeEmail, requiredEmailSchema } from "@/convex/_lib/validation";
-import { showSuccessToast } from "@/src/components/shared/feedback";
+import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { toLoginMethodsUserSnapshot } from "./adapter";
 import { getLoginMethodAccountErrorMessage } from "./loginMethodErrorPresentation";
@@ -12,19 +12,24 @@ import {
   emailVerificationCooldownScope,
   type LoginMethodOperationCooldown,
 } from "./operationCooldown";
-import type { LoginMethodOnNeedsReverification } from "./reverificationTypes";
+import type { LoginMethodOnNeedsReverification, LoginMethodOperationOptions } from "./reverificationTypes";
 import { buildLoginMethodsViewModel } from "./script";
 import type { LoginEmailChangeDialogState, LoginMethodsCardState, LoginMethodsController } from "./types";
 
 const IDLE_STATE: LoginMethodsCardState = { status: "idle", message: null };
 const LOADING_STATE: LoginMethodsCardState = { status: "loading", message: null };
+const LOGIN_EMAIL_CHANGE_REVERIFICATION_OPTIONS: LoginMethodOperationOptions = {
+  preferredFirstFactorStrategy: "email_code",
+};
+const GOOGLE_DISCONNECT_EMAIL_REQUIRED_MESSAGE =
+  "メールアドレス未設定時はGoogle認証を解除できません。先にメールアドレスとパスワードを設定してください。";
 
 type ControllerOptions = {
   isLoaded: boolean;
   user: UserResource | null | undefined;
   getCurrentActorId: () => string | null;
   onNeedsReverification?: LoginMethodOnNeedsReverification;
-  runOperation?: <T>(operation: () => Promise<T>) => Promise<T | undefined>;
+  runOperation?: <T>(operation: () => Promise<T>, options?: LoginMethodOperationOptions) => Promise<T | undefined>;
   operationCooldown?: LoginMethodOperationCooldown;
 };
 
@@ -69,7 +74,7 @@ export function useLoginMethodsController({
   };
 
   const reverificationOptions = { onNeedsReverification };
-  const destroyGoogleWithReverification = useReverification(async (externalAccountId: string) => {
+  const destroyGoogle = async (externalAccountId: string) => {
     const currentUser = await reloadUser();
     const freshViewModel = buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser));
     const freshAccount = currentUser.externalAccounts.find((account) => account.id === externalAccountId);
@@ -77,7 +82,7 @@ export function useLoginMethodsController({
     if (freshAccount?.provider !== "google" || !accountViewModel?.canDisconnect) return "unavailable" as const;
     await freshAccount.destroy();
     return "removed" as const;
-  }, reverificationOptions);
+  };
   const ensureEmailAddressWithReverification = useReverification(async (email: string) => {
     const currentUser = await reloadUser();
     if (!buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser)).emailPassword.canChangeLoginEmail) {
@@ -191,7 +196,12 @@ export function useLoginMethodsController({
 
         const accountViewModel = freshViewModel.google.accounts.find((account) => account.id === externalAccountId);
         if (!accountViewModel?.canDisconnect) {
-          setGoogleState(cardError(accountViewModel?.disconnectUnavailableReason ?? "Google連携を解除できません。"));
+          if (freshViewModel.methodState === "googleOnly") {
+            setGoogleState(IDLE_STATE);
+            showErrorToast(new Error(GOOGLE_DISCONNECT_EMAIL_REQUIRED_MESSAGE));
+          } else {
+            setGoogleState(cardError(accountViewModel?.disconnectUnavailableReason ?? "Google連携を解除できません。"));
+          }
           return false;
         }
         if (operation === "prepareDisconnect") {
@@ -199,11 +209,7 @@ export function useLoginMethodsController({
           return true;
         }
 
-        const destroyed = await destroyGoogleWithReverification(externalAccountId);
-        if (destroyed == null) {
-          setGoogleState(IDLE_STATE);
-          return false;
-        }
+        const destroyed = await destroyGoogle(externalAccountId);
         if (destroyed === "unavailable") {
           setGoogleState(cardError("ログイン方法の状態が変わったため、Google連携を解除していません。"));
           return false;
@@ -401,7 +407,7 @@ export function useLoginMethodsController({
     emailChangeDialog,
     reload,
     prepareGoogleDisconnect: (externalAccountId) => runGoogleOperation("prepareDisconnect", externalAccountId),
-    disconnectGoogle: (externalAccountId) => runOperation(() => runGoogleOperation("disconnect", externalAccountId)),
+    disconnectGoogle: (externalAccountId) => runGoogleOperation("disconnect", externalAccountId),
     openLoginEmailChange: () => {
       const primaryEmail = viewModel.emailPassword.primaryEmail;
       if (!viewModel.emailPassword.canChangeLoginEmail || !primaryEmail) {
@@ -433,9 +439,12 @@ export function useLoginMethodsController({
       });
       setEmailPasswordState(IDLE_STATE);
     },
-    startLoginEmailChange: (email) => runOperation(() => runEmailOperation("startLoginEmail", email)),
-    verifyLoginEmailCode: (code) => runOperation(() => runEmailOperation("verifyLoginEmail", code)),
-    resendLoginEmailCode: () => runOperation(() => runEmailOperation("resendLoginEmail")),
+    startLoginEmailChange: (email) =>
+      runOperation(() => runEmailOperation("startLoginEmail", email), LOGIN_EMAIL_CHANGE_REVERIFICATION_OPTIONS),
+    verifyLoginEmailCode: (code) =>
+      runOperation(() => runEmailOperation("verifyLoginEmail", code), LOGIN_EMAIL_CHANGE_REVERIFICATION_OPTIONS),
+    resendLoginEmailCode: () =>
+      runOperation(() => runEmailOperation("resendLoginEmail"), LOGIN_EMAIL_CHANGE_REVERIFICATION_OPTIONS),
   };
 }
 
