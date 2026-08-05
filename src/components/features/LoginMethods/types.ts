@@ -1,18 +1,9 @@
-export type LoginMethodCapabilities = {
-  connectGoogle: boolean;
-  reconnectGoogle: boolean;
-  disconnectGoogle: boolean;
-  setPassword: boolean;
-  changePassword: boolean;
-  removePassword: boolean;
-  removeEmailAddress: boolean;
-};
+export type LoginMethodState = "googleOnly" | "passwordOnly" | "googleAndPassword";
 
 export type LoginMethodsEmailSnapshot = {
   id: string;
   emailAddress: string;
   verificationStatus: string | null;
-  linkedTo: readonly { id: string; type: string }[];
 };
 
 export type LoginMethodsExternalAccountSnapshot = {
@@ -31,17 +22,13 @@ export type LoginMethodsUserSnapshot = {
 
 export type LoginMethodsEmailViewModel = {
   id: string;
-  maskedEmail: string;
+  emailAddress: string;
   verificationStatus: "verified" | "unverified";
-  isPrimary: boolean;
-  isLinked: boolean;
-  canRemove: boolean;
-  removeUnavailableReason: string | null;
 };
 
 export type LoginMethodsGoogleAccountViewModel = {
   id: string;
-  maskedEmail: string;
+  emailAddress: string;
   status: "connected" | "needsReconnection";
   canDisconnect: boolean;
   disconnectUnavailableReason: string | null;
@@ -49,20 +36,16 @@ export type LoginMethodsGoogleAccountViewModel = {
 
 export type LoginMethodsViewModel = {
   status: "ready" | "unavailable";
+  methodState: LoginMethodState | null;
   google: {
     accounts: LoginMethodsGoogleAccountViewModel[];
     canConnect: boolean;
-    connectUnavailableReason: string | null;
     canReconnect: boolean;
   };
   emailPassword: {
-    passwordEnabled: boolean;
-    verifiedEmails: LoginMethodsEmailViewModel[];
-    unverifiedEmails: LoginMethodsEmailViewModel[];
+    primaryEmail: LoginMethodsEmailViewModel | null;
+    canChangeLoginEmail: boolean;
     canSetPassword: boolean;
-    canChangePassword: boolean;
-    canRemovePassword: boolean;
-    passwordRemovalUnavailableReason: string | null;
   };
 };
 
@@ -71,14 +54,14 @@ export type LoginMethodsCardState = {
   message: string | null;
 };
 
-export type EmailPasswordDialogState =
+export type LoginEmailChangeDialogState =
   | { isOpen: false }
   | {
       isOpen: true;
-      step: "email" | "verification" | "password";
+      step: "input" | "verification";
+      currentEmailAddress: string;
       targetEmailAddressId: string | null;
-      targetMaskedEmail: string | null;
-      passwordMode: "set" | "change";
+      targetEmailAddress: string | null;
     };
 
 export type LoginMethodsController = {
@@ -86,24 +69,14 @@ export type LoginMethodsController = {
   isLoaded: boolean;
   googleState: LoginMethodsCardState;
   emailPasswordState: LoginMethodsCardState;
-  emailPasswordDialog: EmailPasswordDialogState;
+  emailChangeDialog: LoginEmailChangeDialogState;
   reload: () => Promise<unknown>;
-  connectGoogle: () => Promise<unknown>;
-  reconnectGoogle: (externalAccountId: string) => Promise<unknown>;
   prepareGoogleDisconnect: (externalAccountId: string) => Promise<boolean | undefined>;
   disconnectGoogle: (externalAccountId: string) => Promise<unknown>;
-  openEmailPasswordSetup: () => void;
-  continueEmailVerification: (emailAddressId: string) => Promise<unknown>;
-  openPasswordChange: () => void;
-  closeEmailPasswordDialog: () => void;
-  startEmailVerification: (email: string) => Promise<unknown>;
-  verifyEmailCode: (code: string) => Promise<unknown>;
-  resendEmailCode: () => Promise<unknown>;
-  updatePassword: (values: {
-    currentPassword?: string;
-    newPassword: string;
-    signOutOfOtherSessions: boolean;
-  }) => Promise<unknown>;
-  removePassword: (currentPassword?: string) => Promise<unknown>;
-  removeEmailAddress: (emailAddressId: string) => Promise<unknown>;
+  openLoginEmailChange: () => void;
+  closeLoginEmailChangeDialog: (force?: boolean) => void;
+  backToLoginEmailInput: () => void;
+  startLoginEmailChange: (email: string) => Promise<unknown>;
+  verifyLoginEmailCode: (code: string) => Promise<unknown>;
+  resendLoginEmailCode: () => Promise<unknown>;
 };

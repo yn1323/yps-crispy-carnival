@@ -9,7 +9,6 @@ export function toLoginMethodsUserSnapshot(user: UserResource): LoginMethodsUser
       id: emailAddress.id,
       emailAddress: emailAddress.emailAddress,
       verificationStatus: emailAddress.verification?.status ?? null,
-      linkedTo: emailAddress.linkedTo.map((link) => ({ id: link.id, type: link.type })),
     })),
     externalAccounts: user.externalAccounts.map((externalAccount) => ({
       id: externalAccount.id,

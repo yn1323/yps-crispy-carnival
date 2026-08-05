@@ -1,152 +1,290 @@
 import { describe, expect, it } from "vitest";
-import { buildLoginMethodsViewModel, DISABLED_LOGIN_METHOD_CAPABILITIES } from "./script";
-import type { LoginMethodCapabilities, LoginMethodsUserSnapshot } from "./types";
-
-const ENABLED_CAPABILITIES: LoginMethodCapabilities = {
-  connectGoogle: true,
-  reconnectGoogle: true,
-  disconnectGoogle: true,
-  setPassword: true,
-  changePassword: true,
-  removePassword: true,
-  removeEmailAddress: true,
-};
+import { buildLoginMethodsViewModel } from "./script";
+import type { LoginMethodsUserSnapshot } from "./types";
 
 describe("ログイン方法の表示状態", () => {
-  it("Googleだけの場合は最後のGoogleを解除できず、パスワード設定を案内する", () => {
+  it("GoogleのみではPrimary変更とパスワード追加を許可し、Google解除を許可しない", () => {
     const result = buildLoginMethodsViewModel(
       snapshot({
-        emailAddresses: [email("email-google", "google@example.com", "verified", ["oauth_google"])],
+        emailAddresses: [email("email-google", "google@example.com", "verified")],
         externalAccounts: [google("google-1", "google@example.com", "verified")],
       }),
-      ENABLED_CAPABILITIES,
     );
 
     expect(result).toEqual({
       status: "ready",
+      methodState: "googleOnly",
       google: {
         accounts: [
           {
             id: "google-1",
-            maskedEmail: "go***@example.com",
+            emailAddress: "google@example.com",
             status: "connected",
             canDisconnect: false,
-            disconnectUnavailableReason: "ほかのログイン方法を設定してから操作してください。",
+            disconnectUnavailableReason: "確認済みメールアドレスとパスワードを設定してから操作してください。",
           },
         ],
         canConnect: false,
-        connectUnavailableReason: "Googleはすでに登録されています。",
         canReconnect: false,
       },
       emailPassword: {
-        passwordEnabled: false,
-        verifiedEmails: [
-          {
-            id: "email-google",
-            maskedEmail: "go***@example.com",
-            verificationStatus: "verified",
-            isPrimary: true,
-            isLinked: true,
-            canRemove: false,
-            removeUnavailableReason: "Googleと接続中のため、メールアドレスだけを削除できません。",
-          },
-        ],
-        unverifiedEmails: [],
+        primaryEmail: {
+          id: "email-google",
+          emailAddress: "google@example.com",
+          verificationStatus: "verified",
+        },
+        canChangeLoginEmail: true,
         canSetPassword: true,
-        canChangePassword: false,
-        canRemovePassword: false,
-        passwordRemovalUnavailableReason: null,
       },
     });
   });
 
-  it("パスワードだけの場合はGoogleを連携できるが、最後のパスワードを削除できない", () => {
+  it.each(["login@gmail.com", "notify@yahoo.co.jp"])(
+    "メールドメインが%sでもメール・パスのみの操作可否を同じように導出する",
+    (emailAddress) => {
+      const result = buildLoginMethodsViewModel(
+        snapshot({
+          passwordEnabled: true,
+          emailAddresses: [email("email-password", emailAddress, "verified")],
+        }),
+      );
+
+      expect(result.methodState).toBe("passwordOnly");
+      expect(result.google.canConnect).toBe(true);
+      expect(result.emailPassword.canChangeLoginEmail).toBe(true);
+      expect(result.emailPassword.canSetPassword).toBe(false);
+    },
+  );
+
+  it("Googleと同じメールのパスワードがあればGoogle＋メール・パスとして解除を許可する", () => {
     const result = buildLoginMethodsViewModel(
       snapshot({
         passwordEnabled: true,
-        emailAddresses: [email("email-yahoo", "notify@yahoo.co.jp", "verified")],
+        emailAddresses: [email("email-google", "google@gmail.com", "verified")],
+        externalAccounts: [google("google-1", "google@gmail.com", "verified")],
       }),
-      ENABLED_CAPABILITIES,
     );
 
-    expect(result.google.canConnect).toBe(true);
-    expect(result.emailPassword.canChangePassword).toBe(true);
-    expect(result.emailPassword.canRemovePassword).toBe(false);
-    expect(result.emailPassword.passwordRemovalUnavailableReason).toBe(
-      "ほかのログイン方法を設定してから操作してください。",
-    );
+    expect(result.methodState).toBe("googleAndPassword");
+    expect(result.google.accounts).toEqual([
+      {
+        id: "google-1",
+        emailAddress: "google@gmail.com",
+        status: "connected",
+        canDisconnect: true,
+        disconnectUnavailableReason: null,
+      },
+    ]);
+    expect(result.google.canConnect).toBe(false);
+    expect(result.emailPassword.canChangeLoginEmail).toBe(true);
   });
 
-  it("Googleとパスワードが別メールでも2つの方法として扱い、代替手段がある解除だけ許可する", () => {
+  it("確認済みPrimaryがあれば3状態すべてで同じPrimary変更操作を許可する", () => {
+    const snapshots: LoginMethodsUserSnapshot[] = [
+      snapshot({
+        emailAddresses: [email("primary-google", "google@example.com", "verified")],
+        externalAccounts: [google("google-1", "google@example.com", "verified")],
+      }),
+      snapshot({
+        passwordEnabled: true,
+        emailAddresses: [email("primary-password", "password@example.com", "verified")],
+      }),
+      snapshot({
+        passwordEnabled: true,
+        emailAddresses: [email("primary-both", "both@example.com", "verified")],
+        externalAccounts: [google("google-2", "both@example.com", "verified")],
+      }),
+    ];
+
+    expect(
+      snapshots.map((item) => {
+        const viewModel = buildLoginMethodsViewModel(item);
+        return [viewModel.methodState, viewModel.emailPassword.canChangeLoginEmail];
+      }),
+    ).toEqual([
+      ["googleOnly", true],
+      ["passwordOnly", true],
+      ["googleAndPassword", true],
+    ]);
+  });
+
+  it("Primaryが未確認でも表示対象はその1件だけにし、変更を許可しない", () => {
+    const result = buildLoginMethodsViewModel(
+      snapshot({
+        primaryEmailAddressId: "email-pending",
+        emailAddresses: [
+          email("email-verified", "verified@example.com", "verified"),
+          email("email-pending", "pending@example.com", "unverified"),
+        ],
+        externalAccounts: [google("google-1", "verified@example.com", "verified")],
+      }),
+    );
+
+    expect(result.methodState).toBe("googleOnly");
+    expect(result.emailPassword.primaryEmail).toEqual({
+      id: "email-pending",
+      emailAddress: "pending@example.com",
+      verificationStatus: "unverified",
+    });
+    expect(result.emailPassword.canChangeLoginEmail).toBe(false);
+  });
+
+  it("Clerkに複数のEmailAddressが残っていてもメールログイン対象はPrimaryの1件だけにする", () => {
     const result = buildLoginMethodsViewModel(
       snapshot({
         passwordEnabled: true,
         emailAddresses: [
-          email("email-google", "google@gmail.com", "verified", ["oauth_google"]),
-          email("email-yahoo", "login@yahoo.co.jp", "verified"),
+          email("email-primary", "login@example.com", "verified"),
+          email("email-verified", "verified@example.com", "verified"),
+          email("email-pending", "pending@example.com", "unverified"),
         ],
-        externalAccounts: [google("google-1", "google@gmail.com", "verified")],
       }),
-      ENABLED_CAPABILITIES,
     );
 
-    expect(result.status).toBe("ready");
-    expect(result.google.accounts[0]?.canDisconnect).toBe(true);
-    expect(result.emailPassword.canRemovePassword).toBe(true);
-    expect(result.emailPassword.verifiedEmails.map((item) => item.maskedEmail)).toEqual([
-      "go***@gmail.com",
-      "lo***@yahoo.co.jp",
-    ]);
+    expect(result.emailPassword.primaryEmail).toEqual({
+      id: "email-primary",
+      emailAddress: "login@example.com",
+      verificationStatus: "verified",
+    });
+    expect("verifiedEmails" in result.emailPassword).toBe(false);
+    expect("unverifiedEmails" in result.emailPassword).toBe(false);
   });
 
-  it("Googleの再確認と未確認メールを利用可能な方法に数えない", () => {
-    const result = buildLoginMethodsViewModel(
-      snapshot({
-        emailAddresses: [email("email-pending", "pending@example.com", "unverified")],
-        externalAccounts: [google("google-pending", "pending@example.com", "unverified")],
-      }),
-      ENABLED_CAPABILITIES,
+  it("パスワード追加は確認済みメールがありpasswordEnabledがfalseの場合だけ許可する", () => {
+    const verifiedWithoutPassword = buildLoginMethodsViewModel(
+      snapshot({ emailAddresses: [email("verified", "verified@example.com", "verified")] }),
     );
-
-    expect(result.google.accounts[0]).toMatchObject({ status: "needsReconnection", canDisconnect: false });
-    expect(result.google.canReconnect).toBe(true);
-    expect(result.emailPassword.unverifiedEmails).toHaveLength(1);
-    expect(result.emailPassword.canRemovePassword).toBe(false);
-  });
-
-  it("パスワードありなのに検証済みメールがなければ状態不明として削除をすべて閉じる", () => {
-    const result = buildLoginMethodsViewModel(
+    const unverifiedWithoutPassword = buildLoginMethodsViewModel(
+      snapshot({ emailAddresses: [email("pending", "pending@example.com", "unverified")] }),
+    );
+    const verifiedWithPassword = buildLoginMethodsViewModel(
       snapshot({
         passwordEnabled: true,
-        emailAddresses: [email("email-pending", "pending@example.com", "unverified")],
+        emailAddresses: [email("verified", "verified@example.com", "verified")],
+      }),
+    );
+
+    expect(verifiedWithoutPassword.emailPassword.canSetPassword).toBe(true);
+    expect(unverifiedWithoutPassword.emailPassword.canSetPassword).toBe(false);
+    expect(verifiedWithPassword.emailPassword.canSetPassword).toBe(false);
+  });
+
+  it("Google追加はメール・パスがありGoogle ExternalAccountがない場合だけ許可する", () => {
+    const passwordOnly = buildLoginMethodsViewModel(
+      snapshot({
+        passwordEnabled: true,
+        emailAddresses: [email("login", "login@example.com", "verified")],
+      }),
+    );
+    const withVerifiedGoogle = buildLoginMethodsViewModel(
+      snapshot({
+        passwordEnabled: true,
+        emailAddresses: [email("login", "login@example.com", "verified")],
+        externalAccounts: [google("google-verified", "google@example.com", "verified")],
+      }),
+    );
+    const withPendingGoogle = buildLoginMethodsViewModel(
+      snapshot({
+        passwordEnabled: true,
+        emailAddresses: [email("login", "login@example.com", "verified")],
+        externalAccounts: [google("google-pending", "google@example.com", "unverified")],
+      }),
+    );
+
+    expect(passwordOnly.google.canConnect).toBe(true);
+    expect(withVerifiedGoogle.google.canConnect).toBe(false);
+    expect(withPendingGoogle.google.canConnect).toBe(false);
+    expect(withPendingGoogle.google.canReconnect).toBe(true);
+  });
+
+  it("Google再接続はメール・パスと一件だけのfailedまたはunverified resourceがある場合に限る", () => {
+    const pendingWithoutFallback = buildLoginMethodsViewModel(
+      snapshot({
+        externalAccounts: [google("google-pending", "google@example.com", "unverified")],
+      }),
+    );
+    const multiplePending = buildLoginMethodsViewModel(
+      snapshot({
+        passwordEnabled: true,
+        emailAddresses: [email("login", "login@example.com", "verified")],
+        externalAccounts: [
+          google("google-a", "google-a@example.com", "unverified"),
+          google("google-b", "google-b@example.com", "failed"),
+        ],
+      }),
+    );
+    const unknownStatus = buildLoginMethodsViewModel(
+      snapshot({
+        passwordEnabled: true,
+        emailAddresses: [email("login", "login@example.com", "verified")],
+        externalAccounts: [google("google-unknown", "google@example.com", "unknown")],
+      }),
+    );
+    const failed = buildLoginMethodsViewModel(
+      snapshot({
+        passwordEnabled: true,
+        emailAddresses: [email("login", "login@example.com", "verified")],
+        externalAccounts: [google("google-failed", "google@example.com", "failed")],
+      }),
+    );
+
+    expect(pendingWithoutFallback.google.canReconnect).toBe(false);
+    expect(multiplePending.google.canReconnect).toBe(false);
+    expect(unknownStatus.google.canReconnect).toBe(false);
+    expect(failed.google.canReconnect).toBe(true);
+  });
+
+  it("Google解除は確認済みGoogleとメール・パスがそろう場合だけ許可する", () => {
+    const withoutPassword = buildLoginMethodsViewModel(
+      snapshot({
+        emailAddresses: [email("login", "login@example.com", "verified")],
         externalAccounts: [google("google-1", "google@example.com", "verified")],
       }),
-      ENABLED_CAPABILITIES,
+    );
+    const withoutVerifiedEmail = buildLoginMethodsViewModel(
+      snapshot({
+        passwordEnabled: true,
+        emailAddresses: [email("pending", "pending@example.com", "unverified")],
+        externalAccounts: [google("google-2", "google@example.com", "verified")],
+      }),
+    );
+    const pendingGoogle = buildLoginMethodsViewModel(
+      snapshot({
+        passwordEnabled: true,
+        emailAddresses: [email("login", "login@example.com", "verified")],
+        externalAccounts: [google("google-3", "google@example.com", "unverified")],
+      }),
+    );
+
+    expect(withoutPassword.google.accounts[0]?.canDisconnect).toBe(false);
+    expect(withoutVerifiedEmail.google.accounts[0]?.canDisconnect).toBe(false);
+    expect(pendingGoogle.google.accounts[0]?.canDisconnect).toBe(false);
+  });
+
+  it("利用できるGoogleもメール・パスもなければ状態をunavailableにする", () => {
+    const result = buildLoginMethodsViewModel(
+      snapshot({ emailAddresses: [email("pending", "pending@example.com", "unverified")] }),
     );
 
     expect(result.status).toBe("unavailable");
-    expect(result.google.accounts[0]?.canDisconnect).toBe(false);
-    expect(result.emailPassword.canChangePassword).toBe(false);
-    expect(result.emailPassword.canRemovePassword).toBe(false);
+    expect(result.methodState).toBeNull();
+    expect(result.google.canConnect).toBe(false);
+    expect(result.emailPassword.canChangeLoginEmail).toBe(false);
+    expect(result.emailPassword.canSetPassword).toBe(false);
   });
 
-  it("実環境で成立性未確認の操作能力は個別にfail-closedとなる", () => {
+  it("メール・パス削除とGoogle置換のcapabilityを公開しない", () => {
     const result = buildLoginMethodsViewModel(
       snapshot({
         passwordEnabled: true,
-        emailAddresses: [email("email-yahoo", "login@yahoo.co.jp", "verified")],
-        externalAccounts: [google("google-1", "google@gmail.com", "verified")],
+        emailAddresses: [email("login", "login@example.com", "verified")],
+        externalAccounts: [google("google-1", "google@example.com", "verified")],
       }),
-      DISABLED_LOGIN_METHOD_CAPABILITIES,
     );
 
-    expect(result.google.canConnect).toBe(false);
-    expect(result.google.canReconnect).toBe(false);
-    expect(result.google.accounts[0]?.canDisconnect).toBe(false);
-    expect(result.emailPassword.canSetPassword).toBe(false);
-    expect(result.emailPassword.canChangePassword).toBe(false);
-    expect(result.emailPassword.canRemovePassword).toBe(false);
-    expect(result.emailPassword.verifiedEmails[0]?.canRemove).toBe(false);
+    expect("canRemovePassword" in result.emailPassword).toBe(false);
+    expect("canChangePassword" in result.emailPassword).toBe(false);
+    expect("canReplace" in result.google).toBe(false);
   });
 });
 
@@ -160,13 +298,8 @@ function snapshot(overrides: Partial<LoginMethodsUserSnapshot> = {}): LoginMetho
   };
 }
 
-function email(id: string, emailAddress: string, verificationStatus: string, linkedTypes: string[] = []) {
-  return {
-    id,
-    emailAddress,
-    verificationStatus,
-    linkedTo: linkedTypes.map((type, index) => ({ id: `link-${index}`, type })),
-  };
+function email(id: string, emailAddress: string, verificationStatus: string) {
+  return { id, emailAddress, verificationStatus };
 }
 
 function google(id: string, emailAddress: string, verificationStatus: string) {

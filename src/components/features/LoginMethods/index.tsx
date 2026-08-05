@@ -1,26 +1,157 @@
 import { useUser } from "@clerk/react";
+import type { UserResource } from "@clerk/shared/types";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { showSuccessToast } from "@/src/components/shared/feedback";
+import { LoginMethodMigrationView } from "./LoginMethodMigrationView";
 import { LoginMethodsView } from "./LoginMethodsView";
-import { DISABLED_LOGIN_METHOD_CAPABILITIES } from "./script";
+import type { LoginMethodMigrationFlow } from "./migrationTypes";
+import { createLoginMethodOperationCooldown } from "./operationCooldown";
+import { useEmailPasswordMigrationController } from "./useEmailPasswordMigrationController";
+import { useGoogleConnectionController } from "./useGoogleConnectionController";
+import { useLoginMethodReverification } from "./useLoginMethodReverification";
 import { useLoginMethodsController } from "./useLoginMethodsController";
 
 type LoginMethodsProps = {
-  googleOAuthReturn?: boolean;
+  flow?: LoginMethodMigrationFlow;
+  oauth?: "google";
+  onStartFlow?: (flow: LoginMethodMigrationFlow) => void;
+  onBackToOverview?: () => void;
   onGoogleOAuthReturnHandled?: () => void;
 };
 
-export function LoginMethods({ googleOAuthReturn, onGoogleOAuthReturnHandled }: LoginMethodsProps) {
+const NOOP = () => undefined;
+
+export function LoginMethods(props: LoginMethodsProps) {
   const { isLoaded, user } = useUser();
+  const currentActorIdRef = useRef<string | null>(user?.id ?? null);
+  currentActorIdRef.current = user?.id ?? null;
+  const getCurrentActorId = useCallback(() => currentActorIdRef.current, []);
+  const actorKey = user?.id ?? (isLoaded ? "signed-out" : "loading");
+
+  return (
+    <CurrentUserLoginMethods
+      key={actorKey}
+      {...props}
+      isLoaded={isLoaded}
+      user={user}
+      getCurrentActorId={getCurrentActorId}
+    />
+  );
+}
+
+function CurrentUserLoginMethods({
+  isLoaded,
+  user,
+  getCurrentActorId,
+  flow,
+  oauth,
+  onStartFlow = NOOP,
+  onBackToOverview = NOOP,
+  onGoogleOAuthReturnHandled,
+}: LoginMethodsProps & {
+  isLoaded: boolean;
+  user: UserResource | null | undefined;
+  getCurrentActorId: () => string | null;
+}) {
+  const operationCooldown = useMemo(() => createLoginMethodOperationCooldown(), []);
+  const reverification = useLoginMethodReverification({ operationCooldown });
   const controller = useLoginMethodsController({
     isLoaded,
     user,
-    // Clerk instanceで成立性を確認した操作だけを、個別のgateとして後から有効化する。
-    capabilities: DISABLED_LOGIN_METHOD_CAPABILITIES,
-    googleOAuthReturn,
-    onGoogleOAuthReturnHandled,
+    getCurrentActorId,
+    onNeedsReverification: reverification.onNeedsReverification,
+    runOperation: reverification.runOperation,
+    operationCooldown,
   });
+  const emailPasswordController = useEmailPasswordMigrationController({
+    isLoaded,
+    user,
+    getCurrentActorId,
+    active: flow === "add-email-password",
+    onNeedsReverification: reverification.onNeedsReverification,
+    runOperation: reverification.runOperation,
+    operationCooldown,
+  });
+  const googleController = useGoogleConnectionController({
+    isLoaded,
+    user,
+    getCurrentActorId,
+    active: flow === "connect-google",
+    oauthReturn: flow === "connect-google" && oauth === "google",
+    onOAuthReturnHandled: onGoogleOAuthReturnHandled,
+    onNeedsReverification: reverification.onNeedsReverification,
+    runOperation: reverification.runOperation,
+    operationCooldown,
+  });
+  const handledCompletionRef = useRef<string | null>(null);
+  const isEmailPasswordMigrationOpen =
+    flow === "add-email-password" && emailPasswordController.state.phase !== "methodReady";
+  const isGoogleConnectionOpen = flow === "connect-google" && googleController.state.phase !== "methodReady";
+  const isMigrationDialogOpen = isEmailPasswordMigrationOpen || isGoogleConnectionOpen;
 
-  return <LoginMethodsView controller={controller} />;
+  useEffect(() => {
+    const migrationController =
+      flow === "add-email-password" ? emailPasswordController : flow === "connect-google" ? googleController : null;
+    if (migrationController?.state.phase !== "methodReady") {
+      handledCompletionRef.current = null;
+      return;
+    }
+
+    if (migrationController.state.feedback.status !== "success") {
+      onBackToOverview();
+      return;
+    }
+
+    const completionKey = `${flow}:${migrationController.state.feedback.message ?? "completed"}`;
+    if (handledCompletionRef.current === completionKey) return;
+    handledCompletionRef.current = completionKey;
+    const completionActorId = user?.id ?? null;
+
+    void controller.reload().finally(() => {
+      if (!completionActorId || getCurrentActorId() !== completionActorId) return;
+      if (flow === "add-email-password") {
+        showSuccessToast({
+          title: "メールアドレスとパスワードを設定しました",
+          description: "Google認証はそのまま利用できます。",
+        });
+      } else {
+        showSuccessToast({
+          title: "Googleログインを追加しました",
+        });
+      }
+      onBackToOverview();
+    });
+  }, [controller, emailPasswordController, flow, getCurrentActorId, googleController, onBackToOverview, user?.id]);
+
+  return (
+    <>
+      <LoginMethodsView
+        controller={controller}
+        onStartFlow={onStartFlow}
+        reverification={reverification}
+        isMigrationDialogOpen={isMigrationDialogOpen}
+      />
+      {isEmailPasswordMigrationOpen ? (
+        <LoginMethodMigrationView
+          flow="add-email-password"
+          controller={emailPasswordController}
+          reverification={reverification}
+          onBackToOverview={onBackToOverview}
+        />
+      ) : null}
+      {isGoogleConnectionOpen ? (
+        <LoginMethodMigrationView
+          flow="connect-google"
+          controller={googleController}
+          reverification={reverification}
+          onBackToOverview={onBackToOverview}
+        />
+      ) : null}
+    </>
+  );
 }
 
+export { LoginMethodMigrationView } from "./LoginMethodMigrationView";
 export { LoginMethodsView } from "./LoginMethodsView";
+export type { LoginMethodMigrationFlow } from "./migrationTypes";
 export type { LoginMethodsController, LoginMethodsViewModel } from "./types";

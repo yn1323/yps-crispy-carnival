@@ -18,7 +18,7 @@ Clerk UserのEmailAddress、パスワード、ExternalAccountは「シフトリ�
 - `src/pages/auth/`：公開認証ページの組み立てとmetadata
 - `src/pages/account-security/`：本人専用のログイン設定ページ
 - `src/components/features/AuthPage/`：ログイン、新規登録、パスワード再設定、Google OAuth、Client Trust本人確認
-- `src/components/features/LoginMethods/`：Clerk resourceからの状態導出、Googleとメール・パスワードの表示、操作能力ごとの安全gate
+- `src/components/features/LoginMethods/`：Clerk resourceからの3状態導出、Googleとメール・パスワードの表示、安全な追加・変更・解除
 - `src/components/features/ManagerInvitationAcceptance/`：管理者招待の受諾と、必要な場合の招待先メール所有確認
 - `src/components/features/AuthenticatedApp/AuthGuard.tsx`：認証、削除済みアカウント、店舗context要否の境界
 - `src/components/features/UserMenu/index.tsx`：全認証済み利用者が使える「ログイン設定」への導線
@@ -49,34 +49,78 @@ LINEアプリ内ブラウザではGoogle OAuthがprovider側で拒否される�
 
 ## ログイン設定
 
-認証済み利用者は、ヘッダー右上のユーザーメニューから`/account/security`を開く。  メニュー名は「ログイン設定」、ページ見出しは「ログイン方法とセキュリティ」とする。ヘッダーにClerk primary emailは表示しない。
+認証済み利用者は、ヘッダー右上のユーザーメニューから`/account/security`を開く。  メニュー名とページ見出しは「ログイン設定」とする。  ヘッダーにClerk primary emailは表示しない。
 
 このページはグループや店舗に依存しない本人専用画面である。  `?shop=`を引き継がず、店舗一覧取得、selected shop解決、無効店舗による全体blockを行わない。認証、削除済みアカウント判定などの共通契約だけを維持する。
 
-画面はClerkのcurrent User resourceから、次をカード単位で表示する。
+画面はClerkのcurrent User resourceからメールアドレスとGoogle認証の状態を表示する。  メールログインの対象として表示・変更するメールアドレスは、Primaryの1件だけとする。  以前のEmailAddressや確認途中のEmailAddressをClerk上で保持していても、別のログイン対象行としては表示しない。
+メールアドレスは省略せず表示する。
+Clerk内部のprimary・secondaryという用語は製品UIに出さない。
+Googleのみの状態ではメールログイン方法を未設定として扱い、EmailAddress resourceが存在してもメールアドレス欄は「未設定」と表示する。  「設定する」から既存のメールアドレス・パスワード設定モーダルを開く。
 
-- Google ExternalAccountの接続状態とマスク済みメール
-- verified、unverified、Google linkedを含むEmailAddressの状態
-- パスワードの設定有無
-- resourceを安全に判定できない場合の局所errorと再読み込み
+ページ見出しの直下には、Google認証の連携状態にかかわらず「Google認証、メールアドレス両方でログインできます。」と表示する。
+初回読み込み中はメールアドレス行とGoogle認証行の構造をスケルトンで表示し、読み込み専用のメッセージやspinnerは表示しない。
 
-Clerk内部のprimary・secondaryという用語は製品UIに出さない。  一つの操作の失敗で認証後アプリ全体を止めず、Googleカードまたはメール・パスワードカード内で収束させる。
+resourceを安全に判定できない場合は、ログイン設定内の局所errorとして表示する。
+変更操作のエラーは対象モーダル内に表示し、背面のログイン方法一覧へ同じエラーを重複表示しない。
+一つの操作の失敗で認証後アプリ全体を止めない。
 
-## Clerk操作の公開gate
+## ログイン方法の状態と変更
 
-ログイン方法を失う操作を、UIだけの推測で公開しない。  次の操作は独立したcapabilityで管理し、対象Clerk instanceと現在固定しているSDKで成立性を確認した操作だけを有効にする。
+ログイン方法は、確認済みGoogle ExternalAccount、確認済みEmailAddress、`passwordEnabled`から次の3状態を導出する。
+メールドメイン、build mode、環境変数、実験用capabilityは状態や操作可否の条件にしない。
 
-- Google連携と再接続
-- Google解除
-- メールアドレスとパスワードの設定
-- パスワード変更と削除
-- EmailAddress削除
+| 状態 | 利用できる操作 |
+|---|---|
+| Googleのみ | メールアドレスとパスワードの設定 |
+| メール・パスワードのみ | Primaryメールアドレスの変更、Google認証の追加 |
+| Googleとメール・パスワードの両方 | Primaryメールアドレスの変更、Google認証の解除 |
 
-現在は`ENV-CLERK-02`が未検証のため、`LoginMethods`の変更capabilityをすべて無効にし、状態確認と再読み込みだけを公開する。  これは途中releaseを安全に保つための縮退であり、ログイン方法の変更機能が完成したことを意味しない。
+Primaryメールアドレスの変更はメール・パスワードのみ、またはGoogleとメール・パスワードの両方の状態で利用できる。
+変更先が未確認であれば`email_code`で所有を確認し、確認済みになったEmailAddressをPrimaryへ切り替える。
+確認コード入力モーダルには、直前に入力した変更先メールアドレスを省略せず表示する。
+メールアドレスに関係する変更でClerkが本人再確認を要求した場合は、メール確認（`email_code`）を必須とし、方式選択を表示せず確認コード入力へ進める。
+メール確認を利用できない場合は変更を中止する。
+以前のEmailAddress、Google ExternalAccount、パスワードは変更または削除しないため、メール・パスワードのみの利用者は変更後もGoogleなしの状態を維持する。
 
-将来capabilityを有効にする場合も、操作直前に`user.reload()`してresource IDを再解決し、`useReverification()`とClerk serverの拒否を安全条件にする。  linked email、primary email、最後のログイン方法は、実環境で削除可否と競合時の挙動を確認できるまで削除操作を出さない。
+Googleのみの利用者は、既存の確認済みEmailAddressまたは新たに確認したEmailAddressへパスワードを設定できる。
+初回設定のメール入力欄には、現在の確認済みGoogle認証のメールアドレスを初期表示し、必要であれば別のメールアドレスへ変更できる。
+未確認のメールアドレスを入力した後は、そのアドレスへ送信した6桁の確認コードを入力し、確認済みになってからパスワードを設定する。
+すでに確認済みのEmailAddressを入力した場合は、重複するEmailAddressを作らずパスワード設定へ進む。
+本人再確認ではメールアドレスの選択画面を表示せず、入力済みのメールアドレスに必要な確認へ進める。
+パスワード設定では新しいパスワードと確認用パスワードだけを入力させ、「ほかの端末からログアウトする」選択肢は表示しない。
+`User.updatePassword()`には常に`signOutOfOtherSessions: false`を渡し、ほかの端末のsessionを維持する。
+Google認証を保持したまま、Googleとメール・パスワードの両方を使える状態へ移る。
+
+既存パスワードを直接変更する操作はログイン設定に置かない。  パスワードを忘れた場合や変更したい場合は、ログイン画面のメールによるパスワード再設定を利用する。
+
+メール・パスワードのみの利用者がGoogle認証を追加するときは、ログイン中のcurrent Userへ`createExternalAccount`を実行する。
+追加モーダルの本文には右寄せの「Googleアカウントを選ぶ」だけを表示し、補助見出しや説明文を重ねない。
+OAuth開始処理中と帰還後の状態確認中は、同じ右寄せボタン領域をスケルトンで表示する。
+OAuth帰還後に同じClerk Userと、そこへ属する確認済みGoogle ExternalAccountを再取得してから完了とする。
+別のClerk Userへ接続済みのGoogleアカウントは自動統合せず、既存のメール・パスワードを維持してエラーを表示する。
+
+Google追加の失敗後に`failed`または`unverified`のGoogle ExternalAccountが一件だけ残った場合は、「Googleを再接続」から同じ追加フローを明示的に再試行できる。  再試行時はcurrent User、Primaryメールアドレス、パスワードと確認済みEmailAddressを再取得し、対象がそのUserに属する一件だけの未完了resourceであることを確認してから破棄する。破棄後のreloadで不在を確認できた場合だけ、新しい`select_account`付きOAuthとexact resourceの相関を開始する。  確認済みGoogle、複数resource、未知のverification statusは推測削除せず、新しいOAuthも開始しない。
+
+Google認証の解除ボタンは、連携済みGoogle ExternalAccountに表示する。
+操作直前のreloadで有効なパスワードと確認済みEmailAddressが残る場合だけ解除を許可し、Googleのみの状態では解除しない。
+Googleのみの状態で解除しようとした場合は、メールアドレス未設定であることと、先にメールアドレス・パスワードを設定する必要があることを赤いSnackbarで通知する。
+解除確認後にClerkが本人再確認を要求した場合は、方式選択を表示せず現在のパスワード入力へ進める。
+パスワードが誤っている場合は同じ入力画面に留まり、そのモーダル内にエラーを表示する。
+本人再確認が完了してClerkが操作を再実行した場合だけ、対象ExternalAccountを解除する。
+EmailAddressの削除とパスワードの削除は提供しない。
+別のGoogleアカウントへ切り替える場合は、メール・パスワードを保持した状態でGoogle解除とGoogle追加を別々に行い、専用のGoogle置換フローは設けない。
+
+変更操作はsingle-flightにし、操作直前と応答喪失後に`user.reload()`で最新状態を確認する。  確認コード送信とGoogle OAuth開始は、同じtab内でactorと操作単位に30秒の絶対期限を保持し、画面遷移やOAuth往復の直後も同じ操作を連続送信しない。  Google OAuthの待機中は、未完了Googleの破棄を含む再接続を開始しない。  このclient側の待機は補助であり、tabをまたぐ頻度制御はClerk serverを正本とする。
+Clerkの本人再確認要求でlevelが省略された場合はfirst factorを開始し、`SessionVerification`の完了後に元のClerk APIを再実行する。
+本人確認の開始、送信、完了待ちでは、次に表示する入力フォームと同じ構造のスケルトンを表示する。
+「最終ログイン方法を確認しています」「本人確認方法を確認しています」などの中間モーダルや単独spinnerは表示しない。
+元のClerk APIによる再確認要件の再判定は省略しない。
+EmailAddress IDやExternalAccount IDはcurrent Userへの所属を確認してから使い、OAuth開始時と帰還時のClerk `user.id`が一致しなければ完了扱いにしない。
+メールアドレス、Clerk User ID、resource ID、確認コード、tokenをURLやログへ含めない。
 
 Google account linkingのOAuth帰還先は`/account/security`専用とし、サインイン・サインアップ完了用の`/sso-callback`と混同しない。
+操作完了はSnackbarで通知し、確認コード送信後の案内は通常の説明文で表示する。
 
 ## 管理者招待のメール所有確認
 
@@ -120,6 +164,10 @@ ClerkのEmailAddress: 1件または複数件
 - Clerk `useClerk().handleRedirectCallback()`：サインイン・サインアップのOAuth callback
 - Clerk `useUser()`：本人のログイン方法resource取得
 - Clerk `User.createEmailAddress()`、`EmailAddress.prepareVerification()`、`EmailAddress.attemptVerification()`：招待先などのメール所有確認
+- Clerk `User.update()`：確認済みEmailAddressへのPrimary切替
+- Clerk `User.updatePassword()`：Googleのみの利用者による初回パスワード設定
+- Clerk `User.createExternalAccount()`：current UserへのGoogle認証追加
+- Clerk `ExternalAccount.destroy()`：メール・パスワードを退避方法として確認した後のGoogle認証解除と、明示的な再試行で安全性を再確認した未完了Google resourceの整理
 - Clerk `useReverification()`：sensitiveな本人操作の追加確認
 - `api.organizationInvitation.acceptanceActions.accept`：管理者招待の新しい受諾入口
 - `api.accountEmail.actions.syncMyPrimaryEmail`：旧clientを変更なしで停止させる互換stub
