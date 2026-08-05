@@ -27,7 +27,6 @@
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
-| [Clerkログイン方法の保持と切替ルール](2026-08-05_Clerkログイン方法の保持と切替ルール_設計計画.md) | `implementing` | 実装、旧コード整理、ローカル検証、文書整合は完了。専用GoogleテストアカウントによるDevelopment受入、CI VRT、CI成功、review解決が未完了。Productionは本計画の変更対象外 | [認証画面](../features/auth-pages.md)、[セキュリティ再検証](../manual/security-validation.md) |
 | [E2E安定性改善・スコープ再設計](2026-08-03_E2E安定性改善_実行計画.md) | `rollout` | code、local contract test、50回burn-inは完了。同一SHA 3回、workflow cancel、30%短縮をActionsで確認 | [テスト方針](../rules/testing-strategy.md)、[セキュリティ方針](../rules/security-strategy.md)、[CI/CD運用](../manual/ci-cd.md) |
 | [分析KPIと内部BI再設計](2026-08-02_分析KPIと内部BI再設計_実装計画.md) | `rollout` | Production deploy、bootstrap、invariant確認、generation cutover、実負荷計測、旧3テーブルのbounded cleanupと0件証跡、別deployでのschema Narrow、Cloudflare環境確認 | [分析KPI蓄積基盤](../features/analytics.md)、[分析KPI可視化アプリ](../features/analytics-dashboard.md)、[Analytics rollout](../manual/analytics-rollout.md) |
 | [別端末ログイン本人確認](2026-07-11_別端末ログイン本人確認_実装計画.md) | `rollout` | Production相当のClerk設定、返却status、メール確認の実環境証跡 | [認証画面](../features/auth-pages.md)、[リリース状態](../manual/release-status.md) |
@@ -125,8 +124,7 @@ Historyの本文には、現在と異なる名称、パス、状態、上限、�
 
 | 計画 | 分類根拠 | 現在の正本 |
 |---|---|---|
-| [ログイン方法とシフト連絡先の分離](2026-08-04_ログイン方法とシフト連絡先分離_実装計画.md) | ログイン方法とシフト連絡先を分ける判断は現行仕様へ移管し、ログイン方法の変更契約を2026-08-05計画で置換 | [Clerkログイン方法の保持と切替ルール](2026-08-05_Clerkログイン方法の保持と切替ルール_設計計画.md)、[認証画面](../features/auth-pages.md)、[セキュリティ再検証](../manual/security-validation.md) |
-| [管理者メールアドレス変更とClerk同期](2026-08-03_管理者メールアドレス変更_実装計画.md) | ログイン方法とシフト連絡先を分離する後続仕様で置換。実装済みの全所属同期、旧EmailAddress削除、不一致復旧UIは撤去対象 | [Clerkログイン方法の保持と切替ルール](2026-08-05_Clerkログイン方法の保持と切替ルール_設計計画.md)、[認証画面](../features/auth-pages.md)、[ユーザー詳細](../features/user-detail.md) |
+| [管理者メールアドレス変更とClerk同期](2026-08-03_管理者メールアドレス変更_実装計画.md) | ログイン方法とシフト連絡先を分離する後続仕様で置換。実装済みの全所属同期、旧EmailAddress削除、不一致復旧UIは撤去対象 | [認証画面](../features/auth-pages.md)、[ユーザー詳細](../features/user-detail.md) |
 | [Analytics画面情報設計改善](2026-08-03_Analytics画面情報設計改善_実装計画.md) | 初期期間、状態表示、一覧・詳細の縮退表示、mobile表示、navigation、要望画面をfrontendへ実装し、静的検証を完了 | [分析KPI可視化アプリ](../features/analytics-dashboard.md)、[UI設計方針](../rules/ui-design.md) |
 | [CSR画面遷移パフォーマンス改善](2026-08-03_CSR画面遷移パフォーマンス改善_実装計画.md) | 4導線のfrontend実装、Unit・Behavior Test、production bundle比較を完了 | [フロントエンドアーキテクチャ](../rules/frontend-architecture.md)、[UI設計方針](../rules/ui-design.md)、[テスト方針](../rules/testing-strategy.md) |
 
