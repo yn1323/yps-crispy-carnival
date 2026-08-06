@@ -374,9 +374,9 @@ function PlanComparisonCards({
           <Stack
             key={plan}
             borderWidth="1px"
-            borderColor={isCurrent ? "teal.400" : "blackAlpha.100"}
+            borderColor={isCurrent ? "teal.600" : "blackAlpha.100"}
             borderRadius="xl"
-            bg={isCurrent ? "teal.50" : "white"}
+            bg={isCurrent ? "gray.50" : "white"}
             p={4}
             gap={3}
           >

@@ -158,7 +158,7 @@ const StickyHeaderCell = ({
 const DateHeaderCell = ({ date, isClosed, isSortDate }: { date: DateInfo; isClosed: boolean; isSortDate: boolean }) => {
   const color = isSunday(date.iso) ? "red.500" : isSaturday(date.iso) ? "blue.500" : "gray.700";
   return (
-    <HeaderCell bg={isSortDate ? "teal.50" : isClosed ? "gray.100" : "gray.50"} active={isSortDate}>
+    <HeaderCell bg={isSortDate || isClosed ? "gray.100" : "gray.50"} active={isSortDate}>
       <Box
         textStyle="sm"
         color={isSortDate ? "teal.800" : !date.inRange || isClosed ? "gray.400" : "gray.800"}
@@ -281,7 +281,7 @@ const DateOnlyCell = ({
     borderRightWidth="1px"
     borderBottomWidth="1px"
     borderColor="gray.100"
-    bg={isClosed ? "gray.50" : isSortDate ? "teal.50" : "white"}
+    bg={isClosed ? "gray.50" : isSortDate ? "gray.100" : "white"}
   >
     <Box
       as="button"
@@ -296,9 +296,9 @@ const DateOnlyCell = ({
       display="flex"
       alignItems="center"
       justifyContent="center"
-      bg={!date.inRange ? "gray.50" : assigned ? "teal.50" : requested ? "white" : "gray.50"}
+      bg={!date.inRange ? "gray.50" : assigned ? "gray.100" : requested ? "white" : "gray.50"}
       borderWidth="1px"
-      borderColor={!date.inRange ? "gray.100" : assigned ? "teal.600" : requested ? "teal.200" : "gray.200"}
+      borderColor={!date.inRange ? "gray.100" : assigned ? "teal.600" : "gray.200"}
       borderRadius="md"
       color={assigned ? "teal.700" : !date.inRange || isClosed ? "gray.300" : "gray.400"}
       fontSize="xl"
@@ -309,7 +309,7 @@ const DateOnlyCell = ({
         isReadOnly || isClosed || !date.inRange
           ? undefined
           : {
-              bg: assigned ? "teal.100" : "gray.100",
+              bg: assigned ? "gray.200" : "gray.100",
               borderColor: assigned ? "teal.700" : "gray.400",
               color: assigned ? "teal.800" : "gray.500",
             }

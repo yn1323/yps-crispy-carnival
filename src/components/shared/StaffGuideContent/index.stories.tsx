@@ -10,7 +10,7 @@ const meta = {
   },
   decorators: [
     (Story) => (
-      <Box bg="teal.50" minH="100dvh" px={{ base: 3, md: 6 }} py={{ base: 4, md: 8 }}>
+      <Box bg="gray.50" minH="100dvh" px={{ base: 3, md: 6 }} py={{ base: 4, md: 8 }}>
         <Box maxW="960px" mx="auto" bg="white" borderRadius={{ base: "2xl", md: "3xl" }} overflow="hidden">
           <Story />
         </Box>

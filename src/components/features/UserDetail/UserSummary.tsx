@@ -15,7 +15,7 @@ export function UserSummary({ data }: Props) {
           <Flex
             boxSize="52px"
             borderRadius="full"
-            bg={data.managerRole !== "none" ? "teal.500" : "teal.50"}
+            bg={data.managerRole !== "none" ? "teal.500" : "gray.100"}
             color={data.managerRole !== "none" ? "white" : "teal.700"}
             align="center"
             justify="center"

@@ -32,13 +32,13 @@ export const DateSortToolbar = ({ dates, selectedDate, onSelect }: Props) => {
               borderRadius="full"
               borderWidth="1px"
               borderColor={selected ? "teal.500" : "gray.200"}
-              bg={selected ? "teal.50" : "white"}
+              bg={selected ? "gray.100" : "white"}
               color={selected ? "teal.700" : "gray.700"}
               textStyle="xs"
               fontWeight={700}
               fontVariantNumeric="tabular-nums"
               cursor="pointer"
-              _hover={{ bg: selected ? "teal.100" : "gray.50" }}
+              _hover={{ bg: selected ? "gray.200" : "gray.50" }}
               _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
             >
               {formatDateShort(date.iso)}

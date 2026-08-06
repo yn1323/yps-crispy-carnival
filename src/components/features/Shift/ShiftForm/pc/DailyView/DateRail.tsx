@@ -50,7 +50,7 @@ export const DateRail = ({ dates, selectedDate, onSelect, holidays = [], issueCo
             active,
             issueCount,
             warningCount,
-            activeColor: "teal.300",
+            activeColor: "teal.500",
             fallbackColor: "transparent",
           });
           return (
@@ -67,9 +67,9 @@ export const DateRail = ({ dates, selectedDate, onSelect, holidays = [], issueCo
               borderRadius="md"
               borderWidth="1px"
               borderColor={badgeBorderColor}
-              bg={active ? "teal.50" : isClosed ? "gray.50" : "transparent"}
+              bg={active ? "gray.100" : isClosed ? "gray.50" : "transparent"}
               transition="all 120ms"
-              _hover={{ bg: active ? "teal.50" : "gray.50" }}
+              _hover={{ bg: active ? "gray.200" : "gray.50" }}
             >
               <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />
               <Flex align="baseline" justify="center" gap="3px">

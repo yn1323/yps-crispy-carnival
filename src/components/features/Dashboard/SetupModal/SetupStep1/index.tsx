@@ -74,13 +74,13 @@ export const SetupShopInfoStep = ({
               variant="outline"
               borderColor={isSelected ? "teal.500" : "border.default"}
               borderWidth={isSelected ? 2 : 1}
-              bg={isSelected ? "teal.50" : "white"}
+              bg={isSelected ? "gray.50" : "white"}
               color="fg.default"
               p={0}
               overflow="hidden"
               aria-pressed={isSelected}
               onClick={() => onSubmissionPatternChange(selectSubmissionPattern(option.kind, submissionPattern))}
-              _hover={{ bg: isSelected ? "teal.50" : "gray.50" }}
+              _hover={{ bg: isSelected ? "gray.100" : "gray.50" }}
             >
               <Stack gap={0} align="stretch" w="full" h="full" textAlign="left">
                 <Stack
@@ -90,9 +90,9 @@ export const SetupShopInfoStep = ({
                   align="center"
                   justify="center"
                   px={{ base: 2, md: 3 }}
-                  bg={isSelected ? "teal.100" : "gray.50"}
+                  bg={isSelected ? "gray.100" : "gray.50"}
                   borderBottomWidth={1}
-                  borderColor={isSelected ? "teal.200" : "border.default"}
+                  borderColor="border.default"
                   color={isSelected ? "teal.700" : "fg.muted"}
                   fontWeight="bold"
                 >

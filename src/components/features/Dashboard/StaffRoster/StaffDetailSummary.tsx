@@ -15,7 +15,7 @@ export const StaffDetailSummary = ({ staff, lineStatus }: Props) => {
       <Flex
         boxSize="48px"
         borderRadius="full"
-        bg={staff.isManager ? "teal.500" : "teal.50"}
+        bg={staff.isManager ? "teal.500" : "gray.100"}
         color={staff.isManager ? "white" : "teal.700"}
         align="center"
         justify="center"

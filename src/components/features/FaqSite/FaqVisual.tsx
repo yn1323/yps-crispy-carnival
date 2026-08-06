@@ -21,9 +21,9 @@ function NotificationChannelVisual() {
       mt={5}
       p={{ base: 4, md: 5 }}
       borderWidth="1px"
-      borderColor="teal.100"
+      borderColor="gray.200"
       borderRadius="lg"
-      bg="teal.50/50"
+      bg="gray.50"
     >
       <Stack gap={3} align="center">
         <DiagramBox title="通知を送る" />
@@ -162,7 +162,7 @@ function DiagramBox({
       px={4}
       py={3}
       borderWidth="1px"
-      borderColor={tone === "question" ? "teal.300" : "gray.200"}
+      borderColor={tone === "question" ? "teal.500" : "gray.200"}
       borderRadius="md"
       bg="white"
       textAlign="center"

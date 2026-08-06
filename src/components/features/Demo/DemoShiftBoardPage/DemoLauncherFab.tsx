@@ -44,7 +44,7 @@ export const DemoLauncherFab = ({ onStart, onDismiss }: Props) => {
         </Icon>
         <Text>操作デモを開始</Text>
       </Flex>
-      <Box w="1px" bg="teal.400" opacity={0.6} />
+      <Box w="1px" bg="whiteAlpha.400" opacity={0.6} />
       <Flex
         as="button"
         aria-label="案内を閉じる"

@@ -41,7 +41,7 @@ export function OrganizationPersonRow({
         <Flex
           boxSize="40px"
           borderRadius="full"
-          bg={isManager ? "teal.500" : "teal.50"}
+          bg={isManager ? "teal.500" : "gray.100"}
           color={isManager ? "white" : "teal.700"}
           align="center"
           justify="center"

@@ -104,7 +104,7 @@ const BenefitCard = ({
   tone: "teal" | "amber";
   items: Array<{ icon: IconType; title: string; body: string }>;
 }) => {
-  const surface = tone === "teal" ? "teal.50" : "orange.50";
+  const surface = tone === "teal" ? "gray.50" : "orange.50";
 
   return (
     <Box
@@ -140,7 +140,7 @@ const BenefitCard = ({
           </Box>
         </Flex>
 
-        <Box borderTopWidth="1px" borderTopColor="teal.200" />
+        <Box borderTopWidth="1px" borderTopColor="blackAlpha.100" />
 
         <VStack align="stretch" gap={{ base: 5, md: 6 }}>
           {items.map((item) => (
@@ -162,7 +162,7 @@ const BenefitItem = ({ icon, title, body }: { icon: IconType; title: string; bod
       bg="white"
       color="teal.700"
       borderWidth="1px"
-      borderColor="teal.100"
+      borderColor="gray.200"
       borderRadius="full"
     >
       <Icon as={icon} boxSize={{ base: 6, md: 7 }} />

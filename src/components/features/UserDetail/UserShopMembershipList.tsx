@@ -69,7 +69,7 @@ function ShopIcon() {
     <Flex
       boxSize="40px"
       borderRadius="full"
-      bg="teal.50"
+      bg="gray.100"
       color="teal.700"
       align="center"
       justify="center"

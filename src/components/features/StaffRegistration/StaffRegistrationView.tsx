@@ -85,7 +85,7 @@ export function StaffRegistrationView({ state }: Props) {
               募集中のシフトがある場合は、提出案内も送ります。
             </Text>
 
-            <Stack gap={4} bg="white" borderWidth="1px" borderColor="teal.100" borderRadius="lg" p={4}>
+            <Stack gap={4} bg="white" borderWidth="1px" borderColor="border.default" borderRadius="lg" p={4}>
               <ConfirmRow label="名前" value={state.confirmData.name} />
               <ConfirmRow label="メールアドレス" value={state.confirmData.email} />
             </Stack>
@@ -298,7 +298,7 @@ function PanelFrame({
   children: ReactNode;
 }) {
   const styles = {
-    action: { bg: "teal.50", iconBg: "teal.500", iconColor: "white" },
+    action: { bg: "gray.50", iconBg: "teal.500", iconColor: "white" },
     success: { bg: "green.50", iconBg: "green.500", iconColor: "white" },
     neutral: { bg: "gray.50", iconBg: "gray.500", iconColor: "white" },
   }[tone];

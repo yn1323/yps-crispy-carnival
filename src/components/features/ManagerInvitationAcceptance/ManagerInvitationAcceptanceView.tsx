@@ -84,7 +84,7 @@ export type ManagerInvitationAcceptanceViewProps = {
 
 export function ManagerInvitationAcceptanceView({ state, actions }: ManagerInvitationAcceptanceViewProps) {
   return (
-    <Box minH="100dvh" bgGradient="to-b" gradientFrom="teal.50" gradientVia="gray.50" gradientTo="white">
+    <Box minH="100dvh" bgGradient="to-b" gradientFrom="gray.100" gradientVia="gray.50" gradientTo="white">
       <Header variant="public" showLinks={false} showLogin={false} showSignup={false} />
       <Container
         as="main"
@@ -191,7 +191,7 @@ function VerificationRequired({
   return (
     <VStack align="stretch" gap={6}>
       <VStack gap={4} textAlign="center">
-        <Circle size="64px" bg="teal.50" color="teal.700">
+        <Circle size="64px" bg="gray.100" color="teal.700">
           <LuLink size={28} aria-hidden />
         </Circle>
         <Stack gap={2}>
@@ -275,7 +275,7 @@ function ReadyInvitation({
   return (
     <VStack align="stretch" gap={6}>
       <VStack gap={4} textAlign="center">
-        <Circle size="64px" bg="teal.50" color="teal.700">
+        <Circle size="64px" bg="gray.100" color="teal.700">
           <LuBuilding2 size={28} aria-hidden />
         </Circle>
         <Stack gap={2}>
@@ -288,7 +288,14 @@ function ReadyInvitation({
         </Stack>
       </VStack>
 
-      <Stack gap={4} bg="teal.50" borderWidth="1px" borderColor="teal.100" borderRadius="xl" p={{ base: 4, md: 5 }}>
+      <Stack
+        gap={4}
+        bg="gray.50"
+        borderWidth="1px"
+        borderColor="border.default"
+        borderRadius="xl"
+        p={{ base: 4, md: 5 }}
+      >
         <Text color="gray.900" fontSize="sm" fontWeight="bold">
           参加後にできること
         </Text>

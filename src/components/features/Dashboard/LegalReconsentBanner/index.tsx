@@ -28,7 +28,7 @@ export function LegalReconsentBanner({ documents, isSubmitting = false, onAccept
   };
 
   return (
-    <Box bg="teal.50" borderWidth={1} borderColor="teal.200" borderRadius="lg" px={{ base: 4, md: 5 }} py={4}>
+    <Box bg="gray.50" borderWidth={1} borderColor="border.default" borderRadius="lg" px={{ base: 4, md: 5 }} py={4}>
       <Flex gap={4} direction={{ base: "column", md: "row" }} align={{ base: "stretch", md: "center" }}>
         <Box flex={1}>
           <Text fontWeight="semibold" color="teal.900">

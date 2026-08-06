@@ -121,13 +121,13 @@ export function OrganizationPeopleCandidateListView({
                 justifyContent="flex-start"
                 textAlign="left"
                 whiteSpace="normal"
-                bg={candidate.isManager ? "teal.50/50" : "transparent"}
+                bg={candidate.isManager ? "gray.50" : "transparent"}
                 borderWidth={0}
                 borderRadius={0}
                 cursor={isReadOnly || isAdding ? "not-allowed" : "pointer"}
                 opacity={isAdding && !isCurrent ? 0.6 : 1}
                 transition="background-color 150ms ease, opacity 150ms ease"
-                _hover={isReadOnly || isAdding ? undefined : { bg: candidate.isManager ? "teal.50" : "blackAlpha.50" }}
+                _hover={isReadOnly || isAdding ? undefined : { bg: candidate.isManager ? "gray.100" : "blackAlpha.50" }}
                 _focusVisible={{
                   outlineWidth: "2px",
                   outlineStyle: "solid",
@@ -140,7 +140,7 @@ export function OrganizationPeopleCandidateListView({
                 <Flex
                   boxSize="40px"
                   borderRadius="full"
-                  bg={candidate.isManager ? "teal.500" : "teal.50"}
+                  bg={candidate.isManager ? "teal.500" : "gray.100"}
                   color={candidate.isManager ? "white" : "teal.700"}
                   align="center"
                   justify="center"

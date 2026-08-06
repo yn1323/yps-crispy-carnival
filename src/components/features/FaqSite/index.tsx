@@ -177,7 +177,7 @@ function CategoryNavigation() {
             color="gray.800"
             fontSize="sm"
             fontWeight="semibold"
-            _hover={{ borderColor: "teal.300", color: "teal.700", textDecoration: "none" }}
+            _hover={{ borderColor: "gray.300", color: "teal.700", textDecoration: "none" }}
           >
             {category.label}
           </Link>
@@ -230,7 +230,7 @@ function FaqItem({ entry }: { entry: FaqEntry }) {
           py={{ base: 4, md: 5 }}
           cursor="pointer"
           textAlign="left"
-          _hover={{ bg: "teal.50/60" }}
+          _hover={{ bg: "gray.50" }}
         >
           <Box flex="1" minW={0}>
             {entry.audience !== "all" && <AudienceBadge audience={entry.audience} />}

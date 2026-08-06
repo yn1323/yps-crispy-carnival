@@ -89,7 +89,7 @@ function CategoryHero({ category }: { category: CategoryMetadata }): ReactNode {
 
 function PointBox({ category }: { category: CategoryMetadata }): ReactNode {
   return (
-    <Box bg="teal.50" borderWidth="1px" borderColor="gray.200" borderRadius="lg" px={{ base: 4, lg: 6 }} py={5}>
+    <Box bg="gray.50" borderWidth="1px" borderColor="gray.200" borderRadius="lg" px={{ base: 4, lg: 6 }} py={5}>
       <VStack align="stretch" gap={4}>
         <Text color="green.700" fontWeight="bold">
           このカテゴリで扱う悩み

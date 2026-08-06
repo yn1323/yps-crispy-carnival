@@ -147,7 +147,7 @@ function HeroSection({ topOffset }: { topOffset?: HeroTopOffset }) {
 function QuickPointItem({ item }: { item: QuickPoint }) {
   return (
     <HStack gap={3} align="center" justify={{ base: "flex-start", sm: "center" }} px={1} py={2} minH="56px">
-      <Circle size="40px" bg="teal.50" color="teal.600" flexShrink={0}>
+      <Circle size="40px" bg="gray.100" color="teal.700" flexShrink={0}>
         <Icon as={item.icon} boxSize={6} />
       </Circle>
       <Text color="teal.900" fontSize="sm" fontWeight="bold" lineHeight={1.5}>
@@ -175,7 +175,7 @@ function GuideSection() {
 function GuideRow({ index, item, isLast }: { index: number; item: GuideItem; isLast: boolean }) {
   return (
     <Flex gap={{ base: 4, md: 6 }} py={{ base: 5, md: 6 }} borderBottomWidth={isLast ? 0 : 1} borderColor="gray.100">
-      <Circle size={{ base: "56px", md: "92px" }} bg="teal.50" flexShrink={0}>
+      <Circle size={{ base: "56px", md: "92px" }} bg="gray.100" flexShrink={0}>
         <Icon as={item.icon} color="teal.600" boxSize={{ base: 7, md: 10 }} />
       </Circle>
       <Flex gap={{ base: 3, md: 4 }} align="flex-start" flex={1}>

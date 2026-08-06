@@ -198,7 +198,7 @@ const DateRail = ({
               borderRadius="md"
               borderWidth="1px"
               borderColor={chipBorderColor}
-              bg={active ? "teal.50" : isClosed || !date.inRange ? "gray.50" : "white"}
+              bg={active ? "gray.100" : isClosed || !date.inRange ? "gray.50" : "white"}
               color={!date.inRange || isClosed ? "gray.400" : "gray.800"}
               cursor="pointer"
               _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
@@ -270,8 +270,8 @@ const StaffToggleRow = ({
         flexShrink={0}
         borderRadius="md"
         borderWidth="1px"
-        borderColor="gray.200"
-        bg={row.assigned ? "teal.50" : row.requested ? "white" : "gray.50"}
+        borderColor={row.assigned ? "teal.600" : "gray.200"}
+        bg={row.assigned ? "gray.100" : row.requested ? "white" : "gray.50"}
         color={row.assigned ? "teal.700" : "gray.400"}
         fontSize="xl"
         fontWeight={row.assigned ? 700 : 500}
@@ -280,8 +280,9 @@ const StaffToggleRow = ({
           isReadOnly
             ? undefined
             : {
-                bg: row.assigned ? "teal.100" : "gray.100",
-                borderColor: "gray.300",
+                bg: row.assigned ? "gray.200" : "gray.100",
+                borderColor: row.assigned ? "teal.700" : "gray.300",
+                color: row.assigned ? "teal.800" : "gray.500",
               }
         }
         _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
@@ -299,7 +300,7 @@ const SummaryPill = ({ label, count, muted = false }: { label: string; count: nu
     px={2}
     py="4px"
     borderRadius="full"
-    bg={muted ? "gray.100" : "teal.50"}
+    bg="gray.100"
     color={muted ? "gray.500" : "teal.700"}
     fontWeight={700}
   >

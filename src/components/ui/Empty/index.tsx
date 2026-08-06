@@ -41,8 +41,8 @@ const TONE_STYLES: Record<
     iconColor: "teal.500",
     circleBg: "teal.600",
     circleColor: "white",
-    sectionBg: "teal.50/50",
-    sectionBorder: "teal.100",
+    sectionBg: "gray.50",
+    sectionBorder: "gray.200",
   },
   success: {
     iconColor: "green.500",

@@ -61,10 +61,10 @@ export const DateRail = ({
                   active,
                   issueCount,
                   warningCount,
-                  activeColor: "teal.400",
+                  activeColor: "teal.500",
                   fallbackColor: "gray.200",
                 })}
-                bg={active ? "teal.50" : isClosed ? "gray.50" : "white"}
+                bg={active ? "gray.100" : isClosed ? "gray.50" : "white"}
                 cursor="pointer"
               >
                 <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />

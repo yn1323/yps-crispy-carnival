@@ -81,7 +81,7 @@ export const SPShiftTypeDailyView = () => {
               active,
               issueCount,
               warningCount,
-              activeColor: "teal.400",
+              activeColor: "teal.500",
               fallbackColor: "gray.200",
             });
             return (
@@ -97,7 +97,7 @@ export const SPShiftTypeDailyView = () => {
                 borderRadius="md"
                 borderWidth="1px"
                 borderColor={chipBorderColor}
-                bg={active ? "teal.50" : isClosed ? "gray.50" : "white"}
+                bg={active ? "gray.100" : isClosed ? "gray.50" : "white"}
                 cursor="pointer"
               >
                 <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />

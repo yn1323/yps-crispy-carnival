@@ -174,7 +174,7 @@ function NavigationGroups({ categories, compact }: { categories: HelpCategory[];
                   color="gray.800"
                   fontSize="sm"
                   fontWeight="semibold"
-                  _hover={{ color: "teal.700", textDecoration: "none", borderColor: "teal.300" }}
+                  _hover={{ color: "teal.700", textDecoration: "none", borderColor: "gray.300" }}
                 >
                   {category.label}
                 </Link>
@@ -219,7 +219,7 @@ function HelpArticleView({ article }: { article: HelpArticle }) {
           mt={1}
           p={1}
           borderRadius="sm"
-          _hover={{ color: "teal.700", bg: "teal.50" }}
+          _hover={{ color: "teal.700", bg: "gray.100" }}
         >
           <LuLink aria-hidden />
         </Link>

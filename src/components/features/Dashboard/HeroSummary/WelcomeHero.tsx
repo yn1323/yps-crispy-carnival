@@ -13,7 +13,7 @@ export const WelcomeHero = ({ onSetupClick }: Props) => (
     bg="white"
     borderRadius="xl"
     borderWidth="1px"
-    borderColor="teal.100"
+    borderColor="border.default"
     px={{ base: 5, lg: 7 }}
     py={{ base: 5, lg: 6 }}
   >

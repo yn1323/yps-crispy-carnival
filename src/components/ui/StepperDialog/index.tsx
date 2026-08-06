@@ -131,7 +131,7 @@ export const StepperDialogSteps = <TStep extends string>({ steps, currentStep }:
               </Text>
             </HStack>
             {index < steps.length - 1 && (
-              <Box flex={1} minW={{ base: 3, md: 8 }} h="1px" bg={isDone ? "teal.300" : "gray.200"} mx={4} />
+              <Box flex={1} minW={{ base: 3, md: 8 }} h="1px" bg={isDone ? "teal.600" : "gray.200"} mx={4} />
             )}
           </Fragment>
         );
@@ -143,7 +143,7 @@ export const StepperDialogSteps = <TStep extends string>({ steps, currentStep }:
 export const StepperDialogStepTitle = ({ icon, title, description }: StepperDialogStepTitleProps) => (
   <HStack gap={3} align="flex-start">
     {icon && (
-      <Flex w="36px" h="36px" borderRadius="full" bg="teal.50" color="teal.600" align="center" justify="center">
+      <Flex w="36px" h="36px" borderRadius="full" bg="gray.100" color="teal.700" align="center" justify="center">
         <Icon as={icon} boxSize={5} />
       </Flex>
     )}

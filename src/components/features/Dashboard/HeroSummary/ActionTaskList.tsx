@@ -67,7 +67,7 @@ const createShiftActionTask = (
     return {
       key: "shift-action",
       icon: LuSparkles,
-      iconBg: "teal.100",
+      iconBg: "gray.100",
       iconFg: "teal.700",
       title: "次の募集をつくりましょう",
       metaItems: [{ label: "募集中のシフトなし" }],
@@ -106,7 +106,7 @@ const createNotificationFailureTask = (onClick: () => void): ActionTask => ({
 const createStaffRegistrationRequestTask = (count: number, onClick: () => void): ActionTask => ({
   key: "staff-registration-request",
   icon: LuUserCheck,
-  iconBg: "teal.50",
+  iconBg: "gray.100",
   iconFg: "teal.700",
   title: `スタッフ登録申請が${count}件あります`,
   description: "内容を確認して承認・却下できます",
@@ -163,7 +163,7 @@ const ActionTaskRow = ({ task, isFirst }: { task: ActionTask; isFirst: boolean }
           justify="center"
           flexShrink={0}
           borderWidth={task.key === "staff-registration-request" ? "1px" : 0}
-          borderColor={task.key === "staff-registration-request" ? "teal.200" : undefined}
+          borderColor={task.key === "staff-registration-request" ? "border.default" : undefined}
         >
           <Icon size={28} />
         </Flex>
@@ -281,7 +281,7 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
       const { periodStart, periodEnd, responseCount, totalStaffCount } = action.recruitment;
       return {
         icon: LuCalendarClock,
-        iconBg: "teal.100",
+        iconBg: "gray.100",
         iconFg: "teal.700",
         title: "シフト回収中です。\nしばらくお待ちください。",
         metaItems: [
@@ -296,7 +296,7 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
       const { periodStart, periodEnd, responseCount, totalStaffCount } = action.recruitment;
       return {
         icon: LuCalendarClock,
-        iconBg: "teal.50",
+        iconBg: "gray.100",
         iconFg: "teal.700",
         title: "シフト回収中です。\nしばらくお待ちください。",
         metaItems: [
