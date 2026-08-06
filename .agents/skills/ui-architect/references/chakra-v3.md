@@ -150,7 +150,7 @@ yellow → ほぼ未使用
 - `teal.50`〜`teal.400` → ページ、section、card、callout、icon、avatar、badge、selection card、カレンダーの日付範囲などの背景fillに限って使える。opacity suffixとgradientも背景fillなら同じ扱い
 - 低階調tealの面にicon・avatarの低階調teal背景を重ねる場合 → 内側を外側より1段以上濃くし、hover時にも同化させない
 - action button、Accordion、DateRail、日付sort、週選択、シフト割当toggleの背景・hover → white、grayの低階調、blackAlpha、または中立semantic token。Buttonで実装されたselection cardは背景fillの例外
-- クリック可能なrowの背景・hover → 原則として中立色。Dashboardのスタッフ一覧だけは、管理者rowの背景とスタッフrowのhoverに低階調tealを使える
+- クリック可能なrowの背景・hover → 原則として中立色。Dashboardのスタッフ一覧と、組織設定・店舗詳細・スタッフ詳細でスタッフや店舗を開くdrilldown list cardは、管理者rowの背景とlist card全体のhover背景に`teal.50`〜`teal.400`を使える
 - Dashboardの募集一覧 → card rootはwhiteに保ち、状態はaccent、badge、必要なborderで示す
 - 操作面のselected、active、割当済み → tealで強調する場合は背景を`teal.500`以上、文字・iconをwhiteにする
 - 通常border → `border.default`、強いborder → `border.emphasized`

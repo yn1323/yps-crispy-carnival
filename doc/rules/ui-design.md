@@ -102,8 +102,8 @@ action button、Accordion、DateRail、日付sort、週選択、シフト割当t
 実装がButtonでも値を選ぶselection cardは内容を載せる面として扱い、操作要素の内側にあるicon、avatar、badgeも背景fillとして扱う。
 
 クリック可能なrowのrootとhoverは原則としてneutralにする。
-Dashboardのスタッフ一覧は、管理者の識別とrowの操作可能性を既存の見た目で保つため、管理者rowの背景とスタッフrowのhoverに低階調tealを使う。
-この例外をほかの一覧へ広げない。
+Dashboardのスタッフ一覧と、組織設定・店舗詳細・スタッフ詳細でスタッフや店舗を開くdrilldown list cardは、管理者の識別とcardの操作可能性を同じ見た目で保つため、管理者rowの背景とlist card全体のhover背景に`teal.50`〜`teal.400`を使える。
+この例外をほかの種類の一覧へ広げない。
 
 Dashboardの募集一覧はcard全体をwhiteに保ち、要調整、確定済み、過去などの状態をaccent、badge、必要なborderで示す。
 状態色をcard全体へ薄く敷かない。
