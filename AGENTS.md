@@ -52,6 +52,11 @@
 
 Skillは特定作業の進め方であり、常時制約や設計原則の正本にしない。
 
+## UI配色
+
+- UIコードでは、通常時、hover、active、focus、selectedを含む全状態で、`teal.50`〜`teal.400`を明示的に指定しない。
+- tealの強調には`teal.500`以上、弱い面・境界にはwhite、gray、blackAlphaまたは既存の中立semantic tokenを使う。
+
 ## 変更範囲
 
 - 近い既存実装と同じ境界に置く最小差分を基本とする。

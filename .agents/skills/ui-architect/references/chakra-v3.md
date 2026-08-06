@@ -146,12 +146,12 @@ red    → 削除・致命エラー
 yellow → ほぼ未使用
 ```
 
-色シェード（一般的な使い分け）：
-- `50` → 背景・薄いタグ
-- `100` → 背景・selected状態
-- `500` → ボタン背景・主要テキスト on white
-- `700` → ホバー時・濃いめテキスト
-- `900` → 主要文字色
+色シェード（プロジェクト固有の使い分け）：
+- 弱い背景・hover → white、grayの低階調、blackAlpha、または中立semantic token
+- 通常border → `border.default`、強いborder → `border.emphasized`
+- tealの明示指定 → `500`以上を使い、選択・focus・activeのaccentへ限定する
+- tealの主要文字 on white → `700`以上を基本にする
+- 使用禁止のteal tokenは、ルート`AGENTS.md`を正本とする
 
 ## スペーシングトークン
 
