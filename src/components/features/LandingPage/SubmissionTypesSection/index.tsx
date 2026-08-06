@@ -91,7 +91,7 @@ const SubmissionTypeCard = ({
         flex="0 0 auto"
         boxSize={16}
         color="teal.600"
-        bg="gray.100"
+        bg="teal.50"
         borderRadius="full"
       >
         <Icon as={icon} boxSize={8} />
@@ -105,7 +105,7 @@ const SubmissionTypeCard = ({
         </Text>
       </Box>
     </Flex>
-    <Flex align="flex-start" justify="center" h="178px" mt={5} bg="gray.50" borderRadius="lg" overflow="hidden">
+    <Flex align="flex-start" justify="center" h="178px" mt={5} bg="teal.50" borderRadius="lg" overflow="hidden">
       <Image src={imageSrc} alt={imageAlt} h="370px" maxW="none" objectFit="contain" />
     </Flex>
     <Badge

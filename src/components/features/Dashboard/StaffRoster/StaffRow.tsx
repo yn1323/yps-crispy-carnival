@@ -10,7 +10,7 @@ type Props = {
 
 export function StaffRow({ staff, onOpenDetail, onOpenDetailIntent }: Props) {
   const initial = staff.name.trim().charAt(0) || "?";
-  const avatarPalette = staff.isManager ? { bg: "teal.500", fg: "white" } : { bg: "gray.100", fg: "teal.700" };
+  const avatarPalette = staff.isManager ? { bg: "teal.500", fg: "white" } : { bg: "teal.50", fg: "teal.700" };
   const isLineActive = staff.isLineLinked && staff.isLineFollowing;
   const isExcluded = staff.excludedFromShift;
 
@@ -60,7 +60,7 @@ export function StaffRow({ staff, onOpenDetail, onOpenDetailIntent }: Props) {
         </Stack>
         <HStack gap={1.5} wrap="wrap" ms="auto" minW={0} maxW="full" justify="flex-end">
           {staff.isManager && (
-            <Badge colorPalette="teal" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
+            <Badge colorPalette="teal" variant="subtle" bg="teal.100" borderRadius="full" px={2} textStyle="2xs">
               管理者
             </Badge>
           )}

@@ -100,7 +100,7 @@ export function UserShopAdditionDialog({
                     <Flex
                       boxSize="40px"
                       borderRadius="full"
-                      bg="gray.100"
+                      bg="teal.50"
                       color="teal.700"
                       align="center"
                       justify="center"

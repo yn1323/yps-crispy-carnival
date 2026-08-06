@@ -41,7 +41,7 @@ export const HeroSection = () => (
             <Flex
               align="center"
               gap={2}
-              bg="gray.100"
+              bg="teal.50"
               color="teal.700"
               borderRadius="full"
               px={{ base: 3, md: 4 }}

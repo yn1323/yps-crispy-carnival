@@ -140,7 +140,7 @@ export function OrganizationPeopleCandidateListView({
                 <Flex
                   boxSize="40px"
                   borderRadius="full"
-                  bg={candidate.isManager ? "teal.500" : "gray.100"}
+                  bg={candidate.isManager ? "teal.500" : "teal.50"}
                   color={candidate.isManager ? "white" : "teal.700"}
                   align="center"
                   justify="center"
@@ -157,7 +157,14 @@ export function OrganizationPeopleCandidateListView({
                       {candidate.name}
                     </Text>
                     {candidate.isManager && (
-                      <Badge colorPalette="teal" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
+                      <Badge
+                        colorPalette="teal"
+                        variant="subtle"
+                        bg="teal.100"
+                        borderRadius="full"
+                        px={2}
+                        textStyle="2xs"
+                      >
                         管理者
                       </Badge>
                     )}

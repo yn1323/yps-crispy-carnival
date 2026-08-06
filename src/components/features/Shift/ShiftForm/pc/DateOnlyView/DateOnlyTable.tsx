@@ -158,7 +158,7 @@ const StickyHeaderCell = ({
 const DateHeaderCell = ({ date, isClosed, isSortDate }: { date: DateInfo; isClosed: boolean; isSortDate: boolean }) => {
   const color = isSunday(date.iso) ? "red.500" : isSaturday(date.iso) ? "blue.500" : "gray.700";
   return (
-    <HeaderCell bg={isSortDate || isClosed ? "gray.100" : "gray.50"} active={isSortDate}>
+    <HeaderCell bg={isSortDate ? "teal.50" : isClosed ? "gray.100" : "gray.50"} active={isSortDate}>
       <Box
         textStyle="sm"
         color={isSortDate ? "teal.800" : !date.inRange || isClosed ? "gray.400" : "gray.800"}
@@ -281,7 +281,7 @@ const DateOnlyCell = ({
     borderRightWidth="1px"
     borderBottomWidth="1px"
     borderColor="gray.100"
-    bg={isClosed ? "gray.50" : isSortDate ? "gray.100" : "white"}
+    bg={isClosed ? "gray.50" : isSortDate ? "teal.50" : "white"}
   >
     <Box
       as="button"

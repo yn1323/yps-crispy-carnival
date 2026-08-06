@@ -300,7 +300,7 @@ const SummaryPill = ({ label, count, muted = false }: { label: string; count: nu
     px={2}
     py="4px"
     borderRadius="full"
-    bg="gray.100"
+    bg={muted ? "gray.100" : "teal.50"}
     color={muted ? "gray.500" : "teal.700"}
     fontWeight={700}
   >

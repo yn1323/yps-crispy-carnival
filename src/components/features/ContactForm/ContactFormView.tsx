@@ -57,7 +57,7 @@ export type ContactFormViewProps =
 export function ContactFormView(props: ContactFormViewProps) {
   if (props.status === "submitted") {
     return (
-      <Stack align="center" bg="gray.50" borderRadius="xl" gap={4} p={{ base: 6, md: 10 }} textAlign="center">
+      <Stack align="center" bg="teal.50" borderRadius="xl" gap={4} p={{ base: 6, md: 10 }} textAlign="center">
         <Box bg="teal.500" borderRadius="full" color="white" p={3}>
           <LuCheck aria-hidden size={28} />
         </Box>

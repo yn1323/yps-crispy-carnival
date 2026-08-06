@@ -15,7 +15,7 @@ export function UserSummary({ data }: Props) {
           <Flex
             boxSize="52px"
             borderRadius="full"
-            bg={data.managerRole !== "none" ? "teal.500" : "gray.100"}
+            bg={data.managerRole !== "none" ? "teal.500" : "teal.50"}
             color={data.managerRole !== "none" ? "white" : "teal.700"}
             align="center"
             justify="center"
@@ -31,7 +31,7 @@ export function UserSummary({ data }: Props) {
                 {data.person.name}
               </Text>
               {data.managerRole === "active" && (
-                <Badge colorPalette="teal" variant="subtle" borderRadius="full" px={2.5}>
+                <Badge colorPalette="teal" variant="subtle" bg="teal.100" borderRadius="full" px={2.5}>
                   管理者
                 </Badge>
               )}

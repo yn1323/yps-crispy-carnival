@@ -58,7 +58,7 @@ export function OnboardingCallout({ state, showLabel = true, onDismiss }: Props)
     <>
       <Box
         aria-live="polite"
-        bg="gray.50/55"
+        bg="teal.50/55"
         borderRadius="xl"
         borderWidth="1px"
         borderColor="border.default"

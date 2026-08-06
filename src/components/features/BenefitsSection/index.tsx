@@ -104,7 +104,7 @@ const BenefitCard = ({
   tone: "teal" | "amber";
   items: Array<{ icon: IconType; title: string; body: string }>;
 }) => {
-  const surface = tone === "teal" ? "gray.50" : "orange.50";
+  const surface = tone === "teal" ? "teal.50" : "orange.50";
 
   return (
     <Box

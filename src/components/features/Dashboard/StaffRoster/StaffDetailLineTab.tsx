@@ -34,7 +34,7 @@ export const StaffDetailLineTab = ({
     <Box
       borderWidth="1px"
       borderColor="border.default"
-      bg={lineStatus.tone === "brand" ? "gray.50" : "blackAlpha.50"}
+      bg={lineStatus.tone === "brand" ? "teal.50/60" : "blackAlpha.50"}
       borderRadius="md"
       p={3}
     >

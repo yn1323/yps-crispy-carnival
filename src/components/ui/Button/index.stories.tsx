@@ -18,7 +18,7 @@ const variants = ["solid", "outline", "ghost", "plain"] as const;
 const backgrounds = [
   { label: "white", bg: "white" },
   { label: "gray.50", bg: "gray.50" },
-  { label: "gray.100", bg: "gray.100" },
+  { label: "teal.50", bg: "teal.50" },
 ] as const;
 
 export const Variants: Story = {
@@ -51,7 +51,7 @@ export const Variants: Story = {
         <Text fontSize="sm" fontWeight="bold">
           States
         </Text>
-        <Surface label="button states" bg="gray.50">
+        <Surface label="button states" bg="teal.50">
           <HStack gap={3} wrap="wrap">
             <Button colorPalette="teal">保存する</Button>
             <Button colorPalette="teal" loading>

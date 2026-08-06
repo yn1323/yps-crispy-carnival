@@ -47,7 +47,7 @@ export function UserShopLineSection({
       <Box
         borderWidth="1px"
         borderColor="border.default"
-        bg={lineStatus.isActive ? "gray.50" : "blackAlpha.50"}
+        bg={lineStatus.isActive ? "teal.50/60" : "blackAlpha.50"}
         borderRadius="md"
         p={3}
       >

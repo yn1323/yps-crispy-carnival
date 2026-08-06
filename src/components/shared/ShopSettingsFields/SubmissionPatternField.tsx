@@ -36,20 +36,20 @@ export function SubmissionPatternField({ selectedKind, onSelect }: SubmissionPat
             variant="outline"
             borderColor={isSelected ? "teal.500" : "border.default"}
             borderWidth={isSelected ? 2 : 1}
-            bg={isSelected ? "gray.50" : "white"}
+            bg={isSelected ? "teal.50" : "white"}
             color="fg.default"
             p={0}
             overflow="hidden"
             aria-pressed={isSelected}
             onClick={() => onSelect(option.kind)}
-            _hover={{ bg: isSelected ? "gray.100" : "gray.50" }}
+            _hover={{ bg: isSelected ? "teal.50" : "gray.50" }}
           >
             <Stack gap={0} align="stretch" w="full" h="full" textAlign="left">
               <Flex
                 h="96px"
                 align="center"
                 justify="center"
-                bg={isSelected ? "gray.100" : "gray.50"}
+                bg={isSelected ? "teal.100" : "gray.50"}
                 borderBottomWidth={1}
                 borderColor={isSelected ? "border.emphasized" : "border.default"}
               >

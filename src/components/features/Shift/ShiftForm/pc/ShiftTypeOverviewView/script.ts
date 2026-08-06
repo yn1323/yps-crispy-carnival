@@ -167,7 +167,7 @@ export const buildShiftTypeOverviewViewModel = ({
                     return {
                       key: optionId,
                       label: optionDisplay?.name ?? "勤務",
-                      bg: optionDisplay?.color.requestedBg ?? "gray.100",
+                      bg: optionDisplay?.color.requestedBg ?? "teal.50",
                       color: optionDisplay?.color.accent ?? "teal.700",
                     };
                   }),

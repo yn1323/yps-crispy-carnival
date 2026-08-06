@@ -23,7 +23,7 @@ function NotificationChannelVisual() {
       borderWidth="1px"
       borderColor="gray.200"
       borderRadius="lg"
-      bg="gray.50"
+      bg="teal.50/50"
     >
       <Stack gap={3} align="center">
         <DiagramBox title="通知を送る" />

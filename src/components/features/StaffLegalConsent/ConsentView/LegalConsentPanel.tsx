@@ -91,7 +91,7 @@ function PanelFrame({
   children: ReactNode;
 }) {
   const styles = {
-    action: { bg: "gray.50", iconBg: "teal.500", iconColor: "white" },
+    action: { bg: "teal.50", iconBg: "teal.500", iconColor: "white" },
     success: { bg: "green.50", iconBg: "green.500", iconColor: "white" },
     neutral: { bg: "gray.50", iconBg: "gray.500", iconColor: "white" },
   }[tone];

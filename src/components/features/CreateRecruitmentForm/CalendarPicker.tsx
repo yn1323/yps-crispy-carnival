@@ -170,10 +170,10 @@ export const CalendarPicker = ({
         ...(highlightSelectableDates
           ? {
               [`${activeDaySelector}:not([data-selected])`]: {
-                bg: "gray.50",
+                bg: "teal.100",
               },
               [`${activeDaySelector}:not([data-selected]):hover`]: {
-                bg: "gray.100",
+                bg: "teal.200",
               },
               [`${activeDaySelector}[data-selected]`]: {
                 bg: "gray.200",

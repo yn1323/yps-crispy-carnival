@@ -67,7 +67,7 @@ const createShiftActionTask = (
     return {
       key: "shift-action",
       icon: LuSparkles,
-      iconBg: "gray.100",
+      iconBg: "teal.100",
       iconFg: "teal.700",
       title: "次の募集をつくりましょう",
       metaItems: [{ label: "募集中のシフトなし" }],
@@ -106,7 +106,7 @@ const createNotificationFailureTask = (onClick: () => void): ActionTask => ({
 const createStaffRegistrationRequestTask = (count: number, onClick: () => void): ActionTask => ({
   key: "staff-registration-request",
   icon: LuUserCheck,
-  iconBg: "gray.100",
+  iconBg: "teal.50",
   iconFg: "teal.700",
   title: `スタッフ登録申請が${count}件あります`,
   description: "内容を確認して承認・却下できます",
@@ -281,7 +281,7 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
       const { periodStart, periodEnd, responseCount, totalStaffCount } = action.recruitment;
       return {
         icon: LuCalendarClock,
-        iconBg: "gray.100",
+        iconBg: "teal.100",
         iconFg: "teal.700",
         title: "シフト回収中です。\nしばらくお待ちください。",
         metaItems: [
@@ -296,7 +296,7 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
       const { periodStart, periodEnd, responseCount, totalStaffCount } = action.recruitment;
       return {
         icon: LuCalendarClock,
-        iconBg: "gray.100",
+        iconBg: "teal.50",
         iconFg: "teal.700",
         title: "シフト回収中です。\nしばらくお待ちください。",
         metaItems: [

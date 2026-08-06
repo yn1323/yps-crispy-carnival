@@ -54,8 +54,10 @@ Skillは特定作業の進め方であり、常時制約や設計原則の正本
 
 ## UI配色
 
-- UIコードでは、通常時、hover、active、focus、selectedを含む全状態で、`teal.50`〜`teal.400`を明示的に指定しない。
-- tealの強調には`teal.500`以上、弱い面・境界にはwhite、gray、blackAlphaまたは既存の中立semantic tokenを使う。
+- `teal.50`〜`teal.400`は、ページ、section、card、callout、icon、avatar、badge、選択card、カレンダーの日付範囲、非操作の選択列など、内容を載せる面の背景fillに限って明示的に使用してよい。背景fillであればopacity suffixやgradientも使用してよい。
+- 保存、送信、遷移などのaction button、クリック可能なrowやAccordion、DateRail、日付sort、週選択、シフト割当toggleの背景には、通常、hover、active、selectedを含めて`teal.50`〜`teal.400`を使用しない。実装要素がButtonでも、値を選ぶselection cardは背景fillの例外に含める。
+- border、outline、境界として使うbox-shadow、focus ring、divider、progress connector、通常のshadow、文字とiconのforegroundには、`teal.50`〜`teal.400`を使用しない。
+- 操作要素内のicon、avatar、badgeの背景は使用してよい。禁止対象のaccentには`teal.500`以上、弱い操作面と境界にはwhite、gray、blackAlphaまたは既存の中立semantic tokenを使う。
 
 ## 変更範囲
 

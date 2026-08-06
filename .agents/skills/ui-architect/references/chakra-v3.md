@@ -147,11 +147,12 @@ yellow → ほぼ未使用
 ```
 
 色シェード（プロジェクト固有の使い分け）：
-- 弱い背景・hover → white、grayの低階調、blackAlpha、または中立semantic token
+- `teal.50`〜`teal.400` → ページ、section、card、callout、icon、avatar、badge、selection card、カレンダーの日付範囲などの背景fillに限って使える。opacity suffixとgradientも背景fillなら同じ扱い
+- action button、クリック可能なrow、Accordion、DateRail、日付sort、週選択、シフト割当toggleの背景・hover → white、grayの低階調、blackAlpha、または中立semantic token。Buttonで実装されたselection cardは背景fillの例外
 - 通常border → `border.default`、強いborder → `border.emphasized`
-- tealの明示指定 → `500`以上を使い、選択・focus・activeのaccentへ限定する
+- border、outline、focus ring、divider、progress connector、shadow、文字・iconのforegroundへtealを明示する場合 → `500`以上
 - tealの主要文字 on white → `700`以上を基本にする
-- 使用禁止のteal tokenは、ルート`AGENTS.md`を正本とする
+- 低階調tealの許可・禁止用途は、ルート`AGENTS.md`を正本とする
 
 ## スペーシングトークン
 

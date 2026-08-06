@@ -93,10 +93,15 @@ Loading、Empty、Error、Success、処理中を別の状態として設計す�
 
 ## 配色の強弱
 
-弱い背景、境界、hoverはwhite、gray、blackAlphaまたは中立semantic tokenで表し、淡いブランド色の面を画面内へ広げない。
-選択、focus、activeなどブランドとして識別する必要がある状態は、中立の面に濃いtealのborder、文字、indicatorを組み合わせる。
+低階調のtealは、情報のまとまりや状態領域を示す背景fillに使ってよい。ページ、section、card、callout、icon、avatar、badge、selection card、カレンダーの日付範囲など、内容を載せる面へ限定する。opacity付きの色やgradientも、背景fillとして使う場合は同じ扱いにする。
 
-明示的に使用しないteal tokenの範囲は、ルート`AGENTS.md`を正本とする。
+action button、クリック可能なrow、Accordion、DateRail、日付sort、週選択、シフト割当toggleでは、低階調tealを操作面やhoverの手掛かりにしない。実装がButtonでも値を選ぶselection cardは内容を載せる面として扱い、操作要素の内側にあるicon、avatar、badgeも背景fillとして扱う。
+
+境界、focus、divider、progress、shadow、文字、icon本体は背景fillと分ける。borderやfocus ringなど操作位置を示すaccentには濃いtealを使い、弱い操作面とhoverにはwhite、gray、blackAlphaまたは中立semantic tokenを使う。
+
+淡いtealの大きな面を入れ子にしたり、同一viewportへ重ねすぎたりしない。情報のまとまりを一段だけ示し、画面全体がpastelに見える場合は外側の面をneutralへ戻す。
+
+背景fillへ使用できる範囲と禁止する用途は、ルート`AGENTS.md`を正本とする。
 
 ## 一貫性と検証
 

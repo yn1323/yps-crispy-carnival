@@ -77,7 +77,7 @@ function ShopRow({ shop, onOpenShop }: { shop: OrganizationShopView; onOpenShop:
         <Flex
           boxSize="40px"
           borderRadius="lg"
-          bg="gray.100"
+          bg="teal.50"
           color="teal.700"
           align="center"
           justify="center"

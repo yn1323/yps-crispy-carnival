@@ -21,18 +21,23 @@ export function DateOnlySubmissionDayCard({ entry, onToggleWorking, isShopClosed
       px={4}
       align="center"
       justify="space-between"
-      bg={isShopClosed ? "gray.100" : entry.isWorking ? "gray.50" : "white"}
+      bg={isShopClosed ? "gray.100" : entry.isWorking ? "teal.50" : "white"}
       borderRadius="lg"
       borderWidth={1}
       borderColor={entry.isWorking && !isShopClosed ? "teal.600" : "border.default"}
       cursor={isShopClosed || isReadOnly ? "default" : "pointer"}
       onClick={isShopClosed || isReadOnly ? undefined : onToggleWorking}
-      _hover={isShopClosed || isReadOnly ? undefined : { bg: entry.isWorking ? "gray.100" : "gray.50" }}
+      _hover={isShopClosed || isReadOnly ? undefined : { bg: entry.isWorking ? "teal.50" : "gray.50" }}
     >
       <Text fontSize="sm" fontWeight="medium" color={dateColor}>
         {dateLabel}
       </Text>
-      <Box bg="gray.100" px={2.5} py={0.5} borderRadius="full">
+      <Box
+        bg={isShopClosed ? "gray.100" : entry.isWorking ? "teal.100" : "gray.100"}
+        px={2.5}
+        py={0.5}
+        borderRadius="full"
+      >
         <Text
           fontSize="xs"
           fontWeight="semibold"

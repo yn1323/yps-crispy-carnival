@@ -219,7 +219,7 @@ export function ManagerInvitationDialog({
                           <Flex
                             boxSize="40px"
                             borderRadius="full"
-                            bg={isSelected ? "teal.500" : "gray.100"}
+                            bg={isSelected ? "teal.500" : "teal.50"}
                             color={isSelected ? "white" : "teal.700"}
                             align="center"
                             justify="center"

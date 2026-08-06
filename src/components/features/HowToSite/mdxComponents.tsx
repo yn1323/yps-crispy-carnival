@@ -6,7 +6,7 @@ import type { HelpMdxComponents } from "./helpContent";
 
 function HelpNote({ children }: PropsWithChildren) {
   return (
-    <Box borderLeftWidth="3px" borderColor="teal.500" bg="gray.50" px={4} py={3} borderRadius="sm">
+    <Box borderLeftWidth="3px" borderColor="teal.500" bg="teal.50/60" px={4} py={3} borderRadius="sm">
       <Text color="gray.800" fontSize="sm" lineHeight="1.8">
         {children}
       </Text>
