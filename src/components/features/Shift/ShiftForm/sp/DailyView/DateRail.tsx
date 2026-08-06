@@ -64,24 +64,29 @@ export const DateRail = ({
                   activeColor: "teal.500",
                   fallbackColor: "gray.200",
                 })}
-                bg={active ? "gray.100" : isClosed ? "gray.50" : "white"}
+                bg={active ? "teal.500" : isClosed ? "gray.50" : "white"}
                 cursor="pointer"
               >
                 <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />
                 <Box
                   textStyle="md"
                   fontWeight={700}
-                  color={active ? "teal.700" : "gray.800"}
+                  color={active ? "white" : "gray.800"}
                   lineHeight="1.1"
                   fontVariantNumeric="tabular-nums"
                 >
                   {date.date()}
                 </Box>
-                <Box textStyle="2xs" mt="2px" fontWeight={active ? 700 : 500} style={{ color: getDayColor(iso) }}>
+                <Box
+                  textStyle="2xs"
+                  mt="2px"
+                  fontWeight={active ? 700 : 500}
+                  style={{ color: active ? "white" : getDayColor(iso) }}
+                >
                   {getWeekdayLabel(iso)}
                 </Box>
                 {isClosed && (
-                  <Box textStyle="2xs" mt="1px" fontWeight={700} color="gray.500">
+                  <Box textStyle="2xs" mt="1px" fontWeight={700} color={active ? "white" : "gray.500"}>
                     休
                   </Box>
                 )}

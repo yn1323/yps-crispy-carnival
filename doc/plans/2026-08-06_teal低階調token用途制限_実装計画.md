@@ -7,11 +7,13 @@
 
 ## 1. 結論
 
-`teal.50`〜`teal.400`の明示利用を全面禁止せず、内容を載せる背景fillに限って使用を認める。ページ、section、card、callout、icon、avatar、badge、selection card、カレンダーの日付範囲、非操作の選択列が対象である。
+`teal.50`〜`teal.400`の明示利用を全面禁止せず、内容を載せる背景fillに限って使用を認める。ページ、section、card、callout、icon、avatar、badge、selection card、カレンダーの日付範囲、非操作の選択列が対象である。Dashboardのスタッフ一覧は、管理者rowの背景とスタッフrowのhoverを限定例外とする。
 
-保存、送信、遷移などのaction button、クリック可能なrowやAccordion、DateRail、日付sort、週選択、シフト割当toggleの操作面には使用しない。border、outline、focus ring、divider、progress connector、shadow、文字・iconのforegroundにも使用しない。
+保存、送信、遷移などのaction button、Accordion、DateRail、日付sort、週選択、シフト割当toggleの操作面には使用しない。クリック可能なrowも上記の限定例外を除いて使用しない。border、outline、focus ring、divider、progress connector、shadow、文字・iconのforegroundにも使用しない。
 
-実装要素の種類ではなく、UI上の役割で判定する。Buttonで実装されたselection cardは背景fillとして許可し、操作要素内のicon、avatar、badgeも内側の背景fillとして許可する。
+実装要素の種類ではなく、UI上の役割で判定する。Buttonで実装されたselection cardは背景fillとして許可し、操作要素内のicon、avatar、badgeも内側の背景fillとして許可する。低階調tealの面へiconやavatarを重ねる場合は、内側の背景を1段以上濃くする。
+
+操作面のselected、active、割当済みをtealで強く示す場合は、`teal.500`以上の背景とwhiteの文字を使う。Dashboardの募集一覧は状態にかかわらずcard rootをwhiteに保ち、状態色はaccent、badge、必要なborderへ限定する。
 
 VRTの実行、画像差分の確認、baseline更新はAI Agent側では行わない。利用者が別途確認するため、VRTをAI側の完了条件に含めない。
 
@@ -20,13 +22,16 @@ VRTの実行、画像差分の確認、baseline更新はAI Agent側では行わ�
 | 論点 | 判断 |
 |---|---|
 | 対象shade | `teal.50`〜`teal.400` |
-| 許可する用途 | ページ、section、card、callout、icon、avatar、badge、selection card、カレンダーの日付範囲、非操作の選択列などの背景fill |
+| 許可する用途 | ページ、section、card、callout、icon、avatar、badge、selection card、カレンダーの日付範囲、非操作の選択列などの背景fill。Dashboardスタッフ一覧の限定例外 |
 | opacityとgradient | 背景fillとして使う場合は許可 |
 | selection card | Buttonで実装されていても、値を選ぶ面として許可 |
 | 操作要素内の小さな面 | icon、avatar、badgeの背景は許可 |
 | action button | 通常、hover、active、selectedを含めて背景への利用を禁止 |
-| クリック可能なrow | row本体とhoverへの利用を禁止 |
-| 日付操作 | CalendarPickerの日付範囲と非操作の選択列は許可。DateRail、sort、週選択、割当toggleは禁止 |
+| クリック可能なrow | 原則禁止。Dashboardスタッフ一覧の管理者row背景とスタッフrow hoverだけ許可 |
+| 日付操作 | CalendarPickerの日付範囲と非操作の選択列は許可。DateRail、sort、週選択、割当toggleへの低階調tealは禁止し、強調時は`teal.500`以上を使う |
+| selected、active、割当済み | tealで強く示す場合は`teal.500`以上の背景とwhiteの文字・iconを使う |
+| 入れ子の背景 | 低階調tealの面に置くicon、avatarは外側より1段以上濃くする |
+| Dashboard募集一覧 | 状態にかかわらずcard rootはwhite。状態はaccent、badge、必要なborderで示す |
 | 境界とfocus | border、outline、境界として使うbox-shadow、focus ringへの利用を禁止 |
 | 線とshadow | divider、progress connector、通常のshadowへの利用を禁止 |
 | 前景 | 文字とicon本体への利用を禁止 |
@@ -57,7 +62,7 @@ Chakraのteal Badgeは、`teal.subtle`を中立色のまま維持したうえで
 
 ### 3.3 実装後に残す明示指定
 
-背景fillの復元後は、追跡対象ソースに低階調tealが71件、43ファイル残る。Story内の背景名と背景指定を含み、すべて許可された背景fillまたはその条件値である。
+背景fillとDashboardスタッフ一覧の限定例外を反映した後は、追跡対象ソースに低階調tealが74件、43ファイル残る。Story内の背景名と背景指定を含み、すべて許可された背景fill、その条件値、または限定例外である。
 
 残存件数を0件にすることは完了条件にしない。全件を列挙し、禁止した役割へ使われていないことを確認する。
 
@@ -66,9 +71,12 @@ Chakraのteal Badgeは、`teal.subtle`を中立色のまま維持したうえで
 ### 4.1 UI
 
 - 公開画面のページ、card、callout、hero label、icon背景
-- Dashboardのonboarding、banner、icon、avatar、badge、selection card、状態panel
+- Dashboardのonboarding、banner、icon、avatar、badge、selection card、状態panel、スタッフ一覧の限定例外
+- Dashboard募集一覧の全状態でwhiteのcard root
 - Organization、User、Staffのcard、avatar、badge、案内panel
 - CalendarPickerの日付範囲とShift Formの非操作の選択列
+- ShiftBoardのPC/SPにある選択日と勤務あり表示
+- ShiftBoardのSP時間入力一覧にある日付見出し
 - Staff提出画面のselection card、状態badge、集計pill
 - `Empty`、`StepperDialog`、Story canvasなどの背景fill
 
@@ -101,11 +109,12 @@ Chakraのteal Badgeは、`teal.subtle`を中立色のまま維持したうえで
 | selection card | rootとselected hoverの面は許可し、borderとfocusは高階調tealまたは中立色にする |
 | カレンダー | 日付範囲、選択可能日、非操作の選択列だけ面として許可する |
 | opacity、gradient | 背景fillの役割を保つ場合だけ許可する |
+| Dashboardスタッフ一覧 | 管理者rowの背景とスタッフrow hoverだけを限定例外とし、非管理者avatarはhover面より1段濃くする |
 
 ### 5.2 禁止を維持する役割
 
 - action Button、IconButtonの背景とhover
-- クリック可能なlist row、Accordion、FAQ、HowTo、Drilldownの背景とhover
+- クリック可能なlist row、Accordion、FAQ、HowTo、Drilldownの背景とhover。ただしDashboardスタッフ一覧の限定例外を除く
 - DateRail、日付sort、週選択、シフト割当toggleの背景とhover
 - border、outline、境界として使うbox-shadow
 - focus ring、divider、progress connector、shadow
@@ -130,7 +139,7 @@ Chakraのteal Badgeは、`teal.subtle`を中立色のまま維持したうえで
 1. 初期差分を背景fill、操作面、境界、focus、foreground、shadowへ分類する。
 2. generic semantic tokenを中立色のまま維持し、許可した背景fillをconsumer単位で復元する。
 3. teal Badgeを全件監査し、tealになる11箇所だけ背景を明示する。
-4. action control、clickable row、DateRail、toggle、border、focus、divider、foregroundを中立色または高階調tealのまま維持する。
+4. action control、clickable row、DateRail、toggle、border、focus、divider、foregroundを中立色または高階調tealのまま維持する。Dashboardスタッフ一覧だけ限定例外を適用する。
 5. Agent指示、UI設計方針、ui-architect参照、本計画を最終判断へ更新する。
 6. 低階調tealの全一致を役割監査し、通常の自動検証を行う。
 
@@ -148,7 +157,7 @@ rg -n -i '\bteal[.-](50|100|200|300|400)\b' \
 特に次を確認する。
 
 - `border*`、`outline*`、`shadow*`、`focus*`、文字やiconの`color`に一致がない。
-- action button、clickable row、Accordion、DateRail、日付sort、週選択、割当toggleのrootとhoverに一致がない。
+- action button、Accordion、DateRail、日付sort、週選択、割当toggleのrootとhoverに一致がない。clickable rowはDashboardスタッフ一覧の限定例外だけである。
 - selection cardのroot、カレンダーの日付範囲、icon、avatar、badgeは許可された背景fillとして区別されている。
 - `teal.subtle`、`teal.muted`、`teal.emphasized`が中立色を参照している。
 
@@ -174,8 +183,10 @@ AI Agentは次を行わない。
 
 ## 8. 完了条件
 
-- 低階調tealの明示指定が許可された背景fillだけに残っている。
-- action button、clickable row、DateRail、toggle、border、focus、divider、shadow、foregroundに低階調tealがない。
+- 低階調tealの明示指定が許可された背景fillとDashboardスタッフ一覧の限定例外だけに残っている。
+- action button、DateRail、toggle、border、focus、divider、shadow、foregroundに低階調tealがない。clickable rowはDashboardスタッフ一覧の限定例外だけである。
+- Dashboard募集一覧のcard rootが全状態でwhiteである。
+- ShiftBoardの選択日と勤務あり表示がPC/SPで`teal.500`以上の背景とwhiteの文字に揃っている。
 - generic semantic tokenが中立色のままである。
 - ルート`AGENTS.md`、UI設計方針、ui-architect参照が同じ役割境界を示している。
 - docs、lint、type-check、UI test、buildが成功する。

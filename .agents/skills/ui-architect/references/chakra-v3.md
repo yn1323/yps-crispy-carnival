@@ -148,7 +148,11 @@ yellow → ほぼ未使用
 
 色シェード（プロジェクト固有の使い分け）：
 - `teal.50`〜`teal.400` → ページ、section、card、callout、icon、avatar、badge、selection card、カレンダーの日付範囲などの背景fillに限って使える。opacity suffixとgradientも背景fillなら同じ扱い
-- action button、クリック可能なrow、Accordion、DateRail、日付sort、週選択、シフト割当toggleの背景・hover → white、grayの低階調、blackAlpha、または中立semantic token。Buttonで実装されたselection cardは背景fillの例外
+- 低階調tealの面にicon・avatarの低階調teal背景を重ねる場合 → 内側を外側より1段以上濃くし、hover時にも同化させない
+- action button、Accordion、DateRail、日付sort、週選択、シフト割当toggleの背景・hover → white、grayの低階調、blackAlpha、または中立semantic token。Buttonで実装されたselection cardは背景fillの例外
+- クリック可能なrowの背景・hover → 原則として中立色。Dashboardのスタッフ一覧だけは、管理者rowの背景とスタッフrowのhoverに低階調tealを使える
+- Dashboardの募集一覧 → card rootはwhiteに保ち、状態はaccent、badge、必要なborderで示す
+- 操作面のselected、active、割当済み → tealで強調する場合は背景を`teal.500`以上、文字・iconをwhiteにする
 - 通常border → `border.default`、強いborder → `border.emphasized`
 - border、outline、focus ring、divider、progress connector、shadow、文字・iconのforegroundへtealを明示する場合 → `500`以上
 - tealの主要文字 on white → `700`以上を基本にする

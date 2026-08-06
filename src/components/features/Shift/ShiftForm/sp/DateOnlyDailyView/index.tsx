@@ -198,8 +198,8 @@ const DateRail = ({
               borderRadius="md"
               borderWidth="1px"
               borderColor={chipBorderColor}
-              bg={active ? "gray.100" : isClosed || !date.inRange ? "gray.50" : "white"}
-              color={!date.inRange || isClosed ? "gray.400" : "gray.800"}
+              bg={active ? "teal.500" : isClosed || !date.inRange ? "gray.50" : "white"}
+              color={active ? "white" : !date.inRange || isClosed ? "gray.400" : "gray.800"}
               cursor="pointer"
               _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
             >
@@ -208,7 +208,7 @@ const DateRail = ({
                 textStyle="md"
                 fontWeight={700}
                 lineHeight="1.1"
-                color={active ? "teal.700" : undefined}
+                color={active ? "white" : undefined}
                 fontVariantNumeric="tabular-nums"
               >
                 {formatDateShort(date.iso)}
@@ -217,12 +217,12 @@ const DateRail = ({
                 textStyle="2xs"
                 mt="2px"
                 fontWeight={active ? 700 : 500}
-                color={!date.inRange || isClosed ? "gray.400" : dayColor(date.iso)}
+                color={active ? "white" : !date.inRange || isClosed ? "gray.400" : dayColor(date.iso)}
               >
                 {getWeekdayLabel(date.iso)}
               </Text>
               {(isClosed || !date.inRange) && (
-                <Text textStyle="2xs" mt="1px" fontWeight={700} color="gray.400">
+                <Text textStyle="2xs" mt="1px" fontWeight={700} color={active ? "white" : "gray.400"}>
                   {date.inRange ? "休" : "外"}
                 </Text>
               )}
@@ -271,8 +271,8 @@ const StaffToggleRow = ({
         borderRadius="md"
         borderWidth="1px"
         borderColor={row.assigned ? "teal.600" : "gray.200"}
-        bg={row.assigned ? "gray.100" : row.requested ? "white" : "gray.50"}
-        color={row.assigned ? "teal.700" : "gray.400"}
+        bg={row.assigned ? "teal.500" : row.requested ? "white" : "gray.50"}
+        color={row.assigned ? "white" : "gray.400"}
         fontSize="xl"
         fontWeight={row.assigned ? 700 : 500}
         cursor={isReadOnly ? "default" : "pointer"}
@@ -280,9 +280,9 @@ const StaffToggleRow = ({
           isReadOnly
             ? undefined
             : {
-                bg: row.assigned ? "gray.200" : "gray.100",
+                bg: row.assigned ? "teal.600" : "gray.100",
                 borderColor: row.assigned ? "teal.700" : "gray.300",
-                color: row.assigned ? "teal.800" : "gray.500",
+                color: row.assigned ? "white" : "gray.500",
               }
         }
         _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}

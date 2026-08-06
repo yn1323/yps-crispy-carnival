@@ -127,20 +127,22 @@ const DayRow = ({ row, onDateTap }: { row: OverviewDayRowViewModel; onDateTap: (
     _active={row.canOpenDaily ? { bg: "gray.50" } : undefined}
     onClick={row.canOpenDaily ? onDateTap : undefined}
   >
-    <Box w="44px" flexShrink={0} position="relative">
+    <Box w="68px" flexShrink={0} position="relative">
       {row.warningCount > 0 && <IssueCountBadge count={row.warningCount} tone="warning" />}
-      <Box
-        textStyle="numeric"
-        fontWeight={700}
-        color={row.dateTone === "default" ? "gray.800" : "gray.400"}
-        lineHeight="1.1"
-        style={{ fontVariantNumeric: "tabular-nums" }}
-      >
-        {row.dateLabel}
-      </Box>
-      <Box textStyle="2xs" fontWeight={700} mt="2px" style={{ color: weekdayColor[row.weekdayTone] }}>
-        {row.weekdayLabel}
-      </Box>
+      <Flex align="baseline" gap="4px" whiteSpace="nowrap">
+        <Box
+          textStyle="numeric"
+          fontWeight={700}
+          color={row.dateTone === "default" ? "gray.800" : "gray.400"}
+          lineHeight="1.1"
+          style={{ fontVariantNumeric: "tabular-nums" }}
+        >
+          {row.dateLabel}
+        </Box>
+        <Box textStyle="2xs" fontWeight={700} flexShrink={0} style={{ color: weekdayColor[row.weekdayTone] }}>
+          {row.weekdayLabel}
+        </Box>
+      </Flex>
       {row.closedLabel && (
         <Box textStyle="2xs" fontWeight={700} mt="2px" color="gray.500">
           {row.closedLabel}

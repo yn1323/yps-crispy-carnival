@@ -158,10 +158,10 @@ const StickyHeaderCell = ({
 const DateHeaderCell = ({ date, isClosed, isSortDate }: { date: DateInfo; isClosed: boolean; isSortDate: boolean }) => {
   const color = isSunday(date.iso) ? "red.500" : isSaturday(date.iso) ? "blue.500" : "gray.700";
   return (
-    <HeaderCell bg={isSortDate ? "teal.50" : isClosed ? "gray.100" : "gray.50"} active={isSortDate}>
+    <HeaderCell bg={isSortDate ? "teal.500" : isClosed ? "gray.100" : "gray.50"} active={isSortDate}>
       <Box
         textStyle="sm"
-        color={isSortDate ? "teal.800" : !date.inRange || isClosed ? "gray.400" : "gray.800"}
+        color={isSortDate ? "white" : !date.inRange || isClosed ? "gray.400" : "gray.800"}
         fontWeight={700}
         fontVariantNumeric="tabular-nums"
       >
@@ -169,7 +169,7 @@ const DateHeaderCell = ({ date, isClosed, isSortDate }: { date: DateInfo; isClos
       </Box>
       <Box
         textStyle="caption"
-        color={isSortDate ? "teal.700" : !date.inRange || isClosed ? "gray.400" : color}
+        color={isSortDate ? "white" : !date.inRange || isClosed ? "gray.400" : color}
         mt="2px"
         fontWeight={600}
       >
@@ -296,11 +296,11 @@ const DateOnlyCell = ({
       display="flex"
       alignItems="center"
       justifyContent="center"
-      bg={!date.inRange ? "gray.50" : assigned ? "gray.100" : requested ? "white" : "gray.50"}
+      bg={!date.inRange || isClosed ? "gray.50" : assigned ? "teal.500" : requested ? "white" : "gray.50"}
       borderWidth="1px"
-      borderColor={!date.inRange ? "gray.100" : assigned ? "teal.600" : "gray.200"}
+      borderColor={!date.inRange || isClosed ? "gray.100" : assigned ? "teal.600" : "gray.200"}
       borderRadius="md"
-      color={assigned ? "teal.700" : !date.inRange || isClosed ? "gray.300" : "gray.400"}
+      color={!date.inRange || isClosed ? "gray.300" : assigned ? "white" : "gray.400"}
       fontSize="xl"
       fontWeight={assigned ? 700 : 500}
       cursor={isReadOnly || isClosed || !date.inRange ? "default" : "pointer"}
@@ -309,9 +309,9 @@ const DateOnlyCell = ({
         isReadOnly || isClosed || !date.inRange
           ? undefined
           : {
-              bg: assigned ? "gray.200" : "gray.100",
+              bg: assigned ? "teal.600" : "gray.100",
               borderColor: assigned ? "teal.700" : "gray.400",
-              color: assigned ? "teal.800" : "gray.500",
+              color: assigned ? "white" : "gray.500",
             }
       }
       _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}

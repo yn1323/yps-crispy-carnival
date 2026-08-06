@@ -47,16 +47,8 @@ export const SetupStep2 = ({ onSubmit, defaultValues, formId = "setup-step2" }: 
             maxLength={EMAIL_MAX_LENGTH}
             placeholder="例：yamada@example.com"
           />
-          <Field.HelperText whiteSpace="pre-line" lineHeight="tall">
-            {
-              "ご自身のシフトのお知らせや確認・再発行リンク、管理者向けの連絡を送ります。\n最初の請求先にも設定され、請求先は後からグループ設定で変更できます。"
-            }
-          </Field.HelperText>
           {errors.email && <Field.ErrorText>{errors.email.message}</Field.ErrorText>}
         </Field.Root>
-        <Text fontSize="xs" color="fg.muted">
-          ほかのスタッフは登録後にいつでも追加できます。
-        </Text>
         <Field.Root invalid={!!errors.acceptedLegal}>
           <Checkbox.Root
             colorPalette="teal"

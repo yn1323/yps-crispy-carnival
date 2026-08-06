@@ -95,7 +95,21 @@ Loading、Empty、Error、Success、処理中を別の状態として設計す�
 
 低階調のtealは、情報のまとまりや状態領域を示す背景fillに使ってよい。ページ、section、card、callout、icon、avatar、badge、selection card、カレンダーの日付範囲など、内容を載せる面へ限定する。opacity付きの色やgradientも、背景fillとして使う場合は同じ扱いにする。
 
-action button、クリック可能なrow、Accordion、DateRail、日付sort、週選択、シフト割当toggleでは、低階調tealを操作面やhoverの手掛かりにしない。実装がButtonでも値を選ぶselection cardは内容を載せる面として扱い、操作要素の内側にあるicon、avatar、badgeも背景fillとして扱う。
+低階調tealの面へiconやavatarの低階調teal背景を重ねる場合は、内側を外側より1段以上濃くする。
+通常時だけでなくhover時にも面どうしが同化しないことを確認する。
+
+action button、Accordion、DateRail、日付sort、週選択、シフト割当toggleでは、低階調tealを操作面やhoverの手掛かりにしない。
+実装がButtonでも値を選ぶselection cardは内容を載せる面として扱い、操作要素の内側にあるicon、avatar、badgeも背景fillとして扱う。
+
+クリック可能なrowのrootとhoverは原則としてneutralにする。
+Dashboardのスタッフ一覧は、管理者の識別とrowの操作可能性を既存の見た目で保つため、管理者rowの背景とスタッフrowのhoverに低階調tealを使う。
+この例外をほかの一覧へ広げない。
+
+Dashboardの募集一覧はcard全体をwhiteに保ち、要調整、確定済み、過去などの状態をaccent、badge、必要なborderで示す。
+状態色をcard全体へ薄く敷かない。
+
+操作面のselected、active、割当済みをtealで強く示す場合は、`teal.500`以上の背景とwhiteの文字・iconを組み合わせる。
+ShiftBoardの日付選択と日ごとの勤務あり表示は、この組み合わせでPCとSPを揃える。
 
 境界、focus、divider、progress、shadow、文字、icon本体は背景fillと分ける。borderやfocus ringなど操作位置を示すaccentには濃いtealを使い、弱い操作面とhoverにはwhite、gray、blackAlphaまたは中立semantic tokenを使う。
 

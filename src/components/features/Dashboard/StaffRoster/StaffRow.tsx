@@ -10,7 +10,7 @@ type Props = {
 
 export function StaffRow({ staff, onOpenDetail, onOpenDetailIntent }: Props) {
   const initial = staff.name.trim().charAt(0) || "?";
-  const avatarPalette = staff.isManager ? { bg: "teal.500", fg: "white" } : { bg: "teal.50", fg: "teal.700" };
+  const avatarPalette = staff.isManager ? { bg: "teal.500", fg: "white" } : { bg: "teal.100", fg: "teal.700" };
   const isLineActive = staff.isLineLinked && staff.isLineFollowing;
   const isExcluded = staff.excludedFromShift;
 
@@ -25,11 +25,11 @@ export function StaffRow({ staff, onOpenDetail, onOpenDetailIntent }: Props) {
       align="center"
       w="full"
       textAlign="left"
-      bg={staff.isManager ? "gray.50" : "transparent"}
+      bg={staff.isManager ? "teal.50/50" : "transparent"}
       borderWidth={0}
       cursor="pointer"
       transition="background-color 150ms ease"
-      _hover={{ bg: staff.isManager ? "gray.100" : "blackAlpha.50" }}
+      _hover={{ bg: "teal.50" }}
       _focusVisible={{ outlineWidth: "2px", outlineStyle: "solid", outlineColor: "teal.500", outlineOffset: "-2px" }}
       onPointerEnter={onOpenDetailIntent}
       onFocus={onOpenDetailIntent}
