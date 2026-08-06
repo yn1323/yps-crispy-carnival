@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -40,6 +40,7 @@ describe("AccountSecurityPage", () => {
       />,
     );
 
+    expect(screen.getByRole("heading", { name: "アカウント設定" })).not.toBeNull();
     expect(mocks.loginMethodsProps).toEqual(
       expect.objectContaining({
         flow: "connect-google",

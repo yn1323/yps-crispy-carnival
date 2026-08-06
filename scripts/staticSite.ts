@@ -37,7 +37,7 @@ export const NOINDEX_PUBLIC_ROUTES = new Set<string>([
 
 /** Queryを含めず、指定されたpathだけをCSR shellへ渡す。 */
 export const CSR_SHELL_STATIC_ROUTES = [
-  "/account/security",
+  "/account",
   "/dashboard",
   "/forgot-password",
   "/legal/staff/consent",

@@ -5,9 +5,9 @@ import {
   clearAccountSecurityOAuthSearch,
   needsAccountSecuritySearchCanonicalization,
   validateAccountSecuritySearch,
-} from "./account.security";
+} from "./account";
 
-describe("ログイン設定URL", () => {
+describe("アカウント設定URL", () => {
   it("許可flowとGoogle系flowに結び付いたOAuth帰還だけを受け付ける", () => {
     expect(validateAccountSecuritySearch({ flow: "add-email-password" })).toEqual({ flow: "add-email-password" });
     expect(validateAccountSecuritySearch({ flow: "connect-google", oauth: "google" })).toEqual({

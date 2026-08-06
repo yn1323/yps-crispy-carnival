@@ -18,7 +18,7 @@ export type SyncMyPrimaryEmailResult =
  * 旧client互換の安全停止用stub。
  *
  * preflight後にClerkだけ変更済みのclientから呼ばれても、Convexの連絡先を
- * 全所属へ同期しない。新しいログイン設定はConvexのメールを変更しない。
+ * 全所属へ同期しない。新しいログイン方法はConvexのメールを変更しない。
  */
 export const syncMyPrimaryEmail = action({
   args: { requestId: v.string() },

@@ -24,7 +24,7 @@ export function AccountSecurityPage({
       <Stack gap={3}>
         <Stack gap={2}>
           <Heading as="h1" textStyle={{ base: "sectionTitle", md: "pageTitle" }} color="gray.900">
-            ログイン設定
+            アカウント設定
           </Heading>
         </Stack>
         <LoginMethods

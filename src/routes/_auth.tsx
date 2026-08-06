@@ -22,7 +22,7 @@ function RouteComponent() {
   const navigate = useNavigate();
   const { shop } = Route.useSearch();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const requiresShopContext = pathname !== "/account/security";
+  const requiresShopContext = pathname !== "/account";
 
   useEffect(() => {
     if (requiresShopContext || !shop) return;

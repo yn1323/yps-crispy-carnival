@@ -3,7 +3,7 @@ import { internalMutation } from "../_generated/server";
 import { authenticatedMutation } from "../_lib/functions";
 
 const RETIRED_MESSAGE =
-  "このメールアドレス変更方法は終了しました。画面を再読み込みし、右上の「ログイン設定」をご利用ください。";
+  "このメールアドレス変更方法は終了しました。画面を再読み込みし、右上の「アカウント設定」をご利用ください。";
 
 /**
  * Clerkを変更する前に旧clientを止める互換stub。

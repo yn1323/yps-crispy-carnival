@@ -71,7 +71,7 @@ type PreparedGoogleStart =
   | { status: "retryable" }
   | { status: "unavailable" };
 
-const GOOGLE_OAUTH_RETURN_PATH = "/account/security?flow=connect-google&oauth=google";
+const GOOGLE_OAUTH_RETURN_PATH = "/account?flow=connect-google&oauth=google";
 const GOOGLE_OAUTH_CORRELATION_STORAGE_KEY = "shiftori:login-methods:google-connection:v1";
 
 const ERROR_PRESENTATION: Record<GoogleConnectionErrorKind, string> = {
