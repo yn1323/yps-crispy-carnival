@@ -46,7 +46,7 @@ beforeEach(() => {
 });
 
 describe("AuthenticatedHeader", () => {
-  it.each(["/dashboard", "/settings", "/account/security", "/shops/shop-1", "/users/person-1"])(
+  it.each(["/dashboard", "/settings", "/account", "/shops/shop-1", "/users/person-1"])(
     "%sでは店舗切替を表示しない",
     (pathname) => {
       mocks.pathname = pathname;

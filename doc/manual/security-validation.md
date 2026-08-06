@@ -83,7 +83,7 @@ Developmentの結果からProductionでの成立や公開済み状態を推測�
 ### 事前確認
 
 最初に、DevelopmentでGoogle social connection、email/password sign-in、EmailAddressの`email_code`確認、account linking、reverification、利用者によるメール識別子の変更が有効であることを確認する。
-Account linkingのredirectは`/account/security`専用とし、sign-in用`/sso-callback`や任意originへ流さない。
+Account linkingのredirectは`/account`専用とし、sign-in用`/sso-callback`や任意originへ流さない。
 
 テスト利用者は、次の3状態をそれぞれ用意する。
 Googleとメール・パスワードの両方を持つ状態では、同じメールアドレスを使うケースと異なるメールアドレスを使うケースを分ける。

@@ -81,8 +81,8 @@ beforeEach(() => {
 });
 
 describe("認証済み親route", () => {
-  it("ログイン設定では店舗contextを要求せず、shopだけを除去して他のqueryを維持する", async () => {
-    mocks.pathname = "/account/security";
+  it("アカウント設定では店舗contextを要求せず、shopだけを除去して他のqueryを維持する", async () => {
+    mocks.pathname = "/account";
     mocks.useSearch.mockReturnValue({ shop: "shop-a" });
     const RouteComponent = Route.options.component;
     if (!RouteComponent) throw new Error("Route component is required");

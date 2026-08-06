@@ -74,14 +74,14 @@ Stripe設定、migration確認、障害対応は[グループ課金の運用](..
 
 | 種類 | 正本 | 用途 | 主な変更場所 |
 |---|---|---|---|
-| ログイン方法 | Clerkの確認済みメール、パスワード、Google接続 | シフトリへの認証 | 画面右上の「ログイン設定」から開く`/account/security` |
+| ログイン方法 | Clerkの確認済みメール、パスワード、Google接続 | シフトリへの認証 | 画面右上の「アカウント設定」から開く`/account` |
 | シフト連絡先 | グループごとの`organizationPeople.email` | 本人のシフト通知と管理者向けの業務連絡 | ユーザー詳細 |
 | 請求先 | グループごとの`organizations.billingEmail` | Stripeの請求書、領収書、カード関連通知 | 「プランと支払い」 |
 | 初期化・旧データ互換値 | `users.email` | 初回セットアップ時のsnapshotとcanonical所属がない旧データのfallback | 通常の設定画面では直接編集しない |
 
 シフト連絡先を変更しても、Clerkのログイン方法、`users.email`、請求先メールアドレスは変更しない。
 請求先メールアドレスを変更しても、シフト連絡先とログイン方法は変更しない。
-ログイン設定の画面と状態判定はシフト連絡先から独立させ、Clerk操作の提供可否は安全性の実験と環境確認が完了した機能だけを有効にする。
+アカウント設定の画面と状態判定はシフト連絡先から独立させ、Clerk操作の提供可否は安全性の実験と環境確認が完了した機能だけを有効にする。
 この文書はローカル実装の境界を示すものであり、Clerkの各操作や実deploymentでの公開完了を示す証跡にはしない。
 
 ## 保証する範囲
@@ -252,7 +252,7 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 | `src/components/features/OrganizationSettings/` | ユーザー、店舗、プランと支払い、管理者招待、グループ作成、削除UI |
 | `src/components/features/OrganizationSettings/BillingSettings/` | 価格表示、プラン変更、Portal、請求先メールのcontrollerとdialog |
 | `src/components/features/ManagerInvitationAcceptance/` | 招待preview、認証導線、連携結果 |
-| `src/pages/account-security/` / `src/components/features/LoginMethods/` | シフト連絡先と独立したログイン設定の画面境界、Clerk状態からの表示判定と操作可否 |
+| `src/pages/account-security/` / `src/components/features/LoginMethods/` | シフト連絡先と独立したアカウント設定の画面境界、Clerk状態からの表示判定と操作可否 |
 | `src/components/features/AuthenticatedApp/AuthGuard.tsx` | URLと利用可能店舗から有効な操作contextを解決する |
 | `src/components/features/Dashboard/` | グループ・店舗contextと閲覧専用状態を表示する |
 
