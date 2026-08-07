@@ -5,7 +5,6 @@ import { z } from "zod";
 import { requiredEmailSchema } from "@/convex/_lib/validation";
 import { EMAIL_MAX_LENGTH } from "@/convex/constants";
 import { EmailCodeVerificationForm } from "@/src/components/features/AuthPage/EmailCodeVerificationForm";
-import { maskEmailAddress } from "@/src/components/features/AuthPage/loginVerification";
 import { Button } from "@/src/components/ui/Button";
 import { MigrationFeedbackError, MigrationUnavailableState } from "./LoginMethodMigrationState";
 import type { EmailPasswordMigrationController } from "./useEmailPasswordMigrationController";
@@ -107,9 +106,7 @@ function EmailVerificationStep({ controller }: { controller: EmailPasswordMigrat
   return (
     <Stack gap={5}>
       <Text color="fg.muted">
-        {controller.state.targetEmailAddress
-          ? maskEmailAddress(controller.state.targetEmailAddress)
-          : "入力したメールアドレス"}
+        {controller.state.targetEmailAddress ?? "入力したメールアドレス"}
         に確認コードを送りました。メールに届いたコードを入力してください。
       </Text>
       <EmailCodeVerificationForm

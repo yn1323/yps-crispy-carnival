@@ -72,5 +72,9 @@ function isVerifiedEmail(email: LoginMethodsEmailSnapshot): boolean {
 }
 
 function isRetryableGoogleAccount(account: LoginMethodsExternalAccountSnapshot | undefined): boolean {
-  return account?.verificationStatus === "unverified" || account?.verificationStatus === "failed";
+  return (
+    account?.verificationStatus === "unverified" ||
+    account?.verificationStatus === "failed" ||
+    account?.verificationStatus === "expired"
+  );
 }

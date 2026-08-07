@@ -15,7 +15,7 @@ export type LoginMethodReverificationFactor = {
   strategy: LoginMethodReverificationStrategy;
   stage: LoginMethodReverificationStage;
   input: "password" | "code" | "passkey";
-  safeIdentifier: string | null;
+  displayIdentifier: string | null;
   canResend: boolean;
 };
 

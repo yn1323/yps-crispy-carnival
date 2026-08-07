@@ -343,10 +343,9 @@ export const AddEmailPasswordBehavior: Story = {
     const codeDialog = within(await body.findByRole("dialog", { name: "メールアドレスとパスワードを設定" }));
     await expect(
       await codeDialog.findByText(
-        "lo***@example.comに確認コードを送りました。メールに届いたコードを入力してください。",
+        "login@example.comに確認コードを送りました。メールに届いたコードを入力してください。",
       ),
     ).toBeVisible();
-    await expect(codeDialog.queryByText(/login@example\.com/)).not.toBeInTheDocument();
     await userEvent.type(codeDialog.getByRole("textbox", { name: "確認コード" }), "123456");
     await userEvent.click(codeDialog.getByRole("button", { name: "メールを確認" }));
 
@@ -497,7 +496,7 @@ const passwordFactor: LoginMethodReverificationFactor = {
   strategy: "password",
   stage: "first",
   input: "password",
-  safeIdentifier: null,
+  displayIdentifier: null,
   canResend: false,
 };
 const emailFactor: LoginMethodReverificationFactor = {
@@ -505,7 +504,7 @@ const emailFactor: LoginMethodReverificationFactor = {
   strategy: "email_code",
   stage: "first",
   input: "code",
-  safeIdentifier: "login@example.com",
+  displayIdentifier: "login@example.com",
   canResend: true,
 };
 

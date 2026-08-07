@@ -14,14 +14,14 @@ const emailFactor = factor({
   key: "first-email",
   strategy: "email_code",
   input: "code",
-  safeIdentifier: "login@example.com",
+  displayIdentifier: "login@example.com",
   canResend: true,
 });
 const phoneFactor = factor({
   key: "first-phone",
   strategy: "phone_code",
   input: "code",
-  safeIdentifier: "+81 *** **12",
+  displayIdentifier: "登録電話番号（末尾0012）",
   canResend: true,
 });
 const secondPhoneFactor = factor({
@@ -29,7 +29,7 @@ const secondPhoneFactor = factor({
   strategy: "phone_code",
   stage: "second",
   input: "code",
-  safeIdentifier: "+81 *** **34",
+  displayIdentifier: "登録電話番号（末尾0034）",
   canResend: true,
 });
 const totpFactor = factor({ key: "second-totp", strategy: "totp", stage: "second", input: "code" });
@@ -298,11 +298,11 @@ function factor({
   strategy,
   stage = "first",
   input,
-  safeIdentifier = null,
+  displayIdentifier = null,
   canResend = false,
-}: Omit<LoginMethodReverificationFactor, "stage" | "safeIdentifier" | "canResend"> &
+}: Omit<LoginMethodReverificationFactor, "stage" | "displayIdentifier" | "canResend"> &
   Partial<
-    Pick<LoginMethodReverificationFactor, "stage" | "safeIdentifier" | "canResend">
+    Pick<LoginMethodReverificationFactor, "stage" | "displayIdentifier" | "canResend">
   >): LoginMethodReverificationFactor {
-  return { key, strategy, stage, input, safeIdentifier, canResend };
+  return { key, strategy, stage, input, displayIdentifier, canResend };
 }

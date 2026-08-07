@@ -93,16 +93,74 @@ describe("useLoginMethodsController", () => {
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();
   });
 
-  it.each([
-    { label: "Googleのみ", expectedState: "googleOnly", passwordEnabled: false, withGoogle: true },
-    { label: "パスワードのみ", expectedState: "passwordOnly", passwordEnabled: true, withGoogle: false },
-    { label: "Googleとパスワード", expectedState: "googleAndPassword", passwordEnabled: true, withGoogle: true },
-  ] as const)("$labelでも既存の確認済みメールをPrimaryにし、直前の旧メールだけを削除する", async (condition) => {
+  it("PrimaryメールがGoogleにlinkedしていればDialogを開かず解除をSnackbarで促す", () => {
     const primaryEmail = emailResource({
       id: "email-primary",
       emailAddress: "login@example.com",
       status: "verified",
-      linked: condition.withGoogle,
+      linked: true,
+    });
+    const googleAccount = externalAccount({
+      id: "google-1",
+      status: "verified",
+      emailAddress: primaryEmail.emailAddress,
+    });
+    const user = userResource({
+      passwordEnabled: true,
+      emailAddresses: [primaryEmail],
+      externalAccounts: [googleAccount],
+      primaryEmailAddressId: primaryEmail.id,
+    });
+    const { result } = renderController(user);
+
+    act(() => result.current.openLoginEmailChange());
+
+    expect(result.current.emailChangeDialog).toEqual({ isOpen: false });
+    expect(mocks.showErrorToast).toHaveBeenCalledOnce();
+    expect(mocks.showErrorToast.mock.calls[0]?.[0]).toEqual(
+      new Error(
+        "このメールアドレスはGoogleログインと連携されています。先にGoogle連携を解除してから、メールアドレスを変更してください。",
+      ),
+    );
+  });
+
+  it("Dialog表示後にPrimaryメールがGoogleへlinkedされてもメール追加を開始しない", async () => {
+    const primaryEmail = emailResource({ id: "email-primary", emailAddress: "login@example.com", status: "verified" });
+    const googleAccount = externalAccount({
+      id: "google-1",
+      status: "verified",
+      emailAddress: primaryEmail.emailAddress,
+    });
+    const user = userResource({
+      passwordEnabled: true,
+      emailAddresses: [primaryEmail],
+      externalAccounts: [googleAccount],
+      primaryEmailAddressId: primaryEmail.id,
+    });
+    const { result } = renderController(user);
+
+    act(() => result.current.openLoginEmailChange());
+    expect(result.current.emailChangeDialog).toMatchObject({ isOpen: true, step: "input" });
+    Object.assign(primaryEmail, { linkedTo: [{ id: "link-primary", type: "oauth_google" }] });
+
+    await act(async () => result.current.startLoginEmailChange("next@example.com"));
+
+    expect(user.createEmailAddress).not.toHaveBeenCalled();
+    expect(user.update).not.toHaveBeenCalled();
+    expect(primaryEmail.destroy).not.toHaveBeenCalled();
+    expect(result.current.emailChangeDialog).toEqual({ isOpen: false });
+    expect(mocks.showErrorToast).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    { label: "Googleのみ", expectedState: "googleOnly", passwordEnabled: false, withGoogle: true },
+    { label: "パスワードのみ", expectedState: "passwordOnly", passwordEnabled: true, withGoogle: false },
+    { label: "Googleとパスワード", expectedState: "googleAndPassword", passwordEnabled: true, withGoogle: true },
+  ] as const)("$labelでもGoogle非linkedの旧Primaryだけを削除する", async (condition) => {
+    const primaryEmail = emailResource({
+      id: "email-primary",
+      emailAddress: "login@example.com",
+      status: "verified",
     });
     const targetEmail = emailResource({
       id: "email-target",
@@ -406,7 +464,6 @@ describe("useLoginMethodsController", () => {
       id: "email-primary",
       emailAddress: "login@example.com",
       status: "verified",
-      linked: true,
     });
     const targetEmail = emailResource({
       id: "email-target",
@@ -445,7 +502,6 @@ describe("useLoginMethodsController", () => {
       id: "email-primary",
       emailAddress: "login@example.com",
       status: "verified",
-      linked: true,
     });
     const targetEmail = emailResource({
       id: "email-target",
@@ -620,7 +676,7 @@ describe("useLoginMethodsController", () => {
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();
   });
 
-  it("Googleとパスワードの両方があればlinked確認済みメールをfallbackとして解除できる", async () => {
+  it("Googleとパスワードの両方があれば解除でき、link解消後はメール変更を開始できる", async () => {
     const linkedEmail = emailResource({
       id: "email-google",
       emailAddress: "google@gmail.com",
@@ -642,6 +698,7 @@ describe("useLoginMethodsController", () => {
     vi.mocked(account.destroy).mockImplementation(async () => {
       callOrder.push("destroy");
       user.externalAccounts = [];
+      Object.assign(linkedEmail, { linkedTo: [] });
     });
     const runOperation = vi.fn(
       async <T,>(operation: () => Promise<T>, _options?: LoginMethodOperationOptions): Promise<T | undefined> =>
@@ -670,6 +727,10 @@ describe("useLoginMethodsController", () => {
     expect(result.current.googleState).toEqual({ status: "idle", message: null });
     expect(mocks.runWithReverification).toHaveBeenCalledOnce();
     expect(mocks.showSuccessToast).toHaveBeenCalledWith({ title: "Google連携を解除しました" });
+
+    act(() => result.current.openLoginEmailChange());
+    expect(result.current.emailChangeDialog).toMatchObject({ isOpen: true, step: "input" });
+    expect(mocks.showErrorToast).not.toHaveBeenCalled();
   });
 
   it("Google解除直前のreloadでfallbackが消えた場合は破棄要求を送らない", async () => {
@@ -812,11 +873,19 @@ function emailResource({
   return resource as unknown as EmailAddressResource;
 }
 
-function externalAccount({ id, status }: { id: string; status: "verified" | "unverified" }) {
+function externalAccount({
+  id,
+  status,
+  emailAddress = "google@gmail.com",
+}: {
+  id: string;
+  status: "verified" | "unverified";
+  emailAddress?: string;
+}) {
   const resource = {
     id,
     provider: "google",
-    emailAddress: "google@gmail.com",
+    emailAddress,
     verification: {
       status,
     },

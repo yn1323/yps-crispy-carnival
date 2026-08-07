@@ -54,7 +54,7 @@ LINEアプリ内ブラウザではGoogle OAuthがprovider側で拒否される�
 このページはグループや店舗に依存しない本人専用画面である。  `?shop=`を引き継がず、店舗一覧取得、selected shop解決、無効店舗による全体blockを行わない。認証、削除済みアカウント判定などの共通契約だけを維持する。
 
 画面はClerkのcurrent User resourceからメールアドレスとGoogle認証の状態を表示する。  メールログインの対象として表示・変更するメールアドレスは、Primaryの1件だけとする。  過去から残るsecondary EmailAddressや確認途中のEmailAddressがClerk上にあっても、別のログイン対象行としては表示せず、Primary変更に無関係なresourceを推測削除しない。
-メールアドレスは省略せず表示する。
+アカウント設定では、確認コードの送信先と本人再確認factorを含め、current UserのEmailAddress resourceから所有を確認できるメールアドレスを省略せず表示する。  Clerkの`safeIdentifier`がマスキング済みでも、メールアドレスの表示には使用しない。
 Clerk内部のprimary・secondaryという用語は製品UIに出さない。
 Googleのみの状態ではメールログイン方法を未設定として扱い、EmailAddress resourceが存在してもメールアドレス欄は「未設定」と表示する。  「設定する」から既存のメールアドレス・パスワード設定モーダルを開く。
 
@@ -77,6 +77,7 @@ resourceを安全に判定できない場合は、アカウント設定内の局
 | Googleとメール・パスワードの両方 | Primaryメールアドレスの変更、Google認証の解除 |
 
 Primaryメールアドレスの変更はメール・パスワードのみ、またはGoogleとメール・パスワードの両方の状態で利用できる。
+ただし、現在のPrimary EmailAddressがGoogle Connected Accountへ`oauth_google`でlinkedしている場合は変更モーダルを開かず、先にGoogle連携を解除するよう赤いSnackbarで案内する。  Google解除後のreloadでlinkがなくなれば、通常のメールアドレス変更を開始できる。
 変更先が未確認であれば`email_code`で所有を確認し、確認済みになったEmailAddressをPrimaryへ切り替える。
 確認コード入力モーダルには、直前に入力した変更先メールアドレスを省略せず表示する。
 メールアドレスに関係する変更でClerkが本人再確認を要求した場合は、メール確認（`email_code`）を必須とし、方式選択を表示せず確認コード入力へ進める。
@@ -97,11 +98,14 @@ Google認証を保持したまま、Googleとメール・パスワードの両�
 
 メール・パスワードのみの利用者がGoogle認証を追加するときは、ログイン中のcurrent Userへ`createExternalAccount`を実行する。
 追加モーダルの本文には右寄せの「Googleアカウントを選ぶ」だけを表示し、補助見出しや説明文を重ねない。
+「Googleアカウントを選ぶ」押下後にClerkが本人再確認を要求した場合は、方式選択を表示せず現在のパスワード入力へ進める。  パスワード方式を利用できない場合は、メール確認へフォールバックせず操作を中止する。
 OAuth開始処理中と帰還後の状態確認中は、同じ右寄せボタン領域をスケルトンで表示する。
 OAuth帰還後に同じClerk Userと、そこへ属する確認済みGoogle ExternalAccountを再取得してから完了とする。
 別のClerk Userへ接続済みのGoogleアカウントは自動統合せず、既存のメール・パスワードを維持してエラーを表示する。
 
-Google追加の失敗後に`failed`または`unverified`のGoogle ExternalAccountが一件だけ残った場合は、「Googleを再接続」から同じ追加フローを明示的に再試行できる。  再試行時はcurrent User、Primaryメールアドレス、パスワードと確認済みEmailAddressを再取得し、対象がそのUserに属する一件だけの未完了resourceであることを確認してから破棄する。破棄後のreloadで不在を確認できた場合だけ、新しい`select_account`付きOAuthとexact resourceの相関を開始する。  確認済みGoogle、複数resource、未知のverification statusは推測削除せず、新しいOAuthも開始しない。
+Google追加の失敗またはキャンセルが確定した場合は、今回のOAuth開始時に保存した相関情報からexact ExternalAccountを特定する。  current User、Primaryメールアドレス、パスワードと確認済みEmailAddressが操作開始時と一致し、`failed`、`unverified`、`expired`のGoogle ExternalAccountが一件だけ残っている場合に限り、その未完了resourceを自動で破棄する。破棄後のreloadで不在を確認できた場合は、失敗理由と「Googleアカウントを選ぶ」を同じモーダルに表示して再試行可能にする。
+
+相関情報がない過去の未完了resourceは、画面表示だけを契機に自動削除しない。  メール・パスワードの退避方法を再確認できる一件だけの`failed`、`unverified`、`expired`であれば、「Googleを再接続」から明示的に整理して同じ追加フローを再試行できる。  確認済みGoogle、複数resource、`transferable`を含む未知のverification statusは推測削除せず、新しいOAuthも開始しない。
 
 Google認証の解除ボタンは、連携済みGoogle ExternalAccountに表示する。
 操作直前のreloadで有効なパスワードと確認済みEmailAddressが残る場合だけ解除を許可し、Googleのみの状態では解除しない。
@@ -168,7 +172,7 @@ ClerkのEmailAddress: 1件または複数件
 - Clerk `User.update()`：確認済みEmailAddressへのPrimary切替
 - Clerk `User.updatePassword()`：Googleのみの利用者による初回パスワード設定
 - Clerk `User.createExternalAccount()`：current UserへのGoogle認証追加
-- Clerk `ExternalAccount.destroy()`：メール・パスワードを退避方法として確認した後のGoogle認証解除と、明示的な再試行で安全性を再確認した未完了Google resourceの整理
+- Clerk `ExternalAccount.destroy()`：メール・パスワードを退避方法として確認した後のGoogle認証解除と、相関済みの失敗後または明示的な再試行で安全性を再確認した未完了Google resourceの整理
 - Clerk `useReverification()`：sensitiveな本人操作の追加確認
 - `api.organizationInvitation.acceptanceActions.accept`：管理者招待の新しい受諾入口
 - `api.accountEmail.actions.syncMyPrimaryEmail`：旧clientを変更なしで停止させる互換stub

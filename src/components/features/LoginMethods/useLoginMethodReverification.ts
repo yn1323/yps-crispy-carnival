@@ -142,7 +142,7 @@ export function useLoginMethodReverification({
         return;
       }
 
-      const factors = buildSupportedFactors(resource, stage);
+      const factors = buildSupportedFactors(resource, stage, request.session.user);
       if (factors.length === 0) {
         failClosed(request, UNAVAILABLE_MESSAGE);
         return;
@@ -564,6 +564,7 @@ function isIncorrectPasswordError(error: unknown) {
 function buildSupportedFactors(
   resource: SessionVerificationResource,
   stage: LoginMethodReverificationStage,
+  user: SignedInSessionResource["user"],
 ): InternalFactor[] {
   if (stage === "first") {
     return (resource.supportedFirstFactors ?? []).flatMap((factor, index): InternalFactor[] => {
@@ -581,10 +582,15 @@ function buildSupportedFactors(
             stage: "first",
             strategy: factor.strategy,
             input: factor.strategy === "password" ? "password" : "code",
-            safeIdentifier: formatReverificationIdentifier(
-              factor.strategy,
-              "safeIdentifier" in factor && typeof factor.safeIdentifier === "string" ? factor.safeIdentifier : null,
-            ),
+            displayIdentifier:
+              factor.strategy === "email_code"
+                ? resolveOwnedEmailAddress(user, factor.emailAddressId)
+                : formatReverificationIdentifier(
+                    factor.strategy,
+                    "safeIdentifier" in factor && typeof factor.safeIdentifier === "string"
+                      ? factor.safeIdentifier
+                      : null,
+                  ),
             canResend: factor.strategy === "email_code" || factor.strategy === "phone_code",
           },
         },
@@ -603,7 +609,7 @@ function buildSupportedFactors(
           stage: "second",
           strategy: factor.strategy,
           input: "code",
-          safeIdentifier: formatReverificationIdentifier(
+          displayIdentifier: formatReverificationIdentifier(
             factor.strategy,
             "safeIdentifier" in factor && typeof factor.safeIdentifier === "string" ? factor.safeIdentifier : null,
           ),
@@ -614,12 +620,15 @@ function buildSupportedFactors(
   });
 }
 
+function resolveOwnedEmailAddress(user: SignedInSessionResource["user"], emailAddressId: string): string | null {
+  return user.emailAddresses.find((emailAddress) => emailAddress.id === emailAddressId)?.emailAddress ?? null;
+}
+
 function formatReverificationIdentifier(
   strategy: LoginMethodReverificationFactor["strategy"],
   safeIdentifier: string | null | undefined,
 ): string | null {
   if (!safeIdentifier) return null;
-  if (strategy === "email_code") return safeIdentifier;
   if (strategy !== "phone_code") return null;
 
   const digits = safeIdentifier.replaceAll(/\D/g, "");

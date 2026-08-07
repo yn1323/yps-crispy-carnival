@@ -163,7 +163,7 @@ function FactorInput({
 }
 
 function factorLabel(factor: LoginMethodReverificationFactor) {
-  const destination = factor.safeIdentifier ? `（${factor.safeIdentifier}）` : "";
+  const destination = factor.displayIdentifier ? `（${factor.displayIdentifier}）` : "";
   switch (factor.strategy) {
     case "password":
       return "現在のパスワード";
@@ -191,7 +191,7 @@ function factorDescription(factor: LoginMethodReverificationFactor) {
   if (factor.strategy === "password") return "続行するには、現在のパスワードで本人確認してください。";
   if (factor.strategy === "totp") return "認証アプリに表示されているコードを入力してください。";
   if (factor.strategy === "backup_code") return "保存している未使用のバックアップコードを入力してください。";
-  return factor.safeIdentifier
-    ? `${factor.safeIdentifier}に届いた確認コードを入力してください。`
+  return factor.displayIdentifier
+    ? `${factor.displayIdentifier}に届いた確認コードを入力してください。`
     : "届いた確認コードを入力してください。";
 }

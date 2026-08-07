@@ -1,6 +1,6 @@
 import { useReverification } from "@clerk/react";
 import { isReverificationCancelledError } from "@clerk/react/errors";
-import type { UserResource } from "@clerk/shared/types";
+import type { EmailAddressResource, UserResource } from "@clerk/shared/types";
 import { useMemo, useState } from "react";
 import { normalizeEmail, requiredEmailSchema } from "@/convex/_lib/validation";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
@@ -30,6 +30,8 @@ const LOGIN_EMAIL_CHANGE_REVERIFICATION_OPTIONS: LoginMethodOperationOptions = {
 const GOOGLE_DISCONNECT_REVERIFICATION_OPTIONS: LoginMethodOperationOptions = {
   preferredFirstFactorStrategy: "password",
 };
+const GOOGLE_LINKED_EMAIL_CHANGE_MESSAGE =
+  "このメールアドレスはGoogleログインと連携されています。先にGoogle連携を解除してから、メールアドレスを変更してください。";
 const GOOGLE_DISCONNECT_EMAIL_REQUIRED_MESSAGE =
   "メールアドレス未設定時はGoogle認証を解除できません。先にメールアドレスとパスワードを設定してください。";
 
@@ -137,6 +139,13 @@ export function useLoginMethodsController({
     showSuccessToast({
       title: "メインのメールアドレスを変更しました",
     });
+  };
+  const rejectGoogleLinkedPrimaryEmailChange = (emailAddress: EmailAddressResource | null | undefined) => {
+    if (!isGoogleLinkedLoginEmail(emailAddress)) return false;
+    setEmailChangeDialog({ isOpen: false });
+    setEmailPasswordState(IDLE_STATE);
+    showErrorToast(new Error(GOOGLE_LINKED_EMAIL_CHANGE_MESSAGE));
+    return true;
   };
 
   const { run: reload } = useSingleFlight(async () => {
@@ -355,6 +364,7 @@ export function useLoginMethodsController({
             setEmailPasswordState(cardError("現在のメインメールアドレスを確認できません。"));
             return false;
           }
+          if (rejectGoogleLinkedPrimaryEmailChange(currentPrimary)) return false;
           baseline = primaryChangeBaseline(currentUser, currentPrimary.id);
           targetEmail = normalizeEmail(parsed.data);
           if (normalizeEmail(currentPrimary.emailAddress) === targetEmail) {
@@ -418,6 +428,7 @@ export function useLoginMethodsController({
             );
             return false;
           }
+          if (rejectGoogleLinkedPrimaryEmailChange(currentPrimary)) return false;
           baseline = primaryChangeBaseline(currentUser, currentPrimary.id);
           targetId = target.id;
           targetEmail = normalizeEmail(target.emailAddress);
@@ -514,6 +525,8 @@ export function useLoginMethodsController({
         setEmailPasswordState(cardError("メインのメールアドレスを変更できません。最新の状態を読み込んでください。"));
         return;
       }
+      const primaryEmailResource = user ? findLoginEmailAddress(user, primaryEmail.id) : undefined;
+      if (rejectGoogleLinkedPrimaryEmailChange(primaryEmailResource)) return;
       setEmailPasswordState(IDLE_STATE);
       setEmailChangeDialog({
         isOpen: true,
@@ -551,6 +564,10 @@ export function useLoginMethodsController({
 function resolveLoginEmailChangeDialogEmailAddress(user: UserResource, dialog: LoginEmailChangeDialogState) {
   if (!dialog.isOpen || !dialog.targetEmailAddressId) return undefined;
   return findLoginEmailAddress(user, dialog.targetEmailAddressId);
+}
+
+function isGoogleLinkedLoginEmail(emailAddress: EmailAddressResource | null | undefined) {
+  return emailAddress?.linkedTo.some((link) => link.type === "oauth_google") ?? false;
 }
 
 function primaryChangeBaseline(user: UserResource, previousPrimaryEmailAddressId: string): PrimaryChangeBaseline {
