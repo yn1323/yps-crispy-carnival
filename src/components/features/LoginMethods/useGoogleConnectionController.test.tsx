@@ -134,7 +134,7 @@ describe("Google接続controller", () => {
 
     expect(user.createExternalAccount).toHaveBeenCalledWith({
       strategy: "oauth_google",
-      redirectUrl: "/account/security?flow=connect-google&oauth=google",
+      redirectUrl: "/account?flow=connect-google&oauth=google",
       oidcPrompt: "select_account",
     });
     expect(navigate).toHaveBeenCalledWith("https://accounts.example.test/authorize");
@@ -230,7 +230,7 @@ describe("Google接続controller", () => {
     expect(unrelatedAccount.destroy).not.toHaveBeenCalled();
     expect(user.createExternalAccount).toHaveBeenCalledWith({
       strategy: "oauth_google",
-      redirectUrl: "/account/security?flow=connect-google&oauth=google",
+      redirectUrl: "/account?flow=connect-google&oauth=google",
       oidcPrompt: "select_account",
     });
     expect(navigate).toHaveBeenCalledWith("https://accounts.example.test/fresh-authorize");

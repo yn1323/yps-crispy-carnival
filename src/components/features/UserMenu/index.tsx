@@ -86,9 +86,9 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
             </Box>
             <Menu.Separator />
             <Menu.Item asChild value="login-settings" cursor="pointer">
-              <RouterLink to="/account/security">
+              <RouterLink to="/account">
                 <LuShieldCheck aria-hidden />
-                ログイン設定
+                アカウント設定
               </RouterLink>
             </Menu.Item>
             {showGroupSettings && (

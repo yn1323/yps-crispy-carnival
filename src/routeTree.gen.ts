@@ -27,6 +27,7 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as AuthAccountRouteImport } from './routes/_auth/account'
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
 import { Route as AuthSettingsRouteImport } from './routes/_auth/settings'
 import { Route as ArticlesIndexRouteImport } from './routes/articles.index'
@@ -37,7 +38,6 @@ import { Route as PrivacyManagerRouteImport } from './routes/privacy_.manager'
 import { Route as PrivacyStaffRouteImport } from './routes/privacy_.staff'
 import { Route as TermsManagerRouteImport } from './routes/terms_.manager'
 import { Route as TermsStaffRouteImport } from './routes/terms_.staff'
-import { Route as AuthAccountSecurityRouteImport } from './routes/_auth/account.security'
 import { Route as AuthShiftboardRecruitmentIdRouteImport } from './routes/_auth/shiftboard.$recruitmentId'
 import { Route as AuthShopsShopIdRouteImport } from './routes/_auth/shops.$shopId'
 import { Route as AuthUsersPersonIdRouteImport } from './routes/_auth/users.$personId'
@@ -139,6 +139,11 @@ const TermsRoute = TermsRouteImport.update({
   path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthAccountRoute = AuthAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthDashboardRoute = AuthDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -188,11 +193,6 @@ const TermsStaffRoute = TermsStaffRouteImport.update({
   id: '/terms_/staff',
   path: '/terms/staff',
   getParentRoute: () => rootRouteImport,
-} as any)
-const AuthAccountSecurityRoute = AuthAccountSecurityRouteImport.update({
-  id: '/account/security',
-  path: '/account/security',
-  getParentRoute: () => AuthRoute,
 } as any)
 const AuthShiftboardRecruitmentIdRoute =
   AuthShiftboardRecruitmentIdRouteImport.update({
@@ -281,6 +281,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/sso-callback': typeof SsoCallbackRoute
   '/terms': typeof TermsRoute
+  '/account': typeof AuthAccountRoute
   '/dashboard': typeof AuthDashboardRoute
   '/settings': typeof AuthSettingsRoute
   '/articles/$slug': typeof ArticlesSlugRoute
@@ -291,7 +292,6 @@ export interface FileRoutesByFullPath {
   '/terms/manager': typeof TermsManagerRoute
   '/terms/staff': typeof TermsStaffRoute
   '/articles/': typeof ArticlesIndexRoute
-  '/account/security': typeof AuthAccountSecurityRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/shops/$shopId': typeof AuthShopsShopIdRoute
   '/users/$personId': typeof AuthUsersPersonIdRoute
@@ -321,6 +321,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/sso-callback': typeof SsoCallbackRoute
   '/terms': typeof TermsRoute
+  '/account': typeof AuthAccountRoute
   '/dashboard': typeof AuthDashboardRoute
   '/settings': typeof AuthSettingsRoute
   '/articles/$slug': typeof ArticlesSlugRoute
@@ -331,7 +332,6 @@ export interface FileRoutesByTo {
   '/terms/manager': typeof TermsManagerRoute
   '/terms/staff': typeof TermsStaffRoute
   '/articles': typeof ArticlesIndexRoute
-  '/account/security': typeof AuthAccountSecurityRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/shops/$shopId': typeof AuthShopsShopIdRoute
   '/users/$personId': typeof AuthUsersPersonIdRoute
@@ -365,6 +365,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/sso-callback': typeof SsoCallbackRoute
   '/terms': typeof TermsRoute
+  '/_auth/account': typeof AuthAccountRoute
   '/_auth/dashboard': typeof AuthDashboardRoute
   '/_auth/settings': typeof AuthSettingsRoute
   '/articles/$slug': typeof ArticlesSlugRoute
@@ -375,7 +376,6 @@ export interface FileRoutesById {
   '/terms_/manager': typeof TermsManagerRoute
   '/terms_/staff': typeof TermsStaffRoute
   '/articles/': typeof ArticlesIndexRoute
-  '/_auth/account/security': typeof AuthAccountSecurityRoute
   '/_auth/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/_auth/shops/$shopId': typeof AuthShopsShopIdRoute
   '/_auth/users/$personId': typeof AuthUsersPersonIdRoute
@@ -408,6 +408,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/sso-callback'
     | '/terms'
+    | '/account'
     | '/dashboard'
     | '/settings'
     | '/articles/$slug'
@@ -418,7 +419,6 @@ export interface FileRouteTypes {
     | '/terms/manager'
     | '/terms/staff'
     | '/articles/'
-    | '/account/security'
     | '/shiftboard/$recruitmentId'
     | '/shops/$shopId'
     | '/users/$personId'
@@ -448,6 +448,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/sso-callback'
     | '/terms'
+    | '/account'
     | '/dashboard'
     | '/settings'
     | '/articles/$slug'
@@ -458,7 +459,6 @@ export interface FileRouteTypes {
     | '/terms/manager'
     | '/terms/staff'
     | '/articles'
-    | '/account/security'
     | '/shiftboard/$recruitmentId'
     | '/shops/$shopId'
     | '/users/$personId'
@@ -491,6 +491,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/sso-callback'
     | '/terms'
+    | '/_auth/account'
     | '/_auth/dashboard'
     | '/_auth/settings'
     | '/articles/$slug'
@@ -501,7 +502,6 @@ export interface FileRouteTypes {
     | '/terms_/manager'
     | '/terms_/staff'
     | '/articles/'
-    | '/_auth/account/security'
     | '/_auth/shiftboard/$recruitmentId'
     | '/_auth/shops/$shopId'
     | '/_auth/users/$personId'
@@ -671,6 +671,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_auth/account': {
+      id: '/_auth/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AuthAccountRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/dashboard': {
       id: '/_auth/dashboard'
       path: '/dashboard'
@@ -740,13 +747,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/terms/staff'
       preLoaderRoute: typeof TermsStaffRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/_auth/account/security': {
-      id: '/_auth/account/security'
-      path: '/account/security'
-      fullPath: '/account/security'
-      preLoaderRoute: typeof AuthAccountSecurityRouteImport
-      parentRoute: typeof AuthRoute
     }
     '/_auth/shiftboard/$recruitmentId': {
       id: '/_auth/shiftboard/$recruitmentId'
@@ -836,9 +836,9 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthRouteChildren {
+  AuthAccountRoute: typeof AuthAccountRoute
   AuthDashboardRoute: typeof AuthDashboardRoute
   AuthSettingsRoute: typeof AuthSettingsRoute
-  AuthAccountSecurityRoute: typeof AuthAccountSecurityRoute
   AuthShiftboardRecruitmentIdRoute: typeof AuthShiftboardRecruitmentIdRoute
   AuthShopsShopIdRoute: typeof AuthShopsShopIdRoute
   AuthUsersPersonIdRoute: typeof AuthUsersPersonIdRoute
@@ -846,9 +846,9 @@ interface AuthRouteChildren {
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
+  AuthAccountRoute: AuthAccountRoute,
   AuthDashboardRoute: AuthDashboardRoute,
   AuthSettingsRoute: AuthSettingsRoute,
-  AuthAccountSecurityRoute: AuthAccountSecurityRoute,
   AuthShiftboardRecruitmentIdRoute: AuthShiftboardRecruitmentIdRoute,
   AuthShopsShopIdRoute: AuthShopsShopIdRoute,
   AuthUsersPersonIdRoute: AuthUsersPersonIdRoute,

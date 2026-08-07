@@ -18,7 +18,7 @@ describe("retired account email mutations", () => {
       t
         .withIdentity({ subject: "retired_account_email" })
         .mutation(api.accountEmail.mutations.preflight, { email: "after@example.com" }),
-    ).rejects.toThrow("画面を再読み込みし、右上の「ログイン設定」をご利用ください");
+    ).rejects.toThrow("画面を再読み込みし、右上の「アカウント設定」をご利用ください");
   });
 
   it("preflight通過済みの旧clientでもusers・person・staffを変更しない", async () => {

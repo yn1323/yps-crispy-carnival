@@ -8,7 +8,7 @@ export type AccountSecuritySearch = {
   oauth?: "google";
 };
 
-export const Route = createFileRoute("/_auth/account/security")({
+export const Route = createFileRoute("/_auth/account")({
   validateSearch: validateAccountSecuritySearch,
   head: buildAccountSecurityPageHead,
   component: AccountSecurityRoute,

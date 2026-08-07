@@ -81,7 +81,7 @@ export const UserWithoutShopDeletionEntry: Story = {
       "href",
       "/settings?shop=shop-a",
     );
-    await expect(screen.getByRole("menuitem", { name: "ログイン設定" })).toHaveAttribute("href", "/account/security");
+    await expect(screen.getByRole("menuitem", { name: "アカウント設定" })).toHaveAttribute("href", "/account");
     await screen.findByRole("menuitem", { name: "ログアウト" });
     await expect(screen.queryByText("login@example.com")).toBeNull();
     await expect(screen.queryByText("tanaka@example.com")).toBeNull();

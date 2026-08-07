@@ -1,8 +1,8 @@
-# 認証画面とログイン設定
+# 認証画面とアカウント設定
 
 ## 機能説明
 
-管理ユーザー向けのログイン、新規登録、パスワード再設定と、認証済み利用者向けのログイン設定をシフトリ独自UIで提供する。  認証基盤はClerkを正本とし、Google認証とメールアドレス・パスワード認証を扱う。
+管理ユーザー向けのログイン、新規登録、パスワード再設定と、認証済み利用者向けのアカウント設定をシフトリ独自UIで提供する。  認証基盤はClerkを正本とし、Google認証とメールアドレス・パスワード認証を扱う。
 
 Clerk UserのEmailAddress、パスワード、ExternalAccountは「シフトリへ入る方法」であり、グループ単位のシフト連絡先とは独立している。  ログイン方法を変更しても`organizationPeople.email`、`staffs.email`、`organizations.billingEmail`は変更しない。シフト連絡先を変更してもClerkのログイン方法は変更しない。
 
@@ -14,14 +14,14 @@ Clerk UserのEmailAddress、パスワード、ExternalAccountは「シフトリ�
 - `src/routes/signup.tsx`
 - `src/routes/forgot-password.tsx`
 - `src/routes/sso-callback.tsx`
-- `src/routes/_auth/account.security.tsx`
+- `src/routes/_auth/account.tsx`
 - `src/pages/auth/`：公開認証ページの組み立てとmetadata
-- `src/pages/account-security/`：本人専用のログイン設定ページ
+- `src/pages/account-security/`：本人専用のアカウント設定ページ
 - `src/components/features/AuthPage/`：ログイン、新規登録、パスワード再設定、Google OAuth、Client Trust本人確認
 - `src/components/features/LoginMethods/`：Clerk resourceからの3状態導出、Googleとメール・パスワードの表示、安全な追加・変更・解除
 - `src/components/features/ManagerInvitationAcceptance/`：管理者招待の受諾と、必要な場合の招待先メール所有確認
 - `src/components/features/AuthenticatedApp/AuthGuard.tsx`：認証、削除済みアカウント、店舗context要否の境界
-- `src/components/features/UserMenu/index.tsx`：全認証済み利用者が使える「ログイン設定」への導線
+- `src/components/features/UserMenu/index.tsx`：全認証済み利用者が使える「アカウント設定」への導線
 - `convex/organizationInvitation/acceptanceActions.ts`：Clerk verified EmailAddressをserver-sideで確認する管理者招待受諾action
 - `convex/_lib/clerkVerifiedEmailProvider.ts`：Clerk instanceとverified EmailAddress一覧の検証境界
 - `convex/accountEmail/`：旧clientを安全側へ停止させるrolling release互換stub
@@ -47,9 +47,9 @@ LINEアプリ内ブラウザではGoogle OAuthがprovider側で拒否される�
 
 信頼済み端末の状態はシフトリのDBやlocalStorageへ保存せず、Clerkの判定を正とする。  Cookie削除、シークレットブラウザ、別ブラウザ、信頼期間の終了などでClerkが新しい端末相当と判断した場合は、同じ端末でも本人確認を再度要求する。
 
-## ログイン設定
+## アカウント設定
 
-認証済み利用者は、ヘッダー右上のユーザーメニューから`/account/security`を開く。  メニュー名とページ見出しは「ログイン設定」とする。  ヘッダーにClerk primary emailは表示しない。
+認証済み利用者は、ヘッダー右上のユーザーメニューから`/account`を開く。  メニュー名とページ見出しは「アカウント設定」とする。  ヘッダーにClerk primary emailは表示しない。
 
 このページはグループや店舗に依存しない本人専用画面である。  `?shop=`を引き継がず、店舗一覧取得、selected shop解決、無効店舗による全体blockを行わない。認証、削除済みアカウント判定などの共通契約だけを維持する。
 
@@ -61,7 +61,7 @@ Googleのみの状態ではメールログイン方法を未設定として扱�
 ページ見出しの直下には、Google認証の連携状態にかかわらず「Google認証、メールアドレス両方でログインできます。」と表示する。
 初回読み込み中はメールアドレス行とGoogle認証行の構造をスケルトンで表示し、読み込み専用のメッセージやspinnerは表示しない。
 
-resourceを安全に判定できない場合は、ログイン設定内の局所errorとして表示する。
+resourceを安全に判定できない場合は、アカウント設定内の局所errorとして表示する。
 変更操作のエラーは対象モーダル内に表示し、背面のログイン方法一覧へ同じエラーを重複表示しない。
 一つの操作の失敗で認証後アプリ全体を止めない。
 
@@ -92,7 +92,7 @@ Googleのみの利用者は、既存の確認済みEmailAddressまたは新た�
 `User.updatePassword()`には常に`signOutOfOtherSessions: false`を渡し、ほかの端末のsessionを維持する。
 Google認証を保持したまま、Googleとメール・パスワードの両方を使える状態へ移る。
 
-既存パスワードを直接変更する操作はログイン設定に置かない。  パスワードを忘れた場合や変更したい場合は、ログイン画面のメールによるパスワード再設定を利用する。
+既存パスワードを直接変更する操作はアカウント設定に置かない。  パスワードを忘れた場合や変更したい場合は、ログイン画面のメールによるパスワード再設定を利用する。
 
 メール・パスワードのみの利用者がGoogle認証を追加するときは、ログイン中のcurrent Userへ`createExternalAccount`を実行する。
 追加モーダルの本文には右寄せの「Googleアカウントを選ぶ」だけを表示し、補助見出しや説明文を重ねない。
@@ -119,7 +119,7 @@ Clerkの本人再確認要求でlevelが省略された場合はfirst factorを�
 EmailAddress IDやExternalAccount IDはcurrent Userへの所属を確認してから使い、OAuth開始時と帰還時のClerk `user.id`が一致しなければ完了扱いにしない。
 メールアドレス、Clerk User ID、resource ID、確認コード、tokenをURLやログへ含めない。
 
-Google account linkingのOAuth帰還先は`/account/security`専用とし、サインイン・サインアップ完了用の`/sso-callback`と混同しない。
+Google account linkingのOAuth帰還先は`/account`専用とし、サインイン・サインアップ完了用の`/sso-callback`と混同しない。
 操作完了はSnackbarで通知し、確認コード送信後の案内は通常の説明文で表示する。
 
 ## 管理者招待のメール所有確認
@@ -153,7 +153,7 @@ ClerkのEmailAddress: 1件または複数件
 - `/signup`：新規登録
 - `/forgot-password`：パスワード再設定
 - `/sso-callback`：サインイン・サインアップ用Google OAuth callback
-- `/account/security`：店舗非依存の本人用ログイン設定
+- `/account`：店舗非依存の本人用アカウント設定
 - `/manager-invite`：管理者招待の確認、受諾、必要なメール所有確認
 
 ## 主なAPI
