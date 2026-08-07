@@ -505,7 +505,7 @@ const emailFactor: LoginMethodReverificationFactor = {
   strategy: "email_code",
   stage: "first",
   input: "code",
-  safeIdentifier: "lo***@example.com",
+  safeIdentifier: "login@example.com",
   canResend: true,
 };
 

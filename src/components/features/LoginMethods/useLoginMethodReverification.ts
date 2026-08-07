@@ -7,7 +7,6 @@ import type {
   SignedInSessionResource,
 } from "@clerk/react/types";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { maskEmailAddress } from "@/src/components/features/AuthPage/loginVerification";
 import { createLoginMethodOperationCooldown, type LoginMethodOperationCooldown } from "./operationCooldown";
 import {
   IDLE_LOGIN_METHOD_REVERIFICATION_STATE,
@@ -582,7 +581,7 @@ function buildSupportedFactors(
             stage: "first",
             strategy: factor.strategy,
             input: factor.strategy === "password" ? "password" : "code",
-            safeIdentifier: maskReverificationIdentifier(
+            safeIdentifier: formatReverificationIdentifier(
               factor.strategy,
               "safeIdentifier" in factor && typeof factor.safeIdentifier === "string" ? factor.safeIdentifier : null,
             ),
@@ -604,7 +603,7 @@ function buildSupportedFactors(
           stage: "second",
           strategy: factor.strategy,
           input: "code",
-          safeIdentifier: maskReverificationIdentifier(
+          safeIdentifier: formatReverificationIdentifier(
             factor.strategy,
             "safeIdentifier" in factor && typeof factor.safeIdentifier === "string" ? factor.safeIdentifier : null,
           ),
@@ -615,12 +614,12 @@ function buildSupportedFactors(
   });
 }
 
-function maskReverificationIdentifier(
+function formatReverificationIdentifier(
   strategy: LoginMethodReverificationFactor["strategy"],
   safeIdentifier: string | null | undefined,
 ): string | null {
   if (!safeIdentifier) return null;
-  if (strategy === "email_code") return maskEmailAddress(safeIdentifier);
+  if (strategy === "email_code") return safeIdentifier;
   if (strategy !== "phone_code") return null;
 
   const digits = safeIdentifier.replaceAll(/\D/g, "");

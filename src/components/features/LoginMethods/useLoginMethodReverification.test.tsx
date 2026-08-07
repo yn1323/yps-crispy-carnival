@@ -183,7 +183,7 @@ describe("useLoginMethodReverification", () => {
 
     act(() => result.current.onNeedsReverification({ level: "first_factor", complete, cancel: vi.fn() }));
     await waitFor(() => expect(result.current.state.status).toBe("selecting_factor"));
-    expect(result.current.state.factors[0]?.safeIdentifier).toBe("ac***@example.com");
+    expect(result.current.state.factors[0]?.safeIdentifier).toBe("account@example.com");
 
     await act(async () => result.current.selectFactor("first-0"));
     expect(session.prepareFirstFactorVerification).toHaveBeenCalledWith({

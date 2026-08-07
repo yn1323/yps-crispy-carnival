@@ -14,7 +14,7 @@ const emailFactor = factor({
   key: "first-email",
   strategy: "email_code",
   input: "code",
-  safeIdentifier: "lo***@example.com",
+  safeIdentifier: "login@example.com",
   canResend: true,
 });
 const phoneFactor = factor({
@@ -151,10 +151,10 @@ export const SelectFactorBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await userEvent.click(await canvas.findByRole("button", { name: "メールで確認（lo***@example.com）" }));
+    await userEvent.click(await canvas.findByRole("button", { name: "メールで確認（login@example.com）" }));
 
     await expect(await canvas.findByRole("textbox", { name: "確認コード" })).toBeVisible();
-    await expect(await canvas.findByText("lo***@example.comに届いた確認コードを入力してください。")).toBeVisible();
+    await expect(await canvas.findByText("login@example.comに届いた確認コードを入力してください。")).toBeVisible();
   },
 };
 

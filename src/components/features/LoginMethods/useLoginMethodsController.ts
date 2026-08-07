@@ -115,12 +115,27 @@ export function useLoginMethodsController({
     await currentUser.update({ primaryEmailAddressId: target.id });
     return "updated" as const;
   }, reverificationOptions);
+  const destroyPreviousEmailWithReverification = useReverification(
+    async ({ targetEmailAddressId, baseline }: { targetEmailAddressId: string; baseline: PrimaryChangeBaseline }) => {
+      const currentUser = await reloadUser();
+      if (primaryChangeCompleted(currentUser, actorUserId, targetEmailAddressId, baseline)) {
+        return "alreadyRemoved" as const;
+      }
+      if (!primaryChangeReadyForCleanup(currentUser, actorUserId, targetEmailAddressId, baseline)) {
+        return "unavailable" as const;
+      }
+      const previousEmail = findLoginEmailAddress(currentUser, baseline.previousPrimaryEmailAddressId);
+      if (!previousEmail || previousEmail.id === currentUser.primaryEmailAddressId) return "unavailable" as const;
+      await previousEmail.destroy();
+      return "removed" as const;
+    },
+    reverificationOptions,
+  );
   const showEmailChangeSuccess = () => {
     setEmailChangeDialog({ isOpen: false });
     setEmailPasswordState(IDLE_STATE);
     showSuccessToast({
       title: "メインのメールアドレスを変更しました",
-      description: "以前のメールアドレスも登録されたままです。",
     });
   };
 
@@ -140,23 +155,45 @@ export function useLoginMethodsController({
     }
   });
 
-  const primaryChangeCompleted = (
+  const rollbackPrimaryEmailChange = async (
     currentUser: UserResource,
     targetEmailAddressId: string,
     baseline: PrimaryChangeBaseline,
-  ) => {
-    const target = findLoginEmailAddress(currentUser, targetEmailAddressId);
-    const previousEmailStillExists = currentUser.emailAddresses.some(
-      (emailAddress) => emailAddress.id === baseline.previousPrimaryEmailAddressId,
-    );
-    return (
-      currentUser.id === actorUserId &&
-      currentUser.primaryEmailAddressId === targetEmailAddressId &&
-      target?.verification?.status === "verified" &&
-      previousEmailStillExists &&
-      currentUser.passwordEnabled === baseline.passwordEnabled &&
-      haveSameStringValues(getGoogleExternalAccountStateKeys(currentUser), baseline.googleAccounts)
-    );
+  ): Promise<boolean> => {
+    await reloadUser();
+    if (primaryChangeRolledBack(currentUser, actorUserId, targetEmailAddressId, baseline)) return true;
+    if (!primaryChangeReadyForCleanup(currentUser, actorUserId, targetEmailAddressId, baseline)) return false;
+
+    const rolledBack = await updatePrimaryEmailWithReverification(baseline.previousPrimaryEmailAddressId);
+    if (rolledBack == null || rolledBack === "targetUnavailable") return false;
+    await reloadUser();
+    return primaryChangeRolledBack(currentUser, actorUserId, targetEmailAddressId, baseline);
+  };
+
+  const settlePreviousEmailRemovalFailure = async (
+    currentUser: UserResource,
+    targetEmailAddressId: string,
+    baseline: PrimaryChangeBaseline,
+  ): Promise<boolean> => {
+    try {
+      await reloadUser();
+      if (primaryChangeCompleted(currentUser, actorUserId, targetEmailAddressId, baseline)) {
+        showEmailChangeSuccess();
+        return true;
+      }
+
+      const rolledBack = await rollbackPrimaryEmailChange(currentUser, targetEmailAddressId, baseline);
+      setEmailPasswordState(
+        cardError(
+          rolledBack
+            ? "以前のログイン用メールアドレスを削除できなかったため、変更を完了していません。時間をおいてもう一度お試しください。"
+            : "メールアドレスの変更を完了できませんでした。最新の状態を読み込み、登録中のメールアドレスを確認してください。",
+        ),
+      );
+    } catch {
+      setEmailPasswordState(cardError("メールアドレスの変更を完了できませんでした。最新の状態を読み込んでください。"));
+    }
+    return false;
   };
 
   const completeLoginEmailChange = async (
@@ -170,10 +207,28 @@ export function useLoginMethodsController({
       return false;
     }
     if (currentUser.primaryEmailAddressId !== target.id) {
-      const updated = await updatePrimaryEmailWithReverification(target.id);
+      let updated: "updated" | "alreadyPrimary" | "targetUnavailable" | null | undefined;
+      try {
+        updated = await updatePrimaryEmailWithReverification(target.id);
+      } catch (error) {
+        await reloadUser();
+        if (
+          !primaryChangeReadyForCleanup(currentUser, actorUserId, target.id, baseline) &&
+          !primaryChangeCompleted(currentUser, actorUserId, target.id, baseline)
+        ) {
+          throw error;
+        }
+        updated = "alreadyPrimary";
+      }
       if (updated == null) {
-        setEmailPasswordState(IDLE_STATE);
-        return false;
+        await reloadUser();
+        if (
+          !primaryChangeReadyForCleanup(currentUser, actorUserId, target.id, baseline) &&
+          !primaryChangeCompleted(currentUser, actorUserId, target.id, baseline)
+        ) {
+          setEmailPasswordState(IDLE_STATE);
+          return false;
+        }
       }
       if (updated === "targetUnavailable") {
         setEmailPasswordState(
@@ -183,9 +238,30 @@ export function useLoginMethodsController({
       }
     }
     await reloadUser();
-    if (!primaryChangeCompleted(currentUser, target.id, baseline)) {
+    if (primaryChangeCompleted(currentUser, actorUserId, target.id, baseline)) {
+      showEmailChangeSuccess();
+      return true;
+    }
+    if (!primaryChangeReadyForCleanup(currentUser, actorUserId, target.id, baseline)) {
       setEmailPasswordState(cardError("変更結果を安全に確認できません。最新の状態を読み込んでください。"));
       return false;
+    }
+
+    try {
+      const removed = await destroyPreviousEmailWithReverification({
+        targetEmailAddressId: target.id,
+        baseline,
+      });
+      if (removed == null || removed === "unavailable") {
+        return await settlePreviousEmailRemovalFailure(currentUser, target.id, baseline);
+      }
+      await reloadUser();
+    } catch {
+      return await settlePreviousEmailRemovalFailure(currentUser, target.id, baseline);
+    }
+
+    if (!primaryChangeCompleted(currentUser, actorUserId, target.id, baseline)) {
+      return await settlePreviousEmailRemovalFailure(currentUser, target.id, baseline);
     }
     showEmailChangeSuccess();
     return true;
@@ -375,9 +451,20 @@ export function useLoginMethodsController({
           const currentUser = await reloadUser();
           const recoveredTarget = findLoginEmailAddress(currentUser, targetId, targetEmail ?? undefined);
           targetId ??= recoveredTarget?.id ?? null;
-          if (baseline && targetId && primaryChangeCompleted(currentUser, targetId, baseline)) {
+          if (baseline && targetId && primaryChangeCompleted(currentUser, actorUserId, targetId, baseline)) {
             showEmailChangeSuccess();
             return true;
+          }
+          if (baseline && targetId && primaryChangeReadyForCleanup(currentUser, actorUserId, targetId, baseline)) {
+            const rolledBack = await rollbackPrimaryEmailChange(currentUser, targetId, baseline);
+            setEmailPasswordState(
+              cardError(
+                rolledBack
+                  ? "変更処理を完了できなかったため、以前のメールアドレスをメインに戻しました。もう一度お試しください。"
+                  : "メールアドレスの変更を完了できませんでした。最新の状態を読み込んでください。",
+              ),
+            );
+            return false;
           }
           if (recoveredTarget) {
             const currentPrimary = findVerifiedPrimaryLoginEmailAddress(currentUser);
@@ -472,6 +559,62 @@ function primaryChangeBaseline(user: UserResource, previousPrimaryEmailAddressId
     passwordEnabled: user.passwordEnabled,
     googleAccounts: getGoogleExternalAccountStateKeys(user),
   };
+}
+
+function primaryChangeReadyForCleanup(
+  user: UserResource,
+  actorUserId: string | null,
+  targetEmailAddressId: string,
+  baseline: PrimaryChangeBaseline,
+) {
+  return (
+    primaryChangeBaseMatches(user, actorUserId, targetEmailAddressId, baseline) &&
+    user.primaryEmailAddressId === targetEmailAddressId &&
+    targetEmailAddressId !== baseline.previousPrimaryEmailAddressId &&
+    user.emailAddresses.some((emailAddress) => emailAddress.id === baseline.previousPrimaryEmailAddressId)
+  );
+}
+
+function primaryChangeCompleted(
+  user: UserResource,
+  actorUserId: string | null,
+  targetEmailAddressId: string,
+  baseline: PrimaryChangeBaseline,
+) {
+  return (
+    primaryChangeBaseMatches(user, actorUserId, targetEmailAddressId, baseline) &&
+    user.primaryEmailAddressId === targetEmailAddressId &&
+    !user.emailAddresses.some((emailAddress) => emailAddress.id === baseline.previousPrimaryEmailAddressId)
+  );
+}
+
+function primaryChangeRolledBack(
+  user: UserResource,
+  actorUserId: string | null,
+  targetEmailAddressId: string,
+  baseline: PrimaryChangeBaseline,
+) {
+  const previousEmail = findLoginEmailAddress(user, baseline.previousPrimaryEmailAddressId);
+  return (
+    primaryChangeBaseMatches(user, actorUserId, targetEmailAddressId, baseline) &&
+    user.primaryEmailAddressId === baseline.previousPrimaryEmailAddressId &&
+    previousEmail?.verification?.status === "verified"
+  );
+}
+
+function primaryChangeBaseMatches(
+  user: UserResource,
+  actorUserId: string | null,
+  targetEmailAddressId: string,
+  baseline: PrimaryChangeBaseline,
+) {
+  const target = findLoginEmailAddress(user, targetEmailAddressId);
+  return (
+    user.id === actorUserId &&
+    target?.verification?.status === "verified" &&
+    user.passwordEnabled === baseline.passwordEnabled &&
+    haveSameStringValues(getGoogleExternalAccountStateKeys(user), baseline.googleAccounts)
+  );
 }
 
 function googleDisconnectCompleted(user: UserResource, externalAccountId: string) {

@@ -100,7 +100,6 @@ function LoginMethodsPreview({
     setEmailChangeDialog({ isOpen: false });
     showSuccessToast({
       title: "メインのメールアドレスを変更しました",
-      description: "以前のメールアドレスも登録されたままです。",
     });
   };
 
@@ -406,6 +405,13 @@ async function primaryEmailChangeBehavior(
   await userEvent.click(canvas.getByRole("button", { name: "変更する" }));
   const inputDialog = within(await body.findByRole("dialog", { name: "メールアドレスを変更" }));
   await expect(inputDialog.queryByText(previousPrimaryEmail)).not.toBeInTheDocument();
+  await expect(
+    inputDialog.getByText(
+      (_, element) =>
+        element?.tagName === "P" &&
+        element.textContent?.includes("変更が完了すると、以前のログイン用メールアドレスは削除されます。") === true,
+    ),
+  ).toBeInTheDocument();
   await userEvent.type(inputDialog.getByRole("textbox", { name: "新しいメールアドレス" }), "new-login@example.com");
   await userEvent.click(inputDialog.getByRole("button", { name: "次へ" }));
 

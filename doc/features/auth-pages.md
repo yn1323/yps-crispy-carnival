@@ -53,7 +53,7 @@ LINEアプリ内ブラウザではGoogle OAuthがprovider側で拒否される�
 
 このページはグループや店舗に依存しない本人専用画面である。  `?shop=`を引き継がず、店舗一覧取得、selected shop解決、無効店舗による全体blockを行わない。認証、削除済みアカウント判定などの共通契約だけを維持する。
 
-画面はClerkのcurrent User resourceからメールアドレスとGoogle認証の状態を表示する。  メールログインの対象として表示・変更するメールアドレスは、Primaryの1件だけとする。  以前のEmailAddressや確認途中のEmailAddressをClerk上で保持していても、別のログイン対象行としては表示しない。
+画面はClerkのcurrent User resourceからメールアドレスとGoogle認証の状態を表示する。  メールログインの対象として表示・変更するメールアドレスは、Primaryの1件だけとする。  過去から残るsecondary EmailAddressや確認途中のEmailAddressがClerk上にあっても、別のログイン対象行としては表示せず、Primary変更に無関係なresourceを推測削除しない。
 メールアドレスは省略せず表示する。
 Clerk内部のprimary・secondaryという用語は製品UIに出さない。
 Googleのみの状態ではメールログイン方法を未設定として扱い、EmailAddress resourceが存在してもメールアドレス欄は「未設定」と表示する。  「設定する」から既存のメールアドレス・パスワード設定モーダルを開く。
@@ -81,7 +81,8 @@ Primaryメールアドレスの変更はメール・パスワードのみ、ま�
 確認コード入力モーダルには、直前に入力した変更先メールアドレスを省略せず表示する。
 メールアドレスに関係する変更でClerkが本人再確認を要求した場合は、メール確認（`email_code`）を必須とし、方式選択を表示せず確認コード入力へ進める。
 メール確認を利用できない場合は変更を中止する。
-以前のEmailAddress、Google ExternalAccount、パスワードは変更または削除しないため、メール・パスワードのみの利用者は変更後もGoogleなしの状態を維持する。
+変更先をPrimaryにした後、操作開始時のPrimary EmailAddressを同じcurrent UserからIDで解決し直して削除する。  reload後に変更先がPrimaryかつ確認済み、直前の旧EmailAddressが不在、Google ExternalAccountとパスワードが操作前と同じであることを確認できた場合だけ完了とする。
+旧EmailAddressの削除に失敗し、reload後も残っている場合は、可能な限り旧EmailAddressをPrimaryへ戻して成功を表示しない。  Primary変更前から存在したほかのsecondary EmailAddressは、この操作では削除しない。
 
 Googleのみの利用者は、既存の確認済みEmailAddressまたは新たに確認したEmailAddressへパスワードを設定できる。
 初回設定のメール入力欄には、現在の確認済みGoogle認証のメールアドレスを初期表示し、必要であれば別のメールアドレスへ変更できる。
@@ -108,10 +109,10 @@ Googleのみの状態で解除しようとした場合は、メールアドレ�
 解除確認後にClerkが本人再確認を要求した場合は、方式選択を表示せず現在のパスワード入力へ進める。
 パスワードが誤っている場合は同じ入力画面に留まり、そのモーダル内にエラーを表示する。
 本人再確認が完了してClerkが操作を再実行した場合だけ、対象ExternalAccountを解除する。
-EmailAddressの削除とパスワードの削除は提供しない。
+任意のEmailAddressを利用者が選んで削除する操作と、パスワードの削除は提供しない。  Primary変更の完了処理に限り、直前の旧Primary EmailAddressを自動削除する。
 別のGoogleアカウントへ切り替える場合は、メール・パスワードを保持した状態でGoogle解除とGoogle追加を別々に行い、専用のGoogle置換フローは設けない。
 
-変更操作はsingle-flightにし、操作直前と応答喪失後に`user.reload()`で最新状態を確認する。  確認コード送信とGoogle OAuth開始は、同じtab内でactorと操作単位に30秒の絶対期限を保持し、画面遷移やOAuth往復の直後も同じ操作を連続送信しない。  Google OAuthの待機中は、未完了Googleの破棄を含む再接続を開始しない。  このclient側の待機は補助であり、tabをまたぐ頻度制御はClerk serverを正本とする。
+変更操作はsingle-flightにし、操作直前と応答喪失後に`user.reload()`で最新状態を確認する。  Primary切替と直前の旧EmailAddress削除は、それぞれClerkの本人再確認対象として扱う。  確認コード送信とGoogle OAuth開始は、同じtab内でactorと操作単位に30秒の絶対期限を保持し、画面遷移やOAuth往復の直後も同じ操作を連続送信しない。  Google OAuthの待機中は、未完了Googleの破棄を含む再接続を開始しない。  このclient側の待機は補助であり、tabをまたぐ頻度制御はClerk serverを正本とする。
 Clerkの本人再確認要求でlevelが省略された場合はfirst factorを開始し、`SessionVerification`の完了後に元のClerk APIを再実行する。
 本人確認の開始、送信、完了待ちでは、次に表示する入力フォームと同じ構造のスケルトンを表示する。
 「最終ログイン方法を確認しています」「本人確認方法を確認しています」などの中間モーダルや単独spinnerは表示しない。

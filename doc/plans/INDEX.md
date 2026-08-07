@@ -125,7 +125,7 @@ Historyの本文には、現在と異なる名称、パス、状態、上限、�
 | 計画 | 分類根拠 | 現在の正本 |
 |---|---|---|
 | [teal低階調token用途制限](2026-08-06_teal低階調token用途制限_実装計画.md) | 初期の全面廃止方針を改訂し、低階調tealを背景fillとスタッフ・店舗drilldown list cardのhover限定例外へ制限。その他の操作面、境界、focus、foregroundの禁止を維持し、VRTは利用者確認へ引き渡す | [UI設計方針](../rules/ui-design.md)、[ルートAgent指示](../../AGENTS.md) |
-| [管理者メールアドレス変更とClerk同期](2026-08-03_管理者メールアドレス変更_実装計画.md) | ログイン方法とシフト連絡先を分離する後続仕様で置換。実装済みの全所属同期、旧EmailAddress削除、不一致復旧UIは撤去対象 | [認証画面](../features/auth-pages.md)、[ユーザー詳細](../features/user-detail.md) |
+| [管理者メールアドレス変更とClerk同期](2026-08-03_管理者メールアドレス変更_実装計画.md) | ログイン方法とシフト連絡先を分離する後続仕様で置換。全所属同期と不一致復旧UIは撤去し、直前の旧Primary EmailAddress削除だけを現行のログインメール変更へ再導入 | [認証画面](../features/auth-pages.md)、[ユーザー詳細](../features/user-detail.md) |
 | [Analytics画面情報設計改善](2026-08-03_Analytics画面情報設計改善_実装計画.md) | 初期期間、状態表示、一覧・詳細の縮退表示、mobile表示、navigation、要望画面をfrontendへ実装し、静的検証を完了 | [分析KPI可視化アプリ](../features/analytics-dashboard.md)、[UI設計方針](../rules/ui-design.md) |
 | [CSR画面遷移パフォーマンス改善](2026-08-03_CSR画面遷移パフォーマンス改善_実装計画.md) | 4導線のfrontend実装、Unit・Behavior Test、production bundle比較を完了 | [フロントエンドアーキテクチャ](../rules/frontend-architecture.md)、[UI設計方針](../rules/ui-design.md)、[テスト方針](../rules/testing-strategy.md) |
 
