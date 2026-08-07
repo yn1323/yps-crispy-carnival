@@ -21,7 +21,7 @@ const phoneFactor = factor({
   key: "first-phone",
   strategy: "phone_code",
   input: "code",
-  displayIdentifier: "登録電話番号（末尾0012）",
+  displayIdentifier: "+81 *** **12",
   canResend: true,
 });
 const secondPhoneFactor = factor({
@@ -29,7 +29,7 @@ const secondPhoneFactor = factor({
   strategy: "phone_code",
   stage: "second",
   input: "code",
-  displayIdentifier: "登録電話番号（末尾0034）",
+  displayIdentifier: "+81 *** **34",
   canResend: true,
 });
 const totpFactor = factor({ key: "second-totp", strategy: "totp", stage: "second", input: "code" });
