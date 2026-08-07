@@ -223,8 +223,12 @@ E2Eは通知Outboxの集合を診断情報として取得しない。
 ## 10. Deployed Smokeと外部challenge
 
 - ローカルE2Eとデプロイ済みURLのSmokeを分ける。
-- Deployed Smokeは公開主要route、固有ランドマーク、主要CTA、HTTP成功を軽量に確認する。
-- Smoke対象を固定リストへ複製せず、現在のroute、Playwright設定、workflowから選ぶ。
+- Deployed Smokeは、build後の実デプロイURLで公開接続が成立することを確認する少数の契約である。
+- HTTPでは、代表公開routeの`200`とHTML、slash URLのredirectなし、認証またはCapability用CSR shell、未知URLの`404`を確認する。
+- ブラウザでは、代表公開ページ一つのHTTP成功、固有landmark、hydration、必要なprimary CTA、`pageerror`なしを確認する。
+- 全公開route、全CSR route、SEO metadata、sitemap、生成した`_redirects`と`_headers`の網羅は`pnpm build`の静的生成物検証へ置く。
+- FAQ検索、デモの状態遷移、認証付き業務flow、DB状態、外部providerの到達は、Behavior、通常E2E、Function、Scenarioまたは運用canaryへ置く。
+- Smoke対象はroute manifestの全件複製にせず、異なる配信境界を代表する数個のURLへ絞る。
 - 外部challengeを自動化するために、アプリ側の検証やセキュリティを弱めない。
 - challengeを安定して自動化できない場合は、routeとCTAのSmoke、内部受付契約までを自動化し、外部到達を保証したとは表現しない。
 

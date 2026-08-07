@@ -136,6 +136,19 @@ DBの細部、全validation分岐、pixel差分は下位層へ分ける。
 LINE、メール、決済providerなど外部サービスの実到着は、通常E2Eへ含めない。
 実到着の確認が必要な場合は、対象、環境、判定、復旧を定めた人間向け運用手順として分ける。
 
+### Deployed Smoke
+
+Deployed Smokeは、buildで生成物を検証した後、実際のデプロイURLへ匿名で接続し、公開面が利用者へ届く最小契約を確認する。
+主担当は、代表公開routeのHTTP成功、slash URLの終端、認証またはCapability用CSR shellの配信、未知URLの404、代表公開ページ一つのブラウザhydrationである。
+
+Deployed Smokeへ含めるテストは、数個の代表URLと一つのブラウザ起動に絞る。
+全公開route、全CSR route、SEO metadata、sitemap、生成した`_redirects`と`_headers`の網羅は`pnpm build`の静的生成物検証を主担当にする。
+FAQ検索、デモの状態遷移、認証付き業務flow、DB状態、外部providerの到達は、Behavior、通常E2E、Function、Scenarioまたは運用canaryへ分ける。
+
+Deployed Smokeは、HTTPの代表境界とブラウザ起動の失敗理由を混ぜない。
+ブラウザ検査は一つの代表ページに限定し、hydration、固有landmark、必要なprimary CTA、`pageerror`を確認する。
+retryで成功させることや、複数ページのruntime errorを後段でまとめて判定することを、安定性の根拠にしない。
+
 通知対象、channel、件数、dedupe、Outbox、retry、最終失敗はFunction TestまたはScenario Testを主担当にする。
 E2Eへ残す通知契約は、代表的なUI操作から匿名CTAや利用者に見える復旧導線へ到達できるブラウザ境界に限る。
 

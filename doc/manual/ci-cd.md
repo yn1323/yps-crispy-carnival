@@ -13,8 +13,8 @@ workflowの一覧と起動条件は `.github/workflows/` を確認する。
 
 workflowの対象条件を満たす同一リポジトリからのPull Requestでは、`.github/workflows/deploy.yml` がConvex PreviewとCloudflare Pagesのプレビューを作成し、URLをPull Requestへ通知する。
 `pnpm build`はTanStack Startで公開HTMLとCSR shellを生成し、`dist/client/`だけをCloudflare Pagesへdeployする。
-deploy後は`pnpm e2e:deployed`が公開URLのSSG HTML、末尾スラッシュ、CSR shell、404、cache reset、hashed asset、hydrationを実URLで確認する。
-同じsuiteはAndroid Chrome相当のUser-Agentでも代表URLを確認し、3xxや`Location`が返らないことを守る。
+deploy後は`pnpm smoke-test:deployed`が実URLの代表公開route、末尾スラッシュ、CSR shell、Capability shell、404、代表ページのhydrationを確認する。
+全公開route、静的metadata、sitemap、Cloudflare配信ルールの生成物は`pnpm build`が検証し、FAQやデモの状態操作はBehaviorまたは通常E2Eが検証する。
 Pull Requestを閉じると、同workflowがプレビューの後処理を行う。
 
 認証付きE2Eは `.github/workflows/playwright.yml` が専用Convex Previewで実行する。
