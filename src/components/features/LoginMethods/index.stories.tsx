@@ -17,6 +17,7 @@ import type {
   LoginMethodsExternalAccountSnapshot,
   LoginMethodsUserSnapshot,
 } from "./types";
+import type { PasswordChangeController, PasswordChangeState } from "./usePasswordChangeController";
 
 type Scenario =
   | "googleOnly"
@@ -32,6 +33,7 @@ type PreviewProps = {
   isLoaded?: boolean;
   disconnectGoogleError?: boolean;
   showLoginEmailChangeDialog?: "input" | "verification";
+  showPasswordChangeDialog?: "input" | "error";
   showReverification?: boolean;
   isMigrationDialogOpen?: boolean;
   onStartFlow: (flow: LoginMethodMigrationFlow) => void;
@@ -67,6 +69,7 @@ function LoginMethodsPreview({
   isLoaded = true,
   disconnectGoogleError = false,
   showLoginEmailChangeDialog,
+  showPasswordChangeDialog,
   showReverification = false,
   isMigrationDialogOpen = false,
   onStartFlow,
@@ -88,6 +91,18 @@ function LoginMethodsPreview({
   const [emailChangeCompleted, setEmailChangeCompleted] = useState(false);
   const [googleState, setGoogleState] = useState<LoginMethodsCardState>(idle());
   const [emailPasswordState, setEmailPasswordState] = useState<LoginMethodsCardState>(idle());
+  const [passwordChangeState, setPasswordChangeState] = useState<PasswordChangeState>(
+    showPasswordChangeDialog
+      ? {
+          isOpen: true,
+          status: showPasswordChangeDialog === "error" ? "error" : "idle",
+          message:
+            showPasswordChangeDialog === "error"
+              ? "現在のパスワードが正しくありません。\n入力内容を確認してください。"
+              : null,
+        }
+      : { isOpen: false, status: "idle", message: null },
+  );
   const viewModel = useMemo(
     () => buildLoginMethodsViewModel(snapshotForScenario(scenario, emailChangeTargetStatus, emailChangeCompleted)),
     [emailChangeCompleted, emailChangeTargetStatus, scenario],
@@ -179,12 +194,25 @@ function LoginMethodsPreview({
       return true;
     },
   };
+  const passwordChangeController: PasswordChangeController = {
+    state: passwordChangeState,
+    open: () => setPasswordChangeState({ isOpen: true, status: "idle", message: null }),
+    close: () => setPasswordChangeState({ isOpen: false, status: "idle", message: null }),
+    changePassword: async () => {
+      setPasswordChangeState({ isOpen: true, status: "loading", message: null });
+      await Promise.resolve();
+      setPasswordChangeState({ isOpen: false, status: "idle", message: null });
+      showSuccessToast({ title: "パスワードを変更しました" });
+      return true;
+    },
+  };
 
   return (
     <Box bg="gray.50" minH="100vh" p={{ base: 4, md: 8 }}>
       <Box maxW="760px" mx="auto">
         <LoginMethodsView
           controller={controller}
+          passwordChangeController={passwordChangeController}
           onStartFlow={onStartFlow}
           reverification={showReverification ? STARTING_REVERIFICATION_CONTROLLER : IDLE_REVERIFICATION_CONTROLLER}
           isMigrationDialogOpen={isMigrationDialogOpen}
@@ -224,6 +252,7 @@ export const GoogleOnlyEmailNotSetBehavior: Story = {
       within(emailSection).queryByRole("button", { name: "メールアドレスとパスワードを設定" }),
     ).not.toBeInTheDocument();
     await expect(within(emailSection).queryByText("google@gmail.com")).not.toBeInTheDocument();
+    await expect(within(canvasElement).queryByRole("region", { name: "パスワード" })).not.toBeInTheDocument();
 
     const googleSection = within(canvasElement).getByRole("region", { name: "Google認証" });
     await expect(within(googleSection).getByRole("button", { name: "解除する" })).toBeVisible();
@@ -286,6 +315,58 @@ export const MobileMainEmailVerificationDialog: Story = {
   args: { scenario: "passwordOnly", showLoginEmailChangeDialog: "verification" },
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
+};
+
+export const PasswordChangeDialog: Story = {
+  args: { scenario: "passwordOnly", showPasswordChangeDialog: "input" },
+};
+
+export const PasswordChangeErrorDialog: Story = {
+  args: { scenario: "passwordOnly", showPasswordChangeDialog: "error" },
+};
+
+export const MobilePasswordChangeDialog: Story = {
+  args: { scenario: "passwordOnly", showPasswordChangeDialog: "input" },
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+};
+
+export const PasswordChangeBehavior: Story = {
+  args: { scenario: "passwordOnly" },
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    toaster.dismiss();
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "パスワードを変更" }));
+    const dialog = within(await body.findByRole("dialog", { name: "パスワードを変更" }));
+    await userEvent.type(dialog.getByLabelText("現在のパスワード"), "current-password");
+    await userEvent.type(dialog.getByLabelText("新しいパスワード"), "new-password");
+    await userEvent.type(dialog.getByLabelText("新しいパスワード（確認）"), "new-password");
+    await userEvent.click(dialog.getByRole("button", { name: "変更する" }));
+
+    await waitFor(() => expect(body.queryByRole("dialog", { name: "パスワードを変更" })).not.toBeInTheDocument());
+    await expect(await body.findByText("パスワードを変更しました")).toBeVisible();
+  },
+};
+
+export const PasswordChangeValidationBehavior: Story = {
+  args: { scenario: "passwordOnly" },
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "パスワードを変更" }));
+    const dialog = within(await body.findByRole("dialog", { name: "パスワードを変更" }));
+    await userEvent.type(dialog.getByLabelText("現在のパスワード"), "current-password");
+    await userEvent.type(dialog.getByLabelText("新しいパスワード"), "new-password");
+    await userEvent.type(dialog.getByLabelText("新しいパスワード（確認）"), "different-password");
+    await userEvent.click(dialog.getByRole("button", { name: "変更する" }));
+
+    await expect(await dialog.findByText("確認用パスワードが一致しません。")).toBeVisible();
+  },
 };
 
 export const GoogleDisconnectDialog: Story = {
@@ -432,7 +513,7 @@ async function primaryEmailChangeBehavior(
   const emailSection = canvas.getByRole("region", { name: "メールアドレス" });
   await expect(await within(emailSection).findByText(expectedPrimaryEmail)).toBeVisible();
   await expect(within(emailSection).queryByText(previousPrimaryEmail)).not.toBeInTheDocument();
-  await expect(canvas.queryByRole("button", { name: "パスワードを変更" })).not.toBeInTheDocument();
+  await expect(canvas.getByRole("button", { name: "パスワードを変更" })).toBeVisible();
   for (const action of preservedActions) {
     await expect(canvas.getByRole("button", { name: action })).toBeVisible();
   }

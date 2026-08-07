@@ -10,6 +10,7 @@ import { useEmailPasswordMigrationController } from "./useEmailPasswordMigration
 import { useGoogleConnectionController } from "./useGoogleConnectionController";
 import { useLoginMethodReverification } from "./useLoginMethodReverification";
 import { useLoginMethodsController } from "./useLoginMethodsController";
+import { usePasswordChangeController } from "./usePasswordChangeController";
 
 type LoginMethodsProps = {
   flow?: LoginMethodMigrationFlow;
@@ -62,6 +63,13 @@ function CurrentUserLoginMethods({
     onNeedsReverification: reverification.onNeedsReverification,
     runOperation: reverification.runOperation,
     operationCooldown,
+  });
+  const passwordChangeController = usePasswordChangeController({
+    isLoaded,
+    user,
+    getCurrentActorId,
+    onNeedsReverification: reverification.onNeedsReverification,
+    runOperation: reverification.runOperation,
   });
   const emailPasswordController = useEmailPasswordMigrationController({
     isLoaded,
@@ -127,6 +135,7 @@ function CurrentUserLoginMethods({
     <>
       <LoginMethodsView
         controller={controller}
+        passwordChangeController={passwordChangeController}
         onStartFlow={onStartFlow}
         reverification={reverification}
         isMigrationDialogOpen={isMigrationDialogOpen}

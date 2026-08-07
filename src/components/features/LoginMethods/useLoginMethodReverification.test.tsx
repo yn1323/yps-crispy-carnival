@@ -189,9 +189,7 @@ describe("useLoginMethodReverification", () => {
     session.startVerification.mockResolvedValue(
       verificationResource({
         status: "needs_first_factor",
-        firstFactors: [
-          { strategy: "email_code", emailAddressId: "email_unknown", safeIdentifier: "yn***@gmail.com" },
-        ],
+        firstFactors: [{ strategy: "email_code", emailAddressId: "email_unknown", safeIdentifier: "yn***@gmail.com" }],
       }),
     );
     const { result } = renderReverification();

@@ -55,6 +55,7 @@ export function buildLoginMethodsViewModel(snapshot: LoginMethodsUserSnapshot): 
     emailPassword: {
       primaryEmail: primaryEmail ? toEmailViewModel(primaryEmail) : null,
       canChangeLoginEmail: hasVerifiedPrimaryEmail,
+      canChangePassword: snapshot.passwordEnabled && hasVerifiedPrimaryEmail,
       canSetPassword: !snapshot.passwordEnabled && verifiedEmails.length > 0,
     },
   };
