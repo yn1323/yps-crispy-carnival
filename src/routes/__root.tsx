@@ -97,18 +97,19 @@ export const Route = createRootRoute({
       { rel: "manifest", href: "/manifest.json" },
     ],
   }),
-  shellComponent: RootDocument,
   component: RootComponent,
 });
 
 function RootComponent() {
   return (
-    <ChakraProvider>
-      <PageViewTracker />
-      <HydrationReadyMarker />
-      <Outlet />
-      <Toaster />
-    </ChakraProvider>
+    <RootDocument>
+      <ChakraProvider>
+        <PageViewTracker />
+        <HydrationReadyMarker />
+        <Outlet />
+        <Toaster />
+      </ChakraProvider>
+    </RootDocument>
   );
 }
 
