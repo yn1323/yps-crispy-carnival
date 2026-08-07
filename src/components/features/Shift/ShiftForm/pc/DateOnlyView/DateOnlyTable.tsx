@@ -298,7 +298,7 @@ const DateOnlyCell = ({
       justifyContent="center"
       bg={!date.inRange || isClosed ? "gray.50" : assigned ? "teal.500" : requested ? "white" : "gray.50"}
       borderWidth="1px"
-      borderColor={!date.inRange || isClosed ? "gray.100" : assigned ? "teal.600" : "gray.200"}
+      borderColor={!date.inRange || isClosed ? "gray.100" : assigned ? "teal.600" : requested ? "teal.500" : "gray.200"}
       borderRadius="md"
       color={!date.inRange || isClosed ? "gray.300" : assigned ? "white" : "gray.400"}
       fontSize="xl"
@@ -310,7 +310,7 @@ const DateOnlyCell = ({
           ? undefined
           : {
               bg: assigned ? "teal.600" : "gray.100",
-              borderColor: assigned ? "teal.700" : "gray.400",
+              borderColor: assigned ? "teal.700" : requested ? "teal.600" : "gray.400",
               color: assigned ? "white" : "gray.500",
             }
       }

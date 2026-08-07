@@ -1,4 +1,4 @@
-import { Checkbox, Field, Input, Stack, Text } from "@chakra-ui/react";
+import { Checkbox, Field, Input, Stack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH } from "@/convex/constants";
