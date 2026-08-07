@@ -81,7 +81,7 @@ export const SPShiftTypeDailyView = () => {
               active,
               issueCount,
               warningCount,
-              activeColor: "teal.400",
+              activeColor: "teal.500",
               fallbackColor: "gray.200",
             });
             return (
@@ -97,24 +97,29 @@ export const SPShiftTypeDailyView = () => {
                 borderRadius="md"
                 borderWidth="1px"
                 borderColor={chipBorderColor}
-                bg={active ? "teal.50" : isClosed ? "gray.50" : "white"}
+                bg={active ? "teal.500" : isClosed ? "gray.50" : "white"}
                 cursor="pointer"
               >
                 <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />
                 <Box
                   textStyle="md"
                   fontWeight={700}
-                  color={active ? "teal.700" : "gray.800"}
+                  color={active ? "white" : "gray.800"}
                   lineHeight="1.1"
                   fontVariantNumeric="tabular-nums"
                 >
                   {date.date()}
                 </Box>
-                <Box textStyle="2xs" mt="2px" fontWeight={active ? 700 : 500} style={{ color: dayColor(iso) }}>
+                <Box
+                  textStyle="2xs"
+                  mt="2px"
+                  fontWeight={active ? 700 : 500}
+                  style={{ color: active ? "white" : dayColor(iso) }}
+                >
                   {getWeekdayLabel(iso)}
                 </Box>
                 {isClosed && (
-                  <Box textStyle="2xs" mt="1px" fontWeight={700} color="gray.500">
+                  <Box textStyle="2xs" mt="1px" fontWeight={700} color={active ? "white" : "gray.500"}>
                     休
                   </Box>
                 )}

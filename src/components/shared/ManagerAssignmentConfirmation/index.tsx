@@ -42,7 +42,12 @@ export function ManagerAssignmentConfirmation({
       : "管理者として招待";
 
   return (
-    <Box borderWidth="1px" borderColor={isFreeManagerExchange ? "orange.200" : "teal.200"} borderRadius="md" p={3}>
+    <Box
+      borderWidth="1px"
+      borderColor={isFreeManagerExchange ? "orange.200" : "border.default"}
+      borderRadius="md"
+      p={3}
+    >
       <Stack gap={3}>
         <Stack gap={1}>
           <Heading as="h4" fontSize="sm" fontWeight="semibold" color="gray.900">

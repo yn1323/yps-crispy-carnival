@@ -147,7 +147,7 @@ function HeroSection({ topOffset }: { topOffset?: HeroTopOffset }) {
 function QuickPointItem({ item }: { item: QuickPoint }) {
   return (
     <HStack gap={3} align="center" justify={{ base: "flex-start", sm: "center" }} px={1} py={2} minH="56px">
-      <Circle size="40px" bg="teal.50" color="teal.600" flexShrink={0}>
+      <Circle size="40px" bg="teal.50" color="teal.700" flexShrink={0}>
         <Icon as={item.icon} boxSize={6} />
       </Circle>
       <Text color="teal.900" fontSize="sm" fontWeight="bold" lineHeight={1.5}>

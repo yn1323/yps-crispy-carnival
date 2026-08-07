@@ -31,7 +31,7 @@ export function UserSummary({ data }: Props) {
                 {data.person.name}
               </Text>
               {data.managerRole === "active" && (
-                <Badge colorPalette="teal" variant="subtle" borderRadius="full" px={2.5}>
+                <Badge colorPalette="teal" variant="subtle" bg="teal.100" borderRadius="full" px={2.5}>
                   管理者
                 </Badge>
               )}

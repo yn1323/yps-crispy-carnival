@@ -288,7 +288,14 @@ function ReadyInvitation({
         </Stack>
       </VStack>
 
-      <Stack gap={4} bg="teal.50" borderWidth="1px" borderColor="teal.100" borderRadius="xl" p={{ base: 4, md: 5 }}>
+      <Stack
+        gap={4}
+        bg="teal.50"
+        borderWidth="1px"
+        borderColor="border.default"
+        borderRadius="xl"
+        p={{ base: 4, md: 5 }}
+      >
         <Text color="gray.900" fontSize="sm" fontWeight="bold">
           参加後にできること
         </Text>

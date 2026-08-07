@@ -344,7 +344,7 @@ const ShareStep = ({ shifts, onReplay }: { shifts: ShiftData[]; onReplay: () => 
           </Text>
           <DemoCompleteCta />
           {showCloseHelp && (
-            <Box bg="teal.50" borderWidth="1px" borderColor="teal.200" borderRadius="md" px={4} py={3}>
+            <Box bg="teal.50" borderWidth="1px" borderColor="gray.200" borderRadius="md" px={4} py={3}>
               <Text color="teal.800" fontSize="sm" lineHeight={1.7}>
                 ブラウザの制限により、このタブを自動で閉じられませんでした。
                 <br />
@@ -359,7 +359,7 @@ const ShareStep = ({ shifts, onReplay }: { shifts: ShiftData[]; onReplay: () => 
 };
 
 const DemoCompleteCta = () => (
-  <Box bg="teal.50" borderWidth="1px" borderColor="teal.200" borderRadius="md" px={4} py={4} mt={2}>
+  <Box bg="teal.50" borderWidth="1px" borderColor="gray.200" borderRadius="md" px={4} py={4} mt={2}>
     <Stack gap={3}>
       <Text color="teal.900" fontWeight="bold" lineHeight={1.6}>
         このまま無料で始められます

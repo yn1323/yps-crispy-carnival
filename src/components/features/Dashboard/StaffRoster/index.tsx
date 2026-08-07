@@ -153,7 +153,7 @@ const StaffRowSkeleton = ({ isManager, showLineLinked }: { isManager: boolean; s
     px={{ base: 3, lg: 4 }}
     py={3.5}
     align="center"
-    bg={isManager ? "teal.50/50" : "transparent"}
+    bg={isManager ? "gray.50" : "transparent"}
     minH="68px"
   >
     <Skeleton boxSize="40px" borderRadius="full" flexShrink={0} />

@@ -284,12 +284,12 @@ function PlanSummary({
               {currentPlanLabel}
             </Heading>
             {billing.state === "trial" && billing.hasTrialContinuation && (
-              <Badge variant="subtle" colorPalette="teal">
+              <Badge variant="subtle" colorPalette="teal" bg="teal.100">
                 {billing.targetPlan ? planLabel(billing.targetPlan) : "有料プラン"}継続登録済み
               </Badge>
             )}
             {billing.isComplimentary && (
-              <Badge variant="subtle" colorPalette="teal">
+              <Badge variant="subtle" colorPalette="teal" bg="teal.100">
                 支払い不要
               </Badge>
             )}
@@ -374,7 +374,7 @@ function PlanComparisonCards({
           <Stack
             key={plan}
             borderWidth="1px"
-            borderColor={isCurrent ? "teal.400" : "blackAlpha.100"}
+            borderColor={isCurrent ? "teal.600" : "blackAlpha.100"}
             borderRadius="xl"
             bg={isCurrent ? "teal.50" : "white"}
             p={4}
@@ -385,7 +385,7 @@ function PlanComparisonCards({
                 {planLabel(plan)}
               </Heading>
               {isCurrent && (
-                <Badge colorPalette="teal" variant="subtle">
+                <Badge colorPalette="teal" variant="subtle" bg="teal.100">
                   利用中
                 </Badge>
               )}
@@ -553,7 +553,7 @@ function BillingStateAlert({
           <HStack gap={2} wrap="wrap">
             <Alert.Title>{presentation.label}</Alert.Title>
             {billing.targetPlan && (
-              <Badge variant="subtle" colorPalette="teal">
+              <Badge variant="subtle" colorPalette="teal" bg="teal.100">
                 変更先: {planLabel(billing.targetPlan)}
               </Badge>
             )}

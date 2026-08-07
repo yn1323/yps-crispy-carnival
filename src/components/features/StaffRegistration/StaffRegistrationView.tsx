@@ -85,7 +85,7 @@ export function StaffRegistrationView({ state }: Props) {
               募集中のシフトがある場合は、提出案内も送ります。
             </Text>
 
-            <Stack gap={4} bg="white" borderWidth="1px" borderColor="teal.100" borderRadius="lg" p={4}>
+            <Stack gap={4} bg="white" borderWidth="1px" borderColor="border.default" borderRadius="lg" p={4}>
               <ConfirmRow label="名前" value={state.confirmData.name} />
               <ConfirmRow label="メールアドレス" value={state.confirmData.email} />
             </Stack>

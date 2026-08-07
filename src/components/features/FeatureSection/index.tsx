@@ -172,7 +172,7 @@ const CapabilityCard = ({
       >
         <Text
           flex="0 0 auto"
-          color="teal.100"
+          color="gray.200"
           fontSize={{ base: "6xl", md: featured ? "8xl" : "7xl" }}
           lineHeight="1"
           fontWeight="black"

@@ -41,7 +41,7 @@ export function OrganizationPersonRow({
         <Flex
           boxSize="40px"
           borderRadius="full"
-          bg={isManager ? "teal.500" : "teal.50"}
+          bg={isManager ? "teal.500" : "teal.100"}
           color={isManager ? "white" : "teal.700"}
           align="center"
           justify="center"
@@ -54,7 +54,14 @@ export function OrganizationPersonRow({
       }
       badges={
         <HStack gap={1.5} wrap="wrap" ms="auto" flexShrink={0}>
-          <Badge colorPalette={isManager ? "teal" : "gray"} variant="subtle" borderRadius="full" px={2} textStyle="2xs">
+          <Badge
+            colorPalette={isManager ? "teal" : "gray"}
+            variant="subtle"
+            bg={isManager ? "teal.100" : undefined}
+            borderRadius="full"
+            px={2}
+            textStyle="2xs"
+          >
             {roleLabel}
           </Badge>
           {showLineConnection && person.isLineConnected && (

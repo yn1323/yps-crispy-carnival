@@ -42,7 +42,7 @@ const TONE_STYLES: Record<
     circleBg: "teal.600",
     circleColor: "white",
     sectionBg: "teal.50/50",
-    sectionBorder: "teal.100",
+    sectionBorder: "gray.200",
   },
   success: {
     iconColor: "green.500",

@@ -92,7 +92,7 @@ export const SetupShopInfoStep = ({
                   px={{ base: 2, md: 3 }}
                   bg={isSelected ? "teal.100" : "gray.50"}
                   borderBottomWidth={1}
-                  borderColor={isSelected ? "teal.200" : "border.default"}
+                  borderColor="border.default"
                   color={isSelected ? "teal.700" : "fg.muted"}
                   fontWeight="bold"
                 >

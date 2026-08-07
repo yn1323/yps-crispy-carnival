@@ -43,6 +43,13 @@ security-sensitiveな変更では`shiftori-security-review`を併用する。
 selector、待機、fixture、診断、result gate、burn-inの具体的な書き方は`references/test-writing-rules.md`を正本とする。
 Full RegressionからE2Eへ残すcontractの選び方は`references/e2e-full-regression-rules.md`を正本とする。
 
+## Deployed Smokeの縮小
+
+Deployed Smokeを見直すときは、`DEPLOY-SMOKE-01`の代表HTTP契約と代表ブラウザ起動契約を先に定義する。
+route manifestの全件走査、静的生成物の網羅、UI操作の状態分岐をSmokeへ残さず、主担当層と移管先を記録する。
+縮小後も、公開route、CSR shell、404、ブラウザhydrationという異なる失敗境界を一つずつ保全し、`pageerror`を曖昧なallowlistやretryで隠さない。
+実装後のreviewでは、削除した検証、`pnpm build`またはBehaviorへ移した検証、Smokeに残したbrowser-only契約を分けて報告する。
+
 ## 主担当層を選ぶ
 
 テスト層と責務の対応表は`doc/rules/testing-strategy.md`だけを正本とする。

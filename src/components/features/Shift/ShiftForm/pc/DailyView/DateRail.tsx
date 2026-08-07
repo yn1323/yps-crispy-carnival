@@ -50,7 +50,7 @@ export const DateRail = ({ dates, selectedDate, onSelect, holidays = [], issueCo
             active,
             issueCount,
             warningCount,
-            activeColor: "teal.300",
+            activeColor: "teal.500",
             fallbackColor: "transparent",
           });
           return (
@@ -67,21 +67,26 @@ export const DateRail = ({ dates, selectedDate, onSelect, holidays = [], issueCo
               borderRadius="md"
               borderWidth="1px"
               borderColor={badgeBorderColor}
-              bg={active ? "teal.50" : isClosed ? "gray.50" : "transparent"}
+              bg={active ? "teal.500" : isClosed ? "gray.50" : "transparent"}
               transition="all 120ms"
-              _hover={{ bg: active ? "teal.50" : "gray.50" }}
+              _hover={{ bg: active ? "teal.600" : "gray.50" }}
             >
               <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />
               <Flex align="baseline" justify="center" gap="3px">
-                <Box textStyle="sm" fontWeight={700} color="gray.800" fontVariantNumeric="tabular-nums">
+                <Box
+                  textStyle="sm"
+                  fontWeight={700}
+                  color={active ? "white" : "gray.800"}
+                  fontVariantNumeric="tabular-nums"
+                >
                   {d.date()}
                 </Box>
-                <Box textStyle="caption" fontWeight={600} style={{ color: dayColor(iso) }}>
+                <Box textStyle="caption" fontWeight={600} style={{ color: active ? "white" : dayColor(iso) }}>
                   ({getWeekdayLabel(iso)})
                 </Box>
               </Flex>
               {isClosed && (
-                <Box mt="2px" textStyle="2xs" fontWeight={700} color="gray.500" textAlign="center">
+                <Box mt="2px" textStyle="2xs" fontWeight={700} color={active ? "white" : "gray.500"} textAlign="center">
                   定休日
                 </Box>
               )}

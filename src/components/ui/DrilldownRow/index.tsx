@@ -40,11 +40,11 @@ export function DrilldownRow({
       alignItems="center"
       w="full"
       textAlign="left"
-      bg={highlighted ? "teal.50/40" : "transparent"}
+      bg={highlighted ? "teal.50/50" : "transparent"}
       borderWidth={0}
       cursor="pointer"
       transition="background-color 150ms ease"
-      _hover={{ bg: highlighted ? "teal.50" : "blackAlpha.50" }}
+      _hover={{ bg: "teal.50" }}
       _focusVisible={{
         outlineWidth: "2px",
         outlineStyle: "solid",

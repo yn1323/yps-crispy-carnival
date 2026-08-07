@@ -173,7 +173,7 @@ function BasicInformationIcon() {
     <Flex
       boxSize="40px"
       borderRadius="full"
-      bg="teal.50"
+      bg="teal.100"
       color="teal.700"
       align="center"
       justify="center"

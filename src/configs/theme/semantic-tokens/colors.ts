@@ -443,24 +443,24 @@ export const colors = defineSemanticTokens.colors({
     fg: {
       value: {
         _light: "{colors.teal.700}",
-        _dark: "{colors.teal.300}",
+        _dark: "{colors.teal.500}",
       },
     },
     subtle: {
       value: {
-        _light: "{colors.teal.100}",
+        _light: "{colors.gray.100}",
         _dark: "{colors.teal.900}",
       },
     },
     muted: {
       value: {
-        _light: "{colors.teal.200}",
+        _light: "{colors.gray.200}",
         _dark: "{colors.teal.800}",
       },
     },
     emphasized: {
       value: {
-        _light: "{colors.teal.300}",
+        _light: "{colors.gray.300}",
         _dark: "{colors.teal.700}",
       },
     },
@@ -472,8 +472,8 @@ export const colors = defineSemanticTokens.colors({
     },
     focusRing: {
       value: {
-        _light: "{colors.teal.400}",
-        _dark: "{colors.teal.400}",
+        _light: "{colors.teal.600}",
+        _dark: "{colors.teal.600}",
       },
     },
   },

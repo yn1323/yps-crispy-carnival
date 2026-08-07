@@ -37,7 +37,7 @@ export function ShopStaffList({ staffs, onOpenUser }: Props) {
             minH="48px"
             cursor="pointer"
             textAlign="left"
-            _hover={{ bg: "gray.50" }}
+            _hover={{ bg: "teal.50" }}
           >
             <Flex flex={1} align="center" justify="space-between" gap={3} minW={0}>
               <HStack gap={{ base: 4, md: 8 }} minW={0}>

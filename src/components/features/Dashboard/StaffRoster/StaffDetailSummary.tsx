@@ -30,7 +30,7 @@ export const StaffDetailSummary = ({ staff, lineStatus }: Props) => {
             {staff.name}
           </Text>
           {staff.isManager && (
-            <Badge colorPalette="teal" variant="subtle" borderRadius="full" px={2}>
+            <Badge colorPalette="teal" variant="subtle" bg="teal.100" borderRadius="full" px={2}>
               管理者
             </Badge>
           )}

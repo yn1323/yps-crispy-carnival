@@ -14,7 +14,7 @@ type Props = {
 const TOUR_BUTTON_LABEL = "ガイド";
 
 const STEP_VISUAL = {
-  create_recruitment: { bg: "teal.600", shadow: "teal.100" },
+  create_recruitment: { bg: "teal.600", shadow: "gray.100" },
   submit_self: { bg: "orange.500", shadow: "orange.100" },
   review_submission: { bg: "blue.600", shadow: "blue.100" },
   add_staff: { bg: "purple.600", shadow: "purple.100" },
@@ -61,7 +61,7 @@ export function OnboardingCallout({ state, showLabel = true, onDismiss }: Props)
         bg="teal.50/55"
         borderRadius="xl"
         borderWidth="1px"
-        borderColor="teal.100"
+        borderColor="border.default"
         boxShadow="xs"
         px={{ base: 4, md: 5, lg: 6 }}
         py={{ base: 3.5, md: 5 }}
