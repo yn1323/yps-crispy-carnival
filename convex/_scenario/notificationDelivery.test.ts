@@ -43,6 +43,8 @@ describe("通知配送outboxシナリオ", () => {
   });
 
   it("募集作成通知actionはスタッフごとのemail/LINE outboxと提出リンクを作る", async () => {
+    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "");
+    vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "");
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);
@@ -80,7 +82,11 @@ describe("通知配送outboxシナリオ", () => {
 
     await t.action(internal.notification.actions.sendRecruitmentNotificationEmails, { recruitmentId });
 
-    const [jobs, magicLinks] = await Promise.all([getOutboxJobs(t), getMagicLinks(t)]);
+    const [jobs, magicLinks, histories] = await Promise.all([
+      getOutboxJobs(t),
+      getMagicLinks(t),
+      t.run(async (ctx) => await ctx.db.query("notificationHistory").collect()),
+    ]);
     expect(jobs.map((job) => job.dedupeKey).sort()).toEqual([
       `email:recruitment:${recruitmentId}:${ids.emailStaffId}`,
       `line:recruitment:${recruitmentId}:${ids.lineStaffId}`,
@@ -105,6 +111,17 @@ describe("通知配送outboxシナリオ", () => {
         }),
       }),
     });
+    expect(
+      histories
+        .filter((history) => history.channel === "line")
+        .map(({ staffId, notificationKind, displayTitle }) => ({ staffId, notificationKind, displayTitle })),
+    ).toEqual([
+      {
+        staffId: ids.lineStaffId,
+        notificationKind: "shift.recruitment",
+        displayTitle: "シフト募集のお知らせ 5/17(日)〜5/23(土)",
+      },
+    ]);
     expect(
       magicLinks
         .filter((link) => link.recruitmentId === recruitmentId && link.accessKind === "submit")
@@ -913,6 +930,8 @@ describe("通知配送outboxシナリオ", () => {
   });
 
   it("シフト確定通知actionは確定シフト閲覧用outboxとviewリンクを作る", async () => {
+    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "");
+    vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "");
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);
@@ -957,7 +976,11 @@ describe("通知配送outboxシナリオ", () => {
 
     await t.action(internal.notification.actions.sendShiftConfirmationEmails, { recruitmentId, isResend: false });
 
-    const [jobs, magicLinks] = await Promise.all([getOutboxJobs(t), getMagicLinks(t)]);
+    const [jobs, magicLinks, histories] = await Promise.all([
+      getOutboxJobs(t),
+      getMagicLinks(t),
+      t.run(async (ctx) => await ctx.db.query("notificationHistory").collect()),
+    ]);
     expect(jobs.map((job) => job.dedupeKey).sort()).toEqual([
       `email:confirmation:${recruitmentId}:${ids.emailStaffId}:confirm`,
       `line:confirmation:${recruitmentId}:${ids.lineStaffId}:confirm`,
@@ -981,6 +1004,17 @@ describe("通知配送outboxシナリオ", () => {
         }),
       }),
     });
+    expect(
+      histories
+        .filter((history) => history.channel === "line")
+        .map(({ staffId, notificationKind, displayTitle }) => ({ staffId, notificationKind, displayTitle })),
+    ).toEqual([
+      {
+        staffId: ids.lineStaffId,
+        notificationKind: "shift.confirmation",
+        displayTitle: "確定シフトのお知らせ 5/17(日)〜5/19(火)",
+      },
+    ]);
     expect(
       magicLinks
         .filter((link) => link.recruitmentId === recruitmentId && link.accessKind === "view")

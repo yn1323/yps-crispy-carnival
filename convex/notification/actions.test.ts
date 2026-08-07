@@ -1,7 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
-import { seedManagerShop } from "../_test/seed";
+import { seedManagerShop, seedStaffLineAccount } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("notification/actions", () => {
@@ -235,5 +235,73 @@ describe("notification/actions", () => {
     ]);
     expect(jobs).toHaveLength(0);
     expect(snapshots).toHaveLength(0);
+  });
+
+  it("LINEのシフト変更履歴タイトルは通知名の後ろに対象期間を付ける", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: "user_mgr",
+        email: "manager@notification.invalid",
+        shopName: "変更通知店舗",
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId,
+        name: "LINEスタッフ",
+        email: "line-staff@notification.invalid",
+        isDeleted: false,
+      });
+      await seedStaffLineAccount(ctx, {
+        shopId,
+        staffId,
+        lineUserId: "U_change_history",
+      });
+      const positionId = await ctx.db.insert("positions", {
+        shopId,
+        name: "シフト",
+        color: "#3b82f6",
+        sortOrder: 0,
+        isDefault: true,
+        isDeleted: false,
+      });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: "2026-07-01",
+        periodEnd: "2026-07-02",
+        deadline: "2026-06-25",
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      await ctx.db.insert("shiftAssignments", {
+        recruitmentId,
+        staffId,
+        date: "2026-07-01",
+        startTime: "10:00",
+        endTime: "18:00",
+        positionId,
+      });
+      return { recruitmentId, staffId };
+    });
+
+    await t.action(internal.notification.actions.sendShiftConfirmationEmails, {
+      recruitmentId: ids.recruitmentId,
+      isResend: true,
+      targetStaffIds: [ids.staffId],
+      notificationRunId: 789,
+    });
+
+    const histories = await t.run(async (ctx) => await ctx.db.query("notificationHistory").collect());
+    expect(
+      histories.map(({ channel, notificationKind, displayTitle }) => ({ channel, notificationKind, displayTitle })),
+    ).toEqual([
+      {
+        channel: "line",
+        notificationKind: "shift.confirmation",
+        displayTitle: "シフト変更のお知らせ 7/1(水)〜7/2(木)",
+      },
+    ]);
   });
 });

@@ -60,7 +60,7 @@ const notificationItems: StaffNotificationHistoryItem[] = [
     requestedAt: new Date("2026-07-19T01:00:00Z").getTime(),
     sentAt: new Date("2026-07-19T01:00:10Z").getTime(),
     channel: "line",
-    displayTitle: "7月後半のシフト募集のお知らせ",
+    displayTitle: "シフト募集のお知らせ 7/21(火)〜7/31(金)",
     displayStatus: "sent",
   },
   {
