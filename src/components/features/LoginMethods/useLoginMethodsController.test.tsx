@@ -942,8 +942,7 @@ describe("useLoginMethodsController", () => {
     expect(result.current.googleDisconnectPendingCleanup).toBe(true);
     expect(result.current.googleState).toEqual({
       status: "error",
-      message:
-        "Google連携は解除されましたが、関連するメールアドレスの削除を完了できませんでした。この画面を閉じずに、もう一度お試しください。",
+      message: "Google連携の解除を完了できませんでした。この画面を閉じずに、もう一度お試しください。",
     });
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();
 

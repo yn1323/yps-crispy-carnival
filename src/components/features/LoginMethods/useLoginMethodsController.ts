@@ -44,7 +44,7 @@ const GOOGLE_DISCONNECT_EMAIL_REQUIRED_MESSAGE =
 const GOOGLE_DISCONNECT_STATE_CHANGED_MESSAGE =
   "ログイン方法の状態が変わったため、Google連携を解除していません。最新の状態を読み込んでください。";
 const GOOGLE_DISCONNECT_CLEANUP_PENDING_MESSAGE =
-  "Google連携は解除されましたが、関連するメールアドレスの削除を完了できませんでした。この画面を閉じずに、もう一度お試しください。";
+  "Google連携の解除を完了できませんでした。この画面を閉じずに、もう一度お試しください。";
 const GOOGLE_DISCONNECT_RESULT_UNAVAILABLE_MESSAGE =
   "Google連携の解除結果を安全に確認できません。最新の状態を読み込んでください。";
 

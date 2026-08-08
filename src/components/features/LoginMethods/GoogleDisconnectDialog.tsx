@@ -66,28 +66,11 @@ export function GoogleDisconnectDialog({
       {isReverifying ? <LoginMethodReverificationView controller={reverification} /> : null}
       {!isReverifying ? (
         <Stack gap={4}>
-          {mode === "externalOnly" ? (
-            <Text>
-              Google連携を解除します。
-              <br />
-              現在のメールアドレス（
-              <Text as="span" fontWeight="semibold" overflowWrap="anywhere">
-                {googleEmailAddress}
-              </Text>
-              ）は削除されません。同じGoogleアカウントでログインすると、再び連携される場合があります。
-            </Text>
-          ) : (
-            <Text>
-              Google連携を解除し、このGoogleアカウントのメールアドレスもログイン方法から削除します。
-              <br />
-              削除するメールアドレス：
-              <Text as="span" fontWeight="semibold" overflowWrap="anywhere">
-                {googleEmailAddress}
-              </Text>
-              <br />
-              現在のメールアドレスとパスワードは残ります。
-            </Text>
-          )}
+          <Text>
+            このGoogleアカウントではログインできなくなります。
+            <br />
+            メールアドレスとパスワードは残ります。
+          </Text>
           <CardError state={controller.googleState} />
         </Stack>
       ) : null}

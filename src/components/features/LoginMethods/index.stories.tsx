@@ -151,8 +151,7 @@ function LoginMethodsPreview({
         setGoogleDisconnectPendingCleanup(true);
         setGoogleState({
           status: "error",
-          message:
-            "Google連携は解除されましたが、関連するメールアドレスの削除を完了できませんでした。この画面を閉じずに、もう一度お試しください。",
+          message: "Google連携の解除を完了できませんでした。この画面を閉じずに、もう一度お試しください。",
         });
         return false;
       }
@@ -395,9 +394,11 @@ export const GoogleDisconnectDialog: Story = {
 
     const dialog = await body.findByRole("alertdialog", { name: "Google連携を解除" });
     await waitFor(() => expect(within(dialog).getByRole("button", { name: "解除する" })).toBeVisible());
-    const googleEmail = within(dialog).getByText("google@gmail.com");
-    await expect(googleEmail).toBeVisible();
-    await expect(googleEmail.closest("p")).toHaveTextContent("削除するメールアドレス：google@gmail.com");
+    const explanation = within(dialog).getByText(/このGoogleアカウントではログインできなくなります/);
+    await expect(explanation).toHaveTextContent(
+      "このGoogleアカウントではログインできなくなります。メールアドレスとパスワードは残ります。",
+    );
+    await expect(within(dialog).queryByText("google@gmail.com")).not.toBeInTheDocument();
   },
 };
 
@@ -411,9 +412,11 @@ export const GoogleDisconnectSameEmailDialog: Story = {
 
     const dialog = await body.findByRole("alertdialog", { name: "Google連携を解除" });
     await waitFor(() => expect(within(dialog).getByRole("button", { name: "解除する" })).toBeVisible());
-    const googleEmail = within(dialog).getByText("google@gmail.com");
-    await expect(googleEmail).toBeVisible();
-    await expect(googleEmail.closest("p")).toHaveTextContent("google@gmail.com）は削除されません");
+    const explanation = within(dialog).getByText(/このGoogleアカウントではログインできなくなります/);
+    await expect(explanation).toHaveTextContent(
+      "このGoogleアカウントではログインできなくなります。メールアドレスとパスワードは残ります。",
+    );
+    await expect(within(dialog).queryByText("google@gmail.com")).not.toBeInTheDocument();
   },
 };
 
@@ -445,9 +448,9 @@ export const GoogleDisconnectErrorBehavior: Story = {
 
     const alert = await dialog.findByRole("alert");
     await expect(alert).toHaveTextContent(
-      "Google連携は解除されましたが、関連するメールアドレスの削除を完了できませんでした。この画面を閉じずに、もう一度お試しください。",
+      "Google連携の解除を完了できませんでした。この画面を閉じずに、もう一度お試しください。",
     );
-    const explanation = dialog.getByText(/このGoogleアカウントのメールアドレスもログイン方法から削除します/);
+    const explanation = dialog.getByText(/このGoogleアカウントではログインできなくなります/);
     await expect(explanation.compareDocumentPosition(alert)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     const retryButton = await dialog.findByRole("button", { name: "もう一度試す" });
     await expect(dialog.queryByRole("button", { name: "キャンセル" })).not.toBeInTheDocument();
