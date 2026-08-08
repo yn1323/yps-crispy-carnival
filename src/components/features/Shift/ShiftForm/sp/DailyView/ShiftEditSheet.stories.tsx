@@ -147,7 +147,7 @@ export const DeleteAllMultipleRanges: Story = {
     const sheet = within(dialog);
 
     await expect(sheet.getByRole("button", { name: "確定" })).toBeDisabled();
-    await userEvent.click(sheet.getByRole("button", { name: "この日の勤務時間をすべて削除" }));
+    await userEvent.click(sheet.getByRole("button", { name: "勤務時間を削除" }));
 
     await expect(await within(canvasElement).findByText("削除結果：delete-multiple")).toBeInTheDocument();
   },

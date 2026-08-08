@@ -160,7 +160,7 @@ export const ShiftEditSheet = ({
                     ))}
                   </HStack>
                   <Text fontSize="sm">
-                    複数の勤務時間はスマートフォンでは編集できません。PC版のシフト表から変更してください。
+                    複数の勤務時間はスマートフォンでは編集できません。<br/>PC版で変更するか、一度削除してから再作成してください。
                   </Text>
                 </VStack>
               </Alert.Description>
@@ -205,10 +205,10 @@ export const ShiftEditSheet = ({
         {currentShift.positions.length > 0 && (
           <Flex justify="flex-end" align="center" gap={1}>
             <Text fontSize="xs" color="gray.500">
-              この日の勤務時間をすべて削除
+              勤務時間を削除
             </Text>
             <IconButton
-              aria-label="この日の勤務時間をすべて削除"
+              aria-label="勤務時間を削除"
               size="xs"
               variant="ghost"
               colorPalette="red"
