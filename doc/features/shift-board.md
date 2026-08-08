@@ -2,9 +2,9 @@
 
 > 文書種別: feature
 >
-> 最終コード照合: 2026-07-23
+> 最終コード照合: 2026-08-08
 >
-> 基準commit: `b61100a680e80d154a74f576d03c53712846e062`
+> 基準commit: `663751c8a1cb5657ea2bbabc6d231e7fef709164`
 
 シフト担当者がスタッフの希望を見ながら割当を編集し、下書きを保存して、対象期間のシフトを確定する機能である。
 募集の作成、一覧、削除は[シフト募集管理](shift-recruitment-management.md)が所有する。
@@ -30,6 +30,10 @@
 募集期間外の日付は確認できても編集できない。
 画面幅による操作方法の違いはあるが、保存する割当とserver-side validationは共通である。
 
+時間入力方式のPC新規ドラッグとSP新規追加は、店舗の実デフォルトポジションを使う。  SPは勤務区間0件なら新規追加、1件なら既存区間の開始・終了を置換する。  2件以上は各時間帯を表示するが、単一範囲へ変形せず、PC版からの編集を案内する。  その日の勤務時間をすべて削除する操作は残す。
+
+時間入力方式の画面は、同一スタッフ・同一日・同一実ポジションで完全に隣接する区間だけを一本として読み込む。  正の空白、異なるポジション、日付方式、勤務区分方式の境界は維持する。
+
 ## 未保存変更
 
 利用者が編集後にアプリ内の戻る操作またはブラウザバックを行うと、「保存して戻る」「保存せず戻る」を選ぶ確認Dialogを表示する。
@@ -54,8 +58,12 @@ serverから届いた提出内容の更新だけでは、未保存変更とし�
 
 ## 保存、確定、再通知
 
-下書き保存は現在の割当を永続化する。
+下書き保存は現在の割当を一募集分の全置換で永続化する。  `saveShiftAssignments`は受信したraw割当を先にvalidationし、スタッフとポジションの店舗境界を確認する。  その後に省略デフォルトを実IDへ解決し、時間入力方式の安全に統合できる完全隣接区間だけを一件で保存する。  overlapや不正時刻を正規化で隠さず拒否する。
+
+既存DBの分割行は一括migrationしない。  ShiftBoard、確定シフト閲覧、新しい通知はread-time正規化するが、読み込みだけでDBを書き換えない。  管理者が既存募集を再保存した場合だけ、その募集の安全に統合できる割当がDBでも正規形へ収束する。
+
 確定時は、前回の確定通知snapshotと現在の割当を比較し、変更があるスタッフだけを通知対象にする。
+時間入力方式は、旧のsplit snapshotと新しいcanonical snapshotを、raw signatureの整合性を確認した後に勤務内容で比較する。  分割と統合だけの差は再通知対象にせず、壊れたsignatureは安全側で再通知対象にする。
 既存募集にsnapshotがない場合は、導入後の初回再通知だけ全員を対象にする。
 
 同じ内容の確定または再通知は、対象店舗、募集、用途、スタッフ、文面に影響する値から作るsemantic keyへ収束する。
@@ -78,6 +86,7 @@ fanoutのcursor、lease、対象上限、再開、provider呼出し前の再確�
 | 割当UI | `src/components/features/Shift/ShiftForm/` |
 | 画面非依存の割当処理 | `src/domains/shift/` |
 | queryとmutation | `convex/shiftBoard/queries.ts`, `convex/shiftBoard/mutations.ts` |
+| 割当のread-time・保存境界正規化 | `convex/_lib/shiftAssignmentNormalization.ts` |
 | 共通validation | `convex/shiftBoard/validation.ts` |
 | 通知fanout | `convex/notification/fanout.ts`, `convex/notification/actions.ts` |
 
