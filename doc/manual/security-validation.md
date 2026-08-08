@@ -65,7 +65,7 @@ GitHub Actionsの権限、trigger、Environment gate、artifactの信頼境界�
 | `ENV-STRIPE-02` | Stripe設定 | 公開文書で申告するRadar、3DS、card testing対策と実account設定が一致する |
 | `ENV-REG-01` | 公開スタッフ登録 | 本番Turnstile、許可Origin、8 KiB超過拒否をdeployed canaryで確認する |
 | `ENV-CLERK-01` | Clerk | MFA、lockout、server throttle、loginまたはaccount変更通知を負の試験で確認する |
-| `ENV-CLERK-02` | Clerk Developmentのログイン方法 | 3状態でPrimaryメール変更、メール・パスワード追加、Google追加と条件付き解除が同じClerk Userのまま完了し、失敗時も既存方法を維持する。Productionを変更していないことも記録する |
+| `ENV-CLERK-02` | Clerk Developmentのログイン方法 | 4状態を使い分け、対象状態でPrimaryメール変更、メール・パスワード追加、Google追加、同一メールと異なるメールの条件付き解除が同じClerk Userの契約どおりに完了し、失敗時も既存方法を維持する。Productionを変更していないことも記録する |
 | `ENV-OPS-01` | 端末と診断 | EDR、signature更新、full scan、隔離、credential rotation、DASTまたは第三者診断を記録する |
 
 IP由来の制限を有効にする場合は、ingressが利用者指定headerを破棄し、信頼できる値へ上書きする証跡を先に確認する。

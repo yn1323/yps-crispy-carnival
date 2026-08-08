@@ -1,4 +1,5 @@
-import { Alert, Button, Stack, Text } from "@chakra-ui/react";
+import { Alert, Stack, Text } from "@chakra-ui/react";
+import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { LoginMethodReverificationView } from "./LoginMethodReverificationView";
 import type { LoginMethodReverificationController } from "./reverificationTypes";
