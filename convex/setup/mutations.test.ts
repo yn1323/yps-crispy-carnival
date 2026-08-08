@@ -218,7 +218,7 @@ describe("setup/mutations", () => {
       ).rejects.toThrow("メールアドレスの形式で入力してください");
     });
 
-    it("店舗・ユーザー・スタッフ・費用なしPro状態・同意履歴をトランザクションで作成する", async () => {
+    it("店舗・ユーザー・スタッフ・支払い不要Business状態・同意履歴をトランザクションで作成する", async () => {
       const t = convexTest(schema, modules);
       const now = new Date("2026-07-05T10:00:00+09:00");
       vi.setSystemTime(now);

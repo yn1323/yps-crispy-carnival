@@ -20,16 +20,20 @@ import type {
   AnalyticsTrendValueDto,
 } from "./dto";
 import {
+  type AnalyticsReadState,
+  type AnalyticsRunRange,
   bucketDate,
   combineCompleteness,
-  effectiveSnapshotDate,
+  getAnalyticsReadState,
+  getCompleteRunRange,
   getLatestOrganizationKpi,
   getLatestShopKpi,
   getOrganizationDimension,
-  getPipelineState,
   getShopDimension,
+  hasCompleteRequestedRange,
   pageInfo,
   responseMetadata,
+  rowBelongsToCompleteRun,
   toCycleRowDto,
   toOrganizationKpiDto,
   toOrganizationRowDto,
@@ -105,15 +109,38 @@ function maxComputedAt(rows: Array<{ kpis: { computedAt: number } | null }>) {
   return maxOrNull(values);
 }
 
-function completeWhenEmpty(rowCount: number, values: AnalyticsCompleteness[]) {
-  return rowCount === 0 ? ("complete" as const) : combineCompleteness(values);
-}
-
-function missingDataWarnings(from: string, to: string, dataStartDate: string | undefined, latest: string | undefined) {
+function missingDataWarnings(
+  from: string,
+  to: string,
+  dataStartDate: string | null,
+  latest: string | null,
+  missingDates: readonly string[] = [],
+) {
   const warnings: string[] = [];
   if (dataStartDate && from < dataStartDate) warnings.push("データ蓄積開始日より前の期間は値がありません");
   if (!latest || to > latest) warnings.push("指定期間の末日まで完全なsnapshotがありません");
+  if (missingDates.length > 0) {
+    warnings.push(`選択期間に欠損日があります（${missingDates.length}日、最初: ${missingDates[0]}）`);
+  }
   return warnings;
+}
+
+function rangeWarnings(state: AnalyticsReadState, requested: { from: string; to: string }, range: AnalyticsRunRange) {
+  const warnings = missingDataWarnings(
+    requested.from,
+    requested.to,
+    state.dataStartDate,
+    state.latestCompleteSnapshotDate,
+    range.missingDates,
+  );
+  if (range.retentionStartDate && requested.from < range.retentionStartDate) {
+    warnings.push(`グループ・店舗別の詳細データは${range.retentionStartDate}以降を保持しています`);
+  }
+  return warnings;
+}
+
+function missingBuckets(range: AnalyticsRunRange, granularity: "day" | "week" | "month") {
+  return new Set(range.missingDates.map((date) => bucketDate(date, granularity)));
 }
 
 function requireSeriesWithinPointLimit<T>(series: T[]): T[] {
@@ -134,51 +161,48 @@ export const getOverview = internalQuery({
   },
   returns: v.union(overviewResponseValidator, v.null()),
   handler: async (ctx, args) => {
-    const state = await getPipelineState(ctx);
-    const generation = state?.activeGeneration;
-    const effectiveTo = effectiveSnapshotDate(state, args.to);
-    const currentRows =
-      generation && effectiveTo
-        ? await getScopedSeries(ctx, { ...args, generation, to: effectiveTo })
-        : ([] as SeriesSource[]);
+    const state = await getAnalyticsReadState(ctx);
+    const detailRetention = args.organizationId !== null || args.shopId !== null;
+    const currentRange = await getCompleteRunRange(ctx, state, args, { detailRetention });
+    const comparisonRange =
+      args.compareFrom && args.compareTo
+        ? await getCompleteRunRange(ctx, state, { from: args.compareFrom, to: args.compareTo }, { detailRetention })
+        : null;
+    const canReadCurrent = state.availability === "available" && hasCompleteRequestedRange(state, args, currentRange);
+    const canReadComparison =
+      state.availability === "available" &&
+      comparisonRange !== null &&
+      args.compareFrom !== null &&
+      args.compareTo !== null &&
+      hasCompleteRequestedRange(state, { from: args.compareFrom, to: args.compareTo }, comparisonRange);
+    const currentRows = canReadCurrent
+      ? await getScopedSeries(ctx, { ...args, range: currentRange })
+      : ([] as SeriesSource[]);
     if (currentRows === null) return null;
-    const effectiveCompareTo = args.compareTo ? effectiveSnapshotDate(state, args.compareTo) : null;
     const comparisonRows =
-      generation && args.compareFrom && effectiveCompareTo
+      canReadComparison && args.compareFrom && args.compareTo && comparisonRange
         ? await getScopedSeries(ctx, {
-            generation,
             from: args.compareFrom,
-            to: effectiveCompareTo,
+            to: args.compareTo,
             organizationId: args.organizationId,
             shopId: args.shopId,
+            range: comparisonRange,
           })
         : ([] as SeriesSource[]);
     if (comparisonRows === null) return null;
     const current = overviewSnapshot(currentRows);
     const comparison = overviewSnapshot(comparisonRows);
-    const completeness = current
-      ? combineCompleteness([current.completeness, ...(comparison ? [comparison.completeness] : [])])
-      : "unavailable";
     return {
       kind: "overview" as const,
       metadata: responseMetadata({
         state,
-        completeness,
+        availability: canReadCurrent ? "available" : "unavailable",
         computedAt: maxOrNull([current?.computedAt, comparison?.computedAt].filter((value) => value !== undefined)),
         pageInfo: singletonPageInfo(current ? 1 : 0),
-        ranges: [
-          { from: args.from, to: args.to },
-          ...(args.compareFrom && args.compareTo ? [{ from: args.compareFrom, to: args.compareTo }] : []),
-        ],
         warnings: [
-          ...missingDataWarnings(args.from, args.to, state?.dataStartDate, state?.latestCompleteSnapshotDate),
-          ...(args.compareFrom && args.compareTo
-            ? missingDataWarnings(
-                args.compareFrom,
-                args.compareTo,
-                state?.dataStartDate,
-                state?.latestCompleteSnapshotDate,
-              )
+          ...rangeWarnings(state, args, currentRange),
+          ...(args.compareFrom && args.compareTo && comparisonRange
+            ? rangeWarnings(state, { from: args.compareFrom, to: args.compareTo }, comparisonRange)
             : []),
         ],
       }),
@@ -239,12 +263,13 @@ function organizationSource(doc: Doc<"analyticsDailyOrganizationKpis">): SeriesS
 }
 
 function shopSource(doc: Doc<"analyticsDailyShopKpis">): SeriesSource {
+  const kpiEligible = doc.kpiEligible === true;
   return {
     snapshotDate: doc.snapshotDate,
     counts: {
       organizationCount: 1,
       shopCount: 1,
-      kpiEligibleShopCount: 1,
+      kpiEligibleShopCount: kpiEligible ? 1 : 0,
       activeShopCount: doc.hasRecentActivity ? 1 : 0,
       personCount: doc.uniquePersonCount,
       staffMembershipCount: doc.staffMembershipCount,
@@ -254,11 +279,11 @@ function shopSource(doc: Doc<"analyticsDailyShopKpis">): SeriesSource {
       managerStaffCount: doc.managerStaffCount,
     },
     milestoneCounts: {
-      registered: 1,
-      firstRecruitment: doc.milestoneDates.firstRecruitmentAt === undefined ? 0 : 1,
-      firstSubmission: doc.milestoneDates.firstSubmissionAt === undefined ? 0 : 1,
-      firstConfirmed: doc.milestoneDates.firstConfirmedAt === undefined ? 0 : 1,
-      secondConfirmed: doc.milestoneDates.secondConfirmedAt === undefined ? 0 : 1,
+      registered: kpiEligible ? 1 : 0,
+      firstRecruitment: kpiEligible && doc.milestoneDates.firstRecruitmentAt !== undefined ? 1 : 0,
+      firstSubmission: kpiEligible && doc.milestoneDates.firstSubmissionAt !== undefined ? 1 : 0,
+      firstConfirmed: kpiEligible && doc.milestoneDates.firstConfirmedAt !== undefined ? 1 : 0,
+      secondConfirmed: kpiEligible && doc.milestoneDates.secondConfirmedAt !== undefined ? 1 : 0,
     },
     healthSignalCounts: {
       hasUpcomingCycle: doc.healthSignals.some((signal) => signal.signal === "hasUpcomingCycle") ? 1 : 0,
@@ -311,56 +336,49 @@ function overviewSnapshot(rows: SeriesSource[]): AnalyticsServiceKpiSnapshotDto 
 async function getScopedSeries(
   ctx: QueryCtx,
   args: {
-    generation: string;
     from: string;
     to: string;
     organizationId: string | null;
     shopId: string | null;
+    range: AnalyticsRunRange;
   },
 ): Promise<SeriesSource[] | null> {
+  const effectiveFrom = args.range.effectiveFrom;
+  const effectiveTo = args.range.effectiveTo;
+  if (!effectiveFrom || !effectiveTo) return [];
   if (args.shopId) {
     const shopId = ctx.db.normalizeId("shops", args.shopId);
     if (!shopId) return null;
-    const shop = await getShopDimension(ctx, args.generation, shopId);
+    const shop = await getShopDimension(ctx, shopId);
     if (!shop || shop.deletedAt !== undefined) return null;
-    const organization = await getOrganizationDimension(ctx, args.generation, shop.organizationId);
+    const organization = await getOrganizationDimension(ctx, shop.organizationId);
     if (!organization || organization.deletedAt !== undefined) return null;
     const rows = await ctx.db
       .query("analyticsDailyShopKpis")
-      .withIndex("by_generation_and_shopId_and_snapshotDate", (q) =>
-        q
-          .eq("generation", args.generation)
-          .eq("shopId", shopId)
-          .gte("snapshotDate", args.from)
-          .lte("snapshotDate", args.to),
+      .withIndex("by_shopId_and_snapshotDate", (q) =>
+        q.eq("shopId", shopId).gte("snapshotDate", effectiveFrom).lte("snapshotDate", effectiveTo),
       )
       .take(ANALYTICS_DASHBOARD_MAX_RANGE_DAYS + 1);
-    return rows.map(shopSource);
+    return rows.filter((row) => rowBelongsToCompleteRun(row, args.range)).map(shopSource);
   }
   if (args.organizationId) {
     const organizationId = ctx.db.normalizeId("organizations", args.organizationId);
     if (!organizationId) return null;
-    const organization = await getOrganizationDimension(ctx, args.generation, organizationId);
+    const organization = await getOrganizationDimension(ctx, organizationId);
     if (!organization || organization.deletedAt !== undefined) return null;
     const rows = await ctx.db
       .query("analyticsDailyOrganizationKpis")
-      .withIndex("by_generation_and_organizationId_and_snapshotDate", (q) =>
-        q
-          .eq("generation", args.generation)
-          .eq("organizationId", organizationId)
-          .gte("snapshotDate", args.from)
-          .lte("snapshotDate", args.to),
+      .withIndex("by_organizationId_and_snapshotDate", (q) =>
+        q.eq("organizationId", organizationId).gte("snapshotDate", effectiveFrom).lte("snapshotDate", effectiveTo),
       )
       .take(ANALYTICS_DASHBOARD_MAX_RANGE_DAYS + 1);
-    return rows.map(organizationSource);
+    return rows.filter((row) => rowBelongsToCompleteRun(row, args.range)).map(organizationSource);
   }
   const rows = await ctx.db
     .query("analyticsDailyServiceKpis")
-    .withIndex("by_generation_and_snapshotDate", (q) =>
-      q.eq("generation", args.generation).gte("snapshotDate", args.from).lte("snapshotDate", args.to),
-    )
+    .withIndex("by_snapshotDate", (q) => q.gte("snapshotDate", effectiveFrom).lte("snapshotDate", effectiveTo))
     .take(ANALYTICS_DASHBOARD_MAX_RANGE_DAYS + 1);
-  return rows.map(serviceSource);
+  return rows.filter((row) => rowBelongsToCompleteRun(row, args.range)).map(serviceSource);
 }
 
 function groupedSources(rows: SeriesSource[], granularity: "day" | "week" | "month") {
@@ -416,27 +434,28 @@ export const getTrends = internalQuery({
   },
   returns: v.union(trendsResponseValidator, v.null()),
   handler: async (ctx, args) => {
-    const state = await getPipelineState(ctx);
-    const generation = state?.activeGeneration;
-    const effectiveTo = effectiveSnapshotDate(state, args.to);
-    const rows =
-      generation && effectiveTo
-        ? await getScopedSeries(ctx, { ...args, generation, to: effectiveTo })
-        : ([] as SeriesSource[]);
+    const state = await getAnalyticsReadState(ctx);
+    const range = await getCompleteRunRange(ctx, state, args, {
+      detailRetention: args.organizationId !== null || args.shopId !== null,
+    });
+    const canRead = state.availability === "available" && range.effectiveTo !== null;
+    const rows = canRead ? await getScopedSeries(ctx, { ...args, range }) : ([] as SeriesSource[]);
     if (rows === null) return null;
     const metrics = args.metrics as AnalyticsTrendMetric[];
+    const incompleteBuckets = missingBuckets(range, args.granularity);
     const series = requireSeriesWithinPointLimit(
-      groupedSources(rows, args.granularity).map(([date, bucket]) => trendPoint(date, bucket, metrics)),
+      groupedSources(rows, args.granularity)
+        .filter(([date]) => !incompleteBuckets.has(date))
+        .map(([date, bucket]) => trendPoint(date, bucket, metrics)),
     );
     return {
       kind: "trends" as const,
       metadata: responseMetadata({
         state,
-        completeness: combineCompleteness(series.map((point) => point.completeness)),
+        availability: canRead ? "available" : "unavailable",
         computedAt: series.length > 0 ? Math.max(...series.map((point) => point.computedAt)) : null,
         pageInfo: singletonPageInfo(series.length),
-        ranges: [{ from: args.from, to: args.to }],
-        warnings: missingDataWarnings(args.from, args.to, state?.dataStartDate, state?.latestCompleteSnapshotDate),
+        warnings: rangeWarnings(state, args, range),
       }),
       range: { from: args.from, to: args.to },
       granularity: args.granularity,
@@ -453,7 +472,7 @@ function milestoneSeries(rows: SeriesSource[], granularity: "day" | "week" | "mo
     return {
       date,
       counts: latest.milestoneCounts,
-      rates: milestoneRates(latest.milestoneCounts, latest.counts.shopCount),
+      rates: milestoneRates(latest.milestoneCounts, latest.counts.kpiEligibleShopCount),
       completeness: combineCompleteness(bucket.map((row) => row.completeness)),
       computedAt: Math.max(...bucket.map((row) => row.computedAt)),
     };
@@ -462,28 +481,28 @@ function milestoneSeries(rows: SeriesSource[], granularity: "day" | "week" | "mo
 
 function milestoneRates(
   counts: SeriesSource["milestoneCounts"],
-  registeredShopCount: number,
+  eligibleShopCount: number,
 ): AnalyticsMilestoneRatesDto {
-  const registeredReach = toRateDto({ numerator: counts.registered, denominator: registeredShopCount });
+  const registeredReach = toRateDto({ numerator: counts.registered, denominator: eligibleShopCount });
   return {
     registered: {
       reach: registeredReach,
       previousStepConversion: registeredReach,
     },
     firstRecruitment: {
-      reach: toRateDto({ numerator: counts.firstRecruitment, denominator: registeredShopCount }),
+      reach: toRateDto({ numerator: counts.firstRecruitment, denominator: eligibleShopCount }),
       previousStepConversion: toRateDto({ numerator: counts.firstRecruitment, denominator: counts.registered }),
     },
     firstSubmission: {
-      reach: toRateDto({ numerator: counts.firstSubmission, denominator: registeredShopCount }),
+      reach: toRateDto({ numerator: counts.firstSubmission, denominator: eligibleShopCount }),
       previousStepConversion: toRateDto({ numerator: counts.firstSubmission, denominator: counts.firstRecruitment }),
     },
     firstConfirmed: {
-      reach: toRateDto({ numerator: counts.firstConfirmed, denominator: registeredShopCount }),
+      reach: toRateDto({ numerator: counts.firstConfirmed, denominator: eligibleShopCount }),
       previousStepConversion: toRateDto({ numerator: counts.firstConfirmed, denominator: counts.firstSubmission }),
     },
     secondConfirmed: {
-      reach: toRateDto({ numerator: counts.secondConfirmed, denominator: registeredShopCount }),
+      reach: toRateDto({ numerator: counts.secondConfirmed, denominator: eligibleShopCount }),
       previousStepConversion: toRateDto({ numerator: counts.secondConfirmed, denominator: counts.firstConfirmed }),
     },
   };
@@ -512,21 +531,25 @@ export const getMilestones = internalQuery({
   },
   returns: v.union(milestonesResponseValidator, v.null()),
   handler: async (ctx, args) => {
-    const state = await getPipelineState(ctx);
-    const generation = state?.activeGeneration;
-    const effectiveTo = effectiveSnapshotDate(state, args.to);
-    const rows = generation && effectiveTo ? await getScopedSeries(ctx, { ...args, generation, to: effectiveTo }) : [];
+    const state = await getAnalyticsReadState(ctx);
+    const range = await getCompleteRunRange(ctx, state, args, {
+      detailRetention: args.organizationId !== null || args.shopId !== null,
+    });
+    const canRead = state.availability === "available" && range.effectiveTo !== null;
+    const rows = canRead ? await getScopedSeries(ctx, { ...args, range }) : [];
     if (rows === null) return null;
-    const series = requireSeriesWithinPointLimit(milestoneSeries(rows, args.granularity));
+    const incompleteBuckets = missingBuckets(range, args.granularity);
+    const series = requireSeriesWithinPointLimit(
+      milestoneSeries(rows, args.granularity).filter((point) => !incompleteBuckets.has(point.date)),
+    );
     return {
       kind: "milestones" as const,
       metadata: responseMetadata({
         state,
-        completeness: combineCompleteness(series.map((point) => point.completeness)),
+        availability: canRead ? "available" : "unavailable",
         computedAt: series.length > 0 ? Math.max(...series.map((point) => point.computedAt)) : null,
         pageInfo: singletonPageInfo(series.length),
-        ranges: [{ from: args.from, to: args.to }],
-        warnings: missingDataWarnings(args.from, args.to, state?.dataStartDate, state?.latestCompleteSnapshotDate),
+        warnings: rangeWarnings(state, args, range),
       }),
       range: { from: args.from, to: args.to },
       granularity: args.granularity,
@@ -547,21 +570,25 @@ export const getHealth = internalQuery({
   },
   returns: v.union(healthResponseValidator, v.null()),
   handler: async (ctx, args) => {
-    const state = await getPipelineState(ctx);
-    const generation = state?.activeGeneration;
-    const effectiveTo = effectiveSnapshotDate(state, args.to);
-    const rows = generation && effectiveTo ? await getScopedSeries(ctx, { ...args, generation, to: effectiveTo }) : [];
+    const state = await getAnalyticsReadState(ctx);
+    const range = await getCompleteRunRange(ctx, state, args, {
+      detailRetention: args.organizationId !== null || args.shopId !== null,
+    });
+    const canRead = state.availability === "available" && range.effectiveTo !== null;
+    const rows = canRead ? await getScopedSeries(ctx, { ...args, range }) : [];
     if (rows === null) return null;
-    const series = requireSeriesWithinPointLimit(healthSeries(rows, args.granularity));
+    const incompleteBuckets = missingBuckets(range, args.granularity);
+    const series = requireSeriesWithinPointLimit(
+      healthSeries(rows, args.granularity).filter((point) => !incompleteBuckets.has(point.date)),
+    );
     return {
       kind: "health" as const,
       metadata: responseMetadata({
         state,
-        completeness: combineCompleteness(series.map((point) => point.completeness)),
+        availability: canRead ? "available" : "unavailable",
         computedAt: series.length > 0 ? Math.max(...series.map((point) => point.computedAt)) : null,
         pageInfo: singletonPageInfo(series.length),
-        ranges: [{ from: args.from, to: args.to }],
-        warnings: missingDataWarnings(args.from, args.to, state?.dataStartDate, state?.latestCompleteSnapshotDate),
+        warnings: rangeWarnings(state, args, range),
       }),
       range: { from: args.from, to: args.to },
       granularity: args.granularity,
@@ -583,7 +610,6 @@ function paginationOptions(cursor: string | null, limit: number) {
 async function organizationPage(
   ctx: QueryCtx,
   args: {
-    generation: string;
     cursor: string | null;
     limit: number;
     sort: "registeredAt" | "currentPlan";
@@ -595,8 +621,8 @@ async function organizationPage(
   if (args.sort === "currentPlan") {
     return await ctx.db
       .query("analyticsOrganizations")
-      .withIndex("by_generation_and_deletedAt_and_currentPlan_and_registeredAt", (q) => {
-        const active = q.eq("generation", args.generation).eq("deletedAt", undefined);
+      .withIndex("by_deletedAt_and_currentPlan_and_registeredAt", (q) => {
+        const active = q.eq("deletedAt", undefined);
         return args.plan ? active.eq("currentPlan", args.plan) : active;
       })
       .order(args.direction)
@@ -604,9 +630,7 @@ async function organizationPage(
   }
   return await ctx.db
     .query("analyticsOrganizations")
-    .withIndex("by_generation_and_deletedAt_and_registeredAt", (q) =>
-      q.eq("generation", args.generation).eq("deletedAt", undefined),
-    )
+    .withIndex("by_deletedAt_and_registeredAt", (q) => q.eq("deletedAt", undefined))
     .order(args.direction)
     .paginate(options);
 }
@@ -624,42 +648,36 @@ export const getOrganizations = internalQuery({
   },
   returns: organizationsResponseValidator,
   handler: async (ctx, args) => {
-    const state = await getPipelineState(ctx);
-    const generation = state?.activeGeneration;
-    const effectiveTo = effectiveSnapshotDate(state, args.to);
-    if (!generation || !effectiveTo) {
+    const state = await getAnalyticsReadState(ctx);
+    const range = await getCompleteRunRange(ctx, state, args, { detailRetention: true });
+    const latestRun = range.latestCompleteRun;
+    if (state.availability === "unavailable" || !latestRun) {
       return {
         kind: "organizations" as const,
         metadata: responseMetadata({
           state,
-          completeness: "unavailable",
+          availability: "unavailable",
           computedAt: null,
           pageInfo: pageInfo({ cursor: args.cursor, pageSize: args.limit, returnedCount: 0 }),
-          ranges: [{ from: args.from, to: args.to }],
-          warnings: missingDataWarnings(args.from, args.to, state?.dataStartDate, state?.latestCompleteSnapshotDate),
+          warnings: rangeWarnings(state, args, range),
         }),
         rows: [],
       };
     }
-    const page = await organizationPage(ctx, { ...args, generation });
+    const page = await organizationPage(ctx, args);
     const dimensionRows = page.page.filter((organization) => !args.plan || organization.currentPlan === args.plan);
     const mapped = await Promise.all(
       dimensionRows.map(async (organization) => {
-        const kpi = await getLatestOrganizationKpi(ctx, generation, organization.organizationId, effectiveTo);
-        return toOrganizationRowDto(organization, kpi ? toOrganizationKpiDto(kpi) : null);
+        const kpi = await getLatestOrganizationKpi(ctx, latestRun, organization.organizationId);
+        return toOrganizationRowDto(organization, kpi ? toOrganizationKpiDto(kpi) : null, latestRun.dataStartAt);
       }),
     );
     const rows = mapped.filter((row) => !args.completeness || row.kpis?.completeness === args.completeness);
     const filteredInMemory = (args.sort !== "currentPlan" && args.plan !== null) || args.completeness !== null;
-    const completeness = completeWhenEmpty(
-      rows.length,
-      rows.flatMap((row) => (row.kpis ? [row.kpis.completeness] : [])),
-    );
     return {
       kind: "organizations" as const,
       metadata: responseMetadata({
         state,
-        completeness,
         computedAt: maxComputedAt(rows),
         pageInfo: pageInfo({
           cursor: args.cursor,
@@ -668,11 +686,7 @@ export const getOrganizations = internalQuery({
           pageSize: args.limit,
           returnedCount: rows.length,
         }),
-        ranges: [{ from: args.from, to: args.to }],
-        warnings: [
-          ...missingDataWarnings(args.from, args.to, state.dataStartDate, state.latestCompleteSnapshotDate),
-          ...filteredPageWarnings(page, filteredInMemory),
-        ],
+        warnings: [...rangeWarnings(state, args, range), ...filteredPageWarnings(page, filteredInMemory)],
       }),
       rows,
     };
@@ -712,15 +726,14 @@ function rollupOrganizationSeries(
 
 async function organizationShopPage(
   ctx: QueryCtx,
-  generation: string,
   organizationId: Id<"organizations">,
   cursor: string | null,
   limit: number,
 ) {
   return await ctx.db
     .query("analyticsShops")
-    .withIndex("by_generation_and_organizationId_and_deletedAt_and_registeredAt", (q) =>
-      q.eq("generation", generation).eq("organizationId", organizationId).eq("deletedAt", undefined),
+    .withIndex("by_organizationId_and_deletedAt_and_registeredAt", (q) =>
+      q.eq("organizationId", organizationId).eq("deletedAt", undefined),
     )
     .paginate(paginationOptions(cursor, limit));
 }
@@ -736,61 +749,59 @@ export const getOrganization = internalQuery({
   },
   returns: v.union(organizationDetailResponseValidator, v.null()),
   handler: async (ctx, args) => {
-    const state = await getPipelineState(ctx);
-    const generation = state?.activeGeneration;
+    const state = await getAnalyticsReadState(ctx);
+    const range = await getCompleteRunRange(ctx, state, args, { detailRetention: true });
+    const latestRun = range.latestCompleteRun;
     const organizationId = ctx.db.normalizeId("organizations", args.organizationId);
     if (!organizationId) return null;
-    if (!generation) {
+    if (state.availability === "unavailable" || !latestRun) {
       return {
         kind: "organization" as const,
         metadata: responseMetadata({
           state,
-          completeness: "unavailable",
+          availability: "unavailable",
           computedAt: null,
           pageInfo: pageInfo({ cursor: args.cursor, pageSize: args.limit, returnedCount: 0 }),
-          ranges: [{ from: args.from, to: args.to }],
-          warnings: missingDataWarnings(args.from, args.to, state?.dataStartDate, state?.latestCompleteSnapshotDate),
+          warnings: rangeWarnings(state, args, range),
         }),
         organization: null,
         series: [],
         shops: [],
       };
     }
-    const organization = await getOrganizationDimension(ctx, generation, organizationId);
+    const organization = await getOrganizationDimension(ctx, organizationId);
     if (!organization || organization.deletedAt !== undefined) return null;
-    const effectiveTo = effectiveSnapshotDate(state, args.to);
-    const seriesDocs = effectiveTo
-      ? await ctx.db
-          .query("analyticsDailyOrganizationKpis")
-          .withIndex("by_generation_and_organizationId_and_snapshotDate", (q) =>
-            q
-              .eq("generation", generation)
-              .eq("organizationId", organizationId)
-              .gte("snapshotDate", args.from)
-              .lte("snapshotDate", effectiveTo),
-          )
-          .take(ANALYTICS_DASHBOARD_MAX_RANGE_DAYS + 1)
-      : [];
-    const series = requireSeriesWithinPointLimit(rollupOrganizationSeries(seriesDocs, args.granularity));
-    const currentKpi = seriesDocs.at(-1);
-    const shopsPage = await organizationShopPage(ctx, generation, organizationId, args.cursor, args.limit);
+    const seriesFrom = range.effectiveFrom;
+    const seriesTo = range.effectiveTo;
+    const seriesDocs =
+      seriesFrom && seriesTo
+        ? await ctx.db
+            .query("analyticsDailyOrganizationKpis")
+            .withIndex("by_organizationId_and_snapshotDate", (q) =>
+              q.eq("organizationId", organizationId).gte("snapshotDate", seriesFrom).lte("snapshotDate", seriesTo),
+            )
+            .take(ANALYTICS_DASHBOARD_MAX_RANGE_DAYS + 1)
+        : [];
+    const visibleSeriesDocs = seriesDocs.filter((row) => rowBelongsToCompleteRun(row, range));
+    const incompleteBuckets = missingBuckets(range, args.granularity);
+    const series = requireSeriesWithinPointLimit(
+      rollupOrganizationSeries(visibleSeriesDocs, args.granularity).filter(
+        (point) => !incompleteBuckets.has(point.snapshotDate),
+      ),
+    );
+    const currentKpi = await getLatestOrganizationKpi(ctx, latestRun, organizationId);
+    const shopsPage = await organizationShopPage(ctx, organizationId, args.cursor, args.limit);
     const shops = await Promise.all(
       shopsPage.page.map(async (shop) => {
-        const kpi = effectiveTo ? await getLatestShopKpi(ctx, generation, shop.shopId, effectiveTo) : null;
+        const kpi = await getLatestShopKpi(ctx, latestRun, shop.shopId);
         return toShopRowDto(shop, organization.displayName, kpi ? toShopKpiDto(kpi) : null);
       }),
     );
     const current = currentKpi ? toOrganizationKpiDto(currentKpi) : null;
-    const completenessValues = [
-      ...series.map((row) => row.completeness),
-      ...shops.flatMap((row) => (row.kpis ? [row.kpis.completeness] : [])),
-    ];
-    const completeness = series.length === 0 ? "unavailable" : combineCompleteness(completenessValues);
     return {
       kind: "organization" as const,
       metadata: responseMetadata({
         state,
-        completeness,
         computedAt: maxOrNull([
           ...series.map((row) => row.computedAt),
           ...shops.flatMap((row) => (row.kpis ? [row.kpis.computedAt] : [])),
@@ -802,13 +813,9 @@ export const getOrganization = internalQuery({
           pageSize: args.limit,
           returnedCount: shops.length,
         }),
-        ranges: [{ from: args.from, to: args.to }],
-        warnings: [
-          ...missingDataWarnings(args.from, args.to, state.dataStartDate, state.latestCompleteSnapshotDate),
-          ...pageWarnings(shopsPage),
-        ],
+        warnings: [...rangeWarnings(state, args, range), ...pageWarnings(shopsPage)],
       }),
-      organization: toOrganizationRowDto(organization, current),
+      organization: toOrganizationRowDto(organization, current, latestRun.dataStartAt),
       series,
       shops,
     };
@@ -887,7 +894,6 @@ function shopRowMatches(
 async function shopPage(
   ctx: QueryCtx,
   args: {
-    generation: string;
     cursor: string | null;
     limit: number;
     sort: "registeredAt" | "currentPlan" | "latestActivityAt";
@@ -902,11 +908,8 @@ async function shopPage(
       const organizationId = args.organizationId;
       return await ctx.db
         .query("analyticsShops")
-        .withIndex("by_gen_org_deleted_plan_registered", (q) => {
-          const active = q
-            .eq("generation", args.generation)
-            .eq("organizationId", organizationId)
-            .eq("deletedAt", undefined);
+        .withIndex("by_organizationId_and_deletedAt_and_currentPlan_and_registeredAt", (q) => {
+          const active = q.eq("organizationId", organizationId).eq("deletedAt", undefined);
           return args.plan ? active.eq("currentPlan", args.plan) : active;
         })
         .order(args.direction)
@@ -914,8 +917,8 @@ async function shopPage(
     }
     return await ctx.db
       .query("analyticsShops")
-      .withIndex("by_generation_and_deletedAt_and_currentPlan_and_registeredAt", (q) => {
-        const active = q.eq("generation", args.generation).eq("deletedAt", undefined);
+      .withIndex("by_deletedAt_and_currentPlan_and_registeredAt", (q) => {
+        const active = q.eq("deletedAt", undefined);
         return args.plan ? active.eq("currentPlan", args.plan) : active;
       })
       .order(args.direction)
@@ -926,17 +929,15 @@ async function shopPage(
       const organizationId = args.organizationId;
       return await ctx.db
         .query("analyticsShops")
-        .withIndex("by_gen_org_deleted_activity_registered", (q) =>
-          q.eq("generation", args.generation).eq("organizationId", organizationId).eq("deletedAt", undefined),
+        .withIndex("by_organizationId_deletedAt_latestActivityAt_registeredAt", (q) =>
+          q.eq("organizationId", organizationId).eq("deletedAt", undefined),
         )
         .order(args.direction)
         .paginate(options);
     }
     return await ctx.db
       .query("analyticsShops")
-      .withIndex("by_gen_deleted_activity_registered", (q) =>
-        q.eq("generation", args.generation).eq("deletedAt", undefined),
-      )
+      .withIndex("by_deletedAt_and_latestActivityAt_and_registeredAt", (q) => q.eq("deletedAt", undefined))
       .order(args.direction)
       .paginate(options);
   }
@@ -944,17 +945,15 @@ async function shopPage(
     const organizationId = args.organizationId;
     return await ctx.db
       .query("analyticsShops")
-      .withIndex("by_generation_and_organizationId_and_deletedAt_and_registeredAt", (q) =>
-        q.eq("generation", args.generation).eq("organizationId", organizationId).eq("deletedAt", undefined),
+      .withIndex("by_organizationId_and_deletedAt_and_registeredAt", (q) =>
+        q.eq("organizationId", organizationId).eq("deletedAt", undefined),
       )
       .order(args.direction)
       .paginate(options);
   }
   return await ctx.db
     .query("analyticsShops")
-    .withIndex("by_generation_and_deletedAt_and_registeredAt", (q) =>
-      q.eq("generation", args.generation).eq("deletedAt", undefined),
-    )
+    .withIndex("by_deletedAt_and_registeredAt", (q) => q.eq("deletedAt", undefined))
     .order(args.direction)
     .paginate(options);
 }
@@ -1003,19 +1002,18 @@ export const getShops = internalQuery({
   },
   returns: v.union(shopsResponseValidator, v.null()),
   handler: async (ctx, args) => {
-    const state = await getPipelineState(ctx);
-    const generation = state?.activeGeneration;
-    const effectiveTo = effectiveSnapshotDate(state, args.to);
-    if (!generation || !effectiveTo) {
+    const state = await getAnalyticsReadState(ctx);
+    const range = await getCompleteRunRange(ctx, state, args, { detailRetention: true });
+    const latestRun = range.latestCompleteRun;
+    if (state.availability === "unavailable" || !latestRun) {
       return {
         kind: "shops" as const,
         metadata: responseMetadata({
           state,
-          completeness: "unavailable",
+          availability: "unavailable",
           computedAt: null,
           pageInfo: pageInfo({ cursor: args.cursor, pageSize: args.limit, returnedCount: 0 }),
-          ranges: [{ from: args.from, to: args.to }],
-          warnings: missingDataWarnings(args.from, args.to, state?.dataStartDate, state?.latestCompleteSnapshotDate),
+          warnings: rangeWarnings(state, args, range),
         }),
         rows: [],
       };
@@ -1023,15 +1021,15 @@ export const getShops = internalQuery({
     const organizationId = args.organizationId ? ctx.db.normalizeId("organizations", args.organizationId) : null;
     if (args.organizationId && !organizationId) return null;
     if (organizationId) {
-      const organization = await getOrganizationDimension(ctx, generation, organizationId);
+      const organization = await getOrganizationDimension(ctx, organizationId);
       if (!organization || organization.deletedAt !== undefined) return null;
     }
-    const page = await shopPage(ctx, { ...args, generation, organizationId });
+    const page = await shopPage(ctx, { ...args, organizationId });
     const organizations = new Map<Id<"organizations">, ReturnType<typeof getOrganizationDimension>>();
     const getOrganization = (id: Id<"organizations">) => {
       const existing = organizations.get(id);
       if (existing) return existing;
-      const promise = getOrganizationDimension(ctx, generation, id);
+      const promise = getOrganizationDimension(ctx, id);
       organizations.set(id, promise);
       return promise;
     };
@@ -1043,7 +1041,7 @@ export const getShops = internalQuery({
       dimensionRows.map(async (shop) => {
         const [organization, kpi] = await Promise.all([
           getOrganization(shop.organizationId),
-          getLatestShopKpi(ctx, generation, shop.shopId, effectiveTo),
+          getLatestShopKpi(ctx, latestRun, shop.shopId),
         ]);
         if (!organization || organization.deletedAt !== undefined) return null;
         return toShopRowDto(shop, organization.displayName, kpi ? toShopKpiDto(kpi) : null);
@@ -1061,15 +1059,10 @@ export const getShops = internalQuery({
       args.health !== null ||
       args.completeness !== null ||
       mapped.some((row) => row === null);
-    const completeness = completeWhenEmpty(
-      rows.length,
-      rows.flatMap((row) => (row.kpis ? [row.kpis.completeness] : [])),
-    );
     return {
       kind: "shops" as const,
       metadata: responseMetadata({
         state,
-        completeness,
         computedAt: maxComputedAt(rows),
         pageInfo: pageInfo({
           cursor: args.cursor,
@@ -1078,11 +1071,7 @@ export const getShops = internalQuery({
           pageSize: args.limit,
           returnedCount: rows.length,
         }),
-        ranges: [{ from: args.from, to: args.to }],
-        warnings: [
-          ...missingDataWarnings(args.from, args.to, state.dataStartDate, state.latestCompleteSnapshotDate),
-          ...filteredPageWarnings(page, filteredInMemory),
-        ],
+        warnings: [...rangeWarnings(state, args, range), ...filteredPageWarnings(page, filteredInMemory)],
       }),
       rows,
     };
@@ -1121,54 +1110,56 @@ export const getShop = internalQuery({
   args: { shopId: v.string(), from: v.string(), to: v.string(), granularity: granularityArg },
   returns: v.union(shopDetailResponseValidator, v.null()),
   handler: async (ctx, args) => {
-    const state = await getPipelineState(ctx);
-    const generation = state?.activeGeneration;
+    const state = await getAnalyticsReadState(ctx);
+    const range = await getCompleteRunRange(ctx, state, args, { detailRetention: true });
+    const latestRun = range.latestCompleteRun;
     const shopId = ctx.db.normalizeId("shops", args.shopId);
     if (!shopId) return null;
-    if (!generation) {
+    if (state.availability === "unavailable" || !latestRun) {
       return {
         kind: "shop" as const,
         metadata: responseMetadata({
           state,
-          completeness: "unavailable",
+          availability: "unavailable",
           computedAt: null,
           pageInfo: singletonPageInfo(0),
-          ranges: [{ from: args.from, to: args.to }],
-          warnings: missingDataWarnings(args.from, args.to, state?.dataStartDate, state?.latestCompleteSnapshotDate),
+          warnings: rangeWarnings(state, args, range),
         }),
         shop: null,
         series: [],
       };
     }
-    const shop = await getShopDimension(ctx, generation, shopId);
+    const shop = await getShopDimension(ctx, shopId);
     if (!shop || shop.deletedAt !== undefined) return null;
-    const organization = await getOrganizationDimension(ctx, generation, shop.organizationId);
+    const organization = await getOrganizationDimension(ctx, shop.organizationId);
     if (!organization || organization.deletedAt !== undefined) return null;
-    const effectiveTo = effectiveSnapshotDate(state, args.to);
-    const seriesDocs = effectiveTo
-      ? await ctx.db
-          .query("analyticsDailyShopKpis")
-          .withIndex("by_generation_and_shopId_and_snapshotDate", (q) =>
-            q
-              .eq("generation", generation)
-              .eq("shopId", shopId)
-              .gte("snapshotDate", args.from)
-              .lte("snapshotDate", effectiveTo),
-          )
-          .take(ANALYTICS_DASHBOARD_MAX_RANGE_DAYS + 1)
-      : [];
-    const series = requireSeriesWithinPointLimit(rollupShopSeries(seriesDocs, args.granularity));
-    const currentDoc = seriesDocs.at(-1);
+    const seriesFrom = range.effectiveFrom;
+    const seriesTo = range.effectiveTo;
+    const seriesDocs =
+      seriesFrom && seriesTo
+        ? await ctx.db
+            .query("analyticsDailyShopKpis")
+            .withIndex("by_shopId_and_snapshotDate", (q) =>
+              q.eq("shopId", shopId).gte("snapshotDate", seriesFrom).lte("snapshotDate", seriesTo),
+            )
+            .take(ANALYTICS_DASHBOARD_MAX_RANGE_DAYS + 1)
+        : [];
+    const visibleSeriesDocs = seriesDocs.filter((row) => rowBelongsToCompleteRun(row, range));
+    const incompleteBuckets = missingBuckets(range, args.granularity);
+    const series = requireSeriesWithinPointLimit(
+      rollupShopSeries(visibleSeriesDocs, args.granularity).filter(
+        (point) => !incompleteBuckets.has(point.snapshotDate),
+      ),
+    );
+    const currentDoc = await getLatestShopKpi(ctx, latestRun, shopId);
     const current = currentDoc ? toShopKpiDto(currentDoc) : null;
     return {
       kind: "shop" as const,
       metadata: responseMetadata({
         state,
-        completeness: series.length === 0 ? "unavailable" : combineCompleteness(series.map((row) => row.completeness)),
         computedAt: maxOrNull(series.map((row) => row.computedAt)),
         pageInfo: singletonPageInfo(series.length),
-        ranges: [{ from: args.from, to: args.to }],
-        warnings: missingDataWarnings(args.from, args.to, state.dataStartDate, state.latestCompleteSnapshotDate),
+        warnings: rangeWarnings(state, args, range),
       }),
       shop: toShopRowDto(shop, organization.displayName, current),
       series,
@@ -1189,36 +1180,34 @@ export const getShopCycles = internalQuery({
   },
   returns: v.union(shopCyclesResponseValidator, v.null()),
   handler: async (ctx, args) => {
-    const state = await getPipelineState(ctx);
-    const generation = state?.activeGeneration;
+    const state = await getAnalyticsReadState(ctx);
+    const range = await getCompleteRunRange(ctx, state, args);
     const shopId = ctx.db.normalizeId("shops", args.shopId);
     if (!shopId) return null;
-    if (!generation) {
+    if (state.availability === "unavailable" || !state.latestCompleteRun) {
       return {
         kind: "shopCycles" as const,
         metadata: responseMetadata({
           state,
-          completeness: "unavailable",
+          availability: "unavailable",
           computedAt: null,
           pageInfo: pageInfo({ cursor: args.cursor, pageSize: args.limit, returnedCount: 0 }),
-          ranges: [{ from: args.from, to: args.to }],
-          warnings: missingDataWarnings(args.from, args.to, state?.dataStartDate, state?.latestCompleteSnapshotDate),
+          warnings: rangeWarnings(state, args, range),
         }),
         shopId: args.shopId,
         rows: [],
       };
     }
-    const shop = await getShopDimension(ctx, generation, shopId);
+    const shop = await getShopDimension(ctx, shopId);
     if (!shop || shop.deletedAt !== undefined) return null;
-    const organization = await getOrganizationDimension(ctx, generation, shop.organizationId);
+    const organization = await getOrganizationDimension(ctx, shop.organizationId);
     if (!organization || organization.deletedAt !== undefined) return null;
     const completenessFilter = args.completeness;
     const page = completenessFilter
       ? await ctx.db
           .query("analyticsShiftCycles")
-          .withIndex("by_gen_shop_deleted_complete_period", (q) =>
+          .withIndex("by_shopId_and_deletedAt_and_completeness_and_periodStart", (q) =>
             q
-              .eq("generation", generation)
               .eq("shopId", shopId)
               .eq("deletedAt", undefined)
               .eq("completeness", completenessFilter)
@@ -1229,26 +1218,16 @@ export const getShopCycles = internalQuery({
           .paginate(paginationOptions(args.cursor, args.limit))
       : await ctx.db
           .query("analyticsShiftCycles")
-          .withIndex("by_generation_and_shopId_and_deletedAt_and_periodStart", (q) =>
-            q
-              .eq("generation", generation)
-              .eq("shopId", shopId)
-              .eq("deletedAt", undefined)
-              .gte("periodStart", args.from)
-              .lte("periodStart", args.to),
+          .withIndex("by_shopId_and_deletedAt_and_periodStart", (q) =>
+            q.eq("shopId", shopId).eq("deletedAt", undefined).gte("periodStart", args.from).lte("periodStart", args.to),
           )
           .order(args.direction)
           .paginate(paginationOptions(args.cursor, args.limit));
     const rows = page.page.map((cycle) => toCycleRowDto(cycle, organization.displayName, shop.displayName));
-    const completeness = completeWhenEmpty(
-      rows.length,
-      rows.map((row) => row.completeness),
-    );
     return {
       kind: "shopCycles" as const,
       metadata: responseMetadata({
         state,
-        completeness,
         computedAt: rows.length > 0 ? Math.max(...rows.map((row) => row.updatedAt)) : null,
         pageInfo: pageInfo({
           cursor: args.cursor,
@@ -1257,11 +1236,7 @@ export const getShopCycles = internalQuery({
           pageSize: args.limit,
           returnedCount: rows.length,
         }),
-        ranges: [{ from: args.from, to: args.to }],
-        warnings: [
-          ...missingDataWarnings(args.from, args.to, state.dataStartDate, state.latestCompleteSnapshotDate),
-          ...pageWarnings(page),
-        ],
+        warnings: [...rangeWarnings(state, args, range), ...pageWarnings(page)],
       }),
       shopId: args.shopId,
       rows,
@@ -1273,17 +1248,16 @@ export const getCycle = internalQuery({
   args: { shopId: v.string(), recruitmentId: v.string() },
   returns: v.union(cycleDetailResponseValidator, v.null()),
   handler: async (ctx, args) => {
-    const state = await getPipelineState(ctx);
-    const generation = state?.activeGeneration;
+    const state = await getAnalyticsReadState(ctx);
     const shopId = ctx.db.normalizeId("shops", args.shopId);
     const recruitmentId = ctx.db.normalizeId("recruitments", args.recruitmentId);
     if (!shopId || !recruitmentId) return null;
-    if (!generation) {
+    if (state.availability === "unavailable" || !state.latestCompleteRun) {
       return {
         kind: "cycle" as const,
         metadata: responseMetadata({
           state,
-          completeness: "unavailable",
+          availability: "unavailable",
           computedAt: null,
           pageInfo: singletonPageInfo(0),
         }),
@@ -1292,14 +1266,12 @@ export const getCycle = internalQuery({
     }
     const cycle = await ctx.db
       .query("analyticsShiftCycles")
-      .withIndex("by_generation_and_recruitmentId", (q) =>
-        q.eq("generation", generation).eq("recruitmentId", recruitmentId),
-      )
+      .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
       .unique();
     if (!cycle || cycle.shopId !== shopId || cycle.deletedAt !== undefined) return null;
     const [shop, organization] = await Promise.all([
-      getShopDimension(ctx, generation, cycle.shopId),
-      getOrganizationDimension(ctx, generation, cycle.organizationId),
+      getShopDimension(ctx, cycle.shopId),
+      getOrganizationDimension(ctx, cycle.organizationId),
     ]);
     if (!shop || !organization || shop.deletedAt !== undefined || organization.deletedAt !== undefined) return null;
     const row = toCycleRowDto(cycle, organization.displayName, shop.displayName);
@@ -1307,7 +1279,6 @@ export const getCycle = internalQuery({
       kind: "cycle" as const,
       metadata: responseMetadata({
         state,
-        completeness: row.completeness,
         computedAt: row.updatedAt,
         pageInfo: singletonPageInfo(1),
       }),
@@ -1339,19 +1310,18 @@ export const getSegments = internalQuery({
   },
   returns: segmentsResponseValidator,
   handler: async (ctx, args) => {
-    const state = await getPipelineState(ctx);
-    const generation = state?.activeGeneration;
-    const effectiveTo = effectiveSnapshotDate(state, args.to);
-    if (!generation || !effectiveTo) {
+    const state = await getAnalyticsReadState(ctx);
+    const range = await getCompleteRunRange(ctx, state, args, { detailRetention: true });
+    const latestRun = range.latestCompleteRun;
+    if (state.availability === "unavailable" || !latestRun) {
       return {
         kind: "segments" as const,
         metadata: responseMetadata({
           state,
-          completeness: "unavailable",
+          availability: "unavailable",
           computedAt: null,
           pageInfo: pageInfo({ cursor: args.cursor, pageSize: args.limit, returnedCount: 0 }),
-          ranges: [{ from: args.from, to: args.to }],
-          warnings: missingDataWarnings(args.from, args.to, state?.dataStartDate, state?.latestCompleteSnapshotDate),
+          warnings: rangeWarnings(state, args, range),
         }),
         rows: [],
       };
@@ -1360,45 +1330,44 @@ export const getSegments = internalQuery({
     const page = completenessFilter
       ? await ctx.db
           .query("analyticsDailySegmentKpis")
-          .withIndex("by_gen_date_complete_dimension_bucket", (q) => {
-            const complete = q
-              .eq("generation", generation)
-              .eq("snapshotDate", effectiveTo)
-              .eq("completeness", completenessFilter);
+          .withIndex("by_snapshotDate_and_completeness_and_dimension_and_bucket", (q) => {
+            const complete = q.eq("snapshotDate", latestRun.targetDate).eq("completeness", completenessFilter);
             return args.dimension ? complete.eq("dimension", args.dimension) : complete;
           })
+          .filter((q) => q.eq(q.field("runId"), latestRun._id))
           .order(args.direction)
           .paginate(paginationOptions(args.cursor, args.limit))
       : await ctx.db
           .query("analyticsDailySegmentKpis")
-          .withIndex("by_generation_and_snapshotDate_and_dimension_and_bucket", (q) =>
+          .withIndex("by_snapshotDate_and_dimension_and_bucket", (q) =>
             args.dimension
-              ? q.eq("generation", generation).eq("snapshotDate", effectiveTo).eq("dimension", args.dimension)
-              : q.eq("generation", generation).eq("snapshotDate", effectiveTo),
+              ? q.eq("snapshotDate", latestRun.targetDate).eq("dimension", args.dimension)
+              : q.eq("snapshotDate", latestRun.targetDate),
           )
+          .filter((q) => q.eq(q.field("runId"), latestRun._id))
           .order(args.direction)
           .paginate(paginationOptions(args.cursor, args.limit));
-    const rows: AnalyticsSegmentRowDto[] = page.page.map((row) => ({
-      snapshotDate: row.snapshotDate,
-      dimension: row.dimension,
-      bucket: row.bucket,
-      shopCount: row.shopCount,
-      milestoneCounts: row.milestoneCounts,
-      healthSignalCounts: row.healthSignalCounts,
-      northStar: toRateDto(row.northStar),
-      deadlineSubmission: toRateDto(row.deadlineSubmission),
-      finalSubmission: toRateDto(row.finalSubmission),
-      completeness: row.completeness,
-      computedAt: row.computedAt,
-    }));
+    const rows: AnalyticsSegmentRowDto[] = page.page.map((row) => {
+      if (row.kpiEligibleShopCount === undefined) throw new Error("analytics_segment_eligibility_missing");
+      return {
+        snapshotDate: row.snapshotDate,
+        dimension: row.dimension,
+        bucket: row.bucket,
+        shopCount: row.shopCount,
+        kpiEligibleShopCount: row.kpiEligibleShopCount,
+        milestoneCounts: row.milestoneCounts,
+        healthSignalCounts: row.healthSignalCounts,
+        northStar: toRateDto(row.northStar),
+        deadlineSubmission: toRateDto(row.deadlineSubmission),
+        finalSubmission: toRateDto(row.finalSubmission),
+        completeness: row.completeness,
+        computedAt: row.computedAt,
+      };
+    });
     return {
       kind: "segments" as const,
       metadata: responseMetadata({
         state,
-        completeness: completeWhenEmpty(
-          rows.length,
-          rows.map((row) => row.completeness),
-        ),
         computedAt: rows.length > 0 ? Math.max(...rows.map((row) => row.computedAt)) : null,
         pageInfo: pageInfo({
           cursor: args.cursor,
@@ -1407,11 +1376,7 @@ export const getSegments = internalQuery({
           pageSize: args.limit,
           returnedCount: rows.length,
         }),
-        ranges: [{ from: args.from, to: args.to }],
-        warnings: [
-          ...missingDataWarnings(args.from, args.to, state.dataStartDate, state.latestCompleteSnapshotDate),
-          ...pageWarnings(page),
-        ],
+        warnings: [...rangeWarnings(state, args, range), ...pageWarnings(page)],
       }),
       rows,
     };
@@ -1444,13 +1409,13 @@ export const getFeatureRequests = internalQuery({
       pageSize: limit,
       returnedCount: rows.length,
     });
-    const computedAt = Date.now();
+    const computedAt = maxOrNull(rows.map((row) => row.createdAt));
     const metadata = {
+      availability: "available" as const,
       asOf: computedAt,
       dataStartDate: null,
       latestCompleteSnapshotDate: null,
       computedAt,
-      completeness: "complete" as const,
       warnings: ["要望データはAnalytics pipelineとは独立した現在値です"],
       pageInfo: requestsPageInfo,
     };

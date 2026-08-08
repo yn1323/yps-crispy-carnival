@@ -1,6 +1,6 @@
 interface:
   display_name: "Pull Request作成"
-  short_description: "push済みの差分から簡潔な日本語Pull Requestを作成"
-  default_prompt: "Use $create-pr to create a concise Japanese Pull Request from the pushed branch."
+  short_description: "ブランチを必要に応じてpushし、日本語Pull Requestを作成"
+  default_prompt: "Use $create-pr to push the committed branch when needed and create a concise Japanese Pull Request."
 policy:
   allow_implicit_invocation: false

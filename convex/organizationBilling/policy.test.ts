@@ -316,14 +316,23 @@ describe("organizationBilling/policy Free eligibility", () => {
 });
 
 describe("organizationBilling/policy trial deadline", () => {
-  it("事業者作成月の翌月末日の翌日00:00 JSTを返す", () => {
+  it("JSTの事業者作成日から2暦月後の同日00:00を返す", () => {
     const createdAt = Date.parse("2026-07-14T01:30:00.000Z");
-    expect(calculateTrialEndsAt(createdAt)).toBe(Date.parse("2026-08-31T15:00:00.000Z"));
+    expect(calculateTrialEndsAt(createdAt)).toBe(Date.parse("2026-09-13T15:00:00.000Z"));
+    expect(calculateTrialEndsAt(Date.parse("2026-07-14T14:59:59.000Z"))).toBe(Date.parse("2026-09-13T15:00:00.000Z"));
   });
 
-  it("UTCでは前日になるJST月初と年またぎを正しく扱う", () => {
+  it("UTCでは前日になるJSTの日付境界を正しく扱う", () => {
+    expect(calculateTrialEndsAt(Date.parse("2026-06-30T14:59:59.000Z"))).toBe(Date.parse("2026-08-29T15:00:00.000Z"));
     expect(calculateTrialEndsAt(Date.parse("2026-06-30T15:00:00.000Z"))).toBe(Date.parse("2026-08-31T15:00:00.000Z"));
-    expect(calculateTrialEndsAt(Date.parse("2026-12-31T14:59:59.000Z"))).toBe(Date.parse("2027-01-31T15:00:00.000Z"));
+  });
+
+  it("非うるう年の2月に同じ日がなければ月末へ丸める", () => {
+    expect(calculateTrialEndsAt(Date.parse("2026-12-31T14:59:59.000Z"))).toBe(Date.parse("2027-02-27T15:00:00.000Z"));
+  });
+
+  it("閏年の2月末へ丸める", () => {
+    expect(calculateTrialEndsAt(Date.parse("2027-12-31T14:59:59.000Z"))).toBe(Date.parse("2028-02-28T15:00:00.000Z"));
   });
 });
 

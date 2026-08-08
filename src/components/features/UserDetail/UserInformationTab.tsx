@@ -1,4 +1,5 @@
-import { Alert, Box, Heading, Stack } from "@chakra-ui/react";
+import { Box, Heading, Link, Stack } from "@chakra-ui/react";
+import { Link as RouterLink } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import type { PersonProfileFormData } from "@/src/components/shared/PersonProfileForm";
 import { PersonProfileForm } from "@/src/components/shared/PersonProfileForm";
@@ -13,6 +14,8 @@ type Props = {
 };
 
 export function UserInformationTab({ data, formId, isReadOnly, managerSettings, onUpdate }: Props) {
+  const showLoginEmailGuidance = data.isSelf && data.managerRole !== "none";
+
   return (
     <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
       <Box pb={6}>
@@ -27,22 +30,30 @@ export function UserInformationTab({ data, formId, isReadOnly, managerSettings, 
               formId={formId}
               initialValues={{ name: data.person.name, email: data.person.email }}
               emailLabel="シフト連絡先メールアドレス"
-              emailHelperText="このグループのすべての店舗で、シフト通知やシフトリからの連絡に使用します。"
+              emailHelperText={
+                showLoginEmailGuidance ? (
+                  <>
+                    シフト通知用先のメールアドレスです。
+                    <br />
+                    ログインで利用するメールは
+                    <Link
+                      asChild
+                      color="teal.700"
+                      fontWeight="semibold"
+                      textDecoration="underline"
+                      textUnderlineOffset="3px"
+                    >
+                      <RouterLink to="/account">アカウント設定</RouterLink>
+                    </Link>
+                    から設定してください。
+                  </>
+                ) : undefined
+              }
               onSubmit={async (formData) => {
                 await onUpdate(formData);
               }}
             />
           </fieldset>
-          {data.isSelf && (
-            <Alert.Root status="info" alignItems="flex-start" borderRadius="lg">
-              <Alert.Indicator />
-              <Alert.Description whiteSpace="pre-line" lineHeight="tall">
-                {
-                  "ここで変更するのは、このグループで使う連絡先です。\nログイン方法は変わりません。\nログイン方法の確認と、現在利用できる変更操作は、画面右上の「アカウント設定」から行えます。"
-                }
-              </Alert.Description>
-            </Alert.Root>
-          )}
         </Stack>
       </Box>
       {managerSettings && <Box pt={6}>{managerSettings}</Box>}

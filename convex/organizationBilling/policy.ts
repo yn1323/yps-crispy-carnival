@@ -3,8 +3,9 @@ import { jstMonthStartMs } from "../_lib/dateFormat";
 import type { organizationBillingStateValidator } from "../organization/validators";
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-export const PAYMENT_GRACE_PERIOD_MS = 14 * 24 * 60 * 60 * 1000;
+export const PAYMENT_GRACE_PERIOD_MS = 14 * MS_PER_DAY;
 
 const PRO_PLAN_LIMITS = {
   maxPeople: 20,
@@ -599,7 +600,8 @@ function requireNonNegativeInteger(value: number, fieldName: string): void {
 }
 
 /**
- * 事業者作成月とその翌月の末日をトライアル期間とし、翌々月1日00:00 JSTを返す。
+ * 事業者作成日の2暦月後にあたる日付の00:00 JSTを返す。
+ * 対象月に同じ日がなければ、その月の末日へ丸める。
  */
 export function calculateTrialEndsAt(organizationCreatedAt: number): number {
   if (!Number.isFinite(organizationCreatedAt)) {
@@ -607,7 +609,14 @@ export function calculateTrialEndsAt(organizationCreatedAt: number): number {
   }
 
   const createdAtJst = new Date(organizationCreatedAt + JST_OFFSET_MS);
-  return jstMonthStartMs(createdAtJst.getUTCFullYear(), createdAtJst.getUTCMonth() + 2);
+  const createdYear = createdAtJst.getUTCFullYear();
+  const createdMonth = createdAtJst.getUTCMonth();
+  const targetMonthStartAt = jstMonthStartMs(createdYear, createdMonth + 2);
+  const nextMonthStartAt = jstMonthStartMs(createdYear, createdMonth + 3);
+  const lastDayOfTargetMonth = (nextMonthStartAt - targetMonthStartAt) / MS_PER_DAY;
+  const targetDay = Math.min(createdAtJst.getUTCDate(), lastDayOfTargetMonth);
+
+  return targetMonthStartAt + (targetDay - 1) * MS_PER_DAY;
 }
 
 export function getOrganizationBillingStateDeadline(state: OrganizationBillingState): number | null {

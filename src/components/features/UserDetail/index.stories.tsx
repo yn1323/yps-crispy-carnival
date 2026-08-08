@@ -109,7 +109,12 @@ const unlinkedData: UserDetailData = {
   managerRole: "none",
 };
 
-const selfLinkedData: UserDetailData = {
+const selfManagerData: UserDetailData = {
+  ...baseData,
+  isSelf: true,
+};
+
+const selfStaffData: UserDetailData = {
   ...multipleStoresData,
   isSelf: true,
 };
@@ -211,7 +216,16 @@ export const UnlinkedStaffContactEditable: Story = {
 };
 
 export const SelfContactGuidance: Story = {
-  args: { activePanel: "basic", data: selfLinkedData },
+  args: { activePanel: "basic", data: selfManagerData },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
+
+    await expect(await within(dialog).findByText(/シフト通知用先のメールアドレスです。/)).toBeInTheDocument();
+    await expect(within(dialog).findByRole("link", { name: "アカウント設定" })).resolves.toHaveAttribute(
+      "href",
+      "/account",
+    );
+  },
 };
 
 export const SelfContactGuidanceMobile: Story = {
@@ -219,7 +233,18 @@ export const SelfContactGuidanceMobile: Story = {
   globals: {
     viewport: { value: "mobile2", isRotated: false },
   },
-  args: { activePanel: "basic", data: selfLinkedData },
+  args: { activePanel: "basic", data: selfManagerData },
+};
+
+export const SelfStaffContactWithoutLoginGuidance: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: { activePanel: "basic", data: selfStaffData },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
+
+    await expect(within(dialog).queryByText("シフト通知用先のメールアドレスです。")).not.toBeInTheDocument();
+    await expect(within(dialog).queryByRole("link", { name: "アカウント設定" })).not.toBeInTheDocument();
+  },
 };
 
 export const ManagerInvitationDarkLaunchBehavior: Story = {

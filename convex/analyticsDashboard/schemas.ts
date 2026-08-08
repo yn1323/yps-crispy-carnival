@@ -370,6 +370,14 @@ export function parseAnalyticsDashboardRequest(inputValue: unknown): ParseResult
     if (!range.ok) return range;
     const comparison = readNullableDateRange(input, "compareFrom", "compareTo");
     if (!comparison.ok) return comparison;
+    if (comparison.value.from && comparison.value.to) {
+      const currentDays = Math.floor((dateToUtcMs(range.value.to) - dateToUtcMs(range.value.from)) / MS_PER_DAY) + 1;
+      const comparisonDays =
+        Math.floor((dateToUtcMs(comparison.value.to) - dateToUtcMs(comparison.value.from)) / MS_PER_DAY) + 1;
+      if (currentDays + comparisonDays > ANALYTICS_DASHBOARD_MAX_RANGE_DAYS) {
+        return { ok: false, message: "表示期間と比較期間の合計は5年以内にしてください" };
+      }
+    }
     const scope = readScope(input);
     if (!scope.ok) return scope;
     return {

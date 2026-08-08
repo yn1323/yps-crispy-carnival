@@ -1,5 +1,7 @@
 import type {
+  AnalyticsAvailability,
   AnalyticsCadenceDto,
+  AnalyticsCompleteness,
   AnalyticsCycleRowDto,
   AnalyticsHealthSignalCountsDto,
   AnalyticsMilestoneCountsDto,
@@ -7,7 +9,6 @@ import type {
   AnalyticsMilestoneRatesDto,
   AnalyticsOrganizationKpiDto,
   AnalyticsOrganizationRowDto,
-  AnalyticsResponseCompleteness,
   AnalyticsResponseMetadata,
   AnalyticsSegmentRowDto,
   AnalyticsServiceKpiSnapshotDto,
@@ -54,7 +55,7 @@ const TREND_LABELS: Record<AnalyticsTrendMetric, string> = {
   northStarRate: "開始前確定周期率",
   organizationCount: "グループ数",
   personCount: "重複を除いた利用者数",
-  kpiEligibleShopCount: "KPI対象店舗数",
+  kpiEligibleShopCount: "到達度対象店舗数",
   shiftTargetCount: "シフト対象人数",
   shopCount: "店舗数",
   staffMembershipCount: "スタッフ所属数",
@@ -98,7 +99,7 @@ function kpi(
   label: string,
   value: string,
   detail: string,
-  completeness: AnalyticsResponseCompleteness,
+  completeness: AnalyticsCompleteness,
   currentValue: number | null,
   comparisonValue: number | null,
   options: Pick<KpiViewModel, "accent" | "comparisonEnabled" | "deltaSuffix"> = {},
@@ -120,13 +121,17 @@ export function metadataModel(metadata: AnalyticsResponseMetadata) {
   return metadata;
 }
 
+export function availabilityCompleteness(availability: AnalyticsAvailability): AnalyticsCompleteness {
+  return availability === "available" ? "complete" : "unavailable";
+}
+
 export function serviceKpis(
   current: AnalyticsServiceKpiSnapshotDto | null,
   comparison: AnalyticsServiceKpiSnapshotDto | null,
-  fallbackCompleteness: AnalyticsResponseCompleteness,
+  availability: AnalyticsAvailability,
 ): KpiViewModel[] {
-  // requested rangeがwatermark外へはみ出す場合は、取得できた行自体がcompleteでも
-  // 期間全体の値としてはpartial/unavailableなのでresponse metadataを優先する。
+  const fallbackCompleteness = availabilityCompleteness(availability);
+  // run manifestが期間全体を公開できない場合は、取得済みrowがあっても値を隠す。
   const rateCompleteness =
     fallbackCompleteness === "complete" ? (current?.completeness ?? "unavailable") : fallbackCompleteness;
   // 店舗数は期間集計ではなく、選択期間内の最新snapshot時点の値として返される。
@@ -183,7 +188,7 @@ export function serviceKpis(
     ),
     kpi(
       "kpiEligibleShops",
-      "KPI対象店舗数",
+      "到達度対象店舗数",
       formatCountWithUnit(current?.counts.kpiEligibleShopCount, "店舗", countCompleteness),
       `全 ${formatCountWithUnit(current?.counts.shopCount, "店舗", countCompleteness)}`,
       countCompleteness,
@@ -197,7 +202,7 @@ export function serviceKpis(
 export function milestoneItems(
   counts: AnalyticsMilestoneCountsDto | null,
   rates: AnalyticsMilestoneRatesDto | null,
-  completeness: AnalyticsResponseCompleteness,
+  completeness: AnalyticsCompleteness,
 ) {
   return MILESTONES.map(([key, label]) => ({
     completeness,
@@ -209,10 +214,10 @@ export function milestoneItems(
   }));
 }
 
-export function milestoneDateItems(dates: AnalyticsMilestoneDatesDto) {
+export function milestoneDateItems(dates: AnalyticsMilestoneDatesDto, eligible = true) {
   return MILESTONES.map(([key, label]) => {
     const field = `${key}At` as keyof AnalyticsMilestoneDatesDto;
-    return { key, label, reachedAt: dates[field] };
+    return { excluded: !eligible && key !== "registered", key, label, reachedAt: dates[field] };
   });
 }
 
@@ -237,6 +242,8 @@ export function segmentRowModel(row: AnalyticsSegmentRowDto): SegmentRowViewMode
     finalSubmissionRate: row.finalSubmission.rate,
     healthCompleteness: row.completeness,
     healthSignals: healthCountItems(row.healthSignalCounts),
+    kpiEligibleShopCount: row.kpiEligibleShopCount,
+    milestoneCompleteness: row.completeness,
     northStarRate: row.northStar.rate,
     secondConfirmedCount: row.milestoneCounts.secondConfirmed,
     shopCount: row.shopCount,
@@ -264,7 +271,8 @@ export function organizationRowModel(row: AnalyticsOrganizationRowDto): Organiza
   };
 }
 
-function latestMilestoneLabel(dates: AnalyticsMilestoneDatesDto) {
+function latestMilestoneLabel(dates: AnalyticsMilestoneDatesDto, eligible: boolean) {
+  if (!eligible) return "算出対象外";
   if (dates.secondConfirmedAt) return "2回目確定";
   if (dates.firstConfirmedAt) return "初回確定";
   if (dates.firstSubmissionAt) return "初回提出";
@@ -274,6 +282,7 @@ function latestMilestoneLabel(dates: AnalyticsMilestoneDatesDto) {
 
 export function shopRowModel(row: AnalyticsShopRowDto): ShopRowViewModel {
   const completeness = row.kpis?.completeness ?? "unavailable";
+  const milestoneEligible = row.kpis?.kpiEligible === true;
   return {
     activeStaffCount: row.kpis?.staffMembershipCount ?? null,
     completeness,
@@ -287,7 +296,8 @@ export function shopRowModel(row: AnalyticsShopRowDto): ShopRowViewModel {
     lineLinkedRate: row.kpis?.lineLinkedRate ?? null,
     managerCount: row.kpis?.managerMembershipCount ?? null,
     managerStaffCount: row.kpis?.managerStaffCount ?? null,
-    milestoneLabel: latestMilestoneLabel(row.milestoneDates),
+    milestoneEligible,
+    milestoneLabel: latestMilestoneLabel(row.milestoneDates, milestoneEligible),
     nextCycleDate: row.nextCyclePeriodStart,
     organizationId: row.organizationId,
     organizationName: row.organizationDisplayName,
@@ -352,12 +362,13 @@ export function shopTrendChartData(series: AnalyticsShopKpiDto[]) {
 
 export function organizationKpis(
   kpis: AnalyticsOrganizationKpiDto | null,
-  fallbackCompleteness: AnalyticsResponseCompleteness,
+  availability: AnalyticsAvailability,
 ): KpiViewModel[] {
+  const fallbackCompleteness = availabilityCompleteness(availability);
   const completeness = kpis?.completeness ?? fallbackCompleteness;
   const values = [
     ["shops", "店舗数", kpis?.shopCount, "店舗"],
-    ["kpiEligibleShops", "KPI対象店舗数", kpis?.kpiEligibleShopCount, "店舗"],
+    ["kpiEligibleShops", "到達度対象店舗数", kpis?.kpiEligibleShopCount, "店舗"],
     ["activeShops", "稼働店舗数", kpis?.activeShopCount, "店舗"],
     ["people", "重複を除いた利用者", kpis?.uniquePersonCount, "人"],
     ["staff", "スタッフ所属数", kpis?.staffMembershipCount, "件"],
@@ -417,10 +428,8 @@ export function organizationExpansionKpis(
   ];
 }
 
-export function shopCurrentKpis(
-  kpis: AnalyticsShopKpiDto | null,
-  fallbackCompleteness: AnalyticsResponseCompleteness,
-): KpiViewModel[] {
+export function shopCurrentKpis(kpis: AnalyticsShopKpiDto | null, availability: AnalyticsAvailability): KpiViewModel[] {
+  const fallbackCompleteness = availabilityCompleteness(availability);
   const completeness = kpis?.completeness ?? fallbackCompleteness;
   const values = [
     ["staff", "スタッフ所属数", kpis?.staffMembershipCount, "人"],
@@ -451,10 +460,7 @@ export function shopCurrentKpis(
   return result;
 }
 
-export function shopCadenceKpi(
-  cadence: AnalyticsCadenceDto,
-  completeness: AnalyticsResponseCompleteness,
-): KpiViewModel {
+export function shopCadenceKpi(cadence: AnalyticsCadenceDto, completeness: AnalyticsCompleteness): KpiViewModel {
   const confidenceLabel = {
     high: "判定精度 高",
     insufficientData: "判定材料不足",
@@ -479,8 +485,9 @@ export function shopCadenceKpi(
 
 export function shopCumulativeKpis(
   kpis: AnalyticsShopKpiDto | null,
-  fallbackCompleteness: AnalyticsResponseCompleteness,
+  availability: AnalyticsAvailability,
 ): KpiViewModel[] {
+  const fallbackCompleteness = availabilityCompleteness(availability);
   const completeness = kpis?.completeness ?? fallbackCompleteness;
   return [
     kpi(
@@ -578,8 +585,9 @@ export function shopCumulativeKpis(
 
 export function shopPeriodRateKpis(
   kpis: AnalyticsShopKpiDto | null,
-  fallbackCompleteness: AnalyticsResponseCompleteness,
+  availability: AnalyticsAvailability,
 ): KpiViewModel[] {
+  const fallbackCompleteness = availabilityCompleteness(availability);
   const completeness = kpis?.completeness ?? fallbackCompleteness;
   return [
     kpi(

@@ -5,7 +5,6 @@ import type { KpiViewModel } from "./viewModels";
 
 function metricDetail(item: KpiViewModel) {
   if (item.completeness === "partial") return "この指標の集計が一部未完了です。";
-  if (item.completeness === "pending") return "この指標は集計中です。";
   if (item.completeness === "unavailable") return "この期間では、算出に必要なデータがありません。";
   if (item.completeness === "error") return "この指標を取得できませんでした。";
   return item.detail;

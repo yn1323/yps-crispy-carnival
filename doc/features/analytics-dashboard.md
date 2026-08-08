@@ -18,7 +18,7 @@ stage別tabは使わず、分析対象ごとにrouteを分けます。
 | `/shops` | 店舗の導入到達、次回シフト、提出率、要確認状態の比較、pagination |
 | `/shops/:shopId` | 店舗の現在値、導入到達履歴、要確認状態、KPI推移、シフト周期一覧 |
 | `/shops/:shopId/cycles/:recruitmentId` | 一つのシフト周期の提出、通知、確定、集計状態 |
-| `/requests` | Analytics pipelineと分けた要望一覧 |
+| `/requests` | Analytics runと分けた要望一覧 |
 
 期間、集計単位、filter、sort、cursorはURL query parameterへ保存します。  
 行を選ぶと詳細routeへ遷移し、戻る操作と共有URLで分析状態を再現できます。
@@ -40,6 +40,7 @@ segment比較は「詳細分析」を開いた場合だけ取得し、一度に�
 サマリーでは、関連KPIを横棒、店舗の稼働構成をドーナツ、日別推移を折れ線、導入到達段階をファネル、要確認状態を横棒で表示します。
 
 詳細分析では、区分別の全店舗数と2回目確定店舗数を集合横棒、3つの運用KPIを0〜100%の集合横棒、要確認状態の区分内該当率をヒートマップで表示します。
+2回目確定店舗数の分母には全店舗数ではなく、切替後に登録されて導入到達度を観測できる店舗数を使います。
 選択した比較軸がプラン、LINE利用、通常周期、最近の提出傾向の場合は、区分が互いに重ならないため店舗構成をドーナツでも表示します。
 各グラフの後に表を残し、個別の正確な値を確認できるようにします。
 
@@ -62,27 +63,32 @@ Dashboardから外部AIへ自動送信せず、保存後のファイルをどこ
 
 ## 表示状態
 
-`/requests`を除くAnalytics routeでは、`asOf`、`dataStartDate`、`latestCompleteSnapshotDate`、`computedAt`、`completeness`、警告を表示します。  
+`/requests`を除くAnalytics routeでは、`availability`、`asOf`、`dataStartDate`、`latestCompleteSnapshotDate`、`computedAt`、警告を表示します。
 通常時は最新の完全な集計日と集計完了日時を一行で示し、蓄積開始日と基準日時は「集計の詳細」に収めます。  
-期間を変えると解消できる警告は表示条件の近くへ置き、pipeline停止などの警告はページ上部へ一件ずつ表示します。  
-`/requests`はpipeline状態を画面表示せず、現在の要望を独立した一覧として表示します。
+期間を変えると解消できる警告は表示条件の近くへ置き、resetまたは日次runの実行中・失敗はページ上部へ表示します。
+`/requests`はAnalytics runの状態を画面表示せず、現在の要望を独立した一覧として表示します。
 
 | 状態 | 表示 |
 |---|---|
 | 正確な0 | `0`または`0%` |
-| pipeline処理前 | 初回集計中 |
-| 一部だけ処理済み | ページ上部に「一部の集計が未完了」、該当行または指標に「一部のみ集計」 |
+| completeな日次runがない | 分析データを利用できません |
+| resetまたは最新日次runが実行中・失敗 | ページ上部に利用不可の理由を表示し、途中行を返さない |
 | 過去の分母を復元不能 | 該当する指標だけ「算出できません」 |
+| 選択期間に失敗日または未起動日がある | 欠損日の警告を表示し、期間集計を算出しない |
 | filter結果が0件 | 条件に一致するデータなし |
 | 現在のraw pageに一致せず次cursorあり | このページには一致なし。次の候補あり |
 | API失敗 | 取得失敗。0へ置換しない |
 
-`partial`または`unavailable`な率をrankingへ含めません。  
-行の状態が`complete`の場合はbadgeを表示せず、`partial`または`unavailable`の場合だけ行内へ集計状態を表示します。  
+後の日次runが成功すると、直前の失敗日を埋めずに`available`へ戻ります。
+cronが起動せず新しいrunが存在しない場合は、最後の成功値と`asOf`を表示し、起動漏れは外部監視へ委ねます。
+
+`unavailable`な率と欠損日をrankingへ含めません。
+行の状態が`complete`の場合はbadgeを表示せず、`unavailable`の場合だけ行内へ集計状態を表示します。
+
 ページ全体の集計状態、行の集計状態、個別指標の計算可否は、同じbadge列へまとめません。
 
-サマリーの率は選択期間全体の完全性に従い、集計対象となる完全なシフト周期がない場合はその理由を表示します。  
-稼働店舗数とKPI対象店舗数は選択期間内の最新snapshot自身が完全なら現在値を表示し、比較期間が蓄積開始日前でも現在値まで`unavailable`にはしません。  
+サマリーの率は選択期間全体の完全性に従い、集計対象となる完全なシフト周期がない場合はその理由を表示します。
+稼働店舗数と到達度対象店舗数は選択期間内の最新snapshot自身が完全なら現在値を表示し、比較期間が蓄積開始日前でも現在値まで`unavailable`にはしません。
 比較期間が成立しない場合は、各KPIカードへ比較不能を反復表示しません。
 
 推移は、いずれかの指標に描画できる値が1点以上ある場合にグラフを表示します。
@@ -108,7 +114,7 @@ Dashboardから外部AIへ自動送信せず、保存後のファイルをどこ
 催促件数は送信成功の内訳なので通知結果の円へ含めず、正確な値をKPIカードで表示します。
 作成と確定に要した時間は横棒で比較します。
 
-グラフは`complete`な値だけを描画し、`partial`、`unavailable`、欠損値を0へ置換しません。
+グラフはcompleteな日次runに属する値だけを描画し、`unavailable`と欠損値を0へ置換しません。
 ドーナツの補集合は、内数が分母以下で合計が全体になる場合だけ算出します。
 要確認状態は一店舗に複数成立するため円グラフや積み上げグラフを使わず、独立した棒として表示します。
 paginationされた一覧を表示中pageだけで全体rankingに見せず、周期別グラフは「表示中の周期」の範囲であることを明記します。
@@ -151,16 +157,17 @@ Workerはrequestを検証し、固定されたConvex route `POST /analytics-dash
 
 Analytics responseはすべて次のmetadataを持ちます。
 
+- `availability`
 - `asOf`
 - `dataStartDate`
 - `latestCompleteSnapshotDate`
 - `computedAt`
-- `completeness`
 - `warnings`
 - `pageInfo`
 
 Analytics listはcursor paginationで初期50件、最大100件です。`/requests`は一page最大50件です。  
 trendは最大366点、期間は最大5年、responseは512 KiB未満に制限します。
+overviewに比較期間がある場合は、表示期間と比較期間の合計も5年以内に制限します。
 
 複合filterはindexで狭めた一page最大100件の候補へ適用します。現在pageの一致が0件でもraw cursorに続きがあれば確定0件にせず、warningと次cursorを返します。
 
@@ -169,10 +176,17 @@ query parameterはendpointごとのallowlistで検証します。
 
 ## データ境界
 
-`/requests`以外のAnalytics queryは`activeGeneration`の新しいAnalytics tableだけを読みます。  
-organizations、shops、staffs、recruitments、notificationOutboxなどの運用tableや、旧3 Analytics tableを直接読みません。
+`/requests`以外のAnalytics queryは、先にcompleteな日次runを解決し、日次行の`runId`がそのrunと一致することを確認してから返します。
+`running`または`failed`のrunが残した途中行、organizations、shops、staffs、recruitments、notificationOutboxなどの運用table、旧Analytics tableを直接読みません。
 
-要望一覧はAnalytics pipelineへ混ぜず、独立した`/requests`契約として残します。これはDashboard queryが運用tableを読まない原則の唯一の例外で、`featureRequests`と現在の`shops`を直接読み、一page最大50件を返します。  
+グループ・店舗・segmentの日次detailは25か月だけ保持します。
+保持下限は最新のcompleteなsnapshot日を基準に計算します。
+これより前の期間を詳細scopeで指定した場合は保持下限へ丸め、選択期間がすべて保持期限外なら値を返しません。
+現在のdimensionは保持するため、登録日が`dataStartDate`やdetail保持下限より前でも、現在の一覧と詳細では登録日を表示できます。
+切替前から存在する店舗も、切替後の現在値、health、完全なcycle rateを表示します。
+切替前には正確に復元できない初回募集以降のmilestoneは、未達ではなく「算出対象外」と表示します。
+
+要望一覧はAnalytics runへ混ぜず、独立した`/requests`契約として残します。これはDashboard queryが運用tableを読まない原則の唯一の例外で、`featureRequests`と現在の`shops`を直接読み、一page最大50件を返します。
 グループ名と店舗名は内部識別のため返しますが、staff email、manager email、token、通知本文、provider raw errorはDTOへ含めません。
 
 ## セキュリティと運用
@@ -180,7 +194,7 @@ organizations、shops、staffs、recruitments、notificationOutboxなどの運�
 - Cloudflare Accessを閲覧者の認証境界にします。
 - HTTP Actionはservice credential、request size、固定request kind、rate limitを検証します。
 - error logにはpayload、表示名、credentialを含めません。
-- staleまたはpartialなpipeline状態はmetadataと画面上部の警告で示します。
+- resetまたは最新日次runが`running`か`failed`の場合は、`availability: unavailable`と画面上部の警告で示します。
 - JSONL出力は既存の固定GET endpointだけを全page取得し、新しい汎用proxyやexport用public APIを追加しません。service rate limitへ余白を残して逐次取得し、429だけは`Retry-After`に従って再試行します。
 - HTMLとStatic Assetsを検索indexの対象外にします。
 

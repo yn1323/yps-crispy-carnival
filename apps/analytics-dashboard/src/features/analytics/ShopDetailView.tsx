@@ -120,6 +120,7 @@ export function ShopDetailView({
         <Badge variant="surface">{model.organizationName}</Badge>
         <Badge variant="surface">{model.plan}</Badge>
         <Badge variant="surface">登録 {formatDate(model.registeredAt)}</Badge>
+        {!model.milestoneEligible ? <Badge variant="surface">導入到達は算出対象外</Badge> : null}
       </HStack>
 
       <Grid gap={5} templateColumns={{ base: "1fr", lg: "minmax(0, 1fr) minmax(300px, 0.8fr)" }}>
@@ -143,7 +144,14 @@ export function ShopDetailView({
           </Box>
         </Stack>
         <Stack bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" gap={5} p={5}>
-          <SectionHeading description="一度到達した日付は、現在の状態によって巻き戻りません。" title="導入到達履歴" />
+          <SectionHeading
+            description={
+              model.milestoneEligible
+                ? "一度到達した日付は、現在の状態によって巻き戻りません。"
+                : "分析の蓄積開始前に登録された店舗では、登録後の到達日を算出しません。"
+            }
+            title="導入到達履歴"
+          />
           <MilestoneTimeline items={model.milestones} />
         </Stack>
       </Grid>
@@ -325,12 +333,12 @@ export function ShopDetailView({
             >
               <SectionHeading description="提出率、通知、確定結果をシフト周期ごとに確認します。" title="シフト周期" />
               <HStack gap={2} wrap="wrap">
-                {cyclesMetadata && cyclesMetadata.completeness !== "complete" ? (
+                {cyclesMetadata && cyclesMetadata.availability !== "available" ? (
                   <HStack gap={1}>
                     <Text color="gray.500" fontSize="xs">
-                      周期一覧の集計:
+                      周期一覧の利用可否:
                     </Text>
-                    <CompletenessBadge value={cyclesMetadata.completeness} />
+                    <CompletenessBadge value={cyclesMetadata.availability} />
                   </HStack>
                 ) : null}
                 <NativeSelect.Root minW="180px" size="sm">

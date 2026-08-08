@@ -4,53 +4,59 @@
 >
 > 現在の実環境状態: [リリース状態](release-status.md)
 
-この手順は、新しいAnalytics generationを同じConvex deployment内で構築し、内部BIを切り替え、旧Analytics 3 tableを後続のNarrowへ安全に引き渡すためのものです。  
-リポジトリの実装完了は、Productionへのdeploy、bootstrap、cutover、cleanup、Narrowの完了を意味しません。
+この手順は、旧Analyticsを停止し、破壊的resetで新しい夜間batchへ切り替えるためのものです。
+過去のAnalytics履歴は引き継がず、reset後の最初の完全なJST日から日次履歴を作ります。
+
+リポジトリの実装完了は、対象deploymentへのWiden、破壊的reset、Narrow readiness確認、Narrow、初回日次、cronと外部alertの有効化を意味しません。
+この文書は手順だけを定め、Production操作の実施記録には使いません。
 
 ## 完了条件
 
-次の状態を別々の証跡として記録します。
+次の結果を、対象revisionと完全修飾deployment名に結び付けて別々に記録します。
 
-1. Widen版が対象revisionと完全修飾deploymentへdeployされている。
-2. building generationのbootstrap、source event追従、baseline snapshot、invariantが完了している。
-3. `activeGeneration`が明示操作で切り替わり、新UIの固定endpointだけが新Analyticsを読んでいる。
-4. 代表jobのread document数、read bytes、write document数、write bytesがbudget内である。
-5. Cloudflare Access、credential非露出、partialとstaleの表示を実環境で確認している。
-6. 旧3 tableのbounded cleanupが完了し、対象deploymentで各0件を全page確認している。
-7. 旧3 tableのschema定義削除を、0件証跡より後の別revision、別deployで行っている。
+1. codeと自動testが完了している。
+2. Widen版をdeployし、旧runnerをfreezeし、新cronの環境gateを無効にしている。
+3. reset用4環境変数と呼出し引数が一致し、nightly cronが無効で、`analytics/reset:dryRun`が`allowed: true`と`configured.nightlyCronEnabled: false`を返している。
+4. `analytics/reset:start`から始まったreset runが`complete`になっている。
+5. `analytics/reset:getNarrowReadiness`がすべての固定probeを`true`で返し、待機後も`readyForNarrow: true`を維持している。
+6. Narrow readiness証跡より後の別revisionでNarrow版をdeployしている。
+7. `dataStartDate`の初回manual dailyが`complete`になり、全日次scopeが同じ`runId`で公開されている。
+8. dailyとweekly maintenanceのcron gateを有効にし、実行時間、負荷、欠落・期限超過・失敗alertの疎通を確認している。
+9. Cloudflare Access、service credential非露出、`availability`と欠損日の表示を実環境で確認している。
+10. 旧scheduled callの互換stubを、安全条件成立後の別deployで削除している。
 
-一項目の成功から、後続項目の成功を推測しません。
+一つの結果から後続工程の完了を推測しません。
 
-## 作業前の固定
+## 作業前に固定する値
 
-1. `git rev-parse HEAD`で対象revisionを記録します。
-2. Convex DashboardとCLIでprojectと完全修飾deployment名を照合します。
-3. Cloudflare Workerの対象revision、Access policy、環境名を記録します。
-4. 新しいgeneration名を、同じdeployment内で一意な64文字以下の英数字と`._-`から決めます。
-5. 失敗時に戻すConvexとWorkerのrevision、Accessを閉じる担当、証跡保存先を決めます。
+作業開始前に次を記録します。
 
-`--deployment prod`のような短縮名は使いません。  
-secret、認証header、要望本文、氏名、email、電話番号、LINE user ID、通知payloadをコマンド出力や証跡へ残しません。
+1. `git rev-parse HEAD`で得たWiden対象revision
+2. Convex DashboardとCLIの両方で確認した完全修飾deployment名
+3. 将来のJST 00:00に固定した`sourceCaptureStartAt`の`YYYYMMDDHHmmss`値
+4. 現在の`ANALYTICS_CALCULATION_VERSION`
+5. reset開始を許可する短い時間窓の終了時刻
+6. Cloudflare Worker revision、Access policy、証跡保存先、停止判断者
 
-### ローカル複製DBでの検証
+`--deployment prod`、`dev`、`staging`のような短縮指定は使いません。
+以降のcloud操作には、`team:project:reference`またはdeployment名など、事前に照合した完全修飾値を毎回指定します。
 
-共有DevまたはProductionの代わりに、snapshotをlocal deploymentへ取り込んで検証する場合は、接続先の表示名ではなくURLとportでlocalであることを証明します。cloud向けの`convex dev`とAnalytics Viteを停止してから、local deploymentを選択します。
+secret、認証header、氏名、email、電話番号、LINE user ID、通知payload、provider errorはコマンド出力と証跡へ残しません。
 
-```bash
-pnpm exec convex deployment select local
-pnpm convex
-```
+## developmentでの事前検証
 
-別terminalで、既定portの`3210`と`3211`がloopbackでlistenしていることを確認します。`convex run`には、選択状態に依存しない`--deployment local`を付けます。
+Productionの前に、アクセス制限した複製snapshotをlocalまたは専用development deploymentへ取り込み、同じ順序でresetと初回日次を通します。
+localを使う場合はURLとportで接続先を確認し、すべての操作へ`--deployment local`を明示します。
 
 ```bash
 lsof -nP -iTCP:3210 -sTCP:LISTEN
 lsof -nP -iTCP:3211 -sTCP:LISTEN
 pnpm exec convex run --deployment local --inline-query \
-  'return { organizations: (await ctx.db.query("organizations").collect()).length, pipelineStates: (await ctx.db.query("analyticsPipelineStates").collect()).length };'
+  'return { organizations: (await ctx.db.query("organizations").take(1)).length, analyticsRuns: (await ctx.db.query("analyticsRuns").take(1)).length };'
 ```
 
-既存local DBを置き換える場合は、先に`.convex/local`をリポジトリ外のアクセス制限された一意な場所へ退避します。対象ZIPと`--deployment local`を再確認してから、snapshotを取り込みます。`--replace-all`はlocal DB全体を置き換えるため、共有DevやProductionを示すdeployment名では実行しません。
+既存local DBを置き換える場合は、対象ZIPと`--deployment local`を再確認してから実行します。
+`--replace-all`はlocal DB全体を置き換えるため、共有DevやProductionを示すdeploymentへ使いません。
 
 ```bash
 pnpm exec convex import <local-snapshot.zip> \
@@ -58,32 +64,42 @@ pnpm exec convex import <local-snapshot.zip> \
   --replace-all
 ```
 
-local ConvexとAnalytics BFFには同じ`SHIFTORI_INTERNAL_API_SECRET`を設定します。secretは引数やログへ残さず、値を省略した対話入力を使います。
+検証前後で`organizations`、`shops`、`staffs`、`recruitments`、`shiftSubmissions`の件数を比較し、resetが運用tableを変更していないことを確認します。
+検証終了後は、PIIを含むsnapshotと展開directoryをアクセス制限された保存先から削除します。
+
+## Widenとfreeze
+
+Widen版は、次の互換状態でdeployします。
+
+- `analyticsRuns`、新しいrun、reset、日次、maintenance、Dashboard query gateを追加する。
+- 旧5tableと旧field・indexは、reset後のNarrow readiness確認までschemaへ残す。
+- 旧scheduled functionのentrypointは、削除予定tableのID型に依存しないno-op互換stubへ変える。
+- 旧毎分回収、旧日次、旧retentionのcron登録は外す。
+- 新dailyとweekly maintenanceのcron関数は、`ANALYTICS_NIGHTLY_CRON_ENABLED`が文字列`true`の場合だけrunを作る。
+- `/requests`以外のAnalytics APIは、completeな新日次runができるまで`unavailable`を返す。
+
+既存documentがあるtableへgenerationなしindexを追加するため、Widenは二段階でdeployします。
+最初のschema専用revisionでは新indexを`{ fields: [...], staged: true }`として追加し、index backfillが完了するまで待ちます。
+次のrevisionで`staged`を外し、この文書が扱うruntime codeをdeployします。
+staged中のindexはqueryできないため、resetのdry run、Dashboard query、新cronを実行する前に、対象deploymentで全indexが有効になったことを確認します。
+既存tableへのindex追加を非stagedのまま大きなdeploymentへ直接deployしません。
+
+Widen deploy前に、cron gateを無効にします。
+未設定または`false`は無効であり、文字列`true`だけが有効です。
 
 ```bash
-pnpm exec convex env set SHIFTORI_INTERNAL_API_SECRET --deployment local
+pnpm exec convex env set ANALYTICS_NIGHTLY_CRON_ENABLED 'false' \
+  --deployment <fully-qualified-deployment>
 ```
 
-Analytics Viteを再起動する前に、rootの`.env.local`を次の接続へ向けます。
+Widen deploy後は、少なくとも旧lease時間の15分を過ぎるまで待ちます。
+`analytics_legacy_call_ignored`は旧revisionが予約済みだった呼出しを安全に吸収した記録であり、reset失敗ではありません。
 
-```dotenv
-VITE_CONVEX_URL=http://127.0.0.1:3210
-VITE_CONVEX_SITE_URL=http://127.0.0.1:3211
-ANALYTICS_ENV_LABEL=local
-```
-
-`VITE_CONVEX_URL`の`3210`はConvex client用、`VITE_CONVEX_SITE_URL`の`3211`はHTTP Action用です。片方だけを変更しません。画面上の環境ラベルが`local`でも、それだけを接続証明には使いません。
-
-以降のbootstrap、status、activationもすべて`--deployment local`を明示します。操作前後で元データの件数を読み取り比較し、Analyticsの再構築では`organizations`、`shops`、`staffs`、`recruitments`、`shiftSubmissions`を変更していないことを確認します。検証終了後は、PIIを含むsnapshotと展開directoryをアクセス制限された場所から削除します。
-
-## Widenと構築
-
-最初のdeployでは、新しいAnalytics tableとpipelineを追加し、旧3 tableのschema定義を残します。  
-現在の実装は新しいBFF契約も含むため、内部BIをAccessで閉じた保守時間帯にConvexとWorkerの切替を調整します。
+待機中に旧派生tableと捕捉開始前source eventが増えていないこと、旧毎分cronが登録から消えたこと、Analytics APIが途中値を返さないことを確認します。
 
 ### LINE readiness
 
-building generationを始める前に、対象deploymentのDashboard exportまたはbackup ZIPを取得します。  
+reset前に、対象deploymentのDashboard exportまたはbackup ZIPをアクセス制限された一意なパスへ取得します。
 CLIを使う場合は完全修飾deployment名を指定します。
 
 ```bash
@@ -91,241 +107,325 @@ pnpm exec convex export --deployment <fully-qualified-deployment> \
   --path <access-controlled-unique-path>/analytics-line-readiness-<timestamp>.zip
 unzip -t <analytics-line-readiness-export.zip>
 shasum -a 256 <analytics-line-readiness-export.zip>
-```
-
-exportはリポジトリ、seed用backup、別deploymentのsnapshot、以前のreadiness exportと分離した、アクセス制限付きの一意なパスへ保存します。  
-`pnpm convex:save`や既存ZIPへの上書きは行いません。Dashboardから取得したZIPも同じ条件で保存し、展開する場合はそのZIP専用の別directoryを使います。
-
-ZIPまたは展開済みdirectoryをoffline verifierへ渡します。
-
-```bash
 pnpm convex:verify-analytics-line-readiness -- \
-  --path <Convex-export.zip-or-extracted-directory>
+  --path <analytics-line-readiness-export.zip>
 ```
 
-verifierは`staffLineAccounts`をofflineで集計し、PIIとLINE user IDを出力しません。  
-対象revision、完全修飾deployment名、export取得時刻、export ZIPのSHA-256とともに、次の値を証跡へ記録します。
+次の結果を、revision、deployment、export時刻、ZIPのSHA-256とともに記録します。
 
 - `ok: true`
 - `overLimitLineUserCount: 0`
-- `maxActiveAccountsPerLineUser`が`limit`の50以下
+- `maxActiveAccountsPerLineUser`が50以下
 - `activeAccountCount`と`distinctLineUserCount`
 - `activeAssociationSetSha256`
 
-`overLimitLineUserCount`が1以上ならverifierはexit code 1で停止します。運用documentを変更せず、原因を解消して新しいexportを別パスへ取得し、再検証します。  
-この結果はexport取得時点のsnapshot証跡です。bootstrapまたはcutoverまでに対象データが変わった場合は、同じ結果を流用せず再取得します。
+`overLimitLineUserCount`が1以上の場合はresetを開始しません。
+運用document側の原因を解消し、新しいexportを別パスへ取得して再検証します。
 
-### Bootstrap
+## reset用環境変数とcron gate
 
-LINE readinessが成功した後、building generationを開始します。
+破壊的resetのguardには、次の4環境変数に加えて、nightly cronが無効であることを第5の安全条件として使います。
+`ANALYTICS_NIGHTLY_CRON_ENABLED`が未設定または文字列`false`でなければ、dry runとreset開始の両方を拒否します。
+
+| 環境変数 | 固定値 |
+|---|---|
+| `ANALYTICS_DEPLOYMENT_LABEL` | CLIで照合した完全修飾deployment名 |
+| `ANALYTICS_EXPECTED_REVISION` | Widen版の完全なGit revision |
+| `ANALYTICS_SOURCE_CAPTURE_START_AT` | 将来のJST 00:00を`YYYYMMDDHHmmss`で表した14桁の値 |
+| `ANALYTICS_RESET_ENABLED_UNTIL` | reset開始だけを許可する短い時間窓の終了epoch milliseconds |
+
+`ANALYTICS_SOURCE_CAPTURE_START_AT`はJST固定で解釈します。
+たとえば`20260815000000`は2026年8月15日00:00 JSTです。時分秒は`000000`だけを許可し、存在しない日付、ISO文字列、13桁のepoch millisecondsは拒否します。serverは検証後にUnix millisecondsへ変換し、`analyticsRuns.sourceCaptureStartAt`を含む内部状態へは数値で保存します。
+
+最初の3変数は`sourceCaptureStartAt`より前に設定し、その値を変えずにWiden版をdeployします。
+source event writerは境界より前のeventを保存せず、境界以後のeventだけをreset中も業務transaction内で捕捉します。
 
 ```bash
-pnpm exec convex run analytics/pipeline:startBootstrap \
-  '{"generation":"<generation>"}' \
+pnpm exec convex env set ANALYTICS_DEPLOYMENT_LABEL '<fully-qualified-deployment>' \
+  --deployment <fully-qualified-deployment>
+pnpm exec convex env set ANALYTICS_EXPECTED_REVISION '<widen-revision>' \
+  --deployment <fully-qualified-deployment>
+pnpm exec convex env set ANALYTICS_SOURCE_CAPTURE_START_AT '<source-capture-start-yyyymmddhhmmss>' \
   --deployment <fully-qualified-deployment>
 ```
 
-この処理は現在の運用tableと、正確に復元できるcycle factだけを有界に読みます。  
-旧`analyticsDailyServiceSnapshots`、`analyticsDailyShopSnapshots`、`analyticsDailyEventCounts`をcopy、比較、dual readしません。
-
-すべての店舗と所属に正規の`organizationId`を解決できない場合は、building generationをreadyにせず原因を解消します。legacy recordを黙って除外した状態でcutoverしません。
-
-source eventは業務mutationと同じtransactionで追記します。payload検証、event key競合、insertに失敗した場合は業務mutationもrollbackします。  
-transaction commit後のprojection、cycle finalization、日次jobの失敗は業務mutationへ波及しません。
-
-bootstrap baselineは、構築開始時のsource watermarkに固定したpoint-in-time値です。`snapshotDate`は`buildingDataStartDate`ですが、その日の終了値ではありません。通常の日次trendは、cutover後にJSTで終了した日から蓄積します。
-
-generationは`building`でbootstrapを始め、開始時のsource cursorまでcatch-upした後に`ready`になります。ready後は共有projectionがactiveとbuildingへ同じsource eventを適用し、後述のcutover証明を満たすまでbuildingを公開しません。
-
-通常経路はactive accountを51件目まで先に読み、50件超過または連携確定後の件数・変更数超過をoperational patch前に拒否します。Webhookのfollow、unfollowはprovider eventごとに別transactionで処理し、LINE source batchは最大50件のstaff ID、linked・following状態、サービス受理時刻だけを持ちます。provider timestampとevent IDは重複・順序判定にだけ使います。  
-防御上`isComplete: false`のbatchがprojectionへ到達した場合は`analytics_line_batch_overflow`でfail-closedにし、generationを`degraded`としてcutoverを止めます。このgenerationをretryだけで正確とみなさず、新しいgenerationを運用tableから再構築します。
-
-## 進捗と負荷
-
-次のstatus queryを繰り返し、bootstrap、projection、daily、cycle finalizationの状態を確認します。
+`sourceCaptureStartAt`を過ぎ、deploymentとrevisionを再照合した直後に、短いenable期限を設定します。
 
 ```bash
-pnpm exec convex run analytics/pipeline:getStatus '{}' \
+pnpm exec convex env set ANALYTICS_RESET_ENABLED_UNTIL '<reset-enabled-until-epoch-ms>' \
   --deployment <fully-qualified-deployment>
 ```
 
-`pending`または`processing`は完了ではありません。  
-`failed`、attempt上限、leaseの長期滞留、`degraded`があればcutoverを止めます。
+`ANALYTICS_SOURCE_CAPTURE_START_AT`はreset後もsource event writerが参照するため削除しません。
+reset終了後に無効化するのは`ANALYTICS_RESET_ENABLED_UNTIL`だけです。
 
-失敗原因を解消した後は、`getStatus`に表示された完全一致の`jobKey`を指定して、保存済みphaseとcursorから再開します。
+## dry run
+
+`analytics/reset:dryRun`は書込みを行わず、server側設定、要求値、cron gate、固定cleanup allowlist、100件までのsample countを返します。
 
 ```bash
-pnpm exec convex run analytics/pipeline:retryFailedJob \
-  '{"jobKey":"<job-key>","confirmed":true}' \
+pnpm exec convex run analytics/reset:dryRun \
+  '{"confirmed":true,"deploymentLabel":"<fully-qualified-deployment>","revision":"<widen-revision>","sourceCaptureStartAt":"<source-capture-start-yyyymmddhhmmss>","calculationVersion":1}' \
   --deployment <fully-qualified-deployment>
 ```
 
-成功するまで機械的にretryせず、`lastErrorCode`と対象revisionを先に確認します。
+次をすべて確認します。
 
-projection定義の誤り、復元不能なsource不整合、defensiveな不完全LINE batchなど、同じgenerationをretryしても正確性を回復できない場合はbuilding generationを破棄します。`generation`は`getStatus`の現在値を完全一致で指定します。
+- `allowed`が`true`
+- `configured`と`requested`のdeployment、revision、正規化後の`sourceCaptureStartAt`が完全一致
+- `configured.nightlyCronEnabled`が`false`
+- `enabledUntil`が未来で、作業時間だけを許可している
+- `calculationVersion`が対象revisionの`ANALYTICS_CALCULATION_VERSION`と一致
+- `cleanup`がコードで固定されたAnalytics tableだけを含む
+- `truncated: true`を正確な件数と誤解せず、削除量の下限として扱っている
+
+一つでも一致しない場合は`start`を実行しません。
+環境変数または対象deploymentを修正し、dry runを最初から取り直します。
+
+## 破壊的reset
+
+dry runと同じ引数を一字も変えずに`analytics/reset:start`へ渡します。
 
 ```bash
-pnpm exec convex run analytics/pipeline:abandonBuildingGeneration \
-  '{"generation":"<building-generation>","confirmed":true}' \
+pnpm exec convex run analytics/reset:start \
+  '{"confirmed":true,"deploymentLabel":"<fully-qualified-deployment>","revision":"<widen-revision>","sourceCaptureStartAt":"<source-capture-start-yyyymmddhhmmss>","calculationVersion":1}' \
   --deployment <fully-qualified-deployment>
 ```
 
-このmutationはbuilding fieldを外し、active generationがあれば共有projectionとbuilding開始前の状態へ戻し、なければpipelineを`idle`へ戻します。開始前またはbuilding中に`degraded`だったactive generationは`degraded`のままです。対象generationのpending、processing、failed jobを有界pageでcancelしてから、generation tableを有界cleanupします。`getStatus`へ同じgenerationを指定し、cleanup jobが`completed`、`generationTables`の全`*IsEmpty`が`true`であることを確認するまで、同じ名前の再利用や新generationのcutoverを行いません。失敗したbuilding generationのcleanupは、cutover済みinactive generationに対する14日保持とは別契約です。
-
-各jobの`lastTransactionMetrics`から、少なくとも次をphase別に記録します。
-
-- `documentsRead`
-- `bytesRead`
-- `documentsWritten`
-- `bytesWritten`
-- `databaseQueries`
-- `functionsScheduled`
-- `executedPhase`
-- `measuredAt`
-
-`lastTransactionMetrics`はphase処理とrecovery schedule後に`ctx.meta.getTransactionMetrics()`から得た実使用量です。その値自身を保存する最後のjob patchは含みません。jobの最新transactionだけを保持し、次のpageまたはphaseで上書きされます。`executedPhase`は計測したtransactionのphaseであり、取得時点の次phaseとは限りません。  
-各phaseの実行中に`getStatus`を取得し、対象deployment、revision、generation、job keyとともに外部証跡へ残します。完了後の一回の取得から全phase履歴を復元したことにしません。
-
-確認対象はsource event主consumer 1件、projection子job 50件、cycle opportunity 50件、通知reset・sent・failed・finalize、shop snapshot、organization rollup、segment rollup、service rollup、cleanup 50件です。  
-source event writerによる追加readはevent key重複確認の最大1件だけ、追加writeはsource eventの1件だけであることを、代表操作のtransaction metricsで別に確認します。LINEのactive account preflightなど既存業務安全性のreadを、Analytics追加readへ混ぜません。
-
-値がbudgetを超える場合はcutoverせず、query形状とprojection粒度を見直します。  
-batch sizeを下げただけで成功扱いにしません。
-
-## Invariantとcutover
-
-building generationのmanual invariant jobを補助検査として明示的に起動します。
+返却された`runId`と`runKey`を証跡へ保存した直後に、reset開始権限を無効化します。
 
 ```bash
-pnpm exec convex run analytics/pipeline:checkGenerationInvariants \
-  '{"generation":"<generation>"}' \
+pnpm exec convex env remove ANALYTICS_RESET_ENABLED_UNTIL \
   --deployment <fully-qualified-deployment>
 ```
 
-invariant jobは、source event backlogとblocking projection子jobがともに0件になったtransactionでsource cursorを捕捉してから走査を始めます。走査完了時にbacklog、blocker、cursorを再確認し、cursorが変化していればbarrierから全走査をやり直します。
+resetは次の順で進みます。
 
-milestone順序、cycle scope、提出数が対象数を超えないこと、complete snapshot一意、organizationとshop、serviceとorganizationのrollup一致、unknown cycleの率除外を確認します。  
-このmutationの返却はjobの開始を示すだけです。`getStatus`へgenerationを渡し、`invariant:<generation>:manual`が全pageを走査して`completed`になるまで確認します。  
-manual invariantは広い整合性を点検する補助証跡であり、cutoverに必要なbaseline invariantの代わりではありません。
+1. 旧control table、旧日次table、日次KPI、canonical派生tableを固定allowlistで有界削除する。
+2. 現在のグループ、店舗、person、manager、staff、継続cycle候補を運用tableからseedする。
+3. full scan完了時刻を`resetWatermarkAt`へ固定する。
+4. `[sourceCaptureStartAt, resetWatermarkAt)`のsource eventを絶対値upsertで再適用する。
+5. 切替前に終了したcycle候補を削除し、milestone、通常周期、healthを切替後の事実だけへ制限する。
+6. 参照整合性を検証し、runを`complete`へ変える。
+
+進捗は`analytics/runs:getStatus`で確認します。
 
 ```bash
-pnpm exec convex run analytics/pipeline:getStatus \
-  '{"generation":"<generation>"}' \
+pnpm exec convex run analytics/runs:getStatus '{}' \
   --deployment <fully-qualified-deployment>
 ```
 
-日次jobは、同じ日付とsource watermarkのdaily invariantが完了するまでservice snapshotを`partial`に保ち、`latestCompleteSnapshotDate`を進めません。cutoverでは、そのうち`buildingDataStartDate`のbaseline jobに紐づくinvariantを要求します。invariantの走査中にsource cursorが変わった場合は、古い走査結果を採用せず先頭から再検証します。
+`reset.status: complete`以外は完了ではありません。
+`analyticsRuns`の対象rowをDashboardで開き、`sourceCaptureStartAt`、`resetWatermarkAt`、`dataStartAt`、`dataStartDate`、`terminalAt`を記録します。
 
-bootstrap開始前に作成され、履歴を完全には復元できないcycleは`unavailable`として率から除外されます。この`unavailable`だけでbaselineが`partial`になることはありません。baselineが最終的に`partial`なら`activateGeneration`を再試行せず、failed jobと、`dataStartDate`以後に作成された`partial` cycleを確認します。修正前revisionで作成済みのgenerationはそのままcutoverせず、修正をdeployしてbuilding generationをcleanupした後、新しいgeneration名でbootstrapをやり直します。
+`dataStartAt`は`resetWatermarkAt`より後の最初のJST 00:00でなければなりません。
+グループ登録日は`organizations.createdAt`、店舗登録日は`shops._creationTime`から保たれ、切替前milestoneと終了済みcycle rateがseedされていないことを代表行で確認します。
 
-cutover直前には、generationが`ready`、bootstrap jobが完了、bootstrap完了後のprojection catch-up証明あり、source event backlog 0件、blocking projection子job 0件、baseline snapshotがcomplete、baseline daily jobが完了、baseline invariantの日付・source watermark・source cursorが現在値と一致、全job種別のfailed 0件であることを確認します。  
-`activateGeneration`はこれらを同じtransactionで再確認してから、一度だけ切り替えます。manual invariantの完了だけでは切り替えません。  
-初回cutoverでは`expectedActiveGeneration`を省略し、再構築時は現在値を明示します。
+## Narrow readiness確認
+
+resetが`complete`になった後、固定されたread-only queryでNarrow条件を確認します。
+operatorがinline queryを組み立てず、対象revisionに含まれる`analytics/reset:getNarrowReadiness`を使います。
+返却値はbooleanだけで、row ID、表示名、source payloadを含みません。
 
 ```bash
-pnpm exec convex run analytics/pipeline:activateGeneration \
-  '{"generation":"<generation>","confirmed":true}' \
+pnpm exec convex run analytics/reset:getNarrowReadiness '{}' \
   --deployment <fully-qualified-deployment>
 ```
 
-```bash
-pnpm exec convex run analytics/pipeline:activateGeneration \
-  '{"generation":"<generation>","expectedActiveGeneration":"<current-generation>","confirmed":true}' \
-  --deployment <fully-qualified-deployment>
-```
+次をすべて確認します。
 
-切替後に`getStatus`を再実行し、`activeGeneration`、`buildingGeneration`、`latestCompleteSnapshotDate`、`lastProjectedAt`を記録します。
+- `resetComplete: true`
+- `legacyTablesEmpty: true`
+- `legacyGenerationFieldsEmpty: true`
+- `sourceEventsBeforeCaptureEmpty: true`
+- `readyForNarrow: true`
 
-## 日次再実行
+このreadbackは、Narrowで削除する旧5table、旧`generation`付き派生行、最新resetの`sourceCaptureStartAt`より前のsource eventを固定probeで検査します。
+旧lease時間の15分を過ぎてから同じfunctionを再実行し、再びすべてが`true`であることを確認します。
+一つでも`false`へ戻った場合は旧writerまたは旧scheduled callが残っているため、Narrowを止めます。
 
-通常はcronがJST前日を起動します。  
-特定日を再実行する場合も、active generationとJSTで終了済みの対象日を固定します。当日は手動日次の対象にしません。
+Widen schemaは、このreadiness確認が終わるまで維持します。
+reset cleanupと現在状態のseedがWiden下で完了して初めて、旧field、旧index、旧tableを削除するNarrowへ進めます。
 
-```bash
-pnpm exec convex run analytics/pipeline:startDailyAggregation \
-  '{"date":"<YYYY-MM-DD>","generation":"<active-generation>"}' \
-  --deployment <fully-qualified-deployment>
-```
+## Narrow
 
-日次処理は、既存通知集計のreset、terminal `sent`のpage走査、terminal `failed`のpage走査、通知集計とnotification watermarkの確定、期限済みcycle finalizationの待機、shop内のstaff・manager・cycle・確定時間quantile・通知集計、organization、segment、service、daily invariant待機、snapshot公開の順に進みます。  
-同日再実行で値が増えず、途中pageがcompleteにならず、通知watermarkとdaily invariantが揃った完了後だけ`latestCompleteSnapshotDate`が進むことを確認します。
-
-## Workerと実環境確認
-
-新しいAnalytics UIとWorkerを同じ対象revisionで配信し、[セキュリティ再検証](security-validation.md)の次を確認します。
-
-- `ENV-BI-01`: 未認証ではHTMLとAPIへ到達できない。
-- `ENV-BI-02`: service credentialがbrowserへ露出しない。
-- `ENV-BI-03`: pipeline停止またはpartial時に古い値を正常値として表示しない。
-- `ENV-BI-04`: body上限をstream途中で拒否する。
-- `ENV-BI-05`: 最大想定量の負荷とresponse sizeを記録する。
-
-Analytics一覧は初期50件、最大100件、`/requests`は最大50件、trendは最大366点、responseは512 KiB未満であることも記録します。  
-`/requests`だけはAnalytics table専用readの例外として`featureRequests`と現在の`shops`を直接読みます。
-
-## 旧Analytics cleanup
-
-旧cron、旧backfill、旧queryの停止と、新UIに旧readがないことを先に確認します。  
-数日分のcomplete snapshotと負荷証跡が揃うまで、旧3 tableのcleanupを始めません。
-
-cleanupは専用internal jobから開始し、1 transaction最大50件でcursorを保存します。  
-途中停止時は同じjobを再開し、手動の全件削除やDashboard上の一括削除を行いません。
-
-```bash
-pnpm exec convex run analytics/pipeline:startLegacyCleanup \
-  '{"confirmed":true}' \
-  --deployment <fully-qualified-deployment>
-```
-
-cleanup完了後、`getStatus`の`legacyTables`が、次の各tableについて独立したindex probeで空を示すことを確認します。
+Narrow readinessの証跡より後の別revisionで、次をNarrowします。
 
 - `analyticsDailyServiceSnapshots`
 - `analyticsDailyShopSnapshots`
 - `analyticsDailyEventCounts`
+- `analyticsAggregationJobs`
+- `analyticsPipelineStates`
+- retained tableの`generation`、派生行の旧`schemaVersion`、旧generation index
+- `analyticsOrganizations.pendingOrganizationProjectionJobKey`
+- 日次五tableの旧generation fieldとindex
+- Widen中optionalにした`runId`、`kpiEligible`、`kpiEligibleShopCount`
 
-三つすべての`*IsEmpty`が`true`であること、cleanup jobが`completed`であること、対象revisionとdeploymentが一致することを一組の証跡にします。  
-cleanup job statusだけ、三つのうち一部だけ、ローカル環境の結果をProductionの0件証跡として使いません。
+Narrow版をdeployする前に、旧revisionのWorker、cron、手動runbookが削除対象tableをreadまたはwriteしないことを確認します。
+旧scheduled callのno-op互換stubは、このNarrow deployでは残します。
 
-retention cleanupと非active generation cleanupも、対象を明示して開始します。activeまたはbuilding generationはcleanupできません。  
-非active generationのcleanup jobはcutover transactionが14日後を`nextRunAt`として作成します。14日経過前に手動mutationで期限を前倒しせず、切替日時とjobの`nextRunAt`を証跡で照合してから実行します。
+Narrow deploy後に`analytics/runs:getStatus`を再実行し、reset runが`complete`のまま、Dashboardが初回日次前の`unavailable`を返すことを確認します。
+
+## 初回manual daily
+
+cron gateを`false`のまま、`dataStartDate`が終了して3時間経過するまで待ちます。
+対象日はreset rowに保存された`dataStartDate`だけです。
 
 ```bash
-pnpm exec convex run analytics/pipeline:startRetentionCleanup \
-  '{"confirmed":true}' \
+pnpm exec convex run analytics/nightly:startForDate \
+  '{"targetDate":"<data-start-date>"}' \
   --deployment <fully-qualified-deployment>
 ```
 
+`startForDate`は初回切替確認専用です。
+すでにdaily runが一件でもある場合、当日、`dataStartDate`以外の日付では開始しません。
+
+次のqueryで`daily.status: complete`を確認します。
+
 ```bash
-pnpm exec convex run analytics/pipeline:startInactiveGenerationCleanup \
-  '{"generation":"<inactive-generation>","confirmed":true}' \
+pnpm exec convex run analytics/runs:getStatus '{}' \
   --deployment <fully-qualified-deployment>
 ```
 
-## Narrow
+次を同じ証跡へ残します。
 
-旧3 tableのschema定義は、このリポジトリ変更では削除しません。  
-Productionの0件証跡が揃った後に、別revisionで`convex/schema.ts`から旧3定義だけを削除します。
+- `runKey`が`daily:<data-start-date>`
+- `targetDate`、`dataStartDate`、`stage`、`stepVersion`、`startedAt`、`terminalAt`
+- `sourceFacts`から`publish`までの構造化logと全run時間
+- service、notification、organization、shop、segmentの日次行が同じ`runId`
+- publish前invariantが成功し、日次runが`complete`
+- Dashboard metadataが`availability: available`、正しい`asOf`、`dataStartDate`、`latestCompleteSnapshotDate`を返す
+- 切替前日次rowがなく、既存店舗の登録日と切替後の現在値、health、完全なcycle rateが表示される
+- 既存店舗の初回募集以降のmilestoneが、未達ではなく「算出対象外」と表示される
+- notification本文、credential、PII、任意error messageがresponseとlogへ出ていない
 
-Narrow版をdeployする前に、旧revisionのWorker、scheduled function、手動runbookが旧tableへreadまたはwriteしないことを確認します。  
-対象deploymentを取り違えた、旧rowが再流入した、0件証跡が古い場合はNarrowを止めます。
+初回manual dailyが`failed`になっても、同じ対象日を再実行しません。
+公開前の初回成功をやり直す場合は、原因を修正した新revisionと新しい固定境界で破壊的resetを全消去から行い、新しい`dataStartDate`を作ります。
 
-## 停止と復旧
+## cron gateと外部alert
 
-Narrow前に失敗した場合は、Cloudflare Accessで内部BIを閉じ、新pipelineを`active`として扱わず、原因を調査します。  
-必要ならConvex HTTP ActionとWorkerを互換する以前のrevisionへ組で戻します。旧3 tableは残っているため、この段階で削除しません。
+初回manual dailyの成功後に、cron gateを文字列`true`へ変えます。
 
-Narrow後は旧Analyticsデータへrollbackしません。  
-運用tableと保持期間内のsource eventから新しいgenerationを再構築し、復元不能な期間は`unavailable`として扱います。
+```bash
+pnpm exec convex env set ANALYTICS_NIGHTLY_CRON_ENABLED 'true' \
+  --deployment <fully-qualified-deployment>
+```
 
-次のいずれかなら工程を止めます。
+有効になる定期処理は次の二つだけです。
 
-- 完全修飾deployment名、revision、generationを一意に特定できない。
-- jobが失敗、attempt上限、長期lease、またはbudget超過になった。
-- defensiveな不完全LINE batchを検知し、generationが`degraded`になった。
-- 同じLINE userのactive accountが50件を超える組み合わせをreadinessで検出した。
-- invariant違反または`hasMore`を未確認のまま残した。
-- baselineまたは対象日のsnapshotがcompleteでない。
-- credential、PII、通知payloadがresponseまたはlogへ出た。
-- 旧3 tableのいずれかが0件でない。
+| cron | JST | 役割 |
+|---|---|---|
+| `analytics-nightly-daily` | 毎日03:00 | 終了済みの前日を集計 |
+| `analytics-weekly-maintenance` | 月曜04:00 | PII redaction、retention、直近7日の日次出力監査、現在canonical参照監査 |
 
-実環境の結果は[リリース状態](release-status.md)へ、対象revision、完全修飾deployment、generation、日時、確認者、アクセス制限された証跡とともに記録します。
+weekly maintenanceは、400日のhard deadlineを越えないよう期限の14日前からopportunityの本人参照をcycle単位でredactします。
+その後にretentionを行い、直近7日分の保存済み日次行のscope、率、rollup、`runId`を監査します。
+保存済み行の不整合が確定した日だけdaily runを`failed`へ変えます。
+最後に現在のcanonical factのtenant参照とcycle、opportunityの整合性を監査します。
+過去日を現在のcanonical factから再計算する監査は行いません。
+
+最初の自動日次とweekly maintenanceについて、`analytics/runs:getStatus`、Function logs、実行時間、read/write document数とbytesを記録します。
+最大想定件数でscope上限またはConvex function limitへ達した場合は、不完全値を許可せず、query形状またはscope上限の設計を見直します。
+
+外部監視には、次の条件を設定します。
+
+| 条件 | alert条件 |
+|---|---|
+| daily未開始 | JST 03:15までに前日分の`analytics_run_started`がない |
+| daily期限超過 | JST 15:00までに同じrunの`analytics_run_complete`または`analytics_run_failed`がない |
+| terminal failure | daily、reset、maintenanceの`analytics_run_failed`を検知した |
+| reset期限超過 | reset開始から12時間以内にterminal logがない |
+| maintenance欠落 | 前回の`analytics_maintenance_complete`から8日を超えた |
+| redaction接近 | maintenanceが報告する最古未処理期限が7日以内になった |
+
+missing、期限超過、terminal failure、redaction接近の各test alertを一回ずつ送信し、通知先、owner、event IDまたは画面証跡を[リリース状態](release-status.md)へ記録します。
+監視の送信状態とerror本文はAnalytics DBへ複製しません。
+
+## 日次失敗とreset失敗
+
+日次runが失敗した場合、その日は永久欠損です。
+同日retry、過去日の再集計、backfillは行いません。
+
+原因を修正しても、次のcronは次の対象日だけを作ります。
+次のrunは最後に成功した`cutoffAt`からsource eventを再適用するため、canonical factは収束しますが、失敗日のsnapshotは作りません。
+
+同じsource eventを処理できないerrorは、最後の成功cutoff以降を再適用する後続runでも繰り返します。
+code修正で安全に処理できる場合は次の対象日で収束させ、source fact自体が不完全で再生できない場合は、cron gateを無効にして新しい固定境界から破壊的resetを行います。
+このresetも失敗日のsnapshotを補修せず、新しい`dataStartDate`から再開します。
+
+`running`のまま停止した日次runは、12時間を過ぎた後の次回開始時に`failed`へ変わります。
+毎分の回収処理はなく、期限超過自体は外部監視が検知します。
+
+resetが失敗した場合、保存cursorから再開しません。
+cron gateとreset enableを無効にし、Convex logの安全なerror codeから原因を修正します。
+
+修正後は、新revisionまたは新しいJST 00:00境界でreset identityを作り、4環境変数、dry run、`start`を取り直します。
+新しいresetは旧派生tableをもう一度全消去し、seedからやり直します。
+
+unknownな例外本文、stack、source payloadはDBにも外部証跡にも保存しません。
+詳細調査にはアクセス制限されたConvex logsと外部監視を使います。
+
+## Workerと実環境確認
+
+Analytics UIとWorkerを同じ対象revisionで配信し、[セキュリティ再検証](security-validation.md)の次を確認します。
+
+- `ENV-BI-01`: 未認証ではHTMLとAPIへ到達できない。
+- `ENV-BI-02`: service credentialがbrowserへ露出しない。
+- `ENV-BI-03`: `availability: unavailable`または欠損期間を古い正常値や`0`として表示しない。
+- `ENV-BI-04`: body上限をstream途中で拒否する。
+- `ENV-BI-05`: 最大想定量の負荷とresponse sizeを記録する。
+
+Analytics一覧は初期50件、最大100件、`/requests`は最大50件、trendは最大366点、responseは512 KiB未満であることも記録します。
+`/requests`だけはrunの公開可否と独立し、`featureRequests`と現在の`shops`を直接読みます。
+
+## 旧互換stubの削除境界
+
+`convex/analytics/pipeline.ts`の互換stubは、旧revisionが予約したscheduled callをNarrow後も吸収するため、一回は残します。
+次の条件をすべて満たした後の別deployでだけ削除します。
+
+1. 旧cronと旧callerを作るrevisionが全environmentからなくなっている。
+2. freezeから旧lease時間の15分を超えている。
+3. `getNarrowReadiness`の再確認とNarrow deployが完了している。
+4. 初回manual dailyと、その後の自動daily・weekly maintenanceが成功している。
+5. 旧schedule時刻を含む24時間以上、`analytics_legacy_call_ignored`が新たに出ていない。
+6. 手動runbook、Dashboard、固定referenceに旧function名が残っていない。
+
+削除deploy後も`analyticsRuns`、新cron、Dashboard availabilityを確認します。
+旧互換stubを削除するために、旧Analytics履歴や削除済みtableを復元しません。
+
+## 停止条件と証跡
+
+次のいずれかに当てはまる場合は、後続工程を止めます。
+
+- 完全修飾deployment名、revision、`sourceCaptureStartAt`を一意に特定できない。
+- dry runが`allowed: false`、またはserver設定と要求値が一致しない。
+- reset、daily、maintenanceのrunが`failed`または期限超過になった。
+- LINE readinessで50件超過を検出した。
+- tenant参照、rollup、rate pair、runIdのinvariantに違反した。
+- Narrow readinessの一項目が`false`、または待機後に再増加した。
+- credential、PII、通知payload、任意error messageがresponseまたはlogへ出た。
+- 初回日次前にcron gateが`true`になっている。
+
+実環境の結果は[リリース状態](release-status.md)へ、次を一組として記録します。
+
+- Widen、Narrow、cron gate有効化、互換stub削除の各revision
+- 完全修飾deployment名
+- `sourceCaptureStartAt`、`resetWatermarkAt`、`dataStartAt`、`dataStartDate`
+- dry run readback、reset run、初回daily run、最初の自動runのterminal状態
+- `getNarrowReadiness`の初回・再確認証跡
+- Function logs、実行時間、負荷、Dashboard metadata
+- 外部alertの疎通証跡と確認者
+
+## 関連ファイル
+
+- `convex/analytics/config.ts`
+- `convex/analytics/runs.ts`
+- `convex/analytics/reset.ts`
+- `convex/analytics/nightly.ts`
+- `convex/analytics/maintenance.ts`
+- `convex/analytics/observability.ts`
+- `convex/analytics/pipeline.ts`
+- `convex/crons.ts`
+- [分析KPI蓄積基盤](../features/analytics.md)
+- [分析KPI可視化アプリ](../features/analytics-dashboard.md)
+- [Analytics夜間バッチ簡素化 実装計画](../plans/2026-08-08_Analytics夜間バッチ簡素化_実装計画.md)

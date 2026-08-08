@@ -10,6 +10,7 @@ import {
 } from "@/api/analyticsClient";
 import { useReportAnalyticsEnvironment } from "@/app/analyticsEnvironment";
 import {
+  availabilityCompleteness,
   COUNT_TREND_LABELS,
   COUNT_TREND_METRICS,
   healthCountItems,
@@ -108,9 +109,13 @@ export function OverviewPage({ navigate }: { navigate: (href: string) => void })
 
   const overview = overviewQuery.data.data;
   const milestones = milestonesQuery.data?.data;
-  const completeHealthPoints = healthQuery.data?.data.series.filter((point) => point.completeness === "complete") ?? [];
+  const healthPoints = healthQuery.data?.data.series ?? [];
+  const completeHealthPoints = healthPoints.filter((point) => point.completeness === "complete");
+  const latestHealthPoint = healthPoints.at(-1);
   const previousHealthCounts =
-    healthQuery.data?.data.metadata.completeness === "complete" ? (completeHealthPoints.at(-2)?.counts ?? null) : null;
+    healthQuery.data?.data.metadata.availability === "available" && latestHealthPoint?.completeness === "complete"
+      ? (completeHealthPoints.at(-2)?.counts ?? null)
+      : null;
   const extraMetadata = [
     trendsQuery.data?.data.metadata,
     milestones?.metadata,
@@ -136,19 +141,22 @@ export function OverviewPage({ navigate }: { navigate: (href: string) => void })
     attentionShops: attentionShopsQuery.data?.data.rows.map(shopRowModel) ?? [],
     countTrend: trendChartData(trendsQuery.data?.data.series ?? [], [...COUNT_TREND_METRICS]),
     countTrendKeys: [...COUNT_TREND_LABELS],
-    healthCompleteness: healthQuery.data?.data.metadata.completeness ?? "pending",
+    healthCompleteness:
+      latestHealthPoint?.completeness ??
+      availabilityCompleteness(healthQuery.data?.data.metadata.availability ?? "unavailable"),
     healthSignals: healthCountItems(healthQuery.data?.data.current ?? null, previousHealthCounts),
-    kpis: serviceKpis(overview.current, overview.comparison, overview.metadata.completeness),
+    kpis: serviceKpis(overview.current, overview.comparison, overview.metadata.availability),
     metadata: mergeMetadata(overview.metadata, ...extraMetadata),
     milestones: milestoneItems(
       milestones?.current ?? null,
       milestones?.currentRates ?? null,
-      milestones?.metadata.completeness ?? "pending",
+      milestones?.series.at(-1)?.completeness ??
+        availabilityCompleteness(milestones?.metadata.availability ?? "unavailable"),
     ),
     segments: segmentsQuery.data?.data.rows.map(segmentRowModel) ?? [],
     shopCounts: {
       active: overview.current?.counts.activeShopCount ?? null,
-      completeness: overview.current?.completeness ?? overview.metadata.completeness,
+      completeness: overview.current?.completeness ?? availabilityCompleteness(overview.metadata.availability),
       kpiEligible: overview.current?.counts.kpiEligibleShopCount ?? null,
       total: overview.current?.counts.shopCount ?? null,
     },

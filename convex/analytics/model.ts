@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 
 export const ANALYTICS_SCHEMA_VERSION = 1;
-export const ANALYTICS_PIPELINE_KEY = "primary";
+export const ANALYTICS_CALCULATION_VERSION = 1;
 
 export const analyticsPlanValidator = v.union(
   v.literal("trial"),
@@ -59,25 +59,6 @@ export const analyticsHealthSignalCountsValidator = v.object({
   confirmationDelay: v.number(),
   longInactive: v.number(),
   insufficientData: v.number(),
-});
-
-export const analyticsInvariantRollupValidator = v.object({
-  organizationCount: v.number(),
-  shopCount: v.number(),
-  kpiEligibleShopCount: v.number(),
-  activeShopCount: v.number(),
-  uniquePersonCount: v.number(),
-  staffMembershipCount: v.number(),
-  unlinkedStaffCount: v.number(),
-  shiftTargetCount: v.number(),
-  managerMembershipCount: v.number(),
-  managerStaffCount: v.number(),
-  milestoneCounts: analyticsMilestoneCountsValidator,
-  healthSignalCounts: analyticsHealthSignalCountsValidator,
-  northStar: analyticsRatePairValidator,
-  deadlineSubmission: analyticsRatePairValidator,
-  finalSubmission: analyticsRatePairValidator,
-  completeness: analyticsCompletenessValidator,
 });
 
 export const analyticsHealthSignalStateValidator = v.object({
@@ -271,125 +252,30 @@ export const analyticsSourceEventPayloadValidator = v.union(
   }),
 );
 
-export const analyticsPipelineStatusValidator = v.union(
-  v.literal("idle"),
-  v.literal("building"),
-  v.literal("ready"),
-  v.literal("active"),
-  v.literal("degraded"),
-  v.literal("paused"),
-);
+export const analyticsRunKindValidator = v.union(v.literal("daily"), v.literal("reset"), v.literal("maintenance"));
 
-export const analyticsJobTypeValidator = v.union(
-  v.literal("bootstrap"),
-  v.literal("projection"),
-  v.literal("cycleFinalization"),
-  v.literal("daily"),
-  v.literal("generationCleanup"),
-  v.literal("retentionCleanup"),
-  v.literal("legacyCleanup"),
-  v.literal("invariant"),
-);
+export const analyticsRunStatusValidator = v.union(v.literal("running"), v.literal("complete"), v.literal("failed"));
 
-export const analyticsJobStatusValidator = v.union(
-  v.literal("pending"),
-  v.literal("processing"),
-  v.literal("completed"),
-  v.literal("failed"),
-  v.literal("cancelled"),
-);
-
-export const analyticsJobPhaseValidator = v.union(
-  v.literal("captureWatermark"),
-  v.literal("organizations"),
+// 日次の公開stageは六つだけにする。reset/maintenanceは同じmanifestを使うが、
+// 通常の日次制御へcleanupや監査の細かなphaseを混ぜない。
+export const analyticsRunStageValidator = v.union(
+  v.literal("sourceFacts"),
+  v.literal("notifications"),
   v.literal("shops"),
-  v.literal("people"),
-  v.literal("managers"),
-  v.literal("staffs"),
-  v.literal("cycles"),
-  v.literal("submissions"),
-  v.literal("verifyOrganizations"),
-  v.literal("verifyShops"),
-  v.literal("verifyCycles"),
-  v.literal("buildingCatchup"),
-  v.literal("events"),
-  v.literal("personMemberships"),
-  v.literal("staffMembershipBatch"),
-  v.literal("lineAccountBatch"),
-  v.literal("organizationShopSync"),
-  v.literal("organizationManagerSync"),
-  v.literal("organizationPlanDeltas"),
-  v.literal("opportunityTargets"),
-  v.literal("opportunitySubmissions"),
-  v.literal("resetOpportunities"),
-  v.literal("notificationRollup"),
-  v.literal("finalizeCycle"),
-  v.literal("notificationReset"),
-  v.literal("notificationSent"),
-  v.literal("notificationFailed"),
-  v.literal("notificationFinalize"),
-  v.literal("cycleWait"),
-  v.literal("shopSnapshots"),
-  v.literal("shopStaff"),
-  v.literal("shopManagers"),
-  v.literal("shopCycles"),
-  v.literal("shopConfirmationLeadTimeQuantiles"),
-  v.literal("shopNotifications"),
-  v.literal("shopFinalize"),
-  v.literal("organizationSnapshots"),
-  v.literal("organizationShops"),
-  v.literal("organizationPeople"),
-  v.literal("organizationManagers"),
-  v.literal("organizationFinalize"),
-  v.literal("segmentInit"),
-  v.literal("segmentSnapshots"),
-  v.literal("segmentFinalize"),
-  v.literal("serviceInit"),
-  v.literal("serviceSnapshot"),
-  v.literal("serviceFinalize"),
-  v.literal("invariantWait"),
-  v.literal("invariantBarrier"),
-  v.literal("invariantFinalize"),
-  v.literal("finalizeSnapshot"),
-  v.literal("sourceEventBacklog"),
-  v.literal("sourceEvents"),
-  v.literal("opportunityIdentifiers"),
-  v.literal("shiftCycles"),
-  v.literal("dailyShop"),
-  v.literal("dailyNotification"),
-  v.literal("dailyOrganization"),
-  v.literal("dailySegment"),
-  v.literal("dailyService"),
-  v.literal("jobs"),
-  v.literal("generationJobsCancel"),
-  v.literal("organizationsCleanup"),
-  v.literal("shopsCleanup"),
-  v.literal("peopleCleanup"),
-  v.literal("membershipsCleanup"),
-  v.literal("cyclesCleanup"),
-  v.literal("opportunitiesCleanup"),
-  v.literal("dailyNotificationCleanup"),
-  v.literal("dailyServiceCleanup"),
-  v.literal("dailyOrganizationCleanup"),
-  v.literal("dailyShopCleanup"),
-  v.literal("dailySegmentCleanup"),
-  v.literal("legacyService"),
-  v.literal("legacyShop"),
-  v.literal("legacyEvents"),
-  v.literal("invariantOrganizations"),
-  v.literal("invariantShops"),
-  v.literal("invariantPeople"),
-  v.literal("invariantMemberships"),
-  v.literal("invariantCycles"),
-  v.literal("invariantSourceOrganizations"),
-  v.literal("invariantSourceShops"),
-  v.literal("invariantSourcePeople"),
-  v.literal("invariantSourceManagers"),
-  v.literal("invariantSourceStaffs"),
-  v.literal("invariantSnapshotSelect"),
-  v.literal("invariantOrganizationSelect"),
-  v.literal("invariantOrganizationShops"),
-  v.literal("invariantOrganizationPeople"),
+  v.literal("organizations"),
+  v.literal("segmentsAndService"),
+  v.literal("publish"),
+  v.literal("resetCleanup"),
+  v.literal("resetOrganizations"),
+  v.literal("resetShops"),
+  v.literal("resetPeople"),
+  v.literal("resetManagers"),
+  v.literal("resetStaffs"),
+  v.literal("resetCycles"),
+  v.literal("resetReplay"),
+  v.literal("resetVerify"),
+  v.literal("maintenanceAudit"),
+  v.literal("maintenanceCleanup"),
 );
 
 export const emptyMilestoneCounts = () => ({

@@ -39,7 +39,7 @@ const DONUT_DIMENSIONS: Record<string, string> = {
 type AdoptionDatum = {
   bucket: string;
   全店舗: number;
-  "2回目確定": number;
+  "2回目確定": number | null;
 };
 
 function SeriesTooltip({
@@ -73,13 +73,12 @@ function SeriesTooltip({
 }
 
 function SegmentAdoptionChart({ rows }: { rows: SegmentRowViewModel[] }) {
-  const data: AdoptionDatum[] = rows
-    .filter((row) => row.completeness === "complete")
-    .map((row) => ({
-      bucket: row.bucket,
-      全店舗: row.shopCount,
-      "2回目確定": row.secondConfirmedCount,
-    }));
+  const data: AdoptionDatum[] = rows.map((row) => ({
+    bucket: row.bucket,
+    全店舗: row.shopCount,
+    "2回目確定":
+      row.milestoneCompleteness === "complete" && row.kpiEligibleShopCount > 0 ? row.secondConfirmedCount : null,
+  }));
   const chart = useChart<AdoptionDatum>({
     data,
     series: [
@@ -93,7 +92,7 @@ function SegmentAdoptionChart({ rows }: { rows: SegmentRowViewModel[] }) {
 
   return (
     <Chart.Root
-      aria-label="区分別の全店舗数と2回目確定店舗数"
+      aria-label="区分別の全店舗数と到達度対象の2回目確定店舗数"
       chart={chart}
       h={`${Math.max(220, data.length * 66 + 64)}px`}
       role="img"
@@ -138,8 +137,8 @@ function SegmentCompositionDonut({ label, rows }: { label: string; rows: Segment
       centerLabel="全店舗"
       centerValue={`${formatCount(total)}店舗`}
       items={rows.map((row) => ({
-        completeness: row.completeness,
-        displayValue: `${formatCount(row.shopCount, row.completeness)}店舗`,
+        completeness: "complete",
+        displayValue: `${formatCount(row.shopCount)}店舗`,
         key: `${row.dimension}:${row.bucket}`,
         label: row.bucket,
         value: row.shopCount,
@@ -358,7 +357,7 @@ export function SegmentComparisonCharts({ dimension, rows }: { dimension: string
       ) : null}
       <ChartPanel
         contentHeight="auto"
-        description="全店舗と2回目確定店舗を区分ごとに並べて比較します。"
+        description="全店舗と、到達度対象のうち2回目確定した店舗を区分ごとに比較します。"
         title="導入進捗の比較"
       >
         <SegmentAdoptionChart rows={rows} />

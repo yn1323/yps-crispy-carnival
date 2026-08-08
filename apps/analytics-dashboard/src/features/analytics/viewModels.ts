@@ -49,6 +49,7 @@ export type ShopRowViewModel = {
   plan: string;
   registeredAt: string | number | null;
   milestoneLabel: string;
+  milestoneEligible: boolean;
   activeStaffCount: number | null;
   unlinkedStaffCount: number | null;
   shiftTargetCount: number | null;
@@ -90,7 +91,9 @@ export type SegmentRowViewModel = {
   dimension: string;
   bucket: string;
   shopCount: number;
+  kpiEligibleShopCount: number;
   secondConfirmedCount: number;
+  milestoneCompleteness: DataCompleteness;
   northStarRate: number | null;
   deadlineSubmissionRate: number | null;
   finalSubmissionRate: number | null;
@@ -152,6 +155,7 @@ export type ShopDetailViewModel = {
   rateRange: { from: string; to: string } | null;
   snapshotDate: string | null;
   milestones: MilestoneItem[];
+  milestoneEligible: boolean;
   healthSignals: HealthViewModel[];
   healthCompleteness: DataCompleteness;
   trend: ChartDatum[];

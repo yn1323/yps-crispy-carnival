@@ -1,13 +1,13 @@
 import { Alert, Badge, Box, Flex, Skeleton, Stack, Text } from "@chakra-ui/react";
 
-export type DataCompleteness = "complete" | "partial" | "unavailable" | "pending" | "error" | string;
+export type DataCompleteness = "complete" | "partial" | "unavailable" | "error" | string;
 
 export type AnalyticsMetadata = {
+  availability: "available" | "unavailable";
   asOf: number | string | null;
   dataStartDate: string | null;
   latestCompleteSnapshotDate: string | null;
   computedAt: number | string | null;
-  completeness: DataCompleteness;
   warnings: Array<string | { code: string; message: string }>;
 };
 
@@ -15,7 +15,6 @@ const COMPLETENESS_PRESENTATION: Record<string, { color: string; label: string }
   complete: { color: "green", label: "集計済み" },
   error: { color: "red", label: "取得失敗" },
   partial: { color: "orange", label: "一部のみ集計" },
-  pending: { color: "blue", label: "集計中" },
   unavailable: { color: "gray", label: "算出できない" },
 };
 
@@ -23,25 +22,10 @@ const PAGE_STATUS_PRESENTATION: Record<
   string,
   { description: string; status: "error" | "info" | "warning"; title: string }
 > = {
-  error: {
-    description: "集計処理の状態を確認してください。値を0としては扱いません。",
-    status: "error",
-    title: "集計状態を確認できません",
-  },
-  partial: {
-    description: "取得できた範囲だけを表示しています。未完了の値は個別に除外します。",
-    status: "warning",
-    title: "一部の集計が未完了です",
-  },
-  pending: {
-    description: "集計が完了すると、この画面へ値が表示されます。",
-    status: "info",
-    title: "初回集計中です",
-  },
   unavailable: {
-    description: "蓄積期間と表示条件を確認してください。値がない区間は0として扱いません。",
+    description: "最新の夜間集計または選択期間を確認してください。利用できない値は0として扱いません。",
     status: "warning",
-    title: "選択期間の値を算出できません",
+    title: "分析データを利用できません",
   },
 };
 
@@ -63,7 +47,9 @@ export function analyticsWarningMessage(warning: string | { code: string; messag
 
 export function isPeriodWarning(warning: string | { code: string; message: string }) {
   const message = analyticsWarningMessage(warning);
-  return message.startsWith("データ蓄積開始日") || message.startsWith("指定期間");
+  return (
+    message.startsWith("データ蓄積開始日") || message.startsWith("指定期間") || message.startsWith("選択期間に欠損日")
+  );
 }
 
 function isPaginationWarning(warning: string | { code: string; message: string }) {
@@ -83,7 +69,7 @@ export function CompletenessBadge({ value }: { value: DataCompleteness }) {
 export function DataStatus({ isLoading, metadata }: { isLoading?: boolean; metadata?: AnalyticsMetadata }) {
   if (isLoading) return <Skeleton borderRadius="lg" h="88px" w="full" />;
   if (!metadata) return null;
-  const pageStatus = PAGE_STATUS_PRESENTATION[metadata.completeness];
+  const pageStatus = PAGE_STATUS_PRESENTATION[metadata.availability];
   const operationalWarnings = metadata.warnings.filter(
     (warning) => !isPeriodWarning(warning) && !isPaginationWarning(warning),
   );
@@ -121,6 +107,7 @@ export function DataStatus({ isLoading, metadata }: { isLoading?: boolean; metad
             集計の詳細
           </Box>
           <Stack gap={1} mt={2} minW={{ md: "240px" }}>
+            <Text>利用可否: {metadata.availability === "available" ? "利用可能" : "利用不可"}</Text>
             <Text>蓄積開始日: {metadata.dataStartDate ?? "未開始"}</Text>
             <Text>最新の完全な集計日: {metadata.latestCompleteSnapshotDate ?? "未集計"}</Text>
             <Text>基準日時: {formatTimestamp(metadata.asOf)}</Text>
@@ -167,25 +154,17 @@ export function analyticsEmptyText(
   filteredText: string,
   pageInfo?: { continueCursor: string | null; isDone: boolean; returnedCount: number },
 ) {
-  if (metadata.completeness === "pending" || metadata.dataStartDate === null) {
-    return "データ蓄積前、または集計中です";
-  }
-  if (metadata.completeness === "unavailable") return "この期間の値は算出できません";
+  if (metadata.availability === "unavailable") return "現在、分析データを利用できません";
+  if (metadata.dataStartDate === null) return "データ蓄積前です";
   if (pageInfo?.returnedCount === 0 && !pageInfo.isDone && pageInfo.continueCursor) {
     return "このページには一致するデータがありません。次の候補を確認できます";
   }
-  if (metadata.completeness === "partial") return "一部のみ集計されているため、対象の有無を確定できません";
   return filteredText;
 }
 
 export function mergeMetadata(primary: AnalyticsMetadata, ...others: AnalyticsMetadata[]): AnalyticsMetadata {
-  const completenessRank: Record<string, number> = { complete: 0, partial: 1, pending: 2, unavailable: 3 };
   const all = [primary, ...others];
-  const completeness = all.reduce(
-    (worst, metadata) =>
-      (completenessRank[metadata.completeness] ?? 3) > (completenessRank[worst] ?? 3) ? metadata.completeness : worst,
-    primary.completeness,
-  );
+  const availability = all.some((metadata) => metadata.availability === "unavailable") ? "unavailable" : "available";
   const warnings = [
     ...new Set(
       all.flatMap((metadata) =>
@@ -193,5 +172,5 @@ export function mergeMetadata(primary: AnalyticsMetadata, ...others: AnalyticsMe
       ),
     ),
   ];
-  return { ...primary, completeness, warnings };
+  return { ...primary, availability, warnings };
 }

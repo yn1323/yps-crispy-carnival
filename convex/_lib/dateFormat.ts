@@ -29,6 +29,16 @@ export function addDays(date: string, days: number): string {
   return formatUtcDate(dateToUtcMs(date) + days * MS_PER_DAY);
 }
 
+/** 月末を超える場合は移動先の月末へ丸めて、暦月単位で日付を戻す。 */
+export function subtractCalendarMonths(date: string, months: number): string {
+  const [year, month, day] = date.split("-").map(Number);
+  const targetMonth = year * 12 + (month - 1) - months;
+  const targetYear = Math.floor(targetMonth / 12);
+  const targetMonthIndex = ((targetMonth % 12) + 12) % 12;
+  const lastDay = new Date(Date.UTC(targetYear, targetMonthIndex + 1, 0)).getUTCDate();
+  return formatUtcDate(Date.UTC(targetYear, targetMonthIndex, Math.min(day, lastDay)));
+}
+
 export function getWeekday(date: string): number {
   return new Date(dateToUtcMs(date)).getUTCDay();
 }

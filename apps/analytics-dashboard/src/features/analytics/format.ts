@@ -20,7 +20,6 @@ export function formatCount(value: number | null | undefined, completeness: Data
   }
   if (completeness === "unavailable") return "算出できません";
   if (completeness === "error") return "取得失敗";
-  if (completeness === "pending") return "集計中";
   if (value !== null && value !== undefined) return numberFormatter.format(value);
   return "算出できません";
 }
@@ -31,13 +30,7 @@ export function formatCountWithUnit(
   completeness: DataCompleteness = "complete",
 ) {
   const formatted = formatCount(value, completeness);
-  if (
-    value === null ||
-    value === undefined ||
-    completeness === "unavailable" ||
-    completeness === "pending" ||
-    completeness === "error"
-  ) {
+  if (value === null || value === undefined || completeness === "unavailable" || completeness === "error") {
     return formatted;
   }
   return `${formatted}${unit}`;
@@ -47,7 +40,6 @@ export function formatRate(value: number | null | undefined, completeness: DataC
   if (completeness === "partial") return "一部のみ集計";
   if (completeness === "unavailable") return "算出できません";
   if (completeness === "error") return "取得失敗";
-  if (completeness === "pending") return "集計中";
   if (value !== null && value !== undefined) return percentFormatter.format(value);
   return "算出できません";
 }
@@ -79,7 +71,6 @@ export function formatDurationMs(value: number | null | undefined, completeness:
   if (completeness === "partial") return "一部のみ集計";
   if (completeness === "unavailable") return "算出できません";
   if (completeness === "error") return "取得失敗";
-  if (completeness === "pending") return "集計中";
   if (value === null || value === undefined) return "算出できません";
   const days = value / 86_400_000;
   return days >= 1 ? `${days.toFixed(1)}日` : `${(value / 3_600_000).toFixed(1)}時間`;
