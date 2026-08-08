@@ -55,6 +55,13 @@ export type LoginMethodsCardState = {
   message: string | null;
 };
 
+export type GoogleDisconnectMode = "externalOnly" | "externalAndEmail";
+
+export type GoogleDisconnectPreparation = {
+  mode: GoogleDisconnectMode;
+  googleEmailAddress: string;
+};
+
 export type LoginEmailChangeDialogState =
   | { isOpen: false }
   | {
@@ -69,11 +76,13 @@ export type LoginMethodsController = {
   viewModel: LoginMethodsViewModel;
   isLoaded: boolean;
   googleState: LoginMethodsCardState;
+  googleDisconnectPendingCleanup: boolean;
   emailPasswordState: LoginMethodsCardState;
   emailChangeDialog: LoginEmailChangeDialogState;
   reload: () => Promise<unknown>;
-  prepareGoogleDisconnect: (externalAccountId: string) => Promise<boolean | undefined>;
-  disconnectGoogle: (externalAccountId: string) => Promise<unknown>;
+  prepareGoogleDisconnect: (externalAccountId: string) => Promise<GoogleDisconnectPreparation | false | undefined>;
+  disconnectGoogle: (externalAccountId: string) => Promise<boolean | undefined>;
+  closeGoogleDisconnect: () => void;
   openLoginEmailChange: () => void;
   closeLoginEmailChangeDialog: (force?: boolean) => void;
   backToLoginEmailInput: () => void;

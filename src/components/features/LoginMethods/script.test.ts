@@ -21,7 +21,7 @@ describe("ログイン方法の表示状態", () => {
             emailAddress: "google@example.com",
             status: "connected",
             canDisconnect: false,
-            disconnectUnavailableReason: "確認済みメールアドレスとパスワードを設定してから操作してください。",
+            disconnectUnavailableReason: "確認済みのメインメールアドレスとパスワードを設定してから操作してください。",
           },
         ],
         canConnect: false,
@@ -303,10 +303,22 @@ describe("ログイン方法の表示状態", () => {
         externalAccounts: [google("google-3", "google@example.com", "unverified")],
       }),
     );
+    const unverifiedPrimary = buildLoginMethodsViewModel(
+      snapshot({
+        passwordEnabled: true,
+        primaryEmailAddressId: "pending-primary",
+        emailAddresses: [
+          email("pending-primary", "pending@example.com", "unverified"),
+          email("verified-secondary", "verified@example.com", "verified"),
+        ],
+        externalAccounts: [google("google-4", "verified@example.com", "verified")],
+      }),
+    );
 
     expect(withoutPassword.google.accounts[0]?.canDisconnect).toBe(false);
     expect(withoutVerifiedEmail.google.accounts[0]?.canDisconnect).toBe(false);
     expect(pendingGoogle.google.accounts[0]?.canDisconnect).toBe(false);
+    expect(unverifiedPrimary.google.accounts[0]?.canDisconnect).toBe(false);
   });
 
   it("利用できるGoogleもメール・パスもなければ状態をunavailableにする", () => {

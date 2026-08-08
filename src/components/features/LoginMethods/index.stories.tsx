@@ -90,6 +90,7 @@ function LoginMethodsPreview({
   );
   const [emailChangeCompleted, setEmailChangeCompleted] = useState(false);
   const [googleState, setGoogleState] = useState<LoginMethodsCardState>(idle());
+  const [googleDisconnectPendingCleanup, setGoogleDisconnectPendingCleanup] = useState(false);
   const [emailPasswordState, setEmailPasswordState] = useState<LoginMethodsCardState>(idle());
   const [passwordChangeState, setPasswordChangeState] = useState<PasswordChangeState>(
     showPasswordChangeDialog
@@ -122,6 +123,7 @@ function LoginMethodsPreview({
     viewModel,
     isLoaded,
     googleState,
+    googleDisconnectPendingCleanup,
     emailPasswordState,
     emailChangeDialog,
     reload: async () => {
@@ -138,16 +140,29 @@ function LoginMethodsPreview({
         });
         return false;
       }
-      return true;
+      setGoogleDisconnectPendingCleanup(false);
+      return {
+        mode: scenario === "bothSameEmail" ? "externalOnly" : "externalAndEmail",
+        googleEmailAddress: viewModel.google.accounts[0]?.emailAddress ?? "google@gmail.com",
+      };
     },
     disconnectGoogle: async () => {
-      if (disconnectGoogleError) {
-        setGoogleState({ status: "error", message: "Google連携を解除できませんでした。もう一度お試しください。" });
+      if (disconnectGoogleError && !googleDisconnectPendingCleanup) {
+        setGoogleDisconnectPendingCleanup(true);
+        setGoogleState({
+          status: "error",
+          message: "Google連携の解除を完了できませんでした。この画面を閉じずに、もう一度お試しください。",
+        });
         return false;
       }
+      setGoogleDisconnectPendingCleanup(false);
       setGoogleState(idle());
       showSuccessToast({ title: "Google連携を解除しました" });
       return true;
+    },
+    closeGoogleDisconnect: () => {
+      setGoogleDisconnectPendingCleanup(false);
+      setGoogleState(idle());
     },
     openLoginEmailChange: () => {
       setEmailPasswordState(idle());
@@ -379,6 +394,29 @@ export const GoogleDisconnectDialog: Story = {
 
     const dialog = await body.findByRole("alertdialog", { name: "Google連携を解除" });
     await waitFor(() => expect(within(dialog).getByRole("button", { name: "解除する" })).toBeVisible());
+    const explanation = within(dialog).getByText(/このGoogleアカウントではログインできなくなります/);
+    await expect(explanation).toHaveTextContent(
+      "このGoogleアカウントではログインできなくなります。メールアドレスとパスワードは残ります。",
+    );
+    await expect(within(dialog).queryByText("google@gmail.com")).not.toBeInTheDocument();
+  },
+};
+
+export const GoogleDisconnectSameEmailDialog: Story = {
+  args: { scenario: "bothSameEmail" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "解除する" }));
+
+    const dialog = await body.findByRole("alertdialog", { name: "Google連携を解除" });
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "解除する" })).toBeVisible());
+    const explanation = within(dialog).getByText(/このGoogleアカウントではログインできなくなります/);
+    await expect(explanation).toHaveTextContent(
+      "このGoogleアカウントではログインできなくなります。メールアドレスとパスワードは残ります。",
+    );
+    await expect(within(dialog).queryByText("google@gmail.com")).not.toBeInTheDocument();
   },
 };
 
@@ -409,10 +447,16 @@ export const GoogleDisconnectErrorBehavior: Story = {
     await userEvent.click(dialog.getByRole("button", { name: "解除する" }));
 
     const alert = await dialog.findByRole("alert");
-    await expect(alert).toHaveTextContent("Google連携を解除できませんでした。もう一度お試しください。");
+    await expect(alert).toHaveTextContent(
+      "Google連携の解除を完了できませんでした。この画面を閉じずに、もう一度お試しください。",
+    );
     const explanation = dialog.getByText(/このGoogleアカウントではログインできなくなります/);
     await expect(explanation.compareDocumentPosition(alert)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-    await waitFor(() => expect(dialog.getByRole("button", { name: "解除する" })).toBeVisible());
+    const retryButton = await dialog.findByRole("button", { name: "もう一度試す" });
+    await expect(dialog.queryByRole("button", { name: "キャンセル" })).not.toBeInTheDocument();
+    await expect(dialog.queryByRole("button", { name: "閉じる" })).not.toBeInTheDocument();
+    await userEvent.click(retryButton);
+    await waitFor(() => expect(body.queryByRole("alertdialog")).not.toBeInTheDocument());
   },
 };
 

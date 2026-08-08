@@ -8,7 +8,7 @@ import { LoginMethodsCard } from "./LoginMethodsCard";
 import type { LoginMethodMigrationFlow } from "./migrationTypes";
 import { PasswordChangeDialog } from "./PasswordChangeDialog";
 import type { LoginMethodReverificationController } from "./reverificationTypes";
-import type { LoginMethodsController } from "./types";
+import type { GoogleDisconnectPreparation, LoginMethodsController } from "./types";
 import type { PasswordChangeController } from "./usePasswordChangeController";
 
 export function LoginMethodsView({
@@ -24,7 +24,12 @@ export function LoginMethodsView({
   reverification: LoginMethodReverificationController;
   isMigrationDialogOpen: boolean;
 }) {
-  const [googleToDisconnect, setGoogleToDisconnect] = useState<string | null>(null);
+  const [googleToDisconnect, setGoogleToDisconnect] = useState<
+    | ({
+        externalAccountId: string;
+      } & GoogleDisconnectPreparation)
+    | null
+  >(null);
 
   if (!controller.isLoaded) {
     return (
@@ -53,8 +58,9 @@ export function LoginMethodsView({
         onSetPassword={() => onStartFlow("add-email-password")}
         onConnectGoogle={() => onStartFlow("connect-google")}
         onRequestGoogleDisconnect={async (externalAccountId) => {
-          if (await controller.prepareGoogleDisconnect(externalAccountId)) {
-            setGoogleToDisconnect(externalAccountId);
+          const preparation = await controller.prepareGoogleDisconnect(externalAccountId);
+          if (preparation) {
+            setGoogleToDisconnect({ externalAccountId, ...preparation });
           }
         }}
       />
@@ -76,10 +82,15 @@ export function LoginMethodsView({
       />
       <PasswordChangeDialog controller={passwordChangeController} reverification={reverification} />
       <GoogleDisconnectDialog
-        externalAccountId={googleToDisconnect}
+        externalAccountId={googleToDisconnect?.externalAccountId ?? null}
+        mode={googleToDisconnect?.mode ?? null}
+        googleEmailAddress={googleToDisconnect?.googleEmailAddress ?? null}
         controller={controller}
         reverification={reverification}
-        onClose={() => setGoogleToDisconnect(null)}
+        onClose={() => {
+          controller.closeGoogleDisconnect();
+          setGoogleToDisconnect(null);
+        }}
       />
       {reverification.state.status !== "idle" &&
       !isMigrationDialogOpen &&
