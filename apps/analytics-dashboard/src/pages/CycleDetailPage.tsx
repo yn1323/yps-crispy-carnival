@@ -3,7 +3,7 @@ import { fetchCycle } from "@/api/analyticsClient";
 import { useReportAnalyticsEnvironment } from "@/app/analyticsEnvironment";
 import { CycleDetailView } from "@/features/analytics/CycleDetailView";
 import {
-  AnalyticsEntityPending,
+  AnalyticsEntityUnavailable,
   AnalyticsPageError,
   AnalyticsPageLoading,
   analyticsErrorMessage,
@@ -30,7 +30,7 @@ export function CycleDetailPage({ recruitmentId, shopId }: { recruitmentId: stri
   const response = query.data.data;
   if (!response.cycle) {
     return (
-      <AnalyticsEntityPending
+      <AnalyticsEntityUnavailable
         description="提出母集団、通知、確定結果を確認します。"
         metadata={response.metadata}
         title="シフト周期詳細"

@@ -1,4 +1,5 @@
 export type {
+  AnalyticsAvailability,
   AnalyticsCadenceDto,
   AnalyticsCompleteness,
   AnalyticsCountSummaryDto,
@@ -22,7 +23,6 @@ export type {
   AnalyticsPlanKey,
   AnalyticsRateDto,
   AnalyticsRateRangeDto,
-  AnalyticsResponseCompleteness,
   AnalyticsResponseMetadata,
   AnalyticsSegmentDimension,
   AnalyticsSegmentRowDto,

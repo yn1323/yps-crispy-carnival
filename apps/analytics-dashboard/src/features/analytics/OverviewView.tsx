@@ -202,7 +202,7 @@ export function OverviewView({
           {canPlotCountTrend ? (
             <ChartPanel
               contentHeight={{ base: "240px", md: "320px" }}
-              description="全店舗、稼働店舗、KPI対象店舗を比較します。1日分だけでも現在値として表示します。"
+              description="全店舗、稼働店舗、到達度対象店舗を比較します。1日分だけでも現在値として表示します。"
               title="店舗基盤の推移"
             >
               <TrendChart data={model.countTrend} keys={model.countTrendKeys} valueKind="count" />

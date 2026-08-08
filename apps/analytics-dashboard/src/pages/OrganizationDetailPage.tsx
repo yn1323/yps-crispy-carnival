@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { fetchOrganization } from "@/api/analyticsClient";
 import { useReportAnalyticsEnvironment } from "@/app/analyticsEnvironment";
 import {
+  availabilityCompleteness,
   healthCountItems,
   organizationExpansionKpis,
   organizationKpis,
@@ -13,7 +14,7 @@ import {
 import { formatPlan } from "@/features/analytics/format";
 import { OrganizationDetailView } from "@/features/analytics/OrganizationDetailView";
 import {
-  AnalyticsEntityPending,
+  AnalyticsEntityUnavailable,
   AnalyticsPageError,
   AnalyticsPageLoading,
   analyticsErrorMessage,
@@ -53,7 +54,7 @@ export function OrganizationDetailPage({
   const response = query.data.data;
   if (!response.organization) {
     return (
-      <AnalyticsEntityPending
+      <AnalyticsEntityUnavailable
         description="グループ内の店舗構成とKPI推移を確認します。"
         metadata={response.metadata}
         title="グループ詳細"
@@ -66,9 +67,9 @@ export function OrganizationDetailPage({
       model={{
         displayName: response.organization.displayName,
         expansionKpis: organizationExpansionKpis(response.organization),
-        healthCompleteness: currentKpis?.completeness ?? response.metadata.completeness,
+        healthCompleteness: currentKpis?.completeness ?? availabilityCompleteness(response.metadata.availability),
         healthSignals: healthCountItems(currentKpis?.healthSignalCounts ?? null),
-        kpis: organizationKpis(currentKpis, response.metadata.completeness),
+        kpis: organizationKpis(currentKpis, response.metadata.availability),
         metadata: response.metadata,
         organizationId: response.organization.organizationId,
         plan: formatPlan(response.organization.currentPlan),

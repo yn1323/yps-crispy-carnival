@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { fetchShop, fetchShopCycles } from "@/api/analyticsClient";
 import { useReportAnalyticsEnvironment } from "@/app/analyticsEnvironment";
 import {
+  availabilityCompleteness,
   cycleRowModel,
   milestoneDateItems,
   RATE_TREND_LABELS,
@@ -14,7 +15,7 @@ import {
 } from "@/features/analytics/adapters";
 import { formatPlan } from "@/features/analytics/format";
 import {
-  AnalyticsEntityPending,
+  AnalyticsEntityUnavailable,
   AnalyticsPageError,
   AnalyticsPageLoading,
   analyticsErrorMessage,
@@ -55,7 +56,7 @@ export function ShopDetailPage({ navigate, shopId }: { navigate: (href: string) 
   const response = shopQuery.data.data;
   if (!response.shop) {
     return (
-      <AnalyticsEntityPending
+      <AnalyticsEntityUnavailable
         description="店舗の現在値、導入履歴、要確認状態、シフト周期を確認します。"
         metadata={response.metadata}
         title="店舗詳細"
@@ -72,24 +73,28 @@ export function ShopDetailPage({ navigate, shopId }: { navigate: (href: string) 
       cyclesLoading={cyclesQuery.isLoading}
       cyclesMetadata={cyclesResponse?.metadata}
       model={{
-        cumulativeKpis: shopCumulativeKpis(shop.kpis, response.metadata.completeness),
+        cumulativeKpis: shopCumulativeKpis(shop.kpis, response.metadata.availability),
         cycleCount: shop.kpis?.cycleCountAsOfSnapshot ?? null,
         cycles: cyclesResponse?.rows.map(cycleRowModel) ?? [],
         displayName: shop.displayName,
-        healthCompleteness: shop.kpis?.completeness ?? response.metadata.completeness,
+        healthCompleteness: shop.kpis?.completeness ?? availabilityCompleteness(response.metadata.availability),
         healthSignals:
           shop.kpis?.healthSignals.map((signal) => ({ key: signal.signal, startedAt: signal.startedAt })) ?? [],
         kpis: [
-          ...shopCurrentKpis(shop.kpis, response.metadata.completeness),
-          shopCadenceKpi(shop.cadence, shop.kpis?.completeness ?? response.metadata.completeness),
+          ...shopCurrentKpis(shop.kpis, response.metadata.availability),
+          shopCadenceKpi(
+            shop.cadence,
+            shop.kpis?.completeness ?? availabilityCompleteness(response.metadata.availability),
+          ),
         ],
         metadata: response.metadata,
-        milestones: milestoneDateItems(shop.milestoneDates),
+        milestoneEligible: shop.kpis?.kpiEligible === true,
+        milestones: milestoneDateItems(shop.milestoneDates, shop.kpis?.kpiEligible === true),
         nextCycleDate: shop.kpis?.nextCyclePeriodStart ?? null,
         organizationId: shop.organizationId,
         organizationName,
         plan: formatPlan(shop.currentPlan),
-        periodRateKpis: shopPeriodRateKpis(shop.kpis, response.metadata.completeness),
+        periodRateKpis: shopPeriodRateKpis(shop.kpis, response.metadata.availability),
         periodRateTargetCount: shop.kpis
           ? Math.max(shop.kpis.deadlineSubmission.denominator, shop.kpis.finalSubmission.denominator)
           : null,

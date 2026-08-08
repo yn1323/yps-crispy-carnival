@@ -1,10 +1,10 @@
 # 分析KPI蓄積基盤
 
-運用データから内部BI向けのdimension、cycle fact、日次snapshotを作るConvex内の分析基盤です。  
-運用mutationは後から復元しにくい事実だけを`analyticsSourceEvents`へ同じtransactionで追記し、重い集計はboundedな非同期jobで行います。
+運用データから内部BI向けのdimension、cycle fact、日次snapshotを作るConvex内の分析基盤です。
+業務mutationは後から復元できない事実だけを`analyticsSourceEvents`へ同じtransactionで追記し、JST 03:00の夜間batchが終了済みの前日をまとめて集計します。
 
-現在の公開状況は[リリース状態](../manual/release-status.md)を参照してください。  
-新基盤のdeploy、bootstrap、generation切替、旧データ削除は、リポジトリ実装とは別のProduction作業です。
+現在の実環境での公開状況は[リリース状態](../manual/release-status.md)を参照してください。
+リポジトリへの実装と、対象deploymentでの破壊的reset、Narrow、初回日次、cron有効化は別の作業です。
 
 ## 分析契約
 
@@ -15,51 +15,80 @@
 - North Starは、期間開始前に確定したcycle数を対象cycle数で割る「開始前確定周期率」です。
 - 提出率は率だけでなく分子と分母を保存し、店舗別率の単純平均にはしません。
 - 過去の対象者集合を証明できないcycleは`unavailable`とし、現在のスタッフ数で補完しません。
-- `0`、集計待ち、`partial`、`unavailable`、対象外を区別します。
+- 正確な`0`、分母なし、算出不能、失敗日の欠損を区別し、欠損を`0`へ置き換えません。
 
 KPI名、基準時刻、分子、分母、除外条件は`convex/analytics/registry.ts`を正本とします。
 
-## データフロー
+## 更新境界
 
-1. 運用mutationが、PIIを含まない限定payloadのsource eventを追記します。
-2. projection主jobがeventを一件ずつ読み、organization、shop、person、membership、cycleへ反映します。
-3. 一つのeventが複数行の更新を必要とする場合は、最大50件ずつのcursor付き子jobへ分割します。子jobが完了するまで後続eventの適用を止め、membershipやLINE状態より後のcycle eventが先行しないようにします。
-4. cycle finalization jobが、deadlineまたはclose時点の対象者と初回提出を最大50件ずつ凍結します。
-5. 日次jobが通知、cycle、shop、organization、segment、serviceの順に集計します。
-6. invariantを満たした日だけをcompleteにし、`latestCompleteSnapshotDate`を進めます。
-7. Dashboardは`activeGeneration`だけを読み、`buildingGeneration`の途中結果を公開しません。
+業務mutationは、PIIを含まない限定payloadを`analyticsSourceEvents`へ同じtransactionで追記します。
+payload検証、event key競合、insertのいずれかが失敗した場合は、対応する業務mutationもrollbackします。
 
-jobはcursor、lease、attempt、statusを保存し、同じjob keyの重複起動を防ぎます。失敗jobは原因を解消した後、保存済みphaseとcursorから明示的に再開できます。  
-同日snapshotは絶対値upsertで再実行でき、途中pageを完成値として公開しません。
+`occurredAt`はproviderが任意に指定する時刻ではなく、サービスが業務変更を受理した時刻です。
+source eventはstableな`eventKey`で重複を排除し、projectionはbusiness identityとeffective timeをkeyにした絶対値upsertとして適用します。
 
-source eventは業務mutationと同じtransactionで追記します。  
-payload検証、event key競合、insertに失敗した場合は業務mutationもrollbackしますが、追記後のprojectionや集計の失敗は業務transactionへ波及しません。
+氏名、email、電話番号、LINE user ID、提出内容、通知本文、provider raw errorはAnalytics tableへ保存しません。
+個人に対応するfactには、既存のopaque IDだけを保持します。
 
-### Generationの状態遷移
+## 夜間日次run
 
-`startBootstrap`は新しいgenerationを`building`にし、開始時のsource event cursorと`buildingDataStartDate`を固定して運用tableを有界走査します。  
-bootstrap固有のcatch-upが完了すると`ready`へ進み、その後は共有projectionがactiveとbuildingの両generationへ同じeventを適用します。
+通常の日次処理は、一日につき一行の**run manifest**を`analyticsRuns`へ作り、次のstageを直列に進めます。
 
-baseline snapshotと日付・watermark固有のinvariantが完了しても、自動では切り替わりません。  
-activationは、bootstrap完了、source event backlog 0件、projection子job 0件、baseline complete、invariantのsource cursor一致、failed job 0件を同じtransactionで再確認し、`activeGeneration`を明示的に切り替えます。
+```text
+sourceFacts
+  -> notifications
+  -> shops
+  -> organizations
+  -> segmentsAndService
+  -> publish
+```
 
-日次の不完全値、依存projectionの失敗、defensiveなLINE batch不完全検知などが発生したgenerationは`degraded`になります。  
-building中に旧active generationが劣化した場合は、buildingの`building`・`ready`状態と旧activeの健康状態を分けて保持します。これにより再構築とcutoverを継続しつつ、Dashboardは旧activeの応答を`partial`として扱います。
+各pageは`runId`、`stepVersion`、`stage`、pagination cursorだけをscheduled引数として受け取ります。
+page mutationはrun fenceの照合、有界read、絶対値upsert、step進行、次pageの予約を一つのtransactionで行うため、成功済みpageを古いscheduled callが重ねて適用できません。
 
-同じgenerationのretryでは正確性を回復できない場合、`abandonBuildingGeneration`がpending・processing・failed jobを有界にcancelし、active generationがあれば共有projectionとbuilding開始前の状態を復元し、なければpipelineを`idle`へ戻してから対象generationを有界cleanupします。旧activeのdegraded状態は復元時にも解除しません。
+日次runは、最後に成功した日次runの`cutoffAt`から今回の`cutoffAt`までのsource eventを再適用します。
+前日のsnapshotを入力にしないため、失敗日の途中処理を次の日が引き継がず、累積値もcanonical factから再計算します。
 
-invariantはsource event backlogとblocking projection子jobが0件になったbarrierでsource cursorを捕捉してから走査します。完了時にcursorが変わっていればbarrierから再走査し、同じcursor配下の未完了projectionをcutover証明にしません。
+pageで例外が発生すると、そのtransactionの書込みはrollbackします。
+wrapperはrunを`failed`へ変え、安全なerror codeだけをConvex logへ出します。
+error message、stack、cursor、attempt、処理件数はDBへ保存しません。
 
-LINEのfollow、unfollowはprovider eventごとに別internal mutationで処理します。同じLINE userに紐づくactive accountは51件目まで先に読み、50件を超えていれば運用documentをpatchする前に拒否します。連携確定時も、処理後のactive account数と変更数が50件以内であることをpatch前に検証します。  
-source eventのLINE batchは、最大50件のstaff ID、linked・following状態、サービス受理時刻だけを持ちます。provider timestampとevent IDは重複・順序判定だけに使い、分析上の発生時刻やpayloadへ複製しません。通常経路では`isComplete: false`を作りませんが、defensiveに受け取った場合は`analytics_line_batch_overflow`でfail-closedにし、原因確認後に新しいgenerationを再構築します。
+失敗した対象日は永久欠損です。
+同じ日の再実行と過去日の補修は行わず、後日のrunは自分の対象日だけを作ります。
+最後の成功cutoff以降に再生不能なsource factがある場合は後続runも失敗するため、codeで処理可能にするか、新しい固定境界から破壊的resetを行います。
 
-## 新しい分析table
+## 破壊的resetとデータ開始日
 
-すべての新tableは`schemaVersion`を持ち、再構築可能な行は`generation`で分離します。
+初回構築とKPI計算versionの変更には、internal functionの**破壊的reset**を使います。
+resetは許可されたAnalytics派生tableを有界削除し、現在の運用tableからdimension、所属、継続cycle候補をseedした後、固定したsource capture区間を再適用します。
+
+resetは次の事実だけを切替前から引き継ぎます。
+
+- `organizations.createdAt`に基づくグループ登録日
+- `shops._creationTime`に基づく店舗登録日
+- 現在のグループ、店舗、plan、所属
+- reset時点で継続しているcycleの文脈
+
+切替前の初回募集、初回提出、初回・2回目確定、通常周期、health、終了済みcycleの率は復元しません。
+reset終了後の最初の完全なJST日を`dataStartDate`とし、それより前の日次snapshotも作りません。
+
+切替前から存在するグループと店舗も、登録日と現在の人数を表示できます。
+店舗日次行の`kpiEligible`は、切替後に観測を始めた導入到達度の対象かどうかだけを表します。
+既存店舗では`false`になりますが、切替後の現在値、health、完全なcycle rateは日次KPIへ含めます。
+切替前の到達を未達として数えないため、milestone到達率の分子と分母からだけ除外します。
+Dashboardでは既存店舗の登録日を表示し、切替前には正確に復元できない初回募集以降のmilestoneを「算出対象外」と表示します。
+
+既存店舗の長期無活動は、過去の登録日ではなく`dataStartAt`を観測開始時刻として判定します。
+切替直後から過去期間を無活動として扱いません。
+
+`dataStartAt`をまたぐ継続cycleも詳細の文脈として残しますが、切替前の分母を証明できないため率は`unavailable`です。
+
+## table
 
 | table | 役割 |
 |---|---|
-| `analyticsSourceEvents` | 運用変更と非同期projectionのdurable boundary |
+| `analyticsRuns` | 排他、stale page拒否、日付単位の公開marker |
+| `analyticsSourceEvents` | 業務変更と夜間projectionのdurable boundary |
 | `analyticsOrganizations` | グループの現在dimensionとmilestone |
 | `analyticsShops` | 店舗の現在dimension、milestone、最新活動、通常周期 |
 | `analyticsPeople` | PIIを持たないグループ内unique person |
@@ -70,70 +99,101 @@ source eventのLINE batchは、最大50件のstaff ID、linked・following状態
 | `analyticsDailyNotificationKpis` | service、shop、recruitment単位の日次通知送信・失敗数 |
 | `analyticsDailyOrganizationKpis` | グループ単位の日次KPI |
 | `analyticsDailyShopKpis` | 店舗単位の日次KPIとhealth signal |
-| `analyticsDailySegmentKpis` | 単一dimensionまたは採用済み組み合わせの日次比較 |
-| `analyticsAggregationJobs` | bootstrap、projection、finalization、daily、cleanupの進捗 |
-| `analyticsPipelineStates` | active/building generation、watermark、完全日、状態 |
+| `analyticsDailySegmentKpis` | segment別の日次比較 |
 
-既存の`analyticsDailyServiceSnapshots`、`analyticsDailyShopSnapshots`、`analyticsDailyEventCounts`は、新基盤のcutover後もschema上に残します。  
-これら3tableのdocumentを別工程でbounded cleanupし、対象deploymentで0件を確認するまで定義を削除しません。
+日次五tableは`runId`を持ちます。
+Dashboardは`status: complete`の日次runと`runId`が一致する行だけを読み、`running`または`failed`のrunが残した行を公開しません。
+
+Widen期間だけ残す旧tableと互換fieldは、対象deploymentで破壊的resetとNarrow readiness確認を終えた後のNarrowで削除します。
+実行順と証跡は[Analytics rollout](../manual/analytics-rollout.md)を正本とします。
 
 ## 時刻と完全性
 
 | 値 | 意味 |
 |---|---|
-| `occurredAt` | 登録、提出、確定などの事実が発生した時刻 |
+| `occurredAt` | サービスが業務変更を受理した時刻 |
 | `effectiveAt` | planや所属の状態が有効になった時刻 |
-| `cutoffAt` | 提出率の対象者集合を固定した時刻 |
-| `snapshotDate` | JST日次終了時点の状態 |
-| `computedAt` | 集計処理が完了した時刻 |
+| `cutoffAt` | 入力半開区間とsnapshotの終端 |
+| `snapshotDate` | JST日次終了時点の日付 |
+| `computedAt` | 集計行を作った時刻 |
 
-`complete`なcycleだけを率の上位rollupへ含めます。bootstrap開始前に作成され、履歴を完全には復元できないcycleは、finalization後も`unavailable`のまま率から除外します。`unavailable`だけを理由に日次snapshotを`partial`にはしません。
+通常の日次入力は`[inputFromAt, cutoffAt)`の半開区間です。
+対象日の通知はJST 00:00から`cutoffAt`までの`sentAt`とterminal `failedAt`を読み、service、shop、recruitmentの各scopeへ集計します。
 
-日次処理が途中停止した場合は`partial`として残し、最新完全日を更新しません。service、organization、shopのrollupと率を全page検証する日次invariantが同じsource watermarkに対して完了した後だけ、snapshotを`complete`にして最新完全日を更新します。
+cycleまたは指標の`complete`は分母を証明できること、`unavailable`は分母を証明できないことを表します。
+workerの進捗を日次行の完全性で表すことはなく、publish前の安いinvariantを満たしたrunだけが`complete`になります。
 
-通常の日次snapshotは、JSTで終了済みの日だけを対象にします。bootstrap時のbaselineだけは例外で、構築開始時のsource watermarkに固定したpoint-in-time snapshotを当日の`buildingDataStartDate`へ作ります。このbaselineを一日の終了値として扱いません。
+shopの日次行には、時点の人員、LINE状態、health signal、期間内KPIに加え、累積cycle数、累積提出率の分子と分母、累積通知送信・失敗数、確定lead timeの中央値とP90を保存します。
+organizationとserviceの日次行には、到達度対象店舗数、person未接続staff数、管理者兼スタッフ数を含めます。
 
-通知集計は、対象日の既存行をresetしてから通知outboxの`sentAt`とterminal `failedAt`を半開区間で最大50件ずつ走査し、service、shop、recruitmentの各scopeへ同じ送信・失敗事実を再構築します。  
-通知watermarkを公開した後、対象日以前のcycle finalizationが完了するまで待ち、shop、organization、segment、service、invariant、publishの順に進みます。failed cycle jobがある日は`partial`として扱います。notification本文、宛先、provider raw errorは保存しません。
+店舗、所属、cycle、quantileを正確に一transactionで集計できる上限は、一店舗・一組織・一cycleのscopeごとに500件です。
+サービス全体の集計、publish invariant、週次監査はscopeをpageで走査し、サービス集計はorganization pageと同じtransactionで加算するため、全体500件を上限にはしません。
+上限を超えた場合は不完全な値を保存せず、その日次runを失敗させます。
 
-shopの日次行には、時点の人員、LINE状態、health signal、期間内KPIに加え、累積cycle数、累積提出率の分子と分母、累積通知送信・失敗数、確定lead timeの中央値とP90を保存します。  
-organizationとserviceの日次行には、KPI対象店舗数、person未接続staff数、管理者兼スタッフ数を含め、invariantでshopからのrollupと照合します。
+## 公開可否と欠損日
 
-## Retention
+Dashboardは、最新のresetまたは日次runが`running`か`failed`、またはcompleteな日次runが一件もない場合に`availability: unavailable`を返します。
+後の日次runが成功すると再び`available`になります。
+
+cronが起動せず新しいrun自体がない場合は、最後の成功値と`asOf`を返せます。
+起動漏れと期限超過は外部監視が検知します。
+
+選択期間に失敗日または未起動日がある場合、期間集計は不完全な部分集合から数値を作らず`unavailable`にします。
+trendは欠損日を点なしとして返し、`0`として描画しません。
+
+## 週次maintenanceとRetention
+
+日次publishでは、scopeの一意性、主要countと率の整合、同一`runId`、期限済みcycleの確定だけを検査します。
+日次と重ならないJST月曜04:00のweekly maintenanceは、PII redactionとretentionを先に終えてから監査します。
+監査errorが起きてもredactionを飛ばさない順序です。
+
+監査は、直近7日分の保存済み日次行についてscope、率、rollup、`runId`の内部整合性をpage単位で確認します。
+不整合が確定した日次runだけを`failed`へ変えます。
+その後、現在のcanonical factについてtenant参照とcycle、opportunityの整合性を確認します。
+現在のdimensionと所属は過去時点の状態を保持しないため、過去日をcanonical factから再計算する監査は行いません。
+集計式の正しさはLogic TestとScenario Testで検証します。
+
+opportunityの本人参照は、400日のhard deadlineを越えないよう期限の14日前からcycle単位でredactします。
 
 | data | retention |
 |---|---|
-| source event | projection watermark通過後90日 |
-| cycle fact | 25か月 |
-| cycle opportunity | 400日後にpersonとstaffのlinkを削除 |
-| shop、organization、segment日次 | 25か月 |
+| source event | 90日 |
+| cycle opportunityのperson・staff link | 400日をhard deadlineとし、14日前からredact |
+| shop、organization、segmentの日次detail | 25か月 |
 | service日次 | 5年 |
-| 完了job | 90日 |
-| inactive generation | active切替から14日 |
+| failed runの途中出力 | 14日 |
+| run manifest | 5年 |
 
-グループまたは店舗が削除された場合、表示名は分析projectionから削除し、集計値はretention契約に従います。  
-氏名、email、電話番号、LINE user ID、提出内容、通知本文、provider raw errorは分析tableへ保存しません。
+グループまたは店舗を削除した場合、表示名は分析projectionから削除し、集計値はretention契約に従います。
 
 ## 負荷上限
 
-- source event追加によるreadはevent key重複確認の最大1件だけ、writeはsource eventの1件だけです。
-- source event主consumerは、一transaction一eventです。
-- staff、LINE、plan差分などのprojection子jobとcycle opportunity生成は、一transaction最大50件です。
-- snapshotは、一page最大100分析行です。
-- jobのlease期限切れは再取得でき、attempt上限を超えたjobは失敗状態にします。
+- source event追加によるreadはevent key重複確認の最大1件、writeはsource eventの1件です。
+- source eventの外側pageは一件ずつ処理し、一つのeventが複数scopeを持つ場合はevent内を有界pageへ分けます。
+- reset cleanupは一page最大50件です。
+- segment rollupは一page最大5店舗です。
+- shop、organization、cycleは一transaction一scopeとし、内部readを500件でfail-closedにします。サービス全体と週次監査はpageで進めます。
+- 日次の通常状態は`analyticsRuns`だけに保持し、page cursorやtransaction metricsの履歴は保存しません。
 
-実行時のdocument数とbytesは、[Analytics rollout](../manual/analytics-rollout.md)に従って対象deploymentで記録します。  
-最大想定量でbudgetを超える場合は、batch sizeだけで隠さずquery形状またはprojection粒度を見直します。
+実行時間、document数、bytesは、[Analytics rollout](../manual/analytics-rollout.md)に従って対象deploymentのFunction logsと外部証跡へ記録します。
 
 ## 関連ファイル
 
 - `convex/analytics/model.ts`
 - `convex/analytics/registry.ts`
+- `convex/analytics/config.ts`
 - `convex/analytics/sourceEvents.ts`
-- `convex/analytics/pipeline.ts`
+- `convex/analytics/runs.ts`
+- `convex/analytics/nightly.ts`
+- `convex/analytics/projection.ts`
+- `convex/analytics/aggregation.ts`
+- `convex/analytics/invariants.ts`
+- `convex/analytics/maintenance.ts`
+- `convex/analytics/reset.ts`
+- `convex/analytics/observability.ts`
 - `convex/analytics/refs.ts`
 - `convex/schema.ts`
 - `convex/crons.ts`
 - [分析KPI可視化アプリ](analytics-dashboard.md)
 - [Analytics rollout](../manual/analytics-rollout.md)
-- [分析KPIと内部BI再設計 実装計画](../plans/2026-08-02_分析KPIと内部BI再設計_実装計画.md)
+- [Analytics夜間バッチ簡素化 実装計画](../plans/2026-08-08_Analytics夜間バッチ簡素化_実装計画.md)

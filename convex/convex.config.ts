@@ -13,6 +13,11 @@ const app = defineApp({
     STRIPE_PRO_PRICE_ID: v.optional(v.string()),
     STRIPE_BUSINESS_PRICE_ID: v.optional(v.string()),
     STRIPE_PORTAL_CONFIGURATION_ID: v.optional(v.string()),
+    ANALYTICS_DEPLOYMENT_LABEL: v.optional(v.string()),
+    ANALYTICS_EXPECTED_REVISION: v.optional(v.string()),
+    ANALYTICS_SOURCE_CAPTURE_START_AT: v.optional(v.string()),
+    ANALYTICS_RESET_ENABLED_UNTIL: v.optional(v.string()),
+    ANALYTICS_NIGHTLY_CRON_ENABLED: v.optional(v.string()),
   },
 });
 app.use(migrations);

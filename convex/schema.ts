@@ -7,16 +7,14 @@ import {
   analyticsCompletenessValidator,
   analyticsHealthSignalCountsValidator,
   analyticsHealthSignalStateValidator,
-  analyticsInvariantRollupValidator,
-  analyticsJobPhaseValidator,
-  analyticsJobStatusValidator,
-  analyticsJobTypeValidator,
   analyticsMilestoneCountsValidator,
   analyticsMilestoneDatesValidator,
   analyticsNotificationKindValidator,
-  analyticsPipelineStatusValidator,
   analyticsPlanValidator,
   analyticsRatePairValidator,
+  analyticsRunKindValidator,
+  analyticsRunStageValidator,
+  analyticsRunStatusValidator,
   analyticsSegmentDimensionValidator,
   analyticsSourceEventPayloadValidator,
   analyticsSourceEventTypeValidator,
@@ -942,7 +940,9 @@ const schema = defineSchema({
     .index("by_resendEmailId", ["resendEmailId"])
     // 分析KPI: 日次窓（JST）での送信/最終失敗のレンジスキャン用
     .index("by_status_sentAt", ["status", "sentAt"])
-    .index("by_status_failedAt", ["status", "failedAt"]),
+    .index("by_status_failedAt", ["status", "failedAt"])
+    .index("by_recruitmentId_and_status_and_sentAt", ["recruitmentId", "status", "sentAt"])
+    .index("by_recruitmentId_and_status_and_failedAt", ["recruitmentId", "status", "failedAt"]),
 
   notificationHistory: defineTable({
     outboxId: v.id("notificationOutbox"),
@@ -1154,9 +1154,33 @@ const schema = defineSchema({
     .index("by_metric_date", ["metric", "date"]),
 
   // ========================================
-  // Analytics v2（generation分離された分析専用基盤）
-  // 旧Analytics 3 tableはProduction cleanupと0件確認後の別deployまで共存させる。
+  // Analytics夜間batchのWiden schema。
+  // 旧table・field・indexはreset cleanupと0件確認後のNarrow deployまで共存させる。
   // ========================================
+  analyticsRuns: defineTable({
+    runKey: v.string(),
+    kind: analyticsRunKindValidator,
+    status: analyticsRunStatusValidator,
+    calculationVersion: v.number(),
+    dataStartDate: v.string(),
+    dataStartAt: v.number(),
+    targetDate: v.optional(v.string()),
+    inputFromAt: v.number(),
+    cutoffAt: v.number(),
+    sourceCaptureStartAt: v.optional(v.number()),
+    resetWatermarkAt: v.optional(v.number()),
+    stage: analyticsRunStageValidator,
+    stepVersion: v.number(),
+    startedAt: v.number(),
+    terminalAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index("by_runKey", ["runKey"])
+    .index("by_kind_and_status_and_targetDate", ["kind", "status", "targetDate"])
+    .index("by_status", ["status"])
+    .index("by_status_and_terminalAt", ["status", "terminalAt"])
+    .index("by_terminalAt", ["terminalAt"]),
+
   analyticsSourceEvents: defineTable({
     schemaVersion: v.number(),
     eventKey: v.string(),
@@ -1176,14 +1200,16 @@ const schema = defineSchema({
     .index("by_shopId_and_occurredAt", ["shopId", "occurredAt"]),
 
   analyticsOrganizations: defineTable({
-    schemaVersion: v.number(),
-    generation: v.string(),
+    // TODO[narrow]: reset cleanupとgenerationなしreaderの稼働確認後に削除する。
+    schemaVersion: v.optional(v.number()),
+    generation: v.optional(v.string()),
     organizationId: v.id("organizations"),
     displayName: v.string(),
     registeredAt: v.number(),
     deletedAt: v.optional(v.number()),
     currentPlan: v.optional(analyticsPlanValidator),
     planEffectiveAt: v.optional(v.number()),
+    // TODO[narrow]: reset cleanup後に削除する旧projection互換field。
     pendingOrganizationProjectionJobKey: v.optional(v.string()),
     firstShopId: v.optional(v.id("shops")),
     secondShopId: v.optional(v.id("shops")),
@@ -1192,6 +1218,11 @@ const schema = defineSchema({
     secondShopFirstConfirmedAt: v.optional(v.number()),
     updatedAt: v.number(),
   })
+    .index("by_organizationId", ["organizationId"])
+    .index("by_registeredAt", ["registeredAt"])
+    .index("by_deletedAt_and_registeredAt", ["deletedAt", "registeredAt"])
+    .index("by_deletedAt_and_currentPlan_and_registeredAt", ["deletedAt", "currentPlan", "registeredAt"])
+    .index("by_currentPlan", ["currentPlan"])
     .index("by_generation_and_organizationId", ["generation", "organizationId"])
     .index("by_generation_and_registeredAt", ["generation", "registeredAt"])
     .index("by_generation_and_deletedAt_and_registeredAt", ["generation", "deletedAt", "registeredAt"])
@@ -1204,8 +1235,9 @@ const schema = defineSchema({
     .index("by_generation_and_currentPlan", ["generation", "currentPlan"]),
 
   analyticsShops: defineTable({
-    schemaVersion: v.number(),
-    generation: v.string(),
+    // TODO[narrow]: reset cleanupとgenerationなしreaderの稼働確認後に削除する。
+    schemaVersion: v.optional(v.number()),
+    generation: v.optional(v.string()),
     organizationId: v.id("organizations"),
     shopId: v.id("shops"),
     displayName: v.string(),
@@ -1225,6 +1257,27 @@ const schema = defineSchema({
     cadenceConfidence: v.union(v.literal("insufficientData"), v.literal("low"), v.literal("medium"), v.literal("high")),
     updatedAt: v.number(),
   })
+    .index("by_shopId", ["shopId"])
+    .index("by_organizationId", ["organizationId"])
+    .index("by_registeredAt", ["registeredAt"])
+    .index("by_deletedAt_and_registeredAt", ["deletedAt", "registeredAt"])
+    .index("by_deletedAt_and_currentPlan_and_registeredAt", ["deletedAt", "currentPlan", "registeredAt"])
+    .index("by_deletedAt_and_latestActivityAt_and_registeredAt", ["deletedAt", "latestActivityAt", "registeredAt"])
+    .index("by_organizationId_and_deletedAt_and_registeredAt", ["organizationId", "deletedAt", "registeredAt"])
+    .index("by_organizationId_and_deletedAt_and_currentPlan_and_registeredAt", [
+      "organizationId",
+      "deletedAt",
+      "currentPlan",
+      "registeredAt",
+    ])
+    .index("by_organizationId_and_deletedAt_and_latestActivityAt_and_registeredAt", [
+      "organizationId",
+      "deletedAt",
+      "latestActivityAt",
+      "registeredAt",
+    ])
+    .index("by_currentPlan", ["currentPlan"])
+    .index("by_latestActivityAt", ["latestActivityAt"])
     .index("by_generation_and_shopId", ["generation", "shopId"])
     .index("by_generation_and_organizationId", ["generation", "organizationId"])
     .index("by_generation_and_registeredAt", ["generation", "registeredAt"])
@@ -1260,22 +1313,26 @@ const schema = defineSchema({
     .index("by_generation_and_latestActivityAt", ["generation", "latestActivityAt"]),
 
   analyticsPeople: defineTable({
-    schemaVersion: v.number(),
-    generation: v.string(),
+    // TODO[narrow]: reset cleanup後に削除する旧generation互換field。
+    schemaVersion: v.optional(v.number()),
+    generation: v.optional(v.string()),
     organizationId: v.id("organizations"),
     organizationPersonId: v.id("organizationPeople"),
     firstObservedAt: v.number(),
     deletedAt: v.optional(v.number()),
     updatedAt: v.number(),
   })
+    .index("by_organizationPersonId", ["organizationPersonId"])
+    .index("by_organizationId", ["organizationId"])
     .index("by_generation_and_organizationPersonId", ["generation", "organizationPersonId"])
     .index("by_generation_and_organizationId", ["generation", "organizationId"]),
 
   analyticsMemberships: defineTable(
     v.union(
       v.object({
-        schemaVersion: v.number(),
-        generation: v.string(),
+        // TODO[narrow]: reset cleanup後に削除する旧generation互換field。
+        schemaVersion: v.optional(v.number()),
+        generation: v.optional(v.string()),
         membershipKey: v.string(),
         organizationId: v.id("organizations"),
         organizationPersonId: v.id("organizationPeople"),
@@ -1288,8 +1345,9 @@ const schema = defineSchema({
         updatedAt: v.number(),
       }),
       v.object({
-        schemaVersion: v.number(),
-        generation: v.string(),
+        // TODO[narrow]: reset cleanup後に削除する旧generation互換field。
+        schemaVersion: v.optional(v.number()),
+        generation: v.optional(v.string()),
         membershipKey: v.string(),
         organizationId: v.id("organizations"),
         shopId: v.id("shops"),
@@ -1305,6 +1363,11 @@ const schema = defineSchema({
       }),
     ),
   )
+    .index("by_membershipKey_and_validFrom", ["membershipKey", "validFrom"])
+    .index("by_organizationId_and_role_and_validFrom", ["organizationId", "role", "validFrom"])
+    .index("by_shopId_and_role_and_validFrom", ["shopId", "role", "validFrom"])
+    .index("by_shopId_and_organizationPersonId_and_validFrom", ["shopId", "organizationPersonId", "validFrom"])
+    .index("by_organizationPersonId_and_validFrom", ["organizationPersonId", "validFrom"])
     .index("by_generation_and_membershipKey_and_validFrom", ["generation", "membershipKey", "validFrom"])
     .index("by_generation_and_organizationId_and_role_and_validFrom", [
       "generation",
@@ -1322,8 +1385,9 @@ const schema = defineSchema({
     .index("by_generation_and_organizationPersonId_and_validFrom", ["generation", "organizationPersonId", "validFrom"]),
 
   analyticsShiftCycles: defineTable({
-    schemaVersion: v.number(),
-    generation: v.string(),
+    // TODO[narrow]: reset cleanup後に削除する旧generation互換field。
+    schemaVersion: v.optional(v.number()),
+    generation: v.optional(v.string()),
     recruitmentId: v.id("recruitments"),
     organizationId: v.id("organizations"),
     shopId: v.id("shops"),
@@ -1348,9 +1412,29 @@ const schema = defineSchema({
     confirmationSlackMs: v.optional(v.number()),
     confirmedBeforeStart: v.optional(v.boolean()),
     completeness: analyticsCompletenessValidator,
+    needsFinalizationAt: v.optional(v.number()),
     finalizedAt: v.optional(v.number()),
     updatedAt: v.number(),
   })
+    .index("by_recruitmentId", ["recruitmentId"])
+    .index("by_shopId_and_periodStart", ["shopId", "periodStart"])
+    .index("by_shopId_and_deletedAt_and_periodStart", ["shopId", "deletedAt", "periodStart"])
+    .index("by_shopId_and_deletedAt_and_completeness_and_periodStart", [
+      "shopId",
+      "deletedAt",
+      "completeness",
+      "periodStart",
+    ])
+    .index("by_shopId_and_completeness_and_confirmationLeadTimeMs", [
+      "shopId",
+      "completeness",
+      "confirmationLeadTimeMs",
+    ])
+    .index("by_organizationId_and_periodStart", ["organizationId", "periodStart"])
+    .index("by_periodStart", ["periodStart"])
+    .index("by_completeness_and_periodStart", ["completeness", "periodStart"])
+    .index("by_completeness_and_submitDeadlineAt", ["completeness", "submitDeadlineAt"])
+    .index("by_needsFinalizationAt", ["needsFinalizationAt"])
     .index("by_generation_and_recruitmentId", ["generation", "recruitmentId"])
     .index("by_generation_and_shopId_and_periodStart", ["generation", "shopId", "periodStart"])
     .index("by_generation_and_shopId_and_deletedAt_and_periodStart", [
@@ -1367,8 +1451,9 @@ const schema = defineSchema({
     .index("by_generation_and_completeness_and_submitDeadlineAt", ["generation", "completeness", "submitDeadlineAt"]),
 
   analyticsShiftCycleOpportunities: defineTable({
-    schemaVersion: v.number(),
-    generation: v.string(),
+    // TODO[narrow]: reset cleanup後に削除する旧generation互換field。
+    schemaVersion: v.optional(v.number()),
+    generation: v.optional(v.string()),
     recruitmentId: v.id("recruitments"),
     organizationId: v.id("organizations"),
     shopId: v.id("shops"),
@@ -1383,14 +1468,19 @@ const schema = defineSchema({
     identityState: v.union(v.literal("active"), v.literal("redacted")),
     expiresAt: v.number(),
   })
+    .index("by_recruitmentId", ["recruitmentId"])
+    .index("by_recruitmentId_and_staffId", ["recruitmentId", "staffId"])
+    .index("by_shopId_and_firstSubmittedAt", ["shopId", "firstSubmittedAt"])
     .index("by_generation_and_recruitmentId_and_staffId", ["generation", "recruitmentId", "staffId"])
     .index("by_generation_and_shopId_and_firstSubmittedAt", ["generation", "shopId", "firstSubmittedAt"])
     .index("by_identityState_and_expiresAt", ["identityState", "expiresAt"])
     .index("by_expiresAt", ["expiresAt"]),
 
   analyticsDailyServiceKpis: defineTable({
-    schemaVersion: v.number(),
-    generation: v.string(),
+    // TODO[narrow]: reset cleanup後にrunIdをrequired化し、旧2 fieldを削除する。
+    schemaVersion: v.optional(v.number()),
+    generation: v.optional(v.string()),
+    runId: v.optional(v.id("analyticsRuns")),
     snapshotDate: v.string(),
     organizationCount: v.number(),
     shopCount: v.number(),
@@ -1409,11 +1499,16 @@ const schema = defineSchema({
     finalSubmission: analyticsRatePairValidator,
     completeness: analyticsCompletenessValidator,
     computedAt: v.number(),
-  }).index("by_generation_and_snapshotDate", ["generation", "snapshotDate"]),
+  })
+    .index("by_snapshotDate", ["snapshotDate"])
+    .index("by_runId", ["runId"])
+    .index("by_generation_and_snapshotDate", ["generation", "snapshotDate"]),
 
   analyticsDailyNotificationKpis: defineTable({
-    schemaVersion: v.number(),
-    generation: v.string(),
+    // TODO[narrow]: reset cleanup後にrunIdをrequired化し、旧2 fieldを削除する。
+    schemaVersion: v.optional(v.number()),
+    generation: v.optional(v.string()),
+    runId: v.optional(v.id("analyticsRuns")),
     snapshotDate: v.string(),
     scope: v.union(v.literal("service"), v.literal("shop"), v.literal("recruitment")),
     scopeKey: v.string(),
@@ -1428,14 +1523,21 @@ const schema = defineSchema({
     completeness: analyticsCompletenessValidator,
     computedAt: v.number(),
   })
+    .index("by_snapshotDate", ["snapshotDate"])
+    .index("by_runId", ["runId"])
+    .index("by_shopId_and_snapshotDate", ["shopId", "snapshotDate"])
+    .index("by_recruitmentId_and_snapshotDate", ["recruitmentId", "snapshotDate"])
+    .index("by_runId_and_scopeKey_and_channel_and_kind", ["runId", "scopeKey", "channel", "kind"])
     .index("by_generation_and_snapshotDate", ["generation", "snapshotDate"])
     .index("by_generation_and_shopId_and_snapshotDate", ["generation", "shopId", "snapshotDate"])
     .index("by_generation_and_recruitmentId_and_snapshotDate", ["generation", "recruitmentId", "snapshotDate"])
     .index("by_gen_date_scope_channel_kind", ["generation", "snapshotDate", "scopeKey", "channel", "kind"]),
 
   analyticsDailyOrganizationKpis: defineTable({
-    schemaVersion: v.number(),
-    generation: v.string(),
+    // TODO[narrow]: reset cleanup後にrunIdをrequired化し、旧2 fieldを削除する。
+    schemaVersion: v.optional(v.number()),
+    generation: v.optional(v.string()),
+    runId: v.optional(v.id("analyticsRuns")),
     organizationId: v.id("organizations"),
     snapshotDate: v.string(),
     currentPlan: v.optional(analyticsPlanValidator),
@@ -1456,15 +1558,21 @@ const schema = defineSchema({
     completeness: analyticsCompletenessValidator,
     computedAt: v.number(),
   })
+    .index("by_organizationId_and_snapshotDate", ["organizationId", "snapshotDate"])
+    .index("by_snapshotDate", ["snapshotDate"])
+    .index("by_runId", ["runId"])
     .index("by_generation_and_organizationId_and_snapshotDate", ["generation", "organizationId", "snapshotDate"])
     .index("by_generation_and_snapshotDate", ["generation", "snapshotDate"]),
 
   analyticsDailyShopKpis: defineTable({
-    schemaVersion: v.number(),
-    generation: v.string(),
+    // TODO[narrow]: reset cleanup後にrunId/kpiEligibleをrequired化し、旧2 fieldを削除する。
+    schemaVersion: v.optional(v.number()),
+    generation: v.optional(v.string()),
+    runId: v.optional(v.id("analyticsRuns")),
     organizationId: v.id("organizations"),
     shopId: v.id("shops"),
     snapshotDate: v.string(),
+    kpiEligible: v.optional(v.boolean()),
     staffMembershipCount: v.number(),
     shiftTargetCount: v.number(),
     uniquePersonCount: v.number(),
@@ -1495,6 +1603,11 @@ const schema = defineSchema({
     completeness: analyticsCompletenessValidator,
     computedAt: v.number(),
   })
+    .index("by_shopId_and_snapshotDate", ["shopId", "snapshotDate"])
+    .index("by_organizationId_and_snapshotDate", ["organizationId", "snapshotDate"])
+    .index("by_snapshotDate", ["snapshotDate"])
+    .index("by_snapshotDate_and_issueHealthSignalCount", ["snapshotDate", "issueHealthSignalCount"])
+    .index("by_runId", ["runId"])
     .index("by_generation_and_shopId_and_snapshotDate", ["generation", "shopId", "snapshotDate"])
     .index("by_generation_and_organizationId_and_snapshotDate", ["generation", "organizationId", "snapshotDate"])
     .index("by_generation_and_snapshotDate", ["generation", "snapshotDate"])
@@ -1505,12 +1618,15 @@ const schema = defineSchema({
     ]),
 
   analyticsDailySegmentKpis: defineTable({
-    schemaVersion: v.number(),
-    generation: v.string(),
+    // TODO[narrow]: reset cleanup後にrunId/kpiEligibleShopCountをrequired化し、旧2 fieldを削除する。
+    schemaVersion: v.optional(v.number()),
+    generation: v.optional(v.string()),
+    runId: v.optional(v.id("analyticsRuns")),
     snapshotDate: v.string(),
     dimension: analyticsSegmentDimensionValidator,
     bucket: v.string(),
     shopCount: v.number(),
+    kpiEligibleShopCount: v.optional(v.number()),
     milestoneCounts: analyticsMilestoneCountsValidator,
     healthSignalCounts: analyticsHealthSignalCountsValidator,
     northStar: analyticsRatePairValidator,
@@ -1519,6 +1635,15 @@ const schema = defineSchema({
     completeness: analyticsCompletenessValidator,
     computedAt: v.number(),
   })
+    .index("by_snapshotDate_and_dimension_and_bucket", ["snapshotDate", "dimension", "bucket"])
+    .index("by_snapshotDate_and_completeness_and_dimension_and_bucket", [
+      "snapshotDate",
+      "completeness",
+      "dimension",
+      "bucket",
+    ])
+    .index("by_dimension_and_bucket_and_snapshotDate", ["dimension", "bucket", "snapshotDate"])
+    .index("by_runId", ["runId"])
     .index("by_generation_and_snapshotDate_and_dimension_and_bucket", [
       "generation",
       "snapshotDate",
@@ -1542,10 +1667,11 @@ const schema = defineSchema({
   analyticsAggregationJobs: defineTable({
     schemaVersion: v.number(),
     jobKey: v.string(),
-    jobType: analyticsJobTypeValidator,
+    // TODO[narrow]: Analytics resetで0件確認後、この互換tableごと削除する。
+    jobType: v.string(),
     generation: v.string(),
     targetDate: v.optional(v.string()),
-    phase: analyticsJobPhaseValidator,
+    phase: v.string(),
     cursor: v.optional(v.string()),
     parentCursor: v.optional(v.string()),
     snapshotCursor: v.optional(v.string()),
@@ -1554,9 +1680,9 @@ const schema = defineSchema({
     invariantSourceEventCursor: v.optional(v.string()),
     invariantSnapshotDate: v.optional(v.string()),
     aggregationPartial: v.optional(v.boolean()),
-    invariantServiceRollup: v.optional(analyticsInvariantRollupValidator),
-    invariantOrganizationRollup: v.optional(analyticsInvariantRollupValidator),
-    status: analyticsJobStatusValidator,
+    invariantServiceRollup: v.optional(v.any()),
+    invariantOrganizationRollup: v.optional(v.any()),
+    status: v.string(),
     attemptCount: v.number(),
     leaseToken: v.optional(v.string()),
     leaseUntil: v.optional(v.number()),
@@ -1575,7 +1701,7 @@ const schema = defineSchema({
     confirmationLeadTimeP90Ms: v.optional(v.number()),
     lastTransactionMetrics: v.optional(
       v.object({
-        executedPhase: analyticsJobPhaseValidator,
+        executedPhase: v.string(),
         documentsRead: v.number(),
         bytesRead: v.number(),
         documentsWritten: v.number(),
@@ -1614,7 +1740,8 @@ const schema = defineSchema({
     pipelineKey: v.string(),
     activeGeneration: v.optional(v.string()),
     buildingGeneration: v.optional(v.string()),
-    statusBeforeBuilding: v.optional(analyticsPipelineStatusValidator),
+    // TODO[narrow]: Analytics resetで0件確認後、この互換tableごと削除する。
+    statusBeforeBuilding: v.optional(v.string()),
     dataStartDate: v.string(),
     buildingDataStartDate: v.optional(v.string()),
     buildingSourceEventCursor: v.optional(v.string()),
@@ -1628,7 +1755,7 @@ const schema = defineSchema({
     buildingNotificationCompleteAt: v.optional(v.number()),
     latestCompleteSnapshotDate: v.optional(v.string()),
     latestCompleteSnapshotAt: v.optional(v.number()),
-    status: analyticsPipelineStatusValidator,
+    status: v.string(),
     updatedAt: v.number(),
   }).index("by_pipelineKey", ["pipelineKey"]),
 

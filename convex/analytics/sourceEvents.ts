@@ -2,6 +2,7 @@ import type { Infer } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { type OrganizationBillingState, resolveOrganizationBillingPlans } from "../organizationBilling/policy";
+import { getAnalyticsSourceCaptureStartAt } from "./config";
 import {
   ANALYTICS_SCHEMA_VERSION,
   type analyticsSourceEventPayloadValidator,
@@ -20,6 +21,22 @@ function assertBoundedPayload(payload: AnalyticsSourceEventPayload) {
   if (payload.kind === "lineAccountBatch" && payload.accounts.length > maxItems) {
     throw new Error("analytics_line_account_batch_too_large");
   }
+}
+
+function canonicalPayloadJson(value: AnalyticsSourceEventPayload): string {
+  const normalize = (current: unknown): unknown => {
+    if (Array.isArray(current)) return current.map(normalize);
+    if (current !== null && typeof current === "object") {
+      return Object.fromEntries(
+        Object.entries(current)
+          .filter(([, item]) => item !== undefined)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([key, item]) => [key, normalize(item)]),
+      );
+    }
+    return current;
+  };
+  return JSON.stringify(normalize(value));
 }
 
 type AnalyticsSubjectId = Id<"organizationPeople"> | Id<"organizationMembers"> | Id<"staffs">;
@@ -69,6 +86,8 @@ export async function recordAnalyticsSourceEvent(ctx: MutationCtx, args: Analyti
   if (expectedEventType(args.payload) !== args.eventType) {
     throw new Error("analytics_source_event_type_mismatch");
   }
+  const sourceCaptureStartAt = getAnalyticsSourceCaptureStartAt();
+  if (sourceCaptureStartAt !== undefined && args.occurredAt < sourceCaptureStartAt) return null;
   const existing = await ctx.db
     .query("analyticsSourceEvents")
     .withIndex("by_eventKey", (q) => q.eq("eventKey", args.eventKey))
@@ -81,7 +100,7 @@ export async function recordAnalyticsSourceEvent(ctx: MutationCtx, args: Analyti
       existing.shopId === args.shopId &&
       existing.recruitmentId === args.recruitmentId &&
       existing.subjectId === args.subjectId &&
-      JSON.stringify(existing.payload) === JSON.stringify(args.payload);
+      canonicalPayloadJson(existing.payload) === canonicalPayloadJson(args.payload);
     if (!sameEvent) throw new Error("analytics_source_event_key_conflict");
     return existing._id;
   }
@@ -96,6 +115,8 @@ export async function appendAnalyticsSourceEventForNewAudit(ctx: MutationCtx, ar
   if (!args.eventKey.startsWith("organizationAudit:")) {
     throw new Error("analytics_audit_event_key_invalid");
   }
+  const sourceCaptureStartAt = getAnalyticsSourceCaptureStartAt();
+  if (sourceCaptureStartAt !== undefined && args.occurredAt < sourceCaptureStartAt) return null;
   return await insertAnalyticsSourceEvent(ctx, args);
 }
 

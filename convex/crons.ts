@@ -1,11 +1,6 @@
 import { cronJobs } from "convex/server";
 import { internal } from "./_generated/api";
-import {
-  ensureProjectionJobRef,
-  recoverAnalyticsJobsRef,
-  scheduleDailyAggregationRef,
-  scheduleRetentionCleanupRef,
-} from "./analytics/refs";
+import { scheduleAnalyticsMaintenanceRef, scheduleDailyAnalyticsRef } from "./analytics/refs";
 
 const crons = cronJobs();
 
@@ -81,13 +76,11 @@ crons.cron(
   internal.notificationOutbox.mutations.redactExpiredTerminalData,
 );
 
-// Analytics v2のlease切れjobと予約漏れを回収し、source event projectionを維持する。
-crons.interval("analytics-v2-job-recovery", { minutes: 1 }, recoverAnalyticsJobsRef, {});
-crons.interval("analytics-v2-projection-ensure", { minutes: 1 }, ensureProjectionJobRef, {});
+// Analyticsは常時projectionせず、JST 03:00に終了済みの前日だけを集計する。
+crons.cron("analytics-nightly-daily", "0 18 * * *", scheduleDailyAnalyticsRef, {});
 
-// JST 03:00に前日snapshot、04:00に承認済みretentionをbounded jobとして予約する。
-crons.cron("analytics-v2-daily-aggregation", "0 18 * * *", scheduleDailyAggregationRef, {});
-crons.cron("analytics-v2-retention", "0 19 * * *", scheduleRetentionCleanupRef, {});
+// 日次と重ならないJST 月曜04:00（UTC 日曜19:00）にredaction、retention、参照整合性監査を行う。
+crons.cron("analytics-weekly-maintenance", "0 19 * * 0", scheduleAnalyticsMaintenanceRef, {});
 
 // スタッフ参加申請の見落とし防止通知（JST 17:00 = UTC 08:00）
 crons.cron(

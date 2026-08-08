@@ -36,7 +36,7 @@ export function AnalyticsPageError({
   );
 }
 
-export function AnalyticsEntityPending({
+export function AnalyticsEntityUnavailable({
   description,
   metadata,
   title,
@@ -49,12 +49,12 @@ export function AnalyticsEntityPending({
     <Stack gap={{ base: 6, md: 8 }}>
       <PageHeading description={description} title={title} />
       <DataStatus metadata={metadata} />
-      <Alert.Root borderRadius="lg" status="info">
+      <Alert.Root borderRadius="lg" status="warning">
         <Alert.Indicator />
         <Alert.Content>
-          <Alert.Title>分析データを準備しています</Alert.Title>
+          <Alert.Title>分析データを利用できません</Alert.Title>
           <Alert.Description>
-            対象の識別情報と集計結果が利用可能になるまでお待ちください。未集計を0件としては表示しません。
+            最新の夜間集計が完了していないか、選択期間に欠損があります。利用できない値を0件としては表示しません。
           </Alert.Description>
         </Alert.Content>
       </Alert.Root>

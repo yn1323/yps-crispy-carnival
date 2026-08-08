@@ -442,12 +442,18 @@ const segmentColumns: DataTableColumn<SegmentRowViewModel>[] = [
       </Stack>
     ),
   },
-  { key: "shops", header: "店舗数", align: "right", render: (row) => formatCount(row.shopCount, row.completeness) },
+  { key: "shops", header: "全店舗", align: "right", render: (row) => formatCount(row.shopCount) },
+  {
+    key: "eligibleShops",
+    header: "到達度対象",
+    align: "right",
+    render: (row) => formatCount(row.kpiEligibleShopCount),
+  },
   {
     key: "secondConfirmed",
     header: "2回目確定",
     align: "right",
-    render: (row) => formatCountPair(row.secondConfirmedCount, row.shopCount, row.completeness),
+    render: (row) => formatCountPair(row.secondConfirmedCount, row.kpiEligibleShopCount, row.milestoneCompleteness),
   },
   {
     key: "northStar",
@@ -492,10 +498,11 @@ export function SegmentsTable({ emptyText, rows }: { emptyText?: string; rows: S
             <RowStatus completeness={row.completeness} />
           </HStack>
           <Grid gap={3} templateColumns="repeat(2, minmax(0, 1fr))">
-            <MobileMetric label="店舗数" value={formatCount(row.shopCount, row.completeness)} />
+            <MobileMetric label="全店舗" value={formatCount(row.shopCount)} />
+            <MobileMetric label="到達度対象" value={formatCount(row.kpiEligibleShopCount)} />
             <MobileMetric
               label="2回目確定"
-              value={formatCountPair(row.secondConfirmedCount, row.shopCount, row.completeness)}
+              value={formatCountPair(row.secondConfirmedCount, row.kpiEligibleShopCount, row.milestoneCompleteness)}
             />
             <MobileMetric label="開始前確定率" value={formatRate(row.northStarRate, row.completeness)} />
             <MobileMetric label="最終提出率" value={formatRate(row.finalSubmissionRate, row.completeness)} />
