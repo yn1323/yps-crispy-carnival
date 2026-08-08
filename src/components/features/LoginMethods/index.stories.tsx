@@ -505,23 +505,23 @@ export const PasswordOnlyPrimaryEmailChangeBehavior: Story = {
   args: { scenario: "passwordOnly" },
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
-    await primaryEmailChangeBehavior(canvasElement, "login@example.com", "new-login@example.com", ["連携する"]);
+    await primaryEmailChangeBehavior(canvasElement, "new-login@example.com", ["連携する"]);
   },
 };
 
 export const BothPrimaryEmailChangeBehavior: Story = {
-  args: { scenario: "bothDifferentEmail" },
+  args: { scenario: "bothSameEmail" },
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
-    await primaryEmailChangeBehavior(canvasElement, "login@example.com", "new-login@example.com", ["解除する"]);
+    await primaryEmailChangeBehavior(canvasElement, "new-login@example.com", ["解除する"], "google@gmail.com");
   },
 };
 
 async function primaryEmailChangeBehavior(
   canvasElement: HTMLElement,
-  previousPrimaryEmail: string,
   expectedPrimaryEmail: string,
   preservedActions: readonly string[],
+  preservedGoogleEmail?: string,
 ) {
   toaster.dismiss();
   const canvas = within(canvasElement);
@@ -529,24 +529,14 @@ async function primaryEmailChangeBehavior(
 
   await userEvent.click(canvas.getByRole("button", { name: "変更する" }));
   const inputDialog = within(await body.findByRole("dialog", { name: "メールアドレスを変更" }));
-  await expect(inputDialog.queryByText(previousPrimaryEmail)).not.toBeInTheDocument();
-  await expect(
-    inputDialog.getByText(
-      (_, element) =>
-        element?.tagName === "P" &&
-        element.textContent?.includes("変更が完了すると、以前のログイン用メールアドレスは削除されます。") === true,
-    ),
-  ).toBeInTheDocument();
   await userEvent.type(inputDialog.getByRole("textbox", { name: "新しいメールアドレス" }), "new-login@example.com");
   await userEvent.click(inputDialog.getByRole("button", { name: "次へ" }));
 
   const codeDialogElement = await body.findByRole("dialog", { name: "確認コードを入力" });
   const codeDialog = within(codeDialogElement);
-  const instruction = await codeDialog.findByText(
-    "new-login@example.comに確認コードを送りました。メールに届いたコードを入力してください。",
-  );
+  const instruction = await codeDialog.findByText(/new-login@example\.comに確認コードを送りました/);
   await expect(instruction.closest('[data-scope="alert"]')).toBeNull();
-  await expect(codeDialog.getByText(/new-login@example\.com/)).toBeVisible();
+  await expect(instruction).toBeVisible();
   await userEvent.type(codeDialog.getByRole("textbox", { name: "確認コード" }), "123456");
   await userEvent.click(codeDialog.getByRole("button", { name: "メールを確認" }));
 
@@ -556,10 +546,13 @@ async function primaryEmailChangeBehavior(
   await waitFor(() => expect(body.queryByRole("dialog")).not.toBeInTheDocument());
   const emailSection = canvas.getByRole("region", { name: "メールアドレス" });
   await expect(await within(emailSection).findByText(expectedPrimaryEmail)).toBeVisible();
-  await expect(within(emailSection).queryByText(previousPrimaryEmail)).not.toBeInTheDocument();
   await expect(canvas.getByRole("button", { name: "パスワードを変更" })).toBeVisible();
   for (const action of preservedActions) {
     await expect(canvas.getByRole("button", { name: action })).toBeVisible();
+  }
+  if (preservedGoogleEmail) {
+    const googleSection = canvas.getByRole("region", { name: "Google認証" });
+    await expect(await within(googleSection).findByText(preservedGoogleEmail)).toBeVisible();
   }
 }
 

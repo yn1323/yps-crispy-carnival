@@ -93,7 +93,8 @@ export function LoginEmailChangeDialog({
         <Stack gap={5}>
           <Text color="fg.muted">
             {targetEmailAddress ?? "入力したメールアドレス"}
-            に確認コードを送りました。メールに届いたコードを入力してください。
+            に確認コードを送りました。メールに届いたコードを入力してください。確認後、このメールアドレスを
+            ログインに使うメインのメールアドレスにします。
           </Text>
           <EmailCodeVerificationForm
             errorMessage={status === "error" ? (message ?? undefined) : undefined}
@@ -149,11 +150,11 @@ function EmailInputStep({
   return (
     <Stack as="form" gap={5} onSubmit={handleSubmit(async ({ email }) => onSubmit(email))}>
       <Text color="fg.muted">
-        新しいメールアドレスが未確認の場合は、確認コードを送ります。
+        未確認の場合は、入力したメールアドレスへ確認コードを送ります。
         <br />
-        変更が完了すると、以前のログイン用メールアドレスは削除されます。
+        変更が完了すると、入力したメールアドレスがログインに使うメインのメールアドレスになります。
         <br />
-        シフト連絡先メールアドレスやGoogle連携は変わりません。
+        Google認証とシフト連絡先メールアドレスは変わりません。
       </Text>
       <StepMessage status={status} message={message} />
       <Field.Root invalid={Boolean(errors.email)}>

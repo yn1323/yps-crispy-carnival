@@ -314,8 +314,8 @@ describe("ログイン方法のoverviewと追加Modal", () => {
     await waitFor(() => expect(onBackToOverview).toHaveBeenCalledOnce());
     expect(mocks.overviewController.reload).toHaveBeenCalledOnce();
     expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
-      title: "メールアドレスとパスワードを設定しました",
-      description: "Google認証はそのまま利用できます。",
+      title: "メインのメールアドレスとパスワードを設定しました",
+      description: "Google認証とシフト連絡先メールアドレスは変わりません。",
     });
     expect(screen.queryByText("設定が完了しました")).toBeNull();
   });

@@ -7,7 +7,8 @@ type EmailPasswordMigrationDerivation = {
 };
 
 function hasEmailPasswordMethod(snapshot: LoginMethodsUserSnapshot): boolean {
-  return snapshot.passwordEnabled && snapshot.emailAddresses.some((email) => email.verificationStatus === "verified");
+  const primaryEmail = snapshot.emailAddresses.find((email) => email.id === snapshot.primaryEmailAddressId);
+  return snapshot.passwordEnabled && primaryEmail?.verificationStatus === "verified";
 }
 
 export function deriveEmailPasswordMigration(
@@ -21,7 +22,8 @@ export function deriveEmailPasswordMigration(
       return { phase: "verifyingEmail", targetEmailAddressId: target.id };
     }
     return {
-      phase: snapshot.passwordEnabled ? "methodReady" : "settingPassword",
+      phase:
+        snapshot.passwordEnabled && snapshot.primaryEmailAddressId === target.id ? "methodReady" : "settingPassword",
       targetEmailAddressId: target.id,
     };
   }
