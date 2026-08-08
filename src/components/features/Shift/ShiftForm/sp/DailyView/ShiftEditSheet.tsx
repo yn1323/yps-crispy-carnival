@@ -1,4 +1,4 @@
-import { Badge, Field, Flex, HStack, Text, VStack } from "@chakra-ui/react";
+import { Alert, Badge, Field, Flex, HStack, Text, VisuallyHidden, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useCallback, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
@@ -8,17 +8,11 @@ import { Dialog } from "@/src/components/ui/Dialog";
 import type { SelectItemType } from "@/src/components/ui/Select";
 import { Select } from "@/src/components/ui/Select";
 import { formatDateWithWeekday } from "@/src/domains/shift/date";
-import { normalizePositions, paintPosition } from "@/src/domains/shift/operations";
-import {
-  formatShiftClockTimeRange,
-  generateShiftTimeOptions,
-  minutesToTime,
-  timeToMinutes,
-} from "@/src/domains/shift/time";
+import { formatShiftClockTimeRange, generateShiftTimeOptions, timeToMinutes } from "@/src/domains/shift/time";
 import type { PositionType, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
-import { BREAK_POSITION, DEFAULT_POSITION } from "../../constants";
 import { getEditableEndMinutes, getEditableStartMinutes } from "../../timelineGeometry";
 import { type AddTimeFormData, addTimeSchema } from "./ShiftEditSheet.schema";
+import { buildSPShiftTimeEditResult, getSPShiftEditState } from "./script";
 
 type ShiftEditSheetProps = {
   staff: StaffType;
@@ -46,11 +40,6 @@ const getStartOptions = (allOptions: SelectItemType[], endTime: string) =>
 const getEndOptions = (allOptions: SelectItemType[], startTime: string) =>
   startTime ? allOptions.filter((opt) => timeToMinutes(opt.value) > timeToMinutes(startTime)) : allOptions;
 
-const findBreakPosition = (positions: PositionType[]) => {
-  const bp = positions.find((p) => p.name === BREAK_POSITION.name);
-  return bp ? { id: bp.id, name: bp.name, color: bp.color } : { ...BREAK_POSITION };
-};
-
 export const ShiftEditSheet = ({
   staff,
   shift,
@@ -63,17 +52,10 @@ export const ShiftEditSheet = ({
   onShiftDelete,
 }: ShiftEditSheetProps) => {
   const timeOptions = useMemo(() => generateTimeOptions(timeRange), [timeRange]);
-  const breakPosition = useMemo(() => findBreakPosition(positions), [positions]);
-
-  const { initialStart, initialEnd } = useMemo(() => {
-    if (!shift || shift.positions.length === 0) return { initialStart: "", initialEnd: "" };
-    const starts = shift.positions.map((p) => timeToMinutes(p.start));
-    const ends = shift.positions.map((p) => timeToMinutes(p.end));
-    return {
-      initialStart: minutesToTime(Math.min(...starts)),
-      initialEnd: minutesToTime(Math.max(...ends)),
-    };
-  }, [shift]);
+  const editState = useMemo(() => getSPShiftEditState(shift), [shift]);
+  const initialStart = editState.kind === "editable" ? editState.initialStart : "";
+  const initialEnd = editState.kind === "editable" ? editState.initialEnd : "";
+  const hasMultipleWorkPositions = editState.kind === "multiple";
 
   const {
     handleSubmit,
@@ -102,14 +84,18 @@ export const ShiftEditSheet = ({
       ? `希望：${requestTimes.map((request) => formatShiftClockTimeRange(request.start, request.end)).join(" / ")}`
       : "希望：なし";
 
-  const currentShift: ShiftData = shift ?? {
-    id: `shift-${staff.id}-${selectedDate}`,
-    staffId: staff.id,
-    staffName: staff.name,
-    date: selectedDate,
-    requestedTime: null,
-    positions: [],
-  };
+  const currentShift: ShiftData = useMemo(
+    () =>
+      shift ?? {
+        id: `shift-${staff.id}-${selectedDate}`,
+        staffId: staff.id,
+        staffName: staff.name,
+        date: selectedDate,
+        requestedTime: null,
+        positions: [],
+      },
+    [selectedDate, shift, staff.id, staff.name],
+  );
 
   const handleClearAll = useCallback(() => {
     onShiftDelete(staff.id);
@@ -119,26 +105,19 @@ export const ShiftEditSheet = ({
   // 確定時にstoreへ反映
   const handleConfirm = useCallback(
     (data: AddTimeFormData) => {
-      const startMin = timeToMinutes(data.startTime);
-      const endMin = timeToMinutes(data.endTime);
-
-      const painted = paintPosition({
+      const result = buildSPShiftTimeEditResult({
         shift: currentShift,
-        positionId: DEFAULT_POSITION.id,
-        positionName: DEFAULT_POSITION.name,
-        positionColor: DEFAULT_POSITION.color,
-        startMinutes: startMin,
-        endMinutes: endMin,
+        positions,
+        startTime: data.startTime,
+        endTime: data.endTime,
         segmentId: `seg-${Date.now()}`,
       });
-      const normalized = normalizePositions({
-        positions: painted.positions,
-        breakPosition,
-      });
-      onShiftUpdate({ ...painted, positions: normalized });
+      if (result.kind === "multiple") return;
+
+      onShiftUpdate(result.shift);
       onOpenChange({ open: false });
     },
-    [currentShift, breakPosition, onShiftUpdate, onOpenChange],
+    [currentShift, positions, onShiftUpdate, onOpenChange],
   );
 
   const onSubmit = useMemo(() => handleSubmit(handleConfirm), [handleSubmit, handleConfirm]);
@@ -151,6 +130,7 @@ export const ShiftEditSheet = ({
       onClose={() => onOpenChange({ open: false })}
       onSubmit={onSubmit}
       submitLabel="確定"
+      isSubmitDisabled={hasMultipleWorkPositions}
       modal={false}
     >
       <VStack gap={4} align="stretch">
@@ -165,46 +145,81 @@ export const ShiftEditSheet = ({
           )}
         </Flex>
 
-        <HStack gap={2} align="start">
-          <Field.Root invalid={!!errors.startTime}>
-            <Select
-              items={getStartOptions(timeOptions, endTime)}
-              value={startTime}
-              onChange={(v) => setValue("startTime", v, { shouldValidate: true })}
-              size="sm"
-              usePortal={false}
-              invalid={!!errors.startTime}
-            />
-            {errors.startTime && <Field.ErrorText>{errors.startTime.message}</Field.ErrorText>}
-          </Field.Root>
-          <Text fontSize="sm" color="gray.400" pt={2}>
-            ~
-          </Text>
-          <Field.Root invalid={!!errors.endTime}>
-            <Select
-              items={getEndOptions(timeOptions, startTime)}
-              value={endTime}
-              onChange={(v) => setValue("endTime", v, { shouldValidate: true })}
-              size="sm"
-              usePortal={false}
-              invalid={!!errors.endTime}
-            />
-            {errors.endTime && <Field.ErrorText>{errors.endTime.message}</Field.ErrorText>}
-          </Field.Root>
-          {currentShift.positions.length > 0 && (
-            <Flex justify="flex-end">
-              <IconButton
-                aria-label="シフトを削除"
-                size="xs"
-                variant="ghost"
-                colorPalette="red"
-                onClick={handleClearAll}
-              >
-                <LuTrash2 />
-              </IconButton>
-            </Flex>
-          )}
-        </HStack>
+        {editState.kind === "multiple" ? (
+          <Alert.Root status="info" alignItems="flex-start">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>現在の勤務時間</Alert.Title>
+              <Alert.Description>
+                <VStack align="stretch" gap={2} mt={1}>
+                  <HStack gap={2} flexWrap="wrap">
+                    {editState.workPositions.map((position) => (
+                      <Badge key={position.id} colorPalette="gray" variant="subtle">
+                        {formatShiftClockTimeRange(position.start, position.end)}
+                      </Badge>
+                    ))}
+                  </HStack>
+                  <Text fontSize="sm">
+                    複数の勤務時間はスマートフォンでは編集できません。
+                    <br />
+                    PC版で変更するか、一度削除してから再作成してください。
+                  </Text>
+                </VStack>
+              </Alert.Description>
+            </Alert.Content>
+          </Alert.Root>
+        ) : (
+          <HStack gap={2} align="start">
+            <Field.Root invalid={!!errors.startTime}>
+              <Field.Label>
+                <VisuallyHidden>開始時間</VisuallyHidden>
+              </Field.Label>
+              <Select
+                items={getStartOptions(timeOptions, endTime)}
+                value={startTime}
+                onChange={(v) => setValue("startTime", v, { shouldValidate: true })}
+                size="sm"
+                usePortal={false}
+                invalid={!!errors.startTime}
+              />
+              {errors.startTime && <Field.ErrorText>{errors.startTime.message}</Field.ErrorText>}
+            </Field.Root>
+            <Text fontSize="sm" color="gray.400" pt={2}>
+              ~
+            </Text>
+            <Field.Root invalid={!!errors.endTime}>
+              <Field.Label>
+                <VisuallyHidden>終了時間</VisuallyHidden>
+              </Field.Label>
+              <Select
+                items={getEndOptions(timeOptions, startTime)}
+                value={endTime}
+                onChange={(v) => setValue("endTime", v, { shouldValidate: true })}
+                size="sm"
+                usePortal={false}
+                invalid={!!errors.endTime}
+              />
+              {errors.endTime && <Field.ErrorText>{errors.endTime.message}</Field.ErrorText>}
+            </Field.Root>
+          </HStack>
+        )}
+
+        {currentShift.positions.length > 0 && (
+          <Flex justify="flex-end" align="center" gap={1}>
+            <Text fontSize="xs" color="gray.500">
+              勤務時間を削除
+            </Text>
+            <IconButton
+              aria-label="勤務時間を削除"
+              size="xs"
+              variant="ghost"
+              colorPalette="red"
+              onClick={handleClearAll}
+            >
+              <LuTrash2 />
+            </IconButton>
+          </Flex>
+        )}
       </VStack>
     </Dialog>
   );

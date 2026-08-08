@@ -27,6 +27,7 @@
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
+| [ShiftForm PC・SP時間編集不具合](2026-08-08_ShiftForm_PC_SP時間編集不具合_実装計画.md) | `rollout` | code・tests・現行文書は完了。deploy後canaryでPCの完全隣接枠、SPの短縮・複数区間案内、新しい確定通知の時間表示を確認する。既存DBの一括migrationは行わない | [シフト表](../features/shift-board.md)、[希望シフト提出](../features/shift-submission.md)、[通知配送outbox](../features/notification-outbox.md)、[リリース状態](../manual/release-status.md) |
 | [Analytics夜間バッチ簡素化](2026-08-08_Analytics夜間バッチ簡素化_実装計画.md) | `rollout` | code・tests・現行文書は完了。対象deploymentのschema-only index staging → Widen runtime → dry-run/reset cleanup・seed → Narrow readiness確認 → Narrow → 初回daily → cron・外部alertの実環境証跡 | [分析KPI蓄積基盤](../features/analytics.md)、[分析KPI可視化アプリ](../features/analytics-dashboard.md)、[Analytics rollout](../manual/analytics-rollout.md) |
 | [E2E安定性改善・スコープ再設計](2026-08-03_E2E安定性改善_実行計画.md) | `rollout` | code、local contract test、50回burn-inは完了。同一SHA 3回、workflow cancel、30%短縮をActionsで確認 | [テスト方針](../rules/testing-strategy.md)、[セキュリティ方針](../rules/security-strategy.md)、[CI/CD運用](../manual/ci-cd.md) |
 | [別端末ログイン本人確認](2026-07-11_別端末ログイン本人確認_実装計画.md) | `rollout` | Production相当のClerk設定、返却status、メール確認の実環境証跡 | [認証画面](../features/auth-pages.md)、[リリース状態](../manual/release-status.md) |

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { SHIFT_ASSIGNMENT_LIMIT } from "../constants";
 
 describe("notification/queries", () => {
   beforeEach(() => {
@@ -131,7 +132,7 @@ describe("notification/queries", () => {
   });
 
   describe("getConfirmationEmailData", () => {
-    it("同じ日の複数確定セグメントを1日の表示ラベルにまとめる", async () => {
+    it("同じ日の完全隣接セグメントだけを統合し、正の空白は表示へ残す", async () => {
       const t = convexTest(schema, modules);
       const recruitmentId = await t.run(async (ctx) => {
         const shopId = await seedShop(ctx, "テスト店舗");
@@ -173,6 +174,14 @@ describe("notification/queries", () => {
           recruitmentId,
           staffId,
           date: "2026-01-20",
+          startTime: "14:00",
+          endTime: "15:00",
+          positionId,
+        });
+        await ctx.db.insert("shiftAssignments", {
+          recruitmentId,
+          staffId,
+          date: "2026-01-20",
           startTime: "10:00",
           endTime: "14:00",
           positionId,
@@ -183,7 +192,63 @@ describe("notification/queries", () => {
 
       const result = await t.query(internal.notification.queries.getConfirmationEmailData, { recruitmentId });
 
-      expect(result?.staffEntries[0].shifts).toEqual([{ date: "1/20(火)", timeLabel: "10:00-14:00 / 17:00-22:00" }]);
+      expect(result?.staffEntries[0].shifts).toEqual([{ date: "1/20(火)", timeLabel: "10:00-15:00 / 17:00-22:00" }]);
+      expect(result?.staffEntries[0].snapshotAssignments).toHaveLength(2);
+    });
+
+    it("対象staffの割当が上限を超える場合は通知データを部分生成しない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const shopId = await seedShop(ctx, "通知割当上限店舗");
+        const staffId = await ctx.db.insert("staffs", {
+          shopId,
+          name: "通知割当上限スタッフ",
+          email: "notification-assignment-overflow@example.com",
+          isDeleted: false,
+        });
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-01-20",
+          periodEnd: "2026-01-20",
+          deadline: "2026-01-17",
+          shopClosedDates: [],
+          status: "confirmed",
+          confirmedAt: Date.now(),
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        const positionId = await ctx.db.insert("positions", {
+          shopId,
+          name: "シフト",
+          color: "#3b82f6",
+          sortOrder: 0,
+          isDefault: true,
+          isDeleted: false,
+        });
+        for (let index = 0; index <= SHIFT_ASSIGNMENT_LIMIT; index += 1) {
+          await ctx.db.insert("shiftAssignments", {
+            recruitmentId,
+            staffId,
+            date: "2026-01-20",
+            startTime: "10:00",
+            endTime: "11:00",
+            positionId,
+          });
+        }
+        return { recruitmentId, staffId };
+      });
+
+      await expect(
+        t.query(internal.notification.queries.getConfirmationEmailData, {
+          recruitmentId: ids.recruitmentId,
+          targetStaffIds: [ids.staffId],
+        }),
+      ).rejects.toThrow("Shift assignment scope exceeds the supported limit");
+      await expect(
+        t.query(internal.notification.queries.getCurrentConfirmationEmailDataForStaff, {
+          staffId: ids.staffId,
+        }),
+      ).resolves.toBeNull();
     });
 
     it("確定通知データでは定休日を定休日として返す", async () => {

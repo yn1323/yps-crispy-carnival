@@ -14,7 +14,7 @@ import {
 } from "./stores";
 
 const staff: StaffType = { id: "staff-1", name: "山田", isSubmitted: true };
-const position: PositionType = { id: "position-1", name: "ホール", color: "#0d9488" };
+const position: PositionType = { id: "position-1", name: "ホール", color: "#0d9488", isDefault: true };
 const date = "2026-07-14";
 
 function createShiftStore() {
@@ -61,6 +61,28 @@ describe("ShiftForm draft intents", () => {
 
     store.set(toggleShiftTypeAssignmentAtom, { staff, date, option });
     expect(store.get(shiftsAtom)[0]?.positions).toEqual([]);
+  });
+
+  it("新規割当には先頭ではなく実デフォルトポジションを使う", () => {
+    const store = createShiftStore();
+    const defaultPosition: PositionType = {
+      id: "position-default",
+      name: "標準シフト",
+      color: "#3b82f6",
+      isDefault: true,
+    };
+    store.set(shiftConfigAtom, {
+      ...store.get(shiftConfigAtom),
+      positions: [{ id: "position-other", name: "キッチン", color: "#f97316", isDefault: false }, defaultPosition],
+    });
+
+    store.set(toggleDateOnlyAssignmentAtom, { staff, date });
+
+    expect(store.get(shiftsAtom)[0]?.positions[0]).toMatchObject({
+      positionId: defaultPosition.id,
+      positionName: defaultPosition.name,
+      color: defaultPosition.color,
+    });
   });
 
   it("読み取り専用または定休日では割当を変更しない", () => {

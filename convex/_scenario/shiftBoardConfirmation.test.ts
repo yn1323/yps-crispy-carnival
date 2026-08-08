@@ -79,7 +79,8 @@ describe("シフト表作成・確定シナリオ", () => {
     await asManager.saveShiftAssignments({
       recruitmentId,
       assignments: [
-        { staffId: ids.beforeDraftStaffId, date: recruitmentInput.periodStart, startTime: "11:00", endTime: "17:00" },
+        { staffId: ids.beforeDraftStaffId, date: recruitmentInput.periodStart, startTime: "11:00", endTime: "14:00" },
+        { staffId: ids.beforeDraftStaffId, date: recruitmentInput.periodStart, startTime: "14:00", endTime: "17:00" },
       ],
     });
 

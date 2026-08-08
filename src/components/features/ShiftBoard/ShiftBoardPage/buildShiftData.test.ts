@@ -243,6 +243,51 @@ describe("buildShiftData", () => {
     ]);
   });
 
+  it("時間方式の保存済み割当は同じ実ポジションの完全隣接区間を一本で表示する", () => {
+    const shifts = buildShiftData(
+      makeData({
+        shiftAssignments: [
+          { staffId, date, startTime: "09:00", endTime: "14:00", positionId },
+          { staffId, date, startTime: "08:30", endTime: "09:00", positionId },
+        ],
+      }),
+      [staff],
+      [date],
+    );
+
+    expect(shifts[0].positions).toEqual([
+      {
+        id: `seg-${staffId}-${date}-0`,
+        positionId,
+        positionName: "ホール",
+        color: "#0d9488",
+        start: "08:30",
+        end: "14:00",
+        shiftTypeOptionId: undefined,
+      },
+    ]);
+  });
+
+  it("時間方式でも空白・別ポジション・重複を正規化で隠さない", () => {
+    const shifts = buildShiftData(
+      makeData({
+        shiftAssignments: [
+          { staffId, date, startTime: "09:00", endTime: "11:00", positionId },
+          { staffId, date, startTime: "12:00", endTime: "13:00", positionId },
+          { staffId, date, startTime: "13:00", endTime: "14:00", positionId: secondPositionId },
+          { staffId: secondStaffId, date, startTime: "09:00", endTime: "12:00", positionId },
+          { staffId: secondStaffId, date, startTime: "11:00", endTime: "13:00", positionId },
+          { staffId: secondStaffId, date, startTime: "13:00", endTime: "14:00", positionId },
+        ],
+      }),
+      [staff, secondStaff],
+      [date],
+    );
+
+    expect(shifts[0].positions).toHaveLength(3);
+    expect(shifts[1].positions).toHaveLength(3);
+  });
+
   it("保存済み勤務区分割当もoptionIdを優先し、旧データは時間一致で復元する", () => {
     const shifts = buildShiftData(
       makeData({
@@ -283,6 +328,30 @@ describe("buildShiftData", () => {
       positionName: "ホール",
       color: "#0d9488",
     });
+  });
+
+  it("削除済みpositionと実デフォルトの隣接区間は異なる保存IDとして統合しない", () => {
+    const shifts = buildShiftData(
+      makeData({
+        shiftAssignments: [
+          { staffId, date, startTime: "09:00", endTime: "12:00", positionId: missingPositionId },
+          { staffId, date, startTime: "12:00", endTime: "15:00", positionId },
+        ],
+      }),
+      [staff],
+      [date],
+    );
+
+    expect(
+      shifts[0].positions.map(({ positionId: displayedPositionId, start, end }) => ({
+        positionId: displayedPositionId,
+        start,
+        end,
+      })),
+    ).toEqual([
+      { positionId, start: "09:00", end: "12:00" },
+      { positionId, start: "12:00", end: "15:00" },
+    ]);
   });
 
   it("ポジション定義が空でも標準ポジションで希望を表示する", () => {

@@ -236,13 +236,13 @@ describe("notification/mutations", () => {
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
           lastConfirmationNotificationOperationKey: currentOperationKey,
         });
-        const currentAssignment = {
-          date: "2026-08-02",
-          startTime: "12:00",
-          endTime: "20:00",
-          positionId,
-        };
-        await ctx.db.insert("shiftAssignments", { recruitmentId, staffId, ...currentAssignment });
+        const currentAssignments = [
+          { date: "2026-08-02", startTime: "12:00", endTime: "16:00", positionId },
+          { date: "2026-08-02", startTime: "16:00", endTime: "20:00", positionId },
+        ];
+        for (const assignment of currentAssignments) {
+          await ctx.db.insert("shiftAssignments", { recruitmentId, staffId, ...assignment });
+        }
         const oldAssignment = {
           date: "2026-08-01",
           startTime: "09:00",
@@ -307,15 +307,17 @@ describe("notification/mutations", () => {
           snapshotId,
           currentOperationId,
           currentOperationKey,
-          currentAssignment,
+          currentAssignments,
+          canonicalAssignment: { date: "2026-08-02", startTime: "12:00", endTime: "20:00", positionId },
         };
       });
-      const currentSignature = buildConfirmationSnapshotSignature([ids.currentAssignment]);
+      const currentSignature = buildConfirmationSnapshotSignature(ids.currentAssignments);
+      const canonicalSignature = buildConfirmationSnapshotSignature([ids.canonicalAssignment]);
       const args = {
         recruitmentId: ids.recruitmentId,
         staffId: ids.staffId,
         signature: currentSignature,
-        assignments: [ids.currentAssignment],
+        assignments: ids.currentAssignments,
         sentAt: 4_000,
       };
 
@@ -358,14 +360,54 @@ describe("notification/mutations", () => {
         ids.snapshotId,
       );
       await expect(t.run(async (ctx) => ctx.db.get(ids.snapshotId))).resolves.toMatchObject({
-        signature: currentSignature,
-        assignments: [ids.currentAssignment],
+        signature: canonicalSignature,
+        assignments: [ids.canonicalAssignment],
         sentAt: 4_000,
       });
       await expect(
         t.mutation(internal.notification.mutations.upsertConfirmationSnapshot, { ...args, sentAt: 5_000 }),
       ).resolves.toBe(ids.snapshotId);
       await expect(t.run(async (ctx) => ctx.db.get(ids.snapshotId))).resolves.toMatchObject({ sentAt: 4_000 });
+
+      const emptyOptionAssignment = { ...ids.canonicalAssignment, optionId: "" };
+      await t.run(async (ctx) => {
+        const assignments = await ctx.db
+          .query("shiftAssignments")
+          .withIndex("by_recruitmentId_staffId", (q) =>
+            q.eq("recruitmentId", ids.recruitmentId).eq("staffId", ids.staffId),
+          )
+          .collect();
+        if (assignments.length !== 2) throw new Error("presence compatibility fixture is invalid");
+        await ctx.db.patch(assignments[0]._id, {
+          startTime: emptyOptionAssignment.startTime,
+          endTime: emptyOptionAssignment.endTime,
+          optionId: "",
+        });
+        await ctx.db.delete(assignments[1]._id);
+      });
+      const emptyOptionArgs = {
+        ...args,
+        assignments: [emptyOptionAssignment],
+        signature: buildConfirmationSnapshotSignature([emptyOptionAssignment]),
+        sentAt: 6_000,
+      };
+      // legacy signatureはmissingと同じでも、time semanticのpresence差をhealする。
+      expect(emptyOptionArgs.signature).toBe(canonicalSignature);
+      await expect(
+        t.mutation(internal.notification.mutations.upsertConfirmationSnapshot, emptyOptionArgs),
+      ).resolves.toBe(ids.snapshotId);
+      await expect(t.run(async (ctx) => ctx.db.get(ids.snapshotId))).resolves.toMatchObject({
+        signature: canonicalSignature,
+        assignments: [emptyOptionAssignment],
+        sentAt: 6_000,
+      });
+      await expect(
+        t.mutation(internal.notification.mutations.upsertConfirmationSnapshot, {
+          ...emptyOptionArgs,
+          sentAt: 7_000,
+        }),
+      ).resolves.toBe(ids.snapshotId);
+      await expect(t.run(async (ctx) => ctx.db.get(ids.snapshotId))).resolves.toMatchObject({ sentAt: 6_000 });
     });
   });
 });

@@ -14,7 +14,7 @@ import { useDialog } from "@/src/components/ui/Dialog";
 import { toaster } from "@/src/components/ui/toaster";
 import { toDisplayIssues } from "@/src/domains/shift/assignmentIssues";
 import { type AssignmentWarning, computeAssignmentWarnings } from "@/src/domains/shift/assignmentWarnings";
-import { buildAssignments } from "@/src/domains/shift/buildAssignments";
+import { type BuildAssignmentsOptions, buildAssignments } from "@/src/domains/shift/buildAssignments";
 import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import {
   formatDateTime,
@@ -97,10 +97,22 @@ export const useShiftBoardPageController = (
   const positions = useMemo(
     () =>
       data.positions.length > 0
-        ? data.positions.map((position) => ({ id: position._id, name: position.name, color: position.color }))
+        ? data.positions.map((position) => ({
+            id: position._id,
+            name: position.name,
+            color: position.color,
+            isDefault: position.isDefault,
+          }))
         : [DEFAULT_POSITION],
     [data.positions],
   );
+  const assignmentBuildOptions = useMemo<BuildAssignmentsOptions<Id<"positions">>>(() => {
+    const defaultPositionId = data.positions.find((position) => position.isDefault)?._id ?? data.positions[0]?._id;
+    return {
+      submissionPatternKind: data.submissionPattern.kind,
+      ...(defaultPositionId ? { defaultPositionId } : {}),
+    };
+  }, [data.positions, data.submissionPattern.kind]);
   const initialShifts = useMemo(() => buildShiftData(data, staffs, dates), [data, staffs, dates]);
 
   const shiftsRef = useRef<ShiftData[]>(initialShifts);
@@ -122,17 +134,23 @@ export const useShiftBoardPageController = (
   const [validationWarnings, setValidationWarnings] = useState<AssignmentWarning[]>([]);
   const hasAttemptedConfirmRef = useRef(false);
 
+  const buildSaveAssignments = useCallback(
+    (shifts: ShiftData[]) =>
+      buildAssignments<Id<"staffs">, Id<"positions">>(shifts, shopClosedDateSet, assignmentBuildOptions),
+    [assignmentBuildOptions, shopClosedDateSet],
+  );
+
   const validateCurrentShifts = useCallback(
     (shifts: ShiftData[]) =>
       validateShiftAssignments({
-        assignments: buildAssignments(shifts, shopClosedDateSet),
+        assignments: buildSaveAssignments(shifts),
         periodStart: data.recruitment.periodStart,
         periodEnd: data.recruitment.periodEnd,
         closedDates: data.recruitment.shopClosedDates,
         pattern: data.submissionPattern,
       }),
     [
-      shopClosedDateSet,
+      buildSaveAssignments,
       data.recruitment.periodStart,
       data.recruitment.periodEnd,
       data.recruitment.shopClosedDates,
@@ -152,9 +170,10 @@ export const useShiftBoardPageController = (
         currentShifts: shifts,
         baselineShifts: confirmedWarningBaselineRef.current,
         closedDateSet: shopClosedDateSet,
+        buildAssignmentsOptions: assignmentBuildOptions,
         isConfirmed,
       }),
-    [computeCurrentWarnings, isConfirmed, shopClosedDateSet],
+    [assignmentBuildOptions, computeCurrentWarnings, isConfirmed, shopClosedDateSet],
   );
 
   // エラー（確定不可）と確認事項（助言）をまとめて再評価し、一覧・バッジ・ハイライトに反映する。
@@ -236,11 +255,6 @@ export const useShiftBoardPageController = (
       label: "自動催促は設定されていません",
     };
   }, [data.recruitment.lastReminderSentAt, data.recruitment.reminderScheduledAt]);
-
-  const buildSaveAssignments = useCallback(
-    (shifts: ShiftData[]) => buildAssignments<Id<"staffs">, Id<"positions">>(shifts, shopClosedDateSet),
-    [shopClosedDateSet],
-  );
 
   // 現在のシフトを保存し、dirty判定の基準（baseline）を保存時点に更新する
   const persistCurrentShifts = useCallback(async () => {

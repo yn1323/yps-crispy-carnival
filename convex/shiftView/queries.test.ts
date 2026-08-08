@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { SHIFT_ASSIGNMENT_LIMIT } from "../constants";
 
 async function setupConfirmedShiftView(t: TestConvex<typeof schema>, accessKind: "submit" | "view" = "view") {
   return await t.run(async (ctx) => {
@@ -45,6 +46,14 @@ async function setupConfirmedShiftView(t: TestConvex<typeof schema>, accessKind:
       staffId,
       date: "2026-07-20",
       startTime: "11:00",
+      endTime: "13:00",
+      positionId,
+    });
+    await ctx.db.insert("shiftAssignments", {
+      recruitmentId,
+      staffId,
+      date: "2026-07-20",
+      startTime: "13:00",
       endTime: "19:00",
       positionId,
     });
@@ -69,7 +78,7 @@ describe("shiftView/queries", () => {
   afterEach(() => vi.useRealTimers());
 
   describe("getShiftViewData", () => {
-    it("確定済み募集の閲覧DTOを返し、シフト対象外スタッフを一覧から除外する", async () => {
+    it("確定済み募集の閲覧DTOを返し、empty option付きセルのpresenceも保持する", async () => {
       const t = convexTest(schema, modules);
       const ids = await setupConfirmedShiftView(t);
 
@@ -106,6 +115,62 @@ describe("shiftView/queries", () => {
         },
       });
       expect(result?.staffs.map((staff) => staff._id)).not.toContain(ids.excludedStaffId);
+
+      await t.run(async (ctx) => {
+        const firstAssignment = await ctx.db
+          .query("shiftAssignments")
+          .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", ids.recruitmentId))
+          .filter((q) => q.eq(q.field("startTime"), "11:00"))
+          .unique();
+        if (!firstAssignment) throw new Error("empty option fixture assignment was not found");
+        await ctx.db.patch(firstAssignment._id, { optionId: "" });
+      });
+      await expect(
+        t.query(api.shiftView.queries.getShiftViewData, {
+          sessionToken: ids.sessionToken,
+          accessKind: "view",
+          recruitmentId: ids.recruitmentId,
+        }),
+      ).resolves.toMatchObject({
+        assignments: [
+          {
+            staffId: ids.staffId,
+            startTime: "11:00",
+            endTime: "13:00",
+            optionId: "",
+          },
+          {
+            staffId: ids.staffId,
+            startTime: "13:00",
+            endTime: "19:00",
+          },
+        ],
+      });
+    });
+
+    it("割当が上限を超える場合は部分的な確定シフトを返さない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupConfirmedShiftView(t);
+      await t.run(async (ctx) => {
+        for (let index = 2; index <= SHIFT_ASSIGNMENT_LIMIT; index += 1) {
+          await ctx.db.insert("shiftAssignments", {
+            recruitmentId: ids.recruitmentId,
+            staffId: ids.staffId,
+            date: "2026-07-20",
+            startTime: "11:00",
+            endTime: "13:00",
+            positionId: ids.positionId,
+          });
+        }
+      });
+
+      await expect(
+        t.query(api.shiftView.queries.getShiftViewData, {
+          sessionToken: ids.sessionToken,
+          accessKind: "view",
+          recruitmentId: ids.recruitmentId,
+        }),
+      ).rejects.toThrow("Shift assignment scope exceeds the supported limit");
     });
 
     it("スタッフ所属店舗と異なる店舗を指すsessionは無効として扱う", async () => {

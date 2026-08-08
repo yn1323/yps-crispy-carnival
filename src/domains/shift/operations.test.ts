@@ -8,8 +8,9 @@ import {
   paintPosition,
   resizeLinkedPositions,
   resizePosition,
+  resolveDefaultPosition,
 } from "./operations";
-import type { LinkedResizeTarget, PositionSegment, ShiftData } from "./types";
+import type { LinkedResizeTarget, PositionSegment, PositionType, ShiftData } from "./types";
 
 const breakPosition = { id: "pos4", name: "休憩", color: "#6b7280" };
 
@@ -32,6 +33,26 @@ const shift = (positions: PositionSegment[]): ShiftData => ({
   ],
   requestedShiftTypeOptionIds: ["morning", "late"],
   positions,
+});
+
+describe("resolveDefaultPosition", () => {
+  test("配列の先頭ではなくisDefaultのポジションを選ぶ", () => {
+    const positions: PositionType[] = [
+      { id: "position-1", name: "キッチン", color: "#f97316", isDefault: false },
+      { id: "position-2", name: "ホール", color: "#3b82f6", isDefault: true },
+    ];
+
+    expect(resolveDefaultPosition(positions)).toEqual(positions[1]);
+  });
+
+  test("旧仮想default、先頭、標準ポジションの順で互換fallbackする", () => {
+    const virtualDefault = { id: "default", name: "旧シフト", color: "#3b82f6" };
+    const first = { id: "position-1", name: "ホール", color: "#0d9488" };
+
+    expect(resolveDefaultPosition([first, virtualDefault])).toEqual(virtualDefault);
+    expect(resolveDefaultPosition([first])).toEqual(first);
+    expect(resolveDefaultPosition([])).toEqual({ id: "default", name: "シフト", color: "#3b82f6" });
+  });
 });
 
 describe("paintPosition", () => {
