@@ -5,9 +5,10 @@ import {
   paintPosition,
   resizeLinkedPositions,
   resizePosition,
+  resolveDefaultPosition,
 } from "@/src/domains/shift/operations";
 import type { DragMode, LinkedResizeTarget, ShiftData } from "@/src/domains/shift/types";
-import { DEFAULT_POSITION, RESIZE_EDGE_THRESHOLD } from "../../../constants";
+import { RESIZE_EDGE_THRESHOLD } from "../../../constants";
 import { detectLinkedResizeEdge } from "../../../hitTesting";
 import {
   hourWidthAtom,
@@ -143,7 +144,7 @@ export const useDrag = (): UseDragReturn => {
       if (!isWithinEditableRange(rawMinutes, timeRange)) return false;
 
       // リサイズエッジでなければ塗りモード
-      const position = selectedPosition ?? DEFAULT_POSITION;
+      const position = selectedPosition ?? resolveDefaultPosition(config.positions);
 
       let targetShift = shiftByStaffIdRef.current.get(staffId) ?? null;
 
@@ -178,6 +179,7 @@ export const useDrag = (): UseDragReturn => {
     [
       setShifts,
       selectedPosition,
+      config.positions,
       selectedDate,
       timeRange,
       hourWidth,
@@ -252,7 +254,7 @@ export const useDrag = (): UseDragReturn => {
 
     // 2. 塗りモード
     if (mode === "paint" && targetShiftId) {
-      const position = selectedPosition ?? DEFAULT_POSITION;
+      const position = selectedPosition ?? resolveDefaultPosition(config.positions);
       if (Math.abs(currentMinutes - startMinutes) >= timeRange.unit) {
         setShifts((current) => {
           const targetShift = current.find((s) => s.id === targetShiftId);
@@ -274,7 +276,7 @@ export const useDrag = (): UseDragReturn => {
     }
 
     commitDragState(initialDragState);
-  }, [setShifts, selectedPosition, timeRange, generateId, commitDragState]);
+  }, [setShifts, selectedPosition, config.positions, timeRange, generateId, commitDragState]);
 
   // === カーソル判定 ===
   const getCursor = useCallback(

@@ -4,9 +4,8 @@ import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { getAssignmentWarningSettingText } from "@/src/components/shared/ShiftAssignmentWarning";
 import { issueCountByDate } from "@/src/domains/shift/assignmentIssues";
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
-import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import { toggleDateOnlyAssignment } from "@/src/domains/shift/dateOnlyAssignments";
-import { mergeAdjacentPositions } from "@/src/domains/shift/operations";
+import { mergeAdjacentPositions, resolveDefaultPosition } from "@/src/domains/shift/operations";
 import { indexShiftsByStaffId } from "@/src/domains/shift/shiftLookup";
 import { type ShiftTypeOptionLike, toggleShiftTypeAssignment } from "@/src/domains/shift/shiftTypeAssignments";
 import { compareDefaultStaffOrder, sortDailyStaffs, sortStaffs } from "@/src/domains/shift/sortStaffs";
@@ -78,7 +77,7 @@ export const toggleDateOnlyAssignmentAtom = atom(
     const config = get(shiftConfigAtom);
     if (config.isReadOnly || !config.dates.includes(date) || config.holidays.includes(date)) return;
 
-    const position = config.positions[0];
+    const position = resolveDefaultPosition(config.positions);
     set(
       shiftDraftsAtom,
       toggleDateOnlyAssignment({
@@ -86,7 +85,7 @@ export const toggleDateOnlyAssignmentAtom = atom(
         staff,
         date,
         timeRange: config.timeRange,
-        ...(position ? { position } : {}),
+        position,
       }),
     );
   },
@@ -98,7 +97,7 @@ export const toggleShiftTypeAssignmentAtom = atom(
     const config = get(shiftConfigAtom);
     if (config.isReadOnly || !config.dates.includes(date) || config.holidays.includes(date)) return;
 
-    const position = config.positions[0] ?? DEFAULT_POSITION;
+    const position = resolveDefaultPosition(config.positions);
 
     set(
       shiftDraftsAtom,

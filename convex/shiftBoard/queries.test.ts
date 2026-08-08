@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import { seedManagerShop, seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { SHIFT_ASSIGNMENT_LIMIT } from "../constants";
 
 const QUERY_REFRESH_DAY_KEY = "2026-07-22";
 
@@ -33,6 +34,159 @@ describe("shiftBoard/queries", () => {
       .query(api.shiftBoard.queries.getShiftBoardData, { shopId, recruitmentId });
 
     expect(result).toBeNull();
+  });
+
+  it("移行前の完全隣接割当は統合し、empty option付きセルはpresenceを保って分離する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: "manager_adjacent_projection",
+        shopName: "隣接表示店舗",
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId,
+        name: "隣接表示スタッフ",
+        email: "adjacent-projection@example.com",
+        isDeleted: false,
+      });
+      const positionId = await ctx.db.insert("positions", {
+        shopId,
+        name: "シフト",
+        color: "#3b82f6",
+        sortOrder: 0,
+        isDefault: true,
+        isDeleted: false,
+      });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: "2026-08-10",
+        periodEnd: "2026-08-10",
+        deadline: "2026-08-09",
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      for (const [startTime, endTime] of [
+        ["10:00", "12:00"],
+        ["12:00", "18:00"],
+      ] as const) {
+        await ctx.db.insert("shiftAssignments", {
+          recruitmentId,
+          staffId,
+          date: "2026-08-10",
+          startTime,
+          endTime,
+          positionId,
+        });
+      }
+      return { shopId, staffId, positionId, recruitmentId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "manager_adjacent_projection" })
+      .query(api.shiftBoard.queries.getShiftBoardData, {
+        shopId: ids.shopId,
+        recruitmentId: ids.recruitmentId,
+        refreshDayKey: QUERY_REFRESH_DAY_KEY,
+      });
+
+    expect(result?.shiftAssignments).toEqual([
+      {
+        staffId: ids.staffId,
+        date: "2026-08-10",
+        startTime: "10:00",
+        endTime: "18:00",
+        positionId: ids.positionId,
+      },
+    ]);
+
+    await t.run(async (ctx) => {
+      const firstAssignment = await ctx.db
+        .query("shiftAssignments")
+        .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", ids.recruitmentId))
+        .filter((q) => q.eq(q.field("startTime"), "10:00"))
+        .unique();
+      if (!firstAssignment) throw new Error("empty option fixture assignment was not found");
+      await ctx.db.patch(firstAssignment._id, { optionId: "" });
+    });
+    const resultWithEmptyOption = await t
+      .withIdentity({ subject: "manager_adjacent_projection" })
+      .query(api.shiftBoard.queries.getShiftBoardData, {
+        shopId: ids.shopId,
+        recruitmentId: ids.recruitmentId,
+        refreshDayKey: QUERY_REFRESH_DAY_KEY,
+      });
+    expect(resultWithEmptyOption?.shiftAssignments).toEqual([
+      {
+        staffId: ids.staffId,
+        date: "2026-08-10",
+        startTime: "10:00",
+        endTime: "12:00",
+        positionId: ids.positionId,
+        optionId: "",
+      },
+      {
+        staffId: ids.staffId,
+        date: "2026-08-10",
+        startTime: "12:00",
+        endTime: "18:00",
+        positionId: ids.positionId,
+      },
+    ]);
+  });
+
+  it("割当が上限を超える場合は部分的な表示DTOを返さない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: "manager_assignment_overflow",
+        shopName: "割当上限店舗",
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId,
+        name: "割当上限スタッフ",
+        email: "assignment-overflow@example.com",
+        isDeleted: false,
+      });
+      const positionId = await ctx.db.insert("positions", {
+        shopId,
+        name: "シフト",
+        color: "#3b82f6",
+        sortOrder: 0,
+        isDefault: true,
+        isDeleted: false,
+      });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: "2026-08-10",
+        periodEnd: "2026-08-10",
+        deadline: "2026-08-09",
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      for (let index = 0; index <= SHIFT_ASSIGNMENT_LIMIT; index += 1) {
+        await ctx.db.insert("shiftAssignments", {
+          recruitmentId,
+          staffId,
+          date: "2026-08-10",
+          startTime: "10:00",
+          endTime: "11:00",
+          positionId,
+        });
+      }
+      return { shopId, recruitmentId };
+    });
+
+    await expect(
+      t.withIdentity({ subject: "manager_assignment_overflow" }).query(api.shiftBoard.queries.getShiftBoardData, {
+        shopId: ids.shopId,
+        recruitmentId: ids.recruitmentId,
+        refreshDayKey: QUERY_REFRESH_DAY_KEY,
+      }),
+    ).rejects.toThrow("Shift assignment scope exceeds the supported limit");
   });
 
   it("閲覧のみ管理者にはシフトデータを返しつつ書き込み不可理由を返す", async () => {

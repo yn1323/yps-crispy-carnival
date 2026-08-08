@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { isPastShiftPeriod } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
+import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
 import { getSubmissionPatternTimeRange, submissionPatternValidator } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
 import {
@@ -113,12 +114,15 @@ export const getShiftBoardData = managerQuery({
       ctx.db
         .query("shiftAssignments")
         .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
-        .take(SHIFT_ASSIGNMENT_LIMIT),
+        .take(SHIFT_ASSIGNMENT_LIMIT + 1),
       ctx.db
         .query("positions")
         .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
         .take(50),
     ]);
+    if (shiftAssignments.length > SHIFT_ASSIGNMENT_LIMIT) {
+      throw new Error("Shift assignment scope exceeds the supported limit");
+    }
 
     const submissions = await ctx.db
       .query("shiftSubmissions")
@@ -147,6 +151,8 @@ export const getShiftBoardData = managerQuery({
 
     // TimeRange.start/end は「時」の数値を期待（9, 22 等）
     const submissionPattern = recruitment.submissionPattern;
+    const projectedAssignments =
+      submissionPattern.kind === "time" ? normalizeExactAdjacentTimeAssignments(shiftAssignments) : shiftAssignments;
     const { startTime: startTimeStr, endTime: endTimeStr } = getSubmissionPatternTimeRange(submissionPattern);
     const editableStartMinutes = timeToMinutes(startTimeStr);
     const editableEndMinutes = timeToMinutes(endTimeStr);
@@ -223,13 +229,13 @@ export const getShiftBoardData = managerQuery({
         staffId: r.staffId,
         date: r.date,
       })),
-      shiftAssignments: shiftAssignments.map((a) => ({
+      shiftAssignments: projectedAssignments.map((a) => ({
         staffId: a.staffId,
         date: a.date,
         startTime: a.startTime,
         endTime: a.endTime,
         positionId: a.positionId,
-        ...(a.optionId ? { optionId: a.optionId } : {}),
+        ...(a.optionId !== undefined ? { optionId: a.optionId } : {}),
       })),
       timeRange: {
         start: startHour,

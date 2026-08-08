@@ -5,9 +5,13 @@ import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { isPastShiftPeriod } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
+import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
 import { recordAnalyticsSourceEvent } from "../analytics/sourceEvents";
-import { SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT } from "../constants";
-import { buildConfirmationSnapshotsForStaffs } from "../notification/confirmationSnapshots";
+import { NOTIFICATION_FANOUT_SCOPE_LIMIT, SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT } from "../constants";
+import {
+  buildConfirmationSnapshotsForStaffs,
+  confirmationSnapshotMatchesAssignments,
+} from "../notification/confirmationSnapshots";
 import { buildNotificationFanoutTargetKey, ensureNotificationFanoutOperation } from "../notification/fanout";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { ensureDefaultPosition } from "../position/service";
@@ -21,7 +25,7 @@ const PREVIOUS_CONFIRMATION_NOTIFICATION_PROCESSING_ERROR =
   "前回の確定シフト通知を送信中です。\n少し時間をおいて、もう一度お試しください。";
 const SHIFT_CONFIRMATION_OPERATION_VERSION = 1;
 
-type PreviousConfirmationDeliveryState = "delivered" | "undelivered" | "processing";
+type PreviousConfirmationDeliveryState = "delivered" | "queued" | "undelivered" | "processing";
 
 function belongsToConfirmationOperation(
   outbox: Doc<"notificationOutbox"> | null,
@@ -42,7 +46,7 @@ async function getPreviousConfirmationDeliveryState(
   staffId: Id<"staffs">,
 ): Promise<PreviousConfirmationDeliveryState> {
   const emailDedupeKey = `email:confirmation:${operation.recruitmentId}:${staffId}:${operation.dedupeSuffix}`;
-  const [primaryOutbox, sentEmail, processingEmail] = await Promise.all([
+  const [primaryOutbox, sentEmail, processingEmail, pendingEmail] = await Promise.all([
     ctx.db
       .query("notificationOutbox")
       .withIndex("by_fanoutTargetKey", (q) =>
@@ -57,6 +61,10 @@ async function getPreviousConfirmationDeliveryState(
       .query("notificationOutbox")
       .withIndex("by_dedupeKey_status", (q) => q.eq("dedupeKey", emailDedupeKey).eq("status", "processing"))
       .first(),
+    ctx.db
+      .query("notificationOutbox")
+      .withIndex("by_dedupeKey_status", (q) => q.eq("dedupeKey", emailDedupeKey).eq("status", "pending"))
+      .first(),
   ]);
   const primaryStatus = belongsToConfirmationOperation(primaryOutbox, operation, staffId)
     ? primaryOutbox?.status
@@ -66,6 +74,9 @@ async function getPreviousConfirmationDeliveryState(
   }
   if (primaryStatus === "processing" || belongsToConfirmationOperation(processingEmail, operation, staffId)) {
     return "processing";
+  }
+  if (primaryStatus === "pending" || belongsToConfirmationOperation(pendingEmail, operation, staffId)) {
+    return "queued";
   }
   return "undelivered";
 }
@@ -80,7 +91,12 @@ async function getUndeliveredPreviousConfirmationStaffIds(
   },
 ) {
   const operationKey = args.operationKey;
-  if (!operationKey) return new Set<Id<"staffs">>();
+  if (!operationKey) {
+    return {
+      undeliveredStaffIds: new Set<Id<"staffs">>(),
+      queuedStaffIds: new Set<Id<"staffs">>(),
+    };
+  }
   const operation = await ctx.db
     .query("notificationFanoutOperations")
     .withIndex("by_operationKey", (q) => q.eq("operationKey", operationKey))
@@ -91,7 +107,10 @@ async function getUndeliveredPreviousConfirmationStaffIds(
     operation.shopId !== args.shopId ||
     operation.supersedesActiveOperations === false
   ) {
-    return new Set<Id<"staffs">>();
+    return {
+      undeliveredStaffIds: new Set<Id<"staffs">>(),
+      queuedStaffIds: new Set<Id<"staffs">>(),
+    };
   }
 
   const operationStaffIds = new Set(operation.targetStaffIds);
@@ -105,7 +124,12 @@ async function getUndeliveredPreviousConfirmationStaffIds(
   if (deliveryStates.some(({ state }) => state === "processing")) {
     throw new ConvexError(PREVIOUS_CONFIRMATION_NOTIFICATION_PROCESSING_ERROR);
   }
-  return new Set(deliveryStates.flatMap(({ staffId, state }) => (state === "undelivered" ? [staffId] : [])));
+  return {
+    undeliveredStaffIds: new Set(
+      deliveryStates.flatMap(({ staffId, state }) => (state === "undelivered" || state === "queued" ? [staffId] : [])),
+    ),
+    queuedStaffIds: new Set(deliveryStates.flatMap(({ staffId, state }) => (state === "queued" ? [staffId] : []))),
+  };
 }
 
 async function buildConfirmationNotificationOperationKey(args: {
@@ -136,6 +160,78 @@ async function buildConfirmationNotificationOperationKey(args: {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+async function scheduleSupplementalConfirmationResends(
+  ctx: MutationCtx,
+  args: {
+    recruitment: Doc<"recruitments">;
+    shopId: Id<"shops">;
+    targetStaffIds: readonly Id<"staffs">[];
+  },
+) {
+  const activeOperations = (
+    await Promise.all(
+      (["pending", "processing"] as const).map((status) =>
+        ctx.db
+          .query("notificationFanoutOperations")
+          .withIndex("by_recruitmentId_status", (q) => q.eq("recruitmentId", args.recruitment._id).eq("status", status))
+          .take(NOTIFICATION_FANOUT_SCOPE_LIMIT + 1),
+      ),
+    )
+  ).flat();
+  if (activeOperations.length > NOTIFICATION_FANOUT_SCOPE_LIMIT) {
+    throw new Error("Notification fanout scope exceeds the supported limit");
+  }
+  const activeSupplementalStaffIds = new Set(
+    activeOperations.flatMap((operation) =>
+      operation.kind === "confirmation" &&
+      operation.supersedesActiveOperations === false &&
+      operation.confirmationOperationKeyAtOrigin ===
+        (args.recruitment.lastConfirmationNotificationOperationKey ?? null) &&
+      operation.recruitmentDraftSavedAtAtOrigin === (args.recruitment.draftSavedAt ?? null) &&
+      operation.targetStaffIds.length === 1
+        ? operation.targetStaffIds
+        : [],
+    ),
+  );
+  const operationGroupKey = crypto.randomUUID();
+  const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: args.shopId });
+  let scheduledStaffCount = 0;
+
+  for (const staffId of args.targetStaffIds) {
+    if (activeSupplementalStaffIds.has(staffId)) continue;
+    // 通常の個別再送と同じoperation/dedupe契約を使い、完了済みcanonical operationと共存させる。
+    const operationKey = `shift.confirmation.staff-resend:v1:${args.recruitment._id}:${staffId}:${operationGroupKey}`;
+    const { operation, created } = await ensureNotificationFanoutOperation(ctx, {
+      operationKey,
+      kind: "confirmation",
+      purpose: "confirmation_resend",
+      recruitmentId: args.recruitment._id,
+      shopId: args.shopId,
+      targetStaffIds: [staffId],
+      dedupeSuffix: `staff-resend:${operationGroupKey}`,
+      supersedeActiveOperations: false,
+      confirmationOperationKeyAtOrigin: args.recruitment.lastConfirmationNotificationOperationKey ?? null,
+      recruitmentDraftSavedAtAtOrigin: args.recruitment.draftSavedAt ?? null,
+      ...notificationOrigin,
+    });
+    if (!created) continue;
+
+    const scheduledFunctionId = await ctx.scheduler.runAfter(
+      0,
+      internal.notification.actions.sendShiftConfirmationEmails,
+      {
+        recruitmentId: args.recruitment._id,
+        isResend: true,
+        fanoutOperationId: operation._id,
+        ...notificationOrigin,
+      },
+    );
+    await ctx.db.patch(operation._id, { scheduledFunctionId });
+    scheduledStaffCount += 1;
+  }
+  return scheduledStaffCount;
+}
+
 export const saveShiftAssignments = managerMutation({
   args: {
     recruitmentId: v.id("recruitments"),
@@ -159,6 +255,9 @@ export const saveShiftAssignments = managerMutation({
     if (isPastShiftPeriod(recruitment.periodEnd)) {
       throw new ConvexError(PAST_SHIFT_SAVE_ERROR);
     }
+    if (args.assignments.length > SHIFT_ASSIGNMENT_LIMIT) {
+      throw new ConvexError("シフト割当が上限を超えています");
+    }
 
     const submissionPattern = recruitment.submissionPattern;
     // 違反は全件収集して構造化エラーで返し、フロントのエラー一覧UIにマップする
@@ -174,7 +273,6 @@ export const saveShiftAssignments = managerMutation({
     if (issues.length > 0) {
       throw new ConvexError({ code: SHIFT_ASSIGNMENT_VALIDATION, issues });
     }
-
     const uniqueStaffIds = [...new Set(args.assignments.map((a) => a.staffId))];
     const uniquePositionIds = [...new Set(args.assignments.flatMap((a) => (a.positionId ? [a.positionId] : [])))];
     await Promise.all(
@@ -194,27 +292,42 @@ export const saveShiftAssignments = managerMutation({
       ].flat(),
     );
 
-    const draftSavedAt = Date.now();
-    const defaultPositionId = await ensureDefaultPosition(ctx, ctx.shop._id);
-
-    // シフト表は1募集分をまとめて編集するため、保存時は全置換にしてクライアント状態を正とする。
-    // 個別 patch にすると、削除された行や日付移動の扱いが複雑になりやすい。
+    // 削除前に上限超過を検出し、一部だけを置換する状態を作らない。
     const existing = await ctx.db
       .query("shiftAssignments")
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
-      .take(SHIFT_ASSIGNMENT_LIMIT);
+      .take(SHIFT_ASSIGNMENT_LIMIT + 1);
+    if (existing.length > SHIFT_ASSIGNMENT_LIMIT) {
+      throw new ConvexError("保存済みシフト割当が上限を超えています");
+    }
 
+    const draftSavedAt = Date.now();
+    const defaultPositionId = await ensureDefaultPosition(ctx, ctx.shop._id);
+    const resolvedAssignments = args.assignments.map((assignment) => ({
+      ...assignment,
+      positionId: assignment.positionId ?? defaultPositionId,
+    }));
+    const canonicalAssignments =
+      submissionPattern.kind === "time"
+        ? normalizeExactAdjacentTimeAssignments(resolvedAssignments)
+        : resolvedAssignments;
+    if (canonicalAssignments.length > SHIFT_ASSIGNMENT_LIMIT) {
+      throw new ConvexError("シフト割当が上限を超えています");
+    }
+
+    // シフト表は1募集分をまとめて編集するため、保存時は全置換にしてクライアント状態を正とする。
+    // 個別 patch にすると、削除された行や日付移動の扱いが複雑になりやすい。
     await Promise.all(existing.map((a) => ctx.db.delete(a._id)));
 
     await Promise.all(
-      args.assignments.map((assignment) =>
+      canonicalAssignments.map((assignment) =>
         ctx.db.insert("shiftAssignments", {
           recruitmentId: args.recruitmentId,
           staffId: assignment.staffId,
           date: assignment.date,
           startTime: assignment.startTime,
           endTime: assignment.endTime,
-          positionId: assignment.positionId ?? defaultPositionId,
+          positionId: assignment.positionId,
           ...(assignment.optionId ? { optionId: assignment.optionId } : {}),
         }),
       ),
@@ -266,7 +379,10 @@ export const confirmRecruitment = managerMutation({
     const existingAssignments = await ctx.db
       .query("shiftAssignments")
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
-      .take(SHIFT_ASSIGNMENT_LIMIT);
+      .take(SHIFT_ASSIGNMENT_LIMIT + 1);
+    if (existingAssignments.length > SHIFT_ASSIGNMENT_LIMIT) {
+      throw new ConvexError("保存済みシフト割当が上限を超えています");
+    }
     const closedDateAssignments =
       shopClosedDateSet.size > 0
         ? existingAssignments.filter((assignment) => shopClosedDateSet.has(assignment.date))
@@ -296,8 +412,9 @@ export const confirmRecruitment = managerMutation({
         startTime: assignment.startTime,
         endTime: assignment.endTime,
         positionId: assignment.positionId,
-        ...(assignment.optionId ? { optionId: assignment.optionId } : {}),
+        ...(assignment.optionId !== undefined ? { optionId: assignment.optionId } : {}),
       })),
+      recruitment.submissionPattern.kind === "time",
     );
     // シフトボードで扱うスタッフ上限に合わせ、snapshotも差分判定対象のスタッフ分だけ読む。
     const sentSnapshots = isResend
@@ -316,25 +433,39 @@ export const confirmRecruitment = managerMutation({
       sentSnapshots.flatMap((snapshot) => (snapshot ? [[snapshot.staffId, snapshot] as const] : [])),
     );
     const previousOperationKey = recruitment.lastConfirmationNotificationOperationKey;
-    const undeliveredPreviousStaffIds = isResend
+    const previousDelivery = isResend
       ? await getUndeliveredPreviousConfirmationStaffIds(ctx, {
           ...(previousOperationKey ? { operationKey: previousOperationKey } : {}),
           recruitmentId: args.recruitmentId,
           shopId: ctx.shop._id,
           staffIds: currentSnapshots.map((snapshot) => snapshot.staffId),
         })
-      : new Set<Id<"staffs">>();
+      : {
+          undeliveredStaffIds: new Set<Id<"staffs">>(),
+          queuedStaffIds: new Set<Id<"staffs">>(),
+        };
+
+    const snapshotMismatchStaffIds = new Set(
+      currentSnapshots.flatMap((snapshot) => {
+        const sentSnapshot = sentSnapshotByStaffId.get(snapshot.staffId);
+        return !sentSnapshot ||
+          !confirmationSnapshotMatchesAssignments(
+            sentSnapshot,
+            snapshot.assignments,
+            recruitment.submissionPattern.kind === "time",
+          )
+          ? [snapshot.staffId]
+          : [];
+      }),
+    );
 
     const targetStaffIds = isResend
       ? currentSnapshots
-          .filter((snapshot) => {
-            const sentSnapshot = sentSnapshotByStaffId.get(snapshot.staffId);
-            return (
-              !sentSnapshot ||
-              sentSnapshot.signature !== snapshot.signature ||
-              undeliveredPreviousStaffIds.has(snapshot.staffId)
-            );
-          })
+          .filter(
+            (snapshot) =>
+              snapshotMismatchStaffIds.has(snapshot.staffId) ||
+              previousDelivery.undeliveredStaffIds.has(snapshot.staffId),
+          )
           .map((snapshot) => snapshot.staffId)
       : currentSnapshots.map((snapshot) => snapshot.staffId);
 
@@ -362,7 +493,27 @@ export const confirmRecruitment = managerMutation({
         })),
     });
     if (previousOperationKey === operationKey) {
-      return isResend ? { status: "no_changes" as const, notifiedStaffCount: 0 } : null;
+      const previousOperation = await ctx.db
+        .query("notificationFanoutOperations")
+        .withIndex("by_operationKey", (q) => q.eq("operationKey", previousOperationKey))
+        .unique();
+      if (previousOperation?.status === "pending" || previousOperation?.status === "processing") {
+        return isResend ? { status: "no_changes" as const, notifiedStaffCount: 0 } : null;
+      }
+      const recoverableTargetStaffIds = targetStaffIds.filter(
+        (staffId) => !previousDelivery.queuedStaffIds.has(staffId) || snapshotMismatchStaffIds.has(staffId),
+      );
+      if (recoverableTargetStaffIds.length === 0) {
+        return { status: "no_changes" as const, notifiedStaffCount: 0 };
+      }
+      const scheduledStaffCount = await scheduleSupplementalConfirmationResends(ctx, {
+        recruitment,
+        shopId: ctx.shop._id,
+        targetStaffIds: recoverableTargetStaffIds,
+      });
+      return scheduledStaffCount > 0
+        ? { status: "scheduled" as const, notifiedStaffCount: scheduledStaffCount }
+        : { status: "no_changes" as const, notifiedStaffCount: 0 };
     }
     const notificationRunId = (recruitment.lastConfirmationNotificationRunId ?? 0) + 1;
     if (!Number.isSafeInteger(notificationRunId)) {
