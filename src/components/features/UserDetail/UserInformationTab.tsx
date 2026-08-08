@@ -1,4 +1,4 @@
-import { Alert, Box, Heading, Stack } from "@chakra-ui/react";
+import { Box, Heading, Stack } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import type { PersonProfileFormData } from "@/src/components/shared/PersonProfileForm";
 import { PersonProfileForm } from "@/src/components/shared/PersonProfileForm";
@@ -33,16 +33,6 @@ export function UserInformationTab({ data, formId, isReadOnly, managerSettings, 
               }}
             />
           </fieldset>
-          {data.isSelf && (
-            <Alert.Root status="info" alignItems="flex-start" borderRadius="lg">
-              <Alert.Indicator />
-              <Alert.Description whiteSpace="pre-line" lineHeight="tall">
-                {
-                  "ここで変更するのは、このグループで使う連絡先です。\nログイン方法は変わりません。\nログイン方法の確認と、現在利用できる変更操作は、画面右上の「アカウント設定」から行えます。"
-                }
-              </Alert.Description>
-            </Alert.Root>
-          )}
         </Stack>
       </Box>
       {managerSettings && <Box pt={6}>{managerSettings}</Box>}

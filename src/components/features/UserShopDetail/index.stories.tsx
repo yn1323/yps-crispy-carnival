@@ -33,6 +33,11 @@ const membership: UserShopDetailMembership = {
   line: { isLinked: false, isFollowing: false },
 };
 
+const lineLinkedMembership: UserShopDetailMembership = {
+  ...membership,
+  line: { isLinked: true, isFollowing: true },
+};
+
 const data: UserShopDetailData = {
   person: {
     id: personId,
@@ -321,11 +326,13 @@ export const LineQrDisplayBehavior: Story = {
 };
 
 export const LineLinked: Story = {
-  args: {
-    membership: {
-      ...membership,
-      line: { isLinked: true, isFollowing: true },
-    },
+  args: { membership: lineLinkedMembership },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const status = await canvas.findByText("LINE連携済み");
+
+    await expect(status).toBeVisible();
+    await expect(canvas.findByText("この店舗のシフト関連通知をLINEで受け取れます。")).resolves.toBeVisible();
   },
 };
 
