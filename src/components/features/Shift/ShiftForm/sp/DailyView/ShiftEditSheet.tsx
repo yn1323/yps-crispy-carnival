@@ -160,7 +160,9 @@ export const ShiftEditSheet = ({
                     ))}
                   </HStack>
                   <Text fontSize="sm">
-                    複数の勤務時間はスマートフォンでは編集できません。<br/>PC版で変更するか、一度削除してから再作成してください。
+                    複数の勤務時間はスマートフォンでは編集できません。
+                    <br />
+                    PC版で変更するか、一度削除してから再作成してください。
                   </Text>
                 </VStack>
               </Alert.Description>
