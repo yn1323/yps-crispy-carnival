@@ -19,6 +19,7 @@ import {
   GOOGLE_OAUTH_COOLDOWN_SCOPE,
   type LoginMethodOperationCooldown,
 } from "./operationCooldown";
+import type { LoginMethodOperationOptions } from "./reverificationTypes";
 
 export type GoogleConnectionErrorKind =
   | "providerCancelled"
@@ -71,8 +72,18 @@ type PreparedGoogleStart =
   | { status: "retryable" }
   | { status: "unavailable" };
 
+type PendingGoogleCleanupResult =
+  | { status: "discarded"; user: UserResource }
+  | { status: "alreadyConnected" }
+  | { status: "cancelled" }
+  | { status: "retryable" }
+  | { status: "unavailable" };
+
 const GOOGLE_OAUTH_RETURN_PATH = "/account?flow=connect-google&oauth=google";
 const GOOGLE_OAUTH_CORRELATION_STORAGE_KEY = "shiftori:login-methods:google-connection:v1";
+const GOOGLE_CONNECTION_REVERIFICATION_OPTIONS: LoginMethodOperationOptions = {
+  preferredFirstFactorStrategy: "password",
+};
 
 const ERROR_PRESENTATION: Record<GoogleConnectionErrorKind, string> = {
   providerCancelled: "Googleアカウントの追加をキャンセルしました。現在のログイン方法は変更されていません。",
@@ -191,6 +202,90 @@ export function useGoogleConnectionController({
     { onNeedsReverification },
   );
 
+  const verifyPendingGoogleCleanup = (
+    currentUser: UserResource,
+    externalAccountId: string,
+    baseline: OAuthBaseline,
+  ): PendingGoogleCleanupResult => {
+    if (googleRetryCleanupCompleted(currentUser, externalAccountId, baseline)) {
+      return { status: "discarded", user: currentUser };
+    }
+    const connectedGoogle = currentUser.externalAccounts.find((account) => account.id === externalAccountId);
+    if (
+      connectedGoogle &&
+      matchesOAuthBaseline(currentUser, baseline) &&
+      isVerifiedOwnedGoogleExternalAccount(currentUser, connectedGoogle)
+    ) {
+      return { status: "alreadyConnected" };
+    }
+    return { status: "unavailable" };
+  };
+
+  const cleanupPendingGoogle = async (
+    externalAccountId: string,
+    baseline: OAuthBaseline,
+  ): Promise<PendingGoogleCleanupResult> => {
+    try {
+      const discarded = await discardPendingGoogleWithReverification(externalAccountId, baseline);
+      if (discarded == null) return { status: "retryable" };
+      if (discarded === "alreadyConnected") return { status: "alreadyConnected" };
+      if (discarded === "unavailable") return { status: "unavailable" };
+
+      const cleanedUser = await reloadUser();
+      return verifyPendingGoogleCleanup(cleanedUser, externalAccountId, baseline);
+    } catch (error) {
+      if (isReverificationCancelledError(error)) return { status: "cancelled" };
+      try {
+        const latestUser = await reloadUser();
+        const verified = verifyPendingGoogleCleanup(latestUser, externalAccountId, baseline);
+        if (verified.status !== "unavailable") return verified;
+      } catch {
+        // 応答喪失時もreloadで消失を証明できないresourceは、次の明示操作まで推測削除しない。
+      }
+      return { status: "retryable" };
+    }
+  };
+
+  const recoverFromFailedGoogleConnection = async (
+    externalAccountId: string,
+    baseline: OAuthBaseline,
+    errorKind: GoogleConnectionErrorKind,
+  ) => {
+    clearOAuthCorrelation();
+    const cleanup = await cleanupPendingGoogle(externalAccountId, baseline);
+    if (cleanup.status === "alreadyConnected") {
+      setState(methodReadyState(true));
+      return true;
+    }
+    if (cleanup.status === "discarded") {
+      setState(recoverableErrorState(errorKind));
+      return false;
+    }
+    if (cleanup.status === "cancelled") {
+      setState(recoverableErrorState(errorKind));
+      return false;
+    }
+
+    setState(errorState(cleanup.status === "retryable" ? "retryable" : errorKind));
+    return false;
+  };
+
+  const recoverFromCorrelatedGoogleFailure = async (
+    currentUser: UserResource,
+    correlation: OAuthCorrelation,
+    errorKind: GoogleConnectionErrorKind,
+  ) => {
+    const correlatedAccount = currentUser.externalAccounts.find(
+      (account) => account.id === correlation.externalAccountId,
+    );
+    if (!isDiscardablePendingGoogle(currentUser, correlatedAccount, correlation)) {
+      clearOAuthCorrelation();
+      setState(errorState(errorKind));
+      return false;
+    }
+    return recoverFromFailedGoogleConnection(correlation.externalAccountId, correlation, errorKind);
+  };
+
   const prepareGoogleStart = async (
     currentUser: UserResource,
     baseline: OAuthBaseline,
@@ -209,51 +304,18 @@ export function useGoogleConnectionController({
       return { status: "unavailable" };
     }
 
-    try {
-      const discarded = await discardPendingGoogleWithReverification(pendingGoogle.id, baseline);
-      if (discarded == null) return { status: "retryable" };
-      if (discarded === "alreadyConnected") return { status: "alreadyConnected" };
-      if (discarded === "unavailable") return { status: "unavailable" };
-
-      const cleanedUser = await reloadUser();
-      if (googleRetryCleanupCompleted(cleanedUser, pendingGoogle.id, baseline)) {
-        return { status: "ready", user: cleanedUser };
-      }
-      const connectedGoogle = cleanedUser.externalAccounts.find((account) => account.id === pendingGoogle.id);
-      if (
-        connectedGoogle &&
-        matchesOAuthBaseline(cleanedUser, baseline) &&
-        isVerifiedOwnedGoogleExternalAccount(cleanedUser, connectedGoogle)
-      ) {
-        return { status: "alreadyConnected" };
-      }
-      return { status: "unavailable" };
-    } catch (error) {
-      if (isReverificationCancelledError(error)) return { status: "cancelled" };
-      try {
-        const latestUser = await reloadUser();
-        if (googleRetryCleanupCompleted(latestUser, pendingGoogle.id, baseline)) {
-          return { status: "ready", user: latestUser };
-        }
-        const connectedGoogle = latestUser.externalAccounts.find((account) => account.id === pendingGoogle.id);
-        if (
-          connectedGoogle &&
-          matchesOAuthBaseline(latestUser, baseline) &&
-          isVerifiedOwnedGoogleExternalAccount(latestUser, connectedGoogle)
-        ) {
-          return { status: "alreadyConnected" };
-        }
-      } catch {
-        // reload失敗時もresourceを推測削除せず、利用者が明示的に再試行できる状態へ戻す。
-      }
-      return { status: "retryable" };
-    }
+    const cleanup = await cleanupPendingGoogle(pendingGoogle.id, baseline);
+    if (cleanup.status === "discarded") return { status: "ready", user: cleanup.user };
+    return cleanup;
   };
 
   const withOperationLock =
-    <Arguments extends unknown[], Result>(operation: (...args: Arguments) => Promise<Result>) =>
+    <Arguments extends unknown[], Result>(
+      operation: (...args: Arguments) => Promise<Result>,
+      options?: LoginMethodOperationOptions,
+    ) =>
     (...args: Arguments) =>
-      runOperation(() => operation(...args));
+      runOperation(() => operation(...args), options);
 
   const { run: refresh } = useSingleFlight(
     withOperationLock(async () => {
@@ -272,9 +334,7 @@ export function useGoogleConnectionController({
             setState(methodReadyState(true));
             return true;
           }
-          clearOAuthCorrelation();
-          setState(errorState(settlement.errorKind));
-          return false;
+          return recoverFromCorrelatedGoogleFailure(currentUser, correlation, settlement.errorKind);
         }
 
         const connectedAccount = currentUser.externalAccounts.find((account) =>
@@ -298,7 +358,7 @@ export function useGoogleConnectionController({
         setState(errorState("retryable"));
         return false;
       }
-    }),
+    }, GOOGLE_CONNECTION_REVERIFICATION_OPTIONS),
   );
 
   const { run: start } = useSingleFlight(
@@ -380,10 +440,10 @@ export function useGoogleConnectionController({
         setState(errorState(classifyOAuthError(error)));
         return false;
       }
-    }),
+    }, GOOGLE_CONNECTION_REVERIFICATION_OPTIONS),
   );
 
-  const continueExternalVerification = (
+  const continueExternalVerification = async (
     currentUser: UserResource,
     externalAccount: ExternalAccountResource,
     baseline: OAuthBaseline,
@@ -394,17 +454,15 @@ export function useGoogleConnectionController({
       return false;
     }
 
-    const resourceError = externalAccount.verification?.error;
-    if (resourceError) {
-      clearOAuthCorrelation();
-      setState(errorState(classifyOAuthError(resourceError)));
-      return false;
-    }
-
     if (externalAccount.provider !== "google") {
       clearOAuthCorrelation();
       setState(errorState("clerkConflict"));
       return false;
+    }
+
+    const resourceError = externalAccount.verification?.error;
+    if (resourceError) {
+      return recoverFromFailedGoogleConnection(externalAccount.id, baseline, classifyOAuthError(resourceError));
     }
 
     const correlation: OAuthCorrelation = {
@@ -413,8 +471,7 @@ export function useGoogleConnectionController({
       externalAccountId: externalAccount.id,
     };
     if (!storeOAuthCorrelation(correlation)) {
-      setState(errorState("retryable"));
-      return false;
+      return recoverFromFailedGoogleConnection(externalAccount.id, baseline, "retryable");
     }
 
     if (isVerifiedOwnedGoogleExternalAccount(currentUser, externalAccount)) {
@@ -425,9 +482,7 @@ export function useGoogleConnectionController({
 
     const redirectUrl = externalAccount.verification?.externalVerificationRedirectURL?.toString();
     if (!redirectUrl) {
-      clearOAuthCorrelation();
-      setState(errorState("retryable"));
-      return false;
+      return recoverFromFailedGoogleConnection(externalAccount.id, baseline, "retryable");
     }
 
     setState({
@@ -463,9 +518,7 @@ export function useGoogleConnectionController({
       if (!newGoogle) return null;
       const resourceError = newGoogle.verification?.error;
       if (resourceError) {
-        clearOAuthCorrelation();
-        setState(errorState(classifyOAuthError(resourceError)));
-        return false;
+        return recoverFromFailedGoogleConnection(newGoogle.id, baseline, classifyOAuthError(resourceError));
       }
       return continueExternalVerification(currentUser, newGoogle, baseline);
     } catch {
@@ -492,9 +545,7 @@ export function useGoogleConnectionController({
         const currentUser = await reloadUser();
         const settlement = settleCorrelatedAccount(currentUser, correlation);
         if (!settlement.ok) {
-          clearOAuthCorrelation();
-          setState(errorState(settlement.errorKind));
-          return false;
+          return recoverFromCorrelatedGoogleFailure(currentUser, correlation, settlement.errorKind);
         }
 
         clearOAuthCorrelation();
@@ -504,7 +555,7 @@ export function useGoogleConnectionController({
         setState(errorState(classifyOAuthError(error)));
         return false;
       }
-    }),
+    }, GOOGLE_CONNECTION_REVERIFICATION_OPTIONS),
   );
 
   useEffect(() => {
@@ -565,7 +616,7 @@ function isDiscardablePendingGoogle(
 
 function isRetryablePendingGoogle(account: ExternalAccountResource) {
   const status = account.verification?.status;
-  return status === "unverified" || status === "failed";
+  return status === "unverified" || status === "failed" || status === "expired";
 }
 
 function googleRetryCleanupCompleted(user: UserResource, externalAccountId: string, baseline: OAuthBaseline) {
@@ -643,6 +694,14 @@ function cooldownState(retryAfterSeconds: number): GoogleConnectionState {
 function errorState(errorKind: GoogleConnectionErrorKind): GoogleConnectionState {
   return {
     phase: "unavailable",
+    errorKind,
+    feedback: { status: "error", message: ERROR_PRESENTATION[errorKind] },
+  };
+}
+
+function recoverableErrorState(errorKind: GoogleConnectionErrorKind): GoogleConnectionState {
+  return {
+    phase: "readyToConnect",
     errorKind,
     feedback: { status: "error", message: ERROR_PRESENTATION[errorKind] },
   };

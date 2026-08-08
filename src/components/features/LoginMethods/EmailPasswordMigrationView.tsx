@@ -5,24 +5,14 @@ import { z } from "zod";
 import { requiredEmailSchema } from "@/convex/_lib/validation";
 import { EMAIL_MAX_LENGTH } from "@/convex/constants";
 import { EmailCodeVerificationForm } from "@/src/components/features/AuthPage/EmailCodeVerificationForm";
-import { maskEmailAddress } from "@/src/components/features/AuthPage/loginVerification";
 import { Button } from "@/src/components/ui/Button";
 import { MigrationFeedbackError, MigrationUnavailableState } from "./LoginMethodMigrationState";
+import { type PasswordSetupValues, passwordSetupSchema } from "./passwordSchema";
 import type { EmailPasswordMigrationController } from "./useEmailPasswordMigrationController";
 
 const emailSchema = z.object({ email: requiredEmailSchema });
-const passwordSchema = z
-  .object({
-    newPassword: z.string().min(8, "パスワードは8文字以上で入力してください。"),
-    confirmation: z.string(),
-  })
-  .refine((values) => values.newPassword === values.confirmation, {
-    path: ["confirmation"],
-    message: "確認用パスワードが一致しません。",
-  });
 
 type EmailValues = z.infer<typeof emailSchema>;
-type PasswordValues = z.infer<typeof passwordSchema>;
 
 export function EmailPasswordMigrationView({
   controller,
@@ -107,9 +97,7 @@ function EmailVerificationStep({ controller }: { controller: EmailPasswordMigrat
   return (
     <Stack gap={5}>
       <Text color="fg.muted">
-        {controller.state.targetEmailAddress
-          ? maskEmailAddress(controller.state.targetEmailAddress)
-          : "入力したメールアドレス"}
+        {controller.state.targetEmailAddress ?? "入力したメールアドレス"}
         に確認コードを送りました。メールに届いたコードを入力してください。
       </Text>
       <EmailCodeVerificationForm
@@ -144,8 +132,8 @@ function PasswordStep({ controller }: { controller: EmailPasswordMigrationContro
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<PasswordValues>({
-    resolver: zodResolver(passwordSchema),
+  } = useForm<PasswordSetupValues>({
+    resolver: zodResolver(passwordSetupSchema),
     defaultValues: { newPassword: "", confirmation: "" },
     shouldFocusError: true,
   });

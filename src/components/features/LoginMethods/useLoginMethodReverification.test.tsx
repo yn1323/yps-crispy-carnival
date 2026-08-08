@@ -166,6 +166,40 @@ describe("useLoginMethodReverification", () => {
     expect(result.current.state.level).toBe("first_factor");
   });
 
+  it("email codeはClerkのマスキング済み識別子ではなくcurrent Userの完全なメールアドレスを表示する", async () => {
+    const session = sessionResource("sess_1", [{ id: "email_1", emailAddress: "yn.owner@gmail.com" }]);
+    mocks.session = session;
+    session.startVerification.mockResolvedValue(
+      verificationResource({
+        status: "needs_first_factor",
+        firstFactors: [{ strategy: "email_code", emailAddressId: "email_1", safeIdentifier: "yn***@gmail.com" }],
+      }),
+    );
+    const { result } = renderReverification();
+
+    act(() => result.current.onNeedsReverification({ level: "first_factor", complete: vi.fn(), cancel: vi.fn() }));
+    await waitFor(() => expect(result.current.state.status).toBe("selecting_factor"));
+
+    expect(result.current.state.factors[0]?.displayIdentifier).toBe("yn.owner@gmail.com");
+  });
+
+  it("emailAddressIdをcurrent Userで解決できない場合はClerkのマスキング済み識別子を表示しない", async () => {
+    const session = sessionResource();
+    mocks.session = session;
+    session.startVerification.mockResolvedValue(
+      verificationResource({
+        status: "needs_first_factor",
+        firstFactors: [{ strategy: "email_code", emailAddressId: "email_unknown", safeIdentifier: "yn***@gmail.com" }],
+      }),
+    );
+    const { result } = renderReverification();
+
+    act(() => result.current.onNeedsReverification({ level: "first_factor", complete: vi.fn(), cancel: vi.fn() }));
+    await waitFor(() => expect(result.current.state.status).toBe("selecting_factor"));
+
+    expect(result.current.state.factors[0]?.displayIdentifier).toBeNull();
+  });
+
   it("email codeのinitial prepare直後は再送せず、30秒後に再送・attemptする", async () => {
     let currentTime = 1_000_000;
     vi.spyOn(Date, "now").mockImplementation(() => currentTime);
@@ -183,7 +217,7 @@ describe("useLoginMethodReverification", () => {
 
     act(() => result.current.onNeedsReverification({ level: "first_factor", complete, cancel: vi.fn() }));
     await waitFor(() => expect(result.current.state.status).toBe("selecting_factor"));
-    expect(result.current.state.factors[0]?.safeIdentifier).toBe("ac***@example.com");
+    expect(result.current.state.factors[0]?.displayIdentifier).toBe("account@example.com");
 
     await act(async () => result.current.selectFactor("first-0"));
     expect(session.prepareFirstFactorVerification).toHaveBeenCalledWith({
@@ -248,7 +282,7 @@ describe("useLoginMethodReverification", () => {
 
     act(() => result.current.onNeedsReverification({ level: "first_factor", complete: vi.fn(), cancel: vi.fn() }));
     await waitFor(() => expect(result.current.state.status).toBe("selecting_factor"));
-    expect(result.current.state.factors[0]?.safeIdentifier).toBe("登録電話番号（末尾1234）");
+    expect(result.current.state.factors[0]?.displayIdentifier).toBe("登録電話番号（末尾1234）");
     await act(async () => result.current.selectFactor("first-0"));
     await act(async () => result.current.submit("654321"));
 
@@ -536,9 +570,15 @@ function StrictModeWrapper({ children }: PropsWithChildren) {
   return <StrictMode>{children}</StrictMode>;
 }
 
-function sessionResource(id = "sess_1") {
+function sessionResource(
+  id = "sess_1",
+  emailAddresses: readonly { id: string; emailAddress: string }[] = [
+    { id: "email_1", emailAddress: "account@example.com" },
+  ],
+) {
   return {
     id,
+    user: { emailAddresses },
     startVerification: vi.fn(),
     prepareFirstFactorVerification: vi.fn(),
     attemptFirstFactorVerification: vi.fn(),

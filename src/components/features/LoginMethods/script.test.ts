@@ -34,6 +34,7 @@ describe("ログイン方法の表示状態", () => {
           verificationStatus: "verified",
         },
         canChangeLoginEmail: true,
+        canChangePassword: false,
         canSetPassword: true,
       },
     });
@@ -52,6 +53,7 @@ describe("ログイン方法の表示状態", () => {
       expect(result.methodState).toBe("passwordOnly");
       expect(result.google.canConnect).toBe(true);
       expect(result.emailPassword.canChangeLoginEmail).toBe(true);
+      expect(result.emailPassword.canChangePassword).toBe(true);
       expect(result.emailPassword.canSetPassword).toBe(false);
     },
   );
@@ -77,6 +79,7 @@ describe("ログイン方法の表示状態", () => {
     ]);
     expect(result.google.canConnect).toBe(false);
     expect(result.emailPassword.canChangeLoginEmail).toBe(true);
+    expect(result.emailPassword.canChangePassword).toBe(true);
   });
 
   it("確認済みPrimaryがあれば3状態すべてで同じPrimary変更操作を許可する", () => {
@@ -127,6 +130,7 @@ describe("ログイン方法の表示状態", () => {
       verificationStatus: "unverified",
     });
     expect(result.emailPassword.canChangeLoginEmail).toBe(false);
+    expect(result.emailPassword.canChangePassword).toBe(false);
   });
 
   it("Clerkに複数のEmailAddressが残っていてもメールログイン対象はPrimaryの1件だけにする", () => {
@@ -169,6 +173,42 @@ describe("ログイン方法の表示状態", () => {
     expect(verifiedWithPassword.emailPassword.canSetPassword).toBe(false);
   });
 
+  it("パスワード変更は確認済みPrimaryと既存パスワードがそろう場合だけ許可する", () => {
+    const googleOnly = buildLoginMethodsViewModel(
+      snapshot({
+        emailAddresses: [email("google-email", "google@example.com", "verified")],
+        externalAccounts: [google("google-1", "google@example.com", "verified")],
+      }),
+    );
+    const passwordOnly = buildLoginMethodsViewModel(
+      snapshot({
+        passwordEnabled: true,
+        emailAddresses: [email("password-email", "login@example.com", "verified")],
+      }),
+    );
+    const both = buildLoginMethodsViewModel(
+      snapshot({
+        passwordEnabled: true,
+        emailAddresses: [email("both-email", "login@example.com", "verified")],
+        externalAccounts: [google("google-2", "google@example.com", "verified")],
+      }),
+    );
+    const unverifiedPrimary = buildLoginMethodsViewModel(
+      snapshot({
+        passwordEnabled: true,
+        emailAddresses: [email("pending-email", "pending@example.com", "unverified")],
+        externalAccounts: [google("google-3", "google@example.com", "verified")],
+      }),
+    );
+
+    expect([
+      googleOnly.emailPassword.canChangePassword,
+      passwordOnly.emailPassword.canChangePassword,
+      both.emailPassword.canChangePassword,
+      unverifiedPrimary.emailPassword.canChangePassword,
+    ]).toEqual([false, true, true, false]);
+  });
+
   it("Google追加はメール・パスがありGoogle ExternalAccountがない場合だけ許可する", () => {
     const passwordOnly = buildLoginMethodsViewModel(
       snapshot({
@@ -197,7 +237,7 @@ describe("ログイン方法の表示状態", () => {
     expect(withPendingGoogle.google.canReconnect).toBe(true);
   });
 
-  it("Google再接続はメール・パスと一件だけのfailedまたはunverified resourceがある場合に限る", () => {
+  it("Google再接続はメール・パスと一件だけのfailed、unverified、expired resourceがある場合に限る", () => {
     const pendingWithoutFallback = buildLoginMethodsViewModel(
       snapshot({
         externalAccounts: [google("google-pending", "google@example.com", "unverified")],
@@ -227,11 +267,19 @@ describe("ログイン方法の表示状態", () => {
         externalAccounts: [google("google-failed", "google@example.com", "failed")],
       }),
     );
+    const expired = buildLoginMethodsViewModel(
+      snapshot({
+        passwordEnabled: true,
+        emailAddresses: [email("login", "login@example.com", "verified")],
+        externalAccounts: [google("google-expired", "google@example.com", "expired")],
+      }),
+    );
 
     expect(pendingWithoutFallback.google.canReconnect).toBe(false);
     expect(multiplePending.google.canReconnect).toBe(false);
     expect(unknownStatus.google.canReconnect).toBe(false);
     expect(failed.google.canReconnect).toBe(true);
+    expect(expired.google.canReconnect).toBe(true);
   });
 
   it("Google解除は確認済みGoogleとメール・パスがそろう場合だけ許可する", () => {
@@ -270,10 +318,11 @@ describe("ログイン方法の表示状態", () => {
     expect(result.methodState).toBeNull();
     expect(result.google.canConnect).toBe(false);
     expect(result.emailPassword.canChangeLoginEmail).toBe(false);
+    expect(result.emailPassword.canChangePassword).toBe(false);
     expect(result.emailPassword.canSetPassword).toBe(false);
   });
 
-  it("メール・パス削除とGoogle置換のcapabilityを公開しない", () => {
+  it("パスワード削除とGoogle置換のcapabilityを公開しない", () => {
     const result = buildLoginMethodsViewModel(
       snapshot({
         passwordEnabled: true,
@@ -283,7 +332,7 @@ describe("ログイン方法の表示状態", () => {
     );
 
     expect("canRemovePassword" in result.emailPassword).toBe(false);
-    expect("canChangePassword" in result.emailPassword).toBe(false);
+    expect(result.emailPassword.canChangePassword).toBe(true);
     expect("canReplace" in result.google).toBe(false);
   });
 });

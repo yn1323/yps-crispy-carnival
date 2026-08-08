@@ -99,7 +99,7 @@ Use `doc/rules/security-strategy.md` as the canonical source for Shiftori's secu
 - [ ] Logs include safe who/what/where/when context when useful.
 - [ ] Logs exclude secrets, raw tokens, full email addresses, full webhook payloads, and sensitive third-party response bodies.
 - [ ] Client-facing errors do not reveal internal configuration, provider secrets, or object existence.
-- [ ] Auth UI masks email addresses and phone numbers at the rendering boundary, even when an identity provider labels a returned value as safe or masked.
+- [ ] Unauthenticated Auth UI masks email addresses and phone numbers at the rendering boundary. Authenticated account settings may show a full email only after resolving the provider factor's email address ID against the current User's owned EmailAddress resource; a provider `safeIdentifier` is not treated as the full address.
 - [ ] Retention and redaction rules cover notification payloads, expired tokens, sessions, and provider errors.
 - [ ] Cleanup and tenant-erasure jobs are bounded, idempotent, and resumable.
 

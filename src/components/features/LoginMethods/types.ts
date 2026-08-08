@@ -45,6 +45,7 @@ export type LoginMethodsViewModel = {
   emailPassword: {
     primaryEmail: LoginMethodsEmailViewModel | null;
     canChangeLoginEmail: boolean;
+    canChangePassword: boolean;
     canSetPassword: boolean;
   };
 };

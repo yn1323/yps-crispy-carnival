@@ -32,6 +32,10 @@ const SHIFT_CONFIRMATION_NOTIFICATION_KIND = "shift.confirmation";
 const SHIFT_REISSUE_NOTIFICATION_KIND = "shift.reissue";
 const SHIFT_RECRUITMENT_NOTIFICATION_KIND = "shift.recruitment";
 
+function formatShiftPeriodHistoryTitle(title: string, periodLabel: string): string {
+  return `${title} ${periodLabel}`;
+}
+
 /**
  * シフト確定通知の配信
  * - 連携済みかつ友達追加中 → LINE Push
@@ -153,7 +157,10 @@ export const sendShiftConfirmationEmails = internalAction({
             staffId: staffData.staffId,
             history: {
               notificationKind: SHIFT_CONFIRMATION_NOTIFICATION_KIND,
-              displayTitle: operationIsResend ? "シフト変更のお知らせ" : "確定シフトのお知らせ",
+              displayTitle: formatShiftPeriodHistoryTitle(
+                operationIsResend ? "シフト変更のお知らせ" : "確定シフトのお知らせ",
+                data.periodLabel,
+              ),
             },
             dedupeAcrossTerminal: true,
             fanoutTargetKey,
@@ -560,7 +567,7 @@ export const sendRecruitmentNotificationEmails = internalAction({
             staffId: staff.staffId,
             history: {
               notificationKind: SHIFT_RECRUITMENT_NOTIFICATION_KIND,
-              displayTitle: "シフト募集のお知らせ",
+              displayTitle: formatShiftPeriodHistoryTitle("シフト募集のお知らせ", data.periodLabel),
             },
             dedupeAcrossTerminal: true,
             fanoutTargetKey,
@@ -778,7 +785,7 @@ export const sendRecruitmentNotificationForStaff = internalAction({
           staffId: data.staff.staffId,
           history: {
             notificationKind: SHIFT_RECRUITMENT_NOTIFICATION_KIND,
-            displayTitle: "シフト募集のお知らせ",
+            displayTitle: formatShiftPeriodHistoryTitle("シフト募集のお知らせ", data.recruitment.periodLabel),
           },
           dedupeKey: lineDedupeKey,
           payload: linePayload({
@@ -1063,7 +1070,7 @@ export const sendOpenRecruitmentNotificationsForStaff = internalAction({
             staffId: data.staff.staffId,
             history: {
               notificationKind: SHIFT_RECRUITMENT_NOTIFICATION_KIND,
-              displayTitle: "シフト募集のお知らせ",
+              displayTitle: formatShiftPeriodHistoryTitle("シフト募集のお知らせ", recruitment.periodLabel),
             },
             dedupeKey: lineDedupeKey,
             payload: linePayload({
@@ -1171,7 +1178,7 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
           staffId: data.staff.staffId,
           history: {
             notificationKind: SHIFT_RECRUITMENT_NOTIFICATION_KIND,
-            displayTitle: "シフト募集のお知らせ",
+            displayTitle: formatShiftPeriodHistoryTitle("シフト募集のお知らせ", recruitment.periodLabel),
           },
           dedupeKey,
           payload: linePayload({

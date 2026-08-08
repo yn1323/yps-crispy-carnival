@@ -22,6 +22,10 @@ const mocks = vi.hoisted(() => {
       feedback: { status: "idle", message: null },
     },
   };
+  const passwordChangeController = {
+    marker: "password-change-controller",
+    state: { isOpen: false, status: "idle", message: null },
+  };
   const reverification = {
     state: {
       status: "idle",
@@ -45,9 +49,11 @@ const mocks = vi.hoisted(() => {
     overviewController,
     emailPasswordController,
     googleController,
+    passwordChangeController,
     useLoginMethodsController: vi.fn((_options: unknown) => overviewController),
     useEmailPasswordMigrationController: vi.fn((_options: unknown) => emailPasswordController),
     useGoogleConnectionController: vi.fn((_options: unknown) => googleController),
+    usePasswordChangeController: vi.fn((_options: unknown) => passwordChangeController),
     loginMethodsView: vi.fn(),
     migrationView: vi.fn(),
     loginMethodsViewMounted: vi.fn(),
@@ -82,6 +88,10 @@ vi.mock("./useGoogleConnectionController", () => ({
   useGoogleConnectionController: mocks.useGoogleConnectionController,
 }));
 
+vi.mock("./usePasswordChangeController", () => ({
+  usePasswordChangeController: mocks.usePasswordChangeController,
+}));
+
 vi.mock("./LoginMethodsView", async () => {
   const { useEffect } = await import("react");
   return {
@@ -110,6 +120,7 @@ describe("ログイン方法のoverviewと追加Modal", () => {
     mocks.useLoginMethodsController.mockClear();
     mocks.useEmailPasswordMigrationController.mockClear();
     mocks.useGoogleConnectionController.mockClear();
+    mocks.usePasswordChangeController.mockClear();
     mocks.useLoginMethodReverification.mockClear();
     mocks.loginMethodsView.mockClear();
     mocks.migrationView.mockClear();
@@ -173,6 +184,17 @@ describe("ログイン方法のoverviewと追加Modal", () => {
         oauthReturn: false,
         operationCooldown: overviewOptions.operationCooldown,
       }),
+    );
+    expect(mocks.usePasswordChangeController).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isLoaded: true,
+        user: { id: "user-1" },
+        onNeedsReverification: mocks.reverification.onNeedsReverification,
+        runOperation: mocks.reverification.runOperation,
+      }),
+    );
+    expect(mocks.loginMethodsView).toHaveBeenCalledWith(
+      expect.objectContaining({ passwordChangeController: mocks.passwordChangeController }),
     );
   });
 

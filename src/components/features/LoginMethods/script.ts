@@ -55,6 +55,7 @@ export function buildLoginMethodsViewModel(snapshot: LoginMethodsUserSnapshot): 
     emailPassword: {
       primaryEmail: primaryEmail ? toEmailViewModel(primaryEmail) : null,
       canChangeLoginEmail: hasVerifiedPrimaryEmail,
+      canChangePassword: snapshot.passwordEnabled && hasVerifiedPrimaryEmail,
       canSetPassword: !snapshot.passwordEnabled && verifiedEmails.length > 0,
     },
   };
@@ -72,5 +73,9 @@ function isVerifiedEmail(email: LoginMethodsEmailSnapshot): boolean {
 }
 
 function isRetryableGoogleAccount(account: LoginMethodsExternalAccountSnapshot | undefined): boolean {
-  return account?.verificationStatus === "unverified" || account?.verificationStatus === "failed";
+  return (
+    account?.verificationStatus === "unverified" ||
+    account?.verificationStatus === "failed" ||
+    account?.verificationStatus === "expired"
+  );
 }

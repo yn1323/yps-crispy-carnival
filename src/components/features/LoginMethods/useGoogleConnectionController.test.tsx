@@ -107,7 +107,7 @@ describe("Google接続controller", () => {
     expect(readStoredCorrelation()).toBeNull();
   });
 
-  it("current Userのaccount-management OAuthだけを相関情報付きで開始する", async () => {
+  it("本人確認をパスワード固定にし、current Userのaccount-management OAuthだけを相関情報付きで開始する", async () => {
     const loginEmail = emailResource("email-login", "login@example.com");
     const pendingGoogle = googleResource({
       id: "google-new",
@@ -148,7 +148,9 @@ describe("Google接続controller", () => {
       primaryEmailAddressId: user.primaryEmailAddressId,
       passwordEnabled: true,
     });
-    expect(runOperation).toHaveBeenCalledOnce();
+    expect(runOperation).toHaveBeenCalledWith(expect.any(Function), {
+      preferredFirstFactorStrategy: "password",
+    });
     expect(
       mocks.reverificationOptions.every(
         (options) => (options as { onNeedsReverification?: unknown }).onNeedsReverification === onNeedsReverification,
@@ -266,10 +268,10 @@ describe("Google接続controller", () => {
     });
   });
 
-  it("未検証Googleの破棄応答を失ってもreloadで消失を証明できれば新しい選択を開始する", async () => {
+  it("期限切れGoogleの破棄応答を失ってもreloadで消失を証明できれば新しい選択を開始する", async () => {
     const pendingGoogle = googleResource({
       id: "google-cleanup-response-lost",
-      status: "unverified",
+      status: "expired",
       emailAddress: "old-google@example.com",
     });
     const freshGoogle = googleResource({
@@ -747,24 +749,75 @@ describe("Google接続controller", () => {
     async ({ clerkCode, expectedKind, expectedMessage }) => {
       const { user, pendingGoogle, unmount } = await startPersistedConnection();
       unmount();
-      user.externalAccounts = [
-        googleResource({
-          id: pendingGoogle.id,
-          status: "failed",
-          emailAddress: "private-google-account@example.com",
-          errorCode: clerkCode,
-        }),
-      ];
+      const failedGoogle = googleResource({
+        id: pendingGoogle.id,
+        status: "failed",
+        emailAddress: "private-google-account@example.com",
+        errorCode: clerkCode,
+      });
+      user.externalAccounts = [failedGoogle];
+      vi.mocked(failedGoogle.destroy).mockImplementation(async () => {
+        user.externalAccounts = [];
+      });
 
       const { result } = renderGoogleHook({ user, oauthReturn: true });
       await waitFor(() => expect(result.current.state.feedback.status).toBe("error"));
 
+      expect(failedGoogle.destroy).toHaveBeenCalledOnce();
+      expect(user.externalAccounts).toEqual([]);
+      expect(result.current.state.phase).toBe("readyToConnect");
       expect(result.current.state.errorKind).toBe(expectedKind);
       expect(result.current.state.feedback.message).toBe(expectedMessage);
       expect(result.current.state.feedback.message).not.toContain("private-google-account@example.com");
       expect(readStoredCorrelation()).toBeNull();
     },
   );
+
+  it("OAuth帰還時にメール・パスワードの退避方法が失われていれば相関した未完了Googleも自動解除しない", async () => {
+    const { user, pendingGoogle, unmount } = await startPersistedConnection();
+    unmount();
+    const failedGoogle = googleResource({
+      id: pendingGoogle.id,
+      status: "failed",
+      emailAddress: pendingGoogle.emailAddress,
+      errorCode: "oauth_access_denied",
+    });
+    user.passwordEnabled = false;
+    user.externalAccounts = [failedGoogle];
+
+    const { result } = renderGoogleHook({ user, oauthReturn: true });
+    await waitFor(() => expect(result.current.state.feedback.status).toBe("error"));
+
+    expect(failedGoogle.destroy).not.toHaveBeenCalled();
+    expect(user.externalAccounts).toEqual([failedGoogle]);
+    expect(result.current.state.phase).toBe("unavailable");
+    expect(readStoredCorrelation()).toBeNull();
+  });
+
+  it("OAuth帰還時にGoogle resourceが複数あれば相関した一件も推測して自動解除しない", async () => {
+    const { user, pendingGoogle, unmount } = await startPersistedConnection();
+    unmount();
+    const failedGoogle = googleResource({
+      id: pendingGoogle.id,
+      status: "failed",
+      emailAddress: pendingGoogle.emailAddress,
+      errorCode: "oauth_identification_claimed",
+    });
+    const otherPendingGoogle = googleResource({
+      id: "google-other-pending",
+      status: "unverified",
+      emailAddress: "other-google@example.com",
+    });
+    user.externalAccounts = [failedGoogle, otherPendingGoogle];
+
+    const { result } = renderGoogleHook({ user, oauthReturn: true });
+    await waitFor(() => expect(result.current.state.feedback.status).toBe("error"));
+
+    expect(failedGoogle.destroy).not.toHaveBeenCalled();
+    expect(otherPendingGoogle.destroy).not.toHaveBeenCalled();
+    expect(result.current.state.phase).toBe("unavailable");
+    expect(readStoredCorrelation()).toBeNull();
+  });
 
   it("Clerk identifier conflictをprovider collisionとは別の状態へ分ける", async () => {
     const user = userResource();
@@ -1170,7 +1223,7 @@ function googleResource({
   errorCode,
 }: {
   id: string;
-  status: "verified" | "unverified" | "failed";
+  status: "verified" | "unverified" | "failed" | "expired";
   emailAddress: string;
   redirectUrl?: string;
   errorCode?: string;
@@ -1195,7 +1248,7 @@ function externalAccountResource({
 }: {
   id: string;
   provider: "google" | "github";
-  status: "verified" | "unverified" | "failed";
+  status: "verified" | "unverified" | "failed" | "expired";
   emailAddress: string;
   redirectUrl?: string;
   errorCode?: string;

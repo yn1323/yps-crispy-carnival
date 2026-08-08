@@ -6,16 +6,20 @@ import { LoginEmailChangeDialog } from "./LoginEmailChangeDialog";
 import { LoginMethodReverificationView } from "./LoginMethodReverificationView";
 import { LoginMethodsCard } from "./LoginMethodsCard";
 import type { LoginMethodMigrationFlow } from "./migrationTypes";
+import { PasswordChangeDialog } from "./PasswordChangeDialog";
 import type { LoginMethodReverificationController } from "./reverificationTypes";
 import type { LoginMethodsController } from "./types";
+import type { PasswordChangeController } from "./usePasswordChangeController";
 
 export function LoginMethodsView({
   controller,
+  passwordChangeController,
   onStartFlow,
   reverification,
   isMigrationDialogOpen,
 }: {
   controller: LoginMethodsController;
+  passwordChangeController: PasswordChangeController;
   onStartFlow: (flow: LoginMethodMigrationFlow) => void;
   reverification: LoginMethodReverificationController;
   isMigrationDialogOpen: boolean;
@@ -45,6 +49,7 @@ export function LoginMethodsView({
 
       <LoginMethodsCard
         controller={controller}
+        passwordChangeController={passwordChangeController}
         onSetPassword={() => onStartFlow("add-email-password")}
         onConnectGoogle={() => onStartFlow("connect-google")}
         onRequestGoogleDisconnect={async (externalAccountId) => {
@@ -69,6 +74,7 @@ export function LoginMethodsView({
         onBackToInput={controller.backToLoginEmailInput}
         reverification={reverification}
       />
+      <PasswordChangeDialog controller={passwordChangeController} reverification={reverification} />
       <GoogleDisconnectDialog
         externalAccountId={googleToDisconnect}
         controller={controller}
@@ -78,6 +84,7 @@ export function LoginMethodsView({
       {reverification.state.status !== "idle" &&
       !isMigrationDialogOpen &&
       !controller.emailChangeDialog.isOpen &&
+      !passwordChangeController.state.isOpen &&
       googleToDisconnect === null ? (
         <StandaloneReverificationDialog reverification={reverification} />
       ) : null}

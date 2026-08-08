@@ -99,7 +99,7 @@ Googleとメール・パスワードの両方を持つ状態では、同じメ�
 各操作では開始前と完了後にcurrent Userをreloadし、同じClerk `user.id`であることと、操作対象のresourceがそのUserに属することを確認する。
 別Userの作成、User間の自動統合、sessionの取り違えがあれば失敗とする。
 
-1. 3状態すべてでPrimaryメールアドレスを変更し、以前のEmailAddressと既存のGoogle ExternalAccount、パスワードが維持されることを確認する。
+1. 3状態すべてでPrimaryメールアドレスを変更し、変更先がPrimaryになること、直前の旧Primary EmailAddressが削除されること、既存のGoogle ExternalAccountとパスワードが維持されることを確認する。  変更前から別のsecondary EmailAddressがある場合は、そのresourceが推測削除されないことも確認する。
 2. 未確認の変更先は正しい確認コードを受け付けるまでPrimaryにならず、誤ったコード、期限切れ、取消後も元のPrimaryが維持されることを確認する。
 3. GoogleのみのUserへ、Googleと同じ確認済みEmailAddressまたは新たに確認したEmailAddressを使ってパスワードを追加し、Google ExternalAccountが残ることを確認する。
 4. メール・パスワードのみのUserへGoogle ExternalAccountを追加し、同じメールアドレスと異なるメールアドレスのどちらでも、current Userへの接続として完了することを確認する。
@@ -110,9 +110,10 @@ Googleとメール・パスワードの両方を持つ状態では、同じメ�
 9. Googleとメール・パスワードの両方を持つUserでは、有効なパスワードと確認済みEmailAddressを直前のreloadで確認した場合だけGoogleを解除できることを確認する。
 10. GoogleのみのUserでは解除操作へ到達できず、直接操作を試みても拒否されることを確認する。
 11. Google解除の応答が失われた場合は、reloadした最新状態から成功または未完了を判定できることを確認する。
-12. 同じtab内の連打はsingle-flightで抑止され、確認コード送信とGoogle OAuth開始は画面遷移やOAuth往復後も30秒の絶対期限まで再送されないことを確認する。  2つのtabから同じ操作を開始した場合は、各操作直前のreloadとClerk serverの拒否により、少なくとも一つのログイン方法が残ることを確認する。
-13. EmailAddress削除、パスワード削除、専用のGoogle置換操作が画面とURL状態に存在しないことを確認する。
-14. Gmail以外のメールアドレスと通常buildでも、状態に応じたGoogle追加または解除へ到達できることを確認する。
+12. 旧Primary EmailAddress削除の応答が失われた場合は、reloadで対象の不在と変更先Primary、Google ExternalAccount、パスワードを確認できた場合だけ成功へ収束することを確認する。  対象が残る場合は成功を表示せず、旧Primaryへ戻せる状態ではrollbackすることを確認する。
+13. 同じtab内の連打はsingle-flightで抑止され、確認コード送信とGoogle OAuth開始は画面遷移やOAuth往復後も30秒の絶対期限まで再送されないことを確認する。  2つのtabから同じ操作を開始した場合は、各操作直前のreloadとClerk serverの拒否により、少なくとも一つのログイン方法が残ることを確認する。
+14. 任意のEmailAddress削除、パスワード削除、専用のGoogle置換操作が画面とURL状態に存在しないことを確認する。  Primary変更では、操作開始時の旧Primaryだけが完了処理として自動削除されることを確認する。
+15. Gmail以外のメールアドレスと通常buildでも、状態に応じたGoogle追加または解除へ到達できることを確認する。
 
 ### 分離契約とPIIの確認
 

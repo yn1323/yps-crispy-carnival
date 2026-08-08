@@ -151,6 +151,8 @@ function EmailInputStep({
       <Text color="fg.muted">
         新しいメールアドレスが未確認の場合は、確認コードを送ります。
         <br />
+        変更が完了すると、以前のログイン用メールアドレスは削除されます。
+        <br />
         シフト連絡先メールアドレスやGoogle連携は変わりません。
       </Text>
       <StepMessage status={status} message={message} />

@@ -14,14 +14,14 @@ const emailFactor = factor({
   key: "first-email",
   strategy: "email_code",
   input: "code",
-  safeIdentifier: "lo***@example.com",
+  displayIdentifier: "login@example.com",
   canResend: true,
 });
 const phoneFactor = factor({
   key: "first-phone",
   strategy: "phone_code",
   input: "code",
-  safeIdentifier: "+81 *** **12",
+  displayIdentifier: "+81 *** **12",
   canResend: true,
 });
 const secondPhoneFactor = factor({
@@ -29,7 +29,7 @@ const secondPhoneFactor = factor({
   strategy: "phone_code",
   stage: "second",
   input: "code",
-  safeIdentifier: "+81 *** **34",
+  displayIdentifier: "+81 *** **34",
   canResend: true,
 });
 const totpFactor = factor({ key: "second-totp", strategy: "totp", stage: "second", input: "code" });
@@ -151,10 +151,10 @@ export const SelectFactorBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await userEvent.click(await canvas.findByRole("button", { name: "メールで確認（lo***@example.com）" }));
+    await userEvent.click(await canvas.findByRole("button", { name: "メールで確認（login@example.com）" }));
 
     await expect(await canvas.findByRole("textbox", { name: "確認コード" })).toBeVisible();
-    await expect(await canvas.findByText("lo***@example.comに届いた確認コードを入力してください。")).toBeVisible();
+    await expect(await canvas.findByText("login@example.comに届いた確認コードを入力してください。")).toBeVisible();
   },
 };
 
@@ -298,11 +298,11 @@ function factor({
   strategy,
   stage = "first",
   input,
-  safeIdentifier = null,
+  displayIdentifier = null,
   canResend = false,
-}: Omit<LoginMethodReverificationFactor, "stage" | "safeIdentifier" | "canResend"> &
+}: Omit<LoginMethodReverificationFactor, "stage" | "displayIdentifier" | "canResend"> &
   Partial<
-    Pick<LoginMethodReverificationFactor, "stage" | "safeIdentifier" | "canResend">
+    Pick<LoginMethodReverificationFactor, "stage" | "displayIdentifier" | "canResend">
   >): LoginMethodReverificationFactor {
-  return { key, strategy, stage, input, safeIdentifier, canResend };
+  return { key, strategy, stage, input, displayIdentifier, canResend };
 }

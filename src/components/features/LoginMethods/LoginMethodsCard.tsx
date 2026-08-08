@@ -1,16 +1,19 @@
 import { Badge, Box, Flex, HStack, Icon, Stack, Text } from "@chakra-ui/react";
 import { FcGoogle } from "react-icons/fc";
-import { LuMail } from "react-icons/lu";
+import { LuKeyRound, LuMail } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import type { LoginMethodsController, LoginMethodsEmailViewModel } from "./types";
+import type { PasswordChangeController } from "./usePasswordChangeController";
 
 export function LoginMethodsCard({
   controller,
+  passwordChangeController,
   onSetPassword,
   onConnectGoogle,
   onRequestGoogleDisconnect,
 }: {
   controller: LoginMethodsController;
+  passwordChangeController: PasswordChangeController;
   onSetPassword: () => void;
   onConnectGoogle: () => void;
   onRequestGoogleDisconnect: (externalAccountId: string) => Promise<void>;
@@ -24,6 +27,11 @@ export function LoginMethodsCard({
         <Box p={{ base: 3, md: 4 }} bg="white">
           <EmailContent controller={controller} onSetPassword={onSetPassword} />
         </Box>
+        {controller.viewModel.emailPassword.canChangePassword ? (
+          <Box borderTopWidth="1px" borderColor="blackAlpha.100" p={{ base: 3, md: 4 }}>
+            <PasswordContent controller={passwordChangeController} />
+          </Box>
+        ) : null}
         <Box borderTopWidth="1px" borderColor="blackAlpha.100" p={{ base: 3, md: 4 }}>
           <GoogleContent
             controller={controller}
@@ -90,6 +98,44 @@ function EmailContent({
             ) : null}
           </Flex>
         </Stack>
+      </Flex>
+    </Stack>
+  );
+}
+
+function PasswordContent({ controller }: { controller: PasswordChangeController }) {
+  return (
+    <Stack gap={2} as="section" aria-labelledby="login-methods-password-heading">
+      <Flex align="center" gap={{ base: 3, md: 4 }} flexWrap={{ base: "wrap", md: "nowrap" }}>
+        <Box
+          borderWidth="1px"
+          borderColor="blackAlpha.100"
+          borderRadius="lg"
+          boxSize={{ base: 10, md: 12 }}
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          flexShrink={0}
+        >
+          <Icon as={LuKeyRound} boxSize={{ base: 5, md: 6 }} aria-hidden />
+        </Box>
+        <Stack gap={1} flex="1" minW={0}>
+          <Text id="login-methods-password-heading" as="h3" fontSize="lg" fontWeight="semibold">
+            パスワード
+          </Text>
+          <Text color="fg.muted" fontSize="sm">
+            設定済み
+          </Text>
+        </Stack>
+        <Button
+          variant="outline"
+          colorPalette="teal"
+          aria-label="パスワードを変更"
+          loading={controller.state.isOpen && controller.state.status === "loading"}
+          onClick={controller.open}
+        >
+          変更する
+        </Button>
       </Flex>
     </Stack>
   );
