@@ -7,7 +7,7 @@ import type {
   LoginMethodsViewModel,
 } from "./types";
 
-const EMAIL_PASSWORD_REQUIRED_REASON = "確認済みメールアドレスとパスワードを設定してから操作してください。";
+const EMAIL_PASSWORD_REQUIRED_REASON = "確認済みのメインメールアドレスとパスワードを設定してから操作してください。";
 
 export function buildLoginMethodsViewModel(snapshot: LoginMethodsUserSnapshot): LoginMethodsViewModel {
   const verifiedEmails = snapshot.emailAddresses.filter(isVerifiedEmail);
@@ -34,7 +34,7 @@ export function buildLoginMethodsViewModel(snapshot: LoginMethodsUserSnapshot): 
     google: {
       accounts: googleAccounts.map((account) => {
         const connected = account.verificationStatus === "verified";
-        const canDisconnect = connected && hasEmailPasswordMethod;
+        const canDisconnect = connected && snapshot.passwordEnabled && hasVerifiedPrimaryEmail;
 
         return {
           id: account.id,

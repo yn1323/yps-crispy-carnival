@@ -676,7 +676,7 @@ describe("useLoginMethodsController", () => {
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();
   });
 
-  it("Googleとパスワードの両方があれば解除でき、link解消後はメール変更を開始できる", async () => {
+  it("GoogleとPrimaryが同じ場合はExternalAccountだけを解除し、Primary EmailAddressを保持する", async () => {
     const linkedEmail = emailResource({
       id: "email-google",
       emailAddress: "google@gmail.com",
@@ -723,6 +723,7 @@ describe("useLoginMethodsController", () => {
     });
     expect(user.passwordEnabled).toBe(true);
     expect(user.emailAddresses).toEqual([linkedEmail]);
+    expect(linkedEmail.destroy).not.toHaveBeenCalled();
     expect(user.externalAccounts).toEqual([]);
     expect(result.current.googleState).toEqual({ status: "idle", message: null });
     expect(mocks.runWithReverification).toHaveBeenCalledOnce();
@@ -731,6 +732,434 @@ describe("useLoginMethodsController", () => {
     act(() => result.current.openLoginEmailChange());
     expect(result.current.emailChangeDialog).toMatchObject({ isOpen: true, step: "input" });
     expect(mocks.showErrorToast).not.toHaveBeenCalled();
+  });
+
+  it("GoogleとPrimaryが異なる場合は対象Googleの非Primary EmailAddressだけを続けて削除する", async () => {
+    const primaryEmail = emailResource({
+      id: "email-primary",
+      emailAddress: "login@example.com",
+      status: "verified",
+    });
+    const googleEmail = emailResource({
+      id: "email-google",
+      emailAddress: "google@gmail.com",
+      status: "verified",
+      linked: true,
+    });
+    const unrelatedEmail = emailResource({
+      id: "email-unrelated",
+      emailAddress: "unrelated@example.com",
+      status: "verified",
+    });
+    const account = externalAccount({ id: "google-1", status: "verified" });
+    const user = userResource({
+      passwordEnabled: true,
+      emailAddresses: [primaryEmail, googleEmail, unrelatedEmail],
+      externalAccounts: [account],
+      primaryEmailAddressId: primaryEmail.id,
+    });
+    const callOrder: string[] = [];
+    vi.mocked(user.reload).mockImplementation(async () => {
+      callOrder.push("reload");
+      return user;
+    });
+    vi.mocked(account.destroy).mockImplementation(async () => {
+      callOrder.push("destroy-google");
+      user.externalAccounts = [];
+      Object.assign(googleEmail, { linkedTo: [] });
+    });
+    vi.mocked(googleEmail.destroy).mockImplementation(async () => {
+      callOrder.push("destroy-google-email");
+      user.emailAddresses = [primaryEmail, unrelatedEmail];
+    });
+    const { result } = renderController(user);
+
+    await act(async () => result.current.disconnectGoogle(account.id));
+
+    expect(callOrder).toEqual([
+      "reload",
+      "reload",
+      "destroy-google",
+      "reload",
+      "reload",
+      "destroy-google-email",
+      "reload",
+    ]);
+    expect(account.destroy).toHaveBeenCalledOnce();
+    expect(googleEmail.destroy).toHaveBeenCalledOnce();
+    expect(primaryEmail.destroy).not.toHaveBeenCalled();
+    expect(unrelatedEmail.destroy).not.toHaveBeenCalled();
+    expect(user.emailAddresses).toEqual([primaryEmail, unrelatedEmail]);
+    expect(user.primaryEmailAddressId).toBe(primaryEmail.id);
+    expect(user.passwordEnabled).toBe(true);
+    expect(user.externalAccounts).toEqual([]);
+    expect(result.current.googleDisconnectPendingCleanup).toBe(false);
+    expect(result.current.googleState).toEqual({ status: "idle", message: null });
+    expect(mocks.runWithReverification).toHaveBeenCalledTimes(2);
+    expect(mocks.showSuccessToast).toHaveBeenCalledWith({ title: "Google連携を解除しました" });
+  });
+
+  it("確認画面には正規化比較に使ったExternalAccountではなく実際の削除対象EmailAddressを返す", async () => {
+    const primaryEmail = emailResource({
+      id: "email-primary",
+      emailAddress: "login@example.com",
+      status: "verified",
+    });
+    const googleEmail = emailResource({
+      id: "email-google",
+      emailAddress: "Google@Gmail.com",
+      status: "verified",
+      linked: true,
+    });
+    const account = externalAccount({
+      id: "google-1",
+      status: "verified",
+      emailAddress: " google@gmail.com ",
+    });
+    const user = userResource({
+      passwordEnabled: true,
+      emailAddresses: [primaryEmail, googleEmail],
+      externalAccounts: [account],
+      primaryEmailAddressId: primaryEmail.id,
+    });
+    const { result } = renderController(user);
+    let preparation: unknown;
+
+    await act(async () => {
+      preparation = await result.current.prepareGoogleDisconnect(account.id);
+    });
+
+    expect(preparation).toEqual({
+      mode: "externalAndEmail",
+      googleEmailAddress: "Google@Gmail.com",
+    });
+    expect(account.destroy).not.toHaveBeenCalled();
+    expect(googleEmail.destroy).not.toHaveBeenCalled();
+  });
+
+  it("別メールのGoogle解除応答を失ってもExternalAccount不在を確認してEmailAddress削除へ進む", async () => {
+    const primaryEmail = emailResource({
+      id: "email-primary",
+      emailAddress: "login@example.com",
+      status: "verified",
+    });
+    const googleEmail = emailResource({
+      id: "email-google",
+      emailAddress: "google@gmail.com",
+      status: "verified",
+      linked: true,
+    });
+    const account = externalAccount({ id: "google-1", status: "verified" });
+    const user = userResource({
+      passwordEnabled: true,
+      emailAddresses: [primaryEmail, googleEmail],
+      externalAccounts: [account],
+      primaryEmailAddressId: primaryEmail.id,
+    });
+    vi.mocked(account.destroy).mockImplementation(async () => {
+      user.externalAccounts = [];
+      throw new Error("response lost");
+    });
+    const { result } = renderController(user);
+
+    await act(async () => result.current.disconnectGoogle(account.id));
+
+    expect(account.destroy).toHaveBeenCalledOnce();
+    expect(googleEmail.destroy).toHaveBeenCalledOnce();
+    expect(user.emailAddresses).toEqual([primaryEmail]);
+    expect(result.current.googleDisconnectPendingCleanup).toBe(false);
+    expect(mocks.showSuccessToast).toHaveBeenCalledWith({ title: "Google連携を解除しました" });
+  });
+
+  it("EmailAddress削除の応答を失っても対象不在を確認できれば成功へ収束する", async () => {
+    const primaryEmail = emailResource({
+      id: "email-primary",
+      emailAddress: "login@example.com",
+      status: "verified",
+    });
+    const googleEmail = emailResource({
+      id: "email-google",
+      emailAddress: "google@gmail.com",
+      status: "verified",
+      linked: true,
+    });
+    const account = externalAccount({ id: "google-1", status: "verified" });
+    const user = userResource({
+      passwordEnabled: true,
+      emailAddresses: [primaryEmail, googleEmail],
+      externalAccounts: [account],
+      primaryEmailAddressId: primaryEmail.id,
+    });
+    vi.mocked(account.destroy).mockImplementation(async () => {
+      user.externalAccounts = [];
+      Object.assign(googleEmail, { linkedTo: [] });
+    });
+    vi.mocked(googleEmail.destroy).mockImplementation(async () => {
+      user.emailAddresses = [primaryEmail];
+      throw new Error("response lost");
+    });
+    const { result } = renderController(user);
+
+    await act(async () => result.current.disconnectGoogle(account.id));
+
+    expect(googleEmail.destroy).toHaveBeenCalledOnce();
+    expect(user.emailAddresses).toEqual([primaryEmail]);
+    expect(result.current.googleDisconnectPendingCleanup).toBe(false);
+    expect(mocks.showSuccessToast).toHaveBeenCalledWith({ title: "Google連携を解除しました" });
+  });
+
+  it("ExternalAccountだけ削除された部分失敗は成功表示せず、同じplanからEmailAddress削除を再試行する", async () => {
+    const primaryEmail = emailResource({
+      id: "email-primary",
+      emailAddress: "login@example.com",
+      status: "verified",
+    });
+    const googleEmail = emailResource({
+      id: "email-google",
+      emailAddress: "google@gmail.com",
+      status: "verified",
+      linked: true,
+    });
+    const account = externalAccount({ id: "google-1", status: "verified" });
+    const user = userResource({
+      passwordEnabled: true,
+      emailAddresses: [primaryEmail, googleEmail],
+      externalAccounts: [account],
+      primaryEmailAddressId: primaryEmail.id,
+    });
+    vi.mocked(account.destroy).mockImplementation(async () => {
+      user.externalAccounts = [];
+      Object.assign(googleEmail, { linkedTo: [] });
+    });
+    vi.mocked(googleEmail.destroy).mockRejectedValueOnce(new Error("cleanup failed"));
+    const { result } = renderController(user);
+
+    await act(async () => result.current.disconnectGoogle(account.id));
+
+    expect(account.destroy).toHaveBeenCalledOnce();
+    expect(googleEmail.destroy).toHaveBeenCalledOnce();
+    expect(user.emailAddresses).toEqual([primaryEmail, googleEmail]);
+    expect(result.current.googleDisconnectPendingCleanup).toBe(true);
+    expect(result.current.googleState).toEqual({
+      status: "error",
+      message:
+        "Google連携は解除されましたが、関連するメールアドレスの削除を完了できませんでした。この画面を閉じずに、もう一度お試しください。",
+    });
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+
+    await act(async () => result.current.disconnectGoogle(account.id));
+
+    expect(account.destroy).toHaveBeenCalledOnce();
+    expect(googleEmail.destroy).toHaveBeenCalledTimes(2);
+    expect(user.emailAddresses).toEqual([primaryEmail]);
+    expect(result.current.googleDisconnectPendingCleanup).toBe(false);
+    expect(result.current.googleState).toEqual({ status: "idle", message: null });
+    expect(mocks.showSuccessToast).toHaveBeenCalledOnce();
+  });
+
+  it("別メールのcleanup対象を一意に特定できない場合はどちらも削除しない", async () => {
+    const primaryEmail = emailResource({
+      id: "email-primary",
+      emailAddress: "login@example.com",
+      status: "verified",
+    });
+    const googleEmail = emailResource({
+      id: "email-google",
+      emailAddress: "google@gmail.com",
+      status: "verified",
+      linkedTo: [
+        { id: "identification-google-1", type: "oauth_google" },
+        { id: "identification-other", type: "oauth_google" },
+      ],
+    });
+    const account = externalAccount({ id: "google-1", status: "verified" });
+    const user = userResource({
+      passwordEnabled: true,
+      emailAddresses: [primaryEmail, googleEmail],
+      externalAccounts: [account],
+      primaryEmailAddressId: primaryEmail.id,
+    });
+    const { result } = renderController(user);
+
+    await act(async () => result.current.disconnectGoogle(account.id));
+
+    expect(account.destroy).not.toHaveBeenCalled();
+    expect(googleEmail.destroy).not.toHaveBeenCalled();
+    expect(user.externalAccounts).toEqual([account]);
+    expect(user.emailAddresses).toEqual([primaryEmail, googleEmail]);
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+    expect(mocks.showErrorToast).toHaveBeenCalledWith(
+      new Error("ログイン方法の状態が変わったため、Google連携を解除していません。最新の状態を読み込んでください。"),
+    );
+  });
+
+  it.each(["actor", "Primary", "password", "link", "同じメールの追加", "無関係メールの削除"] as const)(
+    "ExternalAccount削除後に%sが変わった場合はEmailAddressを推測削除しない",
+    async (changedState) => {
+      const primaryEmail = emailResource({
+        id: "email-primary",
+        emailAddress: "login@example.com",
+        status: "verified",
+      });
+      const googleEmail = emailResource({
+        id: "email-google",
+        emailAddress: "google@gmail.com",
+        status: "verified",
+        linked: true,
+      });
+      const unrelatedEmail = emailResource({
+        id: "email-unrelated",
+        emailAddress: "unrelated@example.com",
+        status: "verified",
+      });
+      const account = externalAccount({ id: "google-1", status: "verified" });
+      const user = userResource({
+        passwordEnabled: true,
+        emailAddresses: [primaryEmail, googleEmail, unrelatedEmail],
+        externalAccounts: [account],
+        primaryEmailAddressId: primaryEmail.id,
+      });
+      let currentActorId = user.id;
+      let reloadCount = 0;
+      vi.mocked(user.reload).mockImplementation(async () => {
+        reloadCount += 1;
+        if (reloadCount === 3) {
+          if (changedState === "actor") currentActorId = "user-switched";
+          if (changedState === "Primary") user.primaryEmailAddressId = unrelatedEmail.id;
+          if (changedState === "password") user.passwordEnabled = false;
+          if (changedState === "link") {
+            Object.assign(googleEmail, { linkedTo: [{ id: "identification-other", type: "oauth_google" }] });
+          }
+          if (changedState === "同じメールの追加") {
+            user.emailAddresses = [
+              ...user.emailAddresses,
+              emailResource({
+                id: "email-google-concurrent",
+                emailAddress: "GOOGLE@GMAIL.COM",
+                status: "unverified",
+              }),
+            ];
+          }
+          if (changedState === "無関係メールの削除") {
+            user.emailAddresses = user.emailAddresses.filter((emailAddress) => emailAddress.id !== unrelatedEmail.id);
+          }
+        }
+        return user;
+      });
+      vi.mocked(account.destroy).mockImplementation(async () => {
+        user.externalAccounts = [];
+        Object.assign(googleEmail, { linkedTo: [] });
+      });
+      const { result } = renderController(user, () => currentActorId);
+
+      await act(async () => result.current.disconnectGoogle(account.id));
+
+      expect(account.destroy).toHaveBeenCalledOnce();
+      expect(googleEmail.destroy).not.toHaveBeenCalled();
+      expect(user.emailAddresses).toContain(googleEmail);
+      expect(result.current.googleDisconnectPendingCleanup).toBe(false);
+      expect(result.current.googleState.status).toBe("error");
+      expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["google@gmail.com", "changed-google@gmail.com"])(
+    "ExternalAccount削除後に同じGoogle identityが別resource（%s）で再生成された場合は成功扱いしない",
+    async (reconnectedEmailAddress) => {
+      const primaryEmail = emailResource({
+        id: "email-primary",
+        emailAddress: "login@example.com",
+        status: "verified",
+      });
+      const googleEmail = emailResource({
+        id: "email-google",
+        emailAddress: "google@gmail.com",
+        status: "verified",
+        linked: true,
+      });
+      const account = externalAccount({
+        id: "google-1",
+        status: "verified",
+        providerUserId: "provider-user-stable",
+      });
+      const reconnected = externalAccount({
+        id: "google-reconnected",
+        status: "verified",
+        emailAddress: reconnectedEmailAddress,
+        identificationId: "identification-google-reconnected",
+        providerUserId: "provider-user-stable",
+      });
+      const user = userResource({
+        passwordEnabled: true,
+        emailAddresses: [primaryEmail, googleEmail],
+        externalAccounts: [account],
+        primaryEmailAddressId: primaryEmail.id,
+      });
+      let reloadCount = 0;
+      vi.mocked(user.reload).mockImplementation(async () => {
+        reloadCount += 1;
+        if (reloadCount === 3) user.externalAccounts = [reconnected];
+        return user;
+      });
+      vi.mocked(account.destroy).mockImplementation(async () => {
+        user.externalAccounts = [];
+        Object.assign(googleEmail, { linkedTo: [] });
+      });
+      const { result } = renderController(user);
+
+      await act(async () => result.current.disconnectGoogle(account.id));
+
+      expect(account.destroy).toHaveBeenCalledOnce();
+      expect(googleEmail.destroy).not.toHaveBeenCalled();
+      expect(user.externalAccounts).toEqual([reconnected]);
+      expect(result.current.googleState.status).toBe("error");
+      expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+    },
+  );
+
+  it("Google解除の連打はsingle-flightで各削除を一回に抑える", async () => {
+    const primaryEmail = emailResource({
+      id: "email-primary",
+      emailAddress: "login@example.com",
+      status: "verified",
+    });
+    const googleEmail = emailResource({
+      id: "email-google",
+      emailAddress: "google@gmail.com",
+      status: "verified",
+      linked: true,
+    });
+    const account = externalAccount({ id: "google-1", status: "verified" });
+    const user = userResource({
+      passwordEnabled: true,
+      emailAddresses: [primaryEmail, googleEmail],
+      externalAccounts: [account],
+      primaryEmailAddressId: primaryEmail.id,
+    });
+    let releaseDestroy: () => void = () => {};
+    const destroyBlocked = new Promise<void>((resolve) => {
+      releaseDestroy = resolve;
+    });
+    vi.mocked(account.destroy).mockImplementation(async () => {
+      await destroyBlocked;
+      user.externalAccounts = [];
+      Object.assign(googleEmail, { linkedTo: [] });
+    });
+    const { result } = renderController(user);
+
+    let first: Promise<boolean | undefined> | undefined;
+    let second: Promise<boolean | undefined> | undefined;
+    act(() => {
+      first = result.current.disconnectGoogle(account.id);
+      second = result.current.disconnectGoogle(account.id);
+    });
+    await waitFor(() => expect(account.destroy).toHaveBeenCalledOnce());
+    releaseDestroy();
+    await act(async () => Promise.all([first, second]));
+
+    expect(account.destroy).toHaveBeenCalledOnce();
+    expect(googleEmail.destroy).toHaveBeenCalledOnce();
+    expect(mocks.showSuccessToast).toHaveBeenCalledOnce();
   });
 
   it("Google解除直前のreloadでfallbackが消えた場合は破棄要求を送らない", async () => {
@@ -762,7 +1191,7 @@ describe("useLoginMethodsController", () => {
     expect(user.externalAccounts).toEqual([account]);
     expect(result.current.googleState).toEqual({
       status: "error",
-      message: "ログイン方法の状態が変わったため、Google連携を解除していません。",
+      message: "ログイン方法の状態が変わったため、Google連携を解除していません。最新の状態を読み込んでください。",
     });
   });
 
@@ -852,17 +1281,21 @@ function emailResource({
   emailAddress,
   status,
   linked = false,
+  linkedIdentificationId = "identification-google-1",
+  linkedTo,
 }: {
   id: string;
   emailAddress: string;
   status: "verified" | "unverified";
   linked?: boolean;
+  linkedIdentificationId?: string;
+  linkedTo?: Array<{ id: string; type: string }>;
 }) {
   const resource = {
     id,
     emailAddress,
     verification: { status },
-    linkedTo: linked ? [{ id: `link-${id}`, type: "oauth_google" }] : [],
+    linkedTo: linkedTo ?? (linked ? [{ id: linkedIdentificationId, type: "oauth_google" }] : []),
     prepareVerification: vi.fn(async () => resource),
     attemptVerification: vi.fn(async () => {
       resource.verification.status = "verified" as const;
@@ -877,13 +1310,19 @@ function externalAccount({
   id,
   status,
   emailAddress = "google@gmail.com",
+  identificationId = `identification-${id}`,
+  providerUserId = `provider-user-${id}`,
 }: {
   id: string;
   status: "verified" | "unverified";
   emailAddress?: string;
+  identificationId?: string;
+  providerUserId?: string;
 }) {
   const resource = {
     id,
+    identificationId,
+    providerUserId,
     provider: "google",
     emailAddress,
     verification: {

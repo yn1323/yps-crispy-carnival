@@ -4,6 +4,15 @@ import { normalizeEmail } from "@/convex/_lib/validation";
 type EmailAddressOwner = Pick<UserResource, "emailAddresses" | "primaryEmailAddressId">;
 type ExternalAccountOwner = Pick<UserResource, "externalAccounts">;
 type LoginMethodOwner = Pick<UserResource, "emailAddresses" | "passwordEnabled">;
+type GoogleDisconnectOwner = Pick<
+  UserResource,
+  "emailAddresses" | "externalAccounts" | "passwordEnabled" | "primaryEmailAddressId"
+>;
+
+export type GoogleDisconnectPlan =
+  | { status: "externalOnly" }
+  | { status: "externalAndEmail"; emailAddress: EmailAddressResource }
+  | { status: "unavailable" };
 
 export function findLoginEmailAddress(
   user: Pick<UserResource, "emailAddresses">,
@@ -59,4 +68,52 @@ export function isVerifiedOwnedGoogleExternalAccount(
         normalizeEmail(emailAddress.emailAddress) === normalizeEmail(account.emailAddress),
     )
   );
+}
+
+export function buildGoogleDisconnectPlan(
+  user: GoogleDisconnectOwner,
+  targetAccount: ExternalAccountResource,
+): GoogleDisconnectPlan {
+  const currentAccount = user.externalAccounts.find((account) => account.id === targetAccount.id);
+  const primaryEmail = findVerifiedPrimaryLoginEmailAddress(user);
+  if (
+    !user.passwordEnabled ||
+    !primaryEmail ||
+    !currentAccount ||
+    currentAccount.provider !== "google" ||
+    currentAccount.verification?.status !== "verified" ||
+    !currentAccount.identificationId ||
+    currentAccount.identificationId !== targetAccount.identificationId ||
+    !currentAccount.providerUserId ||
+    currentAccount.providerUserId !== targetAccount.providerUserId
+  ) {
+    return { status: "unavailable" };
+  }
+
+  const googleEmail = normalizeEmail(currentAccount.emailAddress);
+  const matchingGoogleAccounts = user.externalAccounts.filter(
+    (account) =>
+      account.provider === "google" &&
+      (account.providerUserId === currentAccount.providerUserId ||
+        normalizeEmail(account.emailAddress) === googleEmail),
+  );
+  if (matchingGoogleAccounts.length !== 1 || matchingGoogleAccounts[0]?.id !== currentAccount.id) {
+    return { status: "unavailable" };
+  }
+  if (normalizeEmail(primaryEmail.emailAddress) === googleEmail) {
+    return { status: "externalOnly" };
+  }
+
+  const candidates = user.emailAddresses.filter(
+    (emailAddress) => emailAddress.id !== primaryEmail.id && normalizeEmail(emailAddress.emailAddress) === googleEmail,
+  );
+
+  const candidate = candidates[0];
+  return candidates.length === 1 &&
+    isVerifiedLoginEmailAddress(candidate) &&
+    candidate?.linkedTo.length === 1 &&
+    candidate.linkedTo[0]?.id === currentAccount.identificationId &&
+    candidate.linkedTo[0]?.type === "oauth_google"
+    ? { status: "externalAndEmail", emailAddress: candidate }
+    : { status: "unavailable" };
 }

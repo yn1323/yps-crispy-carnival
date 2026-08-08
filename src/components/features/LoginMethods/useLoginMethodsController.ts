@@ -1,12 +1,13 @@
 import { useReverification } from "@clerk/react";
 import { isReverificationCancelledError } from "@clerk/react/errors";
 import type { EmailAddressResource, UserResource } from "@clerk/shared/types";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { normalizeEmail, requiredEmailSchema } from "@/convex/_lib/validation";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { toLoginMethodsUserSnapshot } from "./adapter";
 import {
+  buildGoogleDisconnectPlan,
   findLoginEmailAddress,
   findVerifiedPrimaryLoginEmailAddress,
   getGoogleExternalAccountStateKeys,
@@ -20,7 +21,13 @@ import {
 } from "./operationCooldown";
 import type { LoginMethodOnNeedsReverification, LoginMethodOperationOptions } from "./reverificationTypes";
 import { buildLoginMethodsViewModel } from "./script";
-import type { LoginEmailChangeDialogState, LoginMethodsCardState, LoginMethodsController } from "./types";
+import type {
+  GoogleDisconnectMode,
+  GoogleDisconnectPreparation,
+  LoginEmailChangeDialogState,
+  LoginMethodsCardState,
+  LoginMethodsController,
+} from "./types";
 
 const IDLE_STATE: LoginMethodsCardState = { status: "idle", message: null };
 const LOADING_STATE: LoginMethodsCardState = { status: "loading", message: null };
@@ -34,6 +41,12 @@ const GOOGLE_LINKED_EMAIL_CHANGE_MESSAGE =
   "このメールアドレスはGoogleログインと連携されています。先にGoogle連携を解除してから、メールアドレスを変更してください。";
 const GOOGLE_DISCONNECT_EMAIL_REQUIRED_MESSAGE =
   "メールアドレス未設定時はGoogle認証を解除できません。先にメールアドレスとパスワードを設定してください。";
+const GOOGLE_DISCONNECT_STATE_CHANGED_MESSAGE =
+  "ログイン方法の状態が変わったため、Google連携を解除していません。最新の状態を読み込んでください。";
+const GOOGLE_DISCONNECT_CLEANUP_PENDING_MESSAGE =
+  "Google連携は解除されましたが、関連するメールアドレスの削除を完了できませんでした。この画面を閉じずに、もう一度お試しください。";
+const GOOGLE_DISCONNECT_RESULT_UNAVAILABLE_MESSAGE =
+  "Google連携の解除結果を安全に確認できません。最新の状態を読み込んでください。";
 
 type ControllerOptions = {
   isLoaded: boolean;
@@ -52,6 +65,20 @@ type PrimaryChangeBaseline = {
   googleAccounts: string[];
 };
 
+type PreparedGoogleDisconnectPlan = {
+  actorUserId: string;
+  mode: GoogleDisconnectMode;
+  externalAccountId: string;
+  externalIdentificationId: string;
+  externalProviderUserId: string;
+  googleEmailAddress: string;
+  normalizedGoogleEmail: string;
+  primaryEmailAddressId: string;
+  normalizedPrimaryEmail: string;
+  emailAddressId: string | null;
+  preservedEmailAddressIds: string[];
+};
+
 export function useLoginMethodsController({
   isLoaded,
   user,
@@ -64,7 +91,9 @@ export function useLoginMethodsController({
   const localOperationCooldown = useMemo(() => createLoginMethodOperationCooldown(), []);
   const retryCooldown = operationCooldown ?? localOperationCooldown;
   const [, setResourceRevision] = useState(0);
+  const googleDisconnectPlanRef = useRef<PreparedGoogleDisconnectPlan | null>(null);
   const [googleState, setGoogleState] = useState<LoginMethodsCardState>(IDLE_STATE);
+  const [googleDisconnectPendingCleanup, setGoogleDisconnectPendingCleanup] = useState(false);
   const [emailPasswordState, setEmailPasswordState] = useState<LoginMethodsCardState>(IDLE_STATE);
   const [emailChangeDialog, setEmailChangeDialog] = useState<LoginEmailChangeDialogState>({ isOpen: false });
 
@@ -85,13 +114,21 @@ export function useLoginMethodsController({
   };
 
   const reverificationOptions = { onNeedsReverification };
-  const destroyGoogleWithReverification = useReverification(async (externalAccountId: string) => {
+  const destroyGoogleWithReverification = useReverification(async (plan: PreparedGoogleDisconnectPlan) => {
     const currentUser = await reloadUser();
-    const freshViewModel = buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser));
-    const freshAccount = currentUser.externalAccounts.find((account) => account.id === externalAccountId);
-    const accountViewModel = freshViewModel.google.accounts.find((account) => account.id === externalAccountId);
-    if (freshAccount?.provider !== "google" || !accountViewModel?.canDisconnect) return "unavailable" as const;
+    if (!preparedGoogleDisconnectPlanMatches(currentUser, actorUserId, plan)) return "unavailable" as const;
+    const freshAccount = currentUser.externalAccounts.find((account) => account.id === plan.externalAccountId);
+    if (!freshAccount) return "unavailable" as const;
     await freshAccount.destroy();
+    return "removed" as const;
+  }, reverificationOptions);
+  const destroyGoogleEmailWithReverification = useReverification(async (plan: PreparedGoogleDisconnectPlan) => {
+    const currentUser = await reloadUser();
+    if (googleDisconnectCompleted(currentUser, actorUserId, plan)) return "alreadyRemoved" as const;
+    if (!googleDisconnectReadyForEmailCleanup(currentUser, actorUserId, plan)) return "unavailable" as const;
+    const targetEmail = findLoginEmailAddress(currentUser, plan.emailAddressId);
+    if (!targetEmail) return "unavailable" as const;
+    await targetEmail.destroy();
     return "removed" as const;
   }, reverificationOptions);
   const ensureEmailAddressWithReverification = useReverification(async (email: string) => {
@@ -276,60 +313,164 @@ export function useLoginMethodsController({
     return true;
   };
 
+  const showGoogleDisconnectSuccess = () => {
+    googleDisconnectPlanRef.current = null;
+    setGoogleDisconnectPendingCleanup(false);
+    setGoogleState(IDLE_STATE);
+    showSuccessToast({ title: "Google連携を解除しました" });
+    return true;
+  };
+
+  const showGoogleDisconnectUnavailable = (currentUser: UserResource, externalAccountId: string) => {
+    const freshViewModel = buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser));
+    const freshAccount = currentUser.externalAccounts.find((account) => account.id === externalAccountId);
+    if (freshAccount?.provider === "google" && freshViewModel.methodState === "googleOnly") {
+      setGoogleState(IDLE_STATE);
+      showErrorToast(new Error(GOOGLE_DISCONNECT_EMAIL_REQUIRED_MESSAGE));
+      return false;
+    }
+    setGoogleState(IDLE_STATE);
+    showErrorToast(new Error(GOOGLE_DISCONNECT_STATE_CHANGED_MESSAGE));
+    return false;
+  };
+
+  const settleGoogleDisconnectFailure = async (error: unknown, plan: PreparedGoogleDisconnectPlan) => {
+    try {
+      const currentUser = await reloadUser();
+      if (googleDisconnectCompleted(currentUser, actorUserId, plan)) return showGoogleDisconnectSuccess();
+      if (
+        plan.mode === "externalAndEmail" &&
+        googleExternalAccountRemoved(currentUser, plan) &&
+        googleDisconnectReadyForEmailCleanup(currentUser, actorUserId, plan)
+      ) {
+        setGoogleDisconnectPendingCleanup(true);
+        setGoogleState(cardError(GOOGLE_DISCONNECT_CLEANUP_PENDING_MESSAGE));
+        return false;
+      }
+      if (isReverificationCancelledError(error) && !googleExternalAccountRemoved(currentUser, plan)) {
+        setGoogleState(IDLE_STATE);
+        return false;
+      }
+    } catch {
+      // Clerkの最新状態で完了を証明できない場合は、成功や部分成功を推測しない。
+    }
+    setGoogleDisconnectPendingCleanup(false);
+    setGoogleState(
+      cardError(
+        isReverificationCancelledError(error)
+          ? GOOGLE_DISCONNECT_RESULT_UNAVAILABLE_MESSAGE
+          : getLoginMethodAccountErrorMessage(error),
+      ),
+    );
+    return false;
+  };
+
+  const completeGoogleDisconnect = async (currentUser: UserResource, plan: PreparedGoogleDisconnectPlan) => {
+    if (googleDisconnectCompleted(currentUser, actorUserId, plan)) return showGoogleDisconnectSuccess();
+
+    const currentAccount = currentUser.externalAccounts.find((account) => account.id === plan.externalAccountId);
+    if (currentAccount) {
+      if (!preparedGoogleDisconnectPlanMatches(currentUser, actorUserId, plan)) {
+        setGoogleState(cardError(GOOGLE_DISCONNECT_STATE_CHANGED_MESSAGE));
+        return false;
+      }
+      let destroyed: "removed" | "unavailable" | undefined;
+      try {
+        destroyed = await destroyGoogleWithReverification(plan);
+      } catch (error) {
+        if (isReverificationCancelledError(error)) return await settleGoogleDisconnectFailure(error, plan);
+        try {
+          await reloadUser();
+        } catch {
+          return await settleGoogleDisconnectFailure(error, plan);
+        }
+        if (!googleExternalAccountRemoved(currentUser, plan)) {
+          return await settleGoogleDisconnectFailure(error, plan);
+        }
+        destroyed = "removed";
+      }
+      if (destroyed == null) {
+        setGoogleState(IDLE_STATE);
+        return false;
+      }
+      if (destroyed === "unavailable") {
+        setGoogleState(cardError(GOOGLE_DISCONNECT_STATE_CHANGED_MESSAGE));
+        return false;
+      }
+      await reloadUser();
+    }
+
+    if (!googleExternalAccountRemoved(currentUser, plan)) {
+      setGoogleState(cardError(GOOGLE_DISCONNECT_RESULT_UNAVAILABLE_MESSAGE));
+      return false;
+    }
+    if (plan.mode === "externalOnly") {
+      if (googleDisconnectCompleted(currentUser, actorUserId, plan)) return showGoogleDisconnectSuccess();
+      setGoogleState(cardError(GOOGLE_DISCONNECT_RESULT_UNAVAILABLE_MESSAGE));
+      return false;
+    }
+    if (googleDisconnectCompleted(currentUser, actorUserId, plan)) return showGoogleDisconnectSuccess();
+    if (!googleDisconnectReadyForEmailCleanup(currentUser, actorUserId, plan)) {
+      setGoogleDisconnectPendingCleanup(false);
+      setGoogleState(cardError(GOOGLE_DISCONNECT_RESULT_UNAVAILABLE_MESSAGE));
+      return false;
+    }
+
+    let removed: "removed" | "alreadyRemoved" | "unavailable" | undefined;
+    try {
+      removed = await destroyGoogleEmailWithReverification(plan);
+    } catch (error) {
+      return await settleGoogleDisconnectFailure(error, plan);
+    }
+    if (removed == null) {
+      return await settleGoogleDisconnectFailure(new Error("Google email cleanup was interrupted"), plan);
+    }
+    await reloadUser();
+    if (googleDisconnectCompleted(currentUser, actorUserId, plan)) return showGoogleDisconnectSuccess();
+    if (removed === "unavailable" || !googleDisconnectReadyForEmailCleanup(currentUser, actorUserId, plan)) {
+      setGoogleDisconnectPendingCleanup(false);
+      setGoogleState(cardError(GOOGLE_DISCONNECT_RESULT_UNAVAILABLE_MESSAGE));
+      return false;
+    }
+    setGoogleDisconnectPendingCleanup(true);
+    setGoogleState(cardError(GOOGLE_DISCONNECT_CLEANUP_PENDING_MESSAGE));
+    return false;
+  };
+
   const { run: runGoogleOperation } = useSingleFlight(
     async (operation: "prepareDisconnect" | "disconnect", externalAccountId: string) => {
       setGoogleState(LOADING_STATE);
       try {
         const currentUser = await reloadUser();
-        const freshViewModel = buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser));
-        const freshAccount = currentUser.externalAccounts.find((account) => account.id === externalAccountId);
-        if (freshAccount?.provider !== "google") {
-          setGoogleState(cardError("Google連携の状態が変わりました。最新の状態を読み込んでください。"));
-          return false;
+        let plan =
+          operation === "disconnect" && googleDisconnectPlanRef.current?.externalAccountId === externalAccountId
+            ? googleDisconnectPlanRef.current
+            : null;
+        if (!plan) {
+          plan = prepareGoogleDisconnectPlan(currentUser, actorUserId, externalAccountId);
         }
+        if (!plan) return showGoogleDisconnectUnavailable(currentUser, externalAccountId);
 
-        const accountViewModel = freshViewModel.google.accounts.find((account) => account.id === externalAccountId);
-        if (!accountViewModel?.canDisconnect) {
-          if (freshViewModel.methodState === "googleOnly") {
-            setGoogleState(IDLE_STATE);
-            showErrorToast(new Error(GOOGLE_DISCONNECT_EMAIL_REQUIRED_MESSAGE));
-          } else {
-            setGoogleState(cardError(accountViewModel?.disconnectUnavailableReason ?? "Google連携を解除できません。"));
-          }
-          return false;
-        }
         if (operation === "prepareDisconnect") {
+          googleDisconnectPlanRef.current = plan;
+          setGoogleDisconnectPendingCleanup(false);
           setGoogleState(IDLE_STATE);
-          return true;
+          return {
+            mode: plan.mode,
+            googleEmailAddress: plan.googleEmailAddress,
+          } satisfies GoogleDisconnectPreparation;
         }
 
-        const destroyed = await destroyGoogleWithReverification(externalAccountId);
-        if (destroyed === "unavailable") {
-          setGoogleState(cardError("ログイン方法の状態が変わったため、Google連携を解除していません。"));
-          return false;
-        }
-        await reloadUser();
-        if (!googleDisconnectCompleted(currentUser, externalAccountId)) {
-          setGoogleState(cardError("Google連携の解除結果を安全に確認できません。最新の状態を読み込んでください。"));
-          return false;
-        }
-        setGoogleState(IDLE_STATE);
-        showSuccessToast({ title: "Google連携を解除しました" });
-        return true;
+        googleDisconnectPlanRef.current = plan;
+        return await completeGoogleDisconnect(currentUser, plan);
       } catch (error) {
+        const plan = googleDisconnectPlanRef.current;
+        if (operation === "disconnect" && plan?.externalAccountId === externalAccountId) {
+          return await settleGoogleDisconnectFailure(error, plan);
+        }
         if (isReverificationCancelledError(error)) {
           setGoogleState(IDLE_STATE);
           return false;
-        }
-        try {
-          const currentUser = await reloadUser();
-          if (operation === "disconnect" && googleDisconnectCompleted(currentUser, externalAccountId)) {
-            setGoogleState(IDLE_STATE);
-            showSuccessToast({ title: "Google連携を解除しました" });
-            return true;
-          }
-        } catch {
-          // 応答を失った場合も、最新resourceで完了を証明できなければ成功扱いにしない。
         }
         setGoogleState(cardError(getLoginMethodAccountErrorMessage(error)));
         return false;
@@ -510,15 +651,26 @@ export function useLoginMethodsController({
     viewModel,
     isLoaded,
     googleState,
+    googleDisconnectPendingCleanup,
     emailPasswordState,
     emailChangeDialog,
     reload,
-    prepareGoogleDisconnect: (externalAccountId) => runGoogleOperation("prepareDisconnect", externalAccountId),
-    disconnectGoogle: async (externalAccountId) =>
-      (await runOperation(
+    prepareGoogleDisconnect: async (externalAccountId) => {
+      const outcome = await runGoogleOperation("prepareDisconnect", externalAccountId);
+      return outcome && typeof outcome === "object" ? outcome : false;
+    },
+    disconnectGoogle: async (externalAccountId) => {
+      const outcome = await runOperation(
         () => runGoogleOperation("disconnect", externalAccountId),
         GOOGLE_DISCONNECT_REVERIFICATION_OPTIONS,
-      )) ?? false,
+      );
+      return outcome === true;
+    },
+    closeGoogleDisconnect: () => {
+      googleDisconnectPlanRef.current = null;
+      setGoogleDisconnectPendingCleanup(false);
+      setGoogleState(IDLE_STATE);
+    },
     openLoginEmailChange: () => {
       const primaryEmail = viewModel.emailPassword.primaryEmail;
       if (!viewModel.emailPassword.canChangeLoginEmail || !primaryEmail) {
@@ -634,11 +786,123 @@ function primaryChangeBaseMatches(
   );
 }
 
-function googleDisconnectCompleted(user: UserResource, externalAccountId: string) {
+function prepareGoogleDisconnectPlan(
+  user: UserResource,
+  actorUserId: string | null,
+  externalAccountId: string,
+): PreparedGoogleDisconnectPlan | null {
+  if (!actorUserId || user.id !== actorUserId) return null;
+  const externalAccount = user.externalAccounts.find((account) => account.id === externalAccountId);
+  const primaryEmail = findVerifiedPrimaryLoginEmailAddress(user);
+  if (!externalAccount || !primaryEmail) return null;
+
+  const plan = buildGoogleDisconnectPlan(user, externalAccount);
+  if (plan.status === "unavailable") return null;
+  const emailAddressId = plan.status === "externalAndEmail" ? plan.emailAddress.id : null;
+  return {
+    actorUserId,
+    mode: plan.status,
+    externalAccountId: externalAccount.id,
+    externalIdentificationId: externalAccount.identificationId,
+    externalProviderUserId: externalAccount.providerUserId,
+    googleEmailAddress: plan.status === "externalAndEmail" ? plan.emailAddress.emailAddress : primaryEmail.emailAddress,
+    normalizedGoogleEmail: normalizeEmail(externalAccount.emailAddress),
+    primaryEmailAddressId: primaryEmail.id,
+    normalizedPrimaryEmail: normalizeEmail(primaryEmail.emailAddress),
+    emailAddressId,
+    preservedEmailAddressIds: user.emailAddresses
+      .filter((emailAddress) => emailAddress.id !== emailAddressId)
+      .map((emailAddress) => emailAddress.id),
+  };
+}
+
+function preparedGoogleDisconnectPlanMatches(
+  user: UserResource,
+  actorUserId: string | null,
+  prepared: PreparedGoogleDisconnectPlan,
+) {
+  const current = prepareGoogleDisconnectPlan(user, actorUserId, prepared.externalAccountId);
   return (
-    !user.externalAccounts.some((account) => account.id === externalAccountId) &&
+    current?.actorUserId === prepared.actorUserId &&
+    current.mode === prepared.mode &&
+    current.externalIdentificationId === prepared.externalIdentificationId &&
+    current.externalProviderUserId === prepared.externalProviderUserId &&
+    current.googleEmailAddress === prepared.googleEmailAddress &&
+    current.normalizedGoogleEmail === prepared.normalizedGoogleEmail &&
+    current.primaryEmailAddressId === prepared.primaryEmailAddressId &&
+    current.normalizedPrimaryEmail === prepared.normalizedPrimaryEmail &&
+    current.emailAddressId === prepared.emailAddressId &&
+    prepared.preservedEmailAddressIds.every((id) => current.preservedEmailAddressIds.includes(id))
+  );
+}
+
+function googleDisconnectFallbackMatches(
+  user: UserResource,
+  actorUserId: string | null,
+  plan: PreparedGoogleDisconnectPlan,
+) {
+  const primaryEmail = findVerifiedPrimaryLoginEmailAddress(user);
+  return (
+    actorUserId === plan.actorUserId &&
+    user.id === plan.actorUserId &&
     user.passwordEnabled &&
-    user.emailAddresses.some((emailAddress) => emailAddress.verification?.status === "verified")
+    primaryEmail?.id === plan.primaryEmailAddressId &&
+    normalizeEmail(primaryEmail.emailAddress) === plan.normalizedPrimaryEmail &&
+    plan.preservedEmailAddressIds.every((id) => user.emailAddresses.some((emailAddress) => emailAddress.id === id))
+  );
+}
+
+function googleExternalAccountRemoved(user: UserResource, plan: PreparedGoogleDisconnectPlan) {
+  return !user.externalAccounts.some(
+    (account) =>
+      account.id === plan.externalAccountId ||
+      account.identificationId === plan.externalIdentificationId ||
+      (account.provider === "google" &&
+        (account.providerUserId === plan.externalProviderUserId ||
+          normalizeEmail(account.emailAddress) === plan.normalizedGoogleEmail)),
+  );
+}
+
+function googleDisconnectReadyForEmailCleanup(
+  user: UserResource,
+  actorUserId: string | null,
+  plan: PreparedGoogleDisconnectPlan,
+) {
+  if (plan.mode !== "externalAndEmail" || !plan.emailAddressId) return false;
+  const targetEmail = findLoginEmailAddress(user, plan.emailAddressId);
+  const sameGoogleEmailAddresses = user.emailAddresses.filter(
+    (emailAddress) => normalizeEmail(emailAddress.emailAddress) === plan.normalizedGoogleEmail,
+  );
+  const targetLinkIsAbsentOrOriginal =
+    targetEmail?.linkedTo.length === 0 ||
+    (targetEmail?.linkedTo.length === 1 &&
+      targetEmail.linkedTo[0]?.id === plan.externalIdentificationId &&
+      targetEmail.linkedTo[0]?.type === "oauth_google");
+  return (
+    googleDisconnectFallbackMatches(user, actorUserId, plan) &&
+    googleExternalAccountRemoved(user, plan) &&
+    sameGoogleEmailAddresses.length === 1 &&
+    sameGoogleEmailAddresses[0]?.id === targetEmail?.id &&
+    targetEmail?.id !== user.primaryEmailAddressId &&
+    targetEmail?.verification?.status === "verified" &&
+    targetEmail.emailAddress === plan.googleEmailAddress &&
+    normalizeEmail(targetEmail.emailAddress) === plan.normalizedGoogleEmail &&
+    targetLinkIsAbsentOrOriginal
+  );
+}
+
+function googleDisconnectCompleted(user: UserResource, actorUserId: string | null, plan: PreparedGoogleDisconnectPlan) {
+  if (!googleDisconnectFallbackMatches(user, actorUserId, plan) || !googleExternalAccountRemoved(user, plan)) {
+    return false;
+  }
+  if (plan.mode === "externalOnly") return plan.emailAddressId === null;
+  return (
+    plan.emailAddressId !== null &&
+    !user.emailAddresses.some(
+      (emailAddress) =>
+        emailAddress.id === plan.emailAddressId ||
+        normalizeEmail(emailAddress.emailAddress) === plan.normalizedGoogleEmail,
+    )
   );
 }
 

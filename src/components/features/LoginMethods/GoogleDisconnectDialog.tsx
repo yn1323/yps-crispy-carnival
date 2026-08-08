@@ -1,16 +1,20 @@
-import { Alert, Stack, Text } from "@chakra-ui/react";
+import { Alert, Button, Stack, Text } from "@chakra-ui/react";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { LoginMethodReverificationView } from "./LoginMethodReverificationView";
 import type { LoginMethodReverificationController } from "./reverificationTypes";
-import type { LoginMethodsCardState, LoginMethodsController } from "./types";
+import type { GoogleDisconnectMode, LoginMethodsCardState, LoginMethodsController } from "./types";
 
 export function GoogleDisconnectDialog({
   externalAccountId,
+  mode,
+  googleEmailAddress,
   controller,
   reverification,
   onClose,
 }: {
   externalAccountId: string | null;
+  mode: GoogleDisconnectMode | null;
+  googleEmailAddress: string | null;
   controller: LoginMethodsController;
   reverification: LoginMethodReverificationController;
   onClose: () => void;
@@ -19,7 +23,9 @@ export function GoogleDisconnectDialog({
   const isReverifying = reverification.state.status !== "idle";
   const isReverificationSubmitting =
     reverification.state.status === "submitting" || reverification.state.status === "completing";
+  const isCleanupPending = controller.googleDisconnectPendingCleanup;
   const requestClose = () => {
+    if (isCleanupPending) return;
     if (isReverifying) {
       if (isReverificationSubmitting) return;
       reverification.cancel();
@@ -33,29 +39,54 @@ export function GoogleDisconnectDialog({
 
   return (
     <Dialog
-      title={isReverifying ? "確認が必要です" : "Google連携を解除"}
+      title={isReverifying ? "確認が必要です" : isCleanupPending ? "Google連携の解除を完了" : "Google連携を解除"}
       role="alertdialog"
-      isOpen={externalAccountId !== null}
+      isOpen={externalAccountId !== null && mode !== null && googleEmailAddress !== null}
       onOpenChange={({ open }) => {
         if (!open) requestClose();
       }}
       onClose={requestClose}
       onBackGuardRemoved={requestClose}
-      preventClose={isReverifying ? isReverificationSubmitting : isBusy}
-      onSubmit={isReverifying ? undefined : submit}
-      submitLabel="解除する"
-      submitColorPalette="red"
-      isLoading={isBusy && !isReverifying}
+      preventClose={isCleanupPending || (isReverifying ? isReverificationSubmitting : isBusy)}
       hideFooter={isReverifying}
+      footer={
+        <>
+          {!isCleanupPending ? (
+            <Button key="cancel" variant="outline" disabled={isBusy} onClick={requestClose}>
+              キャンセル
+            </Button>
+          ) : null}
+          <Button key="submit" colorPalette="red" loading={isBusy} onClick={submit}>
+            {isCleanupPending ? "もう一度試す" : "解除する"}
+          </Button>
+        </>
+      }
     >
       {isReverifying ? <LoginMethodReverificationView controller={reverification} /> : null}
       {!isReverifying ? (
         <Stack gap={4}>
-          <Text>
-            このGoogleアカウントではログインできなくなります。
-            <br />
-            メールアドレスとパスワードは残ります。
-          </Text>
+          {mode === "externalOnly" ? (
+            <Text>
+              Google連携を解除します。
+              <br />
+              現在のメールアドレス（
+              <Text as="span" fontWeight="semibold" overflowWrap="anywhere">
+                {googleEmailAddress}
+              </Text>
+              ）は削除されません。同じGoogleアカウントでログインすると、再び連携される場合があります。
+            </Text>
+          ) : (
+            <Text>
+              Google連携を解除し、このGoogleアカウントのメールアドレスもログイン方法から削除します。
+              <br />
+              削除するメールアドレス：
+              <Text as="span" fontWeight="semibold" overflowWrap="anywhere">
+                {googleEmailAddress}
+              </Text>
+              <br />
+              現在のメールアドレスとパスワードは残ります。
+            </Text>
+          )}
           <CardError state={controller.googleState} />
         </Stack>
       ) : null}
