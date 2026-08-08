@@ -1,5 +1,6 @@
 import { Field, Input, Stack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
+import type { ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import type { z } from "zod";
 import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH } from "@/convex/constants";
@@ -11,7 +12,7 @@ type Props = {
   formId: string;
   initialValues: PersonProfileFormData;
   emailLabel?: string;
-  emailHelperText?: string;
+  emailHelperText?: ReactNode;
   onSubmit: (data: PersonProfileFormData) => void | Promise<void>;
 };
 
