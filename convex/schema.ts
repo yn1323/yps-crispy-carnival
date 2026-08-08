@@ -1270,7 +1270,7 @@ const schema = defineSchema({
       "currentPlan",
       "registeredAt",
     ])
-    .index("by_organizationId_and_deletedAt_and_latestActivityAt_and_registeredAt", [
+    .index("by_organizationId_deletedAt_latestActivityAt_registeredAt", [
       "organizationId",
       "deletedAt",
       "latestActivityAt",

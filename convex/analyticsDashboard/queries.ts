@@ -929,7 +929,7 @@ async function shopPage(
       const organizationId = args.organizationId;
       return await ctx.db
         .query("analyticsShops")
-        .withIndex("by_organizationId_and_deletedAt_and_latestActivityAt_and_registeredAt", (q) =>
+        .withIndex("by_organizationId_deletedAt_latestActivityAt_registeredAt", (q) =>
           q.eq("organizationId", organizationId).eq("deletedAt", undefined),
         )
         .order(args.direction)
