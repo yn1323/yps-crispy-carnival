@@ -93,13 +93,18 @@ describe("useLoginMethodsController", () => {
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();
   });
 
-  it("PrimaryメールがGoogleにlinkedしていればDialogを開かず解除をSnackbarで促す", () => {
+  it("Google-linkedの旧Primaryを保持したまま変更先をPrimaryにする", async () => {
     const primaryEmail = emailResource({
       id: "email-primary",
       emailAddress: "login@example.com",
       status: "verified",
       linked: true,
     });
+    const targetEmail = emailResource({
+      id: "email-target",
+      emailAddress: "next@example.com",
+      status: "verified",
+    });
     const googleAccount = externalAccount({
       id: "google-1",
       status: "verified",
@@ -107,25 +112,33 @@ describe("useLoginMethodsController", () => {
     });
     const user = userResource({
       passwordEnabled: true,
-      emailAddresses: [primaryEmail],
+      emailAddresses: [primaryEmail, targetEmail],
       externalAccounts: [googleAccount],
       primaryEmailAddressId: primaryEmail.id,
     });
     const { result } = renderController(user);
 
     act(() => result.current.openLoginEmailChange());
+    expect(result.current.emailChangeDialog).toMatchObject({ isOpen: true, step: "input" });
 
+    await act(async () => result.current.startLoginEmailChange(targetEmail.emailAddress));
+
+    expect(user.update).toHaveBeenCalledWith({ primaryEmailAddressId: targetEmail.id });
+    expect(user.primaryEmailAddressId).toBe(targetEmail.id);
+    expect(user.emailAddresses).toEqual([primaryEmail, targetEmail]);
+    expect(primaryEmail.destroy).not.toHaveBeenCalled();
+    expect(user.externalAccounts).toEqual([googleAccount]);
     expect(result.current.emailChangeDialog).toEqual({ isOpen: false });
-    expect(mocks.showErrorToast).toHaveBeenCalledOnce();
-    expect(mocks.showErrorToast.mock.calls[0]?.[0]).toEqual(
-      new Error(
-        "このメールアドレスはGoogleログインと連携されています。先にGoogle連携を解除してから、メールアドレスを変更してください。",
-      ),
-    );
+    expect(mocks.showSuccessToast).toHaveBeenCalledOnce();
   });
 
-  it("Dialog表示後にPrimaryメールがGoogleへlinkedされてもメール追加を開始しない", async () => {
+  it("Dialog表示後に旧PrimaryがGoogleへlinkedされた場合は開始時状態との不一致として停止する", async () => {
     const primaryEmail = emailResource({ id: "email-primary", emailAddress: "login@example.com", status: "verified" });
+    const targetEmail = emailResource({
+      id: "email-target",
+      emailAddress: "next@example.com",
+      status: "verified",
+    });
     const googleAccount = externalAccount({
       id: "google-1",
       status: "verified",
@@ -133,7 +146,7 @@ describe("useLoginMethodsController", () => {
     });
     const user = userResource({
       passwordEnabled: true,
-      emailAddresses: [primaryEmail],
+      emailAddresses: [primaryEmail, targetEmail],
       externalAccounts: [googleAccount],
       primaryEmailAddressId: primaryEmail.id,
     });
@@ -143,13 +156,97 @@ describe("useLoginMethodsController", () => {
     expect(result.current.emailChangeDialog).toMatchObject({ isOpen: true, step: "input" });
     Object.assign(primaryEmail, { linkedTo: [{ id: "link-primary", type: "oauth_google" }] });
 
-    await act(async () => result.current.startLoginEmailChange("next@example.com"));
+    await act(async () => result.current.startLoginEmailChange(targetEmail.emailAddress));
 
     expect(user.createEmailAddress).not.toHaveBeenCalled();
     expect(user.update).not.toHaveBeenCalled();
+    expect(user.primaryEmailAddressId).toBe(primaryEmail.id);
+    expect(user.emailAddresses).toEqual([primaryEmail, targetEmail]);
     expect(primaryEmail.destroy).not.toHaveBeenCalled();
-    expect(result.current.emailChangeDialog).toEqual({ isOpen: false });
-    expect(mocks.showErrorToast).toHaveBeenCalledOnce();
+    expect(result.current.emailChangeDialog).toMatchObject({ isOpen: true, step: "input" });
+    expect(result.current.emailPasswordState).toEqual({
+      status: "error",
+      message: "ログイン方法の状態が変わりました。最新の状態を読み込んでください。",
+    });
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+  });
+
+  it("EmailAddress追加中にPrimaryが変わった場合は開始時Primaryを削除対象へ読み替えない", async () => {
+    const primaryEmail = emailResource({ id: "email-primary", emailAddress: "login@example.com", status: "verified" });
+    const unrelatedEmail = emailResource({
+      id: "email-unrelated",
+      emailAddress: "unrelated@example.com",
+      status: "verified",
+    });
+    const createdEmail = emailResource({
+      id: "email-created",
+      emailAddress: "next@example.com",
+      status: "unverified",
+    });
+    const user = userResource({
+      passwordEnabled: true,
+      emailAddresses: [primaryEmail, unrelatedEmail],
+      primaryEmailAddressId: primaryEmail.id,
+    });
+    vi.mocked(user.createEmailAddress).mockImplementation(async () => {
+      user.emailAddresses = [primaryEmail, unrelatedEmail, createdEmail];
+      user.primaryEmailAddressId = unrelatedEmail.id;
+      return createdEmail;
+    });
+    const { result } = renderController(user);
+
+    act(() => result.current.openLoginEmailChange());
+    await act(async () => result.current.startLoginEmailChange(createdEmail.emailAddress));
+
+    expect(user.createEmailAddress).toHaveBeenCalledOnce();
+    expect(user.update).not.toHaveBeenCalled();
+    expect(createdEmail.prepareVerification).not.toHaveBeenCalled();
+    expect(primaryEmail.destroy).not.toHaveBeenCalled();
+    expect(unrelatedEmail.destroy).not.toHaveBeenCalled();
+    expect(user.primaryEmailAddressId).toBe(unrelatedEmail.id);
+    expect(result.current.emailPasswordState).toEqual({
+      status: "error",
+      message: "ログイン方法の状態が変わりました。最新の状態を読み込んでください。",
+    });
+  });
+
+  it("EmailAddress追加中に旧PrimaryのGoogle-linked方針が変わった場合は後続副作用を止める", async () => {
+    const primaryEmail = emailResource({ id: "email-primary", emailAddress: "login@example.com", status: "verified" });
+    const createdEmail = emailResource({
+      id: "email-created",
+      emailAddress: "next@example.com",
+      status: "unverified",
+    });
+    const googleAccount = externalAccount({
+      id: "google-1",
+      status: "verified",
+      emailAddress: primaryEmail.emailAddress,
+    });
+    const user = userResource({
+      passwordEnabled: true,
+      emailAddresses: [primaryEmail],
+      externalAccounts: [googleAccount],
+      primaryEmailAddressId: primaryEmail.id,
+    });
+    vi.mocked(user.createEmailAddress).mockImplementation(async () => {
+      user.emailAddresses = [primaryEmail, createdEmail];
+      Object.assign(primaryEmail, { linkedTo: [{ id: googleAccount.identificationId, type: "oauth_google" }] });
+      return createdEmail;
+    });
+    const { result } = renderController(user);
+
+    act(() => result.current.openLoginEmailChange());
+    await act(async () => result.current.startLoginEmailChange(createdEmail.emailAddress));
+
+    expect(user.createEmailAddress).toHaveBeenCalledOnce();
+    expect(user.update).not.toHaveBeenCalled();
+    expect(createdEmail.prepareVerification).not.toHaveBeenCalled();
+    expect(primaryEmail.destroy).not.toHaveBeenCalled();
+    expect(user.primaryEmailAddressId).toBe(primaryEmail.id);
+    expect(result.current.emailPasswordState).toEqual({
+      status: "error",
+      message: "ログイン方法の状態が変わりました。最新の状態を読み込んでください。",
+    });
   });
 
   it.each([
@@ -311,6 +408,55 @@ describe("useLoginMethodsController", () => {
     expect(mocks.showSuccessToast).toHaveBeenCalledOnce();
   });
 
+  it.each(["確認", "再送"] as const)("Dialog開始後にPrimaryが変わればコードの%s副作用を止める", async (operation) => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(3_000_000);
+    const primaryEmail = emailResource({
+      id: "email-primary",
+      emailAddress: "login@example.com",
+      status: "verified",
+    });
+    const unrelatedEmail = emailResource({
+      id: "email-unrelated",
+      emailAddress: "unrelated@example.com",
+      status: "verified",
+    });
+    const pendingEmail = emailResource({
+      id: "email-pending",
+      emailAddress: "next@example.com",
+      status: "unverified",
+    });
+    const user = userResource({
+      passwordEnabled: true,
+      emailAddresses: [primaryEmail, unrelatedEmail, pendingEmail],
+      primaryEmailAddressId: primaryEmail.id,
+    });
+    const { result } = renderController(user);
+
+    act(() => result.current.openLoginEmailChange());
+    await act(async () => result.current.startLoginEmailChange(pendingEmail.emailAddress));
+    user.primaryEmailAddressId = unrelatedEmail.id;
+    now.mockReturnValue(3_030_000);
+
+    if (operation === "確認") {
+      await act(async () => result.current.verifyLoginEmailCode("123456"));
+    } else {
+      await act(async () => result.current.resendLoginEmailCode());
+    }
+
+    expect(pendingEmail.attemptVerification).not.toHaveBeenCalled();
+    expect(pendingEmail.prepareVerification).toHaveBeenCalledOnce();
+    expect(user.update).not.toHaveBeenCalled();
+    expect(primaryEmail.destroy).not.toHaveBeenCalled();
+    expect(user.primaryEmailAddressId).toBe(unrelatedEmail.id);
+    expect(result.current.emailPasswordState).toEqual({
+      status: "error",
+      message: "ログイン方法の状態が変わりました。最新の状態を読み込んでください。",
+    });
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+
+    now.mockRestore();
+  });
+
   it("初回送信と再送は同じメールのcooldownを共有し、30秒後にだけ再送する", async () => {
     const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
     const primaryEmail = emailResource({
@@ -457,6 +603,137 @@ describe("useLoginMethodsController", () => {
     expect(primaryEmail.destroy).toHaveBeenCalledOnce();
     expect(result.current.emailChangeDialog).toEqual({ isOpen: false });
     expect(mocks.showSuccessToast).toHaveBeenCalledOnce();
+  });
+
+  it("Google-linked旧Primaryへの更新応答を失っても保持済み状態を確認して成功へ収束する", async () => {
+    const primaryEmail = emailResource({
+      id: "email-primary",
+      emailAddress: "google@gmail.com",
+      status: "verified",
+      linked: true,
+    });
+    const targetEmail = emailResource({
+      id: "email-target",
+      emailAddress: "next@example.com",
+      status: "verified",
+    });
+    const googleAccount = externalAccount({
+      id: "google-1",
+      status: "verified",
+      emailAddress: primaryEmail.emailAddress,
+    });
+    const user = userResource({
+      passwordEnabled: true,
+      emailAddresses: [primaryEmail, targetEmail],
+      externalAccounts: [googleAccount],
+      primaryEmailAddressId: primaryEmail.id,
+    });
+    vi.mocked(user.update).mockImplementation(async ({ primaryEmailAddressId }) => {
+      user.primaryEmailAddressId = primaryEmailAddressId ?? null;
+      throw new Error("response lost");
+    });
+    const { result } = renderController(user);
+
+    await act(async () => result.current.startLoginEmailChange(targetEmail.emailAddress));
+
+    expect(user.update).toHaveBeenCalledOnce();
+    expect(user.primaryEmailAddressId).toBe(targetEmail.id);
+    expect(user.emailAddresses).toEqual([primaryEmail, targetEmail]);
+    expect(primaryEmail.destroy).not.toHaveBeenCalled();
+    expect(user.externalAccounts).toEqual([googleAccount]);
+    expect(result.current.emailChangeDialog).toEqual({ isOpen: false });
+    expect(mocks.showSuccessToast).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    { label: "旧メールが未確認", changedState: "verification" },
+    { label: "旧メールのGoogle linkが不在", changedState: "link" },
+    { label: "Google ExternalAccountが変更", changedState: "googleAccount" },
+  ] as const)("Primary更新後に$labelならGoogle-linked旧Primaryを保持して成功扱いにしない", async ({ changedState }) => {
+    const primaryEmail = emailResource({
+      id: "email-primary",
+      emailAddress: "google@gmail.com",
+      status: "verified",
+      linked: true,
+    });
+    const targetEmail = emailResource({
+      id: "email-target",
+      emailAddress: "next@example.com",
+      status: "verified",
+    });
+    const googleAccount = externalAccount({
+      id: "google-1",
+      status: "verified",
+      emailAddress: primaryEmail.emailAddress,
+    });
+    const user = userResource({
+      passwordEnabled: true,
+      emailAddresses: [primaryEmail, targetEmail],
+      externalAccounts: [googleAccount],
+      primaryEmailAddressId: primaryEmail.id,
+    });
+    vi.mocked(user.update).mockImplementation(async ({ primaryEmailAddressId }) => {
+      user.primaryEmailAddressId = primaryEmailAddressId ?? null;
+      if (changedState === "verification") Object.assign(primaryEmail, { verification: { status: "unverified" } });
+      if (changedState === "link") Object.assign(primaryEmail, { linkedTo: [] });
+      if (changedState === "googleAccount") {
+        Object.assign(googleAccount, { verification: { status: "unverified" } });
+      }
+      return user;
+    });
+    const { result } = renderController(user);
+
+    await act(async () => result.current.startLoginEmailChange(targetEmail.emailAddress));
+
+    expect(user.primaryEmailAddressId).toBe(targetEmail.id);
+    expect(user.emailAddresses).toEqual([primaryEmail, targetEmail]);
+    expect(primaryEmail.destroy).not.toHaveBeenCalled();
+    expect(result.current.emailPasswordState).toEqual({
+      status: "error",
+      message: "変更結果を安全に確認できません。最新の状態を読み込んでください。",
+    });
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+  });
+
+  it("未linked旧Primaryが更新中にGoogleへlinkedされた場合は削除も成功通知もしない", async () => {
+    const primaryEmail = emailResource({
+      id: "email-primary",
+      emailAddress: "login@example.com",
+      status: "verified",
+    });
+    const targetEmail = emailResource({
+      id: "email-target",
+      emailAddress: "next@example.com",
+      status: "verified",
+    });
+    const googleAccount = externalAccount({
+      id: "google-1",
+      status: "verified",
+      emailAddress: primaryEmail.emailAddress,
+    });
+    const user = userResource({
+      passwordEnabled: true,
+      emailAddresses: [primaryEmail, targetEmail],
+      externalAccounts: [googleAccount],
+      primaryEmailAddressId: primaryEmail.id,
+    });
+    vi.mocked(user.update).mockImplementation(async ({ primaryEmailAddressId }) => {
+      user.primaryEmailAddressId = primaryEmailAddressId ?? null;
+      Object.assign(primaryEmail, { linkedTo: [{ id: googleAccount.identificationId, type: "oauth_google" }] });
+      return user;
+    });
+    const { result } = renderController(user);
+
+    await act(async () => result.current.startLoginEmailChange(targetEmail.emailAddress));
+
+    expect(user.primaryEmailAddressId).toBe(targetEmail.id);
+    expect(user.emailAddresses).toEqual([primaryEmail, targetEmail]);
+    expect(primaryEmail.destroy).not.toHaveBeenCalled();
+    expect(result.current.emailPasswordState).toEqual({
+      status: "error",
+      message: "変更結果を安全に確認できません。最新の状態を読み込んでください。",
+    });
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
   });
 
   it("旧メール削除の応答を失っても不在と既存ログイン方法を確認して成功へ収束する", async () => {

@@ -37,8 +37,6 @@ const LOGIN_EMAIL_CHANGE_REVERIFICATION_OPTIONS: LoginMethodOperationOptions = {
 const GOOGLE_DISCONNECT_REVERIFICATION_OPTIONS: LoginMethodOperationOptions = {
   preferredFirstFactorStrategy: "password",
 };
-const GOOGLE_LINKED_EMAIL_CHANGE_MESSAGE =
-  "このメールアドレスはGoogleログインと連携されています。先にGoogle連携を解除してから、メールアドレスを変更してください。";
 const GOOGLE_DISCONNECT_EMAIL_REQUIRED_MESSAGE =
   "メールアドレス未設定時はGoogle認証を解除できません。先にメールアドレスとパスワードを設定してください。";
 const GOOGLE_DISCONNECT_STATE_CHANGED_MESSAGE =
@@ -61,8 +59,14 @@ type EmailOperation = "startLoginEmail" | "verifyLoginEmail" | "resendLoginEmail
 
 type PrimaryChangeBaseline = {
   previousPrimaryEmailAddressId: string;
+  preservePreviousPrimaryEmail: boolean;
   passwordEnabled: boolean;
   googleAccounts: string[];
+};
+
+type PrimaryEmailChangePlan = {
+  targetEmailAddressId: string | null;
+  baseline: PrimaryChangeBaseline;
 };
 
 type PreparedGoogleDisconnectPlan = {
@@ -92,6 +96,7 @@ export function useLoginMethodsController({
   const retryCooldown = operationCooldown ?? localOperationCooldown;
   const [, setResourceRevision] = useState(0);
   const googleDisconnectPlanRef = useRef<PreparedGoogleDisconnectPlan | null>(null);
+  const primaryEmailChangePlanRef = useRef<PrimaryEmailChangePlan | null>(null);
   const [googleState, setGoogleState] = useState<LoginMethodsCardState>(IDLE_STATE);
   const [googleDisconnectPendingCleanup, setGoogleDisconnectPendingCleanup] = useState(false);
   const [emailPasswordState, setEmailPasswordState] = useState<LoginMethodsCardState>(IDLE_STATE);
@@ -141,19 +146,45 @@ export function useLoginMethodsController({
     const created = await currentUser.createEmailAddress({ email });
     return { status: "ready", emailAddressId: created.id } as const;
   }, reverificationOptions);
-  const updatePrimaryEmailWithReverification = useReverification(async (emailAddressId: string) => {
-    const currentUser = await reloadUser();
-    const target = findLoginEmailAddress(currentUser, emailAddressId);
-    if (
-      target?.verification?.status !== "verified" ||
-      !buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser)).emailPassword.canChangeLoginEmail
-    ) {
-      return "targetUnavailable" as const;
-    }
-    if (currentUser.primaryEmailAddressId === target.id) return "alreadyPrimary" as const;
-    await currentUser.update({ primaryEmailAddressId: target.id });
-    return "updated" as const;
-  }, reverificationOptions);
+  const updatePrimaryEmailWithReverification = useReverification(
+    async ({
+      emailAddressId,
+      targetEmailAddressId,
+      baseline,
+    }: {
+      emailAddressId: string;
+      targetEmailAddressId: string;
+      baseline: PrimaryChangeBaseline;
+    }) => {
+      const currentUser = await reloadUser();
+      const target = findLoginEmailAddress(currentUser, emailAddressId);
+      if (
+        target?.verification?.status !== "verified" ||
+        !buildLoginMethodsViewModel(toLoginMethodsUserSnapshot(currentUser)).emailPassword.canChangeLoginEmail
+      ) {
+        return "targetUnavailable" as const;
+      }
+
+      const isForwardUpdate = emailAddressId === targetEmailAddressId;
+      if (currentUser.primaryEmailAddressId === target.id) {
+        const settled = isForwardUpdate
+          ? primaryChangeCompleted(currentUser, actorUserId, targetEmailAddressId, baseline) ||
+            primaryChangeReadyForCleanup(currentUser, actorUserId, targetEmailAddressId, baseline)
+          : primaryChangeRolledBack(currentUser, actorUserId, targetEmailAddressId, baseline);
+        return settled ? ("alreadyPrimary" as const) : ("stateUnavailable" as const);
+      }
+
+      const ready = isForwardUpdate
+        ? primaryChangeReadyForUpdate(currentUser, actorUserId, targetEmailAddressId, baseline)
+        : emailAddressId === baseline.previousPrimaryEmailAddressId &&
+          primaryChangeReadyForCleanup(currentUser, actorUserId, targetEmailAddressId, baseline);
+      if (!ready) return "stateUnavailable" as const;
+
+      await currentUser.update({ primaryEmailAddressId: target.id });
+      return "updated" as const;
+    },
+    reverificationOptions,
+  );
   const destroyPreviousEmailWithReverification = useReverification(
     async ({ targetEmailAddressId, baseline }: { targetEmailAddressId: string; baseline: PrimaryChangeBaseline }) => {
       const currentUser = await reloadUser();
@@ -171,20 +202,13 @@ export function useLoginMethodsController({
     reverificationOptions,
   );
   const showEmailChangeSuccess = () => {
+    primaryEmailChangePlanRef.current = null;
     setEmailChangeDialog({ isOpen: false });
     setEmailPasswordState(IDLE_STATE);
     showSuccessToast({
       title: "メインのメールアドレスを変更しました",
     });
   };
-  const rejectGoogleLinkedPrimaryEmailChange = (emailAddress: EmailAddressResource | null | undefined) => {
-    if (!isGoogleLinkedLoginEmail(emailAddress)) return false;
-    setEmailChangeDialog({ isOpen: false });
-    setEmailPasswordState(IDLE_STATE);
-    showErrorToast(new Error(GOOGLE_LINKED_EMAIL_CHANGE_MESSAGE));
-    return true;
-  };
-
   const { run: reload } = useSingleFlight(async () => {
     setGoogleState(LOADING_STATE);
     setEmailPasswordState(LOADING_STATE);
@@ -210,8 +234,12 @@ export function useLoginMethodsController({
     if (primaryChangeRolledBack(currentUser, actorUserId, targetEmailAddressId, baseline)) return true;
     if (!primaryChangeReadyForCleanup(currentUser, actorUserId, targetEmailAddressId, baseline)) return false;
 
-    const rolledBack = await updatePrimaryEmailWithReverification(baseline.previousPrimaryEmailAddressId);
-    if (rolledBack == null || rolledBack === "targetUnavailable") return false;
+    const rolledBack = await updatePrimaryEmailWithReverification({
+      emailAddressId: baseline.previousPrimaryEmailAddressId,
+      targetEmailAddressId,
+      baseline,
+    });
+    if (rolledBack == null || rolledBack === "targetUnavailable" || rolledBack === "stateUnavailable") return false;
     await reloadUser();
     return primaryChangeRolledBack(currentUser, actorUserId, targetEmailAddressId, baseline);
   };
@@ -253,9 +281,13 @@ export function useLoginMethodsController({
       return false;
     }
     if (currentUser.primaryEmailAddressId !== target.id) {
-      let updated: "updated" | "alreadyPrimary" | "targetUnavailable" | null | undefined;
+      let updated: "updated" | "alreadyPrimary" | "targetUnavailable" | "stateUnavailable" | null | undefined;
       try {
-        updated = await updatePrimaryEmailWithReverification(target.id);
+        updated = await updatePrimaryEmailWithReverification({
+          emailAddressId: target.id,
+          targetEmailAddressId: target.id,
+          baseline,
+        });
       } catch (error) {
         await reloadUser();
         if (
@@ -280,6 +312,10 @@ export function useLoginMethodsController({
         setEmailPasswordState(
           cardError("変更先のメールアドレスの確認状態が変わりました。最新の状態を読み込んでください。"),
         );
+        return false;
+      }
+      if (updated === "stateUnavailable") {
+        setEmailPasswordState(cardError("ログイン方法の状態が変わりました。最新の状態を読み込んでください。"));
         return false;
       }
     }
@@ -505,8 +541,11 @@ export function useLoginMethodsController({
             setEmailPasswordState(cardError("現在のメインメールアドレスを確認できません。"));
             return false;
           }
-          if (rejectGoogleLinkedPrimaryEmailChange(currentPrimary)) return false;
-          baseline = primaryChangeBaseline(currentUser, currentPrimary.id);
+          baseline = primaryEmailChangePlanRef.current?.baseline ?? primaryChangeBaseline(currentUser, currentPrimary);
+          if (!primaryChangeBaselineMatchesCurrentPrimary(currentUser, actorUserId, baseline)) {
+            setEmailPasswordState(cardError("ログイン方法の状態が変わりました。最新の状態を読み込んでください。"));
+            return false;
+          }
           targetEmail = normalizeEmail(parsed.data);
           if (normalizeEmail(currentPrimary.emailAddress) === targetEmail) {
             setEmailPasswordState(cardError("現在とは異なるメールアドレスを入力してください。"));
@@ -526,13 +565,21 @@ export function useLoginMethodsController({
             await reloadUser();
             target = findLoginEmailAddress(currentUser, ensured.emailAddressId, targetEmail);
           }
-          const latestPrimary = findVerifiedPrimaryLoginEmailAddress(currentUser);
-          if (!target || !latestPrimary) {
+          if (!target) {
             setEmailPasswordState(cardError("変更先のメールアドレスを確認できません。"));
             return false;
           }
-          baseline = primaryChangeBaseline(currentUser, latestPrimary.id);
+          if (!primaryChangeBaselineMatchesCurrentPrimary(currentUser, actorUserId, baseline)) {
+            setEmailPasswordState(cardError("ログイン方法の状態が変わりました。最新の状態を読み込んでください。"));
+            return false;
+          }
+          const baselinePrimary = findLoginEmailAddress(currentUser, baseline.previousPrimaryEmailAddressId);
+          if (!baselinePrimary) {
+            setEmailPasswordState(cardError("現在のメインメールアドレスを確認できません。"));
+            return false;
+          }
           targetId = target.id;
+          primaryEmailChangePlanRef.current = { targetEmailAddressId: target.id, baseline };
           if (target.verification?.status === "verified") {
             return await completeLoginEmailChange(currentUser, target.id, baseline);
           }
@@ -541,7 +588,7 @@ export function useLoginMethodsController({
             setEmailChangeDialog({
               isOpen: true,
               step: "verification",
-              currentEmailAddress: latestPrimary.emailAddress,
+              currentEmailAddress: baselinePrimary.emailAddress,
               targetEmailAddressId: target.id,
               targetEmailAddress: target.emailAddress,
             });
@@ -552,7 +599,7 @@ export function useLoginMethodsController({
           setEmailChangeDialog({
             isOpen: true,
             step: "verification",
-            currentEmailAddress: latestPrimary.emailAddress,
+            currentEmailAddress: baselinePrimary.emailAddress,
             targetEmailAddressId: target.id,
             targetEmailAddress: target.emailAddress,
           });
@@ -562,17 +609,26 @@ export function useLoginMethodsController({
 
         if (operation === "verifyLoginEmail" || operation === "resendLoginEmail") {
           const target = resolveLoginEmailChangeDialogEmailAddress(currentUser, emailChangeDialog);
-          const currentPrimary = findVerifiedPrimaryLoginEmailAddress(currentUser);
-          if (!target || !currentPrimary) {
+          const plan = primaryEmailChangePlanRef.current;
+          if (!target || !plan || plan.targetEmailAddressId !== target.id) {
             setEmailPasswordState(
               cardError("確認中のメールアドレスを取得できません。最新の状態を読み込んでください。"),
             );
             return false;
           }
-          if (rejectGoogleLinkedPrimaryEmailChange(currentPrimary)) return false;
-          baseline = primaryChangeBaseline(currentUser, currentPrimary.id);
+          baseline = plan.baseline;
           targetId = target.id;
           targetEmail = normalizeEmail(target.emailAddress);
+          if (
+            primaryChangeCompleted(currentUser, actorUserId, target.id, baseline) ||
+            primaryChangeReadyForCleanup(currentUser, actorUserId, target.id, baseline)
+          ) {
+            return await completeLoginEmailChange(currentUser, target.id, baseline);
+          }
+          if (!primaryChangeBaselineMatchesCurrentPrimary(currentUser, actorUserId, baseline)) {
+            setEmailPasswordState(cardError("ログイン方法の状態が変わりました。最新の状態を読み込んでください。"));
+            return false;
+          }
           if (operation === "resendLoginEmail") {
             const cooldown = retryCooldown.claim(currentUser.id, emailVerificationCooldownScope(target.id));
             if (!cooldown.allowed) {
@@ -618,13 +674,22 @@ export function useLoginMethodsController({
             );
             return false;
           }
-          if (recoveredTarget) {
-            const currentPrimary = findVerifiedPrimaryLoginEmailAddress(currentUser);
-            if (currentPrimary && recoveredTarget.verification?.status !== "verified") {
+          if (
+            baseline &&
+            recoveredTarget &&
+            recoveredTarget.verification?.status !== "verified" &&
+            primaryChangeBaselineMatchesCurrentPrimary(currentUser, actorUserId, baseline)
+          ) {
+            const baselinePrimary = findLoginEmailAddress(currentUser, baseline.previousPrimaryEmailAddressId);
+            if (baselinePrimary) {
+              primaryEmailChangePlanRef.current = {
+                targetEmailAddressId: recoveredTarget.id,
+                baseline,
+              };
               setEmailChangeDialog({
                 isOpen: true,
                 step: "verification",
-                currentEmailAddress: currentPrimary.emailAddress,
+                currentEmailAddress: baselinePrimary.emailAddress,
                 targetEmailAddressId: recoveredTarget.id,
                 targetEmailAddress: recoveredTarget.emailAddress,
               });
@@ -678,7 +743,14 @@ export function useLoginMethodsController({
         return;
       }
       const primaryEmailResource = user ? findLoginEmailAddress(user, primaryEmail.id) : undefined;
-      if (rejectGoogleLinkedPrimaryEmailChange(primaryEmailResource)) return;
+      if (!user || primaryEmailResource?.verification?.status !== "verified") {
+        setEmailPasswordState(cardError("メインのメールアドレスを変更できません。最新の状態を読み込んでください。"));
+        return;
+      }
+      primaryEmailChangePlanRef.current = {
+        targetEmailAddressId: null,
+        baseline: primaryChangeBaseline(user, primaryEmailResource),
+      };
       setEmailPasswordState(IDLE_STATE);
       setEmailChangeDialog({
         isOpen: true,
@@ -690,11 +762,18 @@ export function useLoginMethodsController({
     },
     closeLoginEmailChangeDialog: (force = false) => {
       if (emailPasswordState.status === "loading" && !force) return;
+      primaryEmailChangePlanRef.current = null;
       setEmailChangeDialog({ isOpen: false });
       setEmailPasswordState(IDLE_STATE);
     },
     backToLoginEmailInput: () => {
       if (emailPasswordState.status === "loading" || !emailChangeDialog.isOpen) return;
+      if (primaryEmailChangePlanRef.current) {
+        primaryEmailChangePlanRef.current = {
+          ...primaryEmailChangePlanRef.current,
+          targetEmailAddressId: null,
+        };
+      }
       setEmailChangeDialog({
         isOpen: true,
         step: "input",
@@ -722,12 +801,40 @@ function isGoogleLinkedLoginEmail(emailAddress: EmailAddressResource | null | un
   return emailAddress?.linkedTo.some((link) => link.type === "oauth_google") ?? false;
 }
 
-function primaryChangeBaseline(user: UserResource, previousPrimaryEmailAddressId: string): PrimaryChangeBaseline {
+function primaryChangeBaseline(user: UserResource, previousPrimaryEmail: EmailAddressResource): PrimaryChangeBaseline {
   return {
-    previousPrimaryEmailAddressId,
+    previousPrimaryEmailAddressId: previousPrimaryEmail.id,
+    preservePreviousPrimaryEmail: isGoogleLinkedLoginEmail(previousPrimaryEmail),
     passwordEnabled: user.passwordEnabled,
     googleAccounts: getGoogleExternalAccountStateKeys(user),
   };
+}
+
+function primaryChangeBaselineMatchesCurrentPrimary(
+  user: UserResource,
+  actorUserId: string | null,
+  baseline: PrimaryChangeBaseline,
+) {
+  const previousEmail = findLoginEmailAddress(user, baseline.previousPrimaryEmailAddressId);
+  return (
+    primaryChangeInvariantMatches(user, actorUserId, baseline) &&
+    user.primaryEmailAddressId === baseline.previousPrimaryEmailAddressId &&
+    previousEmail?.verification?.status === "verified" &&
+    isGoogleLinkedLoginEmail(previousEmail) === baseline.preservePreviousPrimaryEmail
+  );
+}
+
+function primaryChangeReadyForUpdate(
+  user: UserResource,
+  actorUserId: string | null,
+  targetEmailAddressId: string,
+  baseline: PrimaryChangeBaseline,
+) {
+  return (
+    targetEmailAddressId !== baseline.previousPrimaryEmailAddressId &&
+    findLoginEmailAddress(user, targetEmailAddressId)?.verification?.status === "verified" &&
+    primaryChangeBaselineMatchesCurrentPrimary(user, actorUserId, baseline)
+  );
 }
 
 function primaryChangeReadyForCleanup(
@@ -736,11 +843,14 @@ function primaryChangeReadyForCleanup(
   targetEmailAddressId: string,
   baseline: PrimaryChangeBaseline,
 ) {
+  const previousEmail = findLoginEmailAddress(user, baseline.previousPrimaryEmailAddressId);
   return (
+    !baseline.preservePreviousPrimaryEmail &&
     primaryChangeBaseMatches(user, actorUserId, targetEmailAddressId, baseline) &&
     user.primaryEmailAddressId === targetEmailAddressId &&
     targetEmailAddressId !== baseline.previousPrimaryEmailAddressId &&
-    user.emailAddresses.some((emailAddress) => emailAddress.id === baseline.previousPrimaryEmailAddressId)
+    previousEmail?.verification?.status === "verified" &&
+    !isGoogleLinkedLoginEmail(previousEmail)
   );
 }
 
@@ -750,10 +860,14 @@ function primaryChangeCompleted(
   targetEmailAddressId: string,
   baseline: PrimaryChangeBaseline,
 ) {
+  const previousEmail = findLoginEmailAddress(user, baseline.previousPrimaryEmailAddressId);
   return (
     primaryChangeBaseMatches(user, actorUserId, targetEmailAddressId, baseline) &&
     user.primaryEmailAddressId === targetEmailAddressId &&
-    !user.emailAddresses.some((emailAddress) => emailAddress.id === baseline.previousPrimaryEmailAddressId)
+    targetEmailAddressId !== baseline.previousPrimaryEmailAddressId &&
+    (baseline.preservePreviousPrimaryEmail
+      ? previousEmail?.verification?.status === "verified" && isGoogleLinkedLoginEmail(previousEmail)
+      : previousEmail == null)
   );
 }
 
@@ -767,7 +881,8 @@ function primaryChangeRolledBack(
   return (
     primaryChangeBaseMatches(user, actorUserId, targetEmailAddressId, baseline) &&
     user.primaryEmailAddressId === baseline.previousPrimaryEmailAddressId &&
-    previousEmail?.verification?.status === "verified"
+    previousEmail?.verification?.status === "verified" &&
+    isGoogleLinkedLoginEmail(previousEmail) === baseline.preservePreviousPrimaryEmail
   );
 }
 
@@ -779,8 +894,19 @@ function primaryChangeBaseMatches(
 ) {
   const target = findLoginEmailAddress(user, targetEmailAddressId);
   return (
-    user.id === actorUserId &&
+    primaryChangeInvariantMatches(user, actorUserId, baseline) &&
     target?.verification?.status === "verified" &&
+    targetEmailAddressId !== baseline.previousPrimaryEmailAddressId
+  );
+}
+
+function primaryChangeInvariantMatches(
+  user: UserResource,
+  actorUserId: string | null,
+  baseline: PrimaryChangeBaseline,
+) {
+  return (
+    user.id === actorUserId &&
     user.passwordEnabled === baseline.passwordEnabled &&
     haveSameStringValues(getGoogleExternalAccountStateKeys(user), baseline.googleAccounts)
   );

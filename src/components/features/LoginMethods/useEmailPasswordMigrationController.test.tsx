@@ -169,7 +169,32 @@ describe("メールアドレスとパスワードの追加controller", () => {
     });
   });
 
-  it("Googleに紐づく確認済みメールを全文表示して再利用し、同じUserへパスワードだけを追加する", async () => {
+  it("再表示時はGoogle accountのメールより現在の確認済みPrimaryを初期値にする", () => {
+    const primaryEmail = emailResource("email-primary", "login@example.com", "verified");
+    const user = userResource({
+      emailAddresses: [primaryEmail],
+      externalAccounts: [googleResource("google-old")],
+      primaryEmailAddressId: primaryEmail.id,
+    });
+
+    const { result } = renderHook(() =>
+      useEmailPasswordMigrationController({
+        isLoaded: true,
+        user,
+        getCurrentActorId: () => user.id,
+        onNeedsReverification: vi.fn(),
+        runOperation: async (operation) => operation(),
+      }),
+    );
+
+    expect(result.current.state).toMatchObject({
+      phase: "choosingEmail",
+      targetEmailAddressId: null,
+      targetEmailAddress: primaryEmail.emailAddress,
+    });
+  });
+
+  it("Googleに紐づく確認済みPrimaryを再利用し、同じUserへパスワードだけを追加する", async () => {
     const linkedEmail = emailResource("google-email", "staff@example.com", "verified", true);
     const google = googleResource("google-old");
     const user = userResource({
@@ -212,6 +237,7 @@ describe("メールアドレスとパスワードの追加controller", () => {
       newPassword: "safe-password",
       signOutOfOtherSessions: false,
     });
+    expect(user.update).not.toHaveBeenCalled();
     expect(result.current.state).toMatchObject({
       phase: "methodReady",
       targetEmailAddress: linkedEmail.emailAddress,
@@ -226,7 +252,7 @@ describe("メールアドレスとパスワードの追加controller", () => {
     ).toBe(true);
   });
 
-  it("別メールを追加・確認してからパスワードを設定し、Googleを自動解除しない", async () => {
+  it("別メールを追加・確認してPrimaryにしてからパスワードを設定し、Googleを自動解除しない", async () => {
     const googleEmail = emailResource("google-email", "google@gmail.com", "verified", true);
     const newEmail = emailResource("email-new", "login@example.com", "unverified");
     const google = googleResource("google-old");
@@ -269,7 +295,167 @@ describe("メールアドレスとパスワードの追加controller", () => {
     await act(async () => result.current.setPassword("safe-password"));
 
     expect(result.current.state.phase).toBe("methodReady");
+    expect(user.update).toHaveBeenCalledWith({ primaryEmailAddressId: newEmail.id });
+    expect(user.primaryEmailAddressId).toBe(newEmail.id);
+    expect(vi.mocked(user.update).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(user.updatePassword).mock.invocationCallOrder[0] ?? 0,
+    );
+    expect(user.emailAddresses.filter((emailAddress) => emailAddress.linkedTo.some(isGoogleLink))).toEqual([
+      googleEmail,
+    ]);
     expect(google.destroy).not.toHaveBeenCalled();
+  });
+
+  it("Primary更新後にGoogle linked EmailAddressの状態が変わればパスワードを設定しない", async () => {
+    const googleEmail = emailResource("google-email", "google@gmail.com", "verified", true);
+    const targetEmail = emailResource("email-target", "login@example.com", "verified");
+    const user = userResource({
+      emailAddresses: [googleEmail, targetEmail],
+      externalAccounts: [googleResource("google-old")],
+      primaryEmailAddressId: googleEmail.id,
+    });
+    vi.mocked(user.update).mockImplementation(async ({ primaryEmailAddressId }) => {
+      user.primaryEmailAddressId = primaryEmailAddressId ?? null;
+      Object.assign(googleEmail, { linkedTo: [] });
+      return user;
+    });
+    const { result } = renderHook(() =>
+      useEmailPasswordMigrationController({
+        isLoaded: true,
+        user,
+        getCurrentActorId: () => user.id,
+        onNeedsReverification: vi.fn(),
+        runOperation: async (operation) => operation(),
+      }),
+    );
+
+    await act(async () => result.current.useDifferentEmail(targetEmail.emailAddress));
+    let completed: boolean | undefined;
+    await act(async () => {
+      completed = await result.current.setPassword("safe-password");
+    });
+
+    expect(completed).toBe(false);
+    expect(user.updatePassword).not.toHaveBeenCalled();
+    expect(result.current.state).toMatchObject({
+      phase: "settingPassword",
+      feedback: { status: "error" },
+    });
+  });
+
+  it("メール選択後に別のPrimaryへ変わった場合はその変更を上書きしない", async () => {
+    const googleEmail = emailResource("google-email", "google@gmail.com", "verified", true);
+    const targetEmail = emailResource("email-target", "login@example.com", "verified");
+    const otherEmail = emailResource("email-other", "other@example.com", "verified");
+    const user = userResource({
+      emailAddresses: [googleEmail, targetEmail, otherEmail],
+      externalAccounts: [googleResource("google-old")],
+      primaryEmailAddressId: googleEmail.id,
+    });
+    const { result } = renderHook(() =>
+      useEmailPasswordMigrationController({
+        isLoaded: true,
+        user,
+        getCurrentActorId: () => user.id,
+        onNeedsReverification: vi.fn(),
+        runOperation: async (operation) => operation(),
+      }),
+    );
+
+    await act(async () => result.current.useDifferentEmail(targetEmail.emailAddress));
+    user.primaryEmailAddressId = otherEmail.id;
+    const completed = await act(async () => result.current.setPassword("safe-password"));
+
+    expect(completed).toBe(false);
+    expect(user.primaryEmailAddressId).toBe(otherEmail.id);
+    expect(user.update).not.toHaveBeenCalled();
+    expect(user.updatePassword).not.toHaveBeenCalled();
+    expect(result.current.state).toMatchObject({ phase: "settingPassword", feedback: { status: "error" } });
+  });
+
+  it("メール選択後にGoogle ExternalAccountが消えた場合はPrimaryもパスワードも変更しない", async () => {
+    const googleEmail = emailResource("google-email", "google@gmail.com", "verified", true);
+    const targetEmail = emailResource("email-target", "login@example.com", "verified");
+    const user = userResource({
+      emailAddresses: [googleEmail, targetEmail],
+      externalAccounts: [googleResource("google-old")],
+      primaryEmailAddressId: googleEmail.id,
+    });
+    const { result } = renderHook(() =>
+      useEmailPasswordMigrationController({
+        isLoaded: true,
+        user,
+        getCurrentActorId: () => user.id,
+        onNeedsReverification: vi.fn(),
+        runOperation: async (operation) => operation(),
+      }),
+    );
+
+    await act(async () => result.current.useDifferentEmail(targetEmail.emailAddress));
+    user.externalAccounts = [];
+    const completed = await act(async () => result.current.setPassword("safe-password"));
+
+    expect(completed).toBe(false);
+    expect(user.primaryEmailAddressId).toBe(googleEmail.id);
+    expect(user.update).not.toHaveBeenCalled();
+    expect(user.updatePassword).not.toHaveBeenCalled();
+  });
+
+  it("メール選択後に別操作でパスワードが有効化されても入力パスワードを設定済みとみなさない", async () => {
+    const googleEmail = emailResource("google-email", "google@gmail.com", "verified", true);
+    const targetEmail = emailResource("email-target", "login@example.com", "verified");
+    const user = userResource({
+      emailAddresses: [googleEmail, targetEmail],
+      externalAccounts: [googleResource("google-old")],
+      primaryEmailAddressId: googleEmail.id,
+    });
+    const { result } = renderHook(() =>
+      useEmailPasswordMigrationController({
+        isLoaded: true,
+        user,
+        getCurrentActorId: () => user.id,
+        onNeedsReverification: vi.fn(),
+        runOperation: async (operation) => operation(),
+      }),
+    );
+
+    await act(async () => result.current.useDifferentEmail(targetEmail.emailAddress));
+    user.passwordEnabled = true;
+    const completed = await act(async () => result.current.setPassword("safe-password"));
+
+    expect(completed).toBe(false);
+    expect(user.primaryEmailAddressId).toBe(googleEmail.id);
+    expect(user.update).not.toHaveBeenCalled();
+    expect(user.updatePassword).not.toHaveBeenCalled();
+    expect(result.current.state.feedback.status).toBe("error");
+  });
+
+  it("確認待ちの間にGoogle状態が変わった場合は確認副作用を開始しない", async () => {
+    const googleEmail = emailResource("google-email", "google@gmail.com", "verified", true);
+    const pendingEmail = emailResource("email-pending", "login@example.com", "unverified");
+    const user = userResource({
+      emailAddresses: [googleEmail, pendingEmail],
+      externalAccounts: [googleResource("google-old")],
+      primaryEmailAddressId: googleEmail.id,
+    });
+    const { result } = renderHook(() =>
+      useEmailPasswordMigrationController({
+        isLoaded: true,
+        user,
+        getCurrentActorId: () => user.id,
+        onNeedsReverification: vi.fn(),
+        runOperation: async (operation) => operation(),
+      }),
+    );
+
+    await act(async () => result.current.useDifferentEmail(pendingEmail.emailAddress));
+    user.externalAccounts = [];
+    const verified = await act(async () => result.current.verifyEmail("123456"));
+
+    expect(verified).toBe(false);
+    expect(pendingEmail.attemptVerification).not.toHaveBeenCalled();
+    expect(user.update).not.toHaveBeenCalled();
+    expect(user.updatePassword).not.toHaveBeenCalled();
   });
 
   it("初回送信と再送は同じメールのcooldownを共有し、30秒後にだけ再送する", async () => {
@@ -378,14 +564,15 @@ describe("メールアドレスとパスワードの追加controller", () => {
     expect(google.destroy).not.toHaveBeenCalled();
   });
 
-  it("パスワード設定の応答を失っても同じUserの再取得結果からだけ完了へ復旧する", async () => {
-    const linkedEmail = emailResource("google-email", "staff@example.com", "verified", true);
+  it("Primary更新後にパスワード設定の応答を失っても有効化済みなら完了へ復旧する", async () => {
+    const googleEmail = emailResource("google-email", "google@gmail.com", "verified", true);
+    const targetEmail = emailResource("email-target", "login@example.com", "verified");
     const google = googleResource("google-old");
     const user = userResource({
       id: "user-current",
-      emailAddresses: [linkedEmail],
+      emailAddresses: [googleEmail, targetEmail],
       externalAccounts: [google],
-      primaryEmailAddressId: linkedEmail.id,
+      primaryEmailAddressId: googleEmail.id,
     });
     vi.mocked(user.updatePassword).mockImplementation(async () => {
       user.passwordEnabled = true;
@@ -401,7 +588,7 @@ describe("メールアドレスとパスワードの追加controller", () => {
       }),
     );
 
-    await act(async () => result.current.useDifferentEmail(linkedEmail.emailAddress));
+    await act(async () => result.current.useDifferentEmail(targetEmail.emailAddress));
     let completed: boolean | undefined;
     await act(async () => {
       completed = await result.current.setPassword("safe-password");
@@ -409,12 +596,226 @@ describe("メールアドレスとパスワードの追加controller", () => {
 
     expect(completed).toBe(true);
     expect(user.id).toBe("user-current");
+    expect(user.update).toHaveBeenCalledWith({ primaryEmailAddressId: targetEmail.id });
+    expect(user.primaryEmailAddressId).toBe(targetEmail.id);
     expect(result.current.state).toMatchObject({
       phase: "methodReady",
-      targetEmailAddress: linkedEmail.emailAddress,
+      targetEmailAddress: targetEmail.emailAddress,
       feedback: { status: "success" },
     });
     expect(google.destroy).not.toHaveBeenCalled();
+  });
+
+  it("Primary更新後にパスワード設定が失敗した場合はtarget Primaryのまま再試行できる", async () => {
+    const googleEmail = emailResource("google-email", "google@gmail.com", "verified", true);
+    const targetEmail = emailResource("email-target", "login@example.com", "verified");
+    const user = userResource({
+      emailAddresses: [googleEmail, targetEmail],
+      externalAccounts: [googleResource("google-old")],
+      primaryEmailAddressId: googleEmail.id,
+    });
+    vi.mocked(user.updatePassword)
+      .mockRejectedValueOnce(new Error("password update failed"))
+      .mockImplementationOnce(async () => {
+        user.passwordEnabled = true;
+        return user;
+      });
+    const { result } = renderHook(() =>
+      useEmailPasswordMigrationController({
+        isLoaded: true,
+        user,
+        getCurrentActorId: () => user.id,
+        onNeedsReverification: vi.fn(),
+        runOperation: async (operation) => operation(),
+      }),
+    );
+
+    await act(async () => result.current.useDifferentEmail(targetEmail.emailAddress));
+    let firstResult: boolean | undefined;
+    await act(async () => {
+      firstResult = await result.current.setPassword("safe-password");
+    });
+
+    expect(firstResult).toBe(false);
+    expect(user.primaryEmailAddressId).toBe(targetEmail.id);
+    expect(user.passwordEnabled).toBe(false);
+    expect(result.current.state).toMatchObject({
+      phase: "settingPassword",
+      targetEmailAddressId: targetEmail.id,
+      feedback: { status: "error" },
+    });
+
+    let retryResult: boolean | undefined;
+    await act(async () => {
+      retryResult = await result.current.setPassword("safe-password");
+    });
+
+    expect(retryResult).toBe(true);
+    expect(user.update).toHaveBeenCalledOnce();
+    expect(user.updatePassword).toHaveBeenCalledTimes(2);
+    expect(result.current.state).toMatchObject({
+      phase: "methodReady",
+      targetEmailAddressId: targetEmail.id,
+      feedback: { status: "success" },
+    });
+  });
+
+  it("Primary更新の応答を失っても再取得したtarget Primaryからパスワード設定を続ける", async () => {
+    const googleEmail = emailResource("google-email", "google@gmail.com", "verified", true);
+    const targetEmail = emailResource("email-target", "login@example.com", "verified");
+    const google = googleResource("google-old");
+    const user = userResource({
+      emailAddresses: [googleEmail, targetEmail],
+      externalAccounts: [google],
+      primaryEmailAddressId: googleEmail.id,
+    });
+    vi.mocked(user.update).mockImplementation(async ({ primaryEmailAddressId }) => {
+      user.primaryEmailAddressId = primaryEmailAddressId ?? null;
+      throw new Error("response lost");
+    });
+    vi.mocked(user.updatePassword).mockImplementation(async () => {
+      user.passwordEnabled = true;
+      return user;
+    });
+    const { result } = renderHook(() =>
+      useEmailPasswordMigrationController({
+        isLoaded: true,
+        user,
+        getCurrentActorId: () => user.id,
+        onNeedsReverification: vi.fn(),
+        runOperation: async (operation) => operation(),
+      }),
+    );
+
+    await act(async () => result.current.useDifferentEmail(targetEmail.emailAddress));
+    let completed: boolean | undefined;
+    await act(async () => {
+      completed = await result.current.setPassword("safe-password");
+    });
+
+    expect(completed).toBe(true);
+    expect(user.update).toHaveBeenCalledOnce();
+    expect(user.primaryEmailAddressId).toBe(targetEmail.id);
+    expect(user.updatePassword).toHaveBeenCalledOnce();
+    expect(result.current.state).toMatchObject({
+      phase: "methodReady",
+      targetEmailAddressId: targetEmail.id,
+      feedback: { status: "success" },
+    });
+    expect(google.destroy).not.toHaveBeenCalled();
+  });
+
+  it("targetをPrimaryにできなければパスワードを設定せず完了扱いにしない", async () => {
+    const googleEmail = emailResource("google-email", "google@gmail.com", "verified", true);
+    const targetEmail = emailResource("email-target", "login@example.com", "verified");
+    const user = userResource({
+      emailAddresses: [googleEmail, targetEmail],
+      externalAccounts: [googleResource("google-old")],
+      primaryEmailAddressId: googleEmail.id,
+    });
+    vi.mocked(user.update).mockRejectedValue(new Error("primary update failed"));
+    const { result } = renderHook(() =>
+      useEmailPasswordMigrationController({
+        isLoaded: true,
+        user,
+        getCurrentActorId: () => user.id,
+        onNeedsReverification: vi.fn(),
+        runOperation: async (operation) => operation(),
+      }),
+    );
+
+    await act(async () => result.current.useDifferentEmail(targetEmail.emailAddress));
+    let completed: boolean | undefined;
+    await act(async () => {
+      completed = await result.current.setPassword("safe-password");
+    });
+
+    expect(completed).toBe(false);
+    expect(user.primaryEmailAddressId).toBe(googleEmail.id);
+    expect(user.updatePassword).not.toHaveBeenCalled();
+    expect(result.current.state).toMatchObject({
+      phase: "settingPassword",
+      feedback: { status: "error" },
+    });
+  });
+
+  it("パスワード設定後にPrimaryがtargetから変われば完了扱いにしない", async () => {
+    const googleEmail = emailResource("google-email", "google@gmail.com", "verified", true);
+    const targetEmail = emailResource("email-target", "login@example.com", "verified");
+    const user = userResource({
+      emailAddresses: [googleEmail, targetEmail],
+      externalAccounts: [googleResource("google-old")],
+      primaryEmailAddressId: googleEmail.id,
+    });
+    vi.mocked(user.updatePassword).mockImplementation(async () => {
+      user.passwordEnabled = true;
+      user.primaryEmailAddressId = googleEmail.id;
+      return user;
+    });
+    const { result } = renderHook(() =>
+      useEmailPasswordMigrationController({
+        isLoaded: true,
+        user,
+        getCurrentActorId: () => user.id,
+        onNeedsReverification: vi.fn(),
+        runOperation: async (operation) => operation(),
+      }),
+    );
+
+    await act(async () => result.current.useDifferentEmail(targetEmail.emailAddress));
+    let completed: boolean | undefined;
+    await act(async () => {
+      completed = await result.current.setPassword("safe-password");
+    });
+
+    expect(completed).toBe(false);
+    expect(result.current.state).toMatchObject({
+      phase: "settingPassword",
+      feedback: { status: "error" },
+    });
+  });
+
+  it("パスワード設定を連打してもPrimary更新とパスワード設定を一度だけ開始する", async () => {
+    const googleEmail = emailResource("google-email", "google@gmail.com", "verified", true);
+    const targetEmail = emailResource("email-target", "login@example.com", "verified");
+    const user = userResource({
+      emailAddresses: [googleEmail, targetEmail],
+      externalAccounts: [googleResource("google-old")],
+      primaryEmailAddressId: googleEmail.id,
+    });
+    const gate = deferred<void>();
+    vi.mocked(user.update).mockImplementation(async ({ primaryEmailAddressId }) => {
+      await gate.promise;
+      user.primaryEmailAddressId = primaryEmailAddressId ?? null;
+      return user;
+    });
+    vi.mocked(user.updatePassword).mockImplementation(async () => {
+      user.passwordEnabled = true;
+      return user;
+    });
+    const { result } = renderHook(() =>
+      useEmailPasswordMigrationController({
+        isLoaded: true,
+        user,
+        getCurrentActorId: () => user.id,
+        onNeedsReverification: vi.fn(),
+        runOperation: async (operation) => operation(),
+      }),
+    );
+
+    await act(async () => result.current.useDifferentEmail(targetEmail.emailAddress));
+    let first = Promise.resolve<boolean | undefined>(undefined);
+    let second = Promise.resolve<boolean | undefined>(undefined);
+    act(() => {
+      first = result.current.setPassword("safe-password");
+      second = result.current.setPassword("safe-password");
+    });
+    gate.resolve();
+
+    await expect(first).resolves.toBe(true);
+    await expect(second).resolves.toBeUndefined();
+    expect(user.update).toHaveBeenCalledOnce();
+    expect(user.updatePassword).toHaveBeenCalledOnce();
   });
 
   it("操作中にUser IDが変わった場合は別Userへパスワードを設定しない", async () => {
@@ -542,6 +943,10 @@ function userResource({
     primaryEmailAddressId,
     reload: vi.fn(async () => user),
     createEmailAddress: vi.fn(),
+    update: vi.fn(async ({ primaryEmailAddressId }: { primaryEmailAddressId?: string | null }) => {
+      if (primaryEmailAddressId !== undefined) user.primaryEmailAddressId = primaryEmailAddressId;
+      return user;
+    }),
     updatePassword: vi.fn(),
   };
   return user as unknown as UserResource;
@@ -570,6 +975,10 @@ function googleResource(id: string) {
     verification: { status: "verified" },
     destroy: vi.fn(),
   } as unknown as ExternalAccountResource;
+}
+
+function isGoogleLink(link: { type: string }) {
+  return link.type === "oauth_google";
 }
 
 function deferred<Value>() {

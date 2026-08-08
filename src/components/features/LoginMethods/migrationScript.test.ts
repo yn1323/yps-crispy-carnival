@@ -16,12 +16,22 @@ describe("メール・パスワード追加のphase導出", () => {
       targetEmailAddressId: "verified",
     });
 
+    const passwordReady = snapshot({ passwordEnabled: true, emailAddresses: [email("verified", "verified")] });
+    expect(deriveEmailPasswordMigration(passwordReady, "verified")).toEqual({
+      phase: "methodReady",
+      targetEmailAddressId: "verified",
+    });
+
     expect(
       deriveEmailPasswordMigration(
-        snapshot({ passwordEnabled: true, emailAddresses: [email("verified", "verified")] }),
+        snapshot({
+          passwordEnabled: true,
+          primaryEmailAddressId: "primary",
+          emailAddresses: [email("primary", "verified"), email("verified", "verified")],
+        }),
         "verified",
       ),
-    ).toEqual({ phase: "methodReady", targetEmailAddressId: "verified" });
+    ).toEqual({ phase: "settingPassword", targetEmailAddressId: "verified" });
   });
 
   it("Googleに紐づく確認済みメールもパスワード追加対象として扱う", () => {
@@ -53,6 +63,16 @@ describe("メール・パスワード追加のphase導出", () => {
 
     expect(deriveEmailPasswordMigration(passwordReady)).toEqual({
       phase: "methodReady",
+      targetEmailAddressId: null,
+    });
+
+    const secondaryOnly = snapshot({
+      passwordEnabled: true,
+      primaryEmailAddressId: "pending-primary",
+      emailAddresses: [email("pending-primary", "unverified"), email("verified-secondary", "verified")],
+    });
+    expect(deriveEmailPasswordMigration(secondaryOnly)).toEqual({
+      phase: "choosingEmail",
       targetEmailAddressId: null,
     });
   });
