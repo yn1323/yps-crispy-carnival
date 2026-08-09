@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   calculateTrialEndsAt,
   createPaymentGraceState,
@@ -316,6 +316,16 @@ describe("organizationBilling/policy Free eligibility", () => {
 });
 
 describe("organizationBilling/policy trial deadline", () => {
+  beforeEach(() => {
+    vi.stubEnv("CONVEX_CLOUD_URL", "");
+    vi.stubEnv("DEBUG_TRIAL_DURATION_DAYS", "");
+    vi.stubEnv("DEBUG_TRIAL_DURATION_DEPLOYMENT_URL", "");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("JSTの事業者作成日から2暦月後の同日00:00を返す", () => {
     const createdAt = Date.parse("2026-07-14T01:30:00.000Z");
     expect(calculateTrialEndsAt(createdAt)).toBe(Date.parse("2026-09-13T15:00:00.000Z"));
@@ -334,6 +344,83 @@ describe("organizationBilling/policy trial deadline", () => {
   it("閏年の2月末へ丸める", () => {
     expect(calculateTrialEndsAt(Date.parse("2027-12-31T14:59:59.000Z"))).toBe(Date.parse("2028-02-28T15:00:00.000Z"));
   });
+
+  it.each([
+    {
+      currentDeploymentUrl: "",
+      debugDeploymentUrl: "https://trial-debug.convex.cloud",
+      durationDays: "1",
+    },
+    {
+      currentDeploymentUrl: "https://trial-debug.convex.cloud",
+      debugDeploymentUrl: "",
+      durationDays: "1",
+    },
+    {
+      currentDeploymentUrl: "https://trial-debug.convex.cloud",
+      debugDeploymentUrl: "https://another.convex.cloud",
+      durationDays: "1",
+    },
+    {
+      currentDeploymentUrl: "https://trial-debug.convex.cloud",
+      debugDeploymentUrl: "https://trial-debug.convex.cloud",
+      durationDays: "   ",
+    },
+  ])(
+    "対象URLまたは日数が有効でなければ2暦月を維持する: current=$currentDeploymentUrl, debug=$debugDeploymentUrl, days=$durationDays",
+    ({ currentDeploymentUrl, debugDeploymentUrl, durationDays }) => {
+      vi.stubEnv("CONVEX_CLOUD_URL", currentDeploymentUrl);
+      vi.stubEnv("DEBUG_TRIAL_DURATION_DEPLOYMENT_URL", debugDeploymentUrl);
+      vi.stubEnv("DEBUG_TRIAL_DURATION_DAYS", durationDays);
+
+      expect(calculateTrialEndsAt(Date.parse("2026-07-14T01:30:00.000Z"))).toBe(Date.parse("2026-09-13T15:00:00.000Z"));
+    },
+  );
+
+  it("対象deploymentが一致しなければ不正な日数も無視して2暦月を維持する", () => {
+    vi.stubEnv("CONVEX_CLOUD_URL", "https://current.convex.cloud");
+    vi.stubEnv("DEBUG_TRIAL_DURATION_DEPLOYMENT_URL", "https://another.convex.cloud");
+    vi.stubEnv("DEBUG_TRIAL_DURATION_DAYS", "not-an-integer");
+
+    expect(calculateTrialEndsAt(Date.parse("2026-07-14T01:30:00.000Z"))).toBe(Date.parse("2026-09-13T15:00:00.000Z"));
+  });
+
+  it("対象URLを正規化し、1日を登録日の翌日00:00 JSTとして扱う", () => {
+    vi.stubEnv("CONVEX_CLOUD_URL", " https://trial-debug.convex.cloud/ ");
+    vi.stubEnv("DEBUG_TRIAL_DURATION_DEPLOYMENT_URL", " https://trial-debug.convex.cloud/// ");
+    vi.stubEnv("DEBUG_TRIAL_DURATION_DAYS", " 1 ");
+
+    expect(calculateTrialEndsAt(Date.parse("2026-07-14T01:30:00.000Z"))).toBe(Date.parse("2026-07-14T15:00:00.000Z"));
+    expect(calculateTrialEndsAt(Date.parse("2026-07-14T14:59:59.000Z"))).toBe(Date.parse("2026-07-14T15:00:00.000Z"));
+    expect(calculateTrialEndsAt(Date.parse("2026-07-14T15:00:00.000Z"))).toBe(Date.parse("2026-07-15T15:00:00.000Z"));
+  });
+
+  it("範囲内の中間値をJST暦日として計算する", () => {
+    vi.stubEnv("CONVEX_CLOUD_URL", "https://trial-debug.convex.cloud");
+    vi.stubEnv("DEBUG_TRIAL_DURATION_DEPLOYMENT_URL", "https://trial-debug.convex.cloud");
+    vi.stubEnv("DEBUG_TRIAL_DURATION_DAYS", "7");
+
+    expect(calculateTrialEndsAt(Date.parse("2026-07-14T01:30:00.000Z"))).toBe(Date.parse("2026-07-20T15:00:00.000Z"));
+  });
+
+  it("30日を月・年をまたぐJST暦日として計算する", () => {
+    vi.stubEnv("CONVEX_CLOUD_URL", "https://trial-debug.convex.cloud");
+    vi.stubEnv("DEBUG_TRIAL_DURATION_DEPLOYMENT_URL", "https://trial-debug.convex.cloud");
+    vi.stubEnv("DEBUG_TRIAL_DURATION_DAYS", "30");
+
+    expect(calculateTrialEndsAt(Date.parse("2026-12-15T03:00:00.000Z"))).toBe(Date.parse("2027-01-13T15:00:00.000Z"));
+  });
+
+  it.each(["0", "-1", "1.5", "1e1", "01", "31", "abc", "9007199254740992"])(
+    "対象deploymentの不正な日数 %s を拒否する",
+    (value) => {
+      vi.stubEnv("CONVEX_CLOUD_URL", "https://trial-debug.convex.cloud");
+      vi.stubEnv("DEBUG_TRIAL_DURATION_DEPLOYMENT_URL", "https://trial-debug.convex.cloud");
+      vi.stubEnv("DEBUG_TRIAL_DURATION_DAYS", value);
+
+      expect(() => calculateTrialEndsAt(Date.parse("2026-07-14T01:30:00.000Z"))).toThrowError(RangeError);
+    },
+  );
 });
 
 describe("organizationBilling/policy payment grace", () => {

@@ -1,3 +1,5 @@
+import { env } from "../_generated/server";
+
 export function getAppUrl(): string {
   return process.env.APP_URL ?? "https://shiftori.app";
 }
@@ -39,6 +41,34 @@ export function getStaffRegistrationTrustedIpHeader(): "cf-connecting-ip" | null
 
 export function isDebugNotifyFailEnabled(): boolean {
   return (process.env.DEBUG_NOTIFY_FAIL ?? "").trim().length > 0;
+}
+
+function normalizeDeploymentUrl(value: string | undefined): string {
+  return value?.trim().replace(/\/+$/, "") ?? "";
+}
+
+/**
+ * 対象deploymentへ明示的に結び付けた、開発用Trial期間だけを返す。
+ * URL不一致では日数を解釈せず、通常のTrial期間へ戻す。
+ */
+export function getDebugTrialDurationDays(): number | undefined {
+  const currentDeploymentUrl = normalizeDeploymentUrl(process.env.CONVEX_CLOUD_URL);
+  const debugDeploymentUrl = normalizeDeploymentUrl(env.DEBUG_TRIAL_DURATION_DEPLOYMENT_URL);
+  if (!currentDeploymentUrl || !debugDeploymentUrl || currentDeploymentUrl !== debugDeploymentUrl) {
+    return undefined;
+  }
+
+  const rawDurationDays = env.DEBUG_TRIAL_DURATION_DAYS?.trim();
+  if (!rawDurationDays) {
+    return undefined;
+  }
+
+  const durationDays = Number(rawDurationDays);
+  if (!/^[1-9]\d*$/.test(rawDurationDays) || !Number.isSafeInteger(durationDays) || durationDays > 30) {
+    throw new RangeError("DEBUG_TRIAL_DURATION_DAYS must be an integer between 1 and 30");
+  }
+
+  return durationDays;
 }
 
 /**
