@@ -5,6 +5,7 @@ import type { OrganizationContextModel } from "./OrganizationContext/script";
 import type { OrganizationBillingView, OrganizationSettingsViewProps } from "./types";
 
 const actions = {
+  onBackToDashboard: fn(),
   onSelectOrganization: fn(),
   onUpdateOrganizationName: fn(),
   onInviteManager: fn(),
@@ -223,10 +224,10 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Users: Story = { name: "ユーザー｜通常" };
+export const Users: Story = { name: "スタッフ｜通常" };
 
 export const StaffWithoutShop: Story = {
-  name: "ユーザー｜店舗未所属",
+  name: "スタッフ｜店舗未所属",
   args: {
     people: [
       ...baseArgs.people,
@@ -246,7 +247,7 @@ export const StaffWithoutShop: Story = {
 };
 
 export const UserListLoadMoreBehavior: Story = {
-  name: "ユーザー｜もっと見る（操作確認）",
+  name: "スタッフ｜もっと見る（操作確認）",
   parameters: { screenshot: { skip: true } },
   args: {
     people: [
@@ -268,7 +269,7 @@ export const UserListLoadMoreBehavior: Story = {
 };
 
 export const FutureAssignmentRemovalBlocked: Story = {
-  name: "ユーザー｜未来のシフトあり",
+  name: "スタッフ｜未来のシフトあり",
   args: {
     people: baseArgs.people.map((person) =>
       person.id === "person-staff"
@@ -283,7 +284,7 @@ export const FutureAssignmentRemovalBlocked: Story = {
 };
 
 export const UserNavigationBehavior: Story = {
-  name: "ユーザー｜詳細を開く（操作確認）",
+  name: "スタッフ｜詳細を開く（操作確認）",
   parameters: { screenshot: { skip: true } },
   args: {
     actions: { ...actions, onOpenUser: fn() },
@@ -297,7 +298,7 @@ export const UserNavigationBehavior: Story = {
 };
 
 export const ManagerRoleRemoval: Story = {
-  name: "ユーザー｜管理者権限を外す",
+  name: "スタッフ｜管理者権限を外す",
   args: {
     people: [
       {
@@ -330,12 +331,12 @@ export const LazyTabMountBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(canvas.queryByText("組織の店舗")).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("heading", { name: "全店舗 (2/5)" })).not.toBeInTheDocument();
     await userEvent.click(canvas.getByRole("tab", { name: "店舗" }));
-    await expect(await canvas.findByRole("heading", { name: "組織の店舗" })).toBeInTheDocument();
+    await expect(await canvas.findByRole("heading", { name: "全店舗 (2/5)" })).toBeInTheDocument();
 
-    await userEvent.click(canvas.getByRole("tab", { name: "ユーザー" }));
-    await expect(canvas.queryByText("組織の店舗")).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("tab", { name: "スタッフ" }));
+    await expect(canvas.getByRole("heading", { name: "全スタッフ (8/20)" })).toBeInTheDocument();
   },
 };
 
@@ -363,9 +364,9 @@ export const DarkLaunchHiddenEntrypointsBehavior: Story = {
     const canvas = within(canvasElement);
 
     await expect(canvas.queryByRole("tab", { name: "プランと支払い" })).not.toBeInTheDocument();
-    await expect(canvas.queryByRole("button", { name: "店舗を追加" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: "店舗を追加する" })).not.toBeInTheDocument();
 
-    await userEvent.click(canvas.getByRole("tab", { name: "ユーザー" }));
+    await userEvent.click(canvas.getByRole("tab", { name: "スタッフ" }));
     await expect(
       canvas.queryByRole("button", { name: /管理者を招待|次の管理者を招待|ログイン案内を再送/ }),
     ).not.toBeInTheDocument();
@@ -373,7 +374,7 @@ export const DarkLaunchHiddenEntrypointsBehavior: Story = {
     await userEvent.click(canvas.getByRole("tab", { name: "設定" }));
     await expect(canvas.queryByRole("button", { name: "新しい組織を作る" })).not.toBeInTheDocument();
     // 組織削除は退会導線のため、ダークローンチ中も残す。
-    await expect(canvas.getByRole("button", { name: /^削除$/ })).toBeEnabled();
+    await expect(canvas.getByRole("button", { name: /^削除する$/ })).toBeEnabled();
   },
 };
 
@@ -385,7 +386,7 @@ export const SettingsDeletionUnavailable: Story = {
     deleteOrganizationDisabledReason: "有料契約やプラン変更を終了してから、組織を削除してください。",
   },
   play: async ({ canvasElement }) => {
-    const deleteButton = within(canvasElement).getByRole("button", { name: /^削除$/ });
+    const deleteButton = within(canvasElement).getByRole("button", { name: /^削除する$/ });
 
     await expect(deleteButton).toBeDisabled();
     await expect(deleteButton).toHaveAccessibleDescription(
@@ -402,7 +403,7 @@ export const SettingsDeletionUnavailableWithStripeSubscription: Story = {
     deleteOrganizationDisabledReason: "Stripeの契約終了を確認してから、グループを削除してください。",
   },
   play: async ({ canvasElement }) => {
-    const deleteButton = within(canvasElement).getByRole("button", { name: /^削除$/ });
+    const deleteButton = within(canvasElement).getByRole("button", { name: /^削除する$/ });
 
     await expect(deleteButton).toBeDisabled();
     await expect(deleteButton).toHaveAccessibleDescription(
@@ -420,7 +421,7 @@ export const OrganizationDeletionActionBehavior: Story = {
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: /^削除$/ }));
+    await userEvent.click(canvas.getByRole("button", { name: /^削除する$/ }));
     await expect(args.actions.onDeleteOrganization).toHaveBeenCalledTimes(1);
   },
 };
@@ -452,7 +453,7 @@ export const DisabledActionReasonsBehavior: Story = {
     );
     await userEvent.click(canvas.getByRole("tab", { name: "店舗" }));
     await expectDisabledActionDescription(
-      canvas.getByRole("button", { name: "店舗を追加" }),
+      canvas.getByRole("button", { name: "店舗を追加する" }),
       "閲覧のみの管理者は、店舗を追加できません。",
     );
     await userEvent.click(canvas.getByRole("tab", { name: "プランと支払い" }));
@@ -464,7 +465,7 @@ export const DisabledActionReasonsBehavior: Story = {
     );
     await userEvent.click(canvas.getByRole("tab", { name: "設定" }));
     await expectDisabledActionDescription(
-      canvas.getByRole("button", { name: /^削除$/ }),
+      canvas.getByRole("button", { name: /^削除する$/ }),
       "閲覧のみの管理者は組織を削除できません。",
     );
   },
@@ -620,7 +621,7 @@ export const ShopCapacityReachedBehavior: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const addShopButton = canvas.getByRole("button", { name: "店舗を追加" });
+    const addShopButton = canvas.getByRole("button", { name: "店舗を追加する" });
     await expectDisabledActionDescription(addShopButton, "店舗は、組織ごとに5件まで登録できます。");
     await expect(canvas.queryByRole("link", { name: "利用上限について問い合わせる" })).not.toBeInTheDocument();
   },
@@ -810,7 +811,7 @@ export const MobileComplimentaryBusiness: Story = {
 };
 
 export const MobileUsers: Story = {
-  name: "ユーザー｜通常・モバイル",
+  name: "スタッフ｜通常・モバイル",
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: { defaultTab: "people" },

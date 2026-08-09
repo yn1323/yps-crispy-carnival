@@ -13,7 +13,7 @@ import {
   VisuallyHidden,
 } from "@chakra-ui/react";
 import { Link as RouterLink } from "@tanstack/react-router";
-import { LuBuilding2, LuCheck, LuChevronDown, LuChevronRight, LuSettings } from "react-icons/lu";
+import { LuBuilding2, LuCheck, LuChevronDown, LuChevronRight, LuSettings, LuStore } from "react-icons/lu";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/tooltip";
 import type { ShopContextOption } from "@/src/domains/shop/context";
@@ -33,7 +33,7 @@ export const OperationContextView = ({
   organizationSettingsShopId,
 }: OperationContextViewProps) => {
   return (
-    <Stack gap={3} pb={{ base: 4, lg: 6 }} borderBottomWidth="1px" borderColor="gray.200">
+    <Stack gap={0} pb={{ base: 1, lg: 2 }} borderBottomWidth="1px" borderColor="gray.200">
       {organizationSettingsShopId && (
         <Button
           asChild
@@ -44,14 +44,14 @@ export const OperationContextView = ({
           w="fit-content"
           maxW="full"
           minW={0}
-          minH="44px"
+          minH="32px"
           h="auto"
           px={0}
-          py={2}
-          color="gray.800"
-          fontSize={{ base: "md", md: "lg" }}
+          py={0}
+          color="teal.700"
+          fontSize="sm"
           fontWeight="bold"
-          _hover={{ color: "teal.700" }}
+          _hover={{ color: "teal.800" }}
         >
           <RouterLink
             to="/settings"
@@ -62,7 +62,7 @@ export const OperationContextView = ({
             <Text as="span" truncate minW={0} flex={1}>
               {model.selectedGroup.organizationName}
             </Text>
-            <Icon as={LuChevronRight} boxSize={5} color="gray.500" flexShrink={0} />
+            <Icon as={LuChevronRight} boxSize={5} color="currentColor" flexShrink={0} />
           </RouterLink>
         </Button>
       )}
@@ -98,7 +98,8 @@ const ShopSelector = ({ model, onSelect }: { model: OperationContextModel; onSel
   if (!model.canSwitchShop) {
     return (
       <HStack gap={2} flex={1} minW={0}>
-        <Heading as="h1" textStyle={{ base: "sectionTitle", md: "pageTitle" }} color="gray.900" truncate minW={0}>
+        <Icon as={LuStore} boxSize={5} color="gray.700" flexShrink={0} aria-hidden />
+        <Heading as="h1" fontSize="lg" color="gray.900" truncate minW={0}>
           {model.selectedShop.shopName}
         </Heading>
         <ShopStatusBadges shop={model.selectedShop} />
@@ -132,7 +133,8 @@ const ShopSelector = ({ model, onSelect }: { model: OperationContextModel; onSel
             _hover={{ bg: "gray.50", borderColor: "gray.400" }}
           >
             <HStack gap={2} minW={0} textAlign="left">
-              <Text textStyle={{ base: "sectionTitle", md: "pageTitle" }} fontWeight="bold" truncate minW={0}>
+              <Icon as={LuStore} boxSize={5} color="gray.700" flexShrink={0} aria-hidden />
+              <Text fontSize="lg" fontWeight="bold" truncate minW={0}>
                 {model.selectedShop.shopName}
               </Text>
               <ShopStatusBadges shop={model.selectedShop} />
@@ -216,19 +218,19 @@ const ShopStatusBadges = ({ shop }: { shop: ShopContextOption }) => {
 
 export const OperationContextSkeleton = () => (
   <Stack
-    gap={3}
-    pb={{ base: 4, lg: 6 }}
+    gap={0}
+    pb={{ base: 1, lg: 2 }}
     borderBottomWidth="1px"
     borderColor="gray.200"
     aria-label="現在の組織と店舗を読み込み中"
   >
-    <Flex align="center" gap={2} minH="44px" maxW="full">
+    <Flex align="center" gap={2} minH="32px" maxW="full">
       <Skeleton h="20px" w="20px" flexShrink={0} />
       <Skeleton h="24px" w={{ base: "160px", md: "220px" }} maxW="70%" />
       <Skeleton h="20px" w="20px" flexShrink={0} />
     </Flex>
     <Flex align="center" justify="space-between" gap={3}>
-      <Skeleton h={{ base: "28px", md: "40px" }} w={{ base: "160px", md: "240px" }} maxW="60%" />
+      <Skeleton h="20px" w={{ base: "160px", md: "240px" }} maxW="60%" />
       <Skeleton h="44px" w="44px" flexShrink={0} />
     </Flex>
   </Stack>

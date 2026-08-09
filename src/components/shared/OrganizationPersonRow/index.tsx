@@ -53,23 +53,34 @@ export function OrganizationPersonRow({
         </Flex>
       }
       badges={
-        <HStack gap={1.5} wrap="wrap" ms="auto" flexShrink={0}>
-          <Badge
-            colorPalette={isManager ? "teal" : "gray"}
-            variant="subtle"
-            bg={isManager ? "teal.100" : undefined}
-            borderRadius="full"
-            px={2}
-            textStyle="2xs"
-          >
-            {roleLabel}
-          </Badge>
-          {showLineConnection && person.isLineConnected && (
-            <Badge colorPalette="green" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
-              LINE連携済み
+        <Flex
+          display="grid"
+          gridTemplateColumns={showLineConnection ? "64px 96px" : "64px"}
+          gap={1.5}
+          ms="auto"
+          flexShrink={0}
+          alignItems="center"
+        >
+          <Flex minW={0}>
+            <Badge
+              colorPalette={isManager ? "teal" : "gray"}
+              variant="subtle"
+              bg={isManager ? "teal.100" : undefined}
+              borderRadius="full"
+              px={2}
+              textStyle="2xs"
+            >
+              {roleLabel}
             </Badge>
-          )}
-        </HStack>
+          </Flex>
+          <Flex minW={0}>
+            {showLineConnection && person.isLineConnected && (
+              <Badge colorPalette="green" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
+                LINE連携済み
+              </Badge>
+            )}
+          </Flex>
+        </Flex>
       }
       secondary={
         showShopNames ? (

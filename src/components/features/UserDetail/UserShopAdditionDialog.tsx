@@ -87,7 +87,7 @@ export function UserShopAdditionDialog({
                     cursor={!data.canWrite || isAdding ? "not-allowed" : "pointer"}
                     opacity={isAdding && !isCurrent ? 0.6 : 1}
                     transition="background-color 150ms ease, opacity 150ms ease"
-                    _hover={!data.canWrite || isAdding ? undefined : { bg: "blackAlpha.50" }}
+                    _hover={!data.canWrite || isAdding ? undefined : { bg: "teal.50" }}
                     _focusVisible={{
                       outlineWidth: "2px",
                       outlineStyle: "solid",

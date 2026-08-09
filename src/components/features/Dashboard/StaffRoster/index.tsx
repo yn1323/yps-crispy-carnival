@@ -85,10 +85,24 @@ export const StaffRoster = ({
       {sorted.length === 0 ? (
         <Empty
           icon={LuUsers}
-          title="まだスタッフはいません"
-          description="名前とメールアドレスでスタッフを追加できます。"
+          title="スタッフはいません"
           tone="brand"
           variant="section"
+          action={
+            <Button
+              colorPalette="teal"
+              size="md"
+              onClick={onAddClick}
+              disabled={isReadOnly}
+              title={isReadOnly ? "閲覧のみの店舗ではスタッフを招待できません" : undefined}
+              gap={1.5}
+              onPointerEnter={onAddIntent}
+              onFocus={onAddIntent}
+            >
+              <LuPlus />
+              スタッフを招待する
+            </Button>
+          }
         />
       ) : (
         <Box

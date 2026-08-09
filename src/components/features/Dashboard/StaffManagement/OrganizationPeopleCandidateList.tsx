@@ -49,7 +49,7 @@ function ConnectedCandidateList(props: Omit<CandidateListProps, "enabled">) {
       candidates={candidates ?? []}
       isLoading={candidates === undefined}
       errorMessage={
-        candidates === null ? "組織設定の「ユーザー」で登録内容を確認してから、もう一度お試しください。" : undefined
+        candidates === null ? "組織設定の「スタッフ」で登録内容を確認してから、もう一度お試しください。" : undefined
       }
       {...props}
     />
