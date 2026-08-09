@@ -130,6 +130,7 @@ export type OrganizationBillingView = {
 };
 
 export type OrganizationSettingsActions = {
+  onBackToDashboard: () => void;
   onSelectOrganization: (shopId: string) => void;
   onUpdateOrganizationName: () => void;
   onInviteManager: () => void;

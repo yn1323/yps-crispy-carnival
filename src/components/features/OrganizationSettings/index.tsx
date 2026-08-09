@@ -100,6 +100,7 @@ export function OrganizationSettings({
         focusedPersonId={focusedPersonId}
         onVisibleUserCountChange={onVisibleUserCountChange}
         actions={{
+          onBackToDashboard: () => void navigate({ to: "/dashboard", search: { shop: context.selectedShopId } }),
           onSelectOrganization: (shopId) =>
             void navigate({
               to: "/settings",

@@ -39,6 +39,7 @@ export const OrganizationSettingsView = ({
       model={organizationContext}
       canUpdateOrganizationName={canUpdateOrganizationName}
       updateOrganizationNameDisabledReason={updateOrganizationNameDisabledReason}
+      onBackToDashboard={actions.onBackToDashboard}
       onSelectOrganization={actions.onSelectOrganization}
       onUpdateOrganizationName={actions.onUpdateOrganizationName}
     />
@@ -54,7 +55,7 @@ export const OrganizationSettingsView = ({
       <Tabs.List overflowX="auto" overflowY="hidden" whiteSpace="nowrap">
         <Tabs.Trigger value="people" flexShrink={0} gap={2}>
           <LuUsers aria-hidden />
-          ユーザー
+          スタッフ
         </Tabs.Trigger>
         <Tabs.Trigger value="shops" flexShrink={0} gap={2}>
           <LuStore aria-hidden />
@@ -75,6 +76,7 @@ export const OrganizationSettingsView = ({
       <Tabs.Content value="people" p={0} pt={{ base: 5, md: 6 }}>
         <PeopleSection
           people={people}
+          peopleUsage={billing.peopleUsage}
           showManagerInvitation={features.managerInvitation}
           canInviteManager={canInviteManager}
           canOpenManagerInvitation={
@@ -94,6 +96,7 @@ export const OrganizationSettingsView = ({
       <Tabs.Content value="shops" p={0} pt={{ base: 5, md: 6 }}>
         <ShopsSection
           shops={shops}
+          shopUsage={billing.shopUsage}
           showAddShop={features.shopAddition}
           canAddShop={canAddShop}
           addShopDisabledReason={addShopDisabledReason}

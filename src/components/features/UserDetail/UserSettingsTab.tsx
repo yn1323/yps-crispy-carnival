@@ -89,8 +89,12 @@ export function UserGroupRemovalSection({
   return (
     <>
       <DeletionActionSection
-        title="スタッフを削除する"
-        actionLabel="削除"
+        title="スタッフを完全に削除する"
+        description={
+          "組織、すべての店舗からこのスタッフを削除します。\n店舗から外す場合、所属店舗ページから「店舗から外す」を押してください。"
+        }
+        descriptionFontSize="xs"
+        actionLabel="削除する"
         actionVariant="solid"
         canDelete={!isDisabled}
         disabledReason={disabledReason}
@@ -100,7 +104,7 @@ export function UserGroupRemovalSection({
 
       {isConfirmationOpen && (
         <Dialog
-          title="ユーザーを削除"
+          title="スタッフを削除"
           isOpen
           role="alertdialog"
           submitLabel="組織から削除"
@@ -119,17 +123,16 @@ export function UserGroupRemovalSection({
         >
           <Stack gap={3} fontSize="sm" color="fg.muted" lineHeight="tall">
             <Text fontWeight="semibold" color="gray.900">
-              {personName}さんをこの組織から削除しますか？
+              {personName}さんを完全に削除しますか？
             </Text>
-            <Text>{personName}さんは、店舗への所属と権限（管理・スタッフ・閲覧）を失います。</Text>
-            <Stack gap={1}>
-              <Text>過去のシフト履歴は保持されます。</Text>
+            <Text>組織と所属する全店舗から完全に削除します。</Text>
+            {removalPreview.kind === "tooMany" && (
               <Text color="orange.700" fontWeight="medium" whiteSpace="pre-line">
-                {getAssignmentRemovalDescription(removalPreview)}
+                {getAssignmentRemovalWarning(removalPreview)}
               </Text>
-            </Stack>
+            )}
             <Text color="red.700" fontWeight="semibold">
-              この操作は元に戻せません。
+              この操作はもとに戻せません。
             </Text>
           </Stack>
         </Dialog>
@@ -351,13 +354,7 @@ function InlineDestructiveConfirmation({
   );
 }
 
-function getAssignmentRemovalDescription(preview: UserDetailRemovalPreview) {
-  if (preview.kind === "tooMany") {
-    return `今日以降のシフトの割り当てが${preview.limit}件を超えています。
+function getAssignmentRemovalWarning(preview: Extract<UserDetailRemovalPreview, { kind: "tooMany" }>) {
+  return `今日以降のシフトの割り当てが${preview.limit}件を超えています。
 シフトを整理してから削除してください。`;
-  }
-  if (preview.assignmentCount === 0) {
-    return "今日以降のシフトには割り当てられていないため、シフトへの影響はありません。";
-  }
-  return `今日以降のシフト${preview.assignmentCount}件からも外れます。`;
 }

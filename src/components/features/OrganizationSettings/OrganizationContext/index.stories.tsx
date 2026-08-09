@@ -1,7 +1,7 @@
 import { Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import type { ShopContextOption } from "@/src/domains/shop/context";
 import { OrganizationContext } from ".";
 import { buildOrganizationContextModel } from "./script";
@@ -49,6 +49,7 @@ const meta = {
   args: {
     model: createModel([shop({})], "shop-a-1"),
     canUpdateOrganizationName: true,
+    onBackToDashboard: fn(),
     onSelectOrganization: () => {},
     onUpdateOrganizationName: () => {},
   },
@@ -85,6 +86,18 @@ export const MobileMultipleOrganizations: Story = {
   args: { model: createModel(shops, "shop-a-1") },
 };
 
+export const BackToDashboardBehavior: Story = {
+  name: "組織名からDashboardへ戻る（操作確認）",
+  parameters: { screenshot: { skip: true } },
+  play: async ({ args, canvasElement }) => {
+    const button = within(canvasElement).getByRole("button", {
+      name: "株式会社さくらダイニングのダッシュボードへ戻る",
+    });
+    await userEvent.click(button);
+    await expect(args.onBackToDashboard).toHaveBeenCalledOnce();
+  },
+};
+
 export const SelectionBehavior: Story = {
   name: "組織を切り替える（操作確認）",
   parameters: { screenshot: { skip: true } },
@@ -107,6 +120,7 @@ function SelectionBehaviorStory() {
     <OrganizationContext
       model={createModel(shops, selectedShopId)}
       canUpdateOrganizationName
+      onBackToDashboard={() => {}}
       onSelectOrganization={setSelectedShopId}
       onUpdateOrganizationName={() => {}}
     />

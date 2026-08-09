@@ -24,9 +24,10 @@ export function OrganizationDeletionSection({ canDelete, disabledReason, onDelet
 
   return (
     <DeletionActionSection
-      title="組織・店舗をすべて削除する"
-      description={"この組織とすべての店舗を利用できなくします。\nこの操作は元に戻せません。"}
-      actionLabel="削除"
+      title="組織、店舗、スタッフを完全に削除する"
+      description={"組織に紐づくすべての情報を削除します。\nこの操作はもとに戻せません。"}
+      descriptionFontSize="xs"
+      actionLabel="削除する"
       actionVariant="solid"
       canDelete={canDelete}
       disabledReason={displayedDisabledReason}

@@ -55,7 +55,7 @@ export function UserDetailView({ data, showShopMembershipAddition, activePanel, 
 
   return (
     <Stack gap={{ base: 4, md: 6 }}>
-      <DetailPageHeader title="スタッフ詳細" onBack={actions.onBack} />
+      <DetailPageHeader title="スタッフ詳細" icon={LuUserRound} onBack={actions.onBack} />
 
       <UserSummary data={data} />
 
@@ -103,7 +103,7 @@ export function UserDetailView({ data, showShopMembershipAddition, activePanel, 
               onClick={actions.onOpenAddShop}
             >
               <LuPlus aria-hidden />
-              店舗を追加
+              所属を追加する
             </Button>
           )}
         </Flex>

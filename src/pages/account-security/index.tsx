@@ -1,4 +1,6 @@
 import { Stack } from "@chakra-ui/react";
+import { LuUserRound } from "react-icons/lu";
+import { AccountDeletionSection } from "@/src/components/features/AccountDeletion";
 import { type LoginMethodMigrationFlow, LoginMethods } from "@/src/components/features/LoginMethods";
 import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
 import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
@@ -23,7 +25,7 @@ export function AccountSecurityPage({
   return (
     <AuthenticatedPageContent>
       <Stack gap={3}>
-        <DetailPageHeader title="アカウント設定" onBack={() => window.history.back()} />
+        <DetailPageHeader title="アカウント設定" icon={LuUserRound} onBack={() => window.history.back()} />
         <LoginMethods
           flow={flow}
           oauth={oauth}
@@ -31,6 +33,7 @@ export function AccountSecurityPage({
           onBackToOverview={onBackToOverview}
           onGoogleOAuthReturnHandled={onGoogleOAuthReturnHandled}
         />
+        <AccountDeletionSection />
       </Stack>
     </AuthenticatedPageContent>
   );

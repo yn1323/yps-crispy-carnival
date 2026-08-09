@@ -1,6 +1,5 @@
 import { Box, Flex, Heading, Stack, Switch, Text } from "@chakra-ui/react";
-import { LuTrash2 } from "react-icons/lu";
-import { Button } from "@/src/components/ui/Button";
+import { DeletionActionSection } from "@/src/components/shared/DeletionActionSection";
 import { Dialog } from "@/src/components/ui/Dialog";
 import type { UserShopDetailMembership, UserShopDetailRemovalPreview } from "./types";
 
@@ -82,31 +81,19 @@ export function UserShopSettingsSection({
       </Stack>
 
       {showMembershipRemoval && (
-        <Box borderTopWidth="1px" borderColor="blackAlpha.100" pt={6}>
-          <Stack gap={3}>
-            <Heading as="h2" fontSize="md" fontWeight="semibold" color="gray.900">
-              このスタッフを店舗から外す
-            </Heading>
-            <Stack gap={2} align="flex-end">
-              <Button
-                colorPalette="red"
-                variant="solid"
-                gap={1.5}
-                disabled={membershipRemovalDisabled}
-                aria-describedby={membershipRemovalDisabledReason ? membershipRemovalDisabledReasonId : undefined}
-                onClick={onRequestRemoveMembership}
-              >
-                <LuTrash2 aria-hidden />
-                店舗から外す
-              </Button>
-              {membershipRemovalDisabledReason && (
-                <Text id={membershipRemovalDisabledReasonId} fontSize="xs" color="orange.700" textAlign="right">
-                  {membershipRemovalDisabledReason}
-                </Text>
-              )}
-            </Stack>
-          </Stack>
-        </Box>
+        <DeletionActionSection
+          title="このスタッフを店舗から外す"
+          description={
+            "このスタッフを店舗から外します。\n組織への登録は残るため、別店舗に移動する際などに利用してください。"
+          }
+          descriptionFontSize="xs"
+          actionLabel="削除する"
+          actionVariant="solid"
+          canDelete={!membershipRemovalDisabled}
+          disabledReason={membershipRemovalDisabledReason}
+          disabledReasonId={membershipRemovalDisabledReasonId}
+          onDelete={onRequestRemoveMembership}
+        />
       )}
 
       {isRemovalConfirmationOpen && showMembershipRemoval && (
@@ -133,10 +120,10 @@ export function UserShopSettingsSection({
               {personName}さんを{membership.shopName}から外しますか？
             </Text>
             <Stack gap={1.5} fontSize="sm" color="fg.muted" lineHeight="tall">
-              <Text>
-                この店舗のスタッフ所属、既存のシフト用リンク、LINE連携を終了します。
-                <br />
-                組織のユーザー情報、ほかの店舗への所属、管理者権限は変更しません。
+              <Text whiteSpace="pre-line">
+                {
+                  "この店舗からのシフト通知、LINE連携を削除します。\n別店舗の所属はそのままです。\nすべての店舗から外れた場合、未所属として組織に残り続けます。"
+                }
               </Text>
               <Text color="orange.700" fontWeight="medium" whiteSpace="pre-line">
                 {getAssignmentRemovalDescription(removalPreview)}

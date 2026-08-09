@@ -7,6 +7,7 @@ type Props = {
   title: string;
   headingAs?: "h2" | "h3";
   description?: string;
+  descriptionFontSize?: "sm" | "xs";
   descriptionId?: string;
   actionLabel: string;
   actionVariant?: ButtonProps["variant"];
@@ -21,6 +22,7 @@ export function DeletionActionSection({
   title,
   headingAs = "h2",
   description,
+  descriptionFontSize = "sm",
   descriptionId,
   actionLabel,
   actionVariant = "outline",
@@ -41,7 +43,13 @@ export function DeletionActionSection({
             {title}
           </Heading>
           {description && (
-            <Text id={descriptionId} fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
+            <Text
+              id={descriptionId}
+              fontSize={descriptionFontSize}
+              color="fg.muted"
+              lineHeight="tall"
+              whiteSpace="pre-line"
+            >
               {description}
             </Text>
           )}

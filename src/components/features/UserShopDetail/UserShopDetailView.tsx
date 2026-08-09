@@ -1,5 +1,6 @@
 import { Box, Stack } from "@chakra-ui/react";
 import type { FocusEventHandler, ReactNode, Ref } from "react";
+import { LuStore } from "react-icons/lu";
 import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
 import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import type { UserShopDetailData, UserShopDetailMembership, UserShopDetailRecruitment } from "./types";
@@ -67,6 +68,7 @@ export function UserShopDetailView({
     <Stack gap={{ base: 4, md: 6 }}>
       <DetailPageHeader
         title={`${membership.shopName}：${data.person.name}さん`}
+        icon={LuStore}
         backLabel="スタッフ詳細へ戻る"
         onBack={actions.onBack}
       />

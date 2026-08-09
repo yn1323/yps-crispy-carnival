@@ -1,5 +1,6 @@
 import { Box, HStack, Skeleton, Stack } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
+import { LuStore } from "react-icons/lu";
 import { ShopForm, type ShopFormData } from "@/src/components/features/ShopForm";
 import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
 import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
@@ -46,7 +47,7 @@ export function ShopDetailView({
 
   return (
     <Stack gap={{ base: 4, md: 6 }}>
-      <DetailPageHeader title="店舗詳細" onBack={onBack} />
+      <DetailPageHeader title={shop.name} onBack={onBack} icon={LuStore} />
 
       {!shop.canUpdateSettings && (
         <ReadOnlyNotice

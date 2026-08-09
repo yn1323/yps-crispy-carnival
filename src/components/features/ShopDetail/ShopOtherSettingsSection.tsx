@@ -1,4 +1,5 @@
-import { Stack } from "@chakra-ui/react";
+import { Stack, Text } from "@chakra-ui/react";
+import { DeletionActionSection } from "@/src/components/shared/DeletionActionSection";
 import type { ShopDetailData } from "./types";
 
 type Props = {
@@ -6,10 +7,12 @@ type Props = {
   onRequestDelete: () => void;
 };
 
-export function ShopOtherSettingsSection(_props: Props) {
+export function ShopOtherSettingsSection({ shop, onRequestDelete }: Props) {
+  const disabledReasonId = shop.deleteDisabledReason ? `shop-detail-${shop.id}-delete-disabled-reason` : undefined;
+
   return (
     <Stack as="section" gap={3} aria-labelledby="shop-detail-other-settings-heading">
-      {/*<Text
+      <Text
         id="shop-detail-other-settings-heading"
         as="h2"
         fontSize={{ base: "lg", lg: "xl" }}
@@ -22,13 +25,15 @@ export function ShopOtherSettingsSection(_props: Props) {
       <DeletionActionSection
         title="店舗を削除する"
         headingAs="h3"
-        actionLabel="削除"
+        description={"店舗とシフトを削除します。\n店舗所属ユーザーは削除されません。"}
+        descriptionFontSize="xs"
+        actionLabel="削除する"
         actionVariant="solid"
         canDelete={shop.canDelete}
         disabledReason={shop.deleteDisabledReason}
         disabledReasonId={disabledReasonId}
         onDelete={onRequestDelete}
-      />*/}
+      />
     </Stack>
   );
 }
