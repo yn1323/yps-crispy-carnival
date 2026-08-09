@@ -65,6 +65,60 @@ describe("Analytics bounded invariants", () => {
     vi.unstubAllEnvs();
   });
 
+  it("初回partialはdataStartAtが対象日の翌日境界に一致する場合だけ有効とする", async () => {
+    const t = convexTest(schema, modules);
+    const result = await t.run(async (ctx) => {
+      const runId = await ctx.db.insert("analyticsRuns", {
+        runKey: `daily:${TARGET_DATE}:initial-partial`,
+        kind: "daily",
+        status: "running",
+        calculationVersion: ANALYTICS_CALCULATION_VERSION,
+        dataStartDate: TARGET_DATE,
+        dataStartAt: DAY.endMs,
+        targetDate: TARGET_DATE,
+        inputFromAt: DAY.startMs,
+        cutoffAt: DAY.startMs + 60_000,
+        stage: "publish",
+        stepVersion: 6,
+        startedAt: NOW - 1_000,
+        updatedAt: NOW,
+      });
+      await ctx.db.insert("analyticsDailyServiceKpis", {
+        runId,
+        snapshotDate: TARGET_DATE,
+        organizationCount: 0,
+        shopCount: 0,
+        kpiEligibleShopCount: 0,
+        activeShopCount: 0,
+        personCount: 0,
+        staffMembershipCount: 0,
+        unlinkedStaffCount: 0,
+        shiftTargetCount: 0,
+        managerMembershipCount: 0,
+        managerStaffCount: 0,
+        milestoneCounts: emptyMilestoneCounts(),
+        healthSignalCounts: emptyHealthSignalCounts(),
+        northStar: { numerator: 0, denominator: 0 },
+        deadlineSubmission: { numerator: 0, denominator: 0 },
+        finalSubmission: { numerator: 0, denominator: 0 },
+        completeness: "complete",
+        computedAt: NOW,
+      });
+      const validRun = await ctx.db.get(runId);
+      if (!validRun) throw new Error("test run missing");
+      const valid = await inspectDailyOutputPage(ctx, validRun, { substage: "service" });
+
+      await ctx.db.patch(runId, { dataStartAt: DAY.startMs });
+      const invalidRun = await ctx.db.get(runId);
+      if (!invalidRun) throw new Error("test run missing");
+      const invalid = await inspectDailyOutputPage(ctx, invalidRun, { substage: "service" });
+      return { valid, invalid };
+    });
+
+    expect(result.valid.status).toBe("continue");
+    expect(result.invalid).toEqual({ status: "invalid" });
+  });
+
   it("501 organizationsでもservice・publish・weekly canonical auditをpageで完了する", async () => {
     const t = convexTest(schema, modules);
     const runId = await t.run(async (ctx) => {

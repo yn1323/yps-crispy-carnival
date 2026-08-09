@@ -428,7 +428,7 @@ export async function getCompleteRunRange(
 }
 
 export function rowBelongsToCompleteRun(
-  row: { runId?: Id<"analyticsRuns">; snapshotDate: string },
+  row: { runId: Id<"analyticsRuns">; snapshotDate: string },
   range: AnalyticsRunRange,
 ) {
   return range.runIdsByDate.get(row.snapshotDate) === row.runId;

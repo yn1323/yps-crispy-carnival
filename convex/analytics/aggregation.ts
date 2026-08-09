@@ -426,7 +426,7 @@ async function notificationFailureAtForShop(
   const runCache = new Map<Id<"analyticsRuns">, Doc<"analyticsRuns"> | null>();
   let latest: number | undefined;
   for (const row of rows) {
-    if (!row.runId || row.lastFailedAt === undefined) continue;
+    if (row.lastFailedAt === undefined) continue;
     let visible = row.runId === run._id;
     if (!visible) {
       let sourceRun = runCache.get(row.runId);
@@ -657,7 +657,7 @@ async function buildDailyShopValue(ctx: MutationCtx, run: AnalyticsRun, shop: Do
     }
   }
   // 切替前の活動履歴は復元しないため、既存店舗は観測開始日をactivity baselineにする。
-  const activityAt = shop.latestActivityAt ?? Math.max(shop.registeredAt, run.dataStartAt);
+  const activityAt = shop.latestActivityAt ?? Math.max(shop.registeredAt, Math.min(run.dataStartAt, run.cutoffAt - 1));
   if (activityAt >= run.cutoffAt) throw new Error("analytics_shop_future_activity");
   const hasRecentActivity = activityAt >= run.cutoffAt - ANALYTICS_POLICY.health.activityWindowDays * DAY_MS;
   if (!hasRecentActivity) {

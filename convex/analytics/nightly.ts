@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { internalAction, internalMutation, type MutationCtx } from "../_generated/server";
+import { dateJST } from "../_lib/dateFormat";
 import {
   aggregateDailyNotificationPage,
   aggregateDailyOrganizationPage,
@@ -262,8 +263,13 @@ export const processPage = internalMutation({
   },
 });
 
-async function startDaily(ctx: MutationCtx, targetDate: string, now: number) {
-  const run = await createDailyRun(ctx, targetDate, now);
+async function startDaily(
+  ctx: MutationCtx,
+  targetDate: string,
+  now: number,
+  options: { initialPartial?: boolean } = {},
+) {
+  const run = await createDailyRun(ctx, targetDate, now, options);
   if (!run) return null;
   await ctx.scheduler.runAfter(0, processAnalyticsStepRef, {
     runId: run._id,
@@ -299,11 +305,14 @@ export const schedulePreviousDay = internalMutation({
 export const startForDate = internalMutation({
   args: { targetDate: v.string() },
   handler: async (ctx, args) => {
+    const now = Date.now();
     const [reset, latestDaily] = await Promise.all([getLatestCompleteResetRun(ctx), getLatestRun(ctx, "daily")]);
-    if (!reset || latestDaily || args.targetDate !== reset.dataStartDate) {
-      throw new ConvexError("Only the first complete analytics date can be started manually");
+    const initialPartial = reset !== null && args.targetDate === dateJST(now) && args.targetDate < reset.dataStartDate;
+    const initialComplete = reset !== null && args.targetDate === reset.dataStartDate && args.targetDate < dateJST(now);
+    if (!reset || latestDaily || (!initialPartial && !initialComplete)) {
+      throw new ConvexError("Only the first analytics date can be started manually");
     }
-    await startDaily(ctx, args.targetDate, Date.now());
+    await startDaily(ctx, args.targetDate, now, { initialPartial });
     return null;
   },
 });

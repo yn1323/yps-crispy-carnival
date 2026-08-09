@@ -64,6 +64,9 @@ const scheduleWeeklyMaintenanceRef = makeFunctionReference<"mutation", Record<st
 ) as unknown as FunctionReference<"mutation", "internal", Record<string, never>, null>;
 
 const RESET_NOW = new Date("2026-05-10T10:00:00+09:00").getTime();
+const RESET_DATE = "2026-05-10";
+const RESET_DATA_START_DATE = "2026-05-11";
+const INITIAL_PARTIAL_AT = new Date("2026-05-10T10:15:00+09:00").getTime();
 const SOURCE_CAPTURE_START_AT = jstDayRangeMs("2026-05-09").startMs;
 const SOURCE_CAPTURE_START_JST = "20260509000000";
 const DEPLOYMENT_LABEL = "dev:analytics-scenario";
@@ -91,12 +94,17 @@ async function finishScheduledAnalytics(t: TestConvex<typeof schema>) {
   await t.finishAllScheduledFunctions(vi.runAllTimers);
 }
 
-async function getOverview(t: TestConvex<typeof schema>, from: string, to = from) {
+async function getOverview(
+  t: TestConvex<typeof schema>,
+  from: string,
+  to = from,
+  comparison: { from: string; to: string } | null = null,
+) {
   return await t.query(internal.analyticsDashboard.queries.getOverview, {
     from,
     to,
-    compareFrom: null,
-    compareTo: null,
+    compareFrom: comparison?.from ?? null,
+    compareTo: comparison?.to ?? null,
     organizationId: null,
     shopId: null,
   });
@@ -118,7 +126,7 @@ describe("Analytics夜間バッチシナリオ", () => {
     vi.restoreAllMocks();
   });
 
-  it("reset中と初回日次処理中は非公開にし、complete後に同じrunIdの全scopeだけを公開する", async () => {
+  it("reset当日の初回partialを公開し、翌03時は再実行せず翌々03時に未処理eventをfull日次へ引き継ぐ", async () => {
     const t = convexTest(schema, modules);
     const registeredAt = new Date("2026-04-01T09:00:00+09:00").getTime();
     vi.setSystemTime(registeredAt);
@@ -208,7 +216,8 @@ describe("Analytics夜間バッチシナリオ", () => {
     expect(baseline.resetRun).toMatchObject({
       status: "complete",
       kind: "reset",
-      dataStartDate: "2026-05-11",
+      dataStartDate: RESET_DATA_START_DATE,
+      dataStartAt: jstDayRangeMs(RESET_DATA_START_DATE).startMs,
     });
     expect(baseline.organization?.registeredAt).toBe(registeredAt);
     expect(Math.floor(baseline.shop?.registeredAt ?? 0)).toBe(registeredAt);
@@ -218,13 +227,40 @@ describe("Analytics夜間バッチシナリオ", () => {
     expect(baseline.operationalOrganization).not.toBeNull();
     expect(baseline.operationalShop).not.toBeNull();
 
-    const beforeFirstDaily = await getOverview(t, "2026-05-11");
+    const beforeFirstDaily = await getOverview(t, RESET_DATE);
     expect(beforeFirstDaily).toMatchObject({ metadata: { availability: "unavailable" }, current: null });
 
-    vi.setSystemTime(new Date("2026-05-12T03:00:00+09:00"));
-    vi.stubEnv("ANALYTICS_NIGHTLY_CRON_ENABLED", "true");
-    await t.mutation(startFirstDateRef, { targetDate: "2026-05-11" });
-    const duringDaily = await getOverview(t, "2026-05-11");
+    vi.setSystemTime(INITIAL_PARTIAL_AT);
+    const staffId = await t.run(async (ctx) => {
+      const id = await ctx.db.insert("staffs", {
+        organizationId: operational.organizationId,
+        shopId: operational.shopId,
+        name: "partial境界追加スタッフ",
+        email: "partial-catch-up@example.com",
+        emailNormalized: "partial-catch-up@example.com",
+        isDeleted: false,
+      });
+      await recordAnalyticsSourceEvent(ctx, {
+        eventKey: "scenario:partial:staff-active",
+        eventType: "staffMembership.changed",
+        occurredAt: INITIAL_PARTIAL_AT,
+        organizationId: operational.organizationId,
+        shopId: operational.shopId,
+        subjectId: id,
+        payload: {
+          kind: "staffMembership",
+          staffId: id,
+          status: "active",
+          isShiftTarget: true,
+          validFrom: INITIAL_PARTIAL_AT,
+          lineLinked: false,
+          lineFollowing: false,
+        },
+      });
+      return id;
+    });
+    await t.mutation(startFirstDateRef, { targetDate: RESET_DATE });
+    const duringDaily = await getOverview(t, RESET_DATE);
     expect(duringDaily).toMatchObject({ metadata: { availability: "unavailable" }, current: null });
 
     await finishScheduledAnalytics(t);
@@ -232,7 +268,7 @@ describe("Analytics夜間バッチシナリオ", () => {
       const run = await ctx.db
         .query("analyticsRuns")
         .withIndex("by_kind_and_status_and_targetDate", (q) =>
-          q.eq("kind", "daily").eq("status", "complete").eq("targetDate", "2026-05-11"),
+          q.eq("kind", "daily").eq("status", "complete").eq("targetDate", RESET_DATE),
         )
         .unique();
       if (!run) throw new Error("daily run was not published");
@@ -254,8 +290,17 @@ describe("Analytics夜間バッチシナリオ", () => {
       return { run, service, organization, shop, allDailyDates };
     });
     expect(published.service?.runId).toBe(published.run._id);
+    if (!published.service) throw new Error("partial service row was not published");
     expect(published.organization?.runId).toBe(published.run._id);
     expect(published.shop?.runId).toBe(published.run._id);
+    expect(published.run).toMatchObject({
+      runKey: `daily:${RESET_DATE}`,
+      dataStartDate: RESET_DATE,
+      dataStartAt: jstDayRangeMs(RESET_DATA_START_DATE).startMs,
+      targetDate: RESET_DATE,
+      inputFromAt: SOURCE_CAPTURE_START_AT,
+      cutoffAt: INITIAL_PARTIAL_AT,
+    });
     expect(published.shop).toMatchObject({
       kpiEligible: false,
       completeness: "complete",
@@ -267,16 +312,136 @@ describe("Analytics夜間バッチシナリオ", () => {
       kpiEligibleShopCount: 0,
       milestoneCounts: { registered: 0 },
     });
-    expect(published.allDailyDates.map((row) => row.snapshotDate)).toEqual(["2026-05-11"]);
+    expect(published.allDailyDates.map((row) => row.snapshotDate)).toEqual([RESET_DATE]);
 
-    const overview = await getOverview(t, "2026-05-11");
+    const overview = await getOverview(t, RESET_DATE);
     expect(overview).toMatchObject({
       metadata: {
         availability: "available",
-        dataStartDate: "2026-05-11",
-        latestCompleteSnapshotDate: "2026-05-11",
+        asOf: INITIAL_PARTIAL_AT,
+        dataStartDate: RESET_DATE,
+        latestCompleteSnapshotDate: RESET_DATE,
+        warnings: [],
       },
       current: { counts: { organizationCount: 1, shopCount: 1, kpiEligibleShopCount: 0 } },
+    });
+
+    vi.stubEnv("ANALYTICS_NIGHTLY_CRON_ENABLED", "true");
+    vi.setSystemTime(new Date("2026-05-11T03:00:00+09:00"));
+    await t.mutation(schedulePreviousDayRef, {});
+    await finishScheduledAnalytics(t);
+    const afterSameDateCron = await t.run(async (ctx) => ({
+      dailyRuns: (await ctx.db.query("analyticsRuns").collect()).filter((run) => run.kind === "daily"),
+      serviceRows: await ctx.db.query("analyticsDailyServiceKpis").collect(),
+    }));
+    expect(afterSameDateCron).toEqual({ dailyRuns: [published.run], serviceRows: [published.service] });
+
+    vi.setSystemTime(new Date("2026-05-12T03:00:00+09:00"));
+    await t.mutation(schedulePreviousDayRef, {});
+    await finishScheduledAnalytics(t);
+    const caughtUp = await t.run(async (ctx) => {
+      const run = await ctx.db
+        .query("analyticsRuns")
+        .withIndex("by_kind_and_status_and_targetDate", (q) =>
+          q.eq("kind", "daily").eq("status", "complete").eq("targetDate", RESET_DATA_START_DATE),
+        )
+        .unique();
+      if (!run) throw new Error("full daily run was not published");
+      const memberships = await ctx.db
+        .query("analyticsMemberships")
+        .withIndex("by_membershipKey_and_validFrom", (q) => q.eq("membershipKey", `staff:${staffId}`))
+        .collect();
+      const service = await ctx.db
+        .query("analyticsDailyServiceKpis")
+        .withIndex("by_runId", (q) => q.eq("runId", run._id))
+        .unique();
+      return { run, memberships, service };
+    });
+    expect(caughtUp.run).toMatchObject({
+      runKey: `daily:${RESET_DATA_START_DATE}`,
+      dataStartDate: RESET_DATE,
+      dataStartAt: jstDayRangeMs(RESET_DATA_START_DATE).startMs,
+      targetDate: RESET_DATA_START_DATE,
+      inputFromAt: INITIAL_PARTIAL_AT,
+      cutoffAt: jstDayRangeMs(RESET_DATA_START_DATE).endMs,
+    });
+    expect(caughtUp.memberships).toHaveLength(1);
+    expect(caughtUp.service).toMatchObject({ staffMembershipCount: 1, shiftTargetCount: 1 });
+
+    const fullRange = await getOverview(t, RESET_DATA_START_DATE, RESET_DATA_START_DATE, {
+      from: RESET_DATE,
+      to: RESET_DATE,
+    });
+    expect(fullRange).toMatchObject({
+      metadata: {
+        availability: "available",
+        dataStartDate: RESET_DATE,
+        latestCompleteSnapshotDate: RESET_DATA_START_DATE,
+      },
+      current: { counts: { staffMembershipCount: 1, shiftTargetCount: 1 } },
+      comparison: { counts: { staffMembershipCount: 0, shiftTargetCount: 0 } },
+    });
+  });
+
+  it("初回partialを実行しない場合はresetのdataStartDateを日末cutoffの初回fullとして公開する", async () => {
+    const t = convexTest(schema, modules);
+    const resetRunId = await t.run(
+      async (ctx) =>
+        await ctx.db.insert("analyticsRuns", {
+          runKey: "reset:initial-full-fallback",
+          kind: "reset",
+          status: "complete",
+          calculationVersion: ANALYTICS_CALCULATION_VERSION,
+          dataStartDate: RESET_DATA_START_DATE,
+          dataStartAt: jstDayRangeMs(RESET_DATA_START_DATE).startMs,
+          inputFromAt: SOURCE_CAPTURE_START_AT,
+          cutoffAt: RESET_NOW,
+          sourceCaptureStartAt: SOURCE_CAPTURE_START_AT,
+          resetWatermarkAt: RESET_NOW,
+          stage: "resetVerify",
+          stepVersion: 1,
+          startedAt: RESET_NOW,
+          terminalAt: RESET_NOW + 1,
+          updatedAt: RESET_NOW + 1,
+        }),
+    );
+
+    vi.setSystemTime(new Date("2026-05-12T03:00:00+09:00"));
+    await t.mutation(startFirstDateRef, { targetDate: RESET_DATA_START_DATE });
+    expect(await getOverview(t, RESET_DATA_START_DATE)).toMatchObject({
+      metadata: { availability: "unavailable" },
+      current: null,
+    });
+    await finishScheduledAnalytics(t);
+
+    const published = await t.run(async (ctx) => {
+      const run = await ctx.db
+        .query("analyticsRuns")
+        .withIndex("by_kind_and_status_and_targetDate", (q) =>
+          q.eq("kind", "daily").eq("status", "complete").eq("targetDate", RESET_DATA_START_DATE),
+        )
+        .unique();
+      return { reset: await ctx.db.get(resetRunId), run };
+    });
+    expect(published.reset).toMatchObject({
+      dataStartDate: RESET_DATA_START_DATE,
+      dataStartAt: jstDayRangeMs(RESET_DATA_START_DATE).startMs,
+    });
+    expect(published.run).toMatchObject({
+      runKey: `daily:${RESET_DATA_START_DATE}`,
+      dataStartDate: RESET_DATA_START_DATE,
+      dataStartAt: jstDayRangeMs(RESET_DATA_START_DATE).startMs,
+      targetDate: RESET_DATA_START_DATE,
+      inputFromAt: SOURCE_CAPTURE_START_AT,
+      cutoffAt: jstDayRangeMs(RESET_DATA_START_DATE).endMs,
+    });
+    expect(await getOverview(t, RESET_DATA_START_DATE)).toMatchObject({
+      metadata: {
+        availability: "available",
+        dataStartDate: RESET_DATA_START_DATE,
+        latestCompleteSnapshotDate: RESET_DATA_START_DATE,
+      },
+      current: { counts: { organizationCount: 0, shopCount: 0 } },
     });
   });
 

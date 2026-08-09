@@ -231,7 +231,7 @@ function serviceRollupMatches(row: Doc<"analyticsDailyServiceKpis">, expected: A
 
 function addSegmentToRollup(target: ShopRollup, row: Doc<"analyticsDailySegmentKpis">): void {
   target.shopCount += row.shopCount;
-  target.kpiEligibleShopCount += row.kpiEligibleShopCount ?? 0;
+  target.kpiEligibleShopCount += row.kpiEligibleShopCount;
   addMilestones(target.milestoneCounts, row.milestoneCounts);
   addHealthCounts(target.healthSignalCounts, row.healthSignalCounts);
   addRate(target.northStar, row.northStar);
@@ -252,7 +252,7 @@ function segmentRollupMatches(rollup: ShopRollup, service: Doc<"analyticsDailySe
 }
 
 function commonRowIsValid(
-  row: { runId?: AnalyticsRun["_id"]; snapshotDate: string; completeness: string; computedAt: number },
+  row: { runId: AnalyticsRun["_id"]; snapshotDate: string; completeness: string; computedAt: number },
   run: AnalyticsRun,
 ): boolean {
   const lastRunWriteAt = run.terminalAt ?? run.updatedAt;
@@ -658,7 +658,16 @@ export async function inspectDailyOutputPage(
   run: AnalyticsRun,
   args: OutputAuditArgs,
 ): Promise<AnalyticsInvariantPageResult> {
-  if (run.kind !== "daily" || run.targetDate === undefined || run.cutoffAt !== jstDayRangeMs(run.targetDate).endMs) {
+  const targetRange = run.targetDate === undefined ? null : jstDayRangeMs(run.targetDate);
+  const completeDay = targetRange !== null && run.cutoffAt === targetRange.endMs;
+  const initialPartial =
+    targetRange !== null &&
+    run.targetDate !== undefined &&
+    run.targetDate === run.dataStartDate &&
+    run.dataStartAt === targetRange.endMs &&
+    targetRange.startMs <= run.cutoffAt &&
+    run.cutoffAt < targetRange.endMs;
+  if (run.kind !== "daily" || run.targetDate === undefined || (!completeDay && !initialPartial)) {
     return { status: "invalid" };
   }
   const phase = outputPhase(args.substage);
