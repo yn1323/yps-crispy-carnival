@@ -20,7 +20,7 @@ export function LoginMethodsCard({
 }) {
   return (
     <Stack gap={3}>
-      <Text color="fg.muted" fontSize="sm">
+      <Text color="fg.muted" fontSize="xs">
         Google認証、メールアドレス両方でログインできます。
         <br />
         シフト通知は、個別のユーザーに設定されているメール、LINEに送ります。
