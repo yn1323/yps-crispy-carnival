@@ -470,7 +470,7 @@ export const PersonRemovalConfirmationAccessibilityBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
-    const confirmationQuestion = "田中 花子さんをこのグループから削除しますか？";
+    const confirmationQuestion = "田中 花子さんをこの組織から削除しますか？";
     const requestButton = canvas.getByRole("button", { name: "削除" });
 
     await expect(canvas.queryByText(confirmationQuestion)).not.toBeInTheDocument();

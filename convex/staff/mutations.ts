@@ -539,10 +539,10 @@ export const editStaff = managerMutation({
     const organizationPersonId = staff.organizationPersonId;
     const hasOrganizationLink = Boolean(organizationId || organizationPersonId);
     if (hasOrganizationLink && (!organizationId || !organizationPersonId)) {
-      throw new ConvexError("スタッフのユーザー情報を確認できません。\nグループ設定で登録内容を確認してください。");
+      throw new ConvexError("スタッフのユーザー情報を確認できません。\n組織設定で登録内容を確認してください。");
     }
     if (organizationId && (!ctx.organization || organizationId !== ctx.organization._id)) {
-      throw new ConvexError("スタッフのユーザー情報を確認できません。\nグループ設定で登録内容を確認してください。");
+      throw new ConvexError("スタッフのユーザー情報を確認できません。\n組織設定で登録内容を確認してください。");
     }
     const organizationPerson = organizationId && organizationPersonId ? await ctx.db.get(organizationPersonId) : null;
     if (
@@ -551,7 +551,7 @@ export const editStaff = managerMutation({
         organizationPerson.organizationId !== organizationId ||
         organizationPerson.status !== "active")
     ) {
-      throw new ConvexError("スタッフのユーザー情報を確認できません。\nグループ設定で登録内容を確認してください。");
+      throw new ConvexError("スタッフのユーザー情報を確認できません。\n組織設定で登録内容を確認してください。");
     }
 
     if (organizationPerson && organizationId) {
@@ -813,7 +813,7 @@ export const deleteStaff = managerMutation({
       throw new ConvexError("Not found");
     }
     if (staff.organizationId || staff.organizationPersonId) {
-      throw new ConvexError("この店舗への所属は、グループ設定のユーザー画面から解除してください。");
+      throw new ConvexError("この店舗への所属は、組織設定のユーザー画面から解除してください。");
     }
 
     if (staff.userId === ctx.user._id) {

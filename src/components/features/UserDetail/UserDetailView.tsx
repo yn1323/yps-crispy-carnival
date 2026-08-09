@@ -61,11 +61,11 @@ export function UserDetailView({ data, showShopMembershipAddition, activePanel, 
 
       {!data.canWrite && (
         <ReadOnlyNotice
-          title={data.canRemove ? "利用上限の整理のみ行えます" : "グループ情報は閲覧のみです"}
+          title={data.canRemove ? "利用上限の整理のみ行えます" : "組織情報は閲覧のみです"}
           description={
             data.canRemove
               ? "契約制限中のため、通常の設定変更はできません。\n制限の解消に必要なユーザー削除は、この画面から行えます。"
-              : (data.writeDisabledReason ?? "現在、このグループの情報を変更できません。")
+              : (data.writeDisabledReason ?? "現在、この組織の情報を変更できません。")
           }
         />
       )}

@@ -33,7 +33,7 @@ export async function requireOrganizationBillingState(ctx: DbCtx, organizationId
   const billingState = await getOrganizationBillingState(ctx, organizationId);
   if (!billingState) {
     // m012未完了またはmigration conflictの可能性があるため、移行元や利用状況からプランを推測しない。
-    throw new ConvexError("グループの契約情報を確認中です。\nしばらくしてから、もう一度お試しください。");
+    throw new ConvexError("組織の契約情報を確認中です。\nしばらくしてから、もう一度お試しください。");
   }
   return billingState;
 }
@@ -83,7 +83,7 @@ async function isValidOrganizationManagerPerson(
   );
 }
 
-/** 削除・権限解除後もグループを管理できる、本人性まで確認済みのactive管理者を返す。 */
+/** 削除・権限解除後も組織を管理できる、本人性まで確認済みのactive管理者を返す。 */
 export async function getValidActiveOrganizationManagerPersonIds(
   ctx: DbCtx,
   organizationId: Id<"organizations">,
@@ -138,7 +138,7 @@ export async function organizationPersonCountsTowardPeopleLimit(
   return Boolean(staff) || memberships.some((membership) => membership.status === "active");
 }
 
-/** canonicalな管理者権限の失効時に、同じグループの旧店舗所属から権限が復活しないようにする。 */
+/** canonicalな管理者権限の失効時に、同じ組織の旧店舗所属から権限が復活しないようにする。 */
 export async function removeLegacyOrganizationManagerAccess(
   ctx: Pick<MutationCtx, "db">,
   organizationId: Id<"organizations">,

@@ -201,7 +201,7 @@ describe("organization deletion", () => {
     vi.unstubAllGlobals();
   });
 
-  it("Stripeの契約作成中または未終了のSubscriptionがあるグループは削除できない", async () => {
+  it("Stripeの契約作成中または未終了のSubscriptionがある組織は削除できない", async () => {
     const now = Date.parse("2026-07-20T00:00:00.000Z");
     vi.setSystemTime(now);
     const t = convexTest(schema, modules);
@@ -234,7 +234,7 @@ describe("organization deletion", () => {
 
     await expect(actor.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toMatchObject({
       canDeleteOrganization: false,
-      deleteOrganizationDisabledReason: "グループを削除するには、先にStripeの契約終了を確認してください。",
+      deleteOrganizationDisabledReason: "組織を削除するには、先にStripeの契約終了を確認してください。",
     });
 
     await t.run(async (ctx) => {
@@ -276,7 +276,7 @@ describe("organization deletion", () => {
     });
     await expect(actor.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toMatchObject({
       canDeleteOrganization: false,
-      deleteOrganizationDisabledReason: "グループを削除するには、先にStripeの契約終了を確認してください。",
+      deleteOrganizationDisabledReason: "組織を削除するには、先にStripeの契約終了を確認してください。",
     });
     await expect(
       actor.mutation(api.organization.mutations.deleteOrganization, {
@@ -286,7 +286,7 @@ describe("organization deletion", () => {
         expectedOrganizationUpdatedAt: ids.organizationUpdatedAt,
         requestId: "delete-stripe-guard-request",
       }),
-    ).rejects.toThrow("グループを削除するには、先にStripeの契約終了を確認してください。");
+    ).rejects.toThrow("組織を削除するには、先にStripeの契約終了を確認してください。");
     await expect(t.run((ctx) => ctx.db.get(ids.organizationId))).resolves.toMatchObject({ isDeleted: false });
   });
 
@@ -341,7 +341,7 @@ describe("organization deletion", () => {
     const expectDeletionBlocked = async () => {
       await expect(actor.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toMatchObject({
         canDeleteOrganization: false,
-        deleteOrganizationDisabledReason: "グループを削除するには、先にStripeの契約終了を確認してください。",
+        deleteOrganizationDisabledReason: "組織を削除するには、先にStripeの契約終了を確認してください。",
       });
     };
 
@@ -428,11 +428,11 @@ describe("organization deletion", () => {
       }),
     ).resolves.toMatchObject({
       canDeleteOrganization: false,
-      deleteOrganizationDisabledReason: "グループを削除するには、先にStripeの契約終了を確認してください。",
+      deleteOrganizationDisabledReason: "組織を削除するには、先にStripeの契約終了を確認してください。",
     });
   });
 
-  it("provider object ID不明のTrial作成要対応行があるグループは削除できない", async () => {
+  it("provider object ID不明のTrial作成要対応行がある組織は削除できない", async () => {
     const now = Date.parse("2026-07-20T00:00:00.000Z");
     vi.setSystemTime(now);
     const t = convexTest(schema, modules);
@@ -466,11 +466,11 @@ describe("organization deletion", () => {
       }),
     ).resolves.toMatchObject({
       canDeleteOrganization: false,
-      deleteOrganizationDisabledReason: "グループを削除するには、先にStripeの契約終了を確認してください。",
+      deleteOrganizationDisabledReason: "組織を削除するには、先にStripeの契約終了を確認してください。",
     });
   });
 
-  it("削除済みグループではトライアルProを選択しない", async () => {
+  it("削除済み組織ではトライアルProを選択しない", async () => {
     const now = Date.parse("2026-07-20T00:00:00.000Z");
     vi.setSystemTime(now);
     const t = convexTest(schema, modules);
@@ -759,7 +759,7 @@ describe("organization deletion", () => {
         expectedOrganizationUpdatedAt: ids.updatedAt,
         requestId: "paid-delete-rejected",
       }),
-    ).rejects.toThrow("グループを削除するには、先に有料契約やプラン変更を終了してください。");
+    ).rejects.toThrow("組織を削除するには、先に有料契約やプラン変更を終了してください。");
 
     await t.run(async (ctx) => {
       const billing = await ctx.db
@@ -777,7 +777,7 @@ describe("organization deletion", () => {
         expectedOrganizationUpdatedAt: ids.updatedAt + 1,
         requestId: "stale-delete-rejected",
       }),
-    ).rejects.toThrow("グループの状態が変わりました");
+    ).rejects.toThrow("組織の状態が変わりました");
     await expect(
       actor.mutation(api.organization.mutations.deleteOrganization, {
         shopId: ids.shopId,
@@ -833,7 +833,7 @@ describe("organization deletion", () => {
     ).rejects.toThrow("Not found");
     await expect(
       t.withIdentity({ subject: "delete_with_managers" }).mutation(api.organization.mutations.deleteOrganization, args),
-    ).rejects.toThrow("グループを削除するには、先にほかの管理者の権限を外してください。");
+    ).rejects.toThrow("組織を削除するには、先にほかの管理者の権限を外してください。");
 
     const state = await t.run(async (ctx) => ({
       organization: await ctx.db.get(ids.organizationId),
@@ -849,7 +849,7 @@ describe("organization deletion", () => {
     expect(state.audits).toHaveLength(0);
   });
 
-  it("グループ削除はglobal userの所属scanに依存せず、異常なlegacy所属があってもuserを変更しない", async () => {
+  it("組織削除はglobal userの所属scanに依存せず、異常なlegacy所属があってもuserを変更しない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "delete_association_unknown", plan: "free" });

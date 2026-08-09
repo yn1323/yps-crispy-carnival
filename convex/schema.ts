@@ -204,7 +204,7 @@ const schema = defineSchema({
     updatedAt: v.number(),
   }).index("by_organizationId", ["organizationId"]),
 
-  // 通常課金グループだけが持つStripe Customer対応。支払い不要プランでは行を作らない。
+  // 通常課金組織だけが持つStripe Customer対応。支払い不要プランでは行を作らない。
   organizationStripeCustomers: defineTable({
     organizationId: v.id("organizations"),
     stripeCustomerId: v.string(),

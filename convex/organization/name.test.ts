@@ -98,7 +98,7 @@ describe("organization.mutations.updateOrganizationName", () => {
     ).rejects.toThrowError("Not found");
   });
 
-  it("契約制限中でもactive管理者はグループ名を変更できる", async () => {
+  it("契約制限中でもactive管理者は組織名を変更できる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -137,7 +137,7 @@ describe("organization.mutations.updateOrganizationName", () => {
     expect(organization?.name).toBe("契約制限中の変更後グループ");
   });
 
-  it("契約制限中からの支払い結果待ちでもactive管理者はグループ名を変更できる", async () => {
+  it("契約制限中からの支払い結果待ちでもactive管理者は組織名を変更できる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -183,7 +183,7 @@ describe("organization.mutations.updateOrganizationName", () => {
     expect(organization?.name).toBe("支払い結果待ちの変更後グループ");
   });
 
-  it("課金状態が未移行でもactive管理者はグループ名を変更できる", async () => {
+  it("課金状態が未移行でもactive管理者は組織名を変更できる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {

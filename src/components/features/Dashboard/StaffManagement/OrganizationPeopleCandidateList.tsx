@@ -49,7 +49,7 @@ function ConnectedCandidateList(props: Omit<CandidateListProps, "enabled">) {
       candidates={candidates ?? []}
       isLoading={candidates === undefined}
       errorMessage={
-        candidates === null ? "グループ設定の「ユーザー」で登録内容を確認してから、もう一度お試しください。" : undefined
+        candidates === null ? "組織設定の「ユーザー」で登録内容を確認してから、もう一度お試しください。" : undefined
       }
       {...props}
     />
@@ -92,7 +92,7 @@ export function OrganizationPeopleCandidateListView({
   return (
     <Stack gap={4}>
       <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-        同じグループに所属し、この店舗にはまだ登録されていないスタッフです。
+        同じ組織に所属し、この店舗にはまだ登録されていないスタッフです。
         <br />
         追加するスタッフを押してください。
       </Text>

@@ -939,7 +939,7 @@ async function createCanonicalOrganizationFixture(
   return { organizationId, ownerMemberId, ownerPersonId, shopId, userId };
 }
 
-/** Free管理者交代と複数グループ切替で共有する、actor単位で回収可能なE2E前提を作る。 */
+/** Free管理者交代と複数組織切替で共有する、actor単位で回収可能なE2E前提を作る。 */
 export const seedFreeManagerMultiOrganizationScenario = internalMutation({
   args: {
     actorAManagerAuthTokenIdentifier: v.string(),
@@ -967,7 +967,7 @@ export const seedFreeManagerMultiOrganizationScenario = internalMutation({
       throw new Error("Free manager multi-organization E2E seed requires distinct actor emails");
     }
 
-    // 両グループをAのcreatedByUserId配下へ置くことで、既存のactor単位resetだけで安全に回収する。
+    // 両組織をAのcreatedByUserId配下へ置くことで、既存のactor単位resetだけで安全に回収する。
     await resetManagerScenarioDataForAuth(ctx, args.actorAManagerAuthTokenIdentifier);
     await deleteScenarioUsersByAuthTokenIdentifiers(ctx, [
       args.actorBManagerAuthTokenIdentifier,

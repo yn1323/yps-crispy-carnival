@@ -300,7 +300,7 @@ function ReadyInvitation({
           参加後にできること
         </Text>
         <Stack gap={3}>
-          <PermissionRow>グループに所属するすべての店舗の管理</PermissionRow>
+          <PermissionRow>組織に所属するすべての店舗の管理</PermissionRow>
           <PermissionRow>プラン、支払い方法などの契約操作</PermissionRow>
         </Stack>
         <HStack gap={2} color="gray.700">
@@ -387,7 +387,7 @@ function getStatusContent(
     case "unavailable":
       return {
         title: "この招待は現在利用できません",
-        description: "グループの契約や利用状況が変わった可能性があります。\n招待を送った管理者に確認してください。",
+        description: "組織の契約や利用状況が変わった可能性があります。\n招待を送った管理者に確認してください。",
         icon: LuCircleAlert,
         iconBg: "orange.50",
         iconColor: "orange.700",

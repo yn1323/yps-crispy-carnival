@@ -3,7 +3,7 @@ import { OrganizationNameDialog } from "./OrganizationNameDialog";
 
 const meta = {
   id: "features-organizationsettings-organizationnamedialog",
-  title: "Features/OrganizationSettings/3. ダイアログ/グループ名変更",
+  title: "Features/OrganizationSettings/3. ダイアログ/組織名変更",
   component: OrganizationNameDialog,
   parameters: { layout: "fullscreen" },
   args: {

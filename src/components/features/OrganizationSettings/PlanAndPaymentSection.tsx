@@ -97,7 +97,7 @@ const STATE_PRESENTATION: Record<
   migrationPending: {
     label: "設定を移行中",
     status: "info",
-    description: "グループ単位のプラン設定を準備しています。\n完了するまでは、既存データを閲覧できます。",
+    description: "組織単位のプラン設定を準備しています。\n完了するまでは、既存データを閲覧できます。",
   },
 };
 

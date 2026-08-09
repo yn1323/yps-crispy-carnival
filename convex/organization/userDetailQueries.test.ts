@@ -91,7 +91,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     expect(result?.managerInvitationState).toEqual({ kind: "hidden" });
   });
 
-  it("グループ人物と有効店舗所属を最小DTOで返し、招待状態を同じ契約で更新する", async () => {
+  it("組織人物と有効店舗所属を最小DTOで返し、招待状態を同じ契約で更新する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -305,7 +305,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     expect(JSON.stringify(pending)).not.toContain("never-return-invitation-token");
   });
 
-  it("壊れたID、他グループ人物、removed人物を同じnullへ寄せる", async () => {
+  it("壊れたID、他組織人物、removed人物を同じnullへ寄せる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const actor = await seedOrganizationManagerShop(ctx, { subject: "user_detail_boundary", plan: "pro" });
@@ -383,7 +383,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     await expect(actor.query(api.organization.userDetailQueries.getUserDetail, args)).resolves.toBeNull();
   });
 
-  it("店舗未所属のグループ管理者もユーザー詳細として返す", async () => {
+  it("店舗未所属の組織管理者もユーザー詳細として返す", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -789,7 +789,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     });
     expect(await actor.query(api.organization.userDetailQueries.getUserDetail, args)).toMatchObject({
       canWrite: false,
-      writeDisabledReason: "グループの契約情報を確認中のため、ユーザー情報を変更できません。",
+      writeDisabledReason: "組織の契約情報を確認中のため、ユーザー情報を変更できません。",
     });
   });
 });

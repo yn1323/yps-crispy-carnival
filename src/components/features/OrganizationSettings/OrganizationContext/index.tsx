@@ -31,7 +31,7 @@ export function OrganizationContext({
       <Flex align="center" justify="space-between" gap={3} minW={0}>
         <OrganizationSelector model={model} onSelect={onSelectOrganization} />
         <IconButton
-          aria-label="グループ名を変更"
+          aria-label="組織名を変更"
           size="sm"
           variant="ghost"
           colorPalette="teal"
@@ -83,7 +83,7 @@ function OrganizationSelector({
           <Button
             type="button"
             variant="outline"
-            aria-label={`グループを切り替える（現在：${model.selectedOrganizationName}）`}
+            aria-label={`組織を切り替える（現在：${model.selectedOrganizationName}）`}
             display="flex"
             alignItems="center"
             justifyContent="space-between"

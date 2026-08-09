@@ -22,12 +22,12 @@ export function OrganizationCreationSection({ canCreate, disabledReason, onCreat
       <Stack gap={4}>
         <Stack gap={1}>
           <Heading id="organization-create-heading" as="h2" fontSize="md" fontWeight="semibold" color="gray.900">
-            新しいグループ
+            新しい組織
           </Heading>
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            別の会社やブランドの店舗を、現在のグループと分けて管理できます。
+            別の会社やブランドの店舗を、現在の組織と分けて管理できます。
             <br />
-            ユーザー、プラン、支払いはグループごとに分かれます。
+            ユーザー、プラン、支払いは組織ごとに分かれます。
             <br />
             同じ会社で店舗を増やす場合は、「店舗」タブから追加してください。
           </Text>
@@ -43,7 +43,7 @@ export function OrganizationCreationSection({ canCreate, disabledReason, onCreat
             gap={1.5}
           >
             <LuPlus aria-hidden />
-            新しいグループを作る
+            新しい組織を作る
           </Button>
           {!canCreate && disabledReason && (
             <Text id="organization-create-disabled-reason" fontSize="xs" color="orange.700" textAlign="right">

@@ -7,7 +7,7 @@ const onSubmit = fn();
 
 const meta = {
   id: "features-organizationsettings-organizationdeletiondialog",
-  title: "Features/OrganizationSettings/3. ダイアログ/グループ削除",
+  title: "Features/OrganizationSettings/3. ダイアログ/組織削除",
   component: OrganizationDeletionDialog,
   parameters: { layout: "fullscreen" },
   args: {
@@ -24,7 +24,7 @@ type Story = StoryObj<typeof meta>;
 export const Ready: Story = { name: "削除前" };
 
 export const LongOrganizationName: Story = {
-  name: "長いグループ名",
+  name: "長い組織名",
   args: {
     dialog: {
       intentKey: "long-name",
@@ -40,8 +40,8 @@ export const ConfirmationBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const screen = within(canvasElement.ownerDocument.body);
-    const dialog = await screen.findByRole("alertdialog", { name: "グループを削除" });
-    const submit = within(dialog).getByRole("button", { name: "このグループを削除" });
+    const dialog = await screen.findByRole("alertdialog", { name: "組織を削除" });
+    const submit = within(dialog).getByRole("button", { name: "この組織を削除" });
     const textbox = within(dialog).getByRole("textbox");
     await expect(submit).toBeDisabled();
     await userEvent.type(textbox, "株式会社さくらダイニング", { delay: 1 });
@@ -70,9 +70,9 @@ export const ConfirmationSurvivesParentRerender: Story = {
   render: (args) => <ParentRerenderHarness {...args} />,
   play: async ({ canvasElement }) => {
     const screen = within(canvasElement.ownerDocument.body);
-    const dialog = await screen.findByRole("alertdialog", { name: "グループを削除" });
+    const dialog = await screen.findByRole("alertdialog", { name: "組織を削除" });
     const textbox = within(dialog).getByRole("textbox");
-    const submit = within(dialog).getByRole("button", { name: "このグループを削除" });
+    const submit = within(dialog).getByRole("button", { name: "この組織を削除" });
     fireEvent.change(textbox, { target: { value: "株式会社さくら" } });
     fireEvent.click(screen.getByText("親を再描画", { exact: true }));
     await expect(textbox).toHaveValue("株式会社さくら");

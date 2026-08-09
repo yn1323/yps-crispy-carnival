@@ -182,7 +182,7 @@ describe("useUserManagerActions", () => {
   });
 
   it.each([null, "unknown-shop"])(
-    "選択店舗が未指定または不正な場合はグループ内の店舗を削除操作のコンテキストに使う: %s",
+    "選択店舗が未指定または不正な場合は組織内の店舗を削除操作のコンテキストに使う: %s",
     async (selectedShopId) => {
       const error = new ConvexError("操作結果を確認できませんでした。");
       mocks.removePerson.mockRejectedValue(error);
@@ -270,7 +270,7 @@ describe("useUserManagerActions", () => {
     expect(mocks.removePerson).not.toHaveBeenCalled();
     expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
       title: "管理者権限を外しました",
-      description: "このグループへのアクセスを終了しました。\nユーザー情報とシフト記録は残しています。",
+      description: "この組織へのアクセスを終了しました。\nユーザー情報とシフト記録は残しています。",
     });
     expect(onPersonRemoved).toHaveBeenCalledOnce();
     expect(result.current.dialog).toBeNull();

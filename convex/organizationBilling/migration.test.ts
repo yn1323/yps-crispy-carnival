@@ -149,7 +149,7 @@ describe("m018 organization billing Business to Pro migration", () => {
     expect(snapshot.audit?.toState).toBe("complimentary.business");
   });
 
-  it("同じグループに課金状態が複数ある場合は全行を変更せずmigration conflictへ記録する", async () => {
+  it("同じ組織に課金状態が複数ある場合は全行を変更せずmigration conflictへ記録する", async () => {
     const t = createConvexTestWithMigrations();
     const seeded = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {

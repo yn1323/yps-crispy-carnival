@@ -93,7 +93,7 @@ export function useUserManagerActions({
           description:
             data.memberships.length > 0
               ? "スタッフとしての店舗所属は維持しています。"
-              : "このグループへのアクセスを終了しました。\nユーザー情報とシフト記録は残しています。",
+              : "この組織へのアクセスを終了しました。\nユーザー情報とシフト記録は残しています。",
         });
         setDialog(null);
         if (data.isSelf || data.memberships.length === 0) onPersonRemoved(dialog.personId);
@@ -112,7 +112,7 @@ export function useUserManagerActions({
       });
       setDialog(null);
       showSuccessToast({
-        title: "ユーザーをグループから削除しました",
+        title: "ユーザーを組織から削除しました",
         description: "過去のシフト履歴は保持されます。",
       });
       onPersonRemoved(dialog.personId);

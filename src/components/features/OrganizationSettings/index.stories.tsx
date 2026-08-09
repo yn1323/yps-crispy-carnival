@@ -187,11 +187,11 @@ const disabledActionReasonArgs: Pick<
   freeManagerExchangeCandidates: [],
   inviteManagerDisabledReason: "閲覧のみの管理者は、管理者を招待できません。",
   canUpdateOrganizationName: false,
-  updateOrganizationNameDisabledReason: "閲覧のみの管理者は、グループ名を変更できません。",
+  updateOrganizationNameDisabledReason: "閲覧のみの管理者は、組織名を変更できません。",
   canAddShop: false,
   addShopDisabledReason: "閲覧のみの管理者は、店舗を追加できません。",
   canDeleteOrganization: false,
-  deleteOrganizationDisabledReason: "閲覧のみの管理者はグループを削除できません。",
+  deleteOrganizationDisabledReason: "閲覧のみの管理者は組織を削除できません。",
   billing: billing({
     state: "pendingActivation",
     currentPlan: null,
@@ -330,12 +330,12 @@ export const LazyTabMountBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(canvas.queryByText("グループの店舗")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("組織の店舗")).not.toBeInTheDocument();
     await userEvent.click(canvas.getByRole("tab", { name: "店舗" }));
-    await expect(await canvas.findByRole("heading", { name: "グループの店舗" })).toBeInTheDocument();
+    await expect(await canvas.findByRole("heading", { name: "組織の店舗" })).toBeInTheDocument();
 
     await userEvent.click(canvas.getByRole("tab", { name: "ユーザー" }));
-    await expect(canvas.queryByText("グループの店舗")).toBeInTheDocument();
+    await expect(canvas.queryByText("組織の店舗")).toBeInTheDocument();
   },
 };
 
@@ -371,8 +371,8 @@ export const DarkLaunchHiddenEntrypointsBehavior: Story = {
     ).not.toBeInTheDocument();
 
     await userEvent.click(canvas.getByRole("tab", { name: "設定" }));
-    await expect(canvas.queryByRole("button", { name: "新しいグループを作る" })).not.toBeInTheDocument();
-    // グループ削除は退会導線のため、ダークローンチ中も残す。
+    await expect(canvas.queryByRole("button", { name: "新しい組織を作る" })).not.toBeInTheDocument();
+    // 組織削除は退会導線のため、ダークローンチ中も残す。
     await expect(canvas.getByRole("button", { name: /^削除$/ })).toBeEnabled();
   },
 };
@@ -382,37 +382,37 @@ export const SettingsDeletionUnavailable: Story = {
   args: {
     defaultTab: "settings",
     canDeleteOrganization: false,
-    deleteOrganizationDisabledReason: "グループを削除するには、先に有料契約やプラン変更を終了してください。",
+    deleteOrganizationDisabledReason: "有料契約やプラン変更を終了してから、組織を削除してください。",
   },
   play: async ({ canvasElement }) => {
     const deleteButton = within(canvasElement).getByRole("button", { name: /^削除$/ });
 
     await expect(deleteButton).toBeDisabled();
     await expect(deleteButton).toHaveAccessibleDescription(
-      "グループを削除するには、先に有料契約やプラン変更を終了してください。",
+      "有料契約またはプラン変更の予約が残っています。\n「プランと支払い」で契約や予約を終了してから、組織を削除してください。",
     );
   },
 };
 
 export const SettingsDeletionUnavailableWithStripeSubscription: Story = {
-  name: "設定｜Stripe契約が残るため削除不可",
+  name: "設定｜Stripe契約が残るため削除不可（旧reason互換）",
   args: {
     defaultTab: "settings",
     canDeleteOrganization: false,
-    deleteOrganizationDisabledReason: "グループを削除するには、先にStripeの契約終了を確認してください。",
+    deleteOrganizationDisabledReason: "Stripeの契約終了を確認してから、グループを削除してください。",
   },
   play: async ({ canvasElement }) => {
     const deleteButton = within(canvasElement).getByRole("button", { name: /^削除$/ });
 
     await expect(deleteButton).toBeDisabled();
     await expect(deleteButton).toHaveAccessibleDescription(
-      "グループを削除するには、先にStripeの契約終了を確認してください。",
+      "有料契約またはプラン変更の予約が残っています。\n「プランと支払い」で契約や予約を終了してから、組織を削除してください。",
     );
   },
 };
 
 export const OrganizationDeletionActionBehavior: Story = {
-  name: "設定｜グループ削除（操作確認）",
+  name: "設定｜組織削除（操作確認）",
   parameters: { screenshot: { skip: true } },
   args: {
     defaultTab: "settings",
@@ -447,8 +447,8 @@ export const DisabledActionReasonsBehavior: Story = {
       "閲覧のみの管理者は、管理者を招待できません。",
     );
     await expectDisabledActionDescription(
-      canvas.getByRole("button", { name: "グループ名を変更" }),
-      "閲覧のみの管理者は、グループ名を変更できません。",
+      canvas.getByRole("button", { name: "組織名を変更" }),
+      "閲覧のみの管理者は、組織名を変更できません。",
     );
     await userEvent.click(canvas.getByRole("tab", { name: "店舗" }));
     await expectDisabledActionDescription(
@@ -465,7 +465,7 @@ export const DisabledActionReasonsBehavior: Story = {
     await userEvent.click(canvas.getByRole("tab", { name: "設定" }));
     await expectDisabledActionDescription(
       canvas.getByRole("button", { name: /^削除$/ }),
-      "閲覧のみの管理者はグループを削除できません。",
+      "閲覧のみの管理者は組織を削除できません。",
     );
   },
 };
@@ -610,7 +610,7 @@ export const ShopCapacityReachedBehavior: Story = {
   args: {
     defaultTab: "shops",
     canAddShop: false,
-    addShopDisabledReason: "店舗は、グループごとに5件まで登録できます。",
+    addShopDisabledReason: "店舗は、組織ごとに5件まで登録できます。",
     billing: billing({
       state: "pro",
       currentPlan: "pro",
@@ -621,7 +621,7 @@ export const ShopCapacityReachedBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const addShopButton = canvas.getByRole("button", { name: "店舗を追加" });
-    await expectDisabledActionDescription(addShopButton, "店舗は、グループごとに5件まで登録できます。");
+    await expectDisabledActionDescription(addShopButton, "店舗は、組織ごとに5件まで登録できます。");
     await expect(canvas.queryByRole("link", { name: "利用上限について問い合わせる" })).not.toBeInTheDocument();
   },
 };
@@ -717,13 +717,13 @@ export const MigrationPending: Story = {
     canInviteManager: false,
     managerInvitationMode: "addition",
     freeManagerExchangeCandidates: [],
-    inviteManagerDisabledReason: "グループ単位の設定を移行しています。\n完了するまでお待ちください。",
+    inviteManagerDisabledReason: "組織単位の設定を移行しています。\n完了するまでお待ちください。",
     canAddShop: false,
-    addShopDisabledReason: "グループ単位のプラン設定を移行しています。\n完了するまでお待ちください。",
+    addShopDisabledReason: "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。",
     billing: billing({
       state: "migrationPending",
       currentPlan: null,
-      blockedReason: "グループ単位のプラン設定を移行しています。完了後に自動で利用状態を再確認します。",
+      blockedReason: "組織単位のプラン設定を移行しています。完了後に自動で利用状態を再確認します。",
       nextEvent: undefined,
       hasStripeCustomer: false,
       canManagePlan: false,

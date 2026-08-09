@@ -14,7 +14,7 @@ const shop = (overrides: Partial<ShopContextOption>): ShopContextOption => ({
 });
 
 describe("buildOrganizationContextModel", () => {
-  it("選択中店舗のグループと戻り先を特定する", () => {
+  it("選択中店舗の組織と戻り先を特定する", () => {
     const model = buildOrganizationContextModel(
       [shop({}), shop({ shopId: "shop-a-2", shopName: "B店舗" })],
       "shop-a-2",
@@ -36,7 +36,7 @@ describe("buildOrganizationContextModel", () => {
     });
   });
 
-  it("別グループの選択先にはグループ内で先頭の店舗を使う", () => {
+  it("別組織の選択先には組織内で先頭の店舗を使う", () => {
     const model = buildOrganizationContextModel(
       [
         shop({}),

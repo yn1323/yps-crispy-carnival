@@ -126,10 +126,10 @@ export const FreeManagerExchangeConfirmationBehavior: Story = {
       await canvas.findByRole("heading", { name: "鈴木 次郎さんへ管理者交代の案内を送りますか？" }),
     ).toBeInTheDocument();
     const transferDescription = canvas.getByText(
-      /鈴木 次郎さんがログインして招待を受け入れると、このグループの唯一の管理者になります。/,
+      /鈴木 次郎さんがログインして招待を受け入れると、この組織の唯一の管理者になります。/,
     );
     await expect(transferDescription).toHaveTextContent(
-      /このグループの唯一の管理者になります。\s+その時点で、あなたはこのグループの管理者ではなくなり/,
+      /この組織の唯一の管理者になります。\s+その時点で、あなたはこの組織の管理者ではなくなり/,
     );
     await expect(transferDescription).toHaveStyle({ whiteSpace: "pre-line" });
     await expect(

@@ -5,7 +5,7 @@ import { type AppRoute, routePath, withCurrentSearch } from "@/routes/appRoute";
 
 const NAV_ITEMS = [
   { label: "サマリー", route: { name: "overview" } as const },
-  { label: "グループ", route: { name: "organizations" } as const },
+  { label: "組織", route: { name: "organizations" } as const },
   { label: "店舗", route: { name: "shops" } as const },
 ];
 

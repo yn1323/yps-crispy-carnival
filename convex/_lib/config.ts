@@ -75,7 +75,7 @@ export type FeatureVisibility = {
 
 /**
  * 認証後のUIが参照するダークローンチ状態を、一度のqueryで返せる形へ集約する。
- * グループ設定への導線は、配下の機能が一つでも公開されている場合だけ表示する。
+ * 組織設定への導線は、配下の機能が一つでも公開されている場合だけ表示する。
  */
 export function getFeatureVisibility(): FeatureVisibility {
   const organizationCreation = isOrganizationCreationEnabled();

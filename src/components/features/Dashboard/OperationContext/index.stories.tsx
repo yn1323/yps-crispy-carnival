@@ -81,7 +81,7 @@ export const SettingsEntryHidden: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.queryByRole("button", { name: "グループ設定" })).toBeNull();
+    await expect(canvas.queryByRole("button", { name: "組織設定" })).toBeNull();
     await expect(canvas.getByRole("button", { name: "店舗詳細を開く" })).toBeVisible();
   },
 };

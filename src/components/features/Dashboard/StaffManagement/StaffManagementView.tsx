@@ -129,7 +129,7 @@ export function StaffManagementView({
               retryActionLabel="スタッフを再追加"
             />
           )}
-          <Text fontSize="sm">入力したメールアドレスは、以前このグループから削除されたユーザーのものです。</Text>
+          <Text fontSize="sm">入力したメールアドレスは、以前この組織から削除されたユーザーのものです。</Text>
           <Stack gap={2}>
             {invitation.reactivationConfirmation.candidates.map((candidate) => (
               <Stack key={candidate.personId} gap={0} rounded="md" borderWidth="1px" px={3} py={2}>

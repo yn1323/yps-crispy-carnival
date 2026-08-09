@@ -791,7 +791,7 @@ export const setFreeSelection = authenticatedMutation({
       allowReadOnly: true,
     });
     const billingState = await getOrganizationBillingState(ctx, actor.organization._id);
-    if (!billingState) throw new ConvexError("グループの契約情報を確認中です");
+    if (!billingState) throw new ConvexError("組織の契約情報を確認中です");
     if (billingState.state.kind === "complimentary") {
       throw new ConvexError("支払い不要Businessでは無料設定を変更できません");
     }
@@ -1964,7 +1964,7 @@ export const updateBillingEmail = authenticatedMutation({
     });
     const billingState = await getOrganizationBillingState(ctx, actor.organization._id);
     if (!billingState) {
-      throw new ConvexError("グループの契約情報を確認中です");
+      throw new ConvexError("組織の契約情報を確認中です");
     }
     if (billingState.state.kind === "complimentary") {
       throw new ConvexError("支払い不要Businessでは請求先メールアドレスを変更できません");

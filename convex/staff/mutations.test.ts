@@ -524,9 +524,7 @@ describe("staff/mutations", () => {
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "追加対象", email: "duplicate-reservation@example.com" }],
         }),
-      ).rejects.toThrow(
-        "このメールアドレスへの管理者招待を確認できません。\nグループ設定で招待状況を確認してください。",
-      );
+      ).rejects.toThrow("このメールアドレスへの管理者招待を確認できません。\n組織設定で招待状況を確認してください。");
 
       const state = await t.run(async (ctx) => ({
         audits: await ctx.db.query("organizationAuditEvents").collect(),
@@ -1705,7 +1703,7 @@ describe("staff/mutations", () => {
       });
     });
 
-    it("別グループの人物IDではスタッフを追加しない", async () => {
+    it("別組織の人物IDではスタッフを追加しない", async () => {
       const t = convexTest(schema, modules);
       const seeded = await t.run(async (ctx) => {
         const owner = await seedOrganizationManagerShop(ctx, {
@@ -1928,7 +1926,7 @@ describe("staff/mutations", () => {
       expect(JSON.stringify(state.audits)).not.toContain("after@example.com");
     });
 
-    it("対象店舗staffのorganizationが操作中グループと異なる場合は人物を更新しない", async () => {
+    it("対象店舗staffのorganizationが操作中組織と異なる場合は人物を更新しない", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const actor = await seedOrganizationManagerShop(ctx, {
@@ -1973,7 +1971,7 @@ describe("staff/mutations", () => {
       expect(state.scheduled).toEqual([]);
     });
 
-    it("同じpersonを指すstaffの店舗が別グループなら全体をfail-closedにする", async () => {
+    it("同じpersonを指すstaffの店舗が別組織なら全体をfail-closedにする", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const actor = await seedOrganizationManagerShop(ctx, {
@@ -2079,7 +2077,7 @@ describe("staff/mutations", () => {
           name: "変更後",
           email: "second@example.com",
         }),
-      ).rejects.toThrow("このメールアドレスは、グループ内の別のユーザーが使用しています。");
+      ).rejects.toThrow("このメールアドレスは、組織内の別のユーザーが使用しています。");
     });
 
     it("メールアドレス変更時は募集中シフト通知の追送actionをスケジュールする", async () => {
@@ -2387,7 +2385,7 @@ describe("staff/mutations", () => {
           t
             .withIdentity({ subject: `organization_staff_delete_${hasFutureAssignment}` })
             .mutation(api.staff.mutations.deleteStaff, { shopId: ids.shopId, staffId: ids.staffId }),
-        ).rejects.toThrow("この店舗への所属は、グループ設定のユーザー画面から解除してください。");
+        ).rejects.toThrow("この店舗への所属は、組織設定のユーザー画面から解除してください。");
         await expect(t.run(async (ctx) => (await ctx.db.get(ids.staffId))?.isDeleted)).resolves.toBe(false);
         await expect(t.run(async (ctx) => (await ctx.db.get(ids.personId))?.status)).resolves.toBe("active");
       },

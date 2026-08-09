@@ -214,7 +214,7 @@ export async function getActiveUserAssociationStatus(
   return await getActiveUserAssociationStatusForScope(ctx, userId);
 }
 
-/** 指定グループ以外に有効な所属が一つでもあるかをboundedに確認する。 */
+/** 指定組織以外に有効な所属が一つでもあるかをboundedに確認する。 */
 export async function getOtherActiveUserAssociationStatus(
   ctx: DbCtx,
   userId: Id<"users">,

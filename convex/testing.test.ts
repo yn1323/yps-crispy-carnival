@@ -120,7 +120,7 @@ describe("E2E testing helpers", () => {
     expect(state.ownerBShop?.isDeleted).toBe(false);
   });
 
-  it("single actor tenant seedは2グループを再実行可能に作る", async () => {
+  it("single actor tenant seedは2組織を再実行可能に作る", async () => {
     const t = convexTest(schema, modules);
     const args = {
       actorAManagerAuthTokenIdentifier: "issuer|tenant-a",

@@ -68,7 +68,7 @@ export function OrganizationSettings({
   const shopManagement = useShopManagementController({ canAddShop: features.shopAddition && settings.canAddShop });
   const organizationCreation = useOrganizationCreationController({
     canCreateOrganization: features.organizationCreation && settings.canCreateOrganization,
-    // 作成直後は新しいグループを操作対象にしたいので、そのグループの店舗を選んでDashboardへ移す。
+    // 作成直後は新しい組織を操作対象にしたいので、その組織の店舗を選んでDashboardへ移す。
     onCreated: (shopId) => void navigate({ to: "/dashboard", search: { shop: shopId } }),
   });
   const billingEmailSettings = useBillingSettingsController({ billing: settings.billing });

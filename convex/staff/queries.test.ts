@@ -15,7 +15,7 @@ describe("staff/queries", () => {
       await expect(t.query(api.staff.queries.listOrganizationPeopleAvailableForShop, { shopId })).resolves.toEqual([]);
     });
 
-    it("同じグループの有効人物から対象店舗に未所属の人物だけを返す", async () => {
+    it("同じ組織の有効人物から対象店舗に未所属の人物だけを返す", async () => {
       const t = convexTest(schema, modules);
       const seeded = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, {

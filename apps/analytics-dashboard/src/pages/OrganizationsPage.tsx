@@ -20,14 +20,14 @@ export function OrganizationsPage({ navigate }: { navigate: (href: string) => vo
     applyMetadataDefaults(metadata);
   }, [applyMetadataDefaults, metadata]);
   if (query.isLoading) {
-    return <AnalyticsPageLoading description="グループの集計値を読み込んでいます。" title="グループ" />;
+    return <AnalyticsPageLoading description="組織の集計値を読み込んでいます。" title="組織" />;
   }
   if (query.error) {
     return (
       <AnalyticsPageError
-        description="グループごとの利用状況と要確認状態を比較します。"
+        description="組織ごとの利用状況と要確認状態を比較します。"
         message={analyticsErrorMessage(query.error)}
-        title="グループ"
+        title="組織"
       />
     );
   }

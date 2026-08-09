@@ -246,7 +246,7 @@ export const getUserDetail = managerQuery({
       : !isActiveActor
         ? "閲覧のみの管理者は、ユーザー情報を変更できません。"
         : !billingState
-          ? "グループの契約情報を確認中のため、ユーザー情報を変更できません。"
+          ? "組織の契約情報を確認中のため、ユーザー情報を変更できません。"
           : policy?.businessWriteBlockReason === "paymentResultPending"
             ? "支払い結果が確定してから、ユーザー情報を変更できます。"
             : "契約状態を確認できるまで、ユーザー情報を変更できません。";

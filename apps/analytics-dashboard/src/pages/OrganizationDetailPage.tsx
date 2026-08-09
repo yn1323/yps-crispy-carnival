@@ -39,14 +39,13 @@ export function OrganizationDetailPage({
   useEffect(() => {
     applyMetadataDefaults(metadata);
   }, [applyMetadataDefaults, metadata]);
-  if (query.isLoading)
-    return <AnalyticsPageLoading description="グループ詳細を読み込んでいます。" title="グループ詳細" />;
+  if (query.isLoading) return <AnalyticsPageLoading description="組織詳細を読み込んでいます。" title="組織詳細" />;
   if (query.error) {
     return (
       <AnalyticsPageError
-        description="グループ内の店舗構成とKPI推移を確認します。"
+        description="組織内の店舗構成とKPI推移を確認します。"
         message={analyticsErrorMessage(query.error)}
-        title="グループ詳細"
+        title="組織詳細"
       />
     );
   }
@@ -55,9 +54,9 @@ export function OrganizationDetailPage({
   if (!response.organization) {
     return (
       <AnalyticsEntityUnavailable
-        description="グループ内の店舗構成とKPI推移を確認します。"
+        description="組織内の店舗構成とKPI推移を確認します。"
         metadata={response.metadata}
-        title="グループ詳細"
+        title="組織詳細"
       />
     );
   }

@@ -28,7 +28,7 @@ export const ShopsSection = ({
       <HStack gap={2}>
         <LuStore aria-hidden />
         <Heading id="organization-shops-heading" as="h2" fontSize="lg">
-          グループの店舗
+          組織の店舗
         </Heading>
       </HStack>
       {showAddShop && (

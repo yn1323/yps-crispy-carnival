@@ -66,10 +66,10 @@ export function OrganizationDetailView({
     <Stack gap={{ base: 6, md: 8 }}>
       <PageHeading
         breadcrumbs={[
-          { href: withCurrentSearch(routePath({ name: "organizations" })), label: "グループ" },
+          { href: withCurrentSearch(routePath({ name: "organizations" })), label: "組織" },
           { label: model.displayName },
         ]}
-        description="グループ内で利用状況に差がある店舗を確認します。"
+        description="組織内で利用状況に差がある店舗を確認します。"
         title={model.displayName}
       />
       <DataStatus metadata={model.metadata} />
@@ -88,16 +88,16 @@ export function OrganizationDetailView({
       </HStack>
 
       <Stack gap={4}>
-        <SectionHeading description="店舗数、稼働店舗数、スタッフ所属を最初に確認します。" title="グループの現在" />
+        <SectionHeading description="店舗数、稼働店舗数、スタッフ所属を最初に確認します。" title="組織の現在" />
         <KpiGrid items={primaryKpis} />
         {model.shopCount !== null && model.shopCount > 0 && inactiveShopCount !== null ? (
           <ChartPanel
             contentHeight="auto"
-            description="グループ内の全店舗を、最近の活動がある店舗とそれ以外に分けています。"
+            description="組織内の全店舗を、最近の活動がある店舗とそれ以外に分けています。"
             title="店舗の稼働構成"
           >
             <DonutChart
-              ariaLabel="グループ内の稼働店舗と非稼働店舗の構成比"
+              ariaLabel="組織内の稼働店舗と非稼働店舗の構成比"
               centerLabel="全店舗"
               centerValue={`${formatCount(model.shopCount, shopCountCompleteness)}店舗`}
               items={[
@@ -163,7 +163,7 @@ export function OrganizationDetailView({
       ) : (
         <Stack gap={4}>
           <SectionHeading
-            description="初店舗またはグループ登録から、2店舗目で初回シフトが確定するまでを表示します。"
+            description="初店舗または組織登録から、2店舗目で初回シフトが確定するまでを表示します。"
             title="多店舗展開"
           />
           <KpiGrid items={model.expansionKpis} />
@@ -192,9 +192,9 @@ export function OrganizationDetailView({
       )}
 
       <Stack bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" gap={4} p={{ base: 4, md: 5 }}>
-        <SectionHeading description="導入到達、次回シフト、提出率、要確認状態を比べます。" title="グループ内の店舗" />
+        <SectionHeading description="導入到達、次回シフト、提出率、要確認状態を比べます。" title="組織内の店舗" />
         <ShopsTable
-          emptyText={analyticsEmptyText(model.metadata, "このグループに店舗はありません", pageInfo)}
+          emptyText={analyticsEmptyText(model.metadata, "この組織に店舗はありません", pageInfo)}
           navigate={navigate}
           rows={model.shops}
           variant="group"

@@ -19,16 +19,16 @@ import { sendReminderRef } from "../shopActivationReminder/refs";
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
 
-export const ORGANIZATION_CREATE_LIMIT_REACHED_MESSAGE = `作成できるグループは${ORGANIZATION_SELF_CREATED_LIMIT}つまでです。\n使っていないグループを削除すると、また作成できます。`;
-const ORGANIZATION_CREATE_UNAVAILABLE_MESSAGE = "無効になったアカウントでは、グループを作成できません。";
+export const ORGANIZATION_CREATE_LIMIT_REACHED_MESSAGE = `作成できる組織は${ORGANIZATION_SELF_CREATED_LIMIT}つまでです。\n使っていない組織を削除すると、また作成できます。`;
+const ORGANIZATION_CREATE_UNAVAILABLE_MESSAGE = "無効になったアカウントでは、組織を作成できません。";
 
 export type OrganizationCreationAvailability = { canCreate: true } | { canCreate: false; reason: string };
 
 /**
- * 自分で作成して保持しているグループ数を数える。
+ * 自分で作成して保持している組織数を数える。
  *
- * 招待で所属しているグループは契約主体が別人のため数えない。
- * 移行前のグループ未所属店舗は、1店舗を1グループとして同じ上限へ含める。
+ * 招待で所属している組織は契約主体が別人のため数えない。
+ * 移行前の組織未所属店舗は、1店舗を1組織として同じ上限へ含める。
  */
 async function countSelfCreatedOrganizations(ctx: DbCtx, userId: Id<"users">): Promise<number> {
   const selfCreated = await ctx.db
@@ -53,9 +53,9 @@ async function countSelfCreatedOrganizations(ctx: DbCtx, userId: Id<"users">): P
 }
 
 /**
- * 新しいグループを作れるかを、選択中グループの課金状態や所属状態と切り離して判定する。
+ * 新しい組織を作れるかを、選択中組織の課金状態や所属状態と切り離して判定する。
  *
- * グループは独立した契約単位であり、あるグループが契約制限中でも別グループの契約主体にはなれる。
+ * 組織は独立した契約単位であり、ある組織が契約制限中でも別組織の契約主体にはなれる。
  */
 export async function getOrganizationCreationAvailability(
   ctx: DbCtx,
@@ -72,7 +72,7 @@ export async function getOrganizationCreationAvailability(
 }
 
 /**
- * 新しいグループの初期課金状態。
+ * 新しい組織の初期課金状態。
  *
  * 初回セットアップは支払い不要Business、既存管理者による追加作成はFreeで始める。
  * どちらで始めるかは呼出し側の判断であり、この関数は渡された状態をそのまま保存する。
@@ -102,9 +102,9 @@ export type CreateOrganizationWithFirstShopResult = {
 };
 
 /**
- * グループ、最初の管理者、最初の店舗、課金状態を一つのtransactionで作る。
+ * 組織、最初の管理者、最初の店舗、課金状態を一つのtransactionで作る。
  *
- * 初回セットアップと既存管理者によるグループ追加の共通処理であり、
+ * 初回セットアップと既存管理者による組織追加の共通処理であり、
  * users行の作成・更新と利用規約同意の記録は呼出し側が持つ。
  */
 export async function createOrganizationWithFirstShop(

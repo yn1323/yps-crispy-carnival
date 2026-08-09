@@ -18,7 +18,7 @@ const shop = (
 });
 
 describe("Dashboardの操作先", () => {
-  it("1グループ1店舗ではグループ名を隠して店舗を静的表示にする", () => {
+  it("1組織1店舗では組織名を隠して店舗を静的表示にする", () => {
     const shops = [shop("shop-a", "A店", "org-a", "Aグループ")];
 
     const model = buildOperationContextModel(shops, "shop-a");
@@ -26,7 +26,7 @@ describe("Dashboardの操作先", () => {
     expect(model).toMatchObject({ hasMultipleGroups: false, canSwitchShop: false });
   });
 
-  it("1グループ複数店舗ではグループ名を隠して店舗を切替可能にする", () => {
+  it("1組織複数店舗では組織名を隠して店舗を切替可能にする", () => {
     const shops = [shop("shop-a", "A店", "org-a", "Aグループ"), shop("shop-b", "B店", "org-a", "Aグループ")];
 
     const model = buildOperationContextModel(shops, "shop-a");
@@ -34,7 +34,7 @@ describe("Dashboardの操作先", () => {
     expect(model).toMatchObject({ hasMultipleGroups: false, canSwitchShop: true });
   });
 
-  it("複数グループでは選択グループが1店舗でも全店舗を切替可能にする", () => {
+  it("複数組織では選択組織が1店舗でも全店舗を切替可能にする", () => {
     const shops = [
       shop("shop-a", "A店", "org-a", "Aグループ"),
       shop("shop-b", "B店", "org-b", "Bグループ"),
@@ -46,7 +46,7 @@ describe("Dashboardの操作先", () => {
     expect(model).toMatchObject({ hasMultipleGroups: true, canSwitchShop: true });
   });
 
-  it("複数グループでは選択中店舗のグループを表示モデルに保持する", () => {
+  it("複数組織では選択中店舗の組織を表示モデルに保持する", () => {
     const shops = [
       shop("shop-a", "A店", "org-a", "Aグループ"),
       shop("shop-b", "B店", "org-a", "Aグループ"),

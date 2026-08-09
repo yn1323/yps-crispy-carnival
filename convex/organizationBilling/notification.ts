@@ -78,7 +78,7 @@ export function organizationBillingNotificationCopy(
           ? [
               `トライアルは${trialEndsAtLabel}に終了します。`,
               `選択済みの契約プランは${selectedPlanLabel}です。\n初回請求は${trialEndsAtLabel}を予定しています。`,
-              `無料へ変更する場合の設定期限は${trialEndsAtLabel}です。\n期限までにグループ設定から変更してください。`,
+              `無料へ変更する場合の設定期限は${trialEndsAtLabel}です。\n期限までに組織設定から変更してください。`,
             ]
           : [
               `トライアルは${trialEndsAtLabel}に終了します。\n有料プランはまだ契約されていません。`,
@@ -93,7 +93,7 @@ export function organizationBillingNotificationCopy(
         heading: "初回請求の結果を確認しています",
         paragraphs: [
           "支払い結果を確認しています。\n確認中も、トライアルと同じPro相当の機能を利用できます。",
-          "支払い結果が確定すると、グループ設定に反映されます。",
+          "支払い結果が確定すると、組織設定に反映されます。",
         ],
       };
     case "freeApplied":
@@ -102,7 +102,7 @@ export function organizationBillingNotificationCopy(
         heading: "無料へ変更しました",
         paragraphs: [
           "選択した管理者と店舗を残して、無料プランへ変更しました。\n店舗・ユーザー・過去のシフトは削除されません。",
-          "閲覧のみになった管理者と利用停止中の店舗は、グループ設定から確認できます。",
+          "閲覧のみになった管理者と利用停止中の店舗は、組織設定から確認できます。",
         ],
       };
     case "scheduledChange": {
@@ -125,7 +125,7 @@ export function organizationBillingNotificationCopy(
         heading: "プラン変更予約を取り消しました",
         paragraphs: [
           "期間末に予定していたプラン変更を取り消しました。",
-          "現在の有料プランを継続します。\n現在の契約状態はグループ設定で確認できます。",
+          "現在の有料プランを継続します。\n現在の契約状態は組織設定で確認できます。",
         ],
       };
     case "planActivated": {
@@ -138,7 +138,7 @@ export function organizationBillingNotificationCopy(
           billingSummary
             ? `支払い結果を確認し、${targetPlanLabel}を開始しました。\n${billingSummary}`
             : `支払い結果を確認し、${targetPlanLabel}を開始しました。`,
-          "現在の利用状況はグループ設定で確認できます。",
+          "現在の利用状況は組織設定で確認できます。",
         ],
       };
     }
@@ -148,7 +148,7 @@ export function organizationBillingNotificationCopy(
         heading: "Proを継続しています",
         paragraphs: [
           "予約されていたプラン変更を適用できませんでした。",
-          "Proを継続しています。\n現在の利用状況はグループ設定で確認できます。",
+          "Proを継続しています。\n現在の利用状況は組織設定で確認できます。",
         ],
       };
     case "paidActivationFailedFreeContinued":
@@ -193,7 +193,7 @@ export function organizationBillingNotificationCopy(
         heading: "支払い猶予の終了まで3日です",
         paragraphs: [
           "未払いのまま猶予期間が終了すると、業務操作が停止され、契約制限中になります。",
-          "グループ設定から支払い方法を確認してください。",
+          "組織設定から支払い方法を確認してください。",
         ],
       };
     case "restrictedStarted": {
@@ -205,7 +205,7 @@ export function organizationBillingNotificationCopy(
           heading: `${targetPlanLabel}の利用上限を確認してください`,
           paragraphs: [
             billingSummary ? `支払い結果を確認しました。\n${billingSummary}` : "支払い結果を確認しました。",
-            `${targetPlanLabel}の利用上限を超えているため、契約制限中です。\nグループ設定で利用人数・店舗数・管理者数を上限以内に整理してください。`,
+            `${targetPlanLabel}の利用上限を超えているため、契約制限中です。\n組織設定で利用人数・店舗数・管理者数を上限以内に整理してください。`,
           ],
         };
       }
@@ -214,7 +214,7 @@ export function organizationBillingNotificationCopy(
         heading: "契約制限中になりました",
         paragraphs: [
           "既存データは引き続き閲覧できますが、シフト作成や通知などの業務操作は利用できません。",
-          "グループ設定で有料プランを再開するか、無料プランで残す管理者と店舗を整理してください。",
+          "組織設定で有料プランを再開するか、無料プランで残す管理者と店舗を整理してください。",
         ],
       };
     }
@@ -241,7 +241,7 @@ export function organizationBillingNotificationCopy(
         subject: "請求先メールアドレスを変更しました",
         heading: "請求先メールアドレスを変更しました",
         paragraphs: [
-          "グループの請求先メールアドレスが変更されました。\n請求先は通知先であり、契約操作の権限には影響しません。",
+          "組織の請求先メールアドレスが変更されました。\n請求先は通知先であり、契約操作の権限には影響しません。",
         ],
       };
   }

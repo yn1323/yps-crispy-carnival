@@ -240,7 +240,7 @@ describe("organization/queries.getSettings", () => {
       ],
       canUpdateOrganizationName: true,
       canDeleteOrganization: false,
-      deleteOrganizationDisabledReason: "グループを削除するには、先に有料契約やプラン変更を終了してください。",
+      deleteOrganizationDisabledReason: "組織を削除するには、先に有料契約やプラン変更を終了してください。",
       billing: {
         state: "pro",
         currentPlan: "pro",
@@ -412,7 +412,7 @@ describe("organization/queries.getSettings", () => {
     expect(result?.canAddShop).toBe(true);
   });
 
-  it("グループ移行前のDTOでは所属店舗IDを空配列で返す", async () => {
+  it("組織移行前のDTOでは所属店舗IDを空配列で返す", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(
       async (ctx) => await seedLegacyManagerShop(ctx, { subject: "settings_legacy_shop_ids", shopName: "移行前店舗" }),
@@ -424,12 +424,12 @@ describe("organization/queries.getSettings", () => {
 
     expect(result?.billing.state).toBe("migrationPending");
     expect(result?.people).toEqual([expect.objectContaining({ id: ids.userId, shopIds: [] })]);
-    // グループ作成は選択中グループの移行状態に依存しない。移行前の店舗も上限へ1件として数える。
+    // 組織作成は選択中組織の移行状態に依存しない。移行前の店舗も上限へ1件として数える。
     expect(result?.canCreateOrganization).toBe(true);
     expect(result?.createOrganizationDisabledReason).toBeUndefined();
   });
 
-  it("上限まで作成済みの利用者にはグループ作成不可と理由を返す", async () => {
+  it("上限まで作成済みの利用者には組織作成不可と理由を返す", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "settings_create_limit", plan: "pro" });
@@ -452,11 +452,11 @@ describe("organization/queries.getSettings", () => {
 
     expect(result?.canCreateOrganization).toBe(false);
     expect(result?.createOrganizationDisabledReason).toBe(
-      "作成できるグループは3つまでです。\n使っていないグループを削除すると、また作成できます。",
+      "作成できる組織は3つまでです。\n使っていない組織を削除すると、また作成できます。",
     );
   });
 
-  it("契約制限中でも新しいグループの作成可否は下げない", async () => {
+  it("契約制限中でも新しい組織の作成可否は下げない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "settings_create_restricted", plan: "free" });
@@ -890,7 +890,7 @@ describe("organization/queries.getSettings", () => {
     });
   });
 
-  it("操作元店舗の状態に依存せずグループ全体のDTOを返す", async () => {
+  it("操作元店舗の状態に依存せず組織全体のDTOを返す", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -951,7 +951,7 @@ describe("organization/queries.getSettings", () => {
     expect(result?.shops).toHaveLength(2);
     expect(result?.canAddShop).toBe(false);
     expect(result?.canUpdateOrganizationName).toBe(false);
-    expect(result?.updateOrganizationNameDisabledReason).toBe("閲覧のみの管理者は、グループ名を変更できません。");
+    expect(result?.updateOrganizationNameDisabledReason).toBe("閲覧のみの管理者は、組織名を変更できません。");
     expect(result?.billing).toMatchObject({
       canManagePlan: false,
       managePlanDisabledReason: "閲覧のみの管理者は、この操作を行えません。",
@@ -1202,7 +1202,7 @@ describe("organization/queries.getSettings", () => {
     });
   });
 
-  it("契約情報が未移行でもactive管理者にはグループ名変更を許可する", async () => {
+  it("契約情報が未移行でもactive管理者には組織名変更を許可する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {

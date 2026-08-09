@@ -29,7 +29,7 @@ export function ShopsView({
       <AnalysisControls
         advancedFilterKeys={["organizationId", "plan", "shopSize", "cadence", "lineUsage", "health"]}
         dataStartDate={metadata.dataStartDate}
-        helperText="期間、グループ、利用状況、要確認状態、並び順を変更できます。"
+        helperText="期間、組織、利用状況、要確認状態、並び順を変更できます。"
         search={search}
         showComparison={false}
         showGranularity={false}

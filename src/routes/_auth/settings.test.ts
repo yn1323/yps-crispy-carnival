@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { validateSettingsSearch } from "./settings";
 
-describe("グループ設定URL", () => {
+describe("組織設定URL", () => {
   it("表示タブとユーザー一覧の復帰状態を受け付ける", () => {
     expect(validateSettingsSearch({ tab: "people", users: "40", focus: "person-b" })).toEqual({
       tab: "people",

@@ -36,7 +36,7 @@ export function useOrganizationNameController(input: Input) {
         name,
         requestId: crypto.randomUUID(),
       });
-      showSuccessToast({ title: "グループ名を変更しました" });
+      showSuccessToast({ title: "組織名を変更しました" });
       setIsOpen(false);
     } catch (error) {
       showErrorToast(error);

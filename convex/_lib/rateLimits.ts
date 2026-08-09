@@ -205,7 +205,7 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     capacity: 5,
   },
 
-  // 新しいグループの作成: userId 単位
+  // 新しい組織の作成: userId 単位
   // 1回/分 — 連打と、requestIdを替えた二重作成を抑止する。
   organizationCreateShort: {
     kind: "token bucket",
@@ -214,7 +214,7 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     capacity: 1,
   },
 
-  // 新しいグループの作成: userId 単位
+  // 新しい組織の作成: userId 単位
   // 同時に保持できる数は ORGANIZATION_SELF_CREATED_LIMIT が決めるため、
   // ここでは削除と再作成を繰り返して通知予約とメールを積む操作だけを抑える。
   organizationCreateDaily: {

@@ -46,7 +46,7 @@ export const OperationContextView = ({
             onClick={onOpenGroupSettings}
           >
             <LuBuilding2 aria-hidden />
-            グループ設定
+            組織設定
           </Button>
         </Flex>
       )}

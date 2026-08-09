@@ -77,7 +77,7 @@ export async function releasePendingInvitationReservationsForStaffAddition(
     );
     if (pendingInvitations.length > 1) {
       throw new ConvexError(
-        "このメールアドレスへの管理者招待を確認できません。\nグループ設定で招待状況を確認してください。",
+        "このメールアドレスへの管理者招待を確認できません。\n組織設定で招待状況を確認してください。",
       );
     }
     const invitation = pendingInvitations[0];

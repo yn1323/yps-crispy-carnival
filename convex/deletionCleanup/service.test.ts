@@ -91,7 +91,7 @@ describe("deletionCleanup association scan", () => {
     }
   });
 
-  it("除外scope内のlegacy重複はscan上限へ数えず、既存のグループcleanup判定を維持する", async () => {
+  it("除外scope内のlegacy重複はscan上限へ数えず、既存の組織cleanup判定を維持する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, { subject: "association_excluded_legacy", plan: "free" });

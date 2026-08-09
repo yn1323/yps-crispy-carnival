@@ -38,7 +38,7 @@ function formatCountPair(numerator: number | null, denominator: number | null, c
 const organizationColumns: DataTableColumn<OrganizationRowViewModel>[] = [
   {
     key: "name",
-    header: "グループ",
+    header: "組織",
     width: "20%",
     render: (row) => (
       <Stack gap={1}>
@@ -143,7 +143,7 @@ export function OrganizationsTable({
   return (
     <DataTable
       columns={organizationColumns}
-      emptyText={emptyText ?? "この条件に一致するグループはありません"}
+      emptyText={emptyText ?? "この条件に一致する組織はありません"}
       getRowHref={(row) => withCurrentSearch(routePath({ name: "organization", organizationId: row.organizationId }))}
       getRowKey={(row) => row.organizationId}
       getRowLabel={(row) => row.displayName}

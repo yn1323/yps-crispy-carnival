@@ -166,7 +166,7 @@ export function useUserShopMembershipActions({
       if (current.targetShopId === target.targetShopId && current.staffId === target.staffId) {
         showSuccessToast({
           title: "この店舗のスタッフ所属を削除しました",
-          description: "グループのユーザー情報、ほかの店舗への所属、管理者権限は変更していません。",
+          description: "組織のユーザー情報、ほかの店舗への所属、管理者権限は変更していません。",
         });
         return true;
       }

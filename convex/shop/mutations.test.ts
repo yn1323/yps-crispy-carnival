@@ -822,7 +822,7 @@ describe("shop/mutations", () => {
       expect(ownShop?.isDeleted).toBe(false);
     });
 
-    it("事業者に紐づく店舗は旧APIで削除せずグループ設定の削除導線へ寄せる", async () => {
+    it("事業者に紐づく店舗は旧APIで削除せず組織設定の削除導線へ寄せる", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run((ctx) =>
         seedOrganizationManagerShop(ctx, { subject: "organization_shop_delete", plan: "pro" }),
@@ -833,7 +833,7 @@ describe("shop/mutations", () => {
           confirmShopId: ids.shopId,
           shopId: ids.shopId,
         }),
-      ).rejects.toThrow("グループ設定から店舗を削除してください");
+      ).rejects.toThrow("組織設定から店舗を削除してください");
 
       const state = await t.run(async (ctx) => ({
         shop: await ctx.db.get(ids.shopId),

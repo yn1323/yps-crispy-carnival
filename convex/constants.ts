@@ -45,17 +45,17 @@ export const DASHBOARD_OPEN_RECRUITMENT_SCAN_LIMIT = 500;
 export const DASHBOARD_RECRUITMENT_CANDIDATE_GROUP_LIMIT = 100;
 // ユーザー詳細で過去・停止中を含む店舗所属を安全に走査する上限。
 export const ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT = 100;
-// ユーザー詳細へ返す同一グループ店舗を安全に走査する上限。
+// ユーザー詳細へ返す同一組織店舗を安全に走査する上限。
 export const ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT = 100;
 // 人物削除を単一transactionで確定できる、今日以降のシフト割当上限。
 export const ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT = 500;
-// 一人の利用者が自分で作成して保持できるグループ数。招待による所属は数えない。
+// 一人の利用者が自分で作成して保持できる組織数。招待による所属は数えない。
 export const ORGANIZATION_SELF_CREATED_LIMIT = 3;
-// グループ作成の日次上限。同時保持数は上記で決まるため、ここでは作り直しの回数だけを抑える。
+// 組織作成の日次上限。同時保持数は上記で決まるため、ここでは作り直しの回数だけを抑える。
 export const ORGANIZATION_CREATE_DAILY_LIMIT = 10;
 // TODO[narrow]: 全deploymentでm025〜m029が完走し、verifyShops/verifyLegacyShopMembersの全pageが0件になった後、
-//   グループ未所属の旧店舗の走査ごと削除する。
-//   グループ作成上限を数えるとき、移行前の店舗を1グループとして扱うための走査上限。
+//   組織未所属の旧店舗の走査ごと削除する。
+//   組織作成上限を数えるとき、移行前の店舗を1組織として扱うための走査上限。
 export const ORGANIZATION_LEGACY_SHOP_SCAN_LIMIT = 50;
 export const SHIFT_BOARD_SHIFT_REQUEST_LIMIT = 2000;
 export const SHIFT_ASSIGNMENT_LIMIT = 2000;

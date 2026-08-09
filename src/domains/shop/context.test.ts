@@ -47,7 +47,7 @@ describe("shop context", () => {
     expect([active, suspended, archived, removed].map(isSelectableShop)).toEqual([true, true, true, false]);
   });
 
-  it("店舗をグループごとにまとめて安定した順序で返す", () => {
+  it("店舗を組織ごとにまとめて安定した順序で返す", () => {
     const shops = normalizeShopContextOptions([
       { shopId: "3", shopName: "横浜店", organizationId: "org-b", organizationName: "B社" },
       { shopId: "2", shopName: "新宿店", organizationId: "org-a", organizationName: "A社" },
@@ -62,7 +62,7 @@ describe("shop context", () => {
     ]);
   });
 
-  it("グループIDがない移行中店舗を表示名だけで同じグループにまとめない", () => {
+  it("組織IDがない移行中店舗を表示名だけで同じ組織にまとめない", () => {
     const shops = normalizeShopContextOptions([
       { shopId: "legacy-a", shopName: "渋谷店" },
       { shopId: "legacy-b", shopName: "新宿店" },
@@ -75,8 +75,8 @@ describe("shop context", () => {
         shopIds: group.shops.map((shop) => shop.shopId),
       })),
     ).toEqual([
-      { key: "legacy:legacy-a", organizationName: "渋谷店のグループ", shopIds: ["legacy-a"] },
-      { key: "legacy:legacy-b", organizationName: "新宿店のグループ", shopIds: ["legacy-b"] },
+      { key: "legacy:legacy-a", organizationName: "渋谷店の組織", shopIds: ["legacy-a"] },
+      { key: "legacy:legacy-b", organizationName: "新宿店の組織", shopIds: ["legacy-b"] },
     ]);
   });
 });

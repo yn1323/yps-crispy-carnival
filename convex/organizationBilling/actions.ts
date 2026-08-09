@@ -50,7 +50,7 @@ export const enqueueBillingNotification = internalAction({
             organizationName: data.organizationName,
             heading: copy.heading,
             paragraphs: copy.paragraphs,
-            action: { label: "グループ設定を確認する", url: settingsUrl },
+            action: { label: "組織設定を確認する", url: settingsUrl },
           }),
           context: `organizationBilling.${args.event}`,
         }),

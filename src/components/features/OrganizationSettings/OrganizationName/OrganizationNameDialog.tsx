@@ -22,7 +22,7 @@ export function OrganizationNameDialog({ isOpen, organizationName, isRunning, on
 
   return (
     <Dialog
-      title="グループ名を変更"
+      title="組織名を変更"
       isOpen
       onOpenChange={({ open }) => {
         if (!open) onClose();
@@ -42,7 +42,7 @@ export function OrganizationNameDialog({ isOpen, organizationName, isRunning, on
         }}
       >
         <Field.Root required>
-          <Field.Label>グループ名</Field.Label>
+          <Field.Label>組織名</Field.Label>
           <Input
             value={name}
             maxLength={ORGANIZATION_NAME_MAX_LENGTH}

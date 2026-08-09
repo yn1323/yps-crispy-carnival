@@ -47,7 +47,7 @@ describe("UserMenu", () => {
     );
   });
 
-  it("グループ設定が非公開でもアカウント設定を表示し、メニューにメールアドレスを表示しない", async () => {
+  it("組織設定が非公開でもアカウント設定を表示し、メニューにメールアドレスを表示しない", async () => {
     const store = createStore();
     store.set(userAtom, {
       authId: "user_actor",
@@ -71,12 +71,12 @@ describe("UserMenu", () => {
     fireEvent.click(screen.getByRole("button", { name: "ユーザーメニュー" }));
 
     expect(await screen.findByText("アカウント設定")).not.toBeNull();
-    expect(screen.queryByText("グループ設定")).toBeNull();
+    expect(screen.queryByText("組織設定")).toBeNull();
     expect(screen.queryByText("convex@example.com")).toBeNull();
     expect(mocks.linkProps).toHaveBeenCalledWith({ to: "/account", search: undefined });
   });
 
-  it("アカウント設定には選択中の店舗を引き継がず、グループ設定だけに店舗を渡す", async () => {
+  it("アカウント設定には選択中の店舗を引き継がず、組織設定だけに店舗を渡す", async () => {
     const store = createStore();
     store.set(userAtom, {
       authId: "user_actor",
@@ -108,7 +108,7 @@ describe("UserMenu", () => {
     fireEvent.click(screen.getByRole("button", { name: "ユーザーメニュー" }));
 
     expect(await screen.findByText("アカウント設定")).not.toBeNull();
-    expect(screen.queryByText("グループ設定")).not.toBeNull();
+    expect(screen.queryByText("組織設定")).not.toBeNull();
     expect(mocks.linkProps).toHaveBeenCalledWith({ to: "/account", search: undefined });
     expect(mocks.linkProps).toHaveBeenCalledWith({ to: "/settings", search: { shop: "shop-a" } });
   });

@@ -136,7 +136,7 @@ export function UserShopSettingsSection({
               <Text>
                 この店舗のスタッフ所属、既存のシフト用リンク、LINE連携を終了します。
                 <br />
-                グループのユーザー情報、ほかの店舗への所属、管理者権限は変更しません。
+                組織のユーザー情報、ほかの店舗への所属、管理者権限は変更しません。
               </Text>
               <Text color="orange.700" fontWeight="medium" whiteSpace="pre-line">
                 {getAssignmentRemovalDescription(removalPreview)}

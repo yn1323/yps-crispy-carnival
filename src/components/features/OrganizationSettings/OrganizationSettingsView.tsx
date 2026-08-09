@@ -137,7 +137,7 @@ export const OrganizationSettingsView = ({
 );
 
 export const OrganizationSettingsSkeleton = () => (
-  <Stack gap={6} aria-label="グループ設定を読み込み中">
+  <Stack gap={6} aria-label="組織設定を読み込み中">
     <Stack gap={2}>
       <Skeleton h="20px" w="220px" />
       <Skeleton h="40px" w="200px" />

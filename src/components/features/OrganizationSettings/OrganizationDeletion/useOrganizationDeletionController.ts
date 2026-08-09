@@ -85,7 +85,7 @@ export function useOrganizationDeletionController(
       setSelectedShop(nextShop ? toSelectedShop(nextShop) : null);
       setUser(EMPTY_USER);
       setIntent(null);
-      showSuccessToast({ title: "グループの削除を受け付けました" });
+      showSuccessToast({ title: "組織の削除を受け付けました" });
     } catch (error) {
       showErrorToast(error);
       throw error;

@@ -106,7 +106,7 @@ describe("dashboard/queries", () => {
       expect(result?.trialEndingNotice).toBeNull();
     });
 
-    it("同じグループの全店舗で同じトライアル終了通知を返す", async () => {
+    it("同じ組織の全店舗で同じトライアル終了通知を返す", async () => {
       const t = convexTest(schema, modules);
       const { firstShopId, secondShopId } = await t.run(async (ctx) => {
         const seeded = await seedOrganizationManagerShop(ctx, {
@@ -499,7 +499,7 @@ describe("dashboard/queries", () => {
       },
     );
 
-    it("複数グループに所属する利用者には各グループの非削除店舗だけを所属状態付きで返す", async () => {
+    it("複数組織に所属する利用者には各組織の非削除店舗だけを所属状態付きで返す", async () => {
       const t = convexTest(schema, modules);
       const subject = "multi_organization_shop_list";
       const ids = await t.run(async (ctx) => {
@@ -1942,7 +1942,7 @@ describe("dashboard/queries", () => {
       const conflicted = await owner.query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
       expect(conflicted.page.find((staff) => staff._id === ids.targetStaffId)?.managerInvitationState).toEqual({
         kind: "unavailable",
-        reason: "このユーザーへの管理者招待の状態を確認できません。\nグループ設定を確認してください。",
+        reason: "このユーザーへの管理者招待の状態を確認できません。\n組織設定を確認してください。",
       });
 
       await t.run(async (ctx) => {
@@ -1978,7 +1978,7 @@ describe("dashboard/queries", () => {
       const wrongTarget = await owner.query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
       expect(wrongTarget.page.find((staff) => staff._id === ids.targetStaffId)?.managerInvitationState).toEqual({
         kind: "unavailable",
-        reason: "このユーザーへの管理者招待の状態を確認できません。\nグループ設定を確認してください。",
+        reason: "このユーザーへの管理者招待の状態を確認できません。\n組織設定を確認してください。",
       });
       expect(await t.run((ctx) => ctx.db.get(invitationId))).toMatchObject({ status: "revoked" });
     });

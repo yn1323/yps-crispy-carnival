@@ -590,7 +590,7 @@ function organizationDeletionCorrelationId(organizationId: Id<"organizations">, 
 }
 
 /**
- * グループを論理削除し、権限・連絡手段の失効cleanupを一つの受付transactionで開始する。
+ * 組織を論理削除し、権限・連絡手段の失効cleanupを一つの受付transactionで開始する。
  * clientの組織ID・確認ID・更新時刻はすべて、Clerk identityから解決したactive所属と照合する。
  */
 export const deleteOrganization = authenticatedMutation({
@@ -627,7 +627,7 @@ export const deleteOrganization = authenticatedMutation({
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
     if (actor.organization._id !== args.organizationId) throw new ConvexError("Not found");
     if (actor.organization.updatedAt !== args.expectedOrganizationUpdatedAt) {
-      throw new ConvexError("グループの状態が変わりました。\n画面を更新してから、もう一度お試しください。");
+      throw new ConvexError("組織の状態が変わりました。\n画面を更新してから、もう一度お試しください。");
     }
 
     const billingState = await requireOrganizationBillingState(ctx, actor.organization._id);

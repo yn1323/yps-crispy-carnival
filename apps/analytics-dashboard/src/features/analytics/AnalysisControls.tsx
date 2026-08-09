@@ -17,7 +17,7 @@ const FILTERS = [
       ["", "すべて"],
       ["registrationCohort", "登録時期"],
       ["plan", "プラン"],
-      ["organizationShopCount", "グループ店舗数"],
+      ["organizationShopCount", "組織店舗数"],
       ["shopStaffSize", "店舗スタッフ規模"],
       ["cadence", "通常周期"],
       ["lineUsage", "LINE利用"],
@@ -371,7 +371,7 @@ export function AnalysisControls({
                 <Grid gap={3} mt={3} templateColumns={{ base: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" }}>
                   {enabledFilters.has("organizationId") ? (
                     <Field.Root>
-                      <Field.Label fontSize="xs">グループID</Field.Label>
+                      <Field.Label fontSize="xs">組織ID</Field.Label>
                       <Input
                         onChange={(event) =>
                           updateDraft({ organizationId: event.currentTarget.value || undefined, shopId: undefined })
