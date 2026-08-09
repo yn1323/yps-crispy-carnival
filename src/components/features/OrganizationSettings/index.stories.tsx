@@ -244,6 +244,10 @@ export const StaffWithoutShop: Story = {
       },
     ],
   },
+  play: async ({ canvasElement }) => {
+    const row = within(canvasElement).getByRole("button", { name: "店舗未所属スタッフのスタッフ詳細を開く" });
+    await expect(within(row).getByText("所属店舗なし")).toBeVisible();
+  },
 };
 
 export const UserListLoadMoreBehavior: Story = {
