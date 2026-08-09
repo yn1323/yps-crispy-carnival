@@ -1,7 +1,7 @@
 import { Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import type { ShopContextOption } from "@/src/domains/shop/context";
 import { buildOperationContextModel } from "./script";
 import { OperationContextView } from "./View";
@@ -23,6 +23,10 @@ const multipleShops = [
   shop({ shopId: "shop-b-1", shopName: "C店舗", organizationId: "org-b", organizationName: "関西事業部" }),
   shop({ shopId: "shop-b-2", shopName: "D店舗", organizationId: "org-b", organizationName: "関西事業部" }),
 ];
+const longOrganizationName = "株式会社とても長い名前のフードサービスグループ";
+const mobileShops = multipleShops.map((option) =>
+  option.organizationId === "org-a" ? { ...option, organizationName: longOrganizationName } : option,
+);
 
 const createModel = (shops: readonly ShopContextOption[], selectedShopId: string) => {
   const model = buildOperationContextModel(shops, selectedShopId);
@@ -46,7 +50,7 @@ const meta = {
   args: {
     onShopSelect: () => {},
     onOpenShopDetail: () => {},
-    onOpenGroupSettings: () => {},
+    organizationSettingsShopId: "shop-a-1",
   },
 } satisfies Meta<typeof OperationContextView>;
 
@@ -71,28 +75,13 @@ export const MultipleGroupsMultipleShops: Story = {
   },
 };
 
-export const SettingsEntryHidden: Story = {
-  args: {
-    model: createModel(multipleShops, "shop-a-1"),
-    onOpenGroupSettings: undefined,
-  },
-  parameters: {
-    screenshot: { skip: true },
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.queryByRole("button", { name: "組織設定" })).toBeNull();
-    await expect(canvas.getByRole("button", { name: "店舗詳細を開く" })).toBeVisible();
-  },
-};
-
 export const LongNamesReadOnly: Story = {
   args: {
     model: createModel(
       [
         shop({
           shopName: "駅前商業施設内レストランとても長い店舗名",
-          organizationName: "株式会社とても長い名前のフードサービスグループ",
+          organizationName: longOrganizationName,
           memberStatus: "readOnly",
         }),
       ],
@@ -105,7 +94,7 @@ export const Mobile: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
   args: {
-    model: createModel(multipleShops, "shop-a-1"),
+    model: createModel(mobileShops, "shop-a-1"),
   },
 };
 
@@ -123,11 +112,19 @@ export const SelectionBehavior: Story = {
 
     await userEvent.click(canvas.getByRole("button", { name: "店舗を切り替える（現在：A店舗）" }));
     await userEvent.click(await body.findByRole("menuitem", { name: /C店舗/ }));
-    await waitFor(() => expect(canvas.getByRole("button", { name: "店舗を切り替える（現在：C店舗）" })).toBeVisible());
+    await expect(await canvas.findByRole("button", { name: "店舗を切り替える（現在：C店舗）" })).toBeVisible();
+    await expect(canvas.getByRole("link", { name: "関西事業部の組織設定を開く" })).toHaveAttribute(
+      "href",
+      "/settings?shop=shop-b-1",
+    );
 
     await userEvent.click(canvas.getByRole("button", { name: "店舗を切り替える（現在：C店舗）" }));
     await userEvent.click(await body.findByRole("menuitem", { name: /D店舗/ }));
-    await waitFor(() => expect(canvas.getByRole("button", { name: "店舗を切り替える（現在：D店舗）" })).toBeVisible());
+    await expect(await canvas.findByRole("button", { name: "店舗を切り替える（現在：D店舗）" })).toBeVisible();
+    await expect(canvas.getByRole("link", { name: "関西事業部の組織設定を開く" })).toHaveAttribute(
+      "href",
+      "/settings?shop=shop-b-2",
+    );
   },
 };
 
@@ -140,7 +137,7 @@ const SelectionBehaviorStory = () => {
       model={model}
       onShopSelect={setSelectedShopId}
       onOpenShopDetail={() => {}}
-      onOpenGroupSettings={() => {}}
+      organizationSettingsShopId={model.selectedShop.shopId}
     />
   );
 };

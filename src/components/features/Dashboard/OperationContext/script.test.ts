@@ -18,20 +18,28 @@ const shop = (
 });
 
 describe("Dashboardの操作先", () => {
-  it("1組織1店舗では組織名を隠して店舗を静的表示にする", () => {
+  it("1組織1店舗では選択組織を保持して店舗を静的表示にする", () => {
     const shops = [shop("shop-a", "A店", "org-a", "Aグループ")];
 
     const model = buildOperationContextModel(shops, "shop-a");
 
-    expect(model).toMatchObject({ hasMultipleGroups: false, canSwitchShop: false });
+    expect(model).toMatchObject({
+      hasMultipleGroups: false,
+      canSwitchShop: false,
+      selectedGroup: { key: "org-a", organizationName: "Aグループ" },
+    });
   });
 
-  it("1組織複数店舗では組織名を隠して店舗を切替可能にする", () => {
+  it("1組織複数店舗では選択組織を保持して店舗を切替可能にする", () => {
     const shops = [shop("shop-a", "A店", "org-a", "Aグループ"), shop("shop-b", "B店", "org-a", "Aグループ")];
 
     const model = buildOperationContextModel(shops, "shop-a");
 
-    expect(model).toMatchObject({ hasMultipleGroups: false, canSwitchShop: true });
+    expect(model).toMatchObject({
+      hasMultipleGroups: false,
+      canSwitchShop: true,
+      selectedGroup: { key: "org-a", organizationName: "Aグループ" },
+    });
   });
 
   it("複数組織では選択組織が1店舗でも全店舗を切替可能にする", () => {

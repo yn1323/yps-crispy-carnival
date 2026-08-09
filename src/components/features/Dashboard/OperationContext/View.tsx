@@ -12,7 +12,8 @@ import {
   Text,
   VisuallyHidden,
 } from "@chakra-ui/react";
-import { LuBuilding2, LuCheck, LuChevronDown, LuSettings } from "react-icons/lu";
+import { Link as RouterLink } from "@tanstack/react-router";
+import { LuBuilding2, LuCheck, LuChevronDown, LuChevronRight, LuSettings } from "react-icons/lu";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/tooltip";
 import type { ShopContextOption } from "@/src/domains/shop/context";
@@ -22,33 +23,48 @@ export type OperationContextViewProps = {
   model: OperationContextModel;
   onShopSelect: (shopId: string) => void;
   onOpenShopDetail: () => void;
-  onOpenGroupSettings?: () => void;
+  organizationSettingsShopId?: string;
 };
 
 export const OperationContextView = ({
   model,
   onShopSelect,
   onOpenShopDetail,
-  onOpenGroupSettings,
+  organizationSettingsShopId,
 }: OperationContextViewProps) => {
   return (
     <Stack gap={3} pb={{ base: 4, lg: 6 }} borderBottomWidth="1px" borderColor="gray.200">
-      {onOpenGroupSettings && (
-        <Flex justify="flex-end" minW={0}>
-          <Button
-            type="button"
-            variant="ghost"
-            colorPalette="teal"
-            size="sm"
-            gap={1.5}
-            fontWeight="semibold"
-            flexShrink={0}
-            onClick={onOpenGroupSettings}
+      {organizationSettingsShopId && (
+        <Button
+          asChild
+          variant="plain"
+          alignSelf="flex-start"
+          justifyContent="flex-start"
+          gap={2}
+          w="fit-content"
+          maxW="full"
+          minW={0}
+          minH="44px"
+          h="auto"
+          px={0}
+          py={2}
+          color="gray.800"
+          fontSize={{ base: "md", md: "lg" }}
+          fontWeight="bold"
+          _hover={{ color: "teal.700" }}
+        >
+          <RouterLink
+            to="/settings"
+            search={{ shop: organizationSettingsShopId }}
+            aria-label={`${model.selectedGroup.organizationName}の組織設定を開く`}
           >
-            <LuBuilding2 aria-hidden />
-            組織設定
-          </Button>
-        </Flex>
+            <Icon as={LuBuilding2} boxSize={5} flexShrink={0} />
+            <Text as="span" truncate minW={0} flex={1}>
+              {model.selectedGroup.organizationName}
+            </Text>
+            <Icon as={LuChevronRight} boxSize={5} color="gray.500" flexShrink={0} />
+          </RouterLink>
+        </Button>
       )}
 
       <Flex align="center" justify="space-between" direction="row" gap={3} minW={0}>
@@ -204,10 +220,12 @@ export const OperationContextSkeleton = () => (
     pb={{ base: 4, lg: 6 }}
     borderBottomWidth="1px"
     borderColor="gray.200"
-    aria-label="現在の店舗を読み込み中"
+    aria-label="現在の組織と店舗を読み込み中"
   >
-    <Flex justify="flex-end">
-      <Skeleton h="32px" w="120px" />
+    <Flex align="center" gap={2} minH="44px" maxW="full">
+      <Skeleton h="20px" w="20px" flexShrink={0} />
+      <Skeleton h="24px" w={{ base: "160px", md: "220px" }} maxW="70%" />
+      <Skeleton h="20px" w="20px" flexShrink={0} />
     </Flex>
     <Flex align="center" justify="space-between" gap={3}>
       <Skeleton h={{ base: "28px", md: "40px" }} w={{ base: "160px", md: "240px" }} maxW="60%" />
