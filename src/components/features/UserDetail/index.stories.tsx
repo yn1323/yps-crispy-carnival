@@ -188,6 +188,11 @@ type Story = StoryObj<typeof meta>;
 
 export const MainView: Story = {};
 
+export const MainViewMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+};
+
 export const BasicInformationDialog: Story = {
   args: { activePanel: "basic" },
   play: settleBasicInformationDialogFocus,
@@ -395,6 +400,12 @@ function createPersonRemovalStory(assignmentCount: number): Story {
 }
 
 export const Loading: Story = {
+  render: () => <UserDetailSkeleton />,
+};
+
+export const LoadingMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
   render: () => <UserDetailSkeleton />,
 };
 

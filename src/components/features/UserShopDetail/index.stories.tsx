@@ -167,6 +167,28 @@ type Story = StoryObj<typeof meta>;
 
 export const Desktop: Story = {};
 
+export const MainViewMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+};
+
+const initialDataLoadedState: UserShopDetailViewProps["state"] = {
+  ...baseState,
+  notifications: {
+    ...baseState.notifications,
+    isLoading: true,
+    openRecruitments: [],
+    currentRecruitments: [],
+  },
+};
+
+export const InitialDataLoaded: Story = {
+  args: {
+    notificationHistory: null,
+    state: initialDataLoadedState,
+  },
+};
+
 export const Mobile: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
@@ -203,6 +225,12 @@ export const ReadOnly: Story = {
 };
 
 export const Loading: Story = {
+  render: () => <UserShopDetailSkeleton />,
+};
+
+export const LoadingMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
   render: () => <UserShopDetailSkeleton />,
 };
 

@@ -72,6 +72,12 @@ export const Loading: Story = {
   render: () => <ShopDetailSkeleton />,
 };
 
+export const LoadingMobile: Story = {
+  render: () => <ShopDetailSkeleton />,
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
 export const NoStaffs: Story = {
   args: { staffs: [] },
 };

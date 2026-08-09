@@ -1,4 +1,4 @@
-import { Heading, HStack, Icon, Text, VisuallyHidden } from "@chakra-ui/react";
+import { Heading, HStack, Icon, Skeleton, Text, VisuallyHidden } from "@chakra-ui/react";
 import { type ReactNode, useId } from "react";
 import type { IconType } from "react-icons";
 import { LuChevronLeft } from "react-icons/lu";
@@ -11,6 +11,11 @@ type Props = {
   backAriaLabel?: string;
   icon?: IconType;
   action?: ReactNode;
+};
+
+type SkeletonProps = {
+  titleWidth?: string | { base: string; md?: string; lg?: string };
+  showAction?: boolean;
 };
 
 export function DetailPageHeader({ title, onBack, backLabel = "前の画面に戻る", backAriaLabel, icon, action }: Props) {
@@ -43,6 +48,27 @@ export function DetailPageHeader({ title, onBack, backLabel = "前の画面に�
       </Heading>
       {action}
       <VisuallyHidden id={descriptionId}>{backLabel}</VisuallyHidden>
+    </HStack>
+  );
+}
+
+export function DetailPageHeaderSkeleton({
+  titleWidth = { base: "168px", md: "240px" },
+  showAction = false,
+}: SkeletonProps) {
+  return (
+    <HStack gap={3} minW={0} minH="44px" justify="space-between" align="center">
+      <HStack gap={2} minW={0} flex={1}>
+        <Skeleton boxSize={5} borderRadius="sm" flexShrink={0} />
+        <Skeleton boxSize={5} borderRadius="sm" flexShrink={0} />
+        <Skeleton
+          h={{ base: "28px", md: "32px", lg: "38px" }}
+          w={titleWidth}
+          maxW="calc(100% - 56px)"
+          borderRadius="sm"
+        />
+      </HStack>
+      {showAction && <Skeleton boxSize="44px" borderRadius="md" flexShrink={0} />}
     </HStack>
   );
 }

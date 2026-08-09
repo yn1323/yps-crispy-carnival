@@ -70,7 +70,7 @@ export function UserShopNotificationSection({
           )}
 
           {isLoading ? (
-            <NotificationSkeleton />
+            <UserShopNotificationSkeleton />
           ) : (
             <>
               <NotificationSection
@@ -254,16 +254,19 @@ function getRecruitmentMetaLabel(recruitment: UserShopDetailRecruitment, today: 
   return days === 0 ? "今日が締切！" : `締切まで${days}日`;
 }
 
-function NotificationSkeleton() {
+export function UserShopNotificationSkeleton() {
   return (
     <Stack gap={5} aria-label="通知情報を読み込み中" aria-busy="true">
       {Array.from({ length: 2 }).map((_, sectionIndex) => (
         <Stack key={sectionIndex} gap={3}>
-          <Flex justify="space-between" gap={4}>
-            <Skeleton h="20px" w="160px" />
-            <Skeleton h="32px" w="176px" borderRadius="md" />
+          <Flex align={{ base: "flex-start", sm: "center" }} justify="space-between" gap={3}>
+            <HStack gap={2} minW={0}>
+              <Skeleton boxSize={5} borderRadius="sm" flexShrink={0} />
+              <Skeleton h="20px" w={sectionIndex === 0 ? "112px" : "88px"} maxW="100%" />
+            </HStack>
+            <Skeleton h="32px" w="104px" borderRadius="md" flexShrink={0} />
           </Flex>
-          <Skeleton h="56px" w="full" borderRadius="lg" />
+          <Skeleton h={{ base: "76px", lg: "56px" }} w="full" borderRadius="lg" />
         </Stack>
       ))}
     </Stack>
