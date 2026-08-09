@@ -38,6 +38,7 @@ describe("visibleAssignmentWarnings", () => {
         currentShifts: [shift("staff-1", "2026-01-20", [segment("09:00", "12:00")])],
         baselineShifts: [],
         closedDateSet: new Set(),
+        buildAssignmentsOptions: { submissionPatternKind: "time" },
         isConfirmed: false,
       }),
     ).toEqual(warnings);
@@ -59,6 +60,7 @@ describe("visibleAssignmentWarnings", () => {
           shift("staff-2", "2026-01-20", [segment("10:00", "14:00")]),
         ],
         closedDateSet: new Set(),
+        buildAssignmentsOptions: { submissionPatternKind: "time" },
         isConfirmed: true,
       }),
     ).toEqual([visibleWarning]);
@@ -71,6 +73,20 @@ describe("visibleAssignmentWarnings", () => {
         currentShifts: [shift("staff-1", "2026-01-20", [segment("09:00", "12:00")])],
         baselineShifts: [shift("staff-1", "2026-01-20", [segment("09:00", "12:00")])],
         closedDateSet: new Set(),
+        buildAssignmentsOptions: { submissionPatternKind: "time" },
+        isConfirmed: true,
+      }),
+    ).toEqual([]);
+  });
+
+  it("確定済みでは完全隣接する分割表現だけの差を変更扱いにしない", () => {
+    expect(
+      visibleAssignmentWarnings({
+        warnings: [warning("staff-1", "2026-01-20")],
+        currentShifts: [shift("staff-1", "2026-01-20", [segment("09:00", "12:00"), segment("12:00", "14:00")])],
+        baselineShifts: [shift("staff-1", "2026-01-20", [segment("09:00", "14:00")])],
+        closedDateSet: new Set(),
+        buildAssignmentsOptions: { submissionPatternKind: "time" },
         isConfirmed: true,
       }),
     ).toEqual([]);

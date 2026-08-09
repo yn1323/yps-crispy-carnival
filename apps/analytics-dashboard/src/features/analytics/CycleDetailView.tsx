@@ -2,6 +2,7 @@ import { Badge, Box, Grid, HStack, Stack, Text } from "@chakra-ui/react";
 import { KpiCard } from "@/components/KpiCard";
 import { PageHeading, SectionHeading } from "@/components/PageHeading";
 import { routePath, withCurrentSearch } from "@/routes/appRoute";
+import { CycleSummaryCharts } from "./CycleCharts";
 import { CompletenessBadge, DataStatus } from "./DataStatus";
 import { formatCount, formatDateTime, formatDurationMs, formatRate } from "./format";
 import type { CycleDetailViewModel } from "./viewModels";
@@ -25,7 +26,7 @@ export function CycleDetailView({ model }: { model: CycleDetailViewModel }) {
   const confirmationTiming =
     model.completeness === "complete"
       ? model.confirmedBeforeStart === null
-        ? "算出不可"
+        ? "算出できません"
         : model.confirmedBeforeStart
           ? "開始前に確定"
           : "開始後に確定"
@@ -34,17 +35,24 @@ export function CycleDetailView({ model }: { model: CycleDetailViewModel }) {
     <Stack gap={{ base: 6, md: 8 }}>
       <PageHeading
         breadcrumbs={[
-          { href: withCurrentSearch(routePath({ name: "shops" })), label: "店舗比較" },
+          { href: withCurrentSearch(routePath({ name: "shops" })), label: "店舗" },
           { href: withCurrentSearch(routePath({ name: "shop", shopId: model.shopId })), label: model.shopName },
           { label: `${model.periodStart} 〜 ${model.periodEnd}` },
         ]}
         description="一つのシフト周期の提出母集団、通知、確定結果を個人情報なしで確認します。"
         title={`${model.periodStart} 〜 ${model.periodEnd}`}
       />
-      <DataStatus envLabel={model.envLabel} metadata={model.metadata} />
+      <DataStatus metadata={model.metadata} />
 
       <HStack gap={2} wrap="wrap">
-        <CompletenessBadge value={model.completeness} />
+        {model.completeness !== "complete" ? (
+          <HStack gap={1}>
+            <Text color="gray.500" fontSize="xs">
+              この周期の集計:
+            </Text>
+            <CompletenessBadge value={model.completeness} />
+          </HStack>
+        ) : null}
         <Badge variant="surface">{model.organizationName}</Badge>
         <Badge variant="surface">{model.shopName}</Badge>
         {model.sequenceNumber !== null ? <Badge variant="surface">第{model.sequenceNumber}周期</Badge> : null}
@@ -72,10 +80,12 @@ export function CycleDetailView({ model }: { model: CycleDetailViewModel }) {
         <KpiCard
           accent="gray"
           helper={confirmationTiming}
-          label="確定lead time"
+          label="確定までの時間"
           value={formatDurationMs(model.confirmationLeadTimeMs, model.completeness)}
         />
       </Grid>
+
+      <CycleSummaryCharts model={model} />
 
       <Stack bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" gap={5} p={{ base: 4, md: 5 }}>
         <SectionHeading
@@ -86,10 +96,10 @@ export function CycleDetailView({ model }: { model: CycleDetailViewModel }) {
           <DetailItem label="作成日時" value={formatDateTime(model.createdAt)} />
           <DetailItem label="提出期限" value={formatDateTime(model.submitDeadlineAt)} />
           <DetailItem label="確定日時" value={model.confirmedAt ? formatDateTime(model.confirmedAt) : "未確定"} />
-          <DetailItem label="cycle close" value={model.closedAt ? formatDateTime(model.closedAt) : "未完了"} />
-          <DetailItem label="作成lead time" value={formatDurationMs(model.creationLeadTimeMs, model.completeness)} />
+          <DetailItem label="周期終了" value={model.closedAt ? formatDateTime(model.closedAt) : "未完了"} />
+          <DetailItem label="作成までの時間" value={formatDurationMs(model.creationLeadTimeMs, model.completeness)} />
           <DetailItem
-            label="確定lead time"
+            label="確定までの時間"
             value={formatDurationMs(model.confirmationLeadTimeMs, model.completeness)}
           />
           <DetailItem label="期限時 提出 / 対象" value={deadlinePair} />

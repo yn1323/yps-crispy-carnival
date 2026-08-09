@@ -10,6 +10,7 @@
 
 import type * as _lib_activeShop from "../_lib/activeShop.js";
 import type * as _lib_auditCorrelation from "../_lib/auditCorrelation.js";
+import type * as _lib_clerkVerifiedEmailProvider from "../_lib/clerkVerifiedEmailProvider.js";
 import type * as _lib_config from "../_lib/config.js";
 import type * as _lib_dashboardUrl from "../_lib/dashboardUrl.js";
 import type * as _lib_dateFormat from "../_lib/dateFormat.js";
@@ -27,6 +28,7 @@ import type * as _lib_previousWeeklyPattern from "../_lib/previousWeeklyPattern.
 import type * as _lib_rateLimits from "../_lib/rateLimits.js";
 import type * as _lib_resend from "../_lib/resend.js";
 import type * as _lib_resendWebhookSignature from "../_lib/resendWebhookSignature.js";
+import type * as _lib_shiftAssignmentNormalization from "../_lib/shiftAssignmentNormalization.js";
 import type * as _lib_shopManagerRecipients from "../_lib/shopManagerRecipients.js";
 import type * as _lib_staffAccess from "../_lib/staffAccess.js";
 import type * as _lib_submissionPattern from "../_lib/submissionPattern.js";
@@ -46,10 +48,21 @@ import type * as accountDeletion_mutations from "../accountDeletion/mutations.js
 import type * as accountDeletion_provider from "../accountDeletion/provider.js";
 import type * as accountDeletion_queries from "../accountDeletion/queries.js";
 import type * as accountDeletion_schemas from "../accountDeletion/schemas.js";
+import type * as accountEmail_actions from "../accountEmail/actions.js";
+import type * as accountEmail_mutations from "../accountEmail/mutations.js";
+import type * as analytics_aggregation from "../analytics/aggregation.js";
+import type * as analytics_config from "../analytics/config.js";
+import type * as analytics_invariants from "../analytics/invariants.js";
+import type * as analytics_maintenance from "../analytics/maintenance.js";
 import type * as analytics_model from "../analytics/model.js";
+import type * as analytics_nightly from "../analytics/nightly.js";
+import type * as analytics_observability from "../analytics/observability.js";
 import type * as analytics_pipeline from "../analytics/pipeline.js";
+import type * as analytics_projection from "../analytics/projection.js";
 import type * as analytics_refs from "../analytics/refs.js";
 import type * as analytics_registry from "../analytics/registry.js";
+import type * as analytics_reset from "../analytics/reset.js";
+import type * as analytics_runs from "../analytics/runs.js";
 import type * as analytics_sourceEvents from "../analytics/sourceEvents.js";
 import type * as analyticsDashboard_dto from "../analyticsDashboard/dto.js";
 import type * as analyticsDashboard_httpActions from "../analyticsDashboard/httpActions.js";
@@ -178,6 +191,7 @@ import type * as organizationBilling_notification from "../organizationBilling/n
 import type * as organizationBilling_policy from "../organizationBilling/policy.js";
 import type * as organizationBilling_queries from "../organizationBilling/queries.js";
 import type * as organizationBilling_service from "../organizationBilling/service.js";
+import type * as organizationInvitation_acceptanceActions from "../organizationInvitation/acceptanceActions.js";
 import type * as organizationInvitation_actions from "../organizationInvitation/actions.js";
 import type * as organizationInvitation_constants from "../organizationInvitation/constants.js";
 import type * as organizationInvitation_lifecycle from "../organizationInvitation/lifecycle.js";
@@ -239,6 +253,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   "_lib/activeShop": typeof _lib_activeShop;
   "_lib/auditCorrelation": typeof _lib_auditCorrelation;
+  "_lib/clerkVerifiedEmailProvider": typeof _lib_clerkVerifiedEmailProvider;
   "_lib/config": typeof _lib_config;
   "_lib/dashboardUrl": typeof _lib_dashboardUrl;
   "_lib/dateFormat": typeof _lib_dateFormat;
@@ -256,6 +271,7 @@ declare const fullApi: ApiFromModules<{
   "_lib/rateLimits": typeof _lib_rateLimits;
   "_lib/resend": typeof _lib_resend;
   "_lib/resendWebhookSignature": typeof _lib_resendWebhookSignature;
+  "_lib/shiftAssignmentNormalization": typeof _lib_shiftAssignmentNormalization;
   "_lib/shopManagerRecipients": typeof _lib_shopManagerRecipients;
   "_lib/staffAccess": typeof _lib_staffAccess;
   "_lib/submissionPattern": typeof _lib_submissionPattern;
@@ -275,10 +291,21 @@ declare const fullApi: ApiFromModules<{
   "accountDeletion/provider": typeof accountDeletion_provider;
   "accountDeletion/queries": typeof accountDeletion_queries;
   "accountDeletion/schemas": typeof accountDeletion_schemas;
+  "accountEmail/actions": typeof accountEmail_actions;
+  "accountEmail/mutations": typeof accountEmail_mutations;
+  "analytics/aggregation": typeof analytics_aggregation;
+  "analytics/config": typeof analytics_config;
+  "analytics/invariants": typeof analytics_invariants;
+  "analytics/maintenance": typeof analytics_maintenance;
   "analytics/model": typeof analytics_model;
+  "analytics/nightly": typeof analytics_nightly;
+  "analytics/observability": typeof analytics_observability;
   "analytics/pipeline": typeof analytics_pipeline;
+  "analytics/projection": typeof analytics_projection;
   "analytics/refs": typeof analytics_refs;
   "analytics/registry": typeof analytics_registry;
+  "analytics/reset": typeof analytics_reset;
+  "analytics/runs": typeof analytics_runs;
   "analytics/sourceEvents": typeof analytics_sourceEvents;
   "analyticsDashboard/dto": typeof analyticsDashboard_dto;
   "analyticsDashboard/httpActions": typeof analyticsDashboard_httpActions;
@@ -407,6 +434,7 @@ declare const fullApi: ApiFromModules<{
   "organizationBilling/policy": typeof organizationBilling_policy;
   "organizationBilling/queries": typeof organizationBilling_queries;
   "organizationBilling/service": typeof organizationBilling_service;
+  "organizationInvitation/acceptanceActions": typeof organizationInvitation_acceptanceActions;
   "organizationInvitation/actions": typeof organizationInvitation_actions;
   "organizationInvitation/constants": typeof organizationInvitation_constants;
   "organizationInvitation/lifecycle": typeof organizationInvitation_lifecycle;

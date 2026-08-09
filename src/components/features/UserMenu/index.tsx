@@ -2,7 +2,15 @@ import { Box, Flex, Icon, Menu, Portal, Text } from "@chakra-ui/react";
 import { SignOutButton } from "@clerk/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import { LuBookOpen, LuBuilding2, LuChevronDown, LuLogOut, LuMailQuestion, LuUserRound } from "react-icons/lu";
+import {
+  LuBookOpen,
+  LuBuilding2,
+  LuChevronDown,
+  LuLogOut,
+  LuMailQuestion,
+  LuShieldCheck,
+  LuUserRound,
+} from "react-icons/lu";
 import { selectedShopAtom } from "@/src/stores/shop";
 import { featureVisibilityAtom, userAtom } from "@/src/stores/user";
 
@@ -75,11 +83,14 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
               <Text fontWeight="semibold" fontSize="sm">
                 {displayName}
               </Text>
-              <Text fontSize="xs" color="fg.muted">
-                {user.email}
-              </Text>
             </Box>
             <Menu.Separator />
+            <Menu.Item asChild value="login-settings" cursor="pointer">
+              <RouterLink to="/account">
+                <LuShieldCheck aria-hidden />
+                アカウント設定
+              </RouterLink>
+            </Menu.Item>
             {showGroupSettings && (
               <Menu.Item asChild value="group-settings" cursor="pointer">
                 <RouterLink to="/settings" search={{ shop: selectedShop?.shopId }}>

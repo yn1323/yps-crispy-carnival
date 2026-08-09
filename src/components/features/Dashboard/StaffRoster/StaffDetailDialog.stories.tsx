@@ -222,6 +222,24 @@ export const NotificationHistory: Story = {
   },
 };
 
+export const NotificationHistoryLifecycleBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: {
+    notificationHistory: <output data-testid="deferred-notification-history">通知履歴の遅延内容</output>,
+  },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
+    const view = within(dialog);
+
+    await expect(view.queryByTestId("deferred-notification-history")).not.toBeInTheDocument();
+    await userEvent.click(view.getByRole("tab", { name: "通知" }));
+    await expect(await view.findByTestId("deferred-notification-history")).toBeInTheDocument();
+
+    await userEvent.click(view.getByRole("tab", { name: "情報" }));
+    await expect(view.queryByTestId("deferred-notification-history")).not.toBeInTheDocument();
+  },
+};
+
 export const NotificationHistoryLoading: Story = {
   args: {
     defaultTab: "notification",

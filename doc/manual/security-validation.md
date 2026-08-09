@@ -65,10 +65,73 @@ GitHub Actionsの権限、trigger、Environment gate、artifactの信頼境界�
 | `ENV-STRIPE-02` | Stripe設定 | 公開文書で申告するRadar、3DS、card testing対策と実account設定が一致する |
 | `ENV-REG-01` | 公開スタッフ登録 | 本番Turnstile、許可Origin、8 KiB超過拒否をdeployed canaryで確認する |
 | `ENV-CLERK-01` | Clerk | MFA、lockout、server throttle、loginまたはaccount変更通知を負の試験で確認する |
+| `ENV-CLERK-02` | Clerk Developmentのログイン方法 | 4状態を使い分け、入力した確認済みメールのPrimary化、メール・パスワード追加、Google追加、同一メールと異なるメールの条件付き解除が同じClerk Userの契約どおりに完了し、失敗時も既存方法を維持する。両方のログイン方法が同じUserへ戻り、Google再ログイン後もPrimaryが戻らないことと、Productionを変更していないことも記録する |
 | `ENV-OPS-01` | 端末と診断 | EDR、signature更新、full scan、隔離、credential rotation、DASTまたは第三者診断を記録する |
 
 IP由来の制限を有効にする場合は、ingressが利用者指定headerを破棄し、信頼できる値へ上書きする証跡を先に確認する。
 確認できないheaderを、認証や単独の許可条件に使わない。
+
+## Clerk Developmentでのログイン方法受入
+
+`ENV-CLERK-02`は、Clerk Development instanceと、確認者が管理する専用テスト利用者で行う。
+共有E2E利用者、実在顧客、用途を確認できない既存利用者は変更しない。
+対象revisionとDevelopment instanceを固定し、操作前にClerk `user.id`、Primary EmailAddress、確認済みEmailAddress、`passwordEnabled`、Google ExternalAccountの状態をアクセス制限された証跡へ記録する。
+
+この受入ではProductionの設定、利用者、ExternalAccount、EmailAddressを変更しない。
+Developmentの結果からProductionでの成立や公開済み状態を推測せず、将来Productionで確認する場合は対象revisionと変更許可を改めて固定する。
+
+### 事前確認
+
+最初に、DevelopmentでGoogle social connection、email/password sign-in、EmailAddressの`email_code`確認、account linking、reverification、利用者によるメール識別子の変更が有効であることを確認する。
+Account linkingのredirectは`/account`専用とし、sign-in用`/sso-callback`や任意originへ流さない。
+
+テスト利用者は、次の4状態をそれぞれ用意する。
+
+| ケース | 初期状態 |
+|---|---|
+| A | 確認済みGoogle ExternalAccountだけ |
+| B | 確認済みEmailAddressとパスワードだけ |
+| C1 | Google ExternalAccount、そのGoogleと同じ確認済みPrimary EmailAddress、パスワード |
+| C2 | Google ExternalAccount、そのGoogleへexactにlinkedした確認済み非Primary EmailAddress、そのGoogleと異なる確認済みPrimary EmailAddress、パスワード |
+
+ケースC2では操作前に、非Primary EmailAddressの`linkedTo`が対象ExternalAccountの`identificationId`と`oauth_google`で一対一に対応することを、アクセス制限されたDevelopmentのClerk User詳細で確認する。  メールアドレスやIDの値そのものは検証記録へ残さない。
+
+### 状態変更の確認
+
+アカウント変更の各操作では開始前と完了後にcurrent Userをreloadし、同じClerk `user.id`であることと、操作対象のresourceがそのUserに属することを確認する。
+アカウント変更処理中に別Userの作成、User間の自動統合、sessionの取り違えがあれば失敗とする。  Google解除後の再ログインは、ケースC1とC2の期待結果を個別に確認する。
+
+1. メールアドレス変更へ到達できるケースB、C1、C2では、入力した確認済みメールがPrimaryになることと、既存のGoogle ExternalAccountとパスワードが維持されることを確認する。  直前の旧Primaryの`linkedTo`に`oauth_google`が含まれるケースC1では、そのEmailAddressが`oauth_google`を含む確認済みsecondaryとして残ることを確認する。  `oauth_google`を含まない旧Primaryは削除され、変更前から存在したほかのsecondary EmailAddressは推測削除されないことも確認する。
+2. 未確認の変更先は正しい確認コードを受け付けるまでPrimaryにならず、誤ったコード、期限切れ、取消後も元のPrimaryが維持されることを確認する。
+3. GoogleのみのUserへ、Googleと異なる新たなメールアドレスを入力して確認し、パスワードを追加する。  入力した確認済みEmailAddressがPrimaryになり、Google-linked EmailAddressが同じlinkを持つ確認済みsecondaryとして残り、Google ExternalAccountが維持されることを確認する。  同じGoogleメールを入力するケースでも、重複EmailAddressを作らずパスワード設定が完了することを確認する。
+4. ケースAの設定完了後にログアウトし、入力したPrimaryとパスワードでログインして操作前と同じClerk `user.id`へ戻ることを確認する。  再度ログアウトしてGoogleでログインし、同じ`user.id`へ戻ること、Primaryが入力したメールアドレスのままでGoogleメールへ戻らないこと、Google ExternalAccountとGoogle-linked secondary EmailAddressが維持されることを確認する。
+5. メール・パスワードのみのUserへGoogle ExternalAccountを追加し、同じメールアドレスと異なるメールアドレスのどちらでも、current Userへの接続として完了することを確認する。
+6. 別のClerk Userへ接続済みのGoogleアカウントを追加し、Userの統合や既存方法の変更を行わず、衝突として失敗することを確認する。
+7. Google OAuthの成功、利用者による取消、provider失敗、帰還後のUser不一致を区別し、失敗時に既存のメール・パスワードが残ることを確認する。
+8. 衝突、取消、provider失敗後に`failed`または`unverified`のGoogle ExternalAccountが一件だけ残った場合は、「Googleを再接続」を押す。  同じUser、同じPrimary、メール・パスワードの退避方法、exact resourceの所属を再確認した後、その未完了resourceだけを破棄し、新しいGoogleアカウント選択画面を開くことを確認する。
+9. 未完了Googleの破棄応答が失われた場合は、reloadでexact resourceの不在を証明できたときだけ新しいOAuthを開始することを確認する。  resourceが残る場合、検証済みになった場合、Google resourceが複数ある場合、verification statusが未知の場合は、推測削除や新しいOAuthを行わないことを確認する。
+10. Googleとメール・パスワードの両方を持つUserでは、有効なパスワードと確認済みPrimary EmailAddressを直前のreloadで確認した場合だけGoogleを解除できることを確認する。
+11. GoogleのみのUserでは解除操作へ到達できず、直接操作を試みても拒否されることを確認する。
+12. ケースC1でGoogleを解除し、対象ExternalAccountだけが不在になり、Primary EmailAddress、パスワード、無関係なsecondary EmailAddressが維持されることを確認する。  ログアウト後に同じGoogleでログインした場合は、account linkingによって同じClerk `user.id`へ再連携され得ることを期待結果として記録する。
+13. ケースC2では確認画面にGoogle由来の非Primary EmailAddressや削除対象を表示せず、「このGoogleアカウントではログインできなくなります」「メールアドレスとパスワードは残ります」と案内することを確認してからGoogleを解除する。  対象ExternalAccountと、そのGoogleへexactにlinkedした一意の確認済み非Primary EmailAddressが不在になり、Primary EmailAddress、パスワード、無関係なsecondary EmailAddressが維持されることを確認する。  Primaryとパスワードでのログインは元のClerk `user.id`へ戻り、解除したGoogleでのログインは元の`user.id`へ戻らないことも確認する。
+14. ケースC2相当でGoogleへlinkedしたEmailAddressを一意に特定できない場合、cleanup対象がPrimaryである場合、またはPrimaryとパスワードのfallbackが操作直前に変わった場合は、ExternalAccountとEmailAddressのどちらも変更せず解除を拒否することを確認する。
+15. Google解除の応答が失われた場合は、reloadで期待する全resourceの不在とfallbackの保持を確認できた場合だけ成功を表示することを確認する。  ケースC2でExternalAccountだけが不在になりEmailAddressが残った場合は成功を表示せず、同じ確認ダイアログを閉じずに最新状態からEmailAddressのcleanupを再試行できることを確認する。  cleanup未完了中はキャンセルや閉じる操作が表示されないことも確認する。
+16. メール変更のPrimary切替または旧Primary処理で応答を失った場合はreloadし、入力した確認済みメールがPrimaryで、`linkedTo`に`oauth_google`を含む旧Primaryがsecondaryとして残り、Google ExternalAccountとパスワードが維持されていれば成功へ収束することを確認する。  `oauth_google`を含まない旧Primaryの削除が必要な場合は、その不在も確認する。  完了条件を満たさない場合は成功を表示せず、確認済みの変更先を重複作成せずに再利用し、旧Primaryへ戻せる状態ではrollbackしてから再試行することを確認する。
+17. GoogleのみのUserへのメール・パスワード設定でPrimary切替またはパスワード設定の応答を失った場合はreloadし、入力した確認済みEmailAddress、Primary、`passwordEnabled`、Google-linked secondary EmailAddress、Google ExternalAccountから完了済みの段階を判定する。  再試行では同じEmailAddress IDを使い、未完了の処理だけを続け、Google resourceを削除しないことを確認する。
+18. 同じtab内の連打はsingle-flightで抑止され、確認コード送信とGoogle OAuth開始は画面遷移やOAuth往復後も30秒の絶対期限まで再送されないことを確認する。  2つのtabから同じ操作を開始した場合は、各操作直前のreloadとClerk serverの拒否により、少なくとも一つのログイン方法が残ることを確認する。
+19. 任意のEmailAddress削除、パスワード削除、専用のGoogle置換操作が画面とURL状態に存在しないことを確認する。  EmailAddressの自動削除は、Primary変更時に`linkedTo`へ`oauth_google`を含まない直前の旧Primaryと、Google解除時にexactに特定した非Primaryだけに限られ、Primary変更後の`oauth_google`を含む旧Primaryはsecondaryとして残ることを確認する。
+20. Gmail以外のメールアドレスと通常buildでも、状態に応じたGoogle追加または解除へ到達できることを確認する。
+
+### 分離契約とPIIの確認
+
+Primaryメールアドレスやログイン方法を変更しても、`users.email`、`organizationPeople.email`、`staffs.email`、`organizations.billingEmail`は変更されないことを確認する。
+管理者招待では、接続済みpersonを内部user IDで、未接続・外部招待をClerk Backend APIの確認済みEmailAddress所有で検証する既存契約を維持する。
+
+メールアドレス、確認コード、Clerk User payload、user ID、resource ID、tokenがURL、browser console、Convex log、audit、analyticsへ新規記録されていないことを確認する。
+スクリーンショットを保存する場合はPIIを除き、アクセス制限された保管先だけを使う。
+
+証跡には各操作の成功、失敗、保留と、操作前後で`user.id`が一致したかを記録する。
+Developmentの事前設定確認と、対象revisionを使った操作受入は別の結果として記録し、片方の成功からもう片方を推測しない。
 
 ## Convex migrationの再検証
 

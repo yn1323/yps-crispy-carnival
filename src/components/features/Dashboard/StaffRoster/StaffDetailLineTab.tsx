@@ -33,7 +33,7 @@ export const StaffDetailLineTab = ({
   <Stack gap={5}>
     <Box
       borderWidth="1px"
-      borderColor={lineStatus.tone === "brand" ? "teal.100" : "blackAlpha.100"}
+      borderColor="border.default"
       bg={lineStatus.tone === "brand" ? "teal.50/60" : "blackAlpha.50"}
       borderRadius="md"
       p={3}

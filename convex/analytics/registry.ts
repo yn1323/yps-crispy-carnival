@@ -11,12 +11,13 @@ export type AnalyticsKpiDefinition = {
 // 集計式と同様に、health判定・retention・1 transactionの上限もここを正本にする。
 export const ANALYTICS_POLICY = {
   batch: {
-    bootstrap: 50,
     sourceEvents: 50,
     scopedAggregation: 50,
     segmentRollup: 5,
     cleanup: 50,
-    recoveryJobs: 10,
+    // 一店舗・一組織を一transactionで正確に集計する際のhard cap。
+    // 超過時は不完全値を保存せず、その日のrunをfailedにする。
+    scopeReadLimit: 500,
   },
   health: {
     activityWindowDays: 30,
@@ -30,14 +31,15 @@ export const ANALYTICS_POLICY = {
   retention: {
     sourceEventsDays: 90,
     opportunityDays: 400,
-    inactiveGenerationDays: 14,
-    jobsDays: 90,
     detailMonths: 25,
     serviceYears: 5,
+    failedOutputDays: 14,
+    runManifestYears: 5,
   },
-  jobs: {
-    leaseMinutes: 15,
-    maxAttempts: 8,
+  runs: {
+    staleDailyHours: 12,
+    staleResetHours: 12,
+    staleMaintenanceHours: 24,
   },
 } as const;
 
@@ -109,9 +111,9 @@ export const ANALYTICS_KPI_REGISTRY = {
   kpiEligibleShopCount: {
     key: "kpiEligibleShopCount",
     granularity: ["service", "organization"],
-    numerator: "dataStartDate以降のsnapshotで観測できる非削除shop数",
+    numerator: "dataStartAt以降に登録され、切替後milestoneを完全観測できる非削除shop数",
     denominator: "なし",
-    timeBasis: "snapshotDate",
+    timeBasis: "occurredAt",
     excludes: "snapshot日時点で未登録または削除済みのshop",
     incomplete: "showAsUnavailable",
   },

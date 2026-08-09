@@ -8,7 +8,7 @@ import {
   analyticsSegmentDimensionValidator,
 } from "../analytics/model";
 
-export const analyticsResponseCompletenessValidator = v.union(analyticsCompletenessValidator, v.literal("pending"));
+export const analyticsAvailabilityValidator = v.union(v.literal("available"), v.literal("unavailable"));
 
 export const analyticsPageInfoValidator = v.object({
   cursor: v.union(v.string(), v.null()),
@@ -19,11 +19,11 @@ export const analyticsPageInfoValidator = v.object({
 });
 
 export const analyticsResponseMetadataValidator = v.object({
+  availability: analyticsAvailabilityValidator,
   asOf: v.union(v.number(), v.null()),
   dataStartDate: v.union(v.string(), v.null()),
   latestCompleteSnapshotDate: v.union(v.string(), v.null()),
   computedAt: v.union(v.number(), v.null()),
-  completeness: analyticsResponseCompletenessValidator,
   warnings: v.array(v.string()),
   pageInfo: analyticsPageInfoValidator,
 });
@@ -166,6 +166,7 @@ export const analyticsOrganizationRowValidator = v.object({
 export const analyticsShopKpiValidator = v.object({
   snapshotDate: v.string(),
   rateRange: analyticsRateRangeValidator,
+  kpiEligible: v.boolean(),
   staffMembershipCount: v.number(),
   shiftTargetCount: v.number(),
   uniquePersonCount: v.number(),
@@ -244,6 +245,7 @@ const analyticsSegmentRowValidator = v.object({
   dimension: analyticsSegmentDimensionValidator,
   bucket: v.string(),
   shopCount: v.number(),
+  kpiEligibleShopCount: v.number(),
   milestoneCounts: analyticsMilestoneCountsValidator,
   healthSignalCounts: analyticsHealthSignalCountsValidator,
   northStar: analyticsRateValidator,

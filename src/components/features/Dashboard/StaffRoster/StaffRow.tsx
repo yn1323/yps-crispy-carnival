@@ -5,11 +5,12 @@ import type { Staff } from "@/src/components/features/Dashboard/types";
 type Props = {
   staff: Staff;
   onOpenDetail: (staff: Staff) => void;
+  onOpenDetailIntent?: () => void;
 };
 
-export function StaffRow({ staff, onOpenDetail }: Props) {
+export function StaffRow({ staff, onOpenDetail, onOpenDetailIntent }: Props) {
   const initial = staff.name.trim().charAt(0) || "?";
-  const avatarPalette = staff.isManager ? { bg: "teal.500", fg: "white" } : { bg: "teal.50", fg: "teal.700" };
+  const avatarPalette = staff.isManager ? { bg: "teal.500", fg: "white" } : { bg: "teal.100", fg: "teal.700" };
   const isLineActive = staff.isLineLinked && staff.isLineFollowing;
   const isExcluded = staff.excludedFromShift;
 
@@ -28,8 +29,10 @@ export function StaffRow({ staff, onOpenDetail }: Props) {
       borderWidth={0}
       cursor="pointer"
       transition="background-color 150ms ease"
-      _hover={{ bg: staff.isManager ? "teal.50" : "blackAlpha.50" }}
+      _hover={{ bg: "teal.50" }}
       _focusVisible={{ outlineWidth: "2px", outlineStyle: "solid", outlineColor: "teal.500", outlineOffset: "-2px" }}
+      onPointerEnter={onOpenDetailIntent}
+      onFocus={onOpenDetailIntent}
       onClick={() => onOpenDetail(staff)}
     >
       <Flex
@@ -57,7 +60,7 @@ export function StaffRow({ staff, onOpenDetail }: Props) {
         </Stack>
         <HStack gap={1.5} wrap="wrap" ms="auto" minW={0} maxW="full" justify="flex-end">
           {staff.isManager && (
-            <Badge colorPalette="teal" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
+            <Badge colorPalette="teal" variant="subtle" bg="teal.100" borderRadius="full" px={2} textStyle="2xs">
               管理者
             </Badge>
           )}

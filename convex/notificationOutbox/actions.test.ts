@@ -75,7 +75,7 @@ async function setupLineRecipientRevalidationJob(scope: "staff" | "manager" = "s
 
   const t = convexTest(schema, modules);
   const ids = await t.run(async (ctx) => {
-    const { shopId, userId } = await seedManagerShop(ctx, {
+    const { shopId, userId, organizationId, personId } = await seedManagerShop(ctx, {
       subject: "line_revalidation_manager",
       email: "line-revalidation-manager@example.com",
       shopName: "LINE宛先再検証店舗",
@@ -84,7 +84,7 @@ async function setupLineRecipientRevalidationJob(scope: "staff" | "manager" = "s
       shopId,
       name: "LINE宛先再検証スタッフ",
       email: "line-revalidation@example.com",
-      ...(scope === "manager" ? { userId } : {}),
+      ...(scope === "manager" ? { organizationId, organizationPersonId: personId } : {}),
       isDeleted: false,
     });
     const lineAccountId = await seedStaffLineAccount(ctx, {
@@ -92,7 +92,7 @@ async function setupLineRecipientRevalidationJob(scope: "staff" | "manager" = "s
       staffId,
       lineUserId: "U_line_current",
     });
-    return { shopId, staffId, lineAccountId, userId };
+    return { shopId, staffId, lineAccountId, userId, organizationId, personId };
   });
   const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
     channel: "line",
@@ -237,6 +237,31 @@ describe("notificationOutbox/actions", () => {
   it("管理者向け通常LINEも現在の連携IDへ変わった後は旧IDへ送らない", async () => {
     const { t, fetchMock, lineAccountId, outboxId } = await setupLineRecipientRevalidationJob("manager");
     await t.run(async (ctx) => await ctx.db.patch(lineAccountId, { lineUserId: "U_manager_relinked" }));
+
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await t.run(async (ctx) => await ctx.db.get(outboxId))).toMatchObject({
+      status: "cancelled",
+      cancelReason: "recipient_inactive",
+    });
+  });
+
+  it("管理者LINEはenqueue後に同じpersonの有効staffが重複したら送信せずcancelする", async () => {
+    const { t, fetchMock, outboxId, shopId, organizationId, personId } =
+      await setupLineRecipientRevalidationJob("manager");
+    await t.run(async (ctx) => {
+      await ctx.db.insert("staffs", {
+        shopId,
+        organizationId,
+        organizationPersonId: personId,
+        name: "重複した管理スタッフ",
+        email: "line-revalidation-duplicate@example.com",
+        emailNormalized: "line-revalidation-duplicate@example.com",
+        isDeleted: false,
+      });
+    });
 
     await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
     await t.action(internal.notificationOutbox.actions.processPending, {});

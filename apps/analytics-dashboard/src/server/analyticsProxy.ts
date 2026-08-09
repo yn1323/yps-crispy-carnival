@@ -11,6 +11,25 @@ export type AnalyticsProxyEnv = {
 
 const robotsHeaderValue = "noindex, nofollow";
 const UPSTREAM_RESPONSE_MAX_BYTES = ANALYTICS_DASHBOARD_MAX_RESPONSE_BYTES;
+const FETCH_ERROR_MESSAGE_MAX_LENGTH = 500;
+
+function safeFetchError(error: unknown, secret: string) {
+  if (!(error instanceof Error)) {
+    return { errorName: "UnknownError", errorMessage: "Non-Error rejection" };
+  }
+
+  const sanitize = (value: string, maxLength: number) =>
+    value
+      .replaceAll(secret, "[redacted]")
+      .replace(/https?:\/\/\S+/gi, "[redacted-url]")
+      .replace(/\s+/g, " ")
+      .slice(0, maxLength);
+
+  return {
+    errorName: sanitize(error.name, 100),
+    errorMessage: sanitize(error.message, FETCH_ERROR_MESSAGE_MAX_LENGTH),
+  };
+}
 
 export function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -142,30 +161,51 @@ export async function handleAnalyticsApi(request: Request, env: AnalyticsProxyEn
   try {
     upstream = await fetch(getConvexEndpoint(convexHttpUrl), {
       method: "POST",
-      redirect: "error",
+      // secret付きのservice requestはredirect先へ追従せず、3xxを下で502に変換する。
+      redirect: "manual",
       headers: {
         "content-type": "application/json",
         "x-shiftori-internal-api-secret": env.SHIFTORI_INTERNAL_API_SECRET,
       },
       body: JSON.stringify(route.request),
     });
-  } catch {
+  } catch (error) {
+    console.error("analytics_proxy_fetch_failed", {
+      endpoint: route.request.endpoint,
+      ...safeFetchError(error, env.SHIFTORI_INTERNAL_API_SECRET),
+    });
     return jsonResponse({ error: { message: "分析データを読み込めませんでした" } }, { status: 502 });
   }
 
   const responseText = await readBoundedResponse(upstream);
   if (responseText === null) {
+    console.error("analytics_proxy_upstream_response_unreadable", {
+      endpoint: route.request.endpoint,
+      status: upstream.status,
+    });
     return jsonResponse(
       { error: { message: "分析データの応答が大きすぎるか、読み取れませんでした" } },
       { status: 502 },
     );
   }
-  if (!upstream.ok) return upstreamErrorResponse(upstream);
+  if (!upstream.ok) {
+    if (![400, 404, 413, 415, 429].includes(upstream.status)) {
+      console.error("analytics_proxy_upstream_failed", {
+        endpoint: route.request.endpoint,
+        status: upstream.status,
+      });
+    }
+    return upstreamErrorResponse(upstream);
+  }
 
   let data: unknown;
   try {
     data = JSON.parse(responseText) as unknown;
   } catch {
+    console.error("analytics_proxy_upstream_invalid_json", {
+      endpoint: route.request.endpoint,
+      status: upstream.status,
+    });
     return jsonResponse({ error: { message: "分析データの形式が正しくありません" } }, { status: 502 });
   }
 
@@ -177,6 +217,9 @@ export async function handleAnalyticsApi(request: Request, env: AnalyticsProxyEn
   };
   const serialized = JSON.stringify(envelope);
   if (new TextEncoder().encode(serialized).byteLength >= ANALYTICS_DASHBOARD_MAX_RESPONSE_BYTES) {
+    console.error("analytics_proxy_response_too_large", {
+      endpoint: route.request.endpoint,
+    });
     return jsonResponse({ error: { message: "分析データの応答が大きすぎます" } }, { status: 502 });
   }
   return new Response(serialized, {

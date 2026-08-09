@@ -1,8 +1,35 @@
-import { Box, Card, Circle, Container, Heading, HStack, Icon, Spinner, Stack, Text, VStack } from "@chakra-ui/react";
+import {
+  Alert,
+  Box,
+  Card,
+  Circle,
+  Container,
+  Field,
+  Heading,
+  HStack,
+  Icon,
+  Input,
+  Spinner,
+  Stack,
+  Text,
+  VStack,
+} from "@chakra-ui/react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
 import type { IconType } from "react-icons";
 import { LuBuilding2, LuCheck, LuCircleAlert, LuClock, LuLink, LuLogIn, LuRefreshCw, LuUserPlus } from "react-icons/lu";
+import { z } from "zod";
+import { requiredEmailSchema } from "@/convex/_lib/validation";
+import { EMAIL_MAX_LENGTH } from "@/convex/constants";
+import {
+  EmailCodeVerificationForm,
+  type EmailVerificationValues,
+} from "@/src/components/features/AuthPage/EmailCodeVerificationForm";
 import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
 import { Button } from "@/src/components/ui/Button";
+
+const invitationEmailSchema = z.object({ email: requiredEmailSchema });
+type InvitationEmailValues = z.infer<typeof invitationEmailSchema>;
 
 export type ManagerInvitationAcceptanceViewState =
   | { kind: "loading" }
@@ -18,7 +45,20 @@ export type ManagerInvitationAcceptanceViewState =
   | { kind: "used" }
   | { kind: "unavailable" }
   | { kind: "invalid" }
-  | { kind: "emailMismatch"; isSwitchingAccount: boolean }
+  | {
+      kind: "verificationRequired";
+      step: "input";
+      errorMessage: string | null;
+      isBusy: boolean;
+    }
+  | {
+      kind: "verificationRequired";
+      step: "code";
+      maskedEmail: string;
+      errorMessage: string | null;
+      infoMessage: string | null;
+      isBusy: boolean;
+    }
   | { kind: "conflict"; isAccepting: boolean }
   | { kind: "retryableError"; isRetrying: boolean }
   | {
@@ -34,7 +74,10 @@ export type ManagerInvitationAcceptanceViewProps = {
     onAccept: () => void;
     onLogin: () => void;
     onSignup: () => void;
-    onSwitchAccount: () => void;
+    onStartVerification: (email: string) => void | Promise<void>;
+    onVerifyCode: (values: EmailVerificationValues) => void | Promise<void>;
+    onResendCode: () => void | Promise<void>;
+    onBackToVerificationInput: () => void;
     onGoToDashboard: () => void;
   };
 };
@@ -84,6 +127,10 @@ function InvitationContent({ state, actions }: ManagerInvitationAcceptanceViewPr
     return <ReadyInvitation state={state} actions={actions} />;
   }
 
+  if (state.kind === "verificationRequired") {
+    return <VerificationRequired state={state} actions={actions} />;
+  }
+
   const content = getStatusContent(state);
   return (
     <VStack align="stretch" gap={6}>
@@ -100,18 +147,6 @@ function InvitationContent({ state, actions }: ManagerInvitationAcceptanceViewPr
           </Text>
         </Stack>
       </VStack>
-
-      {state.kind === "emailMismatch" && (
-        <Button
-          colorPalette="teal"
-          size="lg"
-          minH="48px"
-          loading={state.isSwitchingAccount}
-          onClick={actions.onSwitchAccount}
-        >
-          別のアカウントでログイン
-        </Button>
-      )}
 
       {state.kind === "conflict" && (
         <Button colorPalette="teal" size="lg" minH="48px" loading={state.isAccepting} onClick={actions.onAccept}>
@@ -140,6 +175,96 @@ function InvitationContent({ state, actions }: ManagerInvitationAcceptanceViewPr
   );
 }
 
+function VerificationRequired({
+  state,
+  actions,
+}: {
+  state: Extract<ManagerInvitationAcceptanceViewState, { kind: "verificationRequired" }>;
+  actions: ManagerInvitationAcceptanceViewProps["actions"];
+}) {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<InvitationEmailValues>({ resolver: zodResolver(invitationEmailSchema) });
+
+  return (
+    <VStack align="stretch" gap={6}>
+      <VStack gap={4} textAlign="center">
+        <Circle size="64px" bg="teal.50" color="teal.700">
+          <LuLink size={28} aria-hidden />
+        </Circle>
+        <Stack gap={2}>
+          <Heading as="h1" size={{ base: "lg", md: "xl" }} color="gray.950">
+            招待先の確認が必要
+          </Heading>
+          <Text color="gray.700" fontSize="sm" lineHeight="tall">
+            このアカウントに招待先のメールアドレスを追加して確認します。確認後ログインにも使える場合があります。
+          </Text>
+        </Stack>
+      </VStack>
+
+      {state.step === "input" ? (
+        <Stack as="form" gap={5} onSubmit={handleSubmit(({ email }) => actions.onStartVerification(email))}>
+          <Alert.Root status="info" borderRadius="lg">
+            <Alert.Indicator />
+            <Alert.Description>
+              招待メールを受け取ったメールアドレスを入力してください。確認コードをその宛先へ送信します。
+            </Alert.Description>
+          </Alert.Root>
+          {state.errorMessage && (
+            <Alert.Root status="error" borderRadius="lg">
+              <Alert.Indicator />
+              <Alert.Description whiteSpace="pre-line">{state.errorMessage}</Alert.Description>
+            </Alert.Root>
+          )}
+          <Field.Root invalid={!!errors.email}>
+            <Field.Label>招待先メールアドレス</Field.Label>
+            <Input
+              type="email"
+              autoComplete="email"
+              maxLength={EMAIL_MAX_LENGTH}
+              placeholder="example@email.com"
+              {...register("email")}
+            />
+            <Field.ErrorText>{errors.email?.message}</Field.ErrorText>
+          </Field.Root>
+          <Button
+            type="submit"
+            colorPalette="teal"
+            size="lg"
+            minH="48px"
+            loading={state.isBusy}
+            loadingText="送信しています"
+          >
+            確認コードを送信
+          </Button>
+        </Stack>
+      ) : (
+        <EmailCodeVerificationForm
+          description={`${state.maskedEmail}宛てに送信した確認コードを入力してください。`}
+          errorMessage={state.errorMessage ?? undefined}
+          infoMessage={state.infoMessage ?? undefined}
+          isSubmitting={state.isBusy}
+          submitLabel="確認して参加する"
+          submittingLabel="確認しています"
+          onSubmit={actions.onVerifyCode}
+          secondaryActions={
+            <Stack gap={2}>
+              <Button type="button" variant="ghost" disabled={state.isBusy} onClick={actions.onResendCode}>
+                確認コードを再送する
+              </Button>
+              <Button type="button" variant="ghost" disabled={state.isBusy} onClick={actions.onBackToVerificationInput}>
+                メールアドレスを入力し直す
+              </Button>
+            </Stack>
+          }
+        />
+      )}
+    </VStack>
+  );
+}
+
 function ReadyInvitation({
   state,
   actions,
@@ -158,12 +283,19 @@ function ReadyInvitation({
             {state.organizationName}から管理者として招待されています
           </Heading>
           <Text color="gray.700" fontSize="sm" lineHeight="tall">
-            招待内容を確認のうえ、招待メールを受け取ったメールアドレスでログインして参加してください。
+            ログイン後、必要に応じて招待先メールアドレスの確認を行います。
           </Text>
         </Stack>
       </VStack>
 
-      <Stack gap={4} bg="teal.50" borderWidth="1px" borderColor="teal.100" borderRadius="xl" p={{ base: 4, md: 5 }}>
+      <Stack
+        gap={4}
+        bg="teal.50"
+        borderWidth="1px"
+        borderColor="border.default"
+        borderRadius="xl"
+        p={{ base: 4, md: 5 }}
+      >
         <Text color="gray.900" fontSize="sm" fontWeight="bold">
           参加後にできること
         </Text>
@@ -222,7 +354,10 @@ type StatusContent = {
 };
 
 function getStatusContent(
-  state: Exclude<ManagerInvitationAcceptanceViewState, { kind: "loading" } | { kind: "ready" }>,
+  state: Exclude<
+    ManagerInvitationAcceptanceViewState,
+    { kind: "loading" } | { kind: "ready" } | { kind: "verificationRequired" }
+  >,
 ): StatusContent {
   switch (state.kind) {
     case "expired":
@@ -264,14 +399,6 @@ function getStatusContent(
         icon: LuLink,
         iconBg: "gray.100",
         iconColor: "gray.700",
-      };
-    case "emailMismatch":
-      return {
-        title: "ログイン中のメールアドレスが招待先と一致しません",
-        description: "招待メールを受け取ったメールアドレスで、もう一度ログインしてください。",
-        icon: LuCircleAlert,
-        iconBg: "orange.50",
-        iconColor: "orange.700",
       };
     case "conflict":
       return {

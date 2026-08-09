@@ -107,20 +107,20 @@ describe("管理者セットアップシナリオ", () => {
     const scheduled = await readScheduledFunctions(t);
     expect(hasScheduledJob(scheduled, "line/actions:sendInviteEmail", { staffId: managerStaff._id })).toBe(true);
 
-    // Act: manager自身のスタッフ情報を編集する。
+    // Act: 管理者自身の名前とシフト連絡先を、canonical person経由で更新する。
     await asManager.editStaff({
       staffId: managerStaff._id,
       name: "山田 太郎 更新",
       email: "manager-updated@example.com",
     });
 
-    // Assert: スタッフ表示名と管理者プロフィールが同期される。
+    // Assert: person/staffの連絡先だけが変わり、usersのbootstrapメールは変わらない。
     const updatedUser = await asManager.getCurrentUser();
     const updatedStaffPage = await asManager.getDashboardStaffs();
     expect(updatedUser).toMatchObject({
       isNewUser: false,
       name: "山田 太郎 更新",
-      email: "manager-updated@example.com",
+      email: "manager@example.com",
     });
     expect(updatedStaffPage.page[0]).toMatchObject({
       name: "山田 太郎 更新",

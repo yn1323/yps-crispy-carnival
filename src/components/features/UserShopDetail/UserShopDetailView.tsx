@@ -1,5 +1,5 @@
 import { Box, Stack } from "@chakra-ui/react";
-import type { ReactNode } from "react";
+import type { FocusEventHandler, ReactNode, Ref } from "react";
 import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
 import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import type { UserShopDetailData, UserShopDetailMembership, UserShopDetailRecruitment } from "./types";
@@ -15,6 +15,8 @@ export type UserShopDetailViewProps = {
   isStoreReadOnly: boolean;
   storeDisabledReason?: string;
   showMembershipRemoval: boolean;
+  notificationSectionRef?: Ref<HTMLDivElement>;
+  onNotificationSectionFocus?: FocusEventHandler<HTMLDivElement>;
   notificationHistory: ReactNode;
   state: {
     line: {
@@ -55,6 +57,8 @@ export function UserShopDetailView({
   isStoreReadOnly,
   storeDisabledReason,
   showMembershipRemoval,
+  notificationSectionRef,
+  onNotificationSectionFocus,
   notificationHistory,
   state,
   actions,
@@ -85,7 +89,7 @@ export function UserShopDetailView({
         />
       </PageSection>
 
-      <PageSection>
+      <PageSection sectionRef={notificationSectionRef} onFocusCapture={onNotificationSectionFocus}>
         <UserShopNotificationSection
           data={data}
           membership={membership}
@@ -128,9 +132,25 @@ export function UserShopDetailView({
   );
 }
 
-function PageSection({ children }: { children: ReactNode }) {
+function PageSection({
+  children,
+  sectionRef,
+  onFocusCapture,
+}: {
+  children: ReactNode;
+  sectionRef?: Ref<HTMLDivElement>;
+  onFocusCapture?: FocusEventHandler<HTMLDivElement>;
+}) {
   return (
-    <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" p={{ base: 4, md: 6 }}>
+    <Box
+      ref={sectionRef}
+      onFocusCapture={onFocusCapture}
+      borderWidth="1px"
+      borderColor="blackAlpha.100"
+      borderRadius="xl"
+      bg="white"
+      p={{ base: 4, md: 6 }}
+    >
       {children}
     </Box>
   );

@@ -16,6 +16,8 @@ type Props = {
   onAddClick: () => void;
   onOpenDetail: (staff: Staff) => void;
   onLoadMore: () => void;
+  onAddIntent?: () => void;
+  onOpenDetailIntent?: () => void;
   focusedPersonId?: string;
 };
 
@@ -27,6 +29,8 @@ export const StaffRoster = ({
   onAddClick,
   onOpenDetail,
   onLoadMore,
+  onAddIntent,
+  onOpenDetailIntent,
   focusedPersonId,
 }: Props) => {
   const showLoadMore = canLoadMore && status !== "LoadingFirstPage";
@@ -36,6 +40,8 @@ export const StaffRoster = ({
     focusedPersonId && sorted.some((staff) => staff.organizationPersonId === focusedPersonId),
   );
   useScrollToListItem(focusedItemId, isFocusedItemRendered);
+
+  if (status === "LoadingFirstPage") return <StaffRosterSkeleton />;
 
   return (
     <Stack as="section" aria-label="スタッフ一覧" gap={{ base: 4, lg: 5 }}>
@@ -67,6 +73,8 @@ export const StaffRoster = ({
             title={isReadOnly ? "閲覧のみの店舗ではスタッフを招待できません" : undefined}
             gap={1.5}
             fontWeight="semibold"
+            onPointerEnter={onAddIntent}
+            onFocus={onAddIntent}
           >
             <LuPlus />
             スタッフを招待する
@@ -93,7 +101,7 @@ export const StaffRoster = ({
         >
           <Stack gap={0} divideY="1px" divideColor="blackAlpha.50">
             {sorted.map((s) => (
-              <StaffRow key={s._id} staff={s} onOpenDetail={onOpenDetail} />
+              <StaffRow key={s._id} staff={s} onOpenDetail={onOpenDetail} onOpenDetailIntent={onOpenDetailIntent} />
             ))}
           </Stack>
         </Box>
@@ -119,7 +127,7 @@ export const StaffRoster = ({
 };
 
 export const StaffRosterSkeleton = () => (
-  <Stack as="section" aria-label="スタッフ一覧を読み込み中" gap={{ base: 4, lg: 5 }}>
+  <Stack as="section" aria-label="スタッフ一覧を読み込み中" aria-busy="true" gap={{ base: 4, lg: 5 }}>
     <Flex justify="space-between" align="flex-end" gap={3} wrap="wrap">
       <HStack gap={2.5} align="center">
         <Skeleton boxSize={{ base: "24px", lg: "28px" }} borderRadius="full" />
@@ -145,7 +153,7 @@ const StaffRowSkeleton = ({ isManager, showLineLinked }: { isManager: boolean; s
     px={{ base: 3, lg: 4 }}
     py={3.5}
     align="center"
-    bg={isManager ? "teal.50/50" : "transparent"}
+    bg={isManager ? "gray.50" : "transparent"}
     minH="68px"
   >
     <Skeleton boxSize="40px" borderRadius="full" flexShrink={0} />

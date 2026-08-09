@@ -1,40 +1,50 @@
 import { type FunctionReference, makeFunctionReference } from "convex/server";
 import type { Id } from "../_generated/dataModel";
+import type { AnalyticsInvariantRollup } from "./invariants";
 
-export const recoverAnalyticsJobsRef = makeFunctionReference<"mutation", Record<string, never>, null>(
-  "analytics/pipeline:recoverJobs",
-) as unknown as FunctionReference<"mutation", "internal", Record<string, never>, null>;
+export type AnalyticsStepArgs = {
+  runId: Id<"analyticsRuns">;
+  kind: "daily" | "reset" | "maintenance";
+  stepVersion: number;
+  stage: string;
+  cursor?: string;
+  substage?: string;
+  sourceEventId?: Id<"analyticsSourceEvents">;
+  sourceCursor?: string;
+  auditRollup?: AnalyticsInvariantRollup;
+};
 
-export const processAnalyticsJobRef = makeFunctionReference<
+export const processAnalyticsStepRef = makeFunctionReference<"action", AnalyticsStepArgs, null>(
+  "analytics/nightly:processStep",
+) as unknown as FunctionReference<"action", "internal", AnalyticsStepArgs, null>;
+
+export const processDailyPageRef = makeFunctionReference<"mutation", AnalyticsStepArgs, null>(
+  "analytics/nightly:processPage",
+) as unknown as FunctionReference<"mutation", "internal", AnalyticsStepArgs, null>;
+
+export const processResetPageRef = makeFunctionReference<"mutation", AnalyticsStepArgs, null>(
+  "analytics/reset:processPage",
+) as unknown as FunctionReference<"mutation", "internal", AnalyticsStepArgs, null>;
+
+export const processMaintenancePageRef = makeFunctionReference<"mutation", AnalyticsStepArgs, null>(
+  "analytics/maintenance:processPage",
+) as unknown as FunctionReference<"mutation", "internal", AnalyticsStepArgs, null>;
+
+export const markAnalyticsRunFailedRef = makeFunctionReference<
   "mutation",
-  { jobId: Id<"analyticsAggregationJobs">; leaseToken: string },
+  { runId: Id<"analyticsRuns">; stepVersion: number; stage: string; errorCode: string },
   null
->("analytics/pipeline:processJob") as unknown as FunctionReference<
+>("analytics/runs:markFailed") as unknown as FunctionReference<
   "mutation",
   "internal",
-  { jobId: Id<"analyticsAggregationJobs">; leaseToken: string },
+  { runId: Id<"analyticsRuns">; stepVersion: number; stage: string; errorCode: string },
   null
 >;
 
-export const ensureProjectionJobRef = makeFunctionReference<"mutation", Record<string, never>, null>(
-  "analytics/pipeline:ensureProjectionJob",
+export const scheduleDailyAnalyticsRef = makeFunctionReference<"mutation", Record<string, never>, null>(
+  "analytics/nightly:schedulePreviousDay",
 ) as unknown as FunctionReference<"mutation", "internal", Record<string, never>, null>;
 
-export const startDeferredDailyAggregationRef = makeFunctionReference<
-  "mutation",
-  { date: string; generation: string },
-  null
->("analytics/pipeline:startDeferredDailyAggregation") as unknown as FunctionReference<
-  "mutation",
-  "internal",
-  { date: string; generation: string },
-  null
->;
-
-export const scheduleDailyAggregationRef = makeFunctionReference<"mutation", Record<string, never>, null>(
-  "analytics/pipeline:schedulePreviousDay",
-) as unknown as FunctionReference<"mutation", "internal", Record<string, never>, null>;
-
-export const scheduleRetentionCleanupRef = makeFunctionReference<"mutation", Record<string, never>, null>(
-  "analytics/pipeline:scheduleRetentionCleanup",
+export const scheduleAnalyticsMaintenanceRef = makeFunctionReference<"mutation", Record<string, never>, null>(
+  "analytics/maintenance:scheduleWeekly",
 ) as unknown as FunctionReference<"mutation", "internal", Record<string, never>, null>;

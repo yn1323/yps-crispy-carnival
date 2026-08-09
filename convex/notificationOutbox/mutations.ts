@@ -8,6 +8,7 @@ import { monthJST } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
 import { isNotificationDeliverySuppressed } from "../_lib/notificationDelivery";
 import { rateLimit } from "../_lib/rateLimits";
+import { loadShopManagerStaffForContact, type ShopManagerContact } from "../_lib/shopManagerRecipients";
 import { normalizeEmail } from "../_lib/validation";
 import {
   NOTIFICATION_DELIVERY_EVENT_PRUNE_BATCH_SIZE,
@@ -24,7 +25,6 @@ import { getStaffLineAccount } from "../line/service";
 import {
   buildConfirmationSnapshotSignature,
   confirmationSnapshotInputValidator,
-  normalizeConfirmationSnapshotAssignments,
   upsertConfirmationSnapshotRecord,
 } from "../notification/confirmationSnapshots";
 import { buildNotificationFanoutTargetKey, isSupplementalConfirmationFanoutStale } from "../notification/fanout";
@@ -217,9 +217,7 @@ export const enqueue = internalMutation({
       }
     }
 
-    const normalizedConfirmationSnapshot = args.confirmationSnapshot
-      ? normalizeConfirmationSnapshotAssignments(args.confirmationSnapshot.assignments)
-      : undefined;
+    const rawConfirmationSnapshot = args.confirmationSnapshot?.assignments;
     if (args.confirmationSnapshot) {
       if (
         !hasFanoutProducerScope ||
@@ -228,7 +226,7 @@ export const enqueue = internalMutation({
         !args.staffId ||
         fanoutOperation.recruitmentId !== args.recruitmentId ||
         !fanoutOperation.targetStaffIds.includes(args.staffId) ||
-        args.confirmationSnapshot.signature !== buildConfirmationSnapshotSignature(normalizedConfirmationSnapshot ?? [])
+        args.confirmationSnapshot.signature !== buildConfirmationSnapshotSignature(rawConfirmationSnapshot ?? [])
       ) {
         throw new ConvexError("Confirmation snapshot does not match fanout operation");
       }
@@ -358,13 +356,15 @@ export const enqueue = internalMutation({
         requestedAt: now,
       });
     }
-    if (normalizedConfirmationSnapshot && args.confirmationSnapshot && args.recruitmentId && args.staffId) {
+    if (rawConfirmationSnapshot && args.confirmationSnapshot && args.recruitmentId && args.staffId) {
+      const recruitment = await ctx.db.get(args.recruitmentId);
+      const canonicalizeTime = recruitment?.submissionPattern.kind === "time";
       await upsertConfirmationSnapshotRecord(ctx, {
         recruitmentId: args.recruitmentId,
         staffId: args.staffId,
-        signature: args.confirmationSnapshot.signature,
-        assignments: normalizedConfirmationSnapshot,
+        assignments: rawConfirmationSnapshot,
         sentAt: now,
+        canonicalizeTime,
       });
     }
     return { outboxId, deduped: false };
@@ -1359,17 +1359,10 @@ async function getUserRecipientCancellationReason(
   const shopId = notification.shopId;
   if (notification.payload.kind === "line") {
     if (!shopId) return "recipient_inactive";
-    const managerStaffs = (
-      await ctx.db
-        .query("staffs")
-        .withIndex("by_userId_and_shopId", (q) => q.eq("userId", userId).eq("shopId", shopId))
-        .take(2)
-    ).filter((staff) => !staff.isDeleted);
-    if (managerStaffs.length !== 1) return "recipient_inactive";
-    const managerStaff = managerStaffs[0];
-    if (organizationId && managerStaff.organizationId && managerStaff.organizationId !== organizationId) {
-      return "recipient_inactive";
-    }
+    const managerContact: ShopManagerContact =
+      organizationId && person ? { kind: "canonical", user, person, organizationId } : { kind: "legacy", user };
+    const managerStaff = await loadShopManagerStaffForContact(ctx, shopId, managerContact);
+    if (!managerStaff) return "recipient_inactive";
     const lineAccount = await getStaffLineAccount(ctx, managerStaff._id);
     if (
       !lineAccount?.following ||

@@ -109,6 +109,7 @@ export const verifyStaffs = internalQuery({
       missingExcludedFromShift: v.number(),
       missingEmailNormalized: v.number(),
       invalidEmailNormalization: v.number(),
+      activeStaffPersonEmailMismatch: v.number(),
     }),
   }),
   handler: async (ctx, { paginationOpts }) => {
@@ -129,6 +130,7 @@ export const verifyStaffs = internalQuery({
       missingExcludedFromShift: 0,
       missingEmailNormalized: 0,
       invalidEmailNormalization: 0,
+      activeStaffPersonEmailMismatch: 0,
     };
     for (const staff of result.page) {
       if (!staff.organizationId) anomalies.missingOrganizationId += 1;
@@ -158,6 +160,14 @@ export const verifyStaffs = internalQuery({
           }
           if (!staff.isDeleted && person.status === "removed") {
             anomalies.activeStaffLinkedRemovedPerson += 1;
+          }
+          if (
+            !staff.isDeleted &&
+            person.status === "active" &&
+            (normalizeEmail(staff.email) !== normalizeEmail(person.email) ||
+              staff.emailNormalized !== person.emailNormalized)
+          ) {
+            anomalies.activeStaffPersonEmailMismatch += 1;
           }
         }
       }

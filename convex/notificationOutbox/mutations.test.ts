@@ -2,7 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { createConvexTestWithMigrations } from "../_test/migrations.test-helper";
-import { seedLegacyShopMembership, seedManagerShop, seedOrganizationManagerShop, seedUser } from "../_test/seed";
+import {
+  seedLegacyShopMembership,
+  seedManagerShop,
+  seedOrganizationManagerShop,
+  seedStaffLineAccount,
+  seedUser,
+} from "../_test/seed";
 import {
   NOTIFICATION_DELIVERY_EVENT_PRUNE_BATCH_SIZE,
   NOTIFICATION_DELIVERY_EVENT_RETENTION_MS,
@@ -13,6 +19,7 @@ import {
   NOTIFICATION_OUTBOX_TERMINAL_PAYLOAD_RETENTION_MS,
   NOTIFICATION_OUTBOX_TERMINAL_REDACTION_BATCH_SIZE,
 } from "../constants";
+import { buildConfirmationSnapshotSignature } from "../notification/confirmationSnapshots";
 import { NOTIFICATION_FAILURE_REMINDER_CONTEXT, SHOP_ACTIVATION_REMINDER_CONTEXT } from "./failureSuppress";
 
 const emailPayload = {
@@ -149,6 +156,88 @@ describe("notificationOutbox", () => {
     const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
     expect(jobs).toHaveLength(1);
     expect(jobs[0].purpose).toBe("business");
+  });
+
+  it("旧actionのsplit snapshotを検証後にcanonical snapshotとして保存する", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const ids = await t.run(async (ctx) => {
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: "2026-07-01",
+        periodEnd: "2026-07-01",
+        deadline: "2026-06-25",
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      const positionId = await ctx.db.insert("positions", {
+        shopId,
+        name: "シフト",
+        color: "#3b82f6",
+        sortOrder: 0,
+        isDefault: true,
+        isDeleted: false,
+      });
+      const operationKey = "shift.confirmation:legacy-split-snapshot";
+      const leaseToken = "legacy-split-snapshot-lease";
+      const operationId = await ctx.db.insert("notificationFanoutOperations", {
+        operationKey,
+        kind: "confirmation",
+        purpose: "confirmation",
+        recruitmentId,
+        shopId,
+        targetStaffIds: [staffId],
+        cursor: 0,
+        status: "processing",
+        dedupeSuffix: "confirm",
+        leaseToken,
+        leaseExpiresAt: Date.now() + 60_000,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      return { recruitmentId, positionId, operationId, operationKey, leaseToken };
+    });
+    const rawAssignments = [
+      { date: "2026-07-01", startTime: "10:00", endTime: "12:00", positionId: ids.positionId },
+      { date: "2026-07-01", startTime: "12:00", endTime: "18:00", positionId: ids.positionId },
+    ];
+
+    await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      shopId,
+      staffId,
+      recruitmentId: ids.recruitmentId,
+      purpose: "business",
+      history: { notificationKind: "shift.confirmation", displayTitle: "確定シフト" },
+      fanoutTargetKey: `fanout:${ids.operationKey}:${staffId}`,
+      fanoutOperationId: ids.operationId,
+      fanoutLeaseToken: ids.leaseToken,
+      legacyFanoutDedupeKeys: [],
+      confirmationSnapshot: {
+        assignments: rawAssignments,
+        signature: buildConfirmationSnapshotSignature(rawAssignments),
+      },
+      dedupeKey: `email:confirmation:${ids.recruitmentId}:${staffId}:confirm`,
+      payload: emailPayload,
+    });
+
+    const state = await t.run(async (ctx) => ({
+      outbox: await ctx.db.query("notificationOutbox").first(),
+      snapshot: await ctx.db
+        .query("shiftConfirmationSnapshots")
+        .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", ids.recruitmentId).eq("staffId", staffId))
+        .unique(),
+    }));
+    const canonicalAssignments = [
+      { date: "2026-07-01", startTime: "10:00", endTime: "18:00", positionId: ids.positionId },
+    ];
+    expect(state.outbox?.payload).toEqual(emailPayload);
+    expect(state.snapshot).toMatchObject({
+      assignments: canonicalAssignments,
+      signature: buildConfirmationSnapshotSignature(canonicalAssignments),
+    });
   });
 
   it("組織削除とpending・claim済み通知が競合しても新しい外部送信を開始しない", async () => {
@@ -443,6 +532,89 @@ describe("notificationOutbox", () => {
       status: "cancelled",
       cancelReason: "recipient_inactive",
     });
+  });
+
+  it("person作成後でorganizationMember作成前の管理者通知はperson連絡先とLINEで配送直前検証を通す", async () => {
+    const t = createConvexTestWithMigrations();
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "outbox_partial_person",
+        email: "outbox-login@example.com",
+        plan: "pro",
+      });
+      await ctx.db.delete(seeded.memberId);
+      await seedLegacyShopMembership(ctx, { shopId: seeded.shopId, userId: seeded.userId });
+      await ctx.db.patch(seeded.personId, {
+        email: "outbox-contact@example.com",
+        emailNormalized: "outbox-contact@example.com",
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: seeded.shopId,
+        organizationId: seeded.organizationId,
+        organizationPersonId: seeded.personId,
+        userId: seeded.userId,
+        name: "移行途中管理者",
+        email: "outbox-contact@example.com",
+        emailNormalized: "outbox-contact@example.com",
+        isDeleted: false,
+      });
+      await seedStaffLineAccount(ctx, {
+        shopId: seeded.shopId,
+        staffId,
+        lineUserId: "U_outbox_partial_person",
+        following: true,
+      });
+      return seeded;
+    });
+    const email = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      shopId: ids.shopId,
+      organizationId: ids.organizationId,
+      userId: ids.userId,
+      purpose: "business",
+      dedupeKey: "email:test:partial-person-recipient",
+      payload: {
+        kind: "email",
+        from: "シフトリ <noreply@example.com>",
+        to: "outbox-contact@example.com",
+        subject: "業務通知",
+        html: "<p>test</p>",
+        context: "test.partialPersonRecipient",
+        suppressDelivery: true,
+      },
+    });
+    const line = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "line",
+      shopId: ids.shopId,
+      organizationId: ids.organizationId,
+      userId: ids.userId,
+      purpose: "business",
+      dedupeKey: "line:test:partial-person-recipient",
+      payload: {
+        kind: "line",
+        toUserId: "U_outbox_partial_person",
+        text: "業務通知",
+        suppressDelivery: true,
+      },
+    });
+    if (!email || !line) throw new Error("notifications were not enqueued");
+    await t.run(async (ctx) => {
+      await ctx.db.patch(email.outboxId, { status: "processing" });
+      await ctx.db.patch(line.outboxId, { status: "processing" });
+    });
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
+        outboxId: email.outboxId,
+        now: Date.now(),
+      }),
+    ).resolves.toMatchObject({ _id: email.outboxId });
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
+        outboxId: line.outboxId,
+        now: Date.now(),
+      }),
+    ).resolves.toMatchObject({ _id: line.outboxId });
   });
 
   it.each(["restrictedStarted", "recovered"] as const)(

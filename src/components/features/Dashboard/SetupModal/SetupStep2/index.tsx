@@ -1,4 +1,4 @@
-import { Checkbox, Field, Input, Stack, Text } from "@chakra-ui/react";
+import { Checkbox, Field, Input, Stack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH } from "@/convex/constants";
@@ -40,7 +40,7 @@ export const SetupStep2 = ({ onSubmit, defaultValues, formId = "setup-step2" }: 
           {errors.name && <Field.ErrorText>{errors.name.message}</Field.ErrorText>}
         </Field.Root>
         <Field.Root invalid={!!errors.email}>
-          <Field.Label>メールアドレス</Field.Label>
+          <Field.Label>シフト連絡先メールアドレス</Field.Label>
           <Input
             type="email"
             {...register("email")}
@@ -49,9 +49,6 @@ export const SetupStep2 = ({ onSubmit, defaultValues, formId = "setup-step2" }: 
           />
           {errors.email && <Field.ErrorText>{errors.email.message}</Field.ErrorText>}
         </Field.Root>
-        <Text fontSize="xs" color="fg.muted">
-          ほかのスタッフは登録後にいつでも追加できます。
-        </Text>
         <Field.Root invalid={!!errors.acceptedLegal}>
           <Checkbox.Root
             colorPalette="teal"

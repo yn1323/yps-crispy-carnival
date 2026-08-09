@@ -1,6 +1,6 @@
 import { Box } from "@chakra-ui/react";
-import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
-import { useCallback } from "react";
+import { createFileRoute, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useCallback, useEffect } from "react";
 import { AuthenticatedHeader, AuthGuard, UnauthenticatedBoundary } from "@/src/components/features/AuthenticatedApp";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { clearRequestedShopSearch, normalizeShopSearch } from "@/src/lib/authenticatedSearch";
@@ -21,6 +21,19 @@ function RouteComponent() {
   // pathless親routeのRoute.useNavigate()は"/"基準になるため、searchだけの更新でもLPへ遷移してしまう。
   const navigate = useNavigate();
   const { shop } = Route.useSearch();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const requiresShopContext = pathname !== "/account";
+
+  useEffect(() => {
+    if (requiresShopContext || !shop) return;
+
+    void navigate({
+      to: ".",
+      search: (previous) => ({ ...previous, shop: undefined }),
+      replace: true,
+    });
+  }, [navigate, requiresShopContext, shop]);
+
   const normalizeShopUrl = useCallback(
     (shopId: string) => {
       void navigate({
@@ -37,7 +50,12 @@ function RouteComponent() {
 
   return (
     <AuthProviders>
-      <AuthGuard requestedShopId={shop} onNormalizeShopUrl={normalizeShopUrl} onReturnToDashboard={returnToDashboard}>
+      <AuthGuard
+        requiresShopContext={requiresShopContext}
+        requestedShopId={requiresShopContext ? shop : undefined}
+        onNormalizeShopUrl={normalizeShopUrl}
+        onReturnToDashboard={returnToDashboard}
+      >
         <UnauthenticatedBoundary>
           <AuthenticatedLayout />
         </UnauthenticatedBoundary>

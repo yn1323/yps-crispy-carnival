@@ -21,7 +21,7 @@ function NotificationChannelVisual() {
       mt={5}
       p={{ base: 4, md: 5 }}
       borderWidth="1px"
-      borderColor="teal.100"
+      borderColor="gray.200"
       borderRadius="lg"
       bg="teal.50/50"
     >
@@ -162,7 +162,7 @@ function DiagramBox({
       px={4}
       py={3}
       borderWidth="1px"
-      borderColor={tone === "question" ? "teal.300" : "gray.200"}
+      borderColor={tone === "question" ? "teal.500" : "gray.200"}
       borderRadius="md"
       bg="white"
       textAlign="center"

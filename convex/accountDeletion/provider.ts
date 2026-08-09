@@ -43,17 +43,7 @@ export function createClerkAccountDeletionProvider(config: AccountDeletionConfig
 
   return {
     async assertReady(expectedIssuer) {
-      assertLocalConfiguration(config, expectedIssuer);
-      const providerClient = getClient();
-      let domains: Awaited<ReturnType<typeof providerClient.domains.list>>;
-      try {
-        domains = await withTimeout(providerClient.domains.list());
-      } catch (error) {
-        throw classifyProviderError(error);
-      }
-      if (!domains.data.some((domain) => normalizeIssuer(domain.frontendApiUrl) === config.expectedIssuer)) {
-        throw new AccountDeletionProviderError(false, "provider_instance_mismatch");
-      }
+      await assertClerkProviderReady(config, expectedIssuer, async () => await getClient().domains.list());
     },
 
     async getUser(clerkUserId) {
@@ -102,7 +92,27 @@ export function classifyProviderError(error: unknown): AccountDeletionProviderEr
   return new AccountDeletionProviderError(true, "provider_network");
 }
 
-function assertLocalConfiguration(config: AccountDeletionConfiguration, expectedIssuer: string) {
+export async function assertClerkProviderReady(
+  config: Pick<AccountDeletionConfiguration, "secretKey" | "publishableKey" | "expectedIssuer">,
+  expectedIssuer: string,
+  listDomains: () => Promise<{ data: Array<{ frontendApiUrl: string }> }>,
+) {
+  assertLocalConfiguration(config, expectedIssuer);
+  let domains: Awaited<ReturnType<typeof listDomains>>;
+  try {
+    domains = await withClerkProviderTimeout(listDomains());
+  } catch (error) {
+    throw classifyProviderError(error);
+  }
+  if (!domains.data.some((domain) => normalizeIssuer(domain.frontendApiUrl) === config.expectedIssuer)) {
+    throw new AccountDeletionProviderError(false, "provider_instance_mismatch");
+  }
+}
+
+export function assertLocalConfiguration(
+  config: Pick<AccountDeletionConfiguration, "secretKey" | "publishableKey" | "expectedIssuer">,
+  expectedIssuer: string,
+) {
   if (!config.secretKey || !config.publishableKey || !config.expectedIssuer) {
     throw new AccountDeletionProviderError(false, "provider_configuration_missing");
   }
@@ -126,7 +136,7 @@ function assertLocalConfiguration(config: AccountDeletionConfiguration, expected
   }
 }
 
-async function withTimeout<T>(promise: Promise<T>): Promise<T> {
+export async function withClerkProviderTimeout<T>(promise: Promise<T>): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_resolve, reject) => {
     timeoutId = setTimeout(
@@ -140,6 +150,8 @@ async function withTimeout<T>(promise: Promise<T>): Promise<T> {
     if (timeoutId !== undefined) clearTimeout(timeoutId);
   }
 }
+
+const withTimeout = withClerkProviderTimeout;
 
 function providerStatus(error: unknown): number | undefined {
   if (!error || typeof error !== "object" || !("status" in error)) return undefined;

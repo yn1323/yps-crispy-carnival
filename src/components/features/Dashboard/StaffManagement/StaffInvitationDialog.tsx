@@ -136,6 +136,7 @@ export function StaffInvitationDialogView({ invitation, isReadOnly = false, orga
         minH={0}
         display="flex"
         flexDirection="column"
+        lazyMount
       >
         <Tabs.List overflowX="auto" overflowY="hidden" whiteSpace="nowrap" borderBottomWidth="1px">
           <Tabs.Trigger value="link" flexShrink={0} disabled={isBusy}>

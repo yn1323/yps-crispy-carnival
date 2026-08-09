@@ -4,6 +4,20 @@ const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"] as cons
 export const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 export type WeekdayKey = (typeof WEEKDAY_KEYS)[number];
 
+const ISO_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+const isLeapYear = (year: number): boolean => year % 400 === 0 || (year % 4 === 0 && year % 100 !== 0);
+
+export const isValidIsoDateString = (value: string): boolean => {
+  const match = ISO_DATE_PATTERN.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const daysInMonth = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return month >= 1 && month <= 12 && day >= 1 && day <= (daysInMonth[month - 1] ?? 0);
+};
+
 const JST_DATE_FORMATTER = new Intl.DateTimeFormat("sv-SE", {
   timeZone: "Asia/Tokyo",
   year: "numeric",

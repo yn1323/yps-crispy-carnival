@@ -364,6 +364,23 @@ export const Loading: Story = {
   ),
 };
 
+export const StaffLoadingKeepsPrimaryContentBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: {
+    ...Normal.args,
+    staffs: [],
+    staffStatus: "LoadingFirstPage",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByLabelText("シフト一覧")).toBeInTheDocument();
+    await expect(canvas.queryByLabelText("シフト一覧を読み込み中")).not.toBeInTheDocument();
+    await expect(canvas.getByLabelText("スタッフ一覧を読み込み中")).toBeInTheDocument();
+    await expect(canvas.getByRole("button", { name: "新しい募集をつくる" })).toBeEnabled();
+  },
+};
+
 export const Empty: Story = {
   args: {
     shop,

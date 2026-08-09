@@ -104,20 +104,27 @@ describe("staffRegistration/notificationQueries", () => {
   });
 
   describe("getOwnerDigestTargetForShop", () => {
-    it("店舗のmanager usersを通知対象にし、manager staffのLINE連携を付与する", async () => {
+    it("canonical管理者はpersonの連絡先を使い、legacy管理者だけusersへfallbackする", async () => {
       const t = convexTest(schema, modules);
       const { shopId } = await t.run(async (ctx) => {
         const seeded = await seedManagerShop(ctx, {
           subject: "owner_line",
-          email: "owner-line@example.com",
+          email: "owner-login@example.com",
           shopName: "通知店舗",
+        });
+        await ctx.db.patch(seeded.userId, { name: "ログイン表示名" });
+        await ctx.db.patch(seeded.personId, {
+          name: "シフト連絡先名",
+          email: "owner-contact@example.com",
+          emailNormalized: "owner-contact@example.com",
         });
         const managerStaffId = await ctx.db.insert("staffs", {
           shopId: seeded.shopId,
-          userId: seeded.userId,
+          organizationId: seeded.organizationId,
+          organizationPersonId: seeded.personId,
           name: "管理スタッフ",
-          email: "owner-line@example.com",
-          emailNormalized: "owner-line@example.com",
+          email: "owner-contact@example.com",
+          emailNormalized: "owner-contact@example.com",
           isDeleted: false,
         });
         await seedStaffLineAccount(ctx, {
@@ -146,21 +153,77 @@ describe("staffRegistration/notificationQueries", () => {
       const dashboardUrl = new URL(result.dashboardUrl);
       expect(dashboardUrl.pathname).toBe("/dashboard");
       expect([...dashboardUrl.searchParams.entries()]).toEqual([["shop", String(shopId)]]);
-      expect(result?.recipients).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            email: "owner-line@example.com",
-            lineUserId: "U_owner_line",
-            lineFollowing: true,
-          }),
-          expect.objectContaining({
-            email: "owner-email@example.com",
-          }),
-        ]),
-      );
+      expect(
+        result.recipients
+          .map(({ name, email, lineUserId, lineFollowing }) => ({ name, email, lineUserId, lineFollowing }))
+          .sort((left, right) => left.email.localeCompare(right.email)),
+      ).toEqual([
+        {
+          name: "シフト連絡先名",
+          email: "owner-contact@example.com",
+          lineUserId: "U_owner_line",
+          lineFollowing: true,
+        },
+        {
+          name: "管理者",
+          email: "owner-email@example.com",
+          lineUserId: undefined,
+          lineFollowing: undefined,
+        },
+      ]);
       const emailRecipient = result?.recipients.find((recipient) => recipient.email === "owner-email@example.com");
       expect(emailRecipient).not.toHaveProperty("lineUserId");
       expect(emailRecipient).not.toHaveProperty("lineFollowing");
+    });
+
+    it("person作成後でorganizationMember作成前の管理者もperson連絡先とLINEを使う", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
+          subject: "owner_partial_person",
+          email: "owner-login@example.com",
+          shopName: "移行途中店舗",
+        });
+        await ctx.db.delete(seeded.memberId);
+        await seedLegacyShopMembership(ctx, { shopId: seeded.shopId, userId: seeded.userId });
+        await ctx.db.patch(seeded.personId, {
+          name: "移行途中連絡先",
+          email: "owner-contact@example.com",
+          emailNormalized: "owner-contact@example.com",
+        });
+        const staffId = await ctx.db.insert("staffs", {
+          shopId: seeded.shopId,
+          organizationId: seeded.organizationId,
+          organizationPersonId: seeded.personId,
+          userId: seeded.userId,
+          name: "移行途中連絡先",
+          email: "owner-contact@example.com",
+          emailNormalized: "owner-contact@example.com",
+          isDeleted: false,
+        });
+        await seedStaffLineAccount(ctx, {
+          shopId: seeded.shopId,
+          staffId,
+          lineUserId: "U_owner_partial_person",
+          following: true,
+        });
+        await insertPendingRequest(ctx, { shopId: seeded.shopId, status: "pending" });
+        return seeded;
+      });
+
+      const result = await t.query(internal.staffRegistration.notificationQueries.getOwnerDigestTargetForShop, {
+        shopId: ids.shopId,
+      });
+
+      expect(result?.recipients).toEqual([
+        expect.objectContaining({
+          userId: ids.userId,
+          name: "移行途中連絡先",
+          email: "owner-contact@example.com",
+          lineUserId: "U_owner_partial_person",
+          lineFollowing: true,
+        }),
+      ]);
     });
 
     it("他店舗managerと同店舗の一般スタッフは通知対象にしない", async () => {
@@ -232,6 +295,83 @@ describe("staffRegistration/notificationQueries", () => {
       expect(result?.recipients[0]).not.toHaveProperty("lineUserId");
       expect(result?.recipients[0]).not.toHaveProperty("lineFollowing");
     });
+
+    it.each(["duplicate", "organizationMismatch", "personMismatch", "userMismatch"] as const)(
+      "canonical管理者のLINE staffが%sなら任意の1件を選ばずメールへfallbackする",
+      async (kind) => {
+        const t = convexTest(schema, modules);
+        const shopId = await t.run(async (ctx) => {
+          const seeded = await seedManagerShop(ctx, {
+            subject: `line_conflict_${kind}`,
+            email: `line-conflict-${kind}@example.com`,
+          });
+          let organizationId = seeded.organizationId;
+          let organizationPersonId = seeded.personId;
+          let userId = seeded.userId;
+
+          if (kind === "organizationMismatch") {
+            const otherShopId = await seedShop(ctx, "別グループ店舗");
+            const otherShop = await ctx.db.get(otherShopId);
+            if (!otherShop?.organizationId) throw new Error("organization not found");
+            organizationId = otherShop.organizationId;
+          }
+          if (kind === "personMismatch") {
+            organizationPersonId = await ctx.db.insert("organizationPeople", {
+              organizationId: seeded.organizationId,
+              name: "別人物",
+              email: `line-conflict-person-${kind}@example.com`,
+              emailNormalized: `line-conflict-person-${kind}@example.com`,
+              status: "active",
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            });
+          }
+          if (kind === "userMismatch") {
+            userId = await seedUser(ctx, `line_conflict_other_${kind}`);
+          }
+
+          const managerStaffId = await ctx.db.insert("staffs", {
+            shopId: seeded.shopId,
+            organizationId,
+            organizationPersonId,
+            userId,
+            name: "管理スタッフ",
+            email: `line-conflict-${kind}@example.com`,
+            emailNormalized: `line-conflict-${kind}@example.com`,
+            isDeleted: false,
+          });
+          await seedStaffLineAccount(ctx, {
+            shopId: seeded.shopId,
+            staffId: managerStaffId,
+            lineUserId: `U_line_conflict_${kind}`,
+            following: true,
+          });
+          if (kind === "duplicate") {
+            await ctx.db.insert("staffs", {
+              shopId: seeded.shopId,
+              organizationId: seeded.organizationId,
+              organizationPersonId: seeded.personId,
+              name: "重複管理スタッフ",
+              email: `line-conflict-duplicate@example.com`,
+              emailNormalized: `line-conflict-duplicate@example.com`,
+              isDeleted: false,
+            });
+          }
+          await insertPendingRequest(ctx, { shopId: seeded.shopId });
+          return seeded.shopId;
+        });
+
+        const result = await t.query(internal.staffRegistration.notificationQueries.getOwnerDigestTargetForShop, {
+          shopId,
+        });
+
+        expect(result?.recipients).toEqual([
+          expect.objectContaining({ email: `line-conflict-${kind.toLowerCase()}@example.com` }),
+        ]);
+        expect(result?.recipients[0]).not.toHaveProperty("lineUserId");
+        expect(result?.recipients[0]).not.toHaveProperty("lineFollowing");
+      },
+    );
 
     it("承認待ちがない店舗、削除済み店舗、削除済みmanager/memberは対象外にする", async () => {
       const t = convexTest(schema, modules);

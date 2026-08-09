@@ -544,6 +544,7 @@ describe("Narrow readiness queries", () => {
       missingExcludedFromShift: 1,
       missingEmailNormalized: 1,
       invalidEmailNormalization: 1,
+      activeStaffPersonEmailMismatch: 1,
       activeStaffLinkedRemovedPerson: 1,
       danglingStaffUser: 1,
       missingPersonUserForLinkedStaff: 1,

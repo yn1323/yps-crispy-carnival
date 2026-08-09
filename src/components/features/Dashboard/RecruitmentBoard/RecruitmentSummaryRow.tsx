@@ -21,7 +21,6 @@ const statusConfig: Record<
     colorPalette: "green" | "orange" | "blue" | "gray";
     accent: string;
     borderColor?: string;
-    bg?: string;
   }
 > = {
   collecting: { label: "募集中", colorPalette: "green", accent: "green.400" },
@@ -30,14 +29,12 @@ const statusConfig: Record<
     colorPalette: "orange",
     accent: "orange.400",
     borderColor: "orange.200",
-    bg: "orange.50/30",
   },
   current: {
     label: "確定済み",
     colorPalette: "blue",
     accent: "blue.400",
     borderColor: "blue.200",
-    bg: "blue.50/30",
   },
   confirmed: { label: "確定済み", colorPalette: "blue", accent: "blue.300" },
   ended: { label: "確定済み", colorPalette: "gray", accent: "gray.300" },
@@ -47,7 +44,7 @@ const statusConfig: Record<
 export function RecruitmentSummaryRow({ recruitment, dataTour, onClick, ariaLabel, endSlot }: Props) {
   const { periodStart, periodEnd, deadline, confirmedAt, responseCount, totalStaffCount } = recruitment;
   const displayStatus = getDisplayStatus(recruitment);
-  const { colorPalette, accent, borderColor, bg } = statusConfig[displayStatus];
+  const { colorPalette, accent, borderColor } = statusConfig[displayStatus];
   const label = statusConfig[displayStatus].label;
   const relativeText = relativeDeadline({ deadline, periodEnd, confirmedAt, displayStatus });
   const periodLabel = `${formatDateShort(periodStart)} 〜 ${formatDateShort(periodEnd)}`;
@@ -59,7 +56,7 @@ export function RecruitmentSummaryRow({ recruitment, dataTour, onClick, ariaLabe
     <Flex
       data-tour={dataTour}
       align="stretch"
-      bg={bg ?? "white"}
+      bg="white"
       borderRadius="xl"
       overflow="hidden"
       borderWidth="1px"

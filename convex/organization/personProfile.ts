@@ -18,8 +18,14 @@ export async function updateOrganizationPersonProfile(
     email: string;
   },
 ) {
-  const person = await ctx.db.get(args.personId);
+  const [person, notificationShop] = await Promise.all([
+    ctx.db.get(args.personId),
+    ctx.db.get(args.notificationShopId),
+  ]);
   if (!person || person.organizationId !== args.organizationId || person.status !== "active") {
+    throw new ConvexError("Not found");
+  }
+  if (!notificationShop || notificationShop.organizationId !== args.organizationId) {
     throw new ConvexError("Not found");
   }
 
@@ -41,8 +47,15 @@ export async function updateOrganizationPersonProfile(
     )
     .collect();
   const activeStaffs = linkedStaffs.filter((staff) => !staff.isDeleted);
+  const activeStaffShops = await Promise.all(activeStaffs.map(async (staff) => await ctx.db.get(staff.shopId)));
   const targetCountByShop = new Map<Id<"shops">, number>();
-  for (const staff of activeStaffs) {
+  for (const [index, staff] of activeStaffs.entries()) {
+    const shop = activeStaffShops[index];
+    if (staff.organizationId !== args.organizationId || !shop || shop.organizationId !== args.organizationId) {
+      throw new ConvexError(
+        "スタッフの店舗所属を確認できません。\n画面を更新しても解消しない場合は、お問い合わせください。",
+      );
+    }
     const count = (targetCountByShop.get(staff.shopId) ?? 0) + 1;
     targetCountByShop.set(staff.shopId, count);
     if (count > 1) {
@@ -95,33 +108,17 @@ export async function updateOrganizationPersonProfile(
       (staff) =>
         staff.name !== args.name || staff.email !== emailNormalized || staff.emailNormalized !== emailNormalized,
     ) ||
-    (shouldSyncActorUser &&
-      (args.actorUser.name !== args.name ||
-        args.actorUser.email !== emailNormalized ||
-        args.actorUser.emailNormalized !== emailNormalized));
+    (shouldSyncActorUser && args.actorUser.name !== args.name);
   if (!changed) return { changed: false, emailChanged: false };
 
   const updatedAt = Date.now();
   for (const staff of activeStaffs) {
-    await ctx.db.patch(staff._id, {
-      name: args.name,
-      email: emailNormalized,
-      emailNormalized,
-    });
+    await ctx.db.patch(staff._id, { name: args.name, email: emailNormalized, emailNormalized });
   }
-  await ctx.db.patch(person._id, {
-    name: args.name,
-    email: emailNormalized,
-    emailNormalized,
-    updatedAt,
-  });
+  await ctx.db.patch(person._id, { name: args.name, email: emailNormalized, emailNormalized, updatedAt });
   if (shouldSyncActorUser) {
     // 管理者自身をスタッフとして持つ店舗では、スタッフ名と管理者名を同じ表示名として同期する。
-    await ctx.db.patch(args.actorUser._id, {
-      name: args.name,
-      email: emailNormalized,
-      emailNormalized,
-    });
+    await ctx.db.patch(args.actorUser._id, { name: args.name });
   }
 
   if (emailChanged) {

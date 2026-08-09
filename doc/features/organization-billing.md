@@ -2,7 +2,7 @@
 
 > 文書種別: feature
 >
-> コード照合基準: `b61100a680e80d154a74f576d03c53712846e062`
+> コード照合基準: 現在のcheckoutにある実装
 >
 > 実環境の公開・設定・migration状況: [リリース状態](../manual/release-status.md)
 
@@ -70,6 +70,20 @@ Stripe設定、migration確認、障害対応は[グループ課金の運用](..
 | Stripe対応表とoperation | 有料契約のCustomer、Subscription、非同期処理をグループ単位で追跡する |
 | 管理者招待（`organizationInvitations`） | メールの受取人へ、管理者アカウントを一回だけ連携できる権限を渡す |
 
+## メールアドレスの責務
+
+| 種類 | 正本 | 用途 | 主な変更場所 |
+|---|---|---|---|
+| ログイン方法 | Clerkの確認済みメール、パスワード、Google接続 | シフトリへの認証 | 画面右上の「アカウント設定」から開く`/account` |
+| シフト連絡先 | グループごとの`organizationPeople.email` | 本人のシフト通知と管理者向けの業務連絡 | ユーザー詳細 |
+| 請求先 | グループごとの`organizations.billingEmail` | Stripeの請求書、領収書、カード関連通知 | 「プランと支払い」 |
+| 初期化・旧データ互換値 | `users.email` | 初回セットアップ時のsnapshotとcanonical所属がない旧データのfallback | 通常の設定画面では直接編集しない |
+
+シフト連絡先を変更しても、Clerkのログイン方法、`users.email`、請求先メールアドレスは変更しない。
+請求先メールアドレスを変更しても、シフト連絡先とログイン方法は変更しない。
+アカウント設定の画面と状態判定はシフト連絡先から独立させ、Clerk操作の提供可否は安全性の実験と環境確認が完了した機能だけを有効にする。
+この文書はローカル実装の境界を示すものであり、Clerkの各操作や実deploymentでの公開完了を示す証跡にはしない。
+
 ## 保証する範囲
 
 ### グループと権限の境界
@@ -131,6 +145,15 @@ Trialの利用権限はProと同じである。
 新しいグループには、作成した利用者だけが人物と管理者として登録される。
 既存グループの人物、スタッフ、店舗、シフトは引き継がない。
 
+初回セットアップで入力したシフト連絡先は、最初のグループ人物、最初の店舗スタッフ、グループの初期請求先へsnapshotする。
+`users.email`にも初回値を保存するが、以後のシフト連絡先とログイン方法の正本にはしない。
+
+二つ目以降のグループ作成では、画面が選択中の店舗を`sourceShopId`として渡す。
+サーバーは、その店舗のグループで操作本人が有効な管理者であることを確認し、同じuserのactive personを一意に解決できれば、その氏名とシフト連絡先だけを新しいグループ人物、最初の店舗スタッフ、初期請求先へsnapshotする。
+別人物の情報、既存スタッフ所属、店舗、シフトは引き継がない。
+旧frontendが`sourceShopId`を送らない場合、またはsourceに一意な旧`shopMembers`だけがありcanonical personがまだない移行途中の場合は、`users`のsnapshotへfallbackする。canonical personやmembershipが重複・不整合な場合はfallbackせず拒否する。
+作成時の非PII auditには`managerProfile.canonicalPerson`、`managerProfile.legacySourceUserSnapshot`、`managerProfile.omittedSourceUserSnapshot`のいずれかを記録し、旧clientと移行fallbackの収束をメール値なしで確認できるようにする。互換期間終了後の`sourceShopId` required化とfallback削除は別変更で行う。
+
 ## 支払い不要Business
 
 初回セットアップで作るグループは`complimentary.business`として開始する。
@@ -157,7 +180,11 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 発行済みtokenも受諾できず、フラグを閉じる前にOutboxへ投入済みのメール・LINE通知もprovider呼出前に取消す。
 
 - 招待はメールで送り、発行から7日間有効な一回限りのtokenを使う。
-- 受取人の確認済みメールを正規化し、招待先メールとの完全一致を連携時に確認する。
+- 招待対象のグループ人物が未接続、またはまだ存在しない場合は、受取人の確認済みメールを正規化し、招待先メールとの完全一致を連携時に確認する。
+- 招待対象のグループ人物が既に`userId`へ接続済みなら、その利用者本人だけが承認でき、メール照合をアカウント同一性の代わりにしない。
+- 招待対象のグループ人物が未接続、またはまだ存在しない場合は、Node actionがClerk Backend APIから取得した確認済みメール一覧に招待先メールが含まれる場合だけ承認する。
+- Clerk providerの設定不足、一時障害、照会失敗では`unavailable`を返し、招待のstatus、version、予約枠を変更せず再試行可能な状態を維持する。
+- Node actionの準備処理と確定処理の間では、認証主体、招待ID、version、token digest、確認済みメールをproofで結び、確定時に招待状態と上限を再確認する。
 - 発行時と連携時の両方で、管理者追加権限、人物上限、管理者上限、予約枠をサーバー側で確認する。
 - 再送は旧招待を失効させ、tokenをローテーションする。
 - 生tokenをNotification Outboxへ保存せず、送信直前にサーバー側秘密値から導出する。
@@ -206,7 +233,8 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 | `convex/organization/` | グループ、店舗、人物、管理者、利用状況、削除可否を扱う |
 | `convex/organizationBilling/` | プラン上限、課金policy、期限、Free選択、請求先メール、通知を扱う |
 | `convex/organizationStripe/` | Stripe API、Price、Checkout、Portal、Webhook、再照合、probeを扱う |
-| `convex/organizationInvitation/` | 管理者招待の発行、再送、取消、preview、アカウント連携を扱う |
+| `convex/organizationInvitation/mutations.ts` | 管理者招待の発行、再送、取消、承認準備、proof付き確定、旧mutation互換を扱う |
+| `convex/organizationInvitation/acceptanceActions.ts` / `convex/_lib/clerkVerifiedEmailProvider.ts` | 未接続人物のClerk確認済みメールをNode runtimeで照合し、provider失敗時は招待を消費せず返す |
 | `convex/migrations/m023_organization_invitations_narrow_prep.ts` | 旧招待lifecycleと欠損fieldをNarrow前に補完する |
 | `convex/migrations/m028_shop_billing_states_narrow_prep.ts` | 旧店舗課金rowを保持したままcanonical課金状態との対応異常を記録する |
 | `convex/narrowReadiness/queries.ts` | 招待、請求先、Subscription、制限状態をPIIなしで全ページ確認する |
@@ -224,6 +252,7 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 | `src/components/features/OrganizationSettings/` | ユーザー、店舗、プランと支払い、管理者招待、グループ作成、削除UI |
 | `src/components/features/OrganizationSettings/BillingSettings/` | 価格表示、プラン変更、Portal、請求先メールのcontrollerとdialog |
 | `src/components/features/ManagerInvitationAcceptance/` | 招待preview、認証導線、連携結果 |
+| `src/pages/account-security/` / `src/components/features/LoginMethods/` | シフト連絡先と独立したアカウント設定の画面境界、Clerk状態からの表示判定と操作可否 |
 | `src/components/features/AuthenticatedApp/AuthGuard.tsx` | URLと利用可能店舗から有効な操作contextを解決する |
 | `src/components/features/Dashboard/` | グループ・店舗contextと閲覧専用状態を表示する |
 
@@ -241,7 +270,8 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 | `api.organization.mutations.*` | グループ名、店舗、人物、管理者、削除の更新 |
 | `api.organizationInvitation.queries.getPreview` | 公開中は招待先グループと期限だけを返し、閉状態ではtokenを解決せず`unavailable`を返す |
 | `api.organizationInvitation.mutations.createExternal` / `createForPerson` / `createForStaff` | 外部人物または既存人物への管理者招待 |
-| `api.organizationInvitation.mutations.resend` / `revoke` / `linkAccount` | 招待の再送、取消、アカウント連携。閉状態では再送と連携を止め、取消だけを維持する |
+| `api.organizationInvitation.mutations.resend` / `revoke` | 招待の再送と取消。閉状態では再送を止め、取消だけを維持する |
+| `api.organizationInvitation.acceptanceActions.accept` | 接続済み人物のアカウント一致、または未接続人物のClerk確認済みメールを検証して招待を承認 |
 | `api.organizationBilling.mutations.setFreeSelection` | Freeで残す管理者と店舗の選択 |
 | `api.organizationBilling.mutations.updateBillingEmail` | 請求先メールの更新とStripe同期予約 |
 | `api.organizationStripe.actions.getPlanPrice` / `startPaidCheckout` | Pro・Businessの価格確認と契約開始 |
@@ -257,19 +287,20 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 | `internal.organizationStripe.maintenance.recoverWebhookEvents` / `recoverSafeOperations` | 再開可能なWebhookと安全operationのbounded回収 |
 | `internal.migrations.index.runM021` | Widen期間にm021だけをdry runまたは限定再評価した履歴用runner |
 
-`getProPrice`、`startProCheckout`、`scheduleFreeAtPeriodEnd`、`cancelScheduledFree`、`organizationInvitation.mutations.accept`は旧クライアント向け互換入口として残す。
+`getProPrice`、`startProCheckout`、`scheduleFreeAtPeriodEnd`、`cancelScheduledFree`は旧クライアント向け互換入口として残す。
+`organizationInvitation.mutations.linkAccount`と`organizationInvitation.mutations.accept`もrolling deploy中の旧クライアント向け互換入口であり、新しい画面の標準承認経路にはしない。
 
 ## 検証の入口
 
 - `convex/organizationBilling/*.test.ts`：プラン上限、課金状態、期限、通知とm021の旧shape移行fixtureを検証する。
 - `convex/organizationStripe/*.test.ts`：Price、Checkout、Webhook、再照合、支払い不要BusinessのStripe隔離、probeを検証する。
-- `convex/organizationInvitation/*.test.ts`：token、期限、メール一致、予約枠、再送、連携を検証する。
+- `convex/organizationInvitation/*.test.ts`：token、期限、接続済み人物のアカウント一致、未接続人物のClerk確認済みメール、provider失敗時の非消費、予約枠、再送、連携を検証する。
 - `convex/_scenario/organizationBillingLifecycle.test.ts`と`organizationPaidPlanChanges.test.ts`：時間と複数APIをまたぐ課金ライフサイクルを検証する。
 - `convex/_scenario/staffManagerInvitation.test.ts`と`organizationManagerExchange.test.ts`：既存人物の招待とFree管理者交代を検証する。
 - `convex/setup/mutations.test.ts`と`convex/_scenario/organizationCreation.test.ts`：グループ作成の上限、冪等性、rate limit、Free開始、既存グループへの非混入を検証する。
-- `e2e/scenarios/organization-creation-flow.test.ts`：画面から作った二つ目のグループへ遷移し、無料で始まることを検証する。
-- `src/components/features/OrganizationSettings/**/*.stories.tsx`：プランと支払い、管理者招待の代表状態と操作を検証する。
-- `e2e/scenarios/organization-billing-plan-change.test.ts`：Free、Pro、Businessの主要変更導線を検証する。
+- `src/components/features/OrganizationSettings/OrganizationCreation/OrganizationCreationSection.stories.tsx`と`controllers.test.tsx`：グループ作成の代表状態、mutation引数、作成後の遷移を検証する。
+- `src/components/features/OrganizationSettings/PlanAndPaymentSection.stories.tsx`と`BillingSettings/`配下のStory・Logic Test：Free、Pro、Businessの代表状態と主要変更操作を検証する。
+- `src/components/features/OrganizationSettings/ManagerInvitation/ManagerInvitationDialog.stories.tsx`：管理者招待の代表状態と操作を検証する。
 
 ## 仕様・規約・運用
 

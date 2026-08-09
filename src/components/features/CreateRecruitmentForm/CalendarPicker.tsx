@@ -89,6 +89,7 @@ const sundayColumnSelector = "& table tr > :first-child";
 const saturdayColumnSelector = "& table tr > :last-child";
 const dayTriggerPartSelector = "[data-part=table-cell-trigger]";
 const selectedDayPartSelector = `${dayTriggerPartSelector}[data-selected]`;
+const rangeMiddleDaySelector = `& ${dayTriggerPartSelector}[data-in-range]:not([data-range-start]):not([data-range-end])`;
 const calendarTableSelector = "& table";
 const calendarCellSelector = "& th, & td";
 const selectedDaySelector = `& ${selectedDayPartSelector}`;
@@ -160,6 +161,10 @@ export const CalendarPicker = ({
         },
         [selectedDaySelector]: {
           color: "white",
+        },
+        [rangeMiddleDaySelector]: {
+          bg: "teal.100",
+          _hover: { bg: "teal.100" },
         },
         [`${sundayColumnSelector} ${selectedDayPartSelector}`]: {
           color: "white",

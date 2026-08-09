@@ -1,7 +1,14 @@
 import { Grid, Stack, Text } from "@chakra-ui/react";
 import { KpiCard } from "@/components/KpiCard";
-import { Comparison, MetricAvailability } from "./Presentation";
+import { Comparison } from "./Presentation";
 import type { KpiViewModel } from "./viewModels";
+
+function metricDetail(item: KpiViewModel) {
+  if (item.completeness === "partial") return "この指標の集計が一部未完了です。";
+  if (item.completeness === "unavailable") return "この期間では、算出に必要なデータがありません。";
+  if (item.completeness === "error") return "この指標を取得できませんでした。";
+  return item.detail;
+}
 
 export function KpiGrid({ items }: { items: KpiViewModel[] }) {
   return (
@@ -13,12 +20,10 @@ export function KpiGrid({ items }: { items: KpiViewModel[] }) {
           helper={
             <Stack gap={1}>
               <Text color="gray.500" fontSize="xs">
-                {item.detail}
+                {metricDetail(item)}
               </Text>
               {item.completeness === "complete" && item.comparisonEnabled ? (
                 <Comparison delta={item.delta} isComparable={item.comparable} suffix={item.deltaSuffix} />
-              ) : item.completeness !== "complete" ? (
-                <MetricAvailability completeness={item.completeness} />
               ) : null}
             </Stack>
           }

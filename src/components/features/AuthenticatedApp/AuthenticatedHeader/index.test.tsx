@@ -46,14 +46,17 @@ beforeEach(() => {
 });
 
 describe("AuthenticatedHeader", () => {
-  it.each(["/dashboard", "/settings", "/shops/shop-1", "/users/person-1"])("%sでは店舗切替を表示しない", (pathname) => {
-    mocks.pathname = pathname;
+  it.each(["/dashboard", "/settings", "/account", "/shops/shop-1", "/users/person-1"])(
+    "%sでは店舗切替を表示しない",
+    (pathname) => {
+      mocks.pathname = pathname;
 
-    render(<AuthenticatedHeader />);
+      render(<AuthenticatedHeader />);
 
-    expect(screen.queryByText("店舗切替")).toBeNull();
-    expect(screen.getByText("要望を送る")).not.toBeNull();
-  });
+      expect(screen.queryByText("店舗切替")).toBeNull();
+      expect(screen.getByText("要望を送る")).not.toBeNull();
+    },
+  );
 
   it("店舗コンテキストが必要な画面では店舗切替を表示する", () => {
     mocks.pathname = "/shift/create";

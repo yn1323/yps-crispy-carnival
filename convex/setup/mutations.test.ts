@@ -218,7 +218,7 @@ describe("setup/mutations", () => {
       ).rejects.toThrow("メールアドレスの形式で入力してください");
     });
 
-    it("店舗・ユーザー・スタッフ・費用なしPro状態・同意履歴をトランザクションで作成する", async () => {
+    it("店舗・ユーザー・スタッフ・支払い不要Business状態・同意履歴をトランザクションで作成する", async () => {
       const t = convexTest(schema, modules);
       const now = new Date("2026-07-05T10:00:00+09:00");
       vi.setSystemTime(now);
@@ -635,11 +635,241 @@ describe("setup/mutations", () => {
         action: "organization.created",
         targetKind: "organization",
         actorUserId: seed.userId,
+        fromState: "managerProfile.omittedSourceUserSnapshot",
         toState: "active.free",
       });
       expect(state.scheduled).toHaveLength(2);
       expect(state.stripeCustomers).toEqual([]);
       expect(state.billingNotifications).toEqual([]);
+    });
+
+    it("操作元グループのperson連絡先を新しいperson・staff・初回請求先へ引き継ぐ", async () => {
+      const t = convexTest(schema, modules);
+      const seed = await seedExistingManager(t, "create_org_contact_source");
+      await t.run(async (ctx) => {
+        const sourceStaffId = await ctx.db.insert("staffs", {
+          shopId: seed.shopId,
+          organizationId: seed.organizationId,
+          organizationPersonId: seed.personId,
+          userId: seed.userId,
+          name: "管理者",
+          email: "create_org_contact_source@example.com",
+          emailNormalized: "create_org_contact_source@example.com",
+          excludedFromShift: false,
+          isDeleted: false,
+        });
+        await ctx.db.patch(seed.userId, {
+          name: "古いユーザー名",
+          email: "stale-login@example.com",
+          emailNormalized: "stale-login@example.com",
+        });
+        await ctx.db.patch(seed.personId, {
+          name: "現在の管理者名",
+          email: "shift-contact@example.com",
+          emailNormalized: "shift-contact@example.com",
+          updatedAt: Date.now(),
+        });
+        await ctx.db.patch(sourceStaffId, {
+          name: "現在の管理者名",
+          email: "shift-contact@example.com",
+          emailNormalized: "shift-contact@example.com",
+        });
+      });
+
+      const result = await t
+        .withIdentity({ subject: "create_org_contact_source" })
+        .mutation(api.setup.mutations.createOrganization, {
+          ...createArgs,
+          sourceShopId: seed.shopId,
+          requestId: "create-organization-contact-source",
+        });
+
+      const created = await t.run(async (ctx) => {
+        const shop = await ctx.db.get(result.shopId);
+        if (!shop?.organizationId) throw new Error("organization not found");
+        const organizationId = shop.organizationId;
+        const people = await ctx.db
+          .query("organizationPeople")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+          .collect();
+        const staffs = await ctx.db
+          .query("staffs")
+          .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", result.shopId).eq("isDeleted", false))
+          .collect();
+        const audit = await ctx.db
+          .query("organizationAuditEvents")
+          .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", organizationId))
+          .first();
+        return { organization: await ctx.db.get(organizationId), people, staffs, audit };
+      });
+      expect(created.organization).toMatchObject({
+        billingEmail: "shift-contact@example.com",
+        billingEmailNormalized: "shift-contact@example.com",
+      });
+      expect(created.people).toEqual([
+        expect.objectContaining({ name: "現在の管理者名", email: "shift-contact@example.com" }),
+      ]);
+      expect(created.staffs).toEqual([
+        expect.objectContaining({ name: "現在の管理者名", email: "shift-contact@example.com" }),
+      ]);
+      expect(created.audit?.fromState).toBe("managerProfile.canonicalPerson");
+    });
+
+    it("organizationMember作成前でもlegacy所属と一意なactive personがあればperson snapshotを使う", async () => {
+      const t = convexTest(schema, modules);
+      const seed = await seedExistingManager(t, "create_org_partial_person_source");
+      await t.run(async (ctx) => {
+        await ctx.db.delete(seed.memberId);
+        await seedLegacyShopMembership(ctx, { userId: seed.userId, shopId: seed.shopId });
+        await ctx.db.patch(seed.userId, {
+          name: "古いユーザー名",
+          email: "partial-person-login@example.com",
+          emailNormalized: "partial-person-login@example.com",
+        });
+        await ctx.db.patch(seed.personId, {
+          name: "移行途中の現在名",
+          email: "partial-person-contact@example.com",
+          emailNormalized: "partial-person-contact@example.com",
+        });
+      });
+
+      const result = await t
+        .withIdentity({ subject: "create_org_partial_person_source" })
+        .mutation(api.setup.mutations.createOrganization, {
+          ...createArgs,
+          sourceShopId: seed.shopId,
+          requestId: "create-organization-partial-person-source",
+        });
+
+      const created = await t.run(async (ctx) => {
+        const shop = await ctx.db.get(result.shopId);
+        if (!shop?.organizationId) throw new Error("organization not found");
+        const organizationId = shop.organizationId;
+        return {
+          organization: await ctx.db.get(organizationId),
+          people: await ctx.db
+            .query("organizationPeople")
+            .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+            .collect(),
+          audit: await ctx.db
+            .query("organizationAuditEvents")
+            .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", organizationId))
+            .first(),
+        };
+      });
+      expect(created.organization?.billingEmail).toBe("partial-person-contact@example.com");
+      expect(created.people).toEqual([
+        expect.objectContaining({ name: "移行途中の現在名", email: "partial-person-contact@example.com" }),
+      ]);
+      expect(created.audit?.fromState).toBe("managerProfile.canonicalPerson");
+    });
+
+    it("organization付きsourceがlegacy所属だけの移行途中ならusers snapshotで作成し、再送を同じ店舗へ収束させる", async () => {
+      const t = convexTest(schema, modules);
+      const seed = await seedExistingManager(t, "create_org_partial_legacy_source");
+      await t.run(async (ctx) => {
+        await ctx.db.delete(seed.memberId);
+        await ctx.db.delete(seed.personId);
+        await seedLegacyShopMembership(ctx, { userId: seed.userId, shopId: seed.shopId });
+        await ctx.db.patch(seed.userId, {
+          name: "移行途中管理者",
+          email: "partial-legacy-contact@example.com",
+          emailNormalized: "partial-legacy-contact@example.com",
+        });
+      });
+      const args = {
+        ...createArgs,
+        sourceShopId: seed.shopId,
+        requestId: "create-organization-partial-legacy-source",
+      };
+      const asUser = t.withIdentity({ subject: "create_org_partial_legacy_source" });
+
+      const first = await asUser.mutation(api.setup.mutations.createOrganization, args);
+      const second = await asUser.mutation(api.setup.mutations.createOrganization, args);
+
+      expect(first.created).toBe(true);
+      expect(second).toEqual({ shopId: first.shopId, created: false });
+      const created = await t.run(async (ctx) => {
+        const shop = await ctx.db.get(first.shopId);
+        if (!shop?.organizationId) throw new Error("organization not found");
+        const organizationId = shop.organizationId;
+        const [organization, people, staffs, audit] = await Promise.all([
+          ctx.db.get(organizationId),
+          ctx.db
+            .query("organizationPeople")
+            .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+            .collect(),
+          ctx.db
+            .query("staffs")
+            .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", first.shopId).eq("isDeleted", false))
+            .collect(),
+          ctx.db
+            .query("organizationAuditEvents")
+            .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", organizationId))
+            .first(),
+        ]);
+        return { organization, people, staffs, audit };
+      });
+      expect(created.organization).toMatchObject({
+        billingEmail: "partial-legacy-contact@example.com",
+        billingEmailNormalized: "partial-legacy-contact@example.com",
+      });
+      expect(created.people).toEqual([
+        expect.objectContaining({ name: "移行途中管理者", email: "partial-legacy-contact@example.com" }),
+      ]);
+      expect(created.staffs).toEqual([
+        expect.objectContaining({ name: "移行途中管理者", email: "partial-legacy-contact@example.com" }),
+      ]);
+      expect(created.audit?.fromState).toBe("managerProfile.legacySourceUserSnapshot");
+    });
+
+    it("canonical membershipが壊れている場合はlegacy所属が残っていてもusersへfallbackしない", async () => {
+      const t = convexTest(schema, modules);
+      const seed = await seedExistingManager(t, "create_org_broken_canonical_source");
+      await t.run(async (ctx) => {
+        await seedLegacyShopMembership(ctx, { userId: seed.userId, shopId: seed.shopId });
+        await ctx.db.delete(seed.personId);
+      });
+
+      await expect(
+        t
+          .withIdentity({ subject: "create_org_broken_canonical_source" })
+          .mutation(api.setup.mutations.createOrganization, {
+            ...createArgs,
+            sourceShopId: seed.shopId,
+            requestId: "create-organization-broken-canonical-source",
+          }),
+      ).rejects.toThrow("Not found");
+
+      const state = await t.run(async (ctx) => ({
+        organizations: await ctx.db.query("organizations").collect(),
+        shops: await ctx.db.query("shops").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+      expect(state.organizations).toHaveLength(1);
+      expect(state.shops).toHaveLength(1);
+      expect(state.scheduled).toEqual([]);
+    });
+
+    it("所属していないsourceShopIdを拒否し、新しいグループを作らない", async () => {
+      const t = convexTest(schema, modules);
+      await seedExistingManager(t, "create_org_source_actor");
+      const other = await seedExistingManager(t, "create_org_source_other");
+
+      await expect(
+        t.withIdentity({ subject: "create_org_source_actor" }).mutation(api.setup.mutations.createOrganization, {
+          ...createArgs,
+          sourceShopId: other.shopId,
+          requestId: "create-organization-invalid-source",
+        }),
+      ).rejects.toThrow("Not found");
+
+      const state = await t.run(async (ctx) => ({
+        organizations: await ctx.db.query("organizations").collect(),
+        shops: await ctx.db.query("shops").collect(),
+      }));
+      expect(state.organizations).toHaveLength(2);
+      expect(state.shops).toHaveLength(2);
     });
 
     it("既存ユーザーの名前・メールと利用規約の同意状態を書き換えない", async () => {

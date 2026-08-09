@@ -48,6 +48,27 @@ LINEやメールの回答を一件ずつ表計算へ移す作業をなくすこ�
 URL共有、ブラウザバック、長時間の編集を必要とする作業は、独立したページを優先する。
 Dialog表示中のブラウザ戻るは、ページ遷移ではなく最前面のDialogを閉じる操作として扱う。
 
+## 表示開始と遅延読み込み
+
+利用者がすでに読める情報や進められる作業は、独立した補助情報の取得完了を待たずに表示する。
+ページ全体のLoadingは、認証、対象の確定、安全な操作可否など、画面を成立させる情報がない場合に限る。
+独立したsectionは個別のLoadingを持ち、取得済みのsectionまでSkeletonへ戻さない。
+
+Dialog、tab、長いページの下位sectionは、初回利用まで内容のmount、module取得、データ取得を遅らせてよい。
+遅延表示する領域には大きさと意味が対応するLoadingを置き、操作後に画面全体が空白になる状態を作らない。
+Loadingは対象領域の見出しまたはlandmarkと対応させ、支援技術と自動テストが処理中と完了を識別できる状態にする。
+
+moduleまたはデータの取得に失敗した場合は、失敗した領域だけをErrorへ切り替え、取得済みの兄弟sectionとnavigationは操作可能なままにする。
+再試行または再読み込みが必要な場合は、その理由と操作をErrorの近くへ示す。
+
+一度開いたDialogやtabの入力、scroll位置、未確定状態は、閉じた時に破棄することが利用者の予想と一致する場合だけresetする。
+状態を保持するためにUIをmountしたままにする場合も、非表示中に不要なデータ更新まで続ける必要はない。
+
+preloadは表示内容や業務状態を先に変更せず、通常の操作結果を早く見せるためだけに使う。
+preloadが失敗した場合も、利用者がclick後の局所的なLoadingから同じ操作を完了できるようにする。
+
+mount、module取得、API購読を分ける具体的な判断は `frontend-architecture.md` が所有する。
+
 ## 状態の伝え方
 
 Loading、Empty、Error、Success、処理中を別の状態として設計する。
@@ -69,6 +90,33 @@ Loading、Empty、Error、Success、処理中を別の状態として設計す�
 安全上の制約はサーバー側でも守り、UIは理由と回復方法を伝える。
 
 スタッフ向け画面で操作を続けられない場合は、状態だけで終えず、「シフト作成担当者に連絡してください」など次の行動を示す。
+
+## 配色の強弱
+
+低階調のtealは、情報のまとまりや状態領域を示す背景fillに使ってよい。ページ、section、card、callout、icon、avatar、badge、selection card、カレンダーの日付範囲など、内容を載せる面へ限定する。opacity付きの色やgradientも、背景fillとして使う場合は同じ扱いにする。
+
+低階調tealの面へiconやavatarの低階調teal背景を重ねる場合は、内側を外側より1段以上濃くする。
+通常時だけでなくhover時にも面どうしが同化しないことを確認する。
+
+action button、Accordion（店舗詳細のスタッフ一覧トリガーを除く）、DateRail、日付sort、週選択、シフト割当toggleでは、低階調tealを操作面やhoverの手掛かりにしない。
+実装がButtonでも値を選ぶselection cardは内容を載せる面として扱い、操作要素の内側にあるicon、avatar、badgeも背景fillとして扱う。
+
+クリック可能なrowのrootとhoverは原則としてneutralにする。
+Dashboardのスタッフ一覧と、組織設定・店舗詳細・スタッフ詳細でスタッフや店舗を開くdrilldown list cardは、管理者の識別とcardの操作可能性を同じ見た目で保つため、管理者rowの背景とlist card全体のhover背景に`teal.50`〜`teal.400`を使える。
+リストカードのhover背景は`teal.50`を標準とし、店舗詳細のスタッフ一覧トリガーも同じ色にする。
+この例外をほかの種類の一覧へ広げない。
+
+Dashboardの募集一覧はcard全体をwhiteに保ち、要調整、確定済み、過去などの状態をaccent、badge、必要なborderで示す。
+状態色をcard全体へ薄く敷かない。
+
+操作面のselected、active、割当済みをtealで強く示す場合は、`teal.500`以上の背景とwhiteの文字・iconを組み合わせる。
+ShiftBoardの日付選択と日ごとの勤務あり表示は、この組み合わせでPCとSPを揃える。
+
+境界、focus、divider、progress、shadow、文字、icon本体は背景fillと分ける。borderやfocus ringなど操作位置を示すaccentには濃いtealを使い、弱い操作面とhoverにはwhite、gray、blackAlphaまたは中立semantic tokenを使う。
+
+淡いtealの大きな面を入れ子にしたり、同一viewportへ重ねすぎたりしない。情報のまとまりを一段だけ示し、画面全体がpastelに見える場合は外側の面をneutralへ戻す。
+
+背景fillへ使用できる範囲と禁止する用途は、ルート`AGENTS.md`を正本とする。
 
 ## 一貫性と検証
 

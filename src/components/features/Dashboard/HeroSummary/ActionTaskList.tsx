@@ -163,7 +163,7 @@ const ActionTaskRow = ({ task, isFirst }: { task: ActionTask; isFirst: boolean }
           justify="center"
           flexShrink={0}
           borderWidth={task.key === "staff-registration-request" ? "1px" : 0}
-          borderColor={task.key === "staff-registration-request" ? "teal.200" : undefined}
+          borderColor={task.key === "staff-registration-request" ? "border.default" : undefined}
         >
           <Icon size={28} />
         </Flex>

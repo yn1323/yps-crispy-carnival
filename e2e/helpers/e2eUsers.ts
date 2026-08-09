@@ -9,29 +9,14 @@ const DEFAULT_E2E_CLERK_USER_EMAILS = [
   "e2e-user-6@test.com",
 ];
 const EXPECTED_E2E_USER_COUNT = 6;
+const CORE_E2E_USER_COUNT = 3;
 const E2E_WORKER_COUNT_ENV = "E2E_WORKERS";
 const CURRENT_E2E_USER_INDEX_ENV = "E2E_CURRENT_USER_INDEX";
-const E2E_ACTOR_USER_OFFSET = {
-  A: 0,
-  B: 1,
-  C: 2,
-} as const;
-const E2E_ACTOR_COUNT = Object.keys(E2E_ACTOR_USER_OFFSET).length;
-
-export type E2EActor = keyof typeof E2E_ACTOR_USER_OFFSET;
-
 export type E2EClerkUser = {
   index: number;
   email: string;
   storageStatePath: string;
   metaPath: string;
-};
-
-export type E2EActorPool = {
-  index: number;
-  A: E2EClerkUser;
-  B: E2EClerkUser;
-  C: E2EClerkUser;
 };
 
 export function parseE2EClerkUserEmails(raw = process.env.E2E_CLERK_USERS) {
@@ -63,20 +48,23 @@ export function getE2EClerkUsers(): E2EClerkUser[] {
   }));
 }
 
-export function getE2EWorkerCount(raw = process.env[E2E_WORKER_COUNT_ENV]) {
-  const userCount = getE2EClerkUsers().length;
-  const normalized = raw?.trim();
-  if (!normalized) return userCount;
-
-  const workerCount = Number(normalized);
-  if (!Number.isInteger(workerCount) || workerCount <= 0 || userCount % workerCount !== 0) {
-    throw new Error(`${E2E_WORKER_COUNT_ENV} must be a positive divisor of ${userCount}: ${raw}`);
-  }
-  return workerCount;
+export function getE2ECoreClerkUsers(): E2EClerkUser[] {
+  return getE2EClerkUsers().slice(0, CORE_E2E_USER_COUNT);
 }
 
-export function getE2EMultiActorWorkerCount() {
-  return getE2EClerkUsers().length / E2E_ACTOR_COUNT;
+export function getE2EReservedMultiActorClerkUsers(): E2EClerkUser[] {
+  return getE2EClerkUsers().slice(CORE_E2E_USER_COUNT);
+}
+
+export function getE2EWorkerCount(raw = process.env[E2E_WORKER_COUNT_ENV]) {
+  const normalized = raw?.trim();
+  if (!normalized) return CORE_E2E_USER_COUNT;
+
+  const workerCount = Number(normalized);
+  if (!Number.isInteger(workerCount) || workerCount <= 0 || workerCount > CORE_E2E_USER_COUNT) {
+    throw new Error(`${E2E_WORKER_COUNT_ENV} must be an integer between 1 and ${CORE_E2E_USER_COUNT}: ${raw}`);
+  }
+  return workerCount;
 }
 
 export function getE2EStorageStatePath(index: number) {
@@ -93,43 +81,15 @@ export function getE2EClerkUserForIndex(index: number): E2EClerkUser {
   return users[normalizedIndex];
 }
 
-export function getE2EClerkUserForWorkerTest(
-  parallelIndex: number,
-  workerCount: number,
-  testOrdinal: number,
-): E2EClerkUser {
-  const users = getE2EClerkUsers();
-  if (!Number.isInteger(workerCount) || workerCount <= 0 || users.length % workerCount !== 0) {
-    throw new Error(`E2E worker count must be a positive divisor of ${users.length}: ${workerCount}`);
+export function getE2EClerkUserForWorker(parallelIndex: number, workerCount: number): E2EClerkUser {
+  const users = getE2ECoreClerkUsers();
+  if (!Number.isInteger(workerCount) || workerCount <= 0 || workerCount > users.length) {
+    throw new Error(`E2E worker count must be an integer between 1 and ${users.length}: ${workerCount}`);
   }
   if (!Number.isInteger(parallelIndex) || parallelIndex < 0 || parallelIndex >= workerCount) {
     throw new Error(`E2E parallel index must be an integer between 0 and ${workerCount - 1}: ${parallelIndex}`);
   }
-  if (!Number.isInteger(testOrdinal) || testOrdinal < 0) {
-    throw new Error(`E2E test ordinal must be a non-negative integer: ${testOrdinal}`);
-  }
-
-  const usersPerWorker = users.length / workerCount;
-  const userIndex = parallelIndex + (testOrdinal % usersPerWorker) * workerCount;
-  return users[userIndex];
-}
-
-export function getE2EActorPool(poolIndex: number): E2EActorPool {
-  const users = getE2EClerkUsers();
-  const poolCount = users.length / E2E_ACTOR_COUNT;
-  assertE2EActorPoolIndex(poolIndex, poolCount);
-
-  const firstUserIndex = poolIndex * E2E_ACTOR_COUNT;
-  return {
-    index: poolIndex,
-    A: users[firstUserIndex + E2E_ACTOR_USER_OFFSET.A],
-    B: users[firstUserIndex + E2E_ACTOR_USER_OFFSET.B],
-    C: users[firstUserIndex + E2E_ACTOR_USER_OFFSET.C],
-  };
-}
-
-export function getE2EClerkUserForActor(actor: E2EActor, poolIndex: number): E2EClerkUser {
-  return getE2EActorPool(poolIndex)[actor];
+  return users[parallelIndex];
 }
 
 export function setCurrentE2EClerkUserIndex(index: number) {
@@ -154,10 +114,4 @@ function normalizeE2EUserIndex(index: number, userCount: number) {
     throw new Error(`E2E user index must be a non-negative integer: ${index}`);
   }
   return index % userCount;
-}
-
-function assertE2EActorPoolIndex(poolIndex: number, poolCount: number) {
-  if (!Number.isInteger(poolIndex) || poolIndex < 0 || poolIndex >= poolCount) {
-    throw new Error(`E2E actor pool index must be an integer between 0 and ${poolCount - 1}: ${poolIndex}`);
-  }
 }

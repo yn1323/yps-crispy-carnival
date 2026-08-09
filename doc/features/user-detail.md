@@ -9,18 +9,22 @@ Dashboardのスタッフ一覧とグループ設定のユーザー一覧は、�
 
 | 情報 | スコープ | 保存先 |
 |---|---|---|
-| 氏名とメールアドレス | グループ共通 | `organizationPeople` |
+| 氏名 | グループ共通 | `organizationPeople` |
+| シフト連絡先メールアドレス | グループ共通 | `organizationPeople`と、同じ人物に紐づく未削除`staffs` |
+| ログイン方法 | 利用者全体 | Clerk UserのEmailAddress、パスワード、ExternalAccount。この画面では変更しない |
 | 管理者権限 | グループ共通 | `organizationMembers` |
 | シフト対象設定 | 店舗別 | `staffs` |
 | LINE連携 | 店舗別 | `staffLineAccounts` |
 | 通知操作と通知履歴 | 店舗別 | 対象`staffId`に紐づく募集、Outbox、通知履歴 |
 
-氏名とメールアドレスの更新は、同じ人物に紐づく有効な全店舗のスタッフ行へ同期する。
+氏名とシフト連絡先の更新は、アカウント連携の有無にかかわらず、同じ人物に紐づく同じグループの有効な全店舗スタッフ行へ同期する。  権限を持つ管理者は本人と他者のどちらも編集できる。
+
+シフト連絡先の変更は、Clerkのログイン方法、`users.email`の初期snapshot、別グループの人物、グループの請求先を変更しない。
 ページ本文は、スタッフ情報を開くコンパクトな行、所属店舗一覧、ユーザー削除カードで構成する。
 所属店舗一覧には有効な`staffs`がある店舗だけを表示し、未所属店舗は表示しない。
 スタッフ情報の行から、共通プロフィールと管理者権限を扱うレスポンシブDialogを開く。
 Dialog下部は左に「キャンセル」、右に「変更を保存」を配置する。
-`FEATURE_MANAGER_INVITATION`が閉じている間も氏名とメールアドレスの編集は残し、管理者招待・交代・権限解除のセクションと招待中Badgeだけを非表示にする。
+`FEATURE_MANAGER_INVITATION`が閉じている間も氏名とシフト連絡先の編集は残し、管理者招待・交代・権限解除のセクションと招待中Badgeだけを非表示にする。
 グループからの削除は、所属店舗一覧の下にあるユーザー削除カードから確認Dialogを開く。
 `FEATURE_SHOP_ADDITION`が公開中なら、「店舗を追加」から稼働中かつ未所属の店舗だけを表示する追加Dialogを開く。
 閉じている間はボタン、空状態の操作案内、追加Dialogを描画せず、`panel=addShop`の直指定や古いcallbackからも追加処理を始めない。
@@ -38,7 +42,7 @@ Dialog下部は左に「キャンセル」、右に「変更を保存」を配�
 スタッフ詳細の`panel`は開いているDialogを表し、`basic`はスタッフ情報、`addShop`は店舗追加を開く。
 `panel`を省略したスタッフ詳細URLはDialogを開かないページ本体を表す。
 Dialogを閉じると`panel`をURLから外し、人物ID、店舗、戻り先、一覧表示件数は維持する。
-直接URLを開いた場合も、`panel`にスタッフ情報または店舗追加Dialogの状態を追従させる。
+直接URLを開いた場合も、`panel`にスタッフ情報または店舗追加Dialogの状態を追従させる。  旧URLの`panel=email`は通常のスタッフ詳細へ静かに収束させ、自動的なメール同期や削除を再開しない。
 ブラウザバックまたは画面内の閉じる操作でDialogを閉じた後は、履歴上の`panel`も除去し、別画面から戻ってもDialogを再表示しない。
 旧`tab`検索パラメータは受け付けず、スタッフ詳細の状態管理には使わない。
 
@@ -77,6 +81,8 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 - 存在しない人物、削除済み人物、別グループの人物には同じ「ユーザーを表示できません」を表示し、存在や所属を区別して漏らさない。
 - 対象店舗への管理アクセスがない、人物と店舗所属が一致しない、所属または店舗が削除済みの場合も、存在を区別しない最小情報のEmpty状態へ寄せる。
 - スタッフ情報Dialogと店舗追加Dialogは、PCではモーダル、SPではフルスクリーンで表示する。
+- アカウント連携済み・未連携、本人・他者を分けず、同じプロフィールフォームでシフト連絡先を編集する。
+- 本人が管理者の場合だけ、シフト連絡先メールアドレスの下に「シフト通知用先のメールアドレスです。」と「ログインで利用するメールはアカウント設定から設定してください。」を改行して表示し、「アカウント設定」をリンクにする。
 - 店舗別設定はPCとSPのどちらも通常のページとして表示し、Dialog用の固定高、入れ子スクロール、全画面モーダル用レイアウトを使わない。
 - 所属店舗一覧には未所属店舗を表示しない。
 - `FEATURE_SHOP_ADDITION`が公開中の場合だけ店舗追加のボタンとDialogを表示し、Dialogには`active`で未所属の店舗だけを表示する。
@@ -102,6 +108,8 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 - 店舗別APIは、対象スタッフと`targetShopId`の所属関係、人物との対応、削除状態、店舗状態をサーバー側で再検証する。
 - 権限のない店舗、不正な人物・店舗・スタッフの組み合わせ、削除済み対象は拒否するか、存在を区別できない最小情報のEmpty状態へ寄せる。
 - 所属店舗一覧から選ばれたことや、フロントエンドが保持する`selectedShopAtom`は認可根拠にしない。
+- プロフィール更新APIは、actorのグループ権限、personの所属、各staffのグループ・店舗・personの対応、グループ内の重複をサーバーで確認し、同じグループのpersonと未削除staffだけを一transactionで更新する。不整合な所属が1件でもあれば全体をfail-closedにし、`users.email`、Clerk、別グループ、請求先は更新しない。
+- Clerkのメール、`users.email`、シフト連絡先が異なる状態を正常として扱い、認証後アプリをブロックしたり自動上書きしたりしない。
 - 通知とLINE案内は既存のrate limit、再送quota、Outboxの冪等性と配送直前の再検証を維持する。確定シフトの個別再送は対象募集を受付時に固定したdurable fanoutとして処理し、中断後も同じoperationとdedupe keyで再開する。Outboxへの投入後は現在の割当を通知snapshotへ記録し、後続の差分再通知で同じ内容を重複送信しない。
 - メールアドレス、LINE token、連携URL、通知本文を新しいログへ出力しない。
 
@@ -121,7 +129,7 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 ### フロントエンド
 
 - `src/routes/_auth/dashboard.tsx`と`settings.tsx`：ユーザー一覧の`users`と`focus`を受け取るURL境界。
-- `src/routes/_auth/users.$personId.tsx`：人物IDと`shop`、スタッフ情報・店舗追加の`panel`、戻り先、出発元店舗、一覧表示件数を受け取るURL境界。
+- `src/routes/_auth/users.$personId.tsx`：人物IDと`shop`、スタッフ情報・店舗追加の`panel`、戻り先、出発元店舗、一覧表示件数を受け取るURL境界。旧`panel=email`は破棄する。
 - `src/routes/_auth/users.$personId_.shops.$targetShopId.tsx`：対象店舗IDと、出発元店舗・戻り先情報を受け取る店舗別設定のURL境界。
 - `src/pages/user-detail/`：詳細QueryとLoading、Not Found、正常表示の分岐。
 - `src/pages/user-shop-detail/`：`targetShopId`を明示した詳細QueryとLoading、Empty、正常表示の分岐。
@@ -141,7 +149,7 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 | `api.dashboard.queries.getDashboardStaffs` | `managerQuery` | 店舗スタッフと対応する`organizationPersonId`をページングして返す |
 | `api.dashboard.queries.getDashboardRecruitments` | `managerQuery` | `targetShopId`で指定した対象店舗の募集中シフトを取得する |
 | `api.dashboard.queries.getDashboardCurrentRecruitments` | `managerQuery` | `targetShopId`で指定した対象店舗の終了日が今日以降の確定シフトを取得する |
-| `api.organization.mutations.updatePersonProfile` | `authenticatedMutation` | グループ共通プロフィールを更新し、有効な店舗スタッフ行へ同期する |
+| `api.organization.mutations.updatePersonProfile` | `authenticatedMutation` | アカウント連携の有無にかかわらず、名前とシフト連絡先をグループ共通personと同じグループの未削除staffへ同期する |
 | `api.organizationInvitation.mutations.createForPerson` | `authenticatedMutation` | 公開中は人物IDと現在のメールアドレスへ固定して管理者招待を発行または再送し、ダークローンチ中は拒否する |
 | `api.organization.mutations.removeManagerRole` | `authenticatedMutation` | 人物とシフト記録を維持し、グループの管理者権限だけを外す。店舗所属がなければ管理アクセスを終了する |
 | `api.organization.mutations.removePersonFromShop` | `authenticatedMutation` | `targetShopId`で指定した店舗のスタッフ所属とアクセスだけを終了する |

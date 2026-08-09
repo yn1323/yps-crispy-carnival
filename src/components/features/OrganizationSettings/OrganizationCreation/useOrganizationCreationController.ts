@@ -1,9 +1,12 @@
 import { useMutation } from "convex/react";
+import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import type { ShopFormData } from "@/src/components/features/ShopForm";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { selectedShopAtom } from "@/src/stores/shop";
 import type { OrganizationCreationDialogState } from "./types";
 
 type Input = {
@@ -12,8 +15,10 @@ type Input = {
 };
 
 export function useOrganizationCreationController(input: Input) {
-  // グループ作成は選択中店舗に依存しないため、shopIdを注入しない素のmutationを使う。
+  // 新しいグループ自体は選択中店舗に属さないため、shop mutationにはしない。
+  // sourceShopIdは現在のcanonical personを安全に引き継ぐためだけに送る。
   const createOrganization = useMutation(api.setup.mutations.createOrganization);
+  const selectedShop = useAtomValue(selectedShopAtom);
   const [dialog, setDialog] = useState<OrganizationCreationDialogState | null>(null);
   const latestRef = useRef(input);
   latestRef.current = input;
@@ -33,6 +38,7 @@ export function useOrganizationCreationController(input: Input) {
     try {
       const { shopId } = await createOrganization({
         shopName: data.shopName,
+        ...(selectedShop ? { sourceShopId: selectedShop.shopId as Id<"shops"> } : {}),
         regularClosedDays: data.regularClosedDays,
         submissionPattern: data.submissionPattern,
         requestId: crypto.randomUUID(),

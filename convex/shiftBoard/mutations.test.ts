@@ -6,8 +6,11 @@ import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { seedLegacyShopMembership, seedManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { SHIFT_BOARD_STAFF_LIMIT } from "../constants";
-import { buildConfirmationSnapshotsForStaffs } from "../notification/confirmationSnapshots";
+import { SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT } from "../constants";
+import {
+  buildConfirmationSnapshotSignature,
+  buildConfirmationSnapshotsForStaffs,
+} from "../notification/confirmationSnapshots";
 import { type AssignmentIssueCode, parseShiftAssignmentValidationError } from "./validation";
 
 const CONFIRMATION_EMAIL_JOB = "notification/actions:sendShiftConfirmationEmails";
@@ -85,6 +88,7 @@ async function seedCurrentConfirmationSnapshots(
         positionId: assignment.positionId,
         ...(assignment.optionId ? { optionId: assignment.optionId } : {}),
       })),
+      true,
     );
     for (const snapshot of snapshots) {
       await ctx.db.insert("shiftConfirmationSnapshots", {
@@ -225,10 +229,14 @@ async function seedLineConfirmationWithFallback(
 describe("shiftBoard/mutations", () => {
   describe("saveShiftAssignments", () => {
     beforeEach(() => {
+      vi.stubEnv("ANALYTICS_SOURCE_CAPTURE_START_AT", "");
       vi.useFakeTimers();
       vi.setSystemTime(new Date("2026-01-20T00:00:00+09:00"));
     });
-    afterEach(() => vi.useRealTimers());
+    afterEach(() => {
+      vi.unstubAllEnvs();
+      vi.useRealTimers();
+    });
 
     it("未認証の場合エラーをthrow", async () => {
       const t = convexTest(schema, modules);
@@ -287,6 +295,189 @@ describe("shiftBoard/mutations", () => {
       expect(assignments[0].startTime).toBe("10:00");
     });
 
+    it("実defaultと省略defaultの完全隣接区間を一件で保存する", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
+      const positionId = await t.run(async (ctx) =>
+        ctx.db.insert("positions", {
+          shopId,
+          name: "シフト",
+          color: "#3b82f6",
+          sortOrder: 0,
+          isDefault: true,
+          isDeleted: false,
+        }),
+      );
+
+      await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
+        recruitmentId,
+        assignments: [
+          {
+            staffId: staffId1,
+            date: "2026-01-20",
+            startTime: "10:00",
+            endTime: "12:00",
+            positionId,
+          },
+          { staffId: staffId1, date: "2026-01-20", startTime: "12:00", endTime: "18:00" },
+        ],
+      });
+
+      const assignments = await t.run(async (ctx) =>
+        ctx.db
+          .query("shiftAssignments")
+          .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+          .collect(),
+      );
+      expect(assignments).toHaveLength(1);
+      expect(assignments[0]).toMatchObject({
+        staffId: staffId1,
+        date: "2026-01-20",
+        startTime: "10:00",
+        endTime: "18:00",
+        positionId,
+      });
+    });
+
+    it("他店舗positionと省略defaultの隣接入力は全体を副作用なく拒否する", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
+      const otherPositionId = await t.run(async (ctx) => {
+        const other = await seedManagerShop(ctx, {
+          subject: "other_position_manager",
+          email: "other-position-manager@example.com",
+          shopName: "他店舗position",
+        });
+        return await ctx.db.insert("positions", {
+          shopId: other.shopId,
+          name: "他店舗position",
+          color: "#ef4444",
+          sortOrder: 0,
+          isDefault: true,
+          isDeleted: false,
+        });
+      });
+
+      await expect(
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
+          recruitmentId,
+          assignments: [
+            {
+              staffId: staffId1,
+              date: "2026-01-20",
+              startTime: "10:00",
+              endTime: "12:00",
+              positionId: otherPositionId,
+            },
+            { staffId: staffId1, date: "2026-01-20", startTime: "12:00", endTime: "18:00" },
+          ],
+        }),
+      ).rejects.toThrow("Not found");
+
+      const state = await t.run(async (ctx) => ({
+        assignments: await ctx.db
+          .query("shiftAssignments")
+          .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+          .collect(),
+        recruitment: await ctx.db.get(recruitmentId),
+        ownPositions: await ctx.db
+          .query("positions")
+          .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
+          .collect(),
+      }));
+      expect(state.assignments).toEqual([]);
+      expect(state.recruitment?.draftSavedAt).toBeUndefined();
+      expect(state.ownPositions).toEqual([]);
+    });
+
+    it("保存済み割当が上限を超える場合は保存も確定も副作用なく拒否する", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        const positionId = await ctx.db.insert("positions", {
+          shopId,
+          name: "シフト",
+          color: "#3b82f6",
+          sortOrder: 0,
+          isDefault: true,
+          isDeleted: false,
+        });
+        for (let index = 0; index <= SHIFT_ASSIGNMENT_LIMIT; index += 1) {
+          await ctx.db.insert("shiftAssignments", {
+            recruitmentId,
+            staffId: staffId1,
+            date: "2026-01-20",
+            startTime: "10:00",
+            endTime: "11:00",
+            positionId,
+          });
+        }
+      });
+
+      await expect(
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
+          recruitmentId,
+          assignments: [],
+        }),
+      ).rejects.toThrow("保存済みシフト割当が上限を超えています");
+      await expect(
+        t.run(async (ctx) =>
+          ctx.db
+            .query("shiftAssignments")
+            .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+            .collect(),
+        ),
+      ).resolves.toHaveLength(SHIFT_ASSIGNMENT_LIMIT + 1);
+
+      await expect(
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          shopId,
+          recruitmentId,
+        }),
+      ).rejects.toThrow("保存済みシフト割当が上限を超えています");
+      const confirmationState = await t.run(async (ctx) => ({
+        recruitment: await ctx.db.get(recruitmentId),
+        operations: await ctx.db.query("notificationFanoutOperations").collect(),
+        jobs: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+          (job) => job.name === CONFIRMATION_EMAIL_JOB,
+        ),
+      }));
+      expect(confirmationState.recruitment?.status).toBe("open");
+      expect(confirmationState.operations).toEqual([]);
+      expect(confirmationState.jobs).toEqual([]);
+    });
+
+    it("入力割当が上限を超える場合は検証境界で副作用なく拒否する", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
+      const assignments = Array.from({ length: SHIFT_ASSIGNMENT_LIMIT + 1 }, () => ({
+        staffId: staffId1,
+        date: "2026-01-20",
+        startTime: "10:00",
+        endTime: "11:00",
+      }));
+
+      await expect(
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
+          recruitmentId,
+          assignments,
+        }),
+      ).rejects.toThrow("シフト割当が上限を超えています");
+      const state = await t.run(async (ctx) => ({
+        assignments: await ctx.db
+          .query("shiftAssignments")
+          .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+          .collect(),
+        recruitment: await ctx.db.get(recruitmentId),
+      }));
+      expect(state.assignments).toEqual([]);
+      expect(state.recruitment?.draftSavedAt).toBeUndefined();
+    });
+
     it("勤務区分IDつきのシフト割当を保存できる", async () => {
       const t = convexTest(schema, modules);
       const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
@@ -324,6 +515,30 @@ describe("shiftBoard/mutations", () => {
       );
       expect(assignments).toHaveLength(1);
       expect(assignments[0].optionId).toBe("morning");
+    });
+
+    it("日ごと入力方式では完全隣接区間を時間方式として統合しない", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
+      await t.run(async (ctx) => await ctx.db.patch(recruitmentId, { submissionPattern: { kind: "dateOnly" } }));
+
+      await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
+        recruitmentId,
+        assignments: [
+          { staffId: staffId1, date: "2026-01-20", startTime: "09:00", endTime: "12:00" },
+          { staffId: staffId1, date: "2026-01-20", startTime: "12:00", endTime: "22:00" },
+        ],
+      });
+
+      await expect(
+        t.run(async (ctx) =>
+          ctx.db
+            .query("shiftAssignments")
+            .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+            .collect(),
+        ),
+      ).resolves.toHaveLength(2);
     });
 
     it("不正な日付・時刻形式のシフト割当は構造化エラーで拒否する", async () => {
@@ -886,10 +1101,14 @@ describe("shiftBoard/mutations", () => {
     // scheduler.runAfter(0, ...) による "use node" アクションがテスト環境で
     // トランザクション外書き込みエラーを起こすため、タイマーを止めて実行を抑制する
     beforeEach(() => {
+      vi.stubEnv("ANALYTICS_SOURCE_CAPTURE_START_AT", "");
       vi.useFakeTimers();
       vi.setSystemTime(new Date("2026-01-20T00:00:00+09:00"));
     });
-    afterEach(() => vi.useRealTimers());
+    afterEach(() => {
+      vi.unstubAllEnvs();
+      vi.useRealTimers();
+    });
 
     it("未認証の場合エラーをthrow", async () => {
       const t = convexTest(schema, modules);
@@ -1298,6 +1517,242 @@ describe("shiftBoard/mutations", () => {
       );
       expect(result).toEqual({ status: "no_changes", notifiedStaffCount: 0 });
       expect(confirmationJobs).toHaveLength(1);
+    });
+
+    it("完了済みresendのcurrent snapshotが正しくOutboxがpendingなら補助再送を作らない", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, recruitmentId, staffId1, staffId2 } = await setupTestData(t);
+      const asManager = t.withIdentity({ subject: "user_manager" });
+
+      await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
+        recruitmentId,
+        assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" }],
+      });
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, shopId });
+      await seedCurrentConfirmationSnapshots(t, recruitmentId, [staffId1, staffId2]);
+      await seedConfirmationEmailOutboxes(t, recruitmentId, [staffId1], "sent");
+      await seedLineConfirmationWithFallback(t, recruitmentId, staffId2, "sent");
+
+      await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
+        recruitmentId,
+        assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "11:00", endTime: "18:00" }],
+      });
+      await expect(
+        asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          shopId,
+          recruitmentId,
+          intent: "resend",
+        }),
+      ).resolves.toEqual({ status: "scheduled", notifiedStaffCount: 1 });
+
+      await t.run(async (ctx) => {
+        const snapshots = await Promise.all(
+          [staffId1, staffId2].map((staffId) =>
+            ctx.db
+              .query("shiftConfirmationSnapshots")
+              .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
+              .unique(),
+          ),
+        );
+        await Promise.all(snapshots.flatMap((snapshot) => (snapshot ? [ctx.db.delete(snapshot._id)] : [])));
+      });
+      await seedCurrentConfirmationSnapshots(t, recruitmentId, [staffId1, staffId2]);
+      await seedConfirmationEmailOutboxes(t, recruitmentId, [staffId1], "pending");
+      const completedResendOperation = await t.run(async (ctx) => {
+        const recruitment = await ctx.db.get(recruitmentId);
+        const operationKey = recruitment?.lastConfirmationNotificationOperationKey;
+        if (!operationKey) throw new Error("completed resend operation key was not recorded");
+        const operation = await ctx.db
+          .query("notificationFanoutOperations")
+          .withIndex("by_operationKey", (q) => q.eq("operationKey", operationKey))
+          .unique();
+        if (!operation) throw new Error("completed resend operation was not created");
+        await ctx.db.patch(operation._id, {
+          status: "completed",
+          cursor: operation.targetStaffIds.length,
+          completedAt: Date.now(),
+          updatedAt: Date.now(),
+          scheduledFunctionId: undefined,
+        });
+        return operation;
+      });
+
+      await expect(
+        asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          shopId,
+          recruitmentId,
+          intent: "resend",
+        }),
+      ).resolves.toEqual({ status: "no_changes", notifiedStaffCount: 0 });
+
+      const supplementalState = await t.run(async (ctx) => {
+        const operations = (await ctx.db.query("notificationFanoutOperations").collect()).filter(
+          (operation) => operation.supersedesActiveOperations === false,
+        );
+        const operationIds = new Set(operations.map((operation) => operation._id));
+        const jobs = (await ctx.db.system.query("_scheduled_functions").collect()).filter((job) =>
+          operationIds.has(job.args[0]?.fanoutOperationId),
+        );
+        return { operations, jobs };
+      });
+      expect(completedResendOperation.purpose).toBe("confirmation_resend");
+      expect(supplementalState).toEqual({ operations: [], jobs: [] });
+    });
+
+    it("旧split snapshotは意味比較し、壊れたsignatureは再通知対象にする", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, recruitmentId, staffId1, staffId2 } = await setupTestData(t);
+      const asManager = t.withIdentity({ subject: "user_manager" });
+
+      await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
+        recruitmentId,
+        assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" }],
+      });
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, shopId });
+      await seedCurrentConfirmationSnapshots(t, recruitmentId, [staffId1, staffId2]);
+      await seedConfirmationEmailOutboxes(t, recruitmentId, [staffId1], "sent");
+      await seedLineConfirmationWithFallback(t, recruitmentId, staffId2, "sent");
+
+      const snapshotId = await t.run(async (ctx) => {
+        const assignment = await ctx.db
+          .query("shiftAssignments")
+          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId1))
+          .unique();
+        const snapshot = await ctx.db
+          .query("shiftConfirmationSnapshots")
+          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId1))
+          .unique();
+        if (!assignment || !snapshot) throw new Error("snapshot fixture was not created");
+        const legacyAssignments = [
+          {
+            date: assignment.date,
+            startTime: "10:00",
+            endTime: "12:00",
+            positionId: assignment.positionId,
+          },
+          {
+            date: assignment.date,
+            startTime: "12:00",
+            endTime: "18:00",
+            positionId: assignment.positionId,
+          },
+        ];
+        await ctx.db.patch(snapshot._id, {
+          assignments: legacyAssignments,
+          signature: buildConfirmationSnapshotSignature(legacyAssignments),
+        });
+        return snapshot._id;
+      });
+
+      await expect(
+        asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          shopId,
+          recruitmentId,
+          intent: "resend",
+        }),
+      ).resolves.toEqual({ status: "no_changes", notifiedStaffCount: 0 });
+
+      await t.run(async (ctx) => await ctx.db.patch(snapshotId, { signature: "broken-signature" }));
+      await expect(
+        asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          shopId,
+          recruitmentId,
+          intent: "resend",
+        }),
+      ).resolves.toEqual({ status: "scheduled", notifiedStaffCount: 1 });
+      const resendTargets = await t.run(async (ctx) =>
+        (await ctx.db.system.query("_scheduled_functions").collect())
+          .filter((job) => job.name === CONFIRMATION_EMAIL_JOB && job.args[0]?.isResend)
+          .map((job) => job.args[0]?.targetStaffIds),
+      );
+      expect(resendTargets).toEqual([[staffId1]]);
+
+      await seedConfirmationEmailOutboxes(t, recruitmentId, [staffId1], "sent");
+      const completedResend = await t.run(async (ctx) => {
+        const recruitment = await ctx.db.get(recruitmentId);
+        const assignment = await ctx.db
+          .query("shiftAssignments")
+          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId1))
+          .unique();
+        const snapshot = await ctx.db.get(snapshotId);
+        const operationKey = recruitment?.lastConfirmationNotificationOperationKey;
+        const operation = operationKey
+          ? await ctx.db
+              .query("notificationFanoutOperations")
+              .withIndex("by_operationKey", (q) => q.eq("operationKey", operationKey))
+              .unique()
+          : null;
+        if (!recruitment || !assignment || !snapshot || !operation) {
+          throw new Error("completed resend fixture was not created");
+        }
+        const canonicalAssignments = [
+          {
+            date: assignment.date,
+            startTime: assignment.startTime,
+            endTime: assignment.endTime,
+            positionId: assignment.positionId,
+          },
+        ];
+        await ctx.db.patch(snapshot._id, {
+          assignments: canonicalAssignments,
+          signature: buildConfirmationSnapshotSignature(canonicalAssignments),
+        });
+        await ctx.db.patch(operation._id, {
+          status: "completed",
+          cursor: operation.targetStaffIds.length,
+          completedAt: Date.now(),
+          updatedAt: Date.now(),
+          scheduledFunctionId: undefined,
+        });
+        return { operationId: operation._id, operationKey: operation.operationKey };
+      });
+      await t.run(async (ctx) => await ctx.db.patch(snapshotId, { signature: "broken-again" }));
+
+      await expect(
+        asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          shopId,
+          recruitmentId,
+          intent: "resend",
+        }),
+      ).resolves.toEqual({ status: "scheduled", notifiedStaffCount: 1 });
+      await expect(
+        asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          shopId,
+          recruitmentId,
+          intent: "resend",
+        }),
+      ).resolves.toEqual({ status: "no_changes", notifiedStaffCount: 0 });
+
+      const recoveryState = await t.run(async (ctx) => {
+        const recruitment = await ctx.db.get(recruitmentId);
+        const supplementalOperations = (await ctx.db.query("notificationFanoutOperations").collect()).filter(
+          (operation) =>
+            operation.supersedesActiveOperations === false &&
+            operation.confirmationOperationKeyAtOrigin === completedResend.operationKey,
+        );
+        const jobs = (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+          (job) =>
+            job.name === CONFIRMATION_EMAIL_JOB &&
+            supplementalOperations.some((operation) => operation._id === job.args[0]?.fanoutOperationId),
+        );
+        return { recruitment, supplementalOperations, jobs };
+      });
+      expect(recoveryState.recruitment?.lastConfirmationNotificationOperationKey).toBe(completedResend.operationKey);
+      expect(recoveryState.supplementalOperations).toHaveLength(1);
+      expect(recoveryState.supplementalOperations[0]).toMatchObject({
+        purpose: "confirmation_resend",
+        targetStaffIds: [staffId1],
+        status: "pending",
+      });
+      expect(recoveryState.jobs).toHaveLength(1);
+      expect(recoveryState.jobs[0]?.args[0]).toMatchObject({
+        recruitmentId,
+        isResend: true,
+        fanoutOperationId: recoveryState.supplementalOperations[0]?._id,
+      });
     });
 
     it("snapshotがない既存の確定済み募集では初回再通知だけ全員を対象にする", async () => {

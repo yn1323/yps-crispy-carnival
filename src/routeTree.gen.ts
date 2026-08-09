@@ -27,6 +27,7 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as AuthAccountRouteImport } from './routes/_auth/account'
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
 import { Route as AuthSettingsRouteImport } from './routes/_auth/settings'
 import { Route as ArticlesIndexRouteImport } from './routes/articles.index'
@@ -137,6 +138,11 @@ const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthAccountRoute = AuthAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => AuthRoute,
 } as any)
 const AuthDashboardRoute = AuthDashboardRouteImport.update({
   id: '/dashboard',
@@ -275,6 +281,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/sso-callback': typeof SsoCallbackRoute
   '/terms': typeof TermsRoute
+  '/account': typeof AuthAccountRoute
   '/dashboard': typeof AuthDashboardRoute
   '/settings': typeof AuthSettingsRoute
   '/articles/$slug': typeof ArticlesSlugRoute
@@ -314,6 +321,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/sso-callback': typeof SsoCallbackRoute
   '/terms': typeof TermsRoute
+  '/account': typeof AuthAccountRoute
   '/dashboard': typeof AuthDashboardRoute
   '/settings': typeof AuthSettingsRoute
   '/articles/$slug': typeof ArticlesSlugRoute
@@ -357,6 +365,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/sso-callback': typeof SsoCallbackRoute
   '/terms': typeof TermsRoute
+  '/_auth/account': typeof AuthAccountRoute
   '/_auth/dashboard': typeof AuthDashboardRoute
   '/_auth/settings': typeof AuthSettingsRoute
   '/articles/$slug': typeof ArticlesSlugRoute
@@ -399,6 +408,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/sso-callback'
     | '/terms'
+    | '/account'
     | '/dashboard'
     | '/settings'
     | '/articles/$slug'
@@ -438,6 +448,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/sso-callback'
     | '/terms'
+    | '/account'
     | '/dashboard'
     | '/settings'
     | '/articles/$slug'
@@ -480,6 +491,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/sso-callback'
     | '/terms'
+    | '/_auth/account'
     | '/_auth/dashboard'
     | '/_auth/settings'
     | '/articles/$slug'
@@ -659,6 +671,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_auth/account': {
+      id: '/_auth/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AuthAccountRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/dashboard': {
       id: '/_auth/dashboard'
       path: '/dashboard'
@@ -817,6 +836,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthRouteChildren {
+  AuthAccountRoute: typeof AuthAccountRoute
   AuthDashboardRoute: typeof AuthDashboardRoute
   AuthSettingsRoute: typeof AuthSettingsRoute
   AuthShiftboardRecruitmentIdRoute: typeof AuthShiftboardRecruitmentIdRoute
@@ -826,6 +846,7 @@ interface AuthRouteChildren {
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
+  AuthAccountRoute: AuthAccountRoute,
   AuthDashboardRoute: AuthDashboardRoute,
   AuthSettingsRoute: AuthSettingsRoute,
   AuthShiftboardRecruitmentIdRoute: AuthShiftboardRecruitmentIdRoute,

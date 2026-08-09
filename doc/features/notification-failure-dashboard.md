@@ -2,7 +2,7 @@
 
 送信できなかった通知を `notificationFailureInbox` から店舗単位で読み取り、Dashboard の「TODO」から再通知または「無視する」を受け付ける機能。再通知は配送完了ではなく、Outbox または再通知 action に載った時点で受付済みとして扱う。
 
-マネージャーがDashboardを開かないと不達に気づけないため、open 不達通知がある店舗のmanager usersへ、毎日 JST 17:00 に「Dashboardから再通知してください」というリマインダー（日次ダイジェスト）を送る。
+マネージャーがDashboardを開かないと不達に気づけないため、open 不達通知がある店舗の有効管理者へ、毎日 JST 17:00 に「Dashboardから再通知してください」というリマインダー（日次ダイジェスト）を送る。
 
 ## 関連ファイル
 
@@ -19,13 +19,16 @@
 - `convex/notificationOutbox/resendWebhook.ts` — Resend provider の配送遅延・失敗を `notificationFailureInbox` に反映する
 - `convex/notification/actions.ts` / `convex/notification/reminderActions.ts` — enqueue/preparation 失敗の再通知を1スタッフ・1募集単位でOutboxに載せる
 - `convex/notificationOutbox/failureReminderActions.ts` / `failureReminderQueries.ts` — open 不達通知がある店舗のmanagerへ日次リマインダーを送る（cron `notification-failure-reminder-digest`）
-- `convex/_lib/shopManagerRecipients.ts` — 店舗のmanager usersを通知受信者として組み立てる共通ヘルパー（承認依頼ダイジェストと共有）
+- `convex/_lib/shopManagerRecipients.ts` — グループ人物を正本に店舗の有効管理者とLINE連携を解決する共通ヘルパー（承認依頼ダイジェストと共有）
 
 ## リマインダー（日次ダイジェスト）
 
 - cron `notification-failure-reminder-digest`（JST 17:00 = UTC 08:00）が `internal.notificationOutbox.failureReminderActions.sendFailureReminderDigest` を起動する。
 - `status = open` かつ最新失敗（`lastFailedAt`）が直近24時間以内（`NOTIFICATION_FAILURE_REMINDER_WINDOW_MS`）の不達通知がある店舗だけを対象にする。失敗が再発するたびに対象期間を再計算し、日次cronでは通常1回だけ送る。
-- 配信先は店舗のmanager users全員。LINE連携済みなら LINE（Quota超過時のemailフォールバック付き）、それ以外はメール。
+- 配信先は店舗の有効管理者全員。
+- `organizationPeople.name`と`organizationPeople.email`を通知先の正本とし、移行途中でpersonだけ作成済みの場合も同じuserとグループのpersonを一意に確認して使う。person自体が存在しない旧`shopMembers`だけ`users`へfallbackする。
+- 管理者本人を同じ店舗のスタッフとして一意に解決でき、LINEアカウントが有効かつ友だち状態である場合だけLINEへ送る。
+- LINE未連携・友だち解除・Quota超過時は現在のシフト連絡先へメールで送り、配送直前に宛先と所属を再確認する。
 - メール / LINE のCTAは通知元店舗を `shop` クエリで指定したDashboard URLを使う。
 - このリマインダー通知自体の配送が失敗しても`notificationFailureInbox`には記録しない。通知contextのallowlistで抑止し、メタ失敗でInboxを汚さない。
 
@@ -47,7 +50,7 @@
 | `POST /resend/webhook` | HTTP action | Resendの`email.delivery_delayed` / `email.failed` / `email.bounced` / `email.suppressed`を受信し、open不達通知に反映する |
 | `internal.notificationOutbox.failureReminderActions.sendFailureReminderDigest` | internalAction | 毎日17:00 JSTに open 不達通知がある店舗のmanagerへリマインダーを送る |
 | `internal.notificationOutbox.failureReminderQueries.listShopIdsWithRecentOpenFailuresPage` | internalQuery | 直近24時間以内に失敗した open 不達通知がある店舗IDをページングで返す |
-| `internal.notificationOutbox.failureReminderQueries.getFailureReminderTargetForShop` | internalQuery | 店舗名、ダッシュボードURL、通知対象manager users、LINE連携状態を返す |
+| `internal.notificationOutbox.failureReminderQueries.getFailureReminderTargetForShop` | internalQuery | 店舗名、ダッシュボードURL、有効管理者のシフト連絡先、同一人物の店舗スタッフに紐づくLINE連携状態を返す |
 
 ## 表示ルール
 

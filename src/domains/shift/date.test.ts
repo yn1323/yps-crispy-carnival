@@ -9,6 +9,7 @@ import {
   getWeekStartDate,
   isDateInRange,
   isPastShiftPeriod,
+  isValidIsoDateString,
   pruneDatesInRange,
   resolveInitialSelectedDate,
   todayJST,
@@ -28,6 +29,13 @@ describe("date helpers", () => {
   test("日付が範囲内か判定できる", () => {
     expect(isDateInRange("2026-06-02", "2026-06-01", "2026-06-03")).toBe(true);
     expect(isDateInRange("2026-06-04", "2026-06-01", "2026-06-03")).toBe(false);
+  });
+
+  test("実在するISO日付だけを受け入れる", () => {
+    expect(isValidIsoDateString("2024-02-29")).toBe(true);
+    expect(isValidIsoDateString("2026-02-29")).toBe(false);
+    expect(isValidIsoDateString("2026-02-30")).toBe(false);
+    expect(isValidIsoDateString("2026-2-03")).toBe(false);
   });
 
   test("シフト期間の終了日を過ぎたら過去シフトとして扱う", () => {

@@ -87,7 +87,7 @@ export function createArticleMdxComponents(resolveImageSrc: ResolveImageSrc): Md
       <Box
         as="blockquote"
         borderLeftWidth="4px"
-        borderColor="teal.300"
+        borderColor="teal.500"
         bg="gray.50"
         px={{ base: 4, lg: 5 }}
         py={4}

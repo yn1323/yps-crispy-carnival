@@ -78,8 +78,8 @@ export function UserDetailView({ data, showShopMembershipAddition, activePanel, 
           secondary={
             <Text fontSize="sm" color="fg.muted" lineHeight="tall">
               {data.managerInvitationState.kind === "hidden"
-                ? "名前・メールアドレスを管理します"
-                : "名前・メールアドレス・権限を管理します"}
+                ? "名前・シフト連絡先を管理します"
+                : "名前・シフト連絡先・権限を管理します"}
             </Text>
           }
           onClick={actions.onOpenBasic}
@@ -173,7 +173,7 @@ function BasicInformationIcon() {
     <Flex
       boxSize="40px"
       borderRadius="full"
-      bg="teal.50"
+      bg="teal.100"
       color="teal.700"
       align="center"
       justify="center"

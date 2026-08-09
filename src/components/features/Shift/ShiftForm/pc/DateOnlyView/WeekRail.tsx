@@ -40,10 +40,10 @@ export const WeekRail = ({ weeks, selectedIndex, issueCounts, warningCounts, onS
           textAlign="left"
           borderBottomWidth="1px"
           borderColor="gray.100"
-          bg={selected ? "teal.50" : "white"}
+          bg={selected ? "gray.100" : "white"}
           color={selected ? "teal.800" : "gray.700"}
           cursor="pointer"
-          _hover={{ bg: selected ? "teal.50" : "gray.50" }}
+          _hover={{ bg: selected ? "gray.200" : "gray.50" }}
           _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "-2px" }}
         >
           <Flex align="center" gap={2}>

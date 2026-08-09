@@ -1,5 +1,5 @@
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
-import { buildAssignments } from "@/src/domains/shift/buildAssignments";
+import { type BuildAssignmentsOptions, buildAssignments } from "@/src/domains/shift/buildAssignments";
 import type { ShiftData } from "@/src/domains/shift/types";
 
 type Params = {
@@ -7,19 +7,24 @@ type Params = {
   currentShifts: ShiftData[];
   baselineShifts: ShiftData[];
   closedDateSet: ReadonlySet<string>;
+  buildAssignmentsOptions: BuildAssignmentsOptions;
   isConfirmed: boolean;
 };
 
 const cellKey = (staffId: string, date: string) => `${staffId}\u0000${date}`;
 
-const assignmentSignatureByCell = (shifts: ShiftData[], closedDateSet: ReadonlySet<string>) => {
+const assignmentSignatureByCell = (
+  shifts: ShiftData[],
+  closedDateSet: ReadonlySet<string>,
+  buildAssignmentsOptions: BuildAssignmentsOptions,
+) => {
   const signatures = new Map<string, string[]>();
 
   for (const shift of shifts) {
     signatures.set(cellKey(shift.staffId, shift.date), []);
   }
 
-  for (const assignment of buildAssignments(shifts, closedDateSet)) {
+  for (const assignment of buildAssignments(shifts, closedDateSet, buildAssignmentsOptions)) {
     const key = cellKey(assignment.staffId, assignment.date);
     const segments = signatures.get(key) ?? [];
     segments.push(
@@ -35,9 +40,10 @@ const changedCellKeys = (
   currentShifts: ShiftData[],
   baselineShifts: ShiftData[],
   closedDateSet: ReadonlySet<string>,
+  buildAssignmentsOptions: BuildAssignmentsOptions,
 ) => {
-  const current = assignmentSignatureByCell(currentShifts, closedDateSet);
-  const baseline = assignmentSignatureByCell(baselineShifts, closedDateSet);
+  const current = assignmentSignatureByCell(currentShifts, closedDateSet, buildAssignmentsOptions);
+  const baseline = assignmentSignatureByCell(baselineShifts, closedDateSet, buildAssignmentsOptions);
   const keys = new Set([...current.keys(), ...baseline.keys()]);
 
   return new Set([...keys].filter((key) => current.get(key) !== baseline.get(key)));
@@ -48,11 +54,12 @@ export const visibleAssignmentWarnings = ({
   currentShifts,
   baselineShifts,
   closedDateSet,
+  buildAssignmentsOptions,
   isConfirmed,
 }: Params): AssignmentWarning[] => {
   if (!isConfirmed) return warnings;
 
-  const changed = changedCellKeys(currentShifts, baselineShifts, closedDateSet);
+  const changed = changedCellKeys(currentShifts, baselineShifts, closedDateSet, buildAssignmentsOptions);
   if (changed.size === 0) return [];
 
   return warnings.filter((warning) => changed.has(cellKey(warning.staffId, warning.date)));

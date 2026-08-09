@@ -1,19 +1,21 @@
 ---
 name: create-pr
-description: ユーザーが`$create-pr`を明示したとき、コミット済みかつpush済みのブランチ差分から日本語のPull Requestを作成する。通常のPR相談、本文案だけの依頼、未コミット変更の処理では自動的に使わない。
+description: ユーザーが`$create-pr`を明示したとき、コミット済みの現在ブランチを必要に応じてpushし、日本語のPull Requestを作成する。通常のPR相談、本文案だけの依頼、未コミット変更の処理では自動的に使わない。
 ---
 
 # Pull Requestを作成する
 
 このスキルは、ユーザーが `$create-pr` を明示した場合だけ使う。
 
-## 前提条件
+## 前提条件とpush権限
 
 - 対象変更がコミット済みである。
-- 現在のブランチがpush済みである。
 - GitHubリポジトリと連携済みである。
+- `$create-pr`の明示実行は、Pull Request作成に必要な現在ブランチの通常pushを許可したものとして扱う。
 
-満たさない場合は、勝手にコミットまたはpushせず、不足を報告する。
+未コミット変更は勝手にコミットせず、Pull Requestへ含まれないことを報告する。
+force push、rebase、mergeは行わない。
+通常pushが拒否された場合は停止し、理由を報告する。
 
 ## 併用スキル
 
@@ -37,6 +39,8 @@ git branch --show-current
 gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'
 ```
 
+現在のブランチがデフォルトブランチと同じ場合は、pushもPull Request作成も行わず停止する。
+
 ### 3. 差分と検証結果を確認する
 
 デフォルトブランチとの差分コミットを取得:
@@ -59,10 +63,34 @@ git diff <default-branch>...HEAD --stat
 PR本文は、レビュアーが差分を読む前に「なぜ」「何が変わったか」「どう確認されたか」を把握するために書く。
 差分やコミットログの再説明にしない。
 
-### 5. PRを作成する
+### 5. 現在のブランチをpushする
+
+upstreamとpush状況を確認する。
 
 ```bash
-gh pr create --title "<タイトル>" --body "<本文>"
+git status -sb
+git rev-parse --abbrev-ref --symbolic-full-name '@{u}'
+```
+
+upstreamがある場合は通常pushする。
+
+```bash
+git push
+```
+
+upstreamがない場合は、現在のブランチを`origin`へpushしてupstreamを設定する。
+
+```bash
+git push -u origin <current-branch>
+```
+
+push済みなら追加操作は不要である。
+`--force`または`--force-with-lease`は使用しない。
+
+### 6. PRを作成する
+
+```bash
+gh pr create --base "<default-branch>" --head "<current-branch>" --title "<タイトル>" --body "<本文>"
 ```
 
 ## PR本文フォーマット（日本語で出力）

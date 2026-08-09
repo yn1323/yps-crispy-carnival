@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchCycle } from "@/api/analyticsClient";
+import { useReportAnalyticsEnvironment } from "@/app/analyticsEnvironment";
 import { CycleDetailView } from "@/features/analytics/CycleDetailView";
 import {
-  AnalyticsEntityPending,
+  AnalyticsEntityUnavailable,
   AnalyticsPageError,
   AnalyticsPageLoading,
   analyticsErrorMessage,
@@ -13,6 +14,7 @@ export function CycleDetailPage({ recruitmentId, shopId }: { recruitmentId: stri
     queryFn: () => fetchCycle(shopId, recruitmentId),
     queryKey: ["analytics", "cycle", shopId, recruitmentId],
   });
+  useReportAnalyticsEnvironment(query.data?.env.label);
   if (query.isLoading)
     return <AnalyticsPageLoading description="シフト周期の集計値を読み込んでいます。" title="シフト周期詳細" />;
   if (query.error) {
@@ -28,9 +30,8 @@ export function CycleDetailPage({ recruitmentId, shopId }: { recruitmentId: stri
   const response = query.data.data;
   if (!response.cycle) {
     return (
-      <AnalyticsEntityPending
+      <AnalyticsEntityUnavailable
         description="提出母集団、通知、確定結果を確認します。"
-        envLabel={query.data.env.label}
         metadata={response.metadata}
         title="シフト周期詳細"
       />
@@ -48,7 +49,6 @@ export function CycleDetailPage({ recruitmentId, shopId }: { recruitmentId: stri
         createdAt: cycle.createdAt,
         creationLeadTimeMs: cycle.creationLeadTimeMs,
         deadlineSubmissionRate: cycle.deadlineSubmission.rate,
-        envLabel: query.data.env.label,
         finalSubmissionRate: cycle.finalSubmission.rate,
         metadata: response.metadata,
         notificationFailedCount: cycle.notificationFailedCount,

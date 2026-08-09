@@ -1,17 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import {
   fetchHealth,
   fetchMilestones,
-  fetchOrganizations,
   fetchOverview,
   fetchSegments,
   fetchShops,
   fetchTrends,
 } from "@/api/analyticsClient";
+import { useReportAnalyticsEnvironment } from "@/app/analyticsEnvironment";
 import {
+  availabilityCompleteness,
+  COUNT_TREND_LABELS,
+  COUNT_TREND_METRICS,
   healthCountItems,
   milestoneItems,
-  organizationRowModel,
   RATE_TREND_LABELS,
   RATE_TREND_METRICS,
   segmentRowModel,
@@ -31,26 +34,26 @@ import {
 import type { OverviewViewModel } from "@/features/analytics/viewModels";
 
 export function OverviewPage({ navigate }: { navigate: (href: string) => void }) {
-  const { search, update } = useAnalyticsSearch();
+  const { applyMetadataDefaults, search, update } = useAnalyticsSearch();
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const overviewRequest = overviewParams(search);
   const scopedSeriesRequest = trendsParams(search);
-  const trendsRequest = { ...scopedSeriesRequest, metrics: [...RATE_TREND_METRICS] };
-  const organizationsRequest = {
-    direction: "desc" as const,
-    from: search.from,
-    limit: 8,
-    sort: "registeredAt" as const,
-    to: search.to,
+  const trendsRequest = {
+    ...scopedSeriesRequest,
+    metrics: [...RATE_TREND_METRICS, ...COUNT_TREND_METRICS],
   };
   const attentionShopsRequest = {
     direction: "asc" as const,
     from: search.from,
     health: "needsAttention" as const,
-    limit: 8,
+    limit: 5,
     sort: "latestActivityAt" as const,
     to: search.to,
   };
-  const segmentsRequest = { ...segmentsParams(search), completeness: undefined };
+  const segmentsRequest = {
+    ...segmentsParams({ ...search, dimension: search.dimension ?? "registrationCohort" }),
+    completeness: undefined,
+  };
   const overviewQuery = useQuery({
     queryFn: () => fetchOverview(overviewRequest),
     queryKey: ["analytics", "overview", overviewRequest],
@@ -67,30 +70,30 @@ export function OverviewPage({ navigate }: { navigate: (href: string) => void })
     queryFn: () => fetchHealth(scopedSeriesRequest),
     queryKey: ["analytics", "health", scopedSeriesRequest],
   });
-  const organizationsQuery = useQuery({
-    queryFn: () => fetchOrganizations(organizationsRequest),
-    queryKey: ["analytics", "organizations", "overview", organizationsRequest],
-  });
   const attentionShopsQuery = useQuery({
     queryFn: () => fetchShops(attentionShopsRequest),
     queryKey: ["analytics", "shops", "attention", attentionShopsRequest],
   });
   const segmentsQuery = useQuery({
+    enabled: detailsOpen,
     queryFn: () => fetchSegments(segmentsRequest),
     queryKey: ["analytics", "segments", segmentsRequest],
   });
+  useReportAnalyticsEnvironment(overviewQuery.data?.env.label);
+  const metadata = overviewQuery.data?.data.metadata;
+  useEffect(() => {
+    applyMetadataDefaults(metadata);
+  }, [applyMetadataDefaults, metadata]);
 
   if (overviewQuery.isLoading) {
-    return (
-      <AnalyticsPageLoading description="KPI、導入到達度、health signalを読み込んでいます。" title="全体サマリー" />
-    );
+    return <AnalyticsPageLoading description="利用状況と要確認店舗を読み込んでいます。" title="サマリー" />;
   }
   if (overviewQuery.error) {
     return (
       <AnalyticsPageError
         description="主要KPIの推移から、導入到達度と現在の運用課題を掘り下げます。"
         message={analyticsErrorMessage(overviewQuery.error)}
-        title="全体サマリー"
+        title="サマリー"
       />
     );
   }
@@ -99,29 +102,31 @@ export function OverviewPage({ navigate }: { navigate: (href: string) => void })
       <AnalyticsPageError
         description="主要KPIの推移から、導入到達度と現在の運用課題を掘り下げます。"
         message="分析データの形式が正しくありません。"
-        title="全体サマリー"
+        title="サマリー"
       />
     );
   }
 
   const overview = overviewQuery.data.data;
   const milestones = milestonesQuery.data?.data;
-  const completeHealthPoints = healthQuery.data?.data.series.filter((point) => point.completeness === "complete") ?? [];
+  const healthPoints = healthQuery.data?.data.series ?? [];
+  const completeHealthPoints = healthPoints.filter((point) => point.completeness === "complete");
+  const latestHealthPoint = healthPoints.at(-1);
   const previousHealthCounts =
-    healthQuery.data?.data.metadata.completeness === "complete" ? (completeHealthPoints.at(-2)?.counts ?? null) : null;
+    healthQuery.data?.data.metadata.availability === "available" && latestHealthPoint?.completeness === "complete"
+      ? (completeHealthPoints.at(-2)?.counts ?? null)
+      : null;
   const extraMetadata = [
     trendsQuery.data?.data.metadata,
     milestones?.metadata,
     healthQuery.data?.data.metadata,
-    organizationsQuery.data?.data.metadata,
     attentionShopsQuery.data?.data.metadata,
-    segmentsQuery.data?.data.metadata,
+    detailsOpen ? segmentsQuery.data?.data.metadata : undefined,
   ].flatMap((metadata) => (metadata ? [metadata] : []));
   const errors: Partial<Record<OverviewSection, string>> = {
     attentionShops: attentionShopsQuery.error ? analyticsErrorMessage(attentionShopsQuery.error) : undefined,
     health: healthQuery.error ? analyticsErrorMessage(healthQuery.error) : undefined,
     milestones: milestonesQuery.error ? analyticsErrorMessage(milestonesQuery.error) : undefined,
-    organizations: organizationsQuery.error ? analyticsErrorMessage(organizationsQuery.error) : undefined,
     segments: segmentsQuery.error ? analyticsErrorMessage(segmentsQuery.error) : undefined,
     trend: trendsQuery.error ? analyticsErrorMessage(trendsQuery.error) : undefined,
   };
@@ -129,24 +134,32 @@ export function OverviewPage({ navigate }: { navigate: (href: string) => void })
     trendsQuery.isLoading ? "trend" : null,
     milestonesQuery.isLoading ? "milestones" : null,
     healthQuery.isLoading ? "health" : null,
-    organizationsQuery.isLoading ? "organizations" : null,
     attentionShopsQuery.isLoading ? "attentionShops" : null,
-    segmentsQuery.isLoading ? "segments" : null,
+    detailsOpen && segmentsQuery.isLoading ? "segments" : null,
   ].filter((section): section is OverviewSection => section !== null);
   const model: OverviewViewModel = {
     attentionShops: attentionShopsQuery.data?.data.rows.map(shopRowModel) ?? [],
-    envLabel: overviewQuery.data.env.label,
-    healthCompleteness: healthQuery.data?.data.metadata.completeness ?? "pending",
+    countTrend: trendChartData(trendsQuery.data?.data.series ?? [], [...COUNT_TREND_METRICS]),
+    countTrendKeys: [...COUNT_TREND_LABELS],
+    healthCompleteness:
+      latestHealthPoint?.completeness ??
+      availabilityCompleteness(healthQuery.data?.data.metadata.availability ?? "unavailable"),
     healthSignals: healthCountItems(healthQuery.data?.data.current ?? null, previousHealthCounts),
-    kpis: serviceKpis(overview.current, overview.comparison, overview.metadata.completeness),
+    kpis: serviceKpis(overview.current, overview.comparison, overview.metadata.availability),
     metadata: mergeMetadata(overview.metadata, ...extraMetadata),
     milestones: milestoneItems(
       milestones?.current ?? null,
       milestones?.currentRates ?? null,
-      milestones?.metadata.completeness ?? "pending",
+      milestones?.series.at(-1)?.completeness ??
+        availabilityCompleteness(milestones?.metadata.availability ?? "unavailable"),
     ),
-    organizations: organizationsQuery.data?.data.rows.map(organizationRowModel) ?? [],
     segments: segmentsQuery.data?.data.rows.map(segmentRowModel) ?? [],
+    shopCounts: {
+      active: overview.current?.counts.activeShopCount ?? null,
+      completeness: overview.current?.completeness ?? availabilityCompleteness(overview.metadata.availability),
+      kpiEligible: overview.current?.counts.kpiEligibleShopCount ?? null,
+      total: overview.current?.counts.shopCount ?? null,
+    },
     trend: trendChartData(trendsQuery.data?.data.series ?? [], [...RATE_TREND_METRICS]),
     trendKeys: [...RATE_TREND_LABELS],
   };
@@ -158,11 +171,12 @@ export function OverviewPage({ navigate }: { navigate: (href: string) => void })
   return (
     <OverviewView
       attentionShopsPageInfo={attentionShopsQuery.data?.data.metadata.pageInfo ?? emptyPageInfo}
+      detailsOpen={detailsOpen}
       errors={errors}
       loading={loading}
       model={model}
       navigate={navigate}
-      organizationsPageInfo={organizationsQuery.data?.data.metadata.pageInfo ?? emptyPageInfo}
+      onToggleDetails={() => setDetailsOpen((current) => !current)}
       search={search}
       segmentPageInfo={segmentsQuery.data?.data.metadata.pageInfo ?? emptyPageInfo}
       updateSearch={update}

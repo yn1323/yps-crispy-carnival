@@ -8,7 +8,8 @@ type AuthLoadingViewProps = {
 export function AuthLoadingView({ mode }: AuthLoadingViewProps) {
   const title =
     mode === "login" ? "シフトリにログイン" : mode === "signup" ? "シフトリをはじめる" : "パスワードを再設定";
-  const description = mode === "forgot-password" ? "登録済みのメールアドレスに再設定コードを送信します。" : undefined;
+  const description =
+    mode === "forgot-password" ? "ログインに使うメールアドレスに再設定コードを送信します。" : undefined;
 
   return (
     <AuthShell title={title} description={description} isInitialLoading>

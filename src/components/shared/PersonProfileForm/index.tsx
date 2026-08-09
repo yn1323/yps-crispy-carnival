@@ -1,5 +1,6 @@
 import { Field, Input, Stack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
+import type { ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import type { z } from "zod";
 import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH } from "@/convex/constants";
@@ -10,10 +11,18 @@ export type PersonProfileFormData = z.infer<typeof editStaffSchema>;
 type Props = {
   formId: string;
   initialValues: PersonProfileFormData;
+  emailLabel?: string;
+  emailHelperText?: ReactNode;
   onSubmit: (data: PersonProfileFormData) => void | Promise<void>;
 };
 
-export function PersonProfileForm({ formId, initialValues, onSubmit }: Props) {
+export function PersonProfileForm({
+  formId,
+  initialValues,
+  emailLabel = "メールアドレス",
+  emailHelperText,
+  onSubmit,
+}: Props) {
   const {
     register,
     handleSubmit,
@@ -33,13 +42,14 @@ export function PersonProfileForm({ formId, initialValues, onSubmit }: Props) {
         </Field.Root>
 
         <Field.Root invalid={!!errors.email}>
-          <Field.Label>メールアドレス</Field.Label>
+          <Field.Label>{emailLabel}</Field.Label>
           <Input
             type="email"
             placeholder="例：hanako@example.com"
             maxLength={EMAIL_MAX_LENGTH}
             {...register("email")}
           />
+          {emailHelperText && <Field.HelperText>{emailHelperText}</Field.HelperText>}
           {errors.email && <Field.ErrorText>{errors.email.message}</Field.ErrorText>}
         </Field.Root>
       </Stack>

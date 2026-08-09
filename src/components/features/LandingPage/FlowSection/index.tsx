@@ -65,7 +65,7 @@ const FlowStep = ({
         insetInlineEnd="-18px"
         hideBelow="md"
         boxSize={9}
-        color="teal.400"
+        color="teal.600"
       />
     )}
 

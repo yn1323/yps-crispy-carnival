@@ -145,6 +145,7 @@ export function ManagerInvitationDialog({
             }}
             colorPalette="teal"
             variant="line"
+            lazyMount
           >
             <Tabs.List overflowX="auto" overflowY="hidden" whiteSpace="nowrap" borderBottomWidth="1px">
               <Tabs.Trigger value="staff" flexShrink={0} disabled={isRunning}>
@@ -207,10 +208,10 @@ export function ManagerInvitationDialog({
                           fontWeight="normal"
                           borderRadius={0}
                           variant="ghost"
-                          bg={isSelected ? "teal.50" : "white"}
+                          bg={isSelected ? "gray.50" : "white"}
                           cursor="pointer"
                           disabled={isRunning}
-                          _hover={{ bg: isSelected ? "teal.50" : "blackAlpha.50" }}
+                          _hover={{ bg: isSelected ? "gray.100" : "blackAlpha.50" }}
                           _focusVisible={{ outline: "2px solid", outlineColor: "teal.500", outlineOffset: "-2px" }}
                           _disabled={{ cursor: "not-allowed", opacity: 0.6 }}
                           onClick={() => setSelectedPersonId(candidate.id)}

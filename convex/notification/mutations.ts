@@ -16,7 +16,10 @@ import {
 import { isShiftTargetStaff } from "../staff/service";
 import {
   buildConfirmationSnapshotSignature,
+  canonicalizeConfirmationSnapshotAssignments,
   confirmationSnapshotAssignmentValidator,
+  confirmationSnapshotMatchesAssignments,
+  hasValidConfirmationSnapshotSignature,
   normalizeConfirmationSnapshotAssignments,
   upsertConfirmationSnapshotRecord,
 } from "./confirmationSnapshots";
@@ -235,8 +238,8 @@ export const upsertConfirmationSnapshot = internalMutation({
       return null;
     }
 
-    const normalizedAssignments = normalizeConfirmationSnapshotAssignments(args.assignments);
-    if (args.signature !== buildConfirmationSnapshotSignature(normalizedAssignments)) return null;
+    const suppliedSnapshot = { assignments: args.assignments, signature: args.signature };
+    if (!hasValidConfirmationSnapshotSignature(suppliedSnapshot)) return null;
 
     const currentAssignments = await ctx.db
       .query("shiftAssignments")
@@ -244,16 +247,17 @@ export const upsertConfirmationSnapshot = internalMutation({
         q.eq("recruitmentId", args.recruitmentId).eq("staffId", args.staffId),
       )
       .collect();
-    const currentSnapshotAssignments = normalizeConfirmationSnapshotAssignments(
-      currentAssignments.map((assignment) => ({
-        date: assignment.date,
-        startTime: assignment.startTime,
-        endTime: assignment.endTime,
-        positionId: assignment.positionId,
-        ...(assignment.optionId ? { optionId: assignment.optionId } : {}),
-      })),
-    );
-    if (args.signature !== buildConfirmationSnapshotSignature(currentSnapshotAssignments)) return null;
+    const currentSnapshotAssignments = currentAssignments.map((assignment) => ({
+      date: assignment.date,
+      startTime: assignment.startTime,
+      endTime: assignment.endTime,
+      positionId: assignment.positionId,
+      ...(assignment.optionId !== undefined ? { optionId: assignment.optionId } : {}),
+    }));
+    const canonicalizeTime = recruitment.submissionPattern.kind === "time";
+    if (!confirmationSnapshotMatchesAssignments(suppliedSnapshot, currentSnapshotAssignments, canonicalizeTime)) {
+      return null;
+    }
 
     const operationKey = recruitment.lastConfirmationNotificationOperationKey;
     if (!operationKey) return null;
@@ -293,14 +297,26 @@ export const upsertConfirmationSnapshot = internalMutation({
         q.eq("recruitmentId", args.recruitmentId).eq("staffId", args.staffId),
       )
       .first();
-    if (existingSnapshot?.signature === args.signature) return existingSnapshot._id;
+    const canonicalAssignments = canonicalizeTime
+      ? canonicalizeConfirmationSnapshotAssignments(args.assignments)
+      : normalizeConfirmationSnapshotAssignments(args.assignments);
+    const canonicalSignature = buildConfirmationSnapshotSignature(canonicalAssignments);
+    if (
+      existingSnapshot &&
+      hasValidConfirmationSnapshotSignature(existingSnapshot) &&
+      existingSnapshot.signature === canonicalSignature &&
+      (!canonicalizeTime ||
+        confirmationSnapshotMatchesAssignments(existingSnapshot, canonicalAssignments, canonicalizeTime))
+    ) {
+      return existingSnapshot._id;
+    }
 
     return await upsertConfirmationSnapshotRecord(ctx, {
       recruitmentId: args.recruitmentId,
       staffId: args.staffId,
-      signature: args.signature,
-      assignments: normalizedAssignments,
+      assignments: canonicalAssignments,
       sentAt: args.sentAt,
+      canonicalizeTime,
     });
   },
 });

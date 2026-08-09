@@ -194,7 +194,14 @@ export const NotificationFailureDialogContent = ({
 };
 
 const NotificationKindBadge = ({ failure }: { failure: DashboardNotificationFailure }) => (
-  <Badge colorPalette={kindPalette(failure.notificationKind)} variant="subtle" borderRadius="full" px={2.5} py={1}>
+  <Badge
+    colorPalette={kindPalette(failure.notificationKind)}
+    variant="subtle"
+    bg={failure.notificationKind === "recruitment" ? "teal.100" : undefined}
+    borderRadius="full"
+    px={2.5}
+    py={1}
+  >
     {failure.notificationKindLabel}
   </Badge>
 );

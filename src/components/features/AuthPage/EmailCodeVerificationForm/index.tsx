@@ -7,7 +7,7 @@ import { AuthError } from "../AuthFormControls";
 import { type EmailVerificationValues, emailVerificationSchema } from "./schema";
 
 type EmailCodeVerificationFormProps = {
-  description: ReactNode;
+  description?: ReactNode;
   errorMessage?: string;
   infoMessage?: string;
   isSubmitting?: boolean;
@@ -36,10 +36,12 @@ export function EmailCodeVerificationForm({
   return (
     <Stack as="form" gap={5} onSubmit={handleSubmit(onSubmit)}>
       <AuthError message={errorMessage} />
-      <Alert.Root status="info" borderRadius="lg">
-        <Alert.Indicator />
-        <Alert.Description whiteSpace="pre-line">{description}</Alert.Description>
-      </Alert.Root>
+      {description ? (
+        <Alert.Root status="info" borderRadius="lg">
+          <Alert.Indicator />
+          <Alert.Description whiteSpace="pre-line">{description}</Alert.Description>
+        </Alert.Root>
+      ) : null}
       {infoMessage && (
         <Alert.Root status="success" borderRadius="lg">
           <Alert.Indicator />

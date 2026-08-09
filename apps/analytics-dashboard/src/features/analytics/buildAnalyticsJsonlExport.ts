@@ -66,6 +66,7 @@ type ExportProgress = (message: string) => void;
 type JsonlRecord = Record<string, unknown>;
 type DataWithMetadata = { metadata: AnalyticsResponseMetadata };
 type SnapshotAnchor = {
+  availability: "available";
   asOf: number | null;
   dataStartDate: string | null;
   environmentLabel: string;
@@ -266,11 +267,11 @@ function cycleRecord(row: AnalyticsCycleRowDto): JsonlRecord {
 
 function exportMetadata(metadata: AnalyticsResponseMetadata) {
   return {
+    availability: metadata.availability,
     asOf: metadata.asOf,
     dataStartDate: metadata.dataStartDate,
     latestCompleteSnapshotDate: metadata.latestCompleteSnapshotDate,
     computedAt: metadata.computedAt,
-    completeness: metadata.completeness,
     warnings: metadata.warnings,
     pageInfo: {
       isDone: metadata.pageInfo.isDone,
@@ -298,6 +299,7 @@ function assertSnapshot(response: AnalyticsApiEnvelope<DataWithMetadata>, anchor
   const metadata = response.data.metadata;
   if (
     response.env.label !== anchor.environmentLabel ||
+    metadata.availability !== anchor.availability ||
     metadata.asOf !== anchor.asOf ||
     metadata.dataStartDate !== anchor.dataStartDate ||
     metadata.latestCompleteSnapshotDate !== anchor.latestCompleteSnapshotDate
@@ -381,6 +383,7 @@ function manifestRecord(
       segmentDimension: dimension ?? null,
     },
     pointInTime: {
+      availability: anchor.availability,
       asOf: anchor.asOf,
       dataStartDate: anchor.dataStartDate,
       latestCompleteSnapshotDate: anchor.latestCompleteSnapshotDate,
@@ -396,7 +399,8 @@ function manifestRecord(
       segmentKpi: hasEntityScope ? "グループ・店舗scope非対応のため非出力" : "segmentDimensionを適用",
     },
     interpretation: {
-      completeness: "completeは完全、partialは一部集計、unavailableは算出不可、pendingは初回構築または集計待ちです。",
+      availability: "availableのrequestだけを出力します。unavailableな夜間集計や欠損期間は出力しません。",
+      completeness: "row固有のcompleteは完全、partialは一部集計、unavailableは算出不可です。",
       rates: "率はrateだけでなくnumeratorとdenominatorを併記しています。店舗率の単純平均ではありません。",
       joins: "organizationId、shopId、recruitmentIdで関連recordを結合してください。",
     },
@@ -442,7 +446,13 @@ export async function buildAnalyticsJsonlExport(
       to: search.to,
     }),
   );
+  if (overview.data.metadata.availability !== "available") {
+    throw new AnalyticsExportError(
+      "分析データを利用できないため出力できません。夜間集計の状態と選択期間を確認してください。",
+    );
+  }
   const anchor: SnapshotAnchor = {
+    availability: overview.data.metadata.availability,
     asOf: overview.data.metadata.asOf,
     dataStartDate: overview.data.metadata.dataStartDate,
     environmentLabel: overview.env.label,

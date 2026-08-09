@@ -23,6 +23,9 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - `convex/_lib/resend.ts` — Resend 送信間隔・retry header 対応・idempotency key 指定
 - `convex/_lib/resendWebhookSignature.ts` — Resend / Svix webhook 署名検証
 - `convex/_lib/lineClient.ts` — LINE Push message送信、`X-Line-Retry-Key` 付与、エラー分類
+- `convex/_lib/shopManagerRecipients.ts` — グループ人物を正本に店舗の有効管理者とLINE連携を解決する
+- `convex/_lib/notificationDeliveryQueries.ts` — dry-run判定を現在の管理者連絡先で行う
+- `convex/_lib/shiftAssignmentNormalization.ts` — 時間入力方式の確定通知とsnapshotが使うread-time正規化
 - `convex/notification/templates.ts` — LINE Push payload の text / Flex message 型と通知文面builder
 - `convex/notification/actions.ts` / `convex/notification/reminderActions.ts` — 募集開始・確定・再発行・催促通知の enqueue
 - `convex/line/actions.ts` — LINE連携依頼メールの enqueue
@@ -85,6 +88,7 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - `DEBUG_NOTIFY_FAIL` に空でない値がある場合、メール/LINE送信は dry-run より優先して非リトライの失敗にする。FailureInbox の確認用デバッグスイッチとして扱い、実送信は行わない。
 - `dedupeKey` が同じ active ジョブ（`pending` / `processing`）は重複作成しない。
 - 募集・確定fanoutは対象スタッフを最大40人で固定し、10人ずつ処理する。確定通知の各batchは`targetStaffIds`ごとの`by_recruitmentId_staffId` indexだけを読み、募集全体のassignmentを毎回走査しない。
+- 時間入力方式の新しい確定通知は、同一スタッフ・同一日・同一ポジションの完全隣接assignmentだけをread-timeで一つの時間帯へ統合する。  正の空白、異なるポジション、option付き割当、overlap、不正値は自動統合しない。  この読み込みで既存`shiftAssignments`は書き換えない。
 - 募集・確定のdurable fanoutは `fanoutTargetKey`（semantic operation × staff）でchannelをまたいで同じOutboxを再利用する。`sent` / `failed` / `cancelled`後やemail/LINE選択の変更後にactionが再開しても、outbox ID由来のprovider idempotency keyを変えない。Widen前のrowはemail/LINE両方の旧dedupe keyを照合し、`fanoutTargetKey`と`fanoutOperationId`をlazy付与する。
 - 確定fanoutの新規Outbox作成は、その本文に対応する`shiftConfirmationSnapshots`更新と同じtransactionで行う。通常のdedupe時は現在のsnapshotを上書きせず、先に固定済みのOutbox Aへ再開時のBを誤対応させない。例外としてatomic導入前の現在canonical Outboxにsnapshotだけが欠落した場合は、rolling互換のevidence gateが現在の割当・operation・Outboxの一致を確認できたときだけ修復する。
 - `fanoutOperationId`を持つOutboxはprovider呼び出し直前にoperation、募集、店舗、対象スタッフを再照合する。確定通知は募集の`lastConfirmationNotificationOperationKey`と一致する最新世代だけを許可し、完走済みでも旧世代なら`notification_superseded`でcancelする。
@@ -93,6 +97,15 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - 確定通知のview linkは同じoperation × staffでtokenを再利用する。link作成後からOutbox作成前に24時間を超えて中断した場合だけ同じtokenの期限を延長し、Outbox作成後は保存済みpayloadとのURL不一致を避けるため延長しない。
 - `recruitmentId`を持つ通知はprovider呼び出し直前に募集の存在、論理削除、スタッフのshift対象性を再確認し、削除済みなら`recruitment_inactive`、対象外なら`recipient_inactive`でcancelする。
 - worker の高頻度な status 更新と衝突しないよう、`enqueue` は重複排除に必要な `dedupeKey` 範囲だけを読む。
+
+## 管理者通知の宛先
+
+- 現行のグループ所属では、`organizationPeople.name`と`organizationPeople.email`を管理者向け業務通知の正本とする。移行途中でperson作成後かつ`organizationMembers`作成前でも、同じuserとグループのpersonを一意に確認できる場合はpersonを使う。
+- person自体がまだ存在しない旧`shopMembers`だけ、移行互換として`users.name`と`users.email`へfallbackする。personが重複または不整合な場合はusersへ戻さずfail-closedにする。
+- LINE通知は、管理者と同じ人物に紐づく対象店舗の有効スタッフを一意に解決でき、現在のLINEアカウントと送信先が一致する場合だけ配送する。
+- 管理者向けメールはprovider呼び出し直前にグループ人物の現在のメールアドレスを再確認し、enqueue時の宛先が古い場合は`recipient_inactive`でcancelする。
+- シフトリから有効管理者へ送る課金関連メールもグループ人物の連絡先を使い、Stripeが請求書やカード関連を送る`organizations.billingEmail`とは分ける。
+- Clerkのログイン用メールアドレスは通知先の正本として参照しない。
 
 ## 配送イベントログ（`notificationDeliveryEvents`）
 
@@ -142,7 +155,7 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - `notificationFanoutOperations.supersedesActiveOperations`は個別再送導入時のoptional wideningである。旧rowは従来挙動を表す`true`へm030で補完する。`false`の個別再送だけが持つ二つのbaselineは条件付きfieldのまま維持し、欠損rowはreadinessでfail closedに確認する。
 - `magicLinks.notificationOperationKey` と `notificationOutbox.fanoutTargetKey` / `fanoutOperationId` はoptional wideningとする。旧view linkへ誤ったoperationを割り当てる方が危険なため一括backfillは行わず、旧Outboxは再開時にemail/LINE両方の既存dedupe keyを照合してtarget keyとoperation IDをlazy付与する。旧scheduled actionが残っていないことと、optional field未設定の新規fanout link/Outboxが0件であることを確認できた後にだけnarrowを検討する。
 - `notificationFanoutOperations.scheduledFunctionId`もoptional wideningとし、既存operationに一括backfillしない。回復cronが予約漏れ・失敗済みscheduler rowだけを再予約してIDを保存し、生存中のpending / in-progress scheduler rowは重ねない。batch完了時はlease回収予約をcancelしてから次batchを予約する。
-- rolling deployでは旧`sendCurrentShiftConfirmationForStaff` action名・旧query return shape・旧`upsertConfirmationSnapshot` mutation名を1互換期間残す。pendingの旧actionは新しいdurable fanoutへ移す。in-progress旧actionのsnapshot mutationは、現在の募集がcleanで、渡されたsignatureが現在の割当と一致し、最新確定operation×staffのcanonical Outboxが実在する場合だけ互換snapshotを保存する。受付時baselineを復元できない旧`manualConfirmation` Outboxは、enqueue時とprovider呼び出し直前の両方で`notification_superseded`へfail closedする。
+- rolling deployでは旧`sendCurrentShiftConfirmationForStaff` action名・旧query return shape・旧`upsertConfirmationSnapshot` mutation名を1互換期間残す。pendingの旧actionは新しいdurable fanoutへ移す。in-progress旧actionのsnapshot mutationは、渡されたraw assignmentsと従来signatureの整合性を先に検証する。  時間入力方式はその後に保存済みと現在の割当をsemantic canonicalizeし、splitとmergedの表現差だけなら同値とする。  壊れたsignatureは同値とせず、新しいsnapshotはcanonical assignmentsから従来方式のsignatureを再計算して保存する。  最新確定operation×staffのcanonical Outboxが実在する場合だけ互換snapshotを保存し、受付時baselineを復元できない旧`manualConfirmation` Outboxは、enqueue時とprovider呼び出し直前の両方で`notification_superseded`へfail closedする。  作成済みOutboxのpayload、dedupe key、fanout operation、provider idempotency keyは書き換えない。
 - `m019`、`m020`、`m024`、`m030`、`m037`は`@convex-dev/migrations`のcursor / batchを使う。各rowのmarkerまたは現在のscopeを確認してpatchするため、停止後のresumeと再実行はidempotentである。
 
 deploy前後の確認は次の順で行う。

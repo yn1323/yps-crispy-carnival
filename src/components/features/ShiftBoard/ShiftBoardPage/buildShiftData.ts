@@ -1,4 +1,5 @@
 import type { Id } from "@/convex/_generated/dataModel";
+import { canonicalizeTimeAssignments } from "@/src/domains/shift/buildAssignments";
 import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import { resolveDisplayShiftLine } from "@/src/domains/shift/resolveDisplayShiftLine";
 import { minutesToTime } from "@/src/domains/shift/time";
@@ -82,7 +83,11 @@ export const buildShiftData = (data: ShiftBoardData, staffs: StaffType[], dates:
     string,
     Array<{ startTime: string; endTime: string; positionId: Id<"positions">; optionId: string | null }>
   >();
-  for (const assignment of data.shiftAssignments) {
+  const displayAssignments =
+    data.submissionPattern.kind === "time"
+      ? canonicalizeTimeAssignments(data.shiftAssignments, defaultPosition?._id)
+      : data.shiftAssignments;
+  for (const assignment of displayAssignments) {
     const key = `${assignment.staffId}-${assignment.date}`;
     const assignments = assignmentMap.get(key) ?? [];
     assignments.push({

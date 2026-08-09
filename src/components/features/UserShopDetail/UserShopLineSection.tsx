@@ -1,4 +1,4 @@
-import { Box, Heading, HStack, Stack, Text } from "@chakra-ui/react";
+import { Alert, Box, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { LuMail, LuMessageCircle, LuQrCode } from "react-icons/lu";
 import { LineLinkQrDialog } from "@/src/components/features/Line";
@@ -44,25 +44,33 @@ export function UserShopLineSection({
         </Text>
       </Stack>
 
-      <Box
-        borderWidth="1px"
-        borderColor={lineStatus.isActive ? "teal.100" : "blackAlpha.100"}
-        bg={lineStatus.isActive ? "teal.50/60" : "blackAlpha.50"}
-        borderRadius="md"
-        p={3}
-      >
-        <Stack gap={1}>
-          <HStack gap={2}>
-            <LuMessageCircle aria-hidden />
-            <Text fontWeight="semibold">{lineStatus.label}</Text>
-          </HStack>
-          {lineStatus.description && (
-            <Text fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
-              {lineStatus.description}
-            </Text>
-          )}
-        </Stack>
-      </Box>
+      {lineStatus.isActive ? (
+        <Alert.Root status="success" borderRadius="md" alignItems="flex-start" p={3}>
+          <Alert.Indicator mt={1} />
+          <Alert.Content>
+            <Alert.Title>{lineStatus.label}</Alert.Title>
+            {lineStatus.description && (
+              <Alert.Description fontSize="sm" lineHeight="tall" whiteSpace="pre-line">
+                {lineStatus.description}
+              </Alert.Description>
+            )}
+          </Alert.Content>
+        </Alert.Root>
+      ) : (
+        <Box borderWidth="1px" borderColor="border.default" bg="blackAlpha.50" borderRadius="md" p={3}>
+          <Stack gap={1}>
+            <HStack gap={2}>
+              <LuMessageCircle aria-hidden />
+              <Text fontWeight="semibold">{lineStatus.label}</Text>
+            </HStack>
+            {lineStatus.description && (
+              <Text fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
+                {lineStatus.description}
+              </Text>
+            )}
+          </Stack>
+        </Box>
+      )}
 
       {!isLineActive && (
         <fieldset disabled={isReadOnly} style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}>

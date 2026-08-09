@@ -18,6 +18,7 @@ export const AuthenticatedHeader = () => {
     hasSelectedShop &&
     pathname !== "/dashboard" &&
     pathname !== "/settings" &&
+    pathname !== "/account" &&
     !pathname.startsWith("/shops/") &&
     !pathname.startsWith("/users/");
 

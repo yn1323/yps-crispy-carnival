@@ -25,3 +25,16 @@ export const PrefilledFromAuth: Story = {
     },
   },
 };
+
+export const Mobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: {
+    viewport: { value: "mobile2", isRotated: false },
+  },
+  args: {
+    defaultValues: {
+      name: "山田 太郎",
+      email: "yamada@example.com",
+    },
+  },
+};

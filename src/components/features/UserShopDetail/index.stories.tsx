@@ -33,11 +33,17 @@ const membership: UserShopDetailMembership = {
   line: { isLinked: false, isFollowing: false },
 };
 
+const lineLinkedMembership: UserShopDetailMembership = {
+  ...membership,
+  line: { isLinked: true, isFollowing: true },
+};
+
 const data: UserShopDetailData = {
   person: {
     id: personId,
     name: "田中 花子",
     email: "hanako.tanaka@example.com",
+    hasLinkedAccount: false,
   },
   isSelf: false,
   managerRole: "none",
@@ -59,7 +65,7 @@ const notificationItems: StaffNotificationHistoryItem[] = [
     requestedAt: new Date("2026-07-19T01:00:00Z").getTime(),
     sentAt: new Date("2026-07-19T01:00:10Z").getTime(),
     channel: "line",
-    displayTitle: "7月後半のシフト募集のお知らせ",
+    displayTitle: "シフト募集のお知らせ 7/21(火)〜7/31(金)",
     displayStatus: "sent",
   },
   {
@@ -200,6 +206,51 @@ export const Loading: Story = {
   render: () => <UserShopDetailSkeleton />,
 };
 
+function NotificationLoadingHarness() {
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  return (
+    <>
+      <button type="button" onClick={() => setIsLoaded(true)}>
+        通知情報の取得を完了
+      </button>
+      <UserShopDetailView
+        data={data}
+        membership={membership}
+        isStoreReadOnly={false}
+        showMembershipRemoval
+        notificationHistory={isLoaded ? notificationHistory : null}
+        state={{
+          ...baseState,
+          notifications: {
+            ...baseState.notifications,
+            isLoading: !isLoaded,
+            openRecruitments: isLoaded ? baseState.notifications.openRecruitments : [],
+            currentRecruitments: isLoaded ? baseState.notifications.currentRecruitments : [],
+          },
+        }}
+        actions={baseActions}
+      />
+    </>
+  );
+}
+
+export const NotificationLoadingBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <NotificationLoadingHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole("heading", { name: "LINE連携" })).toBeInTheDocument();
+    await expect(canvas.getByLabelText("通知情報を読み込み中")).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "通知情報の取得を完了" }));
+
+    await expect(await canvas.findByRole("button", { name: "募集中のシフトを再送する" })).toBeEnabled();
+    await expect(canvas.queryByLabelText("通知情報を読み込み中")).not.toBeInTheDocument();
+    await expect(canvas.getByRole("heading", { name: "LINE連携" })).toBeInTheDocument();
+  },
+};
+
 function InteractionHarness() {
   const [showQr, setShowQr] = useState(false);
   const [isSendingRecruitments, setIsSendingRecruitments] = useState(false);
@@ -275,11 +326,13 @@ export const LineQrDisplayBehavior: Story = {
 };
 
 export const LineLinked: Story = {
-  args: {
-    membership: {
-      ...membership,
-      line: { isLinked: true, isFollowing: true },
-    },
+  args: { membership: lineLinkedMembership },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const status = await canvas.findByText("LINE連携済み");
+
+    await expect(status).toBeVisible();
+    await expect(canvas.findByText("この店舗のシフト関連通知をLINEで受け取れます。")).resolves.toBeVisible();
   },
 };
 

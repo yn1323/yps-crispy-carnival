@@ -256,7 +256,7 @@ function getRecruitmentMetaLabel(recruitment: UserShopDetailRecruitment, today: 
 
 function NotificationSkeleton() {
   return (
-    <Stack gap={5} aria-label="通知情報を読み込み中">
+    <Stack gap={5} aria-label="通知情報を読み込み中" aria-busy="true">
       {Array.from({ length: 2 }).map((_, sectionIndex) => (
         <Stack key={sectionIndex} gap={3}>
           <Flex justify="space-between" gap={4}>

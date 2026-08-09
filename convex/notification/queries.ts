@@ -11,6 +11,7 @@ import {
   getSubmitLinkCutoff,
   todayJST,
 } from "../_lib/dateFormat";
+import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
 import { buildShiftTimeLabel } from "../_lib/time";
 import {
   CURRENT_SHIFT_NOTIFICATION_LIMIT,
@@ -23,6 +24,7 @@ import { isShiftTargetStaff } from "../staff/service";
 import {
   buildConfirmationSnapshotSignature,
   type ConfirmationSnapshotAssignment,
+  canonicalizeConfirmationSnapshotAssignments,
   normalizeConfirmationSnapshotAssignments,
 } from "./confirmationSnapshots";
 
@@ -43,6 +45,38 @@ type ConfirmationStaffEntry = {
   snapshotSignature: string;
 };
 
+async function getConfirmationAssignments(
+  ctx: QueryCtx,
+  recruitmentId: Id<"recruitments">,
+  targetStaffIds?: readonly Id<"staffs">[],
+) {
+  if (!targetStaffIds) {
+    const assignments = await ctx.db
+      .query("shiftAssignments")
+      .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+      .take(SHIFT_ASSIGNMENT_LIMIT + 1);
+    if (assignments.length > SHIFT_ASSIGNMENT_LIMIT) {
+      throw new Error("Shift assignment scope exceeds the supported limit");
+    }
+    return assignments;
+  }
+
+  const assignments: Doc<"shiftAssignments">[] = [];
+  let remainingAssignmentCapacity = SHIFT_ASSIGNMENT_LIMIT;
+  for (const staffId of new Set(targetStaffIds)) {
+    const staffAssignments = await ctx.db
+      .query("shiftAssignments")
+      .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
+      .take(remainingAssignmentCapacity + 1);
+    if (staffAssignments.length > remainingAssignmentCapacity) {
+      throw new Error("Shift assignment scope exceeds the supported limit");
+    }
+    assignments.push(...staffAssignments);
+    remainingAssignmentCapacity -= staffAssignments.length;
+  }
+  return assignments;
+}
+
 async function buildConfirmationStaffEntries(
   ctx: QueryCtx,
   recruitment: Doc<"recruitments">,
@@ -55,10 +89,12 @@ async function buildConfirmationStaffEntries(
   // verifyRecruitments.missingShopClosedDatesが0件になった後にfallbackを削除する。
   const shopClosedDateSet = new Set(recruitment.shopClosedDates ?? []);
   const submissionPattern = recruitment.submissionPattern;
+  const projectedAssignments =
+    submissionPattern.kind === "time" ? normalizeExactAdjacentTimeAssignments(assignments) : assignments;
 
   return Promise.all(
     staffs.map(async (staff) => {
-      const staffAssignments = assignments.filter((a) => a.staffId === staff._id);
+      const staffAssignments = projectedAssignments.filter((a) => a.staffId === staff._id);
       const assignmentsByDate = new Map<string, AssignmentTime[]>();
       for (const assignment of staffAssignments) {
         const items = assignmentsByDate.get(assignment.date) ?? [];
@@ -81,15 +117,17 @@ async function buildConfirmationStaffEntries(
           timeLabel,
         };
       });
-      const snapshotAssignments = normalizeConfirmationSnapshotAssignments(
-        staffAssignments.map((assignment) => ({
-          date: assignment.date,
-          startTime: assignment.startTime,
-          endTime: assignment.endTime,
-          positionId: assignment.positionId,
-          ...(assignment.optionId ? { optionId: assignment.optionId } : {}),
-        })),
-      );
+      const rawSnapshotAssignments = staffAssignments.map((assignment) => ({
+        date: assignment.date,
+        startTime: assignment.startTime,
+        endTime: assignment.endTime,
+        positionId: assignment.positionId,
+        ...(assignment.optionId !== undefined ? { optionId: assignment.optionId } : {}),
+      }));
+      const snapshotAssignments =
+        submissionPattern.kind === "time"
+          ? canonicalizeConfirmationSnapshotAssignments(rawSnapshotAssignments)
+          : normalizeConfirmationSnapshotAssignments(rawSnapshotAssignments);
 
       return {
         staffId: staff._id,
@@ -173,21 +211,7 @@ export const getConfirmationEmailData = internalQuery({
             .query("staffs")
             .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", recruitment.shopId).eq("isDeleted", false))
             .take(NOTIFICATION_FANOUT_SCOPE_LIMIT + 1),
-      targetStaffIds
-        ? Promise.all(
-            targetStaffIds.map((staffId) =>
-              ctx.db
-                .query("shiftAssignments")
-                .withIndex("by_recruitmentId_staffId", (q) =>
-                  q.eq("recruitmentId", recruitmentId).eq("staffId", staffId),
-                )
-                .collect(),
-            ),
-          ).then((assignmentsByStaff) => assignmentsByStaff.flat())
-        : ctx.db
-            .query("shiftAssignments")
-            .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
-            .take(SHIFT_ASSIGNMENT_LIMIT),
+      getConfirmationAssignments(ctx, recruitmentId, targetStaffIds),
     ]);
     if (allStaffs.length > NOTIFICATION_FANOUT_SCOPE_LIMIT) {
       throw new Error("Notification fanout scope exceeds the supported limit");
@@ -353,12 +377,21 @@ export const getCurrentConfirmationEmailDataForStaff = internalQuery({
     }
 
     const lineAccount = await getStaffLineAccount(ctx, staff._id);
+    const assignmentsByRecruitment: Doc<"shiftAssignments">[][] = [];
+    let remainingAssignmentCapacity = SHIFT_ASSIGNMENT_LIMIT;
+    for (const recruitment of recruitments) {
+      const assignments = await ctx.db
+        .query("shiftAssignments")
+        .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitment._id).eq("staffId", staff._id))
+        .take(remainingAssignmentCapacity + 1);
+      if (assignments.length > remainingAssignmentCapacity) return null;
+      assignmentsByRecruitment.push(assignments);
+      remainingAssignmentCapacity -= assignments.length;
+    }
+
     const recruitmentEntries = await Promise.all(
-      recruitments.map(async (recruitment) => {
-        const assignments = await ctx.db
-          .query("shiftAssignments")
-          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitment._id).eq("staffId", staff._id))
-          .collect();
+      recruitments.map(async (recruitment, index) => {
+        const assignments = assignmentsByRecruitment[index];
         const staffEntries = await buildConfirmationStaffEntries(ctx, recruitment, [staff], assignments, lineAccount);
         const staffEntry = staffEntries[0];
         return staffEntry

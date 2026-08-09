@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   selectedShopAtom: Symbol("selectedShopAtom"),
   userAtom: Symbol("userAtom"),
   useAuth: vi.fn(),
+  useUser: vi.fn(),
   useQuery: vi.fn(),
   useRouterState: vi.fn(),
   navigate: vi.fn(),
@@ -70,6 +71,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@clerk/react", () => ({
   SignOutButton: ({ children }: { children: ReactNode }) => children,
   useAuth: mocks.useAuth,
+  useUser: mocks.useUser,
 }));
 
 vi.mock("@chakra-ui/react", async (importOriginal) => ({
@@ -84,6 +86,7 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("convex/react", () => ({
   useQuery: mocks.useQuery,
+  useAction: vi.fn(),
 }));
 
 vi.mock("jotai", async (importOriginal) => ({
@@ -147,6 +150,7 @@ const ManagerChild = () => {
 
 beforeEach(() => {
   mocks.useAuth.mockReset();
+  mocks.useUser.mockReset();
   mocks.useQuery.mockReset();
   mocks.useRouterState.mockReset();
   mocks.navigate.mockReset();
@@ -154,6 +158,7 @@ beforeEach(() => {
   mocks.setSelectedShop.mockReset();
   mocks.setUser.mockReset();
   mocks.managerChildRender.mockReset();
+  sessionStorage.clear();
 
   mocks.myShops = [{ shopId: "active-shop", shopName: "所属店舗" }];
   mocks.currentUser = { name: "管理者", email: "manager@example.com" };
@@ -182,6 +187,15 @@ beforeEach(() => {
     isSignedIn: true,
     userId: "manager-user",
   });
+  mocks.useUser.mockReturnValue({
+    isLoaded: true,
+    user: {
+      primaryEmailAddress: {
+        emailAddress: "manager@example.com",
+        verification: { status: "verified" },
+      },
+    },
+  });
   mocks.useRouterState.mockReturnValue({ pathname: "/dashboard", searchStr: "" });
   mocks.useQuery.mockImplementation((queryReference: unknown) => {
     if (queryReference === mocks.currentUserQuery) return mocks.currentUser;
@@ -196,6 +210,101 @@ beforeEach(() => {
 });
 
 describe("AuthGuard", () => {
+  it("店舗非依存画面では店舗queryと店舗整合を行わず、保存済み店舗を維持して表示する", () => {
+    render(
+      <AuthGuard requiresShopContext={false} requestedShopId="unknown-shop">
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    expect(screen.queryByTestId("manager-child")).not.toBeNull();
+    expect(screen.queryByRole("heading", { name: "この店舗を開けません" })).toBeNull();
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.myShopsQuery, "skip");
+    expect(mocks.setSelectedShop).not.toHaveBeenCalled();
+  });
+
+  it("ClerkのログインメールとConvexの連絡先が異なっても通常画面を表示する", () => {
+    mocks.currentUser = { name: "管理者", email: "convex@example.com" };
+    mocks.useUser.mockReturnValue({
+      isLoaded: true,
+      user: {
+        primaryEmailAddress: {
+          emailAddress: "login@example.com",
+          verification: { status: "verified" },
+        },
+      },
+    });
+    mocks.selectedShop = {
+      shopId: "active-shop",
+      shopName: "所属店舗",
+      shopStatus: "active",
+      organizationId: null,
+      organizationName: null,
+      organizationPlan: null,
+      memberStatus: "active",
+    };
+
+    render(
+      <AuthGuard requestedShopId="active-shop">
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    expect(screen.queryByTestId("manager-child")).not.toBeNull();
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.myShopsQuery, {});
+    expect(mocks.useUser).not.toHaveBeenCalled();
+  });
+
+  it("廃止したメール削除の保存状態は再開せず、認証後に静かに破棄する", async () => {
+    sessionStorage.setItem("account-email-cleanup-session", "invalid-retired-state");
+    mocks.selectedShop = {
+      shopId: "active-shop",
+      shopName: "所属店舗",
+      shopStatus: "active",
+      organizationId: null,
+      organizationName: null,
+      organizationPlan: null,
+      memberStatus: "active",
+    };
+
+    render(
+      <AuthGuard requestedShopId="active-shop">
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    expect(screen.queryByTestId("manager-child")).not.toBeNull();
+    await waitFor(() => expect(sessionStorage.getItem("account-email-cleanup-session")).toBeNull());
+  });
+
+  it("sessionStorageを利用できなくても認証後の画面をブロックしない", () => {
+    const removeItem = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new DOMException("Storage unavailable", "SecurityError");
+    });
+    mocks.selectedShop = {
+      shopId: "active-shop",
+      shopName: "所属店舗",
+      shopStatus: "active",
+      organizationId: null,
+      organizationName: null,
+      organizationPlan: null,
+      memberStatus: "active",
+    };
+
+    try {
+      render(
+        <AuthGuard requestedShopId="active-shop">
+          <ManagerChild />
+        </AuthGuard>,
+      );
+
+      expect(screen.queryByTestId("manager-child")).not.toBeNull();
+      expect(removeItem).toHaveBeenCalledWith("account-email-cleanup-session");
+    } finally {
+      removeItem.mockRestore();
+    }
+  });
+
   it("古いbackendが公開状態を返さない場合は全機能を閉じてatomの同期完了まで子画面を描画しない", async () => {
     mocks.selectedShop = {
       shopId: "active-shop",

@@ -72,6 +72,7 @@ const baseData: UserDetailData = {
     id: personId,
     name: "田中 花子",
     email: "hanako.tanaka@example.com",
+    hasLinkedAccount: true,
   },
   isSelf: false,
   managerRole: "active",
@@ -100,6 +101,22 @@ const managerInvitationHiddenData: UserDetailData = {
   ...multipleStoresData,
   hasManagerInvitation: true,
   managerInvitationState: { kind: "hidden" },
+};
+
+const unlinkedData: UserDetailData = {
+  ...multipleStoresData,
+  person: { ...multipleStoresData.person, hasLinkedAccount: false },
+  managerRole: "none",
+};
+
+const selfManagerData: UserDetailData = {
+  ...baseData,
+  isSelf: true,
+};
+
+const selfStaffData: UserDetailData = {
+  ...multipleStoresData,
+  isSelf: true,
 };
 
 const baseState: UserDetailViewProps["state"] = {
@@ -174,6 +191,60 @@ export const MainView: Story = {};
 export const BasicInformationDialog: Story = {
   args: { activePanel: "basic" },
   play: settleBasicInformationDialogFocus,
+};
+
+export const LinkedStaffContactEditable: Story = {
+  args: { activePanel: "basic", data: multipleStoresData },
+  parameters: { screenshot: { skip: true } },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
+    await expect(within(dialog).getByRole("textbox", { name: "シフト連絡先メールアドレス" })).toHaveValue(
+      "hanako.tanaka@example.com",
+    );
+  },
+};
+
+export const UnlinkedStaffContactEditable: Story = {
+  args: { activePanel: "basic", data: unlinkedData },
+  parameters: { screenshot: { skip: true } },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
+    await expect(within(dialog).getByRole("textbox", { name: "シフト連絡先メールアドレス" })).toHaveValue(
+      "hanako.tanaka@example.com",
+    );
+  },
+};
+
+export const SelfContactGuidance: Story = {
+  args: { activePanel: "basic", data: selfManagerData },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
+
+    await expect(await within(dialog).findByText(/シフト通知用先のメールアドレスです。/)).toBeInTheDocument();
+    await expect(within(dialog).findByRole("link", { name: "アカウント設定" })).resolves.toHaveAttribute(
+      "href",
+      "/account",
+    );
+  },
+};
+
+export const SelfContactGuidanceMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: {
+    viewport: { value: "mobile2", isRotated: false },
+  },
+  args: { activePanel: "basic", data: selfManagerData },
+};
+
+export const SelfStaffContactWithoutLoginGuidance: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: { activePanel: "basic", data: selfStaffData },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
+
+    await expect(within(dialog).queryByText("シフト通知用先のメールアドレスです。")).not.toBeInTheDocument();
+    await expect(within(dialog).queryByRole("link", { name: "アカウント設定" })).not.toBeInTheDocument();
+  },
 };
 
 export const ManagerInvitationDarkLaunchBehavior: Story = {
@@ -325,7 +396,7 @@ export const Loading: Story = {
   render: () => <UserDetailSkeleton />,
 };
 
-function PanelNavigationHarness({ data = multipleStoresData }: { data?: UserDetailData }) {
+function PanelNavigationHarness({ data = unlinkedData }: { data?: UserDetailData }) {
   const [activePanel, setActivePanel] = useState<UserDetailPanel>();
   const [addedShopId, setAddedShopId] = useState<Id<"shops"> | null>(null);
   const [addCallCount, setAddCallCount] = useState(0);
@@ -384,7 +455,9 @@ export const BasicInformationFlowBehavior: Story = {
     const dialog = await page.findByRole("dialog", { name: "スタッフ情報" });
     const basicDialog = within(dialog);
     await expect(basicDialog.getByRole("textbox", { name: "名前" })).toHaveValue("田中 花子");
-    await expect(basicDialog.getByRole("textbox", { name: "メールアドレス" })).toHaveValue("hanako.tanaka@example.com");
+    await expect(basicDialog.getByRole("textbox", { name: "シフト連絡先メールアドレス" })).toHaveValue(
+      "hanako.tanaka@example.com",
+    );
     await expect(basicDialog.getByRole("heading", { name: "管理者権限" })).toBeInTheDocument();
     await userEvent.click(basicDialog.getByRole("button", { name: "キャンセル" }));
     await waitFor(() => expect(page.queryByRole("dialog", { name: "スタッフ情報" })).not.toBeInTheDocument());

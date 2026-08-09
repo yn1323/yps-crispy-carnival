@@ -21,14 +21,23 @@ import { EMPTY_USER, userAtom } from "@/src/stores/user";
 import { DeletedAccountState } from "./DeletedAccountState";
 import { resolveShopContext } from "./shopContextResolver";
 
+const RETIRED_ACCOUNT_EMAIL_CLEANUP_STORAGE_KEY = "account-email-cleanup-session";
+
 type Props = {
   children: React.ReactNode;
+  requiresShopContext?: boolean;
   requestedShopId?: string;
   onNormalizeShopUrl?: (shopId: string) => void;
   onReturnToDashboard?: () => void;
 };
 
-export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onReturnToDashboard }: Props) => {
+export const AuthGuard = ({
+  children,
+  requiresShopContext = true,
+  requestedShopId,
+  onNormalizeShopUrl,
+  onReturnToDashboard,
+}: Props) => {
   const { isSignedIn, userId, isLoaded } = useAuth();
   const location = useRouterState({ select: (state) => state.location });
   const [user, setUser] = useAtom(userAtom);
@@ -50,7 +59,7 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
   );
   const myShops = useQuery(
     api.dashboard.queries.getMyShops,
-    isSignedIn && currentUser !== undefined && !isAccountDeleted ? {} : "skip",
+    requiresShopContext && isSignedIn && currentUser !== undefined && !isAccountDeleted ? {} : "skip",
   );
   const selectableShops = useMemo(
     () => (myShops ? normalizeShopContextOptions(myShops).filter(isSelectableShop) : []),
@@ -58,15 +67,25 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
   );
   const shopContextResolution = useMemo(
     () =>
-      myShops === undefined
+      !requiresShopContext || myShops === undefined
         ? null
         : resolveShopContext({
             requestedShopId,
             selectedShop,
             shops: selectableShops,
           }),
-    [myShops, requestedShopId, selectedShop, selectableShops],
+    [myShops, requestedShopId, requiresShopContext, selectedShop, selectableShops],
   );
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+
+    try {
+      window.sessionStorage.removeItem(RETIRED_ACCOUNT_EMAIL_CLEANUP_STORAGE_KEY);
+    } catch {
+      // storageを利用できない環境でも、廃止済みの復旧処理を再開せず通常画面を継続する。
+    }
+  }, [isLoaded, isSignedIn]);
 
   useEffect(() => {
     if (userId && currentUser && !("accountDeleted" in currentUser)) {
@@ -87,7 +106,7 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
 
   // URLはAPI由来の候補に一致する場合だけ採用する。URLがなければ保存値、候補先頭の順で補完する。
   useEffect(() => {
-    if (!shopContextResolution) return;
+    if (!requiresShopContext || !shopContextResolution) return;
 
     if (shopContextResolution.kind === "empty") {
       if (selectedShop !== null) {
@@ -109,15 +128,16 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
     if (shopContextResolution.shouldNormalizeUrl) {
       onNormalizeShopUrl?.(resolvedShop.shopId);
     }
-  }, [onNormalizeShopUrl, selectedShop, setSelectedShop, shopContextResolution]);
+  }, [onNormalizeShopUrl, requiresShopContext, selectedShop, setSelectedShop, shopContextResolution]);
 
   // 同じ店舗でも課金プランなどの保存済みcontextが古い間は子画面を描画せず、誤った対象判定を防ぐ。
   const isShopContextReady =
-    shopContextResolution?.kind === "empty"
+    !requiresShopContext ||
+    (shopContextResolution?.kind === "empty"
       ? selectedShop === null
       : shopContextResolution?.kind === "resolved" &&
         !shopContextResolution.shouldNormalizeUrl &&
-        isSameSelectedShop(selectedShop, shopContextResolution.shop);
+        isSameSelectedShop(selectedShop, shopContextResolution.shop));
 
   // 古いbackendの欠損値も「全て非公開」に正規化し、atomへ反映されるまで子画面を描画しない。
   const isUserContextReady =
@@ -143,11 +163,11 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
     return <FullPageSpinner showHeader />;
   }
 
-  if (currentUser === undefined || shopContextResolution === null) {
+  if (currentUser === undefined || (requiresShopContext && shopContextResolution === null)) {
     return <FullPageSpinner showHeader />;
   }
 
-  if (shopContextResolution.kind === "invalidRequestedShop") {
+  if (requiresShopContext && shopContextResolution?.kind === "invalidRequestedShop") {
     return (
       <Empty
         icon={LuStore}

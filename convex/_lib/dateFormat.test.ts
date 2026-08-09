@@ -15,6 +15,7 @@ import {
   getSubmitLinkCutoff,
   getWeekday,
   isPastShiftPeriod,
+  subtractCalendarMonths,
   todayJST,
 } from "./dateFormat";
 
@@ -28,6 +29,12 @@ describe("dateFormat", () => {
     expect(addDays("2026-06-01", 3)).toBe("2026-06-04");
     expect(getWeekday("2026-06-01")).toBe(1);
     expect(getMondayWeekStart("2026-06-07")).toBe("2026-06-01");
+  });
+
+  it("暦月を戻すときは移動先の月末へ丸める", () => {
+    expect(subtractCalendarMonths("2026-03-31", 1)).toBe("2026-02-28");
+    expect(subtractCalendarMonths("2024-03-31", 1)).toBe("2024-02-29");
+    expect(subtractCalendarMonths("2026-01-15", 25)).toBe("2023-12-15");
   });
 
   it("期間内の日付を生成できる", () => {

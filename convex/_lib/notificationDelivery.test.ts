@@ -78,14 +78,18 @@ describe("isNotificationDeliverySuppressedForShop", () => {
     vi.unstubAllEnvs();
   });
 
-  it("returns true when the shop manager's users.email domain is configured for dry-run", async () => {
-    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "example.com,test2");
+  it("canonical managerのperson emailがallowlistならusers.emailが異なってもdry-runにする", async () => {
+    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "@test.example");
     const t = convexTest(schema, modules);
     const shopId = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
         subject: "manager_1",
-        email: "manager@example.com",
+        email: "manager@real.example",
         shopName: "Shop",
+      });
+      await ctx.db.patch(seeded.personId, {
+        email: "preview@test.example",
+        emailNormalized: "preview@test.example",
       });
       return seeded.shopId;
     });
@@ -95,14 +99,18 @@ describe("isNotificationDeliverySuppressedForShop", () => {
     ).resolves.toBe(true);
   });
 
-  it("returns false when the shop manager's users.email is not configured for dry-run", async () => {
-    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "e2e-user-1@test.com,test2");
+  it("canonical managerのperson emailがallowlist外ならusers.emailが一致してもdry-runにしない", async () => {
+    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "@test.example");
     const t = convexTest(schema, modules);
     const shopId = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
         subject: "manager_2",
-        email: "manager@example.com",
+        email: "preview@test.example",
         shopName: "Shop",
+      });
+      await ctx.db.patch(seeded.personId, {
+        email: "manager@real.example",
+        emailNormalized: "manager@real.example",
       });
       return seeded.shopId;
     });
@@ -172,6 +180,28 @@ describe("isNotificationDeliverySuppressedForShop", () => {
     await expect(
       t.query(internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop, { shopId }),
     ).resolves.toBe(true);
+  });
+
+  it("person作成後でorganizationMember作成前のmanagerもperson emailでdry-run判定する", async () => {
+    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "@test.example");
+    const t = convexTest(schema, modules);
+    const shopId = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "manager_partial_person",
+        email: "preview@test.example",
+      });
+      await ctx.db.delete(seeded.memberId);
+      await seedLegacyShopMembership(ctx, { userId: seeded.userId, shopId: seeded.shopId });
+      await ctx.db.patch(seeded.personId, {
+        email: "manager@real.example",
+        emailNormalized: "manager@real.example",
+      });
+      return seeded.shopId;
+    });
+
+    await expect(
+      t.query(internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop, { shopId }),
+    ).resolves.toBe(false);
   });
 
   it("active managerが走査上限を超える場合は全員allowlistでもdry-runにしない", async () => {

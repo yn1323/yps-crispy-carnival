@@ -28,7 +28,7 @@ export const FaqArticlesSection = () => (
                   borderRadius="md"
                   overflow="hidden"
                 >
-                  <Accordion.ItemTrigger px={4} py={3} cursor="pointer" textAlign="left" _hover={{ bg: "teal.50" }}>
+                  <Accordion.ItemTrigger px={4} py={3} cursor="pointer" textAlign="left" _hover={{ bg: "gray.50" }}>
                     <Text as="span" flex="1" color="gray.950" fontSize="sm" fontWeight="bold" lineHeight="1.6">
                       {faq.q}
                     </Text>
@@ -112,7 +112,7 @@ const ArticleCard = ({ article, icon }: { article: ArticleMetadata; icon: IconTy
       borderRadius="lg"
       overflow="hidden"
       transition="border-color 0.2s ease, box-shadow 0.2s ease"
-      _hover={{ borderColor: "teal.300", boxShadow: "0 16px 34px rgba(15, 23, 42, 0.08)" }}
+      _hover={{ borderColor: "gray.300", boxShadow: "0 16px 34px rgba(15, 23, 42, 0.08)" }}
     >
       <ArticleThumbnail article={article} icon={icon} />
       <Flex direction="column" flex="1" p={5}>

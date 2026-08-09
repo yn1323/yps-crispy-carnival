@@ -176,10 +176,16 @@ describe("既存スタッフの管理者招待シナリオ", () => {
       organizationId: seeded.organizationId,
       shopId: seeded.shopId,
     });
+    const shiftContactEmail = "target-shift-contact@example.com";
+    await owner.editStaff({ staffId, name: "通知対象スタッフ", email: shiftContactEmail });
     await owner.setShiftExclusion(staffId, true);
     const targetUserId = await t.run(async (ctx) => {
       const person = await ctx.db.get(personId);
       if (!person?.userId) throw new Error("連携した管理者ユーザーが見つかりません");
+      const [user, staff] = await Promise.all([ctx.db.get(person.userId), ctx.db.get(staffId)]);
+      expect(user?.email).toBe("target@example.com");
+      expect(person.email).toBe(shiftContactEmail);
+      expect(staff?.email).toBe(shiftContactEmail);
       return person.userId;
     });
     const recruitmentId = await owner.createRecruitment({
@@ -261,12 +267,14 @@ describe("既存スタッフの管理者招待シナリオ", () => {
           shopId: seeded.shopId,
           recruitmentId,
           userId: seeded.userId,
+          email: "owner@example.com",
           status: "pending",
         }),
         ...expectedManagerDigestOutbox({
           shopId: seeded.shopId,
           recruitmentId,
           userId: targetUserId,
+          email: shiftContactEmail,
           status: "pending",
         }),
       ].sort(compareManagerDigestOutbox),
@@ -300,12 +308,14 @@ describe("既存スタッフの管理者招待シナリオ", () => {
           shopId: seeded.shopId,
           recruitmentId,
           userId: seeded.userId,
+          email: "owner@example.com",
           status: "pending",
         }),
         ...expectedManagerDigestOutbox({
           shopId: seeded.shopId,
           recruitmentId,
           userId: targetUserId,
+          email: shiftContactEmail,
           status: "cancelled",
           cancelReason: "recipient_inactive",
         }),
@@ -398,6 +408,7 @@ type ManagerDigestOutboxProjection = {
   channel: Doc<"notificationOutbox">["channel"];
   context: string | null;
   dedupeKey: string;
+  email: string | null;
   payloadKind: Doc<"notificationOutbox">["payload"]["kind"];
   purpose: Doc<"notificationOutbox">["purpose"] | null;
   recruitmentId: Id<"recruitments"> | null;
@@ -417,6 +428,7 @@ async function readManagerDigestOutbox(t: ScenarioTest): Promise<ManagerDigestOu
         channel: job.channel,
         context: notificationContextForProjection(job),
         dedupeKey: job.dedupeKey,
+        email: notificationEmailForProjection(job),
         payloadKind: job.payload.kind,
         purpose: job.purpose ?? null,
         recruitmentId: job.recruitmentId ?? null,
@@ -433,12 +445,14 @@ function expectedManagerDigestOutbox(args: {
   shopId: Id<"shops">;
   recruitmentId: Id<"recruitments">;
   userId: Id<"users">;
+  email: string;
   status: "pending" | "cancelled";
   cancelReason?: "recipient_inactive";
 }): ManagerDigestOutboxProjection[] {
   const shared = {
     cancelReason: args.cancelReason ?? null,
     channel: "email" as const,
+    email: args.email,
     payloadKind: "email" as const,
     purpose: "business" as const,
     shopId: args.shopId,
@@ -489,6 +503,13 @@ function isManagerDigestJob(job: Doc<"notificationOutbox">) {
 function notificationContextForProjection(job: Doc<"notificationOutbox">): string | null {
   if (job.payload.kind === "line") return job.payload.fallbackEmail?.payload.context ?? null;
   return job.payload.context;
+}
+
+function notificationEmailForProjection(job: Doc<"notificationOutbox">): string | null {
+  if (job.payload.kind === "email" || job.payload.kind === "organizationManagerInvitationEmail") {
+    return job.payload.to;
+  }
+  return job.payload.fallbackEmail?.payload.to ?? null;
 }
 
 async function readStaffNotificationOutbox(t: ScenarioTest, staffId: Id<"staffs">) {

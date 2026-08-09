@@ -1,4 +1,5 @@
-import { Box, Heading, Stack } from "@chakra-ui/react";
+import { Box, Heading, Link, Stack } from "@chakra-ui/react";
+import { Link as RouterLink } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import type { PersonProfileFormData } from "@/src/components/shared/PersonProfileForm";
 import { PersonProfileForm } from "@/src/components/shared/PersonProfileForm";
@@ -13,6 +14,8 @@ type Props = {
 };
 
 export function UserInformationTab({ data, formId, isReadOnly, managerSettings, onUpdate }: Props) {
+  const showLoginEmailGuidance = data.isSelf && data.managerRole !== "none";
+
   return (
     <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
       <Box pb={6}>
@@ -26,6 +29,26 @@ export function UserInformationTab({ data, formId, isReadOnly, managerSettings, 
               key={`${data.person.id}:${data.person.name}:${data.person.email}`}
               formId={formId}
               initialValues={{ name: data.person.name, email: data.person.email }}
+              emailLabel="シフト連絡先メールアドレス"
+              emailHelperText={
+                showLoginEmailGuidance ? (
+                  <>
+                    シフト通知用先のメールアドレスです。
+                    <br />
+                    ログインで利用するメールは
+                    <Link
+                      asChild
+                      color="teal.700"
+                      fontWeight="semibold"
+                      textDecoration="underline"
+                      textUnderlineOffset="3px"
+                    >
+                      <RouterLink to="/account">アカウント設定</RouterLink>
+                    </Link>
+                    から設定してください。
+                  </>
+                ) : undefined
+              }
               onSubmit={async (formData) => {
                 await onUpdate(formData);
               }}

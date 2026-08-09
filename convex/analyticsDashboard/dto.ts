@@ -1,6 +1,6 @@
 export type AnalyticsCompleteness = "complete" | "partial" | "unavailable";
 
-export type AnalyticsResponseCompleteness = AnalyticsCompleteness | "pending";
+export type AnalyticsAvailability = "available" | "unavailable";
 
 export type AnalyticsGranularity = "day" | "week" | "month";
 
@@ -59,11 +59,11 @@ export type AnalyticsPageInfoDto = {
 };
 
 export type AnalyticsResponseMetadata = {
+  availability: AnalyticsAvailability;
   asOf: number | null;
   dataStartDate: string | null;
   latestCompleteSnapshotDate: string | null;
   computedAt: number | null;
-  completeness: AnalyticsResponseCompleteness;
   warnings: string[];
   pageInfo: AnalyticsPageInfoDto;
 };
@@ -205,6 +205,7 @@ export type AnalyticsOrganizationRowDto = {
 export type AnalyticsShopKpiDto = {
   snapshotDate: string;
   rateRange: AnalyticsRateRangeDto;
+  kpiEligible: boolean;
   staffMembershipCount: number;
   shiftTargetCount: number;
   uniquePersonCount: number;
@@ -283,6 +284,7 @@ export type AnalyticsSegmentRowDto = {
   dimension: AnalyticsSegmentDimension;
   bucket: string;
   shopCount: number;
+  kpiEligibleShopCount: number;
   milestoneCounts: AnalyticsMilestoneCountsDto;
   healthSignalCounts: AnalyticsHealthSignalCountsDto;
   northStar: AnalyticsRateDto;

@@ -34,6 +34,8 @@ describe("shiftConfirmationReminder/queries", () => {
         });
         const managerStaffId = await ctx.db.insert("staffs", {
           shopId: seeded.shopId,
+          organizationId: seeded.organizationId,
+          organizationPersonId: seeded.personId,
           userId: seeded.userId,
           name: "管理スタッフ",
           email: "owner-line@example.com",

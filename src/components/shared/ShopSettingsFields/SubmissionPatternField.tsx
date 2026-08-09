@@ -51,7 +51,7 @@ export function SubmissionPatternField({ selectedKind, onSelect }: SubmissionPat
                 justify="center"
                 bg={isSelected ? "teal.100" : "gray.50"}
                 borderBottomWidth={1}
-                borderColor={isSelected ? "teal.200" : "border.default"}
+                borderColor={isSelected ? "border.emphasized" : "border.default"}
               >
                 <HStack gap={2} color={isSelected ? "teal.700" : "fg.muted"} fontWeight="bold">
                   {option.kind === "time" && <LuClock3 aria-hidden />}

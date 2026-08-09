@@ -323,6 +323,22 @@ export const ManagerRoleRemoval: Story = {
 
 export const Shops: Story = { name: "店舗｜通常", args: { defaultTab: "shops" } };
 
+export const LazyTabMountBehavior: Story = {
+  name: "画面全体｜タブの遅延mount（操作確認）",
+  parameters: { screenshot: { skip: true } },
+  args: { defaultTab: "people" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.queryByText("グループの店舗")).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("tab", { name: "店舗" }));
+    await expect(await canvas.findByRole("heading", { name: "グループの店舗" })).toBeInTheDocument();
+
+    await userEvent.click(canvas.getByRole("tab", { name: "ユーザー" }));
+    await expect(canvas.queryByText("グループの店舗")).toBeInTheDocument();
+  },
+};
+
 export const Settings: Story = { name: "設定｜通常", args: { defaultTab: "settings" } };
 
 const darkLaunchArgs = {
