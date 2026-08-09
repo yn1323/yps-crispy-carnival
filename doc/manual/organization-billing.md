@@ -58,9 +58,15 @@ Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotat
 | 変数 | 開く対象 |
 |---|---|
 | `FEATURE_ORGANIZATION_CREATION` | 二つ目以降の組織作成 |
-| `FEATURE_SHOP_ADDITION` | 店舗追加と既存人物の複数店舗所属UI |
 | `FEATURE_BILLING` | プランと支払いのUI |
 | `FEATURE_MANAGER_INVITATION` | 管理者の追加、Free管理者交代、再送、preview、受諾、招待通知、管理者連携完了通知 |
+
+店舗追加と既存人物の複数店舗所属は常時公開し、環境変数を使用しない。
+対応コードを対象deploymentへ反映した後は、残っている旧設定を完全修飾deployment名を指定して削除できる。
+
+```bash
+pnpm exec convex env remove --deployment <fully-qualified-deployment> FEATURE_SHOP_ADDITION
+```
 
 公開または停止は、対象commitのdeploy後に完全修飾deployment名を確認して実施する。
 値はコマンド行へ直接書かず、対象キーだけを指定して対話入力する。
@@ -72,7 +78,6 @@ pnpm exec convex env set --deployment <fully-qualified-deployment> FEATURE_MANAG
 管理者招待を開ける前に、追加とFree交代の両方について、発行、メールまたはLINE通知、preview、受諾、権限反映、再送、取消を対象環境で確認する。
 閉じるときは、発行・再送・受諾だけでなく、招待通知と管理者連携完了通知が新しくOutboxへ積まれず、投入済みOutboxも外部providerを呼ばず取消されることを確認する。
 E2Eは同じ`.env`の値を読み、閉状態では招待を前提とするシナリオを`test.skip`する。
-店舗所属追加を前提とするE2Eも、`FEATURE_SHOP_ADDITION`が閉じている間は`test.skip`する。
 公開FAQはフラグを購読しないため、管理者招待を開けるreleaseで追加・交代の操作手順を復元し、利用不可中の案内も公開状態へ戻す。
 
 作業後は`env list --names-only`でキーの存在だけを確認し、対象deployment、commit、確認日時、結果を[リリース状態](release-status.md)へ記録する。

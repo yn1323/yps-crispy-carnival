@@ -14,7 +14,8 @@ Stripe設定、migration確認、障害対応は[組織課金の運用](../manua
 
 ## ダークローンチ中の公開範囲
 
-組織追加、店舗追加、支払い、管理者招待・交代の四つは実装済みで、コード上は未設定時に非公開となる。
+組織追加、支払い、管理者招待・交代の三つは実装済みで、コード上は未設定時に非公開となる。
+店舗追加と既存人物の複数店舗所属は常時公開し、`FEATURE_SHOP_ADDITION`を使用しない。
 実deploymentの設定値と公開状態はこの文書から推定せず、[リリース状態](../manual/release-status.md)の証跡で確認する。
 公開状態はConvexの環境変数で決まり、`convex/_lib/config.ts`が読む。
 未設定のdeploymentでは閉じた状態になる。
@@ -22,15 +23,15 @@ Stripe設定、migration確認、障害対応は[組織課金の運用](../manua
 | 環境変数 | 対象 | 閉じている間の挙動 |
 |---|---|---|
 | `FEATURE_ORGANIZATION_CREATION` | 二つ目以降の組織作成 | `createOrganization`が拒否し、「設定」タブに作成セクションを描画しない |
-| `FEATURE_SHOP_ADDITION` | 店舗の追加と既存人物の複数店舗所属UI | `addShop`が拒否し、「店舗」タブの追加ボタン、スタッフ詳細の「店舗を追加」、スタッフ招待の「他店舗スタッフを招待」を描画しない |
 | `FEATURE_BILLING` | プランと支払い | 「プランと支払い」タブを描画しない |
 | `FEATURE_MANAGER_INVITATION` | 管理者の追加・交代 | 発行・再送を拒否し、preview・受諾を利用不可へ寄せ、新規・投入済み通知を送らない。設定とスタッフ詳細の管理者操作UIを描画しない |
 
-拒否はサーバー側で行い、画面から導線を消すだけにはしない。
-`getSettings`は公開状態を`features`で返すが、これは表示判定であり認可根拠ではない。
-`getCurrentUser`は通常画面の入口用に、四つのフラグのORと支払い・店舗所属追加の表示可否を返す。
-四つがすべて閉じている間はUserMenuとDashboardから「組織設定」を描画しないが、`/settings`のrouteと直URLは運用・復旧用に維持する。
-旧backendの応答に表示DTOが無い場合は、frontendがfalseへ正規化して入口を表示しない。
+ダークローンチ中の機能を拒否するときはサーバー側でも行い、画面から導線を消すだけにはしない。
+`getSettings`は公開状態を`features`で返すが、これは表示判定であり認可根拠ではない。旧frontend互換の`shopAddition`は常に`true`を返す。
+`getCurrentUser`は通常画面の入口用に、組織設定導線と店舗所属追加を常に`true`、支払いを`FEATURE_BILLING`の状態で返す。
+Dashboard上部の現在組織名は、選択店舗を引き継いで組織設定を開く。
+UserMenuの「組織設定」とDashboardの組織名リンクは常時表示する。
+段階リリース中に旧backendの応答へ表示DTOが無い場合だけ、frontendはfalseへ正規化して入口を表示しない。
 
 `m022_organization_billing_to_complimentary_business`は、全組織の課金状態を支払い不要Businessへ寄せる。
 支払い不要BusinessはStripe objectを作らない隔離契約を持つため、この状態でStripeへ到達する経路がなくなる。
@@ -42,7 +43,7 @@ Stripe設定、migration確認、障害対応は[組織課金の運用](../manua
 管理者招待では、残存招待を減らす`revoke`とinternal `expire`だけを閉じない。
 `removeManagerRole`も管理者を増やさない縮退経路としてサーバーAPIを維持するが、管理者招待フラグが閉じている間はスタッフ詳細の管理者権限セクションごと非表示にする。
 
-解放の順序と各段階の作業は[ダークローンチ実装計画](../plans/2026-07-25_ダークローンチ_実装計画.md)にある。
+当初の解放順序と完了履歴は[ダークローンチ実装計画](../plans/2026-07-25_ダークローンチ_実装計画.md)にある。現在の公開契約はこの文書を正とする。
 
 ## 誰が何を完了できるか
 
@@ -214,7 +215,7 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 
 | 画面 | 役割 |
 |---|---|
-| `/settings?shop=<shopId>` | 選択店舗から組織を解決し、ユーザー、店舗、プランと支払い、設定を管理する。四つのフラグがすべて閉じている間も直URLは利用できるが、通常画面からの入口は描画しない |
+| `/settings?shop=<shopId>` | 選択店舗から組織を解決し、ユーザー、店舗、プランと支払い、設定を管理する。UserMenuとDashboardの現在組織名から常時開ける |
 | `/settings?shop=<shopId>&tab=billing` | 現在のプラン、価格、変更予定、支払い方法、請求先メール、復旧操作を扱う |
 | `/manager-invite?token=...` | 公開中は招待previewとアカウント連携を扱う。ダークローンチ中は利用不可を表示する |
 | `/dashboard?shop=<shopId>` | 現在の組織と店舗、業務更新可否を表示する |

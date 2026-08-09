@@ -1,6 +1,6 @@
 # リリース状態
 
-> 最終更新: 2026-08-04
+> 最終更新: 2026-08-09
 >
 > 実環境確認: 未確認
 
@@ -17,7 +17,7 @@
 | Productionのフロントエンドartifactとcommit SHA | 未確認 | 未確認 | 未確認 | 未登録 |
 | ProductionのConvex deployとcommit SHA | 未確認 | 未確認 | 未確認 | 未登録 |
 | Productionのmigration seriesと各migrationの完了 | 未確認 | 未確認 | 未確認 | 未登録 |
-| ダークローンチ4フラグのdeployment別設定値と画面表示 | 未確認 | 未確認 | 未確認 | 未登録 |
+| 残存ダークローンチ3フラグの設定値・画面表示と、廃止した`FEATURE_SHOP_ADDITION`の不在 | 未確認 | 未確認 | 未確認 | 未登録 |
 | StripeのPro・Business公開設定、Price、Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
 | Resendの`email.delivered` Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
 | Clerk、Cloudflare、Stripeのセキュリティ設定とprovider canary | 未確認 | 未確認 | 未確認 | 未登録 |
