@@ -1,4 +1,4 @@
-import { Alert, Box, Skeleton, Stack } from "@chakra-ui/react";
+import { Alert, Box, Flex, Skeleton, Stack } from "@chakra-ui/react";
 import { useState } from "react";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { GoogleDisconnectDialog } from "./GoogleDisconnectDialog";
@@ -32,12 +32,7 @@ export function LoginMethodsView({
   >(null);
 
   if (!controller.isLoaded) {
-    return (
-      <Stack gap={5} aria-label="ログイン方法を読み込み中">
-        <Skeleton h="160px" borderRadius="xl" />
-        <Skeleton h="220px" borderRadius="xl" />
-      </Stack>
-    );
+    return <LoginMethodsSkeleton />;
   }
 
   return (
@@ -100,6 +95,50 @@ export function LoginMethodsView({
         <StandaloneReverificationDialog reverification={reverification} />
       ) : null}
     </Stack>
+  );
+}
+
+function LoginMethodsSkeleton() {
+  return (
+    <Stack gap={3} aria-label="ログイン方法を読み込み中" aria-busy="true">
+      <Stack gap={1}>
+        <Skeleton h="16px" w="320px" maxW="100%" />
+        <Skeleton h="16px" w={{ base: "100%", md: "480px" }} />
+      </Stack>
+      <Stack gap={0} borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" overflow="hidden" bg="white">
+        <LoginMethodRowSkeleton titleWidth="112px" detailWidth="184px" />
+        <LoginMethodRowSkeleton titleWidth="88px" detailWidth="64px" hasDivider />
+        <LoginMethodRowSkeleton titleWidth="96px" detailWidth="176px" showBadge hasDivider />
+      </Stack>
+    </Stack>
+  );
+}
+
+function LoginMethodRowSkeleton({
+  titleWidth,
+  detailWidth,
+  showBadge = false,
+  hasDivider = false,
+}: {
+  titleWidth: string;
+  detailWidth: string;
+  showBadge?: boolean;
+  hasDivider?: boolean;
+}) {
+  return (
+    <Box borderTopWidth={hasDivider ? "1px" : undefined} borderColor="blackAlpha.100" p={{ base: 3, md: 4 }} bg="white">
+      <Flex align="center" gap={{ base: 3, md: 4 }} flexWrap={{ base: "wrap", md: "nowrap" }}>
+        <Skeleton boxSize={{ base: 10, md: 12 }} borderRadius="lg" flexShrink={0} />
+        <Stack gap={1} flex={1} minW={0}>
+          <Flex align="center" gap={2} flexWrap="wrap">
+            <Skeleton h="24px" w={titleWidth} maxW="100%" />
+            {showBadge && <Skeleton h="20px" w="56px" borderRadius="full" />}
+          </Flex>
+          <Skeleton h="20px" w={detailWidth} maxW="100%" />
+        </Stack>
+        <Skeleton h="40px" w="88px" flexShrink={0} />
+      </Flex>
+    </Box>
   );
 }
 
