@@ -1,6 +1,7 @@
-import { Heading, Stack } from "@chakra-ui/react";
+import { Stack } from "@chakra-ui/react";
 import { type LoginMethodMigrationFlow, LoginMethods } from "@/src/components/features/LoginMethods";
 import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
+import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 
 export type AccountSecurityPageFlow = LoginMethodMigrationFlow;
 
@@ -22,11 +23,7 @@ export function AccountSecurityPage({
   return (
     <AuthenticatedPageContent>
       <Stack gap={3}>
-        <Stack gap={2}>
-          <Heading as="h1" textStyle={{ base: "sectionTitle", md: "pageTitle" }} color="gray.900">
-            アカウント設定
-          </Heading>
-        </Stack>
+        <DetailPageHeader title="アカウント設定" onBack={() => window.history.back()} />
         <LoginMethods
           flow={flow}
           oauth={oauth}
