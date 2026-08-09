@@ -4,7 +4,8 @@ import { useMemo } from "react";
 import { api } from "@/convex/_generated/api";
 import { OrganizationSettings, OrganizationSettingsSkeleton } from "@/src/components/features/OrganizationSettings";
 import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
-import { isSelectableShop, normalizeShopContextOptions } from "@/src/domains/shop/context";
+import { normalizeOrganizationSettingsFeatures } from "@/src/domains/featureVisibility";
+import { groupShopsByOrganization, isSelectableShop, normalizeShopContextOptions } from "@/src/domains/shop/context";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
 import { selectedShopAtom } from "@/src/stores/shop";
 
@@ -41,7 +42,11 @@ export function OrganizationSettingsPage({
           onVisibleUserCountChange={onVisibleUserCountChange}
         />
       ) : (
-        <OrganizationSettingsSkeleton />
+        <OrganizationSettingsSkeleton
+          defaultTab={defaultTab}
+          showOrganizationSelector={rawShops !== undefined && groupShopsByOrganization(shops).length > 1}
+          features={normalizeOrganizationSettingsFeatures(settings?.features)}
+        />
       )}
     </AuthenticatedPageContent>
   );

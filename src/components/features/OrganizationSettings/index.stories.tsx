@@ -1,6 +1,7 @@
+import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { OrganizationSettingsView } from ".";
+import { OrganizationSettingsSkeleton, OrganizationSettingsView } from ".";
 import type { OrganizationContextModel } from "./OrganizationContext/script";
 import type { OrganizationBillingView, OrganizationSettingsViewProps } from "./types";
 
@@ -218,11 +219,87 @@ const meta = {
   title: "Features/OrganizationSettings/1. 画面全体",
   component: OrganizationSettingsView,
   parameters: { layout: "padded" },
+  decorators: [
+    (Story) => (
+      <Box maxW="1024px" mx="auto" w="full">
+        <Story />
+      </Box>
+    ),
+  ],
   args: baseArgs,
 } satisfies Meta<typeof OrganizationSettingsView>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
+
+export const LoadingPeople: Story = {
+  name: "読み込み｜スタッフ",
+  render: () => <OrganizationSettingsSkeleton defaultTab="people" features={baseArgs.features} />,
+};
+
+export const LoadingShops: Story = {
+  name: "読み込み｜店舗",
+  render: () => <OrganizationSettingsSkeleton defaultTab="shops" features={baseArgs.features} />,
+};
+
+export const LoadingBilling: Story = {
+  name: "読み込み｜プランと支払い",
+  render: () => <OrganizationSettingsSkeleton defaultTab="billing" features={baseArgs.features} />,
+};
+
+export const LoadingSettings: Story = {
+  name: "読み込み｜設定",
+  render: () => <OrganizationSettingsSkeleton defaultTab="settings" features={baseArgs.features} />,
+};
+
+export const LoadingPeopleMultipleOrganizations: Story = {
+  name: "読み込み｜スタッフ・複数組織",
+  render: () => (
+    <OrganizationSettingsSkeleton defaultTab="people" showOrganizationSelector features={baseArgs.features} />
+  ),
+};
+
+export const LoadingClosedFeatures: Story = {
+  name: "読み込み｜未公開導線なし",
+  render: () => <OrganizationSettingsSkeleton defaultTab="billing" />,
+};
+
+export const MobileLoadingPeople: Story = {
+  name: "読み込み｜スタッフ・モバイル",
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  render: () => <OrganizationSettingsSkeleton defaultTab="people" features={baseArgs.features} />,
+};
+
+export const MobileLoadingShops: Story = {
+  name: "読み込み｜店舗・モバイル",
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  render: () => <OrganizationSettingsSkeleton defaultTab="shops" features={baseArgs.features} />,
+};
+
+export const MobileLoadingBilling: Story = {
+  name: "読み込み｜プランと支払い・モバイル",
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  render: () => <OrganizationSettingsSkeleton defaultTab="billing" features={baseArgs.features} />,
+};
+
+export const MobileLoadingSettings: Story = {
+  name: "読み込み｜設定・モバイル",
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  render: () => <OrganizationSettingsSkeleton defaultTab="settings" features={baseArgs.features} />,
+};
+
+export const MobileLoadingPeopleMultipleOrganizations: Story = {
+  name: "読み込み｜スタッフ・複数組織・モバイル",
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  render: () => (
+    <OrganizationSettingsSkeleton defaultTab="people" showOrganizationSelector features={baseArgs.features} />
+  ),
+};
 
 export const Users: Story = { name: "スタッフ｜通常" };
 

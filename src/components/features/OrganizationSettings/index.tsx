@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { normalizeOrganizationSettingsFeatures } from "@/src/domains/featureVisibility";
-import type { ShopContextOption } from "@/src/domains/shop/context";
+import { groupShopsByOrganization, type ShopContextOption } from "@/src/domains/shop/context";
 import { toUserListCountSearch } from "@/src/lib/userListSearch";
 import { BillingActionDialog } from "./BillingSettings/BillingActionDialog";
 import { BillingEmailDialog } from "./BillingSettings/BillingEmailDialog";
@@ -85,7 +85,15 @@ export function OrganizationSettings({
     shops: context.shops,
   });
 
-  if (!organizationContext) return <OrganizationSettingsSkeleton />;
+  if (!organizationContext) {
+    return (
+      <OrganizationSettingsSkeleton
+        defaultTab={visibleTab}
+        showOrganizationSelector={groupShopsByOrganization(context.shops).length > 1}
+        features={features}
+      />
+    );
+  }
 
   return (
     <>
