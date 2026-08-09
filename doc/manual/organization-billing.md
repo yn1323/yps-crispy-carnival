@@ -18,6 +18,7 @@ Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotat
 | 実環境での完了条件と作業前確認 | [完了の判定](#完了の判定)、[作業前の共通確認](#作業前の共通確認) |
 | ダークローンチ機能の公開・停止 | [ダークローンチ公開フラグ](#ダークローンチ公開フラグ) |
 | Stripeの環境変数、Price、Portal、Webhook設定 | [Stripeの設定](#stripeの設定) |
+| Trial期限を開発用に短縮 | [Trial期限の開発用設定](#trial期限の開発用設定) |
 | Webhook、operation、対応不整合の日常確認 | [日常probe](#日常probe) |
 | m021の履歴確認とNarrow deploy前ゲート | [m021の履歴とNarrow deploy前確認](#m021の履歴とnarrow-deploy前確認) |
 | 新規販売の停止と支払い不要プランのP0 | [販売停止](#販売停止) |
@@ -169,6 +170,41 @@ Webhook destinationには、次の13イベントだけを登録する。
 
 登録後は[セキュリティ再検証](security-validation.md)の`ENV-STRIPE-01`と`ENV-STRIPE-02`に従い、対象revisionとprovider modeを固定したcanaryを行う。
 canaryの成功を確認するまで販売可能と判定しない。
+
+## Trial期限の開発用設定
+
+開発deploymentでは、将来Trialを作成する処理が`calculateTrialEndsAt`を利用したときの期限を、次の環境変数で短縮できる。
+現時点の初回セットアップは支払い不要Businessを作成するため、この設定を追加しても新規登録の状態や期限は変わらない。
+
+| 変数 | 用途 |
+|---|---|
+| `DEBUG_TRIAL_DURATION_DEPLOYMENT_URL` | 上書きを許可するConvex deploymentの`CONVEX_CLOUD_URL` |
+| `DEBUG_TRIAL_DURATION_DAYS` | 登録日の何暦日後を期限にするか。`1`から`30`までの整数 |
+
+両方のURLは前後の空白と末尾の`/`を除いて比較する。
+URLが未設定または一致しない場合と、日数が未設定または空白の場合は、通常どおり2暦月後のJST 00:00を期限にする。
+対象URLが一致している状態で日数が不正な場合は、通常期間へ戻さず設定エラーにする。
+`1`は登録から24時間後ではなく、登録日の翌日00:00 JSTを表す。
+環境変数の変更は将来作成するTrialの計算にだけ反映し、保存済みの期限は更新しない。
+
+Productionにはこの2変数を設定しない。
+開発deploymentへ設定するときは、先に対象URL、次に日数を対話入力する。
+
+```bash
+pnpm exec convex env set --deployment <fully-qualified-deployment> DEBUG_TRIAL_DURATION_DEPLOYMENT_URL
+pnpm exec convex env set --deployment <fully-qualified-deployment> DEBUG_TRIAL_DURATION_DAYS
+```
+
+無効化するときは、日数を先に削除してから対象URLを削除する。
+
+```bash
+pnpm exec convex env remove --deployment <fully-qualified-deployment> DEBUG_TRIAL_DURATION_DAYS
+pnpm exec convex env remove --deployment <fully-qualified-deployment> DEBUG_TRIAL_DURATION_DEPLOYMENT_URL
+```
+
+この2変数は`scripts/setupEnv.ts`のallowlistへ含めない。
+対象を引数で固定できない`pnpm convex:env:setup`では設定せず、Dashboardまたは完全修飾deployment名を指定したCLIを使う。
+作業後は`env list --names-only`でキーの有無だけを確認し、値をログや証跡へ残さない。
 
 ## 日常probe
 
