@@ -4,8 +4,8 @@ export const HeroSummarySkeleton = () => (
   <Stack gap={{ base: 5, lg: 6 }} aria-label="ダッシュボード概要を読み込み中">
     <Stack gap={{ base: 3, lg: 4 }}>
       <HStack gap={2.5} align="center">
-        <Skeleton boxSize={{ base: "24px", lg: "28px" }} borderRadius="full" />
-        <Skeleton h={{ base: "26px", lg: "30px" }} w="112px" />
+        <Skeleton boxSize={{ base: "20px", lg: "24px" }} borderRadius="full" />
+        <Skeleton h={{ base: "28px", lg: "32px" }} w="56px" />
       </HStack>
 
       <Stack

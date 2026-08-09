@@ -226,11 +226,14 @@ export const OperationContextSkeleton = () => (
   >
     <Flex align="center" gap={2} minH="32px" maxW="full">
       <Skeleton h="20px" w="20px" flexShrink={0} />
-      <Skeleton h="24px" w={{ base: "160px", md: "220px" }} maxW="70%" />
+      <Skeleton h="20px" w={{ base: "160px", md: "220px" }} maxW="70%" />
       <Skeleton h="20px" w="20px" flexShrink={0} />
     </Flex>
     <Flex align="center" justify="space-between" gap={3}>
-      <Skeleton h="20px" w={{ base: "160px", md: "240px" }} maxW="60%" />
+      <HStack gap={2} flex={1} minW={0}>
+        <Skeleton boxSize="20px" borderRadius="sm" flexShrink={0} />
+        <Skeleton h="24px" w={{ base: "160px", md: "240px" }} maxW="70%" />
+      </HStack>
       <Skeleton h="44px" w="44px" flexShrink={0} />
     </Flex>
   </Stack>
