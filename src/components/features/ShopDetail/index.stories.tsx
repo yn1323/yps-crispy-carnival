@@ -122,6 +122,7 @@ export const SettingsDialog: Story = {
 export const StaffAccordionOpen: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await expect(canvas.getByRole("button", { name: shop.name })).toBeInTheDocument();
     const trigger = canvas.getByRole("button", { name: /スタッフ一覧を見る/ });
     await userEvent.click(trigger);
     await expect(trigger).toHaveAttribute("aria-expanded", "true");

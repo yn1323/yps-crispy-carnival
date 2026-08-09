@@ -1,6 +1,5 @@
 import { Accordion, Flex, HStack, Stack, Text } from "@chakra-ui/react";
 import { OrganizationPersonRow } from "@/src/components/shared/OrganizationPersonRow";
-import { Empty } from "@/src/components/ui/Empty";
 import type { ShopDetailPerson } from "./types";
 
 type Props = {
@@ -59,7 +58,11 @@ export function ShopStaffList({ staffs, onOpenUser }: Props) {
           <Accordion.ItemContent borderTopWidth="1px" borderTopColor="blackAlpha.100">
             <Accordion.ItemBody p={0}>
               {staffs.length === 0 ? (
-                <Empty title="この店舗に所属するスタッフはいません。" titleAs="h3" variant="plain" minH="auto" py={5} />
+                <Flex justify="center" px={4} py={5}>
+                  <Text fontSize="sm" color="fg.muted">
+                    この店舗に所属するスタッフはいません。
+                  </Text>
+                </Flex>
               ) : (
                 <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
                   {staffs.map((person) => (

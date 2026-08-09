@@ -72,7 +72,7 @@ export function ShopBasicInformationSection({ shop, onEdit }: Props) {
                   ))}
                 </Text>
               ) : (
-                <Text fontSize="sm" color="gray.900" lineHeight="tall" overflowWrap="anywhere">
+                <Text fontSize="sm" color="gray.900" lineHeight="tall" overflowWrap="anywhere" whiteSpace="pre-line">
                   {row.value}
                 </Text>
               )}
