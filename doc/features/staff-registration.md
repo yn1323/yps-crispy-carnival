@@ -12,9 +12,9 @@
 - `convex/line/actions.ts` / `convex/notification/templates.ts` — 承認後LINE連携メール文脈、承認待ち通知文面
 - `src/pages/staff-registration/` — スタッフ登録ページ
 - `src/components/features/StaffRegistration/` / `src/components/shared/TurnstileWidget/` — 登録フォーム、HTTP送信、bot確認、メールtypo警告、確認表示
-- `convex/staff/queries.ts` / `convex/staff/mutations.ts` — 同じグループで対象店舗に所属していない人物の取得と、人物IDを固定した店舗スタッフ追加
-- `convex/organization/personProfile.ts` — グループ人物と同じ人物に紐づく有効なスタッフの氏名・シフト連絡先を更新する
-- `convex/_lib/shopManagerRecipients.ts` — 店舗の有効管理者について、グループ人物を正本に通知先とLINE連携を解決する
+- `convex/staff/queries.ts` / `convex/staff/mutations.ts` — 同じ組織で対象店舗に所属していない人物の取得と、人物IDを固定した店舗スタッフ追加
+- `convex/organization/personProfile.ts` — 組織人物と同じ人物に紐づく有効なスタッフの氏名・シフト連絡先を更新する
+- `convex/_lib/shopManagerRecipients.ts` — 店舗の有効管理者について、組織人物を正本に通知先とLINE連携を解決する
 - `src/components/features/Dashboard/StaffManagement/StaffInvitationDialog.tsx` / `OrganizationPeopleCandidateList.tsx` / `useStaffInvitation.ts` / `StaffRegistrationLinkPanel/` — 招待方法の切替、他店舗スタッフ候補、店舗専用登録リンクの取得、QR/URL表示
 - `src/components/features/Dashboard/StaffRegistrationRequestManagement/` — スタッフ参加申請の取得、モーダル、承認/却下
 - `src/components/features/UserDetail/UserInformationTab.tsx` / `UserInformationDialog.tsx` / `useUserProfileUpdate.ts` — 氏名・シフト連絡先の編集とログイン方法との境界説明
@@ -40,9 +40,9 @@
 | `api.staffRegistration.mutations.approveRequest` | mutation | 申請を承認し、正式スタッフ作成・同意コピー・通知予約を行う |
 | `api.staffRegistration.mutations.rejectRequest` | mutation | 申請を却下する |
 | `api.staffRegistration.mutations.ensureShopRegistrationLink` | mutation | 店舗固定の登録リンクを作成/取得 |
-| `api.staff.queries.listOrganizationPeopleAvailableForShop` | query | 同じグループの有効人物から、対象店舗に所属していない候補を取得 |
-| `api.staff.mutations.addOrganizationPersonToShop` | mutation | 選択したグループ人物を人物IDで再検証し、対象店舗のスタッフとして追加 |
-| `api.organization.mutations.updatePersonProfile` | mutation | グループ人物と同じグループで紐づく有効なスタッフの氏名・シフト連絡先を更新 |
+| `api.staff.queries.listOrganizationPeopleAvailableForShop` | query | 同じ組織の有効人物から、対象店舗に所属していない候補を取得 |
+| `api.staff.mutations.addOrganizationPersonToShop` | mutation | 選択した組織人物を人物IDで再検証し、対象店舗のスタッフとして追加 |
+| `api.organization.mutations.updatePersonProfile` | mutation | 組織人物と同じ組織で紐づく有効なスタッフの氏名・シフト連絡先を更新 |
 | `api.dashboard.mutations.dismissOnboarding` | mutation | ダッシュボードチュートリアル終了をDB保存 |
 | `internal.staffRegistration.actions.sendOwnerDailyDigest` | internalAction | 毎日17:00 JSTに承認待ち申請がある店舗の有効管理者へ通知 |
 | `internal.staffRegistration.notificationQueries.listPendingRequestShopIdsPage` | internalQuery | 直近24時間以内に作成された承認待ち申請がある店舗IDをページング取得 |
@@ -54,10 +54,10 @@
 - メール誤入力対策は、形式チェック、よくあるtypo警告、送信前の大きな確認表示で行う。
 - QR登録で同意済みのスタッフには、承認後に法務同意メールを送らない。
 - 手入力追加は従来通り、法務同意メール・LINE連携メール・募集中シフト通知を送る。Dashboardでは追加完了時に案内通知を送ったことを明示する。
-- 他店舗スタッフの追加では、グループに登録済みの氏名とメールアドレスを正として同じ人物を再利用する。他店舗のスタッフ所属、管理者権限、セッション、LINE連携情報は変更せず、追加先店舗のスタッフ向け案内だけを新しく送る。
-- スタッフ登録とユーザー詳細で扱うメールアドレスは、そのグループにおけるシフト連絡先であり、Clerkのログイン用メールアドレスではない。
-- ユーザー詳細で連絡先を変更すると、対象の`organizationPeople`と、同じグループで同じ人物に紐づく削除前の`staffs`へ反映する。
-- 本人が自分の情報を変更した場合も、`users`へ同期するのは表示名だけであり、`users.email`、Clerkのログイン方法、グループの請求先メールアドレスは変更しない。
+- 他店舗スタッフの追加では、組織に登録済みの氏名とメールアドレスを正として同じ人物を再利用する。他店舗のスタッフ所属、管理者権限、セッション、LINE連携情報は変更せず、追加先店舗のスタッフ向け案内だけを新しく送る。
+- スタッフ登録とユーザー詳細で扱うメールアドレスは、その組織におけるシフト連絡先であり、Clerkのログイン用メールアドレスではない。
+- ユーザー詳細で連絡先を変更すると、対象の`organizationPeople`と、同じ組織で同じ人物に紐づく削除前の`staffs`へ反映する。
+- 本人が自分の情報を変更した場合も、`users`へ同期するのは表示名だけであり、`users.email`、Clerkのログイン方法、組織の請求先メールアドレスは変更しない。
 - 参加申請を承認すると、承認済みスタッフへLINE連携案内を送り、募集中シフトがある場合は提出リンクも送る。Dashboardでは承認完了時に案内通知を送ったことを明示する。
 - 公開HTTP APIは、新規申請、登録済み、申請済み、承認待ち上限到達のすべてで同じ受付結果を返す。登録済みメールアドレスの有無は公開しない。
 - 公開HTTP APIは、許可Origin、`application/json`、8 KiB以下のbody、server-side schema、Turnstileの`staff_registration` actionとhostnameを検証してから内部mutationを呼ぶ。旧public mutationは公開しない。
@@ -66,7 +66,7 @@
 - 追加Originは`STAFF_REGISTRATION_ALLOWED_ORIGINS`へカンマ区切りで設定する。Turnstileは問い合わせフォームと同じ`VITE_TURNSTILE_SITE_KEY`、`TURNSTILE_SECRET_KEY`を使う。
 - deploy時は、先にTurnstileとOriginの環境変数を設定し、Convex HTTP routeを含むbackendを反映してからfrontendを反映する。旧画面を開いたままの利用者には再読み込みを案内し、HTTP失敗時に旧public mutationへfallbackしない。
 - 承認待ち申請が残っている店舗には、毎日17:00 JSTに店舗の有効管理者へ短い確認通知を送る。
-- `organizationPeople.name`と`organizationPeople.email`を管理者通知の正本とし、移行途中でpersonだけ作成済みの場合も同じuserとグループのpersonを一意に確認して使う。person自体が存在しない旧`shopMembers`だけ`users.name`と`users.email`へfallbackする。
+- `organizationPeople.name`と`organizationPeople.email`を管理者通知の正本とし、移行途中でpersonだけ作成済みの場合も同じuserと組織のpersonを一意に確認して使う。person自体が存在しない旧`shopMembers`だけ`users.name`と`users.email`へfallbackする。
 - 管理者本人を同じ店舗のスタッフとして一意に解決でき、LINEアカウントが有効かつ友だち状態である場合だけLINEへ送り、それ以外とQuota超過時は現在のシフト連絡先へメールで送る。
 - 承認待ち通知のメール / LINE CTAは申請元店舗を `shop` クエリで指定したDashboard URLを使う。
 - 通知コストを抑えるため、最新の承認待ち申請から24時間（`STAFF_REGISTRATION_DIGEST_WINDOW_MS`）だけ通知する。日次cronでは通常1回だけ送られ、24時間を過ぎた申請だけが残っている場合は送らない。

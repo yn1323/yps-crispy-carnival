@@ -1,7 +1,7 @@
 # 分析KPI可視化アプリ
 
 分析projectionと日次snapshotを、内部担当者だけが閲覧する分離Dashboardです。  
-サービス全体からグループ、店舗、シフト周期へ移動し、導入到達度と要確認状態を別々に確認できます。
+サービス全体から組織、店舗、シフト周期へ移動し、導入到達度と要確認状態を別々に確認できます。
 
 顧客向け本体アプリとは別のCloudflare WorkerとStatic Assetsで配信します。  
 実環境での公開状態は[リリース状態](../manual/release-status.md)を参照してください。
@@ -13,8 +13,8 @@ stage別tabは使わず、分析対象ごとにrouteを分けます。
 | route | 用途 |
 |---|---|
 | `/` | 要確認店舗、現在の利用状況、KPI推移、導入到達度、要確認状態、詳細分析 |
-| `/organizations` | グループの利用状況と要確認状態の比較、並び替え、絞り込み、pagination |
-| `/organizations/:organizationId` | グループの主要値、人員内訳、多店舗展開、所属店舗、KPI推移 |
+| `/organizations` | 組織の利用状況と要確認状態の比較、並び替え、絞り込み、pagination |
+| `/organizations/:organizationId` | 組織の主要値、人員内訳、多店舗展開、所属店舗、KPI推移 |
 | `/shops` | 店舗の導入到達、次回シフト、提出率、要確認状態の比較、pagination |
 | `/shops/:shopId` | 店舗の現在値、導入到達履歴、要確認状態、KPI推移、シフト周期一覧 |
 | `/shops/:shopId/cycles/:recruitmentId` | 一つのシフト周期の提出、通知、確定、集計状態 |
@@ -31,9 +31,9 @@ URLに`from`と`to`がある場合は、蓄積開始前を含んでいても指�
 一覧画面では比較期間と集計単位を表示せず、店舗詳細の周期集計状態は周期一覧内で指定します。  
 適用中の条件を一行で示し、入力欄は「条件を変更」を選んだ場合だけ開きます。
 
-サマリーは要確認店舗を最初に表示し、グループ比較表を初期表示しません。  
+サマリーは要確認店舗を最初に表示し、組織比較表を初期表示しません。
 segment比較は「詳細分析」を開いた場合だけ取得し、一度に一つの比較軸を表示します。  
-グループ一覧と店舗一覧への導線はサマリー末尾に残します。
+組織一覧と店舗一覧への導線はサマリー末尾に残します。
 
 数値と表を正確な値の正本として残し、比較、推移、段階、分布を把握する箇所にはグラフを併記します。
 グラフは`Recharts`と`@chakra-ui/charts`で描画し、独自実装の棒や比率バーを表内へ配置しません。
@@ -44,20 +44,20 @@ segment比較は「詳細分析」を開いた場合だけ取得し、一度に�
 選択した比較軸がプラン、LINE利用、通常周期、最近の提出傾向の場合は、区分が互いに重ならないため店舗構成をドーナツでも表示します。
 各グラフの後に表を残し、個別の正確な値を確認できるようにします。
 
-グループ一覧は6列、店舗一覧は最大7列で主要情報を比較します。  
+組織一覧は6列、店舗一覧は最大7列で主要情報を比較します。
 デスクトップでは表、モバイルでは対象名、要確認状態、主要値、詳細導線を縦に並べたカードを表示します。  
 最大50行を表示する一覧表にはグラフを埋め込まず、数値比較と詳細対象の選択へ役割を絞ります。
 単独の日時、ID、個別状態、比較対象のない一つの値もグラフ化しません。
 現在の接続環境を示す`env.label`は、各ページ本文ではなく共通headerへ表示します。
 
-サマリーの`データを書き出す`では、現在適用中の期間、比較期間、集計単位、グループ・店舗scope、segmentの比較軸を固定し、全pageを一つのJSON Linesファイルへまとめてローカル保存します。  
-全体KPI、全trend指標、milestone、health、segment、グループ、店舗、店舗別推移、cycleを含みます。  
+サマリーの`データを書き出す`では、現在適用中の期間、比較期間、集計単位、組織・店舗scope、segmentの比較軸を固定し、全pageを一つのJSON Linesファイルへまとめてローカル保存します。
+全体KPI、全trend指標、milestone、health、segment、組織、店舗、店舗別推移、cycleを含みます。
 途中pageの取得失敗、出力中のsnapshot更新、安全上限の超過時は、欠けたJSONLを保存せずerrorとして表示します。
 
 JSONLは先頭行をmanifest、以降を`recordType`付きの1行1recordとし、AIが行単位で分割して読める形にします。  
 関連recordは`organizationId`、`shopId`、`recruitmentId`で結合します。  
-グループまたは店舗scopeでは、scope非対応のsegmentを混在させず、非出力理由をrecordに残します。  
-グループと店舗は`organizationId`、`shopId`で識別し、グループ名と店舗名は除外します。  
+組織または店舗scopeでは、scope非対応のsegmentを混在させず、非出力理由をrecordに残します。
+組織と店舗は`organizationId`、`shopId`で識別し、組織名と店舗名は除外します。
 スタッフ氏名、email、電話番号、LINE user ID、シフト提出内容、通知本文、要望一覧・要望本文、service credentialも含めません。  
 Dashboardから外部AIへ自動送信せず、保存後のファイルをどこへ渡すかは利用者が判断します。
 
@@ -98,7 +98,7 @@ cronが起動せず新しいrunが存在しない場合は、最後の成功値�
 
 分母が0または値が欠損している場合は0へ置換せず、描画可能な値が一つもない場合だけグラフを省略します。
 
-グループ詳細は主要値と人員内訳を分け、人員内訳を初期状態で閉じます。  
+組織詳細は主要値と人員内訳を分け、人員内訳を初期状態で閉じます。
 全店舗を稼働中と非稼働へ分けたドーナツ、要確認状態の横棒、多店舗展開に要した時間の横棒をKPIカードと併記します。
 所属店舗が1店舗の場合は多店舗展開の「算出できません」カードを並べず、2店舗目の登録後に表示することを案内します。
 
@@ -147,8 +147,8 @@ Workerはrequestを検証し、固定されたConvex route `POST /analytics-dash
 | `GET` | `/api/analytics/trends` | 日、週、月のKPI推移 |
 | `GET` | `/api/analytics/milestones` | 導入到達数と転換 |
 | `GET` | `/api/analytics/health` | health signal別店舗数 |
-| `GET` | `/api/analytics/organizations` | グループ一覧 |
-| `GET` | `/api/analytics/organizations/:organizationId` | グループ詳細 |
+| `GET` | `/api/analytics/organizations` | 組織一覧 |
+| `GET` | `/api/analytics/organizations/:organizationId` | 組織詳細 |
 | `GET` | `/api/analytics/shops` | 店舗一覧 |
 | `GET` | `/api/analytics/shops/:shopId` | 店舗詳細 |
 | `GET` | `/api/analytics/shops/:shopId/cycles` | cycle一覧 |
@@ -180,7 +180,7 @@ query parameterはendpointごとのallowlistで検証します。
 `/requests`以外のAnalytics queryは、先にcompleteな日次runを解決し、日次行の`runId`がそのrunと一致することを確認してから返します。
 `running`または`failed`のrunが残した途中行、organizations、shops、staffs、recruitments、notificationOutboxなどの運用table、旧Analytics tableを直接読みません。
 
-グループ・店舗・segmentの日次detailは25か月だけ保持します。
+組織・店舗・segmentの日次detailは25か月だけ保持します。
 保持下限は最新のcompleteなsnapshot日を基準に計算します。
 これより前の期間を詳細scopeで指定した場合は保持下限へ丸め、選択期間がすべて保持期限外なら値を返しません。
 現在のdimensionは保持するため、登録日が`dataStartDate`やdetail保持下限より前でも、現在の一覧と詳細では登録日を表示できます。
@@ -188,7 +188,7 @@ query parameterはendpointごとのallowlistで検証します。
 切替前には正確に復元できない初回募集以降のmilestoneは、未達ではなく「算出対象外」と表示します。
 
 要望一覧はAnalytics runへ混ぜず、独立した`/requests`契約として残します。これはDashboard queryが運用tableを読まない原則の唯一の例外で、`featureRequests`と現在の`shops`を直接読み、一page最大50件を返します。
-グループ名と店舗名は内部識別のため返しますが、staff email、manager email、token、通知本文、provider raw errorはDTOへ含めません。
+組織名と店舗名は内部識別のため返しますが、staff email、manager email、token、通知本文、provider raw errorはDTOへ含めません。
 
 ## セキュリティと運用
 

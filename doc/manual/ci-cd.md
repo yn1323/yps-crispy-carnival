@@ -26,7 +26,7 @@ Pull Requestを閉じると、同workflowがプレビューの後処理を行う
 - `E2E-AUTH-01`：匿名利用者の保護route redirect。
 - `E2E-SETUP-01`：認証済み管理者の初期設定。
 - `E2E-SHIFT-01`：募集、匿名提出、確定、匿名閲覧の代表導線。
-- `E2E-TENANT-01`：同じ管理者による2グループの切り替え。
+- `E2E-TENANT-01`：同じ管理者による2組織の切り替え。
 - `E2E-MOBILE-01`：Mobile Chromeでの代表提出。
 
 通常実行はE2E用Clerk user 0から2を`parallelIndex`へ固定し、最大3 workerで動かす。

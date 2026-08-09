@@ -4,9 +4,9 @@
 
 管理ユーザー向けのログイン、新規登録、パスワード再設定と、認証済み利用者向けのアカウント設定をシフトリ独自UIで提供する。  認証基盤はClerkを正本とし、Google認証とメールアドレス・パスワード認証を扱う。
 
-Clerk UserのEmailAddress、パスワード、ExternalAccountは「シフトリへ入る方法」であり、グループ単位のシフト連絡先とは独立している。  ログイン方法を変更しても`organizationPeople.email`、`staffs.email`、`organizations.billingEmail`は変更しない。シフト連絡先を変更してもClerkのログイン方法は変更しない。
+Clerk UserのEmailAddress、パスワード、ExternalAccountは「シフトリへ入る方法」であり、組織単位のシフト連絡先とは独立している。  ログイン方法を変更しても`organizationPeople.email`、`staffs.email`、`organizations.billingEmail`は変更しない。シフト連絡先を変更してもClerkのログイン方法は変更しない。
 
-`users.email`は新規user作成時のbootstrap snapshotとlegacy fallbackであり、Clerkの現在値やシフト連絡先を同期する正本ではない。  Clerk、`users`、各グループの`organizationPeople`でメールが異なる状態を正常として扱う。
+`users.email`は新規user作成時のbootstrap snapshotとlegacy fallbackであり、Clerkの現在値やシフト連絡先を同期する正本ではない。  Clerk、`users`、各組織の`organizationPeople`でメールが異なる状態を正常として扱う。
 
 ## 関連ファイルパス
 
@@ -29,7 +29,7 @@ Clerk UserのEmailAddress、パスワード、ExternalAccountは「シフトリ�
 
 ## ログインと新規登録
 
-ログイン画面は「Googleでログイン」と「メールアドレスとパスワードでログイン」の2つの方法として表示する。  フォームでは「ログインに使うメールアドレス」と案内し、グループのシフト連絡先を入力する画面とは混同させない。
+ログイン画面は「Googleでログイン」と「メールアドレスとパスワードでログイン」の2つの方法として表示する。  フォームでは「ログインに使うメールアドレス」と案内し、組織のシフト連絡先を入力する画面とは混同させない。
 
 新規登録もGoogleまたはメールアドレスとパスワードで行う。  ここで登録するメールはClerkのログイン方法であり、ログイン後の初回セットアップでシフト連絡先の候補値として使われるだけである。初回セットアップ後に両者を自動同期しない。
 
@@ -51,7 +51,7 @@ LINEアプリ内ブラウザではGoogle OAuthがprovider側で拒否される�
 
 認証済み利用者は、ヘッダー右上のユーザーメニューから`/account`を開く。  メニュー名とページ見出しは「アカウント設定」とする。  ページ見出しの戻る操作では、ブラウザ履歴を1件戻す。  ヘッダーにClerk primary emailは表示しない。
 
-このページはグループや店舗に依存しない本人専用画面である。  `?shop=`を引き継がず、店舗一覧取得、selected shop解決、無効店舗による全体blockを行わない。認証、削除済みアカウント判定などの共通契約だけを維持する。
+このページは組織や店舗に依存しない本人専用画面である。  `?shop=`を引き継がず、店舗一覧取得、selected shop解決、無効店舗による全体blockを行わない。認証、削除済みアカウント判定などの共通契約だけを維持する。
 
 画面はClerkのcurrent User resourceからメールアドレス、パスワード、Google認証の状態を表示する。  メールログインの対象として表示・変更するメールアドレスは、Primaryの1件だけとし、UIでは「メインのメールアドレス」と呼ぶ。  過去から残るsecondary EmailAddressや確認途中のEmailAddressがClerk上にあっても、別のログイン対象行としては表示せず、Primary変更に無関係なresourceを推測削除しない。
 アカウント設定では、確認コードの送信先と本人再確認factorを含め、current UserのEmailAddress resourceから所有を確認できるメールアドレスを省略せず表示する。  Clerkの`safeIdentifier`がマスキング済みでも、メールアドレスの表示には使用しない。

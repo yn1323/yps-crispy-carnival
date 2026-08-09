@@ -1,4 +1,4 @@
-# グループ課金の運用
+# 組織課金の運用
 
 > 文書種別: manual
 >
@@ -6,10 +6,10 @@
 >
 > 実環境の公開・設定・migration状況: [リリース状態](release-status.md)
 
-この文書は、グループ課金に関する人の運用を扱う。
+この文書は、組織課金に関する人の運用を扱う。
 Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotation、障害復旧を、実環境を推測せずに進めるための手順である。
 
-利用者向けの機能とコードの入口は[グループ課金、複数店舗、複数管理者](../features/organization-billing.md)、詳細な業務契約は[グループ課金の業務仕様](../specs/organization-billing-business-flow.md)を参照する。
+利用者向けの機能とコードの入口は[組織課金、複数店舗、複数管理者](../features/organization-billing.md)、詳細な業務契約は[組織課金の業務仕様](../specs/organization-billing-business-flow.md)を参照する。
 
 ## 作業目的から探す
 
@@ -57,7 +57,7 @@ Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotat
 
 | 変数 | 開く対象 |
 |---|---|
-| `FEATURE_ORGANIZATION_CREATION` | 二つ目以降のグループ作成 |
+| `FEATURE_ORGANIZATION_CREATION` | 二つ目以降の組織作成 |
 | `FEATURE_SHOP_ADDITION` | 店舗追加と既存人物の複数店舗所属UI |
 | `FEATURE_BILLING` | プランと支払いのUI |
 | `FEATURE_MANAGER_INVITATION` | 管理者の追加、Free管理者交代、再送、preview、受諾、招待通知、管理者連携完了通知 |
@@ -190,8 +190,8 @@ probeは全件集計ではなく、項目ごとに`observedCount`と`hasMore`を
 | `anomalies.complimentaryStripeMappingP0` | 支払い不要プランとStripe objectの対応。1件以上ならP0 |
 | `anomalies.activePaidWithoutCurrentSubscription` | 有料状態なのに現在のSubscriptionがない対応不整合 |
 | `anomalies.activeFreeWithCurrentSubscription` | Free状態なのに現在のSubscriptionがある対応不整合 |
-| `anomalies.organizationsWithMultipleNonterminalSubscriptions` | 一グループに複数の非terminal Subscriptionがある不整合 |
-| `anomalies.organizationsWithMultipleStripeCustomers` | 一グループに複数Customerがある不整合 |
+| `anomalies.organizationsWithMultipleNonterminalSubscriptions` | 一組織に複数の非terminal Subscriptionがある不整合 |
+| `anomalies.organizationsWithMultipleStripeCustomers` | 一組織に複数Customerがある不整合 |
 | `anomalies.subscriptionsWithoutMatchingLocalCustomer` | SubscriptionとローカルCustomerの対応不整合 |
 | `anomalies.stripeCustomersWithoutBillingState` | Customerに対応する課金状態の欠落 |
 | `anomalies.unresolvedM018MigrationConflicts` | Business廃止時の履歴migrationで未解消のconflict |
@@ -218,7 +218,7 @@ probeにこの項目がないことはm021の完走や旧形式の残件0を証�
 ### 対象と停止条件
 
 `m021_organization_billing_complimentary_pro_to_business`は、Widen期間にStripeから隔離された旧`complimentary.pro`だけを`complimentary.business`へ変更するための履歴migrationである。
-グループ欠落、課金状態重複、Stripe Customer、Subscription、全statusのoperation、Webhook、課金通知、先行監査のいずれかがあれば変更せずconflictへ残す。
+組織欠落、課金状態重複、Stripe Customer、Subscription、全statusのoperation、Webhook、課金通知、先行監査のいずれかがあれば変更せずconflictへ残す。
 
 未移行の旧形式が見つかった場合はNarrow版をdeployしない。
 Widen版の対象revisionへ戻ってm021と検証を完了し、その証跡を固定してからNarrow deployへ進む。
@@ -336,7 +336,7 @@ Priceのアーカイブは新規販売を止めるが、既存Subscriptionを終
 1. 対象environmentのPro PriceとBusiness Priceをアーカイブする。
 2. 発行済みのopen Checkout Sessionをすべて失効させる。
 3. Webhook、取消、Invoice回収停止、再照合は継続する。
-4. 対象グループ、Customer、全Subscription世代、Invoiceを照合する。
+4. 対象組織、Customer、全Subscription世代、Invoiceを照合する。
 5. 誤請求の有無、返金、creditの要否を人が判断する。
 6. 原因とforward repairを決め、providerとローカルの対応を再検証する。
 
@@ -398,7 +398,7 @@ Checkoutや新規Subscription作成を推測で再送しない。
 2. 予約したbatchが処理されるのを待ってからprobeを再実行する。
 3. `reachedBatchLimit: true`なら、先行batchの収束を確認してから次のbounded recoveryを判断する。
 4. `actionRequired`は自動削除せず、Customer、Subscription、Invoice、operationの対応をprovider再取得で確認する。
-5. 一意に対応できないobjectは推測で別グループへ結び付けず、手動対応またはforward repairへ残す。
+5. 一意に対応できないobjectは推測で別組織へ結び付けず、手動対応またはforward repairへ残す。
 
 復旧中もsecretとWebhookを単純に無効化しない。
 provider側の請求停止や取消が未完了なら、新規販売を止めたまま安全operationを完了させる。
@@ -420,8 +420,8 @@ provider側の請求停止や取消が未完了なら、新規販売を止めた
 
 ## 参照先
 
-- [グループ課金、複数店舗、複数管理者](../features/organization-billing.md)
-- [グループ課金の業務仕様](../specs/organization-billing-business-flow.md)
+- [組織課金、複数店舗、複数管理者](../features/organization-billing.md)
+- [組織課金の業務仕様](../specs/organization-billing-business-flow.md)
 - [リリース状態](release-status.md)
 - [CI/CD運用](ci-cd.md)
 - [セキュリティ再検証](security-validation.md)
