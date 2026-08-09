@@ -89,7 +89,7 @@ export function UserGroupRemovalSection({
   return (
     <>
       <DeletionActionSection
-        title="ユーザーを削除する"
+        title="スタッフを削除する"
         actionLabel="削除"
         actionVariant="solid"
         canDelete={!isDisabled}

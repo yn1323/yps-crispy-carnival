@@ -50,7 +50,7 @@ export function deriveOrganizationPersonCapabilities(input: OrganizationPersonCa
     : input.isLastRecoveryManager
       ? "最後の復旧担当者は、引き継ぎまたは契約の復旧が完了するまで削除できません。"
       : isLastActiveManager
-        ? "最後の有効管理者は削除できません。"
+        ? "管理者は削除できません。"
         : input.isBillingContact
           ? "削除するには、先に請求先メールアドレスを変更してください。"
           : input.isRestrictedRecovery

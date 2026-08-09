@@ -1006,7 +1006,7 @@ async function prepareFullOrganizationPersonRemoval(
   const billingReferenceUpdate = await planBillingReferenceUpdate(ctx, args.billingState, args.person._id);
   if (args.member?.status === "active") {
     const hasOtherManager = await hasOtherValidActiveManager(ctx, args.actor.organization._id, args.person._id);
-    if (!hasOtherManager) throw new ConvexError("最後の有効管理者は削除できません");
+    if (!hasOtherManager) throw new ConvexError("管理者は削除できません。");
   }
 
   const staffs = await ctx.db

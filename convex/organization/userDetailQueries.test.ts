@@ -492,7 +492,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       canRemoveManagerRole: false,
       managerRoleRemovalDisabledReason: "最後の有効管理者の管理者権限は外せません。",
       canRemove: false,
-      removeDisabledReason: "最後の有効管理者は削除できません。",
+      removeDisabledReason: "管理者は削除できません。",
     });
   });
 

@@ -328,7 +328,7 @@ export const PersonRemovalUnavailable: Story = {
     data: {
       ...baseData,
       canRemove: false,
-      removeDisabledReason: "最後の有効管理者は削除できません。",
+      removeDisabledReason: "管理者は削除できません。",
     },
   },
 };
