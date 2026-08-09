@@ -34,43 +34,45 @@ export function UserShopLineSection({
 
   return (
     <Stack gap={6}>
-      <Stack gap={1}>
-        <Text as="h2" fontSize="md" fontWeight="semibold" color="gray.900">
-          LINE連携
-        </Text>
-        <Text fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
-          LINE連携は店舗ごとに設定してください。
-          {!isLineActive && "\nいずれかの方法でスタッフを招待してください。"}
-        </Text>
-      </Stack>
+      <Stack gap={3}>
+        <Stack gap={1}>
+          <Text as="h2" fontSize="md" fontWeight="semibold" color="gray.900">
+            LINE連携
+          </Text>
+          <Text fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
+            LINE連携は店舗ごとに設定してください。
+            {!isLineActive && "\nいずれかの方法でスタッフを招待してください。"}
+          </Text>
+        </Stack>
 
-      {lineStatus.isActive ? (
-        <Alert.Root status="success" borderRadius="md" alignItems="flex-start" p={3}>
-          <Alert.Indicator mt={1} />
-          <Alert.Content>
-            <Alert.Title>{lineStatus.label}</Alert.Title>
-            {lineStatus.description && (
-              <Alert.Description fontSize="sm" lineHeight="tall" whiteSpace="pre-line">
-                {lineStatus.description}
-              </Alert.Description>
-            )}
-          </Alert.Content>
-        </Alert.Root>
-      ) : (
-        <Box borderWidth="1px" borderColor="border.default" bg="blackAlpha.50" borderRadius="md" p={3}>
-          <Stack gap={1}>
-            <HStack gap={2}>
-              <LuMessageCircle aria-hidden />
-              <Text fontWeight="semibold">{lineStatus.label}</Text>
-            </HStack>
-            {lineStatus.description && (
-              <Text fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
-                {lineStatus.description}
-              </Text>
-            )}
-          </Stack>
-        </Box>
-      )}
+        {lineStatus.isActive ? (
+          <Alert.Root status="success" borderRadius="md" alignItems="center" p={3}>
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>{lineStatus.label}</Alert.Title>
+              {lineStatus.description && (
+                <Alert.Description fontSize="sm" lineHeight="tall" whiteSpace="pre-line">
+                  {lineStatus.description}
+                </Alert.Description>
+              )}
+            </Alert.Content>
+          </Alert.Root>
+        ) : (
+          <Box borderWidth="1px" borderColor="border.default" bg="blackAlpha.50" borderRadius="md" p={3}>
+            <Stack gap={1}>
+              <HStack gap={2}>
+                <LuMessageCircle aria-hidden />
+                <Text fontWeight="semibold">{lineStatus.label}</Text>
+              </HStack>
+              {lineStatus.description && (
+                <Text fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
+                  {lineStatus.description}
+                </Text>
+              )}
+            </Stack>
+          </Box>
+        )}
+      </Stack>
 
       {!isLineActive && (
         <fieldset disabled={isReadOnly} style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}>
@@ -152,7 +154,7 @@ function getLineStatus(membership: UserShopDetailMembership) {
   }
   return {
     label: "LINE連携済み",
-    description: "この店舗のシフト関連通知をLINEで受け取れます。",
+    description: "店舗のシフト通知をLINEで受け取ります。",
     isActive: true,
   };
 }

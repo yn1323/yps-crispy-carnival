@@ -245,7 +245,9 @@ export const NotificationLoadingBehavior: Story = {
     await expect(canvas.getByLabelText("通知情報を読み込み中")).toBeInTheDocument();
     await userEvent.click(canvas.getByRole("button", { name: "通知情報の取得を完了" }));
 
-    await expect(await canvas.findByRole("button", { name: "募集中のシフトを再送する" })).toBeEnabled();
+    const resendButtons = await canvas.findAllByRole("button", { name: "再送する" });
+    await expect(resendButtons).toHaveLength(2);
+    await expect(resendButtons[0]).toBeEnabled();
     await expect(canvas.queryByLabelText("通知情報を読み込み中")).not.toBeInTheDocument();
     await expect(canvas.getByRole("heading", { name: "LINE連携" })).toBeInTheDocument();
   },
@@ -332,7 +334,7 @@ export const LineLinked: Story = {
     const status = await canvas.findByText("LINE連携済み");
 
     await expect(status).toBeVisible();
-    await expect(canvas.findByText("この店舗のシフト関連通知をLINEで受け取れます。")).resolves.toBeVisible();
+    await expect(canvas.findByText("店舗のシフト通知をLINEで受け取ります。")).resolves.toBeVisible();
   },
 };
 
@@ -341,7 +343,7 @@ export const RecruitmentNotificationSendingBehavior: Story = {
   render: () => <InteractionHarness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const sendButton = canvas.getByRole("button", { name: "募集中のシフトを再送する" });
+    const sendButton = canvas.getAllByRole("button", { name: "再送する" })[0];
 
     await expect(sendButton).toBeEnabled();
     await userEvent.click(sendButton);
@@ -357,11 +359,20 @@ export const MembershipRemovalConfirmationBehavior: Story = {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
 
-    await userEvent.click(canvas.getByRole("button", { name: "店舗から外す" }));
+    await expect(canvas.getByText(/このスタッフを店舗から外します。/)).toBeInTheDocument();
+    await expect(
+      canvas.getByText(/組織への登録は残るため、別店舗に移動する際などに利用してください。/),
+    ).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "削除する" }));
     const confirmation = await page.findByRole("alertdialog", { name: "店舗から外す" });
     const confirmationContent = within(confirmation);
 
     await expect(confirmationContent.getByText("田中 花子さんを渋谷店から外しますか？")).toBeInTheDocument();
+    await expect(confirmationContent.getByText(/この店舗からのシフト通知、LINE連携を削除します。/)).toBeInTheDocument();
+    await expect(confirmationContent.getByText(/別店舗の所属はそのままです。/)).toBeInTheDocument();
+    await expect(
+      confirmationContent.getByText(/すべての店舗から外れた場合、未所属として組織に残り続けます。/),
+    ).toBeInTheDocument();
     const confirmButton = confirmationContent.getByRole("button", { name: "店舗から外す" });
     await userEvent.click(confirmButton);
     await expect(canvas.getByTestId("membership-removal-count")).toHaveTextContent("1");

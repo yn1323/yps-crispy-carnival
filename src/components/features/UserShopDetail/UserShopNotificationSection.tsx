@@ -74,11 +74,11 @@ export function UserShopNotificationSection({
           ) : (
             <>
               <NotificationSection
-                title="現在の募集中シフト"
+                title="募集中シフト"
                 icon={<LuSend aria-hidden />}
                 recruitments={openRecruitments}
                 emptyText="送信できる募集中シフトはありません。"
-                actionLabel="募集中のシフトを再送する"
+                actionLabel="再送する"
                 action={{
                   ...sendRecruitmentsAction,
                   isDisabled:
@@ -90,7 +90,7 @@ export function UserShopNotificationSection({
                 icon={<LuCalendarCheck aria-hidden />}
                 recruitments={currentRecruitments}
                 emptyText="送信できる確定シフトはありません。"
-                actionLabel="確定シフトを再送する"
+                actionLabel="再送する"
                 action={{
                   ...sendCurrentShiftAction,
                   isDisabled:
