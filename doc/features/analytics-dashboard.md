@@ -66,6 +66,7 @@ Dashboardから外部AIへ自動送信せず、保存後のファイルをどこ
 `/requests`を除くAnalytics routeでは、`availability`、`asOf`、`dataStartDate`、`latestCompleteSnapshotDate`、`computedAt`、警告を表示します。
 通常時は最新の完全な集計日と集計完了日時を一行で示し、蓄積開始日と基準日時は「集計の詳細」に収めます。  
 期間を変えると解消できる警告は表示条件の近くへ置き、resetまたは日次runの実行中・失敗はページ上部へ表示します。
+reset完了日の初回partialも通常の`complete`日次として期間集計と比較へ含め、専用の注記や警告は表示しません。
 `/requests`はAnalytics runの状態を画面表示せず、現在の要望を独立した一覧として表示します。
 
 | 状態 | 表示 |

@@ -5,7 +5,8 @@
 > 現在の実環境状態: [リリース状態](release-status.md)
 
 この手順は、旧Analyticsを停止し、破壊的resetで新しい夜間batchへ切り替えるためのものです。
-過去のAnalytics履歴は引き継がず、reset後の最初の完全なJST日から日次履歴を作ります。
+過去のAnalytics履歴は引き継ぎません。
+Narrow後にreset完了日の初回partialを即時公開し、翌々日の03:00から完全な日次履歴を作ります。
 
 リポジトリの実装完了は、対象deploymentへのWiden、破壊的reset、Narrow readiness確認、Narrow、初回日次、cronと外部alertの有効化を意味しません。
 この文書は手順だけを定め、Production操作の実施記録には使いません。
@@ -18,10 +19,10 @@
 2. Widen版をdeployし、旧runnerをfreezeし、新cronの環境gateを無効にしている。
 3. reset用4環境変数と呼出し引数が一致し、nightly cronが無効で、`analytics/reset:dryRun`が`allowed: true`と`configured.nightlyCronEnabled: false`を返している。
 4. `analytics/reset:start`から始まったreset runが`complete`になっている。
-5. `analytics/reset:getNarrowReadiness`がすべての固定probeを`true`で返し、待機後も`readyForNarrow: true`を維持している。
-6. Narrow readiness証跡より後の別revisionでNarrow版をdeployしている。
-7. `dataStartDate`の初回manual dailyが`complete`になり、全日次scopeが同じ`runId`で公開されている。
-8. dailyとweekly maintenanceのcron gateを有効にし、実行時間、負荷、欠落・期限超過・失敗alertの疎通を確認している。
+5. Widen版`analytics/reset` moduleの`getNarrowReadiness`がすべての固定probeを`true`で返し、待機後も`readyForNarrow: true`を維持している。
+6. Narrow readiness証跡より後の別revisionで、初回即時partialの変更を同梱したNarrow版をdeployしている。
+7. reset完了日の初回manual dailyが即時に`complete`になり、全日次scopeが同じ`runId`で公開され、Dashboardの期間集計と比較へ含まれている。
+8. dailyとweekly maintenanceのcron gateを有効にし、初回翌日の03:00がno-op、翌々日の03:00がreset rowの`dataStartDate`を対象とする完全な日次runになることを確認している。実行時間、負荷、欠落・期限超過・失敗alertの疎通も確認している。
 9. Cloudflare Access、service credential非露出、`availability`と欠損日の表示を実環境で確認している。
 10. 旧scheduled callの互換stubを、安全条件成立後の別deployで削除している。
 
@@ -224,7 +225,7 @@ pnpm exec convex run analytics/runs:getStatus '{}' \
 ## Narrow readiness確認
 
 resetが`complete`になった後、固定されたread-only queryでNarrow条件を確認します。
-operatorがinline queryを組み立てず、対象revisionに含まれる`analytics/reset:getNarrowReadiness`を使います。
+operatorがinline queryを組み立てず、Narrow前のWiden revisionに含まれる`analytics/reset` moduleの`getNarrowReadiness`を使います。
 返却値はbooleanだけで、row ID、表示名、source payloadを含みません。
 
 ```bash
@@ -246,6 +247,7 @@ pnpm exec convex run analytics/reset:getNarrowReadiness '{}' \
 
 Widen schemaは、このreadiness確認が終わるまで維持します。
 reset cleanupと現在状態のseedがWiden下で完了して初めて、旧field、旧index、旧tableを削除するNarrowへ進めます。
+`getNarrowReadiness`自体も削除対象tableとindexに依存するためNarrowで削除し、確認結果はNarrow前の証跡として保存します。
 
 ## Narrow
 
@@ -261,6 +263,9 @@ Narrow readinessの証跡より後の別revisionで、次をNarrowします。
 - 日次五tableの旧generation fieldとindex
 - Widen中optionalにした`runId`、`kpiEligible`、`kpiEligibleShopCount`
 
+同じNarrow revisionへ、既存の`analytics/nightly:startForDate`を再利用する初回即時partial、初回用cutoff、publish invariant、daily manifestの公開履歴起点の変更を含めます。
+新しいFunction、field、statusは追加せず、reset rowの`dataStartDate`と`dataStartAt`も変更しません。
+
 Narrow版をdeployする前に、旧revisionのWorker、cron、手動runbookが削除対象tableをreadまたはwriteしないことを確認します。
 旧scheduled callのno-op互換stubは、このNarrow deployでは残します。
 
@@ -268,17 +273,34 @@ Narrow deploy後に`analytics/runs:getStatus`を再実行し、reset runが`comp
 
 ## 初回manual daily
 
-cron gateを`false`のまま、`dataStartDate`が終了して3時間経過するまで待ちます。
-対象日はreset rowに保存された`dataStartDate`だけです。
+cron gateを`false`のまま、Narrow deploy後に待機せず開始します。
+resetが完了したJST日を`D`とすると、対象日は`D`、reset rowの`dataStartDate`は`D+1`です。
+reset rowの`dataStartDate`と`dataStartAt`は変更しません。
+初回daily manifestの`dataStartDate`だけを`D`とし、Dashboardへ公開する履歴の起点にします。
+Narrow deployと初回manual dailyはreset完了と同じJST日内に終えます。日付を跨いだ場合はこのpartialを開始せず、cron gateを`false`のまま停止条件として再計画します。
+fallbackとして、reset rowの`dataStartDate`が終了した後、その日付を対象に同じFunctionから最初の完全日次を開始できます。
+
+同日partialは次の引数で開始します。
 
 ```bash
 pnpm exec convex run analytics/nightly:startForDate \
-  '{"targetDate":"<data-start-date>"}' \
+  '{"targetDate":"<reset-complete-date>"}' \
+  --deployment <fully-qualified-deployment>
+```
+
+fallbackの完全日次は次の引数で開始します。
+
+```bash
+pnpm exec convex run analytics/nightly:startForDate \
+  '{"targetDate":"<reset-data-start-date>"}' \
   --deployment <fully-qualified-deployment>
 ```
 
 `startForDate`は初回切替確認専用です。
-すでにdaily runが一件でもある場合、当日、`dataStartDate`以外の日付では開始しません。
+すでにdaily runが一件でもある場合は開始しません。
+同日partialではreset完了日だけを対象にし、fallbackの完全日次では終了済みのreset rowの`dataStartDate`だけを対象にします。
+同日partialの`cutoffAt`はFunction実行時刻であり、`inputFromAt`はresetの`sourceCaptureStartAt`です。
+対象時間は一日未満になり得ますが、専用のpartial statusやfieldを持たず、通常の日次と同じ`complete`としてpublishします。
 
 次のqueryで`daily.status: complete`を確認します。
 
@@ -289,12 +311,16 @@ pnpm exec convex run analytics/runs:getStatus '{}' \
 
 次を同じ証跡へ残します。
 
-- `runKey`が`daily:<data-start-date>`
-- `targetDate`、`dataStartDate`、`stage`、`stepVersion`、`startedAt`、`terminalAt`
+- `runKey`が`daily:<reset-complete-date>`
+- reset rowの`dataStartDate`が`D+1`、初回daily manifestの`dataStartDate`が`D`になっている
+- reset rowと初回daily manifestの`dataStartAt`が`D+1` 00:00 JSTから変わっていない
+- `cutoffAt`が初回Function実行時刻で、未来の日末を指していない
+- `stage`、`stepVersion`、`startedAt`、`terminalAt`
 - `sourceFacts`から`publish`までの構造化logと全run時間
 - service、notification、organization、shop、segmentの日次行が同じ`runId`
 - publish前invariantが成功し、日次runが`complete`
-- Dashboard metadataが`availability: available`、正しい`asOf`、`dataStartDate`、`latestCompleteSnapshotDate`を返す
+- Dashboard metadataが`availability: available`、`asOf: <initial-cutoff-at>`、`dataStartDate: <reset-complete-date>`、`latestCompleteSnapshotDate: <reset-complete-date>`を返す
+- Dashboardの期間集計と比較が初回partialを通常のcomplete日次として含み、専用のpartial表示を出さない
 - 切替前日次rowがなく、既存店舗の登録日と切替後の現在値、health、完全なcycle rateが表示される
 - 既存店舗の初回募集以降のmilestoneが、未達ではなく「算出対象外」と表示される
 - notification本文、credential、PII、任意error messageがresponseとlogへ出ていない
@@ -318,20 +344,31 @@ pnpm exec convex env set ANALYTICS_NIGHTLY_CRON_ENABLED 'true' \
 | `analytics-nightly-daily` | 毎日03:00 | 終了済みの前日を集計 |
 | `analytics-weekly-maintenance` | 月曜04:00 | PII redaction、retention、直近7日の日次出力監査、現在canonical参照監査 |
 
+reset完了日を`D`とした最初の二回は、次の結果になります。
+
+| 実行時刻 | cronの対象日 | 結果 |
+|---|---|---|
+| `D+1` 03:00 | `D` | 初回manual runが存在するためno-op。新しいrun行と日次行を作らない |
+| `D+2` 03:00 | `D+1`（reset rowの`dataStartDate`） | `D+1` 00:00から翌日00:00までの完全な日次snapshotを作る |
+
+`D+2`のrunは、初回manual runの`cutoffAt`からsource eventを再適用します。
+このため、初回実行後のeventを飛ばさず、通知集計は`D+1`の00:00から翌日00:00までになります。
+`D+2`以降のdaily manifestも`dataStartDate: D`と`dataStartAt: D+1 00:00 JST`を引き継ぎます。
+
 weekly maintenanceは、400日のhard deadlineを越えないよう期限の14日前からopportunityの本人参照をcycle単位でredactします。
 その後にretentionを行い、直近7日分の保存済み日次行のscope、率、rollup、`runId`を監査します。
 保存済み行の不整合が確定した日だけdaily runを`failed`へ変えます。
 最後に現在のcanonical factのtenant参照とcycle、opportunityの整合性を監査します。
 過去日を現在のcanonical factから再計算する監査は行いません。
 
-最初の自動日次とweekly maintenanceについて、`analytics/runs:getStatus`、Function logs、実行時間、read/write document数とbytesを記録します。
+`D+1` 03:00のno-op、`D+2` 03:00の最初の完全な自動日次、weekly maintenanceについて、`analytics/runs:getStatus`、Function logs、実行時間、read/write document数とbytesを記録します。
 最大想定件数でscope上限またはConvex function limitへ達した場合は、不完全値を許可せず、query形状またはscope上限の設計を見直します。
 
 外部監視には、次の条件を設定します。
 
 | 条件 | alert条件 |
 |---|---|
-| daily未開始 | JST 03:15までに前日分の`analytics_run_started`がない |
+| daily未開始 | JST 03:15までに前日分の`analytics_run_started`がない。ただし初回翌日の予定されたno-opは除外する |
 | daily期限超過 | JST 15:00までに同じrunの`analytics_run_complete`または`analytics_run_failed`がない |
 | terminal failure | daily、reset、maintenanceの`analytics_run_failed`を検知した |
 | reset期限超過 | reset開始から12時間以内にterminal logがない |
@@ -386,7 +423,7 @@ Analytics一覧は初期50件、最大100件、`/requests`は最大50件、trend
 1. 旧cronと旧callerを作るrevisionが全environmentからなくなっている。
 2. freezeから旧lease時間の15分を超えている。
 3. `getNarrowReadiness`の再確認とNarrow deployが完了している。
-4. 初回manual dailyと、その後の自動daily・weekly maintenanceが成功している。
+4. 初回manual daily、翌日03:00のno-op、翌々日03:00の完全な自動daily、weekly maintenanceを確認している。
 5. 旧schedule時刻を含む24時間以上、`analytics_legacy_call_ignored`が新たに出ていない。
 6. 手動runbook、Dashboard、固定referenceに旧function名が残っていない。
 
@@ -400,6 +437,8 @@ Analytics一覧は初期50件、最大100件、`/requests`は最大50件、trend
 - 完全修飾deployment名、revision、`sourceCaptureStartAt`を一意に特定できない。
 - dry runが`allowed: false`、またはserver設定と要求値が一致しない。
 - reset、daily、maintenanceのrunが`failed`または期限超過になった。
+- 初回manual dailyの開始前に、resetが完了したJST日を跨いだ。
+- 初回翌日の03:00にno-op以外のdaily runが作られた、または翌々日の03:00にreset rowの`dataStartDate`を対象とする完全なdaily runが作られなかった。
 - LINE readinessで50件超過を検出した。
 - tenant参照、rollup、rate pair、runIdのinvariantに違反した。
 - Narrow readinessの一項目が`false`、または待機後に再増加した。
@@ -410,8 +449,8 @@ Analytics一覧は初期50件、最大100件、`/requests`は最大50件、trend
 
 - Widen、Narrow、cron gate有効化、互換stub削除の各revision
 - 完全修飾deployment名
-- `sourceCaptureStartAt`、`resetWatermarkAt`、`dataStartAt`、`dataStartDate`
-- dry run readback、reset run、初回daily run、最初の自動runのterminal状態
+- `sourceCaptureStartAt`、`resetWatermarkAt`、`dataStartAt`、reset rowとdaily manifestそれぞれの`dataStartDate`
+- dry run readback、reset run、初回partial run、翌日03:00のno-op、翌々日03:00の最初の完全な自動runの状態
 - `getNarrowReadiness`の初回・再確認証跡
 - Function logs、実行時間、負荷、Dashboard metadata
 - 外部alertの疎通証跡と確認者

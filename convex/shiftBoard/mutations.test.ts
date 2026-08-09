@@ -1101,10 +1101,14 @@ describe("shiftBoard/mutations", () => {
     // scheduler.runAfter(0, ...) による "use node" アクションがテスト環境で
     // トランザクション外書き込みエラーを起こすため、タイマーを止めて実行を抑制する
     beforeEach(() => {
+      vi.stubEnv("ANALYTICS_SOURCE_CAPTURE_START_AT", "");
       vi.useFakeTimers();
       vi.setSystemTime(new Date("2026-01-20T00:00:00+09:00"));
     });
-    afterEach(() => vi.useRealTimers());
+    afterEach(() => {
+      vi.unstubAllEnvs();
+      vi.useRealTimers();
+    });
 
     it("未認証の場合エラーをthrow", async () => {
       const t = convexTest(schema, modules);

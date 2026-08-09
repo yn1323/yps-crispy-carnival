@@ -89,8 +89,8 @@ function EmailPasswordPreview({
   const controller = buildEmailPasswordController(state, setState, () => {
     setCompleted(true);
     showSuccessToast({
-      title: "メールアドレスとパスワードを設定しました",
-      description: "Google認証はそのまま利用できます。",
+      title: "メインのメールアドレスとパスワードを設定しました",
+      description: "Google認証とシフト連絡先メールアドレスは変わりません。",
     });
   });
 
@@ -361,8 +361,9 @@ export const AddEmailPasswordBehavior: Story = {
     await userEvent.click(passwordDialog.getByRole("button", { name: "決定" }));
 
     await waitFor(() => expect(body.queryByRole("dialog", { name: "パスワード設定" })).not.toBeInTheDocument());
-    const toastTitle = await body.findByText("メールアドレスとパスワードを設定しました");
+    const toastTitle = await body.findByText("メインのメールアドレスとパスワードを設定しました");
     await waitFor(() => expect(toastTitle).toBeVisible());
+    await expect(await body.findByText("Google認証とシフト連絡先メールアドレスは変わりません。")).toBeVisible();
     await waitFor(() => expect(body.queryByRole("dialog")).not.toBeInTheDocument());
   },
 };

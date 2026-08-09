@@ -49,6 +49,14 @@ page mutationはrun fenceの照合、有界read、絶対値upsert、step進行�
 日次runは、最後に成功した日次runの`cutoffAt`から今回の`cutoffAt`までのsource eventを再適用します。
 前日のsnapshotを入力にしないため、失敗日の途中処理を次の日が引き継がず、累積値もcanonical factから再計算します。
 
+reset後の初回日次だけは、Narrow deploy後に既存の`analytics/nightly:startForDate`から即時開始します。
+reset完了日のJST日付を`targetDate`、Function実行時刻を`cutoffAt`とするため、一日未満の値になり得ます。
+このrunも同じstageとpublish前invariantを通り、専用statusやfieldを持たない通常の`complete`としてDashboardの期間集計と比較へ含まれます。
+
+初回runの翌日03:00は同じ対象日のmanifestがすでにあるためno-opになります。
+翌々日03:00にreset rowの`dataStartDate`を対象とする完全な一日分を初めて集計し、以降は終了済みの前日を通常どおり処理します。
+初回partialを同日中に開始しなかった場合は、reset rowの`dataStartDate`が終了した後、その日を最初の完全日次として`startForDate`から開始できます。
+
 pageで例外が発生すると、そのtransactionの書込みはrollbackします。
 wrapperはrunを`failed`へ変え、安全なerror codeだけをConvex logへ出します。
 error message、stack、cursor、attempt、処理件数はDBへ保存しません。
@@ -70,7 +78,9 @@ resetは次の事実だけを切替前から引き継ぎます。
 - reset時点で継続しているcycleの文脈
 
 切替前の初回募集、初回提出、初回・2回目確定、通常周期、health、終了済みcycleの率は復元しません。
-reset終了後の最初の完全なJST日を`dataStartDate`とし、それより前の日次snapshotも作りません。
+reset rowの`dataStartDate`はreset終了後の最初の完全なJST日、`dataStartAt`はその日の00:00です。
+初回partialを公開するdaily manifestでは`dataStartDate`をreset完了日へ広げ、後続dailyもこの公開履歴の起点を引き継ぎます。
+reset rowと`dataStartAt`は変更しません。
 
 切替前から存在するグループと店舗も、登録日と現在の人数を表示できます。
 店舗日次行の`kpiEligible`は、切替後に観測を始めた導入到達度の対象かどうかだけを表します。
@@ -104,7 +114,7 @@ Dashboardでは既存店舗の登録日を表示し、切替前には正確に�
 日次五tableは`runId`を持ちます。
 Dashboardは`status: complete`の日次runと`runId`が一致する行だけを読み、`running`または`failed`のrunが残した行を公開しません。
 
-Widen期間だけ残す旧tableと互換fieldは、対象deploymentで破壊的resetとNarrow readiness確認を終えた後のNarrowで削除します。
+リポジトリの現行Narrow schemaでは、Widen期間だけ残していた旧tableと互換fieldを削除済みです。対象deploymentへは、破壊的resetとNarrow readiness確認を終えた後だけdeployします。
 実行順と証跡は[Analytics rollout](../manual/analytics-rollout.md)を正本とします。
 
 ## 時刻と完全性
@@ -113,8 +123,8 @@ Widen期間だけ残す旧tableと互換fieldは、対象deploymentで破壊的r
 |---|---|
 | `occurredAt` | サービスが業務変更を受理した時刻 |
 | `effectiveAt` | planや所属の状態が有効になった時刻 |
-| `cutoffAt` | 入力半開区間とsnapshotの終端 |
-| `snapshotDate` | JST日次終了時点の日付 |
+| `cutoffAt` | 入力半開区間とsnapshotの終端。通常は対象日の翌日00:00、初回partialはFunction実行時刻 |
+| `snapshotDate` | 対象JST日。通常は日次終了時点、初回partialはreset完了日 |
 | `computedAt` | 集計行を作った時刻 |
 
 通常の日次入力は`[inputFromAt, cutoffAt)`の半開区間です。
@@ -122,6 +132,7 @@ Widen期間だけ残す旧tableと互換fieldは、対象deploymentで破壊的r
 
 cycleまたは指標の`complete`は分母を証明できること、`unavailable`は分母を証明できないことを表します。
 workerの進捗を日次行の完全性で表すことはなく、publish前の安いinvariantを満たしたrunだけが`complete`になります。
+初回日次の「partial」は対象時間が一日未満であることだけを指し、run statusと日次行の完全性は通常の日次と同じ`complete`です。
 
 shopの日次行には、時点の人員、LINE状態、health signal、期間内KPIに加え、累積cycle数、累積提出率の分子と分母、累積通知送信・失敗数、確定lead timeの中央値とP90を保存します。
 organizationとserviceの日次行には、到達度対象店舗数、person未接続staff数、管理者兼スタッフ数を含めます。
@@ -134,6 +145,10 @@ organizationとserviceの日次行には、到達度対象店舗数、person未�
 
 Dashboardは、最新のresetまたは日次runが`running`か`failed`、またはcompleteな日次runが一件もない場合に`availability: unavailable`を返します。
 後の日次runが成功すると再び`available`になります。
+
+初回partialが`complete`になると`availability: available`になり、その対象日は期間集計と比較へ通常の日次と同じように含まれます。
+一日未満の集計であることを示す専用metadataやwarningは返しません。
+初回publish後のDashboard metadataは、daily manifestからreset完了日の`dataStartDate`を返します。
 
 cronが起動せず新しいrun自体がない場合は、最後の成功値と`asOf`を返せます。
 起動漏れと期限超過は外部監視が検知します。

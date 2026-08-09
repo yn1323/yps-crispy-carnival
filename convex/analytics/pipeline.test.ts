@@ -152,6 +152,21 @@ async function insertServiceKpi(
   });
 }
 
+async function insertAnalyticsOrganizationFixture(ctx: MutationCtx, suffix: string) {
+  const organizationId = await ctx.db.insert("organizations", {
+    name: `fixture-${suffix}`,
+    isDeleted: false,
+    createdAt: SCENARIO_NOW - 1,
+    updatedAt: SCENARIO_NOW - 1,
+  });
+  return await ctx.db.insert("analyticsOrganizations", {
+    organizationId,
+    displayName: `fixture-${suffix}`,
+    registeredAt: SCENARIO_NOW - 1,
+    updatedAt: SCENARIO_NOW - 1,
+  });
+}
+
 async function scheduledFunctions(t: TestConvex<typeof schema>) {
   return await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
 }
@@ -211,11 +226,7 @@ describe("Analytics simplified control plane", () => {
     ).rejects.toThrow("Analytics legacy pipeline is retired");
     await expect(t.mutation(internal.analytics.pipeline.recoverJobs, {})).resolves.toBeNull();
 
-    const state = await t.run(async (ctx) => ({
-      runs: await ctx.db.query("analyticsRuns").collect(),
-      legacyJobs: await ctx.db.query("analyticsAggregationJobs").collect(),
-    }));
-    expect(state).toEqual({ runs: [], legacyJobs: [] });
+    expect(await t.run(async (ctx) => await ctx.db.query("analyticsRuns").collect())).toEqual([]);
     expect(await scheduledFunctions(t)).toEqual([]);
   });
 
@@ -322,13 +333,8 @@ describe("Analytics simplified control plane", () => {
         stage: "resetCleanup",
         stepVersion: 2,
       });
-      const legacyRowId = await ctx.db.insert("analyticsDailyEventCounts", {
-        date: "2026-05-04",
-        metric: "stale-page-fence",
-        count: 1,
-        updatedAt: SCENARIO_NOW,
-      });
-      return { runId, legacyRowId };
+      const retainedRowId = await insertAnalyticsOrganizationFixture(ctx, "stale-page-fence");
+      return { runId, retainedRowId };
     });
 
     await t.mutation(resetProcessPageRef, {
@@ -336,7 +342,7 @@ describe("Analytics simplified control plane", () => {
       kind: "reset",
       stepVersion: 1,
       stage: "resetCleanup",
-      substage: "analyticsDailyEventCounts",
+      substage: "analyticsOrganizations",
     });
     await t.run(async (ctx) => {
       await ctx.db.patch(seeded.runId, {
@@ -350,15 +356,15 @@ describe("Analytics simplified control plane", () => {
       kind: "reset",
       stepVersion: 2,
       stage: "resetCleanup",
-      substage: "analyticsDailyEventCounts",
+      substage: "analyticsOrganizations",
     });
 
     const state = await t.run(async (ctx) => ({
       run: await ctx.db.get(seeded.runId),
-      legacyRow: await ctx.db.get(seeded.legacyRowId),
+      retainedRow: await ctx.db.get(seeded.retainedRowId),
     }));
     expect(state.run).toMatchObject({ status: "failed", stepVersion: 2, stage: "resetCleanup" });
-    expect(state.legacyRow).toMatchObject({ count: 1 });
+    expect(state.retainedRow).toMatchObject({ displayName: "fixture-stale-page-fence" });
     expect(await scheduledFunctions(t)).toEqual([]);
   });
 
@@ -373,13 +379,8 @@ describe("Analytics simplified control plane", () => {
         stage: "resetCleanup",
         stepVersion: 2,
       });
-      const legacyRowId = await ctx.db.insert("analyticsDailyEventCounts", {
-        date: "2026-05-04",
-        metric: "cross-kind-fence",
-        count: 1,
-        updatedAt: SCENARIO_NOW,
-      });
-      return { runId, legacyRowId };
+      const retainedRowId = await insertAnalyticsOrganizationFixture(ctx, "cross-kind-fence");
+      return { runId, retainedRowId };
     });
 
     await t.mutation(resetProcessPageRef, {
@@ -387,10 +388,12 @@ describe("Analytics simplified control plane", () => {
       kind: "reset",
       stepVersion: 2,
       stage: "resetCleanup",
-      substage: "analyticsDailyEventCounts",
+      substage: "analyticsOrganizations",
     });
 
-    expect(await t.run(async (ctx) => await ctx.db.get(seeded.legacyRowId))).toMatchObject({ count: 1 });
+    expect(await t.run(async (ctx) => await ctx.db.get(seeded.retainedRowId))).toMatchObject({
+      displayName: "fixture-cross-kind-fence",
+    });
     expect(await scheduledFunctions(t)).toEqual([]);
   });
 
@@ -405,19 +408,8 @@ describe("Analytics simplified control plane", () => {
         stage: "resetCleanup",
         stepVersion: 0,
       });
-      const legacyRowId = await ctx.db.insert("analyticsAggregationJobs", {
-        schemaVersion: 1,
-        jobKey: "unknown-cleanup-substage",
-        generation: "legacy",
-        jobType: "organizations",
-        phase: "pending",
-        status: "pending",
-        attemptCount: 0,
-        nextRunAt: SCENARIO_NOW,
-        processedCount: 0,
-        updatedAt: SCENARIO_NOW,
-      });
-      return { runId, legacyRowId };
+      const retainedRowId = await insertAnalyticsOrganizationFixture(ctx, "unknown-cleanup-substage");
+      return { runId, retainedRowId };
     });
 
     await t.action(nightlyProcessStepRef, {
@@ -428,7 +420,9 @@ describe("Analytics simplified control plane", () => {
       substage: "unknown-table",
     });
 
-    expect(await t.run(async (ctx) => await ctx.db.get(seeded.legacyRowId))).not.toBeNull();
+    expect(await t.run(async (ctx) => await ctx.db.get(seeded.retainedRowId))).toMatchObject({
+      displayName: "fixture-unknown-cleanup-substage",
+    });
     expect(await t.run(async (ctx) => await ctx.db.get(seeded.runId))).toMatchObject({ status: "failed" });
     expect(await scheduledFunctions(t)).toEqual([]);
   });
@@ -1302,6 +1296,53 @@ describe("Analytics simplified control plane", () => {
       stage: "sourceFacts",
       stepVersion: 0,
     });
+  });
+
+  it("通常dailyは終了済みの日を日末cutoffで一度だけ作り、当日と未来日を拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const targetDate = "2026-05-09";
+    await t.run(async (ctx) => {
+      await insertRun(ctx, {
+        kind: "reset",
+        status: "complete",
+        startedAt: SCENARIO_NOW - DAY_MS,
+        runKey: "reset:normal-daily-boundary",
+        cutoffAt: SOURCE_CAPTURE_START_AT,
+      });
+    });
+
+    const first = await t.run(async (ctx) => await createDailyRun(ctx, targetDate, SCENARIO_NOW));
+    expect(first).toMatchObject({
+      runKey: `daily:${targetDate}`,
+      status: "running",
+      dataStartDate: DATA_START_DATE,
+      targetDate,
+      inputFromAt: SOURCE_CAPTURE_START_AT,
+      cutoffAt: jstDayRangeMs(targetDate).endMs,
+    });
+    if (!first) throw new Error("normal daily run was not created");
+    await t.run(async (ctx) => {
+      await ctx.db.patch(first._id, {
+        status: "complete",
+        terminalAt: SCENARIO_NOW,
+        updatedAt: SCENARIO_NOW,
+      });
+    });
+
+    await expect(t.run(async (ctx) => await createDailyRun(ctx, targetDate, SCENARIO_NOW))).resolves.toBeNull();
+    for (const rejectedDate of ["2026-05-10", "2026-05-11"]) {
+      await expect(t.run(async (ctx) => await createDailyRun(ctx, rejectedDate, SCENARIO_NOW))).rejects.toThrow(
+        "Invalid analytics target date",
+      );
+    }
+    const dailyRuns = await t.run(async (ctx) =>
+      (await ctx.db.query("analyticsRuns").collect())
+        .filter((run) => run.kind === "daily")
+        .map((run) => ({ runKey: run.runKey, targetDate: run.targetDate, cutoffAt: run.cutoffAt })),
+    );
+    expect(dailyRuns).toEqual([
+      { runKey: `daily:${targetDate}`, targetDate, cutoffAt: jstDayRangeMs(targetDate).endMs },
+    ]);
   });
 
   it.each(["invalidRate", "rollupMismatch"] as const)(

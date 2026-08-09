@@ -2444,6 +2444,7 @@ describe("staff/mutations", () => {
   describe("setShiftExclusion", () => {
     it("同じ時刻の対象外化と復帰を別の分析source eventとして記録する", async () => {
       const occurredAt = Date.parse("2026-08-02T00:00:00.000Z");
+      vi.stubEnv("ANALYTICS_SOURCE_CAPTURE_START_AT", "");
       vi.useFakeTimers();
       vi.setSystemTime(occurredAt);
 
@@ -2501,6 +2502,7 @@ describe("staff/mutations", () => {
           },
         ]);
       } finally {
+        vi.unstubAllEnvs();
         vi.useRealTimers();
       }
     });

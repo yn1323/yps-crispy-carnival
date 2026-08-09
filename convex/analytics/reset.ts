@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
-import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "../_generated/server";
+import { internalMutation, type MutationCtx } from "../_generated/server";
 import { addDays, dateJST, getDeadlineCutoff, getSubmitLinkCutoff, jstDayRangeMs } from "../_lib/dateFormat";
 import { getAnalyticsResetConfiguration, parseAnalyticsSourceCaptureStartAt } from "./config";
 import { inspectCanonicalFactsPage } from "./invariants";
@@ -9,18 +9,13 @@ import { formatAnalyticsLog } from "./observability";
 import { applySourceEventPage, parseAnalyticsSourceProjectionSubstage } from "./projection";
 import { type AnalyticsStepArgs, processAnalyticsStepRef } from "./refs";
 import { ANALYTICS_POLICY } from "./registry";
-import { advanceRun, failStaleRunningRuns, findRunningRun, getLatestRun, getRunByKey, runFenceMatches } from "./runs";
+import { advanceRun, failStaleRunningRuns, findRunningRun, getRunByKey, runFenceMatches } from "./runs";
 import { analyticsPlanForBillingState } from "./sourceEvents";
 
 const PAGE_SIZE = ANALYTICS_POLICY.batch.cleanup;
 const COUNT_SAMPLE_LIMIT = 100;
 
 const CLEANUP_TABLES = [
-  "analyticsAggregationJobs",
-  "analyticsPipelineStates",
-  "analyticsDailyServiceSnapshots",
-  "analyticsDailyShopSnapshots",
-  "analyticsDailyEventCounts",
   "analyticsDailyNotificationKpis",
   "analyticsDailyServiceKpis",
   "analyticsDailyOrganizationKpis",
@@ -79,7 +74,7 @@ function requireSourceCaptureStartAt(run: Doc<"analyticsRuns">): number {
   return run.sourceCaptureStartAt;
 }
 
-async function sampledCount(ctx: QueryCtx | MutationCtx, table: CleanupTable) {
+async function sampledCount(ctx: MutationCtx, table: CleanupTable) {
   const rows = await ctx.db.query(table).take(COUNT_SAMPLE_LIMIT + 1);
   return { count: Math.min(rows.length, COUNT_SAMPLE_LIMIT), truncated: rows.length > COUNT_SAMPLE_LIMIT };
 }
@@ -684,87 +679,5 @@ export const processPage = internalMutation({
         throw new Error("analytics_reset_scope_invalid");
     }
     return null;
-  },
-});
-
-// reset完了後のNarrow deploy条件を、IDやpayloadを返さず固定probeだけでreadbackする。
-export const getNarrowReadiness = internalQuery({
-  args: {},
-  handler: async (ctx) => {
-    const [latestReset, legacyRows, legacyGenerationRows] = await Promise.all([
-      getLatestRun(ctx, "reset"),
-      Promise.all([
-        ctx.db.query("analyticsAggregationJobs").first(),
-        ctx.db.query("analyticsPipelineStates").first(),
-        ctx.db.query("analyticsDailyServiceSnapshots").first(),
-        ctx.db.query("analyticsDailyShopSnapshots").first(),
-        ctx.db.query("analyticsDailyEventCounts").first(),
-      ]),
-      Promise.all([
-        ctx.db
-          .query("analyticsOrganizations")
-          .withIndex("by_generation_and_organizationId", (q) => q.gte("generation", ""))
-          .first(),
-        ctx.db
-          .query("analyticsShops")
-          .withIndex("by_generation_and_shopId", (q) => q.gte("generation", ""))
-          .first(),
-        ctx.db
-          .query("analyticsPeople")
-          .withIndex("by_generation_and_organizationPersonId", (q) => q.gte("generation", ""))
-          .first(),
-        ctx.db
-          .query("analyticsMemberships")
-          .withIndex("by_generation_and_membershipKey_and_validFrom", (q) => q.gte("generation", ""))
-          .first(),
-        ctx.db
-          .query("analyticsShiftCycles")
-          .withIndex("by_generation_and_recruitmentId", (q) => q.gte("generation", ""))
-          .first(),
-        ctx.db
-          .query("analyticsShiftCycleOpportunities")
-          .withIndex("by_generation_and_recruitmentId_and_staffId", (q) => q.gte("generation", ""))
-          .first(),
-        ctx.db
-          .query("analyticsDailyServiceKpis")
-          .withIndex("by_generation_and_snapshotDate", (q) => q.gte("generation", ""))
-          .first(),
-        ctx.db
-          .query("analyticsDailyNotificationKpis")
-          .withIndex("by_generation_and_snapshotDate", (q) => q.gte("generation", ""))
-          .first(),
-        ctx.db
-          .query("analyticsDailyOrganizationKpis")
-          .withIndex("by_generation_and_snapshotDate", (q) => q.gte("generation", ""))
-          .first(),
-        ctx.db
-          .query("analyticsDailyShopKpis")
-          .withIndex("by_generation_and_snapshotDate", (q) => q.gte("generation", ""))
-          .first(),
-        ctx.db
-          .query("analyticsDailySegmentKpis")
-          .withIndex("by_generation_and_snapshotDate_and_dimension_and_bucket", (q) => q.gte("generation", ""))
-          .first(),
-      ]),
-    ]);
-    const legacyTablesEmpty = legacyRows.every((row) => row === null);
-    const legacyGenerationFieldsEmpty = legacyGenerationRows.every((row) => row === null);
-    const resetComplete = latestReset?.status === "complete";
-    const sourceCaptureStartAt = latestReset?.sourceCaptureStartAt;
-    const sourceEventsBeforeCaptureEmpty =
-      sourceCaptureStartAt !== undefined
-        ? (await ctx.db
-            .query("analyticsSourceEvents")
-            .withIndex("by_occurredAt", (q) => q.lt("occurredAt", sourceCaptureStartAt))
-            .first()) === null
-        : false;
-    return {
-      readyForNarrow:
-        resetComplete && legacyTablesEmpty && legacyGenerationFieldsEmpty && sourceEventsBeforeCaptureEmpty,
-      resetComplete,
-      legacyTablesEmpty,
-      legacyGenerationFieldsEmpty,
-      sourceEventsBeforeCaptureEmpty,
-    };
   },
 });

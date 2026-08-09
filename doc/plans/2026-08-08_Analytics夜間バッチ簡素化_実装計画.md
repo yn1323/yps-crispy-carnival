@@ -21,6 +21,10 @@ KPI定義、締切時点の分子と分母、PIIを持たないsource fact、ret
 切替時は過去のAnalytics派生データを破棄し、内部専用の`resetAnalytics`で現在dimensionと切替日時点の基準状態だけを作る。
 resetが失敗した場合は途中から再開せず、原因修正後に派生データを再度消して最初から実行する。
 
+reset後の初回日次は、Narrow deploy後に既存の`analytics/nightly:startForDate`で即時開始する。
+このrunはreset完了日の実行時刻までを集計するため一日未満の値になり得るが、専用statusやfieldを追加せず、通常の`complete`として公開してDashboardの期間集計と比較へ含める。
+翌日の03:00は同じ対象日のrunがすでにあるためno-opとなり、翌々日の03:00からreset rowの`dataStartDate`にあたる完全な一日分を通常どおり集計する。
+
 ### 1.1 解決する問題
 
 現行`convex/analytics/pipeline.ts`は、bootstrap、continuous projection、cycle finalization、daily aggregation、generation cleanup、retention、旧table cleanup、invariantを一つの汎用job modelへ載せている。
@@ -45,6 +49,8 @@ source event consumerはConvex pagination cursorをpipeline stateへ長期保存
 | 次日の処理 | 直前日のsnapshotを入力にせず、最後に成功したcutoff以降のcanonical factから独立して計算する |
 | 過去履歴 | 既存Analyticsの履歴を移行、比較、保持しない |
 | 切替前の日次値 | 作らない。推計もしない |
+| 初回日次 | Narrow後にreset完了日を即時集計する。一日未満でも通常の`complete`として公開し、Dashboardの期間集計と比較へ含める |
+| 初回後のcron | 翌日03:00は同じ対象日が存在するためno-opとし、翌々日03:00からreset rowの`dataStartDate`にあたる最初の完全日を集計する |
 | 登録日 | 運用tableの作成時刻から復元し、切替前の日付も表示できる |
 | generation | 廃止する |
 | bootstrap | generationを構築するbootstrapは廃止し、破壊的resetへ置き換える |
@@ -84,26 +90,28 @@ DashboardのBFF、service credential、request allowlist、response上限も変�
 ## 4. 切替前の日付をどう扱うか
 
 過去のAnalytics履歴を捨てても、運用tableが持つ不変の作成時刻までは失われない。
-`dataStartDate`は「日次Analyticsを作り始めた日」であり、「画面に出せるすべての日付の下限」ではない。
+reset rowの`dataStartDate`は、reset後に最初の完全な日次Analyticsを作る日を表す。
+reset完了日の初回partialを公開すると、daily manifestの`dataStartDate`はその初回対象日となり、後続dailyもこの値を引き継ぐ。
+`dataStartAt`はreset rowに保存した最初の完全日の00:00から変えず、canonical factとKPI対象の観測開始境界に使う。
 
 | データ | 切替後の扱い |
 |---|---|
 | グループ登録日 | `organizations.createdAt`から正確にseedする |
 | 店舗登録日 | `shops._creationTime`から正確にseedする |
-| 登録cohort | 上記の登録日で分類できる。dataStartDateより前のcohortは一覧に出せるが、切替前milestoneを必要とする到達率は`unavailable`にする |
+| 登録cohort | 上記の登録日で分類できる。dataStartAtより前のcohortは一覧に出せるが、切替前milestoneを必要とする到達率は`unavailable`にする |
 | 現在のグループ、店舗、所属 | reset時の運用tableから基準状態をseedする |
 | 切替前の初回提出、初回確定、2回目確定 | 過去Analyticsとしては捨て、推計しない |
 | 切替前に終了したcycleの提出率 | 作らない |
-| 切替前の日次KPIとhealth | 作らない |
+| 切替前の日次KPIとhealth | 作らない。reset完了日に即時公開する初回partialだけを例外とする |
 | dataStartAtをまたぐ未完了cycle | 詳細の文脈としてseedするが、切替前提出を証明できないためcycle rateは`unavailable`にし、上位rollupから除外する |
 | 失敗日の日次KPI | 永久欠損にする |
 
 店舗一覧と詳細では、`registeredAt`が`dataStartDate`より前でも表示する。
-日次trendは`dataStartDate`以降だけを返す。
-dataStartDateより前のcohortは、登録店舗数と登録日だけを表示できる。
-初回募集以降のmilestone到達率と転換率は、dataStartDate以降に登録されたshopだけをeligibleにし、既存cohortの未観測到達を未達として数えない。
+日次trendはdaily manifestの`dataStartDate`以降だけを返し、初回partialもその範囲へ含める。
+dataStartAtより前のcohortは、登録店舗数と登録日だけを表示できる。
+初回募集以降のmilestone到達率と転換率は、`dataStartAt`以降に登録されたshopだけをeligibleにし、既存cohortの未観測到達を未達として数えない。
 このeligible判定は導入到達度だけに使う。
-既存shopもdataStartDate以降の現在値、health、完全なcycle rateには含める。
+既存shopもdataStartAt以降の現在値、health、完全なcycle rateには含める。
 
 ## 5. 最終状態のデータフロー
 
@@ -111,13 +119,21 @@ dataStartDateより前のcohortは、登録店舗数と登録日だけを表示�
 
 日次runは一日につき一行のmanifestを作り、次の順で直列に進める。
 
-1. JSTで終了済みの前日を`targetDate`、翌日00:00を`cutoffAt`として固定する。
+1. 通常runでは、JSTで終了済みの前日を`targetDate`、翌日00:00を`cutoffAt`として固定する。
 2. 同じ`targetDate`のrunが存在しないことと、別のdailyまたはresetが実行中でないことを確認する。
 3. 最後に成功したrunの`cutoffAt`から今回の`cutoffAt`までのsource eventを、発生時刻順に絶対値upsertする。
 4. 今回のcutoffまでに期限またはcloseを迎えたcycle factを確定する。
 5. 対象日の通知、店舗、グループ、segment、serviceの順に日次値を絶対値で作る。
 6. publish前の安いinvariantを検証する。
 7. 同じrunの全出力だけを公開対象にし、manifestを`complete`へ変える。
+
+初回runだけは既存の`analytics/nightly:startForDate`から開始する。
+reset完了日のJST日付を`targetDate`、Function実行時刻を`cutoffAt`とし、`inputFromAt`は`reset.sourceCaptureStartAt`にする。
+一日未満の区間でも同じ六stageとpublish前invariantを通し、manifestと日次行は通常runと同じ`complete`として扱う。
+時間範囲を表す新しいfieldや`partial` statusは追加しない。
+
+初回runの翌日03:00は同じ`targetDate`のmanifestが存在するため、新しいrunを作らず終了する。
+その翌日の03:00はreset rowの`dataStartDate`を`targetDate`、同日の翌日00:00を`cutoffAt`とする最初の完全なrunを作り、初回runの`cutoffAt`以降のsource eventを再適用する。
 
 通常phaseは次の六つへ限定する。
 
@@ -188,6 +204,9 @@ Dashboard queryは`status: complete`のrunに属する行だけを読む。
 失敗日は欠損のまま残し、失敗日を含む期間集計は不完全な部分集合から数値を作らず`unavailable`にする。
 trendは欠損日を`null`または点なしとして示し、0へ置き換えない。
 
+初回partialが`complete`になるとAPIは`available`になり、その対象日を通常の日次と同様に期間集計と比較へ含める。
+初回の時間範囲が一日未満であることを示す専用metadataやwarningは返さない。
+
 cron自体が起動せずrun行もない場合は、直前の成功値と`asOf`を返してよい。
 所定時刻までに前日runが存在しないことは外部監視が検知する。
 
@@ -242,11 +261,11 @@ cron自体が起動せずrun行もない場合は、直前の成功値と`asOf`�
 | `kind` | `daily`、`reset`、`maintenance` |
 | `status` | `running`、`complete`、`failed` |
 | `calculationVersion` | 同一run内のKPI計算契約を固定する整数 |
-| `dataStartDate` | 日次履歴の起点 |
+| `dataStartDate` | reset rowでは最初の完全日、daily runではDashboardへ公開する履歴の起点。初回partialのdaily runからreset完了日を引き継ぐ |
 | `dataStartAt` | reset終了後に始まる最初の完全なJST日の00:00 |
 | `targetDate` | dailyの対象JST日。daily以外は省略 |
 | `inputFromAt` | source factを再適用する半開区間の始点 |
-| `cutoffAt` | 入力半開区間とsnapshotの終端 |
+| `cutoffAt` | 入力半開区間とsnapshotの終端。通常は対象日の翌日00:00、初回partialはFunction実行時刻 |
 | `sourceCaptureStartAt` | reset用source eventの捕捉開始時刻。reset以外は省略 |
 | `resetWatermarkAt` | full scan完了後に固定するreset baselineの終端。reset以外は省略 |
 | `stage` | 六つの粗いstageまたはreset、maintenanceのstage |
@@ -279,6 +298,7 @@ source eventの`schemaVersion`と`payloadVersion`はdurable payloadを安全に�
 日次rowのworker進捗を表す`partial`は廃止する。
 cycleまたはopportunityの`complete`と`unavailable`は、処理状態ではなく分母を証明できるかを表すため残す。
 実装調査で`partial`の固有ケースが残らなければ、cycle側のvalidatorからも`partial`だけを除く。
+初回日次の「partial」は対象時間が一日未満であることだけを指し、保存するstatusや完全性は通常の日次と同じ`complete`にする。
 
 ## 8. resetとbootstrapの扱い
 
@@ -302,7 +322,7 @@ resetは次を行う。
 5. `[sourceCaptureStartAt, resetWatermarkAt)`のsource eventを絶対値upsertで再適用する。
 6. `resetWatermarkAt`より後の最初のJST 00:00を`dataStartAt`とし、同じ日付を`dataStartDate`にする。
 7. dataStartAtをまたぐ継続cycleを`unavailable`にし、それ以前に終了したcycle候補を削除する。
-8. reset用の参照整合性を検証し、最初の日次runを待つ状態へ進める。
+8. reset用の参照整合性を検証し、Narrow後に最初の日次runを開始できる状態へ進める。
 
 seed allowlistは次へ限定する。
 
@@ -319,12 +339,14 @@ seed allowlistは次へ限定する。
 - `latestActivityAt`、通常cadence、health signal
 - `dataStartAt`より前にdeadlineとcloseの両方を終えたcycle
 
-当日途中のbaseline snapshotは作らない。
+reset処理自体は当日途中のbaseline snapshotを作らず、reset rowの`dataStartAt`と`dataStartDate`も変更しない。
 `sourceCaptureStartAt`から`dataStartAt`までのeventは、full scanを一つのbaselineへ収束させるためだけに使う。
 この区間のeventは現在状態の収束には使うが、milestone field、cycle rate、日次KPIには使わない。
-最初の日次runだけは`resetWatermarkAt`をcheckpointとして信用せず、`sourceCaptureStartAt`から最初の完全日の終端までを再適用する。
-これにより、full scanと同時にcommitしたeventも3時間の確定待ちを経た同じ入力区間へ含め、`dataStartDate`の日次値だけを作る。
-最初の日次runがcompleteになるまで、Dashboardは利用不可のままにする。
+Narrow後の最初の日次runは`resetWatermarkAt`をcheckpointとして信用せず、`sourceCaptureStartAt`からFunction実行時刻までを再適用する。
+この初回runはreset完了日を対象にしたpartial snapshotだが、通常の`complete`として公開し、Dashboardの期間集計と比較へ含める。
+初回daily manifestの`dataStartDate`はreset完了日とし、後続dailyもその公開履歴の起点を引き継ぐ。
+`dataStartAt`はreset後の最初の完全日の00:00のまま維持する。
+翌日03:00は初回と同じ対象日になるためno-opとなり、翌々日03:00にreset rowの`dataStartDate`を対象とする完全なsnapshotを作る。
 
 ### 8.2 reset失敗
 
@@ -425,6 +447,8 @@ responseは次を返す。
 
 worker進捗由来の`partial` responseは返さない。
 cycle固有の算出不能は、cycleまたは指標単位の`unavailable`として残す。
+初回日次も通常のcomplete responseとして返し、一日未満の集計であることを示す専用metadataは追加しない。
+初回publish後のmetadataでは`dataStartDate`をreset完了日とし、`dataStartAt`の境界とは分けて扱う。
 
 ### 10.2 query
 
@@ -433,7 +457,8 @@ cycle固有の算出不能は、cycleまたは指標単位の`unavailable`とし
 最新一覧と詳細は、最新complete runのsnapshotだけを読む。
 
 店舗やグループの`registeredAt`は`dataStartDate`で切り落とさない。
-trend、期間集計、比較期間にはcompleteな日だけを使い、必要日が欠ける集計値は`unavailable`にする。
+trend、期間集計、比較期間にはcompleteなrunだけを使い、必要日が欠ける集計値は`unavailable`にする。
+reset完了日の初回partialもcomplete runなので同じ対象へ含める。
 
 `/requests`は運用tableを直接読む独立routeなので、Analytics runのavailabilityに連動させない。
 Cloudflare Access、Worker BFF、HTTP Action credential、rate limit、request kindの契約も変更しない。
@@ -528,21 +553,25 @@ resetのseedと検証は旧fieldと旧indexを含むWiden schema上で完了さ�
 4. 旧三table、`analyticsAggregationJobs`、`analyticsPipelineStates`をschemaから削除する。
 5. retained tableのgeneration fieldとgeneration indexを削除する。
 6. generationなしindexと、Widen中optionalだった`runId`、`kpiEligible`、`kpiEligibleShopCount`をNarrowする。
-7. 新runner、query gate、旧entrypointの互換stubをdeployし、新cronはまだ無効のままにする。
+7. 新runner、query gate、旧entrypointの互換stubに加え、既存`startForDate`を使う初回即時partialの変更を同じNarrow revisionでdeployし、新cronはまだ無効のままにする。
 
 ### Phase 4: 初回日次
 
 1. Narrow後もreset runが`complete`であることを確認する。
 2. reset rowの`resetWatermarkAt`と、その次のJST 00:00である`dataStartAt`を確認する。
-3. 最初の完全日が終了して3時間経過した後、その日の日次runを手動で一回開始する。
-4. publish前invariant、run manifest、Dashboard metadata、PII-free logを確認する。
+3. 待機せず、reset完了日を`targetDate`として既存の`analytics/nightly:startForDate`から初回日次runを一回開始する。
+4. Function実行時刻までのpartialが通常の`complete`になり、publish前invariant、run manifest、Dashboard metadata、PII-free logを満たすことを確認する。
+5. daily manifestの`dataStartDate`がreset完了日、`dataStartAt`がreset rowと同じ翌日00:00であることを確認する。
+6. Dashboardの期間集計と比較が初回partialを通常の日次として扱うことを確認する。
 
 ### Phase 5: cron有効化
 
 1. JST 03:00のdaily cronを有効にする。
 2. dailyと重ならない週次maintenance cronを有効にする。
-3. 旧互換stubを次のdeployで削除する。
-4. Productionのrevision、sourceCaptureStartAt、resetWatermarkAt、dataStartDate、実行時間、対象件数、complete run、Dashboard responseを`doc/manual/release-status.md`へ記録する。
+3. 初回翌日の03:00が同じ対象日のためno-opになることを確認する。
+4. 翌々日の03:00にreset rowの`dataStartDate`を対象とする完全な日次runが`complete`になることを確認する。
+5. 旧互換stubを次のdeployで削除する。
+6. Productionのrevision、sourceCaptureStartAt、resetWatermarkAt、dataStartDate、実行時間、対象件数、complete run、Dashboard responseを`doc/manual/release-status.md`へ記録する。
 
 ## 14. rollback境界
 
@@ -564,9 +593,10 @@ resetのseedと検証は旧fieldと旧indexを含むWiden schema上で完了さ�
 
 | 契約 | 主担当層 | ケース |
 |---|---|---|
-| resetと初回publish | Convex Scenario | reset中はunavailableで、最初のcomplete run後だけ全scopeが見える |
+| resetと初回publish | Convex Scenario | Narrow後にreset完了日のpartialを即時開始し、通常のcomplete runとして全scopeと比較へ公開する |
+| 初回後のcron | Convex Scenario | 翌日03:00は同じ対象日のためno-opとなり、翌々日03:00にreset rowのdataStartDateを対象とする完全なrunを作る |
 | 登録日の維持 | Convex Scenario | dataStartDateより前のshop登録日を表示でき、切替前の日次rowは存在しない |
-| 既存cohort | Convex Scenario | dataStartDate前のshopをmilestone未達へ数えず、切替後の現在値、health、完全なcycle rateには含める |
+| 既存cohort | Convex Scenario | dataStartAt前のshopをmilestone未達へ数えず、切替後の現在値、health、完全なcycle rateには含める |
 | 境界をまたぐcycle | Convex Scenario | dataStartAt前の提出を持ち得る継続cycleをunavailableにし、上位率の分子と分母から除外する |
 | 日次成功 | Convex Scenario | cutoffまでのevent、cycle、通知を集計し、全scopeが同じrun IDで公開される |
 | 日次失敗 | Convex Scenario | 各主要stageで失敗させ、途中行を一件も返さない |
@@ -624,6 +654,9 @@ pnpm build
 - active/building generation、lease、attempt、永続cursor、retry API、backfill APIがない。
 - 状態保持が`analyticsRuns`一tableだけで、error detailを含まない。
 - batch開始からcomplete publishまで、Dashboard queryが途中行を返さない。
+- 初回日次をNarrow後に待機せず開始でき、一日未満でも通常のcomplete runとしてDashboardの期間集計と比較へ含める。
+- 初回翌日の03:00は同じ対象日のrunを増やさず、翌々日の03:00にreset rowのdataStartDateを対象とする完全なrunを作る。
+- 初回即時partialではreset rowとdataStartAtを変更せず、daily manifestのdataStartDateだけを初回対象日へ広げる。新しいfunction、field、専用statusは追加しない。
 - failed runの後で古いscheduled pageがwriteもpublishもできない。
 - 失敗日のsnapshotを作らず、後日のrunはその日を埋めずに成功できる。
 - 同じsource intervalを再適用してもcanonical factが二重にならない。
@@ -651,7 +684,7 @@ pnpm build
 - failed日の自動retry、backfill、repair queueを作る
 - active/building generationとdual readを残す
 - staleな前回成功値をbatch失敗中も表示する
-- incomplete rowを`partial`な日次値として公開する
+- worker処理中のincomplete rowを`partial` statusとして公開する
 - 日次ごとに全sourceと全snapshotを深く監査する
 - 汎用workflow engine、queue、runnerを新設する
 - KPI version変更時に旧履歴を変換するmigrationを作る

@@ -119,8 +119,8 @@ function CurrentUserLoginMethods({
       if (!completionActorId || getCurrentActorId() !== completionActorId) return;
       if (flow === "add-email-password") {
         showSuccessToast({
-          title: "メールアドレスとパスワードを設定しました",
-          description: "Google認証はそのまま利用できます。",
+          title: "メインのメールアドレスとパスワードを設定しました",
+          description: "Google認証とシフト連絡先メールアドレスは変わりません。",
         });
       } else {
         showSuccessToast({

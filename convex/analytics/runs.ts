@@ -110,8 +110,15 @@ async function existingDailyRun(ctx: QueryCtx | MutationCtx, targetDate: string)
   return candidates.find((run): run is Run => run !== null) ?? null;
 }
 
-export async function createDailyRun(ctx: MutationCtx, targetDate: string, now: number): Promise<Run | null> {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate) || targetDate >= dateJST(now)) {
+export async function createDailyRun(
+  ctx: MutationCtx,
+  targetDate: string,
+  now: number,
+  options: { initialPartial?: boolean } = {},
+): Promise<Run | null> {
+  const today = dateJST(now);
+  const initialPartial = options.initialPartial === true;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate) || (initialPartial ? targetDate !== today : targetDate >= today)) {
     throw new ConvexError("Invalid analytics target date");
   }
   await failStaleRunningRuns(ctx, now);
@@ -135,18 +142,20 @@ export async function createDailyRun(ctx: MutationCtx, targetDate: string, now: 
 
   const reset = await getLatestRun(ctx, "reset");
   if (reset?.status !== "complete" || reset.sourceCaptureStartAt === undefined) return null;
-  if (targetDate < reset.dataStartDate) return null;
+  if (initialPartial ? targetDate >= reset.dataStartDate : targetDate < reset.dataStartDate) return null;
 
   const previous = await getLatestCompleteDailyRun(ctx, targetDate);
   const inputFromAt = previous?.cutoffAt ?? reset.sourceCaptureStartAt;
-  const cutoffAt = jstDayRangeMs(targetDate).endMs;
+  const cutoffAt = initialPartial ? now : jstDayRangeMs(targetDate).endMs;
+  // 初回partialの日付だけを公開範囲へ含め、canonicalの観測開始時刻はreset境界のまま保つ。
+  const dataStartDate = initialPartial ? targetDate : (previous?.dataStartDate ?? reset.dataStartDate);
   const runKey = `daily:${targetDate}`;
   const runId = await ctx.db.insert("analyticsRuns", {
     runKey,
     kind: "daily",
     status: "running",
     calculationVersion: ANALYTICS_CALCULATION_VERSION,
-    dataStartDate: reset.dataStartDate,
+    dataStartDate,
     dataStartAt: reset.dataStartAt,
     targetDate,
     inputFromAt,
@@ -175,8 +184,8 @@ export async function createMaintenanceRun(ctx: MutationCtx, now: number): Promi
     kind: "maintenance",
     status: "running",
     calculationVersion: ANALYTICS_CALCULATION_VERSION,
-    dataStartDate: reset.dataStartDate,
-    dataStartAt: reset.dataStartAt,
+    dataStartDate: latestDaily.dataStartDate,
+    dataStartAt: latestDaily.dataStartAt,
     inputFromAt: latestDaily.cutoffAt,
     cutoffAt: now,
     stage: "maintenanceCleanup",
