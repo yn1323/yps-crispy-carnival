@@ -3,7 +3,6 @@ import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
-import { isShopAdditionEnabled } from "../_lib/config";
 import { todayJST } from "../_lib/dateFormat";
 import { authenticatedMutation } from "../_lib/functions";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
@@ -59,8 +58,6 @@ const deleteOrganizationResultValidator = v.object({
 });
 
 const WEEKDAY_ORDER = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
-
-const SHOP_ADDITION_UNAVAILABLE_MESSAGE = "店舗の追加は現在ご利用いただけません";
 
 function shopStatus(shop: Doc<"shops">) {
   // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
@@ -282,9 +279,6 @@ export const addShop = authenticatedMutation({
   returns: shopMutationResultValidator,
   handler: async (ctx, args) => {
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
-    // 画面から導線を消すだけでは、public mutationを直接呼ぶ経路が残る。
-    // actorを解決した後に判定し、所属していない利用者へ機能の有無を返さない。
-    if (!isShopAdditionEnabled()) throw new ConvexError(SHOP_ADDITION_UNAVAILABLE_MESSAGE);
     await requireOrganizationBusinessWrite(ctx, actor.organization._id);
     const parsed = updateShopSettingsSchema.safeParse({
       shopName: args.shopName,

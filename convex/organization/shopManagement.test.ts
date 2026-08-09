@@ -63,11 +63,7 @@ async function seedAdditionalManager(
 }
 
 describe("organization shop management", () => {
-  // ダークローンチ中は既定で閉じている。以降のテストは公開済みの契約を検証する。
-  beforeEach(() => vi.stubEnv("FEATURE_SHOP_ADDITION", "enabled"));
-  afterEach(() => vi.unstubAllEnvs());
-
-  it("店舗追加は上限確認後に初期ポジション・監査を作成し、旧店舗所属を再生成しない", async () => {
+  it("環境変数なしでも店舗追加は上限確認後に初期ポジション・監査を作成し、旧店舗所属を再生成しない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -138,6 +134,49 @@ describe("organization shop management", () => {
         requestId: "add-shop-request",
       }),
     ).resolves.toEqual({ shopId: created.shopId, shopStatus: "active", changed: false });
+  });
+
+  it("未認証、閲覧専用、別組織の利用者は店舗を追加できない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const target = await seedOrganizationManagerShop(ctx, {
+        subject: "add_shop_access_owner",
+        shopName: "追加対象店",
+        plan: "pro",
+      });
+      await seedAdditionalManager(ctx, {
+        organizationId: target.organizationId,
+        shopId: target.shopId,
+        subject: "add_shop_readonly",
+        status: "readOnly",
+      });
+      await seedOrganizationManagerShop(ctx, { subject: "add_shop_other_org", plan: "pro" });
+      return target;
+    });
+    const args = {
+      shopId: ids.shopId,
+      shopName: "作成されない店舗",
+      regularClosedDays: [],
+      submissionPattern,
+      requestId: "unauthorized-add-shop",
+    };
+
+    await expect(t.mutation(api.organization.mutations.addShop, args)).rejects.toThrow("Unauthenticated");
+    await expect(
+      t.withIdentity({ subject: "add_shop_readonly" }).mutation(api.organization.mutations.addShop, args),
+    ).rejects.toThrow("Not found");
+    await expect(
+      t.withIdentity({ subject: "add_shop_other_org" }).mutation(api.organization.mutations.addShop, args),
+    ).rejects.toThrow("Not found");
+
+    await expect(
+      t.run((ctx) =>
+        ctx.db
+          .query("shops")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+          .collect(),
+      ),
+    ).resolves.toHaveLength(1);
   });
 
   it("アカウント削除受付済みuserがcanonical管理者に残る場合は店舗追加をtransactionごと拒否する", async () => {
@@ -252,36 +291,6 @@ describe("organization shop management", () => {
         requestId: "free-add-shop",
       }),
     ).rejects.toThrow("この機能はトライアルまたはProで利用できます。");
-  });
-
-  it("ダークローンチ中は、上限に空きがあっても店舗を追加できない", async () => {
-    vi.stubEnv("FEATURE_SHOP_ADDITION", "");
-    const t = convexTest(schema, modules);
-    const ids = await t.run(
-      async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "dark_launch_add_shop", plan: "pro" }),
-    );
-
-    await expect(
-      t.withIdentity({ subject: "dark_launch_add_shop" }).mutation(api.organization.mutations.addShop, {
-        shopId: ids.shopId,
-        shopName: "未公開中の追加店舗",
-        regularClosedDays: [],
-        submissionPattern,
-        requestId: "dark-launch-add-shop",
-      }),
-    ).rejects.toThrow("店舗の追加は現在ご利用いただけません");
-
-    const state = await t.run(async (ctx) => ({
-      shops: await ctx.db.query("shops").collect(),
-      positions: await ctx.db.query("positions").collect(),
-      audits: await ctx.db
-        .query("organizationAuditEvents")
-        .filter((q) => q.eq(q.field("action"), "organization.shop_added"))
-        .collect(),
-    }));
-    expect(state.shops).toHaveLength(1);
-    expect(state.positions).toHaveLength(0);
-    expect(state.audits).toHaveLength(0);
   });
 
   it("アーカイブは履歴を削除せず、同じrequestIdを再実行しても監査を重複作成しない", async () => {

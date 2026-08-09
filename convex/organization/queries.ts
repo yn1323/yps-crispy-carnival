@@ -1,11 +1,6 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
-import {
-  isBillingEnabled,
-  isManagerInvitationEnabled,
-  isOrganizationCreationEnabled,
-  isShopAdditionEnabled,
-} from "../_lib/config";
+import { isBillingEnabled, isManagerInvitationEnabled, isOrganizationCreationEnabled } from "../_lib/config";
 import { formatDateJa, formatDateTimeJa } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
@@ -276,11 +271,12 @@ function legacyMigrationPendingSettings(
   };
 }
 
-/** ダークローンチ中に公開していない導線を、画面の描画判定へ渡す。認可根拠には使わない。 */
+/** 公開状態を画面の描画判定へ渡す。認可根拠には使わない。 */
 function getOrganizationSettingsFeatures() {
   return {
     organizationCreation: isOrganizationCreationEnabled(),
-    shopAddition: isShopAdditionEnabled(),
+    // 旧frontendとの段階リリース互換のため項目を残し、常時公開として返す。
+    shopAddition: true,
     billing: isBillingEnabled(),
     managerInvitation: isManagerInvitationEnabled(),
   };

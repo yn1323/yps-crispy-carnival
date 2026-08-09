@@ -2021,7 +2021,6 @@ describe("dashboard/queries", () => {
   describe("getCurrentUser", () => {
     beforeEach(() => {
       vi.stubEnv("FEATURE_ORGANIZATION_CREATION", "");
-      vi.stubEnv("FEATURE_SHOP_ADDITION", "");
       vi.stubEnv("FEATURE_BILLING", "");
       vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
     });
@@ -2046,9 +2045,9 @@ describe("dashboard/queries", () => {
         name: "New User",
         email: "new@example.com",
         featureVisibility: {
-          organizationSettingsNavigation: false,
+          organizationSettingsNavigation: true,
           billing: false,
-          shopMembershipAddition: false,
+          shopMembershipAddition: true,
         },
       });
     });
@@ -2070,55 +2069,28 @@ describe("dashboard/queries", () => {
         name: "既存ユーザー",
         email: "existing@example.com",
         featureVisibility: {
-          organizationSettingsNavigation: false,
-          billing: false,
-          shopMembershipAddition: false,
-        },
-      });
-    });
-
-    it.each([
-      {
-        envName: "FEATURE_ORGANIZATION_CREATION",
-        expected: {
-          organizationSettingsNavigation: true,
-          billing: false,
-          shopMembershipAddition: false,
-        },
-      },
-      {
-        envName: "FEATURE_SHOP_ADDITION",
-        expected: {
           organizationSettingsNavigation: true,
           billing: false,
           shopMembershipAddition: true,
         },
-      },
-      {
-        envName: "FEATURE_BILLING",
-        expected: {
-          organizationSettingsNavigation: true,
-          billing: true,
-          shopMembershipAddition: false,
-        },
-      },
-      {
-        envName: "FEATURE_MANAGER_INVITATION",
-        expected: {
-          organizationSettingsNavigation: true,
-          billing: false,
-          shopMembershipAddition: false,
-        },
-      },
-    ])("$envName が有効なら対応するUI公開状態を返す", async ({ envName, expected }) => {
-      vi.stubEnv(envName, "enabled");
+      });
+    });
+
+    it("支払いflagが有効でも店舗管理の常時公開状態を維持する", async () => {
+      vi.stubEnv("FEATURE_BILLING", "enabled");
       const t = convexTest(schema, modules);
 
       const result = await t
-        .withIdentity({ subject: `feature_visibility_${envName}`, name: "New User", email: "new@example.com" })
+        .withIdentity({ subject: "feature_visibility_billing", name: "New User", email: "new@example.com" })
         .query(api.dashboard.queries.getCurrentUser, {});
 
-      expect(result).toMatchObject({ featureVisibility: expected });
+      expect(result).toMatchObject({
+        featureVisibility: {
+          organizationSettingsNavigation: true,
+          billing: true,
+          shopMembershipAddition: true,
+        },
+      });
     });
 
     it("削除済みユーザーはClerkの氏名とメールを返さず、終了状態だけを返す", async () => {

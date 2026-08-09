@@ -225,8 +225,8 @@ describe("organization/queries.getSettings", () => {
       canAddShop: true,
       canCreateOrganization: true,
       canInviteManager: true,
-      // ダークローンチの公開状態は環境変数で決まり、上限由来の可否とは独立する。
-      features: { organizationCreation: false, shopAddition: false, billing: false, managerInvitation: false },
+      // 店舗追加は常時公開し、残るダークローンチ状態は上限由来の可否と独立して返す。
+      features: { organizationCreation: false, shopAddition: true, billing: false, managerInvitation: false },
       managerInvitationMode: "addition",
       freeManagerExchangeCandidates: [],
       managerInvitations: [

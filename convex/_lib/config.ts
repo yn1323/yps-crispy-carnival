@@ -55,10 +55,6 @@ export function isOrganizationCreationEnabled(): boolean {
   return isFeatureEnabled(process.env.FEATURE_ORGANIZATION_CREATION);
 }
 
-export function isShopAdditionEnabled(): boolean {
-  return isFeatureEnabled(process.env.FEATURE_SHOP_ADDITION);
-}
-
 export function isBillingEnabled(): boolean {
   return isFeatureEnabled(process.env.FEATURE_BILLING);
 }
@@ -74,19 +70,16 @@ export type FeatureVisibility = {
 };
 
 /**
- * 認証後のUIが参照するダークローンチ状態を、一度のqueryで返せる形へ集約する。
- * 組織設定への導線は、配下の機能が一つでも公開されている場合だけ表示する。
+ * 認証後のUIが参照する公開状態を、一度のqueryで返せる形へ集約する。
+ * 店舗管理は常時公開し、旧frontend互換の表示DTOにもtrueを返す。
  */
 export function getFeatureVisibility(): FeatureVisibility {
-  const organizationCreation = isOrganizationCreationEnabled();
-  const shopAddition = isShopAdditionEnabled();
   const billing = isBillingEnabled();
-  const managerInvitation = isManagerInvitationEnabled();
 
   return {
-    organizationSettingsNavigation: organizationCreation || shopAddition || billing || managerInvitation,
+    organizationSettingsNavigation: true,
     billing,
-    shopMembershipAddition: shopAddition,
+    shopMembershipAddition: true,
   };
 }
 
