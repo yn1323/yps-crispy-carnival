@@ -3261,7 +3261,7 @@ describe("staff/mutations", () => {
           {
             name: "organizationSettingsMutationShort",
             key: `${ids.userId}:${ids.shopId}`,
-            value: 0,
+            value: 1,
             ts: Date.now(),
           },
         ],
@@ -3284,6 +3284,88 @@ describe("staff/mutations", () => {
         }),
       ).rejects.toThrow("以前の所属スタッフ変更と内容が一致しません");
       await expect(readEffects()).resolves.toEqual(afterFirst);
+    });
+
+    it("所属変更は連続2操作を許し、3操作目を副作用なしで拒否する", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "shop_staff_membership_rate_limit_actor",
+          plan: "business",
+        });
+        const personId = await seedMembershipChangePerson(ctx, {
+          organizationId: base.organizationId,
+          name: "連続所属変更対象",
+          email: "shop-staff-membership-rate-limit@example.com",
+        });
+        return { ...base, personId };
+      });
+      const subject = "shop_staff_membership_rate_limit_actor";
+      const actor = t.withIdentity({ subject });
+      const firstSnapshot = await getShopStaffMembershipChange(t, { subject, shopId: ids.shopId });
+
+      await expect(
+        actor.mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, {
+          shopId: ids.shopId,
+          desiredActivePersonIds: [ids.personId],
+          expectedMembershipFingerprint: firstSnapshot.membershipFingerprint,
+          removalPreviews: [],
+          requestId: "shop-staff-membership-rate-limit-add",
+        }),
+      ).resolves.toEqual({ changed: true, addedPersonIds: [ids.personId], removedPersonIds: [] });
+
+      const secondSnapshot = await getShopStaffMembershipChange(t, { subject, shopId: ids.shopId });
+      const removalPreviews = await getShopStaffRemovalPreviews(t, {
+        subject,
+        shopId: ids.shopId,
+        personIds: [ids.personId],
+        expectedMembershipFingerprint: secondSnapshot.membershipFingerprint,
+      });
+      await expect(
+        actor.mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, {
+          shopId: ids.shopId,
+          desiredActivePersonIds: [],
+          expectedMembershipFingerprint: secondSnapshot.membershipFingerprint,
+          removalPreviews,
+          requestId: "shop-staff-membership-rate-limit-remove",
+        }),
+      ).resolves.toEqual({ changed: true, addedPersonIds: [], removedPersonIds: [ids.personId] });
+
+      const readSideEffects = async () =>
+        await t.run(async (ctx) => ({
+          audits: await ctx.db.query("organizationAuditEvents").collect(),
+          rateLimits: await ctx.db.query("rateLimits").collect(),
+          scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+          staffs: await ctx.db
+            .query("staffs")
+            .withIndex("by_shopId", (q) => q.eq("shopId", ids.shopId))
+            .collect(),
+        }));
+      const beforeRejection = await readSideEffects();
+      expect(
+        beforeRejection.audits.filter((audit) => audit.action === "organization.shop_staff_memberships_changed"),
+      ).toHaveLength(2);
+      expect(beforeRejection.rateLimits).toEqual([
+        expect.objectContaining({
+          name: "organizationSettingsMutationShort",
+          key: `${ids.userId}:${ids.shopId}`,
+          value: 0,
+        }),
+      ]);
+      expect(beforeRejection.staffs).toEqual([expect.objectContaining({ isDeleted: true })]);
+
+      const thirdSnapshot = await getShopStaffMembershipChange(t, { subject, shopId: ids.shopId });
+
+      await expect(
+        actor.mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, {
+          shopId: ids.shopId,
+          desiredActivePersonIds: [ids.personId],
+          expectedMembershipFingerprint: thirdSnapshot.membershipFingerprint,
+          removalPreviews: [],
+          requestId: "shop-staff-membership-rate-limit-third",
+        }),
+      ).rejects.toThrow("変更操作が続いています");
+      await expect(readSideEffects()).resolves.toEqual(beforeRejection);
     });
 
     it("stale snapshot・stale preview・越境人物・変更不可人物・重複入力を副作用なしで拒否する", async () => {
