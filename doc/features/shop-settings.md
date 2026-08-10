@@ -58,8 +58,10 @@
 - 所属snapshotまたは解除対象のシフトが変わった場合は古い内容を保存しない。通信結果が不明な同一操作だけは、同じ入力とrequest IDで再試行する。
 - 店舗詳細のスタッフ一覧は、`getSettings.people.shopIds`を対象店舗IDで絞り込む。同名店舗を店舗名で誤判定せず、人物単位の一覧件数と表示件数を一致させる。行を押すとスタッフ詳細へ進み、出発元店舗は`returnShop`に保持するため、スタッフ詳細内で店舗を切り替えても戻る操作で元の店舗詳細へ復帰する。
 - 店舗削除は物理削除ではなく、受付時に店舗名を保持したまま`shops.isDeleted = true`にする。最後の未削除店舗は削除できない。
+- 店舗削除に成功したら、削除対象とは異なる現在contextの店舗を優先し、なければ同じ組織の先頭の未削除店舗へ復帰する。復帰先URLへ削除済み店舗IDを残さない。
 - 店舗詳細のpath paramは表示対象、`shop` queryは認証済みの店舗・組織コンテキストとして扱う。詳細表示は`api.organization.queries.getSettings`が返した同一組織の店舗だけに限定する。
+- 外部から無効な店舗IDを明示した保護routeは、自動で別店舗へ読み替えず、認証境界でfail closedにする。
 - 後続の永続cleanup jobは、対象店舗の`staffs`にある氏名、メールアドレス、正規化メールを保持したまま論理削除し、`staffLineAccounts`のLINE IDだけを削除済みの値へ置き換える。店舗用session、magic link、LINE連携token、法務同意token、登録リンクを失効し、未送信通知を停止する。
 - 店舗削除では`users`、`organizationPeople`、`organizationMembers`を変更しない。対象店舗のユーザーは組織人物として残る。
 - 店舗名、スタッフの氏名とメールアドレス、rate limit、自由入力欄、送信済みメール、LINEはDBに残るため、この導線を個人データの消去や匿名化とは扱わない。詳細は`doc/features/data-deletion.md`を参照する。
-- 保持契約はConvex Function TestとScenario Testで検証し、削除用アカウントを破壊する新しいE2Eは追加しない。
+- 保持契約はConvex Function TestとScenario Testで検証する。E2Eはworker専用scenario上でUI追加した2店舗目だけを削除し、実browserの復帰導線を検証する。Clerk userや組織全体を破壊するE2Eは追加しない。

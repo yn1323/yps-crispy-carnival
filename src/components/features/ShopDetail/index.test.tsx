@@ -8,6 +8,7 @@ import type { ShopDetailData } from "./types";
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
+  onDeleted: null as (() => void) | null,
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -28,7 +29,10 @@ vi.mock("./ShopDetailView", () => ({
 }));
 
 vi.mock("./useShopDeletionController", () => ({
-  useShopDeletionController: () => ({ isDeleting: false, deleteShop: vi.fn() }),
+  useShopDeletionController: ({ onDeleted }: { onDeleted: () => void }) => {
+    mocks.onDeleted = onDeleted;
+    return { isDeleting: false, deleteShop: vi.fn() };
+  },
 }));
 
 vi.mock("./useShopSettingsController", () => ({
@@ -51,11 +55,20 @@ const shop: ShopDetailData = {
 
 beforeEach(() => {
   mocks.navigate.mockReset();
+  mocks.onDeleted = null;
 });
 
 describe("店舗詳細の戻り先", () => {
   it("Dashboardから開いた場合は同じ店舗のDashboardへ戻る", () => {
-    render(<ShopDetail shop={shop} people={[]} selectedShopId="shop-context" returnTo="dashboard" />);
+    render(
+      <ShopDetail
+        shop={shop}
+        people={[]}
+        selectedShopId="shop-context"
+        deletionReturnShopId="shop-survivor"
+        returnTo="dashboard"
+      />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "前の画面に戻る" }));
 
@@ -67,7 +80,7 @@ describe("店舗詳細の戻り先", () => {
   });
 
   it("戻り先の指定がない直URLではDashboardへ戻る", () => {
-    render(<ShopDetail shop={shop} people={[]} selectedShopId="shop-context" />);
+    render(<ShopDetail shop={shop} people={[]} selectedShopId="shop-context" deletionReturnShopId="shop-survivor" />);
 
     fireEvent.click(screen.getByRole("button", { name: "前の画面に戻る" }));
 
@@ -79,7 +92,15 @@ describe("店舗詳細の戻り先", () => {
   });
 
   it("組織設定から開いた場合だけ同じ組織設定へ戻る", () => {
-    render(<ShopDetail shop={shop} people={[]} selectedShopId="shop-context" returnTo="settings" />);
+    render(
+      <ShopDetail
+        shop={shop}
+        people={[]}
+        selectedShopId="shop-context"
+        deletionReturnShopId="shop-survivor"
+        returnTo="settings"
+      />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "前の画面に戻る" }));
 
@@ -91,7 +112,15 @@ describe("店舗詳細の戻り先", () => {
   });
 
   it("Dashboard起点をユーザー詳細との往復後も維持する", () => {
-    render(<ShopDetail shop={shop} people={[]} selectedShopId="shop-context" returnTo="dashboard" />);
+    render(
+      <ShopDetail
+        shop={shop}
+        people={[]}
+        selectedShopId="shop-context"
+        deletionReturnShopId="shop-survivor"
+        returnTo="dashboard"
+      />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "スタッフ詳細を開く" }));
 
@@ -104,6 +133,46 @@ describe("店舗詳細の戻り先", () => {
         returnShop: "shop-target",
         returnShopTo: "dashboard",
       },
+    });
+  });
+
+  it("削除成功後は削除対象ではなく生存店舗のDashboardへ戻る", () => {
+    render(
+      <ShopDetail
+        shop={shop}
+        people={[]}
+        selectedShopId="shop-target"
+        deletionReturnShopId="shop-survivor"
+        returnTo="dashboard"
+      />,
+    );
+
+    mocks.onDeleted?.();
+
+    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
+      to: "/dashboard",
+      search: { shop: "shop-survivor" },
+      replace: true,
+    });
+  });
+
+  it("組織設定起点の削除成功後も生存店舗の店舗タブへ戻る", () => {
+    render(
+      <ShopDetail
+        shop={shop}
+        people={[]}
+        selectedShopId="shop-target"
+        deletionReturnShopId="shop-survivor"
+        returnTo="settings"
+      />,
+    );
+
+    mocks.onDeleted?.();
+
+    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
+      to: "/settings",
+      search: { shop: "shop-survivor", tab: "shops" },
+      replace: true,
     });
   });
 });
