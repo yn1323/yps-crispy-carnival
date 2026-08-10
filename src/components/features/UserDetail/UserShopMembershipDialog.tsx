@@ -1,7 +1,8 @@
-import { Badge, Box, Checkbox, Flex, Stack, Text } from "@chakra-ui/react";
+import { Badge, Box, Flex, Stack, Text } from "@chakra-ui/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LuStore } from "react-icons/lu";
 import type { Id } from "@/convex/_generated/dataModel";
+import { CheckboxListCard, CheckboxListCardItem } from "@/src/components/ui/CheckboxListCard";
 import { Dialog } from "@/src/components/ui/Dialog";
 import type { UserDetailData, UserMembershipChangeInput } from "./types";
 
@@ -250,80 +251,46 @@ export function UserShopMembershipDialog({
               </Text>
             </Box>
           ) : (
-            <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.100" overflow="hidden">
-              <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
-                {visibleShopRows.map((shop) => {
-                  const membership = membershipByShopId.get(shop.shopId);
-                  const isActive = shop.shopStatus === "active";
-                  const checked = isActive ? selectedActiveShopIdSet.has(shop.shopId) : Boolean(membership);
-                  const disabledReason = globalDisabledReason ? undefined : getMembershipChangeDisabledReason(shop);
-                  const isDisabled = Boolean(globalDisabledReason || disabledReason) || isChanging;
-                  const reasonId =
-                    globalDisabledReasonId ??
-                    (disabledReason ? `membership-change-disabled-${shop.shopId}` : undefined);
+            <CheckboxListCard ariaLabel="所属する店舗">
+              {visibleShopRows.map((shop) => {
+                const membership = membershipByShopId.get(shop.shopId);
+                const isActive = shop.shopStatus === "active";
+                const checked = isActive ? selectedActiveShopIdSet.has(shop.shopId) : Boolean(membership);
+                const disabledReason = globalDisabledReason ? undefined : getMembershipChangeDisabledReason(shop);
+                const isDisabled = Boolean(globalDisabledReason || disabledReason) || isChanging;
 
-                  return (
-                    <Checkbox.Root
-                      key={shop.shopId}
-                      colorPalette="teal"
-                      checked={checked}
-                      disabled={isDisabled}
-                      display="flex"
-                      w="full"
-                      alignItems="center"
-                      gap={3}
-                      px={{ base: 3, lg: 4 }}
-                      py={3.5}
-                      minH="72px"
-                      bg="white"
-                      transition="background-color 150ms ease"
-                      cursor={isDisabled ? "not-allowed" : "pointer"}
-                      _hover={isDisabled ? undefined : { bg: "teal.50" }}
-                      onCheckedChange={(details) => changeSelection(shop.shopId, details.checked === true)}
-                    >
-                      <Checkbox.HiddenInput aria-describedby={reasonId} />
-                      <Checkbox.Control
+                return (
+                  <CheckboxListCardItem
+                    key={shop.shopId}
+                    checked={checked}
+                    disabled={isDisabled}
+                    ariaLabel={shop.shopName}
+                    ariaDescribedBy={globalDisabledReasonId}
+                    disabledReason={disabledReason}
+                    leading={
+                      <Flex
+                        boxSize="40px"
+                        borderRadius="lg"
+                        bg="teal.100"
+                        color="teal.700"
+                        align="center"
+                        justify="center"
                         flexShrink={0}
-                        bg="white"
-                        borderColor="gray.300"
-                        cursor={isDisabled ? "not-allowed" : "pointer"}
-                        _checked={{ bg: "teal.500", borderColor: "teal.500" }}
-                      />
-                      <Checkbox.Label
-                        flex={1}
-                        minW={0}
-                        cursor={isDisabled ? "not-allowed" : "pointer"}
-                        opacity={isDisabled ? 0.75 : 1}
+                        aria-hidden
                       >
-                        <Flex align="center" gap={3} minW={0}>
-                          <Flex
-                            boxSize="40px"
-                            borderRadius="lg"
-                            bg="teal.100"
-                            color="teal.700"
-                            align="center"
-                            justify="center"
-                            flexShrink={0}
-                            aria-hidden
-                          >
-                            <LuStore />
-                          </Flex>
-                          <Text flex={1} minW={0} fontWeight="medium" color="gray.900" truncate>
-                            {shop.shopName}
-                          </Text>
-                          {shop.shopStatus !== "active" && <ShopStatusBadge status={shop.shopStatus} />}
-                        </Flex>
-                        {disabledReason && (
-                          <Text id={reasonId} mt={1} fontSize="xs" color="fg.muted" lineHeight="tall">
-                            {disabledReason}
-                          </Text>
-                        )}
-                      </Checkbox.Label>
-                    </Checkbox.Root>
-                  );
-                })}
-              </Stack>
-            </Box>
+                        <LuStore />
+                      </Flex>
+                    }
+                    trailing={shop.shopStatus !== "active" && <ShopStatusBadge status={shop.shopStatus} />}
+                    onCheckedChange={(nextChecked) => changeSelection(shop.shopId, nextChecked)}
+                  >
+                    <Text fontWeight="medium" color="gray.900" lineHeight="short">
+                      {shop.shopName}
+                    </Text>
+                  </CheckboxListCardItem>
+                );
+              })}
+            </CheckboxListCard>
           )}
         </Stack>
       </Dialog>
