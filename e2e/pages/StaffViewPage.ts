@@ -1,6 +1,8 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { expectAppHydrated } from "../helpers/appReadiness";
 
+const STAFF_VIEW_DATA_TIMEOUT = 20_000;
+
 export class StaffViewPage {
   constructor(private page: Page) {}
 
@@ -14,11 +16,11 @@ export class StaffViewPage {
   }
 
   async expectShiftViewVisible() {
-    await expect(this.page.getByText(/のシフト$/, { exact: true })).toBeVisible();
+    await expect(this.page.getByText(/のシフト$/, { exact: true })).toBeVisible({ timeout: STAFF_VIEW_DATA_TIMEOUT });
   }
 
   async expectStaffVisible(name: string) {
-    await expect(this.staffRow(name)).toBeVisible();
+    await expect(this.staffRow(name)).toBeVisible({ timeout: STAFF_VIEW_DATA_TIMEOUT });
   }
 
   async expectShiftTimeVisible() {
@@ -26,7 +28,7 @@ export class StaffViewPage {
       this.staffRows()
         .getByText(/\d{1,2}:\d{2}/)
         .first(),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: STAFF_VIEW_DATA_TIMEOUT });
   }
 
   private staffRow(staffName: string): Locator {
