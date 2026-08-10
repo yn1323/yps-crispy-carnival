@@ -99,6 +99,7 @@ export function DashboardPage({ visibleUserCount, focusedPersonId, onVisibleUser
             focusedPersonId={focusedPersonId}
             onVisibleUserCountChange={onVisibleUserCountChange}
             trialEndingNotice={shop?.trialEndingNotice ?? null}
+            planStatus={shop?.planStatus}
             billingSettingsShopId={selectedContext?.shopId}
             isBillingFeatureVisible={featureVisibility.billing}
             operationContextData={
