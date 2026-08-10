@@ -391,6 +391,279 @@ describe("organizationStripe/actions", () => {
     expect(providerFetchMock).not.toHaveBeenCalled();
   });
 
+  it("現在契約は保存済みの旧inactive PriceをID非公開で返し、明示された税区分だけを含める", async () => {
+    vi.stubEnv("FEATURE_BILLING", "enabled");
+    const t = convexTest(schema, modules);
+    const persistedPriceId = "price_archived_current_subscription";
+    const ids = await seedCurrentSubscriptionPriceContext(t, {
+      subject: "stripe_current_subscription_price",
+      priceId: persistedPriceId,
+    });
+    const requestedPriceIds: string[] = [];
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource !== "prices.retrieve") throw new Error(`Unexpected Stripe provider call: ${resource}`);
+      const [priceId] = JSON.parse(String(init?.body ?? "[]")) as [string];
+      requestedPriceIds.push(priceId);
+      return providerResponse({
+        ...priceFixtureFor(priceId),
+        active: false,
+        unit_amount: 1680,
+        tax_behavior: requestedPriceIds.length === 1 ? "exclusive" : "unspecified",
+      });
+    });
+    const actor = t.withIdentity({ subject: "stripe_current_subscription_price" });
+
+    await expect(
+      actor.action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: ids.shopId }),
+    ).resolves.toEqual({
+      status: "available",
+      currency: "jpy",
+      unitAmount: 1680,
+      interval: "month",
+      intervalCount: 1,
+      taxBehavior: "exclusive",
+    });
+    await expect(
+      actor.action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: ids.shopId }),
+    ).resolves.toEqual({
+      status: "available",
+      currency: "jpy",
+      unitAmount: 1680,
+      interval: "month",
+      intervalCount: 1,
+    });
+    expect(requestedPriceIds).toEqual([persistedPriceId, persistedPriceId]);
+  });
+
+  it("billing featureが非公開なら保存済み有料契約があってもprovider通信しない", async () => {
+    vi.stubEnv("FEATURE_BILLING", "");
+    const t = convexTest(schema, modules);
+    const ids = await seedCurrentSubscriptionPriceContext(t, {
+      subject: "stripe_current_subscription_feature_disabled",
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "stripe_current_subscription_feature_disabled" })
+        .action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: ids.shopId }),
+    ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("別organizationのactorは対象shopの契約Priceを取得できずprovider通信しない", async () => {
+    vi.stubEnv("FEATURE_BILLING", "enabled");
+    const t = convexTest(schema, modules);
+    await t.run(
+      async (ctx) =>
+        await seedOrganizationManagerShop(ctx, {
+          subject: "stripe_current_subscription_other_org_actor",
+          plan: "pro",
+        }),
+    );
+    const target = await seedCurrentSubscriptionPriceContext(t, {
+      subject: "stripe_current_subscription_other_org_target",
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "stripe_current_subscription_other_org_actor" })
+        .action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: target.shopId }),
+    ).rejects.toThrow();
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("保存済みsubscriptionとsecretのlivemodeが不一致ならprovider通信しない", async () => {
+    vi.stubEnv("FEATURE_BILLING", "enabled");
+    const t = convexTest(schema, modules);
+    const ids = await seedCurrentSubscriptionPriceContext(t, {
+      subject: "stripe_current_subscription_livemode_mismatch",
+      subscriptionLivemode: true,
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "stripe_current_subscription_livemode_mismatch" })
+        .action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: ids.shopId }),
+    ).resolves.toEqual({ status: "unavailable", reason: "configuration_pending" });
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each(["active.free", "trial"] as const)(
+    "%sに古いsubscription snapshotが残っても現在契約Priceを返さない",
+    async (stateKind) => {
+      vi.stubEnv("FEATURE_BILLING", "enabled");
+      const t = convexTest(schema, modules);
+      const subject = `stripe_stale_current_subscription_${stateKind.replace(".", "_")}`;
+      const ids = await seedCurrentSubscriptionPriceContext(t, {
+        subject,
+        billingState:
+          stateKind === "active.free"
+            ? () => ({ kind: "active", plan: "free" })
+            : () => ({ kind: "trial", trialEndsAt: NOW + 7 * 24 * 60 * 60_000 }),
+      });
+
+      await expect(
+        t
+          .withIdentity({ subject })
+          .action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: ids.shopId }),
+      ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
+      expect(providerFetchMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("canonical有料planとsubscription snapshotのplanが不一致ならprovider通信しない", async () => {
+    vi.stubEnv("FEATURE_BILLING", "enabled");
+    const t = convexTest(schema, modules);
+    const ids = await seedCurrentSubscriptionPriceContext(t, {
+      subject: "stripe_current_subscription_plan_mismatch",
+      subscriptionPlan: "business",
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "stripe_current_subscription_plan_mismatch" })
+        .action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: ids.shopId }),
+    ).resolves.toEqual({ status: "unavailable", reason: "price_unavailable" });
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("終了済みsubscription snapshotだけなら現在契約Priceを返さずprovider通信しない", async () => {
+    vi.stubEnv("FEATURE_BILLING", "enabled");
+    const t = convexTest(schema, modules);
+    const ids = await seedCurrentSubscriptionPriceContext(t, {
+      subject: "stripe_terminal_current_subscription",
+      terminalAt: NOW,
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "stripe_terminal_current_subscription" })
+        .action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: ids.shopId }),
+    ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("支払い制限中は復旧managerだけが保存済み契約Priceを取得できる", async () => {
+    vi.stubEnv("FEATURE_BILLING", "enabled");
+    const t = convexTest(schema, modules);
+    const ids = await seedCurrentSubscriptionPriceContext(t, {
+      subject: "stripe_current_subscription_recovery_manager",
+      subscriptionStatus: "past_due",
+      billingState: ({ personId, shopId }) => ({
+        kind: "restricted",
+        reason: "paymentGraceExpired",
+        previousPlan: "pro",
+        recoveryManagerPersonIds: [personId],
+        previousActiveShopIds: [shopId],
+        restrictedAt: NOW,
+      }),
+    });
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource !== "prices.retrieve") throw new Error(`Unexpected Stripe provider call: ${resource}`);
+      const [priceId] = JSON.parse(String(init?.body ?? "[]")) as [string];
+      return providerResponse({ ...priceFixtureFor(priceId), active: false });
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "stripe_current_subscription_recovery_manager" })
+        .action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: ids.shopId }),
+    ).resolves.toMatchObject({ status: "available", unitAmount: 1480 });
+    expect(providerFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    {
+      label: "scheduledChange",
+      state: () => ({
+        kind: "scheduledChange" as const,
+        currentPlan: "pro" as const,
+        targetPlan: "free" as const,
+        effectiveAt: NOW + 30 * 24 * 60 * 60_000,
+      }),
+    },
+    {
+      label: "grace",
+      state: () => ({
+        kind: "grace" as const,
+        plan: "pro" as const,
+        startedAt: NOW,
+        endsAt: NOW + 14 * 24 * 60 * 60_000,
+      }),
+    },
+  ])("$labelでも現在表示中の有料契約Priceを取得できる", async ({ label, state }) => {
+    vi.stubEnv("FEATURE_BILLING", "enabled");
+    const t = convexTest(schema, modules);
+    const subject = `stripe_current_subscription_${label}`;
+    const ids = await seedCurrentSubscriptionPriceContext(t, {
+      subject,
+      billingState: state,
+      ...(label === "grace" ? { subscriptionStatus: "past_due" as const } : {}),
+    });
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource !== "prices.retrieve") throw new Error(`Unexpected Stripe provider call: ${resource}`);
+      const [priceId] = JSON.parse(String(init?.body ?? "[]")) as [string];
+      return providerResponse(priceFixtureFor(priceId));
+    });
+
+    await expect(
+      t.withIdentity({ subject }).action(api.organizationStripe.actions.getCurrentSubscriptionPrice, {
+        shopId: ids.shopId,
+      }),
+    ).resolves.toMatchObject({ status: "available", unitAmount: 1480 });
+    expect(providerFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("一般のreadOnly actorは有料契約Priceを取得できずprovider通信しない", async () => {
+    vi.stubEnv("FEATURE_BILLING", "enabled");
+    const t = convexTest(schema, modules);
+    const ids = await seedCurrentSubscriptionPriceContext(t, {
+      subject: "stripe_current_subscription_read_only",
+    });
+    await t.run(async (ctx) => await ctx.db.patch(ids.memberId, { status: "readOnly" }));
+
+    await expect(
+      t
+        .withIdentity({ subject: "stripe_current_subscription_read_only" })
+        .action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: ids.shopId }),
+    ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("restricted recoveryManagerはreadOnlyになっても契約Priceを取得できる", async () => {
+    vi.stubEnv("FEATURE_BILLING", "enabled");
+    const t = convexTest(schema, modules);
+    const ids = await seedCurrentSubscriptionPriceContext(t, {
+      subject: "stripe_current_subscription_read_only_recovery",
+      subscriptionStatus: "past_due",
+      billingState: ({ personId, shopId }) => ({
+        kind: "restricted",
+        reason: "paymentGraceExpired",
+        previousPlan: "pro",
+        recoveryManagerPersonIds: [personId],
+        previousActiveShopIds: [shopId],
+        restrictedAt: NOW,
+      }),
+    });
+    await t.run(async (ctx) => await ctx.db.patch(ids.memberId, { status: "readOnly" }));
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource !== "prices.retrieve") throw new Error(`Unexpected Stripe provider call: ${resource}`);
+      const [priceId] = JSON.parse(String(init?.body ?? "[]")) as [string];
+      return providerResponse({ ...priceFixtureFor(priceId), active: false });
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "stripe_current_subscription_read_only_recovery" })
+        .action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: ids.shopId }),
+    ).resolves.toMatchObject({ status: "available", unitAmount: 1480 });
+    expect(providerFetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("FreeからBusiness Checkoutを開始しても支払確認前はpendingActivationを維持する", async () => {
     configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
     const t = convexTest(schema, modules);
@@ -7446,6 +7719,57 @@ async function seedSucceededPaidPlanPreview(
         updatedAt: NOW,
       }),
   );
+}
+
+async function seedCurrentSubscriptionPriceContext(
+  t: TestConvex<typeof schema>,
+  args: {
+    subject: string;
+    priceId?: string;
+    subscriptionPlan?: "pro" | "business";
+    subscriptionStatus?: Doc<"organizationStripeSubscriptions">["status"];
+    subscriptionLivemode?: boolean;
+    terminalAt?: number;
+    billingState?: (ids: {
+      personId: Id<"organizationPeople">;
+      shopId: Id<"shops">;
+    }) => Doc<"organizationBillingStates">["state"];
+  },
+) {
+  return await t.run(async (ctx) => {
+    const seeded = await seedOrganizationManagerShop(ctx, { subject: args.subject, plan: "pro" });
+    if (args.billingState) {
+      const billing = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billing) throw new Error("billing state was not seeded");
+      await ctx.db.patch(billing._id, {
+        state: args.billingState({ personId: seeded.personId, shopId: seeded.shopId }),
+        version: billing.version + 1,
+        updatedAt: NOW,
+      });
+    }
+    await ctx.db.insert("organizationStripeSubscriptions", {
+      organizationId: seeded.organizationId,
+      stripeCustomerId: `cus_${args.subject}`,
+      stripeSubscriptionId: `sub_${args.subject}`,
+      stripeSubscriptionItemId: `si_${args.subject}`,
+      stripePriceId: args.priceId ?? READY_TEST_CONFIGURATION.proPriceId,
+      plan: args.subscriptionPlan ?? "pro",
+      livemode: args.subscriptionLivemode ?? false,
+      status: args.subscriptionStatus ?? "active",
+      providerGeneration: 1,
+      currentPeriodStartsAt: NOW,
+      currentPeriodEndsAt: NOW + 30 * 24 * 60 * 60_000,
+      cancelAtPeriodEnd: false,
+      ...(args.terminalAt !== undefined ? { terminalAt: args.terminalAt } : {}),
+      syncedAt: NOW,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    return seeded;
+  });
 }
 
 function priceFixtureFor(priceId: string) {

@@ -6,7 +6,8 @@ import Stripe from "stripe";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { type ActionCtx, action, internalAction } from "../_generated/server";
-import { getAppUrl } from "../_lib/config";
+import { getAppUrl, isBillingEnabled } from "../_lib/config";
+import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
 import {
   getConfiguredStripePriceId,
   getStripeBillingConfiguration,
@@ -63,8 +64,21 @@ const priceResultValidator = v.union(
   }),
 );
 
+const currentSubscriptionPriceResultValidator = v.union(
+  v.object({ status: v.literal("unavailable"), reason: unavailableReasonValidator }),
+  v.object({
+    status: v.literal("available"),
+    currency: v.string(),
+    unitAmount: v.number(),
+    interval: v.union(v.literal("day"), v.literal("week"), v.literal("month"), v.literal("year")),
+    intervalCount: v.number(),
+    taxBehavior: v.optional(v.union(v.literal("inclusive"), v.literal("exclusive"))),
+  }),
+);
+
 type ActionPurpose =
   | "price"
+  | "currentSubscriptionPrice"
   | "startCheckout"
   | "portal"
   | "scheduleFree"
@@ -100,6 +114,16 @@ type PriceResult =
       unitAmount: number;
       interval: "day" | "week" | "month" | "year";
       intervalCount: number;
+    };
+type CurrentSubscriptionPriceResult =
+  | UnavailableResult
+  | {
+      status: "available";
+      currency: string;
+      unitAmount: number;
+      interval: "day" | "week" | "month" | "year";
+      intervalCount: number;
+      taxBehavior?: "inclusive" | "exclusive";
     };
 type BillingStateSnapshot = { state: Doc<"organizationBillingStates">["state"]; version: number };
 
@@ -197,6 +221,45 @@ export const getPlanPrice = action({
         if (!proPrice || proPrice.currency !== price.currency) return unavailable("price_unavailable");
       }
       return { status: "available", ...price };
+    } catch {
+      return unavailable("provider_unavailable");
+    }
+  },
+});
+
+/** 認可済みactorへ、DBに保存済みの現在契約Priceの表示用金額だけを返す。 */
+export const getCurrentSubscriptionPrice = action({
+  args: { shopId: v.id("shops") },
+  returns: currentSubscriptionPriceResultValidator,
+  handler: async (ctx, args): Promise<CurrentSubscriptionPriceResult> => {
+    if (!isBillingEnabled()) return unavailable("not_allowed");
+
+    const configuration = getStripeProviderSafetyConfiguration();
+    if (!configuration) return unavailable("configuration_pending");
+
+    const context = await getAuthorizedContext(ctx, args.shopId, "currentSubscriptionPrice");
+    if (!context) return unavailable("not_allowed");
+    const displayedPaidPlan = getDisplayedPaidPlanForCurrentSubscriptionPrice(context.billingState.state);
+    if (
+      !displayedPaidPlan ||
+      !context.currentStripeSubscriptionId ||
+      !context.currentStripePriceId ||
+      context.currentStripePlan !== displayedPaidPlan
+    ) {
+      return unavailable("price_unavailable");
+    }
+    if (context.currentStripeSubscriptionLivemode !== configuration.livemode) {
+      return unavailable("configuration_pending");
+    }
+
+    try {
+      const stripe = createStripeClient(configuration.secretKey);
+      const price = await retrieveCurrentSubscriptionPrice(
+        stripe,
+        context.currentStripePriceId,
+        configuration.livemode,
+      );
+      return price ? { status: "available", ...price } : unavailable("price_unavailable");
     } catch {
       return unavailable("provider_unavailable");
     }
@@ -6134,6 +6197,62 @@ function assertCheckoutSession(
 async function retrieveAllowedPrice(stripe: Stripe, priceId: string, livemode: boolean) {
   const result = await retrieveConfiguredPrice(stripe, priceId, livemode);
   return result.status === "available" ? result.price : null;
+}
+
+function getDisplayedPaidPlanForCurrentSubscriptionPrice(
+  state: Doc<"organizationBillingStates">["state"],
+): StripePaidPlan | null {
+  switch (state.kind) {
+    case "active":
+      return state.plan === "pro" || state.plan === "business" ? state.plan : null;
+    case "scheduledChange":
+      return state.currentPlan;
+    case "grace":
+      return state.plan;
+    case "restricted": {
+      if (
+        state.reason !== "paymentGraceExpired" &&
+        state.reason !== "paymentActivationFailed" &&
+        state.reason !== "unexpectedCancellation"
+      ) {
+        return null;
+      }
+      const displayPlan = deriveOrganizationBillingPolicy(state).displayPlan;
+      return displayPlan === "pro" || displayPlan === "business" ? displayPlan : null;
+    }
+    case "trial":
+    case "initialPaymentPending":
+    case "pendingActivation":
+    case "complimentary":
+      return null;
+  }
+}
+
+/**
+ * 既存契約が参照するPriceは販売終了後も金額表示に必要なため、activeは要求しない。
+ * Price IDは認可済みsubscription snapshotからのみ受け取る。
+ */
+async function retrieveCurrentSubscriptionPrice(stripe: Stripe, priceId: string, livemode: boolean) {
+  const price = await stripe.prices.retrieve(priceId);
+  if (
+    price.id !== priceId ||
+    price.livemode !== livemode ||
+    !price.recurring ||
+    price.recurring.interval !== "month" ||
+    price.recurring.interval_count !== 1 ||
+    price.unit_amount === null
+  ) {
+    return null;
+  }
+  const taxBehavior =
+    price.tax_behavior === "inclusive" || price.tax_behavior === "exclusive" ? price.tax_behavior : undefined;
+  return {
+    currency: price.currency,
+    unitAmount: price.unit_amount,
+    interval: price.recurring.interval,
+    intervalCount: price.recurring.interval_count,
+    ...(taxBehavior ? { taxBehavior } : {}),
+  };
 }
 
 async function retrieveConfiguredPrice(stripe: Stripe, priceId: string, livemode: boolean) {

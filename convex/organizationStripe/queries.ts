@@ -13,6 +13,7 @@ import {
 
 const actionPurposeValidator = v.union(
   v.literal("price"),
+  v.literal("currentSubscriptionPrice"),
   v.literal("startCheckout"),
   v.literal("portal"),
   v.literal("scheduleFree"),
@@ -81,6 +82,7 @@ export const getActionContext = internalQuery({
         .first(),
     ]);
     if (!billingState) return null;
+    if (args.purpose === "currentSubscriptionPrice" && latestSubscription?.terminalAt !== undefined) return null;
     const restrictedState = getEffectiveRestrictedBillingState(billingState.state);
     const isRecoveryManager = restrictedState?.recoveryManagerPersonIds.includes(actor.person._id) === true;
     const isActiveManager = actor.member.status === "active";
@@ -989,6 +991,7 @@ export const getKnownWebhookObjectGuard = internalQuery({
 function isPurposeAllowed(
   purpose:
     | "price"
+    | "currentSubscriptionPrice"
     | "startCheckout"
     | "portal"
     | "scheduleFree"
@@ -1004,6 +1007,16 @@ function isPurposeAllowed(
   switch (purpose) {
     case "price":
       return isActiveManager || isRecoveryManager;
+    case "currentSubscriptionPrice":
+      if (state.kind === "active") return isActiveManager && state.plan !== "free";
+      if (state.kind === "scheduledChange" || state.kind === "grace") return isActiveManager;
+      return (
+        state.kind === "restricted" &&
+        isRecoveryManager &&
+        (state.reason === "paymentGraceExpired" ||
+          state.reason === "paymentActivationFailed" ||
+          state.reason === "unexpectedCancellation")
+      );
     case "startCheckout":
       if (state.kind === "restricted") return isRecoveryManager;
       if (state.kind === "pendingActivation") {
