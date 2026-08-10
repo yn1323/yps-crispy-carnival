@@ -60,20 +60,34 @@ export function StaffInvitationDialog({ invitation, isReadOnly = false }: Props)
     <StaffInvitationDialogView
       invitation={invitation}
       isReadOnly={isReadOnly}
-      organizationPeopleContent={
-        <OrganizationPeopleCandidateList
-          enabled={
-            !isReadOnly &&
-            invitation.showOrganizationPeopleAddition &&
-            invitation.dialog.isOpen &&
-            invitation.selectedMethod === "organization"
-          }
-          isReadOnly={isReadOnly}
-          addingPersonId={invitation.addingOrganizationPersonId}
-          isAdding={invitation.isAddingOrganizationPerson}
-          onAdd={invitation.onAddOrganizationPerson}
-        />
+      organizationPeopleContent={getOrganizationPeopleContent(invitation, isReadOnly)}
+    />
+  );
+}
+
+/** Dialogのガワを親で保持する間、遅延読み込みする本文だけを返す。 */
+export function StaffInvitationDialogContent({ invitation, isReadOnly = false }: Props) {
+  return (
+    <StaffInvitationDialogBody
+      invitation={invitation}
+      organizationPeopleContent={getOrganizationPeopleContent(invitation, isReadOnly)}
+    />
+  );
+}
+
+function getOrganizationPeopleContent(invitation: StaffInvitationViewModel, isReadOnly: boolean) {
+  return (
+    <OrganizationPeopleCandidateList
+      enabled={
+        !isReadOnly &&
+        invitation.showOrganizationPeopleAddition &&
+        invitation.dialog.isOpen &&
+        invitation.selectedMethod === "organization"
       }
+      isReadOnly={isReadOnly}
+      addingPersonId={invitation.addingOrganizationPersonId}
+      isAdding={invitation.isAddingOrganizationPerson}
+      onAdd={invitation.onAddOrganizationPerson}
     />
   );
 }
@@ -82,33 +96,15 @@ type ViewProps = Props & {
   organizationPeopleContent: ReactNode;
 };
 
+type BodyProps = {
+  invitation: StaffInvitationViewModel;
+  organizationPeopleContent: ReactNode;
+};
+
 export function StaffInvitationDialogView({ invitation, isReadOnly = false, organizationPeopleContent }: ViewProps) {
-  const selectedMethod =
-    !invitation.showOrganizationPeopleAddition && invitation.selectedMethod === "organization"
-      ? null
-      : invitation.selectedMethod;
+  const selectedMethod = getSelectedMethod(invitation);
   const isManualMethod = selectedMethod === "manual";
   const isBusy = invitation.isAddingStaffs || invitation.isAddingOrganizationPerson;
-  const methodButtonRefs = useRef<Partial<Record<StaffInvitationMethod, HTMLButtonElement | null>>>({});
-  const detailHeadingRef = useRef<HTMLHeadingElement>(null);
-  const lastSelectedMethodRef = useRef<StaffInvitationMethod>("link");
-
-  useEffect(() => {
-    if (!invitation.dialog.isOpen) return;
-
-    if (selectedMethod) {
-      detailHeadingRef.current?.focus();
-      return;
-    }
-
-    const previousButton = methodButtonRefs.current[lastSelectedMethodRef.current];
-    (previousButton ?? methodButtonRefs.current.link)?.focus();
-  }, [invitation.dialog.isOpen, selectedMethod]);
-
-  const handleSelectMethod = (method: StaffInvitationMethod) => {
-    lastSelectedMethodRef.current = method;
-    invitation.onSelectMethod(method);
-  };
 
   return (
     <Dialog
@@ -153,53 +149,88 @@ export function StaffInvitationDialogView({ invitation, isReadOnly = false, orga
       }}
       bodyProps={{ pt: 0 }}
     >
-      <Stack gap={5} pt={2} minH={0}>
-        {selectedMethod === null && (
-          <StaffInvitationMethodMenu
-            showOrganizationPeopleAddition={invitation.showOrganizationPeopleAddition}
-            disabled={isBusy}
-            buttonRefs={methodButtonRefs}
-            onSelect={handleSelectMethod}
-          />
-        )}
-
-        {selectedMethod !== null && (
-          <StaffInvitationDetailHeader
-            ref={detailHeadingRef}
-            method={selectedMethod}
-            disabled={isBusy}
-            onBack={invitation.onBackToMethods}
-          />
-        )}
-
-        {selectedMethod === "link" && (
-          <Stack gap={6}>
-            <StaffRegistrationLinkPanel
-              registrationUrl={invitation.registrationUrl}
-              isLoading={invitation.isRegistrationUrlLoading}
-              hasError={invitation.registrationUrlError}
-              onRetry={invitation.onRetryRegistrationUrl}
-            />
-          </Stack>
-        )}
-
-        <Box hidden={selectedMethod !== "manual"}>
-          <Stack gap={4}>
-            {invitation.peopleCapacityResolution && (
-              <PeopleCapacityResolutionAlert
-                resolution={invitation.peopleCapacityResolution}
-                retryActionLabel="スタッフを追加"
-              />
-            )}
-            <AddStaffForm onSubmit={invitation.onAddStaffs} />
-          </Stack>
-        </Box>
-
-        {selectedMethod === "organization" && invitation.showOrganizationPeopleAddition && (
-          <Box>{organizationPeopleContent}</Box>
-        )}
-      </Stack>
+      <StaffInvitationDialogBody invitation={invitation} organizationPeopleContent={organizationPeopleContent} />
     </Dialog>
+  );
+}
+
+function getSelectedMethod(invitation: StaffInvitationViewModel) {
+  return !invitation.showOrganizationPeopleAddition && invitation.selectedMethod === "organization"
+    ? null
+    : invitation.selectedMethod;
+}
+
+function StaffInvitationDialogBody({ invitation, organizationPeopleContent }: BodyProps) {
+  const selectedMethod = getSelectedMethod(invitation);
+  const isBusy = invitation.isAddingStaffs || invitation.isAddingOrganizationPerson;
+  const methodButtonRefs = useRef<Partial<Record<StaffInvitationMethod, HTMLButtonElement | null>>>({});
+  const detailHeadingRef = useRef<HTMLHeadingElement>(null);
+  const lastSelectedMethodRef = useRef<StaffInvitationMethod>("link");
+
+  useEffect(() => {
+    if (!invitation.dialog.isOpen) return;
+
+    if (selectedMethod) {
+      detailHeadingRef.current?.focus();
+      return;
+    }
+
+    const previousButton = methodButtonRefs.current[lastSelectedMethodRef.current];
+    (previousButton ?? methodButtonRefs.current.link)?.focus();
+  }, [invitation.dialog.isOpen, selectedMethod]);
+
+  const handleSelectMethod = (method: StaffInvitationMethod) => {
+    lastSelectedMethodRef.current = method;
+    invitation.onSelectMethod(method);
+  };
+
+  return (
+    <Stack gap={5} pt={2} minH={0}>
+      {selectedMethod === null && (
+        <StaffInvitationMethodMenu
+          showOrganizationPeopleAddition={invitation.showOrganizationPeopleAddition}
+          disabled={isBusy}
+          buttonRefs={methodButtonRefs}
+          onSelect={handleSelectMethod}
+        />
+      )}
+
+      {selectedMethod !== null && (
+        <StaffInvitationDetailHeader
+          ref={detailHeadingRef}
+          method={selectedMethod}
+          disabled={isBusy}
+          onBack={invitation.onBackToMethods}
+        />
+      )}
+
+      {selectedMethod === "link" && (
+        <Stack gap={6}>
+          <StaffRegistrationLinkPanel
+            registrationUrl={invitation.registrationUrl}
+            isLoading={invitation.isRegistrationUrlLoading}
+            hasError={invitation.registrationUrlError}
+            onRetry={invitation.onRetryRegistrationUrl}
+          />
+        </Stack>
+      )}
+
+      <Box hidden={selectedMethod !== "manual"}>
+        <Stack gap={4}>
+          {invitation.peopleCapacityResolution && (
+            <PeopleCapacityResolutionAlert
+              resolution={invitation.peopleCapacityResolution}
+              retryActionLabel="スタッフを追加"
+            />
+          )}
+          <AddStaffForm onSubmit={invitation.onAddStaffs} />
+        </Stack>
+      </Box>
+
+      {selectedMethod === "organization" && invitation.showOrganizationPeopleAddition && (
+        <Box>{organizationPeopleContent}</Box>
+      )}
+    </Stack>
   );
 }
 

@@ -1,6 +1,7 @@
-import { Alert, Stack, Text } from "@chakra-ui/react";
+import { Alert, Flex, Stack, Text } from "@chakra-ui/react";
 import { lazy, type ReactNode } from "react";
 import { PeopleCapacityResolutionAlert } from "@/src/components/shared/PeopleCapacityResolutionAlert";
+import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { DeferredDialogBoundary } from "@/src/components/ui/Dialog/DeferredDialogBoundary";
 import type { EditStaffFormData } from "../EditStaffForm";
@@ -11,7 +12,7 @@ import type { StaffInvitationViewModel } from "./StaffInvitationDialog";
 const loadStaffInvitationDialog = () => import("./StaffInvitationDialog");
 const loadStaffDetailDialog = () => import("../StaffRoster/StaffDetailDialog");
 const LazyStaffInvitationDialog = lazy(() =>
-  loadStaffInvitationDialog().then((module) => ({ default: module.StaffInvitationDialog })),
+  loadStaffInvitationDialog().then((module) => ({ default: module.StaffInvitationDialogContent })),
 );
 const LazyStaffDetailDialog = lazy(() =>
   loadStaffDetailDialog().then((module) => ({ default: module.StaffDetailDialog })),
@@ -106,6 +107,11 @@ export function StaffManagementView({
           isOpen
           onOpenChange={invitation.dialog.onOpenChange}
           onClose={invitation.onClose}
+          renderDialog={(content) => (
+            <StaffInvitationDialogShell invitation={invitation} isReadOnly={isReadOnly}>
+              {content}
+            </StaffInvitationDialogShell>
+          )}
         >
           <LazyStaffInvitationDialog invitation={invitation} isReadOnly={isReadOnly} />
         </DeferredDialogBoundary>
@@ -185,5 +191,67 @@ export function StaffManagementView({
         </DeferredDialogBoundary>
       )}
     </>
+  );
+}
+
+type StaffInvitationDialogShellProps = {
+  invitation: StaffInvitationViewModel;
+  isReadOnly: boolean;
+  children: ReactNode;
+};
+
+function StaffInvitationDialogShell({ invitation, isReadOnly, children }: StaffInvitationDialogShellProps) {
+  const selectedMethod =
+    !invitation.showOrganizationPeopleAddition && invitation.selectedMethod === "organization"
+      ? null
+      : invitation.selectedMethod;
+  const isManualMethod = selectedMethod === "manual";
+  const isBusy = invitation.isAddingStaffs || invitation.isAddingOrganizationPerson;
+
+  return (
+    <Dialog
+      title="スタッフを追加"
+      isOpen={invitation.dialog.isOpen && !isReadOnly}
+      onOpenChange={invitation.dialog.onOpenChange}
+      formId={isManualMethod ? "add-staff-form" : undefined}
+      onClose={invitation.onClose}
+      preventClose={isBusy}
+      hideFooter={selectedMethod === "organization"}
+      footer={
+        isManualMethod ? (
+          <Flex w="full" align="center" justify="flex-end" gap={3}>
+            <Button variant="outline" onClick={invitation.onClose} disabled={isReadOnly || isBusy}>
+              閉じる
+            </Button>
+            <Button
+              type="submit"
+              form="add-staff-form"
+              colorPalette="teal"
+              loading={invitation.isAddingStaffs}
+              disabled={isReadOnly || invitation.isAddingOrganizationPerson}
+            >
+              スタッフを登録する
+            </Button>
+          </Flex>
+        ) : selectedMethod !== "organization" ? (
+          <Flex w="full" justify="flex-end">
+            <Button variant="outline" onClick={invitation.onClose} disabled={isBusy}>
+              閉じる
+            </Button>
+          </Flex>
+        ) : undefined
+      }
+      maxW={{ base: "100vw", lg: "640px" }}
+      maxH={{ base: "100dvh", lg: "85dvh" }}
+      contentProps={{
+        w: "100%",
+        h: { base: "100dvh", lg: "auto" },
+        my: { base: 0, lg: "auto" },
+        borderRadius: { base: 0, lg: "l3" },
+      }}
+      bodyProps={{ pt: 0 }}
+    >
+      {children}
+    </Dialog>
   );
 }
