@@ -2,6 +2,9 @@ import { test } from "../fixtures/e2eTest";
 import { seedSingleActorMultiOrganizationScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 
+// Dashboardへmanager emailが表示されるため、browser artifactへ画面状態を保存しない。
+test.use({ trace: "off", screenshot: "off", video: "off" });
+
 test.describe("複数グループ切り替え", { tag: ["@e2e-core"] }, () => {
   test.setTimeout(45_000);
 
