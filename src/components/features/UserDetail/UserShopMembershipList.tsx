@@ -20,7 +20,7 @@ export function UserShopMembershipList({ data, showShopMembershipAddition, onOpe
         titleAs="h4"
         description={
           showShopMembershipAddition && data.canWrite
-            ? "「所属を追加する」から、このユーザーを店舗に追加できます。"
+            ? "「所属店舗を変更する」から、このユーザーの所属を変更できます。"
             : "所属している店舗はありません。"
         }
         variant="section"

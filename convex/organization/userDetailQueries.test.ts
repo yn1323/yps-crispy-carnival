@@ -201,21 +201,26 @@ describe("organization/userDetailQueries.getUserDetail", () => {
         fingerprint: expect.any(String),
       },
       canWrite: true,
+      membershipFingerprint: expect.stringMatching(/^[0-9a-f]{64}$/),
       shops: [
         {
           shopId: ids.archivedShopId,
           shopName: "旧店舗",
           shopStatus: "archived",
+          canChangeMembership: false,
+          membershipChangeDisabledReason: "稼働中の店舗だけ所属を変更できます。",
         },
         {
           shopId: ids.shopId,
           shopName: "青山店",
           shopStatus: "active",
+          canChangeMembership: true,
         },
         {
           shopId: ids.secondShopId,
           shopName: "赤坂店",
           shopStatus: "active",
+          canChangeMembership: true,
         },
       ],
       memberships: [
@@ -225,7 +230,8 @@ describe("organization/userDetailQueries.getUserDetail", () => {
           shopName: "旧店舗",
           shopStatus: "archived",
           excludedFromShift: false,
-          canRemove: true,
+          canRemove: false,
+          removeDisabledReason: "稼働中の店舗だけ所属を変更できます。",
           removalPreview: {
             kind: "ready",
             asOfDate: "2026-07-19",

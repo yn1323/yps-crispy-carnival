@@ -1,9 +1,6 @@
-import { useAtomValue } from "jotai";
-import { useRef } from "react";
 import type { Id } from "@/convex/_generated/dataModel";
 import { StaffNotificationHistory } from "@/src/components/features/StaffNotificationHistory";
 import { useViewportActivation } from "@/src/hooks/useViewportActivation";
-import { featureVisibilityAtom } from "@/src/stores/user";
 import type { UserShopDetailData, UserShopDetailMembership } from "./types";
 import { UserShopDetailView } from "./UserShopDetailView";
 import { useUserShopLineActions } from "./useUserShopLineActions";
@@ -15,14 +12,9 @@ type Props = {
   membership: UserShopDetailMembership;
   targetShopId: Id<"shops">;
   onBack: () => void;
-  onMembershipRemoved: () => void;
 };
 
-export function UserShopDetail({ data, membership, targetShopId, onBack, onMembershipRemoved }: Props) {
-  const featureVisibility = useAtomValue(featureVisibilityAtom);
-  const showMembershipRemoval = featureVisibility.shopMembershipAddition;
-  const visibleTargetRef = useRef({ personId: data.person.id, targetShopId, staffId: membership.staffId });
-  visibleTargetRef.current = { personId: data.person.id, targetShopId, staffId: membership.staffId };
+export function UserShopDetail({ data, membership, targetShopId, onBack }: Props) {
   const isStoreReadOnly = !data.canWrite || membership.shopStatus !== "active";
   const storeDisabledReason = getStoreDisabledReason(data, membership);
   const notificationSection = useViewportActivation<HTMLDivElement>({
@@ -39,26 +31,11 @@ export function UserShopDetail({ data, membership, targetShopId, onBack, onMembe
     targetShopId,
     membership,
     isReadOnly: isStoreReadOnly,
-    canRemoveMembership: showMembershipRemoval,
   });
   const viewMembership =
     membership.excludedFromShift === membershipActions.excludedFromShift
       ? membership
       : { ...membership, excludedFromShift: membershipActions.excludedFromShift };
-
-  const handleConfirmRemoveMembership = async () => {
-    const target = visibleTargetRef.current;
-    const removed = await membershipActions.onConfirmRemoveMembership();
-    const current = visibleTargetRef.current;
-    if (
-      removed &&
-      current.personId === target.personId &&
-      current.targetShopId === target.targetShopId &&
-      current.staffId === target.staffId
-    ) {
-      onMembershipRemoved();
-    }
-  };
 
   return (
     <UserShopDetailView
@@ -66,7 +43,6 @@ export function UserShopDetail({ data, membership, targetShopId, onBack, onMembe
       membership={viewMembership}
       isStoreReadOnly={isStoreReadOnly}
       storeDisabledReason={storeDisabledReason}
-      showMembershipRemoval={showMembershipRemoval}
       notificationSectionRef={notificationSection.ref}
       onNotificationSectionFocus={notificationSection.activate}
       notificationHistory={
@@ -90,8 +66,6 @@ export function UserShopDetail({ data, membership, targetShopId, onBack, onMembe
         },
         membership: {
           isChangingShiftTarget: membershipActions.isChangingShiftTarget,
-          isRemovalConfirmationOpen: membershipActions.dialog?.kind === "removeMembership",
-          isRemoving: membershipActions.isRemovingMembership,
         },
       }}
       actions={{
@@ -101,9 +75,6 @@ export function UserShopDetail({ data, membership, targetShopId, onBack, onMembe
         onSendRecruitments: notifications.sendRecruitments,
         onSendCurrentShift: notifications.sendCurrentShift,
         onChangeShiftTarget: membershipActions.onChangeShiftTarget,
-        onRequestRemoveMembership: membershipActions.onRequestRemoveMembership,
-        onCancelRemoveMembership: membershipActions.onCloseDialog,
-        onConfirmRemoveMembership: handleConfirmRemoveMembership,
       }}
     />
   );

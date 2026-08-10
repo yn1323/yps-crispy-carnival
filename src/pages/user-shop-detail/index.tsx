@@ -87,15 +87,7 @@ function ConnectedUserShopDetailPage({
     );
   }
 
-  return (
-    <UserShopDetail
-      data={data}
-      membership={membership}
-      targetShopId={typedTargetShopId}
-      onBack={handleBack}
-      onMembershipRemoved={handleBack}
-    />
-  );
+  return <UserShopDetail data={data} membership={membership} targetShopId={typedTargetShopId} onBack={handleBack} />;
 }
 
 const pageMinimumHeight = {

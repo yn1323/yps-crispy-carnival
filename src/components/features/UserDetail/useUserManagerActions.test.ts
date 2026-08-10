@@ -71,11 +71,13 @@ const lastActiveManagerData: UserDetailData = {
   removeDisabledReason: "管理者は削除できません。",
   removalPreview,
   canWrite: true,
+  membershipFingerprint: "membership-fingerprint",
   shops: [
     {
       shopId,
       shopName: "渋谷店",
       shopStatus: "active",
+      canChangeMembership: true,
     },
   ],
   memberships: [
@@ -337,7 +339,10 @@ describe("useUserManagerActions", () => {
       data: {
         ...removablePersonData,
         person: { ...removablePersonData.person, id: otherPersonId },
-        shops: [...removablePersonData.shops, { shopId: otherShopId, shopName: "別店舗", shopStatus: "active" }],
+        shops: [
+          ...removablePersonData.shops,
+          { shopId: otherShopId, shopName: "別店舗", shopStatus: "active", canChangeMembership: true },
+        ],
       },
       selectedShopId: otherShopId,
     });

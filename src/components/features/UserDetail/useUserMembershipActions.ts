@@ -1,37 +1,50 @@
 import { useMutation } from "convex/react";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { getConvexErrorMessage } from "@/src/lib/convex/error";
+import type { UserMembershipChangeInput } from "./types";
 
-export function useUserMembershipActions({ canAddMembership }: { canAddMembership: boolean }) {
-  const canAddMembershipRef = useRef(canAddMembership);
-  canAddMembershipRef.current = canAddMembership;
-  const [addingShopId, setAddingShopId] = useState<Id<"shops"> | null>(null);
-  const addOrganizationPersonToShop = useMutation(api.staff.mutations.addOrganizationPersonToShop);
+export function useUserMembershipActions({ canChangeMembership }: { canChangeMembership: boolean }) {
+  const canChangeMembershipRef = useRef(canChangeMembership);
+  canChangeMembershipRef.current = canChangeMembership;
+  const changeOrganizationPersonShopMemberships = useMutation(
+    api.staff.mutations.changeOrganizationPersonShopMemberships,
+  );
 
-  const { run: addMembership, isRunning: isAddingMembership } = useSingleFlight(
-    async (personId: Id<"organizationPeople">, shopId: Id<"shops">) => {
-      if (!canAddMembershipRef.current) return false;
-      setAddingShopId(shopId);
+  const { run: changeMemberships, isRunning: isChangingMemberships } = useSingleFlight(
+    async (personId: Id<"organizationPeople">, input: UserMembershipChangeInput) => {
+      if (!canChangeMembershipRef.current) return false;
       try {
-        await addOrganizationPersonToShop({ shopId, personId, requestId: crypto.randomUUID() });
-        if (!canAddMembershipRef.current) return false;
-        showSuccessToast({ title: "店舗にユーザーを追加しました" });
+        await changeOrganizationPersonShopMemberships({ ...input, personId });
+        if (!canChangeMembershipRef.current) return false;
+        showSuccessToast({ title: "所属店舗を変更しました" });
         return true;
       } catch (error) {
-        if (canAddMembershipRef.current) showErrorToast(error);
+        if (canChangeMembershipRef.current) {
+          const message = getConvexErrorMessage(error);
+          showErrorToast(isMembershipChangeStaleError(message) ? new Error(STALE_RELOAD_MESSAGE) : error);
+        }
         return false;
-      } finally {
-        setAddingShopId(null);
       }
     },
   );
 
   return {
-    isAddingMembership,
-    addingShopId,
-    onAddMembership: addMembership,
+    isChangingMemberships,
+    onChangeMemberships: changeMemberships,
   };
+}
+
+const STALE_RELOAD_MESSAGE =
+  "所属店舗または今日以降のシフトの状態が変更されました。\n画面を再読み込みして、もう一度お試しください。";
+
+function isMembershipChangeStaleError(message: string | undefined) {
+  return (
+    message?.includes("店舗所属が変更されています") ||
+    message?.includes("削除対象のシフトが変更されています") ||
+    message?.includes("今日以降のシフトの割り当てが変更されました")
+  );
 }

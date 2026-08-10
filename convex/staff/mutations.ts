@@ -10,13 +10,35 @@ import { managerMutation } from "../_lib/functions";
 import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
 import { normalizeEmail } from "../_lib/validation";
 import { recordAnalyticsSourceEvent } from "../analytics/sourceEvents";
-import { CURRENT_SHIFT_NOTIFICATION_LIMIT } from "../constants";
+import {
+  CURRENT_SHIFT_NOTIFICATION_LIMIT,
+  ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT,
+  ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT,
+  ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT,
+} from "../constants";
 import { getStaffLineAccount } from "../line/service";
 import { ensureNotificationFanoutOperation } from "../notification/fanout";
+import { cancelOrganizationRecipientBusinessNotifications } from "../notificationOutbox/mutations";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { recordOrganizationAuditEvent } from "../organization/audit";
 import { updateOrganizationPersonProfile } from "../organization/personProfile";
+import {
+  collectPersonRemovalPreview,
+  deletePersonRemovalAssignments,
+  expectedPersonRemovalPreviewValidator,
+  revokeStaffAccessForRemoval,
+  STALE_PERSON_REMOVAL_PREVIEW_ERROR,
+} from "../organization/personRemoval";
+import {
+  createOrganizationPersonShopMembershipFingerprint,
+  INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON,
+  organizationShopOperatingStatus,
+  STALE_SHOP_MEMBERSHIP_CHANGE_ERROR,
+  sha256Hex,
+  sortShopIds,
+} from "../organization/shopMembershipChange";
 import { requireOrganizationCapacity } from "../organizationBilling/service";
+import { recalculateOpenRecruitmentStatsForShops } from "../recruitment/stats";
 import { addStaffsSchema, editStaffSchema } from "./schemas";
 import {
   findActiveStaffByEmail,
@@ -512,6 +534,419 @@ export const addOrganizationPersonToShop = managerMutation({
       throw new ConvexError("スタッフの追加結果を確認できません。\n画面を更新して、もう一度お試しください。");
     }
     return { staffId };
+  },
+});
+
+const shopMembershipRemovalPreviewValidator = expectedPersonRemovalPreviewValidator.extend({
+  shopId: v.id("shops"),
+  staffId: v.id("staffs"),
+});
+
+const shopMembershipChangeResultValidator = v.object({
+  changed: v.boolean(),
+  addedShopIds: v.array(v.id("shops")),
+  removedShopIds: v.array(v.id("shops")),
+});
+
+type ShopMembershipRemovalPreviewInput = {
+  shopId: Id<"shops">;
+  staffId: Id<"staffs">;
+  assignmentCount: number;
+  fingerprint: string;
+};
+
+type ShopMembershipChangeResult = {
+  changed: boolean;
+  addedShopIds: Id<"shops">[];
+  removedShopIds: Id<"shops">[];
+};
+
+const PREVIOUS_SHOP_MEMBERSHIP_CHANGE_MISMATCH_ERROR =
+  "以前の店舗所属変更と内容が一致しません。\n画面を更新して、もう一度お試しください。";
+
+function canonicalRemovalPreviews(previews: readonly ShopMembershipRemovalPreviewInput[]) {
+  return [...previews].sort(
+    (left, right) => left.shopId.localeCompare(right.shopId) || left.staffId.localeCompare(right.staffId),
+  );
+}
+
+function validateShopMembershipChangeInput(
+  desiredActiveShopIds: readonly Id<"shops">[],
+  removalPreviews: readonly ShopMembershipRemovalPreviewInput[],
+  expectedMembershipFingerprint: string,
+) {
+  const isSha256Hex = (value: string) => /^[0-9a-f]{64}$/.test(value);
+  if (
+    desiredActiveShopIds.length > ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT ||
+    new Set(desiredActiveShopIds).size !== desiredActiveShopIds.length ||
+    removalPreviews.length > ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT ||
+    !isSha256Hex(expectedMembershipFingerprint) ||
+    removalPreviews.some(
+      (preview) =>
+        !Number.isSafeInteger(preview.assignmentCount) ||
+        preview.assignmentCount < 0 ||
+        !isSha256Hex(preview.fingerprint),
+    ) ||
+    new Set(removalPreviews.map((preview) => preview.shopId)).size !== removalPreviews.length ||
+    new Set(removalPreviews.map((preview) => preview.staffId)).size !== removalPreviews.length
+  ) {
+    throw new ConvexError("入力内容を確認してください。");
+  }
+}
+
+async function createShopMembershipChangeIntentHash(args: {
+  personId: Id<"organizationPeople">;
+  desiredActiveShopIds: readonly Id<"shops">[];
+  expectedMembershipFingerprint: string;
+  removalPreviews: readonly ShopMembershipRemovalPreviewInput[];
+}) {
+  return await sha256Hex(
+    JSON.stringify({
+      version: 1,
+      personId: args.personId,
+      expectedMembershipFingerprint: args.expectedMembershipFingerprint,
+      desiredActiveShopIds: sortShopIds(args.desiredActiveShopIds),
+      removalPreviews: canonicalRemovalPreviews(args.removalPreviews),
+    }),
+  );
+}
+
+function shopMembershipChangeReceiptIntentState(intentHash: string) {
+  return JSON.stringify({ version: 1, intentHash });
+}
+
+function shopMembershipChangeReceiptResultState(result: ShopMembershipChangeResult) {
+  return JSON.stringify({
+    version: 1,
+    changed: result.changed,
+    addedShopIds: sortShopIds(result.addedShopIds),
+    removedShopIds: sortShopIds(result.removedShopIds),
+  });
+}
+
+function parseReceiptShopIds(ctx: MutationCtx, value: unknown) {
+  if (!Array.isArray(value) || value.length > ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT) return null;
+  const shopIds: Id<"shops">[] = [];
+  for (const item of value) {
+    const shopId = typeof item === "string" ? ctx.db.normalizeId("shops", item) : null;
+    if (!shopId) return null;
+    shopIds.push(shopId);
+  }
+  if (new Set(shopIds).size !== shopIds.length) return null;
+  return sortShopIds(shopIds);
+}
+
+function parseShopMembershipChangeReceiptResult(ctx: MutationCtx, value: string | undefined) {
+  if (!value) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  const state = parsed as Record<string, unknown>;
+  if (state.version !== 1 || typeof state.changed !== "boolean") return null;
+  const addedShopIds = parseReceiptShopIds(ctx, state.addedShopIds);
+  const removedShopIds = parseReceiptShopIds(ctx, state.removedShopIds);
+  if (!addedShopIds || !removedShopIds || addedShopIds.some((shopId) => removedShopIds.includes(shopId))) return null;
+  if (
+    (state.changed && addedShopIds.length === 0 && removedShopIds.length === 0) ||
+    (!state.changed && (addedShopIds.length > 0 || removedShopIds.length > 0))
+  ) {
+    return null;
+  }
+  return { changed: state.changed, addedShopIds, removedShopIds } satisfies ShopMembershipChangeResult;
+}
+
+async function recoverCompletedShopMembershipChange(
+  ctx: ManagerStaffMutationCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    personId: Id<"organizationPeople">;
+    intentHash: string;
+    correlationId: string;
+  },
+) {
+  const audits = await ctx.db
+    .query("organizationAuditEvents")
+    .withIndex("by_correlationId", (q) => q.eq("correlationId", args.correlationId))
+    .take(2);
+  if (audits.length === 0) return null;
+  const audit = audits.length === 1 ? audits[0] : null;
+  const result = audit ? parseShopMembershipChangeReceiptResult(ctx, audit.toState) : null;
+  if (
+    !audit ||
+    audit.organizationId !== args.organizationId ||
+    audit.actorUserId !== ctx.user._id ||
+    audit.actorPersonId !== ctx.organizationMember?.personId ||
+    audit.action !== "organization.person_shop_memberships_changed" ||
+    audit.targetKind !== "person" ||
+    audit.targetId !== args.personId ||
+    audit.fromState !== shopMembershipChangeReceiptIntentState(args.intentHash) ||
+    audit.correlationId !== args.correlationId ||
+    !result
+  ) {
+    throw new ConvexError(PREVIOUS_SHOP_MEMBERSHIP_CHANGE_MISMATCH_ERROR);
+  }
+  return result;
+}
+
+export const changeOrganizationPersonShopMemberships = managerMutation({
+  args: {
+    personId: v.id("organizationPeople"),
+    desiredActiveShopIds: v.array(v.id("shops")),
+    expectedMembershipFingerprint: v.string(),
+    removalPreviews: v.array(shopMembershipRemovalPreviewValidator),
+    requestId: v.string(),
+  },
+  returns: shopMembershipChangeResultValidator,
+  handler: async (ctx, args) => {
+    validateShopMembershipChangeInput(
+      args.desiredActiveShopIds,
+      args.removalPreviews,
+      args.expectedMembershipFingerprint,
+    );
+    if (
+      !ctx.organization ||
+      !ctx.organizationMember ||
+      ctx.shop.organizationId !== ctx.organization._id ||
+      ctx.organizationMember.organizationId !== ctx.organization._id
+    ) {
+      throw new ConvexError("Not found");
+    }
+
+    const organizationId = ctx.organization._id;
+    const requestKey = await toAuditRequestKey(args.requestId);
+    const intentHash = await createShopMembershipChangeIntentHash(args);
+    const correlationId = `${organizationId}:person-shop-memberships:${requestKey}`;
+    const completed = await recoverCompletedShopMembershipChange(ctx, {
+      organizationId,
+      personId: args.personId,
+      intentHash,
+      correlationId,
+    });
+    if (completed) return completed;
+
+    const person = await ctx.db.get(args.personId);
+    if (
+      !person ||
+      person.organizationId !== organizationId ||
+      person.status !== "active" ||
+      normalizeEmail(person.email) !== person.emailNormalized
+    ) {
+      throw new ConvexError("Not found");
+    }
+
+    const staffDocs = await ctx.db
+      .query("staffs")
+      .withIndex("by_organizationId_and_organizationPersonId", (q) =>
+        q.eq("organizationId", organizationId).eq("organizationPersonId", person._id),
+      )
+      .take(ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT + 1);
+    if (staffDocs.length > ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT) {
+      throw new ConvexError("ユーザーの店舗所属を確認できません。\n画面を更新して、もう一度お試しください。");
+    }
+
+    const activeStaffs = staffDocs.filter((staff) => !staff.isDeleted);
+    const currentMemberships = await Promise.all(
+      activeStaffs.map(async (staff) => {
+        const shop = await ctx.db.get(staff.shopId);
+        if (!shop || shop.isDeleted || shop.organizationId !== organizationId) {
+          throw new ConvexError("Not found");
+        }
+        return { staff, shop, shopStatus: organizationShopOperatingStatus(shop.operatingStatus) };
+      }),
+    );
+    if (new Set(currentMemberships.map((membership) => membership.shop._id)).size !== currentMemberships.length) {
+      throw new ConvexError("ユーザーの店舗所属を確認できません。\n画面を更新して、もう一度お試しください。");
+    }
+
+    const currentFingerprint = await createOrganizationPersonShopMembershipFingerprint(
+      currentMemberships.map((membership) => ({
+        staffId: membership.staff._id,
+        shopId: membership.shop._id,
+        shopStatus: membership.shopStatus,
+      })),
+    );
+    if (currentFingerprint !== args.expectedMembershipFingerprint) {
+      throw new ConvexError(STALE_SHOP_MEMBERSHIP_CHANGE_ERROR);
+    }
+
+    const desiredActiveShopIds = sortShopIds(args.desiredActiveShopIds);
+    const desiredShops = await Promise.all(
+      desiredActiveShopIds.map(async (shopId) => {
+        const shop = await ctx.db.get(shopId);
+        if (!shop || shop.isDeleted || shop.organizationId !== organizationId) throw new ConvexError("Not found");
+        if (organizationShopOperatingStatus(shop.operatingStatus) !== "active") {
+          throw new ConvexError(INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON);
+        }
+        return shop;
+      }),
+    );
+    const desiredShopById = new Map(desiredShops.map((shop) => [shop._id, shop]));
+    const desiredShopIdSet = new Set(desiredActiveShopIds);
+    const currentMembershipByShopId = new Map(
+      currentMemberships.map((membership) => [membership.shop._id, membership]),
+    );
+    const removals = currentMemberships
+      .filter((membership) => membership.shopStatus === "active" && !desiredShopIdSet.has(membership.shop._id))
+      .sort((left, right) => left.shop._id.localeCompare(right.shop._id));
+    const addedShopIds = desiredActiveShopIds.filter((shopId) => !currentMembershipByShopId.has(shopId));
+    const removedShopIds = removals.map((membership) => membership.shop._id);
+
+    const removalByShopId = new Map(removals.map((membership) => [membership.shop._id, membership]));
+    if (
+      args.removalPreviews.length !== removals.length ||
+      args.removalPreviews.some((preview) => {
+        const membership = removalByShopId.get(preview.shopId);
+        return !membership || membership.staff._id !== preview.staffId;
+      })
+    ) {
+      throw new ConvexError(STALE_PERSON_REMOVAL_PREVIEW_ERROR);
+    }
+
+    const removalPreviewByShopId = new Map(args.removalPreviews.map((preview) => [preview.shopId, preview]));
+    const assignmentIds = new Set<Id<"shiftAssignments">>();
+    for (const membership of removals) {
+      const expectedPreview = removalPreviewByShopId.get(membership.shop._id);
+      if (!expectedPreview) throw new ConvexError(STALE_PERSON_REMOVAL_PREVIEW_ERROR);
+      const preview = await collectPersonRemovalPreview(ctx, {
+        scope: {
+          kind: "shop",
+          organizationId,
+          shopId: membership.shop._id,
+          staffId: membership.staff._id,
+        },
+        staffs: [membership.staff],
+        asOfDate: todayJST(),
+      });
+      if (preview.kind === "tooMany") {
+        throw new ConvexError(
+          `今日以降のシフトの割り当てが${preview.limit}件を超えています。\n先にシフトを整理してから、変更してください。`,
+        );
+      }
+      if (
+        expectedPreview.assignmentCount !== preview.assignmentCount ||
+        expectedPreview.fingerprint !== preview.fingerprint
+      ) {
+        throw new ConvexError(STALE_PERSON_REMOVAL_PREVIEW_ERROR);
+      }
+      for (const assignmentId of preview.assignmentIds) {
+        assignmentIds.add(assignmentId);
+        if (assignmentIds.size > ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT) {
+          throw new ConvexError(
+            `今日以降のシフトの割り当てが${ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT}件を超えています。\n先にシフトを整理してから、変更してください。`,
+          );
+        }
+      }
+    }
+
+    if (addedShopIds.length === 0 && removedShopIds.length === 0) {
+      const result = { changed: false, addedShopIds: [], removedShopIds: [] } satisfies ShopMembershipChangeResult;
+      await recordOrganizationAuditEvent(ctx, {
+        organizationId,
+        actorUserId: ctx.user._id,
+        actorPersonId: ctx.organizationMember.personId,
+        action: "organization.person_shop_memberships_changed",
+        targetKind: "person",
+        targetId: person._id,
+        fromState: shopMembershipChangeReceiptIntentState(intentHash),
+        toState: shopMembershipChangeReceiptResultState(result),
+        correlationId,
+        suppressAnalyticsEvent: true,
+      });
+      return result;
+    }
+
+    const now = Date.now();
+    await deletePersonRemovalAssignments(ctx, [...assignmentIds]);
+    for (const membership of removals) {
+      await ctx.db.patch(membership.staff._id, { isDeleted: true });
+      await ctx.scheduler.runAfter(0, internal.notificationOutbox.mutations.deleteStaffNotificationHistoryBatch, {
+        shopId: membership.shop._id,
+        staffId: membership.staff._id,
+      });
+    }
+    const removedStaffIds = removals.map((membership) => membership.staff._id);
+    await revokeStaffAccessForRemoval(ctx, removedStaffIds, now);
+    await cancelOrganizationRecipientBusinessNotifications(ctx, { organizationId, staffIds: removedStaffIds });
+    for (const membership of removals) {
+      await recordOrganizationAuditEvent(ctx, {
+        organizationId,
+        actorUserId: ctx.user._id,
+        actorPersonId: ctx.organizationMember.personId,
+        action: "organization.person_removed_from_shop",
+        targetKind: "person",
+        targetId: person._id,
+        fromState: `active:${membership.shop._id}`,
+        toState: `removed:${membership.shop._id}`,
+        correlationId: `${correlationId}:remove:${membership.staff._id}`,
+        occurredAt: now,
+        analyticsEvent: {
+          eventType: "staffMembership.changed",
+          shopId: membership.shop._id,
+          subjectId: membership.staff._id,
+          payload: {
+            kind: "staffMembership",
+            staffId: membership.staff._id,
+            organizationPersonId: person._id,
+            status: "removed",
+            isShiftTarget: !membership.staff.excludedFromShift,
+            validFrom: now,
+            validTo: now,
+            lineLinked: false,
+            lineFollowing: false,
+          },
+        },
+      });
+    }
+
+    for (const shopId of addedShopIds) {
+      const targetShop = desiredShopById.get(shopId);
+      if (!targetShop) throw new ConvexError("Not found");
+      const derivedRequestId = await sha256Hex(
+        JSON.stringify({ version: 1, requestKey, intentHash, operation: "add", shopId }),
+      );
+      const addition = await addStaffEntries(
+        { ...ctx, shop: targetShop },
+        {
+          entries: [{ name: person.name, email: person.email }],
+          requestId: derivedRequestId,
+        },
+      );
+      if (addition.status !== "added" || addition.staffIds.length !== 1) {
+        throw new ConvexError("スタッフの追加結果を確認できません。\n画面を更新して、もう一度お試しください。");
+      }
+      const addedStaff = await ctx.db.get(addition.staffIds[0]);
+      if (
+        !addedStaff ||
+        addedStaff.isDeleted ||
+        addedStaff.shopId !== targetShop._id ||
+        addedStaff.organizationId !== organizationId ||
+        addedStaff.organizationPersonId !== person._id
+      ) {
+        throw new ConvexError("スタッフの追加結果を確認できません。\n画面を更新して、もう一度お試しください。");
+      }
+    }
+
+    await recalculateOpenRecruitmentStatsForShops(ctx, [...removedShopIds, ...addedShopIds], now);
+
+    const result = { changed: true, addedShopIds, removedShopIds } satisfies ShopMembershipChangeResult;
+    await recordOrganizationAuditEvent(ctx, {
+      organizationId,
+      actorUserId: ctx.user._id,
+      actorPersonId: ctx.organizationMember.personId,
+      action: "organization.person_shop_memberships_changed",
+      targetKind: "person",
+      targetId: person._id,
+      fromState: shopMembershipChangeReceiptIntentState(intentHash),
+      toState: shopMembershipChangeReceiptResultState(result),
+      correlationId,
+      occurredAt: now,
+      suppressAnalyticsEvent: true,
+    });
+    return result;
   },
 });
 

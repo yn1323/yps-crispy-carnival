@@ -49,6 +49,10 @@ export const ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT = 100;
 export const ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT = 100;
 // 人物削除を単一transactionで確定できる、今日以降のシフト割当上限。
 export const ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT = 500;
+// 店舗所属変更時に、open募集の回答数をactiveなシフト対象staffだけで再計算できる上限。
+export const SHOP_MEMBERSHIP_STATS_OPEN_RECRUITMENT_LIMIT = 50;
+export const SHOP_MEMBERSHIP_STATS_ACTIVE_STAFF_LIMIT = 200;
+export const SHOP_MEMBERSHIP_STATS_RECALCULATION_WORK_LIMIT = 8_000;
 // 一人の利用者が自分で作成して保持できる組織数。招待による所属は数えない。
 export const ORGANIZATION_SELF_CREATED_LIMIT = 3;
 // 組織作成の日次上限。同時保持数は上記で決まるため、ここでは作り直しの回数だけを抑える。

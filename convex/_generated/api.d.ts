@@ -182,6 +182,7 @@ import type * as organization_personRemoval from "../organization/personRemoval.
 import type * as organization_queries from "../organization/queries.js";
 import type * as organization_schemas from "../organization/schemas.js";
 import type * as organization_service from "../organization/service.js";
+import type * as organization_shopMembershipChange from "../organization/shopMembershipChange.js";
 import type * as organization_userDetailQueries from "../organization/userDetailQueries.js";
 import type * as organization_validators from "../organization/validators.js";
 import type * as organizationBilling_actions from "../organizationBilling/actions.js";
@@ -212,6 +213,7 @@ import type * as position_service from "../position/service.js";
 import type * as recruitment_mutations from "../recruitment/mutations.js";
 import type * as recruitment_schemas from "../recruitment/schemas.js";
 import type * as recruitment_service from "../recruitment/service.js";
+import type * as recruitment_stats from "../recruitment/stats.js";
 import type * as setup_mutations from "../setup/mutations.js";
 import type * as setup_schemas from "../setup/schemas.js";
 import type * as setup_service from "../setup/service.js";
@@ -425,6 +427,7 @@ declare const fullApi: ApiFromModules<{
   "organization/queries": typeof organization_queries;
   "organization/schemas": typeof organization_schemas;
   "organization/service": typeof organization_service;
+  "organization/shopMembershipChange": typeof organization_shopMembershipChange;
   "organization/userDetailQueries": typeof organization_userDetailQueries;
   "organization/validators": typeof organization_validators;
   "organizationBilling/actions": typeof organizationBilling_actions;
@@ -455,6 +458,7 @@ declare const fullApi: ApiFromModules<{
   "recruitment/mutations": typeof recruitment_mutations;
   "recruitment/schemas": typeof recruitment_schemas;
   "recruitment/service": typeof recruitment_service;
+  "recruitment/stats": typeof recruitment_stats;
   "setup/mutations": typeof setup_mutations;
   "setup/schemas": typeof setup_schemas;
   "setup/service": typeof setup_service;

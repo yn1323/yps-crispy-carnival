@@ -2,11 +2,11 @@
 
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { UserDetailData, UserDetailPanel } from "./types";
+import type { UserDetailData, UserDetailPanel, UserMembershipChangeInput } from "./types";
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
-  addMembership: vi.fn(),
+  changeMemberships: vi.fn(),
   updateProfile: vi.fn(),
   featureVisibilityAtom: Symbol("featureVisibilityAtom"),
   featureVisibility: {
@@ -45,7 +45,7 @@ vi.mock("./UserDetailView", () => ({
       onOpenShop: (shopId: string) => void;
       onClosePanel: () => void;
       onUpdateProfile: (data: { name: string; email: string }) => void | Promise<void>;
-      onAddMembership: (shopId: string) => void;
+      onChangeMemberships: (input: UserMembershipChangeInput) => void;
     };
   }) => (
     <div>
@@ -68,8 +68,8 @@ vi.mock("./UserDetailView", () => ({
       <button type="button" onClick={() => actions.onUpdateProfile({ name: "更新後", email: "updated@example.com" })}>
         スタッフ情報を保存
       </button>
-      <button type="button" onClick={() => actions.onAddMembership("shop-c")}>
-        店舗に追加する
+      <button type="button" onClick={() => actions.onChangeMemberships(membershipChangeInput)}>
+        所属店舗を変更する
       </button>
     </div>
   ),
@@ -81,9 +81,8 @@ vi.mock("./useUserProfileUpdate", () => ({
 
 vi.mock("./useUserMembershipActions", () => ({
   useUserMembershipActions: () => ({
-    isAddingMembership: false,
-    addingShopId: null,
-    onAddMembership: mocks.addMembership,
+    isChangingMemberships: false,
+    onChangeMemberships: mocks.changeMemberships,
   }),
 }));
 
@@ -116,11 +115,19 @@ const data = {
   memberships: [],
 } as unknown as UserDetailData;
 
+const membershipChangeInput = {
+  shopId: "shop-c",
+  desiredActiveShopIds: ["shop-c"],
+  expectedMembershipFingerprint: "membership-fingerprint",
+  removalPreviews: [],
+  requestId: "change-request",
+} as unknown as UserMembershipChangeInput;
+
 beforeEach(() => {
   mocks.navigate.mockReset();
-  mocks.addMembership.mockReset();
+  mocks.changeMemberships.mockReset();
   mocks.updateProfile.mockReset();
-  mocks.addMembership.mockResolvedValue(false);
+  mocks.changeMemberships.mockResolvedValue(false);
   mocks.updateProfile.mockResolvedValue(false);
   mocks.featureVisibility.shopMembershipAddition = true;
   mocks.managerOptions = undefined;
@@ -216,11 +223,11 @@ describe("UserDetail", () => {
     render(<UserDetail data={data} selectedShopId="shop-a" returnTo="dashboard" visibleUserCount={10} />);
 
     fireEvent.click(screen.getByRole("button", { name: "店舗追加を開く" }));
-    fireEvent.click(screen.getByRole("button", { name: "店舗に追加する" }));
+    fireEvent.click(screen.getByRole("button", { name: "所属店舗を変更する" }));
     await act(async () => Promise.resolve());
 
     expect(mocks.navigate).not.toHaveBeenCalled();
-    expect(mocks.addMembership).not.toHaveBeenCalled();
+    expect(mocks.changeMemberships).not.toHaveBeenCalled();
   });
 
   it("戻る操作では一覧の復元条件を維持する", () => {
@@ -237,12 +244,12 @@ describe("UserDetail", () => {
     });
   });
 
-  it("店舗追加の完了前に別パネルへ移った場合は、そのパネルを閉じない", async () => {
-    let resolveAddition: ((value: boolean) => void) | undefined;
-    const addition = new Promise<boolean>((resolve) => {
-      resolveAddition = resolve;
+  it("所属店舗変更の完了前に別パネルへ移った場合は、そのパネルを閉じない", async () => {
+    let resolveChange: ((value: boolean) => void) | undefined;
+    const change = new Promise<boolean>((resolve) => {
+      resolveChange = resolve;
     });
-    mocks.addMembership.mockReturnValue(addition);
+    mocks.changeMemberships.mockReturnValue(change);
     const { rerender } = render(
       <UserDetail
         data={data}
@@ -253,13 +260,51 @@ describe("UserDetail", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "店舗に追加する" }));
+    fireEvent.click(screen.getByRole("button", { name: "所属店舗を変更する" }));
     rerender(
       <UserDetail data={data} selectedShopId="shop-a" activePanel="basic" returnTo="dashboard" visibleUserCount={10} />,
     );
     await act(async () => {
-      resolveAddition?.(true);
-      await addition;
+      resolveChange?.(true);
+      await change;
+    });
+
+    expect(mocks.navigate).not.toHaveBeenCalled();
+  });
+
+  it("所属店舗変更の完了前に別人物へ移った場合は、古い応答でパネルを閉じない", async () => {
+    let resolveChange: ((value: boolean) => void) | undefined;
+    const change = new Promise<boolean>((resolve) => {
+      resolveChange = resolve;
+    });
+    mocks.changeMemberships.mockReturnValue(change);
+    const { rerender } = render(
+      <UserDetail
+        data={data}
+        selectedShopId="shop-a"
+        activePanel="addShop"
+        returnTo="dashboard"
+        visibleUserCount={10}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "所属店舗を変更する" }));
+    const nextData: UserDetailData = {
+      ...data,
+      person: { ...data.person, id: "person-2" as UserDetailData["person"]["id"] },
+    };
+    rerender(
+      <UserDetail
+        data={nextData}
+        selectedShopId="shop-a"
+        activePanel="addShop"
+        returnTo="dashboard"
+        visibleUserCount={10}
+      />,
+    );
+    await act(async () => {
+      resolveChange?.(true);
+      await change;
     });
 
     expect(mocks.navigate).not.toHaveBeenCalled();

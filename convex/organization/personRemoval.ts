@@ -23,6 +23,9 @@ export const expectedPersonRemovalPreviewValidator = v.object({
   fingerprint: v.string(),
 });
 
+export const STALE_PERSON_REMOVAL_PREVIEW_ERROR =
+  "今日以降のシフトの割り当てが変更されました。\n内容を確認してから、もう一度削除してください。";
+
 export type PersonRemovalPreview =
   | {
       kind: "ready";
@@ -100,6 +103,50 @@ export function toPublicPersonRemovalPreview(preview: PersonRemovalPreview) {
   if (preview.kind === "tooMany") return preview;
   const { assignmentIds: _assignmentIds, ...publicPreview } = preview;
   return publicPreview;
+}
+
+export async function deletePersonRemovalAssignments(
+  ctx: Pick<MutationCtx, "db">,
+  assignmentIds: readonly Id<"shiftAssignments">[],
+) {
+  for (const assignmentId of assignmentIds) await ctx.db.delete(assignmentId);
+}
+
+export async function revokeStaffAccessForRemoval(
+  ctx: Pick<MutationCtx, "db">,
+  staffIds: readonly Id<"staffs">[],
+  now: number,
+) {
+  for (const staffId of staffIds) {
+    const [sessions, magicLinks, lineLinkTokens, lineAccounts] = await Promise.all([
+      ctx.db
+        .query("sessions")
+        .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+        .collect(),
+      ctx.db
+        .query("magicLinks")
+        .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+        .collect(),
+      ctx.db
+        .query("lineLinkTokens")
+        .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+        .collect(),
+      ctx.db
+        .query("staffLineAccounts")
+        .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+        .collect(),
+    ]);
+    await Promise.all([
+      ...sessions
+        .filter((session) => !session.revokedAt)
+        .map((session) => ctx.db.patch(session._id, { revokedAt: now })),
+      ...magicLinks.filter((link) => !link.revokedAt).map((link) => ctx.db.patch(link._id, { revokedAt: now })),
+      ...lineLinkTokens.filter((token) => !token.revokedAt).map((token) => ctx.db.patch(token._id, { revokedAt: now })),
+      ...lineAccounts
+        .filter((account) => !account.isDeleted || account.following)
+        .map((account) => ctx.db.patch(account._id, { isDeleted: true, following: false })),
+    ]);
+  }
 }
 
 function isStaffInScope(staff: Doc<"staffs">, scope: PersonRemovalScope) {
