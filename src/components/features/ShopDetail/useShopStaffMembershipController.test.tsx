@@ -141,6 +141,38 @@ describe("店舗詳細の所属スタッフ変更", () => {
     );
   });
 
+  it("所属変更前に古いpreview購読を解除し、処理中は取得済みpreviewを保持する", async () => {
+    let resolveMutation: (() => void) | undefined;
+    mocks.previewData = {
+      kind: "ready",
+      removals: input.removalPreviews,
+      totalAssignmentCount: 2,
+    };
+    mocks.mutation.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveMutation = resolve;
+      }),
+    );
+    const { result } = renderHook(() =>
+      useShopStaffMembershipController({ shopId, isOpen: true, onSucceeded: vi.fn() }),
+    );
+
+    act(() => {
+      expect(result.current.requestRemovalPreview([personId], data.membershipFingerprint)).toBe(true);
+    });
+    await waitFor(() => expect(result.current.removalPreview).toEqual(mocks.previewData));
+
+    let submission: Promise<ShopStaffMembershipSubmitResult | undefined> | undefined;
+    act(() => {
+      submission = result.current.submitChange(input);
+    });
+
+    await waitFor(() => expect(mocks.useQuery).toHaveBeenLastCalledWith(mocks.previewQueryRef, "skip"));
+    expect(result.current.removalPreview).toEqual(mocks.previewData);
+    await act(async () => resolveMutation?.());
+    await expect(submission).resolves.toBe("succeeded");
+  });
+
   it("一つのintentを一度だけmutationへ渡し、成功時にToastとcloseを実行する", async () => {
     let resolveMutation: (() => void) | undefined;
     mocks.mutation.mockReturnValue(

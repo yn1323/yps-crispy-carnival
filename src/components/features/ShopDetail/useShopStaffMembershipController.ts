@@ -53,6 +53,9 @@ export function useShopStaffMembershipController({ shopId, isOpen, onSucceeded }
     api.staff.queries.previewOrganizationShopStaffMembershipRemovals,
     isOpen && previewRequest ? previewRequest : "skip",
   );
+  const [retainedRemovalPreview, setRetainedRemovalPreview] = useState<
+    ShopStaffMembershipRemovalPreview | null | undefined
+  >();
   const changeMemberships = useMutation(api.staff.mutations.changeOrganizationShopStaffMemberships);
   const [errorMessage, setErrorMessage] = useState<string>();
   const latestStateRef = useRef({ isOpen, membershipData, shopId });
@@ -72,11 +75,21 @@ export function useShopStaffMembershipController({ shopId, isOpen, onSucceeded }
   useEffect(() => {
     if (isOpen) return;
     setPreviewRequest(null);
+    setRetainedRemovalPreview(undefined);
     setErrorMessage(undefined);
     lastSubmittedInputRef.current = undefined;
   }, [isOpen]);
 
-  const clearPreview = useCallback(() => setPreviewRequest(null), []);
+  useEffect(() => {
+    if (previewRequest && removalPreview !== undefined) {
+      setRetainedRemovalPreview(removalPreview);
+    }
+  }, [previewRequest, removalPreview]);
+
+  const clearPreview = useCallback(() => {
+    setPreviewRequest(null);
+    setRetainedRemovalPreview(undefined);
+  }, []);
   const clearError = useCallback(() => setErrorMessage(undefined), []);
 
   const requestRemovalPreview = useCallback(
@@ -94,6 +107,7 @@ export function useShopStaffMembershipController({ shopId, isOpen, onSucceeded }
       }
 
       setErrorMessage(undefined);
+      setRetainedRemovalPreview(undefined);
       setPreviewRequest({
         shopId,
         personIds,
@@ -122,6 +136,9 @@ export function useShopStaffMembershipController({ shopId, isOpen, onSucceeded }
       }
 
       setErrorMessage(undefined);
+      // mutationで所属が変わる前に、古いfingerprintのpreview購読を解除する。
+      // 確認画面にはretainedRemovalPreviewを残し、処理中の表示を維持する。
+      setPreviewRequest(null);
       try {
         await changeMemberships(input);
         const latest = latestStateRef.current;
@@ -145,7 +162,10 @@ export function useShopStaffMembershipController({ shopId, isOpen, onSucceeded }
 
   return {
     data: membershipData as ShopStaffMembershipData | null | undefined,
-    removalPreview: removalPreview as ShopStaffMembershipRemovalPreview | null | undefined,
+    removalPreview:
+      removalPreview === undefined
+        ? retainedRemovalPreview
+        : (removalPreview as ShopStaffMembershipRemovalPreview | null),
     isPreviewLoading: previewRequest !== null && removalPreview === undefined,
     isChanging,
     errorMessage,
