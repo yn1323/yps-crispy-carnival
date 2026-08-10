@@ -4,6 +4,9 @@ import { getSafePathname, sanitizeDiagnosticMessage } from "./diagnostics";
 const MAX_ATTACHED_SIGNALS = 100;
 const REACT_FIRST_CHILD_SSR_WARNING =
   'The pseudo class ":first-child" is potentially unsafe when doing server-side rendering. Try changing it to ":first-of-type".';
+const REACT_NOT_YET_MOUNTED_WARNING =
+  "Can't perform a React state update on a component that hasn't mounted yet. This indicates that you have a side-effect in your render function that asynchronously tries to update the component. Move this work to useEffect instead.";
+const REACT_CALLER_MARKER = "[e2e-react-not-yet-mounted-caller]";
 
 export type E2ERuntimeSignal = {
   kind: "console-error" | "pageerror" | "same-origin-5xx";
@@ -22,6 +25,47 @@ type RuntimeSignalOptions<T> = {
   registerStop?: (stop: () => void) => void;
 };
 
+type ReactCallerDiagnosticOptions = {
+  callerMarker: string;
+  targetMessage: string;
+};
+
+export function installE2EReactCallerDiagnostic({ callerMarker, targetMessage }: ReactCallerDiagnosticOptions) {
+  const diagnosticWindow = window as typeof window & { __e2eReactCallerDiagnosticInstalled?: boolean };
+  if (diagnosticWindow.__e2eReactCallerDiagnosticInstalled) return;
+  diagnosticWindow.__e2eReactCallerDiagnosticInstalled = true;
+  const originalError = console.error;
+  console.error = (...values: unknown[]) => {
+    if (values[0] !== targetMessage) {
+      Reflect.apply(originalError, console, values);
+      return;
+    }
+    const stackFrames = new Error().stack
+      ?.split("\n")
+      .slice(2)
+      .map((frame) =>
+        frame.replace(/https?:\/\/[^\s)]+/g, (rawUrl) => {
+          try {
+            const queryStart = rawUrl.indexOf("?");
+            const sourceUrl = queryStart === -1 ? rawUrl : rawUrl.slice(0, queryStart);
+            const locationSuffix =
+              queryStart === -1 ? "" : (rawUrl.slice(queryStart + 1).match(/:\d+:\d+$/)?.[0] ?? "");
+            const segments = new URL(sourceUrl).pathname.split("/").filter(Boolean);
+            return `/${segments.slice(-2).join("/")}${locationSuffix}`;
+          } catch {
+            return "browser-source";
+          }
+        }),
+      );
+    const frames = stackFrames
+      ? [...stackFrames.slice(0, 3), ...stackFrames.slice(-5)]
+          .filter((frame, index, allFrames) => allFrames.indexOf(frame) === index)
+          .join("\n")
+      : "stack unavailable";
+    Reflect.apply(originalError, console, [`${callerMarker}\n${frames}`, ...values]);
+  };
+}
+
 export function isAllowedE2EConsoleError(message: string) {
   // 既存CalendarPickerの開発時SSR警告だけを限定許容し、他のconsole.errorは失敗させる。
   return message === REACT_FIRST_CHILD_SSR_WARNING;
@@ -36,6 +80,11 @@ export async function runWithE2ERuntimeSignalMonitoring<T>({
   cleanup,
   registerStop,
 }: RuntimeSignalOptions<T>): Promise<T> {
+  await page.addInitScript(installE2EReactCallerDiagnostic, {
+    callerMarker: REACT_CALLER_MARKER,
+    targetMessage: REACT_NOT_YET_MOUNTED_WARNING,
+  });
+
   const signals: E2ERuntimeSignal[] = [];
   const signalCounts = new Map<E2ERuntimeSignal["kind"], number>();
   const recordSignal = (signal: E2ERuntimeSignal) => {

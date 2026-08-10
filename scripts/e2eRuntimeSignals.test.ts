@@ -1,11 +1,20 @@
 import type { Page, TestInfo } from "@playwright/test";
 import { describe, expect, it, vi } from "vitest";
-import { isAllowedE2EConsoleError, runWithE2ERuntimeSignalMonitoring } from "../e2e/helpers/runtimeSignals";
+import {
+  installE2EReactCallerDiagnostic,
+  isAllowedE2EConsoleError,
+  runWithE2ERuntimeSignalMonitoring,
+} from "../e2e/helpers/runtimeSignals";
 
 type RuntimeEventHandler = (event: unknown) => void;
 
 class FakePage {
   private listeners = new Map<string, Set<RuntimeEventHandler>>();
+  initScriptCalls = 0;
+
+  async addInitScript() {
+    this.initScriptCalls += 1;
+  }
 
   on(event: string, handler: RuntimeEventHandler) {
     const handlers = this.listeners.get(event) ?? new Set<RuntimeEventHandler>();
@@ -26,6 +35,53 @@ const SSR_WARNING =
   'The pseudo class ":first-child" is potentially unsafe when doing server-side rendering. Try changing it to ":first-of-type".';
 
 describe("E2E browser runtime signals", () => {
+  it("React lifecycle診断は対象warningだけを短縮し、caller位置を残して多重installしない", () => {
+    const targetMessage = "target React warning";
+    const callerMarker = "[caller]";
+    const forwardedError = vi.fn();
+    const originalConsoleError = console.error;
+    const stackLines = [
+      "Error",
+      "    at wrapper (https://preview.example.test/assets/runtime.js?v=private:1:2)",
+      "    at reactWarn (https://preview.example.test/assets/react.js?v=private:3:4)",
+      "    at schedule (https://preview.example.test/assets/react.js?v=private:5:6)",
+      "    at dispatch (https://preview.example.test/assets/react.js?v=private:7:8)",
+      "    at intermediateA (https://preview.example.test/assets/app.js?v=private:9:10)",
+      "    at intermediateB (https://preview.example.test/assets/app.js?v=private:11:12)",
+      "    at intermediateC (https://preview.example.test/assets/app.js?v=private:13:14)",
+      "    at updateOwner (https://preview.example.test/src/useMembership.tsx?t=private:15:16)",
+      "    at asyncCaller (https://preview.example.test/src/ShopDetail.tsx?t=private:17:18)",
+    ];
+    class DiagnosticError {
+      stack = stackLines.join("\n");
+    }
+
+    vi.stubGlobal("window", {});
+    vi.stubGlobal("Error", DiagnosticError);
+    console.error = forwardedError;
+    let installedError: typeof console.error;
+    try {
+      installE2EReactCallerDiagnostic({ callerMarker, targetMessage });
+      installedError = console.error;
+      installE2EReactCallerDiagnostic({ callerMarker, targetMessage });
+      expect(console.error).toBe(installedError);
+      console.error("ordinary error", { code: 42 });
+      console.error(targetMessage);
+    } finally {
+      console.error = originalConsoleError;
+      vi.unstubAllGlobals();
+    }
+
+    expect(forwardedError.mock.calls[0]).toEqual(["ordinary error", { code: 42 }]);
+    expect(forwardedError.mock.calls[1]?.[1]).toBe(targetMessage);
+    const diagnostic = String(forwardedError.mock.calls[1]?.[0]);
+    expect(diagnostic).toContain(callerMarker);
+    expect(diagnostic).toContain("/assets/react.js:3:4");
+    expect(diagnostic).toContain("/src/ShopDetail.tsx:17:18");
+    expect(diagnostic).not.toContain("preview.example.test");
+    expect(diagnostic).not.toContain("private");
+  });
+
   it("既知のSSR警告だけを完全一致で許容する", () => {
     expect(isAllowedE2EConsoleError(SSR_WARNING)).toBe(true);
     expect(isAllowedE2EConsoleError(` ${SSR_WARNING}`)).toBe(false);
@@ -51,6 +107,7 @@ describe("E2E browser runtime signals", () => {
         },
       }),
     ).rejects.toThrow("same-origin-5xx=1");
+    expect(page.initScriptCalls).toBe(1);
 
     const attachment = attach.mock.calls[0]?.[1];
     expect(attachment).toBeDefined();
