@@ -1,4 +1,5 @@
 import { test } from "../fixtures/e2eTest";
+import { expectAppHydrated } from "../helpers/appReadiness";
 import { resetCurrentManagerScenarioData } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 
@@ -25,6 +26,7 @@ test.describe("管理者の初期設定", { tag: ["@e2e-core"] }, () => {
     await dashboard.expectShopAvailable(shopName);
 
     await page.reload({ waitUntil: "domcontentloaded" });
+    await expectAppHydrated(page);
     await dashboard.expectShopAvailable(shopName);
   });
 });

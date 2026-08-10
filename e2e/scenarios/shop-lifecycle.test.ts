@@ -1,4 +1,5 @@
 import { expect, test } from "../fixtures/e2eTest";
+import { expectAppHydrated } from "../helpers/appReadiness";
 import { assertNotificationDeliverySuppressed } from "../helpers/notificationProbe";
 import { seedManagerScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
@@ -32,6 +33,7 @@ test.describe("同一組織の店舗ライフサイクル", { tag: ["@e2e-core"]
     const addedShopId = await dashboard.switchShopAndReadId(addedShopName);
     assertNotificationDeliverySuppressed(addedShopId);
     await page.reload({ waitUntil: "domcontentloaded" });
+    await expectAppHydrated(page);
     await dashboard.expectSelectedShop(addedShopName, addedShopId);
 
     await dashboard.openCurrentShopDetail(addedShopId);
@@ -42,6 +44,7 @@ test.describe("同一組織の店舗ライフサイクル", { tag: ["@e2e-core"]
       (url) => !url.pathname.includes(addedShopId) && ![...url.searchParams.values()].includes(addedShopId),
     );
     await page.reload({ waitUntil: "domcontentloaded" });
+    await expectAppHydrated(page);
     await dashboard.expectSingleShopContext(seed.shopName, seed.shopId);
 
     await lifecycle.gotoSettings(seed.shopId);

@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { clerk } from "@clerk/testing/playwright";
+import { expectAppHydrated } from "../helpers/appReadiness";
 import { installSafeClerkTestingConsole } from "../helpers/diagnostics";
 import { getE2ECoreClerkUsers } from "../helpers/e2eUsers";
 import { forceResetManagerScenarioData } from "../helpers/scenarioSeeds";
@@ -25,6 +26,7 @@ for (const user of E2E_CLERK_USERS) {
       // clerk.signIn は window.Clerk が必要。LP(/)は Clerk を読み込まないため、
       // ClerkProvider を持つ /login へ遷移してからサインインする。
       await page.goto("/login");
+      await expectAppHydrated(page);
       try {
         await clerk.signIn({
           page,

@@ -1,4 +1,5 @@
 import { expect, type Page } from "@playwright/test";
+import { expectAppHydrated } from "../helpers/appReadiness";
 
 const SHOP_DATA_TIMEOUT = 20_000;
 
@@ -9,6 +10,7 @@ export class ShopLifecyclePage {
     await this.page.goto(`/settings?shop=${encodeURIComponent(contextShopId)}&tab=shops`, {
       waitUntil: "domcontentloaded",
     });
+    await expectAppHydrated(this.page);
     await expect(this.page).toHaveURL(
       (url) =>
         url.pathname === "/settings" &&

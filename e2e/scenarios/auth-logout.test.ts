@@ -1,4 +1,5 @@
 import { test } from "../fixtures/e2eTest";
+import { expectAppHydrated } from "../helpers/appReadiness";
 import { signInFreshE2EManagerSession } from "../helpers/authSession";
 import { getE2EReservedMultiActorClerkUserForWorker } from "../helpers/e2eUsers";
 import {
@@ -50,6 +51,7 @@ authLogoutTest.describe("ログアウト後の認証境界", { tag: ["@e2e-core"
       await new DashboardPage(page).goto(seed.shopId);
       await new UserMenu(page).logout();
       await page.goto(protectedPath, { waitUntil: "domcontentloaded" });
+      await expectAppHydrated(page);
 
       const authPage = new AuthPage(page);
       await authPage.expectCurrentAuthPath("/login", protectedPath);

@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from "@playwright/test";
+import { expectAppHydrated } from "../helpers/appReadiness";
 import type { ShopStaffMembershipScenarioSeed } from "../helpers/shopStaffMembershipScenario";
 
 const SHOP_STAFF_MEMBERSHIP_TIMEOUT = 20_000;
@@ -10,6 +11,7 @@ export class ShopStaffMembershipPage {
     await this.page.goto(`/settings?shop=${encodeURIComponent(seed.contextShopId)}&tab=shops`, {
       waitUntil: "domcontentloaded",
     });
+    await expectAppHydrated(this.page);
     await expect(this.page.getByRole("tab", { name: "店舗", exact: true })).toHaveAttribute("aria-selected", "true", {
       timeout: SHOP_STAFF_MEMBERSHIP_TIMEOUT,
     });
@@ -53,6 +55,7 @@ export class ShopStaffMembershipPage {
 
   async reloadAndExpectCandidateSelected(seed: ShopStaffMembershipScenarioSeed) {
     await this.page.reload({ waitUntil: "domcontentloaded" });
+    await expectAppHydrated(this.page);
     await this.expectTargetShopWithContext(seed);
     await this.expectCandidateAdded(seed);
 
@@ -94,6 +97,7 @@ export class ShopStaffMembershipPage {
 
   async reloadAndExpectCandidateRemoved(seed: ShopStaffMembershipScenarioSeed) {
     await this.page.reload({ waitUntil: "domcontentloaded" });
+    await expectAppHydrated(this.page);
     await this.expectTargetShopWithContext(seed);
     await this.expectCandidateRemoved(seed);
   }

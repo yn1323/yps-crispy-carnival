@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from "@playwright/test";
+import { expectAppHydrated } from "../helpers/appReadiness";
 
 export class StaffViewPage {
   constructor(private page: Page) {}
@@ -6,6 +7,7 @@ export class StaffViewPage {
   async goto(token: string) {
     try {
       await this.page.goto(`/shifts/view?token=${token}`, { waitUntil: "domcontentloaded" });
+      await expectAppHydrated(this.page);
     } catch {
       throw new Error("E2E capability navigation failed: staff-view");
     }

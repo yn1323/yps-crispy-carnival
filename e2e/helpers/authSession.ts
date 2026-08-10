@@ -1,5 +1,6 @@
 import { clerk } from "@clerk/testing/playwright";
 import type { Page } from "@playwright/test";
+import { expectAppHydrated } from "./appReadiness";
 import type { E2EClerkUser } from "./e2eUsers";
 import { type E2EManagerScenarioActor, getE2EManagerScenarioActorFromContext } from "./scenarioSeeds";
 
@@ -13,6 +14,7 @@ export async function signInFreshE2EManagerSession(page: Page, user: E2EClerkUse
   }
 
   await page.goto("/login", { waitUntil: "domcontentloaded" });
+  await expectAppHydrated(page);
   try {
     // Clerk UI自体は対象外。testing helperのticket sign-inで、このcontext専用sessionを毎回作る。
     await clerk.signIn({ page, emailAddress: user.email });

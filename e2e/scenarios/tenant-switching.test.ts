@@ -1,4 +1,5 @@
 import { test } from "../fixtures/e2eTest";
+import { expectAppHydrated } from "../helpers/appReadiness";
 import { seedSingleActorMultiOrganizationScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 
@@ -27,6 +28,7 @@ test.describe("複数グループ切り替え", { tag: ["@e2e-core"] }, () => {
     await dashboard.expectStaffNotVisible(seed.actorBName);
 
     await page.reload({ waitUntil: "domcontentloaded" });
+    await expectAppHydrated(page);
     await dashboard.expectSelectedShop(seed.alternateShopName, seed.alternateShopId);
     await dashboard.expectStaffVisible(seed.actorAName);
     await dashboard.expectStaffNotVisible(seed.actorBName);

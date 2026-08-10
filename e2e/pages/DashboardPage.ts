@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from "@playwright/test";
+import { expectAppHydrated } from "../helpers/appReadiness";
 import { assertNotificationRecipientSuppressed } from "../helpers/notificationProbe";
 
 const JAPANESE_WEEKDAYS = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"] as const;
@@ -14,6 +15,7 @@ export class DashboardPage {
     await this.page.goto(shopId ? `/dashboard?shop=${encodeURIComponent(shopId)}` : "/dashboard", {
       waitUntil: "domcontentloaded",
     });
+    await expectAppHydrated(this.page);
     await expect(this.page).toHaveURL(
       (url) => url.pathname === "/dashboard" && (!shopId || url.searchParams.get("shop") === shopId),
       { timeout: DASHBOARD_DATA_TIMEOUT },
