@@ -60,14 +60,14 @@ export async function resolvePersonManagerInvitationState(
   ) {
     return {
       kind: "unavailable",
-      reason: "グループ単位の設定を移行しています。\n完了後、もう一度お試しください。",
+      reason: "組織単位の設定を移行しています。\n完了後、もう一度お試しください。",
     };
   }
 
   if (personMembers.length > 1 || (personMembers[0] && person.userId && personMembers[0].userId !== person.userId)) {
     return {
       kind: "unavailable",
-      reason: "このユーザーの管理者権限を確認できません。\nグループ設定を確認してください。",
+      reason: "このユーザーの管理者権限を確認できません。\n組織設定を確認してください。",
     };
   }
   if (personMembers.length === 1 && personMembers[0].status === "active") {
@@ -101,7 +101,7 @@ export async function resolvePersonManagerInvitationState(
   ) {
     return {
       kind: "unavailable",
-      reason: "このユーザーへの管理者招待の状態を確認できません。\nグループ設定を確認してください。",
+      reason: "このユーザーへの管理者招待の状態を確認できません。\n組織設定を確認してください。",
     };
   }
   if (currentEmailInvitations[0]) {
@@ -121,7 +121,7 @@ export async function resolvePersonManagerInvitationState(
   if (!args.billingState || !policy) {
     return {
       kind: "unavailable",
-      reason: "グループのプラン設定を移行しています。\n完了後、もう一度お試しください。",
+      reason: "組織のプラン設定を移行しています。\n完了後、もう一度お試しください。",
     };
   }
   if (!policy.canWriteBusinessData) {
@@ -149,7 +149,7 @@ export async function resolvePersonManagerInvitationState(
           kind: "unavailable",
           reason: hasOtherFreeExchange
             ? "次の管理者が招待を受け入れるのを待っています。\n交代が完了するまでは、現在の管理者が引き続き利用できます。"
-            : "無料プランでは、グループ内の既存スタッフへの管理者交代のみ行えます。",
+            : "無料プランでは、組織内の既存スタッフへの管理者交代のみ行えます。",
         };
   }
   if (!policy.canUsePaidFeatures || !policy.limits) {
@@ -171,6 +171,6 @@ export async function resolvePersonManagerInvitationState(
     : {
         kind: "unavailable",
         reason:
-          "管理者と招待中の管理者は、グループ全体で5名までです。\n管理者権限を外すか招待を取り消してから、もう一度お試しください。",
+          "管理者と招待中の管理者は、組織全体で5名までです。\n管理者権限を外すか招待を取り消してから、もう一度お試しください。",
       };
 }

@@ -23,7 +23,7 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - `convex/_lib/resend.ts` — Resend 送信間隔・retry header 対応・idempotency key 指定
 - `convex/_lib/resendWebhookSignature.ts` — Resend / Svix webhook 署名検証
 - `convex/_lib/lineClient.ts` — LINE Push message送信、`X-Line-Retry-Key` 付与、エラー分類
-- `convex/_lib/shopManagerRecipients.ts` — グループ人物を正本に店舗の有効管理者とLINE連携を解決する
+- `convex/_lib/shopManagerRecipients.ts` — 組織人物を正本に店舗の有効管理者とLINE連携を解決する
 - `convex/_lib/notificationDeliveryQueries.ts` — dry-run判定を現在の管理者連絡先で行う
 - `convex/_lib/shiftAssignmentNormalization.ts` — 時間入力方式の確定通知とsnapshotが使うread-time正規化
 - `convex/notification/templates.ts` — LINE Push payload の text / Flex message 型と通知文面builder
@@ -100,11 +100,11 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 
 ## 管理者通知の宛先
 
-- 現行のグループ所属では、`organizationPeople.name`と`organizationPeople.email`を管理者向け業務通知の正本とする。移行途中でperson作成後かつ`organizationMembers`作成前でも、同じuserとグループのpersonを一意に確認できる場合はpersonを使う。
+- 現行の組織所属では、`organizationPeople.name`と`organizationPeople.email`を管理者向け業務通知の正本とする。移行途中でperson作成後かつ`organizationMembers`作成前でも、同じuserと組織のpersonを一意に確認できる場合はpersonを使う。
 - person自体がまだ存在しない旧`shopMembers`だけ、移行互換として`users.name`と`users.email`へfallbackする。personが重複または不整合な場合はusersへ戻さずfail-closedにする。
 - LINE通知は、管理者と同じ人物に紐づく対象店舗の有効スタッフを一意に解決でき、現在のLINEアカウントと送信先が一致する場合だけ配送する。
-- 管理者向けメールはprovider呼び出し直前にグループ人物の現在のメールアドレスを再確認し、enqueue時の宛先が古い場合は`recipient_inactive`でcancelする。
-- シフトリから有効管理者へ送る課金関連メールもグループ人物の連絡先を使い、Stripeが請求書やカード関連を送る`organizations.billingEmail`とは分ける。
+- 管理者向けメールはprovider呼び出し直前に組織人物の現在のメールアドレスを再確認し、enqueue時の宛先が古い場合は`recipient_inactive`でcancelする。
+- シフトリから有効管理者へ送る課金関連メールも組織人物の連絡先を使い、Stripeが請求書やカード関連を送る`organizations.billingEmail`とは分ける。
 - Clerkのログイン用メールアドレスは通知先の正本として参照しない。
 
 ## 配送イベントログ（`notificationDeliveryEvents`）

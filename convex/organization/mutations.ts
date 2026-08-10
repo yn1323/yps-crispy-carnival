@@ -3,7 +3,6 @@ import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
-import { isShopAdditionEnabled } from "../_lib/config";
 import { todayJST } from "../_lib/dateFormat";
 import { authenticatedMutation } from "../_lib/functions";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
@@ -59,8 +58,6 @@ const deleteOrganizationResultValidator = v.object({
 });
 
 const WEEKDAY_ORDER = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
-
-const SHOP_ADDITION_UNAVAILABLE_MESSAGE = "店舗の追加は現在ご利用いただけません";
 
 function shopStatus(shop: Doc<"shops">) {
   // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
@@ -282,9 +279,6 @@ export const addShop = authenticatedMutation({
   returns: shopMutationResultValidator,
   handler: async (ctx, args) => {
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
-    // 画面から導線を消すだけでは、public mutationを直接呼ぶ経路が残る。
-    // actorを解決した後に判定し、所属していない利用者へ機能の有無を返さない。
-    if (!isShopAdditionEnabled()) throw new ConvexError(SHOP_ADDITION_UNAVAILABLE_MESSAGE);
     await requireOrganizationBusinessWrite(ctx, actor.organization._id);
     const parsed = updateShopSettingsSchema.safeParse({
       shopName: args.shopName,
@@ -590,7 +584,7 @@ function organizationDeletionCorrelationId(organizationId: Id<"organizations">, 
 }
 
 /**
- * グループを論理削除し、権限・連絡手段の失効cleanupを一つの受付transactionで開始する。
+ * 組織を論理削除し、権限・連絡手段の失効cleanupを一つの受付transactionで開始する。
  * clientの組織ID・確認ID・更新時刻はすべて、Clerk identityから解決したactive所属と照合する。
  */
 export const deleteOrganization = authenticatedMutation({
@@ -627,7 +621,7 @@ export const deleteOrganization = authenticatedMutation({
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
     if (actor.organization._id !== args.organizationId) throw new ConvexError("Not found");
     if (actor.organization.updatedAt !== args.expectedOrganizationUpdatedAt) {
-      throw new ConvexError("グループの状態が変わりました。\n画面を更新してから、もう一度お試しください。");
+      throw new ConvexError("組織の状態が変わりました。\n画面を更新してから、もう一度お試しください。");
     }
 
     const billingState = await requireOrganizationBillingState(ctx, actor.organization._id);
@@ -1006,7 +1000,7 @@ async function prepareFullOrganizationPersonRemoval(
   const billingReferenceUpdate = await planBillingReferenceUpdate(ctx, args.billingState, args.person._id);
   if (args.member?.status === "active") {
     const hasOtherManager = await hasOtherValidActiveManager(ctx, args.actor.organization._id, args.person._id);
-    if (!hasOtherManager) throw new ConvexError("最後の有効管理者は削除できません");
+    if (!hasOtherManager) throw new ConvexError("管理者は削除できません。");
   }
 
   const staffs = await ctx.db

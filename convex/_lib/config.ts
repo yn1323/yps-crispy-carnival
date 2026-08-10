@@ -1,3 +1,5 @@
+import { env } from "../_generated/server";
+
 export function getAppUrl(): string {
   return process.env.APP_URL ?? "https://shiftori.app";
 }
@@ -41,6 +43,34 @@ export function isDebugNotifyFailEnabled(): boolean {
   return (process.env.DEBUG_NOTIFY_FAIL ?? "").trim().length > 0;
 }
 
+function normalizeDeploymentUrl(value: string | undefined): string {
+  return value?.trim().replace(/\/+$/, "") ?? "";
+}
+
+/**
+ * 対象deploymentへ明示的に結び付けた、開発用Trial期間だけを返す。
+ * URL不一致では日数を解釈せず、通常のTrial期間へ戻す。
+ */
+export function getDebugTrialDurationDays(): number | undefined {
+  const currentDeploymentUrl = normalizeDeploymentUrl(process.env.CONVEX_CLOUD_URL);
+  const debugDeploymentUrl = normalizeDeploymentUrl(env.DEBUG_TRIAL_DURATION_DEPLOYMENT_URL);
+  if (!currentDeploymentUrl || !debugDeploymentUrl || currentDeploymentUrl !== debugDeploymentUrl) {
+    return undefined;
+  }
+
+  const rawDurationDays = env.DEBUG_TRIAL_DURATION_DAYS?.trim();
+  if (!rawDurationDays) {
+    return undefined;
+  }
+
+  const durationDays = Number(rawDurationDays);
+  if (!/^[1-9]\d*$/.test(rawDurationDays) || !Number.isSafeInteger(durationDays) || durationDays > 30) {
+    throw new RangeError("DEBUG_TRIAL_DURATION_DAYS must be an integer between 1 and 30");
+  }
+
+  return durationDays;
+}
+
 /**
  * ダークローンチ中に公開していない導線の設定。
  *
@@ -53,10 +83,6 @@ function isFeatureEnabled(value: string | undefined): boolean {
 
 export function isOrganizationCreationEnabled(): boolean {
   return isFeatureEnabled(process.env.FEATURE_ORGANIZATION_CREATION);
-}
-
-export function isShopAdditionEnabled(): boolean {
-  return isFeatureEnabled(process.env.FEATURE_SHOP_ADDITION);
 }
 
 export function isBillingEnabled(): boolean {
@@ -74,19 +100,16 @@ export type FeatureVisibility = {
 };
 
 /**
- * 認証後のUIが参照するダークローンチ状態を、一度のqueryで返せる形へ集約する。
- * グループ設定への導線は、配下の機能が一つでも公開されている場合だけ表示する。
+ * 認証後のUIが参照する公開状態を、一度のqueryで返せる形へ集約する。
+ * 店舗管理は常時公開し、旧frontend互換の表示DTOにもtrueを返す。
  */
 export function getFeatureVisibility(): FeatureVisibility {
-  const organizationCreation = isOrganizationCreationEnabled();
-  const shopAddition = isShopAdditionEnabled();
   const billing = isBillingEnabled();
-  const managerInvitation = isManagerInvitationEnabled();
 
   return {
-    organizationSettingsNavigation: organizationCreation || shopAddition || billing || managerInvitation,
+    organizationSettingsNavigation: true,
     billing,
-    shopMembershipAddition: shopAddition,
+    shopMembershipAddition: true,
   };
 }
 

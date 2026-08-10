@@ -9,7 +9,7 @@ const MANAGER_SUBJECT = "scenario_organization_creation";
 const FIRST_SHOP_NAME = "一つ目の店舗";
 const SECOND_SHOP_NAME = "二つ目の店舗";
 
-describe("グループ追加作成シナリオ", () => {
+describe("組織追加作成シナリオ", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(SCENARIO_NOW);
@@ -21,7 +21,7 @@ describe("グループ追加作成シナリオ", () => {
     vi.unstubAllEnvs();
   });
 
-  it("二つ目のグループはFreeで始まり、既存グループの権限とデータへ混入しない", async () => {
+  it("二つ目の組織はFreeで始まり、既存組織の権限とデータへ混入しない", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager({
@@ -30,7 +30,7 @@ describe("グループ追加作成シナリオ", () => {
       email: "manager@example.com",
     });
 
-    // Arrange: 初回セットアップで支払い不要Businessのグループを持つ管理者を作る。
+    // Arrange: 初回セットアップで支払い不要Businessの組織を持つ管理者を作る。
     const firstShopId = await asManager.setupShopAndManager({
       shopName: FIRST_SHOP_NAME,
       submissionPattern: { kind: "dateOnly" },
@@ -40,14 +40,14 @@ describe("グループ追加作成シナリオ", () => {
     });
     await asManager.addStaffs([{ name: "一つ目のスタッフ", email: "first-staff@example.com" }]);
 
-    // Act: グループ設定から二つ目のグループを作る。
+    // Act: 組織設定から二つ目の組織を作る。
     const created = await asManager.createOrganization({
       shopName: SECOND_SHOP_NAME,
       submissionPattern: { kind: "dateOnly" },
     });
     expect(created.created).toBe(true);
 
-    // Assert: 両グループが選択候補に並び、それぞれのプランを保つ。
+    // Assert: 両組織が選択候補に並び、それぞれのプランを保つ。
     const myShops = await asManager.getMyShops();
     expect(myShops).toHaveLength(2);
     expect(myShops).toEqual(
@@ -70,7 +70,7 @@ describe("グループ追加作成シナリオ", () => {
     const secondOrganizationId = myShops.find((shop) => shop.shopId === created.shopId)?.organizationId;
     expect(firstOrganizationId).not.toBe(secondOrganizationId);
 
-    // Assert: 二つ目のグループには自分だけが居て、一つ目のスタッフを引き継がない。
+    // Assert: 二つ目の組織には自分だけが居て、一つ目のスタッフを引き継がない。
     asManager.selectShop(created.shopId);
     const secondSettings = await asManager.getOrganizationSettings();
     expect(secondSettings?.organizationName).toBe(`${SECOND_SHOP_NAME}グループ`);
@@ -91,7 +91,7 @@ describe("グループ追加作成シナリオ", () => {
     expect(secondSettings?.billing.managerUsage).toMatchObject({ current: 1, max: 1 });
     await expect(asManager.addShop({ shopName: "Freeでは追加できない店舗" })).rejects.toThrow(ConvexError);
 
-    // Assert: 一つ目のグループの権限とスタッフは変わらない。
+    // Assert: 一つ目の組織の権限とスタッフは変わらない。
     asManager.selectShop(firstShopId);
     const firstSettings = await asManager.getOrganizationSettings();
     expect(firstSettings?.organizationName).toBe(`${FIRST_SHOP_NAME}グループ`);
@@ -108,7 +108,7 @@ describe("グループ追加作成シナリオ", () => {
     expect(firstSettings?.canCreateOrganization).toBe(true);
   });
 
-  it("上限まで作成すると、どのグループの設定でも作成不可と理由を返す", async () => {
+  it("上限まで作成すると、どの組織の設定でも作成不可と理由を返す", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager({
@@ -135,13 +135,13 @@ describe("グループ追加作成シナリオ", () => {
 
     await expect(
       asManager.createOrganization({ shopName: "四つ目の店舗", submissionPattern: { kind: "dateOnly" } }),
-    ).rejects.toThrow("作成できるグループは3つまでです。");
+    ).rejects.toThrow("作成できる組織は3つまでです。");
 
     asManager.selectShop(firstShopId);
     const firstSettings = await asManager.getOrganizationSettings();
     expect(firstSettings?.canCreateOrganization).toBe(false);
     expect(firstSettings?.createOrganizationDisabledReason).toBe(
-      "作成できるグループは3つまでです。\n使っていないグループを削除すると、また作成できます。",
+      "作成できる組織は3つまでです。\n使っていない組織を削除すると、また作成できます。",
     );
 
     asManager.selectShop(third.shopId);

@@ -1,13 +1,14 @@
-import { Box, Flex, Heading, HStack, Icon, Menu, Portal, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
-import { Link as RouterLink } from "@tanstack/react-router";
-import { LuArrowLeft, LuCheck, LuChevronDown, LuSettings } from "react-icons/lu";
+import { Box, HStack, Icon, Menu, Portal, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
+import { LuBuilding2, LuCheck, LuChevronDown, LuSettings } from "react-icons/lu";
 import { Button, IconButton } from "@/src/components/ui/Button";
+import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import type { OrganizationContextModel } from "./script";
 
 type Props = {
   model: OrganizationContextModel;
   canUpdateOrganizationName: boolean;
   updateOrganizationNameDisabledReason?: string;
+  onBackToDashboard: () => void;
   onSelectOrganization: (shopId: string) => void;
   onUpdateOrganizationName: () => void;
 };
@@ -16,40 +17,41 @@ export function OrganizationContext({
   model,
   canUpdateOrganizationName,
   updateOrganizationNameDisabledReason,
+  onBackToDashboard,
   onSelectOrganization,
   onUpdateOrganizationName,
 }: Props) {
   return (
     <Stack gap={2}>
-      <Button asChild variant="plain" size="sm" alignSelf="flex-start" px={0} colorPalette="teal">
-        <RouterLink to="/dashboard" search={{ shop: model.selectedShopId }}>
-          <LuArrowLeft aria-hidden />
-          {model.selectedShopName}に戻る
-        </RouterLink>
-      </Button>
+      <DetailPageHeader
+        title={model.selectedOrganizationName}
+        icon={LuBuilding2}
+        onBack={onBackToDashboard}
+        backAriaLabel={`${model.selectedOrganizationName}のダッシュボードへ戻る`}
+        action={
+          <IconButton
+            aria-label="組織名を変更"
+            size="sm"
+            variant="ghost"
+            colorPalette="teal"
+            minW="44px"
+            minH="44px"
+            flexShrink={0}
+            onClick={onUpdateOrganizationName}
+            disabled={!canUpdateOrganizationName}
+            title={!canUpdateOrganizationName ? updateOrganizationNameDisabledReason : undefined}
+            aria-describedby={
+              !canUpdateOrganizationName && updateOrganizationNameDisabledReason
+                ? "organization-name-update-disabled-reason"
+                : undefined
+            }
+          >
+            <LuSettings aria-hidden />
+          </IconButton>
+        }
+      />
 
-      <Flex align="center" justify="space-between" gap={3} minW={0}>
-        <OrganizationSelector model={model} onSelect={onSelectOrganization} />
-        <IconButton
-          aria-label="グループ名を変更"
-          size="sm"
-          variant="ghost"
-          colorPalette="teal"
-          minW="44px"
-          minH="44px"
-          flexShrink={0}
-          onClick={onUpdateOrganizationName}
-          disabled={!canUpdateOrganizationName}
-          title={!canUpdateOrganizationName ? updateOrganizationNameDisabledReason : undefined}
-          aria-describedby={
-            !canUpdateOrganizationName && updateOrganizationNameDisabledReason
-              ? "organization-name-update-disabled-reason"
-              : undefined
-          }
-        >
-          <LuSettings aria-hidden />
-        </IconButton>
-      </Flex>
+      {model.canSwitchOrganization && <OrganizationSelector model={model} onSelect={onSelectOrganization} />}
 
       {!canUpdateOrganizationName && updateOrganizationNameDisabledReason && (
         <Text id="organization-name-update-disabled-reason" fontSize="xs" color="orange.700">
@@ -67,23 +69,15 @@ function OrganizationSelector({
   model: OrganizationContextModel;
   onSelect: (shopId: string) => void;
 }) {
-  if (!model.canSwitchOrganization) {
-    return (
-      <Heading as="h1" textStyle={{ base: "sectionTitle", md: "pageTitle" }} color="gray.900" truncate minW={0}>
-        {model.selectedOrganizationName}
-      </Heading>
-    );
-  }
-
   return (
     <Box flex={1} minW={0}>
-      <VisuallyHidden as="h1">{model.selectedOrganizationName}</VisuallyHidden>
+      <VisuallyHidden>{model.selectedOrganizationName}</VisuallyHidden>
       <Menu.Root positioning={{ placement: "bottom-start", gutter: 8 }}>
         <Menu.Trigger asChild>
           <Button
             type="button"
             variant="outline"
-            aria-label={`グループを切り替える（現在：${model.selectedOrganizationName}）`}
+            aria-label={`組織を切り替える（現在：${model.selectedOrganizationName}）`}
             display="flex"
             alignItems="center"
             justifyContent="space-between"

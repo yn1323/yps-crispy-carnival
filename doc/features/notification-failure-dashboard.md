@@ -19,14 +19,14 @@
 - `convex/notificationOutbox/resendWebhook.ts` — Resend provider の配送遅延・失敗を `notificationFailureInbox` に反映する
 - `convex/notification/actions.ts` / `convex/notification/reminderActions.ts` — enqueue/preparation 失敗の再通知を1スタッフ・1募集単位でOutboxに載せる
 - `convex/notificationOutbox/failureReminderActions.ts` / `failureReminderQueries.ts` — open 不達通知がある店舗のmanagerへ日次リマインダーを送る（cron `notification-failure-reminder-digest`）
-- `convex/_lib/shopManagerRecipients.ts` — グループ人物を正本に店舗の有効管理者とLINE連携を解決する共通ヘルパー（承認依頼ダイジェストと共有）
+- `convex/_lib/shopManagerRecipients.ts` — 組織人物を正本に店舗の有効管理者とLINE連携を解決する共通ヘルパー（承認依頼ダイジェストと共有）
 
 ## リマインダー（日次ダイジェスト）
 
 - cron `notification-failure-reminder-digest`（JST 17:00 = UTC 08:00）が `internal.notificationOutbox.failureReminderActions.sendFailureReminderDigest` を起動する。
 - `status = open` かつ最新失敗（`lastFailedAt`）が直近24時間以内（`NOTIFICATION_FAILURE_REMINDER_WINDOW_MS`）の不達通知がある店舗だけを対象にする。失敗が再発するたびに対象期間を再計算し、日次cronでは通常1回だけ送る。
 - 配信先は店舗の有効管理者全員。
-- `organizationPeople.name`と`organizationPeople.email`を通知先の正本とし、移行途中でpersonだけ作成済みの場合も同じuserとグループのpersonを一意に確認して使う。person自体が存在しない旧`shopMembers`だけ`users`へfallbackする。
+- `organizationPeople.name`と`organizationPeople.email`を通知先の正本とし、移行途中でpersonだけ作成済みの場合も同じuserと組織のpersonを一意に確認して使う。person自体が存在しない旧`shopMembers`だけ`users`へfallbackする。
 - 管理者本人を同じ店舗のスタッフとして一意に解決でき、LINEアカウントが有効かつ友だち状態である場合だけLINEへ送る。
 - LINE未連携・友だち解除・Quota超過時は現在のシフト連絡先へメールで送り、配送直前に宛先と所属を再確認する。
 - メール / LINE のCTAは通知元店舗を `shop` クエリで指定したDashboard URLを使う。

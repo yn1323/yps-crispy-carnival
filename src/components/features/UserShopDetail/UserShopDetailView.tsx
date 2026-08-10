@@ -1,8 +1,10 @@
-import { Box, Stack } from "@chakra-ui/react";
+import { Stack } from "@chakra-ui/react";
 import type { FocusEventHandler, ReactNode, Ref } from "react";
+import { LuStore } from "react-icons/lu";
 import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
 import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import type { UserShopDetailData, UserShopDetailMembership, UserShopDetailRecruitment } from "./types";
+import { UserShopDetailPageSection } from "./UserShopDetailPageSection";
 import { UserShopLineSection } from "./UserShopLineSection";
 import { UserShopNotificationSection } from "./UserShopNotificationSection";
 import { UserShopSettingsSection } from "./UserShopSettingsSection";
@@ -67,6 +69,7 @@ export function UserShopDetailView({
     <Stack gap={{ base: 4, md: 6 }}>
       <DetailPageHeader
         title={`${membership.shopName}：${data.person.name}さん`}
+        icon={LuStore}
         backLabel="スタッフ詳細へ戻る"
         onBack={actions.onBack}
       />
@@ -78,7 +81,7 @@ export function UserShopDetailView({
         />
       )}
 
-      <PageSection>
+      <UserShopDetailPageSection>
         <UserShopLineSection
           data={data}
           membership={membership}
@@ -87,9 +90,9 @@ export function UserShopDetailView({
           onShowQr={actions.onShowLineQr}
           onSendInvite={actions.onSendLineInvite}
         />
-      </PageSection>
+      </UserShopDetailPageSection>
 
-      <PageSection sectionRef={notificationSectionRef} onFocusCapture={onNotificationSectionFocus}>
+      <UserShopDetailPageSection sectionRef={notificationSectionRef} onFocusCapture={onNotificationSectionFocus}>
         <UserShopNotificationSection
           data={data}
           membership={membership}
@@ -109,9 +112,9 @@ export function UserShopDetailView({
             onAction: actions.onSendCurrentShift,
           }}
         />
-      </PageSection>
+      </UserShopDetailPageSection>
 
-      <PageSection>
+      <UserShopDetailPageSection>
         <UserShopSettingsSection
           personName={data.person.name}
           membership={membership}
@@ -127,31 +130,7 @@ export function UserShopDetailView({
           onCancelRemoveMembership={actions.onCancelRemoveMembership}
           onConfirmRemoveMembership={actions.onConfirmRemoveMembership}
         />
-      </PageSection>
+      </UserShopDetailPageSection>
     </Stack>
-  );
-}
-
-function PageSection({
-  children,
-  sectionRef,
-  onFocusCapture,
-}: {
-  children: ReactNode;
-  sectionRef?: Ref<HTMLDivElement>;
-  onFocusCapture?: FocusEventHandler<HTMLDivElement>;
-}) {
-  return (
-    <Box
-      ref={sectionRef}
-      onFocusCapture={onFocusCapture}
-      borderWidth="1px"
-      borderColor="blackAlpha.100"
-      borderRadius="xl"
-      bg="white"
-      p={{ base: 4, md: 6 }}
-    >
-      {children}
-    </Box>
   );
 }

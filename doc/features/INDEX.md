@@ -13,14 +13,14 @@
 | 初回利用の管理ユーザー | Dashboardでの店舗登録後オンボーディング | [ログイン後オンボーディング](dashboard-onboarding.md) |
 | 参加するスタッフ、承認する管理者 | 店舗参加QR・URL、参加申請、承認 | [スタッフ参加QR・承認導線](staff-registration.md) |
 
-## グループ、店舗、人物、権限
+## 組織、店舗、人物、権限
 
 | 対象利用者 | 主な画面・利用場面 | 機能文書 |
 |---|---|---|
-| グループ管理者 | グループ設定、管理者招待、店舗管理、プラン確認 | [グループ課金、複数店舗、複数管理者](organization-billing.md) |
+| 組織管理者 | 組織設定、管理者招待、店舗管理、プラン確認 | [組織課金、複数店舗、複数管理者](organization-billing.md) |
 | 複数店舗の管理ユーザー | 店舗切り替えと旧店舗所属モデルの移行互換 | [店舗単位管理者所属の移行互換](manager-shop-membership.md) |
 | 店舗管理者 | 店舗名、営業時間、定休日、シフト作成条件の設定 | [店舗設定](shop-settings.md) |
-| グループ管理者、店舗管理者 | 人物プロフィール、店舗別スタッフ設定、権限、通知状況 | [スタッフ詳細](user-detail.md) |
+| 組織管理者、店舗管理者 | 人物プロフィール、店舗別スタッフ設定、権限、通知状況 | [スタッフ詳細](user-detail.md) |
 
 ## 募集、希望提出、シフト編集、確定
 
@@ -47,8 +47,8 @@
 
 | 対象利用者 | 主な画面・利用場面 | 機能文書 |
 |---|---|---|
-| Trial中のグループ管理者 | Dashboardの終了前案内とプラン変更導線 | [トライアル終了前Dashboard案内](trial-ending-dashboard-callout.md) |
-| グループ管理者、店舗管理者 | 店舗・グループの利用停止と永続cleanup | [店舗・グループ削除](data-deletion.md) |
+| Trial中の組織管理者 | Dashboardの終了前案内とプラン変更導線 | [トライアル終了前Dashboard案内](trial-ending-dashboard-callout.md) |
+| 組織管理者、店舗管理者 | 店舗・組織の利用停止と永続cleanup | [店舗・組織削除](data-deletion.md) |
 | 所属のない管理ユーザー | 再認証を伴うアカウント削除依頼 | [所属なしユーザーのアカウント削除](account-deletion.md) |
 
 実環境での公開状態、deployment、migrationは[リリース状態](../manual/release-status.md)を参照してください。
@@ -67,4 +67,4 @@
 | 対象利用者 | 主な画面・利用場面 | 機能文書 |
 |---|---|---|
 | 開発・運用担当 | source event、分析projection、cycle fact、日次snapshotの運用 | [分析KPI蓄積基盤](analytics.md) |
-| 内部BIの閲覧者 | 全体からグループ、店舗、cycleへ掘り下げる分離Dashboard | [分析KPI可視化アプリ](analytics-dashboard.md) |
+| 内部BIの閲覧者 | 全体から組織、店舗、cycleへ掘り下げる分離Dashboard | [分析KPI可視化アプリ](analytics-dashboard.md) |

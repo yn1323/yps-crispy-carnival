@@ -52,7 +52,7 @@ function OrganizationVisual() {
   return (
     <Box
       role="img"
-      aria-label="グループがユーザー、管理者、料金プランをまとめ、その中にシフトを運用する店舗がある構造"
+      aria-label="組織がユーザー、管理者、料金プランをまとめ、その中にシフトを運用する店舗がある構造"
       mt={5}
       p={{ base: 4, md: 5 }}
       borderWidth="1px"
@@ -61,7 +61,7 @@ function OrganizationVisual() {
       bg="gray.50"
     >
       <Stack gap={3} align="center">
-        <DiagramBox title="グループ" detail="ユーザー・管理者・料金プラン" tone="question" />
+        <DiagramBox title="組織" detail="ユーザー・管理者・料金プラン" tone="question" />
         <DiagramConnector />
         <Grid templateColumns="repeat(2, minmax(0, 1fr))" gap={3} w="full" maxW="520px">
           <DiagramBox title="店舗 A" detail="募集・シフト作成" width="full" />

@@ -71,7 +71,7 @@ export function UserDetailPage({
             ) : (
               <Button asChild colorPalette="teal">
                 <RouterLink to={backDestination.to} search={backDestination.search}>
-                  {returnTo === "settings" ? "グループ設定へ戻る" : "ダッシュボードへ戻る"}
+                  {returnTo === "settings" ? "組織設定へ戻る" : "ダッシュボードへ戻る"}
                 </RouterLink>
               </Button>
             )

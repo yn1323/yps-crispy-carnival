@@ -334,7 +334,7 @@ async function createManagerInvitation(
       .take(2);
     if (people.length > 1) {
       throw new ConvexError(
-        "同じメールアドレスのユーザーが複数見つかりました。\nグループのユーザー情報を確認してください。",
+        "同じメールアドレスのユーザーが複数見つかりました。\n組織のユーザー情報を確認してください。",
       );
     }
     if (people[0]?.status === "removed") {
@@ -456,7 +456,7 @@ async function createManagerInvitation(
       ...(targetPerson ? { targetPersonId: targetPerson._id } : {}),
     });
     if (!exchange) {
-      throw new ConvexError("無料プランでは、グループ内の既存スタッフへの管理者交代のみ行えます。");
+      throw new ConvexError("無料プランでは、組織内の既存スタッフへの管理者交代のみ行えます。");
     }
     await requireNoOtherPendingFreeManagerExchange(ctx, organization._id, now, staleTargetInvitation?._id);
     await requireOrganizationCapacity(ctx, { organizationId: organization._id });
@@ -465,7 +465,7 @@ async function createManagerInvitation(
     const people = targetPerson ? [targetPerson] : [];
     if (people.length > 1) {
       throw new ConvexError(
-        "同じメールアドレスのユーザーが複数見つかりました。\nグループのユーザー情報を確認してください。",
+        "同じメールアドレスのユーザーが複数見つかりました。\n組織のユーザー情報を確認してください。",
       );
     }
     const existingPerson = people[0];

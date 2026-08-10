@@ -77,10 +77,7 @@ export const UserWithoutShopDeletionEntry: Story = {
     const contactLink = await screen.findByRole("menuitem", { name: "お問い合わせ" });
     await expect(contactLink).toHaveAttribute("href", "/contact");
     await expect(contactLink).toHaveAttribute("target", "_blank");
-    await expect(screen.getByRole("menuitem", { name: "グループ設定" })).toHaveAttribute(
-      "href",
-      "/settings?shop=shop-a",
-    );
+    await expect(screen.getByRole("menuitem", { name: "組織設定" })).toHaveAttribute("href", "/settings?shop=shop-a");
     await expect(screen.getByRole("menuitem", { name: "アカウント設定" })).toHaveAttribute("href", "/account");
     await screen.findByRole("menuitem", { name: "ログアウト" });
     await expect(screen.queryByText("login@example.com")).toBeNull();
@@ -113,7 +110,7 @@ export const UserWithoutSettingsEntry: Story = {
     const trigger = await screen.findByRole("button", { name: "ユーザーメニュー" });
     await userEvent.click(trigger);
 
-    await expect(screen.queryByRole("menuitem", { name: "グループ設定" })).toBeNull();
+    await expect(screen.queryByRole("menuitem", { name: "組織設定" })).toBeNull();
     await screen.findByRole("menuitem", { name: "お問い合わせ" });
     await screen.findByRole("menuitem", { name: "ログアウト" });
     await userEvent.keyboard("{Escape}");

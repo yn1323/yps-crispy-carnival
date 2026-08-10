@@ -1,4 +1,5 @@
 import type { Infer } from "convex/values";
+import { getDebugTrialDurationDays } from "../_lib/config";
 import { jstMonthStartMs } from "../_lib/dateFormat";
 import type { organizationBillingStateValidator } from "../organization/validators";
 
@@ -600,8 +601,8 @@ function requireNonNegativeInteger(value: number, fieldName: string): void {
 }
 
 /**
- * 事業者作成日の2暦月後にあたる日付の00:00 JSTを返す。
- * 対象月に同じ日がなければ、その月の末日へ丸める。
+ * 通常は事業者作成日の2暦月後にあたる日付の00:00 JSTを返す。
+ * 対象deploymentへ開発用日数が設定されていれば、N暦日後の00:00 JSTを返す。
  */
 export function calculateTrialEndsAt(organizationCreatedAt: number): number {
   if (!Number.isFinite(organizationCreatedAt)) {
@@ -611,6 +612,12 @@ export function calculateTrialEndsAt(organizationCreatedAt: number): number {
   const createdAtJst = new Date(organizationCreatedAt + JST_OFFSET_MS);
   const createdYear = createdAtJst.getUTCFullYear();
   const createdMonth = createdAtJst.getUTCMonth();
+  const debugDurationDays = getDebugTrialDurationDays();
+  if (debugDurationDays !== undefined) {
+    const createdDayStartAt = jstMonthStartMs(createdYear, createdMonth) + (createdAtJst.getUTCDate() - 1) * MS_PER_DAY;
+    return createdDayStartAt + debugDurationDays * MS_PER_DAY;
+  }
+
   const targetMonthStartAt = jstMonthStartMs(createdYear, createdMonth + 2);
   const nextMonthStartAt = jstMonthStartMs(createdYear, createdMonth + 3);
   const lastDayOfTargetMonth = (nextMonthStartAt - targetMonthStartAt) / MS_PER_DAY;

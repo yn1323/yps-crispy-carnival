@@ -7,7 +7,7 @@ export const FAQ_CATEGORIES = [
   { id: "recruitment-submission", label: "シフト募集と希望提出", order: 30 },
   { id: "shift-building", label: "シフト作成と確定", order: 40 },
   { id: "notifications", label: "LINEとメール通知", order: 50 },
-  { id: "organization-billing", label: "グループ・権限・料金", order: 60 },
+  { id: "organization-billing", label: "組織・権限・料金", order: 60 },
   { id: "trouble", label: "困ったとき", order: 70 },
 ] as const;
 

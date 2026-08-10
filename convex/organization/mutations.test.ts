@@ -945,7 +945,7 @@ describe("organization person removal", () => {
         personId: ids.personId,
         requestId: "last-manager",
       }),
-    ).rejects.toThrow("最後の有効管理者は削除できません");
+    ).rejects.toThrow("管理者は削除できません。");
   });
 
   it("所属が重複してアクセス不能な管理者を有効な後任として数えない", async () => {
@@ -981,7 +981,7 @@ describe("organization person removal", () => {
           personId: ids.personId,
           requestId: "last-manager-duplicate-successor",
         }),
-    ).rejects.toThrow("最後の有効管理者は削除できません");
+    ).rejects.toThrow("管理者は削除できません。");
     await expect(t.run(async (ctx) => (await ctx.db.get(ids.personId))?.status)).resolves.toBe("active");
     await expect(t.run(async (ctx) => (await ctx.db.get(ids.memberId))?.status)).resolves.toBe("active");
   });
@@ -1029,7 +1029,7 @@ describe("organization person removal", () => {
           personId: ids.personId,
           requestId: "last-manager-duplicate-user",
         }),
-    ).rejects.toThrow("最後の有効管理者は削除できません");
+    ).rejects.toThrow("管理者は削除できません。");
     await expect(t.run(async (ctx) => (await ctx.db.get(ids.personId))?.status)).resolves.toBe("active");
     await expect(t.run(async (ctx) => (await ctx.db.get(ids.memberId))?.status)).resolves.toBe("active");
   });
@@ -1539,7 +1539,7 @@ describe("organization person profile update", () => {
 
   afterEach(() => vi.useRealTimers());
 
-  it("連携済み本人の連絡先をpersonと同一グループの有効staffだけへ反映する", async () => {
+  it("連携済み本人の連絡先をpersonと同一組織の有効staffだけへ反映する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -1755,7 +1755,7 @@ describe("organization person profile update", () => {
     ).toHaveLength(2);
   });
 
-  it("グループ内の別人物が使うメールアドレスへの変更を拒否する", async () => {
+  it("組織内の別人物が使うメールアドレスへの変更を拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -1792,7 +1792,7 @@ describe("organization person profile update", () => {
         email: "profile-used@example.com",
         requestId: "person-profile-duplicate",
       }),
-    ).rejects.toThrow("このメールアドレスは、グループ内の別のユーザーが使用しています。");
+    ).rejects.toThrow("このメールアドレスは、組織内の別のユーザーが使用しています。");
   });
 
   it("未正規化の旧スタッフが使うメールアドレスへの変更を拒否する", async () => {
@@ -1859,7 +1859,7 @@ describe("organization person profile update", () => {
     });
   });
 
-  it("別グループの人物IDと閲覧のみ管理者からの更新を拒否する", async () => {
+  it("別組織の人物IDと閲覧のみ管理者からの更新を拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const actor = await seedOrganizationManagerShop(ctx, {

@@ -1,14 +1,23 @@
 // @vitest-environment jsdom
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ loginMethodsProps: null as Record<string, unknown> | null }));
 
 vi.mock("@chakra-ui/react", () => ({
-  Heading: ({ children }: { children: ReactNode }) => <h1>{children}</h1>,
   Stack: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+}));
+
+vi.mock("@/src/components/ui/DetailPageHeader", () => ({
+  DetailPageHeader: ({ title, onBack }: { title: string; onBack: () => void }) => (
+    <h1>
+      <button type="button" onClick={onBack}>
+        {title}
+      </button>
+    </h1>
+  ),
 }));
 
 vi.mock("@/src/components/features/LoginMethods", () => ({
@@ -18,11 +27,19 @@ vi.mock("@/src/components/features/LoginMethods", () => ({
   },
 }));
 
+vi.mock("@/src/components/features/AccountDeletion", () => ({
+  AccountDeletionSection: () => <h2>アカウントを完全に削除する</h2>,
+}));
+
 vi.mock("@/src/components/templates/AuthenticatedPageContent", () => ({
   AuthenticatedPageContent: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
 import { AccountSecurityPage } from "./index";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("AccountSecurityPage", () => {
   it("カードを維持したまま追加flowとOAuth帰還をLoginMethodsへ渡す", () => {
@@ -41,6 +58,7 @@ describe("AccountSecurityPage", () => {
     );
 
     expect(screen.getByRole("heading", { name: "アカウント設定" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "アカウントを完全に削除する" })).not.toBeNull();
     expect(mocks.loginMethodsProps).toEqual(
       expect.objectContaining({
         flow: "connect-google",
@@ -50,5 +68,14 @@ describe("AccountSecurityPage", () => {
         onGoogleOAuthReturnHandled,
       }),
     );
+  });
+
+  it("見出しの戻る操作でブラウザ履歴を1件戻す", () => {
+    const historyBack = vi.spyOn(window.history, "back").mockImplementation(() => {});
+    render(<AccountSecurityPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "アカウント設定" }));
+
+    expect(historyBack).toHaveBeenCalledOnce();
   });
 });

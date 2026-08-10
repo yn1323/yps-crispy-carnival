@@ -27,7 +27,7 @@ export function OrganizationDeletionDialog({ dialog, isRunning, onClose, onBackG
 
   return (
     <Dialog
-      title="グループを削除"
+      title="組織を削除"
       isOpen
       onOpenChange={({ open }) => {
         if (!open && !isRunning) onClose();
@@ -35,7 +35,7 @@ export function OrganizationDeletionDialog({ dialog, isRunning, onClose, onBackG
       onClose={onClose}
       onBackGuardRemoved={onBackGuardRemoved}
       formId="organization-deletion-form"
-      submitLabel="このグループを削除"
+      submitLabel="この組織を削除"
       submitColorPalette="red"
       isLoading={isRunning}
       isSubmitDisabled={!isConfirmed || isRunning}
@@ -52,12 +52,12 @@ export function OrganizationDeletionDialog({ dialog, isRunning, onClose, onBackG
         <Stack gap={4}>
           <Text fontWeight="bold">この操作は元に戻せません。</Text>
           <Stack gap={2} fontSize="sm" color="fg" lineHeight="tall">
-            <Text>グループとすべての店舗の利用を停止し、管理権限、LINE連携、提出・閲覧用リンクを無効にします。</Text>
+            <Text>組織とすべての店舗の利用を停止し、管理権限、LINE連携、提出・閲覧用リンクを無効にします。</Text>
             <Text>
-              グループ名、店舗名、氏名、メールアドレス、過去のシフト・同意・請求などの履歴は、業務記録として残ります。
+              組織名、店舗名、氏名、メールアドレス、過去のシフト・同意・請求などの履歴は、業務記録として残ります。
             </Text>
-            <Text>ほかのグループへの所属と、シフトリへのログインに使うアカウントは削除しません。</Text>
-            <Text>ほかのグループに所属していない場合は、削除後に新しい店舗を登録できます。</Text>
+            <Text>ほかの組織への所属と、シフトリへのログインに使うアカウントは削除しません。</Text>
+            <Text>ほかの組織に所属していない場合は、削除後に新しい店舗を登録できます。</Text>
           </Stack>
           <Field.Root required>
             <Field.Label>確認のため「{dialog.organizationName}」と入力してください</Field.Label>

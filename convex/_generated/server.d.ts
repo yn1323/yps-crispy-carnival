@@ -33,6 +33,8 @@ type Env = {
   readonly APP_URL: string | undefined;
   readonly CLERK_JWT_ISSUER_DOMAIN: string | undefined;
   readonly CLERK_SECRET_KEY: string | undefined;
+  readonly DEBUG_TRIAL_DURATION_DAYS: string | undefined;
+  readonly DEBUG_TRIAL_DURATION_DEPLOYMENT_URL: string | undefined;
   readonly STRIPE_BUSINESS_PRICE_ID: string | undefined;
   readonly STRIPE_PORTAL_CONFIGURATION_ID: string | undefined;
   readonly STRIPE_PRO_PRICE_ID: string | undefined;

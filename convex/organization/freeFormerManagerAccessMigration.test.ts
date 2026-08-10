@@ -298,7 +298,7 @@ async function migrationSnapshot(ctx: MutationCtx) {
 }
 
 describe("旧管理者アクセス移行", () => {
-  it("1件batchでFreeの旧管理者だけを失効し、staffとシフト通知と別グループを完全に維持する", async () => {
+  it("1件batchでFreeの旧管理者だけを失効し、staffとシフト通知と別組織を完全に維持する", async () => {
     const t = createMigrationTest();
     const ids = await t.run(async (ctx) => await seedFormerManagerFixture(ctx, { withOtherOrganization: true }));
     const before = await t.run(async (ctx) => ({
@@ -870,7 +870,7 @@ describe("旧管理者アクセス移行", () => {
     expect(state.roleRemovalAudits).toEqual([]);
   });
 
-  it("m012の安全条件を満たさない移行元グループは一件のowned conflictで停止する", async () => {
+  it("m012の安全条件を満たさない移行元組織は一件のowned conflictで停止する", async () => {
     const t = createMigrationTest();
     const ids = await t.run(async (ctx) => await seedFormerManagerFixture(ctx, { migrationSource: true }));
 

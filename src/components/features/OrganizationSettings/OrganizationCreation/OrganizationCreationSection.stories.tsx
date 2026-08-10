@@ -4,7 +4,7 @@ import { OrganizationCreationSection } from "./OrganizationCreationSection";
 
 const meta = {
   id: "features-organizationsettings-organizationcreationsection",
-  title: "Features/OrganizationSettings/2. セクション/新しいグループ",
+  title: "Features/OrganizationSettings/2. セクション/新しい組織",
   component: OrganizationCreationSection,
   parameters: { layout: "padded" },
   args: {
@@ -22,11 +22,11 @@ export const LimitReached: Story = {
   name: "上限に達している",
   args: {
     canCreate: false,
-    disabledReason: "作成できるグループは3つまでです。\n使っていないグループを削除すると、また作成できます。",
+    disabledReason: "作成できる組織は3つまでです。\n使っていない組織を削除すると、また作成できます。",
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    const button = canvas.getByRole("button", { name: "新しいグループを作る" });
+    const button = canvas.getByRole("button", { name: "新しい組織を作る" });
     await expect(button).toBeDisabled();
     await userEvent.click(button, { pointerEventsCheck: 0 });
     await expect(args.onCreate).not.toHaveBeenCalled();

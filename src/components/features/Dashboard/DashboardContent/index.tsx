@@ -1,3 +1,4 @@
+import { Stack } from "@chakra-ui/react";
 import { ContentWrapper } from "@/src/components/templates/ContentWrapper";
 import { DashboardAnnouncement } from "../DashboardAnnouncement";
 import { DashboardOnboarding } from "../DashboardOnboarding";
@@ -183,41 +184,43 @@ export const DashboardContent = ({
                               {(onboarding) => (
                                 <>
                                   <ContentWrapper>
-                                    <OperationContext data={operationContextData} />
-                                    <LegalReconsent status={managerLegalConsentStatus} />
-                                    {billingSettingsShopId && (
-                                      <TrialEndingCallout
-                                        notice={trialEndingNotice ?? null}
-                                        shopId={billingSettingsShopId}
-                                        isBillingVisible={isBillingFeatureVisible}
+                                    <Stack gap={{ base: 4, lg: 6 }}>
+                                      <OperationContext data={operationContextData} />
+                                      <LegalReconsent status={managerLegalConsentStatus} />
+                                      {billingSettingsShopId && (
+                                        <TrialEndingCallout
+                                          notice={trialEndingNotice ?? null}
+                                          shopId={billingSettingsShopId}
+                                          isBillingVisible={isBillingFeatureVisible}
+                                        />
+                                      )}
+                                      <HeroSummary
+                                        recruitments={recruitment.recruitments}
+                                        onOpenShiftBoard={(recruitmentId) =>
+                                          recruitment.openShiftBoard(
+                                            recruitmentId as Recruitment["_id"],
+                                            onboarding.onOpenRecruitment,
+                                          )
+                                        }
+                                        onCreateRecruitment={recruitment.openCreateRecruitment}
+                                        hasNotificationFailures={notificationFailure.failures.length > 0}
+                                        onNotificationFailuresClick={notificationFailure.openNotificationFailures}
+                                        announcementBanner={announcementContent ?? undefined}
+                                        staffRegistrationRequest={
+                                          registrationRequests.requests.length > 0
+                                            ? {
+                                                count: registrationRequests.requests.length,
+                                                onClick: registrationRequests.openStaffRegistrationRequests,
+                                              }
+                                            : undefined
+                                        }
+                                        hideActionSection={
+                                          isReadOnly ||
+                                          (onboarding.isVisible && notificationFailure.failures.length === 0) ||
+                                          !managerLegalConsentStatus
+                                        }
                                       />
-                                    )}
-                                    <HeroSummary
-                                      recruitments={recruitment.recruitments}
-                                      onOpenShiftBoard={(recruitmentId) =>
-                                        recruitment.openShiftBoard(
-                                          recruitmentId as Recruitment["_id"],
-                                          onboarding.onOpenRecruitment,
-                                        )
-                                      }
-                                      onCreateRecruitment={recruitment.openCreateRecruitment}
-                                      hasNotificationFailures={notificationFailure.failures.length > 0}
-                                      onNotificationFailuresClick={notificationFailure.openNotificationFailures}
-                                      announcementBanner={announcementContent ?? undefined}
-                                      staffRegistrationRequest={
-                                        registrationRequests.requests.length > 0
-                                          ? {
-                                              count: registrationRequests.requests.length,
-                                              onClick: registrationRequests.openStaffRegistrationRequests,
-                                            }
-                                          : undefined
-                                      }
-                                      hideActionSection={
-                                        isReadOnly ||
-                                        (onboarding.isVisible && notificationFailure.failures.length === 0) ||
-                                        !managerLegalConsentStatus
-                                      }
-                                    />
+                                    </Stack>
                                     {onboarding.content}
                                     {recruitment.renderContent({
                                       onBeforeOpenShiftBoard: onboarding.onOpenRecruitment,
@@ -246,8 +249,10 @@ export const DashboardContent = ({
 
 export const DashboardContentSkeleton = () => (
   <ContentWrapper>
-    <OperationContextSkeleton />
-    <HeroSummarySkeleton />
+    <Stack gap={{ base: 4, lg: 6 }}>
+      <OperationContextSkeleton />
+      <HeroSummarySkeleton />
+    </Stack>
     <RecruitmentBoardSkeleton />
     <StaffRosterSkeleton />
   </ContentWrapper>

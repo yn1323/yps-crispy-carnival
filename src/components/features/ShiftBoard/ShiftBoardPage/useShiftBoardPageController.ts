@@ -44,13 +44,13 @@ function getReadOnlyReason(reason: ShiftBoardData["businessWriteBlockReason"], s
       return "アーカイブ済みの店舗のため、シフトを変更できません。";
     case "shopPlanSuspended":
       return showGroupSettings
-        ? "現在のプランでは、この店舗のシフトを変更できません。\nグループ設定で利用店舗を確認してください。"
+        ? "現在のプランでは、この店舗のシフトを変更できません。\n組織設定で利用店舗を確認してください。"
         : "現在のプランでは、この店舗のシフトを変更できません。";
     case "paymentResultPending":
       return "支払い結果を確認中のため、シフトを変更できません。";
     case "restricted":
       return showGroupSettings
-        ? "契約状態を確認できるまで、シフトを変更できません。\nグループ設定で契約状態を確認してください。"
+        ? "契約状態を確認できるまで、シフトを変更できません。\n組織設定で契約状態を確認してください。"
         : "契約状態を確認できるまで、シフトを変更できません。";
     case null:
       return "現在、このシフトは変更できません。";

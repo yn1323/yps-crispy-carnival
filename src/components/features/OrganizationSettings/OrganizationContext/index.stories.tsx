@@ -1,7 +1,7 @@
 import { Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import type { ShopContextOption } from "@/src/domains/shop/context";
 import { OrganizationContext } from ".";
 import { buildOrganizationContextModel } from "./script";
@@ -30,13 +30,13 @@ const shops = [
 
 const createModel = (contextShops: readonly ShopContextOption[], selectedShopId: string) => {
   const model = buildOrganizationContextModel(contextShops, selectedShopId);
-  if (!model) throw new Error("Storyのグループ選択データが不正です");
+  if (!model) throw new Error("Storyの組織選択データが不正です");
   return model;
 };
 
 const meta = {
   id: "features-organizationsettings-organizationcontext",
-  title: "Features/OrganizationSettings/2. セクション/グループ切り替え",
+  title: "Features/OrganizationSettings/2. セクション/組織切り替え",
   component: OrganizationContext,
   parameters: { layout: "padded" },
   decorators: [
@@ -49,6 +49,7 @@ const meta = {
   args: {
     model: createModel([shop({})], "shop-a-1"),
     canUpdateOrganizationName: true,
+    onBackToDashboard: fn(),
     onSelectOrganization: () => {},
     onUpdateOrganizationName: () => {},
   },
@@ -57,15 +58,15 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const SingleOrganization: Story = { name: "1グループ" };
+export const SingleOrganization: Story = { name: "1組織" };
 
 export const MultipleOrganizations: Story = {
-  name: "複数グループ",
+  name: "複数組織",
   args: { model: createModel(shops, "shop-a-1") },
 };
 
 export const LongName: Story = {
-  name: "長いグループ名",
+  name: "長い組織名",
   args: {
     model: createModel(
       [
@@ -79,28 +80,36 @@ export const LongName: Story = {
 };
 
 export const MobileMultipleOrganizations: Story = {
-  name: "複数グループ・モバイル",
+  name: "複数組織・モバイル",
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
   args: { model: createModel(shops, "shop-a-1") },
 };
 
+export const BackToDashboardBehavior: Story = {
+  name: "組織名からDashboardへ戻る（操作確認）",
+  parameters: { screenshot: { skip: true } },
+  play: async ({ args, canvasElement }) => {
+    const button = within(canvasElement).getByRole("button", {
+      name: "株式会社さくらダイニングのダッシュボードへ戻る",
+    });
+    await userEvent.click(button);
+    await expect(args.onBackToDashboard).toHaveBeenCalledOnce();
+  },
+};
+
 export const SelectionBehavior: Story = {
-  name: "グループを切り替える（操作確認）",
+  name: "組織を切り替える（操作確認）",
   parameters: { screenshot: { skip: true } },
   render: () => <SelectionBehaviorStory />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
 
-    await userEvent.click(
-      canvas.getByRole("button", { name: "グループを切り替える（現在：株式会社さくらダイニング）" }),
-    );
+    await userEvent.click(canvas.getByRole("button", { name: "組織を切り替える（現在：株式会社さくらダイニング）" }));
     await userEvent.click(await body.findByRole("menuitem", { name: "株式会社みどりフーズ" }));
 
-    await expect(
-      canvas.getByRole("button", { name: "グループを切り替える（現在：株式会社みどりフーズ）" }),
-    ).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "組織を切り替える（現在：株式会社みどりフーズ）" })).toBeVisible();
   },
 };
 
@@ -111,6 +120,7 @@ function SelectionBehaviorStory() {
     <OrganizationContext
       model={createModel(shops, selectedShopId)}
       canUpdateOrganizationName
+      onBackToDashboard={() => {}}
       onSelectOrganization={setSelectedShopId}
       onUpdateOrganizationName={() => {}}
     />

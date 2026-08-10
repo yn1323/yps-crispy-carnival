@@ -170,24 +170,24 @@ export const RecruitmentBoardSkeleton = () => (
   <Stack as="section" aria-label="シフト一覧を読み込み中" gap={{ base: 4, lg: 5 }}>
     <Flex justify="space-between" align="flex-end" gap={3} wrap="wrap">
       <HStack gap={2.5} align="center">
-        <Skeleton boxSize={{ base: "24px", lg: "28px" }} borderRadius="full" />
+        <Skeleton boxSize={{ base: "20px", lg: "24px" }} borderRadius="full" />
         <Skeleton h={{ base: "28px", lg: "30px" }} w="112px" />
       </HStack>
-      <Skeleton h="32px" w={{ base: "148px", md: "164px" }} />
+      <Skeleton h="36px" w="176px" />
     </Flex>
 
     <Stack gap={{ base: 4, lg: 5 }}>
-      <RecruitmentGroupSkeleton rows={1} tone="current" />
       <RecruitmentGroupSkeleton rows={2} tone="collecting" />
+      <RecruitmentGroupSkeleton rows={1} tone="confirmed" />
     </Stack>
   </Stack>
 );
 
-const RecruitmentGroupSkeleton = ({ rows, tone }: { rows: number; tone: "current" | "collecting" }) => (
+const RecruitmentGroupSkeleton = ({ rows, tone }: { rows: number; tone: "confirmed" | "collecting" }) => (
   <Stack as="section" gap={{ base: 2.5, lg: 3 }}>
     <HStack gap={2} minH="24px">
-      <Skeleton h="18px" w={tone === "current" ? "96px" : "64px"} />
-      {tone === "collecting" && <Skeleton h="20px" w="36px" borderRadius="full" />}
+      <Skeleton h="18px" w="64px" />
+      <Skeleton h="20px" w="36px" borderRadius="full" />
     </HStack>
     <Stack gap={{ base: 2.5, lg: 3 }}>
       {Array.from({ length: rows }).map((_, index) => (
@@ -197,19 +197,17 @@ const RecruitmentGroupSkeleton = ({ rows, tone }: { rows: number; tone: "current
   </Stack>
 );
 
-const RecruitmentRowSkeleton = ({ tone }: { tone: "current" | "collecting" }) => {
-  const accent = tone === "current" ? "blue.200" : "green.100";
-  const borderColor = tone === "current" ? "blue.100" : "blackAlpha.50";
-  const bg = tone === "current" ? "blue.50/30" : "white";
+const RecruitmentRowSkeleton = ({ tone }: { tone: "confirmed" | "collecting" }) => {
+  const accent = tone === "confirmed" ? "blue.300" : "green.400";
 
   return (
     <Flex
       align="stretch"
-      bg={bg}
+      bg="white"
       borderRadius="xl"
       overflow="hidden"
       borderWidth="1px"
-      borderColor={borderColor}
+      borderColor="blackAlpha.50"
       boxShadow="xs"
       w="full"
     >
@@ -241,9 +239,8 @@ const RecruitmentRowSkeleton = ({ tone }: { tone: "current" | "collecting" }) =>
             gap={{ base: 2, md: 4 }}
             wrap={{ base: "wrap", sm: "nowrap" }}
           >
-            <HStack minW={{ lg: tone === "current" ? "176px" : "84px" }} flexShrink={0} gap={2} wrap="wrap">
-              <Skeleton h="22px" w="56px" borderRadius="full" />
-              {tone === "current" && <Skeleton h="22px" w="84px" borderRadius="full" />}
+            <HStack minW={{ lg: "84px" }} flexShrink={0} gap={2} wrap="wrap">
+              <Skeleton h="22px" w={tone === "confirmed" ? "68px" : "56px"} borderRadius="full" />
             </HStack>
             <HStack gap={{ base: 3, lg: 8 }} flex={1} justify="flex-end" align="center" minW={0} wrap="nowrap">
               <Skeleton h="18px" w={{ base: "88px", lg: "96px" }} />
@@ -253,7 +250,7 @@ const RecruitmentRowSkeleton = ({ tone }: { tone: "current" | "collecting" }) =>
         </Flex>
       </Flex>
       <Flex align="center" justify="center" pe={{ base: 2, lg: 3 }} flexShrink={0}>
-        <Flex boxSize="32px" align="center" justify="center">
+        <Flex boxSize="36px" align="center" justify="center">
           <Skeleton h="20px" w="4px" borderRadius="full" />
         </Flex>
       </Flex>

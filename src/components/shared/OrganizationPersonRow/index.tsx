@@ -29,6 +29,14 @@ export function OrganizationPersonRow({
   const isManager = person.managerRole !== "none";
   const roleLabel = isManager ? "管理者" : "スタッフ";
   const shopNames = person.shopNames.length > 0 ? person.shopNames.join("、") : "なし";
+  const hasNoShopMembership = showShopNames && person.shopNames.length === 0;
+  const badgeColumns = showShopNames
+    ? showLineConnection
+      ? "96px 64px 96px"
+      : "96px 64px"
+    : showLineConnection
+      ? "64px 96px"
+      : "64px";
 
   return (
     <DrilldownRow
@@ -53,23 +61,34 @@ export function OrganizationPersonRow({
         </Flex>
       }
       badges={
-        <HStack gap={1.5} wrap="wrap" ms="auto" flexShrink={0}>
-          <Badge
-            colorPalette={isManager ? "teal" : "gray"}
-            variant="subtle"
-            bg={isManager ? "teal.100" : undefined}
-            borderRadius="full"
-            px={2}
-            textStyle="2xs"
-          >
-            {roleLabel}
-          </Badge>
-          {showLineConnection && person.isLineConnected && (
-            <Badge colorPalette="green" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
-              LINE連携済み
+        <Flex display="grid" gridTemplateColumns={badgeColumns} gap={1.5} ms="auto" flexShrink={0} alignItems="center">
+          <Flex minW={0}>
+            {hasNoShopMembership && (
+              <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
+                所属店舗なし
+              </Badge>
+            )}
+          </Flex>
+          <Flex minW={0}>
+            <Badge
+              colorPalette={isManager ? "teal" : "gray"}
+              variant="subtle"
+              bg={isManager ? "teal.100" : undefined}
+              borderRadius="full"
+              px={2}
+              textStyle="2xs"
+            >
+              {roleLabel}
             </Badge>
-          )}
-        </HStack>
+          </Flex>
+          <Flex minW={0}>
+            {showLineConnection && person.isLineConnected && (
+              <Badge colorPalette="green" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
+                LINE連携済み
+              </Badge>
+            )}
+          </Flex>
+        </Flex>
       }
       secondary={
         showShopNames ? (

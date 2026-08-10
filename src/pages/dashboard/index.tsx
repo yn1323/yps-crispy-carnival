@@ -66,7 +66,7 @@ export function DashboardPage({ visibleUserCount, focusedPersonId, onVisibleUser
                 <Alert.Description whiteSpace="pre-line">
                   {selectedContext.shopStatus === "archived"
                     ? showGroupSettings
-                      ? "アーカイブ済みのため、シフトや利用者の追加・変更はできません。\n再開するときは、グループ設定から再稼働してください。"
+                      ? "アーカイブ済みのため、シフトや利用者の追加・変更はできません。\n再開するときは、組織設定から再稼働してください。"
                       : "アーカイブ済みのため、シフトや利用者の追加・変更はできません。"
                     : selectedContext.shopStatus === "planSuspended"
                       ? "現在のプランでは、この店舗を利用できません。\n既存データは削除されていません。"
@@ -74,16 +74,16 @@ export function DashboardPage({ visibleUserCount, focusedPersonId, onVisibleUser
                         ? "支払い結果を確認中です。\n確認が完了するまで、既存データの閲覧はできますが、変更や通知送信はできません。"
                         : shop?.businessWriteBlockReason === "restricted"
                           ? featureVisibility.billing
-                            ? "契約制限中です。\n既存データを閲覧しながら、グループ設定で契約の復旧や利用状況の整理を進めてください。"
+                            ? "契約制限中です。\n既存データを閲覧しながら、組織設定で契約の復旧や利用状況の整理を進めてください。"
                             : showGroupSettings
-                              ? "契約制限中です。\n既存データを閲覧しながら、グループ設定で利用状況の整理を進めてください。"
+                              ? "契約制限中です。\n既存データを閲覧しながら、組織設定で利用状況の整理を進めてください。"
                               : "契約制限中です。\n既存データは引き続き確認できます。"
                           : "閲覧のみの管理者は、既存データを確認できますが、変更や通知送信はできません。"}
                 </Alert.Description>
                 {showGroupSettings && (selectedContext.shopStatus !== "active" || isBillingReadOnly) && (
                   <Button asChild size="sm" variant="outline" mt={3} alignSelf="flex-start">
                     <RouterLink to="/settings" search={{ shop: selectedContext.shopId }}>
-                      グループ設定を開く
+                      組織設定を開く
                     </RouterLink>
                   </Button>
                 )}

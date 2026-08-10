@@ -6,10 +6,11 @@ import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { useScrollToListItem } from "@/src/hooks/useScrollToListItem";
 import { DEFAULT_USER_LIST_COUNT, USER_LIST_PAGE_SIZE } from "@/src/lib/userListSearch";
-import type { OrganizationPersonView } from "./types";
+import type { BillingUsageView, OrganizationPersonView } from "./types";
 
 type Props = {
   people: OrganizationPersonView[];
+  peopleUsage: BillingUsageView;
   showManagerInvitation: boolean;
   canInviteManager: boolean;
   canOpenManagerInvitation: boolean;
@@ -24,6 +25,7 @@ type Props = {
 
 export const PeopleSection = ({
   people,
+  peopleUsage,
   showManagerInvitation,
   canInviteManager,
   canOpenManagerInvitation,
@@ -61,7 +63,7 @@ export const PeopleSection = ({
         <HStack gap={2}>
           <LuUsers aria-hidden />
           <Heading id="organization-people-heading" as="h2" fontSize="lg">
-            全ユーザー
+            全スタッフ{peopleUsage.max > 0 ? ` (${peopleUsage.current}/${peopleUsage.max})` : ""}
           </Heading>
         </HStack>
         {showManagerInvitation && (
@@ -95,7 +97,7 @@ export const PeopleSection = ({
       )}
 
       {visiblePeople.length === 0 ? (
-        <Empty icon={LuUsers} title="このグループにユーザーはいません。" titleAs="h3" variant="section" py={6} />
+        <Empty icon={LuUsers} title="この組織にスタッフはいません。" titleAs="h3" variant="section" py={6} />
       ) : (
         <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.100" overflow="hidden">
           <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
@@ -104,6 +106,7 @@ export const PeopleSection = ({
                 key={person.id}
                 person={person}
                 idPrefix="settings-user"
+                showLineConnection={false}
                 onOpen={() => onOpenUser(person.id, visibleUserCount)}
               />
             ))}

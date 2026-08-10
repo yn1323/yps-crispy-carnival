@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ShopContextOption } from "@/src/domains/shop/context";
 import { ChakraProvider } from "@/src/providers/ChakraProvider";
@@ -20,6 +21,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, search, to, ...props }: { children: ReactNode; search?: { shop?: string }; to: string }) => (
+    <a href={search?.shop ? `${to}?shop=${search.shop}` : to} {...props}>
+      {children}
+    </a>
+  ),
   useNavigate: () => mocks.navigate,
 }));
 
@@ -130,7 +136,7 @@ describe("OperationContext", () => {
     });
   });
 
-  it("別グループの店舗も同じ店舗セレクトから選べる", async () => {
+  it("別組織の店舗も同じ店舗セレクトから選べる", async () => {
     renderContext();
 
     fireEvent.click(screen.getByRole("button", { name: "店舗を切り替える（現在：A店）" }));
@@ -155,17 +161,14 @@ describe("OperationContext", () => {
     });
   });
 
-  it("現在店舗のグループ設定へ遷移する", async () => {
+  it("公開中は現在組織名のリンクへ選択店舗を引き継ぐ", () => {
     renderContext();
 
-    fireEvent.click(screen.getByRole("button", { name: "グループ設定" }));
-
-    await waitFor(() => {
-      expect(mocks.navigate).toHaveBeenCalledWith({ to: "/settings", search: { shop: "shop-a" } });
-    });
+    const organizationSettingsLink = screen.getByRole("link", { name: "Aグループの組織設定を開く" });
+    expect(organizationSettingsLink.getAttribute("href")).toBe("/settings?shop=shop-a");
   });
 
-  it("設定内の機能がすべて非公開ならグループ設定への導線を表示しない", () => {
+  it("設定内の機能がすべて非公開なら組織設定への導線を表示しない", () => {
     Object.assign(mocks.featureVisibility, {
       organizationSettingsNavigation: false,
       billing: false,
@@ -174,15 +177,14 @@ describe("OperationContext", () => {
 
     renderContext();
 
-    expect(screen.queryByRole("button", { name: "グループ設定" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Aグループの組織設定を開く" })).toBeNull();
     expect(screen.getByRole("button", { name: "店舗詳細を開く" })).not.toBeNull();
   });
 
-  it("1グループ1店舗ではグループ名と切替操作を表示しない", () => {
+  it("1組織1店舗では店舗切替を表示しない", () => {
     renderContext([shops[0]], shops[0]);
 
     expect(screen.getByText("A店")).not.toBeNull();
-    expect(screen.queryByText("Aグループ")).toBeNull();
     expect(screen.queryByRole("button", { name: /店舗を切り替える/ })).toBeNull();
     expect(screen.getByRole("button", { name: "店舗詳細を開く" })).not.toBeNull();
   });

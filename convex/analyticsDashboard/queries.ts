@@ -134,7 +134,7 @@ function rangeWarnings(state: AnalyticsReadState, requested: { from: string; to:
     range.missingDates,
   );
   if (range.retentionStartDate && requested.from < range.retentionStartDate) {
-    warnings.push(`グループ・店舗別の詳細データは${range.retentionStartDate}以降を保持しています`);
+    warnings.push(`組織・店舗別の詳細データは${range.retentionStartDate}以降を保持しています`);
   }
   return warnings;
 }

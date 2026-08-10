@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { normalizeOrganizationSettingsFeatures } from "@/src/domains/featureVisibility";
-import type { ShopContextOption } from "@/src/domains/shop/context";
+import { groupShopsByOrganization, type ShopContextOption } from "@/src/domains/shop/context";
 import { toUserListCountSearch } from "@/src/lib/userListSearch";
 import { BillingActionDialog } from "./BillingSettings/BillingActionDialog";
 import { BillingEmailDialog } from "./BillingSettings/BillingEmailDialog";
@@ -68,7 +68,7 @@ export function OrganizationSettings({
   const shopManagement = useShopManagementController({ canAddShop: features.shopAddition && settings.canAddShop });
   const organizationCreation = useOrganizationCreationController({
     canCreateOrganization: features.organizationCreation && settings.canCreateOrganization,
-    // 作成直後は新しいグループを操作対象にしたいので、そのグループの店舗を選んでDashboardへ移す。
+    // 作成直後は新しい組織を操作対象にしたいので、その組織の店舗を選んでDashboardへ移す。
     onCreated: (shopId) => void navigate({ to: "/dashboard", search: { shop: shopId } }),
   });
   const billingEmailSettings = useBillingSettingsController({ billing: settings.billing });
@@ -85,7 +85,15 @@ export function OrganizationSettings({
     shops: context.shops,
   });
 
-  if (!organizationContext) return <OrganizationSettingsSkeleton />;
+  if (!organizationContext) {
+    return (
+      <OrganizationSettingsSkeleton
+        defaultTab={visibleTab}
+        showOrganizationSelector={groupShopsByOrganization(context.shops).length > 1}
+        features={features}
+      />
+    );
+  }
 
   return (
     <>
@@ -100,6 +108,7 @@ export function OrganizationSettings({
         focusedPersonId={focusedPersonId}
         onVisibleUserCountChange={onVisibleUserCountChange}
         actions={{
+          onBackToDashboard: () => void navigate({ to: "/dashboard", search: { shop: context.selectedShopId } }),
           onSelectOrganization: (shopId) =>
             void navigate({
               to: "/settings",

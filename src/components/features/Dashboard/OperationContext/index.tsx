@@ -31,7 +31,7 @@ export const OperationContext = ({ data }: Props) => {
   const rawShops = useQuery(api.dashboard.queries.getMyShops, data ? "skip" : {});
   const storedSelectedShop = useAtomValue(selectedShopAtom);
   const featureVisibility = useAtomValue(featureVisibilityAtom);
-  const showGroupSettings = featureVisibility.organizationSettingsNavigation;
+  const showOrganizationSettings = featureVisibility.organizationSettingsNavigation;
   const shops = useMemo(
     () => data?.shops ?? normalizeShopContextOptions(rawShops ?? []).filter(isSelectableShop),
     [data?.shops, rawShops],
@@ -59,11 +59,6 @@ export const OperationContext = ({ data }: Props) => {
     if (nextShop && nextShop.shopId !== model.selectedShop.shopId) selectShop(nextShop);
   };
 
-  const handleOpenGroupSettings = () => {
-    if (!showGroupSettings) return;
-    void navigate({ to: "/settings", search: { shop: model.selectedShop.shopId } });
-  };
-
   const handleOpenShopDetail = () => {
     void navigate({
       to: "/shops/$shopId",
@@ -77,7 +72,7 @@ export const OperationContext = ({ data }: Props) => {
       model={model}
       onShopSelect={handleShopSelect}
       onOpenShopDetail={handleOpenShopDetail}
-      onOpenGroupSettings={showGroupSettings ? handleOpenGroupSettings : undefined}
+      organizationSettingsShopId={showOrganizationSettings ? model.selectedShop.shopId : undefined}
     />
   );
 };

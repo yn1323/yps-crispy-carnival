@@ -1,8 +1,10 @@
-import { Box, HStack, Skeleton, Stack } from "@chakra-ui/react";
+import { Box, Flex, Grid, HStack, Skeleton, Stack } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
+import { LuStore } from "react-icons/lu";
 import { ShopForm, type ShopFormData } from "@/src/components/features/ShopForm";
+import { DeletionActionSectionSkeleton } from "@/src/components/shared/DeletionActionSection";
 import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
-import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
+import { DetailPageHeader, DetailPageHeaderSkeleton } from "@/src/components/ui/DetailPageHeader";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
 import { ShopBasicInformationSection } from "./ShopBasicInformationSection";
 import { ShopDeletionDialog } from "./ShopDeletionDialog";
@@ -46,7 +48,7 @@ export function ShopDetailView({
 
   return (
     <Stack gap={{ base: 4, md: 6 }}>
-      <DetailPageHeader title="店舗詳細" onBack={onBack} />
+      <DetailPageHeader title={shop.name} onBack={onBack} icon={LuStore} />
 
       {!shop.canUpdateSettings && (
         <ReadOnlyNotice
@@ -91,30 +93,71 @@ export function ShopDetailView({
 export function ShopDetailSkeleton() {
   return (
     <Stack gap={{ base: 4, md: 6 }} aria-label="店舗詳細を読み込み中">
-      <HStack gap={2}>
-        <Skeleton boxSize="32px" borderRadius="md" />
-        <Skeleton h="32px" w="120px" />
-      </HStack>
-      {[4, 1, 1].map((rowCount, sectionIndex) => (
-        <Stack key={`${sectionIndex}-${rowCount}`} gap={3}>
-          <HStack justify="space-between">
-            <Skeleton h="28px" w="160px" />
-            {rowCount === 4 && <Skeleton h="32px" w="96px" borderRadius="md" />}
-          </HStack>
-          <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
-            <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
-              {Array.from({ length: rowCount }, (_, index) => (
-                <Box key={index} p={{ base: 4, md: 5 }}>
-                  <HStack gap={5}>
-                    <Skeleton h="20px" w="120px" />
-                    <Skeleton h="20px" flex={1} />
-                  </HStack>
-                </Box>
-              ))}
-            </Stack>
-          </Box>
-        </Stack>
-      ))}
+      <DetailPageHeaderSkeleton titleWidth={{ base: "184px", md: "300px" }} />
+      <ShopBasicInformationSkeleton />
+      <ShopStaffListSkeleton />
+      <ShopOtherSettingsSkeleton />
     </Stack>
   );
+}
+
+function ShopBasicInformationSkeleton() {
+  return (
+    <Stack gap={3}>
+      <Flex align="center" justify="space-between" gap={3}>
+        <SectionTitleSkeleton width="96px" />
+        <Skeleton h="36px" w="96px" borderRadius="md" flexShrink={0} />
+      </Flex>
+      <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
+        <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
+          {Array.from({ length: 4 }, (_, index) => (
+            <Grid
+              key={index}
+              templateColumns={{ base: "minmax(0, 9rem) minmax(0, 1fr)", md: "200px minmax(0, 1fr)" }}
+              gap={{ base: 3, md: 5 }}
+              alignItems="start"
+              px={{ base: 4, md: 5 }}
+              py={{ base: 3.5, md: 4 }}
+            >
+              <Skeleton h="20px" w={index === 2 ? "64px" : "80px"} maxW="100%" />
+              <Skeleton h="20px" w={index === 0 ? "72%" : "56%"} />
+            </Grid>
+          ))}
+        </Stack>
+      </Box>
+    </Stack>
+  );
+}
+
+function ShopStaffListSkeleton() {
+  return (
+    <Stack gap={3}>
+      <SectionTitleSkeleton width="96px" />
+      <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
+        <Flex align="center" justify="space-between" gap={3} px={{ base: 4, md: 5 }} py={3} minH="48px">
+          <HStack gap={{ base: 4, md: 8 }} minW={0}>
+            <Skeleton h="20px" w="72px" />
+            <Skeleton h="20px" w="40px" />
+          </HStack>
+          <HStack gap={1} flexShrink={0}>
+            <Skeleton h="20px" w={{ base: "104px", md: "128px" }} />
+            <Skeleton boxSize={5} borderRadius="sm" />
+          </HStack>
+        </Flex>
+      </Box>
+    </Stack>
+  );
+}
+
+function ShopOtherSettingsSkeleton() {
+  return (
+    <Stack gap={3}>
+      <SectionTitleSkeleton width="120px" />
+      <DeletionActionSectionSkeleton titleWidth="120px" />
+    </Stack>
+  );
+}
+
+function SectionTitleSkeleton({ width }: { width: string }) {
+  return <Skeleton h={{ base: "28px", lg: "30px" }} w={width} />;
 }

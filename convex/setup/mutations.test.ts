@@ -95,7 +95,7 @@ describe("setup/mutations", () => {
       expect(state.scheduled).toEqual([]);
     });
 
-    it("自分で作成した削除済みグループだけが残るユーザーは新しい店舗を登録できる", async () => {
+    it("自分で作成した削除済み組織だけが残るユーザーは新しい店舗を登録できる", async () => {
       const t = convexTest(schema, modules);
       const old = await t.run(async (ctx) => {
         const seeded = await seedOrganizationManagerShop(ctx, {
@@ -125,7 +125,7 @@ describe("setup/mutations", () => {
       expect(state.user).toMatchObject({ isDeleted: false, name: "山田 太郎", email: "yamada@example.com" });
     });
 
-    it("自分で作成した有効グループが重複している場合はfail closedにする", async () => {
+    it("自分で作成した有効組織が重複している場合はfail closedにする", async () => {
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {
         const userId = await seedUser(ctx, "duplicate_created_organizations");
@@ -146,7 +146,7 @@ describe("setup/mutations", () => {
           .withIdentity({ subject: "duplicate_created_organizations" })
           .mutation(api.setup.mutations.setupShopAndManager, setupArgs),
       ).rejects.toThrow(
-        "作成済みのグループ情報を確認できません。\n画面を更新しても解消しない場合は、お問い合わせください。",
+        "作成済みの組織情報を確認できません。\n画面を更新しても解消しない場合は、お問い合わせください。",
       );
       await expect(t.run(async (ctx) => ctx.db.query("shops").collect())).resolves.toEqual([]);
     });
@@ -536,12 +536,12 @@ describe("setup/mutations", () => {
       await expect(t.mutation(api.setup.mutations.createOrganization, createArgs)).rejects.toThrow();
     });
 
-    it("users未登録の認証主体はグループを作成しない", async () => {
+    it("users未登録の認証主体は組織を作成しない", async () => {
       const t = convexTest(schema, modules);
 
       await expect(
         t.withIdentity({ subject: "user_without_record" }).mutation(api.setup.mutations.createOrganization, createArgs),
-      ).rejects.toThrow("グループを作成する前に、初期設定を完了してください。");
+      ).rejects.toThrow("組織を作成する前に、初期設定を完了してください。");
 
       const state = await t.run(async (ctx) => ({
         organizations: await ctx.db.query("organizations").collect(),
@@ -553,7 +553,7 @@ describe("setup/mutations", () => {
       expect(state.scheduled).toEqual([]);
     });
 
-    it("アカウント削除受付済みユーザーは拒否し、グループ・店舗・予約を作成しない", async () => {
+    it("アカウント削除受付済みユーザーは拒否し、組織・店舗・予約を作成しない", async () => {
       const t = convexTest(schema, modules);
       const seed = await seedExistingManager(t, "create_org_deletion_requested");
       await t.run(async (ctx) => ctx.db.patch(seed.userId, { accountDeletionRequestedAt: Date.now() }));
@@ -562,7 +562,7 @@ describe("setup/mutations", () => {
         t
           .withIdentity({ subject: "create_org_deletion_requested" })
           .mutation(api.setup.mutations.createOrganization, createArgs),
-      ).rejects.toThrow("無効になったアカウントでは、グループを作成できません。");
+      ).rejects.toThrow("無効になったアカウントでは、組織を作成できません。");
 
       const state = await t.run(async (ctx) => ({
         organizations: await ctx.db.query("organizations").collect(),
@@ -576,7 +576,7 @@ describe("setup/mutations", () => {
       expect(state.audits).toEqual([]);
     });
 
-    it("二つ目のグループをFreeで作り、既存グループの支払い不要Businessを変えない", async () => {
+    it("二つ目の組織をFreeで作り、既存組織の支払い不要Businessを変えない", async () => {
       const t = convexTest(schema, modules);
       const now = new Date("2026-07-25T10:00:00+09:00");
       vi.setSystemTime(now);
@@ -643,7 +643,7 @@ describe("setup/mutations", () => {
       expect(state.billingNotifications).toEqual([]);
     });
 
-    it("操作元グループのperson連絡先を新しいperson・staff・初回請求先へ引き継ぐ", async () => {
+    it("操作元組織のperson連絡先を新しいperson・staff・初回請求先へ引き継ぐ", async () => {
       const t = convexTest(schema, modules);
       const seed = await seedExistingManager(t, "create_org_contact_source");
       await t.run(async (ctx) => {
@@ -851,7 +851,7 @@ describe("setup/mutations", () => {
       expect(state.scheduled).toEqual([]);
     });
 
-    it("所属していないsourceShopIdを拒否し、新しいグループを作らない", async () => {
+    it("所属していないsourceShopIdを拒否し、新しい組織を作らない", async () => {
       const t = convexTest(schema, modules);
       await seedExistingManager(t, "create_org_source_actor");
       const other = await seedExistingManager(t, "create_org_source_other");
@@ -907,7 +907,7 @@ describe("setup/mutations", () => {
       expect(after.consentStates[0]).toMatchObject({ shopId: seed.shopId, consentedAt: 1000 });
     });
 
-    it("同じrequestIdの再実行は同じ店舗を返し、グループを増やさない", async () => {
+    it("同じrequestIdの再実行は同じ店舗を返し、組織を増やさない", async () => {
       const t = convexTest(schema, modules);
       await seedExistingManager(t, "create_org_idempotent");
       const asUser = t.withIdentity({ subject: "create_org_idempotent" });
@@ -928,7 +928,7 @@ describe("setup/mutations", () => {
       expect(state.scheduled).toHaveLength(2);
     });
 
-    it("上限に達している場合は拒否し、グループ・店舗・予約を増やさない", async () => {
+    it("上限に達している場合は拒否し、組織・店舗・予約を増やさない", async () => {
       const t = convexTest(schema, modules);
       const seed = await seedExistingManager(t, "create_org_limit");
       await t.run(async (ctx) => {
@@ -945,7 +945,7 @@ describe("setup/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "create_org_limit" }).mutation(api.setup.mutations.createOrganization, createArgs),
-      ).rejects.toThrow("作成できるグループは3つまでです。");
+      ).rejects.toThrow("作成できる組織は3つまでです。");
 
       const state = await t.run(async (ctx) => ({
         organizations: await ctx.db.query("organizations").collect(),
@@ -957,7 +957,7 @@ describe("setup/mutations", () => {
       expect(state.scheduled).toEqual([]);
     });
 
-    it("削除済みグループは上限に数えず、招待で所属しているグループも数えない", async () => {
+    it("削除済み組織は上限に数えず、招待で所属している組織も数えない", async () => {
       const t = convexTest(schema, modules);
       const seed = await seedExistingManager(t, "create_org_excluded");
       await t.run(async (ctx) => {
@@ -1001,7 +1001,7 @@ describe("setup/mutations", () => {
       ).resolves.toMatchObject({ created: true });
     });
 
-    it("移行前のグループ未所属店舗も上限に数える", async () => {
+    it("移行前の組織未所属店舗も上限に数える", async () => {
       const t = convexTest(schema, modules);
       const userId = await t.run(async (ctx) => {
         const userId = await seedUser(ctx, "create_org_legacy", "create-org-legacy@example.com");
@@ -1023,7 +1023,7 @@ describe("setup/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "create_org_legacy" }).mutation(api.setup.mutations.createOrganization, createArgs),
-      ).rejects.toThrow("作成できるグループは3つまでです。");
+      ).rejects.toThrow("作成できる組織は3つまでです。");
     });
 
     it("連続作成はrate limitで拒否し、副作用を増やさない", async () => {
@@ -1038,7 +1038,7 @@ describe("setup/mutations", () => {
           ...createArgs,
           requestId: "create-organization-request-2",
         }),
-      ).rejects.toThrow("グループの作成処理が進行中です。\n少し時間をおいてから、もう一度お試しください。");
+      ).rejects.toThrow("組織の作成処理が進行中です。\n少し時間をおいてから、もう一度お試しください。");
 
       const state = await t.run(async (ctx) => ({
         organizations: await ctx.db.query("organizations").collect(),
@@ -1076,7 +1076,7 @@ describe("setup/mutations", () => {
         const asUser = t.withIdentity({ subject: "create_org_dark_launch" });
 
         await expect(asUser.mutation(api.setup.mutations.createOrganization, createArgs)).rejects.toThrow(
-          "現在、新しいグループは作成できません。",
+          "現在、新しい組織は作成できません。",
         );
 
         const state = await t.run(async (ctx) => ({
@@ -1088,7 +1088,7 @@ describe("setup/mutations", () => {
             .collect(),
           scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
         }));
-        // seedした一つ目のグループ以外は増えない。
+        // seedした一つ目の組織以外は増えない。
         expect(state.organizations).toHaveLength(1);
         expect(state.shops).toHaveLength(1);
         expect(state.audits).toHaveLength(0);

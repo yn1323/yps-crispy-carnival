@@ -77,7 +77,7 @@ Convexはユースケース単位のディレクトリとCQRSを基本にする�
 | migration | schemaの互換期間を保ちながら保存済みdocumentを段階的に移す | `convex/migrations/`、`convex/migrations/index.ts` |
 
 ブラウザから呼べるquery、mutation、actionはインターネットへ公開される。
-管理ユーザー向け関数は`convex/_lib/functions.ts`の`authenticatedQuery`、`authenticatedMutation`、`managerQuery`、`managerMutation`を使い、Clerk identity、ユーザー、店舗、グループ所属をサーバー側で解決する。
+管理ユーザー向け関数は`convex/_lib/functions.ts`の`authenticatedQuery`、`authenticatedMutation`、`managerQuery`、`managerMutation`を使い、Clerk identity、ユーザー、店舗、組織所属をサーバー側で解決する。
 スタッフ向けの提出と閲覧は、同じファイルのスタッフセッションwrapperがsession token、用途、期限、スタッフと店舗の有効性を検証する。
 
 raw public functionは、Clerk認証を使わないCapability入口や公開プレビューなど、匿名利用が必要な箇所に限られる。
@@ -141,7 +141,7 @@ outboxは`convex/notificationOutbox/`が所有する。
 Stripe Webhookは署名検証後に`stripeWebhookEvents`へ保存し、internal actionが処理する。
 Stripe operationとWebhook eventの予約漏れや期限切れleaseは`convex/organizationStripe/maintenance.ts`とcronが回収する。
 
-店舗、グループ、アカウントの削除は、受付transactionで利用停止状態とcleanup jobを先に保存する。
+店舗、組織、アカウントの削除は、受付transactionで利用停止状態とcleanup jobを先に保存する。
 `convex/deletionCleanup/`と`convex/accountDeletion/`がbounded batch、lease、recovery cronを使い、外部provider処理を含む長い削除を再開する。
 詳細は [`features/data-deletion.md`](features/data-deletion.md) と [`features/account-deletion.md`](features/account-deletion.md) を参照する。
 

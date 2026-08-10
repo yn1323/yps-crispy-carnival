@@ -188,6 +188,11 @@ type Story = StoryObj<typeof meta>;
 
 export const MainView: Story = {};
 
+export const MainViewMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+};
+
 export const BasicInformationDialog: Story = {
   args: { activePanel: "basic" },
   play: settleBasicInformationDialogFocus,
@@ -287,10 +292,12 @@ export const ShopMembershipAdditionDarkLaunchBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(canvas.queryByRole("button", { name: "店舗を追加" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: "所属を追加する" })).not.toBeInTheDocument();
     await expect(screen.queryByRole("dialog", { name: "店舗を追加" })).not.toBeInTheDocument();
     await expect(canvas.getByText("所属している店舗はありません。")).toBeInTheDocument();
-    await expect(canvas.queryByText("「店舗を追加」から、このユーザーを店舗に追加できます。")).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByText("「所属を追加する」から、このユーザーを店舗に追加できます。"),
+    ).not.toBeInTheDocument();
   },
 };
 
@@ -328,7 +335,7 @@ export const PersonRemovalUnavailable: Story = {
     data: {
       ...baseData,
       canRemove: false,
-      removeDisabledReason: "最後の有効管理者は削除できません。",
+      removeDisabledReason: "管理者は削除できません。",
     },
   },
 };
@@ -393,6 +400,12 @@ function createPersonRemovalStory(assignmentCount: number): Story {
 }
 
 export const Loading: Story = {
+  render: () => <UserDetailSkeleton />,
+};
+
+export const LoadingMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
   render: () => <UserDetailSkeleton />,
 };
 
@@ -470,25 +483,23 @@ export const PersonRemovalConfirmationAccessibilityBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
-    const confirmationQuestion = "田中 花子さんをこのグループから削除しますか？";
-    const requestButton = canvas.getByRole("button", { name: "削除" });
+    const confirmationQuestion = "田中 花子さんを完全に削除しますか？";
+    const requestButton = canvas.getByRole("button", { name: "削除する" });
 
     await expect(canvas.queryByText(confirmationQuestion)).not.toBeInTheDocument();
     await userEvent.click(requestButton);
 
-    const confirmation = await page.findByRole("alertdialog", { name: "ユーザーを削除" });
+    const confirmation = await page.findByRole("alertdialog", { name: "スタッフを削除" });
     const confirmationContent = within(confirmation);
     await expect(confirmationContent.getByText(confirmationQuestion)).toBeInTheDocument();
+    await expect(confirmationContent.getByText("組織と所属する全店舗から完全に削除します。")).toBeInTheDocument();
+    await expect(confirmationContent.getByText("この操作はもとに戻せません。")).toBeInTheDocument();
+    await expect(confirmationContent.queryByText("過去のシフト履歴は保持されます。")).not.toBeInTheDocument();
     await expect(
-      confirmationContent.getByText("田中 花子さんは、店舗への所属と権限（管理・スタッフ・閲覧）を失います。"),
-    ).toBeInTheDocument();
-    await expect(confirmationContent.getByText("過去のシフト履歴は保持されます。")).toBeInTheDocument();
-    await expect(
-      confirmationContent.getByText("今日以降のシフトには割り当てられていないため、シフトへの影響はありません。"),
-    ).toBeInTheDocument();
-    await expect(confirmationContent.getByText("この操作は元に戻せません。")).toBeInTheDocument();
+      confirmationContent.queryByText("今日以降のシフトには割り当てられていないため、シフトへの影響はありません。"),
+    ).not.toBeInTheDocument();
     await userEvent.click(within(confirmation).getByRole("button", { name: "やめる" }));
-    await expect(page.queryByRole("alertdialog", { name: "ユーザーを削除" })).not.toBeInTheDocument();
+    await expect(page.queryByRole("alertdialog", { name: "スタッフを削除" })).not.toBeInTheDocument();
     await expect(requestButton).toHaveFocus();
   },
 };
@@ -514,7 +525,7 @@ export const AddShopFlowBehavior: Story = {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
 
-    await userEvent.click(canvas.getByRole("button", { name: "店舗を追加" }));
+    await userEvent.click(canvas.getByRole("button", { name: "所属を追加する" }));
     const dialog = await page.findByRole("dialog", { name: "店舗を追加" });
     const additionDialog = within(dialog);
 

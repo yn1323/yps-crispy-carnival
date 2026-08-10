@@ -50,7 +50,7 @@ export function BillingActionDialog({ dialog, isRunning, onClose, onRetryPrice, 
         )}
 
         <Stack gap={2} borderWidth="1px" borderColor="blackAlpha.100" borderRadius="lg" bg="gray.50" p={4}>
-          <SummaryRow label="対象グループ" value={dialog.organizationName} />
+          <SummaryRow label="対象組織" value={dialog.organizationName} />
           {dialog.kind === "startPaidPlan" && <StartPaidPlanSummary dialog={dialog} onRetry={onRetryPrice} />}
           {dialog.kind === "changePaidPlanNow" && <PaidPlanChangeSummary dialog={dialog} onRetry={onRetryPreview} />}
           {dialog.kind === "cancelTrialContinuation" && (

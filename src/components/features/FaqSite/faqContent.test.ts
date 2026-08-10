@@ -156,6 +156,7 @@ describe("FAQコンテンツ", () => {
     ["下書き 再提出", ["draft-after-resubmission"]],
     ["時間指定 日ごと 勤務区分", ["submission-patterns"]],
     ["スタッフ 別店舗", ["add-staff"]],
+    ["グループ", ["add-staff"]],
     ["催促 予約されない", ["automatic-reminder"]],
   ])("複数語の検索「%s」で該当するFAQだけを返す", (query, expectedIds) => {
     expect(searchFaqEntries(faqEntries, query).map((entry) => entry.id)).toEqual(expectedIds);

@@ -25,7 +25,7 @@ import type { OverviewViewModel } from "./viewModels";
 const SEGMENT_DIMENSIONS = [
   ["registrationCohort", "登録時期"],
   ["plan", "プラン"],
-  ["organizationShopCount", "グループ店舗数"],
+  ["organizationShopCount", "組織店舗数"],
   ["shopStaffSize", "店舗スタッフ規模"],
   ["cadence", "通常周期"],
   ["lineUsage", "LINE利用"],
@@ -171,7 +171,7 @@ export function OverviewView({
       <AnalysisControls
         advancedFilterKeys={["organizationId", "shopId"]}
         dataStartDate={model.metadata.dataStartDate}
-        helperText="期間、比較、集計単位、対象グループまたは店舗を変更できます。"
+        helperText="期間、比較、集計単位、対象組織または店舗を変更できます。"
         search={search}
         update={updateSearch}
         warnings={model.metadata.warnings}
@@ -324,7 +324,7 @@ export function OverviewView({
           p={5}
           _hover={{ borderColor: "blue.300", textDecoration: "none" }}
         >
-          <Text fontWeight="bold">グループを比較する →</Text>
+          <Text fontWeight="bold">組織を比較する →</Text>
           <Text color="gray.500" fontSize="sm" mt={1}>
             店舗数、スタッフ数、開始前確定率、要確認状態を比べます。
           </Text>

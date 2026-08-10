@@ -43,7 +43,7 @@ export const ShopSwitcherView = ({ shops, selectedShopId, onSelect }: ShopSwitch
   if (selectableShops.length === 0) return null;
 
   const currentContextLabel = selectedShop
-    ? `${selectedShop.organizationName ?? "所属グループ"}、${selectedShop.shopName}`
+    ? `${selectedShop.organizationName ?? "所属組織"}、${selectedShop.shopName}`
     : "店舗未選択";
 
   return (
@@ -71,7 +71,7 @@ export const ShopSwitcherView = ({ shops, selectedShopId, onSelect }: ShopSwitch
           <Icon as={LuStore} boxSize={5} color="teal.600" flexShrink={0} />
           <Box display={{ base: "none", md: "block" }} minW={0} textAlign="left" flex={1}>
             <Text fontSize="xs" color="fg.muted" truncate>
-              {selectedShop?.organizationName ?? "グループ・店舗を選択"}
+              {selectedShop?.organizationName ?? "組織・店舗を選択"}
             </Text>
             <Text fontSize="sm" fontWeight="semibold" truncate>
               {selectedShop?.shopName ?? "店舗を選ぶ"}

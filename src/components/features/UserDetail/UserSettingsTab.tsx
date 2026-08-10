@@ -89,8 +89,12 @@ export function UserGroupRemovalSection({
   return (
     <>
       <DeletionActionSection
-        title="ユーザーを削除する"
-        actionLabel="削除"
+        title="スタッフを完全に削除する"
+        description={
+          "組織、すべての店舗からこのスタッフを削除します。\n店舗から外す場合、所属店舗ページから「店舗から外す」を押してください。"
+        }
+        descriptionFontSize="xs"
+        actionLabel="削除する"
         actionVariant="solid"
         canDelete={!isDisabled}
         disabledReason={disabledReason}
@@ -100,10 +104,10 @@ export function UserGroupRemovalSection({
 
       {isConfirmationOpen && (
         <Dialog
-          title="ユーザーを削除"
+          title="スタッフを削除"
           isOpen
           role="alertdialog"
-          submitLabel="グループから削除"
+          submitLabel="組織から削除"
           submitColorPalette="red"
           closeLabel="やめる"
           isLoading={isRemoving}
@@ -119,17 +123,16 @@ export function UserGroupRemovalSection({
         >
           <Stack gap={3} fontSize="sm" color="fg.muted" lineHeight="tall">
             <Text fontWeight="semibold" color="gray.900">
-              {personName}さんをこのグループから削除しますか？
+              {personName}さんを完全に削除しますか？
             </Text>
-            <Text>{personName}さんは、店舗への所属と権限（管理・スタッフ・閲覧）を失います。</Text>
-            <Stack gap={1}>
-              <Text>過去のシフト履歴は保持されます。</Text>
+            <Text>組織と所属する全店舗から完全に削除します。</Text>
+            {removalPreview.kind === "tooMany" && (
               <Text color="orange.700" fontWeight="medium" whiteSpace="pre-line">
-                {getAssignmentRemovalDescription(removalPreview)}
+                {getAssignmentRemovalWarning(removalPreview)}
               </Text>
-            </Stack>
+            )}
             <Text color="red.700" fontWeight="semibold">
-              この操作は元に戻せません。
+              この操作はもとに戻せません。
             </Text>
           </Stack>
         </Dialog>
@@ -195,8 +198,8 @@ function ManagerRoleAction({
             title={`${data.person.name}さんの管理者権限を外しますか？`}
             description={
               data.memberships.length > 0
-                ? "このユーザーのグループ全体に対する管理権限を外します。\nスタッフとしての店舗所属は維持します。\nこのユーザーが発行した未連携のログイン案内は無効になります。"
-                : "店舗所属がないため、管理者権限を外すと、このグループへのアクセスも終了します。\nグループのユーザー情報とシフト記録は残ります。\nこのユーザーが発行した未連携のログイン案内は無効になります。"
+                ? "このユーザーの組織全体に対する管理権限を外します。\nスタッフとしての店舗所属は維持します。\nこのユーザーが発行した未連携のログイン案内は無効になります。"
+                : "店舗所属がないため、管理者権限を外すと、この組織へのアクセスも終了します。\n組織のユーザー情報とシフト記録は残ります。\nこのユーザーが発行した未連携のログイン案内は無効になります。"
             }
             confirmLabel="管理者権限を外す"
             isLoading={isRemovingManagerRole}
@@ -252,7 +255,7 @@ function ManagerRoleAction({
         {!canAssign && (
           <Text id={managerInvitationDisabledReasonId} fontSize="xs" color="orange.700" textAlign="right">
             {!data.canWrite
-              ? (data.writeDisabledReason ?? "現在、このグループの情報を変更できません。")
+              ? (data.writeDisabledReason ?? "現在、この組織の情報を変更できません。")
               : invitation.kind === "unavailable"
                 ? invitation.reason
                 : "メールアドレスを登録してから、管理者に設定してください。"}
@@ -351,13 +354,7 @@ function InlineDestructiveConfirmation({
   );
 }
 
-function getAssignmentRemovalDescription(preview: UserDetailRemovalPreview) {
-  if (preview.kind === "tooMany") {
-    return `今日以降のシフトの割り当てが${preview.limit}件を超えています。
+function getAssignmentRemovalWarning(preview: Extract<UserDetailRemovalPreview, { kind: "tooMany" }>) {
+  return `今日以降のシフトの割り当てが${preview.limit}件を超えています。
 シフトを整理してから削除してください。`;
-  }
-  if (preview.assignmentCount === 0) {
-    return "今日以降のシフトには割り当てられていないため、シフトへの影響はありません。";
-  }
-  return `今日以降のシフト${preview.assignmentCount}件からも外れます。`;
 }

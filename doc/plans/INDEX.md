@@ -38,7 +38,7 @@
 | [スタッフ通知履歴](2026-07-19_スタッフ通知履歴_実装計画.md) | `rollout` | リリースとResendの`email.delivered` Webhook設定を証跡付きで確認する | [スタッフ通知履歴](../features/notification-history.md)、[リリース状態](../manual/release-status.md) |
 | [Stripeセキュリティ対策](2026-07-20_Stripeセキュリティ対策_テスト計画.md) | `blocked` | Stripe sandbox canary、Clerk・Cloudflare・端末保護などの実環境証跡 | [セキュリティ再検証](../manual/security-validation.md)、[リリース状態](../manual/release-status.md) |
 | [課金プラン改定・Business再導入](2026-07-21_課金プラン改定_Business再導入_実装計画.md) | `rollout` | Stripe外部設定、Convex deploy、snapshot、m021、公開判定の証跡 | [課金業務フロー](../specs/organization-billing-business-flow.md)、[グループ課金の運用](../manual/organization-billing.md)、[リリース状態](../manual/release-status.md) |
-| [グループ追加、店舗追加、支払い、管理者招待・交代のダークローンチ](2026-07-25_ダークローンチ_実装計画.md) | `rollout` | 対象deploymentへのdeploy、4フラグの設定値、m022、閉状態の実環境表示を証跡付きで確認する | [グループ課金、複数店舗、複数管理者](../features/organization-billing.md)、[グループ課金の運用](../manual/organization-billing.md)、[リリース状態](../manual/release-status.md) |
+| [グループ追加、店舗追加、支払い、管理者招待・交代のダークローンチ](2026-07-25_ダークローンチ_実装計画.md) | `rollout` | 対象deploymentへのdeploy、残存3フラグの設定値、`FEATURE_SHOP_ADDITION`の削除、m022、閉状態の実環境表示を証跡付きで確認する | [グループ課金、複数店舗、複数管理者](../features/organization-billing.md)、[グループ課金の運用](../manual/organization-billing.md)、[リリース状態](../manual/release-status.md) |
 | [doc現行コード差分調査](2026-07-23_doc現行コード差分調査.md) | `reviewing` | 10論点のProduct、Security、Backend、運用判断を確定し、必要な別計画へ引き渡す | [現行コード差分調査](2026-07-23_doc現行コード差分調査.md) |
 
 `frontend-test-vrt-refactor`は本文に実施結果がないため、完了済みと推測せず`Active`に残しています。

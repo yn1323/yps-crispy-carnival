@@ -1,6 +1,6 @@
 # リリース状態
 
-> 最終更新: 2026-08-04
+> 最終更新: 2026-08-09
 >
 > 実環境確認: 未確認
 
@@ -17,7 +17,7 @@
 | Productionのフロントエンドartifactとcommit SHA | 未確認 | 未確認 | 未確認 | 未登録 |
 | ProductionのConvex deployとcommit SHA | 未確認 | 未確認 | 未確認 | 未登録 |
 | Productionのmigration seriesと各migrationの完了 | 未確認 | 未確認 | 未確認 | 未登録 |
-| ダークローンチ4フラグのdeployment別設定値と画面表示 | 未確認 | 未確認 | 未確認 | 未登録 |
+| 残存ダークローンチ3フラグの設定値・画面表示と、廃止した`FEATURE_SHOP_ADDITION`の不在 | 未確認 | 未確認 | 未確認 | 未登録 |
 | StripeのPro・Business公開設定、Price、Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
 | Resendの`email.delivered` Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
 | Clerk、Cloudflare、Stripeのセキュリティ設定とprovider canary | 未確認 | 未確認 | 未確認 | 未登録 |
@@ -96,4 +96,4 @@ Migrationを確認するときは、少なくとも次を分けて記録しま�
 5. 実行後snapshotと対象件数、整合性検証。
 6. 失敗時のforward recoveryまたは復旧判断。
 
-具体的な実行手順は[グループ課金の運用](organization-billing.md)と、対象機能の運用文書を参照してください。
+具体的な実行手順は[組織課金の運用](organization-billing.md)と、対象機能の運用文書を参照してください。

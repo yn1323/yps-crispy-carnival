@@ -391,7 +391,7 @@ async function runOrganizationStep(
       return { phase: "organizationCreatedByUser" };
     }
     case "organizationCreatedByUser": {
-      // 旧jobとの互換性のためphaseは維持するが、global userはグループ削除の対象外。
+      // 旧jobとの互換性のためphaseは維持するが、global userは組織削除の対象外。
       return { phase: "organizationVerification" };
     }
     case "organizationVerification": {
@@ -497,7 +497,7 @@ async function runShopResource(
       return { done: members.length < CLEANUP_BATCH_SIZE };
     }
     case "memberUsers": {
-      // 旧jobとの互換性のためresourceは維持するが、global userはグループ削除の対象外。
+      // 旧jobとの互換性のためresourceは維持するが、global userは組織削除の対象外。
       return { done: true };
     }
     case "lineAccounts": {

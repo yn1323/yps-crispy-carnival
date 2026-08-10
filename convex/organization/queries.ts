@@ -1,11 +1,6 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
-import {
-  isBillingEnabled,
-  isManagerInvitationEnabled,
-  isOrganizationCreationEnabled,
-  isShopAdditionEnabled,
-} from "../_lib/config";
+import { isBillingEnabled, isManagerInvitationEnabled, isOrganizationCreationEnabled } from "../_lib/config";
 import { formatDateJa, formatDateTimeJa } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
@@ -202,7 +197,7 @@ function legacyMigrationPendingSettings(
   shop: Doc<"shops">,
   creationAvailability: OrganizationCreationAvailability,
 ) {
-  const migrationReason = "グループ単位の設定を移行しています。\n完了するまで、既存データを閲覧できます。";
+  const migrationReason = "組織単位の設定を移行しています。\n完了するまで、既存データを閲覧できます。";
   return {
     organizationName: shop.name,
     people: [
@@ -249,7 +244,7 @@ function legacyMigrationPendingSettings(
       shopUsage: { current: 1, max: 0, pendingInvitations: 0 },
       managerUsage: { current: 1, max: 0, pendingInvitations: 0 },
       requiredReductions: { people: 0, shops: 0, managers: 0 },
-      blockedReason: "グループ単位のプラン設定を移行しています。\n完了後、利用状態を再確認します。",
+      blockedReason: "組織単位のプラン設定を移行しています。\n完了後、利用状態を再確認します。",
       billingEmail: user.email,
       canManagePlan: false,
       canUpdatePaymentMethod: false,
@@ -269,18 +264,19 @@ function legacyMigrationPendingSettings(
     addShopDisabledReason: migrationReason,
     canDeleteOrganization: false,
     deleteOrganizationDisabledReason: migrationReason,
-    // グループ作成は選択中グループの移行状態と独立しているため、移行待ちでも利用者単位で判定する。
+    // 組織作成は選択中組織の移行状態と独立しているため、移行待ちでも利用者単位で判定する。
     canCreateOrganization: creationAvailability.canCreate,
     ...(creationAvailability.canCreate ? {} : { createOrganizationDisabledReason: creationAvailability.reason }),
     features: getOrganizationSettingsFeatures(),
   };
 }
 
-/** ダークローンチ中に公開していない導線を、画面の描画判定へ渡す。認可根拠には使わない。 */
+/** 公開状態を画面の描画判定へ渡す。認可根拠には使わない。 */
 function getOrganizationSettingsFeatures() {
   return {
     organizationCreation: isOrganizationCreationEnabled(),
-    shopAddition: isShopAdditionEnabled(),
+    // 旧frontendとの段階リリース互換のため項目を残し、常時公開として返す。
+    shopAddition: true,
     billing: isBillingEnabled(),
     managerInvitation: isManagerInvitationEnabled(),
   };
@@ -309,7 +305,7 @@ export const getSettings = managerQuery({
   returns: v.union(organizationSettingsValidator, v.null()),
   handler: async (ctx) => {
     if (!ctx.user || !ctx.shop) return null;
-    // 新しいグループを作れるかは選択中グループの課金状態や所属状態と独立しており、利用者単位で決まる。
+    // 新しい組織を作れるかは選択中組織の課金状態や所属状態と独立しており、利用者単位で決まる。
     const creationAvailability = await getOrganizationCreationAvailability(ctx, ctx.user);
     if (!ctx.organization) return legacyMigrationPendingSettings(ctx.user, ctx.shop, creationAvailability);
 
@@ -441,7 +437,7 @@ export const getSettings = managerQuery({
       );
     }
 
-    // 店舗所属がなくなってもグループの利用人数に含まれる人物は、削除済みを含むstaff履歴から判定する。
+    // 店舗所属がなくなっても組織の利用人数に含まれる人物は、削除済みを含むstaff履歴から判定する。
     const staffRolePersonIds = new Set(
       (
         await Promise.all(
@@ -772,7 +768,7 @@ export const getSettings = managerQuery({
     const deleteShopDisabledReason = canDeleteShop
       ? undefined
       : shops.length <= 1
-        ? "グループには少なくとも1店舗が必要です。"
+        ? "組織には少なくとも1店舗が必要です。"
         : !isActiveActor
           ? "閲覧のみの管理者は、店舗を削除できません。"
           : restrictedState
@@ -786,7 +782,7 @@ export const getSettings = managerQuery({
           : shop.operatingStatus !== "active"
             ? "利用停止中の店舗は、設定を変更できません。"
             : !billingState
-              ? "グループ単位の設定を移行しています。\n完了するまでお待ちください。"
+              ? "組織単位の設定を移行しています。\n完了するまでお待ちください。"
               : !isActiveActor
                 ? "閲覧のみの管理者は、店舗設定を変更できません。"
                 : restrictedState
@@ -944,7 +940,7 @@ export const getSettings = managerQuery({
         ...billingCapabilityReasons,
         state: "migrationPending",
         currentPlan: null,
-        blockedReason: "グループ単位のプラン設定を移行しています。\n完了後、利用状態を再確認します。",
+        blockedReason: "組織単位のプラン設定を移行しています。\n完了後、利用状態を再確認します。",
       };
     } else {
       const state = billingState.state;
@@ -1055,7 +1051,7 @@ export const getSettings = managerQuery({
     const inviteManagerDisabledReason = canInviteManager
       ? undefined
       : !billingState
-        ? "グループ単位のプラン設定を移行しています。\n完了するまでお待ちください。"
+        ? "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。"
         : !isActiveActor
           ? "閲覧のみの管理者は、管理者を招待できません。"
           : restrictedState
@@ -1063,19 +1059,19 @@ export const getSettings = managerQuery({
             : managerInvitationMode === "freeManagerExchange" && activeFreeManagerExchangeInvitations.length > 0
               ? "次の管理者のアカウント連携を待っています。\n連携が完了するまでは、現在の管理者が引き続き操作できます。"
               : managerInvitationMode === "freeManagerExchange"
-                ? "無料プランでは、グループ内の既存スタッフへの管理者交代のみ行えます。"
+                ? "無料プランでは、組織内の既存スタッフへの管理者交代のみ行えます。"
                 : policy?.paidFeatureBlockReason === "freePlan"
                   ? "無料プランでは、管理者を追加できません。\n有料プランを選択してください。"
                   : policy?.paidFeatureBlockReason === "paymentResultPending"
                     ? "支払い結果が確定してから、管理者を招待できます。"
-                    : "管理者と招待中の管理者は、グループ全体で5名までです。";
+                    : "管理者と招待中の管理者は、組織全体で5名までです。";
     const canAddShop = Boolean(
       isActiveActor && policy?.canUsePaidFeatures && policy.limits && activeShopCount < policy.limits.maxActiveShops,
     );
     const addShopDisabledReason = canAddShop
       ? undefined
       : !billingState
-        ? "グループ単位のプラン設定を移行しています。\n完了するまでお待ちください。"
+        ? "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。"
         : !isActiveActor
           ? "閲覧のみの管理者は、店舗を追加できません。"
           : restrictedState
@@ -1084,13 +1080,13 @@ export const getSettings = managerQuery({
               ? "無料プランでは、店舗を追加できません。\n有料プランを選択してください。"
               : policy?.paidFeatureBlockReason === "paymentResultPending"
                 ? "支払い結果が確定してから、店舗を追加できます。"
-                : "店舗は、グループごとに5件まで登録できます。";
+                : "店舗は、組織ごとに5件まで登録できます。";
     const canUpdateOrganizationName = isActiveActor;
     const updateOrganizationNameDisabledReason = canUpdateOrganizationName
       ? undefined
       : !ctx.organizationMember
-        ? "グループ単位の設定を移行しています。\n完了するまでお待ちください。"
-        : "閲覧のみの管理者は、グループ名を変更できません。";
+        ? "組織単位の設定を移行しています。\n完了するまでお待ちください。"
+        : "閲覧のみの管理者は、組織名を変更できません。";
 
     const deletionEligibility = ctx.organizationMember
       ? await getOrganizationDeletionEligibility(ctx, {
@@ -1100,7 +1096,7 @@ export const getSettings = managerQuery({
         })
       : {
           canDelete: false as const,
-          reason: "グループ単位の設定を移行しています。\n完了するまでお待ちください。",
+          reason: "組織単位の設定を移行しています。\n完了するまでお待ちください。",
         };
 
     return {

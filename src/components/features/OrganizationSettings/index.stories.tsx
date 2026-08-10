@@ -1,10 +1,12 @@
+import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { OrganizationSettingsView } from ".";
+import { OrganizationSettingsSkeleton, OrganizationSettingsView } from ".";
 import type { OrganizationContextModel } from "./OrganizationContext/script";
 import type { OrganizationBillingView, OrganizationSettingsViewProps } from "./types";
 
 const actions = {
+  onBackToDashboard: fn(),
   onSelectOrganization: fn(),
   onUpdateOrganizationName: fn(),
   onInviteManager: fn(),
@@ -79,7 +81,7 @@ const baseArgs: OrganizationSettingsViewProps = {
       canRemoveManagerRole: false,
       managerRoleRemovalDisabledReason: "最後の有効管理者の管理者権限は外せません。",
       canRemove: false,
-      removeDisabledReason: "最後の有効管理者は削除できません。",
+      removeDisabledReason: "管理者は削除できません。",
     },
     {
       id: "person-readonly",
@@ -187,11 +189,11 @@ const disabledActionReasonArgs: Pick<
   freeManagerExchangeCandidates: [],
   inviteManagerDisabledReason: "閲覧のみの管理者は、管理者を招待できません。",
   canUpdateOrganizationName: false,
-  updateOrganizationNameDisabledReason: "閲覧のみの管理者は、グループ名を変更できません。",
+  updateOrganizationNameDisabledReason: "閲覧のみの管理者は、組織名を変更できません。",
   canAddShop: false,
   addShopDisabledReason: "閲覧のみの管理者は、店舗を追加できません。",
   canDeleteOrganization: false,
-  deleteOrganizationDisabledReason: "閲覧のみの管理者はグループを削除できません。",
+  deleteOrganizationDisabledReason: "閲覧のみの管理者は組織を削除できません。",
   billing: billing({
     state: "pendingActivation",
     currentPlan: null,
@@ -217,16 +219,92 @@ const meta = {
   title: "Features/OrganizationSettings/1. 画面全体",
   component: OrganizationSettingsView,
   parameters: { layout: "padded" },
+  decorators: [
+    (Story) => (
+      <Box maxW="1024px" mx="auto" w="full">
+        <Story />
+      </Box>
+    ),
+  ],
   args: baseArgs,
 } satisfies Meta<typeof OrganizationSettingsView>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Users: Story = { name: "ユーザー｜通常" };
+export const LoadingPeople: Story = {
+  name: "読み込み｜スタッフ",
+  render: () => <OrganizationSettingsSkeleton defaultTab="people" features={baseArgs.features} />,
+};
+
+export const LoadingShops: Story = {
+  name: "読み込み｜店舗",
+  render: () => <OrganizationSettingsSkeleton defaultTab="shops" features={baseArgs.features} />,
+};
+
+export const LoadingBilling: Story = {
+  name: "読み込み｜プランと支払い",
+  render: () => <OrganizationSettingsSkeleton defaultTab="billing" features={baseArgs.features} />,
+};
+
+export const LoadingSettings: Story = {
+  name: "読み込み｜設定",
+  render: () => <OrganizationSettingsSkeleton defaultTab="settings" features={baseArgs.features} />,
+};
+
+export const LoadingPeopleMultipleOrganizations: Story = {
+  name: "読み込み｜スタッフ・複数組織",
+  render: () => (
+    <OrganizationSettingsSkeleton defaultTab="people" showOrganizationSelector features={baseArgs.features} />
+  ),
+};
+
+export const LoadingClosedFeatures: Story = {
+  name: "読み込み｜未公開導線なし",
+  render: () => <OrganizationSettingsSkeleton defaultTab="billing" />,
+};
+
+export const MobileLoadingPeople: Story = {
+  name: "読み込み｜スタッフ・モバイル",
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  render: () => <OrganizationSettingsSkeleton defaultTab="people" features={baseArgs.features} />,
+};
+
+export const MobileLoadingShops: Story = {
+  name: "読み込み｜店舗・モバイル",
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  render: () => <OrganizationSettingsSkeleton defaultTab="shops" features={baseArgs.features} />,
+};
+
+export const MobileLoadingBilling: Story = {
+  name: "読み込み｜プランと支払い・モバイル",
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  render: () => <OrganizationSettingsSkeleton defaultTab="billing" features={baseArgs.features} />,
+};
+
+export const MobileLoadingSettings: Story = {
+  name: "読み込み｜設定・モバイル",
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  render: () => <OrganizationSettingsSkeleton defaultTab="settings" features={baseArgs.features} />,
+};
+
+export const MobileLoadingPeopleMultipleOrganizations: Story = {
+  name: "読み込み｜スタッフ・複数組織・モバイル",
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  render: () => (
+    <OrganizationSettingsSkeleton defaultTab="people" showOrganizationSelector features={baseArgs.features} />
+  ),
+};
+
+export const Users: Story = { name: "スタッフ｜通常" };
 
 export const StaffWithoutShop: Story = {
-  name: "ユーザー｜店舗未所属",
+  name: "スタッフ｜店舗未所属",
   args: {
     people: [
       ...baseArgs.people,
@@ -243,10 +321,14 @@ export const StaffWithoutShop: Story = {
       },
     ],
   },
+  play: async ({ canvasElement }) => {
+    const row = within(canvasElement).getByRole("button", { name: "店舗未所属スタッフのスタッフ詳細を開く" });
+    await expect(within(row).getByText("所属店舗なし")).toBeVisible();
+  },
 };
 
 export const UserListLoadMoreBehavior: Story = {
-  name: "ユーザー｜もっと見る（操作確認）",
+  name: "スタッフ｜もっと見る（操作確認）",
   parameters: { screenshot: { skip: true } },
   args: {
     people: [
@@ -268,7 +350,7 @@ export const UserListLoadMoreBehavior: Story = {
 };
 
 export const FutureAssignmentRemovalBlocked: Story = {
-  name: "ユーザー｜未来のシフトあり",
+  name: "スタッフ｜未来のシフトあり",
   args: {
     people: baseArgs.people.map((person) =>
       person.id === "person-staff"
@@ -283,7 +365,7 @@ export const FutureAssignmentRemovalBlocked: Story = {
 };
 
 export const UserNavigationBehavior: Story = {
-  name: "ユーザー｜詳細を開く（操作確認）",
+  name: "スタッフ｜詳細を開く（操作確認）",
   parameters: { screenshot: { skip: true } },
   args: {
     actions: { ...actions, onOpenUser: fn() },
@@ -297,7 +379,7 @@ export const UserNavigationBehavior: Story = {
 };
 
 export const ManagerRoleRemoval: Story = {
-  name: "ユーザー｜管理者権限を外す",
+  name: "スタッフ｜管理者権限を外す",
   args: {
     people: [
       {
@@ -330,12 +412,12 @@ export const LazyTabMountBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(canvas.queryByText("グループの店舗")).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("heading", { name: "全店舗 (2/5)" })).not.toBeInTheDocument();
     await userEvent.click(canvas.getByRole("tab", { name: "店舗" }));
-    await expect(await canvas.findByRole("heading", { name: "グループの店舗" })).toBeInTheDocument();
+    await expect(await canvas.findByRole("heading", { name: "全店舗 (2/5)" })).toBeInTheDocument();
 
-    await userEvent.click(canvas.getByRole("tab", { name: "ユーザー" }));
-    await expect(canvas.queryByText("グループの店舗")).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("tab", { name: "スタッフ" }));
+    await expect(canvas.getByRole("heading", { name: "全スタッフ (8/20)" })).toBeInTheDocument();
   },
 };
 
@@ -363,17 +445,17 @@ export const DarkLaunchHiddenEntrypointsBehavior: Story = {
     const canvas = within(canvasElement);
 
     await expect(canvas.queryByRole("tab", { name: "プランと支払い" })).not.toBeInTheDocument();
-    await expect(canvas.queryByRole("button", { name: "店舗を追加" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: "店舗を追加する" })).not.toBeInTheDocument();
 
-    await userEvent.click(canvas.getByRole("tab", { name: "ユーザー" }));
+    await userEvent.click(canvas.getByRole("tab", { name: "スタッフ" }));
     await expect(
       canvas.queryByRole("button", { name: /管理者を招待|次の管理者を招待|ログイン案内を再送/ }),
     ).not.toBeInTheDocument();
 
     await userEvent.click(canvas.getByRole("tab", { name: "設定" }));
-    await expect(canvas.queryByRole("button", { name: "新しいグループを作る" })).not.toBeInTheDocument();
-    // グループ削除は退会導線のため、ダークローンチ中も残す。
-    await expect(canvas.getByRole("button", { name: /^削除$/ })).toBeEnabled();
+    await expect(canvas.queryByRole("button", { name: "新しい組織を作る" })).not.toBeInTheDocument();
+    // 組織削除は退会導線のため、ダークローンチ中も残す。
+    await expect(canvas.getByRole("button", { name: /^削除する$/ })).toBeEnabled();
   },
 };
 
@@ -382,37 +464,37 @@ export const SettingsDeletionUnavailable: Story = {
   args: {
     defaultTab: "settings",
     canDeleteOrganization: false,
-    deleteOrganizationDisabledReason: "グループを削除するには、先に有料契約やプラン変更を終了してください。",
+    deleteOrganizationDisabledReason: "有料契約やプラン変更を終了してから、組織を削除してください。",
   },
   play: async ({ canvasElement }) => {
-    const deleteButton = within(canvasElement).getByRole("button", { name: /^削除$/ });
+    const deleteButton = within(canvasElement).getByRole("button", { name: /^削除する$/ });
 
     await expect(deleteButton).toBeDisabled();
     await expect(deleteButton).toHaveAccessibleDescription(
-      "グループを削除するには、先に有料契約やプラン変更を終了してください。",
+      "有料契約またはプラン変更の予約が残っています。\n「プランと支払い」で契約や予約を終了してから、組織を削除してください。",
     );
   },
 };
 
 export const SettingsDeletionUnavailableWithStripeSubscription: Story = {
-  name: "設定｜Stripe契約が残るため削除不可",
+  name: "設定｜Stripe契約が残るため削除不可（旧reason互換）",
   args: {
     defaultTab: "settings",
     canDeleteOrganization: false,
-    deleteOrganizationDisabledReason: "グループを削除するには、先にStripeの契約終了を確認してください。",
+    deleteOrganizationDisabledReason: "Stripeの契約終了を確認してから、グループを削除してください。",
   },
   play: async ({ canvasElement }) => {
-    const deleteButton = within(canvasElement).getByRole("button", { name: /^削除$/ });
+    const deleteButton = within(canvasElement).getByRole("button", { name: /^削除する$/ });
 
     await expect(deleteButton).toBeDisabled();
     await expect(deleteButton).toHaveAccessibleDescription(
-      "グループを削除するには、先にStripeの契約終了を確認してください。",
+      "有料契約またはプラン変更の予約が残っています。\n「プランと支払い」で契約や予約を終了してから、組織を削除してください。",
     );
   },
 };
 
 export const OrganizationDeletionActionBehavior: Story = {
-  name: "設定｜グループ削除（操作確認）",
+  name: "設定｜組織削除（操作確認）",
   parameters: { screenshot: { skip: true } },
   args: {
     defaultTab: "settings",
@@ -420,7 +502,7 @@ export const OrganizationDeletionActionBehavior: Story = {
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: /^削除$/ }));
+    await userEvent.click(canvas.getByRole("button", { name: /^削除する$/ }));
     await expect(args.actions.onDeleteOrganization).toHaveBeenCalledTimes(1);
   },
 };
@@ -447,12 +529,12 @@ export const DisabledActionReasonsBehavior: Story = {
       "閲覧のみの管理者は、管理者を招待できません。",
     );
     await expectDisabledActionDescription(
-      canvas.getByRole("button", { name: "グループ名を変更" }),
-      "閲覧のみの管理者は、グループ名を変更できません。",
+      canvas.getByRole("button", { name: "組織名を変更" }),
+      "閲覧のみの管理者は、組織名を変更できません。",
     );
     await userEvent.click(canvas.getByRole("tab", { name: "店舗" }));
     await expectDisabledActionDescription(
-      canvas.getByRole("button", { name: "店舗を追加" }),
+      canvas.getByRole("button", { name: "店舗を追加する" }),
       "閲覧のみの管理者は、店舗を追加できません。",
     );
     await userEvent.click(canvas.getByRole("tab", { name: "プランと支払い" }));
@@ -464,8 +546,8 @@ export const DisabledActionReasonsBehavior: Story = {
     );
     await userEvent.click(canvas.getByRole("tab", { name: "設定" }));
     await expectDisabledActionDescription(
-      canvas.getByRole("button", { name: /^削除$/ }),
-      "閲覧のみの管理者はグループを削除できません。",
+      canvas.getByRole("button", { name: /^削除する$/ }),
+      "閲覧のみの管理者は組織を削除できません。",
     );
   },
 };
@@ -610,7 +692,7 @@ export const ShopCapacityReachedBehavior: Story = {
   args: {
     defaultTab: "shops",
     canAddShop: false,
-    addShopDisabledReason: "店舗は、グループごとに5件まで登録できます。",
+    addShopDisabledReason: "店舗は、組織ごとに5件まで登録できます。",
     billing: billing({
       state: "pro",
       currentPlan: "pro",
@@ -620,8 +702,8 @@ export const ShopCapacityReachedBehavior: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const addShopButton = canvas.getByRole("button", { name: "店舗を追加" });
-    await expectDisabledActionDescription(addShopButton, "店舗は、グループごとに5件まで登録できます。");
+    const addShopButton = canvas.getByRole("button", { name: "店舗を追加する" });
+    await expectDisabledActionDescription(addShopButton, "店舗は、組織ごとに5件まで登録できます。");
     await expect(canvas.queryByRole("link", { name: "利用上限について問い合わせる" })).not.toBeInTheDocument();
   },
 };
@@ -717,13 +799,13 @@ export const MigrationPending: Story = {
     canInviteManager: false,
     managerInvitationMode: "addition",
     freeManagerExchangeCandidates: [],
-    inviteManagerDisabledReason: "グループ単位の設定を移行しています。\n完了するまでお待ちください。",
+    inviteManagerDisabledReason: "組織単位の設定を移行しています。\n完了するまでお待ちください。",
     canAddShop: false,
-    addShopDisabledReason: "グループ単位のプラン設定を移行しています。\n完了するまでお待ちください。",
+    addShopDisabledReason: "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。",
     billing: billing({
       state: "migrationPending",
       currentPlan: null,
-      blockedReason: "グループ単位のプラン設定を移行しています。完了後に自動で利用状態を再確認します。",
+      blockedReason: "組織単位のプラン設定を移行しています。完了後に自動で利用状態を再確認します。",
       nextEvent: undefined,
       hasStripeCustomer: false,
       canManagePlan: false,
@@ -810,7 +892,7 @@ export const MobileComplimentaryBusiness: Story = {
 };
 
 export const MobileUsers: Story = {
-  name: "ユーザー｜通常・モバイル",
+  name: "スタッフ｜通常・モバイル",
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: { defaultTab: "people" },

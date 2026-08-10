@@ -78,7 +78,7 @@ describe("店舗詳細の戻り先", () => {
     });
   });
 
-  it("グループ設定から開いた場合だけ同じグループ設定へ戻る", () => {
+  it("組織設定から開いた場合だけ同じ組織設定へ戻る", () => {
     render(<ShopDetail shop={shop} people={[]} selectedShopId="shop-context" returnTo="settings" />);
 
     fireEvent.click(screen.getByRole("button", { name: "前の画面に戻る" }));

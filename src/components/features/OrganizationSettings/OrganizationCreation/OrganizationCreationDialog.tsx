@@ -20,7 +20,7 @@ export function OrganizationCreationDialog({ dialog, onClose, onSubmit }: Props)
 
   return (
     <StepperDialog
-      title="新しいグループを作る"
+      title="新しい組織を作る"
       isOpen
       onOpenChange={({ open }) => {
         if (!open) onClose();
@@ -28,10 +28,10 @@ export function OrganizationCreationDialog({ dialog, onClose, onSubmit }: Props)
       onClose={onClose}
     >
       <Stack gap={4}>
-        {/* 一つ目のグループと開始プランが違うため、作る前に見える位置へ置く。 */}
+        {/* 一つ目の組織と開始プランが違うため、作る前に見える位置へ置く。 */}
         <Box borderRadius="lg" bg="blue.50" px={4} py={3}>
           <Text fontSize="sm" color="blue.900" lineHeight="tall">
-            新しいグループは無料プランで始まります。
+            新しい組織は無料プランで始まります。
             <br />
             ユーザー5名、店舗1件、管理者1名まで利用できます。
             <br />
@@ -42,7 +42,7 @@ export function OrganizationCreationDialog({ dialog, onClose, onSubmit }: Props)
           defaultValues={CREATE_ORGANIZATION_DEFAULT_VALUES}
           onSubmit={onSubmit}
           onCancel={onClose}
-          submitLabel="グループを作る"
+          submitLabel="組織を作る"
         />
       </Stack>
     </StepperDialog>

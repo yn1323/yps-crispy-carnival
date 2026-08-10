@@ -1,8 +1,12 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type ComponentProps, useState } from "react";
+import dayjs from "dayjs";
+import { createStore, Provider } from "jotai";
+import { type ComponentProps, type ReactNode, useState } from "react";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
+import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
 import { Button } from "@/src/components/ui/Button";
+import { userAtom } from "@/src/stores/user";
 import type { DashboardNotificationFailure } from "../NotificationFailureDialog";
 import type { OperationContextData } from "../OperationContext";
 import { buildDashboardRecruitmentGroups } from "../script";
@@ -42,6 +46,11 @@ const operationContextData = {
       organizationName: "佐藤フードグループ",
     },
   ],
+  selectedShop: operationShop,
+  onSelect: noop,
+} satisfies OperationContextData;
+const singleShopOperationContextData = {
+  shops: [operationShop],
   selectedShop: operationShop,
   onSelect: noop,
 } satisfies OperationContextData;
@@ -121,7 +130,28 @@ const notificationFailures = [
     canRetry: true,
   },
 ] as unknown as DashboardNotificationFailure[];
-const dashboardRecruitments = mockRecruitments;
+// 日付が進んでもVRTの表示状態が変わらないよう、期間は将来に固定し、締切表示だけを「今日」に保つ。
+const dashboardStoryToday = dayjs().format("YYYY-MM-DD");
+const dashboardRecruitments = [
+  {
+    ...mockCurrentRecruitments[0],
+    periodStart: "2099-01-01",
+    periodEnd: "2099-01-15",
+    deadline: "2098-12-20",
+  },
+  {
+    ...mockRecruitments[0],
+    periodStart: "2099-02-01",
+    periodEnd: "2099-02-15",
+    deadline: dashboardStoryToday,
+  },
+  {
+    ...mockRecruitments[1],
+    periodStart: "2099-03-01",
+    periodEnd: "2099-03-15",
+    deadline: dashboardStoryToday,
+  },
+] satisfies Recruitment[];
 const dashboardRecruitmentGroups = buildDashboardRecruitmentGroups({ recruitments: dashboardRecruitments }).groups;
 
 const onboardingRecruitment = (overrides: Partial<Recruitment> = {}) =>
@@ -170,6 +200,41 @@ const dashboardBaseArgs = {
   | "loadMoreStaffs"
 >;
 
+const singleShopDashboardArgs = {
+  ...dashboardBaseArgs,
+  operationContextData: singleShopOperationContextData,
+  recruitments: dashboardRecruitments,
+  recruitmentGroups: dashboardRecruitmentGroups,
+  currentRecruitments: [dashboardRecruitments[0]],
+  hasPastRecruitments: false,
+  staffs: mockStaffs,
+  staffStatus: "Exhausted",
+  canLoadMoreStaffs: false,
+  isDashboardOnboardingDismissed: true,
+} satisfies ComponentProps<typeof DashboardContent>;
+
+const singleShopStoryStore = createStore();
+singleShopStoryStore.set(userAtom, {
+  authId: "dashboard-story-user",
+  name: "田中太郎",
+  email: "tanaka@example.com",
+  featureVisibility: {
+    organizationSettingsNavigation: true,
+    billing: false,
+    shopMembershipAddition: false,
+  },
+});
+
+function DashboardPagePreview({ children }: { children: ReactNode }) {
+  return (
+    <Provider store={singleShopStoryStore}>
+      <Box minH="100vh" bg="gray.50">
+        <RootContentWrapper>{children}</RootContentWrapper>
+      </Box>
+    </Provider>
+  );
+}
+
 const meta = {
   title: "Features/Dashboard/DashboardContent",
   component: DashboardContent,
@@ -201,6 +266,21 @@ export const Normal: Story = {
     canLoadMoreStaffs: true,
     loadMoreStaffs: noop,
   },
+};
+
+export const SingleShop: Story = {
+  args: singleShopDashboardArgs,
+  render: (args) => (
+    <DashboardPagePreview>
+      <DashboardContent {...args} />
+    </DashboardPagePreview>
+  ),
+};
+
+export const SingleShopMobile: Story = {
+  ...SingleShop,
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
 };
 
 export const ReadOnlyShop: Story = {
@@ -354,14 +434,18 @@ export const LegalReconsentRequired: Story = {
 };
 
 export const Loading: Story = {
-  args: {
-    ...Normal.args,
-  },
+  args: singleShopDashboardArgs,
   render: () => (
-    <Box minH="100vh" bg="gray.50" p={{ base: 4, lg: 8 }}>
+    <DashboardPagePreview>
       <DashboardContentSkeleton />
-    </Box>
+    </DashboardPagePreview>
   ),
+};
+
+export const LoadingMobile: Story = {
+  ...Loading,
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
 };
 
 export const StaffLoadingKeepsPrimaryContentBehavior: Story = {

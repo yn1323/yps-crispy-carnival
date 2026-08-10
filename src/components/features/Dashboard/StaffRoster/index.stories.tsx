@@ -94,6 +94,17 @@ export const LongNameWithAllBadgesMobile: Story = {
 export const Empty: Story = {
   args: {
     staffs: [],
+    onAddClick: fn(),
+    onAddIntent: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const invitationButton = canvas.getAllByRole("button", { name: "スタッフを招待する" })[1];
+
+    await userEvent.hover(invitationButton);
+    await expect(args.onAddIntent).toHaveBeenCalled();
+    await userEvent.click(invitationButton);
+    await expect(args.onAddClick).toHaveBeenCalledTimes(1);
   },
 };
 

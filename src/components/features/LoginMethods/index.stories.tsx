@@ -311,7 +311,13 @@ export const LongAddresses: Story = {
 };
 
 export const Loading: Story = {
-  args: { scenario: "passwordOnly", isLoaded: false },
+  args: { scenario: "bothDifferentEmail", isLoaded: false },
+};
+
+export const LoadingMobile: Story = {
+  args: { scenario: "bothDifferentEmail", isLoaded: false },
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
 };
 
 export const Unavailable: Story = {

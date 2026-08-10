@@ -1,4 +1,4 @@
-# グループ課金の運用
+# 組織課金の運用
 
 > 文書種別: manual
 >
@@ -6,10 +6,10 @@
 >
 > 実環境の公開・設定・migration状況: [リリース状態](release-status.md)
 
-この文書は、グループ課金に関する人の運用を扱う。
+この文書は、組織課金に関する人の運用を扱う。
 Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotation、障害復旧を、実環境を推測せずに進めるための手順である。
 
-利用者向けの機能とコードの入口は[グループ課金、複数店舗、複数管理者](../features/organization-billing.md)、詳細な業務契約は[グループ課金の業務仕様](../specs/organization-billing-business-flow.md)を参照する。
+利用者向けの機能とコードの入口は[組織課金、複数店舗、複数管理者](../features/organization-billing.md)、詳細な業務契約は[組織課金の業務仕様](../specs/organization-billing-business-flow.md)を参照する。
 
 ## 作業目的から探す
 
@@ -18,6 +18,7 @@ Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotat
 | 実環境での完了条件と作業前確認 | [完了の判定](#完了の判定)、[作業前の共通確認](#作業前の共通確認) |
 | ダークローンチ機能の公開・停止 | [ダークローンチ公開フラグ](#ダークローンチ公開フラグ) |
 | Stripeの環境変数、Price、Portal、Webhook設定 | [Stripeの設定](#stripeの設定) |
+| Trial期限を開発用に短縮 | [Trial期限の開発用設定](#trial期限の開発用設定) |
 | Webhook、operation、対応不整合の日常確認 | [日常probe](#日常probe) |
 | m021の履歴確認とNarrow deploy前ゲート | [m021の履歴とNarrow deploy前確認](#m021の履歴とnarrow-deploy前確認) |
 | 新規販売の停止と支払い不要プランのP0 | [販売停止](#販売停止) |
@@ -57,10 +58,16 @@ Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotat
 
 | 変数 | 開く対象 |
 |---|---|
-| `FEATURE_ORGANIZATION_CREATION` | 二つ目以降のグループ作成 |
-| `FEATURE_SHOP_ADDITION` | 店舗追加と既存人物の複数店舗所属UI |
+| `FEATURE_ORGANIZATION_CREATION` | 二つ目以降の組織作成 |
 | `FEATURE_BILLING` | プランと支払いのUI |
 | `FEATURE_MANAGER_INVITATION` | 管理者の追加、Free管理者交代、再送、preview、受諾、招待通知、管理者連携完了通知 |
+
+店舗追加と既存人物の複数店舗所属は常時公開し、環境変数を使用しない。
+対応コードを対象deploymentへ反映した後は、残っている旧設定を完全修飾deployment名を指定して削除できる。
+
+```bash
+pnpm exec convex env remove --deployment <fully-qualified-deployment> FEATURE_SHOP_ADDITION
+```
 
 公開または停止は、対象commitのdeploy後に完全修飾deployment名を確認して実施する。
 値はコマンド行へ直接書かず、対象キーだけを指定して対話入力する。
@@ -72,7 +79,6 @@ pnpm exec convex env set --deployment <fully-qualified-deployment> FEATURE_MANAG
 管理者招待を開ける前に、追加とFree交代の両方について、発行、メールまたはLINE通知、preview、受諾、権限反映、再送、取消を対象環境で確認する。
 閉じるときは、発行・再送・受諾だけでなく、招待通知と管理者連携完了通知が新しくOutboxへ積まれず、投入済みOutboxも外部providerを呼ばず取消されることを確認する。
 E2Eは同じ`.env`の値を読み、閉状態では招待を前提とするシナリオを`test.skip`する。
-店舗所属追加を前提とするE2Eも、`FEATURE_SHOP_ADDITION`が閉じている間は`test.skip`する。
 公開FAQはフラグを購読しないため、管理者招待を開けるreleaseで追加・交代の操作手順を復元し、利用不可中の案内も公開状態へ戻す。
 
 作業後は`env list --names-only`でキーの存在だけを確認し、対象deployment、commit、確認日時、結果を[リリース状態](release-status.md)へ記録する。
@@ -165,6 +171,41 @@ Webhook destinationには、次の13イベントだけを登録する。
 登録後は[セキュリティ再検証](security-validation.md)の`ENV-STRIPE-01`と`ENV-STRIPE-02`に従い、対象revisionとprovider modeを固定したcanaryを行う。
 canaryの成功を確認するまで販売可能と判定しない。
 
+## Trial期限の開発用設定
+
+開発deploymentでは、将来Trialを作成する処理が`calculateTrialEndsAt`を利用したときの期限を、次の環境変数で短縮できる。
+現時点の初回セットアップは支払い不要Businessを作成するため、この設定を追加しても新規登録の状態や期限は変わらない。
+
+| 変数 | 用途 |
+|---|---|
+| `DEBUG_TRIAL_DURATION_DEPLOYMENT_URL` | 上書きを許可するConvex deploymentの`CONVEX_CLOUD_URL` |
+| `DEBUG_TRIAL_DURATION_DAYS` | 登録日の何暦日後を期限にするか。`1`から`30`までの整数 |
+
+両方のURLは前後の空白と末尾の`/`を除いて比較する。
+URLが未設定または一致しない場合と、日数が未設定または空白の場合は、通常どおり2暦月後のJST 00:00を期限にする。
+対象URLが一致している状態で日数が不正な場合は、通常期間へ戻さず設定エラーにする。
+`1`は登録から24時間後ではなく、登録日の翌日00:00 JSTを表す。
+環境変数の変更は将来作成するTrialの計算にだけ反映し、保存済みの期限は更新しない。
+
+Productionにはこの2変数を設定しない。
+開発deploymentへ設定するときは、先に対象URL、次に日数を対話入力する。
+
+```bash
+pnpm exec convex env set --deployment <fully-qualified-deployment> DEBUG_TRIAL_DURATION_DEPLOYMENT_URL
+pnpm exec convex env set --deployment <fully-qualified-deployment> DEBUG_TRIAL_DURATION_DAYS
+```
+
+無効化するときは、日数を先に削除してから対象URLを削除する。
+
+```bash
+pnpm exec convex env remove --deployment <fully-qualified-deployment> DEBUG_TRIAL_DURATION_DAYS
+pnpm exec convex env remove --deployment <fully-qualified-deployment> DEBUG_TRIAL_DURATION_DEPLOYMENT_URL
+```
+
+この2変数は`scripts/setupEnv.ts`のallowlistへ含めない。
+対象を引数で固定できない`pnpm convex:env:setup`では設定せず、Dashboardまたは完全修飾deployment名を指定したCLIを使う。
+作業後は`env list --names-only`でキーの有無だけを確認し、値をログや証跡へ残さない。
+
 ## 日常probe
 
 完全修飾deployment名を指定して、read-onlyのinternal probeを実行する。
@@ -190,8 +231,8 @@ probeは全件集計ではなく、項目ごとに`observedCount`と`hasMore`を
 | `anomalies.complimentaryStripeMappingP0` | 支払い不要プランとStripe objectの対応。1件以上ならP0 |
 | `anomalies.activePaidWithoutCurrentSubscription` | 有料状態なのに現在のSubscriptionがない対応不整合 |
 | `anomalies.activeFreeWithCurrentSubscription` | Free状態なのに現在のSubscriptionがある対応不整合 |
-| `anomalies.organizationsWithMultipleNonterminalSubscriptions` | 一グループに複数の非terminal Subscriptionがある不整合 |
-| `anomalies.organizationsWithMultipleStripeCustomers` | 一グループに複数Customerがある不整合 |
+| `anomalies.organizationsWithMultipleNonterminalSubscriptions` | 一組織に複数の非terminal Subscriptionがある不整合 |
+| `anomalies.organizationsWithMultipleStripeCustomers` | 一組織に複数Customerがある不整合 |
 | `anomalies.subscriptionsWithoutMatchingLocalCustomer` | SubscriptionとローカルCustomerの対応不整合 |
 | `anomalies.stripeCustomersWithoutBillingState` | Customerに対応する課金状態の欠落 |
 | `anomalies.unresolvedM018MigrationConflicts` | Business廃止時の履歴migrationで未解消のconflict |
@@ -218,7 +259,7 @@ probeにこの項目がないことはm021の完走や旧形式の残件0を証�
 ### 対象と停止条件
 
 `m021_organization_billing_complimentary_pro_to_business`は、Widen期間にStripeから隔離された旧`complimentary.pro`だけを`complimentary.business`へ変更するための履歴migrationである。
-グループ欠落、課金状態重複、Stripe Customer、Subscription、全statusのoperation、Webhook、課金通知、先行監査のいずれかがあれば変更せずconflictへ残す。
+組織欠落、課金状態重複、Stripe Customer、Subscription、全statusのoperation、Webhook、課金通知、先行監査のいずれかがあれば変更せずconflictへ残す。
 
 未移行の旧形式が見つかった場合はNarrow版をdeployしない。
 Widen版の対象revisionへ戻ってm021と検証を完了し、その証跡を固定してからNarrow deployへ進む。
@@ -336,7 +377,7 @@ Priceのアーカイブは新規販売を止めるが、既存Subscriptionを終
 1. 対象environmentのPro PriceとBusiness Priceをアーカイブする。
 2. 発行済みのopen Checkout Sessionをすべて失効させる。
 3. Webhook、取消、Invoice回収停止、再照合は継続する。
-4. 対象グループ、Customer、全Subscription世代、Invoiceを照合する。
+4. 対象組織、Customer、全Subscription世代、Invoiceを照合する。
 5. 誤請求の有無、返金、creditの要否を人が判断する。
 6. 原因とforward repairを決め、providerとローカルの対応を再検証する。
 
@@ -398,7 +439,7 @@ Checkoutや新規Subscription作成を推測で再送しない。
 2. 予約したbatchが処理されるのを待ってからprobeを再実行する。
 3. `reachedBatchLimit: true`なら、先行batchの収束を確認してから次のbounded recoveryを判断する。
 4. `actionRequired`は自動削除せず、Customer、Subscription、Invoice、operationの対応をprovider再取得で確認する。
-5. 一意に対応できないobjectは推測で別グループへ結び付けず、手動対応またはforward repairへ残す。
+5. 一意に対応できないobjectは推測で別組織へ結び付けず、手動対応またはforward repairへ残す。
 
 復旧中もsecretとWebhookを単純に無効化しない。
 provider側の請求停止や取消が未完了なら、新規販売を止めたまま安全operationを完了させる。
@@ -420,8 +461,8 @@ provider側の請求停止や取消が未完了なら、新規販売を止めた
 
 ## 参照先
 
-- [グループ課金、複数店舗、複数管理者](../features/organization-billing.md)
-- [グループ課金の業務仕様](../specs/organization-billing-business-flow.md)
+- [組織課金、複数店舗、複数管理者](../features/organization-billing.md)
+- [組織課金の業務仕様](../specs/organization-billing-business-flow.md)
 - [リリース状態](release-status.md)
 - [CI/CD運用](ci-cd.md)
 - [セキュリティ再検証](security-validation.md)

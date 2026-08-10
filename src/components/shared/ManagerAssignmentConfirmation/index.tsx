@@ -29,7 +29,7 @@ export function ManagerAssignmentConfirmation({
       ? `${personName}さんへログイン案内を再送しますか？`
       : `${personName}さんを管理者として招待しますか？`;
   const description = isFreeManagerExchange
-    ? `${personName}さんがログインして招待を受け入れると、このグループの唯一の管理者になります。\nその時点で、あなたはこのグループの管理者ではなくなり、グループ設定や店舗情報へアクセスできなくなります。`
+    ? `${personName}さんがログインして招待を受け入れると、この組織の唯一の管理者になります。\nその時点で、あなたはこの組織の管理者ではなくなり、組織設定や店舗情報へアクセスできなくなります。`
     : isResend
       ? `${personEmail}へ新しいログイン案内を送ります。\n以前のURLは利用できなくなります。`
       : `${personEmail}へログイン案内を送ります。\n本人が案内先のメールアドレスでログインし、招待を受け入れると管理者になります。`;

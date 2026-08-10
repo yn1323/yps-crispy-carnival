@@ -47,7 +47,7 @@ export function toSelectedShop(shop: ShopContextOption): NonNullable<SelectedSho
 }
 
 export function isSelectableShop(shop: ShopContextOption): boolean {
-  // archived / planSuspended は既存データとグループ設定を読むための選択肢として残す。
+  // archived / planSuspended は既存データと組織設定を読むための選択肢として残す。
   // 書き込み可否はConvex側が店舗状態と管理者所属を再検証する。
   return shop.memberStatus !== "removed";
 }
@@ -78,9 +78,9 @@ export function groupShopsByOrganization(shops: readonly ShopContextOption[]): S
   const groups = new Map<string, ShopOrganizationGroup>();
 
   for (const shop of shops) {
-    const organizationName = shop.organizationName ?? `${shop.shopName}のグループ`;
+    const organizationName = shop.organizationName ?? `${shop.shopName}の組織`;
     // TODO[narrow]: backendのgetMyShopsからlegacy fallbackを外した後、このlegacy keyも削除する。
-    // organizationId がまだない移行中店舗を、表示名だけで同一グループと誤認しない。
+    // organizationId がまだない移行中店舗を、表示名だけで同一組織と誤認しない。
     const key = shop.organizationId ?? `legacy:${shop.shopId}`;
     const group = groups.get(key) ?? { key, organizationName, shops: [] };
     group.shops.push(shop);

@@ -37,7 +37,7 @@ export async function updateOrganizationPersonProfile(
     )
     .take(2);
   if (matchingPeople.some((candidate) => candidate._id !== person._id)) {
-    throw new ConvexError("このメールアドレスは、グループ内の別のユーザーが使用しています。");
+    throw new ConvexError("このメールアドレスは、組織内の別のユーザーが使用しています。");
   }
 
   const linkedStaffs = await ctx.db

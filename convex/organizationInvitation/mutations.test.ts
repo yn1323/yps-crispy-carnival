@@ -640,7 +640,7 @@ describe("organizationInvitation/mutations", () => {
     }
   });
 
-  it("別グループに存在する利用者へは人物を事前作成せず、ログイン後に既存利用者を再利用する", async () => {
+  it("別組織に存在する利用者へは人物を事前作成せず、ログイン後に既存利用者を再利用する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const existing = await seedOrganizationManagerShop(ctx, {
@@ -2672,7 +2672,7 @@ function testAuthTokenIdentifierForSubject(subject: string) {
 }
 
 function extractOrganizationSettingsActionUrl(html: string) {
-  const href = html.match(/<a href="([^"]+)"[^>]*>グループ設定を確認する<\/a>/)?.[1];
+  const href = html.match(/<a href="([^"]+)"[^>]*>組織設定を確認する<\/a>/)?.[1];
   if (!href) throw new Error("organization settings action URL not found");
   return new URL(href.replaceAll("&amp;", "&"));
 }

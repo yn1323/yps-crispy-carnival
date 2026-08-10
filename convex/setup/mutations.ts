@@ -14,7 +14,7 @@ import { createOrganizationWithFirstShop, getOrganizationCreationAvailability } 
 
 const WEEKDAY_ORDER = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 const PRIOR_OPERATION_ERROR = "以前の操作結果を確認できません。";
-const ORGANIZATION_CREATION_UNAVAILABLE_MESSAGE = "現在、新しいグループは作成できません。";
+const ORGANIZATION_CREATION_UNAVAILABLE_MESSAGE = "現在、新しい組織は作成できません。";
 
 export const setupShopAndManager = authenticatedMutation({
   args: {
@@ -44,11 +44,11 @@ export const setupShopAndManager = authenticatedMutation({
         .take(2);
       if (selfCreatedOrganizations.length > 1) {
         throw new ConvexError(
-          "作成済みのグループ情報を確認できません。\n画面を更新しても解消しない場合は、お問い合わせください。",
+          "作成済みの組織情報を確認できません。\n画面を更新しても解消しない場合は、お問い合わせください。",
         );
       }
       if (selfCreatedOrganizations.length === 1) {
-        throw new ConvexError("自分で作成できるグループは1つまでです。");
+        throw new ConvexError("自分で作成できる組織は1つまでです。");
       }
 
       // TODO[narrow]: 全deploymentでm025/m029が完走し、verifyShops/verifyLegacyShopMembersの
@@ -108,15 +108,15 @@ export const setupShopAndManager = authenticatedMutation({
 });
 
 /**
- * 既に管理者として利用している人が、二つ目以降のグループを作る。
+ * 既に管理者として利用している人が、二つ目以降の組織を作る。
  *
  * 初回セットアップと違い、users行と利用規約の同意状態は既にあるため変更しない。
- * 支払い不要Businessは初回だけの提供であり、ここで作るグループはFreeで始まる。
+ * 支払い不要Businessは初回だけの提供であり、ここで作る組織はFreeで始まる。
  */
 export const createOrganization = authenticatedMutation({
   args: {
     shopName: v.string(),
-    // 追加グループの人物・連絡先は、操作中グループのcanonical personから引き継ぐ。
+    // 追加組織の人物・連絡先は、操作中組織のcanonical personから引き継ぐ。
     // 旧frontend互換中は省略を許し、その場合だけusers snapshotへfallbackする。
     sourceShopId: v.optional(v.id("shops")),
     // TODO[narrow]: m039の完走と旧frontend互換期間の終了後にrequired化する。
@@ -139,7 +139,7 @@ export const createOrganization = authenticatedMutation({
   returns: v.object({ shopId: v.id("shops"), created: v.boolean() }),
   handler: async (ctx, args) => {
     const user = ctx.user;
-    if (!user) throw new ConvexError("グループを作成する前に、初期設定を完了してください。");
+    if (!user) throw new ConvexError("組織を作成する前に、初期設定を完了してください。");
 
     // 冪等recordとrate limit budgetより前に判定し、閉じている間はどちらも消費しない。
     if (!isOrganizationCreationEnabled()) throw new ConvexError(ORGANIZATION_CREATION_UNAVAILABLE_MESSAGE);
@@ -154,7 +154,7 @@ export const createOrganization = authenticatedMutation({
       rateLimit(ctx, { name: "organizationCreateDaily", key: user._id }),
     ]);
     if (!shortLimit.ok || !dailyLimit.ok) {
-      throw new ConvexError("グループの作成処理が進行中です。\n少し時間をおいてから、もう一度お試しください。");
+      throw new ConvexError("組織の作成処理が進行中です。\n少し時間をおいてから、もう一度お試しください。");
     }
 
     const availability = await getOrganizationCreationAvailability(ctx, user);
@@ -273,9 +273,9 @@ async function resolveOrganizationCreationManagerProfile(
 }
 
 /**
- * 同じrequestIdでの再実行を、二つ目のグループを増やさずに収束させる。
+ * 同じrequestIdでの再実行を、二つ目の組織を増やさずに収束させる。
  *
- * 監査には作成したグループを記録するため、返す店舗はそのグループの最初の店舗から引く。
+ * 監査には作成した組織を記録するため、返す店舗はその組織の最初の店舗から引く。
  */
 async function findPriorCreatedOrganizationShop(
   ctx: MutationCtx,

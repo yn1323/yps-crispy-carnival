@@ -15,7 +15,7 @@ type Input = {
 };
 
 export function useOrganizationCreationController(input: Input) {
-  // 新しいグループ自体は選択中店舗に属さないため、shop mutationにはしない。
+  // 新しい組織自体は選択中店舗に属さないため、shop mutationにはしない。
   // sourceShopIdは現在のcanonical personを安全に引き継ぐためだけに送る。
   const createOrganization = useMutation(api.setup.mutations.createOrganization);
   const selectedShop = useAtomValue(selectedShopAtom);
@@ -43,7 +43,7 @@ export function useOrganizationCreationController(input: Input) {
         submissionPattern: data.submissionPattern,
         requestId: crypto.randomUUID(),
       });
-      showSuccessToast({ title: "新しいグループを作りました" });
+      showSuccessToast({ title: "新しい組織を作りました" });
       setDialog(null);
       latest.onCreated(shopId);
     } catch (error) {

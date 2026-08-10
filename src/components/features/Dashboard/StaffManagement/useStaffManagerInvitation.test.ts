@@ -189,7 +189,7 @@ describe("useStaffManagerInvitation", () => {
   });
 
   it("失敗を表示してfalseを返し、自動再送しない", async () => {
-    const error = new Error("管理者と招待中の管理者は、グループ全体で5名までです。");
+    const error = new Error("管理者と招待中の管理者は、組織全体で5名までです。");
     mocks.createForStaff.mockRejectedValue(error);
     const target = staff();
     const { result } = renderHook(() => useStaffManagerInvitation(target));

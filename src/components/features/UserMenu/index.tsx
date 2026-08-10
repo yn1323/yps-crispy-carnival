@@ -95,7 +95,7 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
               <Menu.Item asChild value="group-settings" cursor="pointer">
                 <RouterLink to="/settings" search={{ shop: selectedShop?.shopId }}>
                   <LuBuilding2 aria-hidden />
-                  グループ設定
+                  組織設定
                 </RouterLink>
               </Menu.Item>
             )}

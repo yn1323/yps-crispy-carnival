@@ -9,7 +9,7 @@ import { deletedLineUserId } from "../deletionCleanup/tombstone";
 const NOW = Date.parse("2026-10-01T12:00:00+09:00");
 const submissionPattern = { kind: "time" as const, startTime: "09:00", endTime: "22:00" };
 
-describe("グループ削除シナリオ", () => {
+describe("組織削除シナリオ", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);

@@ -53,7 +53,11 @@ describe("notification/templates", () => {
           inviterName: dangerousText,
           invitationUrl: dangerousUrl,
         }),
-      staticMarkup: ["招待を確認する", "このリンクは7日間有効で、一度だけ使用できます。"],
+      staticMarkup: [
+        "この組織のすべての店舗を管理し、契約に関する操作を行えます。",
+        "招待を確認する",
+        "このリンクは7日間有効で、一度だけ使用できます。",
+      ],
     },
     {
       name: "事業者課金",

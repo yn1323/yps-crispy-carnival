@@ -43,14 +43,14 @@ async function seedRecruitment(
   });
 }
 
-describe("割当付きグループ人物削除シナリオ", () => {
+describe("割当付き組織人物削除シナリオ", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(SCENARIO_NOW);
   });
   afterEach(() => vi.useRealTimers());
 
-  it("今日以降の割当と対象アクセスだけを削除し、過去履歴・別人物・別グループを維持する", async () => {
+  it("今日以降の割当と対象アクセスだけを削除し、過去履歴・別人物・別組織を維持する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const alternate = await seedOrganizationManagerShop(ctx, {

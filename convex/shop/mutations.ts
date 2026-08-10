@@ -127,7 +127,7 @@ export const deleteShop = managerMutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     if (args.confirmShopId !== ctx.shop._id) throw new ConvexError("Not found");
-    if (ctx.shop.organizationId) throw new ConvexError("グループ設定から店舗を削除してください");
+    if (ctx.shop.organizationId) throw new ConvexError("組織設定から店舗を削除してください");
 
     await ctx.db.patch(ctx.shop._id, { isDeleted: true });
     const cleanupJob = await ensureDeletionCleanupJob(ctx, {

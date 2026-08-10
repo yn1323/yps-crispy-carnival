@@ -59,7 +59,7 @@ export function ShopDetailPage({ shopId, selectedShopId, returnTo }: Props) {
             <Button asChild colorPalette="teal">
               {returnTo === "settings" ? (
                 <RouterLink to="/settings" search={{ shop: contextShopId ?? undefined, tab: "shops" }}>
-                  グループ設定へ戻る
+                  組織設定へ戻る
                 </RouterLink>
               ) : (
                 <RouterLink to="/dashboard" search={{ shop: contextShopId ?? undefined }}>

@@ -59,7 +59,7 @@ export async function requireOrganizationCapacity(
 ) {
   const billingState = await getOrganizationBillingState(ctx, args.organizationId);
   if (!billingState) {
-    throw new ConvexError("グループの契約情報を確認中のため、この追加操作はまだ利用できません。");
+    throw new ConvexError("組織の契約情報を確認中のため、この追加操作はまだ利用できません。");
   }
   const policy = deriveOrganizationBillingPolicy(billingState.state);
   if (!policy.entitlementPlan || !policy.limits || !policy.canWriteBusinessData) {

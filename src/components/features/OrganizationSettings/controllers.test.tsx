@@ -127,7 +127,7 @@ afterEach(() => {
 });
 
 describe("OrganizationSettings controllers", () => {
-  it("グループ名の変更中に権限を失うとDialogを閉じ、古いsubmitからmutationを呼ばない", async () => {
+  it("組織名の変更中に権限を失うとDialogを閉じ、古いsubmitからmutationを呼ばない", async () => {
     const { result, rerender } = renderHook(
       ({ canUpdate }) =>
         useOrganizationNameController({ organizationName: "さくらダイニング", canUpdateOrganizationName: canUpdate }),
@@ -139,7 +139,7 @@ describe("OrganizationSettings controllers", () => {
     rerender({ canUpdate: false });
 
     await waitFor(() => expect(result.current.dialog.isOpen).toBe(false));
-    act(() => staleSubmit("変更後のグループ名"));
+    act(() => staleSubmit("変更後の組織名"));
     await waitFor(() => expect(mocks.mutation).not.toHaveBeenCalled());
   });
 
@@ -207,7 +207,7 @@ describe("OrganizationSettings controllers", () => {
     );
   });
 
-  it("グループ作成は連絡先の引継元店舗を送り、一度だけ実行して作成した店舗へ遷移する", async () => {
+  it("組織作成は連絡先の引継元店舗を送り、一度だけ実行して作成した店舗へ遷移する", async () => {
     let resolveMutation: ((shopId: string) => void) | undefined;
     mocks.mutation.mockImplementation(
       () =>
@@ -241,14 +241,14 @@ describe("OrganizationSettings controllers", () => {
     await act(async () => resolveMutation?.("shop-created"));
     await waitFor(() =>
       expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
-        title: "新しいグループを作りました",
+        title: "新しい組織を作りました",
       }),
     );
     expect(onCreated).toHaveBeenCalledExactlyOnceWith("shop-created");
     expect(result.current.dialog.dialog).toBeNull();
   });
 
-  it("グループ作成の権限を失うとDialogを閉じ、古いsubmitからmutationを呼ばない", async () => {
+  it("組織作成の権限を失うとDialogを閉じ、古いsubmitからmutationを呼ばない", async () => {
     const onCreated = vi.fn();
     const { result, rerender } = renderHook((input) => useOrganizationCreationController(input), {
       initialProps: { canCreateOrganization: true, onCreated },
@@ -270,7 +270,7 @@ describe("OrganizationSettings controllers", () => {
     expect(onCreated).not.toHaveBeenCalled();
   });
 
-  it("グループ削除は名前を送信せず固定した対象情報で一度だけ実行する", async () => {
+  it("組織削除は名前を送信せず固定した対象情報で一度だけ実行する", async () => {
     mocks.mutation.mockImplementation(() => new Promise(() => undefined));
     const input = {
       organizationId: "organization-1",
@@ -313,7 +313,7 @@ describe("OrganizationSettings controllers", () => {
     );
   });
 
-  it("グループ削除成功後はDialogの履歴guardを除去してから次の画面へ遷移する", async () => {
+  it("組織削除成功後はDialogの履歴guardを除去してから次の画面へ遷移する", async () => {
     mocks.mutation.mockResolvedValue(undefined);
     const replaceLocation = vi.fn();
     const input = {
@@ -346,7 +346,7 @@ describe("OrganizationSettings controllers", () => {
     expect(replaceLocation).toHaveBeenCalledTimes(1);
   });
 
-  it("グループ削除の可否や対象が変わると古い確定操作を拒否する", async () => {
+  it("組織削除の可否や対象が変わると古い確定操作を拒否する", async () => {
     const initialInput = {
       organizationId: "organization-1",
       organizationUpdatedAt: 1_721_286_400_000,
@@ -984,7 +984,7 @@ describe("OrganizationSettings controllers", () => {
     });
   });
 
-  it("確認中に選択グループが変わったらDialogを閉じ、古い確定操作を受け付けない", async () => {
+  it("確認中に選択組織が変わったらDialogを閉じ、古い確定操作を受け付けない", async () => {
     const input = { organizationName: "さくらダイニング", shopNames: ["渋谷店", "新宿店"], billing };
     const { result, rerender } = renderHook((props) => useStripeBillingController(props), {
       initialProps: input,
@@ -1120,7 +1120,7 @@ describe("OrganizationSettings controllers", () => {
     await waitFor(() => expect(result.current.dialog.isOpen).toBe(false));
   });
 
-  it("グループ設定のスタッフを選んで管理者のログイン案内を送る", async () => {
+  it("組織設定のスタッフを選んで管理者のログイン案内を送る", async () => {
     mocks.mutation.mockResolvedValue({ status: "issued", invitationId: "invitation-1" });
     const target = { ...person, managerRole: "none" as const };
     const { result } = renderHook(() =>

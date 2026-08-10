@@ -104,7 +104,7 @@ export function createScenario(t: ScenarioTest) {
             requestId: generateUUID(),
           });
         },
-        // 複数グループのシナリオでは、操作対象の店舗を明示して選択中店舗の暗黙解決に依存しない。
+        // 複数組織のシナリオでは、操作対象の店舗を明示して選択中店舗の暗黙解決に依存しない。
         selectShop(shopId: Id<"shops">) {
           selectedShopId = shopId;
         },

@@ -651,7 +651,7 @@ describe("organizationBilling/mutations 請求先メール", () => {
           email: "new-billing@example.com",
           requestId: "billing-email-missing-state",
         }),
-    ).rejects.toThrow("グループの契約情報を確認中です");
+    ).rejects.toThrow("組織の契約情報を確認中です");
 
     const result = await t.run(async (ctx) => ({
       audits: await ctx.db

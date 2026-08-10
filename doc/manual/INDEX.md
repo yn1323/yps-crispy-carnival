@@ -7,7 +7,7 @@
 |---|---|---|
 | Pull Request、Preview、Develop、Productionを運用する | [CI/CD運用](ci-cd.md) | 対象commit、workflow結果、approval、デプロイ後確認 |
 | 利用規約・プライバシーポリシーを更新する | [法務文書のバージョン更新](legal-versioning.md) | 本文版、再同意版、更新日、対象利用者 |
-| 課金設定、Stripe公開、課金migrationを扱う | [グループ課金の運用](organization-billing.md) | 対象環境、停止条件、migration、Stripe設定、復旧 |
+| 課金設定、Stripe公開、課金migrationを扱う | [組織課金の運用](organization-billing.md) | 対象環境、停止条件、migration、Stripe設定、復旧 |
 | Widen済みの保存形式をNarrowする | [Narrow Migrationの運用](narrow-migrations.md) | forward migration、全ページreadiness、schema Narrowの停止条件 |
 | Analyticsの新generationを構築し旧基盤から切り替える | [Analytics rollout](analytics-rollout.md) | 完全修飾deployment名、bootstrap、invariant、cutover、負荷、旧3テーブルの0件証跡 |
 | LINE設定、Webhook、通知障害を扱う | [LINE通知の運用](line-notification.md) | channel設定、署名、疎通、停止と復旧 |
