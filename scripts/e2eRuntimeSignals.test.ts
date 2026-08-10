@@ -160,6 +160,28 @@ describe("E2E browser runtime signals", () => {
     expect(attach).not.toHaveBeenCalled();
   });
 
+  it("外部のtest body境界でlistenerを解除し、後続fixture teardownのsignalを数えない", async () => {
+    const page = new FakePage();
+    const attach = vi.fn(async (_name: string, _options: { body: Buffer; contentType: string }) => undefined);
+    let stopMonitoring: (() => void) | undefined;
+
+    await expect(
+      runWithE2ERuntimeSignalMonitoring({
+        page: page as unknown as Page,
+        testInfo: { attach } as unknown as Pick<TestInfo, "attach">,
+        registerStop: (stop) => {
+          stopMonitoring = stop;
+        },
+        action: async () => {
+          stopMonitoring?.();
+          page.emit("console", { type: () => "error", text: () => "fixture teardown warning" });
+          return "completed";
+        },
+      }),
+    ).resolves.toBe("completed");
+    expect(attach).not.toHaveBeenCalled();
+  });
+
   it("listener解除後もcleanup自体の失敗は失敗として返す", async () => {
     const page = new FakePage();
     const cleanupError = new Error("cleanup failed");

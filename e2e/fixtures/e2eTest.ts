@@ -1,5 +1,6 @@
 import { performance } from "node:perf_hooks";
 import { setupClerkTestingToken } from "@clerk/testing/playwright";
+import type { TestInfo } from "@playwright/test";
 import { classifyE2EFailure, installSafeClerkTestingConsole } from "../helpers/diagnostics";
 import { type E2EClerkUser, getE2EClerkUserForWorker, setCurrentE2EClerkUserIndex } from "../helpers/e2eUsers";
 import { getE2EMetrics, resetE2EMetrics } from "../helpers/metrics";
@@ -15,6 +16,8 @@ type E2ETestFixtures = {
 type E2EWorkerFixtures = {
   e2eWorkerUser: E2EClerkUser;
 };
+
+const stopRuntimeMonitoringByTest = new WeakMap<TestInfo, () => void>();
 
 export const test = base.extend<E2ETestFixtures, E2EWorkerFixtures>({
   e2eWorkerUser: [
@@ -80,6 +83,7 @@ export const test = base.extend<E2ETestFixtures, E2EWorkerFixtures>({
         page,
         testInfo,
         baseURL: testInfo.project.use.baseURL,
+        registerStop: (stop) => stopRuntimeMonitoringByTest.set(testInfo, stop),
         action: async () => {
           await setupClerkTestingToken({ page });
           await use(page);
@@ -94,9 +98,16 @@ export const test = base.extend<E2ETestFixtures, E2EWorkerFixtures>({
         },
       });
     } finally {
+      stopRuntimeMonitoringByTest.delete(testInfo);
       restoreClerkConsole();
     }
   },
+});
+
+// test bodyとafterEachを製品runtimeの境界とし、actor resetなどfixture teardown中のsignalは数えない。
+// biome-ignore lint/correctness/noEmptyPattern: Playwright requires fixture destructuring even when unused.
+test.afterEach(({}, testInfo) => {
+  stopRuntimeMonitoringByTest.get(testInfo)?.();
 });
 
 export { expect };

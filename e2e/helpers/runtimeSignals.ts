@@ -19,6 +19,7 @@ type RuntimeSignalOptions<T> = {
   attachmentName?: string;
   action: () => Promise<T>;
   cleanup?: () => Promise<void>;
+  registerStop?: (stop: () => void) => void;
 };
 
 export function isAllowedE2EConsoleError(message: string) {
@@ -33,6 +34,7 @@ export async function runWithE2ERuntimeSignalMonitoring<T>({
   attachmentName = "e2e-safe-browser-signals",
   action,
   cleanup,
+  registerStop,
 }: RuntimeSignalOptions<T>): Promise<T> {
   const signals: E2ERuntimeSignal[] = [];
   const signalCounts = new Map<E2ERuntimeSignal["kind"], number>();
@@ -60,6 +62,15 @@ export async function runWithE2ERuntimeSignalMonitoring<T>({
   page.on("pageerror", onPageError);
   page.on("console", onConsole);
   page.on("response", onResponse);
+  let isMonitoring = true;
+  const stopMonitoring = () => {
+    if (!isMonitoring) return;
+    isMonitoring = false;
+    page.off("pageerror", onPageError);
+    page.off("console", onConsole);
+    page.off("response", onResponse);
+  };
+  registerStop?.(stopMonitoring);
 
   let actionResult: T | undefined;
   let actionError: unknown;
@@ -74,9 +85,7 @@ export async function runWithE2ERuntimeSignalMonitoring<T>({
     actionFailed = true;
   } finally {
     // context closeやroute解除は製品操作ではない。意図的な破棄中のReact warningをruntime regressionへ数えない。
-    page.off("pageerror", onPageError);
-    page.off("console", onConsole);
-    page.off("response", onResponse);
+    stopMonitoring();
   }
 
   try {
