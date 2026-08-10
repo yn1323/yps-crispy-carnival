@@ -2,6 +2,7 @@ import { test } from "../fixtures/e2eTest";
 import { formatDateWithWeekday, getNextWeekDates } from "../helpers/date";
 import { assertNotificationDeliverySuppressed } from "../helpers/notificationProbe";
 import { waitForMagicLinkToken } from "../helpers/notificationTokens";
+import { runWithE2ERuntimeSignalMonitoring } from "../helpers/runtimeSignals";
 import { seedManagerScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 import { ShiftBoardPage } from "../pages/ShiftBoardPage";
@@ -25,7 +26,7 @@ test.describe("代表シフト導線", { tag: ["@e2e-core", "@capability"] }, ()
     browser,
     e2eClerkUser,
     page,
-  }) => {
+  }, testInfo) => {
     const dates = getNextWeekDates();
     const seed = seedManagerScenario<ShiftScenarioSeed>("testing:seedNotificationSubmitScenario", { dates });
     const dashboard = new DashboardPage(page);
@@ -45,16 +46,22 @@ test.describe("代表シフト導線", { tag: ["@e2e-core", "@capability"] }, ()
 
     await test.step("匿名スタッフが代表日を提出する", async () => {
       const context = await browser.newContext({ baseURL, locale: "ja-JP", timezoneId: "Asia/Tokyo" });
-      const submitPage = new StaffSubmitPage(await context.newPage());
-      try {
-        await submitPage.goto(submitCapability.token);
-        await submitPage.expectFormVisible();
-        await submitPage.toggleDay(formatDateWithWeekday(dates.dates[0]));
-        await submitPage.submit();
-        await submitPage.expectCompletionVisible();
-      } finally {
-        await context.close();
-      }
+      const anonymousPage = await context.newPage();
+      const submitPage = new StaffSubmitPage(anonymousPage);
+      await runWithE2ERuntimeSignalMonitoring({
+        page: anonymousPage,
+        testInfo,
+        baseURL,
+        attachmentName: "e2e-safe-browser-signals-anonymous-submit",
+        action: async () => {
+          await submitPage.goto(submitCapability.token);
+          await submitPage.expectFormVisible();
+          await submitPage.toggleDay(formatDateWithWeekday(dates.dates[0]));
+          await submitPage.submit();
+          await submitPage.expectCompletionVisible();
+        },
+        cleanup: () => context.close(),
+      });
     });
 
     await test.step("管理者が提出を確認してシフトを確定する", async () => {
@@ -73,15 +80,21 @@ test.describe("代表シフト導線", { tag: ["@e2e-core", "@capability"] }, ()
 
     await test.step("匿名スタッフが確定シフトを閲覧する", async () => {
       const context = await browser.newContext({ baseURL, locale: "ja-JP", timezoneId: "Asia/Tokyo" });
-      const viewPage = new StaffViewPage(await context.newPage());
-      try {
-        await viewPage.goto(viewCapability.token);
-        await viewPage.expectShiftViewVisible();
-        await viewPage.expectStaffVisible("田中太郎");
-        await viewPage.expectShiftTimeVisible();
-      } finally {
-        await context.close();
-      }
+      const anonymousPage = await context.newPage();
+      const viewPage = new StaffViewPage(anonymousPage);
+      await runWithE2ERuntimeSignalMonitoring({
+        page: anonymousPage,
+        testInfo,
+        baseURL,
+        attachmentName: "e2e-safe-browser-signals-anonymous-view",
+        action: async () => {
+          await viewPage.goto(viewCapability.token);
+          await viewPage.expectShiftViewVisible();
+          await viewPage.expectStaffVisible("田中太郎");
+          await viewPage.expectShiftTimeVisible();
+        },
+        cleanup: () => context.close(),
+      });
     });
   });
 });

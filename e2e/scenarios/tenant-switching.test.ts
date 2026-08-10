@@ -23,6 +23,11 @@ test.describe("複数グループ切り替え", { tag: ["@e2e-core"] }, () => {
     await dashboard.expectSelectedShop(seed.alternateShopName, seed.alternateShopId);
     await dashboard.expectStaffNotVisible(seed.actorBName);
 
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await dashboard.expectSelectedShop(seed.alternateShopName, seed.alternateShopId);
+    await dashboard.expectStaffVisible(seed.actorAName);
+    await dashboard.expectStaffNotVisible(seed.actorBName);
+
     await dashboard.switchShop(seed.targetShopName, seed.targetShopId);
     await dashboard.expectSelectedShop(seed.targetShopName, seed.targetShopId);
     await dashboard.expectStaffVisible(seed.actorBName);

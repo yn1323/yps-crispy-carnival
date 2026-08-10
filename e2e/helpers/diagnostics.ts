@@ -75,7 +75,13 @@ export function classifyE2EFailure(message: string): E2EFailureCategory {
   if (/seed|reset/.test(normalized)) return "seed-reset";
   if (/timezone|date|deadline|jst/.test(normalized)) return "date-time";
   if (/locator|expect\(|waiting for|timeout.*visible|strict mode/.test(normalized)) return "selector-state";
-  if (/page crashed|browser has been closed|pageerror/.test(normalized)) return "browser-runtime";
+  if (
+    /page crashed|browser has been closed|pageerror|browser runtime signals|console-error|same-origin-5xx/.test(
+      normalized,
+    )
+  ) {
+    return "browser-runtime";
+  }
   if (/convex command failed|econn|dns|service unavailable|deployment/.test(normalized)) return "external-environment";
   if (/assert|expected|received/.test(normalized)) return "product-regression";
   return "unknown";

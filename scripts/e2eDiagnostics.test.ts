@@ -85,6 +85,8 @@ describe("E2E safe diagnostics", () => {
     ["E2E Convex command failed: testing:getLatestMagicLinkToken (invalid-json, abc)", "capability-deadline"],
     ["locator expected to be visible", "selector-state"],
     ["OptimisticConcurrencyControlFailure", "occ"],
+    ["E2E browser runtime signals detected (console-error=1)", "browser-runtime"],
+    ["E2E browser runtime signals detected (same-origin-5xx=1)", "browser-runtime"],
     ["unclassified failure", "unknown"],
   ] as const)("失敗を安全な分類へ寄せる: %s", (message, expected) => {
     expect(classifyE2EFailure(message)).toBe(expected);

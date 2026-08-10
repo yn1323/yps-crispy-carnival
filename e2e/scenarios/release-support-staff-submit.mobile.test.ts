@@ -10,7 +10,12 @@ type MobileScenarioSeed = {
 };
 
 // bearer capabilityを開くため、URLを保持し得るartifactを作らない。
-test.use({ trace: "off", screenshot: "off", video: "off" });
+test.use({
+  storageState: { cookies: [], origins: [] },
+  trace: "off",
+  screenshot: "off",
+  video: "off",
+});
 
 test.describe("スタッフ提出のモバイル境界", { tag: ["@e2e-core", "@capability"] }, () => {
   test("[E2E-MOBILE-01] Mobile Chromeで代表日を選び提出を完了する", async ({ e2eClerkUser, page }) => {
