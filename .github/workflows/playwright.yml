@@ -24,6 +24,7 @@ jobs:
       PR_NUMBER: ${{ github.event.pull_request.number }}
       CONVEX_PREVIEW_NAME: pr-${{ github.event.pull_request.number }}-e2e
       E2E_WORKERS: "3"
+      PLAYWRIGHT_NO_COPY_PROMPT: "1"
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -63,8 +64,8 @@ jobs:
           TZ: Asia/Tokyo
           VITE_CONVEX_URL: ${{ steps.preview.outputs.PREVIEW_URL }}
           CONVEX_PREVIEW_NAME: ${{ env.CONVEX_PREVIEW_NAME }}
-          E2E_CLERK_USERS: ${{ vars.E2E_CLERK_USERS }}
-          E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD || vars.E2E_CLERK_PASSWORD }}
+          E2E_CLERK_USERS: ${{ secrets.E2E_CLERK_USERS }}
+          E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD }}
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
           VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
@@ -81,8 +82,8 @@ jobs:
           TZ: Asia/Tokyo
           VITE_CONVEX_URL: ${{ steps.preview.outputs.PREVIEW_URL }}
           CONVEX_PREVIEW_NAME: ${{ env.CONVEX_PREVIEW_NAME }}
-          E2E_CLERK_USERS: ${{ vars.E2E_CLERK_USERS }}
-          E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD || vars.E2E_CLERK_PASSWORD }}
+          E2E_CLERK_USERS: ${{ secrets.E2E_CLERK_USERS }}
+          E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD }}
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
           VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
@@ -92,10 +93,16 @@ jobs:
       - name: Verify Playwright artifact privacy
         id: privacy
         if: ${{ !cancelled() && hashFiles('playwright-report/index.html') != '' }}
+        env:
+          E2E_CLERK_USERS: ${{ secrets.E2E_CLERK_USERS }}
+          E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD }}
         run: node scripts/assertNoSensitiveArtifacts.mjs --root playwright-report --root test-results.json
       - name: Verify accessibility artifact privacy
         id: accessibility_privacy
         if: ${{ !cancelled() && hashFiles('playwright-report-a11y/index.html') != '' }}
+        env:
+          E2E_CLERK_USERS: ${{ secrets.E2E_CLERK_USERS }}
+          E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD }}
         run: node scripts/assertNoSensitiveArtifacts.mjs --root playwright-report-a11y --root test-results-a11y.json --root test-results-a11y
       - name: Upload Playwright report
         if: ${{ !cancelled() && steps.privacy.outcome == 'success' }}

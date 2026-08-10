@@ -122,6 +122,10 @@ const SENSITIVE_CONTENT_PATTERNS = [
 const EMAIL_LOCAL_SUFFIX_PATTERN = /[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}$/;
 const EMAIL_DOMAIN_PREFIX_PATTERN = /^([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)/;
 const PLAYWRIGHT_STORAGE_PATTERN = /"cookies"\s*:\s*\[[\s\S]*?"origins"\s*:\s*\[/;
+const CONFIGURED_SENSITIVE_VALUES = [
+  process.env.E2E_CLERK_PASSWORD,
+  ...(process.env.E2E_CLERK_USERS ?? "").split(",").map((value) => value.trim()),
+].filter((value) => typeof value === "string" && value.length >= 8);
 
 function parseArguments(argv) {
   if (argv.length === 0 || argv.length % 2 !== 0) {
@@ -148,6 +152,9 @@ function assertSafeDisplayPath(relativePath) {
 }
 
 function findSensitiveContent(contents, includeEmail) {
+  if (CONFIGURED_SENSITIVE_VALUES.some((value) => contents.includes(value))) {
+    return "configured E2E identity or credential";
+  }
   for (const candidate of SENSITIVE_CONTENT_PATTERNS) {
     if (candidate.pattern.test(contents)) return candidate.label;
   }

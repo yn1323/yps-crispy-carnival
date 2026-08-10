@@ -1,5 +1,6 @@
-import { type APIResponse, expect, type Page, request as requestFactory, test } from "@playwright/test";
+import { type APIResponse, type Page, request as requestFactory } from "@playwright/test";
 import { getCanonicalRoute } from "../../scripts/staticSite";
+import { expect, artifactSafeTest as test } from "../fixtures/artifactSafeTest";
 
 const ANDROID_CHROME_USER_AGENT =
   "Mozilla/5.0 (Linux; Android 15; Pixel 8 Pro Build/AP3A.241105.008) " +

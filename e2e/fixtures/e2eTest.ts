@@ -1,10 +1,10 @@
 import { performance } from "node:perf_hooks";
 import { setupClerkTestingToken } from "@clerk/testing/playwright";
-import { test as base, expect } from "@playwright/test";
 import { classifyE2EFailure, installSafeClerkTestingConsole } from "../helpers/diagnostics";
 import { type E2EClerkUser, getE2EClerkUserForWorker, setCurrentE2EClerkUserIndex } from "../helpers/e2eUsers";
 import { getE2EMetrics, resetE2EMetrics } from "../helpers/metrics";
 import { runWithE2ERuntimeSignalMonitoring } from "../helpers/runtimeSignals";
+import { artifactSafeTest as base, expect } from "./artifactSafeTest";
 
 type E2ETestFixtures = {
   e2eClerkUser: string;

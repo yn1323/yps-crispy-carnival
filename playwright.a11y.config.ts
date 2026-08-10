@@ -12,6 +12,7 @@ export default defineConfig({
   ...baseConfig,
   outputDir: "test-results-a11y",
   reporter: [
+    ["./e2e/reporters/privacyReporter.ts"],
     ["list", { printSteps: true }],
     ["html", { outputFolder: "playwright-report-a11y" }],
     ["json", { outputFile: "test-results-a11y.json" }],

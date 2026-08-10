@@ -1,11 +1,11 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { clerk } from "@clerk/testing/playwright";
-import { test as setup } from "@playwright/test";
 import { installSafeClerkTestingConsole } from "../helpers/diagnostics";
 import { getE2ECoreClerkUsers } from "../helpers/e2eUsers";
 import { forceResetManagerScenarioData } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
+import { artifactSafeTest as setup } from "./artifactSafeTest";
 
 const E2E_CLERK_USERS = getE2ECoreClerkUsers();
 

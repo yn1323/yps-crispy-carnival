@@ -22,9 +22,14 @@ afterEach(() => {
 });
 
 function runGate(...roots: string[]) {
+  return runGateWithEnvironment({}, ...roots);
+}
+
+function runGateWithEnvironment(environment: NodeJS.ProcessEnv, ...roots: string[]) {
   return spawnSync(process.execPath, [GATE_PATH, ...roots.flatMap((root) => ["--root", root])], {
     cwd: testDirectory,
     encoding: "utf8",
+    env: { ...process.env, ...environment },
   });
 }
 
@@ -120,6 +125,25 @@ describe("artifact privacy gate", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("non-placeholder email address");
     expect(result.stderr).not.toContain("customer-123@gmail.com");
+  });
+
+  it("placeholder domainでも設定済みE2E identityとcredentialを拒否する", () => {
+    const configuredEmail = "reserved-e2e-user@example.com";
+    const configuredPassword = "configured-e2e-password-sentinel";
+    writeFileSync(path.join(testDirectory, "error-context.md"), `${configuredEmail}\n${configuredPassword}`);
+
+    const result = runGateWithEnvironment(
+      {
+        E2E_CLERK_USERS: configuredEmail,
+        E2E_CLERK_PASSWORD: configuredPassword,
+      },
+      "error-context.md",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("configured E2E identity or credential");
+    expect(result.stderr).not.toContain(configuredEmail);
+    expect(result.stderr).not.toContain(configuredPassword);
   });
 
   it("does not interpret email-like bytes in a recognized binary as customer text", () => {

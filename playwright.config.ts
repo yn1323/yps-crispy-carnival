@@ -4,8 +4,8 @@ import { getE2EWorkerCount } from "./e2e/helpers/e2eUsers";
 
 dotenv.config({ debug: false, quiet: true });
 
-// Playwright 1.61は失敗時に画面全体のARIA snapshotをerror-context.mdへ自動保存する。
-// 実Clerk emailやcapability URLを公開artifactへ残さないため、E2E全体で生成を止める。
+// Playwright 1.61が失敗時に自動取得する画面全体のARIA snapshotを止める。
+// matcher由来のsnapshotとerror本文は先頭のprivacy reporterでredactする。
 process.env.PLAYWRIGHT_NO_COPY_PROMPT = "1";
 
 /**
@@ -40,7 +40,12 @@ export default defineConfig({
   /* 通常用3ユーザーとparallelIndexを固定対応させる。 */
   workers: getE2EWorkerCount(),
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: [["list", { printSteps: true }], ["html"], ["json", { outputFile: "test-results.json" }]],
+  reporter: [
+    ["./e2e/reporters/privacyReporter.ts"],
+    ["list", { printSteps: true }],
+    ["html"],
+    ["json", { outputFile: "test-results.json" }],
+  ],
   /* 並列実行時の初回購読・描画待ちを考慮しつつ、操作失敗を早く検知する。 */
   expect: {
     timeout: 10_000,
