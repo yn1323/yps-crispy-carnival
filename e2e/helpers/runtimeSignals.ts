@@ -72,6 +72,11 @@ export async function runWithE2ERuntimeSignalMonitoring<T>({
   } catch (error) {
     actionError = error;
     actionFailed = true;
+  } finally {
+    // context closeやroute解除は製品操作ではない。意図的な破棄中のReact warningをruntime regressionへ数えない。
+    page.off("pageerror", onPageError);
+    page.off("console", onConsole);
+    page.off("response", onResponse);
   }
 
   try {
@@ -79,10 +84,6 @@ export async function runWithE2ERuntimeSignalMonitoring<T>({
   } catch (error) {
     cleanupError = error;
     cleanupFailed = true;
-  } finally {
-    page.off("pageerror", onPageError);
-    page.off("console", onConsole);
-    page.off("response", onResponse);
   }
 
   let signalError: Error | undefined;

@@ -142,6 +142,40 @@ describe("E2E browser runtime signals", () => {
     expect(attachment.body.toString("utf-8")).not.toContain(rawEmail);
   });
 
+  it("cleanup開始前にlistenerを解除し、browser破棄中のsignalをruntime regressionへ数えない", async () => {
+    const page = new FakePage();
+    const attach = vi.fn(async (_name: string, _options: { body: Buffer; contentType: string }) => undefined);
+
+    await expect(
+      runWithE2ERuntimeSignalMonitoring({
+        page: page as unknown as Page,
+        testInfo: { attach } as unknown as Pick<TestInfo, "attach">,
+        action: async () => "completed",
+        cleanup: async () => {
+          page.emit("console", { type: () => "error", text: () => "teardown warning" });
+          page.emit("pageerror", new Error("teardown failure"));
+        },
+      }),
+    ).resolves.toBe("completed");
+    expect(attach).not.toHaveBeenCalled();
+  });
+
+  it("listener解除後もcleanup自体の失敗は失敗として返す", async () => {
+    const page = new FakePage();
+    const cleanupError = new Error("cleanup failed");
+
+    await expect(
+      runWithE2ERuntimeSignalMonitoring({
+        page: page as unknown as Page,
+        testInfo: { attach: vi.fn() } as unknown as Pick<TestInfo, "attach">,
+        action: async () => "completed",
+        cleanup: async () => {
+          throw cleanupError;
+        },
+      }),
+    ).rejects.toBe(cleanupError);
+  });
+
   it("許容済みconsole errorとcross-origin 5xxでは失敗しない", async () => {
     const page = new FakePage();
     const attach = vi.fn(async (_name: string, _options: { body: Buffer; contentType: string }) => undefined);
