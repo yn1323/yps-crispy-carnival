@@ -1,5 +1,6 @@
 import { lstat, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { stripVTControlCharacters } from "node:util";
 import { inflateRawSync } from "node:zlib";
 
 const MEBIBYTE = 1024 * 1024;
@@ -152,22 +153,26 @@ function assertSafeDisplayPath(relativePath) {
 }
 
 function findSensitiveContent(contents, includeEmail) {
-  if (CONFIGURED_SENSITIVE_VALUES.some((value) => contents.includes(value))) {
+  // Playwrightのmatcherが値の途中へANSI装飾を挿入しても、公開直前の検査で再結合して検出する。
+  const normalizedContents = stripVTControlCharacters(contents);
+  if (CONFIGURED_SENSITIVE_VALUES.some((value) => normalizedContents.includes(value))) {
     return "configured E2E identity or credential";
   }
   for (const candidate of SENSITIVE_CONTENT_PATTERNS) {
-    if (candidate.pattern.test(contents)) return candidate.label;
+    if (candidate.pattern.test(normalizedContents)) return candidate.label;
   }
-  if (PLAYWRIGHT_STORAGE_PATTERN.test(contents)) return "authenticated browser storage state";
+  if (PLAYWRIGHT_STORAGE_PATTERN.test(normalizedContents)) return "authenticated browser storage state";
 
   if (includeEmail) {
     let searchFrom = 0;
-    while (searchFrom < contents.length) {
-      const atIndex = contents.indexOf("@", searchFrom);
+    while (searchFrom < normalizedContents.length) {
+      const atIndex = normalizedContents.indexOf("@", searchFrom);
       if (atIndex === -1) break;
-      const localPart = contents.slice(Math.max(0, atIndex - 64), atIndex).match(EMAIL_LOCAL_SUFFIX_PATTERN)?.[0];
-      const domain = contents
-        .slice(atIndex + 1, Math.min(contents.length, atIndex + 255))
+      const localPart = normalizedContents
+        .slice(Math.max(0, atIndex - 64), atIndex)
+        .match(EMAIL_LOCAL_SUFFIX_PATTERN)?.[0];
+      const domain = normalizedContents
+        .slice(atIndex + 1, Math.min(normalizedContents.length, atIndex + 255))
         .match(EMAIL_DOMAIN_PREFIX_PATTERN)?.[1]
         ?.toLowerCase();
       if (

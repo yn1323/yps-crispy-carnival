@@ -96,7 +96,7 @@ jobs:
         env:
           E2E_CLERK_USERS: ${{ secrets.E2E_CLERK_USERS }}
           E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD }}
-        run: node scripts/assertNoSensitiveArtifacts.mjs --root playwright-report --root test-results.json
+        run: node scripts/assertNoSensitiveArtifacts.mjs --root playwright-report --root test-results.json --root test-results
       - name: Verify accessibility artifact privacy
         id: accessibility_privacy
         if: ${{ !cancelled() && hashFiles('playwright-report-a11y/index.html') != '' }}

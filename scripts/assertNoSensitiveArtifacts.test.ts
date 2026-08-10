@@ -146,6 +146,29 @@ describe("artifact privacy gate", () => {
     expect(result.stderr).not.toContain(configuredPassword);
   });
 
+  it("ANSI装飾で分断された設定済みE2E identityとcredentialも拒否する", () => {
+    const configuredEmail = "ansi-e2e-user@example.com";
+    const configuredPassword = "ansi-e2e-password-sentinel";
+    const insertAnsi = (value: string) => `${value.slice(0, 10)}\u001b[7m${value.slice(10)}\u001b[27m`;
+    writeFileSync(
+      path.join(testDirectory, "error-context.md"),
+      `${insertAnsi(configuredEmail)}\n${insertAnsi(configuredPassword)}`,
+    );
+
+    const result = runGateWithEnvironment(
+      {
+        E2E_CLERK_USERS: configuredEmail,
+        E2E_CLERK_PASSWORD: configuredPassword,
+      },
+      "error-context.md",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("configured E2E identity or credential");
+    expect(result.stderr).not.toContain(configuredEmail);
+    expect(result.stderr).not.toContain(configuredPassword);
+  });
+
   it("does not interpret email-like bytes in a recognized binary as customer text", () => {
     writeFileSync(
       path.join(testDirectory, "image.png"),
