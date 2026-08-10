@@ -209,6 +209,20 @@ describe("artifact privacy gate", () => {
     expect(result.stderr).not.toContain(STRIPE_KEY_FIXTURE);
   });
 
+  it("Playwright HTMLに埋め込まれたreport ZIPも検査する", () => {
+    const embeddedReport = createStoredZip([{ name: "report.json", contents: CLERK_SESSION_ID_FIXTURE }]);
+    writeFileSync(
+      path.join(testDirectory, "index.html"),
+      `<script>window.report = "data:application/zip;base64,${embeddedReport.toString("base64")}"</script>`,
+    );
+
+    const result = runGate("index.html");
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Clerk session identifier");
+    expect(result.stderr).not.toContain(CLERK_SESSION_ID_FIXTURE);
+  });
+
   it("ZIP内部のbearer capability URLを拒否する", () => {
     const capabilityUrl = `/shifts/view?token=${CAPABILITY_TOKEN_FIXTURE}`;
     writeFileSync(

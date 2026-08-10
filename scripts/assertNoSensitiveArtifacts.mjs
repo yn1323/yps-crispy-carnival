@@ -105,6 +105,10 @@ const SENSITIVE_CONTENT_PATTERNS = [
   },
   { label: "Clerk session identifier", pattern: /\b(?:dvb|sess)_[A-Za-z0-9_-]{8,}\b/ },
   {
+    label: "Clerk testing credential",
+    pattern: /\b__clerk_(?:db_jwt|testing_token)=[A-Za-z0-9_-]{8,}\b/,
+  },
+  {
     label: "bearer capability URL",
     pattern: new RegExp(
       `/(?:legal/staff/consent|manager-invite|shifts/(?:submit|view)|staff/register)\\?[^\\s"'<>]{0,512}\\btoken=${UUID_TOKEN_PATTERN}`,
@@ -123,6 +127,7 @@ const SENSITIVE_CONTENT_PATTERNS = [
 const EMAIL_LOCAL_SUFFIX_PATTERN = /[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}$/;
 const EMAIL_DOMAIN_PREFIX_PATTERN = /^([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)/;
 const PLAYWRIGHT_STORAGE_PATTERN = /"cookies"\s*:\s*\[[\s\S]*?"origins"\s*:\s*\[/;
+const EMBEDDED_ZIP_DATA_URL_PREFIX = "data:application/zip;base64,";
 const CONFIGURED_SENSITIVE_VALUES = [
   process.env.E2E_CLERK_PASSWORD,
   ...(process.env.E2E_CLERK_USERS ?? "").split(",").map((value) => value.trim()),
@@ -351,6 +356,28 @@ function scanZipContents(contents, archivePath, state, depth = 0) {
   }
 }
 
+function scanEmbeddedZipDataUrls(contents, artifactPath, state) {
+  let searchFrom = 0;
+  let archiveIndex = 0;
+  while (searchFrom < contents.length) {
+    const prefixIndex = contents.indexOf(EMBEDDED_ZIP_DATA_URL_PREFIX, searchFrom);
+    if (prefixIndex === -1) break;
+    const encodedStart = prefixIndex + EMBEDDED_ZIP_DATA_URL_PREFIX.length;
+    let encodedEnd = encodedStart;
+    while (encodedEnd < contents.length && /[A-Za-z0-9+/=]/.test(contents[encodedEnd] ?? "")) encodedEnd += 1;
+    const encodedArchive = contents.slice(encodedStart, encodedEnd);
+    const archiveContents = Buffer.from(encodedArchive, "base64");
+    const normalizedInput = encodedArchive.replace(/=+$/, "");
+    const normalizedOutput = archiveContents.toString("base64").replace(/=+$/, "");
+    if (!encodedArchive || normalizedInput !== normalizedOutput) {
+      throw new Error(`Artifact privacy gate found invalid embedded ZIP data: ${JSON.stringify(artifactPath)}`);
+    }
+    scanZipContents(archiveContents, `${artifactPath}!/embedded-report-${archiveIndex}.zip`, state);
+    archiveIndex += 1;
+    searchFrom = encodedEnd;
+  }
+}
+
 async function collectFiles(rootArgument) {
   const workingDirectory = path.resolve(process.cwd());
   const rootPath = path.resolve(workingDirectory, rootArgument);
@@ -418,6 +445,10 @@ async function scanArtifacts(rootArguments) {
       scanZipContents(contents, normalizedPath, archiveState);
     } else {
       scanRegularContents(contents, normalizedPath);
+      if (path.extname(normalizedPath).toLowerCase() === ".html") {
+        const html = decodeUtf8(contents);
+        if (html) scanEmbeddedZipDataUrls(html, normalizedPath, archiveState);
+      }
     }
   }
   return { archiveEntryCount: archiveState.entryCount, fileCount: files.length, totalBytes };
