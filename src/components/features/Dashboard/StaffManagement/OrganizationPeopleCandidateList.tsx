@@ -31,7 +31,7 @@ export function OrganizationPeopleCandidateList({ enabled, ...props }: Candidate
       fallback={
         <OrganizationPeopleCandidateListView
           candidates={[]}
-          errorMessage="モーダルを閉じて、もう一度お試しください。"
+          errorMessage="追加方法に戻って、もう一度お試しください。"
           {...props}
         />
       }

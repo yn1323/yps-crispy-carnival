@@ -2,13 +2,14 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
+import { Button } from "@/src/components/ui/Button";
 import {
   OrganizationPeopleCandidateListView,
   type OrganizationPersonCandidate,
 } from "./OrganizationPeopleCandidateList";
 import {
   StaffInvitationDialogView,
-  type StaffInvitationTab,
+  type StaffInvitationMethod,
   type StaffInvitationViewModel,
 } from "./StaffInvitationDialog";
 
@@ -34,14 +35,15 @@ const candidates: OrganizationPersonCandidate[] = [
 const noop = () => {};
 
 function createInvitation(
-  activeTab: StaffInvitationTab,
+  selectedMethod: StaffInvitationMethod | null,
   overrides: Partial<StaffInvitationViewModel> = {},
 ): StaffInvitationViewModel {
   return {
     dialog: { isOpen: true, onOpenChange: noop },
-    activeTab,
+    selectedMethod,
     showOrganizationPeopleAddition: true,
     registrationUrl: "https://shiftori.example.com/staff/register/shop_123",
+    registrationUrlError: false,
     peopleCapacityResolution: null,
     isRegistrationUrlLoading: false,
     isAddingStaffs: false,
@@ -49,7 +51,9 @@ function createInvitation(
     isAddingOrganizationPerson: false,
     onOpen: noop,
     onClose: noop,
-    onTabChange: noop,
+    onSelectMethod: noop,
+    onBackToMethods: noop,
+    onRetryRegistrationUrl: noop,
     onAddStaffs: noop,
     onAddOrganizationPerson: noop,
     reactivationConfirmation: {
@@ -72,7 +76,7 @@ const meta = {
   component: StaffInvitationDialogView,
   parameters: { layout: "fullscreen" },
   args: {
-    invitation: createInvitation("link"),
+    invitation: createInvitation(null),
     organizationPeopleContent: candidateList,
   },
 } satisfies Meta<typeof StaffInvitationDialogView>;
@@ -80,7 +84,37 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const LinkInvitation: Story = {};
+export const MethodSelection: Story = {};
+
+export const MethodSelectionWithoutOrganizationPeople: Story = {
+  args: {
+    invitation: createInvitation(null, { showOrganizationPeopleAddition: false }),
+  },
+};
+
+export const LinkInvitation: Story = {
+  args: {
+    invitation: createInvitation("link"),
+  },
+};
+
+export const LinkInvitationLoading: Story = {
+  args: {
+    invitation: createInvitation("link", {
+      registrationUrl: null,
+      isRegistrationUrlLoading: true,
+    }),
+  },
+};
+
+export const LinkInvitationError: Story = {
+  args: {
+    invitation: createInvitation("link", {
+      registrationUrl: null,
+      registrationUrlError: true,
+    }),
+  },
+};
 
 export const ManualRegistration: Story = {
   args: {
@@ -102,9 +136,9 @@ export const OrganizationPeopleDarkLaunchBehavior: Story = {
   play: async ({ canvasElement }) => {
     const page = within(canvasElement.ownerDocument.body);
 
-    await expect(page.queryByRole("tab", { name: "他店舗スタッフを招待" })).not.toBeInTheDocument();
+    await expect(page.queryByRole("button", { name: "別店舗のスタッフを追加する" })).not.toBeInTheDocument();
     await expect(page.queryByRole("button", { name: "佐藤 真由美をこの店舗に追加" })).not.toBeInTheDocument();
-    await expect(await page.findByRole("tab", { name: "リンクから招待" })).toHaveAttribute("aria-selected", "true");
+    await page.findByRole("button", { name: "スタッフ本人に登録してもらう" });
   },
 };
 
@@ -152,7 +186,7 @@ export const OrganizationPeopleError: Story = {
     organizationPeopleContent: (
       <OrganizationPeopleCandidateListView
         candidates={[]}
-        errorMessage="モーダルを閉じて、もう一度お試しください。"
+        errorMessage="追加方法に戻って、もう一度お試しください。"
         addingPersonId={null}
         isAdding={false}
         onAdd={noop}
@@ -161,7 +195,12 @@ export const OrganizationPeopleError: Story = {
   },
 };
 
-export const Mobile: Story = {
+export const MethodSelectionMobile: Story = {
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
+export const OrganizationPeopleMobile: Story = {
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: {
@@ -185,78 +224,134 @@ export const ManualRegistrationMobile: Story = {
   },
 };
 
-export const TabSwitchBehavior: Story = {
+export const MethodNavigationBehavior: Story = {
   parameters: { screenshot: { skip: true } },
-  render: () => <InteractiveDialog initialTab="link" onAdd={noop} />,
+  render: () => <InteractiveDialog onAdd={noop} />,
   play: async ({ canvasElement }) => {
     const page = within(canvasElement.ownerDocument.body);
 
-    await expect(page.queryByRole("button", { name: "スタッフを登録する" })).not.toBeInTheDocument();
-    await expect(page.queryByRole("button", { name: "佐藤 真由美をこの店舗に追加" })).not.toBeInTheDocument();
-    await userEvent.click(await page.findByRole("tab", { name: "管理者が登録" }));
-    await expect(await page.findByRole("button", { name: "スタッフを登録する" })).toBeInTheDocument();
+    const linkCard = await page.findByRole("button", { name: "スタッフ本人に登録してもらう" });
+    await waitFor(() => expect(linkCard).toHaveFocus());
+    await userEvent.click(linkCard);
+    const linkHeading = await page.findByRole("heading", { name: "スタッフ本人に登録してもらう" });
+    await waitFor(() => expect(linkHeading).toHaveFocus());
+    await userEvent.click(await page.findByRole("button", { name: "追加方法に戻る" }));
+    await waitFor(() => expect(page.getByRole("button", { name: "スタッフ本人に登録してもらう" })).toHaveFocus());
 
-    await userEvent.click(await page.findByRole("tab", { name: "他店舗スタッフを招待" }));
-    await expect(await page.findByRole("button", { name: "佐藤 真由美をこの店舗に追加" })).toBeInTheDocument();
+    const manualCard = page.getByRole("button", { name: "管理者が情報を入力して追加する" });
+    await userEvent.click(manualCard);
+    const manualHeading = await page.findByRole("heading", { name: "管理者が情報を入力して追加する" });
+    await waitFor(() => expect(manualHeading).toHaveFocus());
+    await userEvent.click(await page.findByRole("button", { name: "追加方法に戻る" }));
+    await waitFor(() => expect(page.getByRole("button", { name: "管理者が情報を入力して追加する" })).toHaveFocus());
+
+    const organizationCard = page.getByRole("button", { name: "別店舗のスタッフを追加する" });
+    await userEvent.click(organizationCard);
+    const organizationHeading = await page.findByRole("heading", { name: "別店舗のスタッフを追加する" });
+    await waitFor(() => expect(organizationHeading).toHaveFocus());
+    await page.findByRole("button", { name: "佐藤 真由美をこの店舗に追加" });
+    await userEvent.click(await page.findByRole("button", { name: "追加方法に戻る" }));
+    await waitFor(() => expect(page.getByRole("button", { name: "別店舗のスタッフを追加する" })).toHaveFocus());
   },
 };
 
-export const LinkTabCloseBehavior: Story = {
+export const ManualDraftRetentionAndCloseResetBehavior: Story = {
   parameters: { screenshot: { skip: true } },
-  render: () => <InteractiveDialog initialTab="link" onAdd={noop} />,
+  render: () => <InteractiveDialog onAdd={noop} />,
   play: async ({ canvasElement }) => {
     const page = within(canvasElement.ownerDocument.body);
 
-    await userEvent.click(await page.findByRole("button", { name: "スタッフ招待を閉じる" }));
-    await waitFor(() => expect(page.queryByRole("dialog", { name: "スタッフを招待" })).not.toBeInTheDocument());
+    await userEvent.click(await page.findByRole("button", { name: "管理者が情報を入力して追加する" }));
+    const [nameInput] = await page.findAllByPlaceholderText("例：田中 花子");
+    await userEvent.type(nameInput, "入力途中のスタッフ");
+
+    await userEvent.click(await page.findByRole("button", { name: "追加方法に戻る" }));
+    await userEvent.click(await page.findByRole("button", { name: "スタッフ本人に登録してもらう" }));
+    await userEvent.click(await page.findByRole("button", { name: "追加方法に戻る" }));
+    await userEvent.click(await page.findByRole("button", { name: "管理者が情報を入力して追加する" }));
+
+    const [retainedNameInput] = await page.findAllByPlaceholderText("例：田中 花子");
+    await expect(retainedNameInput).toHaveValue("入力途中のスタッフ");
+
+    const closeButtons = await page.findAllByRole("button", { name: "閉じる" });
+    await userEvent.click(closeButtons[0]);
+    await waitFor(() => expect(page.queryByRole("dialog", { name: "スタッフを追加" })).not.toBeInTheDocument());
+
+    await userEvent.click(await page.findByRole("button", { name: "スタッフ追加を再表示" }));
+    await page.findByRole("button", { name: "スタッフ本人に登録してもらう" });
+    await userEvent.click(await page.findByRole("button", { name: "管理者が情報を入力して追加する" }));
+    const [resetNameInput] = await page.findAllByPlaceholderText("例：田中 花子");
+    await expect(resetNameInput).toHaveValue("");
   },
 };
 
 export const CandidateAdditionClosesDialog: Story = {
   parameters: { screenshot: { skip: true } },
-  render: () => <InteractiveDialog initialTab="organization" onAdd={noop} />,
+  render: () => <InteractiveDialog initialMethod="organization" onAdd={noop} />,
   play: async ({ canvasElement }) => {
     const page = within(canvasElement.ownerDocument.body);
 
     await userEvent.click(await page.findByRole("button", { name: "佐藤 真由美をこの店舗に追加" }));
 
-    await waitFor(() => expect(page.queryByRole("dialog", { name: "スタッフを招待" })).not.toBeInTheDocument());
+    await waitFor(() => expect(page.queryByRole("dialog", { name: "スタッフを追加" })).not.toBeInTheDocument());
   },
 };
 
 function InteractiveDialog({
-  initialTab,
+  initialMethod = null,
   onAdd,
 }: {
-  initialTab: StaffInvitationTab;
+  initialMethod?: StaffInvitationMethod | null;
   onAdd: (personId: Id<"organizationPeople">) => void | Promise<void>;
 }) {
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const [selectedMethod, setSelectedMethod] = useState<StaffInvitationMethod | null>(initialMethod);
   const [isOpen, setIsOpen] = useState(true);
-  const invitation = createInvitation(activeTab, {
+
+  const closeDialog = () => {
+    setIsOpen(false);
+    setSelectedMethod(null);
+  };
+  const invitation = createInvitation(selectedMethod, {
     dialog: {
       isOpen,
-      onOpenChange: ({ open }) => setIsOpen(open),
+      onOpenChange: ({ open }) => {
+        if (open) {
+          setSelectedMethod(null);
+          setIsOpen(true);
+          return;
+        }
+        closeDialog();
+      },
     },
-    onClose: () => setIsOpen(false),
-    onTabChange: setActiveTab,
+    onClose: closeDialog,
+    onSelectMethod: setSelectedMethod,
+    onBackToMethods: () => setSelectedMethod(null),
     onAddOrganizationPerson: async (targetPersonId) => {
       await onAdd(targetPersonId);
-      setIsOpen(false);
+      closeDialog();
     },
   });
 
   return (
-    <StaffInvitationDialogView
-      invitation={invitation}
-      organizationPeopleContent={
-        <OrganizationPeopleCandidateListView
-          candidates={candidates}
-          addingPersonId={null}
-          isAdding={false}
-          onAdd={invitation.onAddOrganizationPerson}
+    <>
+      {!isOpen && (
+        <Button type="button" onClick={() => setIsOpen(true)}>
+          スタッフ追加を再表示
+        </Button>
+      )}
+      {isOpen && (
+        <StaffInvitationDialogView
+          invitation={invitation}
+          organizationPeopleContent={
+            <OrganizationPeopleCandidateListView
+              candidates={candidates}
+              addingPersonId={null}
+              isAdding={false}
+              onAdd={invitation.onAddOrganizationPerson}
+            />
+          }
         />
-      }
-    />
+      )}
+    </>
   );
 }

@@ -102,7 +102,7 @@ export function StaffManagementView({
 
       {invitation.dialog.isOpen && (
         <DeferredDialogBoundary
-          title="スタッフを招待"
+          title="スタッフを追加"
           isOpen
           onOpenChange={invitation.dialog.onOpenChange}
           onClose={invitation.onClose}

@@ -293,7 +293,7 @@ export const ReadOnlyShop: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("button", { name: "店舗詳細を開く" })).toBeEnabled();
     await expect(canvas.getByRole("button", { name: "新しい募集をつくる" })).toBeDisabled();
-    await expect(canvas.getByRole("button", { name: "スタッフを招待する" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "スタッフを追加する" })).toBeDisabled();
   },
 };
 
@@ -320,9 +320,9 @@ export const ReadOnlyTransitionBehavior: Story = {
     await body.findByRole("dialog", { name: "新しい募集をつくる" });
     await expectDialogClosedByReadOnly("新しい募集をつくる");
 
-    await userEvent.click(await canvas.findByRole("button", { name: "スタッフを招待する" }));
-    await body.findByRole("dialog", { name: "スタッフを招待" });
-    await expectDialogClosedByReadOnly("スタッフを招待");
+    await userEvent.click(await canvas.findByRole("button", { name: "スタッフを追加する" }));
+    await body.findByRole("dialog", { name: "スタッフを追加" });
+    await expectDialogClosedByReadOnly("スタッフを追加");
 
     await userEvent.click(await canvas.findByRole("button", { name: "申請を確認" }));
     await body.findByRole("dialog", { name: "スタッフ登録申請" });
