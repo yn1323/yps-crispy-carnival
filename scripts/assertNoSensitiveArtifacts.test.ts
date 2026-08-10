@@ -127,6 +127,17 @@ describe("artifact privacy gate", () => {
     expect(result.stderr).not.toContain("customer-123@gmail.com");
   });
 
+  it("rejects an email with a punycode top-level domain", () => {
+    const sensitiveEmail = "customer-123@example.xn--p1ai";
+    writeFileSync(path.join(testDirectory, "report.html"), sensitiveEmail);
+
+    const result = runGate("report.html");
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("non-placeholder email address");
+    expect(result.stderr).not.toContain(sensitiveEmail);
+  });
+
   it("pnpmのscoped package版表記をemailとして誤検知しない", () => {
     const embeddedReport = createStoredZip([
       {

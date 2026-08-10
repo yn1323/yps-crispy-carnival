@@ -125,7 +125,8 @@ const SENSITIVE_CONTENT_PATTERNS = [
   { label: "inline source map", pattern: /sourceMappingURL\s*=/ },
 ];
 const EMAIL_LOCAL_SUFFIX_PATTERN = /[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}$/;
-const EMAIL_DOMAIN_PREFIX_PATTERN = /^([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,63})(?![A-Za-z0-9-])/;
+const EMAIL_DOMAIN_PREFIX_PATTERN =
+  /^([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.(?:[A-Za-z]{2,63}|xn--[A-Za-z0-9-]{2,59}))(?![A-Za-z0-9-])/;
 const PLAYWRIGHT_STORAGE_PATTERN = /"cookies"\s*:\s*\[[\s\S]*?"origins"\s*:\s*\[/;
 const EMBEDDED_ZIP_DATA_URL_PREFIX = "data:application/zip;base64,";
 const CONFIGURED_SENSITIVE_VALUES = [
