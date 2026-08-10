@@ -27,7 +27,12 @@ export async function recalculateOpenRecruitmentStatsForShops(
   ctx: Pick<MutationCtx, "db">,
   shopIds: readonly Id<"shops">[],
   now: number,
+  options?: { workLimit?: number },
 ) {
+  const workLimit = options?.workLimit ?? SHOP_MEMBERSHIP_STATS_RECALCULATION_WORK_LIMIT;
+  if (!Number.isSafeInteger(workLimit) || workLimit < 1 || workLimit > SHOP_MEMBERSHIP_STATS_RECALCULATION_WORK_LIMIT) {
+    throw new Error("Recruitment stats recalculation work limit is invalid");
+  }
   const uniqueShopIds = [...new Set(shopIds)].sort((left, right) => left.localeCompare(right));
   const scopes: RecruitmentStatsRecalculationScope[] = [];
   let totalWork = 0;
@@ -53,7 +58,7 @@ export async function recalculateOpenRecruitmentStatsForShops(
     }
     const activeShiftTargetStaffs = activeStaffs.filter(isShiftTargetStaff);
     totalWork += recruitments.length * (activeShiftTargetStaffs.length + 1);
-    if (totalWork > SHOP_MEMBERSHIP_STATS_RECALCULATION_WORK_LIMIT) {
+    if (totalWork > workLimit) {
       throw new ConvexError(RECRUITMENT_STATS_RECALCULATION_LIMIT_ERROR);
     }
     scopes.push({ shopId, recruitments, activeShiftTargetStaffs });

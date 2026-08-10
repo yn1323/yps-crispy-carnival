@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
+import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { todayJST } from "../_lib/dateFormat";
 import { rateLimit } from "../_lib/rateLimits";
 import { seedManagerShop, seedOrganizationManagerShop, seedShop, seedUser } from "../_test/seed";
@@ -19,6 +20,7 @@ import {
   STAFF_NOTIFICATION_RESEND_SCOPE_TARGET_SHORT_LIMIT,
 } from "../constants";
 import { getLegalConsentVersions } from "../legal/documents";
+import { ORGANIZATION_SHOP_STAFF_MEMBERSHIP_CHANGE_TARGET_LIMIT } from "../organization/shopMembershipChange";
 import { ORGANIZATION_PLAN_LIMITS } from "../organizationBilling/policy";
 
 function dateFromToday(daysFromNow: number): string {
@@ -110,6 +112,38 @@ function readyRemovalPreview(detail: Awaited<ReturnType<typeof getMembershipChan
     assignmentCount: membership.removalPreview.assignmentCount,
     fingerprint: membership.removalPreview.fingerprint,
   };
+}
+
+async function getShopStaffMembershipChange(
+  t: TestConvex<typeof schema>,
+  args: { subject: string; shopId: Id<"shops"> },
+) {
+  const snapshot = await t
+    .withIdentity({ subject: args.subject })
+    .query(api.staff.queries.getOrganizationShopStaffMembershipChange, { shopId: args.shopId });
+  if (!snapshot) throw new Error("店舗の所属スタッフsnapshotを取得できませんでした");
+  return snapshot;
+}
+
+async function getShopStaffRemovalPreviews(
+  t: TestConvex<typeof schema>,
+  args: {
+    subject: string;
+    shopId: Id<"shops">;
+    personIds: Id<"organizationPeople">[];
+    expectedMembershipFingerprint: string;
+  },
+) {
+  const preview = await t
+    .withIdentity({ subject: args.subject })
+    .query(api.staff.queries.previewOrganizationShopStaffMembershipRemovals, {
+      shopId: args.shopId,
+      personIds: args.personIds,
+      expectedMembershipFingerprint: args.expectedMembershipFingerprint,
+      now: Date.now(),
+    });
+  if (preview?.kind !== "ready") throw new Error("店舗の所属スタッフ解除previewを取得できませんでした");
+  return preview.removals;
 }
 
 describe("staff/mutations", () => {
@@ -2736,6 +2770,895 @@ describe("staff/mutations", () => {
       expect(finalState.submissions.map((submission) => submission.staffId).sort()).toEqual(
         [ids.oldStaffId, stateAfterReadd.newStaff._id].sort(),
       );
+    });
+  });
+
+  describe("changeOrganizationShopStaffMemberships", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-08-11T03:00:00+09:00"));
+    });
+
+    afterEach(() => vi.useRealTimers());
+
+    it("1店舗の追加と解除を一括確定し、人物・管理者・他店舗を保持して関連副作用を完結する", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "shop_staff_membership_mixed_actor",
+          email: "shop-staff-membership-owner@example.com",
+          shopName: "所属変更店舗",
+          plan: "business",
+        });
+        const otherShopId = await seedMembershipChangeShop(ctx, base.organizationId, "保持対象の別店舗");
+        const removedUserId = await seedUser(
+          ctx,
+          "shop_staff_membership_removed_manager",
+          "shop-staff-membership-removed@example.com",
+        );
+        const removedPersonId = await seedMembershipChangePerson(ctx, {
+          organizationId: base.organizationId,
+          userId: removedUserId,
+          name: "解除する管理者",
+          email: "shop-staff-membership-removed@example.com",
+        });
+        const removedMemberId = await ctx.db.insert("organizationMembers", {
+          organizationId: base.organizationId,
+          personId: removedPersonId,
+          userId: removedUserId,
+          status: "active",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+        const removedStaffId = await ctx.db.insert("staffs", {
+          shopId: base.shopId,
+          organizationId: base.organizationId,
+          organizationPersonId: removedPersonId,
+          userId: removedUserId,
+          name: "解除する管理者",
+          email: "shop-staff-membership-removed@example.com",
+          emailNormalized: "shop-staff-membership-removed@example.com",
+          excludedFromShift: false,
+          isDeleted: false,
+        });
+        const otherShopStaffId = await ctx.db.insert("staffs", {
+          shopId: otherShopId,
+          organizationId: base.organizationId,
+          organizationPersonId: removedPersonId,
+          userId: removedUserId,
+          name: "別店舗の管理者",
+          email: "shop-staff-membership-removed@example.com",
+          emailNormalized: "shop-staff-membership-removed@example.com",
+          excludedFromShift: false,
+          isDeleted: false,
+        });
+        const addedPersonId = await seedMembershipChangePerson(ctx, {
+          organizationId: base.organizationId,
+          name: "追加するスタッフ",
+          email: "shop-staff-membership-added@example.com",
+        });
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          shopId: base.shopId,
+          periodStart: dateFromToday(7),
+          periodEnd: dateFromToday(13),
+          deadline: dateFromToday(3),
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        const submissionId = await ctx.db.insert("shiftSubmissions", {
+          recruitmentId,
+          staffId: removedStaffId,
+          submittedAt: Date.now(),
+        });
+        const statsId = await ctx.db.insert("recruitmentStats", {
+          recruitmentId,
+          shopId: base.shopId,
+          submittedCount: 1,
+          activeStaffCountSnapshot: 1,
+          updatedAt: Date.now(),
+        });
+        const positionId = await ctx.db.insert("positions", {
+          shopId: base.shopId,
+          name: "通常",
+          color: "#000000",
+          sortOrder: 0,
+          isDeleted: false,
+        });
+        const pastAssignmentId = await ctx.db.insert("shiftAssignments", {
+          recruitmentId,
+          staffId: removedStaffId,
+          date: dateFromToday(-1),
+          startTime: "09:00",
+          endTime: "12:00",
+          positionId,
+        });
+        const futureAssignmentId = await ctx.db.insert("shiftAssignments", {
+          recruitmentId,
+          staffId: removedStaffId,
+          date: dateFromToday(8),
+          startTime: "10:00",
+          endTime: "18:00",
+          positionId,
+        });
+        const sessionId = await ctx.db.insert("sessions", {
+          sessionToken: "shop-staff-membership-old-session",
+          staffId: removedStaffId,
+          shopId: base.shopId,
+          recruitmentId,
+          expiresAt: Date.now() + 86_400_000,
+        });
+        const magicLinkId = await ctx.db.insert("magicLinks", {
+          token: "shop-staff-membership-old-magic-link",
+          staffId: removedStaffId,
+          shopId: base.shopId,
+          recruitmentId,
+          expiresAt: Date.now() + 86_400_000,
+        });
+        const lineLinkTokenId = await ctx.db.insert("lineLinkTokens", {
+          token: "shop-staff-membership-old-line-link",
+          staffId: removedStaffId,
+          shopId: base.shopId,
+          expiresAt: Date.now() + 86_400_000,
+        });
+        const lineAccountId = await ctx.db.insert("staffLineAccounts", {
+          staffId: removedStaffId,
+          shopId: base.shopId,
+          lineUserId: "U_shop_staff_membership_removed",
+          linkedAt: Date.now(),
+          following: true,
+          isDeleted: false,
+        });
+        const outboxId = await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status: "pending",
+          dedupeKey: "shop-staff-membership-before-removal",
+          organizationId: base.organizationId,
+          shopId: base.shopId,
+          staffId: removedStaffId,
+          purpose: "business",
+          payload: {
+            kind: "email",
+            from: "noreply@example.com",
+            to: "shop-staff-membership-removed@example.com",
+            subject: "解除前の未送信通知",
+            html: "本文",
+            context: "shop-staff-membership-change-test",
+          },
+          attemptCount: 0,
+          nextRunAt: Date.now(),
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+        return {
+          ...base,
+          addedPersonId,
+          futureAssignmentId,
+          lineAccountId,
+          lineLinkTokenId,
+          magicLinkId,
+          otherShopId,
+          otherShopStaffId,
+          outboxId,
+          pastAssignmentId,
+          removedMemberId,
+          removedPersonId,
+          removedStaffId,
+          removedUserId,
+          sessionId,
+          statsId,
+          submissionId,
+        };
+      });
+      const subject = "shop_staff_membership_mixed_actor";
+      const actor = t.withIdentity({ subject });
+      const snapshot = await getShopStaffMembershipChange(t, { subject, shopId: ids.shopId });
+      const removalPreviews = await getShopStaffRemovalPreviews(t, {
+        subject,
+        shopId: ids.shopId,
+        personIds: [ids.removedPersonId],
+        expectedMembershipFingerprint: snapshot.membershipFingerprint,
+      });
+      const request = {
+        shopId: ids.shopId,
+        desiredActivePersonIds: [ids.addedPersonId],
+        expectedMembershipFingerprint: snapshot.membershipFingerprint,
+        removalPreviews,
+        requestId: "shop-staff-membership-mixed-request",
+      };
+
+      await expect(
+        actor.mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, request),
+      ).resolves.toEqual({
+        changed: true,
+        addedPersonIds: [ids.addedPersonId],
+        removedPersonIds: [ids.removedPersonId],
+      });
+
+      const requestKey = await toAuditRequestKey(request.requestId);
+      const outerCorrelationId = `${ids.organizationId}:shop-staff-memberships:${ids.shopId}:${requestKey}`;
+      const state = await t.run(async (ctx) => {
+        const addedStaffs = await ctx.db
+          .query("staffs")
+          .withIndex("by_organizationId_and_organizationPersonId", (q) =>
+            q.eq("organizationId", ids.organizationId).eq("organizationPersonId", ids.addedPersonId),
+          )
+          .collect();
+        const addedStaff = addedStaffs.find((staff) => staff.shopId === ids.shopId && !staff.isDeleted) ?? null;
+        const removedPerson = await ctx.db.get(ids.removedPersonId);
+        const removedMember = await ctx.db.get(ids.removedMemberId);
+        const removedStaff = await ctx.db.get(ids.removedStaffId);
+        const otherShopStaff = await ctx.db.get(ids.otherShopStaffId);
+        const stats = await ctx.db.get(ids.statsId);
+        const session = await ctx.db.get(ids.sessionId);
+        const magicLink = await ctx.db.get(ids.magicLinkId);
+        const lineLinkToken = await ctx.db.get(ids.lineLinkTokenId);
+        const lineAccount = await ctx.db.get(ids.lineAccountId);
+        const outbox = await ctx.db.get(ids.outboxId);
+        return {
+          addedStaff: addedStaff
+            ? {
+                _id: addedStaff._id,
+                shopId: addedStaff.shopId,
+                organizationId: addedStaff.organizationId,
+                organizationPersonId: addedStaff.organizationPersonId,
+                name: addedStaff.name,
+                email: addedStaff.email,
+                emailNormalized: addedStaff.emailNormalized,
+                excludedFromShift: addedStaff.excludedFromShift,
+                isDeleted: addedStaff.isDeleted,
+              }
+            : null,
+          audits: (await ctx.db.query("organizationAuditEvents").collect())
+            .filter((audit) => audit.organizationId === ids.organizationId)
+            .map(
+              ({
+                organizationId,
+                actorUserId,
+                actorPersonId,
+                action,
+                targetKind,
+                targetId,
+                fromState,
+                toState,
+                correlationId,
+                occurredAt,
+              }) => ({
+                organizationId,
+                actorUserId,
+                actorPersonId,
+                action,
+                targetKind,
+                targetId,
+                fromState,
+                toState,
+                correlationId,
+                occurredAt,
+              }),
+            )
+            .sort((left, right) => left.action.localeCompare(right.action)),
+          futureAssignmentExists: (await ctx.db.get(ids.futureAssignmentId)) !== null,
+          lineAccount: lineAccount ? { isDeleted: lineAccount.isDeleted, following: lineAccount.following } : null,
+          lineLinkTokenRevokedAt: lineLinkToken?.revokedAt ?? null,
+          magicLinkRevokedAt: magicLink?.revokedAt ?? null,
+          otherShopStaff: otherShopStaff
+            ? { shopId: otherShopStaff.shopId, isDeleted: otherShopStaff.isDeleted }
+            : null,
+          outbox: outbox
+            ? {
+                status: outbox.status,
+                cancelledAt: outbox.cancelledAt ?? null,
+                terminalAt: outbox.terminalAt ?? null,
+                cancelReason: outbox.cancelReason ?? null,
+                updatedAt: outbox.updatedAt,
+              }
+            : null,
+          pastAssignmentExists: (await ctx.db.get(ids.pastAssignmentId)) !== null,
+          removedMember: removedMember
+            ? { personId: removedMember.personId, userId: removedMember.userId, status: removedMember.status }
+            : null,
+          removedPerson: removedPerson
+            ? {
+                organizationId: removedPerson.organizationId,
+                userId: removedPerson.userId,
+                status: removedPerson.status,
+              }
+            : null,
+          removedStaff: removedStaff
+            ? { organizationPersonId: removedStaff.organizationPersonId, isDeleted: removedStaff.isDeleted }
+            : null,
+          scheduled: (await ctx.db.system.query("_scheduled_functions").collect())
+            .map((job) => ({ name: job.name, args: job.args }))
+            .sort((left, right) => left.name.localeCompare(right.name)),
+          sessionRevokedAt: session?.revokedAt ?? null,
+          stats: stats
+            ? {
+                submittedCount: stats.submittedCount,
+                activeStaffCountSnapshot: stats.activeStaffCountSnapshot,
+                updatedAt: stats.updatedAt,
+              }
+            : null,
+          submissionExists: (await ctx.db.get(ids.submissionId)) !== null,
+        };
+      });
+      if (!state.addedStaff) throw new Error("追加されたstaffを取得できませんでした");
+
+      expect({
+        addedStaff: state.addedStaff,
+        futureAssignmentExists: state.futureAssignmentExists,
+        lineAccount: state.lineAccount,
+        lineLinkTokenRevokedAt: state.lineLinkTokenRevokedAt,
+        magicLinkRevokedAt: state.magicLinkRevokedAt,
+        otherShopStaff: state.otherShopStaff,
+        outbox: state.outbox,
+        pastAssignmentExists: state.pastAssignmentExists,
+        removedMember: state.removedMember,
+        removedPerson: state.removedPerson,
+        removedStaff: state.removedStaff,
+        sessionRevokedAt: state.sessionRevokedAt,
+        stats: state.stats,
+        submissionExists: state.submissionExists,
+      }).toEqual({
+        addedStaff: {
+          _id: state.addedStaff._id,
+          shopId: ids.shopId,
+          organizationId: ids.organizationId,
+          organizationPersonId: ids.addedPersonId,
+          name: "追加するスタッフ",
+          email: "shop-staff-membership-added@example.com",
+          emailNormalized: "shop-staff-membership-added@example.com",
+          excludedFromShift: false,
+          isDeleted: false,
+        },
+        futureAssignmentExists: false,
+        lineAccount: { isDeleted: true, following: false },
+        lineLinkTokenRevokedAt: Date.now(),
+        magicLinkRevokedAt: Date.now(),
+        otherShopStaff: { shopId: ids.otherShopId, isDeleted: false },
+        outbox: {
+          status: "cancelled",
+          cancelledAt: Date.now(),
+          terminalAt: Date.now(),
+          cancelReason: "recipient_inactive",
+          updatedAt: Date.now(),
+        },
+        pastAssignmentExists: true,
+        removedMember: { personId: ids.removedPersonId, userId: ids.removedUserId, status: "active" },
+        removedPerson: {
+          organizationId: ids.organizationId,
+          userId: ids.removedUserId,
+          status: "active",
+        },
+        removedStaff: { organizationPersonId: ids.removedPersonId, isDeleted: true },
+        sessionRevokedAt: Date.now(),
+        stats: { submittedCount: 0, activeStaffCountSnapshot: 1, updatedAt: Date.now() },
+        submissionExists: true,
+      });
+      expect(state.audits).toEqual([
+        {
+          organizationId: ids.organizationId,
+          actorUserId: ids.userId,
+          actorPersonId: ids.personId,
+          action: "organization.person_removed_from_shop",
+          targetKind: "person",
+          targetId: ids.removedPersonId,
+          fromState: `active:${ids.shopId}`,
+          toState: `removed:${ids.shopId}`,
+          correlationId: `${outerCorrelationId}:remove:${ids.removedStaffId}`,
+          occurredAt: Date.now(),
+        },
+        {
+          organizationId: ids.organizationId,
+          actorUserId: ids.userId,
+          actorPersonId: ids.personId,
+          action: "organization.shop_staff_memberships_changed",
+          targetKind: "shop",
+          targetId: ids.shopId,
+          fromState: expect.stringMatching(/^\{"version":1,"intentHash":"[0-9a-f]{64}"\}$/),
+          toState: JSON.stringify({
+            version: 1,
+            changed: true,
+            addedPersonIds: [ids.addedPersonId],
+            removedPersonIds: [ids.removedPersonId],
+          }),
+          correlationId: outerCorrelationId,
+          occurredAt: Date.now(),
+        },
+        {
+          organizationId: ids.organizationId,
+          actorUserId: ids.userId,
+          actorPersonId: ids.personId,
+          action: "organization.staff_added",
+          targetKind: "staff",
+          targetId: state.addedStaff._id,
+          fromState: "activePerson",
+          toState: `active:${ids.shopId}:batch:1`,
+          correlationId: expect.stringMatching(new RegExp(`^${ids.organizationId}:staff-add:[0-9a-f]{64}:staff:0$`)),
+          occurredAt: Date.now(),
+        },
+      ]);
+      expect(state.scheduled).toEqual(
+        [
+          {
+            name: "legal/actions:sendStaffConsentEmail",
+            args: [{ staffId: state.addedStaff._id, organizationBillingVersionAtOrigin: 1 }],
+          },
+          {
+            name: "line/actions:sendInviteEmail",
+            args: [{ staffId: state.addedStaff._id, organizationBillingVersionAtOrigin: 1 }],
+          },
+          {
+            name: "notification/actions:sendOpenRecruitmentNotificationEmailsForStaff",
+            args: [{ staffId: state.addedStaff._id, organizationBillingVersionAtOrigin: 1 }],
+          },
+          {
+            name: "notificationOutbox/mutations:deleteStaffNotificationHistoryBatch",
+            args: [{ shopId: ids.shopId, staffId: ids.removedStaffId }],
+          },
+        ].sort((left, right) => left.name.localeCompare(right.name)),
+      );
+    });
+
+    it("同じrequestとintentは同じ結果を復旧して副作用を増やさず、異なるintentを拒否する", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "shop_staff_membership_replay_actor",
+          plan: "business",
+        });
+        const addedPersonId = await seedMembershipChangePerson(ctx, {
+          organizationId: base.organizationId,
+          name: "冪等追加対象",
+          email: "shop-staff-membership-replay@example.com",
+        });
+        return { ...base, addedPersonId };
+      });
+      const subject = "shop_staff_membership_replay_actor";
+      const actor = t.withIdentity({ subject });
+      const snapshot = await getShopStaffMembershipChange(t, { subject, shopId: ids.shopId });
+      const request = {
+        shopId: ids.shopId,
+        desiredActivePersonIds: [ids.addedPersonId],
+        expectedMembershipFingerprint: snapshot.membershipFingerprint,
+        removalPreviews: [],
+        requestId: "shop-staff-membership-replay-request",
+      };
+      const expected = {
+        changed: true,
+        addedPersonIds: [ids.addedPersonId],
+        removedPersonIds: [],
+      };
+
+      await expect(
+        actor.mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, request),
+      ).resolves.toEqual(expected);
+      const readEffects = async () =>
+        await t.run(async (ctx) => ({
+          analyticsIds: (await ctx.db.query("analyticsSourceEvents").collect()).map((event) => event._id).sort(),
+          auditActions: (await ctx.db.query("organizationAuditEvents").collect()).map((audit) => audit.action).sort(),
+          auditIds: (await ctx.db.query("organizationAuditEvents").collect()).map((audit) => audit._id).sort(),
+          rateLimits: (await ctx.db.query("rateLimits").collect())
+            .map(({ name, key, value, ts }) => ({ name, key, value, ts }))
+            .sort((left, right) => `${left.name}:${left.key ?? ""}`.localeCompare(`${right.name}:${right.key ?? ""}`)),
+          scheduledIds: (await ctx.db.system.query("_scheduled_functions").collect()).map((job) => job._id).sort(),
+          scheduledNames: (await ctx.db.system.query("_scheduled_functions").collect()).map((job) => job.name).sort(),
+          staffIds: (
+            await ctx.db
+              .query("staffs")
+              .withIndex("by_shopId", (q) => q.eq("shopId", ids.shopId))
+              .collect()
+          )
+            .map((staff) => staff._id)
+            .sort(),
+        }));
+      const afterFirst = await readEffects();
+      expect(afterFirst).toEqual({
+        analyticsIds: [expect.any(String)],
+        auditActions: ["organization.shop_staff_memberships_changed", "organization.staff_added"],
+        auditIds: [expect.any(String), expect.any(String)].sort(),
+        rateLimits: [
+          {
+            name: "organizationSettingsMutationShort",
+            key: `${ids.userId}:${ids.shopId}`,
+            value: 0,
+            ts: Date.now(),
+          },
+        ],
+        scheduledIds: [expect.any(String), expect.any(String), expect.any(String)].sort(),
+        scheduledNames: [
+          "legal/actions:sendStaffConsentEmail",
+          "line/actions:sendInviteEmail",
+          "notification/actions:sendOpenRecruitmentNotificationEmailsForStaff",
+        ].sort(),
+        staffIds: [expect.any(String)],
+      });
+
+      await expect(
+        actor.mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, request),
+      ).resolves.toEqual(expected);
+      await expect(
+        actor.mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, {
+          ...request,
+          desiredActivePersonIds: [],
+        }),
+      ).rejects.toThrow("以前の所属スタッフ変更と内容が一致しません");
+      await expect(readEffects()).resolves.toEqual(afterFirst);
+    });
+
+    it("stale snapshot・stale preview・越境人物・変更不可人物・重複入力を副作用なしで拒否する", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "shop_staff_membership_rejection_actor",
+          plan: "business",
+        });
+        const currentPersonId = await seedMembershipChangePerson(ctx, {
+          organizationId: base.organizationId,
+          name: "現在所属",
+          email: "shop-staff-membership-current@example.com",
+        });
+        const currentStaffId = await ctx.db.insert("staffs", {
+          shopId: base.shopId,
+          organizationId: base.organizationId,
+          organizationPersonId: currentPersonId,
+          name: "現在所属",
+          email: "shop-staff-membership-current@example.com",
+          emailNormalized: "shop-staff-membership-current@example.com",
+          isDeleted: false,
+        });
+        const pendingPersonId = await seedMembershipChangePerson(ctx, {
+          organizationId: base.organizationId,
+          name: "承認待ち人物",
+          email: "shop-staff-membership-pending@example.com",
+        });
+        await ctx.db.insert("staffRegistrationRequests", {
+          shopId: base.shopId,
+          name: "承認待ち人物",
+          email: "shop-staff-membership-pending@example.com",
+          emailNormalized: "shop-staff-membership-pending@example.com",
+          status: "pending",
+          termsConsentVersion: "terms-v1",
+          privacyConsentVersion: "privacy-v1",
+          termsDocumentVersion: "terms-doc-v1",
+          privacyDocumentVersion: "privacy-doc-v1",
+          consentedAt: Date.now(),
+          createdAt: Date.now(),
+        });
+        const foreign = await seedOrganizationManagerShop(ctx, {
+          subject: "shop_staff_membership_rejection_foreign",
+          plan: "business",
+        });
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          shopId: base.shopId,
+          periodStart: dateFromToday(7),
+          periodEnd: dateFromToday(13),
+          deadline: dateFromToday(3),
+          shopClosedDates: [],
+          status: "confirmed",
+          confirmedAt: Date.now(),
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        const positionId = await ctx.db.insert("positions", {
+          shopId: base.shopId,
+          name: "通常",
+          color: "#000000",
+          sortOrder: 0,
+          isDeleted: false,
+        });
+        return {
+          ...base,
+          currentPersonId,
+          currentStaffId,
+          foreignPersonId: foreign.personId,
+          pendingPersonId,
+          positionId,
+          recruitmentId,
+        };
+      });
+      const subject = "shop_staff_membership_rejection_actor";
+      const actor = t.withIdentity({ subject });
+      const snapshot = await getShopStaffMembershipChange(t, { subject, shopId: ids.shopId });
+      const removalPreviews = await getShopStaffRemovalPreviews(t, {
+        subject,
+        shopId: ids.shopId,
+        personIds: [ids.currentPersonId],
+        expectedMembershipFingerprint: snapshot.membershipFingerprint,
+      });
+      const baseRequest = {
+        shopId: ids.shopId,
+        expectedMembershipFingerprint: snapshot.membershipFingerprint,
+        removalPreviews: [],
+      };
+
+      await expect(
+        actor.mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, {
+          ...baseRequest,
+          desiredActivePersonIds: [ids.currentPersonId, ids.currentPersonId],
+          requestId: "shop-staff-membership-duplicate-person",
+        }),
+      ).rejects.toThrow("入力内容を確認してください");
+      await expect(
+        actor.mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, {
+          ...baseRequest,
+          desiredActivePersonIds: [ids.currentPersonId, ids.foreignPersonId],
+          requestId: "shop-staff-membership-foreign-person",
+        }),
+      ).rejects.toThrow("入力内容を確認してください");
+      await expect(
+        actor.mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, {
+          ...baseRequest,
+          desiredActivePersonIds: [ids.currentPersonId, ids.pendingPersonId],
+          requestId: "shop-staff-membership-pending-person",
+        }),
+      ).rejects.toThrow("スタッフ登録の承認待ちのため、所属を変更できません");
+
+      const assignmentId = await t.run(
+        async (ctx) =>
+          await ctx.db.insert("shiftAssignments", {
+            recruitmentId: ids.recruitmentId,
+            staffId: ids.currentStaffId,
+            date: dateFromToday(8),
+            startTime: "10:00",
+            endTime: "18:00",
+            positionId: ids.positionId,
+          }),
+      );
+      await expect(
+        actor.mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, {
+          ...baseRequest,
+          desiredActivePersonIds: [],
+          removalPreviews,
+          requestId: "shop-staff-membership-stale-preview",
+        }),
+      ).rejects.toThrow("今日以降のシフトの割り当てが変更されました");
+
+      await t.run(async (ctx) => await ctx.db.patch(ids.pendingPersonId, { name: "競合更新後" }));
+      await expect(
+        actor.mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, {
+          ...baseRequest,
+          desiredActivePersonIds: [ids.currentPersonId],
+          requestId: "shop-staff-membership-stale-snapshot",
+        }),
+      ).rejects.toThrow("店舗所属が変更されています");
+
+      const state = await t.run(async (ctx) => ({
+        assignmentExists: (await ctx.db.get(assignmentId)) !== null,
+        audits: await ctx.db.query("organizationAuditEvents").collect(),
+        currentStaffIsDeleted: (await ctx.db.get(ids.currentStaffId))?.isDeleted ?? null,
+        rateLimits: await ctx.db.query("rateLimits").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+        targetShopStaffIds: (
+          await ctx.db
+            .query("staffs")
+            .withIndex("by_shopId", (q) => q.eq("shopId", ids.shopId))
+            .collect()
+        ).map((staff) => staff._id),
+      }));
+      expect(state).toEqual({
+        assignmentExists: true,
+        audits: [],
+        currentStaffIsDeleted: false,
+        rateLimits: [],
+        scheduled: [],
+        targetShopStaffIds: [ids.currentStaffId],
+      });
+    });
+
+    it("対象店舗の変更可能なスタッフを全員解除できる", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "shop_staff_membership_remove_all_actor",
+          plan: "business",
+        });
+        const personIds: Id<"organizationPeople">[] = [];
+        const staffIds: Id<"staffs">[] = [];
+        for (const suffix of ["a", "b"] as const) {
+          const personId = await seedMembershipChangePerson(ctx, {
+            organizationId: base.organizationId,
+            name: `全解除${suffix}`,
+            email: `shop-staff-membership-remove-all-${suffix}@example.com`,
+          });
+          personIds.push(personId);
+          staffIds.push(
+            await ctx.db.insert("staffs", {
+              shopId: base.shopId,
+              organizationId: base.organizationId,
+              organizationPersonId: personId,
+              name: `全解除${suffix}`,
+              email: `shop-staff-membership-remove-all-${suffix}@example.com`,
+              emailNormalized: `shop-staff-membership-remove-all-${suffix}@example.com`,
+              isDeleted: false,
+            }),
+          );
+        }
+        return { ...base, personIds, staffIds };
+      });
+      const subject = "shop_staff_membership_remove_all_actor";
+      const snapshot = await getShopStaffMembershipChange(t, { subject, shopId: ids.shopId });
+      const removalPreviews = await getShopStaffRemovalPreviews(t, {
+        subject,
+        shopId: ids.shopId,
+        personIds: ids.personIds,
+        expectedMembershipFingerprint: snapshot.membershipFingerprint,
+      });
+      const sortedPersonIds = [...ids.personIds].sort((left, right) => left.localeCompare(right));
+
+      await expect(
+        t.withIdentity({ subject }).mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, {
+          shopId: ids.shopId,
+          desiredActivePersonIds: [],
+          expectedMembershipFingerprint: snapshot.membershipFingerprint,
+          removalPreviews,
+          requestId: "shop-staff-membership-remove-all-request",
+        }),
+      ).resolves.toEqual({ changed: true, addedPersonIds: [], removedPersonIds: sortedPersonIds });
+
+      const state = await t.run(async (ctx) => ({
+        auditActions: (await ctx.db.query("organizationAuditEvents").collect()).map((audit) => audit.action).sort(),
+        people: await Promise.all(
+          ids.personIds.map(async (personId) => {
+            const person = await ctx.db.get(personId);
+            return person ? { personId: person._id, status: person.status } : null;
+          }),
+        ),
+        scheduledCleanupArgs: (await ctx.db.system.query("_scheduled_functions").collect())
+          .map((job) => job.args[0])
+          .sort((left, right) => left.staffId.localeCompare(right.staffId)),
+        staffs: await Promise.all(
+          ids.staffIds.map(async (staffId) => {
+            const staff = await ctx.db.get(staffId);
+            return staff ? { staffId: staff._id, isDeleted: staff.isDeleted } : null;
+          }),
+        ),
+      }));
+      expect(state).toEqual({
+        auditActions: [
+          "organization.person_removed_from_shop",
+          "organization.person_removed_from_shop",
+          "organization.shop_staff_memberships_changed",
+        ],
+        people: ids.personIds.map((personId) => ({ personId, status: "active" })),
+        scheduledCleanupArgs: ids.staffIds
+          .map((staffId) => ({ shopId: ids.shopId, staffId }))
+          .sort((left, right) => left.staffId.localeCompare(right.staffId)),
+        staffs: ids.staffIds.map((staffId) => ({ staffId, isDeleted: true })),
+      });
+    });
+
+    it("差分なしでもouter receiptだけを一度保存する", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(
+        async (ctx) =>
+          await seedOrganizationManagerShop(ctx, {
+            subject: "shop_staff_membership_noop_actor",
+            plan: "business",
+          }),
+      );
+      const subject = "shop_staff_membership_noop_actor";
+      const snapshot = await getShopStaffMembershipChange(t, { subject, shopId: ids.shopId });
+      const requestId = "shop-staff-membership-noop-request";
+      const actor = t.withIdentity({ subject });
+      const request = {
+        shopId: ids.shopId,
+        desiredActivePersonIds: [],
+        expectedMembershipFingerprint: snapshot.membershipFingerprint,
+        removalPreviews: [],
+        requestId,
+      };
+      const expected = { changed: false, addedPersonIds: [], removedPersonIds: [] };
+
+      await expect(
+        actor.mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, request),
+      ).resolves.toEqual(expected);
+      await expect(
+        actor.mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, request),
+      ).resolves.toEqual(expected);
+
+      const requestKey = await toAuditRequestKey(requestId);
+      const state = await t.run(async (ctx) => ({
+        audits: (await ctx.db.query("organizationAuditEvents").collect()).map(
+          ({
+            organizationId,
+            actorUserId,
+            actorPersonId,
+            action,
+            targetKind,
+            targetId,
+            fromState,
+            toState,
+            correlationId,
+            occurredAt,
+          }) => ({
+            organizationId,
+            actorUserId,
+            actorPersonId,
+            action,
+            targetKind,
+            targetId,
+            fromState,
+            toState,
+            correlationId,
+            occurredAt,
+          }),
+        ),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+        staffs: await ctx.db
+          .query("staffs")
+          .withIndex("by_shopId", (q) => q.eq("shopId", ids.shopId))
+          .collect(),
+      }));
+      expect(state).toEqual({
+        audits: [
+          {
+            organizationId: ids.organizationId,
+            actorUserId: ids.userId,
+            actorPersonId: ids.personId,
+            action: "organization.shop_staff_memberships_changed",
+            targetKind: "shop",
+            targetId: ids.shopId,
+            fromState: expect.stringMatching(/^\{"version":1,"intentHash":"[0-9a-f]{64}"\}$/),
+            toState: JSON.stringify({
+              version: 1,
+              changed: false,
+              addedPersonIds: [],
+              removedPersonIds: [],
+            }),
+            correlationId: `${ids.organizationId}:shop-staff-memberships:${ids.shopId}:${requestKey}`,
+            occurredAt: Date.now(),
+          },
+        ],
+        scheduled: [],
+        staffs: [],
+      });
+    });
+
+    it("一度に41名を変更しようとした場合は全追加を拒否する", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "shop_staff_membership_target_limit_actor",
+          plan: "business",
+        });
+        const personIds: Id<"organizationPeople">[] = [];
+        for (let index = 0; index <= ORGANIZATION_SHOP_STAFF_MEMBERSHIP_CHANGE_TARGET_LIMIT; index += 1) {
+          personIds.push(
+            await seedMembershipChangePerson(ctx, {
+              organizationId: base.organizationId,
+              name: `一括変更上限${index}`,
+              email: `shop-staff-membership-target-limit-${index}@example.com`,
+            }),
+          );
+        }
+        return { ...base, personIds };
+      });
+      const subject = "shop_staff_membership_target_limit_actor";
+      const snapshot = await getShopStaffMembershipChange(t, { subject, shopId: ids.shopId });
+
+      await expect(
+        t.withIdentity({ subject }).mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, {
+          shopId: ids.shopId,
+          desiredActivePersonIds: ids.personIds,
+          expectedMembershipFingerprint: snapshot.membershipFingerprint,
+          removalPreviews: [],
+          requestId: "shop-staff-membership-target-limit-request",
+        }),
+      ).rejects.toThrow(
+        `一度に変更できるスタッフは${ORGANIZATION_SHOP_STAFF_MEMBERSHIP_CHANGE_TARGET_LIMIT}名までです`,
+      );
+
+      const state = await t.run(async (ctx) => ({
+        audits: await ctx.db.query("organizationAuditEvents").collect(),
+        rateLimits: await ctx.db.query("rateLimits").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+        staffs: await ctx.db
+          .query("staffs")
+          .withIndex("by_shopId", (q) => q.eq("shopId", ids.shopId))
+          .collect(),
+      }));
+      expect(state).toEqual({ audits: [], rateLimits: [], scheduled: [], staffs: [] });
     });
   });
 

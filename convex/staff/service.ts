@@ -1,11 +1,259 @@
 import { ConvexError } from "convex/values";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { normalizeEmail } from "../_lib/validation";
+import { SHOP_MEMBERSHIP_STATS_ACTIVE_STAFF_LIMIT } from "../constants";
+import {
+  createOrganizationShopStaffMembershipFingerprint,
+  ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT,
+  organizationShopOperatingStatus,
+} from "../organization/shopMembershipChange";
 import { requireOrganizationCapacity } from "../organizationBilling/service";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
+
+export const LEGACY_SHOP_STAFF_MEMBERSHIP_CHANGE_DISABLED_REASON =
+  "移行中のスタッフは、この画面では所属を変更できません。";
+export const LEGACY_EMAIL_SHOP_STAFF_MEMBERSHIP_CHANGE_DISABLED_REASON =
+  "移行中のスタッフと同じメールアドレスのため、所属を変更できません。";
+export const PENDING_REGISTRATION_SHOP_STAFF_MEMBERSHIP_CHANGE_DISABLED_REASON =
+  "スタッフ登録の承認待ちのため、所属を変更できません。";
+export const ACTIVE_STAFF_EMAIL_SHOP_STAFF_MEMBERSHIP_CHANGE_DISABLED_REASON =
+  "同じメールアドレスのスタッフがこの店舗に所属しているため、変更できません。";
+
+export type OrganizationShopStaffMembershipSnapshotPerson = {
+  person: Doc<"organizationPeople">;
+  isManager: boolean;
+  otherShopNames: string[];
+  currentStaff: Doc<"staffs"> | null;
+  canChange: boolean;
+  changeDisabledReason: string | null;
+  addsPersonToUsageOnAddition: boolean;
+};
+
+export type OrganizationShopStaffMembershipSnapshot = {
+  shop: Doc<"shops">;
+  membershipFingerprint: string;
+  people: OrganizationShopStaffMembershipSnapshotPerson[];
+  preservedStaffs: Array<{
+    staff: Doc<"staffs">;
+    changeDisabledReason: string;
+  }>;
+};
+
+function isWithinOrganizationShopStaffMembershipLimit(items: readonly unknown[]) {
+  return items.length <= ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT;
+}
+
+/**
+ * 店舗軸の所属変更で表示・更新に使うsnapshotを収集する。
+ * 旧rowは明示的に保持し、canonicalな紐付けが壊れている場合は部分結果を返さない。
+ */
+export async function collectOrganizationShopStaffMembershipSnapshot(
+  ctx: DbCtx,
+  args: { organizationId: Id<"organizations">; shopId: Id<"shops"> },
+): Promise<OrganizationShopStaffMembershipSnapshot | null> {
+  const shop = await ctx.db.get(args.shopId);
+  if (!shop || shop.isDeleted || shop.organizationId !== args.organizationId) return null;
+
+  const [people, activeMembers, readOnlyMembers, shops, pendingRegistrations, targetShopStaffs, organizationStaffRows] =
+    await Promise.all([
+      ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId_and_status", (q) =>
+          q.eq("organizationId", args.organizationId).eq("status", "active"),
+        )
+        .take(ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT + 1),
+      ctx.db
+        .query("organizationMembers")
+        .withIndex("by_organizationId_and_status", (q) =>
+          q.eq("organizationId", args.organizationId).eq("status", "active"),
+        )
+        .take(ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT + 1),
+      ctx.db
+        .query("organizationMembers")
+        .withIndex("by_organizationId_and_status", (q) =>
+          q.eq("organizationId", args.organizationId).eq("status", "readOnly"),
+        )
+        .take(ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT + 1),
+      ctx.db
+        .query("shops")
+        .withIndex("by_organizationId_and_isDeleted", (q) =>
+          q.eq("organizationId", args.organizationId).eq("isDeleted", false),
+        )
+        .take(ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT + 1),
+      ctx.db
+        .query("staffRegistrationRequests")
+        .withIndex("by_shopId_status", (q) => q.eq("shopId", args.shopId).eq("status", "pending"))
+        .take(ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT + 1),
+      ctx.db
+        .query("staffs")
+        .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", args.shopId).eq("isDeleted", false))
+        .take(SHOP_MEMBERSHIP_STATS_ACTIVE_STAFF_LIMIT + 1),
+      ctx.db
+        .query("staffs")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", args.organizationId))
+        .take(SHOP_MEMBERSHIP_STATS_ACTIVE_STAFF_LIMIT + 1),
+    ]);
+  if (
+    !isWithinOrganizationShopStaffMembershipLimit(people) ||
+    !isWithinOrganizationShopStaffMembershipLimit(activeMembers) ||
+    !isWithinOrganizationShopStaffMembershipLimit(readOnlyMembers) ||
+    !isWithinOrganizationShopStaffMembershipLimit([...activeMembers, ...readOnlyMembers]) ||
+    !isWithinOrganizationShopStaffMembershipLimit(shops) ||
+    !isWithinOrganizationShopStaffMembershipLimit(pendingRegistrations) ||
+    targetShopStaffs.length > SHOP_MEMBERSHIP_STATS_ACTIVE_STAFF_LIMIT ||
+    organizationStaffRows.length > SHOP_MEMBERSHIP_STATS_ACTIVE_STAFF_LIMIT
+  ) {
+    return null;
+  }
+  if (people.some((person) => normalizeEmail(person.email) !== person.emailNormalized)) return null;
+  const personIdsByEmail = new Map<string, Id<"organizationPeople">[]>();
+  for (const person of people) {
+    const personIds = personIdsByEmail.get(person.emailNormalized) ?? [];
+    personIds.push(person._id);
+    personIdsByEmail.set(person.emailNormalized, personIds);
+  }
+  if ([...personIdsByEmail.values()].some((personIds) => personIds.length > 1)) return null;
+  if (
+    pendingRegistrations.some((registration) => normalizeEmail(registration.email) !== registration.emailNormalized)
+  ) {
+    return null;
+  }
+
+  const peopleById = new Map(people.map((person) => [person._id, person]));
+  const currentStaffByPersonId = new Map<Id<"organizationPeople">, Doc<"staffs">>();
+  const preservedStaffs: Doc<"staffs">[] = [];
+  for (const staff of targetShopStaffs) {
+    const hasOrganizationId = staff.organizationId !== undefined;
+    const hasOrganizationPersonId = staff.organizationPersonId !== undefined;
+    if (!hasOrganizationId && !hasOrganizationPersonId) {
+      preservedStaffs.push(staff);
+      continue;
+    }
+    if (!hasOrganizationId || !hasOrganizationPersonId || !staff.organizationPersonId) return null;
+    if (staff.organizationId !== args.organizationId) return null;
+    const person = peopleById.get(staff.organizationPersonId);
+    if (!person || person.organizationId !== args.organizationId || person.status !== "active") return null;
+    if (currentStaffByPersonId.has(person._id)) return null;
+    currentStaffByPersonId.set(person._id, staff);
+  }
+
+  const activeOtherShopsById = new Map(
+    shops
+      .filter(
+        (candidate) =>
+          candidate._id !== args.shopId && organizationShopOperatingStatus(candidate.operatingStatus) === "active",
+      )
+      .map((candidate) => [candidate._id, candidate]),
+  );
+  const otherShopNamesByPersonId = new Map<Id<"organizationPeople">, Set<string>>();
+  for (const staff of organizationStaffRows) {
+    if (staff.isDeleted || !staff.organizationPersonId || !peopleById.has(staff.organizationPersonId)) continue;
+    const otherShop = activeOtherShopsById.get(staff.shopId);
+    if (!otherShop) continue;
+    const names = otherShopNamesByPersonId.get(staff.organizationPersonId) ?? new Set<string>();
+    names.add(otherShop.name);
+    otherShopNamesByPersonId.set(staff.organizationPersonId, names);
+  }
+
+  const managerMemberships = [...activeMembers, ...readOnlyMembers];
+  const activeManagerPersonIds = new Set(activeMembers.map((membership) => membership.personId));
+  const personIdsWithStaffHistory = new Set(
+    organizationStaffRows.flatMap((staff) => (staff.organizationPersonId ? [staff.organizationPersonId] : [])),
+  );
+  const legacyEmails = new Set(preservedStaffs.map((staff) => normalizeEmail(staff.email)));
+  const canonicalStaffOwnerIdsByEmail = new Map<string, Set<Id<"organizationPeople">>>();
+  for (const staff of targetShopStaffs) {
+    if (!staff.organizationPersonId) continue;
+    const email = normalizeEmail(staff.email);
+    const ownerIds = canonicalStaffOwnerIdsByEmail.get(email) ?? new Set<Id<"organizationPeople">>();
+    ownerIds.add(staff.organizationPersonId);
+    canonicalStaffOwnerIdsByEmail.set(email, ownerIds);
+  }
+  const pendingEmails = new Set(pendingRegistrations.map((registration) => registration.emailNormalized));
+  const snapshotPeople = people
+    .map((person): OrganizationShopStaffMembershipSnapshotPerson => {
+      const currentStaff = currentStaffByPersonId.get(person._id) ?? null;
+      const hasLegacyEmailConflict = legacyEmails.has(person.emailNormalized);
+      const hasActiveStaffEmailConflict =
+        !currentStaff &&
+        [...(canonicalStaffOwnerIdsByEmail.get(person.emailNormalized) ?? [])].some(
+          (ownerPersonId) => ownerPersonId !== person._id,
+        );
+      const hasPendingRegistrationConflict = !currentStaff && pendingEmails.has(person.emailNormalized);
+      const changeDisabledReason = hasLegacyEmailConflict
+        ? LEGACY_EMAIL_SHOP_STAFF_MEMBERSHIP_CHANGE_DISABLED_REASON
+        : hasActiveStaffEmailConflict
+          ? ACTIVE_STAFF_EMAIL_SHOP_STAFF_MEMBERSHIP_CHANGE_DISABLED_REASON
+          : hasPendingRegistrationConflict
+            ? PENDING_REGISTRATION_SHOP_STAFF_MEMBERSHIP_CHANGE_DISABLED_REASON
+            : null;
+      return {
+        person,
+        isManager:
+          person.userId !== undefined &&
+          managerMemberships.some(
+            (membership) => membership.personId === person._id && membership.userId === person.userId,
+          ),
+        otherShopNames: [...(otherShopNamesByPersonId.get(person._id) ?? [])].sort((left, right) =>
+          left.localeCompare(right, "ja"),
+        ),
+        currentStaff,
+        canChange: changeDisabledReason === null,
+        changeDisabledReason,
+        addsPersonToUsageOnAddition:
+          !activeManagerPersonIds.has(person._id) && !personIdsWithStaffHistory.has(person._id),
+      };
+    })
+    .sort(
+      (left, right) =>
+        Number(Boolean(right.currentStaff)) - Number(Boolean(left.currentStaff)) ||
+        Number(right.isManager) - Number(left.isManager) ||
+        left.person.name.localeCompare(right.person.name, "ja") ||
+        left.person.email.localeCompare(right.person.email) ||
+        left.person._id.localeCompare(right.person._id),
+    );
+
+  const sortedPreservedStaffs = preservedStaffs.sort(
+    (left, right) =>
+      left.name.localeCompare(right.name, "ja") ||
+      left.email.localeCompare(right.email) ||
+      left._id.localeCompare(right._id),
+  );
+  const membershipFingerprint = await createOrganizationShopStaffMembershipFingerprint({
+    shopId: shop._id,
+    shopStatus: organizationShopOperatingStatus(shop.operatingStatus),
+    people: snapshotPeople.map(({ person, currentStaff }) => ({
+      personId: person._id,
+      name: person.name,
+      emailNormalized: person.emailNormalized,
+      staffId: currentStaff?._id ?? null,
+    })),
+    activeStaffs: targetShopStaffs.map((staff) => ({
+      staffId: staff._id,
+      organizationId: staff.organizationId ?? null,
+      organizationPersonId: staff.organizationPersonId ?? null,
+      name: staff.name,
+      emailNormalized: normalizeEmail(staff.email),
+    })),
+    pendingRegistrations: pendingRegistrations.map((registration) => ({
+      requestId: registration._id,
+      emailNormalized: registration.emailNormalized,
+    })),
+  });
+
+  return {
+    shop,
+    membershipFingerprint,
+    people: snapshotPeople,
+    preservedStaffs: sortedPreservedStaffs.map((staff) => ({
+      staff,
+      changeDisabledReason: LEGACY_SHOP_STAFF_MEMBERSHIP_CHANGE_DISABLED_REASON,
+    })),
+  };
+}
 
 /**
  * シフト対象スタッフかどうか（論理削除されておらず、シフト対象外でもない）。
@@ -67,20 +315,52 @@ export async function releasePendingInvitationReservationsForStaffAddition(
   ctx: { db: MutationCtx["db"] },
   organizationId: Id<"organizations">,
   entries: ReadonlyArray<Pick<PreparedOrganizationStaffEntry, "email">>,
+  options?: { scanLimit?: number },
 ) {
   const now = Date.now();
-  const issuedInvitations = await collectIssuedInvitationsByOrganization(ctx, organizationId);
+  if (options?.scanLimit === undefined) {
+    const invitations = await collectIssuedInvitationsByOrganization(ctx, organizationId);
+    await releaseMatchingInvitationReservations(ctx, invitations, entries, now);
+    return;
+  }
+  if (!Number.isSafeInteger(options.scanLimit) || options.scanLimit < 1) {
+    throw new Error("Invitation reservation scan limit must be a positive integer");
+  }
+  const issuedInvitations = await ctx.db
+    .query("organizationInvitations")
+    .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "issued"))
+    .take(options.scanLimit + 1);
+  if (issuedInvitations.length > options.scanLimit) {
+    throw new ConvexError("管理者招待が多いため、スタッフを追加できません。\n組織設定で招待状況を確認してください。");
+  }
+  const pendingInvitations = await ctx.db
+    .query("organizationInvitations")
+    .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "pending"))
+    .take(options.scanLimit - issuedInvitations.length + 1);
+  if (issuedInvitations.length + pendingInvitations.length > options.scanLimit) {
+    throw new ConvexError("管理者招待が多いため、スタッフを追加できません。\n組織設定で招待状況を確認してください。");
+  }
+  const invitations = [...issuedInvitations, ...pendingInvitations];
+  await releaseMatchingInvitationReservations(ctx, invitations, entries, now);
+}
+
+async function releaseMatchingInvitationReservations(
+  ctx: { db: MutationCtx["db"] },
+  invitations: readonly Doc<"organizationInvitations">[],
+  entries: ReadonlyArray<Pick<PreparedOrganizationStaffEntry, "email">>,
+  now: number,
+) {
   for (const entry of entries) {
-    const pendingInvitations = issuedInvitations.filter(
+    const pendingForEntry = invitations.filter(
       (invitation) =>
         invitation.emailNormalized === entry.email && invitation.reservedSeat && invitation.expiresAt > now,
     );
-    if (pendingInvitations.length > 1) {
+    if (pendingForEntry.length > 1) {
       throw new ConvexError(
         "このメールアドレスへの管理者招待を確認できません。\n組織設定で招待状況を確認してください。",
       );
     }
-    const invitation = pendingInvitations[0];
+    const invitation = pendingForEntry[0];
     if (invitation) await ctx.db.patch(invitation._id, { reservedSeat: false, updatedAt: now });
   }
 }
