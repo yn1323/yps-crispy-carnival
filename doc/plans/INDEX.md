@@ -3,7 +3,7 @@
 `doc/plans/`は、計画を作成した時点の判断、実装順序、受入条件を残す場所です。
 現在の機能や常設規約は、各表の「現在の正本」を参照してください。
 
-> 分類日: 2026-08-09
+> 分類日: 2026-08-11
 >
 > 分類基準: 既存計画は2026-07-23のworktree、2026-08-02以降の追加計画は作成時点のworktreeと各計画本文
 
@@ -125,6 +125,7 @@ Historyの本文には、現在と異なる名称、パス、状態、上限、�
 
 | 計画 | 分類根拠 | 現在の正本 |
 |---|---|---|
+| [スタッフ追加モーダルの方法選択UI](2026-08-10_スタッフ追加モーダル_方法選択UI_実装計画.md) | 方法選択カード、既存詳細への遷移、遅延query、状態・focus・mutation guard、Unit・Behavior・現行文書を実装し、必須検証を完了。VRT差分確認はGitHub Actionsへ委ねる | [スタッフ参加QR・承認導線](../features/staff-registration.md)、[UI設計方針](../rules/ui-design.md) |
 | [分析KPIと内部BI再設計](2026-08-02_分析KPIと内部BI再設計_実装計画.md) | KPI、画面、source factの設計は維持する。generation、bootstrap、job recovery、cutover、rollout方式は後続の夜間バッチ簡素化計画で置換 | [Analytics夜間バッチ簡素化](2026-08-08_Analytics夜間バッチ簡素化_実装計画.md)、[分析KPI蓄積基盤](../features/analytics.md)、[分析KPI可視化アプリ](../features/analytics-dashboard.md) |
 | [teal低階調token用途制限](2026-08-06_teal低階調token用途制限_実装計画.md) | 初期の全面廃止方針を改訂し、低階調tealを背景fillとスタッフ・店舗drilldown list cardのhover限定例外へ制限。その他の操作面、境界、focus、foregroundの禁止を維持し、VRTは利用者確認へ引き渡す | [UI設計方針](../rules/ui-design.md)、[ルートAgent指示](../../AGENTS.md) |
 | [管理者メールアドレス変更とClerk同期](2026-08-03_管理者メールアドレス変更_実装計画.md) | ログイン方法とシフト連絡先を分離する後続仕様で置換。全所属同期と不一致復旧UIは撤去し、直前の旧Primary EmailAddress削除だけを現行のログインメール変更へ再導入 | [認証画面](../features/auth-pages.md)、[ユーザー詳細](../features/user-detail.md) |

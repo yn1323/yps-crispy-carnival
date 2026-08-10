@@ -15,7 +15,7 @@
 - `convex/staff/queries.ts` / `convex/staff/mutations.ts` — 同じ組織で対象店舗に所属していない人物の取得と、人物IDを固定した店舗スタッフ追加
 - `convex/organization/personProfile.ts` — 組織人物と同じ人物に紐づく有効なスタッフの氏名・シフト連絡先を更新する
 - `convex/_lib/shopManagerRecipients.ts` — 店舗の有効管理者について、組織人物を正本に通知先とLINE連携を解決する
-- `src/components/features/Dashboard/StaffManagement/StaffInvitationDialog.tsx` / `OrganizationPeopleCandidateList.tsx` / `useStaffInvitation.ts` / `StaffRegistrationLinkPanel/` — 招待方法の切替、他店舗スタッフ候補、店舗専用登録リンクの取得、QR/URL表示
+- `src/components/features/Dashboard/StaffManagement/StaffInvitationDialog.tsx` / `OrganizationPeopleCandidateList.tsx` / `useStaffInvitation.ts` / `StaffRegistrationLinkPanel/` — 追加方法のカード選択と詳細表示、別店舗スタッフ候補、店舗専用登録リンクの取得、QR/URL表示
 - `src/components/features/Dashboard/StaffRegistrationRequestManagement/` — スタッフ参加申請の取得、モーダル、承認/却下
 - `src/components/features/UserDetail/UserInformationTab.tsx` / `UserInformationDialog.tsx` / `useUserProfileUpdate.ts` — 氏名・シフト連絡先の編集とログイン方法との境界説明
 
@@ -23,9 +23,9 @@
 
 | 画面 | 役割 |
 |---|---|
-| ダッシュボード | 「スタッフを追加」から店舗専用QR/URLを表示し、参加申請カードからモーダルを開いて承認/却下する |
+| ダッシュボード | 「スタッフを追加する」から追加方法を選ぶダイアログを開く。届いた参加申請は、別の「申請を確認」から申請確認ダイアログを開いて承認/却下する |
 | `/staff/register` | スタッフが名前・シフト連絡先メールアドレス・利用規約/プライバシーポリシー同意を入力して申請する |
-| スタッフ追加モーダル | 「リンクから招待」「管理者が登録」「他店舗スタッフを招待」の3タブから追加方法を選ぶ。他店舗スタッフは1人ずつ選択し、対象店舗へ直接追加する |
+| 「スタッフを追加」ダイアログ | 最初に表示されるカードから「スタッフ本人に登録してもらう」「管理者が情報を入力して追加する」「別店舗のスタッフを追加する」を選ぶ。別店舗スタッフのカードは利用可能な場合だけ表示する。本人登録は申請後の管理者承認で完了し、管理者入力と別店舗スタッフは対象店舗へ直接追加する |
 
 ## API一覧
 
