@@ -127,6 +127,23 @@ describe("artifact privacy gate", () => {
     expect(result.stderr).not.toContain("customer-123@gmail.com");
   });
 
+  it("pnpmのscoped package版表記をemailとして誤検知しない", () => {
+    const embeddedReport = createStoredZip([
+      {
+        name: "report.json",
+        contents: JSON.stringify({
+          source: "node_modules/.pnpm/@clerk+testing@2.2.10_@playwright+test@1.61.1/node_modules",
+        }),
+      },
+    ]);
+    writeFileSync(
+      path.join(testDirectory, "index.html"),
+      `<script>window.report = "data:application/zip;base64,${embeddedReport.toString("base64")}"</script>`,
+    );
+
+    expect(runGate("index.html").status).toBe(0);
+  });
+
   it("placeholder domainでも設定済みE2E identityとcredentialを拒否する", () => {
     const configuredEmail = "reserved-e2e-user@example.com";
     const configuredPassword = "configured-e2e-password-sentinel";
