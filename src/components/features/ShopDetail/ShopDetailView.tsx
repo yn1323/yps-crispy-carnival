@@ -1,15 +1,17 @@
 import { Box, Flex, Grid, HStack, Skeleton, Stack } from "@chakra-ui/react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { LuStore } from "react-icons/lu";
 import { ShopForm, type ShopFormData } from "@/src/components/features/ShopForm";
 import { DeletionActionSectionSkeleton } from "@/src/components/shared/DeletionActionSection";
 import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
 import { DetailPageHeader, DetailPageHeaderSkeleton } from "@/src/components/ui/DetailPageHeader";
+import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
 import { ShopBasicInformationSection } from "./ShopBasicInformationSection";
 import { ShopDeletionDialog } from "./ShopDeletionDialog";
 import { ShopOtherSettingsSection } from "./ShopOtherSettingsSection";
 import { ShopStaffList } from "./ShopStaffList";
+import { ConnectedShopStaffMembershipDialog, ShopStaffMembershipDialogError } from "./ShopStaffMembershipDialog";
 import type { ShopDetailData, ShopDetailPerson } from "./types";
 
 type SettingsDialogState = {
@@ -41,10 +43,23 @@ export function ShopDetailView({
   onDelete,
 }: Props) {
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
+  const [isStaffMembershipDialogOpen, setIsStaffMembershipDialogOpen] = useState(false);
+  const staffMembershipTriggerRef = useRef<HTMLButtonElement>(null);
+
+  const closeStaffMembershipDialog = useCallback(() => {
+    setIsStaffMembershipDialogOpen(false);
+    const focusTrigger = () => staffMembershipTriggerRef.current?.focus();
+    if (typeof window.requestAnimationFrame === "function") window.requestAnimationFrame(focusTrigger);
+    else focusTrigger();
+  }, []);
 
   useEffect(() => {
     if (!shop.canDelete) setIsDeleteConfirmationOpen(false);
   }, [shop.canDelete]);
+
+  useEffect(() => {
+    if (!shop.canUpdateSettings) setIsStaffMembershipDialogOpen(false);
+  }, [shop.canUpdateSettings]);
 
   return (
     <Stack gap={{ base: 4, md: 6 }}>
@@ -58,8 +73,37 @@ export function ShopDetailView({
       )}
 
       <ShopBasicInformationSection shop={shop} onEdit={settingsDialog.open} />
-      <ShopStaffList staffs={staffs} onOpenUser={onOpenUser} />
+      <ShopStaffList
+        staffs={staffs}
+        canChangeStaffs={shop.canUpdateSettings}
+        changeButtonRef={staffMembershipTriggerRef}
+        onOpenUser={onOpenUser}
+        onChangeStaffs={() => setIsStaffMembershipDialogOpen(true)}
+      />
       <ShopOtherSettingsSection shop={shop} onRequestDelete={() => setIsDeleteConfirmationOpen(true)} />
+
+      {isStaffMembershipDialogOpen && (
+        <ErrorBoundary
+          fallback={
+            <ShopStaffMembershipDialogError
+              isOpen
+              onOpenChange={({ open }) => {
+                if (!open) closeStaffMembershipDialog();
+              }}
+              onClose={closeStaffMembershipDialog}
+            />
+          }
+        >
+          <ConnectedShopStaffMembershipDialog
+            shop={shop}
+            isOpen
+            onOpenChange={({ open }) => {
+              if (!open) closeStaffMembershipDialog();
+            }}
+            onClose={closeStaffMembershipDialog}
+          />
+        </ErrorBoundary>
+      )}
 
       <StepperDialog
         title="店舗設定"
@@ -132,7 +176,10 @@ function ShopBasicInformationSkeleton() {
 function ShopStaffListSkeleton() {
   return (
     <Stack gap={3}>
-      <SectionTitleSkeleton width="96px" />
+      <Flex align="center" justify="space-between" gap={3}>
+        <SectionTitleSkeleton width="96px" />
+        <Skeleton h="36px" w={{ base: "156px", md: "184px" }} borderRadius="md" flexShrink={0} />
+      </Flex>
       <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
         <Flex align="center" justify="space-between" gap={3} px={{ base: 4, md: 5 }} py={3} minH="48px">
           <HStack gap={{ base: 4, md: 8 }} minW={0}>

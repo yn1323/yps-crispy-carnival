@@ -1,25 +1,48 @@
 import { Accordion, Flex, HStack, Stack, Text } from "@chakra-ui/react";
+import type { Ref } from "react";
+import { LuPencil } from "react-icons/lu";
 import { OrganizationPersonRow } from "@/src/components/shared/OrganizationPersonRow";
+import { Button } from "@/src/components/ui/Button";
 import type { ShopDetailPerson } from "./types";
 
 type Props = {
   staffs: ShopDetailPerson[];
+  canChangeStaffs: boolean;
+  changeButtonRef?: Ref<HTMLButtonElement>;
   onOpenUser: (personId: string) => void;
+  onChangeStaffs: () => void;
 };
 
-export function ShopStaffList({ staffs, onOpenUser }: Props) {
+export function ShopStaffList({ staffs, canChangeStaffs, changeButtonRef, onOpenUser, onChangeStaffs }: Props) {
   return (
     <Stack as="section" gap={3} aria-labelledby="shop-detail-staff-list-heading">
-      <Text
-        id="shop-detail-staff-list-heading"
-        as="h2"
-        fontSize={{ base: "lg", lg: "xl" }}
-        lineHeight={{ base: "1.75rem", lg: "1.875rem" }}
-        fontWeight="bold"
-        color="gray.900"
-      >
-        スタッフ
-      </Text>
+      <Flex align="center" justify="space-between" gap={3}>
+        <Text
+          id="shop-detail-staff-list-heading"
+          as="h2"
+          fontSize={{ base: "lg", lg: "xl" }}
+          lineHeight={{ base: "1.75rem", lg: "1.875rem" }}
+          fontWeight="bold"
+          color="gray.900"
+        >
+          スタッフ
+        </Text>
+        <Button
+          ref={changeButtonRef}
+          type="button"
+          variant="ghost"
+          colorPalette="teal"
+          size="sm"
+          gap={1.5}
+          fontWeight="semibold"
+          flexShrink={0}
+          disabled={!canChangeStaffs}
+          onClick={onChangeStaffs}
+        >
+          <LuPencil aria-hidden />
+          所属スタッフを変更する
+        </Button>
+      </Flex>
 
       <Accordion.Root collapsible variant="plain">
         <Accordion.Item
