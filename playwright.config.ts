@@ -4,6 +4,10 @@ import { getE2EWorkerCount } from "./e2e/helpers/e2eUsers";
 
 dotenv.config({ debug: false, quiet: true });
 
+// Playwright 1.61は失敗時に画面全体のARIA snapshotをerror-context.mdへ自動保存する。
+// 実Clerk emailやcapability URLを公開artifactへ残さないため、E2E全体で生成を止める。
+process.env.PLAYWRIGHT_NO_COPY_PROMPT = "1";
+
 /**
  * E2Eテスト実行順序と依存関係:
  *
@@ -13,6 +17,7 @@ dotenv.config({ debug: false, quiet: true });
  *
  * 2. 通常の認証済みテスト
  *    └── parallelIndexごとに固定したユーザーとowner graphで並列実行
+ *    └── logout境界だけはuser 3〜5のfresh sessionを使い、通常用storage stateを失効させない
  *
  * 3. モバイル代表テスト
  *    └── Desktop完了後に通常用ユーザーを再利用し、同じownerの同時利用を避ける
@@ -77,7 +82,7 @@ export default defineConfig({
     {
       name: "desktop-chromium",
       testMatch: /scenarios\/.*\.test\.ts/,
-      testIgnore: [/\.mobile\.test\.ts$/, /deployed-smoke\.test\.ts$/],
+      testIgnore: [/\.mobile\.test\.ts$/, /accessibility\.test\.ts$/, /deployed-smoke\.test\.ts$/],
       use: {
         ...devices["Desktop Chrome"],
       },

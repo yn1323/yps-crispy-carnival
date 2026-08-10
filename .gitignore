@@ -20,9 +20,12 @@ vrt-work/
 # Playwright
 node_modules/
 /test-results/
+/test-results-a11y/
 /playwright-report/
+/playwright-report-a11y/
 /playwright-report-deployed/
 test-results.json
+test-results-a11y.json
 test-results-deployed.json
 /blob-report/
 /playwright/.cache/

@@ -13,9 +13,10 @@
 ## 常時制約
 
 - 実ユーザー、実店舗、本番データを使わない。
-- 認証状態は既存のsetupとstorage stateを使う。
+- 通常シナリオの認証状態は既存のsetupとstorage stateを使う。logout境界は共有storage stateを破壊せず、専用actorで新しいbrowser contextを作る。
 - テストデータはworkerまたはtestごとに一意にし、並列実行で衝突させない。
 - 通常E2Eはuser 0から2を`parallelIndex`へ固定し、test順序やretryでユーザーをrotateしない。
+- logout境界はuser 3から5を`parallelIndex`へ固定し、通常E2Eと同じClerk sessionを共有しない。
 - teardownは自分が作成したデータだけを対象にする。
 - testing helperやtesting HTTP APIは、E2E専用credentialを検証してから状態を変更する。
 - token、credential、メール本文、LINE payload、個人情報をreport、trace、artifact、ログへ出さない。
@@ -32,11 +33,13 @@
 
 ```bash
 pnpm e2e:ci
+pnpm e2e:a11y:ci
 pnpm e2e e2e/path/to/file.test.ts --retries=0 --workers=1
 pnpm e2e:burn-in
 ```
 
-`pnpm e2e:ci`は5個のcore契約とresult gateを実行する。
+`pnpm e2e:ci`はdesktop 7個、mobile 1個のcore契約とresult gateを実行する。
+`pnpm e2e:a11y:ci`は代表的な認証済みDashboardを対象に、独立した`E2E-A11Y-01`とartifact privacy gateを実行する。
 `pnpm e2e:burn-in`は局所E2Eが成功した後に使い、desktopとmobileを直列化したまま、retryなしで各core契約を10回反復する。
 各phaseは次のphaseがreportを上書きする前に、contract ID別の反復数、project、初回成功、skip、flakyとartifact privacyを検査する。
 

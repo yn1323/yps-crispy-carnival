@@ -44,6 +44,7 @@
     "e2e:burn-in": "pnpm e2e:burn-in:desktop && pnpm e2e:burn-in:mobile",
     "e2e:burn-in:desktop": "playwright test --project=desktop-chromium --grep @e2e-core --retries=0 --workers=3 --repeat-each=10 && node scripts/assertE2EBurnInResults.mjs test-results.json desktop && node scripts/assertNoSensitiveArtifacts.mjs --root test-results --root test-results.json --root playwright-report",
     "e2e:burn-in:mobile": "playwright test --project=mobile-chrome --no-deps --grep @e2e-core --retries=0 --workers=3 --repeat-each=10 && node scripts/assertE2EBurnInResults.mjs test-results.json mobile && node scripts/assertNoSensitiveArtifacts.mjs --root test-results --root test-results.json --root playwright-report",
+    "e2e:a11y:ci": "playwright test --config=playwright.a11y.config.ts --project=a11y-chromium --retries=0 && node scripts/assertE2EA11yResults.mjs test-results-a11y.json && node scripts/assertNoSensitiveArtifacts.mjs --root test-results-a11y --root test-results-a11y.json --root playwright-report-a11y",
     "smoke-test:deployed": "playwright test --config=playwright.deployed.config.ts",
     "e2e:ui": "playwright test --ui",
     "e2e:no-report": "playwright test --reporter=line",

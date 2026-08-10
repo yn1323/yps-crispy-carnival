@@ -41,6 +41,7 @@ jobs:
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       - name: Configure E2E Preview
+        id: configure
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
           PREVIEW_URL: ${{ steps.preview.outputs.PREVIEW_URL }}
@@ -70,16 +71,47 @@ jobs:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
           E2E_TESTING_ENABLED: "true"
           NOTIFICATION_DELIVERY_MODE: dry-run
+      - name: Run accessibility smoke
+        id: accessibility
+        if: ${{ !cancelled() && steps.preview.outcome == 'success' && steps.configure.outcome == 'success' && (steps.playwright.outcome == 'success' || steps.playwright.outcome == 'failure') }}
+        run: |
+          node -e 'const escape = (value) => value.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A"); const values = [process.env.E2E_CLERK_PASSWORD, ...(process.env.E2E_CLERK_USERS || "").split(",").map((value) => value.trim())]; for (const value of values.filter(Boolean)) console.log(`::add-mask::${escape(value)}`)'
+          pnpm e2e:a11y:ci
+        env:
+          TZ: Asia/Tokyo
+          VITE_CONVEX_URL: ${{ steps.preview.outputs.PREVIEW_URL }}
+          CONVEX_PREVIEW_NAME: ${{ env.CONVEX_PREVIEW_NAME }}
+          E2E_CLERK_USERS: ${{ vars.E2E_CLERK_USERS }}
+          E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD || vars.E2E_CLERK_PASSWORD }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+          E2E_TESTING_ENABLED: "true"
+          NOTIFICATION_DELIVERY_MODE: dry-run
       - name: Verify Playwright artifact privacy
         id: privacy
         if: ${{ !cancelled() && hashFiles('playwright-report/index.html') != '' }}
         run: node scripts/assertNoSensitiveArtifacts.mjs --root playwright-report --root test-results.json
+      - name: Verify accessibility artifact privacy
+        id: accessibility_privacy
+        if: ${{ !cancelled() && hashFiles('playwright-report-a11y/index.html') != '' }}
+        run: node scripts/assertNoSensitiveArtifacts.mjs --root playwright-report-a11y --root test-results-a11y.json --root test-results-a11y
       - name: Upload Playwright report
         if: ${{ !cancelled() && steps.privacy.outcome == 'success' }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: playwright-report
           path: playwright-report/
+          if-no-files-found: warn
+          overwrite: true
+          retention-days: 30
+      - name: Upload accessibility report
+        if: ${{ !cancelled() && steps.accessibility_privacy.outcome == 'success' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: playwright-a11y-report
+          path: playwright-report-a11y/
           if-no-files-found: warn
           overwrite: true
           retention-days: 30
@@ -108,6 +140,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           TEST_RESULT: ${{ steps.playwright.outcome }}
+          A11Y_TEST_RESULT: ${{ steps.accessibility.outcome }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           RUN_ID: ${{ github.run_id }}
@@ -117,7 +150,8 @@ jobs:
             const reportUrl = `https://yn1323.github.io/hosting-pages/${process.env.REPORT_DIR}/${process.env.PR_NUMBER}/`;
             const actionsUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const testResult = process.env.TEST_RESULT;
-            const statusText = testResult === 'success' ? 'Passed' : 'Failed';
+            const a11yTestResult = process.env.A11Y_TEST_RESULT;
+            const statusText = testResult === 'success' && a11yTestResult === 'success' ? 'Passed' : 'Failed';
 
             let passedCount = 'unknown';
             let failedCount = 'unknown';
@@ -173,6 +207,7 @@ jobs:
               '',
               `Status: ${statusText}`,
               `Results: Passed ${passedCount} / Failed ${failedCount} / Skipped ${skippedCount}`,
+              `Accessibility: ${a11yTestResult === 'success' ? 'Passed' : 'Failed'}`,
               `Head SHA: ${process.env.HEAD_SHA}`,
               `Run: ${process.env.RUN_ID} (attempt ${process.env.RUN_ATTEMPT})`,
               '',
