@@ -1,30 +1,15 @@
-import { useAction, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import {
-  buildPlanStatusCardData,
-  getPlanStatusNextTimeBoundary,
-  getPlanStatusTimerDelay,
-  toCurrentSubscriptionPriceState,
-} from "./script";
-import type {
-  CurrentSubscriptionPriceState,
-  DashboardPlanStatusSource,
-  PlanStatusCardAction,
-  PlanStatusCardProps,
-} from "./types";
+import { buildPlanStatusCardData, getPlanStatusNextTimeBoundary, getPlanStatusTimerDelay } from "./script";
+import type { DashboardPlanStatusSource, PlanStatusCardAction, PlanStatusCardProps } from "./types";
 
 type Props = {
   planStatus: DashboardPlanStatusSource | null | undefined;
   shopId?: string;
   enabled: boolean;
   onOpenBillingSettings: () => void;
-};
-
-type KeyedPriceState = {
-  key: string;
-  value: CurrentSubscriptionPriceState;
 };
 
 type ExpansionState = {
@@ -44,15 +29,8 @@ export function usePlanStatusCardController({
   enabled,
   onOpenBillingSettings,
 }: Props): PlanStatusCardProps | null | undefined {
-  const getCurrentSubscriptionPrice = useAction(api.organizationStripe.actions.getCurrentSubscriptionPrice);
-  const [priceState, setPriceState] = useState<KeyedPriceState | null>(null);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
-  const latestPriceContextKey = useRef<string | null>(null);
-  const inFlightPriceContextKey = useRef<string | null>(null);
-  const requestSequence = useRef(0);
-  const priceContextKey = getPriceContextKey(planStatus, shopId, enabled);
   const clockResetKey = getClockResetKey(planStatus, shopId);
-  latestPriceContextKey.current = priceContextKey;
   const nextTimeBoundary = getPlanStatusNextTimeBoundary(planStatus, currentTime);
 
   useEffect(() => {
@@ -70,15 +48,13 @@ export function usePlanStatusCardController({
     return () => window.clearTimeout(timeoutId);
   }, [currentTime, nextTimeBoundary]);
 
-  const currentPriceState: CurrentSubscriptionPriceState =
-    priceContextKey && priceState?.key === priceContextKey ? priceState.value : { status: "idle" };
-
   const data = useMemo(
-    () => (planStatus ? buildPlanStatusCardData(planStatus, currentPriceState, currentTime) : null),
-    [currentPriceState, currentTime, planStatus],
+    () => (planStatus ? buildPlanStatusCardData(planStatus, currentTime) : null),
+    [currentTime, planStatus],
   );
   const defaultExpanded = Boolean(
     planStatus?.kind === "paymentIssue" ||
+      planStatus?.kind === "restricted" ||
       (planStatus?.kind === "trial" &&
         planStatus.selectedPaidPlan === undefined &&
         data?.kind === "trial" &&
@@ -130,25 +106,6 @@ export function usePlanStatusCardController({
     });
   }, [canSubscribeToUsage, defaultExpanded, shopId]);
 
-  const loadCurrentPrice = useCallback(async () => {
-    if (!priceContextKey || !shopId || inFlightPriceContextKey.current === priceContextKey) return;
-
-    const requestId = ++requestSequence.current;
-    inFlightPriceContextKey.current = priceContextKey;
-    setPriceState({ key: priceContextKey, value: { status: "loading" } });
-
-    try {
-      const result = await getCurrentSubscriptionPrice({ shopId: shopId as Id<"shops"> });
-      if (latestPriceContextKey.current !== priceContextKey || requestSequence.current !== requestId) return;
-      setPriceState({ key: priceContextKey, value: toCurrentSubscriptionPriceState(result) });
-    } catch {
-      if (latestPriceContextKey.current !== priceContextKey || requestSequence.current !== requestId) return;
-      setPriceState({ key: priceContextKey, value: { status: "error" } });
-    } finally {
-      if (inFlightPriceContextKey.current === priceContextKey) inFlightPriceContextKey.current = null;
-    }
-  }, [getCurrentSubscriptionPrice, priceContextKey, shopId]);
-
   const handleExpandedChange = useCallback(
     (expanded: boolean) => {
       expansionState.current = {
@@ -157,27 +114,15 @@ export function usePlanStatusCardController({
         expanded,
       };
       setUsageRequest(expanded && canSubscribeToUsage && shopId ? { shopId, now: Date.now() } : null);
-      if (expanded && currentPriceState.status === "idle") void loadCurrentPrice();
     },
-    [canSubscribeToUsage, currentPriceState.status, loadCurrentPrice, shopId],
+    [canSubscribeToUsage, shopId],
   );
-
-  useEffect(() => {
-    const current = expansionState.current;
-    if (priceContextKey && current.shopId === shopId && current.expanded && currentPriceState.status === "idle") {
-      void loadCurrentPrice();
-    }
-  }, [currentPriceState.status, loadCurrentPrice, priceContextKey, shopId]);
 
   const handleAction = useCallback(
     (action: PlanStatusCardAction) => {
-      if (action === "retryCurrentPrice") {
-        void loadCurrentPrice();
-        return;
-      }
       if (action !== "remindLater") onOpenBillingSettings();
     },
-    [loadCurrentPrice, onOpenBillingSettings],
+    [onOpenBillingSettings],
   );
 
   if (!enabled || planStatus === null) return null;
@@ -191,18 +136,6 @@ export function usePlanStatusCardController({
     onAction: handleAction,
     onExpandedChange: handleExpandedChange,
   };
-}
-
-function getPriceContextKey(
-  planStatus: DashboardPlanStatusSource | null | undefined,
-  shopId: string | undefined,
-  enabled: boolean,
-): string | null {
-  if (!enabled || !shopId || planStatus?.kind !== "paidPlan" || planStatus.isComplimentary) return null;
-  const scheduledChange = planStatus.scheduledChange
-    ? `${planStatus.scheduledChange.targetPlan}:${planStatus.scheduledChange.effectiveAt}`
-    : "none";
-  return `${shopId}:${planStatus.plan}:${planStatus.currentPeriodEndsAt ?? "none"}:${scheduledChange}`;
 }
 
 function getClockResetKey(

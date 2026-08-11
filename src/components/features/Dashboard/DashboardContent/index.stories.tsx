@@ -219,8 +219,6 @@ const proPlanStatusCard = {
     planName: "Pro",
     badgeLabel: "利用中",
     nextEventLabel: "次回更新日：2026/9/1",
-    price: { status: "available", label: "月額 1,480円（税抜）" },
-    primaryActionLabel: "プランと支払いへ",
   },
   defaultExpanded: true,
   usage: {
@@ -301,7 +299,7 @@ export const SingleShopMobile: Story = {
 };
 
 export const SingleShopWithPlanStatus: Story = {
-  name: "1店舗・現在のプラン表示・デスクトップ",
+  name: "1店舗・組織とプラン展開・デスクトップ",
   args: {
     ...singleShopDashboardArgs,
     planStatusCard: proPlanStatusCard,
@@ -314,25 +312,24 @@ export const SingleShopWithPlanStatus: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const contextSection = await canvas.findByRole("region", { name: "店舗情報" });
 
-    await expect(within(contextSection).getByRole("heading", { name: "店舗情報", level: 2 })).toBeVisible();
-    await expect(within(contextSection).getByText("たなかグループ")).toBeVisible();
-    await expect(within(contextSection).getByText("居酒屋たなか")).toBeVisible();
-    await expect(within(contextSection).getByRole("region", { name: "現在のプラン" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: /たなかグループ/ })).toHaveAttribute("aria-expanded", "true");
+    await expect(canvas.getByText("居酒屋たなか", { selector: "p" })).toBeVisible();
+    await expect(canvas.getByRole("region", { name: "Proプランの詳細" })).toBeVisible();
+    await expect(canvas.getByText("次回更新日：2026/9/1")).toBeVisible();
     await expect(canvas.getByRole("heading", { name: "TODO", level: 2 })).toBeVisible();
   },
 };
 
 export const SingleShopWithPlanStatusMobile: Story = {
   ...SingleShopWithPlanStatus,
-  name: "1店舗・現在のプラン表示・モバイル",
+  name: "1店舗・組織とプラン展開・モバイル",
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
 };
 
 export const PlanStatusCompositionBehavior: Story = {
-  name: "現在のプラン表示・公開条件とTrial案内の置換",
+  name: "プラン詳細・公開条件とTrial案内の置換",
   args: singleShopDashboardArgs,
   parameters: {
     screenshot: { skip: true },
@@ -341,22 +338,22 @@ export const PlanStatusCompositionBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(canvas.queryByRole("region", { name: "現在のプラン" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("region", { name: "Proプランの詳細" })).not.toBeInTheDocument();
     await expect(canvas.queryByRole("region", { name: "トライアル終了前の支払い案内" })).not.toBeInTheDocument();
 
     await userEvent.click(canvas.getByRole("button", { name: "課金表示を切り替える" }));
     await expect(await canvas.findByRole("region", { name: "トライアル終了前の支払い案内" })).toBeVisible();
 
     await userEvent.click(canvas.getByRole("button", { name: "新Backendの非表示状態を表示する" }));
-    await expect(canvas.queryByRole("region", { name: "現在のプラン" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("region", { name: "Proプランの詳細" })).not.toBeInTheDocument();
     await expect(canvas.queryByRole("region", { name: "トライアル終了前の支払い案内" })).not.toBeInTheDocument();
 
-    await userEvent.click(canvas.getByRole("button", { name: "現在のプランを表示する" }));
-    await expect(await canvas.findByRole("region", { name: "現在のプラン" })).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "プラン詳細を表示する" }));
+    await waitFor(() => expect(canvas.getByRole("region", { name: "Proプランの詳細" })).toBeVisible());
     await expect(canvas.queryByRole("region", { name: "トライアル終了前の支払い案内" })).not.toBeInTheDocument();
 
     await userEvent.click(canvas.getByRole("button", { name: "課金表示を切り替える" }));
-    await expect(canvas.queryByRole("region", { name: "現在のプラン" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("region", { name: "Proプランの詳細" })).not.toBeInTheDocument();
     await expect(canvas.queryByRole("region", { name: "トライアル終了前の支払い案内" })).not.toBeInTheDocument();
   },
 };
@@ -382,11 +379,11 @@ function PlanStatusCompositionStory() {
         新Backendの非表示状態を表示する
       </Button>
       <Button
-        aria-label="現在のプランを表示する"
+        aria-label="プラン詳細を表示する"
         aria-pressed={planStatusMode === "card"}
         onClick={() => setPlanStatusMode("card")}
       >
-        現在のプランを表示する
+        プラン詳細を表示する
       </Button>
       <DashboardContent
         {...singleShopDashboardArgs}

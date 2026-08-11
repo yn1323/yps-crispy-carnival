@@ -1,198 +1,90 @@
-import { Accordion, Badge, Box, Flex, Grid, HStack, Skeleton, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
-import { useEffect, useRef, useState } from "react";
+import { Badge, Box, Flex, Grid, HStack, Skeleton, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
 import { LuArrowRight, LuBadgeCheck, LuCircleAlert, LuClock3, LuStore, LuUserRoundCog, LuUsers } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
-import type { PlanPriceDisplayState, PlanStatusCardData, PlanStatusCardProps, PlanStatusCardUsage } from "./types";
+import type { PlanStatusCardData, PlanStatusCardProps, PlanStatusCardUsage } from "./types";
 
-const DETAILS_VALUE = "details";
+type PlanStatusCardViewProps = PlanStatusCardProps & {
+  onRequestCollapse?: () => void;
+};
 
-export function PlanStatusCard({
-  data,
-  usage,
-  defaultExpanded = false,
-  onAction,
-  onExpandedChange,
-}: PlanStatusCardProps) {
-  const [value, setValue] = useState<string[]>(defaultExpanded ? [DETAILS_VALUE] : []);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const previousDefaultExpanded = useRef(defaultExpanded);
-  const presentation = getPresentation(data);
-
-  useEffect(() => {
-    if (!previousDefaultExpanded.current && defaultExpanded) setValue([DETAILS_VALUE]);
-    previousDefaultExpanded.current = defaultExpanded;
-  }, [defaultExpanded]);
-
-  const updateExpanded = (expanded: boolean) => {
-    setValue(expanded ? [DETAILS_VALUE] : []);
-    onExpandedChange?.(expanded);
-  };
+export function PlanStatusCard({ data, usage, onAction, onRequestCollapse }: PlanStatusCardViewProps) {
+  const presentation = getPlanStatusPresentation(data);
 
   const handleRemindLater = () => {
-    triggerRef.current?.focus();
     onAction("remindLater");
-    updateExpanded(false);
+    onRequestCollapse?.();
   };
 
   return (
-    <Box as="section" aria-label={presentation.sectionLabel} w="full">
-      <Accordion.Root
-        collapsible
-        variant="plain"
-        colorPalette={presentation.colorPalette}
-        value={value}
-        onValueChange={(details) => updateExpanded(details.value.includes(DETAILS_VALUE))}
-      >
-        <Accordion.Item
-          value={DETAILS_VALUE}
-          borderWidth="1px"
-          borderColor="blackAlpha.100"
-          borderRadius="xl"
-          bg="white"
-          boxShadow="xs"
-          overflow="hidden"
-        >
-          <Accordion.ItemTrigger
-            ref={triggerRef}
-            minH="68px"
-            px={{ base: 3, md: 4 }}
-            py={3}
-            borderRadius="0"
-            cursor="pointer"
-            _hover={{ bg: "blackAlpha.50" }}
-            _focusVisible={{
-              outline: "2px solid",
-              outlineColor: presentation.focusRingColor,
-              outlineOffset: "-2px",
-            }}
-          >
-            <HStack flex={1} minW={0} gap={3}>
-              <Flex
-                boxSize="36px"
-                flexShrink={0}
-                align="center"
-                justify="center"
-                borderRadius="full"
-                bg={presentation.iconBackground}
-                color={presentation.iconColor}
-              >
-                <presentation.Icon aria-hidden size={18} />
-              </Flex>
-
-              <Flex flex={1} minW={0} align="center" gap={2} wrap="wrap">
-                <Text fontSize={{ base: "lg", lg: "xl" }} lineHeight="short" fontWeight="bold" color="fg">
-                  {presentation.title}
-                </Text>
-                {presentation.badge && (
-                  <Badge
-                    variant="subtle"
-                    borderRadius="full"
-                    px={2.5}
-                    py={1}
-                    bg={presentation.badge.background}
-                    color={presentation.badge.color}
-                  >
-                    {presentation.badge.label}
-                  </Badge>
-                )}
-              </Flex>
-            </HStack>
-
-            <Accordion.ItemIndicator color="fg.muted" flexShrink={0} />
-          </Accordion.ItemTrigger>
-
-          <Accordion.ItemContent>
-            <Accordion.ItemBody p={0}>
-              <Box role="region" aria-label={presentation.detailsLabel}>
-                {data.kind === "paidPlan" && <PaidPlanDetails data={data} onAction={onAction} />}
-                {data.kind === "freePlan" && <FreePlanDetails data={data} onAction={onAction} />}
-                {data.kind === "trial" && (
-                  <TrialDetails data={data} onAction={onAction} onRemindLater={handleRemindLater} />
-                )}
-                {data.kind === "paymentPending" && <PaymentPendingDetails data={data} onAction={onAction} />}
-                {data.kind === "paymentIssue" && <PaymentIssueDetails data={data} onAction={onAction} />}
-                {data.kind === "restricted" && <RestrictedDetails data={data} onAction={onAction} />}
-                <PlanUsageFooter usage={usage} />
-              </Box>
-            </Accordion.ItemBody>
-          </Accordion.ItemContent>
-        </Accordion.Item>
-      </Accordion.Root>
+    <Box as="section" role="region" aria-label={presentation.detailsLabel} w="full" bg="white">
+      <Stack gap={0}>
+        <Stack gap={4} px={{ base: 4, md: 5 }} py={4}>
+          <PlanStatusHeading presentation={presentation} />
+          {data.kind === "paidPlan" && <PaidPlanDetails data={data} />}
+          {data.kind === "freePlan" && <FreePlanDetails data={data} onAction={onAction} />}
+          {data.kind === "trial" && <TrialDetails data={data} onAction={onAction} onRemindLater={handleRemindLater} />}
+          {data.kind === "paymentPending" && <PaymentPendingDetails data={data} />}
+          {data.kind === "paymentIssue" && <PaymentIssueDetails data={data} onAction={onAction} />}
+          {data.kind === "restricted" && <RestrictedDetails data={data} />}
+        </Stack>
+        <PlanUsageFooter usage={usage} />
+      </Stack>
     </Box>
   );
 }
 
-function PaidPlanDetails({
-  data,
-  onAction,
-}: {
-  data: Extract<PlanStatusCardData, { kind: "paidPlan" }>;
-  onAction: PlanStatusCardProps["onAction"];
-}) {
+function PlanStatusHeading({ presentation }: { presentation: ReturnType<typeof getPlanStatusPresentation> }) {
   return (
-    <Stack gap={4} px={{ base: 4, md: 5 }} py={4} bg="teal.50">
-      <Stack gap={1.5}>
-        {data.description && (
-          <Text fontSize="sm" fontWeight="medium">
-            {data.description}
-          </Text>
-        )}
-        {data.nextEventLabel && (
-          <Text fontSize="sm" fontWeight="medium">
-            {data.nextEventLabel}
-          </Text>
-        )}
-        {data.price && <CurrentPrice state={data.price} onAction={onAction} />}
-      </Stack>
-      <Button
-        size="md"
-        variant="outline"
-        colorPalette="teal"
-        w="full"
-        minH="44px"
-        onClick={() => onAction("openPlanAndPayment")}
+    <HStack gap={3} align="center">
+      <Flex
+        boxSize="36px"
+        flexShrink={0}
+        align="center"
+        justify="center"
+        borderRadius="full"
+        bg={presentation.iconBackground}
+        color={presentation.iconColor}
       >
-        {data.primaryActionLabel}
-        <LuArrowRight aria-hidden />
-      </Button>
-    </Stack>
+        <presentation.Icon aria-hidden size={18} />
+      </Flex>
+      <Flex flex={1} minW={0} align="center" gap={2} wrap="wrap">
+        <Text fontSize={{ base: "lg", lg: "xl" }} lineHeight="short" fontWeight="bold" color="fg">
+          {presentation.title}
+        </Text>
+        {presentation.badge && <StatusBadge badge={presentation.badge} />}
+      </Flex>
+    </HStack>
   );
 }
 
-function CurrentPrice({
-  state,
-  onAction,
-}: {
-  state: PlanPriceDisplayState;
-  onAction: PlanStatusCardProps["onAction"];
-}) {
-  if (state.status === "idle" || state.status === "loading") {
-    return (
-      <Box role="status" aria-live="polite" aria-busy="true" py={0.5}>
-        <VisuallyHidden>現在の料金を読み込み中です。</VisuallyHidden>
-        <Skeleton aria-hidden="true" h="18px" maxW="180px" />
-      </Box>
-    );
-  }
-
-  if (state.status === "available") {
-    return (
-      <Text fontSize="sm" fontWeight="medium" aria-live="polite">
-        {state.label}
-      </Text>
-    );
-  }
-
-  const canRetry = state.status === "error" || state.canRetry;
+function StatusBadge({ badge }: { badge: { label: string; background: string; color: string } }) {
   return (
-    <Stack gap={1.5} align="flex-start" aria-live="polite">
-      <Text fontSize="sm" color="fg.muted">
-        {state.message}
-      </Text>
-      {canRetry && (
-        <Button size="xs" variant="outline" colorPalette="gray" onClick={() => onAction("retryCurrentPrice")}>
-          料金を再読み込み
-        </Button>
+    <Badge variant="subtle" borderRadius="full" px={2.5} py={1} bg={badge.background} color={badge.color}>
+      {badge.label}
+    </Badge>
+  );
+}
+
+function PaidPlanDetails({ data }: { data: Extract<PlanStatusCardData, { kind: "paidPlan" }> }) {
+  const isScheduledChange = data.badgeLabel === "変更予定";
+  return (
+    <Stack gap={3}>
+      {data.nextEventLabel && (
+        <Text fontSize="sm" fontWeight="medium" color="fg.muted">
+          {data.nextEventLabel}
+        </Text>
+      )}
+      {data.description && (
+        <Box
+          borderRadius="lg"
+          bg={isScheduledChange ? "orange.50" : "transparent"}
+          px={isScheduledChange ? 3 : 0}
+          py={isScheduledChange ? 2.5 : 0}
+        >
+          <Text fontSize="sm" fontWeight="medium">
+            {data.description}
+          </Text>
+        </Box>
       )}
     </Stack>
   );
@@ -205,24 +97,26 @@ function FreePlanDetails({
   data: Extract<PlanStatusCardData, { kind: "freePlan" }>;
   onAction: PlanStatusCardProps["onAction"];
 }) {
-  const actionVariant = data.primaryAction === "choosePlan" ? "solid" : "outline";
+  const primaryAction = data.primaryAction;
 
   return (
-    <Stack gap={4} px={{ base: 4, md: 5 }} py={4} bg="teal.50">
+    <Stack gap={4}>
       <Text fontSize="sm" fontWeight="medium">
         {data.description}
       </Text>
-      <Button
-        size="md"
-        variant={actionVariant}
-        colorPalette="teal"
-        w="full"
-        minH="44px"
-        onClick={() => onAction(data.primaryAction)}
-      >
-        {data.primaryActionLabel}
-        <LuArrowRight aria-hidden />
-      </Button>
+      {primaryAction && (
+        <Button
+          size="md"
+          variant="solid"
+          colorPalette="teal"
+          w="full"
+          minH="44px"
+          onClick={() => onAction(primaryAction.action)}
+        >
+          {primaryAction.label}
+          <LuArrowRight aria-hidden />
+        </Button>
+      )}
     </Stack>
   );
 }
@@ -237,10 +131,10 @@ function TrialDetails({
   onRemindLater: () => void;
 }) {
   const isUrgent = data.remainingDays <= 7;
-  const actionVariant = data.primaryAction === "choosePlan" ? "solid" : "outline";
+  const primaryAction = data.primaryAction;
 
   return (
-    <Stack gap={4} px={{ base: 4, md: 5 }} py={4} bg={isUrgent ? "orange.50" : "blue.50"}>
+    <Stack gap={4} borderRadius="lg" px={3} py={3} bg={isUrgent ? "orange.50" : "blue.50"}>
       <Stack gap={1.5}>
         <Text fontSize="sm" fontWeight="medium">
           {data.trialEndsOnLabel} にトライアルが終了します。
@@ -250,17 +144,19 @@ function TrialDetails({
         </Text>
       </Stack>
       <Stack gap={2.5}>
-        <Button
-          size="md"
-          variant={actionVariant}
-          colorPalette="teal"
-          w="full"
-          minH="44px"
-          onClick={() => onAction(data.primaryAction)}
-        >
-          {data.primaryActionLabel}
-          <LuArrowRight aria-hidden />
-        </Button>
+        {primaryAction && (
+          <Button
+            size="md"
+            variant="solid"
+            colorPalette="teal"
+            w="full"
+            minH="44px"
+            onClick={() => onAction(primaryAction.action)}
+          >
+            {primaryAction.label}
+            <LuArrowRight aria-hidden />
+          </Button>
+        )}
         {data.showRemindLater && (
           <Button size="md" colorPalette="gray" variant="outline" w="full" minH="44px" onClick={onRemindLater}>
             後で確認する
@@ -271,29 +167,12 @@ function TrialDetails({
   );
 }
 
-function PaymentPendingDetails({
-  data,
-  onAction,
-}: {
-  data: Extract<PlanStatusCardData, { kind: "paymentPending" }>;
-  onAction: PlanStatusCardProps["onAction"];
-}) {
+function PaymentPendingDetails({ data }: { data: Extract<PlanStatusCardData, { kind: "paymentPending" }> }) {
   return (
-    <Stack gap={4} px={{ base: 4, md: 5 }} py={4} bg="blue.50">
+    <Stack gap={4} borderRadius="lg" px={3} py={3} bg="blue.50">
       <Text fontSize="sm" fontWeight="medium">
         {data.description}
       </Text>
-      <Button
-        size="md"
-        variant="outline"
-        colorPalette="teal"
-        w="full"
-        minH="44px"
-        onClick={() => onAction("openPlanAndPayment")}
-      >
-        {data.primaryActionLabel}
-        <LuArrowRight aria-hidden />
-      </Button>
     </Stack>
   );
 }
@@ -308,10 +187,10 @@ function PaymentIssueDetails({
   const colorPalette = data.phase === "grace" ? "orange" : "red";
   const background = data.phase === "grace" ? "orange.50" : "red.50";
   const deadlineColor = data.phase === "grace" ? "orange.800" : "red.800";
-  const primaryColorPalette = data.primaryAction === "updatePaymentMethod" ? colorPalette : "gray";
+  const primaryAction = data.primaryAction;
 
   return (
-    <Stack gap={4} px={{ base: 4, md: 5 }} py={4} bg={background}>
+    <Stack gap={4} borderRadius="lg" px={3} py={3} bg={background}>
       <Stack gap={1.5}>
         {data.recoveryDeadlineLabel && (
           <Text fontSize="sm" fontWeight="bold" color={deadlineColor}>
@@ -322,58 +201,29 @@ function PaymentIssueDetails({
           {data.description}
         </Text>
       </Stack>
-      <Stack gap={2.5}>
+      {primaryAction && (
         <Button
           size="md"
           variant="outline"
-          colorPalette={primaryColorPalette}
+          colorPalette={colorPalette}
           w="full"
           minH="44px"
-          onClick={() => onAction(data.primaryAction)}
+          onClick={() => onAction(primaryAction.action)}
         >
-          {data.primaryActionLabel}
+          {primaryAction.label}
           <LuArrowRight aria-hidden />
         </Button>
-        {data.showDetailsAction && (
-          <Button
-            size="md"
-            colorPalette="gray"
-            variant="outline"
-            w="full"
-            minH="44px"
-            onClick={() => onAction("viewPaymentIssueDetails")}
-          >
-            詳細を確認する
-          </Button>
-        )}
-      </Stack>
+      )}
     </Stack>
   );
 }
 
-function RestrictedDetails({
-  data,
-  onAction,
-}: {
-  data: Extract<PlanStatusCardData, { kind: "restricted" }>;
-  onAction: PlanStatusCardProps["onAction"];
-}) {
+function RestrictedDetails({ data }: { data: Extract<PlanStatusCardData, { kind: "restricted" }> }) {
   return (
-    <Stack gap={4} px={{ base: 4, md: 5 }} py={4} bg="red.50">
+    <Stack gap={4} borderRadius="lg" px={3} py={3} bg="red.50">
       <Text fontSize="sm" fontWeight="medium">
         {data.description}
       </Text>
-      <Button
-        size="md"
-        variant="outline"
-        colorPalette="teal"
-        w="full"
-        minH="44px"
-        onClick={() => onAction("openPlanAndPayment")}
-      >
-        {data.primaryActionLabel}
-        <LuArrowRight aria-hidden />
-      </Button>
     </Stack>
   );
 }
@@ -474,98 +324,121 @@ function UsageSkeleton({ withDivider = false }: { withDivider?: boolean }) {
   );
 }
 
-function getPresentation(data: PlanStatusCardData) {
+type PlanStatusTone = "neutral" | "blue" | "orange" | "red";
+
+type PlanStatusBadge = {
+  label: string;
+  background: string;
+  color: string;
+};
+
+export type PlanStatusPresentation = {
+  Icon: typeof LuBadgeCheck;
+  title: string;
+  badge: PlanStatusBadge | null;
+  summaryLabel: string;
+  summaryBadge: PlanStatusBadge | null;
+  tone: PlanStatusTone;
+  detailsLabel: string;
+  iconBackground: string;
+  iconColor: string;
+};
+
+export function getPlanStatusPresentation(data: PlanStatusCardData): PlanStatusPresentation {
   if (data.kind === "paidPlan" || data.kind === "freePlan") {
     const planName = data.kind === "paidPlan" ? data.planName : "Free";
     const badgeLabel = data.kind === "paidPlan" ? data.badgeLabel : "利用中";
     const isScheduledChange = badgeLabel === "変更予定";
+    const badge = isScheduledChange
+      ? { label: badgeLabel, background: "orange.100", color: "orange.700" }
+      : { label: badgeLabel, background: "teal.100", color: "teal.700" };
     return {
       Icon: LuBadgeCheck,
       title: `${planName}プラン`,
-      sectionLabel: "現在のプラン",
+      badge,
+      summaryLabel: "組織・プラン",
+      summaryBadge: isScheduledChange ? badge : null,
+      tone: isScheduledChange ? "orange" : "neutral",
       detailsLabel: `${planName}プランの詳細`,
-      colorPalette: "teal",
-      focusRingColor: "teal.700",
       iconBackground: "teal.100",
       iconColor: "teal.700",
-      badge: isScheduledChange
-        ? { label: badgeLabel, background: "orange.100", color: "orange.700" }
-        : { label: badgeLabel, background: "teal.100", color: "teal.700" },
-    } as const;
+    };
   }
 
   if (data.kind === "trial") {
     const isUrgent = data.remainingDays <= 7;
+    const badge = {
+      label: data.remainingDays === 0 ? "本日終了" : `あと${data.remainingDays}日`,
+      background: isUrgent ? "orange.100" : "blue.100",
+      color: isUrgent ? "orange.700" : "blue.700",
+    };
     return {
       Icon: LuClock3,
       title: "無料トライアル",
-      sectionLabel: "無料トライアル",
+      badge,
+      summaryLabel: "無料トライアル",
+      summaryBadge: badge,
+      tone: isUrgent ? "orange" : "blue",
       detailsLabel: "無料トライアルの詳細",
-      colorPalette: isUrgent ? "orange" : "blue",
-      focusRingColor: isUrgent ? "orange.500" : "blue.500",
       iconBackground: isUrgent ? "orange.100" : "blue.100",
       iconColor: isUrgent ? "orange.700" : "blue.700",
-      badge: {
-        label: data.remainingDays === 0 ? "本日終了" : `あと${data.remainingDays}日`,
-        background: isUrgent ? "orange.100" : "blue.100",
-        color: isUrgent ? "orange.700" : "blue.700",
-      },
-    } as const;
+    };
   }
 
   if (data.kind === "paymentPending") {
+    const badge = { label: `${data.targetPlanName}へ変更`, background: "blue.100", color: "blue.700" };
     return {
       Icon: LuClock3,
       title: "支払い結果を確認中",
-      sectionLabel: "支払い結果を確認中",
+      badge,
+      summaryLabel: "支払い結果を確認中",
+      summaryBadge: badge,
+      tone: "blue",
       detailsLabel: "支払い結果確認中の詳細",
-      colorPalette: "blue",
-      focusRingColor: "blue.500",
       iconBackground: "blue.100",
       iconColor: "blue.700",
-      badge: { label: `${data.targetPlanName}へ変更`, background: "blue.100", color: "blue.700" },
-    } as const;
+    };
   }
 
   if (data.kind === "restricted") {
+    const badge = data.planName ? { label: `${data.planName}プラン`, background: "gray.100", color: "gray.700" } : null;
     return {
       Icon: LuCircleAlert,
       title: "契約制限中",
-      sectionLabel: "契約制限中",
+      badge,
+      summaryLabel: "契約制限中",
+      summaryBadge: badge,
+      tone: "red",
       detailsLabel: "契約制限の詳細",
-      colorPalette: "red",
-      focusRingColor: "red.500",
       iconBackground: "red.100",
       iconColor: "red.700",
-      badge: data.planName ? { label: `${data.planName}プラン`, background: "gray.100", color: "gray.700" } : null,
-    } as const;
+    };
   }
 
   const isGrace = data.phase === "grace";
+  const badge = isGrace
+    ? {
+        label: data.recoveryDeadlineLabel?.replace(/^支払い期限：/, "期限 ") ?? "要対応",
+        background: "orange.100",
+        color: "orange.700",
+      }
+    : { label: "利用制限中", background: "red.100", color: "red.700" };
   return {
     Icon: LuCircleAlert,
     title: "支払いに問題があります",
-    sectionLabel: "支払いに問題があります",
+    badge,
+    summaryLabel: "支払いに問題があります",
+    summaryBadge: badge,
+    tone: isGrace ? "orange" : "red",
     detailsLabel: "支払い問題の詳細",
-    colorPalette: isGrace ? "orange" : "red",
-    focusRingColor: isGrace ? "orange.500" : "red.500",
     iconBackground: isGrace ? "orange.100" : "red.100",
     iconColor: isGrace ? "orange.700" : "red.700",
-    badge:
-      data.phase === "restricted"
-        ? { label: "利用制限中", background: "red.100", color: "red.700" }
-        : data.planName
-          ? { label: `${data.planName}プラン`, background: "gray.100", color: "gray.700" }
-          : null,
-  } as const;
+  };
 }
 
-export { buildPlanStatusCardData, formatCurrentSubscriptionPrice, formatJstDate, remainingJstDays } from "./script";
+export { buildPlanStatusCardData, formatJstDate, remainingJstDays } from "./script";
 export type {
-  CurrentSubscriptionPrice,
-  CurrentSubscriptionPriceState,
   DashboardPlanStatusSource,
-  PlanPriceDisplayState,
   PlanStatusCardAction,
   PlanStatusCardData,
   PlanStatusCardProps,

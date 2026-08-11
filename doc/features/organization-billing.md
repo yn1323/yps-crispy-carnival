@@ -23,7 +23,7 @@ Stripe設定、migration確認、障害対応は[組織課金の運用](../manua
 | 環境変数 | 対象 | 閉じている間の挙動 |
 |---|---|---|
 | `FEATURE_ORGANIZATION_CREATION` | 二つ目以降の組織作成 | `createOrganization`が拒否し、「設定」タブに作成セクションを描画しない |
-| `FEATURE_BILLING` | プランと支払い | 「プランと支払い」タブとDashboardの現在プラン表示を描画せず、Dashboardから価格取得Actionを開始しない |
+| `FEATURE_BILLING` | プランと支払い | 「プランと支払い」タブ、Dashboardのプラン状態と支払い導線を描画しない。組織と店舗の文脈表示は維持する |
 | `FEATURE_MANAGER_INVITATION` | 管理者の追加・交代 | 発行・再送を拒否し、preview・受諾を利用不可へ寄せ、新規・投入済み通知を送らない。設定とスタッフ詳細の管理者操作UIを描画しない |
 
 ダークローンチ中の機能を拒否するときはサーバー側でも行い、画面から導線を消すだけにはしない。
@@ -216,20 +216,23 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 
 | 画面 | 役割 |
 |---|---|
-| `/settings?shop=<shopId>` | 選択店舗から組織を解決し、ユーザー、店舗、プランと支払い、設定を管理する。UserMenuとDashboardの現在組織名から常時開ける |
+| `/settings?shop=<shopId>` | 選択店舗から組織を解決し、ユーザー、店舗、プランと支払い、設定を管理する。UserMenuとDashboardの組織Accordion内から開ける |
 | `/settings?shop=<shopId>&tab=billing` | 現在のプラン、価格、変更予定、支払い方法、請求先メール、復旧操作を扱う |
 | `/manager-invite?token=...` | 公開中は招待previewとアカウント連携を扱う。ダークローンチ中は利用不可を表示する |
 | `/dashboard?shop=<shopId>` | 現在の組織と店舗、業務更新可否、現在プランと対応が必要な課金状態を表示する |
 | `/shops/<shopId>?shop=<contextShopId>` | 同じ組織の店舗情報、所属、稼働状態を管理する |
 | `/users/<personId>?shop=<shopId>` | 組織人物、管理者権限、店舗所属、招待再送を管理する |
 
-### Dashboardの現在プラン表示
+### Dashboardの組織・プラン表示
 
-Dashboardは、`getDashboardShop`が選択店舗と組織所属を検証して返す`planStatus`を表示の正本にする。
+Dashboardは組織を親、現在の店舗を作業対象として順に表示し、低頻度の組織情報とプラン情報を一つの組織Accordionへまとめる。
+店舗切替と店舗詳細はAccordionの外に置き、組織情報と「プランと支払い」は展開内の独立した導線として扱う。
+
+`getDashboardShop`が選択店舗と組織所属を検証して返す`planStatus`を、プラン表示の正本にする。
 `planStatus`は`trial`、`initialPaymentPending`、`pendingActivation`、Free・Pro・Businessの利用中、支払い不要Business、変更予約、支払い猶予、契約制限中を、利用者向けの最小DTOへ投影する。
 別組織の課金state、StripeのCustomer・Subscription・Price ID、providerの生応答は返さない。
 
-カードを開いている間だけ、`getDashboardPlanUsage`で組織全体の利用状況を購読する。
+組織Accordionを開いている間だけ、`getDashboardPlanUsage`で組織全体の利用状況を購読する。
 折りたたみ中はqueryを`"skip"`し、Dashboardの初期表示へ利用数の読み取りを追加しない。
 画面では依頼に合わせて「スタッフ」と表示するが、値は課金上の`peopleUsage`であり、店舗をまたぐ同一人物を重複排除し、active管理者と期限内の予約枠を含む。
 店舗数はactiveかつ未削除の店舗だけを数え、適用上限を確定できない状態では推測値を表示しない。
@@ -237,10 +240,9 @@ Dashboardは、`getDashboardShop`が選択店舗と組織所属を検証して�
 管理者数は`FEATURE_MANAGER_INVITATION`が厳密に`enabled`のときだけ3列目へ表示する。
 閉状態ではserverのDTOから`managerUsage`自体を省略し、frontendだけの環境変数やCSSを公開境界にしない。
 
-有料プランの価格は、新規販売用の設定中Priceではなく、対象組織の現在Subscriptionに保存したPrice IDを正本にする。
-画面は価格が必要になった時だけ認可付きread-only Actionを呼び、Actionは選択店舗と組織所属を再確認してから、サーバー側で保存済みPriceを解決する。
-Price IDをブラウザから受け取らず、価格を取得できない場合も、検証済みのプラン状態と日付は表示し続ける。
-税区分はActionが明示した場合だけ表示し、不明な場合は税込・税抜を推測しない。
+Dashboardは現在のプラン、次回更新日、対応が必要な課金状態と利用状況だけを表示し、料金を取得・表示しない。
+料金と販売中プランの比較は`/settings?shop=<shopId>&tab=billing`で扱い、Dashboardからは同画面への導線だけを提供する。
+「プランと支払い」で表示する税区分はActionが明示した場合だけ表示し、不明な場合は税込・税抜を推測しない。
 
 rolling deploy中は、`planStatus`が`undefined`の場合だけ、旧backendの応答として`trialEndingNotice`によるCalloutへfallbackする。
 `planStatus`対応backendが`planStatus: null`を返した場合は「表示対象のプラン状態なし」という明示結果なので、旧Calloutへfallbackしない。
@@ -334,7 +336,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 - `convex/setup/mutations.test.ts`と`convex/_scenario/organizationCreation.test.ts`：組織作成の上限、冪等性、rate limit、Free開始、既存組織への非混入を検証する。
 - `src/components/features/OrganizationSettings/OrganizationCreation/OrganizationCreationSection.stories.tsx`と`controllers.test.tsx`：組織作成の代表状態、mutation引数、作成後の遷移を検証する。
 - `src/components/features/OrganizationSettings/PlanAndPaymentSection.stories.tsx`と`BillingSettings/`配下のStory・Logic Test：Free、Pro、Businessの代表状態と主要変更操作を検証する。
-- `src/components/features/Dashboard/PlanStatusCard/`のFrontend Unit・Story・Logic Test：折りたたみ中のquery停止、利用状況の局所Loading、全課金状態の表示変換、価格の読み込み・取得不可、開閉、CTA、モバイル表示を検証する。
+- `src/components/features/Dashboard/PlanStatusCard/`のFrontend Unit・Story・Logic Test：折りたたみ中のquery停止、利用状況の局所Loading、全課金状態の表示変換、開閉、CTA、モバイル表示を検証する。
 - `src/components/features/Dashboard/DashboardContent/index.stories.tsx`：`undefined`と`null`のfallback差、`FEATURE_BILLING`、新旧表示の優先順位を検証する。
 - `src/components/features/OrganizationSettings/ManagerInvitation/ManagerInvitationDialog.stories.tsx`：管理者招待の代表状態と操作を検証する。
 

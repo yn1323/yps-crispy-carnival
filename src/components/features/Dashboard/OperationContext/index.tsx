@@ -11,6 +11,7 @@ import {
 } from "@/src/domains/shop/context";
 import { selectedShopAtom } from "@/src/stores/shop";
 import { featureVisibilityAtom } from "@/src/stores/user";
+import type { PlanStatusCardProps } from "../PlanStatusCard";
 import { buildOperationContextModel } from "./script";
 import { OperationContextSkeleton, OperationContextView } from "./View";
 
@@ -24,9 +25,11 @@ export type OperationContextData = {
 
 type Props = {
   data?: OperationContextData;
+  planStatusCard?: PlanStatusCardProps | null;
+  billingSettingsShopId?: string;
 };
 
-export const OperationContext = ({ data }: Props) => {
+export const OperationContext = ({ data, planStatusCard, billingSettingsShopId }: Props) => {
   const navigate = useNavigate();
   const rawShops = useQuery(api.dashboard.queries.getMyShops, data ? "skip" : {});
   const storedSelectedShop = useAtomValue(selectedShopAtom);
@@ -69,10 +72,13 @@ export const OperationContext = ({ data }: Props) => {
 
   return (
     <OperationContextView
+      key={billingSettingsShopId ?? model.selectedShop.shopId}
       model={model}
       onShopSelect={handleShopSelect}
       onOpenShopDetail={handleOpenShopDetail}
       organizationSettingsShopId={showOrganizationSettings ? model.selectedShop.shopId : undefined}
+      planStatusCard={planStatusCard}
+      billingSettingsShopId={billingSettingsShopId}
     />
   );
 };

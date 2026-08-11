@@ -1,11 +1,30 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { type ComponentProps, useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { Button } from "@/src/components/ui/Button";
+import type { ShopContextOption } from "@/src/domains/shop/context";
+import { OperationContextView } from "../OperationContext";
+import { buildOperationContextModel } from "../OperationContext/script";
 import { PlanStatusCard, type PlanStatusCardData, type PlanStatusCardUsage } from ".";
 
 const noop = () => {};
+
+const storyShop = {
+  shopId: "shop-story",
+  shopName: "yn1323店舗",
+  shopStatus: "active",
+  organizationId: "organization-story",
+  organizationName: "すーぱーかんぱにー",
+  organizationPlan: "pro",
+  memberStatus: "active",
+} satisfies ShopContextOption;
+
+const storyModel = (() => {
+  const model = buildOperationContextModel([storyShop], storyShop.shopId);
+  if (!model) throw new Error("組織・プランStoryの店舗データが不正です");
+  return model;
+})();
 
 const usageWithoutManager = {
   peopleUsage: { current: 12, max: 20 },
@@ -22,15 +41,12 @@ const proPlan = {
   planName: "Pro",
   badgeLabel: "利用中",
   nextEventLabel: "次回更新日：2026/9/1",
-  price: { status: "available", label: "月額 1,480円（税抜）" },
-  primaryActionLabel: "プランと支払いへ",
 } satisfies PlanStatusCardData;
 
 const freePlan = {
   kind: "freePlan",
   description: "無料の基本機能を利用しています。必要に応じて有料プランを選べます。",
-  primaryAction: "choosePlan",
-  primaryActionLabel: "プランを選ぶ",
+  primaryAction: { action: "choosePlan", label: "プランを選ぶ" },
 } satisfies PlanStatusCardData;
 
 const businessPlan = {
@@ -38,8 +54,6 @@ const businessPlan = {
   planName: "Business",
   badgeLabel: "利用中",
   nextEventLabel: "次回更新日：2026/9/1",
-  price: { status: "available", label: "月額 5,980円（税込）" },
-  primaryActionLabel: "プランと支払いへ",
 } satisfies PlanStatusCardData;
 
 const complimentaryBusiness = {
@@ -47,8 +61,6 @@ const complimentaryBusiness = {
   planName: "Business",
   badgeLabel: "支払い不要",
   description: "Businessプランの機能を料金なしで利用できます。",
-  price: null,
-  primaryActionLabel: "プランと支払いを確認する",
 } satisfies PlanStatusCardData;
 
 const scheduledPlanChange = {
@@ -56,8 +68,6 @@ const scheduledPlanChange = {
   planName: "Business",
   badgeLabel: "変更予定",
   description: "2026/9/1にProプランへ変更します。",
-  price: { status: "available", label: "月額 5,980円（税込）" },
-  primaryActionLabel: "プランと支払いへ",
 } satisfies PlanStatusCardData;
 
 const trial = {
@@ -65,8 +75,7 @@ const trial = {
   remainingDays: 7,
   trialEndsOnLabel: "2026/8/16",
   description: "継続して利用するには、プランの選択が必要です。",
-  primaryAction: "choosePlan",
-  primaryActionLabel: "プランを選ぶ",
+  primaryAction: { action: "choosePlan", label: "プランを選ぶ" },
   showRemindLater: true,
 } satisfies PlanStatusCardData;
 
@@ -82,8 +91,6 @@ const selectedTrial = {
   trialEndsOnLabel: "2026/8/16",
   continuationPlanName: "Pro",
   description: "トライアル終了後はProプランへ移行します。",
-  primaryAction: "openPlanAndPayment",
-  primaryActionLabel: "プランと支払いを確認する",
   showRemindLater: false,
 } satisfies PlanStatusCardData;
 
@@ -92,7 +99,6 @@ const paymentPending = {
   currentPlanName: "Free",
   targetPlanName: "Pro",
   description: "Proプランへの変更結果を確認しています。確認中はFreeプランが適用されます。",
-  primaryActionLabel: "プランと支払いを確認する",
 } satisfies PlanStatusCardData;
 
 const paymentIssue = {
@@ -101,17 +107,15 @@ const paymentIssue = {
   phase: "grace",
   description: "サービスの停止を防ぐため、お支払い方法を更新してください。",
   recoveryDeadlineLabel: "支払い期限：2026/8/17",
-  primaryAction: "updatePaymentMethod",
-  primaryActionLabel: "支払い方法を更新する",
-  showDetailsAction: true,
+  primaryAction: { action: "updatePaymentMethod", label: "支払い方法を更新する" },
 } satisfies PlanStatusCardData;
 
 const paymentIssueWithoutPermission = {
-  ...paymentIssue,
+  kind: "paymentIssue",
+  planName: "Pro",
+  phase: "grace",
   description: "支払い方法の更新は、契約を管理できる管理者が行えます。",
-  primaryAction: "viewPaymentIssueDetails",
-  primaryActionLabel: "詳細を確認する",
-  showDetailsAction: false,
+  recoveryDeadlineLabel: "支払い期限：2026/8/17",
 } satisfies PlanStatusCardData;
 
 const restrictedPaymentIssue = {
@@ -119,16 +123,13 @@ const restrictedPaymentIssue = {
   planName: "Business",
   phase: "restricted",
   description: "サービスの利用を再開するため、お支払い方法を更新してください。",
-  primaryAction: "updatePaymentMethod",
-  primaryActionLabel: "支払い方法を更新する",
-  showDetailsAction: true,
+  primaryAction: { action: "updatePaymentMethod", label: "支払い方法を更新する" },
 } satisfies PlanStatusCardData;
 
 const restricted = {
   kind: "restricted",
   planName: "Free",
   description: "利用状況または契約状態を確認し、契約制限を解消してください。",
-  primaryActionLabel: "プランと支払いを確認する",
 } satisfies PlanStatusCardData;
 
 const meta = {
@@ -140,6 +141,7 @@ const meta = {
     defaultExpanded: false,
     onAction: noop,
   },
+  render: (args) => <OrganizationPlanStory {...args} />,
   decorators: [
     (Story) => (
       <Box maxW="400px" mx="auto" p={3}>
@@ -167,30 +169,11 @@ export const ProCollapsed: Story = {
 export const ProExpanded: Story = {
   name: "Pro・展開・利用状況2列",
   args: { defaultExpanded: true },
-  play: async ({ canvasElement }) => {
-    const details = within(canvasElement).getByRole("region", { name: "Proプランの詳細" });
-    const canvas = within(details);
-    await expect(canvas.getByText("スタッフ")).toBeVisible();
-    const peopleUsage = canvas.getByText("12 / 20人");
-    await expect(peopleUsage).toBeVisible();
-    await expect(peopleUsage).toHaveAccessibleName("スタッフ 現在12人 / 上限20人");
-    await expect(canvas.getByText("店舗")).toBeVisible();
-    await expect(canvas.getByText("2 / 5店舗")).toBeVisible();
-    await expect(canvas.queryByText("管理者")).not.toBeInTheDocument();
-  },
 };
 
 export const ProWithManagerExpanded: Story = {
   name: "Pro・展開・利用状況3列",
   args: { usage: usageWithManager, defaultExpanded: true },
-  play: async ({ canvasElement }) => {
-    const details = within(canvasElement).getByRole("region", { name: "Proプランの詳細" });
-    const canvas = within(details);
-    await expect(canvas.getByText("スタッフ")).toBeVisible();
-    await expect(canvas.getByText("店舗")).toBeVisible();
-    await expect(canvas.getByText("管理者")).toBeVisible();
-    await expect(canvas.getByText("2 / 5人")).toBeVisible();
-  },
 };
 
 export const ProUsageLoading: Story = {
@@ -207,44 +190,6 @@ export const ProUsageLoading: Story = {
 export const ProUsageUnavailable: Story = {
   name: "Pro・利用状況なし",
   args: { usage: null, defaultExpanded: true },
-  play: async ({ canvasElement }) => {
-    const details = within(canvasElement).getByRole("region", { name: "Proプランの詳細" });
-    await expect(within(details).queryByText("スタッフ")).not.toBeInTheDocument();
-  },
-};
-
-export const ProPriceLoading: Story = {
-  name: "Pro・料金読み込み中",
-  args: {
-    data: { ...proPlan, price: { status: "loading" } },
-    defaultExpanded: true,
-  },
-  play: async ({ canvasElement }) => {
-    const status = within(canvasElement).getByRole("status");
-    await expect(status).toHaveAttribute("aria-live", "polite");
-    await expect(status).toHaveAttribute("aria-busy", "true");
-    await expect(status).toHaveTextContent("現在の料金を読み込み中です。");
-  },
-};
-
-export const ProPriceError: Story = {
-  name: "Pro・料金取得エラー",
-  args: {
-    data: { ...proPlan, price: { status: "error", message: "現在の料金を取得できませんでした。" } },
-    defaultExpanded: true,
-  },
-};
-
-export const ProPriceWithoutPermission: Story = {
-  name: "Pro・料金表示権限なし",
-  args: {
-    data: {
-      ...proPlan,
-      price: { status: "unavailable", message: "現在の料金を表示する権限がありません。", canRetry: false },
-      primaryActionLabel: "プランと支払いを確認する",
-    },
-    defaultExpanded: true,
-  },
 };
 
 export const FreeExpanded: Story = {
@@ -318,7 +263,7 @@ export const TrialToggleBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const toggle = canvas.getByRole("button", { name: /無料トライアル/ });
+    const toggle = canvas.getByRole("button", { name: /すーぱーかんぱにー 無料トライアル/ });
 
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(toggle);
@@ -334,24 +279,23 @@ export const TrialToggleBehavior: Story = {
 
 export const PaidExpansionBehavior: Story = {
   name: "有料プラン・展開（操作確認）",
-  args: { data: proPlan, onExpandedChange: fn() },
+  args: { data: proPlan },
   parameters: { screenshot: { skip: true } },
-  play: async ({ args, canvasElement }) => {
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const toggle = canvas.getByRole("button", { name: /Proプラン/ });
+    const toggle = canvas.getByRole("button", { name: /すーぱーかんぱにー 組織・プラン/ });
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
+
     await userEvent.click(toggle);
+
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
-    await expect(args.onExpandedChange).toHaveBeenLastCalledWith(true);
     const details = await canvas.findByRole("region", { name: "Proプランの詳細" });
     const usage = await within(details).findByRole("group", { name: "プランの利用状況" });
-    await waitFor(() => expect(usage).toBeVisible());
-    await expect(within(usage).getByText("スタッフ")).toBeVisible();
-    await expect(within(usage).getByText("店舗")).toBeVisible();
+    const peopleUsage = within(usage).getByText("12 / 20人");
+    await expect(peopleUsage).toHaveAccessibleName("スタッフ 現在12人 / 上限20人");
 
     await userEvent.click(toggle);
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await expect(args.onExpandedChange).toHaveBeenLastCalledWith(false);
   },
 };
 
@@ -362,7 +306,7 @@ export const UrgentStateAutoExpansionBehavior: Story = {
   render: () => <UrgentStateAutoExpansionStory />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const toggle = canvas.getByRole("button", { name: /無料トライアル/ });
+    const toggle = canvas.getByRole("button", { name: /すーぱーかんぱにー 無料トライアル/ });
 
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(canvas.getByRole("button", { name: "終了7日前へ進める" }));
@@ -374,6 +318,27 @@ export const UrgentStateAutoExpansionBehavior: Story = {
   },
 };
 
+type OrganizationPlanStoryProps = ComponentProps<typeof PlanStatusCard>;
+
+function OrganizationPlanStory({
+  data,
+  usage,
+  defaultExpanded = false,
+  onAction,
+  onExpandedChange,
+}: OrganizationPlanStoryProps) {
+  return (
+    <OperationContextView
+      model={storyModel}
+      onShopSelect={noop}
+      onOpenShopDetail={noop}
+      organizationSettingsShopId={storyShop.shopId}
+      billingSettingsShopId={storyShop.shopId}
+      planStatusCard={{ data, usage, defaultExpanded, onAction, onExpandedChange }}
+    />
+  );
+}
+
 function UrgentStateAutoExpansionStory() {
   const [isUrgent, setIsUrgent] = useState(false);
   return (
@@ -381,7 +346,12 @@ function UrgentStateAutoExpansionStory() {
       <Button mb={3} onClick={() => setIsUrgent(true)}>
         終了7日前へ進める
       </Button>
-      <PlanStatusCard data={trial} usage={usageWithoutManager} defaultExpanded={isUrgent} onAction={noop} />
+      <OrganizationPlanStory
+        data={isUrgent ? trial : ongoingTrial}
+        usage={usageWithoutManager}
+        defaultExpanded={isUrgent}
+        onAction={noop}
+      />
     </>
   );
 }

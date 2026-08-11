@@ -48,28 +48,6 @@ export type DashboardPlanStatusSource =
       canUpdatePaymentMethod: boolean;
     };
 
-export type CurrentSubscriptionPrice = {
-  currency: string;
-  unitAmount: number;
-  interval: "day" | "week" | "month" | "year";
-  intervalCount: number;
-  taxBehavior?: "inclusive" | "exclusive";
-};
-
-export type CurrentSubscriptionPriceState =
-  | { status: "idle" }
-  | { status: "loading" }
-  | { status: "available"; value: CurrentSubscriptionPrice }
-  | { status: "unavailable"; reason: string }
-  | { status: "error" };
-
-export type PlanPriceDisplayState =
-  | { status: "idle" }
-  | { status: "loading" }
-  | { status: "available"; label: string }
-  | { status: "unavailable"; message: string; canRetry: boolean }
-  | { status: "error"; message: string };
-
 export type PlanStatusCardData =
   | {
       kind: "paidPlan";
@@ -77,14 +55,14 @@ export type PlanStatusCardData =
       badgeLabel: "利用中" | "支払い不要" | "変更予定";
       description?: string;
       nextEventLabel?: string;
-      price: PlanPriceDisplayState | null;
-      primaryActionLabel: string;
     }
   | {
       kind: "freePlan";
       description: string;
-      primaryAction: "choosePlan" | "openPlanAndPayment";
-      primaryActionLabel: string;
+      primaryAction?: {
+        action: "choosePlan";
+        label: string;
+      };
     }
   | {
       kind: "trial";
@@ -92,8 +70,10 @@ export type PlanStatusCardData =
       trialEndsOnLabel: string;
       continuationPlanName?: PaidPlanName;
       description: string;
-      primaryAction: "choosePlan" | "openPlanAndPayment";
-      primaryActionLabel: string;
+      primaryAction?: {
+        action: "choosePlan";
+        label: string;
+      };
       showRemindLater: boolean;
     }
   | {
@@ -101,7 +81,6 @@ export type PlanStatusCardData =
       currentPlanName?: PlanName;
       targetPlanName: PaidPlanName;
       description: string;
-      primaryActionLabel: string;
     }
   | {
       kind: "paymentIssue";
@@ -109,24 +88,18 @@ export type PlanStatusCardData =
       phase: "grace" | "restricted";
       description: string;
       recoveryDeadlineLabel?: string;
-      primaryAction: "updatePaymentMethod" | "viewPaymentIssueDetails";
-      primaryActionLabel: string;
-      showDetailsAction: boolean;
+      primaryAction?: {
+        action: "updatePaymentMethod";
+        label: string;
+      };
     }
   | {
       kind: "restricted";
       planName?: PlanName;
       description: string;
-      primaryActionLabel: string;
     };
 
-export type PlanStatusCardAction =
-  | "openPlanAndPayment"
-  | "choosePlan"
-  | "remindLater"
-  | "updatePaymentMethod"
-  | "viewPaymentIssueDetails"
-  | "retryCurrentPrice";
+export type PlanStatusCardAction = "openPlanAndPayment" | "choosePlan" | "remindLater" | "updatePaymentMethod";
 
 export type PlanStatusCardUsageItem = {
   current: number;
