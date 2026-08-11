@@ -594,7 +594,7 @@ export const ShopMembershipChangeFlowBehavior: Story = {
   },
 };
 
-export const ShopMembershipRemovalConfirmationBehavior: Story = {
+export const ShopMembershipRemovalBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   render: () => <PanelNavigationHarness />,
   play: async ({ canvasElement }) => {
@@ -606,27 +606,19 @@ export const ShopMembershipRemovalConfirmationBehavior: Story = {
     const membershipDialog = within(dialog);
     await userEvent.click(membershipDialog.getByRole("checkbox", { name: /池袋店/ }));
     await userEvent.click(membershipDialog.getByRole("checkbox", { name: /渋谷店/ }));
+    await expect(
+      membershipDialog.getByText(
+        /店舗から外すと、その店舗のスタッフ画面へのアクセス、LINE連携、未送信の通知は終了します。/,
+      ),
+    ).toBeInTheDocument();
     await userEvent.click(membershipDialog.getByRole("button", { name: "変更する" }));
 
-    const confirmation = await page.findByRole("alertdialog", { name: "所属店舗の変更を確認" });
-    const confirmationContent = within(confirmation);
-    await expect(canvas.getByTestId("membership-change-call-count")).toHaveTextContent("0");
-    await expect(confirmationContent.getByText("追加する店舗")).toBeInTheDocument();
-    await expect(confirmationContent.getByText("池袋店")).toBeInTheDocument();
-    await expect(confirmationContent.getByText("外す店舗")).toBeInTheDocument();
-    await expect(confirmationContent.getByText(/渋谷店（今日以降のシフト 2件）/)).toBeInTheDocument();
-    await expect(
-      confirmationContent.getByText(/スタッフ画面へのアクセス、LINE連携、未送信の通知は終了します。/),
-    ).toBeInTheDocument();
-    await expect(confirmationContent.getByText("表示した本日以降のシフト割り当ては削除されます。")).toBeInTheDocument();
-    await expect(confirmationContent.getByText("過去のシフト記録は保持されます。")).toBeInTheDocument();
-
-    await userEvent.click(confirmationContent.getByRole("button", { name: "変更する" }));
     await expect(canvas.getByTestId("membership-change-call-count")).toHaveTextContent("1");
     await expect(canvas.getByTestId("membership-change-input")).toHaveTextContent(`"staffId":"${shibuyaStaffId}"`);
     await expect(canvas.getByTestId("membership-change-input")).toHaveTextContent(
       `"desiredActiveShopIds":["${ikebukuroShop.shopId}"]`,
     );
+    await expect(page.queryByRole("alertdialog", { name: "所属店舗の変更を確認" })).not.toBeInTheDocument();
   },
 };
 
@@ -640,12 +632,11 @@ export const ShopMembershipFullRemovalWarningBehavior: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "所属店舗を変更する" }));
     const dialog = await page.findByRole("dialog", { name: "所属店舗を変更" });
     await userEvent.click(within(dialog).getByRole("checkbox", { name: /渋谷店/ }));
-    await userEvent.click(within(dialog).getByRole("button", { name: "変更する" }));
-
-    const confirmation = await page.findByRole("alertdialog", { name: "所属店舗の変更を確認" });
+    const membershipDialog = within(dialog);
     await expect(
-      within(confirmation).getByText("組織への所属や管理者権限は変更されません。また、利用人数のカウントも残ります。"),
+      membershipDialog.getByText("組織への所属や管理者権限は変更されません。また、利用人数のカウントも残ります。"),
     ).toBeInTheDocument();
+    await expect(page.queryByRole("alertdialog", { name: "所属店舗の変更を確認" })).not.toBeInTheDocument();
   },
 };
 
@@ -712,12 +703,11 @@ export const ShopMembershipAggregateRemovalLimitBehavior: Story = {
     await userEvent.click(membershipDialog.getByRole("checkbox", { name: /新宿店/ }));
     await userEvent.click(membershipDialog.getByRole("button", { name: "変更する" }));
 
-    const confirmation = await page.findByRole("alertdialog", { name: "所属店舗の変更を確認" });
-    const confirmationContent = within(confirmation);
-    await expect(confirmationContent.getByText(/この画面では変更できません/)).toBeInTheDocument();
-    await expect(confirmationContent.getByText(/先にシフトを整理して/)).toBeInTheDocument();
-    await expect(confirmationContent.getByRole("button", { name: "変更する" })).toBeDisabled();
+    await expect(membershipDialog.getByText(/この画面では変更できません/)).toBeInTheDocument();
+    await expect(membershipDialog.getByText(/先にシフトを整理して/)).toBeInTheDocument();
+    await expect(membershipDialog.getByRole("button", { name: "変更する" })).toBeDisabled();
     await expect(canvas.getByTestId("membership-change-call-count")).toHaveTextContent("0");
+    await expect(page.queryByRole("alertdialog", { name: "所属店舗の変更を確認" })).not.toBeInTheDocument();
   },
 };
 
@@ -767,15 +757,10 @@ export const ShopMembershipUnknownResultRetryBehavior: Story = {
 
     await userEvent.click(shibuyaCheckbox);
     await userEvent.click(membershipDialog.getByRole("button", { name: "変更する" }));
-    const confirmation = await page.findByRole("alertdialog", { name: "所属店舗の変更を確認" });
-    const confirmationContent = within(confirmation);
-    await userEvent.click(confirmationContent.getByRole("button", { name: "変更する" }));
-    await expect(
-      confirmationContent.getByText(/前回の結果が不明な場合は同じ内容で再試行できます。/),
-    ).toBeInTheDocument();
-    await expect(confirmationContent.getByText(/渋谷店（今日以降のシフト 2件）/)).toBeInTheDocument();
+    await expect(membershipDialog.getByText(/前回の結果が不明な場合は同じ内容で再試行できます。/)).toBeInTheDocument();
+    await expect(page.queryByRole("alertdialog", { name: "所属店舗の変更を確認" })).not.toBeInTheDocument();
 
-    await userEvent.click(confirmationContent.getByRole("button", { name: "変更する" }));
+    await userEvent.click(membershipDialog.getByRole("button", { name: "変更する" }));
     await waitFor(() => {
       const serializedInputs = canvas.getByTestId("membership-change-retry-inputs").textContent ?? "[]";
       const submittedInputs = JSON.parse(serializedInputs) as UserMembershipChangeInput[];
