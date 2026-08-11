@@ -1,8 +1,10 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
-import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+import { useRef, useState } from "react";
+import { expect, fireEvent, screen, userEvent, waitFor, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
+import { createDeferred } from "@/src/devtools/createDeferred";
+import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { ShopDetailSkeleton, ShopDetailView } from ".";
 import { ShopStaffMembershipDialog, type ShopStaffMembershipDialogController } from "./ShopStaffMembershipDialog";
 import type {
@@ -108,6 +110,7 @@ const closedSettingsDialog = {
   onOpenChange: () => {},
   open: () => {},
   close: () => {},
+  isUpdating: false,
 };
 
 const meta = {
@@ -195,6 +198,14 @@ export const SettingsDialog: Story = {
   },
 };
 
+export const SettingsDialogMobile: Story = {
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  args: {
+    settingsDialog: { ...closedSettingsDialog, isOpen: true },
+  },
+};
+
 export const StaffAccordionOpen: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -228,7 +239,7 @@ export const SettingsDialogBehavior: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "編集する" }));
     const dialog = await body.findByRole("dialog", { name: "店舗設定" });
     await waitFor(() => expect(dialog).toBeVisible());
-    await userEvent.click(within(dialog).getByRole("button", { name: "閉じる" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "キャンセル" }));
     await waitFor(() => expect(body.queryByRole("dialog", { name: "店舗設定" })).not.toBeInTheDocument());
   },
 };
@@ -258,6 +269,43 @@ export const SettingsBatchUpdateBehavior: Story = {
     await userEvent.click(form.getByRole("button", { name: "変更を保存" }));
 
     await waitFor(() => expect(canvas.getByLabelText("操作結果")).toHaveTextContent("update:更新後の新宿店|time|sun"));
+  },
+};
+
+export const SettingsSubmitLockBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <SettingsSubmitLockHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("button", { name: "編集する" }));
+    const dialogElement = await body.findByRole("dialog", { name: "店舗設定" });
+    const dialog = within(dialogElement);
+
+    await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
+    await dialog.findByText("希望シフトの集め方");
+    await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
+    await dialog.findByText("シフト開始時間");
+    await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
+    await dialog.findByText("現在の設定: 毎週 日");
+
+    const submit = dialog.getByRole("button", { name: "変更を保存" });
+    fireEvent.click(submit);
+    fireEvent.click(submit);
+
+    await expect(await canvas.findByTestId("settings-submit-count")).toHaveTextContent("1");
+    await expect(dialogElement).toHaveAttribute("aria-busy", "true");
+    await expect(submit).toBeDisabled();
+    await expect(dialog.getByRole("button", { name: "戻る" })).toBeDisabled();
+    await expect(dialog.queryByLabelText("閉じる")).not.toBeInTheDocument();
+
+    await userEvent.keyboard("{Escape}");
+    fireEvent.pointerDown(canvasElement.ownerDocument.body);
+    fireEvent.click(canvasElement.ownerDocument.body);
+    await expect(dialogElement).toBeVisible();
+
+    fireEvent.click(canvas.getByTestId("release-settings-submission"));
+    await waitFor(() => expect(body.queryByRole("dialog", { name: "店舗設定" })).not.toBeInTheDocument());
   },
 };
 
@@ -380,13 +428,14 @@ export const StaffMembershipRemovalBehavior: Story = {
     await userEvent.click(content.getByRole("button", { name: "変更する" }));
 
     await waitFor(() => {
+      expect(canvas.getByTestId("staff-membership-preview-request-count")).toHaveTextContent("1");
       const inputs = JSON.parse(
         canvas.getByTestId("staff-membership-change-inputs").textContent ?? "[]",
       ) as Array<ShopStaffMembershipChangeInput>;
       expect(inputs).toHaveLength(1);
       expect(inputs[0]?.removalPreviews).toEqual(readyRemovalPreview.removals);
     });
-    await expect(screen.queryByRole("alertdialog", { name: "所属スタッフの変更を確認" })).not.toBeInTheDocument();
+    await expect(screen.queryAllByRole("alertdialog")).toHaveLength(0);
   },
 };
 
@@ -409,7 +458,6 @@ export const StaffMembershipRemoveAllWarningBehavior: Story = {
       }),
     );
     await expect(content.getByText("変更後、この店舗のスタッフは0名になります")).toBeInTheDocument();
-    await expect(screen.queryByRole("alertdialog", { name: "所属スタッフの変更を確認" })).not.toBeInTheDocument();
   },
 };
 
@@ -447,7 +495,6 @@ export const StaffMembershipPreservedStaffBehavior: Story = {
       }),
     );
     await expect(content.queryByText("変更後、この店舗のスタッフは0名になります")).not.toBeInTheDocument();
-    await expect(screen.queryByRole("alertdialog", { name: "所属スタッフの変更を確認" })).not.toBeInTheDocument();
   },
 };
 
@@ -468,7 +515,6 @@ export const StaffMembershipTooManyAssignmentsBehavior: Story = {
     await expect(content.getByText(/この画面では変更できません/)).toBeInTheDocument();
     await expect(content.getByRole("button", { name: "変更する" })).toBeDisabled();
     await expect(canvas.getByTestId("staff-membership-change-inputs")).toHaveTextContent("[]");
-    await expect(screen.queryByRole("alertdialog", { name: "所属スタッフの変更を確認" })).not.toBeInTheDocument();
   },
 };
 
@@ -572,6 +618,7 @@ function InteractionHarness() {
           onOpenChange: ({ open }) => setIsSettingsDialogOpen(open),
           open: () => setIsSettingsDialogOpen(true),
           close: () => setIsSettingsDialogOpen(false),
+          isUpdating: false,
         }}
         isDeleting={false}
         onBack={() => {}}
@@ -579,6 +626,52 @@ function InteractionHarness() {
         onUpdateSettings={(data) =>
           setResult(`update:${data.shopName}|${data.submissionPattern.kind}|${data.regularClosedDays.join(",")}`)
         }
+        onDelete={async () => false}
+      />
+    </>
+  );
+}
+
+function SettingsSubmitLockHarness() {
+  const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
+  const [submitCount, setSubmitCount] = useState(0);
+  const pendingSubmission = useRef<ReturnType<typeof createDeferred> | null>(null);
+  const { run: updateSettings, isRunning: isUpdating } = useSingleFlight(async () => {
+    setSubmitCount((count) => count + 1);
+    const submission = createDeferred();
+    pendingSubmission.current = submission;
+    await submission.promise;
+    if (pendingSubmission.current === submission) pendingSubmission.current = null;
+    setIsSettingsDialogOpen(false);
+  });
+
+  return (
+    <>
+      <output hidden data-testid="settings-submit-count">
+        {submitCount}
+      </output>
+      <button
+        type="button"
+        hidden
+        data-testid="release-settings-submission"
+        onClick={() => pendingSubmission.current?.resolve()}
+      >
+        店舗設定の更新を完了する
+      </button>
+      <ShopDetailView
+        shop={shop}
+        staffs={staffs}
+        settingsDialog={{
+          isOpen: isSettingsDialogOpen,
+          onOpenChange: ({ open }) => setIsSettingsDialogOpen(open),
+          open: () => setIsSettingsDialogOpen(true),
+          close: () => setIsSettingsDialogOpen(false),
+          isUpdating,
+        }}
+        isDeleting={false}
+        onBack={() => {}}
+        onOpenUser={() => {}}
+        onUpdateSettings={updateSettings}
         onDelete={async () => false}
       />
     </>
@@ -594,6 +687,7 @@ function MembershipDialogHarness({
 }) {
   const [isOpen, setIsOpen] = useState(true);
   const [previewRequested, setPreviewRequested] = useState(false);
+  const [previewRequestCount, setPreviewRequestCount] = useState(0);
   const [inputs, setInputs] = useState<ShopStaffMembershipChangeInput[]>([]);
   const controller: ShopStaffMembershipDialogController = {
     data,
@@ -602,6 +696,7 @@ function MembershipDialogHarness({
     isChanging: false,
     requestRemovalPreview: () => {
       setPreviewRequested(true);
+      setPreviewRequestCount((count) => count + 1);
       return true;
     },
     clearPreview: () => setPreviewRequested(false),
@@ -617,6 +712,9 @@ function MembershipDialogHarness({
     <>
       <output hidden data-testid="staff-membership-change-inputs">
         {JSON.stringify(inputs)}
+      </output>
+      <output hidden data-testid="staff-membership-preview-request-count">
+        {previewRequestCount}
       </output>
       {isOpen && (
         <ShopStaffMembershipDialog

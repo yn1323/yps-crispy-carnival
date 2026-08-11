@@ -28,7 +28,7 @@ export function useOrganizationCreationController(input: Input) {
     if (!input.canCreateOrganization) setDialog(null);
   }, [dialog, input.canCreateOrganization]);
 
-  const { run } = useSingleFlight(async (data: ShopFormData) => {
+  const { run, isRunning } = useSingleFlight(async (data: ShopFormData) => {
     const latest = latestRef.current;
     if (!latest.canCreateOrganization) {
       setDialog(null);
@@ -58,6 +58,7 @@ export function useOrganizationCreationController(input: Input) {
     },
     dialog: {
       dialog,
+      isRunning,
       onClose: () => setDialog(null),
       onSubmit: (data: ShopFormData) => run(data).catch(() => undefined),
     },

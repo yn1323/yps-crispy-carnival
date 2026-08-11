@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LuUser } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { CheckboxListCard, CheckboxListCardItem } from "@/src/components/ui/CheckboxListCard";
-import { Dialog } from "@/src/components/ui/Dialog";
+import { Dialog, DialogActionArea } from "@/src/components/ui/Dialog";
 import type {
   ShopDetailData,
   ShopStaffMembershipChangeInput,
@@ -284,24 +284,12 @@ export function ShopStaffMembershipDialog({
       onClose={closeMainDialog}
       onBackGuardRemoved={closeMainDialog}
       preventClose={isBusy}
-      footer={
-        <>
-          <Button variant="outline" disabled={isBusy} onClick={closeMainDialog}>
-            キャンセル
-          </Button>
-          <Button colorPalette="teal" loading={isBusy} disabled={isSubmitDisabled} onClick={handleSubmit}>
-            変更する
-          </Button>
-        </>
-      }
-      maxW={{ base: "100vw", lg: "640px" }}
-      maxH={{ base: "100dvh", lg: "86dvh" }}
-      contentProps={{
-        w: "100%",
-        h: { base: "100dvh", lg: "auto" },
-        my: { base: 0, lg: "auto" },
-        borderRadius: { base: 0, lg: "l3" },
-      }}
+      onSubmit={handleSubmit}
+      submitLabel="変更する"
+      isLoading={isBusy}
+      isSubmitDisabled={isSubmitDisabled}
+      mobileActionLayout="inline"
+      mobileFullScreen
       bodyProps={{ px: { base: 4, lg: 6 }, pt: 2, pb: { base: 4, lg: 5 } }}
     >
       <Stack ref={contentRef} gap={4}>
@@ -487,20 +475,26 @@ export function ShopStaffMembershipDialogError({
       onOpenChange={onOpenChange}
       onClose={onClose}
       closeLabel="閉じる"
-      maxW={{ base: "100vw", lg: "640px" }}
-      maxH={{ base: "100dvh", lg: "86dvh" }}
-      contentProps={{
-        w: "100%",
-        h: { base: "100dvh", lg: "auto" },
-        my: { base: 0, lg: "auto" },
-        borderRadius: { base: 0, lg: "l3" },
-      }}
+      footer={
+        <DialogActionArea
+          layout="standard"
+          mobileLayout="stacked"
+          startAction={
+            <Button variant="outline" onClick={onClose}>
+              閉じる
+            </Button>
+          }
+          endAction={
+            <Button colorPalette="teal" onClick={() => window.location.reload()}>
+              ページを再読み込みする
+            </Button>
+          }
+        />
+      }
+      mobileFullScreen
     >
       <Stack gap={4} minH="220px" align="stretch" justify="center">
         <InlineError message="所属スタッフを読み込めませんでした。通信状態を確認してページを再読み込みしてください。" />
-        <Button colorPalette="teal" alignSelf="center" onClick={() => window.location.reload()}>
-          ページを再読み込みする
-        </Button>
       </Stack>
     </Dialog>
   );

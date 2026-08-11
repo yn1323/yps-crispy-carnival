@@ -102,6 +102,7 @@ describe("店舗詳細の設定更新", () => {
     });
 
     await waitFor(() => expect(mocks.mutation).toHaveBeenCalledTimes(1));
+    expect(result.current.dialog.isUpdating).toBe(true);
     expect(mocks.mutation).toHaveBeenCalledWith({
       shopId: "shop-target",
       shopName: "一件目",
@@ -109,6 +110,7 @@ describe("店舗詳細の設定更新", () => {
       submissionPattern: { kind: "dateOnly" },
     });
     await act(async () => resolveMutation?.());
+    await waitFor(() => expect(result.current.dialog.isUpdating).toBe(false));
   });
 
   it("更新失敗をToastへ渡し、編集Dialogを開いたままにする", async () => {

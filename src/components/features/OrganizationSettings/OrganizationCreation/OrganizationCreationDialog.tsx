@@ -11,11 +11,12 @@ const CREATE_ORGANIZATION_DEFAULT_VALUES: ShopFormData = {
 
 type Props = {
   dialog: OrganizationCreationDialogState | null;
+  isRunning: boolean;
   onClose: () => void;
   onSubmit: (data: ShopFormData) => void | Promise<void>;
 };
 
-export function OrganizationCreationDialog({ dialog, onClose, onSubmit }: Props) {
+export function OrganizationCreationDialog({ dialog, isRunning, onClose, onSubmit }: Props) {
   if (!dialog) return null;
 
   return (
@@ -26,8 +27,9 @@ export function OrganizationCreationDialog({ dialog, onClose, onSubmit }: Props)
         if (!open) onClose();
       }}
       onClose={onClose}
+      preventClose={isRunning}
     >
-      <Stack gap={4}>
+      <Stack gap={4} flex={1} minH={0}>
         {/* 一つ目の組織と開始プランが違うため、作る前に見える位置へ置く。 */}
         <Box borderRadius="lg" bg="blue.50" px={4} py={3}>
           <Text fontSize="sm" color="blue.900" lineHeight="tall">

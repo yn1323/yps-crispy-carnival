@@ -128,26 +128,26 @@ export const SetupModal = ({
   const actions =
     currentStep === "shopInfo" ? (
       <>
-        <Button type="button" variant="outline" onClick={close} flex={{ base: 1, md: "unset" }}>
-          閉じる
+        <Button type="button" variant="outline" onClick={close} disabled={isSubmitting}>
+          キャンセル
         </Button>
-        <Button type="button" colorPalette="teal" onClick={handleShopInfoNext} flex={{ base: 1, md: "unset" }}>
+        <Button type="button" colorPalette="teal" onClick={handleShopInfoNext} disabled={isSubmitting}>
           次へ
         </Button>
       </>
     ) : currentStep === "patternSettings" ? (
       <>
-        <Button type="button" variant="outline" onClick={handleBack} flex={{ base: 1, md: "unset" }}>
+        <Button type="button" variant="outline" onClick={handleBack} disabled={isSubmitting}>
           <LuChevronLeft />
           戻る
         </Button>
-        <Button type="button" colorPalette="teal" onClick={handlePatternSettingsNext} flex={{ base: 1, md: "unset" }}>
+        <Button type="button" colorPalette="teal" onClick={handlePatternSettingsNext} disabled={isSubmitting}>
           次へ
         </Button>
       </>
     ) : (
       <>
-        <Button type="button" variant="outline" onClick={handleBack} flex={{ base: 1, md: "unset" }}>
+        <Button type="button" variant="outline" onClick={handleBack} disabled={isSubmitting}>
           <LuChevronLeft />
           戻る
         </Button>
@@ -156,7 +156,8 @@ export const SetupModal = ({
           form="setup-step2"
           colorPalette="teal"
           loading={isSubmitting}
-          flex={{ base: 1, md: "unset" }}
+          loadingText="お店を登録する"
+          disabled={isSubmitting}
         >
           お店を登録する
         </Button>
@@ -164,7 +165,13 @@ export const SetupModal = ({
     );
 
   return (
-    <StepperDialog title="初回登録" isOpen={isOpen} onOpenChange={onOpenChange} onClose={close}>
+    <StepperDialog
+      title="初回登録"
+      isOpen={isOpen}
+      onOpenChange={onOpenChange}
+      onClose={close}
+      preventClose={isSubmitting}
+    >
       <StepperDialogContent steps={steps} currentStep={currentStep} actions={actions}>
         {currentStep === "shopInfo" && (
           <SetupShopInfoStep

@@ -10,6 +10,7 @@ type Props = {
     submissionPattern: ShopFormData["submissionPattern"];
   };
   isReadOnly: boolean;
+  isUpdating: boolean;
   dialog: {
     isOpen: boolean;
     onOpenChange: (details: { open: boolean }) => void;
@@ -18,7 +19,7 @@ type Props = {
   onUpdate: (data: ShopFormData) => void | Promise<void>;
 };
 
-export function ShopSettingsView({ children, shop, dialog, isReadOnly, onUpdate }: Props) {
+export function ShopSettingsView({ children, shop, dialog, isReadOnly, isUpdating, onUpdate }: Props) {
   return (
     <>
       {children}
@@ -27,6 +28,7 @@ export function ShopSettingsView({ children, shop, dialog, isReadOnly, onUpdate 
         isOpen={dialog.isOpen && !isReadOnly}
         onOpenChange={dialog.onOpenChange}
         onClose={dialog.close}
+        preventClose={isUpdating}
       >
         <ShopForm
           key={dialog.isOpen ? "edit-shop-open" : "edit-shop-closed"}

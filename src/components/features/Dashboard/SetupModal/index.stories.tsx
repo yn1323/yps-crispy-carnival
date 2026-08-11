@@ -100,6 +100,7 @@ export const InteractiveDoubleSubmitGuard: Story = {
   play: async ({ canvasElement }) => {
     const screen = within(canvasElement.ownerDocument.body);
     const dialog = await getDialog(canvasElement);
+    const dialogElement = screen.getByRole("dialog", { name: "初回登録" });
     await inputShopName(dialog);
     await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
 
@@ -110,10 +111,22 @@ export const InteractiveDoubleSubmitGuard: Story = {
     fireEvent.click(submit);
 
     await expect(await screen.findByTestId("setup-complete-count")).toHaveTextContent("1");
+    await expect(dialogElement).toHaveAttribute("aria-busy", "true");
     await expect(submit).toBeDisabled();
+    await expect(dialog.getByRole("button", { name: "戻る" })).toBeDisabled();
+    await expect(dialog.queryByLabelText("閉じる")).not.toBeInTheDocument();
+
+    await userEvent.keyboard("{Escape}");
+    fireEvent.pointerDown(canvasElement.ownerDocument.body);
+    fireEvent.click(canvasElement.ownerDocument.body);
+    await expect(dialogElement).toBeVisible();
 
     fireEvent.click(screen.getByTestId("release-setup-completion"));
-    await waitFor(() => expect(submit).toBeEnabled());
+    await waitFor(() => {
+      expect(submit).toBeEnabled();
+      expect(dialog.getByRole("button", { name: "戻る" })).toBeEnabled();
+      expect(dialogElement).not.toHaveAttribute("aria-busy");
+    });
   },
 };
 
