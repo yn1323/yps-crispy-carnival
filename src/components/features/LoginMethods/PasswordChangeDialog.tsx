@@ -1,12 +1,17 @@
 import { Alert, Field, Input, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
-import { LoginMethodReverificationView } from "./LoginMethodReverificationView";
+import {
+  isLoginMethodReverificationBusy,
+  LoginMethodReverificationActions,
+  LoginMethodReverificationView,
+} from "./LoginMethodReverificationView";
 import { type PasswordChangeValues, passwordChangeSchema } from "./passwordSchema";
 import type { LoginMethodReverificationController } from "./reverificationTypes";
 import type { PasswordChangeController } from "./usePasswordChangeController";
+
+const PASSWORD_CHANGE_FORM_ID = "password-change-form";
 
 export function PasswordChangeDialog({
   controller,
@@ -18,11 +23,11 @@ export function PasswordChangeDialog({
   const isOpen = controller.state.isOpen;
   const isBusy = isOpen && controller.state.status === "loading";
   const isReverifying = reverification.state.status !== "idle";
-  const isReverificationSubmitting =
-    reverification.state.status === "submitting" || reverification.state.status === "completing";
+  const isReverificationBusy = isLoginMethodReverificationBusy(reverification);
+  const dialogBusy = isReverifying ? isReverificationBusy : isBusy;
   const requestClose = () => {
     if (isReverifying) {
-      if (isReverificationSubmitting) return;
+      if (isReverificationBusy) return;
       reverification.cancel();
       controller.close(true);
       return;
@@ -39,17 +44,15 @@ export function PasswordChangeDialog({
       }}
       onClose={requestClose}
       onBackGuardRemoved={requestClose}
-      preventClose={isReverifying ? isReverificationSubmitting : isBusy}
-      hideFooter
-      keyboardAwareViewport
-      maxW={{ base: "100vw", md: "560px" }}
-      maxH={{ base: "100dvh", md: "86dvh" }}
-      contentProps={{
-        w: "100%",
-        h: { base: "100dvh", md: "auto" },
-        my: { base: 0, md: "auto" },
-        borderRadius: { base: 0, md: "l3" },
-      }}
+      preventClose={dialogBusy}
+      isLoading={dialogBusy}
+      formId={!isReverifying ? PASSWORD_CHANGE_FORM_ID : undefined}
+      submitLabel="変更する"
+      footer={isReverifying ? <LoginMethodReverificationActions controller={reverification} /> : undefined}
+      mobileActionLayout="inline"
+      mobileFullScreen
+      maxW={{ md: "560px" }}
+      maxH={{ md: "86dvh" }}
       bodyProps={{ px: { base: 4, md: 6 }, pt: 2, pb: { base: 6, md: 6 } }}
     >
       {isReverifying ? <LoginMethodReverificationView controller={reverification} /> : null}
@@ -74,6 +77,7 @@ function PasswordChangeForm({ controller }: { controller: PasswordChangeControll
   return (
     <Stack
       as="form"
+      id={PASSWORD_CHANGE_FORM_ID}
       gap={5}
       onSubmit={handleSubmit(async (values) => {
         await controller.changePassword(values);
@@ -101,14 +105,6 @@ function PasswordChangeForm({ controller }: { controller: PasswordChangeControll
         <Input type="password" autoComplete="new-password" disabled={isBusy} {...register("confirmation")} />
         <Field.ErrorText>{errors.confirmation?.message}</Field.ErrorText>
       </Field.Root>
-      <Stack direction={{ base: "column-reverse", sm: "row" }} justify="space-between" gap={3}>
-        <Button type="button" variant="outline" disabled={isBusy} onClick={() => controller.close()}>
-          キャンセル
-        </Button>
-        <Button type="submit" colorPalette="teal" loading={isBusy} loadingText="変更中">
-          変更する
-        </Button>
-      </Stack>
     </Stack>
   );
 }

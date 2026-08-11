@@ -1,7 +1,94 @@
 import { Alert, Field, Input, Skeleton, Stack, Text } from "@chakra-ui/react";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/Button";
+import { DialogActionArea } from "@/src/components/ui/Dialog";
 import type { LoginMethodReverificationController, LoginMethodReverificationFactor } from "./reverificationTypes";
+
+export const isLoginMethodReverificationBusy = (controller: LoginMethodReverificationController) =>
+  controller.state.status === "starting" ||
+  controller.state.status === "submitting" ||
+  controller.state.status === "completing";
+
+const reverificationFormId = (controller: LoginMethodReverificationController) =>
+  `login-method-reverification-${controller.state.operationId ?? "pending"}`;
+
+export function LoginMethodReverificationActions({ controller }: { controller: LoginMethodReverificationController }) {
+  const { state } = controller;
+  if (state.status === "idle") return null;
+
+  if (state.status === "error") {
+    return (
+      <DialogActionArea
+        layout="standard"
+        mobileLayout="inline"
+        endAction={
+          <Button type="button" variant="outline" onClick={controller.cancel}>
+            閉じる
+          </Button>
+        }
+      />
+    );
+  }
+
+  if (isLoginMethodReverificationBusy(controller)) {
+    const isSubmittingFactor = state.status === "submitting" && state.selectedFactor !== null;
+    return (
+      <DialogActionArea
+        layout="standard"
+        mobileLayout="inline"
+        startAction={
+          isSubmittingFactor ? (
+            <Button type="button" variant="outline" disabled>
+              キャンセル
+            </Button>
+          ) : undefined
+        }
+        endAction={
+          isSubmittingFactor ? (
+            <Button type="button" colorPalette="teal" loading loadingText="確認中">
+              続ける
+            </Button>
+          ) : (
+            <Button type="button" variant="outline" disabled>
+              閉じる
+            </Button>
+          )
+        }
+      />
+    );
+  }
+
+  if (state.status === "awaiting_input" && state.selectedFactor) {
+    return (
+      <DialogActionArea
+        layout="standard"
+        mobileLayout="inline"
+        startAction={
+          <Button type="button" variant="outline" onClick={controller.cancel}>
+            キャンセル
+          </Button>
+        }
+        endAction={
+          <Button type="submit" form={reverificationFormId(controller)} colorPalette="teal">
+            続ける
+          </Button>
+        }
+      />
+    );
+  }
+
+  return (
+    <DialogActionArea
+      layout="standard"
+      mobileLayout="inline"
+      endAction={
+        <Button type="button" variant="outline" onClick={controller.cancel}>
+          キャンセル
+        </Button>
+      }
+    />
+  );
+}
 
 export function LoginMethodReverificationView({ controller }: { controller: LoginMethodReverificationController }) {
   const { state } = controller;
@@ -14,9 +101,6 @@ export function LoginMethodReverificationView({ controller }: { controller: Logi
           <Alert.Indicator />
           <Alert.Description>{state.message}</Alert.Description>
         </Alert.Root>
-        <Button type="button" variant="outline" alignSelf="flex-start" onClick={controller.cancel}>
-          閉じる
-        </Button>
       </Stack>
     );
   }
@@ -55,9 +139,6 @@ export function LoginMethodReverificationView({ controller }: { controller: Logi
             </Button>
           ))}
         </Stack>
-        <Button type="button" variant="ghost" alignSelf="flex-start" onClick={controller.cancel}>
-          キャンセル
-        </Button>
       </Stack>
     );
   }
@@ -83,10 +164,6 @@ function ReverificationSkeleton() {
       </Stack>
       <Skeleton h="40px" w="full" borderRadius="md" />
       <Skeleton h="16px" w="128px" alignSelf="flex-end" />
-      <Stack direction={{ base: "column-reverse", sm: "row" }} justify="space-between" gap={3}>
-        <Skeleton h="40px" w="96px" borderRadius="md" />
-        <Skeleton h="40px" w="88px" borderRadius="md" />
-      </Stack>
     </Stack>
   );
 }
@@ -107,6 +184,7 @@ function FactorInput({
   return (
     <Stack
       as="form"
+      id={reverificationFormId(controller)}
       gap={5}
       onSubmit={(event) => {
         event.preventDefault();
@@ -150,14 +228,6 @@ function FactorInput({
           確認コードを再送
         </Button>
       ) : null}
-      <Stack direction={{ base: "column-reverse", sm: "row" }} justify="space-between" gap={3}>
-        <Button type="button" variant="outline" onClick={controller.cancel}>
-          キャンセル
-        </Button>
-        <Button type="submit" colorPalette="teal">
-          続ける
-        </Button>
-      </Stack>
     </Stack>
   );
 }

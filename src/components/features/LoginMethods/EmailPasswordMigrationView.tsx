@@ -1,12 +1,11 @@
-import { Field, HStack, Input, Skeleton, Stack, Text } from "@chakra-ui/react";
+import { Alert, Field, Input, Skeleton, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { requiredEmailSchema } from "@/convex/_lib/validation";
 import { EMAIL_MAX_LENGTH } from "@/convex/constants";
-import { EmailCodeVerificationForm } from "@/src/components/features/AuthPage/EmailCodeVerificationForm";
-import { Button } from "@/src/components/ui/Button";
-import { MigrationFeedbackError, MigrationUnavailableState } from "./LoginMethodMigrationState";
+import { LoginMethodEmailCodeForm } from "./LoginMethodEmailCodeForm";
+import { MigrationFeedbackError } from "./LoginMethodMigrationState";
 import { type PasswordSetupValues, passwordSetupSchema } from "./passwordSchema";
 import type { EmailPasswordMigrationController } from "./useEmailPasswordMigrationController";
 
@@ -14,13 +13,11 @@ const emailSchema = z.object({ email: requiredEmailSchema });
 
 type EmailValues = z.infer<typeof emailSchema>;
 
-export function EmailPasswordMigrationView({
-  controller,
-  onCancel,
-}: {
-  controller: EmailPasswordMigrationController;
-  onCancel: () => void;
-}) {
+export const EMAIL_MIGRATION_EMAIL_FORM_ID = "login-method-migration-email";
+export const EMAIL_MIGRATION_CODE_FORM_ID = "login-method-migration-code";
+export const EMAIL_MIGRATION_PASSWORD_FORM_ID = "login-method-migration-password";
+
+export function EmailPasswordMigrationView({ controller }: { controller: EmailPasswordMigrationController }) {
   const { state } = controller;
   return (
     <Stack gap={5}>
@@ -28,26 +25,22 @@ export function EmailPasswordMigrationView({
         <MigrationFeedbackError feedback={state.feedback} />
       ) : null}
       {state.phase === "loading" ? <EmailPasswordMigrationSkeleton /> : null}
-      {state.phase === "choosingEmail" ? <EmailChoiceStep controller={controller} onCancel={onCancel} /> : null}
+      {state.phase === "choosingEmail" ? <EmailChoiceStep controller={controller} /> : null}
       {state.phase === "verifyingEmail" ? <EmailVerificationStep controller={controller} /> : null}
       {state.phase === "settingPassword" ? <PasswordStep controller={controller} /> : null}
       {state.phase === "unavailable" ? (
-        <MigrationUnavailableState
-          message="メールアドレスとパスワードを設定できません。Google認証は変更されていません。"
-          onRetry={controller.refresh}
-        />
+        <Alert.Root status="error" borderRadius="lg">
+          <Alert.Indicator />
+          <Alert.Description>
+            メールアドレスとパスワードを設定できません。Google認証は変更されていません。
+          </Alert.Description>
+        </Alert.Root>
       ) : null}
     </Stack>
   );
 }
 
-function EmailChoiceStep({
-  controller,
-  onCancel,
-}: {
-  controller: EmailPasswordMigrationController;
-  onCancel: () => void;
-}) {
+function EmailChoiceStep({ controller }: { controller: EmailPasswordMigrationController }) {
   const selectDifferentEmail = controller.useDifferentEmail;
   const {
     register,
@@ -63,6 +56,7 @@ function EmailChoiceStep({
   return (
     <Stack
       as="form"
+      id={EMAIL_MIGRATION_EMAIL_FORM_ID}
       gap={4}
       onSubmit={handleSubmit(async ({ email }) => {
         await selectDifferentEmail(email);
@@ -75,19 +69,12 @@ function EmailChoiceStep({
           autoComplete="email"
           placeholder="例：login@example.com"
           maxLength={EMAIL_MAX_LENGTH}
+          disabled={busy}
           {...register("email")}
         />
         <Field.ErrorText>{errors.email?.message}</Field.ErrorText>
       </Field.Root>
       <Text color="fg.muted">Google認証は解除しません。</Text>
-      <Stack direction={{ base: "column-reverse", sm: "row" }} justify="space-between" gap={3}>
-        <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
-          キャンセル
-        </Button>
-        <Button type="submit" colorPalette="teal" loading={busy} loadingText="確認中">
-          決定
-        </Button>
-      </Stack>
     </Stack>
   );
 }
@@ -100,28 +87,12 @@ function EmailVerificationStep({ controller }: { controller: EmailPasswordMigrat
         {controller.state.targetEmailAddress ?? "入力したメールアドレス"}
         に確認コードを送りました。メールに届いたコードを入力してください。
       </Text>
-      <EmailCodeVerificationForm
+      <LoginMethodEmailCodeForm
+        formId={EMAIL_MIGRATION_CODE_FORM_ID}
         errorMessage={feedback.status === "error" ? (feedback.message ?? undefined) : undefined}
-        isSubmitting={feedback.status === "loading"}
-        submitLabel="メールを確認"
-        submittingLabel="確認中"
-        onSubmit={async ({ code }) => {
-          await controller.verifyEmail(code);
-        }}
-        secondaryActions={
-          <HStack justify="flex-end" flexWrap="wrap">
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={feedback.status === "loading"}
-              onClick={() => {
-                void controller.resendEmailCode();
-              }}
-            >
-              確認コードを再送
-            </Button>
-          </HStack>
-        }
+        isBusy={feedback.status === "loading"}
+        onSubmit={controller.verifyEmail}
+        onResend={controller.resendEmailCode}
       />
     </Stack>
   );
@@ -142,6 +113,7 @@ function PasswordStep({ controller }: { controller: EmailPasswordMigrationContro
   return (
     <Stack
       as="form"
+      id={EMAIL_MIGRATION_PASSWORD_FORM_ID}
       gap={5}
       onSubmit={handleSubmit(async ({ newPassword }) => {
         await controller.setPassword(newPassword);
@@ -149,22 +121,14 @@ function PasswordStep({ controller }: { controller: EmailPasswordMigrationContro
     >
       <Field.Root invalid={Boolean(errors.newPassword)}>
         <Field.Label>新しいパスワード</Field.Label>
-        <Input type="password" autoComplete="new-password" {...register("newPassword")} />
+        <Input type="password" autoComplete="new-password" disabled={busy} {...register("newPassword")} />
         <Field.ErrorText>{errors.newPassword?.message}</Field.ErrorText>
       </Field.Root>
       <Field.Root invalid={Boolean(errors.confirmation)}>
         <Field.Label>新しいパスワード（確認）</Field.Label>
-        <Input type="password" autoComplete="new-password" {...register("confirmation")} />
+        <Input type="password" autoComplete="new-password" disabled={busy} {...register("confirmation")} />
         <Field.ErrorText>{errors.confirmation?.message}</Field.ErrorText>
       </Field.Root>
-      <Stack direction={{ base: "column-reverse", sm: "row" }} justify="space-between" gap={3}>
-        <Button type="button" variant="ghost" disabled={busy} onClick={controller.reset}>
-          戻る
-        </Button>
-        <Button type="submit" colorPalette="teal" size="lg" loading={busy} loadingText="設定中">
-          決定
-        </Button>
-      </Stack>
     </Stack>
   );
 }
@@ -177,10 +141,6 @@ function EmailPasswordMigrationSkeleton() {
         <Skeleton h="40px" w="full" borderRadius="md" />
       </Stack>
       <Skeleton h="16px" w="184px" />
-      <Stack direction={{ base: "column-reverse", sm: "row" }} justify="space-between" gap={3}>
-        <Skeleton h="40px" w="96px" borderRadius="md" />
-        <Skeleton h="40px" w="72px" borderRadius="md" />
-      </Stack>
     </Stack>
   );
 }

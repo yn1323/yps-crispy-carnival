@@ -1,7 +1,11 @@
 import { Alert, Stack, Text } from "@chakra-ui/react";
 import { Button } from "@/src/components/ui/Button";
-import { Dialog } from "@/src/components/ui/Dialog";
-import { LoginMethodReverificationView } from "./LoginMethodReverificationView";
+import { Dialog, DialogActionArea } from "@/src/components/ui/Dialog";
+import {
+  isLoginMethodReverificationBusy,
+  LoginMethodReverificationActions,
+  LoginMethodReverificationView,
+} from "./LoginMethodReverificationView";
 import type { LoginMethodReverificationController } from "./reverificationTypes";
 import type { GoogleDisconnectMode, LoginMethodsCardState, LoginMethodsController } from "./types";
 
@@ -22,13 +26,13 @@ export function GoogleDisconnectDialog({
 }) {
   const isBusy = controller.googleState.status === "loading";
   const isReverifying = reverification.state.status !== "idle";
-  const isReverificationSubmitting =
-    reverification.state.status === "submitting" || reverification.state.status === "completing";
+  const isReverificationBusy = isLoginMethodReverificationBusy(reverification);
   const isCleanupPending = controller.googleDisconnectPendingCleanup;
+  const dialogBusy = isCleanupPending || (isReverifying ? isReverificationBusy : isBusy);
   const requestClose = () => {
     if (isCleanupPending) return;
     if (isReverifying) {
-      if (isReverificationSubmitting) return;
+      if (isReverificationBusy) return;
       reverification.cancel();
     }
     if (!isBusy) onClose();
@@ -37,6 +41,19 @@ export function GoogleDisconnectDialog({
     if (!externalAccountId) return;
     if (await controller.disconnectGoogle(externalAccountId)) onClose();
   };
+  const footer = isReverifying ? (
+    <LoginMethodReverificationActions controller={reverification} />
+  ) : isCleanupPending ? (
+    <DialogActionArea
+      layout="standard"
+      mobileLayout="inline"
+      endAction={
+        <Button type="button" colorPalette="red" loading={isBusy} loadingText="もう一度試す" onClick={submit}>
+          もう一度試す
+        </Button>
+      }
+    />
+  ) : undefined;
 
   return (
     <Dialog
@@ -48,20 +65,16 @@ export function GoogleDisconnectDialog({
       }}
       onClose={requestClose}
       onBackGuardRemoved={requestClose}
-      preventClose={isCleanupPending || (isReverifying ? isReverificationSubmitting : isBusy)}
-      hideFooter={isReverifying}
-      footer={
-        <>
-          {!isCleanupPending ? (
-            <Button key="cancel" variant="outline" disabled={isBusy} onClick={requestClose}>
-              キャンセル
-            </Button>
-          ) : null}
-          <Button key="submit" colorPalette="red" loading={isBusy} onClick={submit}>
-            {isCleanupPending ? "もう一度試す" : "解除する"}
-          </Button>
-        </>
-      }
+      preventClose={dialogBusy}
+      isLoading={isReverifying ? isReverificationBusy : isBusy}
+      onSubmit={!isReverifying && !isCleanupPending ? submit : undefined}
+      submitLabel="解除する"
+      submitColorPalette="red"
+      footer={footer}
+      mobileActionLayout="inline"
+      mobileFullScreen={isReverifying}
+      maxW={{ md: "560px" }}
+      maxH={isReverifying ? { md: "86dvh" } : undefined}
     >
       {isReverifying ? <LoginMethodReverificationView controller={reverification} /> : null}
       {!isReverifying ? (
