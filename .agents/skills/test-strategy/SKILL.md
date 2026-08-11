@@ -33,7 +33,7 @@ security-sensitiveな変更では`shiftori-security-review`を併用する。
 1. 失敗したE2Eより先に、現在の画面、機能文書、Story、主担当層のtestを確認し、現行contractを特定する。
 2. 失敗を製品回帰、test drift、共有状態、待機、環境・外部依存に分類し、retry後の成功だけで解消扱いにしない。
 3. scenarioごとに実ブラウザ境界が必要かを再判定し、DB詳細、通知集合、全validation、時刻境界を主担当層へ移してからE2E基盤を直す。
-4. E2Eを削除または統合するときは、件数ではなく契約IDの移管表を作り、logout後の認証境界、分離したa11y検査、feature flag公開時のenabled pathをbrowser-only保全条件として確認する。
+4. E2Eを削除または統合するときは、件数ではなく契約IDの移管表を作り、logout後の認証境界とfeature flag公開時のenabled pathをbrowser-only保全条件として確認する。
 5. actor、認証状態、seed、cleanupをworkerへ決定的に割り当て、test順序、project、retryによる共有をなくす。
 6. 意図したfrontend変更によるtest driftなら、製品コードを以前の挙動へ戻さず、selector、待機、fixture、assertionを現行contractへ合わせる。
 7. 固定時間待機を利用者に見える状態へ置き換え、browserから観測できない非同期境界だけを総deadline付きpollingにする。
@@ -62,6 +62,7 @@ route manifestの全件走査、静的生成物の網羅、UI操作の状態分�
 
 - Full Regressionでは、既存testより先に画面、ユースケース、public API、HTTP route、通知目的、復旧導線を棚卸しする。
 - UIでは見た目と操作を分け、VRTとBehavior Testに同じcontractを重複させない。
+- アクセシビリティ専用suite、axeによる全画面走査、a11y release gateは提案または追加しない。この方針をUIのrole、label、accessible nameや通常の機能契約を省く理由にしない。
 - Convexの契約はRuleの主担当層へ配置し、異なる失敗境界を一つのテストへ詰め込まない。
 - 「余計な対象がない」「1件だけ」「古いcapabilityが無効」もcontractなら、部分一致でなく件数と完全性をassertする。
 

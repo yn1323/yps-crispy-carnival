@@ -36,14 +36,10 @@ Pull Requestを閉じると、同workflowがプレビューの後処理を行う
 logout境界だけはuser 3から5を`parallelIndex`へ固定し、各反復で専用の新しいbrowser contextへ認証する。
 desktop完了後にmobileを実行するため、異なるprojectが同じユーザーを同時に操作しない。
 
-独立a11y gateは`pnpm e2e:a11y:ci`である。
-`E2E-A11Y-01`として認証済みDashboardの代表状態をaxeで検査し、criticalまたはseriousの違反、skip、retry、重複契約を失敗させる。
-coreと異なるJSON、HTML report、artifact directoryを使い、結果とartifact privacyを独立して判定する。
-
 同じPull Requestの新旧runはworkflowの`concurrency`で直列化し、古いrunをcancelする。
 cancel済みrunはreport upload、Pages公開、Pull Requestコメントを行わない。
 
-coreとa11yのPlaywright reportおよびJSON resultは、upload前にそれぞれprivacy gateで検査する。
+Playwright reportおよびJSON resultは、upload前にprivacy gateで検査する。
 privacy gateがtoken、credential、非placeholder email、認証storage、検査不能なartifactを検出した場合は、reportを公開しない。
 
 flake調査はretryを無効にした次のcommandで行う。

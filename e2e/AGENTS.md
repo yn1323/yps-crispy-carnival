@@ -24,7 +24,7 @@
 - E2Eの構造、selector、待機、通知検証の手順は `test-strategy` に従う。
 - core E2Eを削減または統合するときは、件数ではなく契約IDの移管表でレビューし、`doc/rules/testing-strategy.md`のbrowser-only保全条件を満たす。
 - 匿名の保護route redirectとlogout後の保護route再アクセスを、coreまたは独立browser smokeで維持する。
-- coreからa11y検査を分離する場合は、独立a11y smokeまたはStorybook accessibilityを代替の主担当にし、代替なしの削除を完了扱いにしない。
+- アクセシビリティ専用のE2E smokeやaxe走査は追加しない。この方針をUIのrole、label、accessible nameや通常の操作契約を省く理由にしない。
 - feature flagでskipされる契約はカバレッジ済みとみなさず、公開条件のenabled環境で実行する。
 
 ## 実行
@@ -33,13 +33,11 @@
 
 ```bash
 pnpm e2e:ci
-pnpm e2e:a11y:ci
 pnpm e2e e2e/path/to/file.test.ts --retries=0 --workers=1
 pnpm e2e:burn-in
 ```
 
 `pnpm e2e:ci`はdesktop 7個、mobile 1個のcore契約とresult gateを実行する。
-`pnpm e2e:a11y:ci`は代表的な認証済みDashboardを対象に、独立した`E2E-A11Y-01`とartifact privacy gateを実行する。
 `pnpm e2e:burn-in`は局所E2Eが成功した後に使い、desktopとmobileを直列化したまま、retryなしで各core契約を10回反復する。
 各phaseは次のphaseがreportを上書きする前に、contract ID別の反復数、project、初回成功、skip、flakyとartifact privacyを検査する。
 

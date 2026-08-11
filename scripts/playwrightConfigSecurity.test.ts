@@ -10,11 +10,7 @@ const SCRIPT_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
 const REPOSITORY_ROOT = path.resolve(SCRIPT_DIRECTORY, "..");
 const PLAYWRIGHT_CLI_PATH = path.join(REPOSITORY_ROOT, "node_modules", "@playwright", "test", "cli.js");
 const ARTIFACT_GATE_PATH = path.join(REPOSITORY_ROOT, "scripts", "assertNoSensitiveArtifacts.mjs");
-const PLAYWRIGHT_CONFIG_PATHS = [
-  "playwright.config.ts",
-  "playwright.a11y.config.ts",
-  "playwright.deployed.config.ts",
-] as const;
+const PLAYWRIGHT_CONFIG_PATHS = ["playwright.config.ts", "playwright.deployed.config.ts"] as const;
 const AUTH_SETUP_PATH = path.join(REPOSITORY_ROOT, "e2e", "fixtures", "auth.setup.ts");
 const DEPLOYED_SMOKE_PATH = path.join(REPOSITORY_ROOT, "e2e", "scenarios", "deployed-smoke.test.ts");
 const PLAYWRIGHT_WORKFLOW_PATH = path.join(REPOSITORY_ROOT, ".github", "workflows", "playwright.yml");
@@ -45,8 +41,8 @@ describe("Playwright config artifact security", () => {
 
     expect(workflow).not.toContain("vars.E2E_CLERK_USERS");
     expect(workflow).not.toContain("vars.E2E_CLERK_PASSWORD");
-    expect(workflow.match(/secrets\.E2E_CLERK_USERS/g)).toHaveLength(4);
-    expect(workflow.match(/secrets\.E2E_CLERK_PASSWORD/g)).toHaveLength(4);
+    expect(workflow.match(/secrets\.E2E_CLERK_USERS/g)).toHaveLength(2);
+    expect(workflow.match(/secrets\.E2E_CLERK_PASSWORD/g)).toHaveLength(2);
     expect(workflow).toContain('PLAYWRIGHT_NO_COPY_PROMPT: "1"');
   });
 
