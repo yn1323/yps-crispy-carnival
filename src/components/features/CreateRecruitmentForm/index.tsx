@@ -30,6 +30,7 @@ type Props = {
   displayMode?: "full" | "periodOnly";
   onSubmit: (data: CreateRecruitmentData) => void | Promise<void>;
   onCancel?: () => void;
+  onSubmittingChange?: (isSubmitting: boolean) => void;
   today?: string;
 };
 
@@ -58,6 +59,7 @@ export const CreateRecruitmentForm = ({
   displayMode = "full",
   onSubmit,
   onCancel,
+  onSubmittingChange,
   today: todayProp,
 }: Props) => {
   const today = todayProp ?? dayjs().format("YYYY-MM-DD");
@@ -87,6 +89,14 @@ export const CreateRecruitmentForm = ({
     },
   });
   const { run: submitOnce, isRunning: isSubmitRunning } = useSingleFlight(onSubmit);
+  const isSubmitBusy = isSubmitting || isSubmitRunning;
+
+  useEffect(() => {
+    onSubmittingChange?.(isSubmitBusy);
+    return () => {
+      if (isSubmitBusy) onSubmittingChange?.(false);
+    };
+  }, [isSubmitBusy, onSubmittingChange]);
 
   const periodStart = watch("periodStart");
   const periodEnd = watch("periodEnd");
@@ -192,7 +202,7 @@ export const CreateRecruitmentForm = ({
     <CreateRecruitmentFormView
       currentStep={currentStep}
       isPeriodOnly={isPeriodOnly}
-      submitLoading={isSubmitting || isSubmitRunning}
+      submitLoading={isSubmitBusy}
       hiddenFields={{
         periodStart: register("periodStart"),
         periodEnd: register("periodEnd"),

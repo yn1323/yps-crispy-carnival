@@ -26,11 +26,23 @@ const storyToday = () => dayjs(STORY_TODAY);
 
 const DoubleSubmitGuardHarness = () => {
   const [submitCount, setSubmitCount] = useState(0);
+  const [closeCount, setCloseCount] = useState(0);
+  const [isOpen, setIsOpen] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const pendingSubmission = useRef<ReturnType<typeof createDeferred> | null>(null);
 
   return (
     <>
-      <StepperDialog title="新しい募集をつくる" isOpen={true} onOpenChange={() => {}} onClose={() => {}}>
+      <StepperDialog
+        title="新しい募集をつくる"
+        isOpen={isOpen}
+        onOpenChange={({ open }) => setIsOpen(open)}
+        onClose={() => {
+          setCloseCount((current) => current + 1);
+          setIsOpen(false);
+        }}
+        preventClose={isSubmitting}
+      >
         <CreateRecruitmentForm
           today={STORY_TODAY}
           onSubmit={async () => {
@@ -39,11 +51,21 @@ const DoubleSubmitGuardHarness = () => {
             pendingSubmission.current = submission;
             await submission.promise;
             if (pendingSubmission.current === submission) pendingSubmission.current = null;
+            setIsOpen(false);
           }}
-          onCancel={() => {}}
+          onCancel={() => setIsOpen(false)}
+          onSubmittingChange={setIsSubmitting}
         />
       </StepperDialog>
-      <output data-testid="submit-call-count">{submitCount}</output>
+      <output hidden data-testid="submit-call-count">
+        {submitCount}
+      </output>
+      <output hidden data-testid="create-close-count">
+        {closeCount}
+      </output>
+      <output hidden data-testid="create-submitting-state">
+        {String(isSubmitting)}
+      </output>
       <button
         type="button"
         hidden
@@ -51,6 +73,9 @@ const DoubleSubmitGuardHarness = () => {
         onClick={() => pendingSubmission.current?.resolve()}
       >
         募集作成処理を完了する
+      </button>
+      <button type="button" hidden data-testid="reopen-recruitment-dialog" onClick={() => setIsOpen(true)}>
+        募集作成を再度開く
       </button>
     </>
   );
@@ -401,6 +426,7 @@ export const InteractiveDoubleSubmitGuard: Story = {
   play: async ({ canvasElement }) => {
     const root = await getTestRoot(canvasElement);
     const canvas = within(root);
+    const body = within(canvasElement.ownerDocument.body);
     const story = within(canvasElement);
     const periodStart = storyToday().add(2, "day");
     const periodEnd = storyToday().add(4, "day");
@@ -422,10 +448,48 @@ export const InteractiveDoubleSubmitGuard: Story = {
     fireEvent.click(submitButton);
 
     await waitFor(() => expect(story.getByTestId("submit-call-count")).toHaveTextContent("1"));
+    await waitFor(() => expect(root).toHaveAttribute("aria-busy", "true"));
+    await expect(canvas.getByRole("button", { name: "戻る" })).toBeDisabled();
     await expect(submitButton).toBeDisabled();
+    await expect(canvas.queryByRole("button", { name: "閉じる" })).not.toBeInTheDocument();
+
+    await userEvent.keyboard("{Escape}");
+    await expect(root).toBeVisible();
+    await expect(story.getByTestId("create-close-count")).toHaveTextContent("0");
 
     fireEvent.click(story.getByTestId("release-recruitment-submission"));
-    await waitFor(() => expect(submitButton).toBeEnabled());
+    await waitFor(() => expect(body.queryByRole("dialog", { name: "新しい募集をつくる" })).not.toBeInTheDocument());
+    await waitFor(() => expect(story.getByTestId("create-submitting-state")).toHaveTextContent("false"));
+
+    fireEvent.click(story.getByTestId("reopen-recruitment-dialog"));
+    const reopenedRoot = await getTestRoot(canvasElement);
+    const reopenedCanvas = within(reopenedRoot);
+    await expect(reopenedRoot).not.toHaveAttribute("aria-busy");
+    await expect(reopenedCanvas.getByRole("button", { name: "キャンセル" })).toBeEnabled();
+    await expect(reopenedCanvas.getByRole("button", { name: "次へ" })).toBeEnabled();
+  },
+};
+
+export const Submitting: Story = {
+  name: "募集作成中",
+  render: () => <DoubleSubmitGuardHarness />,
+  play: async ({ canvasElement }) => {
+    const root = await getTestRoot(canvasElement);
+    const canvas = within(root);
+    const periodStart = storyToday().add(2, "day");
+    const periodEnd = storyToday().add(4, "day");
+
+    await clickDate(root, periodStart);
+    await clickDate(root, periodEnd);
+    await clickButton(root, "次へ");
+    await canvas.findByText("お店のお休みを選択");
+    await clickButton(root, "次へ");
+    await canvas.findByText("提出締切日を選択");
+    await clickDate(root, periodStart.subtract(1, "day"));
+    await clickButton(root, "確認へ");
+    await canvas.findByText("内容を確認");
+    await userEvent.click(canvas.getByRole("button", { name: "募集をつくる" }));
+    await waitFor(() => expect(root).toHaveAttribute("aria-busy", "true"));
   },
 };
 

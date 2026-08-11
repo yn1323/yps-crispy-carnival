@@ -1,4 +1,5 @@
 import { Text } from "@chakra-ui/react";
+import { useState } from "react";
 import type { RegularClosedDay } from "@/convex/shop/schemas";
 import { type CreateRecruitmentData, CreateRecruitmentForm } from "@/src/components/features/CreateRecruitmentForm";
 import { Dialog } from "@/src/components/ui/Dialog";
@@ -58,6 +59,7 @@ export function RecruitmentManagementView({
   onShowPastRecruitments,
   onLoadMorePastRecruitments,
 }: Props) {
+  const [isCreateSubmitting, setIsCreateSubmitting] = useState(false);
   const deleteTitle = deleteTarget
     ? `${formatDateShort(deleteTarget.periodStart)}〜${formatDateShort(deleteTarget.periodEnd)}のシフト募集を削除`
     : "シフト募集を削除";
@@ -84,11 +86,13 @@ export function RecruitmentManagementView({
         isOpen={createDialog.isOpen && !isReadOnly}
         onOpenChange={createDialog.onOpenChange}
         onClose={createDialog.close}
+        preventClose={isCreateSubmitting}
       >
         <CreateRecruitmentForm
           regularClosedDays={regularClosedDays}
           onSubmit={onCreate}
           onCancel={createDialog.close}
+          onSubmittingChange={setIsCreateSubmitting}
         />
       </StepperDialog>
 
@@ -103,6 +107,7 @@ export function RecruitmentManagementView({
         submitColorPalette="red"
         isLoading={isDeleting}
         isSubmitDisabled={isReadOnly || isDeleting}
+        mobileActionLayout="stacked"
       >
         <Text>この募集を削除すると元に戻せません。</Text>
       </Dialog>
