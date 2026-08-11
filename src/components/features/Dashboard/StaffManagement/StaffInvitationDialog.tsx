@@ -114,30 +114,33 @@ export function StaffInvitationDialogView({ invitation, isReadOnly = false, orga
       formId={isManualMethod ? "add-staff-form" : undefined}
       onClose={invitation.onClose}
       preventClose={isBusy}
-      hideFooter={selectedMethod === "organization"}
       footer={
-        isManualMethod ? (
-          <Flex w="full" align="center" justify="flex-end" gap={3}>
-            <Button variant="outline" onClick={invitation.onClose} disabled={isReadOnly || isBusy}>
-              閉じる
+        <Flex w="full" align="center" gap={3} wrap="wrap">
+          {selectedMethod !== null && (
+            <Button variant="outline" onClick={invitation.onBackToMethods} disabled={isBusy}>
+              <LuChevronLeft aria-hidden />
+              戻る
             </Button>
-            <Button
-              type="submit"
-              form="add-staff-form"
-              colorPalette="teal"
-              loading={invitation.isAddingStaffs}
-              disabled={isReadOnly || invitation.isAddingOrganizationPerson}
-            >
-              スタッフを登録する
-            </Button>
-          </Flex>
-        ) : selectedMethod !== "organization" ? (
-          <Flex w="full" justify="flex-end">
-            <Button variant="outline" onClick={invitation.onClose} disabled={isBusy}>
-              閉じる
-            </Button>
-          </Flex>
-        ) : undefined
+          )}
+          {(isManualMethod || selectedMethod !== "organization") && (
+            <Flex ms="auto" align="center" gap={3}>
+              <Button variant="outline" onClick={invitation.onClose} disabled={isReadOnly || isBusy}>
+                閉じる
+              </Button>
+              {isManualMethod && (
+                <Button
+                  type="submit"
+                  form="add-staff-form"
+                  colorPalette="teal"
+                  loading={invitation.isAddingStaffs}
+                  disabled={isReadOnly || invitation.isAddingOrganizationPerson}
+                >
+                  スタッフを登録する
+                </Button>
+              )}
+            </Flex>
+          )}
+        </Flex>
       }
       maxW={{ base: "100vw", lg: "640px" }}
       maxH={{ base: "100dvh", lg: "85dvh" }}
@@ -195,14 +198,7 @@ function StaffInvitationDialogBody({ invitation, organizationPeopleContent }: Bo
         />
       )}
 
-      {selectedMethod !== null && (
-        <StaffInvitationDetailHeader
-          ref={detailHeadingRef}
-          method={selectedMethod}
-          disabled={isBusy}
-          onBack={invitation.onBackToMethods}
-        />
-      )}
+      {selectedMethod !== null && <StaffInvitationDetailHeader ref={detailHeadingRef} method={selectedMethod} />}
 
       {selectedMethod === "link" && (
         <Stack gap={6}>
@@ -363,46 +359,25 @@ const METHOD_TITLES: Record<StaffInvitationMethod, string> = {
 
 type DetailHeaderProps = {
   method: StaffInvitationMethod;
-  disabled: boolean;
-  onBack: () => void;
 };
 
-const StaffInvitationDetailHeader = forwardRef<HTMLHeadingElement, DetailHeaderProps>(
-  ({ method, disabled, onBack }, ref) => (
-    <Stack gap={3}>
-      <Box>
-        <Button
-          type="button"
-          variant="plain"
-          size="sm"
-          px={0}
-          color="gray.700"
-          gap={1}
-          disabled={disabled}
-          onClick={onBack}
-        >
-          <LuChevronLeft aria-hidden />
-          追加方法に戻る
-        </Button>
-      </Box>
-      <Heading
-        ref={ref}
-        as="h3"
-        fontSize="lg"
-        fontWeight="bold"
-        color="gray.900"
-        tabIndex={-1}
-        _focusVisible={{
-          outlineWidth: "2px",
-          outlineStyle: "solid",
-          outlineColor: "teal.500",
-          outlineOffset: "2px",
-        }}
-      >
-        {METHOD_TITLES[method]}
-      </Heading>
-    </Stack>
-  ),
-);
+const StaffInvitationDetailHeader = forwardRef<HTMLHeadingElement, DetailHeaderProps>(({ method }, ref) => (
+  <Heading
+    ref={ref}
+    as="h3"
+    fontSize="lg"
+    fontWeight="bold"
+    color="gray.900"
+    tabIndex={-1}
+    _focusVisible={{
+      outlineWidth: "2px",
+      outlineStyle: "solid",
+      outlineColor: "teal.500",
+      outlineOffset: "2px",
+    }}
+  >
+    {METHOD_TITLES[method]}
+  </Heading>
+));
 
 StaffInvitationDetailHeader.displayName = "StaffInvitationDetailHeader";

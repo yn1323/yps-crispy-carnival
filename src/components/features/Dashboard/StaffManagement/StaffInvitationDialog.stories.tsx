@@ -235,14 +235,15 @@ export const MethodNavigationBehavior: Story = {
     await userEvent.click(linkCard);
     const linkHeading = await page.findByRole("heading", { name: "スタッフ本人に登録してもらう" });
     await waitFor(() => expect(linkHeading).toHaveFocus());
-    await userEvent.click(await page.findByRole("button", { name: "追加方法に戻る" }));
+    await expect(page.queryByRole("button", { name: "追加方法に戻る" })).not.toBeInTheDocument();
+    await userEvent.click(await page.findByRole("button", { name: "戻る" }));
     await waitFor(() => expect(page.getByRole("button", { name: "スタッフ本人に登録してもらう" })).toHaveFocus());
 
     const manualCard = page.getByRole("button", { name: "管理者が情報を入力して追加する" });
     await userEvent.click(manualCard);
     const manualHeading = await page.findByRole("heading", { name: "管理者が情報を入力して追加する" });
     await waitFor(() => expect(manualHeading).toHaveFocus());
-    await userEvent.click(await page.findByRole("button", { name: "追加方法に戻る" }));
+    await userEvent.click(await page.findByRole("button", { name: "戻る" }));
     await waitFor(() => expect(page.getByRole("button", { name: "管理者が情報を入力して追加する" })).toHaveFocus());
 
     const organizationCard = page.getByRole("button", { name: "別店舗のスタッフを追加する" });
@@ -250,7 +251,7 @@ export const MethodNavigationBehavior: Story = {
     const organizationHeading = await page.findByRole("heading", { name: "別店舗のスタッフを追加する" });
     await waitFor(() => expect(organizationHeading).toHaveFocus());
     await page.findByRole("button", { name: "佐藤 真由美をこの店舗に追加" });
-    await userEvent.click(await page.findByRole("button", { name: "追加方法に戻る" }));
+    await userEvent.click(await page.findByRole("button", { name: "戻る" }));
     await waitFor(() => expect(page.getByRole("button", { name: "別店舗のスタッフを追加する" })).toHaveFocus());
   },
 };
@@ -265,9 +266,9 @@ export const ManualDraftRetentionAndCloseResetBehavior: Story = {
     const [nameInput] = await page.findAllByPlaceholderText("例：田中 花子");
     await userEvent.type(nameInput, "入力途中のスタッフ");
 
-    await userEvent.click(await page.findByRole("button", { name: "追加方法に戻る" }));
+    await userEvent.click(await page.findByRole("button", { name: "戻る" }));
     await userEvent.click(await page.findByRole("button", { name: "スタッフ本人に登録してもらう" }));
-    await userEvent.click(await page.findByRole("button", { name: "追加方法に戻る" }));
+    await userEvent.click(await page.findByRole("button", { name: "戻る" }));
     await userEvent.click(await page.findByRole("button", { name: "管理者が情報を入力して追加する" }));
 
     const [retainedNameInput] = await page.findAllByPlaceholderText("例：田中 花子");
