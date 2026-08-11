@@ -43,7 +43,7 @@
 │   ├── 11+ or 段階的 → 専用ページ / StepperDialog / Drawer
 │   └── 進行中追従できる → Drawer (右、非ブロッキング)
 ├── 確認
-│   ├── 破壊的 → AlertDialog (赤ボタン、結果明示)
+│   ├── 破壊的 → Dialog (`role="alertdialog"`、結果明示)
 │   ├── 重要選択 → Dialog (オプション提示)
 │   └── 軽微（戻れる） → 確認なし or Toast undo
 ├── 選択
@@ -65,16 +65,14 @@
 ### 構造
 - Title（強）
 - 本文（簡潔）
-- アクション（右下：Primary、左：Cancel）
-- 閉じる × は右上
+- action areaと閉じる経路は[UI設計方針の「Dialogのアクション」](../../../../doc/rules/ui-design.md#dialogのアクション)に従う
 - 背景にoverlay（暗い半透明）
-- ESCで閉じる、focusトラップ
+- focusトラップ
 
 ### 鉄則
 - **モーダル乱用禁止**：ナビゲーションを殺す
-- **モーダルの中にモーダルを開かない**：迷子になる
-- **長すぎる内容は避ける**：スクロールするモーダルは設計失敗
-- **モバイルで重いDialog → 全画面Dialog**：現状のシフトリ実装では `maxW="100vw"` / `maxH="100dvh"` と `contentProps` で全画面化する
+- actionの意味、PC/SP配置、scroll、close lock、inline confirmationは[UI設計方針](../../../../doc/rules/ui-design.md#dialogのアクション)を正本とする
+- **モバイルで重いDialog → 全画面Dialog**：共有`Dialog`の`mobileFullScreen`または既定で全画面になる`StepperDialog`を使う
 - **Dialog表示中のToast操作でDialogを閉じない**：ToastはPortalでDialog外に描画されるため、閉じる・actionがoutside interaction扱いになり得る。共有 `Dialog` / `StepperDialog` を使い、raw Chakra Dialogを使う場合も同じ抑止を適用する
 - Behavior Testでは、Toastの閉じる操作後に「Toastが消える」と「Dialogが残る」の両方を検証する
 
@@ -104,15 +102,14 @@
 - 詳細プレビューや一括操作
 
 ### バリエーション
-- `Dialog` / `StepperDialog` を `100vw` / `100dvh` で全画面化する
-- FooterやActionBarは下部に固定し、本文だけスクロールさせる
+- `Dialog`は`mobileFullScreen`、`StepperDialog`は既定値でモバイル全画面にする
+- action areaと本文scrollは[UI設計方針](../../../../doc/rules/ui-design.md#footerとscroll)に従う
 - Desktopでは適切な `maxW` と `maxH` に戻す
 
 ### 注意（このプロジェクト規約）
 - 専用 `BottomSheet` ラッパーは現状確認できない。既存の全画面Dialogパターンを優先する
 - **内部Selectは `usePortal={false}` を検討**（Portalで背面や外側に出る場合がある）
 - **ドロップダウンがクリップ → `overflowY` / `Portal` を確認**
-- 下端に固定ボタン置くなら、コンテンツに padding-bottom
 
 ## Popover
 
@@ -222,7 +219,7 @@ PC生産性ツールなら：
 
 - モーダル開いたら focus を内部に移す（focus trap）
 - 閉じたら起点要素に focus を戻す
-- ESCで閉じる
+- close経路とclose lockは[UI設計方針](../../../../doc/rules/ui-design.md#閉じる操作とclose-lock)に従う
 - 背景スクロールロック
 - `aria-modal="true"`、`role="dialog"`、`aria-labelledby`
 - フォーカスインジケータ（outline）を消さない
