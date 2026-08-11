@@ -466,8 +466,8 @@ export const colors = defineSemanticTokens.colors({
     },
     solid: {
       value: {
-        _light: "{colors.teal.700}",
-        _dark: "{colors.teal.700}",
+        _light: "{colors.teal.600}",
+        _dark: "{colors.teal.600}",
       },
     },
     focusRing: {
