@@ -9,6 +9,7 @@ import {
 import { OrganizationContext } from "./OrganizationContext";
 import { OrganizationCreationSection } from "./OrganizationCreation/OrganizationCreationSection";
 import { OrganizationDeletionSection } from "./OrganizationDeletion/OrganizationDeletionSection";
+import { OrganizationUsageSection, OrganizationUsageSectionSkeleton } from "./OrganizationUsageSection";
 import { PeopleSection } from "./PeopleSection";
 import { PlanAndPaymentSection } from "./PlanAndPaymentSection";
 import { ShopsSection } from "./ShopsSection";
@@ -49,6 +50,8 @@ export const OrganizationSettingsView = ({
       onSelectOrganization={actions.onSelectOrganization}
       onUpdateOrganizationName={actions.onUpdateOrganizationName}
     />
+
+    {features.billing && <OrganizationUsageSection billing={billing} />}
 
     <Tabs.Root
       value={onTabChange ? defaultTab : undefined}
@@ -161,6 +164,7 @@ export function OrganizationSettingsSkeleton({
   return (
     <Stack gap={{ base: 5, md: 7 }} aria-label="組織設定を読み込み中" aria-busy="true">
       <OrganizationContextSkeleton showOrganizationSelector={showOrganizationSelector} />
+      {features.billing && <OrganizationUsageSectionSkeleton />}
       <Box>
         <OrganizationTabsSkeleton showBilling={features.billing} />
         <Box pt={{ base: 5, md: 6 }}>{organizationSettingsBodySkeleton(visibleTab, features)}</Box>
@@ -300,27 +304,6 @@ function BillingSettingsSkeleton() {
         <SectionHeadingSkeleton width="64px" showIcon={false} />
         <BillingSummarySkeleton />
         <BillingPlanCardsSkeleton />
-        <Grid templateColumns={{ base: "1fr", sm: "repeat(3, minmax(0, 1fr))" }} gap={{ base: 2, md: 4 }}>
-          {Array.from({ length: 3 }, (_, index) => (
-            <Box
-              key={index}
-              borderWidth="1px"
-              borderColor="blackAlpha.100"
-              borderRadius="xl"
-              bg="white"
-              p={{ base: 3, md: 4 }}
-            >
-              <Stack gap={3}>
-                <HStack justify="space-between" gap={3}>
-                  <Skeleton h="20px" w="72px" />
-                  <Skeleton h="20px" w="48px" />
-                </HStack>
-                <Skeleton h="6px" w="full" borderRadius="full" />
-                {index === 0 && <Skeleton h="18px" w="144px" maxW="90%" />}
-              </Stack>
-            </Box>
-          ))}
-        </Grid>
       </Stack>
       <Stack gap={3}>
         <SectionHeadingSkeleton width="96px" showIcon={false} />

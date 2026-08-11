@@ -303,6 +303,20 @@ export const MobileLoadingPeopleMultipleOrganizations: Story = {
 
 export const Users: Story = { name: "スタッフ｜通常" };
 
+export const UsageSummaryBeforeTabs: Story = {
+  name: "画面全体｜利用状況をタブの上に表示（操作確認）",
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const usageSection = canvas.getByRole("region", { name: "組織の利用状況" });
+    const staffTab = canvas.getByRole("tab", { name: "スタッフ" });
+
+    await expect(usageSection).toBeVisible();
+    await expect(within(usageSection).getByRole("meter", { name: "利用人数 8 / 20" })).toBeVisible();
+    await expect(usageSection.compareDocumentPosition(staffTab) & 4).toBeTruthy();
+  },
+};
+
 export const StaffWithoutShop: Story = {
   name: "スタッフ｜店舗未所属",
   args: {
