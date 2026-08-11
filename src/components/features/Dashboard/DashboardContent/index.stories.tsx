@@ -213,6 +213,23 @@ const singleShopDashboardArgs = {
   isDashboardOnboardingDismissed: true,
 } satisfies ComponentProps<typeof DashboardContent>;
 
+const proPlanStatusCard = {
+  data: {
+    kind: "paidPlan",
+    planName: "Pro",
+    badgeLabel: "利用中",
+    nextEventLabel: "次回更新日：2026/9/1",
+    price: { status: "available", label: "月額 1,480円（税抜）" },
+    primaryActionLabel: "プランと支払いへ",
+  },
+  defaultExpanded: true,
+  usage: {
+    peopleUsage: { current: 12, max: 20 },
+    shopUsage: { current: 2, max: 5 },
+  },
+  onAction: noop,
+} satisfies NonNullable<ComponentProps<typeof DashboardContent>["planStatusCard"]>;
+
 const singleShopStoryStore = createStore();
 singleShopStoryStore.set(userAtom, {
   authId: "dashboard-story-user",
@@ -283,6 +300,98 @@ export const SingleShopMobile: Story = {
   globals: { viewport: { value: "mobile1", isRotated: false } },
 };
 
+export const SingleShopWithPlanStatus: Story = {
+  name: "1店舗・現在のプラン表示・デスクトップ",
+  args: {
+    ...singleShopDashboardArgs,
+    planStatusCard: proPlanStatusCard,
+    isBillingFeatureVisible: true,
+  },
+  render: (args) => (
+    <DashboardPagePreview>
+      <DashboardContent {...args} />
+    </DashboardPagePreview>
+  ),
+};
+
+export const SingleShopWithPlanStatusMobile: Story = {
+  ...SingleShopWithPlanStatus,
+  name: "1店舗・現在のプラン表示・モバイル",
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
+export const PlanStatusCompositionBehavior: Story = {
+  name: "現在のプラン表示・公開条件とTrial案内の置換",
+  args: singleShopDashboardArgs,
+  parameters: {
+    screenshot: { skip: true },
+  },
+  render: () => <PlanStatusCompositionStory />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.queryByRole("region", { name: "現在のプラン" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("region", { name: "トライアル終了前の支払い案内" })).not.toBeInTheDocument();
+
+    await userEvent.click(canvas.getByRole("button", { name: "課金表示を切り替える" }));
+    await expect(await canvas.findByRole("region", { name: "トライアル終了前の支払い案内" })).toBeVisible();
+
+    await userEvent.click(canvas.getByRole("button", { name: "新Backendの非表示状態を表示する" }));
+    await expect(canvas.queryByRole("region", { name: "現在のプラン" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("region", { name: "トライアル終了前の支払い案内" })).not.toBeInTheDocument();
+
+    await userEvent.click(canvas.getByRole("button", { name: "現在のプランを表示する" }));
+    await expect(await canvas.findByRole("region", { name: "現在のプラン" })).toBeVisible();
+    await expect(canvas.queryByRole("region", { name: "トライアル終了前の支払い案内" })).not.toBeInTheDocument();
+
+    await userEvent.click(canvas.getByRole("button", { name: "課金表示を切り替える" }));
+    await expect(canvas.queryByRole("region", { name: "現在のプラン" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("region", { name: "トライアル終了前の支払い案内" })).not.toBeInTheDocument();
+  },
+};
+
+function PlanStatusCompositionStory() {
+  const [isBillingVisible, setIsBillingVisible] = useState(false);
+  const [planStatusMode, setPlanStatusMode] = useState<"legacy" | "none" | "card">("legacy");
+
+  return (
+    <DashboardPagePreview>
+      <Button
+        aria-label="課金表示を切り替える"
+        aria-pressed={isBillingVisible}
+        onClick={() => setIsBillingVisible((current) => !current)}
+      >
+        課金表示を切り替える
+      </Button>
+      <Button
+        aria-label="新Backendの非表示状態を表示する"
+        aria-pressed={planStatusMode === "none"}
+        onClick={() => setPlanStatusMode("none")}
+      >
+        新Backendの非表示状態を表示する
+      </Button>
+      <Button
+        aria-label="現在のプランを表示する"
+        aria-pressed={planStatusMode === "card"}
+        onClick={() => setPlanStatusMode("card")}
+      >
+        現在のプランを表示する
+      </Button>
+      <DashboardContent
+        {...singleShopDashboardArgs}
+        billingSettingsShopId="shop-1"
+        isBillingFeatureVisible={isBillingVisible}
+        trialEndingNotice={{
+          visibleFrom: Date.now() - 86_400_000,
+          trialEndsAt: Date.now() + 86_400_000,
+        }}
+        planStatusCard={planStatusMode === "legacy" ? undefined : planStatusMode === "none" ? null : proPlanStatusCard}
+      />
+    </DashboardPagePreview>
+  );
+}
+
 export const ReadOnlyShop: Story = {
   args: {
     ...Normal.args,
@@ -293,7 +402,7 @@ export const ReadOnlyShop: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("button", { name: "店舗詳細を開く" })).toBeEnabled();
     await expect(canvas.getByRole("button", { name: "新しい募集をつくる" })).toBeDisabled();
-    await expect(canvas.getByRole("button", { name: "スタッフを招待する" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "スタッフを追加する" })).toBeDisabled();
   },
 };
 
@@ -320,9 +429,9 @@ export const ReadOnlyTransitionBehavior: Story = {
     await body.findByRole("dialog", { name: "新しい募集をつくる" });
     await expectDialogClosedByReadOnly("新しい募集をつくる");
 
-    await userEvent.click(await canvas.findByRole("button", { name: "スタッフを招待する" }));
-    await body.findByRole("dialog", { name: "スタッフを招待" });
-    await expectDialogClosedByReadOnly("スタッフを招待");
+    await userEvent.click(await canvas.findByRole("button", { name: "スタッフを追加する" }));
+    await body.findByRole("dialog", { name: "スタッフを追加" });
+    await expectDialogClosedByReadOnly("スタッフを追加");
 
     await userEvent.click(await canvas.findByRole("button", { name: "申請を確認" }));
     await body.findByRole("dialog", { name: "スタッフ登録申請" });

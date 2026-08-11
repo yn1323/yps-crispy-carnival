@@ -83,6 +83,23 @@ export function getE2EClerkUserForIndex(index: number): E2EClerkUser {
 
 export function getE2EClerkUserForWorker(parallelIndex: number, workerCount: number): E2EClerkUser {
   const users = getE2ECoreClerkUsers();
+  return getE2EClerkUserForWorkerFromPool(users, parallelIndex, workerCount);
+}
+
+/**
+ * logoutのようにsessionを失効させるE2Eへ、通常coreと重ならないactorを割り当てる。
+ * parallelIndexだけで決まり、test順序・repeat・retryではrotateしない。
+ */
+export function getE2EReservedMultiActorClerkUserForWorker(parallelIndex: number, workerCount: number): E2EClerkUser {
+  const users = getE2EReservedMultiActorClerkUsers();
+  return getE2EClerkUserForWorkerFromPool(users, parallelIndex, workerCount);
+}
+
+function getE2EClerkUserForWorkerFromPool(
+  users: E2EClerkUser[],
+  parallelIndex: number,
+  workerCount: number,
+): E2EClerkUser {
   if (!Number.isInteger(workerCount) || workerCount <= 0 || workerCount > users.length) {
     throw new Error(`E2E worker count must be an integer between 1 and ${users.length}: ${workerCount}`);
   }

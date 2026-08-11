@@ -21,6 +21,10 @@ export function ShopDetailPage({ shopId, selectedShopId, returnTo }: Props) {
   const selectedShop = useAtomValue(selectedShopAtom);
   const contextShopId = selectedShopId ?? selectedShop?.shopId ?? null;
   const shop = settings?.shops.find((candidate) => candidate.id === shopId) ?? null;
+  const deletionReturnShopId =
+    settings?.shops.find((candidate) => candidate.id !== shopId && candidate.id === contextShopId)?.id ??
+    settings?.shops.find((candidate) => candidate.id !== shopId)?.id ??
+    null;
 
   return (
     <AuthenticatedPageContent>
@@ -44,7 +48,13 @@ export function ShopDetailPage({ shopId, selectedShopId, returnTo }: Props) {
       ) : settings === undefined ? (
         <ShopDetailSkeleton />
       ) : shop ? (
-        <ShopDetail shop={shop} people={settings?.people ?? []} selectedShopId={contextShopId} returnTo={returnTo} />
+        <ShopDetail
+          shop={shop}
+          people={settings?.people ?? []}
+          selectedShopId={contextShopId}
+          deletionReturnShopId={deletionReturnShopId}
+          returnTo={returnTo}
+        />
       ) : (
         <Empty
           icon={LuStore}

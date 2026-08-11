@@ -17,6 +17,11 @@ export class AuthPage {
     await expect.poll(() => new URL(this.page.url()).searchParams.get("redirect")).toBe(redirect ?? null);
   }
 
+  async expectProtectedDashboardHidden() {
+    await expect(this.page.getByRole("button", { name: "新しい募集をつくる" })).not.toBeVisible();
+    await expect(this.page.getByRole("button", { name: "ユーザーメニュー" })).not.toBeVisible();
+  }
+
   private passwordInput() {
     return this.page.locator("input[name='password']");
   }

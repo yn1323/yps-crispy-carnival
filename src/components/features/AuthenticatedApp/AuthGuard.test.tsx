@@ -80,7 +80,9 @@ vi.mock("@chakra-ui/react", async (importOriginal) => ({
 }));
 
 vi.mock("@tanstack/react-router", () => ({
-  Navigate: ({ to }: { to: string }) => <div data-testid="navigate" data-to={to} />,
+  Navigate: ({ to, search }: { to: string; search?: { redirect?: string } }) => (
+    <div data-testid="navigate" data-to={to} data-redirect={search?.redirect} />
+  ),
   useRouterState: mocks.useRouterState,
 }));
 
@@ -159,6 +161,7 @@ beforeEach(() => {
   mocks.setUser.mockReset();
   mocks.managerChildRender.mockReset();
   sessionStorage.clear();
+  window.history.replaceState({}, "", "/dashboard");
 
   mocks.myShops = [{ shopId: "active-shop", shopName: "所属店舗" }];
   mocks.currentUser = { name: "管理者", email: "manager@example.com" };
@@ -210,6 +213,26 @@ beforeEach(() => {
 });
 
 describe("AuthGuard", () => {
+  it("未認証時はrouter stateから欠けた店舗queryも実URLからredirectへ保持する", () => {
+    window.history.replaceState({}, "", "/dashboard?shop=active-shop");
+    mocks.useAuth.mockReturnValue({
+      isLoaded: true,
+      isSignedIn: false,
+      userId: null,
+    });
+    mocks.useRouterState.mockReturnValue({ pathname: "/dashboard", searchStr: "" });
+
+    render(
+      <AuthGuard requestedShopId="active-shop">
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    expect(screen.getByTestId("navigate").getAttribute("data-to")).toBe("/login");
+    expect(screen.getByTestId("navigate").getAttribute("data-redirect")).toBe("/dashboard?shop=active-shop");
+    expect(screen.queryByTestId("manager-child")).toBeNull();
+  });
+
   it("店舗非依存画面では店舗queryと店舗整合を行わず、保存済み店舗を維持して表示する", () => {
     render(
       <AuthGuard requiresShopContext={false} requestedShopId="unknown-shop">

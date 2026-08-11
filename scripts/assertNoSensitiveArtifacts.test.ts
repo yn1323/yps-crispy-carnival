@@ -22,9 +22,14 @@ afterEach(() => {
 });
 
 function runGate(...roots: string[]) {
+  return runGateWithEnvironment({}, ...roots);
+}
+
+function runGateWithEnvironment(environment: NodeJS.ProcessEnv, ...roots: string[]) {
   return spawnSync(process.execPath, [GATE_PATH, ...roots.flatMap((root) => ["--root", root])], {
     cwd: testDirectory,
     encoding: "utf8",
+    env: { ...process.env, ...environment },
   });
 }
 
@@ -122,6 +127,76 @@ describe("artifact privacy gate", () => {
     expect(result.stderr).not.toContain("customer-123@gmail.com");
   });
 
+  it("rejects an email with a punycode top-level domain", () => {
+    const sensitiveEmail = "customer-123@example.xn--p1ai";
+    writeFileSync(path.join(testDirectory, "report.html"), sensitiveEmail);
+
+    const result = runGate("report.html");
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("non-placeholder email address");
+    expect(result.stderr).not.toContain(sensitiveEmail);
+  });
+
+  it("pnpmのscoped package版表記をemailとして誤検知しない", () => {
+    const embeddedReport = createStoredZip([
+      {
+        name: "report.json",
+        contents: JSON.stringify({
+          source: "node_modules/.pnpm/@clerk+testing@2.2.10_@playwright+test@1.61.1/node_modules",
+        }),
+      },
+    ]);
+    writeFileSync(
+      path.join(testDirectory, "index.html"),
+      `<script>window.report = "data:application/zip;base64,${embeddedReport.toString("base64")}"</script>`,
+    );
+
+    expect(runGate("index.html").status).toBe(0);
+  });
+
+  it("placeholder domainでも設定済みE2E identityとcredentialを拒否する", () => {
+    const configuredEmail = "reserved-e2e-user@example.com";
+    const configuredPassword = "configured-e2e-password-sentinel";
+    writeFileSync(path.join(testDirectory, "error-context.md"), `${configuredEmail}\n${configuredPassword}`);
+
+    const result = runGateWithEnvironment(
+      {
+        E2E_CLERK_USERS: configuredEmail,
+        E2E_CLERK_PASSWORD: configuredPassword,
+      },
+      "error-context.md",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("configured E2E identity or credential");
+    expect(result.stderr).not.toContain(configuredEmail);
+    expect(result.stderr).not.toContain(configuredPassword);
+  });
+
+  it("ANSI装飾で分断された設定済みE2E identityとcredentialも拒否する", () => {
+    const configuredEmail = "ansi-e2e-user@example.com";
+    const configuredPassword = "ansi-e2e-password-sentinel";
+    const insertAnsi = (value: string) => `${value.slice(0, 10)}\u001b[7m${value.slice(10)}\u001b[27m`;
+    writeFileSync(
+      path.join(testDirectory, "error-context.md"),
+      `${insertAnsi(configuredEmail)}\n${insertAnsi(configuredPassword)}`,
+    );
+
+    const result = runGateWithEnvironment(
+      {
+        E2E_CLERK_USERS: configuredEmail,
+        E2E_CLERK_PASSWORD: configuredPassword,
+      },
+      "error-context.md",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("configured E2E identity or credential");
+    expect(result.stderr).not.toContain(configuredEmail);
+    expect(result.stderr).not.toContain(configuredPassword);
+  });
+
   it("does not interpret email-like bytes in a recognized binary as customer text", () => {
     writeFileSync(
       path.join(testDirectory, "image.png"),
@@ -160,6 +235,20 @@ describe("artifact privacy gate", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).not.toContain(STRIPE_KEY_FIXTURE);
+  });
+
+  it("Playwright HTMLに埋め込まれたreport ZIPも検査する", () => {
+    const embeddedReport = createStoredZip([{ name: "report.json", contents: CLERK_SESSION_ID_FIXTURE }]);
+    writeFileSync(
+      path.join(testDirectory, "index.html"),
+      `<script>window.report = "data:application/zip;base64,${embeddedReport.toString("base64")}"</script>`,
+    );
+
+    const result = runGate("index.html");
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Clerk session identifier");
+    expect(result.stderr).not.toContain(CLERK_SESSION_ID_FIXTURE);
   });
 
   it("ZIP内部のbearer capability URLを拒否する", () => {

@@ -9,25 +9,26 @@ type Props = {
   shop: ShopDetailData;
   people: ShopDetailPerson[];
   selectedShopId: string | null;
+  deletionReturnShopId: string | null;
   returnTo?: "dashboard" | "settings";
 };
 
-export function ShopDetail({ shop, people, selectedShopId, returnTo }: Props) {
+export function ShopDetail({ shop, people, selectedShopId, deletionReturnShopId, returnTo }: Props) {
   const navigate = useNavigate();
-  const backToSettings = () =>
-    void navigate({
-      to: "/settings",
-      search: { shop: selectedShopId ?? undefined, tab: "shops" },
-      replace: true,
-    });
-  const backToDashboard = () =>
-    void navigate({
-      to: "/dashboard",
-      search: { shop: selectedShopId ?? undefined },
-      replace: true,
-    });
-  const returnToPreviousScreen = returnTo === "settings" ? backToSettings : backToDashboard;
-  const deletion = useShopDeletionController({ shop, onDeleted: returnToPreviousScreen });
+  const navigateBack = (shopId: string | null) =>
+    returnTo === "settings"
+      ? void navigate({
+          to: "/settings",
+          search: { shop: shopId ?? undefined, tab: "shops" },
+          replace: true,
+        })
+      : void navigate({
+          to: "/dashboard",
+          search: { shop: shopId ?? undefined },
+          replace: true,
+        });
+  const returnToPreviousScreen = () => navigateBack(selectedShopId);
+  const deletion = useShopDeletionController({ shop, onDeleted: () => navigateBack(deletionReturnShopId) });
   const settings = useShopSettingsController(shop);
   const staffs = getShopStaffs(people, shop.id);
 

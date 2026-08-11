@@ -1,14 +1,11 @@
 import { performance } from "node:perf_hooks";
 import { setupClerkTestingToken } from "@clerk/testing/playwright";
-import { test as base, expect } from "@playwright/test";
-import {
-  classifyE2EFailure,
-  getSafePathname,
-  installSafeClerkTestingConsole,
-  sanitizeDiagnosticMessage,
-} from "../helpers/diagnostics";
+import type { TestInfo } from "@playwright/test";
+import { classifyE2EFailure, installSafeClerkTestingConsole } from "../helpers/diagnostics";
 import { type E2EClerkUser, getE2EClerkUserForWorker, setCurrentE2EClerkUserIndex } from "../helpers/e2eUsers";
 import { getE2EMetrics, resetE2EMetrics } from "../helpers/metrics";
+import { runWithE2ERuntimeSignalMonitoring } from "../helpers/runtimeSignals";
+import { artifactSafeTest as base, expect } from "./artifactSafeTest";
 
 type E2ETestFixtures = {
   e2eClerkUser: string;
@@ -19,6 +16,8 @@ type E2ETestFixtures = {
 type E2EWorkerFixtures = {
   e2eWorkerUser: E2EClerkUser;
 };
+
+const stopRuntimeMonitoringByTest = new WeakMap<TestInfo, () => void>();
 
 export const test = base.extend<E2ETestFixtures, E2EWorkerFixtures>({
   e2eWorkerUser: [
@@ -78,59 +77,37 @@ export const test = base.extend<E2ETestFixtures, E2EWorkerFixtures>({
   ],
 
   page: async ({ page }, use, testInfo) => {
-    const runtimeSignals: Array<{ kind: string; message?: string; pathname?: string; status?: number }> = [];
     const restoreClerkConsole = installSafeClerkTestingConsole();
-    let testError: unknown;
-    let testFailed = false;
-    let cleanupError: Error | undefined;
-    page.on("pageerror", (error) => {
-      runtimeSignals.push({ kind: "pageerror", message: sanitizeDiagnosticMessage(error.message) });
-    });
-    page.on("console", (message) => {
-      if (message.type() === "error") {
-        runtimeSignals.push({ kind: "console-error", message: sanitizeDiagnosticMessage(message.text()) });
-      }
-    });
-    page.on("response", (response) => {
-      if (response.status() < 500) return;
-      const responseUrl = new URL(response.url());
-      const baseUrl = testInfo.project.use.baseURL;
-      if (baseUrl && responseUrl.origin !== new URL(baseUrl).origin) return;
-      runtimeSignals.push({
-        kind: "same-origin-5xx",
-        pathname: getSafePathname(response.url()),
-        status: response.status(),
+    try {
+      await runWithE2ERuntimeSignalMonitoring({
+        page,
+        testInfo,
+        baseURL: testInfo.project.use.baseURL,
+        registerStop: (stop) => stopRuntimeMonitoringByTest.set(testInfo, stop),
+        action: async () => {
+          await setupClerkTestingToken({ page });
+          await use(page);
+        },
+        cleanup: async () => {
+          try {
+            // Clerk testing routeを待って解除し、context終了後のretryと機密URL付きwarningを防ぐ。
+            await page.context().unrouteAll({ behavior: "wait" });
+          } catch {
+            throw new Error("E2E Clerk route cleanup failed");
+          }
+        },
       });
-    });
-    try {
-      await setupClerkTestingToken({ page });
-      await use(page);
-    } catch (error) {
-      testError = error;
-      testFailed = true;
+    } finally {
+      stopRuntimeMonitoringByTest.delete(testInfo);
+      restoreClerkConsole();
     }
-
-    try {
-      // Clerk testing routeを待って解除し、context終了後のretryと機密URL付きwarningを防ぐ。
-      await page.context().unrouteAll({ behavior: "wait" });
-    } catch {
-      cleanupError = new Error("E2E Clerk route cleanup failed");
-    }
-    restoreClerkConsole();
-    if (runtimeSignals.length > 0) {
-      try {
-        await testInfo.attach("e2e-safe-browser-signals", {
-          body: Buffer.from(JSON.stringify(runtimeSignals.slice(0, 100))),
-          contentType: "application/json",
-        });
-      } catch {
-        cleanupError ??= new Error("E2E browser signal attachment failed");
-      }
-    }
-
-    if (testFailed) throw testError;
-    if (cleanupError) throw cleanupError;
   },
+});
+
+// test bodyとafterEachを製品runtimeの境界とし、actor resetなどfixture teardown中のsignalは数えない。
+// biome-ignore lint/correctness/noEmptyPattern: Playwright requires fixture destructuring even when unused.
+test.afterEach(({}, testInfo) => {
+  stopRuntimeMonitoringByTest.get(testInfo)?.();
 });
 
 export { expect };

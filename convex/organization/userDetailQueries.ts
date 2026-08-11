@@ -18,6 +18,11 @@ import {
   getValidActiveOrganizationManagerPersonIds,
   isValidOrganizationRecoveryManager,
 } from "./service";
+import {
+  createOrganizationPersonShopMembershipFingerprint,
+  INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON,
+  organizationShopOperatingStatus,
+} from "./shopMembershipChange";
 import { organizationShopOperatingStatusValidator } from "./validators";
 
 const userDetailValidator = v.object({
@@ -38,11 +43,14 @@ const userDetailValidator = v.object({
   removalPreview: personRemovalPreviewValidator,
   canWrite: v.boolean(),
   writeDisabledReason: v.optional(v.string()),
+  membershipFingerprint: v.string(),
   shops: v.array(
     v.object({
       shopId: v.id("shops"),
       shopName: v.string(),
       shopStatus: organizationShopOperatingStatusValidator,
+      canChangeMembership: v.boolean(),
+      membershipChangeDisabledReason: v.optional(v.string()),
     }),
   ),
   memberships: v.array(
@@ -141,6 +149,7 @@ export const getUserDetail = managerQuery({
         .map(async (staff) => {
           const targetShop = await ctx.db.get(staff.shopId);
           if (!targetShop || targetShop.isDeleted || targetShop.organizationId !== organization._id) return null;
+          const targetShopStatus = organizationShopOperatingStatus(targetShop.operatingStatus);
           const lineAccount = await getStaffLineAccount(ctx, staff._id);
           const validLineAccount = lineAccount?.shopId === staff.shopId ? lineAccount : null;
           const membershipRemovalPreview = await collectPersonRemovalPreview(ctx, {
@@ -159,11 +168,13 @@ export const getUserDetail = managerQuery({
               staffId: staff._id,
               shopId: targetShop._id,
               shopName: targetShop.name,
-              // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
-              shopStatus: targetShop.operatingStatus ?? "active",
+              shopStatus: targetShopStatus,
               // TODO[narrow]: 全deploymentでm027完走・missingExcludedFromShift=0確認後にfallbackを外す。
               excludedFromShift: staff.excludedFromShift ?? false,
-              canRemove: true,
+              canRemove: targetShopStatus === "active",
+              ...(targetShopStatus === "active"
+                ? {}
+                : { removeDisabledReason: INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON }),
               removalPreview: toPublicPersonRemovalPreview(membershipRemovalPreview),
               line: {
                 isLinked: Boolean(validLineAccount?.lineUserId),
@@ -183,16 +194,29 @@ export const getUserDetail = managerQuery({
       if (seenShopIds.has(row.view.shopId)) return null;
       seenShopIds.add(row.view.shopId);
     }
+    const membershipFingerprint = await createOrganizationPersonShopMembershipFingerprint(
+      validMembershipRows.map((row) => ({
+        staffId: row.staff._id,
+        shopId: row.staff.shopId,
+        shopStatus: row.view.shopStatus,
+      })),
+    );
     const memberships = validMembershipRows
       .map((row) => row.view)
       .sort((a, b) => a.shopName.localeCompare(b.shopName, "ja") || a.shopId.localeCompare(b.shopId));
     const shops = shopDocs
-      .map((targetShop) => ({
-        shopId: targetShop._id,
-        shopName: targetShop.name,
-        // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
-        shopStatus: targetShop.operatingStatus ?? "active",
-      }))
+      .map((targetShop) => {
+        const targetShopStatus = organizationShopOperatingStatus(targetShop.operatingStatus);
+        return {
+          shopId: targetShop._id,
+          shopName: targetShop.name,
+          shopStatus: targetShopStatus,
+          canChangeMembership: targetShopStatus === "active",
+          ...(targetShopStatus === "active"
+            ? {}
+            : { membershipChangeDisabledReason: INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON }),
+        };
+      })
       .sort((a, b) => a.shopName.localeCompare(b.shopName, "ja") || a.shopId.localeCompare(b.shopId));
     const activePendingInvitations = invitationDocs.filter((invitation) => invitation.expiresAt > args.now);
     const managerInvitationState = await resolvePersonManagerInvitationState(ctx, {
@@ -266,6 +290,7 @@ export const getUserDetail = managerQuery({
       removalPreview: toPublicPersonRemovalPreview(removalPreview),
       canWrite: canWriteNormally,
       ...(writeDisabledReason ? { writeDisabledReason } : {}),
+      membershipFingerprint,
       shops,
       memberships,
     };

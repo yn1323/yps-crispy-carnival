@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
-import type { UserDetailData, UserDetailDialog, UserDetailPanel } from "./types";
+import type { UserDetailData, UserDetailDialog, UserDetailPanel, UserMembershipChangeInput } from "./types";
 import { UserDetailSkeleton } from "./UserDetailSkeleton";
 import { UserDetailView, type UserDetailViewProps } from "./UserDetailView";
 
@@ -37,7 +37,8 @@ const shinjukuMembership: UserDetailData["memberships"][number] = {
   shopName: "新宿店",
   shopStatus: "planSuspended",
   excludedFromShift: true,
-  canRemove: true,
+  canRemove: false,
+  removeDisabledReason: "稼働中の店舗だけ所属を変更できます。",
   removalPreview: removalPreview(0, "shinjuku-preview"),
   line: { isLinked: true, isFollowing: false },
 };
@@ -46,24 +47,30 @@ const shibuyaShop: UserDetailData["shops"][number] = {
   shopId: shibuyaShopId,
   shopName: "渋谷店",
   shopStatus: "active",
+  canChangeMembership: true,
 };
 
 const shinjukuShop: UserDetailData["shops"][number] = {
   shopId: shinjukuShopId,
   shopName: "新宿店",
   shopStatus: "planSuspended",
+  canChangeMembership: false,
+  membershipChangeDisabledReason: "稼働中の店舗だけ所属を変更できます。",
 };
 
 const ikebukuroShop: UserDetailData["shops"][number] = {
   shopId: "shop-ikebukuro" as Id<"shops">,
   shopName: "池袋店",
   shopStatus: "active",
+  canChangeMembership: true,
 };
 
 const yokohamaShop: UserDetailData["shops"][number] = {
   shopId: "shop-yokohama" as Id<"shops">,
   shopName: "横浜店",
   shopStatus: "archived",
+  canChangeMembership: false,
+  membershipChangeDisabledReason: "稼働中の店舗だけ所属を変更できます。",
 };
 const storyRequestId = "00000000-0000-4000-8000-000000000001";
 
@@ -84,6 +91,7 @@ const baseData: UserDetailData = {
   removeDisabledReason: undefined,
   removalPreview: removalPreview(2),
   canWrite: true,
+  membershipFingerprint: "membership-fingerprint",
   shops: [shibuyaShop],
   memberships: [shibuyaMembership],
 };
@@ -122,8 +130,7 @@ const selfStaffData: UserDetailData = {
 const baseState: UserDetailViewProps["state"] = {
   isUpdatingProfile: false,
   membership: {
-    isAdding: false,
-    addingShopId: null,
+    isChanging: false,
   },
   manager: {
     dialog: null,
@@ -152,7 +159,7 @@ const baseActions: UserDetailViewProps["actions"] = {
   onOpenShop: noop,
   onClosePanel: noop,
   onUpdateProfile: asyncNoop,
-  onAddMembership: asyncNoop,
+  onChangeMemberships: asyncNoop,
   onRequestManagerAssignment: noop,
   onCancelManagerAssignment: noop,
   onAssignManager: asyncNoop,
@@ -270,15 +277,41 @@ export const BasicInformationDialogMobile: Story = {
   play: settleBasicInformationDialogFocus,
 };
 
-export const AddShopDialog: Story = {
+export const ShopMembershipDialog: Story = {
   args: { activePanel: "addShop" },
   play: async () => {
-    const dialog = await screen.findByRole("dialog", { name: "店舗を追加" });
-    const candidate = within(dialog).getByRole("button", { name: "池袋店に追加" });
+    const dialog = await screen.findByRole("dialog", { name: "所属店舗を変更" });
+    const currentMembership = within(dialog).getByRole("checkbox", { name: /渋谷店/ });
 
-    await waitFor(() => expect(candidate).toHaveFocus());
+    await waitFor(() => expect(currentMembership).toHaveFocus());
     dialog.focus();
     await expect(dialog).toHaveFocus();
+  },
+};
+
+export const ShopMembershipDialogMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  args: { activePanel: "addShop" },
+};
+
+export const ShopMembershipChangeUnavailable: Story = {
+  args: {
+    activePanel: "addShop",
+    data: {
+      ...multipleStoresData,
+      canWrite: false,
+      writeDisabledReason: "契約制限中のため、所属店舗を変更できません。",
+    },
+  },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "所属店舗を変更" });
+    const content = within(dialog);
+    for (const checkbox of content.getAllByRole("checkbox")) {
+      await expect(checkbox).toBeDisabled();
+    }
+    await expect(content.getByRole("button", { name: "変更する" })).toBeDisabled();
+    await expect(content.getByText("契約制限中のため、所属店舗を変更できません。")).toBeInTheDocument();
   },
 };
 
@@ -292,11 +325,11 @@ export const ShopMembershipAdditionDarkLaunchBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(canvas.queryByRole("button", { name: "所属を追加する" })).not.toBeInTheDocument();
-    await expect(screen.queryByRole("dialog", { name: "店舗を追加" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: "所属店舗を変更する" })).not.toBeInTheDocument();
+    await expect(screen.queryByRole("dialog", { name: "所属店舗を変更" })).not.toBeInTheDocument();
     await expect(canvas.getByText("所属している店舗はありません。")).toBeInTheDocument();
     await expect(
-      canvas.queryByText("「所属を追加する」から、このユーザーを店舗に追加できます。"),
+      canvas.queryByText("「所属店舗を変更する」から、このユーザーの所属を変更できます。"),
     ).not.toBeInTheDocument();
   },
 };
@@ -409,19 +442,25 @@ export const LoadingMobile: Story = {
   render: () => <UserDetailSkeleton />,
 };
 
-function PanelNavigationHarness({ data = unlinkedData }: { data?: UserDetailData }) {
+function PanelNavigationHarness({
+  data = unlinkedData,
+  onMembershipChange,
+}: {
+  data?: UserDetailData;
+  onMembershipChange?: (input: UserMembershipChangeInput) => void;
+}) {
   const [activePanel, setActivePanel] = useState<UserDetailPanel>();
-  const [addedShopId, setAddedShopId] = useState<Id<"shops"> | null>(null);
-  const [addCallCount, setAddCallCount] = useState(0);
+  const [membershipChangeInput, setMembershipChangeInput] = useState<UserMembershipChangeInput | null>(null);
+  const [membershipChangeCallCount, setMembershipChangeCallCount] = useState(0);
   const [managerDialog, setManagerDialog] = useState<UserDetailDialog>(null);
 
   return (
     <>
-      <output hidden data-testid="added-shop-id">
-        {addedShopId}
+      <output hidden data-testid="membership-change-input">
+        {membershipChangeInput ? JSON.stringify(membershipChangeInput) : ""}
       </output>
-      <output hidden data-testid="add-call-count">
-        {addCallCount}
+      <output hidden data-testid="membership-change-call-count">
+        {membershipChangeCallCount}
       </output>
       <UserDetailView
         data={data}
@@ -445,9 +484,10 @@ function PanelNavigationHarness({ data = unlinkedData }: { data?: UserDetailData
               requestId: storyRequestId,
             }),
           onCloseManagerDialog: () => setManagerDialog(null),
-          onAddMembership: async (shopId) => {
-            setAddedShopId(shopId);
-            setAddCallCount((count) => count + 1);
+          onChangeMemberships: async (input) => {
+            setMembershipChangeInput(input);
+            setMembershipChangeCallCount((count) => count + 1);
+            onMembershipChange?.(input);
           },
         }}
       />
@@ -518,24 +558,237 @@ export const UnassignedShopVisibilityBehavior: Story = {
   },
 };
 
-export const AddShopFlowBehavior: Story = {
+export const ShopMembershipChangeFlowBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   render: () => <PanelNavigationHarness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
 
-    await userEvent.click(canvas.getByRole("button", { name: "所属を追加する" }));
-    const dialog = await page.findByRole("dialog", { name: "店舗を追加" });
-    const additionDialog = within(dialog);
+    await userEvent.click(canvas.getByRole("button", { name: "所属店舗を変更する" }));
+    const dialog = await page.findByRole("dialog", { name: "所属店舗を変更" });
+    const membershipDialog = within(dialog);
+    const shibuyaCheckbox = membershipDialog.getByRole("checkbox", { name: /渋谷店/ });
+    const shinjukuCheckbox = membershipDialog.getByRole("checkbox", { name: /新宿店/ });
+    const ikebukuroCheckbox = membershipDialog.getByRole("checkbox", { name: /池袋店/ });
+    const submitButton = membershipDialog.getByRole("button", { name: "変更する" });
 
-    await expect(additionDialog.getByRole("button", { name: "池袋店に追加" })).toBeInTheDocument();
-    await expect(additionDialog.queryByText("渋谷店")).not.toBeInTheDocument();
-    await expect(additionDialog.queryByText("新宿店")).not.toBeInTheDocument();
-    await expect(additionDialog.queryByText("横浜店")).not.toBeInTheDocument();
+    await expect(membershipDialog.queryByText("変更内容")).not.toBeInTheDocument();
+    await expect(shibuyaCheckbox).toBeChecked();
+    await expect(shinjukuCheckbox).toBeChecked();
+    await expect(shinjukuCheckbox).toBeDisabled();
+    await expect(ikebukuroCheckbox).not.toBeChecked();
+    await expect(membershipDialog.queryByRole("checkbox", { name: /横浜店/ })).not.toBeInTheDocument();
+    await expect(submitButton).toBeDisabled();
 
-    await userEvent.click(additionDialog.getByRole("button", { name: "池袋店に追加" }));
-    await expect(canvas.getByTestId("added-shop-id")).toHaveTextContent(ikebukuroShop.shopId);
-    await expect(canvas.getByTestId("add-call-count")).toHaveTextContent("1");
+    await userEvent.click(ikebukuroCheckbox);
+    await expect(canvas.getByTestId("membership-change-call-count")).toHaveTextContent("0");
+    await expect(submitButton).toBeEnabled();
+
+    await userEvent.click(submitButton);
+    await expect(canvas.getByTestId("membership-change-call-count")).toHaveTextContent("1");
+    await expect(canvas.getByTestId("membership-change-input")).toHaveTextContent(`"shopId":"${ikebukuroShop.shopId}"`);
+    await expect(canvas.getByTestId("membership-change-input")).toHaveTextContent(
+      `"desiredActiveShopIds":["${shibuyaShopId}","${ikebukuroShop.shopId}"]`,
+    );
+  },
+};
+
+export const ShopMembershipRemovalConfirmationBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <PanelNavigationHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "所属店舗を変更する" }));
+    const dialog = await page.findByRole("dialog", { name: "所属店舗を変更" });
+    const membershipDialog = within(dialog);
+    await userEvent.click(membershipDialog.getByRole("checkbox", { name: /池袋店/ }));
+    await userEvent.click(membershipDialog.getByRole("checkbox", { name: /渋谷店/ }));
+    await userEvent.click(membershipDialog.getByRole("button", { name: "変更する" }));
+
+    const confirmation = await page.findByRole("alertdialog", { name: "所属店舗の変更を確認" });
+    const confirmationContent = within(confirmation);
+    await expect(canvas.getByTestId("membership-change-call-count")).toHaveTextContent("0");
+    await expect(confirmationContent.getByText("追加する店舗")).toBeInTheDocument();
+    await expect(confirmationContent.getByText("池袋店")).toBeInTheDocument();
+    await expect(confirmationContent.getByText("外す店舗")).toBeInTheDocument();
+    await expect(confirmationContent.getByText(/渋谷店（今日以降のシフト 2件）/)).toBeInTheDocument();
+    await expect(
+      confirmationContent.getByText(/スタッフ画面へのアクセス、LINE連携、未送信の通知は終了します。/),
+    ).toBeInTheDocument();
+    await expect(confirmationContent.getByText("表示した本日以降のシフト割り当ては削除されます。")).toBeInTheDocument();
+    await expect(confirmationContent.getByText("過去のシフト記録は保持されます。")).toBeInTheDocument();
+
+    await userEvent.click(confirmationContent.getByRole("button", { name: "変更する" }));
+    await expect(canvas.getByTestId("membership-change-call-count")).toHaveTextContent("1");
+    await expect(canvas.getByTestId("membership-change-input")).toHaveTextContent(`"staffId":"${shibuyaStaffId}"`);
+    await expect(canvas.getByTestId("membership-change-input")).toHaveTextContent(
+      `"desiredActiveShopIds":["${ikebukuroShop.shopId}"]`,
+    );
+  },
+};
+
+export const ShopMembershipFullRemovalWarningBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <PanelNavigationHarness data={baseData} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "所属店舗を変更する" }));
+    const dialog = await page.findByRole("dialog", { name: "所属店舗を変更" });
+    await userEvent.click(within(dialog).getByRole("checkbox", { name: /渋谷店/ }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "変更する" }));
+
+    const confirmation = await page.findByRole("alertdialog", { name: "所属店舗の変更を確認" });
+    await expect(
+      within(confirmation).getByText("組織への所属や管理者権限は変更されません。また、利用人数のカウントも残ります。"),
+    ).toBeInTheDocument();
+  },
+};
+
+export const ShopMembershipNoActiveShopBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: {
+    activePanel: "addShop",
+    data: {
+      ...multipleStoresData,
+      shops: [shinjukuShop, yokohamaShop],
+      memberships: [shinjukuMembership],
+    },
+  },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "所属店舗を変更" });
+    const content = within(dialog);
+    await expect(content.getByRole("checkbox", { name: /新宿店/ })).toBeChecked();
+    await expect(content.getByRole("checkbox", { name: /新宿店/ })).toBeDisabled();
+    await expect(content.queryByRole("checkbox", { name: /横浜店/ })).not.toBeInTheDocument();
+    await expect(content.getByRole("button", { name: "変更する" })).toBeDisabled();
+    await expect(content.getByText("稼働中の店舗がないため、所属店舗を変更できません。")).toBeInTheDocument();
+  },
+};
+
+const aggregateRemovalLimitData: UserDetailData = {
+  ...baseData,
+  managerRole: "none",
+  managerInvitationState: { kind: "available", mode: "addition", replacesStaleInvitation: false },
+  shops: [
+    shibuyaShop,
+    {
+      ...shinjukuShop,
+      shopStatus: "active",
+      canChangeMembership: true,
+      membershipChangeDisabledReason: undefined,
+    },
+  ],
+  memberships: [
+    {
+      ...shibuyaMembership,
+      removalPreview: removalPreview(251, "shibuya-large-preview"),
+    },
+    {
+      ...shinjukuMembership,
+      shopStatus: "active",
+      canRemove: true,
+      removeDisabledReason: undefined,
+      removalPreview: removalPreview(250, "shinjuku-large-preview"),
+    },
+  ],
+};
+
+export const ShopMembershipAggregateRemovalLimitBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <PanelNavigationHarness data={aggregateRemovalLimitData} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "所属店舗を変更する" }));
+    const dialog = await page.findByRole("dialog", { name: "所属店舗を変更" });
+    const membershipDialog = within(dialog);
+    await userEvent.click(membershipDialog.getByRole("checkbox", { name: /渋谷店/ }));
+    await userEvent.click(membershipDialog.getByRole("checkbox", { name: /新宿店/ }));
+    await userEvent.click(membershipDialog.getByRole("button", { name: "変更する" }));
+
+    const confirmation = await page.findByRole("alertdialog", { name: "所属店舗の変更を確認" });
+    const confirmationContent = within(confirmation);
+    await expect(confirmationContent.getByText(/この画面では変更できません/)).toBeInTheDocument();
+    await expect(confirmationContent.getByText(/先にシフトを整理して/)).toBeInTheDocument();
+    await expect(confirmationContent.getByRole("button", { name: "変更する" })).toBeDisabled();
+    await expect(canvas.getByTestId("membership-change-call-count")).toHaveTextContent("0");
+  },
+};
+
+function MembershipChangeRetryHarness() {
+  const [data, setData] = useState(multipleStoresData);
+  const [inputs, setInputs] = useState<UserMembershipChangeInput[]>([]);
+
+  return (
+    <>
+      <output hidden data-testid="membership-change-retry-inputs">
+        {JSON.stringify(inputs)}
+      </output>
+      <UserDetailView
+        data={data}
+        showShopMembershipAddition
+        activePanel="addShop"
+        state={baseState}
+        actions={{
+          ...baseActions,
+          onChangeMemberships: async (input) => {
+            setInputs((current) => [...current, input]);
+            setData((current) =>
+              current.membershipFingerprint === "membership-fingerprint-after-unknown-result"
+                ? current
+                : {
+                    ...current,
+                    membershipFingerprint: "membership-fingerprint-after-unknown-result",
+                    memberships: current.memberships.filter((membership) => membership.shopId !== shibuyaShopId),
+                  },
+            );
+          },
+        }}
+      />
+    </>
+  );
+}
+
+export const ShopMembershipUnknownResultRetryBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <MembershipChangeRetryHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    const dialog = await page.findByRole("dialog", { name: "所属店舗を変更" });
+    const membershipDialog = within(dialog);
+    const shibuyaCheckbox = membershipDialog.getByRole("checkbox", { name: /渋谷店/ });
+
+    await userEvent.click(shibuyaCheckbox);
+    await userEvent.click(membershipDialog.getByRole("button", { name: "変更する" }));
+    const confirmation = await page.findByRole("alertdialog", { name: "所属店舗の変更を確認" });
+    const confirmationContent = within(confirmation);
+    await userEvent.click(confirmationContent.getByRole("button", { name: "変更する" }));
+    await expect(
+      confirmationContent.getByText(/前回の結果が不明な場合は同じ内容で再試行できます。/),
+    ).toBeInTheDocument();
+    await expect(confirmationContent.getByText(/渋谷店（今日以降のシフト 2件）/)).toBeInTheDocument();
+
+    await userEvent.click(confirmationContent.getByRole("button", { name: "変更する" }));
+    await waitFor(() => {
+      const serializedInputs = canvas.getByTestId("membership-change-retry-inputs").textContent ?? "[]";
+      const submittedInputs = JSON.parse(serializedInputs) as UserMembershipChangeInput[];
+      expect(submittedInputs).toHaveLength(2);
+      expect(submittedInputs[1]).toEqual(submittedInputs[0]);
+      expect(submittedInputs[0]?.removalPreviews).toEqual([
+        {
+          shopId: shibuyaShopId,
+          staffId: shibuyaStaffId,
+          assignmentCount: 2,
+          fingerprint: "shibuya-preview",
+        },
+      ]);
+    });
   },
 };

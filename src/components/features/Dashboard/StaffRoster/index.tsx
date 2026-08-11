@@ -70,14 +70,14 @@ export const StaffRoster = ({
             size="sm"
             onClick={onAddClick}
             disabled={isReadOnly}
-            title={isReadOnly ? "閲覧のみの店舗ではスタッフを招待できません" : undefined}
+            title={isReadOnly ? "閲覧のみの店舗ではスタッフを追加できません" : undefined}
             gap={1.5}
             fontWeight="semibold"
             onPointerEnter={onAddIntent}
             onFocus={onAddIntent}
           >
             <LuPlus />
-            スタッフを招待する
+            スタッフを追加する
           </Button>
         </Flex>
       </Flex>
@@ -94,13 +94,13 @@ export const StaffRoster = ({
               size="md"
               onClick={onAddClick}
               disabled={isReadOnly}
-              title={isReadOnly ? "閲覧のみの店舗ではスタッフを招待できません" : undefined}
+              title={isReadOnly ? "閲覧のみの店舗ではスタッフを追加できません" : undefined}
               gap={1.5}
               onPointerEnter={onAddIntent}
               onFocus={onAddIntent}
             >
               <LuPlus />
-              スタッフを招待する
+              スタッフを追加する
             </Button>
           }
         />

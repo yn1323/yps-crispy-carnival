@@ -23,22 +23,11 @@ vi.mock("@/src/components/features/UserDetail", () => ({
 
 vi.mock("@/src/components/features/UserShopDetail", () => ({
   UserShopDetailSkeleton: () => <output>loading</output>,
-  UserShopDetail: ({
-    targetShopId,
-    onBack,
-    onMembershipRemoved,
-  }: {
-    targetShopId: string;
-    onBack: () => void;
-    onMembershipRemoved: () => void;
-  }) => (
+  UserShopDetail: ({ targetShopId, onBack }: { targetShopId: string; onBack: () => void }) => (
     <div>
       <output data-testid="target-shop">{targetShopId}</output>
       <button type="button" onClick={onBack}>
         戻る
-      </button>
-      <button type="button" onClick={onMembershipRemoved}>
-        所属削除完了
       </button>
     </div>
   ),
@@ -118,7 +107,7 @@ describe("UserShopDetailPage", () => {
     );
   });
 
-  it.each(["戻る", "所属削除完了"])("%sでは元の検索条件を持つユーザー詳細へreplaceで戻る", (buttonName) => {
+  it("戻るでは元の検索条件を持つユーザー詳細へreplaceで戻る", () => {
     render(
       <UserShopDetailPage
         personId="person-target"
@@ -131,7 +120,7 @@ describe("UserShopDetailPage", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: buttonName }));
+    fireEvent.click(screen.getByRole("button", { name: "戻る" }));
 
     expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({ ...backDestination, replace: true });
   });

@@ -88,6 +88,8 @@ const FAILURE_DUPLICATE_SCAN_LIMIT = 50;
 const FAILURE_EXPIRE_TARGET_STATUSES = ["open", "retrying"] as const;
 const TERMINAL_STATUSES = ["sent", "failed", "cancelled"] as const;
 const ORGANIZATION_NOTIFICATION_CANCEL_BATCH_SIZE = 100;
+// 1候補ごとに履歴とfailure indexも確認するため、一括所属変更のtransaction budgetを先に制限する。
+export const BULK_NOTIFICATION_CANCEL_CANDIDATE_LIMIT = 50;
 const HISTORICAL_BILLING_RECIPIENT_CONTEXTS = new Set(["organizationBilling.freeApplied"]);
 const BILLING_DEADLINE_CONTEXT_STATE = {
   "organizationBilling.trialEnding": "trial",
@@ -723,41 +725,63 @@ export async function cancelOrganizationRecipientBusinessNotifications(
     invitationIds?: readonly Id<"organizationInvitations">[];
     includeBillingUserNotifications?: boolean;
     preserveStaffNotificationsForUser?: boolean;
+    candidateLimit?: number;
   },
 ) {
+  if (args.candidateLimit !== undefined && (!Number.isSafeInteger(args.candidateLimit) || args.candidateLimit < 1)) {
+    throw new Error("Notification cancellation candidate limit must be a positive integer");
+  }
+  if (args.candidateLimit !== undefined && (args.userId !== undefined || (args.invitationIds?.length ?? 0) > 0)) {
+    throw new Error("Bounded notification cancellation only supports staff recipients");
+  }
   const candidates = new Map<Id<"notificationOutbox">, Doc<"notificationOutbox">>();
   const staffIds = new Set(args.staffIds ?? []);
   const invitationIds = new Set(args.invitationIds ?? []);
+  const assertCandidateLimit = () => {
+    if (args.candidateLimit !== undefined && candidates.size > args.candidateLimit) {
+      throw new ConvexError(
+        "未送信の案内が多いため、一括で所属を変更できません。\n対象を分けて、もう一度お試しください。",
+      );
+    }
+  };
+  const readLimit = () =>
+    args.candidateLimit === undefined ? undefined : Math.max(0, args.candidateLimit - candidates.size) + 1;
 
   for (const status of ACTIVE_STATUSES) {
     for (const staffId of staffIds) {
-      const jobs = await ctx.db
+      const query = ctx.db
         .query("notificationOutbox")
-        .withIndex("by_staffId_status", (q) => q.eq("staffId", staffId).eq("status", status))
-        .collect();
+        .withIndex("by_staffId_status", (q) => q.eq("staffId", staffId).eq("status", status));
+      const limit = readLimit();
+      const jobs = limit === undefined ? await query.collect() : await query.take(limit);
       for (const job of jobs) candidates.set(job._id, job);
+      assertCandidateLimit();
     }
     if (args.userId) {
-      const jobs = await ctx.db
+      const query = ctx.db
         .query("notificationOutbox")
-        .withIndex("by_userId_status", (q) => q.eq("userId", args.userId).eq("status", status))
-        .collect();
+        .withIndex("by_userId_status", (q) => q.eq("userId", args.userId).eq("status", status));
+      const limit = readLimit();
+      const jobs = limit === undefined ? await query.collect() : await query.take(limit);
       for (const job of jobs) candidates.set(job._id, job);
+      assertCandidateLimit();
     }
     if (invitationIds.size > 0) {
       // TODO[narrow]: 全deploymentでm024完走・missingPurpose=0確認後はbusiness indexだけを読む。
       for (const purpose of ["business", undefined] as const) {
-        const jobs = await ctx.db
+        const query = ctx.db
           .query("notificationOutbox")
           .withIndex("by_organizationId_purpose_status", (q) =>
             q.eq("organizationId", args.organizationId).eq("purpose", purpose).eq("status", status),
-          )
-          .collect();
+          );
+        const limit = readLimit();
+        const jobs = limit === undefined ? await query.collect() : await query.take(limit);
         for (const job of jobs) {
           if (job.organizationInvitationId && invitationIds.has(job.organizationInvitationId)) {
             candidates.set(job._id, job);
           }
         }
+        assertCandidateLimit();
       }
     }
   }

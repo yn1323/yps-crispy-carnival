@@ -13,6 +13,8 @@ export type OrganizationAuditAction =
   | "organization.shop_deleted"
   | "organization.shop_reactivated"
   | "organization.person_removed_from_shop"
+  | "organization.person_shop_memberships_changed"
+  | "organization.shop_staff_memberships_changed"
   | "organization.person_removed"
   | "organization.person_reactivated"
   | "organization.person_profile_updated"

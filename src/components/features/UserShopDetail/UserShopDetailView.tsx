@@ -16,7 +16,6 @@ export type UserShopDetailViewProps = {
   membership: UserShopDetailMembership;
   isStoreReadOnly: boolean;
   storeDisabledReason?: string;
-  showMembershipRemoval: boolean;
   notificationSectionRef?: Ref<HTMLDivElement>;
   onNotificationSectionFocus?: FocusEventHandler<HTMLDivElement>;
   notificationHistory: ReactNode;
@@ -36,8 +35,6 @@ export type UserShopDetailViewProps = {
     };
     membership: {
       isChangingShiftTarget: boolean;
-      isRemovalConfirmationOpen: boolean;
-      isRemoving: boolean;
     };
   };
   actions: {
@@ -47,9 +44,6 @@ export type UserShopDetailViewProps = {
     onSendRecruitments: AsyncAction;
     onSendCurrentShift: AsyncAction;
     onChangeShiftTarget: (isShiftTarget: boolean) => void | Promise<void>;
-    onRequestRemoveMembership: () => void;
-    onCancelRemoveMembership: () => void;
-    onConfirmRemoveMembership: AsyncAction;
   };
 };
 
@@ -58,7 +52,6 @@ export function UserShopDetailView({
   membership,
   isStoreReadOnly,
   storeDisabledReason,
-  showMembershipRemoval,
   notificationSectionRef,
   onNotificationSectionFocus,
   notificationHistory,
@@ -116,19 +109,11 @@ export function UserShopDetailView({
 
       <UserShopDetailPageSection>
         <UserShopSettingsSection
-          personName={data.person.name}
           membership={membership}
-          removalPreview={membership.removalPreview}
           isStoreReadOnly={isStoreReadOnly}
           storeDisabledReason={storeDisabledReason}
           isChangingShiftTarget={state.membership.isChangingShiftTarget}
-          showMembershipRemoval={showMembershipRemoval}
-          isRemovalConfirmationOpen={state.membership.isRemovalConfirmationOpen}
-          isRemovingMembership={state.membership.isRemoving}
           onChangeShiftTarget={actions.onChangeShiftTarget}
-          onRequestRemoveMembership={actions.onRequestRemoveMembership}
-          onCancelRemoveMembership={actions.onCancelRemoveMembership}
-          onConfirmRemoveMembership={actions.onConfirmRemoveMembership}
         />
       </UserShopDetailPageSection>
     </Stack>

@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from "@playwright/test";
+import { expectAppHydrated } from "../helpers/appReadiness";
 import { assertNotificationRecipientSuppressed } from "../helpers/notificationProbe";
 
 const JAPANESE_WEEKDAYS = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"] as const;
@@ -14,6 +15,7 @@ export class DashboardPage {
     await this.page.goto(shopId ? `/dashboard?shop=${encodeURIComponent(shopId)}` : "/dashboard", {
       waitUntil: "domcontentloaded",
     });
+    await expectAppHydrated(this.page);
     await expect(this.page).toHaveURL(
       (url) => url.pathname === "/dashboard" && (!shopId || url.searchParams.get("shop") === shopId),
       { timeout: DASHBOARD_DATA_TIMEOUT },
@@ -57,6 +59,16 @@ export class DashboardPage {
 
   async expectSetupComplete() {
     await expect(this.page.getByText("セットアップが完了しました")).toBeVisible();
+  }
+
+  async expectShopAvailable(shopName: string) {
+    await expect(this.page).toHaveURL((url) => url.pathname === "/dashboard", { timeout: DASHBOARD_DATA_TIMEOUT });
+    await expect(this.page.getByRole("heading", { name: shopName, exact: true })).toBeVisible({
+      timeout: DASHBOARD_DATA_TIMEOUT,
+    });
+    await expect(this.page.getByRole("button", { name: "新しい募集をつくる" })).toBeVisible({
+      timeout: DASHBOARD_DATA_TIMEOUT,
+    });
   }
 
   async createRecruitment(data: { periodStart: string; periodEnd: string; deadline: string }) {
@@ -118,6 +130,44 @@ export class DashboardPage {
     await this.expectSelectedShop(shopName, expectedShopId);
   }
 
+  async switchShopAndReadId(shopName: string) {
+    const currentShopId = new URL(this.page.url()).searchParams.get("shop");
+    await this.page.getByRole("button", { name: SHOP_SWITCHER_BUTTON_NAME }).click();
+    await this.page.getByRole("menuitem").filter({ hasText: shopName }).click();
+    await expect(this.page).toHaveURL(
+      (url) => {
+        const shopId = url.searchParams.get("shop");
+        return url.pathname === "/dashboard" && shopId !== null && shopId !== currentShopId;
+      },
+      { timeout: DASHBOARD_DATA_TIMEOUT },
+    );
+    await expect(this.page.getByRole("heading", { name: shopName, exact: true })).toBeVisible({
+      timeout: DASHBOARD_DATA_TIMEOUT,
+    });
+    const shopId = new URL(this.page.url()).searchParams.get("shop");
+    if (!shopId) throw new Error("Selected shop ID was not reflected in the Dashboard URL");
+    return shopId;
+  }
+
+  async openCurrentShopDetail(shopId: string) {
+    await this.page.getByRole("button", { name: "店舗詳細を開く" }).click();
+    await expect(this.page).toHaveURL(
+      (url) =>
+        url.pathname === `/shops/${shopId}` &&
+        url.searchParams.get("shop") === shopId &&
+        url.searchParams.get("returnTo") === "dashboard",
+      { timeout: DASHBOARD_DATA_TIMEOUT },
+    );
+  }
+
+  async expectSingleShopContext(shopName: string, shopId: string) {
+    await this.expectSelectedShop(shopName, shopId);
+    await expect(this.page.getByRole("button", { name: SHOP_SWITCHER_BUTTON_NAME })).toHaveCount(0);
+    await expect(this.page.getByRole("button", { name: "新しい募集をつくる" })).toBeVisible({
+      timeout: DASHBOARD_DATA_TIMEOUT,
+    });
+  }
+
   private async expectDashboardReady() {
     const readyState = this.page
       .getByRole("button", { name: "新しい募集をつくる" })
@@ -131,6 +181,7 @@ export class DashboardPage {
     await expect(this.page.getByRole("button", { name: "新しい募集をつくる" })).toBeVisible({
       timeout: DASHBOARD_DATA_TIMEOUT,
     });
+    await expect(this.staffSection()).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
   }
 
   private recruitmentOpenButton() {

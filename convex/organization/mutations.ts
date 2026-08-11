@@ -21,6 +21,7 @@ import {
   collectIssuedInvitationsByOrganization,
 } from "../organizationInvitation/lifecycle";
 import { ensureDefaultPosition } from "../position/service";
+import { recalculateOpenRecruitmentStatsForShops } from "../recruitment/stats";
 import { updateShopSettingsSchema } from "../shop/schemas";
 import { editStaffSchema } from "../staff/schemas";
 import { type OrganizationActor, requireOrganizationActorForShop } from "./access";
@@ -29,8 +30,11 @@ import { getOrganizationDeletionEligibility } from "./deletion";
 import { updateOrganizationPersonProfile } from "./personProfile";
 import {
   collectPersonRemovalPreview,
+  deletePersonRemovalAssignments,
   expectedPersonRemovalPreviewValidator,
   type PersonRemovalPreview,
+  revokeStaffAccessForRemoval,
+  STALE_PERSON_REMOVAL_PREVIEW_ERROR,
 } from "./personRemoval";
 import { organizationNameSchema } from "./schemas";
 import {
@@ -667,9 +671,6 @@ export const deleteOrganization = authenticatedMutation({
 });
 
 const personRemovalResultValidator = v.object({ changed: v.boolean() });
-const STALE_PERSON_REMOVAL_PREVIEW_ERROR =
-  "今日以降のシフトの割り当てが変更されました。\n内容を確認してから、もう一度削除してください。";
-
 type PersonRemovalCtx = MutationCtx & { user: Doc<"users"> | null };
 
 function personRemovalCorrelationId(
@@ -757,43 +758,6 @@ function assertPersonRemovalPreview(
     throw new ConvexError(STALE_PERSON_REMOVAL_PREVIEW_ERROR);
   }
   return preview.assignmentIds;
-}
-
-async function deletePersonRemovalAssignments(ctx: MutationCtx, assignmentIds: readonly Id<"shiftAssignments">[]) {
-  for (const assignmentId of assignmentIds) await ctx.db.delete(assignmentId);
-}
-
-async function revokeStaffAccessForRemoval(ctx: MutationCtx, staffIds: readonly Id<"staffs">[], now: number) {
-  for (const staffId of staffIds) {
-    const [sessions, magicLinks, lineLinkTokens, lineAccounts] = await Promise.all([
-      ctx.db
-        .query("sessions")
-        .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
-        .collect(),
-      ctx.db
-        .query("magicLinks")
-        .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
-        .collect(),
-      ctx.db
-        .query("lineLinkTokens")
-        .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
-        .collect(),
-      ctx.db
-        .query("staffLineAccounts")
-        .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
-        .collect(),
-    ]);
-    await Promise.all([
-      ...sessions
-        .filter((session) => !session.revokedAt)
-        .map((session) => ctx.db.patch(session._id, { revokedAt: now })),
-      ...magicLinks.filter((link) => !link.revokedAt).map((link) => ctx.db.patch(link._id, { revokedAt: now })),
-      ...lineLinkTokens.filter((token) => !token.revokedAt).map((token) => ctx.db.patch(token._id, { revokedAt: now })),
-      ...lineAccounts
-        .filter((account) => !account.isDeleted || account.following)
-        .map((account) => ctx.db.patch(account._id, { isDeleted: true, following: false })),
-    ]);
-  }
 }
 
 async function findPendingInvitationsForRemovedPerson(
@@ -1175,6 +1139,7 @@ export const removePersonFromShop = authenticatedMutation({
       organizationId: actor.organization._id,
       staffIds: [staff._id],
     });
+    await recalculateOpenRecruitmentStatsForShops(ctx, [staff.shopId], now);
     await recordOrganizationAuditEvent(ctx, {
       organizationId: actor.organization._id,
       actorUserId: actor.member.userId,

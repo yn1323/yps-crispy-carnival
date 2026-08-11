@@ -1,7 +1,18 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
+import { dateJST } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
 import { normalizeEmail } from "../_lib/validation";
+import { ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT } from "../constants";
+import { collectPersonRemovalPreview } from "../organization/personRemoval";
+import {
+  INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON,
+  ORGANIZATION_SHOP_STAFF_MEMBERSHIP_CHANGE_TARGET_LIMIT,
+  organizationShopOperatingStatus,
+  STALE_SHOP_MEMBERSHIP_CHANGE_ERROR,
+} from "../organization/shopMembershipChange";
+import { getOrganizationBillingPolicy } from "../organizationBilling/service";
+import { collectOrganizationShopStaffMembershipSnapshot } from "./service";
 
 const ORGANIZATION_PERSON_LIST_LIMIT = 100;
 
@@ -13,9 +24,241 @@ const availableOrganizationPersonValidator = v.object({
   isManager: v.boolean(),
 });
 
+const nullableStringValidator = v.union(v.null(), v.string());
+
+const organizationShopStaffMembershipChangeValidator = v.object({
+  membershipFingerprint: v.string(),
+  canWrite: v.boolean(),
+  writeDisabledReason: nullableStringValidator,
+  people: v.array(
+    v.object({
+      personId: v.id("organizationPeople"),
+      name: v.string(),
+      email: v.string(),
+      isManager: v.boolean(),
+      otherShopNames: v.array(v.string()),
+      isSelected: v.boolean(),
+      staffId: v.union(v.null(), v.id("staffs")),
+      canChange: v.boolean(),
+      changeDisabledReason: nullableStringValidator,
+    }),
+  ),
+  preservedStaffs: v.array(
+    v.object({
+      staffId: v.id("staffs"),
+      name: v.string(),
+      email: v.string(),
+      changeDisabledReason: v.string(),
+    }),
+  ),
+});
+
+const organizationShopStaffMembershipRemovalPreviewValidator = v.union(
+  v.object({
+    kind: v.literal("ready"),
+    removals: v.array(
+      v.object({
+        personId: v.id("organizationPeople"),
+        staffId: v.id("staffs"),
+        assignmentCount: v.number(),
+        fingerprint: v.string(),
+      }),
+    ),
+    totalAssignmentCount: v.number(),
+  }),
+  v.object({
+    kind: v.literal("tooMany"),
+    assignmentCountAtLeast: v.number(),
+    limit: v.number(),
+  }),
+);
+
 function boundedList<T>(items: T[]): T[] | null {
   return items.length <= ORGANIZATION_PERSON_LIST_LIMIT ? items : null;
 }
+
+function organizationShopStaffMembershipWriteState(args: {
+  memberStatus: "active" | "readOnly" | "removed";
+  shopStatus: "active" | "archived" | "planSuspended";
+  hasBillingPolicy: boolean;
+  canWriteBusinessData: boolean;
+  businessWriteBlockReason: "paymentResultPending" | "restricted" | null;
+}) {
+  const canWrite = args.memberStatus === "active" && args.shopStatus === "active" && args.canWriteBusinessData;
+  if (canWrite) return { canWrite: true, writeDisabledReason: null } as const;
+  if (args.memberStatus !== "active") {
+    return {
+      canWrite: false,
+      writeDisabledReason: "閲覧のみの管理者は、スタッフの所属を変更できません。",
+    } as const;
+  }
+  if (args.shopStatus !== "active") {
+    return { canWrite: false, writeDisabledReason: INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON } as const;
+  }
+  if (!args.hasBillingPolicy) {
+    return {
+      canWrite: false,
+      writeDisabledReason: "組織の契約情報を確認中のため、スタッフの所属を変更できません。",
+    } as const;
+  }
+  return {
+    canWrite: false,
+    writeDisabledReason:
+      args.businessWriteBlockReason === "paymentResultPending"
+        ? "支払い結果が確定してから、スタッフの所属を変更できます。"
+        : "契約状態を確認できるまで、スタッフの所属を変更できません。",
+  } as const;
+}
+
+async function getOrganizationShopStaffMembershipWriteState(
+  ctx: Parameters<typeof collectOrganizationShopStaffMembershipSnapshot>[0],
+  args: {
+    organizationId: Id<"organizations">;
+    memberStatus: "active" | "readOnly" | "removed";
+    shopStatus: "active" | "archived" | "planSuspended";
+  },
+) {
+  const billingPolicy = await getOrganizationBillingPolicy(ctx, args.organizationId);
+  return organizationShopStaffMembershipWriteState({
+    memberStatus: args.memberStatus,
+    shopStatus: args.shopStatus,
+    hasBillingPolicy: billingPolicy !== null,
+    canWriteBusinessData: billingPolicy?.canWriteBusinessData ?? false,
+    businessWriteBlockReason: billingPolicy?.businessWriteBlockReason ?? null,
+  });
+}
+
+export const getOrganizationShopStaffMembershipChange = managerQuery({
+  args: {},
+  returns: v.union(v.null(), organizationShopStaffMembershipChangeValidator),
+  handler: async (ctx) => {
+    if (!ctx.user || !ctx.shop || !ctx.organization || !ctx.organizationMember) return null;
+    const snapshot = await collectOrganizationShopStaffMembershipSnapshot(ctx, {
+      organizationId: ctx.organization._id,
+      shopId: ctx.shop._id,
+    });
+    if (!snapshot) return null;
+    const writeState = await getOrganizationShopStaffMembershipWriteState(ctx, {
+      organizationId: ctx.organization._id,
+      memberStatus: ctx.organizationMember.status,
+      shopStatus: organizationShopOperatingStatus(snapshot.shop.operatingStatus),
+    });
+    return {
+      membershipFingerprint: snapshot.membershipFingerprint,
+      ...writeState,
+      people: snapshot.people.map(
+        ({ person, isManager, otherShopNames, currentStaff, canChange, changeDisabledReason }) => ({
+          personId: person._id,
+          name: person.name,
+          email: person.email,
+          isManager,
+          otherShopNames,
+          isSelected: currentStaff !== null,
+          staffId: currentStaff?._id ?? null,
+          canChange,
+          changeDisabledReason,
+        }),
+      ),
+      preservedStaffs: snapshot.preservedStaffs.map(({ staff, changeDisabledReason }) => ({
+        staffId: staff._id,
+        name: staff.name,
+        email: staff.email,
+        changeDisabledReason,
+      })),
+    };
+  },
+});
+
+export const previewOrganizationShopStaffMembershipRemovals = managerQuery({
+  args: {
+    personIds: v.array(v.id("organizationPeople")),
+    expectedMembershipFingerprint: v.string(),
+    now: v.number(),
+  },
+  returns: v.union(v.null(), organizationShopStaffMembershipRemovalPreviewValidator),
+  handler: async (ctx, args) => {
+    if (!ctx.user || !ctx.shop || !ctx.organization || !ctx.organizationMember) return null;
+    if (
+      args.personIds.length > ORGANIZATION_SHOP_STAFF_MEMBERSHIP_CHANGE_TARGET_LIMIT ||
+      new Set(args.personIds).size !== args.personIds.length ||
+      !/^[0-9a-f]{64}$/.test(args.expectedMembershipFingerprint) ||
+      !Number.isSafeInteger(args.now) ||
+      args.now < 0
+    ) {
+      throw new ConvexError("入力内容を確認してください。");
+    }
+
+    const snapshot = await collectOrganizationShopStaffMembershipSnapshot(ctx, {
+      organizationId: ctx.organization._id,
+      shopId: ctx.shop._id,
+    });
+    if (!snapshot) return null;
+    if (snapshot.membershipFingerprint !== args.expectedMembershipFingerprint) {
+      throw new ConvexError(STALE_SHOP_MEMBERSHIP_CHANGE_ERROR);
+    }
+    const writeState = await getOrganizationShopStaffMembershipWriteState(ctx, {
+      organizationId: ctx.organization._id,
+      memberStatus: ctx.organizationMember.status,
+      shopStatus: organizationShopOperatingStatus(snapshot.shop.operatingStatus),
+    });
+    if (!writeState.canWrite) return null;
+
+    const peopleById = new Map(snapshot.people.map((entry) => [entry.person._id, entry]));
+    const removalTargets = args.personIds
+      .map((personId) => {
+        const entry = peopleById.get(personId);
+        if (!entry?.currentStaff || !entry.canChange) {
+          throw new ConvexError("入力内容を確認してください。");
+        }
+        return { personId, staff: entry.currentStaff };
+      })
+      .sort((left, right) => left.personId.localeCompare(right.personId));
+
+    const asOfDate = dateJST(args.now);
+    const removals: Array<{
+      personId: Id<"organizationPeople">;
+      staffId: Id<"staffs">;
+      assignmentCount: number;
+      fingerprint: string;
+    }> = [];
+    let totalAssignmentCount = 0;
+    for (const target of removalTargets) {
+      const preview = await collectPersonRemovalPreview(ctx, {
+        scope: {
+          kind: "shop",
+          organizationId: ctx.organization._id,
+          shopId: ctx.shop._id,
+          staffId: target.staff._id,
+        },
+        staffs: [target.staff],
+        asOfDate,
+      });
+      if (preview.kind === "tooMany") {
+        return {
+          kind: "tooMany" as const,
+          assignmentCountAtLeast: preview.assignmentCountAtLeast,
+          limit: ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT,
+        };
+      }
+      totalAssignmentCount += preview.assignmentCount;
+      if (totalAssignmentCount > ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT) {
+        return {
+          kind: "tooMany" as const,
+          assignmentCountAtLeast: totalAssignmentCount,
+          limit: ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT,
+        };
+      }
+      removals.push({
+        personId: target.personId,
+        staffId: target.staff._id,
+        assignmentCount: preview.assignmentCount,
+        fingerprint: preview.fingerprint,
+      });
+    }
+
+    return { kind: "ready" as const, removals, totalAssignmentCount };
+  },
+});
 
 export const listOrganizationPeopleAvailableForShop = managerQuery({
   args: {},

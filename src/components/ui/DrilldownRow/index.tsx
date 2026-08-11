@@ -1,4 +1,4 @@
-import { chakra, Flex, HStack, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
+import { chakra, Flex, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { LuChevronRight } from "react-icons/lu";
 
@@ -55,15 +55,15 @@ export function DrilldownRow({
     >
       {leading}
 
-      <Stack gap={secondary ? 1 : 0} flex={1} minW={0}>
-        <HStack gap={2} align="center" wrap="wrap" minW={0}>
+      <Flex gap={2} align="center" wrap="wrap" flex={1} minW={0}>
+        <Stack gap={secondary ? 1 : 0} flex="1 1 96px" minW={0}>
           <Text fontWeight="semibold" color="gray.900" truncate minW={0}>
             {title}
           </Text>
-          {badges}
-        </HStack>
-        {secondary}
-      </Stack>
+          {secondary}
+        </Stack>
+        {badges}
+      </Flex>
 
       <Flex color="fg.muted" fontSize="lg" flexShrink={0} aria-hidden>
         <LuChevronRight />

@@ -1,15 +1,14 @@
 import { Box, Flex, Stack, Text } from "@chakra-ui/react";
-import { LuPlus, LuUserRound } from "react-icons/lu";
-import type { Id } from "@/convex/_generated/dataModel";
+import { LuPencil, LuUserRound } from "react-icons/lu";
 import type { PersonProfileFormData } from "@/src/components/shared/PersonProfileForm";
 import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
 import { Button } from "@/src/components/ui/Button";
 import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import { DrilldownRow } from "@/src/components/ui/DrilldownRow";
-import type { UserDetailData, UserDetailDialog, UserDetailPanel } from "./types";
+import type { UserDetailData, UserDetailDialog, UserDetailPanel, UserMembershipChangeInput } from "./types";
 import { UserInformationDialog } from "./UserInformationDialog";
 import { UserGroupRemovalSection } from "./UserSettingsTab";
-import { UserShopAdditionDialog } from "./UserShopAdditionDialog";
+import { UserShopMembershipDialog } from "./UserShopMembershipDialog";
 import { UserShopMembershipList } from "./UserShopMembershipList";
 import { UserSummary } from "./UserSummary";
 
@@ -20,8 +19,7 @@ export type UserDetailViewProps = {
   state: {
     isUpdatingProfile: boolean;
     membership: {
-      isAdding: boolean;
-      addingShopId: Id<"shops"> | null;
+      isChanging: boolean;
     };
     manager: {
       dialog: UserDetailDialog;
@@ -37,7 +35,7 @@ export type UserDetailViewProps = {
     onOpenShop: (shopId: string) => void;
     onClosePanel: () => void;
     onUpdateProfile: (data: PersonProfileFormData) => void | Promise<void>;
-    onAddMembership: (shopId: Id<"shops">) => void | Promise<void>;
+    onChangeMemberships: (input: UserMembershipChangeInput) => void | Promise<void>;
     onRequestManagerAssignment: () => void;
     onCancelManagerAssignment: () => void;
     onAssignManager: () => void | Promise<void>;
@@ -99,11 +97,11 @@ export function UserDetailView({ data, showShopMembershipAddition, activePanel, 
               size="sm"
               gap={1.5}
               fontWeight="semibold"
-              disabled={!data.canWrite || state.membership.isAdding}
+              disabled={!data.canWrite || state.membership.isChanging}
               onClick={actions.onOpenAddShop}
             >
-              <LuPlus aria-hidden />
-              所属を追加する
+              <LuPencil aria-hidden />
+              所属店舗を変更する
             </Button>
           )}
         </Flex>
@@ -154,14 +152,13 @@ export function UserDetailView({ data, showShopMembershipAddition, activePanel, 
       />
 
       {showShopMembershipAddition && (
-        <UserShopAdditionDialog
+        <UserShopMembershipDialog
           data={data}
           isOpen={activePanel === "addShop"}
-          addingShopId={state.membership.addingShopId}
-          isAdding={state.membership.isAdding}
+          isChanging={state.membership.isChanging}
           onOpenChange={handleDialogOpenChange}
           onClose={actions.onClosePanel}
-          onAddShop={actions.onAddMembership}
+          onChangeMemberships={actions.onChangeMemberships}
         />
       )}
     </Stack>

@@ -1,15 +1,16 @@
-import { Box, Code, Flex, HStack, Separator, Skeleton, Stack, Text } from "@chakra-ui/react";
+import { Alert, Box, Code, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
 import QRCode from "qrcode";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { LuCheck, LuCopy } from "react-icons/lu";
-import { IconButton } from "@/src/components/ui/Button";
+import { Button, IconButton } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/tooltip";
 
 type Props = {
   registrationUrl: string | null;
   isLoading?: boolean;
-  manualEntryAction?: ReactNode;
+  hasError?: boolean;
+  onRetry?: () => void | Promise<void>;
 };
 
 function InviteSection({ title, children }: { title: string; children: ReactNode }) {
@@ -26,7 +27,7 @@ function InviteSection({ title, children }: { title: string; children: ReactNode
   );
 }
 
-export function StaffRegistrationLinkPanel({ registrationUrl, isLoading, manualEntryAction }: Props) {
+export function StaffRegistrationLinkPanel({ registrationUrl, isLoading, hasError = false, onRetry }: Props) {
   const [qrSvg, setQrSvg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -59,9 +60,9 @@ export function StaffRegistrationLinkPanel({ registrationUrl, isLoading, manualE
     }
   };
 
-  if (isLoading || !registrationUrl) {
-    return <StaffRegistrationLinkPanelSkeleton showManualEntryAction={Boolean(manualEntryAction)} />;
-  }
+  if (hasError) return <StaffRegistrationLinkPanelError onRetry={onRetry} />;
+
+  if (isLoading || !registrationUrl) return <StaffRegistrationLinkPanelSkeleton />;
 
   return (
     <Stack gap={5}>
@@ -143,26 +144,28 @@ export function StaffRegistrationLinkPanel({ registrationUrl, isLoading, manualE
           </Tooltip>
         </HStack>
       </InviteSection>
-
-      {manualEntryAction && (
-        <>
-          <Separator />
-          <Flex
-            direction={{ base: "column", sm: "row" }}
-            align={{ base: "stretch", sm: "center" }}
-            justify="flex-end"
-            gap={3}
-          >
-            <Text fontSize="sm" color="gray.800">
-              自分で追加したい場合はこちら
-            </Text>
-            {manualEntryAction}
-          </Flex>
-        </>
-      )}
     </Stack>
   );
 }
+
+const StaffRegistrationLinkPanelError = ({ onRetry }: { onRetry?: () => void | Promise<void> }) => (
+  <Alert.Root status="error" role="alert" alignItems="flex-start">
+    <Alert.Indicator />
+    <Alert.Content gap={3}>
+      <Stack gap={1}>
+        <Alert.Title>招待リンクを読み込めませんでした</Alert.Title>
+        <Alert.Description>もう一度お試しください。</Alert.Description>
+      </Stack>
+      {onRetry && (
+        <Box>
+          <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+            もう一度読み込む
+          </Button>
+        </Box>
+      )}
+    </Alert.Content>
+  </Alert.Root>
+);
 
 const QrSkeleton = () => (
   <Box width="200px" height="200px" borderRadius="md" borderWidth="1px" borderColor="blackAlpha.100" bg="white">
@@ -170,7 +173,7 @@ const QrSkeleton = () => (
   </Box>
 );
 
-const StaffRegistrationLinkPanelSkeleton = ({ showManualEntryAction }: { showManualEntryAction: boolean }) => (
+const StaffRegistrationLinkPanelSkeleton = () => (
   <Stack gap={5} aria-busy="true">
     <Stack gap={2}>
       <Skeleton h="16px" w="94%" />
@@ -191,16 +194,5 @@ const StaffRegistrationLinkPanelSkeleton = ({ showManualEntryAction }: { showMan
         <Skeleton boxSize="40px" borderRadius={0} />
       </HStack>
     </InviteSection>
-
-    {showManualEntryAction && (
-      <>
-        <Separator />
-        <Stack gap={3}>
-          <Skeleton h="16px" w="128px" />
-          <Skeleton h="16px" w="88%" />
-          <Skeleton h="36px" w="144px" borderRadius="md" />
-        </Stack>
-      </>
-    )}
   </Stack>
 );

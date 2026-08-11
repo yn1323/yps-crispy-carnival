@@ -107,19 +107,21 @@ describe("useStaffInvitation", () => {
   });
 
   it("閲覧専用へ切り替わると招待Dialogを閉じ、以後の追加処理を開始しない", async () => {
-    mocks.ensureShopRegistrationLink.mockResolvedValue({ registrationUrl: "https://example.com/register" });
     const { result, rerender } = renderHook(({ isReadOnly }) => useStaffInvitation(isReadOnly), {
       initialProps: { isReadOnly: false },
     });
 
-    await act(async () => {
+    act(() => {
       result.current.onOpen();
-      await Promise.resolve();
+      result.current.onSelectMethod("manual");
     });
     expect(result.current.dialog.isOpen).toBe(true);
+    expect(result.current.selectedMethod).toBe("manual");
+    expect(mocks.ensureShopRegistrationLink).not.toHaveBeenCalled();
 
     rerender({ isReadOnly: true });
     expect(result.current.dialog.isOpen).toBe(false);
+    expect(result.current.selectedMethod).toBeNull();
     expect(result.current.registrationUrl).toBeNull();
 
     mocks.addStaffs.mockClear();
@@ -129,23 +131,148 @@ describe("useStaffInvitation", () => {
     expect(mocks.addStaffs).not.toHaveBeenCalled();
   });
 
-  it("モーダルを開くたびにリンク招待タブへ戻す", async () => {
+  it("開いただけでは登録リンクを取得せず、リンク選択後は同じopen内で成功結果を再利用する", async () => {
     mocks.ensureShopRegistrationLink.mockResolvedValue({ registrationUrl: "https://example.com/register" });
     const { result } = renderHook(() => useStaffInvitation());
 
-    act(() => result.current.onTabChange("manual"));
-    expect(result.current.activeTab).toBe("manual");
+    act(() => result.current.onOpen());
+
+    expect(result.current.dialog.isOpen).toBe(true);
+    expect(result.current.selectedMethod).toBeNull();
+    expect(result.current.registrationUrl).toBeNull();
+    expect(mocks.ensureShopRegistrationLink).not.toHaveBeenCalled();
 
     await act(async () => {
-      result.current.onOpen();
+      result.current.onSelectMethod("link");
+      result.current.onSelectMethod("link");
       await Promise.resolve();
     });
 
-    expect(result.current.activeTab).toBe("link");
+    expect(result.current.selectedMethod).toBe("link");
     expect(result.current.registrationUrl).toBe("https://example.com/register");
+    expect(result.current.registrationUrlError).toBe(false);
+    expect(mocks.ensureShopRegistrationLink).toHaveBeenCalledOnce();
+
+    act(() => result.current.onBackToMethods());
+    expect(result.current.selectedMethod).toBeNull();
+
+    await act(async () => {
+      result.current.onSelectMethod("link");
+      await Promise.resolve();
+    });
+
+    expect(result.current.registrationUrl).toBe("https://example.com/register");
+    expect(mocks.ensureShopRegistrationLink).toHaveBeenCalledOnce();
   });
 
-  it("手入力追加中はタブ切替と別経路のスタッフ追加を開始しない", async () => {
+  it("登録リンク取得失敗は局所エラーにし、raw errorをtoastへ出さず再試行できる", async () => {
+    const error = new Error("token=raw-secret を含む内部エラー");
+    mocks.ensureShopRegistrationLink
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce({ registrationUrl: "https://example.com/register-after-retry" });
+    const { result } = renderHook(() => useStaffInvitation());
+
+    act(() => result.current.onOpen());
+    await act(async () => {
+      result.current.onSelectMethod("link");
+      await Promise.resolve();
+    });
+
+    expect(result.current.registrationUrl).toBeNull();
+    expect(result.current.registrationUrlError).toBe(true);
+    expect(result.current.isRegistrationUrlLoading).toBe(false);
+    expect(mocks.showErrorToast).not.toHaveBeenCalled();
+
+    await act(async () => {
+      result.current.onRetryRegistrationUrl();
+      await Promise.resolve();
+    });
+
+    expect(result.current.registrationUrl).toBe("https://example.com/register-after-retry");
+    expect(result.current.registrationUrlError).toBe(false);
+    expect(mocks.ensureShopRegistrationLink).toHaveBeenCalledTimes(2);
+    expect(mocks.showErrorToast).not.toHaveBeenCalled();
+  });
+
+  it("閉じたdialog sessionの登録リンク取得結果を再open後へ反映しない", async () => {
+    let resolveFirst: ((value: { registrationUrl: string }) => void) | undefined;
+    let resolveSecond: ((value: { registrationUrl: string }) => void) | undefined;
+    mocks.ensureShopRegistrationLink
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecond = resolve;
+          }),
+      );
+    const { result } = renderHook(() => useStaffInvitation());
+
+    act(() => {
+      result.current.onOpen();
+      result.current.onSelectMethod("link");
+    });
+    expect(result.current.isRegistrationUrlLoading).toBe(true);
+
+    act(() => {
+      result.current.onClose();
+      result.current.onOpen();
+      result.current.onSelectMethod("link");
+    });
+    expect(mocks.ensureShopRegistrationLink).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      resolveSecond?.({ registrationUrl: "https://example.com/current-session" });
+      await Promise.resolve();
+    });
+    expect(result.current.registrationUrl).toBe("https://example.com/current-session");
+
+    await act(async () => {
+      resolveFirst?.({ registrationUrl: "https://example.com/stale-session" });
+      await Promise.resolve();
+    });
+    expect(result.current.registrationUrl).toBe("https://example.com/current-session");
+    expect(result.current.registrationUrlError).toBe(false);
+  });
+
+  it("閉じたdialog sessionの登録リンク取得エラーを再open後へ反映しない", async () => {
+    let rejectFirst: ((reason?: unknown) => void) | undefined;
+    mocks.ensureShopRegistrationLink.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectFirst = reject;
+        }),
+    );
+    const { result } = renderHook(() => useStaffInvitation());
+
+    act(() => {
+      result.current.onOpen();
+      result.current.onSelectMethod("link");
+    });
+    expect(result.current.isRegistrationUrlLoading).toBe(true);
+
+    act(() => {
+      result.current.onClose();
+      result.current.onOpen();
+    });
+
+    await act(async () => {
+      rejectFirst?.(new Error("token=stale-secret を含む古いエラー"));
+      await Promise.resolve();
+    });
+
+    expect(result.current.selectedMethod).toBeNull();
+    expect(result.current.registrationUrl).toBeNull();
+    expect(result.current.registrationUrlError).toBe(false);
+    expect(result.current.isRegistrationUrlLoading).toBe(false);
+    expect(mocks.showErrorToast).not.toHaveBeenCalled();
+  });
+
+  it("手入力追加中は方法選択へ戻らず、別経路のスタッフ追加を開始しない", async () => {
     let resolveAddition: ((value: { status: "added"; staffIds: string[] }) => void) | undefined;
     mocks.addStaffs.mockImplementation(
       () =>
@@ -153,17 +280,22 @@ describe("useStaffInvitation", () => {
           resolveAddition = resolve;
         }),
     );
-    const { result } = renderHook(() => useStaffInvitation());
-    act(() => result.current.onTabChange("manual"));
+    const { result } = renderHook(() => useStaffInvitation(false, true));
+    act(() => {
+      result.current.onOpen();
+      result.current.onSelectMethod("manual");
+    });
 
     let addition: Promise<unknown> | undefined;
     act(() => {
       addition = result.current.onAddStaffs({ entries: [{ name: "追加対象", email: "target@example.com" }] });
-      result.current.onTabChange("organization");
+      result.current.onBackToMethods();
+      result.current.onSelectMethod("organization");
       void result.current.onAddOrganizationPerson(personId("person-1"));
     });
 
-    expect(result.current.activeTab).toBe("manual");
+    expect(result.current.selectedMethod).toBe("manual");
+    expect(result.current.dialog.isOpen).toBe(true);
     expect(mocks.addStaffs).toHaveBeenCalledOnce();
     expect(mocks.addOrganizationPersonToShop).not.toHaveBeenCalled();
 
@@ -174,7 +306,6 @@ describe("useStaffInvitation", () => {
   });
 
   it("他店舗スタッフの連打を一度の追加にまとめ、成功時だけモーダルを閉じる", async () => {
-    mocks.ensureShopRegistrationLink.mockResolvedValue({ registrationUrl: "https://example.com/register" });
     let resolveAddition: ((value: { staffId: string }) => void) | undefined;
     mocks.addOrganizationPersonToShop.mockImplementation(
       () =>
@@ -184,9 +315,9 @@ describe("useStaffInvitation", () => {
     );
     const { result } = renderHook(() => useStaffInvitation(false, true));
 
-    await act(async () => {
+    act(() => {
       result.current.onOpen();
-      await Promise.resolve();
+      result.current.onSelectMethod("organization");
     });
 
     let firstAddition: Promise<unknown> | undefined;
@@ -194,6 +325,7 @@ describe("useStaffInvitation", () => {
     act(() => {
       firstAddition = result.current.onAddOrganizationPerson(personId("person-1"));
       secondAddition = result.current.onAddOrganizationPerson(personId("person-1"));
+      result.current.onClose();
     });
 
     expect(mocks.addOrganizationPersonToShop).toHaveBeenCalledOnce();
@@ -201,6 +333,7 @@ describe("useStaffInvitation", () => {
       personId: "person-1",
       requestId: "3fe27945-d0b8-4ea4-bd24-5ce95738af27",
     });
+    expect(result.current.dialog.isOpen).toBe(true);
     expect(result.current.addingOrganizationPersonId).toBe("person-1");
 
     await act(async () => {
@@ -217,14 +350,13 @@ describe("useStaffInvitation", () => {
   });
 
   it("他店舗スタッフの追加に失敗した場合はモーダルを閉じない", async () => {
-    mocks.ensureShopRegistrationLink.mockResolvedValue({ registrationUrl: "https://example.com/register" });
     const error = new Error("追加できませんでした");
     mocks.addOrganizationPersonToShop.mockRejectedValue(error);
     const { result } = renderHook(() => useStaffInvitation(false, true));
 
-    await act(async () => {
+    act(() => {
       result.current.onOpen();
-      await Promise.resolve();
+      result.current.onSelectMethod("organization");
     });
     await act(async () => {
       await result.current.onAddOrganizationPerson(personId("person-1"));
@@ -235,30 +367,32 @@ describe("useStaffInvitation", () => {
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();
   });
 
-  it("他店舗スタッフ追加が非公開ならタブ切替と古い追加handlerを無効化する", async () => {
+  it("他店舗スタッフ追加が非公開なら方法選択と古い追加handlerを無効化する", async () => {
     const { result, rerender } = renderHook(
       ({ showOrganizationPeopleAddition }) => useStaffInvitation(false, showOrganizationPeopleAddition),
       { initialProps: { showOrganizationPeopleAddition: true } },
     );
     const previousAddOrganizationPerson = result.current.onAddOrganizationPerson;
 
-    act(() => result.current.onTabChange("organization"));
-    expect(result.current.activeTab).toBe("organization");
+    act(() => {
+      result.current.onOpen();
+      result.current.onSelectMethod("organization");
+    });
+    expect(result.current.selectedMethod).toBe("organization");
     rerender({ showOrganizationPeopleAddition: false });
-    expect(result.current.activeTab).toBe("link");
+    expect(result.current.selectedMethod).toBeNull();
 
-    act(() => result.current.onTabChange("organization"));
+    act(() => result.current.onSelectMethod("organization"));
     await act(async () => {
       await previousAddOrganizationPerson(personId("person-1"));
     });
 
-    expect(result.current.activeTab).toBe("link");
+    expect(result.current.selectedMethod).toBeNull();
     expect(result.current.showOrganizationPeopleAddition).toBe(false);
     expect(mocks.addOrganizationPersonToShop).not.toHaveBeenCalled();
   });
 
   it("他店舗スタッフ追加の処理中に非公開へ切り替わった場合はDialogを閉じずtoastを表示しない", async () => {
-    mocks.ensureShopRegistrationLink.mockResolvedValue({ registrationUrl: "https://example.com/register" });
     let resolveAddition: ((value: { staffId: string }) => void) | undefined;
     mocks.addOrganizationPersonToShop.mockImplementation(
       () =>
@@ -270,9 +404,9 @@ describe("useStaffInvitation", () => {
       ({ showOrganizationPeopleAddition }) => useStaffInvitation(false, showOrganizationPeopleAddition),
       { initialProps: { showOrganizationPeopleAddition: true } },
     );
-    await act(async () => {
+    act(() => {
       result.current.onOpen();
-      await Promise.resolve();
+      result.current.onSelectMethod("organization");
     });
 
     let addition: Promise<unknown> | undefined;

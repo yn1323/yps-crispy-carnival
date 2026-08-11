@@ -225,11 +225,12 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
   },
 
   // 店舗・プラン・所属を変える事業者設定操作の同期的な連打防止。
+  // 同じ画面で内容を確認しながら行う2回の変更は許し、3回目以降を抑止する。
   organizationSettingsMutationShort: {
     kind: "token bucket",
-    rate: 1,
+    rate: 2,
     period: MINUTE_MS,
-    capacity: 1,
+    capacity: 2,
   },
 
   // 明示的なアカウント削除受付: issuer+subjectのSHA-256 hash単位。

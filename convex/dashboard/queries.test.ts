@@ -1,7 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import {
   seedLegacyManagerShop,
   seedLegacyShop,
@@ -22,6 +22,19 @@ const TRIAL_ENDS_AT = Date.parse("2026-09-01T00:00:00+09:00");
 
 describe("dashboard/queries", () => {
   describe("getDashboardShop", () => {
+    beforeEach(() => {
+      vi.stubEnv("FEATURE_BILLING", "");
+      vi.stubEnv("STRIPE_SECRET_KEY", "");
+      vi.stubEnv("STRIPE_WEBHOOK_SECRET", "");
+      vi.stubEnv("STRIPE_PRO_PRICE_ID", "");
+      vi.stubEnv("STRIPE_BUSINESS_PRICE_ID", "");
+      vi.stubEnv("STRIPE_PORTAL_CONFIGURATION_ID", "");
+    });
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
     it("未認証の場合 null を返す", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => await seedShop(ctx, "対象店舗"));
@@ -53,6 +66,7 @@ describe("dashboard/queries", () => {
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         canWriteBusinessData: true,
         businessWriteBlockReason: null,
+        planStatus: null,
         trialEndingNotice: null,
       });
     });
@@ -282,6 +296,7 @@ describe("dashboard/queries", () => {
         "businessWriteBlockReason",
         "canWriteBusinessData",
         "name",
+        "planStatus",
         "regularClosedDays",
         "submissionPattern",
         "trialEndingNotice",
@@ -345,6 +360,457 @@ describe("dashboard/queries", () => {
         .query(api.dashboard.queries.getDashboardShop, { shopId });
 
       expect(result).toMatchObject({ canWriteBusinessData: false, businessWriteBlockReason: reason });
+    });
+
+    it.each([
+      {
+        label: "trial",
+        state: { kind: "trial", trialEndsAt: TRIAL_ENDS_AT, selectedPaidPlan: "business" },
+        expected: { kind: "trial", trialEndsAt: TRIAL_ENDS_AT, selectedPaidPlan: "business" },
+      },
+      {
+        label: "initialPaymentPending",
+        state: { kind: "initialPaymentPending", plan: "business", startedAt: 1 },
+        expected: { kind: "paymentPending", currentPlan: "pro", targetPlan: "business" },
+      },
+      {
+        label: "pendingActivation",
+        state: { kind: "pendingActivation", plan: "pro", fallback: "free", startedAt: 1 },
+        expected: { kind: "paymentPending", currentPlan: "free", targetPlan: "pro" },
+      },
+      {
+        label: "active.free",
+        state: { kind: "active", plan: "free" },
+        expected: { kind: "freePlan" },
+      },
+      {
+        label: "active.pro",
+        state: { kind: "active", plan: "pro" },
+        expected: { kind: "paidPlan", plan: "pro", isComplimentary: false },
+      },
+      {
+        label: "complimentary.business",
+        state: { kind: "complimentary", plan: "business" },
+        expected: { kind: "paidPlan", plan: "business", isComplimentary: true },
+      },
+      {
+        label: "scheduledChange",
+        state: { kind: "scheduledChange", currentPlan: "business", targetPlan: "pro", effectiveAt: 2 },
+        expected: {
+          kind: "paidPlan",
+          plan: "business",
+          isComplimentary: false,
+          scheduledChange: { targetPlan: "pro", effectiveAt: 2 },
+        },
+      },
+      {
+        label: "grace",
+        state: { kind: "grace", plan: "business", startedAt: 1, endsAt: 3 },
+        expected: { kind: "paymentIssue", plan: "business", phase: "grace", recoveryDeadlineAt: 3 },
+      },
+      {
+        label: "restricted.payment",
+        state: {
+          kind: "restricted",
+          reason: "paymentGraceExpired",
+          previousPlan: "pro",
+          recoveryManagerPersonIds: [],
+          previousActiveShopIds: [],
+          restrictedAt: 4,
+        },
+        expected: { kind: "paymentIssue", plan: "pro", phase: "restricted" },
+      },
+      {
+        label: "restricted.limit",
+        state: {
+          kind: "restricted",
+          reason: "planLimitExceeded",
+          previousPlan: "business",
+          limitPlan: "pro",
+          recoveryManagerPersonIds: [],
+          previousActiveShopIds: [],
+          restrictedAt: 5,
+        },
+        expected: { kind: "restricted", displayPlan: "pro" },
+      },
+    ] satisfies ReadonlyArray<{
+      label: string;
+      state: Doc<"organizationBillingStates">["state"];
+      expected: Record<string, unknown>;
+    }>)("$labelを表示専用planStatusへ変換する", async ({ label, state, expected }) => {
+      vi.stubEnv("FEATURE_BILLING", "enabled");
+      const t = convexTest(schema, modules);
+      const subject = `dashboard_plan_status_${label.replaceAll(".", "_")}`;
+      const { shopId } = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, { subject, plan: "pro" });
+        const billingState = await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+          .unique();
+        if (!billingState) throw new Error("billing state not found");
+        const nextState: Doc<"organizationBillingStates">["state"] =
+          state.kind === "restricted"
+            ? {
+                ...state,
+                recoveryManagerPersonIds: [seeded.personId],
+                previousActiveShopIds: [seeded.shopId],
+              }
+            : state;
+        await ctx.db.patch(billingState._id, { state: nextState });
+        return seeded;
+      });
+
+      const result = await t.withIdentity({ subject }).query(api.dashboard.queries.getDashboardShop, { shopId });
+
+      expect(result?.planStatus).toEqual({
+        ...expected,
+        canManagePlan: false,
+        canUpdatePaymentMethod: false,
+      });
+    });
+
+    it("有料契約では保存済み期間と利用可能な操作だけを返す", async () => {
+      vi.stubEnv("FEATURE_BILLING", "enabled");
+      vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_dashboard_plan_status");
+      vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_dashboard_plan_status");
+      vi.stubEnv("STRIPE_PRO_PRICE_ID", "price_dashboard_pro");
+      vi.stubEnv("STRIPE_PORTAL_CONFIGURATION_ID", "bpc_dashboard_plan_status");
+      const t = convexTest(schema, modules);
+      const currentPeriodEndsAt = TRIAL_ENDS_AT + 30 * 24 * 60 * 60_000;
+      const { shopId, organizationId, personId, memberId } = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "dashboard_active_paid_status",
+          plan: "pro",
+        });
+        await ctx.db.insert("organizationStripeCustomers", {
+          organizationId: seeded.organizationId,
+          stripeCustomerId: "cus_dashboard_active_paid",
+          livemode: false,
+          createdAt: 1,
+          updatedAt: 1,
+        });
+        await ctx.db.insert("organizationStripeSubscriptions", {
+          organizationId: seeded.organizationId,
+          stripeCustomerId: "cus_dashboard_active_paid",
+          stripeSubscriptionId: "sub_dashboard_active_paid",
+          stripePriceId: "price_archived_dashboard_pro",
+          plan: "pro",
+          livemode: false,
+          status: "active",
+          providerGeneration: 1,
+          currentPeriodEndsAt,
+          cancelAtPeriodEnd: false,
+          syncedAt: 1,
+          createdAt: 1,
+          updatedAt: 1,
+        });
+        return seeded;
+      });
+
+      const result = await t
+        .withIdentity({ subject: "dashboard_active_paid_status" })
+        .query(api.dashboard.queries.getDashboardShop, { shopId });
+
+      expect(result?.planStatus).toEqual({
+        kind: "paidPlan",
+        plan: "pro",
+        isComplimentary: false,
+        currentPeriodEndsAt,
+        canManagePlan: true,
+        canUpdatePaymentMethod: true,
+      });
+
+      await t.run(async (ctx) => {
+        const billingState = await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+          .unique();
+        if (!billingState) throw new Error("billing state not found");
+        await ctx.db.patch(billingState._id, {
+          state: {
+            kind: "restricted",
+            reason: "paymentGraceExpired",
+            previousPlan: "pro",
+            recoveryManagerPersonIds: [personId],
+            previousActiveShopIds: [shopId],
+            restrictedAt: currentPeriodEndsAt - 1,
+          },
+        });
+        await ctx.db.patch(memberId, { status: "readOnly" });
+      });
+
+      const recoveryResult = await t
+        .withIdentity({ subject: "dashboard_active_paid_status" })
+        .query(api.dashboard.queries.getDashboardShop, { shopId });
+
+      expect(recoveryResult?.planStatus).toEqual({
+        kind: "paymentIssue",
+        plan: "pro",
+        phase: "restricted",
+        canManagePlan: true,
+        canUpdatePaymentMethod: true,
+      });
+    });
+
+    it("billing featureが非公開ならcanonical stateがあってもplanStatusを返さない", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId } = await t.run(
+        async (ctx) =>
+          await seedOrganizationManagerShop(ctx, {
+            subject: "dashboard_billing_feature_disabled",
+            plan: "pro",
+          }),
+      );
+
+      const result = await t
+        .withIdentity({ subject: "dashboard_billing_feature_disabled" })
+        .query(api.dashboard.queries.getDashboardShop, { shopId });
+
+      expect(result?.planStatus).toBeNull();
+    });
+  });
+
+  describe("getDashboardPlanUsage", () => {
+    beforeEach(() => {
+      vi.stubEnv("FEATURE_BILLING", "enabled");
+      vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
+    });
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("未認証または他事業者の店舗では利用状況を返さない", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId: targetShopId } = await t.run(
+        async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "dashboard_usage_target", plan: "pro" }),
+      );
+      await t.run(
+        async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "dashboard_usage_foreign", plan: "pro" }),
+      );
+
+      await expect(
+        t.query(api.dashboard.queries.getDashboardPlanUsage, { shopId: targetShopId, now: TRIAL_ENDS_AT }),
+      ).resolves.toBeNull();
+      await expect(
+        t
+          .withIdentity({ subject: "dashboard_usage_foreign" })
+          .query(api.dashboard.queries.getDashboardPlanUsage, { shopId: targetShopId, now: TRIAL_ENDS_AT }),
+      ).resolves.toBeNull();
+    });
+
+    it("事業者全体の利用人数と有効店舗を重複なく数え、Pro上限を返す", async () => {
+      vi.stubEnv("FEATURE_MANAGER_INVITATION", "enabled");
+      const t = convexTest(schema, modules);
+      const { shopId } = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "dashboard_usage_counts",
+          plan: "pro",
+        });
+        const now = TRIAL_ENDS_AT - 1;
+        const secondShopId = await ctx.db.insert("shops", {
+          organizationId: seeded.organizationId,
+          operatingStatus: "active",
+          name: "2店舗目",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        });
+        const staffPersonId = await ctx.db.insert("organizationPeople", {
+          organizationId: seeded.organizationId,
+          name: "店舗横断スタッフ",
+          email: "shared-staff@example.com",
+          emailNormalized: "shared-staff@example.com",
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+        for (const targetShopId of [seeded.shopId, secondShopId]) {
+          await ctx.db.insert("staffs", {
+            shopId: targetShopId,
+            organizationId: seeded.organizationId,
+            organizationPersonId: staffPersonId,
+            name: "店舗横断スタッフ",
+            email: "shared-staff@example.com",
+            emailNormalized: "shared-staff@example.com",
+            isDeleted: false,
+          });
+        }
+        return seeded;
+      });
+
+      const result = await t
+        .withIdentity({ subject: "dashboard_usage_counts" })
+        .query(api.dashboard.queries.getDashboardPlanUsage, { shopId, now: TRIAL_ENDS_AT });
+
+      expect(result).toEqual({
+        peopleUsage: { current: 2, max: 20 },
+        shopUsage: { current: 2, max: 5 },
+        managerUsage: { current: 1, max: 5 },
+      });
+    });
+
+    it("明示された時刻を基準に、期限内の予約枠だけを利用人数へ含める", async () => {
+      vi.stubEnv("FEATURE_MANAGER_INVITATION", "enabled");
+      const t = convexTest(schema, modules);
+      const now = TRIAL_ENDS_AT;
+      const { shopId } = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "dashboard_usage_reservation_expiry",
+          plan: "pro",
+        });
+        await ctx.db.insert("organizationInvitations", {
+          organizationId: seeded.organizationId,
+          email: "reserved-seat@example.com",
+          emailNormalized: "reserved-seat@example.com",
+          tokenDigest: "dashboard-usage-reserved-seat",
+          status: "issued",
+          purpose: "managerAddition",
+          inviterMemberId: seeded.memberId,
+          reservedSeat: true,
+          version: 1,
+          expiresAt: now + 1,
+          createdAt: now - 1,
+          updatedAt: now - 1,
+        });
+        return seeded;
+      });
+      const actor = t.withIdentity({ subject: "dashboard_usage_reservation_expiry" });
+
+      await expect(actor.query(api.dashboard.queries.getDashboardPlanUsage, { shopId, now })).resolves.toEqual({
+        peopleUsage: { current: 2, max: 20 },
+        shopUsage: { current: 1, max: 5 },
+        managerUsage: { current: 2, max: 5 },
+      });
+      await expect(actor.query(api.dashboard.queries.getDashboardPlanUsage, { shopId, now: now + 1 })).resolves.toEqual(
+        {
+          peopleUsage: { current: 1, max: 20 },
+          shopUsage: { current: 1, max: 5 },
+          managerUsage: { current: 1, max: 5 },
+        },
+      );
+    });
+
+    it.each(["", "disabled", "true"])("管理者招待flagが%jの場合は管理者利用数をDTOへ含めない", async (flagValue) => {
+      vi.stubEnv("FEATURE_MANAGER_INVITATION", flagValue);
+      const t = convexTest(schema, modules);
+      const { shopId } = await t.run(
+        async (ctx) =>
+          await seedOrganizationManagerShop(ctx, {
+            subject: `dashboard_usage_hidden_${flagValue || "empty"}`,
+            plan: "pro",
+          }),
+      );
+
+      const result = await t
+        .withIdentity({ subject: `dashboard_usage_hidden_${flagValue || "empty"}` })
+        .query(api.dashboard.queries.getDashboardPlanUsage, { shopId, now: TRIAL_ENDS_AT });
+
+      expect(result).toEqual({
+        peopleUsage: { current: 1, max: 20 },
+        shopUsage: { current: 1, max: 5 },
+      });
+    });
+
+    it.each([
+      {
+        key: "free",
+        label: "Free上限",
+        state: {
+          kind: "restricted",
+          reason: "freeConditionsNotMet",
+          recoveryManagerPersonIds: [],
+          previousActiveShopIds: [],
+          restrictedAt: TRIAL_ENDS_AT,
+        },
+        expected: {
+          peopleUsage: { current: 1, max: 5 },
+          shopUsage: { current: 1, max: 1 },
+        },
+      },
+      {
+        key: "pro",
+        label: "Pro上限",
+        state: {
+          kind: "restricted",
+          reason: "planLimitExceeded",
+          previousPlan: "business",
+          limitPlan: "pro",
+          recoveryManagerPersonIds: [],
+          previousActiveShopIds: [],
+          restrictedAt: TRIAL_ENDS_AT,
+        },
+        expected: {
+          peopleUsage: { current: 1, max: 20 },
+          shopUsage: { current: 1, max: 5 },
+        },
+      },
+    ] satisfies ReadonlyArray<{
+      key: string;
+      label: string;
+      state: Extract<Doc<"organizationBillingStates">["state"], { kind: "restricted" }>;
+      expected: Record<string, unknown>;
+    }>)("契約制限中でも$labelが確定する場合は利用状況を返す", async ({ key, state, expected }) => {
+      const t = convexTest(schema, modules);
+      const subject = `dashboard_usage_restricted_${key}`;
+      const { shopId } = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, { subject, plan: "pro" });
+        const billingState = await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+          .unique();
+        if (!billingState) throw new Error("billing state not found");
+        await ctx.db.patch(billingState._id, {
+          state: {
+            ...state,
+            recoveryManagerPersonIds: [seeded.personId],
+            previousActiveShopIds: [seeded.shopId],
+          },
+        });
+        return seeded;
+      });
+
+      const result = await t
+        .withIdentity({ subject })
+        .query(api.dashboard.queries.getDashboardPlanUsage, { shopId, now: TRIAL_ENDS_AT });
+
+      expect(result).toEqual(expected);
+    });
+
+    it("billing非公開または適用上限がない契約制限中はnullを返す", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, organizationId, personId } = await t.run(
+        async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "dashboard_usage_unavailable", plan: "pro" }),
+      );
+      const actor = t.withIdentity({ subject: "dashboard_usage_unavailable" });
+
+      vi.stubEnv("FEATURE_BILLING", "");
+      await expect(
+        actor.query(api.dashboard.queries.getDashboardPlanUsage, { shopId, now: TRIAL_ENDS_AT }),
+      ).resolves.toBeNull();
+
+      vi.stubEnv("FEATURE_BILLING", "enabled");
+      await t.run(async (ctx) => {
+        const billingState = await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+          .unique();
+        if (!billingState) throw new Error("billing state not found");
+        await ctx.db.patch(billingState._id, {
+          state: {
+            kind: "restricted",
+            reason: "paymentGraceExpired",
+            previousPlan: "pro",
+            recoveryManagerPersonIds: [personId],
+            previousActiveShopIds: [shopId],
+            restrictedAt: TRIAL_ENDS_AT,
+          },
+        });
+      });
+
+      await expect(
+        actor.query(api.dashboard.queries.getDashboardPlanUsage, { shopId, now: TRIAL_ENDS_AT }),
+      ).resolves.toBeNull();
     });
   });
 

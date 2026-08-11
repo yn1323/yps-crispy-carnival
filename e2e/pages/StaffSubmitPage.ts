@@ -1,4 +1,5 @@
 import { expect, type Page } from "@playwright/test";
+import { expectAppHydrated } from "../helpers/appReadiness";
 
 const STAFF_SUBMIT_DATA_TIMEOUT = 20_000;
 
@@ -8,6 +9,7 @@ export class StaffSubmitPage {
   async goto(token: string) {
     try {
       await this.page.goto(`/shifts/submit?token=${token}`, { waitUntil: "domcontentloaded" });
+      await expectAppHydrated(this.page);
       await expect(this.page).toHaveURL(
         (url) => url.pathname === "/shifts/submit" && url.searchParams.get("token") === token,
         { timeout: STAFF_SUBMIT_DATA_TIMEOUT },

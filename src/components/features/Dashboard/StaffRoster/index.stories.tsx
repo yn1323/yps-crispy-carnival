@@ -61,7 +61,7 @@ export const DialogIntentBehavior: Story = {
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    const invitationButton = canvas.getByRole("button", { name: "スタッフを招待する" });
+    const invitationButton = canvas.getByRole("button", { name: "スタッフを追加する" });
     const detailButton = canvas.getAllByRole("button", { name: /スタッフ詳細を開く/ })[0];
 
     await userEvent.hover(invitationButton);
@@ -99,7 +99,7 @@ export const Empty: Story = {
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    const invitationButton = canvas.getAllByRole("button", { name: "スタッフを招待する" })[1];
+    const invitationButton = canvas.getAllByRole("button", { name: "スタッフを追加する" })[1];
 
     await userEvent.hover(invitationButton);
     await expect(args.onAddIntent).toHaveBeenCalled();

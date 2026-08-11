@@ -1,5 +1,7 @@
-import { type APIResponse, expect, type Page, request as requestFactory, test } from "@playwright/test";
+import { type APIResponse, request as requestFactory } from "@playwright/test";
 import { getCanonicalRoute } from "../../scripts/staticSite";
+import { expect, artifactSafeTest as test } from "../fixtures/artifactSafeTest";
+import { expectAppHydrated } from "../helpers/appReadiness";
 
 const ANDROID_CHROME_USER_AGENT =
   "Mozilla/5.0 (Linux; Android 15; Pixel 8 Pro Build/AP3A.241105.008) " +
@@ -33,10 +35,6 @@ async function expectNeutralShell(response: APIResponse, path: string): Promise<
   expect(response.headers()["cache-control"]).toContain("no-store");
   expect(response.headers()["x-robots-tag"]).toContain("noindex");
   expect(response.headers()["referrer-policy"]).toBe("no-referrer");
-}
-
-async function expectHydrated(page: Page): Promise<void> {
-  await expect(page.locator("html")).toHaveAttribute("data-app-hydrated", "true", { timeout: 15_000 });
 }
 
 test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deployed"] }, () => {
@@ -109,7 +107,7 @@ test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deploye
     await expect(page).toHaveURL((url) => url.origin === expectedOrigin && url.pathname === "/");
     await expect(page.getByRole("heading", { level: 1, name: /シフトのやり取りを/ })).toBeVisible();
     await expect(page.getByRole("link", { name: /登録不要でデモを見る/ }).first()).toBeVisible();
-    await expectHydrated(page);
+    await expectAppHydrated(page);
 
     expect(runtimeErrors).toEqual([]);
   });

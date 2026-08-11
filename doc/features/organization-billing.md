@@ -23,12 +23,13 @@ Stripe設定、migration確認、障害対応は[組織課金の運用](../manua
 | 環境変数 | 対象 | 閉じている間の挙動 |
 |---|---|---|
 | `FEATURE_ORGANIZATION_CREATION` | 二つ目以降の組織作成 | `createOrganization`が拒否し、「設定」タブに作成セクションを描画しない |
-| `FEATURE_BILLING` | プランと支払い | 「プランと支払い」タブを描画しない |
+| `FEATURE_BILLING` | プランと支払い | 「プランと支払い」タブとDashboardの現在プラン表示を描画せず、Dashboardから価格取得Actionを開始しない |
 | `FEATURE_MANAGER_INVITATION` | 管理者の追加・交代 | 発行・再送を拒否し、preview・受諾を利用不可へ寄せ、新規・投入済み通知を送らない。設定とスタッフ詳細の管理者操作UIを描画しない |
 
 ダークローンチ中の機能を拒否するときはサーバー側でも行い、画面から導線を消すだけにはしない。
 `getSettings`は公開状態を`features`で返すが、これは表示判定であり認可根拠ではない。旧frontend互換の`shopAddition`は常に`true`を返す。
 `getCurrentUser`は通常画面の入口用に、組織設定導線と店舗所属追加を常に`true`、支払いを`FEATURE_BILLING`の状態で返す。
+Dashboardの現在プラン表示も同じ`FEATURE_BILLING`を使うが、フラグを組織所属や店舗境界の認可根拠にはしない。
 Dashboard上部の現在組織名は、選択店舗を引き継いで組織設定を開く。
 UserMenuの「組織設定」とDashboardの組織名リンクは常時表示する。
 段階リリース中に旧backendの応答へ表示DTOが無い場合だけ、frontendはfalseへ正規化して入口を表示しない。
@@ -218,9 +219,36 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 | `/settings?shop=<shopId>` | 選択店舗から組織を解決し、ユーザー、店舗、プランと支払い、設定を管理する。UserMenuとDashboardの現在組織名から常時開ける |
 | `/settings?shop=<shopId>&tab=billing` | 現在のプラン、価格、変更予定、支払い方法、請求先メール、復旧操作を扱う |
 | `/manager-invite?token=...` | 公開中は招待previewとアカウント連携を扱う。ダークローンチ中は利用不可を表示する |
-| `/dashboard?shop=<shopId>` | 現在の組織と店舗、業務更新可否を表示する |
+| `/dashboard?shop=<shopId>` | 現在の組織と店舗、業務更新可否、現在プランと対応が必要な課金状態を表示する |
 | `/shops/<shopId>?shop=<contextShopId>` | 同じ組織の店舗情報、所属、稼働状態を管理する |
 | `/users/<personId>?shop=<shopId>` | 組織人物、管理者権限、店舗所属、招待再送を管理する |
+
+### Dashboardの現在プラン表示
+
+Dashboardは、`getDashboardShop`が選択店舗と組織所属を検証して返す`planStatus`を表示の正本にする。
+`planStatus`は`trial`、`initialPaymentPending`、`pendingActivation`、Free・Pro・Businessの利用中、支払い不要Business、変更予約、支払い猶予、契約制限中を、利用者向けの最小DTOへ投影する。
+別組織の課金state、StripeのCustomer・Subscription・Price ID、providerの生応答は返さない。
+
+カードを開いている間だけ、`getDashboardPlanUsage`で組織全体の利用状況を購読する。
+折りたたみ中はqueryを`"skip"`し、Dashboardの初期表示へ利用数の読み取りを追加しない。
+画面では依頼に合わせて「スタッフ」と表示するが、値は課金上の`peopleUsage`であり、店舗をまたぐ同一人物を重複排除し、active管理者と期限内の予約枠を含む。
+店舗数はactiveかつ未削除の店舗だけを数え、適用上限を確定できない状態では推測値を表示しない。
+
+管理者数は`FEATURE_MANAGER_INVITATION`が厳密に`enabled`のときだけ3列目へ表示する。
+閉状態ではserverのDTOから`managerUsage`自体を省略し、frontendだけの環境変数やCSSを公開境界にしない。
+
+有料プランの価格は、新規販売用の設定中Priceではなく、対象組織の現在Subscriptionに保存したPrice IDを正本にする。
+画面は価格が必要になった時だけ認可付きread-only Actionを呼び、Actionは選択店舗と組織所属を再確認してから、サーバー側で保存済みPriceを解決する。
+Price IDをブラウザから受け取らず、価格を取得できない場合も、検証済みのプラン状態と日付は表示し続ける。
+税区分はActionが明示した場合だけ表示し、不明な場合は税込・税抜を推測しない。
+
+rolling deploy中は、`planStatus`が`undefined`の場合だけ、旧backendの応答として`trialEndingNotice`によるCalloutへfallbackする。
+`planStatus`対応backendが`planStatus: null`を返した場合は「表示対象のプラン状態なし」という明示結果なので、旧Calloutへfallbackしない。
+新旧frontendとbackendのdrainを確認した後、`trialEndingNotice`、旧Callout、`undefined`判定をNarrowで削除する。
+
+この表示は既存の課金stateとSubscription snapshotを読み、保存形式を変更しないため、schema変更とmigrationを必要としない。
+Productionでの公開状態は未確認であり、実装やローカルテストから公開済みと判定しない。
+実環境の確認結果は[リリース状態](../manual/release-status.md)を正とする。
 
 ## コードの入口
 
@@ -231,9 +259,10 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 | `convex/setup/mutations.ts` | 初回セットアップと、既存管理者による二つ目以降の組織作成を受け付ける |
 | `convex/setup/service.ts` | 組織、最初の管理者、店舗、初期課金状態を作る共通処理と、作成可否の判定 |
 | `convex/_lib/functions.ts` | 認証、組織所属、選択店舗、課金状態を検証するAPI wrapper |
+| `convex/dashboard/queries.ts` | 選択店舗の認可境界で、Dashboard用の現在プランと対応状態を投影し、カード展開中だけ組織の利用状況を最小DTOで返す |
 | `convex/organization/` | 組織、店舗、人物、管理者、利用状況、削除可否を扱う |
 | `convex/organizationBilling/` | プラン上限、課金policy、期限、Free選択、請求先メール、通知を扱う |
-| `convex/organizationStripe/` | Stripe API、Price、Checkout、Portal、Webhook、再照合、probeを扱う |
+| `convex/organizationStripe/` | Stripe API、現在Subscriptionの保存済みPriceのread-only取得、Checkout、Portal、Webhook、再照合、probeを扱う |
 | `convex/organizationInvitation/mutations.ts` | 管理者招待の発行、再送、取消、承認準備、proof付き確定、旧mutation互換を扱う |
 | `convex/organizationInvitation/acceptanceActions.ts` / `convex/_lib/clerkVerifiedEmailProvider.ts` | 未接続人物のClerk確認済みメールをNode runtimeで照合し、provider失敗時は招待を消費せず返す |
 | `convex/migrations/m023_organization_invitations_narrow_prep.ts` | 旧招待lifecycleと欠損fieldをNarrow前に補完する |
@@ -255,7 +284,7 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 | `src/components/features/ManagerInvitationAcceptance/` | 招待preview、認証導線、連携結果 |
 | `src/pages/account-security/` / `src/components/features/LoginMethods/` | シフト連絡先と独立したアカウント設定の画面境界、Clerk状態からの表示判定と操作可否 |
 | `src/components/features/AuthenticatedApp/AuthGuard.tsx` | URLと利用可能店舗から有効な操作contextを解決する |
-| `src/components/features/Dashboard/` | 組織・店舗contextと閲覧専用状態を表示する |
+| `src/components/features/Dashboard/` | 組織・店舗context、現在プラン、課金対応状態、閲覧専用状態を表示する |
 
 ## 主なAPI入口
 
@@ -267,6 +296,8 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 | `api.setup.mutations.setupShopAndManager` | 初期設定と支払い不要Businessの作成 |
 | `api.setup.mutations.createOrganization` | 既存管理者による二つ目以降の組織作成（Free開始、上限3件、冪等） |
 | `api.dashboard.queries.getMyShops` | 利用可能な店舗、組織、所属状態の取得 |
+| `api.dashboard.queries.getDashboardShop` | 選択店舗を認可し、Dashboard用の`planStatus`とrolling deploy用の旧`trialEndingNotice`を取得 |
+| `api.dashboard.queries.getDashboardPlanUsage` | 選択店舗を認可し、明示された時刻を基準にスタッフ・店舗と、公開中だけ管理者の現在値・上限を取得 |
 | `api.organization.queries.getSettings` | 組織設定、利用状況、課金状態、操作可否の取得 |
 | `api.organization.mutations.*` | 組織名、店舗、人物、管理者、削除の更新 |
 | `api.organizationInvitation.queries.getPreview` | 公開中は招待先組織と期限だけを返し、閉状態ではtokenを解決せず`unavailable`を返す |
@@ -276,6 +307,7 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 | `api.organizationBilling.mutations.setFreeSelection` | Freeで残す管理者と店舗の選択 |
 | `api.organizationBilling.mutations.updateBillingEmail` | 請求先メールの更新とStripe同期予約 |
 | `api.organizationStripe.actions.getPlanPrice` / `startPaidCheckout` | Pro・Businessの価格確認と契約開始 |
+| `api.organizationStripe.actions.getCurrentSubscriptionPrice` | 選択店舗を認可し、現在の非terminal Subscriptionに保存したPriceから金額、通貨、周期、明示された税区分だけを取得 |
 | `api.organizationStripe.actions.previewPaidPlanChange` / `changePaidPlanNow` | ProからBusinessへの日割りpreviewと即時変更 |
 | `api.organizationStripe.actions.schedulePaidPlanChange` / `cancelScheduledPlanChange` | 期間末のプラン変更と取消 |
 | `api.organizationStripe.actions.openCustomerPortal` | 支払い方法と請求履歴を扱う一時Portal URLの作成 |
@@ -294,13 +326,16 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 ## 検証の入口
 
 - `convex/organizationBilling/*.test.ts`：プラン上限、課金状態、期限、通知とm021の旧shape移行fixtureを検証する。
-- `convex/organizationStripe/*.test.ts`：Price、Checkout、Webhook、再照合、支払い不要BusinessのStripe隔離、probeを検証する。
+- `convex/dashboard/queries.test.ts`：選択店舗の認可境界、全課金状態の`planStatus`投影、利用状況の現在値・上限、管理者flagのfail-closed、不要な識別子の非露出を検証する。
+- `convex/organizationStripe/*.test.ts`：新規販売用Price、現在Subscriptionの保存済みPrice、Checkout、Webhook、再照合、支払い不要BusinessのStripe隔離、probeを検証する。
 - `convex/organizationInvitation/*.test.ts`：token、期限、接続済み人物のアカウント一致、未接続人物のClerk確認済みメール、provider失敗時の非消費、予約枠、再送、連携を検証する。
 - `convex/_scenario/organizationBillingLifecycle.test.ts`と`organizationPaidPlanChanges.test.ts`：時間と複数APIをまたぐ課金ライフサイクルを検証する。
 - `convex/_scenario/staffManagerInvitation.test.ts`と`organizationManagerExchange.test.ts`：既存人物の招待とFree管理者交代を検証する。
 - `convex/setup/mutations.test.ts`と`convex/_scenario/organizationCreation.test.ts`：組織作成の上限、冪等性、rate limit、Free開始、既存組織への非混入を検証する。
 - `src/components/features/OrganizationSettings/OrganizationCreation/OrganizationCreationSection.stories.tsx`と`controllers.test.tsx`：組織作成の代表状態、mutation引数、作成後の遷移を検証する。
 - `src/components/features/OrganizationSettings/PlanAndPaymentSection.stories.tsx`と`BillingSettings/`配下のStory・Logic Test：Free、Pro、Businessの代表状態と主要変更操作を検証する。
+- `src/components/features/Dashboard/PlanStatusCard/`のFrontend Unit・Story・Logic Test：折りたたみ中のquery停止、利用状況の局所Loading、全課金状態の表示変換、価格の読み込み・取得不可、開閉、CTA、モバイル表示を検証する。
+- `src/components/features/Dashboard/DashboardContent/index.stories.tsx`：`undefined`と`null`のfallback差、`FEATURE_BILLING`、新旧表示の優先順位を検証する。
 - `src/components/features/OrganizationSettings/ManagerInvitation/ManagerInvitationDialog.stories.tsx`：管理者招待の代表状態と操作を検証する。
 
 ## 仕様・規約・運用

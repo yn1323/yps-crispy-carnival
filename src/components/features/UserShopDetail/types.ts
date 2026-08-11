@@ -5,7 +5,6 @@ export type UserShopDetailData = NonNullable<
   FunctionReturnType<typeof api.organization.userDetailQueries.getUserDetail>
 >;
 export type UserShopDetailMembership = UserShopDetailData["memberships"][number];
-export type UserShopDetailRemovalPreview = UserShopDetailData["removalPreview"];
 
 export type UserShopDetailRecruitment = {
   _id: string;
@@ -17,9 +16,3 @@ export type UserShopDetailRecruitment = {
   responseCount: number;
   totalStaffCount: number;
 };
-
-export type UserShopDetailDialog = {
-  kind: "removeMembership";
-  membership: UserShopDetailMembership;
-  requestId: string;
-} | null;

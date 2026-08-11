@@ -2,7 +2,7 @@ import type { GenericDatabaseReader } from "convex/server";
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { v } from "convex/values";
 import type { DataModel, Doc, Id } from "../_generated/dataModel";
-import { getFeatureVisibility } from "../_lib/config";
+import { getFeatureVisibility, isManagerInvitationEnabled } from "../_lib/config";
 import { todayJST } from "../_lib/dateFormat";
 import { authenticatedQuery, managerQuery } from "../_lib/functions";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
@@ -24,9 +24,16 @@ import {
   organizationShopOperatingStatusValidator,
 } from "../organization/validators";
 import { TRIAL_ENDING_REMINDER_LEAD_MS } from "../organizationBilling/notification";
-import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
+import {
+  deriveOrganizationBillingPolicy,
+  getEffectiveRestrictedBillingState,
+  ORGANIZATION_PLAN_LIMITS,
+  type OrganizationBillingState,
+  resolveRestrictedLimitPlan,
+} from "../organizationBilling/policy";
 import { getOrganizationBillingPolicy } from "../organizationBilling/service";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
+import { getStripeBillingConfiguration } from "../organizationStripe/config";
 
 const myShopValidator = v.object({
   shopId: v.id("shops"),
@@ -102,6 +109,63 @@ const currentUserValidator = v.union(
   }),
 );
 
+const dashboardPlanStatusActionValidator = v.object({
+  canManagePlan: v.boolean(),
+  canUpdatePaymentMethod: v.boolean(),
+});
+
+const dashboardPlanStatusValidator = v.union(
+  dashboardPlanStatusActionValidator.extend({
+    kind: v.literal("trial"),
+    trialEndsAt: v.number(),
+    selectedPaidPlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
+  }),
+  dashboardPlanStatusActionValidator.extend({
+    kind: v.literal("freePlan"),
+  }),
+  dashboardPlanStatusActionValidator.extend({
+    kind: v.literal("paidPlan"),
+    plan: v.union(v.literal("pro"), v.literal("business")),
+    isComplimentary: v.boolean(),
+    currentPeriodEndsAt: v.optional(v.number()),
+    scheduledChange: v.optional(
+      v.object({
+        targetPlan: v.union(v.literal("free"), v.literal("pro")),
+        effectiveAt: v.number(),
+      }),
+    ),
+  }),
+  dashboardPlanStatusActionValidator.extend({
+    kind: v.literal("paymentIssue"),
+    plan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
+    phase: v.union(v.literal("grace"), v.literal("restricted")),
+    recoveryDeadlineAt: v.optional(v.number()),
+  }),
+  dashboardPlanStatusActionValidator.extend({
+    kind: v.literal("paymentPending"),
+    currentPlan: v.union(v.literal("free"), v.literal("pro"), v.null()),
+    targetPlan: v.union(v.literal("pro"), v.literal("business")),
+  }),
+  dashboardPlanStatusActionValidator.extend({
+    kind: v.literal("restricted"),
+    displayPlan: v.union(v.literal("free"), v.literal("pro"), v.literal("business"), v.null()),
+  }),
+);
+
+type DashboardPlanStatus = typeof dashboardPlanStatusValidator.type;
+type DashboardPlanStatusActions = Pick<DashboardPlanStatus, "canManagePlan" | "canUpdatePaymentMethod">;
+
+const dashboardPlanUsageItemValidator = v.object({
+  current: v.number(),
+  max: v.number(),
+});
+
+const dashboardPlanUsageValidator = v.object({
+  peopleUsage: dashboardPlanUsageItemValidator,
+  shopUsage: dashboardPlanUsageItemValidator,
+  managerUsage: v.optional(dashboardPlanUsageItemValidator),
+});
+
 const dashboardShopValidator = v.object({
   name: v.string(),
   regularClosedDays: v.array(
@@ -118,6 +182,8 @@ const dashboardShopValidator = v.object({
   submissionPattern: submissionPatternValidator,
   canWriteBusinessData: v.boolean(),
   businessWriteBlockReason: v.union(v.literal("paymentResultPending"), v.literal("restricted"), v.null()),
+  // TODO[narrow]: planStatusを返すbackendが全deploymentへ反映され、旧frontend互換期間が終わった後にrequired化する。
+  planStatus: v.optional(v.union(dashboardPlanStatusValidator, v.null())),
   trialEndingNotice: v.union(
     v.object({
       visibleFrom: v.number(),
@@ -126,6 +192,161 @@ const dashboardShopValidator = v.object({
     v.null(),
   ),
 });
+
+function getDashboardPlanStatusActions(args: {
+  billingState: OrganizationBillingState;
+  organizationMember: Doc<"organizationMembers"> | null;
+  stripeCustomer: Doc<"organizationStripeCustomers"> | null;
+}): DashboardPlanStatusActions {
+  const configuration = getStripeBillingConfiguration();
+  const isActiveManager = args.organizationMember?.status === "active";
+  const restrictedState = getEffectiveRestrictedBillingState(args.billingState);
+  const isRecoveryManager = Boolean(
+    restrictedState &&
+      args.organizationMember &&
+      restrictedState.recoveryManagerPersonIds.includes(args.organizationMember.personId),
+  );
+  const canStartRestrictedRecovery = isRecoveryManager && args.billingState.kind === "restricted";
+  const stripeBillingAvailable = configuration.status === "ready";
+  const stripeCustomerMatchesConfiguration = Boolean(
+    configuration.status === "ready" && args.stripeCustomer?.livemode === configuration.livemode,
+  );
+  const canManagePlan = Boolean(
+    stripeBillingAvailable &&
+      args.billingState.kind !== "complimentary" &&
+      (canStartRestrictedRecovery ||
+        (isActiveManager &&
+          !restrictedState &&
+          args.billingState.kind !== "initialPaymentPending" &&
+          args.billingState.kind !== "pendingActivation")),
+  );
+  const canAccessCustomerPortal = Boolean(
+    canStartRestrictedRecovery ||
+      (isActiveManager &&
+        !restrictedState &&
+        ((args.billingState.kind === "trial" && args.billingState.selectedPaidPlan !== undefined) ||
+          args.billingState.kind === "scheduledChange" ||
+          args.billingState.kind === "grace" ||
+          (args.billingState.kind === "active" && args.billingState.plan !== "free"))),
+  );
+
+  return {
+    canManagePlan,
+    canUpdatePaymentMethod: Boolean(
+      stripeBillingAvailable &&
+        stripeCustomerMatchesConfiguration &&
+        args.billingState.kind !== "complimentary" &&
+        canAccessCustomerPortal,
+    ),
+  };
+}
+
+function getCurrentPeriodEndsAt(
+  subscription: Doc<"organizationStripeSubscriptions"> | null,
+  expectedPlan: "pro" | "business",
+) {
+  if (
+    !subscription ||
+    subscription.terminalAt !== undefined ||
+    subscription.currentPeriodEndsAt === undefined ||
+    subscription.plan !== expectedPlan
+  ) {
+    return undefined;
+  }
+  return subscription.currentPeriodEndsAt;
+}
+
+function toDashboardPlanStatus(args: {
+  billingState: OrganizationBillingState;
+  organizationMember: Doc<"organizationMembers"> | null;
+  stripeCustomer: Doc<"organizationStripeCustomers"> | null;
+  latestStripeSubscription: Doc<"organizationStripeSubscriptions"> | null;
+}): DashboardPlanStatus {
+  const actions = getDashboardPlanStatusActions(args);
+  const state = args.billingState;
+  const policy = deriveOrganizationBillingPolicy(state);
+
+  switch (state.kind) {
+    case "trial":
+      return {
+        ...actions,
+        kind: "trial",
+        trialEndsAt: state.trialEndsAt,
+        ...(state.selectedPaidPlan ? { selectedPaidPlan: state.selectedPaidPlan } : {}),
+      };
+    case "initialPaymentPending":
+      return {
+        ...actions,
+        kind: "paymentPending",
+        currentPlan: "pro",
+        targetPlan: state.plan,
+      };
+    case "pendingActivation":
+      return {
+        ...actions,
+        kind: "paymentPending",
+        currentPlan: state.fallback === "free" ? "free" : state.fallback === "pro" ? "pro" : null,
+        targetPlan: state.plan,
+      };
+    case "active": {
+      if (state.plan === "free") return { ...actions, kind: "freePlan" };
+      const activeCurrentPeriodEndsAt = getCurrentPeriodEndsAt(args.latestStripeSubscription, state.plan);
+      return {
+        ...actions,
+        kind: "paidPlan",
+        plan: state.plan,
+        isComplimentary: false,
+        ...(activeCurrentPeriodEndsAt !== undefined ? { currentPeriodEndsAt: activeCurrentPeriodEndsAt } : {}),
+      };
+    }
+    case "complimentary":
+      return {
+        ...actions,
+        kind: "paidPlan",
+        plan: "business",
+        isComplimentary: true,
+      };
+    case "scheduledChange": {
+      const scheduledCurrentPeriodEndsAt = getCurrentPeriodEndsAt(args.latestStripeSubscription, state.currentPlan);
+      return {
+        ...actions,
+        kind: "paidPlan",
+        plan: state.currentPlan,
+        isComplimentary: false,
+        ...(scheduledCurrentPeriodEndsAt !== undefined ? { currentPeriodEndsAt: scheduledCurrentPeriodEndsAt } : {}),
+        scheduledChange: { targetPlan: state.targetPlan, effectiveAt: state.effectiveAt },
+      };
+    }
+    case "grace":
+      return {
+        ...actions,
+        kind: "paymentIssue",
+        plan: state.plan,
+        phase: "grace",
+        recoveryDeadlineAt: state.endsAt,
+      };
+    case "restricted": {
+      const displayPlan = policy.displayPlan === "trial" ? null : policy.displayPlan;
+      if (
+        state.reason === "paymentGraceExpired" ||
+        state.reason === "paymentActivationFailed" ||
+        state.reason === "unexpectedCancellation"
+      ) {
+        return {
+          ...actions,
+          kind: "paymentIssue",
+          ...(displayPlan === "pro" || displayPlan === "business" ? { plan: displayPlan } : {}),
+          phase: "restricted",
+        };
+      }
+      return {
+        ...actions,
+        kind: "restricted",
+        displayPlan,
+      };
+    }
+  }
+}
 
 // shop未登録のsetup中や、ログアウト直後に購読中queryが未認証で再実行された場合でも
 // エラーログを出さないための空結果（queryはthrowせず空を返す規約）
@@ -301,7 +522,23 @@ export const getDashboardShop = managerQuery({
   handler: async (ctx) => {
     const shop = ctx.shop;
     if (!shop) return null;
-    const billingState = ctx.organization ? await getOrganizationBillingState(ctx, ctx.organization._id) : null;
+    const organizationId = ctx.organization?._id;
+    const billingState = organizationId ? await getOrganizationBillingState(ctx, organizationId) : null;
+    const billingFeatureVisible = getFeatureVisibility().billing;
+    const [stripeCustomer, latestStripeSubscription] =
+      billingFeatureVisible && organizationId
+        ? await Promise.all([
+            ctx.db
+              .query("organizationStripeCustomers")
+              .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+              .unique(),
+            ctx.db
+              .query("organizationStripeSubscriptions")
+              .withIndex("by_organizationId_and_providerGeneration", (q) => q.eq("organizationId", organizationId))
+              .order("desc")
+              .first(),
+          ])
+        : [null, null];
     const billingPolicy = billingState ? deriveOrganizationBillingPolicy(billingState.state) : null;
     const trialEndingNotice =
       billingState?.state.kind === "trial" && billingState.state.selectedPaidPlan === undefined
@@ -321,7 +558,54 @@ export const getDashboardShop = managerQuery({
       // 課金state未作成の移行中orgは、managerMutationの旧導線互換と同じく許可扱いにする。
       canWriteBusinessData: billingPolicy?.canWriteBusinessData ?? true,
       businessWriteBlockReason: billingPolicy?.businessWriteBlockReason ?? null,
+      planStatus:
+        billingFeatureVisible && billingState
+          ? toDashboardPlanStatus({
+              billingState: billingState.state,
+              organizationMember: ctx.organizationMember,
+              stripeCustomer,
+              latestStripeSubscription,
+            })
+          : null,
       trialEndingNotice,
+    };
+  },
+});
+
+export const getDashboardPlanUsage = managerQuery({
+  args: { now: v.number() },
+  returns: v.union(dashboardPlanUsageValidator, v.null()),
+  handler: async (ctx, args) => {
+    const organization = ctx.organization;
+    if (!organization || !getFeatureVisibility().billing) return null;
+
+    const billingState = await getOrganizationBillingState(ctx, organization._id);
+    if (!billingState) return null;
+
+    const policy = deriveOrganizationBillingPolicy(billingState.state);
+    const restrictedState = getEffectiveRestrictedBillingState(billingState.state);
+    const restrictedLimitPlan = restrictedState ? resolveRestrictedLimitPlan(restrictedState) : null;
+    const limits = policy.limits ?? (restrictedLimitPlan ? ORGANIZATION_PLAN_LIMITS[restrictedLimitPlan] : null);
+    if (!limits) return null;
+
+    const usage = await getOrganizationUsageSnapshot(ctx, organization._id, args.now);
+    return {
+      peopleUsage: {
+        current: usage.projectedPersonCount,
+        max: limits.maxPeople,
+      },
+      shopUsage: {
+        current: usage.activeShopCount,
+        max: limits.maxActiveShops,
+      },
+      ...(isManagerInvitationEnabled()
+        ? {
+            managerUsage: {
+              current: usage.projectedActiveManagerCount,
+              max: limits.maxActiveManagers,
+            },
+          }
+        : {}),
     };
   },
 });

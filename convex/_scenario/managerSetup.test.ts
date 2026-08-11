@@ -49,6 +49,7 @@ describe("管理者セットアップシナリオ", () => {
       businessWriteBlockReason: null,
       canWriteBusinessData: true,
       name: "初回セットアップ店舗",
+      planStatus: null,
       regularClosedDays: [],
       submissionPattern: { kind: "dateOnly" },
       trialEndingNotice: null,

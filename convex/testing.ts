@@ -939,6 +939,101 @@ async function createCanonicalOrganizationFixture(
   return { organizationId, ownerMemberId, ownerPersonId, shopId, userId };
 }
 
+/** 認証境界E2Eで使う、actor所有の管理者と1店舗だけの前提を作る。 */
+export const seedAuthenticatedManagerScenario = internalMutation({
+  args: {
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.optional(v.string()),
+  },
+  returns: v.object({ shopId: v.id("shops") }),
+  handler: async (ctx, args) => {
+    const { shopId } = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
+      shopName: "認証境界テスト店舗",
+    });
+    return { shopId };
+  },
+});
+
+/** 店舗追加・削除E2Eで使う、actor所有のBusiness組織と1店舗を作る。 */
+export const seedShopLifecycleScenario = internalMutation({
+  args: {
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.optional(v.string()),
+    organizationName: v.optional(v.string()),
+    shopName: v.optional(v.string()),
+  },
+  returns: v.object({
+    organizationId: v.id("organizations"),
+    shopId: v.id("shops"),
+    shopName: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const shopName = args.shopName ?? "店舗ライフサイクルテスト店舗";
+    const { organizationId, shopId } = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
+      organizationName: args.organizationName,
+      shopName,
+    });
+    return { organizationId, shopId, shopName };
+  },
+});
+
+/** 店舗詳細から所属スタッフを一括変更するE2Eの、actor単位で回収可能な前提を作る。 */
+export const seedShopStaffMembershipScenario = internalMutation({
+  args: {
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.optional(v.string()),
+  },
+  returns: v.object({
+    organizationId: v.id("organizations"),
+    contextShopId: v.id("shops"),
+    targetShopId: v.id("shops"),
+    targetShopName: v.string(),
+    additionCandidateName: v.string(),
+    existingTargetName: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const contextShopName = "所属変更コンテキスト店舗";
+    const targetShopName = "所属変更対象店舗";
+    const additionCandidateName = "追加候補スタッフ";
+    const existingTargetName = "既存所属スタッフ";
+    const fixture = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
+      organizationName: "所属変更テストグループ",
+      shopName: contextShopName,
+    });
+    const targetShopId = await createScenarioShop(ctx, {
+      organizationId: fixture.organizationId,
+      name: targetShopName,
+    });
+    await createScenarioStaff(ctx, {
+      organizationId: fixture.organizationId,
+      shopId: fixture.shopId,
+      name: additionCandidateName,
+      email: "membership-addition-candidate@example.com",
+    });
+    await createScenarioStaff(ctx, {
+      organizationId: fixture.organizationId,
+      shopId: targetShopId,
+      name: existingTargetName,
+      email: "membership-existing-target@example.com",
+    });
+
+    return {
+      organizationId: fixture.organizationId,
+      contextShopId: fixture.shopId,
+      targetShopId,
+      targetShopName,
+      additionCandidateName,
+      existingTargetName,
+    };
+  },
+});
+
 /** Free管理者交代と複数組織切替で共有する、actor単位で回収可能なE2E前提を作る。 */
 export const seedFreeManagerMultiOrganizationScenario = internalMutation({
   args: {

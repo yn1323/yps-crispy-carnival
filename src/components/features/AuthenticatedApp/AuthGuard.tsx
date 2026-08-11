@@ -151,9 +151,13 @@ export const AuthGuard = ({
   // ログアウト・セッション失効時は userAtom が残っていても必ずログインへ戻す。
   // （queryは未認証時にthrowせず空を返すため、エラー経由のリダイレクトは発生しない）
   if (isLoaded && !isSignedIn) {
-    return (
-      <Navigate to="/login" search={{ redirect: normalizeAuthRedirect(`${location.pathname}${location.searchStr}`) }} />
-    );
+    // 初回の保護route読込では、route validation中のstateから親routeのqueryが欠けることがある。
+    // client側の実URLを正として、店舗contextを含む元の遷移先を維持する。
+    const browserLocation =
+      typeof window === "undefined"
+        ? `${location.pathname}${location.searchStr}`
+        : `${window.location.pathname}${window.location.search}`;
+    return <Navigate to="/login" search={{ redirect: normalizeAuthRedirect(browserLocation) }} />;
   }
 
   // 古いatomやURLが残っていても、削除済み状態を通常画面より先に確定する。

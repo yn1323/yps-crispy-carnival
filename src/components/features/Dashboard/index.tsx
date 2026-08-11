@@ -1,5 +1,7 @@
+import { useNavigate } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
 import { DashboardContent, DashboardContentSkeleton } from "./DashboardContent";
+import { type DashboardPlanStatusSource, usePlanStatusCardController } from "./PlanStatusCard";
 
 type DashboardContentProps = ComponentProps<typeof DashboardContent>;
 
@@ -22,6 +24,7 @@ type Props = {
   focusedPersonId?: string;
   onVisibleUserCountChange?: (count: number) => void;
   operationContextData?: DashboardContentProps["operationContextData"];
+  planStatus?: DashboardPlanStatusSource | null;
   trialEndingNotice?: DashboardContentProps["trialEndingNotice"];
   billingSettingsShopId?: DashboardContentProps["billingSettingsShopId"];
   isBillingFeatureVisible?: DashboardContentProps["isBillingFeatureVisible"];
@@ -36,10 +39,23 @@ export function Dashboard({
   focusedPersonId,
   onVisibleUserCountChange,
   operationContextData,
+  planStatus,
   trialEndingNotice,
   billingSettingsShopId,
   isBillingFeatureVisible,
 }: Props) {
+  const navigate = useNavigate();
+  const planStatusCard = usePlanStatusCardController({
+    planStatus,
+    shopId: billingSettingsShopId,
+    enabled: Boolean(isBillingFeatureVisible),
+    onOpenBillingSettings: () =>
+      void navigate({
+        to: "/settings",
+        search: { ...(billingSettingsShopId ? { shop: billingSettingsShopId } : {}), tab: "billing" },
+      }),
+  });
+
   return (
     <DashboardContent
       shop={shop}
@@ -48,6 +64,7 @@ export function Dashboard({
       focusedPersonId={focusedPersonId}
       onVisibleUserCountChange={onVisibleUserCountChange}
       operationContextData={operationContextData}
+      planStatusCard={planStatusCard}
       trialEndingNotice={trialEndingNotice}
       billingSettingsShopId={billingSettingsShopId}
       isBillingFeatureVisible={isBillingFeatureVisible}

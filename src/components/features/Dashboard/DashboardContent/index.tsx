@@ -7,6 +7,7 @@ import { LegalReconsent } from "../LegalReconsent";
 import type { DashboardNotificationFailure } from "../NotificationFailureDialog";
 import { NotificationFailureRecovery } from "../NotificationFailureRecovery";
 import { OperationContext, type OperationContextData, OperationContextSkeleton } from "../OperationContext";
+import { PlanStatusCard, type PlanStatusCardProps } from "../PlanStatusCard";
 import { RecruitmentBoardSkeleton } from "../RecruitmentBoard";
 import { RecruitmentManagement, type RecruitmentManagementData } from "../RecruitmentManagement";
 import { Setup } from "../Setup";
@@ -62,6 +63,7 @@ type Props = {
   showAccountDeletion?: boolean;
   announcement?: DashboardAnnouncementData | null;
   operationContextData?: OperationContextData;
+  planStatusCard?: PlanStatusCardProps | null;
   trialEndingNotice?: TrialEndingNoticeData | null;
   billingSettingsShopId?: string;
   isBillingFeatureVisible?: boolean;
@@ -95,6 +97,7 @@ export const DashboardContent = ({
   showAccountDeletion = false,
   announcement,
   operationContextData,
+  planStatusCard,
   trialEndingNotice,
   billingSettingsShopId,
   isBillingFeatureVisible = false,
@@ -187,13 +190,20 @@ export const DashboardContent = ({
                                     <Stack gap={{ base: 4, lg: 6 }}>
                                       <OperationContext data={operationContextData} />
                                       <LegalReconsent status={managerLegalConsentStatus} />
-                                      {billingSettingsShopId && (
-                                        <TrialEndingCallout
-                                          notice={trialEndingNotice ?? null}
-                                          shopId={billingSettingsShopId}
-                                          isBillingVisible={isBillingFeatureVisible}
+                                      {isBillingFeatureVisible && planStatusCard ? (
+                                        <PlanStatusCard
+                                          key={billingSettingsShopId ?? "plan-status"}
+                                          {...planStatusCard}
                                         />
-                                      )}
+                                      ) : isBillingFeatureVisible && planStatusCard === undefined ? (
+                                        billingSettingsShopId ? (
+                                          <TrialEndingCallout
+                                            notice={trialEndingNotice ?? null}
+                                            shopId={billingSettingsShopId}
+                                            isBillingVisible={isBillingFeatureVisible}
+                                          />
+                                        ) : null
+                                      ) : null}
                                       <HeroSummary
                                         recruitments={recruitment.recruitments}
                                         onOpenShiftBoard={(recruitmentId) =>

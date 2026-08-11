@@ -9,7 +9,15 @@ export const E2E_BURN_IN_PHASES = new Map([
       projectName: "desktop-chromium",
       setupCount: 3,
       repetitions: 10,
-      contractIds: ["E2E-AUTH-01", "E2E-SETUP-01", "E2E-SHIFT-01", "E2E-TENANT-01"],
+      contractIds: [
+        "E2E-AUTH-01",
+        "E2E-AUTH-02",
+        "E2E-SETUP-01",
+        "E2E-SHIFT-01",
+        "E2E-TENANT-01",
+        "E2E-MEMBERSHIP-01",
+        "E2E-SHOP-01",
+      ],
     },
   ],
   [

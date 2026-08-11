@@ -110,7 +110,6 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.12.1",
     "@biomejs/biome": "catalog:",
     "@clerk/testing": "2.2.10",
     "@edge-runtime/vm": "^5.0.0",

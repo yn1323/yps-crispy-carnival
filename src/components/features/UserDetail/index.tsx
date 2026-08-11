@@ -46,7 +46,7 @@ export function UserDetail({
 
   const profile = useUserProfileUpdate({ data, selectedShopId });
   const membership = useUserMembershipActions({
-    canAddMembership: data.canWrite && showShopMembershipAddition,
+    canChangeMembership: data.canWrite && showShopMembershipAddition,
   });
   const manager = useUserManagerActions({
     data,
@@ -104,8 +104,7 @@ export function UserDetail({
       state={{
         isUpdatingProfile: profile.isUpdating,
         membership: {
-          isAdding: membership.isAddingMembership,
-          addingShopId: membership.addingShopId,
+          isChanging: membership.isChangingMemberships,
         },
         manager: {
           dialog: manager.dialog,
@@ -140,11 +139,11 @@ export function UserDetail({
             handleClosePanel();
           }
         },
-        onAddMembership: async (shopId) => {
+        onChangeMemberships: async (input) => {
           if (!showShopMembershipAdditionRef.current) return;
           const personId = data.person.id;
-          const added = await membership.onAddMembership(data.person.id, shopId);
-          if (added && activePanelRef.current === "addShop" && visiblePersonIdRef.current === personId) {
+          const changed = await membership.onChangeMemberships(personId, input);
+          if (changed && activePanelRef.current === "addShop" && visiblePersonIdRef.current === personId) {
             handleClosePanel();
           }
         },

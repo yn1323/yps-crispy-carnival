@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
@@ -11,18 +11,24 @@ import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { getConvexErrorMessage } from "@/src/lib/convex/error";
 import type { AddStaffFormData } from "../AddStaffForm";
-import type { StaffInvitationTab } from "./StaffInvitationDialog";
+import type { StaffInvitationMethod } from "./StaffInvitationDialog";
 
 export function useStaffInvitation(isReadOnly = false, showOrganizationPeopleAddition = false) {
   const isReadOnlyRef = useRef(isReadOnly);
   const showOrganizationPeopleAdditionRef = useRef(showOrganizationPeopleAddition);
   const invitationMutationInFlightRef = useRef(false);
+  const dialogSessionRef = useRef(0);
+  const isDialogOpenRef = useRef(false);
+  const registrationUrlRef = useRef<string | null>(null);
+  const registrationUrlLoadSessionRef = useRef<number | null>(null);
   isReadOnlyRef.current = isReadOnly;
   showOrganizationPeopleAdditionRef.current = showOrganizationPeopleAddition;
   const dialog = useDialog();
   const reactivationDialog = useDialog();
-  const [activeTab, setActiveTab] = useState<StaffInvitationTab>("link");
+  const [selectedMethod, setSelectedMethod] = useState<StaffInvitationMethod | null>(null);
   const [registrationUrl, setRegistrationUrl] = useState<string | null>(null);
+  const [registrationUrlError, setRegistrationUrlError] = useState(false);
+  const [isRegistrationUrlLoading, setIsRegistrationUrlLoading] = useState(false);
   const [peopleCapacityResolution, setPeopleCapacityResolution] = useState<PeopleCapacityResolution | null>(null);
   const [addingOrganizationPersonId, setAddingOrganizationPersonId] = useState<Id<"organizationPeople"> | null>(null);
   const [pendingReactivation, setPendingReactivation] = useState<{
@@ -38,20 +44,30 @@ export function useStaffInvitation(isReadOnly = false, showOrganizationPeopleAdd
   const addOrganizationPersonToShop = useShopMutation(api.staff.mutations.addOrganizationPersonToShop);
   const ensureShopRegistrationLink = useShopMutation(api.staffRegistration.mutations.ensureShopRegistrationLink);
 
+  const closeDialogSession = useCallback(() => {
+    dialogSessionRef.current += 1;
+    isDialogOpenRef.current = false;
+    registrationUrlLoadSessionRef.current = null;
+    registrationUrlRef.current = null;
+    setSelectedMethod(null);
+    setRegistrationUrl(null);
+    setRegistrationUrlError(false);
+    setIsRegistrationUrlLoading(false);
+    dialog.close();
+  }, [dialog.close]);
+
   useEffect(() => {
     if (!isReadOnly) return;
-    dialog.close();
+    closeDialogSession();
     reactivationDialog.close();
-    setActiveTab("link");
-    setRegistrationUrl(null);
     setPeopleCapacityResolution(null);
     setAddingOrganizationPersonId(null);
     setPendingReactivation(null);
-  }, [dialog.close, isReadOnly, reactivationDialog.close]);
+  }, [closeDialogSession, isReadOnly, reactivationDialog.close]);
 
   useEffect(() => {
     if (showOrganizationPeopleAddition) return;
-    setActiveTab((current) => (current === "organization" ? "link" : current));
+    setSelectedMethod((current) => (current === "organization" ? null : current));
     setAddingOrganizationPersonId(null);
   }, [showOrganizationPeopleAddition]);
 
@@ -67,7 +83,7 @@ export function useStaffInvitation(isReadOnly = false, showOrganizationPeopleAdd
         reactivationDialog.open();
         return;
       }
-      dialog.close();
+      closeDialogSession();
       showSuccessToast({
         title: "スタッフを追加し、案内通知を送りました",
         description:
@@ -100,7 +116,7 @@ export function useStaffInvitation(isReadOnly = false, showOrganizationPeopleAdd
         throw new Error("確認対象が変わりました。\n追加内容をもう一度確認してください。");
       }
       reactivationDialog.close();
-      dialog.close();
+      closeDialogSession();
       setPendingReactivation(null);
       showSuccessToast({
         title: "スタッフを再追加し、案内通知を送りました",
@@ -119,17 +135,74 @@ export function useStaffInvitation(isReadOnly = false, showOrganizationPeopleAdd
     }
   });
 
-  const { run: loadRegistrationUrl, isRunning: isRegistrationUrlLoading } = useSingleFlight(async () => {
-    if (isReadOnlyRef.current) return;
-    try {
-      const result = await ensureShopRegistrationLink({});
-      if (isReadOnlyRef.current) return;
-      setRegistrationUrl(result.registrationUrl);
-    } catch (error) {
-      if (isReadOnlyRef.current) return;
-      showErrorToast(error);
+  const loadRegistrationUrlForSession = useCallback(
+    async (sessionId: number) => {
+      if (
+        isReadOnlyRef.current ||
+        !isDialogOpenRef.current ||
+        dialogSessionRef.current !== sessionId ||
+        registrationUrlRef.current ||
+        registrationUrlLoadSessionRef.current === sessionId
+      ) {
+        return;
+      }
+
+      registrationUrlLoadSessionRef.current = sessionId;
+      setRegistrationUrlError(false);
+      setIsRegistrationUrlLoading(true);
+
+      const isCurrentSession = () =>
+        !isReadOnlyRef.current && isDialogOpenRef.current && dialogSessionRef.current === sessionId;
+
+      try {
+        const result = await ensureShopRegistrationLink({});
+        if (!isCurrentSession()) return;
+        registrationUrlRef.current = result.registrationUrl;
+        setRegistrationUrl(result.registrationUrl);
+        setRegistrationUrlError(false);
+      } catch {
+        if (!isCurrentSession()) return;
+        registrationUrlRef.current = null;
+        setRegistrationUrl(null);
+        setRegistrationUrlError(true);
+      } finally {
+        if (registrationUrlLoadSessionRef.current === sessionId) {
+          registrationUrlLoadSessionRef.current = null;
+          if (isCurrentSession()) setIsRegistrationUrlLoading(false);
+        }
+      }
+    },
+    [ensureShopRegistrationLink],
+  );
+
+  const handleSelectMethod = (method: StaffInvitationMethod) => {
+    if (isReadOnlyRef.current || !isDialogOpenRef.current || invitationMutationInFlightRef.current) return;
+    if (method === "organization" && !showOrganizationPeopleAdditionRef.current) return;
+
+    setPeopleCapacityResolution(null);
+    setSelectedMethod(method);
+    if (method === "link" && !registrationUrlRef.current) {
+      void loadRegistrationUrlForSession(dialogSessionRef.current);
     }
-  });
+  };
+
+  const handleBackToMethods = () => {
+    if (isReadOnlyRef.current || !isDialogOpenRef.current || invitationMutationInFlightRef.current) return;
+    setPeopleCapacityResolution(null);
+    setSelectedMethod(null);
+  };
+
+  const handleRetryRegistrationUrl = () => {
+    if (
+      isReadOnlyRef.current ||
+      !isDialogOpenRef.current ||
+      selectedMethod !== "link" ||
+      invitationMutationInFlightRef.current
+    ) {
+      return;
+    }
+    void loadRegistrationUrlForSession(dialogSessionRef.current);
+  };
 
   const { run: handleAddOrganizationPerson, isRunning: isAddingOrganizationPerson } = useSingleFlight(
     async (personId: Id<"organizationPeople">) => {
@@ -141,7 +214,7 @@ export function useStaffInvitation(isReadOnly = false, showOrganizationPeopleAdd
       try {
         await addOrganizationPersonToShop({ personId, requestId: crypto.randomUUID() });
         if (isReadOnlyRef.current || !showOrganizationPeopleAdditionRef.current) return;
-        dialog.close();
+        closeDialogSession();
         showSuccessToast({
           title: "スタッフを追加しました",
           description: "この店舗のスタッフとして追加しました。",
@@ -157,19 +230,24 @@ export function useStaffInvitation(isReadOnly = false, showOrganizationPeopleAdd
 
   const handleOpen = () => {
     if (isReadOnlyRef.current || invitationMutationInFlightRef.current) return;
-    setActiveTab("link");
+    dialogSessionRef.current += 1;
+    isDialogOpenRef.current = true;
+    registrationUrlLoadSessionRef.current = null;
+    registrationUrlRef.current = null;
+    setSelectedMethod(null);
     setRegistrationUrl(null);
+    setRegistrationUrlError(false);
+    setIsRegistrationUrlLoading(false);
     setPeopleCapacityResolution(null);
     setAddingOrganizationPersonId(null);
     setPendingReactivation(null);
     reactivationDialog.close();
     dialog.open();
-    void loadRegistrationUrl();
   };
 
   const handleClose = () => {
     if (reactivationDialog.isOpen || invitationMutationInFlightRef.current) return;
-    dialog.close();
+    closeDialogSession();
   };
 
   return {
@@ -183,9 +261,10 @@ export function useStaffInvitation(isReadOnly = false, showOrganizationPeopleAdd
         handleClose();
       },
     },
-    activeTab,
+    selectedMethod,
     showOrganizationPeopleAddition,
     registrationUrl,
+    registrationUrlError,
     peopleCapacityResolution,
     isRegistrationUrlLoading,
     isAddingStaffs,
@@ -193,12 +272,9 @@ export function useStaffInvitation(isReadOnly = false, showOrganizationPeopleAdd
     isAddingOrganizationPerson,
     onOpen: handleOpen,
     onClose: handleClose,
-    onTabChange: (tab: StaffInvitationTab) => {
-      if (isReadOnlyRef.current || invitationMutationInFlightRef.current) return;
-      if (tab === "organization" && !showOrganizationPeopleAdditionRef.current) return;
-      setPeopleCapacityResolution(null);
-      setActiveTab(tab);
-    },
+    onSelectMethod: handleSelectMethod,
+    onBackToMethods: handleBackToMethods,
+    onRetryRegistrationUrl: handleRetryRegistrationUrl,
     onAddStaffs: handleAddStaffs,
     onAddOrganizationPerson: handleAddOrganizationPerson,
     reactivationConfirmation: {

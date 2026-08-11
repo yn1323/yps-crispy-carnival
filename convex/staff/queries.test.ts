@@ -1,8 +1,54 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import { seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT } from "../constants";
+
+type TestMutationCtx = Parameters<typeof seedOrganizationManagerShop>[0];
+
+async function insertOrganizationPerson(
+  ctx: TestMutationCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    name: string;
+    email: string;
+    status?: "active" | "removed";
+  },
+) {
+  const now = Date.now();
+  return await ctx.db.insert("organizationPeople", {
+    organizationId: args.organizationId,
+    name: args.name,
+    email: args.email,
+    emailNormalized: args.email.trim().toLowerCase(),
+    status: args.status ?? "active",
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+async function insertCanonicalStaff(
+  ctx: TestMutationCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    personId: Id<"organizationPeople">;
+    shopId: Id<"shops">;
+    name: string;
+    email: string;
+  },
+) {
+  return await ctx.db.insert("staffs", {
+    organizationId: args.organizationId,
+    organizationPersonId: args.personId,
+    shopId: args.shopId,
+    name: args.name,
+    email: args.email,
+    emailNormalized: args.email.trim().toLowerCase(),
+    isDeleted: false,
+  });
+}
 
 describe("staff/queries", () => {
   describe("listOrganizationPeopleAvailableForShop", () => {
@@ -271,6 +317,585 @@ describe("staff/queries", () => {
           .withIdentity({ subject: "many_candidate_manager" })
           .query(api.staff.queries.listOrganizationPeopleAvailableForShop, { shopId: seeded.shopId }),
       ).resolves.toBeNull();
+    });
+  });
+
+  describe("getOrganizationShopStaffMembershipChange", () => {
+    it("人物・現在所属・他店舗・変更不可の旧rowと承認待ちを安定したDTOで返す", async () => {
+      const t = convexTest(schema, modules);
+      const seeded = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "shop_staff_membership_manager",
+          email: "manager@example.com",
+          shopName: "本店",
+          plan: "business",
+        });
+        const otherShopId = await ctx.db.insert("shops", {
+          organizationId: base.organizationId,
+          operatingStatus: "active",
+          name: "2号店",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        });
+        const currentPersonId = await insertOrganizationPerson(ctx, {
+          organizationId: base.organizationId,
+          name: "A現在所属",
+          email: "current@example.com",
+        });
+        const currentStaffId = await insertCanonicalStaff(ctx, {
+          organizationId: base.organizationId,
+          personId: currentPersonId,
+          shopId: base.shopId,
+          name: "店舗側表示名",
+          email: "current@example.com",
+        });
+        const legacyPersonId = await insertOrganizationPerson(ctx, {
+          organizationId: base.organizationId,
+          name: "B移行待ち",
+          email: "Legacy@Example.com",
+        });
+        const otherPersonId = await insertOrganizationPerson(ctx, {
+          organizationId: base.organizationId,
+          name: "C他店舗所属",
+          email: "other@example.com",
+        });
+        await insertCanonicalStaff(ctx, {
+          organizationId: base.organizationId,
+          personId: otherPersonId,
+          shopId: otherShopId,
+          name: "2号店表示名",
+          email: "other@example.com",
+        });
+        const pendingPersonId = await insertOrganizationPerson(ctx, {
+          organizationId: base.organizationId,
+          name: "D承認待ち",
+          email: "pending@example.com",
+        });
+        await insertOrganizationPerson(ctx, {
+          organizationId: base.organizationId,
+          name: "削除済み人物",
+          email: "removed@example.com",
+          status: "removed",
+        });
+        const now = Date.now();
+        await ctx.db.insert("staffRegistrationRequests", {
+          shopId: base.shopId,
+          name: "D承認待ち",
+          email: "pending@example.com",
+          emailNormalized: "pending@example.com",
+          status: "pending",
+          termsConsentVersion: "terms-v1",
+          privacyConsentVersion: "privacy-v1",
+          termsDocumentVersion: "terms-doc-v1",
+          privacyDocumentVersion: "privacy-doc-v1",
+          consentedAt: now,
+          createdAt: now,
+        });
+        const legacyStaffId = await ctx.db.insert("staffs", {
+          shopId: base.shopId,
+          name: "移行待ちスタッフ",
+          email: "legacy@example.com",
+          isDeleted: false,
+        });
+        const preservedStaffId = await ctx.db.insert("staffs", {
+          shopId: base.shopId,
+          name: "旧スタッフ",
+          email: "orphan@example.com",
+          isDeleted: false,
+        });
+        return {
+          ...base,
+          currentPersonId,
+          currentStaffId,
+          legacyPersonId,
+          otherPersonId,
+          pendingPersonId,
+          legacyStaffId,
+          preservedStaffId,
+        };
+      });
+
+      const result = await t
+        .withIdentity({ subject: "shop_staff_membership_manager" })
+        .query(api.staff.queries.getOrganizationShopStaffMembershipChange, { shopId: seeded.shopId });
+
+      expect(result).toEqual({
+        membershipFingerprint: expect.stringMatching(/^[0-9a-f]{64}$/),
+        canWrite: true,
+        writeDisabledReason: null,
+        people: [
+          {
+            personId: seeded.currentPersonId,
+            name: "A現在所属",
+            email: "current@example.com",
+            isManager: false,
+            otherShopNames: [],
+            isSelected: true,
+            staffId: seeded.currentStaffId,
+            canChange: true,
+            changeDisabledReason: null,
+          },
+          {
+            personId: seeded.personId,
+            name: "管理者",
+            email: "manager@example.com",
+            isManager: true,
+            otherShopNames: [],
+            isSelected: false,
+            staffId: null,
+            canChange: true,
+            changeDisabledReason: null,
+          },
+          {
+            personId: seeded.legacyPersonId,
+            name: "B移行待ち",
+            email: "Legacy@Example.com",
+            isManager: false,
+            otherShopNames: [],
+            isSelected: false,
+            staffId: null,
+            canChange: false,
+            changeDisabledReason: "移行中のスタッフと同じメールアドレスのため、所属を変更できません。",
+          },
+          {
+            personId: seeded.otherPersonId,
+            name: "C他店舗所属",
+            email: "other@example.com",
+            isManager: false,
+            otherShopNames: ["2号店"],
+            isSelected: false,
+            staffId: null,
+            canChange: true,
+            changeDisabledReason: null,
+          },
+          {
+            personId: seeded.pendingPersonId,
+            name: "D承認待ち",
+            email: "pending@example.com",
+            isManager: false,
+            otherShopNames: [],
+            isSelected: false,
+            staffId: null,
+            canChange: false,
+            changeDisabledReason: "スタッフ登録の承認待ちのため、所属を変更できません。",
+          },
+        ],
+        preservedStaffs: [
+          {
+            staffId: seeded.legacyStaffId,
+            name: "移行待ちスタッフ",
+            email: "legacy@example.com",
+            changeDisabledReason: "移行中のスタッフは、この画面では所属を変更できません。",
+          },
+          {
+            staffId: seeded.preservedStaffId,
+            name: "旧スタッフ",
+            email: "orphan@example.com",
+            changeDisabledReason: "移行中のスタッフは、この画面では所属を変更できません。",
+          },
+        ],
+      });
+    });
+
+    it("別人物のcanonical staffとメールが衝突する候補を変更不可にする", async () => {
+      const t = convexTest(schema, modules);
+      const seeded = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "shop_staff_email_conflict_manager",
+          plan: "business",
+        });
+        const ownerPersonId = await insertOrganizationPerson(ctx, {
+          organizationId: base.organizationId,
+          name: "既存スタッフ人物",
+          email: "owner-person@example.com",
+        });
+        await insertCanonicalStaff(ctx, {
+          organizationId: base.organizationId,
+          personId: ownerPersonId,
+          shopId: base.shopId,
+          name: "既存スタッフ",
+          email: "conflicting-staff@example.com",
+        });
+        const candidatePersonId = await insertOrganizationPerson(ctx, {
+          organizationId: base.organizationId,
+          name: "衝突する候補",
+          email: "conflicting-staff@example.com",
+        });
+        return { ...base, candidatePersonId };
+      });
+
+      const result = await t
+        .withIdentity({ subject: "shop_staff_email_conflict_manager" })
+        .query(api.staff.queries.getOrganizationShopStaffMembershipChange, { shopId: seeded.shopId });
+
+      expect(result?.people.find((person) => person.personId === seeded.candidatePersonId)).toMatchObject({
+        isSelected: false,
+        canChange: false,
+        changeDisabledReason: "同じメールアドレスのスタッフがこの店舗に所属しているため、変更できません。",
+      });
+    });
+
+    it("未認証・別組織のroute shopではsnapshotを返さない", async () => {
+      const t = convexTest(schema, modules);
+      const seeded = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "snapshot_scope_manager",
+          plan: "business",
+        });
+        const foreign = await seedOrganizationManagerShop(ctx, {
+          subject: "snapshot_foreign_manager",
+          plan: "business",
+        });
+        return { ...base, foreignShopId: foreign.shopId };
+      });
+
+      await expect(
+        t.query(api.staff.queries.getOrganizationShopStaffMembershipChange, { shopId: seeded.shopId }),
+      ).resolves.toBeNull();
+      await expect(
+        t
+          .withIdentity({ subject: "snapshot_scope_manager" })
+          .query(api.staff.queries.getOrganizationShopStaffMembershipChange, { shopId: seeded.foreignShopId }),
+      ).resolves.toBeNull();
+    });
+
+    it("閲覧専用actorにはsnapshotを返しつつ書き込み不可を明示する", async () => {
+      const t = convexTest(schema, modules);
+      const seeded = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "snapshot_readonly_manager",
+          plan: "business",
+        });
+        await ctx.db.patch(base.memberId, { status: "readOnly" });
+        return base;
+      });
+
+      const result = await t
+        .withIdentity({ subject: "snapshot_readonly_manager" })
+        .query(api.staff.queries.getOrganizationShopStaffMembershipChange, { shopId: seeded.shopId });
+
+      expect(result).toMatchObject({
+        canWrite: false,
+        writeDisabledReason: "閲覧のみの管理者は、スタッフの所属を変更できません。",
+      });
+    });
+
+    it("片欠け・別組織人物・削除人物・canonical重複では部分snapshotを返さない", async () => {
+      const t = convexTest(schema, modules);
+      const seeded = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "snapshot_corrupt_manager",
+          plan: "business",
+        });
+        const foreign = await seedOrganizationManagerShop(ctx, {
+          subject: "snapshot_corrupt_foreign",
+          plan: "business",
+        });
+        const removedPersonId = await insertOrganizationPerson(ctx, {
+          organizationId: base.organizationId,
+          name: "削除済み",
+          email: "snapshot-removed@example.com",
+          status: "removed",
+        });
+        const duplicatePersonId = await insertOrganizationPerson(ctx, {
+          organizationId: base.organizationId,
+          name: "重複人物",
+          email: "snapshot-duplicate@example.com",
+        });
+        return { ...base, foreignPersonId: foreign.personId, removedPersonId, duplicatePersonId };
+      });
+      const actor = t.withIdentity({ subject: "snapshot_corrupt_manager" });
+      const query = async () =>
+        await actor.query(api.staff.queries.getOrganizationShopStaffMembershipChange, { shopId: seeded.shopId });
+
+      const partialId = await t.run(
+        async (ctx) =>
+          await ctx.db.insert("staffs", {
+            organizationId: seeded.organizationId,
+            shopId: seeded.shopId,
+            name: "片欠け",
+            email: "partial@example.com",
+            isDeleted: false,
+          }),
+      );
+      await expect(query()).resolves.toBeNull();
+      await t.run(async (ctx) => await ctx.db.delete(partialId));
+
+      const foreignId = await t.run(
+        async (ctx) =>
+          await ctx.db.insert("staffs", {
+            organizationId: seeded.organizationId,
+            organizationPersonId: seeded.foreignPersonId,
+            shopId: seeded.shopId,
+            name: "別組織人物",
+            email: "foreign-person@example.com",
+            isDeleted: false,
+          }),
+      );
+      await expect(query()).resolves.toBeNull();
+      await t.run(async (ctx) => await ctx.db.delete(foreignId));
+
+      const removedId = await t.run(
+        async (ctx) =>
+          await ctx.db.insert("staffs", {
+            organizationId: seeded.organizationId,
+            organizationPersonId: seeded.removedPersonId,
+            shopId: seeded.shopId,
+            name: "削除済み人物staff",
+            email: "snapshot-removed@example.com",
+            isDeleted: false,
+          }),
+      );
+      await expect(query()).resolves.toBeNull();
+      await t.run(async (ctx) => await ctx.db.delete(removedId));
+
+      await t.run(async (ctx) => {
+        await insertCanonicalStaff(ctx, {
+          organizationId: seeded.organizationId,
+          personId: seeded.duplicatePersonId,
+          shopId: seeded.shopId,
+          name: "重複1",
+          email: "snapshot-duplicate@example.com",
+        });
+        await insertCanonicalStaff(ctx, {
+          organizationId: seeded.organizationId,
+          personId: seeded.duplicatePersonId,
+          shopId: seeded.shopId,
+          name: "重複2",
+          email: "snapshot-duplicate@example.com",
+        });
+      });
+      await expect(query()).resolves.toBeNull();
+    });
+  });
+
+  describe("previewOrganizationShopStaffMembershipRemovals", () => {
+    it("解除対象だけの未来割当件数とfingerprintをまとめて返す", async () => {
+      const t = convexTest(schema, modules);
+      const now = Date.parse("2098-12-31T15:00:00.000Z");
+      const seeded = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "removal_preview_manager",
+          plan: "business",
+        });
+        const firstPersonId = await insertOrganizationPerson(ctx, {
+          organizationId: base.organizationId,
+          name: "解除A",
+          email: "remove-a@example.com",
+        });
+        const secondPersonId = await insertOrganizationPerson(ctx, {
+          organizationId: base.organizationId,
+          name: "解除B",
+          email: "remove-b@example.com",
+        });
+        const firstStaffId = await insertCanonicalStaff(ctx, {
+          organizationId: base.organizationId,
+          personId: firstPersonId,
+          shopId: base.shopId,
+          name: "解除A",
+          email: "remove-a@example.com",
+        });
+        const secondStaffId = await insertCanonicalStaff(ctx, {
+          organizationId: base.organizationId,
+          personId: secondPersonId,
+          shopId: base.shopId,
+          name: "解除B",
+          email: "remove-b@example.com",
+        });
+        const positionId = await ctx.db.insert("positions", {
+          shopId: base.shopId,
+          name: "通常",
+          color: "#000000",
+          sortOrder: 0,
+          isDeleted: false,
+        });
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          shopId: base.shopId,
+          periodStart: "2098-12-31",
+          periodEnd: "2099-01-31",
+          deadline: "2098-12-30",
+          shopClosedDates: [],
+          status: "confirmed",
+          confirmedAt: now,
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        for (const assignment of [
+          { staffId: firstStaffId, date: "2098-12-31" },
+          { staffId: firstStaffId, date: "2099-01-01" },
+          { staffId: secondStaffId, date: "2099-01-02" },
+          { staffId: secondStaffId, date: "2099-01-03" },
+        ]) {
+          await ctx.db.insert("shiftAssignments", {
+            recruitmentId,
+            ...assignment,
+            startTime: "10:00",
+            endTime: "18:00",
+            positionId,
+          });
+        }
+        return { ...base, firstPersonId, firstStaffId, secondPersonId, secondStaffId };
+      });
+      const actor = t.withIdentity({ subject: "removal_preview_manager" });
+      const snapshot = await actor.query(api.staff.queries.getOrganizationShopStaffMembershipChange, {
+        shopId: seeded.shopId,
+      });
+      if (!snapshot) throw new Error("snapshot not found");
+
+      const preview = await actor.query(api.staff.queries.previewOrganizationShopStaffMembershipRemovals, {
+        shopId: seeded.shopId,
+        personIds: [seeded.secondPersonId, seeded.firstPersonId],
+        expectedMembershipFingerprint: snapshot.membershipFingerprint,
+        now,
+      });
+
+      expect(preview).toMatchObject({ kind: "ready", totalAssignmentCount: 3 });
+      if (preview?.kind !== "ready") throw new Error("ready preview not found");
+      expect(preview.removals.map(({ personId }) => personId)).toEqual(
+        [seeded.firstPersonId, seeded.secondPersonId].sort((left, right) => left.localeCompare(right)),
+      );
+      expect(preview.removals).toEqual(
+        expect.arrayContaining([
+          {
+            personId: seeded.firstPersonId,
+            staffId: seeded.firstStaffId,
+            assignmentCount: 1,
+            fingerprint: expect.stringMatching(/^[0-9a-f]{64}$/),
+          },
+          {
+            personId: seeded.secondPersonId,
+            staffId: seeded.secondStaffId,
+            assignmentCount: 2,
+            fingerprint: expect.stringMatching(/^[0-9a-f]{64}$/),
+          },
+        ]),
+      );
+    });
+
+    it("snapshot更新・対象重複を拒否する", async () => {
+      const t = convexTest(schema, modules);
+      const seeded = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "removal_preview_stale_manager",
+          plan: "business",
+        });
+        const personId = await insertOrganizationPerson(ctx, {
+          organizationId: base.organizationId,
+          name: "解除対象",
+          email: "stale-remove@example.com",
+        });
+        await insertCanonicalStaff(ctx, {
+          organizationId: base.organizationId,
+          personId,
+          shopId: base.shopId,
+          name: "解除対象",
+          email: "stale-remove@example.com",
+        });
+        return { ...base, targetPersonId: personId };
+      });
+      const actor = t.withIdentity({ subject: "removal_preview_stale_manager" });
+      const snapshot = await actor.query(api.staff.queries.getOrganizationShopStaffMembershipChange, {
+        shopId: seeded.shopId,
+      });
+      if (!snapshot) throw new Error("snapshot not found");
+
+      await expect(
+        actor.query(api.staff.queries.previewOrganizationShopStaffMembershipRemovals, {
+          shopId: seeded.shopId,
+          personIds: [seeded.targetPersonId, seeded.targetPersonId],
+          expectedMembershipFingerprint: snapshot.membershipFingerprint,
+          now: Date.now(),
+        }),
+      ).rejects.toThrow("入力内容を確認してください");
+
+      await t.run(async (ctx) => await ctx.db.patch(seeded.targetPersonId, { name: "更新後" }));
+      await expect(
+        actor.query(api.staff.queries.previewOrganizationShopStaffMembershipRemovals, {
+          shopId: seeded.shopId,
+          personIds: [seeded.targetPersonId],
+          expectedMembershipFingerprint: snapshot.membershipFingerprint,
+          now: Date.now(),
+        }),
+      ).rejects.toThrow("店舗所属が変更されています");
+    });
+
+    it("未来割当が解除対象全体で上限を超える場合は部分previewを返さない", async () => {
+      const t = convexTest(schema, modules);
+      const now = Date.parse("2098-12-31T15:00:00.000Z");
+      const seeded = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "removal_preview_limit_manager",
+          plan: "business",
+        });
+        const personIds: Id<"organizationPeople">[] = [];
+        const staffIds: Id<"staffs">[] = [];
+        for (const suffix of ["a", "b"] as const) {
+          const personId = await insertOrganizationPerson(ctx, {
+            organizationId: base.organizationId,
+            name: `上限解除${suffix}`,
+            email: `limit-remove-${suffix}@example.com`,
+          });
+          personIds.push(personId);
+          staffIds.push(
+            await insertCanonicalStaff(ctx, {
+              organizationId: base.organizationId,
+              personId,
+              shopId: base.shopId,
+              name: `上限解除${suffix}`,
+              email: `limit-remove-${suffix}@example.com`,
+            }),
+          );
+        }
+        const positionId = await ctx.db.insert("positions", {
+          shopId: base.shopId,
+          name: "通常",
+          color: "#000000",
+          sortOrder: 0,
+          isDeleted: false,
+        });
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          shopId: base.shopId,
+          periodStart: "2099-01-01",
+          periodEnd: "2099-01-31",
+          deadline: "2098-12-30",
+          shopClosedDates: [],
+          status: "confirmed",
+          confirmedAt: now,
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        for (let index = 0; index <= ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT; index += 1) {
+          await ctx.db.insert("shiftAssignments", {
+            recruitmentId,
+            staffId: staffIds[index % staffIds.length],
+            date: "2099-01-01",
+            startTime: "10:00",
+            endTime: "18:00",
+            positionId,
+          });
+        }
+        return { ...base, personIds };
+      });
+      const actor = t.withIdentity({ subject: "removal_preview_limit_manager" });
+      const snapshot = await actor.query(api.staff.queries.getOrganizationShopStaffMembershipChange, {
+        shopId: seeded.shopId,
+      });
+      if (!snapshot) throw new Error("snapshot not found");
+
+      const preview = await actor.query(api.staff.queries.previewOrganizationShopStaffMembershipRemovals, {
+        shopId: seeded.shopId,
+        personIds: seeded.personIds,
+        expectedMembershipFingerprint: snapshot.membershipFingerprint,
+        now,
+      });
+
+      expect(preview).toEqual({
+        kind: "tooMany",
+        assignmentCountAtLeast: ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT + 1,
+        limit: ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT,
+      });
+      expect(preview).not.toHaveProperty("removals");
     });
   });
 });

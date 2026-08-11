@@ -150,6 +150,62 @@ function DeferredContentExample() {
   );
 }
 
+function DeferredContentMobileExample() {
+  const { isOpen, close, onOpenChange } = useDialog(true);
+  const [isReady, setIsReady] = useState(false);
+  const [deferred] = useState(() => {
+    let resolve = () => {};
+    const promise = new Promise<void>((next) => {
+      resolve = next;
+    });
+    return { promise, resolve };
+  });
+
+  return (
+    <>
+      <button
+        type="button"
+        data-testid="complete-mobile-dialog-module-load"
+        onClick={() => {
+          setIsReady(true);
+          deferred.resolve();
+        }}
+      >
+        読み込みを完了
+      </button>
+      <DeferredDialogBoundary
+        title="遅延ダイアログ"
+        isOpen={isOpen}
+        onOpenChange={onOpenChange}
+        onClose={close}
+        mobileFullScreen
+        renderDialog={(content) => (
+          <Dialog
+            title="遅延ダイアログ"
+            isOpen={isOpen}
+            onOpenChange={onOpenChange}
+            onClose={close}
+            hideFooter
+            maxW={{ base: "100vw", lg: "640px" }}
+            maxH={{ base: "100dvh", lg: "85dvh" }}
+            contentProps={{
+              w: "100%",
+              h: { base: "100dvh", lg: "auto" },
+              my: { base: 0, lg: "auto" },
+              borderRadius: { base: 0, lg: "l3" },
+            }}
+            bodyProps={{ pt: 0 }}
+          >
+            {content}
+          </Dialog>
+        )}
+      >
+        <DeferredContent isReady={isReady} promise={deferred.promise} />
+      </DeferredDialogBoundary>
+    </>
+  );
+}
+
 function DeferredContent({ isReady, promise }: { isReady: boolean; promise: Promise<void> }) {
   if (!isReady) throw promise;
   return <Text>遅延内容を表示しました。</Text>;
@@ -167,6 +223,23 @@ export const DeferredLoadingBehavior: Story = {
 
     await expect(await page.findByText("遅延内容を表示しました。")).toBeInTheDocument();
     await expect(page.queryByLabelText("遅延ダイアログを読み込み中")).not.toBeInTheDocument();
+  },
+};
+
+export const DeferredLoadingMobile: Story = {
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  render: () => <DeferredContentMobileExample />,
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    const loadingDialog = await page.findByRole("dialog", { name: "遅延ダイアログ" });
+    await expect(within(loadingDialog).getByLabelText("遅延ダイアログを読み込み中")).toBeInTheDocument();
+
+    fireEvent.click(page.getByTestId("complete-mobile-dialog-module-load"));
+
+    const resolvedDialog = page.getByRole("dialog", { name: "遅延ダイアログ" });
+    await expect(within(resolvedDialog).getByText("遅延内容を表示しました。")).toBeInTheDocument();
+    await expect(page.getAllByRole("dialog", { name: "遅延ダイアログ" })).toHaveLength(1);
   },
 };
 

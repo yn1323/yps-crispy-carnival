@@ -55,7 +55,8 @@ const data: UserShopDetailData = {
   removeDisabledReason: undefined,
   removalPreview,
   canWrite: true,
-  shops: [{ shopId, shopName: membership.shopName, shopStatus: membership.shopStatus }],
+  membershipFingerprint: "membership-fingerprint",
+  shops: [{ shopId, shopName: membership.shopName, shopStatus: membership.shopStatus, canChangeMembership: true }],
   memberships: [membership],
 };
 
@@ -118,8 +119,6 @@ const baseState: UserShopDetailViewProps["state"] = {
   },
   membership: {
     isChangingShiftTarget: false,
-    isRemovalConfirmationOpen: false,
-    isRemoving: false,
   },
 };
 
@@ -133,9 +132,6 @@ const baseActions: UserShopDetailViewProps["actions"] = {
   onSendRecruitments: asyncNoop,
   onSendCurrentShift: asyncNoop,
   onChangeShiftTarget: asyncNoop,
-  onRequestRemoveMembership: noop,
-  onCancelRemoveMembership: noop,
-  onConfirmRemoveMembership: asyncNoop,
 };
 
 const meta = {
@@ -155,7 +151,6 @@ const meta = {
     data,
     membership,
     isStoreReadOnly: false,
-    showMembershipRemoval: true,
     notificationHistory,
     state: baseState,
     actions: baseActions,
@@ -215,7 +210,15 @@ export const ReadOnly: Story = {
       ...data,
       canWrite: false,
       writeDisabledReason: "Proの利用上限を超えているため、契約制限中です。",
-      shops: [{ shopId, shopName: readOnlyMembership.shopName, shopStatus: readOnlyMembership.shopStatus }],
+      shops: [
+        {
+          shopId,
+          shopName: readOnlyMembership.shopName,
+          shopStatus: readOnlyMembership.shopStatus,
+          canChangeMembership: false,
+          membershipChangeDisabledReason: "稼働中の店舗だけ所属を変更できます。",
+        },
+      ],
       memberships: [readOnlyMembership],
     },
     membership: readOnlyMembership,
@@ -246,7 +249,6 @@ function NotificationLoadingHarness() {
         data={data}
         membership={membership}
         isStoreReadOnly={false}
-        showMembershipRemoval
         notificationHistory={isLoaded ? notificationHistory : null}
         state={{
           ...baseState,
@@ -285,23 +287,16 @@ function InteractionHarness() {
   const [showQr, setShowQr] = useState(false);
   const [isSendingRecruitments, setIsSendingRecruitments] = useState(false);
   const [recruitmentSendCount, setRecruitmentSendCount] = useState(0);
-  const [isRemovalConfirmationOpen, setIsRemovalConfirmationOpen] = useState(false);
-  const [isRemoving, setIsRemoving] = useState(false);
-  const [removalCount, setRemovalCount] = useState(0);
 
   return (
     <>
       <output hidden data-testid="recruitment-send-count">
         {recruitmentSendCount}
       </output>
-      <output hidden data-testid="membership-removal-count">
-        {removalCount}
-      </output>
       <UserShopDetailView
         data={data}
         membership={membership}
         isStoreReadOnly={false}
-        showMembershipRemoval
         notificationHistory={notificationHistory}
         state={{
           ...baseState,
@@ -314,11 +309,7 @@ function InteractionHarness() {
             ...baseState.notifications,
             isSendingRecruitments,
           },
-          membership: {
-            ...baseState.membership,
-            isRemovalConfirmationOpen,
-            isRemoving,
-          },
+          membership: baseState.membership,
         }}
         actions={{
           ...baseActions,
@@ -326,12 +317,6 @@ function InteractionHarness() {
           onSendRecruitments: async () => {
             setRecruitmentSendCount((count) => count + 1);
             setIsSendingRecruitments(true);
-          },
-          onRequestRemoveMembership: () => setIsRemovalConfirmationOpen(true),
-          onCancelRemoveMembership: () => setIsRemovalConfirmationOpen(false),
-          onConfirmRemoveMembership: async () => {
-            setRemovalCount((count) => count + 1);
-            setIsRemoving(true);
           },
         }}
       />
@@ -377,33 +362,5 @@ export const RecruitmentNotificationSendingBehavior: Story = {
     await userEvent.click(sendButton);
     await expect(canvas.getByTestId("recruitment-send-count")).toHaveTextContent("1");
     await expect(sendButton).toBeDisabled();
-  },
-};
-
-export const MembershipRemovalConfirmationBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  render: () => <InteractionHarness />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const page = within(canvasElement.ownerDocument.body);
-
-    await expect(canvas.getByText(/このスタッフを店舗から外します。/)).toBeInTheDocument();
-    await expect(
-      canvas.getByText(/組織への登録は残るため、別店舗に移動する際などに利用してください。/),
-    ).toBeInTheDocument();
-    await userEvent.click(canvas.getByRole("button", { name: "削除する" }));
-    const confirmation = await page.findByRole("alertdialog", { name: "店舗から外す" });
-    const confirmationContent = within(confirmation);
-
-    await expect(confirmationContent.getByText("田中 花子さんを渋谷店から外しますか？")).toBeInTheDocument();
-    await expect(confirmationContent.getByText(/この店舗からのシフト通知、LINE連携を削除します。/)).toBeInTheDocument();
-    await expect(confirmationContent.getByText(/別店舗の所属はそのままです。/)).toBeInTheDocument();
-    await expect(
-      confirmationContent.getByText(/すべての店舗から外れた場合、未所属として組織に残り続けます。/),
-    ).toBeInTheDocument();
-    const confirmButton = confirmationContent.getByRole("button", { name: "店舗から外す" });
-    await userEvent.click(confirmButton);
-    await expect(canvas.getByTestId("membership-removal-count")).toHaveTextContent("1");
-    await expect(confirmButton).toBeDisabled();
   },
 };
