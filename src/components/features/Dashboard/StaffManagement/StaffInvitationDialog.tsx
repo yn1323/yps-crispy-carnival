@@ -1,16 +1,16 @@
-import { Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
+import { Alert, Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import { forwardRef, type ReactNode, type RefObject, useEffect, useRef } from "react";
 import type { IconType } from "react-icons";
-import { LuChevronLeft, LuChevronRight, LuClipboardPenLine, LuQrCode, LuUsersRound } from "react-icons/lu";
+import { LuChevronRight, LuClipboardPenLine, LuQrCode, LuUsersRound } from "react-icons/lu";
 import type { Id } from "@/convex/_generated/dataModel";
 import { PeopleCapacityResolutionAlert } from "@/src/components/shared/PeopleCapacityResolutionAlert";
 import { Button } from "@/src/components/ui/Button";
-import { Dialog } from "@/src/components/ui/Dialog";
 import type { PeopleCapacityResolution } from "@/src/domains/organizationBilling/peopleCapacity";
 import type { AddStaffFormData } from "../AddStaffForm";
 import { AddStaffForm } from "../AddStaffForm";
 import { StaffRegistrationLinkPanel } from "../StaffRegistrationLinkPanel";
 import { OrganizationPeopleCandidateList } from "./OrganizationPeopleCandidateList";
+import { getStaffInvitationSelectedMethod, StaffInvitationDialogShell } from "./StaffInvitationDialogShell";
 
 type DialogState = {
   isOpen: boolean;
@@ -102,69 +102,16 @@ type BodyProps = {
 };
 
 export function StaffInvitationDialogView({ invitation, isReadOnly = false, organizationPeopleContent }: ViewProps) {
-  const selectedMethod = getSelectedMethod(invitation);
-  const isManualMethod = selectedMethod === "manual";
-  const isBusy = invitation.isAddingStaffs || invitation.isAddingOrganizationPerson;
-
   return (
-    <Dialog
-      title="スタッフを追加"
-      isOpen={invitation.dialog.isOpen && !isReadOnly}
-      onOpenChange={invitation.dialog.onOpenChange}
-      formId={isManualMethod ? "add-staff-form" : undefined}
-      onClose={invitation.onClose}
-      preventClose={isBusy}
-      footer={
-        <Flex w="full" align="center" gap={3} wrap="wrap">
-          {selectedMethod !== null && (
-            <Button variant="outline" onClick={invitation.onBackToMethods} disabled={isBusy}>
-              <LuChevronLeft aria-hidden />
-              戻る
-            </Button>
-          )}
-          {(isManualMethod || selectedMethod !== "organization") && (
-            <Flex ms="auto" align="center" gap={3}>
-              <Button variant="outline" onClick={invitation.onClose} disabled={isReadOnly || isBusy}>
-                閉じる
-              </Button>
-              {isManualMethod && (
-                <Button
-                  type="submit"
-                  form="add-staff-form"
-                  colorPalette="teal"
-                  loading={invitation.isAddingStaffs}
-                  disabled={isReadOnly || invitation.isAddingOrganizationPerson}
-                >
-                  スタッフを登録する
-                </Button>
-              )}
-            </Flex>
-          )}
-        </Flex>
-      }
-      maxW={{ base: "100vw", lg: "640px" }}
-      maxH={{ base: "100dvh", lg: "85dvh" }}
-      contentProps={{
-        w: "100%",
-        h: { base: "100dvh", lg: "auto" },
-        my: { base: 0, lg: "auto" },
-        borderRadius: { base: 0, lg: "l3" },
-      }}
-      bodyProps={{ pt: 0 }}
-    >
+    <StaffInvitationDialogShell invitation={invitation} isReadOnly={isReadOnly}>
       <StaffInvitationDialogBody invitation={invitation} organizationPeopleContent={organizationPeopleContent} />
-    </Dialog>
+    </StaffInvitationDialogShell>
   );
 }
 
-function getSelectedMethod(invitation: StaffInvitationViewModel) {
-  return !invitation.showOrganizationPeopleAddition && invitation.selectedMethod === "organization"
-    ? null
-    : invitation.selectedMethod;
-}
-
 function StaffInvitationDialogBody({ invitation, organizationPeopleContent }: BodyProps) {
-  const selectedMethod = getSelectedMethod(invitation);
+  const selectedMethod = getStaffInvitationSelectedMethod(invitation);
+  const isReactivationConfirmation = invitation.reactivationConfirmation.dialog.isOpen;
   const isBusy = invitation.isAddingStaffs || invitation.isAddingOrganizationPerson;
   const methodButtonRefs = useRef<Partial<Record<StaffInvitationMethod, HTMLButtonElement | null>>>({});
   const detailHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -172,6 +119,7 @@ function StaffInvitationDialogBody({ invitation, organizationPeopleContent }: Bo
 
   useEffect(() => {
     if (!invitation.dialog.isOpen) return;
+    if (isReactivationConfirmation) return;
 
     if (selectedMethod) {
       detailHeadingRef.current?.focus();
@@ -180,7 +128,7 @@ function StaffInvitationDialogBody({ invitation, organizationPeopleContent }: Bo
 
     const previousButton = methodButtonRefs.current[lastSelectedMethodRef.current];
     (previousButton ?? methodButtonRefs.current.link)?.focus();
-  }, [invitation.dialog.isOpen, selectedMethod]);
+  }, [invitation.dialog.isOpen, isReactivationConfirmation, selectedMethod]);
 
   const handleSelectMethod = (method: StaffInvitationMethod) => {
     lastSelectedMethodRef.current = method;
@@ -188,44 +136,84 @@ function StaffInvitationDialogBody({ invitation, organizationPeopleContent }: Bo
   };
 
   return (
-    <Stack gap={5} pt={2} minH={0}>
-      {selectedMethod === null && (
-        <StaffInvitationMethodMenu
-          showOrganizationPeopleAddition={invitation.showOrganizationPeopleAddition}
-          disabled={isBusy}
-          buttonRefs={methodButtonRefs}
-          onSelect={handleSelectMethod}
-        />
-      )}
-
-      {selectedMethod !== null && <StaffInvitationDetailHeader ref={detailHeadingRef} method={selectedMethod} />}
-
-      {selectedMethod === "link" && (
-        <Stack gap={6}>
-          <StaffRegistrationLinkPanel
-            registrationUrl={invitation.registrationUrl}
-            isLoading={invitation.isRegistrationUrlLoading}
-            hasError={invitation.registrationUrlError}
-            onRetry={invitation.onRetryRegistrationUrl}
-          />
-        </Stack>
-      )}
-
-      <Box hidden={selectedMethod !== "manual"}>
-        <Stack gap={4}>
-          {invitation.peopleCapacityResolution && (
-            <PeopleCapacityResolutionAlert
-              resolution={invitation.peopleCapacityResolution}
-              retryActionLabel="スタッフを追加"
+    <>
+      {isReactivationConfirmation && <StaffReactivationConfirmationBody invitation={invitation} />}
+      <Box hidden={isReactivationConfirmation}>
+        <Stack gap={5} pt={2} minH={0}>
+          {selectedMethod === null && (
+            <StaffInvitationMethodMenu
+              showOrganizationPeopleAddition={invitation.showOrganizationPeopleAddition}
+              disabled={isBusy}
+              buttonRefs={methodButtonRefs}
+              onSelect={handleSelectMethod}
             />
           )}
-          <AddStaffForm onSubmit={invitation.onAddStaffs} />
+
+          {selectedMethod !== null && <StaffInvitationDetailHeader ref={detailHeadingRef} method={selectedMethod} />}
+
+          {selectedMethod === "link" && (
+            <Stack gap={6}>
+              <StaffRegistrationLinkPanel
+                registrationUrl={invitation.registrationUrl}
+                isLoading={invitation.isRegistrationUrlLoading}
+                hasError={invitation.registrationUrlError}
+                onRetry={invitation.onRetryRegistrationUrl}
+              />
+            </Stack>
+          )}
+
+          <Box hidden={selectedMethod !== "manual"}>
+            <Stack gap={4}>
+              {invitation.peopleCapacityResolution && (
+                <PeopleCapacityResolutionAlert
+                  resolution={invitation.peopleCapacityResolution}
+                  retryActionLabel="スタッフを追加"
+                />
+              )}
+              <AddStaffForm onSubmit={invitation.onAddStaffs} />
+            </Stack>
+          </Box>
+
+          {selectedMethod === "organization" && invitation.showOrganizationPeopleAddition && (
+            <Box>{organizationPeopleContent}</Box>
+          )}
         </Stack>
       </Box>
+    </>
+  );
+}
 
-      {selectedMethod === "organization" && invitation.showOrganizationPeopleAddition && (
-        <Box>{organizationPeopleContent}</Box>
+function StaffReactivationConfirmationBody({ invitation }: { invitation: StaffInvitationViewModel }) {
+  return (
+    <Stack gap={4}>
+      {invitation.peopleCapacityResolution && (
+        <PeopleCapacityResolutionAlert
+          resolution={invitation.peopleCapacityResolution}
+          retryActionLabel="スタッフを再追加"
+        />
       )}
+      <Text fontSize="sm">入力したメールアドレスは、以前この組織から削除されたユーザーのものです。</Text>
+      <Stack gap={2}>
+        {invitation.reactivationConfirmation.candidates.map((candidate) => (
+          <Stack key={candidate.personId} gap={0} rounded="md" borderWidth="1px" px={3} py={2}>
+            <Text fontWeight="medium">{candidate.name}</Text>
+            <Text fontSize="sm" color="fg.muted">
+              {candidate.email}
+            </Text>
+          </Stack>
+        ))}
+      </Stack>
+      <Alert.Root status="warning">
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>この店舗のスタッフとしてのみ再追加します</Alert.Title>
+          <Alert.Description>
+            以前の管理者権限や、ほかの店舗への所属は復元しません。
+            <br />
+            必要な権限と店舗所属は、再追加後に個別に設定してください。
+          </Alert.Description>
+        </Alert.Content>
+      </Alert.Root>
     </Stack>
   );
 }
