@@ -32,6 +32,7 @@ export function OrganizationNameDialog({ isOpen, organizationName, isRunning, on
       submitLabel="変更する"
       isLoading={isRunning}
       isSubmitDisabled={!normalizedName || normalizedName === organizationName.trim()}
+      mobileActionLayout="inline"
       maxW={{ base: "calc(100vw - 24px)", md: "520px" }}
     >
       <form

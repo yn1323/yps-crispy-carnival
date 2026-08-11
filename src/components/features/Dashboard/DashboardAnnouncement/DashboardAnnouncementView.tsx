@@ -63,14 +63,9 @@ export const DashboardAnnouncementView = ({ announcement, defaultOpen = false }:
         onOpenChange={dialog.onOpenChange}
         onClose={dialog.close}
         closeLabel="閉じる"
-        maxW={{ base: "100vw", md: "640px" }}
-        maxH={{ base: "100dvh", md: "85dvh" }}
-        contentProps={{
-          w: "100%",
-          h: { base: "100dvh", md: "auto" },
-          my: { base: 0, md: "auto" },
-          borderRadius: { base: 0, md: "l3" },
-        }}
+        mobileFullScreen
+        maxW={{ md: "640px" }}
+        maxH={{ md: "85dvh" }}
       >
         <Text fontSize="xs" color="fg.muted" mb={4}>
           {displayDate}

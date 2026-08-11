@@ -181,9 +181,9 @@ export const RunningCloseLockBehavior: Story = {
     const body = within(document.body);
     const dialog = await body.findByRole("alertdialog", { name: "アカウントを削除" });
 
-    await userEvent.click(within(dialog).getByRole("button", { name: "閉じる" }));
-    await expect(body.getByRole("alertdialog", { name: "アカウントを削除" })).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: "キャンセル" }));
+    await expect(within(dialog).queryByRole("button", { name: "閉じる" })).not.toBeInTheDocument();
+    await expect(within(dialog).getByRole("button", { name: "キャンセル" })).toBeDisabled();
+    await expect(within(dialog).getByRole("button", { name: "アカウントを削除" })).toBeDisabled();
     await expect(body.getByRole("alertdialog", { name: "アカウントを削除" })).toBeInTheDocument();
   },
 };

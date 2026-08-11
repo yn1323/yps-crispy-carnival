@@ -25,6 +25,8 @@ export function AccountDeletionDialog({ isOpen, isRunning, error, onClose, onOpe
       isLoading={isRunning}
       isSubmitDisabled={isRunning}
       role="alertdialog"
+      mobileActionLayout="stacked"
+      mobileFullScreen
       maxW={{ base: "calc(100vw - 24px)", md: "600px" }}
     >
       <form
