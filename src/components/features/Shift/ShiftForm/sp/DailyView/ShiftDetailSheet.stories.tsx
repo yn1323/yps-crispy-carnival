@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { mockShifts, mockShiftsAllPatterns, mockStaffs } from "../../stories/fixtures";
 import { ShiftDetailSheet } from "./ShiftDetailSheet";
 
@@ -47,4 +49,37 @@ export const UnsubmittedStaffNoPositions: Story = {
     staff: unsubmittedStaff,
     shift: emptyUnsubmittedShift,
   },
+};
+
+export const FooterCloseBehavior: Story = {
+  args: baseArgs,
+  tags: [],
+  parameters: { screenshot: { skip: true } },
+  render: () => <FooterCloseHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const trigger = canvas.getByRole("button", { name: "シフト詳細を開く" });
+    await userEvent.click(trigger);
+
+    const dialog = await body.findByRole("dialog", { name: /のシフト/ });
+    const closeButtons = within(dialog).getAllByRole("button", { name: "閉じる" });
+    await expect(closeButtons).toHaveLength(2);
+    await userEvent.click(closeButtons[closeButtons.length - 1]);
+
+    await waitFor(() => expect(body.queryByRole("dialog", { name: /のシフト/ })).not.toBeInTheDocument());
+    await expect(trigger).toHaveFocus();
+  },
+};
+
+const FooterCloseHarness = () => {
+  const [isOpen, setIsOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setIsOpen(true)}>
+        シフト詳細を開く
+      </button>
+      <ShiftDetailSheet {...baseArgs} isOpen={isOpen} onOpenChange={({ open }) => setIsOpen(open)} />
+    </>
+  );
 };
