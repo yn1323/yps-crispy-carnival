@@ -277,6 +277,22 @@ export const BasicInformationDialogMobile: Story = {
   play: settleBasicInformationDialogFocus,
 };
 
+export const ReadOnlyInformationDialog: Story = {
+  args: {
+    activePanel: "basic",
+    data: {
+      ...multipleStoresData,
+      canWrite: false,
+      writeDisabledReason: "現在、この組織の情報を変更できません。",
+    },
+  },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
+    await expect(within(dialog).queryByRole("button", { name: "変更を保存" })).not.toBeInTheDocument();
+    await expect(within(dialog).getAllByRole("button", { name: "閉じる" })).toHaveLength(2);
+  },
+};
+
 export const ShopMembershipDialog: Story = {
   args: { activePanel: "addShop" },
   play: async () => {
@@ -350,6 +366,12 @@ export const ManagerOnlyRoleRemovalConfirmation: Story = {
       },
     },
   },
+};
+
+export const ManagerOnlyRoleRemovalConfirmationMobile: Story = {
+  ...ManagerOnlyRoleRemovalConfirmation,
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
 };
 
 export const ManagerRoleRemovalUnavailable: Story = {
@@ -495,6 +517,68 @@ function PanelNavigationHarness({
   );
 }
 
+function ManagerAssignmentConfirmationHarness() {
+  const [isAssignmentConfirmationOpen, setIsAssignmentConfirmationOpen] = useState(false);
+  const [assignmentCount, setAssignmentCount] = useState(0);
+
+  return (
+    <>
+      <output hidden data-testid="manager-assignment-count">
+        {assignmentCount}
+      </output>
+      <UserDetailView
+        data={multipleStoresData}
+        showShopMembershipAddition
+        activePanel="basic"
+        state={{
+          ...baseState,
+          manager: { ...baseState.manager, isAssignmentConfirmationOpen },
+        }}
+        actions={{
+          ...baseActions,
+          onRequestManagerAssignment: () => setIsAssignmentConfirmationOpen(true),
+          onCancelManagerAssignment: () => setIsAssignmentConfirmationOpen(false),
+          onAssignManager: async () => {
+            setAssignmentCount((count) => count + 1);
+            setIsAssignmentConfirmationOpen(false);
+          },
+        }}
+      />
+    </>
+  );
+}
+
+export const ManagerAssignmentConfirmationBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <ManagerAssignmentConfirmationHarness />,
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    const dialog = await page.findByRole("dialog", { name: "スタッフ情報" });
+    const requestButton = within(dialog).getByRole("button", { name: "管理者として招待" });
+
+    await userEvent.click(requestButton);
+    let confirmation = await page.findByRole("alertdialog", {
+      name: "田中 花子さんを管理者として招待しますか？",
+    });
+    await expect(page.queryAllByRole("alertdialog")).toHaveLength(1);
+    await expect(page.queryAllByRole("dialog")).toHaveLength(0);
+    await expect(within(confirmation).getByTestId("user-manager-confirmation-body")).toHaveFocus();
+    await expect(within(confirmation).queryByRole("textbox", { name: "名前" })).not.toBeInTheDocument();
+
+    await userEvent.click(within(confirmation).getByRole("button", { name: "やめる" }));
+    const restoredDialog = await page.findByRole("dialog", { name: "スタッフ情報" });
+    const restoredRequestButton = within(restoredDialog).getByRole("button", { name: "管理者として招待" });
+    await expect(restoredRequestButton).toHaveFocus();
+
+    await userEvent.click(restoredRequestButton);
+    confirmation = await page.findByRole("alertdialog", {
+      name: "田中 花子さんを管理者として招待しますか？",
+    });
+    await userEvent.click(within(confirmation).getByRole("button", { name: "管理者として招待" }));
+    await expect(page.getByTestId("manager-assignment-count")).toHaveTextContent("1");
+  },
+};
+
 export const BasicInformationFlowBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   render: () => <PanelNavigationHarness />,
@@ -611,6 +695,7 @@ export const ShopMembershipRemovalBehavior: Story = {
         /店舗から外すと、その店舗のスタッフ画面へのアクセス、LINE連携、未送信の通知は終了します。/,
       ),
     ).toBeInTheDocument();
+    await expect(canvas.getByTestId("membership-change-call-count")).toHaveTextContent("0");
     await userEvent.click(membershipDialog.getByRole("button", { name: "変更する" }));
 
     await expect(canvas.getByTestId("membership-change-call-count")).toHaveTextContent("1");
@@ -618,7 +703,7 @@ export const ShopMembershipRemovalBehavior: Story = {
     await expect(canvas.getByTestId("membership-change-input")).toHaveTextContent(
       `"desiredActiveShopIds":["${ikebukuroShop.shopId}"]`,
     );
-    await expect(page.queryByRole("alertdialog", { name: "所属店舗の変更を確認" })).not.toBeInTheDocument();
+    await expect(page.queryAllByRole("alertdialog")).toHaveLength(0);
   },
 };
 
@@ -636,7 +721,6 @@ export const ShopMembershipFullRemovalWarningBehavior: Story = {
     await expect(
       membershipDialog.getByText("組織への所属や管理者権限は変更されません。また、利用人数のカウントも残ります。"),
     ).toBeInTheDocument();
-    await expect(page.queryByRole("alertdialog", { name: "所属店舗の変更を確認" })).not.toBeInTheDocument();
   },
 };
 
@@ -707,7 +791,6 @@ export const ShopMembershipAggregateRemovalLimitBehavior: Story = {
     await expect(membershipDialog.getByText(/先にシフトを整理して/)).toBeInTheDocument();
     await expect(membershipDialog.getByRole("button", { name: "変更する" })).toBeDisabled();
     await expect(canvas.getByTestId("membership-change-call-count")).toHaveTextContent("0");
-    await expect(page.queryByRole("alertdialog", { name: "所属店舗の変更を確認" })).not.toBeInTheDocument();
   },
 };
 
@@ -758,7 +841,6 @@ export const ShopMembershipUnknownResultRetryBehavior: Story = {
     await userEvent.click(shibuyaCheckbox);
     await userEvent.click(membershipDialog.getByRole("button", { name: "変更する" }));
     await expect(membershipDialog.getByText(/前回の結果が不明な場合は同じ内容で再試行できます。/)).toBeInTheDocument();
-    await expect(page.queryByRole("alertdialog", { name: "所属店舗の変更を確認" })).not.toBeInTheDocument();
 
     await userEvent.click(membershipDialog.getByRole("button", { name: "変更する" }));
     await waitFor(() => {

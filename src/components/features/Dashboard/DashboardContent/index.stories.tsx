@@ -500,7 +500,9 @@ export const LegacyStaffDetailFallbackBehavior: Story = {
 
     await userEvent.click(canvas.getByRole("button", { name: "佐藤花子のスタッフ詳細を開く" }));
     const staffDetailDialog = await body.findByRole("dialog", { name: "スタッフ詳細" });
-    await userEvent.click(within(staffDetailDialog).getByRole("button", { name: "閉じる" }));
+    const closeButtons = within(staffDetailDialog).getAllByRole("button", { name: "閉じる" });
+    await expect(closeButtons).toHaveLength(2);
+    await userEvent.click(closeButtons[closeButtons.length - 1]);
     await waitFor(() => expect(body.queryByRole("dialog", { name: "スタッフ詳細" })).not.toBeInTheDocument());
   },
 };

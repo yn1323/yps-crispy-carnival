@@ -191,14 +191,8 @@ export function UserShopMembershipDialog({
         isChanging
       }
       preventClose={isChanging}
-      maxW={{ base: "100vw", lg: "640px" }}
-      maxH={{ base: "100dvh", lg: "86dvh" }}
-      contentProps={{
-        w: "100%",
-        h: { base: "100dvh", lg: "auto" },
-        my: { base: 0, lg: "auto" },
-        borderRadius: { base: 0, lg: "l3" },
-      }}
+      mobileActionLayout="inline"
+      mobileFullScreen
       bodyProps={{ px: { base: 4, lg: 6 }, pt: 2, pb: { base: 4, lg: 5 } }}
     >
       <Stack gap={4}>

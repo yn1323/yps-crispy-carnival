@@ -422,13 +422,25 @@ export const ManagerInvitationConfirmationBehavior: Story = {
     managerInvitationCallCount = 0;
     const dialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
     await userEvent.click(within(dialog).getByRole("tab", { name: "設定" }));
-    await userEvent.click(within(dialog).getByRole("button", { name: "管理者として招待" }));
-    await expect(
-      await within(dialog).findByRole("heading", { name: "佐藤花子さんを管理者として招待しますか？" }),
-    ).toBeInTheDocument();
-    const managerInvitationButtons = within(dialog).getAllByRole("button", { name: "管理者として招待" });
-    await expect(managerInvitationButtons).toHaveLength(2);
-    await userEvent.click(managerInvitationButtons[1]);
+    const requestButton = within(dialog).getByRole("button", { name: "管理者として招待" });
+    await userEvent.click(requestButton);
+    let confirmation = await screen.findByRole("alertdialog", {
+      name: "佐藤花子さんを管理者として招待しますか？",
+    });
+    await expect(screen.queryAllByRole("alertdialog")).toHaveLength(1);
+    await expect(screen.queryAllByRole("dialog")).toHaveLength(0);
+    await expect(within(confirmation).getByTestId("staff-detail-confirmation-body")).toHaveFocus();
+    await expect(within(confirmation).getAllByRole("button", { name: "管理者として招待" })).toHaveLength(1);
+    await userEvent.click(within(confirmation).getByRole("button", { name: "やめる" }));
+    const restoredDialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
+    const restoredRequestButton = within(restoredDialog).getByRole("button", { name: "管理者として招待" });
+    await expect(restoredRequestButton).toHaveFocus();
+
+    await userEvent.click(restoredRequestButton);
+    confirmation = await screen.findByRole("alertdialog", {
+      name: "佐藤花子さんを管理者として招待しますか？",
+    });
+    await userEvent.click(within(confirmation).getByRole("button", { name: "管理者として招待" }));
     await expect(managerInvitationCallCount).toBe(1);
     await waitFor(() => {
       expect(
@@ -448,12 +460,11 @@ export const ManagerInvitationFailureKeepsConfirmationBehavior: Story = {
     const dialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
     await userEvent.click(within(dialog).getByRole("tab", { name: "設定" }));
     await userEvent.click(within(dialog).getByRole("button", { name: "管理者として招待" }));
-    await expect(
-      await within(dialog).findByRole("heading", { name: "佐藤花子さんを管理者として招待しますか？" }),
-    ).toBeInTheDocument();
-    const managerInvitationButtons = within(dialog).getAllByRole("button", { name: "管理者として招待" });
-    await expect(managerInvitationButtons).toHaveLength(2);
-    await userEvent.click(managerInvitationButtons[1]);
+    const confirmation = await screen.findByRole("alertdialog", {
+      name: "佐藤花子さんを管理者として招待しますか？",
+    });
+    await expect(within(dialog).getAllByRole("button", { name: "管理者として招待" })).toHaveLength(1);
+    await userEvent.click(within(confirmation).getByRole("button", { name: "管理者として招待" }));
     await expect(
       within(dialog).getByRole("heading", { name: "佐藤花子さんを管理者として招待しますか？" }),
     ).toBeInTheDocument();
@@ -471,12 +482,11 @@ export const ManagerInvitationResendConfirmationBehavior: Story = {
     const dialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
     await userEvent.click(within(dialog).getByRole("tab", { name: "設定" }));
     await userEvent.click(within(dialog).getByRole("button", { name: "ログイン案内を再送" }));
-    await expect(
-      await within(dialog).findByRole("heading", { name: "佐藤花子さんへログイン案内を再送しますか？" }),
-    ).toBeInTheDocument();
-    const resendButtons = within(dialog).getAllByRole("button", { name: "ログイン案内を再送" });
-    await expect(resendButtons).toHaveLength(2);
-    await userEvent.click(resendButtons[1]);
+    const confirmation = await screen.findByRole("alertdialog", {
+      name: "佐藤花子さんへログイン案内を再送しますか？",
+    });
+    await expect(within(dialog).getAllByRole("button", { name: "ログイン案内を再送" })).toHaveLength(1);
+    await userEvent.click(within(confirmation).getByRole("button", { name: "ログイン案内を再送" }));
     await expect(managerInvitationCallCount).toBe(1);
   },
 };

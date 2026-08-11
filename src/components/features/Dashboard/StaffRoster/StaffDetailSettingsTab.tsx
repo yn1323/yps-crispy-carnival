@@ -1,6 +1,5 @@
-import { Box, Flex, Heading, HStack, Stack, Switch, Text, VisuallyHidden } from "@chakra-ui/react";
+import { Flex, Heading, Stack, Switch, Text, VisuallyHidden } from "@chakra-ui/react";
 import { LuTrash2 } from "react-icons/lu";
-import { ManagerAssignmentConfirmation } from "@/src/components/shared/ManagerAssignmentConfirmation";
 import { Button } from "@/src/components/ui/Button";
 import type { StaffManagerInvitationState } from "../types";
 
@@ -8,42 +7,22 @@ type Props = {
   isShiftTarget: boolean;
   isChangingShiftTarget: boolean;
   isManager: boolean;
-  staffName: string;
-  staffEmail: string;
   managerInvitationState: StaffManagerInvitationState;
-  isManagerInvitationConfirmationOpen: boolean;
   isInvitingManager: boolean;
-  isOrganizationLinked: boolean;
-  isDeleteConfirmationOpen: boolean;
-  isDeleting: boolean;
   onChangeShiftTarget: (isShiftTarget: boolean) => void | Promise<void>;
   onRequestManagerInvitation: () => void;
-  onCancelManagerInvitation: () => void;
-  onConfirmManagerInvitation: () => void | Promise<void>;
   onRequestDelete: () => void;
-  onCancelDelete: () => void;
-  onConfirmDelete: () => void | Promise<void>;
 };
 
 export const StaffDetailSettingsTab = ({
   isShiftTarget,
   isChangingShiftTarget,
   isManager,
-  staffName,
-  staffEmail,
   managerInvitationState,
-  isManagerInvitationConfirmationOpen,
   isInvitingManager,
-  isOrganizationLinked,
-  isDeleteConfirmationOpen,
-  isDeleting,
   onChangeShiftTarget,
   onRequestManagerInvitation,
-  onCancelManagerInvitation,
-  onConfirmManagerInvitation,
   onRequestDelete,
-  onCancelDelete,
-  onConfirmDelete,
 }: Props) => {
   const invitationButtonLabel =
     managerInvitationState.kind === "available"
@@ -104,6 +83,7 @@ export const StaffDetailSettingsTab = ({
           ) : managerInvitationState.kind === "pending" ? (
             <Flex justify="flex-end">
               <Button
+                data-staff-detail-confirmation-trigger="managerInvitation"
                 colorPalette="teal"
                 variant="outline"
                 loading={isInvitingManager}
@@ -116,6 +96,7 @@ export const StaffDetailSettingsTab = ({
           ) : managerInvitationState.kind === "available" ? (
             <Flex justify="flex-end">
               <Button
+                data-staff-detail-confirmation-trigger="managerInvitation"
                 colorPalette="teal"
                 loading={isInvitingManager}
                 disabled={isInvitingManager}
@@ -141,28 +122,18 @@ export const StaffDetailSettingsTab = ({
               </Text>
             </Stack>
           )}
-
-          {isManagerInvitationConfirmationOpen &&
-            (managerInvitationState.kind === "available" || managerInvitationState.kind === "pending") && (
-              <ManagerAssignmentConfirmation
-                personName={staffName}
-                personEmail={staffEmail}
-                mode={managerInvitationState.mode}
-                replacesStaleInvitation={
-                  managerInvitationState.kind === "available" && managerInvitationState.replacesStaleInvitation
-                }
-                isResend={managerInvitationState.kind === "pending"}
-                isRunning={isInvitingManager}
-                onCancel={onCancelManagerInvitation}
-                onConfirm={onConfirmManagerInvitation}
-              />
-            )}
         </Stack>
       )}
 
       <Stack gap={3}>
         <Flex justify="flex-end">
-          <Button colorPalette="red" gap={1.5} disabled={isManager} onClick={onRequestDelete}>
+          <Button
+            data-staff-detail-confirmation-trigger="delete"
+            colorPalette="red"
+            gap={1.5}
+            disabled={isManager}
+            onClick={onRequestDelete}
+          >
             <LuTrash2 />
             スタッフを削除
           </Button>
@@ -172,50 +143,7 @@ export const StaffDetailSettingsTab = ({
             管理者は削除できません
           </Text>
         )}
-        {isDeleteConfirmationOpen && (
-          <DeleteStaffConfirmation
-            isDeleting={isDeleting}
-            isOrganizationLinked={isOrganizationLinked}
-            onCancel={onCancelDelete}
-            onConfirm={onConfirmDelete}
-          />
-        )}
       </Stack>
     </Stack>
   );
 };
-
-const DeleteStaffConfirmation = ({
-  isDeleting,
-  isOrganizationLinked,
-  onCancel,
-  onConfirm,
-}: {
-  isDeleting: boolean;
-  isOrganizationLinked: boolean;
-  onCancel: () => void;
-  onConfirm: () => void | Promise<void>;
-}) => (
-  <Box borderWidth="1px" borderColor="red.200" borderRadius="md" p={3}>
-    <Stack gap={3}>
-      <Stack gap={1}>
-        <Text fontWeight="semibold" color="red.700">
-          {isOrganizationLinked ? "この店舗のスタッフ所属を削除しますか？" : "スタッフを削除しますか？"}
-        </Text>
-        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          {isOrganizationLinked
-            ? "将来のシフトに割り当てられている場合は削除できません。\n削除すると、この店舗の所属と既存のシフト用リンク、LINE連携を終了します。\n組織のユーザー情報、ほかの店舗所属、管理者権限は変更せず、利用人数にも引き続き含まれます。"
-            : "削除すると元に戻せません。\n既存のシフト用リンクやLINE連携も使えなくなります。"}
-        </Text>
-      </Stack>
-      <HStack justify="flex-end" gap={2}>
-        <Button variant="outline" onClick={onCancel} disabled={isDeleting}>
-          やめる
-        </Button>
-        <Button colorPalette="red" loading={isDeleting} onClick={onConfirm}>
-          {isOrganizationLinked ? "店舗から削除" : "スタッフを削除"}
-        </Button>
-      </HStack>
-    </Stack>
-  </Box>
-);
