@@ -27,7 +27,7 @@ export function DeferredDialogBoundary({
   mobileFullScreen = false,
   renderDialog,
 }: Props) {
-  const renderFallbackDialog = (content: ReactNode, hideFooter = false) => {
+  const renderFallbackDialog = (content: ReactNode) => {
     if (renderDialog) return renderDialog(content);
 
     return (
@@ -37,19 +37,8 @@ export function DeferredDialogBoundary({
         onOpenChange={onOpenChange}
         onClose={onClose}
         closeLabel="閉じる"
-        hideFooter={hideFooter}
-        maxW={mobileFullScreen ? { base: "100vw", lg: "640px" } : { base: "calc(100vw - 24px)", md: "560px" }}
-        maxH={mobileFullScreen ? { base: "100dvh", lg: "85dvh" } : undefined}
-        contentProps={
-          mobileFullScreen
-            ? {
-                w: "100%",
-                h: { base: "100dvh", lg: "auto" },
-                my: { base: 0, lg: "auto" },
-                borderRadius: { base: 0, lg: "l3" },
-              }
-            : undefined
-        }
+        mobileFullScreen={mobileFullScreen}
+        maxW={mobileFullScreen ? undefined : { base: "calc(100vw - 24px)", md: "560px" }}
         bodyProps={mobileFullScreen ? { pt: 0 } : undefined}
       >
         {content}
@@ -90,7 +79,7 @@ export function DeferredDialogBoundary({
       {renderDialog ? (
         renderDialog(<Suspense fallback={loadingContent}>{children}</Suspense>)
       ) : (
-        <Suspense fallback={renderFallbackDialog(loadingContent, true)}>{children}</Suspense>
+        <Suspense fallback={renderFallbackDialog(loadingContent)}>{children}</Suspense>
       )}
     </ErrorBoundary>
   );

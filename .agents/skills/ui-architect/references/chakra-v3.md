@@ -8,7 +8,8 @@
 |---|---|---|
 | `Button` / `IconButton` | Chakra Buttonの薄いプロジェクト入口 | `<Button colorPalette="teal" />` / `<IconButton aria-label="..." />` |
 | `Select` | カスタムSelect | `<Select items={[...] as SelectItemType[]} value={...} onChange={...} usePortal={false} />` |
-| `Dialog` | モーダルダイアログ | `useDialog()` フック + `<Dialog isOpen={...} onOpenChange={...} onClose={...} />` |
+| `Dialog` | モーダルダイアログ | `useDialog()` + `<Dialog ... actionLayout mobileActionLayout mobileFullScreen />` |
+| `DialogActionArea` | custom footerのDOM順とPC/SP配置 | `<DialogActionArea layout="flow" mobileLayout="stacked" startAction={...} endAction={...} />` |
 | `StepperDialog` | 多段フロー用Dialog | `<StepperDialog><StepperDialogContent ... /></StepperDialog>` |
 | `Empty` | 空状態 | `<Empty icon title description action minH />` |
 | `ShiftoriLoading` | ロゴ付きローディング | `<ShiftoriLoading variant="section" />` |
@@ -20,7 +21,8 @@
 
 **新規UI作る前に**：上記にカバーされる用途なら自作禁止。同じカテゴリで足りないバリアントが必要なら、ラッパーを拡張する。
 
-現状の `src/components/ui/` には専用 `BottomSheet` ラッパーは確認できない。モバイルで重いDialogが必要な場合は、既存実装に合わせて `Dialog` / `StepperDialog` を `100vw` / `100dvh` の全画面にする。
+現状の `src/components/ui/` には専用 `BottomSheet` ラッパーは確認できない。
+モバイルで重いDialogが必要な場合は、`Dialog`の`mobileFullScreen`または既定で全画面になる`StepperDialog`を使う。
 
 ## カテゴリ → 部品マッピング
 
@@ -59,7 +61,8 @@
 |---|---|
 | ダイアログ | `<Dialog />` (`src/components/ui/Dialog`) + `useDialog()` |
 | 多段Dialog | `<StepperDialog />` (`src/components/ui/StepperDialog`) |
-| モバイル全画面Dialog | `Dialog` / `StepperDialog` の `maxW`, `maxH`, `contentProps` で全画面化 |
+| custom action配置 | `<DialogActionArea />` (`src/components/ui/Dialog`) |
+| モバイル全画面Dialog | `Dialog mobileFullScreen`。`StepperDialog`は既定で全画面 |
 | Drawer | `<Drawer.Root />`（Chakra v3） |
 | Popover | `<Popover.Root />` |
 | Menu | `<Menu.Root />` |
@@ -218,37 +221,104 @@ Submit常時enabled、エラーは押下時に表示（このプロジェクト�
 ### Dialog（モーダル）
 
 ```tsx
-const { open, onOpen, onClose } = useDialog();
-
 const dialog = useDialog();
 
-<Dialog title="編集" isOpen={dialog.isOpen} onOpenChange={dialog.onOpenChange} onClose={dialog.close}>
-  <VStack gap={4} align="stretch">
-    {/* フォーム */}
-  </VStack>
+<Dialog
+  title="スタッフ情報を変更"
+  isOpen={dialog.isOpen}
+  onOpenChange={dialog.onOpenChange}
+  onClose={dialog.close}
+  formId="staff-form"
+  submitLabel="変更を保存"
+  isLoading={isSaving}
+>
+  <form id="staff-form" onSubmit={handleSubmit(onSubmit)}>
+    {/* 入力項目 */}
+  </form>
 </Dialog>
 ```
+
+既定footerは、Secondaryの「キャンセル」とPrimaryの完了操作をDOM順に並べ、デスクトップでは右側へまとめる。
+submitのない閲覧用Dialogでは、Secondaryの「閉じる」を最終アクション位置へ自動で置く。
+`isLoading`はsubmitの処理中表示と全close経路のlockをまとめて適用する。
+submit以外の遷移を一時的にlockする必要がある場合だけ`preventClose`を使う。
+
+custom footerが必要な場合も、配置用の`Flex`をfeatureで組まず`DialogActionArea`を使う。
+
+```tsx
+<Dialog
+  title="変更内容を確認"
+  isOpen={dialog.isOpen}
+  onOpenChange={dialog.onOpenChange}
+  onClose={dialog.close}
+  footer={
+    <DialogActionArea
+      layout="flow"
+      mobileLayout="stacked"
+      startAction={
+        <Button variant="outline" onClick={onBack}>
+          戻る
+        </Button>
+      }
+      endAction={<Button onClick={onSave}>変更を保存</Button>}
+    />
+  }
+>
+  {/* 確認内容 */}
+</Dialog>
+```
+
+意味、文言、PC/SP配置、close lockは[UI設計方針の「Dialogのアクション」](../../../../doc/rules/ui-design.md#dialogのアクション)を正本とする。
 
 ### モバイル全画面Dialog
 
 ```tsx
 <Dialog
-  title="編集"
+  title="スタッフ詳細"
   isOpen={dialog.isOpen}
   onOpenChange={dialog.onOpenChange}
   onClose={dialog.close}
-  maxW={{ base: "100vw", lg: "640px" }}
-  maxH={{ base: "100dvh", lg: "85dvh" }}
-  contentProps={{
-    w: "100%",
-    h: { base: "100dvh", lg: "auto" },
-    my: { base: 0, lg: "auto" },
-    borderRadius: { base: 0, lg: "l3" },
-  }}
+  closeLabel="閉じる"
+  mobileFullScreen
+  maxW="640px"
+  maxH="85dvh"
 >
   <Select items={items} usePortal={false} />
 </Dialog>
 ```
+
+`mobileFullScreen`はモバイルのVisual Viewport、全画面寸法、header/footerのsafe area、本文scrollをまとめて設定する。
+同じ値を`contentProps`へ重ねて指定しない。
+
+### StepperDialog
+
+```tsx
+<StepperDialog
+  title="店舗設定"
+  isOpen={dialog.isOpen}
+  onOpenChange={dialog.onOpenChange}
+  onClose={dialog.close}
+>
+  <StepperDialogContent
+    steps={steps}
+    currentStep={currentStep}
+    actions={
+      <>
+        <Button variant="outline" onClick={onBack}>
+          戻る
+        </Button>
+        <Button onClick={onNext}>次へ</Button>
+      </>
+    }
+  >
+    {/* 現在の段階 */}
+  </StepperDialogContent>
+</StepperDialog>
+```
+
+`actions`はSecondary、PrimaryまたはDestructiveのDOM順で渡す。
+短い二操作は既定の`mobileActionLayout="inline"`、320px幅で一行に収まらない長い二操作は`mobileActionLayout="stacked"`を`StepperDialogContent`へ指定する。
+`StepperDialog`がモバイル全画面、本文scroll、action bar、safe areaを所有するため、featureで同じレイアウトを重ねない。
 
 ### Empty
 
@@ -322,4 +392,4 @@ export const Empty: Story = { args: { items: [] } };
 export const Error: Story = { args: { error: new Error("...") } };
 ```
 
-小さなコンポーネントは Variants Story 1つにまとめる（VRT節約）。複雑な動きは Interactive Story 別途。
+StorybookのBehavior TestとVRTの分担、代表状態、ローカル実行方針は[テスト方針](../../../../doc/rules/testing-strategy.md)と`test-strategy`を正本とする。
