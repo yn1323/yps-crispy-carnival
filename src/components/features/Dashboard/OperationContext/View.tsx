@@ -33,7 +33,7 @@ export const OperationContextView = ({
   organizationSettingsShopId,
 }: OperationContextViewProps) => {
   return (
-    <Stack gap={0} pb={{ base: 1, lg: 2 }} borderBottomWidth="1px" borderColor="gray.200">
+    <Stack gap={{ base: 2, lg: 3 }}>
       {organizationSettingsShopId && (
         <Button
           asChild
@@ -217,13 +217,7 @@ const ShopStatusBadges = ({ shop }: { shop: ShopContextOption }) => {
 };
 
 export const OperationContextSkeleton = () => (
-  <Stack
-    gap={0}
-    pb={{ base: 1, lg: 2 }}
-    borderBottomWidth="1px"
-    borderColor="gray.200"
-    aria-label="現在の組織と店舗を読み込み中"
-  >
+  <Stack gap={{ base: 2, lg: 3 }} aria-label="現在の組織と店舗を読み込み中">
     <Flex align="center" gap={2} minH="32px" maxW="full">
       <Skeleton h="20px" w="20px" flexShrink={0} />
       <Skeleton h="20px" w={{ base: "160px", md: "220px" }} maxW="70%" />

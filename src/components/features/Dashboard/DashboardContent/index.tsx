@@ -1,4 +1,5 @@
-import { Stack } from "@chakra-ui/react";
+import { Box, Heading, HStack, Skeleton, Stack } from "@chakra-ui/react";
+import { LuBuilding2 } from "react-icons/lu";
 import { ContentWrapper } from "@/src/components/templates/ContentWrapper";
 import { DashboardAnnouncement } from "../DashboardAnnouncement";
 import { DashboardOnboarding } from "../DashboardOnboarding";
@@ -188,22 +189,41 @@ export const DashboardContent = ({
                                 <>
                                   <ContentWrapper>
                                     <Stack gap={{ base: 4, lg: 6 }}>
-                                      <OperationContext data={operationContextData} />
-                                      <LegalReconsent status={managerLegalConsentStatus} />
-                                      {isBillingFeatureVisible && planStatusCard ? (
-                                        <PlanStatusCard
-                                          key={billingSettingsShopId ?? "plan-status"}
-                                          {...planStatusCard}
-                                        />
-                                      ) : isBillingFeatureVisible && planStatusCard === undefined ? (
-                                        billingSettingsShopId ? (
-                                          <TrialEndingCallout
-                                            notice={trialEndingNotice ?? null}
-                                            shopId={billingSettingsShopId}
-                                            isBillingVisible={isBillingFeatureVisible}
-                                          />
-                                        ) : null
-                                      ) : null}
+                                      <Box as="section" aria-labelledby="dashboard-shop-context-heading">
+                                        <Stack gap={{ base: 3, lg: 4 }}>
+                                          <HStack gap={2.5} align="center">
+                                            <Box fontSize={{ base: "xl", lg: "2xl" }} flexShrink={0} color="fg.muted">
+                                              <LuBuilding2 aria-hidden />
+                                            </Box>
+                                            <Heading
+                                              id="dashboard-shop-context-heading"
+                                              as="h2"
+                                              textStyle="sectionTitle"
+                                              color="gray.900"
+                                            >
+                                              店舗情報
+                                            </Heading>
+                                          </HStack>
+                                          <Stack gap={{ base: 3, lg: 4 }}>
+                                            <OperationContext data={operationContextData} />
+                                            <LegalReconsent status={managerLegalConsentStatus} />
+                                            {isBillingFeatureVisible && planStatusCard ? (
+                                              <PlanStatusCard
+                                                key={billingSettingsShopId ?? "plan-status"}
+                                                {...planStatusCard}
+                                              />
+                                            ) : isBillingFeatureVisible && planStatusCard === undefined ? (
+                                              billingSettingsShopId ? (
+                                                <TrialEndingCallout
+                                                  notice={trialEndingNotice ?? null}
+                                                  shopId={billingSettingsShopId}
+                                                  isBillingVisible={isBillingFeatureVisible}
+                                                />
+                                              ) : null
+                                            ) : null}
+                                          </Stack>
+                                        </Stack>
+                                      </Box>
                                       <HeroSummary
                                         recruitments={recruitment.recruitments}
                                         onOpenShiftBoard={(recruitmentId) =>
@@ -260,7 +280,13 @@ export const DashboardContent = ({
 export const DashboardContentSkeleton = () => (
   <ContentWrapper>
     <Stack gap={{ base: 4, lg: 6 }}>
-      <OperationContextSkeleton />
+      <Stack gap={{ base: 3, lg: 4 }}>
+        <HStack gap={2.5} align="center">
+          <Skeleton boxSize={{ base: "24px", lg: "28px" }} borderRadius="full" flexShrink={0} />
+          <Skeleton h={{ base: "28px", lg: "32px" }} w={{ base: "160px", lg: "190px" }} />
+        </HStack>
+        <OperationContextSkeleton />
+      </Stack>
       <HeroSummarySkeleton />
     </Stack>
     <RecruitmentBoardSkeleton />

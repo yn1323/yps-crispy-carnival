@@ -312,6 +312,16 @@ export const SingleShopWithPlanStatus: Story = {
       <DashboardContent {...args} />
     </DashboardPagePreview>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const contextSection = await canvas.findByRole("region", { name: "店舗情報" });
+
+    await expect(within(contextSection).getByRole("heading", { name: "店舗情報", level: 2 })).toBeVisible();
+    await expect(within(contextSection).getByText("たなかグループ")).toBeVisible();
+    await expect(within(contextSection).getByText("居酒屋たなか")).toBeVisible();
+    await expect(within(contextSection).getByRole("region", { name: "現在のプラン" })).toBeVisible();
+    await expect(canvas.getByRole("heading", { name: "TODO", level: 2 })).toBeVisible();
+  },
 };
 
 export const SingleShopWithPlanStatusMobile: Story = {
