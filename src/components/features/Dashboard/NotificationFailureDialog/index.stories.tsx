@@ -111,6 +111,7 @@ export const Empty: Story = {
 
 export const Mobile: Story = {
   tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
   args: Normal.args,
   decorators: [
     (Story) => (
@@ -123,6 +124,7 @@ export const Mobile: Story = {
 
 export const MobileEmailHelpOpen: Story = {
   tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
   args: Normal.args,
   decorators: Mobile.decorators,
   render: (args) => <OpenEmailHelpStory {...args} />,

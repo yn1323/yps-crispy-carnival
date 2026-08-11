@@ -1,6 +1,6 @@
 import { Stack, Text } from "@chakra-ui/react";
+import { useEffect, useRef } from "react";
 import type { Id } from "@/convex/_generated/dataModel";
-import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { type DashboardNotificationFailure, NotificationFailureDialogContent } from "../NotificationFailureDialog";
 
@@ -39,27 +39,68 @@ export function NotificationFailureRecoveryView({
   onCancelDismiss,
   onConfirmDismiss,
 }: Props) {
+  const isConfirmingDismiss = dismissTarget !== null;
+  const dismissTriggerIdRef = useRef<string | null>(null);
+  const confirmationBodyRef = useRef<HTMLDivElement>(null);
+  const wasConfirmingDismiss = useRef(false);
+
+  useEffect(() => {
+    if (isConfirmingDismiss) {
+      confirmationBodyRef.current?.focus();
+    } else if (wasConfirmingDismiss.current) {
+      const trigger = dismissTriggerIdRef.current
+        ? document.querySelector<HTMLButtonElement>(
+            `[data-notification-dismiss-trigger="${dismissTriggerIdRef.current}"]`,
+          )
+        : null;
+      trigger?.focus();
+    }
+    wasConfirmingDismiss.current = isConfirmingDismiss;
+  }, [isConfirmingDismiss]);
+
+  const closeCurrentState = () => {
+    if (isConfirmingDismiss) {
+      if (!isDismissing) onCancelDismiss();
+      return;
+    }
+    onClose();
+  };
+
   return (
-    <>
-      <Dialog
-        title="送れなかった通知"
-        isOpen={isOpen && !isReadOnly}
-        onOpenChange={onOpenChange}
-        onClose={onClose}
-        footer={
-          <Button variant="outline" onClick={onClose} w={{ base: "100%", md: "auto" }}>
-            閉じる
-          </Button>
-        }
-        maxW={{ base: "100vw", lg: "960px" }}
-        maxH={{ base: "100dvh", lg: "82dvh" }}
-        contentProps={{
-          w: "100%",
-          h: { base: "100dvh", lg: "auto" },
-          my: { base: 0, lg: "auto" },
-          borderRadius: { base: 0, lg: "l3" },
-        }}
-      >
+    <Dialog
+      title={isConfirmingDismiss ? "送れなかった通知を無視する" : "送れなかった通知"}
+      role={isConfirmingDismiss ? "alertdialog" : "dialog"}
+      isOpen={(isOpen || isConfirmingDismiss) && !isReadOnly}
+      onOpenChange={(details) => {
+        if (!details.open && isConfirmingDismiss) closeCurrentState();
+        else onOpenChange(details);
+      }}
+      onClose={closeCurrentState}
+      closeLabel={isConfirmingDismiss ? "キャンセル" : "閉じる"}
+      onSubmit={isConfirmingDismiss ? onConfirmDismiss : undefined}
+      submitLabel="無視する"
+      submitColorPalette="red"
+      isLoading={isDismissing}
+      isSubmitDisabled={isReadOnly || dismissTarget === null}
+      mobileActionLayout={isConfirmingDismiss ? "stacked" : "inline"}
+      mobileFullScreen
+      maxW={isConfirmingDismiss ? "480px" : { lg: "960px" }}
+      maxH={isConfirmingDismiss ? undefined : { lg: "82dvh" }}
+    >
+      {isConfirmingDismiss ? (
+        <Stack
+          ref={confirmationBodyRef}
+          data-testid="notification-dismiss-confirmation"
+          tabIndex={-1}
+          gap={2}
+          outline="none"
+        >
+          <Text color="gray.800">
+            「{dismissTarget.staffName}」さんへの{dismissTarget.notificationKindLabel}を無視しますか？
+          </Text>
+          <Text color="fg.muted">無視すると一覧から削除され、再送されません。</Text>
+        </Stack>
+      ) : (
         <NotificationFailureDialogContent
           failures={failures}
           isReadOnly={isReadOnly}
@@ -68,36 +109,12 @@ export function NotificationFailureRecoveryView({
           isResendingAll={isResendingAll}
           onResend={onResend}
           onResendAll={onResendAll}
-          onDismiss={onDismiss}
+          onDismiss={(failure) => {
+            dismissTriggerIdRef.current = failure._id;
+            onDismiss(failure);
+          }}
         />
-      </Dialog>
-
-      <Dialog
-        title="送れなかった通知を無視する"
-        role="alertdialog"
-        isOpen={dismissTarget !== null && !isReadOnly}
-        onOpenChange={({ open }) => {
-          if (!open && !isDismissing) onCancelDismiss();
-        }}
-        onClose={() => {
-          if (!isDismissing) onCancelDismiss();
-        }}
-        onSubmit={onConfirmDismiss}
-        submitLabel="無視する"
-        submitColorPalette="red"
-        isLoading={isDismissing}
-        isSubmitDisabled={isReadOnly || dismissTarget === null}
-        maxW="480px"
-      >
-        <Stack gap={2}>
-          {dismissTarget && (
-            <Text color="gray.800">
-              「{dismissTarget.staffName}」さんへの{dismissTarget.notificationKindLabel}を無視しますか？
-            </Text>
-          )}
-          <Text color="fg.muted">無視すると一覧から削除され、再送されません。</Text>
-        </Stack>
-      </Dialog>
-    </>
+      )}
+    </Dialog>
   );
 }

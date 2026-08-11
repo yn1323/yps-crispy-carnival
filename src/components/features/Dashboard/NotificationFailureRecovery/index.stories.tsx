@@ -51,6 +51,12 @@ export const DismissConfirmation: Story = {
   },
 };
 
+export const DismissConfirmationMobile: Story = {
+  ...DismissConfirmation,
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
 export const DismissBehavior: Story = {
   parameters: {
     screenshot: { skip: true },
@@ -60,18 +66,31 @@ export const DismissBehavior: Story = {
     const body = within(document.body);
     const failureDialog = await body.findByRole("dialog", { name: "送れなかった通知" });
     const row = within(failureDialog).getByRole("row", { name: /佐藤 真由美/ });
+    const dismissButton = within(row).getByRole("button", { name: "無視する" });
 
-    await userEvent.click(within(row).getByRole("button", { name: "無視する" }));
+    await userEvent.click(dismissButton);
 
     const confirmation = await body.findByRole("alertdialog", {
       name: "送れなかった通知を無視する",
     });
+    await expect(body.getAllByRole("alertdialog")).toHaveLength(1);
+    await expect(body.queryByRole("dialog", { name: "送れなかった通知" })).not.toBeInTheDocument();
+    await expect(within(confirmation).getByTestId("notification-dismiss-confirmation")).toHaveFocus();
     const description = within(confirmation).getByText("無視すると一覧から削除され、再送されません。");
     await waitFor(() => expect(description).toBeVisible());
-    await userEvent.click(within(confirmation).getByRole("button", { name: "無視する" }));
+    await userEvent.click(within(confirmation).getByRole("button", { name: "キャンセル" }));
+
+    const reopenedDialog = await body.findByRole("dialog", { name: "送れなかった通知" });
+    await expect(within(reopenedDialog).getByRole("button", { name: "無視する" })).toHaveFocus();
+    await userEvent.click(within(reopenedDialog).getByRole("button", { name: "無視する" }));
+
+    const reopenedConfirmation = await body.findByRole("alertdialog", {
+      name: "送れなかった通知を無視する",
+    });
+    await userEvent.click(within(reopenedConfirmation).getByRole("button", { name: "無視する" }));
 
     await waitFor(() =>
-      expect(within(failureDialog).queryByRole("row", { name: /佐藤 真由美/ })).not.toBeInTheDocument(),
+      expect(within(reopenedDialog).queryByRole("row", { name: /佐藤 真由美/ })).not.toBeInTheDocument(),
     );
   },
 };
