@@ -250,6 +250,7 @@ describe("OperationContext", () => {
     const organizationSettingsLink = await screen.findByRole("link", { name: "Aグループの組織設定を開く" });
     const planAndPaymentLink = screen.getByRole("button", { name: "プランと支払いを開く" });
 
+    expect(screen.queryByText("組織・プラン")).toBeNull();
     expect(
       planDetails.compareDocumentPosition(organizationSettingsLink) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();

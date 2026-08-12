@@ -86,17 +86,17 @@ export const OperationContextView = ({
           <Accordion.Item
             value={ORGANIZATION_DETAILS_VALUE}
             borderWidth="1px"
-            borderColor="gray.200"
-            borderRadius="xl"
+            borderColor="gray.300"
+            borderRadius="lg"
             bg="white"
             overflow="hidden"
           >
             <Heading as="h2" fontSize="inherit" fontWeight="normal">
               <Accordion.ItemTrigger
                 ref={triggerRef}
-                minH={{ base: "76px", md: "84px" }}
+                minH={{ base: "48px", md: "56px" }}
                 px={{ base: 3, md: 4 }}
-                py={3}
+                py={2.5}
                 borderRadius="0"
                 cursor="pointer"
                 _hover={{ bg: "gray.50" }}
@@ -133,9 +133,9 @@ export const OperationContextView = ({
           </Accordion.Item>
         </Accordion.Root>
       ) : (
-        <Box borderWidth="1px" borderColor="gray.200" borderRadius="xl" bg="white">
-          <Heading as="h2" fontSize="inherit" fontWeight="normal" minH={{ base: "76px", md: "84px" }}>
-            <Flex as="span" align="center" h="full" minH="inherit" px={{ base: 3, md: 4 }} py={3}>
+        <Box borderWidth="1px" borderColor="gray.300" borderRadius="lg" bg="white">
+          <Heading as="h2" fontSize="inherit" fontWeight="normal" minH={{ base: "48px", md: "56px" }}>
+            <Flex as="span" align="center" h="full" minH="inherit" px={{ base: 3, md: 4 }} py={2.5}>
               <OrganizationSummary model={model} />
             </Flex>
           </Heading>
@@ -158,26 +158,16 @@ const OrganizationSummary = ({
   presentation?: PlanPresentation | null;
 }) => {
   return (
-    <HStack as="span" flex={1} minW={0} gap={3} textAlign="left">
-      <Flex as="span" boxSize="40px" flexShrink={0} align="center" justify="center" color="gray.600">
-        <LuBuilding2 aria-hidden size={24} />
+    <HStack as="span" flex={1} minW={0} gap={2} textAlign="left">
+      <Flex as="span" boxSize="20px" flexShrink={0} align="center" justify="center" color="gray.600">
+        <LuBuilding2 aria-hidden size={20} />
       </Flex>
-      <Stack as="span" flex={1} minW={0} gap={1}>
-        <Text
-          as="span"
-          fontSize={{ base: "lg", md: "xl" }}
-          lineHeight="short"
-          fontWeight="bold"
-          color="gray.900"
-          truncate
-        >
+      <Stack as="span" flex={1} minW={0} gap={presentation?.summaryBadge ? 1 : 0}>
+        <Text as="span" fontSize="lg" lineHeight="short" fontWeight="bold" color="gray.900" truncate>
           {model.selectedGroup.organizationName}
         </Text>
-        <Flex as="span" align="center" gap={2} wrap="wrap">
-          <Text as="span" fontSize="sm" lineHeight="short" fontWeight="normal" color="fg.muted">
-            {presentation?.summaryLabel ?? "組織"}
-          </Text>
-          {presentation?.summaryBadge && (
+        {presentation?.summaryBadge && (
+          <Flex as="span" align="center" gap={2} wrap="wrap">
             <Badge
               variant="subtle"
               borderRadius="full"
@@ -188,8 +178,8 @@ const OrganizationSummary = ({
             >
               {presentation.summaryBadge.label}
             </Badge>
-          )}
-        </Flex>
+          </Flex>
+        )}
       </Stack>
     </HStack>
   );
@@ -404,18 +394,17 @@ export const OperationContextSkeleton = () => (
     <Flex
       align="center"
       gap={3}
-      minH={{ base: "76px", md: "84px" }}
+      minH={{ base: "48px", md: "56px" }}
       px={{ base: 3, md: 4 }}
-      py={3}
+      py={2.5}
       borderWidth="1px"
       borderColor="gray.200"
-      borderRadius="xl"
+      borderRadius="lg"
       bg="white"
     >
-      <Skeleton boxSize="40px" borderRadius="full" flexShrink={0} />
+      <Skeleton boxSize="20px" borderRadius="sm" flexShrink={0} />
       <Stack flex={1} minW={0} gap={2}>
         <Skeleton h="22px" w={{ base: "160px", md: "220px" }} maxW="70%" />
-        <Skeleton h="14px" w={{ base: "92px", md: "120px" }} maxW="45%" />
       </Stack>
       <Skeleton boxSize="20px" flexShrink={0} />
     </Flex>

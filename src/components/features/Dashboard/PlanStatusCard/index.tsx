@@ -336,7 +336,6 @@ export type PlanStatusPresentation = {
   Icon: typeof LuBadgeCheck;
   title: string;
   badge: PlanStatusBadge | null;
-  summaryLabel: string;
   summaryBadge: PlanStatusBadge | null;
   tone: PlanStatusTone;
   detailsLabel: string;
@@ -356,7 +355,6 @@ export function getPlanStatusPresentation(data: PlanStatusCardData): PlanStatusP
       Icon: LuBadgeCheck,
       title: `${planName}プラン`,
       badge,
-      summaryLabel: "組織・プラン",
       summaryBadge: isScheduledChange ? badge : null,
       tone: isScheduledChange ? "orange" : "neutral",
       detailsLabel: `${planName}プランの詳細`,
@@ -376,7 +374,6 @@ export function getPlanStatusPresentation(data: PlanStatusCardData): PlanStatusP
       Icon: LuClock3,
       title: "無料トライアル",
       badge,
-      summaryLabel: "無料トライアル",
       summaryBadge: badge,
       tone: isUrgent ? "orange" : "blue",
       detailsLabel: "無料トライアルの詳細",
@@ -391,7 +388,6 @@ export function getPlanStatusPresentation(data: PlanStatusCardData): PlanStatusP
       Icon: LuClock3,
       title: "支払い結果を確認中",
       badge,
-      summaryLabel: "支払い結果を確認中",
       summaryBadge: badge,
       tone: "blue",
       detailsLabel: "支払い結果確認中の詳細",
@@ -406,7 +402,6 @@ export function getPlanStatusPresentation(data: PlanStatusCardData): PlanStatusP
       Icon: LuCircleAlert,
       title: "契約制限中",
       badge,
-      summaryLabel: "契約制限中",
       summaryBadge: badge,
       tone: "red",
       detailsLabel: "契約制限の詳細",
@@ -427,7 +422,6 @@ export function getPlanStatusPresentation(data: PlanStatusCardData): PlanStatusP
     Icon: LuCircleAlert,
     title: "支払いに問題があります",
     badge,
-    summaryLabel: "支払いに問題があります",
     summaryBadge: badge,
     tone: isGrace ? "orange" : "red",
     detailsLabel: "支払い問題の詳細",
