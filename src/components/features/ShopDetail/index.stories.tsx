@@ -213,7 +213,9 @@ export const StaffAccordionOpen: Story = {
     const trigger = canvas.getByRole("button", { name: /スタッフ一覧を見る/ });
     await userEvent.click(trigger);
     await expect(trigger).toHaveAttribute("aria-expanded", "true");
-    const staffButton = await canvas.findByRole("button", { name: "佐藤 花子のスタッフ詳細を開く" });
+    const staffButton = await canvas.findByRole("button", {
+      name: "佐藤 花子のスタッフ詳細を開く",
+    });
     await waitFor(() => expect(staffButton).toBeVisible());
   },
 };
@@ -317,7 +319,9 @@ export const StaffNavigationBehavior: Story = {
     const trigger = canvas.getByRole("button", { name: /スタッフ一覧を見る/ });
     await userEvent.click(trigger);
     await expect(trigger).toHaveAttribute("aria-expanded", "true");
-    const staffButton = await canvas.findByRole("button", { name: "佐藤 花子のスタッフ詳細を開く" });
+    const staffButton = await canvas.findByRole("button", {
+      name: "佐藤 花子のスタッフ詳細を開く",
+    });
     await waitFor(() => expect(staffButton).toBeVisible());
     await userEvent.click(staffButton);
     await expect(await canvas.findByLabelText("操作結果")).toHaveTextContent("open:person-staff");
@@ -374,10 +378,14 @@ export const StaffMembershipTriggerReturnBehavior: Story = {
   render: () => <InteractionHarness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const trigger = canvas.getByRole("button", { name: "所属スタッフを変更する" });
+    const trigger = canvas.getByRole("button", {
+      name: "所属スタッフを変更する",
+    });
     await userEvent.click(trigger);
 
-    const dialog = await screen.findByRole("dialog", { name: "所属スタッフを変更" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "所属スタッフを変更",
+    });
     await userEvent.click(within(dialog).getByRole("button", { name: "キャンセル" }));
     await waitFor(() => expect(trigger).toHaveFocus());
   },
@@ -388,7 +396,9 @@ export const StaffMembershipAdditionBehavior: Story = {
   render: () => <MembershipDialogHarness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const dialog = await screen.findByRole("dialog", { name: "所属スタッフを変更" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "所属スタッフを変更",
+    });
     const content = within(dialog);
     const candidate = content.getByRole("checkbox", {
       name: "鈴木 次郎を所属スタッフにする",
@@ -416,7 +426,9 @@ export const StaffMembershipRemovalBehavior: Story = {
   render: () => <MembershipDialogHarness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const dialog = await screen.findByRole("dialog", { name: "所属スタッフを変更" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "所属スタッフを変更",
+    });
     const content = within(dialog);
 
     await userEvent.click(
@@ -425,18 +437,65 @@ export const StaffMembershipRemovalBehavior: Story = {
       }),
     );
     await expect(content.getByText("スタッフを外すと起きること")).toBeInTheDocument();
-    await userEvent.click(content.getByRole("button", { name: "変更する" }));
+    await userEvent.click(content.getByRole("button", { name: "影響を確認する" }));
+
+    await expect(await content.findByText("今日以降のシフト割り当て2件を削除します")).toBeInTheDocument();
+    await expect(content.getByText("今日以降のシフト割り当て：2件")).toBeInTheDocument();
+    await expect(canvas.getByTestId("staff-membership-preview-request-count")).toHaveTextContent("1");
+    await expect(canvas.getByTestId("staff-membership-change-inputs")).toHaveTextContent("[]");
+
+    await userEvent.click(content.getByRole("button", { name: "スタッフを外して変更する" }));
 
     await waitFor(() => {
-      expect(canvas.getByTestId("staff-membership-preview-request-count")).toHaveTextContent("1");
       const inputs = JSON.parse(
         canvas.getByTestId("staff-membership-change-inputs").textContent ?? "[]",
       ) as Array<ShopStaffMembershipChangeInput>;
       expect(inputs).toHaveLength(1);
       expect(inputs[0]?.removalPreviews).toEqual(readyRemovalPreview.removals);
     });
-    await expect(screen.queryAllByRole("alertdialog")).toHaveLength(0);
   },
+};
+
+export const StaffMembershipRemovalBackBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <MembershipDialogHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const dialog = await screen.findByRole("dialog", {
+      name: "所属スタッフを変更",
+    });
+    const content = within(dialog);
+    await userEvent.click(content.getByRole("checkbox", { name: "田中 太郎を所属スタッフにする" }));
+    await userEvent.click(content.getByRole("button", { name: "影響を確認する" }));
+    await userEvent.click(await content.findByRole("button", { name: "戻る" }));
+
+    const removedPerson = await content.findByRole("checkbox", {
+      name: "田中 太郎を所属スタッフにする",
+    });
+    await expect(removedPerson).not.toBeChecked();
+    await waitFor(() => expect(removedPerson).toHaveFocus());
+    await expect(canvas.getByTestId("staff-membership-change-inputs")).toHaveTextContent("[]");
+  },
+};
+
+export const StaffMembershipRemovalConfirmation: Story = {
+  render: () => <MembershipDialogHarness />,
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", {
+      name: "所属スタッフを変更",
+    });
+    const content = within(dialog);
+    await userEvent.click(content.getByRole("checkbox", { name: "田中 太郎を所属スタッフにする" }));
+    await userEvent.click(content.getByRole("button", { name: "影響を確認する" }));
+    await expect(await content.findByText("今日以降のシフト割り当て2件を削除します")).toBeInTheDocument();
+  },
+};
+
+export const StaffMembershipRemovalConfirmationMobile: Story = {
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  render: () => <MembershipDialogHarness />,
+  play: StaffMembershipRemovalConfirmation.play,
 };
 
 export const StaffMembershipRemoveAllWarningBehavior: Story = {
@@ -450,7 +509,9 @@ export const StaffMembershipRemoveAllWarningBehavior: Story = {
     />
   ),
   play: async () => {
-    const dialog = await screen.findByRole("dialog", { name: "所属スタッフを変更" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "所属スタッフを変更",
+    });
     const content = within(dialog);
     await userEvent.click(
       content.getByRole("checkbox", {
@@ -480,7 +541,9 @@ export const StaffMembershipPreservedStaffBehavior: Story = {
     />
   ),
   play: async () => {
-    const dialog = await screen.findByRole("dialog", { name: "所属スタッフを変更" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "所属スタッフを変更",
+    });
     const content = within(dialog);
     const preserved = content.getByRole("checkbox", {
       name: "移行中スタッフは所属スタッフです",
@@ -503,17 +566,19 @@ export const StaffMembershipTooManyAssignmentsBehavior: Story = {
   render: () => <MembershipDialogHarness preview={{ kind: "tooMany", assignmentCountAtLeast: 501, limit: 500 }} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const dialog = await screen.findByRole("dialog", { name: "所属スタッフを変更" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "所属スタッフを変更",
+    });
     const content = within(dialog);
     await userEvent.click(
       content.getByRole("checkbox", {
         name: "田中 太郎を所属スタッフにする",
       }),
     );
-    await userEvent.click(content.getByRole("button", { name: "変更する" }));
+    await userEvent.click(content.getByRole("button", { name: "影響を確認する" }));
 
     await expect(content.getByText(/この画面では変更できません/)).toBeInTheDocument();
-    await expect(content.getByRole("button", { name: "変更する" })).toBeDisabled();
+    await expect(content.getByRole("button", { name: "影響を確認する" })).toBeDisabled();
     await expect(canvas.getByTestId("staff-membership-change-inputs")).toHaveTextContent("[]");
   },
 };
@@ -522,7 +587,9 @@ export const StaffMembershipInitialFocusBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   render: () => <MembershipDialogHarness />,
   play: async () => {
-    const dialog = await screen.findByRole("dialog", { name: "所属スタッフを変更" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "所属スタッフを変更",
+    });
     const firstEditableCheckbox = within(dialog).getByRole("checkbox", {
       name: "田中 太郎を所属スタッフにする",
     });
@@ -535,7 +602,9 @@ export const StaffMembershipUnknownResultRetryBehavior: Story = {
   render: () => <MembershipUnknownResultHarness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const dialog = await screen.findByRole("dialog", { name: "所属スタッフを変更" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "所属スタッフを変更",
+    });
     const content = within(dialog);
     await userEvent.click(
       content.getByRole("checkbox", {
@@ -562,7 +631,9 @@ export const StaffMembershipRejectedResultBehavior: Story = {
   render: () => <MembershipRejectedResultHarness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const dialog = await screen.findByRole("dialog", { name: "所属スタッフを変更" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "所属スタッフを変更",
+    });
     const content = within(dialog);
     const candidate = content.getByRole("checkbox", {
       name: "鈴木 次郎を所属スタッフにする",
@@ -583,19 +654,23 @@ export const StaffMembershipRemovalRejectedResultBehavior: Story = {
   render: () => <MembershipRemovalRejectedResultHarness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const dialog = await screen.findByRole("dialog", { name: "所属スタッフを変更" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "所属スタッフを変更",
+    });
     const content = within(dialog);
     await userEvent.click(
       content.getByRole("checkbox", {
         name: "田中 太郎を所属スタッフにする",
       }),
     );
-    await userEvent.click(content.getByRole("button", { name: "変更する" }));
+    await userEvent.click(content.getByRole("button", { name: "影響を確認する" }));
+    await userEvent.click(await content.findByRole("button", { name: "スタッフを外して変更する" }));
 
     await expect(content.getByText(/シフトの割り当てが変更されました/)).toBeInTheDocument();
     await expect(canvas.getByTestId("staff-membership-removal-rejected-inputs")).toHaveTextContent("requestId");
 
-    await userEvent.click(content.getByRole("button", { name: "変更する" }));
+    await userEvent.click(content.getByRole("button", { name: "影響を確認する" }));
+    await userEvent.click(await content.findByRole("button", { name: "スタッフを外して変更する" }));
     const inputs = JSON.parse(
       canvas.getByTestId("staff-membership-removal-rejected-inputs").textContent ?? "[]",
     ) as ShopStaffMembershipChangeInput[];
@@ -868,7 +943,9 @@ export const MobileStaffAccordionOpen: Story = {
     const trigger = canvas.getByRole("button", { name: /スタッフ一覧を見る/ });
     await userEvent.click(trigger);
     await expect(trigger).toHaveAttribute("aria-expanded", "true");
-    const staffButton = await canvas.findByRole("button", { name: "佐藤 花子のスタッフ詳細を開く" });
+    const staffButton = await canvas.findByRole("button", {
+      name: "佐藤 花子のスタッフ詳細を開く",
+    });
     await waitFor(() => expect(staffButton).toBeVisible());
   },
 };
@@ -882,8 +959,20 @@ export const MobileShiftType: Story = {
       submissionPattern: {
         kind: "shiftType",
         options: [
-          { id: "early", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 },
-          { id: "late", name: "遅番", startTime: "15:00", endTime: "21:00", sortOrder: 1 },
+          {
+            id: "early",
+            name: "早番",
+            startTime: "09:00",
+            endTime: "15:00",
+            sortOrder: 0,
+          },
+          {
+            id: "late",
+            name: "遅番",
+            startTime: "15:00",
+            endTime: "21:00",
+            sortOrder: 1,
+          },
         ],
       },
     },

@@ -90,12 +90,10 @@ export function ShopStaffMembershipDialog({
   const [session, setSession] = useState<MembershipSession | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const hasFocusedEditableCheckboxRef = useRef(false);
-  const submittedPreviewKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
       setSession(null);
-      submittedPreviewKeyRef.current = null;
       return;
     }
     if (controller.data && session?.shopId !== shopId) {
@@ -171,7 +169,6 @@ export function ShopStaffMembershipDialog({
     });
     controller.clearPreview();
     controller.clearError();
-    submittedPreviewKeyRef.current = null;
   };
 
   const submitInput = useCallback(
@@ -222,7 +219,6 @@ export function ShopStaffMembershipDialog({
     }
     if (isStale) return;
     if (removedPeople.length > 0) {
-      submittedPreviewKeyRef.current = null;
       controller.requestRemovalPreview(
         removedPeople.map((person) => person.personId),
         session.expectedMembershipFingerprint,
@@ -232,16 +228,7 @@ export function ShopStaffMembershipDialog({
     await submitInput([]);
   };
 
-  const previewKey = previewReady ? JSON.stringify(previewReady.removals) : null;
-
-  const closeMainDialog = () => {
-    if (controller.isChanging || controller.isPreviewLoading) return;
-    submittedPreviewKeyRef.current = null;
-    controller.clearPreview();
-    controller.clearError();
-    onClose();
-  };
-
+  const isRemovalConfirmation = Boolean(previewReady && removedPeople.length > 0);
   const isLoading = controller.data === undefined || (controller.data !== null && session === null);
   const isBusy = controller.isChanging || controller.isPreviewLoading;
   const isSubmitDisabled =
@@ -254,28 +241,34 @@ export function ShopStaffMembershipDialog({
     Boolean(previewTooMany) ||
     isBusy;
 
-  useEffect(() => {
-    if (
-      !isOpen ||
-      !session ||
-      !previewReady ||
-      !previewKey ||
-      removedPeople.length === 0 ||
-      session.submittedInput ||
-      isStale ||
-      isBusy ||
-      submittedPreviewKeyRef.current === previewKey
-    ) {
-      return;
-    }
+  const handleRemovalConfirmation = async () => {
+    if (!previewReady) return;
+    await submitInput(previewReady.removals);
+  };
 
-    submittedPreviewKeyRef.current = previewKey;
-    void submitInput(previewReady.removals);
-  }, [isBusy, isOpen, isStale, previewKey, previewReady, removedPeople.length, session, submitInput]);
+  const returnToSelection = () => {
+    if (isBusy || isIntentFrozen) return;
+    controller.clearPreview();
+    controller.clearError();
+    const focusFirstEditableCheckbox = () =>
+      contentRef.current?.querySelector<HTMLInputElement>('input[type="checkbox"]:not(:disabled)')?.focus();
+    if (typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(focusFirstEditableCheckbox);
+    } else {
+      focusFirstEditableCheckbox();
+    }
+  };
+
+  const closeMainDialog = () => {
+    if (controller.isChanging || controller.isPreviewLoading) return;
+    controller.clearPreview();
+    controller.clearError();
+    onClose();
+  };
 
   return (
     <Dialog
-      title="所属スタッフを変更"
+      title={isRemovalConfirmation ? "所属変更の影響を確認" : "所属スタッフを変更"}
       isOpen={isOpen}
       onOpenChange={(details) => {
         if (!details.open) closeMainDialog();
@@ -285,16 +278,42 @@ export function ShopStaffMembershipDialog({
       onBackGuardRemoved={closeMainDialog}
       preventClose={isBusy}
       onSubmit={handleSubmit}
-      submitLabel="変更する"
+      submitLabel={removedPeople.length > 0 ? "影響を確認する" : "変更する"}
       isLoading={isBusy}
       isSubmitDisabled={isSubmitDisabled}
+      footer={
+        isRemovalConfirmation ? (
+          <DialogActionArea
+            layout="standard"
+            mobileLayout="inline"
+            startAction={
+              <Button variant="outline" onClick={returnToSelection} disabled={isBusy || isIntentFrozen}>
+                戻る
+              </Button>
+            }
+            endAction={
+              <Button
+                colorPalette="red"
+                onClick={handleRemovalConfirmation}
+                loading={isBusy}
+                loadingText="変更しています"
+                disabled={!canSubmitFrozenIntent || isBusy}
+              >
+                {isIntentFrozen ? "同じ内容で再試行" : "スタッフを外して変更する"}
+              </Button>
+            }
+          />
+        ) : undefined
+      }
       mobileActionLayout="inline"
       mobileFullScreen
       bodyProps={{ px: { base: 4, lg: 6 }, pt: 2, pb: { base: 4, lg: 5 } }}
     >
       <Stack ref={contentRef} gap={4}>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          {shopName}のシフトスタッフを選択してください。管理者権限と、ほかの店舗への所属は変更されません。
+          {isRemovalConfirmation
+            ? `${shopName}から外すスタッフと、削除されるシフトを確認してください。`
+            : `${shopName}のシフトスタッフを選択してください。管理者権限と、ほかの店舗への所属は変更されません。`}
         </Text>
 
         {globalDisabledReason && (
@@ -321,7 +340,49 @@ export function ShopStaffMembershipDialog({
 
         {controller.errorMessage && <InlineError message={controller.errorMessage} />}
 
-        {isLoading ? (
+        {isRemovalConfirmation && previewReady ? (
+          <>
+            <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" overflow="hidden">
+              <Box px={4} py={3} bg="gray.50" borderBottomWidth="1px" borderColor="blackAlpha.100">
+                <Text fontSize="sm" fontWeight="semibold" color="gray.900">
+                  店舗から外すスタッフ
+                </Text>
+              </Box>
+              <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
+                {previewReady.removals.map((removal) => {
+                  const person = removedPeople.find((candidate) => candidate.personId === removal.personId);
+                  if (!person) return null;
+                  return (
+                    <Flex key={removal.personId} gap={3} px={4} py={3.5} align="center">
+                      <PersonAvatar name={person.name} isManager={person.isManager} />
+                      <Stack gap={0.5} minW={0}>
+                        <Text fontWeight="medium" color="gray.900" overflowWrap="anywhere">
+                          {person.name}
+                        </Text>
+                        <Text fontSize="sm" color="fg.muted">
+                          今日以降のシフト割り当て：{removal.assignmentCount}件
+                        </Text>
+                      </Stack>
+                    </Flex>
+                  );
+                })}
+              </Stack>
+            </Box>
+
+            <Alert.Root status="error" borderRadius="lg">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Title>
+                  今日以降のシフト割り当て{previewReady.totalAssignmentCount}
+                  件を削除します
+                </Alert.Title>
+                <Alert.Description>
+                  対象店舗へのアクセス、LINE連携、未送信の通知も終了します。組織への登録、管理者権限、ほかの店舗への所属、過去のシフト記録は保持されます。
+                </Alert.Description>
+              </Alert.Content>
+            </Alert.Root>
+          </>
+        ) : isLoading ? (
           <MembershipListSkeleton />
         ) : controller.data === null ? (
           <InlineError message="所属スタッフを読み込めませんでした。画面を再読み込みしてください。" />
@@ -408,7 +469,7 @@ export function ShopStaffMembershipDialog({
           </CheckboxListCard>
         ) : null}
 
-        {session && session.people.length > 0 && (
+        {!isRemovalConfirmation && session && session.people.length > 0 && (
           <Alert.Root status="error" borderRadius="lg">
             <Alert.Indicator />
             <Alert.Content>
@@ -426,7 +487,8 @@ export function ShopStaffMembershipDialog({
             <Alert.Content>
               <Alert.Title>今日以降のシフトが多いため、この画面では変更できません</Alert.Title>
               <Alert.Description>
-                {previewTooMany.assignmentCountAtLeast}件以上の割り当てがあります。先にシフトを整理してください。
+                {previewTooMany.assignmentCountAtLeast}
+                件以上の割り当てがあります。先にシフトを整理してください。
               </Alert.Description>
             </Alert.Content>
           </Alert.Root>
@@ -501,7 +563,10 @@ export function ShopStaffMembershipDialogError({
 }
 
 function createSession(shopId: string, data: ShopStaffMembershipData): MembershipSession {
-  const people = data.people.map((person) => ({ ...person, otherShopNames: [...person.otherShopNames] }));
+  const people = data.people.map((person) => ({
+    ...person,
+    otherShopNames: [...person.otherShopNames],
+  }));
   return {
     shopId,
     people,
