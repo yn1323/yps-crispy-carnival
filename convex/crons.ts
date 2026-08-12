@@ -24,6 +24,9 @@ crons.interval("deletion-cleanup-recover", { minutes: 1 }, internal.deletionClea
 // アカウント削除jobの予約漏れ・期限切れleaseを1分ごとに回収する。
 crons.interval("account-deletion-recover", { minutes: 1 }, internal.accountDeletion.mutations.recover, {});
 
+// 発行時の期限予約がない既存sessionや予約漏れを期限順のbounded batchで回収する。
+crons.interval("staff-session-expiry-recover", { minutes: 1 }, internal.staffAuth.mutations.recoverExpiredSessions, {});
+
 // Stripe Webhookの予約漏れ・期限切れleaseを1分ごとに回収する。
 crons.interval(
   "organization-stripe-webhook-recover",

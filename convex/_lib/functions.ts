@@ -300,7 +300,7 @@ async function resolveStaffSession(
   if (
     !session ||
     session.revokedAt ||
-    session.expiresAt < Date.now() ||
+    session.expiresAt <= Date.now() ||
     !sessionMatchesAccessKind(session, accessKind)
   ) {
     return { status: "sessionExpired" };
