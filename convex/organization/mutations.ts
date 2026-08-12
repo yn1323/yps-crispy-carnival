@@ -26,6 +26,7 @@ import { updateShopSettingsSchema } from "../shop/schemas";
 import { editStaffSchema } from "../staff/schemas";
 import { type OrganizationActor, requireOrganizationActorForShop } from "./access";
 import { type OrganizationAuditAction, recordOrganizationAuditEvent } from "./audit";
+import { isOrganizationBillingContact } from "./billingContact";
 import { getOrganizationDeletionEligibility } from "./deletion";
 import { updateOrganizationPersonProfile } from "./personProfile";
 import {
@@ -943,11 +944,6 @@ type FullOrganizationPersonRemovalPlan = {
   targetUserId: Id<"users"> | undefined;
   billingReferenceUpdate: BillingReferenceUpdate;
 };
-
-function isOrganizationBillingContact(organization: Doc<"organizations">, person: Doc<"organizationPeople">) {
-  const billingEmail = (organization.billingEmailNormalized ?? organization.billingEmail ?? "").trim().toLowerCase();
-  return billingEmail.length > 0 && billingEmail === person.emailNormalized.trim().toLowerCase();
-}
 
 async function prepareFullOrganizationPersonRemoval(
   ctx: MutationCtx,

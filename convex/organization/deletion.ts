@@ -1,6 +1,7 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { hasUnfinishedShopCleanupForOrganization } from "../deletionCleanup/service";
+import { hasUniqueTerminalSubscriptionEvidence } from "../organizationStripe/subscriptionEvidence";
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
 
@@ -150,7 +151,7 @@ async function hasUnsafeStripeTrialSubscription(ctx: DbCtx, organizationId: Id<"
   }
   for (const cleanup of cleanupOperationGroups.flat()) {
     if (cleanup.status !== "succeeded" || !cleanup.sourceOperationId) return true;
-    if (!(await hasUniqueTerminalSubscriptionEvidence(ctx, organizationId, cleanup))) return true;
+    if (!(await hasUniqueTerminalSubscriptionEvidence(ctx, cleanup, organizationId))) return true;
     const source = await ctx.db.get(cleanup.sourceOperationId);
     if (
       source &&
@@ -182,33 +183,10 @@ async function hasUnsafeStripeTrialSubscription(ctx: DbCtx, organizationId: Id<"
   const providerObjectOperations = providerObjectOperationGroups.flat();
   const terminalProofs = await Promise.all(
     providerObjectOperations.map(
-      async (operation) => await hasUniqueTerminalSubscriptionEvidence(ctx, organizationId, operation),
+      async (operation) => await hasUniqueTerminalSubscriptionEvidence(ctx, operation, organizationId),
     ),
   );
   return terminalProofs.some((provedTerminal) => !provedTerminal);
-}
-
-async function hasUniqueTerminalSubscriptionEvidence(
-  ctx: DbCtx,
-  organizationId: Id<"organizations">,
-  operation: Doc<"organizationStripeOperations">,
-) {
-  if (!operation.stripeObjectId || operation.providerGeneration === undefined) return false;
-  const stripeSubscriptionId = operation.stripeObjectId;
-  const subscriptions = await ctx.db
-    .query("organizationStripeSubscriptions")
-    .withIndex("by_livemode_and_stripeSubscriptionId", (q) =>
-      q.eq("livemode", operation.livemode).eq("stripeSubscriptionId", stripeSubscriptionId),
-    )
-    .take(2);
-  if (subscriptions.length !== 1) return false;
-  const subscription = subscriptions[0];
-  return (
-    subscription.organizationId === organizationId &&
-    subscription.providerGeneration === operation.providerGeneration &&
-    (subscription.status === "canceled" || subscription.status === "incomplete_expired") &&
-    subscription.terminalAt !== undefined
-  );
 }
 
 export function isOrganizationBillingStateDeletable(state: Doc<"organizationBillingStates">["state"]) {

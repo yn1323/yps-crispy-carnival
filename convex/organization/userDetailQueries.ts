@@ -5,6 +5,7 @@ import { ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT, ORGANIZATION_USER_DETAIL_STAF
 import { getStaffLineAccount } from "../line/service";
 import { deriveOrganizationBillingPolicy, getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
+import { isOrganizationBillingContact } from "./billingContact";
 import { managerInvitationStateValidator, resolvePersonManagerInvitationState } from "./managerInvitationState";
 import { deriveOrganizationPersonCapabilities, type ManagerRole } from "./personCapabilities";
 import {
@@ -247,9 +248,6 @@ export const getUserDetail = managerQuery({
     const isActiveActor = organizationMember.status === "active";
     const isRestrictedRecovery = recoveryPersonIds.includes(organizationMember.personId);
     const isRecoveryManager = recoveryPersonIds.includes(person._id);
-    const billingEmailNormalized = (organization.billingEmailNormalized ?? organization.billingEmail ?? "")
-      .trim()
-      .toLowerCase();
     const canWriteNormally = Boolean(isActiveActor && policy?.canWriteBusinessData);
     const personCapabilities = deriveOrganizationPersonCapabilities({
       managerRole,
@@ -257,8 +255,7 @@ export const getUserDetail = managerQuery({
       canWriteNormally,
       policy,
       isStaff: memberships.length > 0,
-      isBillingContact:
-        billingEmailNormalized.length > 0 && billingEmailNormalized === person.emailNormalized.trim().toLowerCase(),
+      isBillingContact: isOrganizationBillingContact(organization, person),
       isActiveActor,
       isRestricted: restrictedState !== null,
       isRestrictedRecovery,

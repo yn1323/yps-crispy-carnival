@@ -24,6 +24,7 @@ import {
 } from "../organizationInvitation/service";
 import { getStripeBillingConfiguration } from "../organizationStripe/config";
 import { getOrganizationCreationAvailability, type OrganizationCreationAvailability } from "../setup/service";
+import { isOrganizationBillingContact } from "./billingContact";
 import { getOrganizationDeletionEligibility } from "./deletion";
 import { deriveOrganizationPersonCapabilities, type ManagerRole } from "./personCapabilities";
 import { getOrganizationBillingState, organizationPersonCountsTowardPeopleLimit } from "./service";
@@ -490,9 +491,6 @@ export const getSettings = managerQuery({
     const recoveryPersonIds = restrictedState
       ? restrictedState.recoveryManagerPersonIds.filter((personId) => people.some((person) => person._id === personId))
       : [];
-    const billingEmailNormalized = (organization.billingEmailNormalized ?? organization.billingEmail ?? "")
-      .trim()
-      .toLowerCase();
     const activeManagerCount = usage.activeManagerCount;
     const pendingManagerInvitationCount = pendingInvitations.filter(
       (invitation) => invitation.expiresAt > now && getOrganizationInvitationPurpose(invitation) === "managerAddition",
@@ -715,8 +713,7 @@ export const getSettings = managerQuery({
         const hasManagerInvitation = invitedPersonIds.has(person._id);
         const isRecoveryManager = Boolean(restrictedState && recoveryPersonIds.includes(person._id));
         const isLastRecoveryManager = isRecoveryManager && recoveryPersonIds.length <= 1;
-        const isBillingContact =
-          billingEmailNormalized.length > 0 && billingEmailNormalized === person.emailNormalized.trim().toLowerCase();
+        const isBillingContact = isOrganizationBillingContact(organization, person);
         const capabilities = deriveOrganizationPersonCapabilities({
           managerRole,
           activeManagerCount,
