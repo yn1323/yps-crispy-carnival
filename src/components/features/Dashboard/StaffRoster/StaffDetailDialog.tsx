@@ -30,6 +30,7 @@ type Props = {
   onClose: () => void;
   openRecruitments: Recruitment[];
   currentRecruitments: Recruitment[];
+  recruitmentDataStatus?: "ready" | "loading" | "unavailable";
   onEdit: (data: EditStaffFormData) => void | Promise<void>;
   isEditing: boolean;
   onDelete: (staff: Staff) => void | Promise<void>;
@@ -62,6 +63,7 @@ export const StaffDetailDialog = ({
   onClose,
   openRecruitments,
   currentRecruitments,
+  recruitmentDataStatus = "ready",
   onEdit,
   isEditing,
   onDelete,
@@ -193,8 +195,9 @@ export const StaffDetailDialog = ({
   const isShiftTarget = !staff.excludedFromShift;
   const hasEmail = staff.email.length > 0;
   const canSendNotification = (hasEmail || isLineActive) && isShiftTarget;
-  const canSendRecruitments = canSendNotification && openRecruitments.length > 0;
-  const canSendCurrentShift = canSendNotification && currentRecruitments.length > 0;
+  const canSendRecruitments = recruitmentDataStatus === "ready" && canSendNotification && openRecruitments.length > 0;
+  const canSendCurrentShift =
+    recruitmentDataStatus === "ready" && canSendNotification && currentRecruitments.length > 0;
   const showLineQr = lineQrState.staffId === staff._id;
   const lineStatus = getStaffLineStatus(staff);
   const isDirectActionRunning = directAction !== null;
@@ -295,6 +298,7 @@ export const StaffDetailDialog = ({
                 isShiftTarget={isShiftTarget}
                 openRecruitments={openRecruitments}
                 currentRecruitments={currentRecruitments}
+                recruitmentDataStatus={recruitmentDataStatus}
                 notificationHistory={activeTab === "notification" ? notificationHistory : null}
                 sendRecruitmentsAction={{
                   isDisabled: !canSendRecruitments || isDirectActionRunning,

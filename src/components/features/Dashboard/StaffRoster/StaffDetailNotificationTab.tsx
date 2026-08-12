@@ -1,4 +1,4 @@
-import { Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
+import { Alert, Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { LuBell, LuCalendarCheck, LuSend } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
@@ -16,6 +16,7 @@ type Props = {
   isShiftTarget: boolean;
   openRecruitments: Recruitment[];
   currentRecruitments: Recruitment[];
+  recruitmentDataStatus?: "ready" | "loading" | "unavailable";
   notificationHistory: ReactNode;
   sendRecruitmentsAction: NotificationAction;
   sendCurrentShiftAction: NotificationAction;
@@ -26,6 +27,7 @@ export const StaffDetailNotificationTab = ({
   isShiftTarget,
   openRecruitments,
   currentRecruitments,
+  recruitmentDataStatus = "ready",
   notificationHistory,
   sendRecruitmentsAction,
   sendCurrentShiftAction,
@@ -53,22 +55,38 @@ export const StaffDetailNotificationTab = ({
             </Stack>
           </Box>
         )}
-        <NotificationSection
-          title="現在の募集中シフト"
-          icon={<LuSend />}
-          recruitments={openRecruitments}
-          emptyText="送信できる募集中シフトはありません。"
-          actionLabel="募集中のシフトを再送する"
-          {...sendRecruitmentsAction}
-        />
-        <NotificationSection
-          title="確定シフト"
-          icon={<LuCalendarCheck />}
-          recruitments={currentRecruitments}
-          emptyText="送信できる確定シフトはありません。"
-          actionLabel="確定シフトを再送する"
-          {...sendCurrentShiftAction}
-        />
+        {recruitmentDataStatus === "ready" ? (
+          <>
+            <NotificationSection
+              title="現在の募集中シフト"
+              icon={<LuSend />}
+              recruitments={openRecruitments}
+              emptyText="送信できる募集中シフトはありません。"
+              actionLabel="募集中のシフトを再送する"
+              {...sendRecruitmentsAction}
+            />
+            <NotificationSection
+              title="確定シフト"
+              icon={<LuCalendarCheck />}
+              recruitments={currentRecruitments}
+              emptyText="送信できる確定シフトはありません。"
+              actionLabel="確定シフトを再送する"
+              {...sendCurrentShiftAction}
+            />
+          </>
+        ) : recruitmentDataStatus === "loading" ? (
+          <Text fontSize="sm" color="fg.muted">
+            シフト情報を読み込んでいます。
+          </Text>
+        ) : (
+          <Alert.Root status="error" role="alert" alignItems="flex-start">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>シフト情報を読み込めませんでした</Alert.Title>
+              <Alert.Description>Dashboardのシフト募集から再試行してください。</Alert.Description>
+            </Alert.Content>
+          </Alert.Root>
+        )}
       </Stack>
     </fieldset>
     {notificationHistory}

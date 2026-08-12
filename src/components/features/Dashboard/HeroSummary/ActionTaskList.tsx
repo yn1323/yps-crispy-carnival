@@ -16,7 +16,7 @@ import { formatDateShort } from "@/src/domains/shift/date";
 import type { NextAction } from "./pickNextAction";
 
 type Props = {
-  action: NextAction;
+  action?: NextAction;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onCreateRecruitment: () => void;
   notificationTask: { onClick: () => void } | null;
@@ -34,12 +34,14 @@ export const ActionTaskList = ({
   staffRegistrationRequest,
 }: Props) => {
   const tasks = [
-    createShiftActionTask(action, onOpenShiftBoard, onCreateRecruitment),
+    action ? createShiftActionTask(action, onOpenShiftBoard, onCreateRecruitment) : null,
     notificationTask ? createNotificationFailureTask(notificationTask.onClick) : null,
     staffRegistrationRequest
       ? createStaffRegistrationRequestTask(staffRegistrationRequest.count, staffRegistrationRequest.onClick)
       : null,
   ].filter((task): task is ActionTask => task !== null);
+
+  if (tasks.length === 0) return null;
 
   return (
     <Stack

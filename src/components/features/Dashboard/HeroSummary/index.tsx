@@ -1,9 +1,13 @@
-import { Box, Heading, HStack, Stack } from "@chakra-ui/react";
+import { Alert, Box, Heading, HStack, Link, Stack } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { LuCircleCheck } from "react-icons/lu";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
+import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
+import { Button } from "@/src/components/ui/Button";
 import { ActionTaskList } from "./ActionTaskList";
 import { pickNextAction } from "./pickNextAction";
+
+const reloadPage = () => window.location.reload();
 
 export { HeroSummarySkeleton } from "./HeroSummarySkeleton";
 export { WelcomeHero } from "./WelcomeHero";
@@ -20,6 +24,12 @@ type Props = {
   hasNotificationFailures?: boolean;
   onNotificationFailuresClick?: () => void;
   hideActionSection?: boolean;
+  isRecruitmentTaskAvailable?: boolean;
+  unavailableTaskSources?: {
+    key: string;
+    label: string;
+    onRetry: () => void;
+  }[];
 };
 
 export const HeroSummary = ({
@@ -31,8 +41,10 @@ export const HeroSummary = ({
   hasNotificationFailures = false,
   onNotificationFailuresClick,
   hideActionSection = false,
+  isRecruitmentTaskAvailable = true,
+  unavailableTaskSources = [],
 }: Props) => {
-  const action = pickNextAction(recruitments);
+  const action = isRecruitmentTaskAvailable ? pickNextAction(recruitments) : undefined;
 
   if (!announcementBanner && hideActionSection) return null;
 
@@ -60,6 +72,33 @@ export const HeroSummary = ({
             }
             staffRegistrationRequest={staffRegistrationRequest}
           />
+          {unavailableTaskSources.length > 0 && (
+            <Alert.Root status="error" role="alert" alignItems="flex-start" borderRadius="lg">
+              <Alert.Indicator />
+              <Alert.Content gap={3}>
+                <Stack gap={1}>
+                  <Alert.Title>一部のTODOを読み込めませんでした</Alert.Title>
+                  <Alert.Description>
+                    取得できたTODOだけを表示しています。時間をおいて再試行してください。解消しない場合は、
+                    <Link asChild color="teal.800" textDecoration="underline">
+                      <MeasurementBoundaryLink href="/contact">お問い合わせフォーム</MeasurementBoundaryLink>
+                    </Link>
+                    からご連絡ください。
+                  </Alert.Description>
+                </Stack>
+                <HStack gap={2} wrap="wrap">
+                  {unavailableTaskSources.map((source) => (
+                    <Button key={source.key} size="sm" colorPalette="gray" variant="outline" onClick={source.onRetry}>
+                      {source.label}を再試行
+                    </Button>
+                  ))}
+                  <Button size="sm" colorPalette="gray" variant="outline" onClick={reloadPage}>
+                    ページを再読み込みする
+                  </Button>
+                </HStack>
+              </Alert.Content>
+            </Alert.Root>
+          )}
         </Stack>
       )}
     </Stack>

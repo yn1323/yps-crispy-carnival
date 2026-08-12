@@ -18,6 +18,7 @@ type Props = {
 };
 
 export type NotificationFailureRecoveryState = {
+  isInitialLoading: boolean;
   failures: DashboardNotificationFailure[];
   openNotificationFailures: () => void;
   content: ReactNode;
@@ -214,6 +215,7 @@ export function NotificationFailureRecovery({ failures: failureOverrides, isRead
   );
 
   return children({
+    isInitialLoading: failureOverrides === undefined && failureQuery.status === "LoadingFirstPage",
     failures: visibleFailures,
     openNotificationFailures: () => {
       if (isReadOnly) return;
