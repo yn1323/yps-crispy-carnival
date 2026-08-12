@@ -57,6 +57,9 @@ jobs:
           git tag ${{ steps.bump.outputs.tag }}
           git push origin main --follow-tags
 
+      - name: Record release build metadata
+        run: echo "VITE_RELEASE_ID=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
       - name: Deploy Convex
         run: npx convex deploy
         env:
@@ -70,10 +73,13 @@ jobs:
       - name: Build
         run: pnpm build
         env:
+          VITE_APP_ENVIRONMENT: production
           VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL }}
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
           VITE_GTM_ID: ${{ secrets.VITE_GTM_ID }}
           VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
+          VITE_WEB_MEASUREMENT_ENABLED: ${{ vars.VITE_WEB_MEASUREMENT_ENABLED }}
+          VITE_WEB_VITALS_SAMPLE_RATE: ${{ vars.VITE_WEB_VITALS_SAMPLE_RATE }}
 
       - name: Deploy to Cloudflare Pages
         run: |

@@ -24,6 +24,7 @@ node_modules/
 /playwright-report-deployed/
 test-results.json
 test-results-deployed.json
+test-results-measurement.json
 /blob-report/
 /playwright/.cache/
 

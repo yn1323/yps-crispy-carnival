@@ -1,87 +1,91 @@
+import type { SerializedWebMeasurementEvent } from "@/src/domains/webMeasurement";
+
 declare global {
   interface Window {
-    dataLayer: Record<string, unknown>[];
+    dataLayer?: Array<SerializedWebMeasurementEvent | { "gtm.start": number; event: "gtm.js" }>;
   }
 }
 
 let initialized = false;
+let transportBlocked = false;
 
-// GTM の読み込みは初期描画後（requestIdleCallback）まで遅延するため、それより前に
-// 発生した page_view / カスタムイベントを取りこぼさないよう一時バッファに退避し、
-// initGTM 時に dataLayer へ順序どおり流し込む。
-let pendingEvents: Record<string, unknown>[] = [];
-
+const GTM_ID_PATTERN = /^GTM-[A-Z0-9]+$/;
 const getScriptSrc = (gtmId: string): string => `https://www.googletagmanager.com/gtm.js?id=${gtmId}`;
-const getNoscriptSrc = (gtmId: string): string => `https://www.googletagmanager.com/ns.html?id=${gtmId}`;
 
-function hasScript(gtmId: string): boolean {
-  const expectedSrc = getScriptSrc(gtmId);
-  return Array.from(document.head.querySelectorAll("script")).some(
-    (script) => script.getAttribute("src") === expectedSrc,
-  );
+function hasGtmScript(): boolean {
+  return document.querySelector('script[src^="https://www.googletagmanager.com/gtm.js"]') !== null;
 }
 
-function hasNoscriptFallback(gtmId: string): boolean {
-  const expectedSrc = getNoscriptSrc(gtmId);
-  return Array.from(document.body.querySelectorAll("noscript iframe")).some(
-    (iframe) => iframe.getAttribute("src") === expectedSrc,
-  );
+export function isValidGtmId(gtmId: string): boolean {
+  return GTM_ID_PATTERN.test(gtmId);
 }
 
-export const initGTM = (gtmId: string): void => {
-  // StartのSSGはNodeで実行され、この関数はclient entryからだけ呼ばれる。
-  if (!gtmId || initialized) return;
-  initialized = true;
+export function isGtmInitialized(): boolean {
+  return initialized;
+}
 
-  window.dataLayer = window.dataLayer || [];
-  window.dataLayer.push({ "gtm.start": Date.now(), event: "gtm.js" });
+export function initGTM(gtmId: string): boolean {
+  if (!isValidGtmId(gtmId) || initialized || transportBlocked) return false;
 
-  // 遅延読み込み前にバッファした page_view / イベントを順序どおり流し込む
-  for (const event of pendingEvents) {
-    window.dataLayer.push(event);
-  }
-  pendingEvents = [];
+  try {
+    // 同意前に別codeが積んだ値を後からflushしない。既存GTMがあるdocumentも安全に再利用できないため閉じる。
+    if (hasGtmScript()) {
+      stopGTM();
+      transportBlocked = true;
+      return false;
+    }
+    window.dataLayer = [];
+    window.dataLayer.push({ "gtm.start": Date.now(), event: "gtm.js" });
 
-  const scriptSrc = getScriptSrc(gtmId);
-  if (!hasScript(gtmId)) {
     const script = document.createElement("script");
     script.async = true;
-    script.src = scriptSrc;
+    script.src = getScriptSrc(gtmId);
     document.head.appendChild(script);
+    initialized = true;
+    return true;
+  } catch {
+    initialized = false;
+    transportBlocked = true;
+    try {
+      window.dataLayer = [];
+    } catch {
+      // transportを停止するbest-effort cleanup。計測失敗を製品操作へ伝播させない。
+    }
+    return false;
   }
+}
 
-  if (!hasNoscriptFallback(gtmId)) {
-    const noscript = document.createElement("noscript");
-    const iframe = document.createElement("iframe");
-    iframe.src = getNoscriptSrc(gtmId);
-    iframe.height = "0";
-    iframe.width = "0";
-    iframe.style.display = "none";
-    iframe.style.visibility = "hidden";
-    noscript.appendChild(iframe);
-    document.body.insertBefore(noscript, document.body.firstChild);
+export function pushGtmEvent(payload: SerializedWebMeasurementEvent): boolean {
+  try {
+    if (!initialized || !window.dataLayer) return false;
+    window.dataLayer.push(payload);
+    return true;
+  } catch {
+    return false;
   }
-};
+}
 
-export const sendPageView = (path: string): void => {
-  const payload = { event: "page_view", page_path: path };
-  if (!initialized) {
-    pendingEvents.push(payload);
-    return;
-  }
-  window.dataLayer?.push(payload);
-};
-
-export const sendEvent = (event: string, params?: Record<string, unknown>): void => {
-  const payload = { event, ...params };
-  if (!initialized) {
-    pendingEvents.push(payload);
-    return;
-  }
-  window.dataLayer?.push(payload);
-};
-
-export const resetGTM = (): void => {
+/**
+ * revoke直後の新規送信を止める。すでに実行済みのthird-party codeは完全にはunloadできないため、
+ * 呼び出し側は同意状態を保存した直後にdocumentをreloadする。
+ */
+export function stopGTM(): void {
   initialized = false;
-  pendingEvents = [];
-};
+  try {
+    window.dataLayer = [];
+  } catch {
+    // revoke後のreloadを妨げない。
+  }
+  try {
+    for (const script of document.querySelectorAll('script[src^="https://www.googletagmanager.com/gtm.js"]')) {
+      script.remove();
+    }
+  } catch {
+    // 一度実行済みのthird-party codeはreloadで破棄する。ここでは新規送信の停止を優先する。
+  }
+}
+
+export function resetGTM(): void {
+  stopGTM();
+  transportBlocked = false;
+}

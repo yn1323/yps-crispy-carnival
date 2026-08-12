@@ -1,5 +1,6 @@
 import { Box, Container, Heading, Icon, Stack, Text, VStack } from "@chakra-ui/react";
 import { LuChevronRight, LuMousePointerClick } from "react-icons/lu";
+import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
 import { Button } from "@/src/components/ui/Button";
 
 export const BottomCtaSection = () => (
@@ -39,9 +40,9 @@ const BottomButton = ({ href, label, primary = false }: { href: string; label: s
     borderRadius="md"
     fontWeight="bold"
   >
-    <a href={href}>
+    <MeasurementBoundaryLink href={href} measurementCtaId={primary ? "bottom_signup" : "bottom_demo"}>
       {primary ? <Icon as={LuChevronRight} boxSize={5} /> : <Icon as={LuMousePointerClick} boxSize={5} />}
       {label}
-    </a>
+    </MeasurementBoundaryLink>
   </Button>
 );

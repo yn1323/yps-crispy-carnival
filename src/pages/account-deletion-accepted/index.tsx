@@ -1,6 +1,6 @@
 import { Container } from "@chakra-ui/react";
-import { Link as RouterLink } from "@tanstack/react-router";
 import { LuCircleCheck } from "react-icons/lu";
+import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { PublicPageLayout } from "@/src/components/templates/PublicPageLayout";
 import { Button } from "@/src/components/ui/Button";
@@ -27,7 +27,7 @@ export function AccountDeletionAcceptedPage() {
           px={{ base: 2, md: 4 }}
           action={
             <Button asChild colorPalette="teal" minW="160px" mt={2}>
-              <RouterLink to="/">トップページへ戻る</RouterLink>
+              <MeasurementBoundaryLink href="/">トップページへ戻る</MeasurementBoundaryLink>
             </Button>
           }
         />

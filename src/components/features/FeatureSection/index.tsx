@@ -1,6 +1,7 @@
 import { Box, Container, Flex, Heading, Icon, Image, SimpleGrid, Text, VStack } from "@chakra-ui/react";
 import { LuChevronRight, LuMousePointerClick } from "react-icons/lu";
 import shiftFormImage from "@/src/assets/hero-pc.webp";
+import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
 import { Button } from "@/src/components/ui/Button";
 import featureCollectImage from "./feature-collect.webp";
 import featureMakeShiftImage from "./feature-make-shift.webp";
@@ -112,7 +113,12 @@ export const FeatureSection = ({ headingAs = "h2" }: FeatureSectionProps) => (
             fontWeight="bold"
             whiteSpace="normal"
           >
-            <a href="/demo/flow" target="_blank" rel="noopener noreferrer">
+            <MeasurementBoundaryLink
+              href="/demo/flow"
+              target="_blank"
+              rel="noopener noreferrer"
+              measurementCtaId="feature_demo"
+            >
               <Icon as={LuMousePointerClick} boxSize={{ base: 5, md: 6 }} justifySelf="center" />
               <Text
                 as="span"
@@ -124,7 +130,7 @@ export const FeatureSection = ({ headingAs = "h2" }: FeatureSectionProps) => (
                 シフト作成の流れを体験する
               </Text>
               <Icon as={LuChevronRight} boxSize={5} justifySelf="center" />
-            </a>
+            </MeasurementBoundaryLink>
           </Button>
         </VStack>
       </VStack>

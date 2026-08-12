@@ -1,13 +1,14 @@
 import { Box, Flex, Heading, HStack, Icon, Stack, Text } from "@chakra-ui/react";
-import { Link as RouterLink } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { LuChevronRight, LuUserPlus } from "react-icons/lu";
 import { CreateRecruitmentForm } from "@/src/components/features/CreateRecruitmentForm";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import { ShiftSubmitPage, type SubmitShiftSelectionInput } from "@/src/components/features/StaffSubmit";
+import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog, DialogActionArea } from "@/src/components/ui/Dialog";
 import type { ShiftData } from "@/src/domains/shift/types";
+import { trackDemoValueReached } from "@/src/lib/webMeasurement";
 import { DemoHighlightStyles } from "./DemoHighlightStyles";
 import {
   buildDemoShifts,
@@ -47,6 +48,7 @@ export const ShiftoriDemoFlow = ({ initialStep = "recruit" }: Props) => {
   };
 
   const handleConfirm = () => {
+    trackDemoValueReached();
     setConfirmed(true);
     setStep("share");
   };
@@ -386,13 +388,13 @@ const DemoCompleteCta = () => (
         borderRadius="md"
         justifyContent="space-between"
       >
-        <RouterLink to="/signup" search={{ redirect: undefined }}>
+        <MeasurementBoundaryLink href="/signup" measurementCtaId="demo_complete_signup">
           <Icon as={LuUserPlus} boxSize={5} />
           <Text as="span" flex={1} textAlign="center">
             無料ではじめる
           </Text>
           <Icon as={LuChevronRight} boxSize={5} />
-        </RouterLink>
+        </MeasurementBoundaryLink>
       </Button>
     </Stack>
   </Box>

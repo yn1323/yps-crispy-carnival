@@ -12,6 +12,7 @@ import {
 import { SiLine } from "react-icons/si";
 import heroPcImage from "@/src/assets/hero-pc.webp";
 import heroSpImage from "@/src/assets/hero-sp.webp";
+import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
 import { Button } from "@/src/components/ui/Button";
 
 const heroBenefits: Array<{ icon: IconType; label: string }> = [
@@ -90,8 +91,8 @@ export const HeroSection = () => (
             gap={4}
             w={{ base: "full", md: "auto" }}
           >
-            <HeroButton href="/signup" label="無料で試してみる" tone="primary" />
-            <HeroButton href="/demo/flow" label="登録不要でデモを見る" tone="secondary" />
+            <HeroButton href="/signup" label="無料で試してみる" tone="primary" measurementCtaId="hero_signup" />
+            <HeroButton href="/demo/flow" label="登録不要でデモを見る" tone="secondary" measurementCtaId="hero_demo" />
           </Stack>
         </VStack>
 
@@ -118,7 +119,17 @@ export const HeroSection = () => (
   </Box>
 );
 
-const HeroButton = ({ href, label, tone }: { href: string; label: string; tone: "primary" | "secondary" }) => {
+const HeroButton = ({
+  href,
+  label,
+  measurementCtaId,
+  tone,
+}: {
+  href: string;
+  label: string;
+  measurementCtaId: "hero_signup" | "hero_demo";
+  tone: "primary" | "secondary";
+}) => {
   const isPrimary = tone === "primary";
 
   return (
@@ -135,10 +146,10 @@ const HeroButton = ({ href, label, tone }: { href: string; label: string; tone: 
       fontWeight="bold"
       fontSize="md"
     >
-      <a href={href}>
+      <MeasurementBoundaryLink href={href} measurementCtaId={measurementCtaId}>
         {label}
         <Icon as={LuChevronRight} boxSize={5} />
-      </a>
+      </MeasurementBoundaryLink>
     </Button>
   );
 };

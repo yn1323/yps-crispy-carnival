@@ -13,8 +13,10 @@ const testBuildDateJst = "2026-01-13";
 const logicProject = defineConfig({
   plugins: [mdxPlugin()],
   define: {
+    __APP_ENVIRONMENT__: JSON.stringify("local"),
     __APP_VERSION__: JSON.stringify(storybookAppVersion),
     __BUILD_DATE_JST__: JSON.stringify(testBuildDateJst),
+    __RELEASE_ID__: JSON.stringify("test"),
   },
   resolve: {
     tsconfigPaths: true,
@@ -46,8 +48,10 @@ const uiProject = defineConfig({
     }),
   ],
   define: {
+    __APP_ENVIRONMENT__: JSON.stringify("local"),
     __APP_VERSION__: JSON.stringify(storybookAppVersion),
     __BUILD_DATE_JST__: JSON.stringify(testBuildDateJst),
+    __RELEASE_ID__: JSON.stringify("test"),
   },
   resolve: {
     tsconfigPaths: true,

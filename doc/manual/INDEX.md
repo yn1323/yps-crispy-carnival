@@ -11,6 +11,7 @@
 | Widen済みの保存形式をNarrowする | [Narrow Migrationの運用](narrow-migrations.md) | forward migration、全ページreadiness、schema Narrowの停止条件 |
 | Analyticsの新generationを構築し旧基盤から切り替える | [Analytics rollout](analytics-rollout.md) | 完全修飾deployment名、bootstrap、invariant、cutover、負荷、旧3テーブルの0件証跡 |
 | LINE設定、Webhook、通知障害を扱う | [LINE通知の運用](line-notification.md) | channel設定、署名、疎通、停止と復旧 |
+| 公開サイトのGTM、GA4、Clarityを確認・公開する | [GA4・GTM運用](ga4-gtm.md) | Consent、route surface、Preview、保持、rollback |
 | セキュリティ候補と外部環境を再検証する | [セキュリティ再検証](security-validation.md) | 成立条件、既存control、固定回帰、実環境証跡 |
 | Productionの公開・migration状態を記録する | [リリース状態](release-status.md) | 完全修飾deployment名、commit SHA、確認日時、証跡 |
 
