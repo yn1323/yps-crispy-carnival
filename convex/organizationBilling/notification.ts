@@ -1,5 +1,8 @@
 import { v } from "convex/values";
 import { formatDateTimeLabel } from "../_lib/dateFormat";
+import { ORGANIZATION_PLAN_LIMITS } from "./planLimits";
+
+const FREE_PLAN_LIMITS = ORGANIZATION_PLAN_LIMITS.free;
 
 export const TRIAL_ENDING_REMINDER_LEAD_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -82,7 +85,7 @@ export function organizationBillingNotificationCopy(
             ]
           : [
               `トライアルは${trialEndsAtLabel}に終了します。\n有料プランはまだ契約されていません。`,
-              "終了後も無料プランを利用するには、残す管理者と店舗を選び、利用人数を5名以下にしてください。\n条件を満たさない場合は契約制限中になります。",
+              `終了後も無料プランを利用するには、残す管理者と店舗を選び、利用人数を${FREE_PLAN_LIMITS.maxPeople}名以下にしてください。\n条件を満たさない場合は契約制限中になります。`,
               `無料プランで残す管理者と店舗の設定期限は${trialEndsAtLabel}です。`,
             ],
       };

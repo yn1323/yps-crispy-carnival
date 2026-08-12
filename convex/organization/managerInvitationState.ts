@@ -170,7 +170,6 @@ export async function resolvePersonManagerInvitationState(
       }
     : {
         kind: "unavailable",
-        reason:
-          "管理者と招待中の管理者は、組織全体で5名までです。\n管理者権限を外すか招待を取り消してから、もう一度お試しください。",
+        reason: `管理者と招待中の管理者は、組織全体で${policy.limits.maxActiveManagers}名までです。\n管理者権限を外すか招待を取り消してから、もう一度お試しください。`,
       };
 }

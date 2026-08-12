@@ -9,9 +9,9 @@ import {
   LuMail,
   LuReceiptText,
 } from "react-icons/lu";
+import { ORGANIZATION_PLAN_LIMITS } from "@/convex/organizationBilling/planLimits";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import {
-  BILLING_PLAN_LIMITS,
   type BillingPlanAction,
   formatPlanPrice,
   getRequiredReductions,
@@ -36,6 +36,11 @@ type Props = {
   onOpenBillingDocuments: () => void;
 };
 
+function formatPlanLimitsDescription(plan: keyof typeof ORGANIZATION_PLAN_LIMITS, suffix: string): string {
+  const limits = ORGANIZATION_PLAN_LIMITS[plan];
+  return `利用人数${limits.maxPeople}名・店舗${limits.maxActiveShops}件・管理者${limits.maxActiveManagers}名まで${suffix}`;
+}
+
 const STATE_PRESENTATION: Record<
   BillingDisplayState,
   { label: string; status: "info" | "success" | "warning" | "error"; description: string }
@@ -43,22 +48,22 @@ const STATE_PRESENTATION: Record<
   trial: {
     label: "トライアル",
     status: "info",
-    description: "利用人数20名・店舗5件・管理者5名まで、Proと同じ機能を利用できます。",
+    description: formatPlanLimitsDescription("trial", "、Proと同じ機能を利用できます。"),
   },
   free: {
     label: "無料",
     status: "info",
-    description: "利用人数5名・店舗1件・管理者1名まで、基本的なシフト運用を利用できます。",
+    description: formatPlanLimitsDescription("free", "、基本的なシフト運用を利用できます。"),
   },
   pro: {
     label: "Pro",
     status: "success",
-    description: "利用人数20名・店舗5件・管理者5名まで利用できます。",
+    description: formatPlanLimitsDescription("pro", "利用できます。"),
   },
   business: {
     label: "Business",
     status: "success",
-    description: "利用人数40名・店舗5件・管理者5名まで利用できます。",
+    description: formatPlanLimitsDescription("business", "利用できます。"),
   },
   initialPaymentPending: {
     label: "初回請求を確認中",
@@ -325,7 +330,7 @@ function PlanComparisonCards({
       {(["free", "pro", "business"] as const).map((plan) => {
         const isCurrent = billing.currentPlan === plan;
         const action = resolveBillingPlanAction(billing, plan);
-        const limits = BILLING_PLAN_LIMITS[plan];
+        const limits = ORGANIZATION_PLAN_LIMITS[plan];
         return (
           <Stack
             key={plan}
@@ -355,9 +360,9 @@ function PlanComparisonCards({
             />
 
             <Stack gap={1} color="fg.muted">
-              <Text fontSize="xs">利用人数 {limits.people}名まで</Text>
-              <Text fontSize="xs">店舗 {limits.shops}店舗まで</Text>
-              <Text fontSize="xs">管理者 {limits.managers}名まで</Text>
+              <Text fontSize="xs">利用人数 {limits.maxPeople}名まで</Text>
+              <Text fontSize="xs">店舗 {limits.maxActiveShops}店舗まで</Text>
+              <Text fontSize="xs">管理者 {limits.maxActiveManagers}名まで</Text>
             </Stack>
 
             {action && action.kind !== "openPortal" && (
@@ -571,7 +576,8 @@ function ReductionGuidance({ reductions }: { reductions: ReturnType<typeof getRe
 function trialContinuationDescription(billing: OrganizationBillingView) {
   if (billing.targetPlan === "business") return "終了後はBusinessへ継続する予定です。";
   if (billing.targetPlan === "pro") return "終了後はProへ継続する予定です。";
-  return "継続登録がない場合、終了後は利用人数5名・店舗1件までとなります。";
+  const limits = ORGANIZATION_PLAN_LIMITS.free;
+  return `継続登録がない場合、終了後は利用人数${limits.maxPeople}名・店舗${limits.maxActiveShops}件までとなります。`;
 }
 
 function PaymentInformation({

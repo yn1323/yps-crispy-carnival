@@ -1061,7 +1061,7 @@ export const getSettings = managerQuery({
                   ? "無料プランでは、管理者を追加できません。\n有料プランを選択してください。"
                   : policy?.paidFeatureBlockReason === "paymentResultPending"
                     ? "支払い結果が確定してから、管理者を招待できます。"
-                    : "管理者と招待中の管理者は、組織全体で5名までです。";
+                    : `管理者と招待中の管理者は、組織全体で${policy?.limits?.maxActiveManagers ?? ORGANIZATION_PLAN_LIMITS.pro.maxActiveManagers}名までです。`;
     const canAddShop = Boolean(
       isActiveActor && policy?.canUsePaidFeatures && policy.limits && activeShopCount < policy.limits.maxActiveShops,
     );
@@ -1077,7 +1077,7 @@ export const getSettings = managerQuery({
               ? "無料プランでは、店舗を追加できません。\n有料プランを選択してください。"
               : policy?.paidFeatureBlockReason === "paymentResultPending"
                 ? "支払い結果が確定してから、店舗を追加できます。"
-                : "店舗は、組織ごとに5件まで登録できます。";
+                : `店舗は、組織ごとに${policy?.limits?.maxActiveShops ?? ORGANIZATION_PLAN_LIMITS.pro.maxActiveShops}件まで登録できます。`;
     const canUpdateOrganizationName = isActiveActor;
     const updateOrganizationNameDisabledReason = canUpdateOrganizationName
       ? undefined
