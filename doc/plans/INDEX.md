@@ -18,7 +18,7 @@
 
 | 計画 | 状態 | 次に必要な判断 | 現在の正本 |
 |---|---|---|---|
-| [GA4計測基盤とSkill整備](2026-08-12_GA4計測基盤とSkill整備_実装計画.md) | `reviewed` | 公開surface限定のsafe core、CTA・デモ・問い合わせ、Consent、RUM、`ga4-measurement` Skillへ着手するか決める | [分析KPI蓄積基盤](../features/analytics.md)、[フロントエンドアーキテクチャ](../rules/frontend-architecture.md)、[セキュリティ方針](../rules/security-strategy.md) |
+| [GA4計測基盤とSkill整備](2026-08-12_GA4計測基盤とSkill整備_実装計画.md) | `partially superseded` | アプリ側safe coreは監査残件実装計画へ移管済み。`ga4-measurement` Skillを別途作成するかだけを決める | [公開Web計測](../features/web-measurement.md)、[GA4・GTM運用](../manual/ga4-gtm.md) |
 | [AIシフト下書き機能 詳細設計](2026-07-03_AIシフト下書き機能.md) | `reviewing` | 機能を採用するか、誰が再検討するかを決める | 現行のシフト作成は[シフト表](../features/shift-board.md) |
 | [AIシフト下書き機能 実装仕様書](2026-07-03_AIシフト下書き機能_実装仕様書.md) | `reviewing` | 詳細設計の採否後に実装仕様を確定する | 現行のシフト作成は[シフト表](../features/shift-board.md) |
 | [スタッフのメールアドレス任意化](2026-07-04_メールアドレス任意化_設計.md) | `reviewing` | 通知手段、認証境界、既存データmigrationを含めて採否を決める | 現行のスタッフ管理は[ユーザー詳細](../features/user-detail.md)と[LINE通知連携](../features/line-notification.md) |
@@ -28,6 +28,7 @@
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
+| [UI・UX・SEO監査残件 実装計画](2026-08-12_UI_UX_SEO監査残件_実装計画.md) | `rollout verification` | 確定不具合のrepository実装と主担当testは完了。外部GTM・GA4・Clarity設定、Production deploy・canary、Preview Deployed Smoke、計測browser契約の実走、CI VRT、GSC・RUM・Product判断gateは未実施。gate未成立項目とユーザー指定の除外二項目は現行維持 | [公開Web計測](../features/web-measurement.md)、[希望シフト提出](../features/shift-submission.md)、[公開サイト](../features/public-pages.md)、[リリース状態](../manual/release-status.md) |
 | [テスト充足度監査と改善計画](2026-08-12_テスト充足度監査_改善計画.md) | `rollout verification` | リポジトリ内の不足テスト、Trial継続取消の別requestId排他、全機能契約表、内部BI・VRT・Deployed SmokeのCI gateは実装済み。GitHub Actions上のVRT・Analytics CI、Preview Deployed Smoke、実Convex・Stripe到達は未確認。管理者招待は仕様確定まで対象外 | [テスト方針](../rules/testing-strategy.md)、[セキュリティ方針](../rules/security-strategy.md)、[CI/CD運用](../manual/ci-cd.md) |
 | [ShiftForm PC・SP時間編集不具合](2026-08-08_ShiftForm_PC_SP時間編集不具合_実装計画.md) | `rollout` | code・tests・現行文書は完了。deploy後canaryでPCの完全隣接枠、SPの短縮・複数区間案内、新しい確定通知の時間表示を確認する。既存DBの一括migrationは行わない | [シフト表](../features/shift-board.md)、[希望シフト提出](../features/shift-submission.md)、[通知配送outbox](../features/notification-outbox.md)、[リリース状態](../manual/release-status.md) |
 | [Analytics夜間バッチ簡素化](2026-08-08_Analytics夜間バッチ簡素化_実装計画.md) | `rollout` | code・tests・現行文書とNarrow revisionへの実装は完了。対象deploymentへNarrow deploy → 初回partialを通常のcompleteとして即時公開 → cron有効化 → 翌日03:00のno-op → 翌々日03:00の完全日次 → 外部alertの実環境証跡まで確認する | [分析KPI蓄積基盤](../features/analytics.md)、[分析KPI可視化アプリ](../features/analytics-dashboard.md)、[Analytics rollout](../manual/analytics-rollout.md) |
@@ -127,7 +128,9 @@ Historyの本文には、現在と異なる名称、パス、状態、上限、�
 
 | 計画 | 分類根拠 | 現在の正本 |
 |---|---|---|
+| [UI・UX・SEO全体監査 最終報告・改善計画](2026-08-12_UI_UX_SEO全体監査_最終報告・改善計画.md) | Dashboard、非ログインページ、公開SSG、CSR shell、SEO、性能、計測を時点監査し、採用する残件を[UI・UX・SEO監査残件 実装計画](2026-08-12_UI_UX_SEO監査残件_実装計画.md)へ移管。ShiftBoardデモの終了・SP代替導線とDashboardのcontext-first順序は今回の修正対象外と判断した | [UI設計方針](../rules/ui-design.md)、[希望シフト提出](../features/shift-submission.md)、[公開サイト](../features/public-pages.md)、[ログイン後オンボーディング](../features/dashboard-onboarding.md) |
 | [Analytics利用候補店舗](2026-08-12_Analytics利用候補店舗_実装計画.md) | 最新complete run基準の候補分類、`usage` filter、一覧の根拠表示、店舗・組織詳細への導線、Logic・Function Testを実装し、必須検証を完了。Production反映と実データ負荷計測は未実施 | [分析KPI可視化アプリ](../features/analytics-dashboard.md)、[分析KPI蓄積基盤](../features/analytics.md) |
+| [UI・UX・SEO全体監査 調査計画とゴールプロンプト](2026-08-12_UI_UX_SEO全体監査_調査計画.md) | Dashboard中心journeyと公開獲得journeyをPC/SPで実操作し、公開33 URL、CSR shell、D1〜D7、SEO・性能を証拠レイヤー別に監査して[最終報告・改善計画](2026-08-12_UI_UX_SEO全体監査_最終報告・改善計画.md)へ引き渡した | [UI設計方針](../rules/ui-design.md)、[公開サイト](../features/public-pages.md) |
 | [Dialogアクション統一](2026-08-12_Dialogアクション統一_実装計画.md) | feature側production 38宣言と共通fallbackを統一し、nested確認3件をinline化。PC/SP配置、閲覧専用のSecondary「閉じる」、scroll・safe area、処理中close lock、Behavior Testと必須検証を完了。VRT差分確認はGitHub Actionsへ委ねる | [UI設計方針](../rules/ui-design.md)、[テスト方針](../rules/testing-strategy.md) |
 | [Dashboardプランカードの利用状況表示と配色統一](2026-08-11_Dashboardプランカード_利用状況表示と配色統一_実装計画.md) | 承認済みUI、展開時だけの利用状況query、管理者flag、全課金状態のButton配色、Function・Unit・Story、機能文書を実装し、必須検証を完了。VRT差分確認はGitHub Actionsへ委ねる | [グループ課金](../features/organization-billing.md)、[UI設計方針](../rules/ui-design.md)、[テスト方針](../rules/testing-strategy.md) |
 | [スタッフ追加モーダルの方法選択UI](2026-08-10_スタッフ追加モーダル_方法選択UI_実装計画.md) | 方法選択カード、既存詳細への遷移、遅延query、状態・focus・mutation guard、Unit・Behavior・現行文書を実装し、必須検証を完了。VRT差分確認はGitHub Actionsへ委ねる | [スタッフ参加QR・承認導線](../features/staff-registration.md)、[UI設計方針](../rules/ui-design.md) |
