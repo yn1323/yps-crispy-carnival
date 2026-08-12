@@ -53,7 +53,9 @@ export const OperationContextView = ({
   const previousDefaultExpanded = useRef(defaultExpanded);
   const previousHasPlanDetails = useRef(Boolean(planStatusCard));
   const isExpanded = value.includes(ORGANIZATION_DETAILS_VALUE);
-  const hasOrganizationDetails = Boolean(organizationSettingsShopId || planStatusCard);
+  const hasAccordionContent = Boolean(
+    organizationSettingsShopId || planStatusCard || model.organizationChangeOptions.length > 0,
+  );
   const presentation = planStatusCard ? getPlanStatusPresentation(planStatusCard.data) : null;
   const billingAction = planStatusCard ? getBillingAction(planStatusCard.data) : null;
 
@@ -82,7 +84,7 @@ export const OperationContextView = ({
     <Stack gap={{ base: 2, lg: 3 }}>
       <VisuallyHidden as="h1">{model.selectedShop.shopName}</VisuallyHidden>
 
-      {hasOrganizationDetails ? (
+      {hasAccordionContent ? (
         <Accordion.Root
           collapsible
           variant="plain"
@@ -140,6 +142,15 @@ export const OperationContextView = ({
                     onOpen={() => planStatusCard.onAction(billingAction.action)}
                   />
                 )}
+                {model.organizationChangeOptions.map((option, index) => (
+                  <OrganizationChangeButton
+                    key={option.key}
+                    organizationName={option.organizationName}
+                    shopId={option.shopId}
+                    withBorder={Boolean(planStatusCard || organizationSettingsShopId || index > 0)}
+                    onSelect={onShopSelect}
+                  />
+                ))}
               </Accordion.ItemBody>
             </Accordion.ItemContent>
           </Accordion.Item>
@@ -266,6 +277,42 @@ const PlanAndPaymentLink = ({ label, onOpen }: { label: string; onOpen: () => vo
   >
     <Text as="span" flex={1} textAlign="left">
       {label}
+    </Text>
+    <Icon as={LuChevronRight} boxSize={5} color="fg.muted" flexShrink={0} />
+  </Button>
+);
+
+const OrganizationChangeButton = ({
+  organizationName,
+  shopId,
+  withBorder,
+  onSelect,
+}: {
+  organizationName: string;
+  shopId: string;
+  withBorder: boolean;
+  onSelect: (shopId: string) => void;
+}) => (
+  <Button
+    type="button"
+    variant="plain"
+    justifyContent="flex-start"
+    w="full"
+    minH="52px"
+    h="auto"
+    px={{ base: 4, md: 5 }}
+    py={3}
+    borderTopWidth={withBorder ? "1px" : 0}
+    borderTopColor="gray.200"
+    borderRadius="0"
+    color="gray.900"
+    fontSize="md"
+    fontWeight="medium"
+    _hover={{ bg: "gray.50" }}
+    onClick={() => onSelect(shopId)}
+  >
+    <Text as="span" flex={1} textAlign="left">
+      組織を変更：{organizationName}
     </Text>
     <Icon as={LuChevronRight} boxSize={5} color="fg.muted" flexShrink={0} />
   </Button>

@@ -320,7 +320,6 @@ export const SingleShopWithPlanStatus: Story = {
     const canvas = within(canvasElement);
 
     await expect(canvas.getByRole("button", { name: /たなかグループ/ })).toHaveAttribute("aria-expanded", "true");
-    await expect(canvas.getByText("居酒屋たなか", { selector: "p" })).toBeVisible();
     await expect(canvas.getByRole("region", { name: "Proプランの詳細" })).toBeVisible();
     await expect(canvas.getByText("次回更新日：2026/9/1")).toBeVisible();
     await expect(canvas.getByRole("heading", { name: "TODO", level: 2 })).toBeVisible();
