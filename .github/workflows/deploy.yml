@@ -53,9 +53,31 @@ jobs:
       - name: Deploy Convex Preview
         id: convex
         run: |
-          npx convex deploy --preview-create "$CONVEX_PREVIEW_NAME" \
-            --cmd 'echo "PREVIEW_URL=$CONVEX_URL" >> "$GITHUB_OUTPUT"' \
-            --cmd-url-env-var-name CONVEX_URL
+          deploy_preview() {
+            local preview_option="$1"
+            npx convex deploy "$preview_option" "$CONVEX_PREVIEW_NAME" \
+              --cmd 'echo "PREVIEW_URL=$CONVEX_URL" >> "$GITHUB_OUTPUT"' \
+              --cmd-url-env-var-name CONVEX_URL
+          }
+
+          deploy_log="$(mktemp)"
+          trap 'rm -f "$deploy_log"' EXIT
+
+          set +e
+          deploy_preview --preview-create 2>&1 | tee "$deploy_log"
+          deploy_status="${PIPESTATUS[0]}"
+          set -e
+
+          if [[ "$deploy_status" -eq 0 ]]; then
+            exit 0
+          fi
+
+          if ! grep -Fq "/api/deploy2/start_push 408 Request Timeout" "$deploy_log"; then
+            exit "$deploy_status"
+          fi
+
+          echo "::warning::Convex preview creation timed out; retrying the claimed preview once"
+          deploy_preview --preview-name
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       # NOTE: convex-seeds/seeds/db.zip is currently stale against the schema.
