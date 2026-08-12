@@ -14,6 +14,8 @@ export default defineConfig({
   forbidOnly: true,
   retries: 0,
   failOnFlakyTests: !!process.env.CI,
+  // privacy gate対象のJSONへrepository diffやcommit author情報を収録しない。
+  captureGitInfo: { commit: false, diff: false },
   workers: 1,
   projects: [{ name: "measurement-enabled-chromium" }],
   reporter: [
