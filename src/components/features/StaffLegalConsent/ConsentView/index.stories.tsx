@@ -1,5 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useRef, useState } from "react";
+import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import { StaffLayout } from "@/src/components/templates/StaffLayout";
+import { createDeferred } from "@/src/devtools/createDeferred";
+import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import type { StaffLegalConsentPageData } from "../types";
 import { StaffLegalConsentView } from "./index";
 
@@ -51,6 +55,30 @@ export const Default: Story = {
   },
 };
 
+export const ConsentBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: Default.args,
+  render: () => <ConsentBehaviorStory />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const submit = canvas.getByRole("button", { name: "同意する" });
+
+    await userEvent.click(submit);
+    await expect(canvas.getByText("利用規約とプライバシーポリシーに同意してください")).toBeVisible();
+    await expect(canvas.getByTestId("legal-consent-submit-count")).toHaveTextContent("0");
+
+    await userEvent.click(canvas.getByRole("checkbox"));
+    fireEvent.click(submit);
+    fireEvent.click(submit);
+
+    await expect(canvas.getByTestId("legal-consent-submit-count")).toHaveTextContent("1");
+    await expect(submit).toBeDisabled();
+
+    fireEvent.click(canvas.getByTestId("release-legal-consent-submission"));
+    await waitFor(() => expect(submit).toBeEnabled());
+  },
+};
+
 export const Accepted: Story = {
   args: {
     data: {
@@ -70,3 +98,30 @@ export const Expired: Story = {
     },
   },
 };
+
+function ConsentBehaviorStory() {
+  const [submitCount, setSubmitCount] = useState(0);
+  const pendingSubmission = useRef<ReturnType<typeof createDeferred> | null>(null);
+  const { run: handleAccept, isRunning: isSubmitting } = useSingleFlight(async () => {
+    setSubmitCount((count) => count + 1);
+    const submission = createDeferred();
+    pendingSubmission.current = submission;
+    await submission.promise;
+    if (pendingSubmission.current === submission) pendingSubmission.current = null;
+  });
+
+  return (
+    <>
+      <StaffLegalConsentView data={okData} isSubmitting={isSubmitting} onAccept={handleAccept} />
+      <output data-testid="legal-consent-submit-count" hidden>
+        {submitCount}
+      </output>
+      <button
+        data-testid="release-legal-consent-submission"
+        type="button"
+        hidden
+        onClick={() => pendingSubmission.current?.resolve()}
+      />
+    </>
+  );
+}

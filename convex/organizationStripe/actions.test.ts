@@ -1176,7 +1176,6 @@ describe("organizationStripe/actions", () => {
       }
       throw new Error(`Unexpected Stripe provider call: ${resource}`);
     });
-
     await expect(
       t
         .withIdentity({ subject: "stripe_pro_to_business_existing_pending" })
@@ -6017,6 +6016,376 @@ describe("organizationStripe/actions", () => {
     expect(result.operations[0]).toMatchObject({ kind: "reconcileSubscription", status: "succeeded" });
   });
 
+  it("Trial継続取消は未認証ならoperation・scheduler・provider通信を開始しない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedTrialContinuationCancellation(t, "unauthenticated");
+    const before = await trialContinuationBoundaryState(t, ids.organizationId);
+
+    await expect(
+      t.action(api.organizationStripe.actions.cancelTrialContinuation, {
+        shopId: ids.shopId,
+        requestId: "trial-cancel-unauthenticated",
+      }),
+    ).rejects.toThrowError("Unauthenticated");
+
+    expect(await trialContinuationBoundaryState(t, ids.organizationId)).toEqual(before);
+    expect(before.operations).toEqual([]);
+    expect(before.scheduled).toEqual([]);
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("Trial継続取消はreadOnly管理者ならoperation・scheduler・provider通信を開始しない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedTrialContinuationCancellation(t, "read_only");
+    await t.run(async (ctx) => await ctx.db.patch(ids.memberId, { status: "readOnly", updatedAt: NOW }));
+    const before = await trialContinuationBoundaryState(t, ids.organizationId);
+
+    await expect(
+      t.withIdentity({ subject: ids.subject }).action(api.organizationStripe.actions.cancelTrialContinuation, {
+        shopId: ids.shopId,
+        requestId: "trial-cancel-read-only",
+      }),
+    ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
+
+    expect(await trialContinuationBoundaryState(t, ids.organizationId)).toEqual(before);
+    expect(before.operations).toEqual([]);
+    expect(before.scheduled).toEqual([]);
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("Trial継続取消は他organizationのshop IDをNot foundで拒否して副作用を開始しない", async () => {
+    const t = convexTest(schema, modules);
+    const target = await seedTrialContinuationCancellation(t, "other_org_target");
+    await t.run(
+      async (ctx) =>
+        await seedOrganizationManagerShop(ctx, {
+          subject: "stripe_trial_cancel_other_org_actor",
+          plan: "pro",
+        }),
+    );
+    const before = await trialContinuationBoundaryState(t, target.organizationId);
+
+    await expect(
+      t
+        .withIdentity({ subject: "stripe_trial_cancel_other_org_actor" })
+        .action(api.organizationStripe.actions.cancelTrialContinuation, {
+          shopId: target.shopId,
+          requestId: "trial-cancel-other-org",
+        }),
+    ).rejects.toThrowError("Not found");
+
+    expect(await trialContinuationBoundaryState(t, target.organizationId)).toEqual(before);
+    expect(before.operations).toEqual([]);
+    expect(before.scheduled).toEqual([]);
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each(["active.pro", "trial.unselected"] as const)(
+    "Trial継続取消は対象外stateの%sなら副作用を開始しない",
+    async (stateKind) => {
+      const t = convexTest(schema, modules);
+      const ids = await seedTrialContinuationCancellation(t, `state_${stateKind.replace(".", "_")}`);
+      await t.run(async (ctx) => {
+        const billing = await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+          .unique();
+        if (!billing) throw new Error("billing missing");
+        await ctx.db.patch(billing._id, {
+          state:
+            stateKind === "active.pro"
+              ? { kind: "active", plan: "pro" }
+              : { kind: "trial", trialEndsAt: ids.trialEndsAt },
+          updatedAt: NOW,
+        });
+      });
+      const before = await trialContinuationBoundaryState(t, ids.organizationId);
+
+      await expect(
+        t.withIdentity({ subject: ids.subject }).action(api.organizationStripe.actions.cancelTrialContinuation, {
+          shopId: ids.shopId,
+          requestId: `trial-cancel-${stateKind.replace(".", "-")}`,
+        }),
+      ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
+
+      expect(await trialContinuationBoundaryState(t, ids.organizationId)).toEqual(before);
+      expect(before.operations).toEqual([]);
+      expect(before.scheduled).toEqual([]);
+      expect(providerFetchMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("Trial継続取消は同一requestIdの処理中operationを再利用せずprovider通信を重複しない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedTrialContinuationCancellation(t, "request_replay");
+    const requestId = "trial-cancel-request-replay";
+    await seedTrialContinuationOperation(t, ids, { requestId, providerGeneration: 1 });
+    const before = await trialContinuationBoundaryState(t, ids.organizationId);
+
+    await expect(
+      t.withIdentity({ subject: ids.subject }).action(api.organizationStripe.actions.cancelTrialContinuation, {
+        shopId: ids.shopId,
+        requestId,
+      }),
+    ).resolves.toEqual({ status: "unavailable", reason: "request_already_used" });
+
+    expect(await trialContinuationBoundaryState(t, ids.organizationId)).toEqual(before);
+    expect(before.operations).toHaveLength(1);
+    expect(before.scheduled).toEqual([]);
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("Trial継続取消は同一requestIdの不変intentが競合したらin_progressで拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedTrialContinuationCancellation(t, "request_conflict");
+    const requestId = "trial-cancel-request-conflict";
+    await seedTrialContinuationOperation(t, ids, { requestId, providerGeneration: 2 });
+    const before = await trialContinuationBoundaryState(t, ids.organizationId);
+
+    await expect(
+      t.withIdentity({ subject: ids.subject }).action(api.organizationStripe.actions.cancelTrialContinuation, {
+        shopId: ids.shopId,
+        requestId,
+      }),
+    ).resolves.toEqual({ status: "unavailable", reason: "in_progress" });
+
+    expect(await trialContinuationBoundaryState(t, ids.organizationId)).toEqual(before);
+    expect(before.operations).toHaveLength(1);
+    expect(before.scheduled).toEqual([]);
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("Trial継続取消のpublic Actionはscopeとidempotency keyを固定してlocal stateへ収束する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedTrialContinuationCancellation(t, "public_success");
+    const requestId = "trial-cancel-public-success";
+    const providerCalls: Array<{ resource: string; args: unknown[] }> = [];
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
+      providerCalls.push({ resource, args });
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(trialContinuationProviderSubscription(ids, "trialing"));
+      }
+      if (resource === "subscriptions.cancel") {
+        return providerResponse(trialContinuationProviderSubscription(ids, "canceled"));
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await expect(
+      t.withIdentity({ subject: ids.subject }).action(api.organizationStripe.actions.cancelTrialContinuation, {
+        shopId: ids.shopId,
+        requestId,
+      }),
+    ).resolves.toEqual({ status: "accepted" });
+
+    const state = await trialContinuationBoundaryState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({ kind: "trial", trialEndsAt: ids.trialEndsAt });
+    expect(state.subscription).toMatchObject({
+      stripeSubscriptionId: ids.stripeSubscriptionId,
+      status: "canceled",
+      terminalAt: NOW,
+    });
+    expect(state.operations).toHaveLength(1);
+    expect(state.operations[0]).toMatchObject({
+      kind: "cancelSubscription",
+      requestKey: requestId,
+      recoveryPurpose: "trialContinuationCancellation",
+      providerGeneration: 1,
+      stripeObjectId: ids.stripeSubscriptionId,
+      status: "succeeded",
+      attemptCount: 1,
+    });
+    expect(state.scheduled).toEqual([
+      {
+        name: "organizationBilling/mutations:processDeadline",
+        args: [
+          {
+            organizationId: ids.organizationId,
+            expectedVersion: 3,
+            expectedDeadlineAt: ids.trialEndsAt,
+          },
+        ],
+      },
+    ]);
+    expect(providerCalls).toEqual([
+      {
+        resource: "subscriptions.retrieve",
+        args: [ids.stripeSubscriptionId, { expand: ["latest_invoice"] }],
+      },
+      {
+        resource: "subscriptions.cancel",
+        args: [
+          ids.stripeSubscriptionId,
+          null,
+          {
+            idempotencyKey: `shiftori:test:cancelSubscription:${ids.organizationId}:${requestId}`,
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("Business Trial継続取消もBusiness Priceを照合してlocal stateへ収束する", async () => {
+    configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await seedTrialContinuationCancellation(t, "public_business", "business");
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(trialContinuationProviderSubscription(ids, "trialing"));
+      }
+      if (resource === "subscriptions.cancel") {
+        return providerResponse(trialContinuationProviderSubscription(ids, "canceled"));
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await expect(
+      t.withIdentity({ subject: ids.subject }).action(api.organizationStripe.actions.cancelTrialContinuation, {
+        shopId: ids.shopId,
+        requestId: "trial-cancel-public-business",
+      }),
+    ).resolves.toEqual({ status: "accepted" });
+
+    const state = await trialContinuationBoundaryState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({ kind: "trial", trialEndsAt: ids.trialEndsAt });
+    expect(state.subscription).toMatchObject({
+      stripePriceId: BUSINESS_PRICE_ID,
+      plan: "business",
+      status: "canceled",
+      terminalAt: NOW,
+    });
+    expect(state.operations).toHaveLength(1);
+    expect(state.operations[0]).toMatchObject({ status: "succeeded", providerGeneration: 1 });
+    expect(state.scheduled).toEqual([
+      {
+        name: "organizationBilling/mutations:processDeadline",
+        args: [
+          {
+            organizationId: ids.organizationId,
+            expectedVersion: 3,
+            expectedDeadlineAt: ids.trialEndsAt,
+          },
+        ],
+      },
+    ]);
+    expect(providerFetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("Trial継続取消のpublic Actionは初回請求が支払済みならSubscriptionを解約しない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedTrialContinuationCancellation(t, "public_paid_race");
+    vi.setSystemTime(ids.trialEndsAt);
+    const providerCalls: string[] = [];
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      providerCalls.push(resource);
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse({
+          ...trialContinuationProviderSubscription(ids, "trialing"),
+          status: "active",
+          latest_invoice: {
+            id: "in_trial_cancel_public_paid_race",
+            customer: ids.stripeCustomerId,
+            livemode: false,
+            status: "paid",
+            amount_remaining: 0,
+            parent: {
+              type: "subscription_details",
+              subscription_details: { subscription: ids.stripeSubscriptionId },
+            },
+          },
+        });
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await expect(
+      t.withIdentity({ subject: ids.subject }).action(api.organizationStripe.actions.cancelTrialContinuation, {
+        shopId: ids.shopId,
+        requestId: "trial-cancel-public-paid-race",
+      }),
+    ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
+
+    const state = await trialContinuationBoundaryState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({ kind: "active", plan: "pro" });
+    expect(state.subscription).toMatchObject({ status: "active" });
+    expect(state.subscription?.terminalAt).toBeUndefined();
+    expect(state.operations).toHaveLength(1);
+    expect(state.operations[0]).toMatchObject({
+      status: "succeeded",
+      lastErrorCode: "trial_continuation_already_paid",
+    });
+    expect(state.scheduled.map((job) => job.name)).toEqual([
+      "organizationStripe/actions:reconcileInitialPaymentPending",
+      "organizationBilling/actions:enqueueBillingNotification",
+    ]);
+    expect(state.scheduled).not.toContainEqual(
+      expect.objectContaining({ name: "organizationStripe/actions:reconcileTrialContinuationCancellation" }),
+    );
+    expect(providerCalls).toEqual(["subscriptions.retrieve"]);
+  });
+
+  it("Trial継続取消はprovider取消後のlocal保存失敗を同じoperationのrecoveryへ予約する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedTrialContinuationCancellation(t, "public_recovery");
+    const requestId = "trial-cancel-public-recovery";
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(trialContinuationProviderSubscription(ids, "trialing"));
+      }
+      if (resource === "subscriptions.cancel") {
+        const canceled = trialContinuationProviderSubscription(ids, "canceled");
+        return providerResponse({ ...canceled, items: { data: [] } });
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await expect(
+      t.withIdentity({ subject: ids.subject }).action(api.organizationStripe.actions.cancelTrialContinuation, {
+        shopId: ids.shopId,
+        requestId,
+      }),
+    ).resolves.toEqual({ status: "unavailable", reason: "configuration_pending" });
+
+    const state = await trialContinuationBoundaryState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({
+      kind: "trial",
+      trialEndsAt: ids.trialEndsAt,
+      selectedPaidPlan: "pro",
+    });
+    expect(state.subscription).not.toBeNull();
+    expect(state.subscription).toMatchObject({ status: "trialing" });
+    expect(state.subscription).not.toHaveProperty("terminalAt");
+    expect(state.operations).toHaveLength(1);
+    expect(state.operations[0]).toMatchObject({
+      kind: "cancelSubscription",
+      requestKey: requestId,
+      recoveryPurpose: "trialContinuationCancellation",
+      providerGeneration: 1,
+      status: "retrying",
+      attemptCount: 1,
+      nextRunAt: NOW + 30_000,
+      lastErrorCode: "stripe_processing_error",
+    });
+    expect(state.scheduled).toEqual([
+      {
+        name: "organizationStripe/actions:reconcileTrialContinuationCancellation",
+        args: [
+          {
+            organizationId: ids.organizationId,
+            expectedBillingVersion: 2,
+            requestId,
+          },
+        ],
+      },
+    ]);
+    expect(providerFetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("Trial継続取消はprovider成功後のlocal失敗を同じoperationで再収束する", async () => {
     const t = convexTest(schema, modules);
     const trialEndsAt = NOW + 7 * 24 * 60 * 60_000;
@@ -7394,6 +7763,157 @@ async function expectNoStripeSideEffects(t: TestConvex<typeof schema>) {
   expect(state.operations).toEqual([]);
   expect(state.events).toEqual([]);
   expect(providerFetchMock).not.toHaveBeenCalled();
+}
+
+async function seedTrialContinuationCancellation(
+  t: TestConvex<typeof schema>,
+  suffix: string,
+  selectedPaidPlan: "pro" | "business" = "pro",
+) {
+  return await t.run(async (ctx) => {
+    const subject = `stripe_trial_cancel_${suffix}`;
+    const seeded = await seedOrganizationManagerShop(ctx, { subject });
+    const billing = await ctx.db
+      .query("organizationBillingStates")
+      .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+      .unique();
+    if (!billing) throw new Error("billing missing");
+    const trialEndsAt = NOW + 7 * 24 * 60 * 60_000;
+    await ctx.db.patch(billing._id, {
+      state: { kind: "trial", trialEndsAt, selectedPaidPlan },
+      version: 2,
+      updatedAt: NOW,
+    });
+    const stripeCustomerId = `cus_trial_cancel_${suffix}`;
+    const stripeSubscriptionId = `sub_trial_cancel_${suffix}`;
+    const stripeSubscriptionItemId = `si_trial_cancel_${suffix}`;
+    await ctx.db.insert("organizationStripeCustomers", {
+      organizationId: seeded.organizationId,
+      stripeCustomerId,
+      livemode: false,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    await ctx.db.insert("organizationStripeSubscriptions", {
+      organizationId: seeded.organizationId,
+      stripeCustomerId,
+      stripeSubscriptionId,
+      stripeSubscriptionItemId,
+      stripePriceId: selectedPaidPlan === "business" ? BUSINESS_PRICE_ID : READY_TEST_CONFIGURATION.proPriceId,
+      plan: selectedPaidPlan,
+      livemode: false,
+      status: "trialing",
+      providerGeneration: 1,
+      trialEndsAt,
+      currentPeriodStartsAt: NOW,
+      currentPeriodEndsAt: trialEndsAt,
+      billingCycleAnchor: trialEndsAt,
+      cancelAtPeriodEnd: false,
+      syncedAt: NOW,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    return {
+      ...seeded,
+      subject,
+      trialEndsAt,
+      stripePriceId: selectedPaidPlan === "business" ? BUSINESS_PRICE_ID : READY_TEST_CONFIGURATION.proPriceId,
+      stripeCustomerId,
+      stripeSubscriptionId,
+      stripeSubscriptionItemId,
+    };
+  });
+}
+
+async function seedTrialContinuationOperation(
+  t: TestConvex<typeof schema>,
+  ids: Awaited<ReturnType<typeof seedTrialContinuationCancellation>>,
+  args: { requestId: string; providerGeneration: number },
+) {
+  return await t.run(
+    async (ctx) =>
+      await ctx.db.insert("organizationStripeOperations", {
+        organizationId: ids.organizationId,
+        kind: "cancelSubscription",
+        requestKey: args.requestId,
+        stripeIdempotencyKey: `shiftori:test:cancelSubscription:${ids.organizationId}:${args.requestId}`,
+        livemode: false,
+        expectedBillingVersion: 2,
+        providerGeneration: args.providerGeneration,
+        recoveryPurpose: "trialContinuationCancellation",
+        status: "processing",
+        attemptCount: 1,
+        leaseToken: `trial-cancel-${args.providerGeneration}-lease`,
+        leaseExpiresAt: NOW + 60_000,
+        expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
+        createdAt: NOW,
+        updatedAt: NOW,
+      }),
+  );
+}
+
+async function trialContinuationBoundaryState(t: TestConvex<typeof schema>, organizationId: Id<"organizations">) {
+  return await t.run(async (ctx) => ({
+    billing: await ctx.db
+      .query("organizationBillingStates")
+      .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+      .unique(),
+    customer: await ctx.db
+      .query("organizationStripeCustomers")
+      .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+      .unique(),
+    subscription: await ctx.db
+      .query("organizationStripeSubscriptions")
+      .withIndex("by_organizationId_and_providerGeneration", (q) =>
+        q.eq("organizationId", organizationId).eq("providerGeneration", 1),
+      )
+      .unique(),
+    operations: await ctx.db
+      .query("organizationStripeOperations")
+      .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId))
+      .collect(),
+    scheduled: (await ctx.db.system.query("_scheduled_functions").collect()).map((job) => ({
+      name: job.name,
+      args: job.args,
+    })),
+  }));
+}
+
+function trialContinuationProviderSubscription(
+  ids: Awaited<ReturnType<typeof seedTrialContinuationCancellation>>,
+  status: "trialing" | "canceled",
+) {
+  const stripePriceId = ids.stripePriceId;
+  return {
+    id: ids.stripeSubscriptionId,
+    customer: ids.stripeCustomerId,
+    livemode: false,
+    status,
+    metadata: {
+      shiftori_organization_id: String(ids.organizationId),
+      shiftori_provider_generation: "1",
+      shiftori_price_id: stripePriceId,
+    },
+    trial_end: Math.floor(ids.trialEndsAt / 1000),
+    cancel_at_period_end: false,
+    latest_invoice: null,
+    billing_cycle_anchor: Math.floor(ids.trialEndsAt / 1000),
+    items: {
+      data: [
+        {
+          id: ids.stripeSubscriptionItemId,
+          current_period_start: Math.floor(NOW / 1000),
+          current_period_end: Math.floor(ids.trialEndsAt / 1000),
+          price: {
+            id: stripePriceId,
+            active: true,
+            livemode: false,
+            recurring: { interval: "month", interval_count: 1 },
+          },
+        },
+      ],
+    },
+  };
 }
 
 async function seedTrialCheckoutCompletion(t: TestConvex<typeof schema>, suffix: string) {

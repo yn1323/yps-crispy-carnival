@@ -27,6 +27,7 @@
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
+| [テスト充足度監査と改善計画](2026-08-12_テスト充足度監査_改善計画.md) | `implementation` | 仕様確定済みの不足テスト57件は実装済み。Trial継続取消の別requestId排他、全機能契約表、内部BI・VRT・Deployed SmokeのCI gateは未完了。管理者招待は仕様確定まで対象外 | [テスト方針](../rules/testing-strategy.md)、[セキュリティ方針](../rules/security-strategy.md)、[CI/CD運用](../manual/ci-cd.md) |
 | [ShiftForm PC・SP時間編集不具合](2026-08-08_ShiftForm_PC_SP時間編集不具合_実装計画.md) | `rollout` | code・tests・現行文書は完了。deploy後canaryでPCの完全隣接枠、SPの短縮・複数区間案内、新しい確定通知の時間表示を確認する。既存DBの一括migrationは行わない | [シフト表](../features/shift-board.md)、[希望シフト提出](../features/shift-submission.md)、[通知配送outbox](../features/notification-outbox.md)、[リリース状態](../manual/release-status.md) |
 | [Analytics夜間バッチ簡素化](2026-08-08_Analytics夜間バッチ簡素化_実装計画.md) | `rollout` | code・tests・現行文書とNarrow revisionへの実装は完了。対象deploymentへNarrow deploy → 初回partialを通常のcompleteとして即時公開 → cron有効化 → 翌日03:00のno-op → 翌々日03:00の完全日次 → 外部alertの実環境証跡まで確認する | [分析KPI蓄積基盤](../features/analytics.md)、[分析KPI可視化アプリ](../features/analytics-dashboard.md)、[Analytics rollout](../manual/analytics-rollout.md) |
 | [E2E安定性改善・スコープ再設計](2026-08-03_E2E安定性改善_実行計画.md) | `rollout` | code、local contract test、50回burn-inは完了。同一SHA 3回、workflow cancel、30%短縮をActionsで確認 | [テスト方針](../rules/testing-strategy.md)、[セキュリティ方針](../rules/security-strategy.md)、[CI/CD運用](../manual/ci-cd.md) |
