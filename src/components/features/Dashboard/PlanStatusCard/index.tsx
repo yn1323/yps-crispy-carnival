@@ -1,5 +1,5 @@
 import { Badge, Box, Flex, Grid, HStack, Skeleton, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
-import { LuArrowRight, LuBadgeCheck, LuCircleAlert, LuClock3, LuStore, LuUserRoundCog, LuUsers } from "react-icons/lu";
+import { LuBadgeCheck, LuCircleAlert, LuClock3, LuStore, LuUserRoundCog, LuUsers } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import type { PlanStatusCardData, PlanStatusCardProps, PlanStatusCardUsage } from "./types";
 
@@ -21,10 +21,9 @@ export function PlanStatusCard({ data, usage, onAction, onRequestCollapse }: Pla
         <Stack gap={4} px={{ base: 4, md: 5 }} py={4}>
           <PlanStatusHeading presentation={presentation} />
           {data.kind === "paidPlan" && <PaidPlanDetails data={data} />}
-          {data.kind === "freePlan" && <FreePlanDetails data={data} onAction={onAction} />}
-          {data.kind === "trial" && <TrialDetails data={data} onAction={onAction} onRemindLater={handleRemindLater} />}
+          {data.kind === "trial" && <TrialDetails data={data} onRemindLater={handleRemindLater} />}
           {data.kind === "paymentPending" && <PaymentPendingDetails data={data} />}
-          {data.kind === "paymentIssue" && <PaymentIssueDetails data={data} onAction={onAction} />}
+          {data.kind === "paymentIssue" && <PaymentIssueDetails data={data} />}
           {data.kind === "restricted" && <RestrictedDetails data={data} />}
         </Stack>
         <PlanUsageFooter usage={usage} />
@@ -79,58 +78,23 @@ function PaidPlanDetails({ data }: { data: Extract<PlanStatusCardData, { kind: "
         </Text>
       )}
       {isScheduledChange && data.description && (
-        <Box borderRadius="lg" bg="orange.50" px={3} py={2.5}>
-          <Text fontSize="sm" fontWeight="medium">
-            {data.description}
-          </Text>
-        </Box>
+        <Text fontSize="sm" fontWeight="medium">
+          {data.description}
+        </Text>
       )}
-    </Stack>
-  );
-}
-
-function FreePlanDetails({
-  data,
-  onAction,
-}: {
-  data: Extract<PlanStatusCardData, { kind: "freePlan" }>;
-  onAction: PlanStatusCardProps["onAction"];
-}) {
-  const primaryAction = data.primaryAction;
-
-  if (!primaryAction) return null;
-
-  return (
-    <Stack gap={4}>
-      <Button
-        size="md"
-        variant="solid"
-        colorPalette="teal"
-        w="full"
-        minH="44px"
-        onClick={() => onAction(primaryAction.action)}
-      >
-        {primaryAction.label}
-        <LuArrowRight aria-hidden />
-      </Button>
     </Stack>
   );
 }
 
 function TrialDetails({
   data,
-  onAction,
   onRemindLater,
 }: {
   data: Extract<PlanStatusCardData, { kind: "trial" }>;
-  onAction: PlanStatusCardProps["onAction"];
   onRemindLater: () => void;
 }) {
-  const isUrgent = data.remainingDays <= 7;
-  const primaryAction = data.primaryAction;
-
   return (
-    <Stack gap={4} borderRadius="lg" px={3} py={3} bg={isUrgent ? "orange.50" : "blue.50"}>
+    <Stack gap={2}>
       <Stack gap={1.5}>
         <Text fontSize="sm" fontWeight="medium">
           {data.trialEndsOnLabel} にトライアルが終了します。
@@ -139,88 +103,47 @@ function TrialDetails({
           {data.description}
         </Text>
       </Stack>
-      <Stack gap={2.5}>
-        {primaryAction && (
-          <Button
-            size="md"
-            variant="solid"
-            colorPalette="teal"
-            w="full"
-            minH="44px"
-            onClick={() => onAction(primaryAction.action)}
-          >
-            {primaryAction.label}
-            <LuArrowRight aria-hidden />
-          </Button>
-        )}
-        {data.showRemindLater && (
-          <Button size="md" colorPalette="gray" variant="outline" w="full" minH="44px" onClick={onRemindLater}>
+      {data.showRemindLater && (
+        <Flex justify="flex-end">
+          <Button type="button" size="sm" colorPalette="gray" variant="plain" minH="44px" onClick={onRemindLater}>
             後で確認する
           </Button>
-        )}
-      </Stack>
+        </Flex>
+      )}
     </Stack>
   );
 }
 
 function PaymentPendingDetails({ data }: { data: Extract<PlanStatusCardData, { kind: "paymentPending" }> }) {
   return (
-    <Stack gap={4} borderRadius="lg" px={3} py={3} bg="blue.50">
-      <Text fontSize="sm" fontWeight="medium">
-        {data.description}
-      </Text>
-    </Stack>
+    <Text fontSize="sm" fontWeight="medium">
+      {data.description}
+    </Text>
   );
 }
 
-function PaymentIssueDetails({
-  data,
-  onAction,
-}: {
-  data: Extract<PlanStatusCardData, { kind: "paymentIssue" }>;
-  onAction: PlanStatusCardProps["onAction"];
-}) {
-  const colorPalette = data.phase === "grace" ? "orange" : "red";
-  const background = data.phase === "grace" ? "orange.50" : "red.50";
+function PaymentIssueDetails({ data }: { data: Extract<PlanStatusCardData, { kind: "paymentIssue" }> }) {
   const deadlineColor = data.phase === "grace" ? "orange.800" : "red.800";
-  const primaryAction = data.primaryAction;
 
   return (
-    <Stack gap={4} borderRadius="lg" px={3} py={3} bg={background}>
-      <Stack gap={1.5}>
-        {data.recoveryDeadlineLabel && (
-          <Text fontSize="sm" fontWeight="bold" color={deadlineColor}>
-            {data.recoveryDeadlineLabel}
-          </Text>
-        )}
-        <Text fontSize="sm" fontWeight="medium">
-          {data.description}
+    <Stack gap={1.5}>
+      {data.recoveryDeadlineLabel && (
+        <Text fontSize="sm" fontWeight="bold" color={deadlineColor}>
+          {data.recoveryDeadlineLabel}
         </Text>
-      </Stack>
-      {primaryAction && (
-        <Button
-          size="md"
-          variant="outline"
-          colorPalette={colorPalette}
-          w="full"
-          minH="44px"
-          onClick={() => onAction(primaryAction.action)}
-        >
-          {primaryAction.label}
-          <LuArrowRight aria-hidden />
-        </Button>
       )}
+      <Text fontSize="sm" fontWeight="medium">
+        {data.description}
+      </Text>
     </Stack>
   );
 }
 
 function RestrictedDetails({ data }: { data: Extract<PlanStatusCardData, { kind: "restricted" }> }) {
   return (
-    <Stack gap={4} borderRadius="lg" px={3} py={3} bg="red.50">
-      <Text fontSize="sm" fontWeight="medium">
-        {data.description}
-      </Text>
-    </Stack>
+    <Text fontSize="sm" fontWeight="medium">
+      {data.description}
+    </Text>
   );
 }
 

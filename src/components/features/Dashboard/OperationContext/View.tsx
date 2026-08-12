@@ -19,7 +19,13 @@ import { LuBuilding2, LuCheck, LuChevronDown, LuChevronRight, LuSettings, LuStor
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/tooltip";
 import type { ShopContextOption } from "@/src/domains/shop/context";
-import { getPlanStatusPresentation, PlanStatusCard, type PlanStatusCardProps } from "../PlanStatusCard";
+import {
+  getPlanStatusPresentation,
+  PlanStatusCard,
+  type PlanStatusCardAction,
+  type PlanStatusCardData,
+  type PlanStatusCardProps,
+} from "../PlanStatusCard";
 import type { OperationContextModel } from "./script";
 
 const ORGANIZATION_DETAILS_VALUE = "organization-details";
@@ -49,6 +55,7 @@ export const OperationContextView = ({
   const isExpanded = value.includes(ORGANIZATION_DETAILS_VALUE);
   const hasOrganizationDetails = Boolean(organizationSettingsShopId || planStatusCard);
   const presentation = planStatusCard ? getPlanStatusPresentation(planStatusCard.data) : null;
+  const billingAction = planStatusCard ? getBillingAction(planStatusCard.data) : null;
 
   useEffect(() => {
     if (!previousDefaultExpanded.current && defaultExpanded) setValue([ORGANIZATION_DETAILS_VALUE]);
@@ -127,7 +134,12 @@ export const OperationContextView = ({
                     withBorder={Boolean(planStatusCard)}
                   />
                 )}
-                {planStatusCard && <PlanAndPaymentLink onOpen={() => planStatusCard.onAction("openPlanAndPayment")} />}
+                {planStatusCard && billingAction && (
+                  <PlanAndPaymentLink
+                    label={billingAction.label}
+                    onOpen={() => planStatusCard.onAction(billingAction.action)}
+                  />
+                )}
               </Accordion.ItemBody>
             </Accordion.ItemContent>
           </Accordion.Item>
@@ -188,6 +200,16 @@ const OrganizationSummary = ({
 
 type PlanPresentation = ReturnType<typeof getPlanStatusPresentation>;
 
+type BillingAction = {
+  action: PlanStatusCardAction;
+  label: string;
+};
+
+const getBillingAction = (data: PlanStatusCardData): BillingAction => {
+  if ("primaryAction" in data && data.primaryAction) return data.primaryAction;
+  return { action: "openPlanAndPayment", label: "プランと支払いへ" };
+};
+
 const OrganizationSettingsLink = ({
   organizationName,
   shopId,
@@ -223,7 +245,7 @@ const OrganizationSettingsLink = ({
   </Button>
 );
 
-const PlanAndPaymentLink = ({ onOpen }: { onOpen: () => void }) => (
+const PlanAndPaymentLink = ({ label, onOpen }: { label: string; onOpen: () => void }) => (
   <Button
     type="button"
     variant="plain"
@@ -240,11 +262,10 @@ const PlanAndPaymentLink = ({ onOpen }: { onOpen: () => void }) => (
     fontSize="md"
     fontWeight="medium"
     _hover={{ bg: "gray.50" }}
-    aria-label="プランと支払いを開く"
     onClick={onOpen}
   >
     <Text as="span" flex={1} textAlign="left">
-      プランと支払いへ
+      {label}
     </Text>
     <Icon as={LuChevronRight} boxSize={5} color="fg.muted" flexShrink={0} />
   </Button>

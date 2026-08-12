@@ -221,7 +221,7 @@ describe("OperationContext", () => {
     openOrganizationAccordion();
 
     expect(await screen.findByRole("link", { name: "Aグループの組織設定を開く" })).not.toBeNull();
-    expect(screen.queryByRole("button", { name: "プランと支払いを開く" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "プランと支払いへ" })).toBeNull();
   });
 
   it("組織設定が非公開でもプランがあればプラン詳細と支払い導線を維持する", async () => {
@@ -236,7 +236,7 @@ describe("OperationContext", () => {
 
     expect(await screen.findByRole("region", { name: "Proプランの詳細" })).not.toBeNull();
     expect(screen.queryByRole("link", { name: "Aグループの組織設定を開く" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "プランと支払いを開く" }));
+    fireEvent.click(screen.getByRole("button", { name: "プランと支払いへ" }));
     expect(onAction).toHaveBeenCalledWith("openPlanAndPayment");
   });
 
@@ -249,7 +249,7 @@ describe("OperationContext", () => {
     openOrganizationAccordion();
     const planDetails = await screen.findByRole("region", { name: "Proプランの詳細" });
     const organizationSettingsLink = await screen.findByRole("link", { name: "Aグループの組織設定を開く" });
-    const planAndPaymentLink = screen.getByRole("button", { name: "プランと支払いを開く" });
+    const planAndPaymentLink = screen.getByRole("button", { name: "プランと支払いへ" });
 
     expect(screen.getByText("組織・プラン")).not.toBeNull();
     expect(
@@ -296,6 +296,8 @@ describe("OperationContext", () => {
     const trigger = screen.getByRole("button", { name: /Aグループ/ });
 
     expect(screen.getByText("組織・プラン")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "プランを選ぶ" }));
+    expect(onAction).toHaveBeenCalledWith("choosePlan");
     fireEvent.click(screen.getByRole("button", { name: "後で確認する" }));
 
     expect(onAction).toHaveBeenCalledWith("remindLater");
