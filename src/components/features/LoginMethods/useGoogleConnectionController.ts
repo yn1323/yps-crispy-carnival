@@ -19,6 +19,7 @@ import {
   GOOGLE_OAUTH_COOLDOWN_SCOPE,
   type LoginMethodOperationCooldown,
 } from "./operationCooldown";
+import { reloadActorUser } from "./reloadActorUser";
 import type { LoginMethodOperationOptions } from "./reverificationTypes";
 
 export type GoogleConnectionErrorKind =
@@ -143,8 +144,12 @@ export function useGoogleConnectionController({
     let cancelled = false;
     const activatingUserId = currentUser.id;
     setState(loadingState());
-    void currentUser
-      .reload()
+    void reloadActorUser({
+      isLoaded,
+      user: currentUser,
+      actorUserId: activatingUserId,
+      getCurrentActorId,
+    })
       .then(() => {
         const latestUser = userRef.current;
         if (!cancelled && getCurrentActorId() === activatingUserId && latestUser?.id === activatingUserId) {
@@ -159,14 +164,7 @@ export function useGoogleConnectionController({
     };
   }, [active, actorUserId, getCurrentActorId, isLoaded, oauthReturn]);
 
-  const reloadUser = async () => {
-    if (!isLoaded || !user || !actorUserId || user.id !== actorUserId || getCurrentActorId() !== actorUserId) {
-      throw new Error("Unauthenticated");
-    }
-    await user.reload();
-    if (user.id !== actorUserId || getCurrentActorId() !== actorUserId) throw new Error("Unauthenticated");
-    return user;
-  };
+  const reloadUser = () => reloadActorUser({ isLoaded, user, actorUserId, getCurrentActorId });
 
   const createExternalAccountWithReverification = useReverification(
     async (baseline: OAuthBaseline) => {

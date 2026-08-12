@@ -8,6 +8,7 @@ import { toLoginMethodsUserSnapshot } from "./adapter";
 import { getPasswordChangeErrorMessage } from "./loginMethodErrorPresentation";
 import type { LoginMethodOperationRunner } from "./migrationTypes";
 import type { PasswordChangeValues } from "./passwordSchema";
+import { reloadActorUser } from "./reloadActorUser";
 import type { LoginMethodOnNeedsReverification, LoginMethodOperationOptions } from "./reverificationTypes";
 import { buildLoginMethodsViewModel } from "./script";
 
@@ -45,14 +46,7 @@ export function usePasswordChangeController({
   const actorUserId = user?.id ?? null;
   const [state, setState] = useState<PasswordChangeState>(CLOSED_STATE);
 
-  const reloadUser = async () => {
-    if (!isLoaded || !user || !actorUserId || user.id !== actorUserId || getCurrentActorId() !== actorUserId) {
-      throw new Error("Unauthenticated");
-    }
-    await user.reload();
-    if (user.id !== actorUserId || getCurrentActorId() !== actorUserId) throw new Error("Unauthenticated");
-    return user;
-  };
+  const reloadUser = () => reloadActorUser({ isLoaded, user, actorUserId, getCurrentActorId });
 
   const updatePasswordWithReverification = useReverification(
     async ({ currentPassword, newPassword }: PasswordChangeValues) => {

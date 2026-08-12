@@ -19,6 +19,7 @@ import {
   emailVerificationCooldownScope,
   type LoginMethodOperationCooldown,
 } from "./operationCooldown";
+import { reloadActorUser } from "./reloadActorUser";
 import type { LoginMethodOnNeedsReverification, LoginMethodOperationOptions } from "./reverificationTypes";
 import { buildLoginMethodsViewModel } from "./script";
 import type {
@@ -109,13 +110,9 @@ export function useLoginMethodsController({
   );
 
   const reloadUser = async (): Promise<UserResource> => {
-    if (!isLoaded || !user || !actorUserId || user.id !== actorUserId || getCurrentActorId() !== actorUserId) {
-      throw new Error("Unauthenticated");
-    }
-    await user.reload();
-    if (user.id !== actorUserId || getCurrentActorId() !== actorUserId) throw new Error("Unauthenticated");
+    const currentUser = await reloadActorUser({ isLoaded, user, actorUserId, getCurrentActorId });
     setResourceRevision((current) => current + 1);
-    return user;
+    return currentUser;
   };
 
   const reverificationOptions = { onNeedsReverification };
