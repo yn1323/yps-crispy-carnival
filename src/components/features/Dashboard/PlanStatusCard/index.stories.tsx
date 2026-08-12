@@ -263,7 +263,7 @@ export const TrialToggleBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const toggle = canvas.getByRole("button", { name: /すーぱーかんぱにー あと7日/ });
+    const toggle = canvas.getByRole("button", { name: /すーぱーかんぱにー.*あと7日/ });
 
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(toggle);
@@ -283,7 +283,7 @@ export const PaidExpansionBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const toggle = canvas.getByRole("button", { name: "すーぱーかんぱにー" });
+    const toggle = canvas.getByRole("button", { name: /すーぱーかんぱにー/ });
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
 
     await userEvent.click(toggle);
@@ -306,7 +306,7 @@ export const UrgentStateAutoExpansionBehavior: Story = {
   render: () => <UrgentStateAutoExpansionStory />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const toggle = canvas.getByRole("button", { name: /すーぱーかんぱにー あと14日/ });
+    const toggle = canvas.getByRole("button", { name: /すーぱーかんぱにー.*あと14日/ });
 
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(canvas.getByRole("button", { name: "終了7日前へ進める" }));

@@ -157,6 +157,7 @@ describe("OperationContext", () => {
   it("店舗セレクトで選んだ店舗をshop queryに指定してDashboardへ遷移する", async () => {
     renderContext();
 
+    expect(screen.getByText("店舗", { exact: true })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "店舗を切り替える（現在：A店）" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /B店/ }));
 
@@ -250,7 +251,7 @@ describe("OperationContext", () => {
     const organizationSettingsLink = await screen.findByRole("link", { name: "Aグループの組織設定を開く" });
     const planAndPaymentLink = screen.getByRole("button", { name: "プランと支払いを開く" });
 
-    expect(screen.queryByText("組織・プラン")).toBeNull();
+    expect(screen.getByText("組織・プラン")).not.toBeNull();
     expect(
       planDetails.compareDocumentPosition(organizationSettingsLink) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
@@ -294,6 +295,7 @@ describe("OperationContext", () => {
     renderContext(shops, shops[0], { planStatusCard: trialCard, billingSettingsShopId: "shop-a" });
     const trigger = screen.getByRole("button", { name: /Aグループ/ });
 
+    expect(screen.getByText("組織・プラン")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "後で確認する" }));
 
     expect(onAction).toHaveBeenCalledWith("remindLater");
@@ -304,6 +306,7 @@ describe("OperationContext", () => {
   it("1組織1店舗では店舗切替を表示しない", () => {
     renderContext([shops[0]], shops[0]);
 
+    expect(screen.getByText("店舗", { exact: true })).not.toBeNull();
     expect(screen.getAllByText("A店")).toHaveLength(2);
     expect(screen.queryByRole("button", { name: /店舗を切り替える/ })).toBeNull();
     expect(screen.getByRole("button", { name: "店舗詳細を開く" })).not.toBeNull();

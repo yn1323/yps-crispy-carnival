@@ -59,7 +59,7 @@ function PlanStatusHeading({ presentation }: { presentation: ReturnType<typeof g
 
 function StatusBadge({ badge }: { badge: { label: string; background: string; color: string } }) {
   return (
-    <Badge variant="subtle" borderRadius="full" px={2.5} py={1} bg={badge.background} color={badge.color}>
+    <Badge ms="auto" variant="subtle" borderRadius="full" px={2.5} py={1} bg={badge.background} color={badge.color}>
       {badge.label}
     </Badge>
   );
@@ -67,6 +67,10 @@ function StatusBadge({ badge }: { badge: { label: string; background: string; co
 
 function PaidPlanDetails({ data }: { data: Extract<PlanStatusCardData, { kind: "paidPlan" }> }) {
   const isScheduledChange = data.badgeLabel === "変更予定";
+  const hasDescription = isScheduledChange && Boolean(data.description);
+
+  if (!data.nextEventLabel && !hasDescription) return null;
+
   return (
     <Stack gap={3}>
       {data.nextEventLabel && (
@@ -74,13 +78,8 @@ function PaidPlanDetails({ data }: { data: Extract<PlanStatusCardData, { kind: "
           {data.nextEventLabel}
         </Text>
       )}
-      {data.description && (
-        <Box
-          borderRadius="lg"
-          bg={isScheduledChange ? "orange.50" : "transparent"}
-          px={isScheduledChange ? 3 : 0}
-          py={isScheduledChange ? 2.5 : 0}
-        >
+      {isScheduledChange && data.description && (
+        <Box borderRadius="lg" bg="orange.50" px={3} py={2.5}>
           <Text fontSize="sm" fontWeight="medium">
             {data.description}
           </Text>
@@ -99,24 +98,21 @@ function FreePlanDetails({
 }) {
   const primaryAction = data.primaryAction;
 
+  if (!primaryAction) return null;
+
   return (
     <Stack gap={4}>
-      <Text fontSize="sm" fontWeight="medium">
-        {data.description}
-      </Text>
-      {primaryAction && (
-        <Button
-          size="md"
-          variant="solid"
-          colorPalette="teal"
-          w="full"
-          minH="44px"
-          onClick={() => onAction(primaryAction.action)}
-        >
-          {primaryAction.label}
-          <LuArrowRight aria-hidden />
-        </Button>
-      )}
+      <Button
+        size="md"
+        variant="solid"
+        colorPalette="teal"
+        w="full"
+        minH="44px"
+        onClick={() => onAction(primaryAction.action)}
+      >
+        {primaryAction.label}
+        <LuArrowRight aria-hidden />
+      </Button>
     </Stack>
   );
 }
@@ -272,7 +268,7 @@ function PlanUsageFooter({ usage }: { usage: PlanStatusCardUsage | null | undefi
           return (
             <Stack
               key={item.label}
-              gap={1}
+              gap={0}
               minW={0}
               align="center"
               px={{ base: 2, md: 3 }}
@@ -295,9 +291,6 @@ function PlanUsageFooter({ usage }: { usage: PlanStatusCardUsage | null | undefi
                   {item.suffix}
                 </Text>
               </HStack>
-              <Text fontSize="xs" lineHeight="short" color="fg.muted">
-                {item.label}
-              </Text>
             </Stack>
           );
         })}
@@ -319,7 +312,6 @@ function UsageSkeleton({ withDivider = false }: { withDivider?: boolean }) {
         <Skeleton boxSize="16px" borderRadius="full" />
         <Skeleton h="18px" w="56px" />
       </HStack>
-      <Skeleton h="12px" w="44px" />
     </Stack>
   );
 }

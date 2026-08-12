@@ -158,30 +158,31 @@ const OrganizationSummary = ({
   presentation?: PlanPresentation | null;
 }) => {
   return (
-    <HStack as="span" flex={1} minW={0} gap={2} textAlign="left">
-      <Flex as="span" boxSize="20px" flexShrink={0} align="center" justify="center" color="gray.600">
-        <LuBuilding2 aria-hidden size={20} />
-      </Flex>
-      <Stack as="span" flex={1} minW={0} gap={presentation?.summaryBadge ? 1 : 0}>
-        <Text as="span" fontSize="lg" lineHeight="short" fontWeight="bold" color="gray.900" truncate>
+    <Stack as="span" flex={1} minW={0} gap={presentation?.summaryBadge ? 1 : 0} textAlign="left">
+      <Text as="span" ps={7} fontSize="xs" lineHeight="short" color="fg.muted">
+        組織・プラン
+      </Text>
+      <HStack as="span" minW={0} gap={2}>
+        <Flex as="span" boxSize="20px" flexShrink={0} align="center" justify="center" color="gray.600">
+          <LuBuilding2 aria-hidden size={20} />
+        </Flex>
+        <Text as="span" flex={1} minW={0} fontSize="lg" lineHeight="20px" fontWeight="bold" color="gray.900" truncate>
           {model.selectedGroup.organizationName}
         </Text>
         {presentation?.summaryBadge && (
-          <Flex as="span" align="center" gap={2} wrap="wrap">
-            <Badge
-              variant="subtle"
-              borderRadius="full"
-              px={2.5}
-              py={1}
-              bg={presentation.summaryBadge.background}
-              color={presentation.summaryBadge.color}
-            >
-              {presentation.summaryBadge.label}
-            </Badge>
-          </Flex>
+          <Badge
+            variant="subtle"
+            borderRadius="full"
+            px={2.5}
+            py={1}
+            bg={presentation.summaryBadge.background}
+            color={presentation.summaryBadge.color}
+          >
+            {presentation.summaryBadge.label}
+          </Badge>
         )}
-      </Stack>
-    </HStack>
+      </HStack>
+    </Stack>
   );
 };
 
@@ -271,13 +272,26 @@ const ShopDetailButton = ({ onOpenShopDetail }: { onOpenShopDetail: () => void }
 const ShopSelector = ({ model, onSelect }: { model: OperationContextModel; onSelect: (shopId: string) => void }) => {
   if (!model.canSwitchShop) {
     return (
-      <HStack gap={2} flex={1} minW={0}>
-        <Icon as={LuStore} boxSize={5} color="gray.700" flexShrink={0} aria-hidden />
-        <Text fontSize="lg" fontWeight="bold" color="gray.900" truncate minW={0}>
-          {model.selectedShop.shopName}
+      <Stack
+        gap={0}
+        flex={1}
+        minW={0}
+        minH={{ base: "48px", md: "56px" }}
+        px={{ base: 3, md: 4 }}
+        py={2.5}
+        textAlign="left"
+      >
+        <Text as="span" ps={7} fontSize="xs" lineHeight="short" color="fg.muted">
+          店舗
         </Text>
-        <ShopStatusBadges shop={model.selectedShop} />
-      </HStack>
+        <HStack as="span" gap={2} minW={0}>
+          <Icon as={LuStore} boxSize={5} color="gray.700" flexShrink={0} aria-hidden />
+          <Text as="span" flex={1} minW={0} fontSize="lg" fontWeight="bold" color="gray.900" truncate>
+            {model.selectedShop.shopName}
+          </Text>
+          <ShopStatusBadges shop={model.selectedShop} />
+        </HStack>
+      </Stack>
     );
   }
 
@@ -305,13 +319,18 @@ const ShopSelector = ({ model, onSelect }: { model: OperationContextModel; onSel
             cursor="pointer"
             _hover={{ bg: "gray.50", borderColor: "gray.400" }}
           >
-            <HStack gap={2} minW={0} textAlign="left">
-              <Icon as={LuStore} boxSize={5} color="gray.700" flexShrink={0} aria-hidden />
-              <Text fontSize="lg" fontWeight="bold" truncate minW={0}>
-                {model.selectedShop.shopName}
+            <Stack gap={0} flex={1} minW={0} textAlign="left">
+              <Text as="span" ps={7} fontSize="xs" lineHeight="short" color="fg.muted">
+                店舗
               </Text>
-              <ShopStatusBadges shop={model.selectedShop} />
-            </HStack>
+              <HStack as="span" gap={2} minW={0}>
+                <Icon as={LuStore} boxSize={5} color="gray.700" flexShrink={0} aria-hidden />
+                <Text as="span" flex={1} minW={0} fontSize="lg" fontWeight="bold" truncate>
+                  {model.selectedShop.shopName}
+                </Text>
+                <ShopStatusBadges shop={model.selectedShop} />
+              </HStack>
+            </Stack>
             <Icon as={LuChevronDown} boxSize={5} color="gray.500" flexShrink={0} />
           </Button>
         </Menu.Trigger>
@@ -402,9 +421,12 @@ export const OperationContextSkeleton = () => (
       borderRadius="lg"
       bg="white"
     >
-      <Skeleton boxSize="20px" borderRadius="sm" flexShrink={0} />
-      <Stack flex={1} minW={0} gap={2}>
-        <Skeleton h="22px" w={{ base: "160px", md: "220px" }} maxW="70%" />
+      <Stack flex={1} minW={0} gap={1}>
+        <Skeleton h="12px" w={{ base: "44px", md: "56px" }} ms={7} />
+        <HStack gap={2}>
+          <Skeleton boxSize="20px" borderRadius="sm" flexShrink={0} />
+          <Skeleton h="22px" w={{ base: "140px", md: "220px" }} maxW="70%" />
+        </HStack>
       </Stack>
       <Skeleton boxSize="20px" flexShrink={0} />
     </Flex>
@@ -421,8 +443,13 @@ export const OperationContextSkeleton = () => (
         borderRadius="lg"
         bg="white"
       >
-        <Skeleton boxSize="20px" borderRadius="sm" flexShrink={0} />
-        <Skeleton h="22px" w={{ base: "140px", md: "220px" }} maxW="70%" />
+        <Stack flex={1} minW={0} gap={1}>
+          <Skeleton h="12px" w={{ base: "44px", md: "56px" }} ms={7} />
+          <HStack gap={2}>
+            <Skeleton boxSize="20px" borderRadius="sm" flexShrink={0} />
+            <Skeleton h="22px" w={{ base: "140px", md: "220px" }} maxW="70%" />
+          </HStack>
+        </Stack>
       </Flex>
       <Skeleton h="44px" w="44px" flexShrink={0} />
     </Flex>
