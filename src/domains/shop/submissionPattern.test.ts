@@ -4,6 +4,7 @@ import {
   createDefaultShiftTypeOptions,
   getAvailableEndTimeOptions,
   getAvailableStartTimeOptions,
+  getOrderedShiftTypeOptions,
   normalizeShiftTypeOptions,
   removeShiftTypeOptionAt,
   selectSubmissionPattern,
@@ -54,6 +55,14 @@ describe("希望シフト提出方法", () => {
 
     expect(removeShiftTypeOptionAt(SHIFT_TYPES, 0)).toEqual([{ ...SHIFT_TYPES[1], sortOrder: 0 }]);
     expect(normalizeShiftTypeOptions(SHIFT_TYPES).map((option) => option.sortOrder)).toEqual([0, 1]);
+  });
+
+  it("勤務区分をsortOrder順で返し、元の設定順は変えない", () => {
+    const pattern = { kind: "shiftType" as const, options: [SHIFT_TYPES[1], SHIFT_TYPES[0]] };
+
+    expect(getOrderedShiftTypeOptions(pattern).map((option) => option.id)).toEqual(["early", "late"]);
+    expect(pattern.options.map((option) => option.id)).toEqual(["late", "early"]);
+    expect(getOrderedShiftTypeOptions({ kind: "dateOnly" })).toEqual([]);
   });
 
   it("終了時刻より前の開始候補と開始時刻より後の終了候補だけを返す", () => {

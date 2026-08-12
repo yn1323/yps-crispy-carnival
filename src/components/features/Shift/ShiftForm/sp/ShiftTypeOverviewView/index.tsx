@@ -11,19 +11,12 @@ import {
   viewModeAtom,
   warningCountByDateAtom,
 } from "../../stores";
+import { SHIFT_WEEKDAY_TONE_COLORS } from "../../weekdayPresentation";
 import {
   buildShiftTypeOverviewViewModel,
   type ShiftTypeOverviewDayRowViewModel,
   type ShiftTypeOverviewStaffRowViewModel,
-  type ShiftTypeOverviewWeekdayTone,
 } from "./script";
-
-const weekdayColor: Record<ShiftTypeOverviewWeekdayTone, string> = {
-  weekday: "#3f3f46",
-  saturday: "#3b82f6",
-  sunday: "#ef4444",
-  muted: "#a1a1aa",
-};
 
 export const SPShiftTypeOverviewView = () => {
   const config = useAtomValue(shiftConfigAtom);
@@ -141,7 +134,12 @@ const DayRow = ({ row, onDateTap }: { row: ShiftTypeOverviewDayRowViewModel; onD
         >
           {row.dateLabel}
         </Box>
-        <Box textStyle="2xs" fontWeight={700} flexShrink={0} style={{ color: weekdayColor[row.weekdayTone] }}>
+        <Box
+          textStyle="2xs"
+          fontWeight={700}
+          flexShrink={0}
+          style={{ color: SHIFT_WEEKDAY_TONE_COLORS[row.weekdayTone] }}
+        >
           {row.weekdayLabel}
         </Box>
       </Flex>

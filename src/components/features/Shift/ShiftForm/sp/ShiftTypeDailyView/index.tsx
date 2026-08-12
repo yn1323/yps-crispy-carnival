@@ -20,19 +20,13 @@ import {
   warningCountByDateAtom,
   warningMessagesByStaffIdForSelectedDateAtom,
 } from "../../stores";
+import { getShiftWeekdayColor } from "../../weekdayPresentation";
 import {
   buildSPShiftTypeDailyViewModel,
   type SPShiftTypeCountViewModel,
   type SPShiftTypeOptionViewModel,
   type SPShiftTypeStaffCardViewModel,
 } from "./script";
-
-const dayColor = (iso: string): string => {
-  const day = dayjs(iso).day();
-  if (day === 0) return "#ef4444";
-  if (day === 6) return "#3b82f6";
-  return "#3f3f46";
-};
 
 export const SPShiftTypeDailyView = () => {
   const config = useAtomValue(shiftConfigAtom);
@@ -114,7 +108,7 @@ export const SPShiftTypeDailyView = () => {
                   textStyle="2xs"
                   mt="2px"
                   fontWeight={active ? 700 : 500}
-                  style={{ color: active ? "white" : dayColor(iso) }}
+                  style={{ color: active ? "white" : getShiftWeekdayColor(iso) }}
                 >
                   {getWeekdayLabel(iso)}
                 </Box>
@@ -135,7 +129,7 @@ export const SPShiftTypeDailyView = () => {
             <Box textStyle="xl" fontWeight={700} color="gray.800" fontVariantNumeric="tabular-nums">
               {selectedDay.month() + 1}月{selectedDay.date()}日
             </Box>
-            <Box textStyle="sm" fontWeight={600} style={{ color: dayColor(selectedDate) }}>
+            <Box textStyle="sm" fontWeight={600} style={{ color: getShiftWeekdayColor(selectedDate) }}>
               ({getWeekdayLabel(selectedDate)})
             </Box>
             {isShopClosedDate && (

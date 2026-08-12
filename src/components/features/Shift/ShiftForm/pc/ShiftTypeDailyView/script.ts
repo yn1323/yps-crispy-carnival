@@ -7,6 +7,7 @@ import {
   type ShiftTypeOptionLike,
 } from "@/src/domains/shift/shiftTypeAssignments";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import { getOrderedShiftTypeOptions } from "@/src/domains/shop/submissionPattern";
 import { formatShiftTypeTimeRange } from "../../shiftTypeDisplay";
 import {
   getShiftTypeOptionColor,
@@ -125,10 +126,7 @@ export const buildShiftTypeDailyViewModel = ({
   isConfirmedDisplay: boolean;
   warningMessagesByStaffId: ReadonlyMap<string, string[]>;
 }): ShiftTypeDailyViewModel => {
-  const options =
-    submissionPattern.kind === "shiftType"
-      ? [...submissionPattern.options].sort((a, b) => a.sortOrder - b.sortOrder)
-      : [];
+  const options = getOrderedShiftTypeOptions(submissionPattern);
   const countsByOptionId = countShiftTypeAssignments(
     shifts,
     options.map((option) => option.id),
