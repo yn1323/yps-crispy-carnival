@@ -127,6 +127,7 @@ const meta = {
   parameters: { layout: "padded" },
   args: {
     shop,
+    organizationSettingsShopId: "shop-context",
     staffs,
     settingsDialog: closedSettingsDialog,
     isDeleting: false,
@@ -190,6 +191,16 @@ export const DeletionUnavailable: Story = {
       canDelete: false,
       deleteDisabledReason: "最後の店舗は削除できません。",
     },
+  },
+};
+
+export const OrganizationSettingsLinkBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const organizationSettingsLink = within(canvasElement).getByRole("link", {
+      name: "こちら（組織設定の設定タブを開く）",
+    });
+    await expect(organizationSettingsLink).toHaveAttribute("href", "/settings?shop=shop-context&tab=settings");
   },
 };
 
@@ -716,6 +727,7 @@ function InteractionHarness() {
       <output aria-label="操作結果">{result}</output>
       <ShopDetailView
         shop={shop}
+        organizationSettingsShopId="shop-context"
         staffs={staffs}
         settingsDialog={{
           isOpen: isSettingsDialogOpen,
@@ -764,6 +776,7 @@ function SettingsSubmitLockHarness() {
       </button>
       <ShopDetailView
         shop={shop}
+        organizationSettingsShopId="shop-context"
         staffs={staffs}
         settingsDialog={{
           isOpen: isSettingsDialogOpen,

@@ -16,8 +16,9 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 vi.mock("./ShopDetailView", () => ({
-  ShopDetailView: ({ onBack, onOpenUser }: ComponentProps<typeof ShopDetailView>) => (
+  ShopDetailView: ({ organizationSettingsShopId, onBack, onOpenUser }: ComponentProps<typeof ShopDetailView>) => (
     <>
+      <output aria-label="組織設定の店舗コンテキスト">{organizationSettingsShopId}</output>
       <button type="button" onClick={onBack}>
         前の画面に戻る
       </button>
@@ -59,6 +60,20 @@ beforeEach(() => {
 });
 
 describe("店舗詳細の戻り先", () => {
+  it("組織設定への導線は表示対象店舗ではなく現在の店舗コンテキストを維持する", () => {
+    render(
+      <ShopDetail
+        shop={shop}
+        people={[]}
+        selectedShopId="shop-context"
+        deletionReturnShopId="shop-survivor"
+        returnTo="settings"
+      />,
+    );
+
+    expect(screen.getByLabelText("組織設定の店舗コンテキスト").textContent).toBe("shop-context");
+  });
+
   it("Dashboardから開いた場合は同じ店舗のDashboardへ戻る", () => {
     render(
       <ShopDetail

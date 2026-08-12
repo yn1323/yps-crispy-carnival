@@ -36,6 +36,7 @@ export function ShopDetail({ shop, people, selectedShopId, deletionReturnShopId,
     <ShopDetailView
       key={shop.id}
       shop={shop}
+      organizationSettingsShopId={selectedShopId ?? shop.id}
       staffs={staffs}
       settingsDialog={settings.dialog}
       isDeleting={deletion.isDeleting}
