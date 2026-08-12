@@ -1,4 +1,8 @@
 import dayjs, { type Dayjs } from "dayjs";
+import {
+  getRecruitmentLifecycleStatus,
+  type RecruitmentLifecycleStatus,
+} from "@/src/domains/shift/recruitmentLifecycle";
 import type {
   DashboardRecruitmentGroup,
   DashboardRecruitmentGroupKey,
@@ -9,26 +13,18 @@ import type {
 
 type RecruitmentDateStatusFields = Pick<Recruitment, "status" | "deadline" | "periodStart" | "periodEnd">;
 
-export function isCurrentRecruitment(
-  recruitment: Pick<Recruitment, "status" | "periodStart" | "periodEnd">,
-  now = dayjs(),
-): boolean {
-  const today = now.format("YYYY-MM-DD");
-  return recruitment.status === "confirmed" && recruitment.periodStart <= today && today <= recruitment.periodEnd;
+export function getDisplayStatus(recruitment: RecruitmentDateStatusFields, now = dayjs()): RecruitmentDisplayStatus {
+  return getRecruitmentLifecycleStatus(recruitment, now.format("YYYY-MM-DD"));
 }
 
-export function getDisplayStatus(recruitment: RecruitmentDateStatusFields, now = dayjs()): RecruitmentDisplayStatus {
-  const today = now.format("YYYY-MM-DD");
-  if (recruitment.periodEnd < today) {
-    return recruitment.status === "confirmed" ? "ended" : "ended-unconfirmed";
-  }
-  if (recruitment.status === "open" && recruitment.deadline < today) {
-    return "action-required";
-  }
-  if (isCurrentRecruitment(recruitment, now)) return "current";
-  if (recruitment.status === "confirmed") return "confirmed";
-  return "collecting";
-}
+const DASHBOARD_GROUP_BY_LIFECYCLE_STATUS: Record<RecruitmentLifecycleStatus, DashboardRecruitmentGroupKey> = {
+  collecting: "collecting",
+  "action-required": "actionRequired",
+  current: "current",
+  confirmed: "confirmed",
+  ended: "past",
+  "ended-unconfirmed": "past",
+};
 
 export function sortRecruitmentsByPeriodStart(recruitments: Recruitment[]): Recruitment[] {
   return [...recruitments].sort((a, b) => b.periodStart.localeCompare(a.periodStart) || b.createdAt - a.createdAt);
@@ -54,7 +50,7 @@ export function buildDashboardRecruitmentGroups({
 
   for (const recruitment of uniqueRecruitments) {
     const groupKey = getDashboardRecruitmentGroupKey(recruitment, now);
-    if (groupKey) grouped[groupKey].push(recruitment);
+    grouped[groupKey].push(recruitment);
   }
 
   const groups = createDashboardRecruitmentGroups({
@@ -78,15 +74,8 @@ export function sortRecruitmentsByCreatedAt(recruitments: Recruitment[]): Recrui
 export function getDashboardRecruitmentGroupKey(
   recruitment: RecruitmentDateStatusFields,
   now = dayjs(),
-): DashboardRecruitmentGroupKey | null {
-  const today = now.format("YYYY-MM-DD");
-  if (recruitment.periodEnd < today) return "past";
-  if (recruitment.status === "confirmed") {
-    if (recruitment.periodStart <= today) return "current";
-    return "confirmed";
-  }
-  if (recruitment.deadline < today) return "actionRequired";
-  return "collecting";
+): DashboardRecruitmentGroupKey {
+  return DASHBOARD_GROUP_BY_LIFECYCLE_STATUS[getDisplayStatus(recruitment, now)];
 }
 
 function createDashboardRecruitmentGroups(

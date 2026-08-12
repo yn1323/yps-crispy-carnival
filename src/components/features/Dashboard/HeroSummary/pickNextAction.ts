@@ -1,5 +1,6 @@
 import dayjs, { type Dayjs } from "dayjs";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
+import { getRecruitmentDeadlineDays, getRecruitmentLifecycleStatus } from "@/src/domains/shift/recruitmentLifecycle";
 
 export type NextAction =
   | { kind: "past-deadline"; recruitment: Recruitment }
@@ -11,19 +12,27 @@ export type NextAction =
 const SOON_THRESHOLD_DAYS = 3;
 
 export function pickNextAction(recruitments: Recruitment[], now: Dayjs = dayjs()): NextAction {
-  const today = now.startOf("day");
-  const todayStr = today.format("YYYY-MM-DD");
+  const todayStr = now.format("YYYY-MM-DD");
 
-  const open = recruitments.filter((r) => r.status === "open" && r.periodEnd >= todayStr);
+  const open = recruitments
+    .map((recruitment) => ({
+      recruitment,
+      lifecycleStatus: getRecruitmentLifecycleStatus(recruitment, todayStr),
+    }))
+    .filter(({ lifecycleStatus }) => lifecycleStatus === "collecting" || lifecycleStatus === "action-required");
 
   const past = open
-    .filter((r) => r.deadline < todayStr)
+    .filter(({ lifecycleStatus }) => lifecycleStatus === "action-required")
+    .map(({ recruitment }) => recruitment)
     .sort((a, b) => a.deadline.localeCompare(b.deadline) || a.periodStart.localeCompare(b.periodStart));
   if (past.length > 0) return { kind: "past-deadline", recruitment: past[0] };
 
   const upcoming = open
-    .map((r) => ({ r, daysLeft: dayjs(r.deadline).startOf("day").diff(today, "day") }))
-    .filter((x) => x.daysLeft >= 0)
+    .filter(({ lifecycleStatus }) => lifecycleStatus === "collecting")
+    .map(({ recruitment }) => ({
+      r: recruitment,
+      daysLeft: getRecruitmentDeadlineDays(recruitment.deadline, todayStr),
+    }))
     .sort((a, b) => a.daysLeft - b.daysLeft);
 
   const top = upcoming[0];
