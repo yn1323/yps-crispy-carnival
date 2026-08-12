@@ -23,7 +23,7 @@ Dashboardのスタッフ一覧と組織設定のユーザー一覧は、同じ�
 ページ本文は、スタッフ情報を開くコンパクトな行、所属店舗一覧、ユーザー削除カードで構成する。
 所属店舗一覧には有効な`staffs`がある店舗だけを表示し、未所属店舗は表示しない。
 スタッフ情報の行から、共通プロフィールと管理者権限を扱うレスポンシブDialogを開く。
-Dialog下部は左に「キャンセル」、右に「変更を保存」を配置する。
+Dialog下部には「キャンセル」と主操作の「変更を保存」を表示し、変更可否と処理状態に応じて主操作を制御する。
 `FEATURE_MANAGER_INVITATION`が閉じている間も氏名とシフト連絡先の編集は残し、管理者招待・交代・権限解除のセクションと招待中Badgeだけを非表示にする。
 組織からの削除は、所属店舗一覧の下にあるユーザー削除カードから確認Dialogを開く。
 「所属店舗を変更」から、シフトスタッフとして所属する店舗をdesired-setで選ぶ変更Dialogを開く。
@@ -85,11 +85,11 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 - 所属店舗一覧には未所属店舗を表示しない。
 - 「所属店舗を変更」のボタンとDialogを常時公開し、店舗未所属の管理者にも同じ導線を表示する。
 - 所属店舗変更Dialogは、シフトスタッフとして所属する店舗のdesired-setチェックリストを表示する。`active`の店舗は所属中・未所属を問わず編集でき、`archived`または`planSuspended`の既存所属はチェック済みのまま変更不可として理由を表示する。非activeの未所属店舗と削除済み店舗は表示しない。
-- Dialog下部は左に「キャンセル」、右に「変更する」を配置する。初期状態との差分がない間、処理中、閲覧専用、契約制限中は「変更する」を無効にする。
-- 追加だけを含む変更は「変更する」で直ちに確定する。1店舗でも解除を含む場合は確認AlertDialogを開き、解除する店舗、本日以降に削除されるシフト割当件数、LINE・通知への影響を確認してから「変更する」で確定する。
+- Dialog下部には「キャンセル」と主操作の「変更する」を表示する。初期状態との差分がない間、処理中、閲覧専用、契約制限中は「変更する」を無効にする。
+- 追加と解除のどちらも「変更する」を1回押すと確定処理へ進み、二重確認Dialogは開かない。解除対象と、本日以降のシフト割当、LINE・通知への影響は変更Dialog内の選択と警告で事前に示し、取得済みの解除previewを同じmutationへ渡す。
 - 解除対象ごとの将来シフト割当previewが`tooMany`の場合、または解除対象全体の割当件数がtransaction上限を超える場合は一部だけ処理せず、対象が多いため変更できないことを表示して確定を無効にする。previewが取得後に変わった場合は選択全体を未反映として最新状態を再取得する。
-- 全店舗のチェックを外すことは許可する。最後の店舗所属を解除しても組織の人物情報、管理者権限、請求上の利用人数は維持され、店舗スタッフとしてのアクセスだけが終了することを確認AlertDialogに表示する。人数枠を空ける操作はユーザー削除として分ける。
-- 変更成功後は詳細Queryの更新に従って所属店舗一覧とチェックリストを更新し、Dialogを閉じる。通常の失敗では選択を維持し、membershipまたはpreviewが古い場合は最新状態の再取得と再確認を求める。
+- 全店舗のチェックを外すことは許可する。最後の店舗所属を解除しても組織の人物情報、管理者権限、請求上の利用人数は維持され、店舗スタッフとしてのアクセスだけが終了することを変更Dialog内で示す。人数枠を空ける操作はユーザー削除として分ける。
+- 変更成功後は詳細Queryの更新に従って所属店舗一覧とチェックリストを更新し、Dialogを閉じる。通常の失敗では選択を維持し、membershipまたはpreviewが古い場合は最新状態を再取得して選択し直すよう求める。
 - 店舗別設定ページではLINE連携、通知送信と履歴、シフト対象設定を縦に表示する。店舗所属の変更はスタッフ詳細の所属店舗変更Dialogで行う。
 - 停止中の店舗、閲覧専用または契約制限中は、サーバーが返す操作可否と理由を表示し、更新操作を無効にする。
 - API取得に失敗した場合はページのエラー状態へ寄せ、直前の別店舗データを表示しない。
@@ -107,7 +107,7 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 
 所属店舗変更は、`getUserDetail`が返した`membershipFingerprint`、解除対象ごとのstaffと将来シフト割当preview、Dialogを開いている間維持する`requestId`を使い、一つのmutationで確定する。  mutationは追加と解除の全差分を同じDB transactionで適用し、一部店舗だけを成功させない。
 
-同じ組織、人物、操作主体、`requestId`と同じ変更意図の再実行は、最初に確定した結果を返し、staff、通知予約、監査記録を重複させない。  同じscopeの`requestId`を異なる所属集合、fingerprintまたはpreviewへ再利用した要求は拒否する。membershipまたは解除previewが取得後に変わった場合も変更全体を拒否し、最新状態を再取得して確認し直す。
+同じ組織、人物、操作主体、`requestId`と同じ変更意図の再実行は、最初に確定した結果を返し、staff、通知予約、監査記録を重複させない。  同じscopeの`requestId`を異なる所属集合、fingerprintまたはpreviewへ再利用した要求は拒否する。membershipまたは解除previewが取得後に変わった場合も変更全体を拒否し、最新状態を再取得して選択し直す。
 
 解除する店舗では、本日以降の`shiftAssignments`を削除し、対象staffを論理削除してstaff用session、magic link、LINE tokenと連携、未送信のstaff向け通知を失効させる。  通知履歴は画面から対象外にした後、予約したcleanupで非同期に物理削除する。過去のシフト割当と提出、組織の人物、管理者権限、ほかの店舗所属は保持する。
 
@@ -187,4 +187,4 @@ mutationの成功は、DB transactionと必要な通知・cleanupの予約が確
 | 詳細Queryがactive・非active所属、行ごとの変更可否、解除preview、`membershipFingerprint`を完全なDTOで返す | Convex Function Test | `convex/organization/userDetailQueries.test.ts` |
 | desired-setの追加だけ、解除だけ、混在、全解除を一transactionで反映し、非active所属を保持する。解除後の再追加を新しいstaffとして扱い、認可、店舗境界、件数上限、stale、request replay、異なるintentでのrequest ID再利用、open募集の回答数再計算をfail-closedにする | Convex Function Test | `convex/staff/mutations.test.ts` |
 | 共通の店舗所属解除処理が旧credential・LINE・通知・将来シフトを失効させ、過去履歴を保持し、削除済みstaffから提出・閲覧・通知へ進めない状態遷移を守る | Convex Scenario Test | `convex/_scenario/staffManagement.test.ts`、`convex/_scenario/securityBoundaries.test.ts`、`convex/_scenario/organizationPersonRemoval.test.ts`、`convex/_scenario/notificationHistory.test.ts` |
-| チェック操作だけでは送信せず、差分なしを無効にし、解除を含む場合だけ正しい店舗のpreviewで確認し、`tooMany`、stale、二重送信を安全に扱う | Frontend Unit Test、Behavior Test | `src/components/features/UserDetail/useUserMembershipActions.test.ts`、`src/components/features/UserDetail/index.stories.tsx` |
+| チェック操作だけでは送信せず、差分なしを無効にし、解除を含む変更を正しい店舗のpreview付きで1回の確定操作から送信し、二重確認Dialogを開かず、`tooMany`、stale、二重送信を安全に扱う | Frontend Unit Test、Behavior Test | `src/components/features/UserDetail/useUserMembershipActions.test.ts`、`src/components/features/UserDetail/index.stories.tsx` |

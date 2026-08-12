@@ -26,10 +26,10 @@ export const ShopFormActions = ({
   if (currentStep === "shopName") {
     return (
       <>
-        <Button type="button" variant="outline" onClick={onCancel} flex={{ base: 1, md: "unset" }}>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
           キャンセル
         </Button>
-        <Button type="button" colorPalette="teal" onClick={onNext} flex={{ base: 1, md: "unset" }}>
+        <Button type="button" colorPalette="teal" onClick={onNext} disabled={isSubmitting}>
           次へ
         </Button>
       </>
@@ -39,11 +39,11 @@ export const ShopFormActions = ({
   if (currentStep === "patternSettings") {
     return (
       <>
-        <Button type="button" variant="outline" onClick={onPrevious} flex={{ base: 1, md: "unset" }}>
+        <Button type="button" variant="outline" onClick={onPrevious} disabled={isSubmitting}>
           <LuChevronLeft />
           戻る
         </Button>
-        <Button type="button" colorPalette="teal" onClick={onPatternSettingsNext} flex={{ base: 1, md: "unset" }}>
+        <Button type="button" colorPalette="teal" onClick={onPatternSettingsNext} disabled={isSubmitting}>
           次へ
         </Button>
       </>
@@ -53,7 +53,7 @@ export const ShopFormActions = ({
   if (currentStep === "regularClosedDays") {
     return (
       <>
-        <Button type="button" variant="outline" onClick={onPrevious} flex={{ base: 1, md: "unset" }}>
+        <Button type="button" variant="outline" onClick={onPrevious} disabled={isSubmitting}>
           <LuChevronLeft />
           戻る
         </Button>
@@ -61,8 +61,9 @@ export const ShopFormActions = ({
           type="button"
           colorPalette="teal"
           loading={isSubmitting}
+          loadingText={submitLabel}
+          disabled={isSubmitting}
           onClick={onSubmit}
-          flex={{ base: 1, md: "unset" }}
         >
           {submitLabel}
         </Button>
@@ -72,11 +73,11 @@ export const ShopFormActions = ({
 
   return (
     <>
-      <Button type="button" variant="outline" onClick={onPrevious} flex={{ base: 1, md: "unset" }}>
+      <Button type="button" variant="outline" onClick={onPrevious} disabled={isSubmitting}>
         <LuChevronLeft />
         戻る
       </Button>
-      <Button type="button" colorPalette="teal" onClick={onNext} flex={{ base: 1, md: "unset" }}>
+      <Button type="button" colorPalette="teal" onClick={onNext} disabled={isSubmitting}>
         次へ
       </Button>
     </>

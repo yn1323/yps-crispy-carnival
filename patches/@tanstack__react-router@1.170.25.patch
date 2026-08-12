@@ -1,0 +1,57 @@
+diff --git a/dist/cjs/Asset.cjs b/dist/cjs/Asset.cjs
+index 29b7c77233aa553a9ff8d2e6b95bdd2db73d39e2..11041663cef8ec1c5ad1cba12a567bd07294a40d 100644
+--- a/dist/cjs/Asset.cjs
++++ b/dist/cjs/Asset.cjs
+@@ -135,4 +135,11 @@
+-		if (attrs?.src) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("script", {
+-			...attrs,
+-			suppressHydrationWarning: true
+-		});
++		if (attrs?.src) {
++			if (!preventScriptHoist) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("script", {
++				...attrs,
++				suppressHydrationWarning: true
++			});
++			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("script", {
++				...attrs,
++				onLoad: noopScriptHandler,
++				suppressHydrationWarning: true
++			});
++		}
+diff --git a/dist/esm/Asset.js b/dist/esm/Asset.js
+index 44b7b2c96dae4290a0fd0f1463687539bc3a09c9..d6731f1d4480978cab9c32887b73e6e6dd11d0e1 100644
+--- a/dist/esm/Asset.js
++++ b/dist/esm/Asset.js
+@@ -133,4 +133,11 @@
+-		if (attrs?.src) return /* @__PURE__ */ jsx("script", {
+-			...attrs,
+-			suppressHydrationWarning: true
+-		});
++		if (attrs?.src) {
++			if (!preventScriptHoist) return /* @__PURE__ */ jsx("script", {
++				...attrs,
++				suppressHydrationWarning: true
++			});
++			return /* @__PURE__ */ jsx("script", {
++				...attrs,
++				onLoad: noopScriptHandler,
++				suppressHydrationWarning: true
++			});
++		}
+diff --git a/src/Asset.tsx b/src/Asset.tsx
+index 5e4f159f52649bf358aee59e39deba6c64161796..7f6297732ba3664de3f87d58f02f670a73065f2a 100644
+--- a/src/Asset.tsx
++++ b/src/Asset.tsx
+@@ -273 +273,11 @@
+-      return <script {...attrs} suppressHydrationWarning />
++      if (!preventScriptHoist) {
++        return <script {...attrs} suppressHydrationWarning />
++      }
++
++      return (
++        <script
++          {...attrs}
++          onLoad={noopScriptHandler}
++          suppressHydrationWarning
++        />
++      )

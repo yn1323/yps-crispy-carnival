@@ -20,7 +20,7 @@ export function useShopManagementController(input: Input) {
     if (!input.canAddShop) setDialog(null);
   }, [dialog, input.canAddShop]);
 
-  const { run } = useSingleFlight(async (operation: ShopManagementOperation) => {
+  const { run, isRunning } = useSingleFlight(async (operation: ShopManagementOperation) => {
     const latest = latestRef.current;
     if (!latest.canAddShop) {
       setDialog(null);
@@ -47,6 +47,7 @@ export function useShopManagementController(input: Input) {
     },
     dialog: {
       dialog,
+      isRunning,
       onClose: () => setDialog(null),
       onSubmit: (operation: ShopManagementOperation) => run(operation).catch(() => undefined),
     },

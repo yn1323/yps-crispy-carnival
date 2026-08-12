@@ -1,6 +1,6 @@
 import { Text } from "@chakra-ui/react";
 import { Button } from "@/src/components/ui/Button";
-import { Dialog } from "@/src/components/ui/Dialog";
+import { Dialog, DialogActionArea } from "@/src/components/ui/Dialog";
 
 type UnsavedChangesDialogProps = {
   isOpen: boolean;
@@ -25,15 +25,22 @@ export const UnsavedChangesDialog = ({
       if (!open) onStay();
     }}
     role="alertdialog"
+    preventClose={isSaving}
     footer={
-      <>
-        <Button variant="outline" onClick={onLeaveWithoutSaving} disabled={isSaving}>
-          保存せず戻る
-        </Button>
-        <Button colorPalette="teal" onClick={onSaveAndLeave} loading={isSaving}>
-          保存して戻る
-        </Button>
-      </>
+      <DialogActionArea
+        layout="standard"
+        mobileLayout="stacked"
+        startAction={
+          <Button colorPalette="red" variant="outline" onClick={onLeaveWithoutSaving} disabled={isSaving}>
+            保存せず戻る
+          </Button>
+        }
+        endAction={
+          <Button colorPalette="teal" onClick={onSaveAndLeave} loading={isSaving} loadingText="保存して戻る">
+            保存して戻る
+          </Button>
+        }
+      />
     }
   >
     <Text fontSize="sm" lineHeight="tall">

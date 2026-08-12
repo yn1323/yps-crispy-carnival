@@ -7,7 +7,7 @@ import { LegalReconsent } from "../LegalReconsent";
 import type { DashboardNotificationFailure } from "../NotificationFailureDialog";
 import { NotificationFailureRecovery } from "../NotificationFailureRecovery";
 import { OperationContext, type OperationContextData, OperationContextSkeleton } from "../OperationContext";
-import { PlanStatusCard, type PlanStatusCardProps } from "../PlanStatusCard";
+import type { PlanStatusCardProps } from "../PlanStatusCard";
 import { RecruitmentBoardSkeleton } from "../RecruitmentBoard";
 import { RecruitmentManagement, type RecruitmentManagementData } from "../RecruitmentManagement";
 import { Setup } from "../Setup";
@@ -188,22 +188,25 @@ export const DashboardContent = ({
                                 <>
                                   <ContentWrapper>
                                     <Stack gap={{ base: 4, lg: 6 }}>
-                                      <OperationContext data={operationContextData} />
-                                      <LegalReconsent status={managerLegalConsentStatus} />
-                                      {isBillingFeatureVisible && planStatusCard ? (
-                                        <PlanStatusCard
-                                          key={billingSettingsShopId ?? "plan-status"}
-                                          {...planStatusCard}
+                                      <Stack gap={{ base: 3, lg: 4 }}>
+                                        <OperationContext
+                                          data={operationContextData}
+                                          planStatusCard={isBillingFeatureVisible ? planStatusCard : null}
+                                          billingSettingsShopId={
+                                            isBillingFeatureVisible ? billingSettingsShopId : undefined
+                                          }
                                         />
-                                      ) : isBillingFeatureVisible && planStatusCard === undefined ? (
+                                        <LegalReconsent status={managerLegalConsentStatus} />
+                                        {isBillingFeatureVisible &&
+                                        planStatusCard === undefined &&
                                         billingSettingsShopId ? (
                                           <TrialEndingCallout
                                             notice={trialEndingNotice ?? null}
                                             shopId={billingSettingsShopId}
                                             isBillingVisible={isBillingFeatureVisible}
                                           />
-                                        ) : null
-                                      ) : null}
+                                        ) : null}
+                                      </Stack>
                                       <HeroSummary
                                         recruitments={recruitment.recruitments}
                                         onOpenShiftBoard={(recruitmentId) =>

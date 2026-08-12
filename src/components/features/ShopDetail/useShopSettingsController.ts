@@ -18,7 +18,7 @@ export function useShopSettingsController(shop: ShopDetailData) {
     if (!shop.canUpdateSettings) dialog.close();
   }, [dialog.close, shop.canUpdateSettings]);
 
-  const { run } = useSingleFlight(async (data: ShopFormData) => {
+  const { run, isRunning: isUpdating } = useSingleFlight(async (data: ShopFormData) => {
     const latestShop = latestShopRef.current;
     if (!latestShop.canUpdateSettings) return false;
 
@@ -47,6 +47,7 @@ export function useShopSettingsController(shop: ShopDetailData) {
       onOpenChange: dialog.onOpenChange,
       open: openSettings,
       close: dialog.close,
+      isUpdating,
     },
     updateSettings: async (data: ShopFormData) => {
       await run(data);

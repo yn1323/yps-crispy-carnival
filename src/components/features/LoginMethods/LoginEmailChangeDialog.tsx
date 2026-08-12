@@ -1,13 +1,18 @@
 import { Alert, Field, Input, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { requiredEmailSchema } from "@/convex/_lib/validation";
 import { EMAIL_MAX_LENGTH } from "@/convex/constants";
-import { EmailCodeVerificationForm } from "@/src/components/features/AuthPage/EmailCodeVerificationForm";
 import { Button } from "@/src/components/ui/Button";
-import { Dialog } from "@/src/components/ui/Dialog";
-import { LoginMethodReverificationView } from "./LoginMethodReverificationView";
+import { Dialog, DialogActionArea } from "@/src/components/ui/Dialog";
+import { LoginMethodEmailCodeForm } from "./LoginMethodEmailCodeForm";
+import {
+  isLoginMethodReverificationBusy,
+  LoginMethodReverificationActions,
+  LoginMethodReverificationView,
+} from "./LoginMethodReverificationView";
 import type { LoginMethodReverificationController } from "./reverificationTypes";
 
 const emailSchema = z.object({ email: requiredEmailSchema });
@@ -15,6 +20,9 @@ const emailSchema = z.object({ email: requiredEmailSchema });
 type EmailValues = z.infer<typeof emailSchema>;
 type LoginEmailChangeStep = "input" | "verification";
 type LoginEmailChangeStatus = "idle" | "loading" | "success" | "error";
+
+const LOGIN_EMAIL_INPUT_FORM_ID = "login-email-change-input";
+const LOGIN_EMAIL_CODE_FORM_ID = "login-email-change-code";
 
 type LoginEmailChangeDialogProps = {
   isOpen: boolean;
@@ -43,19 +51,46 @@ export function LoginEmailChangeDialog({
   onBackToInput,
   reverification,
 }: LoginEmailChangeDialogProps) {
+  const [restoreInputFocus, setRestoreInputFocus] = useState(false);
   const isBusy = status === "loading";
   const isReverifying = reverification.state.status !== "idle";
-  const isReverificationSubmitting =
-    reverification.state.status === "submitting" || reverification.state.status === "completing";
+  const isReverificationBusy = isLoginMethodReverificationBusy(reverification);
+  const dialogBusy = isReverifying ? isReverificationBusy : isBusy;
   const requestClose = () => {
     if (isReverifying) {
-      if (isReverificationSubmitting) return;
+      if (isReverificationBusy) return;
       reverification.cancel();
       onClose(true);
       return;
     }
-    if (!isBusy) onClose();
+    if (!isBusy) {
+      setRestoreInputFocus(false);
+      onClose();
+    }
   };
+  const handleBackToInput = () => {
+    setRestoreInputFocus(true);
+    onBackToInput();
+  };
+
+  const footer = isReverifying ? (
+    <LoginMethodReverificationActions controller={reverification} />
+  ) : step === "verification" ? (
+    <DialogActionArea
+      layout="flow"
+      mobileLayout="inline"
+      startAction={
+        <Button type="button" variant="outline" onClick={handleBackToInput} disabled={isBusy}>
+          入力し直す
+        </Button>
+      }
+      endAction={
+        <Button type="submit" form={LOGIN_EMAIL_CODE_FORM_ID} colorPalette="teal" loading={isBusy} loadingText="確認中">
+          メールを確認
+        </Button>
+      }
+    />
+  ) : undefined;
 
   return (
     <Dialog
@@ -66,17 +101,15 @@ export function LoginEmailChangeDialog({
       }}
       onClose={requestClose}
       onBackGuardRemoved={requestClose}
-      preventClose={isReverifying ? isReverificationSubmitting : isBusy}
-      hideFooter
-      keyboardAwareViewport
-      maxW={{ base: "100vw", md: "560px" }}
-      maxH={{ base: "100dvh", md: "86dvh" }}
-      contentProps={{
-        w: "100%",
-        h: { base: "100dvh", md: "auto" },
-        my: { base: 0, md: "auto" },
-        borderRadius: { base: 0, md: "l3" },
-      }}
+      preventClose={dialogBusy}
+      isLoading={dialogBusy}
+      formId={!isReverifying && step === "input" ? LOGIN_EMAIL_INPUT_FORM_ID : undefined}
+      submitLabel="次へ"
+      footer={footer}
+      mobileActionLayout="inline"
+      mobileFullScreen
+      maxW={{ md: "560px" }}
+      maxH={{ md: "86dvh" }}
       bodyProps={{ px: { base: 4, md: 6 }, pt: 2, pb: { base: 6, md: 6 } }}
     >
       {isReverifying ? <LoginMethodReverificationView controller={reverification} /> : null}
@@ -85,7 +118,8 @@ export function LoginEmailChangeDialog({
           isBusy={isBusy}
           status={status}
           message={message}
-          onClose={requestClose}
+          restoreFocus={restoreInputFocus}
+          onFocusRestored={() => setRestoreInputFocus(false)}
           onSubmit={onSubmitEmail}
         />
       ) : null}
@@ -95,31 +129,12 @@ export function LoginEmailChangeDialog({
             {targetEmailAddress ?? "入力したメールアドレス"}
             に確認コードを送りました。メールに届いたコードを入力してください。
           </Text>
-          <EmailCodeVerificationForm
+          <LoginMethodEmailCodeForm
+            formId={LOGIN_EMAIL_CODE_FORM_ID}
             errorMessage={status === "error" ? (message ?? undefined) : undefined}
-            isSubmitting={isBusy}
-            submitLabel="メールを確認"
-            submittingLabel="確認中"
-            onSubmit={async ({ code }) => {
-              await onSubmitCode(code);
-            }}
-            secondaryActions={
-              <Stack direction={{ base: "column", sm: "row" }} justify="space-between" gap={2}>
-                <Button type="button" variant="ghost" onClick={onBackToInput} disabled={isBusy}>
-                  入力し直す
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    void onResendCode();
-                  }}
-                  disabled={isBusy}
-                >
-                  確認コードを再送
-                </Button>
-              </Stack>
-            }
+            isBusy={isBusy}
+            onSubmit={onSubmitCode}
+            onResend={onResendCode}
           />
         </Stack>
       ) : null}
@@ -131,13 +146,15 @@ function EmailInputStep({
   isBusy,
   status,
   message,
-  onClose,
+  restoreFocus,
+  onFocusRestored,
   onSubmit,
 }: {
   isBusy: boolean;
   status: LoginEmailChangeStatus;
   message: string | null;
-  onClose: () => void;
+  restoreFocus: boolean;
+  onFocusRestored: () => void;
   onSubmit: (email: string) => unknown | Promise<unknown>;
 }) {
   const {
@@ -145,9 +162,22 @@ function EmailInputStep({
     handleSubmit,
     formState: { errors },
   } = useForm<EmailValues>({ resolver: zodResolver(emailSchema), defaultValues: { email: "" } });
+  const emailInputRef = useRef<HTMLInputElement>(null);
+  const emailRegistration = register("email");
+
+  useEffect(() => {
+    if (!restoreFocus) return;
+    emailInputRef.current?.focus();
+    onFocusRestored();
+  }, [onFocusRestored, restoreFocus]);
 
   return (
-    <Stack as="form" gap={5} onSubmit={handleSubmit(async ({ email }) => onSubmit(email))}>
+    <Stack
+      as="form"
+      id={LOGIN_EMAIL_INPUT_FORM_ID}
+      gap={5}
+      onSubmit={handleSubmit(async ({ email }) => onSubmit(email))}
+    >
       <Text color="fg.muted">
         新しいメールアドレスが未確認の場合は、確認コードを送ります。
         <br />
@@ -163,18 +193,15 @@ function EmailInputStep({
           autoComplete="email"
           placeholder="例：login@example.com"
           maxLength={EMAIL_MAX_LENGTH}
-          {...register("email")}
+          disabled={isBusy}
+          {...emailRegistration}
+          ref={(element) => {
+            emailRegistration.ref(element);
+            emailInputRef.current = element;
+          }}
         />
         <Field.ErrorText>{errors.email?.message}</Field.ErrorText>
       </Field.Root>
-      <Stack direction={{ base: "column-reverse", sm: "row" }} justify="space-between" gap={3}>
-        <Button type="button" variant="outline" onClick={onClose} disabled={isBusy}>
-          キャンセル
-        </Button>
-        <Button type="submit" colorPalette="teal" loading={isBusy} loadingText="確認中">
-          次へ
-        </Button>
-      </Stack>
     </Stack>
   );
 }

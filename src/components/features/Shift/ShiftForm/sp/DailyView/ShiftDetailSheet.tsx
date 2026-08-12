@@ -23,8 +23,8 @@ export const ShiftDetailSheet = ({ staff, shift, selectedDate, isOpen, onOpenCha
       title={`${staff.name}のシフト  ${dateLabel}`}
       isOpen={isOpen}
       onOpenChange={onOpenChange}
-      hideFooter
-      modal={false}
+      onClose={() => onOpenChange({ open: false })}
+      closeLabel="閉じる"
     >
       <VStack gap={4} align="stretch">
         {visibleSegments.length > 0 && (

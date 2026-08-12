@@ -19,6 +19,7 @@ type SettingsDialogState = {
   onOpenChange: (details: { open: boolean }) => void;
   open: () => void;
   close: () => void;
+  isUpdating: boolean;
 };
 
 type Props = {
@@ -110,6 +111,7 @@ export function ShopDetailView({
         isOpen={settingsDialog.isOpen && shop.canUpdateSettings}
         onOpenChange={settingsDialog.onOpenChange}
         onClose={settingsDialog.close}
+        preventClose={settingsDialog.isUpdating}
       >
         <ShopForm
           key={settingsDialog.isOpen ? `${shop.id}-settings-open` : `${shop.id}-settings-closed`}

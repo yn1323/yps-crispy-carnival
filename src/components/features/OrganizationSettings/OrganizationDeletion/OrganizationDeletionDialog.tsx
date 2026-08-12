@@ -40,6 +40,8 @@ export function OrganizationDeletionDialog({ dialog, isRunning, onClose, onBackG
       isLoading={isRunning}
       isSubmitDisabled={!isConfirmed || isRunning}
       role="alertdialog"
+      mobileActionLayout="stacked"
+      mobileFullScreen
       maxW={{ base: "calc(100vw - 24px)", md: "600px" }}
     >
       <form

@@ -1,4 +1,5 @@
 import { Box, Flex, HStack, Stack, Table, Text } from "@chakra-ui/react";
+import { useEffect, useRef } from "react";
 import { LuX } from "react-icons/lu";
 import { PeopleCapacityResolutionAlert } from "@/src/components/shared/PeopleCapacityResolutionAlert";
 import { Button } from "@/src/components/ui/Button";
@@ -18,6 +19,9 @@ type StaffRegistrationRequestDialogProps = {
   onReject: (request: StaffRegistrationRequest) => void;
   isApproving?: boolean;
   isRejecting?: boolean;
+  rejectTarget?: StaffRegistrationRequest | null;
+  onRejectClose?: () => void;
+  onRejectConfirm?: () => void | Promise<void>;
 };
 
 type StaffRegistrationRequestListProps = Pick<
@@ -36,46 +40,99 @@ export const StaffRegistrationRequestDialog = ({
   onReject,
   isApproving = false,
   isRejecting = false,
-}: StaffRegistrationRequestDialogProps) => (
-  <Dialog
-    title="スタッフ登録申請"
-    isOpen={isOpen && !isReadOnly}
-    onOpenChange={onOpenChange}
-    onClose={onClose}
-    footer={
-      <Button variant="outline" onClick={onClose} w={{ base: "100%", md: "auto" }}>
-        閉じる
-      </Button>
+  rejectTarget = null,
+  onRejectClose,
+  onRejectConfirm,
+}: StaffRegistrationRequestDialogProps) => {
+  const isConfirmingReject = rejectTarget !== null;
+  const rejectTriggerIdRef = useRef<string | null>(null);
+  const confirmationBodyRef = useRef<HTMLDivElement>(null);
+  const wasConfirmingReject = useRef(false);
+
+  useEffect(() => {
+    if (isConfirmingReject) {
+      confirmationBodyRef.current?.focus();
+    } else if (wasConfirmingReject.current) {
+      const trigger = rejectTriggerIdRef.current
+        ? document.querySelector<HTMLButtonElement>(
+            `[data-registration-reject-trigger="${rejectTriggerIdRef.current}"]`,
+          )
+        : null;
+      trigger?.focus();
     }
-    maxW={{ base: "100vw", lg: "960px" }}
-    maxH={{ base: "100dvh", lg: "82dvh" }}
-    contentProps={{
-      w: "100%",
-      h: { base: "100dvh", lg: "auto" },
-      my: { base: 0, lg: "auto" },
-      borderRadius: { base: 0, lg: "l3" },
-    }}
-  >
-    <Stack gap={4} w="full">
-      {peopleCapacityResolution && (
-        <PeopleCapacityResolutionAlert resolution={peopleCapacityResolution} retryActionLabel="申請を承認" />
+    wasConfirmingReject.current = isConfirmingReject;
+  }, [isConfirmingReject]);
+
+  const closeCurrentState = () => {
+    if (isConfirmingReject) {
+      if (!isRejecting) onRejectClose?.();
+      return;
+    }
+    onClose();
+  };
+
+  return (
+    <Dialog
+      title={isConfirmingReject ? "スタッフ登録申請を却下" : "スタッフ登録申請"}
+      role={isConfirmingReject ? "alertdialog" : "dialog"}
+      isOpen={(isOpen || isConfirmingReject) && !isReadOnly}
+      onOpenChange={(details) => {
+        if (!details.open && isConfirmingReject) closeCurrentState();
+        else onOpenChange(details);
+      }}
+      onClose={closeCurrentState}
+      closeLabel={isConfirmingReject ? "キャンセル" : "閉じる"}
+      onSubmit={isConfirmingReject ? onRejectConfirm : undefined}
+      submitLabel="この申請を却下"
+      submitColorPalette="red"
+      isLoading={isRejecting}
+      isSubmitDisabled={isReadOnly || rejectTarget === null}
+      mobileActionLayout={isConfirmingReject ? "stacked" : "inline"}
+      mobileFullScreen
+      maxW={isConfirmingReject ? "480px" : { lg: "960px" }}
+      maxH={isConfirmingReject ? undefined : { lg: "82dvh" }}
+    >
+      {isConfirmingReject ? (
+        <Stack
+          ref={confirmationBodyRef}
+          data-testid="registration-reject-confirmation"
+          tabIndex={-1}
+          gap={2}
+          outline="none"
+        >
+          <Text>「{rejectTarget.name}」さんのスタッフ登録申請を却下しますか？</Text>
+          <Text fontSize="sm" color="gray.600">
+            却下してもスタッフには通知されません。
+            <br />
+            必要な場合はシフト作成担当者から直接案内してください。
+          </Text>
+        </Stack>
+      ) : (
+        <Stack gap={4} w="full">
+          {peopleCapacityResolution && (
+            <PeopleCapacityResolutionAlert resolution={peopleCapacityResolution} retryActionLabel="申請を承認" />
+          )}
+          <Text fontSize="sm" color="fg.muted">
+            承認するとスタッフとして登録されます。
+            <br />
+            LINE連携の案内を送り、募集中のシフトがあれば提出リンクも送ります。
+          </Text>
+          <StaffRegistrationRequestList
+            requests={requests}
+            isReadOnly={isReadOnly}
+            onApprove={onApprove}
+            onReject={(request) => {
+              rejectTriggerIdRef.current = request._id;
+              onReject(request);
+            }}
+            isApproving={isApproving}
+            isRejecting={isRejecting}
+          />
+        </Stack>
       )}
-      <Text fontSize="sm" color="fg.muted">
-        承認するとスタッフとして登録されます。
-        <br />
-        LINE連携の案内を送り、募集中のシフトがあれば提出リンクも送ります。
-      </Text>
-      <StaffRegistrationRequestList
-        requests={requests}
-        isReadOnly={isReadOnly}
-        onApprove={onApprove}
-        onReject={onReject}
-        isApproving={isApproving}
-        isRejecting={isRejecting}
-      />
-    </Stack>
-  </Dialog>
-);
+    </Dialog>
+  );
+};
 
 const StaffRegistrationRequestList = ({
   requests,
@@ -211,6 +268,7 @@ const RequestActionButtons = ({
       承認
     </Button>
     <Button
+      data-registration-reject-trigger={request._id}
       aria-label={`${request.name}を却下`}
       size="sm"
       variant="outline"

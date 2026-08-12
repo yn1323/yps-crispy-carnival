@@ -129,9 +129,9 @@ export const ShiftEditSheet = ({
       onOpenChange={onOpenChange}
       onClose={() => onOpenChange({ open: false })}
       onSubmit={onSubmit}
-      submitLabel="確定"
+      submitLabel="シフトを変更"
       isSubmitDisabled={hasMultipleWorkPositions}
-      modal={false}
+      mobileActionLayout="inline"
     >
       <VStack gap={4} align="stretch">
         <Flex align="center" gap={2}>

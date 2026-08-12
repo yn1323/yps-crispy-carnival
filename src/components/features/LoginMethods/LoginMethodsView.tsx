@@ -3,7 +3,11 @@ import { useState } from "react";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { GoogleDisconnectDialog } from "./GoogleDisconnectDialog";
 import { LoginEmailChangeDialog } from "./LoginEmailChangeDialog";
-import { LoginMethodReverificationView } from "./LoginMethodReverificationView";
+import {
+  isLoginMethodReverificationBusy,
+  LoginMethodReverificationActions,
+  LoginMethodReverificationView,
+} from "./LoginMethodReverificationView";
 import { LoginMethodsCard } from "./LoginMethodsCard";
 import type { LoginMethodMigrationFlow } from "./migrationTypes";
 import { PasswordChangeDialog } from "./PasswordChangeDialog";
@@ -143,7 +147,7 @@ function LoginMethodRowSkeleton({
 }
 
 function StandaloneReverificationDialog({ reverification }: { reverification: LoginMethodReverificationController }) {
-  const preventClose = reverification.state.status === "submitting" || reverification.state.status === "completing";
+  const preventClose = isLoginMethodReverificationBusy(reverification);
   return (
     <Dialog
       title="確認が必要です"
@@ -154,16 +158,11 @@ function StandaloneReverificationDialog({ reverification }: { reverification: Lo
       onClose={reverification.cancel}
       onBackGuardRemoved={reverification.cancel}
       preventClose={preventClose}
-      hideFooter
-      keyboardAwareViewport
-      maxW={{ base: "100vw", md: "560px" }}
-      maxH={{ base: "100dvh", md: "86dvh" }}
-      contentProps={{
-        w: "100%",
-        h: { base: "100dvh", md: "auto" },
-        my: { base: 0, md: "auto" },
-        borderRadius: { base: 0, md: "l3" },
-      }}
+      isLoading={preventClose}
+      footer={<LoginMethodReverificationActions controller={reverification} />}
+      mobileFullScreen
+      maxW={{ md: "560px" }}
+      maxH={{ md: "86dvh" }}
     >
       <LoginMethodReverificationView controller={reverification} />
     </Dialog>

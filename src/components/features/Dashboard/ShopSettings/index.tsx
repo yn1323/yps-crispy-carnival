@@ -27,7 +27,7 @@ export function ShopSettings({ shop, isReadOnly = false, children }: Props) {
     if (isReadOnly) dialog.close();
   }, [dialog.close, isReadOnly]);
 
-  const { run: handleUpdate } = useSingleFlight(async (data: ShopFormData) => {
+  const { run: handleUpdate, isRunning: isUpdating } = useSingleFlight(async (data: ShopFormData) => {
     if (isReadOnly) return;
     try {
       await updateShopSettings(data);
@@ -44,7 +44,13 @@ export function ShopSettings({ shop, isReadOnly = false, children }: Props) {
   };
 
   return (
-    <ShopSettingsView shop={shop} dialog={dialog} isReadOnly={isReadOnly} onUpdate={handleUpdate}>
+    <ShopSettingsView
+      shop={shop}
+      dialog={dialog}
+      isReadOnly={isReadOnly}
+      isUpdating={isUpdating}
+      onUpdate={handleUpdate}
+    >
       {children({ openShopSettings: handleOpen })}
     </ShopSettingsView>
   );

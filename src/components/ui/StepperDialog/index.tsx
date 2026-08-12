@@ -1,6 +1,6 @@
 import { Box, Flex, HStack, Icon, Text } from "@chakra-ui/react";
 import { type ComponentProps, type ElementType, Fragment, type ReactNode } from "react";
-import { Dialog } from "@/src/components/ui/Dialog";
+import { Dialog, type DialogMobileActionLayout } from "@/src/components/ui/Dialog";
 import { DIALOG_VISUAL_VIEWPORT_HEIGHT } from "@/src/hooks/useDialogVisualViewportStyle";
 
 export type StepperDialogStep<TStep extends string = string> = {
@@ -13,7 +13,14 @@ export type StepperDialogStep<TStep extends string = string> = {
 
 type StepperDialogProps = Omit<
   ComponentProps<typeof Dialog>,
-  "hideFooter" | "maxW" | "maxH" | "contentProps" | "bodyProps"
+  | "hideFooter"
+  | "maxW"
+  | "maxH"
+  | "contentProps"
+  | "bodyProps"
+  | "actionLayout"
+  | "mobileActionLayout"
+  | "mobileFullScreen"
 > & {
   maxW?: ComponentProps<typeof Dialog>["maxW"];
   maxH?: ComponentProps<typeof Dialog>["maxH"];
@@ -31,6 +38,7 @@ type StepperDialogContentProps<TStep extends string> = StepperDialogStepsProps<T
   children: ReactNode;
   actions?: ReactNode;
   showSteps?: boolean;
+  mobileActionLayout?: DialogMobileActionLayout;
 };
 
 type StepperDialogStepTitleProps = {
@@ -68,6 +76,7 @@ export const StepperDialog = ({
   <Dialog
     {...dialogProps}
     hideFooter
+    mobileFullScreen
     keyboardAwareViewport={keyboardAwareViewport}
     maxW={maxW}
     maxH={maxH}
@@ -83,6 +92,8 @@ export const StepperDialog = ({
       p: 0,
       display: "flex",
       flexDirection: "column",
+      flex: 1,
+      h: "full",
       minH: 0,
       overflowY: "hidden",
       ...bodyProps,
@@ -141,13 +152,13 @@ export const StepperDialogSteps = <TStep extends string>({ steps, currentStep }:
 };
 
 export const StepperDialogStepTitle = ({ icon, title, description }: StepperDialogStepTitleProps) => (
-  <HStack gap={3} align="flex-start">
+  <HStack gap={3} align="flex-start" minW={0}>
     {icon && (
       <Flex w="36px" h="36px" borderRadius="full" bg="teal.50" color="teal.700" align="center" justify="center">
         <Icon as={icon} boxSize={5} />
       </Flex>
     )}
-    <Box>
+    <Box minW={0} overflowWrap="anywhere">
       {typeof title === "string" ? (
         <Text fontSize="md" fontWeight="bold" color="gray.900">
           {title}
@@ -160,10 +171,18 @@ export const StepperDialogStepTitle = ({ icon, title, description }: StepperDial
   </HStack>
 );
 
-export const StepperDialogActionBar = ({ children }: { children: ReactNode }) => (
+export const StepperDialogActionBar = ({
+  children,
+  mobileLayout = "inline",
+}: {
+  children: ReactNode;
+  mobileLayout?: DialogMobileActionLayout;
+}) => (
   <Box
     position={{ base: "sticky", md: "static" }}
     bottom={0}
+    zIndex={1}
+    flexShrink={0}
     px={{ base: 4, md: 6 }}
     pt={4}
     pb={{ base: "calc(env(safe-area-inset-bottom) + 1rem)", md: 4 }}
@@ -171,7 +190,29 @@ export const StepperDialogActionBar = ({ children }: { children: ReactNode }) =>
     borderTopWidth={1}
     borderColor="border.default"
   >
-    <Flex justify="space-between" gap={3}>
+    <Flex
+      data-mobile-layout={mobileLayout}
+      direction={{ base: mobileLayout === "stacked" ? "column" : "row", md: "row" }}
+      justify={{ base: mobileLayout === "stacked" ? "flex-start" : "space-between", md: "space-between" }}
+      align="stretch"
+      gap={3}
+      flexWrap="nowrap"
+      css={{
+        "& > button": {
+          minWidth: 0,
+        },
+        "@media screen and (max-width: 47.997rem)": {
+          "& > button": {
+            flex: mobileLayout === "inline" ? "1 1 0" : "0 0 auto",
+            width: mobileLayout === "stacked" ? "100%" : "auto",
+            minHeight: "44px",
+            height: "auto",
+            paddingBlock: "0.5rem",
+            whiteSpace: "normal",
+          },
+        },
+      }}
+    >
       {children}
     </Flex>
   </Box>
@@ -183,6 +224,7 @@ export const StepperDialogContent = <TStep extends string>({
   children,
   actions,
   showSteps = true,
+  mobileActionLayout = "inline",
 }: StepperDialogContentProps<TStep>) => {
   const currentStepDetail = steps.find((step) => step.value === currentStep);
   const shouldShowStepTitle = Boolean(
@@ -190,14 +232,21 @@ export const StepperDialogContent = <TStep extends string>({
   );
 
   return (
-    <Flex flex={1} minH={0} direction="column">
+    <Flex flex={1} h="full" minH={0} w="full" overflow="hidden" direction="column">
       {showSteps && (
-        <Box px={{ base: 0, md: 6 }} pt={{ base: 2, md: 0 }} pb={4}>
+        <Box flexShrink={0} px={{ base: 0, md: 6 }} pt={{ base: 2, md: 0 }} pb={4}>
           <StepperDialogSteps steps={steps} currentStep={currentStep} />
         </Box>
       )}
 
-      <Box flex={1} minH={0} overflowY="auto" px={{ base: 4, md: 8 }} pb={{ base: 4, md: 6 }}>
+      <Box
+        flex={1}
+        minH={0}
+        overflowY="auto"
+        overscrollBehavior="contain"
+        px={{ base: 4, md: 8 }}
+        pb={{ base: 4, md: 6 }}
+      >
         <Flex direction="column" gap={5}>
           {shouldShowStepTitle && (
             <StepperDialogStepTitle
@@ -210,7 +259,11 @@ export const StepperDialogContent = <TStep extends string>({
         </Flex>
       </Box>
 
-      {actions && <StepperDialogActionBar key={currentStep}>{actions}</StepperDialogActionBar>}
+      {actions && (
+        <StepperDialogActionBar key={currentStep} mobileLayout={mobileActionLayout}>
+          {actions}
+        </StepperDialogActionBar>
+      )}
     </Flex>
   );
 };

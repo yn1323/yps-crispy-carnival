@@ -6,7 +6,7 @@ import { CreateRecruitmentForm } from "@/src/components/features/CreateRecruitme
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import { ShiftSubmitPage, type SubmitShiftSelectionInput } from "@/src/components/features/StaffSubmit";
 import { Button } from "@/src/components/ui/Button";
-import { Dialog } from "@/src/components/ui/Dialog";
+import { Dialog, DialogActionArea } from "@/src/components/ui/Dialog";
 import type { ShiftData } from "@/src/domains/shift/types";
 import { DemoHighlightStyles } from "./DemoHighlightStyles";
 import {
@@ -325,9 +325,22 @@ const ShareStep = ({ shifts, onReplay }: { shifts: ShiftData[]; onReplay: () => 
         isOpen={isCompleteOpen}
         onOpenChange={handleCompleteOpenChange}
         onClose={handleReplay}
-        closeLabel="もう1回試す"
-        onSubmit={handleCloseDemo}
-        submitLabel="デモを閉じる"
+        footer={
+          <DialogActionArea
+            layout="standard"
+            mobileLayout="inline"
+            startAction={
+              <Button variant="outline" onClick={handleReplay}>
+                もう1回試す
+              </Button>
+            }
+            endAction={
+              <Button variant="outline" onClick={handleCloseDemo}>
+                デモを閉じる
+              </Button>
+            }
+          />
+        }
         maxW="420px"
       >
         <Stack gap={3}>

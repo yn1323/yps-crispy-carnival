@@ -10,11 +10,12 @@ const ADD_SHOP_DEFAULT_VALUES: ShopFormData = {
 
 type Props = {
   dialog: ShopManagementDialogState | null;
+  isRunning: boolean;
   onClose: () => void;
   onSubmit: (operation: ShopManagementOperation) => void | Promise<void>;
 };
 
-export function ShopManagementDialog({ dialog, onClose, onSubmit }: Props) {
+export function ShopManagementDialog({ dialog, isRunning, onClose, onSubmit }: Props) {
   if (!dialog) return null;
 
   return (
@@ -25,6 +26,7 @@ export function ShopManagementDialog({ dialog, onClose, onSubmit }: Props) {
         if (!open) onClose();
       }}
       onClose={onClose}
+      preventClose={isRunning}
     >
       <ShopForm
         defaultValues={ADD_SHOP_DEFAULT_VALUES}

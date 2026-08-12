@@ -34,6 +34,8 @@ UI作業を、利用者のタスクから検証まで順に進める。
 - 新しいwrapperは、業務上の意味、状態分岐、レイアウト責務のいずれかを持つ場合だけ作る。
 - モバイルはPC版の縮小ではなく、情報順序と操作方法を端末に合わせる。
 - 破壊的操作、長い編集、URL共有、戻る操作の要否から、Dialogと専用ページを選ぶ。
+- Dialogは、編集、確認、閲覧、複数段階のどれかに分類し、各ボタンのPrimary、Secondary、Destructiveの意味を決める。
+- Dialogを扱う場合は、`doc/rules/ui-design.md`の「Dialogのアクション」を適用し、終了操作、inline confirmation、close lock、scroll時のaction areaを設計する。
 
 ## 3. 状態を設計する
 
@@ -72,6 +74,8 @@ UI作業を、利用者のタスクから検証まで順に進める。
 - 主タスクが最短の導線で完了するか確認する。
 - Loading、Empty、Error、Successなど変更に関係する代表状態を確認する。
 - デスクトップとモバイルで情報順序、折り返し、操作領域を確認する。
+- DialogはPCとSPでDOM順と見た目の順、action areaの配置、長い文言、本文scroll、safe areaを確認する。
+- 閲覧専用を含む終了操作、すべてのclose経路、close lockの開始と解除、Dialogを重ねない確認遷移を確認する。
 - キーボード操作、フォーカス、ラベル、コントラストを確認する。
 - テスト層や新しい検証契約を設計する場合は`$test-strategy`を使う。
 - 対象範囲の`AGENTS.md`に従ってlint、型、テストを実行する。

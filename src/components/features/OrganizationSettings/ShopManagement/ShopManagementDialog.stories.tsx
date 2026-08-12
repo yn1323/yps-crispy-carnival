@@ -8,6 +8,7 @@ const meta = {
   parameters: { layout: "fullscreen" },
   args: {
     dialog: { kind: "addShop" },
+    isRunning: false,
     onClose: () => {},
     onSubmit: () => {},
   },

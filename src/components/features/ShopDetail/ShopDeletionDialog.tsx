@@ -1,5 +1,4 @@
 import { Stack, Text } from "@chakra-ui/react";
-import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import type { ShopDetailData } from "./types";
 
@@ -24,23 +23,13 @@ export function ShopDeletionDialog({ shop, isOpen, isDeleting, onClose, onDelete
         if (!open && !isDeleting) onClose();
       }}
       onClose={onClose}
-      footer={
-        <>
-          <Button variant="outline" onClick={onClose} disabled={isDeleting}>
-            キャンセル
-          </Button>
-          <Button
-            colorPalette="red"
-            loading={isDeleting}
-            onClick={async () => {
-              const deleted = await onDelete();
-              if (deleted) onClose();
-            }}
-          >
-            店舗を削除
-          </Button>
-        </>
-      }
+      onSubmit={async () => {
+        const deleted = await onDelete();
+        if (deleted) onClose();
+      }}
+      submitLabel="店舗を削除"
+      isLoading={isDeleting}
+      mobileActionLayout="stacked"
       maxW={{ base: "calc(100vw - 24px)", md: "560px" }}
     >
       <Stack gap={3} fontSize="sm" color="fg.muted" lineHeight="tall">

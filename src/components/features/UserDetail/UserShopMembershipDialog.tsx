@@ -40,15 +40,11 @@ export function UserShopMembershipDialog({
   dataRef.current = data;
   const openStateRef = useRef({ isOpen, personId: data.person.id });
   const [session, setSession] = useState<MembershipSession>(() => createSession(data));
-  const [isRemovalConfirmationOpen, setIsRemovalConfirmationOpen] = useState(false);
 
   useEffect(() => {
     const previous = openStateRef.current;
     if (isOpen && (!previous.isOpen || previous.personId !== data.person.id)) {
       setSession(createSession(dataRef.current));
-      setIsRemovalConfirmationOpen(false);
-    } else if (!isOpen && previous.isOpen) {
-      setIsRemovalConfirmationOpen(false);
     }
     openStateRef.current = { isOpen, personId: data.person.id };
   }, [data.person.id, isOpen]);
@@ -122,7 +118,6 @@ export function UserShopMembershipDialog({
         submittedInput: null,
       };
     });
-    setIsRemovalConfirmationOpen(false);
   };
 
   const submitChange = async () => {
@@ -171,221 +166,142 @@ export function UserShopMembershipDialog({
     await onChangeMemberships(input);
   };
 
-  const handleSubmit = async () => {
-    if (removedShops.length > 0) {
-      setIsRemovalConfirmationOpen(true);
-      return;
-    }
-    await submitChange();
-  };
-
   const handleClose = () => {
     if (isChanging) return;
-    setIsRemovalConfirmationOpen(false);
     onClose();
   };
 
   return (
-    <>
-      <Dialog
-        title="所属店舗を変更"
-        isOpen={isOpen}
-        onOpenChange={(details) => {
-          if (!details.open) setIsRemovalConfirmationOpen(false);
-          onOpenChange(details);
-        }}
-        onClose={handleClose}
-        onBackGuardRemoved={handleClose}
-        onSubmit={handleSubmit}
-        submitLabel="変更する"
-        isLoading={isChanging}
-        isSubmitDisabled={
-          !isCurrentSession ||
-          !data.canWrite ||
-          !hasActiveShopContext ||
-          !hasDiff ||
-          !canSubmitFrozenIntent ||
-          isChanging
-        }
-        preventClose={isChanging}
-        maxW={{ base: "100vw", lg: "640px" }}
-        maxH={{ base: "100dvh", lg: "86dvh" }}
-        contentProps={{
-          w: "100%",
-          h: { base: "100dvh", lg: "auto" },
-          my: { base: 0, lg: "auto" },
-          borderRadius: { base: 0, lg: "l3" },
-        }}
-        bodyProps={{ px: { base: 4, lg: 6 }, pt: 2, pb: { base: 4, lg: 5 } }}
-      >
-        <Stack gap={4}>
-          <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            シフトスタッフとして所属する店舗を選択してください。
-          </Text>
+    <Dialog
+      title="所属店舗を変更"
+      isOpen={isOpen}
+      onOpenChange={onOpenChange}
+      onClose={handleClose}
+      onBackGuardRemoved={handleClose}
+      onSubmit={submitChange}
+      submitLabel="変更する"
+      isLoading={isChanging}
+      isSubmitDisabled={
+        !isCurrentSession ||
+        !data.canWrite ||
+        !hasActiveShopContext ||
+        !hasDiff ||
+        hasTooManyAssignments ||
+        !canSubmitFrozenIntent ||
+        isChanging
+      }
+      preventClose={isChanging}
+      mobileActionLayout="inline"
+      mobileFullScreen
+      bodyProps={{ px: { base: 4, lg: 6 }, pt: 2, pb: { base: 4, lg: 5 } }}
+    >
+      <Stack gap={4}>
+        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+          シフトスタッフとして所属する店舗を選択してください。
+        </Text>
 
-          {globalDisabledReason && (
-            <Box bg="orange.50" borderWidth="1px" borderColor="orange.200" borderRadius="lg" px={3} py={2.5}>
-              <Text id={globalDisabledReasonId} fontSize="sm" color="orange.800" lineHeight="tall">
-                {globalDisabledReason}
-              </Text>
-            </Box>
-          )}
-
-          {isFingerprintDirty && (
-            <Box bg="orange.50" borderWidth="1px" borderColor="orange.200" borderRadius="lg" px={3} py={2.5}>
-              <Text fontSize="sm" color="orange.800" lineHeight="tall">
-                {session.submittedInput
-                  ? "表示中に所属店舗の状態が変わりました。前回の結果が不明な場合は同じ内容で再試行できます。内容を確認するには画面を再読み込みしてください。"
-                  : "表示中に所属店舗の状態が変わりました。画面を再読み込みしてから、もう一度お試しください。"}
-              </Text>
-            </Box>
-          )}
-
-          {visibleShopRows.length === 0 ? (
-            <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" px={4} py={8} textAlign="center">
-              <Text fontWeight="semibold" color="gray.900">
-                店舗がありません
-              </Text>
-              <Text mt={1} fontSize="sm" color="fg.muted">
-                所属を変更できる店舗が登録されていません。
-              </Text>
-            </Box>
-          ) : (
-            <CheckboxListCard ariaLabel="所属する店舗">
-              {visibleShopRows.map((shop) => {
-                const membership = membershipByShopId.get(shop.shopId);
-                const isActive = shop.shopStatus === "active";
-                const checked = isActive ? selectedActiveShopIdSet.has(shop.shopId) : Boolean(membership);
-                const disabledReason = globalDisabledReason ? undefined : getMembershipChangeDisabledReason(shop);
-                const isDisabled = Boolean(globalDisabledReason || disabledReason) || isChanging;
-
-                return (
-                  <CheckboxListCardItem
-                    key={shop.shopId}
-                    checked={checked}
-                    disabled={isDisabled}
-                    ariaLabel={shop.shopName}
-                    ariaDescribedBy={globalDisabledReasonId}
-                    disabledReason={disabledReason}
-                    leading={
-                      <Flex
-                        boxSize="40px"
-                        borderRadius="lg"
-                        bg="teal.100"
-                        color="teal.700"
-                        align="center"
-                        justify="center"
-                        flexShrink={0}
-                        aria-hidden
-                      >
-                        <LuStore />
-                      </Flex>
-                    }
-                    trailing={shop.shopStatus !== "active" && <ShopStatusBadge status={shop.shopStatus} />}
-                    onCheckedChange={(nextChecked) => changeSelection(shop.shopId, nextChecked)}
-                  >
-                    <Text fontWeight="medium" color="gray.900" lineHeight="short">
-                      {shop.shopName}
-                    </Text>
-                  </CheckboxListCardItem>
-                );
-              })}
-            </CheckboxListCard>
-          )}
-        </Stack>
-      </Dialog>
-
-      {isRemovalConfirmationOpen && (
-        <Dialog
-          title="所属店舗の変更を確認"
-          isOpen
-          role="alertdialog"
-          submitLabel="変更する"
-          submitColorPalette="red"
-          closeLabel="戻る"
-          isLoading={isChanging}
-          isSubmitDisabled={
-            !isCurrentSession ||
-            !data.canWrite ||
-            !hasActiveShopContext ||
-            !hasDiff ||
-            hasTooManyAssignments ||
-            !canSubmitFrozenIntent ||
-            isChanging
-          }
-          preventClose={isChanging}
-          onOpenChange={({ open }) => {
-            if (!open && !isChanging) setIsRemovalConfirmationOpen(false);
-          }}
-          onClose={() => {
-            if (!isChanging) setIsRemovalConfirmationOpen(false);
-          }}
-          onSubmit={submitChange}
-          maxW={{ base: "calc(100vw - 24px)", md: "560px" }}
-          maxH={{ base: "calc(100dvh - 24px)", md: "86dvh" }}
-        >
-          <Stack gap={4} fontSize="sm" color="fg.muted" lineHeight="tall">
-            <Text fontWeight="semibold" color="gray.900">
-              {data.person.name}さんの所属店舗を変更しますか？
+        {globalDisabledReason && (
+          <Box bg="orange.50" borderWidth="1px" borderColor="orange.200" borderRadius="lg" px={3} py={2.5}>
+            <Text id={globalDisabledReasonId} fontSize="sm" color="orange.800" lineHeight="tall">
+              {globalDisabledReason}
             </Text>
+          </Box>
+        )}
 
-            {isFingerprintDirty && (
-              <Box bg="orange.50" borderWidth="1px" borderColor="orange.200" borderRadius="lg" px={3} py={2.5}>
-                <Text color="orange.800">
-                  {session.submittedInput
-                    ? "表示中に所属店舗の状態が変わりました。前回の結果が不明な場合は同じ内容で再試行できます。内容を確認するには画面を再読み込みしてください。"
-                    : "表示中に所属店舗の状態が変わりました。画面を再読み込みしてから、もう一度お試しください。"}
-                </Text>
-              </Box>
-            )}
+        {isFingerprintDirty && (
+          <Box bg="orange.50" borderWidth="1px" borderColor="orange.200" borderRadius="lg" px={3} py={2.5}>
+            <Text fontSize="sm" color="orange.800" lineHeight="tall">
+              {session.submittedInput
+                ? "表示中に所属店舗の状態が変わりました。前回の結果が不明な場合は同じ内容で再試行できます。内容を確認するには画面を再読み込みしてください。"
+                : "表示中に所属店舗の状態が変わりました。画面を再読み込みしてから、もう一度お試しください。"}
+            </Text>
+          </Box>
+        )}
 
-            {addedShops.length > 0 && <ShopChangeList title="追加する店舗" shops={addedShops} />}
+        {visibleShopRows.length === 0 ? (
+          <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" px={4} py={8} textAlign="center">
+            <Text fontWeight="semibold" color="gray.900">
+              店舗がありません
+            </Text>
+            <Text mt={1} fontSize="sm" color="fg.muted">
+              所属を変更できる店舗が登録されていません。
+            </Text>
+          </Box>
+        ) : (
+          <CheckboxListCard ariaLabel="所属する店舗">
+            {visibleShopRows.map((shop) => {
+              const membership = membershipByShopId.get(shop.shopId);
+              const isActive = shop.shopStatus === "active";
+              const checked = isActive ? selectedActiveShopIdSet.has(shop.shopId) : Boolean(membership);
+              const disabledReason = globalDisabledReason ? undefined : getMembershipChangeDisabledReason(shop);
+              const isDisabled = Boolean(globalDisabledReason || disabledReason) || isChanging;
 
-            <Stack gap={2}>
-              <Text fontWeight="semibold" color="gray.900">
-                外す店舗
-              </Text>
-              <Box as="ul" ps={5}>
-                {removedMemberships.map((membership) => (
-                  <Text as="li" key={membership.shopId}>
-                    {membership.shopName}（{formatRemovalAssignmentCount(membership.removalPreview)}）
+              return (
+                <CheckboxListCardItem
+                  key={shop.shopId}
+                  checked={checked}
+                  disabled={isDisabled}
+                  ariaLabel={shop.shopName}
+                  ariaDescribedBy={globalDisabledReasonId}
+                  disabledReason={disabledReason}
+                  leading={
+                    <Flex
+                      boxSize="40px"
+                      borderRadius="lg"
+                      bg="teal.100"
+                      color="teal.700"
+                      align="center"
+                      justify="center"
+                      flexShrink={0}
+                      aria-hidden
+                    >
+                      <LuStore />
+                    </Flex>
+                  }
+                  trailing={shop.shopStatus !== "active" && <ShopStatusBadge status={shop.shopStatus} />}
+                  onCheckedChange={(nextChecked) => changeSelection(shop.shopId, nextChecked)}
+                >
+                  <Text fontWeight="medium" color="gray.900" lineHeight="short">
+                    {shop.shopName}
                   </Text>
-                ))}
-              </Box>
+                </CheckboxListCardItem>
+              );
+            })}
+          </CheckboxListCard>
+        )}
+
+        {visibleShopRows.length > 0 && (
+          <Box bg="red.50" borderWidth="1px" borderColor="red.200" borderRadius="lg" px={3} py={2.5}>
+            <Stack gap={1.5} color="red.800">
+              <Text fontSize="sm" fontWeight="semibold">
+                店舗から外すと、その店舗のスタッフ画面へのアクセス、LINE連携、未送信の通知は終了します。
+              </Text>
+              <Text fontSize="sm">表示した本日以降のシフト割り当ては削除されます。</Text>
+              <Text fontSize="sm">過去のシフト記録は保持されます。</Text>
             </Stack>
+          </Box>
+        )}
 
-            {hasTooManyAssignments && (
-              <Box bg="orange.50" borderWidth="1px" borderColor="orange.200" borderRadius="lg" px={3} py={2.5}>
-                <Text color="orange.800" fontWeight="semibold">
-                  今日以降のシフトが多いため、この画面では変更できません。
-                </Text>
-                <Text mt={1} color="orange.800">
-                  先にシフトを整理してから、もう一度お試しください。
-                </Text>
-              </Box>
-            )}
+        {hasTooManyAssignments && (
+          <Box bg="orange.50" borderWidth="1px" borderColor="orange.200" borderRadius="lg" px={3} py={2.5}>
+            <Text fontSize="sm" color="orange.800" fontWeight="semibold">
+              今日以降のシフトが多いため、この画面では変更できません。
+            </Text>
+            <Text mt={1} fontSize="sm" color="orange.800">
+              先にシフトを整理してから、もう一度お試しください。
+            </Text>
+          </Box>
+        )}
 
-            <Box bg="red.50" borderWidth="1px" borderColor="red.200" borderRadius="lg" px={3} py={2.5}>
-              <Stack gap={1.5} color="red.800">
-                <Text fontWeight="semibold">
-                  店舗から外すと、その店舗のスタッフ画面へのアクセス、LINE連携、未送信の通知は終了します。
-                </Text>
-                <Text>表示した本日以降のシフト割り当ては削除されます。</Text>
-                <Text>過去のシフト記録は保持されます。</Text>
-              </Stack>
-            </Box>
-
-            {removesAllMemberships && (
-              <Box bg="orange.50" borderWidth="1px" borderColor="orange.200" borderRadius="lg" px={3} py={2.5}>
-                <Text color="orange.800" fontWeight="semibold">
-                  組織への所属や管理者権限は変更されません。また、利用人数のカウントも残ります。
-                </Text>
-              </Box>
-            )}
-          </Stack>
-        </Dialog>
-      )}
-    </>
+        {removesAllMemberships && (
+          <Box bg="orange.50" borderWidth="1px" borderColor="orange.200" borderRadius="lg" px={3} py={2.5}>
+            <Text fontSize="sm" color="orange.800" fontWeight="semibold">
+              組織への所属や管理者権限は変更されません。また、利用人数のカウントも残ります。
+            </Text>
+          </Box>
+        )}
+      </Stack>
+    </Dialog>
   );
 }
 
@@ -434,26 +350,4 @@ function ShopStatusBadge({ status }: { status: Exclude<UserDetailData["shops"][n
       {status === "archived" ? "アーカイブ済み" : "プラン停止中"}
     </Badge>
   );
-}
-
-function ShopChangeList({ title, shops }: { title: string; shops: UserDetailData["shops"] }) {
-  return (
-    <Stack gap={2}>
-      <Text fontWeight="semibold" color="gray.900">
-        {title}
-      </Text>
-      <Box as="ul" ps={5}>
-        {shops.map((shop) => (
-          <Text as="li" key={shop.shopId}>
-            {shop.shopName}
-          </Text>
-        ))}
-      </Box>
-    </Stack>
-  );
-}
-
-function formatRemovalAssignmentCount(preview: UserDetailData["memberships"][number]["removalPreview"]) {
-  if (preview.kind === "tooMany") return `今日以降のシフト ${preview.assignmentCountAtLeast}件以上`;
-  return `今日以降のシフト ${preview.assignmentCount}件`;
 }

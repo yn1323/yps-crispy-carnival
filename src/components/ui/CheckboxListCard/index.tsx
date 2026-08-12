@@ -34,6 +34,7 @@ type CheckboxListCardItemProps = {
   children: ReactNode;
   trailing?: ReactNode;
   disabledReason?: ReactNode;
+  hoverBg?: string;
 };
 
 export function CheckboxListCardItem({
@@ -46,6 +47,7 @@ export function CheckboxListCardItem({
   children,
   trailing,
   disabledReason,
+  hoverBg = "blackAlpha.50",
 }: CheckboxListCardItemProps) {
   const generatedReasonId = useId();
   const disabledReasonId = disabledReason ? `checkbox-list-card-reason-${generatedReasonId}` : undefined;
@@ -66,7 +68,7 @@ export function CheckboxListCardItem({
       bg="white"
       transition="background-color 150ms ease"
       cursor={disabled ? "not-allowed" : "pointer"}
-      _hover={disabled ? undefined : { bg: "blackAlpha.50" }}
+      _hover={disabled ? undefined : { bg: hoverBg }}
       onCheckedChange={(details) => {
         if (!disabled) onCheckedChange(details.checked === true);
       }}

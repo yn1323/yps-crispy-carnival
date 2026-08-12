@@ -1,26 +1,20 @@
 // @vitest-environment jsdom
 
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DashboardPlanStatusSource, PlanStatusCardProps, PlanStatusCardUsage } from "./types";
 
 const mocks = vi.hoisted(() => ({
-  getCurrentSubscriptionPrice: Symbol("getCurrentSubscriptionPrice"),
   getDashboardPlanUsage: Symbol("getDashboardPlanUsage"),
-  action: vi.fn(),
   query: vi.fn(),
 }));
 
 vi.mock("convex/react", () => ({
-  useAction: () => mocks.action,
   useQuery: (query: unknown, args: unknown) => mocks.query(query, args),
 }));
 
 vi.mock("@/convex/_generated/api", () => ({
   api: {
-    organizationStripe: {
-      actions: { getCurrentSubscriptionPrice: mocks.getCurrentSubscriptionPrice },
-    },
     dashboard: {
       queries: { getDashboardPlanUsage: mocks.getDashboardPlanUsage },
     },
@@ -38,17 +32,6 @@ const paidPlan = {
   canUpdatePaymentMethod: true,
 } satisfies DashboardPlanStatusSource;
 
-const availablePrice = {
-  status: "available",
-  currency: "jpy",
-  unitAmount: 1_480,
-  interval: "month",
-  intervalCount: 1,
-  taxBehavior: "exclusive",
-} as const;
-
-type AvailablePriceResult = Omit<typeof availablePrice, "unitAmount"> & { unitAmount: number };
-
 type ControllerProps = {
   enabled: boolean;
   planStatus: DashboardPlanStatusSource | null | undefined;
@@ -61,8 +44,6 @@ const planUsage = {
 } satisfies PlanStatusCardUsage;
 
 beforeEach(() => {
-  mocks.action.mockReset();
-  mocks.action.mockResolvedValue(availablePrice);
   mocks.query.mockReset();
   mocks.query.mockReturnValue(undefined);
 });
@@ -97,7 +78,6 @@ describe("usePlanStatusCardController", () => {
     rerender({ enabled: true, planStatus: null, shopId: "shop-1" });
     expect(result.current).toBeNull();
     expect(mocks.query).toHaveBeenLastCalledWith(mocks.getDashboardPlanUsage, "skip");
-    expect(mocks.action).not.toHaveBeenCalled();
   });
 
   it("手動展開中だけ固定した時刻で利用状況を購読し、再展開時に時刻を更新する", () => {
@@ -145,6 +125,15 @@ describe("usePlanStatusCardController", () => {
         phase: "grace",
         canManagePlan: true,
         canUpdatePaymentMethod: true,
+      } satisfies DashboardPlanStatusSource,
+    },
+    {
+      name: "契約制限中",
+      source: {
+        kind: "restricted",
+        displayPlan: "free",
+        canManagePlan: true,
+        canUpdatePaymentMethod: false,
       } satisfies DashboardPlanStatusSource,
     },
     {
@@ -241,184 +230,6 @@ describe("usePlanStatusCardController", () => {
     expect(currentCard(result.current).usage).toEqual(planUsage);
   });
 
-  it("有料カードを展開するまで実契約価格を取得しない", async () => {
-    const { result } = renderHook(() =>
-      usePlanStatusCardController({
-        planStatus: paidPlan,
-        shopId: "shop-1",
-        enabled: true,
-        onOpenBillingSettings: vi.fn(),
-      }),
-    );
-
-    expect(mocks.action).not.toHaveBeenCalled();
-    expect(currentCard(result.current).data).toMatchObject({ price: { status: "idle" } });
-
-    act(() => currentCard(result.current).onExpandedChange?.(true));
-
-    expect(mocks.action).toHaveBeenCalledExactlyOnceWith({ shopId: "shop-1" });
-    expect(currentCard(result.current).data).toMatchObject({ price: { status: "loading" } });
-    await waitFor(() =>
-      expect(currentCard(result.current).data).toMatchObject({
-        price: { status: "available", label: "月額 1,480円（税抜）" },
-      }),
-    );
-  });
-
-  it("自動展開中の支払い問題が有料プランへ変わると現在料金を取得する", async () => {
-    const { result, rerender } = renderHook(
-      ({ planStatus }: { planStatus: DashboardPlanStatusSource }) =>
-        usePlanStatusCardController({
-          planStatus,
-          shopId: "shop-1",
-          enabled: true,
-          onOpenBillingSettings: vi.fn(),
-        }),
-      {
-        initialProps: {
-          planStatus: {
-            kind: "paymentIssue",
-            plan: "pro",
-            phase: "grace",
-            canManagePlan: true,
-            canUpdatePaymentMethod: true,
-          },
-        } as { planStatus: DashboardPlanStatusSource },
-      },
-    );
-
-    expect(currentCard(result.current).defaultExpanded).toBe(true);
-    expect(mocks.action).not.toHaveBeenCalled();
-
-    rerender({ planStatus: paidPlan });
-
-    expect(mocks.action).toHaveBeenCalledExactlyOnceWith({ shopId: "shop-1" });
-    await waitFor(() =>
-      expect(currentCard(result.current).data).toMatchObject({
-        price: { status: "available", label: "月額 1,480円（税抜）" },
-      }),
-    );
-  });
-
-  it("自動展開した支払い問題を手動で閉じた後は有料化しても料金を取得しない", async () => {
-    const paymentIssue = {
-      kind: "paymentIssue",
-      plan: "pro",
-      phase: "grace",
-      canManagePlan: true,
-      canUpdatePaymentMethod: true,
-    } satisfies DashboardPlanStatusSource;
-    const { result, rerender } = renderHook(
-      ({ planStatus }: { planStatus: DashboardPlanStatusSource }) =>
-        usePlanStatusCardController({
-          planStatus,
-          shopId: "shop-1",
-          enabled: true,
-          onOpenBillingSettings: vi.fn(),
-        }),
-      { initialProps: { planStatus: paymentIssue } as { planStatus: DashboardPlanStatusSource } },
-    );
-
-    act(() => currentCard(result.current).onExpandedChange?.(false));
-    rerender({ planStatus: paidPlan });
-    await act(async () => {});
-
-    expect(mocks.action).not.toHaveBeenCalled();
-    expect(currentCard(result.current).data).toMatchObject({ price: { status: "idle" } });
-  });
-
-  it.each([
-    {
-      name: "Free",
-      source: { kind: "freePlan", canManagePlan: true, canUpdatePaymentMethod: false } as const,
-    },
-    {
-      name: "トライアル",
-      source: {
-        kind: "trial",
-        trialEndsAt: Date.now() + 10 * 86_400_000,
-        canManagePlan: true,
-        canUpdatePaymentMethod: false,
-      } as const,
-    },
-    {
-      name: "支払い不要Business",
-      source: { ...paidPlan, plan: "business", isComplimentary: true } as const,
-    },
-    {
-      name: "支払い問題",
-      source: {
-        kind: "paymentIssue",
-        phase: "grace",
-        canManagePlan: true,
-        canUpdatePaymentMethod: true,
-      } as const,
-    },
-  ])("$nameは展開しても料金Actionを呼ばない", ({ source }) => {
-    const { result } = renderHook(() =>
-      usePlanStatusCardController({
-        planStatus: source,
-        shopId: "shop-1",
-        enabled: true,
-        onOpenBillingSettings: vi.fn(),
-      }),
-    );
-
-    act(() => currentCard(result.current).onExpandedChange?.(true));
-    expect(mocks.action).not.toHaveBeenCalled();
-  });
-
-  it("局所エラーを表示し、再試行だけで現在料金を更新する", async () => {
-    mocks.action.mockRejectedValueOnce(new Error("network error")).mockResolvedValueOnce(availablePrice);
-    const { result } = renderHook(() =>
-      usePlanStatusCardController({
-        planStatus: paidPlan,
-        shopId: "shop-1",
-        enabled: true,
-        onOpenBillingSettings: vi.fn(),
-      }),
-    );
-
-    act(() => currentCard(result.current).onExpandedChange?.(true));
-    await waitFor(() => expect(currentCard(result.current).data).toMatchObject({ price: { status: "error" } }));
-
-    act(() => currentCard(result.current).onAction("retryCurrentPrice"));
-    await waitFor(() => expect(currentCard(result.current).data).toMatchObject({ price: { status: "available" } }));
-    expect(mocks.action).toHaveBeenCalledTimes(2);
-  });
-
-  it("店舗変更前の遅い料金応答を破棄する", async () => {
-    const first = deferred<AvailablePriceResult>();
-    const second = deferred<AvailablePriceResult>();
-    mocks.action.mockImplementationOnce(() => first.promise).mockImplementationOnce(() => second.promise);
-    const { result, rerender } = renderHook(
-      ({ shopId }) =>
-        usePlanStatusCardController({
-          planStatus: paidPlan,
-          shopId,
-          enabled: true,
-          onOpenBillingSettings: vi.fn(),
-        }),
-      { initialProps: { shopId: "shop-a" } },
-    );
-
-    act(() => currentCard(result.current).onExpandedChange?.(true));
-    rerender({ shopId: "shop-b" });
-    act(() => currentCard(result.current).onExpandedChange?.(true));
-
-    await act(async () => first.resolve({ ...availablePrice, unitAmount: 9_999 }));
-    expect(currentCard(result.current).data).toMatchObject({ price: { status: "loading" } });
-
-    await act(async () => second.resolve(availablePrice));
-    await waitFor(() =>
-      expect(currentCard(result.current).data).toMatchObject({
-        price: { status: "available", label: "月額 1,480円（税抜）" },
-      }),
-    );
-    expect(mocks.action).toHaveBeenNthCalledWith(1, { shopId: "shop-a" });
-    expect(mocks.action).toHaveBeenNthCalledWith(2, { shopId: "shop-b" });
-  });
-
   it("CTAはbilling設定へ進み、後で確認では遷移しない", () => {
     const onOpenBillingSettings = vi.fn();
     const { result } = renderHook(() =>
@@ -436,7 +247,7 @@ describe("usePlanStatusCardController", () => {
     expect(onOpenBillingSettings).toHaveBeenCalledOnce();
   });
 
-  it("支払い問題と終了7日前の未選択トライアルだけを初期展開する", () => {
+  it("支払い問題・契約制限中・終了7日前の未選択トライアルだけを初期展開する", () => {
     vi.useFakeTimers();
     vi.setSystemTime(Date.parse("2026-08-10T03:00:00.000Z"));
     const paymentIssue = renderHook(() =>
@@ -465,6 +276,19 @@ describe("usePlanStatusCardController", () => {
         onOpenBillingSettings: vi.fn(),
       }),
     );
+    const restricted = renderHook(() =>
+      usePlanStatusCardController({
+        planStatus: {
+          kind: "restricted",
+          displayPlan: "free",
+          canManagePlan: true,
+          canUpdatePaymentMethod: false,
+        },
+        shopId: "shop-1",
+        enabled: true,
+        onOpenBillingSettings: vi.fn(),
+      }),
+    );
     const selectedTrial = renderHook(() =>
       usePlanStatusCardController({
         planStatus: {
@@ -481,6 +305,7 @@ describe("usePlanStatusCardController", () => {
     );
 
     expect(currentCard(paymentIssue.result.current).defaultExpanded).toBe(true);
+    expect(currentCard(restricted.result.current).defaultExpanded).toBe(true);
     expect(currentCard(trial.result.current).defaultExpanded).toBe(true);
     expect(currentCard(selectedTrial.result.current).defaultExpanded).toBe(false);
   });
@@ -515,12 +340,4 @@ describe("usePlanStatusCardController", () => {
 function currentCard(value: PlanStatusCardProps | null | undefined): PlanStatusCardProps {
   if (!value) throw new Error("PlanStatusCardが表示されていません");
   return value;
-}
-
-function deferred<Value>() {
-  let resolvePromise: (value: Value) => void = () => {};
-  const promise = new Promise<Value>((resolve) => {
-    resolvePromise = resolve;
-  });
-  return { promise, resolve: resolvePromise };
 }

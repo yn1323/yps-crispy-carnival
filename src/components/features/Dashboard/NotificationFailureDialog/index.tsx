@@ -298,6 +298,7 @@ const FailureActionButtons = ({
         fullWidth={fullWidth}
       />
       <Button
+        data-notification-dismiss-trigger={failure._id}
         size="sm"
         variant="solid"
         colorPalette="red"

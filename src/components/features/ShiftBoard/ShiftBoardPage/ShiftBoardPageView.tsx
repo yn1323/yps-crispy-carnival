@@ -140,6 +140,7 @@ export const ShiftBoardPageView = ({ viewModel, intents }: ShiftBoardPageViewPro
         onClose={intents.onCloseConfirmDialog}
         isLoading={shiftForm.isConfirming}
         isSubmitDisabled={viewModel.isReadOnly || shiftForm.isConfirming}
+        mobileActionLayout="stacked"
       >
         <ConfirmShiftContent
           staffCount={confirmDialog.staffCount}
@@ -155,6 +156,9 @@ export const ShiftBoardPageView = ({ viewModel, intents }: ShiftBoardPageViewPro
         onOpenChange={intents.onUnsubmittedDialogOpenChange}
         onClose={intents.onCloseUnsubmittedDialog}
         closeLabel="閉じる"
+        mobileFullScreen
+        maxW={{ md: "560px" }}
+        maxH={{ md: "85dvh" }}
       >
         <RemindUnsubmittedContent unsubmittedNames={unsubmittedDialog.names} deadline={unsubmittedDialog.deadline} />
       </Dialog>

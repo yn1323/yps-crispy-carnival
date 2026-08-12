@@ -133,7 +133,11 @@ export const CreateRecruitmentFormView = ({
   );
 
   return (
-    <form id="create-recruitment-form" onSubmit={onSubmit}>
+    <form
+      id="create-recruitment-form"
+      onSubmit={onSubmit}
+      style={{ display: "flex", flex: 1, flexDirection: "column", minHeight: 0 }}
+    >
       <input type="hidden" {...hiddenFields.periodStart} />
       <input type="hidden" {...hiddenFields.periodEnd} />
       <input type="hidden" {...hiddenFields.deadline} />

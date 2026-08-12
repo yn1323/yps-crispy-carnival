@@ -206,6 +206,7 @@ export function SubmitFormView({
         submitLabel="この内容で提出する"
         isLoading={isLateSubmitting}
         isSubmitDisabled={isLateSubmitting}
+        mobileActionLayout="stacked"
       >
         <Text fontSize="sm" lineHeight="tall" color="fg.default">
           提出締切を過ぎています。
