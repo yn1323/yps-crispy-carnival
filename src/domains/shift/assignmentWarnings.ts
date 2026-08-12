@@ -1,4 +1,4 @@
-import { BREAK_POSITION } from "./constants";
+import { isCanonicalWorkPosition } from "./positions";
 import { formatShiftClockTime, timeToMinutes } from "./time";
 import type { ShiftData } from "./types";
 
@@ -17,8 +17,6 @@ export type AssignmentWarning = {
   staffId: string;
   message: string;
 };
-
-const isBreakSegment = (positionId: string) => positionId === BREAK_POSITION.id;
 
 export type AssignmentWarningPattern =
   | { kind: "time" | "dateOnly" }
@@ -45,7 +43,7 @@ export function computeAssignmentWarnings(input: AssignmentWarningInput): Assign
     // positionsは「確定時に保存される勤務」を表す（休憩以外）。
     // 保存済み割当がないセルでは希望がプレビューとしてpositionsに入るが、これも確定すれば
     // そのまま割当になるため評価対象に含めてよい（希望＝プレビューなので食い違いは生じない）。
-    const work = shift.positions.filter((position) => !isBreakSegment(position.positionId));
+    const work = shift.positions.filter(isCanonicalWorkPosition);
     if (work.length === 0) continue;
 
     const add = (code: AssignmentWarningCode, message: string) =>

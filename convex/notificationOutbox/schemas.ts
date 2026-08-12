@@ -7,12 +7,15 @@ import {
 
 export const notificationChannelValidator = v.union(v.literal("email"), v.literal("line"));
 
+export const NOTIFICATION_OUTBOX_ACTIVE_STATUSES = ["pending", "processing"] as const;
+export const NOTIFICATION_OUTBOX_TERMINAL_STATUSES = ["sent", "failed", "cancelled"] as const;
+export const NOTIFICATION_OUTBOX_STATUSES = [
+  ...NOTIFICATION_OUTBOX_ACTIVE_STATUSES,
+  ...NOTIFICATION_OUTBOX_TERMINAL_STATUSES,
+] as const;
+
 export const notificationOutboxStatusValidator = v.union(
-  v.literal("pending"),
-  v.literal("processing"),
-  v.literal("sent"),
-  v.literal("failed"),
-  v.literal("cancelled"),
+  ...NOTIFICATION_OUTBOX_STATUSES.map((status) => v.literal(status)),
 );
 
 export const notificationPurposeValidator = v.union(v.literal("business"), v.literal("billing"));

@@ -824,7 +824,7 @@ describe("organization shop management", () => {
       ).resolves.toEqual({ shopId: ids.shopId, changed: true });
     });
 
-    it("閲覧のみの管理者と別組織の管理者は店舗を削除できない", async () => {
+    it("未認証、閲覧のみの管理者、別組織の管理者は店舗削除の副作用を開始しない", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const target = await seedOrganizationManagerShop(ctx, { subject: "delete_target_owner", plan: "pro" });
@@ -843,14 +843,31 @@ describe("organization shop management", () => {
         confirmShopId: ids.shopId,
         requestId: "delete-shop-unauthorized",
       };
+      const boundaryState = async () =>
+        await t.run(async (ctx) => ({
+          shop: await ctx.db.get(ids.shopId),
+          audits: await ctx.db
+            .query("organizationAuditEvents")
+            .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
+            .filter((q) => q.eq(q.field("action"), "organization.shop_deleted"))
+            .collect(),
+          cleanupJobs: await ctx.db.query("deletionCleanupJobs").collect(),
+          scheduledFunctions: await ctx.db.system.query("_scheduled_functions").collect(),
+        }));
+      const before = await boundaryState();
 
+      await expect(t.mutation(api.organization.mutations.deleteShop, args)).rejects.toThrow("Unauthenticated");
       await expect(
         t.withIdentity({ subject: "delete_readonly" }).mutation(api.organization.mutations.deleteShop, args),
       ).rejects.toThrow("Not found");
       await expect(
         t.withIdentity({ subject: "delete_other_organization" }).mutation(api.organization.mutations.deleteShop, args),
       ).rejects.toThrow("Not found");
-      await expect(t.run((ctx) => ctx.db.get(ids.shopId))).resolves.toMatchObject({ isDeleted: false });
+      expect(await boundaryState()).toEqual(before);
+      expect(before.shop).toMatchObject({ isDeleted: false });
+      expect(before.audits).toEqual([]);
+      expect(before.cleanupJobs).toEqual([]);
+      expect(before.scheduledFunctions).toEqual([]);
     });
   });
 });

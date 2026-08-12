@@ -1,5 +1,4 @@
 import { Alert, Box, Checkbox, Field, Input, Link, NativeSelect, Stack, Text, Textarea } from "@chakra-ui/react";
-import { Link as RouterLink } from "@tanstack/react-router";
 import type { FormEventHandler } from "react";
 import type { UseFormRegisterReturn } from "react-hook-form";
 import { LuCheck } from "react-icons/lu";
@@ -9,6 +8,7 @@ import {
   CONTACT_ORGANIZATION_MAX_LENGTH,
 } from "@/convex/constants";
 import { CONTACT_TYPE_OPTIONS } from "@/convex/contact/schemas";
+import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
 import { TurnstileWidget } from "@/src/components/shared/TurnstileWidget";
 import { Button } from "@/src/components/ui/Button";
 
@@ -68,7 +68,7 @@ export function ContactFormView(props: ContactFormViewProps) {
           内容を確認のうえ、ご連絡します。
         </Text>
         <Button asChild colorPalette="teal" minW="160px" mt={2}>
-          <RouterLink to="/">TOPに戻る</RouterLink>
+          <MeasurementBoundaryLink href="/">TOPに戻る</MeasurementBoundaryLink>
         </Button>
       </Stack>
     );

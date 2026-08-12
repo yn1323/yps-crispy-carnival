@@ -23,7 +23,7 @@
 | 画面 | 概要 |
 |---|---|
 | `/shifts/submit?token=...` | 希望シフト提出フォーム |
-| `/shifts/submit/completed` | 提出完了画面 |
+| `/shifts/submit/completed?recruitmentId=...` | 保存済みsubmit sessionと提出recordを照合する提出完了画面 |
 | `/shifts/view?token=...` | 確定シフト閲覧画面 |
 | `/shifts/reissue?recruitmentId=...` | 確定シフト閲覧リンクの再発行画面 |
 
@@ -32,9 +32,10 @@
 | API | 種別 | 概要 |
 |---|---|---|
 | `api.staffAuth.mutations.verifyToken` | mutation | 提出/閲覧リンクを検証し、利用できない場合は失効理由を返す |
-| `api.staffAuth.queries.getRecruitmentInfo` | query | 再発行画面に店舗名と募集期間の最小情報を返す |
+| `api.staffAuth.queries.getRecruitmentInfo` | query | 再発行可能な確定済み募集に、canonicalな募集ID、店舗名、募集期間の最小情報を返す |
 | `api.staffAuth.mutations.requestReissue` | mutation | 登録メールと確定済み募集の対象スタッフが一致する場合に、新しい閲覧リンクの通知を予約する |
 | `api.shiftSubmission.queries.getSubmissionPageData` | query | 提出画面データ、提出方法、既存提出、前回シフトあり週パターンを取得 |
+| `api.shiftSubmission.queries.getSubmissionResult` | query | 保存済みsubmit session、募集、店舗、スタッフ、提出recordを照合し、提出完了画面用の最小結果を返す |
 | `api.shiftSubmission.mutations.submitShiftRequests` | mutation | 提出方法別の入力を保存形式へ変換し、希望シフトを提出・再提出する |
 | `api.shiftView.queries.getShiftViewData` | query | 確定シフト閲覧用に提出方法スナップショット、確定割当、定休日を取得 |
 
@@ -51,5 +52,9 @@
 - 適用はフォーム入力だけを更新し、提出はスタッフが明示的に押す。
 - 提出リンクは募集が open で、シフト開始日 0:00 JST より前まで開ける。提出・再提出は提出締切日 23:59 JST まで可能。締切後は提出済みなら閲覧のみ、未提出なら確認ダイアログ後に初回提出だけ許可する。
 - リンク無効、募集削除済み、提出受付終了は提出画面の unavailable 状態として返し、それぞれ専用の Empty 表示に分ける。存在しない token、用途違い、使用済み view link、スタッフ削除済みなどは詳細を出さずリンク無効として扱う。
+- スタッフsessionは発行時に`expiresAt`での削除を同じtransaction内に予約し、期限到来をDB状態の変更として購読中の画面へ反映する。期限処理は`expectedExpiresAt`が一致するsessionだけを冪等に削除する。導入前sessionや予約漏れはcron `staff-session-expiry-recover`が`by_expiresAt` indexを使うbounded batchで回収し、期限切れsession tokenを保持し続けない。
+- 提出完了画面は、URLの募集IDや直前のclient遷移だけを提出済みの根拠にしない。同じ募集の保存済み`submit` sessionがあり、server側でsession、店舗、スタッフ、募集、本人の`shiftSubmissions`を照合できた場合だけ「提出が完了しました」と表示する。直接URLを開いた場合、sessionが無効な場合、提出recordがない場合は成功を表示しない。query失敗時は利用不可と混同せず、画面内から再試行できる。
 - 確定シフト閲覧リンクを利用できず募集IDを復元できる場合は、閲覧画面から再発行画面へ案内する。
+- 閲覧リンクから募集IDを復元できない場合は、存在しない再発行ボタンを案内せず、元のLINE・メールを開くかシフト作成担当者へ連絡するよう示す。
+- 再発行画面は募集IDが欠落・不正な場合にqueryを開始しない。serverが返したcanonicalな募集IDだけを再発行mutationへ渡し、対象なしとquery失敗を別の状態で表示する。
 - 再発行要求はメールアドレスと募集の一致有無にかかわらず同じ応答を返し、短時間の重複要求と連続試行を制限する。

@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
+import { sha256Hex } from "../_lib/sha256";
 import { ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT } from "../constants";
 
 export const personRemovalPreviewValidator = v.union(
@@ -193,6 +194,5 @@ async function createRemovalFingerprint(
   assignmentIds: readonly Id<"shiftAssignments">[],
 ) {
   const canonical = JSON.stringify({ version: 1, scope, asOfDate, assignmentIds });
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return await sha256Hex(canonical);
 }

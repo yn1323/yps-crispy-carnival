@@ -1,6 +1,6 @@
 import { internal } from "../_generated/api";
 import { httpAction } from "../_generated/server";
-import { readBoundedJsonBody } from "../_lib/httpBody";
+import { boundedJsonBodyErrorResponse, readBoundedJsonBody } from "../_lib/httpBody";
 import { verifyResendWebhookSignature } from "../_lib/resendWebhookSignature";
 import { RESEND_WEBHOOK_BODY_MAX_BYTES } from "../constants";
 import {
@@ -34,7 +34,7 @@ export const webhookHandler = httpAction(async (ctx, request) => {
   }
 
   const bodyResult = await readBoundedJsonBody(request, RESEND_WEBHOOK_BODY_MAX_BYTES);
-  if (!bodyResult.ok) return bodyErrorResponse(bodyResult.error);
+  if (!bodyResult.ok) return boundedJsonBodyErrorResponse(bodyResult.error);
 
   const rawBody = bodyResult.rawBody;
   const valid = await verifyResendWebhookSignature(webhookSecret, rawBody, {
@@ -93,12 +93,6 @@ function normalizeProviderEvent(body: ResendWebhookPayload, svixId: string | nul
 
 function isRecord(value: unknown): value is ResendWebhookPayload {
   return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function bodyErrorResponse(error: "unsupported_media_type" | "body_too_large" | "invalid_body") {
-  if (error === "unsupported_media_type") return new Response("Unsupported media type", { status: 415 });
-  if (error === "body_too_large") return new Response("Request body too large", { status: 413 });
-  return new Response("Invalid request body", { status: 400 });
 }
 
 function asEmailEventData(value: unknown): ResendEmailEventData | null {

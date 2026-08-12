@@ -5,6 +5,7 @@ import { LuCalendarClock } from "react-icons/lu";
 import { getDisplayStatus } from "@/src/components/features/Dashboard/script";
 import type { Recruitment, RecruitmentDisplayStatus } from "@/src/components/features/Dashboard/types";
 import { formatDateShort } from "@/src/domains/shift/date";
+import { getRecruitmentDeadlineDays } from "@/src/domains/shift/recruitmentLifecycle";
 
 type Props = {
   recruitment: Recruitment;
@@ -179,7 +180,7 @@ function relativeDeadline({
     const today = dayjs().format("YYYY-MM-DD");
     return deadline < today ? `${formatDateShort(deadline)} 締切済み` : `${formatDateShort(periodEnd)} 期間終了`;
   }
-  const days = dayjs(deadline).startOf("day").diff(dayjs().startOf("day"), "day");
+  const days = getRecruitmentDeadlineDays(deadline, dayjs().format("YYYY-MM-DD"));
   if (days === 0) return "今日が締切！";
   return `締切まで${days}日`;
 }

@@ -2,6 +2,7 @@ import dayjs from "dayjs";
 import { buildWeeklyGrid, formatDateShort, getWeekdayLabel, type WeekStart } from "@/src/domains/shift/date";
 import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import { getShiftWeekdayColor } from "../../weekdayPresentation";
 
 export type OverviewDateViewModel = {
   iso: string;
@@ -34,13 +35,6 @@ export type OverviewWeekViewModel = {
   rangeLabel: string;
   dates: OverviewDateViewModel[];
   rows: OverviewStaffRowViewModel[];
-};
-
-const getWeekdayColor = (iso: string): string => {
-  const day = dayjs(iso).day();
-  if (day === 0) return "#ef4444";
-  if (day === 6) return "#3b82f6";
-  return "#3f3f46";
 };
 
 const getAssignedRange = (shift: ShiftData): [string, string] | null => {
@@ -84,7 +78,7 @@ export const buildOverviewWeeks = ({
         iso: date.iso,
         label: `${dayjs(date.iso).month() + 1}/${dayjs(date.iso).date()}`,
         weekdayLabel: getWeekdayLabel(date.iso),
-        weekdayColor: getWeekdayColor(date.iso),
+        weekdayColor: getShiftWeekdayColor(date.iso),
         inRange: date.inRange,
         isClosed,
         isClickable: !isReadOnly && date.inRange,

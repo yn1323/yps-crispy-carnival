@@ -5,6 +5,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "../_generated/server";
 import { STRIPE_OPERATION_MAX_ATTEMPTS, STRIPE_OPERATION_RETENTION_MS } from "../constants";
 import { hasLegacyBusinessBillingState } from "../organizationBilling/policy";
+import { hasUniqueTerminalSubscriptionEvidence } from "./subscriptionEvidence";
 import { organizationStripeOperationStatusValidator, stripeWebhookEventStatusValidator } from "./validators";
 
 const WEBHOOK_RECOVERY_BATCH_SIZE = 50;
@@ -409,25 +410,6 @@ async function terminalizeRecoveryCandidate(
     expiresAt: now + STRIPE_OPERATION_RETENTION_MS,
     updatedAt: now,
   });
-}
-
-async function hasUniqueTerminalSubscriptionEvidence(ctx: MutationCtx, operation: Doc<"organizationStripeOperations">) {
-  if (!operation.stripeObjectId || operation.providerGeneration === undefined) return false;
-  const stripeSubscriptionId = operation.stripeObjectId;
-  const subscriptions = await ctx.db
-    .query("organizationStripeSubscriptions")
-    .withIndex("by_livemode_and_stripeSubscriptionId", (q) =>
-      q.eq("livemode", operation.livemode).eq("stripeSubscriptionId", stripeSubscriptionId),
-    )
-    .take(2);
-  if (subscriptions.length !== 1) return false;
-  const subscription = subscriptions[0];
-  return (
-    subscription.organizationId === operation.organizationId &&
-    subscription.providerGeneration === operation.providerGeneration &&
-    (subscription.status === "canceled" || subscription.status === "incomplete_expired") &&
-    subscription.terminalAt !== undefined
-  );
 }
 
 async function protectOperationFromPrune(

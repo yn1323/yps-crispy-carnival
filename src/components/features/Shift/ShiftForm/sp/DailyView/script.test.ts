@@ -5,34 +5,8 @@ import {
   buildSPShiftTimeEditResult,
   getAssignedRange,
   getSPShiftEditState,
-  isBreakSegment,
   timeToPercentage,
 } from "./script";
-
-describe("isBreakSegment", () => {
-  it("IDまたは名前が休憩なら勤務区間から除外する", () => {
-    expect(
-      isBreakSegment({
-        id: "break-by-id",
-        positionId: "break",
-        positionName: "勤務",
-        color: "#000",
-        start: "12:00",
-        end: "13:00",
-      }),
-    ).toBe(true);
-    expect(
-      isBreakSegment({
-        id: "break-by-name",
-        positionId: "legacy-break",
-        positionName: "休憩",
-        color: "#000",
-        start: "12:00",
-        end: "13:00",
-      }),
-    ).toBe(true);
-  });
-});
 
 describe("getSPShiftEditState", () => {
   it("休憩を除いた1件の勤務区間だけから初期時刻を作る", () => {

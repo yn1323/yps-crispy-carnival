@@ -1,3 +1,4 @@
+import { ORGANIZATION_PLAN_LIMITS } from "@/convex/organizationBilling/planLimits";
 import type {
   BillingPlanPrice,
   BillingPlanPriceState,
@@ -14,12 +15,6 @@ export type BillingUnavailableReason =
   | "in_progress"
   | "request_already_used"
   | "provider_unavailable";
-
-export const BILLING_PLAN_LIMITS: Record<BillingProductPlan, { people: number; shops: number; managers: number }> = {
-  free: { people: 5, shops: 1, managers: 1 },
-  pro: { people: 20, shops: 5, managers: 5 },
-  business: { people: 40, shops: 5, managers: 5 },
-};
 
 export type BillingPlanAction =
   | { kind: "startPaidPlan"; targetPlan: PaidBillingPlan }
@@ -201,11 +196,11 @@ export function getRequiredReductions(
   targetPlan?: BillingProductPlan,
 ): BillingRequiredReductions {
   if (!targetPlan && billing.requiredReductions) return billing.requiredReductions;
-  const limits = targetPlan ? BILLING_PLAN_LIMITS[targetPlan] : undefined;
+  const limits = targetPlan ? ORGANIZATION_PLAN_LIMITS[targetPlan] : undefined;
   return {
-    people: Math.max(0, billing.peopleUsage.current - (limits?.people ?? billing.peopleUsage.max)),
-    shops: Math.max(0, billing.shopUsage.current - (limits?.shops ?? billing.shopUsage.max)),
-    managers: Math.max(0, billing.managerUsage.current - (limits?.managers ?? billing.managerUsage.max)),
+    people: Math.max(0, billing.peopleUsage.current - (limits?.maxPeople ?? billing.peopleUsage.max)),
+    shops: Math.max(0, billing.shopUsage.current - (limits?.maxActiveShops ?? billing.shopUsage.max)),
+    managers: Math.max(0, billing.managerUsage.current - (limits?.maxActiveManagers ?? billing.managerUsage.max)),
   };
 }
 

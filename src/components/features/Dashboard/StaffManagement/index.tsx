@@ -33,6 +33,7 @@ type Props = {
   data?: StaffManagementData;
   openRecruitments: Recruitment[];
   currentRecruitments: Recruitment[];
+  recruitmentDataStatus?: "ready" | "loading" | "unavailable";
   isReadOnly?: boolean;
   initialVisibleUserCount?: number;
   focusedPersonId?: string;
@@ -44,6 +45,7 @@ export function StaffManagement({
   data,
   openRecruitments,
   currentRecruitments,
+  recruitmentDataStatus = "ready",
   isReadOnly = false,
   initialVisibleUserCount = DEFAULT_USER_LIST_COUNT,
   focusedPersonId,
@@ -112,6 +114,7 @@ export function StaffManagement({
       focusedPersonId={focusedPersonId}
       openRecruitments={openRecruitments}
       currentRecruitments={currentRecruitments}
+      recruitmentDataStatus={recruitmentDataStatus}
       onOpenDetail={handleOpenDetail}
       isReadOnly={isReadOnly}
       invitation={invitation}

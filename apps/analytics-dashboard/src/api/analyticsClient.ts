@@ -13,6 +13,7 @@ import type {
   AnalyticsSegmentSort,
   AnalyticsShopSizeFilter,
   AnalyticsShopSort,
+  AnalyticsShopUsageFilter,
   AnalyticsTrendMetric,
   CycleDetailResponse,
   FeatureRequestsResponse,
@@ -81,6 +82,7 @@ export type ShopsParams = AnalyticsDateRangeParams &
     lineUsage?: AnalyticsLineUsageFilter | null;
     health?: AnalyticsHealthSignalKey | "needsAttention" | null;
     completeness?: AnalyticsCompleteness | null;
+    usage?: AnalyticsShopUsageFilter | null;
   };
 
 export type ShopParams = AnalyticsSeriesParams;

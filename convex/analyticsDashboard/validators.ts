@@ -213,6 +213,25 @@ export const analyticsShopRowValidator = v.object({
   kpis: v.union(analyticsShopKpiValidator, v.null()),
 });
 
+export const analyticsShopUsageLikelihoodValidator = v.union(
+  v.literal("high"),
+  v.literal("possible"),
+  v.literal("unknown"),
+);
+
+export const analyticsShopUsageReasonValidator = v.union(
+  v.literal("recentActivity"),
+  v.literal("hasUpcomingCycle"),
+  v.literal("observedActivity"),
+  v.literal("hasShiftTargets"),
+  v.literal("hasStaffMemberships"),
+);
+
+export const analyticsShopListRowValidator = analyticsShopRowValidator.extend({
+  usageLikelihood: analyticsShopUsageLikelihoodValidator,
+  usageReasons: v.array(analyticsShopUsageReasonValidator),
+});
+
 export const analyticsCycleRowValidator = v.object({
   recruitmentId: v.string(),
   organizationId: v.string(),
@@ -307,7 +326,7 @@ export const organizationDetailResponseValidator = v.object({
 export const shopsResponseValidator = v.object({
   kind: v.literal("shops"),
   metadata: analyticsResponseMetadataValidator,
-  rows: v.array(analyticsShopRowValidator),
+  rows: v.array(analyticsShopListRowValidator),
 });
 
 export const shopDetailResponseValidator = v.object({

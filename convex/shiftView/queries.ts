@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { formatPeriodLabel } from "../_lib/dateFormat";
 import { staffSessionQuery } from "../_lib/functions";
 import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
+import { shiftAssignmentReadValidator } from "../_lib/shiftAssignmentValidators";
 import { sessionMatchesAccessKind } from "../_lib/staffAccess";
 import { getSubmissionPatternTimeRange, submissionPatternValidator } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
@@ -23,16 +24,7 @@ const shiftViewDataValidator = v.object({
       isDefault: v.boolean(),
     }),
   ),
-  assignments: v.array(
-    v.object({
-      staffId: v.id("staffs"),
-      date: v.string(),
-      startTime: v.string(),
-      endTime: v.string(),
-      positionId: v.id("positions"),
-      optionId: v.optional(v.string()),
-    }),
-  ),
+  assignments: v.array(shiftAssignmentReadValidator),
   shopClosedDates: v.array(v.string()),
   submissionPattern: submissionPatternValidator,
   timeRange: v.object({

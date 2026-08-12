@@ -36,8 +36,10 @@ const config: StorybookConfig = {
   viteFinal: async (config) => {
     config.define = {
       ...config.define,
+      __APP_ENVIRONMENT__: JSON.stringify("local"),
       __APP_VERSION__: JSON.stringify(storybookAppVersion),
       __BUILD_DATE_JST__: JSON.stringify(storybookBuildDateJst),
+      __RELEASE_ID__: JSON.stringify("storybook"),
     };
     config.resolve = {
       ...config.resolve,

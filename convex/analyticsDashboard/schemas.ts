@@ -71,6 +71,7 @@ const shopSizeFilters = ["1-4", "5-9", "10-19", "20-49", "50+"] as const;
 const cadenceFilters = ["weekly", "biweekly", "monthly", "other", "insufficientData"] as const;
 const lineUsageFilters = ["none", "low", "medium", "high"] as const;
 const shopHealthFilters = [...healthSignals, "needsAttention"] as const;
+const shopUsageFilters = ["candidate", "high", "possible", "unknown"] as const;
 
 export type AnalyticsOrganizationSort = (typeof organizationSorts)[number];
 export type AnalyticsShopSort = (typeof shopSorts)[number];
@@ -79,6 +80,7 @@ export type AnalyticsSegmentSort = (typeof segmentSorts)[number];
 export type AnalyticsShopSizeFilter = (typeof shopSizeFilters)[number];
 export type AnalyticsCadenceFilter = (typeof cadenceFilters)[number];
 export type AnalyticsLineUsageFilter = (typeof lineUsageFilters)[number];
+export type AnalyticsShopUsageFilter = (typeof shopUsageFilters)[number];
 
 type DateRange = { from: string; to: string };
 type SeriesRange = DateRange & { granularity: AnalyticsGranularity };
@@ -142,6 +144,7 @@ export type AnalyticsShopsRequest = DateRange &
     cadence: AnalyticsCadenceFilter | null;
     lineUsage: AnalyticsLineUsageFilter | null;
     health: AnalyticsHealthSignalKey | "needsAttention" | null;
+    usage: AnalyticsShopUsageFilter | null;
     completeness: AnalyticsCompleteness | null;
   };
 
@@ -480,6 +483,7 @@ export function parseAnalyticsDashboardRequest(inputValue: unknown): ParseResult
       "cadence",
       "lineUsage",
       "health",
+      "usage",
       "completeness",
     ]);
     if (!keys.ok) return keys;
@@ -505,6 +509,9 @@ export function parseAnalyticsDashboardRequest(inputValue: unknown): ParseResult
     if (!lineUsage.ok) return lineUsage;
     const health = readEnum(input.health, "health", shopHealthFilters, null);
     if (!health.ok) return health;
+    // Older BFF requests do not include this newly added optional filter.
+    const usage = readEnum(input.usage ?? null, "usage", shopUsageFilters, null);
+    if (!usage.ok) return usage;
     const completeness = readEnum(input.completeness, "completeness", completenessValues, null);
     if (!completeness.ok) return completeness;
     return {
@@ -523,6 +530,7 @@ export function parseAnalyticsDashboardRequest(inputValue: unknown): ParseResult
         cadence: cadence.value,
         lineUsage: lineUsage.value,
         health: health.value,
+        usage: usage.value,
         completeness: completeness.value,
       },
     };
@@ -694,6 +702,7 @@ export function normalizeBrowserRequestInput(
     raw.cadence ??= null;
     raw.lineUsage ??= null;
     raw.health ??= null;
+    raw.usage ??= null;
   }
   if (endpoint === "segments") raw.dimension ??= null;
   if (endpoint === "trends") {

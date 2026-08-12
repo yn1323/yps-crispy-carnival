@@ -4,8 +4,7 @@ import {
   NOTIFICATION_FAILURE_INBOX_RETENTION_MS,
   NOTIFICATION_OUTBOX_TERMINAL_PAYLOAD_RETENTION_MS,
 } from "../constants";
-
-const TERMINAL_STATUSES = ["sent", "failed", "cancelled"] as const;
+import { NOTIFICATION_OUTBOX_TERMINAL_STATUSES as TERMINAL_STATUSES } from "./schemas";
 
 type TerminalStatus = (typeof TERMINAL_STATUSES)[number];
 
@@ -39,25 +38,23 @@ export const getRedactionReadiness = internalQuery({
     const checkedAt = Date.now();
     const terminalCutoff = checkedAt - NOTIFICATION_OUTBOX_TERMINAL_PAYLOAD_RETENTION_MS;
     const failureCutoff = checkedAt - NOTIFICATION_FAILURE_INBOX_RETENTION_MS;
-    const sent = await probeTerminalStatus(ctx, "sent", terminalCutoff);
-    const failed = await probeTerminalStatus(ctx, "failed", terminalCutoff);
-    const cancelled = await probeTerminalStatus(ctx, "cancelled", terminalCutoff);
+    const terminalProbes = await Promise.all(
+      TERMINAL_STATUSES.map(
+        async (status) => [status, await probeTerminalStatus(ctx, status, terminalCutoff)] as const,
+      ),
+    );
     const expiredFailure = await ctx.db
       .query("notificationFailureInbox")
       .withIndex("by_sensitiveDataRedactedAt_lastFailedAt", (q) =>
         q.eq("sensitiveDataRedactedAt", undefined).lte("lastFailedAt", failureCutoff),
       )
       .first();
-    const terminalWithoutTerminalAt = {
-      sent: sent.terminalWithoutTerminalAt,
-      failed: failed.terminalWithoutTerminalAt,
-      cancelled: cancelled.terminalWithoutTerminalAt,
-    };
-    const expiredTerminalWithoutRedaction = {
-      sent: sent.expiredTerminalWithoutRedaction,
-      failed: failed.expiredTerminalWithoutRedaction,
-      cancelled: cancelled.expiredTerminalWithoutRedaction,
-    };
+    const terminalWithoutTerminalAt = Object.fromEntries(
+      terminalProbes.map(([status, result]) => [status, result.terminalWithoutTerminalAt]),
+    ) as Record<TerminalStatus, number>;
+    const expiredTerminalWithoutRedaction = Object.fromEntries(
+      terminalProbes.map(([status, result]) => [status, result.expiredTerminalWithoutRedaction]),
+    ) as Record<TerminalStatus, number>;
     const expiredFailureWithoutRedaction = expiredFailure ? 1 : 0;
     const ready =
       Object.values(terminalWithoutTerminalAt).every((count) => count === 0) &&

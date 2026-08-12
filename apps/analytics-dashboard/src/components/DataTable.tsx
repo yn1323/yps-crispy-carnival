@@ -71,6 +71,7 @@ export function DataTable<T>({
                 onKeyDown={
                   href
                     ? (event) => {
+                        if (event.target instanceof Element && event.target.closest("a, button")) return;
                         if (event.key === "Enter") openRow(href);
                       }
                     : undefined
@@ -134,6 +135,7 @@ export function DataTable<T>({
                   onKeyDown={
                     href
                       ? (event) => {
+                          if (event.target instanceof Element && event.target.closest("a, button")) return;
                           if (event.key === "Enter") {
                             openRow(href);
                           }

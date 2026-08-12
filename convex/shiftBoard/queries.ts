@@ -3,6 +3,7 @@ import type { Doc } from "../_generated/dataModel";
 import { isPastShiftPeriod } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
 import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
+import { shiftAssignmentReadValidator } from "../_lib/shiftAssignmentValidators";
 import { getSubmissionPatternTimeRange, submissionPatternValidator } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
 import {
@@ -62,16 +63,7 @@ const shiftBoardDataValidator = v.object({
     }),
   ),
   requestedDates: v.array(v.object({ staffId: v.id("staffs"), date: v.string() })),
-  shiftAssignments: v.array(
-    v.object({
-      staffId: v.id("staffs"),
-      date: v.string(),
-      startTime: v.string(),
-      endTime: v.string(),
-      positionId: v.id("positions"),
-      optionId: v.optional(v.string()),
-    }),
-  ),
+  shiftAssignments: v.array(shiftAssignmentReadValidator),
   timeRange: v.object({
     start: v.number(),
     end: v.number(),

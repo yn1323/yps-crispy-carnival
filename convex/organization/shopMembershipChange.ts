@@ -1,4 +1,5 @@
 import type { Id } from "../_generated/dataModel";
+import { sha256Hex } from "../_lib/sha256";
 
 export type OrganizationShopOperatingStatus = "active" | "archived" | "planSuspended";
 
@@ -55,11 +56,6 @@ export function sortMembershipSnapshotEntries(entries: readonly OrganizationPers
       left.staffId.localeCompare(right.staffId) ||
       left.shopStatus.localeCompare(right.shopStatus),
   );
-}
-
-export async function sha256Hex(value: string) {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 /** UI snapshotとmutationのOCC確認で同じcanonical representationを使う。 */

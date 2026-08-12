@@ -1,6 +1,6 @@
 # リリース状態
 
-> 最終更新: 2026-08-09
+> 最終更新: 2026-08-12
 >
 > 実環境確認: 未確認
 
@@ -21,6 +21,7 @@
 | StripeのPro・Business公開設定、Price、Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
 | Resendの`email.delivered` Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
 | Clerk、Cloudflare、Stripeのセキュリティ設定とprovider canary | 未確認 | 未確認 | 未確認 | 未登録 |
+| 公開Web計測のGTM container、GA4 property、Clarity、Consent、Production request | 未確認 | 未確認 | 未確認 | 未登録 |
 | `ENV-CLERK-02`のログイン方法・シフト連絡先分離canary | 未確認 | 未確認 | 未確認 | 未登録 |
 | `verifyStaffs.activeStaffPersonEmailMismatch`の全ページ合計0件 | Development確認済み・Production未確認 | 2026-08-04 09:18 JST | `dev:fortunate-mallard-809` | 本文のDevelopment確認記録 |
 

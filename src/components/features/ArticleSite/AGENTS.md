@@ -27,7 +27,7 @@
 ## 生成物
 
 - 記事の追加、削除、OGPに使うメタ情報の変更では、既存のOGP生成scriptを実行し、生成物を同じ変更へ含める。
-- 記事URLを追加・削除した場合は、`public/sitemap.xml`を現在の形式に合わせて更新する。
+- 記事URLまたは`publishedAt`・`updatedAt`を変更した場合は、`pnpm sitemap:generate`を実行し、生成した`public/sitemap.xml`を同じ変更へ含める。
 - Hero画像を新規生成する場合は、採用と配置の前にユーザー確認を得る。
 - 元画像はユーザーが削除を明示しない限り保持する。
 

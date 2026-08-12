@@ -4,7 +4,6 @@ import {
   buildDashboardRecruitmentGroups,
   getDashboardRecruitmentGroupKey,
   getDisplayStatus,
-  isCurrentRecruitment,
   sortRecruitmentsByPeriodStart,
 } from "./script";
 import type { Recruitment } from "./types";
@@ -65,7 +64,6 @@ describe("Dashboard recruitment display helpers", () => {
       periodEnd: "2026-06-30",
       deadline: "2026-06-07",
     });
-    expect(isCurrentRecruitment(current, now)).toBe(true);
     expect(getDisplayStatus(current, now)).toBe("current");
   });
 

@@ -65,6 +65,7 @@ type Props = {
   focusedPersonId?: string;
   openRecruitments: Recruitment[];
   currentRecruitments: Recruitment[];
+  recruitmentDataStatus?: "ready" | "loading" | "unavailable";
   onOpenDetail: (staff: Staff) => void;
   invitation: StaffInvitationViewModel;
   detail: StaffDetailViewModel;
@@ -79,6 +80,7 @@ export function StaffManagementView({
   focusedPersonId,
   openRecruitments,
   currentRecruitments,
+  recruitmentDataStatus = "ready",
   onOpenDetail,
   invitation,
   detail,
@@ -124,6 +126,7 @@ export function StaffManagementView({
             onClose={detail.onClose}
             openRecruitments={openRecruitments}
             currentRecruitments={currentRecruitments}
+            recruitmentDataStatus={recruitmentDataStatus}
             onEdit={detail.onEdit}
             isEditing={detail.isEditing}
             onDelete={detail.onDelete}

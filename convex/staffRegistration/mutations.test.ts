@@ -114,6 +114,43 @@ describe("staffRegistration/mutations", () => {
     expect(new Set(state.links.map((link) => link.shopId)).size).toBe(2);
   });
 
+  it("存在しない・失効済みtokenと削除済み店舗は同じエラーで申請を作成しない", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      const activeShopId = await seedShop(ctx, "有効店舗");
+      const deletedShopId = await seedShop(ctx, "削除済み店舗");
+      await ctx.db.patch(deletedShopId, { isDeleted: true });
+      await ctx.db.insert("shopRegistrationLinks", {
+        shopId: activeShopId,
+        token: "revoked-submit-registration-token",
+        createdAt: Date.now(),
+        revokedAt: Date.now(),
+      });
+      await ctx.db.insert("shopRegistrationLinks", {
+        shopId: deletedShopId,
+        token: "deleted-shop-submit-registration-token",
+        createdAt: Date.now(),
+      });
+    });
+
+    for (const token of [
+      "missing-submit-registration-token",
+      "revoked-submit-registration-token",
+      "deleted-shop-submit-registration-token",
+    ]) {
+      await expect(
+        t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
+          token,
+          name: "申請スタッフ",
+          email: `${token}@example.com`,
+          acceptedLegal: true,
+        }),
+      ).rejects.toThrow("登録リンクの有効期限が切れています");
+    }
+
+    await expect(t.run(async (ctx) => await ctx.db.query("staffRegistrationRequests").collect())).resolves.toEqual([]);
+  });
+
   it("参加申請の入力内容をサーバー側でも検証する", async () => {
     const t = convexTest(schema, modules);
     const shopId = await t.run(async (ctx) => {

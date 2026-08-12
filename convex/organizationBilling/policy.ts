@@ -2,39 +2,28 @@ import type { Infer } from "convex/values";
 import { getDebugTrialDurationDays } from "../_lib/config";
 import { jstMonthStartMs } from "../_lib/dateFormat";
 import type { organizationBillingStateValidator } from "../organization/validators";
+import {
+  ORGANIZATION_PLAN_LIMITS,
+  type OrganizationDisplayPlan,
+  type OrganizationEntitlementPlan,
+  type OrganizationPaidPlan,
+  type OrganizationPlan,
+  type OrganizationPlanLimits,
+} from "./planLimits";
+
+export type {
+  OrganizationDisplayPlan,
+  OrganizationEntitlementPlan,
+  OrganizationPaidPlan,
+  OrganizationPlan,
+  OrganizationPlanLimits,
+} from "./planLimits";
+export { ORGANIZATION_PLAN_LIMITS } from "./planLimits";
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export const PAYMENT_GRACE_PERIOD_MS = 14 * MS_PER_DAY;
-
-const PRO_PLAN_LIMITS = {
-  maxPeople: 20,
-  maxActiveShops: 5,
-  maxActiveManagers: 5,
-} as const;
-
-export const ORGANIZATION_PLAN_LIMITS = {
-  // Trialは表示上のライフサイクル名で、利用権限はProと同じ値を参照する。
-  trial: PRO_PLAN_LIMITS,
-  free: {
-    maxPeople: 5,
-    maxActiveShops: 1,
-    maxActiveManagers: 1,
-  },
-  pro: PRO_PLAN_LIMITS,
-  business: {
-    maxPeople: 40,
-    maxActiveShops: 5,
-    maxActiveManagers: 5,
-  },
-} as const;
-
-export type OrganizationPlan = keyof typeof ORGANIZATION_PLAN_LIMITS;
-export type OrganizationPaidPlan = "pro" | "business";
-export type OrganizationEntitlementPlan = "free" | OrganizationPaidPlan;
-export type OrganizationDisplayPlan = "trial" | OrganizationEntitlementPlan;
-export type OrganizationPlanLimits = (typeof ORGANIZATION_PLAN_LIMITS)[OrganizationPlan];
 export type OrganizationBillingState = Infer<typeof organizationBillingStateValidator>;
 type PersistedRestrictedOrganizationBillingState = Extract<OrganizationBillingState, { kind: "restricted" }>;
 export type RestrictedOrganizationBillingState = PersistedRestrictedOrganizationBillingState;

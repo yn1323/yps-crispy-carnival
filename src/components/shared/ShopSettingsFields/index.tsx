@@ -6,5 +6,7 @@ export type { ShopNameFieldProps } from "./ShopNameField";
 export { ShopNameField } from "./ShopNameField";
 export type { SubmissionPatternFieldProps } from "./SubmissionPatternField";
 export { SubmissionPatternField } from "./SubmissionPatternField";
+export type { SubmissionPatternSettingsFieldsProps } from "./SubmissionPatternSettingsFields";
+export { SubmissionPatternSettingsFields } from "./SubmissionPatternSettingsFields";
 export type { TimePatternFieldsProps } from "./TimePatternFields";
 export { TimePatternFields } from "./TimePatternFields";

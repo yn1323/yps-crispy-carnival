@@ -1,9 +1,10 @@
-import dayjs from "dayjs";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { buildWeeklyGrid, formatDateShort, getWeekdayLabel, type WeekStart } from "@/src/domains/shift/date";
 import { getAssignedShiftTypeOptionIdsInOptionOrder } from "@/src/domains/shift/shiftTypeAssignments";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import { getOrderedShiftTypeOptions } from "@/src/domains/shop/submissionPattern";
 import { getShiftTypeOptionColor } from "../../shiftTypeOptionStyles";
+import { getShiftWeekdayColor } from "../../weekdayPresentation";
 
 export type ShiftTypeOverviewAssignmentBadgeViewModel = {
   key: string;
@@ -65,13 +66,6 @@ export type ShiftTypeOverviewViewModel = {
   weeks: ShiftTypeOverviewWeekViewModel[];
 };
 
-const getWeekdayColor = (iso: string): string => {
-  const day = dayjs(iso).day();
-  if (day === 0) return "#ef4444";
-  if (day === 6) return "#3b82f6";
-  return "#3f3f46";
-};
-
 const buildWeekRangeLabel = (dates: { iso: string }[]): string => {
   const start = dates[0]?.iso ?? "";
   const end = dates[dates.length - 1]?.iso ?? start;
@@ -97,10 +91,7 @@ export const buildShiftTypeOverviewViewModel = ({
   submissionPattern: ShiftSubmissionPattern;
   warningCounts: ReadonlyMap<string, number>;
 }): ShiftTypeOverviewViewModel => {
-  const options =
-    submissionPattern.kind === "shiftType"
-      ? [...submissionPattern.options].sort((a, b) => a.sortOrder - b.sortOrder)
-      : [];
+  const options = getOrderedShiftTypeOptions(submissionPattern);
   const sortedOptionIds = options.map((option) => option.id);
   const optionDisplayById = new Map(
     options.map((option, index) => [
@@ -123,7 +114,7 @@ export const buildShiftTypeOverviewViewModel = ({
         iso: date.iso,
         label: formatDateShort(date.iso),
         weekdayLabel: getWeekdayLabel(date.iso),
-        weekdayColor: getWeekdayColor(date.iso),
+        weekdayColor: getShiftWeekdayColor(date.iso),
         opacity: date.inRange ? 1 : 0.35,
         isClickable: !isReadOnly && date.inRange,
         isClosed,

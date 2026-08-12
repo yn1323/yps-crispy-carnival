@@ -1,4 +1,4 @@
-import { Box } from "@chakra-ui/react";
+import { Box, Text } from "@chakra-ui/react";
 import { useMutation } from "convex/react";
 import { useState } from "react";
 import { LuSend } from "react-icons/lu";
@@ -12,17 +12,25 @@ import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { ReissueForm } from "./ReissueForm";
 
 type Props = {
-  recruitmentId: string;
+  recruitmentId: Id<"recruitments">;
+  periodLabel: string;
 };
 
-export function StaffShiftReissue({ recruitmentId }: Props) {
+type ViewProps = {
+  periodLabel: string;
+  isDone: boolean;
+  isSubmitting: boolean;
+  onSubmit: (values: ReissueFormValues) => void | Promise<void>;
+};
+
+export function StaffShiftReissue({ recruitmentId, periodLabel }: Props) {
   const [isDone, setIsDone] = useState(false);
   const requestReissue = useMutation(api.staffAuth.mutations.requestReissue);
   const { run: handleSubmit, isRunning: isSubmitting } = useSingleFlight(async (values: ReissueFormValues) => {
     try {
       await requestReissue({
         email: values.email,
-        recruitmentId: recruitmentId as Id<"recruitments">,
+        recruitmentId,
       });
       setIsDone(true);
     } catch (error) {
@@ -30,6 +38,17 @@ export function StaffShiftReissue({ recruitmentId }: Props) {
     }
   });
 
+  return (
+    <StaffShiftReissueView
+      periodLabel={periodLabel}
+      isDone={isDone}
+      isSubmitting={isSubmitting}
+      onSubmit={handleSubmit}
+    />
+  );
+}
+
+export function StaffShiftReissueView({ periodLabel, isDone, isSubmitting, onSubmit }: ViewProps) {
   if (isDone) {
     return (
       <StaffNarrowContent flex={1} display="flex" alignItems="center" justifyContent="center">
@@ -49,7 +68,10 @@ export function StaffShiftReissue({ recruitmentId }: Props) {
       <Box as="h1" fontSize="md" fontWeight="semibold" mb={4}>
         シフト閲覧リンクの再発行
       </Box>
-      <ReissueForm onSubmit={handleSubmit} isSubmitting={isSubmitting} />
+      <Text fontSize="sm" color="fg.muted" mb={4}>
+        対象期間：{periodLabel}
+      </Text>
+      <ReissueForm onSubmit={onSubmit} isSubmitting={isSubmitting} />
     </StaffNarrowContent>
   );
 }

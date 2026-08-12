@@ -14,7 +14,7 @@ import type {
 const STALE_RELOAD_MESSAGE =
   "スタッフの所属または今日以降のシフトが変更されました。画面を再読み込みして、もう一度お試しください。";
 const DEFAULT_ERROR_MESSAGE = "変更を完了できませんでした。通信状態を確認して、もう一度お試しください。";
-const UNKNOWN_RESULT_MESSAGE = "変更結果を確認できませんでした。内容を変えずに、もう一度「変更する」を押してください。";
+const UNKNOWN_RESULT_MESSAGE = "変更結果を確認できませんでした。内容を変えずに、このままもう一度お試しください。";
 const SAFE_REJECTION_MESSAGE_PARTS = [
   "利用人数が現在のプラン上限を超えます",
   "一括で所属を変更できません",

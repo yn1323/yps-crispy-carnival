@@ -1,23 +1,9 @@
 import { Box, Field, Input, SimpleGrid, Stack, Text } from "@chakra-ui/react";
 import { LuCalendarDays, LuClock3, LuListChecks } from "react-icons/lu";
-import { MAX_SHIFT_TYPE_OPTIONS } from "@/convex/_lib/submissionPatternConstants";
 import { SHOP_NAME_MAX_LENGTH } from "@/convex/constants";
-import type { ShiftSubmissionPattern, ShiftTypeOption } from "@/convex/shop/schemas";
-import { ShiftTypePatternFields, TimePatternFields } from "@/src/components/shared/ShopSettingsFields";
-import {
-  getNestedErrorMessage,
-  getShiftTypeOptionErrorMessages,
-} from "@/src/components/shared/ShopSettingsFields/formErrors";
+import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { Button } from "@/src/components/ui/Button";
-import {
-  appendShiftTypeOption,
-  DEFAULT_TIME_PATTERN,
-  getAvailableEndTimeOptions,
-  getAvailableStartTimeOptions,
-  removeShiftTypeOptionAt,
-  selectSubmissionPattern,
-  updateShiftTypeOptionAt,
-} from "@/src/domains/shop/submissionPattern";
+import { selectSubmissionPattern } from "@/src/domains/shop/submissionPattern";
 import { SUBMISSION_PATTERN_OPTIONS } from "./script";
 
 export type { Step1Data } from "./types";
@@ -27,12 +13,6 @@ type SetupShopInfoStepProps = {
   submissionPattern: ShiftSubmissionPattern;
   shopNameError?: string;
   onShopNameChange: (value: string) => void;
-  onSubmissionPatternChange: (next: ShiftSubmissionPattern) => void;
-};
-
-type SetupPatternSettingsStepProps = {
-  submissionPattern: ShiftSubmissionPattern;
-  submissionPatternError?: unknown;
   onSubmissionPatternChange: (next: ShiftSubmissionPattern) => void;
 };
 
@@ -122,84 +102,3 @@ export const SetupShopInfoStep = ({
     </Stack>
   </Stack>
 );
-
-export const SetupPatternSettingsStep = ({
-  submissionPattern,
-  submissionPatternError,
-  onSubmissionPatternChange,
-}: SetupPatternSettingsStepProps) => {
-  const shiftTypeOptions = submissionPattern.kind === "shiftType" ? submissionPattern.options : [];
-  const shiftTypeOptionsError = getNestedErrorMessage(submissionPatternError, ["options"]);
-  const canAddShiftTypeOption = shiftTypeOptions.length < MAX_SHIFT_TYPE_OPTIONS;
-
-  const updateShiftTypeOption = (index: number, patch: Partial<ShiftTypeOption>) => {
-    if (submissionPattern.kind !== "shiftType") return;
-    onSubmissionPatternChange({
-      kind: "shiftType",
-      options: updateShiftTypeOptionAt(submissionPattern.options, index, patch),
-    });
-  };
-
-  const addShiftTypeOption = () => {
-    if (submissionPattern.kind !== "shiftType" || submissionPattern.options.length >= MAX_SHIFT_TYPE_OPTIONS) return;
-    onSubmissionPatternChange({
-      kind: "shiftType",
-      options: appendShiftTypeOption(submissionPattern.options),
-    });
-  };
-
-  const removeShiftTypeOption = (index: number) => {
-    if (submissionPattern.kind !== "shiftType") return;
-    onSubmissionPatternChange({
-      kind: "shiftType",
-      options: removeShiftTypeOptionAt(submissionPattern.options, index),
-    });
-  };
-
-  if (submissionPattern.kind === "time") {
-    return (
-      <TimePatternFields
-        invalid={!!submissionPatternError}
-        startTime={submissionPattern.startTime}
-        endTime={submissionPattern.endTime}
-        startTimeOptions={getAvailableStartTimeOptions(submissionPattern.endTime)}
-        endTimeOptions={getAvailableEndTimeOptions(submissionPattern.startTime)}
-        startTimeError={getNestedErrorMessage(submissionPatternError, ["startTime"])}
-        endTimeError={getNestedErrorMessage(submissionPatternError, ["endTime"])}
-        onStartTimeChange={(value) =>
-          onSubmissionPatternChange({ ...submissionPattern, startTime: value || DEFAULT_TIME_PATTERN.startTime })
-        }
-        onEndTimeChange={(value) =>
-          onSubmissionPatternChange({ ...submissionPattern, endTime: value || DEFAULT_TIME_PATTERN.endTime })
-        }
-      />
-    );
-  }
-
-  if (submissionPattern.kind !== "shiftType") return null;
-
-  const shiftTypeRows = shiftTypeOptions.map((option, index) => ({
-    index,
-    option,
-    startTimeOptions: getAvailableStartTimeOptions(option.endTime),
-    endTimeOptions: getAvailableEndTimeOptions(option.startTime),
-    nameError: getNestedErrorMessage(submissionPatternError, ["options", index, "name"]),
-    startTimeError: getNestedErrorMessage(submissionPatternError, ["options", index, "startTime"]),
-    endTimeError: getNestedErrorMessage(submissionPatternError, ["options", index, "endTime"]),
-    errorMessages: getShiftTypeOptionErrorMessages(submissionPatternError, index),
-  }));
-
-  return (
-    <ShiftTypePatternFields
-      invalid={!!submissionPatternError}
-      rows={shiftTypeRows}
-      emptyMessage={shiftTypeOptionsError ?? "勤務区分を追加してください。"}
-      emptyMessageInvalid={!!shiftTypeOptionsError}
-      canAdd={canAddShiftTypeOption}
-      limitMessage={canAddShiftTypeOption ? undefined : `勤務区分は${MAX_SHIFT_TYPE_OPTIONS}件まで登録できます。`}
-      onAdd={addShiftTypeOption}
-      onRemove={removeShiftTypeOption}
-      onUpdate={updateShiftTypeOption}
-    />
-  );
-};

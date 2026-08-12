@@ -10,9 +10,14 @@ const SCRIPT_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
 const REPOSITORY_ROOT = path.resolve(SCRIPT_DIRECTORY, "..");
 const PLAYWRIGHT_CLI_PATH = path.join(REPOSITORY_ROOT, "node_modules", "@playwright", "test", "cli.js");
 const ARTIFACT_GATE_PATH = path.join(REPOSITORY_ROOT, "scripts", "assertNoSensitiveArtifacts.mjs");
-const PLAYWRIGHT_CONFIG_PATHS = ["playwright.config.ts", "playwright.deployed.config.ts"] as const;
+const PLAYWRIGHT_CONFIG_PATHS = [
+  "playwright.config.ts",
+  "playwright.deployed.config.ts",
+  "playwright.measurement.config.ts",
+] as const;
 const AUTH_SETUP_PATH = path.join(REPOSITORY_ROOT, "e2e", "fixtures", "auth.setup.ts");
 const DEPLOYED_SMOKE_PATH = path.join(REPOSITORY_ROOT, "e2e", "scenarios", "deployed-smoke.test.ts");
+const MEASUREMENT_SCENARIO_PATH = path.join(REPOSITORY_ROOT, "e2e", "scenarios", "measurement-enabled.test.ts");
 const PLAYWRIGHT_WORKFLOW_PATH = path.join(REPOSITORY_ROOT, ".github", "workflows", "playwright.yml");
 const SECRET_SENTINELS = {
   E2E_CLERK_PASSWORD: "e2e-password-must-not-reach-report",
@@ -74,6 +79,13 @@ describe("Playwright config artifact security", () => {
     }
     expect(readFileSync(AUTH_SETUP_PATH, "utf8")).toContain("artifactSafeTest as setup");
     expect(readFileSync(DEPLOYED_SMOKE_PATH, "utf8")).toContain("artifactSafeTest as test");
+    expect(readFileSync(MEASUREMENT_SCENARIO_PATH, "utf8")).toContain("artifactSafeTest as test");
+
+    const measurementConfig = readFileSync(path.join(REPOSITORY_ROOT, "playwright.measurement.config.ts"), "utf8");
+    expect(measurementConfig).toContain('trace: "off"');
+    expect(measurementConfig).toContain('screenshot: "off"');
+    expect(measurementConfig).toContain('video: "off"');
+    expect(measurementConfig).not.toContain('["html"');
   });
 
   it("does not serialize inherited credentials into the JSON report", () => {

@@ -1,13 +1,18 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { mutation } from "../_generated/server";
+import { internalMutation, mutation } from "../_generated/server";
 import { isShopParentActive } from "../_lib/activeShop";
 import { getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { rateLimit } from "../_lib/rateLimits";
 import { recruitmentMatchesAccessKind, sessionMatchesAccessKind, staffAccessKindValidator } from "../_lib/staffAccess";
 import { generateUUID } from "../_lib/uuid";
-import { RATE_LIMIT_RETRY_FALLBACK_MS, STAFF_SESSION_TTL_MS } from "../constants";
+import { normalizeEmail } from "../_lib/validation";
+import {
+  RATE_LIMIT_RETRY_FALLBACK_MS,
+  STAFF_SESSION_EXPIRY_RECOVERY_BATCH_SIZE,
+  STAFF_SESSION_TTL_MS,
+} from "../constants";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { isShiftTargetStaff } from "../staff/service";
 import { reissueSchema } from "./schemas";
@@ -145,16 +150,22 @@ export const verifyToken = mutation({
 
     // 新規セッション作成 + トークン無効化
     const sessionToken = generateUUID();
-    await ctx.db.insert("sessions", {
+    const expiresAt =
+      accessKind === "submit"
+        ? Math.min(now + STAFF_SESSION_TTL_MS, getSubmitLinkCutoff(recruitment.periodStart))
+        : now + STAFF_SESSION_TTL_MS;
+    const sessionId = await ctx.db.insert("sessions", {
       sessionToken,
       staffId: magicLink.staffId,
       shopId: magicLink.shopId,
       recruitmentId: magicLink.recruitmentId,
       accessKind,
-      expiresAt:
-        accessKind === "submit"
-          ? Math.min(now + STAFF_SESSION_TTL_MS, getSubmitLinkCutoff(recruitment.periodStart))
-          : now + STAFF_SESSION_TTL_MS,
+      expiresAt,
+    });
+    // session作成と同じtransactionで期限処理を予約し、期限到来をDB writeとしてquery購読へ伝える。
+    await ctx.scheduler.runAt(expiresAt, internal.staffAuth.mutations.expireSession, {
+      sessionId,
+      expectedExpiresAt: expiresAt,
     });
     if (accessKind === "view") {
       await ctx.db.patch(magicLink._id, { usedAt: now });
@@ -165,6 +176,54 @@ export const verifyToken = mutation({
       sessionToken,
       recruitmentId: magicLink.recruitmentId,
     };
+  },
+});
+
+/**
+ * 発行時に予約した時刻でsessionを物理削除する。
+ * expectedExpiresAtを照合し、古い予約や重複実行が新しい状態を削除しないようにする。
+ */
+export const expireSession = internalMutation({
+  args: {
+    sessionId: v.id("sessions"),
+    expectedExpiresAt: v.number(),
+  },
+  returns: v.object({ changed: v.boolean() }),
+  handler: async (ctx, { sessionId, expectedExpiresAt }) => {
+    const session = await ctx.db.get(sessionId);
+    if (!session || session.expiresAt !== expectedExpiresAt || Date.now() < expectedExpiresAt) {
+      return { changed: false };
+    }
+    await ctx.db.delete(sessionId);
+    return { changed: true };
+  },
+});
+
+/**
+ * 導入前sessionや予約漏れを期限順のbounded batchで回収する。
+ * batchが満杯なら即時継続を予約し、1分cronを待たずにbacklogを縮める。
+ */
+export const recoverExpiredSessions = internalMutation({
+  args: {},
+  returns: v.object({
+    deletedCount: v.number(),
+    continuationScheduled: v.boolean(),
+  }),
+  handler: async (ctx) => {
+    const expiredSessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_expiresAt", (q) => q.lte("expiresAt", Date.now()))
+      .take(STAFF_SESSION_EXPIRY_RECOVERY_BATCH_SIZE);
+
+    for (const session of expiredSessions) {
+      await ctx.db.delete(session._id);
+    }
+
+    const continuationScheduled = expiredSessions.length === STAFF_SESSION_EXPIRY_RECOVERY_BATCH_SIZE;
+    if (continuationScheduled) {
+      await ctx.scheduler.runAfter(0, internal.staffAuth.mutations.recoverExpiredSessions, {});
+    }
+    return { deletedCount: expiredSessions.length, continuationScheduled };
   },
 });
 
@@ -190,7 +249,7 @@ export const requestReissue = mutation({
     const parsed = reissueSchema.safeParse({ email });
     if (!parsed.success) return logSkip("invalid_email");
 
-    const normalizedEmail = parsed.data.email.toLowerCase();
+    const normalizedEmail = normalizeEmail(parsed.data.email);
     const emailDomain = normalizedEmail.split("@")[1];
 
     // レートリミットチェック（email+recruitmentId をキーに）

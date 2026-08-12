@@ -64,12 +64,14 @@ import {
 } from "./resendProviderEvents";
 import { type SafeNotificationErrorCode, safeStoredNotificationError } from "./safeError";
 import {
+  NOTIFICATION_OUTBOX_ACTIVE_STATUSES as ACTIVE_STATUSES,
   notificationChannelValidator,
   notificationDeliveryErrorEventTypeValidator,
   notificationHistoryInputValidator,
   notificationPayloadValidator,
   notificationPurposeValidator,
   resendProviderIssueEventTypeValidator,
+  NOTIFICATION_OUTBOX_TERMINAL_STATUSES as TERMINAL_STATUSES,
 } from "./schemas";
 import type {
   NotificationCancelReason,
@@ -81,12 +83,10 @@ import type {
 } from "./types";
 import { notificationChannelForPayload } from "./types";
 
-const ACTIVE_STATUSES = ["pending", "processing"] as const;
 const DELIVERY_EVENT_ERROR_MESSAGE_MAX_LENGTH = 2_000;
 const FAILURE_RESEND_BATCH_SIZE = 50;
 const FAILURE_DUPLICATE_SCAN_LIMIT = 50;
 const FAILURE_EXPIRE_TARGET_STATUSES = ["open", "retrying"] as const;
-const TERMINAL_STATUSES = ["sent", "failed", "cancelled"] as const;
 const ORGANIZATION_NOTIFICATION_CANCEL_BATCH_SIZE = 100;
 // 1候補ごとに履歴とfailure indexも確認するため、一括所属変更のtransaction budgetを先に制限する。
 export const BULK_NOTIFICATION_CANCEL_CANDIDATE_LIMIT = 50;

@@ -19,6 +19,7 @@ import type {
   AnalyticsSegmentDimension,
   AnalyticsShopSizeFilter,
   AnalyticsShopSort,
+  AnalyticsShopUsageFilter,
 } from "@/api/analyticsTypes";
 
 export type AnalyticsGranularity = "day" | "week" | "month";
@@ -38,6 +39,7 @@ export type AnalyticsSearchState = {
   cadence?: string;
   lineUsage?: string;
   health?: string;
+  usage?: AnalyticsShopUsageFilter;
   completeness?: string;
   dimension?: string;
   sort?: string;
@@ -51,6 +53,7 @@ const COMPLETENESS = ["complete", "partial", "unavailable"] as const;
 const ORGANIZATION_SORTS = ["registeredAt", "currentPlan"] as const;
 const SHOP_SORTS = ["registeredAt", "currentPlan", "latestActivityAt"] as const;
 const SHOP_SIZES = ["1-4", "5-9", "10-19", "20-49", "50+"] as const;
+const SHOP_USAGE = ["candidate", "high", "possible", "unknown"] as const;
 const CADENCES = ["weekly", "biweekly", "monthly", "other", "insufficientData"] as const;
 const LINE_USAGE = ["none", "low", "medium", "high"] as const;
 const HEALTH = [
@@ -163,10 +166,28 @@ function parseSearch(search: string) {
     const value = params.get(key);
     if (value) result[key] = value;
   }
+  const rawUsage = params.get("usage") ?? undefined;
+  const usage = valueIn(rawUsage, SHOP_USAGE);
+  if (usage) result.usage = usage;
+  const hasInvalidUsage = params.has("usage") && usage === undefined;
+  if (hasInvalidUsage) delete result.cursor;
   return {
     hasExplicitRange: params.has("from") && params.has("to"),
+    hasInvalidUsage,
     search: result,
   };
+}
+
+function removeInvalidUsageFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  params.delete("cursor");
+  params.delete("usage");
+  const serialized = params.toString();
+  window.history.replaceState(
+    null,
+    "",
+    serialized ? `${window.location.pathname}?${serialized}` : window.location.pathname,
+  );
 }
 
 export function overviewParams(search: AnalyticsSearchState): OverviewParams {
@@ -230,6 +251,7 @@ export function shopsParams(search: AnalyticsSearchState): ShopsParams {
     shopSize: valueIn(search.shopSize, SHOP_SIZES) as AnalyticsShopSizeFilter | undefined,
     sort: valueIn(search.sort, SHOP_SORTS) as AnalyticsShopSort | undefined,
     to: search.to,
+    usage: search.usage,
   };
 }
 
@@ -265,8 +287,11 @@ export function useAnalyticsSearch() {
   const hasExplicitRange = useRef(initial.current.hasExplicitRange);
 
   useEffect(() => {
+    if (initial.current?.hasInvalidUsage) removeInvalidUsageFromUrl();
+
     const handlePopState = () => {
       const parsed = parseSearch(window.location.search);
+      if (parsed.hasInvalidUsage) removeInvalidUsageFromUrl();
       hasExplicitRange.current = parsed.hasExplicitRange;
       setSearch(parsed.search);
     };

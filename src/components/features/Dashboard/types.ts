@@ -1,4 +1,5 @@
 import type { Id } from "@/convex/_generated/dataModel";
+import type { RecruitmentLifecycleStatus } from "@/src/domains/shift/recruitmentLifecycle";
 
 export type Recruitment = {
   _id: Id<"recruitments">;
@@ -13,13 +14,7 @@ export type Recruitment = {
   totalStaffCount: number;
 };
 
-export type RecruitmentDisplayStatus =
-  | "collecting"
-  | "action-required"
-  | "current"
-  | "confirmed"
-  | "ended"
-  | "ended-unconfirmed";
+export type RecruitmentDisplayStatus = RecruitmentLifecycleStatus;
 export type DashboardRecruitmentGroupKey = "current" | "actionRequired" | "collecting" | "confirmed" | "past";
 
 export type DashboardRecruitmentGroup = {

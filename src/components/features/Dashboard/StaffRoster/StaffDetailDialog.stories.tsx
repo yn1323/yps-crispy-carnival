@@ -348,6 +348,13 @@ export const NoTargetShift: Story = {
   },
 };
 
+export const RecruitmentDataUnavailable: Story = {
+  args: {
+    defaultTab: "notification",
+    recruitmentDataStatus: "unavailable",
+  },
+};
+
 export const ManagerStaff: Story = {
   args: {
     staff: lineLinkedStaff,

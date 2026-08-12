@@ -2,7 +2,7 @@
 
 > 文書種別: feature
 >
-> 最終コード照合: 2026-07-30（この変更を含む）
+> 最終コード照合: 2026-08-12（この変更を含む）
 
 公開サイトは、登録前の製品理解と、利用中の疑問解消をつなぐ認証不要のページ群である。
 ルート`/`を入口に、機能紹介、FAQ、HowTo、記事、操作デモへ利用者を案内する。
@@ -90,7 +90,11 @@ HowToの追加と更新には`write-help-content`、デモの設計には`demo-u
 記事詳細とカテゴリは`ArticleSite/content/`の公開済みslugから対象routeを組み立てる。
 TanStack StartはこのallowlistだけをStatic Prerenderingし、認証routeやCapability routeを自動探索しない。
 
-`public/sitemap.xml`は検索エンジンへ公開するURL、`public/llms.txt`は機械可読な公開コンテンツの入口を持つ。
+`scripts/sitemap.ts`は公開route manifestと記事frontmatterから`public/sitemap.xml`を生成する。
+生成対象はindex可能なcanonicalだけであり、互換alias、`noindex`の公開route、CSR shell、下書きを含めない。
+正確な更新日を持つ記事だけに`updatedAt ?? publishedAt`由来の`lastmod`を付け、固定ページ、一覧、カテゴリにはbuild日時を付けない。
+記事URLまたは記事の日付を変更した開発者は`pnpm sitemap:generate`を明示実行し、生成物を同じ変更へ含める。
+`public/llms.txt`は機械可読な公開コンテンツの入口を持つ。
 記事別OGPは`scripts/generateArticleOgp.ts`と`public/ogp/articles/`が所有し、生成物検証時に不足を検出する。
 
 全ページのfallback metadataは`src/routes/__root.tsx`、route別metadataとJSON-LDは対応する`src/pages/*/meta.ts`とコンテンツfeatureが所有する。
@@ -98,7 +102,8 @@ FAQ、BlogPosting、BreadcrumbListなどの構造化データは、画面に表�
 
 `pnpm build`はStatic Prerendering、Cloudflare用ルール生成、生成物検証、型検査を行う。
 Cloudflare Pagesへ配信するのは`dist/client/`だけであり、`dist/server/`はbuild時のrenderにだけ使う。
-`scripts/validateStaticBuild.ts`は公開HTMLのcanonical、metadata、Emotion style、hydration payload、記事OGP、sitemapとの一致、CSR shell、404、Cloudflareルールを検証する。
+`scripts/validateStaticBuild.ts`は公開HTMLのcanonical、metadata、H1一件、Emotion style、hydration payload、記事OGP、metadataから再生成したsitemapとの一致、CSR shell、404、Cloudflareルールを検証する。
+通常の`pnpm build`は`public/sitemap.xml`を書き換えず、sourceまたは配信artifactが生成期待値と異なる場合に失敗する。
 実際のdeployment状態はこの機能文書から推測せず、CI/CDの手順と実行結果で確認する。
 
 ### URLの正規化
@@ -118,6 +123,9 @@ shellは`noindex`、`no-store`、`no-referrer`で公開canonicalを持たず、q
 `/cache-reset`だけは`Clear-Site-Data: "cache"`を返す。
 cookieとstorageは消去せず、旧308 cacheが残る端末の回復導線として使う。
 
+`public/robots.txt`は認証済みshellとCapability・callback routeに対する既存の`Disallow`を維持する。
+route inventory testは各`Disallow`が実在するCSR routeのprefixであることを確認し、不在routeだった`/welcome`は対象に含めない。
+
 ## 関連ファイル
 
 - `src/routes/index.tsx`、`src/pages/home/`、`src/components/features/LandingPage/`：公開TOP
@@ -131,7 +139,8 @@ cookieとstorageは消去せず、旧308 cacheが残る端末の回復導線と�
 - `src/components/templates/PublicPageLayout/`：公開ページ共通layout
 - `vite.config.ts`、`src/router.tsx`、`src/client.tsx`：TanStack StartのSSG、CSR shell、hydration
 - `src/pages/*/meta.ts`、`src/lib/seo/`：ページ別metadataと共通SEO処理
-- `scripts/staticSite.ts`、`scripts/prepareStaticDeployment.ts`、`scripts/validateStaticBuild.ts`：公開route、静的配信ルール、生成物検証
+- `scripts/staticSite.ts`、`scripts/sitemap.ts`、`scripts/prepareStaticDeployment.ts`、`scripts/validateStaticBuild.ts`：公開route、sitemap、静的配信ルール、生成物検証
 - `src/routes/cache-reset.tsx`、`src/routes/$.tsx`：旧cache回復と404
-- `public/sitemap.xml`、`public/llms.txt`：検索エンジンと機械向けの公開URL
+- `src/components/features/ArticleSite/articleFrontmatter.ts`：BrowserとNodeで共有する記事frontmatter schemaとparser
+- `public/sitemap.xml`、`public/llms.txt`：検索エンジンと機械向けの公開ファイル
 - `scripts/generateArticleOgp.ts`、`public/ogp/articles/`：記事別OGP画像

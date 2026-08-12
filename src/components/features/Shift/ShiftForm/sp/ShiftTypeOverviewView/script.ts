@@ -1,10 +1,12 @@
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
-import { buildWeeklyGrid, formatDateShort, getWeekdayLabel, isSaturday, isSunday } from "@/src/domains/shift/date";
+import { buildWeeklyGrid, formatDateShort, getWeekdayLabel } from "@/src/domains/shift/date";
 import { getAssignedShiftTypeOptionIdsInOptionOrder } from "@/src/domains/shift/shiftTypeAssignments";
 import { sortDailyStaffsByDate } from "@/src/domains/shift/sortStaffs";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import { getOrderedShiftTypeOptions } from "@/src/domains/shop/submissionPattern";
+import { getShiftWeekdayTone, type ShiftWeekdayTone } from "../../weekdayPresentation";
 
-export type ShiftTypeOverviewWeekdayTone = "weekday" | "saturday" | "sunday" | "muted";
+export type ShiftTypeOverviewWeekdayTone = ShiftWeekdayTone;
 
 export type ShiftTypeOverviewOptionChipViewModel = {
   key: string;
@@ -45,13 +47,6 @@ export type ShiftTypeOverviewViewModel = {
   weeks: ShiftTypeOverviewWeekViewModel[];
 };
 
-const getWeekdayTone = (iso: string, inRange: boolean): ShiftTypeOverviewWeekdayTone => {
-  if (!inRange) return "muted";
-  if (isSunday(iso)) return "sunday";
-  if (isSaturday(iso)) return "saturday";
-  return "weekday";
-};
-
 export const buildShiftTypeOverviewViewModel = ({
   dates,
   holidays,
@@ -69,10 +64,7 @@ export const buildShiftTypeOverviewViewModel = ({
   warningCounts: ReadonlyMap<string, number>;
   isReadOnly: boolean;
 }): ShiftTypeOverviewViewModel => {
-  const options =
-    submissionPattern.kind === "shiftType"
-      ? [...submissionPattern.options].sort((a, b) => a.sortOrder - b.sortOrder)
-      : [];
+  const options = getOrderedShiftTypeOptions(submissionPattern);
   const optionIds = options.map((option) => option.id);
   const optionById = new Map(options.map((option, colorIndex) => [option.id, { option, colorIndex }]));
   const holidaySet = new Set(holidays);
@@ -126,7 +118,7 @@ export const buildShiftTypeOverviewViewModel = ({
             dateLabel: formatDateShort(date.iso),
             weekdayLabel: getWeekdayLabel(date.iso),
             dateTone: date.inRange ? "default" : "muted",
-            weekdayTone: getWeekdayTone(date.iso, date.inRange),
+            weekdayTone: getShiftWeekdayTone(date.iso, date.inRange),
             surfaceTone: isClosed || !date.inRange ? "muted" : "default",
             closedLabel: isClosed ? "定休日" : null,
             statusLabel,

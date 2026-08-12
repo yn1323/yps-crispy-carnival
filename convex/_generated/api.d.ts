@@ -28,7 +28,9 @@ import type * as _lib_previousWeeklyPattern from "../_lib/previousWeeklyPattern.
 import type * as _lib_rateLimits from "../_lib/rateLimits.js";
 import type * as _lib_resend from "../_lib/resend.js";
 import type * as _lib_resendWebhookSignature from "../_lib/resendWebhookSignature.js";
+import type * as _lib_sha256 from "../_lib/sha256.js";
 import type * as _lib_shiftAssignmentNormalization from "../_lib/shiftAssignmentNormalization.js";
+import type * as _lib_shiftAssignmentValidators from "../_lib/shiftAssignmentValidators.js";
 import type * as _lib_shopManagerRecipients from "../_lib/shopManagerRecipients.js";
 import type * as _lib_staffAccess from "../_lib/staffAccess.js";
 import type * as _lib_submissionPattern from "../_lib/submissionPattern.js";
@@ -93,6 +95,7 @@ import type * as legal_documents from "../legal/documents.js";
 import type * as legal_mutations from "../legal/mutations.js";
 import type * as legal_queries from "../legal/queries.js";
 import type * as legal_service from "../legal/service.js";
+import type * as legal_validators from "../legal/validators.js";
 import type * as line_actions from "../line/actions.js";
 import type * as line_mutations from "../line/mutations.js";
 import type * as line_queries from "../line/queries.js";
@@ -172,6 +175,7 @@ import type * as notificationOutbox_schemas from "../notificationOutbox/schemas.
 import type * as notificationOutbox_types from "../notificationOutbox/types.js";
 import type * as organization_access from "../organization/access.js";
 import type * as organization_audit from "../organization/audit.js";
+import type * as organization_billingContact from "../organization/billingContact.js";
 import type * as organization_deletion from "../organization/deletion.js";
 import type * as organization_managerInvitationState from "../organization/managerInvitationState.js";
 import type * as organization_migrations from "../organization/migrations.js";
@@ -189,6 +193,7 @@ import type * as organizationBilling_actions from "../organizationBilling/action
 import type * as organizationBilling_deadline from "../organizationBilling/deadline.js";
 import type * as organizationBilling_mutations from "../organizationBilling/mutations.js";
 import type * as organizationBilling_notification from "../organizationBilling/notification.js";
+import type * as organizationBilling_planLimits from "../organizationBilling/planLimits.js";
 import type * as organizationBilling_policy from "../organizationBilling/policy.js";
 import type * as organizationBilling_queries from "../organizationBilling/queries.js";
 import type * as organizationBilling_service from "../organizationBilling/service.js";
@@ -207,6 +212,7 @@ import type * as organizationStripe_config from "../organizationStripe/config.js
 import type * as organizationStripe_maintenance from "../organizationStripe/maintenance.js";
 import type * as organizationStripe_mutations from "../organizationStripe/mutations.js";
 import type * as organizationStripe_queries from "../organizationStripe/queries.js";
+import type * as organizationStripe_subscriptionEvidence from "../organizationStripe/subscriptionEvidence.js";
 import type * as organizationStripe_validators from "../organizationStripe/validators.js";
 import type * as organizationStripe_webhook from "../organizationStripe/webhook.js";
 import type * as position_service from "../position/service.js";
@@ -239,6 +245,7 @@ import type * as staffAuth_mutations from "../staffAuth/mutations.js";
 import type * as staffAuth_queries from "../staffAuth/queries.js";
 import type * as staffAuth_schemas from "../staffAuth/schemas.js";
 import type * as staffRegistration_actions from "../staffRegistration/actions.js";
+import type * as staffRegistration_capability from "../staffRegistration/capability.js";
 import type * as staffRegistration_httpActions from "../staffRegistration/httpActions.js";
 import type * as staffRegistration_mutations from "../staffRegistration/mutations.js";
 import type * as staffRegistration_notificationQueries from "../staffRegistration/notificationQueries.js";
@@ -273,7 +280,9 @@ declare const fullApi: ApiFromModules<{
   "_lib/rateLimits": typeof _lib_rateLimits;
   "_lib/resend": typeof _lib_resend;
   "_lib/resendWebhookSignature": typeof _lib_resendWebhookSignature;
+  "_lib/sha256": typeof _lib_sha256;
   "_lib/shiftAssignmentNormalization": typeof _lib_shiftAssignmentNormalization;
+  "_lib/shiftAssignmentValidators": typeof _lib_shiftAssignmentValidators;
   "_lib/shopManagerRecipients": typeof _lib_shopManagerRecipients;
   "_lib/staffAccess": typeof _lib_staffAccess;
   "_lib/submissionPattern": typeof _lib_submissionPattern;
@@ -338,6 +347,7 @@ declare const fullApi: ApiFromModules<{
   "legal/mutations": typeof legal_mutations;
   "legal/queries": typeof legal_queries;
   "legal/service": typeof legal_service;
+  "legal/validators": typeof legal_validators;
   "line/actions": typeof line_actions;
   "line/mutations": typeof line_mutations;
   "line/queries": typeof line_queries;
@@ -417,6 +427,7 @@ declare const fullApi: ApiFromModules<{
   "notificationOutbox/types": typeof notificationOutbox_types;
   "organization/access": typeof organization_access;
   "organization/audit": typeof organization_audit;
+  "organization/billingContact": typeof organization_billingContact;
   "organization/deletion": typeof organization_deletion;
   "organization/managerInvitationState": typeof organization_managerInvitationState;
   "organization/migrations": typeof organization_migrations;
@@ -434,6 +445,7 @@ declare const fullApi: ApiFromModules<{
   "organizationBilling/deadline": typeof organizationBilling_deadline;
   "organizationBilling/mutations": typeof organizationBilling_mutations;
   "organizationBilling/notification": typeof organizationBilling_notification;
+  "organizationBilling/planLimits": typeof organizationBilling_planLimits;
   "organizationBilling/policy": typeof organizationBilling_policy;
   "organizationBilling/queries": typeof organizationBilling_queries;
   "organizationBilling/service": typeof organizationBilling_service;
@@ -452,6 +464,7 @@ declare const fullApi: ApiFromModules<{
   "organizationStripe/maintenance": typeof organizationStripe_maintenance;
   "organizationStripe/mutations": typeof organizationStripe_mutations;
   "organizationStripe/queries": typeof organizationStripe_queries;
+  "organizationStripe/subscriptionEvidence": typeof organizationStripe_subscriptionEvidence;
   "organizationStripe/validators": typeof organizationStripe_validators;
   "organizationStripe/webhook": typeof organizationStripe_webhook;
   "position/service": typeof position_service;
@@ -484,6 +497,7 @@ declare const fullApi: ApiFromModules<{
   "staffAuth/queries": typeof staffAuth_queries;
   "staffAuth/schemas": typeof staffAuth_schemas;
   "staffRegistration/actions": typeof staffRegistration_actions;
+  "staffRegistration/capability": typeof staffRegistration_capability;
   "staffRegistration/httpActions": typeof staffRegistration_httpActions;
   "staffRegistration/mutations": typeof staffRegistration_mutations;
   "staffRegistration/notificationQueries": typeof staffRegistration_notificationQueries;

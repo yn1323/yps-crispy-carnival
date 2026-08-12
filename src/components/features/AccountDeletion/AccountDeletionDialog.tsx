@@ -1,5 +1,5 @@
 import { Alert, Link, Stack, Text } from "@chakra-ui/react";
-import { Link as RouterLink } from "@tanstack/react-router";
+import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
 import { Dialog } from "@/src/components/ui/Dialog";
 import type { AccountDeletionErrorState } from "./types";
 
@@ -56,7 +56,7 @@ export function AccountDeletionDialog({ isOpen, isRunning, error, onClose, onOpe
                 <Alert.Description whiteSpace="pre-line">{error.message}</Alert.Description>
                 {error.showContactLink ? (
                   <Link asChild alignSelf="flex-start" color="red.700" fontSize="sm" fontWeight="semibold">
-                    <RouterLink to="/contact">お問い合わせへ</RouterLink>
+                    <MeasurementBoundaryLink href="/contact">お問い合わせへ</MeasurementBoundaryLink>
                   </Link>
                 ) : null}
               </Alert.Content>

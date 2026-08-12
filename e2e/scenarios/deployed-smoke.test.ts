@@ -6,6 +6,19 @@ import { expectAppHydrated } from "../helpers/appReadiness";
 const ANDROID_CHROME_USER_AGENT =
   "Mozilla/5.0 (Linux; Android 15; Pixel 8 Pro Build/AP3A.241105.008) " +
   "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Mobile Safari/537.36";
+const WEB_MEASUREMENT_CONSENT_STORAGE_KEY = "shiftori_web_measurement_consent_v1";
+
+function isThirdPartyMeasurementRequest(requestUrl: string): boolean {
+  const hostname = new URL(requestUrl).hostname;
+  return (
+    hostname === "googletagmanager.com" ||
+    hostname.endsWith(".googletagmanager.com") ||
+    hostname === "google-analytics.com" ||
+    hostname.endsWith(".google-analytics.com") ||
+    hostname === "clarity.ms" ||
+    hostname.endsWith(".clarity.ms")
+  );
+}
 
 function getHead(html: string): string {
   return html.match(/<head\b[^>]*>([\s\S]*?)<\/head>/i)?.[1] ?? "";
@@ -38,7 +51,7 @@ async function expectNeutralShell(response: APIResponse, path: string): Promise<
 }
 
 test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deployed"] }, () => {
-  test("代表公開route、shell、404をHTTPで確認する", async ({ baseURL, request }) => {
+  test("[DEPLOY-SMOKE-HTTP-01] 代表公開route、shell、404をHTTPで確認する", async ({ baseURL, request }) => {
     if (!baseURL) throw new Error("Deployed Smoke requires a configured baseURL.");
 
     for (const route of ["/", "/features"] as const) {
@@ -90,12 +103,16 @@ test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deploye
     }
   });
 
-  test("代表公開ページをブラウザで起動する", async ({ baseURL, page }) => {
+  test("[DEPLOY-SMOKE-BROWSER-01] 代表公開ページをブラウザで起動する", async ({ baseURL, page }) => {
     if (!baseURL) throw new Error("Deployed Smoke requires a configured baseURL.");
     const expectedOrigin = new URL(baseURL).origin;
     const runtimeErrors: string[] = [];
+    const thirdPartyMeasurementRequests: string[] = [];
 
     page.on("pageerror", (error) => runtimeErrors.push(error.message));
+    page.on("request", (request) => {
+      if (isThirdPartyMeasurementRequest(request.url())) thirdPartyMeasurementRequests.push(request.url());
+    });
     page.on("console", (message) => {
       if (message.type() === "error" && /hydrat|server rendered|validateDOMNesting/i.test(message.text())) {
         runtimeErrors.push(message.text());
@@ -109,6 +126,29 @@ test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deploye
     await expect(page.getByRole("link", { name: /登録不要でデモを見る/ }).first()).toBeVisible();
     await expectAppHydrated(page);
 
+    expect(thirdPartyMeasurementRequests).toEqual([]);
+
+    await page.evaluate(() => {
+      (window as typeof window & { measurementBoundaryProbe?: string }).measurementBoundaryProbe = "present";
+    });
+    await page.getByRole("link", { name: "ログイン" }).click();
+    await expect(page).toHaveURL((url) => url.origin === expectedOrigin && url.pathname === "/login");
+    expect(
+      await page.evaluate(
+        () => (window as typeof window & { measurementBoundaryProbe?: string }).measurementBoundaryProbe,
+      ),
+    ).toBeUndefined();
+
+    await page.addInitScript((storageKey) => {
+      window.localStorage.setItem(storageKey, "granted");
+    }, WEB_MEASUREMENT_CONSENT_STORAGE_KEY);
+    await page.goto("/manager-invite?token=preview-dummy");
+    await expect(page).toHaveURL(
+      (url) => url.origin === expectedOrigin && url.pathname === "/manager-invite" && url.searchParams.has("token"),
+    );
+    await expectAppHydrated(page);
+
+    expect(thirdPartyMeasurementRequests).toEqual([]);
     expect(runtimeErrors).toEqual([]);
   });
 });

@@ -146,6 +146,8 @@ jobs:
           fi
       - name: Build VRT report
         run: pnpm vrt:report
+        env:
+          REGSUIT_REQUIRE_BASELINE: ${{ needs.prepare.outputs.should_fail_on_diff }}
       - name: Assert VRT result
         id: regsuit
         if: ${{ steps.baseline.outputs.found == 'true' }}

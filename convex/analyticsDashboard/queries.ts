@@ -14,6 +14,7 @@ import type {
   AnalyticsSegmentRowDto,
   AnalyticsServiceKpiSnapshotDto,
   AnalyticsShopKpiDto,
+  AnalyticsShopListRowDto,
   AnalyticsShopRowDto,
   AnalyticsTrendMetric,
   AnalyticsTrendPointDto,
@@ -23,6 +24,7 @@ import {
   type AnalyticsReadState,
   type AnalyticsRunRange,
   bucketDate,
+  classifyShopUsage,
   combineCompleteness,
   getAnalyticsReadState,
   getCompleteRunRange,
@@ -40,6 +42,7 @@ import {
   toRateDto,
   toShopKpiDto,
   toShopRowDto,
+  usageMatches,
 } from "./queryHelpers";
 import {
   ANALYTICS_DASHBOARD_MAX_RANGE_DAYS,
@@ -891,6 +894,11 @@ function shopRowMatches(
   return true;
 }
 
+type ShopListRowWithUsageComputedAt = {
+  row: AnalyticsShopListRowDto;
+  usageComputedAt: number | null;
+};
+
 async function shopPage(
   ctx: QueryCtx,
   args: {
@@ -998,14 +1006,16 @@ export const getShops = internalQuery({
       v.literal("needsAttention"),
       v.null(),
     ),
+    usage: v.union(v.literal("candidate"), v.literal("high"), v.literal("possible"), v.literal("unknown"), v.null()),
     completeness: nullableCompletenessArg,
   },
   returns: v.union(shopsResponseValidator, v.null()),
   handler: async (ctx, args) => {
     const state = await getAnalyticsReadState(ctx);
     const range = await getCompleteRunRange(ctx, state, args, { detailRetention: true });
-    const latestRun = range.latestCompleteRun;
-    if (state.availability === "unavailable" || !latestRun) {
+    const displayRun = range.latestCompleteRun;
+    const usageRun = state.latestCompleteRun;
+    if (state.availability === "unavailable" || !displayRun || !usageRun) {
       return {
         kind: "shops" as const,
         metadata: responseMetadata({
@@ -1039,17 +1049,33 @@ export const getShops = internalQuery({
     );
     const mapped = await Promise.all(
       dimensionRows.map(async (shop) => {
-        const [organization, kpi] = await Promise.all([
+        const displayKpiPromise = getLatestShopKpi(ctx, displayRun, shop.shopId);
+        const usageKpiPromise =
+          displayRun._id === usageRun._id ? displayKpiPromise : getLatestShopKpi(ctx, usageRun, shop.shopId);
+        const [organization, displayKpiDoc, usageKpiDoc] = await Promise.all([
           getOrganization(shop.organizationId),
-          getLatestShopKpi(ctx, latestRun, shop.shopId),
+          displayKpiPromise,
+          usageKpiPromise,
         ]);
         if (!organization || organization.deletedAt !== undefined) return null;
-        return toShopRowDto(shop, organization.displayName, kpi ? toShopKpiDto(kpi) : null);
+        const displayKpis = displayKpiDoc ? toShopKpiDto(displayKpiDoc) : null;
+        const usageKpis =
+          displayRun._id === usageRun._id ? displayKpis : usageKpiDoc ? toShopKpiDto(usageKpiDoc) : null;
+        const row: AnalyticsShopListRowDto = {
+          ...toShopRowDto(shop, organization.displayName, displayKpis),
+          ...classifyShopUsage({
+            cutoffAt: usageRun.cutoffAt,
+            latestActivityAt: shop.latestActivityAt ?? null,
+            kpis: usageKpis,
+          }),
+        };
+        return { row, usageComputedAt: usageKpis?.computedAt ?? null } satisfies ShopListRowWithUsageComputedAt;
       }),
     );
-    const rows = mapped
-      .filter((row): row is AnalyticsShopRowDto => row !== null)
-      .filter((row) => shopRowMatches(row, args));
+    const matched = mapped
+      .filter((item): item is ShopListRowWithUsageComputedAt => item !== null)
+      .filter((item) => shopRowMatches(item.row, args) && usageMatches(item.row.usageLikelihood, args.usage));
+    const rows = matched.map((item) => item.row);
     const filteredInMemory =
       (args.sort !== "currentPlan" && args.plan !== null) ||
       args.cohort !== null ||
@@ -1057,13 +1083,19 @@ export const getShops = internalQuery({
       args.cadence !== null ||
       args.lineUsage !== null ||
       args.health !== null ||
+      args.usage !== null ||
       args.completeness !== null ||
-      mapped.some((row) => row === null);
+      mapped.some((item) => item === null);
     return {
       kind: "shops" as const,
       metadata: responseMetadata({
         state,
-        computedAt: maxComputedAt(rows),
+        computedAt: maxOrNull(
+          matched.flatMap((item) => [
+            ...(item.row.kpis ? [item.row.kpis.computedAt] : []),
+            ...(item.usageComputedAt === null ? [] : [item.usageComputedAt]),
+          ]),
+        ),
         pageInfo: pageInfo({
           cursor: args.cursor,
           continueCursor: page.continueCursor,

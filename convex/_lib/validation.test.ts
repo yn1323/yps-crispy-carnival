@@ -4,6 +4,7 @@ import {
   getInclusiveIsoDateSpanDays,
   isoDateStringSchema,
   isValidIsoDateString,
+  normalizeEmail,
   requiredDisplayTextSchema,
   requiredEmailSchema,
   supportedShiftTimeSchema,
@@ -27,6 +28,12 @@ describe("requiredDisplayTextSchema", () => {
     const result = schema.safeParse("山田\n太郎");
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.issues[0].message).toBe("名前に使用できない文字が含まれています");
+  });
+});
+
+describe("normalizeEmail", () => {
+  it("前後空白を除き、英字の大小文字を小文字へ統一する", () => {
+    expect(normalizeEmail("  USER@Example.COM  ")).toBe("user@example.com");
   });
 });
 

@@ -24,6 +24,7 @@ import {
   emailVerificationCooldownScope,
   type LoginMethodOperationCooldown,
 } from "./operationCooldown";
+import { reloadActorUser } from "./reloadActorUser";
 import type { LoginMethodOperationOptions } from "./reverificationTypes";
 
 export type EmailPasswordMigrationState = {
@@ -118,8 +119,12 @@ export function useEmailPasswordMigrationController({
     let cancelled = false;
     const activatingUserId = currentUser.id;
     setState(loadingState());
-    void currentUser
-      .reload()
+    void reloadActorUser({
+      isLoaded,
+      user: currentUser,
+      actorUserId: activatingUserId,
+      getCurrentActorId,
+    })
       .then(() => {
         const latestUser = userRef.current;
         if (!cancelled && getCurrentActorId() === activatingUserId && latestUser?.id === activatingUserId) {
@@ -136,14 +141,7 @@ export function useEmailPasswordMigrationController({
     };
   }, [active, actorUserId, getCurrentActorId, isLoaded]);
 
-  const reloadUser = async () => {
-    if (!isLoaded || !user || !actorUserId || user.id !== actorUserId || getCurrentActorId() !== actorUserId) {
-      throw new Error("Unauthenticated");
-    }
-    await user.reload();
-    if (user.id !== actorUserId || getCurrentActorId() !== actorUserId) throw new Error("Unauthenticated");
-    return user;
-  };
+  const reloadUser = () => reloadActorUser({ isLoaded, user, actorUserId, getCurrentActorId });
 
   const ensureEmailAddressWithReverification = useReverification(
     async ({ normalizedEmail, plan }: { normalizedEmail: string; plan: EmailPasswordMigrationPlan }) => {

@@ -1,21 +1,22 @@
-import { Stack } from "@chakra-ui/react";
-import { ContentWrapper } from "@/src/components/templates/ContentWrapper";
+import { type ComponentProps, memo, useCallback, useLayoutEffect, useMemo, useState } from "react";
 import { DashboardAnnouncement } from "../DashboardAnnouncement";
-import { DashboardOnboarding } from "../DashboardOnboarding";
-import { HeroSummary, HeroSummarySkeleton } from "../HeroSummary";
-import { LegalReconsent } from "../LegalReconsent";
 import type { DashboardNotificationFailure } from "../NotificationFailureDialog";
-import { NotificationFailureRecovery } from "../NotificationFailureRecovery";
-import { OperationContext, type OperationContextData, OperationContextSkeleton } from "../OperationContext";
+import { NotificationFailureRecovery, type NotificationFailureRecoveryState } from "../NotificationFailureRecovery";
+import type { OperationContextData } from "../OperationContext";
 import type { PlanStatusCardProps } from "../PlanStatusCard";
-import { RecruitmentBoardSkeleton } from "../RecruitmentBoard";
-import { RecruitmentManagement, type RecruitmentManagementData } from "../RecruitmentManagement";
+import {
+  RecruitmentManagement,
+  type RecruitmentManagementData,
+  type RecruitmentManagementState,
+} from "../RecruitmentManagement";
 import { Setup } from "../Setup";
 import type { ShopSettingsData } from "../ShopSettings";
-import { StaffManagement, type StaffManagementData } from "../StaffManagement";
-import { StaffRegistrationRequestManagement } from "../StaffRegistrationRequestManagement";
-import { StaffRosterSkeleton } from "../StaffRoster";
-import { TrialEndingCallout, type TrialEndingNoticeData } from "../TrialEndingCallout";
+import { StaffManagement, type StaffManagementData, type StaffManagementState } from "../StaffManagement";
+import {
+  StaffRegistrationRequestManagement,
+  type StaffRegistrationRequestManagementState,
+} from "../StaffRegistrationRequestManagement";
+import type { TrialEndingNoticeData } from "../TrialEndingCallout";
 import type {
   DashboardAnnouncement as DashboardAnnouncementData,
   DashboardRecruitmentGroup,
@@ -24,6 +25,22 @@ import type {
   Staff,
   StaffRegistrationRequest,
 } from "../types";
+import { DashboardContentView } from "./DashboardContentView";
+import { DashboardQueryStageBoundary } from "./DashboardQueryStageBoundary";
+import { type DashboardQueryStage, resolveDashboardQueryStage, unavailableDashboardQueryStage } from "./queryStage";
+
+export { DashboardContentSkeleton, DashboardContentView } from "./DashboardContentView";
+
+const EMPTY_RECRUITMENTS: Recruitment[] = [];
+const EMPTY_STAFFS: Staff[] = [];
+const EMPTY_STAFF_REGISTRATION_REQUESTS: StaffRegistrationRequest[] = [];
+const EMPTY_NOTIFICATION_FAILURES: DashboardNotificationFailure[] = [];
+const LOADING_DASHBOARD_QUERY_STAGE = { status: "loading" } as const;
+
+type DashboardQueryStageSnapshot<T> = {
+  sourceIdentity: string;
+  stage: DashboardQueryStage<T>;
+};
 
 type Props = {
   shop: ShopSettingsData | null;
@@ -104,28 +121,93 @@ export const DashboardContent = ({
 }: Props) => {
   // Storyはqueryに依存せず募集・スタッフの代表状態を固定する。本番の募集・スタッフは各子featureが購読する。
   const usesInjectedData = recruitments !== undefined || staffs !== undefined;
-  const recruitmentData: RecruitmentManagementData | undefined = usesInjectedData
-    ? {
-        recruitments: recruitments ?? [],
-        recruitmentList,
-        groups: recruitmentGroups,
-        currentRecruitments,
-        hasPastRecruitments,
-        isPastRecruitmentsVisible,
-        pastStatus: pastRecruitmentStatus,
-        canLoadMorePastRecruitments,
-        onShowPastRecruitments: showPastRecruitments,
-        onLoadMorePastRecruitments: loadMorePastRecruitments,
-      }
-    : undefined;
-  const staffData: StaffManagementData | undefined = usesInjectedData
-    ? {
-        staffs: staffs ?? [],
-        status: staffStatus,
-        canLoadMore: canLoadMoreStaffs,
-        onLoadMore: loadMoreStaffs,
-      }
-    : undefined;
+  const recruitmentData = useMemo<RecruitmentManagementData | undefined>(
+    () =>
+      usesInjectedData
+        ? {
+            recruitments: recruitments ?? EMPTY_RECRUITMENTS,
+            recruitmentList,
+            groups: recruitmentGroups,
+            currentRecruitments,
+            hasPastRecruitments,
+            isPastRecruitmentsVisible,
+            pastStatus: pastRecruitmentStatus,
+            canLoadMorePastRecruitments,
+            onShowPastRecruitments: showPastRecruitments,
+            onLoadMorePastRecruitments: loadMorePastRecruitments,
+          }
+        : undefined,
+    [
+      canLoadMorePastRecruitments,
+      currentRecruitments,
+      hasPastRecruitments,
+      isPastRecruitmentsVisible,
+      loadMorePastRecruitments,
+      pastRecruitmentStatus,
+      recruitmentGroups,
+      recruitmentList,
+      recruitments,
+      showPastRecruitments,
+      usesInjectedData,
+    ],
+  );
+  const staffData = useMemo<StaffManagementData | undefined>(
+    () =>
+      usesInjectedData
+        ? {
+            staffs: staffs ?? EMPTY_STAFFS,
+            status: staffStatus,
+            canLoadMore: canLoadMoreStaffs,
+            onLoadMore: loadMoreStaffs,
+          }
+        : undefined,
+    [canLoadMoreStaffs, loadMoreStaffs, staffStatus, staffs, usesInjectedData],
+  );
+
+  const sourceIdentity =
+    operationContextData?.selectedShop.shopId ?? (usesInjectedData ? "injected" : (shop?.name ?? "no-shop"));
+  const [recruitmentSnapshot, setRecruitmentSnapshot] = useState<
+    DashboardQueryStageSnapshot<RecruitmentManagementState> | undefined
+  >();
+  const [staffSnapshot, setStaffSnapshot] = useState<DashboardQueryStageSnapshot<StaffManagementState> | undefined>();
+  const [registrationRequestSnapshot, setRegistrationRequestSnapshot] = useState<
+    DashboardQueryStageSnapshot<StaffRegistrationRequestManagementState> | undefined
+  >();
+  const [notificationFailureSnapshot, setNotificationFailureSnapshot] = useState<
+    DashboardQueryStageSnapshot<NotificationFailureRecoveryState> | undefined
+  >();
+
+  useLayoutEffect(() => {
+    if (shop !== null) return;
+    setRecruitmentSnapshot(undefined);
+    setStaffSnapshot(undefined);
+    setRegistrationRequestSnapshot(undefined);
+    setNotificationFailureSnapshot(undefined);
+  }, [shop]);
+
+  const reportRecruitmentStage = useCallback(
+    (stage: DashboardQueryStage<RecruitmentManagementState>) => setRecruitmentSnapshot({ sourceIdentity, stage }),
+    [sourceIdentity],
+  );
+  const reportStaffStage = useCallback(
+    (stage: DashboardQueryStage<StaffManagementState>) => setStaffSnapshot({ sourceIdentity, stage }),
+    [sourceIdentity],
+  );
+  const reportRegistrationRequestStage = useCallback(
+    (stage: DashboardQueryStage<StaffRegistrationRequestManagementState>) =>
+      setRegistrationRequestSnapshot({ sourceIdentity, stage }),
+    [sourceIdentity],
+  );
+  const reportNotificationFailureStage = useCallback(
+    (stage: DashboardQueryStage<NotificationFailureRecoveryState>) =>
+      setNotificationFailureSnapshot({ sourceIdentity, stage }),
+    [sourceIdentity],
+  );
+
+  const recruitmentStage = getCurrentDashboardQueryStage(recruitmentSnapshot, sourceIdentity);
+  const staffStage = getCurrentDashboardQueryStage(staffSnapshot, sourceIdentity);
+  const registrationRequestStage = getCurrentDashboardQueryStage(registrationRequestSnapshot, sourceIdentity);
+  const notificationFailureStage = getCurrentDashboardQueryStage(notificationFailureSnapshot, sourceIdentity);
 
   return (
     <DashboardAnnouncement announcement={usesInjectedData ? (announcement ?? null) : undefined}>
@@ -141,132 +223,196 @@ export const DashboardContent = ({
         }
 
         return (
-          <RecruitmentManagement
-            regularClosedDays={shop.regularClosedDays}
-            data={recruitmentData}
-            isReadOnly={isReadOnly}
-          >
-            {(recruitment) => (
-              <StaffManagement
-                data={staffData}
-                openRecruitments={recruitment.openRecruitments}
-                currentRecruitments={recruitment.currentRecruitments}
-                isReadOnly={isReadOnly}
-                initialVisibleUserCount={visibleUserCount}
-                focusedPersonId={focusedPersonId}
-                onVisibleUserCountChange={onVisibleUserCountChange}
-              >
-                {(staff) => (
-                  <StaffRegistrationRequestManagement
-                    requests={usesInjectedData ? (pendingStaffRequests ?? []) : undefined}
-                    isReadOnly={isReadOnly}
-                  >
-                    {(registrationRequests) => (
-                      <NotificationFailureRecovery
-                        failures={usesInjectedData ? (notificationFailures ?? []) : undefined}
-                        isReadOnly={isReadOnly}
-                      >
-                        {(notificationFailure) => {
-                          if (recruitment.isInitialLoading) {
-                            return <DashboardContentSkeleton />;
-                          }
-
-                          return (
-                            <DashboardOnboarding
-                              recruitments={recruitment.knownRecruitments}
-                              staffs={staff.staffs}
-                              pendingStaffRequestCount={registrationRequests.requests.length}
-                              isDismissed={isDashboardOnboardingDismissed}
-                              canShow={
-                                !staff.isInitialLoading &&
-                                !registrationRequests.isInitialLoading &&
-                                !isReadOnly &&
-                                managerLegalConsentStatus?.required === false
-                              }
-                            >
-                              {(onboarding) => (
-                                <>
-                                  <ContentWrapper>
-                                    <Stack gap={{ base: 4, lg: 6 }}>
-                                      <Stack gap={{ base: 3, lg: 4 }}>
-                                        <OperationContext
-                                          data={operationContextData}
-                                          planStatusCard={isBillingFeatureVisible ? planStatusCard : null}
-                                          billingSettingsShopId={
-                                            isBillingFeatureVisible ? billingSettingsShopId : undefined
-                                          }
-                                        />
-                                        <LegalReconsent status={managerLegalConsentStatus} />
-                                        {isBillingFeatureVisible &&
-                                        planStatusCard === undefined &&
-                                        billingSettingsShopId ? (
-                                          <TrialEndingCallout
-                                            notice={trialEndingNotice ?? null}
-                                            shopId={billingSettingsShopId}
-                                            isBillingVisible={isBillingFeatureVisible}
-                                          />
-                                        ) : null}
-                                      </Stack>
-                                      <HeroSummary
-                                        recruitments={recruitment.recruitments}
-                                        onOpenShiftBoard={(recruitmentId) =>
-                                          recruitment.openShiftBoard(
-                                            recruitmentId as Recruitment["_id"],
-                                            onboarding.onOpenRecruitment,
-                                          )
-                                        }
-                                        onCreateRecruitment={recruitment.openCreateRecruitment}
-                                        hasNotificationFailures={notificationFailure.failures.length > 0}
-                                        onNotificationFailuresClick={notificationFailure.openNotificationFailures}
-                                        announcementBanner={announcementContent ?? undefined}
-                                        staffRegistrationRequest={
-                                          registrationRequests.requests.length > 0
-                                            ? {
-                                                count: registrationRequests.requests.length,
-                                                onClick: registrationRequests.openStaffRegistrationRequests,
-                                              }
-                                            : undefined
-                                        }
-                                        hideActionSection={
-                                          isReadOnly ||
-                                          (onboarding.isVisible && notificationFailure.failures.length === 0) ||
-                                          !managerLegalConsentStatus
-                                        }
-                                      />
-                                    </Stack>
-                                    {onboarding.content}
-                                    {recruitment.renderContent({
-                                      onBeforeOpenShiftBoard: onboarding.onOpenRecruitment,
-                                    })}
-                                    {staff.content}
-                                  </ContentWrapper>
-                                  {registrationRequests.content}
-                                  {notificationFailure.content}
-                                </>
-                              )}
-                            </DashboardOnboarding>
-                          );
-                        }}
-                      </NotificationFailureRecovery>
-                    )}
-                  </StaffRegistrationRequestManagement>
-                )}
-              </StaffManagement>
-            )}
-          </RecruitmentManagement>
+          <>
+            <RecruitmentQuerySource
+              key={`recruitment:${sourceIdentity}`}
+              onStageChange={reportRecruitmentStage}
+              regularClosedDays={shop.regularClosedDays}
+              data={recruitmentData}
+              isReadOnly={isReadOnly}
+            />
+            <StaffQuerySource
+              key={`staff:${sourceIdentity}`}
+              onStageChange={reportStaffStage}
+              data={staffData}
+              openRecruitments={
+                recruitmentStage.status === "ready" ? recruitmentStage.data.openRecruitments : EMPTY_RECRUITMENTS
+              }
+              currentRecruitments={
+                recruitmentStage.status === "ready" ? recruitmentStage.data.currentRecruitments : EMPTY_RECRUITMENTS
+              }
+              recruitmentDataStatus={recruitmentStage.status}
+              isReadOnly={isReadOnly}
+              initialVisibleUserCount={visibleUserCount}
+              focusedPersonId={focusedPersonId}
+              onVisibleUserCountChange={onVisibleUserCountChange}
+            />
+            <RegistrationRequestQuerySource
+              key={`registration-requests:${sourceIdentity}`}
+              onStageChange={reportRegistrationRequestStage}
+              requests={usesInjectedData ? (pendingStaffRequests ?? EMPTY_STAFF_REGISTRATION_REQUESTS) : undefined}
+              isReadOnly={isReadOnly}
+            />
+            <NotificationFailureQuerySource
+              key={`notification-failures:${sourceIdentity}`}
+              onStageChange={reportNotificationFailureStage}
+              failures={usesInjectedData ? (notificationFailures ?? EMPTY_NOTIFICATION_FAILURES) : undefined}
+              isReadOnly={isReadOnly}
+            />
+            <DashboardContentView
+              isReadOnly={isReadOnly}
+              managerLegalConsentStatus={managerLegalConsentStatus}
+              isDashboardOnboardingDismissed={isDashboardOnboardingDismissed}
+              announcementContent={announcementContent ?? undefined}
+              operationContextData={operationContextData}
+              planStatusCard={planStatusCard}
+              trialEndingNotice={trialEndingNotice}
+              billingSettingsShopId={billingSettingsShopId}
+              isBillingFeatureVisible={isBillingFeatureVisible}
+              recruitment={recruitmentStage}
+              staff={staffStage}
+              registrationRequests={registrationRequestStage}
+              notificationFailures={notificationFailureStage}
+            />
+          </>
         );
       }}
     </DashboardAnnouncement>
   );
 };
 
-export const DashboardContentSkeleton = () => (
-  <ContentWrapper>
-    <Stack gap={{ base: 4, lg: 6 }}>
-      <OperationContextSkeleton />
-      <HeroSummarySkeleton />
-    </Stack>
-    <RecruitmentBoardSkeleton />
-    <StaffRosterSkeleton />
-  </ContentWrapper>
-);
+function getCurrentDashboardQueryStage<T>(
+  snapshot: DashboardQueryStageSnapshot<T> | undefined,
+  sourceIdentity: string,
+): DashboardQueryStage<T> {
+  return snapshot?.sourceIdentity === sourceIdentity ? snapshot.stage : LOADING_DASHBOARD_QUERY_STAGE;
+}
+
+type DashboardQueryStageReporterProps<T> = {
+  stage: DashboardQueryStage<T>;
+  onStageChange: (stage: DashboardQueryStage<T>) => void;
+};
+
+function DashboardQueryStageReporter<T>({ stage, onStageChange }: DashboardQueryStageReporterProps<T>) {
+  useLayoutEffect(() => {
+    onStageChange(stage);
+  }, [onStageChange, stage]);
+
+  return null;
+}
+
+type RecruitmentQuerySourceProps = Omit<ComponentProps<typeof RecruitmentManagement>, "children"> & {
+  onStageChange: (stage: DashboardQueryStage<RecruitmentManagementState>) => void;
+};
+
+const RecruitmentQuerySource = memo(function RecruitmentQuerySource({
+  onStageChange,
+  ...props
+}: RecruitmentQuerySourceProps) {
+  return (
+    <DashboardQueryStageBoundary
+      fallback={({ onRetry }) => (
+        <DashboardQueryStageReporter
+          stage={unavailableDashboardQueryStage<RecruitmentManagementState>(onRetry)}
+          onStageChange={onStageChange}
+        />
+      )}
+    >
+      <RecruitmentManagement {...props}>
+        {(state) => (
+          <DashboardQueryStageReporter
+            stage={resolveDashboardQueryStage(state.isInitialLoading, state)}
+            onStageChange={onStageChange}
+          />
+        )}
+      </RecruitmentManagement>
+    </DashboardQueryStageBoundary>
+  );
+});
+
+type StaffQuerySourceProps = Omit<ComponentProps<typeof StaffManagement>, "children"> & {
+  onStageChange: (stage: DashboardQueryStage<StaffManagementState>) => void;
+};
+
+const StaffQuerySource = memo(function StaffQuerySource({ onStageChange, ...props }: StaffQuerySourceProps) {
+  return (
+    <DashboardQueryStageBoundary
+      fallback={({ onRetry }) => (
+        <DashboardQueryStageReporter
+          stage={unavailableDashboardQueryStage<StaffManagementState>(onRetry)}
+          onStageChange={onStageChange}
+        />
+      )}
+    >
+      <StaffManagement {...props}>
+        {(state) => (
+          <DashboardQueryStageReporter
+            stage={resolveDashboardQueryStage(state.isInitialLoading, state)}
+            onStageChange={onStageChange}
+          />
+        )}
+      </StaffManagement>
+    </DashboardQueryStageBoundary>
+  );
+});
+
+type RegistrationRequestQuerySourceProps = Omit<
+  ComponentProps<typeof StaffRegistrationRequestManagement>,
+  "children"
+> & {
+  onStageChange: (stage: DashboardQueryStage<StaffRegistrationRequestManagementState>) => void;
+};
+
+const RegistrationRequestQuerySource = memo(function RegistrationRequestQuerySource({
+  onStageChange,
+  ...props
+}: RegistrationRequestQuerySourceProps) {
+  return (
+    <DashboardQueryStageBoundary
+      fallback={({ onRetry }) => (
+        <DashboardQueryStageReporter
+          stage={unavailableDashboardQueryStage<StaffRegistrationRequestManagementState>(onRetry)}
+          onStageChange={onStageChange}
+        />
+      )}
+    >
+      <StaffRegistrationRequestManagement {...props}>
+        {(state) => (
+          <DashboardQueryStageReporter
+            stage={resolveDashboardQueryStage(state.isInitialLoading, state)}
+            onStageChange={onStageChange}
+          />
+        )}
+      </StaffRegistrationRequestManagement>
+    </DashboardQueryStageBoundary>
+  );
+});
+
+type NotificationFailureQuerySourceProps = Omit<ComponentProps<typeof NotificationFailureRecovery>, "children"> & {
+  onStageChange: (stage: DashboardQueryStage<NotificationFailureRecoveryState>) => void;
+};
+
+const NotificationFailureQuerySource = memo(function NotificationFailureQuerySource({
+  onStageChange,
+  ...props
+}: NotificationFailureQuerySourceProps) {
+  return (
+    <DashboardQueryStageBoundary
+      fallback={({ onRetry }) => (
+        <DashboardQueryStageReporter
+          stage={unavailableDashboardQueryStage<NotificationFailureRecoveryState>(onRetry)}
+          onStageChange={onStageChange}
+        />
+      )}
+    >
+      <NotificationFailureRecovery {...props}>
+        {(state) => (
+          <DashboardQueryStageReporter
+            stage={resolveDashboardQueryStage(state.isInitialLoading, state)}
+            onStageChange={onStageChange}
+          />
+        )}
+      </NotificationFailureRecovery>
+    </DashboardQueryStageBoundary>
+  );
+});

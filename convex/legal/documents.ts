@@ -18,6 +18,13 @@ export type LegalDocumentInfo = {
   path: string;
 };
 
+export type LegalDocumentLink = Pick<
+  LegalDocumentInfo,
+  "title" | "documentVersion" | "requiredConsentVersion" | "path"
+>;
+
+export type LegalDocumentLinks = Record<LegalDocumentKind, LegalDocumentLink>;
+
 export const LEGAL_DOCUMENTS = {
   manager: {
     terms: {

@@ -8,6 +8,7 @@ import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { todayJST } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
 import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
+import { sha256Hex } from "../_lib/sha256";
 import { normalizeEmail } from "../_lib/validation";
 import { recordAnalyticsSourceEvent } from "../analytics/sourceEvents";
 import {
@@ -40,7 +41,6 @@ import {
   ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT,
   organizationShopOperatingStatus,
   STALE_SHOP_MEMBERSHIP_CHANGE_ERROR,
-  sha256Hex,
   sortShopIds,
 } from "../organization/shopMembershipChange";
 import { requireOrganizationCapacity } from "../organizationBilling/service";

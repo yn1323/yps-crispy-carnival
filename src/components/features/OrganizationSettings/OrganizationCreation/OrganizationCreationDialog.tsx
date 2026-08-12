@@ -1,7 +1,10 @@
 import { Box, Stack, Text } from "@chakra-ui/react";
+import { ORGANIZATION_PLAN_LIMITS } from "@/convex/organizationBilling/planLimits";
 import { ShopForm, type ShopFormData } from "@/src/components/features/ShopForm";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
 import type { OrganizationCreationDialogState } from "./types";
+
+const FREE_PLAN_LIMITS = ORGANIZATION_PLAN_LIMITS.free;
 
 const CREATE_ORGANIZATION_DEFAULT_VALUES: ShopFormData = {
   shopName: "",
@@ -35,7 +38,8 @@ export function OrganizationCreationDialog({ dialog, isRunning, onClose, onSubmi
           <Text fontSize="sm" color="blue.900" lineHeight="tall">
             新しい組織は無料プランで始まります。
             <br />
-            ユーザー5名、店舗1件、管理者1名まで利用できます。
+            ユーザー{FREE_PLAN_LIMITS.maxPeople}名、店舗{FREE_PLAN_LIMITS.maxActiveShops}件、管理者
+            {FREE_PLAN_LIMITS.maxActiveManagers}名まで利用できます。
             <br />
             上限を増やす場合は、作成後に「プランと支払い」から変更してください。
           </Text>

@@ -42,8 +42,38 @@ export class StaffSubmitPage {
   }
 
   async expectCompletionVisible() {
-    await expect(this.page).toHaveURL(/\/shifts\/submit\/completed(?:\?.*)?$/);
+    await expect(this.page).toHaveURL((url) => {
+      return (
+        url.pathname === "/shifts/submit/completed" &&
+        Boolean(url.searchParams.get("recruitmentId")) &&
+        !url.searchParams.has("shopName")
+      );
+    });
     await expect(this.page.getByText("提出が完了しました")).toBeVisible();
+  }
+
+  async gotoCompletionDirectly() {
+    await this.page.goto("/shifts/submit/completed", { waitUntil: "domcontentloaded" });
+    await expectAppHydrated(this.page);
+  }
+
+  async expectCompletionUnavailable() {
+    await expect(this.page).toHaveURL((url) => url.pathname === "/shifts/submit/completed");
+    await expect(this.page.getByRole("heading", { name: "提出完了を確認できません" })).toBeVisible();
+    await expect(this.page.getByRole("heading", { name: "提出が完了しました" })).toHaveCount(0);
+  }
+
+  async expectCompletionPersistsAcrossReloadAndHistory() {
+    await this.page.reload({ waitUntil: "domcontentloaded" });
+    await expectAppHydrated(this.page);
+    await this.expectCompletionVisible();
+
+    await this.page.goBack();
+    await expect(this.page).toHaveURL((url) => url.pathname === "/shifts/submit");
+
+    await this.page.goForward();
+    await expectAppHydrated(this.page);
+    await this.expectCompletionVisible();
   }
 
   private submitButton() {

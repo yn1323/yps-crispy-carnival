@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { getWeekdayLabel } from "@/src/domains/shift/date";
 import { DateIssueBadge, dateIssueBorderColor } from "../../components";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
+import { getShiftWeekdayColor } from "../../weekdayPresentation";
 
 type Props = {
   dates: string[];
@@ -12,13 +13,6 @@ type Props = {
   holidays?: string[];
   issueCounts?: ReadonlyMap<string, number>;
   warningCounts?: ReadonlyMap<string, number>;
-};
-
-const dayColor = (dateStr: string): string => {
-  const day = dayjs(dateStr).day();
-  if (day === 0) return "#ef4444";
-  if (day === 6) return "#3b82f6";
-  return "#3f3f46";
 };
 
 export const DateRail = ({ dates, selectedDate, onSelect, holidays = [], issueCounts, warningCounts }: Props) => {
@@ -81,7 +75,11 @@ export const DateRail = ({ dates, selectedDate, onSelect, holidays = [], issueCo
                 >
                   {d.date()}
                 </Box>
-                <Box textStyle="caption" fontWeight={600} style={{ color: active ? "white" : dayColor(iso) }}>
+                <Box
+                  textStyle="caption"
+                  fontWeight={600}
+                  style={{ color: active ? "white" : getShiftWeekdayColor(iso) }}
+                >
                   ({getWeekdayLabel(iso)})
                 </Box>
               </Flex>

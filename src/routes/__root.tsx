@@ -1,7 +1,7 @@
-import { createRootRoute, HeadContent, Outlet, Scripts, useRouterState } from "@tanstack/react-router";
+import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { type ReactNode, useEffect } from "react";
+import { WebMeasurementConsent } from "@/src/components/features/WebMeasurementConsent";
 import { Toaster } from "@/src/components/ui/toaster";
-import { sendPageView } from "@/src/lib/gtm";
 import { buildMeta, jsonLdMeta } from "@/src/lib/seo";
 import { ChakraProvider } from "@/src/providers/ChakraProvider";
 
@@ -39,16 +39,6 @@ const webSiteJsonLd = {
   name: "シフトリ",
   url: "https://shiftori.app",
   inLanguage: "ja-JP",
-};
-
-const PageViewTracker = () => {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-
-  useEffect(() => {
-    sendPageView(pathname);
-  }, [pathname]);
-
-  return null;
 };
 
 const HydrationReadyMarker = () => {
@@ -104,9 +94,9 @@ function RootComponent() {
   return (
     <RootDocument>
       <ChakraProvider>
-        <PageViewTracker />
         <HydrationReadyMarker />
         <Outlet />
+        <WebMeasurementConsent />
         <Toaster />
       </ChakraProvider>
     </RootDocument>

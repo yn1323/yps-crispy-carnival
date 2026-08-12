@@ -5,26 +5,13 @@ import { authenticatedQuery } from "../_lib/functions";
 import { getStaffLineAccount } from "../line/service";
 import { getLegalDocumentsForAudience } from "./documents";
 import { hasCurrentStaffLegalConsent, hasCurrentUserLegalConsent } from "./service";
-
-const legalDocumentValidator = v.object({
-  audience: v.union(v.literal("manager"), v.literal("staff")),
-  kind: v.union(v.literal("terms"), v.literal("privacy")),
-  title: v.string(),
-  documentVersion: v.string(),
-  requiredConsentVersion: v.string(),
-  path: v.string(),
-});
-
-const legalDocumentsValidator = v.object({
-  terms: legalDocumentValidator,
-  privacy: legalDocumentValidator,
-});
+import { managerLegalDocumentsValidator, staffLegalDocumentsValidator } from "./validators";
 
 export const getManagerConsentStatus = authenticatedQuery({
   args: {},
   returns: v.object({
     required: v.boolean(),
-    documents: legalDocumentsValidator,
+    documents: managerLegalDocumentsValidator,
   }),
   handler: async (ctx) => {
     const documents = getLegalDocumentsForAudience("manager");
@@ -45,19 +32,19 @@ export const getManagerConsentStatus = authenticatedQuery({
 export const getStaffConsentPageData = query({
   args: { token: v.string() },
   returns: v.union(
-    v.object({ status: v.literal("expired"), documents: legalDocumentsValidator }),
+    v.object({ status: v.literal("expired"), documents: staffLegalDocumentsValidator }),
     v.object({
       status: v.literal("accepted"),
       staffName: v.string(),
       shopName: v.string(),
-      documents: legalDocumentsValidator,
+      documents: staffLegalDocumentsValidator,
     }),
     v.object({
       status: v.literal("ok"),
       staffName: v.string(),
       shopName: v.string(),
       expiresAt: v.number(),
-      documents: legalDocumentsValidator,
+      documents: staffLegalDocumentsValidator,
     }),
   ),
   handler: async (ctx, { token }) => {

@@ -1,9 +1,10 @@
-import { buildWeeklyGrid, formatDateShort, getWeekdayLabel, isSaturday, isSunday } from "@/src/domains/shift/date";
+import { buildWeeklyGrid, formatDateShort, getWeekdayLabel } from "@/src/domains/shift/date";
 import { sortDailyStaffsByDate } from "@/src/domains/shift/sortStaffs";
 import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import { getShiftWeekdayTone, type ShiftWeekdayTone } from "../../weekdayPresentation";
 
-export type OverviewWeekdayTone = "weekday" | "saturday" | "sunday" | "muted";
+export type OverviewWeekdayTone = ShiftWeekdayTone;
 
 export type OverviewStaffRowViewModel = {
   key: string;
@@ -36,13 +37,6 @@ export type OverviewWeekViewModel = {
 
 export type OverviewViewModel = {
   weeks: OverviewWeekViewModel[];
-};
-
-const getWeekdayTone = (iso: string, inRange: boolean): OverviewWeekdayTone => {
-  if (!inRange) return "muted";
-  if (isSunday(iso)) return "sunday";
-  if (isSaturday(iso)) return "saturday";
-  return "weekday";
 };
 
 const getAssignedRange = (shift: ShiftData): [string, string] | null => {
@@ -115,7 +109,7 @@ export const buildOverviewViewModel = ({
             dateLabel: formatDateShort(date.iso),
             weekdayLabel: getWeekdayLabel(date.iso),
             dateTone: date.inRange ? "default" : "muted",
-            weekdayTone: getWeekdayTone(date.iso, date.inRange),
+            weekdayTone: getShiftWeekdayTone(date.iso, date.inRange),
             surfaceTone: isClosed || !date.inRange ? "muted" : "default",
             closedLabel: isClosed ? "定休日" : null,
             statusLabel,

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { LuBell, LuCalendarCheck, LuCalendarClock, LuSend } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { formatDateShort } from "@/src/domains/shift/date";
+import { getRecruitmentDeadlineDays, getRecruitmentLifecycleStatus } from "@/src/domains/shift/recruitmentLifecycle";
 import type { UserShopDetailData, UserShopDetailMembership, UserShopDetailRecruitment } from "./types";
 
 type NotificationAction = {
@@ -161,14 +162,15 @@ function NotificationSection({
 
 function RecruitmentNotificationCard({ recruitment }: { recruitment: UserShopDetailRecruitment }) {
   const today = dayjs().format("YYYY-MM-DD");
-  const isActionRequired = recruitment.status === "open" && recruitment.deadline < today;
-  const isCurrent =
-    recruitment.status === "confirmed" && recruitment.periodStart <= today && today <= recruitment.periodEnd;
-  const colorPalette = isActionRequired ? "orange" : recruitment.status === "open" ? "green" : "blue";
-  const accent = isActionRequired ? "orange.400" : recruitment.status === "open" ? "green.400" : "blue.400";
+  const lifecycleStatus = getRecruitmentLifecycleStatus(recruitment, today);
+  const isActionRequired = lifecycleStatus === "action-required" || lifecycleStatus === "ended-unconfirmed";
+  const isCollecting = lifecycleStatus === "collecting";
+  const isCurrent = lifecycleStatus === "current";
+  const colorPalette = isActionRequired ? "orange" : isCollecting ? "green" : "blue";
+  const accent = isActionRequired ? "orange.400" : isCollecting ? "green.400" : "blue.400";
   const borderColor = isActionRequired ? "orange.200" : isCurrent ? "blue.200" : "blackAlpha.50";
   const bg = isActionRequired ? "orange.50/30" : isCurrent ? "blue.50/30" : "white";
-  const deadlineLabel = getRecruitmentMetaLabel(recruitment, today);
+  const deadlineLabel = getRecruitmentMetaLabel(recruitment, today, lifecycleStatus);
 
   return (
     <Flex
@@ -207,7 +209,7 @@ function RecruitmentNotificationCard({ recruitment }: { recruitment: UserShopDet
         >
           <HStack gap={2} flexShrink={0} wrap="wrap">
             <Badge colorPalette={colorPalette} variant="subtle" borderRadius="full" px={2.5} fontSize="xs">
-              {isActionRequired ? "要シフト調整" : recruitment.status === "open" ? "募集中" : "確定済み"}
+              {isActionRequired ? "要シフト調整" : isCollecting ? "募集中" : "確定済み"}
             </Badge>
             {isCurrent && (
               <Badge colorPalette="blue" variant="solid" borderRadius="full" px={2.5} fontSize="xs">
@@ -242,15 +244,19 @@ function RecruitmentNotificationCard({ recruitment }: { recruitment: UserShopDet
   );
 }
 
-function getRecruitmentMetaLabel(recruitment: UserShopDetailRecruitment, today: string) {
-  if (recruitment.status === "confirmed") {
+function getRecruitmentMetaLabel(
+  recruitment: UserShopDetailRecruitment,
+  today: string,
+  lifecycleStatus: ReturnType<typeof getRecruitmentLifecycleStatus>,
+) {
+  if (lifecycleStatus === "current" || lifecycleStatus === "confirmed" || lifecycleStatus === "ended") {
     return recruitment.confirmedAt
       ? `確定 ${formatDateShort(dayjs(recruitment.confirmedAt).format("YYYY-MM-DD"))}`
       : "確定済み";
   }
   if (recruitment.deadline < today) return `${formatDateShort(recruitment.deadline)} 締切済み`;
 
-  const days = dayjs(recruitment.deadline).startOf("day").diff(dayjs().startOf("day"), "day");
+  const days = getRecruitmentDeadlineDays(recruitment.deadline, today);
   return days === 0 ? "今日が締切！" : `締切まで${days}日`;
 }
 

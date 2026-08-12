@@ -1,4 +1,4 @@
-type BoundedJsonBodyError = "unsupported_media_type" | "body_too_large" | "invalid_body";
+export type BoundedJsonBodyError = "unsupported_media_type" | "body_too_large" | "invalid_body";
 
 export type BoundedJsonBodyResult = { ok: true; rawBody: string } | { ok: false; error: BoundedJsonBodyError };
 
@@ -53,6 +53,12 @@ export async function readBoundedJsonBody(request: Request, maxBytes: number): P
   } catch {
     return { ok: false, error: "invalid_body" };
   }
+}
+
+export function boundedJsonBodyErrorResponse(error: BoundedJsonBodyError): Response {
+  if (error === "unsupported_media_type") return new Response("Unsupported media type", { status: 415 });
+  if (error === "body_too_large") return new Response("Request body too large", { status: 413 });
+  return new Response("Invalid request body", { status: 400 });
 }
 
 function hasJsonContentType(contentType: string | null): boolean {

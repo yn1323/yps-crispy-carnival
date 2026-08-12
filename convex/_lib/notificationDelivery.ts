@@ -1,3 +1,5 @@
+import { normalizeEmail } from "./validation";
+
 const SUPPRESSED_DELIVERY_MODES = new Set(["dry-run", "disabled", "mock"]);
 
 type SuppressionOptions = {
@@ -21,7 +23,7 @@ export function isNotificationDeliverySuppressed(options: SuppressionOptions = {
  * 完全一致ではなく部分一致で運用側の allowlist に寄せる。
  */
 export function isDryRunManagerEmail(managerEmail: string | undefined | null): boolean {
-  const normalizedManagerEmail = managerEmail?.trim().toLowerCase();
+  const normalizedManagerEmail = managerEmail ? normalizeEmail(managerEmail) : undefined;
   if (!normalizedManagerEmail) return false;
 
   return (process.env.NOTIFICATION_DRY_RUN_USER_EMAILS ?? "")

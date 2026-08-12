@@ -2,6 +2,7 @@ import type { BoxProps, ContainerProps, FlexProps, ImageProps, TextProps } from 
 import { Box, Container, Flex, Image, Link, Text } from "@chakra-ui/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
 import { Button } from "@/src/components/ui/Button";
 
 export const HEADER_HEIGHT = { base: "64px", md: "68px" } as const;
@@ -58,7 +59,7 @@ export const Header = (props: HeaderProps = {}) => {
         borderColor={props.borderColor}
         boxShadow={props.boxShadow}
       >
-        <HeaderBrand to="/" ariaLabel="シフトリのトップページへ" showTagline />
+        <HeaderBrand to="/" ariaLabel="シフトリのトップページへ" showTagline reloadDocument />
         <PublicHeaderActions
           showLinks={props.showLinks ?? true}
           showLogin={props.showLogin ?? true}
@@ -142,14 +143,28 @@ type HeaderBrandProps = {
   ariaLabel?: string;
   logoSize?: ImageProps["boxSize"];
   fontSize?: TextProps["fontSize"];
+  reloadDocument?: boolean;
   showTagline?: boolean;
 };
 
-const HeaderBrand = ({ to, ariaLabel, logoSize, fontSize, showTagline = false }: HeaderBrandProps) => (
+const HeaderBrand = ({
+  to,
+  ariaLabel,
+  logoSize,
+  fontSize,
+  reloadDocument = false,
+  showTagline = false,
+}: HeaderBrandProps) => (
   <Link asChild _hover={{ opacity: 0.82, textDecoration: "none" }} flexShrink={0}>
-    <RouterLink to={to} aria-label={ariaLabel}>
-      <HeaderBrandContent logoSize={logoSize} fontSize={fontSize} showTagline={showTagline} />
-    </RouterLink>
+    {reloadDocument ? (
+      <MeasurementBoundaryLink href={to} aria-label={ariaLabel}>
+        <HeaderBrandContent logoSize={logoSize} fontSize={fontSize} showTagline={showTagline} />
+      </MeasurementBoundaryLink>
+    ) : (
+      <RouterLink to={to} aria-label={ariaLabel}>
+        <HeaderBrandContent logoSize={logoSize} fontSize={fontSize} showTagline={showTagline} />
+      </RouterLink>
+    )}
   </Link>
 );
 
@@ -235,17 +250,17 @@ const PublicLoginButton = ({ display }: PublicLoginButtonProps) => (
     fontSize="sm"
     fontWeight="bold"
   >
-    <RouterLink to="/login" search={{ redirect: undefined }}>
+    <MeasurementBoundaryLink href="/login" measurementCtaId="header_login">
       ログイン
-    </RouterLink>
+    </MeasurementBoundaryLink>
   </Button>
 );
 
 const PublicSignupButton = () => (
   <Button asChild colorPalette="teal" h="38px" px={5} borderRadius="md" fontSize="sm" fontWeight="bold" hideBelow="md">
-    <RouterLink to="/signup" search={{ redirect: undefined }}>
+    <MeasurementBoundaryLink href="/signup" measurementCtaId="header_signup">
       無料で試してみる
-    </RouterLink>
+    </MeasurementBoundaryLink>
   </Button>
 );
 

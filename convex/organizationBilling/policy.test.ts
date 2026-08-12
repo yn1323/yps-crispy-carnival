@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ORGANIZATION_PLAN_LIMITS } from "./planLimits";
 import {
   calculateTrialEndsAt,
   createPaymentGraceState,
@@ -9,7 +10,6 @@ import {
   getOrganizationBillingStateDeadline,
   isVerifiedBillingTransitionAllowed,
   normalizeOrganizationBillingState,
-  ORGANIZATION_PLAN_LIMITS,
   type OrganizationBillingState,
   type OrganizationPersonUsageInput,
   PAYMENT_GRACE_PERIOD_MS,

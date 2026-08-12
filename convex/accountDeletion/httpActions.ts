@@ -4,6 +4,7 @@ import { internal } from "../_generated/api";
 import type { ActionCtx } from "../_generated/server";
 import { httpAction } from "../_generated/server";
 import { readBoundedJsonBody } from "../_lib/httpBody";
+import { sha256Hex } from "../_lib/sha256";
 import { getAccountDeletionConfiguration } from "./config";
 import { ACCOUNT_DELETION_HTTP_BODY_MAX_BYTES } from "./constants";
 import { accountDeletionRequestSchema } from "./schemas";
@@ -202,9 +203,4 @@ function responseWithCors(response: Response, origin: string) {
     statusText: response.statusText,
     headers,
   });
-}
-
-async function sha256Hex(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }

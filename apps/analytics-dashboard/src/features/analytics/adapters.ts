@@ -13,6 +13,7 @@ import type {
   AnalyticsSegmentRowDto,
   AnalyticsServiceKpiSnapshotDto,
   AnalyticsShopKpiDto,
+  AnalyticsShopListRowDto,
   AnalyticsShopRowDto,
   AnalyticsTrendMetric,
   AnalyticsTrendPointDto,
@@ -24,6 +25,7 @@ import type {
   KpiViewModel,
   OrganizationRowViewModel,
   SegmentRowViewModel,
+  ShopListRowViewModel,
   ShopRowViewModel,
 } from "./viewModels";
 
@@ -307,6 +309,14 @@ export function shopRowModel(row: AnalyticsShopRowDto): ShopRowViewModel {
     shopId: row.shopId,
     unlinkedStaffCount: row.kpis?.unlinkedStaffCount ?? null,
     uniquePersonCount: row.kpis?.uniquePersonCount ?? null,
+  };
+}
+
+export function shopListRowModel(row: AnalyticsShopListRowDto): ShopListRowViewModel {
+  return {
+    ...shopRowModel(row),
+    usageLikelihood: row.usageLikelihood,
+    usageReasons: row.usageReasons,
   };
 }
 

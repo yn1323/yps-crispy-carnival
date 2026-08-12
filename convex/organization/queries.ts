@@ -24,6 +24,7 @@ import {
 } from "../organizationInvitation/service";
 import { getStripeBillingConfiguration } from "../organizationStripe/config";
 import { getOrganizationCreationAvailability, type OrganizationCreationAvailability } from "../setup/service";
+import { isOrganizationBillingContact } from "./billingContact";
 import { getOrganizationDeletionEligibility } from "./deletion";
 import { deriveOrganizationPersonCapabilities, type ManagerRole } from "./personCapabilities";
 import { getOrganizationBillingState, organizationPersonCountsTowardPeopleLimit } from "./service";
@@ -490,9 +491,6 @@ export const getSettings = managerQuery({
     const recoveryPersonIds = restrictedState
       ? restrictedState.recoveryManagerPersonIds.filter((personId) => people.some((person) => person._id === personId))
       : [];
-    const billingEmailNormalized = (organization.billingEmailNormalized ?? organization.billingEmail ?? "")
-      .trim()
-      .toLowerCase();
     const activeManagerCount = usage.activeManagerCount;
     const pendingManagerInvitationCount = pendingInvitations.filter(
       (invitation) => invitation.expiresAt > now && getOrganizationInvitationPurpose(invitation) === "managerAddition",
@@ -715,8 +713,7 @@ export const getSettings = managerQuery({
         const hasManagerInvitation = invitedPersonIds.has(person._id);
         const isRecoveryManager = Boolean(restrictedState && recoveryPersonIds.includes(person._id));
         const isLastRecoveryManager = isRecoveryManager && recoveryPersonIds.length <= 1;
-        const isBillingContact =
-          billingEmailNormalized.length > 0 && billingEmailNormalized === person.emailNormalized.trim().toLowerCase();
+        const isBillingContact = isOrganizationBillingContact(organization, person);
         const capabilities = deriveOrganizationPersonCapabilities({
           managerRole,
           activeManagerCount,
@@ -1064,7 +1061,7 @@ export const getSettings = managerQuery({
                   ? "無料プランでは、管理者を追加できません。\n有料プランを選択してください。"
                   : policy?.paidFeatureBlockReason === "paymentResultPending"
                     ? "支払い結果が確定してから、管理者を招待できます。"
-                    : "管理者と招待中の管理者は、組織全体で5名までです。";
+                    : `管理者と招待中の管理者は、組織全体で${policy?.limits?.maxActiveManagers ?? ORGANIZATION_PLAN_LIMITS.pro.maxActiveManagers}名までです。`;
     const canAddShop = Boolean(
       isActiveActor && policy?.canUsePaidFeatures && policy.limits && activeShopCount < policy.limits.maxActiveShops,
     );
@@ -1080,7 +1077,7 @@ export const getSettings = managerQuery({
               ? "無料プランでは、店舗を追加できません。\n有料プランを選択してください。"
               : policy?.paidFeatureBlockReason === "paymentResultPending"
                 ? "支払い結果が確定してから、店舗を追加できます。"
-                : "店舗は、組織ごとに5件まで登録できます。";
+                : `店舗は、組織ごとに${policy?.limits?.maxActiveShops ?? ORGANIZATION_PLAN_LIMITS.pro.maxActiveShops}件まで登録できます。`;
     const canUpdateOrganizationName = isActiveActor;
     const updateOrganizationNameDisabledReason = canUpdateOrganizationName
       ? undefined

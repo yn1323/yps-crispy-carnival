@@ -4,6 +4,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { authenticatedMutation } from "../_lib/functions";
+import { normalizeEmail } from "../_lib/validation";
 import {
   type AnalyticsSourceEventPayload,
   analyticsPlanForBillingState,
@@ -1969,7 +1970,7 @@ export const updateBillingEmail = authenticatedMutation({
     if (billingState.state.kind === "complimentary") {
       throw new ConvexError("支払い不要Businessでは請求先メールアドレスを変更できません");
     }
-    const normalized = args.email.trim().toLowerCase();
+    const normalized = normalizeEmail(args.email);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized) || normalized.length > 254) {
       throw new ConvexError("メールアドレスの形式で入力してください");
     }

@@ -3,6 +3,7 @@ import { internal } from "../_generated/api";
 import type { Doc } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
+import { sha256Hex } from "../_lib/sha256";
 import {
   STRIPE_OPERATION_MAX_ATTEMPTS,
   STRIPE_OPERATION_PROCESSING_LEASE_MS,
@@ -36,7 +37,7 @@ const PLAN_CHANGE_OPERATION_KINDS = [
   "scheduleFree",
   "cancelFreeSchedule",
 ] as const;
-const PLAN_CHANGE_LOCKING_STATUSES = ["queued", "processing", "retrying", "actionRequired"] as const;
+const PROVIDER_OPERATION_LOCKING_STATUSES = ["queued", "processing", "retrying", "actionRequired"] as const;
 
 function hasInactivePriceRecoveryMarker(lastErrorCode?: string) {
   return (
@@ -361,6 +362,18 @@ export const beginOperation = internalMutation({
         q.eq("organizationId", args.organizationId).eq("kind", args.kind).eq("requestKey", args.requestKey),
       )
       .unique();
+    if (args.recoveryPurpose === "trialContinuationCancellation") {
+      if (args.providerGeneration === undefined) {
+        throw new ConvexError("Invalid recovery purpose");
+      }
+      const competing = await findTrialContinuationCancellationGenerationOwner(
+        ctx,
+        args.organizationId,
+        args.providerGeneration,
+        existing?._id,
+      );
+      if (competing) return operationResult(competing, false, true);
+    }
     if (existing) {
       const immutableIntentMismatch =
         existing.livemode !== args.livemode ||
@@ -416,7 +429,7 @@ export const beginOperation = internalMutation({
         const generationOperations = (
           await Promise.all(
             PLAN_CHANGE_OPERATION_KINDS.flatMap((kind) =>
-              PLAN_CHANGE_LOCKING_STATUSES.map(
+              PROVIDER_OPERATION_LOCKING_STATUSES.map(
                 async (status) =>
                   await ctx.db
                     .query("organizationStripeOperations")
@@ -493,7 +506,7 @@ export const beginOperation = internalMutation({
       const generationOperations = (
         await Promise.all(
           PLAN_CHANGE_OPERATION_KINDS.flatMap((kind) =>
-            PLAN_CHANGE_LOCKING_STATUSES.map(
+            PROVIDER_OPERATION_LOCKING_STATUSES.map(
               async (status) =>
                 await ctx.db
                   .query("organizationStripeOperations")
@@ -1468,11 +1481,6 @@ export const completeBillingEmailSyncOperation = internalMutation({
   },
 });
 
-async function sha256Hex(value: string) {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
 /** Stripe側でexpiredを確認したCheckoutだけをsingle-flight対象から解放する。 */
 export const releaseExpiredCheckoutOperation = internalMutation({
   args: {
@@ -1777,6 +1785,32 @@ function isPlanChangeOperationKind(
   kind: Doc<"organizationStripeOperations">["kind"],
 ): kind is (typeof PLAN_CHANGE_OPERATION_KINDS)[number] {
   return PLAN_CHANGE_OPERATION_KINDS.includes(kind as (typeof PLAN_CHANGE_OPERATION_KINDS)[number]);
+}
+
+async function findTrialContinuationCancellationGenerationOwner(
+  ctx: Pick<MutationCtx, "db">,
+  organizationId: Doc<"organizations">["_id"],
+  providerGeneration: number,
+  excludeOperationId?: Doc<"organizationStripeOperations">["_id"],
+) {
+  const operations = (
+    await Promise.all(
+      PROVIDER_OPERATION_LOCKING_STATUSES.map(
+        async (status) =>
+          await ctx.db
+            .query("organizationStripeOperations")
+            .withIndex("by_organizationId_and_providerGeneration_and_kind_and_status", (q) =>
+              q
+                .eq("organizationId", organizationId)
+                .eq("providerGeneration", providerGeneration)
+                .eq("kind", "cancelSubscription")
+                .eq("status", status),
+            )
+            .take(2),
+      ),
+    )
+  ).flat();
+  return operations.find((operation) => operation._id !== excludeOperationId);
 }
 
 /** 見積もりから実適用へ進む同一intentだけは、同じrequestIdを引き継げる。 */

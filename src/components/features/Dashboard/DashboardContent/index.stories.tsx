@@ -283,6 +283,12 @@ export const Normal: Story = {
   },
 };
 
+export const MultiShopMobile: Story = {
+  ...Normal,
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
 export const SingleShop: Story = {
   args: singleShopDashboardArgs,
   render: (args) => (
@@ -411,6 +417,12 @@ export const ReadOnlyShop: Story = {
     await expect(canvas.getByRole("button", { name: "新しい募集をつくる" })).toBeDisabled();
     await expect(canvas.getByRole("button", { name: "スタッフを追加する" })).toBeDisabled();
   },
+};
+
+export const ReadOnlyShopMobile: Story = {
+  ...ReadOnlyShop,
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
 };
 
 export const ReadOnlyTransitionBehavior: Story = {
@@ -665,6 +677,12 @@ export const OnboardingStaffAdded: Story = {
     currentRecruitments: [],
     staffs: managerAndStaff,
   },
+};
+
+export const OnboardingStaffAddedMobile: Story = {
+  ...OnboardingStaffAdded,
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
 };
 
 export const DismissedOnboardingShowsNextAction: Story = {
