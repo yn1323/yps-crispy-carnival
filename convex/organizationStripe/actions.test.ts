@@ -6135,6 +6135,85 @@ describe("organizationStripe/actions", () => {
     expect(providerFetchMock).not.toHaveBeenCalled();
   });
 
+  it("Trial継続取消の異なるrequestId同時開始は一つのoperationとidempotency keyを共有する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedTrialContinuationCancellation(t, "concurrent_generation_single_flight");
+    const requestIds = ["trial-cancel-concurrent-first", "trial-cancel-concurrent-second"] as const;
+    const results = await Promise.all(
+      requestIds.map(
+        async (requestKey) =>
+          await t.mutation(internal.organizationStripe.mutations.beginOperation, {
+            organizationId: ids.organizationId,
+            kind: "cancelSubscription",
+            requestKey,
+            livemode: false,
+            expectedBillingVersion: 2,
+            providerGeneration: 1,
+            recoveryPurpose: "trialContinuationCancellation",
+          }),
+      ),
+    );
+
+    const created = results.filter((result) => result.created);
+    const blocked = results.filter((result) => !result.created);
+    expect(created).toHaveLength(1);
+    expect(blocked).toEqual([
+      expect.objectContaining({
+        operationId: created[0].operationId,
+        stripeIdempotencyKey: created[0].stripeIdempotencyKey,
+        conflict: true,
+      }),
+    ]);
+
+    const state = await trialContinuationBoundaryState(t, ids.organizationId);
+    expect(state.operations).toHaveLength(1);
+    const owner = state.operations[0];
+    expect(requestIds).toContain(owner.requestKey);
+    expect(owner).toMatchObject({
+      _id: created[0].operationId,
+      stripeIdempotencyKey: `shiftori:test:cancelSubscription:${ids.organizationId}:${owner.requestKey}`,
+      providerGeneration: 1,
+      recoveryPurpose: "trialContinuationCancellation",
+      status: "processing",
+    });
+    expect(state.scheduled).toEqual([]);
+    expect(providerFetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each(["queued", "processing", "retrying", "actionRequired"] as const)(
+    "Trial継続取消は異なるrequestIdでも同一provider世代の%s operationと単一実行に収束する",
+    async (status) => {
+      const t = convexTest(schema, modules);
+      const ids = await seedTrialContinuationCancellation(t, `generation_single_flight_${status}`);
+      const firstRequestId = `trial-cancel-generation-first-${status}`;
+      await seedTrialContinuationOperation(t, ids, {
+        requestId: firstRequestId,
+        providerGeneration: 1,
+        status,
+      });
+      const before = await trialContinuationBoundaryState(t, ids.organizationId);
+
+      await expect(
+        t.withIdentity({ subject: ids.subject }).action(api.organizationStripe.actions.cancelTrialContinuation, {
+          shopId: ids.shopId,
+          requestId: `trial-cancel-generation-second-${status}`,
+        }),
+      ).resolves.toEqual({ status: "unavailable", reason: "in_progress" });
+
+      expect(await trialContinuationBoundaryState(t, ids.organizationId)).toEqual(before);
+      expect(before.operations).toHaveLength(1);
+      expect(before.operations[0]).toMatchObject({
+        requestKey: firstRequestId,
+        stripeIdempotencyKey: `shiftori:test:cancelSubscription:${ids.organizationId}:${firstRequestId}`,
+        providerGeneration: 1,
+        recoveryPurpose: "trialContinuationCancellation",
+        status,
+      });
+      expect(before.scheduled).toEqual([]);
+      expect(providerFetchMock).not.toHaveBeenCalled();
+    },
+  );
+
   it("Trial継続取消は同一requestIdの不変intentが競合したらin_progressで拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await seedTrialContinuationCancellation(t, "request_conflict");
@@ -7828,28 +7907,38 @@ async function seedTrialContinuationCancellation(
 async function seedTrialContinuationOperation(
   t: TestConvex<typeof schema>,
   ids: Awaited<ReturnType<typeof seedTrialContinuationCancellation>>,
-  args: { requestId: string; providerGeneration: number },
+  args: {
+    requestId: string;
+    providerGeneration: number;
+    status?: "queued" | "processing" | "retrying" | "actionRequired";
+  },
 ) {
-  return await t.run(
-    async (ctx) =>
-      await ctx.db.insert("organizationStripeOperations", {
-        organizationId: ids.organizationId,
-        kind: "cancelSubscription",
-        requestKey: args.requestId,
-        stripeIdempotencyKey: `shiftori:test:cancelSubscription:${ids.organizationId}:${args.requestId}`,
-        livemode: false,
-        expectedBillingVersion: 2,
-        providerGeneration: args.providerGeneration,
-        recoveryPurpose: "trialContinuationCancellation",
-        status: "processing",
-        attemptCount: 1,
-        leaseToken: `trial-cancel-${args.providerGeneration}-lease`,
-        leaseExpiresAt: NOW + 60_000,
-        expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
-        createdAt: NOW,
-        updatedAt: NOW,
-      }),
-  );
+  return await t.run(async (ctx) => {
+    const status = args.status ?? "processing";
+    return await ctx.db.insert("organizationStripeOperations", {
+      organizationId: ids.organizationId,
+      kind: "cancelSubscription",
+      requestKey: args.requestId,
+      stripeIdempotencyKey: `shiftori:test:cancelSubscription:${ids.organizationId}:${args.requestId}`,
+      livemode: false,
+      expectedBillingVersion: 2,
+      providerGeneration: args.providerGeneration,
+      recoveryPurpose: "trialContinuationCancellation",
+      status,
+      attemptCount: 1,
+      ...(status === "processing"
+        ? {
+            leaseToken: `trial-cancel-${args.providerGeneration}-lease`,
+            leaseExpiresAt: NOW + 60_000,
+          }
+        : {}),
+      ...(status === "retrying" ? { nextRunAt: NOW + 30_000 } : {}),
+      ...(status === "actionRequired" ? { lastErrorCode: "attempt_limit_exceeded", completedAt: NOW } : {}),
+      expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+  });
 }
 
 async function trialContinuationBoundaryState(t: TestConvex<typeof schema>, organizationId: Id<"organizations">) {
