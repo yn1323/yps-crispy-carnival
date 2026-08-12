@@ -9,7 +9,20 @@ const GRANULARITY_OPTIONS = [
   { label: "月次", value: "month" },
 ] as const;
 
+const USAGE_FILTER = {
+  key: "usage",
+  label: "利用の可能性",
+  options: [
+    ["", "すべて"],
+    ["candidate", "利用候補（高い・あり）"],
+    ["high", "可能性が高い"],
+    ["possible", "可能性あり"],
+    ["unknown", "状態不明"],
+  ],
+} as const;
+
 const FILTERS = [
+  USAGE_FILTER,
   {
     key: "dimension",
     label: "比較する切り口",
@@ -109,7 +122,7 @@ const ALL_ADVANCED_FILTER_KEYS: AdvancedFilterKey[] = [
   "organizationId",
   "shopId",
   "cohort",
-  ...FILTERS.map((filter) => filter.key),
+  ...FILTERS.filter((filter) => filter.key !== "usage").map((filter) => filter.key),
 ];
 
 function SelectField({
@@ -369,6 +382,16 @@ export function AnalysisControls({
                   絞り込みと並び順
                 </Text>
                 <Grid gap={3} mt={3} templateColumns={{ base: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" }}>
+                  {enabledFilters.has("usage") ? (
+                    <SelectField
+                      label={USAGE_FILTER.label}
+                      onChange={(value) =>
+                        updateDraft({ usage: (value || undefined) as AnalyticsSearchState["usage"] })
+                      }
+                      options={USAGE_FILTER.options}
+                      value={draft.usage ?? ""}
+                    />
+                  ) : null}
                   {enabledFilters.has("organizationId") ? (
                     <Field.Root>
                       <Field.Label fontSize="xs">組織ID</Field.Label>
@@ -406,15 +429,17 @@ export function AnalysisControls({
                       />
                     </Field.Root>
                   ) : null}
-                  {FILTERS.filter((filter) => enabledFilters.has(filter.key)).map((filter) => (
-                    <SelectField
-                      key={filter.key}
-                      label={filter.label}
-                      onChange={(value) => updateDraft({ [filter.key]: value || undefined })}
-                      options={filter.options}
-                      value={String(draft[filter.key] ?? "")}
-                    />
-                  ))}
+                  {FILTERS.filter((filter) => filter.key !== "usage" && enabledFilters.has(filter.key)).map(
+                    (filter) => (
+                      <SelectField
+                        key={filter.key}
+                        label={filter.label}
+                        onChange={(value) => updateDraft({ [filter.key]: value || undefined })}
+                        options={filter.options}
+                        value={String(draft[filter.key] ?? "")}
+                      />
+                    ),
+                  )}
                   {sortOptions?.length ? (
                     <SelectField
                       label="並び順"

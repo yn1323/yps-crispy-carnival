@@ -153,6 +153,7 @@ async function dispatchQuery(
         cadence: input.cadence,
         lineUsage: input.lineUsage,
         health: input.health,
+        usage: input.usage,
         completeness: input.completeness,
       });
     case "shop":

@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { fetchShops } from "@/api/analyticsClient";
 import { useReportAnalyticsEnvironment } from "@/app/analyticsEnvironment";
-import { shopRowModel } from "@/features/analytics/adapters";
+import { shopListRowModel } from "@/features/analytics/adapters";
 import { AnalyticsPageError, AnalyticsPageLoading, analyticsErrorMessage } from "@/features/analytics/PageState";
 import { ShopsView } from "@/features/analytics/ShopsView";
 import { shopsParams, useAnalyticsSearch } from "@/features/analytics/useAnalyticsSearch";
@@ -23,7 +23,7 @@ export function ShopsPage({ navigate }: { navigate: (href: string) => void }) {
   if (query.error) {
     return (
       <AnalyticsPageError
-        description="店舗の導入到達、要確認状態、提出傾向を横断して比較します。"
+        description="最新集計の利用の可能性と根拠から、確認する店舗を選びます。"
         message={analyticsErrorMessage(query.error)}
         title="店舗"
       />
@@ -36,7 +36,7 @@ export function ShopsPage({ navigate }: { navigate: (href: string) => void }) {
       metadata={response.metadata}
       navigate={navigate}
       pageInfo={response.metadata.pageInfo}
-      rows={response.rows.map(shopRowModel)}
+      rows={response.rows.map(shopListRowModel)}
       search={search}
       updateSearch={update}
     />

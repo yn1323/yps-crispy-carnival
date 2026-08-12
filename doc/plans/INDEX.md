@@ -125,6 +125,7 @@ Historyの本文には、現在と異なる名称、パス、状態、上限、�
 
 | 計画 | 分類根拠 | 現在の正本 |
 |---|---|---|
+| [Analytics利用候補店舗](2026-08-12_Analytics利用候補店舗_実装計画.md) | 最新complete run基準の候補分類、`usage` filter、一覧の根拠表示、店舗・組織詳細への導線、Logic・Function Testを実装し、必須検証を完了。Production反映と実データ負荷計測は未実施 | [分析KPI可視化アプリ](../features/analytics-dashboard.md)、[分析KPI蓄積基盤](../features/analytics.md) |
 | [Dialogアクション統一](2026-08-12_Dialogアクション統一_実装計画.md) | feature側production 38宣言と共通fallbackを統一し、nested確認3件をinline化。PC/SP配置、閲覧専用のSecondary「閉じる」、scroll・safe area、処理中close lock、Behavior Testと必須検証を完了。VRT差分確認はGitHub Actionsへ委ねる | [UI設計方針](../rules/ui-design.md)、[テスト方針](../rules/testing-strategy.md) |
 | [Dashboardプランカードの利用状況表示と配色統一](2026-08-11_Dashboardプランカード_利用状況表示と配色統一_実装計画.md) | 承認済みUI、展開時だけの利用状況query、管理者flag、全課金状態のButton配色、Function・Unit・Story、機能文書を実装し、必須検証を完了。VRT差分確認はGitHub Actionsへ委ねる | [グループ課金](../features/organization-billing.md)、[UI設計方針](../rules/ui-design.md)、[テスト方針](../rules/testing-strategy.md) |
 | [スタッフ追加モーダルの方法選択UI](2026-08-10_スタッフ追加モーダル_方法選択UI_実装計画.md) | 方法選択カード、既存詳細への遷移、遅延query、状態・focus・mutation guard、Unit・Behavior・現行文書を実装し、必須検証を完了。VRT差分確認はGitHub Actionsへ委ねる | [スタッフ参加QR・承認導線](../features/staff-registration.md)、[UI設計方針](../rules/ui-design.md) |

@@ -252,6 +252,20 @@ export type AnalyticsShopRowDto = {
   kpis: AnalyticsShopKpiDto | null;
 };
 
+export type AnalyticsShopUsageLikelihood = "high" | "possible" | "unknown";
+
+export type AnalyticsShopUsageReason =
+  | "recentActivity"
+  | "hasUpcomingCycle"
+  | "observedActivity"
+  | "hasShiftTargets"
+  | "hasStaffMemberships";
+
+export type AnalyticsShopListRowDto = AnalyticsShopRowDto & {
+  usageLikelihood: AnalyticsShopUsageLikelihood;
+  usageReasons: AnalyticsShopUsageReason[];
+};
+
 export type AnalyticsCycleRowDto = {
   recruitmentId: string;
   organizationId: string;
@@ -346,7 +360,7 @@ export type OrganizationDetailResponse = {
 export type ShopsResponse = {
   kind: "shops";
   metadata: AnalyticsResponseMetadata;
-  rows: AnalyticsShopRowDto[];
+  rows: AnalyticsShopListRowDto[];
 };
 
 export type ShopDetailResponse = {

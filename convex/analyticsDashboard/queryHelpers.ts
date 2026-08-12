@@ -2,6 +2,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { addDays, getMondayWeekStart, subtractCalendarMonths } from "../_lib/dateFormat";
 import { ANALYTICS_POLICY } from "../analytics/registry";
+import { DAY_MS } from "../constants";
 import type {
   AnalyticsAvailability,
   AnalyticsCadenceDto,
@@ -16,7 +17,10 @@ import type {
   AnalyticsServiceKpiSnapshotDto,
   AnalyticsShopKpiDto,
   AnalyticsShopRowDto,
+  AnalyticsShopUsageLikelihood,
+  AnalyticsShopUsageReason,
 } from "./dto";
+import type { AnalyticsShopUsageFilter } from "./schemas";
 
 export type AnalyticsRun = Doc<"analyticsRuns">;
 
@@ -244,6 +248,50 @@ export function toShopRowDto(
     cadence: kpis?.cadence ?? toDimensionCadenceDto(doc),
     kpis,
   };
+}
+
+type AnalyticsShopUsageKpiEvidence = Pick<
+  AnalyticsShopKpiDto,
+  "nextCyclePeriodStart" | "shiftTargetCount" | "staffMembershipCount"
+>;
+
+export function classifyShopUsage(args: {
+  cutoffAt: number;
+  latestActivityAt: number | null;
+  kpis: AnalyticsShopUsageKpiEvidence | null;
+}): { usageLikelihood: AnalyticsShopUsageLikelihood; usageReasons: AnalyticsShopUsageReason[] } {
+  const activityWindowStartAt = args.cutoffAt - ANALYTICS_POLICY.health.activityWindowDays * DAY_MS;
+  const latestActivityAt = args.latestActivityAt;
+  const hasPublishedActivity = latestActivityAt !== null && latestActivityAt < args.cutoffAt;
+  const hasRecentActivity = hasPublishedActivity && latestActivityAt >= activityWindowStartAt;
+  const hasObservedActivity = hasPublishedActivity && !hasRecentActivity;
+  const hasUpcomingCycle = args.kpis?.nextCyclePeriodStart !== null && args.kpis?.nextCyclePeriodStart !== undefined;
+  const hasShiftTargets = (args.kpis?.shiftTargetCount ?? 0) > 0;
+  const hasStaffMemberships = (args.kpis?.staffMembershipCount ?? 0) > 0;
+
+  const usageReasons: AnalyticsShopUsageReason[] = [];
+  if (hasRecentActivity) usageReasons.push("recentActivity");
+  if (hasUpcomingCycle) usageReasons.push("hasUpcomingCycle");
+  if (hasObservedActivity) usageReasons.push("observedActivity");
+  if (hasShiftTargets) usageReasons.push("hasShiftTargets");
+  if (hasStaffMemberships) usageReasons.push("hasStaffMemberships");
+
+  const usageLikelihood: AnalyticsShopUsageLikelihood =
+    hasRecentActivity || hasUpcomingCycle
+      ? "high"
+      : hasObservedActivity || hasShiftTargets || hasStaffMemberships
+        ? "possible"
+        : "unknown";
+  return { usageLikelihood, usageReasons };
+}
+
+export function usageMatches(
+  likelihood: AnalyticsShopUsageLikelihood,
+  filter: AnalyticsShopUsageFilter | null,
+): boolean {
+  if (filter === null) return true;
+  if (filter === "candidate") return likelihood === "high" || likelihood === "possible";
+  return likelihood === filter;
 }
 
 export function toCycleRowDto(

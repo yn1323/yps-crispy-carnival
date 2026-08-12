@@ -28,7 +28,10 @@ export type {
   AnalyticsSegmentRowDto,
   AnalyticsServiceKpiSnapshotDto,
   AnalyticsShopKpiDto,
+  AnalyticsShopListRowDto,
   AnalyticsShopRowDto,
+  AnalyticsShopUsageLikelihood,
+  AnalyticsShopUsageReason,
   AnalyticsTrendMetric,
   AnalyticsTrendPointDto,
   AnalyticsTrendValueDto,
@@ -55,6 +58,7 @@ export type {
   AnalyticsSegmentSort,
   AnalyticsShopSizeFilter,
   AnalyticsShopSort,
+  AnalyticsShopUsageFilter,
 } from "@convex/analyticsDashboard/schemas";
 
 export type AnalyticsApiEnvelope<T> = {
