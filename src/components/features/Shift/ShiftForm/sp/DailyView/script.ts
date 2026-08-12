@@ -1,7 +1,7 @@
 import { computeVisualBreaks, resolveDefaultPosition } from "@/src/domains/shift/operations";
+import { isLegacyCompatibleWorkPosition } from "@/src/domains/shift/positions";
 import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { PositionSegment, PositionType, ShiftData, TimeRange } from "@/src/domains/shift/types";
-import { BREAK_POSITION } from "../../constants";
 
 export type TimelineBarViewModel = {
   key: string;
@@ -19,13 +19,10 @@ export type SPDailyCardViewModel = {
   breakBars: TimelineBarViewModel[];
 };
 
-export const isBreakSegment = (position: PositionSegment): boolean =>
-  position.positionName === BREAK_POSITION.name || position.positionId === BREAK_POSITION.id;
-
 const getWorkPositions = (shift: ShiftData | undefined): PositionSegment[] =>
   shift
     ? [...shift.positions]
-        .filter((position) => !isBreakSegment(position))
+        .filter(isLegacyCompatibleWorkPosition)
         .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start))
     : [];
 

@@ -1,4 +1,4 @@
-import { BREAK_POSITION } from "./constants";
+import { isLegacyCompatibleWorkPosition } from "./positions";
 import { indexShiftsByStaffId } from "./shiftLookup";
 import { timeToMinutes } from "./time";
 import type { ShiftData, SortMode, StaffType } from "./types";
@@ -82,16 +82,13 @@ const getEarliestEndMinutes = (staffShifts: ShiftData[], targetStartMinutes: num
   return earliest;
 };
 
-const isWorkPosition = (position: ShiftData["positions"][number]): boolean =>
-  position.positionId !== BREAK_POSITION.id && position.positionName !== BREAK_POSITION.name;
-
 export const getEarliestAssignedWorkRange = (
   shift: ShiftData | undefined,
 ): { startMinutes: number; endMinutes: number } | null => {
   if (!shift) return null;
 
   const workRanges = shift.positions
-    .filter(isWorkPosition)
+    .filter(isLegacyCompatibleWorkPosition)
     .map((position) => ({
       startMinutes: timeToMinutes(position.start),
       endMinutes: timeToMinutes(position.end),

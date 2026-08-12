@@ -1,5 +1,6 @@
-import { BREAK_POSITION, DEFAULT_POSITION } from "./constants";
+import { DEFAULT_POSITION } from "./constants";
 import { isValidIsoDateString } from "./date";
+import { isCanonicalWorkPosition } from "./positions";
 import { isSupportedShiftTime, timeToMinutes } from "./time";
 import type { ShiftData } from "./types";
 
@@ -116,20 +117,18 @@ export const buildAssignments = <StaffId extends string = string, PositionId ext
 ): ShiftAssignmentDraft<StaffId, PositionId>[] => {
   const assignments = shifts.flatMap((s) => {
     if (closedDateSet.has(s.date)) return [];
-    return s.positions
-      .filter((position) => position.positionId !== BREAK_POSITION.id)
-      .map((position) => ({
-        staffId: s.staffId as StaffId,
-        date: s.date,
-        startTime: position.start,
-        endTime: position.end,
-        ...(position.shiftTypeOptionId ? { optionId: position.shiftTypeOptionId } : {}),
-        ...(position.positionId !== DEFAULT_POSITION.id
-          ? { positionId: position.positionId as PositionId }
-          : options.defaultPositionId
-            ? { positionId: options.defaultPositionId }
-            : {}),
-      }));
+    return s.positions.filter(isCanonicalWorkPosition).map((position) => ({
+      staffId: s.staffId as StaffId,
+      date: s.date,
+      startTime: position.start,
+      endTime: position.end,
+      ...(position.shiftTypeOptionId ? { optionId: position.shiftTypeOptionId } : {}),
+      ...(position.positionId !== DEFAULT_POSITION.id
+        ? { positionId: position.positionId as PositionId }
+        : options.defaultPositionId
+          ? { positionId: options.defaultPositionId }
+          : {}),
+    }));
   });
 
   if (options.submissionPatternKind === "time") {

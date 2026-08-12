@@ -45,10 +45,18 @@ describe("buildSPShiftTypeDailyViewModel", () => {
 
     expect(viewModel.counts.map(({ key }) => key)).toEqual(["early", "late"]);
     expect(viewModel.counts.map(({ countLabel }) => countLabel)).toEqual(["1人", "0人"]);
+    expect(Object.keys(viewModel.counts[0]).sort()).toEqual(["color", "countLabel", "key", "name"]);
     expect(viewModel.staffCards[0].requestBadges).toMatchObject([{ key: "early", label: "早番" }]);
     expect(viewModel.staffCards[0].options).toMatchObject([
       { name: "早番", timeLabel: "09:00〜13:00", assigned: true },
       { name: "遅番", timeLabel: "13:00〜18:00", assigned: false },
+    ]);
+    expect(Object.keys(viewModel.staffCards[0].options[0]).sort()).toEqual([
+      "assigned",
+      "color",
+      "name",
+      "option",
+      "timeLabel",
     ]);
   });
 

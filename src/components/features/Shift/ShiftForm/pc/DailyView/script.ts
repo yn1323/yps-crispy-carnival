@@ -1,6 +1,6 @@
+import { isLegacyCompatibleWorkPosition } from "@/src/domains/shift/positions";
 import { formatShiftClockTimeRange, timeToMinutes } from "@/src/domains/shift/time";
 import type { ShiftData } from "@/src/domains/shift/types";
-import { BREAK_POSITION } from "../../constants";
 
 export type ShiftPopoverViewModel = {
   requestLabel: string | null;
@@ -27,7 +27,7 @@ export const buildShiftPopoverViewModel = ({
         ? `希望：${formatShiftClockTimeRange(shift.requestedTime.start, shift.requestedTime.end)}`
         : "希望：なし";
   const segments = [...shift.positions]
-    .filter((position) => position.positionName !== BREAK_POSITION.name && position.positionId !== BREAK_POSITION.id)
+    .filter(isLegacyCompatibleWorkPosition)
     .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start))
     .map((position) => ({
       id: position.id,
