@@ -13,6 +13,7 @@ import {
 } from "../_lib/dateFormat";
 import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
 import { buildShiftTimeLabel } from "../_lib/time";
+import { normalizeEmail } from "../_lib/validation";
 import {
   CURRENT_SHIFT_NOTIFICATION_LIMIT,
   NOTIFICATION_FANOUT_SCOPE_LIMIT,
@@ -445,7 +446,7 @@ export const getOpenRecruitmentEmailChangeNotificationDataForStaff = internalQue
     if (!data) return null;
 
     // TODO[narrow]: 全deploymentでm032が完走し、verifyStaffsのemail残件が全pageで0になった後にemail fallbackを削除する。
-    const currentEmailNormalized = (data.staff.emailNormalized ?? data.staff.email).trim().toLowerCase();
+    const currentEmailNormalized = normalizeEmail(data.staff.emailNormalized ?? data.staff.email);
     if (currentEmailNormalized === "" || currentEmailNormalized !== expectedEmailNormalized) return null;
 
     return data;

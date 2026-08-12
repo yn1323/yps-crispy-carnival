@@ -3,6 +3,7 @@ import { internal } from "../_generated/api";
 import type { Doc } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
+import { sha256Hex } from "../_lib/sha256";
 import {
   STRIPE_OPERATION_MAX_ATTEMPTS,
   STRIPE_OPERATION_PROCESSING_LEASE_MS,
@@ -1479,11 +1480,6 @@ export const completeBillingEmailSyncOperation = internalMutation({
     return { changed: true, ...(repairRequestId ? { repairRequestId } : {}) };
   },
 });
-
-async function sha256Hex(value: string) {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
 
 /** Stripe側でexpiredを確認したCheckoutだけをsingle-flight対象から解放する。 */
 export const releaseExpiredCheckoutOperation = internalMutation({

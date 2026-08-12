@@ -7,6 +7,7 @@ import { APP_URL } from "../_lib/config";
 import { managerMutation } from "../_lib/functions";
 import { buildLineAuthorizeUrl } from "../_lib/lineClient";
 import { rateLimit } from "../_lib/rateLimits";
+import { sha256Hex } from "../_lib/sha256";
 import { generateUUID } from "../_lib/uuid";
 import { ANALYTICS_POLICY } from "../analytics/registry";
 import { recordAnalyticsSourceEvent } from "../analytics/sourceEvents";
@@ -395,8 +396,7 @@ async function processWebhookStateEvent(ctx: MutationCtx, event: WebhookStateEve
   }
 
   if (analyticsAccounts.length > 0 || !analyticsAccountsComplete) {
-    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(event.webhookEventId));
-    const eventKey = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+    const eventKey = await sha256Hex(event.webhookEventId);
     await recordAnalyticsSourceEvent(ctx, {
       eventKey: `lineAccountBatch:webhook:${eventKey}`,
       eventType: "lineAccount.changed",

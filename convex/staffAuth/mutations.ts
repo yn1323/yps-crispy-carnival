@@ -7,6 +7,7 @@ import { getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { rateLimit } from "../_lib/rateLimits";
 import { recruitmentMatchesAccessKind, sessionMatchesAccessKind, staffAccessKindValidator } from "../_lib/staffAccess";
 import { generateUUID } from "../_lib/uuid";
+import { normalizeEmail } from "../_lib/validation";
 import { RATE_LIMIT_RETRY_FALLBACK_MS, STAFF_SESSION_TTL_MS } from "../constants";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { isShiftTargetStaff } from "../staff/service";
@@ -190,7 +191,7 @@ export const requestReissue = mutation({
     const parsed = reissueSchema.safeParse({ email });
     if (!parsed.success) return logSkip("invalid_email");
 
-    const normalizedEmail = parsed.data.email.toLowerCase();
+    const normalizedEmail = normalizeEmail(parsed.data.email);
     const emailDomain = normalizedEmail.split("@")[1];
 
     // レートリミットチェック（email+recruitmentId をキーに）

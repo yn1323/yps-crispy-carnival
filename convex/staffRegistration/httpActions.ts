@@ -3,7 +3,9 @@ import { makeFunctionReference } from "convex/server";
 import { httpAction } from "../_generated/server";
 import { getAppUrl, getStaffRegistrationAllowedOrigins, getStaffRegistrationTrustedIpHeader } from "../_lib/config";
 import { readBoundedJsonBody } from "../_lib/httpBody";
+import { sha256Hex } from "../_lib/sha256";
 import { verifyTurnstile } from "../_lib/turnstile";
+import { normalizeEmail } from "../_lib/validation";
 import { STAFF_REGISTRATION_HTTP_BODY_MAX_BYTES } from "../constants";
 import { submitStaffRegistrationSchema } from "./schemas";
 
@@ -95,8 +97,7 @@ function forbiddenOriginResponse() {
 }
 
 async function hashRateLimitKey(namespace: "email" | "link" | "ip", value: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${namespace}:${value}`));
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return await sha256Hex(`${namespace}:${value}`);
 }
 
 function trustedClientIp(request: Request): string | undefined {
@@ -178,7 +179,7 @@ export const submit = httpAction(async (ctx, request) => {
     );
   }
 
-  const normalizedEmail = input.email.trim().toLowerCase();
+  const normalizedEmail = normalizeEmail(input.email);
   const rateLimitResult = await ctx.runMutation(checkSubmissionRateLimitRef, {
     token: input.token,
     emailKey: await hashRateLimitKey("email", `${input.token}:${normalizedEmail}`),
