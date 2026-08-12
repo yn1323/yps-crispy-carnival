@@ -5,7 +5,7 @@ import {
 } from "../helpers/shopStaffMembershipScenario";
 import { ShopStaffMembershipPage } from "../pages/ShopStaffMembershipPage";
 
-// 所属変更Dialogへperson emailが表示されるため、browser artifactへ画面状態を保存しない。
+// 所属変更Dialogへperson nameが表示されるため、browser artifactへ画面状態を保存しない。
 test.use({ trace: "off", screenshot: "off", video: "off" });
 
 test.describe("店舗の所属スタッフ変更", { tag: ["@e2e-core"] }, () => {

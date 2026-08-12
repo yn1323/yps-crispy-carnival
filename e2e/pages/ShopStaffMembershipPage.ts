@@ -73,18 +73,9 @@ export class ShopStaffMembershipPage {
     const addition = this.membershipCheckbox(dialog, seed.additionCandidateName);
     await dialog.getByText(seed.additionCandidateName, { exact: true }).click();
     await expect(addition).not.toBeChecked();
+    await expect(dialog.getByText("スタッフを外すと起きること", { exact: true })).toBeVisible();
     await dialog.getByRole("button", { name: "変更する", exact: true }).click();
-
-    const confirmation = this.page.getByRole("alertdialog", { name: "所属スタッフの変更を確認", exact: true });
-    await expect(confirmation).toBeVisible({ timeout: SHOP_STAFF_MEMBERSHIP_TIMEOUT });
-    await expect(
-      confirmation.getByText(`${seed.additionCandidateName}（今日以降のシフト 0件）`, {
-        exact: true,
-      }),
-    ).toBeVisible({ timeout: SHOP_STAFF_MEMBERSHIP_TIMEOUT });
-    await confirmation.getByRole("button", { name: "変更する", exact: true }).click();
     await expect(dialog).not.toBeVisible({ timeout: SHOP_STAFF_MEMBERSHIP_TIMEOUT });
-    await expect(confirmation).not.toBeVisible({ timeout: SHOP_STAFF_MEMBERSHIP_TIMEOUT });
   }
 
   async expectCandidateRemoved(seed: ShopStaffMembershipScenarioSeed) {
@@ -121,7 +112,8 @@ export class ShopStaffMembershipPage {
 
   private membershipCheckbox(dialog: Locator, personName: string) {
     return dialog.getByRole("checkbox", {
-      name: new RegExp(`^${escapeRegExp(personName)}（.+）を所属スタッフにする$`),
+      name: `${personName}を所属スタッフにする`,
+      exact: true,
     });
   }
 
@@ -154,8 +146,4 @@ export class ShopStaffMembershipPage {
       await expect(this.staffRow(personName)).toHaveCount(0);
     }
   }
-}
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
