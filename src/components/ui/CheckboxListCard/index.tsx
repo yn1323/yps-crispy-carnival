@@ -35,6 +35,7 @@ type CheckboxListCardItemProps = {
   trailing?: ReactNode;
   disabledReason?: ReactNode;
   hoverBg?: string;
+  tone?: "default" | "danger";
 };
 
 export function CheckboxListCardItem({
@@ -48,6 +49,7 @@ export function CheckboxListCardItem({
   trailing,
   disabledReason,
   hoverBg = "blackAlpha.50",
+  tone = "default",
 }: CheckboxListCardItemProps) {
   const generatedReasonId = useId();
   const disabledReasonId = disabledReason ? `checkbox-list-card-reason-${generatedReasonId}` : undefined;
@@ -60,15 +62,17 @@ export function CheckboxListCardItem({
       disabled={disabled}
       display="flex"
       w="full"
-      alignItems="center"
+      alignItems={tone === "danger" ? "flex-start" : "center"}
       gap={3}
       px={{ base: 3, lg: 4 }}
       py={3.5}
       minH="72px"
-      bg="white"
+      bg={tone === "danger" ? "red.50" : "white"}
+      borderLeftWidth={tone === "danger" ? "3px" : 0}
+      borderLeftColor={tone === "danger" ? "red.500" : undefined}
       transition="background-color 150ms ease"
       cursor={disabled ? "not-allowed" : "pointer"}
-      _hover={disabled ? undefined : { bg: hoverBg }}
+      _hover={disabled ? undefined : { bg: tone === "danger" ? "red.100" : hoverBg }}
       onCheckedChange={(details) => {
         if (!disabled) onCheckedChange(details.checked === true);
       }}
@@ -83,7 +87,7 @@ export function CheckboxListCardItem({
       />
       <Box flex={1} minW={0} opacity={disabled ? 0.75 : 1}>
         <Checkbox.Label aria-label={ariaLabel} display="block" w="full" cursor={disabled ? "not-allowed" : "pointer"}>
-          <Flex align="center" gap={3} minW={0}>
+          <Flex align={tone === "danger" ? "flex-start" : "center"} gap={3} minW={0}>
             {leading}
             <Box flex={1} minW={0} overflowWrap="anywhere">
               {children}

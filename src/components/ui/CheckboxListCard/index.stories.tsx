@@ -58,6 +58,29 @@ export const LongText: Story = {
   ),
 };
 
+export const Danger: Story = {
+  render: () => (
+    <CheckboxListCard ariaLabel="所属する店舗">
+      <CheckboxListCardItem
+        checked={false}
+        tone="danger"
+        ariaLabel="渋谷店"
+        leading={<StoreIcon />}
+        onCheckedChange={() => {}}
+      >
+        <Stack gap={1}>
+          <Text fontWeight="medium" color="gray.900">
+            渋谷店
+          </Text>
+          <Text fontSize="sm" color="red.700">
+            店舗から外す変更があります。
+          </Text>
+        </Stack>
+      </CheckboxListCardItem>
+    </CheckboxListCard>
+  ),
+};
+
 export const Mobile: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },

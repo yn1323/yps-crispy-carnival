@@ -9,7 +9,6 @@ import {
   INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON,
   ORGANIZATION_SHOP_STAFF_MEMBERSHIP_CHANGE_TARGET_LIMIT,
   organizationShopOperatingStatus,
-  STALE_SHOP_MEMBERSHIP_CHANGE_ERROR,
 } from "../organization/shopMembershipChange";
 import { getOrganizationBillingPolicy } from "../organizationBilling/service";
 import { collectOrganizationShopStaffMembershipSnapshot } from "./service";
@@ -54,6 +53,9 @@ const organizationShopStaffMembershipChangeValidator = v.object({
 });
 
 const organizationShopStaffMembershipRemovalPreviewValidator = v.union(
+  v.object({
+    kind: v.literal("stale"),
+  }),
   v.object({
     kind: v.literal("ready"),
     removals: v.array(
@@ -194,7 +196,7 @@ export const previewOrganizationShopStaffMembershipRemovals = managerQuery({
     });
     if (!snapshot) return null;
     if (snapshot.membershipFingerprint !== args.expectedMembershipFingerprint) {
-      throw new ConvexError(STALE_SHOP_MEMBERSHIP_CHANGE_ERROR);
+      return { kind: "stale" as const };
     }
     const writeState = await getOrganizationShopStaffMembershipWriteState(ctx, {
       organizationId: ctx.organization._id,

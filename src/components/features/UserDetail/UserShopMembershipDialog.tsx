@@ -2,6 +2,7 @@ import { Badge, Box, Flex, Stack, Text } from "@chakra-ui/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LuStore } from "react-icons/lu";
 import type { Id } from "@/convex/_generated/dataModel";
+import { MembershipRemovalImpact } from "@/src/components/shared/MembershipRemovalImpact";
 import { CheckboxListCard, CheckboxListCardItem } from "@/src/components/ui/CheckboxListCard";
 import { Dialog } from "@/src/components/ui/Dialog";
 import type { UserDetailData, UserMembershipChangeInput } from "./types";
@@ -198,6 +199,8 @@ export function UserShopMembershipDialog({
       <Stack gap={4}>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
           シフトスタッフとして所属する店舗を選択してください。
+          <br />
+          店舗から外す場合、チェックを外してください。
         </Text>
 
         {globalDisabledReason && (
@@ -233,6 +236,8 @@ export function UserShopMembershipDialog({
               const membership = membershipByShopId.get(shop.shopId);
               const isActive = shop.shopStatus === "active";
               const checked = isActive ? selectedActiveShopIdSet.has(shop.shopId) : Boolean(membership);
+              const isRemoved = isActive && initialActiveShopIdSet.has(shop.shopId) && !checked;
+              const removalImpactId = isRemoved ? `user-shop-membership-removal-impact-${shop.shopId}` : undefined;
               const disabledReason = globalDisabledReason ? undefined : getMembershipChangeDisabledReason(shop);
               const isDisabled = Boolean(globalDisabledReason || disabledReason) || isChanging;
 
@@ -242,8 +247,9 @@ export function UserShopMembershipDialog({
                   checked={checked}
                   disabled={isDisabled}
                   ariaLabel={shop.shopName}
-                  ariaDescribedBy={globalDisabledReasonId}
+                  ariaDescribedBy={[globalDisabledReasonId, removalImpactId].filter(Boolean).join(" ") || undefined}
                   disabledReason={disabledReason}
+                  tone={isRemoved ? "danger" : "default"}
                   leading={
                     <Flex
                       boxSize="40px"
@@ -261,25 +267,17 @@ export function UserShopMembershipDialog({
                   trailing={shop.shopStatus !== "active" && <ShopStatusBadge status={shop.shopStatus} />}
                   onCheckedChange={(nextChecked) => changeSelection(shop.shopId, nextChecked)}
                 >
-                  <Text fontWeight="medium" color="gray.900" lineHeight="short">
-                    {shop.shopName}
-                  </Text>
+                  {isRemoved ? (
+                    <MembershipRemovalImpact id={removalImpactId} heading={shop.shopName} badgeLabel="店舗から外す" />
+                  ) : (
+                    <Text fontWeight="medium" color="gray.900" lineHeight="short">
+                      {shop.shopName}
+                    </Text>
+                  )}
                 </CheckboxListCardItem>
               );
             })}
           </CheckboxListCard>
-        )}
-
-        {visibleShopRows.length > 0 && (
-          <Box bg="red.50" borderWidth="1px" borderColor="red.200" borderRadius="lg" px={3} py={2.5}>
-            <Stack gap={1.5} color="red.800">
-              <Text fontSize="sm" fontWeight="semibold">
-                店舗から外すと、その店舗のスタッフ画面へのアクセス、LINE連携、未送信の通知は終了します。
-              </Text>
-              <Text fontSize="sm">表示した本日以降のシフト割り当ては削除されます。</Text>
-              <Text fontSize="sm">過去のシフト記録は保持されます。</Text>
-            </Stack>
-          </Box>
         )}
 
         {hasTooManyAssignments && (
@@ -296,7 +294,7 @@ export function UserShopMembershipDialog({
         {removesAllMemberships && (
           <Box bg="orange.50" borderWidth="1px" borderColor="orange.200" borderRadius="lg" px={3} py={2.5}>
             <Text fontSize="sm" color="orange.800" fontWeight="semibold">
-              組織への所属や管理者権限は変更されません。また、利用人数のカウントも残ります。
+              全店舗から外した場合でも、無所属としてスタッフは残り続けます。
             </Text>
           </Box>
         )}
