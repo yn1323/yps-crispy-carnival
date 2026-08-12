@@ -38,7 +38,7 @@ async function expectNeutralShell(response: APIResponse, path: string): Promise<
 }
 
 test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deployed"] }, () => {
-  test("代表公開route、shell、404をHTTPで確認する", async ({ baseURL, request }) => {
+  test("[DEPLOY-SMOKE-HTTP-01] 代表公開route、shell、404をHTTPで確認する", async ({ baseURL, request }) => {
     if (!baseURL) throw new Error("Deployed Smoke requires a configured baseURL.");
 
     for (const route of ["/", "/features"] as const) {
@@ -90,7 +90,7 @@ test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deploye
     }
   });
 
-  test("代表公開ページをブラウザで起動する", async ({ baseURL, page }) => {
+  test("[DEPLOY-SMOKE-BROWSER-01] 代表公開ページをブラウザで起動する", async ({ baseURL, page }) => {
     if (!baseURL) throw new Error("Deployed Smoke requires a configured baseURL.");
     const expectedOrigin = new URL(baseURL).origin;
     const runtimeErrors: string[] = [];

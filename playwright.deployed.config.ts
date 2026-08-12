@@ -15,9 +15,10 @@ export default defineConfig({
   timeout: 180_000,
   fullyParallel: false,
   forbidOnly: true,
-  retries: process.env.CI ? 1 : 0,
+  retries: 0,
   failOnFlakyTests: !!process.env.CI,
   workers: 1,
+  projects: [{ name: "deployed-chromium" }],
   reporter: [
     ["./e2e/reporters/privacyReporter.ts"],
     ["list"],

@@ -1,0 +1,44 @@
+name: analytics-dashboard
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - "apps/analytics-dashboard/**"
+      - "convex/analyticsDashboard/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/analytics-dashboard.yml"
+      - "biome.json"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+  push:
+    branches: [develop, main]
+    paths:
+      - "apps/analytics-dashboard/**"
+      - "convex/analyticsDashboard/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/analytics-dashboard.yml"
+      - "biome.json"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Lint Analytics Dashboard
+        run: pnpm analytics:lint
+      - name: Type Check Analytics Dashboard
+        run: pnpm analytics:type-check
+      - name: Build Analytics Dashboard
+        run: pnpm analytics:build
