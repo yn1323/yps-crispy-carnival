@@ -1,6 +1,10 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { rateLimitTables } from "convex-helpers/server/rateLimit";
+import {
+  persistedShiftAssignmentValidator,
+  shiftConfirmationSnapshotAssignmentValidator,
+} from "./_lib/shiftAssignmentValidators";
 import { submissionPatternValidator } from "./_lib/submissionPattern";
 import {
   analyticsCadenceValidator,
@@ -692,15 +696,7 @@ const schema = defineSchema({
   // ========================================
   // 確定シフト割当
   // ========================================
-  shiftAssignments: defineTable({
-    recruitmentId: v.id("recruitments"),
-    staffId: v.id("staffs"),
-    date: v.string(), // "2026-01-20"
-    startTime: v.string(), // "10:00"
-    endTime: v.string(), // "18:00"
-    positionId: v.id("positions"),
-    optionId: v.optional(v.string()), // 勤務区分募集で選択された区分ID
-  })
+  shiftAssignments: defineTable(persistedShiftAssignmentValidator)
     .index("by_recruitmentId", ["recruitmentId"])
     .index("by_recruitmentId_staffId", ["recruitmentId", "staffId"])
     .index("by_recruitmentId_date", ["recruitmentId", "date"])
@@ -710,15 +706,7 @@ const schema = defineSchema({
     recruitmentId: v.id("recruitments"),
     staffId: v.id("staffs"),
     signature: v.string(),
-    assignments: v.array(
-      v.object({
-        date: v.string(),
-        startTime: v.string(),
-        endTime: v.string(),
-        positionId: v.id("positions"),
-        optionId: v.optional(v.string()),
-      }),
-    ),
+    assignments: v.array(shiftConfirmationSnapshotAssignmentValidator),
     sentAt: v.number(),
     updatedAt: v.number(),
   })
