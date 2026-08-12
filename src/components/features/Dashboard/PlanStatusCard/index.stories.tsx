@@ -60,7 +60,7 @@ const complimentaryBusiness = {
   kind: "paidPlan",
   planName: "Business",
   badgeLabel: "支払い不要",
-  description: "Businessプランの機能を料金なしで利用できます。",
+  description: "早期登録特典によりBusinessプラン相当の機能をずっと無料で利用できます。",
 } satisfies PlanStatusCardData;
 
 const scheduledPlanChange = {

@@ -262,7 +262,7 @@ function PlanSummary({
           )}
           {billing.isComplimentary && (
             <Text fontSize="xs" color="fg.muted">
-              Businessの機能を料金なしで利用できます。
+              早期登録特典によりBusinessプラン相当の機能をずっと無料で利用できます。
             </Text>
           )}
         </Stack>

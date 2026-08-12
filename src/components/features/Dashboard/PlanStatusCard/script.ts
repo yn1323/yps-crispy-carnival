@@ -47,7 +47,7 @@ export function buildPlanStatusCardData(
         planName: paidPlanName(source.plan),
         badgeLabel: source.isComplimentary ? "支払い不要" : scheduledChange ? "変更予定" : "利用中",
         description: source.isComplimentary
-          ? "Businessプランの機能を料金なしで利用できます。"
+          ? "早期登録特典によりBusinessプラン相当の機能をずっと無料で利用できます。"
           : scheduledChange && targetPlanName
             ? `${formatJstDate(scheduledChange.effectiveAt)}に${targetPlanName}プランへ変更します。`
             : undefined,
