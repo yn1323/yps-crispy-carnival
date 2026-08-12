@@ -4,26 +4,8 @@ import { APP_URL } from "../_lib/config";
 import { managerQuery } from "../_lib/functions";
 import { STAFF_REGISTRATION_PENDING_LIMIT } from "../constants";
 import { getLegalDocumentsForAudience } from "../legal/documents";
-import { getOrganizationBillingPolicy } from "../organizationBilling/service";
-
-const staffLegalDocumentsValidator = v.object({
-  terms: v.object({
-    audience: v.literal("staff"),
-    kind: v.literal("terms"),
-    title: v.string(),
-    documentVersion: v.string(),
-    requiredConsentVersion: v.string(),
-    path: v.string(),
-  }),
-  privacy: v.object({
-    audience: v.literal("staff"),
-    kind: v.literal("privacy"),
-    title: v.string(),
-    documentVersion: v.string(),
-    requiredConsentVersion: v.string(),
-    path: v.string(),
-  }),
-});
+import { staffLegalDocumentsValidator } from "../legal/validators";
+import { resolveStaffRegistrationCapability } from "./capability";
 
 const registrationPageDataValidator = v.union(
   v.object({ status: v.literal("expired"), documents: staffLegalDocumentsValidator }),
@@ -41,32 +23,8 @@ export const getRegistrationPageData = query({
   returns: registrationPageDataValidator,
   handler: async (ctx, { token }) => {
     const documents = getLegalDocumentsForAudience("staff");
-    const links = await ctx.db
-      .query("shopRegistrationLinks")
-      .withIndex("by_token", (q) => q.eq("token", token))
-      .take(2);
-    if (links.length !== 1) return { status: "expired" as const, documents };
-    const link = links[0];
-    if (link.revokedAt) return { status: "expired" as const, documents };
-
-    const shop = await ctx.db.get(link.shopId);
-    if (!shop || shop.isDeleted) return { status: "expired" as const, documents };
-    if (shop.organizationId) {
-      const [organization, billingPolicy] = await Promise.all([
-        ctx.db.get(shop.organizationId),
-        getOrganizationBillingPolicy(ctx, shop.organizationId),
-      ]);
-      if (
-        !organization ||
-        organization.isDeleted ||
-        shop.operatingStatus !== "active" ||
-        (billingPolicy !== null && !billingPolicy.canWriteBusinessData)
-      ) {
-        return { status: "expired" as const, documents };
-      }
-    } else if (shop.operatingStatus === "archived" || shop.operatingStatus === "planSuspended") {
-      return { status: "expired" as const, documents };
-    }
+    const shop = await resolveStaffRegistrationCapability(ctx, token);
+    if (!shop) return { status: "expired" as const, documents };
 
     return {
       status: "ok" as const,

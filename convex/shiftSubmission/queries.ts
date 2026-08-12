@@ -10,6 +10,7 @@ import {
 } from "../_lib/submissionPattern";
 import { getLegalDocumentsForAudience } from "../legal/documents";
 import { hasCurrentStaffLegalConsent } from "../legal/service";
+import { staffLegalDocumentsValidator } from "../legal/validators";
 
 type ExistingRequest = { date: string; startTime: string; endTime: string; optionId?: string };
 type SubmissionUnavailableReason = "invalid_link" | "recruitment_deleted" | "submission_closed";
@@ -19,15 +20,6 @@ const existingRequestValidator = v.object({
   startTime: v.string(),
   endTime: v.string(),
   optionId: v.optional(v.string()),
-});
-
-const legalDocumentValidator = v.object({
-  audience: v.union(v.literal("manager"), v.literal("staff")),
-  kind: v.union(v.literal("terms"), v.literal("privacy")),
-  title: v.string(),
-  documentVersion: v.string(),
-  requiredConsentVersion: v.string(),
-  path: v.string(),
 });
 
 const submissionPageDataValidator = v.object({
@@ -55,10 +47,7 @@ const submissionPageDataValidator = v.object({
     }),
   ),
   legalConsentRequired: v.boolean(),
-  legalDocuments: v.object({
-    terms: legalDocumentValidator,
-    privacy: legalDocumentValidator,
-  }),
+  legalDocuments: staffLegalDocumentsValidator,
   timeRange: v.object({ startTime: v.string(), endTime: v.string() }),
   previousWeeklyPattern: v.union(
     v.object({

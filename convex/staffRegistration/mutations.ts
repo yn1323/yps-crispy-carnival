@@ -13,13 +13,14 @@ import { getLegalConsentVersions } from "../legal/documents";
 import { recordStaffLegalConsentSnapshot } from "../legal/service";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { recordOrganizationAuditEvent } from "../organization/audit";
-import { getOrganizationBillingPolicy, requireOrganizationCapacity } from "../organizationBilling/service";
+import { requireOrganizationCapacity } from "../organizationBilling/service";
 import {
   findActiveStaffByEmail,
   materializeOrganizationPeopleForStaffAddition,
   prepareOrganizationPeopleForStaffAddition,
   releasePendingInvitationReservationsForStaffAddition,
 } from "../staff/service";
+import { resolveStaffRegistrationCapability } from "./capability";
 import { staffRegistrationFormSchema } from "./schemas";
 
 const registrationRequestResultValidator = v.object({ status: v.literal("accepted") });
@@ -65,37 +66,8 @@ async function submitRegistrationRequestImpl(
     throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
   }
 
-  const links = await ctx.db
-    .query("shopRegistrationLinks")
-    .withIndex("by_token", (q) => q.eq("token", args.token))
-    .take(2);
-  if (links.length !== 1) {
-    throw registrationLinkUnavailableError();
-  }
-  const link = links[0];
-  if (link.revokedAt) {
-    throw registrationLinkUnavailableError();
-  }
-
-  const shop = await ctx.db.get(link.shopId);
-  if (!shop || shop.isDeleted) {
-    throw registrationLinkUnavailableError();
-  }
-  if (shop.organizationId) {
-    const organization = await ctx.db.get(shop.organizationId);
-    const billingPolicy = await getOrganizationBillingPolicy(ctx, shop.organizationId);
-    if (
-      !organization ||
-      organization.isDeleted ||
-      shop.operatingStatus !== "active" ||
-      (billingPolicy !== null && !billingPolicy.canWriteBusinessData)
-    ) {
-      // 公開Capabilityでは、店舗や契約の内部状態を区別できるエラーを返さない。
-      throw registrationLinkUnavailableError();
-    }
-  } else if (shop.operatingStatus === "archived" || shop.operatingStatus === "planSuspended") {
-    throw registrationLinkUnavailableError();
-  }
+  const shop = await resolveStaffRegistrationCapability(ctx, args.token);
+  if (!shop) throw registrationLinkUnavailableError();
 
   const name = parsed.data.name;
   const email = normalizeEmail(parsed.data.email);

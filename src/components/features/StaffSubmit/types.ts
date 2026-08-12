@@ -1,3 +1,4 @@
+import type { LegalDocumentLinks } from "@/convex/legal/documents";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 
 export type DayEntry = {
@@ -49,10 +50,7 @@ export type SubmissionData = {
   existingRequests: { date: string; startTime: string; endTime: string }[];
   existingSelection: ExistingSelection;
   legalConsentRequired: boolean;
-  legalDocuments: {
-    terms: { title: string; documentVersion: string; requiredConsentVersion: string; path: string };
-    privacy: { title: string; documentVersion: string; requiredConsentVersion: string; path: string };
-  };
+  legalDocuments: LegalDocumentLinks;
   timeRange: { startTime: string; endTime: string };
   previousWeeklyPattern: PreviousWeeklyPattern | null;
   previousDateOnlyPattern: PreviousDateOnlyPattern | null;
