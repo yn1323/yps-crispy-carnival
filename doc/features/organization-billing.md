@@ -226,7 +226,9 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 ### Dashboardの組織・プラン表示
 
 Dashboardは組織を親、現在の店舗を作業対象として順に表示し、低頻度の組織情報とプラン情報を一つの組織Accordionへまとめる。
-店舗切替と店舗詳細はAccordionの外に置き、組織情報と「プランと支払い」は展開内の独立した導線として扱う。
+店舗切替と店舗詳細はAccordionの外に置き、組織情報、「プランと支払い」、別組織への変更は展開内の独立した導線として扱う。
+複数組織に所属する利用者には、現在組織を除く「組織を変更：{組織名}」を組織名順に並べる。
+選択時は、その組織で店舗名順の先頭にある店舗を代表店舗としてDashboardの`?shop=`を切り替える。
 
 `getDashboardShop`が選択店舗と組織所属を検証して返す`planStatus`を、プラン表示の正本にする。
 `planStatus`は`trial`、`initialPaymentPending`、`pendingActivation`、Free・Pro・Businessの利用中、支払い不要Business、変更予約、支払い猶予、契約制限中を、利用者向けの最小DTOへ投影する。
