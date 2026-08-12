@@ -18,7 +18,7 @@
 
 | 計画 | 状態 | 次に必要な判断 | 現在の正本 |
 |---|---|---|---|
-| [GA4計測基盤とSkill整備](2026-08-12_GA4計測基盤とSkill整備_実装計画.md) | `reviewing` | Consent方式を確定し、安全な計測coreと`ga4-measurement` Skillから着手するか決める | [分析KPI蓄積基盤](../features/analytics.md)、[フロントエンドアーキテクチャ](../rules/frontend-architecture.md)、[セキュリティ方針](../rules/security-strategy.md) |
+| [GA4計測基盤とSkill整備](2026-08-12_GA4計測基盤とSkill整備_実装計画.md) | `reviewed` | 公開surface限定のsafe core、CTA・デモ・問い合わせ、Consent、RUM、`ga4-measurement` Skillへ着手するか決める | [分析KPI蓄積基盤](../features/analytics.md)、[フロントエンドアーキテクチャ](../rules/frontend-architecture.md)、[セキュリティ方針](../rules/security-strategy.md) |
 | [AIシフト下書き機能 詳細設計](2026-07-03_AIシフト下書き機能.md) | `reviewing` | 機能を採用するか、誰が再検討するかを決める | 現行のシフト作成は[シフト表](../features/shift-board.md) |
 | [AIシフト下書き機能 実装仕様書](2026-07-03_AIシフト下書き機能_実装仕様書.md) | `reviewing` | 詳細設計の採否後に実装仕様を確定する | 現行のシフト作成は[シフト表](../features/shift-board.md) |
 | [スタッフのメールアドレス任意化](2026-07-04_メールアドレス任意化_設計.md) | `reviewing` | 通知手段、認証境界、既存データmigrationを含めて採否を決める | 現行のスタッフ管理は[ユーザー詳細](../features/user-detail.md)と[LINE通知連携](../features/line-notification.md) |
