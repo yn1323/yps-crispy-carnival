@@ -43,6 +43,8 @@ test.describe("スタッフ提出のモバイル境界", { tag: ["@e2e-core", "@
       testInfo,
       baseURL,
       action: async () => {
+        await submitPage.gotoCompletionDirectly();
+        await submitPage.expectCompletionUnavailable();
         await submitPage.goto(capability.token);
         await submitPage.expectFormVisible();
         await submitPage.toggleDay(formatDateWithWeekday(dates.dates[0]));

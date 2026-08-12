@@ -550,4 +550,199 @@ describe("shiftSubmission/queries", () => {
       expect(pageData).toEqual({ status: "unavailable", reason: "recruitment_deleted" });
     });
   });
+
+  describe("getSubmissionResult", () => {
+    it("有効なsubmit sessionと本人の提出recordから最小DTOだけを返す", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, sessionToken, recruitmentId } = await setupSubmissionPageData(t);
+      await seedSubmission(t, { recruitmentId, staffId, slots: [] });
+
+      const result = await t.query(api.shiftSubmission.queries.getSubmissionResult, {
+        sessionToken,
+        accessKind: "submit",
+        recruitmentId,
+      });
+
+      expect(result).toEqual({ status: "submitted", shopName: "履歴テスト店舗" });
+    });
+
+    it("本人の提出recordがない場合は提出済みと返さない", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId } = await setupSubmissionPageData(t);
+
+      expect(
+        await t.query(api.shiftSubmission.queries.getSubmissionResult, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+        }),
+      ).toEqual({ status: "unavailable" });
+    });
+
+    it("sessionが存在しない、期限切れ、失効済みの場合は提出済みと返さない", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, sessionToken, recruitmentId } = await setupSubmissionPageData(t);
+      await seedSubmission(t, { recruitmentId, staffId, slots: [] });
+
+      expect(
+        await t.query(api.shiftSubmission.queries.getSubmissionResult, {
+          sessionToken: "missing-session",
+          accessKind: "submit",
+          recruitmentId,
+        }),
+      ).toEqual({ status: "unavailable" });
+
+      await t.run(async (ctx) => {
+        const session = await ctx.db
+          .query("sessions")
+          .withIndex("by_sessionToken", (q) => q.eq("sessionToken", sessionToken))
+          .unique();
+        if (!session) throw new Error("テスト用sessionが見つかりません");
+        await ctx.db.patch(session._id, { expiresAt: Date.now() - 1 });
+      });
+      expect(
+        await t.query(api.shiftSubmission.queries.getSubmissionResult, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+        }),
+      ).toEqual({ status: "unavailable" });
+
+      await t.run(async (ctx) => {
+        const session = await ctx.db
+          .query("sessions")
+          .withIndex("by_sessionToken", (q) => q.eq("sessionToken", sessionToken))
+          .unique();
+        if (!session) throw new Error("テスト用sessionが見つかりません");
+        await ctx.db.patch(session._id, { expiresAt: Date.now() + 60_000, revokedAt: Date.now() });
+      });
+      expect(
+        await t.query(api.shiftSubmission.queries.getSubmissionResult, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+        }),
+      ).toEqual({ status: "unavailable" });
+    });
+
+    it("callerがviewを指定したview sessionでは提出recordを確認できない", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, sessionToken, recruitmentId } = await setupSubmissionPageData(t);
+      await seedSubmission(t, { recruitmentId, staffId, slots: [] });
+      await t.run(async (ctx) => {
+        const session = await ctx.db
+          .query("sessions")
+          .withIndex("by_sessionToken", (q) => q.eq("sessionToken", sessionToken))
+          .unique();
+        if (!session) throw new Error("テスト用sessionが見つかりません");
+        await ctx.db.patch(session._id, { accessKind: "view" });
+      });
+
+      expect(
+        await t.query(api.shiftSubmission.queries.getSubmissionResult, {
+          sessionToken,
+          accessKind: "view",
+          recruitmentId,
+        }),
+      ).toEqual({ status: "unavailable" });
+    });
+
+    it("sessionと募集が一致しない場合は他募集の提出を確認できない", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, sessionToken } = await setupSubmissionPageData(t);
+      const otherRecruitmentId = await seedRecruitment(t, shopId, {
+        periodStart: "2026-05-01",
+        periodEnd: "2026-05-07",
+      });
+
+      expect(
+        await t.query(api.shiftSubmission.queries.getSubmissionResult, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId: otherRecruitmentId,
+        }),
+      ).toEqual({ status: "unavailable" });
+    });
+
+    it("他スタッフの提出recordだけでは提出済みと返さない", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, sessionToken, recruitmentId } = await setupSubmissionPageData(t);
+      const otherStaffId = await t.run(async (ctx) =>
+        ctx.db.insert("staffs", {
+          shopId,
+          name: "別スタッフ",
+          email: "other@example.com",
+          isDeleted: false,
+        }),
+      );
+      await seedSubmission(t, { recruitmentId, staffId: otherStaffId, slots: [] });
+
+      expect(
+        await t.query(api.shiftSubmission.queries.getSubmissionResult, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+        }),
+      ).toEqual({ status: "unavailable" });
+    });
+
+    it("sessionの店舗と異なる募集では提出済みと返さない", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken } = await setupSubmissionPageData(t);
+      const otherShopId = await t.run(async (ctx) => seedShop(ctx, "別店舗"));
+      const otherRecruitmentId = await seedRecruitment(t, otherShopId, {
+        periodStart: "2026-05-01",
+        periodEnd: "2026-05-07",
+      });
+      await t.run(async (ctx) => {
+        const session = await ctx.db
+          .query("sessions")
+          .withIndex("by_sessionToken", (q) => q.eq("sessionToken", sessionToken))
+          .unique();
+        if (!session) throw new Error("テスト用sessionが見つかりません");
+        await ctx.db.patch(session._id, { recruitmentId: otherRecruitmentId });
+      });
+
+      expect(
+        await t.query(api.shiftSubmission.queries.getSubmissionResult, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId: otherRecruitmentId,
+        }),
+      ).toEqual({ status: "unavailable" });
+    });
+
+    it.each(["", "x".repeat(129), "not-a-convex-id"])(
+      "不正な募集ID %j はDBエラーにせず利用不可を返す",
+      async (input) => {
+        const t = convexTest(schema, modules);
+        const { sessionToken } = await setupSubmissionPageData(t);
+
+        expect(
+          await t.query(api.shiftSubmission.queries.getSubmissionResult, {
+            sessionToken,
+            accessKind: "submit",
+            recruitmentId: input,
+          }),
+        ).toEqual({ status: "unavailable" });
+      },
+    );
+
+    it("募集が削除された後は提出recordがあっても提出済みと返さない", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, sessionToken, recruitmentId } = await setupSubmissionPageData(t);
+      await seedSubmission(t, { recruitmentId, staffId, slots: [] });
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, { isDeleted: true });
+      });
+
+      expect(
+        await t.query(api.shiftSubmission.queries.getSubmissionResult, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+        }),
+      ).toEqual({ status: "unavailable" });
+    });
+  });
 });

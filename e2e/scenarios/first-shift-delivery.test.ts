@@ -59,6 +59,7 @@ test.describe("代表シフト導線", { tag: ["@e2e-core", "@capability"] }, ()
           await submitPage.toggleDay(formatDateWithWeekday(dates.dates[0]));
           await submitPage.submit();
           await submitPage.expectCompletionVisible();
+          await submitPage.expectCompletionPersistsAcrossReloadAndHistory();
         },
         cleanup: () => context.close(),
       });

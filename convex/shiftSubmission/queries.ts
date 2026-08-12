@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { getDeadlineCutoff, getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { staffSessionQuery } from "../_lib/functions";
 import { getPreviousDateOnlyPattern, getPreviousWeeklyPattern } from "../_lib/previousWeeklyPattern";
+import { sessionMatchesAccessKind } from "../_lib/staffAccess";
 import {
   getSubmissionPatternTimeRange,
   type ShiftSubmissionPattern,
@@ -71,6 +72,10 @@ const submissionPageDataValidator = v.object({
 
 function unavailable(reason: SubmissionUnavailableReason) {
   return { status: "unavailable" as const, reason };
+}
+
+function submissionResultUnavailable() {
+  return { status: "unavailable" as const };
 }
 
 function buildExistingSelection(pattern: ShiftSubmissionPattern, requests: ExistingRequest[], dates: string[]) {
@@ -196,5 +201,42 @@ export const getSubmissionPageData = staffSessionQuery({
             : null,
       },
     };
+  },
+});
+
+/** 提出完了画面で、保存済みsubmit sessionと提出済みの事実を照合する。 */
+export const getSubmissionResult = staffSessionQuery({
+  args: { recruitmentId: v.string() },
+  returns: v.union(
+    v.object({ status: v.literal("submitted"), shopName: v.string() }),
+    v.object({ status: v.literal("unavailable") }),
+  ),
+  handler: async (ctx, { recruitmentId }) => {
+    if (!ctx.staff || !ctx.shop || !ctx.session) return submissionResultUnavailable();
+    // staffSessionQueryのaccessKindはcaller入力なので、このqueryが要求する用途をhandlerでも固定する。
+    if (!sessionMatchesAccessKind(ctx.session, "submit")) return submissionResultUnavailable();
+
+    const normalizedInput = recruitmentId.trim();
+    if (normalizedInput.length === 0 || normalizedInput.length > 128) return submissionResultUnavailable();
+    const normalizedRecruitmentId = ctx.db.normalizeId("recruitments", normalizedInput);
+    if (!normalizedRecruitmentId || ctx.session.recruitmentId !== normalizedRecruitmentId) {
+      return submissionResultUnavailable();
+    }
+
+    const recruitment = await ctx.db.get(normalizedRecruitmentId);
+    if (!recruitment || recruitment.isDeleted || recruitment.shopId !== ctx.shop._id) {
+      return submissionResultUnavailable();
+    }
+
+    const staffId = ctx.staff._id;
+    const submission = await ctx.db
+      .query("shiftSubmissions")
+      .withIndex("by_recruitmentId_staffId", (q) =>
+        q.eq("recruitmentId", normalizedRecruitmentId).eq("staffId", staffId),
+      )
+      .first();
+    if (!submission) return submissionResultUnavailable();
+
+    return { status: "submitted" as const, shopName: ctx.shop.name };
   },
 });
