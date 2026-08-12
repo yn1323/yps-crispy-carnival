@@ -3,10 +3,11 @@ import { useCallback, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { LuChevronLeft, LuClock3, LuListChecks, LuStore, LuUserRound } from "react-icons/lu";
 import { createShopSchema as step1Schema } from "@/convex/setup/schemas";
+import { SubmissionPatternSettingsFields } from "@/src/components/shared/ShopSettingsFields";
 import { Button } from "@/src/components/ui/Button";
 import { StepperDialog, StepperDialogContent, type StepperDialogStep } from "@/src/components/ui/StepperDialog";
 import { DEFAULT_TIME_PATTERN, normalizeShiftTypeOptions } from "@/src/domains/shop/submissionPattern";
-import { SetupPatternSettingsStep, SetupShopInfoStep, type Step1Data } from "./SetupStep1";
+import { SetupShopInfoStep, type Step1Data } from "./SetupStep1";
 import { SetupStep2, type Step2Data } from "./SetupStep2";
 
 export type SetupData = Step1Data & Step2Data;
@@ -189,12 +190,10 @@ export const SetupModal = ({
         )}
 
         {currentStep === "patternSettings" && (
-          <SetupPatternSettingsStep
+          <SubmissionPatternSettingsFields
             submissionPattern={submissionPattern}
-            submissionPatternError={errors.submissionPattern}
-            onSubmissionPatternChange={(next) =>
-              setValue("submissionPattern", next, { shouldDirty: true, shouldValidate: true })
-            }
+            error={errors.submissionPattern}
+            onChange={(next) => setValue("submissionPattern", next, { shouldDirty: true, shouldValidate: true })}
           />
         )}
 
