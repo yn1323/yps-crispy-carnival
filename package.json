@@ -19,6 +19,7 @@
     "analytics:lint": "pnpm --filter @shiftori/analytics-dashboard lint",
     "static:prepare": "tsx scripts/prepareStaticDeployment.ts",
     "static:validate": "tsx scripts/validateStaticBuild.ts",
+    "sitemap:generate": "tsx scripts/sitemap.ts",
     "ogp:articles": "tsx scripts/generateArticleOgp.ts",
     "dev": "vite --port 3000",
     "dev:ngrok": "concurrently -n dev,ngrok -c blue,cyan \"vite --port 3000 --host 0.0.0.0\" \"tsx scripts/startNgrok.ts\"",

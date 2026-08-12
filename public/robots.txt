@@ -6,7 +6,6 @@ Disallow: /staff/register
 Disallow: /line/callback
 Disallow: /legal/staff/consent
 Disallow: /sso-callback
-Disallow: /welcome
 
 Allow: /howto
 Allow: /

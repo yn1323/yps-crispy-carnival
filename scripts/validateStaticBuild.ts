@@ -1,6 +1,8 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { createExpectedSitemap } from "./sitemap";
 import {
   assertNoLoopbackUrls,
   assertOutputDirectory,
@@ -10,7 +12,6 @@ import {
   createCloudflareHeaders,
   createCloudflareRedirects,
   getCanonicalRoute,
-  getIndexableCanonicalRoutes,
   NOINDEX_PUBLIC_ROUTES,
   routeToHtmlPath,
   STATIC_CLIENT_OUTPUT_DIR,
@@ -18,6 +19,8 @@ import {
 
 const SITE_URL = "https://shiftori.app";
 const ARTICLE_ROUTE_PREFIX = "/articles/";
+const BAKED_MEASUREMENT_SCRIPT_PATTERN =
+  /\b(?:[a-z0-9-]+\.)*(?:googletagmanager\.com|google-analytics\.com|clarity\.ms)\b/i;
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -51,9 +54,18 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`[static-build] ${message}`);
 }
 
+export function assertNoBakedMeasurementScripts(label: string, html: string): void {
+  const transportTags =
+    html.match(/<(?:script|iframe|img|link)\b[^>]*(?:>[\s\S]*?<\/(?:script|iframe)\s*>|\/?>)/gi) ?? [];
+  assert(
+    transportTags.every((transportTag) => !BAKED_MEASUREMENT_SCRIPT_PATTERN.test(transportTag)),
+    `${label} contains baked GTM, Google Analytics, or Clarity markup`,
+  );
+}
+
 function assertPublicHtml(route: string, html: string): void {
   assert(html.length >= 2_000, `${route} produced suspiciously small HTML (${html.length} bytes)`);
-  assert(/<h1[\s>]/i.test(html), `${route} has no h1`);
+  assert(countTags(html, "h1") === 1, `${route} must contain exactly one h1`);
   assert(countTags(html, "title") === 1, `${route} must contain exactly one title`);
 
   const requiredMeta: Array<["name" | "property", string]> = [
@@ -92,7 +104,7 @@ function assertPublicHtml(route: string, html: string): void {
     `${route} has no Start hydration payload`,
   );
   assertNoLoopbackUrls(route, html);
-  assert(!/googletagmanager\.com|clarity\.ms/i.test(html), `${route} contains baked analytics`);
+  assertNoBakedMeasurementScripts(route, html);
   assert(
     !/__PRERENDER__|data-prerender-path|data-spa-fallback/i.test(html),
     `${route} contains legacy prerender state`,
@@ -164,28 +176,17 @@ function assertCloudflareFiles(publicRoutes: string[], redirects: string, header
   assert(!/Clear-Site-Data:.*(?:cookies|storage|\*)/i.test(headers), "cache reset must preserve cookies and storage");
 }
 
-async function assertSitemap(publicRoutes: string[], repoRoot: string, outputDirectory: string): Promise<void> {
-  const [sourceSitemap, deployedSitemap] = await Promise.all([
+async function assertSitemap(repoRoot: string, outputDirectory: string): Promise<void> {
+  const [expectedSitemap, sourceSitemap, deployedSitemap] = await Promise.all([
+    createExpectedSitemap(repoRoot),
     readFile(join(repoRoot, "public", "sitemap.xml"), "utf8"),
     readFile(join(outputDirectory, "sitemap.xml"), "utf8"),
   ]);
-  assert(deployedSitemap === sourceSitemap, "deployed sitemap differs from public/sitemap.xml");
-  const sitemap = deployedSitemap;
-  const locValues = Array.from(sitemap.matchAll(/<loc>([^<]+)<\/loc>/g), (match) => match[1]).filter(
-    (value): value is string => value !== undefined,
-  );
-  const paths = locValues.map((value) => {
-    const url = new URL(value);
-    assert(url.origin === SITE_URL, `sitemap URL must use ${SITE_URL}: ${value}`);
-    assert(url.search === "" && url.hash === "", `sitemap URL must not contain query or fragment: ${value}`);
-    assert(url.pathname === "/" || !url.pathname.endsWith("/"), `sitemap URL must be no-slash: ${value}`);
-    return url.pathname;
-  });
-  const expected = getIndexableCanonicalRoutes(publicRoutes);
   assert(
-    JSON.stringify(paths.sort((left, right) => left.localeCompare(right))) === JSON.stringify(expected),
-    "sitemap URLs differ from the indexable SSG canonical routes",
+    sourceSitemap === expectedSitemap,
+    "public/sitemap.xml is stale; run `pnpm sitemap:generate` and include the generated artifact",
   );
+  assert(deployedSitemap === expectedSitemap, "deployed sitemap differs from the metadata-derived sitemap");
 }
 
 export async function validateStaticBuild(
@@ -228,22 +229,27 @@ export async function validateStaticBuild(
   );
   assert(!findTag(shellHtml, "link", "rel", "canonical"), "shell must not contain a public canonical URL");
   assert(!/シフトのやり取りを/.test(shellHtml), "shell contains baked TOP content");
+  assertNoBakedMeasurementScripts("_shell.html", shellHtml);
 
   const notFoundHtml = await readFile(notFoundPath, "utf8");
   assert(/ページが見つかりません/.test(notFoundHtml), "404.html has no not-found content");
   assert(/<meta\b[^>]*name=["']robots["'][^>]*content=["'][^"']*noindex/i.test(notFoundHtml), "404 is not noindex");
   assert(/\bdata-static-not-found(?:=["'][^"']*["'])?/.test(notFoundHtml), "404 is not marked as static");
+  assertNoBakedMeasurementScripts("404.html", notFoundHtml);
 
   const [redirects, headers] = await Promise.all([
     readFile(join(resolvedOutput, "_redirects"), "utf8"),
     readFile(join(resolvedOutput, "_headers"), "utf8"),
   ]);
   assertCloudflareFiles(publicRoutes, redirects, headers);
-  await assertSitemap(publicRoutes, repoRoot, resolvedOutput);
+  await assertSitemap(repoRoot, resolvedOutput);
 
   console.log(
     `[static-build] Validated ${publicRoutes.length} SSG pages, sitemap, SPA shell, 404, and Cloudflare rules`,
   );
 }
 
-await validateStaticBuild();
+const invokedScript = process.argv[1] ? resolve(process.argv[1]) : undefined;
+if (invokedScript === fileURLToPath(import.meta.url)) {
+  await validateStaticBuild();
+}

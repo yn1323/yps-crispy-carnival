@@ -112,6 +112,28 @@ describe("static site manifest", () => {
     ).toEqual(["/", "/articles/shiftori-line-workflow"]);
   });
 
+  it("robots.txtのDisallowは実在するCSR routeのprefixだけを持つ", () => {
+    const robots = readFileSync(join(process.cwd(), "public/robots.txt"), "utf8");
+    const disallowRules = Array.from(robots.matchAll(/^Disallow:\s*(\S+)$/gm), (match) => match[1]).filter(
+      (rule): rule is string => rule !== undefined,
+    );
+    const csrRoutes = [...CSR_SHELL_STATIC_ROUTES, ...CSR_SHELL_DYNAMIC_ROUTES];
+
+    expect(disallowRules).not.toContain("/welcome");
+    expect(disallowRules).toEqual([
+      "/dashboard",
+      "/shiftboard",
+      "/shifts",
+      "/staff/register",
+      "/line/callback",
+      "/legal/staff/consent",
+      "/sso-callback",
+    ]);
+    for (const rule of disallowRules) {
+      expect(csrRoutes.some((route) => route === rule || route.startsWith(`${rule}/`))).toBe(true);
+    }
+  });
+
   it.each([
     ["/", "index.html"],
     ["/features", "features.html"],
