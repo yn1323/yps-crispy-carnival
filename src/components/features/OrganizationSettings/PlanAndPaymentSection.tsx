@@ -293,14 +293,14 @@ function PlanSummary({
           justify="center"
         >
           <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
-            {billing.nextEvent?.label ?? "次の予定"}
+            {billing.nextEvent?.label ?? "次の支払日"}
           </Text>
           <HStack gap={1.5} align="flex-start">
             <Box color="fg.muted" mt={0.5} flexShrink={0}>
               <LuCalendarClock aria-hidden />
             </Box>
             <Text fontSize="sm" fontWeight="bold" fontVariantNumeric="tabular-nums">
-              {billing.nextEvent?.date ?? "ありません"}
+              {billing.nextEvent?.date ?? "なし"}
             </Text>
           </HStack>
           {billing.state === "trial" && (
@@ -598,10 +598,8 @@ function PaymentInformation({
       </Heading>
       <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
         {billing.isComplimentary ? (
-          <Text px={{ base: 4, md: 5 }} py={4} fontSize="sm">
-            現在の利用料金はかかりません。
-            <br />
-            支払い方法の登録は不要です。
+          <Text px={{ base: 4, md: 5 }} py={4} fontSize="12px">
+            早期登録特典により利用料金はかかりません。
           </Text>
         ) : (
           <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
