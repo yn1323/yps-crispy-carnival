@@ -31,6 +31,38 @@ describe("submitAccountDeletionRequest", () => {
     });
   });
 
+  it("所属を含む削除では明示scopeとpreview fingerprintを送る", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ status: "accepted" }), {
+        status: 202,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      submitAccountDeletionRequest({
+        requestId,
+        token,
+        scope: "accountAndAssociations",
+        previewFingerprint: "preview-fingerprint",
+      }),
+    ).resolves.toEqual({ status: "accepted" });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith(`${CONVEX_SITE_URL}/account-deletion/request`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        requestId,
+        scope: "accountAndAssociations",
+        previewFingerprint: "preview-fingerprint",
+      }),
+    });
+  });
+
   it("403のClerk再認証hintは分類せずそのまま返す", async () => {
     const hint = {
       clerk_error: {

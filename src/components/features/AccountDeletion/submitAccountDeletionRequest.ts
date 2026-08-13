@@ -24,11 +24,22 @@ export type ClerkReverificationHint = {
 type Input = {
   requestId: string;
   token: string;
-};
+} & (
+  | {
+      scope: "accountAndAssociations";
+      previewFingerprint: string;
+    }
+  | {
+      scope?: undefined;
+      previewFingerprint?: undefined;
+    }
+);
 
 export async function submitAccountDeletionRequest({
   requestId,
   token,
+  scope,
+  previewFingerprint,
 }: Input): Promise<AccountDeletionSubmissionResult | ClerkReverificationHint> {
   let response: Response;
   try {
@@ -38,7 +49,9 @@ export async function submitAccountDeletionRequest({
         authorization: `Bearer ${token}`,
         "content-type": "application/json",
       },
-      body: JSON.stringify({ requestId }),
+      body: JSON.stringify(
+        scope === "accountAndAssociations" ? { requestId, scope, previewFingerprint } : { requestId },
+      ),
     });
   } catch {
     return { status: "rejected", reason: "networkError" };

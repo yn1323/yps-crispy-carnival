@@ -6,7 +6,7 @@ import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { selectedShopAtom } from "@/src/stores/shop";
 import { EMPTY_USER, userAtom } from "@/src/stores/user";
 import { type AccountDeletionFailureReason, submitAccountDeletionRequest } from "./submitAccountDeletionRequest";
-import type { AccountDeletionErrorState } from "./types";
+import type { AccountDeletionErrorState, AccountDeletionPreview, AccountDeletionReadyPreview } from "./types";
 
 const ACCEPTED_PAGE_PATH = "/account-deletion-accepted";
 const GENERAL_ERROR: AccountDeletionErrorState = {
@@ -16,12 +16,16 @@ const GENERAL_ERROR: AccountDeletionErrorState = {
 
 type ControllerOptions = {
   createRequestId?: () => string;
+  currentPreview?: AccountDeletionPreview;
+  requiresPreview?: boolean;
   replaceLocation?: (path: string) => void;
   submitRequest?: typeof submitAccountDeletionRequest;
 };
 
 export function useAccountDeletionController({
   createRequestId = () => crypto.randomUUID(),
+  currentPreview,
+  requiresPreview = false,
   replaceLocation = (path) => window.location.replace(path),
   submitRequest = submitAccountDeletionRequest,
 }: ControllerOptions = {}) {
@@ -30,8 +34,10 @@ export function useAccountDeletionController({
   const setSelectedShop = useSetAtom(selectedShopAtom);
   const setUser = useSetAtom(userAtom);
   const [requestId, setRequestId] = useState<string | null>(null);
+  const [activePreview, setActivePreview] = useState<AccountDeletionReadyPreview | null>(null);
   const [error, setError] = useState<AccountDeletionErrorState | null>(null);
   const requestIdRef = useRef<string | null>(null);
+  const activePreviewRef = useRef<AccountDeletionReadyPreview | null>(null);
   const submissionLockRef = useRef(false);
 
   const requestWithReverification = useReverification(async (activeRequestId: string) => {
@@ -41,8 +47,24 @@ export function useAccountDeletionController({
       return { status: "rejected", reason: "authenticationRequired" } as const;
     }
 
+    const preview = activePreviewRef.current;
+    if (preview) {
+      return submitRequest({
+        requestId: activeRequestId,
+        token,
+        scope: "accountAndAssociations",
+        previewFingerprint: preview.previewFingerprint,
+      });
+    }
+
     return submitRequest({ requestId: activeRequestId, token });
   });
+
+  const isPreviewStale = Boolean(
+    requiresPreview &&
+      activePreview &&
+      (currentPreview?.status !== "ready" || currentPreview.previewFingerprint !== activePreview.previewFingerprint),
+  );
 
   const { run, isRunning } = useSingleFlight(async () => {
     const activeRequestId = requestIdRef.current;
@@ -77,34 +99,46 @@ export function useAccountDeletionController({
 
   const open = useCallback(() => {
     if (submissionLockRef.current || requestIdRef.current) return;
+    const preview = currentPreview?.status === "ready" ? currentPreview : null;
+    if (requiresPreview && !preview) return;
 
     const nextRequestId = createRequestId();
     requestIdRef.current = nextRequestId;
+    activePreviewRef.current = preview;
     setRequestId(nextRequestId);
+    setActivePreview(preview);
     setError(null);
-  }, [createRequestId]);
+  }, [createRequestId, currentPreview, requiresPreview]);
 
   const close = useCallback(() => {
     if (submissionLockRef.current) return;
 
     requestIdRef.current = null;
+    activePreviewRef.current = null;
     setRequestId(null);
+    setActivePreview(null);
     setError(null);
   }, []);
 
   const submit = useCallback(() => {
     if (!requestIdRef.current || submissionLockRef.current) return;
+    if (isPreviewStale) {
+      setError(toErrorState("associationChanged"));
+      return;
+    }
 
     // Reactの再描画前にcloseと二重submitを止める同期ガード。
     submissionLockRef.current = true;
     void run().finally(() => {
       submissionLockRef.current = false;
     });
-  }, [run]);
+  }, [isPreviewStale, run]);
 
   return {
     isOpen: requestId !== null,
     isRunning,
+    isPreviewStale,
+    preview: activePreview,
     error,
     open,
     onClose: close,

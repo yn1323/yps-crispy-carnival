@@ -124,10 +124,21 @@ vi.mock("@/src/components/ui/Button", () => ({
 }));
 
 vi.mock("@/src/components/ui/Empty", () => ({
-  Empty: ({ title, description, action }: { title: ReactNode; description?: ReactNode; action?: ReactNode }) => (
+  Empty: ({
+    title,
+    description,
+    secondaryDescription,
+    action,
+  }: {
+    title: ReactNode;
+    description?: ReactNode;
+    secondaryDescription?: ReactNode;
+    action?: ReactNode;
+  }) => (
     <main>
       <h1>{title}</h1>
       <p>{description}</p>
+      <p>{secondaryDescription}</p>
       {action}
     </main>
   ),
@@ -647,6 +658,11 @@ describe("AuthGuard", () => {
     expect(screen.getByTestId("account-deletion-entry")).not.toBeNull();
     expect(screen.queryByText("管理者")).toBeNull();
     expect(screen.queryByText("manager@example.com")).toBeNull();
+    expect(
+      screen.getByText(
+        /過去のシフト・同意・請求・操作記録などは、法令または契約上必要な業務記録として残る場合があります/,
+      ),
+    ).not.toBeNull();
     expect(screen.queryByTestId("manager-child")).toBeNull();
     expect(mocks.managerChildRender).not.toHaveBeenCalled();
     expect(mocks.useQuery).toHaveBeenCalledWith(mocks.myShopsQuery, "skip");
@@ -667,8 +683,16 @@ describe("AuthGuard", () => {
     );
 
     expect(screen.getByRole("heading", { name: "アカウントの削除を受け付けました" })).not.toBeNull();
-    expect(screen.getByText(/ログイン用アカウントの削除は、通常は数分以内に完了します/)).not.toBeNull();
+    expect(
+      screen.getByText(/組織・店舗の利用終了が含まれる場合は、その処理後にログイン用アカウントを削除します/),
+    ).not.toBeNull();
     expect(screen.getByText(/このページを閉じても処理は続きます/)).not.toBeNull();
+    expect(
+      screen.getByText(
+        /過去のシフト・同意・請求・操作記録などは、法令または契約上必要な業務記録として残る場合があります/,
+      ),
+    ).not.toBeNull();
+    expect(screen.queryByText(/過去の利用履歴は、業務記録として残ります/)).toBeNull();
     expect(screen.queryByRole("heading", { name: "シフトリの利用は終了しています" })).toBeNull();
     expect(screen.queryByTestId("account-deletion-entry")).toBeNull();
     expect(screen.queryByTestId("manager-child")).toBeNull();
