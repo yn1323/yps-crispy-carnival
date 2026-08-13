@@ -1,7 +1,7 @@
 import { Box, Flex, Heading, HStack, Stack } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import { LuChevronDown, LuShieldCheck, LuUsers } from "react-icons/lu";
-import { OrganizationPersonRow } from "@/src/components/shared/OrganizationPersonRow";
+import { StaffListRow } from "@/src/components/shared/StaffListRow";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { useScrollToListItem } from "@/src/hooks/useScrollToListItem";
@@ -78,15 +78,22 @@ export const PeopleSection = ({
       ) : (
         <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.100" overflow="hidden">
           <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
-            {visiblePeople.map((person) => (
-              <OrganizationPersonRow
-                key={person.id}
-                person={person}
-                idPrefix="settings-user"
-                showLineConnection={false}
-                onOpen={() => onOpenUser(person.id, visibleUserCount)}
-              />
-            ))}
+            {visiblePeople.map((person) => {
+              const isManager = person.managerRole !== "none";
+              const lineStatus = person.lineStatus ?? (person.isLineConnected ? "linked_following" : "unlinked");
+
+              return (
+                <StaffListRow
+                  key={person.id}
+                  id={`settings-user-${person.id}`}
+                  name={person.name}
+                  role={isManager ? "manager" : "staff"}
+                  detail={{ kind: "shopNames", names: person.shopNames }}
+                  badges={[{ kind: "role" }, { kind: "line", status: lineStatus }]}
+                  onOpen={() => onOpenUser(person.id, visibleUserCount)}
+                />
+              );
+            })}
           </Stack>
         </Box>
       )}

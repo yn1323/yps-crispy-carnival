@@ -89,6 +89,7 @@ const baseArgs: OrganizationSettingsViewProps = {
       email: "sato@sakura.example.com",
       managerRole: "readOnly",
       isStaff: false,
+      lineStatus: "linked_unfollowed",
       shopNames: [],
       shopIds: [],
       canRemoveManagerRole: false,
@@ -100,6 +101,7 @@ const baseArgs: OrganizationSettingsViewProps = {
       email: "suzuki@sakura.example.com",
       managerRole: "none",
       isStaff: true,
+      lineStatus: "unlinked",
       shopNames: ["渋谷店", "新宿店"],
       shopIds: ["shop-shibuya", "shop-shinjuku"],
       canRemoveManagerRole: false,
@@ -898,6 +900,18 @@ export const MobileUsers: Story = {
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: { defaultTab: "people" },
+};
+
+export const MobileUsersLongName: Story = {
+  name: "スタッフ｜長い名前・モバイル",
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  args: {
+    defaultTab: "people",
+    people: baseArgs.people.map((person) =>
+      person.id === "person-staff" ? { ...person, name: "yns1323@gmail.com" } : person,
+    ),
+  },
 };
 
 export const MobilePendingInvitations: Story = {

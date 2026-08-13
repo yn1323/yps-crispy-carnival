@@ -248,12 +248,13 @@ function SettingsDrilldownListSkeleton({ kind }: { kind: "people" | "shops" }) {
             <Skeleton boxSize="40px" borderRadius={kind === "people" ? "full" : "lg"} flexShrink={0} />
             <Stack gap={kind === "people" ? 1 : 0} flex={1} minW={0}>
               <Flex align="center" justify="space-between" gap={2} wrap="wrap" minW={0}>
-                <Skeleton h="20px" w={index === 1 ? "136px" : "112px"} maxW="55%" />
+                <Skeleton h="20px" w={index === 1 ? "136px" : "112px"} maxW="full" />
                 {kind === "people" && (
-                  <Grid templateColumns="96px 64px" gap={1.5} ms="auto" flexShrink={0}>
-                    <Box>{index === 1 && <Skeleton h="20px" w="96px" borderRadius="full" />}</Box>
+                  <Flex gap={1.5} ms="auto" w={{ base: "full", sm: "auto" }} maxW="full" justify="flex-end" wrap="wrap">
+                    {index === 1 && <Skeleton h="20px" w="96px" borderRadius="full" />}
                     <Skeleton h="20px" w="64px" borderRadius="full" />
-                  </Grid>
+                    <Skeleton h="20px" w="96px" borderRadius="full" />
+                  </Flex>
                 )}
               </Flex>
               {kind === "people" && (

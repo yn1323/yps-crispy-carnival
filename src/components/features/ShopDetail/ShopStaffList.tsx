@@ -1,7 +1,7 @@
 import { Accordion, Flex, HStack, Stack, Text } from "@chakra-ui/react";
 import type { Ref } from "react";
 import { LuPencil } from "react-icons/lu";
-import { OrganizationPersonRow } from "@/src/components/shared/OrganizationPersonRow";
+import { StaffListRow } from "@/src/components/shared/StaffListRow";
 import { Button } from "@/src/components/ui/Button";
 import type { ShopDetailPerson } from "./types";
 
@@ -88,16 +88,19 @@ export function ShopStaffList({ staffs, canChangeStaffs, changeButtonRef, onOpen
                 </Flex>
               ) : (
                 <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
-                  {staffs.map((person) => (
-                    <OrganizationPersonRow
-                      key={person.id}
-                      person={person}
-                      idPrefix="shop-detail-user"
-                      showLineConnection={false}
-                      showShopNames={false}
-                      onOpen={() => onOpenUser(person.id)}
-                    />
-                  ))}
+                  {staffs.map((person) => {
+                    const isManager = person.managerRole !== "none";
+                    return (
+                      <StaffListRow
+                        key={person.id}
+                        id={`shop-detail-user-${person.id}`}
+                        name={person.name}
+                        role={isManager ? "manager" : "staff"}
+                        badges={[{ kind: "role" }]}
+                        onOpen={() => onOpenUser(person.id)}
+                      />
+                    );
+                  })}
                 </Stack>
               )}
             </Accordion.ItemBody>

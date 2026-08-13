@@ -1,7 +1,6 @@
 import type { FunctionArgs, FunctionReturnType } from "convex/server";
 import type { api } from "@/convex/_generated/api";
 import type { RegularClosedDay, ShiftSubmissionPattern } from "@/convex/shop/schemas";
-import type { OrganizationPersonRowData } from "@/src/components/shared/OrganizationPersonRow";
 
 export type ShopDetailData = {
   id: string;
@@ -14,7 +13,13 @@ export type ShopDetailData = {
   deleteDisabledReason?: string;
 };
 
-export type ShopDetailPerson = OrganizationPersonRowData & {
+export type ShopDetailPerson = {
+  id: string;
+  name: string;
+  managerRole: "active" | "readOnly" | "none";
+  lineStatus?: "unlinked" | "linked_following" | "linked_unfollowed";
+  isLineConnected?: boolean;
+  shopNames: readonly string[];
   shopIds: readonly string[];
 };
 

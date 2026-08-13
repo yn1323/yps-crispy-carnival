@@ -1,5 +1,5 @@
 import { chakra, Flex, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
-import type { ReactNode } from "react";
+import { type ReactNode, useId } from "react";
 import { LuChevronRight } from "react-icons/lu";
 
 type Props = {
@@ -12,6 +12,7 @@ type Props = {
   accessibleDescription?: ReactNode;
   highlighted?: boolean;
   onClick: () => void;
+  onOpenIntent?: () => void;
 };
 
 export function DrilldownRow({
@@ -24,8 +25,10 @@ export function DrilldownRow({
   accessibleDescription,
   highlighted = false,
   onClick,
+  onOpenIntent,
 }: Props) {
-  const descriptionId = accessibleDescription && id ? `${id}-summary` : undefined;
+  const generatedDescriptionId = useId();
+  const descriptionId = accessibleDescription ? (id ? `${id}-summary` : generatedDescriptionId) : undefined;
 
   return (
     <chakra.button
@@ -51,12 +54,14 @@ export function DrilldownRow({
         outlineColor: "teal.500",
         outlineOffset: "-2px",
       }}
+      onPointerEnter={onOpenIntent}
+      onFocus={onOpenIntent}
       onClick={onClick}
     >
       {leading}
 
       <Flex gap={2} align="center" wrap="wrap" flex={1} minW={0}>
-        <Stack gap={secondary ? 1 : 0} flex="1 1 96px" minW={0}>
+        <Stack gap={secondary ? 1 : 0} flex="1 1 10rem" minW={0}>
           <Text fontWeight="semibold" color="gray.900" truncate minW={0}>
             {title}
           </Text>

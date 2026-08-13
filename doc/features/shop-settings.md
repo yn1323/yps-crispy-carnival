@@ -10,7 +10,7 @@
 - `src/components/features/OrganizationSettings/` — 組織設定の店舗一覧と店舗追加UI
 - `src/components/features/ShopDetail/` — 店舗情報の閲覧・一括編集、所属スタッフ数とAccordion一覧、削除確認UI
 - `src/components/shared/ShopSettingsFields/` — 店舗編集モーダルと店舗詳細で共有する入力UI
-- `src/components/shared/OrganizationPersonRow/` — 組織設定と店舗詳細で共有するユーザー一覧行
+- `src/components/shared/StaffListRow/` — Dashboard、組織設定、店舗詳細で共有するスタッフ一覧行
 - `convex/organization/mutations.ts` — 組織所属店舗の追加、状態変更、削除受付
 - `convex/shop/mutations.ts` — 店舗設定更新と旧店舗モデル向け削除互換API
 - `convex/staff/queries.ts` と `convex/staff/mutations.ts` — 表示中の店舗に対する所属スタッフのsnapshot、解除影響preview、一括変更
