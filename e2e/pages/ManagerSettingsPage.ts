@@ -4,10 +4,12 @@ import type { ManagerSettingsScenarioSeed } from "../helpers/managerSettingsScen
 
 const MANAGER_SETTINGS_TIMEOUT = 20_000;
 
+type ManagerCandidateSeed = Pick<ManagerSettingsScenarioSeed, "shopId" | "candidateName" | "candidateEmail">;
+
 export class ManagerSettingsPage {
   constructor(private page: Page) {}
 
-  async openFromOrganizationSettings(seed: ManagerSettingsScenarioSeed) {
+  async openFromOrganizationSettings(seed: ManagerCandidateSeed) {
     await this.page.goto(`/settings?shop=${encodeURIComponent(seed.shopId)}`, {
       waitUntil: "domcontentloaded",
     });
@@ -22,7 +24,7 @@ export class ManagerSettingsPage {
     await this.expectMainPage(seed.shopId);
   }
 
-  async inviteExistingStaff(seed: ManagerSettingsScenarioSeed) {
+  async inviteExistingStaff(seed: ManagerCandidateSeed) {
     await this.page
       .getByRole("link", {
         name: "既存スタッフを管理者として招待",
@@ -39,7 +41,7 @@ export class ManagerSettingsPage {
       exact: true,
     });
     await expect(candidate).not.toBeChecked({ timeout: MANAGER_SETTINGS_TIMEOUT });
-    await this.page.getByText(seed.candidateName, { exact: true }).click();
+    await candidate.click();
     await expect(candidate).toBeChecked();
 
     await this.page.getByRole("button", { name: "管理者として招待する", exact: true }).click();
@@ -58,14 +60,72 @@ export class ManagerSettingsPage {
     await this.expectInvitationPending(seed);
   }
 
-  async reloadAndExpectInvitationPending(seed: ManagerSettingsScenarioSeed) {
+  async openDirectly(shopId: string) {
+    await this.page.goto(`/settings/managers?shop=${encodeURIComponent(shopId)}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await expectAppHydrated(this.page);
+    await this.expectMainPage(shopId);
+  }
+
+  async expectActiveManager(seed: ManagerCandidateSeed) {
+    const manager = this.managerRow(seed);
+    await expect(manager).toBeVisible({ timeout: MANAGER_SETTINGS_TIMEOUT });
+    await expect(manager.getByText(seed.candidateName, { exact: true })).toBeVisible();
+    await expect(manager.getByText(seed.candidateEmail, { exact: true })).toBeVisible();
+  }
+
+  async reloadAndExpectActiveManager(seed: ManagerCandidateSeed) {
+    await this.page.reload({ waitUntil: "domcontentloaded" });
+    await expectAppHydrated(this.page);
+    await this.expectMainPage(seed.shopId);
+    await this.expectActiveManager(seed);
+  }
+
+  async removeManagerRole(seed: ManagerCandidateSeed) {
+    await this.managerRow(seed).getByRole("button", { name: "管理者権限を外す", exact: true }).click();
+
+    const confirmation = this.page.getByRole("alertdialog", {
+      name: `${seed.candidateName}さんの管理者権限を外しますか？`,
+      exact: true,
+    });
+    await expect(confirmation).toBeVisible({ timeout: MANAGER_SETTINGS_TIMEOUT });
+    await expect(
+      confirmation.getByText(`${seed.candidateName}さんの組織全体に対する管理権限を外します。`, {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await confirmation.getByRole("button", { name: "管理者権限を外す", exact: true }).click();
+
+    await expect(this.page.getByText("管理者権限を外しました", { exact: true })).toBeVisible({
+      timeout: MANAGER_SETTINGS_TIMEOUT,
+    });
+    await expect(this.managerRow(seed)).toHaveCount(0, { timeout: MANAGER_SETTINGS_TIMEOUT });
+  }
+
+  async expectAccessRevoked(shopId: string) {
+    await this.page.goto(`/settings/managers?shop=${encodeURIComponent(shopId)}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await expectAppHydrated(this.page);
+    await expect(this.page).toHaveURL(
+      (url) => url.pathname === "/settings/managers" && url.searchParams.get("shop") === shopId,
+      { timeout: MANAGER_SETTINGS_TIMEOUT },
+    );
+    await expect(this.page.getByRole("heading", { name: "この店舗を開けません", exact: true })).toBeVisible({
+      timeout: MANAGER_SETTINGS_TIMEOUT,
+    });
+    await expect(this.page.getByText("管理者設定", { exact: true })).toHaveCount(0);
+  }
+
+  async reloadAndExpectInvitationPending(seed: ManagerCandidateSeed) {
     await this.page.reload({ waitUntil: "domcontentloaded" });
     await expectAppHydrated(this.page);
     await this.expectMainPage(seed.shopId);
     await this.expectInvitationPending(seed);
   }
 
-  async revokeInvitation(seed: ManagerSettingsScenarioSeed) {
+  async revokeInvitation(seed: ManagerCandidateSeed) {
     await this.invitationRow(seed).getByRole("button", { name: "取り消す", exact: true }).click();
 
     const confirmation = this.page.getByRole("alertdialog", {
@@ -84,7 +144,7 @@ export class ManagerSettingsPage {
     await expect(this.invitationRow(seed)).toHaveCount(0, { timeout: MANAGER_SETTINGS_TIMEOUT });
   }
 
-  async returnToOrganizationStaff(seed: ManagerSettingsScenarioSeed) {
+  async returnToOrganizationStaff(seed: ManagerCandidateSeed) {
     await this.page.getByRole("button", { name: "組織設定へ戻る", exact: true }).click();
     await expect(this.page).toHaveURL(
       (url) =>
@@ -112,17 +172,24 @@ export class ManagerSettingsPage {
     ).toBeVisible({ timeout: MANAGER_SETTINGS_TIMEOUT });
   }
 
-  private async expectInvitationPending(seed: ManagerSettingsScenarioSeed) {
+  private async expectInvitationPending(seed: ManagerCandidateSeed) {
     const invitation = this.invitationRow(seed);
     await expect(invitation).toBeVisible({ timeout: MANAGER_SETTINGS_TIMEOUT });
     await expect(invitation.getByText(seed.candidateName, { exact: true })).toBeVisible();
     await expect(invitation.getByText("招待中", { exact: true })).toBeVisible();
   }
 
-  private invitationRow(seed: ManagerSettingsScenarioSeed): Locator {
+  private invitationRow(seed: ManagerCandidateSeed): Locator {
     return this.page
       .getByRole("region", { name: "送信済みの管理者招待", exact: true })
       .getByRole("article")
       .filter({ hasText: seed.candidateEmail });
+  }
+
+  private managerRow(seed: ManagerCandidateSeed): Locator {
+    return this.page.getByRole("article", {
+      name: `${seed.candidateName}さんの管理者情報`,
+      exact: true,
+    });
   }
 }

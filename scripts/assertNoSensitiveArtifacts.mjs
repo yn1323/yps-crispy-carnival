@@ -79,6 +79,8 @@ const FORBIDDEN_FILE_PATTERNS = [
   { label: "access log", pattern: /(^|\/)(?:access|nginx[-_.]?access)[-_.]?(?:log|jsonl)(?:\.[^/]*)?$/i },
 ];
 const UUID_TOKEN_PATTERN = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+const DERIVED_CAPABILITY_TOKEN_PATTERN = "[A-Za-z0-9_-]{43}";
+const BEARER_CAPABILITY_TOKEN_PATTERN = `(?:${UUID_TOKEN_PATTERN}|${DERIVED_CAPABILITY_TOKEN_PATTERN})`;
 const SENSITIVE_CONTENT_PATTERNS = [
   {
     label: "private key",
@@ -111,14 +113,14 @@ const SENSITIVE_CONTENT_PATTERNS = [
   {
     label: "bearer capability URL",
     pattern: new RegExp(
-      `/(?:legal/staff/consent|manager-invite|shifts/(?:submit|view)|staff/register)\\?[^\\s"'<>]{0,512}\\btoken=${UUID_TOKEN_PATTERN}`,
+      `/(?:legal/staff/consent|manager-invite|shifts/(?:submit|view)|staff/register)\\?[^\\s"'<>]{0,512}\\btoken=${BEARER_CAPABILITY_TOKEN_PATTERN}`,
       "i",
     ),
   },
   {
     label: "bearer capability field",
     pattern: new RegExp(
-      `[\\\\]?["'](?:capability|sessionToken|token)[\\\\]?["']\\s*[:=]\\s*[\\\\]?["']${UUID_TOKEN_PATTERN}[\\\\]?["']`,
+      `[\\\\]?["'](?:capability|sessionToken|token)[\\\\]?["']\\s*[:=]\\s*[\\\\]?["']${BEARER_CAPABILITY_TOKEN_PATTERN}[\\\\]?["']`,
       "i",
     ),
   },

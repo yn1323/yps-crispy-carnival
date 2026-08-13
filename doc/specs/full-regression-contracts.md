@@ -57,7 +57,7 @@ feature flagで閉じた経路は、閉状態の拒否を検証してもenabled 
 | VRT | `vitest.vrt.config.ts`のdesktop / mobile1 / mobile2 project | 代表状態のlayout。文言・全状態の総当たりはしない |
 | Convex Function | `vitest.config.ts`の`convex(logic)` project | 単一functionの認証・tenant・入力・副作用0・冪等性 |
 | Convex Scenario | `vitest.config.ts`の`convex(scenario)` project | 複数function、scheduler、provider代替をまたぐ永続状態と復旧 |
-| E2E | `playwright.config.ts`と`e2e/scenarios/` | 認証・frontend・Convexを実接続するcore 8契約 |
+| E2E | `playwright.config.ts`と`e2e/scenarios/` | 認証・frontend・Convexを実接続するdesktop 12契約とmobile 1契約 |
 | Deployed Smoke | `playwright.deployed.config.ts` | build済みPreviewのHTTP配信とhydrationの2契約。業務操作は重ねない |
 
 Analytics Dashboardの専用build、VRT baseline、E2E / Deployed Smokeの結果件数はCI gateとして別に扱う。
@@ -192,11 +192,15 @@ E2Eは代表CTAとのbrowser接続だけを守り、対象集合、channel、件
 | `E2E-AUTH-01` | 匿名で保護routeを開くと元の遷移先付きでloginへ戻る | Desktop Chrome / core E2E | 実装済み | `e2e/scenarios/auth-pages.test.ts` |
 | `E2E-AUTH-02` | logout後に同じ保護routeへ再アクセスしてもsessionを再利用しない | Desktop Chrome / 専用actor | 実装済み | `e2e/scenarios/auth-logout.test.ts` |
 | `E2E-SETUP-01` | Clerk認証、frontend、Convexを接続して初回店舗登録後にDashboardへ到達する | Desktop Chrome / core E2E | 実装済み | `e2e/scenarios/manager-setup.test.ts` |
+| `E2E-STAFF-01` | 管理画面からスタッフを追加・更新・削除し、reload後も表示と不在を維持する | Desktop Chrome / core E2E。個人情報を含むartifactは保存しない | 実装済み。Preview実行未確認 | `e2e/scenarios/staff-lifecycle.test.ts` |
 | `E2E-SHIFT-01` | 管理者募集、匿名staff提出、管理者確定、別匿名context閲覧を実接続する | Desktop Chrome / core E2E | 実装済み | `e2e/scenarios/first-shift-delivery.test.ts` |
 | `E2E-TENANT-01` | 同じmanagerが二組織を往復し、選択店舗の表示を混ぜない | Desktop Chrome / core E2E | 実装済み | `e2e/scenarios/tenant-switching.test.ts` |
-| `E2E-MEMBERSHIP-01` | UIから店舗所属を変更し、reload後も維持する | Desktop Chrome / core E2E | 実装済み | `e2e/scenarios/shop-staff-membership.test.ts` |
-| `E2E-SHOP-01` | UIから2店舗目を追加・切替・削除し、安全な店舗へ復帰する | Desktop Chrome / core E2E | 実装済み | `e2e/scenarios/shop-lifecycle.test.ts` |
+| `E2E-MEMBERSHIP-01` | UIから対象店舗の所属を追加・解除し、reload後も元店舗の所属を維持する | Desktop Chrome / core E2E | 実装済み | `e2e/scenarios/shop-staff-membership.test.ts` |
+| `E2E-SHOP-01` | UIから2店舗目を追加・切替・更新・削除し、安全な店舗へ復帰する | Desktop Chrome / core E2E | 実装済み | `e2e/scenarios/shop-lifecycle.test.ts` |
+| `E2E-ORGANIZATION-01` | UIから2組織目を作成・改名し、reloadと往復切替後も組織contextを混ぜない | Desktop Chrome / core E2E。Previewで`FEATURE_ORGANIZATION_CREATION=enabled` | 実装済み。Preview実行未確認 | `e2e/scenarios/organization-lifecycle.test.ts` |
+| `E2E-ORGANIZATION-02` | UIから追加組織を削除し、残存組織へ復帰してreload後も削除組織を表示しない | Desktop Chrome / core E2E。Previewで`FEATURE_ORGANIZATION_CREATION=enabled` | 実装済み。Preview実行未確認 | `e2e/scenarios/organization-lifecycle.test.ts` |
 | `E2E-MANAGER-01` | 組織設定から管理者設定を開き、既存スタッフへの招待を発行し、reload後の招待中を確認して取り消し、スタッフタブへ戻る | Desktop Chrome / core E2E。Previewで`FEATURE_MANAGER_INVITATION=enabled`、通知配送dry-run、trace・screenshot・video off | 実装済み。Preview実行未確認 | `e2e/scenarios/manager-settings.test.ts` |
+| `E2E-MANAGER-02` | 別Clerk actorが招待を受諾し、管理者権限の取得・解除後の拒否とスタッフ所属維持を確認する | Desktop Chrome / 専用actor。Previewで`FEATURE_MANAGER_INVITATION=enabled`、通知配送dry-run、trace・screenshot・video off | 実装済み。Preview実行未確認 | `e2e/scenarios/manager-lifecycle.test.ts` |
 | `E2E-MOBILE-01` | Mobile Chromeでstaff提出の代表日を選び完了する | Mobile Chrome / core E2E | 実装済み | `e2e/scenarios/release-support-staff-submit.mobile.test.ts` |
 | `DEPLOY-SMOKE-HTTP-01` | Previewで代表公開route、slash URL、CSR shell、未知URL 404が実配信される | Deployed Smoke / Preview URL | 実装済み。実Preview未実行 | `e2e/scenarios/deployed-smoke.test.ts`、`scripts/assertDeployedSmokeResults.mjs` |
 | `DEPLOY-SMOKE-BROWSER-01` | Previewの代表公開pageがhydrateし、固有landmark・CTAを表示し、`pageerror`を出さない | Deployed Smoke / Preview URL | 実装済み。実Preview未実行 | `e2e/scenarios/deployed-smoke.test.ts`、`scripts/assertDeployedSmokeResults.mjs` |
@@ -295,7 +299,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 - 通知purposeごとに対象、channel、CTA、dedupe、不在条件をFunctionまたはScenarioで確認している。
 - submit / view / LINE / legal / registrationのCapabilityでscope、各contractが定めるTTLまたは再利用条件、失効条件、削除後の拒否を確認している。未決の管理者操作によるrevoke・rotationはcoverage済みと数えない。
 - 課金、通知、削除のworkflowが中断、replay、stale worker、削除競合から収束する。
-- core E2Eの8契約とDeployed Smokeの2契約を、欠落、重複、skip、retryなしでCIが検査する。
+- core E2Eのdesktop 12契約とmobile 1契約、Deployed Smokeの2契約を、欠落、重複、skip、retryなしでCIが検査する。
 - VRT baseline欠落をPR成功にせず、内部BI変更時に専用lint、type-check、buildを実行する。
 - `対象外`には理由と再評価条件があり、feature flagのskipをcoverage済みと数えない。
 - Production availability、migration完了、provider実到着は、同じrevisionの運用証跡として別に確認する。

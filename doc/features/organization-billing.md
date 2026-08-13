@@ -351,7 +351,10 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 - `src/components/features/Dashboard/PlanStatusCard/`のFrontend Unit・Story・Logic Test：折りたたみ中のquery停止、利用状況の局所Loading、全課金状態の表示変換、開閉、CTA、モバイル表示を検証する。
 - `src/components/features/Dashboard/DashboardContent/index.stories.tsx`：`undefined`と`null`のfallback差、`FEATURE_BILLING`、新旧表示の優先順位を検証する。
 - `src/components/features/ManagerSettings/`のStoryとFrontend Unit Test：専用ページ、既存スタッフの単一選択、新しい人物の入力、再送、取消、Free交代、Loading、Empty、Error、閲覧専用の代表状態を検証する。
-- `e2e/scenarios/manager-settings.test.ts`：実認証済みブラウザで組織設定から専用ページを開き、既存スタッフへの発行、再読込、取消、スタッフタブへの復帰だけを検証する。メールproviderへの実配送と受取人の承認は成功条件にしない。
+- `e2e/scenarios/organization-lifecycle.test.ts`：実認証済みブラウザで、2組織目の作成、改名、切り替え、削除、残存組織への復帰を検証する。
+- `e2e/scenarios/manager-settings.test.ts`（`E2E-MANAGER-01`）：実認証済みブラウザで、既存スタッフへの招待発行、再読込、取消、スタッフタブへの復帰を検証する。受取人による招待受諾は成功条件にしない。
+- `e2e/scenarios/manager-lifecycle.test.ts`（`E2E-MANAGER-02`）：予約済みの別Clerk actorで招待受諾、管理者権限の取得、解除後のアクセス拒否、スタッフ所属の維持を検証する。
+- 管理者E2Eはtrace、screenshot、videoを無効にし、招待capability、Clerk session、氏名、メールアドレスをartifactへ保存しない。メールproviderへの実配送は成功条件にしない。
 
 ## 仕様・規約・運用
 

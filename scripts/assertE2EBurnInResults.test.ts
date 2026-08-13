@@ -44,11 +44,16 @@ function report(phaseName: "desktop" | "mobile", override: ResultOverride = {}) 
 }
 
 describe("E2E burn-in result gate", () => {
-  it("desktop 8契約とmobile 1契約を各10回のphaseへ固定する", () => {
-    expect(E2E_BURN_IN_PHASES.get("desktop")).toMatchObject({ repetitions: 10 });
-    expect(E2E_BURN_IN_PHASES.get("desktop")?.contractIds).toHaveLength(8);
-    expect(E2E_BURN_IN_PHASES.get("mobile")).toMatchObject({ repetitions: 10 });
-    expect(E2E_BURN_IN_PHASES.get("mobile")?.contractIds).toHaveLength(1);
+  it("desktop 12契約を120回、mobile 1契約を10回のphaseへ固定する", () => {
+    const desktop = E2E_BURN_IN_PHASES.get("desktop");
+    const mobile = E2E_BURN_IN_PHASES.get("mobile");
+
+    expect(desktop).toMatchObject({ repetitions: 10 });
+    expect(desktop?.contractIds).toHaveLength(12);
+    expect((desktop?.contractIds.length ?? 0) * (desktop?.repetitions ?? 0)).toBe(120);
+    expect(mobile).toMatchObject({ repetitions: 10 });
+    expect(mobile?.contractIds).toHaveLength(1);
+    expect((mobile?.contractIds.length ?? 0) * (mobile?.repetitions ?? 0)).toBe(10);
   });
 
   it.each(["desktop", "mobile"] as const)("%sの契約を各10回、初回成功で検証する", (phaseName) => {
@@ -58,10 +63,11 @@ describe("E2E burn-in result gate", () => {
     );
   });
 
-  it("desktopで管理者設定の代表契約を10回要求する", () => {
+  it("desktopで管理者招待の発行・取消と別actor受諾を各10回要求する", () => {
     const summary = assertE2EBurnInResults(report("desktop"), "desktop");
 
     expect(summary).toContainEqual({ contractId: "E2E-MANAGER-01", count: 10 });
+    expect(summary).toContainEqual({ contractId: "E2E-MANAGER-02", count: 10 });
   });
 
   it.each([

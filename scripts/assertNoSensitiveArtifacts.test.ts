@@ -10,6 +10,7 @@ const GATE_PATH = path.join(SCRIPT_DIRECTORY, "assertNoSensitiveArtifacts.mjs");
 // Build the synthetic key at runtime so secret scanners do not flag the fixture itself.
 const STRIPE_KEY_FIXTURE = ["sk", "live", "1234567890abcdefghijklmnop"].join("_");
 const CAPABILITY_TOKEN_FIXTURE = ["123e4567", "e89b", "12d3", "a456", "426614174000"].join("-");
+const DERIVED_CAPABILITY_TOKEN_FIXTURE = `${"Ab3_".repeat(10)}x-y`;
 const CLERK_SESSION_ID_FIXTURE = ["sess", "3HMzXdDIrBEahLYAhJlnHtXsPPj"].join("_");
 let testDirectory: string;
 
@@ -108,6 +109,8 @@ describe("artifact privacy gate", () => {
     ["Clerk session identifier", CLERK_SESSION_ID_FIXTURE],
     ["capability URL", `/shifts/submit?token=${CAPABILITY_TOKEN_FIXTURE}`],
     ["capability field", JSON.stringify({ token: CAPABILITY_TOKEN_FIXTURE })],
+    ["derived capability URL", `/manager-invite?token=${DERIVED_CAPABILITY_TOKEN_FIXTURE}`],
+    ["derived capability field", JSON.stringify({ token: DERIVED_CAPABILITY_TOKEN_FIXTURE })],
   ])("rejects %s without echoing the detected value", (_label, sensitiveValue) => {
     writeFileSync(path.join(testDirectory, "report.json"), JSON.stringify({ value: sensitiveValue }));
 

@@ -3,6 +3,7 @@ import {
   resetShopStaffMembershipScenario,
   seedShopStaffMembershipScenario,
 } from "../helpers/shopStaffMembershipScenario";
+import { DashboardPage } from "../pages/DashboardPage";
 import { ShopStaffMembershipPage } from "../pages/ShopStaffMembershipPage";
 
 // 所属変更Dialogへperson nameが表示されるため、browser artifactへ画面状態を保存しない。
@@ -15,9 +16,10 @@ test.describe("店舗の所属スタッフ変更", { tag: ["@e2e-core"] }, () =>
     await resetShopStaffMembershipScenario();
   });
 
-  test("[E2E-MEMBERSHIP-01] 対象店舗の所属スタッフを一括変更し再読込後も維持する", async ({ page }) => {
+  test("[E2E-MEMBERSHIP-01] 対象店舗の所属スタッフを追加・解除し、元店舗の所属を維持する", async ({ page }) => {
     const seed = seedShopStaffMembershipScenario();
     const membership = new ShopStaffMembershipPage(page);
+    const dashboard = new DashboardPage(page);
 
     await membership.openTargetShopFromOrganizationSettings(seed);
     await membership.expectInitialTargetStaffList(seed);
@@ -27,5 +29,8 @@ test.describe("店舗の所属スタッフ変更", { tag: ["@e2e-core"] }, () =>
     await membership.removeAddedCandidate(seed);
     await membership.expectCandidateRemoved(seed);
     await membership.reloadAndExpectCandidateRemoved(seed);
+
+    await dashboard.goto(seed.contextShopId);
+    await dashboard.expectStaffVisible(seed.additionCandidateName);
   });
 });
