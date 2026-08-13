@@ -698,6 +698,99 @@ describe("deletionCleanup worker", () => {
     });
   });
 
+  it("組織削除は対象の人物LINE linkだけを終了し、別組織が共有するprovider識別子を保持する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const targetOrganizationId = await seedOrganization(ctx, "削除対象グループ", undefined, true);
+      const otherOrganizationId = await seedOrganization(ctx, "別グループ");
+      const targetPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: targetOrganizationId,
+        name: "削除対象",
+        email: "target-line@example.com",
+        emailNormalized: "target-line@example.com",
+        status: "active",
+        lineLinkGeneration: 1,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      const otherPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: otherOrganizationId,
+        name: "維持対象",
+        email: "other-line@example.com",
+        emailNormalized: "other-line@example.com",
+        status: "active",
+        lineLinkGeneration: 1,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      const providerId = await ctx.db.insert("lineProviderUsers", {
+        lineUserId: "shared-provider-line-id",
+        following: true,
+        stateVersion: 1,
+        friendshipObservedAt: NOW,
+        friendshipObservationSource: "oauth",
+        isDeleted: false,
+      });
+      const targetLinkId = await ctx.db.insert("organizationPersonLineLinks", {
+        organizationId: targetOrganizationId,
+        organizationPersonId: targetPersonId,
+        lineProviderUserId: providerId,
+        generation: 1,
+        linkedAt: NOW,
+        isDeleted: false,
+      });
+      const otherLinkId = await ctx.db.insert("organizationPersonLineLinks", {
+        organizationId: otherOrganizationId,
+        organizationPersonId: otherPersonId,
+        lineProviderUserId: providerId,
+        generation: 1,
+        linkedAt: NOW,
+        isDeleted: false,
+      });
+      const jobId = await ctx.db.insert("deletionCleanupJobs", {
+        scope: "organization",
+        organizationId: targetOrganizationId,
+        requestId: "organization-line-link-cleanup",
+        status: "processing",
+        phase: "organizationLineLinks",
+        version: 1,
+        attemptCount: 0,
+        nextRunAt: NOW,
+        leaseId: "organization-line-link-lease",
+        leaseExpiresAt: NOW + 60_000,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      return { targetPersonId, otherPersonId, providerId, targetLinkId, otherLinkId, jobId };
+    });
+
+    await t.mutation(internal.deletionCleanup.mutations.process, {
+      jobId: ids.jobId,
+      leaseId: "organization-line-link-lease",
+      expectedVersion: 1,
+    });
+    await finishDeletionCleanup(t);
+
+    const state = await t.run(async (ctx) => ({
+      job: await ctx.db.get(ids.jobId),
+      targetPerson: await ctx.db.get(ids.targetPersonId),
+      otherPerson: await ctx.db.get(ids.otherPersonId),
+      provider: await ctx.db.get(ids.providerId),
+      targetLink: await ctx.db.get(ids.targetLinkId),
+      otherLink: await ctx.db.get(ids.otherLinkId),
+    }));
+    expect(state.job).toMatchObject({ status: "completed" });
+    expect(state.targetPerson).toMatchObject({ status: "removed", lineLinkGeneration: 2 });
+    expect(state.targetLink).toMatchObject({ isDeleted: true, unlinkedAt: expect.any(Number) });
+    expect(state.otherPerson).toMatchObject({ status: "active", lineLinkGeneration: 1 });
+    expect(state.otherLink).toMatchObject({ isDeleted: false });
+    expect(state.provider).toMatchObject({
+      lineUserId: "shared-provider-line-id",
+      following: true,
+      isDeleted: false,
+    });
+  });
+
   it("永続済みの旧user cleanup phase/resourceはglobal userを変更せず次工程へ進む", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {

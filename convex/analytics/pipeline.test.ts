@@ -6,7 +6,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { jstDayRangeMs } from "../_lib/dateFormat";
 import { SCENARIO_NOW } from "../_test/scenarioBuilders";
-import { seedOrganizationManagerShop } from "../_test/seed";
+import { seedCanonicalStaffLineRecipient, seedOrganizationManagerShop, seedStaffLineAccount } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { getAnalyticsReadState, getCompleteRunRange } from "../analyticsDashboard/queryHelpers";
 import { DAY_MS, HOUR_MS } from "../constants";
@@ -228,6 +228,69 @@ describe("Analytics simplified control plane", () => {
 
     expect(await t.run(async (ctx) => await ctx.db.query("analyticsRuns").collect())).toEqual([]);
     expect(await scheduledFunctions(t)).toEqual([]);
+  });
+
+  it.each([
+    { authority: "legacy", canonicalReads: "" },
+    { authority: "canonical", canonicalReads: "enabled" },
+  ] as const)("resetは$authority read authorityのLINE状態をstaff membershipへ保持する", async (variant) => {
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", variant.canonicalReads);
+    const t = convexTest(schema, modules);
+    const fixture = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: `analytics_reset_line_${variant.authority}`,
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: seeded.shopId,
+        organizationId: seeded.organizationId,
+        organizationPersonId: seeded.personId,
+        name: `${variant.authority} LINEスタッフ`,
+        email: `${variant.authority}-line@example.com`,
+        emailNormalized: `${variant.authority}-line@example.com`,
+        isDeleted: false,
+      });
+      if (variant.authority === "canonical") {
+        await seedCanonicalStaffLineRecipient(ctx, { staffId, lineUserId: "U_analytics_canonical", following: true });
+      } else {
+        await seedStaffLineAccount(ctx, {
+          shopId: seeded.shopId,
+          staffId,
+          lineUserId: "U_analytics_legacy",
+          following: true,
+        });
+      }
+      const runId = await insertRun(ctx, {
+        kind: "reset",
+        status: "running",
+        startedAt: SCENARIO_NOW,
+        runKey: `reset:staff-line-${variant.authority}`,
+        stage: "resetStaffs",
+        stepVersion: 1,
+      });
+      return { runId, staffId };
+    });
+
+    await t.mutation(resetProcessPageRef, {
+      runId: fixture.runId,
+      kind: "reset",
+      stepVersion: 1,
+      stage: "resetStaffs",
+    });
+
+    const memberships = await t.run(async (ctx) =>
+      (await ctx.db.query("analyticsMemberships").collect()).filter(
+        (membership) => membership.role === "staff" && membership.staffId === fixture.staffId,
+      ),
+    );
+    expect(memberships).toEqual([
+      expect.objectContaining({
+        membershipKey: `staff:${fixture.staffId}`,
+        staffId: fixture.staffId,
+        role: "staff",
+        lineLinked: true,
+        lineFollowing: true,
+      }),
+    ]);
   });
 
   it("reset dry-runは現在時刻を毎回評価し、enable期限切れ後はstartとともに拒否する", async () => {

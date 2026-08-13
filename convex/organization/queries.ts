@@ -1,10 +1,12 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
+import { isLineCommonLinkCanonicalReady } from "../_lib/config";
 import { formatDateJa, formatDateTimeJa } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
 import { normalizeEmail, requiredEmailSchema } from "../_lib/validation";
+import { getOrganizationPersonLineState } from "../line/service";
 import {
   deriveOrganizationBillingPolicy,
   getEffectiveRestrictedBillingState,
@@ -43,6 +45,7 @@ const organizationPersonViewValidator = v.object({
   managerRole: v.union(v.literal("active"), v.literal("readOnly"), v.literal("none")),
   isStaff: v.boolean(),
   isLineConnected: v.boolean(),
+  lineStatus: v.union(v.literal("unlinked"), v.literal("linked_following"), v.literal("linked_unfollowed")),
   hasManagerInvitation: v.boolean(),
   shopNames: v.array(v.string()),
   shopIds: v.array(v.id("shops")),
@@ -217,6 +220,7 @@ function legacyMigrationPendingSettings(
         managerRole: "active" as const,
         isStaff: false,
         isLineConnected: false,
+        lineStatus: "unlinked" as const,
         hasManagerInvitation: false,
         shopNames: [],
         shopIds: [],
@@ -285,7 +289,7 @@ function getOrganizationSettingsFeatures() {
   return {
     // 旧frontendの表示DTOとの互換のため項目を残す。
     organizationCreation: true,
-    shopAddition: true,
+    shopAddition: isLineCommonLinkCanonicalReady(),
     billing: true,
     managerInvitation: true,
   };
@@ -419,17 +423,19 @@ export const getSettings = managerQuery({
       current.push(staff);
       staffRowsByPersonId.set(staff.organizationPersonId, current);
     }
-    const lineConnectedStaffIds = new Set<Id<"staffs">>();
-    await Promise.all(
-      staffDocs.map(async (staff) => {
-        const accounts = await ctx.db
-          .query("staffLineAccounts")
-          .withIndex("by_staffId", (q) => q.eq("staffId", staff._id))
-          .collect();
-        if (accounts.some((account) => !account.isDeleted && account.following && account.shopId === staff.shopId)) {
-          lineConnectedStaffIds.add(staff._id);
-        }
-      }),
+    const lineStateByPersonId = new Map(
+      await Promise.all(
+        people.map(
+          async (person) =>
+            [
+              person._id,
+              await getOrganizationPersonLineState(ctx, {
+                organizationId: organization._id,
+                organizationPersonId: person._id,
+              }),
+            ] as const,
+        ),
+      ),
     );
 
     const managerRoleByPersonId = new Map<Id<"organizationPeople">, ManagerRole>();
@@ -721,7 +727,8 @@ export const getSettings = managerQuery({
         const managerRole = managerRoleByPersonId.get(person._id) ?? "none";
         const staffRows = staffRowsByPersonId.get(person._id) ?? [];
         const isStaff = staffRows.length > 0;
-        const isLineConnected = staffRows.some((staff) => lineConnectedStaffIds.has(staff._id));
+        const lineStatus = lineStateByPersonId.get(person._id)?.status ?? "unlinked";
+        const isLineConnected = lineStatus !== "unlinked";
         const hasManagerInvitation = invitedPersonIds.has(person._id);
         const isRecoveryManager = Boolean(restrictedState && recoveryPersonIds.includes(person._id));
         const isLastRecoveryManager = isRecoveryManager && recoveryPersonIds.length <= 1;
@@ -756,6 +763,7 @@ export const getSettings = managerQuery({
           managerRole,
           isStaff,
           isLineConnected,
+          lineStatus,
           hasManagerInvitation,
           shopNames,
           shopIds,
@@ -1082,22 +1090,29 @@ export const getSettings = managerQuery({
                   : policy?.paidFeatureBlockReason === "paymentResultPending"
                     ? "支払い結果が確定してから、管理者を招待できます。"
                     : `管理者と招待中の管理者は、組織全体で${policy?.limits?.maxActiveManagers ?? ORGANIZATION_PLAN_LIMITS.pro.maxActiveManagers}名までです。`;
+    const shopAdditionEnabled = isLineCommonLinkCanonicalReady();
     const canAddShop = Boolean(
-      isActiveActor && policy?.canUsePaidFeatures && policy.limits && activeShopCount < policy.limits.maxActiveShops,
+      shopAdditionEnabled &&
+        isActiveActor &&
+        policy?.canUsePaidFeatures &&
+        policy.limits &&
+        activeShopCount < policy.limits.maxActiveShops,
     );
     const addShopDisabledReason = canAddShop
       ? undefined
-      : !billingState
-        ? "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。"
-        : !isActiveActor
-          ? "閲覧のみの管理者は、店舗を追加できません。"
-          : restrictedState
-            ? "契約制限中は、店舗を追加できません。"
-            : policy?.paidFeatureBlockReason === "freePlan"
-              ? "無料プランでは、店舗を追加できません。\n有料プランを選択してください。"
-              : policy?.paidFeatureBlockReason === "paymentResultPending"
-                ? "支払い結果が確定してから、店舗を追加できます。"
-                : `店舗は、組織ごとに${policy?.limits?.maxActiveShops ?? ORGANIZATION_PLAN_LIMITS.pro.maxActiveShops}件まで登録できます。`;
+      : !shopAdditionEnabled
+        ? "現在は店舗を追加できません。\n画面を再読み込みして、しばらくしてからもう一度お試しください。"
+        : !billingState
+          ? "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。"
+          : !isActiveActor
+            ? "閲覧のみの管理者は、店舗を追加できません。"
+            : restrictedState
+              ? "契約制限中は、店舗を追加できません。"
+              : policy?.paidFeatureBlockReason === "freePlan"
+                ? "無料プランでは、店舗を追加できません。\n有料プランを選択してください。"
+                : policy?.paidFeatureBlockReason === "paymentResultPending"
+                  ? "支払い結果が確定してから、店舗を追加できます。"
+                  : `店舗は、組織ごとに${policy?.limits?.maxActiveShops ?? ORGANIZATION_PLAN_LIMITS.pro.maxActiveShops}件まで登録できます。`;
     const canUpdateOrganizationName = isActiveActor;
     const updateOrganizationNameDisabledReason = canUpdateOrganizationName
       ? undefined

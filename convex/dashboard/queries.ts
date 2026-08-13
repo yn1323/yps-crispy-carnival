@@ -13,7 +13,7 @@ import {
   DASHBOARD_RECRUITMENT_CANDIDATE_GROUP_LIMIT,
   DASHBOARD_RESPONSE_COUNT_LIMIT,
 } from "../constants";
-import { getStaffLineAccount } from "../line/service";
+import { resolveStaffLineRecipient } from "../line/service";
 import {
   managerInvitationStateValidator,
   resolvePersonManagerInvitationState,
@@ -921,7 +921,7 @@ export const getDashboardStaffs = managerQuery({
 
     const page = await Promise.all(
       paginatedResult.page.map(async (s) => {
-        const lineAccount = await getStaffLineAccount(ctx, s._id);
+        const lineAccount = await resolveStaffLineRecipient(ctx, { staffId: s._id, shopId: shop._id });
         const isOrganizationLinked = Boolean(
           organization && s.organizationId === organization._id && s.organizationPersonId,
         );

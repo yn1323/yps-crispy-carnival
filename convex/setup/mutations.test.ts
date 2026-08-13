@@ -350,7 +350,13 @@ describe("setup/mutations", () => {
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
       expect(
-        scheduled.some((job) => job.name === "line/actions:sendInviteEmail" && job.args[0]?.staffId === staffs[0]._id),
+        scheduled.some(
+          (job) =>
+            job.name === "line/actions:sendInviteEmail" &&
+            job.args[0]?.staffId === staffs[0]._id &&
+            job.args[0]?.organizationPersonId === organizationPerson?._id &&
+            job.args[0]?.lineLinkGenerationAtSchedule === 0,
+        ),
       ).toBe(true);
       expect(
         scheduled.some(

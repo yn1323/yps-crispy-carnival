@@ -6,6 +6,7 @@ import {
   seedLegacyShopMembership,
   seedManagerShop,
   seedOrganizationManagerShop,
+  seedOrganizationPersonLineLink,
   seedShop,
   seedUser,
 } from "../_test/seed";
@@ -35,6 +36,7 @@ describe("staffRegistration/mutations", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
@@ -608,14 +610,19 @@ describe("staffRegistration/mutations", () => {
     expect(state.staff).toMatchObject({ shopId, name: "承認スタッフ", email: "approved@example.com" });
     expect(state.consentState).toMatchObject({ method: "staff_registration" });
     expect(state.request).toMatchObject({ status: "approved", approvedStaffId: staffId });
-    expect(
-      state.scheduled.some(
-        (job) =>
-          job.name === "line/actions:sendInviteEmail" &&
-          job.args[0]?.staffId === staffId &&
-          job.args[0]?.context === "registration_approved",
-      ),
-    ).toBe(true);
+    if (!state.staff?.organizationId || !state.staff.organizationPersonId) {
+      throw new Error("承認スタッフのcanonical scopeがありません");
+    }
+    const { organizationId, organizationPersonId } = state.staff;
+    const inviteJob = state.scheduled.find(
+      (job) => job.name === "line/actions:sendInviteEmail" && job.args[0]?.staffId === staffId,
+    );
+    expect(inviteJob?.args[0]).toMatchObject({
+      staffId,
+      organizationPersonId,
+      lineLinkGenerationAtSchedule: 0,
+      context: "registration_approved",
+    });
     expect(
       state.scheduled.some(
         (job) =>
@@ -628,6 +635,25 @@ describe("staffRegistration/mutations", () => {
         (job) => job.name === "legal/actions:sendStaffConsentEmail" && job.args[0]?.staffId === staffId,
       ),
     ).toBe(false);
+
+    await t.run(async (ctx) => {
+      await seedOrganizationPersonLineLink(ctx, {
+        organizationId,
+        organizationPersonId,
+        lineUserId: "U_linked_after_registration_invite_schedule",
+      });
+    });
+    await t.action(internal.line.actions.sendInviteEmail, {
+      staffId,
+      organizationPersonId,
+      lineLinkGenerationAtSchedule: 0,
+      context: "registration_approved",
+    });
+    const afterAction = await t.run(async (ctx) => ({
+      lineLinkTokens: await ctx.db.query("lineLinkTokens").collect(),
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+    }));
+    expect(afterAction).toEqual({ lineLinkTokens: [], outbox: [] });
   });
 
   it("事業者配下の承認は人物とstaffsをdual-writeし、同じ申請の再承認でも重複保存しない", async () => {
@@ -942,6 +968,12 @@ describe("staffRegistration/mutations", () => {
         emailNormalized: "registration-shared@example.com",
         isDeleted: false,
       });
+      await seedOrganizationPersonLineLink(ctx, {
+        organizationId: organization.organizationId,
+        organizationPersonId: existingPersonId,
+        lineUserId: "U_registration_shared",
+        following: true,
+      });
       return { ...organization, secondShopId, existingPersonId };
     });
     const asManager = t.withIdentity({ subject: "registration_reuse_manager" });
@@ -967,7 +999,12 @@ describe("staffRegistration/mutations", () => {
         .query("organizationPeople")
         .withIndex("by_organizationId_and_emailNormalized", (q) => q.eq("organizationId", seeded.organizationId))
         .collect();
-      return { people, staff: await ctx.db.get(staffId) };
+      return {
+        people,
+        staff: await ctx.db.get(staffId),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+        analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+      };
     });
     expect(state.people).toHaveLength(2);
     expect(state.staff).toMatchObject({
@@ -976,6 +1013,284 @@ describe("staffRegistration/mutations", () => {
       organizationPersonId: seeded.existingPersonId,
       name: "既存人物",
     });
+    expect(state.scheduled.some((job) => job.name === "line/actions:sendInviteEmail")).toBe(false);
+    expect(state.analytics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            kind: "staffMembership",
+            staffId,
+            lineLinked: true,
+            lineFollowing: true,
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it("legacy read中に最後の所属を外してもretained canonical LINEを承認先へ投影する", async () => {
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "");
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READY", "");
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(async (ctx) => {
+      const organization = await seedOrganizationManagerShop(ctx, {
+        subject: "registration_retained_readd_manager",
+        plan: "pro",
+      });
+      const secondShopId = await ctx.db.insert("shops", {
+        organizationId: organization.organizationId,
+        operatingStatus: "active",
+        name: "retained承認先店舗",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        regularClosedDays: [],
+        isDeleted: false,
+      });
+      const now = Date.now();
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId: organization.organizationId,
+        name: "retained承認対象",
+        email: "registration-retained-readd@example.com",
+        emailNormalized: "registration-retained-readd@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const sourceStaffId = await ctx.db.insert("staffs", {
+        shopId: organization.shopId,
+        organizationId: organization.organizationId,
+        organizationPersonId: personId,
+        name: "retained承認対象",
+        email: "registration-retained-readd@example.com",
+        emailNormalized: "registration-retained-readd@example.com",
+        isDeleted: false,
+      });
+      const sourceLineAccountId = await ctx.db.insert("staffLineAccounts", {
+        staffId: sourceStaffId,
+        shopId: organization.shopId,
+        lineUserId: "U_registration_retained_readd",
+        linkedAt: now,
+        following: true,
+        isDeleted: false,
+      });
+      await seedOrganizationPersonLineLink(ctx, {
+        organizationId: organization.organizationId,
+        organizationPersonId: personId,
+        lineUserId: "U_registration_retained_readd",
+        following: true,
+      });
+      return { ...organization, personId, secondShopId, sourceLineAccountId, sourceStaffId };
+    });
+    const actor = t.withIdentity({ subject: "registration_retained_readd_manager" });
+
+    await actor.mutation(api.organization.mutations.removePersonFromShop, {
+      shopId: seeded.shopId,
+      staffId: seeded.sourceStaffId,
+      requestId: "registration-retained-remove-last",
+    });
+    const link = await actor.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      shopId: seeded.secondShopId,
+    });
+    await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
+      token: link.token,
+      name: "申請側の表示名",
+      email: "Registration-Retained-Readd@Example.com",
+      acceptedLegal: true,
+    });
+    const requestId = await getPendingRequestId(t, seeded.secondShopId, "registration-retained-readd@example.com");
+    const { staffId } = await actor.mutation(api.staffRegistration.mutations.approveRequest, {
+      requestId,
+      shopId: seeded.secondShopId,
+    });
+
+    const state = await t.run(async (ctx) => ({
+      request: await ctx.db.get(requestId),
+      sourceStaff: await ctx.db.get(seeded.sourceStaffId),
+      sourceAccount: await ctx.db.get(seeded.sourceLineAccountId),
+      targetAccount: await ctx.db
+        .query("staffLineAccounts")
+        .withIndex("by_staffId_and_isDeleted", (q) => q.eq("staffId", staffId).eq("isDeleted", false))
+        .unique(),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+    }));
+    expect(state.request).toMatchObject({ status: "approved", approvedStaffId: staffId });
+    expect(state.sourceStaff?.isDeleted).toBe(true);
+    expect(state.sourceAccount).toMatchObject({ isDeleted: true, following: false });
+    expect(state.targetAccount).toMatchObject({
+      staffId,
+      shopId: seeded.secondShopId,
+      lineUserId: "U_registration_retained_readd",
+      following: true,
+      isDeleted: false,
+    });
+    expect(state.scheduled.some((job) => job.name === "line/actions:sendInviteEmail")).toBe(false);
+    expect(state.analytics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            kind: "staffMembership",
+            staffId,
+            lineLinked: true,
+            lineFollowing: true,
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it("legacy read中にactive canonicalだけ残る破損では承認をrollbackし、LINE案内を予約しない", async () => {
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "");
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READY", "enabled");
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(async (ctx) => {
+      const organization = await seedOrganizationManagerShop(ctx, {
+        subject: "registration_corrupt_projection_manager",
+        plan: "pro",
+      });
+      const secondShopId = await ctx.db.insert("shops", {
+        organizationId: organization.organizationId,
+        operatingStatus: "active",
+        name: "projection欠損承認先",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        regularClosedDays: [],
+        isDeleted: false,
+      });
+      const now = Date.now();
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId: organization.organizationId,
+        name: "projection欠損承認対象",
+        email: "registration-corrupt-projection@example.com",
+        emailNormalized: "registration-corrupt-projection@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const sourceStaffId = await ctx.db.insert("staffs", {
+        shopId: organization.shopId,
+        organizationId: organization.organizationId,
+        organizationPersonId: personId,
+        name: "projection欠損承認対象",
+        email: "registration-corrupt-projection@example.com",
+        emailNormalized: "registration-corrupt-projection@example.com",
+        isDeleted: false,
+      });
+      await seedOrganizationPersonLineLink(ctx, {
+        organizationId: organization.organizationId,
+        organizationPersonId: personId,
+        lineUserId: "U_registration_corrupt_projection",
+        following: true,
+      });
+      return { ...organization, personId, secondShopId, sourceStaffId };
+    });
+    const actor = t.withIdentity({ subject: "registration_corrupt_projection_manager" });
+    const link = await actor.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      shopId: seeded.secondShopId,
+    });
+    await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
+      token: link.token,
+      name: "追加されない申請",
+      email: "registration-corrupt-projection@example.com",
+      acceptedLegal: true,
+    });
+    const requestId = await getPendingRequestId(t, seeded.secondShopId, "registration-corrupt-projection@example.com");
+
+    await expect(
+      actor.mutation(api.staffRegistration.mutations.approveRequest, {
+        requestId,
+        shopId: seeded.secondShopId,
+      }),
+    ).rejects.toThrow("LINE連携を完了できませんでした。");
+
+    const state = await t.run(async (ctx) => ({
+      request: await ctx.db.get(requestId),
+      sourceStaff: await ctx.db.get(seeded.sourceStaffId),
+      targetStaffs: await ctx.db
+        .query("staffs")
+        .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", seeded.secondShopId).eq("isDeleted", false))
+        .collect(),
+      lineAccounts: await ctx.db.query("staffLineAccounts").collect(),
+      consents: await ctx.db.query("legalConsentStates").collect(),
+      audits: await ctx.db.query("organizationAuditEvents").collect(),
+      analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(state.request?.status).toBe("pending");
+    expect(state.sourceStaff).toMatchObject({ _id: seeded.sourceStaffId, isDeleted: false });
+    expect(state.targetStaffs).toEqual([]);
+    expect(state.lineAccounts).toEqual([]);
+    expect(state.consents).toEqual([]);
+    expect(state.audits).toEqual([]);
+    expect(state.analytics).toEqual([]);
+    expect(state.scheduled).toEqual([]);
+  });
+
+  it("canonical readinessが閉じている間は承認経路でも既存人物の二店舗目所属を作らない", async () => {
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READY", "");
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(async (ctx) => {
+      const organization = await seedOrganizationManagerShop(ctx, {
+        subject: "registration_membership_gate_manager",
+        plan: "pro",
+      });
+      const secondShopId = await ctx.db.insert("shops", {
+        organizationId: organization.organizationId,
+        operatingStatus: "active",
+        name: "承認gate店舗",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        regularClosedDays: [],
+        isDeleted: false,
+      });
+      const now = Date.now();
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId: organization.organizationId,
+        name: "承認gate対象",
+        email: "registration-gate@example.com",
+        emailNormalized: "registration-gate@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("staffs", {
+        shopId: organization.shopId,
+        organizationId: organization.organizationId,
+        organizationPersonId: personId,
+        name: "既存店舗スタッフ",
+        email: "registration-gate@example.com",
+        emailNormalized: "registration-gate@example.com",
+        isDeleted: false,
+      });
+      return { ...organization, secondShopId };
+    });
+    const asManager = t.withIdentity({ subject: "registration_membership_gate_manager" });
+    const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      shopId: seeded.secondShopId,
+    });
+    await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
+      token: link.token,
+      name: "承認gate申請",
+      email: "registration-gate@example.com",
+      acceptedLegal: true,
+    });
+    const requestId = await getPendingRequestId(t, seeded.secondShopId, "registration-gate@example.com");
+
+    await expect(
+      asManager.mutation(api.staffRegistration.mutations.approveRequest, {
+        requestId,
+        shopId: seeded.secondShopId,
+      }),
+    ).rejects.toThrow("現在、店舗や所属を追加できません。");
+
+    const state = await t.run(async (ctx) => ({
+      request: await ctx.db.get(requestId),
+      targetStaffs: await ctx.db
+        .query("staffs")
+        .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", seeded.secondShopId).eq("isDeleted", false))
+        .collect(),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(state.request?.status).toBe("pending");
+    expect(state.targetStaffs).toEqual([]);
+    expect(state.scheduled).toEqual([]);
   });
 
   it("アカウント削除受付済みuserを持つ削除済み人物の参加申請は承認せず、副作用を残さない", async () => {

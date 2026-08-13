@@ -2,7 +2,12 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { seedLegacyManagerShop, seedOrganizationManagerShop, seedUser } from "../_test/seed";
+import {
+  seedLegacyManagerShop,
+  seedOrganizationManagerShop,
+  seedOrganizationPersonLineLink,
+  seedUser,
+} from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("organization/queries.getSettings", () => {
@@ -247,6 +252,7 @@ describe("organization/queries.getSettings", () => {
           managerRole: "active",
           isStaff: false,
           isLineConnected: false,
+          lineStatus: "unlinked",
           shopNames: [],
           shopIds: [],
           canRemoveManagerRole: false,
@@ -282,6 +288,7 @@ describe("organization/queries.getSettings", () => {
       "id",
       "isLineConnected",
       "isStaff",
+      "lineStatus",
       "managerRole",
       "managerRoleRemovalDisabledReason",
       "name",
@@ -608,7 +615,7 @@ describe("organization/queries.getSettings", () => {
     expect(person?.shopIds).not.toContain(ids.deletedStaffShopId);
   });
 
-  it("同じ人物のいずれかの有効スタッフがLINEフォロー中なら連携済みだけを返す", async () => {
+  it("組織人物の共通LINE連携と友だち状態を返し、raw IDは返さない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -626,7 +633,7 @@ describe("organization/queries.getSettings", () => {
         createdAt: now,
         updatedAt: now,
       });
-      const staffId = await ctx.db.insert("staffs", {
+      await ctx.db.insert("staffs", {
         shopId: base.shopId,
         organizationId: base.organizationId,
         organizationPersonId: personId,
@@ -635,15 +642,12 @@ describe("organization/queries.getSettings", () => {
         emailNormalized: "line-staff@example.com",
         isDeleted: false,
       });
-      const lineAccountId = await ctx.db.insert("staffLineAccounts", {
-        staffId,
-        shopId: base.shopId,
+      const line = await seedOrganizationPersonLineLink(ctx, {
+        organizationId: base.organizationId,
+        organizationPersonId: personId,
         lineUserId: "line-user-settings",
-        linkedAt: now,
-        following: true,
-        isDeleted: false,
       });
-      return { ...base, lineAccountId, personId };
+      return { ...base, lineProviderUserId: line.lineProviderUserId, personId };
     });
 
     const result = await t
@@ -651,15 +655,16 @@ describe("organization/queries.getSettings", () => {
       .query(api.organization.queries.getSettings, { shopId: ids.shopId });
 
     const person = result?.people.find((candidate) => candidate.id === ids.personId);
-    expect(person).toMatchObject({ isStaff: true, isLineConnected: true });
+    expect(person).toMatchObject({ isStaff: true, isLineConnected: true, lineStatus: "linked_following" });
     expect(person).not.toHaveProperty("lineUserId");
 
-    await t.run(async (ctx) => await ctx.db.patch(ids.lineAccountId, { following: false }));
+    await t.run(async (ctx) => await ctx.db.patch(ids.lineProviderUserId, { following: false }));
     const unfollowedResult = await t
       .withIdentity({ subject: "settings_line_connected" })
       .query(api.organization.queries.getSettings, { shopId: ids.shopId });
     expect(unfollowedResult?.people.find((candidate) => candidate.id === ids.personId)).toMatchObject({
-      isLineConnected: false,
+      isLineConnected: true,
+      lineStatus: "linked_unfollowed",
     });
   });
 

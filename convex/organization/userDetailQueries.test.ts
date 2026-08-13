@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
@@ -57,6 +57,9 @@ async function seedStaff(
 }
 
 describe("organization/userDetailQueries.getUserDetail", () => {
+  beforeEach(() => vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", ""));
+  afterEach(() => vi.unstubAllEnvs());
+
   it("組織人物と有効店舗所属を最小DTOで返し、招待状態を同じ契約で更新する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
@@ -127,8 +130,8 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       });
       await ctx.db.insert("staffLineAccounts", {
         staffId: secondStaffId,
-        shopId: base.shopId,
-        lineUserId: "mismatched-shop-line-user-id",
+        shopId: secondShopId,
+        lineUserId: "never-return-line-user-id",
         linkedAt: NOW,
         following: true,
         isDeleted: false,
@@ -167,6 +170,14 @@ describe("organization/userDetailQueries.getUserDetail", () => {
         fingerprint: expect.any(String),
       },
       canWrite: true,
+      line: {
+        status: "linked_following",
+        actionShopId: ids.shopId,
+        sourceStaffId: ids.firstStaffId,
+        sourceShopId: ids.shopId,
+        canLink: true,
+        canDisconnect: true,
+      },
       membershipFingerprint: expect.stringMatching(/^[0-9a-f]{64}$/),
       shops: [
         {
@@ -204,7 +215,6 @@ describe("organization/userDetailQueries.getUserDetail", () => {
             assignmentCount: 0,
             fingerprint: expect.any(String),
           },
-          line: { isLinked: false, isFollowing: false },
         },
         {
           staffId: ids.firstStaffId,
@@ -219,7 +229,6 @@ describe("organization/userDetailQueries.getUserDetail", () => {
             assignmentCount: 0,
             fingerprint: expect.any(String),
           },
-          line: { isLinked: true, isFollowing: true },
         },
         {
           staffId: ids.secondStaffId,
@@ -234,12 +243,10 @@ describe("organization/userDetailQueries.getUserDetail", () => {
             assignmentCount: 0,
             fingerprint: expect.any(String),
           },
-          line: { isLinked: false, isFollowing: false },
         },
       ],
     });
     expect(JSON.stringify(result)).not.toContain("never-return-line-user-id");
-    expect(JSON.stringify(result)).not.toContain("mismatched-shop-line-user-id");
 
     const fromArchivedShop = await actor.query(api.organization.userDetailQueries.getUserDetail, {
       shopId: ids.archivedShopId,
@@ -275,6 +282,228 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       managerInvitationState: { kind: "pending", mode: "addition" },
     });
     expect(JSON.stringify(pending)).not.toContain("never-return-invitation-token");
+  });
+
+  it("組織人物のcanonical LINE状態を全店舗で共通の最小DTOへ射影する", async () => {
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "user_detail_common_line",
+        shopName: "青山店",
+        plan: "pro",
+      });
+      const secondShopId = await ctx.db.insert("shops", {
+        organizationId: base.organizationId,
+        operatingStatus: "active",
+        name: "赤坂店",
+        regularClosedDays: [],
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        isDeleted: false,
+      });
+      const personId = await seedPerson(ctx, { organizationId: base.organizationId });
+      const firstStaffId = await seedStaff(ctx, {
+        organizationId: base.organizationId,
+        personId,
+        shopId: base.shopId,
+      });
+      await seedStaff(ctx, {
+        organizationId: base.organizationId,
+        personId,
+        shopId: secondShopId,
+      });
+      const providerId = await ctx.db.insert("lineProviderUsers", {
+        lineUserId: "never-return-canonical-line-user-id",
+        following: true,
+        stateVersion: 1,
+        friendshipObservedAt: NOW,
+        friendshipObservationSource: "oauth",
+        isDeleted: false,
+      });
+      await ctx.db.insert("organizationPersonLineLinks", {
+        organizationId: base.organizationId,
+        organizationPersonId: personId,
+        lineProviderUserId: providerId,
+        generation: 0,
+        linkedAt: NOW,
+        isDeleted: false,
+      });
+      return { ...base, personId, firstStaffId, providerId };
+    });
+    const actor = t.withIdentity({ subject: "user_detail_common_line" });
+
+    const linked = await actor.query(api.organization.userDetailQueries.getUserDetail, {
+      shopId: ids.shopId,
+      personId: ids.personId,
+      now: NOW,
+    });
+
+    expect(linked?.line).toEqual({
+      status: "linked_following",
+      actionShopId: ids.shopId,
+      sourceStaffId: ids.firstStaffId,
+      sourceShopId: ids.shopId,
+      canLink: true,
+      canDisconnect: true,
+    });
+    expect(linked?.memberships).toHaveLength(2);
+    expect(linked?.memberships.every((membership) => !("line" in membership))).toBe(true);
+    expect(JSON.stringify(linked)).not.toContain("never-return-canonical-line-user-id");
+
+    await t.run(async (ctx) => await ctx.db.patch(ids.providerId, { following: false, stateVersion: 2 }));
+    const unfollowed = await actor.query(api.organization.userDetailQueries.getUserDetail, {
+      shopId: ids.shopId,
+      personId: ids.personId,
+      now: NOW,
+    });
+    expect(unfollowed?.line.status).toBe("linked_unfollowed");
+  });
+
+  it("canonical LINE linkの重複またはgeneration不整合を人物詳細ごとfail closedにする", async () => {
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "user_detail_line_inconsistent",
+        plan: "pro",
+      });
+      const personId = await seedPerson(ctx, { organizationId: base.organizationId });
+      await seedStaff(ctx, { organizationId: base.organizationId, personId, shopId: base.shopId });
+      const providerId = await ctx.db.insert("lineProviderUsers", {
+        lineUserId: "line-inconsistent",
+        following: true,
+        stateVersion: 1,
+        friendshipObservedAt: NOW,
+        friendshipObservationSource: "oauth",
+        isDeleted: false,
+      });
+      const linkId = await ctx.db.insert("organizationPersonLineLinks", {
+        organizationId: base.organizationId,
+        organizationPersonId: personId,
+        lineProviderUserId: providerId,
+        generation: 1,
+        linkedAt: NOW,
+        isDeleted: false,
+      });
+      return { ...base, personId, providerId, linkId };
+    });
+    const actor = t.withIdentity({ subject: "user_detail_line_inconsistent" });
+    const args = { shopId: ids.shopId, personId: ids.personId, now: NOW };
+
+    await expect(actor.query(api.organization.userDetailQueries.getUserDetail, args)).resolves.toBeNull();
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.linkId, { generation: 0 });
+      await ctx.db.insert("organizationPersonLineLinks", {
+        organizationId: ids.organizationId,
+        organizationPersonId: ids.personId,
+        lineProviderUserId: ids.providerId,
+        generation: 0,
+        linkedAt: NOW + 1,
+        isDeleted: false,
+      });
+    });
+    await expect(actor.query(api.organization.userDetailQueries.getUserDetail, args)).resolves.toBeNull();
+  });
+
+  it("legacy read authorityでは人物の有効所属を集約し、競合をPIIなしでfail closedにする", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "user_detail_legacy_line_conflict",
+        shopName: "青山店",
+        plan: "pro",
+      });
+      const secondShopId = await ctx.db.insert("shops", {
+        organizationId: base.organizationId,
+        operatingStatus: "active",
+        name: "赤坂店",
+        regularClosedDays: [],
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        isDeleted: false,
+      });
+      const personId = await seedPerson(ctx, { organizationId: base.organizationId });
+      const firstStaffId = await seedStaff(ctx, {
+        organizationId: base.organizationId,
+        personId,
+        shopId: base.shopId,
+      });
+      const secondStaffId = await seedStaff(ctx, {
+        organizationId: base.organizationId,
+        personId,
+        shopId: secondShopId,
+      });
+      await ctx.db.insert("staffLineAccounts", {
+        staffId: firstStaffId,
+        shopId: base.shopId,
+        lineUserId: "legacy-line-user-a",
+        linkedAt: NOW,
+        following: true,
+        isDeleted: false,
+      });
+      const secondAccountId = await ctx.db.insert("staffLineAccounts", {
+        staffId: secondStaffId,
+        shopId: secondShopId,
+        lineUserId: "legacy-line-user-a",
+        linkedAt: NOW,
+        following: false,
+        isDeleted: false,
+      });
+      return { ...base, personId, secondAccountId };
+    });
+    const actor = t.withIdentity({ subject: "user_detail_legacy_line_conflict" });
+    const args = { shopId: ids.shopId, personId: ids.personId, now: NOW };
+
+    await expect(actor.query(api.organization.userDetailQueries.getUserDetail, args)).resolves.toBeNull();
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.secondAccountId, { lineUserId: "legacy-line-user-b", following: true });
+    });
+    await expect(actor.query(api.organization.userDetailQueries.getUserDetail, args)).resolves.toBeNull();
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.secondAccountId, { lineUserId: "legacy-line-user-a" });
+    });
+    const linked = await actor.query(api.organization.userDetailQueries.getUserDetail, args);
+    expect(linked?.line.status).toBe("linked_following");
+    expect(JSON.stringify(linked)).not.toContain("legacy-line-user-a");
+  });
+
+  it("canonical read authorityではlegacy LINE行へfallbackしない", async () => {
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "user_detail_canonical_no_fallback",
+        plan: "pro",
+      });
+      const personId = await seedPerson(ctx, { organizationId: base.organizationId });
+      const staffId = await seedStaff(ctx, {
+        organizationId: base.organizationId,
+        personId,
+        shopId: base.shopId,
+      });
+      await ctx.db.insert("staffLineAccounts", {
+        staffId,
+        shopId: base.shopId,
+        lineUserId: "legacy-only-line-user-id",
+        linkedAt: NOW,
+        following: true,
+        isDeleted: false,
+      });
+      return { ...base, personId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "user_detail_canonical_no_fallback" })
+      .query(api.organization.userDetailQueries.getUserDetail, {
+        shopId: ids.shopId,
+        personId: ids.personId,
+        now: NOW,
+      });
+
+    expect(result?.line.status).toBe("unlinked");
+    expect(JSON.stringify(result)).not.toContain("legacy-only-line-user-id");
   });
 
   it("壊れたID、他組織人物、removed人物を同じnullへ寄せる", async () => {
@@ -356,6 +585,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
   });
 
   it("店舗未所属の組織管理者もユーザー詳細として返す", async () => {
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -380,6 +610,22 @@ describe("organization/userDetailQueries.getUserDetail", () => {
         createdAt: NOW,
         updatedAt: NOW,
       });
+      const providerId = await ctx.db.insert("lineProviderUsers", {
+        lineUserId: "manager-without-shop-line-id",
+        following: true,
+        stateVersion: 1,
+        friendshipObservedAt: NOW,
+        friendshipObservationSource: "oauth",
+        isDeleted: false,
+      });
+      await ctx.db.insert("organizationPersonLineLinks", {
+        organizationId: base.organizationId,
+        organizationPersonId: personId,
+        lineProviderUserId: providerId,
+        generation: 0,
+        linkedAt: NOW,
+        isDeleted: false,
+      });
       return { ...base, targetPersonId: personId };
     });
 
@@ -399,6 +645,15 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       canRemove: false,
       removeDisabledReason: "先に管理者権限を外してください。",
       memberships: [],
+      line: {
+        status: "linked_following",
+        actionShopId: ids.shopId,
+        sourceStaffId: null,
+        sourceShopId: null,
+        canLink: false,
+        linkDisabledReason: "LINE連携を設定するには、稼働中の店舗へ所属を追加してください。",
+        canDisconnect: true,
+      },
     });
 
     await expect(
@@ -734,6 +989,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
   });
 
   it("閲覧専用actorと課金state欠落では書き込み不可を返す", async () => {
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -741,8 +997,29 @@ describe("organization/userDetailQueries.getUserDetail", () => {
         plan: "pro",
       });
       const personId = await seedPerson(ctx, { organizationId: base.organizationId });
+      const staffId = await seedStaff(ctx, {
+        organizationId: base.organizationId,
+        personId,
+        shopId: base.shopId,
+      });
+      const providerId = await ctx.db.insert("lineProviderUsers", {
+        lineUserId: "user-detail-read-only-line-id",
+        following: true,
+        stateVersion: 1,
+        friendshipObservedAt: NOW,
+        friendshipObservationSource: "oauth",
+        isDeleted: false,
+      });
+      await ctx.db.insert("organizationPersonLineLinks", {
+        organizationId: base.organizationId,
+        organizationPersonId: personId,
+        lineProviderUserId: providerId,
+        generation: 0,
+        linkedAt: NOW,
+        isDeleted: false,
+      });
       await ctx.db.patch(base.memberId, { status: "readOnly" });
-      return { ...base, personId };
+      return { ...base, personId, staffId };
     });
     const actor = t.withIdentity({ subject: "user_detail_read_only" });
     const args = { shopId: ids.shopId, personId: ids.personId, now: NOW };
@@ -750,6 +1027,16 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     expect(await actor.query(api.organization.userDetailQueries.getUserDetail, args)).toMatchObject({
       canWrite: false,
       writeDisabledReason: "閲覧のみの管理者は、ユーザー情報を変更できません。",
+      line: {
+        status: "linked_following",
+        actionShopId: ids.shopId,
+        sourceStaffId: ids.staffId,
+        sourceShopId: ids.shopId,
+        canLink: false,
+        linkDisabledReason: "閲覧のみの管理者は、ユーザー情報を変更できません。",
+        canDisconnect: false,
+        disconnectDisabledReason: "閲覧のみの管理者は、LINE連携を解除できません。",
+      },
     });
 
     await t.run(async (ctx) => {
@@ -763,6 +1050,11 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     expect(await actor.query(api.organization.userDetailQueries.getUserDetail, args)).toMatchObject({
       canWrite: false,
       writeDisabledReason: "組織の契約情報を確認中のため、ユーザー情報を変更できません。",
+      line: {
+        canLink: false,
+        linkDisabledReason: "組織の契約情報を確認中のため、ユーザー情報を変更できません。",
+        canDisconnect: true,
+      },
     });
   });
 });

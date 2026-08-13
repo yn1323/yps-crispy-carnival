@@ -6,7 +6,13 @@ import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { addDays, todayJST } from "../_lib/dateFormat";
-import { seedLegacyShopMembership, seedOrganizationManagerShop, seedStaffLineAccount, seedUser } from "../_test/seed";
+import {
+  seedLegacyShopMembership,
+  seedOrganizationManagerShop,
+  seedOrganizationPersonLineLink,
+  seedStaffLineAccount,
+  seedUser,
+} from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import {
   applyAccountDeletionOrganizationDeparture,
@@ -1843,6 +1849,11 @@ describe("account deletion organization operations", () => {
         isDeleted: false,
       });
       const access = await seedStaffAccess(ctx, { shopId: base.shopId, staffId });
+      const canonicalLine = await seedOrganizationPersonLineLink(ctx, {
+        organizationId: base.organizationId,
+        organizationPersonId: base.personId,
+        lineUserId: "account-departure-canonical-line",
+      });
       const future = await seedAssignment(ctx, {
         shopId: base.shopId,
         staffId,
@@ -1857,6 +1868,7 @@ describe("account deletion organization operations", () => {
       return {
         ...base,
         ...access,
+        ...canonicalLine,
         actor: { organization, person, member },
         assignmentId: future.assignmentId,
         staffId,
@@ -1885,6 +1897,8 @@ describe("account deletion organization operations", () => {
         .withIndex("by_correlationId", (q) => q.eq("correlationId", "account-departure-test"))
         .unique(),
       lineAccount: await ctx.db.get(ids.lineAccountId),
+      canonicalLineLink: await ctx.db.get(ids.organizationPersonLineLinkId),
+      canonicalProvider: await ctx.db.get(ids.lineProviderUserId),
       lineLinkToken: await ctx.db.get(ids.lineLinkTokenId),
       magicLink: await ctx.db.get(ids.magicLinkId),
       member: await ctx.db.get(ids.memberId),
@@ -1898,6 +1912,8 @@ describe("account deletion organization operations", () => {
       assignment: null,
       audit: { action: "organization.person_removed", actorUserId: ids.userId },
       lineAccount: { isDeleted: true, following: false },
+      canonicalLineLink: { isDeleted: true, unlinkedAt: NOW },
+      canonicalProvider: { isDeleted: true, following: false },
       lineLinkToken: { revokedAt: NOW },
       magicLink: { revokedAt: NOW },
       member: { status: "removed" },

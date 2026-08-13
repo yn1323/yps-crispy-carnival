@@ -3,10 +3,12 @@ import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
+import { requireShopMembershipAdditionEnabled } from "../_lib/config";
 import { todayJST } from "../_lib/dateFormat";
 import { authenticatedMutation } from "../_lib/functions";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
 import { ensureDeletionCleanupJob } from "../deletionCleanup/service";
+import { disconnectOrganizationPersonLine } from "../line/service";
 import {
   cancelOrganizationRecipientBusinessNotifications,
   prepareOrganizationRecipientBusinessNotificationsForCancellation,
@@ -99,6 +101,27 @@ export function classifyAccountDeletionOrganizationDepartureError(error: unknown
 function shopStatus(shop: Doc<"shops">) {
   // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
   return shop.operatingStatus ?? ("active" as const);
+}
+
+async function hasActiveOrganizationShop(ctx: MutationCtx, organizationId: Id<"organizations">) {
+  // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にlegacy queryを削除する。
+  const [activeShop, legacyActiveShop] = await Promise.all([
+    ctx.db
+      .query("shops")
+      .withIndex("by_organizationId_and_operatingStatus", (q) =>
+        q.eq("organizationId", organizationId).eq("operatingStatus", "active"),
+      )
+      .filter((q) => q.eq(q.field("isDeleted"), false))
+      .first(),
+    ctx.db
+      .query("shops")
+      .withIndex("by_organizationId_and_operatingStatus", (q) =>
+        q.eq("organizationId", organizationId).eq("operatingStatus", undefined),
+      )
+      .filter((q) => q.eq(q.field("isDeleted"), false))
+      .first(),
+  ]);
+  return activeShop !== null || legacyActiveShop !== null;
 }
 
 function shopMutationResult(
@@ -330,6 +353,8 @@ export const addShop = authenticatedMutation({
     const priorShop = await getPriorShopOperation(ctx, { correlationId, organizationId: organization._id });
     if (priorShop) return shopMutationResult(priorShop._id, "active", false);
 
+    requireShopMembershipAdditionEnabled();
+
     // 店舗追加は複数店舗機能なので、Freeでは空きがあっても許可しない。
     await requireOrganizationPaidFeature(ctx, organization._id);
     await requireOrganizationCapacity(ctx, {
@@ -486,6 +511,9 @@ export const reactivateShop = authenticatedMutation({
 
     const fromState = shopStatus(actor.shop);
     if (fromState === "active") return shopMutationResult(actor.shop._id, "active", false);
+    if (await hasActiveOrganizationShop(ctx, actor.organization._id)) {
+      requireShopMembershipAdditionEnabled();
+    }
     await requireOrganizationCapacity(ctx, {
       organizationId: actor.organization._id,
       additionalActiveShops: 1,
@@ -1294,6 +1322,13 @@ async function applyFullOrganizationPersonRemoval(
     now: number;
   },
 ) {
+  // 組織人物の寿命と同時にcanonical LINE linkを終了し、再有効化で復活させない。
+  // helperはactive personだけを受け付けるため、status更新より先に実行する。
+  await disconnectOrganizationPersonLine(ctx, {
+    organizationId: args.actor.organization._id,
+    organizationPersonId: args.plan.person._id,
+    occurredAt: args.now,
+  });
   await ctx.db.patch(args.plan.person._id, { status: "removed", updatedAt: args.now });
   if (args.plan.member && args.plan.member.status !== "removed") {
     await ctx.db.patch(args.plan.member._id, { status: "removed", updatedAt: args.now });

@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { dateJST } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
 import { ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT, ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT } from "../constants";
-import { getStaffLineAccount } from "../line/service";
+import { getOrganizationPersonLineState } from "../line/service";
 import { deriveOrganizationBillingPolicy, getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
 import { isOrganizationBillingContact } from "./billingContact";
@@ -48,6 +48,16 @@ const userDetailValidator = v.object({
   removalPreview: personRemovalPreviewValidator,
   canWrite: v.boolean(),
   writeDisabledReason: v.optional(v.string()),
+  line: v.object({
+    status: v.union(v.literal("unlinked"), v.literal("linked_following"), v.literal("linked_unfollowed")),
+    actionShopId: v.id("shops"),
+    sourceStaffId: v.union(v.id("staffs"), v.null()),
+    sourceShopId: v.union(v.id("shops"), v.null()),
+    canLink: v.boolean(),
+    linkDisabledReason: v.optional(v.string()),
+    canDisconnect: v.boolean(),
+    disconnectDisabledReason: v.optional(v.string()),
+  }),
   membershipFingerprint: v.string(),
   shops: v.array(
     v.object({
@@ -68,10 +78,6 @@ const userDetailValidator = v.object({
       canRemove: v.boolean(),
       removeDisabledReason: v.optional(v.string()),
       removalPreview: personRemovalPreviewValidator,
-      line: v.object({
-        isLinked: v.boolean(),
-        isFollowing: v.boolean(),
-      }),
     }),
   ),
 });
@@ -155,8 +161,6 @@ export const getUserDetail = managerQuery({
           const targetShop = await ctx.db.get(staff.shopId);
           if (!targetShop || targetShop.isDeleted || targetShop.organizationId !== organization._id) return null;
           const targetShopStatus = organizationShopOperatingStatus(targetShop.operatingStatus);
-          const lineAccount = await getStaffLineAccount(ctx, staff._id);
-          const validLineAccount = lineAccount?.shopId === staff.shopId ? lineAccount : null;
           const membershipRemovalPreview = await collectPersonRemovalPreview(ctx, {
             scope: {
               kind: "shop",
@@ -183,10 +187,6 @@ export const getUserDetail = managerQuery({
                   ? {}
                   : { removeDisabledReason: INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON }),
               removalPreview: toPublicPersonRemovalPreview(membershipRemovalPreview),
-              line: {
-                isLinked: Boolean(validLineAccount?.lineUserId),
-                isFollowing: Boolean(validLineAccount?.following),
-              },
             },
           };
         }),
@@ -211,6 +211,11 @@ export const getUserDetail = managerQuery({
     const memberships = validMembershipRows
       .map((row) => row.view)
       .sort((a, b) => a.shopName.localeCompare(b.shopName, "ja") || a.shopId.localeCompare(b.shopId));
+    const lineState = await getOrganizationPersonLineState(ctx, {
+      organizationId: organization._id,
+      organizationPersonId: person._id,
+    });
+    if (!lineState) return null;
     const shops = shopDocs
       .map((targetShop) => {
         const targetShopStatus = organizationShopOperatingStatus(targetShop.operatingStatus);
@@ -280,6 +285,21 @@ export const getUserDetail = managerQuery({
           : policy?.businessWriteBlockReason === "paymentResultPending"
             ? "支払い結果が確定してから、ユーザー情報を変更できます。"
             : "契約状態を確認できるまで、ユーザー情報を変更できません。";
+    const lineSourceMembership = memberships.find((membership) => membership.shopStatus === "active") ?? null;
+    const canLinkLine = canWriteNormally && lineSourceMembership !== null;
+    const lineLinkDisabledReason = canLinkLine
+      ? undefined
+      : !canWriteNormally
+        ? writeDisabledReason
+        : "LINE連携を設定するには、稼働中の店舗へ所属を追加してください。";
+    // LINE解除は通知停止の安全操作なので、active managerなら課金read-only中も許可する。
+    const canDisconnectLine = isActiveActor && lineState.status !== "unlinked";
+    const lineDisconnectDisabledReason =
+      lineState.status === "unlinked"
+        ? undefined
+        : canDisconnectLine
+          ? undefined
+          : "閲覧のみの管理者は、LINE連携を解除できません。";
 
     return {
       person: {
@@ -296,6 +316,16 @@ export const getUserDetail = managerQuery({
       removalPreview: toPublicPersonRemovalPreview(removalPreview),
       canWrite: canWriteNormally,
       ...(writeDisabledReason ? { writeDisabledReason } : {}),
+      line: {
+        status: lineState.status,
+        actionShopId: shop._id,
+        sourceStaffId: lineSourceMembership?.staffId ?? null,
+        sourceShopId: lineSourceMembership?.shopId ?? null,
+        canLink: canLinkLine,
+        ...(lineLinkDisabledReason ? { linkDisabledReason: lineLinkDisabledReason } : {}),
+        canDisconnect: canDisconnectLine,
+        ...(lineDisconnectDisabledReason ? { disconnectDisabledReason: lineDisconnectDisabledReason } : {}),
+      },
       membershipFingerprint,
       shops,
       memberships,

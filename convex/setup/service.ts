@@ -214,6 +214,8 @@ export async function createOrganizationWithFirstShop(
 
   await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
     staffId,
+    organizationPersonId: personId,
+    lineLinkGenerationAtSchedule: 0,
     organizationBillingVersionAtOrigin: 1,
   });
   await ctx.scheduler.runAt(getShopActivationReminderAt(now), sendReminderRef, {
