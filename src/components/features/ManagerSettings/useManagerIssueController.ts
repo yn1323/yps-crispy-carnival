@@ -60,7 +60,13 @@ export function useManagerIssueController({
     confirmation,
     isRunning,
     onRequestExistingStaff: (candidate: ManagerSettingsCandidate) => {
-      if (!candidate.canSelect || !latestOverviewRef.current.actions.canInviteExistingStaff) return;
+      if (
+        !candidate.canSelect ||
+        latestOverviewRef.current.mode !== "managerAddition" ||
+        !latestOverviewRef.current.actions.canInviteExistingStaff
+      ) {
+        return;
+      }
       setConfirmation({
         kind: "existingStaff",
         candidate,
@@ -69,7 +75,12 @@ export function useManagerIssueController({
       });
     },
     onRequestExternal: (invitedName: string, email: string) => {
-      if (!latestOverviewRef.current.actions.canInviteExternal) return;
+      if (
+        latestOverviewRef.current.mode !== "managerAddition" ||
+        !latestOverviewRef.current.actions.canInviteExternal
+      ) {
+        return;
+      }
       setConfirmation({ kind: "external", invitedName, email, requestId: crypto.randomUUID() });
     },
     onCloseConfirmation: () => {
@@ -86,7 +97,11 @@ function isIssueConfirmationAllowed(
   overview: ReadyManagerSettingsOverview,
 ) {
   if (confirmation.kind === "existingStaff") {
-    return overview.actions.canInviteExistingStaff && confirmation.mode === overview.mode;
+    return (
+      overview.mode === "managerAddition" &&
+      overview.actions.canInviteExistingStaff &&
+      confirmation.mode === overview.mode
+    );
   }
-  return overview.actions.canInviteExternal;
+  return overview.mode === "managerAddition" && overview.actions.canInviteExternal;
 }

@@ -63,7 +63,7 @@ async function seedAdditionalManager(
 }
 
 describe("organization shop management", () => {
-  it("公開gateが有効なら店舗追加は上限確認後に初期ポジション・監査を作成し、旧店舗所属を再生成しない", async () => {
+  it("店舗追加は上限確認後に初期ポジション・監査を作成し、旧店舗所属を再生成しない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -134,36 +134,6 @@ describe("organization shop management", () => {
         requestId: "add-shop-request",
       }),
     ).resolves.toEqual({ shopId: created.shopId, shopStatus: "active", changed: false });
-  });
-
-  it("公開gateが無効なら、認証済み管理者の店舗追加もserverでfail closedにする", async () => {
-    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READY", "disabled");
-    try {
-      const t = convexTest(schema, modules);
-      const ids = await t.run(
-        async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "gated_add_shop", plan: "pro" }),
-      );
-
-      await expect(
-        t.withIdentity({ subject: "gated_add_shop" }).mutation(api.organization.mutations.addShop, {
-          shopId: ids.shopId,
-          shopName: "作成されない店舗",
-          regularClosedDays: [],
-          submissionPattern,
-          requestId: "gated-add-shop",
-        }),
-      ).rejects.toThrow("現在、店舗や所属を追加できません");
-
-      const shops = await t.run(async (ctx) =>
-        ctx.db
-          .query("shops")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
-          .collect(),
-      );
-      expect(shops).toHaveLength(1);
-    } finally {
-      vi.unstubAllEnvs();
-    }
   });
 
   it("未認証、閲覧専用、別組織の利用者は店舗を追加できない", async () => {
@@ -482,92 +452,7 @@ describe("organization shop management", () => {
     ).resolves.toEqual({ shopId: ids.targetShopId, shopStatus: "active", changed: true });
   });
 
-  it("公開gateが無効で稼働中の店舗がある場合は、別店舗の再稼働をserverでfail closedにする", async () => {
-    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READY", "disabled");
-    try {
-      const t = convexTest(schema, modules);
-      const ids = await t.run(async (ctx) => {
-        const base = await seedOrganizationManagerShop(ctx, { subject: "gated_reactivate", plan: "pro" });
-        const targetShopId = await seedOrganizationShop(ctx, {
-          organizationId: base.organizationId,
-          name: "再稼働されない店舗",
-          status: "archived",
-        });
-        return { ...base, targetShopId };
-      });
-
-      await expect(
-        t.withIdentity({ subject: "gated_reactivate" }).mutation(api.organization.mutations.reactivateShop, {
-          shopId: ids.targetShopId,
-          requestId: "gated-reactivate",
-        }),
-      ).rejects.toThrow("現在、店舗や所属を追加できません");
-
-      const requestKey = await toAuditRequestKey("gated-reactivate");
-      const state = await t.run(async (ctx) => ({
-        shop: await ctx.db.get(ids.targetShopId),
-        audits: await ctx.db
-          .query("organizationAuditEvents")
-          .withIndex("by_correlationId", (q) =>
-            q.eq("correlationId", `${ids.organizationId}:shop:reactivate:${ids.targetShopId}:${requestKey}`),
-          )
-          .collect(),
-      }));
-      expect(state.shop).toMatchObject({ operatingStatus: "archived", isDeleted: false });
-      expect(state.audits).toEqual([]);
-    } finally {
-      vi.unstubAllEnvs();
-    }
-  });
-
-  it("公開gate判定でoperatingStatus未設定の旧店舗も稼働中として扱う", async () => {
-    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READY", "disabled");
-    try {
-      const t = convexTest(schema, modules);
-      const ids = await t.run(async (ctx) => {
-        const base = await seedOrganizationManagerShop(ctx, { subject: "gated_legacy_reactivate", plan: "pro" });
-        await ctx.db.patch(base.shopId, { operatingStatus: undefined });
-        const targetShopId = await seedOrganizationShop(ctx, {
-          organizationId: base.organizationId,
-          name: "旧店舗と並存できない店舗",
-          status: "archived",
-        });
-        return { ...base, targetShopId };
-      });
-
-      await expect(
-        t.withIdentity({ subject: "gated_legacy_reactivate" }).mutation(api.organization.mutations.reactivateShop, {
-          shopId: ids.targetShopId,
-          requestId: "gated-legacy-reactivate",
-        }),
-      ).rejects.toThrow("現在、店舗や所属を追加できません");
-    } finally {
-      vi.unstubAllEnvs();
-    }
-  });
-
-  it("公開gateが無効でも、全店停止中から1店舗目は再稼働できる", async () => {
-    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READY", "disabled");
-    try {
-      const t = convexTest(schema, modules);
-      const ids = await t.run(async (ctx) => {
-        const base = await seedOrganizationManagerShop(ctx, { subject: "first_reactivate", plan: "pro" });
-        await ctx.db.patch(base.shopId, { operatingStatus: "archived" });
-        return base;
-      });
-
-      await expect(
-        t.withIdentity({ subject: "first_reactivate" }).mutation(api.organization.mutations.reactivateShop, {
-          shopId: ids.shopId,
-          requestId: "first-reactivate",
-        }),
-      ).resolves.toEqual({ shopId: ids.shopId, shopStatus: "active", changed: true });
-    } finally {
-      vi.unstubAllEnvs();
-    }
-  });
-
-  it("公開gateが有効なら、稼働中の店舗があっても別店舗を再稼働できる", async () => {
+  it("稼働中の店舗があっても別店舗を再稼働できる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "enabled_reactivate", plan: "pro" });

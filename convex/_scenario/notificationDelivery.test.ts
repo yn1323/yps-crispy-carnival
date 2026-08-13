@@ -2071,6 +2071,12 @@ describe("通知配送outboxシナリオ", () => {
         email: "owner-digest@example.com",
         shopName: "参加申請通知店舗",
       });
+      await seedStaff(ctx, {
+        shopId: seeded.shopId,
+        userId: seeded.userId,
+        name: "管理者",
+        email: "owner-digest@example.com",
+      });
       return seeded.shopId;
     });
     const asManager = t.withIdentity({ subject: MANAGER_SUBJECT });

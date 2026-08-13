@@ -347,6 +347,7 @@ export type OrganizationBillingPolicy = {
   canReadExistingData: true;
   canWriteBusinessData: boolean;
   businessWriteBlockReason: BusinessWriteBlockReason | null;
+  canManageManagers: boolean;
   canUsePaidFeatures: boolean;
   paidFeatureBlockReason: PaidFeatureBlockReason | null;
   allowedRecoveryCapabilities: readonly RecoveryCapability[];
@@ -402,6 +403,7 @@ function restrictedPolicy(plans: OrganizationBillingPlanResolution): Organizatio
     canReadExistingData: true,
     canWriteBusinessData: false,
     businessWriteBlockReason: "restricted",
+    canManageManagers: false,
     canUsePaidFeatures: false,
     paidFeatureBlockReason: "restricted",
     allowedRecoveryCapabilities: RESTRICTED_RECOVERY_CAPABILITIES,
@@ -417,6 +419,7 @@ function enabledPolicy(plans: OrganizationBillingPlanResolution, deadlineAt: num
     canReadExistingData: true,
     canWriteBusinessData: true,
     businessWriteBlockReason: null,
+    canManageManagers: true,
     canUsePaidFeatures: true,
     paidFeatureBlockReason: null,
     allowedRecoveryCapabilities: NO_RECOVERY_CAPABILITIES,
@@ -434,6 +437,7 @@ function freePolicy(paidPlan: OrganizationPaidPlan | null): OrganizationBillingP
     canReadExistingData: true,
     canWriteBusinessData: true,
     businessWriteBlockReason: null,
+    canManageManagers: true,
     canUsePaidFeatures: false,
     paidFeatureBlockReason: "freePlan",
     allowedRecoveryCapabilities: NO_RECOVERY_CAPABILITIES,
@@ -567,7 +571,9 @@ export function evaluateFreeEligibility(usage: OrganizationUsageSnapshot) {
   validateUsageSnapshot(usage);
   const failures: FreeEligibilityFailure[] = [];
 
-  if (usage.activeManagerCount !== 1) failures.push("activeManagerCount");
+  if (usage.activeManagerCount < 1 || usage.activeManagerCount > ORGANIZATION_PLAN_LIMITS.free.maxActiveManagers) {
+    failures.push("activeManagerCount");
+  }
   if (usage.activeShopCount > ORGANIZATION_PLAN_LIMITS.free.maxActiveShops) failures.push("activeShopCount");
   if (usage.peopleCount > ORGANIZATION_PLAN_LIMITS.free.maxPeople) failures.push("peopleCount");
 

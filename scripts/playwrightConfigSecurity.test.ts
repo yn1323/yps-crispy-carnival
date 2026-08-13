@@ -51,18 +51,6 @@ describe("Playwright config artifact security", () => {
     expect(workflow).toContain('PLAYWRIGHT_NO_COPY_PROMPT: "1"');
   });
 
-  it("店舗と所属のE2EはLINE共通化後の公開条件で実行する", () => {
-    const workflow = readFileSync(PLAYWRIGHT_WORKFLOW_PATH, "utf8");
-    const canonicalReadsCommand =
-      'npx convex env set LINE_COMMON_LINK_CANONICAL_READS enabled --deployment "preview/$CONVEX_PREVIEW_NAME"';
-    const canonicalReadyCommand =
-      'npx convex env set LINE_COMMON_LINK_CANONICAL_READY enabled --deployment "preview/$CONVEX_PREVIEW_NAME"';
-
-    expect(workflow).toContain(canonicalReadsCommand);
-    expect(workflow).toContain(canonicalReadyCommand);
-    expect(workflow.indexOf(canonicalReadsCommand)).toBeLessThan(workflow.indexOf(canonicalReadyCommand));
-  });
-
   it("標準reporterより先にstepとtestの失敗情報をredactする", () => {
     const reporter = new E2EPrivacyReporter();
     const stepError = {

@@ -8,11 +8,22 @@ describe("staffRegistration/actions", () => {
   it("店舗担当者digestのoutboxにuserIdを残す", async () => {
     const t = convexTest(schema, modules);
     const { shopId, userId } = await t.run(async (ctx) => {
-      return await seedManagerShop(ctx, {
+      const manager = await seedManagerShop(ctx, {
         subject: "user_mgr",
         email: "owner-digest@example.com",
         shopName: "参加申請通知店舗",
       });
+      await ctx.db.insert("staffs", {
+        shopId: manager.shopId,
+        organizationId: manager.organizationId,
+        organizationPersonId: manager.personId,
+        userId: manager.userId,
+        name: "管理スタッフ",
+        email: "owner-digest@example.com",
+        emailNormalized: "owner-digest@example.com",
+        isDeleted: false,
+      });
+      return manager;
     });
     const asManager = t.withIdentity({ subject: "user_mgr" });
     const registrationLink = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {

@@ -6,7 +6,12 @@ import { Button } from "@/src/components/ui/Button";
 import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import { Empty } from "@/src/components/ui/Empty";
 import { getManagerInvitationExpiryLabel, getManagerInvitationStatusPresentation } from "./presentation";
-import type { ManagerSettingsInvitation, ManagerSettingsManager, ReadyManagerSettingsOverview } from "./types";
+import {
+  canResendManagerInvitation,
+  type ManagerSettingsInvitation,
+  type ManagerSettingsManager,
+  type ReadyManagerSettingsOverview,
+} from "./types";
 
 type Props = {
   overview: ReadyManagerSettingsOverview;
@@ -25,7 +30,9 @@ export function ManagerSettingsView({
   onRequestRevoke,
   onRequestRemoveRole,
 }: Props) {
-  const isFreeExchange = overview.mode === "freeManagerExchange";
+  const canIssueManagerAddition = overview.mode === "managerAddition";
+  const legacyModeDisabledReason =
+    "以前の管理者交代機能は終了しました。送信済みの交代招待を取り消すか、有効期限が切れてから画面を更新してください。";
 
   return (
     <Stack gap={{ base: 6, md: 8 }}>
@@ -33,17 +40,19 @@ export function ManagerSettingsView({
 
       <Stack as="section" gap={4} aria-labelledby="manager-addition-heading">
         <SectionHeading id="manager-addition-heading" icon={LuUserPlus}>
-          {isFreeExchange ? "管理者を交代" : "管理者を追加"}
+          管理者を追加
         </SectionHeading>
         <Grid templateColumns={{ base: "1fr", md: "repeat(2, minmax(0, 1fr))" }} gap={3}>
           <ManagerActionCard
-            title={isFreeExchange ? "既存スタッフを次の管理者として招待" : "既存スタッフを管理者として招待"}
+            title="既存スタッフを管理者として招待"
             description="組織に登録済みのスタッフから選択"
             icon={LuUsers}
             destination="existingStaff"
             shopId={shopId}
-            enabled={overview.actions.canInviteExistingStaff}
-            disabledReason={overview.actions.existingStaffDisabledReason}
+            enabled={canIssueManagerAddition && overview.actions.canInviteExistingStaff}
+            disabledReason={
+              canIssueManagerAddition ? overview.actions.existingStaffDisabledReason : legacyModeDisabledReason
+            }
           />
           <ManagerActionCard
             title="新しいユーザーを管理者として招待"
@@ -51,8 +60,10 @@ export function ManagerSettingsView({
             icon={LuMailPlus}
             destination="external"
             shopId={shopId}
-            enabled={overview.actions.canInviteExternal}
-            disabledReason={overview.actions.externalDisabledReason}
+            enabled={canIssueManagerAddition && overview.actions.canInviteExternal}
+            disabledReason={
+              canIssueManagerAddition ? overview.actions.externalDisabledReason : legacyModeDisabledReason
+            }
           />
         </Grid>
       </Stack>
@@ -368,6 +379,11 @@ function InvitationRow({
           <Text fontSize="sm" color="fg.muted" overflowWrap="anywhere">
             {invitation.invitedEmail}
           </Text>
+          {invitation.purpose === "freeManagerExchange" && (
+            <Text fontSize="xs" color="orange.700">
+              以前の交代方式の招待です。承認されると、現在の管理者から管理者権限が外れます。
+            </Text>
+          )}
         </Stack>
       </HStack>
       <Stack gap={1} minW={{ md: "176px" }} align={{ base: "flex-start", md: "flex-end" }}>
@@ -383,7 +399,7 @@ function InvitationRow({
           variant="outline"
           size={{ base: "md", md: "sm" }}
           minH={{ base: "44px", md: "36px" }}
-          disabled={!invitation.canResend}
+          disabled={!canResendManagerInvitation(invitation)}
           onClick={() => onRequestResend(invitation)}
         >
           再送する

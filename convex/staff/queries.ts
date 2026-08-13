@@ -35,6 +35,7 @@ const organizationShopStaffMembershipChangeValidator = v.object({
       name: v.string(),
       email: v.string(),
       isManager: v.boolean(),
+      isActiveManager: v.boolean(),
       otherShopNames: v.array(v.string()),
       isSelected: v.boolean(),
       staffId: v.union(v.null(), v.id("staffs")),
@@ -149,11 +150,12 @@ export const getOrganizationShopStaffMembershipChange = managerQuery({
       membershipFingerprint: snapshot.membershipFingerprint,
       ...writeState,
       people: snapshot.people.map(
-        ({ person, isManager, otherShopNames, currentStaff, canChange, changeDisabledReason }) => ({
+        ({ person, isManager, isActiveManager, otherShopNames, currentStaff, canChange, changeDisabledReason }) => ({
           personId: person._id,
           name: person.name,
           email: person.email,
           isManager,
+          isActiveManager,
           otherShopNames,
           isSelected: currentStaff !== null,
           staffId: currentStaff?._id ?? null,

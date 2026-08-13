@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 import {
+  isLegacyFreeManagerExchangeMode,
   ManagerExternalInviteForm,
   ManagerExternalInvitePageSkeleton,
 } from "@/src/components/features/ManagerSettings";
@@ -37,13 +38,15 @@ export function ManagerInviteNewPage({ shopId }: { shopId?: string }) {
                 <Alert.Description>{overview.message}</Alert.Description>
               </Alert.Content>
             </Alert.Root>
-          ) : !overview.actions.canInviteExternal ? (
+          ) : overview.mode !== "managerAddition" || !overview.actions.canInviteExternal ? (
             <Alert.Root status="warning" borderRadius="lg">
               <Alert.Indicator />
               <Alert.Content>
                 <Alert.Title>新しいユーザーは招待できません</Alert.Title>
                 <Alert.Description>
-                  {overview.actions.externalDisabledReason ?? "現在の契約では、この招待方法を利用できません。"}
+                  {isLegacyFreeManagerExchangeMode(overview.mode)
+                    ? "以前の管理者交代機能は終了しました。送信済みの交代招待を取り消すか、有効期限が切れてから画面を更新してください。"
+                    : (overview.actions.externalDisabledReason ?? "現在の契約では、この招待方法を利用できません。")}
                 </Alert.Description>
               </Alert.Content>
             </Alert.Root>

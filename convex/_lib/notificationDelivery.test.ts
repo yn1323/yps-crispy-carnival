@@ -1,6 +1,8 @@
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
+import type { MutationCtx } from "../_generated/server";
 import {
   seedLegacyShopMembership,
   seedManagerShop,
@@ -11,6 +13,32 @@ import {
 import { modules, schema } from "../_test/setup.test-helper";
 import { NOTIFICATION_DRY_RUN_MANAGER_SCAN_LIMIT } from "../constants";
 import { isDryRunManagerEmail, isNotificationDeliverySuppressed } from "./notificationDelivery";
+
+async function seedNotificationManagerStaff(ctx: MutationCtx, args: { shopId: Id<"shops">; userId: Id<"users"> }) {
+  const [shop, user] = await Promise.all([ctx.db.get(args.shopId), ctx.db.get(args.userId)]);
+  if (!shop || !user) throw new Error("manager staff fixture target not found");
+  const organizationId = shop.organizationId;
+  const people = organizationId
+    ? await ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId_and_userId", (q) =>
+          q.eq("organizationId", organizationId).eq("userId", args.userId),
+        )
+        .take(2)
+    : [];
+  if (people.length > 1) throw new Error("manager staff fixture person is ambiguous");
+  const person = people[0];
+  const email = person?.email ?? user.email;
+  return await ctx.db.insert("staffs", {
+    shopId: args.shopId,
+    ...(person && organizationId ? { organizationId, organizationPersonId: person._id } : {}),
+    userId: args.userId,
+    name: "通知管理スタッフ",
+    email,
+    emailNormalized: email.toLowerCase(),
+    isDeleted: false,
+  });
+}
 
 describe("isNotificationDeliverySuppressed", () => {
   afterEach(() => {
@@ -91,6 +119,7 @@ describe("isNotificationDeliverySuppressedForShop", () => {
         email: "preview@test.example",
         emailNormalized: "preview@test.example",
       });
+      await seedNotificationManagerStaff(ctx, { shopId: seeded.shopId, userId: seeded.userId });
       return seeded.shopId;
     });
 
@@ -112,6 +141,7 @@ describe("isNotificationDeliverySuppressedForShop", () => {
         email: "manager@real.example",
         emailNormalized: "manager@real.example",
       });
+      await seedNotificationManagerStaff(ctx, { shopId: seeded.shopId, userId: seeded.userId });
       return seeded.shopId;
     });
 
@@ -137,6 +167,8 @@ describe("isNotificationDeliverySuppressedForShop", () => {
           order === "allowlisted-first" ? "owner@real.example" : "preview@test.example",
         );
         await seedOrganizationMembership(ctx, { userId: secondUserId, shopId: seeded.shopId });
+        await seedNotificationManagerStaff(ctx, { shopId: seeded.shopId, userId: seeded.userId });
+        await seedNotificationManagerStaff(ctx, { shopId: seeded.shopId, userId: secondUserId });
         return seeded.shopId;
       });
 
@@ -156,6 +188,8 @@ describe("isNotificationDeliverySuppressedForShop", () => {
       });
       const secondUserId = await seedUser(ctx, "manager_all_allowlisted_secondary", "preview-2@test.example");
       await seedOrganizationMembership(ctx, { userId: secondUserId, shopId: seeded.shopId });
+      await seedNotificationManagerStaff(ctx, { shopId: seeded.shopId, userId: seeded.userId });
+      await seedNotificationManagerStaff(ctx, { shopId: seeded.shopId, userId: secondUserId });
       return seeded.shopId;
     });
 
@@ -174,6 +208,8 @@ describe("isNotificationDeliverySuppressedForShop", () => {
       });
       const legacyUserId = await seedUser(ctx, "manager_partial_legacy", "preview-legacy@test.example");
       await seedLegacyShopMembership(ctx, { userId: legacyUserId, shopId: seeded.shopId });
+      await seedNotificationManagerStaff(ctx, { shopId: seeded.shopId, userId: seeded.userId });
+      await seedNotificationManagerStaff(ctx, { shopId: seeded.shopId, userId: legacyUserId });
       return seeded.shopId;
     });
 
@@ -196,6 +232,7 @@ describe("isNotificationDeliverySuppressedForShop", () => {
         email: "manager@real.example",
         emailNormalized: "manager@real.example",
       });
+      await seedNotificationManagerStaff(ctx, { shopId: seeded.shopId, userId: seeded.userId });
       return seeded.shopId;
     });
 
@@ -212,9 +249,11 @@ describe("isNotificationDeliverySuppressedForShop", () => {
         subject: "manager_overflow_primary",
         email: "preview-primary@test.example",
       });
+      await seedNotificationManagerStaff(ctx, { shopId: seeded.shopId, userId: seeded.userId });
       for (let index = 1; index <= NOTIFICATION_DRY_RUN_MANAGER_SCAN_LIMIT; index += 1) {
         const userId = await seedUser(ctx, `manager_overflow_${index}`, `preview-${index}@test.example`);
         await seedOrganizationMembership(ctx, { userId, shopId: seeded.shopId });
+        await seedNotificationManagerStaff(ctx, { shopId: seeded.shopId, userId });
       }
       return seeded.shopId;
     });
@@ -234,6 +273,7 @@ describe("isNotificationDeliverySuppressedForShop", () => {
       });
       const removedUserId = await seedUser(ctx, "manager_removed_secondary", "owner@real.example");
       await seedOrganizationMembership(ctx, { userId: removedUserId, shopId: seeded.shopId, isDeleted: true });
+      await seedNotificationManagerStaff(ctx, { shopId: seeded.shopId, userId: seeded.userId });
       return seeded.shopId;
     });
 
@@ -251,6 +291,7 @@ describe("isNotificationDeliverySuppressedForShop", () => {
         email: "preview@test.example",
         membershipDeleted: true,
       });
+      await seedNotificationManagerStaff(ctx, { shopId: seeded.shopId, userId: seeded.userId });
       return seeded.shopId;
     });
 
@@ -270,6 +311,7 @@ describe("isNotificationDeliverySuppressedForShop", () => {
       });
       await ctx.db.patch(seeded.memberId, { status: "removed", updatedAt: Date.now() });
       await seedLegacyShopMembership(ctx, { userId: seeded.userId, shopId: seeded.shopId });
+      await seedNotificationManagerStaff(ctx, { shopId: seeded.shopId, userId: seeded.userId });
       return seeded.shopId;
     });
 

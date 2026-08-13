@@ -7,6 +7,7 @@ import {
   readScheduledFunctions,
   SCENARIO_NOW,
   scenarioDate,
+  seedStaff,
 } from "../_test/scenarioBuilders";
 import { createScenario } from "../_test/scenarioFixtures";
 import { seedManagerShop } from "../_test/seed";
@@ -25,11 +26,18 @@ describe("スタッフ参加QRシナリオ", () => {
     const asManager = scenario.manager(MANAGER_SUBJECT);
 
     const { shopId } = await t.run(async (ctx) => {
-      return await seedManagerShop(ctx, {
+      const seeded = await seedManagerShop(ctx, {
         subject: MANAGER_SUBJECT,
         email: "qr-manager@example.com",
         shopName: "QR登録店舗",
       });
+      await seedStaff(ctx, {
+        shopId: seeded.shopId,
+        userId: seeded.userId,
+        name: "管理者",
+        email: "qr-manager@example.com",
+      });
+      return seeded;
     });
     await asManager.createRecruitment({
       periodStart: scenarioDate(7),

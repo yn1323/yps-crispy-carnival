@@ -7,6 +7,8 @@ export type ShopDetailData = {
   name: string;
   regularClosedDays: RegularClosedDay[];
   submissionPattern: ShiftSubmissionPattern;
+  /** rolling deploy中の旧backendは未返却のためoptionalで受け、画面ではunknown相当として扱う。 */
+  managerNotificationRecipientStatus?: "available" | "none" | "unknown";
   canUpdateSettings: boolean;
   settingsDisabledReason?: string;
   canDelete: boolean;

@@ -1,4 +1,4 @@
-import { Accordion, Flex, HStack, Stack, Text } from "@chakra-ui/react";
+import { Accordion, Alert, Flex, HStack, Stack, Text } from "@chakra-ui/react";
 import type { Ref } from "react";
 import { LuPencil } from "react-icons/lu";
 import { StaffListRow } from "@/src/components/shared/StaffListRow";
@@ -8,12 +8,20 @@ import type { ShopDetailPerson } from "./types";
 type Props = {
   staffs: ShopDetailPerson[];
   canChangeStaffs: boolean;
+  managerNotificationRecipientStatus?: "available" | "none" | "unknown";
   changeButtonRef?: Ref<HTMLButtonElement>;
   onOpenUser: (personId: string) => void;
   onChangeStaffs: () => void;
 };
 
-export function ShopStaffList({ staffs, canChangeStaffs, changeButtonRef, onOpenUser, onChangeStaffs }: Props) {
+export function ShopStaffList({
+  staffs,
+  canChangeStaffs,
+  managerNotificationRecipientStatus,
+  changeButtonRef,
+  onOpenUser,
+  onChangeStaffs,
+}: Props) {
   return (
     <Stack as="section" gap={3} aria-labelledby="shop-detail-staff-list-heading">
       <Flex align="center" justify="space-between" gap={3}>
@@ -43,6 +51,18 @@ export function ShopStaffList({ staffs, canChangeStaffs, changeButtonRef, onOpen
           所属スタッフを変更する
         </Button>
       </Flex>
+
+      {managerNotificationRecipientStatus === "none" && (
+        <Alert.Root status="warning" borderRadius="lg">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>店舗通知を受け取る管理者がいません</Alert.Title>
+            <Alert.Description>
+              スタッフ申請、シフト確定、通知エラーなど、この店舗に関する管理者向け通知は送信されません。通知が必要な場合は、管理者をこの店舗の所属スタッフに追加することをおすすめします。
+            </Alert.Description>
+          </Alert.Content>
+        </Alert.Root>
+      )}
 
       <Accordion.Root collapsible variant="plain">
         <Accordion.Item

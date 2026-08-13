@@ -50,9 +50,9 @@ const hiddenManagerInvitationStaff = {
   ...mockStaffs[1],
   managerInvitationState: { kind: "hidden" },
 } as Staff;
-const freeManagerExchangeStaff = {
+const freeManagerAdditionStaff = {
   ...mockStaffs[1],
-  managerInvitationState: { kind: "available", mode: "freeManagerExchange", replacesStaleInvitation: false },
+  managerInvitationState: { kind: "available", mode: "addition", replacesStaleInvitation: false },
 } as Staff;
 const staleManagerInvitationStaff = {
   ...mockStaffs[1],
@@ -409,9 +409,9 @@ export const ManagerInvitationDarkLaunchBehavior: Story = {
   },
 };
 
-export const FreeManagerExchangeAvailable: Story = {
+export const FreeManagerAdditionAvailable: Story = {
   args: {
-    staff: freeManagerExchangeStaff,
+    staff: freeManagerAdditionStaff,
     defaultTab: "settings",
   },
 };

@@ -11,7 +11,7 @@ function createTest() {
 
 type TestConvexInstance = ReturnType<typeof createTest>;
 
-async function seedShopWithManagerStaff(t: TestConvexInstance) {
+async function seedShopWithManagerStaff(t: TestConvexInstance, options: { includeStaffUserId?: boolean } = {}) {
   return await t.run(async (ctx) => {
     const { shopId, userId, organizationId, personId, memberId } = await seedOrganizationManagerShop(ctx, {
       subject: "manager",
@@ -25,7 +25,7 @@ async function seedShopWithManagerStaff(t: TestConvexInstance) {
       name: "店長",
       email: "manager@example.com",
       emailNormalized: "manager@example.com",
-      userId,
+      ...(options.includeStaffUserId === false ? {} : { userId }),
       isDeleted: false,
     });
     return { shopId, userId, memberId, managerStaffId };
@@ -80,6 +80,13 @@ describe("shopActivationReminder/queries", () => {
     });
   });
 
+  it("canonical管理者staffのuserIdがなくてもorganizationPersonIdで本人と判定する", async () => {
+    const t = createTest();
+    const { shopId } = await seedShopWithManagerStaff(t, { includeStaffUserId: false });
+
+    await expect(t.query(getReminderTargetRef, { shopId })).resolves.not.toBeNull();
+  });
+
   it("manager userに紐づかないシフト対象staffが1人でもいれば対象外にする", async () => {
     const t = createTest();
     const { shopId } = await seedShopWithManagerStaff(t);
@@ -87,6 +94,19 @@ describe("shopActivationReminder/queries", () => {
       shopId,
       name: "田中",
       email: "tanaka@example.com",
+    });
+
+    await expect(t.query(getReminderTargetRef, { shopId })).resolves.toBeNull();
+  });
+
+  it("対象店舗のstaffではないactive管理者には送らない", async () => {
+    const t = createTest();
+    const shopId = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "activation_manager_without_shop_staff",
+        email: "manager-without-shop-staff@example.com",
+      });
+      return seeded.shopId;
     });
 
     await expect(t.query(getReminderTargetRef, { shopId })).resolves.toBeNull();

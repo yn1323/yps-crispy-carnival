@@ -3,7 +3,6 @@ import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
-import { requireShopMembershipAdditionEnabled } from "../_lib/config";
 import { todayJST } from "../_lib/dateFormat";
 import { authenticatedMutation } from "../_lib/functions";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
@@ -101,27 +100,6 @@ export function classifyAccountDeletionOrganizationDepartureError(error: unknown
 function shopStatus(shop: Doc<"shops">) {
   // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
   return shop.operatingStatus ?? ("active" as const);
-}
-
-async function hasActiveOrganizationShop(ctx: MutationCtx, organizationId: Id<"organizations">) {
-  // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にlegacy queryを削除する。
-  const [activeShop, legacyActiveShop] = await Promise.all([
-    ctx.db
-      .query("shops")
-      .withIndex("by_organizationId_and_operatingStatus", (q) =>
-        q.eq("organizationId", organizationId).eq("operatingStatus", "active"),
-      )
-      .filter((q) => q.eq(q.field("isDeleted"), false))
-      .first(),
-    ctx.db
-      .query("shops")
-      .withIndex("by_organizationId_and_operatingStatus", (q) =>
-        q.eq("organizationId", organizationId).eq("operatingStatus", undefined),
-      )
-      .filter((q) => q.eq(q.field("isDeleted"), false))
-      .first(),
-  ]);
-  return activeShop !== null || legacyActiveShop !== null;
 }
 
 function shopMutationResult(
@@ -353,8 +331,6 @@ export const addShop = authenticatedMutation({
     const priorShop = await getPriorShopOperation(ctx, { correlationId, organizationId: organization._id });
     if (priorShop) return shopMutationResult(priorShop._id, "active", false);
 
-    requireShopMembershipAdditionEnabled();
-
     // 店舗追加は複数店舗機能なので、Freeでは空きがあっても許可しない。
     await requireOrganizationPaidFeature(ctx, organization._id);
     await requireOrganizationCapacity(ctx, {
@@ -511,9 +487,6 @@ export const reactivateShop = authenticatedMutation({
 
     const fromState = shopStatus(actor.shop);
     if (fromState === "active") return shopMutationResult(actor.shop._id, "active", false);
-    if (await hasActiveOrganizationShop(ctx, actor.organization._id)) {
-      requireShopMembershipAdditionEnabled();
-    }
     await requireOrganizationCapacity(ctx, {
       organizationId: actor.organization._id,
       additionalActiveShops: 1,
@@ -1553,7 +1526,6 @@ export const removePersonFromShop = authenticatedMutation({
     if (!person || person.organizationId !== actor.organization._id || person.status !== "active") {
       throw new ConvexError("Not found");
     }
-    await requireOrganizationPersonWithoutManagerRole(ctx, actor.organization._id, person._id);
     const removalPreview = await collectPersonRemovalPreview(ctx, {
       scope: {
         kind: "shop",
@@ -1729,8 +1701,10 @@ export const removeManagerRole = authenticatedMutation({
       throw new ConvexError("契約制限中は管理権限を外せません");
     }
     if (actor.member.status !== "active") throw new ConvexError("この操作を行う権限がありません");
-    await requireOrganizationBusinessWrite(ctx, actor.organization._id);
-    await requireOrganizationPaidFeature(ctx, actor.organization._id);
+    const policy = await requireOrganizationBusinessWrite(ctx, actor.organization._id);
+    if (!policy?.canManageManagers) {
+      throw new ConvexError("現在の契約状態では、管理者権限を変更できません。");
+    }
     if (!(await hasOtherValidActiveManager(ctx, actor.organization._id, person._id))) {
       throw new ConvexError("最後の有効管理者の管理者権限は外せません。");
     }

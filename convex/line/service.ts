@@ -1,8 +1,6 @@
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
-import { isShopParentActive } from "../_lib/activeShop";
-import { useCanonicalLineCommonLinkReads as isCanonicalLineCommonLinkReadAuthority } from "../_lib/config";
 import {
   LINE_FRIENDSHIP_FANOUT_RETENTION_MS,
   LINE_LEGACY_ACTIVE_ACCOUNT_SCAN_MAX,
@@ -33,60 +31,26 @@ export type OrganizationPersonLineRecipient = {
   following: boolean;
 };
 
-type LegacyCanonicalLineSnapshot =
-  | {
-      organizationPersonLineLinkId: Id<"organizationPersonLineLinks">;
-      generation: number;
-    }
-  | {
-      organizationPersonLineLinkId?: never;
-      generation?: never;
-    };
+export type ResolvedOrganizationPersonLineRecipient = {
+  authority: "canonical";
+  organizationId: Id<"organizations">;
+  organizationPersonId: Id<"organizationPeople">;
+} & OrganizationPersonLineRecipient;
 
-export type ResolvedOrganizationPersonLineRecipient =
-  | (({
-      authority: "legacy";
-      organizationId: Id<"organizations">;
-      organizationPersonId: Id<"organizationPeople">;
-    } & Pick<OrganizationPersonLineRecipient, "lineUserId" | "following">) &
-      LegacyCanonicalLineSnapshot)
-  | ({
-      authority: "canonical";
-      organizationId: Id<"organizations">;
-      organizationPersonId: Id<"organizationPeople">;
-    } & OrganizationPersonLineRecipient);
+export type ResolvedStaffLineRecipient = {
+  authority: "canonical";
+  staffId: Id<"staffs">;
+  shopId: Id<"shops">;
+  organizationId: Id<"organizations">;
+  organizationPersonId: Id<"organizationPeople">;
+} & OrganizationPersonLineRecipient;
 
-export type ResolvedStaffLineRecipient =
-  | ({
-      authority: "legacy";
-      staffId: Id<"staffs">;
-      shopId: Id<"shops">;
-      organizationId: Id<"organizations"> | null;
-      organizationPersonId: Id<"organizationPeople"> | null;
-      lineUserId: string;
-      following: boolean;
-    } & LegacyCanonicalLineSnapshot)
-  | ({
-      authority: "canonical";
-      staffId: Id<"staffs">;
-      shopId: Id<"shops">;
-      organizationId: Id<"organizations">;
-      organizationPersonId: Id<"organizationPeople">;
-    } & OrganizationPersonLineRecipient);
-
-export type OrganizationPersonLineState =
-  | {
-      authority: "legacy";
-      status: "unlinked" | "linked_following" | "linked_unfollowed";
-      organizationPersonLineLinkId: null;
-      generation: number;
-    }
-  | {
-      authority: "canonical";
-      status: "unlinked" | "linked_following" | "linked_unfollowed";
-      organizationPersonLineLinkId: Id<"organizationPersonLineLinks"> | null;
-      generation: number;
-    };
+export type OrganizationPersonLineState = {
+  authority: "canonical";
+  status: "unlinked" | "linked_following" | "linked_unfollowed";
+  organizationPersonLineLinkId: Id<"organizationPersonLineLinks"> | null;
+  generation: number;
+};
 
 export async function resolveCanonicalStaffScope(
   ctx: DbCtx,
@@ -142,45 +106,6 @@ async function getValidProviderForLink(ctx: DbCtx, link: Doc<"organizationPerson
   return activeProviders.length === 1 && activeProviders[0]._id === provider._id ? provider : null;
 }
 
-async function aggregateLegacyOrganizationPersonLineRecipient(
-  ctx: DbCtx,
-  args: { organizationId: Id<"organizations">; organizationPersonId: Id<"organizationPeople"> },
-): Promise<
-  (Pick<OrganizationPersonLineRecipient, "lineUserId" | "following"> & LegacyCanonicalLineSnapshot) | null | undefined
-> {
-  const staffs = await listActiveStaffsForOrganizationPerson(ctx, args);
-  let lineUserId: string | null = null;
-  let following: boolean | null = null;
-  for (const staff of staffs) {
-    const account = await getStaffLineAccount(ctx, staff._id);
-    if (!account) continue;
-    if (account.shopId !== staff.shopId) return undefined;
-    if (lineUserId !== null && lineUserId !== account.lineUserId) return undefined;
-    if (following !== null && following !== account.following) return undefined;
-    lineUserId = account.lineUserId;
-    following = account.following;
-  }
-  if (lineUserId === null || following === null) return null;
-
-  // legacyをread authorityに保ったまま、backfill済みの完全一致canonical counterpartだけを
-  // notificationの世代snapshotとして併記する。片側だけ存在する不整合はfail closedにする。
-  const link = await getUniqueActivePersonLink(ctx, args.organizationPersonId);
-  if (link === undefined) return undefined;
-  if (!link) return { lineUserId, following };
-  const person = await ctx.db.get(args.organizationPersonId);
-  if (!person || link.organizationId !== args.organizationId || link.generation !== (person.lineLinkGeneration ?? 0)) {
-    return undefined;
-  }
-  const provider = await getValidProviderForLink(ctx, link);
-  if (!provider || provider.lineUserId !== lineUserId || provider.following !== following) return undefined;
-  return {
-    lineUserId,
-    following,
-    organizationPersonLineLinkId: link._id,
-    generation: link.generation,
-  };
-}
-
 /** UI projection向け。未連携とcanonical不整合を区別し、raw LINE IDは返さない。 */
 export async function getOrganizationPersonLineState(
   ctx: DbCtx,
@@ -201,44 +126,6 @@ export async function getOrganizationPersonLineState(
   }
   const generation = person.lineLinkGeneration ?? 0;
 
-  if (!isCanonicalLineCommonLinkReadAuthority()) {
-    const recipient = await aggregateLegacyOrganizationPersonLineRecipient(ctx, args);
-    if (recipient === undefined) return null;
-    if (!recipient) {
-      const activeStaffs = await listActiveStaffsForOrganizationPerson(ctx, args);
-      const retainedLink = await getUniqueActivePersonLink(ctx, person._id);
-      if (retainedLink === undefined) return null;
-      // active membershipがあるのにlegacy projectionが欠損してcanonical linkだけ残る状態は、
-      // staged dual-writeの破損。unlinkedとして招待を再発行せずfail closedにする。
-      if (activeStaffs.length > 0 && retainedLink) return null;
-      if (activeStaffs.length === 0) {
-        if (retainedLink) {
-          if (retainedLink.organizationId !== organization._id || retainedLink.generation !== generation) return null;
-          const retainedProvider = await getValidProviderForLink(ctx, retainedLink);
-          if (!retainedProvider) return null;
-          return {
-            authority: "legacy",
-            status: retainedProvider.following ? "linked_following" : "linked_unfollowed",
-            organizationPersonLineLinkId: null,
-            generation,
-          };
-        }
-      }
-      return {
-        authority: "legacy",
-        status: "unlinked",
-        organizationPersonLineLinkId: null,
-        generation,
-      };
-    }
-    return {
-      authority: "legacy",
-      status: recipient.following ? "linked_following" : "linked_unfollowed",
-      organizationPersonLineLinkId: null,
-      generation,
-    };
-  }
-
   const link = await getUniqueActivePersonLink(ctx, person._id);
   if (link === undefined) return null;
   if (!link) {
@@ -255,7 +142,7 @@ export async function getOrganizationPersonLineState(
   };
 }
 
-/** deployment-wide read authorityに従うbackend専用のorganization person recipient。 */
+/** canonical正本から解決するbackend専用のorganization person recipient。 */
 export async function resolveOrganizationPersonLineRecipient(
   ctx: DbCtx,
   args: { organizationId: Id<"organizations">; organizationPersonId: Id<"organizationPeople"> },
@@ -273,16 +160,6 @@ export async function resolveOrganizationPersonLineRecipient(
   ) {
     return null;
   }
-  if (!isCanonicalLineCommonLinkReadAuthority()) {
-    const recipient = await aggregateLegacyOrganizationPersonLineRecipient(ctx, args);
-    if (!recipient) return null;
-    return {
-      authority: "legacy",
-      organizationId: organization._id,
-      organizationPersonId: person._id,
-      ...recipient,
-    };
-  }
   const recipient = await getOrganizationPersonLineRecipient(ctx, args);
   return recipient
     ? {
@@ -294,64 +171,12 @@ export async function resolveOrganizationPersonLineRecipient(
     : null;
 }
 
-/**
- * staff所属追加のwrite-side継承専用。
- * legacy authorityではactive projectionを正本としつつ、active所属が0件の場合だけ、
- * last-membership removal後も残る完全整合canonical linkからlegacy projectionを再生成できる。
- */
+/** staff所属追加のwrite-side継承専用。canonical正本から現在の連携先を解決する。 */
 export async function resolveOrganizationPersonLineInheritanceRecipient(
   ctx: DbCtx,
   args: { organizationId: Id<"organizations">; organizationPersonId: Id<"organizationPeople"> },
 ): Promise<ResolvedOrganizationPersonLineRecipient | null> {
-  if (isCanonicalLineCommonLinkReadAuthority()) {
-    return await resolveOrganizationPersonLineRecipient(ctx, args);
-  }
-  const [organization, person] = await Promise.all([
-    ctx.db.get(args.organizationId),
-    ctx.db.get(args.organizationPersonId),
-  ]);
-  if (
-    !organization ||
-    organization.isDeleted ||
-    !person ||
-    person.status !== "active" ||
-    person.organizationId !== organization._id
-  ) {
-    return null;
-  }
-  const activeStaffs = await listActiveStaffsForOrganizationPerson(ctx, args);
-  const legacy = await aggregateLegacyOrganizationPersonLineRecipient(ctx, args);
-  if (legacy === undefined) throw new ConvexError(LINE_LINK_ERROR);
-  if (legacy) {
-    return {
-      authority: "legacy",
-      organizationId: organization._id,
-      organizationPersonId: person._id,
-      ...legacy,
-    };
-  }
-  const link = await getUniqueActivePersonLink(ctx, person._id);
-  if (link === undefined) throw new ConvexError(LINE_LINK_ERROR);
-  if (activeStaffs.length > 0) {
-    if (link) throw new ConvexError(LINE_LINK_ERROR);
-    return null;
-  }
-  if (!link) return null;
-  const generation = person.lineLinkGeneration ?? 0;
-  if (link.organizationId !== organization._id || link.generation !== generation) {
-    throw new ConvexError(LINE_LINK_ERROR);
-  }
-  const provider = await getValidProviderForLink(ctx, link);
-  if (!provider) throw new ConvexError(LINE_LINK_ERROR);
-  return {
-    authority: "legacy",
-    organizationId: organization._id,
-    organizationPersonId: person._id,
-    organizationPersonLineLinkId: link._id,
-    generation,
-    lineUserId: provider.lineUserId,
-    following: provider.following,
-  };
+  return await resolveOrganizationPersonLineRecipient(ctx, args);
 }
 
 /** 通知backend向け。public DTOにはこのraw recipientを含めない。 */
@@ -391,49 +216,6 @@ export async function resolveStaffLineRecipient(
   ctx: DbCtx,
   args: { staffId: Id<"staffs">; shopId?: Id<"shops"> },
 ): Promise<ResolvedStaffLineRecipient | null> {
-  if (!isCanonicalLineCommonLinkReadAuthority()) {
-    const staff = await ctx.db.get(args.staffId);
-    if (!staff || staff.isDeleted || (args.shopId && staff.shopId !== args.shopId)) return null;
-    const shop = await ctx.db.get(staff.shopId);
-    if (
-      !shop ||
-      organizationShopOperatingStatus(shop.operatingStatus) !== "active" ||
-      !(await isShopParentActive(ctx, shop))
-    ) {
-      return null;
-    }
-    if (staff.organizationId && shop.organizationId && staff.organizationId !== shop.organizationId) return null;
-    const account = await getStaffLineAccount(ctx, staff._id);
-    if (!account || account.shopId !== staff.shopId) return null;
-    let canonicalSnapshot: LegacyCanonicalLineSnapshot = {};
-    if (staff.organizationId && staff.organizationPersonId && shop.organizationId === staff.organizationId) {
-      const aggregate = await aggregateLegacyOrganizationPersonLineRecipient(ctx, {
-        organizationId: staff.organizationId,
-        organizationPersonId: staff.organizationPersonId,
-      });
-      if (!aggregate || aggregate.lineUserId !== account.lineUserId || aggregate.following !== account.following) {
-        return null;
-      }
-      canonicalSnapshot =
-        aggregate.organizationPersonLineLinkId !== undefined && aggregate.generation !== undefined
-          ? {
-              organizationPersonLineLinkId: aggregate.organizationPersonLineLinkId,
-              generation: aggregate.generation,
-            }
-          : {};
-    }
-    return {
-      authority: "legacy",
-      staffId: staff._id,
-      shopId: staff.shopId,
-      organizationId: staff.organizationId ?? shop.organizationId ?? null,
-      organizationPersonId: staff.organizationPersonId ?? null,
-      ...canonicalSnapshot,
-      lineUserId: account.lineUserId,
-      following: account.following,
-    };
-  }
-
   const scope = await resolveCanonicalStaffScope(ctx, args);
   if (!scope) return null;
   const recipient = await getOrganizationPersonLineRecipient(ctx, {

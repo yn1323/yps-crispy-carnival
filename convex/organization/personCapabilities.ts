@@ -30,7 +30,7 @@ export function deriveOrganizationPersonCapabilities(input: OrganizationPersonCa
     input.managerRole === "active" &&
       input.activeManagerCount > 1 &&
       input.canWriteNormally &&
-      input.policy?.canUsePaidFeatures &&
+      input.policy?.canManageManagers &&
       (input.isStaff || !input.isBillingContact),
   );
   const managerRoleRemovalDisabledReason =
@@ -44,13 +44,11 @@ export function deriveOrganizationPersonCapabilities(input: OrganizationPersonCa
             ? "閲覧のみの管理者は、管理者権限を変更できません。"
             : input.isRestricted
               ? "契約制限中は、管理者権限を外せません。"
-              : input.policy?.paidFeatureBlockReason === "freePlan"
-                ? "無料プランでは、管理者の個別解除はできません。"
-                : input.policy?.paidFeatureBlockReason === "paymentResultPending"
-                  ? "支払い結果が確定するまで、管理者権限を変更できません。"
-                  : !input.isStaff && input.isBillingContact
-                    ? "管理者権限を外すには、先に請求先メールアドレスを変更してください。"
-                    : "現在の契約状態では、管理者権限を変更できません。";
+              : input.policy?.paidFeatureBlockReason === "paymentResultPending"
+                ? "支払い結果が確定するまで、管理者権限を変更できません。"
+                : !input.isStaff && input.isBillingContact
+                  ? "管理者権限を外すには、先に請求先メールアドレスを変更してください。"
+                  : "現在の契約状態では、管理者権限を変更できません。";
   const removeDisabledReason = canRemove
     ? undefined
     : isManager

@@ -14,7 +14,7 @@ export const ORGANIZATION_PLAN_LIMITS = {
   free: {
     maxPeople: 5,
     maxActiveShops: 1,
-    maxActiveManagers: 1,
+    maxActiveManagers: 2,
   },
   pro: PRO_PLAN_LIMITS,
   business: {

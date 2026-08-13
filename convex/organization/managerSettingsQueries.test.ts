@@ -222,6 +222,50 @@ describe("organization manager settings queries", () => {
     expect(JSON.stringify(result)).not.toContain(String(ids.readOnly.userId));
   });
 
+  it("旧Free管理者交代が残る間は通常追加の新規招待と再送を止める", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "manager_query_legacy_exchange_blocks_addition",
+        plan: "free",
+      });
+      const additionId = await seedInvitation(ctx, {
+        organizationId: base.organizationId,
+        inviterMemberId: base.memberId,
+        email: "existing-addition@example.com",
+      });
+      const exchangeId = await seedInvitation(ctx, {
+        organizationId: base.organizationId,
+        inviterMemberId: base.memberId,
+        email: "legacy-exchange@example.com",
+        purpose: "freeManagerExchange",
+      });
+      return { ...base, additionId, exchangeId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "manager_query_legacy_exchange_blocks_addition" })
+      .query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.shopId, now: NOW });
+
+    expect(result).toMatchObject({
+      kind: "ready",
+      mode: "managerAddition",
+      usage: { pendingAdditions: 1, pendingExchanges: 1 },
+      actions: { canInviteExistingStaff: false, canInviteExternal: false },
+    });
+    if (result.kind !== "ready") throw new Error("overview not ready");
+    expect(result.invitations.find((invitation) => invitation.invitationId === ids.additionId)).toMatchObject({
+      purpose: "managerAddition",
+      canResend: false,
+      canRevoke: true,
+    });
+    expect(result.invitations.find((invitation) => invitation.invitationId === ids.exchangeId)).toMatchObject({
+      purpose: "freeManagerExchange",
+      canResend: false,
+      canRevoke: true,
+    });
+  });
+
   it("外部招待後に同email人物が管理者になるとconflictへ閉じ、その人物名を表示する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
@@ -480,8 +524,9 @@ describe("organization manager settings queries", () => {
       .query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.free.shopId, now: NOW });
     expect(free).toMatchObject({
       kind: "ready",
-      mode: "freeManagerExchange",
-      actions: { canInviteExistingStaff: true, canInviteExternal: false },
+      mode: "managerAddition",
+      usage: { activeManagers: 1, projectedManagers: 1, maxManagers: 2 },
+      actions: { canInviteExistingStaff: true, canInviteExternal: true },
     });
     const restricted = await t
       .withIdentity({ subject: "manager_query_restricted" })
@@ -563,7 +608,7 @@ describe("organization manager settings queries", () => {
         activeManagers: 3,
         activeInvitationCount: 1,
         projectedManagers: 4,
-        maxManagers: 1,
+        maxManagers: 2,
       },
       actions: { canInviteExistingStaff: false, canInviteExternal: false },
     });

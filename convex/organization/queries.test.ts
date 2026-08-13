@@ -5,6 +5,7 @@ import type { Id } from "../_generated/dataModel";
 import {
   seedLegacyManagerShop,
   seedOrganizationManagerShop,
+  seedOrganizationMembership,
   seedOrganizationPersonLineLink,
   seedUser,
 } from "../_test/seed";
@@ -265,6 +266,7 @@ describe("organization/queries.getSettings", () => {
           regularClosedDays: ["mon", "thu"],
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
           staffCount: expect.any(Number),
+          managerNotificationRecipientStatus: "none",
           canUpdateSettings: true,
           canDelete: false,
         },
@@ -275,6 +277,7 @@ describe("organization/queries.getSettings", () => {
       "canUpdateSettings",
       "deleteDisabledReason",
       "id",
+      "managerNotificationRecipientStatus",
       "name",
       "regularClosedDays",
       "staffCount",
@@ -303,6 +306,75 @@ describe("organization/queries.getSettings", () => {
     expect(result?.billing).not.toHaveProperty("invoices");
     expect(result).not.toHaveProperty("freeSelection");
     expect(result).not.toHaveProperty("currentShopName");
+  });
+
+  it("対象店舗に所属するactive管理者がいれば店舗通知の受信者ありを返す", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "settings_local_manager_recipient",
+        email: "local-manager@example.com",
+        plan: "pro",
+      });
+      await ctx.db.insert("staffs", {
+        shopId: base.shopId,
+        organizationId: base.organizationId,
+        organizationPersonId: base.personId,
+        userId: base.userId,
+        name: "店舗所属管理者",
+        email: "local-manager@example.com",
+        emailNormalized: "local-manager@example.com",
+        isDeleted: false,
+      });
+      return base;
+    });
+
+    const result = await t
+      .withIdentity({ subject: "settings_local_manager_recipient" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+    expect(result?.shops[0]?.managerNotificationRecipientStatus).toBe("available");
+  });
+
+  it("管理者走査上限の外に店舗所属者がいる可能性を受信者なしと誤判定しない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "settings_manager_recipient_overflow",
+        plan: "pro",
+      });
+      for (let index = 1; index < 20; index += 1) {
+        const userId = await seedUser(ctx, `settings_nonlocal_manager_${index}`);
+        await seedOrganizationMembership(ctx, { userId, shopId: base.shopId });
+      }
+      const localUserId = await seedUser(ctx, "settings_overflow_local_manager", "overflow-local@example.com");
+      await seedOrganizationMembership(ctx, { userId: localUserId, shopId: base.shopId });
+      const people = await ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId_and_userId", (q) =>
+          q.eq("organizationId", base.organizationId).eq("userId", localUserId),
+        )
+        .take(2);
+      const [localPerson] = people;
+      if (people.length !== 1 || !localPerson) throw new Error("overflow manager person not found");
+      await ctx.db.insert("staffs", {
+        shopId: base.shopId,
+        organizationId: base.organizationId,
+        organizationPersonId: localPerson._id,
+        userId: localUserId,
+        name: "走査上限外の店舗所属管理者",
+        email: "overflow-local@example.com",
+        emailNormalized: "overflow-local@example.com",
+        isDeleted: false,
+      });
+      return base;
+    });
+
+    const result = await t
+      .withIdentity({ subject: "settings_manager_recipient_overflow" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+    expect(result?.shops[0]?.managerNotificationRecipientStatus).toBe("unknown");
   });
 
   it("Stripe課金が未準備でもトライアル権利を維持し、決済操作だけを停止する", async () => {

@@ -1186,7 +1186,6 @@ describe("line/mutations", () => {
     });
 
     it("operatingStatus未定義のWiden前shopでもpublic発行からcanonical確定・readまで継続する", async () => {
-      vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
       const t = convexTest(schema, modules);
       const target = await setupOrganizationShop(t, "widen_shop_status");
       await t.run(async (ctx) => await ctx.db.patch(target.shopId, { operatingStatus: undefined }));

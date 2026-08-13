@@ -11,6 +11,7 @@ import type {
   ManagerSettingsManager,
   ReadyManagerSettingsOverview,
 } from "./types";
+import { canResendManagerInvitation } from "./types";
 
 export function useManagerSettingsController({
   overview,
@@ -70,8 +71,11 @@ export function useManagerSettingsController({
   return {
     confirmation,
     isRunning,
-    onRequestResend: (invitation: ManagerSettingsInvitation) =>
-      setConfirmation({ kind: "resend", invitation, requestId: crypto.randomUUID() }),
+    onRequestResend: (invitation: ManagerSettingsInvitation) => {
+      if (canResendManagerInvitation(invitation)) {
+        setConfirmation({ kind: "resend", invitation, requestId: crypto.randomUUID() });
+      }
+    },
     onRequestRevoke: (invitation: ManagerSettingsInvitation) =>
       setConfirmation({ kind: "revoke", invitation, requestId: crypto.randomUUID() }),
     onRequestRemoveRole: (manager: ManagerSettingsManager) =>
@@ -97,5 +101,7 @@ function isConfirmationCurrent(
   const current = overview.invitations.find(
     (invitation) => invitation.invitationId === confirmation.invitation.invitationId,
   );
-  return confirmation.kind === "resend" ? current?.canResend === true : current?.canRevoke === true;
+  return confirmation.kind === "resend"
+    ? current !== undefined && canResendManagerInvitation(current)
+    : current?.canRevoke === true;
 }

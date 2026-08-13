@@ -1213,6 +1213,52 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
     ).toHaveLength(1);
   });
 
+  it("Free管理者が2名でも即時支払い失敗後に両者を維持してactive.freeへ戻す", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "pending_failure_free_two_managers",
+        plan: "free",
+      });
+      const secondManager = await addManager(ctx, seeded.organizationId, "pending_failure_free_second_manager");
+      return { ...seeded, secondManager };
+    });
+
+    await expect(
+      t.mutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
+        organizationId: ids.organizationId,
+        expectedVersion: 1,
+        state: { kind: "pendingActivation", plan: "pro", fallback: "free" },
+        correlationId: "pending-free-two-start",
+      }),
+    ).resolves.toEqual({ changed: true, stateKind: "pendingActivation" });
+    await expect(
+      t.mutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
+        organizationId: ids.organizationId,
+        expectedVersion: 2,
+        state: { kind: "paymentFailed" },
+        correlationId: "pending-free-two-payment-failed",
+      }),
+    ).resolves.toEqual({ changed: true, stateKind: "free" });
+
+    const result = await t.run(async (ctx) => ({
+      billingState: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      activeMembers: await ctx.db
+        .query("organizationMembers")
+        .withIndex("by_organizationId_and_status", (q) =>
+          q.eq("organizationId", ids.organizationId).eq("status", "active"),
+        )
+        .collect(),
+    }));
+    expect(result.billingState?.state).toEqual({ kind: "active", plan: "free" });
+    expect(result.activeMembers.map((member) => member.personId).sort()).toEqual(
+      [ids.personId, ids.secondManager.personId].sort(),
+    );
+  });
+
   it("契約制限中からの即時支払い失敗はrestrictedへ戻して復旧対象を保つ", async () => {
     const t = convexTest(schema, modules);
     const now = Date.now();

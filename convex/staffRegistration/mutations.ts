@@ -11,11 +11,7 @@ import { normalizeEmail } from "../_lib/validation";
 import { STAFF_REGISTRATION_PENDING_LIMIT } from "../constants";
 import { getLegalConsentVersions } from "../legal/documents";
 import { recordStaffLegalConsentSnapshot } from "../legal/service";
-import {
-  getOrganizationPersonLineState,
-  resolveOrganizationPersonLineInheritanceRecipient,
-  upsertStaffLineAccount,
-} from "../line/service";
+import { getOrganizationPersonLineState, resolveOrganizationPersonLineInheritanceRecipient } from "../line/service";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { recordOrganizationAuditEvent } from "../organization/audit";
 import { requireOrganizationCapacity } from "../organizationBilling/service";
@@ -24,7 +20,6 @@ import {
   materializeOrganizationPeopleForStaffAddition,
   prepareOrganizationPeopleForStaffAddition,
   releasePendingInvitationReservationsForStaffAddition,
-  requireAdditionalShopMembershipEnabled,
 } from "../staff/service";
 import { resolveStaffRegistrationCapability } from "./capability";
 import { staffRegistrationFormSchema } from "./schemas";
@@ -288,11 +283,6 @@ export const approveRequest = managerMutation({
     let lineState: Awaited<ReturnType<typeof getOrganizationPersonLineState>> = null;
     let lineRecipient: Awaited<ReturnType<typeof resolveOrganizationPersonLineInheritanceRecipient>> = null;
     if (organizationId && organizationPersonId) {
-      await requireAdditionalShopMembershipEnabled(ctx, {
-        organizationId,
-        organizationPersonId,
-        targetShopId: ctx.shop._id,
-      });
       lineRecipient = await resolveOrganizationPersonLineInheritanceRecipient(ctx, {
         organizationId,
         organizationPersonId,
@@ -324,15 +314,6 @@ export const approveRequest = managerMutation({
       excludedFromShift: false,
       isDeleted: false,
     });
-    if (lineRecipient?.authority === "legacy") {
-      await upsertStaffLineAccount(ctx, {
-        staffId,
-        shopId: ctx.shop._id,
-        lineUserId: lineRecipient.lineUserId,
-        following: lineRecipient.following,
-      });
-    }
-
     await recordStaffLegalConsentSnapshot(ctx, {
       staffId,
       shopId: ctx.shop._id,

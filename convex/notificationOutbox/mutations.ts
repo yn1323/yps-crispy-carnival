@@ -72,6 +72,7 @@ import {
   resendProviderIssueEventTypeValidator,
   NOTIFICATION_OUTBOX_TERMINAL_STATUSES as TERMINAL_STATUSES,
 } from "./schemas";
+import { isShopManagerNotificationContext } from "./shopManagerNotification";
 import type {
   NotificationCancelReason,
   NotificationChannel,
@@ -1469,6 +1470,8 @@ async function getUserRecipientCancellationReason(
   const user = await ctx.db.get(userId);
   if (!user || user.isDeleted) return "recipient_inactive";
 
+  const shopId = notification.shopId;
+
   let person: Doc<"organizationPeople"> | null = null;
   let member: Doc<"organizationMembers"> | null = null;
   if (organizationId) {
@@ -1517,6 +1520,18 @@ async function getUserRecipientCancellationReason(
     }
   }
 
+  const managerContact: ShopManagerContact =
+    organizationId && person ? { kind: "canonical", user, person, organizationId } : { kind: "legacy", user };
+  const notificationContext = notificationContextForPayload(notification.payload, notification.dedupeKey ?? "");
+  const requiresShopStaff = isShopManagerNotificationContext(notificationContext);
+  const managerStaff =
+    (requiresShopStaff || notification.payload.kind === "line") && shopId
+      ? await loadShopManagerStaffForContact(ctx, shopId, managerContact)
+      : null;
+  if (requiresShopStaff && (!shopId || !managerStaff)) {
+    return "recipient_inactive";
+  }
+
   if (notification.payload.kind === "email") {
     const currentEmail = person?.email ?? user.email;
     if (normalizeEmail(notification.payload.to) !== normalizeEmail(currentEmail)) {
@@ -1524,13 +1539,8 @@ async function getUserRecipientCancellationReason(
     }
   }
 
-  const shopId = notification.shopId;
   if (notification.payload.kind === "line") {
-    if (!shopId) return "recipient_inactive";
-    const managerContact: ShopManagerContact =
-      organizationId && person ? { kind: "canonical", user, person, organizationId } : { kind: "legacy", user };
-    const managerStaff = await loadShopManagerStaffForContact(ctx, shopId, managerContact);
-    if (!managerStaff) return "recipient_inactive";
+    if (!shopId || !managerStaff) return "recipient_inactive";
     const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: managerStaff._id, shopId });
     if (!lineRecipient?.following || !lineRecipientSnapshotMatches(notification, lineRecipient)) {
       return "recipient_inactive";

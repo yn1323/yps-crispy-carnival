@@ -256,18 +256,6 @@ describe("UserDetail", () => {
     });
   });
 
-  it("店舗所属追加が非公開なら追加パネルとmutationを開始しない", async () => {
-    mocks.featureVisibility.shopMembershipAddition = false;
-    render(<UserDetail data={data} selectedShopId="shop-a" returnTo="dashboard" visibleUserCount={10} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "店舗追加を開く" }));
-    fireEvent.click(screen.getByRole("button", { name: "所属店舗を変更する" }));
-    await act(async () => Promise.resolve());
-
-    expect(mocks.navigate).not.toHaveBeenCalled();
-    expect(mocks.changeMemberships).not.toHaveBeenCalled();
-  });
-
   it("戻る操作では一覧の復元条件を維持する", () => {
     render(
       <UserDetail data={data} selectedShopId="shop-b" activePanel="basic" returnTo="settings" visibleUserCount={30} />,

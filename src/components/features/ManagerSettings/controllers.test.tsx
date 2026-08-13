@@ -139,6 +139,24 @@ afterEach(() => {
 });
 
 describe("useManagerSettingsController", () => {
+  it("旧backendが交代招待を再送可能として返しても再送を開始しない", () => {
+    const legacyInvitation = {
+      ...overview.invitations[0],
+      purpose: "freeManagerExchange" as const,
+      canResend: true,
+    };
+    const legacyOverview: ReadyManagerSettingsOverview = {
+      ...overview,
+      invitations: [legacyInvitation],
+    };
+    const { result } = renderHook(() => useManagerSettingsController({ overview: legacyOverview, shopId }));
+
+    act(() => result.current.onRequestResend(legacyInvitation));
+
+    expect(result.current.confirmation).toBeNull();
+    expect(mocks.resend).not.toHaveBeenCalled();
+  });
+
   it("通信失敗後の再送は同じrequestIdを保ち、別の操作意図では更新する", async () => {
     const error = new ConvexError("操作結果を確認できませんでした。");
     mocks.randomUUID.mockReturnValueOnce(requestIds[0]).mockReturnValueOnce(requestIds[1]);
@@ -231,6 +249,21 @@ describe("useManagerSettingsController", () => {
 });
 
 describe("useManagerIssueController", () => {
+  it("旧backendのFree交代modeではaction capabilityがtrueでも新しい招待を開始しない", () => {
+    const legacyOverview: ReadyManagerSettingsOverview = {
+      ...overview,
+      mode: "freeManagerExchange",
+      actions: { canInviteExistingStaff: true, canInviteExternal: true },
+    };
+    const { result } = renderHook(() => useManagerIssueController({ overview: legacyOverview, shopId }));
+
+    act(() => result.current.onRequestExistingStaff(candidate));
+    expect(result.current.confirmation).toBeNull();
+    act(() => result.current.onRequestExternal("旧方式候補", "legacy@example.com"));
+    expect(result.current.confirmation).toBeNull();
+    expect(mocks.issue).not.toHaveBeenCalled();
+  });
+
   it("招待は通信失敗後も同じrequestIdで再試行し、別の招待意図では更新する", async () => {
     const error = new ConvexError("操作結果を確認できませんでした。");
     mocks.randomUUID.mockReturnValueOnce(requestIds[0]).mockReturnValueOnce(requestIds[1]);

@@ -98,20 +98,8 @@ const baseData: UserDetailData = {
     canDisconnect: true,
   },
   membershipFingerprint: "membership-fingerprint",
-  shops: [
-    {
-      ...shibuyaShop,
-      canChangeMembership: false,
-      membershipChangeDisabledReason: "管理者は店舗から外せません。先に管理者権限を外してください。",
-    },
-  ],
-  memberships: [
-    {
-      ...shibuyaMembership,
-      canRemove: false,
-      removeDisabledReason: "管理者は店舗から外せません。先に管理者権限を外してください。",
-    },
-  ],
+  shops: [shibuyaShop],
+  memberships: [shibuyaMembership],
 };
 
 const multipleStoresData: UserDetailData = {
@@ -123,6 +111,15 @@ const multipleStoresData: UserDetailData = {
   removeDisabledReason: undefined,
   shops: [shibuyaShop, shinjukuShop, ikebukuroShop, yokohamaShop],
   memberships: [shibuyaMembership, shinjukuMembership],
+};
+
+const activeManagerMultipleStoresData: UserDetailData = {
+  ...multipleStoresData,
+  managerRole: "active",
+  managerInvitationState: { kind: "unavailable", reason: "このユーザーはすでに管理者です。" },
+  canRemoveManagerRole: true,
+  canRemove: false,
+  removeDisabledReason: "管理者は削除できません。先に管理者権限を外してください。",
 };
 
 const lineUnlinkedData: UserDetailData = {
@@ -430,13 +427,17 @@ export const ShopMembershipDialogMobile: Story = {
 };
 
 export const ShopMembershipRemoval: Story = {
-  args: { activePanel: "addShop" },
+  args: { activePanel: "addShop", data: activeManagerMultipleStoresData },
   play: async () => {
     const dialog = await screen.findByRole("dialog", { name: "所属店舗を変更" });
     const content = within(dialog);
 
     await userEvent.click(content.getByRole("checkbox", { name: /渋谷店/ }));
     await content.findByText("今日以降のシフト割り当てから削除します。");
+    await expect(
+      content.getByText("店舗通知を受け取る管理者を、各店舗に1名以上所属させることをおすすめします。"),
+    ).toBeInTheDocument();
+    await expect(content.getByText(/外す店舗に所属する別の管理者がいない場合/)).toBeInTheDocument();
   },
 };
 

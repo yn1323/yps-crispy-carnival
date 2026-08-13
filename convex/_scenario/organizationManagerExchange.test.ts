@@ -9,7 +9,7 @@ import { deriveInvitationToken } from "../organizationInvitation/token";
 
 const SIGNING_SECRET = "test-only-organization-invitation-secret-123456";
 
-describe("Free管理者交代シナリオ", () => {
+describe("Free管理者追加シナリオ", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(SCENARIO_NOW);
@@ -21,7 +21,7 @@ describe("Free管理者交代シナリオ", () => {
     vi.useRealTimers();
   });
 
-  it("既存スタッフへの交代後は元管理者の管理権限だけを外しスタッフ通知と別事業者の権限を保つ", async () => {
+  it("既存スタッフを2人目へ追加した後は両管理者の権限・スタッフ通知・別事業者の権限を保つ", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const formerManager = scenario.manager({
@@ -39,7 +39,7 @@ describe("Free管理者交代シナリオ", () => {
       const organization = await seedOrganizationManagerShop(ctx, {
         subject: "free_exchange_former",
         email: "former@example.com",
-        shopName: "Free交代対象店舗",
+        shopName: "Free管理者追加対象店舗",
         plan: "free",
       });
       const formerStaffId = await ctx.db.insert("staffs", {
@@ -180,7 +180,7 @@ describe("Free管理者交代シナリオ", () => {
     if (!invitation) throw new Error("管理者交代の招待が見つかりません");
     expect(invitation).toMatchObject({
       targetPersonId: beforeExchange.successorPersonId,
-      purpose: "freeManagerExchange",
+      purpose: "managerAddition",
       status: "issued",
     });
     const token = await deriveInvitationToken({
@@ -223,17 +223,17 @@ describe("Free管理者交代シナリオ", () => {
         .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
         .unique(),
     }));
-    expect(afterExchange.formerMember?.status).toBe("removed");
+    expect(afterExchange.formerMember?.status).toBe("active");
     expect(afterExchange.successorMembers).toHaveLength(1);
     const successorMember = afterExchange.successorMembers[0];
     if (!successorMember) throw new Error("交代後の管理者所属が見つかりません");
     if (!afterExchange.billingState) throw new Error("交代後の請求状態が見つかりません");
     expect(successorMember.status).toBe("active");
-    expect(afterExchange.billingState.freeManagerPersonId).toBe(beforeExchange.successorPersonId);
+    expect(afterExchange.billingState.freeManagerPersonId).toBe(seeded.personId);
     expect(afterExchange.formerPerson).toEqual(beforeExchange.formerPerson);
     expect(afterExchange.formerStaff).toEqual(beforeExchange.formerStaff);
     expect(afterExchange.formerLineAccount).toEqual(beforeExchange.formerLineAccount);
-    expect(afterExchange.formerLegacyMember?.isDeleted).toBe(true);
+    expect(afterExchange.formerLegacyMember?.isDeleted).toBe(false);
     expect(afterExchange.otherPerson).toEqual(beforeExchange.otherPerson);
     expect(afterExchange.otherMember).toEqual(beforeExchange.otherMember);
     expect(afterExchange.otherLegacyMember).toEqual(beforeExchange.otherLegacyMember);
@@ -274,6 +274,15 @@ describe("Free管理者交代シナリオ", () => {
     expect(acceptanceNotifications).toEqual([
       {
         channel: "email",
+        dedupeKey: `email:organizationManagerInvitationAccepted:${invitation._id}:${invitation.version + 1}:${seeded.userId}`,
+        organizationId: seeded.organizationId,
+        purpose: "business",
+        status: "pending",
+        to: "former@example.com",
+        userId: seeded.userId,
+      },
+      {
+        channel: "email",
         dedupeKey: `email:organizationManagerInvitationAccepted:${invitation._id}:${invitation.version + 1}:${successorMember.userId}`,
         organizationId: seeded.organizationId,
         purpose: "business",
@@ -284,40 +293,36 @@ describe("Free管理者交代シナリオ", () => {
     ]);
 
     const formerIdentity = t.withIdentity({ subject: "free_exchange_former", email: "former@example.com" });
-    await expect(formerIdentity.query(api.dashboard.queries.getMyShops, {})).resolves.toEqual([
-      expect.objectContaining({
-        shopId: seeded.otherShopId,
-        organizationId: seeded.otherOrganizationId,
-        memberStatus: "active",
-      }),
-    ]);
-    const remainingDashboardShop = await formerIdentity.query(api.dashboard.queries.getDashboardShop, {});
-    expect(remainingDashboardShop).toMatchObject({ name: "別事業者の店舗" });
-    expect(remainingDashboardShop).not.toMatchObject({ name: "Free交代対象店舗" });
+    const formerShops = await formerIdentity.query(api.dashboard.queries.getMyShops, {});
+    expect(formerShops.map((shop) => shop.shopId).sort()).toEqual(
+      [seeded.shopId, seeded.unjoinedShopId, seeded.otherShopId].sort(),
+    );
+    expect(formerShops).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          shopId: seeded.shopId,
+          organizationId: seeded.organizationId,
+          memberStatus: "active",
+        }),
+        expect.objectContaining({
+          shopId: seeded.otherShopId,
+          organizationId: seeded.otherOrganizationId,
+          memberStatus: "active",
+        }),
+      ]),
+    );
 
-    const beforeDeniedWrite = await t.run(async (ctx) => ({
-      shop: await ctx.db.get(seeded.shopId),
-      audits: await ctx.db
-        .query("organizationAuditEvents")
-        .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", seeded.organizationId))
-        .collect(),
-    }));
     await expect(
       formerIdentity.mutation(api.shop.mutations.updateShopSettings, {
         shopId: seeded.shopId,
-        shopName: "変更されてはいけない店舗名",
+        shopName: "既存管理者が変更した店舗名",
         regularClosedDays: ["sun"],
         submissionPattern: { kind: "time", startTime: "10:00", endTime: "20:00" },
       }),
-    ).rejects.toThrow();
-    const afterDeniedWrite = await t.run(async (ctx) => ({
-      shop: await ctx.db.get(seeded.shopId),
-      audits: await ctx.db
-        .query("organizationAuditEvents")
-        .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", seeded.organizationId))
-        .collect(),
-    }));
-    expect(afterDeniedWrite).toEqual(beforeDeniedWrite);
+    ).resolves.toBeNull();
+    await expect(t.run((ctx) => ctx.db.get(seeded.shopId))).resolves.toMatchObject({
+      name: "既存管理者が変更した店舗名",
+    });
 
     const recruitmentId = await t
       .withIdentity({
@@ -347,7 +352,7 @@ describe("Free管理者交代シナリオ", () => {
     expect(recruitmentData?.staffEntries.map((entry) => entry.staffId)).not.toContain(excludedStaffId);
   });
 
-  it("元管理者がシフト対象外なら交代後も募集通知のrecipientに含めない", async () => {
+  it("既存管理者がシフト対象外なら2人目追加後も募集通知のrecipientに含めない", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const formerManager = scenario.manager({ subject: "excluded_former", email: "excluded-former@example.com" });
