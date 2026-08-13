@@ -2,7 +2,12 @@ import { v } from "convex/values";
 import { internalQuery } from "../_generated/server";
 import { isShopParentActive } from "../_lib/activeShop";
 import { managerQuery } from "../_lib/functions";
-import { findStaffLineAccountByLineUserId, getStaffLineAccount } from "./service";
+import {
+  findStaffLineAccountByLineUserId,
+  getOrganizationPersonLineState,
+  resolveCanonicalStaffScope,
+  resolveStaffLineRecipient,
+} from "./service";
 
 /**
  * 店舗のスタッフごとのLINE連携状況を返す（シフト担当者UI用）
@@ -30,7 +35,7 @@ export const getLinkStatusByShop = managerQuery({
       .collect();
     return await Promise.all(
       staffs.map(async (s) => {
-        const account = await getStaffLineAccount(ctx, s._id);
+        const account = await resolveStaffLineRecipient(ctx, { staffId: s._id, shopId: shop._id });
         return {
           staffId: s._id,
           name: s.name,
@@ -112,12 +117,27 @@ export const getInviteEmailData = internalQuery({
     if (!staff || staff.isDeleted || !staff.email) return null;
     const shop = await ctx.db.get(staff.shopId);
     if (!shop || !(await isShopParentActive(ctx, shop))) return null;
+    const canonicalScope = await resolveCanonicalStaffScope(ctx, { staffId: staff._id, shopId: shop._id });
+    const lineState = canonicalScope
+      ? await getOrganizationPersonLineState(ctx, {
+          organizationId: canonicalScope.organization._id,
+          organizationPersonId: canonicalScope.person._id,
+        })
+      : null;
+    if (canonicalScope && !lineState) return null;
     return {
       staffId: staff._id,
       shopId: staff.shopId,
       staffName: staff.name,
       staffEmail: staff.email,
       shopName: shop.name,
+      ...(canonicalScope && lineState
+        ? {
+            organizationPersonId: canonicalScope.person._id,
+            lineLinkGeneration: lineState.generation,
+            isLineLinked: lineState.status !== "unlinked",
+          }
+        : {}),
     };
   },
 });

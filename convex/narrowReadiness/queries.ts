@@ -3,6 +3,8 @@ import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { internalQuery } from "../_generated/server";
 import { normalizeEmail } from "../_lib/validation";
+import { LINE_ORGANIZATION_PERSON_STAFF_HISTORY_SCAN_LIMIT } from "../constants";
+import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
 
 const MAX_PAGE_SIZE = 100;
 const pageMetadataValidator = {
@@ -709,6 +711,333 @@ export const verifyOrganizationMigrationConflicts = internalQuery({
           conflict.sourceType === "notificationOutbox" &&
           conflict.code.startsWith("notification_outbox_"),
       ).length,
+    };
+  },
+});
+
+const lineCommonLinkPageValidator = v.object({
+  ...pageMetadataValidator,
+  anomalies: v.record(v.string(), v.number()),
+  observations: v.record(v.string(), v.number()),
+});
+
+/** LINE共通化の公開前に、複数店舗化されていないことをorganization起点で数える。 */
+export const verifyLineCommonOrganizations = internalQuery({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: lineCommonLinkPageValidator,
+  handler: async (ctx, { paginationOpts }) => {
+    requireBoundedPagination(paginationOpts);
+    const result = await ctx.db.query("organizations").paginate(paginationOpts);
+    let activeOrganizationsWithMultipleShops = 0;
+    for (const organization of result.page) {
+      if (organization.isDeleted) continue;
+      // TODO[narrow]: m025完走まではoperatingStatus欠損も現行runtimeと同じactiveとして数える。
+      const [explicitActiveShops, legacyActiveShops] = await Promise.all([
+        ctx.db
+          .query("shops")
+          .withIndex("by_organizationId_and_operatingStatus", (q) =>
+            q.eq("organizationId", organization._id).eq("operatingStatus", "active"),
+          )
+          .filter((q) => q.eq(q.field("isDeleted"), false))
+          .take(2),
+        ctx.db
+          .query("shops")
+          .withIndex("by_organizationId_and_operatingStatus", (q) =>
+            q.eq("organizationId", organization._id).eq("operatingStatus", undefined),
+          )
+          .filter((q) => q.eq(q.field("isDeleted"), false))
+          .take(2),
+      ]);
+      if (explicitActiveShops.length + legacyActiveShops.length > 1) {
+        activeOrganizationsWithMultipleShops += 1;
+      }
+    }
+    return {
+      ...pageMetadata(result),
+      anomalies: { activeOrganizationsWithMultipleShops },
+      observations: { activeOrganizations: result.page.filter((organization) => !organization.isDeleted).length },
+    };
+  },
+});
+
+/** personごとのactive staff上限とcanonical linkの整合性をIDやPIIなしで数える。 */
+export const verifyLineCommonPeople = internalQuery({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: lineCommonLinkPageValidator,
+  handler: async (ctx, { paginationOpts }) => {
+    requireBoundedPagination(paginationOpts);
+    const result = await ctx.db.query("organizationPeople").paginate(paginationOpts);
+    const anomalies = {
+      activePeopleWithMultipleStaffs: 0,
+      personStaffHistoryOverLimit: 0,
+      activeLinkDuplicates: 0,
+      activeLinkForRemovedPerson: 0,
+      activeLinkTenantMismatch: 0,
+      activeLinkGenerationMismatch: 0,
+      activeLinkDanglingProvider: 0,
+      activeCanonicalLinkWithoutExactLegacyProjection: 0,
+    };
+    let activePeople = 0;
+    for (const person of result.page) {
+      const [staffHistory, links] = await Promise.all([
+        ctx.db
+          .query("staffs")
+          .withIndex("by_organizationId_and_organizationPersonId_and_isDeleted", (q) =>
+            q.eq("organizationId", person.organizationId).eq("organizationPersonId", person._id).eq("isDeleted", false),
+          )
+          .take(LINE_ORGANIZATION_PERSON_STAFF_HISTORY_SCAN_LIMIT + 1),
+        ctx.db
+          .query("organizationPersonLineLinks")
+          .withIndex("by_organizationPersonId_and_isDeleted", (q) =>
+            q.eq("organizationPersonId", person._id).eq("isDeleted", false),
+          )
+          .take(2),
+      ]);
+      const activeStaffs = [];
+      for (const staff of staffHistory) {
+        const shop = await ctx.db.get(staff.shopId);
+        if (
+          shop &&
+          !shop.isDeleted &&
+          shop.organizationId === person.organizationId &&
+          organizationShopOperatingStatus(shop.operatingStatus) === "active"
+        ) {
+          activeStaffs.push(staff);
+        }
+      }
+      if (person.status === "active") {
+        activePeople += 1;
+        if (staffHistory.length > LINE_ORGANIZATION_PERSON_STAFF_HISTORY_SCAN_LIMIT) {
+          anomalies.personStaffHistoryOverLimit += 1;
+        }
+        if (activeStaffs.length > 1) anomalies.activePeopleWithMultipleStaffs += 1;
+      }
+      if (links.length > 1) anomalies.activeLinkDuplicates += 1;
+      const link = links[0];
+      if (!link) continue;
+      if (person.status !== "active") anomalies.activeLinkForRemovedPerson += 1;
+      if (link.organizationId !== person.organizationId) anomalies.activeLinkTenantMismatch += 1;
+      if (link.generation !== (person.lineLinkGeneration ?? 0)) anomalies.activeLinkGenerationMismatch += 1;
+      const provider = await ctx.db.get(link.lineProviderUserId);
+      if (!provider || provider.isDeleted) {
+        anomalies.activeLinkDanglingProvider += 1;
+        continue;
+      }
+      const canonicalLinkIsValid =
+        person.status === "active" &&
+        links.length === 1 &&
+        link.organizationId === person.organizationId &&
+        link.generation === (person.lineLinkGeneration ?? 0);
+      if (!canonicalLinkIsValid || activeStaffs.length === 0) continue;
+
+      let hasExactProjectionForEveryActiveStaff = true;
+      for (const staff of activeStaffs) {
+        const accounts = await ctx.db
+          .query("staffLineAccounts")
+          .withIndex("by_staffId_and_isDeleted", (q) => q.eq("staffId", staff._id).eq("isDeleted", false))
+          .take(2);
+        if (
+          accounts.length !== 1 ||
+          accounts[0]?.shopId !== staff.shopId ||
+          accounts[0]?.lineUserId !== provider.lineUserId ||
+          accounts[0]?.following !== provider.following
+        ) {
+          hasExactProjectionForEveryActiveStaff = false;
+          break;
+        }
+      }
+      if (!hasExactProjectionForEveryActiveStaff) {
+        anomalies.activeCanonicalLinkWithoutExactLegacyProjection += 1;
+      }
+    }
+    return { ...pageMetadata(result), anomalies, observations: { activePeople } };
+  },
+});
+
+/** provider userのraw ID重複を、ID自体を返さずgroup単位で数える。 */
+export const verifyLineCommonProviders = internalQuery({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: lineCommonLinkPageValidator,
+  handler: async (ctx, { paginationOpts }) => {
+    requireBoundedPagination(paginationOpts);
+    const result = await ctx.db.query("lineProviderUsers").paginate(paginationOpts);
+    let activeProviderUsers = 0;
+    let duplicateActiveProviderUserGroups = 0;
+    for (const provider of result.page) {
+      if (provider.isDeleted) continue;
+      activeProviderUsers += 1;
+      const candidates = await ctx.db
+        .query("lineProviderUsers")
+        .withIndex("by_lineUserId_and_isDeleted", (q) => q.eq("lineUserId", provider.lineUserId).eq("isDeleted", false))
+        .take(2);
+      if (candidates.length > 1 && candidates[0]?._id === provider._id) {
+        duplicateActiveProviderUserGroups += 1;
+      }
+    }
+    return {
+      ...pageMetadata(result),
+      anomalies: { duplicateActiveProviderUserGroups },
+      observations: { activeProviderUsers },
+    };
+  },
+});
+
+/** legacy行とcanonical counterpartを一行ずつ検証し、変換必要数だけを返す。 */
+export const verifyLineCommonLegacyAccounts = internalQuery({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: lineCommonLinkPageValidator,
+  handler: async (ctx, { paginationOpts }) => {
+    requireBoundedPagination(paginationOpts);
+    const result = await ctx.db.query("staffLineAccounts").paginate(paginationOpts);
+    const anomalies = { danglingActiveLegacyAccount: 0, tenantMismatch: 0 };
+    let activeLegacyAccounts = 0;
+    let activeLegacyWithoutCanonicalCounterpart = 0;
+    for (const account of result.page) {
+      if (account.isDeleted) continue;
+      activeLegacyAccounts += 1;
+      const staff = await ctx.db.get(account.staffId);
+      if (
+        !staff ||
+        staff.isDeleted ||
+        staff.shopId !== account.shopId ||
+        !staff.organizationId ||
+        !staff.organizationPersonId
+      ) {
+        anomalies.danglingActiveLegacyAccount += 1;
+        activeLegacyWithoutCanonicalCounterpart += 1;
+        continue;
+      }
+      const organizationPersonId = staff.organizationPersonId;
+      const [shop, person, links] = await Promise.all([
+        ctx.db.get(staff.shopId),
+        ctx.db.get(organizationPersonId),
+        ctx.db
+          .query("organizationPersonLineLinks")
+          .withIndex("by_organizationPersonId_and_isDeleted", (q) =>
+            q.eq("organizationPersonId", organizationPersonId).eq("isDeleted", false),
+          )
+          .take(2),
+      ]);
+      if (
+        !shop ||
+        shop.organizationId !== staff.organizationId ||
+        !person ||
+        person.organizationId !== staff.organizationId
+      ) {
+        anomalies.tenantMismatch += 1;
+        activeLegacyWithoutCanonicalCounterpart += 1;
+        continue;
+      }
+      const link = links.length === 1 ? links[0] : undefined;
+      const provider = link ? await ctx.db.get(link.lineProviderUserId) : null;
+      if (
+        !link ||
+        link.organizationId !== staff.organizationId ||
+        !provider ||
+        provider.isDeleted ||
+        provider.lineUserId !== account.lineUserId ||
+        provider.following !== account.following
+      ) {
+        activeLegacyWithoutCanonicalCounterpart += 1;
+      }
+    }
+    return {
+      ...pageMetadata(result),
+      anomalies,
+      observations: { activeLegacyAccounts, activeLegacyWithoutCanonicalCounterpart },
+    };
+  },
+});
+
+/** 旧tokenと世代snapshotのないactive LINE Outboxを、credentialなしの件数で返す。 */
+export const verifyLineCommonAsyncCompatibility = internalQuery({
+  args: { paginationOpts: paginationOptsValidator, table: v.union(v.literal("tokens"), v.literal("outbox")) },
+  returns: lineCommonLinkPageValidator,
+  handler: async (ctx, { paginationOpts, table }) => {
+    requireBoundedPagination(paginationOpts);
+    const now = Date.now();
+    if (table === "tokens") {
+      const result = await ctx.db.query("lineLinkTokens").paginate(paginationOpts);
+      let oldUnusedTokens = 0;
+      let incompleteUnusedTokenSnapshots = 0;
+      for (const token of result.page) {
+        if (token.expiresAt <= now || token.usedAt !== undefined || token.revokedAt !== undefined) continue;
+        const snapshotCount = [
+          token.organizationId,
+          token.organizationPersonId,
+          token.lineLinkGenerationAtIssue,
+        ].filter((value) => value !== undefined).length;
+        if (snapshotCount < 3) oldUnusedTokens += 1;
+        if (snapshotCount > 0 && snapshotCount < 3) incompleteUnusedTokenSnapshots += 1;
+      }
+      return {
+        ...pageMetadata(result),
+        anomalies: { incompleteUnusedTokenSnapshots, incompleteActiveLineOutboxSnapshots: 0 },
+        observations: { oldUnusedTokens, activeLineOutboxWithoutGeneration: 0 },
+      };
+    }
+    const result = await ctx.db.query("notificationOutbox").paginate(paginationOpts);
+    let activeLineOutboxWithoutGeneration = 0;
+    let incompleteActiveLineOutboxSnapshots = 0;
+    for (const job of result.page) {
+      if (job.channel !== "line" || (job.status !== "pending" && job.status !== "processing")) continue;
+      const missingLink = job.organizationPersonLineLinkId === undefined;
+      const missingGeneration = job.organizationPersonLineGenerationAtEnqueue === undefined;
+      if (missingLink || missingGeneration) activeLineOutboxWithoutGeneration += 1;
+      if (missingLink !== missingGeneration) incompleteActiveLineOutboxSnapshots += 1;
+    }
+    return {
+      ...pageMetadata(result),
+      anomalies: { incompleteUnusedTokenSnapshots: 0, incompleteActiveLineOutboxSnapshots },
+      observations: { oldUnusedTokens: 0, activeLineOutboxWithoutGeneration },
+    };
+  },
+});
+
+type ScheduledLineInviteCaller = {
+  name: string;
+  state: { kind: string };
+  args: readonly unknown[];
+};
+
+export function inspectLiveLineInviteCaller(job: ScheduledLineInviteCaller) {
+  if (
+    job.name !== "line/actions:sendInviteEmail" ||
+    (job.state.kind !== "pending" && job.state.kind !== "inProgress")
+  ) {
+    return null;
+  }
+  const firstArg = job.args[0];
+  const args = typeof firstArg === "object" && firstArg !== null && !Array.isArray(firstArg) ? firstArg : {};
+  const hasPerson = "organizationPersonId" in args;
+  const hasGeneration = "lineLinkGenerationAtSchedule" in args;
+  return {
+    oldShape: !hasPerson && !hasGeneration,
+    incompleteSnapshot: hasPerson !== hasGeneration,
+  };
+}
+
+/** system tableの待機中・実行中LINE招待callerを実deployment上で数える。 */
+export const verifyLineCommonScheduledCallers = internalQuery({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: lineCommonLinkPageValidator,
+  handler: async (ctx, { paginationOpts }) => {
+    requireBoundedPagination(paginationOpts);
+    const result = await ctx.db.system.query("_scheduled_functions").paginate(paginationOpts);
+    let liveLineInviteCallers = 0;
+    let oldLiveLineInviteCallers = 0;
+    let incompleteLiveLineInviteSnapshots = 0;
+    for (const job of result.page) {
+      const inspection = inspectLiveLineInviteCaller(job);
+      if (!inspection) continue;
+      liveLineInviteCallers += 1;
+      if (inspection.oldShape) oldLiveLineInviteCallers += 1;
+      if (inspection.incompleteSnapshot) incompleteLiveLineInviteSnapshots += 1;
+    }
+    return {
+      ...pageMetadata(result),
+      anomalies: { incompleteLiveLineInviteSnapshots },
+      observations: { liveLineInviteCallers, oldLiveLineInviteCallers },
     };
   },
 });

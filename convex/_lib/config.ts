@@ -1,3 +1,4 @@
+import { ConvexError } from "convex/values";
 import { env } from "../_generated/server";
 
 export function getAppUrl(): string {
@@ -77,12 +78,33 @@ export type FeatureVisibility = {
   shopMembershipAddition: boolean;
 };
 
-/** 旧frontend互換の表示DTO。現在はすべての機能を常時公開する。 */
+/**
+ * LINE連携の組織人物単位への切替完了後だけ、複数店舗のwriterを開放する。
+ * 値の推測やtruthy判定を避け、deploymentごとの明示設定がない場合は閉じる。
+ */
+export function isLineCommonLinkCanonicalReady(): boolean {
+  return env.LINE_COMMON_LINK_CANONICAL_READY?.trim() === "enabled";
+}
+
+/** staged rolloutのread authority。readiness完了まで旧行を正とし、未設定は安全側に倒す。 */
+export function useCanonicalLineCommonLinkReads(): boolean {
+  return env.LINE_COMMON_LINK_CANONICAL_READS?.trim() === "enabled";
+}
+
+export function requireShopMembershipAdditionEnabled(): void {
+  if (!isLineCommonLinkCanonicalReady()) {
+    throw new ConvexError(
+      "現在、店舗や所属を追加できません。画面を再読み込みして、しばらくしてからもう一度お試しください。",
+    );
+  }
+}
+
+/** 旧frontend互換の表示DTO。複数店舗関連の入口はserver-side gateと同じ値を返す。 */
 export function getFeatureVisibility(): FeatureVisibility {
   return {
     organizationSettingsNavigation: true,
     billing: true,
-    shopMembershipAddition: true,
+    shopMembershipAddition: isLineCommonLinkCanonicalReady(),
   };
 }
 

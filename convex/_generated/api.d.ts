@@ -144,6 +144,7 @@ import type * as migrations_m037_notification_outbox_scope_narrow_prep from "../
 import type * as migrations_m038_recruitments_draft_saved_at_narrow_prep from "../migrations/m038_recruitments_draft_saved_at_narrow_prep.js";
 import type * as migrations_m039_shops_regular_closed_days_narrow_prep from "../migrations/m039_shops_regular_closed_days_narrow_prep.js";
 import type * as migrations_m040_recruitments_shop_closed_dates_narrow_prep from "../migrations/m040_recruitments_shop_closed_dates_narrow_prep.js";
+import type * as migrations_m041_line_common_links from "../migrations/m041_line_common_links.js";
 import type * as migrations_organizationMigrationHelpers from "../migrations/organizationMigrationHelpers.js";
 import type * as narrowReadiness_queries from "../narrowReadiness/queries.js";
 import type * as notification_actions from "../notification/actions.js";
@@ -397,6 +398,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/m038_recruitments_draft_saved_at_narrow_prep": typeof migrations_m038_recruitments_draft_saved_at_narrow_prep;
   "migrations/m039_shops_regular_closed_days_narrow_prep": typeof migrations_m039_shops_regular_closed_days_narrow_prep;
   "migrations/m040_recruitments_shop_closed_dates_narrow_prep": typeof migrations_m040_recruitments_shop_closed_dates_narrow_prep;
+  "migrations/m041_line_common_links": typeof migrations_m041_line_common_links;
   "migrations/organizationMigrationHelpers": typeof migrations_organizationMigrationHelpers;
   "narrowReadiness/queries": typeof narrowReadiness_queries;
   "notification/actions": typeof notification_actions;
