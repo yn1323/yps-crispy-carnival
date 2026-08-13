@@ -3,7 +3,7 @@ import { LuCreditCard, LuSettings, LuStore, LuUsers } from "react-icons/lu";
 import { DeletionActionSectionSkeleton } from "@/src/components/shared/DeletionActionSection";
 import { DetailPageHeaderSkeleton } from "@/src/components/ui/DetailPageHeader";
 import {
-  CLOSED_ORGANIZATION_SETTINGS_FEATURES,
+  AVAILABLE_ORGANIZATION_SETTINGS_FEATURES,
   type OrganizationSettingsFeatures,
 } from "@/src/domains/featureVisibility";
 import { OrganizationContext } from "./OrganizationContext";
@@ -146,7 +146,7 @@ type OrganizationSettingsSkeletonProps = {
 export function OrganizationSettingsSkeleton({
   defaultTab = "people",
   showOrganizationSelector = false,
-  features = CLOSED_ORGANIZATION_SETTINGS_FEATURES,
+  features = AVAILABLE_ORGANIZATION_SETTINGS_FEATURES,
 }: OrganizationSettingsSkeletonProps) {
   const visibleTab = defaultTab === "billing" && !features.billing ? "people" : defaultTab;
 

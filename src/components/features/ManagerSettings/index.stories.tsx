@@ -1,7 +1,7 @@
 import { Box, Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, screen, userEvent, within } from "storybook/test";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
 import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import { ManagerCandidateListView } from "./ManagerCandidateListView";
@@ -121,14 +121,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.getByRole("heading", { name: "管理者設定" })).toBeInTheDocument();
-    await expect(canvas.getByRole("link", { name: "既存スタッフを管理者として招待" })).toBeInTheDocument();
-    await expect(canvas.getByRole("article", { name: "鈴木 次郎さんへの管理者招待" })).toBeInTheDocument();
-  },
-};
+export const Default: Story = {};
 
 export const DefaultMobile: Story = {
   tags: ["vrt-mobile1"],
@@ -178,6 +171,37 @@ export const AtCapacity: Story = {
         externalDisabledReason: "管理者と招待中の管理者は、組織全体で5名までです。",
       },
       invitations: [{ ...overview.invitations[0], status: "limitReached" }],
+    },
+  },
+};
+
+export const AtCapacityMobile: Story = {
+  ...AtCapacity,
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
+export const InvitationSendFailed: Story = {
+  args: {
+    overview: {
+      ...overview,
+      invitations: [{ ...overview.invitations[0], status: "sendFailed" }],
+    },
+  },
+};
+
+export const InvitationConflict: Story = {
+  args: {
+    overview: {
+      ...overview,
+      invitations: [
+        {
+          ...overview.invitations[0],
+          status: "conflict",
+          canResend: false,
+          canRevoke: false,
+        },
+      ],
     },
   },
 };
@@ -251,18 +275,79 @@ export const ConfirmationBehavior: Story = {
   },
 };
 
+export const ResendConfirmationBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <ManagerSettingsConfirmationHarness />,
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    const invitation = page.getByRole("article", { name: "鈴木 次郎さんへの管理者招待" });
+    await userEvent.click(within(invitation).getByRole("button", { name: "再送する" }));
+    const confirmation = await page.findByRole("alertdialog", { name: "管理者招待を再送しますか？" });
+    await expect(within(confirmation).getByText(/以前の招待URLは使えなくなります/)).toBeInTheDocument();
+    await userEvent.click(within(confirmation).getByRole("button", { name: "招待を再送する" }));
+    await expect(page.getByTestId("manager-confirmation-count")).toHaveTextContent("1");
+  },
+};
+
+export const RemoveRoleConfirmationBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <ManagerSettingsConfirmationHarness />,
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    const manager = page.getByRole("article", { name: "田中 太郎さんの管理者情報" });
+    await userEvent.click(within(manager).getByRole("button", { name: "管理者権限を外す" }));
+    const confirmation = await page.findByRole("alertdialog", {
+      name: "田中 太郎さんの管理者権限を外しますか？",
+    });
+    await expect(within(confirmation).getByText(/あなたはこの組織へアクセスできなくなります/)).toBeInTheDocument();
+    await expect(within(confirmation).getByText(/人物情報とスタッフとしての店舗所属は残ります/)).toBeInTheDocument();
+    await userEvent.click(within(confirmation).getByRole("button", { name: "管理者権限を外す" }));
+    await expect(page.getByTestId("manager-confirmation-count")).toHaveTextContent("1");
+  },
+};
+
 export const CandidateSelectionBehavior: Story = {
   parameters: { screenshot: { skip: true } },
-  render: () => <ManagerCandidateHarness />,
+  render: () => (
+    <SubpageFrame title="既存スタッフを管理者として招待">
+      <ManagerCandidatePageContent overview={overview} result={{ kind: "ready", candidates }} shopId={shopId} />
+    </SubpageFrame>
+  ),
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const radio = canvas.getByRole("radio", { name: "山田 一郎を選択" });
+    const page = within(canvasElement.ownerDocument.body);
+    const radio = page.getByRole("radio", { name: "山田 一郎を選択" });
     await expect(radio).not.toBeChecked();
-    await expect(canvas.getByRole("radio", { name: "高橋 美咲を選択" })).toBeDisabled();
+    await expect(page.getByRole("radio", { name: "高橋 美咲を選択" })).toBeDisabled();
     await userEvent.click(radio);
     await expect(radio).toBeChecked();
-    await userEvent.click(canvas.getByRole("button", { name: "管理者として招待する" }));
-    await expect(canvas.getByTestId("candidate-submit-count")).toHaveTextContent("1");
+    await userEvent.click(page.getByRole("button", { name: "管理者として招待する" }));
+    const confirmation = await page.findByRole("alertdialog", { name: "山田 一郎さんを招待しますか？" });
+    await expect(within(confirmation).getByText(/管理者になります/)).toBeInTheDocument();
+  },
+};
+
+export const FreeCandidateConfirmationBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => (
+    <SubpageFrame title="既存スタッフを次の管理者として招待">
+      <ManagerCandidatePageContent
+        overview={{
+          ...overview,
+          mode: "freeManagerExchange",
+          actions: { canInviteExistingStaff: true, canInviteExternal: false },
+        }}
+        result={{ kind: "ready", candidates }}
+        shopId={shopId}
+      />
+    </SubpageFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(page.getByRole("radio", { name: "山田 一郎を選択" }));
+    await userEvent.click(page.getByRole("button", { name: "管理者として招待する" }));
+    const confirmation = await page.findByRole("alertdialog", { name: "山田 一郎さんを招待しますか？" });
+    await expect(within(confirmation).getByText(/この組織の唯一の管理者になります/)).toBeInTheDocument();
+    await expect(within(confirmation).getByText(/あなたはこの組織の管理者ではなくなり/)).toBeInTheDocument();
   },
 };
 
@@ -313,6 +398,22 @@ export const ExternalInvitationBehavior: Story = {
     await expect(within(confirmation).getByText("ito@example.com")).toBeInTheDocument();
     await userEvent.click(within(confirmation).getByRole("button", { name: "招待する" }));
     await expect(page.getByTestId("external-invite-count")).toHaveTextContent("1");
+  },
+};
+
+export const ExternalInvitationValidationBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => (
+    <SubpageFrame title="新しいユーザーを管理者として招待">
+      <ManagerExternalInviteFormView isSubmitting={false} onRequestInvite={noop} />
+    </SubpageFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement);
+    await userEvent.click(page.getByRole("button", { name: "招待内容を確認する" }));
+    await expect(await page.findByText("名前を入力してください")).toBeInTheDocument();
+    await expect(await page.findByText("メールアドレスを入力してください")).toBeInTheDocument();
+    await expect(page.queryByRole("alertdialog", { name: "新しい管理者を招待しますか？" })).not.toBeInTheDocument();
   },
 };
 
@@ -375,25 +476,6 @@ function ManagerSettingsConfirmationHarness() {
   );
 }
 
-function ManagerCandidateHarness() {
-  const [selectedPersonId, setSelectedPersonId] = useState("");
-  const [submitCount, setSubmitCount] = useState(0);
-  return (
-    <SubpageFrame title="既存スタッフを管理者として招待">
-      <output hidden data-testid="candidate-submit-count">
-        {submitCount}
-      </output>
-      <ManagerCandidateListView
-        candidates={candidates}
-        selectedPersonId={selectedPersonId}
-        isSubmitting={false}
-        onSelect={setSelectedPersonId}
-        onSubmit={() => setSubmitCount((count) => count + 1)}
-      />
-    </SubpageFrame>
-  );
-}
-
 function ManagerExternalInviteHarness() {
   const [confirmation, setConfirmation] = useState<ManagerInvitationIssueConfirmation>(null);
   const [inviteCount, setInviteCount] = useState(0);
@@ -418,6 +500,53 @@ function ManagerExternalInviteHarness() {
     </SubpageFrame>
   );
 }
+
+function CandidateDriftHarness() {
+  const [availableCandidates, setAvailableCandidates] = useState(candidates);
+  return (
+    <SubpageFrame title="既存スタッフを管理者として招待">
+      <button
+        type="button"
+        onClick={() =>
+          setAvailableCandidates((current) =>
+            current.map((entry) =>
+              entry.personId === candidateId
+                ? { ...entry, canSelect: false, disabledReason: "現在は選べません。" }
+                : entry,
+            ),
+          )
+        }
+      >
+        候補を利用不可にする
+      </button>
+      <ManagerCandidatePageContent
+        overview={overview}
+        result={{ kind: "ready", candidates: availableCandidates }}
+        shopId={shopId}
+      />
+    </SubpageFrame>
+  );
+}
+
+export const CandidateDriftBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <CandidateDriftHarness />,
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    const driftButton = page.getByRole("button", { name: "候補を利用不可にする" });
+    await userEvent.click(page.getByRole("radio", { name: "山田 一郎を選択" }));
+    await userEvent.click(page.getByRole("button", { name: "管理者として招待する" }));
+    await expect(await page.findByRole("alertdialog", { name: "山田 一郎さんを招待しますか？" })).toBeInTheDocument();
+
+    // queryの更新を模したharness操作。Dialog表示中は背景がinertのためprogrammaticに状態だけ進める。
+    driftButton.click();
+
+    await waitFor(() =>
+      expect(page.queryByRole("alertdialog", { name: "山田 一郎さんを招待しますか？" })).not.toBeInTheDocument(),
+    );
+    await expect(page.getByRole("radio", { name: "山田 一郎を選択" })).toBeDisabled();
+  },
+};
 
 function SubpageFrame({ title, children }: { title: string; children: React.ReactNode }) {
   return (

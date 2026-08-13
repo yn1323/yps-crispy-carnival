@@ -13,7 +13,7 @@ const startProDialog: BillingActionDialogState = {
   billingStartsOn: "Stripeでの支払い完了日",
   price: {
     status: "available",
-    value: { currency: "jpy", unitAmount: 3000, interval: "month", intervalCount: 1 },
+    value: { currency: "jpy", unitAmount: 3000, interval: "month", intervalCount: 1, taxBehavior: "inclusive" },
   },
 };
 
@@ -23,7 +23,7 @@ const startBusinessDialog: BillingActionDialogState = {
   intentKey: "start-business",
   price: {
     status: "available",
-    value: { currency: "jpy", unitAmount: 6000, interval: "month", intervalCount: 1 },
+    value: { currency: "jpy", unitAmount: 6000, interval: "month", intervalCount: 1, taxBehavior: "exclusive" },
   },
 };
 
@@ -166,17 +166,16 @@ export const ScheduleBusinessToPro: Story = {
   },
 };
 
-export const ScheduleFree: Story = {
-  name: "Freeへ変更予約",
+export const ScheduleServiceStop: Story = {
+  name: "期間末の利用停止予約",
   args: {
     dialog: {
-      kind: "schedulePlanChange",
+      kind: "scheduleServiceStop",
       targetPlan: "free",
-      intentKey: "schedule-free",
+      intentKey: "schedule-service-stop",
       shopId: "shop-shibuya",
       organizationName: "株式会社さくらダイニング",
       effectiveOn: "2026年8月31日",
-      requiredReductions: { people: 7, shops: 2, managers: 1 },
     },
   },
 };

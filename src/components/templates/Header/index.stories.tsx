@@ -87,7 +87,7 @@ export const UserWithoutShopDeletionEntry: Story = {
   },
 };
 
-export const UserWithoutSettingsEntry: Story = {
+export const UserWithLegacyClosedFeatureState: Story = {
   args: {
     userActions: <UserMenu tone="light" />,
   },
@@ -110,7 +110,7 @@ export const UserWithoutSettingsEntry: Story = {
     const trigger = await screen.findByRole("button", { name: "ユーザーメニュー" });
     await userEvent.click(trigger);
 
-    await expect(screen.queryByRole("menuitem", { name: "組織設定" })).toBeNull();
+    await expect(screen.getByRole("menuitem", { name: "組織設定" })).toHaveAttribute("href", "/settings?shop=shop-a");
     await screen.findByRole("menuitem", { name: "お問い合わせ" });
     await screen.findByRole("menuitem", { name: "ログアウト" });
     await userEvent.keyboard("{Escape}");

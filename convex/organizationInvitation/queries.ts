@@ -1,6 +1,5 @@
 import { v } from "convex/values";
 import { internalQuery, query } from "../_generated/server";
-import { isManagerInvitationEnabled } from "../_lib/config";
 import { isOrganizationInvitationIssued, isOrganizationInvitationLinked } from "./lifecycle";
 import { resolveOrganizationInvitationEligibility } from "./service";
 import { digestInvitationToken } from "./token";
@@ -18,7 +17,6 @@ export const getPreview = query({
   args: { token: v.string() },
   returns: invitationPreviewValidator,
   handler: async (ctx, args) => {
-    if (!isManagerInvitationEnabled()) return { status: "unavailable" as const };
     if (args.token.length !== 43) return { status: "invalid" as const };
     const tokenDigest = await digestInvitationToken(args.token);
     const invitations = await ctx.db
@@ -55,7 +53,6 @@ export const getEnqueueData = internalQuery({
     }),
   ),
   handler: async (ctx, args) => {
-    if (!isManagerInvitationEnabled()) return null;
     const invitation = await ctx.db.get(args.invitationId);
     if (
       !invitation ||
@@ -88,7 +85,6 @@ export const getAcceptanceNotificationData = internalQuery({
     }),
   ),
   handler: async (ctx, args) => {
-    if (!isManagerInvitationEnabled()) return null;
     const invitation = await ctx.db.get(args.invitationId);
     if (!invitation || !isOrganizationInvitationLinked(invitation) || invitation.version !== args.expectedVersion) {
       return null;

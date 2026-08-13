@@ -119,6 +119,57 @@ export const AcceptedWithoutDestination: Story = {
   },
 };
 
+function RetryBehaviorStory({ actions: storyActions }: ManagerInvitationAcceptanceViewProps) {
+  const [didRetry, setDidRetry] = useState(false);
+  return (
+    <>
+      <ManagerInvitationAcceptanceView
+        state={{ kind: "retryableError", isRetrying: false }}
+        actions={{ ...storyActions, onAccept: () => setDidRetry(true) }}
+      />
+      {didRetry && <output>招待の再確認を要求しました</output>}
+    </>
+  );
+}
+
+export const RetryActionBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: (args) => <RetryBehaviorStory {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "もう一度試す" }));
+    await expect(canvas.getByText("招待の再確認を要求しました")).toBeInTheDocument();
+  },
+};
+
+function AcceptedWithoutDestinationBehaviorStory({ actions: storyActions }: ManagerInvitationAcceptanceViewProps) {
+  const [didRequestDashboard, setDidRequestDashboard] = useState(false);
+  return (
+    <>
+      <ManagerInvitationAcceptanceView
+        state={{
+          kind: "accepted",
+          organizationName: "株式会社さくらダイニング",
+          isPreparingDestination: false,
+          hasDestination: false,
+        }}
+        actions={{ ...storyActions, onGoToDashboard: () => setDidRequestDashboard(true) }}
+      />
+      {didRequestDashboard && <output>ダッシュボードへの遷移を要求しました</output>}
+    </>
+  );
+}
+
+export const AcceptedWithoutDestinationBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: (args) => <AcceptedWithoutDestinationBehaviorStory {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "ダッシュボードへ" }));
+    await expect(canvas.getByText("ダッシュボードへの遷移を要求しました")).toBeInTheDocument();
+  },
+};
+
 function VerificationFlowStory({ actions: storyActions }: ManagerInvitationAcceptanceViewProps) {
   const [state, setState] = useState<ManagerInvitationAcceptanceViewState>({
     kind: "verificationRequired",

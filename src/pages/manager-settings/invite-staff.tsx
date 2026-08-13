@@ -1,5 +1,5 @@
 import { Alert, Stack } from "@chakra-ui/react";
-import { Navigate, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
@@ -14,9 +14,6 @@ export function ManagerInviteStaffPage({ shopId }: { shopId?: string }) {
   const overview = useShopQuery(api.organization.queries.getManagerSettingsOverview, { now: queryNow });
   const candidates = useShopQuery(api.organization.queries.getManagerCandidates, { now: queryNow });
 
-  if (overview?.kind === "hidden") {
-    return <Navigate to="/settings" search={{ shop: shopId }} replace />;
-  }
   const onBack = () => void navigate({ to: "/settings/managers", search: { shop: shopId }, replace: true });
 
   return (

@@ -56,43 +56,39 @@ export function ManagerExternalInviteFormView({
   });
 
   return (
-    <Stack
-      as="form"
-      gap={5}
-      maxW="640px"
-      w="full"
-      onSubmit={handleSubmit((values) => onRequestInvite(values.name.trim(), values.email.trim()))}
-    >
-      <Stack gap={1}>
-        <Text as="h2" fontSize="lg" fontWeight="semibold" color="gray.900">
-          招待する方の情報
-        </Text>
-        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          経営者や本部担当者など、組織に未登録の方をメールで招待します。
-        </Text>
+    <form noValidate onSubmit={handleSubmit((values) => onRequestInvite(values.name.trim(), values.email.trim()))}>
+      <Stack gap={5} maxW="640px" w="full">
+        <Stack gap={1}>
+          <Text as="h2" fontSize="lg" fontWeight="semibold" color="gray.900">
+            招待する方の情報
+          </Text>
+          <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+            経営者や本部担当者など、組織に未登録の方をメールで招待します。
+          </Text>
+        </Stack>
+        <Field.Root required invalid={Boolean(errors.name)}>
+          <Field.Label>氏名</Field.Label>
+          <Input autoComplete="name" disabled={isSubmitting} {...register("name")} />
+          <Field.ErrorText>{errors.name?.message}</Field.ErrorText>
+        </Field.Root>
+        <Field.Root required invalid={Boolean(errors.email)}>
+          <Field.Label>メールアドレス</Field.Label>
+          <Input type="email" autoComplete="email" disabled={isSubmitting} {...register("email")} />
+          <Field.ErrorText>{errors.email?.message}</Field.ErrorText>
+        </Field.Root>
+        <Flex justify="flex-end">
+          <Button
+            type="submit"
+            colorPalette="teal"
+            minH="44px"
+            w={{ base: "full", md: "auto" }}
+            minW={{ md: "208px" }}
+            loading={isSubmitting}
+          >
+            招待内容を確認する
+          </Button>
+        </Flex>
       </Stack>
-      <Field.Root required invalid={Boolean(errors.name)}>
-        <Field.Label>氏名</Field.Label>
-        <Input autoComplete="name" disabled={isSubmitting} {...register("name")} />
-        <Field.ErrorText>{errors.name?.message}</Field.ErrorText>
-      </Field.Root>
-      <Field.Root required invalid={Boolean(errors.email)}>
-        <Field.Label>メールアドレス</Field.Label>
-        <Input type="email" autoComplete="email" disabled={isSubmitting} {...register("email")} />
-        <Field.ErrorText>{errors.email?.message}</Field.ErrorText>
-      </Field.Root>
-      <Flex justify="flex-end">
-        <Button
-          type="submit"
-          colorPalette="teal"
-          minH="44px"
-          w={{ base: "full", md: "auto" }}
-          minW={{ md: "208px" }}
-          loading={isSubmitting}
-        >
-          招待内容を確認する
-        </Button>
-      </Flex>
-    </Stack>
+    </form>
   );
 }

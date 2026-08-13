@@ -74,7 +74,8 @@ const trial = {
   kind: "trial",
   remainingDays: 7,
   trialEndsOnLabel: "2026/8/16",
-  description: "継続して利用するには、プランの選択が必要です。",
+  description:
+    "未選択のまま終了すると利用停止になります。データは削除されないため、継続して利用するにはプランを選んでください。",
   primaryAction: { action: "choosePlan", label: "プランを選ぶ" },
   showRemindLater: true,
 } satisfies PlanStatusCardData;
@@ -122,8 +123,8 @@ const restrictedPaymentIssue = {
   kind: "paymentIssue",
   planName: "Business",
   phase: "restricted",
-  description: "サービスの利用を再開するため、お支払い方法を更新してください。",
-  primaryAction: { action: "updatePaymentMethod", label: "支払い方法を更新する" },
+  description: "データは削除されていません。利用を再開するには、ProまたはBusinessを契約してください。",
+  primaryAction: { action: "choosePlan", label: "プランを選んで再開する" },
 } satisfies PlanStatusCardData;
 
 const restricted = {

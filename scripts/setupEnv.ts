@@ -17,9 +17,6 @@
  * - STRIPE_PRO_PRICE_ID
  * - STRIPE_BUSINESS_PRICE_ID
  * - STRIPE_PORTAL_CONFIGURATION_ID
- * - FEATURE_BILLING
- * - FEATURE_ORGANIZATION_CREATION
- * - FEATURE_MANAGER_INVITATION
  */
 import { execFileSync } from "node:child_process";
 import { config } from "dotenv";
@@ -38,16 +35,7 @@ const CONVEX_ENV_KEYS = [
   "STRIPE_PRO_PRICE_ID",
   "STRIPE_BUSINESS_PRICE_ID",
   "STRIPE_PORTAL_CONFIGURATION_ID",
-  // 残っているダークローンチ機能の段階解放用。未設定のdeploymentでは閉じた状態になる。
-  "FEATURE_BILLING",
-  "FEATURE_ORGANIZATION_CREATION",
-  "FEATURE_MANAGER_INVITATION",
 ] as const;
-const DARK_LAUNCH_ENV_KEYS = new Set<string>([
-  "FEATURE_BILLING",
-  "FEATURE_ORGANIZATION_CREATION",
-  "FEATURE_MANAGER_INVITATION",
-]);
 const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 const main = () => {
@@ -60,8 +48,7 @@ const main = () => {
   let successCount = 0;
 
   for (const key of CONVEX_ENV_KEYS) {
-    // deploymentに過去のenabledが残っていても、.envの未指定を明示的な閉状態として同期する。
-    const value = DARK_LAUNCH_ENV_KEYS.has(key) ? process.env[key]?.trim() || "disabled" : process.env[key];
+    const value = process.env[key];
 
     if (!value) {
       console.log(`⏭️  ${key}: .env に未設定のためスキップ`);

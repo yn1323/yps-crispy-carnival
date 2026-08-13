@@ -45,6 +45,7 @@ export function useStripeBillingController(input: Input) {
   const previewPaidPlanChange = useAction(api.organizationStripe.actions.previewPaidPlanChange);
   const changePaidPlanNow = useAction(api.organizationStripe.actions.changePaidPlanNow);
   const schedulePaidPlanChange = useAction(api.organizationStripe.actions.schedulePaidPlanChange);
+  const scheduleServiceStopAtPeriodEnd = useAction(api.organizationStripe.actions.scheduleServiceStopAtPeriodEnd);
   const cancelScheduledPlanChange = useAction(api.organizationStripe.actions.cancelScheduledPlanChange);
   const openCustomerPortal = useAction(api.organizationStripe.actions.openCustomerPortal);
   const cancelTrialContinuation = useAction(api.organizationStripe.actions.cancelTrialContinuation);
@@ -208,7 +209,9 @@ export function useStripeBillingController(input: Input) {
           ? await cancelTrialContinuation(baseArgs)
           : currentDialog.kind === "schedulePlanChange"
             ? await schedulePaidPlanChange({ ...baseArgs, targetPlan: currentDialog.targetPlan })
-            : await cancelScheduledPlanChange(baseArgs);
+            : currentDialog.kind === "scheduleServiceStop"
+              ? await scheduleServiceStopAtPeriodEnd(baseArgs)
+              : await cancelScheduledPlanChange(baseArgs);
       const result = asBillingAcceptedActionResult(rawResult);
       if (!result) throw new Error("Unexpected billing response");
       if (result.status === "unavailable") return showUnavailable(result.reason);
@@ -288,6 +291,10 @@ export function useStripeBillingController(input: Input) {
       });
       return;
     }
+    if (action.kind === "scheduleServiceStop") {
+      setDialog({ ...base, ...action, effectiveOn: current.billing.nextEvent?.date });
+      return;
+    }
     setDialog({ ...base, ...action, effectiveOn: current.billing.nextEvent?.date });
   };
 
@@ -333,8 +340,8 @@ function defaultTargetPlan(billing: OrganizationBillingView): BillingProductPlan
   if (billing.state === "scheduledChange" || billing.state === "scheduledFree") {
     return billing.currentPlan === "trial" ? "pro" : billing.currentPlan;
   }
-  if (billing.currentPlan === "business") return "free";
-  return "free";
+  if (billing.currentPlan === "business") return "pro";
+  return "business";
 }
 
 function canOpenPortal(billing: OrganizationBillingView, intent: PortalIntent): boolean {
@@ -350,5 +357,6 @@ function showUnavailable(reason: Parameters<typeof billingUnavailableMessage>[0]
 function acceptedMessage(dialog: Exclude<BillingActionDialogState, { kind: "startPaidPlan" | "changePaidPlanNow" }>) {
   if (dialog.kind === "cancelTrialContinuation") return `${planLabel(dialog.targetPlan)}継続の取り消しを受け付けました`;
   if (dialog.kind === "schedulePlanChange") return `${planLabel(dialog.targetPlan)}への変更予約を受け付けました`;
-  return "プラン変更予約の取り消しを受け付けました";
+  if (dialog.kind === "scheduleServiceStop") return "利用停止の予約を受け付けました";
+  return dialog.isServiceStop ? "利用停止予約の取り消しを受け付けました" : "プラン変更予約の取り消しを受け付けました";
 }

@@ -30,7 +30,6 @@ describe("既存スタッフの管理者招待シナリオ", () => {
     vi.useFakeTimers();
     vi.setSystemTime(SCENARIO_NOW);
     vi.stubEnv("ORGANIZATION_INVITATION_SIGNING_SECRET", SIGNING_SECRET);
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "enabled");
     vi.stubEnv("LINE_LOGIN_CHANNEL_ID", "test-line-channel");
   });
 

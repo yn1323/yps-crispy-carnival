@@ -6,7 +6,7 @@ import Stripe from "stripe";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { type ActionCtx, action, internalAction } from "../_generated/server";
-import { getAppUrl, isBillingEnabled } from "../_lib/config";
+import { getAppUrl } from "../_lib/config";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
 import {
   getConfiguredStripePriceId,
@@ -61,6 +61,7 @@ const priceResultValidator = v.union(
     unitAmount: v.number(),
     interval: v.union(v.literal("day"), v.literal("week"), v.literal("month"), v.literal("year")),
     intervalCount: v.number(),
+    taxBehavior: v.union(v.literal("inclusive"), v.literal("exclusive")),
   }),
 );
 
@@ -114,6 +115,7 @@ type PriceResult =
       unitAmount: number;
       interval: "day" | "week" | "month" | "year";
       intervalCount: number;
+      taxBehavior: "inclusive" | "exclusive";
     };
 type CurrentSubscriptionPriceResult =
   | UnavailableResult
@@ -232,8 +234,6 @@ export const getCurrentSubscriptionPrice = action({
   args: { shopId: v.id("shops") },
   returns: currentSubscriptionPriceResultValidator,
   handler: async (ctx, args): Promise<CurrentSubscriptionPriceResult> => {
-    if (!isBillingEnabled()) return unavailable("not_allowed");
-
     const configuration = getStripeProviderSafetyConfiguration();
     if (!configuration) return unavailable("configuration_pending");
 
@@ -286,6 +286,7 @@ export const getProPrice = action({
       unitAmount: price.unitAmount,
       interval: price.interval,
       intervalCount: price.intervalCount,
+      taxBehavior: price.taxBehavior,
     };
   },
 });
@@ -694,15 +695,24 @@ export const schedulePaidPlanChange = action({
   returns: changeResultValidator,
   handler: async (ctx, args): Promise<ChangeResult> => {
     if (args.targetPlan === "free") {
-      return await updateCancelAtPeriodEnd(ctx, {
-        shopId: args.shopId,
-        requestId: args.requestId,
-        purpose: "scheduleFree",
-        cancelAtPeriodEnd: true,
-      });
+      return unavailable("not_allowed");
     }
     return await scheduleBusinessToPro(ctx, { ...args, targetPlan: "pro" });
   },
+});
+
+/** 現在の支払い済み期間の終了時に契約を終了し、データ保持の利用停止状態へ移す。 */
+export const scheduleServiceStopAtPeriodEnd = action({
+  args: { shopId: v.id("shops"), requestId: v.string() },
+  returns: changeResultValidator,
+  handler: async (ctx, args): Promise<ChangeResult> =>
+    await updateCancelAtPeriodEnd(ctx, {
+      shopId: args.shopId,
+      requestId: args.requestId,
+      purpose: "scheduleFree",
+      cancelAtPeriodEnd: true,
+      restrictAtPeriodEnd: true,
+    }),
 });
 
 export const cancelScheduledPlanChange = action({
@@ -773,17 +783,11 @@ export const openCustomerPortal = action({
   },
 });
 
-/** TODO[narrow]: 旧client配布終了を確認後、schedulePaidPlanChange(targetPlan: free)へ一本化して削除する。 */
+/** 旧client互換alias。新しいFree予約は受け付けず、既存予約の取消だけを別actionで維持する。 */
 export const scheduleFreeAtPeriodEnd = action({
   args: { shopId: v.id("shops"), requestId: v.string() },
   returns: changeResultValidator,
-  handler: async (ctx, args): Promise<ChangeResult> =>
-    await updateCancelAtPeriodEnd(ctx, {
-      shopId: args.shopId,
-      requestId: args.requestId,
-      purpose: "scheduleFree",
-      cancelAtPeriodEnd: true,
-    }),
+  handler: async (): Promise<ChangeResult> => unavailable("not_allowed"),
 });
 
 /** TODO[narrow]: 旧client配布終了を確認後、cancelScheduledPlanChangeへ一本化して削除する。 */
@@ -862,6 +866,7 @@ export const reconcileCancelAtPeriodEndChange = internalAction({
         : {}),
       ...(persisted.prorationDate !== undefined ? { prorationDate: persisted.prorationDate } : {}),
       effectiveAt: persisted.effectiveAt,
+      ...(persisted.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
     });
     if (!operation.created) return null;
     const leaseToken = requireOperationLease(operation);
@@ -961,6 +966,7 @@ export const reconcileCancelAtPeriodEndChange = internalAction({
         billingState: context.billingState,
         cancelAtPeriodEnd: subscription.cancel_at_period_end,
         periodEndsAt,
+        ...(persisted.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
       });
       await finishOperation(
         ctx,
@@ -1370,6 +1376,7 @@ export const reconcileScheduledFreeDeadline = internalAction({
             currentPlan,
             targetPlan: "free",
             effectiveAt: periodEndsAt,
+            ...(context.billingState.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
           },
           correlationId: `stripe:${operation.operationId}:scheduled-free-rescheduled`,
         });
@@ -3306,6 +3313,16 @@ async function reconcileAuthoritativeSubscriptionState(
         billing.state.targetPlan === "free" &&
         billing.state.effectiveAt !== periodEndsAt))
   ) {
+    const restrictionIntent =
+      billing.state.kind === "scheduledChange" && billing.state.targetPlan === "free"
+        ? { restrictAtPeriodEnd: billing.state.restrictAtPeriodEnd === true }
+        : await ctx.runQuery(internal.organizationStripe.queries.getCancelAtPeriodEndRestrictionIntent, {
+            organizationId: synchronized.organization.organizationId,
+            providerGeneration: synchronized.providerGeneration,
+            stripeSubscriptionId: subscription.id,
+            stripeSubscriptionItemId: requireSingleLicensedSubscriptionItem(subscription).id,
+            effectiveAt: periodEndsAt,
+          });
     const changed = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
       organizationId: synchronized.organization.organizationId,
       expectedVersion: billing.version,
@@ -3314,6 +3331,7 @@ async function reconcileAuthoritativeSubscriptionState(
         currentPlan: currentPaidPlan,
         targetPlan: "free",
         effectiveAt: periodEndsAt,
+        ...(restrictionIntent.restrictAtPeriodEnd ? { restrictAtPeriodEnd: true as const } : {}),
       },
       correlationId: `stripe:${event.stripeEventId}:provider-cancel-at-period-end`,
     });
@@ -3326,7 +3344,8 @@ async function reconcileAuthoritativeSubscriptionState(
           state.kind === "scheduledChange" &&
           state.currentPlan === currentPaidPlan &&
           state.targetPlan === "free" &&
-          state.effectiveAt === periodEndsAt,
+          state.effectiveAt === periodEndsAt &&
+          (state.restrictAtPeriodEnd === true) === restrictionIntent.restrictAtPeriodEnd,
       ))
     ) {
       return { ok: false, result: { kind: "retry", errorCode: "billing_version_conflict" } };
@@ -4503,6 +4522,7 @@ async function updateCancelAtPeriodEnd(
     requestId: string;
     purpose: "scheduleFree" | "cancelFreeSchedule";
     cancelAtPeriodEnd: boolean;
+    restrictAtPeriodEnd?: true;
   },
 ): Promise<ChangeResult> {
   const configuration = getStripeBillingConfiguration();
@@ -4526,6 +4546,13 @@ async function updateCancelAtPeriodEnd(
   const livemode = configuration.livemode;
   if (context.currentStripeSubscriptionLivemode !== livemode) return unavailable("configuration_pending");
   const kind = args.cancelAtPeriodEnd ? ("scheduleFree" as const) : ("cancelFreeSchedule" as const);
+  const restrictAtPeriodEnd = args.cancelAtPeriodEnd
+    ? args.restrictAtPeriodEnd
+    : context.billingState.state.kind === "scheduledChange" &&
+        context.billingState.state.targetPlan === "free" &&
+        context.billingState.state.restrictAtPeriodEnd === true
+      ? (true as const)
+      : undefined;
   const operation = await ctx.runMutation(internal.organizationStripe.mutations.beginOperation, {
     organizationId: context.organizationId,
     kind,
@@ -4535,6 +4562,7 @@ async function updateCancelAtPeriodEnd(
     providerGeneration: context.providerGeneration,
     sourcePlan: currentPlan,
     targetPlan: "free",
+    ...(restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
     changeMode: "periodEnd",
     stripeSubscriptionIdSnapshot: context.currentStripeSubscriptionId,
     stripeSubscriptionItemIdSnapshot: context.currentStripeSubscriptionItemId,
@@ -4616,6 +4644,7 @@ async function updateCancelAtPeriodEnd(
             currentPlan,
             targetPlan: "free" as const,
             effectiveAt: periodEndsAt,
+            ...(restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
           }
         : { kind: "scheduledChangeCanceled" as const };
     const transition = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
@@ -6005,6 +6034,7 @@ async function convergeCancelAtPeriodEndState(
     billingState: Doc<"organizationBillingStates">["state"];
     cancelAtPeriodEnd: boolean;
     periodEndsAt?: number;
+    restrictAtPeriodEnd?: true;
   },
 ) {
   const currentPlan =
@@ -6021,7 +6051,8 @@ async function convergeCancelAtPeriodEndState(
       args.billingState.kind === "scheduledChange" &&
       args.billingState.currentPlan === currentPlan &&
       args.billingState.targetPlan === "free" &&
-      args.billingState.effectiveAt === args.periodEndsAt
+      args.billingState.effectiveAt === args.periodEndsAt &&
+      (args.billingState.restrictAtPeriodEnd === true) === (args.restrictAtPeriodEnd === true)
     ) {
       return;
     }
@@ -6036,6 +6067,7 @@ async function convergeCancelAtPeriodEndState(
         currentPlan,
         targetPlan: "free",
         effectiveAt: args.periodEndsAt,
+        ...(args.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
       },
       correlationId: `stripe:${args.operationId}:scheduleFree-recovered`,
     });
@@ -6048,7 +6080,8 @@ async function convergeCancelAtPeriodEndState(
           state.kind === "scheduledChange" &&
           state.currentPlan === currentPlan &&
           state.targetPlan === "free" &&
-          state.effectiveAt === args.periodEndsAt,
+          state.effectiveAt === args.periodEndsAt &&
+          (state.restrictAtPeriodEnd === true) === (args.restrictAtPeriodEnd === true),
       ))
     ) {
       throw new Error("billing_version_conflict");
@@ -6263,7 +6296,8 @@ async function retrieveConfiguredPrice(stripe: Stripe, priceId: string, livemode
     !price.recurring ||
     price.recurring.interval !== "month" ||
     price.recurring.interval_count !== 1 ||
-    price.unit_amount === null
+    price.unit_amount === null ||
+    (price.tax_behavior !== "inclusive" && price.tax_behavior !== "exclusive")
   ) {
     return { status: "invalid" as const };
   }
@@ -6275,6 +6309,7 @@ async function retrieveConfiguredPrice(stripe: Stripe, priceId: string, livemode
       unitAmount: price.unit_amount,
       interval: price.recurring.interval,
       intervalCount: price.recurring.interval_count,
+      taxBehavior: price.tax_behavior,
     },
   };
 }

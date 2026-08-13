@@ -1,5 +1,5 @@
 import { Alert, Stack } from "@chakra-ui/react";
-import { Navigate, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 import {
@@ -15,9 +15,6 @@ export function ManagerInviteNewPage({ shopId }: { shopId?: string }) {
   const [queryNow] = useState(() => Date.now());
   const overview = useShopQuery(api.organization.queries.getManagerSettingsOverview, { now: queryNow });
 
-  if (overview?.kind === "hidden") {
-    return <Navigate to="/settings" search={{ shop: shopId }} replace />;
-  }
   const onBack = () => void navigate({ to: "/settings/managers", search: { shop: shopId }, replace: true });
 
   return (
@@ -37,9 +34,7 @@ export function ManagerInviteNewPage({ shopId }: { shopId?: string }) {
               <Alert.Indicator />
               <Alert.Content>
                 <Alert.Title>管理者招待を開始できません</Alert.Title>
-                <Alert.Description>
-                  {overview.kind === "integrityError" ? overview.message : "現在利用できません。"}
-                </Alert.Description>
+                <Alert.Description>{overview.message}</Alert.Description>
               </Alert.Content>
             </Alert.Root>
           ) : !overview.actions.canInviteExternal ? (

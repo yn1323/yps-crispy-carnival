@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
@@ -90,32 +90,6 @@ async function seedInvitation(
 }
 
 describe("organization manager settings queries", () => {
-  beforeEach(() => {
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "enabled");
-  });
-  afterEach(() => vi.unstubAllEnvs());
-
-  it("feature closedは認証・billing・PII不整合より先にhiddenを返す", async () => {
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "manager_query_hidden", plan: "pro" });
-      const billing = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
-        .unique();
-      if (billing) await ctx.db.delete(billing._id);
-      return base;
-    });
-    const actor = t.withIdentity({ subject: "manager_query_hidden" });
-    await expect(
-      actor.query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.shopId, now: NOW }),
-    ).resolves.toEqual({ kind: "hidden" });
-    await expect(
-      actor.query(api.organization.queries.getManagerCandidates, { shopId: ids.shopId, now: NOW }),
-    ).resolves.toEqual({ kind: "hidden" });
-  });
-
   it("未認証・別tenant shopはPIIを返さずintegrityErrorへ閉じる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {

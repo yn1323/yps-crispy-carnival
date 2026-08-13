@@ -2,7 +2,6 @@ import { ConvexError, v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
-import { isOrganizationCreationEnabled } from "../_lib/config";
 import { authenticatedMutation } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
@@ -10,11 +9,15 @@ import { normalizeEmail } from "../_lib/validation";
 import { recordUserLegalConsent } from "../legal/service";
 import { updateShopSettingsSchema } from "../shop/schemas";
 import { setupShopAndManagerSchema } from "./schemas";
-import { createOrganizationWithFirstShop, getOrganizationCreationAvailability } from "./service";
+import {
+  createOrganizationWithFirstShop,
+  getOrganizationCreationAvailability,
+  ORGANIZATION_CREATE_UNAVAILABLE_MESSAGE,
+} from "./service";
 
 const WEEKDAY_ORDER = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 const PRIOR_OPERATION_ERROR = "以前の操作結果を確認できません。";
-const ORGANIZATION_CREATION_UNAVAILABLE_MESSAGE = "現在、新しい組織は作成できません。";
+const MANAGER_AUTHORITY_SCAN_LIMIT = 50;
 
 export const setupShopAndManager = authenticatedMutation({
   args: {
@@ -92,8 +95,6 @@ export const setupShopAndManager = authenticatedMutation({
       shopName: input.shopName,
       regularClosedDays: [],
       submissionPattern: input.submissionPattern,
-      // 初回セットアップだけが支払い不要Businessで始まる。追加作成はFreeで始める。
-      billingState: { kind: "complimentary", plan: "business" },
       now,
     });
 
@@ -111,7 +112,7 @@ export const setupShopAndManager = authenticatedMutation({
  * 既に管理者として利用している人が、二つ目以降の組織を作る。
  *
  * 初回セットアップと違い、users行と利用規約の同意状態は既にあるため変更しない。
- * 支払い不要Businessは初回だけの提供であり、ここで作る組織はFreeで始まる。
+ * 新しい組織は初回セットアップと同じ2暦月のトライアルで始める。
  */
 export const createOrganization = authenticatedMutation({
   args: {
@@ -140,9 +141,12 @@ export const createOrganization = authenticatedMutation({
   handler: async (ctx, args) => {
     const user = ctx.user;
     if (!user) throw new ConvexError("組織を作成する前に、初期設定を完了してください。");
+    if (user.isDeleted || user.accountDeletionRequestedAt !== undefined) {
+      throw new ConvexError(ORGANIZATION_CREATE_UNAVAILABLE_MESSAGE);
+    }
 
-    // 冪等recordとrate limit budgetより前に判定し、閉じている間はどちらも消費しない。
-    if (!isOrganizationCreationEnabled()) throw new ConvexError(ORGANIZATION_CREATION_UNAVAILABLE_MESSAGE);
+    // 再送の処理結果を返すだけの場合も、現在の管理者authorityを先に再検証する。
+    const managerProfile = await resolveOrganizationCreationManagerProfile(ctx, user, args.sourceShopId);
 
     const requestKey = await toAuditRequestKey(args.requestId);
     const correlationId = `user:${user._id}:organization:create:${requestKey}`;
@@ -168,8 +172,6 @@ export const createOrganization = authenticatedMutation({
     });
     if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
 
-    const managerProfile = await resolveOrganizationCreationManagerProfile(ctx, user, args.sourceShopId);
-
     const { shopId } = await createOrganizationWithFirstShop(ctx, {
       userId: user._id,
       managerName: managerProfile.name,
@@ -178,7 +180,6 @@ export const createOrganization = authenticatedMutation({
       shopName: parsed.data.shopName,
       regularClosedDays: WEEKDAY_ORDER.filter((day) => parsed.data.regularClosedDays.includes(day)),
       submissionPattern: parsed.data.submissionPattern,
-      billingState: { kind: "active", plan: "free" },
       correlationId,
       now: Date.now(),
     });
@@ -196,7 +197,12 @@ async function resolveOrganizationCreationManagerProfile(
   email: string;
   source: "canonicalPerson" | "legacySourceUserSnapshot" | "omittedSourceUserSnapshot";
 }> {
-  if (!sourceShopId) return { name: user.name, email: user.email, source: "omittedSourceUserSnapshot" };
+  if (!sourceShopId) {
+    // 旧frontendのsource省略は連絡先だけusers snapshotへfallbackする。
+    // 組織を追加できるauthorityまでusers行の存在へfallbackさせない。
+    if (!(await hasOrganizationCreationManagerAuthority(ctx, user._id))) throw new ConvexError("Not found");
+    return { name: user.name, email: user.email, source: "omittedSourceUserSnapshot" };
+  }
 
   const shop = await ctx.db.get(sourceShopId);
   if (!shop || shop.isDeleted) throw new ConvexError("Not found");
@@ -270,6 +276,89 @@ async function resolveOrganizationCreationManagerProfile(
     throw new ConvexError("Not found");
   }
   return { name: person.name, email: person.email, source: "canonicalPerson" };
+}
+
+async function hasOrganizationCreationManagerAuthority(ctx: MutationCtx, userId: Id<"users">): Promise<boolean> {
+  const activeMemberships = await ctx.db
+    .query("organizationMembers")
+    .withIndex("by_userId_and_status", (q) => q.eq("userId", userId).eq("status", "active"))
+    .take(MANAGER_AUTHORITY_SCAN_LIMIT + 1);
+  if (activeMemberships.length > MANAGER_AUTHORITY_SCAN_LIMIT) return false;
+
+  for (const membership of activeMemberships) {
+    const [organization, person, membershipsForOrganization, peopleForOrganization] = await Promise.all([
+      ctx.db.get(membership.organizationId),
+      ctx.db.get(membership.personId),
+      ctx.db
+        .query("organizationMembers")
+        .withIndex("by_userId_and_organizationId", (q) =>
+          q.eq("userId", userId).eq("organizationId", membership.organizationId),
+        )
+        .take(2),
+      ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId_and_userId", (q) =>
+          q.eq("organizationId", membership.organizationId).eq("userId", userId),
+        )
+        .take(2),
+    ]);
+    if (
+      organization &&
+      !organization.isDeleted &&
+      person &&
+      person.organizationId === organization._id &&
+      person.userId === userId &&
+      person.status === "active" &&
+      membershipsForOrganization.length === 1 &&
+      membershipsForOrganization[0]._id === membership._id &&
+      peopleForOrganization.length === 1 &&
+      peopleForOrganization[0]._id === person._id
+    ) {
+      return true;
+    }
+  }
+
+  // TODO[narrow]: 全deploymentでm025/m029が完走し、旧frontend互換期間も終了した後に削除する。
+  const legacyMemberships = await ctx.db
+    .query("shopMembers")
+    .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", userId).eq("isDeleted", false))
+    .take(MANAGER_AUTHORITY_SCAN_LIMIT + 1);
+  if (legacyMemberships.length > MANAGER_AUTHORITY_SCAN_LIMIT) return false;
+  const membershipCountByShopId = new Map<Id<"shops">, number>();
+  for (const membership of legacyMemberships) {
+    membershipCountByShopId.set(membership.shopId, (membershipCountByShopId.get(membership.shopId) ?? 0) + 1);
+  }
+  for (const membership of legacyMemberships) {
+    if (membershipCountByShopId.get(membership.shopId) !== 1) continue;
+    const shop = await ctx.db.get(membership.shopId);
+    if (!shop || shop.isDeleted) continue;
+    if (!shop.organizationId) return true;
+    const organizationId = shop.organizationId;
+
+    const [organization, canonicalMemberships, canonicalPeople] = await Promise.all([
+      ctx.db.get(organizationId),
+      ctx.db
+        .query("organizationMembers")
+        .withIndex("by_userId_and_organizationId", (q) => q.eq("userId", userId).eq("organizationId", organizationId))
+        .take(2),
+      ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId_and_userId", (q) => q.eq("organizationId", organizationId).eq("userId", userId))
+        .take(2),
+    ]);
+    if (!organization || organization.isDeleted || canonicalMemberships.length !== 0 || canonicalPeople.length > 1) {
+      continue;
+    }
+    const person = canonicalPeople[0];
+    if (
+      person &&
+      (person.organizationId !== organization._id || person.userId !== userId || person.status !== "active")
+    ) {
+      continue;
+    }
+    return true;
+  }
+  return false;
 }
 
 /**

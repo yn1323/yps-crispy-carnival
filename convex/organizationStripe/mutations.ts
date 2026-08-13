@@ -59,6 +59,7 @@ const operationResultValidator = v.object({
   stripePriceIdSnapshot: v.optional(v.string()),
   sourcePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
   targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+  restrictAtPeriodEnd: v.optional(v.literal(true)),
   changeMode: v.optional(v.union(v.literal("checkout"), v.literal("immediate"), v.literal("periodEnd"))),
   stripeSubscriptionIdSnapshot: v.optional(v.string()),
   stripeSubscriptionItemIdSnapshot: v.optional(v.string()),
@@ -307,6 +308,7 @@ export const beginOperation = internalMutation({
     stripePriceIdSnapshot: v.optional(v.string()),
     sourcePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
     targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+    restrictAtPeriodEnd: v.optional(v.literal(true)),
     changeMode: v.optional(v.union(v.literal("checkout"), v.literal("immediate"), v.literal("periodEnd"))),
     stripeSubscriptionIdSnapshot: v.optional(v.string()),
     stripeSubscriptionItemIdSnapshot: v.optional(v.string()),
@@ -382,6 +384,7 @@ export const beginOperation = internalMutation({
         existing.stripePriceIdSnapshot !== args.stripePriceIdSnapshot ||
         existing.sourcePlan !== args.sourcePlan ||
         existing.targetPlan !== args.targetPlan ||
+        existing.restrictAtPeriodEnd !== args.restrictAtPeriodEnd ||
         existing.changeMode !== args.changeMode ||
         existing.stripeSubscriptionIdSnapshot !== args.stripeSubscriptionIdSnapshot ||
         existing.stripeSubscriptionItemIdSnapshot !== args.stripeSubscriptionItemIdSnapshot ||
@@ -605,6 +608,7 @@ export const beginOperation = internalMutation({
       ...(args.stripePriceIdSnapshot ? { stripePriceIdSnapshot: args.stripePriceIdSnapshot } : {}),
       ...(args.sourcePlan ? { sourcePlan: args.sourcePlan } : {}),
       ...(args.targetPlan ? { targetPlan: args.targetPlan } : {}),
+      ...(args.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
       ...(args.changeMode ? { changeMode: args.changeMode } : {}),
       ...(args.stripeSubscriptionIdSnapshot ? { stripeSubscriptionIdSnapshot: args.stripeSubscriptionIdSnapshot } : {}),
       ...(args.stripeSubscriptionItemIdSnapshot
@@ -1760,6 +1764,7 @@ function operationResult(operation: Doc<"organizationStripeOperations">, created
     ...(operation.stripePriceIdSnapshot ? { stripePriceIdSnapshot: operation.stripePriceIdSnapshot } : {}),
     ...(operation.sourcePlan ? { sourcePlan: operation.sourcePlan } : {}),
     ...(operation.targetPlan ? { targetPlan: operation.targetPlan } : {}),
+    ...(operation.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
     ...(operation.changeMode ? { changeMode: operation.changeMode } : {}),
     ...(operation.stripeSubscriptionIdSnapshot
       ? { stripeSubscriptionIdSnapshot: operation.stripeSubscriptionIdSnapshot }

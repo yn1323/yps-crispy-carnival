@@ -5,6 +5,28 @@ import type { OrganizationBillingView } from "./types";
 export function OrganizationUsageSection({ billing }: { billing: OrganizationBillingView }) {
   if (billing.state === "migrationPending") return null;
 
+  if (billing.state === "restricted" && billing.limitPlan === undefined) {
+    return (
+      <Box
+        as="section"
+        aria-label="組織の利用状況"
+        borderWidth="1px"
+        borderColor="blackAlpha.100"
+        borderRadius="xl"
+        bg="white"
+        px={{ base: 3, md: 4 }}
+        py={{ base: 3, md: 4 }}
+      >
+        <Text fontSize="sm" fontWeight="semibold" color="gray.800">
+          利用停止中はプラン上限を適用していません
+        </Text>
+        <Text mt={1} fontSize="xs" color="fg.muted">
+          データは保持されています。ProまたはBusinessを契約すると利用を再開できます。
+        </Text>
+      </Box>
+    );
+  }
+
   const appliedLimitLabel = getAppliedLimitLabel(billing);
   const pendingInvitations = [
     invitationLabel("利用人数", billing.peopleUsage.pendingInvitations),

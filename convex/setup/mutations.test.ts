@@ -218,7 +218,7 @@ describe("setup/mutations", () => {
       ).rejects.toThrow("メールアドレスの形式で入力してください");
     });
 
-    it("店舗・ユーザー・スタッフ・支払い不要Business状態・同意履歴をトランザクションで作成する", async () => {
+    it("店舗・ユーザー・スタッフ・2暦月Trial状態・同意履歴をトランザクションで作成する", async () => {
       const t = convexTest(schema, modules);
       const now = new Date("2026-07-05T10:00:00+09:00");
       vi.setSystemTime(now);
@@ -263,7 +263,7 @@ describe("setup/mutations", () => {
         version: organizationBillingState.version,
       }).toEqual({
         organizationId,
-        state: { kind: "complimentary", plan: "business" },
+        state: { kind: "trial", trialEndsAt: Date.parse("2026-09-04T15:00:00.000Z") },
         freeManagerPersonId: undefined,
         freeShopId: undefined,
         version: 1,
@@ -318,10 +318,10 @@ describe("setup/mutations", () => {
           .withIndex("by_userId", (q) => q.eq("userId", user._id))
           .first(),
       );
-      expect(consentState?.termsConsentVersion).toBe("manager-terms-consent-2026-05-09");
-      expect(consentState?.privacyConsentVersion).toBe("manager-privacy-consent-2026-05-09");
-      expect(consentState?.termsDocumentVersion).toBe("manager-terms-doc-2026-05-09");
-      expect(consentState?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-07-10");
+      expect(consentState?.termsConsentVersion).toBe("manager-terms-consent-2026-08-13");
+      expect(consentState?.privacyConsentVersion).toBe("manager-privacy-consent-2026-08-13");
+      expect(consentState?.termsDocumentVersion).toBe("manager-terms-doc-2026-08-13");
+      expect(consentState?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-08-13");
       expect(consentState?.method).toBe("manager_setup");
 
       const staffs = await t.run(async (ctx) =>
@@ -343,9 +343,9 @@ describe("setup/mutations", () => {
           .first(),
       );
       expect(staffConsentState?.termsConsentVersion).toBe("staff-terms-consent-2026-05-09");
-      expect(staffConsentState?.privacyConsentVersion).toBe("staff-privacy-consent-2026-05-09");
+      expect(staffConsentState?.privacyConsentVersion).toBe("staff-privacy-consent-2026-08-13");
       expect(staffConsentState?.termsDocumentVersion).toBe("staff-terms-doc-2026-05-09");
-      expect(staffConsentState?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-07-10");
+      expect(staffConsentState?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-08-13");
       expect(staffConsentState?.method).toBe("manager_setup");
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
@@ -360,7 +360,15 @@ describe("setup/mutations", () => {
             job.scheduledTime === getShopActivationReminderAt(now.getTime()),
         ),
       ).toBe(true);
-      expect(scheduled.filter((job) => job.name.startsWith("organizationBilling/"))).toEqual([]);
+      expect(
+        scheduled.some(
+          (job) =>
+            job.name === "organizationBilling/mutations:processDeadline" &&
+            job.scheduledTime === Date.parse("2026-09-04T15:00:00.000Z") &&
+            job.args[0]?.organizationId === organizationId &&
+            job.args[0]?.expectedVersion === 1,
+        ),
+      ).toBe(true);
 
       const organizationAudits = await t.run(async (ctx) =>
         ctx.db
@@ -380,7 +388,7 @@ describe("setup/mutations", () => {
           action: "organization.created",
           targetKind: "organization",
           targetId: organizationId,
-          toState: "complimentary.business",
+          toState: "trial",
         },
       ]);
 
@@ -510,10 +518,6 @@ describe("setup/mutations", () => {
   });
 
   describe("createOrganization", () => {
-    // ダークローンチ中は既定で閉じている。この describe は公開済みの契約を検証する。
-    beforeEach(() => vi.stubEnv("FEATURE_ORGANIZATION_CREATION", "enabled"));
-    afterEach(() => vi.unstubAllEnvs());
-
     const createArgs = {
       shopName: "二つ目の店舗",
       submissionPattern: { kind: "dateOnly" as const },
@@ -530,6 +534,87 @@ describe("setup/mutations", () => {
         }),
       );
     }
+
+    type ExistingManagerSeed = Awaited<ReturnType<typeof seedExistingManager>>;
+    type OrganizationCreationTest = ReturnType<typeof convexTest>;
+    const sourceIntegrityCases: Array<{
+      key: string;
+      label: string;
+      corrupt: (t: OrganizationCreationTest, seed: ExistingManagerSeed) => Promise<void>;
+    }> = [
+      {
+        key: "read_only",
+        label: "readOnlyのcanonical所属",
+        corrupt: async (t, seed) => {
+          await t.run(async (ctx) => ctx.db.patch(seed.memberId, { status: "readOnly" }));
+        },
+      },
+      {
+        key: "removed",
+        label: "removedのcanonical所属",
+        corrupt: async (t, seed) => {
+          await t.run(async (ctx) => ctx.db.patch(seed.memberId, { status: "removed" }));
+        },
+      },
+      {
+        key: "deleted_shop",
+        label: "削除済みsource店舗",
+        corrupt: async (t, seed) => {
+          await t.run(async (ctx) => ctx.db.patch(seed.shopId, { isDeleted: true }));
+        },
+      },
+      {
+        key: "deleted_organization",
+        label: "削除済みsource組織",
+        corrupt: async (t, seed) => {
+          await t.run(async (ctx) => ctx.db.patch(seed.organizationId, { isDeleted: true, updatedAt: Date.now() }));
+        },
+      },
+      {
+        key: "duplicate_person",
+        label: "同一userの重複person",
+        corrupt: async (t, seed) => {
+          await t.run(async (ctx) => {
+            const now = Date.now();
+            await ctx.db.insert("organizationPeople", {
+              organizationId: seed.organizationId,
+              userId: seed.userId,
+              name: "重複管理者",
+              email: "duplicate-manager@example.com",
+              emailNormalized: "duplicate-manager@example.com",
+              status: "active",
+              createdAt: now,
+              updatedAt: now,
+            });
+          });
+        },
+      },
+      {
+        key: "mismatched_person",
+        label: "memberとpersonの組織不一致",
+        corrupt: async (t, seed) => {
+          const foreign = await seedExistingManager(t, "create_org_source_integrity_foreign");
+          await t.run(async (ctx) => ctx.db.patch(seed.memberId, { personId: foreign.personId }));
+        },
+      },
+      {
+        key: "duplicate_member",
+        label: "同一user・組織の重複member",
+        corrupt: async (t, seed) => {
+          await t.run(async (ctx) => {
+            const now = Date.now();
+            await ctx.db.insert("organizationMembers", {
+              organizationId: seed.organizationId,
+              personId: seed.personId,
+              userId: seed.userId,
+              status: "active",
+              createdAt: now,
+              updatedAt: now,
+            });
+          });
+        },
+      },
+    ];
 
     it("未認証の場合エラーをthrow", async () => {
       const t = convexTest(schema, modules);
@@ -551,6 +636,126 @@ describe("setup/mutations", () => {
       expect(state.organizations).toEqual([]);
       expect(state.shops).toEqual([]);
       expect(state.scheduled).toEqual([]);
+    });
+
+    it("users行だけで管理者所属がない認証主体は、旧frontend互換のsource省略でも組織を作成しない", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        await seedUser(ctx, "create_org_without_manager_authority", "without-manager-authority@example.com");
+      });
+      const readProtectedState = () =>
+        t.run(async (ctx) => ({
+          organizations: await ctx.db.query("organizations").collect(),
+          shops: await ctx.db.query("shops").collect(),
+          people: await ctx.db.query("organizationPeople").collect(),
+          members: await ctx.db.query("organizationMembers").collect(),
+          staffs: await ctx.db.query("staffs").collect(),
+          billingStates: await ctx.db.query("organizationBillingStates").collect(),
+          audits: await ctx.db.query("organizationAuditEvents").collect(),
+          analyticsEvents: await ctx.db.query("analyticsSourceEvents").collect(),
+          legalConsents: await ctx.db.query("legalConsentStates").collect(),
+          positions: await ctx.db.query("positions").collect(),
+          scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+        }));
+      const beforeRejected = await readProtectedState();
+
+      await expect(
+        t
+          .withIdentity({ subject: "create_org_without_manager_authority" })
+          .mutation(api.setup.mutations.createOrganization, createArgs),
+      ).rejects.toThrow("Not found");
+
+      expect(await readProtectedState()).toEqual(beforeRejected);
+    });
+
+    it("activeなlegacy管理者所属があれば、旧frontend互換のsource省略でもusers snapshotで作成できる", async () => {
+      const t = convexTest(schema, modules);
+      const legacy = await t.run(async (ctx) =>
+        seedLegacyManagerShop(ctx, {
+          subject: "create_org_legacy_omitted_source",
+          email: "legacy-omitted-source@example.com",
+          shopName: "移行前店舗",
+        }),
+      );
+
+      const result = await t
+        .withIdentity({ subject: "create_org_legacy_omitted_source" })
+        .mutation(api.setup.mutations.createOrganization, {
+          ...createArgs,
+          requestId: "create-organization-legacy-omitted-source",
+        });
+
+      const created = await t.run(async (ctx) => {
+        const shop = await ctx.db.get(result.shopId);
+        if (!shop?.organizationId) throw new Error("organization not found");
+        const organizationId = shop.organizationId;
+        const audit = await ctx.db
+          .query("organizationAuditEvents")
+          .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", organizationId))
+          .unique();
+        return { shop, organization: await ctx.db.get(organizationId), audit };
+      });
+      expect(result.created).toBe(true);
+      expect(created.shop).toMatchObject({ name: "二つ目の店舗", isDeleted: false });
+      expect(created.organization).toMatchObject({ createdByUserId: legacy.userId, isDeleted: false });
+      expect(created.audit?.fromState).toBe("managerProfile.omittedSourceUserSnapshot");
+    });
+
+    it.each([
+      {
+        label: "removedなcanonical person",
+        corrupt: async (t: OrganizationCreationTest, seed: ExistingManagerSeed) => {
+          await t.run(async (ctx) => ctx.db.patch(seed.personId, { status: "removed", updatedAt: Date.now() }));
+        },
+      },
+      {
+        label: "重複canonical person",
+        corrupt: async (t: OrganizationCreationTest, seed: ExistingManagerSeed) => {
+          await t.run(async (ctx) => {
+            const now = Date.now();
+            await ctx.db.insert("organizationPeople", {
+              organizationId: seed.organizationId,
+              userId: seed.userId,
+              name: "重複管理者",
+              email: "duplicate-legacy-manager@example.com",
+              emailNormalized: "duplicate-legacy-manager@example.com",
+              status: "active",
+              createdAt: now,
+              updatedAt: now,
+            });
+          });
+        },
+      },
+    ])("$labelがlegacy所属に残っていても、source省略で管理者authorityにfallbackしない", async ({ corrupt }) => {
+      const t = convexTest(schema, modules);
+      const seed = await seedExistingManager(t, "create_org_invalid_legacy_omitted_source");
+      await t.run(async (ctx) => {
+        await ctx.db.delete(seed.memberId);
+        await seedLegacyShopMembership(ctx, { userId: seed.userId, shopId: seed.shopId });
+      });
+      await corrupt(t, seed);
+      const readProtectedState = () =>
+        t.run(async (ctx) => ({
+          organizations: await ctx.db.query("organizations").collect(),
+          shops: await ctx.db.query("shops").collect(),
+          people: await ctx.db.query("organizationPeople").collect(),
+          members: await ctx.db.query("organizationMembers").collect(),
+          billingStates: await ctx.db.query("organizationBillingStates").collect(),
+          audits: await ctx.db.query("organizationAuditEvents").collect(),
+          scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+        }));
+      const beforeRejected = await readProtectedState();
+
+      await expect(
+        t
+          .withIdentity({ subject: "create_org_invalid_legacy_omitted_source" })
+          .mutation(api.setup.mutations.createOrganization, {
+            ...createArgs,
+            requestId: "create-organization-invalid-legacy-omitted-source",
+          }),
+      ).rejects.toThrow("Not found");
+
+      expect(await readProtectedState()).toEqual(beforeRejected);
     });
 
     it("アカウント削除受付済みユーザーは拒否し、組織・店舗・予約を作成しない", async () => {
@@ -576,7 +781,7 @@ describe("setup/mutations", () => {
       expect(state.audits).toEqual([]);
     });
 
-    it("二つ目の組織をFreeで作り、既存組織の支払い不要Businessを変えない", async () => {
+    it("二つ目の組織も2暦月Trialで作り、既存組織の支払い不要Businessを変えない", async () => {
       const t = convexTest(schema, modules);
       const now = new Date("2026-07-25T10:00:00+09:00");
       vi.setSystemTime(now);
@@ -624,7 +829,10 @@ describe("setup/mutations", () => {
       const existingBillingState = state.billingStates.find(
         (billing) => billing.organizationId === seed.organizationId,
       );
-      expect(newBillingState?.state).toEqual({ kind: "active", plan: "free" });
+      expect(newBillingState?.state).toEqual({
+        kind: "trial",
+        trialEndsAt: Date.parse("2026-09-24T15:00:00.000Z"),
+      });
       expect(newBillingState?.version).toBe(1);
       expect(existingBillingState?.state).toEqual({ kind: "complimentary", plan: "business" });
       expect(state.people).toHaveLength(1);
@@ -636,9 +844,18 @@ describe("setup/mutations", () => {
         targetKind: "organization",
         actorUserId: seed.userId,
         fromState: "managerProfile.omittedSourceUserSnapshot",
-        toState: "active.free",
+        toState: "trial",
       });
-      expect(state.scheduled).toHaveLength(2);
+      expect(state.scheduled).toHaveLength(3);
+      expect(
+        state.scheduled.some(
+          (job) =>
+            job.name === "organizationBilling/mutations:processDeadline" &&
+            job.scheduledTime === Date.parse("2026-09-24T15:00:00.000Z") &&
+            job.args[0]?.organizationId === newBillingState?.organizationId &&
+            job.args[0]?.expectedVersion === 1,
+        ),
+      ).toBe(true);
       expect(state.stripeCustomers).toEqual([]);
       expect(state.billingNotifications).toEqual([]);
     });
@@ -872,6 +1089,39 @@ describe("setup/mutations", () => {
       expect(state.shops).toHaveLength(2);
     });
 
+    it.each(sourceIntegrityCases)("$labelをsourceにした作成を拒否し、保護対象を変えない", async ({ key, corrupt }) => {
+      const t = convexTest(schema, modules);
+      const subject = `create_org_source_integrity_${key}`;
+      const seed = await seedExistingManager(t, subject);
+      await corrupt(t, seed);
+      const readProtectedState = () =>
+        t.run(async (ctx) => ({
+          organizations: await ctx.db.query("organizations").collect(),
+          shops: await ctx.db.query("shops").collect(),
+          people: await ctx.db.query("organizationPeople").collect(),
+          members: await ctx.db.query("organizationMembers").collect(),
+          staffs: await ctx.db.query("staffs").collect(),
+          billingStates: await ctx.db.query("organizationBillingStates").collect(),
+          audits: await ctx.db.query("organizationAuditEvents").collect(),
+          analyticsEvents: await ctx.db.query("analyticsSourceEvents").collect(),
+          legalConsents: await ctx.db.query("legalConsentStates").collect(),
+          positions: await ctx.db.query("positions").collect(),
+          outbox: await ctx.db.query("notificationOutbox").collect(),
+          scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+        }));
+      const beforeRejected = await readProtectedState();
+
+      await expect(
+        t.withIdentity({ subject }).mutation(api.setup.mutations.createOrganization, {
+          ...createArgs,
+          sourceShopId: seed.shopId,
+          requestId: `create-organization-source-integrity-${key}`,
+        }),
+      ).rejects.toThrow("Not found");
+
+      expect(await readProtectedState()).toEqual(beforeRejected);
+    });
+
     it("既存ユーザーの名前・メールと利用規約の同意状態を書き換えない", async () => {
       const t = convexTest(schema, modules);
       const seed = await seedExistingManager(t, "create_org_keeps_user");
@@ -925,7 +1175,52 @@ describe("setup/mutations", () => {
       }));
       expect(state.organizations).toHaveLength(2);
       expect(state.shops).toHaveLength(2);
-      expect(state.scheduled).toHaveLength(2);
+      expect(state.scheduled).toHaveLength(3);
+    });
+
+    it.each([
+      {
+        label: "操作元のmanager authorityが失効した",
+        expectedError: "Not found",
+        invalidate: async (t: OrganizationCreationTest, seed: ExistingManagerSeed) => {
+          await t.run(async (ctx) => ctx.db.patch(seed.memberId, { status: "readOnly", updatedAt: Date.now() }));
+        },
+      },
+      {
+        label: "アカウント削除が受付済みになった",
+        expectedError: "無効になったアカウントでは、組織を作成できません。",
+        invalidate: async (t: OrganizationCreationTest, seed: ExistingManagerSeed) => {
+          await t.run(async (ctx) => ctx.db.patch(seed.userId, { accountDeletionRequestedAt: Date.now() }));
+        },
+      },
+    ])("$label後は、成功済みrequestIdの再送でも現在の認可を迂回しない", async ({ expectedError, invalidate }) => {
+      const t = convexTest(schema, modules);
+      const seed = await seedExistingManager(t, "create_org_stale_idempotency_authority");
+      const args = {
+        ...createArgs,
+        sourceShopId: seed.shopId,
+        requestId: "create-organization-stale-idempotency-authority",
+      };
+      const asUser = t.withIdentity({ subject: "create_org_stale_idempotency_authority" });
+      await expect(asUser.mutation(api.setup.mutations.createOrganization, args)).resolves.toMatchObject({
+        created: true,
+      });
+      await invalidate(t, seed);
+      const readProtectedState = () =>
+        t.run(async (ctx) => ({
+          organizations: await ctx.db.query("organizations").collect(),
+          shops: await ctx.db.query("shops").collect(),
+          people: await ctx.db.query("organizationPeople").collect(),
+          members: await ctx.db.query("organizationMembers").collect(),
+          billingStates: await ctx.db.query("organizationBillingStates").collect(),
+          audits: await ctx.db.query("organizationAuditEvents").collect(),
+          scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+        }));
+      const beforeRejected = await readProtectedState();
+
+      await expect(asUser.mutation(api.setup.mutations.createOrganization, args)).rejects.toThrow(expectedError);
+
+      expect(await readProtectedState()).toEqual(beforeRejected);
     });
 
     it("上限に達している場合は拒否し、組織・店舗・予約を増やさない", async () => {
@@ -1047,7 +1342,67 @@ describe("setup/mutations", () => {
       }));
       expect(state.organizations).toHaveLength(2);
       expect(state.shops).toHaveLength(2);
-      expect(state.scheduled).toHaveLength(2);
+      expect(state.scheduled).toHaveLength(3);
+    });
+
+    it("日次budgetを10回使うと11回目を拒否し、副作用を増やさない", async () => {
+      const t = convexTest(schema, modules);
+      const startedAt = new Date("2026-07-25T10:00:00+09:00").getTime();
+      vi.setSystemTime(startedAt);
+      const seed = await seedExistingManager(t, "create_org_daily_limit");
+      const asUser = t.withIdentity({ subject: "create_org_daily_limit" });
+      const createdShopIds = [];
+
+      for (let index = 0; index < 10; index += 1) {
+        // 1分ごとに進めて短時間limitを回復させ、日次budgetだけを消費する。
+        vi.setSystemTime(startedAt + index * 60_000);
+        const created = await asUser.mutation(api.setup.mutations.createOrganization, {
+          ...createArgs,
+          sourceShopId: seed.shopId,
+          requestId: `create-organization-daily-${index + 1}`,
+        });
+        createdShopIds.push(created.shopId);
+
+        // 同時保持3件の上限と混同しないよう、作成済み組織を次の試行前に論理削除する。
+        await t.run(async (ctx) => {
+          const shop = await ctx.db.get(created.shopId);
+          if (!shop?.organizationId) throw new Error("created organization not found");
+          await ctx.db.patch(shop.organizationId, { isDeleted: true, updatedAt: Date.now() });
+        });
+      }
+      expect(new Set(createdShopIds).size).toBe(10);
+
+      // 最後の成功からさらに1分進めるため、11回目では短時間limitは回復済みである。
+      vi.setSystemTime(startedAt + 10 * 60_000);
+      const readProtectedState = () =>
+        t.run(async (ctx) => ({
+          organizations: await ctx.db.query("organizations").collect(),
+          shops: await ctx.db.query("shops").collect(),
+          people: await ctx.db.query("organizationPeople").collect(),
+          members: await ctx.db.query("organizationMembers").collect(),
+          staffs: await ctx.db.query("staffs").collect(),
+          billingStates: await ctx.db.query("organizationBillingStates").collect(),
+          audits: await ctx.db.query("organizationAuditEvents").collect(),
+          outbox: await ctx.db.query("notificationOutbox").collect(),
+          scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+        }));
+      const beforeRejected = await readProtectedState();
+      expect(
+        beforeRejected.organizations.filter(
+          (organization) => organization.createdByUserId === seed.userId && !organization.isDeleted,
+        ),
+      ).toHaveLength(1);
+      expect(beforeRejected.audits).toHaveLength(10);
+
+      await expect(
+        asUser.mutation(api.setup.mutations.createOrganization, {
+          ...createArgs,
+          sourceShopId: seed.shopId,
+          requestId: "create-organization-daily-11",
+        }),
+      ).rejects.toThrow("組織の作成処理が進行中です。\n少し時間をおいてから、もう一度お試しください。");
+
+      expect(await readProtectedState()).toEqual(beforeRejected);
     });
 
     it("店舗名をサーバー側でも検証する", async () => {
@@ -1065,40 +1420,6 @@ describe("setup/mutations", () => {
           shopName: "あ".repeat(SHOP_NAME_MAX_LENGTH + 1),
         }),
       ).rejects.toThrow(ConvexError);
-    });
-
-    describe("ダークローンチ中", () => {
-      beforeEach(() => vi.stubEnv("FEATURE_ORGANIZATION_CREATION", ""));
-
-      it("未公開の間は作成を拒否し、冪等recordとrate limit budgetを消費しない", async () => {
-        const t = convexTest(schema, modules);
-        await seedExistingManager(t, "create_org_dark_launch");
-        const asUser = t.withIdentity({ subject: "create_org_dark_launch" });
-
-        await expect(asUser.mutation(api.setup.mutations.createOrganization, createArgs)).rejects.toThrow(
-          "現在、新しい組織は作成できません。",
-        );
-
-        const state = await t.run(async (ctx) => ({
-          organizations: await ctx.db.query("organizations").collect(),
-          shops: await ctx.db.query("shops").collect(),
-          audits: await ctx.db
-            .query("organizationAuditEvents")
-            .filter((q) => q.eq(q.field("action"), "organization.created"))
-            .collect(),
-          scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
-        }));
-        // seedした一つ目の組織以外は増えない。
-        expect(state.organizations).toHaveLength(1);
-        expect(state.shops).toHaveLength(1);
-        expect(state.audits).toHaveLength(0);
-        expect(state.scheduled).toHaveLength(0);
-
-        // budgetを消費していないため、公開後は同じrequestIdでそのまま作成できる。
-        vi.stubEnv("FEATURE_ORGANIZATION_CREATION", "enabled");
-        const created = await asUser.mutation(api.setup.mutations.createOrganization, createArgs);
-        expect(created.created).toBe(true);
-      });
     });
   });
 });

@@ -1,7 +1,6 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
-import { isBillingEnabled, isManagerInvitationEnabled, isOrganizationCreationEnabled } from "../_lib/config";
 import { formatDateJa, formatDateTimeJa } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
@@ -115,6 +114,7 @@ const billingViewValidator = v.object({
   stripeBillingAvailable: v.boolean(),
   hasStripeCustomer: v.boolean(),
   targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+  restrictAtPeriodEnd: v.optional(v.literal(true)),
   limitPlan: v.optional(v.union(v.literal("free"), v.literal("pro"))),
   peopleUsage: v.object({ current: v.number(), max: v.number(), pendingInvitations: v.number() }),
   shopUsage: v.object({ current: v.number(), max: v.number(), pendingInvitations: v.number() }),
@@ -153,8 +153,7 @@ const organizationSettingsValidator = v.object({
   deleteOrganizationDisabledReason: v.optional(v.string()),
   canCreateOrganization: v.boolean(),
   createOrganizationDisabledReason: v.optional(v.string()),
-  // 公開していない導線の表示判定。可否（can*）とは別に持ち、
-  // 「上限に達したので理由を出す」と「未公開なので何も出さない」を画面が描き分けられるようにする。
+  // 導線の表示判定は可否（can*）とは別に持ち、rolling deploy中の旧frontendとの互換を保つ。
   // TODO[narrow]: featuresを返すbackendが全deploymentへ反映され、旧frontend互換期間が終わった後にrequired化する。
   features: v.optional(
     v.object({
@@ -183,6 +182,7 @@ type BillingView = {
   stripeBillingAvailable: boolean;
   hasStripeCustomer: boolean;
   targetPlan?: Exclude<BillingPlan, "trial">;
+  restrictAtPeriodEnd?: true;
   limitPlan?: "free" | "pro";
   peopleUsage: { current: number; max: number; pendingInvitations: number };
   shopUsage: { current: number; max: number; pendingInvitations: number };
@@ -283,16 +283,20 @@ function legacyMigrationPendingSettings(
 /** 公開状態を画面の描画判定へ渡す。認可根拠には使わない。 */
 function getOrganizationSettingsFeatures() {
   return {
-    organizationCreation: isOrganizationCreationEnabled(),
-    // 旧frontendとの段階リリース互換のため項目を残し、常時公開として返す。
+    // 旧frontendの表示DTOとの互換のため項目を残す。
+    organizationCreation: true,
     shopAddition: true,
-    billing: isBillingEnabled(),
-    managerInvitation: isManagerInvitationEnabled(),
+    billing: true,
+    managerInvitation: true,
   };
 }
 
 function restrictedBlockedReason(state: Extract<Doc<"organizationBillingStates">["state"], { kind: "restricted" }>) {
   switch (state.reason) {
+    case "trialEndedWithoutSubscription":
+      return "トライアルが終了しました。\n利用を再開するには、ProまたはBusinessを契約してください。";
+    case "scheduledCancellation":
+      return "予約した利用停止が適用されました。\n利用を再開するには、ProまたはBusinessを契約してください。";
     case "trialFreeConditionsNotMet":
     case "freeConditionsNotMet":
       return "無料プランの利用人数または店舗数の上限を超えています。\nユーザーまたは店舗を削除してから、再確認してください。";
@@ -1022,8 +1026,16 @@ export const getSettings = managerQuery({
             state: "scheduledChange",
             currentPlan: state.currentPlan,
             targetPlan: state.targetPlan,
+            ...(state.targetPlan === "free" && state.restrictAtPeriodEnd === true
+              ? { restrictAtPeriodEnd: true as const }
+              : {}),
             nextEvent: {
-              label: state.targetPlan === "free" ? "無料適用予定日" : "Pro適用予定日",
+              label:
+                state.targetPlan === "free"
+                  ? state.restrictAtPeriodEnd === true
+                    ? "利用停止予定日"
+                    : "無料適用予定日"
+                  : "Pro適用予定日",
               date: formatDateJa(state.effectiveAt),
             },
           };
@@ -1283,7 +1295,6 @@ export const getManagerSettingsOverview = managerQuery({
   args: { now: v.number() },
   returns: managerSettingsOverviewValidator,
   handler: async (ctx, args) => {
-    if (!isManagerInvitationEnabled()) return { kind: "hidden" as const };
     if (!Number.isFinite(args.now) || !ctx.user || !ctx.organization || !ctx.organizationMember) {
       return { kind: "integrityError" as const, message: MANAGER_SETTINGS_INTEGRITY_ERROR };
     }
@@ -1543,7 +1554,6 @@ export const getManagerCandidates = managerQuery({
   args: { now: v.number() },
   returns: managerCandidatesValidator,
   handler: async (ctx, args) => {
-    if (!isManagerInvitationEnabled()) return { kind: "hidden" as const };
     if (!Number.isFinite(args.now) || !ctx.organization || !ctx.organizationMember) {
       return { kind: "integrityError" as const, message: MANAGER_SETTINGS_INTEGRITY_ERROR };
     }

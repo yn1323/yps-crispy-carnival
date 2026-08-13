@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
@@ -57,40 +57,6 @@ async function seedStaff(
 }
 
 describe("organization/userDetailQueries.getUserDetail", () => {
-  beforeEach(() => {
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "enabled");
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it("管理者招待のダークローンチ中は管理者操作の状態をhiddenへ投影する", async () => {
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, {
-        subject: "user_detail_hidden_actor",
-        plan: "pro",
-      });
-      const personId = await seedPerson(ctx, {
-        organizationId: base.organizationId,
-        email: "hidden-person@example.com",
-      });
-      return { ...base, personId };
-    });
-
-    const result = await t
-      .withIdentity({ subject: "user_detail_hidden_actor" })
-      .query(api.organization.userDetailQueries.getUserDetail, {
-        shopId: ids.shopId,
-        personId: ids.personId,
-        now: NOW,
-      });
-
-    expect(result?.managerInvitationState).toEqual({ kind: "hidden" });
-  });
-
   it("組織人物と有効店舗所属を最小DTOで返し、招待状態を同じ契約で更新する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {

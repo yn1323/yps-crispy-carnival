@@ -48,9 +48,9 @@ const mocks = vi.hoisted(() => ({
     name: "",
     email: "",
     featureVisibility: {
-      organizationSettingsNavigation: false,
-      billing: false,
-      shopMembershipAddition: false,
+      organizationSettingsNavigation: true,
+      billing: true,
+      shopMembershipAddition: true,
     },
   },
   currentUser: { name: "管理者", email: "manager@example.com" } as CurrentUser,
@@ -61,9 +61,9 @@ const mocks = vi.hoisted(() => ({
     name: "管理者",
     email: "manager@example.com",
     featureVisibility: {
-      organizationSettingsNavigation: false,
-      billing: false,
-      shopMembershipAddition: false,
+      organizationSettingsNavigation: true,
+      billing: true,
+      shopMembershipAddition: true,
     },
   },
 }));
@@ -190,9 +190,9 @@ beforeEach(() => {
     name: "管理者",
     email: "manager@example.com",
     featureVisibility: {
-      organizationSettingsNavigation: false,
-      billing: false,
-      shopMembershipAddition: false,
+      organizationSettingsNavigation: true,
+      billing: true,
+      shopMembershipAddition: true,
     },
   };
 
@@ -339,7 +339,7 @@ describe("AuthGuard", () => {
     }
   });
 
-  it("古いbackendが公開状態を返さない場合は全機能を閉じてatomの同期完了まで子画面を描画しない", async () => {
+  it("古いbackendが公開状態を返さなくても全機能を公開する", async () => {
     mocks.selectedShop = {
       shopId: "active-shop",
       shopName: "所属店舗",
@@ -355,33 +355,7 @@ describe("AuthGuard", () => {
       shopMembershipAddition: true,
     };
 
-    const { rerender } = render(
-      <AuthGuard requestedShopId="active-shop">
-        <ManagerChild />
-      </AuthGuard>,
-    );
-
-    expect(screen.queryByTestId("manager-child")).toBeNull();
-    expect(screen.queryByTestId("full-page-spinner")).not.toBeNull();
-    await waitFor(() => {
-      expect(mocks.setUser).toHaveBeenCalledWith({
-        authId: "manager-user",
-        name: "管理者",
-        email: "manager@example.com",
-        featureVisibility: {
-          organizationSettingsNavigation: false,
-          billing: false,
-          shopMembershipAddition: false,
-        },
-      });
-    });
-
-    mocks.user.featureVisibility = {
-      organizationSettingsNavigation: false,
-      billing: false,
-      shopMembershipAddition: false,
-    };
-    rerender(
+    render(
       <AuthGuard requestedShopId="active-shop">
         <ManagerChild />
       </AuthGuard>,
@@ -389,9 +363,21 @@ describe("AuthGuard", () => {
 
     expect(screen.queryByTestId("manager-child")).not.toBeNull();
     expect(screen.queryByTestId("full-page-spinner")).toBeNull();
+    await waitFor(() => {
+      expect(mocks.setUser).toHaveBeenCalledWith({
+        authId: "manager-user",
+        name: "管理者",
+        email: "manager@example.com",
+        featureVisibility: {
+          organizationSettingsNavigation: true,
+          billing: true,
+          shopMembershipAddition: true,
+        },
+      });
+    });
   });
 
-  it("backendの公開状態をatomへ同期するまでは子画面を描画しない", async () => {
+  it("旧backendの閉状態を常時公開に正規化してatomへ同期する", async () => {
     mocks.currentUser = {
       name: "管理者",
       email: "manager@example.com",
@@ -417,7 +403,7 @@ describe("AuthGuard", () => {
       </AuthGuard>,
     );
 
-    expect(screen.queryByTestId("manager-child")).toBeNull();
+    expect(screen.queryByTestId("manager-child")).not.toBeNull();
     await waitFor(() => {
       expect(mocks.setUser).toHaveBeenCalledWith({
         authId: "manager-user",
@@ -426,7 +412,7 @@ describe("AuthGuard", () => {
         featureVisibility: {
           organizationSettingsNavigation: true,
           billing: true,
-          shopMembershipAddition: false,
+          shopMembershipAddition: true,
         },
       });
     });
@@ -434,7 +420,7 @@ describe("AuthGuard", () => {
     mocks.user.featureVisibility = {
       organizationSettingsNavigation: true,
       billing: true,
-      shopMembershipAddition: false,
+      shopMembershipAddition: true,
     };
     rerender(
       <AuthGuard requestedShopId="active-shop">

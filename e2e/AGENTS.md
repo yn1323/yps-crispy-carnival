@@ -41,7 +41,7 @@ pnpm e2e:burn-in
 `pnpm e2e:burn-in`は局所E2Eが成功した後に使い、desktopとmobileを直列化したまま、retryなしで各core契約を10回反復する。
 各phaseは次のphaseがreportを上書きする前に、contract ID別の反復数、project、初回成功、skip、flakyとartifact privacyを検査する。
 
-組織作成と管理者設定の代表契約は、Preview Convexへ`FEATURE_ORGANIZATION_CREATION=enabled`と`FEATURE_MANAGER_INVITATION=enabled`を明示して実行する。
+組織作成と管理者設定の代表契約は常時公開の導線で実行する。
 `E2E-MANAGER-01`は招待の発行、再読込、取消までを検証し、招待受諾を成功条件にしない。
 `E2E-MANAGER-02`は別のClerk actorが招待を受諾し、管理者権限の取得と解除後のアクセス拒否、スタッフ所属の維持までを検証する。
 招待capability、Clerk session、氏名、メールアドレスを扱うscenarioは、成功・失敗にかかわらずtrace、screenshot、videoを無効にする。

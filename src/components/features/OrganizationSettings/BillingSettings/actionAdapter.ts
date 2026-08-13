@@ -16,7 +16,8 @@ export function toPlanPriceState(result: unknown): BillingPlanPriceState {
     typeof result.currency === "string" &&
     typeof result.unitAmount === "number" &&
     isBillingInterval(result.interval) &&
-    typeof result.intervalCount === "number"
+    typeof result.intervalCount === "number" &&
+    isTaxBehavior(result.taxBehavior)
   ) {
     return {
       status: "available",
@@ -25,6 +26,7 @@ export function toPlanPriceState(result: unknown): BillingPlanPriceState {
         unitAmount: result.unitAmount,
         interval: result.interval,
         intervalCount: result.intervalCount,
+        taxBehavior: result.taxBehavior,
       },
     };
   }
@@ -79,6 +81,10 @@ export function asBillingAcceptedActionResult(result: unknown): BillingAcceptedA
 
 function isBillingInterval(value: unknown): value is "day" | "week" | "month" | "year" {
   return value === "day" || value === "week" || value === "month" || value === "year";
+}
+
+function isTaxBehavior(value: unknown): value is "inclusive" | "exclusive" {
+  return value === "inclusive" || value === "exclusive";
 }
 
 function isUnavailableReason(value: unknown): value is BillingUnavailableReason {

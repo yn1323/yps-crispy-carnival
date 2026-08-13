@@ -36,9 +36,7 @@ export function ManagerCandidatePageContent({ overview, result, shopId }: Props)
         <Alert.Indicator />
         <Alert.Content>
           <Alert.Title>管理者候補を表示できません</Alert.Title>
-          <Alert.Description>
-            {result.kind === "hidden" ? "現在、管理者招待は利用できません。" : result.message}
-          </Alert.Description>
+          <Alert.Description>{result.message}</Alert.Description>
         </Alert.Content>
       </Alert.Root>
     );

@@ -18,7 +18,6 @@ describe("E2E testing helpers", () => {
     vi.stubEnv("CONVEX_CLOUD_URL", "https://e2e-test.convex.cloud");
     vi.stubEnv("E2E_TESTING_DEPLOYMENT_URL", "https://e2e-test.convex.cloud");
     vi.stubEnv("E2E_TESTING_ENABLED", "true");
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "enabled");
     vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "dry-run");
   });
 

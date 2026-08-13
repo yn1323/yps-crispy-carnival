@@ -251,12 +251,17 @@ async function readRejectedShopRemovalState(
 
 async function readManagerRemovalProtectedState(t: TestConvex<typeof schema>) {
   return await t.run(async (ctx) => ({
+    users: await ctx.db.query("users").collect(),
+    organizations: await ctx.db.query("organizations").collect(),
+    shops: await ctx.db.query("shops").collect(),
     people: await ctx.db.query("organizationPeople").collect(),
     members: await ctx.db.query("organizationMembers").collect(),
     staffs: await ctx.db.query("staffs").collect(),
     assignments: await ctx.db.query("shiftAssignments").collect(),
     invitations: await ctx.db.query("organizationInvitations").collect(),
     audits: await ctx.db.query("organizationAuditEvents").collect(),
+    analyticsEvents: await ctx.db.query("analyticsSourceEvents").collect(),
+    rateLimits: await ctx.db.query("rateLimits").collect(),
     outbox: await ctx.db.query("notificationOutbox").collect(),
     billing: await ctx.db.query("organizationBillingStates").collect(),
     sessions: await ctx.db.query("sessions").collect(),
@@ -266,6 +271,12 @@ async function readManagerRemovalProtectedState(t: TestConvex<typeof schema>) {
     scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
   }));
 }
+
+const managerRoleRemovalAccessCases = [
+  { actorCase: "unauthenticated", actorLabel: "未認証" },
+  { actorCase: "readOnly", actorLabel: "閲覧のみ管理者" },
+  { actorCase: "crossTenant", actorLabel: "別事業者の人物" },
+] as const;
 
 describe("organization person removal", () => {
   beforeEach(() => {
@@ -1147,6 +1158,57 @@ describe("organization person removal", () => {
     expect(state.billingState?.version).toBe(2);
     expect(state.audit).toMatchObject({ action: "organization.manager_role_removed", toState: "staffOnly" });
   });
+
+  it.each(managerRoleRemovalAccessCases)(
+    "removeManagerRoleは$actorLabelからの直呼びを副作用なしで拒否する",
+    async ({ actorCase }) => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const actor = await seedOrganizationManagerShop(ctx, {
+          subject: `role_access_${actorCase}_actor`,
+          plan: "pro",
+        });
+        const actorTarget = await seedTargetPerson(ctx, {
+          base: actor,
+          subject: `role_access_${actorCase}_target`,
+          shopIds: [actor.shopId],
+          manager: true,
+        });
+        const foreign = await seedOrganizationManagerShop(ctx, {
+          subject: `role_access_${actorCase}_foreign`,
+          plan: "pro",
+        });
+        const foreignTarget = await seedTargetPerson(ctx, {
+          base: foreign,
+          subject: `role_access_${actorCase}_foreign_target`,
+          shopIds: [foreign.shopId],
+          manager: true,
+        });
+        if (actorCase === "readOnly") {
+          await ctx.db.patch(actor.memberId, { status: "readOnly", updatedAt: NOW });
+        }
+        return { actor, actorTarget, foreignTarget };
+      });
+      const before = await readManagerRemovalProtectedState(t);
+      const caller =
+        actorCase === "unauthenticated" ? t : t.withIdentity({ subject: `role_access_${actorCase}_actor` });
+
+      await expect(
+        caller.mutation(api.organization.mutations.removeManagerRole, {
+          shopId: ids.actor.shopId,
+          personId: actorCase === "crossTenant" ? ids.foreignTarget.personId : ids.actorTarget.personId,
+          requestId: `role-access-${actorCase}`,
+        }),
+      ).rejects.toThrow(
+        actorCase === "unauthenticated"
+          ? "Unauthenticated"
+          : actorCase === "readOnly"
+            ? "この操作を行う権限がありません"
+            : "Not found",
+      );
+      expect(await readManagerRemovalProtectedState(t)).toEqual(before);
+    },
+  );
 
   it("スタッフ所属がない管理者の権限解除は人物を保持して管理アクセスだけを終了する", async () => {
     const t = convexTest(schema, modules);

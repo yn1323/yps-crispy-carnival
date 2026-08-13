@@ -43,7 +43,7 @@ export function OrganizationSettings({
 }: Props) {
   const navigate = useNavigate();
   const features = normalizeOrganizationSettingsFeatures(settings.features);
-  // 支払いを公開していない間はbillingタブ自体が無いため、URLで指定されても空欄を表示しない。
+  // 旧応答を受けても空のタブを描画しないための互換fallback。現行応答ではbillingは常にtrue。
   const visibleTab = defaultTab === "billing" && !features.billing ? "people" : defaultTab;
   const organizationContext = useMemo(
     () => buildOrganizationContextModel(context.shops, context.selectedShopId),

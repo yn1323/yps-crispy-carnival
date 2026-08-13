@@ -82,6 +82,7 @@ export type BillingPlanPrice = {
   unitAmount: number;
   interval: "day" | "week" | "month" | "year";
   intervalCount: number;
+  taxBehavior: "inclusive" | "exclusive";
 };
 
 export type BillingPlanPriceState =
@@ -107,6 +108,7 @@ export type OrganizationBillingView = {
   stripeBillingAvailable: boolean;
   hasStripeCustomer: boolean;
   targetPlan?: BillingProductPlan;
+  restrictAtPeriodEnd?: true;
   limitPlan?: "free" | "pro";
   // TODO[narrow]: billing viewの全deployment反映と旧frontendのdrain後にrequired化する。
   requiredReductions?: BillingRequiredReductions;
@@ -147,10 +149,8 @@ export type OrganizationSettingsActions = {
 };
 
 /**
- * ダークローンチ中に公開している導線。サーバー側の判定結果をそのまま受け取る。
- *
- * 可否（`can*`）とは別に持つ。可否は「上限に達したので理由を出す」を表し、
- * こちらは「未公開なので何も出さない」を表す。
+ * 旧応答との型互換のために残す公開導線の投影値。
+ * 現行契約では全項目が常にtrueで、操作可否は`can*`とサーバー側の権限・上限判定で決める。
  */
 export type OrganizationSettingsViewProps = {
   organizationContext: OrganizationContextModel;

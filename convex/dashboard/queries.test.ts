@@ -23,7 +23,6 @@ const TRIAL_ENDS_AT = Date.parse("2026-09-01T00:00:00+09:00");
 describe("dashboard/queries", () => {
   describe("getDashboardShop", () => {
     beforeEach(() => {
-      vi.stubEnv("FEATURE_BILLING", "");
       vi.stubEnv("STRIPE_SECRET_KEY", "");
       vi.stubEnv("STRIPE_WEBHOOK_SECRET", "");
       vi.stubEnv("STRIPE_PRO_PRICE_ID", "");
@@ -66,7 +65,13 @@ describe("dashboard/queries", () => {
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         canWriteBusinessData: true,
         businessWriteBlockReason: null,
-        planStatus: null,
+        planStatus: {
+          canManagePlan: false,
+          canUpdatePaymentMethod: false,
+          isComplimentary: true,
+          kind: "paidPlan",
+          plan: "business",
+        },
         trialEndingNotice: null,
       });
     });
@@ -438,7 +443,6 @@ describe("dashboard/queries", () => {
       state: Doc<"organizationBillingStates">["state"];
       expected: Record<string, unknown>;
     }>)("$labelを表示専用planStatusへ変換する", async ({ label, state, expected }) => {
-      vi.stubEnv("FEATURE_BILLING", "enabled");
       const t = convexTest(schema, modules);
       const subject = `dashboard_plan_status_${label.replaceAll(".", "_")}`;
       const { shopId } = await t.run(async (ctx) => {
@@ -470,7 +474,6 @@ describe("dashboard/queries", () => {
     });
 
     it("有料契約では保存済み期間と利用可能な操作だけを返す", async () => {
-      vi.stubEnv("FEATURE_BILLING", "enabled");
       vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_dashboard_plan_status");
       vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_dashboard_plan_status");
       vi.stubEnv("STRIPE_PRO_PRICE_ID", "price_dashboard_pro");
@@ -551,35 +554,9 @@ describe("dashboard/queries", () => {
         canUpdatePaymentMethod: true,
       });
     });
-
-    it("billing featureが非公開ならcanonical stateがあってもplanStatusを返さない", async () => {
-      const t = convexTest(schema, modules);
-      const { shopId } = await t.run(
-        async (ctx) =>
-          await seedOrganizationManagerShop(ctx, {
-            subject: "dashboard_billing_feature_disabled",
-            plan: "pro",
-          }),
-      );
-
-      const result = await t
-        .withIdentity({ subject: "dashboard_billing_feature_disabled" })
-        .query(api.dashboard.queries.getDashboardShop, { shopId });
-
-      expect(result?.planStatus).toBeNull();
-    });
   });
 
   describe("getDashboardPlanUsage", () => {
-    beforeEach(() => {
-      vi.stubEnv("FEATURE_BILLING", "enabled");
-      vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
-    });
-
-    afterEach(() => {
-      vi.unstubAllEnvs();
-    });
-
     it("未認証または他事業者の店舗では利用状況を返さない", async () => {
       const t = convexTest(schema, modules);
       const { shopId: targetShopId } = await t.run(
@@ -600,7 +577,6 @@ describe("dashboard/queries", () => {
     });
 
     it("事業者全体の利用人数と有効店舗を重複なく数え、Pro上限を返す", async () => {
-      vi.stubEnv("FEATURE_MANAGER_INVITATION", "enabled");
       const t = convexTest(schema, modules);
       const { shopId } = await t.run(async (ctx) => {
         const seeded = await seedOrganizationManagerShop(ctx, {
@@ -651,7 +627,6 @@ describe("dashboard/queries", () => {
     });
 
     it("明示された時刻を基準に、期限内の予約枠だけを利用人数へ含める", async () => {
-      vi.stubEnv("FEATURE_MANAGER_INVITATION", "enabled");
       const t = convexTest(schema, modules);
       const now = TRIAL_ENDS_AT;
       const { shopId } = await t.run(async (ctx) => {
@@ -691,27 +666,6 @@ describe("dashboard/queries", () => {
       );
     });
 
-    it.each(["", "disabled", "true"])("管理者招待flagが%jの場合は管理者利用数をDTOへ含めない", async (flagValue) => {
-      vi.stubEnv("FEATURE_MANAGER_INVITATION", flagValue);
-      const t = convexTest(schema, modules);
-      const { shopId } = await t.run(
-        async (ctx) =>
-          await seedOrganizationManagerShop(ctx, {
-            subject: `dashboard_usage_hidden_${flagValue || "empty"}`,
-            plan: "pro",
-          }),
-      );
-
-      const result = await t
-        .withIdentity({ subject: `dashboard_usage_hidden_${flagValue || "empty"}` })
-        .query(api.dashboard.queries.getDashboardPlanUsage, { shopId, now: TRIAL_ENDS_AT });
-
-      expect(result).toEqual({
-        peopleUsage: { current: 1, max: 20 },
-        shopUsage: { current: 1, max: 5 },
-      });
-    });
-
     it.each([
       {
         key: "free",
@@ -726,6 +680,7 @@ describe("dashboard/queries", () => {
         expected: {
           peopleUsage: { current: 1, max: 5 },
           shopUsage: { current: 1, max: 1 },
+          managerUsage: { current: 1, max: 1 },
         },
       },
       {
@@ -743,6 +698,7 @@ describe("dashboard/queries", () => {
         expected: {
           peopleUsage: { current: 1, max: 20 },
           shopUsage: { current: 1, max: 5 },
+          managerUsage: { current: 1, max: 5 },
         },
       },
     ] satisfies ReadonlyArray<{
@@ -777,19 +733,13 @@ describe("dashboard/queries", () => {
       expect(result).toEqual(expected);
     });
 
-    it("billing非公開または適用上限がない契約制限中はnullを返す", async () => {
+    it("適用上限がない契約制限中はnullを返す", async () => {
       const t = convexTest(schema, modules);
       const { shopId, organizationId, personId } = await t.run(
         async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "dashboard_usage_unavailable", plan: "pro" }),
       );
       const actor = t.withIdentity({ subject: "dashboard_usage_unavailable" });
 
-      vi.stubEnv("FEATURE_BILLING", "");
-      await expect(
-        actor.query(api.dashboard.queries.getDashboardPlanUsage, { shopId, now: TRIAL_ENDS_AT }),
-      ).resolves.toBeNull();
-
-      vi.stubEnv("FEATURE_BILLING", "enabled");
       await t.run(async (ctx) => {
         const billingState = await ctx.db
           .query("organizationBillingStates")
@@ -2125,53 +2075,6 @@ describe("dashboard/queries", () => {
   });
 
   describe("getDashboardStaffs", () => {
-    beforeEach(() => {
-      vi.stubEnv("FEATURE_MANAGER_INVITATION", "enabled");
-    });
-
-    afterEach(() => {
-      vi.unstubAllEnvs();
-    });
-
-    it("管理者招待のダークローンチ中はスタッフの管理者操作状態をhiddenへ投影する", async () => {
-      vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
-      const t = convexTest(schema, modules);
-      const ids = await t.run(async (ctx) => {
-        const base = await seedOrganizationManagerShop(ctx, {
-          subject: "dashboard_manager_hidden_owner",
-          plan: "pro",
-        });
-        const now = Date.now();
-        const personId = await ctx.db.insert("organizationPeople", {
-          organizationId: base.organizationId,
-          name: "非公開対象スタッフ",
-          email: "hidden-staff@example.com",
-          emailNormalized: "hidden-staff@example.com",
-          status: "active",
-          createdAt: now,
-          updatedAt: now,
-        });
-        const staffId = await ctx.db.insert("staffs", {
-          shopId: base.shopId,
-          organizationId: base.organizationId,
-          organizationPersonId: personId,
-          name: "非公開対象スタッフ",
-          email: "hidden-staff@example.com",
-          emailNormalized: "hidden-staff@example.com",
-          isDeleted: false,
-        });
-        return { ...base, staffId };
-      });
-
-      const result = await t
-        .withIdentity({ subject: "dashboard_manager_hidden_owner" })
-        .query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
-
-      expect(result.page.find((staff) => staff._id === ids.staffId)?.managerInvitationState).toEqual({
-        kind: "hidden",
-      });
-    });
-
     it("未認証の場合、空ページを返す（ログアウト時の再実行でエラーにしない）", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => await seedShop(ctx, "対象店舗"));
@@ -2532,16 +2435,6 @@ describe("dashboard/queries", () => {
   });
 
   describe("getCurrentUser", () => {
-    beforeEach(() => {
-      vi.stubEnv("FEATURE_ORGANIZATION_CREATION", "");
-      vi.stubEnv("FEATURE_BILLING", "");
-      vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
-    });
-
-    afterEach(() => {
-      vi.unstubAllEnvs();
-    });
-
     it("未認証の場合 null を返す", async () => {
       const t = convexTest(schema, modules);
       const result = await t.query(api.dashboard.queries.getCurrentUser, {});
@@ -2559,7 +2452,7 @@ describe("dashboard/queries", () => {
         email: "new@example.com",
         featureVisibility: {
           organizationSettingsNavigation: true,
-          billing: false,
+          billing: true,
           shopMembershipAddition: true,
         },
       });
@@ -2581,23 +2474,6 @@ describe("dashboard/queries", () => {
         isNewUser: false,
         name: "既存ユーザー",
         email: "existing@example.com",
-        featureVisibility: {
-          organizationSettingsNavigation: true,
-          billing: false,
-          shopMembershipAddition: true,
-        },
-      });
-    });
-
-    it("支払いflagが有効でも店舗管理の常時公開状態を維持する", async () => {
-      vi.stubEnv("FEATURE_BILLING", "enabled");
-      const t = convexTest(schema, modules);
-
-      const result = await t
-        .withIdentity({ subject: "feature_visibility_billing", name: "New User", email: "new@example.com" })
-        .query(api.dashboard.queries.getCurrentUser, {});
-
-      expect(result).toMatchObject({
         featureVisibility: {
           organizationSettingsNavigation: true,
           billing: true,

@@ -71,44 +71,17 @@ export function getDebugTrialDurationDays(): number | undefined {
   return durationDays;
 }
 
-/**
- * ダークローンチ中に公開していない導線の設定。
- *
- * 未設定は閉じた状態として扱う。新しいdeploymentと設定漏れが閉じる側に倒れる。
- * 段階解放の順序と各段階の作業は`doc/plans/2026-07-25_ダークローンチ_実装計画.md`にある。
- */
-function isFeatureEnabled(value: string | undefined): boolean {
-  return (value ?? "").trim() === "enabled";
-}
-
-export function isOrganizationCreationEnabled(): boolean {
-  return isFeatureEnabled(process.env.FEATURE_ORGANIZATION_CREATION);
-}
-
-export function isBillingEnabled(): boolean {
-  return isFeatureEnabled(process.env.FEATURE_BILLING);
-}
-
-export function isManagerInvitationEnabled(): boolean {
-  return isFeatureEnabled(process.env.FEATURE_MANAGER_INVITATION);
-}
-
 export type FeatureVisibility = {
   organizationSettingsNavigation: boolean;
   billing: boolean;
   shopMembershipAddition: boolean;
 };
 
-/**
- * 認証後のUIが参照する公開状態を、一度のqueryで返せる形へ集約する。
- * 店舗管理は常時公開し、旧frontend互換の表示DTOにもtrueを返す。
- */
+/** 旧frontend互換の表示DTO。現在はすべての機能を常時公開する。 */
 export function getFeatureVisibility(): FeatureVisibility {
-  const billing = isBillingEnabled();
-
   return {
     organizationSettingsNavigation: true,
-    billing,
+    billing: true,
     shopMembershipAddition: true,
   };
 }

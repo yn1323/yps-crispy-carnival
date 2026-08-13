@@ -1,10 +1,9 @@
 # トライアル終了前Dashboard案内
 
 Dashboardの現在プラン表示は、`getDashboardShop`が返す認可済み`planStatus`を正本にする。
-この文書で扱うCalloutは、新しい`planStatus`を返さない旧backendとrolling deployする間だけ、Pro継続を登録していない組織へトライアル最終日の7日前から表示する互換導線である。
+この文書で扱うCalloutは、新しい`planStatus`を返さない旧backendとrolling deployする間だけ、有料プランの継続を登録していない組織へトライアル最終日の7日前から表示する互換導線である。
 
-`FEATURE_BILLING`が閉じている間は、現在プラン表示と旧Calloutをどちらも描画しない。
-Productionでの公開状態は未確認であり、公開範囲は[組織課金、複数店舗、複数管理者](organization-billing.md)と[リリース状態](../manual/release-status.md)を参照する。
+現在プラン表示と旧Calloutの表示契約は常時有効とする。  Productionへの反映済み判定はリポジトリ実装と分け、[組織課金、複数店舗、複数管理者](organization-billing.md)と[リリース状態](../manual/release-status.md)を参照する。
 
 ## rolling deploy中の優先順位
 
@@ -35,7 +34,7 @@ Productionでの公開状態は未確認であり、公開範囲は[組織課金
 | 画面 | 役割 |
 |---|---|
 | シフト担当者ダッシュボード | `planStatus`から現在の課金状態を表示する。旧backendの場合だけトライアル終了前Calloutを表示し、選択中店舗を保ったまま支払いタブへ移動する |
-| 組織設定 > プランと支払い | Pro継続の登録状態と利用可能な契約操作を表示する |
+| 組織設定 > プランと支払い | Pro・Business継続の登録状態と利用可能な契約操作を表示する |
 
 ## API 一覧
 
@@ -45,10 +44,11 @@ Productionでの公開状態は未確認であり、公開範囲は[組織課金
 
 ## 旧Calloutの表示ルール
 
-- 課金stateが `trial` かつ `selectedPaidPlan` 未設定の場合だけ通知候補を返す。旧 `business` を含め、Pro継続が登録済みなら表示しない。
+- 課金stateが `trial` かつ `selectedPaidPlan` 未設定の場合だけ通知候補を返す。ProまたはBusinessの継続が登録済みなら表示しない。
 - 表示期間は `[trialEndsAt - 7日, trialEndsAt)` の半開区間とする。
 - `trialEndsAt` は最終利用日の翌日0:00 JSTという排他的境界なので、画面には `trialEndsAt - 1ms` の月日を表示する。
 - Convex queryは現在時刻を読まず、ブラウザが開始・終了境界で表示を再評価する。
 - 同じ組織の全非削除店舗で同じ通知を表示する。別組織の課金stateは、選択中店舗に対する `managerQuery` の認可境界を越えて返さない。
-- Calloutは手動で閉じられない。Pro継続登録またはトライアル終了という課金state・時刻の変化で自動的に消える。
+- 未契約のまま終了すると、データを保持した契約制限中へ移ることを案内する。Freeへの自動移行は案内しない。
+- Calloutは手動で閉じられない。有料プランの継続登録またはトライアル終了という課金state・時刻の変化で自動的に消える。
 - 支払いリンクは選択中の `shop` と `tab=billing` を保持する。リンク自体は課金操作の権限を与えず、契約操作は既存のサーバー認可に従う。

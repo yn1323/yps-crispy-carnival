@@ -66,7 +66,7 @@ const baseArgs: OrganizationSettingsViewProps = {
   freeManagerExchangeCandidates: [],
   canUpdateOrganizationName: true,
   canCreateOrganization: true,
-  // 既存Storyは公開済みの状態を表す。未公開の描画は`ダークローンチ`のStoryで確認する。
+  // 現行契約ではすべての導線を公開する。booleanは旧応答との型互換のためだけに残している。
   features: { organizationCreation: true, shopAddition: true, billing: true, managerInvitation: true },
   people: [
     {
@@ -139,11 +139,11 @@ const baseArgs: OrganizationSettingsViewProps = {
   planPrices: {
     pro: {
       status: "available",
-      value: { currency: "jpy", unitAmount: 3000, interval: "month", intervalCount: 1 },
+      value: { currency: "jpy", unitAmount: 3000, interval: "month", intervalCount: 1, taxBehavior: "inclusive" },
     },
     business: {
       status: "available",
-      value: { currency: "jpy", unitAmount: 6000, interval: "month", intervalCount: 1 },
+      value: { currency: "jpy", unitAmount: 6000, interval: "month", intervalCount: 1, taxBehavior: "exclusive" },
     },
   },
   canAddShop: true,
@@ -257,11 +257,6 @@ export const LoadingPeopleMultipleOrganizations: Story = {
   render: () => (
     <OrganizationSettingsSkeleton defaultTab="people" showOrganizationSelector features={baseArgs.features} />
   ),
-};
-
-export const LoadingClosedFeatures: Story = {
-  name: "読み込み｜未公開導線なし",
-  render: () => <OrganizationSettingsSkeleton defaultTab="billing" />,
 };
 
 export const MobileLoadingPeople: Story = {
@@ -422,40 +417,6 @@ export const LazyTabMountBehavior: Story = {
 };
 
 export const Settings: Story = { name: "設定｜通常", args: { defaultTab: "settings" } };
-
-const darkLaunchArgs = {
-  features: { organizationCreation: false, shopAddition: false, billing: false, managerInvitation: false },
-} satisfies Partial<OrganizationSettingsViewProps>;
-
-export const DarkLaunchSettings: Story = {
-  name: "設定｜ダークローンチ中",
-  args: { defaultTab: "settings", ...darkLaunchArgs },
-};
-
-export const DarkLaunchShops: Story = {
-  name: "店舗｜ダークローンチ中",
-  args: { defaultTab: "shops", ...darkLaunchArgs },
-};
-
-export const DarkLaunchHiddenEntrypointsBehavior: Story = {
-  name: "画面全体｜ダークローンチ中の未公開導線（操作確認）",
-  parameters: { screenshot: { skip: true } },
-  args: { defaultTab: "shops", ...darkLaunchArgs },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-
-    await expect(canvas.queryByRole("tab", { name: "プランと支払い" })).not.toBeInTheDocument();
-    await expect(canvas.queryByRole("button", { name: "店舗を追加する" })).not.toBeInTheDocument();
-
-    await userEvent.click(canvas.getByRole("tab", { name: "スタッフ" }));
-    await expect(canvas.queryByRole("button", { name: "管理者を変更" })).not.toBeInTheDocument();
-
-    await userEvent.click(canvas.getByRole("tab", { name: "設定" }));
-    await expect(canvas.queryByRole("button", { name: "新しい組織を作る" })).not.toBeInTheDocument();
-    // 組織削除は退会導線のため、ダークローンチ中も残す。
-    await expect(canvas.getByRole("button", { name: /^削除する$/ })).toBeEnabled();
-  },
-};
 
 export const SettingsDeletionUnavailable: Story = {
   name: "設定｜削除不可",
@@ -855,6 +816,38 @@ export const Restricted: Story = {
       nextEvent: undefined,
       canScheduleFree: false,
     }),
+  },
+};
+
+export const RestrictedWithoutLimitPlan: Story = {
+  name: "プランと支払い｜トライアル終了後の利用停止",
+  args: {
+    ...Restricted.args,
+    billing: billing({
+      state: "restricted",
+      currentPlan: null,
+      previousPlan: undefined,
+      targetPlan: undefined,
+      limitPlan: undefined,
+      peopleUsage: { current: 7, max: 0 },
+      shopUsage: { current: 2, max: 0 },
+      managerUsage: { current: 2, max: 0 },
+      requiredReductions: undefined,
+      blockedReason: "現在の契約状態では業務データを更新できません。",
+      nextEvent: undefined,
+      hasStripeCustomer: false,
+      canManagePlan: true,
+      canUpdatePaymentMethod: false,
+      canScheduleFree: false,
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryAllByRole("meter")).toHaveLength(0);
+    await expect(canvas.getByText("利用停止中はプラン上限を適用していません")).toBeInTheDocument();
+    await expect(
+      canvas.getByText("データは保持されています。ProまたはBusinessを契約すると利用を再開できます。"),
+    ).toBeInTheDocument();
   },
 };
 

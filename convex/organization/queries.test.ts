@@ -17,20 +17,6 @@ describe("organization/queries.getSettings", () => {
     vi.unstubAllEnvs();
   });
 
-  it("管理者招待の公開フラグを画面用DTOへ反映する", async () => {
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "enabled");
-    const t = convexTest(schema, modules);
-    const ids = await t.run((ctx) =>
-      seedOrganizationManagerShop(ctx, { subject: "settings_manager_invitation_feature", plan: "pro" }),
-    );
-
-    const result = await t
-      .withIdentity({ subject: "settings_manager_invitation_feature" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
-
-    expect(result?.features.managerInvitation).toBe(true);
-  });
-
   it("トライアルを利用できる最終日のJST日付を返す", async () => {
     const t = convexTest(schema, modules);
     const trialEndsAt = Date.parse("2026-09-01T00:00:00+09:00");
@@ -225,8 +211,8 @@ describe("organization/queries.getSettings", () => {
       canAddShop: true,
       canCreateOrganization: true,
       canInviteManager: true,
-      // 店舗追加は常時公開し、残るダークローンチ状態は上限由来の可否と独立して返す。
-      features: { organizationCreation: false, shopAddition: true, billing: false, managerInvitation: false },
+      // 公開状態は上限由来の操作可否と独立して、常時公開として返す。
+      features: { organizationCreation: true, shopAddition: true, billing: true, managerInvitation: true },
       managerInvitationMode: "addition",
       freeManagerExchangeCandidates: [],
       managerInvitations: [

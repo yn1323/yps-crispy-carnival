@@ -2,7 +2,7 @@ import type { GenericDatabaseReader } from "convex/server";
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { v } from "convex/values";
 import type { DataModel, Doc, Id } from "../_generated/dataModel";
-import { getFeatureVisibility, isManagerInvitationEnabled } from "../_lib/config";
+import { getFeatureVisibility } from "../_lib/config";
 import { todayJST } from "../_lib/dateFormat";
 import { authenticatedQuery, managerQuery } from "../_lib/functions";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
@@ -132,6 +132,7 @@ const dashboardPlanStatusValidator = v.union(
       v.object({
         targetPlan: v.union(v.literal("free"), v.literal("pro")),
         effectiveAt: v.number(),
+        restrictAtPeriodEnd: v.optional(v.literal(true)),
       }),
     ),
   }),
@@ -314,7 +315,13 @@ function toDashboardPlanStatus(args: {
         plan: state.currentPlan,
         isComplimentary: false,
         ...(scheduledCurrentPeriodEndsAt !== undefined ? { currentPeriodEndsAt: scheduledCurrentPeriodEndsAt } : {}),
-        scheduledChange: { targetPlan: state.targetPlan, effectiveAt: state.effectiveAt },
+        scheduledChange: {
+          targetPlan: state.targetPlan,
+          effectiveAt: state.effectiveAt,
+          ...(state.targetPlan === "free" && state.restrictAtPeriodEnd === true
+            ? { restrictAtPeriodEnd: true as const }
+            : {}),
+        },
       };
     }
     case "grace":
@@ -330,7 +337,9 @@ function toDashboardPlanStatus(args: {
       if (
         state.reason === "paymentGraceExpired" ||
         state.reason === "paymentActivationFailed" ||
-        state.reason === "unexpectedCancellation"
+        state.reason === "unexpectedCancellation" ||
+        state.reason === "trialEndedWithoutSubscription" ||
+        state.reason === "scheduledCancellation"
       ) {
         return {
           ...actions,
@@ -598,14 +607,10 @@ export const getDashboardPlanUsage = managerQuery({
         current: usage.activeShopCount,
         max: limits.maxActiveShops,
       },
-      ...(isManagerInvitationEnabled()
-        ? {
-            managerUsage: {
-              current: usage.projectedActiveManagerCount,
-              max: limits.maxActiveManagers,
-            },
-          }
-        : {}),
+      managerUsage: {
+        current: usage.projectedActiveManagerCount,
+        max: limits.maxActiveManagers,
+      },
     };
   },
 });

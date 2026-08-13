@@ -283,4 +283,59 @@ describe("useManagerIssueController", () => {
     await act(async () => resolveMutation?.());
     await waitFor(() => expect(result.current.confirmation).toBeNull());
   });
+
+  it("既存スタッフの確認後に招待権限を失った古いcallbackではmutationを呼ばない", async () => {
+    const { result, rerender } = renderHook(
+      ({ value }: { value: ReadyManagerSettingsOverview }) => useManagerIssueController({ overview: value, shopId }),
+      { initialProps: { value: overview } },
+    );
+    act(() => result.current.onRequestExistingStaff(candidate));
+    const staleConfirm = result.current.onConfirm;
+
+    rerender({
+      value: {
+        ...overview,
+        actions: { ...overview.actions, canInviteExistingStaff: false },
+      },
+    });
+    await waitFor(() => expect(result.current.confirmation).toBeNull());
+    act(() => staleConfirm());
+
+    await waitFor(() => expect(mocks.issue).not.toHaveBeenCalled());
+  });
+
+  it("既存スタッフの確認後に追加方式が変わった古いcallbackではmutationを呼ばない", async () => {
+    const { result, rerender } = renderHook(
+      ({ value }: { value: ReadyManagerSettingsOverview }) => useManagerIssueController({ overview: value, shopId }),
+      { initialProps: { value: overview } },
+    );
+    act(() => result.current.onRequestExistingStaff(candidate));
+    const staleConfirm = result.current.onConfirm;
+
+    rerender({ value: { ...overview, mode: "freeManagerExchange" } });
+    await waitFor(() => expect(result.current.confirmation).toBeNull());
+    act(() => staleConfirm());
+
+    await waitFor(() => expect(mocks.issue).not.toHaveBeenCalled());
+  });
+
+  it("外部管理者の確認後に招待権限を失った古いcallbackではmutationを呼ばない", async () => {
+    const { result, rerender } = renderHook(
+      ({ value }: { value: ReadyManagerSettingsOverview }) => useManagerIssueController({ overview: value, shopId }),
+      { initialProps: { value: overview } },
+    );
+    act(() => result.current.onRequestExternal("本部 担当", "office@example.com"));
+    const staleConfirm = result.current.onConfirm;
+
+    rerender({
+      value: {
+        ...overview,
+        actions: { ...overview.actions, canInviteExternal: false },
+      },
+    });
+    await waitFor(() => expect(result.current.confirmation).toBeNull());
+    act(() => staleConfirm());
+
+    await waitFor(() => expect(mocks.issue).not.toHaveBeenCalled());
+  });
 });

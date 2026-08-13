@@ -858,7 +858,6 @@ describe("notificationOutbox", () => {
   });
 
   it("billingと管理者招待のchannel・payload・参照を整合させる", async () => {
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "enabled");
     const { t, shopId, userId } = await setupShop();
     const { organizationId, invitationId } = await t.run(async (ctx) => {
       const now = Date.now();

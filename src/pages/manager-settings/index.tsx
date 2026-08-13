@@ -1,5 +1,5 @@
 import { Alert, Stack } from "@chakra-ui/react";
-import { Navigate, Link as RouterLink } from "@tanstack/react-router";
+import { Link as RouterLink } from "@tanstack/react-router";
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { ManagerSettings, ManagerSettingsSkeleton } from "@/src/components/features/ManagerSettings";
@@ -10,10 +10,6 @@ import { useShopQuery } from "@/src/hooks/useShopQuery";
 export function ManagerSettingsPage({ shopId }: { shopId?: string }) {
   const [queryNow] = useState(() => Date.now());
   const overview = useShopQuery(api.organization.queries.getManagerSettingsOverview, { now: queryNow });
-
-  if (overview?.kind === "hidden") {
-    return <Navigate to="/settings" search={{ shop: shopId }} replace />;
-  }
 
   return (
     <AuthenticatedPageContent>

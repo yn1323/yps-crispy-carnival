@@ -6,11 +6,11 @@ import type { BillingPlanPrices, OrganizationBillingView } from "./types";
 const availablePrices: BillingPlanPrices = {
   pro: {
     status: "available",
-    value: { currency: "jpy", unitAmount: 3000, interval: "month", intervalCount: 1 },
+    value: { currency: "jpy", unitAmount: 3000, interval: "month", intervalCount: 1, taxBehavior: "inclusive" },
   },
   business: {
     status: "available",
-    value: { currency: "jpy", unitAmount: 6000, interval: "month", intervalCount: 1 },
+    value: { currency: "jpy", unitAmount: 6000, interval: "month", intervalCount: 1, taxBehavior: "exclusive" },
   },
 };
 
@@ -182,6 +182,26 @@ export const RestrictedForFree: Story = {
       blockedReason: "Freeの利用上限を超えています。",
       nextEvent: undefined,
       canManagePlan: false,
+      canScheduleFree: false,
+    },
+  },
+};
+
+export const RestrictedAfterTrial: Story = {
+  name: "トライアル終了後の利用停止",
+  args: {
+    billing: {
+      ...billing,
+      state: "restricted",
+      currentPlan: null,
+      previousPlan: undefined,
+      targetPlan: undefined,
+      limitPlan: undefined,
+      blockedReason: "現在の契約状態では業務データを更新できません。",
+      nextEvent: undefined,
+      hasStripeCustomer: false,
+      canManagePlan: true,
+      canUpdatePaymentMethod: false,
       canScheduleFree: false,
     },
   },

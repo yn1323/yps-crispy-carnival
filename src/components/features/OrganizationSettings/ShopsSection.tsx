@@ -8,7 +8,7 @@ import type { BillingUsageView, OrganizationShopView } from "./types";
 type Props = {
   shops: OrganizationShopView[];
   shopUsage: BillingUsageView;
-  /** 店舗追加が公開されているか。未公開ではボタンと理由の両方を描画しない。 */
+  /** 旧応答との型互換用。現行契約では常にtrue。 */
   showAddShop: boolean;
   canAddShop: boolean;
   addShopDisabledReason?: string;

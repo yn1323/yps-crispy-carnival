@@ -4,7 +4,7 @@ import { organizationBillingNotificationCopy } from "./notification";
 describe("organizationBilling/notification", () => {
   const trialEndsAt = Date.parse("2026-09-01T00:00:00+09:00");
 
-  it("Pro選択済みのトライアル終了通知へ初回請求予定と無料変更期限を載せる", () => {
+  it("Pro選択済みのトライアル終了通知へ初回請求予定と継続取消後の利用停止を載せる", () => {
     const copy = organizationBillingNotificationCopy("trialEnding", {
       trialEndsAt,
       selectedPaidPlan: "pro",
@@ -13,19 +13,36 @@ describe("organizationBilling/notification", () => {
     expect(copy.paragraphs).toEqual([
       "トライアルは9/1(火) 00:00に終了します。",
       "選択済みの契約プランはProです。\n初回請求は9/1(火) 00:00を予定しています。",
-      "無料へ変更する場合の設定期限は9/1(火) 00:00です。\n期限までに組織設定から変更してください。",
+      "継続を取り消す場合の期限は9/1(火) 00:00です。\n取り消すと、トライアル終了後は利用停止になります。",
     ]);
     expect(copy.paragraphs.join("\n")).not.toContain("円");
   });
 
-  it("未契約のトライアル終了通知へ無料の成立条件と設定期限を載せる", () => {
+  it("未契約のトライアル終了通知へ利用停止とデータ保持を載せる", () => {
     const copy = organizationBillingNotificationCopy("trialEnding", { trialEndsAt });
 
     expect(copy.paragraphs).toEqual([
       "トライアルは9/1(火) 00:00に終了します。\n有料プランはまだ契約されていません。",
-      "終了後も無料プランを利用するには、残す管理者と店舗を選び、利用人数を5名以下にしてください。\n条件を満たさない場合は契約制限中になります。",
-      "無料プランで残す管理者と店舗の設定期限は9/1(火) 00:00です。",
+      "有料プランを契約しない場合、トライアル終了後は利用停止になります。\n店舗・ユーザー・過去のシフトは削除されません。",
+      "利用を再開するには、組織設定からProまたはBusinessを契約してください。",
     ]);
+  });
+
+  it("新しい期間末解約はFree変更ではなく利用停止として通知する", () => {
+    expect(
+      organizationBillingNotificationCopy("scheduledChange", undefined, {
+        targetPlan: "free",
+        effectiveAt: trialEndsAt,
+        restrictAtPeriodEnd: true,
+      }),
+    ).toEqual({
+      subject: "利用停止を予約しました",
+      heading: "利用停止を予約しました",
+      paragraphs: [
+        "9/1(火) 00:00に利用を停止します。\nそれまでは現在の有料プランを利用できます。",
+        "利用停止後も、店舗・ユーザー・過去のシフトは削除されません。\n再開するには有料プランを契約してください。",
+      ],
+    });
   });
 
   it("旧Pro変更不成立eventもPro継続として表示する", () => {
@@ -48,6 +65,38 @@ describe("organizationBilling/notification", () => {
         "現在の有料プランを継続します。\n現在の契約状態は組織設定で確認できます。",
       ],
     });
+    expect(
+      organizationBillingNotificationCopy("scheduledChangeCanceled", undefined, { restrictAtPeriodEnd: true }),
+    ).toEqual({
+      subject: "利用停止予約を取り消しました",
+      heading: "利用停止予約を取り消しました",
+      paragraphs: [
+        "期間末に予定していた利用停止を取り消しました。",
+        "現在の有料プランを継続します。\n現在の契約状態は組織設定で確認できます。",
+      ],
+    });
+  });
+
+  it.each(["trialEndedWithoutSubscription", "scheduledCancellation"] as const)(
+    "%sの契約制限通知はFree整理ではなくデータ保持と再契約を案内する",
+    (restrictionReason) => {
+      expect(organizationBillingNotificationCopy("restrictedStarted", undefined, { restrictionReason })).toEqual({
+        subject: "利用停止中になりました",
+        heading: "利用停止中になりました",
+        paragraphs: [
+          "店舗・ユーザー・過去のシフトは削除されていませんが、シフト作成や通知などの業務操作は利用できません。",
+          "利用を再開するには、組織設定からProまたはBusinessを契約してください。",
+        ],
+      });
+    },
+  );
+
+  it("deployment前のFree条件未達通知だけはFree整理を案内する", () => {
+    expect(
+      organizationBillingNotificationCopy("restrictedStarted", undefined, {
+        restrictionReason: "freeConditionsNotMet",
+      }).paragraphs[1],
+    ).toContain("無料プランで残す管理者と店舗を整理");
   });
 
   it("期間末変更通知へ変更先プランと適用日時を載せる", () => {

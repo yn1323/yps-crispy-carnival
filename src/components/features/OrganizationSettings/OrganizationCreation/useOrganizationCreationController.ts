@@ -28,7 +28,8 @@ export function useOrganizationCreationController(input: Input) {
     if (!input.canCreateOrganization) setDialog(null);
   }, [dialog, input.canCreateOrganization]);
 
-  const { run, isRunning } = useSingleFlight(async (data: ShopFormData) => {
+  const { run, isRunning } = useSingleFlight(async ({ data, requestId }: { data: ShopFormData; requestId: string }) => {
+    if (dialog?.requestId !== requestId) return;
     const latest = latestRef.current;
     if (!latest.canCreateOrganization) {
       setDialog(null);
@@ -41,7 +42,7 @@ export function useOrganizationCreationController(input: Input) {
         ...(selectedShop ? { sourceShopId: selectedShop.shopId as Id<"shops"> } : {}),
         regularClosedDays: data.regularClosedDays,
         submissionPattern: data.submissionPattern,
-        requestId: crypto.randomUUID(),
+        requestId,
       });
       showSuccessToast({ title: "新しい組織を作りました" });
       setDialog(null);
@@ -54,13 +55,21 @@ export function useOrganizationCreationController(input: Input) {
 
   return {
     createOrganization: () => {
-      if (latestRef.current.canCreateOrganization) setDialog({ kind: "createOrganization" });
+      if (latestRef.current.canCreateOrganization) {
+        setDialog({ kind: "createOrganization", requestId: crypto.randomUUID() });
+      }
     },
     dialog: {
       dialog,
       isRunning,
       onClose: () => setDialog(null),
-      onSubmit: (data: ShopFormData) => run(data).catch(() => undefined),
+      onSubmit: (data: ShopFormData) => {
+        if (!dialog) return Promise.resolve();
+        return run({ data, requestId: dialog.requestId }).then(
+          () => undefined,
+          () => undefined,
+        );
+      },
     },
   };
 }

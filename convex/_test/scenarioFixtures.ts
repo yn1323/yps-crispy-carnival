@@ -103,6 +103,7 @@ export function createScenario(t: ScenarioTest) {
             shopName: args.shopName,
             submissionPattern: resolveSubmissionPattern(args),
             requestId: generateUUID(),
+            sourceShopId: await getSelectedShopId(),
           });
         },
         // 複数組織のシナリオでは、操作対象の店舗を明示して選択中店舗の暗黙解決に依存しない。
@@ -121,6 +122,23 @@ export function createScenario(t: ScenarioTest) {
             submissionPattern: resolveSubmissionPattern(args),
             requestId: generateUUID(),
             shopId: await getSelectedShopId(),
+          });
+        },
+        async deleteOrganization() {
+          const shopId = await getSelectedShopId();
+          const organization = await t.run(async (ctx) => {
+            const shop = await ctx.db.get(shopId);
+            if (!shop?.organizationId) throw new Error("Scenario organization is not canonical");
+            const current = await ctx.db.get(shop.organizationId);
+            if (!current) throw new Error("Scenario organization is not found");
+            return current;
+          });
+          return asManager.mutation(api.organization.mutations.deleteOrganization, {
+            shopId,
+            organizationId: organization._id,
+            confirmOrganizationId: organization._id,
+            expectedOrganizationUpdatedAt: organization.updatedAt,
+            requestId: generateUUID(),
           });
         },
         async createRecruitment(args: RecruitmentInput) {

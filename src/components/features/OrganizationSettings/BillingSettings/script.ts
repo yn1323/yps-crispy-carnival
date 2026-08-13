@@ -19,8 +19,9 @@ export type BillingUnavailableReason =
 export type BillingPlanAction =
   | { kind: "startPaidPlan"; targetPlan: PaidBillingPlan }
   | { kind: "changePaidPlanNow"; targetPlan: "business" }
-  | { kind: "schedulePlanChange"; targetPlan: "free" | "pro" }
-  | { kind: "cancelScheduledPlanChange"; targetPlan: BillingProductPlan }
+  | { kind: "schedulePlanChange"; targetPlan: "pro" }
+  | { kind: "scheduleServiceStop"; targetPlan: "free" }
+  | { kind: "cancelScheduledPlanChange"; targetPlan: BillingProductPlan; isServiceStop?: true }
   | { kind: "cancelTrialContinuation"; targetPlan: PaidBillingPlan }
   | { kind: "openPortal"; targetPlan: PaidBillingPlan };
 
@@ -63,14 +64,20 @@ export type BillingActionDialogState =
     })
   | (BillingDialogBase & {
       kind: "schedulePlanChange";
-      targetPlan: "free" | "pro";
+      targetPlan: "pro";
       effectiveOn?: string;
       requiredReductions: BillingRequiredReductions;
+    })
+  | (BillingDialogBase & {
+      kind: "scheduleServiceStop";
+      targetPlan: "free";
+      effectiveOn?: string;
     })
   | (BillingDialogBase & {
       kind: "cancelScheduledPlanChange";
       targetPlan: BillingProductPlan;
       effectiveOn?: string;
+      isServiceStop?: true;
     });
 
 export function resolveBillingPlanAction(
@@ -81,7 +88,11 @@ export function resolveBillingPlanAction(
 
   if (billing.state === "scheduledChange" || billing.state === "scheduledFree") {
     return targetPlan === billing.currentPlan && billing.targetPlan
-      ? { kind: "cancelScheduledPlanChange", targetPlan: billing.targetPlan }
+      ? {
+          kind: "cancelScheduledPlanChange",
+          targetPlan: billing.targetPlan,
+          ...(billing.restrictAtPeriodEnd === true ? { isServiceStop: true as const } : {}),
+        }
       : null;
   }
 
@@ -97,9 +108,10 @@ export function resolveBillingPlanAction(
       return isPaidPlan(targetPlan) ? { kind: "startPaidPlan", targetPlan } : null;
     case "pro":
       if (targetPlan === "business") return { kind: "changePaidPlanNow", targetPlan };
-      return targetPlan === "free" ? { kind: "schedulePlanChange", targetPlan } : null;
+      return targetPlan === "free" ? { kind: "scheduleServiceStop", targetPlan } : null;
     case "business":
-      return targetPlan === "pro" || targetPlan === "free" ? { kind: "schedulePlanChange", targetPlan } : null;
+      if (targetPlan === "pro") return { kind: "schedulePlanChange", targetPlan };
+      return targetPlan === "free" ? { kind: "scheduleServiceStop", targetPlan } : null;
     case "restricted":
       // 支払い開始に失敗した旧状態だけを復旧対象にする。上限超過中は整理操作に限定する。
       return !billing.limitPlan && billing.currentPlan === null && isPaidPlan(targetPlan)
@@ -115,10 +127,11 @@ export function resolveBillingPlanAction(
   }
 }
 
-export function formatPlanPrice(price: BillingPlanPrice): { amount: string; interval: string } {
+export function formatPlanPrice(price: BillingPlanPrice): { amount: string; interval: string; tax: string } {
   return {
     amount: formatCurrencyAmount(price.currency, price.unitAmount),
     interval: `${price.intervalCount}${intervalUnit(price.interval)}ごと`,
+    tax: price.taxBehavior === "inclusive" ? "税込" : "税別",
   };
 }
 

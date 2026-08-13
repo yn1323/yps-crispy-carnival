@@ -7,6 +7,68 @@ import { modules, schema } from "../_test/setup.test-helper";
 const NOW = Date.parse("2026-07-20T00:00:00.000Z");
 
 describe("organizationStripe/queries", () => {
+  it("期間末解約は最新intentだけを使い、取消済み旧Free予約や証跡なしをrestrictedへ倒す", async () => {
+    const t = convexTest(schema, modules);
+    const effectiveAt = NOW + 30 * 24 * 60 * 60_000;
+    const organizations = await t.run(async (ctx) => {
+      const seedCase = async (
+        subject: string,
+        intents: Array<{ kind: "scheduleFree" | "cancelFreeSchedule"; restrictAtPeriodEnd?: true }>,
+      ) => {
+        const seeded = await seedOrganizationManagerShop(ctx, { subject, plan: "pro" });
+        for (const [index, intent] of intents.entries()) {
+          await ctx.db.insert("organizationStripeOperations", {
+            organizationId: seeded.organizationId,
+            kind: intent.kind,
+            requestKey: `${subject}-${index}`,
+            stripeIdempotencyKey: `test:${subject}:${index}`,
+            livemode: false,
+            status: "succeeded",
+            attemptCount: 1,
+            providerGeneration: 1,
+            sourcePlan: "pro",
+            targetPlan: "free",
+            ...(intent.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
+            changeMode: "periodEnd",
+            stripeSubscriptionIdSnapshot: "sub_intent",
+            stripeSubscriptionItemIdSnapshot: "si_intent",
+            effectiveAt,
+            completedAt: NOW,
+            expiresAt: effectiveAt + 24 * 60 * 60_000,
+            createdAt: NOW + index,
+            updatedAt: NOW + index,
+          });
+        }
+        return seeded.organizationId;
+      };
+      return {
+        legacyScheduled: await seedCase("intent_legacy_scheduled", [{ kind: "scheduleFree" }]),
+        restrictionScheduled: await seedCase("intent_restriction_scheduled", [
+          { kind: "scheduleFree", restrictAtPeriodEnd: true },
+        ]),
+        legacyCanceled: await seedCase("intent_legacy_canceled", [
+          { kind: "scheduleFree" },
+          { kind: "cancelFreeSchedule" },
+        ]),
+        noEvidence: (await seedOrganizationManagerShop(ctx, { subject: "intent_no_evidence", plan: "pro" }))
+          .organizationId,
+      };
+    });
+    const readIntent = async (organizationId: (typeof organizations)[keyof typeof organizations]) =>
+      await t.query(internal.organizationStripe.queries.getCancelAtPeriodEndRestrictionIntent, {
+        organizationId,
+        providerGeneration: 1,
+        stripeSubscriptionId: "sub_intent",
+        stripeSubscriptionItemId: "si_intent",
+        effectiveAt,
+      });
+
+    await expect(readIntent(organizations.legacyScheduled)).resolves.toEqual({ restrictAtPeriodEnd: false });
+    await expect(readIntent(organizations.restrictionScheduled)).resolves.toEqual({ restrictAtPeriodEnd: true });
+    await expect(readIntent(organizations.legacyCanceled)).resolves.toEqual({ restrictAtPeriodEnd: true });
+    await expect(readIntent(organizations.noEvidence)).resolves.toEqual({ restrictAtPeriodEnd: true });
+  });
+
   it("既知Webhook objectの対応が重複する場合は組織を推測しない", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {

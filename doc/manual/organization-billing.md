@@ -2,7 +2,7 @@
 
 > 文書種別: manual
 >
-> コード照合基準: `b61100a680e80d154a74f576d03c53712846e062`
+> コード照合基準: 現在のcheckoutにある実装
 >
 > 実環境の公開・設定・migration状況: [リリース状態](release-status.md)
 
@@ -16,9 +16,10 @@ Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotat
 | 作業 | 参照する節 |
 |---|---|
 | 実環境での完了条件と作業前確認 | [完了の判定](#完了の判定)、[作業前の共通確認](#作業前の共通確認) |
-| ダークローンチ機能の公開・停止 | [ダークローンチ公開フラグ](#ダークローンチ公開フラグ) |
+| 旧ダークローンチ設定の撤去 | [廃止した公開フラグ](#廃止した公開フラグ) |
 | Stripeの環境変数、Price、Portal、Webhook設定 | [Stripeの設定](#stripeの設定) |
 | Trial期限を開発用に短縮 | [Trial期限の開発用設定](#trial期限の開発用設定) |
+| 利用停止と旧Free予約の境界確認 | [利用停止とgrandfathered契約](#利用停止とgrandfathered契約) |
 | Webhook、operation、対応不整合の日常確認 | [日常probe](#日常probe) |
 | m021の履歴確認とNarrow deploy前ゲート | [m021の履歴とNarrow deploy前確認](#m021の履歴とnarrow-deploy前確認) |
 | 新規販売の停止と支払い不要プランのP0 | [販売停止](#販売停止) |
@@ -51,35 +52,24 @@ Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotat
 `--deployment prod`のような短縮指定は使わない。
 短縮指定は現在選択中のConvex projectに依存し、別projectのdeploymentを選ぶおそれがある。
 
-## ダークローンチ公開フラグ
+## 廃止した公開フラグ
 
-次の公開フラグは、値が完全に`enabled`である場合だけ対象機能を開く。
-未設定、空文字、別の値は閉状態として扱う。
+組織追加、支払い、管理者招待・交代、店舗追加、既存人物の複数店舗所属は常時公開する。
+旧deploymentに残る次の設定は公開状態へ影響しない。
 
-| 変数 | 開く対象 |
-|---|---|
-| `FEATURE_ORGANIZATION_CREATION` | 二つ目以降の組織作成 |
-| `FEATURE_BILLING` | プランと支払いのUI |
-| `FEATURE_MANAGER_INVITATION` | 管理者の追加、Free管理者交代、再送、preview、受諾、招待通知、管理者連携完了通知 |
+- `FEATURE_ORGANIZATION_CREATION`
+- `FEATURE_BILLING`
+- `FEATURE_MANAGER_INVITATION`
+- `FEATURE_SHOP_ADDITION`
 
-店舗追加と既存人物の複数店舗所属は常時公開し、環境変数を使用しない。
-対応コードを対象deploymentへ反映した後は、残っている旧設定を完全修飾deployment名を指定して削除できる。
+対応コードを対象deploymentへ反映した後は、完全修飾deployment名を指定して旧設定を削除できる。
 
 ```bash
+pnpm exec convex env remove --deployment <fully-qualified-deployment> FEATURE_ORGANIZATION_CREATION
+pnpm exec convex env remove --deployment <fully-qualified-deployment> FEATURE_BILLING
+pnpm exec convex env remove --deployment <fully-qualified-deployment> FEATURE_MANAGER_INVITATION
 pnpm exec convex env remove --deployment <fully-qualified-deployment> FEATURE_SHOP_ADDITION
 ```
-
-公開または停止は、対象commitのdeploy後に完全修飾deployment名を確認して実施する。
-値はコマンド行へ直接書かず、対象キーだけを指定して対話入力する。
-
-```bash
-pnpm exec convex env set --deployment <fully-qualified-deployment> FEATURE_MANAGER_INVITATION
-```
-
-管理者招待を開ける前に、追加とFree交代の両方について、発行、メールまたはLINE通知、preview、受諾、権限反映、再送、取消を対象環境で確認する。
-閉じるときは、発行・再送・受諾だけでなく、招待通知と管理者連携完了通知が新しくOutboxへ積まれず、投入済みOutboxも外部providerを呼ばず取消されることを確認する。
-E2Eは同じ`.env`の値を読み、閉状態では招待を前提とするシナリオを`test.skip`する。
-公開FAQはフラグを購読しないため、管理者招待を開けるreleaseで追加・交代の操作手順を復元し、利用不可中の案内も公開状態へ戻す。
 
 作業後は`env list --names-only`でキーの存在だけを確認し、対象deployment、commit、確認日時、結果を[リリース状態](release-status.md)へ記録する。
 値そのものをログや証跡へ残さない。
@@ -173,8 +163,7 @@ canaryの成功を確認するまで販売可能と判定しない。
 
 ## Trial期限の開発用設定
 
-開発deploymentでは、将来Trialを作成する処理が`calculateTrialEndsAt`を利用したときの期限を、次の環境変数で短縮できる。
-現時点の初回セットアップは支払い不要Businessを作成するため、この設定を追加しても新規登録の状態や期限は変わらない。
+開発deploymentでは、新規初回設定と追加組織作成で`calculateTrialEndsAt`が決める期限を、次の環境変数で短縮できる。
 
 | 変数 | 用途 |
 |---|---|
@@ -205,6 +194,34 @@ pnpm exec convex env remove --deployment <fully-qualified-deployment> DEBUG_TRIA
 この2変数は`scripts/setupEnv.ts`のallowlistへ含めない。
 対象を引数で固定できない`pnpm convex:env:setup`では設定せず、Dashboardまたは完全修飾deployment名を指定したCLIを使う。
 作業後は`env list --names-only`でキーの有無だけを確認し、値をログや証跡へ残さない。
+
+## 利用停止とgrandfathered契約
+
+新しい有料契約の終了は、Free変更ではなく期間末の利用停止として扱う。
+アプリで予約を受け付けた時点では契約を終了せず、Stripeの`cancel_at_period_end`とローカルの変更予約が対応していることを確認する。
+
+利用停止予約には`restrictAtPeriodEnd: true`を保存する。
+期間末のprovider確認後は`scheduledCancellation`を理由とする契約制限中へ移り、組織、店舗、人物、スタッフ所属、シフトを保持する。
+期間末前の取消では、Stripeの`cancel_at_period_end`が解除されたことと、ローカル状態が元の有料プランへ戻ったことを照合する。
+
+次の保存状態は経過措置として維持する。
+
+| 保存状態 | 運用上の扱い |
+|---|---|
+| `active.free` | grandfathered Freeとして継続し、一括変更しない |
+| `complimentary.business` | 支払い不要Businessとして継続し、Stripe objectを作らない |
+| `scheduledChange.targetPlan: "free"`かつ`restrictAtPeriodEnd`なし | deployment前の旧Free変更予約として、従来のFree判定へ収束させる |
+| `scheduledChange.targetPlan: "free"`かつ`restrictAtPeriodEnd: true` | 新しい利用停止予約として、provider確認後に契約制限中へ移す |
+
+markerなしの旧予約へ`restrictAtPeriodEnd`を後付けしない。
+後付けすると、利用者が予約したFree移行を契約制限へ変更してしまう。
+逆に、新しい利用停止予約からmarkerを除かない。
+
+`setFreeSelection`はmarkerなしの旧Free予約と、`trialFreeConditionsNotMet`または`freeConditionsNotMet`を理由とする旧制限状態だけで使う。
+Trial終了、`trialEndedWithoutSubscription`、新しい利用停止、`scheduledCancellation`へFree選択を適用しない。
+
+状態を手動patchして収束させない。
+不一致がある場合は、対象組織、billing version、変更予約のmarker、Stripe Subscriptionの`cancel_at_period_end`と期間終了日時、関連operationとWebhookを読み取りで照合し、provider再照合またはforward repairを選ぶ。
 
 ## 日常probe
 

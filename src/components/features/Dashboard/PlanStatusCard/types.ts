@@ -22,6 +22,7 @@ export type DashboardPlanStatusSource =
       scheduledChange?: {
         targetPlan: "free" | "pro";
         effectiveAt: number;
+        restrictAtPeriodEnd?: true;
       };
       canManagePlan: boolean;
       canUpdatePaymentMethod: boolean;
@@ -52,7 +53,7 @@ export type PlanStatusCardData =
   | {
       kind: "paidPlan";
       planName: PaidPlanName;
-      badgeLabel: "利用中" | "支払い不要" | "変更予定";
+      badgeLabel: "利用中" | "支払い不要" | "変更予定" | "利用停止予定";
       description?: string;
       nextEventLabel?: string;
     }
@@ -89,7 +90,7 @@ export type PlanStatusCardData =
       description: string;
       recoveryDeadlineLabel?: string;
       primaryAction?: {
-        action: "updatePaymentMethod";
+        action: "updatePaymentMethod" | "choosePlan";
         label: string;
       };
     }

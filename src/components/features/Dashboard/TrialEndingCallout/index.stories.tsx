@@ -18,7 +18,19 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Desktop: Story = {};
+export const Desktop: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText("未契約のまま終了すると利用停止になりますが、組織のデータは削除されません。"),
+    ).toBeVisible();
+    await expect(canvas.getByText("継続して利用するには、ProまたはBusinessを選択してください。")).toBeVisible();
+    await expect(canvas.getByRole("link", { name: "プランと支払いを見る" })).toHaveAttribute(
+      "href",
+      "/settings?shop=shop-trial-ending&tab=billing",
+    );
+  },
+};
 
 export const Mobile: Story = {
   tags: ["vrt-mobile1"],

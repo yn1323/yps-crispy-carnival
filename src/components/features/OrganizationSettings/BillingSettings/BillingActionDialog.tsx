@@ -62,10 +62,22 @@ export function BillingActionDialog({ dialog, isRunning, onClose, onRetryPrice, 
             </>
           )}
           {dialog.kind === "schedulePlanChange" && <ScheduledPlanChangeSummary dialog={dialog} />}
+          {dialog.kind === "scheduleServiceStop" && (
+            <>
+              <SummaryRow label="現在のプラン" value="支払い済み期間まで継続" />
+              <SummaryRow label="利用停止予定日" value={dialog.effectiveOn ?? "現在の契約状態に従います"} />
+            </>
+          )}
           {dialog.kind === "cancelScheduledPlanChange" && (
             <>
-              <SummaryRow label="取り消す変更" value={`${planLabel(dialog.targetPlan)}への変更`} />
-              <SummaryRow label="変更予定日" value={dialog.effectiveOn ?? "現在の契約状態に従います"} />
+              <SummaryRow
+                label="取り消す変更"
+                value={dialog.isServiceStop ? "利用停止" : `${planLabel(dialog.targetPlan)}への変更`}
+              />
+              <SummaryRow
+                label={dialog.isServiceStop ? "利用停止予定日" : "変更予定日"}
+                value={dialog.effectiveOn ?? "現在の契約状態に従います"}
+              />
             </>
           )}
         </Stack>
@@ -99,7 +111,7 @@ function StartPaidPlanSummary({
           dialog.price.status === "loading"
             ? "取得中..."
             : price
-              ? `${price.amount}（${price.interval}）`
+              ? `${price.amount}（${price.interval}・${price.tax}）`
               : "取得できませんでした"
         }
       />
@@ -217,7 +229,7 @@ function dialogContent(dialog: BillingActionDialogState): {
         description: "トライアルは最終日までそのまま利用できます。",
         submitLabel: "有料継続を取り消す",
         submitColorPalette: "red",
-        note: "トライアル終了時にFreeの上限を超えている場合は、利用が制限されることがあります。",
+        note: "取り消すとトライアル終了後は利用停止になります。店舗・ユーザー・過去のシフトは削除されず、有料プランを契約すると再開できます。",
       };
     case "schedulePlanChange":
       return {
@@ -227,12 +239,27 @@ function dialogContent(dialog: BillingActionDialogState): {
         submitColorPalette: "orange",
         note: "変更予定日までに、利用人数・店舗数・管理者数を変更先プランの上限以内に整理してください。\n上限を超えるユーザーは自動では削除されません。",
       };
-    case "cancelScheduledPlanChange":
+    case "scheduleServiceStop":
       return {
-        title: "プラン変更の予約を取り消しますか？",
-        description: "予約を取り消し、次回更新後も現在のプランを継続します。",
-        submitLabel: "変更予約を取り消す",
-        submitColorPalette: "teal",
+        title: "期間末に利用を停止しますか？",
+        description: "現在の支払い済み期間が終わるまでは、現在のプランを利用します。",
+        submitLabel: "利用停止を予約",
+        submitColorPalette: "red",
+        note: "利用停止後も、店舗・ユーザー・過去のシフトは削除されません。再開するにはProまたはBusinessを契約してください。",
       };
+    case "cancelScheduledPlanChange":
+      return dialog.isServiceStop
+        ? {
+            title: "利用停止の予約を取り消しますか？",
+            description: "予約を取り消し、次回更新後も現在のプランを継続します。",
+            submitLabel: "利用停止予約を取り消す",
+            submitColorPalette: "teal",
+          }
+        : {
+            title: "プラン変更の予約を取り消しますか？",
+            description: "予約を取り消し、次回更新後も現在のプランを継続します。",
+            submitLabel: "変更予約を取り消す",
+            submitColorPalette: "teal",
+          };
   }
 }

@@ -15,6 +15,7 @@ describe("billing action adapter", () => {
         unitAmount: 12_000,
         interval: "month",
         intervalCount: 1,
+        taxBehavior: "inclusive",
       }),
     ).toEqual({
       status: "available",
@@ -23,8 +24,21 @@ describe("billing action adapter", () => {
         unitAmount: 12_000,
         interval: "month",
         intervalCount: 1,
+        taxBehavior: "inclusive",
       },
     });
+  });
+
+  it("税区分が不明なPriceを契約確認へ渡さない", () => {
+    expect(
+      toPlanPriceState({
+        status: "available",
+        currency: "jpy",
+        unitAmount: 12_000,
+        interval: "month",
+        intervalCount: 1,
+      }),
+    ).toEqual({ status: "error" });
   });
 
   it("料金のunknown shapeを表示可能として扱わない", () => {
