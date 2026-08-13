@@ -40,7 +40,7 @@ export function DemoShiftBoardRoutePage() {
           </Alert.Root>
 
           <Text color="fg.muted" lineHeight={1.7}>
-            シフトリは、シフト希望の回収から確定共有までをひとつにまとめる無料ツールです。
+            シフトリは、シフト希望の回収から確定共有までをひとつにまとめるシフト管理サービスです。
             <br />
             このデモでは、店長・シフト作成担当者の操作画面を会員登録なしで試せます。
           </Text>

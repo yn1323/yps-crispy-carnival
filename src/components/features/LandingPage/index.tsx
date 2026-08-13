@@ -1,3 +1,4 @@
+import { OrganizationManagementSection } from "@/src/components/features/OrganizationManagementSection";
 import { PublicPageLayout } from "@/src/components/templates/PublicPageLayout";
 import { BottomCtaSection } from "./BottomCtaSection";
 import { ComparisonSection } from "./ComparisonSection";
@@ -16,6 +17,7 @@ export const LandingPage = () => (
     <SubmissionTypesSection />
     <ComparisonSection />
     <UseCasesSection />
+    <OrganizationManagementSection />
     <FaqArticlesSection />
     <BottomCtaSection />
   </PublicPageLayout>

@@ -31,6 +31,8 @@ describe("sitemap generator", () => {
     expect(paths).toEqual(getIndexableCanonicalRoutes(publicRoutes));
     expect(new Set(paths).size).toBe(paths.length);
     expect(paths).not.toContain("/articles/line-shift-collection-guide");
+    expect(paths).toContain("/pricing");
+    expect(paths).not.toContain("/commercial-transactions");
     expect(paths).not.toContain(CSR_SHELL_STATIC_ROUTES[0]);
     for (const route of NOINDEX_PUBLIC_ROUTES) {
       expect(paths).not.toContain(route);
@@ -39,7 +41,7 @@ describe("sitemap generator", () => {
     const freeToolArticle = entries.find(({ loc }) => new URL(loc).pathname === "/articles/free-shift-tool-selection");
     expect(freeToolArticle).toEqual({
       loc: "https://shiftori.app/articles/free-shift-tool-selection",
-      lastmod: "2026-08-08",
+      lastmod: "2026-08-13",
     });
     expect(entries.find(({ loc }) => new URL(loc).pathname === "/articles")?.lastmod).toBeUndefined();
     expect(
@@ -96,6 +98,6 @@ describe("sitemap generator", () => {
     const sitemap = await createExpectedSitemap();
 
     expect(sitemap).toContain("<loc>https://shiftori.app/</loc>");
-    expect(sitemap).toContain("<lastmod>2026-08-08</lastmod>");
+    expect(sitemap).toContain("<lastmod>2026-08-13</lastmod>");
   });
 });

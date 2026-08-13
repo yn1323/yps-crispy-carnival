@@ -16,6 +16,7 @@ import { Route as UnregisteredRouteImport } from './routes/_unregistered'
 import { Route as AccountDeletionAcceptedRouteImport } from './routes/account-deletion-accepted'
 import { Route as ArticlesRouteImport } from './routes/articles'
 import { Route as CacheResetRouteImport } from './routes/cache-reset'
+import { Route as CommercialTransactionsRouteImport } from './routes/commercial-transactions'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as FeaturesRouteImport } from './routes/features'
@@ -23,6 +24,7 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as HowtoRouteImport } from './routes/howto'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ManagerInviteRouteImport } from './routes/manager-invite'
+import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
@@ -87,6 +89,11 @@ const CacheResetRoute = CacheResetRouteImport.update({
   path: '/cache-reset',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CommercialTransactionsRoute = CommercialTransactionsRouteImport.update({
+  id: '/commercial-transactions',
+  path: '/commercial-transactions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ContactRoute = ContactRouteImport.update({
   id: '/contact',
   path: '/contact',
@@ -120,6 +127,11 @@ const LoginRoute = LoginRouteImport.update({
 const ManagerInviteRoute = ManagerInviteRouteImport.update({
   id: '/manager-invite',
   path: '/manager-invite',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -290,6 +302,7 @@ export interface FileRoutesByFullPath {
   '/account-deletion-accepted': typeof AccountDeletionAcceptedRoute
   '/articles': typeof ArticlesRouteWithChildren
   '/cache-reset': typeof CacheResetRoute
+  '/commercial-transactions': typeof CommercialTransactionsRoute
   '/contact': typeof ContactRoute
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
@@ -297,6 +310,7 @@ export interface FileRoutesByFullPath {
   '/howto': typeof HowtoRoute
   '/login': typeof LoginRoute
   '/manager-invite': typeof ManagerInviteRoute
+  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
   '/sso-callback': typeof SsoCallbackRoute
@@ -333,6 +347,7 @@ export interface FileRoutesByTo {
   '/$': typeof SplatRoute
   '/account-deletion-accepted': typeof AccountDeletionAcceptedRoute
   '/cache-reset': typeof CacheResetRoute
+  '/commercial-transactions': typeof CommercialTransactionsRoute
   '/contact': typeof ContactRoute
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
@@ -340,6 +355,7 @@ export interface FileRoutesByTo {
   '/howto': typeof HowtoRoute
   '/login': typeof LoginRoute
   '/manager-invite': typeof ManagerInviteRoute
+  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
   '/sso-callback': typeof SsoCallbackRoute
@@ -380,6 +396,7 @@ export interface FileRoutesById {
   '/account-deletion-accepted': typeof AccountDeletionAcceptedRoute
   '/articles': typeof ArticlesRouteWithChildren
   '/cache-reset': typeof CacheResetRoute
+  '/commercial-transactions': typeof CommercialTransactionsRoute
   '/contact': typeof ContactRoute
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
@@ -387,6 +404,7 @@ export interface FileRoutesById {
   '/howto': typeof HowtoRoute
   '/login': typeof LoginRoute
   '/manager-invite': typeof ManagerInviteRoute
+  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
   '/sso-callback': typeof SsoCallbackRoute
@@ -426,6 +444,7 @@ export interface FileRouteTypes {
     | '/account-deletion-accepted'
     | '/articles'
     | '/cache-reset'
+    | '/commercial-transactions'
     | '/contact'
     | '/faq'
     | '/features'
@@ -433,6 +452,7 @@ export interface FileRouteTypes {
     | '/howto'
     | '/login'
     | '/manager-invite'
+    | '/pricing'
     | '/privacy'
     | '/signup'
     | '/sso-callback'
@@ -469,6 +489,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/account-deletion-accepted'
     | '/cache-reset'
+    | '/commercial-transactions'
     | '/contact'
     | '/faq'
     | '/features'
@@ -476,6 +497,7 @@ export interface FileRouteTypes {
     | '/howto'
     | '/login'
     | '/manager-invite'
+    | '/pricing'
     | '/privacy'
     | '/signup'
     | '/sso-callback'
@@ -515,6 +537,7 @@ export interface FileRouteTypes {
     | '/account-deletion-accepted'
     | '/articles'
     | '/cache-reset'
+    | '/commercial-transactions'
     | '/contact'
     | '/faq'
     | '/features'
@@ -522,6 +545,7 @@ export interface FileRouteTypes {
     | '/howto'
     | '/login'
     | '/manager-invite'
+    | '/pricing'
     | '/privacy'
     | '/signup'
     | '/sso-callback'
@@ -562,6 +586,7 @@ export interface RootRouteChildren {
   AccountDeletionAcceptedRoute: typeof AccountDeletionAcceptedRoute
   ArticlesRoute: typeof ArticlesRouteWithChildren
   CacheResetRoute: typeof CacheResetRoute
+  CommercialTransactionsRoute: typeof CommercialTransactionsRoute
   ContactRoute: typeof ContactRoute
   FaqRoute: typeof FaqRoute
   FeaturesRoute: typeof FeaturesRoute
@@ -569,6 +594,7 @@ export interface RootRouteChildren {
   HowtoRoute: typeof HowtoRoute
   LoginRoute: typeof LoginRoute
   ManagerInviteRoute: typeof ManagerInviteRoute
+  PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
   SignupRoute: typeof SignupRoute
   SsoCallbackRoute: typeof SsoCallbackRoute
@@ -632,6 +658,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CacheResetRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/commercial-transactions': {
+      id: '/commercial-transactions'
+      path: '/commercial-transactions'
+      fullPath: '/commercial-transactions'
+      preLoaderRoute: typeof CommercialTransactionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/contact': {
       id: '/contact'
       path: '/contact'
@@ -679,6 +712,13 @@ declare module '@tanstack/react-router' {
       path: '/manager-invite'
       fullPath: '/manager-invite'
       preLoaderRoute: typeof ManagerInviteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -972,6 +1012,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountDeletionAcceptedRoute: AccountDeletionAcceptedRoute,
   ArticlesRoute: ArticlesRouteWithChildren,
   CacheResetRoute: CacheResetRoute,
+  CommercialTransactionsRoute: CommercialTransactionsRoute,
   ContactRoute: ContactRoute,
   FaqRoute: FaqRoute,
   FeaturesRoute: FeaturesRoute,
@@ -979,6 +1020,7 @@ const rootRouteChildren: RootRouteChildren = {
   HowtoRoute: HowtoRoute,
   LoginRoute: LoginRoute,
   ManagerInviteRoute: ManagerInviteRoute,
+  PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
   SignupRoute: SignupRoute,
   SsoCallbackRoute: SsoCallbackRoute,

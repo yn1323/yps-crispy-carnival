@@ -66,6 +66,22 @@ export function SignupForm({
 
   return (
     <Stack as="form" gap={5} onSubmit={handleSubmit(onSubmit)}>
+      <Stack gap={2} bg="gray.50" borderWidth="1px" borderColor="gray.200" borderRadius="md" px={4} py={3}>
+        <Text color="gray.800" textStyle="sm" lineHeight="1.8">
+          アカウント作成後、新しい組織は作成日から2暦月のトライアルで始まります。終了後も利用するには、ProまたはBusinessの契約が必要です。
+        </Text>
+        <Link
+          href="/pricing"
+          target="_blank"
+          rel="noreferrer"
+          color="teal.700"
+          fontWeight="bold"
+          textStyle="sm"
+          alignSelf="flex-start"
+        >
+          料金・プランを見る（新しいタブ）
+        </Link>
+      </Stack>
       <OAuthSection isLineBrowser={isLineBrowser} isSubmitting={isSubmitting} onClick={onGoogle} label="Googleで登録" />
       <AuthError message={errorMessage} />
       <Field.Root invalid={!!errors.email}>

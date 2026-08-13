@@ -51,7 +51,7 @@ export const HeroSection = () => (
               fontWeight="bold"
             >
               <Icon as={LuClipboardCheck} boxSize={4} flexShrink={0} />
-              LINEで使える無料のシフト管理
+              2暦月トライアルつきのシフト管理
             </Flex>
 
             <Heading
@@ -80,7 +80,7 @@ export const HeroSection = () => (
               <br />
               毎月くり返すやりとりをシフトリがまとめて担当
               <br />
-              スタッフはアプリ不要、無料で始められます
+              スタッフはアプリ不要。店舗や担当者が増えても、組織でまとめて管理できます
             </Text>
           </VStack>
 
@@ -91,7 +91,7 @@ export const HeroSection = () => (
             gap={4}
             w={{ base: "full", md: "auto" }}
           >
-            <HeroButton href="/signup" label="無料で試してみる" tone="primary" measurementCtaId="hero_signup" />
+            <HeroButton href="/signup" label="2暦月トライアルを始める" tone="primary" measurementCtaId="hero_signup" />
             <HeroButton href="/demo/flow" label="登録不要でデモを見る" tone="secondary" measurementCtaId="hero_demo" />
           </Stack>
         </VStack>

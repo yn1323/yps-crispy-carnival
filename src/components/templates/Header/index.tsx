@@ -11,6 +11,7 @@ export const STAFF_PAGE_PX = { base: 4, lg: 6 } as const;
 
 const publicNavItems = [
   { label: "機能", href: "#features" },
+  { label: "料金", href: "/pricing" },
   { label: "導入事例", href: "#use-cases" },
   { label: "よくある質問", href: "#faq" },
   { label: "お役立ち記事", href: "#articles" },
@@ -259,7 +260,7 @@ const PublicLoginButton = ({ display }: PublicLoginButtonProps) => (
 const PublicSignupButton = () => (
   <Button asChild colorPalette="teal" h="38px" px={5} borderRadius="md" fontSize="sm" fontWeight="bold" hideBelow="md">
     <MeasurementBoundaryLink href="/signup" measurementCtaId="header_signup">
-      無料で試してみる
+      トライアルを始める
     </MeasurementBoundaryLink>
   </Button>
 );

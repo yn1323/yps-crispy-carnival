@@ -1,6 +1,6 @@
 # リリース状態
 
-> 最終更新: 2026-08-12
+> 最終更新: 2026-08-13
 >
 > 実環境確認: 未確認
 
@@ -9,7 +9,7 @@
 
 ## 現在の確認状態
 
-2026-08-04時点で、この文書へ必要な実環境証跡は登録されていません。
+2026-08-13時点で、この文書へ必要な実環境証跡は登録されていません。
 次の状態はすべて**未確認**です。
 
 | 確認対象 | 状態 | 最終確認日時 | 対象環境・deployment | 証跡 |
@@ -17,8 +17,10 @@
 | Productionのフロントエンドartifactとcommit SHA | 未確認 | 未確認 | 未確認 | 未登録 |
 | ProductionのConvex deployとcommit SHA | 未確認 | 未確認 | 未確認 | 未登録 |
 | Productionのmigration seriesと各migrationの完了 | 未確認 | 未確認 | 未確認 | 未登録 |
-| 残存ダークローンチ3フラグの設定値・画面表示と、廃止した`FEATURE_SHOP_ADDITION`の不在 | 未確認 | 未確認 | 未確認 | 未登録 |
-| StripeのPro・Business公開設定、Price、Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
+| 組織作成、課金、管理者招待を常時利用可能にするartifactと、旧feature flag環境変数に依存しないこと | 未確認 | 未確認 | 未確認 | 未登録 |
+| 新規組織の2暦月Trial、未契約・利用停止後のデータ保持と利用制限 | 未確認 | 未確認 | 未確認 | 未登録 |
+| StripeのPro・Business公開設定、Price、明示された税区分、Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
+| `/commercial-transactions`の事業者名、運営責任者、所在地、電話番号、Pro・Business販売価格の確定情報への置換 | **要対応（仮入力）** | 2026-08-13 | Repository | `src/components/features/CommercialTransactions/index.tsx`の`MANUAL_BUSINESS_DETAILS`と`MANUAL_SALES_PRICES` |
 | Resendの`email.delivered` Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
 | Clerk、Cloudflare、Stripeのセキュリティ設定とprovider canary | 未確認 | 未確認 | 未確認 | 未登録 |
 | 公開Web計測のGTM container、GA4 property、Clarity、Consent、Production request | 未確認 | 未確認 | 未確認 | 未登録 |
@@ -27,6 +29,9 @@
 
 「未確認」は未実施を意味しません。
 この文書に、対象と時刻を特定できる証跡がまだないことを表します。
+
+`/commercial-transactions`は、仮入力を含む現状のままProductionへ公開しません。
+事業者名、運営責任者、番地まで含む所在地、確実に連絡できる電話番号、Pro・Businessの月額料金と税込・税別へ置換し、表示、連絡可能性、Stripe Priceとの一致を確認してから状態を更新します。
 
 ## 記録に必要な情報
 

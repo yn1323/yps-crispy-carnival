@@ -1,6 +1,7 @@
 import { Container, Link } from "@chakra-ui/react";
 import { BenefitsSection } from "@/src/components/features/BenefitsSection";
 import { FeatureSection } from "@/src/components/features/FeatureSection";
+import { OrganizationManagementSection } from "@/src/components/features/OrganizationManagementSection";
 import { PublicPageLayout } from "@/src/components/templates/PublicPageLayout";
 
 export function FeaturesPage() {
@@ -13,6 +14,7 @@ export function FeaturesPage() {
       </Container>
       <FeatureSection headingAs="h1" />
       <BenefitsSection />
+      <OrganizationManagementSection />
     </PublicPageLayout>
   );
 }

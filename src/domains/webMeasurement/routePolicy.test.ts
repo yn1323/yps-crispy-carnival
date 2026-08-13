@@ -5,6 +5,7 @@ describe("Web計測route policy", () => {
   it.each([
     ["/", "home"],
     ["/features/", "features"],
+    ["/pricing", "pricing"],
     ["/faq?from=top", "faq"],
     ["/howto#answer", "howto"],
     ["/contact", "contact"],
@@ -20,6 +21,7 @@ describe("Web計測route policy", () => {
   it.each([
     "/account-deletion-accepted",
     "/cache-reset/",
+    "/commercial-transactions",
     "/privacy",
     "/privacy/manager",
     "/privacy/staff",

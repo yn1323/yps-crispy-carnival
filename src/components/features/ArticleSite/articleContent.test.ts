@@ -20,7 +20,7 @@ const sitePageFrontmatter = {
   ctaDescription: "希望回収から共有までをまとめます。",
   ctaPrimaryLabel: "見てみる",
   ctaPrimaryHref: "/demo/flow",
-  ctaSecondaryLabel: "無料で試す",
+  ctaSecondaryLabel: "トライアルを始める",
   ctaSecondaryHref: "/signup",
   concernSlugs: "shift-request, excel-recording",
   landingPreviewTitle: "シフト作成のヒント",
