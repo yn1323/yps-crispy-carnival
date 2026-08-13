@@ -1537,7 +1537,8 @@ describe("organization/queries.getSettings", () => {
       .query(api.organization.queries.getSettings, { shopId: ids.shopId });
 
     expect(result?.people.find((person) => person.id === ids.secondPersonId)).toMatchObject({
-      canRemove: true,
+      canRemove: false,
+      removeDisabledReason: "先に管理者権限を外してください。",
     });
   });
 

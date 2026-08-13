@@ -87,13 +87,25 @@ const baseData: UserDetailData = {
   managerInvitationState: { kind: "unavailable", reason: "このユーザーはすでに管理者です。" },
   canRemoveManagerRole: true,
   managerRoleRemovalDisabledReason: undefined,
-  canRemove: true,
-  removeDisabledReason: undefined,
+  canRemove: false,
+  removeDisabledReason: "管理者は削除できません。先に管理者権限を外してください。",
   removalPreview: removalPreview(2),
   canWrite: true,
   membershipFingerprint: "membership-fingerprint",
-  shops: [shibuyaShop],
-  memberships: [shibuyaMembership],
+  shops: [
+    {
+      ...shibuyaShop,
+      canChangeMembership: false,
+      membershipChangeDisabledReason: "管理者は店舗から外せません。先に管理者権限を外してください。",
+    },
+  ],
+  memberships: [
+    {
+      ...shibuyaMembership,
+      canRemove: false,
+      removeDisabledReason: "管理者は店舗から外せません。先に管理者権限を外してください。",
+    },
+  ],
 };
 
 const multipleStoresData: UserDetailData = {
@@ -101,6 +113,8 @@ const multipleStoresData: UserDetailData = {
   managerRole: "none",
   managerInvitationState: { kind: "available", mode: "addition", replacesStaleInvitation: false },
   canRemoveManagerRole: false,
+  canRemove: true,
+  removeDisabledReason: undefined,
   shops: [shibuyaShop, shinjukuShop, ikebukuroShop, yokohamaShop],
   memberships: [shibuyaMembership, shinjukuMembership],
 };
@@ -132,10 +146,8 @@ const baseState: UserDetailViewProps["state"] = {
   membership: {
     isChanging: false,
   },
-  manager: {
+  removal: {
     dialog: null,
-    isAssignmentConfirmationOpen: false,
-    isAssigning: false,
     isRemoving: false,
   },
 };
@@ -160,13 +172,10 @@ const baseActions: UserDetailViewProps["actions"] = {
   onClosePanel: noop,
   onUpdateProfile: asyncNoop,
   onChangeMemberships: asyncNoop,
-  onRequestManagerAssignment: noop,
-  onCancelManagerAssignment: noop,
-  onAssignManager: asyncNoop,
-  onRequestRemoveManagerRole: noop,
+  onManageManagers: noop,
   onRequestRemovePerson: noop,
-  onConfirmManagerSetting: asyncNoop,
-  onCloseManagerDialog: noop,
+  onConfirmRemovePerson: asyncNoop,
+  onCloseRemovalDialog: noop,
 };
 
 const meta = {
@@ -371,37 +380,6 @@ export const PersonRemovalZeroAssignments: Story = createPersonRemovalStory(0);
 export const PersonRemovalOneAssignment: Story = createPersonRemovalStory(1);
 export const PersonRemovalMultipleAssignments: Story = createPersonRemovalStory(3);
 
-export const ManagerOnlyRoleRemovalConfirmation: Story = {
-  args: {
-    activePanel: "basic",
-    data: { ...baseData, memberships: [] },
-    state: {
-      ...baseState,
-      manager: {
-        ...baseState.manager,
-        dialog: { kind: "removeManagerRole", personId, shopId: shibuyaShopId, requestId: storyRequestId },
-      },
-    },
-  },
-};
-
-export const ManagerOnlyRoleRemovalConfirmationMobile: Story = {
-  ...ManagerOnlyRoleRemovalConfirmation,
-  tags: ["vrt-mobile2"],
-  globals: { viewport: { value: "mobile2", isRotated: false } },
-};
-
-export const ManagerRoleRemovalUnavailable: Story = {
-  args: {
-    activePanel: "basic",
-    data: {
-      ...baseData,
-      canRemoveManagerRole: false,
-      managerRoleRemovalDisabledReason: "最後の有効管理者の管理者権限は外せません。",
-    },
-  },
-};
-
 export const PersonRemovalUnavailable: Story = {
   args: {
     data: {
@@ -415,7 +393,7 @@ export const PersonRemovalUnavailable: Story = {
 export const RestrictedRecoveryRemoval: Story = {
   args: {
     data: {
-      ...baseData,
+      ...multipleStoresData,
       canWrite: false,
       writeDisabledReason: "Proの利用上限を超えているため、契約制限中です。",
       canRemove: true,
@@ -456,8 +434,8 @@ function createPersonRemovalStory(assignmentCount: number): Story {
       data: { ...multipleStoresData, removalPreview: preview },
       state: {
         ...baseState,
-        manager: {
-          ...baseState.manager,
+        removal: {
+          ...baseState.removal,
           dialog: {
             kind: "removePerson",
             personId,
@@ -491,7 +469,7 @@ function PanelNavigationHarness({
   const [activePanel, setActivePanel] = useState<UserDetailPanel>();
   const [membershipChangeInput, setMembershipChangeInput] = useState<UserMembershipChangeInput | null>(null);
   const [membershipChangeCallCount, setMembershipChangeCallCount] = useState(0);
-  const [managerDialog, setManagerDialog] = useState<UserDetailDialog>(null);
+  const [removalDialog, setRemovalDialog] = useState<UserDetailDialog>(null);
 
   return (
     <>
@@ -507,7 +485,7 @@ function PanelNavigationHarness({
         activePanel={activePanel}
         state={{
           ...baseState,
-          manager: { ...baseState.manager, dialog: managerDialog },
+          removal: { ...baseState.removal, dialog: removalDialog },
         }}
         actions={{
           ...baseActions,
@@ -515,14 +493,14 @@ function PanelNavigationHarness({
           onOpenAddShop: () => setActivePanel("addShop"),
           onClosePanel: () => setActivePanel(undefined),
           onRequestRemovePerson: () =>
-            setManagerDialog({
+            setRemovalDialog({
               kind: "removePerson",
               personId: data.person.id,
               shopId: shibuyaShopId,
               removalPreview: data.removalPreview,
               requestId: storyRequestId,
             }),
-          onCloseManagerDialog: () => setManagerDialog(null),
+          onCloseRemovalDialog: () => setRemovalDialog(null),
           onChangeMemberships: async (input) => {
             setMembershipChangeInput(input);
             setMembershipChangeCallCount((count) => count + 1);
@@ -533,68 +511,6 @@ function PanelNavigationHarness({
     </>
   );
 }
-
-function ManagerAssignmentConfirmationHarness() {
-  const [isAssignmentConfirmationOpen, setIsAssignmentConfirmationOpen] = useState(false);
-  const [assignmentCount, setAssignmentCount] = useState(0);
-
-  return (
-    <>
-      <output hidden data-testid="manager-assignment-count">
-        {assignmentCount}
-      </output>
-      <UserDetailView
-        data={multipleStoresData}
-        showShopMembershipAddition
-        activePanel="basic"
-        state={{
-          ...baseState,
-          manager: { ...baseState.manager, isAssignmentConfirmationOpen },
-        }}
-        actions={{
-          ...baseActions,
-          onRequestManagerAssignment: () => setIsAssignmentConfirmationOpen(true),
-          onCancelManagerAssignment: () => setIsAssignmentConfirmationOpen(false),
-          onAssignManager: async () => {
-            setAssignmentCount((count) => count + 1);
-            setIsAssignmentConfirmationOpen(false);
-          },
-        }}
-      />
-    </>
-  );
-}
-
-export const ManagerAssignmentConfirmationBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  render: () => <ManagerAssignmentConfirmationHarness />,
-  play: async ({ canvasElement }) => {
-    const page = within(canvasElement.ownerDocument.body);
-    const dialog = await page.findByRole("dialog", { name: "スタッフ情報" });
-    const requestButton = within(dialog).getByRole("button", { name: "管理者として招待" });
-
-    await userEvent.click(requestButton);
-    let confirmation = await page.findByRole("alertdialog", {
-      name: "田中 花子さんを管理者として招待しますか？",
-    });
-    await expect(page.queryAllByRole("alertdialog")).toHaveLength(1);
-    await expect(page.queryAllByRole("dialog")).toHaveLength(0);
-    await expect(within(confirmation).getByTestId("user-manager-confirmation-body")).toHaveFocus();
-    await expect(within(confirmation).queryByRole("textbox", { name: "名前" })).not.toBeInTheDocument();
-
-    await userEvent.click(within(confirmation).getByRole("button", { name: "やめる" }));
-    const restoredDialog = await page.findByRole("dialog", { name: "スタッフ情報" });
-    const restoredRequestButton = within(restoredDialog).getByRole("button", { name: "管理者として招待" });
-    await expect(restoredRequestButton).toHaveFocus();
-
-    await userEvent.click(restoredRequestButton);
-    confirmation = await page.findByRole("alertdialog", {
-      name: "田中 花子さんを管理者として招待しますか？",
-    });
-    await userEvent.click(within(confirmation).getByRole("button", { name: "管理者として招待" }));
-    await expect(page.getByTestId("manager-assignment-count")).toHaveTextContent("1");
-  },
-};
 
 export const BasicInformationFlowBehavior: Story = {
   parameters: { screenshot: { skip: true } },
@@ -742,7 +658,9 @@ export const ShopMembershipRemovalBehavior: Story = {
 
 export const ShopMembershipFullRemovalWarningBehavior: Story = {
   parameters: { screenshot: { skip: true } },
-  render: () => <PanelNavigationHarness data={baseData} />,
+  render: () => (
+    <PanelNavigationHarness data={{ ...multipleStoresData, shops: [shibuyaShop], memberships: [shibuyaMembership] }} />
+  ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);

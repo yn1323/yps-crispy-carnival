@@ -430,7 +430,8 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       managerRole: "active",
       managerInvitationState: { kind: "unavailable", reason: "このユーザーはすでに管理者です。" },
       canRemoveManagerRole: true,
-      canRemove: true,
+      canRemove: false,
+      removeDisabledReason: "先に管理者権限を外してください。",
       memberships: [],
     });
 
@@ -498,7 +499,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       canRemoveManagerRole: false,
       managerRoleRemovalDisabledReason: "最後の有効管理者の管理者権限は外せません。",
       canRemove: false,
-      removeDisabledReason: "管理者は削除できません。",
+      removeDisabledReason: "先に管理者権限を外してください。",
     });
   });
 
@@ -574,7 +575,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
 
     expect(result).toMatchObject({
       canRemove: false,
-      removeDisabledReason: "最後の復旧担当者は、引き継ぎまたは契約の復旧が完了するまで削除できません。",
+      removeDisabledReason: "先に管理者権限を外してください。",
     });
   });
 

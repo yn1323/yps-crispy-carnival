@@ -52,6 +52,7 @@ jobs:
           npx convex env set E2E_TESTING_DEPLOYMENT_URL "$PREVIEW_URL" --deployment "preview/$CONVEX_PREVIEW_NAME"
           npx convex env set E2E_TESTING_ENABLED true --deployment "preview/$CONVEX_PREVIEW_NAME"
           npx convex env set NOTIFICATION_DELIVERY_MODE dry-run --deployment "preview/$CONVEX_PREVIEW_NAME"
+          npx convex env set FEATURE_MANAGER_INVITATION enabled --deployment "preview/$CONVEX_PREVIEW_NAME"
           npx convex env set ORGANIZATION_INVITATION_SIGNING_SECRET "$E2E_INVITATION_SIGNING_SECRET" --deployment "preview/$CONVEX_PREVIEW_NAME"
       # NOTE: convex-seeds/seeds/db.zip is currently stale against the schema.
       # E2E scenarios seed their own data via convex/testing.ts helpers.

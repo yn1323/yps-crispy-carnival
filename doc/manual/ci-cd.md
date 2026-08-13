@@ -21,7 +21,7 @@ Pull Requestを閉じると、同workflowがプレビューの後処理を行う
 外部forkにはリポジトリのcredentialを渡さないため、同じ条件では実行されない。
 
 認証付きE2Eの必須gateは`pnpm e2e:ci`である。
-このcommandは、実ブラウザ境界を持つ次の8契約だけを実行し、JSON resultから契約ID、project、初回成功、skipなしを検証する。
+このcommandは、実ブラウザ境界を持つ次の9契約だけを実行し、JSON resultから契約ID、project、初回成功、skipなしを検証する。
 
 - `E2E-AUTH-01`：匿名利用者の保護route redirect。
 - `E2E-AUTH-02`：専用actorのlogout後に、同じ保護routeへ再アクセスしたときのredirect。
@@ -30,6 +30,7 @@ Pull Requestを閉じると、同workflowがプレビューの後処理を行う
 - `E2E-TENANT-01`：同じ管理者による2組織の切り替え。
 - `E2E-MEMBERSHIP-01`：店舗詳細での所属スタッフ追加、再読み込み、解除確認、解除後の再読み込み。
 - `E2E-SHOP-01`：既存組織への店舗追加、切り替え、再読み込み、追加店舗の削除、既存店舗への復帰。
+- `E2E-MANAGER-01`：組織設定から管理者設定を開き、既存スタッフへの招待を発行し、再読み込み後も招待中であることを確認して取り消し、スタッフタブへ戻る。
 - `E2E-MOBILE-01`：Mobile Chromeでの代表提出。
 
 通常実行はE2E用Clerk user 0から2を`parallelIndex`へ固定し、最大3 workerで動かす。
@@ -48,10 +49,13 @@ flake調査はretryを無効にした次のcommandで行う。
 pnpm e2e:burn-in
 ```
 
-このcommandはdesktop 7契約を各10回実行した後、mobile 1契約を依存projectなしで10回実行する。
+このcommandはdesktop 8契約を各10回実行した後、mobile 1契約を依存projectなしで10回実行する。
 Playwrightのproject dependencyを含む一括`repeat-each`では依存側のdesktopが1回しか反復されないため、2段階を直列実行する。
 各段階は次の段階が`test-results.json`とreportを上書きする前に、contract ID別の反復数、project、初回成功、skip、flakyを結果ゲートで確認し、artifact privacy検査を通す。
 Full Regressionは認証付きE2Eだけで担わず、Logic、Frontend Unit、Behavior、VRT、Convex Function、Convex Scenario、Deployed Smokeへ分担する。
+
+Playwright用Convex Previewでは管理者設定の代表契約のために`FEATURE_MANAGER_INVITATION=enabled`を明示し、通知配送は`NOTIFICATION_DELIVERY_MODE=dry-run`のまま維持する。
+このE2Eは招待の発行・再読込・取消というアプリ内状態だけを検証し、メールproviderへの実配送や受取人による招待承認は検証しない。
 
 VRTの差分とレポート公開は `.github/workflows/vrt.yml` が管理する。
 差分承認の条件と承認環境はworkflowを確認し、レポートURLだけを根拠に成功扱いしない。

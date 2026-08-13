@@ -28,8 +28,7 @@ const closedDetail = {
   notificationHistory: null,
   onChangeShiftTarget: noop,
   isChangingShiftTarget: false,
-  onInviteManager: async () => false,
-  isInvitingManager: false,
+  onManageManagers: noop,
 };
 
 const meta = {

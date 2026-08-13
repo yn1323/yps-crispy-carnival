@@ -1,6 +1,7 @@
 import type { GenericDatabaseReader } from "convex/server";
 import type { DataModel, Doc, Id } from "../_generated/dataModel";
 import { getOrganizationBillingState } from "../organization/service";
+import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
 import { getOrganizationInvitationPurpose } from "./purpose";
 
@@ -135,14 +136,18 @@ export async function resolveFreeManagerExchangeEligibility(
       )
       .collect(),
   ]);
-  if (members.length > 1 || members[0]?.status === "active") {
+  if (members.length > 1 || members[0]?.status === "active" || members[0]?.status === "readOnly") {
     return null;
   }
   let hasActiveStaffAffiliation = false;
   for (const staff of staffs) {
     if (staff.isDeleted) continue;
     const shop = await ctx.db.get(staff.shopId);
-    if (shop?.organizationId === args.organizationId && !shop.isDeleted) {
+    if (
+      shop?.organizationId === args.organizationId &&
+      !shop.isDeleted &&
+      organizationShopOperatingStatus(shop.operatingStatus) === "active"
+    ) {
       hasActiveStaffAffiliation = true;
       break;
     }
@@ -202,7 +207,7 @@ export async function resolveOrganizationInvitationEligibility(
         q.eq("organizationId", invitation.organizationId).eq("personId", targetPerson._id),
       )
       .take(2);
-    if (members.length > 1 || members[0]?.status === "active") return null;
+    if (members.length > 1 || members[0]?.status === "active" || members[0]?.status === "readOnly") return null;
     if (members[0] && (!targetPerson.userId || members[0].userId !== targetPerson.userId)) return null;
     if (targetPerson.userId) {
       const user = await ctx.db.get(targetPerson.userId);

@@ -24,7 +24,7 @@ Stripe設定、migration確認、障害対応は[組織課金の運用](../manua
 |---|---|---|
 | `FEATURE_ORGANIZATION_CREATION` | 二つ目以降の組織作成 | `createOrganization`が拒否し、「設定」タブに作成セクションを描画しない |
 | `FEATURE_BILLING` | プランと支払い | 「プランと支払い」タブ、Dashboardのプラン状態と支払い導線を描画しない。組織と店舗の文脈表示は維持する |
-| `FEATURE_MANAGER_INVITATION` | 管理者の追加・交代 | 発行・再送を拒否し、preview・受諾を利用不可へ寄せ、新規・投入済み通知を送らない。設定とスタッフ詳細の管理者操作UIを描画しない |
+| `FEATURE_MANAGER_INVITATION` | 管理者の追加・交代 | 発行・再送を拒否し、preview・受諾を利用不可へ寄せ、新規・投入済み通知を送らない。管理者設定への入口と、スタッフ詳細に残す管理者設定導線を描画しない |
 
 ダークローンチ中の機能を拒否するときはサーバー側でも行い、画面から導線を消すだけにはしない。
 `getSettings`は公開状態を`features`で返すが、これは表示判定であり認可根拠ではない。旧frontend互換の`shopAddition`は常に`true`を返す。
@@ -42,7 +42,7 @@ UserMenuの「組織設定」とDashboardの組織名リンクは常時表示す
 詳細は[アカウント削除](account-deletion.md)を参照する。
 
 管理者招待では、残存招待を減らす`revoke`とinternal `expire`だけを閉じない。
-`removeManagerRole`も管理者を増やさない縮退経路としてサーバーAPIを維持するが、管理者招待フラグが閉じている間はスタッフ詳細の管理者権限セクションごと非表示にする。
+`removeManagerRole`も管理者を増やさない縮退経路としてサーバーAPIを維持するが、管理者招待フラグが閉じている間は管理者設定への操作導線を非表示にする。
 
 当初の解放順序と完了履歴は[ダークローンチ実装計画](../plans/2026-07-25_ダークローンチ_実装計画.md)にある。現在の公開契約はこの文書を正とする。
 
@@ -189,11 +189,13 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 - Node actionの準備処理と確定処理の間では、認証主体、招待ID、version、token digest、確認済みメールをproofで結び、確定時に招待状態と上限を再確認する。
 - 発行時と連携時の両方で、管理者追加権限、人物上限、管理者上限、予約枠をサーバー側で確認する。
 - 再送は旧招待を失効させ、tokenをローテーションする。
+- 新規発行は、同じ対象の期限内招待を暗黙に再送しない。管理者設定の招待中一覧から明示的に再送し、以前の招待URLが使えなくなることを確認する。
 - 生tokenをNotification Outboxへ保存せず、送信直前にサーバー側秘密値から導出する。
 - 外部人物は招待発行時に人物や所属を作らず、アカウント連携が成功したtransaction内で初めて作る。
 - Freeの管理者交代は、後任の連携と同じtransactionで旧管理者の管理権限を失効する。
   旧管理者の人物情報と既存スタッフ所属は維持する。
 - 期限切れ、取消、上限超過、メール不一致、所属不整合では管理者権限を作らない。
+- `active`または`readOnly`の管理者人物は、人物削除や個別店舗のスタッフ所属解除より先に管理者権限を外す。4つのcanonical mutationが同じserver policyをtransaction内で再確認し、画面のdisabled状態だけに依存しない。
 
 ## 主要な課金状態
 
@@ -217,11 +219,14 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 | 画面 | 役割 |
 |---|---|
 | `/settings?shop=<shopId>` | 選択店舗から組織を解決し、ユーザー、店舗、プランと支払い、設定を管理する。UserMenuとDashboardの組織Accordion内から開ける |
+| `/settings/managers?shop=<shopId>` | 現在の管理者、期限内の招待中一覧、利用状況を確認し、再送、取消、権限解除、2つの招待導線を扱う。閉じるとスタッフタブを表すcanonical `/settings?shop=<shopId>`へ戻る |
+| `/settings/managers/invite-staff?shop=<shopId>` | 組織に登録済みの候補から1名だけを選び、Paidでは管理者追加、Freeでは後任への交代招待を開始する |
+| `/settings/managers/invite-new?shop=<shopId>` | Paidで新しい人物の氏名と招待先メールアドレスを確認し、承認前に人物を作らず招待を開始する。Freeでは利用できない |
 | `/settings?shop=<shopId>&tab=billing` | 現在のプラン、価格、変更予定、支払い方法、請求先メール、復旧操作を扱う |
 | `/manager-invite?token=...` | 公開中は招待previewとアカウント連携を扱う。ダークローンチ中は利用不可を表示する |
 | `/dashboard?shop=<shopId>` | 現在の組織と店舗、業務更新可否、現在プランと対応が必要な課金状態を表示する |
 | `/shops/<shopId>?shop=<contextShopId>` | 同じ組織の店舗情報、所属、稼働状態を管理する |
-| `/users/<personId>?shop=<shopId>` | 組織人物、管理者権限、店舗所属、招待再送を管理する |
+| `/users/<personId>?shop=<shopId>` | 組織人物、店舗所属、管理者状態を確認する。管理者の変更操作は専用の管理者設定へ進む |
 
 ### Dashboardの組織・プラン表示
 
@@ -283,7 +288,8 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | パス | 責務 |
 |---|---|
 | `src/pages/settings/` | 組織設定画面の取得と配置 |
-| `src/components/features/OrganizationSettings/` | ユーザー、店舗、プランと支払い、管理者招待、組織作成、削除UI |
+| `src/pages/manager-settings/` | 管理者設定、既存スタッフ招待、新しい人物の招待に必要なQuery接続とページ状態 |
+| `src/components/features/OrganizationSettings/` | ユーザー、店舗、プランと支払い、管理者設定への入口、組織作成、削除UI |
 | `src/components/features/OrganizationSettings/BillingSettings/` | 価格表示、プラン変更、Portal、請求先メールのcontrollerとdialog |
 | `src/components/features/ManagerInvitationAcceptance/` | 招待preview、認証導線、連携結果 |
 | `src/pages/account-security/` / `src/components/features/LoginMethods/` | シフト連絡先と独立したアカウント設定の画面境界、Clerk状態からの表示判定と操作可否 |
@@ -303,9 +309,12 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | `api.dashboard.queries.getDashboardShop` | 選択店舗を認可し、Dashboard用の`planStatus`とrolling deploy用の旧`trialEndingNotice`を取得 |
 | `api.dashboard.queries.getDashboardPlanUsage` | 選択店舗を認可し、明示された時刻を基準にスタッフ・店舗と、公開中だけ管理者の現在値・上限を取得 |
 | `api.organization.queries.getSettings` | 組織設定、利用状況、課金状態、操作可否の取得 |
+| `api.organization.queries.getManagerSettingsOverview` | `{ shopId, now }`で選択店舗を認可し、管理者数、招待中件数、現在の管理者、期限内の招待、操作可否を`hidden` / `integrityError` / `ready` unionで取得 |
+| `api.organization.queries.getManagerCandidates` | `{ shopId, now }`で選択店舗を認可し、既存スタッフの単一選択候補と選択不可理由を`hidden` / `integrityError` / `ready` unionで取得。候補サブページを開いた間だけ購読する |
 | `api.organization.mutations.*` | 組織名、店舗、人物、管理者、削除の更新 |
 | `api.organizationInvitation.queries.getPreview` | 公開中は招待先組織と期限だけを返し、閉状態ではtokenを解決せず`unavailable`を返す |
-| `api.organizationInvitation.mutations.createExternal` / `createForPerson` / `createForStaff` | 外部人物または既存人物への管理者招待 |
+| `api.organizationInvitation.mutations.issue` | 新しい管理者設定から、既存スタッフまたは外部人物へ期限内の重複を暗黙再送しない管理者招待を発行する |
+| `api.organizationInvitation.mutations.createExternal` / `createForPerson` / `createForStaff` | rolling deploy中の旧client向けに、外部人物または既存人物へ管理者招待を発行する互換入口 |
 | `api.organizationInvitation.mutations.resend` / `revoke` | 招待の再送と取消。閉状態では再送を止め、取消だけを維持する |
 | `api.organizationInvitation.acceptanceActions.accept` | 接続済み人物のアカウント一致、または未接続人物のClerk確認済みメールを検証して招待を承認 |
 | `api.organizationBilling.mutations.setFreeSelection` | Freeで残す管理者と店舗の選択 |
@@ -333,6 +342,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 - `convex/dashboard/queries.test.ts`：選択店舗の認可境界、全課金状態の`planStatus`投影、利用状況の現在値・上限、管理者flagのfail-closed、不要な識別子の非露出を検証する。
 - `convex/organizationStripe/*.test.ts`：新規販売用Price、現在Subscriptionの保存済みPrice、Checkout、Webhook、再照合、支払い不要BusinessのStripe隔離、probeを検証する。
 - `convex/organizationInvitation/*.test.ts`：token、期限、接続済み人物のアカウント一致、未接続人物のClerk確認済みメール、provider失敗時の非消費、予約枠、再送、連携を検証する。
+- `convex/organization/queries.test.ts`：管理者設定のbounded read、feature closedのPII非読取、currentとprojectedの分離、`hidden` / `integrityError` / `ready`、候補の選択不可理由を検証する。
 - `convex/_scenario/organizationBillingLifecycle.test.ts`と`organizationPaidPlanChanges.test.ts`：時間と複数APIをまたぐ課金ライフサイクルを検証する。
 - `convex/_scenario/staffManagerInvitation.test.ts`と`organizationManagerExchange.test.ts`：既存人物の招待とFree管理者交代を検証する。
 - `convex/setup/mutations.test.ts`と`convex/_scenario/organizationCreation.test.ts`：組織作成の上限、冪等性、rate limit、Free開始、既存組織への非混入を検証する。
@@ -340,7 +350,8 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 - `src/components/features/OrganizationSettings/PlanAndPaymentSection.stories.tsx`と`BillingSettings/`配下のStory・Logic Test：Free、Pro、Businessの代表状態と主要変更操作を検証する。
 - `src/components/features/Dashboard/PlanStatusCard/`のFrontend Unit・Story・Logic Test：折りたたみ中のquery停止、利用状況の局所Loading、全課金状態の表示変換、開閉、CTA、モバイル表示を検証する。
 - `src/components/features/Dashboard/DashboardContent/index.stories.tsx`：`undefined`と`null`のfallback差、`FEATURE_BILLING`、新旧表示の優先順位を検証する。
-- `src/components/features/OrganizationSettings/ManagerInvitation/ManagerInvitationDialog.stories.tsx`：管理者招待の代表状態と操作を検証する。
+- `src/components/features/ManagerSettings/`のStoryとFrontend Unit Test：専用ページ、既存スタッフの単一選択、新しい人物の入力、再送、取消、Free交代、Loading、Empty、Error、閲覧専用の代表状態を検証する。
+- `e2e/scenarios/manager-settings.test.ts`：実認証済みブラウザで組織設定から専用ページを開き、既存スタッフへの発行、再読込、取消、スタッフタブへの復帰だけを検証する。メールproviderへの実配送と受取人の承認は成功条件にしない。
 
 ## 仕様・規約・運用
 

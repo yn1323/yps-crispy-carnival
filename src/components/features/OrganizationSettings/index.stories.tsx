@@ -9,7 +9,7 @@ const actions = {
   onBackToDashboard: fn(),
   onSelectOrganization: fn(),
   onUpdateOrganizationName: fn(),
-  onInviteManager: fn(),
+  onManageManagers: fn(),
   onOpenUser: fn(),
   onAddShop: fn(),
   onOpenShop: fn(),
@@ -378,8 +378,8 @@ export const UserNavigationBehavior: Story = {
   },
 };
 
-export const ManagerRoleRemoval: Story = {
-  name: "スタッフ｜管理者権限を外す",
+export const ManagerStatus: Story = {
+  name: "スタッフ｜管理者状態を表示",
   args: {
     people: [
       {
@@ -448,9 +448,7 @@ export const DarkLaunchHiddenEntrypointsBehavior: Story = {
     await expect(canvas.queryByRole("button", { name: "店舗を追加する" })).not.toBeInTheDocument();
 
     await userEvent.click(canvas.getByRole("tab", { name: "スタッフ" }));
-    await expect(
-      canvas.queryByRole("button", { name: /管理者を招待|次の管理者を招待|ログイン案内を再送/ }),
-    ).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: "管理者を変更" })).not.toBeInTheDocument();
 
     await userEvent.click(canvas.getByRole("tab", { name: "設定" }));
     await expect(canvas.queryByRole("button", { name: "新しい組織を作る" })).not.toBeInTheDocument();
@@ -524,10 +522,7 @@ export const DisabledActionReasonsBehavior: Story = {
   args: disabledActionReasonArgs,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expectDisabledActionDescription(
-      canvas.getByRole("button", { name: "管理者を招待" }),
-      "閲覧のみの管理者は、管理者を招待できません。",
-    );
+    await expect(canvas.getByRole("button", { name: "管理者を変更" })).toBeEnabled();
     await expectDisabledActionDescription(
       canvas.getByRole("button", { name: "組織名を変更" }),
       "閲覧のみの管理者は、組織名を変更できません。",

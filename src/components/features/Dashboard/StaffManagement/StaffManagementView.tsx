@@ -52,8 +52,7 @@ type StaffDetailViewModel = {
   notificationHistory: ReactNode;
   onChangeShiftTarget: (staff: Staff, isShiftTarget: boolean) => void | Promise<void>;
   isChangingShiftTarget: boolean;
-  onInviteManager: (staff: Staff) => Promise<boolean>;
-  isInvitingManager: boolean;
+  onManageManagers: () => void;
 };
 
 type Props = {
@@ -142,8 +141,7 @@ export function StaffManagementView({
             notificationHistory={detail.notificationHistory}
             onChangeShiftTarget={detail.onChangeShiftTarget}
             isChangingShiftTarget={detail.isChangingShiftTarget}
-            onInviteManager={detail.onInviteManager}
-            isInvitingManager={detail.isInvitingManager}
+            onManageManagers={detail.onManageManagers}
           />
         </DeferredDialogBoundary>
       )}

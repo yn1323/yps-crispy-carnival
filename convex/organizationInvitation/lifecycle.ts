@@ -53,6 +53,47 @@ export async function collectIssuedInvitationsByOrganization(ctx: DbCtx, organiz
   return [...issued, ...pending];
 }
 
+/**
+ * Operational views only need currently usable invitations. Keep this reader
+ * separate from the legacy collector because rolling consumers still rely on
+ * seeing expired issued rows until their own lifecycle checks run.
+ */
+export async function readActiveIssuedInvitationsByOrganization(
+  ctx: DbCtx,
+  organizationId: Id<"organizations">,
+  now: number,
+  limit: number,
+) {
+  if (!Number.isFinite(now) || !Number.isSafeInteger(limit) || limit < 0) {
+    throw new Error("招待一覧の取得条件が不正です");
+  }
+
+  const rowLimit = limit + 1;
+  const [issued, pending] = await Promise.all([
+    ctx.db
+      .query("organizationInvitations")
+      .withIndex("by_organizationId_and_status_and_expiresAt", (q) =>
+        q.eq("organizationId", organizationId).eq("status", "issued").gt("expiresAt", now),
+      )
+      .take(rowLimit),
+    ctx.db
+      .query("organizationInvitations")
+      .withIndex("by_organizationId_and_status_and_expiresAt", (q) =>
+        q.eq("organizationId", organizationId).eq("status", "pending").gt("expiresAt", now),
+      )
+      .take(rowLimit),
+  ]);
+
+  const invitations = [...issued, ...pending]
+    .sort((left, right) => left.expiresAt - right.expiresAt || left._id.localeCompare(right._id))
+    .slice(0, rowLimit);
+
+  return {
+    invitations,
+    hasOverflow: issued.length + pending.length > limit,
+  };
+}
+
 export async function collectIssuedInvitationsByInviter(ctx: DbCtx, inviterMemberId: Id<"organizationMembers">) {
   const [issued, pending] = await Promise.all([
     ctx.db

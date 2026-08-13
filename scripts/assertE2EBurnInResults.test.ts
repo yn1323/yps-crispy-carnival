@@ -44,11 +44,24 @@ function report(phaseName: "desktop" | "mobile", override: ResultOverride = {}) 
 }
 
 describe("E2E burn-in result gate", () => {
+  it("desktop 8契約とmobile 1契約を各10回のphaseへ固定する", () => {
+    expect(E2E_BURN_IN_PHASES.get("desktop")).toMatchObject({ repetitions: 10 });
+    expect(E2E_BURN_IN_PHASES.get("desktop")?.contractIds).toHaveLength(8);
+    expect(E2E_BURN_IN_PHASES.get("mobile")).toMatchObject({ repetitions: 10 });
+    expect(E2E_BURN_IN_PHASES.get("mobile")?.contractIds).toHaveLength(1);
+  });
+
   it.each(["desktop", "mobile"] as const)("%sの契約を各10回、初回成功で検証する", (phaseName) => {
     const phase = E2E_BURN_IN_PHASES.get(phaseName);
     expect(assertE2EBurnInResults(report(phaseName), phaseName)).toEqual(
       phase?.contractIds.map((contractId) => ({ contractId, count: 10 })),
     );
+  });
+
+  it("desktopで管理者設定の代表契約を10回要求する", () => {
+    const summary = assertE2EBurnInResults(report("desktop"), "desktop");
+
+    expect(summary).toContainEqual({ contractId: "E2E-MANAGER-01", count: 10 });
   });
 
   it.each([

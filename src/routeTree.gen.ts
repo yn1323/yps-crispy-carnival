@@ -38,6 +38,7 @@ import { Route as PrivacyManagerRouteImport } from './routes/privacy_.manager'
 import { Route as PrivacyStaffRouteImport } from './routes/privacy_.staff'
 import { Route as TermsManagerRouteImport } from './routes/terms_.manager'
 import { Route as TermsStaffRouteImport } from './routes/terms_.staff'
+import { Route as AuthSettingsManagersRouteImport } from './routes/_auth/settings_.managers'
 import { Route as AuthShiftboardRecruitmentIdRouteImport } from './routes/_auth/shiftboard.$recruitmentId'
 import { Route as AuthShopsShopIdRouteImport } from './routes/_auth/shops.$shopId'
 import { Route as AuthUsersPersonIdRouteImport } from './routes/_auth/users.$personId'
@@ -47,6 +48,8 @@ import { Route as UnregisteredShiftsSubmitRouteImport } from './routes/_unregist
 import { Route as UnregisteredShiftsViewRouteImport } from './routes/_unregistered/shifts.view'
 import { Route as UnregisteredStaffRegisterRouteImport } from './routes/_unregistered/staff.register'
 import { Route as ArticlesCategoriesCategorySlugRouteImport } from './routes/articles.categories.$categorySlug'
+import { Route as AuthSettingsManagersInviteNewRouteImport } from './routes/_auth/settings_.managers_.invite-new'
+import { Route as AuthSettingsManagersInviteStaffRouteImport } from './routes/_auth/settings_.managers_.invite-staff'
 import { Route as UnregisteredLegalStaffConsentRouteImport } from './routes/_unregistered/legal.staff.consent'
 import { Route as UnregisteredShiftsSubmitCompletedRouteImport } from './routes/_unregistered/shifts.submit_.completed'
 import { Route as AuthUsersPersonIdShopsTargetShopIdRouteImport } from './routes/_auth/users.$personId_.shops.$targetShopId'
@@ -194,6 +197,11 @@ const TermsStaffRoute = TermsStaffRouteImport.update({
   path: '/terms/staff',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthSettingsManagersRoute = AuthSettingsManagersRouteImport.update({
+  id: '/settings_/managers',
+  path: '/settings/managers',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthShiftboardRecruitmentIdRoute =
   AuthShiftboardRecruitmentIdRouteImport.update({
     id: '/shiftboard/$recruitmentId',
@@ -245,6 +253,18 @@ const ArticlesCategoriesCategorySlugRoute =
     path: '/categories/$categorySlug',
     getParentRoute: () => ArticlesRoute,
   } as any)
+const AuthSettingsManagersInviteNewRoute =
+  AuthSettingsManagersInviteNewRouteImport.update({
+    id: '/settings_/managers_/invite-new',
+    path: '/settings/managers/invite-new',
+    getParentRoute: () => AuthRoute,
+  } as any)
+const AuthSettingsManagersInviteStaffRoute =
+  AuthSettingsManagersInviteStaffRouteImport.update({
+    id: '/settings_/managers_/invite-staff',
+    path: '/settings/managers/invite-staff',
+    getParentRoute: () => AuthRoute,
+  } as any)
 const UnregisteredLegalStaffConsentRoute =
   UnregisteredLegalStaffConsentRouteImport.update({
     id: '/legal/staff/consent',
@@ -292,6 +312,7 @@ export interface FileRoutesByFullPath {
   '/terms/manager': typeof TermsManagerRoute
   '/terms/staff': typeof TermsStaffRoute
   '/articles/': typeof ArticlesIndexRoute
+  '/settings/managers': typeof AuthSettingsManagersRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/shops/$shopId': typeof AuthShopsShopIdRoute
   '/users/$personId': typeof AuthUsersPersonIdRoute
@@ -301,6 +322,8 @@ export interface FileRoutesByFullPath {
   '/shifts/view': typeof UnregisteredShiftsViewRoute
   '/staff/register': typeof UnregisteredStaffRegisterRoute
   '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
+  '/settings/managers/invite-new': typeof AuthSettingsManagersInviteNewRoute
+  '/settings/managers/invite-staff': typeof AuthSettingsManagersInviteStaffRoute
   '/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/shifts/submit/completed': typeof UnregisteredShiftsSubmitCompletedRoute
   '/users/$personId/shops/$targetShopId': typeof AuthUsersPersonIdShopsTargetShopIdRoute
@@ -332,6 +355,7 @@ export interface FileRoutesByTo {
   '/terms/manager': typeof TermsManagerRoute
   '/terms/staff': typeof TermsStaffRoute
   '/articles': typeof ArticlesIndexRoute
+  '/settings/managers': typeof AuthSettingsManagersRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/shops/$shopId': typeof AuthShopsShopIdRoute
   '/users/$personId': typeof AuthUsersPersonIdRoute
@@ -341,6 +365,8 @@ export interface FileRoutesByTo {
   '/shifts/view': typeof UnregisteredShiftsViewRoute
   '/staff/register': typeof UnregisteredStaffRegisterRoute
   '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
+  '/settings/managers/invite-new': typeof AuthSettingsManagersInviteNewRoute
+  '/settings/managers/invite-staff': typeof AuthSettingsManagersInviteStaffRoute
   '/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/shifts/submit/completed': typeof UnregisteredShiftsSubmitCompletedRoute
   '/users/$personId/shops/$targetShopId': typeof AuthUsersPersonIdShopsTargetShopIdRoute
@@ -376,6 +402,7 @@ export interface FileRoutesById {
   '/terms_/manager': typeof TermsManagerRoute
   '/terms_/staff': typeof TermsStaffRoute
   '/articles/': typeof ArticlesIndexRoute
+  '/_auth/settings_/managers': typeof AuthSettingsManagersRoute
   '/_auth/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/_auth/shops/$shopId': typeof AuthShopsShopIdRoute
   '/_auth/users/$personId': typeof AuthUsersPersonIdRoute
@@ -385,6 +412,8 @@ export interface FileRoutesById {
   '/_unregistered/shifts/view': typeof UnregisteredShiftsViewRoute
   '/_unregistered/staff/register': typeof UnregisteredStaffRegisterRoute
   '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
+  '/_auth/settings_/managers_/invite-new': typeof AuthSettingsManagersInviteNewRoute
+  '/_auth/settings_/managers_/invite-staff': typeof AuthSettingsManagersInviteStaffRoute
   '/_unregistered/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/_unregistered/shifts/submit_/completed': typeof UnregisteredShiftsSubmitCompletedRoute
   '/_auth/users/$personId_/shops/$targetShopId': typeof AuthUsersPersonIdShopsTargetShopIdRoute
@@ -419,6 +448,7 @@ export interface FileRouteTypes {
     | '/terms/manager'
     | '/terms/staff'
     | '/articles/'
+    | '/settings/managers'
     | '/shiftboard/$recruitmentId'
     | '/shops/$shopId'
     | '/users/$personId'
@@ -428,6 +458,8 @@ export interface FileRouteTypes {
     | '/shifts/view'
     | '/staff/register'
     | '/articles/categories/$categorySlug'
+    | '/settings/managers/invite-new'
+    | '/settings/managers/invite-staff'
     | '/legal/staff/consent'
     | '/shifts/submit/completed'
     | '/users/$personId/shops/$targetShopId'
@@ -459,6 +491,7 @@ export interface FileRouteTypes {
     | '/terms/manager'
     | '/terms/staff'
     | '/articles'
+    | '/settings/managers'
     | '/shiftboard/$recruitmentId'
     | '/shops/$shopId'
     | '/users/$personId'
@@ -468,6 +501,8 @@ export interface FileRouteTypes {
     | '/shifts/view'
     | '/staff/register'
     | '/articles/categories/$categorySlug'
+    | '/settings/managers/invite-new'
+    | '/settings/managers/invite-staff'
     | '/legal/staff/consent'
     | '/shifts/submit/completed'
     | '/users/$personId/shops/$targetShopId'
@@ -502,6 +537,7 @@ export interface FileRouteTypes {
     | '/terms_/manager'
     | '/terms_/staff'
     | '/articles/'
+    | '/_auth/settings_/managers'
     | '/_auth/shiftboard/$recruitmentId'
     | '/_auth/shops/$shopId'
     | '/_auth/users/$personId'
@@ -511,6 +547,8 @@ export interface FileRouteTypes {
     | '/_unregistered/shifts/view'
     | '/_unregistered/staff/register'
     | '/articles/categories/$categorySlug'
+    | '/_auth/settings_/managers_/invite-new'
+    | '/_auth/settings_/managers_/invite-staff'
     | '/_unregistered/legal/staff/consent'
     | '/_unregistered/shifts/submit_/completed'
     | '/_auth/users/$personId_/shops/$targetShopId'
@@ -748,6 +786,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TermsStaffRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_auth/settings_/managers': {
+      id: '/_auth/settings_/managers'
+      path: '/settings/managers'
+      fullPath: '/settings/managers'
+      preLoaderRoute: typeof AuthSettingsManagersRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/shiftboard/$recruitmentId': {
       id: '/_auth/shiftboard/$recruitmentId'
       path: '/shiftboard/$recruitmentId'
@@ -811,6 +856,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ArticlesCategoriesCategorySlugRouteImport
       parentRoute: typeof ArticlesRoute
     }
+    '/_auth/settings_/managers_/invite-new': {
+      id: '/_auth/settings_/managers_/invite-new'
+      path: '/settings/managers/invite-new'
+      fullPath: '/settings/managers/invite-new'
+      preLoaderRoute: typeof AuthSettingsManagersInviteNewRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/settings_/managers_/invite-staff': {
+      id: '/_auth/settings_/managers_/invite-staff'
+      path: '/settings/managers/invite-staff'
+      fullPath: '/settings/managers/invite-staff'
+      preLoaderRoute: typeof AuthSettingsManagersInviteStaffRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_unregistered/legal/staff/consent': {
       id: '/_unregistered/legal/staff/consent'
       path: '/legal/staff/consent'
@@ -839,9 +898,12 @@ interface AuthRouteChildren {
   AuthAccountRoute: typeof AuthAccountRoute
   AuthDashboardRoute: typeof AuthDashboardRoute
   AuthSettingsRoute: typeof AuthSettingsRoute
+  AuthSettingsManagersRoute: typeof AuthSettingsManagersRoute
   AuthShiftboardRecruitmentIdRoute: typeof AuthShiftboardRecruitmentIdRoute
   AuthShopsShopIdRoute: typeof AuthShopsShopIdRoute
   AuthUsersPersonIdRoute: typeof AuthUsersPersonIdRoute
+  AuthSettingsManagersInviteNewRoute: typeof AuthSettingsManagersInviteNewRoute
+  AuthSettingsManagersInviteStaffRoute: typeof AuthSettingsManagersInviteStaffRoute
   AuthUsersPersonIdShopsTargetShopIdRoute: typeof AuthUsersPersonIdShopsTargetShopIdRoute
 }
 
@@ -849,9 +911,12 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthAccountRoute: AuthAccountRoute,
   AuthDashboardRoute: AuthDashboardRoute,
   AuthSettingsRoute: AuthSettingsRoute,
+  AuthSettingsManagersRoute: AuthSettingsManagersRoute,
   AuthShiftboardRecruitmentIdRoute: AuthShiftboardRecruitmentIdRoute,
   AuthShopsShopIdRoute: AuthShopsShopIdRoute,
   AuthUsersPersonIdRoute: AuthUsersPersonIdRoute,
+  AuthSettingsManagersInviteNewRoute: AuthSettingsManagersInviteNewRoute,
+  AuthSettingsManagersInviteStaffRoute: AuthSettingsManagersInviteStaffRoute,
   AuthUsersPersonIdShopsTargetShopIdRoute:
     AuthUsersPersonIdShopsTargetShopIdRoute,
 }

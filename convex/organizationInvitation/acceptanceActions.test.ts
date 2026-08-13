@@ -84,10 +84,9 @@ describe("organizationInvitation/acceptanceActions", () => {
     const invitationEmail = "provider-failure-target@example.com";
     const created = await t
       .withIdentity({ subject: "provider_failure_owner" })
-      .mutation(api.organizationInvitation.mutations.createExternal, {
+      .mutation(api.organizationInvitation.mutations.issue, {
         shopId: manager.shopId,
-        name: "Provider復旧対象",
-        email: invitationEmail,
+        recipient: { kind: "external", invitedName: "Provider復旧対象", email: invitationEmail },
         requestId: "provider-failure-create",
       });
     const invitation = await t.run((ctx) => ctx.db.get(created.invitationId));
@@ -105,6 +104,16 @@ describe("organizationInvitation/acceptanceActions", () => {
       tokenIdentifier: actorTokenIdentifier,
       email: "different-login@example.com",
     });
+    await expect(
+      t.run(async (ctx) =>
+        ctx.db
+          .query("organizationPeople")
+          .withIndex("by_organizationId_and_emailNormalized", (q) =>
+            q.eq("organizationId", manager.organizationId).eq("emailNormalized", invitationEmail),
+          )
+          .collect(),
+      ),
+    ).resolves.toEqual([]);
     const beforeFailure = await invitationAcceptancePersistentState(t, invitation._id, manager.organizationId);
     const unavailableProvider = providerStub(new Set());
     unavailableProvider.getVerifiedEmails = vi.fn(async () => {

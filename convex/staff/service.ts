@@ -3,6 +3,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { normalizeEmail } from "../_lib/validation";
 import { SHOP_MEMBERSHIP_STATS_ACTIVE_STAFF_LIMIT } from "../constants";
+import { MANAGER_PERSON_REMOVAL_DISABLED_REASON } from "../organization/personCapabilities";
 import {
   createOrganizationShopStaffMembershipFingerprint,
   ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT,
@@ -176,6 +177,9 @@ export async function collectOrganizationShopStaffMembershipSnapshot(
   const snapshotPeople = people
     .map((person): OrganizationShopStaffMembershipSnapshotPerson => {
       const currentStaff = currentStaffByPersonId.get(person._id) ?? null;
+      // UI capabilityもmutation guardと同じpersonId基準でfail closedにする。
+      // user linkが壊れている場合でもactive/readOnly roleの解除表示を許可しない。
+      const isManager = managerMemberships.some((membership) => membership.personId === person._id);
       const hasLegacyEmailConflict = legacyEmails.has(person.emailNormalized);
       const hasActiveStaffEmailConflict =
         !currentStaff &&
@@ -183,20 +187,19 @@ export async function collectOrganizationShopStaffMembershipSnapshot(
           (ownerPersonId) => ownerPersonId !== person._id,
         );
       const hasPendingRegistrationConflict = !currentStaff && pendingEmails.has(person.emailNormalized);
-      const changeDisabledReason = hasLegacyEmailConflict
-        ? LEGACY_EMAIL_SHOP_STAFF_MEMBERSHIP_CHANGE_DISABLED_REASON
-        : hasActiveStaffEmailConflict
-          ? ACTIVE_STAFF_EMAIL_SHOP_STAFF_MEMBERSHIP_CHANGE_DISABLED_REASON
-          : hasPendingRegistrationConflict
-            ? PENDING_REGISTRATION_SHOP_STAFF_MEMBERSHIP_CHANGE_DISABLED_REASON
-            : null;
+      const changeDisabledReason =
+        currentStaff && isManager
+          ? MANAGER_PERSON_REMOVAL_DISABLED_REASON
+          : hasLegacyEmailConflict
+            ? LEGACY_EMAIL_SHOP_STAFF_MEMBERSHIP_CHANGE_DISABLED_REASON
+            : hasActiveStaffEmailConflict
+              ? ACTIVE_STAFF_EMAIL_SHOP_STAFF_MEMBERSHIP_CHANGE_DISABLED_REASON
+              : hasPendingRegistrationConflict
+                ? PENDING_REGISTRATION_SHOP_STAFF_MEMBERSHIP_CHANGE_DISABLED_REASON
+                : null;
       return {
         person,
-        isManager:
-          person.userId !== undefined &&
-          managerMemberships.some(
-            (membership) => membership.personId === person._id && membership.userId === person.userId,
-          ),
+        isManager,
         otherShopNames: [...(otherShopNamesByPersonId.get(person._id) ?? [])].sort((left, right) =>
           left.localeCompare(right, "ja"),
         ),

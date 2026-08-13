@@ -14,18 +14,10 @@ export type UserMembershipChangeInput = Omit<
 
 export type UserDetailRemovalPreview = UserDetailData["removalPreview"];
 
-export type UserDetailDialog =
-  | {
-      kind: "removeManagerRole";
-      personId: UserDetailData["person"]["id"];
-      shopId: UserDetailData["shops"][number]["shopId"];
-      requestId: string;
-    }
-  | {
-      kind: "removePerson";
-      personId: UserDetailData["person"]["id"];
-      shopId: UserDetailData["shops"][number]["shopId"];
-      removalPreview: UserDetailRemovalPreview;
-      requestId: string;
-    }
-  | null;
+export type UserDetailDialog = {
+  kind: "removePerson";
+  personId: UserDetailData["person"]["id"];
+  shopId: UserDetailData["shops"][number]["shopId"];
+  removalPreview: UserDetailRemovalPreview;
+  requestId: string;
+} | null;

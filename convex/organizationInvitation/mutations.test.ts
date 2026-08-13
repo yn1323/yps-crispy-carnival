@@ -338,6 +338,307 @@ describe("organizationInvitation/mutations", () => {
     expect(acceptanceJobs).toEqual([]);
   });
 
+  it("strict issueは既存staffを発行し、同じ対象の有効招待をrotateしない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const manager = await seedOrganizationManagerShop(ctx, { subject: "strict_issue_owner", plan: "pro" });
+      const first = await seedActiveOrganizationStaff(ctx, {
+        organizationId: manager.organizationId,
+        shopId: manager.shopId,
+        subject: "strict_issue_first",
+      });
+      const second = await seedActiveOrganizationStaff(ctx, {
+        organizationId: manager.organizationId,
+        shopId: manager.shopId,
+        subject: "strict_issue_second",
+      });
+      return { ...manager, first, second };
+    });
+    const owner = t.withIdentity({ subject: "strict_issue_owner" });
+    const first = await owner.mutation(api.organizationInvitation.mutations.issue, {
+      shopId: ids.shopId,
+      recipient: { kind: "existingStaff", personId: ids.first.personId },
+      requestId: "strict-issue-request",
+    });
+    expect(first.status).toBe("issued");
+    const issuedBefore = await t.run((ctx) => ctx.db.get(first.invitationId));
+
+    await expect(
+      owner.mutation(api.organizationInvitation.mutations.issue, {
+        shopId: ids.shopId,
+        recipient: { kind: "existingStaff", personId: ids.first.personId },
+        requestId: "strict-issue-another-request",
+      }),
+    ).resolves.toEqual({ status: "alreadyPending", invitationId: first.invitationId });
+    expect(await t.run((ctx) => ctx.db.get(first.invitationId))).toEqual(issuedBefore);
+
+    const beforeMismatch = await invitationSecurityState(t);
+    await expect(
+      owner.mutation(api.organizationInvitation.mutations.issue, {
+        shopId: ids.shopId,
+        recipient: { kind: "existingStaff", personId: ids.second.personId },
+        requestId: "strict-issue-request",
+      }),
+    ).rejects.toThrow("以前の管理者招待と内容が一致しません");
+    expect(await invitationSecurityState(t)).toEqual(beforeMismatch);
+  });
+
+  it("strict issueは人物のメール変更後も同一targetの旧URLを維持し、同request retryへ収束する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const manager = await seedOrganizationManagerShop(ctx, { subject: "strict_stale_owner", plan: "pro" });
+      const target = await seedActiveOrganizationStaff(ctx, {
+        organizationId: manager.organizationId,
+        shopId: manager.shopId,
+        subject: "strict_stale_target",
+      });
+      return { ...manager, target };
+    });
+    const owner = t.withIdentity({ subject: "strict_stale_owner" });
+    const issued = await owner.mutation(api.organizationInvitation.mutations.issue, {
+      shopId: ids.shopId,
+      recipient: { kind: "existingStaff", personId: ids.target.personId },
+      requestId: "strict-stale-original",
+    });
+    const before = await t.run((ctx) => ctx.db.get(issued.invitationId));
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.target.personId, {
+        email: "strict-stale-new@example.com",
+        emailNormalized: "strict-stale-new@example.com",
+      });
+    });
+    const args = {
+      shopId: ids.shopId,
+      recipient: { kind: "existingStaff" as const, personId: ids.target.personId },
+      requestId: "strict-stale-retry",
+    };
+    await expect(owner.mutation(api.organizationInvitation.mutations.issue, args)).resolves.toEqual({
+      status: "alreadyPending",
+      invitationId: issued.invitationId,
+    });
+    await expect(owner.mutation(api.organizationInvitation.mutations.issue, args)).resolves.toEqual({
+      status: "alreadyPending",
+      invitationId: issued.invitationId,
+    });
+    expect(await t.run((ctx) => ctx.db.get(issued.invitationId))).toEqual(before);
+  });
+
+  it("strict externalは同request後に同email人物が作られても元のintentへ収束する", async () => {
+    const t = convexTest(schema, modules);
+    const manager = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: "strict_external_drift_owner", plan: "pro" }),
+    );
+    const owner = t.withIdentity({ subject: "strict_external_drift_owner" });
+    const args = {
+      shopId: manager.shopId,
+      recipient: {
+        kind: "external" as const,
+        invitedName: "後発人物と同じ招待先",
+        email: "strict-external-drift@example.com",
+      },
+      requestId: "strict-external-drift-request",
+    };
+    const issued = await owner.mutation(api.organizationInvitation.mutations.issue, args);
+    const before = await t.run((ctx) => ctx.db.get(issued.invitationId));
+    await t.run(async (ctx) => {
+      await ctx.db.insert("organizationPeople", {
+        organizationId: manager.organizationId,
+        name: "承認前に追加された人物",
+        email: "strict-external-drift@example.com",
+        emailNormalized: "strict-external-drift@example.com",
+        status: "active",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    });
+
+    await expect(owner.mutation(api.organizationInvitation.mutations.issue, args)).resolves.toEqual({
+      status: "alreadyPending",
+      invitationId: issued.invitationId,
+    });
+    expect(await t.run((ctx) => ctx.db.get(issued.invitationId))).toEqual(before);
+  });
+
+  it("strict external後に同email人物がactive管理者になると標準acceptを副作用なしでconflictへ閉じる", async () => {
+    const t = convexTest(schema, modules);
+    const email = "strict-external-late-active@example.com";
+    const manager = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: "strict_external_late_active_owner", plan: "pro" }),
+    );
+    const issued = await t
+      .withIdentity({ subject: "strict_external_late_active_owner" })
+      .mutation(api.organizationInvitation.mutations.issue, {
+        shopId: manager.shopId,
+        recipient: { kind: "external", invitedName: "後から有効管理者になる人", email },
+        requestId: "strict-external-late-active-issue",
+      });
+    const invitation = await t.run((ctx) => ctx.db.get(issued.invitationId));
+    if (!invitation) throw new Error("invitation not found");
+    const token = await deriveInvitationToken({
+      invitationId: invitation._id,
+      version: invitation.version,
+      signingSecret: SIGNING_SECRET,
+    });
+    const target = await t.run(async (ctx) => {
+      const userId = await seedUser(ctx, "strict_external_late_active_target", email);
+      const now = Date.now();
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId: manager.organizationId,
+        userId,
+        name: "後から有効管理者になった人",
+        email,
+        emailNormalized: email,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const memberId = await ctx.db.insert("organizationMembers", {
+        organizationId: manager.organizationId,
+        personId,
+        userId,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { userId, personId, memberId };
+    });
+    const before = await invitationSecurityState(t);
+
+    await expect(
+      t
+        .withIdentity({ subject: "strict_external_late_active_target", email, emailVerified: true })
+        .mutation(api.organizationInvitation.mutations.accept, { token }),
+    ).resolves.toEqual({ status: "conflict" });
+    expect(await invitationSecurityState(t)).toEqual(before);
+    await expect(t.run((ctx) => ctx.db.get(issued.invitationId))).resolves.toMatchObject({
+      status: "issued",
+      reservedSeat: true,
+      version: invitation.version,
+    });
+    await expect(t.run((ctx) => ctx.db.get(target.memberId))).resolves.toMatchObject({ status: "active" });
+  });
+
+  it("strict issueはreadOnly人物とFree外部招待を副作用なしで拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const paid = await seedOrganizationManagerShop(ctx, { subject: "strict_readonly_owner", plan: "pro" });
+      const target = await seedActiveOrganizationStaff(ctx, {
+        organizationId: paid.organizationId,
+        shopId: paid.shopId,
+        subject: "strict_readonly_target",
+      });
+      await ctx.db.insert("organizationMembers", {
+        organizationId: paid.organizationId,
+        personId: target.personId,
+        userId: target.userId,
+        status: "readOnly",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      const free = await seedOrganizationManagerShop(ctx, { subject: "strict_free_owner", plan: "free" });
+      return { paid, free, target };
+    });
+    const before = await invitationSecurityState(t);
+    await expect(
+      t.withIdentity({ subject: "strict_readonly_owner" }).mutation(api.organizationInvitation.mutations.issue, {
+        shopId: ids.paid.shopId,
+        recipient: { kind: "existingStaff", personId: ids.target.personId },
+        requestId: "strict-readonly",
+      }),
+    ).rejects.toThrow("閲覧のみの管理者です");
+    await expect(
+      t.withIdentity({ subject: "strict_free_owner" }).mutation(api.organizationInvitation.mutations.issue, {
+        shopId: ids.free.shopId,
+        recipient: { kind: "external", invitedName: "外部候補", email: "strict-free@example.com" },
+        requestId: "strict-free-external",
+      }),
+    ).rejects.toThrow("無料プランでは、新しいユーザーを管理者として招待できません");
+    expect(await invitationSecurityState(t)).toEqual(before);
+  });
+
+  it("strict issueは不正形式の既存スタッフメールを副作用なしで拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const manager = await seedOrganizationManagerShop(ctx, {
+        subject: "strict_invalid_email_owner",
+        plan: "pro",
+      });
+      const target = await seedActiveOrganizationStaff(ctx, {
+        organizationId: manager.organizationId,
+        shopId: manager.shopId,
+        subject: "strict_invalid_email_target",
+      });
+      await ctx.db.patch(target.personId, {
+        email: "not-an-email",
+        emailNormalized: "not-an-email",
+      });
+      return { ...manager, target };
+    });
+    const before = await invitationSecurityState(t);
+
+    await expect(
+      t.withIdentity({ subject: "strict_invalid_email_owner" }).mutation(api.organizationInvitation.mutations.issue, {
+        shopId: ids.shopId,
+        recipient: { kind: "existingStaff", personId: ids.target.personId },
+        requestId: "strict-invalid-email",
+      }),
+    ).rejects.toThrow("Not found");
+    expect(await invitationSecurityState(t)).toEqual(before);
+  });
+
+  it("strict issue後に対象がreadOnlyになった場合は受諾でactiveへ戻さず副作用なしで拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const manager = await seedOrganizationManagerShop(ctx, { subject: "strict_accept_readonly_owner", plan: "pro" });
+      const target = await seedActiveOrganizationStaff(ctx, {
+        organizationId: manager.organizationId,
+        shopId: manager.shopId,
+        subject: "strict_accept_readonly_target",
+        email: "strict-accept-readonly@example.com",
+      });
+      return { ...manager, target };
+    });
+    const issued = await t
+      .withIdentity({ subject: "strict_accept_readonly_owner" })
+      .mutation(api.organizationInvitation.mutations.issue, {
+        shopId: ids.shopId,
+        recipient: { kind: "existingStaff", personId: ids.target.personId },
+        requestId: "strict-accept-readonly-issue",
+      });
+    const invitation = await t.run((ctx) => ctx.db.get(issued.invitationId));
+    if (!invitation) throw new Error("invitation not found");
+    const token = await deriveInvitationToken({
+      invitationId: invitation._id,
+      version: invitation.version,
+      signingSecret: SIGNING_SECRET,
+    });
+    const memberId = await t.run((ctx) =>
+      ctx.db.insert("organizationMembers", {
+        organizationId: ids.organizationId,
+        personId: ids.target.personId,
+        userId: ids.target.userId,
+        status: "readOnly",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }),
+    );
+    const before = await invitationSecurityState(t);
+
+    await expect(
+      t
+        .withIdentity({
+          subject: "strict_accept_readonly_target",
+          email: ids.target.email,
+          emailVerified: true,
+        })
+        .mutation(api.organizationInvitation.mutations.accept, { token }),
+    ).resolves.toEqual({ status: "unavailable" });
+
+    expect(await invitationSecurityState(t)).toEqual(before);
+    await expect(t.run((ctx) => ctx.db.get(issued.invitationId))).resolves.toMatchObject({ status: "issued" });
+    await expect(t.run(async (ctx) => (await ctx.db.get(memberId))?.status)).resolves.toBe("readOnly");
+  });
+
   it("発行時は人物を作らず、確認済みメールの本人がアカウント連携した時だけ管理者にする", async () => {
     vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "example.com");
     const t = convexTest(schema, modules);
@@ -484,8 +785,8 @@ describe("organizationInvitation/mutations", () => {
     expect(acceptanceJobs.every((job) => job.payload.suppressDelivery === true)).toBe(true);
     for (const job of acceptanceJobs) {
       if (job.payload.kind !== "email") throw new Error("email payload expected");
-      const actionUrl = extractOrganizationSettingsActionUrl(job.payload.html);
-      expect(actionUrl.pathname).toBe("/settings");
+      const actionUrl = extractManagerSettingsActionUrl(job.payload.html);
+      expect(actionUrl.pathname).toBe("/settings/managers");
       expect([...actionUrl.searchParams.entries()]).toEqual([["shop", manager.shopId]]);
     }
   });
@@ -634,8 +935,8 @@ describe("organizationInvitation/mutations", () => {
     });
     expect(acceptanceHtml).toHaveLength(2);
     for (const html of acceptanceHtml) {
-      const actionUrl = extractOrganizationSettingsActionUrl(html);
-      expect(actionUrl.pathname).toBe("/settings");
+      const actionUrl = extractManagerSettingsActionUrl(html);
+      expect(actionUrl.pathname).toBe("/settings/managers");
       expect([...actionUrl.searchParams.entries()]).toEqual(expectsShop ? [["shop", manager.shopId]] : []);
     }
   });
@@ -1379,7 +1680,7 @@ describe("organizationInvitation/mutations", () => {
     expect(invitations).toEqual([]);
   });
 
-  it("期限切れ招待の再送でもreadOnly非staff人物の人数増分を再検証する", async () => {
+  it("期限切れ招待の再送でも後発readOnly管理者を副作用なしで拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedFullProWithReadOnlyNonStaff(ctx, "readonly_invite_resend");
@@ -1401,6 +1702,7 @@ describe("organizationInvitation/mutations", () => {
       });
       return { ...base, invitationId };
     });
+    const before = await invitationSecurityState(t);
 
     await expect(
       t.withIdentity({ subject: "readonly_invite_resend" }).mutation(api.organizationInvitation.mutations.resend, {
@@ -1408,11 +1710,8 @@ describe("organizationInvitation/mutations", () => {
         invitationId: ids.invitationId,
         requestId: "readonly-invite-resend",
       }),
-    ).rejects.toThrow("利用人数が現在のプラン上限を超えます");
-    await expect(t.run((ctx) => ctx.db.get(ids.invitationId))).resolves.toMatchObject({
-      status: "expired",
-      reservedSeat: false,
-    });
+    ).rejects.toThrow("閲覧のみの管理者です");
+    expect(await invitationSecurityState(t)).toEqual(before);
   });
 
   it("旧招待の承認時にもreadOnly非staff人物の人数増分を再検証する", async () => {
@@ -1444,7 +1743,7 @@ describe("organizationInvitation/mutations", () => {
       t
         .withIdentity({ subject: "readonly_invite_accept_target", email: ids.targetEmail, emailVerified: true })
         .mutation(api.organizationInvitation.mutations.accept, { token: ids.token }),
-    ).resolves.toEqual({ status: "unavailable" });
+    ).resolves.toEqual({ status: "conflict" });
     const state = await t.run(async (ctx) => ({
       invitation: await ctx.db.get(ids.invitationId),
       member: await ctx.db.get(ids.targetMemberId),
@@ -1648,6 +1947,127 @@ describe("organizationInvitation/mutations", () => {
     expect(invitations.filter((item) => item.status === "issued" && item.reservedSeat)).toHaveLength(1);
   });
 
+  it.each(["active", "readOnly"] as const)(
+    "targetなし外部招待後に同email人物が%s管理者になるとresendを副作用なしで拒否する",
+    async (memberStatus) => {
+      const t = convexTest(schema, modules);
+      const subject = `resend_late_manager_${memberStatus}`;
+      const email = `resend-late-manager-${memberStatus.toLowerCase()}@example.com`;
+      const manager = await t.run((ctx) => seedOrganizationManagerShop(ctx, { subject, plan: "business" }));
+      const owner = t.withIdentity({ subject });
+      const issued = await owner.mutation(api.organizationInvitation.mutations.issue, {
+        shopId: manager.shopId,
+        recipient: { kind: "external", invitedName: "後から管理者になる人", email },
+        requestId: `resend-late-manager-issue-${memberStatus}`,
+      });
+      await t.run(async (ctx) => {
+        const userId = await seedUser(ctx, `${subject}_target`, email);
+        const now = Date.now();
+        const personId = await ctx.db.insert("organizationPeople", {
+          organizationId: manager.organizationId,
+          userId,
+          name: "後から管理者になった人",
+          email,
+          emailNormalized: email,
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+        await ctx.db.insert("organizationMembers", {
+          organizationId: manager.organizationId,
+          personId,
+          userId,
+          status: memberStatus,
+          createdAt: now,
+          updatedAt: now,
+        });
+      });
+      const before = await invitationSecurityState(t);
+
+      await expect(
+        owner.mutation(api.organizationInvitation.mutations.resend, {
+          shopId: manager.shopId,
+          invitationId: issued.invitationId,
+          requestId: `resend-late-manager-${memberStatus}`,
+        }),
+      ).rejects.toThrow(memberStatus === "active" ? "すでに管理者です" : "閲覧のみの管理者です");
+      expect(await invitationSecurityState(t)).toEqual(before);
+    },
+  );
+
+  it("resendは同じrequestIdの別invitationを副作用なしで拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const manager = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: "resend_intent_owner", plan: "pro" }),
+    );
+    const owner = t.withIdentity({ subject: "resend_intent_owner" });
+    const [first, second] = await Promise.all([
+      owner.mutation(api.organizationInvitation.mutations.create, {
+        shopId: manager.shopId,
+        email: "resend-intent-first@example.com",
+        requestId: "resend-intent-create-first",
+      }),
+      owner.mutation(api.organizationInvitation.mutations.create, {
+        shopId: manager.shopId,
+        email: "resend-intent-second@example.com",
+        requestId: "resend-intent-create-second",
+      }),
+    ]);
+    const requestId = "resend-intent-shared";
+    await owner.mutation(api.organizationInvitation.mutations.resend, {
+      shopId: manager.shopId,
+      invitationId: first.invitationId,
+      requestId,
+    });
+    const before = await invitationSecurityState(t);
+    await expect(
+      owner.mutation(api.organizationInvitation.mutations.resend, {
+        shopId: manager.shopId,
+        invitationId: second.invitationId,
+        requestId,
+      }),
+    ).rejects.toThrow("以前の招待再送と対象が一致しません");
+    expect(await invitationSecurityState(t)).toEqual(before);
+  });
+
+  it("resendのalreadyPending結果もreceiptへ収束し、同じrequestIdの別対象を拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const manager = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: "resend_noop_owner", plan: "pro" }),
+    );
+    const owner = t.withIdentity({ subject: "resend_noop_owner" });
+    const first = await owner.mutation(api.organizationInvitation.mutations.create, {
+      shopId: manager.shopId,
+      email: "resend-noop@example.com",
+      requestId: "resend-noop-create",
+    });
+    const successor = await owner.mutation(api.organizationInvitation.mutations.resend, {
+      shopId: manager.shopId,
+      invitationId: first.invitationId,
+      requestId: "resend-noop-successor",
+    });
+    await t.run((ctx) =>
+      ctx.db.patch(first.invitationId, {
+        status: "expired",
+        expiredAt: Date.now(),
+        revokedAt: undefined,
+      }),
+    );
+    const args = {
+      shopId: manager.shopId,
+      invitationId: first.invitationId,
+      requestId: "resend-noop-shared",
+    };
+    await expect(owner.mutation(api.organizationInvitation.mutations.resend, args)).resolves.toEqual({
+      status: "alreadyPending",
+      invitationId: successor.invitationId,
+    });
+    await expect(owner.mutation(api.organizationInvitation.mutations.resend, args)).resolves.toEqual({
+      status: "alreadyPending",
+      invitationId: successor.invitationId,
+    });
+  });
+
   it("取消・期限切れ・発行者失効では承認できず、予約枠を解放する", async () => {
     const t = convexTest(schema, modules);
     const manager = await t.run((ctx) =>
@@ -1703,6 +2123,60 @@ describe("organizationInvitation/mutations", () => {
         })
         .mutation(api.organizationInvitation.mutations.accept, { token: ownerInvalidatedToken }),
     ).resolves.toEqual({ status: "unavailable" });
+  });
+
+  it("revokeは実行済み・既に取消済みの両分岐で同じrequestIdの別対象を拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const manager = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: "revoke_intent_owner", plan: "pro" }),
+    );
+    const owner = t.withIdentity({ subject: "revoke_intent_owner" });
+    const first = await owner.mutation(api.organizationInvitation.mutations.create, {
+      shopId: manager.shopId,
+      email: "revoke-intent-first@example.com",
+      requestId: "revoke-intent-create-first",
+    });
+    const second = await owner.mutation(api.organizationInvitation.mutations.create, {
+      shopId: manager.shopId,
+      email: "revoke-intent-second@example.com",
+      requestId: "revoke-intent-create-second",
+    });
+    await owner.mutation(api.organizationInvitation.mutations.revoke, {
+      shopId: manager.shopId,
+      invitationId: first.invitationId,
+      requestId: "revoke-intent-shared",
+    });
+    const beforeMismatch = await invitationSecurityState(t);
+    await expect(
+      owner.mutation(api.organizationInvitation.mutations.revoke, {
+        shopId: manager.shopId,
+        invitationId: second.invitationId,
+        requestId: "revoke-intent-shared",
+      }),
+    ).rejects.toThrow("以前の招待取消と対象が一致しません");
+    expect(await invitationSecurityState(t)).toEqual(beforeMismatch);
+
+    await t.run((ctx) =>
+      ctx.db.patch(second.invitationId, {
+        status: "revoked",
+        revokedAt: Date.now(),
+        reservedSeat: false,
+      }),
+    );
+    await expect(
+      owner.mutation(api.organizationInvitation.mutations.revoke, {
+        shopId: manager.shopId,
+        invitationId: second.invitationId,
+        requestId: "revoke-already-shared",
+      }),
+    ).resolves.toEqual({ status: "revoked", invitationId: second.invitationId });
+    await expect(
+      owner.mutation(api.organizationInvitation.mutations.revoke, {
+        shopId: manager.shopId,
+        invitationId: first.invitationId,
+        requestId: "revoke-already-shared",
+      }),
+    ).rejects.toThrow("以前の招待取消と対象が一致しません");
   });
 
   it("招待作成後に発行者の事業者所属が重複した場合は任意の所属を根拠に承認しない", async () => {
@@ -2255,6 +2729,43 @@ describe("organizationInvitation/mutations", () => {
     expect(state.billing?.freeManagerPersonId).toBe(ids.personId);
   });
 
+  it("Free交代のstrict issue後に対象の唯一の店舗が非稼働になると承認を副作用なしで拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const manager = await seedOrganizationManagerShop(ctx, { subject: "free_shop_drift_owner", plan: "free" });
+      const target = await seedActiveOrganizationStaff(ctx, {
+        organizationId: manager.organizationId,
+        shopId: manager.shopId,
+        subject: "free_shop_drift_target",
+      });
+      return { ...manager, target };
+    });
+    const issued = await t
+      .withIdentity({ subject: "free_shop_drift_owner" })
+      .mutation(api.organizationInvitation.mutations.issue, {
+        shopId: ids.shopId,
+        recipient: { kind: "existingStaff", personId: ids.target.personId },
+        requestId: "free-shop-drift-issue",
+      });
+    const invitation = await t.run((ctx) => ctx.db.get(issued.invitationId));
+    if (!invitation) throw new Error("invitation not found");
+    const token = await deriveInvitationToken({
+      invitationId: invitation._id,
+      version: invitation.version,
+      signingSecret: SIGNING_SECRET,
+    });
+    await t.run((ctx) => ctx.db.patch(ids.shopId, { operatingStatus: "archived" }));
+    const before = await invitationSecurityState(t);
+
+    await expect(
+      t
+        .withIdentity({ subject: "free_shop_drift_target", email: ids.target.email, emailVerified: true })
+        .mutation(api.organizationInvitation.mutations.accept, { token }),
+    ).resolves.toEqual({ status: "unavailable" });
+    expect(await invitationSecurityState(t)).toEqual(before);
+    await expect(t.run((ctx) => ctx.db.get(issued.invitationId))).resolves.toMatchObject({ status: "issued" });
+  });
+
   it("Free交代は新規人物・他事業者人物・非スタッフ・削除済み人物・重複所属を拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
@@ -2671,8 +3182,8 @@ function testAuthTokenIdentifierForSubject(subject: string) {
   return `https://convex.test|${subject}`;
 }
 
-function extractOrganizationSettingsActionUrl(html: string) {
-  const href = html.match(/<a href="([^"]+)"[^>]*>組織設定を確認する<\/a>/)?.[1];
-  if (!href) throw new Error("organization settings action URL not found");
+function extractManagerSettingsActionUrl(html: string) {
+  const href = html.match(/<a href="([^"]+)"[^>]*>管理者設定を確認する<\/a>/)?.[1];
+  if (!href) throw new Error("manager settings action URL not found");
   return new URL(href.replaceAll("&amp;", "&"));
 }

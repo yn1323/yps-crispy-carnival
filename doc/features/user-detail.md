@@ -2,7 +2,7 @@
 
 ## 機能説明
 
-組織内の人物を表す`organizationPeople`を正本として、共通プロフィールと管理者権限はスタッフ詳細ページ、店舗ごとのスタッフ設定、通知、LINE連携は店舗別設定ページで扱う。
+組織内の人物を表す`organizationPeople`を正本として、共通プロフィールと管理者状態はスタッフ詳細ページ、管理者の変更操作は管理者設定ページ、店舗ごとのスタッフ設定、通知、LINE連携は店舗別設定ページで扱う。
 Dashboardのスタッフ一覧と組織設定のユーザー一覧は、同じスタッフ詳細ページへ遷移する。
 
 ## 情報のスコープ
@@ -22,9 +22,9 @@ Dashboardのスタッフ一覧と組織設定のユーザー一覧は、同じ�
 シフト連絡先の変更は、Clerkのログイン方法、`users.email`の初期snapshot、別組織の人物、組織の請求先を変更しない。
 ページ本文は、スタッフ情報を開くコンパクトな行、所属店舗一覧、ユーザー削除カードで構成する。
 所属店舗一覧には有効な`staffs`がある店舗だけを表示し、未所属店舗は表示しない。
-スタッフ情報の行から、共通プロフィールと管理者権限を扱うレスポンシブDialogを開く。
+スタッフ情報の行から共通プロフィールを扱うレスポンシブDialogを開き、管理者状態の表示からは専用の管理者設定へ進む。
 Dialog下部には「キャンセル」と主操作の「変更を保存」を表示し、変更可否と処理状態に応じて主操作を制御する。
-`FEATURE_MANAGER_INVITATION`が閉じている間も氏名とシフト連絡先の編集は残し、管理者招待・交代・権限解除のセクションと招待中Badgeだけを非表示にする。
+`FEATURE_MANAGER_INVITATION`が閉じている間も氏名とシフト連絡先の編集は残し、管理者設定への導線と招待中Badgeだけを非表示にする。
 組織からの削除は、所属店舗一覧の下にあるユーザー削除カードから確認Dialogを開く。
 「所属店舗を変更」から、シフトスタッフとして所属する店舗をdesired-setで選ぶ変更Dialogを開く。
 稼働中の店舗はチェックを変更でき、`archived`または`planSuspended`の既存所属はチェック済みの変更不可項目として保持する。
@@ -69,7 +69,7 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 | `/dashboard?shop=<shopId>&users=<count>&focus=<personId>` | 店舗スタッフ一覧から、移行済みスタッフのスタッフ詳細ページへ遷移する。表示件数と復帰位置を保持する |
 | `/settings?shop=<shopId>&tab=people&users=<count>&focus=<personId>` | 店舗未所属者を含む組織人物一覧から、スタッフ詳細ページへ遷移する。表示件数と復帰位置を保持する |
 | `/users/<personId>?shop=<shopId>` | スタッフ情報の入口、所属店舗、ユーザー削除カードを表示する |
-| `/users/<personId>?shop=<shopId>&panel=basic` | スタッフ情報と管理者権限をDialogで扱う |
+| `/users/<personId>?shop=<shopId>&panel=basic` | 氏名とシフト連絡先をDialogで扱い、管理者状態は専用の管理者設定への導線として表示する |
 | `/users/<personId>?shop=<shopId>&panel=addShop` | 既存URLとの互換を維持しながら所属店舗変更Dialogを開き、シフトスタッフとして所属する稼働中店舗をチェックリストで変更する |
 | `/users/<personId>/shops/<targetShopId>?shop=<sourceShopId>` | 対象店舗のLINE連携、通知、シフト対象設定を専用ページで扱う。`shop`は出発元店舗として維持する |
 
@@ -98,8 +98,9 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 - LINE連携URLの発行中はSkeletonを表示し、成功後は対象ユーザー専用のURLとQRコードをページ内へ表示する。失敗時は既存のエラー通知を表示する。
 - 通知対象の募集と確定シフトは、Dashboardと同じ色・状態表現で期間、締切または確定日、提出人数を表示する。確定シフトは終了日が今日以降の現在分と将来分を表示して再送でき、過去分は表示しない。
 - 確定シフトの個別再送は1回につき40件までを対象とする。対象が40件を超える場合は一部だけ送らず、再送を開始できないことを表示する。
-- 管理者権限解除はスタッフ情報Dialog、店舗所属変更はスタッフ詳細の所属店舗変更Dialog、組織削除はページ下部の削除カードから開く確認Dialogで実行し、最後の有効管理者などの制約に違反した場合はサーバーのエラーを表示する。
-- `managerInvitationState.kind`が`hidden`のときは管理者権限セクションを描画せず、開いていた招待・権限解除の確認も閉じ、古いcallbackからmutationを実行しない。
+- 管理者の招待・交代・権限解除は`/settings/managers?shop=<shopId>`へ集約する。スタッフ詳細は状態と「管理者設定で変更」の導線だけを表示し、管理者変更mutationを直接実行しない。
+- `managerInvitationState.kind`が`hidden`のときは管理者設定への導線を描画しない。
+- `active`または`readOnly`の管理者は、人物削除と個別店舗所属解除を先に実行できない。画面は「先に管理者権限を外してください」と管理者設定への導線を示し、serverも人物削除・店舗側と人物側の各所属変更mutationで同じguardを再確認する。
 - 個別通知の再送は、募集通知と終了日が今日以降の確定シフト通知の両方でactor単位と組織単位の短時間・日次quotaを適用する。client request IDはquota keyに使わず、別managerへ切り替えても組織quotaを共有する。
 - 自分自身の管理者権限解除または組織削除後は、失効した店舗をURLに残さずダッシュボードへ戻る。
 
@@ -168,11 +169,10 @@ mutationの成功は、DB transactionと必要な通知・cleanupの予約が確
 | `api.dashboard.queries.getDashboardRecruitments` | `managerQuery` | `targetShopId`で指定した対象店舗の募集中シフトを取得する |
 | `api.dashboard.queries.getDashboardCurrentRecruitments` | `managerQuery` | `targetShopId`で指定した対象店舗の終了日が今日以降の確定シフトを取得する |
 | `api.organization.mutations.updatePersonProfile` | `authenticatedMutation` | アカウント連携の有無にかかわらず、名前とシフト連絡先を組織共通personと同じ組織の未削除staffへ同期する |
-| `api.organizationInvitation.mutations.createForPerson` | `authenticatedMutation` | 公開中は人物IDと現在のメールアドレスへ固定して管理者招待を発行または再送し、ダークローンチ中は拒否する |
 | `api.organization.mutations.removeManagerRole` | `authenticatedMutation` | 人物とシフト記録を維持し、組織の管理者権限だけを外す。店舗所属がなければ管理アクセスを終了する |
-| `api.organization.mutations.removePersonFromShop` | `authenticatedMutation` | `targetShopId`で指定した店舗のスタッフ所属とアクセスだけを終了する |
-| `api.organization.mutations.removePersonFromOrganization` | `authenticatedMutation` | 組織内の全所属とアクセスを終了する |
-| `api.staff.mutations.changeOrganizationPersonShopMemberships` | `managerMutation` | 同じ組織の既存人物について、active店舗のdesired-set、`membershipFingerprint`、解除preview、安定した`requestId`を再検証し、店舗所属の追加と解除を一transactionで反映する |
+| `api.organization.mutations.removePersonFromShop` | `authenticatedMutation` | `targetShopId`で指定した店舗のスタッフ所属とアクセスだけを終了する。対象がactive/readOnly managerなら先に権限解除を要求する |
+| `api.organization.mutations.removePersonFromOrganization` | `authenticatedMutation` | 組織内の全所属とアクセスを終了する。対象がactive/readOnly managerなら先に権限解除を要求する |
+| `api.staff.mutations.changeOrganizationPersonShopMemberships` | `managerMutation` | 同じ組織の既存人物について、active店舗のdesired-set、`membershipFingerprint`、解除preview、安定した`requestId`を再検証し、店舗所属の追加と解除を一transactionで反映する。active/readOnly managerの解除を含む場合は変更全体を拒否する |
 | `api.staff.mutations.setShiftExclusion` | `managerMutation` | `targetShopId`で指定した店舗のスタッフをシフト対象または対象外に切り替える |
 | `api.line.mutations.generateLinkToken` | `managerMutation` | `targetShopId`で指定した店舗のスタッフ向けLINE連携リンクを発行する |
 | `api.line.mutations.sendInvite` | `managerMutation` | `targetShopId`で指定した店舗のスタッフへLINE連携案内を送る |
@@ -186,5 +186,6 @@ mutationの成功は、DB transactionと必要な通知・cleanupの予約が確
 |---|---|---|
 | 詳細Queryがactive・非active所属、行ごとの変更可否、解除preview、`membershipFingerprint`を完全なDTOで返す | Convex Function Test | `convex/organization/userDetailQueries.test.ts` |
 | desired-setの追加だけ、解除だけ、混在、全解除を一transactionで反映し、非active所属を保持する。解除後の再追加を新しいstaffとして扱い、認可、店舗境界、件数上限、stale、request replay、異なるintentでのrequest ID再利用、open募集の回答数再計算をfail-closedにする | Convex Function Test | `convex/staff/mutations.test.ts` |
+| active/readOnly managerの人物削除と個別店舗所属解除を4つのcanonical mutationで拒否し、先に権限解除した後の別操作は許可する。店舗・組織全体の削除cleanupは維持する | Convex Function Test、Convex Scenario Test | `convex/organization/mutations.test.ts`、`convex/staff/mutations.test.ts`、`convex/organization/userDetailQueries.test.ts`、`convex/_scenario/organizationPersonRemoval.test.ts` |
 | 共通の店舗所属解除処理が旧credential・LINE・通知・将来シフトを失効させ、過去履歴を保持し、削除済みstaffから提出・閲覧・通知へ進めない状態遷移を守る | Convex Scenario Test | `convex/_scenario/staffManagement.test.ts`、`convex/_scenario/securityBoundaries.test.ts`、`convex/_scenario/organizationPersonRemoval.test.ts`、`convex/_scenario/notificationHistory.test.ts` |
 | チェック操作だけでは送信せず、差分なしを無効にし、解除を含む変更を正しい店舗のpreview付きで1回の確定操作から送信し、二重確認Dialogを開かず、`tooMany`、stale、二重送信を安全に扱う | Frontend Unit Test、Behavior Test | `src/components/features/UserDetail/useUserMembershipActions.test.ts`、`src/components/features/UserDetail/index.stories.tsx` |

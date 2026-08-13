@@ -281,6 +281,17 @@ describe("割当付き組織人物削除シナリオ", () => {
     };
     await expect(
       manager.mutation(api.organization.mutations.removePersonFromOrganization, mutationArgs),
+    ).rejects.toThrow("先に管理者権限を外してください。");
+    await expect(t.run(async (ctx) => (await ctx.db.get(ids.targetMemberId))?.status)).resolves.toBe("active");
+    await expect(
+      manager.mutation(api.organization.mutations.removeManagerRole, {
+        shopId: ids.shopId,
+        personId: ids.targetPersonId,
+        requestId: "organization-person-removal-role",
+      }),
+    ).resolves.toEqual({ changed: true });
+    await expect(
+      manager.mutation(api.organization.mutations.removePersonFromOrganization, mutationArgs),
     ).resolves.toEqual({ changed: true });
     await expect(
       manager.mutation(api.organization.mutations.removePersonFromOrganization, mutationArgs),

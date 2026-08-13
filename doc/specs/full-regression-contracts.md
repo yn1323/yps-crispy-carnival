@@ -2,7 +2,7 @@
 
 > 文書種別: テストトレーサビリティ
 >
-> コード照合日: 2026-08-12
+> コード照合日: 2026-08-13
 >
 > 対象: シフトリ本体、公開サイト、Convex backend、通知、関連CI
 
@@ -17,7 +17,7 @@ Logic、Frontend Unit、Behavior、VRT、Convex Function、Convex Scenario、E2E
 現在の判定は**一部成立**である。
 認証・tenant、課金、Capability、主要通知、削除、全public HTTP routeは契約IDと主担当層へ分類済みであり、P0に主担当未定または根拠テスト未指定の行はない。
 
-一方、管理者招待は仕様確定まで対象外、通知種別`other`のID直接指定再送と問い合わせの同一`requestId` replayは期待契約未決である。
+一方、通知種別`other`のID直接指定再送と問い合わせの同一`requestId` replayは期待契約未決である。
 これらを既存実装の挙動だけから保証済みにしない。
 
 | 状態 | 判定方法 |
@@ -96,7 +96,7 @@ UI test数や静的文言を契約数に数えず、上表のどの失敗境界�
 | `ORG-CREATE-01` | P1 | 既存管理者が別のFree組織を作る | feature enabled・作成上限内 → 本人profileだけsnapshot → Free組織作成 | 新組織、最初の店舗、person、manager、staff | 店舗選択、組織設定、利用人数 | 別人物・既存シフトを複製しない。同一requestを冪等化し、上限・rate limitを再確認 | なし | Convex Scenario | Desktop / Mobile | 実装済み。公開状態は別証跡 | `convex/setup/mutations.test.ts`、`convex/_scenario/organizationCreation.test.ts`、`src/components/features/OrganizationSettings/OrganizationCreation/OrganizationCreationSection.stories.tsx` |
 | `ORG-PROFILE-01` | P0 | 管理者が組織名と人物のシフト連絡先を更新する | 対象解決 → 同一組織・person・staff整合性確認 → 一括更新 | organization、organizationPerson、同組織のactive staff | 一覧、通知宛先、請求先とは独立 | 別組織・Clerk・`users.email`・請求先を変更しない。不整合1件で全体拒否 | 変更後は新しいシフト連絡先だけを後続通知に使う | Convex Function | Desktop / Mobile | 実装済み | `convex/organization/name.test.ts`、`convex/organization/mutations.test.ts`、`convex/_scenario/staffManagement.test.ts` |
 | `SHOP-LIFECYCLE-01` | P0 | 管理者が店舗を追加、切替、archive、reactivateする | 同一組織・上限内 → 店舗追加または状態変更 → 有効候補を再計算 | shopの組織・operating status | 店舗selector、Dashboard、シフト操作可否 | 他組織、上限超過、最後の有効店舗の不正遷移、readOnlyを拒否 | なし | Convex Function | Desktop ChromeをE2Eで補助 | 実装済み | `convex/organization/shopManagement.test.ts`、`convex/organization/mutations.test.ts`、`e2e/scenarios/shop-lifecycle.test.ts`（`E2E-SHOP-01`） |
-| `PERSON-MEMBERSHIP-01` | P0 | 管理者が一人の人物を複数店舗のスタッフとして追加・解除する | desired-setとpreview取得 → fingerprint再確認 → 一transactionで全差分反映 | organizationPerson、店舗ごとの新規staff、request result | Staff一覧、ShiftForm、提出、通知、回答数 | 他組織、stale、件数超過、異なるintentのrequest replayを全体拒否。非active所属を暗黙解除しない | 新規所属だけ必要な案内を予約。解除後は新規通知を止める | Convex Function | Desktop ChromeをE2Eで補助 | 実装済み | `convex/staff/mutations.test.ts`、`convex/organization/userDetailQueries.test.ts`、`convex/_scenario/staffManagement.test.ts`、`src/components/features/ShopDetail/index.stories.tsx`（解除preview件数・明示確定・戻るBehavior）、`e2e/scenarios/shop-staff-membership.test.ts`（`E2E-MEMBERSHIP-01`） |
+| `PERSON-MEMBERSHIP-01` | P0 | 管理者が一人の人物を複数店舗のスタッフとして追加・解除する | desired-setとpreview取得 → fingerprint再確認 → 一transactionで全差分反映 | organizationPerson、店舗ごとの新規staff、request result | Staff一覧、ShiftForm、提出、通知、回答数 | 他組織、stale、件数超過、異なるintentのrequest replayを全体拒否。非active所属を暗黙解除せず、active/readOnly managerの解除は先に管理者権限を外すまで拒否 | 新規所属だけ必要な案内を予約。解除後は新規通知を止める | Convex Function | Desktop ChromeをE2Eで補助 | 実装済み | `convex/staff/mutations.test.ts`、`convex/organization/userDetailQueries.test.ts`、`convex/_scenario/staffManagement.test.ts`、`src/components/features/ShopDetail/index.stories.tsx`（解除preview件数・明示確定・戻るBehavior）、`e2e/scenarios/shop-staff-membership.test.ts`（`E2E-MEMBERSHIP-01`） |
 | `PERSON-ROLE-01` | P0 | 有効管理者が人物の管理者権限だけを外す | 操作可否確認 → manager membership終了 → staff所属維持 | organizationMemberとaudit | 管理画面access、スタッフ通知 | 最後の管理者、本人性不明、他組織を拒否。staff・シフト履歴を消さない | staffなら従来のstaff通知を維持 | Convex Scenario | Desktop / Mobile | 実装済み | `convex/organization/mutations.test.ts`、`convex/_scenario/organizationManagerExchange.test.ts` |
 | `STAFF-REGISTRATION-01` | P0 | 匿名スタッフが店舗QRから申請し、管理者が承認または却下する | reusable登録link → 匿名申請 → pending → manager承認・正式staffまたは却下 | registration request、承認時にperson / staff / legal consent | Dashboard、スタッフ一覧、募集通知 | 存在状態を一般化し、1店舗20件上限、bot・rate limit、他店舗承認拒否 | 承認後のLINE案内・open募集。managerへ24時間内の日次digest | Convex Scenario | Mobile影響あり。Behaviorで補助 | 実装済み | `convex/staffRegistration/httpActions.test.ts`、`convex/staffRegistration/mutations.test.ts`、`convex/_scenario/staffRegistration.test.ts`、`src/components/features/StaffRegistration/index.stories.tsx` |
 | `SHIFT-ELIGIBILITY-01` | P0 | 管理者が店舗ごとにスタッフをシフト対象外・復帰へ切り替える | active staff → excluded / eligible | staffの対象設定。既存draftは保持 | ShiftForm、提出link、通知対象、回答数 | 対象外では新規提出・閲覧・シフト通知を拒否。復帰時に旧credentialを復活させない | 復帰後は必要な新linkだけを発行 | Convex Scenario | Desktop / Mobile | 実装済み | `convex/staff/mutations.test.ts`、`convex/_scenario/staffShiftEligibility.test.ts`、`src/components/features/UserShopDetail/useUserShopMembershipActions.test.ts` |
@@ -153,7 +153,7 @@ E2Eは代表CTAとのbrowser接続だけを守り、対象集合、channel、件
 | 締切翌日の確定催促 | 未確定募集のactive manager。Dashboard CTA | 確定済み・削除済み・予定時刻が過去なら0件。FailureInbox抑止 | `RECRUITMENT-01` | 実装済み。`convex/shiftConfirmationReminder/queries.test.ts`、`convex/recruitment/mutations.test.ts` |
 | 初回店舗登録7日後の本番募集案内 | 本人以外の対象staffがいない店舗のactive manager。Dashboard CTA | 条件解消済み、削除済み、非active managerへ0件。FailureInbox抑止 | `SETUP-ORGANIZATION-01` | 実装済み。`convex/shopActivationReminder/actions.test.ts`、`convex/shopActivationReminder/queries.test.ts` |
 | 課金状態・期限 | 全active managerの現在のシフト連絡先へemailのみ | LINEへ送らず、支払い不要Business、削除済み、古いbilling versionへ0件 | `BILLING-NOTIFICATION-01` | 実装済み。`convex/organizationBilling/actions.test.ts`、`convex/_scenario/organizationBillingLifecycle.test.ts` |
-| 管理者招待・受諾完了 | 招待先email、受諾後のactive manager | actor、本人確認、token lifecycle、provider失敗時の期待契約確定までFull Regression対象外 | `MANAGER-INVITATION-01` | 対象外（仕様未決）。既存`convex/organizationInvitation/acceptanceActions.test.ts`は現状証拠として保持 |
+| 管理者招待・受諾完了 | 招待先email、受諾後のactive manager | 発行と再送は招待先へ各version 1件。旧version、取消済み、期限切れ、feature closed、removed issuerへ0件 | `MANAGER-INVITATION-01` | 実装済み。`convex/notificationOutbox/actions.test.ts`、`convex/notification/templates.test.ts`、`convex/_scenario/staffManagerInvitation.test.ts` |
 
 ## 課金、削除、データ寿命
 
@@ -164,8 +164,8 @@ E2Eは代表CTAとのbrowser接続だけを守り、対象集合、channel、件
 | `BILLING-PLAN-CHANGE-01` | P0 | active managerが有料プラン変更、期間末Free、予約取消を完了する | preview → operation → Stripe確認 → active / scheduled / grace / restrictedへ収束 | operation、subscription snapshot、billing state | entitlement、利用上限、Dashboard | request replay、古いprovider event、Price rotation、provider成功後local失敗を安全に収束 | 状態遷移時のbilling email | Convex Scenario | Desktop / Mobile | 実装済み | `convex/organizationStripe/actions.test.ts`、`convex/_scenario/organizationPaidPlanChanges.test.ts` |
 | `BILLING-TRIAL-CANCEL-01` | P0 | active managerがTrialの継続予約を一度だけ取り消す | cancel request → subscription / generation単位のsingle-flight → provider取消 → local収束 / recovery | 一つのbilling operationと安定idempotency key | Trial終了時のFree / restricted判定 | 未認証、readOnly、他組織、対象外stateは副作用0。同一・異なるrequestIdでも同じsubscription generationの後発flightを作らない | 必要な状態通知だけ | Convex Function | Desktop / Mobile | 実装済み。実provider / deployment未確認 | `convex/organizationStripe/actions.test.ts` |
 | `BILLING-NOTIFICATION-01` | P0 | billing workflowが全active managerへ課金通知を一度予約する | verified billing event / deadline → recipient再解決 → email Outbox | Outboxとbilling event key | managerの復旧行動 | LINE、旧宛先、removed manager、支払い不要Business、同一event重複へ0件 | purpose=`billing`、emailのみ | Convex Scenario | 非該当 | 実装済み | `convex/organizationBilling/actions.test.ts`、`convex/_scenario/organizationBillingLifecycle.test.ts` |
-| `MANAGER-INVITATION-01` | P0（対象外） | 招待受取人が本人確認後に管理者へなる | preview → login / signup → verified identity → token消費 → manager membership | invitation、person / membership、reservation | 組織access、管理者上限、通知 | actor、本人確認、token lifecycle、provider失敗、公開条件を確定するまで新しい保証を固定しない | 招待、受諾完了 | 対象外（仕様未決） | Desktop / Mobile | 対象外（仕様未決・feature flag閉状態） | `doc/features/organization-billing.md`、`convex/organizationInvitation/acceptanceActions.test.ts`、`src/components/features/ManagerInvitationAcceptance/index.test.tsx` |
-| `DELETE-PERSON-01` | P0 | 管理者が人物を店舗または組織から安全に外す | preview → membership / person removal → access即時停止 → bounded cleanup | staff / personの論理状態、audit、cleanup | 将来割当、session、token、LINE、通知、回答数 | 過去履歴と別店舗を維持。他組織、stale preview、最後のmanagerを拒否。再追加は新staff ID | 削除後の新規通知0件 | Convex Scenario | Desktop / Mobile | 実装済み | `convex/organization/personRemoval.test.ts`、`convex/_scenario/organizationPersonRemoval.test.ts`、`convex/_scenario/securityBoundaries.test.ts` |
+| `MANAGER-INVITATION-01` | P0 | 有効な管理者が既存スタッフまたは外部人物を招待し、受取人が本人確認後に管理者になる | strict issue / explicit resend → preview → login / signup → verified identity → token消費 → manager membership。Freeは承認時に旧管理者とatomic交代 | invitation、外部人物は承認時だけperson / membership、reservation、audit | 組織access、管理者上限、通知、管理者設定 | 他組織、重複・期限切れ・使用済み・取消済み・再送前token、verified email不一致、provider失敗、feature closed、上限超過を副作用なしで拒否。active/readOnly managerの人物・個別staff削除は先に権限解除を要求 | 招待、受諾完了 | Convex Scenario | Desktop ChromeをE2Eで補助 | 実装済み。実provider配送・Production公開未確認 | `convex/organizationInvitation/acceptanceActions.test.ts`、`convex/_scenario/staffManagerInvitation.test.ts`、`convex/_scenario/organizationManagerExchange.test.ts`、`src/components/features/ManagerInvitationAcceptance/index.test.tsx`、`e2e/scenarios/manager-settings.test.ts` |
+| `DELETE-PERSON-01` | P0 | 管理者が人物を店舗または組織から安全に外す | preview → membership / person removal → access即時停止 → bounded cleanup | staff / personの論理状態、audit、cleanup | 将来割当、session、token、LINE、通知、回答数 | 過去履歴と別店舗を維持。他組織、stale preview、active/readOnly managerの直接削除を拒否し、先に権限解除を要求する。再追加は新staff ID | 削除後の新規通知0件 | Convex Scenario | Desktop / Mobile | 実装済み | `convex/organization/personRemoval.test.ts`、`convex/organization/mutations.test.ts`、`convex/staff/mutations.test.ts`、`convex/_scenario/organizationPersonRemoval.test.ts`、`convex/_scenario/securityBoundaries.test.ts` |
 | `DELETE-SHOP-ORGANIZATION-01` | P0 | 管理者が店舗または組織の利用を終了する | 最新可否確認 → 親を論理削除 → cleanup job → completed / actionRequired | 親・所属の停止状態、job、業務識別情報は保持 | 全manager / staff API、通知、再setup | 最後の店舗、課金契約残存、他管理者、未完了jobを拒否。global userを削除しない | 未送信通知をcancelし、新規enqueue 0件 | Convex Scenario | Desktop ChromeをE2Eで補助 | 実装済み | `convex/organization/deletion.test.ts`、`convex/deletionCleanup/mutations.test.ts`、`convex/deletionCleanup/service.test.ts`、`convex/_scenario/organizationDeletion.test.ts`、`e2e/scenarios/shop-lifecycle.test.ts` |
 | `DELETE-ACCOUNT-01` | P0 | 所属のない本人がstrict再認証後にアカウント削除を依頼する | HTTP受付 → local access停止 → provider job → completed / retry / actionRequired → redaction | account deletion job、user tombstone、provider IDは完了時redact | AuthGuard、Clerk削除、再登録 | target IDをclientから受けず、所属あり、代理session、issuer不一致を拒否。provider対象未確認の404を成功にしない | なし | Convex Scenario | Desktop / Mobile | 実装済み | `convex/accountDeletion/httpActions.test.ts`、`convex/accountDeletion/lifecycle.test.ts`、`convex/_scenario/accountDeletion.test.ts`、`src/components/features/AccountDeletion/useAccountDeletionController.test.tsx` |
 
@@ -196,6 +196,7 @@ E2Eは代表CTAとのbrowser接続だけを守り、対象集合、channel、件
 | `E2E-TENANT-01` | 同じmanagerが二組織を往復し、選択店舗の表示を混ぜない | Desktop Chrome / core E2E | 実装済み | `e2e/scenarios/tenant-switching.test.ts` |
 | `E2E-MEMBERSHIP-01` | UIから店舗所属を変更し、reload後も維持する | Desktop Chrome / core E2E | 実装済み | `e2e/scenarios/shop-staff-membership.test.ts` |
 | `E2E-SHOP-01` | UIから2店舗目を追加・切替・削除し、安全な店舗へ復帰する | Desktop Chrome / core E2E | 実装済み | `e2e/scenarios/shop-lifecycle.test.ts` |
+| `E2E-MANAGER-01` | 組織設定から管理者設定を開き、既存スタッフへの招待を発行し、reload後の招待中を確認して取り消し、スタッフタブへ戻る | Desktop Chrome / core E2E。Previewで`FEATURE_MANAGER_INVITATION=enabled`、通知配送dry-run、trace・screenshot・video off | 実装済み。Preview実行未確認 | `e2e/scenarios/manager-settings.test.ts` |
 | `E2E-MOBILE-01` | Mobile Chromeでstaff提出の代表日を選び完了する | Mobile Chrome / core E2E | 実装済み | `e2e/scenarios/release-support-staff-submit.mobile.test.ts` |
 | `DEPLOY-SMOKE-HTTP-01` | Previewで代表公開route、slash URL、CSR shell、未知URL 404が実配信される | Deployed Smoke / Preview URL | 実装済み。実Preview未実行 | `e2e/scenarios/deployed-smoke.test.ts`、`scripts/assertDeployedSmokeResults.mjs` |
 | `DEPLOY-SMOKE-BROWSER-01` | Previewの代表公開pageがhydrateし、固有landmark・CTAを表示し、`pageerror`を出さない | Deployed Smoke / Preview URL | 実装済み。実Preview未実行 | `e2e/scenarios/deployed-smoke.test.ts`、`scripts/assertDeployedSmokeResults.mjs` |
@@ -212,9 +213,9 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 |---|---|---|
 | 公開コンテンツ | `/`、`/features`、`/faq`、`/howto`、`/articles`、`/articles/:slug`、`/articles/categories/:categorySlug`、`/demo/flow`、`/demo/shiftboard`、`/terms*`、`/privacy*`、`/contact` | `PUBLIC-STATIC-01`、`PUBLIC-DEMO-01`、`HTTP-CONTACT-01`。build、Behavior、VRT、Deployed Smoke |
 | 認証 | `/login`、`/signup`、`/forgot-password`、`/sso-callback`、`/account` | `AUTH-MANAGER-01`、`AUTH-ACCOUNT-METHODS-01`。Frontend Unit、Behavior、E2E |
-| 管理画面 | `/dashboard`、`/settings`、`/shiftboard/:recruitmentId`、`/shops/:shopId`、`/users/:personId`、`/users/:personId/shops/:targetShopId` | `AUTH-TENANT-01`、`ORG-CONTEXT-01`、`SHOP-LIFECYCLE-01`、`PERSON-MEMBERSHIP-01`、`SHIFT-BOARD-DRAFT-01`。Function、Scenario、代表E2E |
+| 管理画面 | `/dashboard`、`/settings`、`/settings/managers`、`/settings/managers/invite-staff`、`/settings/managers/invite-new`、`/shiftboard/:recruitmentId`、`/shops/:shopId`、`/users/:personId`、`/users/:personId/shops/:targetShopId` | `AUTH-TENANT-01`、`ORG-CONTEXT-01`、`SHOP-LIFECYCLE-01`、`PERSON-MEMBERSHIP-01`、`MANAGER-INVITATION-01`、`SHIFT-BOARD-DRAFT-01`。Function、Scenario、代表E2E |
 | staff / Capability | `/shifts/submit`、`/shifts/submit/completed`、`/shifts/view`、`/shifts/reissue`、`/staff/register`、`/legal/staff/consent`、`/line/callback` | `CAP-SHIFT-SESSION-01`、`SHIFT-SUBMISSION-01`、`SHIFT-VIEW-REISSUE-01`、`STAFF-REGISTRATION-01`、`CAP-LEGAL-01`、`CAP-LINE-LINK-01`。Function、Scenario、代表E2E |
-| 招待 | `/manager-invite` | `MANAGER-INVITATION-01`。仕様確定までFull Regression対象外 |
+| 招待 | `/manager-invite` | `MANAGER-INVITATION-01`。本人確認、token lifecycle、provider unavailableはFunction / Scenario、実route接続はFrontend Unitで検証する |
 | 回復・終端 | `/account-deletion-accepted`、`/cache-reset`、未知route | `DELETE-ACCOUNT-01`、`PUBLIC-STATIC-01`。Frontend Unit、build、Deployed Smoke |
 | 内部BI | `/`、`/organizations*`、`/shops*`、`/requests`（`apps/analytics-dashboard/`） | `ANALYTICS-DASHBOARD-01`。本体UI suite対象外、専用lint / type-check / build |
 
@@ -238,12 +239,12 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 | `notificationOutbox/mutations` | `resendFailure`、`resendOpenFailures`、`resolveFailure`、`retryFailure` | `NOTIFY-FAILURE-01`。`resendFailure`の`other`だけ`NOTIFY-OTHER-RESEND-01` |
 | `notificationOutbox/queries` | `hasOpenFailures`、`listOpenFailures`、`listStaffNotificationHistory` | `NOTIFY-FAILURE-01`、`NOTIFY-HISTORY-01` |
 | `organization/mutations` | `addShop`、`archiveShop`、`deleteOrganization`、`deleteShop`、`reactivateShop`、`removeManagerRole`、`removePersonFromOrganization`、`removePersonFromShop`、`updateOrganizationName`、`updatePersonProfile` | `SHOP-LIFECYCLE-01`、`DELETE-SHOP-ORGANIZATION-01`、`DELETE-PERSON-01`、`PERSON-ROLE-01`、`ORG-PROFILE-01` |
-| `organization/queries` | `getSettings` | `ORG-CONTEXT-01`、`DELETE-SHOP-ORGANIZATION-01` |
+| `organization/queries` | `getSettings`、`getManagerSettingsOverview`、`getManagerCandidates` | `ORG-CONTEXT-01`、`MANAGER-INVITATION-01`、`DELETE-SHOP-ORGANIZATION-01`。管理者Queryは`{ shopId, now }`を受け、feature closedまたはbounded readの不整合をunionで閉じる |
 | `organization/userDetailQueries` | `getUserDetail` | `PERSON-MEMBERSHIP-01`、`PERSON-ROLE-01` |
 | `organizationBilling/mutations` | `setFreeSelection`、`updateBillingEmail` | `BILLING-ENTITLEMENT-01`、`BILLING-PLAN-CHANGE-01` |
-| `organizationInvitation/acceptanceActions` | `accept` | `MANAGER-INVITATION-01`。対象外（仕様未決） |
-| `organizationInvitation/mutations` | `accept`、`create`、`createExternal`、`createForPerson`、`createForStaff`、`linkAccount`、`resend`、`revoke` | `MANAGER-INVITATION-01`。対象外（仕様未決）。閉状態と縮退用`revoke`は既存testを維持 |
-| `organizationInvitation/queries` | `getPreview` | `MANAGER-INVITATION-01`。対象外（仕様未決） |
+| `organizationInvitation/acceptanceActions` | `accept` | `MANAGER-INVITATION-01`。Node actionで確認済みemailまたは接続済みaccountを検証する標準承認経路 |
+| `organizationInvitation/mutations` | `issue`、`accept`、`create`、`createExternal`、`createForPerson`、`createForStaff`、`linkAccount`、`resend`、`revoke` | `MANAGER-INVITATION-01`。新画面はstrict `issue`、`resend`、`revoke`を使い、旧create / accept / linkAccountはrolling互換としてFunction Testを維持 |
+| `organizationInvitation/queries` | `getPreview` | `MANAGER-INVITATION-01`。public token previewは管理画面DTOと異なる認可境界で返す |
 | `organizationStripe/actions` | `cancelScheduledFree`、`cancelScheduledPlanChange`、`cancelTrialContinuation`、`changePaidPlanNow`、`getCurrentSubscriptionPrice`、`getPlanPrice`、`getProPrice`、`openCustomerPortal`、`previewPaidPlanChange`、`scheduleFreeAtPeriodEnd`、`schedulePaidPlanChange`、`startPaidCheckout`、`startProCheckout` | `BILLING-CHECKOUT-01`、`BILLING-PLAN-CHANGE-01`、`BILLING-TRIAL-CANCEL-01` |
 | `recruitment/mutations` | `createRecruitment`、`deleteRecruitment` | `RECRUITMENT-01` |
 | `setup/mutations` | `createOrganization`、`setupShopAndManager` | `ORG-CREATE-01`、`SETUP-ORGANIZATION-01` |
@@ -282,7 +283,6 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 
 | 契約ID | 現在の扱い | 決めること | 再評価条件 |
 |---|---|---|---|
-| `MANAGER-INVITATION-01` | 対象外 | 受諾actor、本人確認、token lifecycle、provider失敗、enabled公開条件 | 機能仕様と公開条件を承認した時点で、既存Function / Scenarioを再監査する |
 | `NOTIFY-OTHER-RESEND-01` | 対象外 | Dashboard非表示の`other`をpublic mutationでも拒否するか、ID指定時だけ許可するか | 製品判断後に、拒否時副作用0または許可時scope・quotaのFunction Testを追加する |
 | `HTTP-CONTACT-01`のreplay | 一部 | 同一`requestId`を一処理意図として抑止するか、ResendとSlackへ安定idempotencyを与えるか | 期待契約確定後にHTTP FunctionまたはScenarioへ外部副作用件数を追加する |
 | `CAP-REGISTRATION-LINK-01`の管理者失効 | 未決 | 現行の再利用可能linkを管理者がrotateまたはrevokeできるようにするか、その場合の旧link失効時点 | Productが失効・再発行要件を承認した時点で、schemaと公開受付の負の契約を設計する |

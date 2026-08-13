@@ -7,8 +7,6 @@ import { BillingActionDialog } from "./BillingSettings/BillingActionDialog";
 import { BillingEmailDialog } from "./BillingSettings/BillingEmailDialog";
 import { useBillingSettingsController } from "./BillingSettings/useBillingSettingsController";
 import { useStripeBillingController } from "./BillingSettings/useStripeBillingController";
-import { ManagerInvitationDialog } from "./ManagerInvitation/ManagerInvitationDialog";
-import { useManagerInvitationController } from "./ManagerInvitation/useManagerInvitationController";
 import { buildOrganizationContextModel } from "./OrganizationContext/script";
 import { OrganizationCreationDialog } from "./OrganizationCreation/OrganizationCreationDialog";
 import { useOrganizationCreationController } from "./OrganizationCreation/useOrganizationCreationController";
@@ -54,16 +52,6 @@ export function OrganizationSettings({
   const organizationName = useOrganizationNameController({
     organizationName: settings.organizationName,
     canUpdateOrganizationName: settings.canUpdateOrganizationName,
-  });
-  const canOpenManagerInvitation =
-    features.managerInvitation &&
-    (settings.canInviteManager || settings.managerInvitations.some((invitation) => invitation.canResend));
-  const managerInvitation = useManagerInvitationController({
-    canInviteManager: features.managerInvitation && settings.canInviteManager,
-    canOpenManagerInvitation,
-    managerInvitationMode: settings.managerInvitationMode,
-    freeManagerExchangeCandidates: settings.freeManagerExchangeCandidates,
-    people: settings.people,
   });
   const shopManagement = useShopManagementController({ canAddShop: features.shopAddition && settings.canAddShop });
   const organizationCreation = useOrganizationCreationController({
@@ -115,7 +103,7 @@ export function OrganizationSettings({
               search: { shop: shopId, tab: visibleTab },
             }),
           onUpdateOrganizationName: organizationName.open,
-          onInviteManager: managerInvitation.open,
+          onManageManagers: () => void navigate({ to: "/settings/managers", search: { shop: context.selectedShopId } }),
           onOpenUser: (personId, visibleUserCount) =>
             void navigate({
               to: "/users/$personId",
@@ -143,7 +131,6 @@ export function OrganizationSettings({
         }}
       />
       <OrganizationNameDialog {...organizationName.dialog} />
-      {features.managerInvitation && <ManagerInvitationDialog {...managerInvitation.dialog} />}
       {features.shopAddition && <ShopManagementDialog {...shopManagement.dialog} />}
       {features.organizationCreation && <OrganizationCreationDialog {...organizationCreation.dialog} />}
       {features.billing && <BillingEmailDialog {...billingEmailSettings.dialog} />}

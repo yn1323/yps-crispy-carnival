@@ -674,6 +674,10 @@ describe("notificationOutbox/actions", () => {
     });
     expect(requestBody.html).toContain(`href="https://app.example.com/manager-invite?token=${expectedToken}"`);
     expect(requestBody.html).toContain("招待者さんから「招待事業者」の管理者に招待されました。");
+    expect(requestBody.html).toContain("シフトリとは");
+    expect(requestBody.html).toContain("スタッフの希望収集からシフト作成・共有までを支えるシフト管理サービスです。");
+    expect(requestBody.html).toContain("登録済みのメールアドレスでログインしてください。");
+    expect(requestBody.html).toContain("このメールの宛先と同じメールアドレスでアカウントを登録し");
     expect(requestBody.html).not.toContain(invitationId);
     expect(new Headers((resendCall?.[1] as RequestInit | undefined)?.headers).get("idempotency-key")).toBe(
       `notification-outbox-${outboxId}`,

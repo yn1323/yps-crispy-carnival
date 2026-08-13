@@ -15,16 +15,15 @@ import { UserSummary } from "./UserSummary";
 export type UserDetailViewProps = {
   data: UserDetailData;
   showShopMembershipAddition: boolean;
+  managerSettingsDisabledReason?: string;
   activePanel?: UserDetailPanel;
   state: {
     isUpdatingProfile: boolean;
     membership: {
       isChanging: boolean;
     };
-    manager: {
+    removal: {
       dialog: UserDetailDialog;
-      isAssignmentConfirmationOpen: boolean;
-      isAssigning: boolean;
       isRemoving: boolean;
     };
   };
@@ -36,17 +35,21 @@ export type UserDetailViewProps = {
     onClosePanel: () => void;
     onUpdateProfile: (data: PersonProfileFormData) => void | Promise<void>;
     onChangeMemberships: (input: UserMembershipChangeInput) => void | Promise<void>;
-    onRequestManagerAssignment: () => void;
-    onCancelManagerAssignment: () => void;
-    onAssignManager: () => void | Promise<void>;
-    onRequestRemoveManagerRole: () => void;
+    onManageManagers: () => void;
     onRequestRemovePerson: () => void;
-    onConfirmManagerSetting: () => void | Promise<void>;
-    onCloseManagerDialog: () => void;
+    onConfirmRemovePerson: () => void | Promise<void>;
+    onCloseRemovalDialog: () => void;
   };
 };
 
-export function UserDetailView({ data, showShopMembershipAddition, activePanel, state, actions }: UserDetailViewProps) {
+export function UserDetailView({
+  data,
+  showShopMembershipAddition,
+  managerSettingsDisabledReason,
+  activePanel,
+  state,
+  actions,
+}: UserDetailViewProps) {
   const handleDialogOpenChange = ({ open }: { open: boolean }) => {
     if (!open) actions.onClosePanel();
   };
@@ -75,9 +78,7 @@ export function UserDetailView({ data, showShopMembershipAddition, activePanel, 
           leading={<BasicInformationIcon />}
           secondary={
             <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-              {data.managerInvitationState.kind === "hidden"
-                ? "名前・シフト連絡先を管理します"
-                : "名前・シフト連絡先・権限を管理します"}
+              名前・シフト連絡先を管理します
             </Text>
           }
           onClick={actions.onOpenBasic}
@@ -123,32 +124,24 @@ export function UserDetailView({ data, showShopMembershipAddition, activePanel, 
             : data.removeDisabledReason
         }
         removalPreview={
-          state.manager.dialog?.kind === "removePerson" ? state.manager.dialog.removalPreview : data.removalPreview
+          state.removal.dialog?.kind === "removePerson" ? state.removal.dialog.removalPreview : data.removalPreview
         }
-        isConfirmationOpen={state.manager.dialog?.kind === "removePerson"}
-        isRemoving={state.manager.isRemoving}
+        isConfirmationOpen={state.removal.dialog?.kind === "removePerson"}
+        isRemoving={state.removal.isRemoving}
         onRequestRemovePerson={actions.onRequestRemovePerson}
-        onCancelRemovePerson={actions.onCloseManagerDialog}
-        onConfirmRemovePerson={actions.onConfirmManagerSetting}
+        onCancelRemovePerson={actions.onCloseRemovalDialog}
+        onConfirmRemovePerson={actions.onConfirmRemovePerson}
       />
 
       <UserInformationDialog
         data={data}
         isOpen={activePanel === "basic"}
         isUpdatingProfile={state.isUpdatingProfile}
-        managerDialog={state.manager.dialog}
-        isManagerAssignmentConfirmationOpen={state.manager.isAssignmentConfirmationOpen}
-        isAssigningManager={state.manager.isAssigning}
-        isRemovingManagerSetting={state.manager.isRemoving}
         onOpenChange={handleDialogOpenChange}
         onClose={actions.onClosePanel}
         onUpdateProfile={actions.onUpdateProfile}
-        onRequestManagerAssignment={actions.onRequestManagerAssignment}
-        onCancelManagerAssignment={actions.onCancelManagerAssignment}
-        onAssignManager={actions.onAssignManager}
-        onRequestRemoveManagerRole={actions.onRequestRemoveManagerRole}
-        onConfirmManagerSetting={actions.onConfirmManagerSetting}
-        onCancelManagerSetting={actions.onCloseManagerDialog}
+        onManageManagers={actions.onManageManagers}
+        managerSettingsDisabledReason={managerSettingsDisabledReason}
       />
 
       {showShopMembershipAddition && (

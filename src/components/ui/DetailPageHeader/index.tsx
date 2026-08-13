@@ -16,6 +16,7 @@ type Props = {
 type SkeletonProps = {
   titleWidth?: string | { base: string; md?: string; lg?: string };
   showAction?: boolean;
+  showIcon?: boolean;
 };
 
 export function DetailPageHeader({ title, onBack, backLabel = "前の画面に戻る", backAriaLabel, icon, action }: Props) {
@@ -55,16 +56,17 @@ export function DetailPageHeader({ title, onBack, backLabel = "前の画面に�
 export function DetailPageHeaderSkeleton({
   titleWidth = { base: "168px", md: "240px" },
   showAction = false,
+  showIcon = true,
 }: SkeletonProps) {
   return (
     <HStack gap={3} minW={0} minH="44px" justify="space-between" align="center">
       <HStack gap={2} minW={0} flex={1}>
         <Skeleton boxSize={5} borderRadius="sm" flexShrink={0} />
-        <Skeleton boxSize={5} borderRadius="sm" flexShrink={0} />
+        {showIcon && <Skeleton boxSize={5} borderRadius="sm" flexShrink={0} />}
         <Skeleton
           h={{ base: "28px", md: "32px", lg: "38px" }}
           w={titleWidth}
-          maxW="calc(100% - 56px)"
+          maxW={showIcon ? "calc(100% - 56px)" : "calc(100% - 28px)"}
           borderRadius="sm"
         />
       </HStack>

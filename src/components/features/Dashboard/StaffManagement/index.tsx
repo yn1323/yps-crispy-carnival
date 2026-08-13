@@ -12,7 +12,6 @@ import type { PaginationStatus, Recruitment, Staff } from "../types";
 import { StaffManagementView } from "./StaffManagementView";
 import { useStaffInvitation } from "./useStaffInvitation";
 import { useStaffLineConnection } from "./useStaffLineConnection";
-import { useStaffManagerInvitation } from "./useStaffManagerInvitation";
 import { useStaffNotificationDelivery } from "./useStaffNotificationDelivery";
 import { useStaffProfileManagement } from "./useStaffProfileManagement";
 
@@ -86,7 +85,6 @@ export function StaffManagement({
   const invitation = useStaffInvitation(isReadOnly, featureVisibility.shopMembershipAddition);
   const lineConnection = useStaffLineConnection(isReadOnly);
   const profile = useStaffProfileManagement(staffs, { onResetDetail: lineConnection.reset, isReadOnly });
-  const managerInvitation = useStaffManagerInvitation(profile.staff, { isReadOnly });
   const notifications = useStaffNotificationDelivery(isReadOnly);
   const handleOpenDetail = (staff: Staff) => {
     if (!staff.organizationPersonId) {
@@ -129,8 +127,10 @@ export function StaffManagement({
         isDeleting: profile.isDeleting,
         onChangeShiftTarget: profile.onChangeShiftTarget,
         isChangingShiftTarget: profile.isChangingShiftTarget,
-        onInviteManager: managerInvitation.onInvite,
-        isInvitingManager: managerInvitation.isInviting,
+        onManageManagers: () => {
+          if (!selectedShop?.shopId) return;
+          void navigate({ to: "/settings/managers", search: { shop: selectedShop.shopId } });
+        },
         onShowLineQr: lineConnection.onShowQr,
         lineQrState: lineConnection.qrState,
         onSendLineInvite: lineConnection.onSendInvite,

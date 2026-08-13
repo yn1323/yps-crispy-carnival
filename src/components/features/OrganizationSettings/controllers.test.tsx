@@ -2,7 +2,7 @@
 
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OrganizationBillingView, OrganizationPersonView } from "./types";
+import type { OrganizationBillingView } from "./types";
 
 const mocks = vi.hoisted(() => ({
   mutation: vi.fn(),
@@ -75,23 +75,10 @@ vi.mock("jotai", async (importOriginal) => ({
 
 import { useBillingSettingsController } from "./BillingSettings/useBillingSettingsController";
 import { useStripeBillingController } from "./BillingSettings/useStripeBillingController";
-import { useManagerInvitationController } from "./ManagerInvitation/useManagerInvitationController";
 import { useOrganizationCreationController } from "./OrganizationCreation/useOrganizationCreationController";
 import { useOrganizationDeletionController } from "./OrganizationDeletion/useOrganizationDeletionController";
 import { useOrganizationNameController } from "./OrganizationName/useOrganizationNameController";
 import { useShopManagementController } from "./ShopManagement/useShopManagementController";
-
-const person: OrganizationPersonView = {
-  id: "person-1",
-  name: "田中 太郎",
-  email: "tanaka@example.com",
-  managerRole: "active",
-  isStaff: true,
-  shopNames: ["渋谷店"],
-  shopIds: ["shop-current"],
-  canRemoveManagerRole: true,
-  canRemove: true,
-};
 
 const billing: OrganizationBillingView = {
   state: "pro",
@@ -1088,94 +1075,5 @@ describe("OrganizationSettings controllers", () => {
     await waitFor(() => {
       for (const action of Object.values(mocks.actions)) expect(action).not.toHaveBeenCalled();
     });
-  });
-
-  it("管理者枠が予約済みでも、同じ外部招待を再送するためのDialogを開く", async () => {
-    mocks.mutation.mockResolvedValue({ status: "issued", invitationId: "invitation-1" });
-    const { result } = renderHook(() =>
-      useManagerInvitationController({
-        canInviteManager: false,
-        canOpenManagerInvitation: true,
-        managerInvitationMode: "addition",
-        freeManagerExchangeCandidates: [],
-        people: [],
-      }),
-    );
-
-    act(() => result.current.open());
-    expect(result.current.dialog).toMatchObject({ isOpen: true, isResendOnly: true });
-
-    act(() => {
-      result.current.dialog.onSubmit({ kind: "external", name: "佐藤 花子", email: "sato@example.com" });
-    });
-
-    await waitFor(() =>
-      expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
-        shopId: "shop-current",
-        name: "佐藤 花子",
-        email: "sato@example.com",
-        requestId: "request-1",
-      }),
-    );
-    await waitFor(() => expect(result.current.dialog.isOpen).toBe(false));
-  });
-
-  it("組織設定のスタッフを選んで管理者のログイン案内を送る", async () => {
-    mocks.mutation.mockResolvedValue({ status: "issued", invitationId: "invitation-1" });
-    const target = { ...person, managerRole: "none" as const };
-    const { result } = renderHook(() =>
-      useManagerInvitationController({
-        canInviteManager: true,
-        canOpenManagerInvitation: true,
-        managerInvitationMode: "addition",
-        freeManagerExchangeCandidates: [],
-        people: [target],
-      }),
-    );
-
-    act(() => result.current.open());
-    expect(result.current.dialog.staffCandidates).toEqual([
-      {
-        id: target.id,
-        name: target.name,
-        email: target.email,
-        shopNames: target.shopNames,
-        isResend: false,
-      },
-    ]);
-
-    act(() => {
-      result.current.dialog.onSubmit({ kind: "person", personId: target.id });
-    });
-
-    await waitFor(() =>
-      expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
-        shopId: "shop-current",
-        personId: target.id,
-        requestId: "request-1",
-      }),
-    );
-    await waitFor(() => expect(result.current.dialog.isOpen).toBe(false));
-  });
-
-  it("Freeでは手入力による管理者招待を実行しない", async () => {
-    const target = { ...person, id: "person-free", managerRole: "none" as const };
-    const { result } = renderHook(() =>
-      useManagerInvitationController({
-        canInviteManager: true,
-        canOpenManagerInvitation: true,
-        managerInvitationMode: "freeManagerExchange",
-        freeManagerExchangeCandidates: [{ id: target.id, name: target.name, email: target.email ?? "" }],
-        people: [target],
-      }),
-    );
-
-    act(() => result.current.open());
-    act(() => {
-      result.current.dialog.onSubmit({ kind: "external", name: "佐藤 花子", email: "sato@example.com" });
-    });
-
-    await waitFor(() => expect(result.current.dialog.isOpen).toBe(false));
-    expect(mocks.mutation).not.toHaveBeenCalled();
   });
 });

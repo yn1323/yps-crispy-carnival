@@ -2449,6 +2449,53 @@ describe("dashboard/queries", () => {
       expect(await t.run((ctx) => ctx.db.get(invitationId))).toMatchObject({ status: "revoked" });
     });
 
+    it("閲覧のみの管理者もスタッフ削除から保護する対象として返す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "dashboard_read_only_manager_owner",
+          plan: "pro",
+        });
+        const now = Date.now();
+        const userId = await seedUser(ctx, "dashboard_read_only_manager", "read-only@example.com");
+        const personId = await ctx.db.insert("organizationPeople", {
+          organizationId: base.organizationId,
+          userId,
+          name: "閲覧のみ管理者",
+          email: "read-only@example.com",
+          emailNormalized: "read-only@example.com",
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+        await ctx.db.insert("organizationMembers", {
+          organizationId: base.organizationId,
+          personId,
+          userId,
+          status: "readOnly",
+          createdAt: now,
+          updatedAt: now,
+        });
+        const staffId = await ctx.db.insert("staffs", {
+          shopId: base.shopId,
+          organizationId: base.organizationId,
+          organizationPersonId: personId,
+          userId,
+          name: "閲覧のみ管理者",
+          email: "read-only@example.com",
+          emailNormalized: "read-only@example.com",
+          isDeleted: false,
+        });
+        return { shopId: base.shopId, staffId };
+      });
+
+      const result = await t
+        .withIdentity({ subject: "dashboard_read_only_manager_owner" })
+        .query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
+
+      expect(result.page.find((staff) => staff._id === ids.staffId)).toMatchObject({ isManager: true });
+    });
+
     it("返り値に不要なフィールドが含まれない", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => {

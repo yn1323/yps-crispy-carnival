@@ -930,7 +930,7 @@ export const getDashboardStaffs = managerQuery({
                 )
                 .take(2)
             : [];
-        const isManager = members.length === 1 && members[0].status === "active";
+        const isManager = members.length === 1 && (members[0].status === "active" || members[0].status === "readOnly");
         const managerInvitationState = await resolvePersonManagerInvitationState(ctx, {
           organization,
           actorMember: organizationMember,

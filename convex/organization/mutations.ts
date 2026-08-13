@@ -42,6 +42,7 @@ import {
   getValidActiveOrganizationManagerPersonIds,
   isValidOrganizationRecoveryManager,
   requireOrganizationBillingState,
+  requireOrganizationPersonWithoutManagerRole,
 } from "./service";
 import { organizationShopOperatingStatusValidator } from "./validators";
 
@@ -680,7 +681,17 @@ function personRemovalCorrelationId(
   targetId: string,
   requestId: string,
 ) {
-  return `${organizationId}:person-removal:${operation}:${targetId}:${requestId}`;
+  return operation === "managerRole"
+    ? `${organizationId}:person-removal:${operation}:${requestId}`
+    : `${organizationId}:person-removal:${operation}:${targetId}:${requestId}`;
+}
+
+function legacyManagerRoleRemovalCorrelationId(
+  organizationId: Id<"organizations">,
+  targetId: string,
+  requestId: string,
+) {
+  return `${organizationId}:person-removal:managerRole:${targetId}:${requestId}`;
 }
 
 async function findPersonRemovalAudit(
@@ -693,10 +704,24 @@ async function findPersonRemovalAudit(
   },
 ) {
   const correlationId = personRemovalCorrelationId(args.organizationId, args.operation, args.targetId, args.requestId);
-  const audit = await ctx.db
+  const audits = await ctx.db
     .query("organizationAuditEvents")
     .withIndex("by_correlationId", (q) => q.eq("correlationId", correlationId))
-    .first();
+    .take(2);
+  if (audits.length > 1) {
+    throw new ConvexError("以前の操作結果を確認できません。\n画面を更新して、もう一度お試しください。");
+  }
+  const audit = audits[0];
+  if (
+    audit &&
+    args.operation === "managerRole" &&
+    (audit.organizationId !== args.organizationId ||
+      audit.action !== "organization.manager_role_removed" ||
+      audit.targetKind !== "person" ||
+      audit.targetId !== args.targetId)
+  ) {
+    throw new ConvexError("以前の管理者権限変更と対象が一致しません。\n画面を更新して、もう一度お試しください。");
+  }
   return { audit, correlationId };
 }
 
@@ -716,13 +741,36 @@ async function isCompletedPersonRemovalActorRetry(
   if (!ctx.user) return false;
   const shop = await ctx.db.get(args.shopId);
   if (!shop?.organizationId) return false;
+  const organizationId = shop.organizationId;
   const { audit } = await findPersonRemovalAudit(ctx, {
-    organizationId: shop.organizationId,
+    organizationId,
     operation: args.operation,
     targetId: args.targetId,
     requestId: args.requestId,
   });
-  return audit?.actorUserId === ctx.user._id;
+  if (audit) {
+    if (audit.actorUserId !== ctx.user._id) {
+      throw new ConvexError("以前の操作結果を確認できません。\n画面を更新して、もう一度お試しください。");
+    }
+    return true;
+  }
+  if (args.operation !== "managerRole") return false;
+
+  // rolling中に旧correlation形式で完了した自己解除retryも回収する。
+  const legacyAudits = await ctx.db
+    .query("organizationAuditEvents")
+    .withIndex("by_correlationId", (q) =>
+      q.eq("correlationId", legacyManagerRoleRemovalCorrelationId(organizationId, args.targetId, args.requestId)),
+    )
+    .take(2);
+  if (legacyAudits.length !== 1) return false;
+  const legacyAudit = legacyAudits[0];
+  return Boolean(
+    legacyAudit.actorUserId === ctx.user._id &&
+      legacyAudit.action === "organization.manager_role_removed" &&
+      legacyAudit.targetKind === "person" &&
+      legacyAudit.targetId === args.targetId,
+  );
 }
 
 async function authorizeOrganizationPersonRemoval(ctx: MutationCtx, actor: OrganizationActor) {
@@ -1111,6 +1159,7 @@ export const removePersonFromShop = authenticatedMutation({
     if (!person || person.organizationId !== actor.organization._id || person.status !== "active") {
       throw new ConvexError("Not found");
     }
+    await requireOrganizationPersonWithoutManagerRole(ctx, actor.organization._id, person._id);
     const removalPreview = await collectPersonRemovalPreview(ctx, {
       scope: {
         kind: "shop",
@@ -1208,14 +1257,7 @@ export const removePersonFromOrganization = authenticatedMutation({
     if (!person || person.organizationId !== actor.organization._id || person.status !== "active") {
       throw new ConvexError("Not found");
     }
-    const members = await ctx.db
-      .query("organizationMembers")
-      .withIndex("by_organizationId_and_personId", (q) =>
-        q.eq("organizationId", actor.organization._id).eq("personId", person._id),
-      )
-      .take(2);
-    if (members.length > 1) throw new ConvexError("Not found");
-    const member = members[0] ?? null;
+    const member = await requireOrganizationPersonWithoutManagerRole(ctx, actor.organization._id, person._id);
     if (member && person.userId !== member.userId) throw new ConvexError("Not found");
     const plan = await prepareFullOrganizationPersonRemoval(ctx, { actor, billingState, person, member });
     const removalPreview = await collectPersonRemovalPreview(ctx, {

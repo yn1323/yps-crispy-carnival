@@ -67,7 +67,7 @@ export const enqueueAcceptanceNotifications = internalAction({
     });
     if (!data) return { enqueuedCount: 0 };
 
-    const settingsUrl = new URL("/settings", getAppUrl());
+    const settingsUrl = new URL("/settings/managers", getAppUrl());
     if (data.shopId) settingsUrl.searchParams.set("shop", data.shopId);
     let enqueuedCount = 0;
     for (const recipient of data.recipients) {
@@ -86,7 +86,7 @@ export const enqueueAcceptanceNotifications = internalAction({
             organizationName: data.organizationName,
             heading: "管理者のアカウント連携が完了しました",
             paragraphs: ["新しい管理者のアカウントが組織に連携されました。"],
-            action: { label: "組織設定を確認する", url: settingsUrl.toString() },
+            action: { label: "管理者設定を確認する", url: settingsUrl.toString() },
           }),
           context: "organizationInvitation.linked",
           suppressDelivery: isDryRunManagerEmail(recipient.email),

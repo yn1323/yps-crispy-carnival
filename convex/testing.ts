@@ -1034,6 +1034,47 @@ export const seedShopStaffMembershipScenario = internalMutation({
   },
 });
 
+/** 管理者設定E2Eで使う、既存スタッフへの発行・取消をactor単位で回収できる前提。 */
+export const seedManagerSettingsScenario = internalMutation({
+  args: {
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.optional(v.string()),
+  },
+  returns: v.object({
+    shopId: v.id("shops"),
+    organizationName: v.string(),
+    currentManagerName: v.string(),
+    candidateName: v.string(),
+    candidateEmail: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const organizationName = "管理者設定テストグループ";
+    const currentManagerName = DEFAULT_MANAGER.name;
+    const candidateName = "管理者候補スタッフ";
+    // E2E artifactへ実在し得る宛先を残さない予約済みtest domain。
+    const candidateEmail = "manager-candidate@example.test";
+    const fixture = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
+      organizationName,
+      shopName: "管理者設定テスト店舗",
+    });
+    await createScenarioStaff(ctx, {
+      organizationId: fixture.organizationId,
+      shopId: fixture.shopId,
+      name: candidateName,
+      email: candidateEmail,
+    });
+    return {
+      shopId: fixture.shopId,
+      organizationName,
+      currentManagerName,
+      candidateName,
+      candidateEmail,
+    };
+  },
+});
+
 /** Free管理者交代と複数組織切替で共有する、actor単位で回収可能なE2E前提を作る。 */
 export const seedFreeManagerMultiOrganizationScenario = internalMutation({
   args: {

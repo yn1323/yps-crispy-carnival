@@ -1,6 +1,6 @@
-import { Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Stack } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
-import { LuChevronDown, LuMailPlus, LuUsers } from "react-icons/lu";
+import { LuChevronDown, LuShieldCheck, LuUsers } from "react-icons/lu";
 import { OrganizationPersonRow } from "@/src/components/shared/OrganizationPersonRow";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
@@ -12,11 +12,7 @@ type Props = {
   people: OrganizationPersonView[];
   peopleUsage: BillingUsageView;
   showManagerInvitation: boolean;
-  canInviteManager: boolean;
-  canOpenManagerInvitation: boolean;
-  managerInvitationMode: "addition" | "freeManagerExchange";
-  inviteManagerDisabledReason?: string;
-  onInviteManager: () => void;
+  onManageManagers: () => void;
   onOpenUser: (personId: string, visibleUserCount: number) => void;
   initialVisibleUserCount?: number;
   focusedPersonId?: string;
@@ -27,11 +23,7 @@ export const PeopleSection = ({
   people,
   peopleUsage,
   showManagerInvitation,
-  canInviteManager,
-  canOpenManagerInvitation,
-  managerInvitationMode,
-  inviteManagerDisabledReason,
-  onInviteManager,
+  onManageManagers,
   onOpenUser,
   initialVisibleUserCount = DEFAULT_USER_LIST_COUNT,
   focusedPersonId,
@@ -68,33 +60,18 @@ export const PeopleSection = ({
         </HStack>
         {showManagerInvitation && (
           <Button
+            variant="ghost"
             size="sm"
             colorPalette="teal"
             gap={1.5}
-            onClick={onInviteManager}
-            disabled={!canOpenManagerInvitation}
-            title={!canOpenManagerInvitation ? inviteManagerDisabledReason : undefined}
-            aria-describedby={
-              !canOpenManagerInvitation && inviteManagerDisabledReason
-                ? "organization-manager-invitation-disabled-reason"
-                : undefined
-            }
+            fontWeight="semibold"
+            onClick={onManageManagers}
           >
-            <LuMailPlus aria-hidden />
-            {!canInviteManager && canOpenManagerInvitation
-              ? "ログイン案内を再送"
-              : managerInvitationMode === "freeManagerExchange"
-                ? "次の管理者を招待"
-                : "管理者を招待"}
+            <LuShieldCheck aria-hidden />
+            管理者を変更
           </Button>
         )}
       </Flex>
-
-      {showManagerInvitation && !canOpenManagerInvitation && inviteManagerDisabledReason && (
-        <Text id="organization-manager-invitation-disabled-reason" fontSize="sm" color="orange.700">
-          {inviteManagerDisabledReason}
-        </Text>
-      )}
 
       {visiblePeople.length === 0 ? (
         <Empty icon={LuUsers} title="この組織にスタッフはいません。" titleAs="h3" variant="section" py={6} />

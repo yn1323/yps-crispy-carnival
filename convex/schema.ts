@@ -193,6 +193,7 @@ const schema = defineSchema({
     .index("by_organizationId_and_emailNormalized_and_status", ["organizationId", "emailNormalized", "status"])
     .index("by_organizationId_and_targetPersonId_and_status", ["organizationId", "targetPersonId", "status"])
     .index("by_organizationId_and_status", ["organizationId", "status"])
+    .index("by_organizationId_and_status_and_expiresAt", ["organizationId", "status", "expiresAt"])
     .index("by_inviterMemberId_and_status", ["inviterMemberId", "status"])
     .index("by_expiresAt", ["expiresAt"]),
 

@@ -63,6 +63,11 @@ describe("E2E testing helpers", () => {
         managerAuthTokenIdentifier: "issuer|disabled-membership",
       }),
     ).rejects.toThrow("E2E testing helpers are disabled for this deployment.");
+    await expect(
+      t.mutation(internal.testing.seedManagerSettingsScenario, {
+        managerAuthTokenIdentifier: "issuer|disabled-manager-settings",
+      }),
+    ).rejects.toThrow("E2E testing helpers are disabled for this deployment.");
   });
 
   it("clearAllTablesは指定tableをbounded batchで削除する", async () => {
@@ -278,6 +283,42 @@ describe("E2E testing helpers", () => {
     }));
     expect(reset.secondOrganization).toBeNull();
     expect(reset.otherOwnerShop?.isDeleted).toBe(false);
+  });
+
+  it("管理者設定seedは非管理者staffを作り、既存resetでactor所有graphを回収する", async () => {
+    const t = convexTest(schema, modules);
+    const args = {
+      managerAuthTokenIdentifier: "issuer|manager-settings-owner",
+      managerEmail: "manager-settings-owner@example.test",
+    };
+    const seed = await t.mutation(internal.testing.seedManagerSettingsScenario, args);
+    const before = await t.run(async (ctx) => {
+      const shop = await ctx.db.get(seed.shopId);
+      if (!shop?.organizationId) throw new Error("manager settings scenario shop is missing");
+      const organizationId = shop.organizationId;
+      const candidatePeople = await ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId_and_emailNormalized", (q) =>
+          q.eq("organizationId", organizationId).eq("emailNormalized", seed.candidateEmail),
+        )
+        .collect();
+      return { shop, candidatePeople };
+    });
+
+    expect(seed).toMatchObject({
+      organizationName: "管理者設定テストグループ",
+      currentManagerName: "田中太郎",
+      candidateName: "管理者候補スタッフ",
+      candidateEmail: "manager-candidate@example.test",
+    });
+    expect(before.shop?.isDeleted).toBe(false);
+    expect(before.candidatePeople).toHaveLength(1);
+    expect(before.candidatePeople[0].userId).toBeUndefined();
+
+    await t.mutation(internal.testing.resetManagerScenarioData, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+    });
+    expect(await t.run((ctx) => ctx.db.get(seed.shopId))).toBeNull();
   });
 
   it("capability helperは最新募集へ最小DTOのtokenを発行する", async () => {

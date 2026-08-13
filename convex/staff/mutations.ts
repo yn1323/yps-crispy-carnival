@@ -34,6 +34,7 @@ import {
   revokeStaffAccessForRemoval,
   STALE_PERSON_REMOVAL_PREVIEW_ERROR,
 } from "../organization/personRemoval";
+import { requireOrganizationPersonWithoutManagerRole } from "../organization/service";
 import {
   createOrganizationPersonShopMembershipFingerprint,
   INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON,
@@ -855,6 +856,10 @@ export const changeOrganizationPersonShopMemberships = managerMutation({
     const addedShopIds = desiredActiveShopIds.filter((shopId) => !currentMembershipByShopId.has(shopId));
     const removedShopIds = removals.map((membership) => membership.shop._id);
 
+    if (removals.length > 0) {
+      await requireOrganizationPersonWithoutManagerRole(ctx, organizationId, person._id);
+    }
+
     const removalByShopId = new Map(removals.map((membership) => [membership.shop._id, membership]));
     if (
       args.removalPreviews.length !== removals.length ||
@@ -1235,6 +1240,11 @@ export const changeOrganizationShopStaffMemberships = managerMutation({
     const snapshotPersonIdSet = new Set(snapshot.people.map((entry) => entry.person._id));
     if (args.desiredActivePersonIds.some((personId) => !snapshotPersonIdSet.has(personId))) {
       throw new ConvexError("入力内容を確認してください。");
+    }
+    for (const entry of snapshot.people) {
+      if (entry.currentStaff && !desiredPersonIdSet.has(entry.person._id)) {
+        await requireOrganizationPersonWithoutManagerRole(ctx, organizationId, entry.person._id);
+      }
     }
     for (const entry of snapshot.people) {
       if (entry.canChange) continue;

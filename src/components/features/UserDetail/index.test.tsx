@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
     billing: true,
     shopMembershipAddition: true,
   },
-  managerOptions: undefined as undefined | { onPersonRemoved: (personId: string) => void },
+  removalOptions: undefined as undefined | { onPersonRemoved: (personId: string) => void },
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -46,6 +46,7 @@ vi.mock("./UserDetailView", () => ({
       onClosePanel: () => void;
       onUpdateProfile: (data: { name: string; email: string }) => void | Promise<void>;
       onChangeMemberships: (input: UserMembershipChangeInput) => void;
+      onManageManagers: () => void;
     };
   }) => (
     <div>
@@ -71,6 +72,9 @@ vi.mock("./UserDetailView", () => ({
       <button type="button" onClick={() => actions.onChangeMemberships(membershipChangeInput)}>
         所属店舗を変更する
       </button>
+      <button type="button" onClick={actions.onManageManagers}>
+        管理者設定を開く
+      </button>
     </div>
   ),
 }));
@@ -86,18 +90,12 @@ vi.mock("./useUserMembershipActions", () => ({
   }),
 }));
 
-vi.mock("./useUserManagerActions", () => ({
-  useUserManagerActions: (options: { onPersonRemoved: (personId: string) => void }) => {
-    mocks.managerOptions = options;
+vi.mock("./useUserRemovalActions", () => ({
+  useUserRemovalActions: (options: { onPersonRemoved: (personId: string) => void }) => {
+    mocks.removalOptions = options;
     return {
       dialog: null,
-      isAssignmentConfirmationOpen: false,
-      isAssigningManager: false,
       isRemoving: false,
-      onRequestManagerAssignment: vi.fn(),
-      onCancelManagerAssignment: vi.fn(),
-      onAssignManager: vi.fn(),
-      onRequestRemoveManagerRole: vi.fn(),
       onRequestRemovePerson: vi.fn(),
       onConfirmRemoval: vi.fn(),
       onCloseDialog: vi.fn(),
@@ -130,7 +128,7 @@ beforeEach(() => {
   mocks.changeMemberships.mockResolvedValue(false);
   mocks.updateProfile.mockResolvedValue(false);
   mocks.featureVisibility.shopMembershipAddition = true;
-  mocks.managerOptions = undefined;
+  mocks.removalOptions = undefined;
 });
 
 describe("UserDetail", () => {
@@ -216,6 +214,17 @@ describe("UserDetail", () => {
       },
     });
     expect(mocks.navigate.mock.calls[0]?.[0]).not.toHaveProperty("replace");
+  });
+
+  it("店舗所属がない人物でも選択中店舗から管理者設定を開く", () => {
+    render(<UserDetail data={data} selectedShopId="shop-a" returnTo="dashboard" visibleUserCount={10} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "管理者設定を開く" }));
+
+    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
+      to: "/settings/managers",
+      search: { shop: "shop-a" },
+    });
   });
 
   it("店舗所属追加が非公開なら追加パネルとmutationを開始しない", async () => {
@@ -314,7 +323,7 @@ describe("UserDetail", () => {
     const { rerender } = render(
       <UserDetail data={data} selectedShopId="shop-a" activePanel="basic" returnTo="dashboard" visibleUserCount={10} />,
     );
-    const previousRemovalCallback = mocks.managerOptions?.onPersonRemoved;
+    const previousRemovalCallback = mocks.removalOptions?.onPersonRemoved;
     const nextData: UserDetailData = {
       ...data,
       person: { ...data.person, id: "person-2" as UserDetailData["person"]["id"] },
@@ -337,7 +346,7 @@ describe("UserDetail", () => {
   it("Dashboard起点で人物を削除すると削除済み人物へfocusせずDashboardへ戻る", () => {
     render(<UserDetail data={data} selectedShopId="shop-a" returnTo="dashboard" visibleUserCount={30} />);
 
-    mocks.managerOptions?.onPersonRemoved("person-1");
+    mocks.removalOptions?.onPersonRemoved("person-1");
 
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: "/dashboard",
@@ -351,7 +360,7 @@ describe("UserDetail", () => {
       <UserDetail data={{ ...data, isSelf: true }} selectedShopId="shop-a" returnTo="settings" visibleUserCount={30} />,
     );
 
-    mocks.managerOptions?.onPersonRemoved("person-1");
+    mocks.removalOptions?.onPersonRemoved("person-1");
 
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: "/dashboard",

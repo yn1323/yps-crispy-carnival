@@ -1,5 +1,5 @@
 import { Heading, Stack, Text } from "@chakra-ui/react";
-import { LuShieldMinus, LuShieldPlus } from "react-icons/lu";
+import { LuShieldCheck } from "react-icons/lu";
 import { DeletionActionSection } from "@/src/components/shared/DeletionActionSection";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
@@ -7,14 +7,12 @@ import type { UserDetailData, UserDetailRemovalPreview } from "./types";
 
 export function UserManagerSettings({
   data,
-  isAssigningManager,
-  onRequestManagerAssignment,
-  onRequestRemoveManagerRole,
+  onManageManagers,
+  disabledReason,
 }: {
   data: UserDetailData;
-  isAssigningManager: boolean;
-  onRequestManagerAssignment: () => void;
-  onRequestRemoveManagerRole: () => void;
+  onManageManagers: () => void;
+  disabledReason?: string;
 }) {
   if (data.managerInvitationState.kind === "hidden") return null;
 
@@ -25,17 +23,25 @@ export function UserManagerSettings({
           管理者権限
         </Heading>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          シフト調整、店舗の追加・編集、支払いが可能になります。
+          {getManagerRoleDescription(data)}
         </Text>
       </Stack>
-      <ManagerRoleAction
-        {...{
-          data,
-          isAssigningManager,
-          onRequestManagerAssignment,
-          onRequestRemoveManagerRole,
-        }}
-      />
+      <Button
+        variant="outline"
+        alignSelf="flex-end"
+        gap={1.5}
+        disabled={Boolean(disabledReason)}
+        aria-describedby={disabledReason ? "user-manager-settings-disabled-reason" : undefined}
+        onClick={onManageManagers}
+      >
+        <LuShieldCheck aria-hidden />
+        管理者設定で変更
+      </Button>
+      {disabledReason && (
+        <Text id="user-manager-settings-disabled-reason" fontSize="xs" color="orange.700" textAlign="right">
+          {disabledReason}
+        </Text>
+      )}
     </Stack>
   );
 }
@@ -119,102 +125,11 @@ export function UserGroupRemovalSection({
   );
 }
 
-function ManagerRoleAction({
-  data,
-  isAssigningManager,
-  onRequestManagerAssignment,
-  onRequestRemoveManagerRole,
-}: {
-  data: UserDetailData;
-  isAssigningManager: boolean;
-  onRequestManagerAssignment: () => void;
-  onRequestRemoveManagerRole: () => void;
-}) {
-  const managerInvitationDisabledReasonId = `user-detail-manager-invitation-disabled-${data.person.id}`;
-  const managerRemovalDisabledReasonId = `user-detail-manager-removal-disabled-${data.person.id}`;
-  if (data.managerRole === "active") {
-    return (
-      <Stack gap={3}>
-        <Stack gap={2} align="flex-end">
-          <Button
-            data-user-manager-confirmation-trigger="remove"
-            variant="outline"
-            gap={1.5}
-            disabled={data.shops.length === 0 || !data.canRemoveManagerRole}
-            aria-describedby={
-              data.shops.length === 0 || !data.canRemoveManagerRole ? managerRemovalDisabledReasonId : undefined
-            }
-            onClick={onRequestRemoveManagerRole}
-          >
-            <LuShieldMinus aria-hidden />
-            管理者権限を外す
-          </Button>
-          {(data.shops.length === 0 || !data.canRemoveManagerRole) && (
-            <Text id={managerRemovalDisabledReasonId} fontSize="xs" color="orange.700" textAlign="right">
-              {data.shops.length === 0
-                ? "操作できる店舗がないため、管理者権限を外せません。"
-                : (data.managerRoleRemovalDisabledReason ?? "現在、管理者権限を外せません。")}
-            </Text>
-          )}
-        </Stack>
-      </Stack>
-    );
-  }
-
-  if (data.managerRole === "readOnly") {
-    return (
-      <Stack gap={1}>
-        <Text fontSize="sm" fontWeight="semibold" color="gray.900">
-          閲覧のみの管理者です
-        </Text>
-        <Text fontSize="sm" color="fg.muted">
-          現在の契約状態では、この画面から管理者権限を変更できません。
-        </Text>
-      </Stack>
-    );
-  }
-
-  const invitation = data.managerInvitationState;
-  const canAssign =
-    data.canWrite && (invitation.kind === "available" || invitation.kind === "pending") && data.person.email.length > 0;
-  const isResend = invitation.kind === "pending";
-  const buttonLabel =
-    invitation.kind === "pending"
-      ? "ログイン案内を再送"
-      : invitation.kind === "available" && invitation.replacesStaleInvitation
-        ? "新しいメールへ案内を送り直す"
-        : invitation.kind === "available" && invitation.mode === "freeManagerExchange"
-          ? "次の管理者として招待"
-          : "管理者として招待";
-
-  return (
-    <Stack gap={3}>
-      <Stack gap={2} align="flex-end">
-        <Button
-          data-user-manager-confirmation-trigger="assign"
-          colorPalette="teal"
-          variant={isResend ? "outline" : "solid"}
-          gap={1.5}
-          loading={isAssigningManager}
-          disabled={!canAssign || isAssigningManager}
-          aria-describedby={!canAssign ? managerInvitationDisabledReasonId : undefined}
-          onClick={onRequestManagerAssignment}
-        >
-          <LuShieldPlus aria-hidden />
-          {buttonLabel}
-        </Button>
-        {!canAssign && (
-          <Text id={managerInvitationDisabledReasonId} fontSize="xs" color="orange.700" textAlign="right">
-            {!data.canWrite
-              ? (data.writeDisabledReason ?? "現在、この組織の情報を変更できません。")
-              : invitation.kind === "unavailable"
-                ? invitation.reason
-                : "メールアドレスを登録してから、管理者に設定してください。"}
-          </Text>
-        )}
-      </Stack>
-    </Stack>
-  );
+function getManagerRoleDescription(data: UserDetailData): string {
+  if (data.managerRole === "active") return "現在の管理者です。権限の変更は管理者設定から行えます。";
+  if (data.managerRole === "readOnly") return "閲覧のみの管理者です。契約状態の復旧後に権限を変更できます。";
+  if (data.hasManagerInvitation) return "管理者招待を送信済みです。再送や取り消しは管理者設定から行えます。";
+  return "現在は管理者ではありません。招待は管理者設定から行えます。";
 }
 
 function getAssignmentRemovalWarning(preview: Extract<UserDetailRemovalPreview, { kind: "tooMany" }>) {

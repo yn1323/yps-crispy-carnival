@@ -21,10 +21,6 @@ export const OrganizationSettingsView = ({
   shops,
   billing,
   planPrices,
-  canInviteManager,
-  managerInvitations,
-  managerInvitationMode,
-  inviteManagerDisabledReason,
   canUpdateOrganizationName,
   updateOrganizationNameDisabledReason,
   canAddShop,
@@ -87,14 +83,7 @@ export const OrganizationSettingsView = ({
           people={people}
           peopleUsage={billing.peopleUsage}
           showManagerInvitation={features.managerInvitation}
-          canInviteManager={canInviteManager}
-          canOpenManagerInvitation={
-            features.managerInvitation &&
-            (canInviteManager || managerInvitations.some((invitation) => invitation.canResend))
-          }
-          managerInvitationMode={managerInvitationMode}
-          inviteManagerDisabledReason={inviteManagerDisabledReason}
-          onInviteManager={actions.onInviteManager}
+          onManageManagers={actions.onManageManagers}
           onOpenUser={actions.onOpenUser}
           initialVisibleUserCount={initialVisibleUserCount}
           focusedPersonId={focusedPersonId}
@@ -234,7 +223,7 @@ function PeopleSettingsSkeleton({ showManagerInvitation }: { showManagerInvitati
     <Stack gap={4}>
       <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} gap={3} wrap="wrap">
         <SectionHeadingSkeleton width="184px" />
-        {showManagerInvitation && <Skeleton h="36px" w="128px" borderRadius="md" />}
+        {showManagerInvitation && <Skeleton h="36px" w="136px" />}
       </Flex>
       <SettingsDrilldownListSkeleton kind="people" />
     </Stack>

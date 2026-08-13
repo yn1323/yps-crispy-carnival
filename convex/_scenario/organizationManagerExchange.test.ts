@@ -184,7 +184,7 @@ describe("Free管理者交代シナリオ", () => {
       version: invitation.version,
       signingSecret: SIGNING_SECRET,
     });
-    await expect(successor.linkManagerInvitationAccount(token)).resolves.toEqual({
+    await expect(successor.acceptManagerInvitation(token, new Set(["successor@example.com"]))).resolves.toEqual({
       status: "linked",
       organizationId: seeded.organizationId,
       shopId: seeded.shopId,
@@ -338,7 +338,9 @@ describe("Free管理者交代シナリオ", () => {
       version: invitation.version,
       signingSecret: SIGNING_SECRET,
     });
-    await expect(successor.linkManagerInvitationAccount(token)).resolves.toMatchObject({ status: "linked" });
+    await expect(
+      successor.acceptManagerInvitation(token, new Set(["excluded-successor@example.com"])),
+    ).resolves.toMatchObject({ status: "linked" });
     expect(await t.run((ctx) => ctx.db.get(seeded.formerStaffId))).toEqual(formerStaffBefore);
     expect(formerStaffBefore?.excludedFromShift).toBe(true);
 
