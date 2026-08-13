@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
@@ -7,7 +7,9 @@ import {
   cancelNotificationForInactiveOrganization,
   cancelNotificationForInactiveShop,
 } from "../notificationOutbox/mutations";
+import { type DeletionCleanupTarget, getDeletionCleanupJobForTarget } from "./service";
 import { deletedLineUserId } from "./tombstone";
+import { deletionCleanupTargetValidator } from "./validators";
 
 const CLEANUP_BATCH_SIZE = 100;
 const CLEANUP_JOB_LEASE_MS = 60_000;
@@ -141,6 +143,52 @@ type ResourceResult = {
   cursor?: string;
   delayMs?: number;
 };
+
+/** operator/coordinator retryを、対象とversionが一致するactionRequired jobだけへ限定する。 */
+export async function retryActionRequiredDeletionCleanup(
+  ctx: Pick<MutationCtx, "db" | "scheduler">,
+  args: {
+    jobId: Id<"deletionCleanupJobs">;
+    target: DeletionCleanupTarget;
+    expectedVersion: number;
+  },
+) {
+  const job = await getDeletionCleanupJobForTarget(ctx, args);
+  if (!job) {
+    throw new ConvexError("削除処理を確認できません");
+  }
+  if (job.status !== "actionRequired" || job.version !== args.expectedVersion) {
+    throw new ConvexError("削除処理の状態が更新されています");
+  }
+
+  const now = Date.now();
+  const version = job.version + 1;
+  await ctx.db.patch(job.jobId, {
+    status: "retrying",
+    version,
+    attemptCount: 0,
+    nextRunAt: now,
+    leaseId: undefined,
+    leaseExpiresAt: undefined,
+    lastErrorCode: undefined,
+    completedAt: undefined,
+    updatedAt: now,
+  });
+  await ctx.scheduler.runAfter(0, internal.deletionCleanup.mutations.kick, { jobId: job.jobId });
+  return { status: "scheduled" as const, version };
+}
+
+export const retryActionRequired = internalMutation({
+  args: {
+    jobId: v.id("deletionCleanupJobs"),
+    target: deletionCleanupTargetValidator,
+    expectedVersion: v.number(),
+  },
+  returns: v.object({ status: v.literal("scheduled"), version: v.number() }),
+  handler: async (ctx, args) => {
+    return await retryActionRequiredDeletionCleanup(ctx, args);
+  },
+});
 
 export const kick = internalMutation({
   args: { jobId: v.id("deletionCleanupJobs") },

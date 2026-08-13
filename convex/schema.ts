@@ -427,7 +427,32 @@ const schema = defineSchema({
       v.literal("actionRequired"),
       v.literal("completed"),
     ),
-    phase: v.union(v.literal("verifyProviderUser"), v.literal("deleteProviderUser"), v.literal("complete")),
+    phase: v.union(
+      v.literal("waitForOrganizationCleanup"),
+      v.literal("waitForSharedCleanup"),
+      v.literal("verifyProviderUser"),
+      v.literal("deleteProviderUser"),
+      v.literal("complete"),
+    ),
+    // 組織削除を伴う要求だけが持つ。optional wideningのため既存jobのbackfillは不要。
+    organizationCleanup: v.optional(
+      v.object({
+        organizationId: v.id("organizations"),
+        jobId: v.id("deletionCleanupJobs"),
+      }),
+    ),
+    // 共有組織からの退出で削除する通知履歴を追跡する。optional wideningのため既存jobのbackfillは不要。
+    sharedCleanup: v.optional(
+      v.object({
+        organizationId: v.id("organizations"),
+        targets: v.array(
+          v.object({
+            shopId: v.id("shops"),
+            staffId: v.id("staffs"),
+          }),
+        ),
+      }),
+    ),
     version: v.number(),
     attemptCount: v.number(),
     nextRunAt: v.number(),

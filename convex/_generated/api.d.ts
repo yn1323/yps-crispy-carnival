@@ -45,6 +45,7 @@ import type * as _test_seed from "../_test/seed.js";
 import type * as accountDeletion_actions from "../accountDeletion/actions.js";
 import type * as accountDeletion_config from "../accountDeletion/config.js";
 import type * as accountDeletion_constants from "../accountDeletion/constants.js";
+import type * as accountDeletion_eligibility from "../accountDeletion/eligibility.js";
 import type * as accountDeletion_httpActions from "../accountDeletion/httpActions.js";
 import type * as accountDeletion_mutations from "../accountDeletion/mutations.js";
 import type * as accountDeletion_provider from "../accountDeletion/provider.js";
@@ -297,6 +298,7 @@ declare const fullApi: ApiFromModules<{
   "accountDeletion/actions": typeof accountDeletion_actions;
   "accountDeletion/config": typeof accountDeletion_config;
   "accountDeletion/constants": typeof accountDeletion_constants;
+  "accountDeletion/eligibility": typeof accountDeletion_eligibility;
   "accountDeletion/httpActions": typeof accountDeletion_httpActions;
   "accountDeletion/mutations": typeof accountDeletion_mutations;
   "accountDeletion/provider": typeof accountDeletion_provider;

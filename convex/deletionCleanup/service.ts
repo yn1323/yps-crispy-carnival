@@ -7,10 +7,47 @@ const USER_ASSOCIATION_SCAN_LIMIT = 20;
 
 export type DeletionCleanupScope = "shop" | "organization";
 
+export type DeletionCleanupTarget =
+  | {
+      scope: "shop";
+      shopId: Id<"shops">;
+      organizationId?: Id<"organizations">;
+    }
+  | {
+      scope: "organization";
+      organizationId: Id<"organizations">;
+    };
+
+export type DeletionCleanupJobState = {
+  jobId: Id<"deletionCleanupJobs">;
+  status: Doc<"deletionCleanupJobs">["status"];
+  version: number;
+};
+
 export const ACTIVE_DELETION_CLEANUP_STATUSES = ["queued", "processing", "retrying", "actionRequired"] as const;
 
 export function deletionCleanupRequestId(requestId: string) {
   return requestId;
+}
+
+/** linked jobをIDだけで信用せず、期待する削除対象と一致する最小状態だけを返す。 */
+export async function getDeletionCleanupJobForTarget(
+  ctx: DbCtx,
+  args: {
+    jobId: Id<"deletionCleanupJobs">;
+    target: DeletionCleanupTarget;
+  },
+): Promise<DeletionCleanupJobState | null> {
+  const job = await ctx.db.get(args.jobId);
+  if (!job) return null;
+  if (!matchesTarget(job, args.target)) {
+    throw new ConvexError("削除処理の対象を確認できません");
+  }
+  return {
+    jobId: job._id,
+    status: job.status,
+    version: job.version,
+  };
 }
 
 export async function ensureDeletionCleanupJob(
@@ -236,16 +273,7 @@ export async function hasOtherActiveUserAssociation(
   return status === "found";
 }
 
-function matchesTarget(
-  job: Doc<"deletionCleanupJobs">,
-  args:
-    | {
-        scope: "shop";
-        shopId: Id<"shops">;
-        organizationId?: Id<"organizations">;
-      }
-    | { scope: "organization"; organizationId: Id<"organizations"> },
-) {
+function matchesTarget(job: Doc<"deletionCleanupJobs">, args: DeletionCleanupTarget) {
   if (job.scope !== args.scope) return false;
   if (args.scope === "shop") {
     return job.shopId === args.shopId && job.organizationId === args.organizationId;

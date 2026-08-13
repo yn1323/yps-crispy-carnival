@@ -405,6 +405,176 @@ describe("deletionCleanup worker", () => {
     ).not.toContain("@example.com");
   });
 
+  it("linked jobは期待する削除対象と一致する最小状態だけを返す", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const organizationId = await seedOrganization(ctx, "削除対象組織", undefined, true);
+      const otherOrganizationId = await seedOrganization(ctx, "対象外組織", undefined, true);
+      const jobId = await ctx.db.insert("deletionCleanupJobs", {
+        scope: "organization",
+        organizationId,
+        requestId: "linked-job-state",
+        status: "actionRequired",
+        phase: "organizationVerification",
+        version: 4,
+        attemptCount: 8,
+        nextRunAt: NOW,
+        lastErrorCode: "cleanup_lease_expired",
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      const missingJobId = await ctx.db.insert("deletionCleanupJobs", {
+        scope: "organization",
+        organizationId,
+        requestId: "removed-linked-job",
+        status: "completed",
+        phase: "organizationVerification",
+        version: 2,
+        attemptCount: 0,
+        nextRunAt: NOW,
+        completedAt: NOW,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      await ctx.db.delete(missingJobId);
+      return { organizationId, otherOrganizationId, jobId, missingJobId };
+    });
+
+    await expect(
+      t.query(internal.deletionCleanup.queries.getLinkedJobState, {
+        jobId: ids.jobId,
+        target: { scope: "organization", organizationId: ids.organizationId },
+      }),
+    ).resolves.toEqual({ jobId: ids.jobId, status: "actionRequired", version: 4 });
+    await expect(
+      t.query(internal.deletionCleanup.queries.getLinkedJobState, {
+        jobId: ids.jobId,
+        target: { scope: "organization", organizationId: ids.otherOrganizationId },
+      }),
+    ).rejects.toThrowError("削除処理の対象を確認できません");
+    await expect(
+      t.query(internal.deletionCleanup.queries.getLinkedJobState, {
+        jobId: ids.missingJobId,
+        target: { scope: "organization", organizationId: ids.organizationId },
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it("operator retryはtargetとexpectedVersionが一致するactionRequiredだけを一度再投入する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const organizationId = await seedOrganization(ctx, "削除対象組織", undefined, true);
+      const otherOrganizationId = await seedOrganization(ctx, "対象外組織", undefined, true);
+      const jobId = await ctx.db.insert("deletionCleanupJobs", {
+        scope: "organization",
+        organizationId,
+        requestId: "retry-action-required",
+        status: "actionRequired",
+        phase: "organizationVerification",
+        resource: "organizationCore",
+        cursor: "resume-cursor",
+        version: 7,
+        attemptCount: 8,
+        nextRunAt: NOW - 60_000,
+        lastErrorCode: "cleanup_lease_expired",
+        createdAt: NOW - 60_000,
+        updatedAt: NOW - 60_000,
+      });
+      const completedJobId = await ctx.db.insert("deletionCleanupJobs", {
+        scope: "organization",
+        organizationId: otherOrganizationId,
+        requestId: "completed-job",
+        status: "completed",
+        phase: "organizationVerification",
+        version: 3,
+        attemptCount: 1,
+        nextRunAt: NOW,
+        completedAt: NOW,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      return { organizationId, otherOrganizationId, jobId, completedJobId };
+    });
+    const before = await t.run(async (ctx) => ({
+      job: await ctx.db.get(ids.jobId),
+      completedJob: await ctx.db.get(ids.completedJobId),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+
+    await expect(
+      t.mutation(internal.deletionCleanup.mutations.retryActionRequired, {
+        jobId: ids.jobId,
+        target: { scope: "organization", organizationId: ids.organizationId },
+        expectedVersion: 6,
+      }),
+    ).rejects.toThrowError("削除処理の状態が更新されています");
+    await expect(
+      t.mutation(internal.deletionCleanup.mutations.retryActionRequired, {
+        jobId: ids.jobId,
+        target: { scope: "organization", organizationId: ids.otherOrganizationId },
+        expectedVersion: 7,
+      }),
+    ).rejects.toThrowError("削除処理の対象を確認できません");
+    await expect(
+      t.mutation(internal.deletionCleanup.mutations.retryActionRequired, {
+        jobId: ids.completedJobId,
+        target: { scope: "organization", organizationId: ids.otherOrganizationId },
+        expectedVersion: 3,
+      }),
+    ).rejects.toThrowError("削除処理の状態が更新されています");
+
+    const afterRejected = await t.run(async (ctx) => ({
+      job: await ctx.db.get(ids.jobId),
+      completedJob: await ctx.db.get(ids.completedJobId),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(afterRejected).toEqual(before);
+
+    await expect(
+      t.mutation(internal.deletionCleanup.mutations.retryActionRequired, {
+        jobId: ids.jobId,
+        target: { scope: "organization", organizationId: ids.organizationId },
+        expectedVersion: 7,
+      }),
+    ).resolves.toEqual({ status: "scheduled", version: 8 });
+
+    const retried = await t.run(async (ctx) => ({
+      job: await ctx.db.get(ids.jobId),
+      scheduled: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+        (scheduled) => scheduled.name === "deletionCleanup/mutations:kick",
+      ),
+    }));
+    expect(retried.job).toMatchObject({
+      status: "retrying",
+      phase: "organizationVerification",
+      resource: "organizationCore",
+      cursor: "resume-cursor",
+      version: 8,
+      attemptCount: 0,
+      nextRunAt: NOW,
+      updatedAt: NOW,
+    });
+    expect(retried.job).not.toHaveProperty("lastErrorCode");
+    expect(retried.job).not.toHaveProperty("completedAt");
+    expect(retried.scheduled).toHaveLength(1);
+    expect(retried.scheduled[0]?.args).toEqual([{ jobId: ids.jobId }]);
+
+    await expect(
+      t.mutation(internal.deletionCleanup.mutations.retryActionRequired, {
+        jobId: ids.jobId,
+        target: { scope: "organization", organizationId: ids.organizationId },
+        expectedVersion: 7,
+      }),
+    ).rejects.toThrowError("削除処理の状態が更新されています");
+    await expect(
+      t.run(async (ctx) =>
+        (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+          (scheduled) => scheduled.name === "deletionCleanup/mutations:kick",
+        ),
+      ),
+    ).resolves.toHaveLength(1);
+  });
+
   it("組織jobのcurrentShopが別組織を指す不変条件違反では対象外店舗を変更しない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {

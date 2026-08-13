@@ -2,7 +2,8 @@ import { getFunctionName } from "convex/server";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
-import { seedUser } from "../_test/seed";
+import type { Id } from "../_generated/dataModel";
+import { seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { runAccountDeletionJob } from "../accountDeletion/actions";
 import { ACCOUNT_DELETION_JOB_LEASE_MS } from "../accountDeletion/constants";
@@ -202,4 +203,138 @@ describe("アカウント削除シナリオ", () => {
     expect(recoveryProvider.getUser).not.toHaveBeenCalled();
     expect(recoveryProvider.deleteUser).not.toHaveBeenCalled();
   });
+
+  it("単独管理者の組織cleanupが要対応になっても、対象とversionを確認した運用retryから完了へ収束する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, {
+        subject: "sole_admin_cleanup_retry",
+        email: "sole-admin-cleanup-retry@example.com",
+        shopName: "再開対象店舗",
+        complimentary: true,
+      }),
+    );
+    const preview = await t
+      .withIdentity({ subject: "sole_admin_cleanup_retry" })
+      .query(api.accountDeletion.queries.getDeletionPreview, { asOfDate: "2026-07-19" });
+    if (preview.status !== "ready" || preview.action !== "deleteOrganization") {
+      throw new Error("deleteOrganization preview was not ready");
+    }
+
+    await expect(
+      t.mutation(internal.accountDeletion.mutations.accept, {
+        issuer: "https://convex.test",
+        clerkUserId: "sole_admin_cleanup_retry",
+        requestId: "cf01d609-dd2d-48cb-9280-a3fef60ec313",
+        scope: "accountAndAssociations",
+        previewFingerprint: preview.previewFingerprint,
+        rateLimitKey: "a".repeat(64),
+      }),
+    ).resolves.toEqual({ status: "accepted" });
+
+    const jobs = await t.run(async (ctx) => ({
+      account: await ctx.db.query("accountDeletionJobs").unique(),
+      cleanup: await ctx.db.query("deletionCleanupJobs").unique(),
+    }));
+    if (!jobs.account || !jobs.cleanup) throw new Error("deletion jobs were not created");
+    const accountJob = jobs.account;
+    const cleanupJob = jobs.cleanup;
+    await t.run(async (ctx) => {
+      await ctx.db.patch(cleanupJob._id, {
+        status: "actionRequired",
+        version: cleanupJob.version + 1,
+        lastErrorCode: "cleanup_lease_expired",
+      });
+    });
+
+    const provider: AccountDeletionProvider = {
+      assertReady: vi.fn(async () => undefined),
+      getUser: vi.fn(async () => "found" as const),
+      deleteUser: vi.fn(async () => "deleted" as const),
+    };
+    const workerCtx = {
+      runMutation: t.mutation.bind(t),
+    } as unknown as Parameters<typeof runAccountDeletionJob>[0];
+    await runAccountDeletionJob(workerCtx, provider, accountJob._id);
+
+    const stopped = await t.run(async (ctx) => ({
+      account: await ctx.db.get(accountJob._id),
+      cleanup: await ctx.db.get(cleanupJob._id),
+    }));
+    expect(stopped.account).toMatchObject({
+      status: "actionRequired",
+      phase: "waitForOrganizationCleanup",
+      lastErrorCode: "organization_cleanup_action_required",
+    });
+    expect(stopped.cleanup).toMatchObject({ status: "actionRequired" });
+    expect(provider.assertReady).not.toHaveBeenCalled();
+    if (!stopped.account) throw new Error("account deletion job disappeared");
+
+    const beforeStaleRetry = await t.run(async (ctx) => ({
+      cleanup: await ctx.db.get(cleanupJob._id),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    await expect(
+      t.mutation(internal.accountDeletion.mutations.retryActionRequired, {
+        jobId: stopped.account._id,
+        expectedVersion: stopped.account.version - 1,
+      }),
+    ).resolves.toEqual({ status: "stale" });
+    await expect(
+      t.run(async (ctx) => ({
+        cleanup: await ctx.db.get(cleanupJob._id),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      })),
+    ).resolves.toEqual(beforeStaleRetry);
+
+    await expect(
+      t.mutation(internal.accountDeletion.mutations.retryActionRequired, {
+        jobId: stopped.account._id,
+        expectedVersion: stopped.account.version,
+      }),
+    ).resolves.toMatchObject({ status: "scheduled", version: stopped.account.version + 1 });
+    await expect(t.run((ctx) => ctx.db.get(cleanupJob._id))).resolves.toMatchObject({
+      status: "retrying",
+      attemptCount: 0,
+    });
+
+    await finishDeletionCleanup(t, cleanupJob._id);
+    await runAccountDeletionJob(workerCtx, provider, accountJob._id);
+
+    const completed = await t.run(async (ctx) => ({
+      account: await ctx.db.get(accountJob._id),
+      cleanup: await ctx.db.get(cleanupJob._id),
+      organization: await ctx.db.get(ids.organizationId),
+      shop: await ctx.db.get(ids.shopId),
+    }));
+    expect(completed.account).toMatchObject({ status: "completed", phase: "complete" });
+    expect(completed.cleanup).toMatchObject({ status: "completed" });
+    expect(completed.organization).toMatchObject({ isDeleted: true });
+    expect(completed.shop).toMatchObject({ isDeleted: true });
+    expect(provider.assertReady).toHaveBeenCalledTimes(1);
+    expect(provider.getUser).toHaveBeenCalledTimes(1);
+    expect(provider.deleteUser).toHaveBeenCalledTimes(1);
+  });
 });
+
+async function finishDeletionCleanup(t: ReturnType<typeof convexTest>, jobId: Id<"deletionCleanupJobs">) {
+  for (let iteration = 0; iteration < 200; iteration += 1) {
+    let job = await t.run((ctx) => ctx.db.get(jobId));
+    if (!job) throw new Error("deletion cleanup job disappeared");
+    if (job.status === "completed") return;
+    if (job.status === "actionRequired") throw new Error(`deletion cleanup stopped: ${job.lastErrorCode ?? "unknown"}`);
+    if (job.status === "queued" || job.status === "retrying") {
+      await t.mutation(internal.deletionCleanup.mutations.kick, { jobId });
+      job = await t.run((ctx) => ctx.db.get(jobId));
+      if (!job) throw new Error("deletion cleanup job disappeared after claim");
+    }
+    if (job.status === "processing" && job.leaseId) {
+      await t.mutation(internal.deletionCleanup.mutations.process, {
+        jobId,
+        leaseId: job.leaseId,
+        expectedVersion: job.version,
+      });
+    }
+  }
+  throw new Error("deletion cleanup job did not complete");
+}

@@ -8,6 +8,11 @@ import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { addDays, todayJST } from "../_lib/dateFormat";
 import { seedLegacyShopMembership, seedOrganizationManagerShop, seedStaffLineAccount, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import {
+  applyAccountDeletionOrganizationDeparture,
+  beginAccountDeletionOrganizationDeletion,
+  prepareAccountDeletionOrganizationDeparture,
+} from "./mutations";
 
 const NOW = new Date("2026-07-16T00:00:00.000Z").getTime();
 
@@ -1737,5 +1742,216 @@ describe("organization person profile update", () => {
         requestId: "person-profile-readonly",
       }),
     ).rejects.toThrow("Not found");
+  });
+});
+
+describe("account deletion organization operations", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  it("別の有効管理者がいる組織では本人の管理者・人物・staff accessだけを終了する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "account_departure_actor",
+        plan: "pro",
+      });
+      const successor = await seedTargetPerson(ctx, {
+        base,
+        subject: "account_departure_successor",
+        shopIds: [],
+        manager: true,
+      });
+      await ctx.db.patch(base.organizationId, {
+        billingEmail: successor.email,
+        billingEmailNormalized: successor.email,
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: base.shopId,
+        organizationId: base.organizationId,
+        organizationPersonId: base.personId,
+        userId: base.userId,
+        name: "管理者兼スタッフ",
+        email: "account_departure_actor@example.com",
+        emailNormalized: "account_departure_actor@example.com",
+        isDeleted: false,
+      });
+      const access = await seedStaffAccess(ctx, { shopId: base.shopId, staffId });
+      const future = await seedAssignment(ctx, {
+        shopId: base.shopId,
+        staffId,
+        date: addDays(todayJST(), 1),
+      });
+      const [organization, person, member] = await Promise.all([
+        ctx.db.get(base.organizationId),
+        ctx.db.get(base.personId),
+        ctx.db.get(base.memberId),
+      ]);
+      if (!organization || !person || !member) throw new Error("account departure actor not found");
+      return {
+        ...base,
+        ...access,
+        actor: { organization, person, member },
+        assignmentId: future.assignmentId,
+        staffId,
+        successorMemberId: successor.memberId,
+      };
+    });
+
+    const result = await t.run(async (ctx) => {
+      const plan = await prepareAccountDeletionOrganizationDeparture(ctx, {
+        actor: ids.actor,
+        accountUserId: ids.userId,
+        asOfDate: todayJST(),
+      });
+      return await applyAccountDeletionOrganizationDeparture(ctx, {
+        plan,
+        correlationId: "account-departure-test",
+        now: NOW,
+      });
+    });
+    expect(result).toEqual({ assignmentCount: 1 });
+
+    const state = await t.run(async (ctx) => ({
+      assignment: await ctx.db.get(ids.assignmentId),
+      audit: await ctx.db
+        .query("organizationAuditEvents")
+        .withIndex("by_correlationId", (q) => q.eq("correlationId", "account-departure-test"))
+        .unique(),
+      lineAccount: await ctx.db.get(ids.lineAccountId),
+      lineLinkToken: await ctx.db.get(ids.lineLinkTokenId),
+      magicLink: await ctx.db.get(ids.magicLinkId),
+      member: await ctx.db.get(ids.memberId),
+      organization: await ctx.db.get(ids.organizationId),
+      person: await ctx.db.get(ids.personId),
+      session: await ctx.db.get(ids.sessionId),
+      staff: await ctx.db.get(ids.staffId),
+      successorMember: ids.successorMemberId ? await ctx.db.get(ids.successorMemberId) : null,
+    }));
+    expect(state).toMatchObject({
+      assignment: null,
+      audit: { action: "organization.person_removed", actorUserId: ids.userId },
+      lineAccount: { isDeleted: true, following: false },
+      lineLinkToken: { revokedAt: NOW },
+      magicLink: { revokedAt: NOW },
+      member: { status: "removed" },
+      organization: { isDeleted: false },
+      person: { status: "removed" },
+      session: { revokedAt: NOW },
+      staff: { isDeleted: true },
+      successorMember: { status: "active" },
+    });
+  });
+
+  it("readOnly管理者しか残らない本人離脱は無変更で拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "account_departure_readonly_actor",
+        plan: "pro",
+      });
+      const successor = await seedTargetPerson(ctx, {
+        base,
+        subject: "account_departure_readonly_successor",
+        shopIds: [],
+        manager: true,
+      });
+      if (!successor.memberId) throw new Error("successor member not found");
+      await ctx.db.patch(successor.memberId, { status: "readOnly" });
+      await ctx.db.patch(base.organizationId, {
+        billingEmail: successor.email,
+        billingEmailNormalized: successor.email,
+      });
+      const [organization, person, member] = await Promise.all([
+        ctx.db.get(base.organizationId),
+        ctx.db.get(base.personId),
+        ctx.db.get(base.memberId),
+      ]);
+      if (!organization || !person || !member) throw new Error("account departure actor not found");
+      return { ...base, actor: { organization, person, member } };
+    });
+
+    await expect(
+      t.run(async (ctx) =>
+        prepareAccountDeletionOrganizationDeparture(ctx, {
+          actor: ids.actor,
+          accountUserId: ids.userId,
+          asOfDate: todayJST(),
+        }),
+      ),
+    ).rejects.toThrowError("管理者は削除できません。");
+    await expect(
+      t.run(async (ctx) => ({
+        audits: await ctx.db.query("organizationAuditEvents").collect(),
+        member: await ctx.db.get(ids.memberId),
+        organization: await ctx.db.get(ids.organizationId),
+        person: await ctx.db.get(ids.personId),
+      })),
+    ).resolves.toMatchObject({
+      audits: [],
+      member: { status: "active" },
+      organization: { isDeleted: false },
+      person: { status: "active" },
+    });
+  });
+
+  it("sole-admin組織の論理削除とcleanup jobを同じ受付で冪等に開始する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "account_delete_sole_admin",
+        plan: "free",
+      });
+      const [organization, person, member] = await Promise.all([
+        ctx.db.get(base.organizationId),
+        ctx.db.get(base.personId),
+        ctx.db.get(base.memberId),
+      ]);
+      if (!organization || !person || !member) throw new Error("sole admin actor not found");
+      return { ...base, actor: { organization, person, member } };
+    });
+    const request = {
+      actor: ids.actor,
+      accountUserId: ids.userId,
+      requestId: "account-delete-sole-admin",
+      now: NOW,
+    };
+
+    const first = await t.run(async (ctx) => beginAccountDeletionOrganizationDeletion(ctx, request));
+    const second = await t.run(async (ctx) => beginAccountDeletionOrganizationDeletion(ctx, request));
+    expect(first).toEqual({
+      organizationId: ids.organizationId,
+      cleanupJobId: first.cleanupJobId,
+      changed: true,
+    });
+    expect(second).toEqual({
+      organizationId: ids.organizationId,
+      cleanupJobId: first.cleanupJobId,
+      changed: false,
+    });
+
+    const state = await t.run(async (ctx) => ({
+      audits: await ctx.db
+        .query("organizationAuditEvents")
+        .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
+        .collect(),
+      jobs: await ctx.db.query("deletionCleanupJobs").collect(),
+      organization: await ctx.db.get(ids.organizationId),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(state.organization).toMatchObject({ isDeleted: true, updatedAt: NOW });
+    expect(state.jobs).toHaveLength(1);
+    expect(state.jobs[0]).toMatchObject({
+      _id: first.cleanupJobId,
+      scope: "organization",
+      organizationId: ids.organizationId,
+      status: "queued",
+    });
+    expect(state.audits.map((audit) => audit.action)).toEqual(["organization.deleted"]);
+    expect(state.scheduled.map((job) => job.name)).toEqual(["deletionCleanup/mutations:kick"]);
   });
 });
