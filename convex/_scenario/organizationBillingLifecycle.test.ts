@@ -944,6 +944,10 @@ describe("事業者課金ライフサイクル", () => {
   });
 
   it("既存active.freeはgrandfatheringされ、新しい利用停止Actionから変更されない", async () => {
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_billing_scenario");
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_billing_scenario");
+    vi.stubEnv("STRIPE_PRO_PRICE_ID", "price_billing_scenario_pro");
+    vi.stubEnv("STRIPE_PORTAL_CONFIGURATION_ID", "bpc_billing_scenario");
     const t = convexTest(schema, modules);
     const ids = await t.run((ctx) =>
       seedOrganizationManagerShop(ctx, { subject: "grandfathered_active_free", plan: "free" }),

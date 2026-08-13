@@ -17,8 +17,16 @@ describe("管理者セットアップシナリオ", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(SCENARIO_NOW);
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_manager_setup");
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_manager_setup");
+    vi.stubEnv("STRIPE_PRO_PRICE_ID", "price_manager_setup_pro");
+    vi.stubEnv("STRIPE_BUSINESS_PRICE_ID", "price_manager_setup_business");
+    vi.stubEnv("STRIPE_PORTAL_CONFIGURATION_ID", "bpc_manager_setup");
   });
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
 
   it("初回セットアップで店舗・管理者・manager staff・同意・初期positionが揃い、ダッシュボードに反映される", async () => {
     const t = convexTest(schema, modules);
