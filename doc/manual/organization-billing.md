@@ -52,9 +52,14 @@ Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotat
 `--deployment prod`のような短縮指定は使わない。
 短縮指定は現在選択中のConvex projectに依存し、別projectのdeploymentを選ぶおそれがある。
 
+## 公開状態
+
+組織追加、支払い、管理者招待・交代は常時公開する。
+店舗追加と既存人物の複数店舗所属は、LINE連携共通化のrollout中だけ`LINE_COMMON_LINK_CANONICAL_READY=enabled`で公開する。
+設定順、read authority、readiness、backfillは[LINE通知の設定と運用](line-notification.md)を正本とする。
+
 ## 廃止した公開フラグ
 
-組織追加、支払い、管理者招待・交代、店舗追加、既存人物の複数店舗所属は常時公開する。
 旧deploymentに残る次の設定は公開状態へ影響しない。
 
 - `FEATURE_ORGANIZATION_CREATION`

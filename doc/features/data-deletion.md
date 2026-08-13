@@ -13,12 +13,16 @@
 | `organizations` | 変更しない | `name`、`billingEmail`、`billingEmailNormalized`を保持し、論理削除 |
 | `staffs` | 氏名、メール、正規化メールを保持し、対象店舗分を論理削除 | 全店舗分を同様に変更 |
 | `staffLineAccounts` | 対象店舗分を論理削除し、LINE IDを置換 | 全店舗分を同様に変更 |
+| `organizationPersonLineLinks` | 変更しない。組織人物の共通LINE連携を保持 | 対象組織の連携を論理削除。別組織の連携は保持 |
+| `lineProviderUsers` | 変更しない | 別組織から参照される間は保持し、参照がなくなった場合だけLINE IDを置換して論理削除 |
 | `organizationPeople` / `organizationMembers` | 変更しない | personの氏名、メール、正規化メールを保持し、`removed`へ変更 |
 | `users` | 変更しない | 単独の組織削除では変更しない。ログインアカウントの削除は明示的なアカウント削除導線だけで受け付ける |
 | session / token / 登録リンク | 対象店舗分を失効 | 全店舗分を失効 |
 | 未送信通知 | 対象店舗scopeを停止 | 対象店舗・組織scopeを停止 |
 
 LINE IDの置換値は`deleted:<documentId>`として行IDから決定的に作り、再試行でも同じ値を使ってindex衝突を避ける。
+一つの店舗所属または店舗を削除しても、組織人物の共通LINE連携は解除しない。
+人物を組織から削除する場合と組織を削除する場合は、その組織の連携だけを終了する。
 氏名、メールアドレス、正規化メール、店舗名、組織名、請求先メールアドレスはcleanupで上書きしない。
 
 ## アカウント削除と組み合わせる場合

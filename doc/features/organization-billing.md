@@ -14,8 +14,9 @@ Stripe設定、migration確認、障害対応は[組織課金の運用](../manua
 
 ## 公開範囲
 
-組織追加、支払い、管理者招待・交代、店舗追加、既存人物の複数店舗所属は常時公開する。
-旧frontendとのDTO互換のため`features`項目は残すが、backendとfrontendは全項目を`true`へ正規化する。
+組織追加、支払い、管理者招待・交代は常時公開する。
+店舗追加と既存人物の複数店舗所属は、LINE連携共通化のrollout中だけ`LINE_COMMON_LINK_CANONICAL_READY=enabled`と完全一致するdeploymentで公開する。
+backendはこのCapabilityを返し、frontendは店舗追加と所属追加の入口へ反映する。未設定と不正値は非公開として扱い、古い画面からの要求もserverで拒否する。
 認証、所属、店舗境界、課金状態、利用上限は、表示状態から独立してサーバー側で確認する。
 
 実deploymentへの反映状況はこの文書から推定せず、[リリース状態](../manual/release-status.md)の証跡で確認する。
@@ -276,7 +277,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | `convex/notificationOutbox/` | 外部送信前の宛先・所属・課金状態再確認と重複排除を行う |
 | `convex/migrations/m021_organization_billing_complimentary_pro_to_business.ts` | 旧`complimentary.pro`を変換した履歴migrationとMigration Testの契約 |
 | `convex/migrations/m022_organization_billing_to_complimentary_business.ts` | 段階リリース時に、全課金状態を支払い不要Businessへ寄せた履歴migration |
-| `convex/_lib/config.ts` | 旧frontend互換の公開状態DTOを常時公開として返す |
+| `convex/_lib/config.ts` | 常時公開機能と、LINE共通化完了後に開く店舗・所属追加Capabilityを返す |
 | `scripts/verifyComplimentaryBusinessM021Export.ts` | Narrow deploy前にm021前後のexport証跡をfail-closedに検証する |
 
 ### フロントエンド
