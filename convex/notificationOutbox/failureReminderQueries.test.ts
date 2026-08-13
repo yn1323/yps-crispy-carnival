@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { seedLegacyShopMembership, seedManagerShop, seedStaffLineAccount, seedUser } from "../_test/seed";
+import { seedCanonicalStaffLineRecipient, seedLegacyShopMembership, seedManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { DAY_MS, HOUR_MS } from "../constants";
 
@@ -236,8 +236,7 @@ describe("notificationOutbox/failureReminderQueries", () => {
           emailNormalized: "owner-line@example.com",
           isDeleted: false,
         });
-        await seedStaffLineAccount(ctx, {
-          shopId: seeded.shopId,
+        await seedCanonicalStaffLineRecipient(ctx, {
           staffId: managerStaffId,
           lineUserId: "U_owner_line",
           following: true,
@@ -265,6 +264,7 @@ describe("notificationOutbox/failureReminderQueries", () => {
             email: "owner-line@example.com",
             lineUserId: "U_owner_line",
             lineFollowing: true,
+            lineRecipient: expect.objectContaining({ lineUserId: "U_owner_line", following: true }),
           }),
           expect.objectContaining({ email: "owner-email@example.com" }),
         ]),

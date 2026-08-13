@@ -79,6 +79,85 @@ export function notificationChannelForPayload(payload: NotificationPayload): Not
 
 export type NotificationPurpose = "business" | "billing";
 
+export type CanonicalLineRecipientSnapshot = {
+  organizationPersonLineLinkId: Id<"organizationPersonLineLinks">;
+  organizationPersonLineGenerationAtEnqueue: number;
+};
+
+export type NotificationLineRecipient =
+  | ({
+      authority: "legacy";
+      lineUserId: string;
+      following: boolean;
+    } & (
+      | {
+          organizationPersonLineLinkId: Id<"organizationPersonLineLinks">;
+          generation: number;
+        }
+      | {
+          organizationPersonLineLinkId?: never;
+          generation?: never;
+        }
+    ))
+  | {
+      authority: "canonical";
+      organizationPersonLineLinkId: Id<"organizationPersonLineLinks">;
+      generation: number;
+      lineUserId: string;
+      following: boolean;
+    };
+
+export function toNotificationLineRecipient(
+  recipient:
+    | null
+    | ({
+        authority: "legacy";
+        organizationPersonLineLinkId?: Id<"organizationPersonLineLinks">;
+        generation?: number;
+      } & Pick<NotificationLineRecipient, "lineUserId" | "following">)
+    | Extract<NotificationLineRecipient, { authority: "canonical" }>,
+): NotificationLineRecipient | null {
+  if (!recipient) return null;
+  if (
+    recipient.authority === "legacy" &&
+    (recipient.organizationPersonLineLinkId === undefined) !== (recipient.generation === undefined)
+  ) {
+    return null;
+  }
+  return recipient.authority === "canonical"
+    ? {
+        authority: "canonical",
+        organizationPersonLineLinkId: recipient.organizationPersonLineLinkId,
+        generation: recipient.generation,
+        lineUserId: recipient.lineUserId,
+        following: recipient.following,
+      }
+    : recipient.organizationPersonLineLinkId !== undefined && recipient.generation !== undefined
+      ? {
+          authority: "legacy",
+          organizationPersonLineLinkId: recipient.organizationPersonLineLinkId,
+          generation: recipient.generation,
+          lineUserId: recipient.lineUserId,
+          following: recipient.following,
+        }
+      : {
+          authority: "legacy",
+          lineUserId: recipient.lineUserId,
+          following: recipient.following,
+        };
+}
+
+export function lineRecipientOutboxSnapshot(
+  recipient: NotificationLineRecipient,
+): CanonicalLineRecipientSnapshot | Record<string, never> {
+  return recipient.organizationPersonLineLinkId !== undefined
+    ? {
+        organizationPersonLineLinkId: recipient.organizationPersonLineLinkId,
+        organizationPersonLineGenerationAtEnqueue: recipient.generation,
+      }
+    : {};
+}
+
 export type NotificationCancelReason =
   | "organization_billing_changed"
   | "organization_restricted"
@@ -119,6 +198,8 @@ type NotificationHistoryTarget =
     };
 
 type EnqueueNotificationCommon<TPayload extends NotificationPayload> = {
+  organizationPersonLineLinkId?: Id<"organizationPersonLineLinks">;
+  organizationPersonLineGenerationAtEnqueue?: number;
   organizationBillingVersionAtOrigin?: number;
   purpose: NotificationPurpose;
   organizationInvitationId?: Id<"organizationInvitations">;

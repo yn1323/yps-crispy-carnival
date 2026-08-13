@@ -1,7 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
-import { seedShop, seedStaffLineAccount } from "../_test/seed";
+import { seedCanonicalStaffLineRecipient, seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("notification/reminderQueries", () => {
@@ -107,8 +107,7 @@ describe("notification/reminderQueries", () => {
           email: "",
           isDeleted: false,
         });
-        await seedStaffLineAccount(ctx, {
-          shopId,
+        await seedCanonicalStaffLineRecipient(ctx, {
           staffId,
           lineUserId: "U_reminder_line_only",
           following: true,
@@ -119,7 +118,11 @@ describe("notification/reminderQueries", () => {
       const result = await t.query(internal.notification.reminderQueries.getReminderEmailData, { recruitmentId });
 
       expect(result?.staffEntries).toHaveLength(1);
-      expect(result?.staffEntries[0]).toMatchObject({ staffId, lineUserId: "U_reminder_line_only" });
+      expect(result?.staffEntries[0]).toMatchObject({
+        staffId,
+        lineUserId: "U_reminder_line_only",
+        lineRecipient: { lineUserId: "U_reminder_line_only", following: true },
+      });
     });
 
     it("論理削除済みスタッフは除外する", async () => {

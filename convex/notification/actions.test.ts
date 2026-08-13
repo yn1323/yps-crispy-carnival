@@ -1,7 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
-import { seedManagerShop, seedStaffLineAccount } from "../_test/seed";
+import { seedCanonicalStaffLineRecipient, seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("notification/actions", () => {
@@ -251,8 +251,7 @@ describe("notification/actions", () => {
         email: "line-staff@notification.invalid",
         isDeleted: false,
       });
-      await seedStaffLineAccount(ctx, {
-        shopId,
+      await seedCanonicalStaffLineRecipient(ctx, {
         staffId,
         lineUserId: "U_change_history",
       });

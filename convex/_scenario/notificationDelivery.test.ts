@@ -6,7 +6,7 @@ import { resetResendEmailQueueForTest } from "../_lib/resend";
 import type { ScenarioTest } from "../_test/scenarioBuilders";
 import { MANAGER_SUBJECT, SCENARIO_NOW, scenarioDate, seedStaff } from "../_test/scenarioBuilders";
 import { createScenario } from "../_test/scenarioFixtures";
-import { seedManagerShop, seedStaffLineAccount } from "../_test/seed";
+import { seedCanonicalStaffLineRecipient, seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import {
   MAGIC_LINK_DEFAULT_TTL_MS,
@@ -65,8 +65,7 @@ describe("通知配送outboxシナリオ", () => {
         name: "LINEスタッフ",
         email: "line-staff@example.com",
       });
-      await seedStaffLineAccount(ctx, {
-        shopId,
+      await seedCanonicalStaffLineRecipient(ctx, {
         staffId: lineStaffId,
         lineUserId: "U_recruitment_line",
         following: true,
@@ -276,8 +275,7 @@ describe("通知配送outboxシナリオ", () => {
 
     // 再開前に優先channelがemailからLINEへ変わっても、operation×staff identityは変えない。
     await t.run(async (ctx) => {
-      await seedStaffLineAccount(ctx, {
-        shopId: ids.shopId,
+      await seedCanonicalStaffLineRecipient(ctx, {
         staffId: ids.staffId,
         lineUserId: "U_fanout_terminal_dedupe",
         following: true,
@@ -524,8 +522,7 @@ describe("通知配送outboxシナリオ", () => {
         name: "fallback scopeスタッフ",
         email: "fallback-scope@example.com",
       });
-      await seedStaffLineAccount(ctx, {
-        shopId,
+      await seedCanonicalStaffLineRecipient(ctx, {
         staffId,
         lineUserId: "U_fallback_scope",
         following: true,
@@ -856,8 +853,7 @@ describe("通知配送outboxシナリオ", () => {
         name: "催促LINEスタッフ",
         email: "reminder-line@example.com",
       });
-      await seedStaffLineAccount(ctx, {
-        shopId,
+      await seedCanonicalStaffLineRecipient(ctx, {
         staffId: lineStaffId,
         lineUserId: "U_reminder_line",
         following: true,
@@ -952,8 +948,7 @@ describe("通知配送outboxシナリオ", () => {
         name: "確定LINEスタッフ",
         email: "confirmation-line@example.com",
       });
-      await seedStaffLineAccount(ctx, {
-        shopId,
+      await seedCanonicalStaffLineRecipient(ctx, {
         staffId: lineStaffId,
         lineUserId: "U_confirmation_line",
         following: true,
@@ -1979,12 +1974,11 @@ describe("通知配送outboxシナリオ", () => {
         name: "失敗確認スタッフ",
         email: "failure-staff@example.com",
       });
-      await seedStaffLineAccount(ctx, {
-        shopId,
+      const lineRecipient = await seedCanonicalStaffLineRecipient(ctx, {
         staffId,
         lineUserId: "U_failure",
       });
-      return { shopId, staffId };
+      return { shopId, staffId, lineRecipient };
     });
     await t.mutation(internal.notificationOutbox.mutations.enqueue, {
       channel: "line",
@@ -1994,6 +1988,8 @@ describe("通知配送outboxシナリオ", () => {
         notificationKind: "test.failureInbox",
         displayTitle: "シフト募集のお知らせ",
       },
+      organizationPersonLineLinkId: ids.lineRecipient.organizationPersonLineLinkId,
+      organizationPersonLineGenerationAtEnqueue: ids.lineRecipient.generation,
       dedupeKey: "line:failure-inbox:scenario",
       payload: {
         kind: "line",

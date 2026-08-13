@@ -12,7 +12,12 @@ import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
 import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
-import type { NotificationHistoryInput, NotificationRenderedEmailPayload } from "../notificationOutbox/types";
+import {
+  lineRecipientOutboxSnapshot,
+  type NotificationHistoryInput,
+  type NotificationLineRecipient,
+  type NotificationRenderedEmailPayload,
+} from "../notificationOutbox/types";
 import type { ConfirmationSnapshotAssignment } from "./confirmationSnapshots";
 import { recordNotificationPreparationFailure } from "./failureRecording";
 import { buildNotificationFanoutTargetKey } from "./fanout";
@@ -31,6 +36,16 @@ import {
 const SHIFT_CONFIRMATION_NOTIFICATION_KIND = "shift.confirmation";
 const SHIFT_REISSUE_NOTIFICATION_KIND = "shift.reissue";
 const SHIFT_RECRUITMENT_NOTIFICATION_KIND = "shift.recruitment";
+
+function selectLineRecipient(
+  recipient: NotificationLineRecipient | null,
+  quota: { status: "normal" | "exceeded" } | null,
+) {
+  if (!recipient) return null;
+  return selectChannel({ lineUserId: recipient.lineUserId, lineFollowing: recipient.following }, quota) === "line"
+    ? recipient
+    : null;
+}
 
 function formatShiftPeriodHistoryTitle(title: string, periodLabel: string): string {
   return `${title} ${periodLabel}`;
@@ -105,15 +120,12 @@ export const sendShiftConfirmationEmails = internalAction({
     const dedupeSuffix = batch.dedupeSuffix;
 
     for (const staffData of data.staffEntries) {
-      const channel = selectChannel(
-        { lineUserId: staffData.lineUserId, lineFollowing: staffData.lineFollowing },
-        quota,
-      );
+      const lineRecipient = selectLineRecipient(staffData.lineRecipient, quota);
       const emailDedupeKey = `email:confirmation:${recruitmentId}:${staffData.staffId}:${dedupeSuffix}`;
       const lineDedupeKey = `line:confirmation:${recruitmentId}:${staffData.staffId}:${dedupeSuffix}`;
       const fanoutTargetKey = buildNotificationFanoutTargetKey(batch.operationKey, staffData.staffId);
       const legacyFanoutDedupeKeys = [emailDedupeKey, lineDedupeKey];
-      const selectedChannel = channel === "line" && staffData.lineUserId ? "line" : "email";
+      const selectedChannel = lineRecipient ? "line" : "email";
       const dedupeKey = selectedChannel === "line" ? lineDedupeKey : emailDedupeKey;
       if (selectedChannel === "email" && !staffData.email) continue;
 
@@ -129,7 +141,7 @@ export const sendShiftConfirmationEmails = internalAction({
         );
         const magicLinkUrl = `${APP_URL}/shifts/view?token=${viewToken}`;
 
-        if (selectedChannel === "line" && staffData.lineUserId) {
+        if (lineRecipient) {
           const lineParams = {
             staffName: staffData.name,
             shopName: data.shopName,
@@ -152,6 +164,7 @@ export const sendShiftConfirmationEmails = internalAction({
           const result = await enqueueLine(ctx, {
             shopId: data.shopId,
             ...notificationOrigin,
+            ...lineRecipientOutboxSnapshot(lineRecipient),
             purpose: "business",
             recruitmentId,
             staffId: staffData.staffId,
@@ -173,7 +186,7 @@ export const sendShiftConfirmationEmails = internalAction({
             legacyFanoutDedupeKeys,
             dedupeKey: lineDedupeKey,
             payload: linePayload({
-              toUserId: staffData.lineUserId,
+              toUserId: lineRecipient.lineUserId,
               text,
               message: buildShiftConfirmationLineFlexMessage(lineParams),
               suppressDelivery,
@@ -365,11 +378,11 @@ export const sendReissueEmail = internalAction({
       internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
       { shopId: data.shopId },
     );
-    const channel = selectChannel({ lineUserId: data.lineUserId, lineFollowing: data.lineFollowing }, quota);
+    const lineRecipient = selectLineRecipient(data.lineRecipient, quota);
     log("log", "channel_selected", {
-      channel,
-      hasLineUserId: Boolean(data.lineUserId),
-      lineFollowing: Boolean(data.lineFollowing),
+      channel: lineRecipient ? "line" : "email",
+      hasLineUserId: Boolean(data.lineRecipient?.lineUserId),
+      lineFollowing: Boolean(data.lineRecipient?.following),
       hasEmail: Boolean(data.staffEmail),
       quotaStatus: quota?.status,
     });
@@ -383,7 +396,7 @@ export const sendReissueEmail = internalAction({
     const magicLinkUrl = `${APP_URL}/shifts/view?token=${token}`;
     const reissueSubject = formatResendSubject(data.shopName, `${data.periodLabel} シフト閲覧リンク`);
 
-    if (channel === "line" && data.lineUserId) {
+    if (lineRecipient) {
       const lineParams = {
         staffName: data.staffName,
         shopName: data.shopName,
@@ -414,6 +427,7 @@ export const sendReissueEmail = internalAction({
       const result = await enqueueLine(ctx, {
         shopId: data.shopId,
         ...notificationOrigin,
+        ...lineRecipientOutboxSnapshot(lineRecipient),
         purpose: "business",
         staffId,
         history: {
@@ -422,7 +436,7 @@ export const sendReissueEmail = internalAction({
         },
         dedupeKey: `line:reissue:${recruitmentId}:${staffId}`,
         payload: linePayload({
-          toUserId: data.lineUserId,
+          toUserId: lineRecipient.lineUserId,
           text: buildReissueLineText(lineParams),
           message: buildReissueLineFlexMessage(lineParams),
           suppressDelivery,
@@ -518,8 +532,8 @@ export const sendRecruitmentNotificationEmails = internalAction({
     const expiresAt = getSubmitLinkCutoff(data.periodStart);
 
     for (const staff of data.staffEntries) {
-      const channel = selectChannel({ lineUserId: staff.lineUserId, lineFollowing: staff.lineFollowing }, quota);
-      const selectedChannel = channel === "line" && staff.lineUserId ? "line" : "email";
+      const lineRecipient = selectLineRecipient(staff.lineRecipient, quota);
+      const selectedChannel = lineRecipient ? "line" : "email";
       const emailDedupeKey = `email:recruitment:${recruitmentId}:${staff.staffId}`;
       const lineDedupeKey = `line:recruitment:${recruitmentId}:${staff.staffId}`;
       const fanoutTargetKey = buildNotificationFanoutTargetKey(batch.operationKey, staff.staffId);
@@ -536,7 +550,7 @@ export const sendRecruitmentNotificationEmails = internalAction({
         });
         const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
 
-        if (selectedChannel === "line" && staff.lineUserId) {
+        if (lineRecipient) {
           const lineParams = {
             staffName: staff.name,
             shopName: data.shopName,
@@ -562,6 +576,7 @@ export const sendRecruitmentNotificationEmails = internalAction({
           await enqueueLine(ctx, {
             shopId: data.shopId,
             ...notificationOrigin,
+            ...lineRecipientOutboxSnapshot(lineRecipient),
             purpose: "business",
             recruitmentId,
             staffId: staff.staffId,
@@ -576,7 +591,7 @@ export const sendRecruitmentNotificationEmails = internalAction({
             legacyFanoutDedupeKeys,
             dedupeKey: lineDedupeKey,
             payload: linePayload({
-              toUserId: staff.lineUserId,
+              toUserId: lineRecipient.lineUserId,
               text: buildRecruitmentLineText(lineParams),
               message: buildRecruitmentLineFlexMessage(lineParams),
               suppressDelivery,
@@ -734,11 +749,8 @@ export const sendRecruitmentNotificationForStaff = internalAction({
       internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
       { shopId: data.shopId },
     );
-    const channel = selectChannel(
-      { lineUserId: data.staff.lineUserId, lineFollowing: data.staff.lineFollowing },
-      quota,
-    );
-    const selectedChannel = channel === "line" && data.staff.lineUserId ? "line" : "email";
+    const lineRecipient = selectLineRecipient(data.staff.lineRecipient, quota);
+    const selectedChannel = lineRecipient ? "line" : "email";
     const runId = notificationRunId ?? Date.now();
     const emailDedupeKey = `email:failureRetryRecruitment:${recruitmentId}:${staffId}:${runId}`;
     const lineDedupeKey = `line:failureRetryRecruitment:${recruitmentId}:${staffId}:${runId}`;
@@ -754,7 +766,7 @@ export const sendRecruitmentNotificationForStaff = internalAction({
       });
       const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
 
-      if (selectedChannel === "line" && data.staff.lineUserId) {
+      if (lineRecipient) {
         const lineParams = {
           staffName: data.staff.name,
           shopName: data.shopName,
@@ -780,6 +792,7 @@ export const sendRecruitmentNotificationForStaff = internalAction({
         await enqueueLine(ctx, {
           shopId: data.shopId,
           ...notificationOrigin,
+          ...lineRecipientOutboxSnapshot(lineRecipient),
           purpose: "business",
           recruitmentId,
           staffId: data.staff.staffId,
@@ -789,7 +802,7 @@ export const sendRecruitmentNotificationForStaff = internalAction({
           },
           dedupeKey: lineDedupeKey,
           payload: linePayload({
-            toUserId: data.staff.lineUserId,
+            toUserId: lineRecipient.lineUserId,
             text: buildRecruitmentLineText(lineParams),
             message: buildRecruitmentLineFlexMessage(lineParams),
             suppressDelivery,
@@ -935,11 +948,7 @@ export const sendOpenRecruitmentNotificationEmailsForStaffEmailChange = internal
     if (!data || data.recruitments.length === 0 || !data.staff.email) return;
 
     const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
-    const channel = selectChannel(
-      { lineUserId: data.staff.lineUserId, lineFollowing: data.staff.lineFollowing },
-      quota,
-    );
-    if (channel === "line") return;
+    if (selectLineRecipient(data.staff.lineRecipient, quota)) return;
 
     const suppressDelivery = await ctx.runQuery(
       internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
@@ -1020,11 +1029,8 @@ export const sendOpenRecruitmentNotificationsForStaff = internalAction({
     const manualRunId = Date.now();
 
     for (const recruitment of data.recruitments) {
-      const channel = selectChannel(
-        { lineUserId: data.staff.lineUserId, lineFollowing: data.staff.lineFollowing },
-        quota,
-      );
-      const selectedChannel = channel === "line" && data.staff.lineUserId ? "line" : "email";
+      const lineRecipient = selectLineRecipient(data.staff.lineRecipient, quota);
+      const selectedChannel = lineRecipient ? "line" : "email";
       const emailDedupeKey = `email:manualRecruitment:${recruitment.recruitmentId}:${data.staff.staffId}:${manualRunId}`;
       const lineDedupeKey = `line:manualRecruitment:${recruitment.recruitmentId}:${data.staff.staffId}:${manualRunId}`;
       const dedupeKey = selectedChannel === "line" ? lineDedupeKey : emailDedupeKey;
@@ -1039,7 +1045,7 @@ export const sendOpenRecruitmentNotificationsForStaff = internalAction({
         });
         const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
 
-        if (selectedChannel === "line" && data.staff.lineUserId) {
+        if (lineRecipient) {
           const lineParams = {
             staffName: data.staff.name,
             shopName: data.shopName,
@@ -1065,6 +1071,7 @@ export const sendOpenRecruitmentNotificationsForStaff = internalAction({
           await enqueueLine(ctx, {
             shopId: data.shopId,
             ...notificationOrigin,
+            ...lineRecipientOutboxSnapshot(lineRecipient),
             purpose: "business",
             recruitmentId: recruitment.recruitmentId,
             staffId: data.staff.staffId,
@@ -1074,7 +1081,7 @@ export const sendOpenRecruitmentNotificationsForStaff = internalAction({
             },
             dedupeKey: lineDedupeKey,
             payload: linePayload({
-              toUserId: data.staff.lineUserId,
+              toUserId: lineRecipient.lineUserId,
               text: buildRecruitmentLineText(lineParams),
               message: buildRecruitmentLineFlexMessage(lineParams),
               suppressDelivery,
@@ -1137,20 +1144,17 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
     const data = await ctx.runQuery(internal.notification.queries.getOpenRecruitmentNotificationDataForStaff, {
       staffId,
     });
-    if (!data || data.recruitments.length === 0 || !data.staff.lineUserId) return;
+    if (!data || data.recruitments.length === 0 || !data.staff.lineRecipient) return;
 
     const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
     const suppressDelivery = await ctx.runQuery(
       internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
       { shopId: data.shopId },
     );
-    const channel = selectChannel(
-      { lineUserId: data.staff.lineUserId, lineFollowing: data.staff.lineFollowing },
-      quota,
-    );
+    const lineRecipient = selectLineRecipient(data.staff.lineRecipient, quota);
     // follow直後でも quota exceeded が分かっている場合は送らない。
     // メール経路はスタッフ追加時・募集作成時に別途担保される。
-    if (channel !== "line") return;
+    if (!lineRecipient) return;
 
     for (const recruitment of data.recruitments) {
       const dedupeKey = `line:openRecruitment:${recruitment.recruitmentId}:${data.staff.staffId}`;
@@ -1173,6 +1177,7 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
         await enqueueLine(ctx, {
           shopId: data.shopId,
           ...notificationOrigin,
+          ...lineRecipientOutboxSnapshot(lineRecipient),
           purpose: "business",
           recruitmentId: recruitment.recruitmentId,
           staffId: data.staff.staffId,
@@ -1182,7 +1187,7 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
           },
           dedupeKey,
           payload: linePayload({
-            toUserId: data.staff.lineUserId,
+            toUserId: lineRecipient.lineUserId,
             text: buildRecruitmentLineText(lineParams),
             message: buildRecruitmentLineFlexMessage(lineParams),
             suppressDelivery,

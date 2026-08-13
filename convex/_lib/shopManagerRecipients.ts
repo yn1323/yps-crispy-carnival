@@ -1,7 +1,8 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { SHIFT_BOARD_STAFF_LIMIT } from "../constants";
-import { getStaffLineAccount } from "../line/service";
+import { resolveStaffLineRecipient } from "../line/service";
+import { type NotificationLineRecipient, toNotificationLineRecipient } from "../notificationOutbox/types";
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
 
@@ -11,6 +12,7 @@ export type ShopManagerRecipient = {
   email: string;
   lineUserId: string | undefined;
   lineFollowing: boolean | undefined;
+  lineRecipient: NotificationLineRecipient | null;
 };
 
 export type ShopManagerUsers = {
@@ -251,15 +253,17 @@ export async function loadShopManagerRecipients(
       if (!email) return null;
 
       const managerStaff = resolveManagerStaff(contact, activeStaffs, staffScanComplete);
-      const lineAccount = managerStaff ? await getStaffLineAccount(ctx, managerStaff._id) : null;
-      const validLineAccount = lineAccount?.shopId === shopId ? lineAccount : null;
+      const lineRecipient = managerStaff
+        ? await resolveStaffLineRecipient(ctx, { staffId: managerStaff._id, shopId })
+        : null;
 
       return {
         userId: user._id,
         name,
         email,
-        lineUserId: validLineAccount?.lineUserId,
-        lineFollowing: validLineAccount?.following,
+        lineUserId: lineRecipient?.lineUserId,
+        lineFollowing: lineRecipient?.following,
+        lineRecipient: toNotificationLineRecipient(lineRecipient),
       };
     }),
   );

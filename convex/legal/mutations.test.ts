@@ -2,7 +2,7 @@ import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "../_generated/api";
-import { seedManagerShop, seedShop, seedStaffLineAccount } from "../_test/seed";
+import { seedCanonicalStaffLineRecipient, seedManagerShop, seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { getLegalConsentVersions } from "./documents";
 
@@ -277,7 +277,7 @@ describe("legal/mutations", () => {
         email: "tanaka@example.com",
         isDeleted: false,
       });
-      await seedStaffLineAccount(ctx, { staffId, shopId, lineUserId: "U_staff", following: true });
+      await seedCanonicalStaffLineRecipient(ctx, { staffId, lineUserId: "U_staff", following: true });
       await ctx.db.insert("legalConsentStates", {
         subjectType: "staff",
         staffId,
@@ -307,6 +307,7 @@ describe("legal/mutations", () => {
       staffEmail: "tanaka@example.com",
       lineUserId: "U_staff",
       lineFollowing: true,
+      lineRecipient: { lineUserId: "U_staff", following: true },
       shopName: "テスト店舗",
     });
   });

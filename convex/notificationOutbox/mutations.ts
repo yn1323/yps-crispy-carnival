@@ -20,7 +20,7 @@ import {
   NOTIFICATION_OUTBOX_TERMINAL_REDACTION_BATCH_SIZE,
   NOTIFICATION_OUTBOX_WORKER_BATCH_SIZE,
 } from "../constants";
-import { getStaffLineAccount } from "../line/service";
+import { getOrganizationPersonLineState, resolveStaffLineRecipient } from "../line/service";
 import {
   buildConfirmationSnapshotSignature,
   confirmationSnapshotInputValidator,
@@ -167,6 +167,8 @@ export const enqueue = internalMutation({
     organizationBillingVersionAtOrigin: v.optional(v.number()),
     organizationInvitationId: v.optional(v.id("organizationInvitations")),
     organizationInvitationVersion: v.optional(v.number()),
+    organizationPersonLineLinkId: v.optional(v.id("organizationPersonLineLinks")),
+    organizationPersonLineGenerationAtEnqueue: v.optional(v.number()),
     // TODO[narrow]: m024完走・旧scheduled callerのdrain確認後にrequired化し、business既定値を削除する。
     purpose: v.optional(notificationPurposeValidator),
     recruitmentId: v.optional(v.id("recruitments")),
@@ -189,6 +191,11 @@ export const enqueue = internalMutation({
     const payload = normalizePayloadHistory(args.payload);
     if (args.channel !== notificationChannelForPayload(payload)) {
       throw new ConvexError("Notification channel does not match payload");
+    }
+    const hasLineLinkId = args.organizationPersonLineLinkId !== undefined;
+    const hasLineGeneration = args.organizationPersonLineGenerationAtEnqueue !== undefined;
+    if (hasLineLinkId !== hasLineGeneration || (args.channel !== "line" && hasLineLinkId)) {
+      throw new ConvexError("LINE recipient snapshot is incomplete");
     }
 
     const hasFanoutProducerScope = args.fanoutTargetKey !== undefined || args.fanoutLeaseToken !== undefined;
@@ -291,12 +298,27 @@ export const enqueue = internalMutation({
     }
 
     const dedupeStatuses = args.dedupeAcrossTerminal ? [...ACTIVE_STATUSES, ...TERMINAL_STATUSES] : ACTIVE_STATUSES;
+    const cancelledDuringDedupe = new Set<Id<"notificationOutbox">>();
     for (const status of dedupeStatuses) {
       const existing = await ctx.db
         .query("notificationOutbox")
         .withIndex("by_dedupeKey_status", (q) => q.eq("dedupeKey", args.dedupeKey).eq("status", status))
         .first();
       if (existing) {
+        if (cancelledDuringDedupe.has(existing._id)) continue;
+        if (
+          ACTIVE_STATUSES.includes(existing.status as (typeof ACTIVE_STATUSES)[number]) &&
+          !lineDedupeRecipientSnapshotMatches(existing, {
+            channel: args.channel,
+            organizationPersonLineLinkId: args.organizationPersonLineLinkId,
+            organizationPersonLineGenerationAtEnqueue: args.organizationPersonLineGenerationAtEnqueue,
+            payload,
+          })
+        ) {
+          await cancelActiveNotification(ctx, existing, "recipient_inactive", now);
+          cancelledDuringDedupe.add(existing._id);
+          continue;
+        }
         if (args.fanoutOperationId) {
           if (
             existing.recruitmentId !== args.recruitmentId ||
@@ -336,6 +358,10 @@ export const enqueue = internalMutation({
       ...(args.organizationInvitationId ? { organizationInvitationId: args.organizationInvitationId } : {}),
       ...(args.organizationInvitationVersion !== undefined
         ? { organizationInvitationVersion: args.organizationInvitationVersion }
+        : {}),
+      ...(args.organizationPersonLineLinkId ? { organizationPersonLineLinkId: args.organizationPersonLineLinkId } : {}),
+      ...(args.organizationPersonLineGenerationAtEnqueue !== undefined
+        ? { organizationPersonLineGenerationAtEnqueue: args.organizationPersonLineGenerationAtEnqueue }
         : {}),
       purpose,
       ...(args.recruitmentId ? { recruitmentId: args.recruitmentId } : {}),
@@ -624,6 +650,26 @@ export const prepareForDelivery = internalMutation({
 
     await cancelActiveNotification(ctx, job, eligibility.cancelReason, now);
     return null;
+  },
+});
+
+/** LINE provider呼び出しの直前に、claim後に変わり得るlink世代と宛先をもう一度照合する。 */
+export const prepareLineForProviderDelivery = internalMutation({
+  args: { outboxId: v.id("notificationOutbox"), leaseToken: v.optional(v.string()), now: v.number() },
+  handler: async (ctx, { outboxId, leaseToken, now }) => {
+    const job = await ctx.db.get(outboxId);
+    if (!hasCurrentProcessingLease(job, leaseToken) || processingLeaseExpiresAt(job) <= now) return null;
+    if (job.payload.kind !== "line" && job.payload.kind !== "organizationManagerInvitationLine") {
+      await cancelActiveNotification(ctx, job, "unsupported_channel", now);
+      return null;
+    }
+
+    const eligibility = await getNotificationEligibility(ctx, job, now);
+    if (eligibility.cancelReason) {
+      await cancelActiveNotification(ctx, job, eligibility.cancelReason, now);
+      return null;
+    }
+    return { toUserId: job.payload.toUserId };
   },
 });
 
@@ -918,6 +964,8 @@ type NotificationEligibilityInput = {
   organizationBillingVersionAtEnqueue?: number;
   organizationInvitationId?: Id<"organizationInvitations">;
   organizationInvitationVersion?: number;
+  organizationPersonLineLinkId?: Id<"organizationPersonLineLinks">;
+  organizationPersonLineGenerationAtEnqueue?: number;
   purpose?: NotificationPurpose;
   dedupeKey?: string;
   recruitmentId?: Id<"recruitments">;
@@ -936,6 +984,90 @@ type NotificationEligibility = {
   businessNotificationCutoffVersion?: number;
   cancelReason?: NotificationCancelReason;
 };
+
+function lineRecipientSnapshotMatches(
+  notification: NotificationEligibilityInput,
+  recipient:
+    | {
+        authority: "legacy";
+        organizationPersonLineLinkId?: Id<"organizationPersonLineLinks">;
+        generation?: number;
+        lineUserId: string;
+      }
+    | {
+        authority: "canonical";
+        organizationPersonLineLinkId: Id<"organizationPersonLineLinks">;
+        generation: number;
+        lineUserId: string;
+      },
+) {
+  if (notification.payload.kind !== "line" && notification.payload.kind !== "organizationManagerInvitationLine") {
+    return false;
+  }
+  if (notification.payload.toUserId !== recipient.lineUserId) return false;
+  if (recipient.authority === "legacy") {
+    const notificationHasLinkId = notification.organizationPersonLineLinkId !== undefined;
+    const notificationHasGeneration = notification.organizationPersonLineGenerationAtEnqueue !== undefined;
+    if (notificationHasLinkId !== notificationHasGeneration) return false;
+    // m041前に作られたsnapshot欠損jobは、backfill後にcounterpart metadataが現れても
+    // deployment-wide legacy authority中はraw宛先ID一致の互換契約を維持する。
+    if (!notificationHasLinkId) return true;
+    const recipientHasLinkId = recipient.organizationPersonLineLinkId !== undefined;
+    const recipientHasGeneration = recipient.generation !== undefined;
+    return (
+      recipientHasLinkId &&
+      recipientHasGeneration &&
+      notification.organizationPersonLineLinkId === recipient.organizationPersonLineLinkId &&
+      notification.organizationPersonLineGenerationAtEnqueue === recipient.generation
+    );
+  }
+  return (
+    notification.organizationPersonLineLinkId !== undefined &&
+    notification.organizationPersonLineGenerationAtEnqueue !== undefined &&
+    Number.isSafeInteger(notification.organizationPersonLineGenerationAtEnqueue) &&
+    notification.organizationPersonLineGenerationAtEnqueue >= 0 &&
+    notification.organizationPersonLineLinkId === recipient.organizationPersonLineLinkId &&
+    notification.organizationPersonLineGenerationAtEnqueue === recipient.generation
+  );
+}
+
+/**
+ * 同じdedupe keyでも、未送信LINEの宛先世代が変わった場合は別配送として扱う。
+ * legacy authorityはsnapshotを持たないため、snapshot欠損と宛先IDの一致を互換条件にする。
+ */
+function lineDedupeRecipientSnapshotMatches(
+  existing: Pick<
+    Doc<"notificationOutbox">,
+    "channel" | "organizationPersonLineLinkId" | "organizationPersonLineGenerationAtEnqueue" | "payload"
+  >,
+  incoming: {
+    channel: NotificationChannel;
+    organizationPersonLineLinkId?: Id<"organizationPersonLineLinks">;
+    organizationPersonLineGenerationAtEnqueue?: number;
+    payload: NotificationPayload;
+  },
+) {
+  if (existing.channel !== "line" || incoming.channel !== "line") return true;
+  if (
+    (existing.payload.kind !== "line" && existing.payload.kind !== "organizationManagerInvitationLine") ||
+    (incoming.payload.kind !== "line" && incoming.payload.kind !== "organizationManagerInvitationLine")
+  ) {
+    return false;
+  }
+  if (existing.payload.toUserId !== incoming.payload.toUserId) return false;
+
+  const existingHasLinkId = existing.organizationPersonLineLinkId !== undefined;
+  const existingHasGeneration = existing.organizationPersonLineGenerationAtEnqueue !== undefined;
+  const incomingHasLinkId = incoming.organizationPersonLineLinkId !== undefined;
+  const incomingHasGeneration = incoming.organizationPersonLineGenerationAtEnqueue !== undefined;
+  if (existingHasLinkId !== existingHasGeneration || incomingHasLinkId !== incomingHasGeneration) return false;
+
+  if (!incomingHasLinkId) return !existingHasLinkId;
+  return (
+    existing.organizationPersonLineLinkId === incoming.organizationPersonLineLinkId &&
+    existing.organizationPersonLineGenerationAtEnqueue === incoming.organizationPersonLineGenerationAtEnqueue
+  );
+}
 
 function existingBelongsToNotificationScope(
   existing: Doc<"notificationOutbox">,
@@ -1263,15 +1395,17 @@ async function getInvitationCancellationReason(
   if (notification.payload.kind === "organizationManagerInvitationLine") {
     if (!notification.staffId || !invitation.targetPersonId) return "invitation_inactive";
     const staff = await ctx.db.get(notification.staffId);
-    const lineAccount = staff ? await getStaffLineAccount(ctx, staff._id) : null;
+    const lineRecipient = staff
+      ? await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId: notification.shopId })
+      : null;
     if (
       !staff ||
       staff.isDeleted ||
       staff.organizationId !== organizationId ||
       staff.organizationPersonId !== invitation.targetPersonId ||
-      !lineAccount ||
-      !lineAccount.following ||
-      lineAccount.lineUserId !== notification.payload.toUserId
+      !lineRecipient ||
+      !lineRecipient.following ||
+      !lineRecipientSnapshotMatches(notification, lineRecipient)
     ) {
       return "recipient_inactive";
     }
@@ -1316,14 +1450,8 @@ async function getStaffRecipientCancellationReason(
   }
 
   if (notification.payload.kind === "line") {
-    const lineAccount = await getStaffLineAccount(ctx, staff._id);
-    if (
-      !lineAccount ||
-      lineAccount.isDeleted ||
-      !lineAccount.following ||
-      lineAccount.shopId !== staff.shopId ||
-      lineAccount.lineUserId !== notification.payload.toUserId
-    ) {
+    const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId: notification.shopId });
+    if (!lineRecipient?.following || !lineRecipientSnapshotMatches(notification, lineRecipient)) {
       return "recipient_inactive";
     }
   }
@@ -1403,12 +1531,8 @@ async function getUserRecipientCancellationReason(
       organizationId && person ? { kind: "canonical", user, person, organizationId } : { kind: "legacy", user };
     const managerStaff = await loadShopManagerStaffForContact(ctx, shopId, managerContact);
     if (!managerStaff) return "recipient_inactive";
-    const lineAccount = await getStaffLineAccount(ctx, managerStaff._id);
-    if (
-      !lineAccount?.following ||
-      lineAccount.shopId !== shopId ||
-      lineAccount.lineUserId !== notification.payload.toUserId
-    ) {
+    const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: managerStaff._id, shopId });
+    if (!lineRecipient?.following || !lineRecipientSnapshotMatches(notification, lineRecipient)) {
       return "recipient_inactive";
     }
   }
@@ -1757,8 +1881,8 @@ async function requestFailureResend(
   if (!staff || staff.shopId !== ctx.shop._id || staff.isDeleted) {
     return { scheduled: false, reason: "notRetryable" as const };
   }
-  const lineAccount = await getStaffLineAccount(ctx, staff._id);
-  if (!staff.email && !(lineAccount?.lineUserId && lineAccount.following)) {
+  const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId: staff.shopId });
+  if (!staff.email && !(lineRecipient?.lineUserId && lineRecipient.following)) {
     return { scheduled: false, reason: "notRetryable" as const };
   }
 
@@ -1817,6 +1941,31 @@ async function requestLineInviteResend(
   if (!staff || staff.shopId !== ctx.shop._id || staff.isDeleted || !staff.email) {
     return { scheduled: false, reason: "notRetryable" as const };
   }
+  const hasCanonicalOrganizationId = staff.organizationId !== undefined;
+  const hasCanonicalPersonId = staff.organizationPersonId !== undefined;
+  if (hasCanonicalOrganizationId !== hasCanonicalPersonId) {
+    return { scheduled: false, reason: "notRetryable" as const };
+  }
+  const lineState =
+    staff.organizationId && staff.organizationPersonId
+      ? await getOrganizationPersonLineState(ctx, {
+          organizationId: staff.organizationId,
+          organizationPersonId: staff.organizationPersonId,
+        })
+      : null;
+  if (hasCanonicalOrganizationId && !lineState) {
+    return { scheduled: false, reason: "notRetryable" as const };
+  }
+  const legacyLineRecipient = !hasCanonicalOrganizationId
+    ? await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId: staff.shopId })
+    : null;
+  if ((lineState && lineState.status !== "unlinked") || legacyLineRecipient) {
+    await resolveSupersededFailureInbox(ctx, failure, {
+      now: Date.now(),
+      reservedFailureKey: failure.failureKey,
+    });
+    return { scheduled: false, reason: "notRetryable" as const };
+  }
 
   // 通常の個別連携依頼（line.mutations.sendInvite）と同じスタッフ単位のレートリミットを使い、
   // 一斉再通知で同一スタッフへ連携依頼メールが重複送信されるのを防ぐ。
@@ -1830,6 +1979,12 @@ async function requestLineInviteResend(
   // sendInviteEmail は呼ぶたびに新しい連携トークン（マジックリンク）を発行して送り直す。
   await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
     staffId: failure.staffId,
+    ...(staff.organizationPersonId && lineState
+      ? {
+          organizationPersonId: staff.organizationPersonId,
+          lineLinkGenerationAtSchedule: lineState.generation,
+        }
+      : {}),
     ...notificationOrigin,
   });
   await markFailureRetrying(ctx, failure._id, Date.now());

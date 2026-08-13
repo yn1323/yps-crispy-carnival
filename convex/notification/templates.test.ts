@@ -230,13 +230,13 @@ describe("notification/templates", () => {
     expect(billingHtml).toContain(`最初の文です。<br />${escapedText}`);
     expect(billingHtml).not.toContain("最初の文です。\n");
     expect(inviteHtml).toContain(
-      "スタッフ登録が承認されました。<br />LINEと連携すると、シフトのお知らせをLINEで受け取れます。",
+      "スタッフ登録が承認されました。<br />LINEと連携すると、同じ組織の所属店舗からシフトのお知らせをLINEで受け取れます。",
     );
     expect(reLinkCta).toContain(
-      "シフトリ公式アカウントの友だち追加が解除されています。<br />もう一度友だち追加すると、シフトのお知らせをLINEで受け取れます。<br />LINEで送れない場合は、メールでお知らせすることがあります。",
+      "シフトリ公式アカウントの友だち追加が解除されています。<br />もう一度友だち追加すると、同じ組織の所属店舗からシフトのお知らせをLINEで受け取れます。<br />LINEで送れない場合は、メールでお知らせすることがあります。",
     );
     expect(inviteHtml).toContain(
-      "LINEと連携すると、シフトのお知らせをLINEで送ります。<br />LINEで送れない場合は、メールでお知らせすることがあります。",
+      "LINE連携は同じ組織の所属店舗で共通です。<br />別の組織では、あらためて連携が必要です。<br />LINEで送れない場合は、メールでお知らせすることがあります。",
     );
     expect(legalConsentHtml).toContain(
       "このリンクの期限が切れても、次回のシフト提出時に確認して同意できます。<br />お知らせは同意前でも送られます。",
@@ -280,7 +280,9 @@ describe("notification/templates", () => {
       expect(html).toContain("LINEで送れない場合は、メールでお知らせすることがあります。");
       expect(html).not.toContain("次回からメールではなく");
     }
-    expect(reLinkCta).toContain("もう一度友だち追加すると、シフトのお知らせをLINEで受け取れます。");
+    expect(reLinkCta).toContain(
+      "もう一度友だち追加すると、同じ組織の所属店舗からシフトのお知らせをLINEで受け取れます。",
+    );
   });
 
   it("法務同意案内は通知用途、確認操作、期限後の同意方法を簡潔に伝える", () => {
