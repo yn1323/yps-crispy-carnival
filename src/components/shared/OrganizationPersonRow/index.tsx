@@ -6,6 +6,8 @@ export type OrganizationPersonRowData = {
   id: string;
   name: string;
   managerRole: "active" | "readOnly" | "none";
+  lineStatus?: "unlinked" | "linked_following" | "linked_unfollowed";
+  /** canonical queryへの切替中だけ使う旧DTO互換。 */
   isLineConnected?: boolean;
   shopNames: readonly string[];
 };
@@ -28,6 +30,8 @@ export function OrganizationPersonRow({
   const initial = person.name.trim().charAt(0) || "?";
   const isManager = person.managerRole !== "none";
   const roleLabel = isManager ? "管理者" : "スタッフ";
+  const lineStatus = person.lineStatus ?? (person.isLineConnected ? "linked_following" : "unlinked");
+  const linePresentation = getLinePresentation(lineStatus);
   const shopNames = person.shopNames.length > 0 ? person.shopNames.join("、") : "なし";
   const hasNoShopMembership = showShopNames && person.shopNames.length === 0;
   const badgeColumns = showShopNames
@@ -82,9 +86,15 @@ export function OrganizationPersonRow({
             </Badge>
           </Flex>
           <Flex minW={0}>
-            {showLineConnection && person.isLineConnected && (
-              <Badge colorPalette="green" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
-                LINE連携済み
+            {showLineConnection && (
+              <Badge
+                colorPalette={linePresentation.colorPalette}
+                variant="subtle"
+                borderRadius="full"
+                px={2}
+                textStyle="2xs"
+              >
+                {linePresentation.label}
               </Badge>
             )}
           </Flex>
@@ -102,10 +112,20 @@ export function OrganizationPersonRow({
       }
       accessibleDescription={
         <>
-          {roleLabel}です。{showLineConnection && person.isLineConnected ? "LINEと連携済みです。" : ""}
+          {roleLabel}です。{showLineConnection ? `${linePresentation.description}。` : ""}
           {showShopNames ? (shopNames === "なし" ? "所属店舗はありません。" : `所属店舗は${shopNames}です。`) : ""}
         </>
       }
     />
   );
+}
+
+function getLinePresentation(status: NonNullable<OrganizationPersonRowData["lineStatus"]>) {
+  if (status === "linked_following") {
+    return { label: "LINE連携済み", description: "LINEで通知できます", colorPalette: "green" as const };
+  }
+  if (status === "linked_unfollowed") {
+    return { label: "LINE通知不可", description: "現在はLINEで通知できません", colorPalette: "orange" as const };
+  }
+  return { label: "LINE未連携", description: "LINEは未連携です", colorPalette: "gray" as const };
 }

@@ -102,7 +102,7 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 
 - 現行の組織所属では、`organizationPeople.name`と`organizationPeople.email`を管理者向け業務通知の正本とする。移行途中でperson作成後かつ`organizationMembers`作成前でも、同じuserと組織のpersonを一意に確認できる場合はpersonを使う。
 - person自体がまだ存在しない旧`shopMembers`だけ、移行互換として`users.name`と`users.email`へfallbackする。personが重複または不整合な場合はusersへ戻さずfail-closedにする。
-- LINE通知は、管理者と同じ人物に紐づく対象店舗の有効スタッフを一意に解決でき、現在のLINEアカウントと送信先が一致する場合だけ配送する。
+- LINE通知は、管理者と同じ人物に紐づく対象店舗の有効スタッフを一意に解決し、組織人物の現在のLINE連携ID、世代、送信先がenqueue時のsnapshotと一致する場合だけ配送する。段階切替中のlegacy readでは、世代snapshotのない旧jobをLINE IDの完全一致時だけ互換配送する。
 - 管理者向けメールはprovider呼び出し直前に組織人物の現在のメールアドレスを再確認し、enqueue時の宛先が古い場合は`recipient_inactive`でcancelする。
 - シフトリから有効管理者へ送る課金関連メールも組織人物の連絡先を使い、Stripeが請求書やカード関連を送る`organizations.billingEmail`とは分ける。
 - Clerkのログイン用メールアドレスは通知先の正本として参照しない。

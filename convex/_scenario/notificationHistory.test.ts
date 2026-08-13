@@ -5,7 +5,7 @@ import type { Id } from "../_generated/dataModel";
 import { resetResendEmailQueueForTest } from "../_lib/resend";
 import { MANAGER_SUBJECT, SCENARIO_NOW, type ScenarioTest, seedStaff } from "../_test/scenarioBuilders";
 import { createScenario } from "../_test/scenarioFixtures";
-import { seedManagerShop, seedStaffLineAccount } from "../_test/seed";
+import { seedCanonicalStaffLineRecipient, seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS } from "../constants";
 
@@ -134,8 +134,7 @@ describe("スタッフ通知履歴シナリオ", () => {
         name: "Fallbackスタッフ",
         email: "fallback-staff@example.com",
       });
-      await seedStaffLineAccount(ctx, {
-        shopId,
+      const lineRecipient = await seedCanonicalStaffLineRecipient(ctx, {
         staffId,
         lineUserId: "U_history_fallback",
       });
@@ -147,7 +146,7 @@ describe("スタッフ通知履歴シナリオ", () => {
         status: "exceeded",
         plan: "communication",
       });
-      return { shopId, staffId };
+      return { shopId, staffId, lineRecipient };
     });
 
     await t.mutation(internal.notificationOutbox.mutations.enqueue, {
@@ -158,6 +157,8 @@ describe("スタッフ通知履歴シナリオ", () => {
         notificationKind: "test.lineFallback",
         displayTitle: "シフト提出のお願い",
       },
+      organizationPersonLineLinkId: ids.lineRecipient.organizationPersonLineLinkId,
+      organizationPersonLineGenerationAtEnqueue: ids.lineRecipient.generation,
       dedupeKey: "line:test:history-fallback",
       payload: {
         kind: "line",

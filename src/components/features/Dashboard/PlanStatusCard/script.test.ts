@@ -19,7 +19,8 @@ describe("buildPlanStatusCardData", () => {
       remainingDays: 7,
       trialEndsOnLabel: "2026/8/16",
       continuationPlanName: undefined,
-      description: "継続して利用するには、プランの選択が必要です。",
+      description:
+        "未選択のまま終了すると利用停止になります。データは削除されないため、継続して利用するにはプランを選んでください。",
       primaryAction: { action: "choosePlan", label: "プランを選ぶ" },
       showRemindLater: true,
     });
@@ -42,7 +43,8 @@ describe("buildPlanStatusCardData", () => {
       now,
     );
     expect(readOnlyTrial).toMatchObject({
-      description: "プランの選択は、契約を管理できる管理者が行えます。",
+      description:
+        "未選択のまま終了すると利用停止になります。データは削除されません。プランの選択は、契約を管理できる管理者が行えます。",
       showRemindLater: false,
     });
     expect(readOnlyTrial).not.toHaveProperty("primaryAction");
@@ -90,7 +92,7 @@ describe("buildPlanStatusCardData", () => {
       kind: "paidPlan",
       planName: "Business",
       badgeLabel: "支払い不要",
-      description: "Businessプランの機能を料金なしで利用できます。",
+      description: "早期登録特典によりBusinessプラン相当の機能をずっと無料で利用できます。",
       nextEventLabel: undefined,
     });
   });
@@ -108,6 +110,26 @@ describe("buildPlanStatusCardData", () => {
     ).toMatchObject({
       badgeLabel: "変更予定",
       description: "2026/9/1にFreeプランへ変更します。",
+      nextEventLabel: undefined,
+    });
+  });
+
+  it("新しい期間末解約はFree変更ではなく利用停止予定とデータ保持を表示する", () => {
+    expect(
+      buildPlanStatusCardData({
+        kind: "paidPlan",
+        plan: "pro",
+        isComplimentary: false,
+        scheduledChange: {
+          targetPlan: "free",
+          effectiveAt: Date.parse("2026-08-31T15:00:00.000Z"),
+          restrictAtPeriodEnd: true,
+        },
+        ...actions,
+      }),
+    ).toMatchObject({
+      badgeLabel: "利用停止予定",
+      description: "2026/9/1に利用を停止します。データは削除されません。",
       nextEventLabel: undefined,
     });
   });
@@ -161,8 +183,21 @@ describe("buildPlanStatusCardData", () => {
     });
     expect(readOnlyIssue).toMatchObject({
       phase: "restricted",
+      description: "データは削除されていません。ProまたはBusinessの契約は、契約を管理できる管理者が行えます。",
     });
     expect(readOnlyIssue).not.toHaveProperty("primaryAction");
+
+    expect(
+      buildPlanStatusCardData({
+        kind: "paymentIssue",
+        phase: "restricted",
+        canManagePlan: true,
+        canUpdatePaymentMethod: false,
+      }),
+    ).toMatchObject({
+      description: "データは削除されていません。利用を再開するには、ProまたはBusinessを契約してください。",
+      primaryAction: { action: "choosePlan", label: "プランを選んで再開する" },
+    });
   });
 
   it("契約制限中を表示プランと操作権限に応じて変換する", () => {

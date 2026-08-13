@@ -2,7 +2,7 @@ import type { GenericDatabaseReader } from "convex/server";
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { v } from "convex/values";
 import type { DataModel, Doc, Id } from "../_generated/dataModel";
-import { getFeatureVisibility, isManagerInvitationEnabled } from "../_lib/config";
+import { getFeatureVisibility } from "../_lib/config";
 import { todayJST } from "../_lib/dateFormat";
 import { authenticatedQuery, managerQuery } from "../_lib/functions";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
@@ -13,7 +13,7 @@ import {
   DASHBOARD_RECRUITMENT_CANDIDATE_GROUP_LIMIT,
   DASHBOARD_RESPONSE_COUNT_LIMIT,
 } from "../constants";
-import { getStaffLineAccount } from "../line/service";
+import { resolveStaffLineRecipient } from "../line/service";
 import {
   managerInvitationStateValidator,
   resolvePersonManagerInvitationState,
@@ -132,6 +132,7 @@ const dashboardPlanStatusValidator = v.union(
       v.object({
         targetPlan: v.union(v.literal("free"), v.literal("pro")),
         effectiveAt: v.number(),
+        restrictAtPeriodEnd: v.optional(v.literal(true)),
       }),
     ),
   }),
@@ -314,7 +315,13 @@ function toDashboardPlanStatus(args: {
         plan: state.currentPlan,
         isComplimentary: false,
         ...(scheduledCurrentPeriodEndsAt !== undefined ? { currentPeriodEndsAt: scheduledCurrentPeriodEndsAt } : {}),
-        scheduledChange: { targetPlan: state.targetPlan, effectiveAt: state.effectiveAt },
+        scheduledChange: {
+          targetPlan: state.targetPlan,
+          effectiveAt: state.effectiveAt,
+          ...(state.targetPlan === "free" && state.restrictAtPeriodEnd === true
+            ? { restrictAtPeriodEnd: true as const }
+            : {}),
+        },
       };
     }
     case "grace":
@@ -330,7 +337,9 @@ function toDashboardPlanStatus(args: {
       if (
         state.reason === "paymentGraceExpired" ||
         state.reason === "paymentActivationFailed" ||
-        state.reason === "unexpectedCancellation"
+        state.reason === "unexpectedCancellation" ||
+        state.reason === "trialEndedWithoutSubscription" ||
+        state.reason === "scheduledCancellation"
       ) {
         return {
           ...actions,
@@ -598,14 +607,10 @@ export const getDashboardPlanUsage = managerQuery({
         current: usage.activeShopCount,
         max: limits.maxActiveShops,
       },
-      ...(isManagerInvitationEnabled()
-        ? {
-            managerUsage: {
-              current: usage.projectedActiveManagerCount,
-              max: limits.maxActiveManagers,
-            },
-          }
-        : {}),
+      managerUsage: {
+        current: usage.projectedActiveManagerCount,
+        max: limits.maxActiveManagers,
+      },
     };
   },
 });
@@ -916,7 +921,7 @@ export const getDashboardStaffs = managerQuery({
 
     const page = await Promise.all(
       paginatedResult.page.map(async (s) => {
-        const lineAccount = await getStaffLineAccount(ctx, s._id);
+        const lineAccount = await resolveStaffLineRecipient(ctx, { staffId: s._id, shopId: shop._id });
         const isOrganizationLinked = Boolean(
           organization && s.organizationId === organization._id && s.organizationPersonId,
         );
@@ -930,7 +935,7 @@ export const getDashboardStaffs = managerQuery({
                 )
                 .take(2)
             : [];
-        const isManager = members.length === 1 && members[0].status === "active";
+        const isManager = members.length === 1 && (members[0].status === "active" || members[0].status === "readOnly");
         const managerInvitationState = await resolvePersonManagerInvitationState(ctx, {
           organization,
           actorMember: organizationMember,

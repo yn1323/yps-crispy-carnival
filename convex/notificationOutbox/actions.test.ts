@@ -2,7 +2,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import { resetResendEmailQueueForTest } from "../_lib/resend";
-import { seedLegacyManagerShop, seedManagerShop, seedStaffLineAccount } from "../_test/seed";
+import { seedCanonicalStaffLineRecipient, seedLegacyManagerShop, seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import {
   NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
@@ -28,6 +28,15 @@ const fallbackEmail = {
   },
 };
 
+type SeededCanonicalLineRecipient = Awaited<ReturnType<typeof seedCanonicalStaffLineRecipient>>;
+
+function lineRecipientSnapshot(recipient: SeededCanonicalLineRecipient) {
+  return {
+    organizationPersonLineLinkId: recipient.organizationPersonLineLinkId,
+    organizationPersonLineGenerationAtEnqueue: recipient.generation,
+  };
+}
+
 async function setupLineJob(status: number, responseBody = "line error") {
   vi.stubEnv("LINE_MESSAGING_CHANNEL_ACCESS_TOKEN", "line-token");
   const fetchMock = vi.fn(async () => ({
@@ -50,13 +59,17 @@ async function setupLineJob(status: number, responseBody = "line error") {
       email: "line-staff@example.com",
       isDeleted: false,
     });
-    await seedStaffLineAccount(ctx, { shopId, staffId, lineUserId: "U_test" });
-    return { shopId, staffId };
+    const recipient = await seedCanonicalStaffLineRecipient(ctx, {
+      staffId,
+      lineUserId: "U_test",
+    });
+    return { shopId, staffId, recipient };
   });
   await t.mutation(internal.notificationOutbox.mutations.enqueue, {
     channel: "line",
     shopId: ids.shopId,
     staffId: ids.staffId,
+    ...lineRecipientSnapshot(ids.recipient),
     history: { notificationKind: "test.line", displayTitle: "LINE通知" },
     dedupeKey: `line:test:${status}`,
     payload: {
@@ -87,12 +100,11 @@ async function setupLineRecipientRevalidationJob(scope: "staff" | "manager" = "s
       ...(scope === "manager" ? { organizationId, organizationPersonId: personId } : {}),
       isDeleted: false,
     });
-    const lineAccountId = await seedStaffLineAccount(ctx, {
-      shopId,
+    const recipient = await seedCanonicalStaffLineRecipient(ctx, {
       staffId,
       lineUserId: "U_line_current",
     });
-    return { shopId, staffId, lineAccountId, userId, organizationId, personId };
+    return { shopId, staffId, userId, organizationId, personId, recipient };
   });
   const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
     channel: "line",
@@ -103,6 +115,7 @@ async function setupLineRecipientRevalidationJob(scope: "staff" | "manager" = "s
           history: { notificationKind: "test.lineRevalidation", displayTitle: "LINE宛先再検証" },
         }
       : { userId: ids.userId }),
+    ...lineRecipientSnapshot(ids.recipient),
     dedupeKey: `line:test:recipient-revalidation:${scope}`,
     payload: {
       kind: "line",
@@ -119,7 +132,6 @@ describe("notificationOutbox/actions", () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
     vi.stubEnv("DEBUG_NOTIFY_FAIL", "");
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "enabled");
     resetResendEmailQueueForTest();
   });
   afterEach(() => {
@@ -135,7 +147,7 @@ describe("notificationOutbox/actions", () => {
     const fetchMock = vi.fn<typeof globalThis.fetch>(async () => new Response(null, { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     const t = convexTest(schema, modules);
-    const { shopId, staffId } = await t.run(async (ctx) => {
+    const { shopId, staffId, recipient } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: "user_mgr",
         email: "manager@example.com",
@@ -147,8 +159,11 @@ describe("notificationOutbox/actions", () => {
         email: "line-staff@example.com",
         isDeleted: false,
       });
-      await seedStaffLineAccount(ctx, { shopId, staffId, lineUserId: "U_test" });
-      return { shopId, staffId };
+      const recipient = await seedCanonicalStaffLineRecipient(ctx, {
+        staffId,
+        lineUserId: "U_test",
+      });
+      return { shopId, staffId, recipient };
     });
     const flexMessage = {
       type: "flex" as const,
@@ -166,6 +181,7 @@ describe("notificationOutbox/actions", () => {
       channel: "line",
       shopId,
       staffId,
+      ...lineRecipientSnapshot(recipient),
       history: { notificationKind: "test.line", displayTitle: "LINE通知" },
       dedupeKey: "line:test:flex",
       payload: {
@@ -201,10 +217,10 @@ describe("notificationOutbox/actions", () => {
   it.each(["unfollow", "relinked"] as const)(
     "enqueue後にLINE宛先が%sになった場合は旧IDへ送信せずcancelする",
     async (variant) => {
-      const { t, fetchMock, lineAccountId, outboxId } = await setupLineRecipientRevalidationJob();
+      const { t, fetchMock, recipient, outboxId } = await setupLineRecipientRevalidationJob();
       await t.run(async (ctx) => {
         await ctx.db.patch(
-          lineAccountId,
+          recipient.lineProviderUserId,
           variant === "unfollow" ? { following: false } : { lineUserId: "U_line_relinked" },
         );
       });
@@ -235,8 +251,8 @@ describe("notificationOutbox/actions", () => {
   );
 
   it("管理者向け通常LINEも現在の連携IDへ変わった後は旧IDへ送らない", async () => {
-    const { t, fetchMock, lineAccountId, outboxId } = await setupLineRecipientRevalidationJob("manager");
-    await t.run(async (ctx) => await ctx.db.patch(lineAccountId, { lineUserId: "U_manager_relinked" }));
+    const { t, fetchMock, recipient, outboxId } = await setupLineRecipientRevalidationJob("manager");
+    await t.run(async (ctx) => ctx.db.patch(recipient.lineProviderUserId, { lineUserId: "U_manager_relinked" }));
 
     await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
     await t.action(internal.notificationOutbox.actions.processPending, {});
@@ -408,7 +424,7 @@ describe("notificationOutbox/actions", () => {
     const fetchMock = vi.fn<typeof globalThis.fetch>();
     vi.stubGlobal("fetch", fetchMock);
     const t = convexTest(schema, modules);
-    const { shopId, staffId } = await t.run(async (ctx) => {
+    const { shopId, staffId, recipient } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: "user_mgr",
         email: "manager@example.com",
@@ -420,7 +436,10 @@ describe("notificationOutbox/actions", () => {
         email: "line-staff@example.com",
         isDeleted: false,
       });
-      await seedStaffLineAccount(ctx, { shopId, staffId, lineUserId: "U_test" });
+      const recipient = await seedCanonicalStaffLineRecipient(ctx, {
+        staffId,
+        lineUserId: "U_test",
+      });
       await ctx.db.insert("lineQuotaStatus", {
         checkedAt: Date.now(),
         totalQuota: 200,
@@ -429,12 +448,13 @@ describe("notificationOutbox/actions", () => {
         status: "exceeded",
         plan: "communication",
       });
-      return { shopId, staffId };
+      return { shopId, staffId, recipient };
     });
     await t.mutation(internal.notificationOutbox.mutations.enqueue, {
       channel: "line",
       shopId,
       staffId,
+      ...lineRecipientSnapshot(recipient),
       history: { notificationKind: "test.line", displayTitle: "LINE通知" },
       dedupeKey: "line:test:debug-quota",
       payload: {
@@ -474,7 +494,7 @@ describe("notificationOutbox/actions", () => {
 
   it("LINE quota exceeded はfallback emailをenqueueする", async () => {
     const t = convexTest(schema, modules);
-    const { shopId, staffId } = await t.run(async (ctx) => {
+    const { shopId, staffId, recipient } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: "user_mgr",
         email: "manager@example.com",
@@ -486,7 +506,10 @@ describe("notificationOutbox/actions", () => {
         email: "line-staff@example.com",
         isDeleted: false,
       });
-      await seedStaffLineAccount(ctx, { shopId, staffId, lineUserId: "U_test" });
+      const recipient = await seedCanonicalStaffLineRecipient(ctx, {
+        staffId,
+        lineUserId: "U_test",
+      });
       await ctx.db.insert("lineQuotaStatus", {
         checkedAt: Date.now(),
         totalQuota: 200,
@@ -495,12 +518,13 @@ describe("notificationOutbox/actions", () => {
         status: "exceeded",
         plan: "communication",
       });
-      return { shopId, staffId };
+      return { shopId, staffId, recipient };
     });
     await t.mutation(internal.notificationOutbox.mutations.enqueue, {
       channel: "line",
       shopId,
       staffId,
+      ...lineRecipientSnapshot(recipient),
       history: { notificationKind: "test.line", displayTitle: "LINE通知" },
       dedupeKey: "line:test:quota",
       payload: {
@@ -538,7 +562,7 @@ describe("notificationOutbox/actions", () => {
 
   it("新しいLINE通知のfallback metadataからメール用の別履歴を作る", async () => {
     const t = convexTest(schema, modules);
-    const { shopId, staffId } = await t.run(async (ctx) => {
+    const { shopId, staffId, recipient } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: "user_mgr",
         email: "manager@example.com",
@@ -550,7 +574,10 @@ describe("notificationOutbox/actions", () => {
         email: "line-staff@example.com",
         isDeleted: false,
       });
-      await seedStaffLineAccount(ctx, { shopId, staffId, lineUserId: "U_test" });
+      const recipient = await seedCanonicalStaffLineRecipient(ctx, {
+        staffId,
+        lineUserId: "U_test",
+      });
       await ctx.db.insert("lineQuotaStatus", {
         checkedAt: Date.now(),
         totalQuota: 200,
@@ -559,12 +586,13 @@ describe("notificationOutbox/actions", () => {
         status: "exceeded",
         plan: "communication",
       });
-      return { shopId, staffId };
+      return { shopId, staffId, recipient };
     });
     await t.mutation(internal.notificationOutbox.mutations.enqueue, {
       channel: "line",
       shopId,
       staffId,
+      ...lineRecipientSnapshot(recipient),
       history: { notificationKind: "test.line", displayTitle: "LINE通知" },
       dedupeKey: "line:test:quota-with-history",
       payload: {
@@ -674,6 +702,10 @@ describe("notificationOutbox/actions", () => {
     });
     expect(requestBody.html).toContain(`href="https://app.example.com/manager-invite?token=${expectedToken}"`);
     expect(requestBody.html).toContain("招待者さんから「招待事業者」の管理者に招待されました。");
+    expect(requestBody.html).toContain("シフトリとは");
+    expect(requestBody.html).toContain("スタッフの希望収集からシフト作成・共有までを支えるシフト管理サービスです。");
+    expect(requestBody.html).toContain("登録済みのメールアドレスでログインしてください。");
+    expect(requestBody.html).toContain("このメールの宛先と同じメールアドレスでアカウントを登録し");
     expect(requestBody.html).not.toContain(invitationId);
     expect(new Headers((resendCall?.[1] as RequestInit | undefined)?.headers).get("idempotency-key")).toBe(
       `notification-outbox-${outboxId}`,
@@ -721,18 +753,15 @@ describe("notificationOutbox/actions", () => {
         emailNormalized: invitation.emailNormalized,
         isDeleted: false,
       });
-      await ctx.db.insert("staffLineAccounts", {
+      const recipient = await seedCanonicalStaffLineRecipient(ctx, {
         staffId,
-        shopId,
         lineUserId: "U_manager_invitation",
-        linkedAt: now,
-        following: true,
-        isDeleted: false,
       });
       await ctx.db.patch(invitationId, { targetPersonId: personId });
       await ctx.db.patch(outboxId, {
         channel: "line",
         staffId,
+        ...lineRecipientSnapshot(recipient),
         payload: {
           kind: "organizationManagerInvitationLine",
           toUserId: "U_manager_invitation",
@@ -1134,38 +1163,6 @@ describe("notificationOutbox/actions", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     const job = await t.run(async (ctx) => await ctx.db.get(outboxId));
     expect(job).toMatchObject({ status: "cancelled", cancelReason: reason });
-  });
-
-  it("管理者招待を閉じた後は投入済みOutboxもproviderを呼ばずに停止する", async () => {
-    vi.stubEnv("RESEND_API_KEY", "resend-token");
-    const fetchMock = vi.fn<typeof globalThis.fetch>();
-    vi.stubGlobal("fetch", fetchMock);
-    const { t, outboxId } = await setupOrganizationInvitationJob("valid");
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
-
-    await t.action(internal.notificationOutbox.actions.processPending, {});
-
-    expect(fetchMock).not.toHaveBeenCalled();
-    const job = await t.run(async (ctx) => await ctx.db.get(outboxId));
-    expect(job).toMatchObject({ status: "cancelled", cancelReason: "invitation_inactive" });
-  });
-
-  it("管理者招待を閉じた後は投入済みの連携完了メールもproviderを呼ばずに停止する", async () => {
-    vi.stubEnv("RESEND_API_KEY", "resend-token");
-    const fetchMock = vi.fn<typeof globalThis.fetch>();
-    vi.stubGlobal("fetch", fetchMock);
-    const { t } = await setupEmailJob({
-      dedupeKey: "email:test:manager-invitation-linked",
-      context: "organizationInvitation.linked",
-    });
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
-
-    await t.action(internal.notificationOutbox.actions.processPending, {});
-
-    expect(fetchMock).not.toHaveBeenCalled();
-    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
-    expect(jobs).toHaveLength(1);
-    expect(jobs[0]).toMatchObject({ status: "cancelled", cancelReason: "invitation_inactive" });
   });
 
   it("Resend 429 はretry-afterに従って再予約する", async () => {
@@ -1863,18 +1860,15 @@ async function setupOrganizationInvitationLineJob(options: { initialAttemptCount
       emailNormalized: invitation.emailNormalized,
       isDeleted: false,
     });
-    await ctx.db.insert("staffLineAccounts", {
+    const recipient = await seedCanonicalStaffLineRecipient(ctx, {
       staffId,
-      shopId,
       lineUserId: "U_manager_invitation",
-      linkedAt: now,
-      following: true,
-      isDeleted: false,
     });
     await ctx.db.patch(setup.invitationId, { targetPersonId: personId });
     await ctx.db.patch(setup.outboxId, {
       channel: "line",
       staffId,
+      ...lineRecipientSnapshot(recipient),
       attemptCount: options.initialAttemptCount ?? 0,
       payload: {
         kind: "organizationManagerInvitationLine",

@@ -114,6 +114,7 @@ export async function handleAccountDeletionRequest(
     issuer: authentication.issuer,
     clerkUserId: authentication.clerkUserId,
     requestId: parsed.data.requestId,
+    ...("scope" in parsed.data ? { scope: parsed.data.scope, previewFingerprint: parsed.data.previewFingerprint } : {}),
     rateLimitKey: await sha256Hex(`${authentication.issuer}|${authentication.clerkUserId}`),
   });
   if (result.status === "accepted") return safeJsonResponse(origin, { status: "accepted" }, { status: 202 });

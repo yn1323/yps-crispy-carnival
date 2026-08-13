@@ -16,6 +16,7 @@ import { Route as UnregisteredRouteImport } from './routes/_unregistered'
 import { Route as AccountDeletionAcceptedRouteImport } from './routes/account-deletion-accepted'
 import { Route as ArticlesRouteImport } from './routes/articles'
 import { Route as CacheResetRouteImport } from './routes/cache-reset'
+import { Route as CommercialTransactionsRouteImport } from './routes/commercial-transactions'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as FeaturesRouteImport } from './routes/features'
@@ -23,6 +24,7 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as HowtoRouteImport } from './routes/howto'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ManagerInviteRouteImport } from './routes/manager-invite'
+import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
@@ -38,6 +40,7 @@ import { Route as PrivacyManagerRouteImport } from './routes/privacy_.manager'
 import { Route as PrivacyStaffRouteImport } from './routes/privacy_.staff'
 import { Route as TermsManagerRouteImport } from './routes/terms_.manager'
 import { Route as TermsStaffRouteImport } from './routes/terms_.staff'
+import { Route as AuthSettingsManagersRouteImport } from './routes/_auth/settings_.managers'
 import { Route as AuthShiftboardRecruitmentIdRouteImport } from './routes/_auth/shiftboard.$recruitmentId'
 import { Route as AuthShopsShopIdRouteImport } from './routes/_auth/shops.$shopId'
 import { Route as AuthUsersPersonIdRouteImport } from './routes/_auth/users.$personId'
@@ -47,6 +50,8 @@ import { Route as UnregisteredShiftsSubmitRouteImport } from './routes/_unregist
 import { Route as UnregisteredShiftsViewRouteImport } from './routes/_unregistered/shifts.view'
 import { Route as UnregisteredStaffRegisterRouteImport } from './routes/_unregistered/staff.register'
 import { Route as ArticlesCategoriesCategorySlugRouteImport } from './routes/articles.categories.$categorySlug'
+import { Route as AuthSettingsManagersInviteNewRouteImport } from './routes/_auth/settings_.managers_.invite-new'
+import { Route as AuthSettingsManagersInviteStaffRouteImport } from './routes/_auth/settings_.managers_.invite-staff'
 import { Route as UnregisteredLegalStaffConsentRouteImport } from './routes/_unregistered/legal.staff.consent'
 import { Route as UnregisteredShiftsSubmitCompletedRouteImport } from './routes/_unregistered/shifts.submit_.completed'
 import { Route as AuthUsersPersonIdShopsTargetShopIdRouteImport } from './routes/_auth/users.$personId_.shops.$targetShopId'
@@ -84,6 +89,11 @@ const CacheResetRoute = CacheResetRouteImport.update({
   path: '/cache-reset',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CommercialTransactionsRoute = CommercialTransactionsRouteImport.update({
+  id: '/commercial-transactions',
+  path: '/commercial-transactions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ContactRoute = ContactRouteImport.update({
   id: '/contact',
   path: '/contact',
@@ -117,6 +127,11 @@ const LoginRoute = LoginRouteImport.update({
 const ManagerInviteRoute = ManagerInviteRouteImport.update({
   id: '/manager-invite',
   path: '/manager-invite',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -194,6 +209,11 @@ const TermsStaffRoute = TermsStaffRouteImport.update({
   path: '/terms/staff',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthSettingsManagersRoute = AuthSettingsManagersRouteImport.update({
+  id: '/settings_/managers',
+  path: '/settings/managers',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthShiftboardRecruitmentIdRoute =
   AuthShiftboardRecruitmentIdRouteImport.update({
     id: '/shiftboard/$recruitmentId',
@@ -245,6 +265,18 @@ const ArticlesCategoriesCategorySlugRoute =
     path: '/categories/$categorySlug',
     getParentRoute: () => ArticlesRoute,
   } as any)
+const AuthSettingsManagersInviteNewRoute =
+  AuthSettingsManagersInviteNewRouteImport.update({
+    id: '/settings_/managers_/invite-new',
+    path: '/settings/managers/invite-new',
+    getParentRoute: () => AuthRoute,
+  } as any)
+const AuthSettingsManagersInviteStaffRoute =
+  AuthSettingsManagersInviteStaffRouteImport.update({
+    id: '/settings_/managers_/invite-staff',
+    path: '/settings/managers/invite-staff',
+    getParentRoute: () => AuthRoute,
+  } as any)
 const UnregisteredLegalStaffConsentRoute =
   UnregisteredLegalStaffConsentRouteImport.update({
     id: '/legal/staff/consent',
@@ -270,6 +302,7 @@ export interface FileRoutesByFullPath {
   '/account-deletion-accepted': typeof AccountDeletionAcceptedRoute
   '/articles': typeof ArticlesRouteWithChildren
   '/cache-reset': typeof CacheResetRoute
+  '/commercial-transactions': typeof CommercialTransactionsRoute
   '/contact': typeof ContactRoute
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
@@ -277,6 +310,7 @@ export interface FileRoutesByFullPath {
   '/howto': typeof HowtoRoute
   '/login': typeof LoginRoute
   '/manager-invite': typeof ManagerInviteRoute
+  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
   '/sso-callback': typeof SsoCallbackRoute
@@ -292,6 +326,7 @@ export interface FileRoutesByFullPath {
   '/terms/manager': typeof TermsManagerRoute
   '/terms/staff': typeof TermsStaffRoute
   '/articles/': typeof ArticlesIndexRoute
+  '/settings/managers': typeof AuthSettingsManagersRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/shops/$shopId': typeof AuthShopsShopIdRoute
   '/users/$personId': typeof AuthUsersPersonIdRoute
@@ -301,6 +336,8 @@ export interface FileRoutesByFullPath {
   '/shifts/view': typeof UnregisteredShiftsViewRoute
   '/staff/register': typeof UnregisteredStaffRegisterRoute
   '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
+  '/settings/managers/invite-new': typeof AuthSettingsManagersInviteNewRoute
+  '/settings/managers/invite-staff': typeof AuthSettingsManagersInviteStaffRoute
   '/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/shifts/submit/completed': typeof UnregisteredShiftsSubmitCompletedRoute
   '/users/$personId/shops/$targetShopId': typeof AuthUsersPersonIdShopsTargetShopIdRoute
@@ -310,6 +347,7 @@ export interface FileRoutesByTo {
   '/$': typeof SplatRoute
   '/account-deletion-accepted': typeof AccountDeletionAcceptedRoute
   '/cache-reset': typeof CacheResetRoute
+  '/commercial-transactions': typeof CommercialTransactionsRoute
   '/contact': typeof ContactRoute
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
@@ -317,6 +355,7 @@ export interface FileRoutesByTo {
   '/howto': typeof HowtoRoute
   '/login': typeof LoginRoute
   '/manager-invite': typeof ManagerInviteRoute
+  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
   '/sso-callback': typeof SsoCallbackRoute
@@ -332,6 +371,7 @@ export interface FileRoutesByTo {
   '/terms/manager': typeof TermsManagerRoute
   '/terms/staff': typeof TermsStaffRoute
   '/articles': typeof ArticlesIndexRoute
+  '/settings/managers': typeof AuthSettingsManagersRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/shops/$shopId': typeof AuthShopsShopIdRoute
   '/users/$personId': typeof AuthUsersPersonIdRoute
@@ -341,6 +381,8 @@ export interface FileRoutesByTo {
   '/shifts/view': typeof UnregisteredShiftsViewRoute
   '/staff/register': typeof UnregisteredStaffRegisterRoute
   '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
+  '/settings/managers/invite-new': typeof AuthSettingsManagersInviteNewRoute
+  '/settings/managers/invite-staff': typeof AuthSettingsManagersInviteStaffRoute
   '/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/shifts/submit/completed': typeof UnregisteredShiftsSubmitCompletedRoute
   '/users/$personId/shops/$targetShopId': typeof AuthUsersPersonIdShopsTargetShopIdRoute
@@ -354,6 +396,7 @@ export interface FileRoutesById {
   '/account-deletion-accepted': typeof AccountDeletionAcceptedRoute
   '/articles': typeof ArticlesRouteWithChildren
   '/cache-reset': typeof CacheResetRoute
+  '/commercial-transactions': typeof CommercialTransactionsRoute
   '/contact': typeof ContactRoute
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
@@ -361,6 +404,7 @@ export interface FileRoutesById {
   '/howto': typeof HowtoRoute
   '/login': typeof LoginRoute
   '/manager-invite': typeof ManagerInviteRoute
+  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
   '/sso-callback': typeof SsoCallbackRoute
@@ -376,6 +420,7 @@ export interface FileRoutesById {
   '/terms_/manager': typeof TermsManagerRoute
   '/terms_/staff': typeof TermsStaffRoute
   '/articles/': typeof ArticlesIndexRoute
+  '/_auth/settings_/managers': typeof AuthSettingsManagersRoute
   '/_auth/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/_auth/shops/$shopId': typeof AuthShopsShopIdRoute
   '/_auth/users/$personId': typeof AuthUsersPersonIdRoute
@@ -385,6 +430,8 @@ export interface FileRoutesById {
   '/_unregistered/shifts/view': typeof UnregisteredShiftsViewRoute
   '/_unregistered/staff/register': typeof UnregisteredStaffRegisterRoute
   '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
+  '/_auth/settings_/managers_/invite-new': typeof AuthSettingsManagersInviteNewRoute
+  '/_auth/settings_/managers_/invite-staff': typeof AuthSettingsManagersInviteStaffRoute
   '/_unregistered/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/_unregistered/shifts/submit_/completed': typeof UnregisteredShiftsSubmitCompletedRoute
   '/_auth/users/$personId_/shops/$targetShopId': typeof AuthUsersPersonIdShopsTargetShopIdRoute
@@ -397,6 +444,7 @@ export interface FileRouteTypes {
     | '/account-deletion-accepted'
     | '/articles'
     | '/cache-reset'
+    | '/commercial-transactions'
     | '/contact'
     | '/faq'
     | '/features'
@@ -404,6 +452,7 @@ export interface FileRouteTypes {
     | '/howto'
     | '/login'
     | '/manager-invite'
+    | '/pricing'
     | '/privacy'
     | '/signup'
     | '/sso-callback'
@@ -419,6 +468,7 @@ export interface FileRouteTypes {
     | '/terms/manager'
     | '/terms/staff'
     | '/articles/'
+    | '/settings/managers'
     | '/shiftboard/$recruitmentId'
     | '/shops/$shopId'
     | '/users/$personId'
@@ -428,6 +478,8 @@ export interface FileRouteTypes {
     | '/shifts/view'
     | '/staff/register'
     | '/articles/categories/$categorySlug'
+    | '/settings/managers/invite-new'
+    | '/settings/managers/invite-staff'
     | '/legal/staff/consent'
     | '/shifts/submit/completed'
     | '/users/$personId/shops/$targetShopId'
@@ -437,6 +489,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/account-deletion-accepted'
     | '/cache-reset'
+    | '/commercial-transactions'
     | '/contact'
     | '/faq'
     | '/features'
@@ -444,6 +497,7 @@ export interface FileRouteTypes {
     | '/howto'
     | '/login'
     | '/manager-invite'
+    | '/pricing'
     | '/privacy'
     | '/signup'
     | '/sso-callback'
@@ -459,6 +513,7 @@ export interface FileRouteTypes {
     | '/terms/manager'
     | '/terms/staff'
     | '/articles'
+    | '/settings/managers'
     | '/shiftboard/$recruitmentId'
     | '/shops/$shopId'
     | '/users/$personId'
@@ -468,6 +523,8 @@ export interface FileRouteTypes {
     | '/shifts/view'
     | '/staff/register'
     | '/articles/categories/$categorySlug'
+    | '/settings/managers/invite-new'
+    | '/settings/managers/invite-staff'
     | '/legal/staff/consent'
     | '/shifts/submit/completed'
     | '/users/$personId/shops/$targetShopId'
@@ -480,6 +537,7 @@ export interface FileRouteTypes {
     | '/account-deletion-accepted'
     | '/articles'
     | '/cache-reset'
+    | '/commercial-transactions'
     | '/contact'
     | '/faq'
     | '/features'
@@ -487,6 +545,7 @@ export interface FileRouteTypes {
     | '/howto'
     | '/login'
     | '/manager-invite'
+    | '/pricing'
     | '/privacy'
     | '/signup'
     | '/sso-callback'
@@ -502,6 +561,7 @@ export interface FileRouteTypes {
     | '/terms_/manager'
     | '/terms_/staff'
     | '/articles/'
+    | '/_auth/settings_/managers'
     | '/_auth/shiftboard/$recruitmentId'
     | '/_auth/shops/$shopId'
     | '/_auth/users/$personId'
@@ -511,6 +571,8 @@ export interface FileRouteTypes {
     | '/_unregistered/shifts/view'
     | '/_unregistered/staff/register'
     | '/articles/categories/$categorySlug'
+    | '/_auth/settings_/managers_/invite-new'
+    | '/_auth/settings_/managers_/invite-staff'
     | '/_unregistered/legal/staff/consent'
     | '/_unregistered/shifts/submit_/completed'
     | '/_auth/users/$personId_/shops/$targetShopId'
@@ -524,6 +586,7 @@ export interface RootRouteChildren {
   AccountDeletionAcceptedRoute: typeof AccountDeletionAcceptedRoute
   ArticlesRoute: typeof ArticlesRouteWithChildren
   CacheResetRoute: typeof CacheResetRoute
+  CommercialTransactionsRoute: typeof CommercialTransactionsRoute
   ContactRoute: typeof ContactRoute
   FaqRoute: typeof FaqRoute
   FeaturesRoute: typeof FeaturesRoute
@@ -531,6 +594,7 @@ export interface RootRouteChildren {
   HowtoRoute: typeof HowtoRoute
   LoginRoute: typeof LoginRoute
   ManagerInviteRoute: typeof ManagerInviteRoute
+  PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
   SignupRoute: typeof SignupRoute
   SsoCallbackRoute: typeof SsoCallbackRoute
@@ -594,6 +658,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CacheResetRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/commercial-transactions': {
+      id: '/commercial-transactions'
+      path: '/commercial-transactions'
+      fullPath: '/commercial-transactions'
+      preLoaderRoute: typeof CommercialTransactionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/contact': {
       id: '/contact'
       path: '/contact'
@@ -641,6 +712,13 @@ declare module '@tanstack/react-router' {
       path: '/manager-invite'
       fullPath: '/manager-invite'
       preLoaderRoute: typeof ManagerInviteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -748,6 +826,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TermsStaffRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_auth/settings_/managers': {
+      id: '/_auth/settings_/managers'
+      path: '/settings/managers'
+      fullPath: '/settings/managers'
+      preLoaderRoute: typeof AuthSettingsManagersRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/shiftboard/$recruitmentId': {
       id: '/_auth/shiftboard/$recruitmentId'
       path: '/shiftboard/$recruitmentId'
@@ -811,6 +896,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ArticlesCategoriesCategorySlugRouteImport
       parentRoute: typeof ArticlesRoute
     }
+    '/_auth/settings_/managers_/invite-new': {
+      id: '/_auth/settings_/managers_/invite-new'
+      path: '/settings/managers/invite-new'
+      fullPath: '/settings/managers/invite-new'
+      preLoaderRoute: typeof AuthSettingsManagersInviteNewRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/settings_/managers_/invite-staff': {
+      id: '/_auth/settings_/managers_/invite-staff'
+      path: '/settings/managers/invite-staff'
+      fullPath: '/settings/managers/invite-staff'
+      preLoaderRoute: typeof AuthSettingsManagersInviteStaffRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_unregistered/legal/staff/consent': {
       id: '/_unregistered/legal/staff/consent'
       path: '/legal/staff/consent'
@@ -839,9 +938,12 @@ interface AuthRouteChildren {
   AuthAccountRoute: typeof AuthAccountRoute
   AuthDashboardRoute: typeof AuthDashboardRoute
   AuthSettingsRoute: typeof AuthSettingsRoute
+  AuthSettingsManagersRoute: typeof AuthSettingsManagersRoute
   AuthShiftboardRecruitmentIdRoute: typeof AuthShiftboardRecruitmentIdRoute
   AuthShopsShopIdRoute: typeof AuthShopsShopIdRoute
   AuthUsersPersonIdRoute: typeof AuthUsersPersonIdRoute
+  AuthSettingsManagersInviteNewRoute: typeof AuthSettingsManagersInviteNewRoute
+  AuthSettingsManagersInviteStaffRoute: typeof AuthSettingsManagersInviteStaffRoute
   AuthUsersPersonIdShopsTargetShopIdRoute: typeof AuthUsersPersonIdShopsTargetShopIdRoute
 }
 
@@ -849,9 +951,12 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthAccountRoute: AuthAccountRoute,
   AuthDashboardRoute: AuthDashboardRoute,
   AuthSettingsRoute: AuthSettingsRoute,
+  AuthSettingsManagersRoute: AuthSettingsManagersRoute,
   AuthShiftboardRecruitmentIdRoute: AuthShiftboardRecruitmentIdRoute,
   AuthShopsShopIdRoute: AuthShopsShopIdRoute,
   AuthUsersPersonIdRoute: AuthUsersPersonIdRoute,
+  AuthSettingsManagersInviteNewRoute: AuthSettingsManagersInviteNewRoute,
+  AuthSettingsManagersInviteStaffRoute: AuthSettingsManagersInviteStaffRoute,
   AuthUsersPersonIdShopsTargetShopIdRoute:
     AuthUsersPersonIdShopsTargetShopIdRoute,
 }
@@ -907,6 +1012,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountDeletionAcceptedRoute: AccountDeletionAcceptedRoute,
   ArticlesRoute: ArticlesRouteWithChildren,
   CacheResetRoute: CacheResetRoute,
+  CommercialTransactionsRoute: CommercialTransactionsRoute,
   ContactRoute: ContactRoute,
   FaqRoute: FaqRoute,
   FeaturesRoute: FeaturesRoute,
@@ -914,6 +1020,7 @@ const rootRouteChildren: RootRouteChildren = {
   HowtoRoute: HowtoRoute,
   LoginRoute: LoginRoute,
   ManagerInviteRoute: ManagerInviteRoute,
+  PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
   SignupRoute: SignupRoute,
   SsoCallbackRoute: SsoCallbackRoute,

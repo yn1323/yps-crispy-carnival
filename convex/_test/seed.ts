@@ -230,3 +230,84 @@ export async function seedStaffLineAccount(
     isDeleted: false,
   });
 }
+
+/** organization person単位のLINE正本を作るfixture。legacy行は明示的に別helperで作る。 */
+export async function seedOrganizationPersonLineLink(
+  ctx: MutationCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    organizationPersonId: Id<"organizationPeople">;
+    lineUserId: string;
+    following?: boolean;
+    generation?: number;
+  },
+) {
+  const person = await ctx.db.get(args.organizationPersonId);
+  if (!person || person.organizationId !== args.organizationId) {
+    throw new Error("seedOrganizationPersonLineLink requires a person in the organization");
+  }
+  const now = Date.now();
+  const generation = args.generation ?? 1;
+  await ctx.db.patch(person._id, { lineLinkGeneration: generation, updatedAt: now });
+  const lineProviderUserId = await ctx.db.insert("lineProviderUsers", {
+    lineUserId: args.lineUserId,
+    following: args.following ?? true,
+    stateVersion: 1,
+    friendshipObservedAt: now,
+    friendshipObservationSource: "oauth",
+    isDeleted: false,
+  });
+  const organizationPersonLineLinkId = await ctx.db.insert("organizationPersonLineLinks", {
+    organizationId: args.organizationId,
+    organizationPersonId: args.organizationPersonId,
+    lineProviderUserId,
+    generation,
+    linkedAt: now,
+    isDeleted: false,
+  });
+  return { lineProviderUserId, organizationPersonLineLinkId, generation };
+}
+
+/** canonical staff recipientを組み立てるfixture。legacy staff projectionは作らない。 */
+export async function seedCanonicalStaffLineRecipient(
+  ctx: MutationCtx,
+  args: {
+    staffId: Id<"staffs">;
+    lineUserId: string;
+    following?: boolean;
+    generation?: number;
+  },
+) {
+  const staff = await ctx.db.get(args.staffId);
+  if (!staff || staff.isDeleted) throw new Error("seedCanonicalStaffLineRecipient requires an active staff");
+  const shop = await ctx.db.get(staff.shopId);
+  if (!shop?.organizationId || shop.isDeleted || shop.operatingStatus !== "active") {
+    throw new Error("seedCanonicalStaffLineRecipient requires an active canonical shop");
+  }
+  const now = Date.now();
+  const organizationPersonId =
+    staff.organizationPersonId ??
+    (await ctx.db.insert("organizationPeople", {
+      organizationId: shop.organizationId,
+      ...(staff.userId ? { userId: staff.userId } : {}),
+      name: staff.name,
+      email: staff.email,
+      emailNormalized: staff.email.trim().toLowerCase(),
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    }));
+  await ctx.db.patch(staff._id, {
+    organizationId: shop.organizationId,
+    organizationPersonId,
+    emailNormalized: staff.email.trim().toLowerCase(),
+  });
+  const recipient = await seedOrganizationPersonLineLink(ctx, {
+    organizationId: shop.organizationId,
+    organizationPersonId,
+    lineUserId: args.lineUserId,
+    following: args.following,
+    generation: args.generation,
+  });
+  return { organizationId: shop.organizationId, organizationPersonId, ...recipient };
+}

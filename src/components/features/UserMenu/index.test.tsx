@@ -47,7 +47,7 @@ describe("UserMenu", () => {
     );
   });
 
-  it("組織設定が非公開でもアカウント設定を表示し、メニューにメールアドレスを表示しない", async () => {
+  it("旧の非公開値が残っていても組織設定を表示し、メニューにメールアドレスを表示しない", async () => {
     const store = createStore();
     store.set(userAtom, {
       authId: "user_actor",
@@ -71,9 +71,10 @@ describe("UserMenu", () => {
     fireEvent.click(screen.getByRole("button", { name: "ユーザーメニュー" }));
 
     expect(await screen.findByText("アカウント設定")).not.toBeNull();
-    expect(screen.queryByText("組織設定")).toBeNull();
+    expect(screen.queryByText("組織設定")).not.toBeNull();
     expect(screen.queryByText("convex@example.com")).toBeNull();
     expect(mocks.linkProps).toHaveBeenCalledWith({ to: "/account", search: undefined });
+    expect(mocks.linkProps).toHaveBeenCalledWith({ to: "/settings", search: {} });
   });
 
   it("アカウント設定には選択中の店舗を引き継がず、組織設定だけに店舗を渡す", async () => {

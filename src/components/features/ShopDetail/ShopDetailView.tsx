@@ -24,6 +24,7 @@ type SettingsDialogState = {
 
 type Props = {
   shop: ShopDetailData;
+  organizationSettingsShopId: string;
   staffs: ShopDetailPerson[];
   settingsDialog: SettingsDialogState;
   isDeleting: boolean;
@@ -35,6 +36,7 @@ type Props = {
 
 export function ShopDetailView({
   shop,
+  organizationSettingsShopId,
   staffs,
   settingsDialog,
   isDeleting,
@@ -81,7 +83,11 @@ export function ShopDetailView({
         onOpenUser={onOpenUser}
         onChangeStaffs={() => setIsStaffMembershipDialogOpen(true)}
       />
-      <ShopOtherSettingsSection shop={shop} onRequestDelete={() => setIsDeleteConfirmationOpen(true)} />
+      <ShopOtherSettingsSection
+        shop={shop}
+        organizationSettingsShopId={organizationSettingsShopId}
+        onRequestDelete={() => setIsDeleteConfirmationOpen(true)}
+      />
 
       {isStaffMembershipDialogOpen && (
         <ErrorBoundary

@@ -39,8 +39,9 @@ statusが`success`でも、その後に旧writerが旧形式を作ればreadines
 | m038 | `recruitments` | assignmentがある旧募集だけ、現行readerと同じ最大`_creationTime`を`draftSavedAt`へ補完 |
 | m039 | `shops` | 欠損した`regularClosedDays`を、現行fallbackと同じ空配列へ補完 |
 | m040 | `recruitments` | 欠損した`shopClosedDates`を、現行fallbackと同じ空配列へ補完 |
+| m041 | `staffLineAccounts` | LINE共通化の事前検証を満たすactive旧連携だけを、provider userとorganization person linkへ変換 |
 
-m023からm028とm030からm040は固定seriesの末尾へ追加します。  m029だけは旧authorityを論理削除するため、固定seriesと包括runnerへ含めません。  後述する権限移行gateを満たしたdeploymentで、専用runnerを明示実行します。
+m023からm028とm030からm040は固定seriesの末尾へ追加します。  m029とm041は固定seriesと包括runnerへ含めません。  m029は後述する権限移行gateを満たしたdeploymentで、m041はLINE共通化のexportと全ページreadinessを満たして変換対象があるdeploymentで、それぞれ専用runnerを明示実行します。
 
 過去のmigrationをresetして完了扱いを書き換える運用は行いません。
 
@@ -54,7 +55,7 @@ pnpm exec convex run --component migrations lib:getStatus \
   --deployment <fully-qualified-deployment>
 ```
 
-固定seriesに含むm023からm028とm030からm040が、すべて`isDone: true`かつ`state: "success"`であることを確認します。  m029を実行したdeploymentでは、専用runnerのstatusも別に記録します。
+固定seriesに含むm023からm028とm030からm040が、すべて`isDone: true`かつ`state: "success"`であることを確認します。  m029またはm041を実行したdeploymentでは、専用runnerのstatusも別に記録します。
 
 失敗または未完了が一件でもあれば、schema、validator、fallbackをNarrowしません。  m029が未実行であること自体を固定seriesの失敗とは扱いませんが、旧`shopMembers` authorityを削除するNarrowは進めません。
 
@@ -94,12 +95,39 @@ pnpm exec convex run narrowReadiness/queries:verifyShops \
 - `verifyLegacyShopBillingStates`
 - `verifyOrganizationMigrationConflicts`
 
+LINE共通化では、上の既存queryとは別に次も全ページ走査します。
+
+- `verifyLineCommonOrganizations`
+- `verifyLineCommonPeople`
+- `verifyLineCommonProviders`
+- `verifyLineCommonLegacyAccounts`
+- `verifyLineCommonAsyncCompatibility`（`table: "tokens"`と`table: "outbox"`を別々に走査）
+- `verifyLineCommonScheduledCallers`
+
 全ページの`anomalies`、`activeRows`、`totalRows`、`unresolvedRows`を項目別に合計します。
 Outbox scopeのNarrowでは`unresolvedNotificationOutboxScopeRows`も全ページ合計し、0件を確認します。
 合計が0でない項目は、次のNarrow deployを止める理由と修復方法を記録します。
 `verifyPositionShops.observations.shopsWithoutActivePositions`は、positionが不要な店舗もあり得るため観測値です。  `anomalies`とは分けて記録し、この値だけではNarrowを止めません。
 
 ログイン方法とシフト連絡先の分離を公開する前は、`verifyStaffs.activeStaffPersonEmailMismatch`も全ページ合計で0件であることを確認します。  0件でない場合はpersonと未削除staffの連絡先projectionが既存データ上で一致していないため、本実装の更新処理で推測修復せず、対象deploymentと件数を記録して別のmigration判定へ分けます。
+
+LINE共通化では、対象deploymentのexportを`pnpm convex:verify-line-common-readiness -- --path <export.zip>`でも検証します。  `rolloutPath: "staged"`で`legacyWithoutCanonicalCounterpart`が1件以上ある場合だけm041の対象です。  `legacyWithoutCanonicalCounterpart`以外の`anomalies`が一件でもある場合は変換せず、特にactive所属があるcanonical linkの互換投影欠損は`activeCanonicalLinkWithoutExactLegacyProjection`で停止します。  所属0件で保持するcanonical linkはこの異常へ数えません。  `rolloutPath: "zero"`ならm041を実行せず、exportに含まれない予約済みfunctionは`verifyLineCommonScheduledCallers`で別に確認します。
+
+### LINE共通化の条件付き変換
+
+m041の初回実行は専用runnerだけを使います。  次は実行例であり、この文書だけを根拠にProduction操作は行いません。
+
+```bash
+pnpm exec convex run migrations/index:runLineCommonLinkBackfill \
+  '{"dryRun":true}' \
+  --deployment <fully-qualified-deployment>
+
+pnpm exec convex run migrations/index:runLineCommonLinkBackfill \
+  '{}' \
+  --deployment <fully-qualified-deployment>
+```
+
+実行後はmigration statusとLINE共通化readinessを全ページ再確認します。  canonical counterpart欠損、未完了fan-out、snapshotが不完全なtoken・Outbox・scheduled callerを0件にしてから`LINE_COMMON_LINK_CANONICAL_READS=enabled`へ切り替えます。  切替後のreadinessが0件になるまで`LINE_COMMON_LINK_CANONICAL_READY`は有効にせず、二店舗目と人物の別店舗所属をserver側で閉じます。
 
 ## Conflict修復後の限定再実行
 
@@ -127,6 +155,7 @@ Outbox scopeのNarrowでは`unresolvedNotificationOutboxScopeRows`も全ペー�
 | m038 | m038 |
 | m039 | m039 |
 | m040 | m040 |
+| m041 | m041。LINE共通化のexportと全ページreadinessを再確認してから限定実行 |
 
 ```bash
 pnpm exec convex run migrations/m026_shop_members_narrow_prep:migration \
@@ -208,6 +237,7 @@ pnpm exec convex run migrations/index:runShopMembersNarrowPreparation \
 - trial継続選択で`plan`を省略する旧checkout actionと予約済みcallerがなく、`trialSetupCheckout.targetPlan`欠損が0である。
 - Stripeの旧`immediateProCheckout`、target planなしtrial operation、subscription planなしrowがなく、provider snapshotと保存済みplanが一致する。
 - 旧API名、旧literal、optional argsを利用する外部callerがないことを、deploy履歴とアクセス記録で確認する。
+- LINE共通化では、旧shapeの未使用token、generation snapshotのないactive LINE Outbox、旧shapeの予約済み`sendInviteEmail`が0件である。canonical readerへの切替後も、旧shapeを新規作成するwriterがない。
 
 このgateを確認できない場合、保存schemaだけを先にrequired化しません。  runtime fallbackには削除条件を示す`TODO[narrow]`を残し、次のNarrow deployでschema、validator、reader、writerを同時に削除します。
 
@@ -235,6 +265,8 @@ Narrow deploy後も、旧形式を投入するMigration Testはschema validation
 `shops`、`staffs`、`shopMembers`、`shopBillingStates`はm025からm029の関係するstatusとreadinessを満たしてから、optionalなcanonical IDとlegacy authority fallbackを削除します。  `verifyStaffs.danglingStaffUser`、`verifyStaffs.missingPersonUserForLinkedStaff`、`verifyStaffs.personUserMismatch`、`verifyStaffs.activeStaffPersonEmailMismatch`も0件でなければならず、本人紐付けや連絡先projectionを推測して解消しません。  m029を実行していないdeploymentでは`shopMembers` fallbackを削除しません。
 
 `notificationOutbox`は、m024 / m025 / m030 / m037のstatus、全ページreadiness、Outbox所有conflictの未解消0件、旧scheduled callerのdrainが揃った後にだけNarrowします。  `organizationId` / `purpose` / `notificationContext` / `deliverySuppressed`をrequired化し、`purpose ?? "business"`、purpose未設定のindex分岐、Widen前shop-scoped scan、店舗所属へ戻すreader fallbackを同じ契約変更で削除します。  `shopId`はbilling等のorganization-only通知で、`organizationBillingVersionAtEnqueue`は履歴snapshotとして、どちらもoptionalのまま維持します。
+
+LINE共通化のlegacy readとdual-writeを削除できるのは、m041を実行した場合のstatus、全LINE readiness、旧token・scheduled caller・generation欠損Outboxのdrain、canonical read切替後の観測が揃った後です。  `staffLineAccounts`の物理削除は別の保持判断とcleanupに分け、reader切替と同時には行いません。
 
 条件付きfieldをtable全体でrequiredにはしません。  `magicLinks.notificationOperationKey`は有効なview linkだけ、`notificationOutbox.fanoutTargetKey`と`fanoutOperationId`はfanout通知だけで組として必須です。  `notificationFanoutOperations.scheduledFunctionId`は予約前とterminal状態では存在しないため、lifecycle上optionalのまま維持します。
 

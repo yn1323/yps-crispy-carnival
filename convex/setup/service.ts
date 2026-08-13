@@ -13,6 +13,8 @@ import {
 } from "../constants";
 import { recordStaffLegalConsent } from "../legal/service";
 import { recordOrganizationAuditEvent } from "../organization/audit";
+import { scheduleOrganizationBillingStateDeadline } from "../organizationBilling/deadline";
+import { calculateTrialEndsAt } from "../organizationBilling/policy";
 import { ensureDefaultPosition } from "../position/service";
 import type { RegularClosedDay } from "../shop/schemas";
 import { sendReminderRef } from "../shopActivationReminder/refs";
@@ -20,7 +22,7 @@ import { sendReminderRef } from "../shopActivationReminder/refs";
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
 
 export const ORGANIZATION_CREATE_LIMIT_REACHED_MESSAGE = `作成できる組織は${ORGANIZATION_SELF_CREATED_LIMIT}つまでです。\n使っていない組織を削除すると、また作成できます。`;
-const ORGANIZATION_CREATE_UNAVAILABLE_MESSAGE = "無効になったアカウントでは、組織を作成できません。";
+export const ORGANIZATION_CREATE_UNAVAILABLE_MESSAGE = "無効になったアカウントでは、組織を作成できません。";
 
 export type OrganizationCreationAvailability = { canCreate: true } | { canCreate: false; reason: string };
 
@@ -71,16 +73,6 @@ export async function getOrganizationCreationAvailability(
   return { canCreate: true };
 }
 
-/**
- * 新しい組織の初期課金状態。
- *
- * 初回セットアップは支払い不要Business、既存管理者による追加作成はFreeで始める。
- * どちらで始めるかは呼出し側の判断であり、この関数は渡された状態をそのまま保存する。
- */
-export type InitialOrganizationBillingState =
-  | { kind: "complimentary"; plan: "business" }
-  | { kind: "active"; plan: "free" };
-
 export type CreateOrganizationWithFirstShopArgs = {
   userId: Id<"users">;
   managerName: string;
@@ -89,7 +81,6 @@ export type CreateOrganizationWithFirstShopArgs = {
   shopName: string;
   regularClosedDays: RegularClosedDay[];
   submissionPattern: ShiftSubmissionPattern;
-  billingState: InitialOrganizationBillingState;
   correlationId?: string;
   now: number;
 };
@@ -113,6 +104,7 @@ export async function createOrganizationWithFirstShop(
 ): Promise<CreateOrganizationWithFirstShopResult> {
   const { userId, now } = args;
   const managerEmailNormalized = normalizeEmail(args.managerEmail);
+  const billingState = { kind: "trial" as const, trialEndsAt: calculateTrialEndsAt(now) };
 
   const organizationId = await ctx.db.insert("organizations", {
     createdByUserId: userId,
@@ -152,10 +144,15 @@ export async function createOrganizationWithFirstShop(
   });
   await ctx.db.insert("organizationBillingStates", {
     organizationId,
-    state: args.billingState,
+    state: billingState,
     version: 1,
     createdAt: now,
     updatedAt: now,
+  });
+  await scheduleOrganizationBillingStateDeadline(ctx, {
+    organizationId,
+    state: billingState,
+    version: 1,
   });
 
   await ensureDefaultPosition(ctx, shopId);
@@ -189,7 +186,7 @@ export async function createOrganizationWithFirstShop(
     targetKind: "organization",
     targetId: organizationId,
     ...(args.managerProfileSource ? { fromState: `managerProfile.${args.managerProfileSource}` } : {}),
-    toState: `${args.billingState.kind}.${args.billingState.plan}`,
+    toState: "trial",
     correlationId: args.correlationId,
     occurredAt: now,
     analyticsEvent: {
@@ -201,7 +198,7 @@ export async function createOrganizationWithFirstShop(
         change: "created",
         displayName: `${args.shopName}${ORGANIZATION_NAME_SUFFIX}`,
         registeredAt: now,
-        currentPlan: analyticsPlanForBillingState(args.billingState),
+        currentPlan: analyticsPlanForBillingState(billingState),
         initialShop: { shopId, displayName: args.shopName, registeredAt: now },
         initialPersonId: personId,
         initialStaff: {
@@ -217,6 +214,8 @@ export async function createOrganizationWithFirstShop(
 
   await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
     staffId,
+    organizationPersonId: personId,
+    lineLinkGenerationAtSchedule: 0,
     organizationBillingVersionAtOrigin: 1,
   });
   await ctx.scheduler.runAt(getShopActivationReminderAt(now), sendReminderRef, {

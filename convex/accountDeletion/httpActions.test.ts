@@ -71,6 +71,55 @@ describe("accountDeletion/httpActions", () => {
     expect(runMutation).not.toHaveBeenCalled();
   });
 
+  it("所属を含む削除ではscopeとpreview fingerprintだけを認証済みmutationへ渡す", async () => {
+    const runMutation = vi.fn(async () => ({ status: "accepted" as const }));
+    const previewFingerprint = "a".repeat(64);
+    const response = await handleAccountDeletionRequest(
+      { runMutation } as unknown as Parameters<typeof handleAccountDeletionRequest>[0],
+      validRequest({ scope: "accountAndAssociations", previewFingerprint }),
+      fakeAdapter(),
+    );
+
+    expect(response.status).toBe(202);
+    expect(runMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        requestId: REQUEST_ID,
+        scope: "accountAndAssociations",
+        previewFingerprint,
+      }),
+    );
+  });
+
+  it.each([
+    ["scopeだけ", { scope: "accountAndAssociations" }],
+    ["preview fingerprintだけ", { previewFingerprint: "a".repeat(64) }],
+    ["短いpreview fingerprint", { scope: "accountAndAssociations", previewFingerprint: "a".repeat(63) }],
+    ["非hexのpreview fingerprint", { scope: "accountAndAssociations", previewFingerprint: "g".repeat(64) }],
+    ["未知のscope", { scope: "accountOnly", previewFingerprint: "a".repeat(64) }],
+    [
+      "余分なtarget ID",
+      {
+        scope: "accountAndAssociations",
+        previewFingerprint: "a".repeat(64),
+        organizationId: "attacker-selected",
+      },
+    ],
+  ] as const)("不正なcombined payload（%s）は認証・mutation前に拒否する", async (_label, body) => {
+    const adapter = fakeAdapter();
+    const runMutation = vi.fn();
+    const response = await handleAccountDeletionRequest(
+      { runMutation } as unknown as Parameters<typeof handleAccountDeletionRequest>[0],
+      validRequest(body),
+      adapter,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "invalid_request" });
+    expect(adapter.authenticate).not.toHaveBeenCalled();
+    expect(runMutation).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["POST以外", () => requestWith({ method: "GET", body: null }), 405],
     ["content-typeなし", () => requestWith({ omitContentType: true }), 400],

@@ -11,7 +11,7 @@ import {
   seedStaff,
 } from "../_test/scenarioBuilders";
 import { createScenario } from "../_test/scenarioFixtures";
-import { seedManagerShop, seedStaffLineAccount } from "../_test/seed";
+import { seedCanonicalStaffLineRecipient, seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("スタッフ管理シナリオ", () => {
@@ -213,15 +213,13 @@ describe("スタッフ管理シナリオ", () => {
         name: "unfollowスタッフ",
         email: "unfollow-old@example.com",
       });
-      await seedStaffLineAccount(ctx, {
+      await seedCanonicalStaffLineRecipient(ctx, {
         staffId: lineStaffId,
-        shopId,
         lineUserId: "U_email_change_line",
         following: true,
       });
-      await seedStaffLineAccount(ctx, {
+      await seedCanonicalStaffLineRecipient(ctx, {
         staffId: unfollowStaffId,
-        shopId,
         lineUserId: "U_email_change_unfollow",
         following: false,
       });

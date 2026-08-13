@@ -260,6 +260,7 @@ function priceFixture(plan: "pro" | "business") {
     livemode: false,
     currency: "jpy",
     unit_amount: plan === "business" ? 2_980 : 1_480,
+    tax_behavior: "inclusive",
     recurring: { interval: "month", interval_count: 1 },
   };
 }
@@ -816,7 +817,7 @@ describe("有料プラン変更シナリオ", () => {
     ]);
   });
 
-  it("ProからFreeは公開Actionで期間末に予約し、実際のdeadline jobとprovider解約確認後にFreeになる", async () => {
+  it("Proの利用停止は公開Actionで期間末に予約し、deadline jobとprovider解約確認後にrestrictedになる", async () => {
     const t = convexTest(schema, modules);
     const ids = await seedPaidStripeContext(t, {
       subject: "scenario_pro_to_free",
@@ -843,16 +844,16 @@ describe("有料プラン変更シナリオ", () => {
     const actor = t.withIdentity({ subject: "scenario_pro_to_free" });
 
     await expect(
-      actor.action(api.organizationStripe.actions.schedulePaidPlanChange, {
+      actor.action(api.organizationStripe.actions.scheduleServiceStopAtPeriodEnd, {
         shopId: ids.shopId,
-        targetPlan: "free",
-        requestId: "scenario-pro-to-free-schedule",
+        requestId: "scenario-pro-service-stop-schedule",
       }),
     ).resolves.toEqual({ status: "accepted" });
     expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
       state: "scheduledChange",
       currentPlan: "pro",
       targetPlan: "free",
+      restrictAtPeriodEnd: true,
     });
 
     atDeadline = true;
@@ -861,19 +862,33 @@ describe("有料プラン変更シナリオ", () => {
     await finishZeroDelayJobs(t);
 
     expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
-      state: "free",
-      currentPlan: "free",
-      peopleUsage: { current: 1, max: 5, pendingInvitations: 0 },
-      shopUsage: { current: 1, max: 1, pendingInvitations: 0 },
-      managerUsage: { current: 1, max: 1, pendingInvitations: 0 },
+      state: "restricted",
+      currentPlan: null,
+      previousPlan: "pro",
+      peopleUsage: { current: 1, max: 0, pendingInvitations: 0 },
+      shopUsage: { current: 1, max: 0, pendingInvitations: 0 },
+      managerUsage: { current: 1, max: 0, pendingInvitations: 0 },
     });
     const snapshot = await getBillingSnapshot(t, ids.organizationId);
-    expect(snapshot.billing?.state).toEqual({ kind: "active", plan: "free" });
+    expect(snapshot.billing?.state).toMatchObject({
+      kind: "restricted",
+      reason: "scheduledCancellation",
+      previousPlan: "pro",
+      recoveryManagerPersonIds: [ids.personId],
+      previousActiveShopIds: [ids.shopId],
+    });
+    expect(
+      snapshot.billing?.state.kind === "restricted" ? snapshot.billing.state.restrictedAt : 0,
+    ).toBeGreaterThanOrEqual(ids.periodEndsAt);
     expect(snapshot.subscription).toMatchObject({ status: "canceled" });
     expect(snapshot.subscription?.terminalAt).toBeGreaterThanOrEqual(ids.periodEndsAt);
-    expect(snapshot.operations.map((operation) => [operation.kind, operation.status]).sort()).toEqual([
-      ["reconcileSubscription", "succeeded"],
-      ["scheduleFree", "succeeded"],
+    expect(
+      snapshot.operations
+        .map((operation) => [operation.kind, operation.status, operation.restrictAtPeriodEnd] as const)
+        .sort(),
+    ).toEqual([
+      ["reconcileSubscription", "succeeded", undefined],
+      ["scheduleFree", "succeeded", true],
     ]);
   });
 

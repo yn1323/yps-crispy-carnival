@@ -48,9 +48,9 @@ const mocks = vi.hoisted(() => ({
     name: "",
     email: "",
     featureVisibility: {
-      organizationSettingsNavigation: false,
-      billing: false,
-      shopMembershipAddition: false,
+      organizationSettingsNavigation: true,
+      billing: true,
+      shopMembershipAddition: true,
     },
   },
   currentUser: { name: "管理者", email: "manager@example.com" } as CurrentUser,
@@ -61,9 +61,9 @@ const mocks = vi.hoisted(() => ({
     name: "管理者",
     email: "manager@example.com",
     featureVisibility: {
-      organizationSettingsNavigation: false,
-      billing: false,
-      shopMembershipAddition: false,
+      organizationSettingsNavigation: true,
+      billing: true,
+      shopMembershipAddition: true,
     },
   },
 }));
@@ -124,10 +124,21 @@ vi.mock("@/src/components/ui/Button", () => ({
 }));
 
 vi.mock("@/src/components/ui/Empty", () => ({
-  Empty: ({ title, description, action }: { title: ReactNode; description?: ReactNode; action?: ReactNode }) => (
+  Empty: ({
+    title,
+    description,
+    secondaryDescription,
+    action,
+  }: {
+    title: ReactNode;
+    description?: ReactNode;
+    secondaryDescription?: ReactNode;
+    action?: ReactNode;
+  }) => (
     <main>
       <h1>{title}</h1>
       <p>{description}</p>
+      <p>{secondaryDescription}</p>
       {action}
     </main>
   ),
@@ -164,7 +175,15 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/dashboard");
 
   mocks.myShops = [{ shopId: "active-shop", shopName: "所属店舗" }];
-  mocks.currentUser = { name: "管理者", email: "manager@example.com" };
+  mocks.currentUser = {
+    name: "管理者",
+    email: "manager@example.com",
+    featureVisibility: {
+      organizationSettingsNavigation: true,
+      billing: true,
+      shopMembershipAddition: true,
+    },
+  };
   mocks.selectedShop = {
     shopId: "stale-shop",
     shopName: "過去の所属店舗",
@@ -179,9 +198,9 @@ beforeEach(() => {
     name: "管理者",
     email: "manager@example.com",
     featureVisibility: {
-      organizationSettingsNavigation: false,
-      billing: false,
-      shopMembershipAddition: false,
+      organizationSettingsNavigation: true,
+      billing: true,
+      shopMembershipAddition: true,
     },
   };
 
@@ -247,7 +266,15 @@ describe("AuthGuard", () => {
   });
 
   it("ClerkのログインメールとConvexの連絡先が異なっても通常画面を表示する", () => {
-    mocks.currentUser = { name: "管理者", email: "convex@example.com" };
+    mocks.currentUser = {
+      name: "管理者",
+      email: "convex@example.com",
+      featureVisibility: {
+        organizationSettingsNavigation: true,
+        billing: true,
+        shopMembershipAddition: true,
+      },
+    };
     mocks.useUser.mockReturnValue({
       isLoaded: true,
       user: {
@@ -328,7 +355,8 @@ describe("AuthGuard", () => {
     }
   });
 
-  it("古いbackendが公開状態を返さない場合は全機能を閉じてatomの同期完了まで子画面を描画しない", async () => {
+  it("古いbackendが公開状態を返さないとき複数店舗writerだけ閉じる", async () => {
+    mocks.currentUser = { name: "管理者", email: "manager@example.com" };
     mocks.selectedShop = {
       shopId: "active-shop",
       shopName: "所属店舗",
@@ -341,36 +369,10 @@ describe("AuthGuard", () => {
     mocks.user.featureVisibility = {
       organizationSettingsNavigation: true,
       billing: true,
-      shopMembershipAddition: true,
-    };
-
-    const { rerender } = render(
-      <AuthGuard requestedShopId="active-shop">
-        <ManagerChild />
-      </AuthGuard>,
-    );
-
-    expect(screen.queryByTestId("manager-child")).toBeNull();
-    expect(screen.queryByTestId("full-page-spinner")).not.toBeNull();
-    await waitFor(() => {
-      expect(mocks.setUser).toHaveBeenCalledWith({
-        authId: "manager-user",
-        name: "管理者",
-        email: "manager@example.com",
-        featureVisibility: {
-          organizationSettingsNavigation: false,
-          billing: false,
-          shopMembershipAddition: false,
-        },
-      });
-    });
-
-    mocks.user.featureVisibility = {
-      organizationSettingsNavigation: false,
-      billing: false,
       shopMembershipAddition: false,
     };
-    rerender(
+
+    render(
       <AuthGuard requestedShopId="active-shop">
         <ManagerChild />
       </AuthGuard>,
@@ -378,9 +380,21 @@ describe("AuthGuard", () => {
 
     expect(screen.queryByTestId("manager-child")).not.toBeNull();
     expect(screen.queryByTestId("full-page-spinner")).toBeNull();
+    await waitFor(() => {
+      expect(mocks.setUser).toHaveBeenCalledWith({
+        authId: "manager-user",
+        name: "管理者",
+        email: "manager@example.com",
+        featureVisibility: {
+          organizationSettingsNavigation: true,
+          billing: true,
+          shopMembershipAddition: false,
+        },
+      });
+    });
   });
 
-  it("backendの公開状態をatomへ同期するまでは子画面を描画しない", async () => {
+  it("backendの閉状態を複数店舗writerへ反映し、常時公開機能は維持する", async () => {
     mocks.currentUser = {
       name: "管理者",
       email: "manager@example.com",
@@ -399,6 +413,11 @@ describe("AuthGuard", () => {
       organizationPlan: null,
       memberStatus: "active",
     };
+    mocks.user.featureVisibility = {
+      organizationSettingsNavigation: true,
+      billing: true,
+      shopMembershipAddition: false,
+    };
 
     const { rerender } = render(
       <AuthGuard requestedShopId="active-shop">
@@ -406,7 +425,7 @@ describe("AuthGuard", () => {
       </AuthGuard>,
     );
 
-    expect(screen.queryByTestId("manager-child")).toBeNull();
+    expect(screen.queryByTestId("manager-child")).not.toBeNull();
     await waitFor(() => {
       expect(mocks.setUser).toHaveBeenCalledWith({
         authId: "manager-user",
@@ -647,6 +666,11 @@ describe("AuthGuard", () => {
     expect(screen.getByTestId("account-deletion-entry")).not.toBeNull();
     expect(screen.queryByText("管理者")).toBeNull();
     expect(screen.queryByText("manager@example.com")).toBeNull();
+    expect(
+      screen.getByText(
+        /過去のシフト・同意・請求・操作記録などは、法令または契約上必要な業務記録として残る場合があります/,
+      ),
+    ).not.toBeNull();
     expect(screen.queryByTestId("manager-child")).toBeNull();
     expect(mocks.managerChildRender).not.toHaveBeenCalled();
     expect(mocks.useQuery).toHaveBeenCalledWith(mocks.myShopsQuery, "skip");
@@ -667,8 +691,16 @@ describe("AuthGuard", () => {
     );
 
     expect(screen.getByRole("heading", { name: "アカウントの削除を受け付けました" })).not.toBeNull();
-    expect(screen.getByText(/ログイン用アカウントの削除は、通常は数分以内に完了します/)).not.toBeNull();
+    expect(
+      screen.getByText(/組織・店舗の利用終了が含まれる場合は、その処理後にログイン用アカウントを削除します/),
+    ).not.toBeNull();
     expect(screen.getByText(/このページを閉じても処理は続きます/)).not.toBeNull();
+    expect(
+      screen.getByText(
+        /過去のシフト・同意・請求・操作記録などは、法令または契約上必要な業務記録として残る場合があります/,
+      ),
+    ).not.toBeNull();
+    expect(screen.queryByText(/過去の利用履歴は、業務記録として残ります/)).toBeNull();
     expect(screen.queryByRole("heading", { name: "シフトリの利用は終了しています" })).toBeNull();
     expect(screen.queryByTestId("account-deletion-entry")).toBeNull();
     expect(screen.queryByTestId("manager-child")).toBeNull();

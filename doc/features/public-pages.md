@@ -2,7 +2,7 @@
 
 > 文書種別: feature
 >
-> 最終コード照合: 2026-08-12（この変更を含む）
+> 最終コード照合: 2026-08-13（この変更を含む）
 
 公開サイトは、登録前の製品理解と、利用中の疑問解消をつなぐ認証不要のページ群である。
 ルート`/`を入口に、機能紹介、FAQ、HowTo、記事、操作デモへ利用者を案内する。
@@ -13,6 +13,8 @@
 |---|---|---|
 | `/` | 価値、利用の流れ、提出方法、利用例、FAQと記事への入口、登録導線をまとめるTOP | `src/pages/home/`、`src/components/features/LandingPage/` |
 | `/features` | 希望回収、未提出確認、シフト作成、確定通知など、できることを詳しく示す | `src/pages/features/`、`FeatureSection`、`BenefitsSection` |
+| `/pricing` | 2暦月トライアル、Pro・Businessの上限、組織単位の契約と支払い、未契約時の扱いを示す | `src/pages/pricing/`、`PricingSite` |
+| `/commercial-transactions` | 有料プランの販売条件と、特定商取引法に基づく事業者情報を示す | `src/pages/commercial-transactions/`、`CommercialTransactions` |
 | `/faq` | 導入前から利用中までの質問を、カテゴリと検索から探せるようにする | `src/pages/faq/`、`src/components/features/FaqSite/` |
 | `/howto` | 画面上の場所、操作、結果、失敗時の対処を、利用場面から探せるようにする | `src/pages/howto/`、`src/components/features/HowToSite/` |
 | `/articles` | シフト運営に関する記事とカテゴリへの入口を示す | `src/pages/articles/`、`ArticleListPage` |
@@ -22,7 +24,7 @@
 | `/demo/shiftboard` | PC向けシフト表の入力と調整を、登録なしで試せるようにする | `src/pages/demo-shift-board/`、`Demo/DemoShiftBoardPage/` |
 
 TOPは`src/routes/index.tsx`から`HomePage`を呼び、`HomePage`が`LandingPage`を構成する。
-`LandingPage`は`PublicPageLayout`の中に、Hero、課題の軽減、利用の流れ、提出方法、比較、利用例、FAQと記事、CTAの各sectionを並べる。
+`LandingPage`は`PublicPageLayout`の中に、Hero、課題の軽減、利用の流れ、提出方法、比較、利用例、組織・店舗・管理者・支払い、FAQと記事、CTAの各sectionを並べる。
 
 FAQ、HowTo、記事、デモは同じ公開サイトに属するが、内容の置き場所は分かれている。
 FAQはMDXを含む`FaqSite`、HowToはMDXを含む`HowToSite`、記事は`ArticleSite`、操作できるデモは`Demo`が所有する。
@@ -36,6 +38,7 @@ HowToの詳細な編集規則は [`howto.md`](howto.md) を参照する。
 |---|---|---|
 | 問い合わせ | `/contact` | [`contact.md`](contact.md) |
 | 利用規約とプライバシーポリシー | `/terms`、`/privacy`と対象別URL | [`legal-consent.md`](legal-consent.md) |
+| 特定商取引法に基づく表記 | `/commercial-transactions` | 本文の「特定商取引法に基づく表記」 |
 | ログインと登録 | `/login`、`/signup`、`/forgot-password` | [`auth-pages.md`](auth-pages.md) |
 
 `PublicPageLayout`のheaderとfooterがこれらの入口を接続する。
@@ -53,7 +56,7 @@ src/routes/index.tsx
       -> src/components/templates/PublicPageLayout/
 ```
 
-公開コンテンツの表示にはClerkとConvexを使わない。
+公開コンテンツの表示にはClerk認証とConvex APIを使わない。
 `vite.config.ts`はTanStack StartのStatic Prerendering対象を公開routeのallowlistから組み立て、`AuthProviders`は認証route、未登録スタッフroute、認証画面の近くに置いている。
 公開HTMLはbuild時に生成し、ブラウザでは同じReact treeをhydrateする。
 認証、店舗、スタッフ用Capabilityのrouteは`ssr: false`とし、利用者固有の情報を静的HTMLへ含めずCSRで表示する。
@@ -61,12 +64,47 @@ src/routes/index.tsx
 FAQ、HowTo、記事、デモを表示するためのConvex APIもない。
 問い合わせなど、公開サイトから遷移する別機能のAPIは、その機能文書を参照する。
 
+`PricingSite`が表示する利用上限は、backend enforcementと同じbrowser-safeな`ORGANIZATION_PLAN_LIMITS`を参照する。
+公開ページからStripeやConvexへ問い合わせず、build時とbrowserで同じ静的内容を表示する。
+
+## 公開する商品契約
+
+新しく作る組織は、組織作成日から2暦月のトライアルで始まる。
+たとえば7月14日に作成した場合、9月14日0:00（日本時間）に終了し、終了日は組織設定に表示する。
+
+トライアルはPro相当で、利用人数20名、稼働店舗5件、有効な管理者5名まで利用できる。
+Proも同じ上限、Businessは利用人数40名、稼働店舗5件、有効な管理者5名までとし、ProとBusinessの機能差は設けない。
+
+トライアル終了後も利用するにはProまたはBusinessの契約が必要である。
+終了時点で有料プランがなければ、データを保持したまま組織の利用を制限し、契約後に同じ組織で再開できる。
+これまでに無償利用の対象となった組織は、案内済みの条件を継続する。
+
+契約と支払いは組織単位で管理する。
+有効な管理者は組織内の全店舗、利用者、管理者招待、プランと支払いを管理し、店舗限定の管理者権限は設けない。
+
+公開ページへ固定の金額を複製しない。
+Pro・Businessの最新の月額料金と税込・税別はStripe Priceを正本とし、アカウント作成後の契約画面で契約確定前に表示する。
+公開サイトは数値を推測せず、金額と税込・税別を契約画面で確認できることを案内する。
+
+## 特定商取引法に基づく表記
+
+`/commercial-transactions`は、有料プランの販売条件として、役務提供事業者、運営責任者、所在地、電話番号、問い合わせ先、Pro・Businessそれぞれの販売価格、支払方法と時期、提供時期、契約期間、自動更新、無料体験、利用停止、返金、利用上限、動作環境を表示する。
+販売条件は現在の組織課金契約とStripe実装に合わせる。Pro・Businessの販売価格は、Production公開前にStripeへ設定する確定額と税区分を記載し、契約確定前の画面にも同じ条件を表示する。
+
+役務提供事業者、運営責任者、所在地、電話番号は、Production公開前に`src/components/features/CommercialTransactions/index.tsx`冒頭の`MANUAL_BUSINESS_DETAILS`を実在する情報へ手動で置き換える。Pro・Businessの月額料金と税込・税別は、同じファイルの`MANUAL_SALES_PRICES`を確定した販売条件へ置き換える。
+仮入力が一つでも残る間はページ内に注意を表示し、Production公開の停止条件として[リリース状態](../manual/release-status.md)にも記録する。
+
+このページはfooterと料金ページ共通の公開layoutから到達できる一方、`noindex, nofollow`とし、sitemapと`llms.txt`には含めない。
+`robots.txt`でDisallowにはせず、crawlerがrobots metaを取得できる状態を維持する。
+利用規約・プライバシーポリシーと同じ`public_unmeasured`面に分類し、GTM・GA4のpage viewを送らない。
+
 ## コンテンツと導線の分担
 
 | 場所 | 利用者の問い | 内容の責務 |
 |---|---|---|
 | TOP | 自分の店舗で何が楽になるか | 価値と利用の流れを短く示し、詳しい入口を選べるようにする |
 | 機能紹介 | どの作業を支援できるか | 主な機能と利用場面を比較できるようにする |
+| 料金・プラン | いつまで試せて、どの単位で何を契約するか | トライアル終了、上限、契約単位、最新料金の確認場所、未契約時の扱いを示す |
 | FAQ | 料金、通知、導入、運用について結論を知りたい | 質問ごとに結論と必要な注意点を示す |
 | HowTo | 画面でどう操作し、失敗時にどう戻るか | 操作場所、手順、結果、回復方法を示す |
 | 記事 | シフト運営の課題をどう判断するか | 課題の整理、選択肢、関連する製品導線を示す |
@@ -86,7 +124,7 @@ HowToの追加と更新には`write-help-content`、デモの設計には`demo-u
 
 ## 静的生成とメタデータ
 
-`scripts/staticSite.ts`はTOP、機能紹介、FAQ、HowTo、問い合わせ、記事一覧、汎用の法務文書、二つのデモなどを固定の公開routeとして持つ。
+`scripts/staticSite.ts`はTOP、機能紹介、料金・プラン、FAQ、HowTo、問い合わせ、記事一覧、汎用の法務文書、特定商取引法に基づく表記、二つのデモなどを固定の公開routeとして持つ。
 記事詳細とカテゴリは`ArticleSite/content/`の公開済みslugから対象routeを組み立てる。
 TanStack StartはこのallowlistだけをStatic Prerenderingし、認証routeやCapability routeを自動探索しない。
 
@@ -130,6 +168,8 @@ route inventory testは各`Disallow`が実在するCSR routeのprefixである�
 
 - `src/routes/index.tsx`、`src/pages/home/`、`src/components/features/LandingPage/`：公開TOP
 - `src/routes/features.tsx`、`src/pages/features/`：機能紹介
+- `src/routes/pricing.tsx`、`src/pages/pricing/`、`src/components/features/PricingSite/`：料金・プラン
+- `src/routes/commercial-transactions.tsx`、`src/pages/commercial-transactions/`、`src/components/features/CommercialTransactions/`：特定商取引法に基づく表記
 - `src/routes/faq.tsx`、`src/pages/faq/`、`src/components/features/FaqSite/`：総合FAQとTOP向けFAQ抜粋
 - `src/components/features/FaqSite/content/**/*.mdx`：質問、回答、検索用メタデータ、表示順
 - `src/components/features/FaqSite/faqMetadata.ts`、`faqContent.ts`、`landingFaqContent.ts`：frontmatter検証、検索、構造化データ

@@ -168,6 +168,7 @@ export const getOperation = internalQuery({
       stripePriceIdSnapshot: v.optional(v.string()),
       sourcePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
       targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+      restrictAtPeriodEnd: v.optional(v.literal(true)),
       changeMode: v.optional(v.union(v.literal("checkout"), v.literal("immediate"), v.literal("periodEnd"))),
       stripeSubscriptionIdSnapshot: v.optional(v.string()),
       stripeSubscriptionItemIdSnapshot: v.optional(v.string()),
@@ -196,6 +197,7 @@ export const getOperation = internalQuery({
       ...(operation.stripePriceIdSnapshot ? { stripePriceIdSnapshot: operation.stripePriceIdSnapshot } : {}),
       ...(operation.sourcePlan ? { sourcePlan: operation.sourcePlan } : {}),
       ...(operation.targetPlan ? { targetPlan: operation.targetPlan } : {}),
+      ...(operation.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
       ...(operation.changeMode ? { changeMode: operation.changeMode } : {}),
       ...(operation.stripeSubscriptionIdSnapshot
         ? { stripeSubscriptionIdSnapshot: operation.stripeSubscriptionIdSnapshot }
@@ -333,6 +335,7 @@ export const getFreePlanChangeOperationByRequest = internalQuery({
       providerGeneration: v.optional(v.number()),
       sourcePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
       targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+      restrictAtPeriodEnd: v.optional(v.literal(true)),
       changeMode: v.optional(v.union(v.literal("checkout"), v.literal("immediate"), v.literal("periodEnd"))),
       stripeSubscriptionIdSnapshot: v.optional(v.string()),
       stripeSubscriptionItemIdSnapshot: v.optional(v.string()),
@@ -360,6 +363,7 @@ export const getFreePlanChangeOperationByRequest = internalQuery({
       ...(operation.providerGeneration !== undefined ? { providerGeneration: operation.providerGeneration } : {}),
       ...(operation.sourcePlan ? { sourcePlan: operation.sourcePlan } : {}),
       ...(operation.targetPlan ? { targetPlan: operation.targetPlan } : {}),
+      ...(operation.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
       ...(operation.changeMode ? { changeMode: operation.changeMode } : {}),
       ...(operation.stripeSubscriptionIdSnapshot
         ? { stripeSubscriptionIdSnapshot: operation.stripeSubscriptionIdSnapshot }
@@ -375,6 +379,46 @@ export const getFreePlanChangeOperationByRequest = internalQuery({
         : {}),
       ...(operation.prorationDate !== undefined ? { prorationDate: operation.prorationDate } : {}),
       ...(operation.effectiveAt !== undefined ? { effectiveAt: operation.effectiveAt } : {}),
+    };
+  },
+});
+
+/** providerの期間末解約を、旧Free予約と新しい利用停止予約のどちらへ収束させるか判定する。 */
+export const getCancelAtPeriodEndRestrictionIntent = internalQuery({
+  args: {
+    organizationId: v.id("organizations"),
+    providerGeneration: v.number(),
+    stripeSubscriptionId: v.string(),
+    stripeSubscriptionItemId: v.string(),
+    effectiveAt: v.number(),
+  },
+  returns: v.object({ restrictAtPeriodEnd: v.boolean() }),
+  handler: async (ctx, args) => {
+    const operations = await ctx.db
+      .query("organizationStripeOperations")
+      .withIndex("by_organizationId_and_providerGeneration", (q) =>
+        q.eq("organizationId", args.organizationId).eq("providerGeneration", args.providerGeneration),
+      )
+      .order("desc")
+      .filter((q) =>
+        q.and(
+          q.or(q.eq(q.field("kind"), "scheduleFree"), q.eq(q.field("kind"), "cancelFreeSchedule")),
+          q.eq(q.field("targetPlan"), "free"),
+          q.eq(q.field("changeMode"), "periodEnd"),
+          q.eq(q.field("stripeSubscriptionIdSnapshot"), args.stripeSubscriptionId),
+          q.eq(q.field("stripeSubscriptionItemIdSnapshot"), args.stripeSubscriptionItemId),
+          q.eq(q.field("effectiveAt"), args.effectiveAt),
+        ),
+      )
+      .take(1);
+    const latestIntent = operations[0];
+    // markerなしscheduleFreeだけがdeployment前から存在するFree予約の証拠になる。
+    // その後に取消された予約や証跡のないprovider側解約からはFreeを新規生成しない。
+    return {
+      restrictAtPeriodEnd:
+        latestIntent === undefined ||
+        latestIntent.kind === "cancelFreeSchedule" ||
+        latestIntent.restrictAtPeriodEnd === true,
     };
   },
 });
@@ -1015,7 +1059,9 @@ function isPurposeAllowed(
         isRecoveryManager &&
         (state.reason === "paymentGraceExpired" ||
           state.reason === "paymentActivationFailed" ||
-          state.reason === "unexpectedCancellation")
+          state.reason === "unexpectedCancellation" ||
+          state.reason === "trialEndedWithoutSubscription" ||
+          state.reason === "scheduledCancellation")
       );
     case "startCheckout":
       if (state.kind === "restricted") return isRecoveryManager;

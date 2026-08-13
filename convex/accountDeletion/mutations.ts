@@ -2,18 +2,28 @@ import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
+import { todayJST } from "../_lib/dateFormat";
 import { rateLimit } from "../_lib/rateLimits";
+import { retryActionRequiredDeletionCleanup } from "../deletionCleanup/mutations";
 import { getActiveUserAssociationStatus } from "../deletionCleanup/service";
+import {
+  ACCOUNT_DELETION_DEPARTURE_STAFF_RECORD_LIMIT,
+  applyAccountDeletionOrganizationDeparture,
+  beginAccountDeletionOrganizationDeletion,
+} from "../organization/mutations";
 import { getAccountDeletionConfiguration, hasRequiredAccountDeletionConfiguration, normalizeIssuer } from "./config";
 import {
   ACCOUNT_DELETION_JOB_LEASE_MS,
   ACCOUNT_DELETION_MAX_ATTEMPTS,
+  ACCOUNT_DELETION_ORGANIZATION_CLEANUP_POLL_MS,
   ACCOUNT_DELETION_PRUNE_BATCH_SIZE,
   ACCOUNT_DELETION_RECOVERY_BATCH_SIZE,
   ACCOUNT_DELETION_RETENTION_MS,
   ACCOUNT_DELETION_RETRY_BASE_MS,
   ACCOUNT_DELETION_RETRY_MAX_MS,
+  ACCOUNT_DELETION_SHARED_CLEANUP_POLL_MS,
 } from "./constants";
+import { getAccountDeletionPlan } from "./eligibility";
 import { accountDeletionErrorCodeValidator, accountDeletionRequestSchema } from "./schemas";
 
 const acceptResultValidator = v.union(
@@ -57,6 +67,8 @@ export const accept = internalMutation({
     issuer: v.string(),
     clerkUserId: v.string(),
     requestId: v.string(),
+    scope: v.optional(v.literal("accountAndAssociations")),
+    previewFingerprint: v.optional(v.string()),
     rateLimitKey: v.string(),
   },
   returns: acceptResultValidator,
@@ -64,7 +76,10 @@ export const accept = internalMutation({
     const issuer = normalizeIssuer(args.issuer);
     if (
       !issuer ||
-      !accountDeletionRequestSchema.safeParse({ requestId: args.requestId }).success ||
+      !accountDeletionRequestSchema.safeParse({
+        requestId: args.requestId,
+        ...(args.scope ? { scope: args.scope, previewFingerprint: args.previewFingerprint } : {}),
+      }).success ||
       !isClerkUserId(args.clerkUserId) ||
       !/^[a-f0-9]{64}$/.test(args.rateLimitKey)
     ) {
@@ -98,9 +113,16 @@ export const accept = internalMutation({
     const limit = await rateLimit(ctx, { name: "accountDeletionRequest", key: args.rateLimitKey });
     if (!limit.ok) return { status: "rateLimited" as const };
 
-    if (existingUser) {
-      const associationStatus = await getActiveUserAssociationStatus(ctx, existingUser._id);
-      if (associationStatus !== "none") return { status: "conflict" as const };
+    const plan = await getAccountDeletionPlan(ctx, {
+      user: existingUser ?? null,
+      authTokenIdentifier,
+      asOfDate: todayJST(),
+    });
+    if (plan.status !== "ready") return { status: "conflict" as const };
+    if (args.scope === undefined) {
+      if (plan.action !== "accountOnly") return { status: "conflict" as const };
+    } else if (!args.previewFingerprint || args.previewFingerprint !== plan.previewFingerprint) {
+      return { status: "conflict" as const };
     }
 
     const now = Date.now();
@@ -115,6 +137,34 @@ export const accept = internalMutation({
           isDeleted: true,
           accountDeletionRequestedAt: now,
         });
+    const sharedCleanup =
+      plan.action === "leaveOrganization"
+        ? {
+            organizationId: plan.actor.organization._id,
+            targets: plan.departurePlan.removalPlan.staffs.map((staff) => ({
+              shopId: staff.shopId,
+              staffId: staff._id,
+            })),
+          }
+        : null;
+    if (plan.action === "leaveOrganization") {
+      await applyAccountDeletionOrganizationDeparture(ctx, {
+        plan: plan.departurePlan,
+        correlationId: `${userId}:account-deletion:leave:${args.requestId}`,
+        now,
+      });
+    }
+
+    const organizationDeletion =
+      plan.action === "deleteOrganization"
+        ? await beginAccountDeletionOrganizationDeletion(ctx, {
+            actor: plan.actor,
+            accountUserId: userId,
+            requestId: `account-deletion:${args.requestId}:${plan.actor.organization._id}`,
+            now,
+          })
+        : null;
+
     await ctx.db.patch(userId, {
       isDeleted: true,
       accountDeletionRequestedAt: now,
@@ -126,7 +176,20 @@ export const accept = internalMutation({
       clerkUserId: args.clerkUserId,
       expectedIssuer: issuer,
       status: "queued",
-      phase: "verifyProviderUser",
+      phase: organizationDeletion
+        ? "waitForOrganizationCleanup"
+        : sharedCleanup
+          ? "waitForSharedCleanup"
+          : "verifyProviderUser",
+      ...(organizationDeletion
+        ? {
+            organizationCleanup: {
+              organizationId: organizationDeletion.organizationId,
+              jobId: organizationDeletion.cleanupJobId,
+            },
+          }
+        : {}),
+      ...(sharedCleanup ? { sharedCleanup } : {}),
       version: 1,
       attemptCount: 0,
       nextRunAt: now,
@@ -142,7 +205,7 @@ export const claim = internalMutation({
   args: { jobId: v.id("accountDeletionJobs") },
   returns: claimedJobValidator,
   handler: async (ctx, { jobId }) => {
-    const job = await ctx.db.get(jobId);
+    let job = await ctx.db.get(jobId);
     if (!job || job.status === "completed" || job.status === "actionRequired") return null;
 
     const now = Date.now();
@@ -152,7 +215,105 @@ export const claim = internalMutation({
       await ctx.scheduler.runAfter(job.nextRunAt - now, internal.accountDeletion.actions.processJob, { jobId });
       return null;
     }
-    if (!job.clerkUserId || !job.expectedIssuer || job.phase === "complete") {
+
+    if (
+      (job.phase === "waitForSharedCleanup" && !job.sharedCleanup) ||
+      (job.sharedCleanup !== undefined &&
+        (job.organizationCleanup !== undefined || !(await hasValidSharedCleanupTargets(ctx, job))))
+    ) {
+      await setActionRequired(ctx, job, "shared_cleanup_invalid", now);
+      return null;
+    }
+    if (job.sharedCleanup) {
+      const remainingTargets = await getRemainingSharedCleanupTargets(ctx, job.sharedCleanup);
+      if (remainingTargets.length > 0) {
+        await requeueForSharedCleanup(ctx, job, remainingTargets, now);
+        return null;
+      }
+      if (job.phase === "waitForSharedCleanup") {
+        const associationStatus = await getActiveUserAssociationStatus(ctx, job.userId);
+        if (associationStatus !== "none") {
+          await setActionRequired(
+            ctx,
+            job,
+            associationStatus === "found"
+              ? "association_found_before_provider_delete"
+              : "association_scan_unknown_before_provider_delete",
+            now,
+          );
+          return null;
+        }
+        const version = job.version + 1;
+        await ctx.db.patch(job._id, {
+          phase: "verifyProviderUser",
+          status: "queued",
+          version,
+          nextRunAt: now,
+          updatedAt: now,
+        });
+        job = { ...job, phase: "verifyProviderUser", status: "queued", version, nextRunAt: now, updatedAt: now };
+      }
+    }
+
+    if (job.phase === "waitForOrganizationCleanup") {
+      const linkedCleanup = await getLinkedOrganizationCleanup(ctx, job);
+      if (!linkedCleanup) {
+        await setActionRequired(ctx, job, "organization_cleanup_invalid", now);
+        return null;
+      }
+      if (linkedCleanup.status === "actionRequired") {
+        await setActionRequired(ctx, job, "organization_cleanup_action_required", now);
+        return null;
+      }
+      if (linkedCleanup.status !== "completed") {
+        const nextRunAt = now + ACCOUNT_DELETION_ORGANIZATION_CLEANUP_POLL_MS;
+        await ctx.db.patch(job._id, {
+          status: "queued",
+          version: job.version + 1,
+          nextRunAt,
+          leaseId: undefined,
+          leaseExpiresAt: undefined,
+          updatedAt: now,
+        });
+        await ctx.scheduler.runAfter(nextRunAt - now, internal.accountDeletion.actions.processJob, { jobId });
+        return null;
+      }
+      if (!isTerminalCompletedOrganizationCleanup(linkedCleanup)) {
+        await setActionRequired(ctx, job, "organization_cleanup_invalid", now);
+        return null;
+      }
+      const associationStatus = await getActiveUserAssociationStatus(ctx, job.userId);
+      if (associationStatus !== "none") {
+        await setActionRequired(
+          ctx,
+          job,
+          associationStatus === "found"
+            ? "association_found_before_provider_delete"
+            : "association_scan_unknown_before_provider_delete",
+          now,
+        );
+        return null;
+      }
+      const version = job.version + 1;
+      await ctx.db.patch(job._id, {
+        phase: "verifyProviderUser",
+        status: "queued",
+        version,
+        nextRunAt: now,
+        updatedAt: now,
+      });
+      job = { ...job, phase: "verifyProviderUser", status: "queued", version, nextRunAt: now, updatedAt: now };
+    }
+
+    if (job.organizationCleanup && !(await hasCompletedLinkedOrganizationCleanup(ctx, job))) {
+      await setActionRequired(ctx, job, "organization_cleanup_invalid", now);
+      return null;
+    }
+    if (job.phase !== "verifyProviderUser" && job.phase !== "deleteProviderUser") {
+      await setActionRequired(ctx, job, "invalid_provider_evidence", now);
+      return null;
+    }
+    if (!job.clerkUserId || !job.expectedIssuer) {
       await setActionRequired(ctx, job, "invalid_provider_evidence", now);
       return null;
     }
@@ -228,6 +389,18 @@ export const prepareProviderDeletion = internalMutation({
       return { status: "stale" as const };
     }
 
+    const now = Date.now();
+    if (job.sharedCleanup) {
+      if (!(await hasValidSharedCleanupTargets(ctx, job))) {
+        await setActionRequired(ctx, job, "shared_cleanup_invalid", now);
+        return { status: "blocked" as const };
+      }
+      const remainingTargets = await getRemainingSharedCleanupTargets(ctx, job.sharedCleanup);
+      if (remainingTargets.length > 0) {
+        await requeueForSharedCleanup(ctx, job, remainingTargets, now);
+        return { status: "blocked" as const };
+      }
+    }
     const associationStatus = await getActiveUserAssociationStatus(ctx, job.userId);
     if (associationStatus !== "none") {
       await setActionRequired(
@@ -236,12 +409,15 @@ export const prepareProviderDeletion = internalMutation({
         associationStatus === "found"
           ? "association_found_before_provider_delete"
           : "association_scan_unknown_before_provider_delete",
-        Date.now(),
+        now,
       );
       return { status: "blocked" as const };
     }
+    if (job.organizationCleanup && !(await hasCompletedLinkedOrganizationCleanup(ctx, job))) {
+      await setActionRequired(ctx, job, "organization_cleanup_invalid", now);
+      return { status: "blocked" as const };
+    }
 
-    const now = Date.now();
     const version = job.version + 1;
     await ctx.db.patch(job._id, {
       deleteAttemptedAt: now,
@@ -273,6 +449,7 @@ export const markCompleted = internalMutation({
       nextRunAt: now,
       clerkUserId: undefined,
       expectedIssuer: undefined,
+      sharedCleanup: undefined,
       leaseId: undefined,
       leaseExpiresAt: undefined,
       lastErrorCode: undefined,
@@ -369,7 +546,43 @@ export const retryActionRequired = internalMutation({
       return { status: "stale" as const };
     }
     if (!job.clerkUserId || !job.expectedIssuer || job.phase === "complete") return { status: "blocked" as const };
-    if ((await getActiveUserAssociationStatus(ctx, job.userId)) !== "none") return { status: "blocked" as const };
+    if (job.organizationCleanup) {
+      const cleanup = await getLinkedOrganizationCleanup(ctx, job);
+      if (!cleanup) return { status: "blocked" as const };
+      if (cleanup.status === "actionRequired") {
+        const retried = await retryActionRequiredDeletionCleanup(ctx, {
+          jobId: cleanup._id,
+          target: { scope: "organization", organizationId: job.organizationCleanup.organizationId },
+          expectedVersion: cleanup.version,
+        });
+        if (retried.status !== "scheduled") return { status: "blocked" as const };
+        const now = Date.now();
+        const version = job.version + 1;
+        await ctx.db.patch(job._id, {
+          status: "retrying",
+          phase: "waitForOrganizationCleanup",
+          version,
+          attemptCount: 0,
+          nextRunAt: now,
+          leaseId: undefined,
+          leaseExpiresAt: undefined,
+          lastErrorCode: undefined,
+          updatedAt: now,
+        });
+        await ctx.scheduler.runAfter(0, internal.accountDeletion.actions.processJob, { jobId: job._id });
+        return { status: "scheduled" as const, version };
+      }
+      if (cleanup.status !== "completed") return { status: "blocked" as const };
+    }
+    if (
+      job.phase === "waitForOrganizationCleanup" &&
+      job.organizationCleanup &&
+      (await hasCompletedLinkedOrganizationCleanup(ctx, job))
+    ) {
+      // cleanup完走後の親job再試行では、次のclaimがprovider phaseへ遷移させる。
+    } else if ((await getActiveUserAssociationStatus(ctx, job.userId)) !== "none") {
+      return { status: "blocked" as const };
+    }
 
     const now = Date.now();
     const version = job.version + 1;
@@ -429,6 +642,133 @@ async function currentLeasedJob(
     return null;
   }
   return job;
+}
+
+type SharedCleanup = NonNullable<Doc<"accountDeletionJobs">["sharedCleanup"]>;
+type SharedCleanupTarget = SharedCleanup["targets"][number];
+
+async function hasValidSharedCleanupTargets(ctx: Pick<MutationCtx, "db">, job: Doc<"accountDeletionJobs">) {
+  const cleanup = job.sharedCleanup;
+  if (!cleanup) return false;
+  if (cleanup.targets.length > ACCOUNT_DELETION_DEPARTURE_STAFF_RECORD_LIMIT) return false;
+  const staffIds = new Set<Id<"staffs">>();
+  for (const target of cleanup.targets) {
+    if (staffIds.has(target.staffId)) return false;
+    staffIds.add(target.staffId);
+    const [organization, shop, staff] = await Promise.all([
+      ctx.db.get(cleanup.organizationId),
+      ctx.db.get(target.shopId),
+      ctx.db.get(target.staffId),
+    ]);
+    if (
+      !organization ||
+      organization.isDeleted ||
+      !shop ||
+      shop.organizationId !== cleanup.organizationId ||
+      !staff ||
+      !staff.isDeleted ||
+      staff.shopId !== target.shopId ||
+      staff.organizationId !== cleanup.organizationId
+    ) {
+      return false;
+    }
+    if (staff.userId !== job.userId) {
+      if (!staff.organizationPersonId) return false;
+      const person = await ctx.db.get(staff.organizationPersonId);
+      if (
+        !person ||
+        person.organizationId !== cleanup.organizationId ||
+        person.userId !== job.userId ||
+        person.status !== "removed"
+      ) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+async function getRemainingSharedCleanupTargets(
+  ctx: Pick<MutationCtx, "db">,
+  cleanup: SharedCleanup,
+): Promise<SharedCleanupTarget[]> {
+  const remaining: SharedCleanupTarget[] = [];
+  for (const target of cleanup.targets) {
+    const history = await ctx.db
+      .query("notificationHistory")
+      .withIndex("by_shopId_and_staffId_and_requestedAt", (q) =>
+        q.eq("shopId", target.shopId).eq("staffId", target.staffId),
+      )
+      .first();
+    if (history) remaining.push(target);
+  }
+  return remaining;
+}
+
+async function requeueForSharedCleanup(
+  ctx: MutationCtx,
+  job: Doc<"accountDeletionJobs">,
+  remainingTargets: SharedCleanupTarget[],
+  now: number,
+) {
+  for (const target of remainingTargets) {
+    await ctx.scheduler.runAfter(0, internal.notificationOutbox.mutations.deleteStaffNotificationHistoryBatch, target);
+  }
+
+  // provider削除を既に試行したjobは404を完了evidenceとして使うため、phaseを巻き戻さず人手確認へ止める。
+  if (job.deleteAttemptedAt !== undefined) {
+    await setActionRequired(ctx, job, "shared_cleanup_invalid", now);
+    return;
+  }
+
+  const nextRunAt = now + ACCOUNT_DELETION_SHARED_CLEANUP_POLL_MS;
+  await ctx.db.patch(job._id, {
+    status: "queued",
+    phase: "waitForSharedCleanup",
+    version: job.version + 1,
+    nextRunAt,
+    providerUserVerifiedAt: undefined,
+    leaseId: undefined,
+    leaseExpiresAt: undefined,
+    lastErrorCode: undefined,
+    updatedAt: now,
+  });
+  await ctx.scheduler.runAfter(nextRunAt - now, internal.accountDeletion.actions.processJob, { jobId: job._id });
+}
+
+async function getLinkedOrganizationCleanup(ctx: Pick<MutationCtx, "db">, job: Doc<"accountDeletionJobs">) {
+  const target = job.organizationCleanup;
+  if (!target) return null;
+  const cleanup = await ctx.db.get(target.jobId);
+  if (
+    cleanup?.scope !== "organization" ||
+    cleanup.organizationId !== target.organizationId ||
+    cleanup.shopId !== undefined
+  ) {
+    return null;
+  }
+  return cleanup;
+}
+
+async function hasCompletedLinkedOrganizationCleanup(ctx: Pick<MutationCtx, "db">, job: Doc<"accountDeletionJobs">) {
+  const cleanup = await getLinkedOrganizationCleanup(ctx, job);
+  return cleanup ? isTerminalCompletedOrganizationCleanup(cleanup) : false;
+}
+
+function isTerminalCompletedOrganizationCleanup(cleanup: Doc<"deletionCleanupJobs">) {
+  return Boolean(
+    cleanup.status === "completed" &&
+      cleanup.phase === "organizationVerification" &&
+      Number.isFinite(cleanup.completedAt) &&
+      cleanup.completedAt !== undefined &&
+      cleanup.resource === undefined &&
+      cleanup.cursor === undefined &&
+      cleanup.shopCursor === undefined &&
+      cleanup.currentShopId === undefined &&
+      cleanup.leaseId === undefined &&
+      cleanup.leaseExpiresAt === undefined &&
+      cleanup.lastErrorCode === undefined,
+  );
 }
 
 async function setActionRequired(

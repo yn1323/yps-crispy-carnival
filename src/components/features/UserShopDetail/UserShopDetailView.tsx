@@ -20,12 +20,6 @@ export type UserShopDetailViewProps = {
   onNotificationSectionFocus?: FocusEventHandler<HTMLDivElement>;
   notificationHistory: ReactNode;
   state: {
-    line: {
-      authorizeUrl: string | null;
-      showQr: boolean;
-      isQrLoading: boolean;
-      isSendingInvite: boolean;
-    };
     notifications: {
       isLoading: boolean;
       openRecruitments: UserShopDetailRecruitment[];
@@ -39,8 +33,6 @@ export type UserShopDetailViewProps = {
   };
   actions: {
     onBack: () => void;
-    onShowLineQr: AsyncAction;
-    onSendLineInvite: AsyncAction;
     onSendRecruitments: AsyncAction;
     onSendCurrentShift: AsyncAction;
     onChangeShiftTarget: (isShiftTarget: boolean) => void | Promise<void>;
@@ -75,14 +67,7 @@ export function UserShopDetailView({
       )}
 
       <UserShopDetailPageSection>
-        <UserShopLineSection
-          data={data}
-          membership={membership}
-          isReadOnly={isStoreReadOnly}
-          {...state.line}
-          onShowQr={actions.onShowLineQr}
-          onSendInvite={actions.onSendLineInvite}
-        />
+        <UserShopLineSection data={data} membership={membership} />
       </UserShopDetailPageSection>
 
       <UserShopDetailPageSection sectionRef={notificationSectionRef} onFocusCapture={onNotificationSectionFocus}>

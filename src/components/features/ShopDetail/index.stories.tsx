@@ -1,6 +1,6 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { expect, fireEvent, screen, userEvent, waitFor, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
 import { createDeferred } from "@/src/devtools/createDeferred";
@@ -14,6 +14,7 @@ import type {
   ShopStaffMembershipData,
   ShopStaffMembershipRemovalPreview,
 } from "./types";
+import { buildShopStaffRemovalPreviewKey } from "./useShopStaffMembershipController";
 
 const shop: ShopDetailData = {
   id: "shop-shibuya",
@@ -92,7 +93,7 @@ const membershipData: ShopStaffMembershipData = {
   preservedStaffs: [],
 };
 
-const readyRemovalPreview: ShopStaffMembershipRemovalPreview = {
+const readyRemovalPreview: Extract<ShopStaffMembershipRemovalPreview, { kind: "ready" }> = {
   kind: "ready",
   removals: [
     {
@@ -126,6 +127,7 @@ const meta = {
   parameters: { layout: "padded" },
   args: {
     shop,
+    organizationSettingsShopId: "shop-context",
     staffs,
     settingsDialog: closedSettingsDialog,
     isDeleting: false,
@@ -189,6 +191,16 @@ export const DeletionUnavailable: Story = {
       canDelete: false,
       deleteDisabledReason: "最後の店舗は削除できません。",
     },
+  },
+};
+
+export const OrganizationSettingsLinkBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const organizationSettingsLink = within(canvasElement).getByRole("link", {
+      name: "こちら（組織設定の設定タブを開く）",
+    });
+    await expect(organizationSettingsLink).toHaveAttribute("href", "/settings?shop=shop-context&tab=settings");
   },
 };
 
@@ -408,6 +420,7 @@ export const StaffMembershipAdditionBehavior: Story = {
     await expect(content.queryByText("jiro.suzuki@example.com")).not.toBeInTheDocument();
     await userEvent.click(candidate);
     await expect(content.getByText(/案内を予約します/)).toBeInTheDocument();
+    await expect(content.queryByText("今日以降のシフト割り当てから削除します。")).not.toBeInTheDocument();
     await userEvent.click(content.getByRole("button", { name: "変更する" }));
 
     await waitFor(() => {
@@ -436,15 +449,23 @@ export const StaffMembershipRemovalBehavior: Story = {
         name: "田中 太郎を所属スタッフにする",
       }),
     );
-    await expect(content.getByText("スタッフを外すと起きること")).toBeInTheDocument();
-    await userEvent.click(content.getByRole("button", { name: "影響を確認する" }));
-
-    await expect(await content.findByText("今日以降のシフト割り当て2件を削除します")).toBeInTheDocument();
-    await expect(content.getByText("今日以降のシフト割り当て：2件")).toBeInTheDocument();
-    await expect(canvas.getByTestId("staff-membership-preview-request-count")).toHaveTextContent("1");
+    await expect(content.getByText("この店舗から外す")).toBeInTheDocument();
+    await expect(content.getByText("今日以降のシフト割り当てから削除します。")).toBeInTheDocument();
+    await expect(
+      content.getByText("この店舗へのシフト通知は送られなくなります。組織のLINE連携は残ります。"),
+    ).toBeInTheDocument();
+    await expect(content.getByRole("checkbox", { name: "田中 太郎を所属スタッフにする" })).toHaveAccessibleDescription(
+      /今日以降のシフト割り当てから削除します。.*この店舗へのシフト通知は送られなくなります。組織のLINE連携は残ります。/,
+    );
+    await expect(content.queryByText(/過去のシフト記録/)).not.toBeInTheDocument();
+    await expect(content.queryByText(/シフト割り当て.*件/)).not.toBeInTheDocument();
+    await expect(screen.queryAllByRole("alertdialog")).toHaveLength(0);
+    await waitFor(() => expect(canvas.getByTestId("staff-membership-preview-request-count")).toHaveTextContent("1"));
     await expect(canvas.getByTestId("staff-membership-change-inputs")).toHaveTextContent("[]");
 
-    await userEvent.click(content.getByRole("button", { name: "スタッフを外して変更する" }));
+    const submitButton = content.getByRole("button", { name: "変更する" });
+    await waitFor(() => expect(submitButton).toBeEnabled());
+    await userEvent.click(submitButton);
 
     await waitFor(() => {
       const inputs = JSON.parse(
@@ -456,29 +477,32 @@ export const StaffMembershipRemovalBehavior: Story = {
   },
 };
 
-export const StaffMembershipRemovalBackBehavior: Story = {
+export const StaffMembershipRemovalToggleBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   render: () => <MembershipDialogHarness />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
+  play: async () => {
     const dialog = await screen.findByRole("dialog", {
       name: "所属スタッフを変更",
     });
     const content = within(dialog);
-    await userEvent.click(content.getByRole("checkbox", { name: "田中 太郎を所属スタッフにする" }));
-    await userEvent.click(content.getByRole("button", { name: "影響を確認する" }));
-    await userEvent.click(await content.findByRole("button", { name: "戻る" }));
-
-    const removedPerson = await content.findByRole("checkbox", {
+    const removedPerson = content.getByRole("checkbox", {
       name: "田中 太郎を所属スタッフにする",
     });
+
+    await userEvent.click(removedPerson);
     await expect(removedPerson).not.toBeChecked();
-    await waitFor(() => expect(removedPerson).toHaveFocus());
-    await expect(canvas.getByTestId("staff-membership-change-inputs")).toHaveTextContent("[]");
+    await expect(content.getByText("今日以降のシフト割り当てから削除します。")).toBeInTheDocument();
+
+    await userEvent.click(removedPerson);
+    await expect(removedPerson).toBeChecked();
+    await waitFor(() =>
+      expect(content.queryByText("今日以降のシフト割り当てから削除します。")).not.toBeInTheDocument(),
+    );
+    await expect(content.getByRole("button", { name: "変更する" })).toBeDisabled();
   },
 };
 
-export const StaffMembershipRemovalConfirmation: Story = {
+export const StaffMembershipRemovalState: Story = {
   render: () => <MembershipDialogHarness />,
   play: async () => {
     const dialog = await screen.findByRole("dialog", {
@@ -486,16 +510,14 @@ export const StaffMembershipRemovalConfirmation: Story = {
     });
     const content = within(dialog);
     await userEvent.click(content.getByRole("checkbox", { name: "田中 太郎を所属スタッフにする" }));
-    await userEvent.click(content.getByRole("button", { name: "影響を確認する" }));
-    await expect(await content.findByText("今日以降のシフト割り当て2件を削除します")).toBeInTheDocument();
+    await content.findByText("今日以降のシフト割り当てから削除します。");
   },
 };
 
-export const StaffMembershipRemovalConfirmationMobile: Story = {
+export const StaffMembershipRemovalStateMobile: Story = {
+  ...StaffMembershipRemovalState,
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
-  render: () => <MembershipDialogHarness />,
-  play: StaffMembershipRemovalConfirmation.play,
 };
 
 export const StaffMembershipRemoveAllWarningBehavior: Story = {
@@ -575,11 +597,30 @@ export const StaffMembershipTooManyAssignmentsBehavior: Story = {
         name: "田中 太郎を所属スタッフにする",
       }),
     );
-    await userEvent.click(content.getByRole("button", { name: "影響を確認する" }));
 
-    await expect(content.getByText(/この画面では変更できません/)).toBeInTheDocument();
-    await expect(content.getByRole("button", { name: "影響を確認する" })).toBeDisabled();
+    await expect(await content.findByText(/この画面では変更できません/)).toBeInTheDocument();
+    await expect(content.getByRole("button", { name: "変更する" })).toBeDisabled();
     await expect(canvas.getByTestId("staff-membership-change-inputs")).toHaveTextContent("[]");
+  },
+};
+
+export const StaffMembershipPreviewLoadingBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <MembershipDialogHarness isPreviewLoading />,
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", {
+      name: "所属スタッフを変更",
+    });
+    const content = within(dialog);
+    const removedPerson = content.getByRole("checkbox", {
+      name: "田中 太郎を所属スタッフにする",
+    });
+
+    await userEvent.click(removedPerson);
+    await expect(content.getByText("今日以降のシフト割り当てから削除します。")).toBeInTheDocument();
+    await expect(content.getByRole("button", { name: "変更する" })).toBeDisabled();
+    await expect(content.getByRole("button", { name: "キャンセル" })).toBeEnabled();
+    await expect(removedPerson).toBeEnabled();
   },
 };
 
@@ -663,14 +704,15 @@ export const StaffMembershipRemovalRejectedResultBehavior: Story = {
         name: "田中 太郎を所属スタッフにする",
       }),
     );
-    await userEvent.click(content.getByRole("button", { name: "影響を確認する" }));
-    await userEvent.click(await content.findByRole("button", { name: "スタッフを外して変更する" }));
+    const submitButton = content.getByRole("button", { name: "変更する" });
+    await waitFor(() => expect(submitButton).toBeEnabled());
+    await userEvent.click(submitButton);
 
     await expect(content.getByText(/シフトの割り当てが変更されました/)).toBeInTheDocument();
     await expect(canvas.getByTestId("staff-membership-removal-rejected-inputs")).toHaveTextContent("requestId");
 
-    await userEvent.click(content.getByRole("button", { name: "影響を確認する" }));
-    await userEvent.click(await content.findByRole("button", { name: "スタッフを外して変更する" }));
+    await waitFor(() => expect(submitButton).toBeEnabled());
+    await userEvent.click(submitButton);
     const inputs = JSON.parse(
       canvas.getByTestId("staff-membership-removal-rejected-inputs").textContent ?? "[]",
     ) as ShopStaffMembershipChangeInput[];
@@ -687,6 +729,7 @@ function InteractionHarness() {
       <output aria-label="操作結果">{result}</output>
       <ShopDetailView
         shop={shop}
+        organizationSettingsShopId="shop-context"
         staffs={staffs}
         settingsDialog={{
           isOpen: isSettingsDialogOpen,
@@ -735,6 +778,7 @@ function SettingsSubmitLockHarness() {
       </button>
       <ShopDetailView
         shop={shop}
+        organizationSettingsShopId="shop-context"
         staffs={staffs}
         settingsDialog={{
           isOpen: isSettingsDialogOpen,
@@ -756,32 +800,66 @@ function SettingsSubmitLockHarness() {
 function MembershipDialogHarness({
   data = membershipData,
   preview = readyRemovalPreview,
+  isPreviewLoading = false,
 }: {
   data?: ShopStaffMembershipData | null;
-  preview?: ShopStaffMembershipRemovalPreview | null;
+  preview?: ShopStaffMembershipRemovalPreview;
+  isPreviewLoading?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(true);
-  const [previewRequested, setPreviewRequested] = useState(false);
+  const [previewKey, setPreviewKey] = useState<string>();
+  const previewKeyRef = useRef<string | undefined>(undefined);
   const [previewRequestCount, setPreviewRequestCount] = useState(0);
   const [inputs, setInputs] = useState<ShopStaffMembershipChangeInput[]>([]);
-  const controller: ShopStaffMembershipDialogController = {
-    data,
-    removalPreview: previewRequested ? preview : undefined,
-    isPreviewLoading: false,
-    isChanging: false,
-    requestRemovalPreview: () => {
-      setPreviewRequested(true);
+  const removalPreviewState: ShopStaffMembershipDialogController["removalPreviewState"] = useMemo(
+    () =>
+      !previewKey
+        ? { kind: "idle" }
+        : isPreviewLoading
+          ? { kind: "loading", key: previewKey }
+          : preview.kind === "ready"
+            ? { kind: "ready", key: previewKey, preview }
+            : preview.kind === "tooMany"
+              ? { kind: "tooMany", key: previewKey, preview }
+              : { kind: "stale", key: previewKey, preview },
+    [isPreviewLoading, preview, previewKey],
+  );
+  const ensureRemovalPreview = useCallback(
+    (
+      personIds: Parameters<ShopStaffMembershipDialogController["ensureRemovalPreview"]>[0],
+      expectedMembershipFingerprint: string,
+    ) => {
+      const nextKey = buildShopStaffRemovalPreviewKey(personIds, expectedMembershipFingerprint);
+      if (previewKeyRef.current === nextKey) return true;
+      previewKeyRef.current = nextKey;
+      setPreviewKey(nextKey);
       setPreviewRequestCount((count) => count + 1);
       return true;
     },
-    clearPreview: () => setPreviewRequested(false),
-    clearError: () => {},
-    submitChange: async (input) => {
-      setInputs((current) => [...current, input]);
-      setIsOpen(false);
-      return "succeeded";
-    },
-  };
+    [],
+  );
+  const clearRemovalPreview = useCallback(() => {
+    previewKeyRef.current = undefined;
+    setPreviewKey(undefined);
+  }, []);
+  const clearError = useCallback(() => {}, []);
+  const submitChange = useCallback(async (input: ShopStaffMembershipChangeInput) => {
+    setInputs((current) => [...current, input]);
+    setIsOpen(false);
+    return "succeeded" as const;
+  }, []);
+  const controller = useMemo<ShopStaffMembershipDialogController>(
+    () => ({
+      data,
+      removalPreviewState,
+      isChanging: false,
+      ensureRemovalPreview,
+      clearRemovalPreview,
+      clearError,
+      submitChange,
+    }),
+    [clearError, clearRemovalPreview, data, ensureRemovalPreview, removalPreviewState, submitChange],
+  );
 
   return (
     <>
@@ -809,30 +887,33 @@ function MembershipUnknownResultHarness() {
   const [isOpen, setIsOpen] = useState(true);
   const [data, setData] = useState(membershipData);
   const [inputs, setInputs] = useState<ShopStaffMembershipChangeInput[]>([]);
-  const controller: ShopStaffMembershipDialogController = {
-    data,
-    removalPreview: undefined,
-    isPreviewLoading: false,
-    isChanging: false,
-    requestRemovalPreview: () => false,
-    clearPreview: () => {},
-    clearError: () => {},
-    submitChange: async (input) => {
-      setInputs((current) => [...current, input]);
-      setData((current) =>
-        current.membershipFingerprint === "c".repeat(64)
-          ? current
-          : {
-              ...current,
-              membershipFingerprint: "c".repeat(64),
-              people: current.people.map((person) =>
-                person.personId === candidatePersonId ? { ...person, isSelected: true } : person,
-              ),
-            },
-      );
-      return "unknown";
-    },
-  };
+  const submitChange = useCallback(async (input: ShopStaffMembershipChangeInput) => {
+    setInputs((current) => [...current, input]);
+    setData((current) =>
+      current.membershipFingerprint === "c".repeat(64)
+        ? current
+        : {
+            ...current,
+            membershipFingerprint: "c".repeat(64),
+            people: current.people.map((person) =>
+              person.personId === candidatePersonId ? { ...person, isSelected: true } : person,
+            ),
+          },
+    );
+    return "unknown" as const;
+  }, []);
+  const controller = useMemo<ShopStaffMembershipDialogController>(
+    () => ({
+      data,
+      removalPreviewState: { kind: "idle" },
+      isChanging: false,
+      ensureRemovalPreview: () => false,
+      clearRemovalPreview: () => {},
+      clearError: () => {},
+      submitChange,
+    }),
+    [data, submitChange],
+  );
 
   return (
     <>
@@ -856,21 +937,25 @@ function MembershipUnknownResultHarness() {
 function MembershipRejectedResultHarness() {
   const [inputs, setInputs] = useState<ShopStaffMembershipChangeInput[]>([]);
   const [errorMessage, setErrorMessage] = useState<string>();
-  const controller: ShopStaffMembershipDialogController = {
-    data: membershipData,
-    removalPreview: undefined,
-    isPreviewLoading: false,
-    isChanging: false,
-    errorMessage,
-    requestRemovalPreview: () => false,
-    clearPreview: () => {},
-    clearError: () => setErrorMessage(undefined),
-    submitChange: async (input) => {
-      setInputs((current) => [...current, input]);
-      setErrorMessage("サーバーが変更を拒否しました。");
-      return "rejected";
-    },
-  };
+  const clearError = useCallback(() => setErrorMessage(undefined), []);
+  const submitChange = useCallback(async (input: ShopStaffMembershipChangeInput) => {
+    setInputs((current) => [...current, input]);
+    setErrorMessage("サーバーが変更を拒否しました。");
+    return "rejected" as const;
+  }, []);
+  const controller = useMemo<ShopStaffMembershipDialogController>(
+    () => ({
+      data: membershipData,
+      removalPreviewState: { kind: "idle" },
+      isChanging: false,
+      errorMessage,
+      ensureRemovalPreview: () => false,
+      clearRemovalPreview: () => {},
+      clearError,
+      submitChange,
+    }),
+    [clearError, errorMessage, submitChange],
+  );
 
   return (
     <>
@@ -890,28 +975,49 @@ function MembershipRejectedResultHarness() {
 }
 
 function MembershipRemovalRejectedResultHarness() {
-  const [previewRequested, setPreviewRequested] = useState(false);
+  const [previewKey, setPreviewKey] = useState<string>();
+  const previewKeyRef = useRef<string | undefined>(undefined);
   const [inputs, setInputs] = useState<ShopStaffMembershipChangeInput[]>([]);
   const [errorMessage, setErrorMessage] = useState<string>();
-  const controller: ShopStaffMembershipDialogController = {
-    data: membershipData,
-    removalPreview: previewRequested ? readyRemovalPreview : undefined,
-    isPreviewLoading: false,
-    isChanging: false,
-    errorMessage,
-    requestRemovalPreview: () => {
-      setPreviewRequested(true);
+  const ensureRemovalPreview = useCallback(
+    (
+      personIds: Parameters<ShopStaffMembershipDialogController["ensureRemovalPreview"]>[0],
+      expectedMembershipFingerprint: string,
+    ) => {
+      const nextKey = buildShopStaffRemovalPreviewKey(personIds, expectedMembershipFingerprint);
+      if (previewKeyRef.current === nextKey) return true;
+      previewKeyRef.current = nextKey;
+      setPreviewKey(nextKey);
       setErrorMessage(undefined);
       return true;
     },
-    clearPreview: () => setPreviewRequested(false),
-    clearError: () => setErrorMessage(undefined),
-    submitChange: async (input) => {
-      setInputs((current) => [...current, input]);
-      setErrorMessage("今日以降のシフトの割り当てが変更されました。");
-      return "rejected";
-    },
-  };
+    [],
+  );
+  const clearRemovalPreview = useCallback(() => {
+    previewKeyRef.current = undefined;
+    setPreviewKey(undefined);
+  }, []);
+  const clearError = useCallback(() => setErrorMessage(undefined), []);
+  const submitChange = useCallback(async (input: ShopStaffMembershipChangeInput) => {
+    setInputs((current) => [...current, input]);
+    setErrorMessage("今日以降のシフトの割り当てが変更されました。");
+    return "rejected" as const;
+  }, []);
+  const controller = useMemo<ShopStaffMembershipDialogController>(
+    () => ({
+      data: membershipData,
+      removalPreviewState: previewKey
+        ? { kind: "ready", key: previewKey, preview: readyRemovalPreview }
+        : { kind: "idle" },
+      isChanging: false,
+      errorMessage,
+      ensureRemovalPreview,
+      clearRemovalPreview,
+      clearError,
+      submitChange,
+    }),
+    [clearError, clearRemovalPreview, ensureRemovalPreview, errorMessage, previewKey, submitChange],
+  );
 
   return (
     <>

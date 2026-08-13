@@ -8,13 +8,14 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   changeMemberships: vi.fn(),
   updateProfile: vi.fn(),
+  useLineActions: vi.fn(),
   featureVisibilityAtom: Symbol("featureVisibilityAtom"),
   featureVisibility: {
     organizationSettingsNavigation: true,
     billing: true,
     shopMembershipAddition: true,
   },
-  managerOptions: undefined as undefined | { onPersonRemoved: (personId: string) => void },
+  removalOptions: undefined as undefined | { onPersonRemoved: (personId: string) => void },
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -41,11 +42,13 @@ vi.mock("./UserDetailView", () => ({
     actions: {
       onBack: () => void;
       onOpenBasic: () => void;
+      onOpenLine: () => void;
       onOpenAddShop: () => void;
       onOpenShop: (shopId: string) => void;
       onClosePanel: () => void;
       onUpdateProfile: (data: { name: string; email: string }) => void | Promise<void>;
       onChangeMemberships: (input: UserMembershipChangeInput) => void;
+      onManageManagers: () => void;
     };
   }) => (
     <div>
@@ -55,6 +58,9 @@ vi.mock("./UserDetailView", () => ({
       </button>
       <button type="button" onClick={actions.onOpenBasic}>
         スタッフ情報を開く
+      </button>
+      <button type="button" onClick={actions.onOpenLine}>
+        LINE連携を開く
       </button>
       <button type="button" onClick={actions.onOpenAddShop}>
         店舗追加を開く
@@ -71,12 +77,19 @@ vi.mock("./UserDetailView", () => ({
       <button type="button" onClick={() => actions.onChangeMemberships(membershipChangeInput)}>
         所属店舗を変更する
       </button>
+      <button type="button" onClick={actions.onManageManagers}>
+        管理者設定を開く
+      </button>
     </div>
   ),
 }));
 
 vi.mock("./useUserProfileUpdate", () => ({
   useUserProfileUpdate: () => ({ isUpdating: false, update: mocks.updateProfile }),
+}));
+
+vi.mock("./useUserLineActions", () => ({
+  useUserLineActions: mocks.useLineActions,
 }));
 
 vi.mock("./useUserMembershipActions", () => ({
@@ -86,18 +99,12 @@ vi.mock("./useUserMembershipActions", () => ({
   }),
 }));
 
-vi.mock("./useUserManagerActions", () => ({
-  useUserManagerActions: (options: { onPersonRemoved: (personId: string) => void }) => {
-    mocks.managerOptions = options;
+vi.mock("./useUserRemovalActions", () => ({
+  useUserRemovalActions: (options: { onPersonRemoved: (personId: string) => void }) => {
+    mocks.removalOptions = options;
     return {
       dialog: null,
-      isAssignmentConfirmationOpen: false,
-      isAssigningManager: false,
       isRemoving: false,
-      onRequestManagerAssignment: vi.fn(),
-      onCancelManagerAssignment: vi.fn(),
-      onAssignManager: vi.fn(),
-      onRequestRemoveManagerRole: vi.fn(),
       onRequestRemovePerson: vi.fn(),
       onConfirmRemoval: vi.fn(),
       onCloseDialog: vi.fn(),
@@ -127,10 +134,21 @@ beforeEach(() => {
   mocks.navigate.mockReset();
   mocks.changeMemberships.mockReset();
   mocks.updateProfile.mockReset();
+  mocks.useLineActions.mockReset();
   mocks.changeMemberships.mockResolvedValue(false);
   mocks.updateProfile.mockResolvedValue(false);
+  mocks.useLineActions.mockReturnValue({
+    authorizeUrl: null,
+    showQr: false,
+    isQrLoading: false,
+    isSendingInvite: false,
+    isDisconnecting: false,
+    onShowQr: vi.fn(),
+    onSendInvite: vi.fn(),
+    onDisconnect: vi.fn(),
+  });
   mocks.featureVisibility.shopMembershipAddition = true;
-  mocks.managerOptions = undefined;
+  mocks.removalOptions = undefined;
 });
 
 describe("UserDetail", () => {
@@ -167,10 +185,11 @@ describe("UserDetail", () => {
     expect(mocks.navigate).not.toHaveBeenCalled();
   });
 
-  it("基本情報と店舗追加のパネルをURL検索条件で開く", () => {
+  it("基本情報、LINE連携、店舗追加のパネルをURL検索条件で開く", () => {
     render(<UserDetail data={data} selectedShopId={null} returnTo="dashboard" visibleUserCount={10} />);
 
     fireEvent.click(screen.getByRole("button", { name: "スタッフ情報を開く" }));
+    fireEvent.click(screen.getByRole("button", { name: "LINE連携を開く" }));
     fireEvent.click(screen.getByRole("button", { name: "店舗追加を開く" }));
 
     const openBasicNavigation = mocks.navigate.mock.calls[0]?.[0];
@@ -181,7 +200,15 @@ describe("UserDetail", () => {
       returnTo: "dashboard",
     });
 
-    const openAddShopNavigation = mocks.navigate.mock.calls[1]?.[0];
+    const openLineNavigation = mocks.navigate.mock.calls[1]?.[0];
+    expect(openLineNavigation).toMatchObject({ to: ".", replace: true, resetScroll: false });
+    expect(openLineNavigation.search({ shop: "shop-a", returnTo: "dashboard" })).toEqual({
+      shop: "shop-a",
+      panel: "line",
+      returnTo: "dashboard",
+    });
+
+    const openAddShopNavigation = mocks.navigate.mock.calls[2]?.[0];
     expect(openAddShopNavigation).toMatchObject({ to: ".", replace: true, resetScroll: false });
     expect(openAddShopNavigation.search({ shop: "shop-a", returnTo: "dashboard" })).toEqual({
       shop: "shop-a",
@@ -216,6 +243,17 @@ describe("UserDetail", () => {
       },
     });
     expect(mocks.navigate.mock.calls[0]?.[0]).not.toHaveProperty("replace");
+  });
+
+  it("店舗所属がない人物でも選択中店舗から管理者設定を開く", () => {
+    render(<UserDetail data={data} selectedShopId="shop-a" returnTo="dashboard" visibleUserCount={10} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "管理者設定を開く" }));
+
+    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
+      to: "/settings/managers",
+      search: { shop: "shop-a" },
+    });
   });
 
   it("店舗所属追加が非公開なら追加パネルとmutationを開始しない", async () => {
@@ -314,7 +352,7 @@ describe("UserDetail", () => {
     const { rerender } = render(
       <UserDetail data={data} selectedShopId="shop-a" activePanel="basic" returnTo="dashboard" visibleUserCount={10} />,
     );
-    const previousRemovalCallback = mocks.managerOptions?.onPersonRemoved;
+    const previousRemovalCallback = mocks.removalOptions?.onPersonRemoved;
     const nextData: UserDetailData = {
       ...data,
       person: { ...data.person, id: "person-2" as UserDetailData["person"]["id"] },
@@ -337,7 +375,7 @@ describe("UserDetail", () => {
   it("Dashboard起点で人物を削除すると削除済み人物へfocusせずDashboardへ戻る", () => {
     render(<UserDetail data={data} selectedShopId="shop-a" returnTo="dashboard" visibleUserCount={30} />);
 
-    mocks.managerOptions?.onPersonRemoved("person-1");
+    mocks.removalOptions?.onPersonRemoved("person-1");
 
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: "/dashboard",
@@ -351,7 +389,7 @@ describe("UserDetail", () => {
       <UserDetail data={{ ...data, isSelf: true }} selectedShopId="shop-a" returnTo="settings" visibleUserCount={30} />,
     );
 
-    mocks.managerOptions?.onPersonRemoved("person-1");
+    mocks.removalOptions?.onPersonRemoved("person-1");
 
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: "/dashboard",

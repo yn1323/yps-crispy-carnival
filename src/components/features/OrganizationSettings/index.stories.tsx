@@ -9,7 +9,7 @@ const actions = {
   onBackToDashboard: fn(),
   onSelectOrganization: fn(),
   onUpdateOrganizationName: fn(),
-  onInviteManager: fn(),
+  onManageManagers: fn(),
   onOpenUser: fn(),
   onAddShop: fn(),
   onOpenShop: fn(),
@@ -66,7 +66,7 @@ const baseArgs: OrganizationSettingsViewProps = {
   freeManagerExchangeCandidates: [],
   canUpdateOrganizationName: true,
   canCreateOrganization: true,
-  // 既存Storyは公開済みの状態を表す。未公開の描画は`ダークローンチ`のStoryで確認する。
+  // 店舗追加だけはcanonical LINE rollout gateと同期し、ほかの現行導線は公開する。
   features: { organizationCreation: true, shopAddition: true, billing: true, managerInvitation: true },
   people: [
     {
@@ -139,11 +139,11 @@ const baseArgs: OrganizationSettingsViewProps = {
   planPrices: {
     pro: {
       status: "available",
-      value: { currency: "jpy", unitAmount: 3000, interval: "month", intervalCount: 1 },
+      value: { currency: "jpy", unitAmount: 3000, interval: "month", intervalCount: 1, taxBehavior: "inclusive" },
     },
     business: {
       status: "available",
-      value: { currency: "jpy", unitAmount: 6000, interval: "month", intervalCount: 1 },
+      value: { currency: "jpy", unitAmount: 6000, interval: "month", intervalCount: 1, taxBehavior: "exclusive" },
     },
   },
   canAddShop: true,
@@ -259,11 +259,6 @@ export const LoadingPeopleMultipleOrganizations: Story = {
   ),
 };
 
-export const LoadingClosedFeatures: Story = {
-  name: "読み込み｜未公開導線なし",
-  render: () => <OrganizationSettingsSkeleton defaultTab="billing" />,
-};
-
 export const MobileLoadingPeople: Story = {
   name: "読み込み｜スタッフ・モバイル",
   tags: ["vrt-mobile1"],
@@ -302,20 +297,6 @@ export const MobileLoadingPeopleMultipleOrganizations: Story = {
 };
 
 export const Users: Story = { name: "スタッフ｜通常" };
-
-export const UsageSummaryBeforeTabs: Story = {
-  name: "画面全体｜利用状況をタブの上に表示（操作確認）",
-  parameters: { screenshot: { skip: true } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const usageSection = canvas.getByRole("region", { name: "組織の利用状況" });
-    const staffTab = canvas.getByRole("tab", { name: "スタッフ" });
-
-    await expect(usageSection).toBeVisible();
-    await expect(within(usageSection).getByRole("meter", { name: "利用人数 8 / 20" })).toBeVisible();
-    await expect(usageSection.compareDocumentPosition(staffTab) & 4).toBeTruthy();
-  },
-};
 
 export const StaffWithoutShop: Story = {
   name: "スタッフ｜店舗未所属",
@@ -392,8 +373,8 @@ export const UserNavigationBehavior: Story = {
   },
 };
 
-export const ManagerRoleRemoval: Story = {
-  name: "スタッフ｜管理者権限を外す",
+export const ManagerStatus: Story = {
+  name: "スタッフ｜管理者状態を表示",
   args: {
     people: [
       {
@@ -436,42 +417,6 @@ export const LazyTabMountBehavior: Story = {
 };
 
 export const Settings: Story = { name: "設定｜通常", args: { defaultTab: "settings" } };
-
-const darkLaunchArgs = {
-  features: { organizationCreation: false, shopAddition: false, billing: false, managerInvitation: false },
-} satisfies Partial<OrganizationSettingsViewProps>;
-
-export const DarkLaunchSettings: Story = {
-  name: "設定｜ダークローンチ中",
-  args: { defaultTab: "settings", ...darkLaunchArgs },
-};
-
-export const DarkLaunchShops: Story = {
-  name: "店舗｜ダークローンチ中",
-  args: { defaultTab: "shops", ...darkLaunchArgs },
-};
-
-export const DarkLaunchHiddenEntrypointsBehavior: Story = {
-  name: "画面全体｜ダークローンチ中の未公開導線（操作確認）",
-  parameters: { screenshot: { skip: true } },
-  args: { defaultTab: "shops", ...darkLaunchArgs },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-
-    await expect(canvas.queryByRole("tab", { name: "プランと支払い" })).not.toBeInTheDocument();
-    await expect(canvas.queryByRole("button", { name: "店舗を追加する" })).not.toBeInTheDocument();
-
-    await userEvent.click(canvas.getByRole("tab", { name: "スタッフ" }));
-    await expect(
-      canvas.queryByRole("button", { name: /管理者を招待|次の管理者を招待|ログイン案内を再送/ }),
-    ).not.toBeInTheDocument();
-
-    await userEvent.click(canvas.getByRole("tab", { name: "設定" }));
-    await expect(canvas.queryByRole("button", { name: "新しい組織を作る" })).not.toBeInTheDocument();
-    // 組織削除は退会導線のため、ダークローンチ中も残す。
-    await expect(canvas.getByRole("button", { name: /^削除する$/ })).toBeEnabled();
-  },
-};
 
 export const SettingsDeletionUnavailable: Story = {
   name: "設定｜削除不可",
@@ -538,10 +483,7 @@ export const DisabledActionReasonsBehavior: Story = {
   args: disabledActionReasonArgs,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expectDisabledActionDescription(
-      canvas.getByRole("button", { name: "管理者を招待" }),
-      "閲覧のみの管理者は、管理者を招待できません。",
-    );
+    await expect(canvas.getByRole("button", { name: "管理者を変更" })).toBeEnabled();
     await expectDisabledActionDescription(
       canvas.getByRole("button", { name: "組織名を変更" }),
       "閲覧のみの管理者は、組織名を変更できません。",
@@ -722,6 +664,20 @@ export const ShopCapacityReachedBehavior: Story = {
   },
 };
 
+export const ShopAdditionHiddenBehavior: Story = {
+  name: "店舗｜rollout gate閉鎖（操作確認）",
+  parameters: { screenshot: { skip: true } },
+  args: {
+    defaultTab: "shops",
+    features: { ...baseArgs.features, shopAddition: false },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("button", { name: "店舗を追加する" })).not.toBeInTheDocument();
+    await expect(canvas.getByRole("heading", { name: /全店舗/ })).toBeInTheDocument();
+  },
+};
+
 export const InitialPaymentPending: Story = {
   name: "プランと支払い｜初回支払い確認中",
   args: {
@@ -877,6 +833,38 @@ export const Restricted: Story = {
   },
 };
 
+export const RestrictedWithoutLimitPlan: Story = {
+  name: "プランと支払い｜トライアル終了後の利用停止",
+  args: {
+    ...Restricted.args,
+    billing: billing({
+      state: "restricted",
+      currentPlan: null,
+      previousPlan: undefined,
+      targetPlan: undefined,
+      limitPlan: undefined,
+      peopleUsage: { current: 7, max: 0 },
+      shopUsage: { current: 2, max: 0 },
+      managerUsage: { current: 2, max: 0 },
+      requiredReductions: undefined,
+      blockedReason: "現在の契約状態では業務データを更新できません。",
+      nextEvent: undefined,
+      hasStripeCustomer: false,
+      canManagePlan: true,
+      canUpdatePaymentMethod: false,
+      canScheduleFree: false,
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryAllByRole("meter")).toHaveLength(0);
+    await expect(canvas.getByText("利用停止中はプラン上限を適用していません")).toBeInTheDocument();
+    await expect(
+      canvas.getByText("データは保持されています。ProまたはBusinessを契約すると利用を再開できます。"),
+    ).toBeInTheDocument();
+  },
+};
+
 export const ScheduledFree: Story = {
   name: "プランと支払い｜無料へ変更予定",
   args: {
@@ -910,6 +898,19 @@ export const MobileUsers: Story = {
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: { defaultTab: "people" },
+};
+
+export const MobilePendingInvitations: Story = {
+  name: "スタッフ｜招待中を含む利用状況・モバイル",
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  args: {
+    defaultTab: "people",
+    billing: billing({
+      peopleUsage: { current: 8, max: 20, pendingInvitations: 1 },
+      managerUsage: { current: 2, max: 5, pendingInvitations: 1 },
+    }),
+  },
 };
 
 export const MobileShops: Story = {

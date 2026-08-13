@@ -1,13 +1,16 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import { NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS } from "../constants";
+import { tombstoneLineProviderUserIfUnreferenced } from "../line/service";
 import {
   cancelNotificationForInactiveOrganization,
   cancelNotificationForInactiveShop,
 } from "../notificationOutbox/mutations";
+import { type DeletionCleanupTarget, getDeletionCleanupJobForTarget } from "./service";
 import { deletedLineUserId } from "./tombstone";
+import { deletionCleanupTargetValidator } from "./validators";
 
 const CLEANUP_BATCH_SIZE = 100;
 const CLEANUP_JOB_LEASE_MS = 60_000;
@@ -51,6 +54,7 @@ const ORGANIZATION_PHASES = [
   "organizationOutboxPending",
   "organizationOutboxProcessing",
   "organizationShops",
+  "organizationLineLinks",
   "organizationPeople",
   "organizationMembers",
   "organizationInvitationsIssued",
@@ -91,6 +95,7 @@ const ORGANIZATION_VERIFICATION_RESOURCES = [
   "organizationShopLineLinkTokens",
   "organizationShopLegalConsentTokens",
   "organizationShopRegistrationLinks",
+  "organizationLineLinks",
   "organizationPeople",
   "organizationMembers",
   "organizationInvitationsIssued",
@@ -141,6 +146,52 @@ type ResourceResult = {
   cursor?: string;
   delayMs?: number;
 };
+
+/** operator/coordinator retryを、対象とversionが一致するactionRequired jobだけへ限定する。 */
+export async function retryActionRequiredDeletionCleanup(
+  ctx: Pick<MutationCtx, "db" | "scheduler">,
+  args: {
+    jobId: Id<"deletionCleanupJobs">;
+    target: DeletionCleanupTarget;
+    expectedVersion: number;
+  },
+) {
+  const job = await getDeletionCleanupJobForTarget(ctx, args);
+  if (!job) {
+    throw new ConvexError("削除処理を確認できません");
+  }
+  if (job.status !== "actionRequired" || job.version !== args.expectedVersion) {
+    throw new ConvexError("削除処理の状態が更新されています");
+  }
+
+  const now = Date.now();
+  const version = job.version + 1;
+  await ctx.db.patch(job.jobId, {
+    status: "retrying",
+    version,
+    attemptCount: 0,
+    nextRunAt: now,
+    leaseId: undefined,
+    leaseExpiresAt: undefined,
+    lastErrorCode: undefined,
+    completedAt: undefined,
+    updatedAt: now,
+  });
+  await ctx.scheduler.runAfter(0, internal.deletionCleanup.mutations.kick, { jobId: job.jobId });
+  return { status: "scheduled" as const, version };
+}
+
+export const retryActionRequired = internalMutation({
+  args: {
+    jobId: v.id("deletionCleanupJobs"),
+    target: deletionCleanupTargetValidator,
+    expectedVersion: v.number(),
+  },
+  returns: v.object({ status: v.literal("scheduled"), version: v.number() }),
+  handler: async (ctx, args) => {
+    return await retryActionRequiredDeletionCleanup(ctx, args);
+  },
+});
 
 export const kick = internalMutation({
   args: { jobId: v.id("deletionCleanupJobs") },
@@ -357,7 +408,39 @@ async function runOrganizationStep(
       }
       return page.isDone ? { phase: ORGANIZATION_SHOP_PHASES[0] } : { phase: job.phase, cursor: page.continueCursor };
     }
+    case "organizationLineLinks": {
+      // isDeletedを更新するためcursorは持ち越さず、active先頭batchを0件まで繰り返す。
+      const links = await ctx.db
+        .query("organizationPersonLineLinks")
+        .withIndex("by_organizationId_and_isDeleted", (q) =>
+          q.eq("organizationId", organizationId).eq("isDeleted", false),
+        )
+        .take(CLEANUP_BATCH_SIZE);
+      const now = Date.now();
+      for (const link of links) {
+        const person = await ctx.db.get(link.organizationPersonId);
+        if (!person || person.organizationId !== organizationId) {
+          throw new Error("organization_line_link_tenant_mismatch");
+        }
+        await ctx.db.patch(link._id, { isDeleted: true, unlinkedAt: now });
+        await ctx.db.patch(person._id, {
+          lineLinkGeneration: Math.max(person.lineLinkGeneration ?? 0, link.generation) + 1,
+          updatedAt: now,
+        });
+        await tombstoneLineProviderUserIfUnreferenced(ctx, link.lineProviderUserId);
+      }
+      return links.length < CLEANUP_BATCH_SIZE ? { phase: "organizationPeople" } : { phase: job.phase };
+    }
     case "organizationPeople": {
+      // 旧deploymentでこのphaseまで進んだjobも、人物より先に組織共通LINE連携を終了する。
+      const activeLineLink = await ctx.db
+        .query("organizationPersonLineLinks")
+        .withIndex("by_organizationId_and_isDeleted", (q) =>
+          q.eq("organizationId", organizationId).eq("isDeleted", false),
+        )
+        .first();
+      if (activeLineLink) return { phase: "organizationLineLinks" };
+
       const page = await ctx.db
         .query("organizationPeople")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
@@ -421,7 +504,7 @@ async function runOrganizationShopStep(
     const shop = shops.page[0];
     if (!shop) {
       const next = nextInSequence(ORGANIZATION_SHOP_PHASES, phase);
-      return next ? { phase: next } : { phase: "organizationPeople" };
+      return next ? { phase: next } : { phase: "organizationLineLinks" };
     }
     shopId = shop._id;
     nextShopCursor = shops.isDone ? undefined : shops.continueCursor;
@@ -442,7 +525,7 @@ async function runOrganizationShopStep(
   }
   if (nextShopCursor !== undefined) return { phase, shopCursor: nextShopCursor };
   const next = nextInSequence(ORGANIZATION_SHOP_PHASES, phase);
-  return next ? { phase: next } : { phase: "organizationPeople" };
+  return next ? { phase: next } : { phase: "organizationLineLinks" };
 }
 
 async function runShopResource(
@@ -657,6 +740,15 @@ async function verifyOrganizationCleanup(
       return page.isDone
         ? nextOrganizationVerificationStep(resource)
         : { phase: "organizationVerification", resource, cursor: page.continueCursor };
+    }
+    case "organizationLineLinks": {
+      const active = await ctx.db
+        .query("organizationPersonLineLinks")
+        .withIndex("by_organizationId_and_isDeleted", (q) =>
+          q.eq("organizationId", organizationId).eq("isDeleted", false),
+        )
+        .first();
+      return active ? { phase: "organizationLineLinks" } : nextOrganizationVerificationStep(resource);
     }
     case "organizationPeople": {
       const page = await ctx.db

@@ -51,14 +51,17 @@ const MEASURED_PUBLIC_SOURCE_PREFIXES = [
 ] as const;
 
 const PUBLIC_UNMEASURED_SOURCE_PREFIXES = [
+  "src/components/features/CommercialTransactions/",
   "src/pages/account-deletion-accepted/",
   "src/pages/cache-reset/",
+  "src/pages/commercial-transactions/",
   "src/pages/not-found/",
   "src/pages/privacy/",
   "src/pages/terms/",
   "src/routes/$.tsx",
   "src/routes/account-deletion-accepted.tsx",
   "src/routes/cache-reset.tsx",
+  "src/routes/commercial-transactions.tsx",
   "src/routes/privacy",
   "src/routes/terms",
 ] as const;

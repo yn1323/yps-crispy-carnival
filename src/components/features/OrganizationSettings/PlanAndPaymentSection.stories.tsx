@@ -6,11 +6,11 @@ import type { BillingPlanPrices, OrganizationBillingView } from "./types";
 const availablePrices: BillingPlanPrices = {
   pro: {
     status: "available",
-    value: { currency: "jpy", unitAmount: 3000, interval: "month", intervalCount: 1 },
+    value: { currency: "jpy", unitAmount: 3000, interval: "month", intervalCount: 1, taxBehavior: "inclusive" },
   },
   business: {
     status: "available",
-    value: { currency: "jpy", unitAmount: 6000, interval: "month", intervalCount: 1 },
+    value: { currency: "jpy", unitAmount: 6000, interval: "month", intervalCount: 1, taxBehavior: "exclusive" },
   },
 };
 
@@ -187,6 +187,26 @@ export const RestrictedForFree: Story = {
   },
 };
 
+export const RestrictedAfterTrial: Story = {
+  name: "トライアル終了後の利用停止",
+  args: {
+    billing: {
+      ...billing,
+      state: "restricted",
+      currentPlan: null,
+      previousPlan: undefined,
+      targetPlan: undefined,
+      limitPlan: undefined,
+      blockedReason: "現在の契約状態では業務データを更新できません。",
+      nextEvent: undefined,
+      hasStripeCustomer: false,
+      canManagePlan: true,
+      canUpdatePaymentMethod: false,
+      canScheduleFree: false,
+    },
+  },
+};
+
 export const PriceLoading: Story = {
   name: "料金を読み込み中",
   args: { planPrices: { pro: { status: "loading" }, business: { status: "loading" } } },
@@ -251,6 +271,9 @@ export const ComplimentaryBusinessHasNoBillingActionsBehavior: Story = {
     await expect(canvas.queryByRole("button", { name: /へ変更|変更予約を取り消す/ })).not.toBeInTheDocument();
     await expect(canvas.queryByRole("button", { name: "料金を再読み込み" })).not.toBeInTheDocument();
     await expect(canvas.queryByRole("button", { name: "支払い方法を見る" })).not.toBeInTheDocument();
+    await expect(canvas.getByText("次の支払日")).toBeVisible();
+    await expect(canvas.getByText("なし")).toBeVisible();
+    await expect(canvas.getByText("早期登録特典により利用料金はかかりません。")).toBeVisible();
   },
 };
 

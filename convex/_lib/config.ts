@@ -1,3 +1,4 @@
+import { ConvexError } from "convex/values";
 import { env } from "../_generated/server";
 
 export function getAppUrl(): string {
@@ -71,28 +72,6 @@ export function getDebugTrialDurationDays(): number | undefined {
   return durationDays;
 }
 
-/**
- * ダークローンチ中に公開していない導線の設定。
- *
- * 未設定は閉じた状態として扱う。新しいdeploymentと設定漏れが閉じる側に倒れる。
- * 段階解放の順序と各段階の作業は`doc/plans/2026-07-25_ダークローンチ_実装計画.md`にある。
- */
-function isFeatureEnabled(value: string | undefined): boolean {
-  return (value ?? "").trim() === "enabled";
-}
-
-export function isOrganizationCreationEnabled(): boolean {
-  return isFeatureEnabled(process.env.FEATURE_ORGANIZATION_CREATION);
-}
-
-export function isBillingEnabled(): boolean {
-  return isFeatureEnabled(process.env.FEATURE_BILLING);
-}
-
-export function isManagerInvitationEnabled(): boolean {
-  return isFeatureEnabled(process.env.FEATURE_MANAGER_INVITATION);
-}
-
 export type FeatureVisibility = {
   organizationSettingsNavigation: boolean;
   billing: boolean;
@@ -100,16 +79,32 @@ export type FeatureVisibility = {
 };
 
 /**
- * 認証後のUIが参照する公開状態を、一度のqueryで返せる形へ集約する。
- * 店舗管理は常時公開し、旧frontend互換の表示DTOにもtrueを返す。
+ * LINE連携の組織人物単位への切替完了後だけ、複数店舗のwriterを開放する。
+ * 値の推測やtruthy判定を避け、deploymentごとの明示設定がない場合は閉じる。
  */
-export function getFeatureVisibility(): FeatureVisibility {
-  const billing = isBillingEnabled();
+export function isLineCommonLinkCanonicalReady(): boolean {
+  return env.LINE_COMMON_LINK_CANONICAL_READY?.trim() === "enabled";
+}
 
+/** staged rolloutのread authority。readiness完了まで旧行を正とし、未設定は安全側に倒す。 */
+export function useCanonicalLineCommonLinkReads(): boolean {
+  return env.LINE_COMMON_LINK_CANONICAL_READS?.trim() === "enabled";
+}
+
+export function requireShopMembershipAdditionEnabled(): void {
+  if (!isLineCommonLinkCanonicalReady()) {
+    throw new ConvexError(
+      "現在、店舗や所属を追加できません。画面を再読み込みして、しばらくしてからもう一度お試しください。",
+    );
+  }
+}
+
+/** 旧frontend互換の表示DTO。複数店舗関連の入口はserver-side gateと同じ値を返す。 */
+export function getFeatureVisibility(): FeatureVisibility {
   return {
     organizationSettingsNavigation: true,
-    billing,
-    shopMembershipAddition: true,
+    billing: true,
+    shopMembershipAddition: isLineCommonLinkCanonicalReady(),
   };
 }
 

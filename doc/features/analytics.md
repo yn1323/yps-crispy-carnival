@@ -30,6 +30,9 @@ source eventはstableな`eventKey`で重複を排除し、projectionはbusiness 
 氏名、email、電話番号、LINE user ID、提出内容、通知本文、provider raw errorはAnalytics tableへ保存しません。
 個人に対応するfactには、既存のopaque IDだけを保持します。
 
+LINE連携の正本は組織人物単位ですが、`lineLinkedCount`と`lineFollowingCount`は従来どおり店舗のstaff membership数を数えます。
+同じ人物が同じ組織の複数店舗へ所属する場合、共通のLINE状態を各active membershipへ投影し、人物数へ集約しません。
+
 ## 夜間日次run
 
 通常の日次処理は、一日につき一行の**run manifest**を`analyticsRuns`へ作り、次のstageを直列に進めます。

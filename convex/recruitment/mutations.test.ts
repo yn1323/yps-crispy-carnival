@@ -114,7 +114,7 @@ describe("recruitment/mutations", () => {
       expect(state).toEqual({ recruitments: [], stats: [], operations: [], jobs: [] });
     });
 
-    it("募集作成後のaction実行前にFreeへ移行した場合は旧versionの通知を積まない", async () => {
+    it("募集作成後のaction実行前にTrial終了で利用停止した場合は旧versionの通知を積まない", async () => {
       const now = new Date("2026-01-01T00:00:00+09:00");
       vi.setSystemTime(now);
       const t = convexTest(schema, modules);
@@ -170,7 +170,7 @@ describe("recruitment/mutations", () => {
           expectedVersion: 1,
           expectedDeadlineAt: now.getTime(),
         }),
-      ).resolves.toEqual({ changed: true, stateKind: "free" });
+      ).resolves.toEqual({ changed: true, stateKind: "restricted" });
 
       await t.action(internal.notification.actions.sendRecruitmentNotificationEmails, {
         recruitmentId,

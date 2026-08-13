@@ -1,13 +1,15 @@
-import { Stack, Text } from "@chakra-ui/react";
+import { Link, Stack, Text } from "@chakra-ui/react";
+import { Link as RouterLink } from "@tanstack/react-router";
 import { DeletionActionSection } from "@/src/components/shared/DeletionActionSection";
 import type { ShopDetailData } from "./types";
 
 type Props = {
   shop: ShopDetailData;
+  organizationSettingsShopId: string;
   onRequestDelete: () => void;
 };
 
-export function ShopOtherSettingsSection({ shop, onRequestDelete }: Props) {
+export function ShopOtherSettingsSection({ shop, organizationSettingsShopId, onRequestDelete }: Props) {
   const disabledReasonId = shop.deleteDisabledReason ? `shop-detail-${shop.id}-delete-disabled-reason` : undefined;
 
   return (
@@ -25,7 +27,24 @@ export function ShopOtherSettingsSection({ shop, onRequestDelete }: Props) {
       <DeletionActionSection
         title="店舗を削除する"
         headingAs="h3"
-        description={"店舗とシフトを削除します。\n店舗所属ユーザーは削除されません。"}
+        description={
+          <>
+            店舗とシフトを削除します。
+            <br />
+            スタッフは削除されずに残るため、別店舗への付け替えが可能です。
+            <br />
+            登録情報をすべて削除したい場合は
+            <Link asChild color="teal.700" fontWeight="semibold" textDecoration="underline" textUnderlineOffset="3px">
+              <RouterLink
+                to="/settings"
+                search={{ shop: organizationSettingsShopId, tab: "settings" }}
+                aria-label="こちら（組織設定の設定タブを開く）"
+              >
+                こちら
+              </RouterLink>
+            </Link>
+          </>
+        }
         descriptionFontSize="xs"
         actionLabel="削除する"
         actionVariant="solid"

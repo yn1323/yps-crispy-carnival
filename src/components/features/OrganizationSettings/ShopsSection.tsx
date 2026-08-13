@@ -8,7 +8,7 @@ import type { BillingUsageView, OrganizationShopView } from "./types";
 type Props = {
   shops: OrganizationShopView[];
   shopUsage: BillingUsageView;
-  /** 店舗追加が公開されているか。未公開ではボタンと理由の両方を描画しない。 */
+  /** 旧応答との型互換用。現行契約では常にtrue。 */
   showAddShop: boolean;
   canAddShop: boolean;
   addShopDisabledReason?: string;
@@ -55,7 +55,7 @@ export const ShopsSection = ({
       </Flex>
 
       <Text fontSize="xs" color="fg.muted">
-        店舗設定、LINE連携は店舗ごとに設定してください。
+        店舗ごとの設定を確認できます。LINE連携は、スタッフごとに同じ組織の所属店舗で共通です。
       </Text>
     </Stack>
 

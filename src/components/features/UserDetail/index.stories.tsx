@@ -28,7 +28,6 @@ const shibuyaMembership: UserDetailData["memberships"][number] = {
   excludedFromShift: false,
   canRemove: true,
   removalPreview: removalPreview(2, "shibuya-preview"),
-  line: { isLinked: true, isFollowing: true },
 };
 
 const shinjukuMembership: UserDetailData["memberships"][number] = {
@@ -40,7 +39,6 @@ const shinjukuMembership: UserDetailData["memberships"][number] = {
   canRemove: false,
   removeDisabledReason: "稼働中の店舗だけ所属を変更できます。",
   removalPreview: removalPreview(0, "shinjuku-preview"),
-  line: { isLinked: true, isFollowing: false },
 };
 
 const shibuyaShop: UserDetailData["shops"][number] = {
@@ -87,13 +85,33 @@ const baseData: UserDetailData = {
   managerInvitationState: { kind: "unavailable", reason: "このユーザーはすでに管理者です。" },
   canRemoveManagerRole: true,
   managerRoleRemovalDisabledReason: undefined,
-  canRemove: true,
-  removeDisabledReason: undefined,
+  canRemove: false,
+  removeDisabledReason: "管理者は削除できません。先に管理者権限を外してください。",
   removalPreview: removalPreview(2),
   canWrite: true,
+  line: {
+    status: "linked_following",
+    actionShopId: shibuyaShopId,
+    sourceStaffId: shibuyaStaffId,
+    sourceShopId: shibuyaShopId,
+    canLink: true,
+    canDisconnect: true,
+  },
   membershipFingerprint: "membership-fingerprint",
-  shops: [shibuyaShop],
-  memberships: [shibuyaMembership],
+  shops: [
+    {
+      ...shibuyaShop,
+      canChangeMembership: false,
+      membershipChangeDisabledReason: "管理者は店舗から外せません。先に管理者権限を外してください。",
+    },
+  ],
+  memberships: [
+    {
+      ...shibuyaMembership,
+      canRemove: false,
+      removeDisabledReason: "管理者は店舗から外せません。先に管理者権限を外してください。",
+    },
+  ],
 };
 
 const multipleStoresData: UserDetailData = {
@@ -101,8 +119,62 @@ const multipleStoresData: UserDetailData = {
   managerRole: "none",
   managerInvitationState: { kind: "available", mode: "addition", replacesStaleInvitation: false },
   canRemoveManagerRole: false,
+  canRemove: true,
+  removeDisabledReason: undefined,
   shops: [shibuyaShop, shinjukuShop, ikebukuroShop, yokohamaShop],
   memberships: [shibuyaMembership, shinjukuMembership],
+};
+
+const lineUnlinkedData: UserDetailData = {
+  ...multipleStoresData,
+  line: { ...multipleStoresData.line, status: "unlinked", canDisconnect: false },
+};
+
+const lineUnfollowedData: UserDetailData = {
+  ...multipleStoresData,
+  line: { ...multipleStoresData.line, status: "linked_unfollowed" },
+};
+
+const lineWithoutEmailData: UserDetailData = {
+  ...lineUnlinkedData,
+  person: { ...lineUnlinkedData.person, email: "" },
+};
+
+const lineReadOnlyData: UserDetailData = {
+  ...multipleStoresData,
+  canWrite: false,
+  writeDisabledReason: "閲覧のみの管理者は、ユーザー情報を変更できません。",
+  line: {
+    ...multipleStoresData.line,
+    canLink: false,
+    linkDisabledReason: "閲覧のみの管理者は、ユーザー情報を変更できません。",
+    canDisconnect: false,
+    disconnectDisabledReason: "閲覧のみの管理者は、LINE連携を解除できません。",
+  },
+};
+
+const lineBillingReadOnlyData: UserDetailData = {
+  ...multipleStoresData,
+  canWrite: false,
+  writeDisabledReason: "契約状態を確認できるまで、ユーザー情報を変更できません。",
+  line: {
+    ...multipleStoresData.line,
+    canLink: false,
+    linkDisabledReason: "契約状態を確認できるまで、ユーザー情報を変更できません。",
+    canDisconnect: true,
+  },
+};
+
+const lineWithoutMembershipData: UserDetailData = {
+  ...multipleStoresData,
+  memberships: [],
+  line: {
+    ...multipleStoresData.line,
+    sourceStaffId: null,
+    sourceShopId: null,
+    canLink: false,
+    linkDisabledReason: "LINE連携を設定するには、稼働中の店舗へ所属を追加してください。",
+  },
 };
 
 const managerInvitationHiddenData: UserDetailData = {
@@ -129,13 +201,18 @@ const selfStaffData: UserDetailData = {
 
 const baseState: UserDetailViewProps["state"] = {
   isUpdatingProfile: false,
+  line: {
+    authorizeUrl: null,
+    showQr: false,
+    isQrLoading: false,
+    isSendingInvite: false,
+    isDisconnecting: false,
+  },
   membership: {
     isChanging: false,
   },
-  manager: {
+  removal: {
     dialog: null,
-    isAssignmentConfirmationOpen: false,
-    isAssigning: false,
     isRemoving: false,
   },
 };
@@ -155,18 +232,19 @@ const settleBasicInformationDialogFocus = async () => {
 const baseActions: UserDetailViewProps["actions"] = {
   onBack: noop,
   onOpenBasic: noop,
+  onOpenLine: noop,
   onOpenAddShop: noop,
   onOpenShop: noop,
   onClosePanel: noop,
   onUpdateProfile: asyncNoop,
+  onShowLineQr: asyncNoop,
+  onSendLineInvite: asyncNoop,
+  onDisconnectLine: async () => false,
   onChangeMemberships: asyncNoop,
-  onRequestManagerAssignment: noop,
-  onCancelManagerAssignment: noop,
-  onAssignManager: asyncNoop,
-  onRequestRemoveManagerRole: noop,
+  onManageManagers: noop,
   onRequestRemovePerson: noop,
-  onConfirmManagerSetting: asyncNoop,
-  onCloseManagerDialog: noop,
+  onConfirmRemovePerson: asyncNoop,
+  onCloseRemovalDialog: noop,
 };
 
 const meta = {
@@ -277,6 +355,46 @@ export const BasicInformationDialogMobile: Story = {
   play: settleBasicInformationDialogFocus,
 };
 
+export const LineLinkedDialog: Story = {
+  args: { activePanel: "line", data: multipleStoresData },
+};
+
+export const LineUnlinkedDialog: Story = {
+  args: { activePanel: "line", data: lineUnlinkedData },
+};
+
+export const LineUnfollowedDialog: Story = {
+  args: { activePanel: "line", data: lineUnfollowedData },
+};
+
+export const LineWithoutEmailDialog: Story = {
+  args: { activePanel: "line", data: lineWithoutEmailData },
+};
+
+export const LineReadOnlyDialog: Story = {
+  args: { activePanel: "line", data: lineReadOnlyData },
+};
+
+export const LineBillingReadOnlyDialog: Story = {
+  args: { activePanel: "line", data: lineBillingReadOnlyData },
+};
+
+export const LineWithoutMembershipDialog: Story = {
+  args: { activePanel: "line", data: lineWithoutMembershipData },
+};
+
+export const LineUnlinkedDialogMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  args: { activePanel: "line", data: lineUnlinkedData },
+};
+
+export const LineLinkedDialogMobile: Story = {
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  args: { activePanel: "line", data: multipleStoresData },
+};
+
 export const ReadOnlyInformationDialog: Story = {
   args: {
     activePanel: "basic",
@@ -309,6 +427,23 @@ export const ShopMembershipDialogMobile: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
   args: { activePanel: "addShop" },
+};
+
+export const ShopMembershipRemoval: Story = {
+  args: { activePanel: "addShop" },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "所属店舗を変更" });
+    const content = within(dialog);
+
+    await userEvent.click(content.getByRole("checkbox", { name: /渋谷店/ }));
+    await content.findByText("今日以降のシフト割り当てから削除します。");
+  },
+};
+
+export const ShopMembershipRemovalMobile: Story = {
+  ...ShopMembershipRemoval,
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
 };
 
 export const ShopMembershipChangeUnavailable: Story = {
@@ -354,37 +489,6 @@ export const PersonRemovalZeroAssignments: Story = createPersonRemovalStory(0);
 export const PersonRemovalOneAssignment: Story = createPersonRemovalStory(1);
 export const PersonRemovalMultipleAssignments: Story = createPersonRemovalStory(3);
 
-export const ManagerOnlyRoleRemovalConfirmation: Story = {
-  args: {
-    activePanel: "basic",
-    data: { ...baseData, memberships: [] },
-    state: {
-      ...baseState,
-      manager: {
-        ...baseState.manager,
-        dialog: { kind: "removeManagerRole", personId, shopId: shibuyaShopId, requestId: storyRequestId },
-      },
-    },
-  },
-};
-
-export const ManagerOnlyRoleRemovalConfirmationMobile: Story = {
-  ...ManagerOnlyRoleRemovalConfirmation,
-  tags: ["vrt-mobile2"],
-  globals: { viewport: { value: "mobile2", isRotated: false } },
-};
-
-export const ManagerRoleRemovalUnavailable: Story = {
-  args: {
-    activePanel: "basic",
-    data: {
-      ...baseData,
-      canRemoveManagerRole: false,
-      managerRoleRemovalDisabledReason: "最後の有効管理者の管理者権限は外せません。",
-    },
-  },
-};
-
 export const PersonRemovalUnavailable: Story = {
   args: {
     data: {
@@ -398,7 +502,7 @@ export const PersonRemovalUnavailable: Story = {
 export const RestrictedRecoveryRemoval: Story = {
   args: {
     data: {
-      ...baseData,
+      ...multipleStoresData,
       canWrite: false,
       writeDisabledReason: "Proの利用上限を超えているため、契約制限中です。",
       canRemove: true,
@@ -439,8 +543,8 @@ function createPersonRemovalStory(assignmentCount: number): Story {
       data: { ...multipleStoresData, removalPreview: preview },
       state: {
         ...baseState,
-        manager: {
-          ...baseState.manager,
+        removal: {
+          ...baseState.removal,
           dialog: {
             kind: "removePerson",
             personId,
@@ -474,7 +578,7 @@ function PanelNavigationHarness({
   const [activePanel, setActivePanel] = useState<UserDetailPanel>();
   const [membershipChangeInput, setMembershipChangeInput] = useState<UserMembershipChangeInput | null>(null);
   const [membershipChangeCallCount, setMembershipChangeCallCount] = useState(0);
-  const [managerDialog, setManagerDialog] = useState<UserDetailDialog>(null);
+  const [removalDialog, setRemovalDialog] = useState<UserDetailDialog>(null);
 
   return (
     <>
@@ -490,22 +594,23 @@ function PanelNavigationHarness({
         activePanel={activePanel}
         state={{
           ...baseState,
-          manager: { ...baseState.manager, dialog: managerDialog },
+          removal: { ...baseState.removal, dialog: removalDialog },
         }}
         actions={{
           ...baseActions,
           onOpenBasic: () => setActivePanel("basic"),
+          onOpenLine: () => setActivePanel("line"),
           onOpenAddShop: () => setActivePanel("addShop"),
           onClosePanel: () => setActivePanel(undefined),
           onRequestRemovePerson: () =>
-            setManagerDialog({
+            setRemovalDialog({
               kind: "removePerson",
               personId: data.person.id,
               shopId: shibuyaShopId,
               removalPreview: data.removalPreview,
               requestId: storyRequestId,
             }),
-          onCloseManagerDialog: () => setManagerDialog(null),
+          onCloseRemovalDialog: () => setRemovalDialog(null),
           onChangeMemberships: async (input) => {
             setMembershipChangeInput(input);
             setMembershipChangeCallCount((count) => count + 1);
@@ -517,67 +622,42 @@ function PanelNavigationHarness({
   );
 }
 
-function ManagerAssignmentConfirmationHarness() {
-  const [isAssignmentConfirmationOpen, setIsAssignmentConfirmationOpen] = useState(false);
-  const [assignmentCount, setAssignmentCount] = useState(0);
+function LinePanelHarness({ data = lineUnlinkedData }: { data?: UserDetailData }) {
+  const [activePanel, setActivePanel] = useState<UserDetailPanel>();
+  const [showQr, setShowQr] = useState(false);
+  const [disconnectCount, setDisconnectCount] = useState(0);
 
   return (
     <>
-      <output hidden data-testid="manager-assignment-count">
-        {assignmentCount}
+      <output hidden data-testid="line-disconnect-count">
+        {disconnectCount}
       </output>
       <UserDetailView
-        data={multipleStoresData}
+        data={data}
         showShopMembershipAddition
-        activePanel="basic"
+        activePanel={activePanel}
         state={{
           ...baseState,
-          manager: { ...baseState.manager, isAssignmentConfirmationOpen },
+          line: {
+            ...baseState.line,
+            showQr,
+            authorizeUrl: showQr ? "https://example.com/line/authorize" : null,
+          },
         }}
         actions={{
           ...baseActions,
-          onRequestManagerAssignment: () => setIsAssignmentConfirmationOpen(true),
-          onCancelManagerAssignment: () => setIsAssignmentConfirmationOpen(false),
-          onAssignManager: async () => {
-            setAssignmentCount((count) => count + 1);
-            setIsAssignmentConfirmationOpen(false);
+          onOpenLine: () => setActivePanel("line"),
+          onClosePanel: () => setActivePanel(undefined),
+          onShowLineQr: async () => setShowQr(true),
+          onDisconnectLine: async () => {
+            setDisconnectCount((count) => count + 1);
+            return true;
           },
         }}
       />
     </>
   );
 }
-
-export const ManagerAssignmentConfirmationBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  render: () => <ManagerAssignmentConfirmationHarness />,
-  play: async ({ canvasElement }) => {
-    const page = within(canvasElement.ownerDocument.body);
-    const dialog = await page.findByRole("dialog", { name: "スタッフ情報" });
-    const requestButton = within(dialog).getByRole("button", { name: "管理者として招待" });
-
-    await userEvent.click(requestButton);
-    let confirmation = await page.findByRole("alertdialog", {
-      name: "田中 花子さんを管理者として招待しますか？",
-    });
-    await expect(page.queryAllByRole("alertdialog")).toHaveLength(1);
-    await expect(page.queryAllByRole("dialog")).toHaveLength(0);
-    await expect(within(confirmation).getByTestId("user-manager-confirmation-body")).toHaveFocus();
-    await expect(within(confirmation).queryByRole("textbox", { name: "名前" })).not.toBeInTheDocument();
-
-    await userEvent.click(within(confirmation).getByRole("button", { name: "やめる" }));
-    const restoredDialog = await page.findByRole("dialog", { name: "スタッフ情報" });
-    const restoredRequestButton = within(restoredDialog).getByRole("button", { name: "管理者として招待" });
-    await expect(restoredRequestButton).toHaveFocus();
-
-    await userEvent.click(restoredRequestButton);
-    confirmation = await page.findByRole("alertdialog", {
-      name: "田中 花子さんを管理者として招待しますか？",
-    });
-    await userEvent.click(within(confirmation).getByRole("button", { name: "管理者として招待" }));
-    await expect(page.getByTestId("manager-assignment-count")).toHaveTextContent("1");
-  },
-};
 
 export const BasicInformationFlowBehavior: Story = {
   parameters: { screenshot: { skip: true } },
@@ -598,6 +678,55 @@ export const BasicInformationFlowBehavior: Story = {
     await expect(basicDialog.getByRole("heading", { name: "管理者権限" })).toBeInTheDocument();
     await userEvent.click(basicDialog.getByRole("button", { name: "キャンセル" }));
     await waitFor(() => expect(page.queryByRole("dialog", { name: "スタッフ情報" })).not.toBeInTheDocument());
+  },
+};
+
+export const LineQrDisplayBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <LinePanelHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "LINE連携を開く" }));
+    const dialog = await page.findByRole("dialog", { name: "LINE連携" });
+    const content = within(dialog);
+    await userEvent.click(content.getByRole("button", { name: "LINE連携リンクを表示" }));
+
+    await expect(await content.findByRole("img", { name: "LINE連携用QRコード" })).toBeInTheDocument();
+    await expect(content.getByText(/この組織で現在および今後所属する店舗に共通/)).toBeInTheDocument();
+  },
+};
+
+export const LineDisconnectInlineConfirmationBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <LinePanelHarness data={multipleStoresData} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "LINE連携を開く" }));
+    const dialog = await page.findByRole("dialog", { name: "LINE連携" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "LINE連携を解除" }));
+
+    const confirmation = await page.findByRole("alertdialog", { name: "LINE連携を解除" });
+    const confirmationContent = within(confirmation);
+    await expect(
+      confirmationContent.getByText("この組織のすべての所属店舗でLINE通知が停止します。"),
+    ).toBeInTheDocument();
+    await expect(confirmationContent.getByText("ほかの組織のLINE連携には影響しません。")).toBeInTheDocument();
+    await expect(confirmationContent.getByRole("button", { name: "戻る" })).toHaveFocus();
+
+    await userEvent.click(confirmationContent.getByRole("button", { name: "戻る" }));
+    const reopenedDialog = await page.findByRole("dialog", { name: "LINE連携" });
+    const disconnectTrigger = within(reopenedDialog).getByRole("button", { name: "LINE連携を解除" });
+    await waitFor(() => expect(disconnectTrigger).toHaveFocus());
+    await userEvent.click(disconnectTrigger);
+    const reopenedConfirmation = await page.findByRole("alertdialog", { name: "LINE連携を解除" });
+    await userEvent.click(within(reopenedConfirmation).getByRole("button", { name: "LINE連携を解除する" }));
+
+    await expect(canvas.getByTestId("line-disconnect-count")).toHaveTextContent("1");
+    await expect(page.queryByRole("alertdialog", { name: "LINE連携を解除" })).not.toBeInTheDocument();
   },
 };
 
@@ -668,6 +797,7 @@ export const ShopMembershipChangeFlowBehavior: Story = {
     await userEvent.click(ikebukuroCheckbox);
     await expect(canvas.getByTestId("membership-change-call-count")).toHaveTextContent("0");
     await expect(submitButton).toBeEnabled();
+    await expect(membershipDialog.queryByText("今日以降のシフト割り当てから削除します。")).not.toBeInTheDocument();
 
     await userEvent.click(submitButton);
     await expect(canvas.getByTestId("membership-change-call-count")).toHaveTextContent("1");
@@ -688,13 +818,30 @@ export const ShopMembershipRemovalBehavior: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "所属店舗を変更する" }));
     const dialog = await page.findByRole("dialog", { name: "所属店舗を変更" });
     const membershipDialog = within(dialog);
+    const shibuyaCheckbox = membershipDialog.getByRole("checkbox", { name: /渋谷店/ });
+
+    await expect(membershipDialog.queryByText("今日以降のシフト割り当てから削除します。")).not.toBeInTheDocument();
     await userEvent.click(membershipDialog.getByRole("checkbox", { name: /池袋店/ }));
-    await userEvent.click(membershipDialog.getByRole("checkbox", { name: /渋谷店/ }));
+    await expect(membershipDialog.queryByText("今日以降のシフト割り当てから削除します。")).not.toBeInTheDocument();
+
+    await userEvent.click(shibuyaCheckbox);
+    await expect(membershipDialog.getByText("店舗から外す")).toBeInTheDocument();
+    await expect(membershipDialog.getByText("今日以降のシフト割り当てから削除します。")).toBeInTheDocument();
     await expect(
-      membershipDialog.getByText(
-        /店舗から外すと、その店舗のスタッフ画面へのアクセス、LINE連携、未送信の通知は終了します。/,
-      ),
+      membershipDialog.getByText("この店舗へのシフト通知は送られなくなります。組織のLINE連携は残ります。"),
     ).toBeInTheDocument();
+    await expect(shibuyaCheckbox).toHaveAccessibleDescription(
+      /今日以降のシフト割り当てから削除します。.*この店舗へのシフト通知は送られなくなります。組織のLINE連携は残ります。/,
+    );
+    await expect(membershipDialog.queryByText(/過去のシフト記録/)).not.toBeInTheDocument();
+    await expect(membershipDialog.queryByText(/シフト割り当て.*件/)).not.toBeInTheDocument();
+    await expect(membershipDialog.getByRole("button", { name: "変更する" })).toBeEnabled();
+
+    await userEvent.click(shibuyaCheckbox);
+    await waitFor(() =>
+      expect(membershipDialog.queryByText("今日以降のシフト割り当てから削除します。")).not.toBeInTheDocument(),
+    );
+    await userEvent.click(shibuyaCheckbox);
     await expect(canvas.getByTestId("membership-change-call-count")).toHaveTextContent("0");
     await userEvent.click(membershipDialog.getByRole("button", { name: "変更する" }));
 
@@ -709,7 +856,9 @@ export const ShopMembershipRemovalBehavior: Story = {
 
 export const ShopMembershipFullRemovalWarningBehavior: Story = {
   parameters: { screenshot: { skip: true } },
-  render: () => <PanelNavigationHarness data={baseData} />,
+  render: () => (
+    <PanelNavigationHarness data={{ ...multipleStoresData, shops: [shibuyaShop], memberships: [shibuyaMembership] }} />
+  ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
@@ -719,7 +868,7 @@ export const ShopMembershipFullRemovalWarningBehavior: Story = {
     await userEvent.click(within(dialog).getByRole("checkbox", { name: /渋谷店/ }));
     const membershipDialog = within(dialog);
     await expect(
-      membershipDialog.getByText("組織への所属や管理者権限は変更されません。また、利用人数のカウントも残ります。"),
+      membershipDialog.getByText("全店舗から外した場合でも、無所属としてスタッフは残り続けます。"),
     ).toBeInTheDocument();
   },
 };

@@ -1,9 +1,12 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
-import { isBillingEnabled, isManagerInvitationEnabled, isOrganizationCreationEnabled } from "../_lib/config";
+import type { QueryCtx } from "../_generated/server";
+import { isLineCommonLinkCanonicalReady } from "../_lib/config";
 import { formatDateJa, formatDateTimeJa } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
+import { normalizeEmail, requiredEmailSchema } from "../_lib/validation";
+import { getOrganizationPersonLineState } from "../line/service";
 import {
   deriveOrganizationBillingPolicy,
   getEffectiveRestrictedBillingState,
@@ -16,6 +19,7 @@ import {
   collectIssuedInvitationsByOrganization,
   collectLinkedInvitationsByOrganization,
   getOrganizationInvitationLifecycleStatus,
+  readActiveIssuedInvitationsByOrganization,
 } from "../organizationInvitation/lifecycle";
 import { getOrganizationInvitationPurpose } from "../organizationInvitation/purpose";
 import {
@@ -27,7 +31,12 @@ import { getOrganizationCreationAvailability, type OrganizationCreationAvailabil
 import { isOrganizationBillingContact } from "./billingContact";
 import { getOrganizationDeletionEligibility } from "./deletion";
 import { deriveOrganizationPersonCapabilities, type ManagerRole } from "./personCapabilities";
-import { getOrganizationBillingState, organizationPersonCountsTowardPeopleLimit } from "./service";
+import {
+  getOrganizationBillingState,
+  isValidOrganizationRecoveryManager,
+  organizationPersonCountsTowardPeopleLimit,
+} from "./service";
+import { organizationShopOperatingStatus } from "./shopMembershipChange";
 
 const organizationPersonViewValidator = v.object({
   id: v.string(),
@@ -36,6 +45,7 @@ const organizationPersonViewValidator = v.object({
   managerRole: v.union(v.literal("active"), v.literal("readOnly"), v.literal("none")),
   isStaff: v.boolean(),
   isLineConnected: v.boolean(),
+  lineStatus: v.union(v.literal("unlinked"), v.literal("linked_following"), v.literal("linked_unfollowed")),
   hasManagerInvitation: v.boolean(),
   shopNames: v.array(v.string()),
   shopIds: v.array(v.id("shops")),
@@ -107,6 +117,7 @@ const billingViewValidator = v.object({
   stripeBillingAvailable: v.boolean(),
   hasStripeCustomer: v.boolean(),
   targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+  restrictAtPeriodEnd: v.optional(v.literal(true)),
   limitPlan: v.optional(v.union(v.literal("free"), v.literal("pro"))),
   peopleUsage: v.object({ current: v.number(), max: v.number(), pendingInvitations: v.number() }),
   shopUsage: v.object({ current: v.number(), max: v.number(), pendingInvitations: v.number() }),
@@ -145,8 +156,7 @@ const organizationSettingsValidator = v.object({
   deleteOrganizationDisabledReason: v.optional(v.string()),
   canCreateOrganization: v.boolean(),
   createOrganizationDisabledReason: v.optional(v.string()),
-  // 公開していない導線の表示判定。可否（can*）とは別に持ち、
-  // 「上限に達したので理由を出す」と「未公開なので何も出さない」を画面が描き分けられるようにする。
+  // 導線の表示判定は可否（can*）とは別に持ち、rolling deploy中の旧frontendとの互換を保つ。
   // TODO[narrow]: featuresを返すbackendが全deploymentへ反映され、旧frontend互換期間が終わった後にrequired化する。
   features: v.optional(
     v.object({
@@ -175,6 +185,7 @@ type BillingView = {
   stripeBillingAvailable: boolean;
   hasStripeCustomer: boolean;
   targetPlan?: Exclude<BillingPlan, "trial">;
+  restrictAtPeriodEnd?: true;
   limitPlan?: "free" | "pro";
   peopleUsage: { current: number; max: number; pendingInvitations: number };
   shopUsage: { current: number; max: number; pendingInvitations: number };
@@ -209,6 +220,7 @@ function legacyMigrationPendingSettings(
         managerRole: "active" as const,
         isStaff: false,
         isLineConnected: false,
+        lineStatus: "unlinked" as const,
         hasManagerInvitation: false,
         shopNames: [],
         shopIds: [],
@@ -275,16 +287,20 @@ function legacyMigrationPendingSettings(
 /** 公開状態を画面の描画判定へ渡す。認可根拠には使わない。 */
 function getOrganizationSettingsFeatures() {
   return {
-    organizationCreation: isOrganizationCreationEnabled(),
-    // 旧frontendとの段階リリース互換のため項目を残し、常時公開として返す。
-    shopAddition: true,
-    billing: isBillingEnabled(),
-    managerInvitation: isManagerInvitationEnabled(),
+    // 旧frontendの表示DTOとの互換のため項目を残す。
+    organizationCreation: true,
+    shopAddition: isLineCommonLinkCanonicalReady(),
+    billing: true,
+    managerInvitation: true,
   };
 }
 
 function restrictedBlockedReason(state: Extract<Doc<"organizationBillingStates">["state"], { kind: "restricted" }>) {
   switch (state.reason) {
+    case "trialEndedWithoutSubscription":
+      return "トライアルが終了しました。\n利用を再開するには、ProまたはBusinessを契約してください。";
+    case "scheduledCancellation":
+      return "予約した利用停止が適用されました。\n利用を再開するには、ProまたはBusinessを契約してください。";
     case "trialFreeConditionsNotMet":
     case "freeConditionsNotMet":
       return "無料プランの利用人数または店舗数の上限を超えています。\nユーザーまたは店舗を削除してから、再確認してください。";
@@ -407,17 +423,19 @@ export const getSettings = managerQuery({
       current.push(staff);
       staffRowsByPersonId.set(staff.organizationPersonId, current);
     }
-    const lineConnectedStaffIds = new Set<Id<"staffs">>();
-    await Promise.all(
-      staffDocs.map(async (staff) => {
-        const accounts = await ctx.db
-          .query("staffLineAccounts")
-          .withIndex("by_staffId", (q) => q.eq("staffId", staff._id))
-          .collect();
-        if (accounts.some((account) => !account.isDeleted && account.following && account.shopId === staff.shopId)) {
-          lineConnectedStaffIds.add(staff._id);
-        }
-      }),
+    const lineStateByPersonId = new Map(
+      await Promise.all(
+        people.map(
+          async (person) =>
+            [
+              person._id,
+              await getOrganizationPersonLineState(ctx, {
+                organizationId: organization._id,
+                organizationPersonId: person._id,
+              }),
+            ] as const,
+        ),
+      ),
     );
 
     const managerRoleByPersonId = new Map<Id<"organizationPeople">, ManagerRole>();
@@ -709,7 +727,8 @@ export const getSettings = managerQuery({
         const managerRole = managerRoleByPersonId.get(person._id) ?? "none";
         const staffRows = staffRowsByPersonId.get(person._id) ?? [];
         const isStaff = staffRows.length > 0;
-        const isLineConnected = staffRows.some((staff) => lineConnectedStaffIds.has(staff._id));
+        const lineStatus = lineStateByPersonId.get(person._id)?.status ?? "unlinked";
+        const isLineConnected = lineStatus !== "unlinked";
         const hasManagerInvitation = invitedPersonIds.has(person._id);
         const isRecoveryManager = Boolean(restrictedState && recoveryPersonIds.includes(person._id));
         const isLastRecoveryManager = isRecoveryManager && recoveryPersonIds.length <= 1;
@@ -744,6 +763,7 @@ export const getSettings = managerQuery({
           managerRole,
           isStaff,
           isLineConnected,
+          lineStatus,
           hasManagerInvitation,
           shopNames,
           shopIds,
@@ -1014,8 +1034,16 @@ export const getSettings = managerQuery({
             state: "scheduledChange",
             currentPlan: state.currentPlan,
             targetPlan: state.targetPlan,
+            ...(state.targetPlan === "free" && state.restrictAtPeriodEnd === true
+              ? { restrictAtPeriodEnd: true as const }
+              : {}),
             nextEvent: {
-              label: state.targetPlan === "free" ? "無料適用予定日" : "Pro適用予定日",
+              label:
+                state.targetPlan === "free"
+                  ? state.restrictAtPeriodEnd === true
+                    ? "利用停止予定日"
+                    : "無料適用予定日"
+                  : "Pro適用予定日",
               date: formatDateJa(state.effectiveAt),
             },
           };
@@ -1062,22 +1090,29 @@ export const getSettings = managerQuery({
                   : policy?.paidFeatureBlockReason === "paymentResultPending"
                     ? "支払い結果が確定してから、管理者を招待できます。"
                     : `管理者と招待中の管理者は、組織全体で${policy?.limits?.maxActiveManagers ?? ORGANIZATION_PLAN_LIMITS.pro.maxActiveManagers}名までです。`;
+    const shopAdditionEnabled = isLineCommonLinkCanonicalReady();
     const canAddShop = Boolean(
-      isActiveActor && policy?.canUsePaidFeatures && policy.limits && activeShopCount < policy.limits.maxActiveShops,
+      shopAdditionEnabled &&
+        isActiveActor &&
+        policy?.canUsePaidFeatures &&
+        policy.limits &&
+        activeShopCount < policy.limits.maxActiveShops,
     );
     const addShopDisabledReason = canAddShop
       ? undefined
-      : !billingState
-        ? "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。"
-        : !isActiveActor
-          ? "閲覧のみの管理者は、店舗を追加できません。"
-          : restrictedState
-            ? "契約制限中は、店舗を追加できません。"
-            : policy?.paidFeatureBlockReason === "freePlan"
-              ? "無料プランでは、店舗を追加できません。\n有料プランを選択してください。"
-              : policy?.paidFeatureBlockReason === "paymentResultPending"
-                ? "支払い結果が確定してから、店舗を追加できます。"
-                : `店舗は、組織ごとに${policy?.limits?.maxActiveShops ?? ORGANIZATION_PLAN_LIMITS.pro.maxActiveShops}件まで登録できます。`;
+      : !shopAdditionEnabled
+        ? "現在は店舗を追加できません。\n画面を再読み込みして、しばらくしてからもう一度お試しください。"
+        : !billingState
+          ? "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。"
+          : !isActiveActor
+            ? "閲覧のみの管理者は、店舗を追加できません。"
+            : restrictedState
+              ? "契約制限中は、店舗を追加できません。"
+              : policy?.paidFeatureBlockReason === "freePlan"
+                ? "無料プランでは、店舗を追加できません。\n有料プランを選択してください。"
+                : policy?.paidFeatureBlockReason === "paymentResultPending"
+                  ? "支払い結果が確定してから、店舗を追加できます。"
+                  : `店舗は、組織ごとに${policy?.limits?.maxActiveShops ?? ORGANIZATION_PLAN_LIMITS.pro.maxActiveShops}件まで登録できます。`;
     const canUpdateOrganizationName = isActiveActor;
     const updateOrganizationNameDisabledReason = canUpdateOrganizationName
       ? undefined
@@ -1118,5 +1153,529 @@ export const getSettings = managerQuery({
       ...(creationAvailability.canCreate ? {} : { createOrganizationDisabledReason: creationAvailability.reason }),
       features: getOrganizationSettingsFeatures(),
     };
+  },
+});
+
+const managerSettingsOverviewValidator = v.union(
+  v.object({ kind: v.literal("hidden") }),
+  v.object({ kind: v.literal("integrityError"), message: v.string() }),
+  v.object({
+    kind: v.literal("ready"),
+    organizationName: v.string(),
+    mode: v.union(v.literal("managerAddition"), v.literal("freeManagerExchange"), v.literal("restricted")),
+    usage: v.object({
+      activeManagers: v.number(),
+      activeInvitationCount: v.number(),
+      pendingAdditions: v.number(),
+      pendingExchanges: v.number(),
+      projectedManagers: v.number(),
+      maxManagers: v.number(),
+    }),
+    actions: v.object({
+      canInviteExistingStaff: v.boolean(),
+      existingStaffDisabledReason: v.optional(v.string()),
+      canInviteExternal: v.boolean(),
+      externalDisabledReason: v.optional(v.string()),
+    }),
+    managers: v.array(
+      v.object({
+        personId: v.id("organizationPeople"),
+        name: v.string(),
+        contactEmail: v.string(),
+        role: v.union(v.literal("active"), v.literal("readOnly")),
+        isSelf: v.boolean(),
+        canRemoveRole: v.boolean(),
+        removeRoleDisabledReason: v.optional(v.string()),
+      }),
+    ),
+    invitations: v.array(
+      v.object({
+        invitationId: v.id("organizationInvitations"),
+        name: v.string(),
+        invitedEmail: v.string(),
+        purpose: v.union(v.literal("managerAddition"), v.literal("freeManagerExchange")),
+        status: v.union(
+          v.literal("pending"),
+          v.literal("sendFailed"),
+          v.literal("limitReached"),
+          v.literal("conflict"),
+        ),
+        expiresAt: v.number(),
+        canResend: v.boolean(),
+        canRevoke: v.boolean(),
+      }),
+    ),
+  }),
+);
+
+const managerCandidatesValidator = v.union(
+  v.object({ kind: v.literal("hidden") }),
+  v.object({ kind: v.literal("integrityError"), message: v.string() }),
+  v.object({
+    kind: v.literal("ready"),
+    candidates: v.array(
+      v.object({
+        personId: v.id("organizationPeople"),
+        name: v.string(),
+        contactEmail: v.string(),
+        canSelect: v.boolean(),
+        disabledReason: v.optional(v.string()),
+      }),
+    ),
+  }),
+);
+
+const MANAGER_SETTINGS_INTEGRITY_ERROR = "管理者情報を確認できません。\n画面を更新して、もう一度お試しください。";
+const MANAGER_SETTINGS_ABSOLUTE_READ_LIMITS = {
+  people: Math.max(...Object.values(ORGANIZATION_PLAN_LIMITS).map((limits) => limits.maxPeople)),
+  activeManagers: Math.max(...Object.values(ORGANIZATION_PLAN_LIMITS).map((limits) => limits.maxActiveManagers)),
+  readOnlyManagers: Math.max(...Object.values(ORGANIZATION_PLAN_LIMITS).map((limits) => limits.maxPeople)),
+  invitations: Math.max(...Object.values(ORGANIZATION_PLAN_LIMITS).map((limits) => limits.maxActiveManagers)),
+} as const;
+
+function getManagerSettingsLimits(billingState: Doc<"organizationBillingStates">) {
+  const policy = deriveOrganizationBillingPolicy(billingState.state);
+  const restrictedState = getEffectiveRestrictedBillingState(billingState.state);
+  const restrictedPlan = restrictedState
+    ? (resolveRestrictedLimitPlan(restrictedState) ?? restrictedState.previousPlan ?? restrictedState.targetPlan)
+    : null;
+  return {
+    policy,
+    restrictedState,
+    limits: restrictedPlan ? ORGANIZATION_PLAN_LIMITS[restrictedPlan] : policy.limits,
+  };
+}
+
+async function readBoundedManagerMembers(
+  ctx: Pick<QueryCtx, "db">,
+  organizationId: Id<"organizations">,
+  limits: { active: number; readOnly: number },
+) {
+  const [active, readOnly] = await Promise.all([
+    ctx.db
+      .query("organizationMembers")
+      .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "active"))
+      .take(limits.active + 1),
+    ctx.db
+      .query("organizationMembers")
+      .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "readOnly"))
+      .take(limits.readOnly + 1),
+  ]);
+  if (active.length > limits.active || readOnly.length > limits.readOnly) return null;
+  const members = [...active, ...readOnly];
+  const seenPeople = new Set<Id<"organizationPeople">>();
+  const seenUsers = new Set<Id<"users">>();
+  const rows = [];
+  for (const member of members) {
+    if (seenPeople.has(member.personId) || seenUsers.has(member.userId)) return null;
+    seenPeople.add(member.personId);
+    seenUsers.add(member.userId);
+    const [person, user, personMembers, userMembers] = await Promise.all([
+      ctx.db.get(member.personId),
+      ctx.db.get(member.userId),
+      ctx.db
+        .query("organizationMembers")
+        .withIndex("by_organizationId_and_personId", (q) =>
+          q.eq("organizationId", organizationId).eq("personId", member.personId),
+        )
+        .take(2),
+      ctx.db
+        .query("organizationMembers")
+        .withIndex("by_userId_and_organizationId", (q) =>
+          q.eq("userId", member.userId).eq("organizationId", organizationId),
+        )
+        .take(2),
+    ]);
+    if (
+      !person ||
+      person.organizationId !== organizationId ||
+      person.status !== "active" ||
+      person.userId !== member.userId ||
+      !user ||
+      user.isDeleted ||
+      personMembers.length !== 1 ||
+      personMembers[0]._id !== member._id ||
+      userMembers.length !== 1 ||
+      userMembers[0]._id !== member._id
+    ) {
+      return null;
+    }
+    rows.push({ member, person });
+  }
+  return { active, readOnly, rows };
+}
+
+/** 管理者専用ページのPIIと操作可否だけを返すbounded DTO。 */
+export const getManagerSettingsOverview = managerQuery({
+  args: { now: v.number() },
+  returns: managerSettingsOverviewValidator,
+  handler: async (ctx, args) => {
+    if (!Number.isFinite(args.now) || !ctx.user || !ctx.organization || !ctx.organizationMember) {
+      return { kind: "integrityError" as const, message: MANAGER_SETTINGS_INTEGRITY_ERROR };
+    }
+    const organization = ctx.organization;
+    const organizationMember = ctx.organizationMember;
+
+    const billingState = await getOrganizationBillingState(ctx, organization._id);
+    if (!billingState) return { kind: "integrityError" as const, message: MANAGER_SETTINGS_INTEGRITY_ERROR };
+    const { policy, restrictedState, limits } = getManagerSettingsLimits(billingState);
+    if (!limits) return { kind: "integrityError" as const, message: MANAGER_SETTINGS_INTEGRITY_ERROR };
+
+    const [managerState, activeInvitations] = await Promise.all([
+      readBoundedManagerMembers(ctx, organization._id, {
+        active: MANAGER_SETTINGS_ABSOLUTE_READ_LIMITS.activeManagers,
+        readOnly: MANAGER_SETTINGS_ABSOLUTE_READ_LIMITS.readOnlyManagers,
+      }),
+      readActiveIssuedInvitationsByOrganization(
+        ctx,
+        organization._id,
+        args.now,
+        MANAGER_SETTINGS_ABSOLUTE_READ_LIMITS.invitations,
+      ),
+    ]);
+    if (!managerState || managerState.active.length === 0 || activeInvitations.hasOverflow) {
+      return { kind: "integrityError" as const, message: MANAGER_SETTINGS_INTEGRITY_ERROR };
+    }
+    if (managerState.active.length !== managerState.rows.filter(({ member }) => member.status === "active").length) {
+      return { kind: "integrityError" as const, message: MANAGER_SETTINGS_INTEGRITY_ERROR };
+    }
+
+    const purposes = activeInvitations.invitations.map((invitation) => getOrganizationInvitationPurpose(invitation));
+    const pendingAdditions = purposes.filter((purpose) => purpose === "managerAddition").length;
+    const pendingExchanges = purposes.filter((purpose) => purpose === "freeManagerExchange").length;
+    const projectedManagers = managerState.active.length + pendingAdditions;
+    const isActiveActor = organizationMember.status === "active";
+    const isFree = policy.entitlementPlan === "free";
+    const canWrite = Boolean(isActiveActor && policy.canWriteBusinessData && !restrictedState);
+    const mode = !canWrite
+      ? ("restricted" as const)
+      : isFree
+        ? ("freeManagerExchange" as const)
+        : policy.canUsePaidFeatures
+          ? ("managerAddition" as const)
+          : ("restricted" as const);
+
+    const activePeople = await ctx.db
+      .query("organizationPeople")
+      .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organization._id).eq("status", "active"))
+      .take(MANAGER_SETTINGS_ABSOLUTE_READ_LIMITS.people + 1);
+    if (activePeople.length > MANAGER_SETTINGS_ABSOLUTE_READ_LIMITS.people) {
+      return { kind: "integrityError" as const, message: MANAGER_SETTINGS_INTEGRITY_ERROR };
+    }
+    const activeManagerPersonIds = new Set(managerState.active.map((member) => member.personId));
+    let peopleUsage = 0;
+    for (const person of activePeople) {
+      if (
+        activeManagerPersonIds.has(person._id) ||
+        (await ctx.db
+          .query("staffs")
+          .withIndex("by_organizationId_and_organizationPersonId", (q) =>
+            q.eq("organizationId", organization._id).eq("organizationPersonId", person._id),
+          )
+          .first())
+      ) {
+        peopleUsage += 1;
+      }
+    }
+    const reservedPeople = activeInvitations.invitations.filter((invitation) => invitation.reservedSeat).length;
+    const canFitManager = projectedManagers < limits.maxActiveManagers;
+    const canFitPerson = peopleUsage + reservedPeople < limits.maxPeople;
+    const hasExchangePending = pendingExchanges > 0;
+    const inviteBaseReason = !isActiveActor
+      ? "閲覧のみの管理者は、管理者を招待できません。"
+      : restrictedState || !policy.canWriteBusinessData
+        ? "契約状態を復旧してから変更できます。"
+        : !canFitManager
+          ? `管理者と招待中の管理者は、組織全体で${limits.maxActiveManagers}名までです。`
+          : undefined;
+    const canInviteExistingStaff = Boolean(
+      canWrite && (mode === "managerAddition" ? canFitManager : mode === "freeManagerExchange" && !hasExchangePending),
+    );
+    const existingStaffDisabledReason = canInviteExistingStaff
+      ? undefined
+      : mode === "freeManagerExchange" && hasExchangePending
+        ? "次の管理者の承認を待っています。"
+        : (inviteBaseReason ?? "現在の契約状態では、管理者を招待できません。");
+    const canInviteExternal = Boolean(canWrite && mode === "managerAddition" && canFitManager && canFitPerson);
+    const externalDisabledReason = canInviteExternal
+      ? undefined
+      : mode === "freeManagerExchange"
+        ? "Freeでは組織内の既存スタッフと交代できます。"
+        : !canFitPerson
+          ? `利用人数は、組織全体で${limits.maxPeople}名までです。`
+          : (inviteBaseReason ?? "現在の契約状態では、新しいユーザーを招待できません。");
+
+    const validRecoveryPersonIds = restrictedState
+      ? (
+          await Promise.all(
+            restrictedState.recoveryManagerPersonIds.map(async (personId) =>
+              (await isValidOrganizationRecoveryManager(ctx, organization._id, personId)) ? personId : null,
+            ),
+          )
+        ).filter((personId): personId is Id<"organizationPeople"> => personId !== null)
+      : [];
+    const managers = [];
+    for (const { member, person } of managerState.rows) {
+      const isStaff = Boolean(
+        await ctx.db
+          .query("staffs")
+          .withIndex("by_organizationId_and_organizationPersonId", (q) =>
+            q.eq("organizationId", organization._id).eq("organizationPersonId", person._id),
+          )
+          .filter((q) => q.eq(q.field("isDeleted"), false))
+          .first(),
+      );
+      const capabilities = deriveOrganizationPersonCapabilities({
+        managerRole: member.status === "active" ? "active" : "readOnly",
+        activeManagerCount: managerState.active.length,
+        canWriteNormally: canWrite,
+        policy,
+        isStaff,
+        isBillingContact: isOrganizationBillingContact(organization, person),
+        isActiveActor,
+        isRestricted: restrictedState !== null,
+        isRestrictedRecovery: validRecoveryPersonIds.includes(organizationMember.personId),
+        isLastRecoveryManager: validRecoveryPersonIds.includes(person._id) && validRecoveryPersonIds.length <= 1,
+      });
+      managers.push({
+        personId: person._id,
+        name: person.name,
+        contactEmail: person.email,
+        role: member.status === "active" ? ("active" as const) : ("readOnly" as const),
+        isSelf: person._id === organizationMember.personId,
+        canRemoveRole: capabilities.canRemoveManagerRole,
+        ...(capabilities.managerRoleRemovalDisabledReason
+          ? { removeRoleDisabledReason: capabilities.managerRoleRemovalDisabledReason }
+          : {}),
+      });
+    }
+    managers.sort(
+      (left, right) =>
+        Number(right.role === "active") - Number(left.role === "active") ||
+        left.name.localeCompare(right.name, "ja") ||
+        left.personId.localeCompare(right.personId),
+    );
+
+    const invitations = [];
+    for (const invitation of activeInvitations.invitations) {
+      const purpose = getOrganizationInvitationPurpose(invitation);
+      const targetPerson = invitation.targetPersonId ? await ctx.db.get(invitation.targetPersonId) : null;
+      const matchingPeople = invitation.targetPersonId
+        ? targetPerson
+          ? [targetPerson]
+          : []
+        : await ctx.db
+            .query("organizationPeople")
+            .withIndex("by_organizationId_and_emailNormalized", (q) =>
+              q.eq("organizationId", organization._id).eq("emailNormalized", invitation.emailNormalized),
+            )
+            .take(2);
+      const effectiveTargetPerson = targetPerson ?? (matchingPeople.length === 1 ? matchingPeople[0] : null);
+      const effectiveTargetEmail = effectiveTargetPerson
+        ? requiredEmailSchema.safeParse(effectiveTargetPerson.email)
+        : null;
+      const matchingMember = effectiveTargetPerson
+        ? await ctx.db
+            .query("organizationMembers")
+            .withIndex("by_organizationId_and_personId", (q) =>
+              q.eq("organizationId", organization._id).eq("personId", effectiveTargetPerson._id),
+            )
+            .take(2)
+        : [];
+      const targetConflict = Boolean(
+        (invitation.targetPersonId && !targetPerson) ||
+          (effectiveTargetPerson &&
+            (effectiveTargetPerson.organizationId !== organization._id ||
+              effectiveTargetPerson.status !== "active" ||
+              effectiveTargetPerson.emailNormalized !== invitation.emailNormalized ||
+              !effectiveTargetEmail?.success ||
+              normalizeEmail(effectiveTargetEmail.data) !== invitation.emailNormalized)) ||
+          matchingPeople.length > 1 ||
+          matchingMember.length > 1 ||
+          matchingMember[0]?.status === "active" ||
+          matchingMember[0]?.status === "readOnly",
+      );
+      const eligibility = targetConflict ? null : await resolveOrganizationInvitationEligibility(ctx, invitation);
+      const outbox = await ctx.db
+        .query("notificationOutbox")
+        .withIndex("by_organizationInvitationId", (q) => q.eq("organizationInvitationId", invitation._id))
+        .filter((q) => q.eq(q.field("organizationInvitationVersion"), invitation.version))
+        .order("desc")
+        .first();
+      const deliveryFailure =
+        outbox?.status === "failed"
+          ? true
+          : Boolean(
+              await ctx.db
+                .query("notificationDeliveryEvents")
+                .withIndex("by_organizationInvitationId_createdAt", (q) =>
+                  q.eq("organizationInvitationId", invitation._id),
+                )
+                .filter((q) =>
+                  q.and(
+                    q.eq(q.field("eventType"), "enqueue_failed"),
+                    q.eq(q.field("organizationInvitationVersion"), invitation.version),
+                  ),
+                )
+                .first(),
+            );
+      const limitReached = purpose === "managerAddition" && projectedManagers > limits.maxActiveManagers;
+      const status =
+        targetConflict || !eligibility
+          ? ("conflict" as const)
+          : limitReached
+            ? ("limitReached" as const)
+            : deliveryFailure
+              ? ("sendFailed" as const)
+              : ("pending" as const);
+      invitations.push({
+        invitationId: invitation._id,
+        name: effectiveTargetPerson?.name ?? invitation.invitedName?.trim() ?? invitation.email.split("@", 1)[0],
+        invitedEmail: invitation.email,
+        purpose,
+        status,
+        expiresAt: invitation.expiresAt,
+        canResend: Boolean(canWrite && status !== "conflict" && !limitReached),
+        canRevoke: canWrite,
+      });
+    }
+
+    return {
+      kind: "ready" as const,
+      organizationName: organization.name,
+      mode,
+      usage: {
+        activeManagers: managerState.active.length,
+        activeInvitationCount: activeInvitations.invitations.length,
+        pendingAdditions,
+        pendingExchanges,
+        projectedManagers,
+        maxManagers: limits.maxActiveManagers,
+      },
+      actions: {
+        canInviteExistingStaff,
+        ...(existingStaffDisabledReason ? { existingStaffDisabledReason } : {}),
+        canInviteExternal,
+        ...(externalDisabledReason ? { externalDisabledReason } : {}),
+      },
+      managers,
+      invitations,
+    };
+  },
+});
+
+/** 既存スタッフ招待subpageでだけ購読するbounded候補一覧。 */
+export const getManagerCandidates = managerQuery({
+  args: { now: v.number() },
+  returns: managerCandidatesValidator,
+  handler: async (ctx, args) => {
+    if (!Number.isFinite(args.now) || !ctx.organization || !ctx.organizationMember) {
+      return { kind: "integrityError" as const, message: MANAGER_SETTINGS_INTEGRITY_ERROR };
+    }
+    const organization = ctx.organization;
+    const organizationMember = ctx.organizationMember;
+    const billingState = await getOrganizationBillingState(ctx, organization._id);
+    if (!billingState) return { kind: "integrityError" as const, message: MANAGER_SETTINGS_INTEGRITY_ERROR };
+    const { policy, restrictedState, limits } = getManagerSettingsLimits(billingState);
+    if (!limits) return { kind: "integrityError" as const, message: MANAGER_SETTINGS_INTEGRITY_ERROR };
+    const [people, invitations, managers] = await Promise.all([
+      ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId_and_status", (q) =>
+          q.eq("organizationId", organization._id).eq("status", "active"),
+        )
+        .take(MANAGER_SETTINGS_ABSOLUTE_READ_LIMITS.people + 1),
+      readActiveIssuedInvitationsByOrganization(
+        ctx,
+        organization._id,
+        args.now,
+        MANAGER_SETTINGS_ABSOLUTE_READ_LIMITS.invitations,
+      ),
+      readBoundedManagerMembers(ctx, organization._id, {
+        active: MANAGER_SETTINGS_ABSOLUTE_READ_LIMITS.activeManagers,
+        readOnly: MANAGER_SETTINGS_ABSOLUTE_READ_LIMITS.readOnlyManagers,
+      }),
+    ]);
+    if (people.length > MANAGER_SETTINGS_ABSOLUTE_READ_LIMITS.people || invitations.hasOverflow || !managers) {
+      return { kind: "integrityError" as const, message: MANAGER_SETTINGS_INTEGRITY_ERROR };
+    }
+
+    const activeStaffPersonIds = new Set<Id<"organizationPeople">>();
+    for (const person of people) {
+      const staffs = await ctx.db
+        .query("staffs")
+        .withIndex("by_organizationId_and_organizationPersonId", (q) =>
+          q.eq("organizationId", organization._id).eq("organizationPersonId", person._id),
+        )
+        .take(101);
+      if (staffs.length > 100) {
+        return { kind: "integrityError" as const, message: MANAGER_SETTINGS_INTEGRITY_ERROR };
+      }
+      for (const staff of staffs) {
+        if (staff.isDeleted) continue;
+        const shop = await ctx.db.get(staff.shopId);
+        if (
+          shop &&
+          !shop.isDeleted &&
+          shop.organizationId === organization._id &&
+          organizationShopOperatingStatus(shop.operatingStatus) === "active"
+        ) {
+          activeStaffPersonIds.add(person._id);
+          break;
+        }
+      }
+    }
+    const memberByPersonId = new Map(managers.rows.map(({ member }) => [member.personId, member]));
+    const pendingTargetIds = new Set(
+      invitations.invitations.flatMap((invitation) => (invitation.targetPersonId ? [invitation.targetPersonId] : [])),
+    );
+    const pendingEmails = new Set(invitations.invitations.map((invitation) => invitation.emailNormalized));
+    const isActiveActor = organizationMember.status === "active";
+    const isFree = policy.entitlementPlan === "free";
+    const canWrite = Boolean(isActiveActor && policy.canWriteBusinessData && !restrictedState);
+
+    const candidates = [];
+    for (const person of people) {
+      if (!activeStaffPersonIds.has(person._id)) continue;
+      const member = memberByPersonId.get(person._id);
+      const parsedEmail = requiredEmailSchema.safeParse(person.email);
+      const hasValidEmail = parsedEmail.success && normalizeEmail(parsedEmail.data) === person.emailNormalized;
+      const pending = pendingTargetIds.has(person._id) || pendingEmails.has(person.emailNormalized);
+      const freeEligibility = isFree
+        ? await resolveFreeManagerExchangeEligibility(ctx, {
+            organizationId: organization._id,
+            inviterMemberId: organizationMember._id,
+            emailNormalized: person.emailNormalized,
+            targetPersonId: person._id,
+          })
+        : null;
+      const disabledReason =
+        member?.status === "active"
+          ? "すでに管理者です。"
+          : member?.status === "readOnly"
+            ? "閲覧のみの管理者です。契約状態を復旧してから変更してください。"
+            : pending
+              ? "管理者招待の承認待ちです。"
+              : !hasValidEmail
+                ? person.email.trim().length === 0
+                  ? "メールアドレスが登録されていません。"
+                  : "メールアドレスの形式を確認してください。"
+                : !canWrite
+                  ? "現在の契約状態では、管理者を招待できません。"
+                  : isFree && !freeEligibility
+                    ? "Freeの管理者交代の対象にできません。"
+                    : undefined;
+      candidates.push({
+        personId: person._id,
+        name: person.name,
+        contactEmail: person.email,
+        canSelect: disabledReason === undefined,
+        ...(disabledReason ? { disabledReason } : {}),
+      });
+    }
+    candidates.sort(
+      (left, right) => left.name.localeCompare(right.name, "ja") || left.personId.localeCompare(right.personId),
+    );
+    return { kind: "ready" as const, candidates };
   },
 });

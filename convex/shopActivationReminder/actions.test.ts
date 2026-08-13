@@ -1,6 +1,6 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
-import { seedManagerShop, seedStaffLineAccount } from "../_test/seed";
+import { seedCanonicalStaffLineRecipient, seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { SHOP_ACTIVATION_REMINDER_SUBJECT } from "../notification/templates";
 import { SHOP_ACTIVATION_REMINDER_CONTEXT } from "../notificationOutbox/failureSuppress";
@@ -59,8 +59,7 @@ describe("shopActivationReminder/actions", () => {
   it("manager staffがLINE連携済みならLINE outboxを作りemail fallbackを付ける", async () => {
     const { t, shopId, userId, managerStaffId } = await setupReminderTarget();
     await t.run(async (ctx) => {
-      await seedStaffLineAccount(ctx, {
-        shopId,
+      await seedCanonicalStaffLineRecipient(ctx, {
         staffId: managerStaffId,
         lineUserId: "U_manager",
         following: true,
@@ -108,8 +107,7 @@ describe("shopActivationReminder/actions", () => {
   it("LINE Quota超過時はLINE連携済みでもemail outboxを作る", async () => {
     const { t, shopId, userId, managerStaffId } = await setupReminderTarget();
     await t.run(async (ctx) => {
-      await seedStaffLineAccount(ctx, {
-        shopId,
+      await seedCanonicalStaffLineRecipient(ctx, {
         staffId: managerStaffId,
         lineUserId: "U_manager",
         following: true,

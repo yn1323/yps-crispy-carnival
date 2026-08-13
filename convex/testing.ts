@@ -1,14 +1,19 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { getOrganizationInvitationSigningSecret } from "./_lib/config";
 import { getReminderScheduledAt, getSubmitLinkCutoff } from "./_lib/dateFormat";
 import { isDryRunManagerEmail, isNotificationDeliverySuppressed } from "./_lib/notificationDelivery";
+import { resetRateLimit } from "./_lib/rateLimits";
 import { loadShopManagerContacts } from "./_lib/shopManagerRecipients";
 import { normalizeSubmissionPattern } from "./_lib/submissionPattern";
 import { generateUUID } from "./_lib/uuid";
 import { MAGIC_LINK_DEFAULT_TTL_MS, ORGANIZATION_NAME_SUFFIX } from "./constants";
 import { getLegalConsentVersions, type LegalAudience } from "./legal/documents";
 import { upsertStaffLineAccount } from "./line/service";
+import { isOrganizationInvitationIssued } from "./organizationInvitation/lifecycle";
+import { getOrganizationInvitationPurpose } from "./organizationInvitation/purpose";
+import { deriveInvitationToken, digestInvitationToken, invitationRateLimitKey } from "./organizationInvitation/token";
 import schema from "./schema";
 
 const TABLE_NAMES = Object.keys(schema.tables) as (keyof typeof schema.tables)[];
@@ -629,6 +634,11 @@ async function resetManagerScenarioDataForAuth(
   managerAuthTokenIdentifier: string,
   options?: { auditBeforeReset?: boolean },
 ) {
+  // multi-actor burn-inでも、同じClerk actorの招待受諾budgetを前の反復から引き継がない。
+  await resetRateLimit(ctx, {
+    name: "organizationManagerInviteAcceptActor",
+    key: invitationRateLimitKey(await digestInvitationToken(`actor:${managerAuthTokenIdentifier}`)),
+  });
   const users = await ctx.db
     .query("users")
     .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", managerAuthTokenIdentifier))
@@ -981,6 +991,32 @@ export const seedShopLifecycleScenario = internalMutation({
   },
 });
 
+/** スタッフ追加・変更・削除E2Eで使う、actor所有のBusiness組織と1店舗を作る。 */
+export const seedStaffLifecycleScenario = internalMutation({
+  args: {
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.optional(v.string()),
+  },
+  returns: v.object({
+    shopId: v.id("shops"),
+    organizationName: v.string(),
+    staffName: v.string(),
+    staffEmail: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const organizationName = "スタッフライフサイクルテストグループ";
+    const staffName = "E2E 新規スタッフ";
+    const staffEmail = "staff-lifecycle@example.test";
+    const { shopId } = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
+      organizationName,
+      shopName: "スタッフライフサイクルテスト店舗",
+    });
+    return { shopId, organizationName, staffName, staffEmail };
+  },
+});
+
 /** 店舗詳細から所属スタッフを一括変更するE2Eの、actor単位で回収可能な前提を作る。 */
 export const seedShopStaffMembershipScenario = internalMutation({
   args: {
@@ -1030,6 +1066,107 @@ export const seedShopStaffMembershipScenario = internalMutation({
       targetShopName,
       additionCandidateName,
       existingTargetName,
+    };
+  },
+});
+
+/** 管理者設定E2Eで使う、既存スタッフへの発行・取消をactor単位で回収できる前提。 */
+export const seedManagerSettingsScenario = internalMutation({
+  args: {
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.optional(v.string()),
+  },
+  returns: v.object({
+    shopId: v.id("shops"),
+    organizationName: v.string(),
+    currentManagerName: v.string(),
+    candidateName: v.string(),
+    candidateEmail: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const organizationName = "管理者設定テストグループ";
+    const currentManagerName = DEFAULT_MANAGER.name;
+    const candidateName = "管理者候補スタッフ";
+    // E2E artifactへ実在し得る宛先を残さない予約済みtest domain。
+    const candidateEmail = "manager-candidate@example.test";
+    const fixture = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
+      organizationName,
+      shopName: "管理者設定テスト店舗",
+    });
+    await createScenarioStaff(ctx, {
+      organizationId: fixture.organizationId,
+      shopId: fixture.shopId,
+      name: candidateName,
+      email: candidateEmail,
+    });
+    return {
+      shopId: fixture.shopId,
+      organizationName,
+      currentManagerName,
+      candidateName,
+      candidateEmail,
+    };
+  },
+});
+
+/** 実Clerk actor同士で管理者招待の受諾と権限解除を通すE2E前提を作る。 */
+export const seedManagerLifecycleScenario = internalMutation({
+  args: {
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.optional(v.string()),
+    inviteeAuthTokenIdentifier: v.string(),
+    inviteeEmail: v.string(),
+  },
+  returns: v.object({
+    shopId: v.id("shops"),
+    organizationId: v.id("organizations"),
+    organizationName: v.string(),
+    shopName: v.string(),
+    candidatePersonId: v.id("organizationPeople"),
+    candidateName: v.string(),
+    candidateEmail: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+    if (!args.inviteeAuthTokenIdentifier) throw new Error("inviteeAuthTokenIdentifier is required");
+    if (args.inviteeAuthTokenIdentifier === args.managerAuthTokenIdentifier) {
+      throw new Error("Manager lifecycle E2E requires distinct actors");
+    }
+    if (
+      normalizeScenarioEmail(args.inviteeEmail) === normalizeScenarioEmail(args.managerEmail ?? DEFAULT_MANAGER.email)
+    ) {
+      throw new Error("Manager lifecycle E2E requires distinct actor emails");
+    }
+
+    // Bが過去runで作成したE2Eデータだけを先に回収し、Aの新しい組織へ未接続の人物として追加する。
+    await resetManagerScenarioDataForAuth(ctx, args.inviteeAuthTokenIdentifier);
+    const organizationName = "管理者受諾テストグループ";
+    const shopName = "管理者受諾テスト店舗";
+    const candidateName = "管理者受諾スタッフ";
+    const candidateEmail = normalizeScenarioEmail(args.inviteeEmail);
+    const fixture = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
+      organizationName,
+      shopName,
+    });
+    const candidate = await createScenarioStaff(ctx, {
+      organizationId: fixture.organizationId,
+      shopId: fixture.shopId,
+      name: candidateName,
+      email: candidateEmail,
+    });
+
+    return {
+      shopId: fixture.shopId,
+      organizationId: fixture.organizationId,
+      organizationName,
+      shopName,
+      candidatePersonId: candidate.personId,
+      candidateName,
+      candidateEmail,
     };
   },
 });
@@ -1395,6 +1532,48 @@ export const getLatestMagicLinkToken = internalQuery({
     }
 
     return { token: null };
+  },
+});
+
+/**
+ * E2E専用：画面から発行済みの管理者招待を、受諾browserへ渡すためだけに再導出する。
+ * 招待本文、宛先、DB documentは返さず、digest不一致も安全な分類だけで失敗させる。
+ */
+export const getManagerInvitationCapability = internalQuery({
+  args: {
+    organizationId: v.id("organizations"),
+    targetPersonId: v.id("organizationPeople"),
+  },
+  returns: v.object({ token: v.union(v.string(), v.null()) }),
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+    const issued = await ctx.db
+      .query("organizationInvitations")
+      .withIndex("by_organizationId_and_targetPersonId_and_status", (q) =>
+        q.eq("organizationId", args.organizationId).eq("targetPersonId", args.targetPersonId).eq("status", "issued"),
+      )
+      .order("desc")
+      .take(2);
+    const invitations = issued.filter(
+      (invitation) =>
+        isOrganizationInvitationIssued(invitation) &&
+        getOrganizationInvitationPurpose(invitation) === "managerAddition",
+    );
+    if (invitations.length === 0) return { token: null };
+    if (invitations.length !== 1) {
+      throw new Error("E2E capability lookup failed: ambiguous-manager-invitation");
+    }
+
+    const invitation = invitations[0];
+    const token = await deriveInvitationToken({
+      invitationId: invitation._id,
+      version: invitation.version,
+      signingSecret: getOrganizationInvitationSigningSecret(),
+    });
+    if ((await digestInvitationToken(token)) !== invitation.tokenDigest) {
+      throw new Error("E2E capability lookup failed: manager-invitation-digest-mismatch");
+    }
+    return { token };
   },
 });
 

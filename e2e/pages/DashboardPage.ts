@@ -54,7 +54,7 @@ export class DashboardPage {
     await dialog.getByLabel("あなたの名前").fill(data.managerName);
     await dialog.getByLabel("メールアドレス").fill(data.managerEmail);
     await dialog.locator("[data-scope='checkbox'][data-part='control']").click();
-    await dialog.getByRole("button", { name: "お店を登録する" }).click();
+    await dialog.getByRole("button", { name: "お店を登録してトライアルを開始", exact: true }).click();
   }
 
   async expectSetupComplete() {

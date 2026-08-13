@@ -18,7 +18,7 @@
 
 ## 業務仕様
 
-- [組織課金、複数店舗、複数管理者の業務フロー](specs/organization-billing-business-flow.md)：プラン、利用人数、店舗と管理者の上限、支払い状態、Stripe連携、管理者招待の業務契約です。
+- [組織課金、複数店舗、複数管理者の業務フロー](specs/organization-billing-business-flow.md)：プラン、利用人数、店舗と管理者の上限、支払い状態、Stripe連携、専用ページからの管理者招待・交代・権限解除の業務契約です。
 - [Full Regression横断契約表](specs/full-regression-contracts.md)：主要な業務契約、public surface、通知purposeと主担当テスト層の対応を示します。
 
 ## 設計・開発規約

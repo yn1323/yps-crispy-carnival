@@ -3,7 +3,7 @@
 `doc/plans/`は、計画を作成した時点の判断、実装順序、受入条件を残す場所です。
 現在の機能や常設規約は、各表の「現在の正本」を参照してください。
 
-> 分類日: 2026-08-12
+> 分類日: 2026-08-13
 >
 > 分類基準: 既存計画は2026-07-23のworktree、2026-08-02以降の追加計画は作成時点のworktreeと各計画本文
 
@@ -28,8 +28,10 @@
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
+| [LINE連携のグループ内共通化](2026-08-13_LINE連携のグループ内共通化_実装計画.md) | `rollout verification` | repository実装、主要テスト、標準検証、現在仕様の文書は完了。Production artifactとdeploymentの確定、exportとbackup、完全ゼロまたは段階経路の判定、必要なmigration、canonical read切替、非同期処理のdrain、rollout gate解除、実LINE canary、Preview E2E、CI VRT、法務確認と実環境証跡は未実施 | [LINE通知連携](../features/line-notification.md)、[ユーザー詳細](../features/user-detail.md)、[通知配送outbox](../features/notification-outbox.md)、[リリース状態](../manual/release-status.md) |
+| [管理者設定ページ](2026-08-13_管理者設定ページ_実装計画.md) | `rollout verification` | repository実装、主担当test、標準検証は完了。Preview E2E・CI VRT、Widen deploy後の旧client排出確認とAPI Narrow、Production公開判断・canaryは未確認 | [グループ課金](../features/organization-billing.md)、[ユーザー詳細](../features/user-detail.md)、[店舗所属の移行互換](../features/manager-shop-membership.md)、[課金業務フロー](../specs/organization-billing-business-flow.md) |
 | [UI・UX・SEO監査残件 実装計画](2026-08-12_UI_UX_SEO監査残件_実装計画.md) | `rollout verification` | 確定不具合のrepository実装と主担当testは完了。外部GTM・GA4・Clarity設定、Production deploy・canary、Preview Deployed Smoke、計測browser契約の実走、CI VRT、GSC・RUM・Product判断gateは未実施。gate未成立項目とユーザー指定の除外二項目は現行維持 | [公開Web計測](../features/web-measurement.md)、[希望シフト提出](../features/shift-submission.md)、[公開サイト](../features/public-pages.md)、[リリース状態](../manual/release-status.md) |
-| [テスト充足度監査と改善計画](2026-08-12_テスト充足度監査_改善計画.md) | `rollout verification` | リポジトリ内の不足テスト、Trial継続取消の別requestId排他、全機能契約表、内部BI・VRT・Deployed SmokeのCI gateは実装済み。GitHub Actions上のVRT・Analytics CI、Preview Deployed Smoke、実Convex・Stripe到達は未確認。管理者招待は仕様確定まで対象外 | [テスト方針](../rules/testing-strategy.md)、[セキュリティ方針](../rules/security-strategy.md)、[CI/CD運用](../manual/ci-cd.md) |
+| [テスト充足度監査と改善計画](2026-08-12_テスト充足度監査_改善計画.md) | `rollout verification` | リポジトリ内の不足テスト、Trial継続取消の別requestId排他、全機能契約表、内部BI・VRT・Deployed SmokeのCI gateは実装済み。管理者招待の契約と主担当層は[管理者設定ページ計画](2026-08-13_管理者設定ページ_実装計画.md)へ移管済み。GitHub Actions上のVRT・Analytics CI・管理者設定E2E、Preview Deployed Smoke、実Convex・Stripe到達は未確認 | [テスト方針](../rules/testing-strategy.md)、[セキュリティ方針](../rules/security-strategy.md)、[CI/CD運用](../manual/ci-cd.md) |
 | [ShiftForm PC・SP時間編集不具合](2026-08-08_ShiftForm_PC_SP時間編集不具合_実装計画.md) | `rollout` | code・tests・現行文書は完了。deploy後canaryでPCの完全隣接枠、SPの短縮・複数区間案内、新しい確定通知の時間表示を確認する。既存DBの一括migrationは行わない | [シフト表](../features/shift-board.md)、[希望シフト提出](../features/shift-submission.md)、[通知配送outbox](../features/notification-outbox.md)、[リリース状態](../manual/release-status.md) |
 | [Analytics夜間バッチ簡素化](2026-08-08_Analytics夜間バッチ簡素化_実装計画.md) | `rollout` | code・tests・現行文書とNarrow revisionへの実装は完了。対象deploymentへNarrow deploy → 初回partialを通常のcompleteとして即時公開 → cron有効化 → 翌日03:00のno-op → 翌々日03:00の完全日次 → 外部alertの実環境証跡まで確認する | [分析KPI蓄積基盤](../features/analytics.md)、[分析KPI可視化アプリ](../features/analytics-dashboard.md)、[Analytics rollout](../manual/analytics-rollout.md) |
 | [E2E安定性改善・スコープ再設計](2026-08-03_E2E安定性改善_実行計画.md) | `rollout` | code、local contract test、50回burn-inは完了。同一SHA 3回、workflow cancel、30%短縮をActionsで確認 | [テスト方針](../rules/testing-strategy.md)、[セキュリティ方針](../rules/security-strategy.md)、[CI/CD運用](../manual/ci-cd.md) |

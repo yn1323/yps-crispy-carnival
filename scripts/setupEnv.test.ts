@@ -11,24 +11,17 @@ vi.mock("dotenv", () => ({ config: dotenvConfigMock }));
 const SECRET_SENTINEL = "secret-sentinel-should-never-be-printed";
 const TEST_ENV_KEY = "STRIPE_SECRET_KEY";
 const BUSINESS_PRICE_ENV_KEY = "STRIPE_BUSINESS_PRICE_ID";
-const DARK_LAUNCH_ENV_KEYS = [
-  "FEATURE_BILLING",
-  "FEATURE_ORGANIZATION_CREATION",
-  "FEATURE_MANAGER_INVITATION",
-] as const;
 
 describe("setupEnv", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
     process.env[TEST_ENV_KEY] = SECRET_SENTINEL;
-    for (const key of DARK_LAUNCH_ENV_KEYS) delete process.env[key];
   });
 
   afterEach(() => {
     delete process.env[TEST_ENV_KEY];
     delete process.env[BUSINESS_PRICE_ENV_KEY];
-    for (const key of DARK_LAUNCH_ENV_KEYS) delete process.env[key];
     vi.restoreAllMocks();
   });
 
@@ -86,18 +79,5 @@ describe("setupEnv", () => {
     const [command, argv, options] = businessPriceCall;
     expect(JSON.stringify([command, argv])).not.toContain(businessPriceId);
     expect(options).toMatchObject({ input: `${businessPriceId}\n`, stdio: ["pipe", "pipe", "pipe"] });
-  });
-
-  it("未設定のダークローンチ公開フラグをdisabledとして同期する", async () => {
-    vi.spyOn(console, "log").mockImplementation(() => {});
-    vi.spyOn(console, "error").mockImplementation(() => {});
-
-    await import("./setupEnv");
-
-    for (const key of DARK_LAUNCH_ENV_KEYS) {
-      const call = execFileSyncMock.mock.calls.find(([, args]) => args.at(-1) === key);
-      expect(call).toBeDefined();
-      expect(call?.[2]).toMatchObject({ input: "disabled\n", stdio: ["pipe", "pipe", "pipe"] });
-    }
   });
 });

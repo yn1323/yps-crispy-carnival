@@ -371,6 +371,10 @@ export const LoginRouteNavigation: Story = {
     await expect(await canvas.findByRole("heading", { name: "シフトリにログイン" })).toBeInTheDocument();
     await userEvent.click(await canvas.findByRole("link", { name: "新規登録" }));
     await expect(await canvas.findByRole("heading", { name: "シフトリをはじめる" })).toBeInTheDocument();
+    const pricingLink = await canvas.findByRole("link", { name: "料金・プランを見る（新しいタブ）" });
+    await expect(pricingLink).toHaveAttribute("href", "/pricing");
+    await expect(pricingLink).toHaveAttribute("target", "_blank");
+    await expect(pricingLink).toHaveAttribute("rel", "noreferrer");
 
     await userEvent.click(await canvas.findByRole("link", { name: "ログイン" }));
     await expect(await canvas.findByRole("heading", { name: "シフトリにログイン" })).toBeInTheDocument();

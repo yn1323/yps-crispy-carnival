@@ -60,7 +60,7 @@ export const Route = createRootRoute({
       },
       { name: "theme-color", content: "#000000" },
       ...buildMeta({
-        title: "シフトリ｜LINEでシフト希望を集める無料シフト管理ツール",
+        title: "シフトリ｜LINEでシフト希望を集めるシフト管理ツール",
         description: SITE_DESCRIPTION,
       }),
       { property: "og:type", content: "website" },

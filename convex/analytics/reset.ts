@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import { addDays, dateJST, getDeadlineCutoff, getSubmitLinkCutoff, jstDayRangeMs } from "../_lib/dateFormat";
+import { resolveStaffLineRecipient } from "../line/service";
 import { getAnalyticsResetConfiguration, parseAnalyticsSourceCaptureStartAt } from "./config";
 import { inspectCanonicalFactsPage } from "./invariants";
 import { ANALYTICS_CALCULATION_VERSION } from "./model";
@@ -365,11 +366,7 @@ async function seedStaffs(ctx: MutationCtx, run: Doc<"analyticsRuns">, cursor?: 
     if (!shop?.organizationId) throw new Error("analytics_reset_scope_invalid");
     const organizationId = staff.organizationId ?? shop.organizationId;
     if (organizationId !== shop.organizationId) throw new Error("analytics_reset_scope_invalid");
-    const lineAccount = await ctx.db
-      .query("staffLineAccounts")
-      .withIndex("by_staffId", (q) => q.eq("staffId", staff._id))
-      .filter((q) => q.eq(q.field("isDeleted"), false))
-      .first();
+    const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId: staff.shopId });
     await ctx.db.insert("analyticsMemberships", {
       membershipKey: `staff:${staff._id}`,
       organizationId,
@@ -379,8 +376,8 @@ async function seedStaffs(ctx: MutationCtx, run: Doc<"analyticsRuns">, cursor?: 
       role: "staff",
       validFrom: sourceCaptureStartAt,
       isShiftTarget: !staff.excludedFromShift,
-      lineLinked: Boolean(lineAccount),
-      lineFollowing: Boolean(lineAccount?.following),
+      lineLinked: Boolean(lineRecipient),
+      lineFollowing: Boolean(lineRecipient?.following),
       updatedAt: sourceCaptureStartAt,
     });
   }

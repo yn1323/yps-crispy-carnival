@@ -1,5 +1,5 @@
 import { Badge, Box, Flex, Grid, HStack, Skeleton, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
-import { LuArrowRight, LuBadgeCheck, LuCircleAlert, LuClock3, LuStore, LuUserRoundCog, LuUsers } from "react-icons/lu";
+import { LuBadgeCheck, LuCircleAlert, LuClock3, LuStore, LuUserRoundCog, LuUsers } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import type { PlanStatusCardData, PlanStatusCardProps, PlanStatusCardUsage } from "./types";
 
@@ -21,10 +21,9 @@ export function PlanStatusCard({ data, usage, onAction, onRequestCollapse }: Pla
         <Stack gap={4} px={{ base: 4, md: 5 }} py={4}>
           <PlanStatusHeading presentation={presentation} />
           {data.kind === "paidPlan" && <PaidPlanDetails data={data} />}
-          {data.kind === "freePlan" && <FreePlanDetails data={data} onAction={onAction} />}
-          {data.kind === "trial" && <TrialDetails data={data} onAction={onAction} onRemindLater={handleRemindLater} />}
+          {data.kind === "trial" && <TrialDetails data={data} onRemindLater={handleRemindLater} />}
           {data.kind === "paymentPending" && <PaymentPendingDetails data={data} />}
-          {data.kind === "paymentIssue" && <PaymentIssueDetails data={data} onAction={onAction} />}
+          {data.kind === "paymentIssue" && <PaymentIssueDetails data={data} />}
           {data.kind === "restricted" && <RestrictedDetails data={data} />}
         </Stack>
         <PlanUsageFooter usage={usage} />
@@ -59,14 +58,18 @@ function PlanStatusHeading({ presentation }: { presentation: ReturnType<typeof g
 
 function StatusBadge({ badge }: { badge: { label: string; background: string; color: string } }) {
   return (
-    <Badge variant="subtle" borderRadius="full" px={2.5} py={1} bg={badge.background} color={badge.color}>
+    <Badge ms="auto" variant="subtle" borderRadius="full" px={2.5} py={1} bg={badge.background} color={badge.color}>
       {badge.label}
     </Badge>
   );
 }
 
 function PaidPlanDetails({ data }: { data: Extract<PlanStatusCardData, { kind: "paidPlan" }> }) {
-  const isScheduledChange = data.badgeLabel === "変更予定";
+  const isScheduledChange = data.badgeLabel === "変更予定" || data.badgeLabel === "利用停止予定";
+  const hasDescription = isScheduledChange && Boolean(data.description);
+
+  if (!data.nextEventLabel && !hasDescription) return null;
+
   return (
     <Stack gap={3}>
       {data.nextEventLabel && (
@@ -74,48 +77,10 @@ function PaidPlanDetails({ data }: { data: Extract<PlanStatusCardData, { kind: "
           {data.nextEventLabel}
         </Text>
       )}
-      {data.description && (
-        <Box
-          borderRadius="lg"
-          bg={isScheduledChange ? "orange.50" : "transparent"}
-          px={isScheduledChange ? 3 : 0}
-          py={isScheduledChange ? 2.5 : 0}
-        >
-          <Text fontSize="sm" fontWeight="medium">
-            {data.description}
-          </Text>
-        </Box>
-      )}
-    </Stack>
-  );
-}
-
-function FreePlanDetails({
-  data,
-  onAction,
-}: {
-  data: Extract<PlanStatusCardData, { kind: "freePlan" }>;
-  onAction: PlanStatusCardProps["onAction"];
-}) {
-  const primaryAction = data.primaryAction;
-
-  return (
-    <Stack gap={4}>
-      <Text fontSize="sm" fontWeight="medium">
-        {data.description}
-      </Text>
-      {primaryAction && (
-        <Button
-          size="md"
-          variant="solid"
-          colorPalette="teal"
-          w="full"
-          minH="44px"
-          onClick={() => onAction(primaryAction.action)}
-        >
-          {primaryAction.label}
-          <LuArrowRight aria-hidden />
-        </Button>
+      {isScheduledChange && data.description && (
+        <Text fontSize="sm" fontWeight="medium">
+          {data.description}
+        </Text>
       )}
     </Stack>
   );
@@ -123,18 +88,13 @@ function FreePlanDetails({
 
 function TrialDetails({
   data,
-  onAction,
   onRemindLater,
 }: {
   data: Extract<PlanStatusCardData, { kind: "trial" }>;
-  onAction: PlanStatusCardProps["onAction"];
   onRemindLater: () => void;
 }) {
-  const isUrgent = data.remainingDays <= 7;
-  const primaryAction = data.primaryAction;
-
   return (
-    <Stack gap={4} borderRadius="lg" px={3} py={3} bg={isUrgent ? "orange.50" : "blue.50"}>
+    <Stack gap={2}>
       <Stack gap={1.5}>
         <Text fontSize="sm" fontWeight="medium">
           {data.trialEndsOnLabel} にトライアルが終了します。
@@ -143,88 +103,47 @@ function TrialDetails({
           {data.description}
         </Text>
       </Stack>
-      <Stack gap={2.5}>
-        {primaryAction && (
-          <Button
-            size="md"
-            variant="solid"
-            colorPalette="teal"
-            w="full"
-            minH="44px"
-            onClick={() => onAction(primaryAction.action)}
-          >
-            {primaryAction.label}
-            <LuArrowRight aria-hidden />
-          </Button>
-        )}
-        {data.showRemindLater && (
-          <Button size="md" colorPalette="gray" variant="outline" w="full" minH="44px" onClick={onRemindLater}>
+      {data.showRemindLater && (
+        <Flex justify="flex-end">
+          <Button type="button" size="sm" colorPalette="gray" variant="plain" minH="44px" onClick={onRemindLater}>
             後で確認する
           </Button>
-        )}
-      </Stack>
+        </Flex>
+      )}
     </Stack>
   );
 }
 
 function PaymentPendingDetails({ data }: { data: Extract<PlanStatusCardData, { kind: "paymentPending" }> }) {
   return (
-    <Stack gap={4} borderRadius="lg" px={3} py={3} bg="blue.50">
-      <Text fontSize="sm" fontWeight="medium">
-        {data.description}
-      </Text>
-    </Stack>
+    <Text fontSize="sm" fontWeight="medium">
+      {data.description}
+    </Text>
   );
 }
 
-function PaymentIssueDetails({
-  data,
-  onAction,
-}: {
-  data: Extract<PlanStatusCardData, { kind: "paymentIssue" }>;
-  onAction: PlanStatusCardProps["onAction"];
-}) {
-  const colorPalette = data.phase === "grace" ? "orange" : "red";
-  const background = data.phase === "grace" ? "orange.50" : "red.50";
+function PaymentIssueDetails({ data }: { data: Extract<PlanStatusCardData, { kind: "paymentIssue" }> }) {
   const deadlineColor = data.phase === "grace" ? "orange.800" : "red.800";
-  const primaryAction = data.primaryAction;
 
   return (
-    <Stack gap={4} borderRadius="lg" px={3} py={3} bg={background}>
-      <Stack gap={1.5}>
-        {data.recoveryDeadlineLabel && (
-          <Text fontSize="sm" fontWeight="bold" color={deadlineColor}>
-            {data.recoveryDeadlineLabel}
-          </Text>
-        )}
-        <Text fontSize="sm" fontWeight="medium">
-          {data.description}
+    <Stack gap={1.5}>
+      {data.recoveryDeadlineLabel && (
+        <Text fontSize="sm" fontWeight="bold" color={deadlineColor}>
+          {data.recoveryDeadlineLabel}
         </Text>
-      </Stack>
-      {primaryAction && (
-        <Button
-          size="md"
-          variant="outline"
-          colorPalette={colorPalette}
-          w="full"
-          minH="44px"
-          onClick={() => onAction(primaryAction.action)}
-        >
-          {primaryAction.label}
-          <LuArrowRight aria-hidden />
-        </Button>
       )}
+      <Text fontSize="sm" fontWeight="medium">
+        {data.description}
+      </Text>
     </Stack>
   );
 }
 
 function RestrictedDetails({ data }: { data: Extract<PlanStatusCardData, { kind: "restricted" }> }) {
   return (
-    <Stack gap={4} borderRadius="lg" px={3} py={3} bg="red.50">
-      <Text fontSize="sm" fontWeight="medium">
-        {data.description}
-      </Text>
-    </Stack>
+    <Text fontSize="sm" fontWeight="medium">
+      {data.description}
+    </Text>
   );
 }
 
@@ -272,7 +191,7 @@ function PlanUsageFooter({ usage }: { usage: PlanStatusCardUsage | null | undefi
           return (
             <Stack
               key={item.label}
-              gap={1}
+              gap={0}
               minW={0}
               align="center"
               px={{ base: 2, md: 3 }}
@@ -295,9 +214,6 @@ function PlanUsageFooter({ usage }: { usage: PlanStatusCardUsage | null | undefi
                   {item.suffix}
                 </Text>
               </HStack>
-              <Text fontSize="xs" lineHeight="short" color="fg.muted">
-                {item.label}
-              </Text>
             </Stack>
           );
         })}
@@ -319,7 +235,6 @@ function UsageSkeleton({ withDivider = false }: { withDivider?: boolean }) {
         <Skeleton boxSize="16px" borderRadius="full" />
         <Skeleton h="18px" w="56px" />
       </HStack>
-      <Skeleton h="12px" w="44px" />
     </Stack>
   );
 }
@@ -336,7 +251,6 @@ export type PlanStatusPresentation = {
   Icon: typeof LuBadgeCheck;
   title: string;
   badge: PlanStatusBadge | null;
-  summaryLabel: string;
   summaryBadge: PlanStatusBadge | null;
   tone: PlanStatusTone;
   detailsLabel: string;
@@ -348,7 +262,7 @@ export function getPlanStatusPresentation(data: PlanStatusCardData): PlanStatusP
   if (data.kind === "paidPlan" || data.kind === "freePlan") {
     const planName = data.kind === "paidPlan" ? data.planName : "Free";
     const badgeLabel = data.kind === "paidPlan" ? data.badgeLabel : "利用中";
-    const isScheduledChange = badgeLabel === "変更予定";
+    const isScheduledChange = badgeLabel === "変更予定" || badgeLabel === "利用停止予定";
     const badge = isScheduledChange
       ? { label: badgeLabel, background: "orange.100", color: "orange.700" }
       : { label: badgeLabel, background: "teal.100", color: "teal.700" };
@@ -356,7 +270,6 @@ export function getPlanStatusPresentation(data: PlanStatusCardData): PlanStatusP
       Icon: LuBadgeCheck,
       title: `${planName}プラン`,
       badge,
-      summaryLabel: "組織・プラン",
       summaryBadge: isScheduledChange ? badge : null,
       tone: isScheduledChange ? "orange" : "neutral",
       detailsLabel: `${planName}プランの詳細`,
@@ -376,7 +289,6 @@ export function getPlanStatusPresentation(data: PlanStatusCardData): PlanStatusP
       Icon: LuClock3,
       title: "無料トライアル",
       badge,
-      summaryLabel: "無料トライアル",
       summaryBadge: badge,
       tone: isUrgent ? "orange" : "blue",
       detailsLabel: "無料トライアルの詳細",
@@ -391,7 +303,6 @@ export function getPlanStatusPresentation(data: PlanStatusCardData): PlanStatusP
       Icon: LuClock3,
       title: "支払い結果を確認中",
       badge,
-      summaryLabel: "支払い結果を確認中",
       summaryBadge: badge,
       tone: "blue",
       detailsLabel: "支払い結果確認中の詳細",
@@ -406,7 +317,6 @@ export function getPlanStatusPresentation(data: PlanStatusCardData): PlanStatusP
       Icon: LuCircleAlert,
       title: "契約制限中",
       badge,
-      summaryLabel: "契約制限中",
       summaryBadge: badge,
       tone: "red",
       detailsLabel: "契約制限の詳細",
@@ -427,7 +337,6 @@ export function getPlanStatusPresentation(data: PlanStatusCardData): PlanStatusP
     Icon: LuCircleAlert,
     title: "支払いに問題があります",
     badge,
-    summaryLabel: "支払いに問題があります",
     summaryBadge: badge,
     tone: isGrace ? "orange" : "red",
     detailsLabel: "支払い問題の詳細",

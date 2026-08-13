@@ -3,16 +3,42 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
 import {
   countScheduledJobs,
-  hasScheduledJob,
   MANAGER_SUBJECT,
   readScheduledFunctions,
   SCENARIO_NOW,
+  type ScenarioTest,
   scenarioDate,
   seedStaff,
 } from "../_test/scenarioBuilders";
 import { createScenario } from "../_test/scenarioFixtures";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+
+async function completeNextFanout(t: ScenarioTest, following: boolean) {
+  const candidates = await t.run(async (ctx) =>
+    ctx.db
+      .query("lineFriendshipFanoutJobs")
+      .withIndex("by_status_and_nextRunAt", (q) => q.eq("status", "queued"))
+      .take(5),
+  );
+  const job = candidates
+    .filter((candidate) => candidate.following === following)
+    .sort((left, right) => right.stateVersion - left.stateVersion)[0];
+  if (!job) throw new Error("friendship fanout job was not found");
+
+  await t.mutation(internal.line.mutations.kickFriendshipFanoutJob, { jobId: job._id });
+  const claimed = await t.run(async (ctx) => ctx.db.get(job._id));
+  if (claimed?.status !== "processing" || !claimed.leaseId) {
+    throw new Error("friendship fanout job was not claimed");
+  }
+  await expect(
+    t.mutation(internal.line.mutations.processFriendshipFanoutJob, {
+      jobId: job._id,
+      leaseId: claimed.leaseId,
+      expectedVersion: claimed.version,
+    }),
+  ).resolves.toEqual({ status: "completed" });
+}
 
 describe("LINE通知連携シナリオ", () => {
   beforeEach(() => {
@@ -60,6 +86,7 @@ describe("LINE通知連携シナリオ", () => {
       lineUserId: "U_line_scenario",
       lineFollowing: true,
     });
+    await completeNextFanout(t, true);
 
     // Assert: 一覧、通知対象データ、連携後通知予約にLINE連携状態が反映される。
     const staffPage = await asManager.getDashboardStaffs();
@@ -80,12 +107,12 @@ describe("LINE通知連携シナリオ", () => {
     });
 
     const scheduledAfterLink = await readScheduledFunctions(t);
-    expect(hasScheduledJob(scheduledAfterLink, "legal/actions:sendStaffConsentLine", { staffId })).toBe(true);
+    expect(countScheduledJobs(scheduledAfterLink, "legal/actions:sendStaffConsentLine", { staffId })).toBe(1);
     expect(
-      hasScheduledJob(scheduledAfterLink, "notification/actions:sendOpenRecruitmentNotificationLinesForStaff", {
+      countScheduledJobs(scheduledAfterLink, "notification/actions:sendOpenRecruitmentNotificationLinesForStaff", {
         staffId,
       }),
-    ).toBe(true);
+    ).toBe(1);
 
     // Act: LINE webhookでunfollowを受け取る。
     await line.dispatchWebhookEvents([
@@ -96,6 +123,7 @@ describe("LINE通知連携シナリオ", () => {
         timestamp: Date.now(),
       },
     ]);
+    await completeNextFanout(t, false);
 
     // Assert: 一覧表示のfollow状態が落ちる。
     const staffPageAfterUnfollow = await asManager.getDashboardStaffs();
@@ -113,6 +141,7 @@ describe("LINE通知連携シナリオ", () => {
         timestamp: Date.now() + 1,
       },
     ]);
+    await completeNextFanout(t, true);
 
     // Assert: follow状態が復帰し、募集中通知が再度予約される。
     const staffPageAfterRefollow = await asManager.getDashboardStaffs();
@@ -122,6 +151,7 @@ describe("LINE通知連携シナリオ", () => {
     });
 
     const scheduledAfterRefollow = await readScheduledFunctions(t);
+    expect(countScheduledJobs(scheduledAfterRefollow, "legal/actions:sendStaffConsentLine", { staffId })).toBe(2);
     expect(
       countScheduledJobs(scheduledAfterRefollow, "notification/actions:sendOpenRecruitmentNotificationLinesForStaff", {
         staffId,

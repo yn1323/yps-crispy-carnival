@@ -3,6 +3,7 @@ import { ConvexError, v } from "convex/values";
 import { customMutation, customQuery } from "convex-helpers/server/customFunctions";
 import type { Doc, Id } from "../_generated/dataModel";
 import { type MutationCtx, mutation, type QueryCtx, query } from "../_generated/server";
+import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
 import { requireOrganizationBusinessWrite } from "../organizationBilling/service";
 import { isShiftTargetStaff } from "../staff/service";
 import { type StaffAccessKind, sessionMatchesAccessKind, staffAccessKindValidator } from "./staffAccess";
@@ -51,7 +52,7 @@ async function resolveOrganizationShopAccess(
     .withIndex("by_userId_and_organizationId", (q) => q.eq("userId", user._id).eq("organizationId", organization._id))
     .take(2);
   if (memberships.length === 0) {
-    if (mode === "mutation" && shop.operatingStatus !== "active") return null;
+    if (mode === "mutation" && organizationShopOperatingStatus(shop.operatingStatus) !== "active") return null;
 
     // TODO[narrow]: 全deploymentでm029が完走し、verifyLegacyShopMembersの全pageが0件になった後、
     //   このshopMembers fallbackを削除する。organizationMemberが1件でも存在する場合は使用しない。
@@ -79,7 +80,7 @@ async function resolveOrganizationShopAccess(
     return null;
   }
 
-  if (mode === "mutation" && shop.operatingStatus !== "active") return null;
+  if (mode === "mutation" && organizationShopOperatingStatus(shop.operatingStatus) !== "active") return null;
 
   return { shop, organization, organizationMember };
 }
@@ -314,7 +315,11 @@ async function resolveStaffSession(
 
   if (shop.organizationId) {
     const organization = await ctx.db.get(shop.organizationId);
-    if (!organization || organization.isDeleted || (mode === "mutation" && shop.operatingStatus !== "active")) {
+    if (
+      !organization ||
+      organization.isDeleted ||
+      (mode === "mutation" && organizationShopOperatingStatus(shop.operatingStatus) !== "active")
+    ) {
       return { status: "notFound" };
     }
 

@@ -27,14 +27,31 @@ const SAFE_REJECTION_MESSAGE_PARTS = [
   "スタッフの追加結果を確認できません",
 ] as const;
 type ShopId = NonNullable<ShopStaffMembershipChangeInput["shopId"]>;
+type RemovalPersonId = ShopStaffMembershipData["people"][number]["personId"];
+type ReadyRemovalPreview = Extract<ShopStaffMembershipRemovalPreview, { kind: "ready" }>;
+type TooManyRemovalPreview = Extract<ShopStaffMembershipRemovalPreview, { kind: "tooMany" }>;
+type StaleRemovalPreview = Extract<ShopStaffMembershipRemovalPreview, { kind: "stale" }>;
 
 export type ShopStaffMembershipSubmitResult = "succeeded" | "unknown" | "rejected";
 
+export type ShopStaffMembershipRemovalPreviewState =
+  | { kind: "idle" }
+  | { kind: "loading"; key: string }
+  | { kind: "ready"; key: string; preview: ReadyRemovalPreview }
+  | { kind: "tooMany"; key: string; preview: TooManyRemovalPreview }
+  | { kind: "stale"; key: string; preview: StaleRemovalPreview | null };
+
 type PreviewRequest = {
+  key: string;
   shopId: ShopId;
-  personIds: ShopStaffMembershipData["people"][number]["personId"][];
+  personIds: RemovalPersonId[];
   expectedMembershipFingerprint: string;
   now: number;
+};
+
+type RetainedReadyRemovalPreview = {
+  key: string;
+  preview: ReadyRemovalPreview;
 };
 
 type Options = {
@@ -49,20 +66,31 @@ export function useShopStaffMembershipController({ shopId, isOpen, onSucceeded }
     isOpen ? { shopId } : "skip",
   );
   const [previewRequest, setPreviewRequest] = useState<PreviewRequest | null>(null);
-  const removalPreview = useQuery(
+  const queriedRemovalPreview = useQuery(
     api.staff.queries.previewOrganizationShopStaffMembershipRemovals,
-    isOpen && previewRequest ? previewRequest : "skip",
+    isOpen && previewRequest
+      ? {
+          shopId: previewRequest.shopId,
+          personIds: previewRequest.personIds,
+          expectedMembershipFingerprint: previewRequest.expectedMembershipFingerprint,
+          now: previewRequest.now,
+        }
+      : "skip",
   );
-  const [retainedRemovalPreview, setRetainedRemovalPreview] = useState<
-    ShopStaffMembershipRemovalPreview | null | undefined
-  >();
+  const [retainedReadyRemovalPreview, setRetainedReadyRemovalPreview] = useState<RetainedReadyRemovalPreview>();
+  const removalPreviewState = resolveRemovalPreviewState({
+    isOpen,
+    previewRequest,
+    queriedRemovalPreview: queriedRemovalPreview as ShopStaffMembershipRemovalPreview | null | undefined,
+    retainedReadyRemovalPreview,
+  });
   const changeMemberships = useMutation(api.staff.mutations.changeOrganizationShopStaffMemberships);
   const [errorMessage, setErrorMessage] = useState<string>();
-  const latestStateRef = useRef({ isOpen, membershipData, shopId });
+  const latestStateRef = useRef({ isOpen, membershipData, removalPreviewState, shopId });
   const onSucceededRef = useRef(onSucceeded);
   const lastSubmittedInputRef = useRef<string | undefined>(undefined);
   const isMountedRef = useRef(false);
-  latestStateRef.current = { isOpen, membershipData, shopId };
+  latestStateRef.current = { isOpen, membershipData, removalPreviewState, shopId };
   onSucceededRef.current = onSucceeded;
 
   useEffect(() => {
@@ -75,24 +103,25 @@ export function useShopStaffMembershipController({ shopId, isOpen, onSucceeded }
   useEffect(() => {
     if (isOpen) return;
     setPreviewRequest(null);
-    setRetainedRemovalPreview(undefined);
+    setRetainedReadyRemovalPreview(undefined);
     setErrorMessage(undefined);
     lastSubmittedInputRef.current = undefined;
   }, [isOpen]);
 
   useEffect(() => {
-    if (previewRequest && removalPreview !== undefined) {
-      setRetainedRemovalPreview(removalPreview);
+    if (!previewRequest || queriedRemovalPreview === undefined) return;
+    if (queriedRemovalPreview === null || queriedRemovalPreview.kind === "stale") {
+      setErrorMessage((current) => current ?? STALE_RELOAD_MESSAGE);
     }
-  }, [previewRequest, removalPreview]);
+  }, [previewRequest, queriedRemovalPreview]);
 
-  const clearPreview = useCallback(() => {
+  const clearRemovalPreview = useCallback(() => {
     setPreviewRequest(null);
-    setRetainedRemovalPreview(undefined);
+    setRetainedReadyRemovalPreview(undefined);
   }, []);
   const clearError = useCallback(() => setErrorMessage(undefined), []);
 
-  const requestRemovalPreview = useCallback(
+  const ensureRemovalPreview = useCallback(
     (personIds: PreviewRequest["personIds"], expectedMembershipFingerprint: string) => {
       const current = latestStateRef.current;
       if (
@@ -102,18 +131,23 @@ export function useShopStaffMembershipController({ shopId, isOpen, onSucceeded }
         !current.membershipData.canWrite ||
         current.membershipData.membershipFingerprint !== expectedMembershipFingerprint
       ) {
-        setErrorMessage(STALE_RELOAD_MESSAGE);
+        setErrorMessage((message) => message ?? STALE_RELOAD_MESSAGE);
         return false;
       }
 
-      setErrorMessage(undefined);
-      setRetainedRemovalPreview(undefined);
-      setPreviewRequest({
+      const sortedPersonIds = [...personIds].sort((left, right) => left.localeCompare(right));
+      const key = buildShopStaffRemovalPreviewKey(sortedPersonIds, expectedMembershipFingerprint);
+      if (current.removalPreviewState.kind !== "idle" && current.removalPreviewState.key === key) return true;
+
+      const nextRequest: PreviewRequest = {
+        key,
         shopId,
-        personIds,
+        personIds: sortedPersonIds,
         expectedMembershipFingerprint,
         now: Date.now(),
-      });
+      };
+      setRetainedReadyRemovalPreview((retained) => (retained?.key === key ? retained : undefined));
+      setPreviewRequest((request) => (request?.key === key ? request : nextRequest));
       return true;
     },
     [shopId],
@@ -137,10 +171,26 @@ export function useShopStaffMembershipController({ shopId, isOpen, onSucceeded }
 
       setErrorMessage(undefined);
       // mutationで所属が変わる前に、古いfingerprintのpreview購読を解除する。
-      // 確認画面にはretainedRemovalPreviewを残し、処理中の表示を維持する。
+      // 結果不明時に同一intentを再試行できるよう、送信内容と一致するready previewだけを保持する。
+      const submittedPreviewKey =
+        input.removalPreviews.length > 0
+          ? buildShopStaffRemovalPreviewKey(
+              input.removalPreviews.map((preview) => preview.personId),
+              input.expectedMembershipFingerprint,
+            )
+          : null;
+      if (current.removalPreviewState.kind === "ready" && current.removalPreviewState.key === submittedPreviewKey) {
+        setRetainedReadyRemovalPreview({
+          key: current.removalPreviewState.key,
+          preview: current.removalPreviewState.preview,
+        });
+      } else if (!isExactRetry) {
+        setRetainedReadyRemovalPreview(undefined);
+      }
       setPreviewRequest(null);
       try {
         await changeMemberships(input);
+        if (isMountedRef.current) setRetainedReadyRemovalPreview(undefined);
         const latest = latestStateRef.current;
         if (isMountedRef.current && latest.isOpen && latest.shopId === input.shopId) {
           showSuccessToast({ title: "所属スタッフを変更しました" });
@@ -150,7 +200,10 @@ export function useShopStaffMembershipController({ shopId, isOpen, onSucceeded }
       } catch (error) {
         if (isDefiniteMutationRejection(error)) {
           if (lastSubmittedInputRef.current === serializedInput) lastSubmittedInputRef.current = undefined;
-          if (isMountedRef.current) setErrorMessage(toMembershipChangeErrorMessage(error));
+          if (isMountedRef.current) {
+            setRetainedReadyRemovalPreview(undefined);
+            setErrorMessage(toMembershipChangeErrorMessage(error));
+          }
           return "rejected";
         }
         lastSubmittedInputRef.current = serializedInput;
@@ -162,18 +215,53 @@ export function useShopStaffMembershipController({ shopId, isOpen, onSucceeded }
 
   return {
     data: membershipData as ShopStaffMembershipData | null | undefined,
-    removalPreview:
-      removalPreview === undefined
-        ? retainedRemovalPreview
-        : (removalPreview as ShopStaffMembershipRemovalPreview | null),
-    isPreviewLoading: previewRequest !== null && removalPreview === undefined,
+    removalPreviewState,
     isChanging,
     errorMessage,
-    requestRemovalPreview,
-    clearPreview,
+    ensureRemovalPreview,
+    clearRemovalPreview,
     clearError,
     submitChange,
   };
+}
+
+export function buildShopStaffRemovalPreviewKey(
+  personIds: readonly RemovalPersonId[],
+  expectedMembershipFingerprint: string,
+) {
+  return JSON.stringify([
+    expectedMembershipFingerprint,
+    [...personIds].sort((left, right) => left.localeCompare(right)),
+  ]);
+}
+
+function resolveRemovalPreviewState({
+  isOpen,
+  previewRequest,
+  queriedRemovalPreview,
+  retainedReadyRemovalPreview,
+}: {
+  isOpen: boolean;
+  previewRequest: PreviewRequest | null;
+  queriedRemovalPreview: ShopStaffMembershipRemovalPreview | null | undefined;
+  retainedReadyRemovalPreview: RetainedReadyRemovalPreview | undefined;
+}): ShopStaffMembershipRemovalPreviewState {
+  if (!isOpen) return { kind: "idle" };
+  if (!previewRequest) {
+    return retainedReadyRemovalPreview
+      ? { kind: "ready", key: retainedReadyRemovalPreview.key, preview: retainedReadyRemovalPreview.preview }
+      : { kind: "idle" };
+  }
+  if (queriedRemovalPreview === undefined) {
+    return { kind: "loading", key: previewRequest.key };
+  }
+  if (queriedRemovalPreview === null || queriedRemovalPreview.kind === "stale") {
+    return { kind: "stale", key: previewRequest.key, preview: queriedRemovalPreview };
+  }
+  if (queriedRemovalPreview.kind === "ready") {
+    return { kind: "ready", key: previewRequest.key, preview: queriedRemovalPreview };
+  }
+  return { kind: "tooMany", key: previewRequest.key, preview: queriedRemovalPreview };
 }
 
 function toMembershipChangeErrorMessage(error: unknown) {

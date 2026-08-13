@@ -15,6 +15,7 @@ import {
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
 import { SHOP_ACTIVATION_REMINDER_CONTEXT } from "../notificationOutbox/failureSuppress";
 import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
+import { lineRecipientOutboxSnapshot } from "../notificationOutbox/types";
 import { getReminderTargetRef } from "./refs";
 
 /**
@@ -39,8 +40,9 @@ export const sendReminder = internalAction({
     const subject = formatResendSubject(data.shopName, SHOP_ACTIVATION_REMINDER_SUBJECT);
 
     for (const recipient of data.recipients) {
+      const lineRecipient = recipient.lineRecipient;
       const channel = selectChannel(
-        { lineUserId: recipient.lineUserId, lineFollowing: recipient.lineFollowing },
+        { lineUserId: lineRecipient?.lineUserId, lineFollowing: lineRecipient?.following },
         quota,
       );
       const dedupeBase = `shopActivationReminder:${data.shopId}:${recipient.userId}`;
@@ -59,15 +61,16 @@ export const sendReminder = internalAction({
         suppressDelivery,
       });
 
-      if (channel === "line" && recipient.lineUserId) {
+      if (channel === "line" && lineRecipient) {
         await enqueueLine(ctx, {
           shopId: data.shopId,
           ...notificationOrigin,
+          ...lineRecipientOutboxSnapshot(lineRecipient),
           purpose: "business",
           userId: recipient.userId,
           dedupeKey: lineDedupeKey,
           payload: linePayload({
-            toUserId: recipient.lineUserId,
+            toUserId: lineRecipient.lineUserId,
             text: buildShopActivationReminderLineText({ dashboardUrl: data.dashboardUrl }),
             message: buildShopActivationReminderLineFlexMessage({
               shopName: data.shopName,

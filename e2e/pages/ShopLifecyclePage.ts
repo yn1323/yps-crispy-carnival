@@ -54,6 +54,46 @@ export class ShopLifecyclePage {
     });
   }
 
+  async updateCurrentShopSettings(currentShopName: string, updatedShopName: string) {
+    await expect(this.page.getByRole("heading", { name: currentShopName, exact: true })).toBeVisible({
+      timeout: SHOP_DATA_TIMEOUT,
+    });
+    await this.page.getByRole("button", { name: "編集する", exact: true }).click();
+
+    const dialog = this.page.getByRole("dialog", { name: "店舗設定", exact: true });
+    await expect(dialog).toBeVisible({ timeout: SHOP_DATA_TIMEOUT });
+    await dialog.getByLabel("お店の名前").fill(updatedShopName);
+    await dialog.getByRole("button", { name: "次へ", exact: true }).click();
+
+    await expect(dialog.getByText("希望シフトの集め方", { exact: true })).toBeVisible();
+    await dialog.getByRole("button", { name: "次へ", exact: true }).click();
+
+    await expect(dialog.getByText("毎週休みにする曜日", { exact: true })).toBeVisible();
+    const sunday = dialog.getByRole("button", { name: "日曜日を定休日にする", exact: true });
+    await sunday.click();
+    await expect(dialog.getByRole("button", { name: "日曜日を定休日から外す", exact: true })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await dialog.getByRole("button", { name: "変更を保存", exact: true }).click();
+
+    await expect(dialog).toHaveCount(0, { timeout: SHOP_DATA_TIMEOUT });
+    await this.expectCurrentShopSettings(updatedShopName);
+  }
+
+  async expectCurrentShopSettings(shopName: string) {
+    await expect(this.page.getByRole("heading", { name: shopName, exact: true })).toBeVisible({
+      timeout: SHOP_DATA_TIMEOUT,
+    });
+    const basicInformation = this.page.getByRole("region", { name: "基本情報", exact: true });
+    await expect(basicInformation.getByText(shopName, { exact: true })).toBeVisible({
+      timeout: SHOP_DATA_TIMEOUT,
+    });
+    await expect(basicInformation.getByText("毎週 日", { exact: true })).toBeVisible({
+      timeout: SHOP_DATA_TIMEOUT,
+    });
+  }
+
   async deleteCurrentShop(shopName: string) {
     await expect(this.page.getByRole("heading", { name: shopName, exact: true })).toBeVisible({
       timeout: SHOP_DATA_TIMEOUT,

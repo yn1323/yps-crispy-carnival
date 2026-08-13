@@ -5,10 +5,15 @@ export const EXPECTED_CORE_CONTRACTS = new Map([
   ["E2E-AUTH-01", "desktop-chromium"],
   ["E2E-AUTH-02", "desktop-chromium"],
   ["E2E-SETUP-01", "desktop-chromium"],
+  ["E2E-STAFF-01", "desktop-chromium"],
   ["E2E-SHIFT-01", "desktop-chromium"],
   ["E2E-TENANT-01", "desktop-chromium"],
   ["E2E-MEMBERSHIP-01", "desktop-chromium"],
   ["E2E-SHOP-01", "desktop-chromium"],
+  ["E2E-ORGANIZATION-01", "desktop-chromium"],
+  ["E2E-ORGANIZATION-02", "desktop-chromium"],
+  ["E2E-MANAGER-01", "desktop-chromium"],
+  ["E2E-MANAGER-02", "desktop-chromium"],
   ["E2E-MOBILE-01", "mobile-chrome"],
 ]);
 

@@ -103,6 +103,9 @@ function resolveNotificationDetails(
         ? nextState.targetPlan
         : undefined;
   const stateEffectiveAt = nextState.kind === "scheduledChange" ? nextState.effectiveAt : undefined;
+  const stateRestrictAtPeriodEnd =
+    nextState.kind === "scheduledChange" && nextState.targetPlan === "free" && nextState.restrictAtPeriodEnd === true;
+  const stateRestrictionReason = nextState.kind === "restricted" ? nextState.reason : undefined;
   if (supplied?.targetPlan && stateTargetPlan && supplied.targetPlan !== stateTargetPlan) {
     throw new ConvexError("通知の変更先プランが、現在の契約状態と一致しません");
   }
@@ -115,6 +118,15 @@ function resolveNotificationDetails(
   }
   if ((supplied?.amountDue === undefined) !== (supplied?.currency === undefined)) {
     throw new ConvexError("通知の請求額と通貨を確認できません");
+  }
+  if (supplied?.restrictAtPeriodEnd === true && !stateRestrictAtPeriodEnd) {
+    throw new ConvexError("通知の利用停止予定が、現在の契約状態と一致しません");
+  }
+  if (
+    supplied?.restrictionReason !== undefined &&
+    (stateRestrictionReason === undefined || supplied.restrictionReason !== stateRestrictionReason)
+  ) {
+    throw new ConvexError("通知の契約制限理由が、現在の契約状態と一致しません");
   }
   if (supplied?.amountDue !== undefined && (!Number.isSafeInteger(supplied.amountDue) || supplied.amountDue < 0)) {
     throw new ConvexError("通知の請求額を確認できません");
@@ -131,6 +143,8 @@ function resolveNotificationDetails(
     ...(supplied ?? {}),
     ...(stateTargetPlan ? { targetPlan: stateTargetPlan } : {}),
     ...(effectiveAt !== undefined ? { effectiveAt } : {}),
+    ...(stateRestrictAtPeriodEnd ? { restrictAtPeriodEnd: true as const } : {}),
+    ...(stateRestrictionReason ? { restrictionReason: stateRestrictionReason } : {}),
     ...(normalizedCurrency ? { currency: normalizedCurrency } : {}),
   };
   return Object.keys(details).length > 0 ? details : undefined;
@@ -636,8 +650,87 @@ async function applyFreeOrRestricted(
     event: nextState.kind === "active" ? "freeApplied" : "restrictedStarted",
     eventKey: args.correlationId,
     recipientUserIds: transitionRecipientUserIds,
+    ...(nextState.kind === "restricted" ? { notificationDetails: { restrictionReason: nextState.reason } } : {}),
   });
   return { changed: true, stateKind: nextState.kind === "active" ? "free" : "restricted" };
+}
+
+async function applyRetentionRestriction(
+  ctx: MutationCtx,
+  args: {
+    billingState: Doc<"organizationBillingStates">;
+    reason: "trialEndedWithoutSubscription" | "scheduledCancellation" | "unexpectedCancellation";
+    now: number;
+    correlationId: string;
+  },
+) {
+  const { billingState, now } = args;
+  const existingAudit = await ctx.db
+    .query("organizationAuditEvents")
+    .withIndex("by_correlationId", (q) => q.eq("correlationId", args.correlationId))
+    .first();
+  if (existingAudit) return { changed: false, stateKind: billingState.state.kind };
+
+  const [activeManagers, activeShops] = await Promise.all([
+    ctx.db
+      .query("organizationMembers")
+      .withIndex("by_organizationId_and_status", (q) =>
+        q.eq("organizationId", billingState.organizationId).eq("status", "active"),
+      )
+      .collect(),
+    ctx.db
+      .query("shops")
+      .withIndex("by_organizationId_and_operatingStatus", (q) =>
+        q.eq("organizationId", billingState.organizationId).eq("operatingStatus", "active"),
+      )
+      .filter((q) => q.eq(q.field("isDeleted"), false))
+      .collect(),
+  ]);
+  const recoveryManagerPersonIds = [...new Set(activeManagers.map((member) => member.personId))];
+  const recipientUserIds = [...new Set(activeManagers.map((member) => member.userId))];
+  const previousPaidPlan = previousPlan(billingState.state);
+  const nextState: OrganizationBillingState = {
+    kind: "restricted",
+    reason: args.reason,
+    ...(previousPaidPlan === "pro" || previousPaidPlan === "business" ? { previousPlan: previousPaidPlan } : {}),
+    recoveryManagerPersonIds,
+    previousActiveShopIds: activeShops.map((shop) => shop._id),
+    restrictedAt: now,
+  };
+  const nextVersion = billingState.version + 1;
+  await ctx.db.patch(billingState._id, {
+    state: nextState,
+    businessNotificationCutoffAt: now,
+    businessNotificationCutoffVersion: nextVersion,
+    version: nextVersion,
+    updatedAt: now,
+  });
+  await revokePendingManagerInvitations(ctx, billingState.organizationId, now);
+  await ctx.scheduler.runAfter(0, internal.notificationOutbox.mutations.cancelOrganizationBusinessNotifications, {
+    organizationId: billingState.organizationId,
+    cutoffAt: now,
+    cutoffVersion: nextVersion,
+  });
+  const analyticsEvent = billingAnalyticsEvent(nextState, nextVersion, now, []);
+  await recordOrganizationAuditEvent(ctx, {
+    organizationId: billingState.organizationId,
+    action: "organization.billing_state_changed",
+    targetKind: "billing",
+    targetId: billingState._id,
+    fromState: billingState.state.kind,
+    toState: "restricted",
+    correlationId: args.correlationId,
+    occurredAt: now,
+    ...(analyticsEvent ? { analyticsEvent } : {}),
+  });
+  await ctx.scheduler.runAfter(0, internal.organizationBilling.actions.enqueueBillingNotification, {
+    organizationId: billingState.organizationId,
+    event: "restrictedStarted",
+    eventKey: args.correlationId,
+    recipientUserIds,
+    notificationDetails: { restrictionReason: args.reason },
+  });
+  return { changed: true, stateKind: "restricted" };
 }
 
 async function resolveVerifiedPaidPlanApplication(
@@ -803,12 +896,13 @@ export const setFreeSelection = authenticatedMutation({
       throw new ConvexError("支払い結果を確認中のため、無料設定を変更できません");
     }
     const restrictedState = getEffectiveRestrictedBillingState(billingState.state);
-    const canSetFreeSelection =
-      billingState.state.kind === "trial" ||
-      billingState.state.kind === "scheduledChange" ||
-      billingState.state.kind === "grace" ||
-      restrictedState !== null ||
-      (billingState.state.kind === "active" && billingState.state.plan !== "free");
+    const isLegacyFreeRestriction =
+      restrictedState?.reason === "trialFreeConditionsNotMet" || restrictedState?.reason === "freeConditionsNotMet";
+    const isLegacyScheduledFree =
+      billingState.state.kind === "scheduledChange" &&
+      billingState.state.targetPlan === "free" &&
+      billingState.state.restrictAtPeriodEnd !== true;
+    const canSetFreeSelection = isLegacyScheduledFree || (restrictedState !== null && isLegacyFreeRestriction);
     if (!canSetFreeSelection) {
       throw new ConvexError("現在の契約状態では無料設定を変更できません");
     }
@@ -1021,9 +1115,9 @@ export const resolveInitialPaymentCancellation = internalMutation({
     if (billingState.state.kind !== "initialPaymentPending") {
       return { changed: false, stateKind: billingState.state.kind };
     }
-    return await applyFreeOrRestricted(ctx, {
+    return await applyRetentionRestriction(ctx, {
       billingState,
-      restrictionReason: "freeConditionsNotMet",
+      reason: "trialEndedWithoutSubscription",
       now: Date.now(),
       correlationId: args.correlationId,
     });
@@ -1138,67 +1232,12 @@ export const applyUnexpectedCancellation = internalMutation({
     if (!canRestrict || (previousPaidPlan !== "pro" && previousPaidPlan !== "business")) {
       throw new ConvexError("現在の契約状態では予期しない解約を適用できません");
     }
-    const existingAudit = await ctx.db
-      .query("organizationAuditEvents")
-      .withIndex("by_correlationId", (q) => q.eq("correlationId", args.correlationId))
-      .first();
-    if (existingAudit) return { changed: false, stateKind: billingState.state.kind };
-
-    const [activeManagers, activeShops] = await Promise.all([
-      ctx.db
-        .query("organizationMembers")
-        .withIndex("by_organizationId_and_status", (q) =>
-          q.eq("organizationId", args.organizationId).eq("status", "active"),
-        )
-        .collect(),
-      ctx.db
-        .query("shops")
-        .withIndex("by_organizationId_and_isDeleted", (q) =>
-          q.eq("organizationId", args.organizationId).eq("isDeleted", false),
-        )
-        .filter((q) => q.eq(q.field("operatingStatus"), "active"))
-        .collect(),
-    ]);
-    const now = Date.now();
-    const nextVersion = billingState.version + 1;
-    const nextState: OrganizationBillingState = {
-      kind: "restricted",
+    return await applyRetentionRestriction(ctx, {
+      billingState,
       reason: "unexpectedCancellation",
-      previousPlan: previousPaidPlan,
-      recoveryManagerPersonIds: activeManagers.map((member) => member.personId),
-      previousActiveShopIds: activeShops.map((shop) => shop._id),
-      restrictedAt: now,
-    };
-    await ctx.db.patch(billingState._id, {
-      state: nextState,
-      businessNotificationCutoffAt: now,
-      businessNotificationCutoffVersion: nextVersion,
-      version: nextVersion,
-      updatedAt: now,
-    });
-    await revokePendingManagerInvitations(ctx, args.organizationId, now);
-    await ctx.scheduler.runAfter(0, internal.notificationOutbox.mutations.cancelOrganizationBusinessNotifications, {
-      organizationId: args.organizationId,
-      cutoffAt: now,
-      cutoffVersion: nextVersion,
-    });
-    await recordOrganizationAuditEvent(ctx, {
-      organizationId: args.organizationId,
-      action: "organization.billing_state_changed",
-      targetKind: "billing",
-      targetId: billingState._id,
-      fromState: billingState.state.kind,
-      toState: "restricted",
+      now: Date.now(),
       correlationId: args.correlationId,
-      occurredAt: now,
     });
-    await ctx.scheduler.runAfter(0, internal.organizationBilling.actions.enqueueBillingNotification, {
-      organizationId: args.organizationId,
-      event: "restrictedStarted",
-      eventKey: args.correlationId,
-      recipientUserIds: activeManagers.map((member) => member.userId),
-    });
-    return { changed: true, stateKind: "restricted" };
   },
 });
 
@@ -1399,9 +1438,9 @@ export const processDeadline = internalMutation({
         });
         return { changed: true, stateKind: "initialPaymentPending" };
       }
-      return await applyFreeOrRestricted(ctx, {
+      return await applyRetentionRestriction(ctx, {
         billingState,
-        restrictionReason: "trialFreeConditionsNotMet",
+        reason: "trialEndedWithoutSubscription",
         now,
         correlationId,
       });
@@ -1437,8 +1476,7 @@ export const processDeadline = internalMutation({
   },
 });
 
-/** Stripeで未払いを再確認したgraceだけを、取消前に制限状態へ遷移させる。 */
-/** Stripeで期間末解約を確認した場合だけ、予定中のFree移行を確定する。 */
+/** Stripeで期間末解約を確認した場合だけ、互換Free移行または利用停止を確定する。 */
 export const confirmScheduledFreeDeadline = internalMutation({
   args: {
     organizationId: v.id("organizations"),
@@ -1460,6 +1498,14 @@ export const confirmScheduledFreeDeadline = internalMutation({
       Date.now() < args.expectedDeadlineAt
     ) {
       return { changed: false, stateKind: billingState?.state.kind };
+    }
+    if (billingState.state.restrictAtPeriodEnd === true) {
+      return await applyRetentionRestriction(ctx, {
+        billingState,
+        reason: "scheduledCancellation",
+        now: Date.now(),
+        correlationId: args.correlationId,
+      });
     }
     return await applyFreeOrRestricted(ctx, {
       billingState,
@@ -1649,6 +1695,7 @@ export const expireVerifiedPaymentGrace = internalMutation({
       event: "restrictedStarted",
       eventKey: args.correlationId,
       recipientUserIds: activeManagers.map((member) => member.userId),
+      notificationDetails: { restrictionReason: "paymentGraceExpired" },
     });
     return { changed: true, billingVersion: nextVersion };
   },
@@ -1685,6 +1732,7 @@ export const setStateFromVerifiedBilling = internalMutation({
         currentPlan: v.literal("pro"),
         targetPlan: v.literal("free"),
         effectiveAt: v.number(),
+        restrictAtPeriodEnd: v.optional(v.literal(true)),
       }),
       v.object({
         kind: v.literal("scheduledChange"),
@@ -1697,6 +1745,7 @@ export const setStateFromVerifiedBilling = internalMutation({
         currentPlan: v.literal("business"),
         targetPlan: v.literal("free"),
         effectiveAt: v.number(),
+        restrictAtPeriodEnd: v.optional(v.literal(true)),
       }),
     ),
     correlationId: v.string(),
@@ -1801,7 +1850,13 @@ export const setStateFromVerifiedBilling = internalMutation({
     ) {
       throw new ConvexError("現在の契約状態では、この変更を適用できません");
     }
-    const notificationDetails = resolveNotificationDetails(nextState, args.notificationDetails);
+    const notificationDetails =
+      scheduledChangeCanceled &&
+      billingState.state.kind === "scheduledChange" &&
+      billingState.state.targetPlan === "free" &&
+      billingState.state.restrictAtPeriodEnd === true
+        ? { restrictAtPeriodEnd: true as const }
+        : resolveNotificationDetails(nextState, args.notificationDetails);
     let analyticsStatusDeltas: AnalyticsBillingStatusDelta[] = [];
     if (nextState.kind === "active" && nextState.plan !== "free" && !scheduledChangeCanceled) {
       analyticsStatusDeltas = await applyVerifiedPaidRestoration(ctx, {

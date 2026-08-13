@@ -18,6 +18,14 @@ crons.interval(
   {},
 );
 
+// LINE友だち状態fanoutの予約漏れと期限切れleaseを回収する。
+crons.interval(
+  "line-friendship-fanout-recover",
+  { minutes: 1 },
+  internal.line.mutations.recoverFriendshipFanoutJobs,
+  {},
+);
+
 // 削除cleanupの予約漏れと期限切れleaseを回収する。各jobはbounded mutationで一batchずつ進む。
 crons.interval("deletion-cleanup-recover", { minutes: 1 }, internal.deletionCleanup.mutations.recover, {});
 
@@ -61,6 +69,9 @@ crons.cron(
   internal.line.mutations.pruneExpiredWebhookMessageReceipts,
   {},
 );
+
+// 完了・supersededのLINE友だち状態fanout jobを保持期限後に削除する。
+crons.cron("line-friendship-fanout-prune", "55 18 * * *", internal.line.mutations.pruneFriendshipFanoutJobs, {});
 
 // 通知配送イベントログを1日1回削除（JST 03:30 = UTC 18:30）
 crons.cron(

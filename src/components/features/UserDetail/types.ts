@@ -1,7 +1,7 @@
 import type { FunctionArgs, FunctionReturnType } from "convex/server";
 import type { api } from "@/convex/_generated/api";
 
-export type UserDetailPanel = "basic" | "addShop";
+export type UserDetailPanel = "basic" | "line" | "addShop";
 
 export type UserDetailReturnTo = "dashboard" | "settings" | "shopDetail";
 
@@ -14,18 +14,10 @@ export type UserMembershipChangeInput = Omit<
 
 export type UserDetailRemovalPreview = UserDetailData["removalPreview"];
 
-export type UserDetailDialog =
-  | {
-      kind: "removeManagerRole";
-      personId: UserDetailData["person"]["id"];
-      shopId: UserDetailData["shops"][number]["shopId"];
-      requestId: string;
-    }
-  | {
-      kind: "removePerson";
-      personId: UserDetailData["person"]["id"];
-      shopId: UserDetailData["shops"][number]["shopId"];
-      removalPreview: UserDetailRemovalPreview;
-      requestId: string;
-    }
-  | null;
+export type UserDetailDialog = {
+  kind: "removePerson";
+  personId: UserDetailData["person"]["id"];
+  shopId: UserDetailData["shops"][number]["shopId"];
+  removalPreview: UserDetailRemovalPreview;
+  requestId: string;
+} | null;

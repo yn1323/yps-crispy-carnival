@@ -1,8 +1,86 @@
 import { v } from "convex/values";
 import { internalQuery } from "../_generated/server";
+import { authenticatedQuery } from "../_lib/functions";
+import { isValidIsoDateString } from "../_lib/validation";
 import { getActiveUserAssociationStatus } from "../deletionCleanup/service";
+import { getAccountDeletionConfiguration, hasRequiredAccountDeletionConfiguration, normalizeIssuer } from "./config";
 import { ACCOUNT_DELETION_LEGACY_PROBE_LIMIT, ACCOUNT_DELETION_PROBE_LIMIT_PER_STATUS } from "./constants";
+import { getAccountDeletionPlan, toPublicAccountDeletionPreview } from "./eligibility";
 import { accountDeletionJobStatusValidator } from "./schemas";
+
+const blockedReasonValidator = v.union(
+  v.literal("multipleOrganizations"),
+  v.literal("billingContactTransferRequired"),
+  v.literal("recoveryManagerTransferRequired"),
+  v.literal("organizationDeletionUnavailable"),
+  v.literal("tooManyAssociatedRecords"),
+  v.literal("tooManyFutureAssignments"),
+  v.literal("inconsistentAssociation"),
+  v.literal("providerConfigurationUnavailable"),
+  v.literal("deletionAlreadyRequested"),
+  v.literal("unavailable"),
+);
+
+const deletionPreviewValidator = v.union(
+  v.object({ status: v.literal("blocked"), reason: blockedReasonValidator }),
+  v.object({
+    status: v.literal("ready"),
+    action: v.literal("accountOnly"),
+    previewFingerprint: v.string(),
+  }),
+  v.object({
+    status: v.literal("ready"),
+    action: v.literal("leaveOrganization"),
+    previewFingerprint: v.string(),
+    organization: v.object({ name: v.string(), shopCount: v.number() }),
+    futureAssignmentCount: v.number(),
+  }),
+  v.object({
+    status: v.literal("ready"),
+    action: v.literal("deleteOrganization"),
+    previewFingerprint: v.string(),
+    organization: v.object({ name: v.string(), shopCount: v.number() }),
+  }),
+);
+
+/** 本人の全associationをserverで分類し、破壊対象IDを含まない確認用snapshotだけを返す。 */
+export const getDeletionPreview = authenticatedQuery({
+  args: { asOfDate: v.string() },
+  returns: deletionPreviewValidator,
+  handler: async (ctx, args) => {
+    const { identity, user } = ctx;
+    if (!identity || !isValidIsoDateString(args.asOfDate)) {
+      return { status: "blocked" as const, reason: "unavailable" as const };
+    }
+
+    const configuration = getAccountDeletionConfiguration();
+    if (
+      !hasRequiredAccountDeletionConfiguration(configuration) ||
+      configuration.expectedIssuer !== normalizeIssuer(identity.issuer)
+    ) {
+      return { status: "blocked" as const, reason: "providerConfigurationUnavailable" as const };
+    }
+
+    if (user) {
+      const jobs = await ctx.db
+        .query("accountDeletionJobs")
+        .withIndex("by_userId", (q) => q.eq("userId", user._id))
+        .take(2);
+      if (jobs.length > 0) {
+        return {
+          status: "blocked" as const,
+          reason: jobs.length === 1 ? ("deletionAlreadyRequested" as const) : ("inconsistentAssociation" as const),
+        };
+      }
+    }
+    const plan = await getAccountDeletionPlan(ctx, {
+      user,
+      authTokenIdentifier: identity.tokenIdentifier,
+      asOfDate: args.asOfDate,
+    });
+    return toPublicAccountDeletionPreview(plan);
+  },
+});
 
 export const probeJobs = internalQuery({
   args: {},

@@ -1,29 +1,44 @@
 import { Alert, Link, Stack, Text } from "@chakra-ui/react";
+import type { ReactNode } from "react";
 import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
 import { Dialog } from "@/src/components/ui/Dialog";
-import type { AccountDeletionErrorState } from "./types";
+import type { AccountDeletionAction, AccountDeletionErrorState, AccountDeletionReadyPreview } from "./types";
 
 type Props = {
   isOpen: boolean;
   isRunning: boolean;
+  isPreviewStale?: boolean;
+  preview?: AccountDeletionReadyPreview | null;
   error: AccountDeletionErrorState | null;
   onClose: () => void;
   onOpenChange: (details: { open: boolean }) => void;
   onSubmit: () => void;
 };
 
-export function AccountDeletionDialog({ isOpen, isRunning, error, onClose, onOpenChange, onSubmit }: Props) {
+export function AccountDeletionDialog({
+  isOpen,
+  isRunning,
+  isPreviewStale = false,
+  preview,
+  error,
+  onClose,
+  onOpenChange,
+  onSubmit,
+}: Props) {
+  const action = preview?.action ?? "accountOnly";
+  const content = getDialogContent(action, preview);
+
   return (
     <Dialog
-      title="アカウントを削除"
+      title={content.title}
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       onClose={onClose}
       formId="account-deletion-form"
-      submitLabel="アカウントを削除"
+      submitLabel={content.submitLabel}
       submitColorPalette="red"
       isLoading={isRunning}
-      isSubmitDisabled={isRunning}
+      isSubmitDisabled={isRunning || isPreviewStale}
       role="alertdialog"
       mobileActionLayout="stacked"
       mobileFullScreen
@@ -33,22 +48,29 @@ export function AccountDeletionDialog({ isOpen, isRunning, error, onClose, onOpe
         id="account-deletion-form"
         onSubmit={(event) => {
           event.preventDefault();
-          if (!isRunning) onSubmit();
+          if (!isRunning && !isPreviewStale) onSubmit();
         }}
       >
         <Stack gap={4}>
           <Text fontWeight="bold">この操作は元に戻せません。</Text>
           <Stack gap={2} fontSize="sm" color="fg" lineHeight="tall">
+            {content.description}
             <Text>
-              シフトリへのログインに使うアカウントを削除します。
-              <br />
-              削除後は、このアカウントでシフトリを利用できなくなります。
-            </Text>
-            <Text>
-              シフトリ内の氏名、メールアドレス、店舗名、過去のシフト・同意・請求などの履歴は、業務記録として残ります。
+              氏名、メールアドレス、店舗名、過去のシフト・同意・請求・操作記録などは、法令または契約上必要な業務記録として残る場合があります。
             </Text>
             <Text>同じメールアドレスで登録し直しても、削除前の履歴は新しいアカウントへ自動では引き継がれません。</Text>
           </Stack>
+          {isPreviewStale ? (
+            <Alert.Root status="warning" borderRadius="lg" alignItems="flex-start">
+              <Alert.Indicator mt={0.5} />
+              <Alert.Content>
+                <Alert.Title>削除内容が更新されました</Alert.Title>
+                <Alert.Description>
+                  いったんキャンセルし、最新の削除内容を確認してから、もう一度お進みください。
+                </Alert.Description>
+              </Alert.Content>
+            </Alert.Root>
+          ) : null}
           {error ? (
             <Alert.Root status="error" borderRadius="lg" alignItems="flex-start">
               <Alert.Indicator mt={0.5} />
@@ -66,4 +88,59 @@ export function AccountDeletionDialog({ isOpen, isRunning, error, onClose, onOpe
       </form>
     </Dialog>
   );
+}
+
+function getDialogContent(
+  action: AccountDeletionAction,
+  preview?: AccountDeletionReadyPreview | null,
+): { title: string; submitLabel: string; description: ReactNode } {
+  switch (action) {
+    case "leaveOrganization": {
+      const organizationName = preview?.action === "leaveOrganization" ? preview.organization.name : "所属する組織";
+      const futureAssignmentCount = preview?.action === "leaveOrganization" ? preview.futureAssignmentCount : 0;
+      return {
+        title: "組織から退出してアカウントを削除",
+        submitLabel: "退出して削除",
+        description: (
+          <>
+            <Text>{`「${organizationName}」の管理者・スタッフとしての所属を終了し、ログインアカウントを削除します。組織と店舗は、ほかの管理者が引き続き利用できます。`}</Text>
+            <Text>
+              招待・スタッフ用リンクは無効になり、LINEからのシフト操作はできなくなります。未送信のお知らせは取り消します。
+              {futureAssignmentCount > 0
+                ? ` 将来のシフト割り当て${futureAssignmentCount}件を削除します。`
+                : " 将来のシフト割り当てはありません。"}
+            </Text>
+          </>
+        ),
+      };
+    }
+    case "deleteOrganization": {
+      const organizationName = preview?.action === "deleteOrganization" ? preview.organization.name : "所属する組織";
+      const shopCount = preview?.action === "deleteOrganization" ? preview.organization.shopCount : 0;
+      return {
+        title: "組織と店舗の利用を終了",
+        submitLabel: "組織と店舗を終了して削除",
+        description: (
+          <>
+            <Text>{`あなたが唯一の管理者であるため、「${organizationName}」と全${shopCount}店舗の利用を終了し、ログインアカウントを削除します。`}</Text>
+            <Text>
+              組織と店舗に所属するスタッフも利用できなくなります。招待・スタッフ用リンクは無効になり、LINEからのシフト操作はできなくなります。未送信のお知らせは取り消します。
+            </Text>
+          </>
+        ),
+      };
+    }
+    case "accountOnly":
+      return {
+        title: "アカウントを削除",
+        submitLabel: "アカウントを削除",
+        description: (
+          <Text>
+            シフトリへのログインに使うアカウントを削除します。
+            <br />
+            削除後は、このアカウントでシフトリを利用できなくなります。
+          </Text>
+        ),
+      };
+  }
 }

@@ -2,7 +2,7 @@ import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "../_generated/api";
-import { seedManagerShop, seedShop, seedStaffLineAccount } from "../_test/seed";
+import { seedCanonicalStaffLineRecipient, seedManagerShop, seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { getLegalConsentVersions } from "./documents";
 
@@ -67,16 +67,16 @@ describe("legal/mutations", () => {
     });
 
     expect(state?.termsConsentVersion).toBe("staff-terms-consent-2026-05-09");
-    expect(state?.privacyConsentVersion).toBe("staff-privacy-consent-2026-05-09");
+    expect(state?.privacyConsentVersion).toBe("staff-privacy-consent-2026-08-13");
     expect(state?.termsDocumentVersion).toBe("staff-terms-doc-2026-05-09");
-    expect(state?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-07-10");
+    expect(state?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-08-13");
     expect(state?.method).toBe("staff_email_link");
     expect(events).toHaveLength(1);
     expect(events[0].method).toBe("staff_email_link");
     expect(events[0].termsConsentVersion).toBe("staff-terms-consent-2026-05-09");
-    expect(events[0].privacyConsentVersion).toBe("staff-privacy-consent-2026-05-09");
+    expect(events[0].privacyConsentVersion).toBe("staff-privacy-consent-2026-08-13");
     expect(events[0].termsDocumentVersion).toBe("staff-terms-doc-2026-05-09");
-    expect(events[0].privacyDocumentVersion).toBe("staff-privacy-doc-2026-07-10");
+    expect(events[0].privacyDocumentVersion).toBe("staff-privacy-doc-2026-08-13");
   });
 
   it("期限切れトークンでは同意できない", async () => {
@@ -214,10 +214,10 @@ describe("legal/mutations", () => {
     });
 
     expect(shopId).toBeDefined();
-    expect(state?.termsConsentVersion).toBe("manager-terms-consent-2026-05-09");
-    expect(state?.privacyConsentVersion).toBe("manager-privacy-consent-2026-05-09");
-    expect(state?.termsDocumentVersion).toBe("manager-terms-doc-2026-05-09");
-    expect(state?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-07-10");
+    expect(state?.termsConsentVersion).toBe("manager-terms-consent-2026-08-13");
+    expect(state?.privacyConsentVersion).toBe("manager-privacy-consent-2026-08-13");
+    expect(state?.termsDocumentVersion).toBe("manager-terms-doc-2026-08-13");
+    expect(state?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-08-13");
     expect(state?.method).toBe("manager_reconsent");
     expect(events).toHaveLength(1);
     expect(events[0].shopId).toBe(shopId);
@@ -236,8 +236,8 @@ describe("legal/mutations", () => {
         subjectType: "user",
         userId,
         shopId,
-        termsConsentVersion: "manager-terms-consent-2026-05-09",
-        privacyConsentVersion: "manager-privacy-consent-2026-05-09",
+        termsConsentVersion: "manager-terms-consent-2026-08-13",
+        privacyConsentVersion: "manager-privacy-consent-2026-08-13",
         termsDocumentVersion: "manager-terms-doc-old",
         privacyDocumentVersion: "manager-privacy-doc-old",
         consentedAt: Date.now() - 1000,
@@ -277,7 +277,7 @@ describe("legal/mutations", () => {
         email: "tanaka@example.com",
         isDeleted: false,
       });
-      await seedStaffLineAccount(ctx, { staffId, shopId, lineUserId: "U_staff", following: true });
+      await seedCanonicalStaffLineRecipient(ctx, { staffId, lineUserId: "U_staff", following: true });
       await ctx.db.insert("legalConsentStates", {
         subjectType: "staff",
         staffId,
@@ -307,6 +307,7 @@ describe("legal/mutations", () => {
       staffEmail: "tanaka@example.com",
       lineUserId: "U_staff",
       lineFollowing: true,
+      lineRecipient: { lineUserId: "U_staff", following: true },
       shopName: "テスト店舗",
     });
   });

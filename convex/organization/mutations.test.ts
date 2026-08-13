@@ -6,8 +6,19 @@ import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { addDays, todayJST } from "../_lib/dateFormat";
-import { seedLegacyShopMembership, seedOrganizationManagerShop, seedStaffLineAccount, seedUser } from "../_test/seed";
+import {
+  seedLegacyShopMembership,
+  seedOrganizationManagerShop,
+  seedOrganizationPersonLineLink,
+  seedStaffLineAccount,
+  seedUser,
+} from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import {
+  applyAccountDeletionOrganizationDeparture,
+  beginAccountDeletionOrganizationDeletion,
+  prepareAccountDeletionOrganizationDeparture,
+} from "./mutations";
 
 const NOW = new Date("2026-07-16T00:00:00.000Z").getTime();
 
@@ -244,6 +255,35 @@ async function readRejectedShopRemovalState(
   }));
 }
 
+async function readManagerRemovalProtectedState(t: TestConvex<typeof schema>) {
+  return await t.run(async (ctx) => ({
+    users: await ctx.db.query("users").collect(),
+    organizations: await ctx.db.query("organizations").collect(),
+    shops: await ctx.db.query("shops").collect(),
+    people: await ctx.db.query("organizationPeople").collect(),
+    members: await ctx.db.query("organizationMembers").collect(),
+    staffs: await ctx.db.query("staffs").collect(),
+    assignments: await ctx.db.query("shiftAssignments").collect(),
+    invitations: await ctx.db.query("organizationInvitations").collect(),
+    audits: await ctx.db.query("organizationAuditEvents").collect(),
+    analyticsEvents: await ctx.db.query("analyticsSourceEvents").collect(),
+    rateLimits: await ctx.db.query("rateLimits").collect(),
+    outbox: await ctx.db.query("notificationOutbox").collect(),
+    billing: await ctx.db.query("organizationBillingStates").collect(),
+    sessions: await ctx.db.query("sessions").collect(),
+    magicLinks: await ctx.db.query("magicLinks").collect(),
+    lineLinkTokens: await ctx.db.query("lineLinkTokens").collect(),
+    lineAccounts: await ctx.db.query("staffLineAccounts").collect(),
+    scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+  }));
+}
+
+const managerRoleRemovalAccessCases = [
+  { actorCase: "unauthenticated", actorLabel: "未認証" },
+  { actorCase: "readOnly", actorLabel: "閲覧のみ管理者" },
+  { actorCase: "crossTenant", actorLabel: "別事業者の人物" },
+] as const;
+
 describe("organization person removal", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -252,7 +292,7 @@ describe("organization person removal", () => {
 
   afterEach(() => vi.useRealTimers());
 
-  it("店舗から削除しても人物・管理者権限・他店舗所属・履歴を残し、対象店舗のリンクだけを失効する", async () => {
+  it("active管理者の店舗所属解除を副作用なしで拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "shop_remove_actor", plan: "pro" });
@@ -278,89 +318,15 @@ describe("organization person removal", () => {
       return { ...base, ...target, ...access, managerOutboxId, otherShopId, staffOutboxId };
     });
 
+    const before = await readManagerRemovalProtectedState(t);
     await expect(
       t.withIdentity({ subject: "shop_remove_actor" }).mutation(api.organization.mutations.removePersonFromShop, {
         shopId: ids.shopId,
         staffId: ids.staffIds[0],
         requestId: "shop-remove-request",
       }),
-    ).resolves.toEqual({ changed: true });
-
-    const requestKey = await toAuditRequestKey("shop-remove-request");
-    const state = await t.run(async (ctx) => ({
-      assignment: await ctx.db
-        .query("shiftAssignments")
-        .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", ids.recruitmentId))
-        .first(),
-      audit: await ctx.db
-        .query("organizationAuditEvents")
-        .withIndex("by_correlationId", (q) =>
-          q.eq("correlationId", `${ids.organizationId}:person-removal:shop:${ids.staffIds[0]}:${requestKey}`),
-        )
-        .first(),
-      lineAccount: await ctx.db.get(ids.lineAccountId),
-      lineLinkToken: await ctx.db.get(ids.lineLinkTokenId),
-      magicLink: await ctx.db.get(ids.magicLinkId),
-      managerOutbox: await ctx.db.get(ids.managerOutboxId),
-      member: await ctx.db.get(ids.memberId as Id<"organizationMembers">),
-      notificationHistoryCleanupJobs: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
-        (job) => job.name === "notificationOutbox/mutations:deleteStaffNotificationHistoryBatch",
-      ),
-      otherStaff: await ctx.db.get(ids.staffIds[1]),
-      person: await ctx.db.get(ids.personId),
-      session: await ctx.db.get(ids.sessionId),
-      staff: await ctx.db.get(ids.staffIds[0]),
-      staffOutbox: await ctx.db.get(ids.staffOutboxId),
-      legacyMemberships: await ctx.db
-        .query("shopMembers")
-        .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", ids.userId).eq("isDeleted", false))
-        .collect(),
-    }));
-    expect(state.staff).toMatchObject({
-      isDeleted: true,
-      name: "削除対象",
-      email: ids.email,
-      emailNormalized: ids.email,
-    });
-    expect(state.otherStaff).toMatchObject({
-      isDeleted: false,
-      name: "削除対象",
-      email: ids.email,
-      emailNormalized: ids.email,
-    });
-    expect(state.person).toMatchObject({
-      status: "active",
-      name: "削除対象",
-      email: ids.email,
-      emailNormalized: ids.email,
-    });
-    expect(state.member?.status).toBe("active");
-    expect(state.legacyMemberships).toHaveLength(2);
-    expect(state.assignment).not.toBeNull();
-    expect(state.session?.revokedAt).toBe(NOW);
-    expect(state.magicLink?.revokedAt).toBe(NOW);
-    expect(state.lineLinkToken?.revokedAt).toBe(NOW);
-    expect(state.lineAccount).toMatchObject({ isDeleted: true, following: false });
-    expect(state.staffOutbox).toMatchObject({ status: "cancelled", cancelReason: "recipient_inactive" });
-    expect(state.managerOutbox?.status).toBe("pending");
-    expect(state.notificationHistoryCleanupJobs).toHaveLength(1);
-    expect(state.notificationHistoryCleanupJobs[0]?.args[0]).toEqual({
-      shopId: ids.shopId,
-      staffId: ids.staffIds[0],
-    });
-    expect(state.audit).toMatchObject({
-      action: "organization.person_removed_from_shop",
-      targetId: ids.personId,
-    });
-
-    await t.run((ctx) => ctx.db.patch(ids.shopId, { operatingStatus: "archived" }));
-    await expect(
-      t.withIdentity({ subject: "shop_remove_actor" }).mutation(api.organization.mutations.removePersonFromShop, {
-        shopId: ids.shopId,
-        staffId: ids.staffIds[0],
-        requestId: "shop-remove-request",
-      }),
-    ).resolves.toEqual({ changed: false });
+    ).rejects.toThrow("先に管理者権限を外してください。");
+    expect(await readManagerRemovalProtectedState(t)).toEqual(before);
   });
 
   it.each(["archived", "planSuspended"] as const)(
@@ -420,7 +386,7 @@ describe("organization person removal", () => {
     expect(await readRejectedShopRemovalState(t, ids)).toEqual(before);
   });
 
-  it("事業者から削除すると全所属・権限・招待・リンク・業務通知を失効し、他事業者と履歴は残す", async () => {
+  it("active管理者の事業者人物削除を副作用なしで拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "org_remove_actor", plan: "pro" });
@@ -539,6 +505,7 @@ describe("organization person removal", () => {
       };
     });
 
+    const before = await readManagerRemovalProtectedState(t);
     await expect(
       t
         .withIdentity({ subject: "org_remove_actor" })
@@ -547,101 +514,11 @@ describe("organization person removal", () => {
           personId: ids.personId,
           requestId: "organization-remove-request",
         }),
-    ).resolves.toEqual({ changed: true });
-
-    const requestKey = await toAuditRequestKey("organization-remove-request");
-    const state = await t.run(async (ctx) => ({
-      assignment: await ctx.db
-        .query("shiftAssignments")
-        .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", ids.recruitmentId))
-        .first(),
-      audit: await ctx.db
-        .query("organizationAuditEvents")
-        .withIndex("by_correlationId", (q) =>
-          q.eq("correlationId", `${ids.organizationId}:person-removal:organization:${ids.personId}:${requestKey}`),
-        )
-        .first(),
-      billingOutbox: await ctx.db.get(ids.billingOutboxId),
-      billingState: await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
-        .unique(),
-      invitation: await ctx.db.get(ids.invitationId),
-      invitationOutbox: await ctx.db.get(ids.invitationOutboxId),
-      legacyMemberships: await ctx.db
-        .query("shopMembers")
-        .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", ids.userId).eq("isDeleted", false))
-        .collect(),
-      lineAccount: await ctx.db.get(ids.lineAccountId),
-      member: await ctx.db.get(ids.memberId as Id<"organizationMembers">),
-      notificationHistoryCleanupJobs: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
-        (job) => job.name === "notificationOutbox/mutations:deleteStaffNotificationHistoryBatch",
-      ),
-      otherOrganizationMembership: await ctx.db.get(ids.otherOrganizationMembershipId),
-      otherOrganizationOutbox: await ctx.db.get(ids.otherOrganizationOutboxId),
-      person: await ctx.db.get(ids.personId),
-      session: await ctx.db.get(ids.sessionId),
-      staffs: await Promise.all(ids.staffIds.map(async (staffId) => await ctx.db.get(staffId))),
-      staffOutbox: await ctx.db.get(ids.staffOutboxId),
-      targetedInvitation: await ctx.db.get(ids.targetedInvitationId),
-      unrelatedOutbox: await ctx.db.get(ids.unrelatedOutboxId),
-      userOutbox: await ctx.db.get(ids.userOutboxId),
-    }));
-    expect(state.person).toMatchObject({
-      status: "removed",
-      name: "削除対象",
-      email: ids.email,
-      emailNormalized: ids.email,
-    });
-    expect(state.member?.status).toBe("removed");
-    expect(state.staffs).toHaveLength(2);
-    for (const staff of state.staffs) {
-      expect(staff).toMatchObject({
-        isDeleted: true,
-        name: "削除対象",
-        email: ids.email,
-        emailNormalized: ids.email,
-      });
-    }
-    expect(state.session?.revokedAt).toBe(NOW);
-    expect(state.lineAccount).toMatchObject({ isDeleted: true, following: false });
-    expect(state.invitation).toMatchObject({ status: "revoked", reservedSeat: false, version: 2 });
-    expect(state.targetedInvitation).toMatchObject({ status: "revoked", reservedSeat: false, version: 2 });
-    expect(state.invitationOutbox).toMatchObject({ status: "cancelled", cancelReason: "invitation_inactive" });
-    expect(state.staffOutbox).toMatchObject({ status: "cancelled", cancelReason: "recipient_inactive" });
-    expect(state.userOutbox).toMatchObject({ status: "cancelled", cancelReason: "recipient_inactive" });
-    expect(state.billingOutbox).toMatchObject({ status: "cancelled", cancelReason: "recipient_inactive" });
-    expect(state.billingState?.freeManagerPersonId).toBeUndefined();
-    expect(state.billingState).toMatchObject({ version: 2, updatedAt: NOW });
-    expect(state.unrelatedOutbox?.status).toBe("pending");
-    expect(state.otherOrganizationMembership?.isDeleted).toBe(false);
-    expect(state.otherOrganizationOutbox?.status).toBe("pending");
-    expect(state.legacyMemberships.map((membership) => membership._id)).toEqual([ids.otherOrganizationMembershipId]);
-    expect(
-      state.notificationHistoryCleanupJobs
-        .map((job) => job.args[0] as { shopId: Id<"shops">; staffId: Id<"staffs"> })
-        .sort((a, b) => a.staffId.localeCompare(b.staffId)),
-    ).toEqual(
-      state.staffs
-        .filter((staff) => staff !== null)
-        .map((staff) => ({ shopId: staff.shopId, staffId: staff._id }))
-        .sort((a, b) => a.staffId.localeCompare(b.staffId)),
-    );
-    expect(state.assignment).not.toBeNull();
-    expect(state.audit).toMatchObject({ action: "organization.person_removed", targetId: ids.personId });
-
-    await expect(
-      t
-        .withIdentity({ subject: "org_remove_actor" })
-        .mutation(api.organization.mutations.removePersonFromOrganization, {
-          shopId: ids.shopId,
-          personId: ids.personId,
-          requestId: "organization-remove-request",
-        }),
-    ).resolves.toEqual({ changed: false });
+    ).rejects.toThrow("先に管理者権限を外してください。");
+    expect(await readManagerRemovalProtectedState(t)).toEqual(before);
   });
 
-  it("別の有効管理者がいれば自己削除でき、所属失効後の同一request再送も重複実行しない", async () => {
+  it("別の有効管理者がいても管理者本人の人物削除を副作用なしで拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "self_remove_actor", plan: "pro" });
@@ -666,27 +543,9 @@ describe("organization person removal", () => {
           personId: ids.personId,
           requestId: "self-remove-request",
         });
-    await expect(call()).resolves.toEqual({ changed: true });
-    await expect(call()).resolves.toEqual({ changed: false });
-
-    const requestKey = await toAuditRequestKey("self-remove-request");
-    const state = await t.run(async (ctx) => ({
-      actorMember: await ctx.db.get(ids.memberId),
-      actorPerson: await ctx.db.get(ids.personId),
-      audits: await ctx.db
-        .query("organizationAuditEvents")
-        .withIndex("by_correlationId", (q) =>
-          q.eq("correlationId", `${ids.organizationId}:person-removal:organization:${ids.personId}:${requestKey}`),
-        )
-        .collect(),
-      successorMember: await ctx.db.get(ids.successorMemberId as Id<"organizationMembers">),
-      successorPerson: await ctx.db.get(ids.successorPersonId),
-    }));
-    expect(state.actorMember?.status).toBe("removed");
-    expect(state.actorPerson?.status).toBe("removed");
-    expect(state.successorMember?.status).toBe("active");
-    expect(state.successorPerson?.status).toBe("active");
-    expect(state.audits).toHaveLength(1);
+    const before = await readManagerRemovalProtectedState(t);
+    await expect(call()).rejects.toThrow("先に管理者権限を外してください。");
+    expect(await readManagerRemovalProtectedState(t)).toEqual(before);
   });
 
   it.each(["shop", "organization"] as const)("%s削除はpreview確認後に今日以降の割当も削除する", async (scope) => {
@@ -906,7 +765,7 @@ describe("organization person removal", () => {
           personId: ids.personId,
           requestId: "billing-owner",
         }),
-    ).rejects.toThrow("削除するには、先に請求先メールアドレスを変更してください。");
+    ).rejects.toThrow("先に管理者権限を外してください。");
   });
 
   it("最後の有効管理者は自分自身でも事業者から削除できない", async () => {
@@ -945,7 +804,7 @@ describe("organization person removal", () => {
         personId: ids.personId,
         requestId: "last-manager",
       }),
-    ).rejects.toThrow("管理者は削除できません。");
+    ).rejects.toThrow("先に管理者権限を外してください。");
   });
 
   it("所属が重複してアクセス不能な管理者を有効な後任として数えない", async () => {
@@ -981,7 +840,7 @@ describe("organization person removal", () => {
           personId: ids.personId,
           requestId: "last-manager-duplicate-successor",
         }),
-    ).rejects.toThrow("管理者は削除できません。");
+    ).rejects.toThrow("先に管理者権限を外してください。");
     await expect(t.run(async (ctx) => (await ctx.db.get(ids.personId))?.status)).resolves.toBe("active");
     await expect(t.run(async (ctx) => (await ctx.db.get(ids.memberId))?.status)).resolves.toBe("active");
   });
@@ -1029,12 +888,12 @@ describe("organization person removal", () => {
           personId: ids.personId,
           requestId: "last-manager-duplicate-user",
         }),
-    ).rejects.toThrow("管理者は削除できません。");
+    ).rejects.toThrow("先に管理者権限を外してください。");
     await expect(t.run(async (ctx) => (await ctx.db.get(ids.personId))?.status)).resolves.toBe("active");
     await expect(t.run(async (ctx) => (await ctx.db.get(ids.memberId))?.status)).resolves.toBe("active");
   });
 
-  it("契約制限中に復旧担当者が複数いれば片方を削除し、復旧候補とFree選択を更新する", async () => {
+  it("契約制限中も復旧担当管理者の人物削除を副作用なしで拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "recovery_actor", plan: "pro" });
@@ -1063,46 +922,15 @@ describe("organization person removal", () => {
       return { ...base, ...target, billingStateId: billingState._id, recoveryActorPersonId: base.personId };
     });
 
+    const before = await readManagerRemovalProtectedState(t);
     await expect(
       t.withIdentity({ subject: "recovery_actor" }).mutation(api.organization.mutations.removePersonFromOrganization, {
         shopId: ids.shopId,
         personId: ids.personId,
         requestId: "recovery-manager",
       }),
-    ).resolves.toEqual({ changed: true });
-
-    const state = await t.run(async (ctx) => ({
-      audits: await ctx.db
-        .query("organizationAuditEvents")
-        .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
-        .collect(),
-      billingState: await ctx.db.get(ids.billingStateId),
-      person: await ctx.db.get(ids.personId),
-      reconciliationJobs: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
-        (job) => job.name === "organizationBilling/mutations:reconcileRestrictedPlanEligibility",
-      ),
-    }));
-    expect(state.person?.status).toBe("removed");
-    expect(state.billingState?.state).toMatchObject({
-      kind: "restricted",
-      recoveryManagerPersonIds: [ids.recoveryActorPersonId],
-    });
-    if (state.billingState?.state.kind !== "restricted") throw new Error("billing state is not restricted");
-    expect(state.billingState.state.recoveryManagerPersonIds).toEqual([ids.recoveryActorPersonId]);
-    expect(state.billingState.freeManagerPersonId).toBeUndefined();
-    expect(state.billingState).toMatchObject({ version: 2, updatedAt: NOW });
-    expect(state.reconciliationJobs).toHaveLength(1);
-    expect(state.reconciliationJobs[0]?.args[0]).toEqual({
-      billingStateId: ids.billingStateId,
-      expectedVersion: 2,
-    });
-    expect(state.audits.map((audit) => audit.action)).toEqual(
-      expect.arrayContaining([
-        "organization.person_removed",
-        "organization.recovery_managers_changed",
-        "organization.free_selection_changed",
-      ]),
-    );
+    ).rejects.toThrow("先に管理者権限を外してください。");
+    expect(await readManagerRemovalProtectedState(t)).toEqual(before);
   });
 
   it("最後の復旧担当者は別の有効管理者がいても削除できない", async () => {
@@ -1145,7 +973,7 @@ describe("organization person removal", () => {
           personId: ids.personId,
           requestId: "last-recovery-request",
         }),
-    ).rejects.toThrow("最後の復旧担当者は削除できません");
+    ).rejects.toThrow("先に管理者権限を外してください。");
     const state = await t.run(async (ctx) => ({
       billingState: await ctx.db.get(ids.billingStateId),
       person: await ctx.db.get(ids.personId),
@@ -1205,7 +1033,7 @@ describe("organization person removal", () => {
           personId: ids.personId,
           requestId: "last-recovery-duplicate-successor",
         }),
-    ).rejects.toThrow("最後の復旧担当者は削除できません");
+    ).rejects.toThrow("先に管理者権限を外してください。");
     await expect(t.run(async (ctx) => (await ctx.db.get(ids.personId))?.status)).resolves.toBe("active");
   });
 
@@ -1302,7 +1130,7 @@ describe("organization person removal", () => {
       audit: await ctx.db
         .query("organizationAuditEvents")
         .withIndex("by_correlationId", (q) =>
-          q.eq("correlationId", `${ids.organizationId}:person-removal:managerRole:${ids.personId}:${requestKey}`),
+          q.eq("correlationId", `${ids.organizationId}:person-removal:managerRole:${requestKey}`),
         )
         .first(),
       billingState: await ctx.db.get(ids.billingStateId),
@@ -1337,6 +1165,57 @@ describe("organization person removal", () => {
     expect(state.audit).toMatchObject({ action: "organization.manager_role_removed", toState: "staffOnly" });
   });
 
+  it.each(managerRoleRemovalAccessCases)(
+    "removeManagerRoleは$actorLabelからの直呼びを副作用なしで拒否する",
+    async ({ actorCase }) => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const actor = await seedOrganizationManagerShop(ctx, {
+          subject: `role_access_${actorCase}_actor`,
+          plan: "pro",
+        });
+        const actorTarget = await seedTargetPerson(ctx, {
+          base: actor,
+          subject: `role_access_${actorCase}_target`,
+          shopIds: [actor.shopId],
+          manager: true,
+        });
+        const foreign = await seedOrganizationManagerShop(ctx, {
+          subject: `role_access_${actorCase}_foreign`,
+          plan: "pro",
+        });
+        const foreignTarget = await seedTargetPerson(ctx, {
+          base: foreign,
+          subject: `role_access_${actorCase}_foreign_target`,
+          shopIds: [foreign.shopId],
+          manager: true,
+        });
+        if (actorCase === "readOnly") {
+          await ctx.db.patch(actor.memberId, { status: "readOnly", updatedAt: NOW });
+        }
+        return { actor, actorTarget, foreignTarget };
+      });
+      const before = await readManagerRemovalProtectedState(t);
+      const caller =
+        actorCase === "unauthenticated" ? t : t.withIdentity({ subject: `role_access_${actorCase}_actor` });
+
+      await expect(
+        caller.mutation(api.organization.mutations.removeManagerRole, {
+          shopId: ids.actor.shopId,
+          personId: actorCase === "crossTenant" ? ids.foreignTarget.personId : ids.actorTarget.personId,
+          requestId: `role-access-${actorCase}`,
+        }),
+      ).rejects.toThrow(
+        actorCase === "unauthenticated"
+          ? "Unauthenticated"
+          : actorCase === "readOnly"
+            ? "この操作を行う権限がありません"
+            : "Not found",
+      );
+      expect(await readManagerRemovalProtectedState(t)).toEqual(before);
+    },
+  );
+
   it("スタッフ所属がない管理者の権限解除は人物を保持して管理アクセスだけを終了する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
@@ -1369,6 +1248,43 @@ describe("organization person removal", () => {
     expect(state.member?.status).toBe("removed");
     expect(state.person?.status).toBe("active");
     expect(state.audit).toMatchObject({ action: "organization.manager_role_removed", toState: "personOnly" });
+  });
+
+  it("管理者権限解除は同じrequestIdの別personを副作用なしで拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, { subject: "role_intent_actor", plan: "pro" });
+      const first = await seedTargetPerson(ctx, {
+        base,
+        subject: "role_intent_first",
+        shopIds: [base.shopId],
+        manager: true,
+      });
+      const second = await seedTargetPerson(ctx, {
+        base,
+        subject: "role_intent_second",
+        shopIds: [base.shopId],
+        manager: true,
+      });
+      return { ...base, first, second };
+    });
+    const actor = t.withIdentity({ subject: "role_intent_actor" });
+    await expect(
+      actor.mutation(api.organization.mutations.removeManagerRole, {
+        shopId: ids.shopId,
+        personId: ids.first.personId,
+        requestId: "role-intent-shared",
+      }),
+    ).resolves.toEqual({ changed: true });
+    const before = await readManagerRemovalProtectedState(t);
+    await expect(
+      actor.mutation(api.organization.mutations.removeManagerRole, {
+        shopId: ids.shopId,
+        personId: ids.second.personId,
+        requestId: "role-intent-shared",
+      }),
+    ).rejects.toThrow("以前の管理者権限変更と対象が一致しません");
+    expect(await readManagerRemovalProtectedState(t)).toEqual(before);
   });
 
   it("スタッフ所属がない請求先所有者の管理権限は請求先変更前に外せない", async () => {
@@ -1894,5 +1810,226 @@ describe("organization person profile update", () => {
         requestId: "person-profile-readonly",
       }),
     ).rejects.toThrow("Not found");
+  });
+});
+
+describe("account deletion organization operations", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  it("別の有効管理者がいる組織では本人の管理者・人物・staff accessだけを終了する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "account_departure_actor",
+        plan: "pro",
+      });
+      const successor = await seedTargetPerson(ctx, {
+        base,
+        subject: "account_departure_successor",
+        shopIds: [],
+        manager: true,
+      });
+      await ctx.db.patch(base.organizationId, {
+        billingEmail: successor.email,
+        billingEmailNormalized: successor.email,
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: base.shopId,
+        organizationId: base.organizationId,
+        organizationPersonId: base.personId,
+        userId: base.userId,
+        name: "管理者兼スタッフ",
+        email: "account_departure_actor@example.com",
+        emailNormalized: "account_departure_actor@example.com",
+        isDeleted: false,
+      });
+      const access = await seedStaffAccess(ctx, { shopId: base.shopId, staffId });
+      const canonicalLine = await seedOrganizationPersonLineLink(ctx, {
+        organizationId: base.organizationId,
+        organizationPersonId: base.personId,
+        lineUserId: "account-departure-canonical-line",
+      });
+      const future = await seedAssignment(ctx, {
+        shopId: base.shopId,
+        staffId,
+        date: addDays(todayJST(), 1),
+      });
+      const [organization, person, member] = await Promise.all([
+        ctx.db.get(base.organizationId),
+        ctx.db.get(base.personId),
+        ctx.db.get(base.memberId),
+      ]);
+      if (!organization || !person || !member) throw new Error("account departure actor not found");
+      return {
+        ...base,
+        ...access,
+        ...canonicalLine,
+        actor: { organization, person, member },
+        assignmentId: future.assignmentId,
+        staffId,
+        successorMemberId: successor.memberId,
+      };
+    });
+
+    const result = await t.run(async (ctx) => {
+      const plan = await prepareAccountDeletionOrganizationDeparture(ctx, {
+        actor: ids.actor,
+        accountUserId: ids.userId,
+        asOfDate: todayJST(),
+      });
+      return await applyAccountDeletionOrganizationDeparture(ctx, {
+        plan,
+        correlationId: "account-departure-test",
+        now: NOW,
+      });
+    });
+    expect(result).toEqual({ assignmentCount: 1 });
+
+    const state = await t.run(async (ctx) => ({
+      assignment: await ctx.db.get(ids.assignmentId),
+      audit: await ctx.db
+        .query("organizationAuditEvents")
+        .withIndex("by_correlationId", (q) => q.eq("correlationId", "account-departure-test"))
+        .unique(),
+      lineAccount: await ctx.db.get(ids.lineAccountId),
+      canonicalLineLink: await ctx.db.get(ids.organizationPersonLineLinkId),
+      canonicalProvider: await ctx.db.get(ids.lineProviderUserId),
+      lineLinkToken: await ctx.db.get(ids.lineLinkTokenId),
+      magicLink: await ctx.db.get(ids.magicLinkId),
+      member: await ctx.db.get(ids.memberId),
+      organization: await ctx.db.get(ids.organizationId),
+      person: await ctx.db.get(ids.personId),
+      session: await ctx.db.get(ids.sessionId),
+      staff: await ctx.db.get(ids.staffId),
+      successorMember: ids.successorMemberId ? await ctx.db.get(ids.successorMemberId) : null,
+    }));
+    expect(state).toMatchObject({
+      assignment: null,
+      audit: { action: "organization.person_removed", actorUserId: ids.userId },
+      lineAccount: { isDeleted: true, following: false },
+      canonicalLineLink: { isDeleted: true, unlinkedAt: NOW },
+      canonicalProvider: { isDeleted: true, following: false },
+      lineLinkToken: { revokedAt: NOW },
+      magicLink: { revokedAt: NOW },
+      member: { status: "removed" },
+      organization: { isDeleted: false },
+      person: { status: "removed" },
+      session: { revokedAt: NOW },
+      staff: { isDeleted: true },
+      successorMember: { status: "active" },
+    });
+  });
+
+  it("readOnly管理者しか残らない本人離脱は無変更で拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "account_departure_readonly_actor",
+        plan: "pro",
+      });
+      const successor = await seedTargetPerson(ctx, {
+        base,
+        subject: "account_departure_readonly_successor",
+        shopIds: [],
+        manager: true,
+      });
+      if (!successor.memberId) throw new Error("successor member not found");
+      await ctx.db.patch(successor.memberId, { status: "readOnly" });
+      await ctx.db.patch(base.organizationId, {
+        billingEmail: successor.email,
+        billingEmailNormalized: successor.email,
+      });
+      const [organization, person, member] = await Promise.all([
+        ctx.db.get(base.organizationId),
+        ctx.db.get(base.personId),
+        ctx.db.get(base.memberId),
+      ]);
+      if (!organization || !person || !member) throw new Error("account departure actor not found");
+      return { ...base, actor: { organization, person, member } };
+    });
+
+    await expect(
+      t.run(async (ctx) =>
+        prepareAccountDeletionOrganizationDeparture(ctx, {
+          actor: ids.actor,
+          accountUserId: ids.userId,
+          asOfDate: todayJST(),
+        }),
+      ),
+    ).rejects.toThrowError("管理者は削除できません。");
+    await expect(
+      t.run(async (ctx) => ({
+        audits: await ctx.db.query("organizationAuditEvents").collect(),
+        member: await ctx.db.get(ids.memberId),
+        organization: await ctx.db.get(ids.organizationId),
+        person: await ctx.db.get(ids.personId),
+      })),
+    ).resolves.toMatchObject({
+      audits: [],
+      member: { status: "active" },
+      organization: { isDeleted: false },
+      person: { status: "active" },
+    });
+  });
+
+  it("sole-admin組織の論理削除とcleanup jobを同じ受付で冪等に開始する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "account_delete_sole_admin",
+        plan: "free",
+      });
+      const [organization, person, member] = await Promise.all([
+        ctx.db.get(base.organizationId),
+        ctx.db.get(base.personId),
+        ctx.db.get(base.memberId),
+      ]);
+      if (!organization || !person || !member) throw new Error("sole admin actor not found");
+      return { ...base, actor: { organization, person, member } };
+    });
+    const request = {
+      actor: ids.actor,
+      accountUserId: ids.userId,
+      requestId: "account-delete-sole-admin",
+      now: NOW,
+    };
+
+    const first = await t.run(async (ctx) => beginAccountDeletionOrganizationDeletion(ctx, request));
+    const second = await t.run(async (ctx) => beginAccountDeletionOrganizationDeletion(ctx, request));
+    expect(first).toEqual({
+      organizationId: ids.organizationId,
+      cleanupJobId: first.cleanupJobId,
+      changed: true,
+    });
+    expect(second).toEqual({
+      organizationId: ids.organizationId,
+      cleanupJobId: first.cleanupJobId,
+      changed: false,
+    });
+
+    const state = await t.run(async (ctx) => ({
+      audits: await ctx.db
+        .query("organizationAuditEvents")
+        .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
+        .collect(),
+      jobs: await ctx.db.query("deletionCleanupJobs").collect(),
+      organization: await ctx.db.get(ids.organizationId),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(state.organization).toMatchObject({ isDeleted: true, updatedAt: NOW });
+    expect(state.jobs).toHaveLength(1);
+    expect(state.jobs[0]).toMatchObject({
+      _id: first.cleanupJobId,
+      scope: "organization",
+      organizationId: ids.organizationId,
+      status: "queued",
+    });
+    expect(state.audits.map((audit) => audit.action)).toEqual(["organization.deleted"]);
+    expect(state.scheduled.map((job) => job.name)).toEqual(["deletionCleanup/mutations:kick"]);
   });
 });

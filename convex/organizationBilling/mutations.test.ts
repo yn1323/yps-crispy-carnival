@@ -38,7 +38,7 @@ describe("organizationBilling/mutations Free管理者選択", () => {
     vi.clearAllTimers();
     vi.useRealTimers();
   });
-  it("Trialでは削除済みuserの管理者を選択できない", async () => {
+  it("TrialではFree選択自体を開始できない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, { subject: "free_trial_actor", plan: "business" });
@@ -62,10 +62,10 @@ describe("organizationBilling/mutations Free管理者選択", () => {
         freeShopId: ids.shopId,
         requestId: "trial-deleted-user",
       }),
-    ).rejects.toThrow("無料で残す管理者を確認できません");
+    ).rejects.toThrow("現在の契約状態では無料設定を変更できません");
   });
 
-  it("Trialではアカウント削除受付済みuserの管理者を選択できない", async () => {
+  it("Trialでは人物状態にかかわらずFree選択を開始できない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
@@ -94,10 +94,10 @@ describe("organizationBilling/mutations Free管理者選択", () => {
           freeShopId: ids.shopId,
           requestId: "trial-requested-user",
         }),
-    ).rejects.toThrow("無料で残す管理者を確認できません");
+    ).rejects.toThrow("現在の契約状態では無料設定を変更できません");
   });
 
-  it("支払い猶予中はpersonとmemberのuserが一致しない管理者を選択できない", async () => {
+  it("支払い猶予中はFree選択を開始できない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, { subject: "free_grace_actor", plan: "pro" });
@@ -126,10 +126,10 @@ describe("organizationBilling/mutations Free管理者選択", () => {
         freeShopId: ids.shopId,
         requestId: "grace-mismatched-user",
       }),
-    ).rejects.toThrow("無料で残す管理者を確認できません");
+    ).rejects.toThrow("現在の契約状態では無料設定を変更できません");
   });
 
-  it("契約制限中は復旧候補でもremoved memberを選択できない", async () => {
+  it("支払い猶予終了の契約制限中はFree選択を開始できない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, { subject: "free_restricted_actor", plan: "pro" });
@@ -162,14 +162,28 @@ describe("organizationBilling/mutations Free管理者選択", () => {
           freeShopId: ids.shopId,
           requestId: "restricted-removed-member",
         }),
-    ).rejects.toThrow("無料で残す管理者を確認できません");
+    ).rejects.toThrow("現在の契約状態では無料設定を変更できません");
   });
 
   it("同じrequestIdは一度だけ適用し、監査へ生値を保存しない", async () => {
     const t = convexTest(schema, modules);
-    const ids = await t.run((ctx) =>
-      seedOrganizationManagerShop(ctx, { subject: "free_idempotent_actor", plan: "pro" }),
-    );
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, { subject: "free_idempotent_actor", plan: "pro" });
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      await ctx.db.patch(billingState._id, {
+        state: {
+          kind: "scheduledChange",
+          currentPlan: "pro",
+          targetPlan: "free",
+          effectiveAt: Date.now() + 24 * 60 * 60_000,
+        },
+      });
+      return seeded;
+    });
     const requestId = "free-selection-sensitive-request";
     const mutationArgs = {
       shopId: ids.shopId,
@@ -181,11 +195,11 @@ describe("organizationBilling/mutations Free管理者選択", () => {
 
     await expect(actor.mutation(api.organizationBilling.mutations.setFreeSelection, mutationArgs)).resolves.toEqual({
       changed: true,
-      stateKind: "active",
+      stateKind: "scheduledChange",
     });
     await expect(actor.mutation(api.organizationBilling.mutations.setFreeSelection, mutationArgs)).resolves.toEqual({
       changed: false,
-      stateKind: "active",
+      stateKind: "scheduledChange",
     });
 
     const requestKey = await toAuditRequestKey(requestId);
@@ -298,7 +312,7 @@ describe("organizationBilling/mutations Free管理者選択", () => {
     expect(result.scheduled.filter((job) => job.name.startsWith("organizationBilling/"))).toEqual([]);
   });
 
-  it("契約制限中でFree条件を満たせない再評価は制限開始の副作用を再発行しない", async () => {
+  it("支払い猶予終了の契約制限中はFree再評価の副作用を発行しない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
@@ -359,7 +373,7 @@ describe("organizationBilling/mutations Free管理者選択", () => {
         ...selection,
         requestId: "restricted-free-reevaluation-1",
       }),
-    ).resolves.toEqual({ changed: true, stateKind: "free" });
+    ).rejects.toThrow("現在の契約状態では無料設定を変更できません");
 
     const result = await t.run(async (ctx) => ({
       audits: await ctx.db
@@ -369,21 +383,18 @@ describe("organizationBilling/mutations Free管理者選択", () => {
       billingState: await ctx.db.get(ids.billingStateId),
       scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
     }));
-    expect(result.billingState?.state).toMatchObject({
-      kind: "active",
-      plan: "free",
-    });
-    expect(result.billingState?.version).toBe(3);
-    expect(result.billingState?.businessNotificationCutoffAt).toBeGreaterThan(ids.restrictedAt);
-    expect(result.billingState?.businessNotificationCutoffVersion).toBe(3);
-    expect(result.audits.filter((audit) => audit.action === "organization.billing_state_changed")).toHaveLength(1);
-    expect(result.audits.filter((audit) => audit.action === "organization.free_selection_changed")).toHaveLength(1);
+    expect(result.billingState?.state).toMatchObject({ kind: "restricted", reason: "paymentGraceExpired" });
+    expect(result.billingState?.version).toBe(1);
+    expect(result.billingState?.businessNotificationCutoffAt).toBe(ids.restrictedAt);
+    expect(result.billingState?.businessNotificationCutoffVersion).toBe(1);
+    expect(result.audits.filter((audit) => audit.action === "organization.billing_state_changed")).toHaveLength(0);
+    expect(result.audits.filter((audit) => audit.action === "organization.free_selection_changed")).toHaveLength(0);
     expect(
       result.scheduled.filter(
         (job) =>
           job.name === "organizationBilling/actions:enqueueBillingNotification" && job.args[0]?.event === "freeApplied",
       ),
-    ).toHaveLength(1);
+    ).toHaveLength(0);
   });
 
   it("契約制限中に一名を選んだ時点で他の復旧担当者の復旧権限を外す", async () => {
@@ -1494,6 +1505,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
     const result = await t.run(async (ctx) => ({
       billingState: await ctx.db.get(ids.billingStateId),
       member: await ctx.db.get(ids.memberId),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
       shop: await ctx.db.get(ids.shopId),
     }));
     expect(result.billingState?.state.kind).toBe("restricted");
@@ -1619,6 +1631,149 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
 describe("organizationBilling/mutations first trial invoice", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
+
+  it("未契約Trialは期限到達時にデータを保持したrestrictedへ移す", async () => {
+    const deadlineAt = Date.parse("2026-09-13T15:00:00.000Z");
+    vi.setSystemTime(deadlineAt);
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, { subject: "trial_without_subscription", plan: "pro" });
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      await ctx.db.patch(billingState._id, { state: { kind: "trial", trialEndsAt: deadlineAt } });
+      return seeded;
+    });
+
+    await expect(
+      t.mutation(internal.organizationBilling.mutations.processDeadline, {
+        organizationId: ids.organizationId,
+        expectedVersion: 1,
+        expectedDeadlineAt: deadlineAt,
+      }),
+    ).resolves.toEqual({ changed: true, stateKind: "restricted" });
+
+    const result = await t.run(async (ctx) => ({
+      billing: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      member: await ctx.db.get(ids.memberId),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      shop: await ctx.db.get(ids.shopId),
+    }));
+    expect(result.billing).toMatchObject({
+      version: 2,
+      state: {
+        kind: "restricted",
+        reason: "trialEndedWithoutSubscription",
+        recoveryManagerPersonIds: [ids.personId],
+        previousActiveShopIds: [ids.shopId],
+        restrictedAt: deadlineAt,
+      },
+    });
+    expect(result.billing?.state).not.toHaveProperty("previousPlan");
+    expect(result.member?.status).toBe("active");
+    expect(result.shop?.operatingStatus).toBe("active");
+    expect(
+      result.scheduled.filter(
+        (job) =>
+          job.name === "organizationBilling/actions:enqueueBillingNotification" &&
+          job.args[0]?.event === "restrictedStarted" &&
+          job.args[0]?.notificationDetails?.restrictionReason === "trialEndedWithoutSubscription",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("新しい利用停止予約はprovider確定後にrestrictedへ移す", async () => {
+    const deadlineAt = Date.parse("2026-08-31T15:00:00.000Z");
+    vi.setSystemTime(deadlineAt);
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, { subject: "scheduled_restriction", plan: "pro" });
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      await ctx.db.patch(billingState._id, {
+        state: {
+          kind: "scheduledChange",
+          currentPlan: "pro",
+          targetPlan: "free",
+          effectiveAt: deadlineAt,
+          restrictAtPeriodEnd: true,
+        },
+      });
+      return seeded;
+    });
+
+    await expect(
+      t.mutation(internal.organizationBilling.mutations.confirmScheduledFreeDeadline, {
+        organizationId: ids.organizationId,
+        expectedVersion: 1,
+        expectedDeadlineAt: deadlineAt,
+        correlationId: "scheduled-restriction-confirmed",
+      }),
+    ).resolves.toEqual({ changed: true, stateKind: "restricted" });
+    const result = await t.run(async (ctx) => ({
+      billing: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(result.billing).toMatchObject({
+      version: 2,
+      state: { kind: "restricted", reason: "scheduledCancellation", previousPlan: "pro" },
+    });
+    expect(
+      result.scheduled.filter(
+        (job) =>
+          job.name === "organizationBilling/actions:enqueueBillingNotification" &&
+          job.args[0]?.event === "restrictedStarted" &&
+          job.args[0]?.notificationDetails?.restrictionReason === "scheduledCancellation",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("deployment前のmarkerなしFree予約はprovider確定後もFreeへ移す", async () => {
+    const deadlineAt = Date.parse("2026-08-31T15:00:00.000Z");
+    vi.setSystemTime(deadlineAt);
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, { subject: "legacy_scheduled_free", plan: "pro" });
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      await ctx.db.patch(billingState._id, {
+        state: { kind: "scheduledChange", currentPlan: "pro", targetPlan: "free", effectiveAt: deadlineAt },
+        freeManagerPersonId: seeded.personId,
+        freeShopId: seeded.shopId,
+      });
+      return seeded;
+    });
+
+    await expect(
+      t.mutation(internal.organizationBilling.mutations.confirmScheduledFreeDeadline, {
+        organizationId: ids.organizationId,
+        expectedVersion: 1,
+        expectedDeadlineAt: deadlineAt,
+        correlationId: "legacy-scheduled-free-confirmed",
+      }),
+    ).resolves.toEqual({ changed: true, stateKind: "free" });
+    const billing = await t.run((ctx) =>
+      ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+    );
+    expect(billing).toMatchObject({ version: 2, state: { kind: "active", plan: "free" } });
+  });
 
   it("paid result wins atomically and makes the deadline job stale", async () => {
     const deadlineAt = Date.parse("2026-07-20T00:00:00.000Z");

@@ -1,5 +1,5 @@
-import { Box, Flex, Stack, Text } from "@chakra-ui/react";
-import { LuPencil, LuUserRound } from "react-icons/lu";
+import { Badge, Box, Flex, Stack, Text } from "@chakra-ui/react";
+import { LuMessageCircle, LuPencil, LuUserRound } from "react-icons/lu";
 import type { PersonProfileFormData } from "@/src/components/shared/PersonProfileForm";
 import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
 import { Button } from "@/src/components/ui/Button";
@@ -7,6 +7,7 @@ import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import { DrilldownRow } from "@/src/components/ui/DrilldownRow";
 import type { UserDetailData, UserDetailDialog, UserDetailPanel, UserMembershipChangeInput } from "./types";
 import { UserInformationDialog } from "./UserInformationDialog";
+import { getLineStatusPresentation, UserLineConnectionDialog } from "./UserLineConnectionDialog";
 import { UserGroupRemovalSection } from "./UserSettingsTab";
 import { UserShopMembershipDialog } from "./UserShopMembershipDialog";
 import { UserShopMembershipList } from "./UserShopMembershipList";
@@ -15,38 +16,52 @@ import { UserSummary } from "./UserSummary";
 export type UserDetailViewProps = {
   data: UserDetailData;
   showShopMembershipAddition: boolean;
+  managerSettingsDisabledReason?: string;
   activePanel?: UserDetailPanel;
   state: {
     isUpdatingProfile: boolean;
+    line: {
+      authorizeUrl: string | null;
+      showQr: boolean;
+      isQrLoading: boolean;
+      isSendingInvite: boolean;
+      isDisconnecting: boolean;
+    };
     membership: {
       isChanging: boolean;
     };
-    manager: {
+    removal: {
       dialog: UserDetailDialog;
-      isAssignmentConfirmationOpen: boolean;
-      isAssigning: boolean;
       isRemoving: boolean;
     };
   };
   actions: {
     onBack: () => void;
     onOpenBasic: () => void;
+    onOpenLine: () => void;
     onOpenAddShop: () => void;
     onOpenShop: (shopId: string) => void;
     onClosePanel: () => void;
     onUpdateProfile: (data: PersonProfileFormData) => void | Promise<void>;
+    onShowLineQr: () => Promise<unknown>;
+    onSendLineInvite: () => Promise<unknown>;
+    onDisconnectLine: (requestId: string) => Promise<boolean | undefined>;
     onChangeMemberships: (input: UserMembershipChangeInput) => void | Promise<void>;
-    onRequestManagerAssignment: () => void;
-    onCancelManagerAssignment: () => void;
-    onAssignManager: () => void | Promise<void>;
-    onRequestRemoveManagerRole: () => void;
+    onManageManagers: () => void;
     onRequestRemovePerson: () => void;
-    onConfirmManagerSetting: () => void | Promise<void>;
-    onCloseManagerDialog: () => void;
+    onConfirmRemovePerson: () => void | Promise<void>;
+    onCloseRemovalDialog: () => void;
   };
 };
 
-export function UserDetailView({ data, showShopMembershipAddition, activePanel, state, actions }: UserDetailViewProps) {
+export function UserDetailView({
+  data,
+  showShopMembershipAddition,
+  managerSettingsDisabledReason,
+  activePanel,
+  state,
+  actions,
+}: UserDetailViewProps) {
   const handleDialogOpenChange = ({ open }: { open: boolean }) => {
     if (!open) actions.onClosePanel();
   };
@@ -75,14 +90,14 @@ export function UserDetailView({ data, showShopMembershipAddition, activePanel, 
           leading={<BasicInformationIcon />}
           secondary={
             <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-              {data.managerInvitationState.kind === "hidden"
-                ? "名前・シフト連絡先を管理します"
-                : "名前・シフト連絡先・権限を管理します"}
+              名前・シフト連絡先を管理します
             </Text>
           }
           onClick={actions.onOpenBasic}
         />
       </Box>
+
+      <UserLineConnectionRow data={data} onOpen={actions.onOpenLine} />
 
       <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
         <Flex align="center" justify="space-between" gap={3} px={{ base: 4, md: 5 }} pt={4} pb={0}>
@@ -123,32 +138,38 @@ export function UserDetailView({ data, showShopMembershipAddition, activePanel, 
             : data.removeDisabledReason
         }
         removalPreview={
-          state.manager.dialog?.kind === "removePerson" ? state.manager.dialog.removalPreview : data.removalPreview
+          state.removal.dialog?.kind === "removePerson" ? state.removal.dialog.removalPreview : data.removalPreview
         }
-        isConfirmationOpen={state.manager.dialog?.kind === "removePerson"}
-        isRemoving={state.manager.isRemoving}
+        isConfirmationOpen={state.removal.dialog?.kind === "removePerson"}
+        isRemoving={state.removal.isRemoving}
         onRequestRemovePerson={actions.onRequestRemovePerson}
-        onCancelRemovePerson={actions.onCloseManagerDialog}
-        onConfirmRemovePerson={actions.onConfirmManagerSetting}
+        onCancelRemovePerson={actions.onCloseRemovalDialog}
+        onConfirmRemovePerson={actions.onConfirmRemovePerson}
       />
 
       <UserInformationDialog
         data={data}
         isOpen={activePanel === "basic"}
         isUpdatingProfile={state.isUpdatingProfile}
-        managerDialog={state.manager.dialog}
-        isManagerAssignmentConfirmationOpen={state.manager.isAssignmentConfirmationOpen}
-        isAssigningManager={state.manager.isAssigning}
-        isRemovingManagerSetting={state.manager.isRemoving}
         onOpenChange={handleDialogOpenChange}
         onClose={actions.onClosePanel}
         onUpdateProfile={actions.onUpdateProfile}
-        onRequestManagerAssignment={actions.onRequestManagerAssignment}
-        onCancelManagerAssignment={actions.onCancelManagerAssignment}
-        onAssignManager={actions.onAssignManager}
-        onRequestRemoveManagerRole={actions.onRequestRemoveManagerRole}
-        onConfirmManagerSetting={actions.onConfirmManagerSetting}
-        onCancelManagerSetting={actions.onCloseManagerDialog}
+        onManageManagers={actions.onManageManagers}
+        managerSettingsDisabledReason={managerSettingsDisabledReason}
+      />
+
+      <UserLineConnectionDialog
+        data={data}
+        isOpen={activePanel === "line"}
+        authorizeUrl={state.line.authorizeUrl}
+        showQr={state.line.showQr}
+        isQrLoading={state.line.isQrLoading}
+        isSendingInvite={state.line.isSendingInvite}
+        isDisconnecting={state.line.isDisconnecting}
+        onClose={actions.onClosePanel}
+        onShowQr={actions.onShowLineQr}
+        onSendInvite={actions.onSendLineInvite}
+        onDisconnect={actions.onDisconnectLine}
       />
 
       {showShopMembershipAddition && (
@@ -162,6 +183,37 @@ export function UserDetailView({ data, showShopMembershipAddition, activePanel, 
         />
       )}
     </Stack>
+  );
+}
+
+function UserLineConnectionRow({ data, onOpen }: { data: UserDetailData; onOpen: () => void }) {
+  const presentation = getLineStatusPresentation(data.line.status);
+  return (
+    <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
+      <DrilldownRow
+        ariaLabel="LINE連携を開く"
+        title="LINE連携"
+        leading={<LineConnectionIcon />}
+        badges={
+          <Badge
+            colorPalette={presentation.badgeColorPalette}
+            variant="subtle"
+            borderRadius="full"
+            px={2}
+            textStyle="2xs"
+          >
+            {presentation.label}
+          </Badge>
+        }
+        secondary={
+          <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+            同じ組織の所属店舗で共通です
+          </Text>
+        }
+        accessibleDescription={`${presentation.description} 同じ組織の所属店舗で共通です。`}
+        onClick={onOpen}
+      />
+    </Box>
   );
 }
 
@@ -179,6 +231,24 @@ function BasicInformationIcon() {
       aria-hidden
     >
       <LuUserRound />
+    </Flex>
+  );
+}
+
+function LineConnectionIcon() {
+  return (
+    <Flex
+      boxSize="40px"
+      borderRadius="full"
+      bg="green.100"
+      color="green.700"
+      align="center"
+      justify="center"
+      fontSize="lg"
+      flexShrink={0}
+      aria-hidden
+    >
+      <LuMessageCircle />
     </Flex>
   );
 }

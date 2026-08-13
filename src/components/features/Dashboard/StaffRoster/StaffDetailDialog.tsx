@@ -1,9 +1,5 @@
 import { Stack, Tabs, Text } from "@chakra-ui/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import {
-  getManagerAssignmentConfirmationCopy,
-  ManagerAssignmentConfirmation,
-} from "@/src/components/shared/ManagerAssignmentConfirmation";
 import { Dialog } from "@/src/components/ui/Dialog";
 import type { EditStaffFormData } from "../EditStaffForm";
 import type { Recruitment, Staff } from "../types";
@@ -15,7 +11,7 @@ import { StaffDetailSummary } from "./StaffDetailSummary";
 import { getStaffLineStatus } from "./staffDetailPresentation";
 
 type PendingAction = {
-  kind: "delete" | "managerInvitation";
+  kind: "delete";
   contextKey: string;
 };
 type DirectAction = "sendRecruitments" | "sendCurrentShift" | "sendLineInvite";
@@ -50,8 +46,7 @@ type Props = {
   notificationHistory: ReactNode;
   onChangeShiftTarget: (staff: Staff, isShiftTarget: boolean) => void | Promise<void>;
   isChangingShiftTarget: boolean;
-  onInviteManager: (staff: Staff) => Promise<boolean>;
-  isInvitingManager: boolean;
+  onManageManagers: () => void;
 };
 
 export const StaffDetailDialog = ({
@@ -79,8 +74,7 @@ export const StaffDetailDialog = ({
   notificationHistory,
   onChangeShiftTarget,
   isChangingShiftTarget,
-  onInviteManager,
-  isInvitingManager,
+  onManageManagers,
 }: Props) => {
   const [activeTab, setActiveTab] = useState<StaffDetailTab>(defaultTab);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
@@ -89,14 +83,7 @@ export const StaffDetailDialog = ({
   const focusRestoreKindRef = useRef<PendingAction["kind"] | null>(null);
   const directActionRef = useRef<DirectAction | null>(null);
   const [directAction, setDirectAction] = useState<DirectAction | null>(null);
-  const managerInvitationState = staff?.managerInvitationState;
-  const managerInvitationCapability =
-    managerInvitationState && (managerInvitationState.kind === "available" || managerInvitationState.kind === "pending")
-      ? `${managerInvitationState.kind}:${managerInvitationState.mode}:${
-          managerInvitationState.kind === "available" ? managerInvitationState.replacesStaleInvitation : true
-        }`
-      : null;
-  const pendingActionContextKey = `${staff?._id ?? "none"}:${managerInvitationCapability ?? "unavailable"}:${isReadOnly}`;
+  const pendingActionContextKey = `${staff?._id ?? "none"}:${isReadOnly}`;
   const previousPendingActionContextKeyRef = useRef(pendingActionContextKey);
 
   useEffect(() => {
@@ -106,28 +93,7 @@ export const StaffDetailDialog = ({
   }, [pendingActionContextKey]);
 
   const activePendingAction = pendingAction?.contextKey === pendingActionContextKey ? pendingAction.kind : null;
-  const managerConfirmationProps =
-    staff &&
-    activePendingAction === "managerInvitation" &&
-    (staff.managerInvitationState.kind === "available" || staff.managerInvitationState.kind === "pending")
-      ? {
-          personName: staff.name,
-          personEmail: staff.email,
-          mode: staff.managerInvitationState.mode,
-          replacesStaleInvitation:
-            staff.managerInvitationState.kind === "available" && staff.managerInvitationState.replacesStaleInvitation,
-          isResend: staff.managerInvitationState.kind === "pending",
-        }
-      : null;
-  const managerConfirmationCopy = managerConfirmationProps
-    ? getManagerAssignmentConfirmationCopy(managerConfirmationProps)
-    : null;
-  const isConfirmationRunning =
-    activePendingAction === "delete"
-      ? isDeleting
-      : activePendingAction === "managerInvitation"
-        ? isInvitingManager
-        : false;
+  const isConfirmationRunning = activePendingAction === "delete" ? isDeleting : false;
 
   useEffect(() => {
     if (activePendingAction) {
@@ -170,14 +136,6 @@ export const StaffDetailDialog = ({
     setPendingAction(null);
   };
 
-  const handleManagerInvitation = async () => {
-    const succeeded = await onInviteManager(staff);
-    if (succeeded) {
-      focusRestoreKindRef.current = "managerInvitation";
-      setPendingAction(null);
-    }
-  };
-
   const runDirectAction = async (action: DirectAction, handler: () => void | Promise<void>) => {
     if (directActionRef.current !== null) return;
 
@@ -209,26 +167,16 @@ export const StaffDetailDialog = ({
           ? staff.isOrganizationLinked
             ? "店舗からスタッフを削除"
             : "スタッフを削除"
-          : (managerConfirmationCopy?.title ?? "スタッフ詳細")
+          : "スタッフ詳細"
       }
       role={activePendingAction ? "alertdialog" : "dialog"}
       isOpen={isOpen}
       onOpenChange={handleOpenChange}
       onClose={activePendingAction ? leaveConfirmation : handleClose}
       closeLabel={activePendingAction ? "やめる" : "閉じる"}
-      onSubmit={
-        activePendingAction === "delete"
-          ? handleDelete
-          : activePendingAction === "managerInvitation"
-            ? handleManagerInvitation
-            : undefined
-      }
+      onSubmit={activePendingAction === "delete" ? handleDelete : undefined}
       submitLabel={
-        activePendingAction === "delete"
-          ? staff.isOrganizationLinked
-            ? "店舗から削除"
-            : "スタッフを削除"
-          : managerConfirmationCopy?.confirmLabel
+        activePendingAction === "delete" ? (staff.isOrganizationLinked ? "店舗から削除" : "スタッフを削除") : undefined
       }
       submitColorPalette={activePendingAction === "delete" ? "red" : "teal"}
       isLoading={isConfirmationRunning}
@@ -255,10 +203,6 @@ export const StaffDetailDialog = ({
               ? "将来のシフトに割り当てられている場合は削除できません。\n削除すると、この店舗の所属と既存のシフト用リンク、LINE連携を終了します。\n組織のユーザー情報、ほかの店舗所属、管理者権限は変更せず、利用人数にも引き続き含まれます。"
               : "削除すると元に戻せません。\n既存のシフト用リンクやLINE連携も使えなくなります。"}
           </Text>
-        </Stack>
-      ) : managerConfirmationProps ? (
-        <Stack ref={confirmationBodyRef} data-testid="staff-detail-confirmation-body" tabIndex={-1} outline="none">
-          <ManagerAssignmentConfirmation {...managerConfirmationProps} />
         </Stack>
       ) : (
         <Stack ref={normalContentRef} gap={5}>
@@ -333,20 +277,16 @@ export const StaffDetailDialog = ({
             </Tabs.Content>
 
             <Tabs.Content value="settings" pt={4}>
-              <fieldset disabled={isReadOnly} style={FIELDSET_STYLE}>
-                <StaffDetailSettingsTab
-                  isShiftTarget={isShiftTarget}
-                  isChangingShiftTarget={isChangingShiftTarget}
-                  isManager={staff.isManager}
-                  managerInvitationState={staff.managerInvitationState}
-                  isInvitingManager={isInvitingManager}
-                  onChangeShiftTarget={(nextIsShiftTarget) => onChangeShiftTarget(staff, nextIsShiftTarget)}
-                  onRequestManagerInvitation={() =>
-                    setPendingAction({ kind: "managerInvitation", contextKey: pendingActionContextKey })
-                  }
-                  onRequestDelete={() => setPendingAction({ kind: "delete", contextKey: pendingActionContextKey })}
-                />
-              </fieldset>
+              <StaffDetailSettingsTab
+                isReadOnly={isReadOnly}
+                isShiftTarget={isShiftTarget}
+                isChangingShiftTarget={isChangingShiftTarget}
+                isManager={staff.isManager}
+                managerInvitationState={staff.managerInvitationState}
+                onManageManagers={onManageManagers}
+                onChangeShiftTarget={(nextIsShiftTarget) => onChangeShiftTarget(staff, nextIsShiftTarget)}
+                onRequestDelete={() => setPendingAction({ kind: "delete", contextKey: pendingActionContextKey })}
+              />
             </Tabs.Content>
           </Tabs.Root>
         </Stack>

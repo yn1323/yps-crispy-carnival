@@ -23,6 +23,14 @@ function report(overrides: Record<string, { projectName?: string; status?: strin
 }
 
 describe("E2E core result gate", () => {
+  it("desktop 12件、mobile 1件の13契約を固定する", () => {
+    const projects = [...EXPECTED_CORE_CONTRACTS.values()];
+
+    expect(EXPECTED_CORE_CONTRACTS.size).toBe(13);
+    expect(projects.filter((projectName) => projectName === "desktop-chromium")).toHaveLength(12);
+    expect(projects.filter((projectName) => projectName === "mobile-chrome")).toHaveLength(1);
+  });
+
   it("契約ID、project、初回成功を件数に依存せず検証する", () => {
     expect(assertE2ECoreResults(report())).toEqual(
       [...EXPECTED_CORE_CONTRACTS].map(([contractId, projectName]) => ({
@@ -45,9 +53,9 @@ describe("E2E core result gate", () => {
 
   it("必須契約の欠落を拒否する", () => {
     const missing = report();
-    missing.suites[0].specs = missing.suites[0].specs.filter((spec) => !spec.title.includes("E2E-TENANT-01"));
+    missing.suites[0].specs = missing.suites[0].specs.filter((spec) => !spec.title.includes("E2E-MANAGER-01"));
 
-    expect(() => assertE2ECoreResults(missing)).toThrow("E2E-TENANT-01 must run exactly once");
+    expect(() => assertE2ECoreResults(missing)).toThrow("E2E-MANAGER-01 must run exactly once");
   });
 
   it("setup以外の契約IDなしテストを拒否する", () => {

@@ -1,7 +1,10 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
+import { rateLimit } from "./_lib/rateLimits";
 import { modules, schema } from "./_test/setup.test-helper";
+import { digestInvitationToken, invitationRateLimitKey } from "./organizationInvitation/token";
 
 const DATES = {
   periodStart: "2037-04-07",
@@ -61,6 +64,29 @@ describe("E2E testing helpers", () => {
     await expect(
       t.mutation(internal.testing.seedShopStaffMembershipScenario, {
         managerAuthTokenIdentifier: "issuer|disabled-membership",
+      }),
+    ).rejects.toThrow("E2E testing helpers are disabled for this deployment.");
+    await expect(
+      t.mutation(internal.testing.seedManagerSettingsScenario, {
+        managerAuthTokenIdentifier: "issuer|disabled-manager-settings",
+      }),
+    ).rejects.toThrow("E2E testing helpers are disabled for this deployment.");
+    await expect(
+      t.mutation(internal.testing.seedStaffLifecycleScenario, {
+        managerAuthTokenIdentifier: "issuer|disabled-staff-lifecycle",
+      }),
+    ).rejects.toThrow("E2E testing helpers are disabled for this deployment.");
+    await expect(
+      t.mutation(internal.testing.seedManagerLifecycleScenario, {
+        managerAuthTokenIdentifier: "issuer|disabled-manager-lifecycle-a",
+        inviteeAuthTokenIdentifier: "issuer|disabled-manager-lifecycle-b",
+        inviteeEmail: "disabled-manager-lifecycle-b@example.test",
+      }),
+    ).rejects.toThrow("E2E testing helpers are disabled for this deployment.");
+    await expect(
+      t.query(internal.testing.getManagerInvitationCapability, {
+        organizationId: "0000000000000000000organizations" as Id<"organizations">,
+        targetPersonId: "0000000000000000000organizationPeople" as Id<"organizationPeople">,
       }),
     ).rejects.toThrow("E2E testing helpers are disabled for this deployment.");
   });
@@ -278,6 +304,162 @@ describe("E2E testing helpers", () => {
     }));
     expect(reset.secondOrganization).toBeNull();
     expect(reset.otherOwnerShop?.isDeleted).toBe(false);
+  });
+
+  it("管理者設定seedは非管理者staffを作り、既存resetでactor所有graphを回収する", async () => {
+    const t = convexTest(schema, modules);
+    const args = {
+      managerAuthTokenIdentifier: "issuer|manager-settings-owner",
+      managerEmail: "manager-settings-owner@example.test",
+    };
+    const seed = await t.mutation(internal.testing.seedManagerSettingsScenario, args);
+    const before = await t.run(async (ctx) => {
+      const shop = await ctx.db.get(seed.shopId);
+      if (!shop?.organizationId) throw new Error("manager settings scenario shop is missing");
+      const organizationId = shop.organizationId;
+      const candidatePeople = await ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId_and_emailNormalized", (q) =>
+          q.eq("organizationId", organizationId).eq("emailNormalized", seed.candidateEmail),
+        )
+        .collect();
+      return { shop, candidatePeople };
+    });
+
+    expect(seed).toMatchObject({
+      organizationName: "管理者設定テストグループ",
+      currentManagerName: "田中太郎",
+      candidateName: "管理者候補スタッフ",
+      candidateEmail: "manager-candidate@example.test",
+    });
+    expect(before.shop?.isDeleted).toBe(false);
+    expect(before.candidatePeople).toHaveLength(1);
+    expect(before.candidatePeople[0].userId).toBeUndefined();
+
+    await t.mutation(internal.testing.resetManagerScenarioData, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+    });
+    expect(await t.run((ctx) => ctx.db.get(seed.shopId))).toBeNull();
+  });
+
+  it("スタッフライフサイクルseedは手入力追加前のactor所有組織と安全な宛先を返す", async () => {
+    const t = convexTest(schema, modules);
+    const seed = await t.mutation(internal.testing.seedStaffLifecycleScenario, {
+      managerAuthTokenIdentifier: "issuer|staff-lifecycle-owner",
+      managerEmail: "staff-lifecycle-owner@example.test",
+    });
+
+    expect(seed).toMatchObject({
+      organizationName: "スタッフライフサイクルテストグループ",
+      staffName: "E2E 新規スタッフ",
+      staffEmail: "staff-lifecycle@example.test",
+    });
+    expect(await t.run((ctx) => ctx.db.get(seed.shopId))).toMatchObject({
+      name: "スタッフライフサイクルテスト店舗",
+      isDeleted: false,
+    });
+  });
+
+  it("管理者ライフサイクルseedは別actorを未接続staffとして作り、capabilityは発行前にnullを返す", async () => {
+    vi.stubEnv("ORGANIZATION_INVITATION_SIGNING_SECRET", "e2e-manager-lifecycle-signing-secret-000000000000");
+    const t = convexTest(schema, modules);
+    const managerSubject = "manager-lifecycle-a";
+    const seed = await t.mutation(internal.testing.seedManagerLifecycleScenario, {
+      managerAuthTokenIdentifier: `https://convex.test|${managerSubject}`,
+      managerEmail: "manager-lifecycle-a@example.test",
+      inviteeAuthTokenIdentifier: "issuer|manager-lifecycle-b",
+      inviteeEmail: "manager-lifecycle-b@example.test",
+    });
+
+    const beforeIssue = await t.query(internal.testing.getManagerInvitationCapability, {
+      organizationId: seed.organizationId,
+      targetPersonId: seed.candidatePersonId,
+    });
+    const state = await t.run(async (ctx) => {
+      const person = await ctx.db.get(seed.candidatePersonId);
+      const staffs = await ctx.db
+        .query("staffs")
+        .withIndex("by_organizationId_and_organizationPersonId", (q) =>
+          q.eq("organizationId", seed.organizationId).eq("organizationPersonId", seed.candidatePersonId),
+        )
+        .collect();
+      return { person, staffs };
+    });
+
+    expect(beforeIssue).toEqual({ token: null });
+    expect(state.person).toMatchObject({
+      name: seed.candidateName,
+      email: seed.candidateEmail,
+      status: "active",
+    });
+    expect(state.person?.userId).toBeUndefined();
+    expect(state.staffs).toHaveLength(1);
+    expect(state.staffs[0]).toMatchObject({ shopId: seed.shopId, isDeleted: false });
+
+    await t.withIdentity({ subject: managerSubject }).mutation(api.organizationInvitation.mutations.issue, {
+      shopId: seed.shopId,
+      recipient: { kind: "existingStaff", personId: seed.candidatePersonId },
+      requestId: "e2e-manager-lifecycle-capability",
+    });
+    const afterIssue = await t.query(internal.testing.getManagerInvitationCapability, {
+      organizationId: seed.organizationId,
+      targetPersonId: seed.candidatePersonId,
+    });
+
+    expect(afterIssue).toEqual({ token: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/) });
+
+    const invitation = await t.run(async (ctx) => {
+      const result = await ctx.db
+        .query("organizationInvitations")
+        .withIndex("by_organizationId_and_targetPersonId_and_status", (q) =>
+          q
+            .eq("organizationId", seed.organizationId)
+            .eq("targetPersonId", seed.candidatePersonId)
+            .eq("status", "issued"),
+        )
+        .unique();
+      if (!result) throw new Error("manager lifecycle invitation was not issued");
+      await ctx.db.patch(result._id, { tokenDigest: "0".repeat(64) });
+      return result;
+    });
+    await expect(
+      t.query(internal.testing.getManagerInvitationCapability, {
+        organizationId: seed.organizationId,
+        targetPersonId: seed.candidatePersonId,
+      }),
+    ).rejects.toThrow("manager-invitation-digest-mismatch");
+
+    await t.run(async (ctx) => {
+      const duplicate = { ...invitation, tokenDigest: "1".repeat(64) };
+      Reflect.deleteProperty(duplicate, "_id");
+      Reflect.deleteProperty(duplicate, "_creationTime");
+      await ctx.db.insert("organizationInvitations", duplicate);
+    });
+    await expect(
+      t.query(internal.testing.getManagerInvitationCapability, {
+        organizationId: seed.organizationId,
+        targetPersonId: seed.candidatePersonId,
+      }),
+    ).rejects.toThrow("ambiguous-manager-invitation");
+  });
+
+  it("actor resetは招待受諾のactor bucketだけを同じ本番keyで回収する", async () => {
+    const t = convexTest(schema, modules);
+    const authTokenIdentifier = "issuer|manager-lifecycle-rate-limit";
+    const key = invitationRateLimitKey(await digestInvitationToken(`actor:${authTokenIdentifier}`));
+    await t.run(async (ctx) => {
+      await rateLimit(ctx, { name: "organizationManagerInviteAcceptActor", key });
+      await rateLimit(ctx, { name: "organizationManagerInviteAccept", key });
+    });
+
+    await t.mutation(internal.testing.resetManagerScenarioData, {
+      managerAuthTokenIdentifier: authTokenIdentifier,
+    });
+
+    const remaining = await t.run(async (ctx) =>
+      (await ctx.db.query("rateLimits").collect()).map(({ name, key: rowKey }) => ({ name, key: rowKey })),
+    );
+    expect(remaining).toEqual([{ name: "organizationManagerInviteAccept", key }]);
   });
 
   it("capability helperは最新募集へ最小DTOのtokenを発行する", async () => {

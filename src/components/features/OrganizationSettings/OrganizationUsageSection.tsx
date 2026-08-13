@@ -1,76 +1,132 @@
-import { Box, Grid, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Grid, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
 import { LuCrown, LuStore, LuUsers } from "react-icons/lu";
 import type { OrganizationBillingView } from "./types";
 
 export function OrganizationUsageSection({ billing }: { billing: OrganizationBillingView }) {
   if (billing.state === "migrationPending") return null;
 
+  if (billing.state === "restricted" && billing.limitPlan === undefined) {
+    return (
+      <Box
+        as="section"
+        aria-label="組織の利用状況"
+        borderWidth="1px"
+        borderColor="blackAlpha.100"
+        borderRadius="xl"
+        bg="white"
+        px={{ base: 3, md: 4 }}
+        py={{ base: 3, md: 4 }}
+      >
+        <Text fontSize="sm" fontWeight="semibold" color="gray.800">
+          利用停止中はプラン上限を適用していません
+        </Text>
+        <Text mt={1} fontSize="xs" color="fg.muted">
+          データは保持されています。ProまたはBusinessを契約すると利用を再開できます。
+        </Text>
+      </Box>
+    );
+  }
+
   const appliedLimitLabel = getAppliedLimitLabel(billing);
+  const pendingInvitations = [
+    invitationLabel("利用人数", billing.peopleUsage.pendingInvitations),
+    invitationLabel("管理者", billing.managerUsage.pendingInvitations),
+  ].filter((label): label is string => Boolean(label));
+  const notes = [
+    pendingInvitations.length > 0 ? `招待中：${pendingInvitations.join("・")}` : undefined,
+    appliedLimitLabel,
+  ].filter((note): note is string => Boolean(note));
 
   return (
-    <Grid
+    <Box
       as="section"
       aria-label="組織の利用状況"
-      templateColumns={{ base: "1fr", sm: "repeat(3, minmax(0, 1fr))" }}
-      gap={{ base: 2, md: 4 }}
+      borderWidth="1px"
+      borderColor="blackAlpha.100"
+      borderRadius="xl"
+      bg="white"
+      overflow="hidden"
     >
-      <UsageMeter
-        icon={LuUsers}
-        label="利用人数"
-        current={billing.peopleUsage.current}
-        max={billing.peopleUsage.max}
-        helperText={usageHelperText(
-          "管理者も1名として含みます",
-          billing.peopleUsage.pendingInvitations,
-          appliedLimitLabel,
-        )}
-      />
-      <UsageMeter
-        icon={LuStore}
-        label="店舗数"
-        current={billing.shopUsage.current}
-        max={billing.shopUsage.max}
-        helperText={appliedLimitLabel}
-      />
-      <UsageMeter
-        icon={LuCrown}
-        label="管理者数"
-        current={billing.managerUsage.current}
-        max={billing.managerUsage.max}
-        helperText={usageHelperText(undefined, billing.managerUsage.pendingInvitations, appliedLimitLabel)}
-      />
-    </Grid>
+      <Grid
+        templateColumns={{
+          base: "minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr)",
+        }}
+        gap={0}
+      >
+        <UsageMeter
+          icon={LuUsers}
+          label="利用人数"
+          current={billing.peopleUsage.current}
+          max={billing.peopleUsage.max}
+        />
+        <UsageDivider />
+        <UsageMeter icon={LuStore} label="店舗数" current={billing.shopUsage.current} max={billing.shopUsage.max} />
+        <UsageDivider />
+        <UsageMeter
+          icon={LuCrown}
+          label="管理者数"
+          current={billing.managerUsage.current}
+          max={billing.managerUsage.max}
+        />
+      </Grid>
+      {notes.length > 0 && (
+        <Text
+          borderTopWidth="1px"
+          borderColor="blackAlpha.100"
+          px={2}
+          py={1.5}
+          fontSize="xs"
+          lineHeight="short"
+          textAlign={{ base: "center", sm: "start" }}
+          color="fg.muted"
+        >
+          {notes.join("。")}
+        </Text>
+      )}
+    </Box>
   );
 }
 
 export function OrganizationUsageSectionSkeleton() {
   return (
-    <Grid
+    <Box
       as="section"
       aria-label="組織の利用状況を読み込み中"
-      templateColumns={{ base: "1fr", sm: "repeat(3, minmax(0, 1fr))" }}
-      gap={{ base: 2, md: 4 }}
+      borderWidth="1px"
+      borderColor="blackAlpha.100"
+      borderRadius="xl"
+      bg="white"
+      overflow="hidden"
     >
-      {Array.from({ length: 3 }, (_, index) => (
-        <Box
-          key={index}
-          borderWidth="1px"
-          borderColor="blackAlpha.100"
-          borderRadius="xl"
-          bg="white"
-          p={{ base: 3, md: 4 }}
-        >
-          <Stack gap={3}>
-            <HStack justify="space-between" gap={3}>
-              <Skeleton h="20px" w="72px" />
-              <Skeleton h="20px" w="48px" />
-            </HStack>
-            <Skeleton h="6px" w="full" borderRadius="full" />
-            {index === 0 && <Skeleton h="18px" w="144px" maxW="90%" />}
-          </Stack>
-        </Box>
-      ))}
-    </Grid>
+      <Grid
+        templateColumns={{
+          base: "minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr)",
+        }}
+        gap={0}
+      >
+        {Array.from({ length: 3 }, (_, index) => (
+          <Box key={index} display="contents">
+            {index > 0 && <UsageDivider />}
+            <Flex
+              direction="column"
+              justify="flex-start"
+              align="center"
+              gap={1}
+              minW={0}
+              bg="white"
+              px={{ base: 1, sm: 3, md: 4 }}
+              py={{ base: 2, sm: 3, md: 3 }}
+            >
+              <HStack gap={{ base: 1, sm: 2 }}>
+                <Skeleton boxSize="16px" borderRadius="full" />
+                <Skeleton h="18px" w="48px" />
+              </HStack>
+              <Skeleton h="20px" w="44px" />
+            </Flex>
+          </Box>
+        ))}
+      </Grid>
+    </Box>
   );
 }
 
@@ -79,20 +135,17 @@ const UsageMeter = ({
   label,
   current,
   max,
-  helperText,
 }: {
   icon: typeof LuUsers;
   label: string;
   current: number;
   max: number;
-  helperText?: string;
 }) => {
-  const percentage = Math.min((current / Math.max(max, 1)) * 100, 100);
   const isExceeded = current > max;
 
   return (
-    <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" p={{ base: 3, md: 4 }}>
-      <HStack justify="space-between" gap={2} mb={2}>
+    <Stack gap={isExceeded ? 1 : 0} minW={0} bg="white" px={{ base: 1, sm: 3, md: 4 }} py={{ base: 2, sm: 3, md: 3 }}>
+      <Flex direction="column" justify="flex-start" align="center" gap={1} minW={0}>
         <HStack gap={2} color="gray.700" minW={0}>
           <Box flexShrink={0}>
             <MeterIcon aria-hidden />
@@ -107,32 +160,28 @@ const UsageMeter = ({
           color={isExceeded ? "red.600" : "gray.900"}
           whiteSpace="nowrap"
           fontVariantNumeric="tabular-nums"
+          role="meter"
+          aria-label={`${label} ${current} / ${max}`}
+          aria-valuemin={0}
+          aria-valuemax={Math.max(max, 1)}
+          aria-valuenow={Math.min(current, Math.max(max, 1))}
+          aria-valuetext={isExceeded ? `${current} / ${max}、利用上限を超えています` : `${current} / ${max}`}
         >
           {current} / {max}
         </Text>
-      </HStack>
-      <Box
-        role="meter"
-        aria-label={`${label} ${current} / ${max}`}
-        aria-valuemin={0}
-        aria-valuemax={Math.max(max, 1)}
-        aria-valuenow={Math.min(current, Math.max(max, 1))}
-        aria-valuetext={isExceeded ? `${current} / ${max}、利用上限を超えています` : `${current} / ${max}`}
-        h="6px"
-        borderRadius="full"
-        bg="gray.100"
-        overflow="hidden"
-      >
-        <Box h="full" w={`${percentage}%`} bg={isExceeded ? "red.500" : "teal.500"} borderRadius="full" />
-      </Box>
-      {(helperText || isExceeded) && (
-        <Text mt={2} fontSize="xs" color={isExceeded ? "red.700" : "fg.muted"}>
-          {helperText ?? "利用上限を超えています"}
+      </Flex>
+      {isExceeded && (
+        <Text fontSize="xs" lineHeight="short" textAlign={{ base: "center", sm: "start" }} color="red.700">
+          上限超過
         </Text>
       )}
-    </Box>
+    </Stack>
   );
 };
+
+function UsageDivider() {
+  return <Box aria-hidden alignSelf="stretch" w="1px" my={2} bg="blackAlpha.100" />;
+}
 
 function getAppliedLimitLabel(billing: OrganizationBillingView) {
   if (billing.state === "restricted") {
@@ -148,9 +197,6 @@ function getAppliedLimitLabel(billing: OrganizationBillingView) {
     : undefined;
 }
 
-function usageHelperText(base: string | undefined, pendingInvitations: number | undefined, limit: string | undefined) {
-  const parts = [base];
-  if (pendingInvitations && pendingInvitations > 0) parts.push(`招待中${pendingInvitations}名を含む`);
-  if (limit) parts.push(limit);
-  return parts.filter((part): part is string => Boolean(part)).join("。") || undefined;
+function invitationLabel(label: string, pendingInvitations: number | undefined) {
+  return pendingInvitations && pendingInvitations > 0 ? `${label}${pendingInvitations}名` : undefined;
 }

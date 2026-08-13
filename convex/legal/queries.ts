@@ -2,7 +2,8 @@ import { v } from "convex/values";
 import { internalQuery, query } from "../_generated/server";
 import { isShopParentActive } from "../_lib/activeShop";
 import { authenticatedQuery } from "../_lib/functions";
-import { getStaffLineAccount } from "../line/service";
+import { resolveStaffLineRecipient } from "../line/service";
+import { toNotificationLineRecipient } from "../notificationOutbox/types";
 import { getLegalDocumentsForAudience } from "./documents";
 import { hasCurrentStaffLegalConsent, hasCurrentUserLegalConsent } from "./service";
 import { managerLegalDocumentsValidator, staffLegalDocumentsValidator } from "./validators";
@@ -104,14 +105,15 @@ export const getStaffConsentNotificationDataInternal = internalQuery({
 
     const shop = await ctx.db.get(staff.shopId);
     if (!shop || !(await isShopParentActive(ctx, shop))) return null;
-    const lineAccount = await getStaffLineAccount(ctx, staff._id);
+    const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId: staff.shopId });
 
     return {
       staffId: staff._id,
       staffName: staff.name,
       staffEmail: staff.email,
-      lineUserId: lineAccount?.lineUserId,
-      lineFollowing: lineAccount?.following,
+      lineUserId: lineRecipient?.lineUserId,
+      lineFollowing: lineRecipient?.following,
+      lineRecipient: toNotificationLineRecipient(lineRecipient),
       shopId: shop._id,
       shopName: shop.name,
       documents: getLegalDocumentsForAudience("staff"),

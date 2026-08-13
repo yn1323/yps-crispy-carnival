@@ -2,7 +2,7 @@
 
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OrganizationBillingView, OrganizationPersonView } from "./types";
+import type { OrganizationBillingView } from "./types";
 
 const mocks = vi.hoisted(() => ({
   mutation: vi.fn(),
@@ -11,7 +11,8 @@ const mocks = vi.hoisted(() => ({
     startProCheckout: vi.fn(),
     previewPaidPlanChange: vi.fn(),
     changePaidPlanNow: vi.fn(),
-    scheduleFreeAtPeriodEnd: vi.fn(),
+    schedulePaidPlanChange: vi.fn(),
+    scheduleServiceStopAtPeriodEnd: vi.fn(),
     cancelScheduledFree: vi.fn(),
     openCustomerPortal: vi.fn(),
     cancelTrialContinuation: vi.fn(),
@@ -41,7 +42,10 @@ vi.mock("convex/react", async () => {
       if (name === "organizationStripe/actions:startPaidCheckout") return mocks.actions.startProCheckout;
       if (name === "organizationStripe/actions:previewPaidPlanChange") return mocks.actions.previewPaidPlanChange;
       if (name === "organizationStripe/actions:changePaidPlanNow") return mocks.actions.changePaidPlanNow;
-      if (name === "organizationStripe/actions:schedulePaidPlanChange") return mocks.actions.scheduleFreeAtPeriodEnd;
+      if (name === "organizationStripe/actions:schedulePaidPlanChange") return mocks.actions.schedulePaidPlanChange;
+      if (name === "organizationStripe/actions:scheduleServiceStopAtPeriodEnd") {
+        return mocks.actions.scheduleServiceStopAtPeriodEnd;
+      }
       if (name === "organizationStripe/actions:cancelScheduledPlanChange") {
         return mocks.actions.cancelScheduledFree;
       }
@@ -75,23 +79,10 @@ vi.mock("jotai", async (importOriginal) => ({
 
 import { useBillingSettingsController } from "./BillingSettings/useBillingSettingsController";
 import { useStripeBillingController } from "./BillingSettings/useStripeBillingController";
-import { useManagerInvitationController } from "./ManagerInvitation/useManagerInvitationController";
 import { useOrganizationCreationController } from "./OrganizationCreation/useOrganizationCreationController";
 import { useOrganizationDeletionController } from "./OrganizationDeletion/useOrganizationDeletionController";
 import { useOrganizationNameController } from "./OrganizationName/useOrganizationNameController";
 import { useShopManagementController } from "./ShopManagement/useShopManagementController";
-
-const person: OrganizationPersonView = {
-  id: "person-1",
-  name: "田中 太郎",
-  email: "tanaka@example.com",
-  managerRole: "active",
-  isStaff: true,
-  shopNames: ["渋谷店"],
-  shopIds: ["shop-current"],
-  canRemoveManagerRole: true,
-  canRemove: true,
-};
 
 const billing: OrganizationBillingView = {
   state: "pro",
@@ -248,6 +239,127 @@ describe("OrganizationSettings controllers", () => {
     expect(result.current.dialog.dialog).toBeNull();
   });
 
+  it("組織作成は応答喪失後の手動再送で同じrequestIdを使い、作成済み応答を成功とする", async () => {
+    vi.stubGlobal("crypto", {
+      randomUUID: vi.fn().mockReturnValueOnce("request-1").mockReturnValueOnce("request-2"),
+    });
+    const error = new Error("network unavailable");
+    mocks.mutation
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce({ shopId: "shop-created", created: false })
+      .mockResolvedValueOnce({ shopId: "shop-created-next", created: true });
+    const onCreated = vi.fn();
+    const { result } = renderHook((input) => useOrganizationCreationController(input), {
+      initialProps: { canCreateOrganization: true, onCreated },
+    });
+    const data = {
+      shopName: "二つ目の店舗",
+      regularClosedDays: [],
+      submissionPattern: { kind: "dateOnly" as const },
+    };
+
+    act(() => result.current.createOrganization());
+    await act(async () => {
+      await result.current.dialog.onSubmit(data);
+    });
+
+    expect(mocks.mutation).toHaveBeenCalledTimes(1);
+    expect(mocks.mutation.mock.calls[0]?.[0]).toMatchObject({ requestId: "request-1" });
+    expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error);
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+    expect(onCreated).not.toHaveBeenCalled();
+    expect(result.current.dialog.dialog).toEqual({ kind: "createOrganization", requestId: "request-1" });
+
+    await act(async () => {
+      await result.current.dialog.onSubmit(data);
+    });
+
+    expect(mocks.mutation.mock.calls.map(([args]) => args.requestId)).toEqual(["request-1", "request-1"]);
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
+      title: "新しい組織を作りました",
+    });
+    expect(onCreated).toHaveBeenCalledExactlyOnceWith("shop-created");
+    expect(result.current.dialog.dialog).toBeNull();
+
+    act(() => result.current.createOrganization());
+    await act(async () => {
+      await result.current.dialog.onSubmit(data);
+    });
+
+    expect(mocks.mutation.mock.calls.map(([args]) => args.requestId)).toEqual(["request-1", "request-1", "request-2"]);
+    expect(onCreated).toHaveBeenCalledTimes(2);
+    expect(onCreated).toHaveBeenLastCalledWith("shop-created-next");
+  });
+
+  it("組織作成は失敗したDialogを閉じて開き直すと新しいrequestIdを使う", async () => {
+    vi.stubGlobal("crypto", {
+      randomUUID: vi.fn().mockReturnValueOnce("request-1").mockReturnValueOnce("request-2"),
+    });
+    mocks.mutation
+      .mockRejectedValueOnce(new Error("network unavailable"))
+      .mockResolvedValueOnce({ shopId: "shop-created", created: true });
+    const onCreated = vi.fn();
+    const { result } = renderHook((input) => useOrganizationCreationController(input), {
+      initialProps: { canCreateOrganization: true, onCreated },
+    });
+    const data = {
+      shopName: "二つ目の店舗",
+      regularClosedDays: [],
+      submissionPattern: { kind: "dateOnly" as const },
+    };
+
+    act(() => result.current.createOrganization());
+    await act(async () => {
+      await result.current.dialog.onSubmit(data);
+    });
+    act(() => result.current.dialog.onClose());
+    expect(result.current.dialog.dialog).toBeNull();
+
+    act(() => result.current.createOrganization());
+    await act(async () => {
+      await result.current.dialog.onSubmit(data);
+    });
+
+    expect(mocks.mutation.mock.calls.map(([args]) => args.requestId)).toEqual(["request-1", "request-2"]);
+    expect(onCreated).toHaveBeenCalledExactlyOnceWith("shop-created");
+  });
+
+  it("閉じたDialogの古いsubmitは、新しく開いた作成intentへ流用しない", async () => {
+    vi.stubGlobal("crypto", {
+      randomUUID: vi.fn().mockReturnValueOnce("request-1").mockReturnValueOnce("request-2"),
+    });
+    const onCreated = vi.fn();
+    const { result } = renderHook((input) => useOrganizationCreationController(input), {
+      initialProps: { canCreateOrganization: true, onCreated },
+    });
+    const data = {
+      shopName: "二つ目の店舗",
+      regularClosedDays: [],
+      submissionPattern: { kind: "dateOnly" as const },
+    };
+
+    act(() => result.current.createOrganization());
+    const staleSubmit = result.current.dialog.onSubmit;
+    act(() => result.current.dialog.onClose());
+    act(() => result.current.createOrganization());
+
+    await act(async () => {
+      await staleSubmit(data);
+    });
+
+    expect(result.current.dialog.dialog).toEqual({ kind: "createOrganization", requestId: "request-2" });
+    expect(mocks.mutation).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.dialog.onSubmit(data);
+    });
+    expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
+      ...data,
+      sourceShopId: "shop-current",
+      requestId: "request-2",
+    });
+  });
+
   it("組織作成の権限を失うとDialogを閉じ、古いsubmitからmutationを呼ばない", async () => {
     const onCreated = vi.fn();
     const { result, rerender } = renderHook((input) => useOrganizationCreationController(input), {
@@ -394,6 +506,7 @@ describe("OrganizationSettings controllers", () => {
           unitAmount: number;
           interval: "month";
           intervalCount: number;
+          taxBehavior: "inclusive";
         }) => void)
       | undefined;
     mocks.actions.getProPrice.mockImplementation(({ targetPlan }: { targetPlan: "pro" | "business" }) =>
@@ -407,6 +520,7 @@ describe("OrganizationSettings controllers", () => {
             unitAmount: 6000,
             interval: "month",
             intervalCount: 1,
+            taxBehavior: "inclusive",
           }),
     );
     let resolveCheckout: ((value: { status: "available"; url: string }) => void) | undefined;
@@ -451,6 +565,7 @@ describe("OrganizationSettings controllers", () => {
         unitAmount: 3000,
         interval: "month",
         intervalCount: 1,
+        taxBehavior: "inclusive",
       }),
     );
     await waitFor(() =>
@@ -492,6 +607,7 @@ describe("OrganizationSettings controllers", () => {
       unitAmount: 3000,
       interval: "month",
       intervalCount: 1,
+      taxBehavior: "inclusive",
     });
     const trialBilling: OrganizationBillingView = {
       ...billing,
@@ -530,6 +646,7 @@ describe("OrganizationSettings controllers", () => {
         unitAmount: targetPlan === "business" ? 8000 : 3000,
         interval: "month",
         intervalCount: 1,
+        taxBehavior: "inclusive",
       }),
     );
     mocks.actions.startProCheckout.mockResolvedValue({
@@ -573,6 +690,7 @@ describe("OrganizationSettings controllers", () => {
       unitAmount: 3000,
       interval: "month",
       intervalCount: 1,
+      taxBehavior: "inclusive",
     });
     mocks.actions.startProCheckout.mockResolvedValue({ status: "unavailable", reason: "configuration_pending" });
     const freeBilling: OrganizationBillingView = {
@@ -621,6 +739,7 @@ describe("OrganizationSettings controllers", () => {
           unitAmount: 6000,
           interval: "month",
           intervalCount: 1,
+          taxBehavior: "inclusive",
         });
       }
       proPriceRequestCount += 1;
@@ -633,6 +752,7 @@ describe("OrganizationSettings controllers", () => {
               unitAmount: 3000,
               interval: "month",
               intervalCount: 1,
+              taxBehavior: "inclusive",
             },
       );
     });
@@ -680,6 +800,7 @@ describe("OrganizationSettings controllers", () => {
           unitAmount: number;
           interval: "month";
           intervalCount: number;
+          taxBehavior: "inclusive";
         }) => void)
       | undefined;
     mocks.actions.getProPrice.mockImplementation(({ targetPlan }: { targetPlan: "pro" | "business" }) =>
@@ -693,6 +814,7 @@ describe("OrganizationSettings controllers", () => {
             unitAmount: 6000,
             interval: "month",
             intervalCount: 1,
+            taxBehavior: "inclusive",
           }),
     );
     const freeBilling: OrganizationBillingView = {
@@ -725,6 +847,7 @@ describe("OrganizationSettings controllers", () => {
         unitAmount: 3000,
         interval: "month",
         intervalCount: 1,
+        taxBehavior: "inclusive",
       }),
     );
     await waitFor(() => expect(result.current.dialog.dialog).toMatchObject({ price: { status: "available" } }));
@@ -775,21 +898,20 @@ describe("OrganizationSettings controllers", () => {
     );
   });
 
-  it("active ProのFree予約と予約済み状態の取消を対応するActionへ接続する", async () => {
-    mocks.actions.scheduleFreeAtPeriodEnd.mockResolvedValue({ status: "accepted" });
+  it("active Proの利用停止予約と予約済み状態の取消を対応するActionへ接続する", async () => {
+    mocks.actions.scheduleServiceStopAtPeriodEnd.mockResolvedValue({ status: "accepted" });
     mocks.actions.cancelScheduledFree.mockResolvedValue({ status: "accepted" });
     const { result, rerender } = renderHook((input) => useStripeBillingController(input), {
       initialProps: { organizationName: "さくらダイニング", shopNames: ["渋谷店", "新宿店"], billing },
     });
 
     act(() => result.current.managePlan("free"));
-    expect(result.current.dialog.dialog?.kind).toBe("schedulePlanChange");
+    expect(result.current.dialog.dialog?.kind).toBe("scheduleServiceStop");
     act(() => result.current.dialog.onSubmit());
     await waitFor(() =>
-      expect(mocks.actions.scheduleFreeAtPeriodEnd).toHaveBeenCalledExactlyOnceWith({
+      expect(mocks.actions.scheduleServiceStopAtPeriodEnd).toHaveBeenCalledExactlyOnceWith({
         shopId: "shop-current",
         requestId: "request-1",
-        targetPlan: "free",
       }),
     );
 
@@ -801,7 +923,8 @@ describe("OrganizationSettings controllers", () => {
         state: "scheduledChange",
         currentPlan: "pro",
         targetPlan: "free",
-        nextEvent: { label: "無料適用予定日", date: "2026年8月31日" },
+        restrictAtPeriodEnd: true,
+        nextEvent: { label: "利用停止予定日", date: "2026年8月31日" },
         canScheduleFree: false,
       },
     });
@@ -902,6 +1025,7 @@ describe("OrganizationSettings controllers", () => {
       unitAmount: 3000,
       interval: "month",
       intervalCount: 1,
+      taxBehavior: "inclusive",
     });
     const previewResolvers = new Map<
       string,
@@ -950,7 +1074,7 @@ describe("OrganizationSettings controllers", () => {
   });
 
   it("BusinessからProは期間末変更と必要削減人数を確認して予約する", async () => {
-    mocks.actions.scheduleFreeAtPeriodEnd.mockResolvedValue({ status: "accepted" });
+    mocks.actions.schedulePaidPlanChange.mockResolvedValue({ status: "accepted" });
     const businessBilling: OrganizationBillingView = {
       ...billing,
       state: "business",
@@ -973,7 +1097,7 @@ describe("OrganizationSettings controllers", () => {
     act(() => result.current.dialog.onSubmit());
 
     await waitFor(() =>
-      expect(mocks.actions.scheduleFreeAtPeriodEnd).toHaveBeenCalledExactlyOnceWith({
+      expect(mocks.actions.schedulePaidPlanChange).toHaveBeenCalledExactlyOnceWith({
         shopId: "shop-current",
         targetPlan: "pro",
         requestId: "request-1",
@@ -997,7 +1121,7 @@ describe("OrganizationSettings controllers", () => {
 
     await waitFor(() => expect(result.current.dialog.dialog).toBeNull());
     act(() => staleSubmit());
-    expect(mocks.actions.scheduleFreeAtPeriodEnd).not.toHaveBeenCalled();
+    expect(mocks.actions.schedulePaidPlanChange).not.toHaveBeenCalled();
   });
 
   it("支払い方法と請求書・領収書はIDを渡さず、Portalのredirect結果だけで外部遷移する", async () => {
@@ -1061,7 +1185,7 @@ describe("OrganizationSettings controllers", () => {
     await waitFor(() => expect(mocks.actions.getProPrice).toHaveBeenCalledTimes(2));
     act(() => result.current.managePlan());
     const staleSubmit = result.current.dialog.onSubmit;
-    mocks.actions.getProPrice.mockClear();
+    for (const action of Object.values(mocks.actions)) action.mockClear();
 
     rerender({
       organizationName: "さくらダイニング",
@@ -1088,94 +1212,5 @@ describe("OrganizationSettings controllers", () => {
     await waitFor(() => {
       for (const action of Object.values(mocks.actions)) expect(action).not.toHaveBeenCalled();
     });
-  });
-
-  it("管理者枠が予約済みでも、同じ外部招待を再送するためのDialogを開く", async () => {
-    mocks.mutation.mockResolvedValue({ status: "issued", invitationId: "invitation-1" });
-    const { result } = renderHook(() =>
-      useManagerInvitationController({
-        canInviteManager: false,
-        canOpenManagerInvitation: true,
-        managerInvitationMode: "addition",
-        freeManagerExchangeCandidates: [],
-        people: [],
-      }),
-    );
-
-    act(() => result.current.open());
-    expect(result.current.dialog).toMatchObject({ isOpen: true, isResendOnly: true });
-
-    act(() => {
-      result.current.dialog.onSubmit({ kind: "external", name: "佐藤 花子", email: "sato@example.com" });
-    });
-
-    await waitFor(() =>
-      expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
-        shopId: "shop-current",
-        name: "佐藤 花子",
-        email: "sato@example.com",
-        requestId: "request-1",
-      }),
-    );
-    await waitFor(() => expect(result.current.dialog.isOpen).toBe(false));
-  });
-
-  it("組織設定のスタッフを選んで管理者のログイン案内を送る", async () => {
-    mocks.mutation.mockResolvedValue({ status: "issued", invitationId: "invitation-1" });
-    const target = { ...person, managerRole: "none" as const };
-    const { result } = renderHook(() =>
-      useManagerInvitationController({
-        canInviteManager: true,
-        canOpenManagerInvitation: true,
-        managerInvitationMode: "addition",
-        freeManagerExchangeCandidates: [],
-        people: [target],
-      }),
-    );
-
-    act(() => result.current.open());
-    expect(result.current.dialog.staffCandidates).toEqual([
-      {
-        id: target.id,
-        name: target.name,
-        email: target.email,
-        shopNames: target.shopNames,
-        isResend: false,
-      },
-    ]);
-
-    act(() => {
-      result.current.dialog.onSubmit({ kind: "person", personId: target.id });
-    });
-
-    await waitFor(() =>
-      expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
-        shopId: "shop-current",
-        personId: target.id,
-        requestId: "request-1",
-      }),
-    );
-    await waitFor(() => expect(result.current.dialog.isOpen).toBe(false));
-  });
-
-  it("Freeでは手入力による管理者招待を実行しない", async () => {
-    const target = { ...person, id: "person-free", managerRole: "none" as const };
-    const { result } = renderHook(() =>
-      useManagerInvitationController({
-        canInviteManager: true,
-        canOpenManagerInvitation: true,
-        managerInvitationMode: "freeManagerExchange",
-        freeManagerExchangeCandidates: [{ id: target.id, name: target.name, email: target.email ?? "" }],
-        people: [target],
-      }),
-    );
-
-    act(() => result.current.open());
-    act(() => {
-      result.current.dialog.onSubmit({ kind: "external", name: "佐藤 花子", email: "sato@example.com" });
-    });
-
-    await waitFor(() => expect(result.current.dialog.isOpen).toBe(false));
-    expect(mocks.mutation).not.toHaveBeenCalled();
   });
 });

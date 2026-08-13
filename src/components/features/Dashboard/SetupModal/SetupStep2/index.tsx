@@ -1,4 +1,4 @@
-import { Checkbox, Field, Input, Stack } from "@chakra-ui/react";
+import { Box, Checkbox, Field, Input, Link, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH } from "@/convex/constants";
@@ -34,6 +34,15 @@ export const SetupStep2 = ({ onSubmit, defaultValues, formId = "setup-step2" }: 
   return (
     <form id={formId} onSubmit={handleSubmit(onSubmit)}>
       <Stack gap={5}>
+        <Box borderRadius="lg" bg="blue.50" px={4} py={3}>
+          <Text fontSize="sm" color="blue.900" lineHeight="tall">
+            このお店を登録すると、組織の2暦月トライアルが始まります。終了後はProまたはBusinessの契約が必要です。
+            未契約の場合は利用停止になりますが、店舗・ユーザー・過去のシフトは削除されません。
+          </Text>
+          <Link href="/pricing" target="_blank" rel="noreferrer" color="teal.700" fontSize="sm" fontWeight="bold">
+            料金とプランを確認する（新しいタブ）
+          </Link>
+        </Box>
         <Field.Root invalid={!!errors.name}>
           <Field.Label>あなたの名前</Field.Label>
           <Input {...register("name")} maxLength={PERSON_NAME_MAX_LENGTH} placeholder="例：山田 太郎" />

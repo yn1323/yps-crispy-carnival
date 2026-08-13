@@ -3,8 +3,9 @@ import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import { isShopParentActive } from "../_lib/activeShop";
+import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { APP_URL } from "../_lib/config";
-import { managerMutation } from "../_lib/functions";
+import { authenticatedMutation, managerMutation } from "../_lib/functions";
 import { buildLineAuthorizeUrl } from "../_lib/lineClient";
 import { rateLimit } from "../_lib/rateLimits";
 import { sha256Hex } from "../_lib/sha256";
@@ -12,16 +13,39 @@ import { generateUUID } from "../_lib/uuid";
 import { ANALYTICS_POLICY } from "../analytics/registry";
 import { recordAnalyticsSourceEvent } from "../analytics/sourceEvents";
 import {
+  LINE_FRIENDSHIP_FANOUT_BATCH_SIZE,
+  LINE_FRIENDSHIP_FANOUT_LEASE_MS,
+  LINE_FRIENDSHIP_FANOUT_MAX_ATTEMPTS,
+  LINE_FRIENDSHIP_FANOUT_PRUNE_BATCH_SIZE,
+  LINE_FRIENDSHIP_FANOUT_RECOVERY_BATCH_SIZE,
+  LINE_LEGACY_ACTIVE_ACCOUNT_SCAN_MAX,
   LINE_LINK_ACTIVE_TOKEN_SCAN_LIMIT,
   LINE_LINK_TOKEN_TTL_MS,
-  LINE_USER_ACTIVE_ACCOUNT_MAX,
   LINE_WEBHOOK_MESSAGE_RECEIPT_PRUNE_BATCH_SIZE,
   LINE_WEBHOOK_MESSAGE_RECEIPT_RETENTION_MS,
 } from "../constants";
 import { type BusinessNotificationOrigin, getBusinessNotificationOrigin } from "../notificationOutbox/origin";
+import { requireOrganizationActorForShop } from "../organization/access";
+import { recordOrganizationAuditEvent } from "../organization/audit";
+import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
 import { getActiveStaffInShop } from "../staff/service";
-import { findStaffLineAccountsByLineUserId, getStaffLineAccount, upsertStaffLineAccount } from "./service";
+import {
+  collectOrganizationPersonActiveLineTokens,
+  disconnectOrganizationPersonLine as disconnectCanonicalOrganizationPersonLine,
+  ensureFriendshipFanoutJob,
+  findStaffLineAccountsByLineUserId,
+  getOrganizationPersonLineRecipient,
+  getStaffLineAccount,
+  listActiveStaffsForOrganizationPerson,
+  listOrganizationPersonStaffHistory,
+  resolveCanonicalStaffScope,
+  revokeOrganizationPersonLineTokens,
+  tombstoneLineProviderUserIfUnreferenced,
+  upsertLineProviderUser,
+  upsertOrganizationPersonLineLink,
+  upsertStaffLineAccount,
+} from "./service";
 
 type AnalyticsLineAccountChange = {
   staffId: Id<"staffs">;
@@ -42,7 +66,7 @@ function appendAnalyticsLineAccountChange(
 async function canRedeemLineLinkTokenForShop(ctx: Pick<MutationCtx, "db">, shop: Doc<"shops">) {
   const organizationId = shop.organizationId;
   if (!organizationId) return true;
-  if (shop.operatingStatus !== "active") return false;
+  if (organizationShopOperatingStatus(shop.operatingStatus) !== "active") return false;
 
   const [organization, billingStates] = await Promise.all([
     ctx.db.get(organizationId),
@@ -59,10 +83,17 @@ async function canRedeemLineLinkTokenForShop(ctx: Pick<MutationCtx, "db">, shop:
 
 async function issueLinkToken(ctx: MutationCtx, args: { staffId: Id<"staffs">; shopId: Id<"shops"> }) {
   const now = Date.now();
-  const activeCandidates = await ctx.db
-    .query("lineLinkTokens")
-    .withIndex("by_staffId_and_expiresAt", (q) => q.eq("staffId", args.staffId).gte("expiresAt", now))
-    .take(LINE_LINK_ACTIVE_TOKEN_SCAN_LIMIT + 1);
+  const canonicalScope = await resolveCanonicalStaffScope(ctx, args);
+  const activeCandidates = canonicalScope
+    ? await collectOrganizationPersonActiveLineTokens(ctx, {
+        organizationId: canonicalScope.organization._id,
+        organizationPersonId: canonicalScope.person._id,
+        now,
+      })
+    : await ctx.db
+        .query("lineLinkTokens")
+        .withIndex("by_staffId_and_expiresAt", (q) => q.eq("staffId", args.staffId).gte("expiresAt", now))
+        .take(LINE_LINK_ACTIVE_TOKEN_SCAN_LIMIT + 1);
   if (activeCandidates.length > LINE_LINK_ACTIVE_TOKEN_SCAN_LIMIT) {
     throw new ConvexError("LINE連携に必要な情報を発行できませんでした。");
   }
@@ -76,6 +107,13 @@ async function issueLinkToken(ctx: MutationCtx, args: { staffId: Id<"staffs">; s
   await ctx.db.insert("lineLinkTokens", {
     staffId: args.staffId,
     shopId: args.shopId,
+    ...(canonicalScope
+      ? {
+          organizationId: canonicalScope.organization._id,
+          organizationPersonId: canonicalScope.person._id,
+          lineLinkGenerationAtIssue: canonicalScope.person.lineLinkGeneration ?? 0,
+        }
+      : {}),
     token,
     expiresAt: now + LINE_LINK_TOKEN_TTL_MS,
   });
@@ -130,6 +168,27 @@ export const createLinkTokenInternal = internalMutation({
   },
 });
 
+async function resolveCanonicalTokenScope(ctx: MutationCtx, token: Doc<"lineLinkTokens">) {
+  const canonicalScope = await resolveCanonicalStaffScope(ctx, {
+    staffId: token.staffId,
+    shopId: token.shopId,
+  });
+  const snapshotValues = [token.organizationId, token.organizationPersonId, token.lineLinkGenerationAtIssue];
+  const hasAnySnapshot = snapshotValues.some((value) => value !== undefined);
+  const hasCompleteSnapshot = snapshotValues.every((value) => value !== undefined);
+  if (hasAnySnapshot && !hasCompleteSnapshot) return { status: "invalid" as const };
+  if (!canonicalScope) return hasAnySnapshot ? { status: "invalid" as const } : { status: "legacy" as const };
+  if (
+    hasCompleteSnapshot &&
+    (token.organizationId !== canonicalScope.organization._id ||
+      token.organizationPersonId !== canonicalScope.person._id ||
+      token.lineLinkGenerationAtIssue !== (canonicalScope.person.lineLinkGeneration ?? 0))
+  ) {
+    return { status: "invalid" as const };
+  }
+  return { status: "canonical" as const, scope: canonicalScope };
+}
+
 /**
  * LINE OAuth コールバックから呼ばれる: state（=トークン）の検証 + レートリミット
  * - レートリミット: 無効stateは固定bucket、有効stateはtoken単位で制限
@@ -163,11 +222,20 @@ export const validateLinkToken = internalMutation({
     if (!(await canRedeemLineLinkTokenForShop(ctx, shop))) {
       return { status: "expired" as const };
     }
+    const canonical = await resolveCanonicalTokenScope(ctx, link);
+    if (canonical.status === "invalid") return { status: "expired" as const };
     return {
       status: "ok" as const,
       staffId: link.staffId,
       shopId: link.shopId,
       tokenDocId: link._id,
+      ...(canonical.status === "canonical"
+        ? {
+            organizationId: canonical.scope.organization._id,
+            organizationPersonId: canonical.scope.person._id,
+            lineLinkGenerationAtIssue: canonical.scope.person.lineLinkGeneration ?? 0,
+          }
+        : {}),
     };
   },
 });
@@ -176,6 +244,136 @@ async function invalidLineLinkTokenStatus(ctx: MutationCtx) {
   // 無効stateだけを固定bucketへ集約する。有効callbackまで匿名攻撃者のglobal budgetで停止させない。
   const globalLimit = await rateLimit(ctx, { name: "lineLinkRedeemGlobal" });
   return { status: globalLimit.ok ? ("expired" as const) : ("rate_limited" as const) };
+}
+
+async function scheduleLineActivatedForStaff(
+  ctx: MutationCtx,
+  staff: Doc<"staffs">,
+  args: { includeOpenRecruitments: boolean },
+) {
+  const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: staff.shopId });
+  await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentLine, {
+    staffId: staff._id,
+    ...notificationOrigin,
+  });
+  if (args.includeOpenRecruitments) {
+    await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationLinesForStaff, {
+      staffId: staff._id,
+      ...notificationOrigin,
+    });
+  }
+}
+
+async function finalizeCanonicalLinking(
+  ctx: MutationCtx,
+  args: {
+    token: Doc<"lineLinkTokens">;
+    scope: NonNullable<Awaited<ReturnType<typeof resolveCanonicalStaffScope>>>;
+    lineUserId: string;
+    lineFollowing: boolean;
+    lineFriendshipObservedAt: number;
+  },
+) {
+  const linkedAt = Date.now();
+  const priorRecipient = await getOrganizationPersonLineRecipient(ctx, {
+    organizationId: args.scope.organization._id,
+    organizationPersonId: args.scope.person._id,
+  });
+  const sameLineAccounts = await findStaffLineAccountsByLineUserId(ctx, args.lineUserId);
+  if (sameLineAccounts.length > LINE_LEGACY_ACTIVE_ACCOUNT_SCAN_MAX) {
+    throw new ConvexError("LINE連携を完了できませんでした。");
+  }
+  for (const account of sameLineAccounts) {
+    const accountStaff = await ctx.db.get(account.staffId);
+    if (!accountStaff || accountStaff.isDeleted) continue;
+    const accountShop = await ctx.db.get(accountStaff.shopId);
+    if (!accountShop || accountShop.isDeleted) continue;
+    const accountOrganizationId = accountStaff.organizationId ?? accountShop.organizationId;
+    if (accountOrganizationId !== args.scope.organization._id) continue;
+    if (accountShop.organizationId !== args.scope.organization._id) {
+      throw new ConvexError("LINE連携を完了できませんでした。");
+    }
+    if (accountStaff.organizationPersonId !== args.scope.person._id) {
+      // 同じorganizationの別人物からLINE IDを自動で奪わない。
+      throw new ConvexError("LINE連携を完了できませんでした。");
+    }
+  }
+
+  const providerObservation = await upsertLineProviderUser(ctx, {
+    lineUserId: args.lineUserId,
+    following: args.lineFollowing,
+    observedAt: args.lineFriendshipObservedAt,
+    source: "oauth",
+  });
+  const link = await upsertOrganizationPersonLineLink(ctx, {
+    organizationId: args.scope.organization._id,
+    organizationPersonId: args.scope.person._id,
+    lineProviderUserId: providerObservation.provider._id,
+    linkedAt,
+  });
+  const activeStaffs = await listActiveStaffsForOrganizationPerson(ctx, {
+    organizationId: args.scope.organization._id,
+    organizationPersonId: args.scope.person._id,
+  });
+  if (activeStaffs.length === 0) throw new ConvexError("LINE連携を完了できませんでした。");
+  const effectiveFollowing = providerObservation.provider.following;
+
+  // 段階経路のlegacy readを正本として維持するため、同じ人物の全店舗staffへprojectionする。
+  for (const account of sameLineAccounts) {
+    if (account.following !== effectiveFollowing) {
+      await ctx.db.patch(account._id, { following: effectiveFollowing });
+    }
+  }
+  for (const staff of activeStaffs) {
+    await upsertStaffLineAccount(ctx, {
+      staffId: staff._id,
+      shopId: staff.shopId,
+      lineUserId: args.lineUserId,
+      following: effectiveFollowing,
+    });
+  }
+
+  await ctx.db.patch(args.token._id, { usedAt: linkedAt });
+  await revokeOrganizationPersonLineTokens(ctx, {
+    organizationPersonId: args.scope.person._id,
+    occurredAt: linkedAt,
+    exceptTokenId: args.token._id,
+  });
+  if (link.replacedProviderUserId) {
+    await tombstoneLineProviderUserIfUnreferenced(ctx, link.replacedProviderUserId);
+  }
+
+  const fanoutJobId = await ensureFriendshipFanoutJob(ctx, {
+    provider: providerObservation.provider,
+    stateChanged: providerObservation.stateChanged,
+  });
+  if (fanoutJobId) {
+    await ctx.scheduler.runAfter(0, internal.line.mutations.kickFriendshipFanoutJob, { jobId: fanoutJobId });
+  } else {
+    const analyticsAccounts: AnalyticsLineAccountChange[] = activeStaffs.map((staff) => ({
+      staffId: staff._id,
+      linked: true,
+      following: effectiveFollowing,
+      occurredAt: linkedAt,
+    }));
+    await recordAnalyticsSourceEvent(ctx, {
+      eventKey: `lineAccountBatch:${link.linkId}:linked:${linkedAt}`,
+      eventType: "lineAccount.changed",
+      occurredAt: linkedAt,
+      payload: {
+        kind: "lineAccountBatch",
+        isComplete: analyticsAccounts.length <= ANALYTICS_POLICY.batch.sourceEvents,
+        accounts: analyticsAccounts.slice(0, ANALYTICS_POLICY.batch.sourceEvents),
+      },
+    });
+    if (effectiveFollowing) {
+      const includeOpenRecruitments = priorRecipient?.following !== true;
+      for (const staff of activeStaffs) {
+        await scheduleLineActivatedForStaff(ctx, staff, { includeOpenRecruitments });
+      }
+    }
+  }
+  return { status: "ok" as const, following: effectiveFollowing };
 }
 
 /**
@@ -187,6 +385,8 @@ export const finalizeLinking = internalMutation({
     tokenDocId: v.id("lineLinkTokens"),
     lineUserId: v.string(),
     lineFollowing: v.boolean(),
+    // Widen前のinternal test/callerはmutation開始時刻を使う。公開OAuth actionは取得直後の時刻を必ず渡す。
+    lineFriendshipObservedAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const link = await ctx.db.get(args.tokenDocId);
@@ -200,12 +400,24 @@ export const finalizeLinking = internalMutation({
     if (!(await canRedeemLineLinkTokenForShop(ctx, shop))) {
       return { status: "expired" as const };
     }
+    const canonical = await resolveCanonicalTokenScope(ctx, link);
+    if (canonical.status === "invalid") return { status: "expired" as const };
+    if (canonical.status === "canonical") {
+      const result = await finalizeCanonicalLinking(ctx, {
+        token: link,
+        scope: canonical.scope,
+        lineUserId: args.lineUserId,
+        lineFollowing: args.lineFollowing,
+        lineFriendshipObservedAt: args.lineFriendshipObservedAt ?? Date.now(),
+      });
+      return args.lineFriendshipObservedAt === undefined ? { status: result.status } : result;
+    }
     const currentAccount = await getStaffLineAccount(ctx, args.staffId);
 
     // 同一店舗で別スタッフに同じ lineUserId が紐づいていた場合だけ付け替える
     // （真の重複/担当替え）。別店舗のアカウントは残す（同一人物の多店舗連携を許可）。
     const sameLineAccounts = await findStaffLineAccountsByLineUserId(ctx, args.lineUserId);
-    if (sameLineAccounts.length > LINE_USER_ACTIVE_ACCOUNT_MAX) {
+    if (sameLineAccounts.length > LINE_LEGACY_ACTIVE_ACCOUNT_SCAN_MAX) {
       throw new ConvexError("LINE連携を完了できませんでした。");
     }
     const duplicateAccounts = sameLineAccounts.filter(
@@ -215,7 +427,7 @@ export const finalizeLinking = internalMutation({
     const resultingAccountCount =
       sameLineAccounts.length - duplicateAccounts.length + (currentAccountUsesLineUser ? 0 : 1);
     if (
-      resultingAccountCount > LINE_USER_ACTIVE_ACCOUNT_MAX ||
+      resultingAccountCount > LINE_LEGACY_ACTIVE_ACCOUNT_SCAN_MAX ||
       duplicateAccounts.length + 1 > ANALYTICS_POLICY.batch.sourceEvents
     ) {
       throw new ConvexError("LINE連携を完了できませんでした。");
@@ -284,7 +496,9 @@ export const finalizeLinking = internalMutation({
         ...notificationOrigin,
       });
     }
-    return { status: "ok" as const };
+    return args.lineFriendshipObservedAt === undefined
+      ? { status: "ok" as const }
+      : { status: "ok" as const, following: args.lineFollowing };
   },
 });
 
@@ -344,8 +558,32 @@ type WebhookStateEvent = {
 async function processWebhookStateEvent(ctx: MutationCtx, event: WebhookStateEvent) {
   const webhookReceivedAt = Date.now();
   const accounts = await findStaffLineAccountsByLineUserId(ctx, event.userId);
-  if (accounts.length > LINE_USER_ACTIVE_ACCOUNT_MAX) {
+  if (accounts.length > LINE_LEGACY_ACTIVE_ACCOUNT_SCAN_MAX) {
     throw new ConvexError("LINE連携状態を更新できませんでした。");
+  }
+  const existingProviders = await ctx.db
+    .query("lineProviderUsers")
+    .withIndex("by_lineUserId_and_isDeleted", (q) => q.eq("lineUserId", event.userId).eq("isDeleted", false))
+    .take(2);
+  if (existingProviders.length > 1) throw new ConvexError("LINE連携状態を更新できませんでした。");
+  // 未連携のLINE利用者から届いたeventは永続化しない。
+  if (accounts.length === 0 && existingProviders.length === 0) return;
+  const providerObservation = await upsertLineProviderUser(ctx, {
+    lineUserId: event.userId,
+    following: event.following,
+    observedAt: event.timestamp,
+    source: "webhook",
+    webhookReceivedAt,
+    webhookEventId: event.webhookEventId,
+    webhookEventTimestamp: event.timestamp,
+  });
+  if (!providerObservation.accepted) return;
+  const fanoutJobId = await ensureFriendshipFanoutJob(ctx, {
+    provider: providerObservation.provider,
+    stateChanged: providerObservation.stateChanged,
+  });
+  if (fanoutJobId) {
+    await ctx.scheduler.runAfter(0, internal.line.mutations.kickFriendshipFanoutJob, { jobId: fanoutJobId });
   }
 
   const notificationOriginByShopId = new Map<Id<"shops">, BusinessNotificationOrigin>();
@@ -369,16 +607,27 @@ async function processWebhookStateEvent(ctx: MutationCtx, event: WebhookStateEve
       lastWebhookEventId: event.webhookEventId,
       lastWebhookEventTimestamp: event.timestamp,
     });
-    analyticsAccountsComplete =
-      appendAnalyticsLineAccountChange(analyticsAccounts, {
-        staffId: staff._id,
-        linked: true,
-        following: event.following,
-        // Provider時刻は重複・順序判定にだけ使い、分析上の変更は受理時刻から有効にする。
-        occurredAt: webhookReceivedAt,
-      }) && analyticsAccountsComplete;
 
-    if (event.following && !wasFollowing) {
+    const canonicalScope = await resolveCanonicalStaffScope(ctx, { staffId: staff._id, shopId: staff.shopId });
+    const canonicalRecipient = canonicalScope
+      ? await getOrganizationPersonLineRecipient(ctx, {
+          organizationId: canonicalScope.organization._id,
+          organizationPersonId: canonicalScope.person._id,
+        })
+      : null;
+    const handledByCanonicalFanout =
+      fanoutJobId !== null && canonicalRecipient?.lineProviderUserId === providerObservation.provider._id;
+    if (!handledByCanonicalFanout) {
+      analyticsAccountsComplete =
+        appendAnalyticsLineAccountChange(analyticsAccounts, {
+          staffId: staff._id,
+          linked: true,
+          following: event.following,
+          // Provider時刻は順序判定だけに使い、分析上の変更は受理時刻から有効にする。
+          occurredAt: webhookReceivedAt,
+        }) && analyticsAccountsComplete;
+    }
+    if (event.following && !wasFollowing && !handledByCanonicalFanout) {
       let notificationOrigin = notificationOriginByShopId.get(staff.shopId);
       if (!notificationOrigin) {
         notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: staff.shopId });
@@ -418,6 +667,260 @@ export const dispatchWebhookStateEvent = internalMutation({
   handler: async (ctx, { event }) => {
     await processWebhookStateEvent(ctx, event);
     return null;
+  },
+});
+
+/** queued/retrying jobを一つだけclaimし、失われたworkerはlease期限後に回収可能にする。 */
+export const kickFriendshipFanoutJob = internalMutation({
+  args: { jobId: v.id("lineFriendshipFanoutJobs") },
+  returns: v.null(),
+  handler: async (ctx, { jobId }) => {
+    const job = await ctx.db.get(jobId);
+    if (!job || ["completed", "superseded", "actionRequired"].includes(job.status)) return null;
+
+    const now = Date.now();
+    const leaseExpired = job.status === "processing" && (job.leaseExpiresAt ?? 0) <= now;
+    if (job.status === "processing" && !leaseExpired) return null;
+    if ((job.status === "queued" || job.status === "retrying") && job.nextRunAt > now) {
+      await ctx.scheduler.runAfter(job.nextRunAt - now, internal.line.mutations.kickFriendshipFanoutJob, { jobId });
+      return null;
+    }
+
+    const attemptCount = leaseExpired ? job.attemptCount + 1 : job.attemptCount;
+    if (attemptCount >= LINE_FRIENDSHIP_FANOUT_MAX_ATTEMPTS) {
+      await ctx.db.patch(job._id, {
+        status: "actionRequired",
+        attemptCount,
+        version: job.version + 1,
+        leaseId: undefined,
+        leaseExpiresAt: undefined,
+        lastErrorCode: "line_friendship_fanout_lease_expired",
+        updatedAt: now,
+      });
+      return null;
+    }
+
+    const version = job.version + 1;
+    const leaseId = `${job._id}:${version}:${now}`;
+    await ctx.db.patch(job._id, {
+      status: "processing",
+      version,
+      attemptCount,
+      leaseId,
+      leaseExpiresAt: now + LINE_FRIENDSHIP_FANOUT_LEASE_MS,
+      lastErrorCode: undefined,
+      updatedAt: now,
+    });
+    await ctx.scheduler.runAfter(0, internal.line.mutations.processFriendshipFanoutJob, {
+      jobId: job._id,
+      leaseId,
+      expectedVersion: version,
+    });
+    return null;
+  },
+});
+
+/** provider state変更をactive organization linkへboundedかつ冪等に反映する。 */
+export const processFriendshipFanoutJob = internalMutation({
+  args: {
+    jobId: v.id("lineFriendshipFanoutJobs"),
+    leaseId: v.string(),
+    expectedVersion: v.number(),
+  },
+  returns: v.object({
+    status: v.union(v.literal("advanced"), v.literal("completed"), v.literal("superseded"), v.literal("ignored")),
+  }),
+  handler: async (ctx, args): Promise<{ status: "advanced" | "completed" | "superseded" | "ignored" }> => {
+    const job = await ctx.db.get(args.jobId);
+    if (job?.status !== "processing" || job.version !== args.expectedVersion || job.leaseId !== args.leaseId) {
+      return { status: "ignored" };
+    }
+    const provider = await ctx.db.get(job.lineProviderUserId);
+    if (
+      !provider ||
+      provider.isDeleted ||
+      provider.stateVersion !== job.stateVersion ||
+      provider.following !== job.following
+    ) {
+      const now = Date.now();
+      await ctx.db.patch(job._id, {
+        status: "superseded",
+        version: job.version + 1,
+        leaseId: undefined,
+        leaseExpiresAt: undefined,
+        lastErrorCode: undefined,
+        completedAt: now,
+        updatedAt: now,
+      });
+      return { status: "superseded" };
+    }
+
+    const page = await ctx.db
+      .query("organizationPersonLineLinks")
+      .withIndex("by_lineProviderUserId_and_isDeleted", (q) =>
+        q.eq("lineProviderUserId", provider._id).eq("isDeleted", false),
+      )
+      .paginate({
+        numItems: LINE_FRIENDSHIP_FANOUT_BATCH_SIZE,
+        cursor: job.cursor ?? null,
+        maximumRowsRead: LINE_FRIENDSHIP_FANOUT_BATCH_SIZE,
+      });
+    const occurredAt = provider.lastWebhookAt ?? provider.friendshipObservedAt;
+    for (const link of page.page) {
+      const [organization, person] = await Promise.all([
+        ctx.db.get(link.organizationId),
+        ctx.db.get(link.organizationPersonId),
+      ]);
+      if (
+        !organization ||
+        organization.isDeleted ||
+        !person ||
+        person.status !== "active" ||
+        person.organizationId !== organization._id ||
+        link.generation !== (person.lineLinkGeneration ?? 0)
+      ) {
+        continue;
+      }
+      const staffs = await listActiveStaffsForOrganizationPerson(ctx, {
+        organizationId: organization._id,
+        organizationPersonId: person._id,
+      });
+      await recordAnalyticsSourceEvent(ctx, {
+        eventKey: `lineAccountBatch:fanout:${job._id}:${job.stateVersion}:${link._id}`,
+        eventType: "lineAccount.changed",
+        occurredAt,
+        payload: {
+          kind: "lineAccountBatch",
+          isComplete: true,
+          accounts: staffs.map((staff) => ({
+            staffId: staff._id,
+            linked: true,
+            following: job.following,
+            occurredAt,
+          })),
+        },
+      });
+      if (job.following) {
+        for (const staff of staffs) {
+          await scheduleLineActivatedForStaff(ctx, staff, { includeOpenRecruitments: true });
+        }
+      }
+    }
+
+    const now = Date.now();
+    const nextVersion = job.version + 1;
+    if (page.isDone) {
+      await ctx.db.patch(job._id, {
+        status: "completed",
+        cursor: page.continueCursor,
+        version: nextVersion,
+        attemptCount: 0,
+        nextRunAt: now,
+        leaseId: undefined,
+        leaseExpiresAt: undefined,
+        lastErrorCode: undefined,
+        completedAt: now,
+        updatedAt: now,
+      });
+      return { status: "completed" };
+    }
+    await ctx.db.patch(job._id, {
+      status: "queued",
+      cursor: page.continueCursor,
+      version: nextVersion,
+      attemptCount: 0,
+      nextRunAt: now,
+      leaseId: undefined,
+      leaseExpiresAt: undefined,
+      lastErrorCode: undefined,
+      updatedAt: now,
+    });
+    await ctx.scheduler.runAfter(0, internal.line.mutations.kickFriendshipFanoutJob, { jobId: job._id });
+    return { status: "advanced" };
+  },
+});
+
+/** cronから予約漏れと期限切れleaseをboundedに回収する。 */
+export const recoverFriendshipFanoutJobs = internalMutation({
+  args: {},
+  returns: v.object({ scheduled: v.number() }),
+  handler: async (ctx) => {
+    const now = Date.now();
+    const perStatusLimit = Math.floor(LINE_FRIENDSHIP_FANOUT_RECOVERY_BATCH_SIZE / 3);
+    const candidates = new Map<Id<"lineFriendshipFanoutJobs">, Doc<"lineFriendshipFanoutJobs">>();
+    for (const status of ["queued", "retrying"] as const) {
+      const jobs = await ctx.db
+        .query("lineFriendshipFanoutJobs")
+        .withIndex("by_status_and_nextRunAt", (q) => q.eq("status", status).lte("nextRunAt", now))
+        .take(perStatusLimit);
+      for (const job of jobs) candidates.set(job._id, job);
+    }
+    const expiredLeases = await ctx.db
+      .query("lineFriendshipFanoutJobs")
+      .withIndex("by_status_and_leaseExpiresAt", (q) => q.eq("status", "processing").lte("leaseExpiresAt", now))
+      .take(perStatusLimit);
+    for (const job of expiredLeases) candidates.set(job._id, job);
+
+    const jobs = [...candidates.values()].slice(0, LINE_FRIENDSHIP_FANOUT_RECOVERY_BATCH_SIZE);
+    for (const job of jobs) {
+      await ctx.scheduler.runAfter(0, internal.line.mutations.kickFriendshipFanoutJob, { jobId: job._id });
+    }
+    return { scheduled: jobs.length };
+  },
+});
+
+/** operator retryはversion一致するactionRequired jobだけを再投入する。 */
+export const retryActionRequiredFriendshipFanoutJob = internalMutation({
+  args: { jobId: v.id("lineFriendshipFanoutJobs"), expectedVersion: v.number() },
+  returns: v.object({ status: v.literal("scheduled"), version: v.number() }),
+  handler: async (ctx, args) => {
+    const job = await ctx.db.get(args.jobId);
+    if (job?.status !== "actionRequired" || job.version !== args.expectedVersion) {
+      throw new ConvexError("LINE連携状態反映jobの状態が更新されています。");
+    }
+    const now = Date.now();
+    const version = job.version + 1;
+    await ctx.db.patch(job._id, {
+      status: "retrying",
+      version,
+      attemptCount: 0,
+      nextRunAt: now,
+      leaseId: undefined,
+      leaseExpiresAt: undefined,
+      lastErrorCode: undefined,
+      completedAt: undefined,
+      updatedAt: now,
+    });
+    await ctx.scheduler.runAfter(0, internal.line.mutations.kickFriendshipFanoutJob, { jobId: job._id });
+    return { status: "scheduled" as const, version };
+  },
+});
+
+/** retentionを過ぎたterminal fanout jobだけをboundedに削除する。 */
+export const pruneFriendshipFanoutJobs = internalMutation({
+  args: {},
+  returns: v.object({ deletedCount: v.number(), hasMore: v.boolean() }),
+  handler: async (ctx) => {
+    const now = Date.now();
+    const batch: Doc<"lineFriendshipFanoutJobs">[] = [];
+    let hasMore = false;
+    for (const status of ["completed", "superseded"] as const) {
+      const remaining = LINE_FRIENDSHIP_FANOUT_PRUNE_BATCH_SIZE - batch.length;
+      const jobs = await ctx.db
+        .query("lineFriendshipFanoutJobs")
+        .withIndex("by_status_and_expiresAt", (q) => q.eq("status", status).lte("expiresAt", now))
+        .take(remaining + 1);
+      batch.push(...jobs.slice(0, remaining));
+      if (jobs.length > remaining) {
+        hasMore = true;
+        break;
+      }
+    }
+    for (const job of batch) await ctx.db.delete(job._id);
+    if (hasMore) {
+      await ctx.scheduler.runAfter(0, internal.line.mutations.pruneFriendshipFanoutJobs, {});
+    }
+    return { deletedCount: batch.length, hasMore };
   },
 });
 
@@ -540,6 +1043,109 @@ export const upsertQuotaStatus = internalMutation({
   },
 });
 
+/** 管理者がorganization person単位のLINE連携を明示解除する。 */
+export const disconnectOrganizationPersonLine = authenticatedMutation({
+  args: {
+    shopId: v.id("shops"),
+    organizationPersonId: v.id("organizationPeople"),
+    requestId: v.string(),
+  },
+  returns: v.object({ changed: v.boolean() }),
+  handler: async (ctx, args) => {
+    if (!ctx.user) throw new ConvexError("Not found");
+    const actor = await requireOrganizationActorForShop(ctx, {
+      user: ctx.user,
+      shopId: args.shopId,
+    });
+    const person = await ctx.db.get(args.organizationPersonId);
+    if (person?.status !== "active" || person.organizationId !== actor.organization._id) {
+      throw new ConvexError("Not found");
+    }
+    const requestKey = await toAuditRequestKey(args.requestId);
+    const correlationId = `${actor.organization._id}:person-line-disconnect:${person._id}:${requestKey}`;
+    const prior = await ctx.db
+      .query("organizationAuditEvents")
+      .withIndex("by_correlationId", (q) => q.eq("correlationId", correlationId))
+      .take(2);
+    if (prior.length > 1) throw new ConvexError("以前の操作結果を確認できません");
+    if (prior[0]) {
+      if (
+        prior[0].organizationId !== actor.organization._id ||
+        prior[0].actorUserId !== ctx.user._id ||
+        prior[0].action !== "organization.person_line_disconnected" ||
+        prior[0].targetId !== person._id
+      ) {
+        throw new ConvexError("以前の操作結果を確認できません");
+      }
+      return { changed: false };
+    }
+
+    const occurredAt = Date.now();
+    const activeStaffs = await listActiveStaffsForOrganizationPerson(ctx, {
+      organizationId: actor.organization._id,
+      organizationPersonId: person._id,
+    });
+    const staffHistory = await listOrganizationPersonStaffHistory(ctx, {
+      organizationId: actor.organization._id,
+      organizationPersonId: person._id,
+    });
+    const result = await disconnectCanonicalOrganizationPersonLine(ctx, {
+      organizationId: actor.organization._id,
+      organizationPersonId: person._id,
+      occurredAt,
+    });
+    let legacyChanged = false;
+    for (const staff of staffHistory) {
+      const account = await getStaffLineAccount(ctx, staff._id);
+      if (!account) continue;
+      legacyChanged = true;
+      await ctx.db.patch(account._id, { isDeleted: true, following: false });
+    }
+    if (!result.changed && legacyChanged) {
+      const generation = (person.lineLinkGeneration ?? 0) + 1;
+      await ctx.db.patch(person._id, { lineLinkGeneration: generation, updatedAt: occurredAt });
+      await revokeOrganizationPersonLineTokens(ctx, {
+        organizationPersonId: person._id,
+        occurredAt,
+      });
+    }
+    const changed = result.changed || legacyChanged;
+    if (!changed) return { changed: false };
+
+    await recordOrganizationAuditEvent(ctx, {
+      organizationId: actor.organization._id,
+      actorUserId: ctx.user._id,
+      actorPersonId: actor.person._id,
+      action: "organization.person_line_disconnected",
+      targetKind: "person",
+      targetId: person._id,
+      fromState: "linked",
+      toState: "unlinked",
+      correlationId,
+      occurredAt,
+      suppressAnalyticsEvent: true,
+    });
+    if (activeStaffs.length > 0) {
+      await recordAnalyticsSourceEvent(ctx, {
+        eventKey: `lineAccountBatch:disconnect:${correlationId}`,
+        eventType: "lineAccount.changed",
+        occurredAt,
+        payload: {
+          kind: "lineAccountBatch",
+          isComplete: true,
+          accounts: activeStaffs.map((staff) => ({
+            staffId: staff._id,
+            linked: false,
+            following: false,
+            occurredAt,
+          })),
+        },
+      });
+    }
+    return { changed: true };
+  },
+});
+
 /**
  * 個別: 指定スタッフへ LINE 連携依頼メールを送る
  */
@@ -562,8 +1168,19 @@ export const sendInvite = managerMutation({
     if (!shortLimit.ok) return null;
     const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
 
+    const canonicalScope = await resolveCanonicalStaffScope(ctx, {
+      staffId: staff._id,
+      shopId: ctx.shop._id,
+    });
+
     await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
       staffId: staff._id,
+      ...(canonicalScope
+        ? {
+            organizationPersonId: canonicalScope.person._id,
+            lineLinkGenerationAtSchedule: canonicalScope.person.lineLinkGeneration ?? 0,
+          }
+        : {}),
       ...notificationOrigin,
     });
     return null;

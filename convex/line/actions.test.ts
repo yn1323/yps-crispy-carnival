@@ -2,7 +2,7 @@ import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
-import { seedManagerShop } from "../_test/seed";
+import { seedManagerShop, seedOrganizationManagerShop, seedOrganizationPersonLineLink } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { LINE_LINK_REDEEM_GLOBAL_LIMIT } from "../constants";
 
@@ -238,5 +238,209 @@ describe("line/actions", () => {
       notificationKind: "line.invite",
       displayTitle: state.jobs[0].payload.subject,
     });
+  });
+
+  it("旧shapeのscheduled callerも実行時にcanonical連携済みならtokenとメールを作らない", async () => {
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
+    const t = convexTest(schema, modules);
+    const staffId = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "old_shape_canonical_invite",
+        email: "old-shape-manager@example.com",
+        shopName: "旧予約店舗",
+        plan: "pro",
+      });
+      const now = Date.now();
+      const organizationPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: seeded.organizationId,
+        name: "連携済みスタッフ",
+        email: "old-shape-staff@example.com",
+        emailNormalized: "old-shape-staff@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: seeded.shopId,
+        organizationId: seeded.organizationId,
+        organizationPersonId,
+        name: "連携済みスタッフ",
+        email: "old-shape-staff@example.com",
+        isDeleted: false,
+      });
+      await seedOrganizationPersonLineLink(ctx, {
+        organizationId: seeded.organizationId,
+        organizationPersonId,
+        lineUserId: "U_old_shape_canonical_invite",
+      });
+      return staffId;
+    });
+
+    await t.action(internal.line.actions.sendInviteEmail, { staffId });
+
+    await expect(
+      t.run(async (ctx) => ({
+        tokens: await ctx.db.query("lineLinkTokens").collect(),
+        jobs: await ctx.db.query("notificationOutbox").collect(),
+        histories: await ctx.db.query("notificationHistory").collect(),
+      })),
+    ).resolves.toEqual({ tokens: [], jobs: [], histories: [] });
+  });
+
+  it("旧shape予約後に連携・解除されunlinkedへ戻っても新しいcapabilityを発行しない", async () => {
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
+    const t = convexTest(schema, modules);
+    const target = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "old_shape_after_disconnect",
+        email: "old-shape-after-disconnect@example.com",
+        shopName: "旧予約解除店舗",
+        plan: "pro",
+      });
+      const now = Date.now();
+      const organizationPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: seeded.organizationId,
+        name: "旧予約解除スタッフ",
+        email: "old-shape-after-disconnect-staff@example.com",
+        emailNormalized: "old-shape-after-disconnect-staff@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: seeded.shopId,
+        organizationId: seeded.organizationId,
+        organizationPersonId,
+        name: "旧予約解除スタッフ",
+        email: "old-shape-after-disconnect-staff@example.com",
+        isDeleted: false,
+      });
+      const linked = await seedOrganizationPersonLineLink(ctx, {
+        organizationId: seeded.organizationId,
+        organizationPersonId,
+        lineUserId: "U_old_shape_after_disconnect",
+      });
+      await ctx.db.patch(linked.organizationPersonLineLinkId, { isDeleted: true, unlinkedAt: now + 1 });
+      await ctx.db.patch(organizationPersonId, { lineLinkGeneration: linked.generation + 1, updatedAt: now + 1 });
+      await ctx.db.patch(linked.lineProviderUserId, { isDeleted: true, following: false });
+      return { staffId, organizationPersonId };
+    });
+
+    await t.action(internal.line.actions.sendInviteEmail, { staffId: target.staffId });
+
+    await expect(
+      t.run(async (ctx) => ({
+        person: await ctx.db.get(target.organizationPersonId),
+        tokens: await ctx.db.query("lineLinkTokens").collect(),
+        jobs: await ctx.db.query("notificationOutbox").collect(),
+      })),
+    ).resolves.toMatchObject({ person: { lineLinkGeneration: 2 }, tokens: [], jobs: [] });
+  });
+
+  it.each([true, false])("snapshot一致ならfollowing=%sの連携済み人物にも再連携メールを作る", async (following) => {
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
+    const t = convexTest(schema, modules);
+    const target = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: `explicit_relink_${following}`,
+        email: `explicit-relink-${following}@example.com`,
+        shopName: "明示再連携店舗",
+        plan: "pro",
+      });
+      const now = Date.now();
+      const organizationPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: seeded.organizationId,
+        name: "明示再連携スタッフ",
+        email: `explicit-relink-staff-${following}@example.com`,
+        emailNormalized: `explicit-relink-staff-${following}@example.com`,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: seeded.shopId,
+        organizationId: seeded.organizationId,
+        organizationPersonId,
+        name: "明示再連携スタッフ",
+        email: `explicit-relink-staff-${following}@example.com`,
+        isDeleted: false,
+      });
+      const linked = await seedOrganizationPersonLineLink(ctx, {
+        organizationId: seeded.organizationId,
+        organizationPersonId,
+        lineUserId: `U_explicit_relink_${following}`,
+        following,
+      });
+      return { ...seeded, ...linked, organizationPersonId, staffId };
+    });
+
+    await t.action(internal.line.actions.sendInviteEmail, {
+      staffId: target.staffId,
+      organizationPersonId: target.organizationPersonId,
+      lineLinkGenerationAtSchedule: target.generation,
+    });
+
+    const state = await t.run(async (ctx) => ({
+      tokens: await ctx.db.query("lineLinkTokens").collect(),
+      jobs: await ctx.db.query("notificationOutbox").collect(),
+    }));
+    expect(state.tokens).toHaveLength(1);
+    expect(state.tokens[0]).toMatchObject({
+      staffId: target.staffId,
+      organizationPersonId: target.organizationPersonId,
+      lineLinkGenerationAtIssue: target.generation,
+    });
+    expect(state.jobs).toHaveLength(1);
+  });
+
+  it("snapshot後にgenerationが変わった再連携メールはtokenもoutboxも作らない", async () => {
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
+    const t = convexTest(schema, modules);
+    const target = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "stale_relink_invite",
+        email: "stale-relink-invite@example.com",
+        shopName: "世代競合店舗",
+        plan: "pro",
+      });
+      const now = Date.now();
+      const organizationPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: seeded.organizationId,
+        name: "世代競合スタッフ",
+        email: "stale-relink-staff@example.com",
+        emailNormalized: "stale-relink-staff@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: seeded.shopId,
+        organizationId: seeded.organizationId,
+        organizationPersonId,
+        name: "世代競合スタッフ",
+        email: "stale-relink-staff@example.com",
+        isDeleted: false,
+      });
+      const linked = await seedOrganizationPersonLineLink(ctx, {
+        organizationId: seeded.organizationId,
+        organizationPersonId,
+        lineUserId: "U_stale_relink_invite",
+      });
+      await ctx.db.patch(organizationPersonId, { lineLinkGeneration: linked.generation + 1 });
+      return { ...linked, organizationPersonId, staffId };
+    });
+
+    await t.action(internal.line.actions.sendInviteEmail, {
+      staffId: target.staffId,
+      organizationPersonId: target.organizationPersonId,
+      lineLinkGenerationAtSchedule: target.generation,
+    });
+
+    await expect(
+      t.run(async (ctx) => ({
+        tokens: await ctx.db.query("lineLinkTokens").collect(),
+        jobs: await ctx.db.query("notificationOutbox").collect(),
+      })),
+    ).resolves.toEqual({ tokens: [], jobs: [] });
   });
 });

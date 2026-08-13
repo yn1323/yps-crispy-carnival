@@ -60,7 +60,7 @@ const complimentaryBusiness = {
   kind: "paidPlan",
   planName: "Business",
   badgeLabel: "支払い不要",
-  description: "Businessプランの機能を料金なしで利用できます。",
+  description: "早期登録特典によりBusinessプラン相当の機能をずっと無料で利用できます。",
 } satisfies PlanStatusCardData;
 
 const scheduledPlanChange = {
@@ -74,7 +74,8 @@ const trial = {
   kind: "trial",
   remainingDays: 7,
   trialEndsOnLabel: "2026/8/16",
-  description: "継続して利用するには、プランの選択が必要です。",
+  description:
+    "未選択のまま終了すると利用停止になります。データは削除されないため、継続して利用するにはプランを選んでください。",
   primaryAction: { action: "choosePlan", label: "プランを選ぶ" },
   showRemindLater: true,
 } satisfies PlanStatusCardData;
@@ -122,8 +123,8 @@ const restrictedPaymentIssue = {
   kind: "paymentIssue",
   planName: "Business",
   phase: "restricted",
-  description: "サービスの利用を再開するため、お支払い方法を更新してください。",
-  primaryAction: { action: "updatePaymentMethod", label: "支払い方法を更新する" },
+  description: "データは削除されていません。利用を再開するには、ProまたはBusinessを契約してください。",
+  primaryAction: { action: "choosePlan", label: "プランを選んで再開する" },
 } satisfies PlanStatusCardData;
 
 const restricted = {
@@ -263,7 +264,7 @@ export const TrialToggleBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const toggle = canvas.getByRole("button", { name: /すーぱーかんぱにー 無料トライアル/ });
+    const toggle = canvas.getByRole("button", { name: /すーぱーかんぱにー.*あと7日/ });
 
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(toggle);
@@ -283,7 +284,7 @@ export const PaidExpansionBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const toggle = canvas.getByRole("button", { name: /すーぱーかんぱにー 組織・プラン/ });
+    const toggle = canvas.getByRole("button", { name: /すーぱーかんぱにー/ });
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
 
     await userEvent.click(toggle);
@@ -306,7 +307,7 @@ export const UrgentStateAutoExpansionBehavior: Story = {
   render: () => <UrgentStateAutoExpansionStory />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const toggle = canvas.getByRole("button", { name: /すーぱーかんぱにー 無料トライアル/ });
+    const toggle = canvas.getByRole("button", { name: /すーぱーかんぱにー.*あと14日/ });
 
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(canvas.getByRole("button", { name: "終了7日前へ進める" }));

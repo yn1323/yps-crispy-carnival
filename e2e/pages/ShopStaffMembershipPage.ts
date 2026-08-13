@@ -73,14 +73,14 @@ export class ShopStaffMembershipPage {
     const addition = this.membershipCheckbox(dialog, seed.additionCandidateName);
     await dialog.getByText(seed.additionCandidateName, { exact: true }).click();
     await expect(addition).not.toBeChecked();
-    await expect(dialog.getByText("スタッフを外すと起きること", { exact: true })).toBeVisible();
-    await dialog.getByRole("button", { name: "影響を確認する", exact: true }).click();
-
-    const confirmationDialog = this.membershipRemovalConfirmationDialog();
-    await expect(confirmationDialog).toBeVisible({ timeout: SHOP_STAFF_MEMBERSHIP_TIMEOUT });
-    await expect(confirmationDialog.getByText(seed.additionCandidateName, { exact: true })).toBeVisible();
-    await confirmationDialog.getByRole("button", { name: "スタッフを外して変更する", exact: true }).click();
-    await expect(confirmationDialog).not.toBeVisible({ timeout: SHOP_STAFF_MEMBERSHIP_TIMEOUT });
+    await expect(dialog.getByText("この店舗から外す", { exact: true })).toBeVisible();
+    await expect(addition).toHaveAccessibleDescription(
+      /今日以降のシフト割り当てから削除します。.*この店舗へのシフト通知は送られなくなります。組織のLINE連携は残ります。/,
+    );
+    const submit = dialog.getByRole("button", { name: "変更する", exact: true });
+    await expect(submit).toBeEnabled({ timeout: SHOP_STAFF_MEMBERSHIP_TIMEOUT });
+    await submit.click();
+    await expect(dialog).not.toBeVisible({ timeout: SHOP_STAFF_MEMBERSHIP_TIMEOUT });
   }
 
   async expectCandidateRemoved(seed: ShopStaffMembershipScenarioSeed) {
@@ -113,10 +113,6 @@ export class ShopStaffMembershipPage {
 
   private membershipDialog() {
     return this.page.getByRole("dialog", { name: "所属スタッフを変更", exact: true });
-  }
-
-  private membershipRemovalConfirmationDialog() {
-    return this.page.getByRole("dialog", { name: "所属変更の影響を確認", exact: true });
   }
 
   private membershipCheckbox(dialog: Locator, personName: string) {

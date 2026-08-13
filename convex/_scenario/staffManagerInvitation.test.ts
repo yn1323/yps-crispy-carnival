@@ -30,7 +30,6 @@ describe("既存スタッフの管理者招待シナリオ", () => {
     vi.useFakeTimers();
     vi.setSystemTime(SCENARIO_NOW);
     vi.stubEnv("ORGANIZATION_INVITATION_SIGNING_SECRET", SIGNING_SECRET);
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "enabled");
     vi.stubEnv("LINE_LOGIN_CHANNEL_ID", "test-line-channel");
   });
 
@@ -71,7 +70,7 @@ describe("既存スタッフの管理者招待シナリオ", () => {
     const personId = before.person._id;
 
     const created = await owner.inviteStaffAsManager(staffId);
-    expect(created.status).toBe("created");
+    expect(created.status).toBe("issued");
     const invitation = await t.run((ctx) => ctx.db.get(created.invitationId));
     if (!invitation) throw new Error("管理者招待が見つかりません");
     expect(invitation).toMatchObject({
@@ -86,7 +85,7 @@ describe("既存スタッフの管理者招待シナリオ", () => {
       version: invitation.version,
       signingSecret: SIGNING_SECRET,
     });
-    await expect(target.linkManagerInvitationAccount(token)).resolves.toEqual({
+    await expect(target.acceptManagerInvitation(token, new Set(["target@example.com"]))).resolves.toEqual({
       status: "linked",
       organizationId: seeded.organizationId,
       shopId: seeded.shopId,
@@ -171,7 +170,7 @@ describe("既存スタッフの管理者招待シナリオ", () => {
       version: invitation.version,
       signingSecret: SIGNING_SECRET,
     });
-    await expect(target.linkManagerInvitationAccount(token)).resolves.toEqual({
+    await expect(target.acceptManagerInvitation(token, new Set(["target@example.com"]))).resolves.toEqual({
       status: "linked",
       organizationId: seeded.organizationId,
       shopId: seeded.shopId,

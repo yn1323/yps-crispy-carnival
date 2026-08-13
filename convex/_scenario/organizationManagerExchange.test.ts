@@ -1,9 +1,9 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
-import { SCENARIO_NOW, scenarioDate } from "../_test/scenarioBuilders";
+import { readScheduledFunctions, SCENARIO_NOW, scenarioDate } from "../_test/scenarioBuilders";
 import { createScenario } from "../_test/scenarioFixtures";
-import { seedOrganizationManagerShop, seedStaffLineAccount } from "../_test/seed";
+import { seedCanonicalStaffLineRecipient, seedOrganizationManagerShop, seedStaffLineAccount } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { deriveInvitationToken } from "../organizationInvitation/token";
 
@@ -14,7 +14,6 @@ describe("Free管理者交代シナリオ", () => {
     vi.useFakeTimers();
     vi.setSystemTime(SCENARIO_NOW);
     vi.stubEnv("ORGANIZATION_INVITATION_SIGNING_SECRET", SIGNING_SECRET);
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "enabled");
   });
 
   afterEach(() => {
@@ -62,6 +61,11 @@ describe("Free管理者交代シナリオ", () => {
       const formerLineAccountId = await seedStaffLineAccount(ctx, {
         staffId: formerStaffId,
         shopId: organization.shopId,
+        lineUserId: "U_former_manager_staff",
+        following: true,
+      });
+      await seedCanonicalStaffLineRecipient(ctx, {
+        staffId: formerStaffId,
         lineUserId: "U_former_manager_staff",
         following: true,
       });
@@ -184,7 +188,7 @@ describe("Free管理者交代シナリオ", () => {
       version: invitation.version,
       signingSecret: SIGNING_SECRET,
     });
-    await expect(successor.linkManagerInvitationAccount(token)).resolves.toEqual({
+    await expect(successor.acceptManagerInvitation(token, new Set(["successor@example.com"]))).resolves.toEqual({
       status: "linked",
       organizationId: seeded.organizationId,
       shopId: seeded.shopId,
@@ -221,8 +225,11 @@ describe("Free管理者交代シナリオ", () => {
     }));
     expect(afterExchange.formerMember?.status).toBe("removed");
     expect(afterExchange.successorMembers).toHaveLength(1);
-    expect(afterExchange.successorMembers[0]?.status).toBe("active");
-    expect(afterExchange.billingState?.freeManagerPersonId).toBe(beforeExchange.successorPersonId);
+    const successorMember = afterExchange.successorMembers[0];
+    if (!successorMember) throw new Error("交代後の管理者所属が見つかりません");
+    if (!afterExchange.billingState) throw new Error("交代後の請求状態が見つかりません");
+    expect(successorMember.status).toBe("active");
+    expect(afterExchange.billingState.freeManagerPersonId).toBe(beforeExchange.successorPersonId);
     expect(afterExchange.formerPerson).toEqual(beforeExchange.formerPerson);
     expect(afterExchange.formerStaff).toEqual(beforeExchange.formerStaff);
     expect(afterExchange.formerLineAccount).toEqual(beforeExchange.formerLineAccount);
@@ -233,6 +240,48 @@ describe("Free管理者交代シナリオ", () => {
     expect(afterExchange.otherStaff).toEqual(beforeExchange.otherStaff);
     expect(afterExchange.otherShopStaffs.map((staff) => staff._id)).toEqual([seeded.otherStaffId]);
     expect(afterExchange.unjoinedShopStaffs).toEqual([]);
+
+    expect(
+      (await readScheduledFunctions(t))
+        .filter((job) => job.name === "organizationInvitation/actions:enqueueAcceptanceNotifications")
+        .map((job) => job.args[0]),
+    ).toEqual([
+      {
+        invitationId: invitation._id,
+        expectedVersion: invitation.version + 1,
+        organizationBillingVersionAtOrigin: afterExchange.billingState.version,
+      },
+    ]);
+    vi.advanceTimersByTime(0);
+    await t.finishInProgressScheduledFunctions();
+    const acceptanceNotifications = await t.run(async (ctx) => {
+      const outbox = await ctx.db.query("notificationOutbox").collect();
+      return outbox.flatMap((job) => {
+        if (job.payload.kind !== "email" || job.payload.context !== "organizationInvitation.linked") return [];
+        return [
+          {
+            channel: job.channel,
+            dedupeKey: job.dedupeKey,
+            organizationId: job.organizationId,
+            purpose: job.purpose,
+            status: job.status,
+            to: job.payload.to,
+            userId: job.userId,
+          },
+        ];
+      });
+    });
+    expect(acceptanceNotifications).toEqual([
+      {
+        channel: "email",
+        dedupeKey: `email:organizationManagerInvitationAccepted:${invitation._id}:${invitation.version + 1}:${successorMember.userId}`,
+        organizationId: seeded.organizationId,
+        purpose: "business",
+        status: "pending",
+        to: "successor@example.com",
+        userId: successorMember.userId,
+      },
+    ]);
 
     const formerIdentity = t.withIdentity({ subject: "free_exchange_former", email: "former@example.com" });
     await expect(formerIdentity.query(api.dashboard.queries.getMyShops, {})).resolves.toEqual([
@@ -338,7 +387,9 @@ describe("Free管理者交代シナリオ", () => {
       version: invitation.version,
       signingSecret: SIGNING_SECRET,
     });
-    await expect(successor.linkManagerInvitationAccount(token)).resolves.toMatchObject({ status: "linked" });
+    await expect(
+      successor.acceptManagerInvitation(token, new Set(["excluded-successor@example.com"])),
+    ).resolves.toMatchObject({ status: "linked" });
     expect(await t.run((ctx) => ctx.db.get(seeded.formerStaffId))).toEqual(formerStaffBefore);
     expect(formerStaffBefore?.excludedFromShift).toBe(true);
 

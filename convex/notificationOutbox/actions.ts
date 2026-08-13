@@ -201,6 +201,16 @@ async function sendLineJob(
     message: LinePushMessage;
   },
 ): Promise<SendJobResult> {
+  const preparedRecipient = await ctx.runMutation(
+    internal.notificationOutbox.mutations.prepareLineForProviderDelivery,
+    {
+      outboxId: job._id,
+      leaseToken: job.leaseToken,
+      now: Date.now(),
+    },
+  );
+  if (!preparedRecipient || preparedRecipient.toUserId !== input.toUserId) return { cancelled: true };
+
   if (isDebugNotifyFailEnabled()) {
     await pushLineJob(input.toUserId, input.message, {
       suppressDelivery: input.suppressDelivery,

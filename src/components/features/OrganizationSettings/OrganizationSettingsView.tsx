@@ -3,7 +3,7 @@ import { LuCreditCard, LuSettings, LuStore, LuUsers } from "react-icons/lu";
 import { DeletionActionSectionSkeleton } from "@/src/components/shared/DeletionActionSection";
 import { DetailPageHeaderSkeleton } from "@/src/components/ui/DetailPageHeader";
 import {
-  CLOSED_ORGANIZATION_SETTINGS_FEATURES,
+  AVAILABLE_ORGANIZATION_SETTINGS_FEATURES,
   type OrganizationSettingsFeatures,
 } from "@/src/domains/featureVisibility";
 import { OrganizationContext } from "./OrganizationContext";
@@ -21,10 +21,6 @@ export const OrganizationSettingsView = ({
   shops,
   billing,
   planPrices,
-  canInviteManager,
-  managerInvitations,
-  managerInvitationMode,
-  inviteManagerDisabledReason,
   canUpdateOrganizationName,
   updateOrganizationNameDisabledReason,
   canAddShop,
@@ -87,14 +83,7 @@ export const OrganizationSettingsView = ({
           people={people}
           peopleUsage={billing.peopleUsage}
           showManagerInvitation={features.managerInvitation}
-          canInviteManager={canInviteManager}
-          canOpenManagerInvitation={
-            features.managerInvitation &&
-            (canInviteManager || managerInvitations.some((invitation) => invitation.canResend))
-          }
-          managerInvitationMode={managerInvitationMode}
-          inviteManagerDisabledReason={inviteManagerDisabledReason}
-          onInviteManager={actions.onInviteManager}
+          onManageManagers={actions.onManageManagers}
           onOpenUser={actions.onOpenUser}
           initialVisibleUserCount={initialVisibleUserCount}
           focusedPersonId={focusedPersonId}
@@ -157,7 +146,7 @@ type OrganizationSettingsSkeletonProps = {
 export function OrganizationSettingsSkeleton({
   defaultTab = "people",
   showOrganizationSelector = false,
-  features = CLOSED_ORGANIZATION_SETTINGS_FEATURES,
+  features = AVAILABLE_ORGANIZATION_SETTINGS_FEATURES,
 }: OrganizationSettingsSkeletonProps) {
   const visibleTab = defaultTab === "billing" && !features.billing ? "people" : defaultTab;
 
@@ -234,7 +223,7 @@ function PeopleSettingsSkeleton({ showManagerInvitation }: { showManagerInvitati
     <Stack gap={4}>
       <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} gap={3} wrap="wrap">
         <SectionHeadingSkeleton width="184px" />
-        {showManagerInvitation && <Skeleton h="36px" w="128px" borderRadius="md" />}
+        {showManagerInvitation && <Skeleton h="36px" w="136px" />}
       </Flex>
       <SettingsDrilldownListSkeleton kind="people" />
     </Stack>

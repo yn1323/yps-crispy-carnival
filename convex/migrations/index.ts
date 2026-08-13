@@ -106,6 +106,10 @@ export const runNotificationTerminalRedaction = migrations.runner([
   internal.migrations.m020_notification_failure_inbox_redaction.migration,
 ]);
 
+// LINE共通化のexport/readinessでcounterpart欠損が1件以上、異常0件の場合だけ実行する。
+// 完全ゼロ経路では実行しないため、fixed seriesには含めない。
+export const runLineCommonLinkBackfill = migrations.runner(internal.migrations.m041_line_common_links.migration);
+
 // conflict裁定後は、この範囲だけをresetして安全に再評価する。
 export const runFormerManagerAccessCleanup = migrations.runner([
   internal.migrations.m013_former_managers_remove_manager_access.migration,

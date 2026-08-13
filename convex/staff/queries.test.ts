@@ -773,7 +773,7 @@ describe("staff/queries", () => {
       );
     });
 
-    it("snapshot更新・対象重複を拒否する", async () => {
+    it("対象重複を拒否し、snapshot更新はstaleとして返す", async () => {
       const t = convexTest(schema, modules);
       const seeded = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, {
@@ -817,7 +817,7 @@ describe("staff/queries", () => {
           expectedMembershipFingerprint: snapshot.membershipFingerprint,
           now: Date.now(),
         }),
-      ).rejects.toThrow("店舗所属が変更されています");
+      ).resolves.toEqual({ kind: "stale" });
     });
 
     it("未来割当が解除対象全体で上限を超える場合は部分previewを返さない", async () => {

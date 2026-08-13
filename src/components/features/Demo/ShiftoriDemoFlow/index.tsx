@@ -377,7 +377,7 @@ const DemoCompleteCta = () => (
   <Box bg="teal.50" borderWidth="1px" borderColor="gray.200" borderRadius="md" px={4} py={4} mt={2}>
     <Stack gap={3}>
       <Text color="teal.900" fontWeight="bold" lineHeight={1.6}>
-        このまま無料で始められます
+        2暦月のトライアルで、そのまま運用を始められます
       </Text>
       <Button
         asChild
@@ -391,9 +391,14 @@ const DemoCompleteCta = () => (
         <MeasurementBoundaryLink href="/signup" measurementCtaId="demo_complete_signup">
           <Icon as={LuUserPlus} boxSize={5} />
           <Text as="span" flex={1} textAlign="center">
-            無料ではじめる
+            トライアルを始める
           </Text>
           <Icon as={LuChevronRight} boxSize={5} />
+        </MeasurementBoundaryLink>
+      </Button>
+      <Button asChild variant="outline" colorPalette="teal" bg="white" w="full" h="44px" fontWeight="bold">
+        <MeasurementBoundaryLink href="/pricing" measurementCtaId="demo_complete_pricing">
+          料金・プランを見る
         </MeasurementBoundaryLink>
       </Button>
     </Stack>

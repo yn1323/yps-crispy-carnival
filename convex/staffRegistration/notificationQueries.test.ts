@@ -3,7 +3,14 @@ import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { seedLegacyShopMembership, seedManagerShop, seedShop, seedStaffLineAccount, seedUser } from "../_test/seed";
+import {
+  seedCanonicalStaffLineRecipient,
+  seedLegacyShopMembership,
+  seedManagerShop,
+  seedShop,
+  seedStaffLineAccount,
+  seedUser,
+} from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { DAY_MS, HOUR_MS } from "../constants";
 
@@ -127,8 +134,7 @@ describe("staffRegistration/notificationQueries", () => {
           emailNormalized: "owner-contact@example.com",
           isDeleted: false,
         });
-        await seedStaffLineAccount(ctx, {
-          shopId: seeded.shopId,
+        await seedCanonicalStaffLineRecipient(ctx, {
           staffId: managerStaffId,
           lineUserId: "U_owner_line",
           following: true,
@@ -201,8 +207,7 @@ describe("staffRegistration/notificationQueries", () => {
           emailNormalized: "owner-contact@example.com",
           isDeleted: false,
         });
-        await seedStaffLineAccount(ctx, {
-          shopId: seeded.shopId,
+        await seedCanonicalStaffLineRecipient(ctx, {
           staffId,
           lineUserId: "U_owner_partial_person",
           following: true,

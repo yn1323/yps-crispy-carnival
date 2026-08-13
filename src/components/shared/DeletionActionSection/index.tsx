@@ -6,7 +6,7 @@ import { Button, type ButtonProps } from "@/src/components/ui/Button";
 type Props = {
   title: string;
   headingAs?: "h2" | "h3";
-  description?: string;
+  description?: ReactNode;
   descriptionFontSize?: "sm" | "xs";
   descriptionId?: string;
   actionLabel: string;

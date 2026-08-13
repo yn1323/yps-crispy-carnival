@@ -31,9 +31,9 @@ describe("OrganizationSettings BillingSettings", () => {
     [{ state: "free", currentPlan: "free" }, "business", "startPaidPlan"],
     [{ state: "trial", currentPlan: "trial" }, "business", "startPaidPlan"],
     [{ state: "pro", currentPlan: "pro" }, "business", "changePaidPlanNow"],
-    [{ state: "pro", currentPlan: "pro" }, "free", "schedulePlanChange"],
+    [{ state: "pro", currentPlan: "pro" }, "free", "scheduleServiceStop"],
     [{ state: "business", currentPlan: "business" }, "pro", "schedulePlanChange"],
-    [{ state: "business", currentPlan: "business" }, "free", "schedulePlanChange"],
+    [{ state: "business", currentPlan: "business" }, "free", "scheduleServiceStop"],
     [{ state: "scheduledChange", currentPlan: "business", targetPlan: "pro" }, "business", "cancelScheduledPlanChange"],
     [{ state: "grace", currentPlan: "business", canScheduleFree: false }, "business", "openPortal"],
   ] as const)("契約状態%oから%sへの操作を%sへ対応付ける", (overrides, targetPlan, expected) => {
@@ -72,20 +72,24 @@ describe("OrganizationSettings BillingSettings", () => {
       unitAmount: 3000,
       interval: "month",
       intervalCount: 1,
+      taxBehavior: "inclusive",
     });
     const dollars = formatPlanPrice({
       currency: "usd",
       unitAmount: 1234,
       interval: "year",
       intervalCount: 2,
+      taxBehavior: "exclusive",
     });
 
     expect(yen.amount).toContain("JPY");
     expect(yen.amount).toContain("3,000");
     expect(yen.interval).toBe("1か月ごと");
+    expect(yen.tax).toBe("税込");
     expect(dollars.amount).toContain("USD");
     expect(dollars.amount).toContain("12.34");
     expect(dollars.interval).toBe("2年ごと");
+    expect(dollars.tax).toBe("税別");
   });
 
   it("serverの削減数がなければ利用数と現在上限から安全側に導出する", () => {

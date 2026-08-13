@@ -1,16 +1,14 @@
 import { Alert, Badge, Box, Flex, Skeleton, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LuUser } from "react-icons/lu";
+import { MembershipRemovalImpact } from "@/src/components/shared/MembershipRemovalImpact";
 import { Button } from "@/src/components/ui/Button";
 import { CheckboxListCard, CheckboxListCardItem } from "@/src/components/ui/CheckboxListCard";
 import { Dialog, DialogActionArea } from "@/src/components/ui/Dialog";
-import type {
-  ShopDetailData,
-  ShopStaffMembershipChangeInput,
-  ShopStaffMembershipData,
-  ShopStaffMembershipRemovalPreview,
-} from "./types";
+import type { ShopDetailData, ShopStaffMembershipChangeInput, ShopStaffMembershipData } from "./types";
 import {
+  buildShopStaffRemovalPreviewKey,
+  type ShopStaffMembershipRemovalPreviewState,
   type ShopStaffMembershipSubmitResult,
   useShopStaffMembershipController,
 } from "./useShopStaffMembershipController";
@@ -31,12 +29,11 @@ type MembershipSession = {
 
 export type ShopStaffMembershipDialogController = {
   data: ShopStaffMembershipData | null | undefined;
-  removalPreview: ShopStaffMembershipRemovalPreview | null | undefined;
-  isPreviewLoading: boolean;
+  removalPreviewState: ShopStaffMembershipRemovalPreviewState;
   isChanging: boolean;
   errorMessage?: string;
-  requestRemovalPreview: (personIds: MembershipPerson["personId"][], expectedMembershipFingerprint: string) => boolean;
-  clearPreview: () => void;
+  ensureRemovalPreview: (personIds: MembershipPerson["personId"][], expectedMembershipFingerprint: string) => boolean;
+  clearRemovalPreview: () => void;
   clearError: () => void;
   submitChange: (input: ShopStaffMembershipChangeInput) => Promise<ShopStaffMembershipSubmitResult | undefined>;
 };
@@ -124,14 +121,18 @@ export function ShopStaffMembershipDialog({
     () => new Set(session?.initialSelectedPersonIds ?? []),
     [session?.initialSelectedPersonIds],
   );
-  const addedPeople =
-    session?.people.filter(
-      (person) => selectedPersonIdSet.has(person.personId) && !initialSelectedPersonIdSet.has(person.personId),
-    ) ?? [];
-  const removedPeople =
-    session?.people.filter(
-      (person) => initialSelectedPersonIdSet.has(person.personId) && !selectedPersonIdSet.has(person.personId),
-    ) ?? [];
+  const { addedPeople, removedPeople } = useMemo(() => {
+    if (!session) return { addedPeople: [], removedPeople: [] };
+    return {
+      addedPeople: session.people.filter(
+        (person) => selectedPersonIdSet.has(person.personId) && !initialSelectedPersonIdSet.has(person.personId),
+      ),
+      removedPeople: session.people.filter(
+        (person) => initialSelectedPersonIdSet.has(person.personId) && !selectedPersonIdSet.has(person.personId),
+      ),
+    };
+  }, [initialSelectedPersonIdSet, selectedPersonIdSet, session]);
+  const removedPersonIds = useMemo(() => removedPeople.map((person) => person.personId), [removedPeople]);
   const hasDiff = addedPeople.length > 0 || removedPeople.length > 0;
   const isStale = Boolean(
     session && controller.data && controller.data.membershipFingerprint !== session.expectedMembershipFingerprint,
@@ -149,8 +150,42 @@ export function ShopStaffMembershipDialog({
   const removesAllEditableStaff = Boolean(
     removedPeople.length > 0 && session?.selectedPersonIds.length === 0 && session.preservedStaffs.length === 0,
   );
-  const previewReady = controller.removalPreview?.kind === "ready" ? controller.removalPreview : null;
-  const previewTooMany = controller.removalPreview?.kind === "tooMany" ? controller.removalPreview : null;
+  const currentRemovalPreviewKey = useMemo(
+    () =>
+      session && removedPersonIds.length > 0
+        ? buildShopStaffRemovalPreviewKey(removedPersonIds, session.expectedMembershipFingerprint)
+        : null,
+    [removedPersonIds, session],
+  );
+  const currentRemovalPreviewState =
+    currentRemovalPreviewKey &&
+    controller.removalPreviewState.kind !== "idle" &&
+    controller.removalPreviewState.key === currentRemovalPreviewKey
+      ? controller.removalPreviewState
+      : null;
+  const previewReady = currentRemovalPreviewState?.kind === "ready" ? currentRemovalPreviewState.preview : null;
+  const previewTooMany = currentRemovalPreviewState?.kind === "tooMany";
+  const isPreviewLoading = currentRemovalPreviewState?.kind === "loading";
+
+  useEffect(() => {
+    if (!isOpen || !session || !controller.data?.canWrite || isStale || isIntentFrozen) return;
+    if (!currentRemovalPreviewKey) {
+      if (controller.removalPreviewState.kind !== "idle") controller.clearRemovalPreview();
+      return;
+    }
+    controller.ensureRemovalPreview(removedPersonIds, session.expectedMembershipFingerprint);
+  }, [
+    controller.clearRemovalPreview,
+    controller.data?.canWrite,
+    controller.ensureRemovalPreview,
+    controller.removalPreviewState.kind,
+    currentRemovalPreviewKey,
+    isIntentFrozen,
+    isOpen,
+    isStale,
+    removedPersonIds,
+    session,
+  ]);
 
   const changeSelection = (personId: MembershipPerson["personId"], checked: boolean) => {
     if (controller.isChanging || isStale || isIntentFrozen) return;
@@ -167,7 +202,7 @@ export function ShopStaffMembershipDialog({
         submittedInput: null,
       };
     });
-    controller.clearPreview();
+    controller.clearRemovalPreview();
     controller.clearError();
   };
 
@@ -183,7 +218,7 @@ export function ShopStaffMembershipDialog({
               : current,
           );
           if (session.submittedInput.removalPreviews.length > 0) {
-            controller.clearPreview();
+            controller.clearRemovalPreview();
           }
         }
         return;
@@ -198,7 +233,7 @@ export function ShopStaffMembershipDialog({
       };
       const result = await controller.submitChange(input);
       if (result === "rejected" && input.removalPreviews.length > 0) {
-        controller.clearPreview();
+        controller.clearRemovalPreview();
         return;
       }
       if (result !== "unknown") return;
@@ -219,18 +254,15 @@ export function ShopStaffMembershipDialog({
     }
     if (isStale) return;
     if (removedPeople.length > 0) {
-      controller.requestRemovalPreview(
-        removedPeople.map((person) => person.personId),
-        session.expectedMembershipFingerprint,
-      );
+      if (!previewReady) return;
+      await submitInput(previewReady.removals);
       return;
     }
     await submitInput([]);
   };
 
-  const isRemovalConfirmation = Boolean(previewReady && removedPeople.length > 0);
   const isLoading = controller.data === undefined || (controller.data !== null && session === null);
-  const isBusy = controller.isChanging || controller.isPreviewLoading;
+  const isRemovalPreviewReady = removedPeople.length === 0 || Boolean(previewReady) || isIntentFrozen;
   const isSubmitDisabled =
     isLoading ||
     controller.data === null ||
@@ -238,37 +270,20 @@ export function ShopStaffMembershipDialog({
     !controller.data?.canWrite ||
     !hasDiff ||
     !canSubmitFrozenIntent ||
-    Boolean(previewTooMany) ||
-    isBusy;
-
-  const handleRemovalConfirmation = async () => {
-    if (!previewReady) return;
-    await submitInput(previewReady.removals);
-  };
-
-  const returnToSelection = () => {
-    if (isBusy || isIntentFrozen) return;
-    controller.clearPreview();
-    controller.clearError();
-    const focusFirstEditableCheckbox = () =>
-      contentRef.current?.querySelector<HTMLInputElement>('input[type="checkbox"]:not(:disabled)')?.focus();
-    if (typeof window.requestAnimationFrame === "function") {
-      window.requestAnimationFrame(focusFirstEditableCheckbox);
-    } else {
-      focusFirstEditableCheckbox();
-    }
-  };
+    previewTooMany ||
+    !isRemovalPreviewReady ||
+    controller.isChanging;
 
   const closeMainDialog = () => {
-    if (controller.isChanging || controller.isPreviewLoading) return;
-    controller.clearPreview();
+    if (controller.isChanging) return;
+    controller.clearRemovalPreview();
     controller.clearError();
     onClose();
   };
 
   return (
     <Dialog
-      title={isRemovalConfirmation ? "所属変更の影響を確認" : "所属スタッフを変更"}
+      title="所属スタッフを変更"
       isOpen={isOpen}
       onOpenChange={(details) => {
         if (!details.open) closeMainDialog();
@@ -276,44 +291,18 @@ export function ShopStaffMembershipDialog({
       }}
       onClose={closeMainDialog}
       onBackGuardRemoved={closeMainDialog}
-      preventClose={isBusy}
+      preventClose={controller.isChanging}
       onSubmit={handleSubmit}
-      submitLabel={removedPeople.length > 0 ? "影響を確認する" : "変更する"}
-      isLoading={isBusy}
+      submitLabel="変更する"
+      isLoading={controller.isChanging}
       isSubmitDisabled={isSubmitDisabled}
-      footer={
-        isRemovalConfirmation ? (
-          <DialogActionArea
-            layout="standard"
-            mobileLayout="inline"
-            startAction={
-              <Button variant="outline" onClick={returnToSelection} disabled={isBusy || isIntentFrozen}>
-                戻る
-              </Button>
-            }
-            endAction={
-              <Button
-                colorPalette="red"
-                onClick={handleRemovalConfirmation}
-                loading={isBusy}
-                loadingText="変更しています"
-                disabled={!canSubmitFrozenIntent || isBusy}
-              >
-                {isIntentFrozen ? "同じ内容で再試行" : "スタッフを外して変更する"}
-              </Button>
-            }
-          />
-        ) : undefined
-      }
       mobileActionLayout="inline"
       mobileFullScreen
       bodyProps={{ px: { base: 4, lg: 6 }, pt: 2, pb: { base: 4, lg: 5 } }}
     >
       <Stack ref={contentRef} gap={4}>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          {isRemovalConfirmation
-            ? `${shopName}から外すスタッフと、削除されるシフトを確認してください。`
-            : `${shopName}のシフトスタッフを選択してください。管理者権限と、ほかの店舗への所属は変更されません。`}
+          {shopName}のシフトスタッフを選択してください。管理者権限と、ほかの店舗への所属は変更されません。
         </Text>
 
         {globalDisabledReason && (
@@ -340,49 +329,7 @@ export function ShopStaffMembershipDialog({
 
         {controller.errorMessage && <InlineError message={controller.errorMessage} />}
 
-        {isRemovalConfirmation && previewReady ? (
-          <>
-            <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" overflow="hidden">
-              <Box px={4} py={3} bg="gray.50" borderBottomWidth="1px" borderColor="blackAlpha.100">
-                <Text fontSize="sm" fontWeight="semibold" color="gray.900">
-                  店舗から外すスタッフ
-                </Text>
-              </Box>
-              <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
-                {previewReady.removals.map((removal) => {
-                  const person = removedPeople.find((candidate) => candidate.personId === removal.personId);
-                  if (!person) return null;
-                  return (
-                    <Flex key={removal.personId} gap={3} px={4} py={3.5} align="center">
-                      <PersonAvatar name={person.name} isManager={person.isManager} />
-                      <Stack gap={0.5} minW={0}>
-                        <Text fontWeight="medium" color="gray.900" overflowWrap="anywhere">
-                          {person.name}
-                        </Text>
-                        <Text fontSize="sm" color="fg.muted">
-                          今日以降のシフト割り当て：{removal.assignmentCount}件
-                        </Text>
-                      </Stack>
-                    </Flex>
-                  );
-                })}
-              </Stack>
-            </Box>
-
-            <Alert.Root status="error" borderRadius="lg">
-              <Alert.Indicator />
-              <Alert.Content>
-                <Alert.Title>
-                  今日以降のシフト割り当て{previewReady.totalAssignmentCount}
-                  件を削除します
-                </Alert.Title>
-                <Alert.Description>
-                  対象店舗へのアクセス、LINE連携、未送信の通知も終了します。組織への登録、管理者権限、ほかの店舗への所属、過去のシフト記録は保持されます。
-                </Alert.Description>
-              </Alert.Content>
-            </Alert.Root>
-          </>
-        ) : isLoading ? (
+        {isLoading ? (
           <MembershipListSkeleton />
         ) : controller.data === null ? (
           <InlineError message="所属スタッフを読み込めませんでした。画面を再読み込みしてください。" />
@@ -400,6 +347,10 @@ export function ShopStaffMembershipDialog({
             {session.people.map((person) => {
               const disabledReason = globalDisabledReason ? null : person.changeDisabledReason;
               const personContextId = `shop-staff-membership-person-context-${person.personId}`;
+              const isRemoved =
+                initialSelectedPersonIdSet.has(person.personId) && !selectedPersonIdSet.has(person.personId);
+              const isFirstRemoved = removedPeople[0]?.personId === person.personId;
+              const removalImpactId = isRemoved ? `shop-staff-membership-removal-impact-${person.personId}` : undefined;
               const isDisabled =
                 Boolean(globalDisabledReason) ||
                 !person.canChange ||
@@ -412,8 +363,9 @@ export function ShopStaffMembershipDialog({
                   checked={selectedPersonIdSet.has(person.personId)}
                   disabled={isDisabled}
                   ariaLabel={`${person.name}を所属スタッフにする`}
-                  ariaDescribedBy={[listDisabledReasonIds, personContextId].filter(Boolean).join(" ")}
+                  ariaDescribedBy={[listDisabledReasonIds, personContextId, removalImpactId].filter(Boolean).join(" ")}
                   disabledReason={disabledReason}
+                  tone={isRemoved ? "danger" : "default"}
                   hoverBg="teal.50"
                   onCheckedChange={(checked) => changeSelection(person.personId, checked)}
                   leading={<PersonAvatar name={person.name} isManager={person.isManager} />}
@@ -439,12 +391,28 @@ export function ShopStaffMembershipDialog({
                         ? `所属：${person.otherShopNames.join("、")}。`
                         : "所属：なし。"}
                     </VisuallyHidden>
-                    <Text fontWeight="medium" color="gray.900" lineHeight="short" overflowWrap="anywhere">
-                      {person.name}
-                    </Text>
-                    <Text fontSize="xs" color="fg.subtle" overflowWrap="anywhere">
-                      {person.otherShopNames.length > 0 ? `所属：${person.otherShopNames.join("、")}` : "所属：なし"}
-                    </Text>
+                    {isRemoved ? (
+                      <MembershipRemovalImpact
+                        id={removalImpactId}
+                        heading={person.name}
+                        description={
+                          person.otherShopNames.length > 0 ? `所属：${person.otherShopNames.join("、")}` : "所属：なし"
+                        }
+                        badgeLabel="この店舗から外す"
+                        statusMessage={isFirstRemoved && isPreviewLoading ? "変更内容を確認しています…" : undefined}
+                      />
+                    ) : (
+                      <>
+                        <Text fontWeight="medium" color="gray.900" lineHeight="short" overflowWrap="anywhere">
+                          {person.name}
+                        </Text>
+                        <Text fontSize="xs" color="fg.subtle" overflowWrap="anywhere">
+                          {person.otherShopNames.length > 0
+                            ? `所属：${person.otherShopNames.join("、")}`
+                            : "所属：なし"}
+                        </Text>
+                      </>
+                    )}
                   </Stack>
                 </CheckboxListCardItem>
               );
@@ -469,27 +437,12 @@ export function ShopStaffMembershipDialog({
           </CheckboxListCard>
         ) : null}
 
-        {!isRemovalConfirmation && session && session.people.length > 0 && (
-          <Alert.Root status="error" borderRadius="lg">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>スタッフを外すと起きること</Alert.Title>
-              <Alert.Description>
-                スタッフ画面へのアクセス、LINE連携、未送信の通知は終了します。今日以降のシフト割り当ては削除されますが、過去のシフト記録は保持されます。
-              </Alert.Description>
-            </Alert.Content>
-          </Alert.Root>
-        )}
-
         {previewTooMany && (
           <Alert.Root status="warning" borderRadius="lg">
             <Alert.Indicator />
             <Alert.Content>
               <Alert.Title>今日以降のシフトが多いため、この画面では変更できません</Alert.Title>
-              <Alert.Description>
-                {previewTooMany.assignmentCountAtLeast}
-                件以上の割り当てがあります。先にシフトを整理してください。
-              </Alert.Description>
+              <Alert.Description>先にシフトを整理してください。</Alert.Description>
             </Alert.Content>
           </Alert.Root>
         )}
@@ -511,7 +464,7 @@ export function ShopStaffMembershipDialog({
             <Alert.Indicator />
             <Alert.Content>
               <Alert.Description>
-                追加したスタッフには、シフト提出やLINE連携に必要な案内を予約します。
+                シフト提出に必要な案内を予約します。LINE未連携の場合だけ、組織共通の連携案内も送ります。
               </Alert.Description>
             </Alert.Content>
           </Alert.Root>

@@ -28,7 +28,7 @@ vi.mock("@/src/components/features/LoginMethods", () => ({
 }));
 
 vi.mock("@/src/components/features/AccountDeletion", () => ({
-  AccountDeletionSection: () => <h2>アカウントを完全に削除する</h2>,
+  AccountDeletionSection: () => <h2>アカウントの利用を終了する</h2>,
 }));
 
 vi.mock("@/src/components/templates/AuthenticatedPageContent", () => ({
@@ -58,7 +58,7 @@ describe("AccountSecurityPage", () => {
     );
 
     expect(screen.getByRole("heading", { name: "アカウント設定" })).not.toBeNull();
-    expect(screen.getByRole("heading", { name: "アカウントを完全に削除する" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "アカウントの利用を終了する" })).not.toBeNull();
     expect(mocks.loginMethodsProps).toEqual(
       expect.objectContaining({
         flow: "connect-google",

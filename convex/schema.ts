@@ -133,6 +133,8 @@ const schema = defineSchema({
     email: v.string(),
     emailNormalized: v.string(),
     status: organizationPersonStatusValidator,
+    // LINE連携の解除・再連携ごとに進める世代。既存rowの欠損は0として読む。
+    lineLinkGeneration: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -193,6 +195,7 @@ const schema = defineSchema({
     .index("by_organizationId_and_emailNormalized_and_status", ["organizationId", "emailNormalized", "status"])
     .index("by_organizationId_and_targetPersonId_and_status", ["organizationId", "targetPersonId", "status"])
     .index("by_organizationId_and_status", ["organizationId", "status"])
+    .index("by_organizationId_and_status_and_expiresAt", ["organizationId", "status", "expiresAt"])
     .index("by_inviterMemberId_and_status", ["inviterMemberId", "status"])
     .index("by_expiresAt", ["expiresAt"]),
 
@@ -264,6 +267,8 @@ const schema = defineSchema({
     providerGeneration: v.optional(v.number()),
     sourcePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
     targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+    // targetPlan=freeの旧予約と、新しい「期間末に利用停止」をrolling互換で識別する。
+    restrictAtPeriodEnd: v.optional(v.literal(true)),
     changeMode: v.optional(v.union(v.literal("checkout"), v.literal("immediate"), v.literal("periodEnd"))),
     stripeSubscriptionIdSnapshot: v.optional(v.string()),
     stripeSubscriptionItemIdSnapshot: v.optional(v.string()),
@@ -426,7 +431,32 @@ const schema = defineSchema({
       v.literal("actionRequired"),
       v.literal("completed"),
     ),
-    phase: v.union(v.literal("verifyProviderUser"), v.literal("deleteProviderUser"), v.literal("complete")),
+    phase: v.union(
+      v.literal("waitForOrganizationCleanup"),
+      v.literal("waitForSharedCleanup"),
+      v.literal("verifyProviderUser"),
+      v.literal("deleteProviderUser"),
+      v.literal("complete"),
+    ),
+    // 組織削除を伴う要求だけが持つ。optional wideningのため既存jobのbackfillは不要。
+    organizationCleanup: v.optional(
+      v.object({
+        organizationId: v.id("organizations"),
+        jobId: v.id("deletionCleanupJobs"),
+      }),
+    ),
+    // 共有組織からの退出で削除する通知履歴を追跡する。optional wideningのため既存jobのbackfillは不要。
+    sharedCleanup: v.optional(
+      v.object({
+        organizationId: v.id("organizations"),
+        targets: v.array(
+          v.object({
+            shopId: v.id("shops"),
+            staffId: v.id("staffs"),
+          }),
+        ),
+      }),
+    ),
     version: v.number(),
     attemptCount: v.number(),
     nextRunAt: v.number(),
@@ -547,6 +577,11 @@ const schema = defineSchema({
     .index("by_userId_and_isDeleted", ["userId", "isDeleted"])
     .index("by_organizationId", ["organizationId"])
     .index("by_organizationId_and_organizationPersonId", ["organizationId", "organizationPersonId"])
+    .index("by_organizationId_and_organizationPersonId_and_isDeleted", [
+      "organizationId",
+      "organizationPersonId",
+      "isDeleted",
+    ])
     .index("by_email", ["email"])
     .index("by_emailNormalized", ["emailNormalized"]),
 
@@ -563,12 +598,77 @@ const schema = defineSchema({
     isDeleted: v.boolean(),
   })
     .index("by_staffId", ["staffId"])
+    .index("by_staffId_and_isDeleted", ["staffId", "isDeleted"])
     .index("by_shopId", ["shopId"])
     .index("by_shopId_and_isDeleted", ["shopId", "isDeleted"])
     .index("by_lineUserId", ["lineUserId"])
     .index("by_lineUserId_and_isDeleted", ["lineUserId", "isDeleted"])
     // 分析KPI: 日次窓（JST）でのLINE連携完了のレンジスキャン用（再連携でもlinkedAtは初回値を保持）
     .index("by_linkedAt", ["linkedAt"]),
+
+  // LINE provider上の友だち状態はorganizationをまたいで一つだけ保持する。
+  lineProviderUsers: defineTable({
+    lineUserId: v.string(),
+    following: v.boolean(),
+    stateVersion: v.number(),
+    friendshipObservedAt: v.number(),
+    friendshipObservationSource: v.union(v.literal("oauth"), v.literal("webhook")),
+    lastWebhookAt: v.optional(v.number()),
+    lastWebhookEventId: v.optional(v.string()),
+    lastWebhookEventTimestamp: v.optional(v.number()),
+    isDeleted: v.boolean(),
+  }).index("by_lineUserId_and_isDeleted", ["lineUserId", "isDeleted"]),
+
+  // organizationごとの明示連携。同じpersonの全店舗所属でこの一行を共有する。
+  organizationPersonLineLinks: defineTable({
+    organizationId: v.id("organizations"),
+    organizationPersonId: v.id("organizationPeople"),
+    lineProviderUserId: v.id("lineProviderUsers"),
+    generation: v.number(),
+    linkedAt: v.number(),
+    isDeleted: v.boolean(),
+    unlinkedAt: v.optional(v.number()),
+  })
+    .index("by_organizationPersonId_and_isDeleted", ["organizationPersonId", "isDeleted"])
+    .index("by_organizationId_and_lineProviderUserId_and_isDeleted", [
+      "organizationId",
+      "lineProviderUserId",
+      "isDeleted",
+    ])
+    .index("by_lineProviderUserId_and_isDeleted", ["lineProviderUserId", "isDeleted"])
+    .index("by_organizationId_and_isDeleted", ["organizationId", "isDeleted"]),
+
+  // 友だち状態変更をorganization link単位へboundedに反映する進捗。
+  // provider IDだけを保持し、raw LINE IDやtoken、人物PIIは保存しない。
+  lineFriendshipFanoutJobs: defineTable({
+    lineProviderUserId: v.id("lineProviderUsers"),
+    stateVersion: v.number(),
+    following: v.boolean(),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("processing"),
+      v.literal("retrying"),
+      v.literal("actionRequired"),
+      v.literal("completed"),
+      v.literal("superseded"),
+    ),
+    cursor: v.optional(v.string()),
+    version: v.number(),
+    attemptCount: v.number(),
+    nextRunAt: v.number(),
+    leaseId: v.optional(v.string()),
+    leaseExpiresAt: v.optional(v.number()),
+    lastErrorCode: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    expiresAt: v.number(),
+  })
+    .index("by_status_and_nextRunAt", ["status", "nextRunAt"])
+    .index("by_status_and_leaseExpiresAt", ["status", "leaseExpiresAt"])
+    .index("by_status_and_expiresAt", ["status", "expiresAt"])
+    .index("by_lineProviderUserId_and_stateVersion", ["lineProviderUserId", "stateVersion"])
+    .index("by_expiresAt", ["expiresAt"]),
 
   // message Webhookの外部Reply APIを一回だけ実行するためのreceipt。
   // reply token、送信元、message ID、本文は保存しない。
@@ -807,6 +907,10 @@ const schema = defineSchema({
   lineLinkTokens: defineTable({
     staffId: v.id("staffs"),
     shopId: v.id("shops"),
+    // TODO[narrow]: canonical LINE切替と旧token drain完了後にrequired化する。
+    organizationId: v.optional(v.id("organizations")),
+    organizationPersonId: v.optional(v.id("organizationPeople")),
+    lineLinkGenerationAtIssue: v.optional(v.number()),
     token: v.string(), // UUID v4
     expiresAt: v.number(), // 発行から72時間
     usedAt: v.optional(v.number()),
@@ -815,6 +919,7 @@ const schema = defineSchema({
     .index("by_token", ["token"])
     .index("by_staffId", ["staffId"])
     .index("by_staffId_and_expiresAt", ["staffId", "expiresAt"])
+    .index("by_organizationPersonId_and_expiresAt", ["organizationPersonId", "expiresAt"])
     .index("by_shopId", ["shopId"])
     .index("by_expiresAt", ["expiresAt"]),
 
@@ -890,6 +995,9 @@ const schema = defineSchema({
     purpose: v.optional(notificationPurposeValidator),
     recruitmentId: v.optional(v.id("recruitments")),
     staffId: v.optional(v.id("staffs")),
+    // canonical LINE recipientのenqueue時snapshot。LINE以外では未設定が正しい。
+    organizationPersonLineLinkId: v.optional(v.id("organizationPersonLineLinks")),
+    organizationPersonLineGenerationAtEnqueue: v.optional(v.number()),
     userId: v.optional(v.id("users")),
     notificationContext: v.optional(v.string()),
     deliverySuppressed: v.optional(v.boolean()),

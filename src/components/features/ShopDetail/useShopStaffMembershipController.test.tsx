@@ -42,13 +42,16 @@ vi.mock("@/src/components/shared/feedback", () => ({
 }));
 
 import {
+  buildShopStaffRemovalPreviewKey,
   type ShopStaffMembershipSubmitResult,
   useShopStaffMembershipController,
 } from "./useShopStaffMembershipController";
 
 const shopId = "shop-target" as Id<"shops">;
 const personId = "person-target" as Id<"organizationPeople">;
+const anotherPersonId = "person-another" as Id<"organizationPeople">;
 const staffId = "staff-target" as Id<"staffs">;
+const anotherStaffId = "staff-another" as Id<"staffs">;
 
 const data: ShopStaffMembershipData = {
   membershipFingerprint: "a".repeat(64),
@@ -128,7 +131,7 @@ describe("店舗詳細の所属スタッフ変更", () => {
     );
 
     act(() => {
-      expect(result.current.requestRemovalPreview([personId], data.membershipFingerprint)).toBe(true);
+      expect(result.current.ensureRemovalPreview([personId], data.membershipFingerprint)).toBe(true);
     });
 
     await waitFor(() =>
@@ -139,9 +142,129 @@ describe("店舗詳細の所属スタッフ変更", () => {
         now: 1_786_406_400_000,
       }),
     );
+    expect(result.current.removalPreviewState).toEqual({
+      kind: "loading",
+      key: buildShopStaffRemovalPreviewKey([personId], data.membershipFingerprint),
+    });
   });
 
-  it("所属変更前に古いpreview購読を解除し、処理中は取得済みpreviewを保持する", async () => {
+  it("対象IDを正規化し、同じ対象集合のpreview要求を重複させない", async () => {
+    vi.spyOn(Date, "now").mockReturnValueOnce(1_786_406_400_000).mockReturnValueOnce(1_786_406_500_000);
+    const { result } = renderHook(() =>
+      useShopStaffMembershipController({ shopId, isOpen: true, onSucceeded: vi.fn() }),
+    );
+
+    act(() => {
+      expect(result.current.ensureRemovalPreview([personId, anotherPersonId], data.membershipFingerprint)).toBe(true);
+    });
+    await waitFor(() =>
+      expect(mocks.useQuery).toHaveBeenCalledWith(mocks.previewQueryRef, {
+        shopId: "shop-target",
+        personIds: [anotherPersonId, personId],
+        expectedMembershipFingerprint: data.membershipFingerprint,
+        now: 1_786_406_400_000,
+      }),
+    );
+    const previewQueryCallCount = mocks.useQuery.mock.calls.filter(
+      ([query, args]) => query === mocks.previewQueryRef && args !== "skip",
+    ).length;
+
+    act(() => {
+      expect(result.current.ensureRemovalPreview([anotherPersonId, personId], data.membershipFingerprint)).toBe(true);
+    });
+
+    expect(
+      mocks.useQuery.mock.calls.filter(([query, args]) => query === mocks.previewQueryRef && args !== "skip"),
+    ).toHaveLength(previewQueryCallCount);
+  });
+
+  it("解除対象が変わると古いready previewを即座に無効化する", async () => {
+    const firstReadyPreview = {
+      kind: "ready" as const,
+      removals: input.removalPreviews,
+      totalAssignmentCount: 2,
+    };
+    const secondReadyPreview = {
+      kind: "ready" as const,
+      removals: [
+        {
+          personId: anotherPersonId,
+          staffId: anotherStaffId,
+          assignmentCount: 1,
+          fingerprint: "c".repeat(64),
+        },
+      ],
+      totalAssignmentCount: 1,
+    };
+    const { result, rerender } = renderHook(
+      ({ version }) => {
+        void version;
+        return useShopStaffMembershipController({ shopId, isOpen: true, onSucceeded: vi.fn() });
+      },
+      { initialProps: { version: 1 } },
+    );
+
+    act(() => {
+      result.current.ensureRemovalPreview([personId], data.membershipFingerprint);
+    });
+    mocks.previewData = firstReadyPreview;
+    rerender({ version: 2 });
+    await waitFor(() =>
+      expect(result.current.removalPreviewState).toEqual({
+        kind: "ready",
+        key: buildShopStaffRemovalPreviewKey([personId], data.membershipFingerprint),
+        preview: firstReadyPreview,
+      }),
+    );
+
+    mocks.previewData = undefined;
+    act(() => {
+      result.current.ensureRemovalPreview([anotherPersonId], data.membershipFingerprint);
+    });
+    await waitFor(() =>
+      expect(result.current.removalPreviewState).toEqual({
+        kind: "loading",
+        key: buildShopStaffRemovalPreviewKey([anotherPersonId], data.membershipFingerprint),
+      }),
+    );
+
+    mocks.previewData = secondReadyPreview;
+    rerender({ version: 3 });
+    await waitFor(() =>
+      expect(result.current.removalPreviewState).toEqual({
+        kind: "ready",
+        key: buildShopStaffRemovalPreviewKey([anotherPersonId], data.membershipFingerprint),
+        preview: secondReadyPreview,
+      }),
+    );
+  });
+
+  it("previewがstaleの場合は現在のkeyに結び付けて再読み込みを案内する", async () => {
+    const { result, rerender } = renderHook(
+      ({ version }) => {
+        void version;
+        return useShopStaffMembershipController({ shopId, isOpen: true, onSucceeded: vi.fn() });
+      },
+      { initialProps: { version: 1 } },
+    );
+
+    act(() => {
+      result.current.ensureRemovalPreview([personId], data.membershipFingerprint);
+    });
+    mocks.previewData = { kind: "stale" };
+    rerender({ version: 2 });
+
+    await waitFor(() => {
+      expect(result.current.removalPreviewState).toEqual({
+        kind: "stale",
+        key: buildShopStaffRemovalPreviewKey([personId], data.membershipFingerprint),
+        preview: { kind: "stale" },
+      });
+      expect(result.current.errorMessage).toContain("画面を再読み込みして");
+    });
+  });
+
+  it("所属変更前に古いpreview購読を解除し、処理中は送信対象のready previewだけを保持する", async () => {
     let resolveMutation: (() => void) | undefined;
     mocks.previewData = {
       kind: "ready",
@@ -158,9 +281,15 @@ describe("店舗詳細の所属スタッフ変更", () => {
     );
 
     act(() => {
-      expect(result.current.requestRemovalPreview([personId], data.membershipFingerprint)).toBe(true);
+      expect(result.current.ensureRemovalPreview([personId], data.membershipFingerprint)).toBe(true);
     });
-    await waitFor(() => expect(result.current.removalPreview).toEqual(mocks.previewData));
+    await waitFor(() =>
+      expect(result.current.removalPreviewState).toEqual({
+        kind: "ready",
+        key: buildShopStaffRemovalPreviewKey([personId], data.membershipFingerprint),
+        preview: mocks.previewData,
+      }),
+    );
 
     let submission: Promise<ShopStaffMembershipSubmitResult | undefined> | undefined;
     act(() => {
@@ -168,7 +297,11 @@ describe("店舗詳細の所属スタッフ変更", () => {
     });
 
     await waitFor(() => expect(mocks.useQuery).toHaveBeenLastCalledWith(mocks.previewQueryRef, "skip"));
-    expect(result.current.removalPreview).toEqual(mocks.previewData);
+    expect(result.current.removalPreviewState).toEqual({
+      kind: "ready",
+      key: buildShopStaffRemovalPreviewKey([personId], data.membershipFingerprint),
+      preview: mocks.previewData,
+    });
     await act(async () => resolveMutation?.());
     await expect(submission).resolves.toBe("succeeded");
   });
@@ -285,6 +418,24 @@ describe("店舗詳細の所属スタッフ変更", () => {
 
     expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith(input);
     expect(result.current.errorMessage).toContain("画面を再読み込みして");
+  });
+
+  it("確定拒否の案内は同じ選択の自動previewを開始しても消さない", async () => {
+    mocks.mutation.mockRejectedValueOnce(new ConvexError("変更操作が続いています。"));
+    const { result } = renderHook(() =>
+      useShopStaffMembershipController({ shopId, isOpen: true, onSucceeded: vi.fn() }),
+    );
+
+    await act(async () => {
+      await expect(result.current.submitChange(input)).resolves.toBe("rejected");
+    });
+    expect(result.current.errorMessage).toBe("変更操作が続いています。");
+
+    act(() => {
+      expect(result.current.ensureRemovalPreview([personId], data.membershipFingerprint)).toBe(true);
+    });
+
+    expect(result.current.errorMessage).toBe("変更操作が続いています。");
   });
 
   it("結果不明の再試行が確定拒否された後は同一inputの例外扱いを解除する", async () => {

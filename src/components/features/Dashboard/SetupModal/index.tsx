@@ -157,10 +157,10 @@ export const SetupModal = ({
           form="setup-step2"
           colorPalette="teal"
           loading={isSubmitting}
-          loadingText="お店を登録する"
+          loadingText="お店を登録してトライアルを開始"
           disabled={isSubmitting}
         >
-          お店を登録する
+          お店を登録してトライアルを開始
         </Button>
       </>
     );

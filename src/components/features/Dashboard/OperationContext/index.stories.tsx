@@ -24,8 +24,12 @@ const multipleShops = [
   shop({ shopId: "shop-b-1", shopName: "C店舗", organizationId: "org-b", organizationName: "関西事業部" }),
   shop({ shopId: "shop-b-2", shopName: "D店舗", organizationId: "org-b", organizationName: "関西事業部" }),
 ];
+const multipleOrganizations = [
+  ...multipleShops,
+  shop({ shopId: "shop-c-1", shopName: "E店舗", organizationId: "org-c", organizationName: "中部事業部" }),
+];
 const longOrganizationName = "株式会社とても長い名前のフードサービスグループ";
-const mobileShops = multipleShops.map((option) =>
+const mobileShops = multipleOrganizations.map((option) =>
   option.organizationId === "org-a" ? { ...option, organizationName: longOrganizationName } : option,
 );
 const paidPlanStatusCard = {
@@ -125,6 +129,25 @@ export const ExpandedWithPaidPlanMobile: Story = {
   ...ExpandedWithPaidPlan,
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
+};
+
+export const ExpandedWithPaidPlanAndMultipleOrganizations: Story = {
+  args: {
+    model: createModel(multipleOrganizations, "shop-a-1"),
+    planStatusCard: paidPlanStatusCard,
+    billingSettingsShopId: "shop-a-1",
+  },
+};
+
+export const ExpandedWithPaidPlanAndMultipleOrganizationsMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  args: {
+    model: createModel(mobileShops, "shop-b-1"),
+    organizationSettingsShopId: "shop-b-1",
+    planStatusCard: paidPlanStatusCard,
+    billingSettingsShopId: "shop-b-1",
+  },
 };
 
 export const SelectionBehavior: Story = {

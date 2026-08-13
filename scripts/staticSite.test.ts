@@ -13,6 +13,7 @@ import {
   FIXED_PUBLIC_ROUTES,
   getCanonicalRoute,
   getIndexableCanonicalRoutes,
+  NOINDEX_PUBLIC_ROUTES,
   routeToHtmlPath,
 } from "./staticSite";
 
@@ -102,10 +103,13 @@ describe("static site manifest", () => {
   });
 
   it("sitemap対象をindex可能なcanonical URLへ重複なく畳み込む", () => {
+    expect(FIXED_PUBLIC_ROUTES).toContain("/commercial-transactions");
+    expect(NOINDEX_PUBLIC_ROUTES.has("/commercial-transactions")).toBe(true);
     expect(
       getIndexableCanonicalRoutes([
         "/",
         "/cache-reset",
+        "/commercial-transactions",
         "/articles/line-shift-collection-guide",
         "/articles/shiftori-line-workflow",
       ]),
@@ -137,6 +141,7 @@ describe("static site manifest", () => {
   it.each([
     ["/", "index.html"],
     ["/features", "features.html"],
+    ["/pricing", "pricing.html"],
     ["/articles/example", "articles/example.html"],
   ])("%sを末尾slashなしのHTML pathへ変換する", (route, expected) => {
     expect(routeToHtmlPath(route)).toBe(expected);

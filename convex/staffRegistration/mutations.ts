@@ -11,6 +11,11 @@ import { normalizeEmail } from "../_lib/validation";
 import { STAFF_REGISTRATION_PENDING_LIMIT } from "../constants";
 import { getLegalConsentVersions } from "../legal/documents";
 import { recordStaffLegalConsentSnapshot } from "../legal/service";
+import {
+  getOrganizationPersonLineState,
+  resolveOrganizationPersonLineInheritanceRecipient,
+  upsertStaffLineAccount,
+} from "../line/service";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { recordOrganizationAuditEvent } from "../organization/audit";
 import { requireOrganizationCapacity } from "../organizationBilling/service";
@@ -19,6 +24,7 @@ import {
   materializeOrganizationPeopleForStaffAddition,
   prepareOrganizationPeopleForStaffAddition,
   releasePendingInvitationReservationsForStaffAddition,
+  requireAdditionalShopMembershipEnabled,
 } from "../staff/service";
 import { resolveStaffRegistrationCapability } from "./capability";
 import { staffRegistrationFormSchema } from "./schemas";
@@ -279,6 +285,35 @@ export const approveRequest = managerMutation({
       staffEmailNormalized = materialized.email;
     }
 
+    let lineState: Awaited<ReturnType<typeof getOrganizationPersonLineState>> = null;
+    let lineRecipient: Awaited<ReturnType<typeof resolveOrganizationPersonLineInheritanceRecipient>> = null;
+    if (organizationId && organizationPersonId) {
+      await requireAdditionalShopMembershipEnabled(ctx, {
+        organizationId,
+        organizationPersonId,
+        targetShopId: ctx.shop._id,
+      });
+      lineRecipient = await resolveOrganizationPersonLineInheritanceRecipient(ctx, {
+        organizationId,
+        organizationPersonId,
+      });
+      lineState = await getOrganizationPersonLineState(ctx, { organizationId, organizationPersonId });
+      if (!lineState) {
+        throw new ConvexError("スタッフのLINE連携状態を確認できません。\n画面を更新して、もう一度お試しください。");
+      }
+      const expectedStatus = lineRecipient
+        ? lineRecipient.following
+          ? "linked_following"
+          : "linked_unfollowed"
+        : "unlinked";
+      if (
+        lineState.status !== expectedStatus ||
+        (lineRecipient !== null && lineRecipient.authority !== lineState.authority)
+      ) {
+        throw new ConvexError("スタッフのLINE連携状態を確認できません。\n画面を更新して、もう一度お試しください。");
+      }
+    }
+
     // TODO[narrow]: 全deploymentでm025/m027完走・staff readiness 0確認後、canonical IDsを必須にする。
     const staffId = await ctx.db.insert("staffs", {
       shopId: ctx.shop._id,
@@ -289,6 +324,14 @@ export const approveRequest = managerMutation({
       excludedFromShift: false,
       isDeleted: false,
     });
+    if (lineRecipient?.authority === "legacy") {
+      await upsertStaffLineAccount(ctx, {
+        staffId,
+        shopId: ctx.shop._id,
+        lineUserId: lineRecipient.lineUserId,
+        following: lineRecipient.following,
+      });
+    }
 
     await recordStaffLegalConsentSnapshot(ctx, {
       staffId,
@@ -335,19 +378,27 @@ export const approveRequest = managerMutation({
             status: "active",
             isShiftTarget: true,
             validFrom: reviewedAt,
-            lineLinked: false,
-            lineFollowing: false,
+            lineLinked: lineState !== null && lineState.status !== "unlinked",
+            lineFollowing: lineState?.status === "linked_following",
           },
         },
       });
     }
     const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
 
-    await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
-      staffId,
-      context: "registration_approved",
-      ...notificationOrigin,
-    });
+    if (!lineRecipient) {
+      await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
+        staffId,
+        ...(organizationPersonId && lineState
+          ? {
+              organizationPersonId,
+              lineLinkGenerationAtSchedule: lineState.generation,
+            }
+          : {}),
+        context: "registration_approved",
+        ...notificationOrigin,
+      });
+    }
     await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaff, {
       staffId,
       ...notificationOrigin,

@@ -139,7 +139,7 @@ export const AuthGuard = ({
         !shopContextResolution.shouldNormalizeUrl &&
         isSameSelectedShop(selectedShop, shopContextResolution.shop));
 
-  // 古いbackendの欠損値も「全て非公開」に正規化し、atomへ反映されるまで子画面を描画しない。
+  // queryとatomの機能DTOを同期し、古い永続値が残る間の描画を避ける。
   const isUserContextReady =
     Boolean(userId && currentUser && !isAccountDeleted) &&
     user.authId === userId &&

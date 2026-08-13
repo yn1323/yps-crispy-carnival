@@ -36,7 +36,7 @@ export function UserShopNotificationSection({
   sendRecruitmentsAction,
   sendCurrentShiftAction,
 }: Props) {
-  const isLineActive = membership.line.isLinked && membership.line.isFollowing;
+  const isLineActive = data.line.status === "linked_following";
   const hasNotificationChannel = data.person.email.length > 0 || isLineActive;
   const canSendNotification = !isReadOnly && !membership.excludedFromShift && hasNotificationChannel;
 
@@ -64,7 +64,7 @@ export function UserShopNotificationSection({
               <Stack gap={1}>
                 <Text fontWeight="semibold">通知手段がありません</Text>
                 <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-                  スタッフ情報にメールアドレスを登録するか、「LINE連携」からこの店舗向けのLINE連携を設定してください。
+                  スタッフ情報にメールアドレスを登録するか、スタッフ詳細の「LINE連携」から設定してください。
                 </Text>
               </Stack>
             </Box>

@@ -32,9 +32,9 @@ async function setupTestData(
       staffId,
       shopId,
       termsConsentVersion: "staff-terms-consent-2026-05-09",
-      privacyConsentVersion: "staff-privacy-consent-2026-05-09",
+      privacyConsentVersion: "staff-privacy-consent-2026-08-13",
       termsDocumentVersion: "staff-terms-doc-2026-05-09",
-      privacyDocumentVersion: "staff-privacy-doc-2026-07-10",
+      privacyDocumentVersion: "staff-privacy-doc-2026-08-13",
       consentedAt: Date.now(),
       method: "staff_email_link",
     });
@@ -758,9 +758,9 @@ describe("shiftSubmission/mutations", () => {
       });
 
       expect(state?.termsConsentVersion).toBe("staff-terms-consent-2026-05-09");
-      expect(state?.privacyConsentVersion).toBe("staff-privacy-consent-2026-05-09");
+      expect(state?.privacyConsentVersion).toBe("staff-privacy-consent-2026-08-13");
       expect(state?.termsDocumentVersion).toBe("staff-terms-doc-2026-05-09");
-      expect(state?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-07-10");
+      expect(state?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-08-13");
       expect(state?.method).toBe("shift_submit");
       expect(events).toHaveLength(1);
       expect(events[0].method).toBe("shift_submit");

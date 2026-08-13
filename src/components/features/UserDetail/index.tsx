@@ -11,9 +11,10 @@ import {
 } from "./navigation";
 import type { UserDetailData, UserDetailPanel, UserDetailReturnTo } from "./types";
 import { UserDetailView } from "./UserDetailView";
-import { useUserManagerActions } from "./useUserManagerActions";
+import { useUserLineActions } from "./useUserLineActions";
 import { useUserMembershipActions } from "./useUserMembershipActions";
 import { useUserProfileUpdate } from "./useUserProfileUpdate";
+import { useUserRemovalActions } from "./useUserRemovalActions";
 
 type Props = {
   data: UserDetailData;
@@ -45,10 +46,11 @@ export function UserDetail({
   visiblePersonIdRef.current = data.person.id;
 
   const profile = useUserProfileUpdate({ data, selectedShopId });
+  const line = useUserLineActions({ data });
   const membership = useUserMembershipActions({
     canChangeMembership: data.canWrite && showShopMembershipAddition,
   });
-  const manager = useUserManagerActions({
+  const removal = useUserRemovalActions({
     data,
     selectedShopId,
     onPersonRemoved: (removedPersonId) => {
@@ -91,31 +93,41 @@ export function UserDetail({
   };
 
   const handleClosePanel = () => {
-    manager.onCloseDialog();
-    manager.onCancelManagerAssignment();
     updateSearch({ panel: undefined });
   };
+
+  const managerSettingsShopId =
+    selectedShopId ?? data.shops.find((shop) => shop.shopStatus === "active")?.shopId ?? data.shops[0]?.shopId;
 
   return (
     <UserDetailView
       data={data}
       showShopMembershipAddition={showShopMembershipAddition}
+      managerSettingsDisabledReason={
+        managerSettingsShopId ? undefined : "操作できる店舗がないため、管理者設定を開けません。"
+      }
       activePanel={activePanel}
       state={{
         isUpdatingProfile: profile.isUpdating,
+        line: {
+          authorizeUrl: line.authorizeUrl,
+          showQr: line.showQr,
+          isQrLoading: line.isQrLoading,
+          isSendingInvite: line.isSendingInvite,
+          isDisconnecting: line.isDisconnecting,
+        },
         membership: {
           isChanging: membership.isChangingMemberships,
         },
-        manager: {
-          dialog: manager.dialog,
-          isAssignmentConfirmationOpen: manager.isAssignmentConfirmationOpen,
-          isAssigning: manager.isAssigningManager,
-          isRemoving: manager.isRemoving,
+        removal: {
+          dialog: removal.dialog,
+          isRemoving: removal.isRemoving,
         },
       }}
       actions={{
         onBack: handleBack,
         onOpenBasic: () => updateSearch({ panel: "basic" }),
+        onOpenLine: () => updateSearch({ panel: "line" }),
         onOpenAddShop: () => {
           if (!showShopMembershipAdditionRef.current) return;
           updateSearch({ panel: "addShop" });
@@ -139,6 +151,9 @@ export function UserDetail({
             handleClosePanel();
           }
         },
+        onShowLineQr: line.onShowQr,
+        onSendLineInvite: line.onSendInvite,
+        onDisconnectLine: line.onDisconnect,
         onChangeMemberships: async (input) => {
           if (!showShopMembershipAdditionRef.current) return;
           const personId = data.person.id;
@@ -147,17 +162,15 @@ export function UserDetail({
             handleClosePanel();
           }
         },
-        onRequestManagerAssignment: manager.onRequestManagerAssignment,
-        onCancelManagerAssignment: manager.onCancelManagerAssignment,
-        onAssignManager: async () => {
-          await manager.onAssignManager();
+        onManageManagers: () => {
+          if (!managerSettingsShopId) return;
+          void navigate({ to: "/settings/managers", search: { shop: managerSettingsShopId } });
         },
-        onRequestRemoveManagerRole: manager.onRequestRemoveManagerRole,
-        onRequestRemovePerson: manager.onRequestRemovePerson,
-        onConfirmManagerSetting: async () => {
-          await manager.onConfirmRemoval();
+        onRequestRemovePerson: removal.onRequestRemovePerson,
+        onConfirmRemovePerson: async () => {
+          await removal.onConfirmRemoval();
         },
-        onCloseManagerDialog: manager.onCloseDialog,
+        onCloseRemovalDialog: removal.onCloseDialog,
       }}
     />
   );

@@ -12,6 +12,11 @@ const ISSUER = "https://quick-fox-12.clerk.accounts.dev";
 const TOKEN = "a".repeat(43);
 const SIGNING_SECRET = "test-only-organization-invitation-secret-123456";
 
+type Deferred<T = void> = {
+  promise: Promise<T>;
+  resolve: (value: T | PromiseLike<T>) => void;
+};
+
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.useRealTimers();
@@ -75,7 +80,6 @@ describe("organizationInvitation/acceptanceActions", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-04T12:00:00+09:00"));
     vi.stubEnv("ORGANIZATION_INVITATION_SIGNING_SECRET", SIGNING_SECRET);
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "enabled");
 
     const t = convexTest(schema, modules);
     const manager = await t.run((ctx) =>
@@ -84,10 +88,9 @@ describe("organizationInvitation/acceptanceActions", () => {
     const invitationEmail = "provider-failure-target@example.com";
     const created = await t
       .withIdentity({ subject: "provider_failure_owner" })
-      .mutation(api.organizationInvitation.mutations.createExternal, {
+      .mutation(api.organizationInvitation.mutations.issue, {
         shopId: manager.shopId,
-        name: "Provider復旧対象",
-        email: invitationEmail,
+        recipient: { kind: "external", invitedName: "Provider復旧対象", email: invitationEmail },
         requestId: "provider-failure-create",
       });
     const invitation = await t.run((ctx) => ctx.db.get(created.invitationId));
@@ -105,6 +108,16 @@ describe("organizationInvitation/acceptanceActions", () => {
       tokenIdentifier: actorTokenIdentifier,
       email: "different-login@example.com",
     });
+    await expect(
+      t.run(async (ctx) =>
+        ctx.db
+          .query("organizationPeople")
+          .withIndex("by_organizationId_and_emailNormalized", (q) =>
+            q.eq("organizationId", manager.organizationId).eq("emailNormalized", invitationEmail),
+          )
+          .collect(),
+      ),
+    ).resolves.toEqual([]);
     const beforeFailure = await invitationAcceptancePersistentState(t, invitation._id, manager.organizationId);
     const unavailableProvider = providerStub(new Set());
     unavailableProvider.getVerifiedEmails = vi.fn(async () => {
@@ -237,6 +250,146 @@ describe("organizationInvitation/acceptanceActions", () => {
       }),
     );
   });
+
+  it("同じtokenを二actorが実並行で受諾しても一人だけを連携し、副作用を一組だけ作る", async () => {
+    const fixture = await seedAcceptanceFixture("parallel_token");
+    const barrier = deferred<void>();
+    const providerInvoked = deferred<void>();
+    const firstProvider = providerStub(new Set([fixture.email]));
+    firstProvider.getVerifiedEmails = vi.fn(async () => {
+      providerInvoked.resolve();
+      await barrier.promise;
+      return new Set([fixture.email]);
+    });
+    const firstActor = invitationActor(fixture.t, "parallel_token_first", "parallel-first@example.com");
+    const secondActor = invitationActor(fixture.t, "parallel_token_second", "parallel-second@example.com");
+
+    const firstAcceptance = firstActor.action(
+      async (ctx) => await runInvitationAcceptance(ctx, firstProvider, configuration(), fixture.token),
+    );
+    await providerInvoked.promise;
+    const secondAcceptance = await secondActor.action(
+      async (ctx) =>
+        await runInvitationAcceptance(ctx, providerStub(new Set([fixture.email])), configuration(), fixture.token),
+    );
+    barrier.resolve();
+    const firstResult = await firstAcceptance;
+
+    expect([firstResult.status, secondAcceptance.status].sort()).toEqual(["conflict", "linked"]);
+    const winnerSubject = firstResult.status === "linked" ? "parallel_token_first" : "parallel_token_second";
+    const state = await invitationAcceptancePersistentState(
+      fixture.t,
+      fixture.invitation._id,
+      fixture.manager.organizationId,
+    );
+    const targetPeople = state.people.filter((person) => person.emailNormalized === fixture.email);
+    const targetMembers = targetPeople.flatMap((person) =>
+      state.members.filter((member) => member.personId === person._id),
+    );
+    expect(targetPeople).toHaveLength(1);
+    expect(targetPeople[0]?.userId).toBeDefined();
+    const winnerUser = state.users.find((user) => user.authTokenIdentifier === `${ISSUER}|${winnerSubject}`);
+    expect(winnerUser).toBeDefined();
+    expect(
+      state.users
+        .map((user) => user.authTokenIdentifier)
+        .filter((identifier) =>
+          [`${ISSUER}|parallel_token_first`, `${ISSUER}|parallel_token_second`].includes(identifier),
+        ),
+    ).toEqual([`${ISSUER}|${winnerSubject}`]);
+    expect(targetPeople[0]?.userId).toBe(winnerUser?._id);
+    expect(targetMembers).toHaveLength(1);
+    expect(targetMembers[0]).toMatchObject({ userId: winnerUser?._id, status: "active" });
+    expect(state.invitation).toMatchObject({
+      status: "linked",
+      linkedByPersonId: targetPeople[0]?._id,
+      reservedSeat: false,
+      version: fixture.invitation.version + 1,
+    });
+    expect(
+      state.audits
+        .filter((audit) => audit.action === "organization.manager_invitation_linked")
+        .map((audit) => ({
+          actorUserId: audit.actorUserId,
+          targetId: audit.targetId,
+        })),
+    ).toEqual([{ actorUserId: winnerUser?._id, targetId: fixture.invitation._id }]);
+    expect(
+      state.scheduled
+        .filter((job) => job.name === "organizationInvitation/actions:enqueueAcceptanceNotifications")
+        .map((job) => job.args[0]),
+    ).toEqual([
+      {
+        invitationId: fixture.invitation._id,
+        expectedVersion: fixture.invitation.version + 1,
+        organizationBillingVersionAtOrigin: 1,
+      },
+    ]);
+  });
+
+  it.each(["resend", "revoke"] as const)(
+    "prepare後に%sされた古いtokenはconflictになり、人物・所属・受諾通知を作らない",
+    async (operation) => {
+      const fixture = await seedAcceptanceFixture(`accept_${operation}`);
+      const barrier = deferred<void>();
+      const providerInvoked = deferred<void>();
+      const provider = providerStub(new Set([fixture.email]));
+      provider.getVerifiedEmails = vi.fn(async () => {
+        providerInvoked.resolve();
+        await barrier.promise;
+        return new Set([fixture.email]);
+      });
+      const targetActor = invitationActor(
+        fixture.t,
+        `accept_${operation}_target`,
+        `different-${operation}@example.com`,
+      );
+      const acceptance = targetActor.action(
+        async (ctx) => await runInvitationAcceptance(ctx, provider, configuration(), fixture.token),
+      );
+      await providerInvoked.promise;
+
+      if (operation === "resend") {
+        await fixture.owner.mutation(api.organizationInvitation.mutations.resend, {
+          shopId: fixture.manager.shopId,
+          invitationId: fixture.invitation._id,
+          requestId: `accept-${operation}-rotate`,
+        });
+      } else {
+        await fixture.owner.mutation(api.organizationInvitation.mutations.revoke, {
+          shopId: fixture.manager.shopId,
+          invitationId: fixture.invitation._id,
+          requestId: `accept-${operation}-revoke`,
+        });
+      }
+      const beforeFinalize = await invitationAcceptancePersistentState(
+        fixture.t,
+        fixture.invitation._id,
+        fixture.manager.organizationId,
+      );
+      barrier.resolve();
+
+      await expect(acceptance).resolves.toEqual({ status: "conflict" });
+      expect(
+        await invitationAcceptancePersistentState(fixture.t, fixture.invitation._id, fixture.manager.organizationId),
+      ).toEqual(beforeFinalize);
+      const targetPeople = beforeFinalize.people.filter((person) => person.emailNormalized === fixture.email);
+      expect(targetPeople).toEqual([]);
+      expect(
+        beforeFinalize.scheduled.filter(
+          (job) => job.name === "organizationInvitation/actions:enqueueAcceptanceNotifications",
+        ),
+      ).toEqual([]);
+      expect(beforeFinalize.invitation).toMatchObject({ status: "revoked", reservedSeat: false });
+      if (operation === "resend") {
+        const issuedSuccessors = beforeFinalize.invitations.filter(
+          (invitation) =>
+            invitation.predecessorInvitationId === fixture.invitation._id && invitation.status === "issued",
+        );
+        expect(issuedSuccessors).toHaveLength(1);
+      }
+    },
+  );
 });
 
 function acceptanceContext(results: unknown[]) {
@@ -271,6 +424,46 @@ function configuration() {
   };
 }
 
+async function seedAcceptanceFixture(caseKey: string) {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-08-04T12:00:00+09:00"));
+  vi.stubEnv("ORGANIZATION_INVITATION_SIGNING_SECRET", SIGNING_SECRET);
+  const t = convexTest(schema, modules);
+  const manager = await t.run((ctx) => seedOrganizationManagerShop(ctx, { subject: `${caseKey}_owner`, plan: "pro" }));
+  const email = `${caseKey.replaceAll("_", "-")}-target@example.com`;
+  const owner = t.withIdentity({ subject: `${caseKey}_owner` });
+  const issued = await owner.mutation(api.organizationInvitation.mutations.issue, {
+    shopId: manager.shopId,
+    recipient: { kind: "external", invitedName: "受諾競合対象", email },
+    requestId: `${caseKey}-issue`,
+  });
+  const invitation = await t.run((ctx) => ctx.db.get(issued.invitationId));
+  if (!invitation) throw new Error("invitation not found");
+  const token = await deriveInvitationToken({
+    invitationId: invitation._id,
+    version: invitation.version,
+    signingSecret: SIGNING_SECRET,
+  });
+  return { t, manager, owner, email, invitation, token };
+}
+
+function invitationActor(t: TestConvex<typeof schema>, subject: string, email: string) {
+  return t.withIdentity({
+    subject,
+    issuer: ISSUER,
+    tokenIdentifier: `${ISSUER}|${subject}`,
+    email,
+  });
+}
+
+function deferred<T>(): Deferred<T> {
+  let resolve!: Deferred<T>["resolve"];
+  const promise = new Promise<T>((resolver) => {
+    resolve = resolver;
+  });
+  return { promise, resolve };
+}
+
 async function invitationAcceptancePersistentState(
   t: TestConvex<typeof schema>,
   invitationId: Id<"organizationInvitations">,
@@ -278,6 +471,11 @@ async function invitationAcceptancePersistentState(
 ) {
   return await t.run(async (ctx) => ({
     invitation: await ctx.db.get(invitationId),
+    invitations: await ctx.db
+      .query("organizationInvitations")
+      .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+      .collect(),
+    users: await ctx.db.query("users").collect(),
     people: await ctx.db
       .query("organizationPeople")
       .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))

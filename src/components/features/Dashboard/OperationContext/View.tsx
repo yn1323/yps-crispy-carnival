@@ -19,7 +19,13 @@ import { LuBuilding2, LuCheck, LuChevronDown, LuChevronRight, LuSettings, LuStor
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/tooltip";
 import type { ShopContextOption } from "@/src/domains/shop/context";
-import { getPlanStatusPresentation, PlanStatusCard, type PlanStatusCardProps } from "../PlanStatusCard";
+import {
+  getPlanStatusPresentation,
+  PlanStatusCard,
+  type PlanStatusCardAction,
+  type PlanStatusCardData,
+  type PlanStatusCardProps,
+} from "../PlanStatusCard";
 import type { OperationContextModel } from "./script";
 
 const ORGANIZATION_DETAILS_VALUE = "organization-details";
@@ -47,8 +53,11 @@ export const OperationContextView = ({
   const previousDefaultExpanded = useRef(defaultExpanded);
   const previousHasPlanDetails = useRef(Boolean(planStatusCard));
   const isExpanded = value.includes(ORGANIZATION_DETAILS_VALUE);
-  const hasOrganizationDetails = Boolean(organizationSettingsShopId || planStatusCard);
+  const hasAccordionContent = Boolean(
+    organizationSettingsShopId || planStatusCard || model.organizationChangeOptions.length > 0,
+  );
   const presentation = planStatusCard ? getPlanStatusPresentation(planStatusCard.data) : null;
+  const billingAction = planStatusCard ? getBillingAction(planStatusCard.data) : null;
 
   useEffect(() => {
     if (!previousDefaultExpanded.current && defaultExpanded) setValue([ORGANIZATION_DETAILS_VALUE]);
@@ -75,7 +84,7 @@ export const OperationContextView = ({
     <Stack gap={{ base: 2, lg: 3 }}>
       <VisuallyHidden as="h1">{model.selectedShop.shopName}</VisuallyHidden>
 
-      {hasOrganizationDetails ? (
+      {hasAccordionContent ? (
         <Accordion.Root
           collapsible
           variant="plain"
@@ -86,17 +95,17 @@ export const OperationContextView = ({
           <Accordion.Item
             value={ORGANIZATION_DETAILS_VALUE}
             borderWidth="1px"
-            borderColor="gray.200"
-            borderRadius="xl"
+            borderColor="gray.300"
+            borderRadius="lg"
             bg="white"
             overflow="hidden"
           >
             <Heading as="h2" fontSize="inherit" fontWeight="normal">
               <Accordion.ItemTrigger
                 ref={triggerRef}
-                minH={{ base: "76px", md: "84px" }}
+                minH={{ base: "48px", md: "56px" }}
                 px={{ base: 3, md: 4 }}
-                py={3}
+                py={2.5}
                 borderRadius="0"
                 cursor="pointer"
                 _hover={{ bg: "gray.50" }}
@@ -127,15 +136,29 @@ export const OperationContextView = ({
                     withBorder={Boolean(planStatusCard)}
                   />
                 )}
-                {planStatusCard && <PlanAndPaymentLink onOpen={() => planStatusCard.onAction("openPlanAndPayment")} />}
+                {planStatusCard && billingAction && (
+                  <PlanAndPaymentLink
+                    label={billingAction.label}
+                    onOpen={() => planStatusCard.onAction(billingAction.action)}
+                  />
+                )}
+                {model.organizationChangeOptions.map((option, index) => (
+                  <OrganizationChangeButton
+                    key={option.key}
+                    organizationName={option.organizationName}
+                    shopId={option.shopId}
+                    withBorder={Boolean(planStatusCard || organizationSettingsShopId || index > 0)}
+                    onSelect={onShopSelect}
+                  />
+                ))}
               </Accordion.ItemBody>
             </Accordion.ItemContent>
           </Accordion.Item>
         </Accordion.Root>
       ) : (
-        <Box borderWidth="1px" borderColor="gray.200" borderRadius="xl" bg="white">
-          <Heading as="h2" fontSize="inherit" fontWeight="normal" minH={{ base: "76px", md: "84px" }}>
-            <Flex as="span" align="center" h="full" minH="inherit" px={{ base: 3, md: 4 }} py={3}>
+        <Box borderWidth="1px" borderColor="gray.300" borderRadius="lg" bg="white">
+          <Heading as="h2" fontSize="inherit" fontWeight="normal" minH={{ base: "48px", md: "56px" }}>
+            <Flex as="span" align="center" h="full" minH="inherit" px={{ base: 3, md: 4 }} py={2.5}>
               <OrganizationSummary model={model} />
             </Flex>
           </Heading>
@@ -158,44 +181,45 @@ const OrganizationSummary = ({
   presentation?: PlanPresentation | null;
 }) => {
   return (
-    <HStack as="span" flex={1} minW={0} gap={3} textAlign="left">
-      <Flex as="span" boxSize="40px" flexShrink={0} align="center" justify="center" color="gray.600">
-        <LuBuilding2 aria-hidden size={24} />
-      </Flex>
-      <Stack as="span" flex={1} minW={0} gap={1}>
-        <Text
-          as="span"
-          fontSize={{ base: "lg", md: "xl" }}
-          lineHeight="short"
-          fontWeight="bold"
-          color="gray.900"
-          truncate
-        >
+    <Stack as="span" flex={1} minW={0} gap={presentation?.summaryBadge ? 1 : 0} textAlign="left">
+      <Text as="span" ps={7} fontSize="xs" lineHeight="short" color="fg.muted">
+        組織・プラン
+      </Text>
+      <HStack as="span" minW={0} gap={2}>
+        <Flex as="span" boxSize="20px" flexShrink={0} align="center" justify="center" color="gray.600">
+          <LuBuilding2 aria-hidden size={20} />
+        </Flex>
+        <Text as="span" flex={1} minW={0} fontSize="lg" lineHeight="20px" fontWeight="bold" color="gray.900" truncate>
           {model.selectedGroup.organizationName}
         </Text>
-        <Flex as="span" align="center" gap={2} wrap="wrap">
-          <Text as="span" fontSize="sm" lineHeight="short" fontWeight="normal" color="fg.muted">
-            {presentation?.summaryLabel ?? "組織"}
-          </Text>
-          {presentation?.summaryBadge && (
-            <Badge
-              variant="subtle"
-              borderRadius="full"
-              px={2.5}
-              py={1}
-              bg={presentation.summaryBadge.background}
-              color={presentation.summaryBadge.color}
-            >
-              {presentation.summaryBadge.label}
-            </Badge>
-          )}
-        </Flex>
-      </Stack>
-    </HStack>
+        {presentation?.summaryBadge && (
+          <Badge
+            variant="subtle"
+            borderRadius="full"
+            px={2.5}
+            py={1}
+            bg={presentation.summaryBadge.background}
+            color={presentation.summaryBadge.color}
+          >
+            {presentation.summaryBadge.label}
+          </Badge>
+        )}
+      </HStack>
+    </Stack>
   );
 };
 
 type PlanPresentation = ReturnType<typeof getPlanStatusPresentation>;
+
+type BillingAction = {
+  action: PlanStatusCardAction;
+  label: string;
+};
+
+const getBillingAction = (data: PlanStatusCardData): BillingAction => {
+  if ("primaryAction" in data && data.primaryAction) return data.primaryAction;
+  return { action: "openPlanAndPayment", label: "プランと支払いへ" };
+};
 
 const OrganizationSettingsLink = ({
   organizationName,
@@ -232,7 +256,7 @@ const OrganizationSettingsLink = ({
   </Button>
 );
 
-const PlanAndPaymentLink = ({ onOpen }: { onOpen: () => void }) => (
+const PlanAndPaymentLink = ({ label, onOpen }: { label: string; onOpen: () => void }) => (
   <Button
     type="button"
     variant="plain"
@@ -249,11 +273,46 @@ const PlanAndPaymentLink = ({ onOpen }: { onOpen: () => void }) => (
     fontSize="md"
     fontWeight="medium"
     _hover={{ bg: "gray.50" }}
-    aria-label="プランと支払いを開く"
     onClick={onOpen}
   >
     <Text as="span" flex={1} textAlign="left">
-      プランと支払いへ
+      {label}
+    </Text>
+    <Icon as={LuChevronRight} boxSize={5} color="fg.muted" flexShrink={0} />
+  </Button>
+);
+
+const OrganizationChangeButton = ({
+  organizationName,
+  shopId,
+  withBorder,
+  onSelect,
+}: {
+  organizationName: string;
+  shopId: string;
+  withBorder: boolean;
+  onSelect: (shopId: string) => void;
+}) => (
+  <Button
+    type="button"
+    variant="plain"
+    justifyContent="flex-start"
+    w="full"
+    minH="52px"
+    h="auto"
+    px={{ base: 4, md: 5 }}
+    py={3}
+    borderTopWidth={withBorder ? "1px" : 0}
+    borderTopColor="gray.200"
+    borderRadius="0"
+    color="gray.900"
+    fontSize="md"
+    fontWeight="medium"
+    _hover={{ bg: "gray.50" }}
+    onClick={() => onSelect(shopId)}
+  >
+    <Text as="span" flex={1} textAlign="left">
+      組織を変更：{organizationName}
     </Text>
     <Icon as={LuChevronRight} boxSize={5} color="fg.muted" flexShrink={0} />
   </Button>
@@ -281,13 +340,26 @@ const ShopDetailButton = ({ onOpenShopDetail }: { onOpenShopDetail: () => void }
 const ShopSelector = ({ model, onSelect }: { model: OperationContextModel; onSelect: (shopId: string) => void }) => {
   if (!model.canSwitchShop) {
     return (
-      <HStack gap={2} flex={1} minW={0}>
-        <Icon as={LuStore} boxSize={5} color="gray.700" flexShrink={0} aria-hidden />
-        <Text fontSize="lg" fontWeight="bold" color="gray.900" truncate minW={0}>
-          {model.selectedShop.shopName}
+      <Stack
+        gap={0}
+        flex={1}
+        minW={0}
+        minH={{ base: "48px", md: "56px" }}
+        px={{ base: 3, md: 4 }}
+        py={2.5}
+        textAlign="left"
+      >
+        <Text as="span" ps={7} fontSize="xs" lineHeight="short" color="fg.muted">
+          店舗
         </Text>
-        <ShopStatusBadges shop={model.selectedShop} />
-      </HStack>
+        <HStack as="span" gap={2} minW={0}>
+          <Icon as={LuStore} boxSize={5} color="gray.700" flexShrink={0} aria-hidden />
+          <Text as="span" flex={1} minW={0} fontSize="lg" fontWeight="bold" color="gray.900" truncate>
+            {model.selectedShop.shopName}
+          </Text>
+          <ShopStatusBadges shop={model.selectedShop} />
+        </HStack>
+      </Stack>
     );
   }
 
@@ -315,13 +387,18 @@ const ShopSelector = ({ model, onSelect }: { model: OperationContextModel; onSel
             cursor="pointer"
             _hover={{ bg: "gray.50", borderColor: "gray.400" }}
           >
-            <HStack gap={2} minW={0} textAlign="left">
-              <Icon as={LuStore} boxSize={5} color="gray.700" flexShrink={0} aria-hidden />
-              <Text fontSize="lg" fontWeight="bold" truncate minW={0}>
-                {model.selectedShop.shopName}
+            <Stack gap={0} flex={1} minW={0} textAlign="left">
+              <Text as="span" ps={7} fontSize="xs" lineHeight="short" color="fg.muted">
+                店舗
               </Text>
-              <ShopStatusBadges shop={model.selectedShop} />
-            </HStack>
+              <HStack as="span" gap={2} minW={0}>
+                <Icon as={LuStore} boxSize={5} color="gray.700" flexShrink={0} aria-hidden />
+                <Text as="span" flex={1} minW={0} fontSize="lg" fontWeight="bold" truncate>
+                  {model.selectedShop.shopName}
+                </Text>
+                <ShopStatusBadges shop={model.selectedShop} />
+              </HStack>
+            </Stack>
             <Icon as={LuChevronDown} boxSize={5} color="gray.500" flexShrink={0} />
           </Button>
         </Menu.Trigger>
@@ -404,18 +481,20 @@ export const OperationContextSkeleton = () => (
     <Flex
       align="center"
       gap={3}
-      minH={{ base: "76px", md: "84px" }}
+      minH={{ base: "48px", md: "56px" }}
       px={{ base: 3, md: 4 }}
-      py={3}
+      py={2.5}
       borderWidth="1px"
       borderColor="gray.200"
-      borderRadius="xl"
+      borderRadius="lg"
       bg="white"
     >
-      <Skeleton boxSize="40px" borderRadius="full" flexShrink={0} />
-      <Stack flex={1} minW={0} gap={2}>
-        <Skeleton h="22px" w={{ base: "160px", md: "220px" }} maxW="70%" />
-        <Skeleton h="14px" w={{ base: "92px", md: "120px" }} maxW="45%" />
+      <Stack flex={1} minW={0} gap={1}>
+        <Skeleton h="12px" w={{ base: "44px", md: "56px" }} ms={7} />
+        <HStack gap={2}>
+          <Skeleton boxSize="20px" borderRadius="sm" flexShrink={0} />
+          <Skeleton h="22px" w={{ base: "140px", md: "220px" }} maxW="70%" />
+        </HStack>
       </Stack>
       <Skeleton boxSize="20px" flexShrink={0} />
     </Flex>
@@ -432,8 +511,13 @@ export const OperationContextSkeleton = () => (
         borderRadius="lg"
         bg="white"
       >
-        <Skeleton boxSize="20px" borderRadius="sm" flexShrink={0} />
-        <Skeleton h="22px" w={{ base: "140px", md: "220px" }} maxW="70%" />
+        <Stack flex={1} minW={0} gap={1}>
+          <Skeleton h="12px" w={{ base: "44px", md: "56px" }} ms={7} />
+          <HStack gap={2}>
+            <Skeleton boxSize="20px" borderRadius="sm" flexShrink={0} />
+            <Skeleton h="22px" w={{ base: "140px", md: "220px" }} maxW="70%" />
+          </HStack>
+        </Stack>
       </Flex>
       <Skeleton h="44px" w="44px" flexShrink={0} />
     </Flex>

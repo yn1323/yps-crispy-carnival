@@ -146,10 +146,11 @@ const paidPlanCard = (overrides: Partial<PlanStatusCardProps> = {}): PlanStatusC
   ...overrides,
 });
 
-const openOrganizationAccordion = () => {
+const openOrganizationAccordion = async () => {
   const trigger = screen.getByRole("button", { name: /Aグループ/ });
   fireEvent.focus(trigger);
   fireEvent.click(trigger);
+  await waitFor(() => expect(trigger.getAttribute("aria-expanded")).toBe("true"));
   return trigger;
 };
 
@@ -157,6 +158,7 @@ describe("OperationContext", () => {
   it("店舗セレクトで選んだ店舗をshop queryに指定してDashboardへ遷移する", async () => {
     renderContext();
 
+    expect(screen.getByText("店舗", { exact: true })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "店舗を切り替える（現在：A店）" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /B店/ }));
 
@@ -170,6 +172,18 @@ describe("OperationContext", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "店舗を切り替える（現在：A店）" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /C店/ }));
+
+    await waitFor(() => {
+      expect(mocks.navigate).toHaveBeenCalledWith({ to: "/dashboard", search: { shop: "shop-c" } });
+    });
+  });
+
+  it("組織Accordionから別組織の先頭店舗へ直接切り替えられる", async () => {
+    renderContext();
+
+    await openOrganizationAccordion();
+    expect(screen.queryByRole("button", { name: "組織を変更：Aグループ" })).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "組織を変更：Bグループ" }));
 
     await waitFor(() => {
       expect(mocks.navigate).toHaveBeenCalledWith({ to: "/dashboard", search: { shop: "shop-c" } });
@@ -190,71 +204,45 @@ describe("OperationContext", () => {
     });
   });
 
-  it("公開中は組織Accordion内のリンクへ選択店舗を引き継ぐ", async () => {
+  it("組織Accordion内のリンクへ選択店舗を引き継ぐ", async () => {
     renderContext();
 
-    openOrganizationAccordion();
+    await openOrganizationAccordion();
     const organizationSettingsLink = await screen.findByRole("link", { name: "Aグループの組織設定を開く" });
     expect(organizationSettingsLink.getAttribute("href")).toBe("/settings?shop=shop-a");
   });
 
-  it("組織設定もプランも非公開なら空のAccordionを作らない", () => {
-    Object.assign(mocks.featureVisibility, {
-      organizationSettingsNavigation: false,
-      billing: false,
-      shopMembershipAddition: false,
-    });
-
+  it("プラン情報がなくても組織情報と組織変更の導線をAccordionに表示する", async () => {
     renderContext();
 
-    expect(screen.getByRole("heading", { name: /A店/, level: 1 })).not.toBeNull();
-    expect(screen.getByRole("heading", { name: /Aグループ/, level: 2 })).not.toBeNull();
-    expect(screen.queryByRole("button", { name: /Aグループ/ })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Aグループの組織設定を開く" })).toBeNull();
-    expect(screen.getByRole("button", { name: "店舗詳細を開く" })).not.toBeNull();
-  });
-
-  it("組織設定だけ公開中なら組織情報の導線だけをAccordionに表示する", async () => {
-    renderContext();
-
-    openOrganizationAccordion();
+    await openOrganizationAccordion();
 
     expect(await screen.findByRole("link", { name: "Aグループの組織設定を開く" })).not.toBeNull();
-    expect(screen.queryByRole("button", { name: "プランと支払いを開く" })).toBeNull();
+    expect(screen.getByRole("button", { name: "組織を変更：Bグループ" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "プランと支払いへ" })).toBeNull();
   });
 
-  it("組織設定が非公開でもプランがあればプラン詳細と支払い導線を維持する", async () => {
-    mocks.featureVisibility.organizationSettingsNavigation = false;
-    const onAction = vi.fn();
-    renderContext(shops, shops[0], {
-      planStatusCard: paidPlanCard({ onAction }),
-      billingSettingsShopId: "shop-a",
-    });
-
-    openOrganizationAccordion();
-
-    expect(await screen.findByRole("region", { name: "Proプランの詳細" })).not.toBeNull();
-    expect(screen.queryByRole("link", { name: "Aグループの組織設定を開く" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "プランと支払いを開く" }));
-    expect(onAction).toHaveBeenCalledWith("openPlanAndPayment");
-  });
-
-  it("組織設定とプランの両方が公開中ならプラン詳細、組織、支払いの順に表示する", async () => {
+  it("プラン詳細、組織、支払い、組織変更の順に表示する", async () => {
     renderContext(shops, shops[0], {
       planStatusCard: paidPlanCard(),
       billingSettingsShopId: "shop-a",
     });
 
-    openOrganizationAccordion();
+    await openOrganizationAccordion();
     const planDetails = await screen.findByRole("region", { name: "Proプランの詳細" });
     const organizationSettingsLink = await screen.findByRole("link", { name: "Aグループの組織設定を開く" });
-    const planAndPaymentLink = screen.getByRole("button", { name: "プランと支払いを開く" });
+    const planAndPaymentLink = screen.getByRole("button", { name: "プランと支払いへ" });
+    const organizationChangeButton = screen.getByRole("button", { name: "組織を変更：Bグループ" });
 
+    expect(screen.getByText("組織・プラン")).not.toBeNull();
     expect(
       planDetails.compareDocumentPosition(organizationSettingsLink) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
       organizationSettingsLink.compareDocumentPosition(planAndPaymentLink) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      planAndPaymentLink.compareDocumentPosition(organizationChangeButton) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
@@ -293,6 +281,9 @@ describe("OperationContext", () => {
     renderContext(shops, shops[0], { planStatusCard: trialCard, billingSettingsShopId: "shop-a" });
     const trigger = screen.getByRole("button", { name: /Aグループ/ });
 
+    expect(screen.getByText("組織・プラン")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "プランを選ぶ" }));
+    expect(onAction).toHaveBeenCalledWith("choosePlan");
     fireEvent.click(screen.getByRole("button", { name: "後で確認する" }));
 
     expect(onAction).toHaveBeenCalledWith("remindLater");
@@ -303,6 +294,7 @@ describe("OperationContext", () => {
   it("1組織1店舗では店舗切替を表示しない", () => {
     renderContext([shops[0]], shops[0]);
 
+    expect(screen.getByText("店舗", { exact: true })).not.toBeNull();
     expect(screen.getAllByText("A店")).toHaveLength(2);
     expect(screen.queryByRole("button", { name: /店舗を切り替える/ })).toBeNull();
     expect(screen.getByRole("button", { name: "店舗詳細を開く" })).not.toBeNull();

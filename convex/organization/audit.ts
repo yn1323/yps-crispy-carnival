@@ -18,6 +18,7 @@ export type OrganizationAuditAction =
   | "organization.person_removed"
   | "organization.person_reactivated"
   | "organization.person_profile_updated"
+  | "organization.person_line_disconnected"
   | "organization.account_email_synced"
   | "organization.staff_added"
   | "organization.manager_role_removed"

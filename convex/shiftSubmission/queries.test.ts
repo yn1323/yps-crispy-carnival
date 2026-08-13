@@ -24,9 +24,9 @@ async function setupSubmissionPageData(
       staffId,
       shopId,
       termsConsentVersion: "staff-terms-consent-2026-05-09",
-      privacyConsentVersion: "staff-privacy-consent-2026-05-09",
+      privacyConsentVersion: "staff-privacy-consent-2026-08-13",
       termsDocumentVersion: "staff-terms-doc-2026-05-09",
-      privacyDocumentVersion: "staff-privacy-doc-2026-07-10",
+      privacyDocumentVersion: "staff-privacy-doc-2026-08-13",
       consentedAt: Date.now(),
       method: "staff_email_link",
     });

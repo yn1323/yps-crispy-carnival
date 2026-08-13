@@ -95,7 +95,7 @@ describe("事業者課金ライフサイクル", () => {
     vi.unstubAllEnvs();
   });
 
-  it("継続プラン未選択のTrialはFree条件を満たせばFreeへ一度だけ移行する", async () => {
+  it("継続プラン未選択のTrialはデータを保持したrestrictedへ一度だけ移行する", async () => {
     const t = convexTest(schema, modules);
     const now = new Date("2026-09-01T00:00:00+09:00");
     vi.setSystemTime(now);
@@ -120,14 +120,14 @@ describe("事業者課金ライフサイクル", () => {
         expectedVersion: 4,
         expectedDeadlineAt: now.getTime(),
       }),
-    ).resolves.toEqual({ changed: true, stateKind: "free" });
+    ).resolves.toEqual({ changed: true, stateKind: "restricted" });
     await expect(
       t.mutation(internal.organizationBilling.mutations.processDeadline, {
         organizationId: ids.organizationId,
         expectedVersion: 4,
         expectedDeadlineAt: now.getTime(),
       }),
-    ).resolves.toEqual({ changed: false, stateKind: "active" });
+    ).resolves.toEqual({ changed: false, stateKind: "restricted" });
 
     const result = await t.run(async (ctx) => ({
       billingState: await ctx.db.get(ids.billingStateId),
@@ -136,7 +136,13 @@ describe("事業者課金ライフサイクル", () => {
         .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
         .collect(),
     }));
-    expect(result.billingState?.state).toEqual({ kind: "active", plan: "free" });
+    expect(result.billingState?.state).toEqual({
+      kind: "restricted",
+      reason: "trialEndedWithoutSubscription",
+      recoveryManagerPersonIds: [ids.personId],
+      previousActiveShopIds: [ids.shopId],
+      restrictedAt: now.getTime(),
+    });
     expect(result.billingState).toMatchObject({
       version: 5,
       businessNotificationCutoffAt: now.getTime(),
@@ -198,7 +204,7 @@ describe("事業者課金ライフサイクル", () => {
     ]);
   });
 
-  it("継続プラン未選択のTrialでFree条件を確定できなければデータを残して制限する", async () => {
+  it("継続プラン未選択のTrialは複数管理者を含むデータを残して制限する", async () => {
     const t = convexTest(schema, modules);
     const now = new Date("2026-09-01T00:00:00+09:00");
     vi.setSystemTime(now);
@@ -235,7 +241,7 @@ describe("事業者課金ライフサイクル", () => {
     }));
     expect(result.billingState?.state).toMatchObject({
       kind: "restricted",
-      reason: "trialFreeConditionsNotMet",
+      reason: "trialEndedWithoutSubscription",
     });
     expect(result.billingState).toMatchObject({
       version: 3,
@@ -531,7 +537,7 @@ describe("事業者課金ライフサイクル", () => {
     ).toHaveLength(1);
   });
 
-  it("ProからFreeへの変更予約は契約期間末にStripeの取消を確認して一度だけ移行する", async () => {
+  it("deployment前のmarkerなしPro→Free予約は期間末にStripeの取消を確認して一度だけFreeへ移行する", async () => {
     const t = convexTest(schema, modules);
     const effectiveAt = Date.parse("2026-11-01T00:00:00+09:00");
     vi.setSystemTime(effectiveAt - 24 * 60 * 60 * 1000);
@@ -683,7 +689,7 @@ describe("事業者課金ライフサイクル", () => {
     expect(stripeProviderMock.retrieveSubscription).toHaveBeenCalledTimes(1);
   });
 
-  it("Proを継続せず利用人数6人・2店舗のFree上限を超える場合はデータを残して制限する", async () => {
+  it("新しい利用停止予約は利用数にかかわらずデータを残したrestrictedへ移す", async () => {
     const t = convexTest(schema, modules);
     const effectiveAt = Date.parse("2026-11-01T00:00:00+09:00");
     vi.setSystemTime(effectiveAt - 24 * 60 * 60 * 1000);
@@ -738,7 +744,13 @@ describe("事業者課金ライフサイクル", () => {
       t.mutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
         organizationId: ids.organizationId,
         expectedVersion: 1,
-        state: { kind: "scheduledChange", currentPlan: "pro", targetPlan: "free", effectiveAt },
+        state: {
+          kind: "scheduledChange",
+          currentPlan: "pro",
+          targetPlan: "free",
+          effectiveAt,
+          restrictAtPeriodEnd: true,
+        },
         correlationId: "verified-pro-to-free-over-limits-scheduled",
       }),
     ).resolves.toEqual({ changed: true, stateKind: "scheduledChange" });
@@ -818,7 +830,7 @@ describe("事業者課金ライフサイクル", () => {
     ]);
     expect(result.billingState?.state).toEqual({
       kind: "restricted",
-      reason: "freeConditionsNotMet",
+      reason: "scheduledCancellation",
       previousPlan: "pro",
       recoveryManagerPersonIds: [ids.personId],
       previousActiveShopIds: [ids.shopId, ids.secondShopId],
@@ -860,8 +872,8 @@ describe("事業者課金ライフサイクル", () => {
       state: "restricted",
       currentPlan: null,
       previousPlan: "pro",
-      peopleUsage: { current: 6, max: 5 },
-      shopUsage: { current: 2, max: 1 },
+      peopleUsage: { current: 6, max: 0 },
+      shopUsage: { current: 2, max: 0 },
     });
     expect(settings?.canAddShop).toBe(false);
   });
@@ -929,5 +941,35 @@ describe("事業者課金ライフサイクル", () => {
     expect(result.stripeOperations).toEqual([]);
     expect(result.stripeWebhookEvents).toEqual([]);
     expect(result.billingNotifications).toEqual([]);
+  });
+
+  it("既存active.freeはgrandfatheringされ、新しい利用停止Actionから変更されない", async () => {
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_billing_scenario");
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_billing_scenario");
+    vi.stubEnv("STRIPE_PRO_PRICE_ID", "price_billing_scenario_pro");
+    vi.stubEnv("STRIPE_PORTAL_CONFIGURATION_ID", "bpc_billing_scenario");
+    const t = convexTest(schema, modules);
+    const ids = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: "grandfathered_active_free", plan: "free" }),
+    );
+
+    await expect(
+      t
+        .withIdentity({ subject: "grandfathered_active_free" })
+        .action(api.organizationStripe.actions.scheduleServiceStopAtPeriodEnd, {
+          shopId: ids.shopId,
+          requestId: "grandfathered-free-service-stop",
+        }),
+    ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
+
+    const result = await t.run(async (ctx) => ({
+      billing: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      operations: await ctx.db.query("organizationStripeOperations").collect(),
+    }));
+    expect(result.billing?.state).toEqual({ kind: "active", plan: "free" });
+    expect(result.operations).toEqual([]);
   });
 });

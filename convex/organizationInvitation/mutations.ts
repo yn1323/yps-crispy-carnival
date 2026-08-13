@@ -4,11 +4,12 @@ import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
-import { getOrganizationInvitationSigningSecret, isManagerInvitationEnabled } from "../_lib/config";
+import { getOrganizationInvitationSigningSecret } from "../_lib/config";
 import { authenticatedMutation } from "../_lib/functions";
 import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
 import { generateUUID } from "../_lib/uuid";
-import { normalizeEmail } from "../_lib/validation";
+import { normalizeEmail, requiredEmailSchema } from "../_lib/validation";
+import { ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT } from "../constants";
 import { cancelOrganizationRecipientBusinessNotifications } from "../notificationOutbox/mutations";
 import { requireOrganizationActorForShop } from "../organization/access";
 import { recordOrganizationAuditEvent } from "../organization/audit";
@@ -17,6 +18,7 @@ import {
   organizationPersonCountsTowardPeopleLimit,
   removeLegacyOrganizationManagerAccess,
 } from "../organization/service";
+import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
 import {
   requireOrganizationBusinessWrite,
@@ -46,6 +48,11 @@ const invitationMutationResultValidator = v.object({
 
 const invitationIssueResultValidator = v.object({
   status: v.union(v.literal("issued"), v.literal("alreadyIssued")),
+  invitationId: v.id("organizationInvitations"),
+});
+
+const strictInvitationIssueResultValidator = v.object({
+  status: v.union(v.literal("issued"), v.literal("alreadyPending")),
   invitationId: v.id("organizationInvitations"),
 });
 
@@ -106,12 +113,6 @@ const acceptanceProofValidator = v.object({
   tokenDigest: v.string(),
   verifiedEmailNormalized: v.optional(v.string()),
 });
-
-const MANAGER_INVITATION_UNAVAILABLE_MESSAGE = "管理者の招待は現在ご利用いただけません";
-
-function requireManagerInvitationEnabled() {
-  if (!isManagerInvitationEnabled()) throw new ConvexError(MANAGER_INVITATION_UNAVAILABLE_MESSAGE);
-}
 
 type OrganizationInvitationLinkCtx = MutationCtx & {
   identity: UserIdentity;
@@ -308,10 +309,11 @@ async function createManagerInvitation(
     requestId: string;
     targetPerson?: Doc<"organizationPeople">;
     reissueExisting?: boolean;
+    auditIntentState?: string;
+    patchExistingTarget?: boolean;
   },
 ) {
-  // 新しい発行入口が増えても公開フラグを迂回しないよう、public handlerに加えて共通処理でも閉じる。
-  requireManagerInvitationEnabled();
+  // 発行入口が増えても、public handlerと同じ組織の書き込み権限を共通処理で再確認する。
   const { organization, inviterMember } = args;
   let targetPerson = args.targetPerson;
   await requireOrganizationBusinessWrite(ctx, organization._id);
@@ -352,7 +354,36 @@ async function createManagerInvitation(
   const priorInvitationId = priorAudit?.targetId
     ? ctx.db.normalizeId("organizationInvitations", priorAudit.targetId)
     : null;
-  if (priorInvitationId) return { status: "alreadyPending" as const, invitationId: priorInvitationId };
+  if (priorInvitationId) {
+    const priorInvitation = await ctx.db.get(priorInvitationId);
+    const isStrictExistingStaff = args.auditIntentState === "managerInviteStrict:v1:existingStaff";
+    const isStrictExternal = args.auditIntentState === "managerInviteStrict:v1:external";
+    const matchesIntent = Boolean(
+      priorInvitation &&
+        priorAudit?.organizationId === organization._id &&
+        priorAudit.actorUserId === inviterMember.userId &&
+        priorAudit.targetKind === "invitation" &&
+        (priorAudit.action === "organization.manager_invited" ||
+          priorAudit.action === "organization.manager_invitation_resent") &&
+        priorInvitation.organizationId === organization._id &&
+        (isStrictExistingStaff
+          ? Boolean(targetPerson && priorInvitation.targetPersonId === targetPerson._id)
+          : isStrictExternal
+            ? priorInvitation.emailNormalized === emailNormalized &&
+              priorInvitation.invitedName?.trim() === args.invitedName?.trim()
+            : priorInvitation.emailNormalized === emailNormalized &&
+              (!targetPerson || priorInvitation.targetPersonId === targetPerson._id) &&
+              (!args.invitedName || priorInvitation.invitedName?.trim() === args.invitedName.trim())) &&
+        (!args.auditIntentState || priorAudit.fromState === args.auditIntentState),
+    );
+    if (!matchesIntent) {
+      throw new ConvexError("以前の管理者招待と内容が一致しません。\n画面を更新して、もう一度お試しください。");
+    }
+    return { status: "alreadyPending" as const, invitationId: priorInvitationId };
+  }
+  if (priorAudit) {
+    throw new ConvexError("以前の管理者招待の結果を確認できません。\n画面を更新して、もう一度お試しください。");
+  }
 
   const billingState = await getOrganizationBillingState(ctx, organization._id);
   const hasFreeEntitlement = Boolean(
@@ -400,6 +431,22 @@ async function createManagerInvitation(
   }
 
   const expectedPurpose: OrganizationInvitationPurpose = hasFreeEntitlement ? "freeManagerExchange" : "managerAddition";
+  const recordStrictAlreadyPendingReceipt = async (invitationId: Id<"organizationInvitations">) => {
+    if (!args.auditIntentState) return;
+    await recordOrganizationAuditEvent(ctx, {
+      organizationId: organization._id,
+      actorUserId: inviterMember.userId,
+      actorPersonId: inviterMember.personId,
+      action: "organization.manager_invited",
+      targetKind: "invitation",
+      targetId: invitationId,
+      fromState: args.auditIntentState,
+      toState: "alreadyPending",
+      correlationId,
+      occurredAt: now,
+      suppressAnalyticsEvent: true,
+    });
+  };
   if (currentEmailInvitation) {
     if (
       (targetPerson &&
@@ -416,9 +463,10 @@ async function createManagerInvitation(
       throw new ConvexError("この招待は現在の契約では利用できません");
     }
     if (!args.reissueExisting) {
-      if (targetPerson && !currentEmailInvitation.targetPersonId) {
+      if (targetPerson && !currentEmailInvitation.targetPersonId && args.patchExistingTarget !== false) {
         await ctx.db.patch(currentEmailInvitation._id, { targetPersonId: targetPerson._id, updatedAt: now });
       }
+      await recordStrictAlreadyPendingReceipt(currentEmailInvitation._id);
       return { status: "alreadyPending" as const, invitationId: currentEmailInvitation._id };
     }
     const targetPersonId = targetPerson?._id ?? currentEmailInvitation.targetPersonId;
@@ -433,6 +481,13 @@ async function createManagerInvitation(
       now,
     });
     return { status: "created" as const, invitationId: invitation._id };
+  }
+
+  // strict入口は、人物の連絡先が変わっていても同じtargetのURLを暗黙に失効しない。
+  // 再送・取消は管理者設定の明示操作に限定する。
+  if (staleTargetInvitation && !args.reissueExisting) {
+    await recordStrictAlreadyPendingReceipt(staleTargetInvitation._id);
+    return { status: "alreadyPending" as const, invitationId: staleTargetInvitation._id };
   }
 
   const key = await invitationRateKey(organization._id, emailNormalized);
@@ -537,6 +592,7 @@ async function createManagerInvitation(
     action: "organization.manager_invited",
     targetKind: "invitation",
     targetId: invitation._id,
+    ...(args.auditIntentState ? { fromState: args.auditIntentState } : {}),
     toState: purpose === "freeManagerExchange" ? "issuedFreeManagerExchange" : "issued",
     correlationId,
     occurredAt: now,
@@ -544,12 +600,162 @@ async function createManagerInvitation(
   return { status: "created" as const, invitationId: invitation._id };
 }
 
+function strictIssueIntentState(
+  recipient:
+    | { kind: "existingStaff"; personId: Id<"organizationPeople"> }
+    | { kind: "external"; invitedName: string; emailNormalized: string },
+) {
+  // auditは運用ログとして扱われるため、人物ID・氏名・メールを保存しない。
+  // 実際のintent値は同じtransactionで結果のinvitation documentから照合する。
+  return `managerInviteStrict:v1:${recipient.kind}`;
+}
+
+async function requirePersonIsEligibleManagerInviteTarget(
+  ctx: MutationCtx,
+  organizationId: Id<"organizations">,
+  person: Doc<"organizationPeople">,
+  options: { requireActiveStaff: boolean },
+) {
+  const parsedEmail = requiredEmailSchema.safeParse(person.email);
+  if (
+    person.organizationId !== organizationId ||
+    person.status !== "active" ||
+    !parsedEmail.success ||
+    normalizeEmail(parsedEmail.data) !== person.emailNormalized
+  ) {
+    throw new ConvexError("Not found");
+  }
+  const members = await ctx.db
+    .query("organizationMembers")
+    .withIndex("by_organizationId_and_personId", (q) =>
+      q.eq("organizationId", organizationId).eq("personId", person._id),
+    )
+    .take(2);
+  if (members.length > 1) throw new ConvexError("管理者所属を一意に確認できません");
+  if (members[0]?.status === "active") throw new ConvexError("この利用者はすでに管理者です");
+  if (members[0]?.status === "readOnly") {
+    throw new ConvexError("この利用者は閲覧のみの管理者です。\n契約状態を復旧してから、もう一度お試しください。");
+  }
+  if (!options.requireActiveStaff) return;
+
+  const staffRows = await ctx.db
+    .query("staffs")
+    .withIndex("by_organizationId_and_organizationPersonId", (q) =>
+      q.eq("organizationId", organizationId).eq("organizationPersonId", person._id),
+    )
+    .take(ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT + 1);
+  if (staffRows.length > ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT) {
+    throw new ConvexError("スタッフ所属を確認できません。\n画面を更新して、もう一度お試しください。");
+  }
+  let hasActiveStaff = false;
+  for (const staff of staffRows) {
+    if (staff.isDeleted) continue;
+    const shop = await ctx.db.get(staff.shopId);
+    if (
+      shop &&
+      !shop.isDeleted &&
+      shop.organizationId === organizationId &&
+      organizationShopOperatingStatus(shop.operatingStatus) === "active"
+    ) {
+      hasActiveStaff = true;
+      break;
+    }
+  }
+  if (!hasActiveStaff) throw new ConvexError("管理者として招待できるスタッフ所属がありません");
+}
+
+/** 新画面専用。既存の有効招待を暗黙にrotateしないstrict発行境界。 */
+export const issue = authenticatedMutation({
+  args: {
+    shopId: v.id("shops"),
+    recipient: v.union(
+      v.object({ kind: v.literal("existingStaff"), personId: v.id("organizationPeople") }),
+      v.object({ kind: v.literal("external"), invitedName: v.string(), email: v.string() }),
+    ),
+    requestId: v.string(),
+  },
+  returns: strictInvitationIssueResultValidator,
+  handler: async (ctx, args) => {
+    const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
+    const request = organizationInvitationRequestSchema.safeParse({ requestId: args.requestId });
+    if (!request.success) throw new ConvexError("入力内容を確認してください。");
+
+    if (args.recipient.kind === "existingStaff") {
+      const person = await ctx.db.get(args.recipient.personId);
+      if (!person) throw new ConvexError("Not found");
+      await requirePersonIsEligibleManagerInviteTarget(ctx, actor.organization._id, person, {
+        requireActiveStaff: true,
+      });
+      const result = await createManagerInvitation(ctx, {
+        organization: actor.organization,
+        inviterMember: actor.member,
+        email: person.email,
+        requestId: request.data.requestId,
+        targetPerson: person,
+        auditIntentState: strictIssueIntentState({ kind: "existingStaff", personId: person._id }),
+        patchExistingTarget: false,
+      });
+      return {
+        status: result.status === "created" ? ("issued" as const) : ("alreadyPending" as const),
+        invitationId: result.invitationId,
+      };
+    }
+
+    const parsed = createExternalOrganizationManagerInvitationSchema.safeParse({
+      shopId: args.shopId,
+      name: args.recipient.invitedName,
+      email: args.recipient.email,
+      requestId: request.data.requestId,
+    });
+    if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
+    const emailNormalized = normalizeEmail(parsed.data.email);
+    const matches = await ctx.db
+      .query("organizationPeople")
+      .withIndex("by_organizationId_and_emailNormalized", (q) =>
+        q.eq("organizationId", actor.organization._id).eq("emailNormalized", emailNormalized),
+      )
+      .take(2);
+    if (matches.length > 1) {
+      throw new ConvexError(
+        "同じメールアドレスのユーザーが複数見つかりました。\n組織のユーザー情報を確認してください。",
+      );
+    }
+    const targetPerson = matches[0];
+    if (targetPerson) {
+      await requirePersonIsEligibleManagerInviteTarget(ctx, actor.organization._id, targetPerson, {
+        requireActiveStaff: false,
+      });
+    }
+    const billingState = await getOrganizationBillingState(ctx, actor.organization._id);
+    if (billingState && deriveOrganizationBillingPolicy(billingState.state).entitlementPlan === "free") {
+      throw new ConvexError("無料プランでは、新しいユーザーを管理者として招待できません。");
+    }
+    const result = await createManagerInvitation(ctx, {
+      organization: actor.organization,
+      inviterMember: actor.member,
+      invitedName: parsed.data.name,
+      email: parsed.data.email,
+      requestId: request.data.requestId,
+      ...(targetPerson ? { targetPerson } : {}),
+      auditIntentState: strictIssueIntentState({
+        kind: "external",
+        invitedName: parsed.data.name,
+        emailNormalized,
+      }),
+      patchExistingTarget: false,
+    });
+    return {
+      status: result.status === "created" ? ("issued" as const) : ("alreadyPending" as const),
+      invitationId: result.invitationId,
+    };
+  },
+});
+
 export const create = authenticatedMutation({
   args: { shopId: v.id("shops"), email: v.string(), requestId: v.string() },
   returns: invitationMutationResultValidator,
   handler: async (ctx, args) => {
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
-    requireManagerInvitationEnabled();
     const parsed = createOrganizationManagerInvitationSchema.safeParse(args);
     if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
     return await createManagerInvitation(ctx, {
@@ -566,7 +772,6 @@ export const createExternal = authenticatedMutation({
   returns: invitationIssueResultValidator,
   handler: async (ctx, args) => {
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
-    requireManagerInvitationEnabled();
     const parsed = createExternalOrganizationManagerInvitationSchema.safeParse(args);
     if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
     const result = await createManagerInvitation(ctx, {
@@ -586,7 +791,6 @@ export const createForPerson = authenticatedMutation({
   returns: invitationIssueResultValidator,
   handler: async (ctx, args) => {
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
-    requireManagerInvitationEnabled();
     const parsed = organizationInvitationRequestSchema.safeParse({ requestId: args.requestId });
     if (!parsed.success) throw new ConvexError("入力内容を確認してください。");
     const targetPerson = await ctx.db.get(args.personId);
@@ -615,7 +819,6 @@ export const createForStaff = authenticatedMutation({
   returns: invitationMutationResultValidator,
   handler: async (ctx, args) => {
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
-    requireManagerInvitationEnabled();
     const parsed = organizationInvitationRequestSchema.safeParse({ requestId: args.requestId });
     if (!parsed.success) throw new ConvexError("入力内容を確認してください。");
     const staff = await getActiveStaffInShop(ctx, args.shopId, args.staffId);
@@ -652,9 +855,44 @@ export const revoke = authenticatedMutation({
     const parsed = organizationInvitationRequestSchema.safeParse({ requestId: args.requestId });
     if (!parsed.success) throw new ConvexError("入力内容を確認してください。");
     const requestKey = await toAuditRequestKey(parsed.data.requestId);
+    const correlationId = `${actor.organization._id}:manager-invite:revoke:${requestKey}`;
+    const priorAudits = await ctx.db
+      .query("organizationAuditEvents")
+      .withIndex("by_correlationId", (q) => q.eq("correlationId", correlationId))
+      .take(2);
+    if (priorAudits.length > 1) {
+      throw new ConvexError("以前の招待取消結果を確認できません。\n画面を更新して、もう一度お試しください。");
+    }
+    const priorAudit = priorAudits[0];
+    if (priorAudit) {
+      if (
+        priorAudit.organizationId !== actor.organization._id ||
+        priorAudit.actorUserId !== actor.member.userId ||
+        priorAudit.action !== "organization.manager_invitation_revoked" ||
+        priorAudit.targetKind !== "invitation" ||
+        priorAudit.targetId !== args.invitationId
+      ) {
+        throw new ConvexError("以前の招待取消と対象が一致しません。\n画面を更新して、もう一度お試しください。");
+      }
+      return { status: "revoked" as const, invitationId: args.invitationId };
+    }
     const invitation = await ctx.db.get(args.invitationId);
     if (!invitation || invitation.organizationId !== actor.organization._id) throw new ConvexError("Not found");
-    if (invitation.status === "revoked") return { status: "revoked" as const, invitationId: invitation._id };
+    if (invitation.status === "revoked") {
+      await recordOrganizationAuditEvent(ctx, {
+        organizationId: actor.organization._id,
+        actorUserId: actor.member.userId,
+        actorPersonId: actor.person._id,
+        action: "organization.manager_invitation_revoked",
+        targetKind: "invitation",
+        targetId: invitation._id,
+        fromState: "revoked",
+        toState: "revoked",
+        correlationId,
+        suppressAnalyticsEvent: true,
+      });
+      return { status: "revoked" as const, invitationId: invitation._id };
+    }
     if (!isOrganizationInvitationIssued(invitation)) throw new ConvexError("この招待は取り消せません");
     const now = Date.now();
     await ctx.db.patch(invitation._id, {
@@ -673,7 +911,7 @@ export const revoke = authenticatedMutation({
       targetId: invitation._id,
       fromState: "issued",
       toState: "revoked",
-      correlationId: `${actor.organization._id}:manager-invite:revoke:${requestKey}`,
+      correlationId,
       occurredAt: now,
     });
     return { status: "revoked" as const, invitationId: invitation._id };
@@ -685,7 +923,6 @@ export const resend = authenticatedMutation({
   returns: invitationMutationResultValidator,
   handler: async (ctx, args) => {
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
-    requireManagerInvitationEnabled();
     const organization = actor.organization;
     const organizationMember = actor.member;
     await requireOrganizationBusinessWrite(ctx, organization._id);
@@ -696,11 +933,63 @@ export const resend = authenticatedMutation({
     const priorAudit = await ctx.db
       .query("organizationAuditEvents")
       .withIndex("by_correlationId", (q) => q.eq("correlationId", correlationId))
-      .first();
-    const priorInvitationId = priorAudit?.targetId
-      ? ctx.db.normalizeId("organizationInvitations", priorAudit.targetId)
+      .take(2);
+    if (priorAudit.length > 1) {
+      throw new ConvexError("以前の招待再送結果を確認できません。\n画面を更新して、もう一度お試しください。");
+    }
+    const priorAuditEvent = priorAudit[0];
+    const priorInvitationId = priorAuditEvent?.targetId
+      ? ctx.db.normalizeId("organizationInvitations", priorAuditEvent.targetId)
       : null;
-    if (priorInvitationId) return { status: "alreadyPending" as const, invitationId: priorInvitationId };
+    if (priorAuditEvent) {
+      const priorInvitation = priorInvitationId ? await ctx.db.get(priorInvitationId) : null;
+      if (priorAuditEvent.toState === "alreadyPending") {
+        if (
+          !priorInvitation ||
+          priorAuditEvent.organizationId !== organization._id ||
+          priorAuditEvent.actorUserId !== organizationMember.userId ||
+          priorAuditEvent.action !== "organization.manager_invitation_resent" ||
+          priorAuditEvent.targetKind !== "invitation" ||
+          priorInvitation._id !== args.invitationId ||
+          priorInvitation.organizationId !== organization._id
+        ) {
+          throw new ConvexError("以前の招待再送と対象が一致しません。\n画面を更新して、もう一度お試しください。");
+        }
+        const current = (
+          await Promise.all(
+            (["issued", "pending"] as const).map((status) =>
+              ctx.db
+                .query("organizationInvitations")
+                .withIndex("by_organizationId_and_emailNormalized_and_status", (q) =>
+                  q
+                    .eq("organizationId", organization._id)
+                    .eq("emailNormalized", priorInvitation.emailNormalized)
+                    .eq("status", status),
+                )
+                .take(2),
+            ),
+          )
+        )
+          .flat()
+          .filter((invitation) => invitation._id !== priorInvitation._id && invitation.expiresAt > Date.now());
+        if (current.length !== 1) {
+          throw new ConvexError("以前の招待再送結果を確認できません。\n画面を更新して、もう一度お試しください。");
+        }
+        return { status: "alreadyPending" as const, invitationId: current[0]._id };
+      }
+      if (
+        !priorInvitation ||
+        priorAuditEvent.organizationId !== organization._id ||
+        priorAuditEvent.actorUserId !== organizationMember.userId ||
+        priorAuditEvent.action !== "organization.manager_invitation_resent" ||
+        priorAuditEvent.targetKind !== "invitation" ||
+        priorInvitation.organizationId !== organization._id ||
+        priorInvitation.predecessorInvitationId !== args.invitationId
+      ) {
+        throw new ConvexError("以前の招待再送と対象が一致しません。\n画面を更新して、もう一度お試しください。");
+      }
+      return { status: "alreadyPending" as const, invitationId: priorInvitation._id };
+    }
 
     const oldInvitation = await ctx.db.get(args.invitationId);
     if (!oldInvitation || oldInvitation.organizationId !== organization._id) throw new ConvexError("Not found");
@@ -727,6 +1016,19 @@ export const resend = authenticatedMutation({
     if (sameEmailPending.length > 1) throw new ConvexError("招待の状態を確認できません");
     const otherPending = sameEmailPending.find((invitation) => invitation._id !== oldInvitation._id);
     if (otherPending && otherPending.expiresAt > now) {
+      await recordOrganizationAuditEvent(ctx, {
+        organizationId: organization._id,
+        actorUserId: organizationMember.userId,
+        actorPersonId: organizationMember.personId,
+        action: "organization.manager_invitation_resent",
+        targetKind: "invitation",
+        targetId: oldInvitation._id,
+        fromState: "issued",
+        toState: "alreadyPending",
+        correlationId,
+        occurredAt: now,
+        suppressAnalyticsEvent: true,
+      });
       return { status: "alreadyPending" as const, invitationId: otherPending._id };
     }
     if (otherPending) {
@@ -764,6 +1066,9 @@ export const resend = authenticatedMutation({
           .take(2);
         if (members.length > 1) throw new ConvexError("管理者所属を一意に確認できません");
         if (members[0]?.status === "active") throw new ConvexError("この利用者はすでに管理者です");
+        if (members[0]?.status === "readOnly") {
+          throw new ConvexError("この利用者は閲覧のみの管理者です。\n契約状態を復旧してから、もう一度お試しください。");
+        }
       }
       reservedSeat = people[0]
         ? !(await organizationPersonCountsTowardPeopleLimit(ctx, organization._id, people[0]._id))
@@ -874,7 +1179,6 @@ export const prepareAcceptance = internalMutation({
   args: { token: v.string() },
   returns: prepareAcceptanceResultValidator,
   handler: async (ctx, { token }) => {
-    if (!isManagerInvitationEnabled()) return { status: "unavailable" as const };
     if (token.length !== 43) return { status: "invalid" as const };
 
     const actor = await resolveInvitationActor(ctx);
@@ -964,7 +1268,6 @@ async function linkAccountWithToken(
     proof?: OrganizationInvitationAcceptanceProof;
   },
 ) {
-  if (!isManagerInvitationEnabled()) return { status: "unavailable" as const };
   if (args.token.length !== 43) return { status: "invalid" as const };
   const tokenDigest = await digestInvitationToken(args.token);
   if (options?.proof) {
@@ -1075,6 +1378,9 @@ async function linkAccountWithToken(
         .take(2)
     : [];
   if (existingMembers.length > 1) return { status: "conflict" as const };
+  if (existingMembers[0]?.status === "active" || existingMembers[0]?.status === "readOnly") {
+    return { status: "conflict" as const };
+  }
   if (existingMembers[0]?.userId && existingMembers[0].userId !== ctx.user?._id) {
     return { status: "conflict" as const };
   }
@@ -1090,7 +1396,7 @@ async function linkAccountWithToken(
   const capacity = await requireOrganizationCapacity(ctx, {
     organizationId: invitation.organizationId,
     additionalPeople: !people[0] || !existingPersonCounts ? 1 : 0,
-    additionalActiveManagers: purpose === "freeManagerExchange" || existingMembers[0]?.status === "active" ? 0 : 1,
+    additionalActiveManagers: purpose === "freeManagerExchange" ? 0 : 1,
     excludedInvitationId: invitation._id,
   }).catch(() => null);
   if (!capacity) return { status: "unavailable" as const };

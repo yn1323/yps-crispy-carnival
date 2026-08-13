@@ -38,11 +38,13 @@
 | `api.dashboard.queries.getDashboardRecruitments` | query | 最新募集・提出人数/現在の有効スタッフ数・確定状態から進捗を派生 |
 | `api.dashboard.queries.getDashboardStaffs` | query | Dashboard上のスタッフ一覧取得 |
 | `api.dashboard.mutations.dismissOnboarding` | mutation | チュートリアル終了状態をDB保存 |
-| `api.setup.mutations.setupShopAndManager` | mutation | 初回セットアップの店舗、本人、シフト連絡先を登録し、支払い不要Businessの組織を作成 |
+| `api.setup.mutations.setupShopAndManager` | mutation | 初回セットアップの店舗、本人、シフト連絡先を登録し、作成日から2暦月のTrial組織を作成 |
 
 ## 初回セットアップとの境界
 
 - 初回セットアップの「シフト連絡先メールアドレス」は、本人のシフト通知と管理者向け連絡に使う連絡先であり、Clerkのログイン方法ではない。
+- 初回セットアップの確定前に、組織作成と同時に2暦月のTrialが始まること、Trial終了後も利用するにはProまたはBusinessの契約が必要であることを表示する。
+- Trial終了時に有料契約がなければFreeへ移行せず、データを保持した契約制限中へ移行する。再契約するまで、既存データの閲覧と許可された復旧操作だけを利用できる。
 - 登録した氏名とシフト連絡先は、最初の`organizationPeople`と`staffs`へ保存する。
 - 同じメールアドレスを組織の初期`billingEmail`にも設定するが、請求先は組織設定から独立して変更できる。
 - `users.email`にも初回値を保存するが、これは初期化と旧データ互換のための値であり、以後のログイン方法やシフト連絡先の正本にはしない。

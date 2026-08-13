@@ -481,7 +481,10 @@ export function buildOrganizationManagerInvitationEmailHtml(params: Organization
         <tr><td style="padding:32px 24px;">
           <p style="margin:0 0 24px;font-size:18px;font-weight:700;color:#1a202c;">管理者として招待されました</p>
           <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">${inviterName}さんから「${organizationName}」の管理者に招待されました。</p>
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">管理者になると、この組織のすべての店舗を管理し、契約に関する操作を行えます。</p>
+          <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#1a202c;">シフトリとは</p>
+          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">スタッフの希望収集からシフト作成・共有までを支えるシフト管理サービスです。</p>
+          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">管理者になると、この組織のすべての店舗を管理し、契約に関する操作を行えます。</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">シフトリをすでに利用している方は登録済みのメールアドレスでログインしてください。初めて利用する方は、このメールの宛先と同じメールアドレスでアカウントを登録し、招待を承認してください。</p>
 
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
             <tr><td align="center">
@@ -758,8 +761,8 @@ export function buildLineInviteEmailHtml(params: LineInviteEmailParams): string 
   const authorizeUrl = escapeEmailHtml(params.authorizeUrl);
   const lead = escapeEmailHtmlWithLineBreaks(
     params.context === "registration_approved"
-      ? "スタッフ登録が承認されました。\nLINEと連携すると、シフトのお知らせをLINEで受け取れます。"
-      : "シフトのお知らせをLINEで受け取れるようになります。",
+      ? "スタッフ登録が承認されました。\nLINEと連携すると、同じ組織の所属店舗からシフトのお知らせをLINEで受け取れます。"
+      : "同じ組織の所属店舗から、シフトのお知らせをLINEで受け取れるようになります。",
   );
   const description =
     params.context === "registration_approved"
@@ -788,7 +791,7 @@ export function buildLineInviteEmailHtml(params: LineInviteEmailParams): string 
 
           <p style="margin:0 0 8px;font-size:13px;color:#718096;">このリンクは72時間有効です。</p>
           <p style="margin:0 0 8px;font-size:13px;color:#718096;">期限が切れた場合は、シフト作成担当者に連絡してください。</p>
-          <p style="margin:0 0 24px;font-size:13px;color:#718096;">LINEと連携すると、シフトのお知らせをLINEで送ります。<br />LINEで送れない場合は、メールでお知らせすることがあります。</p>
+          <p style="margin:0 0 24px;font-size:13px;color:#718096;">LINE連携は同じ組織の所属店舗で共通です。<br />別の組織では、あらためて連携が必要です。<br />LINEで送れない場合は、メールでお知らせすることがあります。</p>
 
           <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
           <p style="margin:0 0 4px;font-size:12px;color:#a0aec0;">${shopName}が利用しているシフト管理サービスです。</p>
@@ -811,8 +814,8 @@ export function buildLineCtaSection(params: { authorizeUrl: string; reLink: bool
   const label = params.reLink ? "LINEを再連携する" : "LINE連携する";
   const note = escapeEmailHtmlWithLineBreaks(
     params.reLink
-      ? "シフトリ公式アカウントの友だち追加が解除されています。\nもう一度友だち追加すると、シフトのお知らせをLINEで受け取れます。\nLINEで送れない場合は、メールでお知らせすることがあります。"
-      : "LINEと連携すると、シフトのお知らせをLINEで送ります。\nLINEで送れない場合は、メールでお知らせすることがあります。",
+      ? "シフトリ公式アカウントの友だち追加が解除されています。\nもう一度友だち追加すると、同じ組織の所属店舗からシフトのお知らせをLINEで受け取れます。\nLINEで送れない場合は、メールでお知らせすることがあります。"
+      : "LINE連携は同じ組織の所属店舗で共通です。\n別の組織では、あらためて連携が必要です。\nLINEで送れない場合は、メールでお知らせすることがあります。",
   );
   return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;border-top:1px solid #e2e8f0;padding-top:24px;">
     <tr><td>

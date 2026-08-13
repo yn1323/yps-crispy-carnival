@@ -1403,6 +1403,7 @@ describe("organizationStripe/processWebhookEvent", () => {
       currentPlan: "pro",
       targetPlan: "free",
       effectiveAt: periodEndsAt,
+      restrictAtPeriodEnd: true,
     });
 
     provider.retrieveEvent.mockResolvedValue({

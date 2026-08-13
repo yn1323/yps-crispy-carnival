@@ -68,7 +68,8 @@ Applicationのexact serializerは、GTM containerがbrowser組み込み変数を
 | `page_referrer` | 定数`https://shiftori.app/__measurement/referrer-not-collected` |
 | `page_title` | Lookup Tableで`shiftori:<route-family>`へ写像したsynthetic title |
 
-Lookup Tableへ登録するroute familyは`home`、`features`、`faq`、`howto`、`contact`、`articles_index`、`article_detail`、`article_category`、`demo_flow`、`demo_shiftboard`だけとする。  未知値ではGoogle tagとGA4 event tagを発火させない。
+Lookup Tableへ登録するroute familyは`home`、`features`、`pricing`、`faq`、`howto`、`contact`、`articles_index`、`article_detail`、`article_category`、`demo_flow`、`demo_shiftboard`だけとする。  未知値ではGoogle tagとGA4 event tagを発火させない。
+`/terms*`、`/privacy*`、`/commercial-transactions`などの法務文書は`public_unmeasured`として公開表示だけを行い、page viewとWeb Vitalsを送らない。
 
 GTM loaderの既存scriptをapplicationが検出した場合、dataLayerとloaderをbest-effortで破棄し、そのdocumentでは再初期化しない。  ただし実行済みの第三者codeを完全にはunloadできないため、検出時は外部containerまたはbaked scriptの混入としてenableをoffに戻し、安全なartifactへrollbackする。
 

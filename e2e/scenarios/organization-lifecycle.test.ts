@@ -1,0 +1,71 @@
+import { expect, test } from "../fixtures/e2eTest";
+import { expectAppHydrated } from "../helpers/appReadiness";
+import {
+  resetOrganizationLifecycleScenario,
+  seedOrganizationCreationScenario,
+  seedOrganizationDeletionScenario,
+} from "../helpers/organizationLifecycleScenario";
+import { DashboardPage } from "../pages/DashboardPage";
+import { OrganizationLifecyclePage } from "../pages/OrganizationLifecyclePage";
+
+// 組織設定には管理者の個人情報が表示されるため、browser artifactへ画面状態を保存しない。
+test.use({ trace: "off", screenshot: "off", video: "off" });
+
+test.describe("組織ライフサイクル", { tag: ["@e2e-core"] }, () => {
+  test.setTimeout(75_000);
+
+  test.afterEach(async () => {
+    await resetOrganizationLifecycleScenario();
+  });
+
+  test("[E2E-ORGANIZATION-01] 2つ目の組織を作成し、改名後も組織を切り替えて管理できる", async ({ page }) => {
+    const seed = seedOrganizationCreationScenario();
+    const createdShopName = "E2E 新組織店舗";
+    const createdOrganizationName = `${createdShopName}グループ`;
+    const renamedOrganizationName = "E2E 改名後グループ";
+    const organization = new OrganizationLifecyclePage(page);
+    const dashboard = new DashboardPage(page);
+
+    await organization.gotoSettings(seed.shopId);
+    const createdShopId = await organization.createOrganization(createdShopName);
+    await dashboard.expectSelectedShop(createdShopName, createdShopId);
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expectAppHydrated(page);
+    await dashboard.expectSelectedShop(createdShopName, createdShopId);
+
+    await organization.gotoSettings(createdShopId);
+    await organization.expectCurrentOrganization(createdOrganizationName);
+    await organization.renameCurrentOrganization(renamedOrganizationName);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expectAppHydrated(page);
+    await organization.expectCurrentOrganization(renamedOrganizationName);
+
+    await organization.switchOrganization(seed.organizationName, seed.shopId);
+    await organization.switchOrganization(renamedOrganizationName, createdShopId);
+  });
+
+  test("[E2E-ORGANIZATION-02] 組織を削除し、残した組織の店舗で管理を継続する", async ({ page }) => {
+    const seed = seedOrganizationDeletionScenario();
+    const organization = new OrganizationLifecyclePage(page);
+    const dashboard = new DashboardPage(page);
+
+    await organization.gotoSettings(seed.targetShopId);
+    await organization.expectCurrentOrganization(seed.targetOrganizationName);
+    await organization.deleteCurrentOrganization(seed.targetOrganizationName);
+
+    await expect(page).toHaveURL(
+      (url) => url.pathname === "/dashboard" && url.searchParams.get("shop") === seed.alternateShopId,
+      { timeout: 20_000 },
+    );
+    await expectAppHydrated(page);
+    await dashboard.expectSelectedShop(seed.alternateShopName, seed.alternateShopId);
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expectAppHydrated(page);
+    await dashboard.expectSelectedShop(seed.alternateShopName, seed.alternateShopId);
+
+    await organization.gotoSettings(seed.alternateShopId);
+    await organization.expectOnlyOrganization(seed.alternateOrganizationName, seed.targetOrganizationName);
+  });
+});

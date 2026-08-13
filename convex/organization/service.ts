@@ -4,6 +4,7 @@ import type { DataModel, Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
 import { getOrganizationInvitationPurpose } from "../organizationInvitation/purpose";
+import { MANAGER_PERSON_REMOVAL_DISABLED_REASON } from "./personCapabilities";
 
 type DbCtx = {
   db: GenericDatabaseReader<DataModel>;
@@ -111,6 +112,29 @@ export async function isValidOrganizationRecoveryManager(
   personId: Id<"organizationPeople">,
 ) {
   return await isValidOrganizationManagerPerson(ctx, organizationId, personId, RECOVERY_MANAGER_STATUSES);
+}
+
+/**
+ * 個別の人物・staff所属を外す前に、管理者権限が残っていないことを確認する。
+ * 重複membershipは管理者状態を一意に証明できないためfail closedにする。
+ */
+export async function requireOrganizationPersonWithoutManagerRole(
+  ctx: DbCtx,
+  organizationId: Id<"organizations">,
+  personId: Id<"organizationPeople">,
+) {
+  const members = await ctx.db
+    .query("organizationMembers")
+    .withIndex("by_organizationId_and_personId", (q) => q.eq("organizationId", organizationId).eq("personId", personId))
+    .take(2);
+  if (members.length > 1) {
+    throw new ConvexError("管理者権限の状態を確認できません。\n画面を更新して、もう一度お試しください。");
+  }
+  const member = members[0] ?? null;
+  if (member?.status === "active" || member?.status === "readOnly") {
+    throw new ConvexError(MANAGER_PERSON_REMOVAL_DISABLED_REASON);
+  }
+  return member;
 }
 
 /** active人物が現在の利用人数へ算入されているかを、管理者権限とstaff履歴から判定する。 */

@@ -2,7 +2,10 @@ import { Box, Flex, HStack, Image, Link, Text, VStack } from "@chakra-ui/react";
 
 type FooterColLink = { label: string; href: string };
 
-const productLinks: FooterColLink[] = [{ label: "できること", href: "/features" }];
+const productLinks: FooterColLink[] = [
+  { label: "できること", href: "/features" },
+  { label: "料金・プラン", href: "/pricing" },
+];
 
 const supportLinks: FooterColLink[] = [
   { label: "使い方・ヘルプ", href: "/howto" },
@@ -13,6 +16,7 @@ const supportLinks: FooterColLink[] = [
 const companyLinks: FooterColLink[] = [
   { label: "利用規約", href: "/terms" },
   { label: "プライバシー", href: "/privacy" },
+  { label: "特定商取引法に基づく表記", href: "/commercial-transactions" },
 ];
 
 export const PublicFooter = () => (

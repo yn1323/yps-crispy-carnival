@@ -2,17 +2,19 @@
 
 > 文書種別: feature
 >
-> 最終コード照合: 2026-07-23
+> 最終コード照合: 2026-08-13
 >
-> 基準commit: `b61100a680e80d154a74f576d03c53712846e062`
+> 基準: LINE連携共通化の実装worktree
 
-スタッフがLINEアカウントを店舗のスタッフ情報へ連携し、シフトリから募集、確定、催促などの通知を受け取る機能である。
+スタッフがLINEアカウントを組織内の人物へ連携し、シフトリから募集、確定、催促などの通知を受け取る機能である。
 通知チャネルを手動で選ぶ設定は持たず、送信時点の連携状態とLINE quotaからLINEまたはメールを選ぶ。
 
 ## 機能の範囲
 
-シフト担当者は、ユーザーの店舗別設定ページから連携用URLを表示し、スタッフへ連携依頼を送れる。
-スタッフはLINE Loginを完了すると、その店舗のスタッフ情報へLINEアカウントを紐づけられる。
+シフト担当者は、スタッフ詳細の「LINE連携」から連携用URLを表示し、スタッフへ連携依頼を送れる。
+スタッフはLINE Loginを完了すると、その組織の人物へLINEアカウントを紐づけられる。
+同じ組織の現在および今後の所属店舗では、この連携を共通利用する。
+別の組織では、同じLINE利用者であっても、その組織用の連携操作が必要である。
 
 連携済みで友だち追加中ならLINEを優先し、それ以外はメールを使う。
 quotaの状態を取得できない場合はLINE送信を試みる。
@@ -26,8 +28,8 @@ LINE APIの429はquota fallbackとは別に再試行し、通常のLINE通知で
 
 | 画面 | 利用者ができること |
 |---|---|
-| `/users/<personId>/shops/<targetShopId>?shop=<sourceShopId>` | `targetShopId`で指定した店舗の通知履歴、LINE連携状態、連携URL、個別の通知再送を確認する。`shop`は出発元店舗として維持する |
-| 店舗別設定ページのLINE連携セクション | 発行したQRとURLをページ内へ表示し、URLをコピーする |
+| `/users/<personId>?shop=<sourceShopId>&panel=line` | 組織共通のLINE連携状態を確認し、連携URLの表示、依頼メールの送信、明示解除を行う |
+| `/users/<personId>/shops/<targetShopId>?shop=<sourceShopId>` | `targetShopId`で指定した店舗の送信可否、通知履歴、個別の通知再送を確認する。LINE連携の変更はスタッフ詳細で行う |
 | `/line/callback` | LINE Loginの成功、期限切れ、試行上限、エラーを確認する |
 | LINE公式アカウントのトーク画面 | 受信メッセージに対する定型応答を受け取る |
 
@@ -37,8 +39,8 @@ LINE APIの429はquota fallbackとは別に再試行し、通常のLINE通知で
 
 ## 連携token
 
-連携URLは72時間有効で、同じスタッフに再発行すると、発行主体にかかわらず以前の未使用tokenを失効させる。
-利用できるtokenは最新の一件だけであり、連携完了時に使用済みとして記録する。
+連携URLは72時間有効で、同じ組織人物に再発行すると、発行元店舗にかかわらず以前の未使用tokenを失効させる。
+利用できるtokenは同じ組織人物の最新一件だけであり、発行時の組織、人物、連携世代を再検証してから使用済みとして記録する。
 
 無効、期限切れ、使用済み、失効済みtokenは、LINE providerと通信する前に拒否する。
 Webhook、rate limit、環境変数、障害確認は[LINE通知の設定と運用](../manual/line-notification.md)を参照する。
@@ -52,7 +54,9 @@ CTAには`openExternalBrowser=1`を付け、LINEアプリ内ではなく端末�
 ## 初回設定とスタッフ追加
 
 最初の店舗設定では、シフト担当者へLINE連携依頼メールを予約する。
-スタッフ追加時は、法務同意依頼とは別にLINE連携依頼を送り、受付中の募集があれば希望提出linkも送る。
+スタッフ追加時は、組織人物がLINE未連携の場合だけ、法務同意依頼とは別にLINE連携依頼を送る。
+同じ組織で連携済みの人物を別店舗へ追加した場合は、共通の連携を引き継ぎ、LINE連携依頼を重ねて送らない。
+受付中の募集があれば、追加先店舗の希望提出linkを送る。
 
 スタッフのメールアドレスを変更した場合は、LINEを受信できないスタッフに限り、変更後の宛先へ受付中の募集を再送する。
 LINE連携完了またはfollow受信でLINEを受信できる状態になった場合は、対象の受付中募集をLINEへ送る。
@@ -60,13 +64,22 @@ LINE連携完了またはfollow受信でLINEを受信できる状態になった
 対象募集は、未削除の`open`状態で、シフト開始前かつ締切日以前の募集である。
 複数の対象募集がある場合は、募集ごとに一通を作る。
 
-## 複数店舗での連携
+## 組織、店舗、友だち状態の関係
 
-LINE連携は`staffId`単位で管理する。
-同じ人物が複数店舗に所属する場合は店舗ごとにスタッフ情報があるため、同じ`lineUserId`を複数店舗で連携できる。
+組織との明示連携は`organizationPersonId`単位で管理し、同じ人物の全店舗所属から一つの連携を参照する。
+LINE公式アカウント上の友だち状態はLINE利用者単位で管理する。
+同じLINE利用者が複数の組織で明示連携した場合も、組織間で連携を自動作成しない。
 
-同じ店舗で別スタッフに紐づいていたLINEアカウントだけを、連携完了時に切り替える。
-followとunfollowは、同じ`lineUserId`へ紐づく全店舗の連携状態へ反映する。
+同じ組織の別人物が利用中のLINEアカウントは、自動で付け替えず連携を拒否する。
+友だちをブロックしても組織との連携は残るが、明示連携済みのすべての組織と店舗でLINE通知を送れなくなり、メール通知へ切り替わる。
+再び友だち追加すると、署名済みWebhookの状態を、明示連携済みの人物と全所属店舗へ再開可能な処理で反映する。
+
+一つの店舗所属を外しても、組織人物のLINE連携は解除しない。
+スタッフ詳細から明示解除すると、その組織のすべての所属店舗でLINE通知を停止し、再利用には新しい連携操作を必要とする。
+別組織の明示連携には影響しない。
+
+契約状態により通常の業務更新を停止している間も、activeな管理者は通知停止の安全操作として明示解除できる。
+閲覧専用の管理者は解除できない。
 
 ## Public APIとHTTP入口
 
@@ -74,6 +87,7 @@ followとunfollowは、同じ`lineUserId`へ紐づく全店舗の連携状態へ
 |---|---|
 | `api.line.mutations.generateLinkToken` | 連携用URLを発行する |
 | `api.line.mutations.sendInvite` | 個別スタッフへ連携依頼メールを予約する |
+| `api.line.mutations.disconnectOrganizationPersonLine` | 対象組織人物の共通LINE連携を明示解除する |
 | `api.line.queries.getLinkStatusByShop` | 店舗のスタッフごとの連携状態を返す |
 | `api.line.queries.getQuotaStatus` | 保存済みのLINE Push quota状態を返す |
 | `api.line.actions.redeemLineToken` | OAuthのstateとcodeを検証し、連携を完了する |
@@ -100,7 +114,7 @@ Convexは認証identityから管理アクセスを解決し、対象店舗への
 | 通知文面 | `convex/notification/templates.ts` |
 | 外部送信 | `convex/notificationOutbox/` |
 | OAuth callback | `src/routes/_unregistered/line.callback.tsx`, `src/components/features/LineCallback/` |
-| 管理者向け連携UI | `src/components/features/UserShopDetail/`, `src/components/features/Line/LineLinkQrDialog/` |
+| 管理者向け連携UI | `src/components/features/UserDetail/`, `src/components/features/UserShopDetail/`, `src/components/features/Line/LineLinkQrDialog/` |
 
 ## 関連文書
 

@@ -1,1 +1,4 @@
-export type OrganizationCreationDialogState = { kind: "createOrganization" };
+export type OrganizationCreationDialogState = {
+  kind: "createOrganization";
+  requestId: string;
+};

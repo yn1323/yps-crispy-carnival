@@ -1,7 +1,8 @@
 import { v } from "convex/values";
 import { internalQuery } from "../_generated/server";
 import { formatPeriodLabel, getDeadlineCutoff } from "../_lib/dateFormat";
-import { getStaffLineAccount } from "../line/service";
+import { resolveStaffLineRecipient } from "../line/service";
+import { toNotificationLineRecipient } from "../notificationOutbox/types";
 import { isShiftTargetStaff } from "../staff/service";
 
 /**
@@ -37,13 +38,15 @@ export const getReminderEmailData = internalQuery({
     const staffEntries = (
       await Promise.all(
         unsubmittedStaffs.map(async (s) => {
-          const lineAccount = await getStaffLineAccount(ctx, s._id);
+          const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: s._id, shopId: s.shopId });
+          const projectedLineRecipient = toNotificationLineRecipient(lineRecipient);
           return {
             staffId: s._id,
             name: s.name,
             email: s.email,
-            lineUserId: lineAccount?.lineUserId,
-            lineFollowing: lineAccount?.following,
+            lineUserId: lineRecipient?.lineUserId,
+            lineFollowing: lineRecipient?.following,
+            lineRecipient: projectedLineRecipient,
           };
         }),
       )
@@ -83,8 +86,8 @@ export const getReminderEmailDataForStaff = internalQuery({
 
     const shop = await ctx.db.get(recruitment.shopId);
     if (!shop || shop.isDeleted) return null;
-    const lineAccount = await getStaffLineAccount(ctx, staff._id);
-    if (!staff.email && !(lineAccount?.lineUserId && lineAccount.following)) return null;
+    const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId: staff.shopId });
+    if (!staff.email && !(lineRecipient?.lineUserId && lineRecipient.following)) return null;
 
     return {
       shopId: recruitment.shopId,
@@ -96,8 +99,9 @@ export const getReminderEmailDataForStaff = internalQuery({
         staffId: staff._id,
         name: staff.name,
         email: staff.email,
-        lineUserId: lineAccount?.lineUserId,
-        lineFollowing: lineAccount?.following,
+        lineUserId: lineRecipient?.lineUserId,
+        lineFollowing: lineRecipient?.following,
+        lineRecipient: toNotificationLineRecipient(lineRecipient),
       },
     };
   },

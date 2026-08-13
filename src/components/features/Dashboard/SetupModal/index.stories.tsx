@@ -45,6 +45,11 @@ const openDateOnlyManagerStep = async (canvasElement: HTMLElement) => {
   await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
 
   await expect(await dialog.findByText("あなたの情報")).toBeInTheDocument();
+  await expect(dialog.getByText(/組織の2暦月トライアルが始まります/)).toBeInTheDocument();
+  const pricingLink = dialog.getByRole("link", { name: "料金とプランを確認する（新しいタブ）" });
+  await expect(pricingLink).toHaveAttribute("href", "/pricing");
+  await expect(pricingLink).toHaveAttribute("target", "_blank");
+  await expect(pricingLink).toHaveAttribute("rel", "noreferrer");
   await expect(dialog.getByRole("textbox", { name: "シフト連絡先メールアドレス" })).toBeInTheDocument();
 };
 
@@ -106,7 +111,7 @@ export const InteractiveDoubleSubmitGuard: Story = {
 
     await dialog.findByRole("textbox", { name: "あなたの名前" });
     await userEvent.click(dialog.getByRole("checkbox", { name: /利用規約.*プライバシーポリシー.*同意/ }));
-    const submit = dialog.getByRole("button", { name: "お店を登録する" });
+    const submit = dialog.getByRole("button", { name: "お店を登録してトライアルを開始" });
     fireEvent.click(submit);
     fireEvent.click(submit);
 

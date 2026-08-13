@@ -21,19 +21,24 @@ Pull Requestを閉じると、同workflowがプレビューの後処理を行う
 外部forkにはリポジトリのcredentialを渡さないため、同じ条件では実行されない。
 
 認証付きE2Eの必須gateは`pnpm e2e:ci`である。
-このcommandは、実ブラウザ境界を持つ次の8契約だけを実行し、JSON resultから契約ID、project、初回成功、skipなしを検証する。
+このcommandは、実ブラウザ境界を持つ次の13契約だけを実行し、JSON resultから契約ID、project、初回成功、skipなしを検証する。
 
 - `E2E-AUTH-01`：匿名利用者の保護route redirect。
 - `E2E-AUTH-02`：専用actorのlogout後に、同じ保護routeへ再アクセスしたときのredirect。
 - `E2E-SETUP-01`：認証済み管理者の初期設定。
+- `E2E-STAFF-01`：スタッフの追加、情報変更、再読み込み、組織からの削除。
 - `E2E-SHIFT-01`：募集、匿名提出、確定、匿名閲覧の代表導線。
 - `E2E-TENANT-01`：同じ管理者による2組織の切り替え。
-- `E2E-MEMBERSHIP-01`：店舗詳細での所属スタッフ追加、再読み込み、解除確認、解除後の再読み込み。
-- `E2E-SHOP-01`：既存組織への店舗追加、切り替え、再読み込み、追加店舗の削除、既存店舗への復帰。
+- `E2E-MEMBERSHIP-01`：対象店舗へのスタッフ所属追加と解除、再読み込み、元店舗の所属維持。
+- `E2E-SHOP-01`：既存組織への店舗追加、切り替え、店舗名と定休日の変更、再読み込み、追加店舗の削除、既存店舗への復帰。
+- `E2E-ORGANIZATION-01`：2組織目の作成、改名、再読み込み、組織の往復切り替え。
+- `E2E-ORGANIZATION-02`：組織の削除、残存組織の店舗への復帰、再読み込み、削除組織の不在確認。
+- `E2E-MANAGER-01`：組織設定から管理者設定を開き、既存スタッフへの招待を発行し、再読み込み後も招待中であることを確認して取り消し、スタッフタブへ戻る。
+- `E2E-MANAGER-02`：別のClerk actorによる招待受諾、管理者設定への到達、権限解除後のアクセス拒否、スタッフ所属の維持。
 - `E2E-MOBILE-01`：Mobile Chromeでの代表提出。
 
 通常実行はE2E用Clerk user 0から2を`parallelIndex`へ固定し、最大3 workerで動かす。
-logout境界だけはuser 3から5を`parallelIndex`へ固定し、各反復で専用の新しいbrowser contextへ認証する。
+logoutと管理者招待受諾の別actor境界はuser 3から5を`parallelIndex`へ固定し、各反復で専用の新しいbrowser contextへ認証する。
 desktop完了後にmobileを実行するため、異なるprojectが同じユーザーを同時に操作しない。
 
 同じPull Requestの新旧runはworkflowの`concurrency`で直列化し、古いrunをcancelする。
@@ -48,10 +53,16 @@ flake調査はretryを無効にした次のcommandで行う。
 pnpm e2e:burn-in
 ```
 
-このcommandはdesktop 7契約を各10回実行した後、mobile 1契約を依存projectなしで10回実行する。
+このcommandはdesktop 12契約を各10回（計120回）実行した後、mobile 1契約を依存projectなしで10回実行する。
 Playwrightのproject dependencyを含む一括`repeat-each`では依存側のdesktopが1回しか反復されないため、2段階を直列実行する。
 各段階は次の段階が`test-results.json`とreportを上書きする前に、contract ID別の反復数、project、初回成功、skip、flakyを結果ゲートで確認し、artifact privacy検査を通す。
 Full Regressionは認証付きE2Eだけで担わず、Logic、Frontend Unit、Behavior、VRT、Convex Function、Convex Scenario、Deployed Smokeへ分担する。
+
+Playwright用Convex Previewでは、組織作成と管理者設定の常時公開契約を検証し、通知配送は`NOTIFICATION_DELIVERY_MODE=dry-run`のまま維持する。
+`E2E-MANAGER-01`は招待の発行・再読込・取消というアプリ内状態を検証し、受取人による招待受諾を成功条件にしない。
+`E2E-MANAGER-02`は予約済みの別Clerk actorが招待を受諾し、管理者権限を取得した後に権限を外され、管理画面へ戻れなくてもスタッフ所属が残ることを検証する。
+招待capability、Clerk session、氏名、メールアドレスを扱うscenarioはtrace、screenshot、videoを無効にする。
+メールproviderへの実配送は、どちらの管理者契約でも成功条件にしない。
 
 VRTの差分とレポート公開は `.github/workflows/vrt.yml` が管理する。
 差分承認の条件と承認環境はworkflowを確認し、レポートURLだけを根拠に成功扱いしない。

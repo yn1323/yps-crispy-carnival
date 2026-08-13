@@ -358,8 +358,28 @@ describe("organizationStripe/actions", () => {
       unitAmount: 2980,
       interval: "month",
       intervalCount: 1,
+      taxBehavior: "inclusive",
     });
     expect(requestedPriceIds).toEqual([BUSINESS_PRICE_ID, READY_TEST_CONFIGURATION.proPriceId]);
+
+    requestedPriceIds.length = 0;
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource !== "prices.retrieve") throw new Error(`Unexpected Stripe provider call: ${resource}`);
+      const [priceId] = JSON.parse(String(init?.body ?? "[]")) as [string];
+      requestedPriceIds.push(priceId);
+      return providerResponse({
+        ...priceFixtureFor(priceId),
+        tax_behavior: priceId === BUSINESS_PRICE_ID ? "unspecified" : "inclusive",
+      });
+    });
+    await expect(
+      t.withIdentity({ subject: "stripe_business_price" }).action(api.organizationStripe.actions.getPlanPrice, {
+        shopId: ids.shopId,
+        targetPlan: "business",
+      }),
+    ).resolves.toEqual({ status: "unavailable", reason: "price_unavailable" });
+    expect(requestedPriceIds).toEqual([BUSINESS_PRICE_ID]);
 
     requestedPriceIds.length = 0;
     providerFetchMock.mockImplementation(async (input, init) => {
@@ -392,7 +412,6 @@ describe("organizationStripe/actions", () => {
   });
 
   it("現在契約は保存済みの旧inactive PriceをID非公開で返し、明示された税区分だけを含める", async () => {
-    vi.stubEnv("FEATURE_BILLING", "enabled");
     const t = convexTest(schema, modules);
     const persistedPriceId = "price_archived_current_subscription";
     const ids = await seedCurrentSubscriptionPriceContext(t, {
@@ -436,23 +455,7 @@ describe("organizationStripe/actions", () => {
     expect(requestedPriceIds).toEqual([persistedPriceId, persistedPriceId]);
   });
 
-  it("billing featureが非公開なら保存済み有料契約があってもprovider通信しない", async () => {
-    vi.stubEnv("FEATURE_BILLING", "");
-    const t = convexTest(schema, modules);
-    const ids = await seedCurrentSubscriptionPriceContext(t, {
-      subject: "stripe_current_subscription_feature_disabled",
-    });
-
-    await expect(
-      t
-        .withIdentity({ subject: "stripe_current_subscription_feature_disabled" })
-        .action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: ids.shopId }),
-    ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
-    expect(providerFetchMock).not.toHaveBeenCalled();
-  });
-
   it("別organizationのactorは対象shopの契約Priceを取得できずprovider通信しない", async () => {
-    vi.stubEnv("FEATURE_BILLING", "enabled");
     const t = convexTest(schema, modules);
     await t.run(
       async (ctx) =>
@@ -474,7 +477,6 @@ describe("organizationStripe/actions", () => {
   });
 
   it("保存済みsubscriptionとsecretのlivemodeが不一致ならprovider通信しない", async () => {
-    vi.stubEnv("FEATURE_BILLING", "enabled");
     const t = convexTest(schema, modules);
     const ids = await seedCurrentSubscriptionPriceContext(t, {
       subject: "stripe_current_subscription_livemode_mismatch",
@@ -492,7 +494,6 @@ describe("organizationStripe/actions", () => {
   it.each(["active.free", "trial"] as const)(
     "%sに古いsubscription snapshotが残っても現在契約Priceを返さない",
     async (stateKind) => {
-      vi.stubEnv("FEATURE_BILLING", "enabled");
       const t = convexTest(schema, modules);
       const subject = `stripe_stale_current_subscription_${stateKind.replace(".", "_")}`;
       const ids = await seedCurrentSubscriptionPriceContext(t, {
@@ -513,7 +514,6 @@ describe("organizationStripe/actions", () => {
   );
 
   it("canonical有料planとsubscription snapshotのplanが不一致ならprovider通信しない", async () => {
-    vi.stubEnv("FEATURE_BILLING", "enabled");
     const t = convexTest(schema, modules);
     const ids = await seedCurrentSubscriptionPriceContext(t, {
       subject: "stripe_current_subscription_plan_mismatch",
@@ -529,7 +529,6 @@ describe("organizationStripe/actions", () => {
   });
 
   it("終了済みsubscription snapshotだけなら現在契約Priceを返さずprovider通信しない", async () => {
-    vi.stubEnv("FEATURE_BILLING", "enabled");
     const t = convexTest(schema, modules);
     const ids = await seedCurrentSubscriptionPriceContext(t, {
       subject: "stripe_terminal_current_subscription",
@@ -545,7 +544,6 @@ describe("organizationStripe/actions", () => {
   });
 
   it("支払い制限中は復旧managerだけが保存済み契約Priceを取得できる", async () => {
-    vi.stubEnv("FEATURE_BILLING", "enabled");
     const t = convexTest(schema, modules);
     const ids = await seedCurrentSubscriptionPriceContext(t, {
       subject: "stripe_current_subscription_recovery_manager",
@@ -594,7 +592,6 @@ describe("organizationStripe/actions", () => {
       }),
     },
   ])("$labelでも現在表示中の有料契約Priceを取得できる", async ({ label, state }) => {
-    vi.stubEnv("FEATURE_BILLING", "enabled");
     const t = convexTest(schema, modules);
     const subject = `stripe_current_subscription_${label}`;
     const ids = await seedCurrentSubscriptionPriceContext(t, {
@@ -618,7 +615,6 @@ describe("organizationStripe/actions", () => {
   });
 
   it("一般のreadOnly actorは有料契約Priceを取得できずprovider通信しない", async () => {
-    vi.stubEnv("FEATURE_BILLING", "enabled");
     const t = convexTest(schema, modules);
     const ids = await seedCurrentSubscriptionPriceContext(t, {
       subject: "stripe_current_subscription_read_only",
@@ -634,7 +630,6 @@ describe("organizationStripe/actions", () => {
   });
 
   it("restricted recoveryManagerはreadOnlyになっても契約Priceを取得できる", async () => {
-    vi.stubEnv("FEATURE_BILLING", "enabled");
     const t = convexTest(schema, modules);
     const ids = await seedCurrentSubscriptionPriceContext(t, {
       subject: "stripe_current_subscription_read_only_recovery",
@@ -2949,6 +2944,7 @@ describe("organizationStripe/actions", () => {
         livemode: false,
         currency: "jpy",
         unit_amount: 1480,
+        tax_behavior: "inclusive",
         recurring: { interval: "month", interval_count: 1 },
       });
     });
@@ -3008,6 +3004,7 @@ describe("organizationStripe/actions", () => {
           livemode: false,
           currency: "jpy",
           unit_amount: 1480,
+          tax_behavior: "inclusive",
           recurring: { interval: "month", interval_count: 1 },
         });
       }
@@ -3114,6 +3111,7 @@ describe("organizationStripe/actions", () => {
           livemode: false,
           currency: "jpy",
           unit_amount: 1480,
+          tax_behavior: "inclusive",
           recurring: { interval: "month", interval_count: 1 },
         });
       }
@@ -3187,6 +3185,7 @@ describe("organizationStripe/actions", () => {
           livemode: false,
           currency: "jpy",
           unit_amount: 1480,
+          tax_behavior: "inclusive",
           recurring: { interval: "month", interval_count: 1 },
         });
       }
@@ -3346,6 +3345,7 @@ describe("organizationStripe/actions", () => {
           livemode: false,
           currency: "jpy",
           unit_amount: 1480,
+          tax_behavior: "inclusive",
           recurring: { interval: "month", interval_count: 1 },
         });
       }
@@ -3431,6 +3431,7 @@ describe("organizationStripe/actions", () => {
           livemode: false,
           currency: "jpy",
           unit_amount: 1480,
+          tax_behavior: "inclusive",
           recurring: { interval: "month", interval_count: 1 },
         });
       }
@@ -3540,6 +3541,7 @@ describe("organizationStripe/actions", () => {
           livemode: false,
           currency: "jpy",
           unit_amount: 1480,
+          tax_behavior: "inclusive",
           recurring: { interval: "month", interval_count: 1 },
         });
       }
@@ -3936,6 +3938,7 @@ describe("organizationStripe/actions", () => {
           livemode: false,
           currency: "jpy",
           unit_amount: 1480,
+          tax_behavior: "inclusive",
           recurring: { interval: "month", interval_count: 1 },
         });
       }
@@ -4027,6 +4030,7 @@ describe("organizationStripe/actions", () => {
           livemode: false,
           currency: "jpy",
           unit_amount: 1480,
+          tax_behavior: "inclusive",
           recurring: { interval: "month", interval_count: 1 },
         });
       }
@@ -4274,6 +4278,7 @@ describe("organizationStripe/actions", () => {
             livemode: false,
             currency: "jpy",
             unit_amount: 1480,
+            tax_behavior: "inclusive",
             recurring: { interval: "month", interval_count: 1 },
           });
         }
@@ -4376,6 +4381,7 @@ describe("organizationStripe/actions", () => {
           livemode: false,
           currency: "jpy",
           unit_amount: 1480,
+          tax_behavior: "inclusive",
           recurring: { interval: "month", interval_count: 1 },
         });
       }
@@ -4494,6 +4500,7 @@ describe("organizationStripe/actions", () => {
           livemode: false,
           currency: "jpy",
           unit_amount: 1480,
+          tax_behavior: "inclusive",
           recurring: { interval: "month", interval_count: 1 },
         });
       }
@@ -4591,6 +4598,7 @@ describe("organizationStripe/actions", () => {
           livemode: false,
           currency: "jpy",
           unit_amount: 1480,
+          tax_behavior: "inclusive",
           recurring: { interval: "month", interval_count: 1 },
         });
       }
@@ -4744,6 +4752,7 @@ describe("organizationStripe/actions", () => {
           livemode: false,
           currency: "jpy",
           unit_amount: 1480,
+          tax_behavior: "inclusive",
           recurring: { interval: "month", interval_count: 1 },
         });
       }
@@ -4848,6 +4857,7 @@ describe("organizationStripe/actions", () => {
           livemode: false,
           currency: "jpy",
           unit_amount: 1480,
+          tax_behavior: "inclusive",
           recurring: { interval: "month", interval_count: 1 },
         });
       }
@@ -5543,6 +5553,7 @@ describe("organizationStripe/actions", () => {
           livemode: false,
           currency: "jpy",
           unit_amount: 1000,
+          tax_behavior: "inclusive",
           recurring: { interval: "month", interval_count: 1 },
         });
       }
@@ -5747,6 +5758,7 @@ describe("organizationStripe/actions", () => {
           livemode: false,
           currency: "jpy",
           unit_amount: 1000,
+          tax_behavior: "inclusive",
           recurring: { interval: "month", interval_count: 1 },
         });
       }
@@ -6787,6 +6799,92 @@ describe("organizationStripe/actions", () => {
     expect(providerCalls).toEqual(["subscriptions.retrieve"]);
   });
 
+  it("利用停止予約はmarkerをoperationへ保存し、取消で有料プランへ戻す", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedPaidPlanStripeContext(t, { subject: "stripe_service_stop", plan: "pro" });
+    let cancelAtPeriodEnd = false;
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      const subscription = {
+        ...paidPlanSubscriptionFixture(ids, { plan: "pro", invoiceStatus: "paid" }),
+        cancel_at_period_end: cancelAtPeriodEnd,
+      };
+      if (resource === "subscriptions.retrieve") return providerResponse(subscription);
+      if (resource === "subscriptions.update") {
+        cancelAtPeriodEnd = !cancelAtPeriodEnd;
+        return providerResponse({ ...subscription, cancel_at_period_end: cancelAtPeriodEnd });
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+    const actor = t.withIdentity({ subject: "stripe_service_stop" });
+
+    await expect(
+      actor.action(api.organizationStripe.actions.scheduleServiceStopAtPeriodEnd, {
+        shopId: ids.shopId,
+        requestId: "service-stop-schedule",
+      }),
+    ).resolves.toEqual({ status: "accepted" });
+    let state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({
+      kind: "scheduledChange",
+      currentPlan: "pro",
+      targetPlan: "free",
+      effectiveAt: ids.periodEndsAt,
+      restrictAtPeriodEnd: true,
+    });
+    expect(state.operations.find((operation) => operation.kind === "scheduleFree")).toMatchObject({
+      status: "succeeded",
+      restrictAtPeriodEnd: true,
+    });
+
+    await expect(
+      actor.action(api.organizationStripe.actions.cancelScheduledPlanChange, {
+        shopId: ids.shopId,
+        requestId: "service-stop-cancel",
+      }),
+    ).resolves.toEqual({ status: "accepted" });
+    state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({ kind: "active", plan: "pro" });
+    expect(state.operations.find((operation) => operation.kind === "cancelFreeSchedule")).toMatchObject({
+      status: "succeeded",
+      restrictAtPeriodEnd: true,
+    });
+  });
+
+  it("利用停止予約は未認証・readOnly・別organizationから開始できない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      await seedOrganizationManagerShop(ctx, { subject: "stripe_service_stop_other", plan: "pro" });
+      return await seedOrganizationManagerShop(ctx, { subject: "stripe_service_stop_target", plan: "pro" });
+    });
+
+    await expect(
+      t.action(api.organizationStripe.actions.scheduleServiceStopAtPeriodEnd, {
+        shopId: ids.shopId,
+        requestId: "service-stop-unauthenticated",
+      }),
+    ).rejects.toThrow();
+    await expect(
+      t
+        .withIdentity({ subject: "stripe_service_stop_other" })
+        .action(api.organizationStripe.actions.scheduleServiceStopAtPeriodEnd, {
+          shopId: ids.shopId,
+          requestId: "service-stop-other-organization",
+        }),
+    ).rejects.toThrow();
+    await t.run(async (ctx) => await ctx.db.patch(ids.memberId, { status: "readOnly", updatedAt: NOW }));
+    await expect(
+      t
+        .withIdentity({ subject: "stripe_service_stop_target" })
+        .action(api.organizationStripe.actions.scheduleServiceStopAtPeriodEnd, {
+          shopId: ids.shopId,
+          requestId: "service-stop-read-only",
+        }),
+    ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
+    expect(providerFetchMock).not.toHaveBeenCalled();
+    await expectNoStripeSideEffects(t);
+  });
+
   it("期間末Free予約はprovider成功後のlocal停止を同じoperationで回収する", async () => {
     const t = convexTest(schema, modules);
     const periodEndsAt = NOW + 30 * 24 * 60 * 60_000;
@@ -6938,7 +7036,7 @@ describe("organizationStripe/actions", () => {
     },
   );
 
-  it("期間末Free予約の再試行でも同じStripe idempotency keyを使う", async () => {
+  it("利用停止予約の再試行でもmarkerと同じStripe idempotency keyを保持する", async () => {
     const t = convexTest(schema, modules);
     const periodEndsAt = NOW + 30 * 24 * 60 * 60_000;
     const ids = await seedCancelAtPeriodEndRecoveryContext(t, {
@@ -6946,6 +7044,7 @@ describe("organizationStripe/actions", () => {
       operationKind: "scheduleFree",
       cancelAtPeriodEndSnapshot: false,
       periodEndsAt,
+      restrictAtPeriodEnd: true,
     });
     const updateCalls: unknown[][] = [];
     providerFetchMock.mockImplementation(async (input, init) => {
@@ -6981,6 +7080,8 @@ describe("organizationStripe/actions", () => {
       [ids.stripeSubscriptionId, { cancel_at_period_end: true }, { idempotencyKey: ids.stripeIdempotencyKey }],
     ]);
     const result = await cancelAtPeriodEndRecoveryState(t, ids.organizationId, ids.operationId);
+    expect(result.billing?.state).toMatchObject({ restrictAtPeriodEnd: true });
+    expect(result.operation).toMatchObject({ restrictAtPeriodEnd: true });
     expect(result.operation).toMatchObject({ status: "succeeded", attemptCount: 2 });
   });
 
@@ -7089,6 +7190,71 @@ describe("organizationStripe/actions", () => {
     }));
     expect(result.billing?.state).toEqual({ kind: "active", plan: "free" });
     expect(result.subscription).toMatchObject({ status: "canceled", terminalAt: NOW });
+  });
+
+  it("利用停止予約はproviderの期間変更後もmarkerを保持し、取消確定時にrestrictedへ移す", async () => {
+    const t = convexTest(schema, modules);
+    const rescheduledEndsAt = NOW + 24 * 60 * 60_000;
+    const ids = await seedScheduledFreeStripeContext(t, "stripe_scheduled_restriction_rescheduled", "pro", {
+      restrictAtPeriodEnd: true,
+    });
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(scheduledFreeSubscription(ids, "active", true, rescheduledEndsAt));
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.reconcileScheduledFreeDeadline, {
+      organizationId: ids.organizationId,
+      expectedBillingVersion: 2,
+      requestId: "scheduled-restriction-rescheduled-request",
+    });
+
+    const rescheduled = await t.run(
+      async (ctx) =>
+        await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+          .unique(),
+    );
+    expect(rescheduled).toMatchObject({
+      version: 3,
+      state: {
+        kind: "scheduledChange",
+        currentPlan: "pro",
+        targetPlan: "free",
+        effectiveAt: rescheduledEndsAt,
+        restrictAtPeriodEnd: true,
+      },
+    });
+
+    vi.setSystemTime(rescheduledEndsAt);
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(scheduledFreeSubscription(ids, "canceled", true, rescheduledEndsAt));
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+    await t.action(internal.organizationStripe.actions.reconcileScheduledFreeDeadline, {
+      organizationId: ids.organizationId,
+      expectedBillingVersion: 3,
+      requestId: "scheduled-restriction-confirmed-request",
+    });
+
+    const confirmed = await t.run(
+      async (ctx) =>
+        await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+          .unique(),
+    );
+    expect(confirmed).toMatchObject({
+      version: 4,
+      state: { kind: "restricted", previousPlan: "pro", reason: "scheduledCancellation" },
+    });
   });
 
   it("paymentGraceExpiredではSubscriptionをcancelし、対象open/draft Invoiceの自動回収を停止する", async () => {
@@ -7651,6 +7817,7 @@ describe("organizationStripe/actions", () => {
           livemode: false,
           currency: "jpy",
           unit_amount: 1000,
+          tax_behavior: "inclusive",
           recurring: { interval: "month", interval_count: 1 },
         });
       }
@@ -8116,6 +8283,7 @@ async function seedScheduledFreeStripeContext(
   t: TestConvex<typeof schema>,
   subject: string,
   currentPlan: "pro" | "business" = "pro",
+  options: { restrictAtPeriodEnd?: true } = {},
 ) {
   return await t.run(async (ctx) => {
     const seeded = await seedOrganizationManagerShop(ctx, { subject, plan: currentPlan });
@@ -8129,7 +8297,13 @@ async function seedScheduledFreeStripeContext(
       .unique();
     if (!billing) throw new Error("billing state was not seeded");
     await ctx.db.patch(billing._id, {
-      state: { kind: "scheduledChange", currentPlan, targetPlan: "free", effectiveAt: NOW },
+      state: {
+        kind: "scheduledChange",
+        currentPlan,
+        targetPlan: "free",
+        effectiveAt: NOW,
+        ...(options.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
+      },
       version: 2,
       updatedAt: NOW,
     });
@@ -8388,6 +8562,7 @@ function priceFixtureFor(priceId: string) {
     livemode: false,
     currency: "jpy",
     unit_amount: priceId === BUSINESS_PRICE_ID ? 2980 : 1480,
+    tax_behavior: "inclusive",
     recurring: { interval: "month", interval_count: 1 },
   };
 }
@@ -8550,6 +8725,7 @@ async function seedCancelAtPeriodEndRecoveryContext(
     cancelAtPeriodEndSnapshot: boolean;
     periodEndsAt: number;
     currentPlan?: "pro" | "business";
+    restrictAtPeriodEnd?: true;
   },
 ) {
   return await t.run(async (ctx) => {
@@ -8570,6 +8746,7 @@ async function seedCancelAtPeriodEndRecoveryContext(
               currentPlan,
               targetPlan: "free",
               effectiveAt: args.periodEndsAt,
+              ...(args.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
             },
       version: 2,
       updatedAt: NOW,
@@ -8615,6 +8792,7 @@ async function seedCancelAtPeriodEndRecoveryContext(
       providerGeneration: 1,
       sourcePlan: currentPlan,
       targetPlan: "free",
+      ...(args.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
       changeMode: "periodEnd",
       stripeSubscriptionIdSnapshot: stripeSubscriptionId,
       stripeSubscriptionItemIdSnapshot: `si_${suffix}`,
@@ -8704,6 +8882,7 @@ function scheduledFreeSubscription(
   ids: Awaited<ReturnType<typeof seedScheduledFreeStripeContext>>,
   status: "active" | "canceled",
   cancelAtPeriodEnd: boolean,
+  periodEndsAt = NOW,
 ) {
   return {
     id: ids.stripeSubscriptionId,
@@ -8722,7 +8901,7 @@ function scheduledFreeSubscription(
       data: [
         {
           id: ids.stripeSubscriptionItemId,
-          current_period_end: Math.floor(NOW / 1000),
+          current_period_end: Math.floor(periodEndsAt / 1000),
           price: {
             id: ids.stripePriceId,
             active: true,
@@ -8990,6 +9169,7 @@ function mockInactivePriceMappedWebhook(
         livemode: false,
         currency: "jpy",
         unit_amount: 1480,
+        tax_behavior: "inclusive",
         recurring: { interval: "month", interval_count: 1 },
       });
     }

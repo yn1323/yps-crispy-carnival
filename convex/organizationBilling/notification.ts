@@ -1,8 +1,5 @@
 import { v } from "convex/values";
 import { formatDateTimeLabel } from "../_lib/dateFormat";
-import { ORGANIZATION_PLAN_LIMITS } from "./planLimits";
-
-const FREE_PLAN_LIMITS = ORGANIZATION_PLAN_LIMITS.free;
 
 export const TRIAL_ENDING_REMINDER_LEAD_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -29,6 +26,19 @@ export const organizationBillingNotificationDetailsValidator = v.object({
   amountDue: v.optional(v.number()),
   currency: v.optional(v.string()),
   effectiveAt: v.optional(v.number()),
+  restrictAtPeriodEnd: v.optional(v.literal(true)),
+  restrictionReason: v.optional(
+    v.union(
+      v.literal("trialEndedWithoutSubscription"),
+      v.literal("scheduledCancellation"),
+      v.literal("trialFreeConditionsNotMet"),
+      v.literal("freeConditionsNotMet"),
+      v.literal("paymentGraceExpired"),
+      v.literal("paymentActivationFailed"),
+      v.literal("unexpectedCancellation"),
+      v.literal("planLimitExceeded"),
+    ),
+  ),
 });
 
 export type OrganizationBillingNotificationEvent =
@@ -58,6 +68,16 @@ export type OrganizationBillingNotificationDetails = {
   amountDue?: number;
   currency?: string;
   effectiveAt?: number;
+  restrictAtPeriodEnd?: true;
+  restrictionReason?:
+    | "trialEndedWithoutSubscription"
+    | "scheduledCancellation"
+    | "trialFreeConditionsNotMet"
+    | "freeConditionsNotMet"
+    | "paymentGraceExpired"
+    | "paymentActivationFailed"
+    | "unexpectedCancellation"
+    | "planLimitExceeded";
 };
 
 export function organizationBillingNotificationCopy(
@@ -81,12 +101,12 @@ export function organizationBillingNotificationCopy(
           ? [
               `トライアルは${trialEndsAtLabel}に終了します。`,
               `選択済みの契約プランは${selectedPlanLabel}です。\n初回請求は${trialEndsAtLabel}を予定しています。`,
-              `無料へ変更する場合の設定期限は${trialEndsAtLabel}です。\n期限までに組織設定から変更してください。`,
+              `継続を取り消す場合の期限は${trialEndsAtLabel}です。\n取り消すと、トライアル終了後は利用停止になります。`,
             ]
           : [
               `トライアルは${trialEndsAtLabel}に終了します。\n有料プランはまだ契約されていません。`,
-              `終了後も無料プランを利用するには、残す管理者と店舗を選び、利用人数を${FREE_PLAN_LIMITS.maxPeople}名以下にしてください。\n条件を満たさない場合は契約制限中になります。`,
-              `無料プランで残す管理者と店舗の設定期限は${trialEndsAtLabel}です。`,
+              "有料プランを契約しない場合、トライアル終了後は利用停止になります。\n店舗・ユーザー・過去のシフトは削除されません。",
+              "利用を再開するには、組織設定からProまたはBusinessを契約してください。",
             ],
       };
     }
@@ -109,6 +129,19 @@ export function organizationBillingNotificationCopy(
         ],
       };
     case "scheduledChange": {
+      if (details?.restrictAtPeriodEnd) {
+        const effectiveAtLabel = details.effectiveAt
+          ? formatDateTimeLabel(details.effectiveAt)
+          : "現在の支払い済み期間の終了時";
+        return {
+          subject: "利用停止を予約しました",
+          heading: "利用停止を予約しました",
+          paragraphs: [
+            `${effectiveAtLabel}に利用を停止します。\nそれまでは現在の有料プランを利用できます。`,
+            "利用停止後も、店舗・ユーザー・過去のシフトは削除されません。\n再開するには有料プランを契約してください。",
+          ],
+        };
+      }
       const targetPlanLabel = details?.targetPlan ? planLabel(details.targetPlan) : "変更先プラン";
       const effectiveAtLabel = details?.effectiveAt
         ? formatDateTimeLabel(details.effectiveAt)
@@ -123,6 +156,16 @@ export function organizationBillingNotificationCopy(
       };
     }
     case "scheduledChangeCanceled":
+      if (details?.restrictAtPeriodEnd) {
+        return {
+          subject: "利用停止予約を取り消しました",
+          heading: "利用停止予約を取り消しました",
+          paragraphs: [
+            "期間末に予定していた利用停止を取り消しました。",
+            "現在の有料プランを継続します。\n現在の契約状態は組織設定で確認できます。",
+          ],
+        };
+      }
       return {
         subject: "プラン変更予約を取り消しました",
         heading: "プラン変更予約を取り消しました",
@@ -209,6 +252,22 @@ export function organizationBillingNotificationCopy(
           paragraphs: [
             billingSummary ? `支払い結果を確認しました。\n${billingSummary}` : "支払い結果を確認しました。",
             `${targetPlanLabel}の利用上限を超えているため、契約制限中です。\n組織設定で利用人数・店舗数・管理者数を上限以内に整理してください。`,
+          ],
+        };
+      }
+      if (
+        details?.restrictionReason === "trialEndedWithoutSubscription" ||
+        details?.restrictionReason === "scheduledCancellation" ||
+        details?.restrictionReason === "paymentGraceExpired" ||
+        details?.restrictionReason === "paymentActivationFailed" ||
+        details?.restrictionReason === "unexpectedCancellation"
+      ) {
+        return {
+          subject: "利用停止中になりました",
+          heading: "利用停止中になりました",
+          paragraphs: [
+            "店舗・ユーザー・過去のシフトは削除されていませんが、シフト作成や通知などの業務操作は利用できません。",
+            "利用を再開するには、組織設定からProまたはBusinessを契約してください。",
           ],
         };
       }

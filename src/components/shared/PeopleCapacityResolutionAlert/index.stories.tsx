@@ -61,7 +61,7 @@ export const ContactForIndividualPlan: Story = {
   },
 };
 
-export const ChooseProWhileBillingHidden: Story = {
+export const ChooseProWithLegacyClosedFeatureState: Story = {
   args: {
     resolution: { kind: "choosePaidPlan", current: 5, max: 5 },
     retryActionLabel: "スタッフを追加",
@@ -76,10 +76,9 @@ export const ChooseProWhileBillingHidden: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.queryByRole("link", { name: "プランと支払いを確認" })).toBeNull();
-    await expect(canvas.getByRole("link", { name: "利用上限について問い合わせる" })).toHaveAttribute(
+    await expect(canvas.getByRole("link", { name: "プランと支払いを確認" })).toHaveAttribute(
       "href",
-      "/contact",
+      "/settings?tab=billing",
     );
   },
 };

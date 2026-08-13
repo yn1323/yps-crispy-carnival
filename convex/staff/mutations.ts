@@ -17,7 +17,12 @@ import {
   ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT,
   ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT,
 } from "../constants";
-import { getStaffLineAccount } from "../line/service";
+import {
+  getOrganizationPersonLineState,
+  resolveOrganizationPersonLineInheritanceRecipient,
+  resolveStaffLineRecipient,
+  upsertStaffLineAccount,
+} from "../line/service";
 import { ensureNotificationFanoutOperation } from "../notification/fanout";
 import {
   BULK_NOTIFICATION_CANCEL_CANDIDATE_LIMIT,
@@ -34,6 +39,7 @@ import {
   revokeStaffAccessForRemoval,
   STALE_PERSON_REMOVAL_PREVIEW_ERROR,
 } from "../organization/personRemoval";
+import { requireOrganizationPersonWithoutManagerRole } from "../organization/service";
 import {
   createOrganizationPersonShopMembershipFingerprint,
   INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON,
@@ -54,6 +60,7 @@ import {
   materializeOrganizationPeopleForStaffAddition,
   prepareOrganizationPeopleForStaffAddition,
   releasePendingInvitationReservationsForStaffAddition,
+  requireAdditionalShopMembershipEnabled,
 } from "./service";
 
 type StaffNotificationKind = "openRecruitments" | "currentShift";
@@ -151,8 +158,8 @@ async function getSendableStaff(ctx: ManagerStaffMutationCtx, staffId: Id<"staff
     throw new ConvexError("Not found");
   }
 
-  const lineAccount = await getStaffLineAccount(ctx, staff._id);
-  const canSend = staff.email.length > 0 || Boolean(lineAccount?.lineUserId && lineAccount.following);
+  const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId: ctx.shop._id });
+  const canSend = staff.email.length > 0 || Boolean(lineRecipient?.lineUserId && lineRecipient.following);
   if (!canSend) {
     throw new ConvexError("メールアドレスの登録またはLINE連携が必要です。");
   }
@@ -439,8 +446,46 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
     }));
   }
 
+  const lineContexts = await Promise.all(
+    staffEntries.map(async (entry) => {
+      if (!entry.organizationId || !entry.organizationPersonId) {
+        return { lineRecipient: null, lineState: null };
+      }
+      await requireAdditionalShopMembershipEnabled(ctx, {
+        organizationId: entry.organizationId,
+        organizationPersonId: entry.organizationPersonId,
+        targetShopId: ctx.shop._id,
+      });
+      const lineRecipient = await resolveOrganizationPersonLineInheritanceRecipient(ctx, {
+        organizationId: entry.organizationId,
+        organizationPersonId: entry.organizationPersonId,
+      });
+      const lineState = await getOrganizationPersonLineState(ctx, {
+        organizationId: entry.organizationId,
+        organizationPersonId: entry.organizationPersonId,
+      });
+      if (!lineState) {
+        throw new ConvexError("スタッフのLINE連携状態を確認できません。\n画面を更新して、もう一度お試しください。");
+      }
+      const expectedStatus = lineRecipient
+        ? lineRecipient.following
+          ? "linked_following"
+          : "linked_unfollowed"
+        : "unlinked";
+      if (
+        lineState.status !== expectedStatus ||
+        (lineRecipient !== null && lineRecipient.authority !== lineState.authority)
+      ) {
+        throw new ConvexError("スタッフのLINE連携状態を確認できません。\n画面を更新して、もう一度お試しください。");
+      }
+      return { lineRecipient, lineState };
+    }),
+  );
+  const lineStates = lineContexts.map((context) => context.lineState);
+  const lineRecipients = lineContexts.map((context) => context.lineRecipient);
+
   const inserted: Id<"staffs">[] = [];
-  for (const entry of staffEntries) {
+  for (const [index, entry] of staffEntries.entries()) {
     // TODO[narrow]: 全deploymentでm025/m027完走・staff readiness 0確認後、canonical IDsを必須にする。
     const id = await ctx.db.insert("staffs", {
       shopId: ctx.shop._id,
@@ -453,20 +498,39 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
       excludedFromShift: false,
       isDeleted: false,
     });
+    const lineRecipient = lineRecipients[index];
+    if (lineRecipient?.authority === "legacy") {
+      await upsertStaffLineAccount(ctx, {
+        staffId: id,
+        shopId: ctx.shop._id,
+        lineUserId: lineRecipient.lineUserId,
+        following: lineRecipient.following,
+      });
+    }
     inserted.push(id);
   }
   const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
-  for (const staffId of inserted) {
+  for (const [index, staffId] of inserted.entries()) {
     // スタッフ追加直後に必要な案内をまとめて fire-and-forget する。
     // mutation は登録完了を優先し、外部送信の失敗や dry-run 判定は action 側で扱う。
     await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentEmail, {
       staffId,
       ...notificationOrigin,
     });
-    await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
-      staffId,
-      ...notificationOrigin,
-    });
+    if (!lineRecipients[index]) {
+      const entry = staffEntries[index];
+      const lineState = lineStates[index];
+      await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
+        staffId,
+        ...(entry?.organizationPersonId && lineState
+          ? {
+              organizationPersonId: entry.organizationPersonId,
+              lineLinkGenerationAtSchedule: lineState.generation,
+            }
+          : {}),
+        ...notificationOrigin,
+      });
+    }
     await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaff, {
       staffId,
       ...notificationOrigin,
@@ -502,6 +566,7 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
                   memberships: inserted.map((insertedStaffId, insertedIndex) => {
                     const insertedEntry = staffEntries[insertedIndex];
                     if (!insertedEntry) throw new ConvexError("スタッフの追加結果を確認できません。");
+                    const lineState = lineStates[insertedIndex];
                     return {
                       staffId: insertedStaffId,
                       ...(insertedEntry.organizationPersonId
@@ -512,8 +577,8 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
                         : {}),
                       isShiftTarget: true,
                       validFrom: now,
-                      lineLinked: false,
-                      lineFollowing: false,
+                      lineLinked: lineState !== null && lineState.status !== "unlinked",
+                      lineFollowing: lineState?.status === "linked_following",
                     };
                   }),
                 },
@@ -854,6 +919,10 @@ export const changeOrganizationPersonShopMemberships = managerMutation({
       .sort((left, right) => left.shop._id.localeCompare(right.shop._id));
     const addedShopIds = desiredActiveShopIds.filter((shopId) => !currentMembershipByShopId.has(shopId));
     const removedShopIds = removals.map((membership) => membership.shop._id);
+
+    if (removals.length > 0) {
+      await requireOrganizationPersonWithoutManagerRole(ctx, organizationId, person._id);
+    }
 
     const removalByShopId = new Map(removals.map((membership) => [membership.shop._id, membership]));
     if (
@@ -1235,6 +1304,11 @@ export const changeOrganizationShopStaffMemberships = managerMutation({
     const snapshotPersonIdSet = new Set(snapshot.people.map((entry) => entry.person._id));
     if (args.desiredActivePersonIds.some((personId) => !snapshotPersonIdSet.has(personId))) {
       throw new ConvexError("入力内容を確認してください。");
+    }
+    for (const entry of snapshot.people) {
+      if (entry.currentStaff && !desiredPersonIdSet.has(entry.person._id)) {
+        await requireOrganizationPersonWithoutManagerRole(ctx, organizationId, entry.person._id);
+      }
     }
     for (const entry of snapshot.people) {
       if (entry.canChange) continue;
@@ -1639,8 +1713,8 @@ export const prepareLegacyCurrentShiftConfirmationFanout = internalMutation({
     if (!staff || staff.isDeleted || !isShiftTargetStaff(staff) || !(await isShopParentActive(ctx, shop))) {
       return { status: "skipped" as const, reason: "noCurrentShift" as const };
     }
-    const lineAccount = await getStaffLineAccount(ctx, staff._id);
-    if (staff.email.length === 0 && !(lineAccount?.lineUserId && lineAccount.following)) {
+    const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId: staff.shopId });
+    if (staff.email.length === 0 && !(lineRecipient?.lineUserId && lineRecipient.following)) {
       return { status: "skipped" as const, reason: "noCurrentShift" as const };
     }
 

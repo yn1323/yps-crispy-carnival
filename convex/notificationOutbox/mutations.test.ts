@@ -3,9 +3,11 @@ import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { createConvexTestWithMigrations } from "../_test/migrations.test-helper";
 import {
+  seedCanonicalStaffLineRecipient,
   seedLegacyShopMembership,
   seedManagerShop,
   seedOrganizationManagerShop,
+  seedOrganizationPersonLineLink,
   seedStaffLineAccount,
   seedUser,
 } from "../_test/seed";
@@ -19,8 +21,10 @@ import {
   NOTIFICATION_OUTBOX_TERMINAL_PAYLOAD_RETENTION_MS,
   NOTIFICATION_OUTBOX_TERMINAL_REDACTION_BATCH_SIZE,
 } from "../constants";
+import { resolveStaffLineRecipient } from "../line/service";
 import { buildConfirmationSnapshotSignature } from "../notification/confirmationSnapshots";
 import { NOTIFICATION_FAILURE_REMINDER_CONTEXT, SHOP_ACTIVATION_REMINDER_CONTEXT } from "./failureSuppress";
+import { lineRecipientOutboxSnapshot, toNotificationLineRecipient } from "./types";
 
 const emailPayload = {
   kind: "email" as const,
@@ -156,6 +160,403 @@ describe("notificationOutbox", () => {
     const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
     expect(jobs).toHaveLength(1);
     expect(jobs[0].purpose).toBe("business");
+  });
+
+  it("canonical再連携後の同じdedupeKeyは旧generationをcancelし、現在generationで新規作成する", async () => {
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
+    const t = createConvexTestWithMigrations();
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedManagerShop(ctx, { subject: "canonical_dedupe_generation" });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: seeded.shopId,
+        name: "canonical dedupe recipient",
+        email: "canonical-dedupe@example.com",
+        isDeleted: false,
+      });
+      const recipient = await seedCanonicalStaffLineRecipient(ctx, {
+        staffId,
+        lineUserId: "U_canonical_dedupe",
+        generation: 1,
+      });
+      return { ...seeded, staffId, recipient };
+    });
+    const dedupeKey = "line:test:canonical-generation-relink";
+    const first = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "line",
+      shopId: ids.shopId,
+      staffId: ids.staffId,
+      organizationPersonLineLinkId: ids.recipient.organizationPersonLineLinkId,
+      organizationPersonLineGenerationAtEnqueue: ids.recipient.generation,
+      purpose: "business",
+      history: { notificationKind: "test.canonicalRelink", displayTitle: "canonical relink" },
+      dedupeKey,
+      payload: { kind: "line", toUserId: "U_canonical_dedupe", text: "generation 1", suppressDelivery: true },
+    });
+    if (!first) throw new Error("generation 1 notification was not enqueued");
+
+    const currentRecipient = await t.run(async (ctx) => {
+      const now = Date.now();
+      await ctx.db.patch(ids.recipient.organizationPersonLineLinkId, { isDeleted: true, unlinkedAt: now });
+      await ctx.db.patch(ids.recipient.lineProviderUserId, { isDeleted: true });
+      await ctx.db.patch(ids.recipient.organizationPersonId, { lineLinkGeneration: 2, updatedAt: now });
+      return await seedOrganizationPersonLineLink(ctx, {
+        organizationId: ids.recipient.organizationId,
+        organizationPersonId: ids.recipient.organizationPersonId,
+        lineUserId: "U_canonical_dedupe",
+        generation: 3,
+      });
+    });
+    const second = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "line",
+      shopId: ids.shopId,
+      staffId: ids.staffId,
+      organizationPersonLineLinkId: currentRecipient.organizationPersonLineLinkId,
+      organizationPersonLineGenerationAtEnqueue: currentRecipient.generation,
+      purpose: "business",
+      history: { notificationKind: "test.canonicalRelink", displayTitle: "canonical relink" },
+      dedupeKey,
+      payload: { kind: "line", toUserId: "U_canonical_dedupe", text: "generation 3", suppressDelivery: true },
+    });
+
+    expect(second).toEqual({ outboxId: expect.any(String), deduped: false });
+    expect(second?.outboxId).not.toBe(first.outboxId);
+    const jobs = await t.run(async (ctx) =>
+      ctx.db
+        .query("notificationOutbox")
+        .withIndex("by_dedupeKey_status", (q) => q.eq("dedupeKey", dedupeKey))
+        .collect(),
+    );
+    expect(jobs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          _id: first.outboxId,
+          status: "cancelled",
+          cancelReason: "recipient_inactive",
+          organizationPersonLineGenerationAtEnqueue: 1,
+        }),
+        expect.objectContaining({
+          _id: second?.outboxId,
+          status: "pending",
+          organizationPersonLineLinkId: currentRecipient.organizationPersonLineLinkId,
+          organizationPersonLineGenerationAtEnqueue: 3,
+          payload: expect.objectContaining({ text: "generation 3" }),
+        }),
+      ]),
+    );
+  });
+
+  it("legacy readではsnapshot欠損jobを宛先ID完全一致で配送継続する", async () => {
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "");
+    const t = createConvexTestWithMigrations();
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedManagerShop(ctx, { subject: "legacy_snapshot_compat" });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: seeded.shopId,
+        name: "legacy recipient",
+        email: "legacy-recipient@example.com",
+        isDeleted: false,
+      });
+      await seedStaffLineAccount(ctx, {
+        shopId: seeded.shopId,
+        staffId,
+        lineUserId: "U_legacy_snapshot",
+        following: true,
+      });
+      return { ...seeded, staffId };
+    });
+    const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "line",
+      shopId: ids.shopId,
+      staffId: ids.staffId,
+      history: { notificationKind: "test.legacySnapshot", displayTitle: "legacy snapshot" },
+      dedupeKey: "line:test:legacy-snapshot-compat",
+      payload: { kind: "line", toUserId: "U_legacy_snapshot", text: "test", suppressDelivery: true },
+    });
+    if (!enqueued) throw new Error("legacy LINE notification was not enqueued");
+    const duplicate = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "line",
+      shopId: ids.shopId,
+      staffId: ids.staffId,
+      history: { notificationKind: "test.legacySnapshot", displayTitle: "legacy snapshot" },
+      dedupeKey: "line:test:legacy-snapshot-compat",
+      payload: { kind: "line", toUserId: "U_legacy_snapshot", text: "test", suppressDelivery: true },
+    });
+    expect(duplicate).toEqual({ outboxId: enqueued.outboxId, deduped: true });
+    const [claimed] = await t.mutation(internal.notificationOutbox.mutations.claimDue, {
+      now: Date.now() + NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
+    });
+    if (!claimed?.leaseToken) throw new Error("legacy LINE notification lease was not issued");
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareLineForProviderDelivery, {
+        outboxId: enqueued.outboxId,
+        leaseToken: claimed.leaseToken,
+        now: Date.now() + NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
+      }),
+    ).resolves.toEqual({ toUserId: "U_legacy_snapshot" });
+  });
+
+  it("legacy snapshot欠損jobはm041相当counterpart作成後も宛先ID一致で配送継続する", async () => {
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "");
+    const t = createConvexTestWithMigrations();
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "legacy_job_before_backfill",
+        plan: "pro",
+      });
+      const now = Date.now();
+      const organizationPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: seeded.organizationId,
+        name: "backfill recipient",
+        email: "backfill-recipient@example.com",
+        emailNormalized: "backfill-recipient@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: seeded.shopId,
+        organizationId: seeded.organizationId,
+        organizationPersonId,
+        name: "backfill recipient",
+        email: "backfill-recipient@example.com",
+        isDeleted: false,
+      });
+      await seedStaffLineAccount(ctx, {
+        shopId: seeded.shopId,
+        staffId,
+        lineUserId: "U_legacy_before_backfill",
+        following: true,
+      });
+      return { ...seeded, organizationPersonId, staffId };
+    });
+    const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "line",
+      shopId: ids.shopId,
+      staffId: ids.staffId,
+      history: { notificationKind: "test.beforeBackfill", displayTitle: "before backfill" },
+      dedupeKey: "line:test:before-backfill",
+      payload: { kind: "line", toUserId: "U_legacy_before_backfill", text: "test", suppressDelivery: true },
+    });
+    if (!enqueued) throw new Error("legacy notification was not enqueued");
+    await t.run(async (ctx) => {
+      await seedOrganizationPersonLineLink(ctx, {
+        organizationId: ids.organizationId,
+        organizationPersonId: ids.organizationPersonId,
+        lineUserId: "U_legacy_before_backfill",
+        following: true,
+      });
+    });
+    const [claimed] = await t.mutation(internal.notificationOutbox.mutations.claimDue, {
+      now: Date.now() + NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
+    });
+    if (!claimed?.leaseToken) throw new Error("legacy notification lease was not issued");
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareLineForProviderDelivery, {
+        outboxId: enqueued.outboxId,
+        leaseToken: claimed.leaseToken,
+        now: Date.now() + NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
+      }),
+    ).resolves.toEqual({ toUserId: "U_legacy_before_backfill" });
+  });
+
+  it("legacy authorityでもsnapshot付きjobは同じLINE IDへの再連携generation変更で停止する", async () => {
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "");
+    const t = createConvexTestWithMigrations();
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "legacy_snapshot_generation",
+        plan: "pro",
+      });
+      const now = Date.now();
+      const organizationPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: seeded.organizationId,
+        name: "legacy snapshot recipient",
+        email: "legacy-snapshot-generation@example.com",
+        emailNormalized: "legacy-snapshot-generation@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: seeded.shopId,
+        organizationId: seeded.organizationId,
+        organizationPersonId,
+        name: "legacy snapshot recipient",
+        email: "legacy-snapshot-generation@example.com",
+        isDeleted: false,
+      });
+      await seedStaffLineAccount(ctx, {
+        shopId: seeded.shopId,
+        staffId,
+        lineUserId: "U_legacy_same_id_relink",
+        following: true,
+      });
+      const recipient = await seedOrganizationPersonLineLink(ctx, {
+        organizationId: seeded.organizationId,
+        organizationPersonId,
+        lineUserId: "U_legacy_same_id_relink",
+        following: true,
+      });
+      return { ...seeded, organizationPersonId, staffId, recipient };
+    });
+    const resolvedRecipient = await t.run(async (ctx) =>
+      resolveStaffLineRecipient(ctx, { staffId: ids.staffId, shopId: ids.shopId }),
+    );
+    const notificationRecipient = toNotificationLineRecipient(resolvedRecipient);
+    if (!notificationRecipient) throw new Error("legacy recipient was not resolved");
+    const snapshot = lineRecipientOutboxSnapshot(notificationRecipient);
+    expect(snapshot).toEqual({
+      organizationPersonLineLinkId: ids.recipient.organizationPersonLineLinkId,
+      organizationPersonLineGenerationAtEnqueue: ids.recipient.generation,
+    });
+    expect(
+      toNotificationLineRecipient({
+        authority: "legacy",
+        organizationPersonLineLinkId: ids.recipient.organizationPersonLineLinkId,
+        lineUserId: "U_legacy_same_id_relink",
+        following: true,
+      }),
+    ).toBeNull();
+    const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "line",
+      shopId: ids.shopId,
+      staffId: ids.staffId,
+      ...snapshot,
+      history: { notificationKind: "test.legacyGeneration", displayTitle: "legacy generation" },
+      dedupeKey: "line:test:legacy-generation",
+      payload: { kind: "line", toUserId: "U_legacy_same_id_relink", text: "test", suppressDelivery: true },
+    });
+    if (!enqueued) throw new Error("snapshot notification was not enqueued");
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.organizationPersonId, {
+        lineLinkGeneration: ids.recipient.generation + 1,
+        updatedAt: Date.now(),
+      });
+      await ctx.db.patch(ids.recipient.organizationPersonLineLinkId, {
+        generation: ids.recipient.generation + 1,
+      });
+    });
+    const [claimed] = await t.mutation(internal.notificationOutbox.mutations.claimDue, {
+      now: Date.now() + NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
+    });
+    if (!claimed?.leaseToken) throw new Error("snapshot notification lease was not issued");
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareLineForProviderDelivery, {
+        outboxId: enqueued.outboxId,
+        leaseToken: claimed.leaseToken,
+        now: Date.now() + NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
+      }),
+    ).resolves.toBeNull();
+    await expect(t.run(async (ctx) => ctx.db.get(enqueued.outboxId))).resolves.toMatchObject({
+      status: "cancelled",
+      cancelReason: "recipient_inactive",
+    });
+  });
+
+  it("legacy readでもenqueue後に宛先IDが変わったsnapshot欠損jobは停止する", async () => {
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "");
+    const t = createConvexTestWithMigrations();
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedManagerShop(ctx, { subject: "legacy_snapshot_stale" });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: seeded.shopId,
+        name: "legacy stale recipient",
+        email: "legacy-stale@example.com",
+        isDeleted: false,
+      });
+      const lineAccountId = await seedStaffLineAccount(ctx, {
+        shopId: seeded.shopId,
+        staffId,
+        lineUserId: "U_legacy_old",
+        following: true,
+      });
+      return { ...seeded, staffId, lineAccountId };
+    });
+    const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "line",
+      shopId: ids.shopId,
+      staffId: ids.staffId,
+      history: { notificationKind: "test.legacyStale", displayTitle: "legacy stale" },
+      dedupeKey: "line:test:legacy-snapshot-stale",
+      payload: { kind: "line", toUserId: "U_legacy_old", text: "test", suppressDelivery: true },
+    });
+    if (!enqueued) throw new Error("legacy LINE notification was not enqueued");
+    const [claimed] = await t.mutation(internal.notificationOutbox.mutations.claimDue, {
+      now: Date.now() + NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
+    });
+    if (!claimed?.leaseToken) throw new Error("legacy LINE notification lease was not issued");
+    await t.run(async (ctx) => ctx.db.patch(ids.lineAccountId, { lineUserId: "U_legacy_new" }));
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareLineForProviderDelivery, {
+        outboxId: enqueued.outboxId,
+        leaseToken: claimed.leaseToken,
+        now: Date.now() + NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
+      }),
+    ).resolves.toBeNull();
+    await expect(t.run(async (ctx) => ctx.db.get(enqueued.outboxId))).resolves.toMatchObject({
+      status: "cancelled",
+      cancelReason: "recipient_inactive",
+    });
+  });
+
+  it("canonical readではsnapshot欠損の旧jobをfail closedで停止する", async () => {
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
+    const t = createConvexTestWithMigrations();
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedManagerShop(ctx, { subject: "canonical_snapshot_missing" });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: seeded.shopId,
+        organizationId: seeded.organizationId,
+        organizationPersonId: seeded.personId,
+        name: "canonical recipient",
+        email: "canonical-recipient@example.com",
+        emailNormalized: "canonical-recipient@example.com",
+        isDeleted: false,
+      });
+      await seedCanonicalStaffLineRecipient(ctx, { staffId, lineUserId: "U_canonical_snapshot" });
+      const now = Date.now();
+      const outboxId = await ctx.db.insert("notificationOutbox", {
+        channel: "line",
+        status: "processing",
+        shopId: seeded.shopId,
+        organizationId: seeded.organizationId,
+        staffId,
+        purpose: "business",
+        notificationContext: "test.canonicalSnapshotMissing",
+        deliverySuppressed: true,
+        dedupeKey: "line:test:canonical-snapshot-missing",
+        payload: {
+          kind: "line",
+          toUserId: "U_canonical_snapshot",
+          text: "test",
+          suppressDelivery: true,
+        },
+        attemptCount: 1,
+        nextRunAt: now,
+        processingStartedAt: now,
+        leaseToken: "canonical-snapshot-missing-lease",
+        leaseExpiresAt: now + NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { outboxId, now };
+    });
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareLineForProviderDelivery, {
+        outboxId: ids.outboxId,
+        leaseToken: "canonical-snapshot-missing-lease",
+        now: ids.now,
+      }),
+    ).resolves.toBeNull();
+    await expect(t.run(async (ctx) => ctx.db.get(ids.outboxId))).resolves.toMatchObject({
+      status: "cancelled",
+      cancelReason: "recipient_inactive",
+    });
   });
 
   it("旧actionのsplit snapshotを検証後にcanonical snapshotとして保存する", async () => {
@@ -558,13 +959,12 @@ describe("notificationOutbox", () => {
         emailNormalized: "outbox-contact@example.com",
         isDeleted: false,
       });
-      await seedStaffLineAccount(ctx, {
-        shopId: seeded.shopId,
+      const recipient = await seedCanonicalStaffLineRecipient(ctx, {
         staffId,
         lineUserId: "U_outbox_partial_person",
         following: true,
       });
-      return seeded;
+      return { ...seeded, recipient };
     });
     const email = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
       channel: "email",
@@ -588,6 +988,8 @@ describe("notificationOutbox", () => {
       shopId: ids.shopId,
       organizationId: ids.organizationId,
       userId: ids.userId,
+      organizationPersonLineLinkId: ids.recipient.organizationPersonLineLinkId,
+      organizationPersonLineGenerationAtEnqueue: ids.recipient.generation,
       purpose: "business",
       dedupeKey: "line:test:partial-person-recipient",
       payload: {
@@ -858,7 +1260,6 @@ describe("notificationOutbox", () => {
   });
 
   it("billingと管理者招待のchannel・payload・参照を整合させる", async () => {
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "enabled");
     const { t, shopId, userId } = await setupShop();
     const { organizationId, invitationId } = await t.run(async (ctx) => {
       const now = Date.now();
@@ -2700,6 +3101,9 @@ describe("notificationOutbox", () => {
     expect(
       state.scheduled.some((job) => job.name === "line/actions:sendInviteEmail" && job.args[0]?.staffId === staffId),
     ).toBe(true);
+    const inviteJob = state.scheduled.find((job) => job.name === "line/actions:sendInviteEmail");
+    expect(inviteJob?.args[0]).not.toHaveProperty("organizationPersonId");
+    expect(inviteJob?.args[0]).not.toHaveProperty("lineLinkGenerationAtSchedule");
     const openPage = await t
       .withIdentity({ subject: "user_mgr" })
       .query(api.notificationOutbox.queries.listOpenFailures, {
@@ -2707,6 +3111,134 @@ describe("notificationOutbox", () => {
         paginationOpts: { numItems: 10, cursor: null },
       });
     expect(openPage.page).toHaveLength(0);
+  });
+
+  it("LINE案内再送はunlinked世代をsnapshotし、link後に再度unlinkedでも古い予約を送らない", async () => {
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
+    const t = createConvexTestWithMigrations();
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedManagerShop(ctx, {
+        subject: "line_invite_resend_generation_manager",
+        email: "line-invite-resend-generation-manager@example.com",
+      });
+      await ctx.db.patch(seeded.personId, { lineLinkGeneration: 2, updatedAt: Date.now() });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: seeded.shopId,
+        organizationId: seeded.organizationId,
+        organizationPersonId: seeded.personId,
+        name: "LINE案内再送世代スタッフ",
+        email: "line-invite-resend-generation@example.com",
+        emailNormalized: "line-invite-resend-generation@example.com",
+        isDeleted: false,
+      });
+      const now = Date.now();
+      const failureId = await ctx.db.insert("notificationFailureInbox", {
+        failureKey: "provider:resend:lineInvite-generation",
+        sourceType: "provider",
+        status: "open",
+        shopId: seeded.shopId,
+        staffId,
+        channel: "email",
+        dedupeKey: `email:lineInvite:${staffId}`,
+        notificationContext: "line.sendInviteEmail",
+        firstFailedAt: now,
+        lastFailedAt: now,
+        lastError: "bounced",
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { ...seeded, staffId, failureId };
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "line_invite_resend_generation_manager" })
+        .mutation(api.notificationOutbox.mutations.resendFailure, {
+          failureId: ids.failureId,
+          shopId: ids.shopId,
+        }),
+    ).resolves.toEqual({ scheduled: true });
+    const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+    const inviteJob = scheduled.find((job) => job.name === "line/actions:sendInviteEmail");
+    expect(inviteJob?.args[0]).toMatchObject({
+      staffId: ids.staffId,
+      organizationPersonId: ids.personId,
+      lineLinkGenerationAtSchedule: 2,
+    });
+
+    await t.run(async (ctx) => {
+      const linked = await seedOrganizationPersonLineLink(ctx, {
+        organizationId: ids.organizationId,
+        organizationPersonId: ids.personId,
+        lineUserId: "U_line_invite_resend_generation",
+        generation: 3,
+      });
+      const now = Date.now();
+      await ctx.db.patch(linked.organizationPersonLineLinkId, { isDeleted: true, unlinkedAt: now });
+      await ctx.db.patch(linked.lineProviderUserId, { isDeleted: true });
+      await ctx.db.patch(ids.personId, { lineLinkGeneration: 4, updatedAt: now });
+    });
+    await t.action(internal.line.actions.sendInviteEmail, {
+      staffId: ids.staffId,
+      organizationPersonId: ids.personId,
+      lineLinkGenerationAtSchedule: 2,
+    });
+
+    const effects = await t.run(async (ctx) => ({
+      lineLinkTokens: await ctx.db.query("lineLinkTokens").collect(),
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+    }));
+    expect(effects).toEqual({ lineLinkTokens: [], outbox: [] });
+  });
+
+  it("LINE連携済みの案内再送はnotRetryableとして失敗を解決し、新規予約しない", async () => {
+    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
+    const t = createConvexTestWithMigrations();
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedManagerShop(ctx, { subject: "line_invite_resend_linked_manager" });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: seeded.shopId,
+        organizationId: seeded.organizationId,
+        organizationPersonId: seeded.personId,
+        name: "LINE連携済み再送対象",
+        email: "line-invite-resend-linked@example.com",
+        emailNormalized: "line-invite-resend-linked@example.com",
+        isDeleted: false,
+      });
+      await seedCanonicalStaffLineRecipient(ctx, { staffId, lineUserId: "U_line_invite_resend_linked" });
+      const now = Date.now();
+      const failureId = await ctx.db.insert("notificationFailureInbox", {
+        failureKey: "provider:resend:lineInvite-linked",
+        sourceType: "provider",
+        status: "open",
+        shopId: seeded.shopId,
+        staffId,
+        channel: "email",
+        dedupeKey: `email:lineInvite:${staffId}`,
+        notificationContext: "line.sendInviteEmail",
+        firstFailedAt: now,
+        lastFailedAt: now,
+        lastError: "bounced",
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { ...seeded, failureId };
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "line_invite_resend_linked_manager" })
+        .mutation(api.notificationOutbox.mutations.resendFailure, {
+          failureId: ids.failureId,
+          shopId: ids.shopId,
+        }),
+    ).resolves.toEqual({ scheduled: false, reason: "notRetryable" });
+    const state = await t.run(async (ctx) => ({
+      failure: await ctx.db.get(ids.failureId),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(state.failure).toMatchObject({ status: "resolved", resolutionKind: "superseded" });
+    expect(state.scheduled).toEqual([]);
   });
 
   it("resendFailureはメール未登録スタッフのLINE連携案内を再送しない", async () => {

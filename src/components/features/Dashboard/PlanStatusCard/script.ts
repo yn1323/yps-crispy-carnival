@@ -24,8 +24,8 @@ export function buildPlanStatusCardData(
         description: continuationPlanName
           ? `トライアル終了後は${continuationPlanName}プランへ移行します。`
           : source.canManagePlan
-            ? "継続して利用するには、プランの選択が必要です。"
-            : "プランの選択は、契約を管理できる管理者が行えます。",
+            ? "未選択のまま終了すると利用停止になります。データは削除されないため、継続して利用するにはプランを選んでください。"
+            : "未選択のまま終了すると利用停止になります。データは削除されません。プランの選択は、契約を管理できる管理者が行えます。",
         ...(canChoosePlan ? { primaryAction: { action: "choosePlan" as const, label: "プランを選ぶ" } } : {}),
         showRemindLater: canChoosePlan,
       };
@@ -41,16 +41,25 @@ export function buildPlanStatusCardData(
     case "paidPlan": {
       const scheduledChange = source.scheduledChange;
       const targetPlanName = scheduledChange ? planName(scheduledChange.targetPlan) : undefined;
+      const isServiceStopScheduled = scheduledChange?.restrictAtPeriodEnd === true;
 
       return {
         kind: "paidPlan",
         planName: paidPlanName(source.plan),
-        badgeLabel: source.isComplimentary ? "支払い不要" : scheduledChange ? "変更予定" : "利用中",
+        badgeLabel: source.isComplimentary
+          ? "支払い不要"
+          : isServiceStopScheduled
+            ? "利用停止予定"
+            : scheduledChange
+              ? "変更予定"
+              : "利用中",
         description: source.isComplimentary
-          ? "Businessプランの機能を料金なしで利用できます。"
-          : scheduledChange && targetPlanName
-            ? `${formatJstDate(scheduledChange.effectiveAt)}に${targetPlanName}プランへ変更します。`
-            : undefined,
+          ? "早期登録特典によりBusinessプラン相当の機能をずっと無料で利用できます。"
+          : isServiceStopScheduled && scheduledChange
+            ? `${formatJstDate(scheduledChange.effectiveAt)}に利用を停止します。データは削除されません。`
+            : scheduledChange && targetPlanName
+              ? `${formatJstDate(scheduledChange.effectiveAt)}に${targetPlanName}プランへ変更します。`
+              : undefined,
         nextEventLabel:
           !source.isComplimentary && !scheduledChange && source.currentPeriodEndsAt
             ? `次回更新日：${formatJstDate(source.currentPeriodEndsAt)}`
@@ -71,6 +80,7 @@ export function buildPlanStatusCardData(
     }
     case "paymentIssue": {
       const canUpdatePaymentMethod = source.canUpdatePaymentMethod;
+      const canChoosePlan = source.phase === "restricted" && source.canManagePlan;
       return {
         kind: "paymentIssue",
         planName: source.plan ? paidPlanName(source.plan) : undefined,
@@ -80,15 +90,17 @@ export function buildPlanStatusCardData(
             ? canUpdatePaymentMethod
               ? "サービスの停止を防ぐため、お支払い方法を更新してください。"
               : "支払い方法の更新は、契約を管理できる管理者が行えます。"
-            : canUpdatePaymentMethod
-              ? "サービスの利用を再開するため、お支払い方法を更新してください。"
-              : "契約の復旧は、支払い方法を管理できる管理者が行えます。",
+            : source.canManagePlan
+              ? "データは削除されていません。利用を再開するには、ProまたはBusinessを契約してください。"
+              : "データは削除されていません。ProまたはBusinessの契約は、契約を管理できる管理者が行えます。",
         recoveryDeadlineLabel: source.recoveryDeadlineAt
           ? `支払い期限：${formatJstDate(source.recoveryDeadlineAt)}`
           : undefined,
-        ...(canUpdatePaymentMethod
+        ...(source.phase === "grace" && canUpdatePaymentMethod
           ? { primaryAction: { action: "updatePaymentMethod" as const, label: "支払い方法を更新する" } }
-          : {}),
+          : canChoosePlan
+            ? { primaryAction: { action: "choosePlan" as const, label: "プランを選んで再開する" } }
+            : {}),
       };
     }
     case "restricted":

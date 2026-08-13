@@ -7,7 +7,6 @@ import type { Id } from "@/convex/_generated/dataModel";
 import type { UserShopDetailData, UserShopDetailMembership } from "./types";
 
 const mocks = vi.hoisted(() => ({
-  useLineActions: vi.fn(),
   useNotificationActions: vi.fn(),
   useMembershipActions: vi.fn(),
   historyProps: undefined as undefined | { shopId: string; staffId: string; enabled: boolean },
@@ -54,10 +53,6 @@ vi.mock("./UserShopDetailView", () => ({
   ),
 }));
 
-vi.mock("./useUserShopLineActions", () => ({
-  useUserShopLineActions: mocks.useLineActions,
-}));
-
 vi.mock("./useUserShopNotificationActions", () => ({
   useUserShopNotificationActions: mocks.useNotificationActions,
 }));
@@ -81,21 +76,12 @@ const data = {
 } as unknown as UserShopDetailData;
 
 beforeEach(() => {
-  mocks.useLineActions.mockReset();
   mocks.useNotificationActions.mockReset();
   mocks.useMembershipActions.mockReset();
   mocks.historyProps = undefined;
   mocks.notificationSectionActive = true;
   mocks.notificationSectionRef.mockReset();
   mocks.activateNotificationSection.mockReset();
-  mocks.useLineActions.mockReturnValue({
-    authorizeUrl: null,
-    showQr: false,
-    isQrLoading: false,
-    isSendingInvite: false,
-    onShowQr: vi.fn(),
-    onSendInvite: vi.fn(),
-  });
   mocks.useNotificationActions.mockReturnValue({
     openRecruitments: [],
     currentRecruitments: [],
@@ -113,10 +99,9 @@ beforeEach(() => {
 });
 
 describe("UserShopDetail", () => {
-  it("全controllerと通知履歴へpathのtargetShopIdを渡す", () => {
+  it("店舗別controllerと通知履歴へpathのtargetShopIdを渡す", () => {
     render(<UserShopDetail data={data} membership={membership} targetShopId={targetShopId} onBack={vi.fn()} />);
 
-    expect(mocks.useLineActions).toHaveBeenCalledWith({ targetShopId, membership, isReadOnly: false });
     expect(mocks.useNotificationActions).toHaveBeenCalledWith({
       targetShopId,
       membership,
@@ -152,10 +137,11 @@ describe("UserShopDetail", () => {
     render(<UserShopDetail data={data} membership={archivedMembership} targetShopId={targetShopId} onBack={vi.fn()} />);
 
     expect(screen.getByTestId("read-only").textContent).toBe("true");
-    expect(mocks.useLineActions).toHaveBeenCalledWith({
+    expect(mocks.useNotificationActions).toHaveBeenCalledWith({
       targetShopId,
       membership: archivedMembership,
       isReadOnly: true,
+      enabled: true,
     });
   });
 
