@@ -36,7 +36,7 @@ export class OrganizationLifecyclePage {
     await dialog.getByRole("button", { name: /^日ごと(?:\s|$)/ }).click();
     await dialog.getByRole("button", { name: "次へ", exact: true }).click();
     await expect(dialog.getByText("毎週休みにする曜日", { exact: true })).toBeVisible();
-    await dialog.getByRole("button", { name: "組織を作る", exact: true }).click();
+    await dialog.getByRole("button", { name: "組織を作ってトライアルを開始", exact: true }).click();
 
     await expect(dialog).toHaveCount(0, { timeout: ORGANIZATION_DATA_TIMEOUT });
     await expect(this.page).toHaveURL((url) => url.pathname === "/dashboard" && Boolean(url.searchParams.get("shop")), {
@@ -48,7 +48,9 @@ export class OrganizationLifecyclePage {
   }
 
   async expectCurrentOrganization(organizationName: string) {
-    await expect(this.page.getByRole("heading", { name: organizationName, exact: true })).toBeVisible({
+    await expect(
+      this.page.getByRole("button", { name: `${organizationName}のダッシュボードへ戻る`, exact: true }),
+    ).toBeVisible({
       timeout: ORGANIZATION_DATA_TIMEOUT,
     });
   }

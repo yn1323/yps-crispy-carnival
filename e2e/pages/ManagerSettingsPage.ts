@@ -41,7 +41,7 @@ export class ManagerSettingsPage {
       exact: true,
     });
     await expect(candidate).not.toBeChecked({ timeout: MANAGER_SETTINGS_TIMEOUT });
-    await candidate.click();
+    await candidate.locator("..").click();
     await expect(candidate).toBeChecked();
 
     await this.page.getByRole("button", { name: "管理者として招待する", exact: true }).click();
