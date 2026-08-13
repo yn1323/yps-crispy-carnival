@@ -1,23 +1,13 @@
 import { Box } from "@chakra-ui/react";
-import type { FocusEventHandler, ReactNode, Ref } from "react";
+import type { ReactNode } from "react";
 
 type Props = {
   children: ReactNode;
-  sectionRef?: Ref<HTMLDivElement>;
-  onFocusCapture?: FocusEventHandler<HTMLDivElement>;
 };
 
-export function UserShopDetailPageSection({ children, sectionRef, onFocusCapture }: Props) {
+export function UserShopDetailPageSection({ children }: Props) {
   return (
-    <Box
-      ref={sectionRef}
-      onFocusCapture={onFocusCapture}
-      borderWidth="1px"
-      borderColor="blackAlpha.100"
-      borderRadius="xl"
-      bg="white"
-      p={{ base: 4, md: 6 }}
-    >
+    <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" p={{ base: 4, md: 6 }}>
       {children}
     </Box>
   );

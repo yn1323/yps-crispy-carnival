@@ -1,5 +1,5 @@
 import { Box, Flex, HStack, Skeleton, Stack } from "@chakra-ui/react";
-import { DeletionActionSectionSkeleton } from "@/src/components/shared/DeletionActionSection";
+import { StaffNotificationHistoryView } from "@/src/components/features/StaffNotificationHistory";
 import { DetailPageHeaderSkeleton } from "@/src/components/ui/DetailPageHeader";
 import { UserShopDetailPageSection } from "./UserShopDetailPageSection";
 import { UserShopNotificationSkeleton } from "./UserShopNotificationSection";
@@ -14,9 +14,12 @@ export function UserShopDetailSkeleton() {
       </UserShopDetailPageSection>
 
       <UserShopDetailPageSection>
-        <Stack gap={6}>
-          <Skeleton h="24px" w="48px" />
-          <UserShopNotificationSkeleton />
+        <Stack gap={10}>
+          <Stack gap={6}>
+            <Skeleton h="24px" w="48px" />
+            <UserShopNotificationSkeleton />
+          </Stack>
+          <StaffNotificationHistoryView items={[]} isLoading />
         </Stack>
       </UserShopDetailPageSection>
 
@@ -52,22 +55,18 @@ function LineSectionSkeleton() {
 
 function SettingsSectionSkeleton() {
   return (
-    <Stack gap={6}>
-      <Stack gap={2}>
-        <Flex align="center" justify="space-between" gap={4}>
-          <Skeleton h="24px" w="264px" maxW="calc(100% - 60px)" />
-          <Skeleton h="24px" w="44px" borderRadius="full" flexShrink={0} />
-        </Flex>
-        <Stack gap={1}>
-          <Skeleton h="18px" w="full" />
-          <Skeleton display={{ base: "block", md: "none" }} h="18px" w="88%" />
-          <Skeleton h="18px" w="184px" maxW="72%" />
-          <Skeleton h="18px" w="232px" maxW="80%" ms={5} />
-          <Skeleton h="18px" w="272px" maxW="88%" ms={5} />
-        </Stack>
+    <Stack gap={2}>
+      <Flex align="center" justify="space-between" gap={4}>
+        <Skeleton h="24px" w="264px" maxW="calc(100% - 60px)" />
+        <Skeleton h="24px" w="44px" borderRadius="full" flexShrink={0} />
+      </Flex>
+      <Stack gap={1}>
+        <Skeleton h="18px" w="full" />
+        <Skeleton display={{ base: "block", md: "none" }} h="18px" w="88%" />
+        <Skeleton h="18px" w="184px" maxW="72%" />
+        <Skeleton h="18px" w="232px" maxW="80%" ms={5} />
+        <Skeleton h="18px" w="272px" maxW="88%" ms={5} />
       </Stack>
-
-      <DeletionActionSectionSkeleton titleWidth="224px" descriptionLines={2} actionWidth="104px" />
     </Stack>
   );
 }
