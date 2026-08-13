@@ -2,7 +2,7 @@
 
 送信できなかった通知を `notificationFailureInbox` から店舗単位で読み取り、Dashboard の「TODO」から再通知または「無視する」を受け付ける機能。再通知は配送完了ではなく、Outbox または再通知 action に載った時点で受付済みとして扱う。
 
-マネージャーがDashboardを開かないと不達に気づけないため、open 不達通知がある店舗の有効管理者へ、毎日 JST 17:00 に「Dashboardから再通知してください」というリマインダー（日次ダイジェスト）を送る。
+マネージャーがDashboardを開かないと不達に気づけないため、open 不達通知がある店舗で、対象店舗にスタッフとして所属するactive管理者へ、毎日 JST 17:00 に「Dashboardから再通知してください」というリマインダー（日次ダイジェスト）を送る。
 
 ## 関連ファイル
 
@@ -25,10 +25,11 @@
 
 - cron `notification-failure-reminder-digest`（JST 17:00 = UTC 08:00）が `internal.notificationOutbox.failureReminderActions.sendFailureReminderDigest` を起動する。
 - `status = open` かつ最新失敗（`lastFailedAt`）が直近24時間以内（`NOTIFICATION_FAILURE_REMINDER_WINDOW_MS`）の不達通知がある店舗だけを対象にする。失敗が再発するたびに対象期間を再計算し、日次cronでは通常1回だけ送る。
-- 配信先は店舗の有効管理者全員。
-- `organizationPeople.name`と`organizationPeople.email`を通知先の正本とし、移行途中でpersonだけ作成済みの場合も同じuserと組織のpersonを一意に確認して使う。person自体が存在しない旧`shopMembers`だけ`users`へfallbackする。
-- 管理者本人を同じ店舗のスタッフとして一意に解決でき、組織人物のLINE連携が有効かつ友だち状態である場合だけLINEへ送る。
-- LINE未連携・友だち解除・Quota超過時は現在のシフト連絡先へメールで送り、配送直前に宛先と所属を再確認する。
+- 配信先は、activeな組織管理者のうち、同じ組織人物に紐づく対象店舗のactiveな正規`staffs`を一意に解決できる人物だけとする。
+  該当者が0人ならリマインダーを送らない。
+- `organizationPeople.name`と`organizationPeople.email`を通知先の正本にする。
+  組織共通のLINE連携が有効かつ友だち状態ならLINEを優先する。
+- LINE未連携・友だち解除・Quota超過時は現在のシフト連絡先へメールで送り、配送直前に管理者権限、店舗所属、宛先を再確認する。
 - メール / LINE のCTAは通知元店舗を `shop` クエリで指定したDashboard URLを使う。
 - このリマインダー通知自体の配送が失敗しても`notificationFailureInbox`には記録しない。通知contextのallowlistで抑止し、メタ失敗でInboxを汚さない。
 
@@ -50,7 +51,7 @@
 | `POST /resend/webhook` | HTTP action | Resendの`email.delivery_delayed` / `email.failed` / `email.bounced` / `email.suppressed`を受信し、open不達通知に反映する |
 | `internal.notificationOutbox.failureReminderActions.sendFailureReminderDigest` | internalAction | 毎日17:00 JSTに open 不達通知がある店舗のmanagerへリマインダーを送る |
 | `internal.notificationOutbox.failureReminderQueries.listShopIdsWithRecentOpenFailuresPage` | internalQuery | 直近24時間以内に失敗した open 不達通知がある店舗IDをページングで返す |
-| `internal.notificationOutbox.failureReminderQueries.getFailureReminderTargetForShop` | internalQuery | 店舗名、ダッシュボードURL、有効管理者のシフト連絡先、同じ組織人物のLINE連携状態を返す |
+| `internal.notificationOutbox.failureReminderQueries.getFailureReminderTargetForShop` | internalQuery | 店舗名、ダッシュボードURL、対象店舗にスタッフ所属するactive管理者のシフト連絡先とLINE連携状態を返す |
 
 ## 表示ルール
 

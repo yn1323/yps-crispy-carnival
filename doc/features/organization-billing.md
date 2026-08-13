@@ -14,9 +14,9 @@ Stripe設定、migration確認、障害対応は[組織課金の運用](../manua
 
 ## 公開範囲
 
-組織追加、支払い、管理者招待・交代は常時公開する。
-店舗追加と既存人物の複数店舗所属は、LINE連携共通化のrollout中だけ`LINE_COMMON_LINK_CANONICAL_READY=enabled`と完全一致するdeploymentで公開する。
-backendはこのCapabilityを返し、frontendは店舗追加と所属追加の入口へ反映する。未設定と不正値は非公開として扱い、古い画面からの要求もserverで拒否する。
+現在のrepository artifactは、組織追加、支払い、管理者追加招待、既発行の管理者交代招待の互換処理を常時公開する。
+LINE連携は組織人物単位のcanonicalな正本を常に読み、店舗追加と既存人物の複数店舗所属も常時公開する。
+backendは店舗追加と所属追加のCapabilityを常に有効として返し、frontendは各入口へ反映する。
 認証、所属、店舗境界、課金状態、利用上限は、表示状態から独立してサーバー側で確認する。
 
 実deploymentへの反映状況はこの文書から推定せず、[リリース状態](../manual/release-status.md)の証跡で確認する。
@@ -78,6 +78,10 @@ UserMenuの「組織設定」とDashboardの組織名リンクは常時表示す
 - URLの`shop`は`getMyShops`の候補と照合してから採用する。
   明示されたURLが候補外なら、別組織や別店舗へ暗黙にfallbackしない。
 - 管理者権限を外しても、組織内の人物と既存のスタッフ所属は維持する。
+- 管理者も個別店舗または全店舗のスタッフ所属を解除できる。
+  店舗所属の解除では組織の管理者権限と組織人物を維持する。
+- 管理者人物を組織から削除するには、先に管理者権限を外す。
+  最後のactive管理者の権限は外せない。
 - 契約制限へ切り替わった画面は書込ダイアログを閉じ、ShiftBoardの未保存編集を永続化済みデータへ戻す。
 - 店舗・人物・組織の削除条件と保持情報は[データ削除](data-deletion.md)を正本とする。
 
@@ -86,13 +90,14 @@ UserMenuの「組織設定」とDashboardの組織名リンクは常時表示す
 | 表示・利用権限 | 利用人数 | 稼働店舗 | 有効管理者 | Stripe契約 |
 |---|---:|---:|---:|---|
 | Trial | 20 | 5 | 5 | 継続予約がある場合だけ作成処理を持つ |
-| 既存Free | 5 | 1 | 1 | なし |
+| 既存Free | 5 | 1 | 2 | なし |
 | Pro | 20 | 5 | 5 | あり |
 | Business | 40 | 5 | 5 | あり |
 | 支払い不要Business | 40 | 5 | 5 | 作成しない |
 
 Trialの利用権限はProと同じである。
-Freeは既存の`active.free`と、deployment前に保存済みの旧Free変更予約を収束させるためだけに維持する。
+Freeは既存の`active.free`、そのFreeをfallbackとする`pendingActivation`、deployment前に保存済みの旧Free変更予約を収束させるためだけに維持する。
+以下で既存Freeの管理者操作を説明するときは、`active.free`とFreeをfallbackとする`pendingActivation`を対象にする。
 新しい組織の開始状態、Trial終了、有料契約の利用停止からFreeを作らない。
 利用人数は組織内の人物を一度だけ数え、複数店舗所属やスタッフ兼管理者で重複させない。
 店舗追加、人物追加、管理者招待、プラン変更は、開始時と確定時に最新の上限と予約枠を再確認する。
@@ -181,10 +186,15 @@ Notification Outboxは外部送信直前にも招待、所属、受取人を再�
 - 新規発行は、同じ対象の期限内招待を暗黙に再送しない。管理者設定の招待中一覧から明示的に再送し、以前の招待URLが使えなくなることを確認する。
 - 生tokenをNotification Outboxへ保存せず、送信直前にサーバー側秘密値から導出する。
 - 外部人物は招待発行時に人物や所属を作らず、アカウント連携が成功したtransaction内で初めて作る。
-- grandfathered Freeの管理者交代は、後任の連携と同じtransactionで旧管理者の管理権限を失効する。
-  旧管理者の人物情報と既存スタッフ所属は維持する。
+- grandfathered Freeは、既存スタッフと外部人物のどちらにも通常の管理者追加招待（`purpose: "managerAddition"`）を発行できる。
+  有効管理者と期限内の追加招待は合計2名までとし、外部人物の招待では利用人数の空きも確認する。
+- 旧`freeManagerExchange`招待は新規発行と再送を行わない。
+  既発行の期限内tokenだけは旧意味のまま承認または取消でき、承認時は後任の有効化と旧管理者の権限失効を同じtransactionで確定する。
+  この招待が残る間は新しい追加招待を発行しない。
+- Freeで有効管理者を2名から1名にする権限解除は許可し、1名から0名にする解除は拒否する。
 - 期限切れ、取消、上限超過、メール不一致、所属不整合では管理者権限を作らない。
-- `active`または`readOnly`の管理者人物は、人物削除や個別店舗のスタッフ所属解除より先に管理者権限を外す。4つのcanonical mutationが同じserver policyをtransaction内で再確認し、画面のdisabled状態だけに依存しない。
+- `active`または`readOnly`の管理者人物は、スタッフ所属だけを個別店舗または全店舗から解除できる。
+  組織から人物を削除する場合だけは、先に管理者権限を外す。
 
 ## 主要な課金状態
 
@@ -192,8 +202,8 @@ Notification Outboxは外部送信直前にも招待、所属、受取人を再�
 |---|---|---|
 | `trial` | 無料体験中。Pro相当を利用する | 継続先としてProまたはBusinessを選べる |
 | `initialPaymentPending` | Trial終了時の初回支払い結果を確認中 | Pro相当を維持し、検証済み結果を待つ |
-| `pendingActivation` | 既存Free、Pro、制限状態から有料プランを有効化中 | 保存したfallbackの権限を維持する |
-| `active.free` | grandfathered Freeを利用中 | 5名、1店舗、管理者1名に限定する。新しく作成しない |
+| `pendingActivation` | 既存Free、Pro、制限状態から有料プランを有効化中 | 保存したfallbackの権限を維持する。Free fallbackは5名、1店舗、管理者2名を使う |
+| `active.free` | grandfathered Freeを利用中 | 5名、1店舗、管理者2名に限定する。新しく作成しない |
 | `active.pro` | Proを利用中 | 20名、5店舗、管理者5名を許可する |
 | `active.business` | Businessを利用中 | 40名、5店舗、管理者5名を許可する |
 | `complimentary.business` | 支払い不要Businessを利用中 | Business権限を許可し、Stripe処理を拒否する |
@@ -217,8 +227,8 @@ deployment前から保存済みで`targetPlan: "free"`かつ`restrictAtPeriodEnd
 |---|---|
 | `/settings?shop=<shopId>` | 選択店舗から組織を解決し、ユーザー、店舗、プランと支払い、設定を管理する。UserMenuとDashboardの組織Accordion内から開ける |
 | `/settings/managers?shop=<shopId>` | 現在の管理者、期限内の招待中一覧、利用状況を確認し、再送、取消、権限解除、2つの招待導線を扱う。画面を閉じるとスタッフタブを表すcanonical `/settings?shop=<shopId>`へ戻る |
-| `/settings/managers/invite-staff?shop=<shopId>` | 組織に登録済みの候補から1名だけを選び、grandfathered Free以外では管理者追加、grandfathered Freeでは後任への交代招待を開始する |
-| `/settings/managers/invite-new?shop=<shopId>` | grandfathered Free以外では新しい人物の氏名と招待先メールアドレスを確認し、承認前に人物を作らず招待を開始する。grandfathered Freeでは利用できない |
+| `/settings/managers/invite-staff?shop=<shopId>` | 組織に登録済みの候補から1名だけを選び、管理者追加招待を開始する。grandfathered Freeでも管理者上限2名の範囲で利用できる |
+| `/settings/managers/invite-new?shop=<shopId>` | 新しい人物の氏名と招待先メールアドレスを確認し、承認前に人物を作らず招待を開始する。grandfathered Freeでも利用人数5名、管理者2名の範囲で利用できる |
 | `/settings?shop=<shopId>&tab=billing` | 現在のプラン、価格、変更予定、支払い方法、請求先メール、復旧操作を扱う |
 | `/manager-invite?token=...` | 招待previewとアカウント連携を扱う |
 | `/dashboard?shop=<shopId>` | 現在の組織と店舗、業務更新可否、現在プランと対応が必要な課金状態を表示する |
@@ -277,7 +287,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | `convex/notificationOutbox/` | 外部送信前の宛先・所属・課金状態再確認と重複排除を行う |
 | `convex/migrations/m021_organization_billing_complimentary_pro_to_business.ts` | 旧`complimentary.pro`を変換した履歴migrationとMigration Testの契約 |
 | `convex/migrations/m022_organization_billing_to_complimentary_business.ts` | 段階リリース時に、全課金状態を支払い不要Businessへ寄せた履歴migration |
-| `convex/_lib/config.ts` | 常時公開機能と、LINE共通化完了後に開く店舗・所属追加Capabilityを返す |
+| `convex/_lib/config.ts` | 店舗・所属追加を含む常時公開機能の旧frontend互換Capabilityを返す |
 | `scripts/verifyComplimentaryBusinessM021Export.ts` | Narrow deploy前にm021前後のexport証跡をfail-closedに検証する |
 
 ### フロントエンド
@@ -344,13 +354,13 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 - `convex/organizationInvitation/*.test.ts`：token、期限、接続済み人物のアカウント一致、未接続人物のClerk確認済みメール、provider失敗時の非消費、予約枠、再送、連携を検証する。
 - `convex/organization/managerSettingsQueries.test.ts`：管理者設定のbounded read、currentとprojectedの分離、`integrityError` / `ready`、候補の選択不可理由を検証する。
 - `convex/_scenario/organizationBillingLifecycle.test.ts`と`organizationPaidPlanChanges.test.ts`：時間と複数APIをまたぐ課金ライフサイクルを検証する。
-- `convex/_scenario/staffManagerInvitation.test.ts`と`organizationManagerExchange.test.ts`：既存人物の招待とFree管理者交代を検証する。
+- `convex/_scenario/staffManagerInvitation.test.ts`と`organizationManagerExchange.test.ts`：既存人物の通常招待と、既発行のFree管理者交代招待の互換処理を検証する。
 - `convex/setup/mutations.test.ts`と`convex/_scenario/organizationCreation.test.ts`：組織作成の上限、冪等性、短時間rate limitと日次budget、Trial開始、既存組織への非混入、実際の招待受諾後も招待所属を自己作成上限へ数えないことを検証する。
 - `src/components/features/OrganizationSettings/OrganizationCreation/OrganizationCreationSection.stories.tsx`、`OrganizationCreationDialog.stories.tsx`、`src/components/features/OrganizationSettings/controllers.test.tsx`：組織作成の代表状態、フォーム操作、失敗後も同じ`requestId`を保つ再試行、mutation引数、作成後の遷移を検証する。
 - `src/components/features/OrganizationSettings/PlanAndPaymentSection.stories.tsx`と`BillingSettings/`配下のStory・Logic Test：Free、Pro、Businessの代表状態と主要変更操作を検証する。
 - `src/components/features/Dashboard/PlanStatusCard/`のFrontend Unit・Story・Logic Test：折りたたみ中のquery停止、利用状況の局所Loading、全課金状態の表示変換、開閉、CTA、モバイル表示を検証する。
 - `src/components/features/Dashboard/DashboardContent/index.stories.tsx`：`undefined`と`null`のfallback差、新旧表示の優先順位を検証する。
-- `src/components/features/ManagerSettings/`のStoryとFrontend Unit Test：専用ページ、既存スタッフの単一選択、新しい人物の入力、再送、取消、Free交代、Loading、Empty、Error、閲覧専用の代表状態を検証する。
+- `src/components/features/ManagerSettings/`のStoryとFrontend Unit Test：専用ページ、既存スタッフの単一選択、新しい人物の入力、Freeの2名上限、再送、取消、旧Free交代の互換表示、Loading、Empty、Error、閲覧専用の代表状態を検証する。
 - `e2e/scenarios/organization-lifecycle.test.ts`：実認証済みブラウザで2組織目の作成、改名、切り替えと、組織削除後の残存組織への復帰を検証する。
 - `e2e/scenarios/manager-settings.test.ts`：`E2E-MANAGER-01`として、実認証済みブラウザで既存スタッフへの招待発行、再読込、取消、スタッフタブへの復帰を検証する。招待受諾は成功条件にしない。
 - `e2e/scenarios/manager-lifecycle.test.ts`：`E2E-MANAGER-02`として、別のClerk actorによる招待受諾、管理者権限の取得と解除、解除後の管理画面へのアクセス拒否、スタッフ所属の維持を検証する。

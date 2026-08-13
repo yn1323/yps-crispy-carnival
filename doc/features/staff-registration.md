@@ -44,7 +44,7 @@
 | `api.staff.mutations.addOrganizationPersonToShop` | mutation | 選択した組織人物を人物IDで再検証し、対象店舗のスタッフとして追加 |
 | `api.organization.mutations.updatePersonProfile` | mutation | 組織人物と同じ組織で紐づく有効なスタッフの氏名・シフト連絡先を更新 |
 | `api.dashboard.mutations.dismissOnboarding` | mutation | ダッシュボードチュートリアル終了をDB保存 |
-| `internal.staffRegistration.actions.sendOwnerDailyDigest` | internalAction | 毎日17:00 JSTに承認待ち申請がある店舗の有効管理者へ通知 |
+| `internal.staffRegistration.actions.sendOwnerDailyDigest` | internalAction | 毎日17:00 JSTに承認待ち申請がある店舗で、対象店舗にスタッフとして所属するactive管理者へ通知 |
 | `internal.staffRegistration.notificationQueries.listPendingRequestShopIdsPage` | internalQuery | 直近24時間以内に作成された承認待ち申請がある店舗IDをページング取得 |
 | `internal.staffRegistration.notificationQueries.getOwnerDigestTargetForShop` | internalQuery | 店舗名、ダッシュボードURL、有効管理者のシフト連絡先、同一人物の店舗スタッフに紐づくLINE連携状態を取得 |
 
@@ -65,9 +65,12 @@
 - 1店舗の承認待ち申請は最大20件とし、上限到達後は受付結果だけを返して新しい申請を保存しない。Turnstileと頻度制限は自動・大量投入を抑える境界であり、登録linkを知る人による少数の手動虚偽申請はシフト担当者の承認で終端させる。
 - 追加Originは`STAFF_REGISTRATION_ALLOWED_ORIGINS`へカンマ区切りで設定する。Turnstileは問い合わせフォームと同じ`VITE_TURNSTILE_SITE_KEY`、`TURNSTILE_SECRET_KEY`を使う。
 - deploy時は、先にTurnstileとOriginの環境変数を設定し、Convex HTTP routeを含むbackendを反映してからfrontendを反映する。旧画面を開いたままの利用者には再読み込みを案内し、HTTP失敗時に旧public mutationへfallbackしない。
-- 承認待ち申請が残っている店舗には、毎日17:00 JSTに店舗の有効管理者へ短い確認通知を送る。
-- `organizationPeople.name`と`organizationPeople.email`を管理者通知の正本とし、移行途中でpersonだけ作成済みの場合も同じuserと組織のpersonを一意に確認して使う。person自体が存在しない旧`shopMembers`だけ`users.name`と`users.email`へfallbackする。
-- 管理者本人を同じ店舗のスタッフとして一意に解決でき、LINEアカウントが有効かつ友だち状態である場合だけLINEへ送り、それ以外とQuota超過時は現在のシフト連絡先へメールで送る。
+- 承認待ち申請が残っている店舗には、毎日17:00 JSTに、その店舗にスタッフとして所属するactive管理者へ短い確認通知を送る。
+- activeな`organizationMembers`と、同じ組織人物に紐づく対象店舗のactiveな正規`staffs`を両方一意に解決できる人物だけを通知対象にする。
+  該当者が0人なら通知を送らない。
+- `organizationPeople.name`と`organizationPeople.email`を通知先の正本にする。
+  組織共通のLINE連携が有効かつ友だち状態ならLINEを優先し、未連携・友だち解除・Quota超過時は現在のシフト連絡先へメールで送る。
+  外部送信直前にも管理者権限、店舗所属、宛先を再確認する。
 - 承認待ち通知のメール / LINE CTAは申請元店舗を `shop` クエリで指定したDashboard URLを使う。
 - 通知コストを抑えるため、最新の承認待ち申請から24時間（`STAFF_REGISTRATION_DIGEST_WINDOW_MS`）だけ通知する。日次cronでは通常1回だけ送られ、24時間を過ぎた申請だけが残っている場合は送らない。
 - 承認待ち通知には申請者名・メールアドレス・件数は載せず、ダッシュボードリンクだけを案内する。
