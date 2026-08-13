@@ -167,20 +167,8 @@ function OrganizationContextSkeleton({ showOrganizationSelector }: { showOrganiz
     <Stack gap={2}>
       <DetailPageHeaderSkeleton titleWidth={{ base: "176px", md: "320px" }} showAction />
       {showOrganizationSelector && (
-        <Flex
-          minH={{ base: "48px", md: "56px" }}
-          align="center"
-          justify="space-between"
-          gap={3}
-          px={{ base: 3, md: 4 }}
-          py={2.5}
-          borderWidth="1px"
-          borderColor="gray.300"
-          borderRadius="lg"
-          bg="white"
-        >
-          <Skeleton h={{ base: "28px", md: "32px" }} w={{ base: "176px", md: "320px" }} maxW="80%" />
-          <Skeleton boxSize={5} borderRadius="sm" flexShrink={0} />
+        <Flex justify="flex-end">
+          <Skeleton h="36px" w="152px" borderRadius="md" />
         </Flex>
       )}
     </Stack>
@@ -233,13 +221,10 @@ function PeopleSettingsSkeleton({ showManagerInvitation }: { showManagerInvitati
 function ShopsSettingsSkeleton({ showAddShop }: { showAddShop: boolean }) {
   return (
     <Stack gap={4}>
-      <Stack gap={1}>
-        <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} gap={3} wrap="wrap">
-          <SectionHeadingSkeleton width="144px" />
-          {showAddShop && <Skeleton h="36px" w="120px" borderRadius="md" />}
-        </Flex>
-        <Skeleton h="18px" w="288px" maxW="90%" />
-      </Stack>
+      <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} gap={3} wrap="wrap">
+        <SectionHeadingSkeleton width="144px" />
+        {showAddShop && <Skeleton h="36px" w="120px" borderRadius="md" />}
+      </Flex>
       <SettingsDrilldownListSkeleton kind="shops" />
     </Stack>
   );

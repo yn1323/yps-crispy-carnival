@@ -106,10 +106,13 @@ export const SelectionBehavior: Story = {
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
 
+    await expect(canvas.getAllByText("株式会社さくらダイニング")).toHaveLength(1);
+    await expect(canvas.getByText("組織を切り替える")).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "組織を切り替える（現在：株式会社さくらダイニング）" }));
     await userEvent.click(await body.findByRole("menuitem", { name: "株式会社みどりフーズ" }));
 
     await expect(canvas.getByRole("button", { name: "組織を切り替える（現在：株式会社みどりフーズ）" })).toBeVisible();
+    await expect(canvas.getAllByText("株式会社みどりフーズ")).toHaveLength(1);
   },
 };
 
