@@ -451,9 +451,11 @@ export const StaffMembershipRemovalBehavior: Story = {
     );
     await expect(content.getByText("この店舗から外す")).toBeInTheDocument();
     await expect(content.getByText("今日以降のシフト割り当てから削除します。")).toBeInTheDocument();
-    await expect(content.getByText("LINE連携解除、通知がされなくなります。")).toBeInTheDocument();
+    await expect(
+      content.getByText("この店舗へのシフト通知は送られなくなります。組織のLINE連携は残ります。"),
+    ).toBeInTheDocument();
     await expect(content.getByRole("checkbox", { name: "田中 太郎を所属スタッフにする" })).toHaveAccessibleDescription(
-      /今日以降のシフト割り当てから削除します。.*LINE連携解除、通知がされなくなります。/,
+      /今日以降のシフト割り当てから削除します。.*この店舗へのシフト通知は送られなくなります。組織のLINE連携は残ります。/,
     );
     await expect(content.queryByText(/過去のシフト記録/)).not.toBeInTheDocument();
     await expect(content.queryByText(/シフト割り当て.*件/)).not.toBeInTheDocument();

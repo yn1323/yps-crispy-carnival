@@ -175,7 +175,15 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/dashboard");
 
   mocks.myShops = [{ shopId: "active-shop", shopName: "所属店舗" }];
-  mocks.currentUser = { name: "管理者", email: "manager@example.com" };
+  mocks.currentUser = {
+    name: "管理者",
+    email: "manager@example.com",
+    featureVisibility: {
+      organizationSettingsNavigation: true,
+      billing: true,
+      shopMembershipAddition: true,
+    },
+  };
   mocks.selectedShop = {
     shopId: "stale-shop",
     shopName: "過去の所属店舗",
@@ -258,7 +266,15 @@ describe("AuthGuard", () => {
   });
 
   it("ClerkのログインメールとConvexの連絡先が異なっても通常画面を表示する", () => {
-    mocks.currentUser = { name: "管理者", email: "convex@example.com" };
+    mocks.currentUser = {
+      name: "管理者",
+      email: "convex@example.com",
+      featureVisibility: {
+        organizationSettingsNavigation: true,
+        billing: true,
+        shopMembershipAddition: true,
+      },
+    };
     mocks.useUser.mockReturnValue({
       isLoaded: true,
       user: {
@@ -339,7 +355,8 @@ describe("AuthGuard", () => {
     }
   });
 
-  it("古いbackendが公開状態を返さなくても全機能を公開する", async () => {
+  it("古いbackendが公開状態を返さないとき複数店舗writerだけ閉じる", async () => {
+    mocks.currentUser = { name: "管理者", email: "manager@example.com" };
     mocks.selectedShop = {
       shopId: "active-shop",
       shopName: "所属店舗",
@@ -352,7 +369,7 @@ describe("AuthGuard", () => {
     mocks.user.featureVisibility = {
       organizationSettingsNavigation: true,
       billing: true,
-      shopMembershipAddition: true,
+      shopMembershipAddition: false,
     };
 
     render(
@@ -371,13 +388,13 @@ describe("AuthGuard", () => {
         featureVisibility: {
           organizationSettingsNavigation: true,
           billing: true,
-          shopMembershipAddition: true,
+          shopMembershipAddition: false,
         },
       });
     });
   });
 
-  it("旧backendの閉状態を常時公開に正規化してatomへ同期する", async () => {
+  it("backendの閉状態を複数店舗writerへ反映し、常時公開機能は維持する", async () => {
     mocks.currentUser = {
       name: "管理者",
       email: "manager@example.com",
@@ -396,6 +413,11 @@ describe("AuthGuard", () => {
       organizationPlan: null,
       memberStatus: "active",
     };
+    mocks.user.featureVisibility = {
+      organizationSettingsNavigation: true,
+      billing: true,
+      shopMembershipAddition: false,
+    };
 
     const { rerender } = render(
       <AuthGuard requestedShopId="active-shop">
@@ -412,7 +434,7 @@ describe("AuthGuard", () => {
         featureVisibility: {
           organizationSettingsNavigation: true,
           billing: true,
-          shopMembershipAddition: true,
+          shopMembershipAddition: false,
         },
       });
     });
@@ -420,7 +442,7 @@ describe("AuthGuard", () => {
     mocks.user.featureVisibility = {
       organizationSettingsNavigation: true,
       billing: true,
-      shopMembershipAddition: true,
+      shopMembershipAddition: false,
     };
     rerender(
       <AuthGuard requestedShopId="active-shop">

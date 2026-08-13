@@ -12,6 +12,7 @@ export type OrganizationPersonView = {
   isStaff: boolean;
   // TODO[narrow]: 対応queryの全deployment反映と旧frontendのdrain後にrequired化する。
   isLineConnected?: boolean;
+  lineStatus?: "unlinked" | "linked_following" | "linked_unfollowed";
   hasManagerInvitation?: boolean;
   shopNames: string[];
   shopIds: string[];

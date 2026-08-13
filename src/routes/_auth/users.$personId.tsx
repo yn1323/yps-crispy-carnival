@@ -60,5 +60,5 @@ function isUserDetailReturnTo(value: unknown): value is UserDetailReturnTo {
 }
 
 function isUserDetailPanel(value: unknown): value is UserDetailPanel {
-  return value === "basic" || value === "addShop";
+  return value === "basic" || value === "line" || value === "addShop";
 }

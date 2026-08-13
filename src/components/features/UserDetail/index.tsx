@@ -11,6 +11,7 @@ import {
 } from "./navigation";
 import type { UserDetailData, UserDetailPanel, UserDetailReturnTo } from "./types";
 import { UserDetailView } from "./UserDetailView";
+import { useUserLineActions } from "./useUserLineActions";
 import { useUserMembershipActions } from "./useUserMembershipActions";
 import { useUserProfileUpdate } from "./useUserProfileUpdate";
 import { useUserRemovalActions } from "./useUserRemovalActions";
@@ -45,6 +46,7 @@ export function UserDetail({
   visiblePersonIdRef.current = data.person.id;
 
   const profile = useUserProfileUpdate({ data, selectedShopId });
+  const line = useUserLineActions({ data });
   const membership = useUserMembershipActions({
     canChangeMembership: data.canWrite && showShopMembershipAddition,
   });
@@ -107,6 +109,13 @@ export function UserDetail({
       activePanel={activePanel}
       state={{
         isUpdatingProfile: profile.isUpdating,
+        line: {
+          authorizeUrl: line.authorizeUrl,
+          showQr: line.showQr,
+          isQrLoading: line.isQrLoading,
+          isSendingInvite: line.isSendingInvite,
+          isDisconnecting: line.isDisconnecting,
+        },
         membership: {
           isChanging: membership.isChangingMemberships,
         },
@@ -118,6 +127,7 @@ export function UserDetail({
       actions={{
         onBack: handleBack,
         onOpenBasic: () => updateSearch({ panel: "basic" }),
+        onOpenLine: () => updateSearch({ panel: "line" }),
         onOpenAddShop: () => {
           if (!showShopMembershipAdditionRef.current) return;
           updateSearch({ panel: "addShop" });
@@ -141,6 +151,9 @@ export function UserDetail({
             handleClosePanel();
           }
         },
+        onShowLineQr: line.onShowQr,
+        onSendLineInvite: line.onSendInvite,
+        onDisconnectLine: line.onDisconnect,
         onChangeMemberships: async (input) => {
           if (!showShopMembershipAdditionRef.current) return;
           const personId = data.person.id;

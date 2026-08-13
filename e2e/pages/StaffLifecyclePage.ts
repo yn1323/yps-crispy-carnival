@@ -49,6 +49,9 @@ export class StaffLifecyclePage {
     await expect(this.page.getByRole("heading", { name: "スタッフ詳細", exact: true })).toBeVisible({
       timeout: STAFF_LIFECYCLE_TIMEOUT,
     });
+    await expect(this.page.getByRole("button", { name: "LINE連携を開く", exact: true })).toBeVisible({
+      timeout: STAFF_LIFECYCLE_TIMEOUT,
+    });
   }
 
   async updateStaffProfile(current: { name: string; email: string }, updated: { name: string; email: string }) {

@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   changeMemberships: vi.fn(),
   updateProfile: vi.fn(),
+  useLineActions: vi.fn(),
   featureVisibilityAtom: Symbol("featureVisibilityAtom"),
   featureVisibility: {
     organizationSettingsNavigation: true,
@@ -41,6 +42,7 @@ vi.mock("./UserDetailView", () => ({
     actions: {
       onBack: () => void;
       onOpenBasic: () => void;
+      onOpenLine: () => void;
       onOpenAddShop: () => void;
       onOpenShop: (shopId: string) => void;
       onClosePanel: () => void;
@@ -56,6 +58,9 @@ vi.mock("./UserDetailView", () => ({
       </button>
       <button type="button" onClick={actions.onOpenBasic}>
         スタッフ情報を開く
+      </button>
+      <button type="button" onClick={actions.onOpenLine}>
+        LINE連携を開く
       </button>
       <button type="button" onClick={actions.onOpenAddShop}>
         店舗追加を開く
@@ -81,6 +86,10 @@ vi.mock("./UserDetailView", () => ({
 
 vi.mock("./useUserProfileUpdate", () => ({
   useUserProfileUpdate: () => ({ isUpdating: false, update: mocks.updateProfile }),
+}));
+
+vi.mock("./useUserLineActions", () => ({
+  useUserLineActions: mocks.useLineActions,
 }));
 
 vi.mock("./useUserMembershipActions", () => ({
@@ -125,8 +134,19 @@ beforeEach(() => {
   mocks.navigate.mockReset();
   mocks.changeMemberships.mockReset();
   mocks.updateProfile.mockReset();
+  mocks.useLineActions.mockReset();
   mocks.changeMemberships.mockResolvedValue(false);
   mocks.updateProfile.mockResolvedValue(false);
+  mocks.useLineActions.mockReturnValue({
+    authorizeUrl: null,
+    showQr: false,
+    isQrLoading: false,
+    isSendingInvite: false,
+    isDisconnecting: false,
+    onShowQr: vi.fn(),
+    onSendInvite: vi.fn(),
+    onDisconnect: vi.fn(),
+  });
   mocks.featureVisibility.shopMembershipAddition = true;
   mocks.removalOptions = undefined;
 });
@@ -165,10 +185,11 @@ describe("UserDetail", () => {
     expect(mocks.navigate).not.toHaveBeenCalled();
   });
 
-  it("基本情報と店舗追加のパネルをURL検索条件で開く", () => {
+  it("基本情報、LINE連携、店舗追加のパネルをURL検索条件で開く", () => {
     render(<UserDetail data={data} selectedShopId={null} returnTo="dashboard" visibleUserCount={10} />);
 
     fireEvent.click(screen.getByRole("button", { name: "スタッフ情報を開く" }));
+    fireEvent.click(screen.getByRole("button", { name: "LINE連携を開く" }));
     fireEvent.click(screen.getByRole("button", { name: "店舗追加を開く" }));
 
     const openBasicNavigation = mocks.navigate.mock.calls[0]?.[0];
@@ -179,7 +200,15 @@ describe("UserDetail", () => {
       returnTo: "dashboard",
     });
 
-    const openAddShopNavigation = mocks.navigate.mock.calls[1]?.[0];
+    const openLineNavigation = mocks.navigate.mock.calls[1]?.[0];
+    expect(openLineNavigation).toMatchObject({ to: ".", replace: true, resetScroll: false });
+    expect(openLineNavigation.search({ shop: "shop-a", returnTo: "dashboard" })).toEqual({
+      shop: "shop-a",
+      panel: "line",
+      returnTo: "dashboard",
+    });
+
+    const openAddShopNavigation = mocks.navigate.mock.calls[2]?.[0];
     expect(openAddShopNavigation).toMatchObject({ to: ".", replace: true, resetScroll: false });
     expect(openAddShopNavigation.search({ shop: "shop-a", returnTo: "dashboard" })).toEqual({
       shop: "shop-a",

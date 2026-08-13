@@ -28,7 +28,6 @@ const shibuyaMembership: UserDetailData["memberships"][number] = {
   excludedFromShift: false,
   canRemove: true,
   removalPreview: removalPreview(2, "shibuya-preview"),
-  line: { isLinked: true, isFollowing: true },
 };
 
 const shinjukuMembership: UserDetailData["memberships"][number] = {
@@ -40,7 +39,6 @@ const shinjukuMembership: UserDetailData["memberships"][number] = {
   canRemove: false,
   removeDisabledReason: "稼働中の店舗だけ所属を変更できます。",
   removalPreview: removalPreview(0, "shinjuku-preview"),
-  line: { isLinked: true, isFollowing: false },
 };
 
 const shibuyaShop: UserDetailData["shops"][number] = {
@@ -91,6 +89,14 @@ const baseData: UserDetailData = {
   removeDisabledReason: "管理者は削除できません。先に管理者権限を外してください。",
   removalPreview: removalPreview(2),
   canWrite: true,
+  line: {
+    status: "linked_following",
+    actionShopId: shibuyaShopId,
+    sourceStaffId: shibuyaStaffId,
+    sourceShopId: shibuyaShopId,
+    canLink: true,
+    canDisconnect: true,
+  },
   membershipFingerprint: "membership-fingerprint",
   shops: [
     {
@@ -119,6 +125,58 @@ const multipleStoresData: UserDetailData = {
   memberships: [shibuyaMembership, shinjukuMembership],
 };
 
+const lineUnlinkedData: UserDetailData = {
+  ...multipleStoresData,
+  line: { ...multipleStoresData.line, status: "unlinked", canDisconnect: false },
+};
+
+const lineUnfollowedData: UserDetailData = {
+  ...multipleStoresData,
+  line: { ...multipleStoresData.line, status: "linked_unfollowed" },
+};
+
+const lineWithoutEmailData: UserDetailData = {
+  ...lineUnlinkedData,
+  person: { ...lineUnlinkedData.person, email: "" },
+};
+
+const lineReadOnlyData: UserDetailData = {
+  ...multipleStoresData,
+  canWrite: false,
+  writeDisabledReason: "閲覧のみの管理者は、ユーザー情報を変更できません。",
+  line: {
+    ...multipleStoresData.line,
+    canLink: false,
+    linkDisabledReason: "閲覧のみの管理者は、ユーザー情報を変更できません。",
+    canDisconnect: false,
+    disconnectDisabledReason: "閲覧のみの管理者は、LINE連携を解除できません。",
+  },
+};
+
+const lineBillingReadOnlyData: UserDetailData = {
+  ...multipleStoresData,
+  canWrite: false,
+  writeDisabledReason: "契約状態を確認できるまで、ユーザー情報を変更できません。",
+  line: {
+    ...multipleStoresData.line,
+    canLink: false,
+    linkDisabledReason: "契約状態を確認できるまで、ユーザー情報を変更できません。",
+    canDisconnect: true,
+  },
+};
+
+const lineWithoutMembershipData: UserDetailData = {
+  ...multipleStoresData,
+  memberships: [],
+  line: {
+    ...multipleStoresData.line,
+    sourceStaffId: null,
+    sourceShopId: null,
+    canLink: false,
+    linkDisabledReason: "LINE連携を設定するには、稼働中の店舗へ所属を追加してください。",
+  },
+};
+
 const managerInvitationHiddenData: UserDetailData = {
   ...multipleStoresData,
   hasManagerInvitation: true,
@@ -143,6 +201,13 @@ const selfStaffData: UserDetailData = {
 
 const baseState: UserDetailViewProps["state"] = {
   isUpdatingProfile: false,
+  line: {
+    authorizeUrl: null,
+    showQr: false,
+    isQrLoading: false,
+    isSendingInvite: false,
+    isDisconnecting: false,
+  },
   membership: {
     isChanging: false,
   },
@@ -167,10 +232,14 @@ const settleBasicInformationDialogFocus = async () => {
 const baseActions: UserDetailViewProps["actions"] = {
   onBack: noop,
   onOpenBasic: noop,
+  onOpenLine: noop,
   onOpenAddShop: noop,
   onOpenShop: noop,
   onClosePanel: noop,
   onUpdateProfile: asyncNoop,
+  onShowLineQr: asyncNoop,
+  onSendLineInvite: asyncNoop,
+  onDisconnectLine: async () => false,
   onChangeMemberships: asyncNoop,
   onManageManagers: noop,
   onRequestRemovePerson: noop,
@@ -284,6 +353,46 @@ export const BasicInformationDialogMobile: Story = {
   globals: { viewport: { value: "mobile2", isRotated: false } },
   args: { activePanel: "basic" },
   play: settleBasicInformationDialogFocus,
+};
+
+export const LineLinkedDialog: Story = {
+  args: { activePanel: "line", data: multipleStoresData },
+};
+
+export const LineUnlinkedDialog: Story = {
+  args: { activePanel: "line", data: lineUnlinkedData },
+};
+
+export const LineUnfollowedDialog: Story = {
+  args: { activePanel: "line", data: lineUnfollowedData },
+};
+
+export const LineWithoutEmailDialog: Story = {
+  args: { activePanel: "line", data: lineWithoutEmailData },
+};
+
+export const LineReadOnlyDialog: Story = {
+  args: { activePanel: "line", data: lineReadOnlyData },
+};
+
+export const LineBillingReadOnlyDialog: Story = {
+  args: { activePanel: "line", data: lineBillingReadOnlyData },
+};
+
+export const LineWithoutMembershipDialog: Story = {
+  args: { activePanel: "line", data: lineWithoutMembershipData },
+};
+
+export const LineUnlinkedDialogMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  args: { activePanel: "line", data: lineUnlinkedData },
+};
+
+export const LineLinkedDialogMobile: Story = {
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  args: { activePanel: "line", data: multipleStoresData },
 };
 
 export const ReadOnlyInformationDialog: Story = {
@@ -490,6 +599,7 @@ function PanelNavigationHarness({
         actions={{
           ...baseActions,
           onOpenBasic: () => setActivePanel("basic"),
+          onOpenLine: () => setActivePanel("line"),
           onOpenAddShop: () => setActivePanel("addShop"),
           onClosePanel: () => setActivePanel(undefined),
           onRequestRemovePerson: () =>
@@ -505,6 +615,43 @@ function PanelNavigationHarness({
             setMembershipChangeInput(input);
             setMembershipChangeCallCount((count) => count + 1);
             onMembershipChange?.(input);
+          },
+        }}
+      />
+    </>
+  );
+}
+
+function LinePanelHarness({ data = lineUnlinkedData }: { data?: UserDetailData }) {
+  const [activePanel, setActivePanel] = useState<UserDetailPanel>();
+  const [showQr, setShowQr] = useState(false);
+  const [disconnectCount, setDisconnectCount] = useState(0);
+
+  return (
+    <>
+      <output hidden data-testid="line-disconnect-count">
+        {disconnectCount}
+      </output>
+      <UserDetailView
+        data={data}
+        showShopMembershipAddition
+        activePanel={activePanel}
+        state={{
+          ...baseState,
+          line: {
+            ...baseState.line,
+            showQr,
+            authorizeUrl: showQr ? "https://example.com/line/authorize" : null,
+          },
+        }}
+        actions={{
+          ...baseActions,
+          onOpenLine: () => setActivePanel("line"),
+          onClosePanel: () => setActivePanel(undefined),
+          onShowLineQr: async () => setShowQr(true),
+          onDisconnectLine: async () => {
+            setDisconnectCount((count) => count + 1);
+            return true;
           },
         }}
       />
@@ -531,6 +678,55 @@ export const BasicInformationFlowBehavior: Story = {
     await expect(basicDialog.getByRole("heading", { name: "管理者権限" })).toBeInTheDocument();
     await userEvent.click(basicDialog.getByRole("button", { name: "キャンセル" }));
     await waitFor(() => expect(page.queryByRole("dialog", { name: "スタッフ情報" })).not.toBeInTheDocument());
+  },
+};
+
+export const LineQrDisplayBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <LinePanelHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "LINE連携を開く" }));
+    const dialog = await page.findByRole("dialog", { name: "LINE連携" });
+    const content = within(dialog);
+    await userEvent.click(content.getByRole("button", { name: "LINE連携リンクを表示" }));
+
+    await expect(await content.findByRole("img", { name: "LINE連携用QRコード" })).toBeInTheDocument();
+    await expect(content.getByText(/この組織で現在および今後所属する店舗に共通/)).toBeInTheDocument();
+  },
+};
+
+export const LineDisconnectInlineConfirmationBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <LinePanelHarness data={multipleStoresData} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "LINE連携を開く" }));
+    const dialog = await page.findByRole("dialog", { name: "LINE連携" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "LINE連携を解除" }));
+
+    const confirmation = await page.findByRole("alertdialog", { name: "LINE連携を解除" });
+    const confirmationContent = within(confirmation);
+    await expect(
+      confirmationContent.getByText("この組織のすべての所属店舗でLINE通知が停止します。"),
+    ).toBeInTheDocument();
+    await expect(confirmationContent.getByText("ほかの組織のLINE連携には影響しません。")).toBeInTheDocument();
+    await expect(confirmationContent.getByRole("button", { name: "戻る" })).toHaveFocus();
+
+    await userEvent.click(confirmationContent.getByRole("button", { name: "戻る" }));
+    const reopenedDialog = await page.findByRole("dialog", { name: "LINE連携" });
+    const disconnectTrigger = within(reopenedDialog).getByRole("button", { name: "LINE連携を解除" });
+    await waitFor(() => expect(disconnectTrigger).toHaveFocus());
+    await userEvent.click(disconnectTrigger);
+    const reopenedConfirmation = await page.findByRole("alertdialog", { name: "LINE連携を解除" });
+    await userEvent.click(within(reopenedConfirmation).getByRole("button", { name: "LINE連携を解除する" }));
+
+    await expect(canvas.getByTestId("line-disconnect-count")).toHaveTextContent("1");
+    await expect(page.queryByRole("alertdialog", { name: "LINE連携を解除" })).not.toBeInTheDocument();
   },
 };
 
@@ -631,9 +827,11 @@ export const ShopMembershipRemovalBehavior: Story = {
     await userEvent.click(shibuyaCheckbox);
     await expect(membershipDialog.getByText("店舗から外す")).toBeInTheDocument();
     await expect(membershipDialog.getByText("今日以降のシフト割り当てから削除します。")).toBeInTheDocument();
-    await expect(membershipDialog.getByText("LINE連携解除、通知がされなくなります。")).toBeInTheDocument();
+    await expect(
+      membershipDialog.getByText("この店舗へのシフト通知は送られなくなります。組織のLINE連携は残ります。"),
+    ).toBeInTheDocument();
     await expect(shibuyaCheckbox).toHaveAccessibleDescription(
-      /今日以降のシフト割り当てから削除します。.*LINE連携解除、通知がされなくなります。/,
+      /今日以降のシフト割り当てから削除します。.*この店舗へのシフト通知は送られなくなります。組織のLINE連携は残ります。/,
     );
     await expect(membershipDialog.queryByText(/過去のシフト記録/)).not.toBeInTheDocument();
     await expect(membershipDialog.queryByText(/シフト割り当て.*件/)).not.toBeInTheDocument();

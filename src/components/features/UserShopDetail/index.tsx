@@ -3,7 +3,6 @@ import { StaffNotificationHistory } from "@/src/components/features/StaffNotific
 import { useViewportActivation } from "@/src/hooks/useViewportActivation";
 import type { UserShopDetailData, UserShopDetailMembership } from "./types";
 import { UserShopDetailView } from "./UserShopDetailView";
-import { useUserShopLineActions } from "./useUserShopLineActions";
 import { useUserShopMembershipActions } from "./useUserShopMembershipActions";
 import { useUserShopNotificationActions } from "./useUserShopNotificationActions";
 
@@ -20,7 +19,6 @@ export function UserShopDetail({ data, membership, targetShopId, onBack }: Props
   const notificationSection = useViewportActivation<HTMLDivElement>({
     activationKey: `${data.person.id}:${targetShopId}:${membership.staffId}`,
   });
-  const line = useUserShopLineActions({ targetShopId, membership, isReadOnly: isStoreReadOnly });
   const notifications = useUserShopNotificationActions({
     targetShopId,
     membership,
@@ -51,12 +49,6 @@ export function UserShopDetail({ data, membership, targetShopId, onBack }: Props
         ) : null
       }
       state={{
-        line: {
-          authorizeUrl: line.authorizeUrl,
-          showQr: line.showQr,
-          isQrLoading: line.isQrLoading,
-          isSendingInvite: line.isSendingInvite,
-        },
         notifications: {
           isLoading: !notificationSection.isActive || notifications.isLoading,
           openRecruitments: notifications.openRecruitments,
@@ -70,8 +62,6 @@ export function UserShopDetail({ data, membership, targetShopId, onBack }: Props
       }}
       actions={{
         onBack,
-        onShowLineQr: line.onShowQr,
-        onSendLineInvite: line.onSendInvite,
         onSendRecruitments: notifications.sendRecruitments,
         onSendCurrentShift: notifications.sendCurrentShift,
         onChangeShiftTarget: membershipActions.onChangeShiftTarget,

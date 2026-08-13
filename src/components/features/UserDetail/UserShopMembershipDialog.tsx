@@ -308,7 +308,6 @@ function createSession(data: UserDetailData): MembershipSession {
   const memberships = data.memberships.map((membership) => ({
     ...membership,
     removalPreview: { ...membership.removalPreview },
-    line: { ...membership.line },
   }));
   const initialActiveShopIds = getActiveMembershipShopIds(shops, memberships);
   return {

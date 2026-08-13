@@ -75,7 +75,7 @@ export class ShopStaffMembershipPage {
     await expect(addition).not.toBeChecked();
     await expect(dialog.getByText("この店舗から外す", { exact: true })).toBeVisible();
     await expect(addition).toHaveAccessibleDescription(
-      /今日以降のシフト割り当てから削除します。.*LINE連携解除、通知がされなくなります。/,
+      /今日以降のシフト割り当てから削除します。.*この店舗へのシフト通知は送られなくなります。組織のLINE連携は残ります。/,
     );
     const submit = dialog.getByRole("button", { name: "変更する", exact: true });
     await expect(submit).toBeEnabled({ timeout: SHOP_STAFF_MEMBERSHIP_TIMEOUT });

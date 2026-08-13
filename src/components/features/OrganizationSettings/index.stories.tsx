@@ -66,7 +66,7 @@ const baseArgs: OrganizationSettingsViewProps = {
   freeManagerExchangeCandidates: [],
   canUpdateOrganizationName: true,
   canCreateOrganization: true,
-  // 現行契約ではすべての導線を公開する。booleanは旧応答との型互換のためだけに残している。
+  // 店舗追加だけはcanonical LINE rollout gateと同期し、ほかの現行導線は公開する。
   features: { organizationCreation: true, shopAddition: true, billing: true, managerInvitation: true },
   people: [
     {
@@ -661,6 +661,20 @@ export const ShopCapacityReachedBehavior: Story = {
     const addShopButton = canvas.getByRole("button", { name: "店舗を追加する" });
     await expectDisabledActionDescription(addShopButton, "店舗は、組織ごとに5件まで登録できます。");
     await expect(canvas.queryByRole("link", { name: "利用上限について問い合わせる" })).not.toBeInTheDocument();
+  },
+};
+
+export const ShopAdditionHiddenBehavior: Story = {
+  name: "店舗｜rollout gate閉鎖（操作確認）",
+  parameters: { screenshot: { skip: true } },
+  args: {
+    defaultTab: "shops",
+    features: { ...baseArgs.features, shopAddition: false },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("button", { name: "店舗を追加する" })).not.toBeInTheDocument();
+    await expect(canvas.getByRole("heading", { name: /全店舗/ })).toBeInTheDocument();
   },
 };
 

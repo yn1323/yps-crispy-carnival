@@ -2,7 +2,7 @@ import { Box, Flex, HStack, Skeleton, Stack } from "@chakra-ui/react";
 import { DeletionActionSectionSkeleton } from "@/src/components/shared/DeletionActionSection";
 import { DetailPageHeaderSkeleton } from "@/src/components/ui/DetailPageHeader";
 
-const membershipBadgeWidths = [["88px"], ["80px", "72px", "80px"]] as const;
+const membershipBadgeWidths = [[], ["80px", "72px"]] as const;
 
 export function UserDetailSkeleton() {
   return (
@@ -28,6 +28,18 @@ export function UserDetailSkeleton() {
             <Skeleton h="24px" w="112px" />
             <Skeleton h="20px" w="280px" maxW="90%" />
           </Stack>
+          <Skeleton boxSize="20px" borderRadius="sm" flexShrink={0} />
+        </Flex>
+      </Box>
+
+      <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
+        <Flex align="center" gap={3} px={{ base: 3, md: 4 }} py={3.5}>
+          <Skeleton boxSize="40px" borderRadius="full" flexShrink={0} />
+          <Stack gap={1} flex={1} minW={0}>
+            <Skeleton h="24px" w="88px" />
+            <Skeleton h="20px" w="240px" maxW="90%" />
+          </Stack>
+          <Skeleton h="18px" w="88px" borderRadius="full" flexShrink={0} />
           <Skeleton boxSize="20px" borderRadius="sm" flexShrink={0} />
         </Flex>
       </Box>

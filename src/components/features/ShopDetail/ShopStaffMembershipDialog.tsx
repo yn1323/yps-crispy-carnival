@@ -464,7 +464,7 @@ export function ShopStaffMembershipDialog({
             <Alert.Indicator />
             <Alert.Content>
               <Alert.Description>
-                追加したスタッフには、シフト提出やLINE連携に必要な案内を予約します。
+                シフト提出に必要な案内を予約します。LINE未連携の場合だけ、組織共通の連携案内も送ります。
               </Alert.Description>
             </Alert.Content>
           </Alert.Root>

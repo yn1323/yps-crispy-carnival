@@ -1,160 +1,70 @@
-import { Alert, Box, Heading, HStack, Stack, Text } from "@chakra-ui/react";
-import type { ReactNode } from "react";
-import { LuMail, LuMessageCircle, LuQrCode } from "react-icons/lu";
-import { LineLinkQrDialog } from "@/src/components/features/Line";
-import { Button } from "@/src/components/ui/Button";
+import { Alert, Stack, Text } from "@chakra-ui/react";
 import type { UserShopDetailData, UserShopDetailMembership } from "./types";
 
 type Props = {
   data: UserShopDetailData;
   membership: UserShopDetailMembership;
-  isReadOnly: boolean;
-  authorizeUrl: string | null;
-  showQr: boolean;
-  isQrLoading: boolean;
-  isSendingInvite: boolean;
-  onShowQr: () => void | Promise<void>;
-  onSendInvite: () => void | Promise<void>;
 };
 
-export function UserShopLineSection({
-  data,
-  membership,
-  isReadOnly,
-  authorizeUrl,
-  showQr,
-  isQrLoading,
-  isSendingInvite,
-  onShowQr,
-  onSendInvite,
-}: Props) {
-  const lineStatus = getLineStatus(membership);
-  const isLineActive = membership.line.isLinked && membership.line.isFollowing;
-  const hasEmail = data.person.email.length > 0;
+export function UserShopLineSection({ data, membership }: Props) {
+  const presentation = getShopLineNotificationPresentation(data, membership);
 
-  return (
-    <Stack gap={6}>
-      <Stack gap={3}>
-        <Stack gap={1}>
-          <Text as="h2" fontSize="md" fontWeight="semibold" color="gray.900">
-            LINE連携
-          </Text>
-          <Text fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
-            LINE連携は店舗ごとに設定してください。
-            {!isLineActive && "\nいずれかの方法でスタッフを招待してください。"}
-          </Text>
-        </Stack>
-
-        {lineStatus.isActive ? (
-          <Alert.Root status="success" borderRadius="md" alignItems="center" p={3}>
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>{lineStatus.label}</Alert.Title>
-              {lineStatus.description && (
-                <Alert.Description fontSize="sm" lineHeight="tall" whiteSpace="pre-line">
-                  {lineStatus.description}
-                </Alert.Description>
-              )}
-            </Alert.Content>
-          </Alert.Root>
-        ) : (
-          <Box borderWidth="1px" borderColor="border.default" bg="blackAlpha.50" borderRadius="md" p={3}>
-            <Stack gap={1}>
-              <HStack gap={2}>
-                <LuMessageCircle aria-hidden />
-                <Text fontWeight="semibold">{lineStatus.label}</Text>
-              </HStack>
-              {lineStatus.description && (
-                <Text fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
-                  {lineStatus.description}
-                </Text>
-              )}
-            </Stack>
-          </Box>
-        )}
-      </Stack>
-
-      {!isLineActive && (
-        <fieldset disabled={isReadOnly} style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}>
-          <Stack gap={6}>
-            <LineConnectionMethod number="1" title="LINE連携リンクを表示">
-              <Button
-                alignSelf="flex-end"
-                colorPalette="teal"
-                gap={1.5}
-                onClick={onShowQr}
-                disabled={isReadOnly || showQr}
-                loading={isQrLoading}
-              >
-                <LuQrCode aria-hidden />
-                LINE連携リンクを表示
-              </Button>
-              {showQr && (
-                <Stack gap={3} w="full">
-                  <Stack gap={1} fontSize="sm" color="fg.muted" lineHeight="tall">
-                    <Text>{data.person.name}さん専用のURL（QRコード）です。</Text>
-                    <Text>スタッフ本人に直接共有してください。</Text>
-                    <Text>ほかのスタッフには共有しないでください。</Text>
-                  </Stack>
-                  <LineLinkQrDialog authorizeUrl={authorizeUrl} isLoading={isQrLoading} />
-                </Stack>
-              )}
-            </LineConnectionMethod>
-
-            <LineConnectionMethod number="2" title="LINE連携リンクをメールで送る">
-              <Button
-                alignSelf="flex-end"
-                colorPalette="teal"
-                gap={1.5}
-                disabled={isReadOnly || !hasEmail || isSendingInvite}
-                loading={isSendingInvite}
-                onClick={onSendInvite}
-              >
-                <LuMail aria-hidden />
-                メールでLINE連携リンクを送る
-              </Button>
-              {!hasEmail && (
-                <Text fontSize="xs" color="fg.muted">
-                  メールアドレスが未登録のため、メールでは送れません。
-                  <br />
-                  リンクを直接共有してください。
-                </Text>
-              )}
-            </LineConnectionMethod>
-          </Stack>
-        </fieldset>
-      )}
-    </Stack>
-  );
-}
-
-function LineConnectionMethod({ number, title, children }: { number: string; title: string; children: ReactNode }) {
   return (
     <Stack gap={3}>
-      <Heading as="h3" fontSize="sm" fontWeight="semibold" color="gray.900">
-        {number}. {title}
-      </Heading>
-      <Stack gap={3} align="flex-start">
-        {children}
+      <Stack gap={1}>
+        <Text as="h2" fontSize="md" fontWeight="semibold" color="gray.900">
+          LINE通知
+        </Text>
+        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+          LINE連携はスタッフ詳細で管理し、同じ組織の所属店舗で共通に使います。
+        </Text>
       </Stack>
+
+      <Alert.Root status={presentation.alertStatus} borderRadius="md" alignItems="center" p={3}>
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>{presentation.label}</Alert.Title>
+          <Alert.Description fontSize="sm" lineHeight="tall">
+            {presentation.description}
+          </Alert.Description>
+        </Alert.Content>
+      </Alert.Root>
     </Stack>
   );
 }
 
-function getLineStatus(membership: UserShopDetailMembership) {
-  if (!membership.line.isLinked) {
-    return { label: "LINE未連携", description: undefined, isActive: false };
-  }
-  if (!membership.line.isFollowing) {
+function getShopLineNotificationPresentation(data: UserShopDetailData, membership: UserShopDetailMembership) {
+  if (membership.shopStatus !== "active") {
     return {
-      label: "LINE通知を利用できません",
-      description: "LINEアカウントと連携済みですが、現在は通知を送れません。\nもう一度連携してください。",
-      isActive: false,
+      label: "この店舗からはLINE通知を送れません",
+      description: "停止中の店舗では通知を送信できません。組織のLINE連携はそのまま残ります。",
+      alertStatus: "warning" as const,
+    };
+  }
+  if (membership.excludedFromShift) {
+    return {
+      label: "この店舗ではシフト通知の対象外です",
+      description: "シフト対象へ戻すと、組織で共通のLINE連携をこの店舗でも利用できます。",
+      alertStatus: "info" as const,
+    };
+  }
+  if (data.line.status === "linked_following") {
+    return {
+      label: "この店舗ではLINEで通知できます",
+      description: "組織で共通のLINE連携を使って、この店舗のシフト通知を送ります。",
+      alertStatus: "success" as const,
+    };
+  }
+  if (data.line.status === "linked_unfollowed") {
+    return {
+      label: "現在はLINEで通知できません",
+      description: "LINE連携は残っています。再連携はスタッフ詳細の「LINE連携」から行ってください。",
+      alertStatus: "warning" as const,
     };
   }
   return {
-    label: "LINE連携済み",
-    description: "店舗のシフト通知をLINEで受け取ります。",
-    isActive: true,
+    label: "LINE未連携",
+    description: "LINE連携はスタッフ詳細の「LINE連携」から設定してください。",
+    alertStatus: "info" as const,
   };
 }

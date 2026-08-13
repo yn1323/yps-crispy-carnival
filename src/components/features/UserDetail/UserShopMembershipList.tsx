@@ -33,7 +33,6 @@ export function UserShopMembershipList({ data, showShopMembershipAddition, onOpe
     <Box borderRadius="lg" borderWidth="1px" borderColor="blackAlpha.100" overflow="hidden">
       <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
         {data.memberships.map((membership) => {
-          const isLineActive = membership.line.isLinked && membership.line.isFollowing;
           return (
             <DrilldownRow
               key={membership.shopId}
@@ -49,12 +48,9 @@ export function UserShopMembershipList({ data, showShopMembershipAddition, onOpe
                     </StatusBadge>
                   )}
                   {membership.excludedFromShift && <StatusBadge colorPalette="gray">シフト対象外</StatusBadge>}
-                  <StatusBadge colorPalette={isLineActive ? "green" : "gray"}>
-                    {isLineActive ? "LINE連携済み" : "LINE未連携"}
-                  </StatusBadge>
                 </HStack>
               }
-              accessibleDescription="通知、LINE連携、店舗設定を確認できます。"
+              accessibleDescription="通知と店舗設定を確認できます。"
               onClick={() => onOpenShop(membership.shopId)}
             />
           );

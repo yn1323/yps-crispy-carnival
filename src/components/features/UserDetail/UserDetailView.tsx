@@ -1,5 +1,5 @@
-import { Box, Flex, Stack, Text } from "@chakra-ui/react";
-import { LuPencil, LuUserRound } from "react-icons/lu";
+import { Badge, Box, Flex, Stack, Text } from "@chakra-ui/react";
+import { LuMessageCircle, LuPencil, LuUserRound } from "react-icons/lu";
 import type { PersonProfileFormData } from "@/src/components/shared/PersonProfileForm";
 import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
 import { Button } from "@/src/components/ui/Button";
@@ -7,6 +7,7 @@ import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import { DrilldownRow } from "@/src/components/ui/DrilldownRow";
 import type { UserDetailData, UserDetailDialog, UserDetailPanel, UserMembershipChangeInput } from "./types";
 import { UserInformationDialog } from "./UserInformationDialog";
+import { getLineStatusPresentation, UserLineConnectionDialog } from "./UserLineConnectionDialog";
 import { UserGroupRemovalSection } from "./UserSettingsTab";
 import { UserShopMembershipDialog } from "./UserShopMembershipDialog";
 import { UserShopMembershipList } from "./UserShopMembershipList";
@@ -19,6 +20,13 @@ export type UserDetailViewProps = {
   activePanel?: UserDetailPanel;
   state: {
     isUpdatingProfile: boolean;
+    line: {
+      authorizeUrl: string | null;
+      showQr: boolean;
+      isQrLoading: boolean;
+      isSendingInvite: boolean;
+      isDisconnecting: boolean;
+    };
     membership: {
       isChanging: boolean;
     };
@@ -30,10 +38,14 @@ export type UserDetailViewProps = {
   actions: {
     onBack: () => void;
     onOpenBasic: () => void;
+    onOpenLine: () => void;
     onOpenAddShop: () => void;
     onOpenShop: (shopId: string) => void;
     onClosePanel: () => void;
     onUpdateProfile: (data: PersonProfileFormData) => void | Promise<void>;
+    onShowLineQr: () => Promise<unknown>;
+    onSendLineInvite: () => Promise<unknown>;
+    onDisconnectLine: (requestId: string) => Promise<boolean | undefined>;
     onChangeMemberships: (input: UserMembershipChangeInput) => void | Promise<void>;
     onManageManagers: () => void;
     onRequestRemovePerson: () => void;
@@ -84,6 +96,8 @@ export function UserDetailView({
           onClick={actions.onOpenBasic}
         />
       </Box>
+
+      <UserLineConnectionRow data={data} onOpen={actions.onOpenLine} />
 
       <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
         <Flex align="center" justify="space-between" gap={3} px={{ base: 4, md: 5 }} pt={4} pb={0}>
@@ -144,6 +158,20 @@ export function UserDetailView({
         managerSettingsDisabledReason={managerSettingsDisabledReason}
       />
 
+      <UserLineConnectionDialog
+        data={data}
+        isOpen={activePanel === "line"}
+        authorizeUrl={state.line.authorizeUrl}
+        showQr={state.line.showQr}
+        isQrLoading={state.line.isQrLoading}
+        isSendingInvite={state.line.isSendingInvite}
+        isDisconnecting={state.line.isDisconnecting}
+        onClose={actions.onClosePanel}
+        onShowQr={actions.onShowLineQr}
+        onSendInvite={actions.onSendLineInvite}
+        onDisconnect={actions.onDisconnectLine}
+      />
+
       {showShopMembershipAddition && (
         <UserShopMembershipDialog
           data={data}
@@ -155,6 +183,37 @@ export function UserDetailView({
         />
       )}
     </Stack>
+  );
+}
+
+function UserLineConnectionRow({ data, onOpen }: { data: UserDetailData; onOpen: () => void }) {
+  const presentation = getLineStatusPresentation(data.line.status);
+  return (
+    <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
+      <DrilldownRow
+        ariaLabel="LINE連携を開く"
+        title="LINE連携"
+        leading={<LineConnectionIcon />}
+        badges={
+          <Badge
+            colorPalette={presentation.badgeColorPalette}
+            variant="subtle"
+            borderRadius="full"
+            px={2}
+            textStyle="2xs"
+          >
+            {presentation.label}
+          </Badge>
+        }
+        secondary={
+          <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+            同じ組織の所属店舗で共通です
+          </Text>
+        }
+        accessibleDescription={`${presentation.description} 同じ組織の所属店舗で共通です。`}
+        onClick={onOpen}
+      />
+    </Box>
   );
 }
 
@@ -172,6 +231,24 @@ function BasicInformationIcon() {
       aria-hidden
     >
       <LuUserRound />
+    </Flex>
+  );
+}
+
+function LineConnectionIcon() {
+  return (
+    <Flex
+      boxSize="40px"
+      borderRadius="full"
+      bg="green.100"
+      color="green.700"
+      align="center"
+      justify="center"
+      fontSize="lg"
+      flexShrink={0}
+      aria-hidden
+    >
+      <LuMessageCircle />
     </Flex>
   );
 }
