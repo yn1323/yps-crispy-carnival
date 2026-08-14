@@ -113,13 +113,7 @@ export class AppShiftsPage {
     const row = this.recruitmentRow(data);
     await expect(row).toBeVisible({ timeout: APP_SHIFTS_DATA_TIMEOUT });
 
-    const continueButton = this.page
-      .getByRole("alertdialog", { name: "まだ希望がそろっていません" })
-      .getByRole("button", { name: "このまま進む" });
-    const boardHeading = this.page.getByRole("heading", { name: "シフトを調整", exact: true });
     await row.click();
-    await expect(continueButton.or(boardHeading).first()).toBeVisible({ timeout: APP_SHIFTS_DATA_TIMEOUT });
-    if (await continueButton.isVisible()) await continueButton.click();
 
     await expect(this.page).toHaveURL(
       (url) =>
@@ -128,7 +122,11 @@ export class AppShiftsPage {
         url.searchParams.get("shopFilter") === null,
       { timeout: APP_SHIFTS_DATA_TIMEOUT },
     );
-    await expect(boardHeading).toBeVisible({ timeout: APP_SHIFTS_DATA_TIMEOUT });
+
+    const periodLabel = `${formatDateShort(data.periodStart)} 〜 ${formatDateShort(data.periodEnd)}`;
+    await expect(
+      this.page.getByRole("heading", { level: 1, name: `${data.shopName}：${periodLabel}`, exact: true }),
+    ).toBeVisible({ timeout: APP_SHIFTS_DATA_TIMEOUT });
   }
 
   private shopFilterTrigger(currentLabel: string) {
