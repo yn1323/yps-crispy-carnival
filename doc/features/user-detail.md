@@ -3,7 +3,7 @@
 ## 機能説明
 
 組織内の人物を表す`organizationPeople`を正本として、共通プロフィールとLINE連携状態はスタッフ詳細ページ、管理者の変更操作は管理者設定ページ、店舗ごとのシフト設定と通知は店舗別設定ページで扱う。
-Dashboardのスタッフ一覧と組織設定のユーザー一覧は、同じスタッフ詳細ページへ遷移する。
+Dashboardのスタッフ一覧、組織設定のユーザー一覧、`/app/staff`の組織人物一覧は、同じスタッフ詳細ページへ遷移する。
 
 ## 情報のスコープ
 
@@ -36,6 +36,9 @@ Dialog下部には「キャンセル」と主操作の「変更を保存」を�
 ```text
 /users/<personId>?shop=<sourceShopId>&panel=<basic|line|addShop>&returnTo=<dashboard|settings|shopDetail>&returnShop=<shopId>&returnShopTo=dashboard&users=<count>
 /users/<personId>/shops/<targetShopId>?shop=<sourceShopId>&returnTo=<dashboard|settings|shopDetail>&returnShop=<shopId>&returnShopTo=dashboard&users=<count>
+/app/staff?org=<organizationId>&shopFilter=<shopId>
+/app/staff/<personId>?org=<organizationId>
+/app/staff/<personId>/shops/<targetShopId>?org=<organizationId>
 ```
 
 スタッフ詳細の`panel`は開いているDialogを表し、`basic`はスタッフ情報、`line`は組織共通のLINE連携、`addShop`は所属店舗変更を開く。  `addShop`という値は既存URLとの互換のため維持し、画面上では「店舗追加」と表示しない。
@@ -44,6 +47,8 @@ Dialogを閉じると`panel`をURLから外し、人物ID、店舗、戻り先�
 直接URLを開いた場合も、`panel`にスタッフ情報、LINE連携、所属店舗変更Dialogの状態を追従させる。  旧URLの`panel=email`は通常のスタッフ詳細へ静かに収束させ、自動的なメール同期や削除を再開しない。
 ブラウザバックまたは画面内の閉じる操作でDialogを閉じた後は、履歴上の`panel`も除去し、別画面から戻ってもDialogを再表示しない。
 旧`tab`検索パラメータは受け付けず、スタッフ詳細の状態管理には使わない。
+
+`/app`の詳細URLは`org`だけを検索パラメータとして受け取り、Dialogの開閉はページ内の状態として管理する。戻る操作、所属店舗へのdrilldown、管理者設定への遷移は同じ`org`を維持する。自分自身を組織から削除した場合だけ`org`を外した`/app/home`へ戻り、残っているcanonicalな組織を再解決する。
 
 検索パラメータの`shop`はスタッフ詳細へ来たときの選択店舗を表し、`AuthGuard`、`selectedShopAtom`、ヘッダーの店舗選択と同期する。
 所属店舗を押しても`shop`は変更せず、店舗別設定の取得・更新対象はパスの`targetShopId`として各APIへ明示的に渡す。
@@ -73,10 +78,16 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 | `/users/<personId>?shop=<shopId>&panel=line` | 組織共通のLINE連携状態、連携URL、案内メール、明示解除をDialogで扱う |
 | `/users/<personId>?shop=<shopId>&panel=addShop` | 既存URLとの互換を維持しながら所属店舗変更Dialogを開き、シフトスタッフとして所属する稼働中店舗をチェックリストで変更する |
 | `/users/<personId>/shops/<targetShopId>?shop=<sourceShopId>` | 対象店舗でのLINE送信可否、通知、シフト対象設定を専用ページで扱う。`shop`は出発元店舗として維持する |
+| `/app/staff?org=<organizationId>&shopFilter=<shopId>` | canonicalな組織の全人物をページングし、任意の同一組織店舗でserver-sideに絞り込む。人物詳細、管理者設定、既存スタッフ追加Dialogへの入口を表示する |
+| `/app/staff/<personId>?org=<organizationId>` | スタッフタブから組織人物の共通プロフィール、所属店舗、削除操作を表示する |
+| `/app/staff/<personId>/shops/<targetShopId>?org=<organizationId>` | 同じ組織の対象店舗における通知、通知履歴、シフト対象設定を表示する |
 
 ## 表示状態
 
 - 読み込み中はページ見出しと本文のSkeletonを表示する。
+- `/app/staff`は`getSettings`を一覧データ源にせず、組織人物をcursor paginationで取得する。店舗filterはpagination前にserver-sideで適用し、filter変更時は旧cursorと旧pageを破棄する。プラン上限をread上限にせず、追加pageから上限超過人物にも到達できる。
+- `/app/staff`の取得失敗は空一覧と区別したQueryErrorを表示し、同じ組織とfilterで再試行できる。閲覧専用または契約制限中は一覧を維持し、スタッフ追加だけをサーバー由来の理由とともに無効にする。
+- `/app/staff`を全店舗表示している状態からスタッフを追加する場合は、店舗一覧と同じdrilldown listで対象店舗を1店舗選び、既存のスタッフ追加Dialogへ進む。対象店舗選択DialogはSPで全画面表示する。店舗filterで1店舗に絞り込み済みの場合は選択を省略する。
 - 存在しない人物、削除済み人物、別組織の人物には同じ「ユーザーを表示できません」を表示し、存在や所属を区別して漏らさない。
 - 対象店舗への管理アクセスがない、人物と店舗所属が一致しない、所属または店舗が削除済みの場合も、存在を区別しない最小情報のEmpty状態へ寄せる。
 - スタッフ情報Dialogと所属店舗変更Dialogは、PCではモーダル、SPではフルスクリーンで表示する。
@@ -129,6 +140,7 @@ mutationの成功は、DB transactionと必要な通知・cleanupの予約が確
 - 店舗別APIは、対象スタッフと`targetShopId`の所属関係、人物との対応、削除状態、店舗状態をサーバー側で再検証する。
 - 権限のない店舗、不正な人物・店舗・スタッフの組み合わせ、削除済み対象は拒否するか、存在を区別できない最小情報のEmpty状態へ寄せる。
 - 所属店舗一覧から選ばれたことや、フロントエンドが保持する`selectedShopAtom`は認可根拠にしない。
+- `/app`の詳細QueryはURLの`org`に対するcanonicalな`organizationMembers`を必須とし、人物と対象店舗が同じ組織に属することをサーバーで再検証する。新しい詳細画面では先頭店舗や旧`shopMembers` fallbackを組織authorityに使わない。画面上で有効にする更新操作も同じ`expectedOrganizationId`を渡し、不一致なら存在を区別せずfail closedにする。
 - プロフィール更新APIは、actorの組織権限、personの所属、各staffの組織・店舗・personの対応、組織内の重複をサーバーで確認し、同じ組織のpersonと未削除staffだけを一transactionで更新する。不整合な所属が1件でもあれば全体をfail-closedにし、`users.email`、Clerk、別組織、請求先は更新しない。
 - 所属店舗変更APIは、actorの組織権限と書込可否、personの同一組織・有効状態、指定した全店舗の同一組織・削除状態・店舗状態、active staffの一意性をサーバー側で再検証する。clientが渡すperson、店舗集合、staff、fingerprint、previewを認可根拠にせず、非active所属をdesired-setから脱落させたり、別組織へ所属を作ったりしない。
 - 所属店舗変更APIは`membershipFingerprint`と解除対象ごとのpreviewを再計算し、stale、権限不足、契約制限、不正な組合せ、件数超過のいずれでもDB、scheduler、Outbox、監査記録を増やさない。
@@ -142,6 +154,8 @@ mutationの成功は、DB transactionと必要な通知・cleanupの予約が確
 
 - `convex/schema.ts`：`organizationPeople`、`organizationMembers`、`staffs`、`lineProviderUsers`、`organizationPersonLineLinks`の定義。
 - `convex/organization/userDetailQueries.ts`：人物、管理者権限、操作可否、組織内店舗、店舗別所属を返す詳細Query。
+- `convex/appOrganization/detailQueries.ts`：`/app`のURL組織scopeをcanonical membershipで検証してから、人物詳細DTOを返すQuery。
+- `convex/appOrganization/queries.ts`：`/app/staff`向けに組織人物一覧、店舗filter、boundedな利用人数とスタッフ追加可否を返すQuery。
 - `convex/organization/shopMembershipChange.ts`：店舗所属snapshotの正規化、`membershipFingerprint`、stale時の共通契約。
 - `convex/organization/personProfile.ts`：組織共通プロフィールと有効な店舗スタッフ行の同期。
 - `convex/organization/personRemoval.ts`：解除preview、本日以降のシフト割当削除、staff用accessとLINE連携の失効。
@@ -157,6 +171,8 @@ mutationの成功は、DB transactionと必要な通知・cleanupの予約が確
 - `src/routes/_auth/dashboard.tsx`と`settings.tsx`：ユーザー一覧の`users`と`focus`を受け取るURL境界。
 - `src/routes/_auth/users.$personId.tsx`：人物IDと`shop`、スタッフ情報・LINE連携・所属店舗変更の`panel`、戻り先、出発元店舗、一覧表示件数を受け取るURL境界。所属店舗変更は互換値`panel=addShop`を使い、旧`panel=email`は破棄する。
 - `src/routes/_auth/users.$personId_.shops.$targetShopId.tsx`：対象店舗IDと、出発元店舗・戻り先情報を受け取る店舗別設定のURL境界。
+- `src/routes/_auth/app_.staff_.$personId.tsx`と`src/routes/_auth/app_.staff_.$personId_.shops.$shopId.tsx`：`org`、人物ID、対象店舗IDを受け取る新しいスタッフタブのURL境界。
+- `src/routes/_auth/app_.staff.tsx`と`src/pages/app-staff/`：組織人物のcursor一覧、店舗filter、Loading・QueryError、スタッフ追加店舗の明示選択を扱うスタッフトップの境界。
 - `src/pages/user-detail/`：詳細QueryとLoading、Not Found、正常表示の分岐。
 - `src/pages/user-shop-detail/`：`targetShopId`を明示した詳細QueryとLoading、Empty、正常表示の分岐。
 - `src/components/features/UserDetail/`：スタッフ情報の入口、所属店舗一覧、所属店舗変更チェックリスト、スタッフ情報Dialog、URL同期、編集と確認操作。
@@ -172,6 +188,9 @@ mutationの成功は、DB transactionと必要な通知・cleanupの予約が確
 | API | 種別 | 用途 |
 |---|---|---|
 | `api.organization.userDetailQueries.getUserDetail` | `managerQuery` | URLの人物が対象店舗と同じ組織に属することを確認する。店舗別設定では対象店舗への有効な所属も必須とし、共通プロフィール、LINE連携状態、管理者権限、操作可否、組織内店舗、店舗別所属、行ごとの変更可否と解除preview、`membershipFingerprint`を返す |
+| `api.appOrganization.detailQueries.getUserDetail` | `organizationQuery` | URLの`org`をcanonical membershipで検証し、その組織に属する人物だけについて既存の詳細DTOを返す |
+| `api.appOrganization.queries.listOrganizationPeople` | `organizationQuery` | 組織人物をページングし、指定店舗が同じ組織に属することを検証してからfilterをpagination前に適用する |
+| `api.appOrganization.queries.getOrganizationPeopleSummary` | `organizationQuery` | boundedな全体・filter件数、プラン表示上限、閲覧・契約状態を含むスタッフ追加可否を返す |
 | `api.dashboard.queries.getDashboardStaffs` | `managerQuery` | 店舗スタッフと対応する`organizationPersonId`をページングして返す |
 | `api.dashboard.queries.getDashboardRecruitments` | `managerQuery` | `targetShopId`で指定した対象店舗の募集中シフトを取得する |
 | `api.dashboard.queries.getDashboardCurrentRecruitments` | `managerQuery` | `targetShopId`で指定した対象店舗の終了日が今日以降の確定シフトを取得する |
@@ -192,6 +211,10 @@ mutationの成功は、DB transactionと必要な通知・cleanupの予約が確
 
 | 契約 | 主担当層 | 参照先 |
 |---|---|---|
+| 組織人物をプラン上限より多くても全page取得でき、同一組織店舗のfilterをpagination前に適用し、別組織filterを拒否する | Convex Function Test | `convex/appOrganization/queries.test.ts` |
+| filter変更でquery identityを切り替え、追加page、全店舗表示時の対象店舗選択、明示店舗とexpected orgの既存スタッフ追加Dialogへ接続する | Frontend Unit Test | `src/pages/app-staff/index.test.tsx` |
+| Loading・QueryError、組織人物一覧、追加page操作を表示する | Storybook Behavior / VRT | `src/pages/app-staff/index.stories.tsx` |
+| 全店舗表示から対象店舗を選び、実frontendとConvexを通してスタッフの追加・更新・削除を完了し、再読込後も表示と不在を維持する | E2E | `e2e/pages/AppStaffPage.ts`、`e2e/pages/StaffLifecyclePage.ts`、`e2e/scenarios/staff-lifecycle.test.ts`（`E2E-STAFF-01`） |
 | 詳細Queryがactive・非active所属、行ごとの変更可否、解除preview、`membershipFingerprint`を完全なDTOで返す | Convex Function Test | `convex/organization/userDetailQueries.test.ts` |
 | desired-setの追加だけ、解除だけ、混在、全解除を一transactionで反映し、非active所属を保持する。解除後の再追加を新しいstaffとして扱い、認可、店舗境界、件数上限、stale、request replay、異なるintentでのrequest ID再利用、open募集の回答数再計算をfail-closedにする | Convex Function Test | `convex/staff/mutations.test.ts` |
 | active/readOnly managerの個別・全店舗のスタッフ所属を解除しても、管理者権限と組織人物を維持し、個別解除ではほかの店舗所属も維持する。管理者人物の組織削除と最後のactive管理者の権限解除は拒否する | Convex Function Test、Convex Scenario Test | `convex/organization/mutations.test.ts`、`convex/staff/mutations.test.ts`、`convex/organization/userDetailQueries.test.ts`、`convex/_scenario/organizationPersonRemoval.test.ts` |

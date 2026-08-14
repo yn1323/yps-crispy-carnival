@@ -6,7 +6,7 @@
 
 - `src/components/features/Dashboard/OperationContext/` — ダッシュボードから現在店舗の店舗詳細ページへ進む導線
 - `src/components/features/ShopForm/` — 店舗追加・編集で使うステップ形式フォーム
-- `src/routes/_auth/shops.$shopId.tsx` と `src/pages/shop-detail/` — 店舗詳細ページのURL、読み込み、Not Found境界
+- `src/routes/_auth/shops.$shopId.tsx`、`src/routes/_auth/app_.manage_.shops.$shopId.tsx` と `src/pages/shop-detail/` — 既存画面と新しい管理タブから開く店舗詳細ページのURL、読み込み、Not Found境界
 - `src/components/features/OrganizationSettings/` — 組織設定の店舗一覧と店舗追加UI
 - `src/components/features/ShopDetail/` — 店舗情報の閲覧・一括編集、所属スタッフ数とAccordion一覧、削除確認UI
 - `src/components/shared/ShopSettingsFields/` — 店舗編集モーダルと店舗詳細で共有する入力UI
@@ -26,13 +26,17 @@
 | 初回セットアップ | 店舗名、希望シフトの提出方法を登録する |
 | 組織設定 店舗タブ | 店舗一覧から専用の店舗詳細ページへ進む |
 | `/shops/<shopId>?shop=<contextShopId>&returnTo=dashboard` | 基本情報、所属スタッフ数、その他設定を縦並びで表示し、店舗情報の一括編集、スタッフ一覧の展開、削除を受け付ける |
+| `/app/manage/shops/<shopId>?org=<organizationId>` | 管理タブで選択した組織の店舗詳細を表示し、戻る操作は管理タブ、スタッフ行は同じ組織のスタッフ詳細へ進む |
 
 ## API一覧
 
 | API | 種別 | 説明 |
 |---|---|---|
 | `api.dashboard.queries.getDashboardShop` | query | 店舗設定を取得する |
-| `api.organization.queries.getSettings` | query | 同じ組織に属する店舗、所属店舗ID付きユーザー、店舗管理通知の受信可否、各操作の可否を取得する |
+| `api.organization.queries.getSettings` | query | 同じ組織に属する店舗、所属店舗ID付きユーザー、店舗管理通知の受信可否、各操作の可否を取得する。`/app`ではURLの`org`を`expectedOrganizationId`として渡し、店舗との一致をサーバーで再検証する |
+| `api.appOrganization.manageQueries.getManageOverview` | query | `/app/manage`向けに組織名、利用状況、店舗状態別件数、操作可否を返す。店舗実体は含めない |
+| `api.appOrganization.manageQueries.listOrganizationShops` | paginated query | URLで検証した組織のactive・archived店舗をcursor paginationし、プラン上限件数でtruncateしない |
+| `api.organization.mutations.addShopForOrganization` | mutation | app管理画面から明示組織へ店舗を追加する。canonical active所属とBusiness writeを再検証する |
 | `api.staff.queries.getOrganizationShopStaffMembershipChange` | query | 表示中の店舗IDを明示し、所属候補、現在の選択状態、変更可否、競合検知用fingerprintを取得する |
 | `api.staff.queries.previewOrganizationShopStaffMembershipRemovals` | query | 店舗から外す人物とsnapshotを指定し、今日以降のシフト割り当てへの影響を取得する。snapshotが更新済みなら`stale`を返す |
 | `api.staff.mutations.changeOrganizationShopStaffMemberships` | mutation | 希望する人物ID一覧、fingerprint、解除preview、request IDを検証し、1店舗の所属スタッフを一括変更する |
@@ -72,6 +76,7 @@
 - 店舗削除は物理削除ではなく、受付時に店舗名を保持したまま`shops.isDeleted = true`にする。最後の未削除店舗は削除できない。
 - 店舗削除に成功したら、削除対象とは異なる現在contextの店舗を優先し、なければ同じ組織の先頭の未削除店舗へ復帰する。復帰先URLへ削除済み店舗IDを残さない。
 - 店舗詳細のpath paramは表示対象、`shop` queryは認証済みの店舗・組織コンテキストとして扱う。詳細表示は`api.organization.queries.getSettings`が返した同一組織の店舗だけに限定する。
+- `/app/manage/shops/<shopId>`ではURLの`org`が組織scopeの正本であり、`shopId`がその組織に属することをQueryとMutationの双方で再検証する。`selectedShopAtom`、先頭店舗、旧`shopMembers` fallbackをこの認可判断に使わない。戻る操作とスタッフ詳細へのdrilldownは同じ`org`を維持する。
 - 外部から無効な店舗IDを明示した保護routeは、自動で別店舗へ読み替えず、認証境界でfail closedにする。
 - 後続の永続cleanup jobは、対象店舗の`staffs`にある氏名、メールアドレス、正規化メールを保持したまま論理削除し、`staffLineAccounts`のLINE IDだけを削除済みの値へ置き換える。組織人物の`organizationPersonLineLinks`は変更しない。店舗用session、magic link、LINE連携token、法務同意token、登録リンクを失効し、未送信通知を停止する。
 - 店舗削除では`users`、`organizationPeople`、`organizationMembers`を変更しない。対象店舗のユーザーは組織人物として残る。

@@ -41,8 +41,16 @@ UserMenuの「組織設定」とDashboardの組織名リンクは常時表示す
 | Stripe Webhookと内部worker | 支払い結果、期間末変更、取消、再試行を検証して課金状態へ反映する | 署名、接続mode、provider objectの対応、version、冪等性を検証する |
 | 運用担当者 | Stripe設定、probe、Narrow deploy前確認、販売停止、Price rotation、復旧を行う | 実環境を一意に特定し、[運用手順](../manual/organization-billing.md)に従って証跡を残す |
 
-同じ管理者が無関係な複数組織に所属していても、`?shop=`で選択した店舗から操作対象の組織を一意に解決する。
-クライアントが渡す組織ID、店舗ID、人物IDは対象の指定であり、認可根拠には使わない。
+旧管理画面は`?shop=`で選択した店舗から操作対象の組織を解決する。  新しい`/app/manage*`はURLで検証済みの`org`を操作対象の正本とし、先頭店舗、Home店舗、`selectedShopAtom`を組織操作や課金の認可anchorにしない。
+クライアントが渡す組織ID、店舗ID、人物IDは対象の指定であり、認可根拠には使わない。  サーバーは認証identityからcanonicalな`organizationMembers`と`organizationPeople`を毎回解決し、readOnlyとBusiness write capabilityを再検証する。
+
+### `/app/manage`の管理導線
+
+- `/app/manage?org=<organizationId>`は`getManageOverview`で組織名、課金状態、利用数、店舗状態別件数、操作可否だけを購読し、店舗実体をoverviewへ埋め込まない。
+- 店舗一覧は`listOrganizationShops`をcursor paginationし、activeだけでなくarchivedも表示する。  プラン上限の5件を保存済み店舗の取得上限に流用せず、過去店舗を欠落させない。
+- 組織名、店舗追加、組織作成・削除、管理者招待、請求先変更、Stripe操作は既存Dialogとcontrollerを再利用する。  app用の兄弟functionは`organizationId`を直接受け、旧APIは互換のため保持する。
+- CheckoutとCustomer Portalを新しい管理画面から開始した場合、復帰先は`/app/manage/billing?org=<organizationId>`にする。  復帰URLだけで支払い成功とは判断せず、従来どおりWebhookまたはprovider再取得結果を正本とする。
+- query errorはページ内で再試行でき、readOnly所属は内容を閲覧できるが変更入口を無効にする。  契約制限中の復旧操作は課金policyが返すcapabilityに従う。
 
 ## 機能の地図
 
@@ -176,6 +184,7 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 Notification Outboxは外部送信直前にも招待、所属、受取人を再確認し、無効になった招待の投入済み通知をproviderへ送らず取消する。
 
 - 招待はメールで送り、発行から7日間有効な一回限りのtokenを使う。
+- `/app/manage/managers`と対応一覧からの発行・再送・取消は、`issueForOrganization`、`resendForOrganization`、`revokeForOrganization`を使う。  これらは店舗を受け取らず、指定組織のcanonical active管理者とBusiness writeをサーバーで再検証する。
 - 招待対象の組織人物が未接続、またはまだ存在しない場合は、受取人の確認済みメールを正規化し、招待先メールとの完全一致を連携時に確認する。
 - 招待対象の組織人物が既に`userId`へ接続済みなら、その利用者本人だけが承認でき、メール照合をアカウント同一性の代わりにしない。
 - 招待対象の組織人物が未接続、またはまだ存在しない場合は、Node actionがClerk Backend APIから取得した確認済みメール一覧に招待先メールが含まれる場合だけ承認する。
@@ -232,6 +241,7 @@ deployment前から保存済みで`targetPlan: "free"`かつ`restrictAtPeriodEnd
 | `/settings?shop=<shopId>&tab=billing` | 現在のプラン、価格、変更予定、支払い方法、請求先メール、復旧操作を扱う |
 | `/manager-invite?token=...` | 招待previewとアカウント連携を扱う |
 | `/dashboard?shop=<shopId>` | 現在の組織と店舗、業務更新可否、現在プランと対応が必要な課金状態を表示する |
+| `/app/home?org=<organizationId>&shop=<shopId>` | 明示した組織とactive店舗を再検証し、既存Dashboardの現在プラン、利用状況、業務更新可否を表示する |
 | `/shops/<shopId>?shop=<contextShopId>` | 同じ組織の店舗情報、所属、稼働状態を管理する |
 | `/users/<personId>?shop=<shopId>` | 組織人物、店舗所属、管理者状態を確認する。管理者の変更操作は専用の管理者設定へ進む |
 
@@ -245,6 +255,10 @@ Dashboardは組織を親、現在の店舗を作業対象として順に表示�
 `getDashboardShop`が選択店舗と組織所属を検証して返す`planStatus`を、プラン表示の正本にする。
 `planStatus`は`trial`、`initialPaymentPending`、`pendingActivation`、Free・Pro・Businessの利用中、支払い不要Business、変更予約、支払い猶予、契約制限中を、利用者向けの最小DTOへ投影する。
 別組織の課金state、StripeのCustomer・Subscription・Price ID、providerの生応答は返さない。
+
+`/app/home`は`shopId`に加えてURLから検証した`expectedOrganizationId`をDashboard queryへ渡す。
+両者が一致しない場合は店舗情報を返さず、`readOnly`の組織所属または業務更新不可の課金状態では既存Dashboardを閲覧専用にする。
+frontendの閲覧専用表示だけを認可根拠にせず、mutationも実行時の組織所属と課金policyを再検証する。
 
 組織Accordionを開いている間だけ、`getDashboardPlanUsage`で組織全体の利用状況を購読する。
 折りたたみ中はqueryを`"skip"`し、Dashboardの初期表示へ利用数の読み取りを追加しない。
@@ -301,6 +315,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | `src/components/features/ManagerInvitationAcceptance/` | 招待preview、認証導線、連携結果 |
 | `src/pages/account-security/` / `src/components/features/LoginMethods/` | シフト連絡先と独立したアカウント設定の画面境界、Clerk状態からの表示判定と操作可否 |
 | `src/components/features/AuthenticatedApp/AuthGuard.tsx` | URLと利用可能店舗から有効な操作contextを解決する |
+| `src/pages/app-home/` | app routeの明示組織・店舗scope、既存Dashboard接続、Loading・Empty・readOnly・error状態を扱う |
 | `src/components/features/Dashboard/` | 組織・店舗context、現在プラン、課金対応状態、閲覧専用状態を表示する |
 
 ## 主なAPI入口

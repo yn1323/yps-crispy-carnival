@@ -57,7 +57,7 @@ feature flagで閉じた経路は、閉状態の拒否を検証してもenabled 
 | VRT | `vitest.vrt.config.ts`のdesktop / mobile1 / mobile2 project | 代表状態のlayout。文言・全状態の総当たりはしない |
 | Convex Function | `vitest.config.ts`の`convex(logic)` project | 単一functionの認証・tenant・入力・副作用0・冪等性 |
 | Convex Scenario | `vitest.config.ts`の`convex(scenario)` project | 複数function、scheduler、provider代替をまたぐ永続状態と復旧 |
-| E2E | `playwright.config.ts`と`e2e/scenarios/` | 認証・frontend・Convexを実接続するdesktop 12契約とmobile 1契約 |
+| E2E | `playwright.config.ts`と`e2e/scenarios/` | 認証・frontend・Convexを実接続するdesktop 13契約とmobile 1契約 |
 | Deployed Smoke | `playwright.deployed.config.ts` | build済みPreviewのHTTP配信とhydrationの2契約。業務操作は重ねない |
 
 Analytics Dashboardの専用build、VRT baseline、E2E / Deployed Smokeの結果件数はCI gateとして別に扱う。
@@ -115,7 +115,7 @@ UI test数や静的文言を契約数に数えず、上表のどの失敗境界�
 | `CAP-LINE-LINK-01` | P0 | managerが発行した組織専用URLからstaffがLINEを組織人物へ連携する | newest-only token → OAuth state / code検証 → used → provider userとorganization person link。同じ組織の現在・今後の全staff所属で共通利用 | 72時間token、used/revoked、組織人物link generation、global friendship state | 全所属店舗の通知channel、follow状態、個別案内 | 旧・使用済み・期限切れ・別組織・削除済み・契約制限中をprovider通信前に拒否。同一組織の別人物によるLINE ID奪取を拒否し、token試行をrate limit | 初回連携後とfollow復帰時はactive membershipのopen募集を必要条件で通知 | Convex Scenario | Mobile影響あり | 実装済み。Production切替は別証跡 | `convex/line/mutations.test.ts`、`convex/line/actions.test.ts`、`convex/_scenario/lineNotification.test.ts`、`src/components/features/LineCallback/index.test.tsx` |
 | `CAP-LEGAL-01` | P0 | staffが法務同意linkを一回利用する | 30日token → page data → 同意 → used | tokenとconsent version / event | staff提出可否 | 重複token、期限切れ、他店舗、別staffで同意させない | 法務同意依頼 | Convex Function | Mobile | 実装済み | `convex/legal/mutations.test.ts`、`convex/legal/queries.test.ts` |
 | `CAP-REGISTRATION-LINK-01` | P0 | managerが店舗専用の再利用可能な登録URLを取得する | manager確認 → active link取得または作成 → 公開申請で利用 | shopRegistrationLink | 匿名登録pageとHTTP受付 | 他店舗、削除済み、契約制限中を拒否。raw secretをlogへ出さない | なし | Convex Function | Mobile影響あり | 実装済み | `convex/staffRegistration/queries.test.ts`、`convex/staffRegistration/mutations.test.ts` |
-| `FEATURE-REQUEST-01` | P1 | managerまたはstaff sessionが200文字以内の要望を送る | actor確認 → requestIdで冪等保存 → 内部BI一覧 | featureRequest | Analytics Dashboard `/requests` | clientのuser / staff IDを信用せず、他店舗、削除済み、重複requestを拒否 | なし | Convex Scenario | Desktop / Mobile | 実装済み | `convex/featureRequest/mutations.test.ts`、`convex/_scenario/featureRequest.test.ts`、`src/components/features/FeatureRequestDialog/index.stories.tsx` |
+| `FEATURE-REQUEST-01` | P1 | managerまたはstaff sessionが200文字以内の要望を送る | 新appは店舗が親shellで検証済みなら店舗、未解決なら組織を内部対象にする。旧manager画面とstaff sessionは現在店舗を対象にする → actor確認 → requestIdで冪等保存 → 内部BI一覧 | organizationIdまたはshopIdの一方を持つfeatureRequest | Analytics Dashboard `/requests` | clientのuser / staff IDを信用しない。新appではDialogに対象選択を置かず、任意の店舗へ暗黙fallbackしない。serverでcanonicalな組織所属、店舗と組織の一致、店舗状態、Business write policyを再確認し、他組織、削除・停止済み店舗、readOnly・removed所属、重複requestを拒否する | なし | Convex Scenario | Desktop / Mobile | 実装済み | `convex/featureRequest/mutations.test.ts`、`convex/_scenario/featureRequest.test.ts`、`src/components/features/AuthenticatedApp/AppOrganizationScope/featureRequestScope.test.ts`、`src/components/features/FeatureRequestDialog/appScope.test.ts`、`src/components/features/FeatureRequestDialog/index.stories.tsx` |
 
 `magicLinks.token`は現行schemaでraw bearer tokenのまま保持され、`by_token` indexで照合される。
 view linkは`expiresAt`と`usedAt`、submit linkは募集状態とシフト開始日のcutoffで利用可否を決め、スタッフの対象外化・所属解除・店舗削除では`revokedAt`を設定する。
@@ -192,15 +192,16 @@ E2Eは代表CTAとのbrowser接続だけを守り、対象集合、channel、件
 | `E2E-AUTH-01` | 匿名で保護routeを開くと元の遷移先付きでloginへ戻る | Desktop Chrome / core E2E | 実装済み | `e2e/scenarios/auth-pages.test.ts` |
 | `E2E-AUTH-02` | logout後に同じ保護routeへ再アクセスしてもsessionを再利用しない | Desktop Chrome / 専用actor | 実装済み | `e2e/scenarios/auth-logout.test.ts` |
 | `E2E-SETUP-01` | Clerk認証、frontend、Convexを接続して初回店舗登録後にDashboardへ到達する | Desktop Chrome / core E2E | 実装済み | `e2e/scenarios/manager-setup.test.ts` |
-| `E2E-STAFF-01` | 管理画面からスタッフを追加・更新・削除し、reload後も表示と不在を維持する | Desktop Chrome / core E2E。個人情報を含むartifactは保存しない | 実装済み。Preview実行未確認 | `e2e/scenarios/staff-lifecycle.test.ts` |
-| `E2E-SHIFT-01` | 管理者募集、匿名staff提出、管理者確定、別匿名context閲覧を実接続する | Desktop Chrome / core E2E | 実装済み | `e2e/scenarios/first-shift-delivery.test.ts` |
+| `E2E-STAFF-01` | 新appの全店舗表示から対象店舗を選んでスタッフを追加・更新・削除し、reload後も表示と不在を維持する | Desktop Chrome / core E2E。個人情報を含むartifactは保存しない | 実装済み。Preview実行未確認 | `e2e/pages/AppStaffPage.ts`、`e2e/pages/StaffLifecyclePage.ts`、`e2e/scenarios/staff-lifecycle.test.ts` |
+| `E2E-SHIFT-01` | `/app/shifts`の「すべて」表示から対象店舗を選んで募集し、店舗名付きカードと共通ヘッダー付きシフト表を経て、匿名staff提出、管理者確定、別匿名context閲覧を実接続する | Desktop Chrome / core E2E。Dashboard固定店舗のStep省略と確認表示はStorybook Behaviorが主担当 | 実装済み。Preview実行未確認 | `e2e/pages/AppShiftsPage.ts`、`e2e/scenarios/first-shift-delivery.test.ts`、`src/components/features/CreateRecruitmentForm/index.stories.tsx` |
 | `E2E-TENANT-01` | 同じmanagerが二組織を往復し、選択店舗の表示を混ぜない | Desktop Chrome / core E2E | 実装済み | `e2e/scenarios/tenant-switching.test.ts` |
 | `E2E-MEMBERSHIP-01` | UIから対象店舗の所属を追加・解除し、reload後も元店舗の所属を維持する | Desktop Chrome / core E2E | 実装済み | `e2e/scenarios/shop-staff-membership.test.ts` |
-| `E2E-SHOP-01` | UIから2店舗目を追加・切替・更新・削除し、安全な店舗へ復帰する | Desktop Chrome / core E2E | 実装済み | `e2e/scenarios/shop-lifecycle.test.ts` |
+| `E2E-SHOP-01` | UIから2店舗目を追加し、`/app/shifts`の全店舗filterへの反映、切替、更新、削除、安全な店舗への復帰を実接続する | Desktop Chrome / core E2E | 実装済み。Preview実行未確認 | `e2e/scenarios/shop-lifecycle.test.ts` |
 | `E2E-ORGANIZATION-01` | UIから2組織目を作成・改名し、reloadと往復切替後も組織contextを混ぜない | Desktop Chrome / core E2E。常時公開の導線 | 実装済み。Preview実行未確認 | `e2e/scenarios/organization-lifecycle.test.ts` |
 | `E2E-ORGANIZATION-02` | UIから追加組織を削除し、残存組織へ復帰してreload後も削除組織を表示しない | Desktop Chrome / core E2E。常時公開の導線 | 実装済み。Preview実行未確認 | `e2e/scenarios/organization-lifecycle.test.ts` |
 | `E2E-MANAGER-01` | 組織設定から管理者設定を開き、既存スタッフへの招待を発行し、reload後の招待中を確認して取り消し、スタッフタブへ戻る | Desktop Chrome / core E2E。常時公開の導線、通知配送dry-run、trace・screenshot・video off | 実装済み。Preview実行未確認 | `e2e/scenarios/manager-settings.test.ts` |
 | `E2E-MANAGER-02` | 別Clerk actorが招待を受諾し、管理者権限の取得・解除後の拒否とスタッフ所属維持を確認する | Desktop Chrome / 専用actor。常時公開の導線、通知配送dry-run、trace・screenshot・video off | 実装済み。Preview実行未確認 | `e2e/scenarios/manager-lifecycle.test.ts` |
+| `E2E-NAV-01` | canonical組織scopeを保持して新appのスタッフ画面へ移動し、親ナビの現在地と実人物rowの店舗所属を表示する | Desktop Chrome / core E2E。人物情報を含むartifactは保存しない | 実装済み。Preview実行未確認 | `e2e/scenarios/app-navigation.test.ts` |
 | `E2E-MOBILE-01` | Mobile Chromeでstaff提出の代表日を選び完了する | Mobile Chrome / core E2E | 実装済み | `e2e/scenarios/release-support-staff-submit.mobile.test.ts` |
 | `DEPLOY-SMOKE-HTTP-01` | Previewで代表公開route、slash URL、CSR shell、未知URL 404が実配信される | Deployed Smoke / Preview URL | 実装済み。実Preview未実行 | `e2e/scenarios/deployed-smoke.test.ts`、`scripts/assertDeployedSmokeResults.mjs` |
 | `DEPLOY-SMOKE-BROWSER-01` | Previewの代表公開pageがhydrateし、固有landmark・CTAを表示し、`pageerror`を出さない | Deployed Smoke / Preview URL | 実装済み。実Preview未実行 | `e2e/scenarios/deployed-smoke.test.ts`、`scripts/assertDeployedSmokeResults.mjs` |
@@ -235,7 +236,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 | `accountEmail/mutations` | `preflight` | `AUTH-ACCOUNT-EMAIL-COMPAT-01`。実装済みcompat stub |
 | `dashboard/mutations` | `dismissOnboarding` | `DASHBOARD-ONBOARDING-01` |
 | `dashboard/queries` | `getActiveDashboardAnnouncement`、`getActiveDashboardAnnouncements`、`getActiveDashboardAnnouncementsV2`、`getCurrentUser`、`getDashboardCurrentRecruitments`、`getDashboardPastRecruitments`、`getDashboardPlanUsage`、`getDashboardRecruitments`、`getDashboardShop`、`getDashboardStaffs`、`getMyShops`、`hasDashboardPastRecruitments` | `AUTH-TENANT-01`、`ORG-CONTEXT-01`、`RECRUITMENT-01`、`BILLING-ENTITLEMENT-01`、`DELETE-ACCOUNT-01`。実装済み。旧announcement APIはrolling互換 |
-| `featureRequest/mutations` | `submit`、`submitFromStaff` | `FEATURE-REQUEST-01` |
+| `featureRequest/mutations` | `submit`、`submitForOrganization`、`submitFromStaff` | `FEATURE-REQUEST-01`。`submitForOrganization`は検証済み店舗があれば店舗対象、なければ組織対象として保存する |
 | `legal/mutations` | `acceptManagerLegalConsent`、`acceptStaffLegalConsent` | `LEGAL-CONSENT-01`、`CAP-LEGAL-01` |
 | `legal/queries` | `getManagerConsentStatus`、`getStaffConsentPageData` | `LEGAL-CONSENT-01`、`CAP-LEGAL-01` |
 | `line/actions` | `redeemLineToken` | `CAP-LINE-LINK-01` |
@@ -300,7 +301,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 - 通知purposeごとに対象、channel、CTA、dedupe、不在条件をFunctionまたはScenarioで確認している。
 - submit / view / LINE / legal / registrationのCapabilityでscope、各contractが定めるTTLまたは再利用条件、失効条件、削除後の拒否を確認している。未決の管理者操作によるrevoke・rotationはcoverage済みと数えない。
 - 課金、通知、削除のworkflowが中断、replay、stale worker、削除競合から収束する。
-- core E2Eのdesktop 12契約とmobile 1契約、Deployed Smokeの2契約を、欠落、重複、skip、retryなしでCIが検査する。
+- core E2Eのdesktop 13契約とmobile 1契約、Deployed Smokeの2契約を、欠落、重複、skip、retryなしでCIが検査する。
 - VRT baseline欠落をPR成功にせず、内部BI変更時に専用lint、type-check、buildを実行する。
 - `対象外`には理由と再評価条件があり、feature flagのskipをcoverage済みと数えない。
 - Production availability、migration完了、provider実到着は、同じrevisionの運用証跡として別に確認する。

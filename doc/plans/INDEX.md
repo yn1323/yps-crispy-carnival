@@ -18,7 +18,7 @@
 
 | 計画 | 状態 | 次に必要な判断 | 現在の正本 |
 |---|---|---|---|
-| [SPボトムナビゲーションと画面遷移](2026-08-14_SPボトムナビゲーションと画面遷移_実装計画.md) | `partially approved` | 固定画面Phase 1はActive計画へ移管済み。画面レビュー後に実データscope、既存Dialog接続、正式切替を確定する | 現行仕様は[機能インデックス](../features/INDEX.md)、設計原則は[UI設計方針](../rules/ui-design.md) |
+| [SPボトムナビゲーションと画面遷移](2026-08-14_SPボトムナビゲーションと画面遷移_実装計画.md) | `partially approved` | 固定画面はPhase 1、実データscope・既存Dialog・testのrepository実装は[Phase 2](2026-08-14_レスポンシブナビゲーション実データ操作接続_Phase2実装計画.md)へ移管済み。Phase 2-8の正式切替とrollout gateを別途判断する | 現行仕様は[機能インデックス](../features/INDEX.md)、設計原則は[UI設計方針](../rules/ui-design.md) |
 | [GA4計測基盤とSkill整備](2026-08-12_GA4計測基盤とSkill整備_実装計画.md) | `partially superseded` | アプリ側safe coreは監査残件実装計画へ移管済み。`ga4-measurement` Skillを別途作成するかだけを決める | [公開Web計測](../features/web-measurement.md)、[GA4・GTM運用](../manual/ga4-gtm.md) |
 | [AIシフト下書き機能 詳細設計](2026-07-03_AIシフト下書き機能.md) | `reviewing` | 機能を採用するか、誰が再検討するかを決める | 現行のシフト作成は[シフト表](../features/shift-board.md) |
 | [AIシフト下書き機能 実装仕様書](2026-07-03_AIシフト下書き機能_実装仕様書.md) | `reviewing` | 詳細設計の採否後に実装仕様を確定する | 現行のシフト作成は[シフト表](../features/shift-board.md) |
@@ -29,7 +29,8 @@
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
-| [レスポンシブナビゲーションと固定画面遷移 Phase 1](2026-08-14_レスポンシブナビゲーションと固定画面遷移_Phase1実装計画.md) | `prototype implemented` | `/app/*`の15固定画面、SP bottom、PC Header menu、認証shell、既存View・SectionへのUI統合は実装済み。画面レビュー、Story・VRT・代表E2Eを行う。実データ接続と正式切替は後続phase | 全体IAは[SPボトムナビゲーションと画面遷移](2026-08-14_SPボトムナビゲーションと画面遷移_実装計画.md)、現行仕様は[機能インデックス](../features/INDEX.md) |
+| [レスポンシブナビゲーションの実データ・操作接続 Phase 2](2026-08-14_レスポンシブナビゲーション実データ操作接続_Phase2実装計画.md) | `rollout gate pending` | Phase 2-0から2-6のrepository artifact、15画面の実query・既存mutation・Dialog接続、主担当のFrontend・Storybook・Convex Test、Phase 2-7の`E2E-NAV-01`・新route化した`E2E-STAFF-01`・14契約用result gateは実装済み。Phase 2-8のcanonical data readiness、残る旧route正式切替・削除、認証後default・生成URL変更、Production、CI VRT、core E2E全件実走は未完了 | 全体IAは[SPボトムナビゲーションと画面遷移](2026-08-14_SPボトムナビゲーションと画面遷移_実装計画.md)、固定画面は[Phase 1](2026-08-14_レスポンシブナビゲーションと固定画面遷移_Phase1実装計画.md)、現行仕様は[機能インデックス](../features/INDEX.md) |
+| [レスポンシブナビゲーションと固定画面遷移 Phase 1](2026-08-14_レスポンシブナビゲーションと固定画面遷移_Phase1実装計画.md) | `prototype implemented` | `/app/*`の15固定画面、SP bottom、PC Header menu、認証shell、既存View・SectionへのUI統合は実装済み。実データ・操作接続と自動テストのrepository artifactは[Phase 2](2026-08-14_レスポンシブナビゲーション実データ操作接続_Phase2実装計画.md)で実装済み。旧route正式切替、Production、CI VRT、core E2E全件実走は同計画のPhase 2-8へ残る | 全体IAは[SPボトムナビゲーションと画面遷移](2026-08-14_SPボトムナビゲーションと画面遷移_実装計画.md)、現行仕様は[機能インデックス](../features/INDEX.md) |
 | [LINE連携のグループ内共通化](2026-08-13_LINE連携のグループ内共通化_実装計画.md) | `rollout verification` | repository artifactはcanonical readと店舗・所属追加の常時公開へ更新済み。Production artifactとdeploymentの確定、exportとbackup、必要なmigration、非同期処理のdrain、反映後canary、Preview E2E、CI VRT、法務確認と実環境証跡は未実施 | [LINE通知連携](../features/line-notification.md)、[ユーザー詳細](../features/user-detail.md)、[通知配送outbox](../features/notification-outbox.md)、[リリース状態](../manual/release-status.md) |
 | [管理者設定ページ](2026-08-13_管理者設定ページ_実装計画.md) | `rollout verification` | repository実装、主担当test、標準検証は完了。Preview E2E・CI VRT、Widen deploy後の旧client排出確認とAPI Narrow、Production公開判断・canaryは未確認 | [グループ課金](../features/organization-billing.md)、[ユーザー詳細](../features/user-detail.md)、[店舗所属の移行互換](../features/manager-shop-membership.md)、[課金業務フロー](../specs/organization-billing-business-flow.md) |
 | [UI・UX・SEO監査残件 実装計画](2026-08-12_UI_UX_SEO監査残件_実装計画.md) | `rollout verification` | 確定不具合のrepository実装と主担当testは完了。外部GTM・GA4・Clarity設定、Production deploy・canary、Preview Deployed Smoke、計測browser契約の実走、CI VRT、GSC・RUM・Product判断gateは未実施。gate未成立項目とユーザー指定の除外二項目は現行維持 | [公開Web計測](../features/web-measurement.md)、[希望シフト提出](../features/shift-submission.md)、[公開サイト](../features/public-pages.md)、[リリース状態](../manual/release-status.md) |

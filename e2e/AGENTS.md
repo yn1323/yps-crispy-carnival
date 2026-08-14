@@ -37,7 +37,7 @@ pnpm e2e e2e/path/to/file.test.ts --retries=0 --workers=1
 pnpm e2e:burn-in
 ```
 
-`pnpm e2e:ci`はdesktop 12個、mobile 1個のcore契約とresult gateを実行する。
+`pnpm e2e:ci`はdesktop 13個、mobile 1個のcore契約とresult gateを実行する。
 `pnpm e2e:burn-in`は局所E2Eが成功した後に使い、desktopとmobileを直列化したまま、retryなしで各core契約を10回反復する。
 各phaseは次のphaseがreportを上書きする前に、contract ID別の反復数、project、初回成功、skip、flakyとartifact privacyを検査する。
 

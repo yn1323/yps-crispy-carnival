@@ -15,6 +15,13 @@
 - `shops.organizationId`が店舗の組織を表し、管理者APIは認証済み利用者の組織所属と選択店舗をサーバー側で検証する。
 - `getMyShops`は利用可能な店舗を組織名、店舗状態、所属状態付きで返し、`removed`になった人物へ当該組織の店舗を返さない。
 - Dashboardは現在の組織名を組織設定への上位リンクとして表示し、その下に現在店舗を表示する。複数組織に所属する場合は組織Accordion内に別組織への変更行を並べ、選んだ組織の名称順先頭店舗へ切り替える。店舗候補が複数ある場合は店舗セレクターからも切り替えられる。Dashboard以外の認証済み画面では、複数店舗がある場合だけヘッダーから切り替えられる。
+- `/app/home`は`org`で検証した一つの組織だけを表示し、`shop`はその組織のactive店舗から選ぶ。canonicalな組織所属一覧は全cursor取得が完了してからヘッダーの切替候補へ公開し、選択時は旧組織の`shop`をURLへ持ち越さない。
+- `/app/manage`、`/app/manage/organization`、`/app/manage/managers`、管理者招待、課金画面は、検証済みの`org`を組織authorityとして使う。  組織全体のread/writeに先頭店舗やHome店舗を要求せず、canonicalな組織所属がない利用者を旧`shopMembers`だけで通さない。
+- 通常の`/app/*`画面では、PC/SPともヘッダーからcanonicalな所属組織を切り替えられる。  組織変更時は旧組織の`shop`、`shopFilter`、人物・店舗・募集IDを持ち越さず、組織だけで成立する画面は維持し、entity詳細は同じ主タブの親画面へ戻す。  入力中の集中フローと組織scope外のアカウント設定には切替を表示しない。
+- 管理者招待の発行・再送・取消と管理者権限解除は、app用のorganization-scoped兄弟mutationを使う。  readOnly所属、別組織の人物・招待ID、Business write不可状態は画面表示とは独立してサーバーで拒否する。
+- `/app/home`の店舗query・mutationは、画面で解決した`shopId`と`expectedOrganizationId`を同時に渡す。URLと保存済み店舗を認可根拠にせず、管理者APIが店舗所属と組織所属の一致を再検証する。
+- `/app/home`はversion付きのapp専用localStorage keyへ、組織IDごとの最後のHome店舗IDだけをclient hintとして保存する。URLで有効な店舗、現在組織のactive店舗に含まれる保存hint、active店舗の先頭の順に解決し、名称や人物情報は保存しない。browser storageがない、壊れている、または例外になる場合も先頭店舗へ復旧する。
+- `/app/home`でactive店舗がない場合は、店舗作成を自動開始せず管理画面への回復導線を表示する。組織または店舗の切替中は、旧店舗のquery結果と開いていたDialogを次のscopeへ持ち越さない。
 - 現在タブの店舗は`?shop=`を正とし、`selectedShopAtom`は最後に確定した有効な店舗をlocalStorageへ保持するfallbackとして扱う。
 - 別タブのlocalStorage更新は実行中の選択状態へ反映せず、各タブの`?shop=`を維持する。
 - URL指定がない場合は、有効な保存済み店舗、`getMyShops`の先頭候補の順で自動決定し、URLを正規化する。候補が複数でも専用選択画面は表示しない。
@@ -47,6 +54,10 @@
 - `convex/migrations/m014_removed_organization_members_delete_legacy_shop_members.ts`
 - `convex/narrowReadiness/queries.ts`
 - `src/components/features/AuthenticatedApp/AuthGuard.tsx`
+- `src/components/features/AuthenticatedApp/AppOrganizationScope/`
+- `src/components/features/AuthenticatedApp/AppOrganizationSwitcher/`
+- `src/components/features/AuthenticatedApp/appOrganizationSwitchTarget.ts`
 - `src/components/features/Dashboard/OperationContext/`
+- `src/pages/app-home/`
 - `src/components/features/ShopSwitcher/`
 - `src/stores/shop/`
