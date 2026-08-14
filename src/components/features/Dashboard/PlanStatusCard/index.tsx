@@ -50,7 +50,7 @@ function PlanStatusHeading({ presentation }: { presentation: ReturnType<typeof g
         <Text fontSize={{ base: "lg", lg: "xl" }} lineHeight="short" fontWeight="bold" color="fg">
           {presentation.title}
         </Text>
-        {presentation.badge && <StatusBadge badge={presentation.badge} />}
+        {presentation.badge && !presentation.summaryBadge && <StatusBadge badge={presentation.badge} />}
       </Flex>
     </HStack>
   );
@@ -97,9 +97,9 @@ function TrialDetails({
     <Stack gap={2}>
       <Stack gap={1.5}>
         <Text fontSize="sm" fontWeight="medium">
-          {data.trialEndsOnLabel} にトライアルが終了します。
+          {data.trialEndsOnLabel}にトライアルが終了します。
         </Text>
-        <Text fontSize="sm" fontWeight="medium">
+        <Text fontSize="sm" fontWeight="medium" whiteSpace="pre-line">
           {data.description}
         </Text>
       </Stack>
@@ -280,14 +280,15 @@ export function getPlanStatusPresentation(data: PlanStatusCardData): PlanStatusP
 
   if (data.kind === "trial") {
     const isUrgent = data.remainingDays <= 7;
+    const trialEndsOnSummaryLabel = data.trialEndsOnLabel.replace(/^\d{4}\//, "").replace(/\([日月火水木金土]\)$/, "");
     const badge = {
-      label: data.remainingDays === 0 ? "本日終了" : `あと${data.remainingDays}日`,
+      label: data.remainingDays === 0 ? "本日終了" : `${trialEndsOnSummaryLabel}まで`,
       background: isUrgent ? "orange.100" : "blue.100",
       color: isUrgent ? "orange.700" : "blue.700",
     };
     return {
       Icon: LuClock3,
-      title: "無料トライアル",
+      title: "無料トライアル中",
       badge,
       summaryBadge: badge,
       tone: isUrgent ? "orange" : "blue",

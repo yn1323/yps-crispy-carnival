@@ -245,7 +245,13 @@ const OrganizationSettingsLink = ({
     color="gray.900"
     fontSize="md"
     fontWeight="medium"
-    _hover={{ bg: "gray.50" }}
+    _hover={{
+      bg: "gray.50",
+      color: "teal.700",
+      textDecoration: "underline",
+      textDecorationColor: "teal.700",
+      textUnderlineOffset: "3px",
+    }}
   >
     <RouterLink to="/settings" search={{ shop: shopId }} aria-label={`${organizationName}の組織設定を開く`}>
       <Text as="span" flex={1} textAlign="left">
@@ -272,7 +278,13 @@ const PlanAndPaymentLink = ({ label, onOpen }: { label: string; onOpen: () => vo
     color="gray.900"
     fontSize="md"
     fontWeight="medium"
-    _hover={{ bg: "gray.50" }}
+    _hover={{
+      bg: "gray.50",
+      color: "teal.700",
+      textDecoration: "underline",
+      textDecorationColor: "teal.700",
+      textUnderlineOffset: "3px",
+    }}
     onClick={onOpen}
   >
     <Text as="span" flex={1} textAlign="left">
@@ -308,7 +320,13 @@ const OrganizationChangeButton = ({
     color="gray.900"
     fontSize="md"
     fontWeight="medium"
-    _hover={{ bg: "gray.50" }}
+    _hover={{
+      bg: "gray.50",
+      color: "teal.700",
+      textDecoration: "underline",
+      textDecorationColor: "teal.700",
+      textUnderlineOffset: "3px",
+    }}
     onClick={() => onSelect(shopId)}
   >
     <Text as="span" flex={1} textAlign="left">

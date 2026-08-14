@@ -164,17 +164,12 @@ export const PlanAndPaymentSection = ({
           : "確認中");
   return (
     <Stack gap={{ base: 6, md: 7 }}>
-      <Stack as="section" gap={4} aria-labelledby="plan-heading">
-        <Stack gap={2}>
-          <Heading id="plan-heading" as="h2" fontSize="lg">
-            プラン
-          </Heading>
-          {!billing.isComplimentary && !billing.canManagePlan && billing.managePlanDisabledReason && (
-            <Text id="organization-billing-manage-plan-disabled-reason" fontSize="sm" color="orange.700">
-              {billing.managePlanDisabledReason}
-            </Text>
-          )}
-        </Stack>
+      <Stack gap={4}>
+        {!billing.isComplimentary && !billing.canManagePlan && billing.managePlanDisabledReason && (
+          <Text id="organization-billing-manage-plan-disabled-reason" fontSize="sm" color="orange.700">
+            {billing.managePlanDisabledReason}
+          </Text>
+        )}
 
         <PlanSummary
           billing={billing}

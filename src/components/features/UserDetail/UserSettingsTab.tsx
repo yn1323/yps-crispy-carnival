@@ -90,12 +90,12 @@ export function UserGroupRemovalSection({
           title="スタッフを削除"
           isOpen
           role="alertdialog"
-          submitLabel="組織から削除"
+          submitLabel="削除する"
           submitColorPalette="red"
           closeLabel="やめる"
           isLoading={isRemoving}
           isSubmitDisabled={removalPreview.kind === "tooMany" || isRemoving}
-          mobileActionLayout="stacked"
+          mobileActionLayout="inline"
           onOpenChange={({ open }) => {
             if (!open && !isRemoving) onCancelRemovePerson();
           }}

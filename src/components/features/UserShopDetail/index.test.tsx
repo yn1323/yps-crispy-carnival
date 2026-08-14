@@ -9,11 +9,18 @@ import type { UserShopDetailData, UserShopDetailMembership } from "./types";
 const mocks = vi.hoisted(() => ({
   useNotificationActions: vi.fn(),
   useMembershipActions: vi.fn(),
-  historyProps: undefined as undefined | { shopId: string; staffId: string; enabled: boolean },
+  historyProps: undefined as
+    | undefined
+    | { shopId: string; staffId: string; enabled: boolean; lineConnectionStatus: "linked" | "unlinked" },
 }));
 
 vi.mock("@/src/components/features/StaffNotificationHistory", () => ({
-  StaffNotificationHistory: (props: { shopId: string; staffId: string; enabled: boolean }) => {
+  StaffNotificationHistory: (props: {
+    shopId: string;
+    staffId: string;
+    enabled: boolean;
+    lineConnectionStatus: "linked" | "unlinked";
+  }) => {
     mocks.historyProps = props;
     return <output data-testid="history-shop">{props.shopId}</output>;
   },
@@ -62,6 +69,7 @@ const membership = {
 const data = {
   person: { id: "person-target", name: "田中 花子" },
   canWrite: true,
+  line: { status: "unlinked" },
 } as unknown as UserShopDetailData;
 
 beforeEach(() => {
@@ -99,7 +107,12 @@ describe("UserShopDetail", () => {
       membership,
       isReadOnly: false,
     });
-    expect(mocks.historyProps).toEqual({ shopId: targetShopId, staffId: membership.staffId, enabled: true });
+    expect(mocks.historyProps).toEqual({
+      shopId: targetShopId,
+      staffId: membership.staffId,
+      enabled: true,
+      lineConnectionStatus: "unlinked",
+    });
     expect(screen.getByTestId("history-shop").textContent).toBe("shop-target");
   });
 

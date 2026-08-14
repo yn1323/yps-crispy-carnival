@@ -7,22 +7,28 @@ type Props = {
   shopId: Id<"shops">;
   staffId: Id<"staffs">;
   enabled: boolean;
+  lineConnectionStatus?: "linked" | "unlinked";
 };
 
-export function StaffNotificationHistory({ shopId, staffId, enabled }: Props) {
+export function StaffNotificationHistory({ shopId, staffId, enabled, lineConnectionStatus }: Props) {
   return (
     <ErrorBoundary
       key={`${shopId}:${staffId}:${enabled}`}
-      fallback={<StaffNotificationHistoryView items={[]} isError />}
+      fallback={<StaffNotificationHistoryView items={[]} isError lineConnectionStatus={lineConnectionStatus} />}
     >
-      <ConnectedStaffNotificationHistory shopId={shopId} staffId={staffId} enabled={enabled} />
+      <ConnectedStaffNotificationHistory
+        shopId={shopId}
+        staffId={staffId}
+        enabled={enabled}
+        lineConnectionStatus={lineConnectionStatus}
+      />
     </ErrorBoundary>
   );
 }
 
-function ConnectedStaffNotificationHistory({ shopId, staffId, enabled }: Props) {
+function ConnectedStaffNotificationHistory({ shopId, staffId, enabled, lineConnectionStatus }: Props) {
   const history = useStaffNotificationHistory(shopId, staffId, enabled);
-  return <StaffNotificationHistoryView {...history} />;
+  return <StaffNotificationHistoryView {...history} lineConnectionStatus={lineConnectionStatus} />;
 }
 
 export { StaffNotificationHistoryView } from "./StaffNotificationHistoryView";

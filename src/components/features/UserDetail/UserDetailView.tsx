@@ -90,7 +90,7 @@ export function UserDetailView({
           leading={<BasicInformationIcon />}
           secondary={
             <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-              名前・シフト連絡先を管理します
+              名前・シフト通知先などを管理
             </Text>
           }
           onClick={actions.onOpenBasic}
@@ -207,10 +207,10 @@ function UserLineConnectionRow({ data, onOpen }: { data: UserDetailData; onOpen:
         }
         secondary={
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            同じ組織の所属店舗で共通です
+            LINE連携状況、連携方法について
           </Text>
         }
-        accessibleDescription={`${presentation.description} 同じ組織の所属店舗で共通です。`}
+        accessibleDescription={`${presentation.description} LINE連携状況、連携方法について`}
         onClick={onOpen}
       />
     </Box>

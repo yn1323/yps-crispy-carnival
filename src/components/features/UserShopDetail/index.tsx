@@ -37,7 +37,14 @@ export function UserShopDetail({ data, membership, targetShopId, onBack }: Props
       membership={viewMembership}
       isStoreReadOnly={isStoreReadOnly}
       storeDisabledReason={storeDisabledReason}
-      notificationHistory={<StaffNotificationHistory shopId={targetShopId} staffId={membership.staffId} enabled />}
+      notificationHistory={
+        <StaffNotificationHistory
+          shopId={targetShopId}
+          staffId={membership.staffId}
+          enabled
+          lineConnectionStatus={data.line.status === "unlinked" ? "unlinked" : "linked"}
+        />
+      }
       state={{
         notifications: {
           isLoading: notifications.isLoading,
