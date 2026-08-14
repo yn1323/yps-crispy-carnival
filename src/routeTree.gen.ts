@@ -30,6 +30,7 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AuthAccountRouteImport } from './routes/_auth/account'
+import { Route as AuthAppRouteImport } from './routes/_auth/app'
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
 import { Route as AuthSettingsRouteImport } from './routes/_auth/settings'
 import { Route as ArticlesIndexRouteImport } from './routes/articles.index'
@@ -40,6 +41,12 @@ import { Route as PrivacyManagerRouteImport } from './routes/privacy_.manager'
 import { Route as PrivacyStaffRouteImport } from './routes/privacy_.staff'
 import { Route as TermsManagerRouteImport } from './routes/terms_.manager'
 import { Route as TermsStaffRouteImport } from './routes/terms_.staff'
+import { Route as AuthAppAccountRouteImport } from './routes/_auth/app_.account'
+import { Route as AuthAppActionsRouteImport } from './routes/_auth/app_.actions'
+import { Route as AuthAppHomeRouteImport } from './routes/_auth/app_.home'
+import { Route as AuthAppManageRouteImport } from './routes/_auth/app_.manage'
+import { Route as AuthAppShiftsRouteImport } from './routes/_auth/app_.shifts'
+import { Route as AuthAppStaffRouteImport } from './routes/_auth/app_.staff'
 import { Route as AuthSettingsManagersRouteImport } from './routes/_auth/settings_.managers'
 import { Route as AuthShiftboardRecruitmentIdRouteImport } from './routes/_auth/shiftboard.$recruitmentId'
 import { Route as AuthShopsShopIdRouteImport } from './routes/_auth/shops.$shopId'
@@ -50,11 +57,20 @@ import { Route as UnregisteredShiftsSubmitRouteImport } from './routes/_unregist
 import { Route as UnregisteredShiftsViewRouteImport } from './routes/_unregistered/shifts.view'
 import { Route as UnregisteredStaffRegisterRouteImport } from './routes/_unregistered/staff.register'
 import { Route as ArticlesCategoriesCategorySlugRouteImport } from './routes/articles.categories.$categorySlug'
+import { Route as AuthAppManageBillingRouteImport } from './routes/_auth/app_.manage_.billing'
+import { Route as AuthAppManageManagersRouteImport } from './routes/_auth/app_.manage_.managers'
+import { Route as AuthAppManageOrganizationRouteImport } from './routes/_auth/app_.manage_.organization'
+import { Route as AuthAppStaffPersonIdRouteImport } from './routes/_auth/app_.staff_.$personId'
 import { Route as AuthSettingsManagersInviteNewRouteImport } from './routes/_auth/settings_.managers_.invite-new'
 import { Route as AuthSettingsManagersInviteStaffRouteImport } from './routes/_auth/settings_.managers_.invite-staff'
 import { Route as UnregisteredLegalStaffConsentRouteImport } from './routes/_unregistered/legal.staff.consent'
 import { Route as UnregisteredShiftsSubmitCompletedRouteImport } from './routes/_unregistered/shifts.submit_.completed'
+import { Route as AuthAppManageManagersInviteNewRouteImport } from './routes/_auth/app_.manage_.managers_.invite-new'
+import { Route as AuthAppManageManagersInviteStaffRouteImport } from './routes/_auth/app_.manage_.managers_.invite-staff'
+import { Route as AuthAppManageShopsShopIdRouteImport } from './routes/_auth/app_.manage_.shops.$shopId'
+import { Route as AuthAppShiftsRecruitmentIdBoardRouteImport } from './routes/_auth/app_.shifts_.$recruitmentId_.board'
 import { Route as AuthUsersPersonIdShopsTargetShopIdRouteImport } from './routes/_auth/users.$personId_.shops.$targetShopId'
+import { Route as AuthAppStaffPersonIdShopsShopIdRouteImport } from './routes/_auth/app_.staff_.$personId_.shops.$shopId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -159,6 +175,11 @@ const AuthAccountRoute = AuthAccountRouteImport.update({
   path: '/account',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthAppRoute = AuthAppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthDashboardRoute = AuthDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -208,6 +229,36 @@ const TermsStaffRoute = TermsStaffRouteImport.update({
   id: '/terms_/staff',
   path: '/terms/staff',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthAppAccountRoute = AuthAppAccountRouteImport.update({
+  id: '/app_/account',
+  path: '/app/account',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthAppActionsRoute = AuthAppActionsRouteImport.update({
+  id: '/app_/actions',
+  path: '/app/actions',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthAppHomeRoute = AuthAppHomeRouteImport.update({
+  id: '/app_/home',
+  path: '/app/home',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthAppManageRoute = AuthAppManageRouteImport.update({
+  id: '/app_/manage',
+  path: '/app/manage',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthAppShiftsRoute = AuthAppShiftsRouteImport.update({
+  id: '/app_/shifts',
+  path: '/app/shifts',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthAppStaffRoute = AuthAppStaffRouteImport.update({
+  id: '/app_/staff',
+  path: '/app/staff',
+  getParentRoute: () => AuthRoute,
 } as any)
 const AuthSettingsManagersRoute = AuthSettingsManagersRouteImport.update({
   id: '/settings_/managers',
@@ -265,6 +316,27 @@ const ArticlesCategoriesCategorySlugRoute =
     path: '/categories/$categorySlug',
     getParentRoute: () => ArticlesRoute,
   } as any)
+const AuthAppManageBillingRoute = AuthAppManageBillingRouteImport.update({
+  id: '/app_/manage_/billing',
+  path: '/app/manage/billing',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthAppManageManagersRoute = AuthAppManageManagersRouteImport.update({
+  id: '/app_/manage_/managers',
+  path: '/app/manage/managers',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthAppManageOrganizationRoute =
+  AuthAppManageOrganizationRouteImport.update({
+    id: '/app_/manage_/organization',
+    path: '/app/manage/organization',
+    getParentRoute: () => AuthRoute,
+  } as any)
+const AuthAppStaffPersonIdRoute = AuthAppStaffPersonIdRouteImport.update({
+  id: '/app_/staff_/$personId',
+  path: '/app/staff/$personId',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthSettingsManagersInviteNewRoute =
   AuthSettingsManagersInviteNewRouteImport.update({
     id: '/settings_/managers_/invite-new',
@@ -289,10 +361,40 @@ const UnregisteredShiftsSubmitCompletedRoute =
     path: '/shifts/submit/completed',
     getParentRoute: () => UnregisteredRoute,
   } as any)
+const AuthAppManageManagersInviteNewRoute =
+  AuthAppManageManagersInviteNewRouteImport.update({
+    id: '/app_/manage_/managers_/invite-new',
+    path: '/app/manage/managers/invite-new',
+    getParentRoute: () => AuthRoute,
+  } as any)
+const AuthAppManageManagersInviteStaffRoute =
+  AuthAppManageManagersInviteStaffRouteImport.update({
+    id: '/app_/manage_/managers_/invite-staff',
+    path: '/app/manage/managers/invite-staff',
+    getParentRoute: () => AuthRoute,
+  } as any)
+const AuthAppManageShopsShopIdRoute =
+  AuthAppManageShopsShopIdRouteImport.update({
+    id: '/app_/manage_/shops/$shopId',
+    path: '/app/manage/shops/$shopId',
+    getParentRoute: () => AuthRoute,
+  } as any)
+const AuthAppShiftsRecruitmentIdBoardRoute =
+  AuthAppShiftsRecruitmentIdBoardRouteImport.update({
+    id: '/app_/shifts_/$recruitmentId_/board',
+    path: '/app/shifts/$recruitmentId/board',
+    getParentRoute: () => AuthRoute,
+  } as any)
 const AuthUsersPersonIdShopsTargetShopIdRoute =
   AuthUsersPersonIdShopsTargetShopIdRouteImport.update({
     id: '/users/$personId_/shops/$targetShopId',
     path: '/users/$personId/shops/$targetShopId',
+    getParentRoute: () => AuthRoute,
+  } as any)
+const AuthAppStaffPersonIdShopsShopIdRoute =
+  AuthAppStaffPersonIdShopsShopIdRouteImport.update({
+    id: '/app_/staff_/$personId_/shops/$shopId',
+    path: '/app/staff/$personId/shops/$shopId',
     getParentRoute: () => AuthRoute,
   } as any)
 
@@ -316,6 +418,7 @@ export interface FileRoutesByFullPath {
   '/sso-callback': typeof SsoCallbackRoute
   '/terms': typeof TermsRoute
   '/account': typeof AuthAccountRoute
+  '/app': typeof AuthAppRoute
   '/dashboard': typeof AuthDashboardRoute
   '/settings': typeof AuthSettingsRoute
   '/articles/$slug': typeof ArticlesSlugRoute
@@ -326,6 +429,12 @@ export interface FileRoutesByFullPath {
   '/terms/manager': typeof TermsManagerRoute
   '/terms/staff': typeof TermsStaffRoute
   '/articles/': typeof ArticlesIndexRoute
+  '/app/account': typeof AuthAppAccountRoute
+  '/app/actions': typeof AuthAppActionsRoute
+  '/app/home': typeof AuthAppHomeRoute
+  '/app/manage': typeof AuthAppManageRoute
+  '/app/shifts': typeof AuthAppShiftsRoute
+  '/app/staff': typeof AuthAppStaffRoute
   '/settings/managers': typeof AuthSettingsManagersRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/shops/$shopId': typeof AuthShopsShopIdRoute
@@ -336,11 +445,20 @@ export interface FileRoutesByFullPath {
   '/shifts/view': typeof UnregisteredShiftsViewRoute
   '/staff/register': typeof UnregisteredStaffRegisterRoute
   '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
+  '/app/manage/billing': typeof AuthAppManageBillingRoute
+  '/app/manage/managers': typeof AuthAppManageManagersRoute
+  '/app/manage/organization': typeof AuthAppManageOrganizationRoute
+  '/app/staff/$personId': typeof AuthAppStaffPersonIdRoute
   '/settings/managers/invite-new': typeof AuthSettingsManagersInviteNewRoute
   '/settings/managers/invite-staff': typeof AuthSettingsManagersInviteStaffRoute
   '/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/shifts/submit/completed': typeof UnregisteredShiftsSubmitCompletedRoute
+  '/app/manage/managers/invite-new': typeof AuthAppManageManagersInviteNewRoute
+  '/app/manage/managers/invite-staff': typeof AuthAppManageManagersInviteStaffRoute
+  '/app/manage/shops/$shopId': typeof AuthAppManageShopsShopIdRoute
+  '/app/shifts/$recruitmentId/board': typeof AuthAppShiftsRecruitmentIdBoardRoute
   '/users/$personId/shops/$targetShopId': typeof AuthUsersPersonIdShopsTargetShopIdRoute
+  '/app/staff/$personId/shops/$shopId': typeof AuthAppStaffPersonIdShopsShopIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -361,6 +479,7 @@ export interface FileRoutesByTo {
   '/sso-callback': typeof SsoCallbackRoute
   '/terms': typeof TermsRoute
   '/account': typeof AuthAccountRoute
+  '/app': typeof AuthAppRoute
   '/dashboard': typeof AuthDashboardRoute
   '/settings': typeof AuthSettingsRoute
   '/articles/$slug': typeof ArticlesSlugRoute
@@ -371,6 +490,12 @@ export interface FileRoutesByTo {
   '/terms/manager': typeof TermsManagerRoute
   '/terms/staff': typeof TermsStaffRoute
   '/articles': typeof ArticlesIndexRoute
+  '/app/account': typeof AuthAppAccountRoute
+  '/app/actions': typeof AuthAppActionsRoute
+  '/app/home': typeof AuthAppHomeRoute
+  '/app/manage': typeof AuthAppManageRoute
+  '/app/shifts': typeof AuthAppShiftsRoute
+  '/app/staff': typeof AuthAppStaffRoute
   '/settings/managers': typeof AuthSettingsManagersRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/shops/$shopId': typeof AuthShopsShopIdRoute
@@ -381,11 +506,20 @@ export interface FileRoutesByTo {
   '/shifts/view': typeof UnregisteredShiftsViewRoute
   '/staff/register': typeof UnregisteredStaffRegisterRoute
   '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
+  '/app/manage/billing': typeof AuthAppManageBillingRoute
+  '/app/manage/managers': typeof AuthAppManageManagersRoute
+  '/app/manage/organization': typeof AuthAppManageOrganizationRoute
+  '/app/staff/$personId': typeof AuthAppStaffPersonIdRoute
   '/settings/managers/invite-new': typeof AuthSettingsManagersInviteNewRoute
   '/settings/managers/invite-staff': typeof AuthSettingsManagersInviteStaffRoute
   '/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/shifts/submit/completed': typeof UnregisteredShiftsSubmitCompletedRoute
+  '/app/manage/managers/invite-new': typeof AuthAppManageManagersInviteNewRoute
+  '/app/manage/managers/invite-staff': typeof AuthAppManageManagersInviteStaffRoute
+  '/app/manage/shops/$shopId': typeof AuthAppManageShopsShopIdRoute
+  '/app/shifts/$recruitmentId/board': typeof AuthAppShiftsRecruitmentIdBoardRoute
   '/users/$personId/shops/$targetShopId': typeof AuthUsersPersonIdShopsTargetShopIdRoute
+  '/app/staff/$personId/shops/$shopId': typeof AuthAppStaffPersonIdShopsShopIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -410,6 +544,7 @@ export interface FileRoutesById {
   '/sso-callback': typeof SsoCallbackRoute
   '/terms': typeof TermsRoute
   '/_auth/account': typeof AuthAccountRoute
+  '/_auth/app': typeof AuthAppRoute
   '/_auth/dashboard': typeof AuthDashboardRoute
   '/_auth/settings': typeof AuthSettingsRoute
   '/articles/$slug': typeof ArticlesSlugRoute
@@ -420,6 +555,12 @@ export interface FileRoutesById {
   '/terms_/manager': typeof TermsManagerRoute
   '/terms_/staff': typeof TermsStaffRoute
   '/articles/': typeof ArticlesIndexRoute
+  '/_auth/app_/account': typeof AuthAppAccountRoute
+  '/_auth/app_/actions': typeof AuthAppActionsRoute
+  '/_auth/app_/home': typeof AuthAppHomeRoute
+  '/_auth/app_/manage': typeof AuthAppManageRoute
+  '/_auth/app_/shifts': typeof AuthAppShiftsRoute
+  '/_auth/app_/staff': typeof AuthAppStaffRoute
   '/_auth/settings_/managers': typeof AuthSettingsManagersRoute
   '/_auth/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/_auth/shops/$shopId': typeof AuthShopsShopIdRoute
@@ -430,11 +571,20 @@ export interface FileRoutesById {
   '/_unregistered/shifts/view': typeof UnregisteredShiftsViewRoute
   '/_unregistered/staff/register': typeof UnregisteredStaffRegisterRoute
   '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
+  '/_auth/app_/manage_/billing': typeof AuthAppManageBillingRoute
+  '/_auth/app_/manage_/managers': typeof AuthAppManageManagersRoute
+  '/_auth/app_/manage_/organization': typeof AuthAppManageOrganizationRoute
+  '/_auth/app_/staff_/$personId': typeof AuthAppStaffPersonIdRoute
   '/_auth/settings_/managers_/invite-new': typeof AuthSettingsManagersInviteNewRoute
   '/_auth/settings_/managers_/invite-staff': typeof AuthSettingsManagersInviteStaffRoute
   '/_unregistered/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/_unregistered/shifts/submit_/completed': typeof UnregisteredShiftsSubmitCompletedRoute
+  '/_auth/app_/manage_/managers_/invite-new': typeof AuthAppManageManagersInviteNewRoute
+  '/_auth/app_/manage_/managers_/invite-staff': typeof AuthAppManageManagersInviteStaffRoute
+  '/_auth/app_/manage_/shops/$shopId': typeof AuthAppManageShopsShopIdRoute
+  '/_auth/app_/shifts_/$recruitmentId_/board': typeof AuthAppShiftsRecruitmentIdBoardRoute
   '/_auth/users/$personId_/shops/$targetShopId': typeof AuthUsersPersonIdShopsTargetShopIdRoute
+  '/_auth/app_/staff_/$personId_/shops/$shopId': typeof AuthAppStaffPersonIdShopsShopIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -458,6 +608,7 @@ export interface FileRouteTypes {
     | '/sso-callback'
     | '/terms'
     | '/account'
+    | '/app'
     | '/dashboard'
     | '/settings'
     | '/articles/$slug'
@@ -468,6 +619,12 @@ export interface FileRouteTypes {
     | '/terms/manager'
     | '/terms/staff'
     | '/articles/'
+    | '/app/account'
+    | '/app/actions'
+    | '/app/home'
+    | '/app/manage'
+    | '/app/shifts'
+    | '/app/staff'
     | '/settings/managers'
     | '/shiftboard/$recruitmentId'
     | '/shops/$shopId'
@@ -478,11 +635,20 @@ export interface FileRouteTypes {
     | '/shifts/view'
     | '/staff/register'
     | '/articles/categories/$categorySlug'
+    | '/app/manage/billing'
+    | '/app/manage/managers'
+    | '/app/manage/organization'
+    | '/app/staff/$personId'
     | '/settings/managers/invite-new'
     | '/settings/managers/invite-staff'
     | '/legal/staff/consent'
     | '/shifts/submit/completed'
+    | '/app/manage/managers/invite-new'
+    | '/app/manage/managers/invite-staff'
+    | '/app/manage/shops/$shopId'
+    | '/app/shifts/$recruitmentId/board'
     | '/users/$personId/shops/$targetShopId'
+    | '/app/staff/$personId/shops/$shopId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -503,6 +669,7 @@ export interface FileRouteTypes {
     | '/sso-callback'
     | '/terms'
     | '/account'
+    | '/app'
     | '/dashboard'
     | '/settings'
     | '/articles/$slug'
@@ -513,6 +680,12 @@ export interface FileRouteTypes {
     | '/terms/manager'
     | '/terms/staff'
     | '/articles'
+    | '/app/account'
+    | '/app/actions'
+    | '/app/home'
+    | '/app/manage'
+    | '/app/shifts'
+    | '/app/staff'
     | '/settings/managers'
     | '/shiftboard/$recruitmentId'
     | '/shops/$shopId'
@@ -523,11 +696,20 @@ export interface FileRouteTypes {
     | '/shifts/view'
     | '/staff/register'
     | '/articles/categories/$categorySlug'
+    | '/app/manage/billing'
+    | '/app/manage/managers'
+    | '/app/manage/organization'
+    | '/app/staff/$personId'
     | '/settings/managers/invite-new'
     | '/settings/managers/invite-staff'
     | '/legal/staff/consent'
     | '/shifts/submit/completed'
+    | '/app/manage/managers/invite-new'
+    | '/app/manage/managers/invite-staff'
+    | '/app/manage/shops/$shopId'
+    | '/app/shifts/$recruitmentId/board'
     | '/users/$personId/shops/$targetShopId'
+    | '/app/staff/$personId/shops/$shopId'
   id:
     | '__root__'
     | '/'
@@ -551,6 +733,7 @@ export interface FileRouteTypes {
     | '/sso-callback'
     | '/terms'
     | '/_auth/account'
+    | '/_auth/app'
     | '/_auth/dashboard'
     | '/_auth/settings'
     | '/articles/$slug'
@@ -561,6 +744,12 @@ export interface FileRouteTypes {
     | '/terms_/manager'
     | '/terms_/staff'
     | '/articles/'
+    | '/_auth/app_/account'
+    | '/_auth/app_/actions'
+    | '/_auth/app_/home'
+    | '/_auth/app_/manage'
+    | '/_auth/app_/shifts'
+    | '/_auth/app_/staff'
     | '/_auth/settings_/managers'
     | '/_auth/shiftboard/$recruitmentId'
     | '/_auth/shops/$shopId'
@@ -571,11 +760,20 @@ export interface FileRouteTypes {
     | '/_unregistered/shifts/view'
     | '/_unregistered/staff/register'
     | '/articles/categories/$categorySlug'
+    | '/_auth/app_/manage_/billing'
+    | '/_auth/app_/manage_/managers'
+    | '/_auth/app_/manage_/organization'
+    | '/_auth/app_/staff_/$personId'
     | '/_auth/settings_/managers_/invite-new'
     | '/_auth/settings_/managers_/invite-staff'
     | '/_unregistered/legal/staff/consent'
     | '/_unregistered/shifts/submit_/completed'
+    | '/_auth/app_/manage_/managers_/invite-new'
+    | '/_auth/app_/manage_/managers_/invite-staff'
+    | '/_auth/app_/manage_/shops/$shopId'
+    | '/_auth/app_/shifts_/$recruitmentId_/board'
     | '/_auth/users/$personId_/shops/$targetShopId'
+    | '/_auth/app_/staff_/$personId_/shops/$shopId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -756,6 +954,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAccountRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/app': {
+      id: '/_auth/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AuthAppRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/dashboard': {
       id: '/_auth/dashboard'
       path: '/dashboard'
@@ -825,6 +1030,48 @@ declare module '@tanstack/react-router' {
       fullPath: '/terms/staff'
       preLoaderRoute: typeof TermsStaffRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_auth/app_/account': {
+      id: '/_auth/app_/account'
+      path: '/app/account'
+      fullPath: '/app/account'
+      preLoaderRoute: typeof AuthAppAccountRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/app_/actions': {
+      id: '/_auth/app_/actions'
+      path: '/app/actions'
+      fullPath: '/app/actions'
+      preLoaderRoute: typeof AuthAppActionsRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/app_/home': {
+      id: '/_auth/app_/home'
+      path: '/app/home'
+      fullPath: '/app/home'
+      preLoaderRoute: typeof AuthAppHomeRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/app_/manage': {
+      id: '/_auth/app_/manage'
+      path: '/app/manage'
+      fullPath: '/app/manage'
+      preLoaderRoute: typeof AuthAppManageRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/app_/shifts': {
+      id: '/_auth/app_/shifts'
+      path: '/app/shifts'
+      fullPath: '/app/shifts'
+      preLoaderRoute: typeof AuthAppShiftsRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/app_/staff': {
+      id: '/_auth/app_/staff'
+      path: '/app/staff'
+      fullPath: '/app/staff'
+      preLoaderRoute: typeof AuthAppStaffRouteImport
+      parentRoute: typeof AuthRoute
     }
     '/_auth/settings_/managers': {
       id: '/_auth/settings_/managers'
@@ -896,6 +1143,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ArticlesCategoriesCategorySlugRouteImport
       parentRoute: typeof ArticlesRoute
     }
+    '/_auth/app_/manage_/billing': {
+      id: '/_auth/app_/manage_/billing'
+      path: '/app/manage/billing'
+      fullPath: '/app/manage/billing'
+      preLoaderRoute: typeof AuthAppManageBillingRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/app_/manage_/managers': {
+      id: '/_auth/app_/manage_/managers'
+      path: '/app/manage/managers'
+      fullPath: '/app/manage/managers'
+      preLoaderRoute: typeof AuthAppManageManagersRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/app_/manage_/organization': {
+      id: '/_auth/app_/manage_/organization'
+      path: '/app/manage/organization'
+      fullPath: '/app/manage/organization'
+      preLoaderRoute: typeof AuthAppManageOrganizationRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/app_/staff_/$personId': {
+      id: '/_auth/app_/staff_/$personId'
+      path: '/app/staff/$personId'
+      fullPath: '/app/staff/$personId'
+      preLoaderRoute: typeof AuthAppStaffPersonIdRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/settings_/managers_/invite-new': {
       id: '/_auth/settings_/managers_/invite-new'
       path: '/settings/managers/invite-new'
@@ -924,6 +1199,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UnregisteredShiftsSubmitCompletedRouteImport
       parentRoute: typeof UnregisteredRoute
     }
+    '/_auth/app_/manage_/managers_/invite-new': {
+      id: '/_auth/app_/manage_/managers_/invite-new'
+      path: '/app/manage/managers/invite-new'
+      fullPath: '/app/manage/managers/invite-new'
+      preLoaderRoute: typeof AuthAppManageManagersInviteNewRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/app_/manage_/managers_/invite-staff': {
+      id: '/_auth/app_/manage_/managers_/invite-staff'
+      path: '/app/manage/managers/invite-staff'
+      fullPath: '/app/manage/managers/invite-staff'
+      preLoaderRoute: typeof AuthAppManageManagersInviteStaffRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/app_/manage_/shops/$shopId': {
+      id: '/_auth/app_/manage_/shops/$shopId'
+      path: '/app/manage/shops/$shopId'
+      fullPath: '/app/manage/shops/$shopId'
+      preLoaderRoute: typeof AuthAppManageShopsShopIdRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/app_/shifts_/$recruitmentId_/board': {
+      id: '/_auth/app_/shifts_/$recruitmentId_/board'
+      path: '/app/shifts/$recruitmentId/board'
+      fullPath: '/app/shifts/$recruitmentId/board'
+      preLoaderRoute: typeof AuthAppShiftsRecruitmentIdBoardRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/users/$personId_/shops/$targetShopId': {
       id: '/_auth/users/$personId_/shops/$targetShopId'
       path: '/users/$personId/shops/$targetShopId'
@@ -931,34 +1234,73 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthUsersPersonIdShopsTargetShopIdRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/app_/staff_/$personId_/shops/$shopId': {
+      id: '/_auth/app_/staff_/$personId_/shops/$shopId'
+      path: '/app/staff/$personId/shops/$shopId'
+      fullPath: '/app/staff/$personId/shops/$shopId'
+      preLoaderRoute: typeof AuthAppStaffPersonIdShopsShopIdRouteImport
+      parentRoute: typeof AuthRoute
+    }
   }
 }
 
 interface AuthRouteChildren {
   AuthAccountRoute: typeof AuthAccountRoute
+  AuthAppRoute: typeof AuthAppRoute
   AuthDashboardRoute: typeof AuthDashboardRoute
   AuthSettingsRoute: typeof AuthSettingsRoute
+  AuthAppAccountRoute: typeof AuthAppAccountRoute
+  AuthAppActionsRoute: typeof AuthAppActionsRoute
+  AuthAppHomeRoute: typeof AuthAppHomeRoute
+  AuthAppManageRoute: typeof AuthAppManageRoute
+  AuthAppShiftsRoute: typeof AuthAppShiftsRoute
+  AuthAppStaffRoute: typeof AuthAppStaffRoute
   AuthSettingsManagersRoute: typeof AuthSettingsManagersRoute
   AuthShiftboardRecruitmentIdRoute: typeof AuthShiftboardRecruitmentIdRoute
   AuthShopsShopIdRoute: typeof AuthShopsShopIdRoute
   AuthUsersPersonIdRoute: typeof AuthUsersPersonIdRoute
+  AuthAppManageBillingRoute: typeof AuthAppManageBillingRoute
+  AuthAppManageManagersRoute: typeof AuthAppManageManagersRoute
+  AuthAppManageOrganizationRoute: typeof AuthAppManageOrganizationRoute
+  AuthAppStaffPersonIdRoute: typeof AuthAppStaffPersonIdRoute
   AuthSettingsManagersInviteNewRoute: typeof AuthSettingsManagersInviteNewRoute
   AuthSettingsManagersInviteStaffRoute: typeof AuthSettingsManagersInviteStaffRoute
+  AuthAppManageManagersInviteNewRoute: typeof AuthAppManageManagersInviteNewRoute
+  AuthAppManageManagersInviteStaffRoute: typeof AuthAppManageManagersInviteStaffRoute
+  AuthAppManageShopsShopIdRoute: typeof AuthAppManageShopsShopIdRoute
+  AuthAppShiftsRecruitmentIdBoardRoute: typeof AuthAppShiftsRecruitmentIdBoardRoute
   AuthUsersPersonIdShopsTargetShopIdRoute: typeof AuthUsersPersonIdShopsTargetShopIdRoute
+  AuthAppStaffPersonIdShopsShopIdRoute: typeof AuthAppStaffPersonIdShopsShopIdRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
   AuthAccountRoute: AuthAccountRoute,
+  AuthAppRoute: AuthAppRoute,
   AuthDashboardRoute: AuthDashboardRoute,
   AuthSettingsRoute: AuthSettingsRoute,
+  AuthAppAccountRoute: AuthAppAccountRoute,
+  AuthAppActionsRoute: AuthAppActionsRoute,
+  AuthAppHomeRoute: AuthAppHomeRoute,
+  AuthAppManageRoute: AuthAppManageRoute,
+  AuthAppShiftsRoute: AuthAppShiftsRoute,
+  AuthAppStaffRoute: AuthAppStaffRoute,
   AuthSettingsManagersRoute: AuthSettingsManagersRoute,
   AuthShiftboardRecruitmentIdRoute: AuthShiftboardRecruitmentIdRoute,
   AuthShopsShopIdRoute: AuthShopsShopIdRoute,
   AuthUsersPersonIdRoute: AuthUsersPersonIdRoute,
+  AuthAppManageBillingRoute: AuthAppManageBillingRoute,
+  AuthAppManageManagersRoute: AuthAppManageManagersRoute,
+  AuthAppManageOrganizationRoute: AuthAppManageOrganizationRoute,
+  AuthAppStaffPersonIdRoute: AuthAppStaffPersonIdRoute,
   AuthSettingsManagersInviteNewRoute: AuthSettingsManagersInviteNewRoute,
   AuthSettingsManagersInviteStaffRoute: AuthSettingsManagersInviteStaffRoute,
+  AuthAppManageManagersInviteNewRoute: AuthAppManageManagersInviteNewRoute,
+  AuthAppManageManagersInviteStaffRoute: AuthAppManageManagersInviteStaffRoute,
+  AuthAppManageShopsShopIdRoute: AuthAppManageShopsShopIdRoute,
+  AuthAppShiftsRecruitmentIdBoardRoute: AuthAppShiftsRecruitmentIdBoardRoute,
   AuthUsersPersonIdShopsTargetShopIdRoute:
     AuthUsersPersonIdShopsTargetShopIdRoute,
+  AuthAppStaffPersonIdShopsShopIdRoute: AuthAppStaffPersonIdShopsShopIdRoute,
 }
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)

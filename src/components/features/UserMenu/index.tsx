@@ -16,15 +16,21 @@ import { featureVisibilityAtom, userAtom } from "@/src/stores/user";
 
 type Props = {
   tone?: "dark" | "light";
+  accountDestination?: "/account" | "/app/account";
+  showOrganizationSettings?: boolean;
 };
 
-export const UserMenu = ({ tone = "dark" }: Props) => {
+export const UserMenu = ({
+  tone = "dark",
+  accountDestination = "/account",
+  showOrganizationSettings = true,
+}: Props) => {
   const user = useAtomValue(userAtom);
   const selectedShop = useAtomValue(selectedShopAtom);
   const featureVisibility = useAtomValue(featureVisibilityAtom);
   const displayName = user.name || "ユーザー";
   const isLight = tone === "light";
-  const showGroupSettings = featureVisibility.organizationSettingsNavigation;
+  const showGroupSettings = showOrganizationSettings && featureVisibility.organizationSettingsNavigation;
 
   return (
     <Menu.Root positioning={{ placement: "bottom-end" }}>
@@ -86,7 +92,7 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
             </Box>
             <Menu.Separator />
             <Menu.Item asChild value="login-settings" cursor="pointer">
-              <RouterLink to="/account">
+              <RouterLink to={accountDestination}>
                 <LuShieldCheck aria-hidden />
                 アカウント設定
               </RouterLink>

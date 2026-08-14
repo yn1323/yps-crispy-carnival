@@ -1,5 +1,5 @@
 import type { BoxProps, ContainerProps, FlexProps, ImageProps, TextProps } from "@chakra-ui/react";
-import { Box, Container, Flex, Image, Link, Text } from "@chakra-ui/react";
+import { Box, Container, Flex, Grid, Image, Link, Text } from "@chakra-ui/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
@@ -36,6 +36,10 @@ type UserHeaderVariantProps = {
   variant?: "user";
   position?: HeaderPosition;
   userActions?: ReactNode;
+  primaryNavigation?: ReactNode;
+  brandTo?: string;
+  brandAriaLabel?: string;
+  showTagline?: boolean;
 };
 
 type StaffHeaderVariantProps = {
@@ -78,12 +82,35 @@ export const Header = (props: HeaderProps = {}) => {
     );
   }
 
+  const brand = (
+    <HeaderBrand
+      to={props.brandTo ?? "/dashboard"}
+      ariaLabel={props.brandAriaLabel ?? "ダッシュボードへ"}
+      showTagline={props.showTagline ?? true}
+    />
+  );
+  const userActions = (
+    <Flex align="center" gap={{ base: 1, md: 2 }} flexShrink={0}>
+      {props.userActions}
+    </Flex>
+  );
+
+  if (props.primaryNavigation !== undefined) {
+    return (
+      <HeaderShell position={props.position ?? "fixed"}>
+        <Grid templateColumns="auto minmax(0, 1fr) auto" alignItems="center" gap={{ base: 2, lg: 4 }} w="full" minW={0}>
+          {brand}
+          <Box minW={0}>{props.primaryNavigation}</Box>
+          {userActions}
+        </Grid>
+      </HeaderShell>
+    );
+  }
+
   return (
     <HeaderShell position={props.position ?? "fixed"}>
-      <HeaderBrand to="/dashboard" ariaLabel="ダッシュボードへ" showTagline />
-      <Flex align="center" gap={{ base: 1, md: 2 }} flexShrink={0}>
-        {props.userActions}
-      </Flex>
+      {brand}
+      {userActions}
     </HeaderShell>
   );
 };
