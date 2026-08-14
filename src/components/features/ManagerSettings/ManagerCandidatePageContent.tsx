@@ -9,13 +9,12 @@ import { useManagerIssueController } from "./useManagerIssueController";
 type Props = {
   overview: ReadyManagerSettingsOverview;
   result: ManagerSettingsCandidateResult;
-  shopId?: string;
-  organizationId?: Id<"organizations">;
+  organizationId: Id<"organizations">;
 };
 
-export function ManagerCandidatePageContent({ overview, result, shopId, organizationId }: Props) {
+export function ManagerCandidatePageContent({ overview, result, organizationId }: Props) {
   const [selectedPersonId, setSelectedPersonId] = useState("");
-  const controller = useManagerIssueController({ overview, shopId, organizationId });
+  const controller = useManagerIssueController({ overview, organizationId });
 
   const candidates = result.kind === "ready" ? result.candidates : [];
   useEffect(() => {

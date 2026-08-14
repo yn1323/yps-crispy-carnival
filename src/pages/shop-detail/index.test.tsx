@@ -17,24 +17,21 @@ vi.mock("convex/react", () => ({ useQuery: mocks.useQuery }));
 vi.mock("@/convex/_generated/api", () => ({
   api: { organization: { queries: { getSettings: mocks.getSettingsRef } } },
 }));
-vi.mock("jotai", () => ({ useAtomValue: () => null }));
-vi.mock("@/src/stores/shop", () => ({ selectedShopAtom: Symbol("selectedShopAtom") }));
-vi.mock("@/src/hooks/useShopQuery", () => ({ useShopQuery: () => undefined }));
 vi.mock("@/src/components/features/ShopDetail", () => ({
   ShopDetailSkeleton: () => <output>loading</output>,
   ShopDetail: ({
     shop,
-    deletionReturnShopId,
-    appOrganizationId,
+    organizationId,
+    isShopAdditionEnabled,
   }: {
     shop: { id: string };
-    deletionReturnShopId: string | null;
-    appOrganizationId?: string;
+    organizationId: string;
+    isShopAdditionEnabled: boolean;
   }) => (
     <div>
       <output data-testid="shop">{shop.id}</output>
-      <output data-testid="return-shop">{deletionReturnShopId ?? "none"}</output>
-      <output data-testid="expected-organization">{appOrganizationId}</output>
+      <output data-testid="expected-organization">{organizationId}</output>
+      <output data-testid="shop-addition-enabled">{String(isShopAdditionEnabled)}</output>
     </div>
   ),
 }));
@@ -63,6 +60,7 @@ describe("AppShopDetailPage", () => {
     mocks.useQuery.mockReturnValue({
       shops: [{ id: "shop-target" }, { id: "shop-return" }],
       people: [],
+      features: { shopAddition: true },
     });
 
     render(<AppShopDetailPage shopId="shop-target" organizationId={"organization-a" as Id<"organizations">} />);
@@ -72,8 +70,16 @@ describe("AppShopDetailPage", () => {
       expectedOrganizationId: "organization-a",
     });
     expect(screen.getByTestId("shop").textContent).toBe("shop-target");
-    expect(screen.getByTestId("return-shop").textContent).toBe("shop-return");
     expect(screen.getByTestId("expected-organization").textContent).toBe("organization-a");
+    expect(screen.getByTestId("shop-addition-enabled").textContent).toBe("true");
+  });
+
+  it("店舗追加の公開状態が欠ける場合は所属変更UIをfail-closedにする", () => {
+    mocks.useQuery.mockReturnValue({ shops: [{ id: "shop-target" }], people: [] });
+
+    render(<AppShopDetailPage shopId="shop-target" organizationId={"organization-a" as Id<"organizations">} />);
+
+    expect(screen.getByTestId("shop-addition-enabled").textContent).toBe("false");
   });
 
   it("対象店舗がexpected organizationの結果にない場合はEmptyへ寄せる", () => {

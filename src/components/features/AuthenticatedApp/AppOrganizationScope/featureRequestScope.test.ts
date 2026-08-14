@@ -9,15 +9,17 @@ const shops = [
 
 describe("resolveAppFeatureRequestScope", () => {
   it("Homeのshopがactive組織店舗なら既定店舗にする", () => {
-    expect(resolveAppFeatureRequestScope({ pathname: "/app/home", homeShopId: "shop-b", activeShops: shops })).toEqual({
-      kind: "shop",
-      shop: shops[1],
-    });
+    expect(resolveAppFeatureRequestScope({ pathname: "/dashboard", homeShopId: "shop-b", activeShops: shops })).toEqual(
+      {
+        kind: "shop",
+        shop: shops[1],
+      },
+    );
   });
 
   it("組織外または無効なHome店舗を既定にせず、組織scopeへ戻す", () => {
     expect(
-      resolveAppFeatureRequestScope({ pathname: "/app/home", homeShopId: "other-shop", activeShops: shops }),
+      resolveAppFeatureRequestScope({ pathname: "/dashboard", homeShopId: "other-shop", activeShops: shops }),
     ).toEqual({ kind: "organization" });
   });
 

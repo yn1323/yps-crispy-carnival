@@ -186,6 +186,28 @@ describe("useActionInboxController", () => {
     expect(shift.metadata.map((metadata) => metadata.label)).toContain("提出 999人 / 対象 1000人以上");
   });
 
+  it("未公開の管理者招待は再送を無効にし、残存招待の取消は維持する", () => {
+    const closedItems = sourceItems.map((item) =>
+      item.kind === "managerInvitation" ? { ...item, canResend: false } : item,
+    );
+    const { result } = renderHook(() =>
+      useActionInboxController({ organizationId, sourceItems: closedItems, onRefresh: mocks.refresh }),
+    );
+
+    const management = findItem(result.current.items, "management");
+    expect(getAction(management.actions, "再送する")).toEqual({
+      label: "再送する",
+      emphasis: "primary",
+      disabled: true,
+      disabledReason: "管理者数、招待先、または契約状態を確認してください。",
+    });
+    expect(getAction(management.actions, "取り消す")).toMatchObject({
+      label: "取り消す",
+      emphasis: "danger",
+    });
+    expect(getAction(management.actions, "取り消す")).not.toHaveProperty("disabled");
+  });
+
   it("追加pageの操作は成功時だけ再取得し、失敗時は表示対象を保持する", async () => {
     const registration = sourceItems.find((item) => item.kind === "staffRegistration");
     if (!registration) throw new Error("Missing staff registration");

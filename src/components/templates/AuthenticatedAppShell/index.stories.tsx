@@ -49,7 +49,7 @@ export const OrganizationScoped: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("link", { name: "ホームへ" })).toHaveAttribute(
       "href",
-      `/app/home?org=${ORGANIZATION_ID}`,
+      `/dashboard?org=${ORGANIZATION_ID}`,
     );
     await expect(canvas.getByRole("link", { name: "スタッフ" })).toHaveAttribute(
       "href",
@@ -70,7 +70,7 @@ export const AccountWithoutOrganizationAction: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("link", { name: "ホームへ" })).toHaveAttribute("href", "/app/home");
+    await expect(canvas.getByRole("link", { name: "ホームへ" })).toHaveAttribute("href", "/dashboard");
     await expect(canvas.queryByRole("button", { name: /組織を切り替える/ })).not.toBeInTheDocument();
     await expect(canvas.queryByRole("button", { name: "要望を送る" })).not.toBeInTheDocument();
   },

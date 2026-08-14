@@ -3,7 +3,7 @@ import { LuCalendarDays, LuHouse, LuMessageCircle, LuSettings, LuUsersRound } fr
 
 export type AppNavigationKey = "home" | "shifts" | "staff" | "actions" | "manage";
 
-export type AppNavigationHref = "/app/home" | "/app/shifts" | "/app/staff" | "/app/actions" | "/app/manage";
+export type AppNavigationHref = "/dashboard" | "/app/shifts" | "/app/staff" | "/app/actions" | "/app/manage";
 
 export type AppPrimaryNavigationItem = {
   key: AppNavigationKey;
@@ -17,7 +17,7 @@ export type AppPrimaryNavigationItem = {
 };
 
 export const APP_PRIMARY_NAVIGATION_ITEMS: readonly AppPrimaryNavigationItem[] = [
-  { key: "home", label: "ホーム", href: "/app/home", icon: LuHouse },
+  { key: "home", label: "ホーム", href: "/dashboard", icon: LuHouse },
   { key: "shifts", label: "シフト", href: "/app/shifts", icon: LuCalendarDays },
   { key: "staff", label: "スタッフ", href: "/app/staff", icon: LuUsersRound },
   { key: "actions", label: "対応", href: "/app/actions", icon: LuMessageCircle },

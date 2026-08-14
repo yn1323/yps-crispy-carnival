@@ -5,6 +5,6 @@ export const Route = createFileRoute("/_auth/app")({
   validateSearch: validateAppOrganizationRouteSearch,
   staticData: { appShell: { mode: "navigation", activeKey: "home" } },
   beforeLoad: ({ search }) => {
-    throw redirect({ to: "/app/home", search, replace: true });
+    throw redirect({ to: "/dashboard", search, replace: true });
   },
 });

@@ -1,4 +1,3 @@
-import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 import { api } from "@/convex/_generated/api";
@@ -82,7 +81,6 @@ export function RecruitmentManagement({
   onOpenShiftBoard,
   children,
 }: Props) {
-  const navigate = useNavigate();
   const selectedShop = useAtomValue(selectedShopAtom);
   const createDialog = useDialog();
   const deleteDialog = useDialog();
@@ -174,15 +172,7 @@ export function RecruitmentManagement({
     onBeforeOpenShiftBoard?: (recruitmentId: Recruitment["_id"]) => void,
   ) => {
     onBeforeOpenShiftBoard?.(recruitmentId);
-    if (onOpenShiftBoard) {
-      onOpenShiftBoard(recruitmentId);
-      return;
-    }
-    navigate({
-      to: "/shiftboard/$recruitmentId",
-      params: { recruitmentId },
-      search: { shop: selectedShop?.shopId },
-    });
+    onOpenShiftBoard?.(recruitmentId);
   };
 
   const handleOpenCreate = () => {

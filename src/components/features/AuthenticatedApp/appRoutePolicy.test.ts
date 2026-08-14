@@ -5,14 +5,14 @@ import {
   normalizeAppRouteSearch,
   resolveAppShellRouteData,
   validateAppFilteredListRouteSearch,
-  validateAppHomeRouteSearch,
   validateAppOrganizationRouteSearch,
+  validateDashboardRouteSearch,
 } from "./appRoutePolicy";
 
 describe("app route search policy", () => {
   it.each<[string, string]>([
     ["/app", "?org=org-a"],
-    ["/app/home", "?org=org-a&shop=shop-a"],
+    ["/dashboard", "?org=org-a&shop=shop-a"],
     ["/app/shifts", "?org=org-a&shopFilter=shop-a"],
     ["/app/shifts/recruitment-a/board", "?org=org-a"],
     ["/app/staff", "?org=org-a&shopFilter=shop-a"],
@@ -26,7 +26,6 @@ describe("app route search policy", () => {
     ["/app/manage/managers/invite-new", "?org=org-a"],
     ["/app/manage/billing", "?org=org-a"],
     ["/app/manage/shops/shop-a", "?org=org-a"],
-    ["/app/account", "?flow=connect-google&oauth=google"],
   ])("%sでは許可されたsearchだけを維持する", (pathname, expectedSearch) => {
     const source =
       "?org=org-a&shop=shop-a&shopFilter=shop-a&flow=connect-google&oauth=google&token=secret&unknown=value";
@@ -36,7 +35,7 @@ describe("app route search policy", () => {
 
   it("未知route、未知search、空値を除去する", () => {
     expect(getCanonicalAppHref("/app/unknown", "?org=org-a&unknown=value")).toBe("/app/unknown");
-    expect(getCanonicalAppHref("/app/home", "?org=%20%20&shop=&unknown=value")).toBe("/app/home");
+    expect(getCanonicalAppHref("/dashboard", "?org=%20%20&shop=&unknown=value")).toBe("/dashboard");
     expect(normalizeAppRouteSearch("/app/staff", { org: " org-a ", shopFilter: " ", shop: "shop-a" })).toEqual({
       org: "org-a",
     });
@@ -45,15 +44,15 @@ describe("app route search policy", () => {
   it("route file向けvalidatorも同じallowlistへ収束する", () => {
     const source = { org: " org-a ", shop: "shop-a", shopFilter: "shop-b", token: "secret" };
 
-    expect(validateAppHomeRouteSearch(source)).toEqual({ org: "org-a", shop: "shop-a" });
+    expect(validateDashboardRouteSearch(source)).toEqual({ org: "org-a", shop: "shop-a" });
     expect(validateAppFilteredListRouteSearch(source)).toEqual({ org: "org-a", shopFilter: "shop-b" });
     expect(validateAppOrganizationRouteSearch(source)).toEqual({ org: "org-a" });
   });
 
   it("すでにcanonicalなsearchとapp外routeは遷移させない", () => {
-    expect(getCanonicalAppHref("/app/home", "?org=org-a&shop=shop-a")).toBeNull();
-    expect(getCanonicalAppHref("/app/home", "")).toBeNull();
-    expect(getCanonicalAppHref("/dashboard", "?org=org-a&unknown=value")).toBeNull();
+    expect(getCanonicalAppHref("/dashboard", "?org=org-a&shop=shop-a")).toBeNull();
+    expect(getCanonicalAppHref("/dashboard", "")).toBeNull();
+    expect(getCanonicalAppHref("/account", "?flow=connect-google&unknown=value")).toBeNull();
   });
 
   it("app routeだけを識別する", () => {

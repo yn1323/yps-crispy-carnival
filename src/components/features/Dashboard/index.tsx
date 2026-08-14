@@ -1,4 +1,3 @@
-import { useNavigate } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
 import type { Id } from "@/convex/_generated/dataModel";
 import { DashboardContent, DashboardContentSkeleton } from "./DashboardContent";
@@ -35,6 +34,8 @@ type Props = {
   navigation?: DashboardNavigation;
 };
 
+const NOOP_NAVIGATION = () => undefined;
+
 export function Dashboard({
   shop,
   currentUser,
@@ -52,19 +53,12 @@ export function Dashboard({
   expectedOrganizationId,
   navigation,
 }: Props) {
-  const navigate = useNavigate();
   const planStatusCard = usePlanStatusCardController({
     planStatus,
     shopId: billingSettingsShopId,
     expectedOrganizationId,
     enabled: Boolean(isBillingFeatureVisible),
-    onOpenBillingSettings:
-      navigation?.onOpenBillingSettings ??
-      (() =>
-        void navigate({
-          to: "/settings",
-          search: { ...(billingSettingsShopId ? { shop: billingSettingsShopId } : {}), tab: "billing" },
-        })),
+    onOpenBillingSettings: navigation?.onOpenBillingSettings ?? NOOP_NAVIGATION,
   });
 
   return (

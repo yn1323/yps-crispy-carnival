@@ -1,18 +1,18 @@
-import { Heading, Stack } from "@chakra-ui/react";
+import { Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
-import {
-  type OrganizationBillingView,
-  OrganizationUsageSection,
-  ShopsSection,
-} from "@/src/components/features/OrganizationSettings";
+import { type OrganizationBillingView, OrganizationUsageSection } from "@/src/components/features/OrganizationSettings";
+import { AuthenticatedAppShell } from "@/src/components/templates/AuthenticatedAppShell";
+import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
 import {
   AppManageBillingPageSkeleton,
   AppManageHeader,
   AppManagePageStateView,
   AppManageReadOnlyNotice,
+  ManageShopsSection,
   OrganizationBasicInformationSection,
+  OrganizationManagementSection,
 } from ".";
 
 const billing: OrganizationBillingView = {
@@ -75,36 +75,84 @@ export const QueryError: Story = {
   args: { state: { kind: "error" } },
 };
 
-function ReadyReadOnlyPreview() {
+const organizationId = "organization-preview" as never;
+
+function ReadyClosedPreview({ readOnly = false }: { readOnly?: boolean }) {
   return (
     <Stack gap={6}>
       <AppManageHeader />
-      <AppManageReadOnlyNotice memberStatus="readOnly" />
+      <AppManageReadOnlyNotice memberStatus={readOnly ? "readOnly" : "active"} />
       <OrganizationUsageSection billing={billing} />
-      <Heading as="h2" fontSize="lg">
-        組織全体
-      </Heading>
-      <ShopsSection
+      <OrganizationManagementSection
+        organizationId={organizationId}
+        organizationName="ハイパーカンパニーグループ"
+        managerCount={1}
+        pendingManagerCount={0}
+        billingState={billing.state}
+        features={{ organizationCreation: false, managerInvitation: false, billing: false }}
+        canCreateOrganization={false}
+      />
+      <ManageShopsSection
+        organizationId={organizationId}
         shops={shops}
         shopUsage={billing.shopUsage}
-        showAddShop
+        showAddShop={false}
         canAddShop={false}
-        addShopDisabledReason="閲覧のみの管理者は店舗を追加できません。"
-        onAddShop={() => undefined}
+        canLoadMore={false}
+        isLoadingMore={false}
+        onLoadMore={() => undefined}
         onOpenShop={() => undefined}
       />
     </Stack>
   );
 }
 
+function AppCompositionPreview() {
+  return (
+    <AuthenticatedAppShell activeKey="manage" activeOrganizationId="organization-preview">
+      <AuthenticatedPageContent includeMobileNavigation>
+        <ReadyClosedPreview />
+      </AuthenticatedPageContent>
+    </AuthenticatedAppShell>
+  );
+}
+
+export const AppCompositionDesktop: Story = {
+  name: "管理・未リリース機能は非表示・新shell・デスクトップ",
+  parameters: { layout: "fullscreen", vrt: { releaseFixedHeader: true } },
+  render: () => <AppCompositionPreview />,
+};
+
+export const AppCompositionMobile: Story = {
+  ...AppCompositionDesktop,
+  name: "管理・未リリース機能は非表示・新shell・モバイル414px",
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+};
+
 export const ReadyReadOnly: Story = {
-  render: () => <ReadyReadOnlyPreview />,
+  render: () => <ReadyClosedPreview readOnly />,
 };
 
 export const ReadyReadOnlyMobile: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
-  render: () => <ReadyReadOnlyPreview />,
+  render: () => <ReadyClosedPreview readOnly />,
+};
+
+export const ReleasedFeaturesHiddenBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <ReadyClosedPreview />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole("button", { name: "組織情報を開く" })).toBeInTheDocument();
+    await expect(canvas.getByRole("heading", { name: "全店舗 (6/5)" })).toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: "新しい組織を作る" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: "管理者と権限を開く" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: "プランと支払いを開く" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: "店舗を追加する" })).not.toBeInTheDocument();
+  },
 };
 
 function RetryPreview() {

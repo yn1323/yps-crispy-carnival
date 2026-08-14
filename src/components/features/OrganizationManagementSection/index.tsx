@@ -5,23 +5,23 @@ import { LuBuilding2, LuCreditCard, LuStore, LuUserRoundPlus } from "react-icons
 const managementCapabilities: Array<{ icon: IconType; title: string; body: string }> = [
   {
     icon: LuBuilding2,
-    title: "組織を分けて追加",
-    body: "事業や契約を分けたいときは、別の組織を追加できます。自分で作成して保持できる有効な組織は3件までです。",
+    title: "一つの組織で管理",
+    body: "初回登録で、店舗とスタッフをまとめる組織を一つ作ります。日々のシフト運用を同じ場所で進められます。",
   },
   {
     icon: LuStore,
-    title: "一つの組織に店舗を追加",
-    body: "店舗ごとに募集とシフトを分けながら、組織全体の利用者と契約を一か所で管理できます。",
+    title: "一店舗から始める",
+    body: "初回登録で店舗を一つ作り、その店舗の希望回収、シフト作成、確定通知を管理します。",
   },
   {
     icon: LuUserRoundPlus,
-    title: "管理者を追加・交代",
-    body: "既存スタッフまたは新しいユーザーへ、メールで管理者招待を送れます。有効な管理者は組織内のすべての店舗、利用者、契約プランと支払いを管理します。",
+    title: "本人が管理者として開始",
+    body: "初回登録した本人が管理者になります。スタッフは専用アカウントを作らず、届いたリンクから希望を提出できます。",
   },
   {
     icon: LuCreditCard,
-    title: "プランと支払いを管理",
-    body: "トライアル終了日、利用状況、契約プラン、支払いを組織設定で確認・変更できます。",
+    title: "支払い情報の登録は不要",
+    body: "最初の組織には支払い不要のBusinessが適用されます。初回登録でカード情報を入力する必要はありません。",
   },
 ];
 
@@ -32,13 +32,13 @@ export function OrganizationManagementSection() {
         <VStack gap={{ base: 8, md: 10 }}>
           <VStack gap={4} textAlign="center" maxW="780px">
             <Text color="teal.700" fontWeight="bold">
-              店舗や担当者が増えても
+              1組織・1店舗・1管理者から
             </Text>
             <Heading as="h2" color="gray.950" fontSize={{ base: "2xl", md: "4xl" }} lineHeight="1.35" letterSpacing="0">
-              組織全体と、店舗ごとのシフト運用を分けて管理
+              一つの店舗のシフト運用を、同じ場所で管理
             </Heading>
             <Text color="gray.700" lineHeight="1.8">
-              毎日の募集・シフト作成は店舗ごとに進め、利用者、管理者、契約と支払いは組織ごとにまとめます。
+              希望回収、スタッフ管理、シフト作成、確定通知までを、初回登録で作る組織と店舗にまとめます。
             </Text>
           </VStack>
 
@@ -57,7 +57,7 @@ export function OrganizationManagementSection() {
             gap={2}
             _hover={{ textDecoration: "none", color: "teal.900" }}
           >
-            料金・プランと利用上限を見る
+            初回登録の利用条件を見る
             <Box as="span" aria-hidden>
               →
             </Box>

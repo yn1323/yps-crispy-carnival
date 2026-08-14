@@ -1,6 +1,6 @@
 import { Box } from "@chakra-ui/react";
 import { createFileRoute, Outlet, redirect, useMatches, useNavigate, useRouterState } from "@tanstack/react-router";
-import { type ReactNode, useCallback, useEffect } from "react";
+import { type ReactNode, useCallback } from "react";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
   AppOrganizationScopeProvider,
@@ -8,7 +8,6 @@ import {
   AppOrganizationStateView,
   AppOrganizationSwitcher,
   type AppRouteSearch,
-  AuthenticatedHeader,
   AuthGuard,
   getCanonicalAppHref,
   isAppPath,
@@ -24,7 +23,12 @@ import { AuthenticatedAppShell } from "@/src/components/templates/AuthenticatedA
 import { FocusedFlowHeader } from "@/src/components/templates/FocusedFlowHeader";
 import { FullPageSpinner } from "@/src/components/templates/FullPageSpinner";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
-import { clearRequestedShopSearch, normalizeShopSearch } from "@/src/lib/authenticatedSearch";
+import {
+  buildCanonicalAccountSecuritySearchString,
+  needsAccountSecuritySearchCanonicalization,
+  validateAccountSecuritySearch,
+} from "@/src/pages/account-security/search";
+import { DashboardSetupPage } from "@/src/pages/dashboard";
 import { AuthProviders } from "@/src/providers/AuthProviders";
 
 type AuthSearch = AppRouteSearch;
@@ -33,7 +37,9 @@ export const Route = createFileRoute("/_auth")({
   ssr: false,
   pendingComponent: AuthenticatedRoutePending,
   beforeLoad: ({ location }) => {
-    const canonicalHref = getCanonicalAppHref(location.pathname, location.searchStr);
+    const canonicalHref =
+      getCanonicalAppHref(location.pathname, location.searchStr) ??
+      getCanonicalAccountHref(location.pathname, location.searchStr);
     if (canonicalHref) {
       throw redirect({ href: canonicalHref, replace: true });
     }
@@ -49,6 +55,16 @@ export const Route = createFileRoute("/_auth")({
   component: RouteComponent,
 });
 
+function getCanonicalAccountHref(pathname: string, searchStr: string): string | null {
+  if (pathname !== "/account") return null;
+
+  const normalizedSearch = searchStr === "" || searchStr.startsWith("?") ? searchStr : `?${searchStr}`;
+  const validatedSearch = validateAccountSecuritySearch(Object.fromEntries(new URLSearchParams(normalizedSearch)));
+  if (!needsAccountSecuritySearchCanonicalization(normalizedSearch, validatedSearch)) return null;
+
+  return `${pathname}${buildCanonicalAccountSecuritySearchString(validatedSearch)}`;
+}
+
 function AuthenticatedRoutePending() {
   const appShell = resolveAppShellRouteData(useMatches());
 
@@ -61,44 +77,9 @@ function AuthenticatedRoutePending() {
 }
 
 function RouteComponent() {
-  // pathless親routeのRoute.useNavigate()は"/"基準になるため、searchだけの更新でもLPへ遷移してしまう。
-  const navigate = useNavigate();
-  const { shop } = Route.useSearch();
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const requiresShopContext = pathname !== "/account" && !isAppPath(pathname);
-
-  useEffect(() => {
-    if (pathname !== "/account" || !shop) return;
-
-    void navigate({
-      to: ".",
-      search: (previous) => ({ ...previous, shop: undefined }),
-      replace: true,
-    });
-  }, [navigate, pathname, shop]);
-
-  const normalizeShopUrl = useCallback(
-    (shopId: string) => {
-      void navigate({
-        to: ".",
-        search: (previous) => normalizeShopSearch(previous, shopId),
-        replace: true,
-      });
-    },
-    [navigate],
-  );
-  const returnToDashboard = useCallback(() => {
-    void navigate({ to: "/dashboard", search: clearRequestedShopSearch(), replace: true });
-  }, [navigate]);
-
   return (
     <AuthProviders>
-      <AuthGuard
-        requiresShopContext={requiresShopContext}
-        requestedShopId={requiresShopContext ? shop : undefined}
-        onNormalizeShopUrl={normalizeShopUrl}
-        onReturnToDashboard={returnToDashboard}
-      >
+      <AuthGuard>
         <UnauthenticatedBoundary>
           <AuthenticatedLayout />
         </UnauthenticatedBoundary>
@@ -125,10 +106,10 @@ function AuthenticatedLayout() {
     [navigate],
   );
   const openAvailableOrganization = useCallback(() => {
-    void navigate({ to: "/app/home", search: {}, replace: true });
+    void navigate({ to: "/dashboard", search: {}, replace: true });
   }, [navigate]);
 
-  if (pathname === "/app/account" && appShell) {
+  if (pathname === "/account" && appShell) {
     return (
       <AppLayoutFrame appShell={appShell}>
         <Outlet />
@@ -136,7 +117,7 @@ function AuthenticatedLayout() {
     );
   }
 
-  if (isAppPath(pathname) && appShell) {
+  if ((pathname === "/dashboard" || isAppPath(pathname)) && appShell) {
     return (
       <AppOrganizationScopeProvider
         requestedOrganizationId={org}
@@ -146,6 +127,7 @@ function AuthenticatedLayout() {
             appShell={appShell}
             state={state}
             onChooseAvailableOrganization={openAvailableOrganization}
+            emptyContent={pathname === "/dashboard" ? <DashboardSetupPage /> : undefined}
           />
         )}
       >
@@ -154,14 +136,7 @@ function AuthenticatedLayout() {
     );
   }
 
-  return (
-    <Box w="100%">
-      <AuthenticatedHeader />
-      <Box pt={HEADER_HEIGHT} minH="100dvh">
-        <Outlet />
-      </Box>
-    </Box>
-  );
+  return <Outlet />;
 }
 
 type AppShellData = NonNullable<ReturnType<typeof resolveAppShellRouteData>>;
@@ -222,14 +197,19 @@ function AppOrganizationRouteState({
   appShell,
   state,
   onChooseAvailableOrganization,
+  emptyContent,
 }: {
   appShell: AppShellData;
   state: AppOrganizationState;
   onChooseAvailableOrganization: () => void;
+  emptyContent?: ReactNode;
 }) {
-  const content = (
-    <AppOrganizationStateView state={state} onChooseAvailableOrganization={onChooseAvailableOrganization} />
-  );
+  const content =
+    state.kind === "empty" && emptyContent ? (
+      emptyContent
+    ) : (
+      <AppOrganizationStateView state={state} onChooseAvailableOrganization={onChooseAvailableOrganization} />
+    );
 
   return (
     <AppLayoutFrame

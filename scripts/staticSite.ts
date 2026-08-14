@@ -42,9 +42,7 @@ export const NOINDEX_PUBLIC_ROUTES = new Set<string>([
 export const CSR_SHELL_STATIC_ROUTES = [
   "/account",
   "/app",
-  "/app/account",
   "/app/actions",
-  "/app/home",
   "/app/manage",
   "/app/manage/billing",
   "/app/manage/managers",
@@ -59,10 +57,6 @@ export const CSR_SHELL_STATIC_ROUTES = [
   "/line/callback",
   "/login",
   "/manager-invite",
-  "/settings",
-  "/settings/managers",
-  "/settings/managers/invite-new",
-  "/settings/managers/invite-staff",
   "/shifts/reissue",
   "/shifts/submit",
   "/shifts/submit/completed",
@@ -75,13 +69,9 @@ export const CSR_SHELL_STATIC_ROUTES = [
 /** Cloudflare Pagesのnamed placeholder。長いpathを先に評価する。 */
 export const CSR_SHELL_DYNAMIC_ROUTES = [
   "/app/staff/:personId/shops/:shopId",
-  "/users/:personId/shops/:targetShopId",
   "/app/manage/shops/:shopId",
   "/app/shifts/:recruitmentId/board",
   "/app/staff/:personId",
-  "/shiftboard/:recruitmentId",
-  "/shops/:shopId",
-  "/users/:personId",
 ] as const;
 
 const ARTICLE_CONTENT_DIR = join("src", "components", "features", "ArticleSite", "content");

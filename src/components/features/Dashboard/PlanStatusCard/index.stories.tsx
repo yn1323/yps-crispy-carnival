@@ -335,7 +335,7 @@ function OrganizationPlanStory({
       model={storyModel}
       onShopSelect={noop}
       onOpenShopDetail={noop}
-      organizationSettingsShopId={storyShop.shopId}
+      onOpenOrganizationSettings={noop}
       billingSettingsShopId={storyShop.shopId}
       planStatusCard={{ data, usage, defaultExpanded, onAction, onExpandedChange }}
     />

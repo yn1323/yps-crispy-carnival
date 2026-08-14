@@ -4,9 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
-import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
-import { clearRequestedShopSearch } from "@/src/lib/authenticatedSearch";
 import type {
   ManagerSettingsConfirmation,
   ManagerSettingsInvitation,
@@ -20,13 +18,10 @@ export function useManagerSettingsController({
   organizationId,
 }: {
   overview: ReadyManagerSettingsOverview;
-  organizationId?: Id<"organizations">;
+  organizationId: Id<"organizations">;
 }) {
   const navigate = useNavigate();
   const router = useRouter();
-  const resend = useShopMutation(api.organizationInvitation.mutations.resend);
-  const revoke = useShopMutation(api.organizationInvitation.mutations.revoke);
-  const removeManagerRole = useShopMutation(api.organization.mutations.removeManagerRole);
   const resendForOrganization = useMutation(api.organizationInvitation.mutations.resendForOrganization);
   const revokeForOrganization = useMutation(api.organizationInvitation.mutations.revokeForOrganization);
   const removeManagerRoleForOrganization = useMutation(api.organization.mutations.removeManagerRoleForOrganization);
@@ -49,29 +44,22 @@ export function useManagerSettingsController({
       try {
         if (current.kind === "resend") {
           const args = { invitationId: current.invitation.invitationId, requestId: current.requestId };
-          if (organizationId) await resendForOrganization({ organizationId, ...args });
-          else await resend(args);
+          await resendForOrganization({ organizationId, ...args });
           showSuccessToast({ title: "再送を受け付けました" });
         } else if (current.kind === "revoke") {
           const args = { invitationId: current.invitation.invitationId, requestId: current.requestId };
-          if (organizationId) await revokeForOrganization({ organizationId, ...args });
-          else await revoke(args);
+          await revokeForOrganization({ organizationId, ...args });
           showSuccessToast({ title: "招待を取り消しました" });
         } else {
           const args = { personId: current.manager.personId, requestId: current.requestId };
-          if (organizationId) await removeManagerRoleForOrganization({ organizationId, ...args });
-          else await removeManagerRole(args);
+          await removeManagerRoleForOrganization({ organizationId, ...args });
           showSuccessToast({
             title: "管理者権限を外しました",
             description: "人物情報とスタッフとしての店舗所属は維持しています。",
           });
           if (current.manager.isSelf) {
             setConfirmation(null);
-            void navigate(
-              organizationId
-                ? { to: "/app/home", search: {}, replace: true }
-                : { to: "/dashboard", search: clearRequestedShopSearch(), replace: true },
-            );
+            void navigate({ to: "/dashboard", search: {}, replace: true });
             return;
           }
         }
@@ -80,16 +68,7 @@ export function useManagerSettingsController({
         showErrorToast(error);
       }
     },
-    [
-      navigate,
-      organizationId,
-      removeManagerRole,
-      removeManagerRoleForOrganization,
-      resend,
-      resendForOrganization,
-      revoke,
-      revokeForOrganization,
-    ],
+    [navigate, organizationId, removeManagerRoleForOrganization, resendForOrganization, revokeForOrganization],
   );
   const { run, isRunning } = useSingleFlight(execute);
 

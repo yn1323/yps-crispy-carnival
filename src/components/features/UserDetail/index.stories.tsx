@@ -3,6 +3,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
+import { AuthenticatedAppShell } from "@/src/components/templates/AuthenticatedAppShell";
+import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
 import type { UserDetailData, UserDetailDialog, UserDetailPanel, UserMembershipChangeInput } from "./types";
 import { UserDetailSkeleton } from "./UserDetailSkeleton";
 import { UserDetailView, type UserDetailViewProps } from "./UserDetailView";
@@ -249,13 +251,16 @@ const meta = {
   component: UserDetailView,
   parameters: { layout: "fullscreen" },
   decorators: [
-    (Story) => (
-      <Box bg="gray.50" minH="100dvh" p={{ base: 4, md: 8 }}>
-        <Box maxW="1024px" mx="auto">
-          <Story />
+    (Story, context) =>
+      context.parameters.appComposition ? (
+        <Story />
+      ) : (
+        <Box bg="gray.50" minH="100dvh" p={{ base: 4, md: 8 }}>
+          <Box maxW="1024px" mx="auto">
+            <Story />
+          </Box>
         </Box>
-      </Box>
-    ),
+      ),
   ],
   args: {
     data: multipleStoresData,
@@ -271,6 +276,25 @@ type Story = StoryObj<typeof meta>;
 export const MainView: Story = {};
 
 export const MainViewMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+};
+
+export const AppCompositionDesktop: Story = {
+  name: "スタッフ詳細・新shell・デスクトップ",
+  parameters: { appComposition: true, vrt: { releaseFixedHeader: true } },
+  render: (args) => (
+    <AuthenticatedAppShell activeKey="staff" activeOrganizationId="organization-preview">
+      <AuthenticatedPageContent includeMobileNavigation>
+        <UserDetailView {...args} />
+      </AuthenticatedPageContent>
+    </AuthenticatedAppShell>
+  ),
+};
+
+export const AppCompositionMobile: Story = {
+  ...AppCompositionDesktop,
+  name: "スタッフ詳細・新shell・モバイル414px",
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
 };

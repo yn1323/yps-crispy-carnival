@@ -13,9 +13,9 @@ import { Empty } from "@/src/components/ui/Empty";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
 import { ShiftoriLoading } from "@/src/components/ui/ShiftoriLoading";
 import { formatDateShort } from "@/src/domains/shift/date";
-import { useRetainedShiftBoardData } from "@/src/pages/shift-board/useRetainedShiftBoardData";
-import { useShiftBoardDayKey } from "@/src/pages/shift-board/useShiftBoardDayKey";
 import { ManagerShopScopeProvider } from "@/src/providers/ManagerShopScopeProvider";
+import { useRetainedShiftBoardData } from "./useRetainedShiftBoardData";
+import { useShiftBoardDayKey } from "./useShiftBoardDayKey";
 
 type Props = {
   organizationId?: string;

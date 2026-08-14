@@ -4,7 +4,6 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ChakraProvider } from "@/src/providers/ChakraProvider";
-import { selectedShopAtom } from "@/src/stores/shop";
 import { userAtom } from "@/src/stores/user";
 
 const mocks = vi.hoisted(() => ({
@@ -47,7 +46,7 @@ describe("UserMenu", () => {
     );
   });
 
-  it("旧の非公開値が残っていても組織設定を表示し、メニューにメールアドレスを表示しない", async () => {
+  it("本人設定だけをcanonical accountへ向け、メールアドレスと旧組織設定を表示しない", async () => {
     const store = createStore();
     store.set(userAtom, {
       authId: "user_actor",
@@ -59,7 +58,6 @@ describe("UserMenu", () => {
         shopMembershipAddition: false,
       },
     });
-    store.set(selectedShopAtom, null);
     render(
       <Provider store={store}>
         <ChakraProvider>
@@ -71,13 +69,12 @@ describe("UserMenu", () => {
     fireEvent.click(screen.getByRole("button", { name: "ユーザーメニュー" }));
 
     expect(await screen.findByText("アカウント設定")).not.toBeNull();
-    expect(screen.queryByText("組織設定")).not.toBeNull();
+    expect(screen.queryByText("組織設定")).toBeNull();
     expect(screen.queryByText("convex@example.com")).toBeNull();
     expect(mocks.linkProps).toHaveBeenCalledWith({ to: "/account", search: undefined });
-    expect(mocks.linkProps).toHaveBeenCalledWith({ to: "/settings", search: {} });
   });
 
-  it("アカウント設定には選択中の店舗を引き継がず、組織設定だけに店舗を渡す", async () => {
+  it("ヘルプと問い合わせは別タブで開く", async () => {
     const store = createStore();
     store.set(userAtom, {
       authId: "user_actor",
@@ -89,15 +86,6 @@ describe("UserMenu", () => {
         shopMembershipAddition: false,
       },
     });
-    store.set(selectedShopAtom, {
-      shopId: "shop-a",
-      shopName: "A店",
-      shopStatus: "active",
-      organizationId: "organization-a",
-      organizationName: "A社",
-      organizationPlan: "free",
-      memberStatus: "active",
-    });
     render(
       <Provider store={store}>
         <ChakraProvider>
@@ -108,9 +96,7 @@ describe("UserMenu", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "ユーザーメニュー" }));
 
-    expect(await screen.findByText("アカウント設定")).not.toBeNull();
-    expect(screen.queryByText("組織設定")).not.toBeNull();
-    expect(mocks.linkProps).toHaveBeenCalledWith({ to: "/account", search: undefined });
-    expect(mocks.linkProps).toHaveBeenCalledWith({ to: "/settings", search: { shop: "shop-a" } });
+    expect((await screen.findByRole("menuitem", { name: "使い方・ヘルプ" })).getAttribute("target")).toBe("_blank");
+    expect(screen.getByRole("menuitem", { name: "お問い合わせ" }).getAttribute("target")).toBe("_blank");
   });
 });

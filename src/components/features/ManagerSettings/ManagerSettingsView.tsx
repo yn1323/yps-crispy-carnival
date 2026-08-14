@@ -17,9 +17,7 @@ import {
 
 type Props = {
   overview: ReadyManagerSettingsOverview;
-  shopId: string;
-  navigationMode?: "legacy" | "app";
-  organizationId?: Id<"organizations">;
+  organizationId: Id<"organizations">;
   title?: string;
   titleIcon?: IconType;
   backLabel?: string;
@@ -32,8 +30,6 @@ type Props = {
 
 export function ManagerSettingsView({
   overview,
-  shopId,
-  navigationMode = "legacy",
   organizationId,
   title = "管理者設定",
   titleIcon,
@@ -70,8 +66,6 @@ export function ManagerSettingsView({
             description="組織に登録済みのスタッフから選択"
             icon={LuUsers}
             destination="existingStaff"
-            shopId={shopId}
-            navigationMode={navigationMode}
             organizationId={organizationId}
             enabled={canIssueManagerAddition && overview.actions.canInviteExistingStaff}
             disabledReason={
@@ -83,8 +77,6 @@ export function ManagerSettingsView({
             description="経営者・本部担当者などをメールで招待"
             icon={LuMailPlus}
             destination="external"
-            shopId={shopId}
-            navigationMode={navigationMode}
             organizationId={organizationId}
             enabled={canIssueManagerAddition && overview.actions.canInviteExternal}
             disabledReason={
@@ -162,9 +154,7 @@ type ActionCardProps = {
   description: string;
   icon: typeof LuUsers;
   destination: "existingStaff" | "external";
-  shopId: string;
-  navigationMode: "legacy" | "app";
-  organizationId?: Id<"organizations">;
+  organizationId: Id<"organizations">;
   enabled: boolean;
   disabledReason?: string;
 };
@@ -174,8 +164,6 @@ function ManagerActionCard({
   description,
   icon,
   destination,
-  shopId,
-  navigationMode,
   organizationId,
   enabled,
   disabledReason,
@@ -241,32 +229,10 @@ function ManagerActionCard({
   }
 
   const link =
-    navigationMode === "app" ? (
-      destination === "existingStaff" ? (
-        <RouterLink
-          to="/app/manage/managers/invite-staff"
-          search={organizationId ? { org: organizationId } : {}}
-          preload="intent"
-          aria-labelledby={titleId}
-          aria-describedby={descriptionId}
-        >
-          {content}
-        </RouterLink>
-      ) : (
-        <RouterLink
-          to="/app/manage/managers/invite-new"
-          search={organizationId ? { org: organizationId } : {}}
-          preload="intent"
-          aria-labelledby={titleId}
-          aria-describedby={descriptionId}
-        >
-          {content}
-        </RouterLink>
-      )
-    ) : destination === "existingStaff" ? (
+    destination === "existingStaff" ? (
       <RouterLink
-        to="/settings/managers/invite-staff"
-        search={{ shop: shopId }}
+        to="/app/manage/managers/invite-staff"
+        search={{ org: organizationId }}
         preload="intent"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
@@ -275,8 +241,8 @@ function ManagerActionCard({
       </RouterLink>
     ) : (
       <RouterLink
-        to="/settings/managers/invite-new"
-        search={{ shop: shopId }}
+        to="/app/manage/managers/invite-new"
+        search={{ org: organizationId }}
         preload="intent"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}

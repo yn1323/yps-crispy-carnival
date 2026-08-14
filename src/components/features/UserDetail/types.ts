@@ -3,8 +3,6 @@ import type { api } from "@/convex/_generated/api";
 
 export type UserDetailPanel = "basic" | "line" | "addShop";
 
-export type UserDetailReturnTo = "dashboard" | "settings" | "shopDetail";
-
 export type UserDetailData = NonNullable<FunctionReturnType<typeof api.organization.userDetailQueries.getUserDetail>>;
 
 export type UserMembershipChangeInput = Omit<

@@ -17,14 +17,12 @@ type FormValues = z.infer<typeof managerExternalInviteFormSchema>;
 
 export function ManagerExternalInviteForm({
   overview,
-  shopId,
   organizationId,
 }: {
   overview: ReadyManagerSettingsOverview;
-  shopId?: string;
-  organizationId?: Id<"organizations">;
+  organizationId: Id<"organizations">;
 }) {
-  const controller = useManagerIssueController({ overview, shopId, organizationId });
+  const controller = useManagerIssueController({ overview, organizationId });
 
   return (
     <>

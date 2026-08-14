@@ -3,7 +3,7 @@ import { resolveAppOrganizationSwitchTarget } from "./appOrganizationSwitchTarge
 
 describe("resolveAppOrganizationSwitchTarget", () => {
   it.each([
-    ["/app/home", "/app/home"],
+    ["/dashboard", "/dashboard"],
     ["/app/shifts", "/app/shifts"],
     ["/app/staff", "/app/staff"],
     ["/app/actions", "/app/actions"],
@@ -33,8 +33,8 @@ describe("resolveAppOrganizationSwitchTarget", () => {
   });
 
   it("account・未定義route・空の組織IDには遷移先を作らない", () => {
-    expect(resolveAppOrganizationSwitchTarget("/app/account", "organization-b")).toBeNull();
+    expect(resolveAppOrganizationSwitchTarget("/account", "organization-b")).toBeNull();
     expect(resolveAppOrganizationSwitchTarget("/app/unknown", "organization-b")).toBeNull();
-    expect(resolveAppOrganizationSwitchTarget("/app/home", "  ")).toBeNull();
+    expect(resolveAppOrganizationSwitchTarget("/dashboard", "  ")).toBeNull();
   });
 });

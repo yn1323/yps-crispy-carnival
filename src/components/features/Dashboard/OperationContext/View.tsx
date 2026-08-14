@@ -13,7 +13,6 @@ import {
   Text,
   VisuallyHidden,
 } from "@chakra-ui/react";
-import { Link as RouterLink } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { LuBuilding2, LuCheck, LuChevronDown, LuChevronRight, LuSettings, LuStore } from "react-icons/lu";
 import { Button, IconButton } from "@/src/components/ui/Button";
@@ -36,7 +35,6 @@ export type OperationContextViewProps = {
   organizationChangeOptions?: readonly OperationContextOrganizationChangeOption[];
   onOrganizationChange?: (targetId: string) => void;
   onOpenShopDetail: () => void;
-  organizationSettingsShopId?: string;
   onOpenOrganizationSettings?: () => void;
   planStatusCard?: PlanStatusCardProps | null;
   billingSettingsShopId?: string;
@@ -57,7 +55,6 @@ export const OperationContextView = ({
   organizationChangeOptions,
   onOrganizationChange,
   onOpenShopDetail,
-  organizationSettingsShopId,
   onOpenOrganizationSettings,
   planStatusCard,
   billingSettingsShopId,
@@ -79,7 +76,7 @@ export const OperationContextView = ({
       targetId: option.shopId,
     }));
   const handleOrganizationChange = onOrganizationChange ?? onShopSelect;
-  const hasOrganizationSettingsAction = Boolean(organizationSettingsShopId || onOpenOrganizationSettings);
+  const hasOrganizationSettingsAction = onOpenOrganizationSettings !== undefined;
   const hasAccordionContent = Boolean(
     hasOrganizationSettingsAction || planStatusCard || resolvedOrganizationChangeOptions.length > 0,
   );
@@ -160,7 +157,6 @@ export const OperationContextView = ({
                   {hasOrganizationSettingsAction && (
                     <OrganizationSettingsAction
                       organizationName={model.selectedGroup.organizationName}
-                      shopId={organizationSettingsShopId}
                       onOpen={onOpenOrganizationSettings}
                       withBorder={Boolean(planStatusCard)}
                     />
@@ -176,7 +172,7 @@ export const OperationContextView = ({
                       key={option.key}
                       organizationName={option.organizationName}
                       targetId={option.targetId}
-                      withBorder={Boolean(planStatusCard || organizationSettingsShopId || index > 0)}
+                      withBorder={Boolean(planStatusCard || onOpenOrganizationSettings || index > 0)}
                       onSelect={handleOrganizationChange}
                     />
                   ))}
@@ -254,13 +250,11 @@ const getBillingAction = (data: PlanStatusCardData): BillingAction => {
 
 const OrganizationSettingsAction = ({
   organizationName,
-  shopId,
   onOpen,
   withBorder,
 }: {
   organizationName: string;
-  shopId?: string;
-  onOpen?: () => void;
+  onOpen: () => void;
   withBorder: boolean;
 }) => {
   const content = (
@@ -294,21 +288,9 @@ const OrganizationSettingsAction = ({
     },
   };
 
-  if (onOpen) {
-    return (
-      <Button type="button" aria-label={`${organizationName}の組織設定を開く`} {...buttonProps} onClick={onOpen}>
-        {content}
-      </Button>
-    );
-  }
-
-  if (!shopId) return null;
-
   return (
-    <Button asChild {...buttonProps}>
-      <RouterLink to="/settings" search={{ shop: shopId }} aria-label={`${organizationName}の組織設定を開く`}>
-        {content}
-      </RouterLink>
+    <Button type="button" aria-label={`${organizationName}の組織設定を開く`} {...buttonProps} onClick={onOpen}>
+      {content}
     </Button>
   );
 };

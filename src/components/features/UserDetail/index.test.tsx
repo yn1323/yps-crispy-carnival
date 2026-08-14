@@ -13,8 +13,8 @@ const mocks = vi.hoisted(() => ({
   useLineActions: vi.fn(),
   featureVisibilityAtom: Symbol("featureVisibilityAtom"),
   featureVisibility: {
-    organizationSettingsNavigation: true,
-    billing: true,
+    organizationSettingsNavigation: false,
+    billing: false,
     shopMembershipAddition: true,
   },
   removalOptions: undefined as undefined | { onPersonRemoved: (personId: string) => void },
@@ -32,9 +32,7 @@ vi.mock("jotai", () => ({
   },
 }));
 
-vi.mock("@/src/stores/user", () => ({
-  featureVisibilityAtom: mocks.featureVisibilityAtom,
-}));
+vi.mock("@/src/stores/user", () => ({ featureVisibilityAtom: mocks.featureVisibilityAtom }));
 
 vi.mock("./UserDetailView", () => ({
   UserDetailView: ({
@@ -90,18 +88,13 @@ vi.mock("./UserDetailView", () => ({
 vi.mock("./useUserProfileUpdate", () => ({
   useUserProfileUpdate: () => ({ isUpdating: false, update: mocks.updateProfile }),
 }));
-
-vi.mock("./useUserLineActions", () => ({
-  useUserLineActions: mocks.useLineActions,
-}));
-
+vi.mock("./useUserLineActions", () => ({ useUserLineActions: mocks.useLineActions }));
 vi.mock("./useUserMembershipActions", () => ({
   useUserMembershipActions: () => ({
     isChangingMemberships: false,
     onChangeMemberships: mocks.changeMemberships,
   }),
 }));
-
 vi.mock("./useUserRemovalActions", () => ({
   useUserRemovalActions: (options: { onPersonRemoved: (personId: string) => void }) => {
     mocks.removalOptions = options;
@@ -117,14 +110,15 @@ vi.mock("./useUserRemovalActions", () => ({
 
 import { UserDetail } from ".";
 
+const organizationId = "organization-a" as Id<"organizations">;
 const data = {
   person: { id: "person-1", name: "田中 花子", email: "hanako@example.com" },
   isSelf: false,
   canWrite: true,
-  shops: [],
+  line: { actionShopId: "shop-a" },
+  shops: [{ shopId: "shop-a", shopStatus: "active" }],
   memberships: [],
 } as unknown as UserDetailData;
-
 const membershipChangeInput = {
   shopId: "shop-c",
   desiredActiveShopIds: ["shop-c"],
@@ -156,22 +150,8 @@ beforeEach(() => {
 });
 
 describe("UserDetail", () => {
-  it("app導線はモーダルをlocal stateで開き、orgを保って親一覧・店舗別設定・管理者設定へ遷移する", () => {
-    const organizationId = "organization-a" as Id<"organizations">;
-    const appData = {
-      ...data,
-      line: { actionShopId: "shop-a" },
-      shops: [{ shopId: "shop-a", shopStatus: "active" }],
-    } as UserDetailData;
-    render(
-      <UserDetail
-        data={appData}
-        selectedShopId={null}
-        returnTo="dashboard"
-        visibleUserCount={10}
-        appOrganizationId={organizationId}
-      />,
-    );
+  it("panelをlocal stateで開き、canonical組織scopeの詳細と管理へ遷移する", () => {
+    render(<UserDetail data={data} organizationId={organizationId} />);
 
     fireEvent.click(screen.getByRole("button", { name: "スタッフ情報を開く" }));
     expect(screen.getByTestId("active-panel").textContent).toBe("basic");
@@ -183,266 +163,101 @@ describe("UserDetail", () => {
       params: { personId: "person-1", shopId: "shop-b" },
       search: { org: organizationId },
     });
-
     fireEvent.click(screen.getByRole("button", { name: "管理者設定を開く" }));
     expect(mocks.navigate).toHaveBeenNthCalledWith(2, {
       to: "/app/manage/managers",
       search: { org: organizationId },
     });
-
-    fireEvent.click(screen.getByRole("button", { name: "戻る" }));
-    expect(mocks.historyBack).toHaveBeenCalledOnce();
-    expect(mocks.navigate).toHaveBeenCalledTimes(2);
   });
 
-  it("スタッフ情報の更新が成功したら編集モーダルを閉じる", async () => {
-    mocks.updateProfile.mockResolvedValue(true);
-    render(
-      <UserDetail data={data} selectedShopId="shop-a" activePanel="basic" returnTo="dashboard" visibleUserCount={10} />,
-    );
+  it("スタッフ情報の更新に成功した場合だけ編集中panelを閉じる", async () => {
+    mocks.updateProfile.mockResolvedValueOnce(true);
+    render(<UserDetail data={data} organizationId={organizationId} />);
+    fireEvent.click(screen.getByRole("button", { name: "スタッフ情報を開く" }));
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "スタッフ情報を保存" }));
     });
-
-    expect(mocks.navigate).toHaveBeenCalledTimes(1);
-    const closeNavigation = mocks.navigate.mock.calls[0]?.[0];
-    expect(closeNavigation).toMatchObject({ to: ".", replace: true, resetScroll: false });
-    expect(closeNavigation.search({ shop: "shop-a", panel: "basic", returnTo: "dashboard" })).toEqual({
-      shop: "shop-a",
-      panel: undefined,
-      returnTo: "dashboard",
-    });
-  });
-
-  it("スタッフ情報の更新に失敗したら編集モーダルを閉じない", async () => {
-    mocks.updateProfile.mockResolvedValue(false);
-    render(
-      <UserDetail data={data} selectedShopId="shop-a" activePanel="basic" returnTo="dashboard" visibleUserCount={10} />,
-    );
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "スタッフ情報を保存" }));
-    });
-
-    expect(mocks.navigate).not.toHaveBeenCalled();
-  });
-
-  it("基本情報、LINE連携、店舗追加のパネルをURL検索条件で開く", () => {
-    render(<UserDetail data={data} selectedShopId={null} returnTo="dashboard" visibleUserCount={10} />);
+    expect(screen.getByTestId("active-panel").textContent).toBe("closed");
 
     fireEvent.click(screen.getByRole("button", { name: "スタッフ情報を開く" }));
-    fireEvent.click(screen.getByRole("button", { name: "LINE連携を開く" }));
+    mocks.updateProfile.mockResolvedValueOnce(false);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "スタッフ情報を保存" }));
+    });
+    expect(screen.getByTestId("active-panel").textContent).toBe("basic");
+  });
+
+  it("未公開の店舗追加機能はpanelを開かずmutationも呼ばない", () => {
+    mocks.featureVisibility.shopMembershipAddition = false;
+    render(<UserDetail data={data} organizationId={organizationId} />);
+
     fireEvent.click(screen.getByRole("button", { name: "店舗追加を開く" }));
+    fireEvent.click(screen.getByRole("button", { name: "所属店舗を変更する" }));
 
-    const openBasicNavigation = mocks.navigate.mock.calls[0]?.[0];
-    expect(openBasicNavigation).toMatchObject({ to: ".", replace: true, resetScroll: false });
-    expect(openBasicNavigation.search({ shop: "shop-a", returnTo: "dashboard" })).toEqual({
-      shop: "shop-a",
-      panel: "basic",
-      returnTo: "dashboard",
-    });
-
-    const openLineNavigation = mocks.navigate.mock.calls[1]?.[0];
-    expect(openLineNavigation).toMatchObject({ to: ".", replace: true, resetScroll: false });
-    expect(openLineNavigation.search({ shop: "shop-a", returnTo: "dashboard" })).toEqual({
-      shop: "shop-a",
-      panel: "line",
-      returnTo: "dashboard",
-    });
-
-    const openAddShopNavigation = mocks.navigate.mock.calls[2]?.[0];
-    expect(openAddShopNavigation).toMatchObject({ to: ".", replace: true, resetScroll: false });
-    expect(openAddShopNavigation.search({ shop: "shop-a", returnTo: "dashboard" })).toEqual({
-      shop: "shop-a",
-      panel: "addShop",
-      returnTo: "dashboard",
-    });
+    expect(screen.getByTestId("active-panel").textContent).toBe("closed");
+    expect(mocks.changeMemberships).not.toHaveBeenCalled();
   });
 
-  it("所属店舗を押すと出発店舗を変えず専用ページへ通常pushし、戻り先情報を維持する", () => {
-    render(
-      <UserDetail
-        data={data}
-        selectedShopId="shop-a"
-        returnTo="shopDetail"
-        returnShopId="shop-origin"
-        returnShopTo="dashboard"
-        visibleUserCount={30}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "店舗別設定を開く" }));
-
-    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
-      to: "/users/$personId/shops/$targetShopId",
-      params: { personId: "person-1", targetShopId: "shop-b" },
-      search: {
-        shop: "shop-a",
-        returnTo: "shopDetail",
-        returnShop: "shop-origin",
-        returnShopTo: "dashboard",
-        users: 30,
-      },
-    });
-    expect(mocks.navigate.mock.calls[0]?.[0]).not.toHaveProperty("replace");
-  });
-
-  it("店舗所属がない人物でも選択中店舗から管理者設定を開く", () => {
-    render(<UserDetail data={data} selectedShopId="shop-a" returnTo="dashboard" visibleUserCount={10} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "管理者設定を開く" }));
-
-    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
-      to: "/settings/managers",
-      search: { shop: "shop-a" },
-    });
-  });
-
-  it("戻る操作では現在のブラウザ履歴へ戻る", () => {
-    render(
-      <UserDetail data={data} selectedShopId="shop-b" activePanel="basic" returnTo="settings" visibleUserCount={30} />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "戻る" }));
-
-    expect(mocks.historyBack).toHaveBeenCalledOnce();
-    expect(mocks.navigate).not.toHaveBeenCalled();
-  });
-
-  it("所属店舗変更の完了前に別パネルへ移った場合は、そのパネルを閉じない", async () => {
+  it("所属変更中に別panelへ移った場合は古い完了応答で閉じない", async () => {
     let resolveChange: ((value: boolean) => void) | undefined;
     const change = new Promise<boolean>((resolve) => {
       resolveChange = resolve;
     });
     mocks.changeMemberships.mockReturnValue(change);
-    const { rerender } = render(
-      <UserDetail
-        data={data}
-        selectedShopId="shop-a"
-        activePanel="addShop"
-        returnTo="dashboard"
-        visibleUserCount={10}
-      />,
-    );
+    render(<UserDetail data={data} organizationId={organizationId} />);
 
+    fireEvent.click(screen.getByRole("button", { name: "店舗追加を開く" }));
     fireEvent.click(screen.getByRole("button", { name: "所属店舗を変更する" }));
-    rerender(
-      <UserDetail data={data} selectedShopId="shop-a" activePanel="basic" returnTo="dashboard" visibleUserCount={10} />,
-    );
+    fireEvent.click(screen.getByRole("button", { name: "スタッフ情報を開く" }));
     await act(async () => {
       resolveChange?.(true);
       await change;
     });
 
-    expect(mocks.navigate).not.toHaveBeenCalled();
+    expect(screen.getByTestId("active-panel").textContent).toBe("basic");
   });
 
-  it("所属店舗変更の完了前に別人物へ移った場合は、古い応答でパネルを閉じない", async () => {
-    let resolveChange: ((value: boolean) => void) | undefined;
-    const change = new Promise<boolean>((resolve) => {
-      resolveChange = resolve;
-    });
-    mocks.changeMemberships.mockReturnValue(change);
-    const { rerender } = render(
-      <UserDetail
-        data={data}
-        selectedShopId="shop-a"
-        activePanel="addShop"
-        returnTo="dashboard"
-        visibleUserCount={10}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "所属店舗を変更する" }));
-    const nextData: UserDetailData = {
-      ...data,
-      person: { ...data.person, id: "person-2" as UserDetailData["person"]["id"] },
-    };
-    rerender(
-      <UserDetail
-        data={nextData}
-        selectedShopId="shop-a"
-        activePanel="addShop"
-        returnTo="dashboard"
-        visibleUserCount={10}
-      />,
-    );
-    await act(async () => {
-      resolveChange?.(true);
-      await change;
-    });
-
-    expect(mocks.navigate).not.toHaveBeenCalled();
-  });
-
-  it("人物削除の完了前に別人物へ移った場合は、古い応答で画面遷移しない", () => {
-    const { rerender } = render(
-      <UserDetail data={data} selectedShopId="shop-a" activePanel="basic" returnTo="dashboard" visibleUserCount={10} />,
-    );
+  it("人物切替前の削除完了応答では遷移しない", () => {
+    const { rerender } = render(<UserDetail data={data} organizationId={organizationId} />);
     const previousRemovalCallback = mocks.removalOptions?.onPersonRemoved;
-    const nextData: UserDetailData = {
+    const nextData = {
       ...data,
       person: { ...data.person, id: "person-2" as UserDetailData["person"]["id"] },
     };
 
-    rerender(
-      <UserDetail
-        data={nextData}
-        selectedShopId="shop-a"
-        activePanel="basic"
-        returnTo="dashboard"
-        visibleUserCount={10}
-      />,
-    );
+    rerender(<UserDetail data={nextData} organizationId={organizationId} />);
     previousRemovalCallback?.("person-1");
 
     expect(mocks.navigate).not.toHaveBeenCalled();
   });
 
-  it("Dashboard起点で人物を削除すると削除済み人物へfocusせずDashboardへ戻る", () => {
-    render(<UserDetail data={data} selectedShopId="shop-a" returnTo="dashboard" visibleUserCount={30} />);
+  it("他人の削除後は同じ組織のstaff一覧へ戻る", () => {
+    render(<UserDetail data={data} organizationId={organizationId} />);
 
     mocks.removalOptions?.onPersonRemoved("person-1");
 
     expect(mocks.navigate).toHaveBeenCalledWith({
-      to: "/dashboard",
-      search: { shop: "shop-a", users: 30 },
+      to: "/app/staff",
+      search: { org: organizationId },
       replace: true,
     });
   });
 
-  it("本人削除後は起点にかかわらず店舗指定を外してDashboardへ戻る", () => {
-    render(
-      <UserDetail data={{ ...data, isSelf: true }} selectedShopId="shop-a" returnTo="settings" visibleUserCount={30} />,
-    );
+  it("本人削除後は削除済みorgを外してcanonical Dashboardを再解決する", () => {
+    render(<UserDetail data={{ ...data, isSelf: true }} organizationId={organizationId} />);
 
     mocks.removalOptions?.onPersonRemoved("person-1");
 
-    expect(mocks.navigate).toHaveBeenCalledWith({
-      to: "/dashboard",
-      search: { shop: undefined },
-      replace: true,
-    });
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: "/dashboard", search: {}, replace: true });
   });
 
-  it("appで本人を削除した後は削除済みorgを保持せずcanonical組織を再解決する", () => {
-    render(
-      <UserDetail
-        data={{ ...data, isSelf: true, line: { actionShopId: "shop-a" } } as UserDetailData}
-        selectedShopId={null}
-        returnTo="dashboard"
-        visibleUserCount={10}
-        appOrganizationId={"organization-a" as Id<"organizations">}
-      />,
-    );
+  it("戻る操作は現在のブラウザ履歴へ戻る", () => {
+    render(<UserDetail data={data} organizationId={organizationId} />);
 
-    mocks.removalOptions?.onPersonRemoved("person-1");
+    fireEvent.click(screen.getByRole("button", { name: "戻る" }));
 
-    expect(mocks.navigate).toHaveBeenCalledWith({
-      to: "/app/home",
-      search: {},
-      replace: true,
-    });
+    expect(mocks.historyBack).toHaveBeenCalledOnce();
+    expect(mocks.navigate).not.toHaveBeenCalled();
   });
 });

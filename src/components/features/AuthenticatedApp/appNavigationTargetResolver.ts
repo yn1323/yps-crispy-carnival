@@ -4,7 +4,7 @@ import {
   normalizeAppRouteSearch,
 } from "./appRoutePolicy";
 
-type AppNavigationScopeSearch<Path extends AppNavigationPath> = Path extends "/app/account"
+type AppNavigationScopeSearch<Path extends AppNavigationPath> = Path extends "/account"
   ? Readonly<{ org?: never }>
   : Readonly<{ org?: string }>;
 

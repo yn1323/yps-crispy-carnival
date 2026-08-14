@@ -68,15 +68,18 @@ export type StaffRegistrationRequest = {
   name: string;
   email: string;
   createdAt: number;
+  /** rolling deploy中に旧backendから欠損した場合は、承認不可として扱う。 */
+  canApprove?: boolean;
+  approveDisabledReason?: string | null;
 };
 
 export type DashboardNavigation = {
-  onOpenBillingSettings?: () => void;
-  onOpenOrganizationSettings?: () => void;
-  onOpenShopDetail?: (shopId: string) => void;
-  onOpenShiftBoard?: (recruitmentId: Recruitment["_id"]) => void;
-  onOpenStaffDetail?: (personId: Id<"organizationPeople">, visibleUserCount: number) => void;
-  onManageManagers?: () => void;
+  onOpenBillingSettings: () => void;
+  onOpenOrganizationSettings: () => void;
+  onOpenShopDetail: (shopId: string) => void;
+  onOpenShiftBoard: (recruitmentId: Recruitment["_id"]) => void;
+  onOpenStaffDetail: (personId: Id<"organizationPeople">, visibleUserCount: number) => void;
+  onManageManagers: () => void;
 };
 
 export type DashboardAnnouncement = {

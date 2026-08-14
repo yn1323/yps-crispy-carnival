@@ -56,9 +56,13 @@ export function ManagerInvitationAcceptance({ token }: Props) {
     : null;
 
   useEffect(() => {
-    if (!destinationShop) return;
-    void navigate({ to: "/dashboard", search: { shop: destinationShop.shopId }, replace: true });
-  }, [destinationShop, navigate]);
+    if (!destinationShop || !linkedTarget) return;
+    void navigate({
+      to: "/dashboard",
+      search: { org: linkedTarget.organizationId, shop: destinationShop.shopId },
+      replace: true,
+    });
+  }, [destinationShop, linkedTarget, navigate]);
 
   const createEmailAddress = useReverification(async (email: string) => {
     if (!user) throw new Error("Clerk user is not available");
@@ -241,7 +245,16 @@ export function ManagerInvitationAcceptance({ token }: Props) {
         onVerifyCode: ({ code }) => void verifyCode(code),
         onResendCode: () => void resendCode(),
         onBackToVerificationInput: backToEmailInput,
-        onGoToDashboard: () => void navigate({ to: "/dashboard" }),
+        onGoToDashboard: () =>
+          void navigate({
+            to: "/dashboard",
+            search: linkedTarget
+              ? {
+                  org: linkedTarget.organizationId,
+                  ...(linkedTarget.shopId ? { shop: linkedTarget.shopId } : {}),
+                }
+              : {},
+          }),
       }}
     />
   );

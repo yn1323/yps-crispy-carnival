@@ -39,12 +39,7 @@ export const ChoosePro: Story = {
   args: {
     resolution: { kind: "choosePaidPlan", current: 5, max: 5 },
     retryActionLabel: "スタッフを追加",
-  },
-  play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByRole("link", { name: "プランと支払いを確認" })).toHaveAttribute(
-      "href",
-      "/settings?tab=billing",
-    );
+    onOpenBillingSettings: () => {},
   },
 };
 
@@ -76,9 +71,9 @@ export const ChooseProWithLegacyClosedFeatureState: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("link", { name: "プランと支払いを確認" })).toHaveAttribute(
+    await expect(canvas.getByRole("link", { name: "利用上限について問い合わせる" })).toHaveAttribute(
       "href",
-      "/settings?tab=billing",
+      "/contact",
     );
   },
 };

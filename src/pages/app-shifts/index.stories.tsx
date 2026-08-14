@@ -4,6 +4,8 @@ import { useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
 import { RecruitmentBoard } from "@/src/components/features/Dashboard/RecruitmentBoard";
 import type { DashboardRecruitmentGroup, Recruitment } from "@/src/components/features/Dashboard/types";
+import { AuthenticatedAppShell } from "@/src/components/templates/AuthenticatedAppShell";
+import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
 import { AppShiftsOverviewView, AppShiftsPageStateView } from ".";
 
 const recruitment = (overrides: Partial<Recruitment> = {}): Recruitment =>
@@ -99,6 +101,16 @@ function ReadyPreview({ isReadOnly = false }: { isReadOnly?: boolean }) {
   );
 }
 
+function AppCompositionPreview() {
+  return (
+    <AuthenticatedAppShell activeKey="shifts" activeOrganizationId="organization-preview">
+      <AuthenticatedPageContent includeMobileNavigation>
+        <ReadyPreview />
+      </AuthenticatedPageContent>
+    </AuthenticatedAppShell>
+  );
+}
+
 const meta = {
   title: "Pages/AppShifts/States",
   component: AppShiftsPageStateView,
@@ -133,6 +145,19 @@ export const ReadyMobile: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
   render: () => <ReadyPreview />,
+};
+
+export const AppCompositionDesktop: Story = {
+  name: "シフト一覧・新shell・デスクトップ",
+  parameters: { layout: "fullscreen", vrt: { releaseFixedHeader: true } },
+  render: () => <AppCompositionPreview />,
+};
+
+export const AppCompositionMobile: Story = {
+  ...AppCompositionDesktop,
+  name: "シフト一覧・新shell・モバイル414px",
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
 };
 
 export const ReadOnlyMobile: Story = {

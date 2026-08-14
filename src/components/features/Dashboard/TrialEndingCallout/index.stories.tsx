@@ -7,8 +7,8 @@ const meta = {
   component: TrialEndingCalloutView,
   args: {
     finalDateLabel: "8月31日",
-    shopId: "shop-trial-ending",
     isBillingVisible: true,
+    onOpenBillingSettings: () => {},
   },
   parameters: {
     layout: "padded",
@@ -25,10 +25,7 @@ export const Desktop: Story = {
       canvas.getByText("未契約のまま終了すると利用停止になりますが、組織のデータは削除されません。"),
     ).toBeVisible();
     await expect(canvas.getByText("継続して利用するには、ProまたはBusinessを選択してください。")).toBeVisible();
-    await expect(canvas.getByRole("link", { name: "プランと支払いを見る" })).toHaveAttribute(
-      "href",
-      "/settings?shop=shop-trial-ending&tab=billing",
-    );
+    await expect(canvas.getByRole("button", { name: "プランと支払いを見る" })).toBeVisible();
   },
 };
 
@@ -45,7 +42,7 @@ export const BillingHidden: Story = {
     screenshot: { skip: true },
   },
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).queryByRole("link", { name: "プランと支払いを見る" })).toBeNull();
+    await expect(within(canvasElement).queryByRole("button", { name: "プランと支払いを見る" })).toBeNull();
     await expect(within(canvasElement).queryByRole("status")).toBeNull();
   },
 };

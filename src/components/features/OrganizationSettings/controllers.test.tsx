@@ -23,14 +23,6 @@ const mocks = vi.hoisted(() => ({
   toasterCreate: vi.fn(),
   openBillingUrl: vi.fn(),
   setAtom: vi.fn(),
-  selectedShop: {
-    shopId: "shop-current",
-    shopName: "渋谷店",
-    shopStatus: "active" as const,
-    organizationId: "organization-1",
-    organizationName: "さくらダイニング",
-    memberStatus: "active" as const,
-  },
 }));
 
 vi.mock("convex/react", async () => {
@@ -74,7 +66,6 @@ vi.mock("./BillingSettings/openBillingUrl", () => ({
 
 vi.mock("jotai", async (importOriginal) => ({
   ...(await importOriginal<typeof import("jotai")>()),
-  useAtomValue: () => mocks.selectedShop,
   useSetAtom: () => mocks.setAtom,
 }));
 
@@ -102,8 +93,9 @@ const billing: OrganizationBillingView = {
   canScheduleFree: true,
 };
 
+const organizationId = "organization-app" as Id<"organizations">;
+
 beforeEach(() => {
-  mocks.selectedShop.shopId = "shop-current";
   mocks.mutation.mockReset();
   for (const action of Object.values(mocks.actions)) action.mockReset();
   mocks.showErrorToast.mockReset();
@@ -119,11 +111,11 @@ afterEach(() => {
 });
 
 describe("OrganizationSettings controllers", () => {
-  it("app組織名変更はselectedShopではなく明示organizationIdを送る", async () => {
+  it("組織名変更は明示organizationIdを送る", async () => {
     mocks.mutation.mockResolvedValue({ changed: true });
     const { result } = renderHook(() =>
       useOrganizationNameController({
-        organizationId: "organization-app" as never,
+        organizationId,
         organizationName: "さくらダイニング",
         canUpdateOrganizationName: true,
       }),
@@ -141,11 +133,9 @@ describe("OrganizationSettings controllers", () => {
     );
   });
 
-  it("app店舗追加はselectedShopではなく明示organizationIdを送る", async () => {
+  it("店舗追加は明示organizationIdを送る", async () => {
     mocks.mutation.mockResolvedValue({ changed: true });
-    const { result } = renderHook(() =>
-      useShopManagementController({ organizationId: "organization-app" as never, canAddShop: true }),
-    );
+    const { result } = renderHook(() => useShopManagementController({ organizationId, canAddShop: true }));
     const data = {
       shopName: "新宿店",
       regularClosedDays: [],
@@ -164,11 +154,9 @@ describe("OrganizationSettings controllers", () => {
     });
   });
 
-  it("app請求先変更はselectedShopではなく明示organizationIdを送る", async () => {
+  it("請求先変更は明示organizationIdを送る", async () => {
     mocks.mutation.mockResolvedValue({ changed: true });
-    const { result } = renderHook(() =>
-      useBillingSettingsController({ organizationId: "organization-app" as never, billing }),
-    );
+    const { result } = renderHook(() => useBillingSettingsController({ organizationId, billing }));
 
     act(() => result.current.updateBillingEmail());
     act(() => result.current.dialog.onSubmit("new-billing@example.com"));
@@ -182,7 +170,7 @@ describe("OrganizationSettings controllers", () => {
     );
   });
 
-  it("app課金controllerは料金取得にselectedShopではなく明示organizationIdを使う", async () => {
+  it("課金controllerは料金取得に明示organizationIdを使う", async () => {
     mocks.actions.getProPrice.mockResolvedValue({
       status: "available",
       currency: "jpy",
@@ -194,7 +182,7 @@ describe("OrganizationSettings controllers", () => {
 
     renderHook(() =>
       useStripeBillingController({
-        organizationId: "organization-app" as never,
+        organizationId,
         organizationName: "さくらダイニング",
         billing,
       }),
@@ -210,7 +198,11 @@ describe("OrganizationSettings controllers", () => {
   it("組織名の変更中に権限を失うとDialogを閉じ、古いsubmitからmutationを呼ばない", async () => {
     const { result, rerender } = renderHook(
       ({ canUpdate }) =>
-        useOrganizationNameController({ organizationName: "さくらダイニング", canUpdateOrganizationName: canUpdate }),
+        useOrganizationNameController({
+          organizationId,
+          organizationName: "さくらダイニング",
+          canUpdateOrganizationName: canUpdate,
+        }),
       { initialProps: { canUpdate: true } },
     );
     act(() => result.current.open());
@@ -225,12 +217,12 @@ describe("OrganizationSettings controllers", () => {
 
   it("店舗追加の権限を失うとDialogを閉じ、古いsubmitからmutationを呼ばない", async () => {
     const { result, rerender } = renderHook((input) => useShopManagementController(input), {
-      initialProps: { canAddShop: true },
+      initialProps: { organizationId, canAddShop: true },
     });
     act(() => result.current.addShop());
     const staleSubmit = result.current.dialog.onSubmit;
 
-    rerender({ canAddShop: false });
+    rerender({ organizationId, canAddShop: false });
 
     await waitFor(() => expect(result.current.dialog.dialog).toBeNull());
     await act(async () => {
@@ -255,7 +247,7 @@ describe("OrganizationSettings controllers", () => {
         }),
     );
     const { result } = renderHook((input) => useShopManagementController(input), {
-      initialProps: { canAddShop: true },
+      initialProps: { organizationId, canAddShop: true },
     });
     const operation = {
       kind: "addShop" as const,
@@ -275,7 +267,7 @@ describe("OrganizationSettings controllers", () => {
     await waitFor(() =>
       expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
         ...operation.data,
-        shopId: "shop-current",
+        organizationId: "organization-app",
         requestId: "request-1",
       }),
     );
@@ -287,17 +279,18 @@ describe("OrganizationSettings controllers", () => {
     );
   });
 
-  it("組織作成は連絡先の引継元店舗を送り、一度だけ実行して作成した店舗へ遷移する", async () => {
+  it("組織作成は対象組織を送り、一度だけ実行して作成した組織と店舗を完了先へ渡す", async () => {
     let resolveMutation: ((shopId: string) => void) | undefined;
     mocks.mutation.mockImplementation(
       () =>
         new Promise((resolve) => {
-          resolveMutation = (shopId: string) => resolve({ shopId, created: true });
+          resolveMutation = (shopId: string) =>
+            resolve({ organizationId: "organization-created", shopId, created: true });
         }),
     );
     const onCreated = vi.fn();
     const { result } = renderHook((input) => useOrganizationCreationController(input), {
-      initialProps: { canCreateOrganization: true, onCreated },
+      initialProps: { organizationId, canCreateOrganization: true, onCreated },
     });
     const data = {
       shopName: "二つ目の店舗",
@@ -314,7 +307,7 @@ describe("OrganizationSettings controllers", () => {
     await waitFor(() =>
       expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
         ...data,
-        sourceShopId: "shop-current",
+        organizationId: "organization-app",
         requestId: "request-1",
       }),
     );
@@ -324,11 +317,11 @@ describe("OrganizationSettings controllers", () => {
         title: "新しい組織を作りました",
       }),
     );
-    expect(onCreated).toHaveBeenCalledExactlyOnceWith("shop-created");
+    expect(onCreated).toHaveBeenCalledExactlyOnceWith("shop-created", "organization-created");
     expect(result.current.dialog.dialog).toBeNull();
   });
 
-  it("app組織作成はselectedShopを送らず、作成したorganizationIdを完了先へ渡す", async () => {
+  it("組織作成は作成したorganizationIdを完了先へ渡す", async () => {
     mocks.mutation.mockResolvedValue({
       organizationId: "organization-created",
       shopId: "shop-created",
@@ -338,9 +331,7 @@ describe("OrganizationSettings controllers", () => {
     const { result } = renderHook(() =>
       useOrganizationCreationController({
         canCreateOrganization: true,
-        appMode: true,
-        organizationId: "organization-current" as Id<"organizations">,
-        sourceShopId: null,
+        organizationId,
         onCreated,
       }),
     );
@@ -357,7 +348,7 @@ describe("OrganizationSettings controllers", () => {
 
     expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
       ...data,
-      organizationId: "organization-current",
+      organizationId: "organization-app",
       requestId: "request-1",
     });
     expect(onCreated).toHaveBeenCalledExactlyOnceWith("shop-created", "organization-created");
@@ -370,11 +361,15 @@ describe("OrganizationSettings controllers", () => {
     const error = new Error("network unavailable");
     mocks.mutation
       .mockRejectedValueOnce(error)
-      .mockResolvedValueOnce({ shopId: "shop-created", created: false })
-      .mockResolvedValueOnce({ shopId: "shop-created-next", created: true });
+      .mockResolvedValueOnce({ organizationId: "organization-created", shopId: "shop-created", created: false })
+      .mockResolvedValueOnce({
+        organizationId: "organization-created-next",
+        shopId: "shop-created-next",
+        created: true,
+      });
     const onCreated = vi.fn();
     const { result } = renderHook((input) => useOrganizationCreationController(input), {
-      initialProps: { canCreateOrganization: true, onCreated },
+      initialProps: { organizationId, canCreateOrganization: true, onCreated },
     });
     const data = {
       shopName: "二つ目の店舗",
@@ -402,7 +397,7 @@ describe("OrganizationSettings controllers", () => {
     expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
       title: "新しい組織を作りました",
     });
-    expect(onCreated).toHaveBeenCalledExactlyOnceWith("shop-created");
+    expect(onCreated).toHaveBeenCalledExactlyOnceWith("shop-created", "organization-created");
     expect(result.current.dialog.dialog).toBeNull();
 
     act(() => result.current.createOrganization());
@@ -412,7 +407,7 @@ describe("OrganizationSettings controllers", () => {
 
     expect(mocks.mutation.mock.calls.map(([args]) => args.requestId)).toEqual(["request-1", "request-1", "request-2"]);
     expect(onCreated).toHaveBeenCalledTimes(2);
-    expect(onCreated).toHaveBeenLastCalledWith("shop-created-next");
+    expect(onCreated).toHaveBeenLastCalledWith("shop-created-next", "organization-created-next");
   });
 
   it("組織作成は失敗したDialogを閉じて開き直すと新しいrequestIdを使う", async () => {
@@ -421,10 +416,10 @@ describe("OrganizationSettings controllers", () => {
     });
     mocks.mutation
       .mockRejectedValueOnce(new Error("network unavailable"))
-      .mockResolvedValueOnce({ shopId: "shop-created", created: true });
+      .mockResolvedValueOnce({ organizationId: "organization-created", shopId: "shop-created", created: true });
     const onCreated = vi.fn();
     const { result } = renderHook((input) => useOrganizationCreationController(input), {
-      initialProps: { canCreateOrganization: true, onCreated },
+      initialProps: { organizationId, canCreateOrganization: true, onCreated },
     });
     const data = {
       shopName: "二つ目の店舗",
@@ -445,7 +440,7 @@ describe("OrganizationSettings controllers", () => {
     });
 
     expect(mocks.mutation.mock.calls.map(([args]) => args.requestId)).toEqual(["request-1", "request-2"]);
-    expect(onCreated).toHaveBeenCalledExactlyOnceWith("shop-created");
+    expect(onCreated).toHaveBeenCalledExactlyOnceWith("shop-created", "organization-created");
   });
 
   it("閉じたDialogの古いsubmitは、新しく開いた作成intentへ流用しない", async () => {
@@ -454,7 +449,7 @@ describe("OrganizationSettings controllers", () => {
     });
     const onCreated = vi.fn();
     const { result } = renderHook((input) => useOrganizationCreationController(input), {
-      initialProps: { canCreateOrganization: true, onCreated },
+      initialProps: { organizationId, canCreateOrganization: true, onCreated },
     });
     const data = {
       shopName: "二つ目の店舗",
@@ -479,7 +474,7 @@ describe("OrganizationSettings controllers", () => {
     });
     expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
       ...data,
-      sourceShopId: "shop-current",
+      organizationId: "organization-app",
       requestId: "request-2",
     });
   });
@@ -487,12 +482,12 @@ describe("OrganizationSettings controllers", () => {
   it("組織作成の権限を失うとDialogを閉じ、古いsubmitからmutationを呼ばない", async () => {
     const onCreated = vi.fn();
     const { result, rerender } = renderHook((input) => useOrganizationCreationController(input), {
-      initialProps: { canCreateOrganization: true, onCreated },
+      initialProps: { organizationId, canCreateOrganization: true, onCreated },
     });
     act(() => result.current.createOrganization());
     const staleSubmit = result.current.dialog.onSubmit;
 
-    rerender({ canCreateOrganization: false, onCreated });
+    rerender({ organizationId, canCreateOrganization: false, onCreated });
 
     await waitFor(() => expect(result.current.dialog.dialog).toBeNull());
     await act(async () => {
@@ -509,22 +504,10 @@ describe("OrganizationSettings controllers", () => {
   it("組織削除は名前を送信せず固定した対象情報で一度だけ実行する", async () => {
     mocks.mutation.mockImplementation(() => new Promise(() => undefined));
     const input = {
-      organizationId: "organization-1",
+      organizationId,
       organizationUpdatedAt: 1_721_286_400_000,
       organizationName: "さくらダイニング",
       canDeleteOrganization: true,
-      selectedShopId: "shop-current",
-      shops: [
-        {
-          shopId: "shop-current",
-          shopName: "渋谷店",
-          shopStatus: "active" as const,
-          organizationId: "organization-1",
-          organizationName: "さくらダイニング",
-          organizationPlan: "free" as const,
-          memberStatus: "active" as const,
-        },
-      ],
     };
     const { result } = renderHook(() => useOrganizationDeletionController(input));
 
@@ -540,9 +523,8 @@ describe("OrganizationSettings controllers", () => {
 
     await waitFor(() =>
       expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
-        shopId: "shop-current",
-        organizationId: "organization-1",
-        confirmOrganizationId: "organization-1",
+        organizationId: "organization-app",
+        confirmOrganizationId: "organization-app",
         expectedOrganizationUpdatedAt: 1_721_286_400_000,
         requestId: "request-1",
       }),
@@ -553,22 +535,10 @@ describe("OrganizationSettings controllers", () => {
     mocks.mutation.mockResolvedValue(undefined);
     const replaceLocation = vi.fn();
     const input = {
-      organizationId: "organization-1",
+      organizationId,
       organizationUpdatedAt: 1_721_286_400_000,
       organizationName: "さくらダイニング",
       canDeleteOrganization: true,
-      selectedShopId: "shop-current",
-      shops: [
-        {
-          shopId: "shop-current",
-          shopName: "渋谷店",
-          shopStatus: "active" as const,
-          organizationId: "organization-1",
-          organizationName: "さくらダイニング",
-          organizationPlan: "free" as const,
-          memberStatus: "active" as const,
-        },
-      ],
     };
     const { result } = renderHook(() => useOrganizationDeletionController(input, { replaceLocation }));
 
@@ -584,12 +554,10 @@ describe("OrganizationSettings controllers", () => {
 
   it("組織削除の可否や対象が変わると古い確定操作を拒否する", async () => {
     const initialInput = {
-      organizationId: "organization-1",
+      organizationId,
       organizationUpdatedAt: 1_721_286_400_000,
       organizationName: "さくらダイニング",
       canDeleteOrganization: true,
-      selectedShopId: "shop-current",
-      shops: [],
     };
     const { result, rerender } = renderHook((input) => useOrganizationDeletionController(input), {
       initialProps: initialInput,
@@ -605,7 +573,7 @@ describe("OrganizationSettings controllers", () => {
   });
 
   it("請求設定の権限を失うとDialogを閉じ、古い請求先変更を拒否する", async () => {
-    const input = { billing };
+    const input = { organizationId, billing };
     const { result, rerender } = renderHook((props) => useBillingSettingsController(props), {
       initialProps: input,
     });
@@ -663,8 +631,8 @@ describe("OrganizationSettings controllers", () => {
     };
     const { result } = renderHook(() =>
       useStripeBillingController({
+        organizationId,
         organizationName: "さくらダイニング",
-        shopNames: ["渋谷店", "新宿店"],
         billing: freeBilling,
       }),
     );
@@ -679,8 +647,11 @@ describe("OrganizationSettings controllers", () => {
       billingStartsOn: "Stripeでの支払い完了日",
       price: { status: "loading" },
     });
-    expect(mocks.actions.getProPrice).toHaveBeenCalledWith({ shopId: "shop-current", targetPlan: "pro" });
-    expect(mocks.actions.getProPrice).toHaveBeenCalledWith({ shopId: "shop-current", targetPlan: "business" });
+    expect(mocks.actions.getProPrice).toHaveBeenCalledWith({ organizationId: "organization-app", targetPlan: "pro" });
+    expect(mocks.actions.getProPrice).toHaveBeenCalledWith({
+      organizationId: "organization-app",
+      targetPlan: "business",
+    });
 
     await act(async () =>
       resolvePrice?.({
@@ -712,7 +683,7 @@ describe("OrganizationSettings controllers", () => {
     });
     await waitFor(() =>
       expect(mocks.actions.startProCheckout).toHaveBeenCalledExactlyOnceWith({
-        shopId: "shop-current",
+        organizationId: "organization-app",
         requestId: "request-1",
         targetPlan: "pro",
       }),
@@ -744,8 +715,8 @@ describe("OrganizationSettings controllers", () => {
     };
     const { result } = renderHook(() =>
       useStripeBillingController({
+        organizationId,
         organizationName: "さくらダイニング",
-        shopNames: ["渋谷店", "新宿店"],
         billing: trialBilling,
       }),
     );
@@ -785,7 +756,7 @@ describe("OrganizationSettings controllers", () => {
       canScheduleFree: false,
     };
     const { result } = renderHook(() =>
-      useStripeBillingController({ organizationName: "さくらダイニング", billing: freeBilling }),
+      useStripeBillingController({ organizationId, organizationName: "さくらダイニング", billing: freeBilling }),
     );
 
     await waitFor(() => expect(result.current.planPrices.business.status).toBe("available"));
@@ -799,7 +770,7 @@ describe("OrganizationSettings controllers", () => {
 
     await waitFor(() =>
       expect(mocks.actions.startProCheckout).toHaveBeenCalledExactlyOnceWith({
-        shopId: "shop-current",
+        organizationId: "organization-app",
         targetPlan: "business",
         requestId: "request-1",
       }),
@@ -826,8 +797,8 @@ describe("OrganizationSettings controllers", () => {
     };
     const { result } = renderHook(() =>
       useStripeBillingController({
+        organizationId,
         organizationName: "さくらダイニング",
-        shopNames: ["渋谷店", "新宿店"],
         billing: freeBilling,
       }),
     );
@@ -889,8 +860,8 @@ describe("OrganizationSettings controllers", () => {
     };
     const { result } = renderHook(() =>
       useStripeBillingController({
+        organizationId,
         organizationName: "さくらダイニング",
-        shopNames: ["渋谷店", "新宿店"],
         billing: freeBilling,
       }),
     );
@@ -950,8 +921,8 @@ describe("OrganizationSettings controllers", () => {
     };
     const { result } = renderHook(() =>
       useStripeBillingController({
+        organizationId,
         organizationName: "さくらダイニング",
-        shopNames: ["渋谷店", "新宿店"],
         billing: freeBilling,
       }),
     );
@@ -990,8 +961,8 @@ describe("OrganizationSettings controllers", () => {
     };
     const { result } = renderHook(() =>
       useStripeBillingController({
+        organizationId,
         organizationName: "さくらダイニング",
-        shopNames: ["渋谷店", "新宿店"],
         billing: trialBilling,
       }),
     );
@@ -1009,7 +980,7 @@ describe("OrganizationSettings controllers", () => {
 
     await waitFor(() =>
       expect(mocks.actions.cancelTrialContinuation).toHaveBeenCalledExactlyOnceWith({
-        shopId: "shop-current",
+        organizationId: "organization-app",
         requestId: "request-1",
       }),
     );
@@ -1026,7 +997,7 @@ describe("OrganizationSettings controllers", () => {
     mocks.actions.scheduleServiceStopAtPeriodEnd.mockResolvedValue({ status: "accepted" });
     mocks.actions.cancelScheduledFree.mockResolvedValue({ status: "accepted" });
     const { result, rerender } = renderHook((input) => useStripeBillingController(input), {
-      initialProps: { organizationName: "さくらダイニング", shopNames: ["渋谷店", "新宿店"], billing },
+      initialProps: { organizationId, organizationName: "さくらダイニング", billing },
     });
 
     act(() => result.current.managePlan("free"));
@@ -1034,14 +1005,14 @@ describe("OrganizationSettings controllers", () => {
     act(() => result.current.dialog.onSubmit());
     await waitFor(() =>
       expect(mocks.actions.scheduleServiceStopAtPeriodEnd).toHaveBeenCalledExactlyOnceWith({
-        shopId: "shop-current",
+        organizationId: "organization-app",
         requestId: "request-1",
       }),
     );
 
     rerender({
+      organizationId,
       organizationName: "さくらダイニング",
-      shopNames: ["渋谷店", "新宿店"],
       billing: {
         ...billing,
         state: "scheduledChange",
@@ -1057,7 +1028,7 @@ describe("OrganizationSettings controllers", () => {
     act(() => result.current.dialog.onSubmit());
     await waitFor(() =>
       expect(mocks.actions.cancelScheduledFree).toHaveBeenCalledExactlyOnceWith({
-        shopId: "shop-current",
+        organizationId: "organization-app",
         requestId: "request-1",
       }),
     );
@@ -1074,7 +1045,11 @@ describe("OrganizationSettings controllers", () => {
       canScheduleFree: false,
     };
     const { result } = renderHook(() =>
-      useStripeBillingController({ organizationName: "さくらダイニング", billing: legacyScheduledFreeBilling }),
+      useStripeBillingController({
+        organizationId,
+        organizationName: "さくらダイニング",
+        billing: legacyScheduledFreeBilling,
+      }),
     );
 
     act(() => result.current.managePlan());
@@ -1087,7 +1062,7 @@ describe("OrganizationSettings controllers", () => {
 
     await waitFor(() =>
       expect(mocks.actions.cancelScheduledFree).toHaveBeenCalledExactlyOnceWith({
-        shopId: "shop-current",
+        organizationId: "organization-app",
         requestId: "request-1",
       }),
     );
@@ -1102,7 +1077,9 @@ describe("OrganizationSettings controllers", () => {
       prorationDate: 1_780_000_000,
     });
     mocks.actions.changePaidPlanNow.mockResolvedValue({ status: "accepted" });
-    const { result } = renderHook(() => useStripeBillingController({ organizationName: "さくらダイニング", billing }));
+    const { result } = renderHook(() =>
+      useStripeBillingController({ organizationId, organizationName: "さくらダイニング", billing }),
+    );
 
     act(() => result.current.managePlan("business"));
     await waitFor(() =>
@@ -1116,7 +1093,7 @@ describe("OrganizationSettings controllers", () => {
       }),
     );
     expect(mocks.actions.previewPaidPlanChange).toHaveBeenCalledExactlyOnceWith({
-      shopId: "shop-current",
+      organizationId: "organization-app",
       targetPlan: "business",
       requestId: "request-1",
     });
@@ -1127,7 +1104,7 @@ describe("OrganizationSettings controllers", () => {
     });
     await waitFor(() =>
       expect(mocks.actions.changePaidPlanNow).toHaveBeenCalledExactlyOnceWith({
-        shopId: "shop-current",
+        organizationId: "organization-app",
         targetPlan: "business",
         prorationDate: 1_780_000_000,
         requestId: "request-1",
@@ -1167,7 +1144,9 @@ describe("OrganizationSettings controllers", () => {
           previewResolvers.set(requestId, resolve);
         }),
     );
-    const { result } = renderHook(() => useStripeBillingController({ organizationName: "さくらダイニング", billing }));
+    const { result } = renderHook(() =>
+      useStripeBillingController({ organizationId, organizationName: "さくらダイニング", billing }),
+    );
     await waitFor(() => expect(result.current.planPrices.pro.status).toBe("available"));
 
     act(() => result.current.managePlan("business"));
@@ -1208,7 +1187,7 @@ describe("OrganizationSettings controllers", () => {
       nextEvent: { label: "次回更新日", date: "2026年8月31日" },
     };
     const { result } = renderHook(() =>
-      useStripeBillingController({ organizationName: "さくらダイニング", billing: businessBilling }),
+      useStripeBillingController({ organizationId, organizationName: "さくらダイニング", billing: businessBilling }),
     );
 
     act(() => result.current.managePlan("pro"));
@@ -1222,7 +1201,7 @@ describe("OrganizationSettings controllers", () => {
 
     await waitFor(() =>
       expect(mocks.actions.schedulePaidPlanChange).toHaveBeenCalledExactlyOnceWith({
-        shopId: "shop-current",
+        organizationId: "organization-app",
         targetPlan: "pro",
         requestId: "request-1",
       }),
@@ -1232,31 +1211,30 @@ describe("OrganizationSettings controllers", () => {
     });
   });
 
-  it("確認中に選択組織が変わったらDialogを閉じ、古い確定操作を受け付けない", async () => {
-    const input = { organizationName: "さくらダイニング", shopNames: ["渋谷店", "新宿店"], billing };
+  it("確認中にorganizationIdが変わったらDialogを閉じ、古い確定操作を受け付けない", async () => {
+    const input = { organizationId, organizationName: "さくらダイニング", billing };
     const { result, rerender } = renderHook((props) => useStripeBillingController(props), {
       initialProps: input,
     });
-    act(() => result.current.managePlan());
+    act(() => result.current.managePlan("free"));
     const staleSubmit = result.current.dialog.onSubmit;
 
-    mocks.selectedShop.shopId = "shop-other";
-    rerender({ ...input });
+    rerender({ ...input, organizationId: "organization-other" as Id<"organizations"> });
 
     await waitFor(() => expect(result.current.dialog.dialog).toBeNull());
     act(() => staleSubmit());
-    expect(mocks.actions.schedulePaidPlanChange).not.toHaveBeenCalled();
+    expect(mocks.actions.scheduleServiceStopAtPeriodEnd).not.toHaveBeenCalled();
   });
 
-  it("支払い方法と請求書・領収書はIDを渡さず、Portalのredirect結果だけで外部遷移する", async () => {
+  it("支払い方法と請求書・領収書はorganizationIdを送り、Portalのredirect結果だけで外部遷移する", async () => {
     mocks.actions.openCustomerPortal.mockResolvedValue({
       status: "redirect",
       url: "https://billing.stripe.example/session",
     });
     const { result } = renderHook(() =>
       useStripeBillingController({
+        organizationId,
         organizationName: "さくらダイニング",
-        shopNames: ["渋谷店", "新宿店"],
         billing,
       }),
     );
@@ -1274,7 +1252,7 @@ describe("OrganizationSettings controllers", () => {
     act(() => result.current.openBillingDocuments());
     await waitFor(() => expect(mocks.actions.openCustomerPortal).toHaveBeenCalledTimes(2));
     expect(mocks.actions.openCustomerPortal).toHaveBeenNthCalledWith(2, {
-      shopId: "shop-current",
+      organizationId: "organization-app",
       requestId: "request-1",
     });
     expect(mocks.openBillingUrl).toHaveBeenCalledTimes(1);
@@ -1283,8 +1261,8 @@ describe("OrganizationSettings controllers", () => {
   it("Stripe Customer未作成ではPortalを開かない", async () => {
     const { result } = renderHook(() =>
       useStripeBillingController({
+        organizationId,
         organizationName: "さくらダイニング",
-        shopNames: ["渋谷店", "新宿店"],
         billing: {
           ...billing,
           hasStripeCustomer: false,
@@ -1304,7 +1282,7 @@ describe("OrganizationSettings controllers", () => {
 
   it("支払い不要Businessでは古い確定操作を含む全Stripe Actionを呼ばない", async () => {
     const { result, rerender } = renderHook((input) => useStripeBillingController(input), {
-      initialProps: { organizationName: "さくらダイニング", shopNames: ["渋谷店", "新宿店"], billing },
+      initialProps: { organizationId, organizationName: "さくらダイニング", billing },
     });
     await waitFor(() => expect(mocks.actions.getProPrice).toHaveBeenCalledTimes(2));
     act(() => result.current.managePlan());
@@ -1312,8 +1290,8 @@ describe("OrganizationSettings controllers", () => {
     for (const action of Object.values(mocks.actions)) action.mockClear();
 
     rerender({
+      organizationId,
       organizationName: "さくらダイニング",
-      shopNames: ["渋谷店", "新宿店"],
       billing: {
         ...billing,
         state: "business",

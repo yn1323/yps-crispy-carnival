@@ -104,12 +104,14 @@ export function DashboardContentView({
                   onOpenShopDetail={navigation?.onOpenShopDetail}
                 />
                 <LegalReconsent status={managerLegalConsentStatus} />
-                {isBillingFeatureVisible && planStatusCard === undefined && billingSettingsShopId ? (
+                {isBillingFeatureVisible &&
+                planStatusCard === undefined &&
+                billingSettingsShopId &&
+                navigation?.onOpenBillingSettings ? (
                   <TrialEndingCallout
                     notice={trialEndingNotice ?? null}
-                    shopId={billingSettingsShopId}
                     isBillingVisible={isBillingFeatureVisible}
-                    onOpenBillingSettings={navigation?.onOpenBillingSettings}
+                    onOpenBillingSettings={navigation.onOpenBillingSettings}
                   />
                 ) : null}
               </Stack>

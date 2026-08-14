@@ -69,6 +69,8 @@ const pendingStaffRequests = [
     name: "田中 花子",
     email: "hanako@example.com",
     createdAt: Date.now(),
+    canApprove: true,
+    approveDisabledReason: null,
   },
 ] as unknown as StaffRegistrationRequest[];
 const notificationFailures = [
@@ -190,7 +192,7 @@ export const RecruitmentQueryRecoveryBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(canvas.getByRole("button", { name: /たなかグループ/ })).toBeVisible();
+    await expect(canvas.getByRole("heading", { name: /たなかグループ/, level: 2 })).toBeVisible();
     await expect(canvas.getByLabelText("スタッフ一覧")).toBeVisible();
     await expect(canvas.getByText("シフト募集を読み込めませんでした")).toBeVisible();
 

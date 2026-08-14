@@ -148,7 +148,7 @@ function ConnectedAppStaff({
           peopleUsageHasOverflow={summary.totalCountHasOverflow}
           filterResultCount={shopFilter === "all" ? undefined : summary.visibleCount}
           filterResultCountHasOverflow={shopFilter === "all" ? false : summary.visibleCountHasOverflow}
-          showManagerInvitation
+          showManagerInvitation={summary.features?.managerInvitation === true}
           onManageManagers={() => void navigate({ to: "/app/manage/managers", search: { org: organizationId } })}
           onOpenUser={(personId) =>
             void navigate({
@@ -324,7 +324,7 @@ export function AppStaffPageStateView({ state, onRetry }: { state: AppStaffPageS
           </HStack>
           <Skeleton h="44px" w={{ base: "150px", sm: "180px" }} maxW="52vw" />
         </Flex>
-        <PeopleSectionSkeleton showAddStaff showManagerInvitation />
+        <PeopleSectionSkeleton showAddStaff />
       </Stack>
     );
   }

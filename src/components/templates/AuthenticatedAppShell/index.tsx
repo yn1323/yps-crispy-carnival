@@ -41,7 +41,7 @@ export function AuthenticatedAppShell({
   return (
     <Box w="full" minH="100dvh" bg="gray.50">
       <Header
-        brandTo="/app/home"
+        brandTo="/dashboard"
         brandSearch={activeOrganizationId ? { org: activeOrganizationId } : undefined}
         brandAriaLabel="ホームへ"
         primaryNavigation={
@@ -52,7 +52,7 @@ export function AuthenticatedAppShell({
             {organizationSwitcher}
             {featureRequest && <AppFeatureRequestAction {...featureRequest} />}
             <Suspense fallback={<Box boxSize={8} aria-hidden />}>
-              <UserMenu tone="light" accountDestination="/app/account" showOrganizationSettings={false} />
+              <UserMenu tone="light" />
             </Suspense>
           </>
         }

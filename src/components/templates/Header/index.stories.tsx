@@ -4,7 +4,6 @@ import { createStore, Provider } from "jotai";
 import { expect, userEvent, within } from "storybook/test";
 import { UserMenu } from "@/src/components/features/UserMenu";
 import { Button } from "@/src/components/ui/Button";
-import { selectedShopAtom } from "@/src/stores/shop";
 import { userAtom } from "@/src/stores/user";
 import { Header, type HeaderProps } from "./index";
 
@@ -21,15 +20,6 @@ const createStoreWithUser = (
     name: "田中太郎",
     email: "tanaka@example.com",
     featureVisibility,
-  });
-  store.set(selectedShopAtom, {
-    shopId: "shop-a",
-    shopName: "A店舗",
-    shopStatus: "active",
-    organizationId: "organization-a",
-    organizationName: "Aグループ",
-    organizationPlan: "pro",
-    memberStatus: "active",
   });
   return store;
 };
@@ -77,7 +67,7 @@ export const UserWithoutShopDeletionEntry: Story = {
     const contactLink = await screen.findByRole("menuitem", { name: "お問い合わせ" });
     await expect(contactLink).toHaveAttribute("href", "/contact");
     await expect(contactLink).toHaveAttribute("target", "_blank");
-    await expect(screen.getByRole("menuitem", { name: "組織設定" })).toHaveAttribute("href", "/settings?shop=shop-a");
+    await expect(screen.queryByRole("menuitem", { name: "組織設定" })).toBeNull();
     await expect(screen.getByRole("menuitem", { name: "アカウント設定" })).toHaveAttribute("href", "/account");
     await screen.findByRole("menuitem", { name: "ログアウト" });
     await expect(screen.queryByText("login@example.com")).toBeNull();
@@ -87,7 +77,7 @@ export const UserWithoutShopDeletionEntry: Story = {
   },
 };
 
-export const UserWithLegacyClosedFeatureState: Story = {
+export const UserWithClosedFeatureState: Story = {
   args: {
     userActions: <UserMenu tone="light" />,
   },
@@ -110,7 +100,7 @@ export const UserWithLegacyClosedFeatureState: Story = {
     const trigger = await screen.findByRole("button", { name: "ユーザーメニュー" });
     await userEvent.click(trigger);
 
-    await expect(screen.getByRole("menuitem", { name: "組織設定" })).toHaveAttribute("href", "/settings?shop=shop-a");
+    await expect(screen.queryByRole("menuitem", { name: "組織設定" })).toBeNull();
     await screen.findByRole("menuitem", { name: "お問い合わせ" });
     await screen.findByRole("menuitem", { name: "ログアウト" });
     await userEvent.keyboard("{Escape}");

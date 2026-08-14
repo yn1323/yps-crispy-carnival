@@ -4,6 +4,8 @@ import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { PeopleSection } from "@/src/components/features/OrganizationSettings";
 import type { OrganizationPersonView } from "@/src/components/features/OrganizationSettings/types";
+import { AuthenticatedAppShell } from "@/src/components/templates/AuthenticatedAppShell";
+import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
 import {
   AppStaffHeader,
   AppStaffPageStateView,
@@ -62,10 +64,12 @@ function StaffReadyPreview({
   withNextPage = false,
   readOnly = false,
   empty = false,
+  managerInvitationEnabled = true,
 }: {
   withNextPage?: boolean;
   readOnly?: boolean;
   empty?: boolean;
+  managerInvitationEnabled?: boolean;
 }) {
   const [visiblePeople, setVisiblePeople] = useState(empty ? [] : people);
   const [canLoadMore, setCanLoadMore] = useState(withNextPage);
@@ -77,7 +81,7 @@ function StaffReadyPreview({
       <PeopleSection
         people={visiblePeople}
         peopleUsage={{ current: empty ? 0 : 12, max: 40 }}
-        showManagerInvitation
+        showManagerInvitation={managerInvitationEnabled}
         onManageManagers={() => {}}
         onOpenUser={() => {}}
         onAddStaff={() => {}}
@@ -90,6 +94,16 @@ function StaffReadyPreview({
         }}
       />
     </Stack>
+  );
+}
+
+function AppCompositionPreview() {
+  return (
+    <AuthenticatedAppShell activeKey="staff" activeOrganizationId="organization-preview">
+      <AuthenticatedPageContent includeMobileNavigation>
+        <StaffReadyPreview />
+      </AuthenticatedPageContent>
+    </AuthenticatedAppShell>
   );
 }
 
@@ -114,10 +128,27 @@ export const QueryError: Story = {
   args: { state: { kind: "error" } },
 };
 
+export const ReadyDesktop: Story = {
+  render: () => <StaffReadyPreview />,
+};
+
 export const ReadyMobile: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
   render: () => <StaffReadyPreview />,
+};
+
+export const AppCompositionDesktop: Story = {
+  name: "スタッフ一覧・新shell・デスクトップ",
+  parameters: { layout: "fullscreen", vrt: { releaseFixedHeader: true } },
+  render: () => <AppCompositionPreview />,
+};
+
+export const AppCompositionMobile: Story = {
+  ...AppCompositionDesktop,
+  name: "スタッフ一覧・新shell・モバイル414px",
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
 };
 
 export const ReadOnlyMobile: Story = {
@@ -130,6 +161,15 @@ export const EmptyMobile: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
   render: () => <StaffReadyPreview empty />,
+};
+
+export const ClosedFeaturesBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <StaffReadyPreview managerInvitationEnabled={false} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("button", { name: "管理者を設定" })).not.toBeInTheDocument();
+  },
 };
 
 export const InvitationShopSelectionMobile: Story = {

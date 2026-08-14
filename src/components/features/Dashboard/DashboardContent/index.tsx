@@ -273,12 +273,14 @@ export const DashboardContent = ({
               onVisibleUserCountChange={onVisibleUserCountChange}
               onOpenStaffDetail={navigation?.onOpenStaffDetail}
               onManageManagers={navigation?.onManageManagers}
+              onOpenBillingSettings={navigation?.onOpenBillingSettings}
             />
             <RegistrationRequestQuerySource
               key={`registration-requests:${sourceIdentity}`}
               onStageChange={reportRegistrationRequestStage}
               requests={usesInjectedData ? (pendingStaffRequests ?? EMPTY_STAFF_REGISTRATION_REQUESTS) : undefined}
               isReadOnly={isReadOnly}
+              onOpenBillingSettings={navigation?.onOpenBillingSettings}
             />
             <NotificationFailureQuerySource
               key={`notification-failures:${sourceIdentity}`}

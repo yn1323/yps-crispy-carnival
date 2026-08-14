@@ -77,7 +77,7 @@ const meta = {
   args: {
     onShopSelect: () => {},
     onOpenShopDetail: () => {},
-    organizationSettingsShopId: "shop-a-1",
+    onOpenOrganizationSettings: () => {},
   },
 } satisfies Meta<typeof OperationContextView>;
 
@@ -152,7 +152,6 @@ export const ExpandedWithPaidPlanAndMultipleOrganizationsMobile: Story = {
   globals: { viewport: { value: "mobile2", isRotated: false } },
   args: {
     model: createModel(mobileShops, "shop-b-1"),
-    organizationSettingsShopId: "shop-b-1",
     planStatusCard: paidPlanStatusCard,
     billingSettingsShopId: "shop-b-1",
   },
@@ -191,19 +190,13 @@ export const SelectionBehavior: Story = {
     await userEvent.click(await body.findByRole("menuitem", { name: /C店舗/ }));
     await expect(await canvas.findByRole("button", { name: "店舗を切り替える（現在：C店舗）" })).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: /関西事業部/ }));
-    await expect(canvas.getByRole("link", { name: "関西事業部の組織設定を開く" })).toHaveAttribute(
-      "href",
-      "/settings?shop=shop-b-1",
-    );
+    await expect(canvas.getByRole("button", { name: "関西事業部の組織設定を開く" })).toBeVisible();
 
     await userEvent.click(canvas.getByRole("button", { name: "店舗を切り替える（現在：C店舗）" }));
     await userEvent.click(await body.findByRole("menuitem", { name: /D店舗/ }));
     await expect(await canvas.findByRole("button", { name: "店舗を切り替える（現在：D店舗）" })).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: /関西事業部/ }));
-    await expect(canvas.getByRole("link", { name: "関西事業部の組織設定を開く" })).toHaveAttribute(
-      "href",
-      "/settings?shop=shop-b-2",
-    );
+    await expect(canvas.getByRole("button", { name: "関西事業部の組織設定を開く" })).toBeVisible();
   },
 };
 
@@ -233,7 +226,7 @@ const SelectionBehaviorStory = () => {
       model={model}
       onShopSelect={setSelectedShopId}
       onOpenShopDetail={() => {}}
-      organizationSettingsShopId={model.selectedShop.shopId}
+      onOpenOrganizationSettings={() => {}}
     />
   );
 };
@@ -248,7 +241,7 @@ const CanonicalOrganizationSelectionBehaviorStory = () => {
         model={model}
         onShopSelect={() => {}}
         onOpenShopDetail={() => {}}
-        organizationSettingsShopId={model.selectedShop.shopId}
+        onOpenOrganizationSettings={() => {}}
         organizationChangeOptions={canonicalOrganizationOptions}
         onOrganizationChange={setSelectedOrganizationId}
       />

@@ -1,18 +1,18 @@
 import type { ShopContextOption } from "@/src/domains/shop/context";
 
-export type AppHomeShopOption = {
+export type DashboardShopOption = {
   id: string;
   name: string;
 };
 
-export const APP_HOME_SHOP_PREFERENCE_STORAGE_KEY = "shiftori-app-home-shop-preferences:v1";
+export const DASHBOARD_SHOP_PREFERENCE_STORAGE_KEY = "shiftori-dashboard-shop-preferences:v1";
 
-export type AppHomeShopResolution =
+export type DashboardShopResolution =
   | { kind: "loading" }
   | { kind: "empty" }
   | {
       kind: "ready";
-      shop: AppHomeShopOption;
+      shop: DashboardShopOption;
       canonicalShopId: string;
       shouldReplaceSearch: boolean;
     };
@@ -21,11 +21,11 @@ export type AppHomeShopResolution =
  * Homeが表示する1店舗をcanonical organization queryの結果から確定する。
  * 保存値は候補内に存在するときだけ利用するclient hintであり、認可には使わない。
  */
-export function resolveAppHomeShop(
-  activeShops: readonly AppHomeShopOption[] | null,
+export function resolveDashboardShop(
+  activeShops: readonly DashboardShopOption[] | null,
   requestedShopId?: string,
   preferredShopId?: string,
-): AppHomeShopResolution {
+): DashboardShopResolution {
   if (activeShops === null) return { kind: "loading" };
   if (activeShops.length === 0) return { kind: "empty" };
 
@@ -41,35 +41,35 @@ export function resolveAppHomeShop(
   };
 }
 
-export function readAppHomeShopPreference(
+export function readDashboardShopPreference(
   storage: Pick<Storage, "getItem"> | null | undefined,
   organizationId: string,
 ): string | undefined {
   if (!storage) return undefined;
   try {
-    return parseAppHomeShopPreferences(storage.getItem(APP_HOME_SHOP_PREFERENCE_STORAGE_KEY))[organizationId];
+    return parseDashboardShopPreferences(storage.getItem(DASHBOARD_SHOP_PREFERENCE_STORAGE_KEY))[organizationId];
   } catch {
     return undefined;
   }
 }
 
-export function writeAppHomeShopPreference(
+export function writeDashboardShopPreference(
   storage: Pick<Storage, "getItem" | "setItem"> | null | undefined,
   organizationId: string,
   shopId: string,
 ): boolean {
   if (!storage) return false;
   try {
-    const preferences = parseAppHomeShopPreferences(storage.getItem(APP_HOME_SHOP_PREFERENCE_STORAGE_KEY));
+    const preferences = parseDashboardShopPreferences(storage.getItem(DASHBOARD_SHOP_PREFERENCE_STORAGE_KEY));
     preferences[organizationId] = shopId;
-    storage.setItem(APP_HOME_SHOP_PREFERENCE_STORAGE_KEY, JSON.stringify(preferences));
+    storage.setItem(DASHBOARD_SHOP_PREFERENCE_STORAGE_KEY, JSON.stringify(preferences));
     return true;
   } catch {
     return false;
   }
 }
 
-function parseAppHomeShopPreferences(rawValue: string | null): Record<string, string> {
+function parseDashboardShopPreferences(rawValue: string | null): Record<string, string> {
   if (!rawValue) return {};
 
   let parsed: unknown;
@@ -92,8 +92,8 @@ function parseAppHomeShopPreferences(rawValue: string | null): Record<string, st
   );
 }
 
-export function buildAppHomeShopContexts(
-  activeShops: readonly AppHomeShopOption[],
+export function buildDashboardShopContexts(
+  activeShops: readonly DashboardShopOption[],
   organization: {
     id: string;
     name: string;

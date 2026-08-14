@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  APP_HOME_SHOP_PREFERENCE_STORAGE_KEY,
-  buildAppHomeShopContexts,
-  readAppHomeShopPreference,
-  resolveAppHomeShop,
-  writeAppHomeShopPreference,
+  buildDashboardShopContexts,
+  DASHBOARD_SHOP_PREFERENCE_STORAGE_KEY,
+  readDashboardShopPreference,
+  resolveDashboardShop,
+  writeDashboardShopPreference,
 } from "./script";
 
 const SHOPS = [
@@ -12,17 +12,17 @@ const SHOPS = [
   { id: "shop-b", name: "B店舗" },
 ] as const;
 
-describe("resolveAppHomeShop", () => {
+describe("resolveDashboardShop", () => {
   it("全cursorの読込中は店舗を確定しない", () => {
-    expect(resolveAppHomeShop(null, "shop-a")).toEqual({ kind: "loading" });
+    expect(resolveDashboardShop(null, "shop-a")).toEqual({ kind: "loading" });
   });
 
   it("利用できるactive店舗がなければemptyを返す", () => {
-    expect(resolveAppHomeShop([], undefined)).toEqual({ kind: "empty" });
+    expect(resolveDashboardShop([], undefined)).toEqual({ kind: "empty" });
   });
 
   it("URLの店舗が現在の組織に存在すればその店舗を維持する", () => {
-    expect(resolveAppHomeShop(SHOPS, "shop-b", "shop-a")).toEqual({
+    expect(resolveDashboardShop(SHOPS, "shop-b", "shop-a")).toEqual({
       kind: "ready",
       shop: SHOPS[1],
       canonicalShopId: "shop-b",
@@ -31,7 +31,7 @@ describe("resolveAppHomeShop", () => {
   });
 
   it("URLが未指定なら現在組織のactive店舗に含まれる保存hintを復元する", () => {
-    expect(resolveAppHomeShop(SHOPS, undefined, "shop-b")).toEqual({
+    expect(resolveDashboardShop(SHOPS, undefined, "shop-b")).toEqual({
       kind: "ready",
       shop: SHOPS[1],
       canonicalShopId: "shop-b",
@@ -40,7 +40,7 @@ describe("resolveAppHomeShop", () => {
   });
 
   it("保存hintが別組織の店舗ならcanonicalな先頭店舗へ戻す", () => {
-    expect(resolveAppHomeShop(SHOPS, undefined, "another-organization-shop")).toEqual({
+    expect(resolveDashboardShop(SHOPS, undefined, "another-organization-shop")).toEqual({
       kind: "ready",
       shop: SHOPS[0],
       canonicalShopId: "shop-a",
@@ -51,7 +51,7 @@ describe("resolveAppHomeShop", () => {
   it.each([undefined, "another-organization-shop"])(
     "店舗が未指定または候補外ならcanonicalな先頭店舗へreplaceする: %s",
     (requestedShopId) => {
-      expect(resolveAppHomeShop(SHOPS, requestedShopId)).toEqual({
+      expect(resolveDashboardShop(SHOPS, requestedShopId)).toEqual({
         kind: "ready",
         shop: SHOPS[0],
         canonicalShopId: "shop-a",
@@ -69,12 +69,12 @@ describe("Home店舗の組織別client hint", () => {
       setItem: (key: string, value: string) => values.set(key, value),
     };
 
-    expect(writeAppHomeShopPreference(storage, "organization-a", "shop-a")).toBe(true);
-    expect(writeAppHomeShopPreference(storage, "organization-b", "shop-b")).toBe(true);
+    expect(writeDashboardShopPreference(storage, "organization-a", "shop-a")).toBe(true);
+    expect(writeDashboardShopPreference(storage, "organization-b", "shop-b")).toBe(true);
 
-    expect(readAppHomeShopPreference(storage, "organization-a")).toBe("shop-a");
-    expect(readAppHomeShopPreference(storage, "organization-b")).toBe("shop-b");
-    expect(JSON.parse(values.get(APP_HOME_SHOP_PREFERENCE_STORAGE_KEY) ?? "null")).toEqual({
+    expect(readDashboardShopPreference(storage, "organization-a")).toBe("shop-a");
+    expect(readDashboardShopPreference(storage, "organization-b")).toBe("shop-b");
+    expect(JSON.parse(values.get(DASHBOARD_SHOP_PREFERENCE_STORAGE_KEY) ?? "null")).toEqual({
       "organization-a": "shop-a",
       "organization-b": "shop-b",
     });
@@ -91,17 +91,17 @@ describe("Home店舗の組織別client hint", () => {
       },
     };
 
-    expect(readAppHomeShopPreference(null, "organization-a")).toBeUndefined();
-    expect(readAppHomeShopPreference(invalidStorage, "organization-a")).toBeUndefined();
-    expect(readAppHomeShopPreference(throwingStorage, "organization-a")).toBeUndefined();
-    expect(writeAppHomeShopPreference(throwingStorage, "organization-a", "shop-a")).toBe(false);
+    expect(readDashboardShopPreference(null, "organization-a")).toBeUndefined();
+    expect(readDashboardShopPreference(invalidStorage, "organization-a")).toBeUndefined();
+    expect(readDashboardShopPreference(throwingStorage, "organization-a")).toBeUndefined();
+    expect(writeDashboardShopPreference(throwingStorage, "organization-a", "shop-a")).toBe(false);
   });
 });
 
-describe("buildAppHomeShopContexts", () => {
+describe("buildDashboardShopContexts", () => {
   it("canonical organizationのactive店舗だけを既存Dashboardの店舗contextへ変換する", () => {
     expect(
-      buildAppHomeShopContexts(SHOPS, {
+      buildDashboardShopContexts(SHOPS, {
         id: "organization-a",
         name: "Aグループ",
         memberStatus: "readOnly",

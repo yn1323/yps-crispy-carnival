@@ -10,6 +10,7 @@ import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { getConvexErrorMessage } from "@/src/lib/convex/error";
+import { resolveStaffRegistrationApprovalAvailability } from "../StaffRegistrationRequests";
 import type { StaffRegistrationRequest } from "../types";
 import { StaffRegistrationRequestManagementView } from "./StaffRegistrationRequestManagementView";
 
@@ -23,12 +24,14 @@ export type StaffRegistrationRequestManagementState = {
 type Props = {
   requests?: StaffRegistrationRequest[];
   isReadOnly?: boolean;
+  onOpenBillingSettings?: () => void;
   children: (state: StaffRegistrationRequestManagementState) => ReactNode;
 };
 
 export function StaffRegistrationRequestManagement({
   requests: requestOverrides,
   isReadOnly = false,
+  onOpenBillingSettings,
   children,
 }: Props) {
   const dialog = useDialog();
@@ -57,7 +60,7 @@ export function StaffRegistrationRequestManagement({
   }, [dialog.close, dialog.isOpen, isReadOnly, requests.length]);
 
   const { run: handleApprove, isRunning: isApproving } = useSingleFlight(async (request: StaffRegistrationRequest) => {
-    if (isReadOnly) return;
+    if (isReadOnly || !resolveStaffRegistrationApprovalAvailability(request).canApprove) return;
     setPeopleCapacityResolution(null);
     try {
       await approveRequest({ requestId: request._id });
@@ -97,6 +100,7 @@ export function StaffRegistrationRequestManagement({
       }}
       requests={requests}
       peopleCapacityResolution={peopleCapacityResolution}
+      onOpenBillingSettings={onOpenBillingSettings}
       rejectTarget={rejectTarget}
       onApprove={handleApprove}
       onRejectClick={(request) => {

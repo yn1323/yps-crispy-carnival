@@ -3,7 +3,7 @@ import { resolveAppNavigationTarget } from "./appNavigationTargetResolver";
 
 describe("resolveAppNavigationTarget", () => {
   it.each([
-    "/app/home",
+    "/dashboard",
     "/app/shifts",
     "/app/staff",
     "/app/actions",
@@ -19,16 +19,16 @@ describe("resolveAppNavigationTarget", () => {
   });
 
   it("空の組織はsearchへ持ち込まない", () => {
-    expect(resolveAppNavigationTarget("/app/home", "  ")).toEqual({
-      to: "/app/home",
+    expect(resolveAppNavigationTarget("/dashboard", "  ")).toEqual({
+      to: "/dashboard",
       search: {},
     });
   });
 
   it("accountは組織scopeから分離する", () => {
-    const target = resolveAppNavigationTarget("/app/account", "org-a");
+    const target = resolveAppNavigationTarget("/account", "org-a");
 
-    expect(target).toEqual({ to: "/app/account", search: {} });
+    expect(target).toEqual({ to: "/account", search: {} });
     expectTypeOf(target.search).toEqualTypeOf<Readonly<{ org?: never }>>();
   });
 });

@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
-import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import type {
   ManagerInvitationIssueConfirmation,
@@ -14,15 +13,12 @@ import type {
 
 export function useManagerIssueController({
   overview,
-  shopId,
   organizationId,
 }: {
   overview: ReadyManagerSettingsOverview;
-  shopId?: string;
-  organizationId?: Id<"organizations">;
+  organizationId: Id<"organizations">;
 }) {
   const navigate = useNavigate();
-  const issue = useShopMutation(api.organizationInvitation.mutations.issue);
   const issueForOrganization = useMutation(api.organizationInvitation.mutations.issueForOrganization);
   const [confirmation, setConfirmation] = useState<ManagerInvitationIssueConfirmation>(null);
   const latestOverviewRef = useRef(overview);
@@ -51,16 +47,12 @@ export function useManagerIssueController({
           recipient,
           requestId: current.requestId,
         };
-        const result = organizationId ? await issueForOrganization({ organizationId, ...args }) : await issue(args);
+        const result = await issueForOrganization({ organizationId, ...args });
         setConfirmation(null);
         showSuccessToast({
           title: result.status === "alreadyPending" ? "この管理者招待は送信済みです" : "送信を受け付けました",
         });
-        void navigate(
-          organizationId
-            ? { to: "/app/manage/managers", search: { org: organizationId }, replace: true }
-            : { to: "/settings/managers", search: { shop: shopId ?? "" }, replace: true },
-        );
+        void navigate({ to: "/app/manage/managers", search: { org: organizationId }, replace: true });
         return true;
       } catch (error) {
         showErrorToast(error);

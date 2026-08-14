@@ -1,4 +1,3 @@
-import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 import { useAtomValue } from "jotai";
 import { useMemo } from "react";
@@ -49,7 +48,6 @@ export const OperationContext = ({
   onOpenOrganizationSettings,
   showOrganizationContext = true,
 }: Props) => {
-  const navigate = useNavigate();
   const rawShops = useQuery(api.dashboard.queries.getMyShops, data ? "skip" : {});
   const storedSelectedShop = useAtomValue(selectedShopAtom);
   const featureVisibility = useAtomValue(featureVisibilityAtom);
@@ -79,12 +77,7 @@ export const OperationContext = ({
       : undefined;
 
   const selectShop = (shop: ShopContextOption) => {
-    if (data?.onSelect) {
-      data.onSelect(shop);
-      return;
-    }
-
-    void navigate({ to: "/dashboard", search: { shop: shop.shopId } });
+    data?.onSelect?.(shop);
   };
 
   const handleShopSelect = (shopId: string) => {
@@ -93,15 +86,7 @@ export const OperationContext = ({
   };
 
   const handleOpenShopDetail = () => {
-    if (onOpenShopDetail) {
-      onOpenShopDetail(model.selectedShop.shopId);
-      return;
-    }
-    void navigate({
-      to: "/shops/$shopId",
-      params: { shopId: model.selectedShop.shopId },
-      search: { shop: model.selectedShop.shopId, returnTo: "dashboard" },
-    });
+    onOpenShopDetail?.(model.selectedShop.shopId);
   };
 
   return (
@@ -110,8 +95,7 @@ export const OperationContext = ({
       model={model}
       onShopSelect={handleShopSelect}
       onOpenShopDetail={handleOpenShopDetail}
-      organizationSettingsShopId={showOrganizationSettings ? model.selectedShop.shopId : undefined}
-      onOpenOrganizationSettings={onOpenOrganizationSettings}
+      onOpenOrganizationSettings={showOrganizationSettings ? onOpenOrganizationSettings : undefined}
       organizationChangeOptions={organizationChangeOptions}
       onOrganizationChange={
         data?.onOrganizationSelect

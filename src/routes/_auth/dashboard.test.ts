@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { validateDashboardSearch } from "./dashboard";
+import { validateDashboardRouteSearch } from "@/src/components/features/AuthenticatedApp";
 
 describe("Dashboard URL", () => {
-  it("ユーザー一覧の表示件数と復帰対象を受け付ける", () => {
-    expect(validateDashboardSearch({ users: "20", focus: "person-a", ignored: "value" })).toEqual({
-      users: 20,
-      focus: "person-a",
+  it("組織と店舗だけを受け付ける", () => {
+    expect(validateDashboardRouteSearch({ org: " organization-a ", shop: " shop-a ", ignored: "value" })).toEqual({
+      org: "organization-a",
+      shop: "shop-a",
     });
   });
 
-  it("既定件数と空の復帰対象はURL状態から除く", () => {
-    expect(validateDashboardSearch({ users: "10", focus: " " })).toEqual({});
+  it("空値と旧DashboardのsearchはURL状態から除く", () => {
+    expect(validateDashboardRouteSearch({ org: " ", shop: "", users: "20", focus: "person-a" })).toEqual({});
   });
 });

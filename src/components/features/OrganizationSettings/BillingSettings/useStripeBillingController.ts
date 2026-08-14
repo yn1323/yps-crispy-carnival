@@ -1,12 +1,10 @@
 import { useAction } from "convex/react";
-import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { toaster } from "@/src/components/ui/toaster";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
-import { selectedShopAtom } from "@/src/stores/shop";
 import type { BillingPlanPrices, BillingProductPlan, OrganizationBillingView, PaidBillingPlan } from "../types";
 import {
   asBillingAcceptedActionResult,
@@ -25,11 +23,9 @@ import {
 } from "./script";
 
 type Input = {
-  organizationId?: Id<"organizations">;
+  organizationId: Id<"organizations">;
   organizationName: string;
   billing: OrganizationBillingView;
-  // 旧controllerテストと段階的移行用。料金・Checkoutへ店舗名は送らない。
-  shopNames?: string[];
 };
 
 type PortalIntent = { kind: "plan" } | { kind: "paymentMethod" } | { kind: "billingDocuments" };
@@ -40,39 +36,29 @@ const INITIAL_PRICES: BillingPlanPrices = {
 };
 
 export function useStripeBillingController(input: Input) {
-  const selectedShop = useAtomValue(selectedShopAtom);
-  const getPlanPrice = useAction(api.organizationStripe.actions.getPlanPrice);
   const getPlanPriceForOrganization = useAction(api.organizationStripe.actions.getPlanPriceForOrganization);
-  const startPaidCheckout = useAction(api.organizationStripe.actions.startPaidCheckout);
   const startPaidCheckoutForOrganization = useAction(api.organizationStripe.actions.startPaidCheckoutForOrganization);
-  const previewPaidPlanChange = useAction(api.organizationStripe.actions.previewPaidPlanChange);
   const previewPaidPlanChangeForOrganization = useAction(
     api.organizationStripe.actions.previewPaidPlanChangeForOrganization,
   );
-  const changePaidPlanNow = useAction(api.organizationStripe.actions.changePaidPlanNow);
   const changePaidPlanNowForOrganization = useAction(api.organizationStripe.actions.changePaidPlanNowForOrganization);
-  const schedulePaidPlanChange = useAction(api.organizationStripe.actions.schedulePaidPlanChange);
   const schedulePaidPlanChangeForOrganization = useAction(
     api.organizationStripe.actions.schedulePaidPlanChangeForOrganization,
   );
-  const scheduleServiceStopAtPeriodEnd = useAction(api.organizationStripe.actions.scheduleServiceStopAtPeriodEnd);
   const scheduleServiceStopAtPeriodEndForOrganization = useAction(
     api.organizationStripe.actions.scheduleServiceStopAtPeriodEndForOrganization,
   );
-  const cancelScheduledPlanChange = useAction(api.organizationStripe.actions.cancelScheduledPlanChange);
   const cancelScheduledPlanChangeForOrganization = useAction(
     api.organizationStripe.actions.cancelScheduledPlanChangeForOrganization,
   );
-  const openCustomerPortal = useAction(api.organizationStripe.actions.openCustomerPortal);
   const openCustomerPortalForOrganization = useAction(api.organizationStripe.actions.openCustomerPortalForOrganization);
-  const cancelTrialContinuation = useAction(api.organizationStripe.actions.cancelTrialContinuation);
   const cancelTrialContinuationForOrganization = useAction(
     api.organizationStripe.actions.cancelTrialContinuationForOrganization,
   );
   const [planPrices, setPlanPrices] = useState<BillingPlanPrices>(INITIAL_PRICES);
   const [dialog, setDialog] = useState<BillingActionDialogState | null>(null);
   const latestRef = useRef(input);
-  const activeScopeId = input.organizationId ?? selectedShop?.shopId;
+  const activeScopeId = input.organizationId;
   const activeScopeIdRef = useRef(activeScopeId);
   const dialogRef = useRef(dialog);
   const priceRequestRef = useRef<Partial<Record<PaidBillingPlan, string>>>({});
@@ -87,10 +73,10 @@ export function useStripeBillingController(input: Input) {
       priceRequestRef.current[targetPlan] = requestKey;
       setPlanPrices((current) => ({ ...current, [targetPlan]: { status: "loading" } }));
       try {
-        const organizationId = latestRef.current.organizationId;
-        const result = organizationId
-          ? await getPlanPriceForOrganization({ organizationId, targetPlan })
-          : await getPlanPrice({ shopId: scopeId as Id<"shops">, targetPlan });
+        const result = await getPlanPriceForOrganization({
+          organizationId: latestRef.current.organizationId,
+          targetPlan,
+        });
         if (
           priceRequestRef.current[targetPlan] !== requestKey ||
           activeScopeIdRef.current !== scopeId ||
@@ -107,7 +93,7 @@ export function useStripeBillingController(input: Input) {
         if (priceRequestRef.current[targetPlan] === requestKey) delete priceRequestRef.current[targetPlan];
       }
     },
-    [getPlanPrice, getPlanPriceForOrganization],
+    [getPlanPriceForOrganization],
   );
 
   useEffect(() => {
@@ -146,11 +132,11 @@ export function useStripeBillingController(input: Input) {
       if (previewRequestKeysRef.current.has(intent.intentKey) || activeScopeIdRef.current !== intent.shopId) return;
       previewRequestKeysRef.current.add(intent.intentKey);
       try {
-        const organizationId = latestRef.current.organizationId;
         const request = { targetPlan: intent.targetPlan, requestId: intent.intentKey } as const;
-        const result = organizationId
-          ? await previewPaidPlanChangeForOrganization({ organizationId, ...request })
-          : await previewPaidPlanChange({ shopId: intent.shopId as Id<"shops">, ...request });
+        const result = await previewPaidPlanChangeForOrganization({
+          organizationId: latestRef.current.organizationId,
+          ...request,
+        });
         if (activeScopeIdRef.current !== intent.shopId) return;
         setDialog((current) =>
           current?.kind === "changePaidPlanNow" && current.intentKey === intent.intentKey
@@ -167,7 +153,7 @@ export function useStripeBillingController(input: Input) {
         previewRequestKeysRef.current.delete(intent.intentKey);
       }
     },
-    [previewPaidPlanChange, previewPaidPlanChangeForOrganization],
+    [previewPaidPlanChangeForOrganization],
   );
 
   const { run: confirm, isRunning } = useSingleFlight(async () => {
@@ -199,17 +185,11 @@ export function useStripeBillingController(input: Input) {
     try {
       if (currentDialog.kind === "startPaidPlan") {
         const result = asBillingUrlActionResult(
-          organizationId
-            ? await startPaidCheckoutForOrganization({
-                organizationId,
-                requestId,
-                targetPlan: currentDialog.targetPlan,
-              })
-            : await startPaidCheckout({
-                shopId: currentDialog.shopId as Id<"shops">,
-                requestId,
-                targetPlan: currentDialog.targetPlan,
-              }),
+          await startPaidCheckoutForOrganization({
+            organizationId,
+            requestId,
+            targetPlan: currentDialog.targetPlan,
+          }),
         );
         if (!result) throw new Error("Unexpected billing response");
         if (result.status === "unavailable") return showUnavailable(result.reason);
@@ -222,19 +202,12 @@ export function useStripeBillingController(input: Input) {
         if (currentDialog.preview.status !== "available") return;
         const { prorationDate } = currentDialog.preview.value;
         const result = asBillingAcceptedActionResult(
-          organizationId
-            ? await changePaidPlanNowForOrganization({
-                organizationId,
-                requestId,
-                targetPlan: currentDialog.targetPlan,
-                prorationDate,
-              })
-            : await changePaidPlanNow({
-                shopId: currentDialog.shopId as Id<"shops">,
-                requestId,
-                targetPlan: currentDialog.targetPlan,
-                prorationDate,
-              }),
+          await changePaidPlanNowForOrganization({
+            organizationId,
+            requestId,
+            targetPlan: currentDialog.targetPlan,
+            prorationDate,
+          }),
         );
         if (!result) throw new Error("Unexpected billing response");
         if (result.status === "unavailable") return showUnavailable(result.reason);
@@ -243,9 +216,8 @@ export function useStripeBillingController(input: Input) {
         return;
       }
 
-      const shopId = currentDialog.shopId as Id<"shops">;
-      const rawResult = organizationId
-        ? currentDialog.kind === "cancelTrialContinuation"
+      const rawResult =
+        currentDialog.kind === "cancelTrialContinuation"
           ? await cancelTrialContinuationForOrganization({ organizationId, requestId })
           : currentDialog.kind === "schedulePlanChange"
             ? await schedulePaidPlanChangeForOrganization({
@@ -255,14 +227,7 @@ export function useStripeBillingController(input: Input) {
               })
             : currentDialog.kind === "scheduleServiceStop"
               ? await scheduleServiceStopAtPeriodEndForOrganization({ organizationId, requestId })
-              : await cancelScheduledPlanChangeForOrganization({ organizationId, requestId })
-        : currentDialog.kind === "cancelTrialContinuation"
-          ? await cancelTrialContinuation({ shopId, requestId })
-          : currentDialog.kind === "schedulePlanChange"
-            ? await schedulePaidPlanChange({ shopId, requestId, targetPlan: currentDialog.targetPlan })
-            : currentDialog.kind === "scheduleServiceStop"
-              ? await scheduleServiceStopAtPeriodEnd({ shopId, requestId })
-              : await cancelScheduledPlanChange({ shopId, requestId });
+              : await cancelScheduledPlanChangeForOrganization({ organizationId, requestId });
       const result = asBillingAcceptedActionResult(rawResult);
       if (!result) throw new Error("Unexpected billing response");
       if (result.status === "unavailable") return showUnavailable(result.reason);
@@ -280,15 +245,10 @@ export function useStripeBillingController(input: Input) {
 
     try {
       const result = asBillingUrlActionResult(
-        current.organizationId
-          ? await openCustomerPortalForOrganization({
-              organizationId: current.organizationId,
-              requestId: crypto.randomUUID(),
-            })
-          : await openCustomerPortal({
-              shopId: scopeId as Id<"shops">,
-              requestId: crypto.randomUUID(),
-            }),
+        await openCustomerPortalForOrganization({
+          organizationId: current.organizationId,
+          requestId: crypto.randomUUID(),
+        }),
       );
       if (!result) throw new Error("Unexpected billing response");
       if (result.status === "unavailable") return showUnavailable(result.reason);

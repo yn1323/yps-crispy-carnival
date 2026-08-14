@@ -37,6 +37,7 @@ export type StaffInvitationViewModel = {
   onRetryRegistrationUrl: () => void | Promise<void>;
   onAddStaffs: (data: AddStaffFormData) => void | Promise<void>;
   onAddOrganizationPerson: (personId: Id<"organizationPeople">) => void | Promise<void>;
+  onOpenBillingSettings?: () => void;
   reactivationConfirmation: {
     dialog: DialogState;
     candidates: Array<{
@@ -168,6 +169,7 @@ function StaffInvitationDialogBody({ invitation, organizationPeopleContent }: Bo
                 <PeopleCapacityResolutionAlert
                   resolution={invitation.peopleCapacityResolution}
                   retryActionLabel="スタッフを追加"
+                  onOpenBillingSettings={invitation.onOpenBillingSettings}
                 />
               )}
               <AddStaffForm onSubmit={invitation.onAddStaffs} />
@@ -190,6 +192,7 @@ function StaffReactivationConfirmationBody({ invitation }: { invitation: StaffIn
         <PeopleCapacityResolutionAlert
           resolution={invitation.peopleCapacityResolution}
           retryActionLabel="スタッフを再追加"
+          onOpenBillingSettings={invitation.onOpenBillingSettings}
         />
       )}
       <Text fontSize="sm">入力したメールアドレスは、以前この組織から削除されたユーザーのものです。</Text>

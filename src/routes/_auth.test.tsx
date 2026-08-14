@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentType, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   currentNavigate: vi.fn(),
   pathlessRouteNavigate: vi.fn(),
+  redirect: vi.fn(),
   useNavigate: vi.fn(),
   usePathlessRouteNavigate: vi.fn(),
   useSearch: vi.fn(),
@@ -28,6 +29,7 @@ const mocks = vi.hoisted(() => ({
         backLabel: string;
       },
   pathname: "/dashboard",
+  organizationState: null as null | { kind: "empty" | "loading" },
 }));
 
 vi.mock("@chakra-ui/react", () => ({
@@ -41,6 +43,7 @@ vi.mock("@tanstack/react-router", () => ({
     useSearch: mocks.useSearch,
   }),
   Outlet: () => <div data-testid="outlet" />,
+  redirect: mocks.redirect,
   useMatches: () => [],
   useNavigate: mocks.useNavigate,
   useRouterState: ({ select }: { select: (state: { location: { pathname: string } }) => string }) =>
@@ -51,12 +54,14 @@ vi.mock("@/src/components/features/AuthenticatedApp", () => ({
   AppOrganizationScopeProvider: ({
     children,
     requestedOrganizationId,
+    renderState,
   }: {
     children: ReactNode;
     requestedOrganizationId?: string;
+    renderState: (state: { kind: "empty" | "loading" }) => ReactNode;
   }) => {
     mocks.organizationProviderProps({ requestedOrganizationId });
-    return children;
+    return mocks.organizationState ? renderState(mocks.organizationState) : children;
   },
   AppOrganizationStateView: () => <div data-testid="organization-state" />,
   AppOrganizationSwitcher: ({
@@ -71,27 +76,9 @@ vi.mock("@/src/components/features/AuthenticatedApp", () => ({
         {organization.name}へ切り替える
       </button>
     )),
-  AuthenticatedHeader: () => null,
-  AuthGuard: ({
-    children,
-    onNormalizeShopUrl,
-    requiresShopContext,
-    requestedShopId,
-  }: {
-    children: ReactNode;
-    onNormalizeShopUrl: (shopId: string) => void;
-    requiresShopContext: boolean;
-    requestedShopId?: string;
-  }) => {
-    mocks.authGuardProps({ requiresShopContext, requestedShopId });
-    return (
-      <>
-        <button type="button" onClick={() => onNormalizeShopUrl("shop-a")}>
-          店舗URLを補う
-        </button>
-        {children}
-      </>
-    );
+  AuthGuard: ({ children }: { children: ReactNode }) => {
+    mocks.authGuardProps();
+    return children;
   },
   getCanonicalAppHref: () => null,
   isAppPath: (pathname: string) => pathname === "/app" || pathname.startsWith("/app/"),
@@ -163,11 +150,16 @@ vi.mock("@/src/providers/AuthProviders", () => ({
   AuthProviders: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
+vi.mock("@/src/pages/dashboard", () => ({
+  DashboardSetupPage: () => <main data-testid="dashboard-setup">初回設定</main>,
+}));
+
 import { Route } from "./_auth";
 
 beforeEach(() => {
   mocks.currentNavigate.mockReset();
   mocks.pathlessRouteNavigate.mockReset();
+  mocks.redirect.mockReset();
   mocks.useNavigate.mockReset();
   mocks.usePathlessRouteNavigate.mockReset();
   mocks.useSearch.mockReset();
@@ -179,13 +171,40 @@ beforeEach(() => {
   mocks.fullPageSpinnerProps.mockReset();
   mocks.appShell = null;
   mocks.pathname = "/dashboard";
+  mocks.organizationState = null;
 
   mocks.useNavigate.mockReturnValue(mocks.currentNavigate);
   mocks.usePathlessRouteNavigate.mockReturnValue(mocks.pathlessRouteNavigate);
   mocks.useSearch.mockReturnValue({});
+  mocks.redirect.mockImplementation(() => new Error("redirect"));
 });
 
+function callBeforeLoad(pathname: string, searchStr: string) {
+  const beforeLoad = Route.options.beforeLoad;
+  if (!beforeLoad) throw new Error("beforeLoad is required");
+  return beforeLoad({ location: { pathname, searchStr } } as never);
+}
+
 describe("認証済み親route", () => {
+  it("未認証判定前にaccountの未知値とcredential・PII候補を復帰先から除去する", () => {
+    expect(() =>
+      callBeforeLoad(
+        "/account",
+        "?flow=connect-google&oauth=google&token=secret&code=oauth-code&email=manager%40example.com&unknown=value",
+      ),
+    ).toThrow("redirect");
+
+    expect(mocks.redirect).toHaveBeenCalledWith({
+      href: "/account?flow=connect-google&oauth=google",
+      replace: true,
+    });
+  });
+
+  it("accountの許可済みflowとOAuth markerだけならbeforeLoadで置換しない", () => {
+    expect(() => callBeforeLoad("/account", "?flow=connect-google&oauth=google")).not.toThrow();
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
   it("認証後routeのpendingではヘッダー分の余白を予約する", () => {
     mocks.appShell = { mode: "navigation", activeKey: "home" };
     const PendingComponent = Route.options.pendingComponent as ComponentType;
@@ -198,66 +217,10 @@ describe("認証済み親route", () => {
     });
   });
 
-  it("アカウント設定では店舗contextを要求せず、shopだけを除去して他のqueryを維持する", async () => {
+  it("アカウント設定は新shellを使い、組織scopeを要求しない", () => {
     mocks.pathname = "/account";
-    mocks.useSearch.mockReturnValue({ shop: "shop-a" });
-    const RouteComponent = Route.options.component;
-    if (!RouteComponent) throw new Error("Route component is required");
-
-    render(<RouteComponent />);
-
-    expect(mocks.authGuardProps).toHaveBeenCalledWith({ requiresShopContext: false, requestedShopId: undefined });
-    await waitFor(() => expect(mocks.currentNavigate).toHaveBeenCalledTimes(1));
-
-    const navigation = mocks.currentNavigate.mock.calls[0]?.[0];
-    expect(navigation).toMatchObject({ to: ".", replace: true });
-    expect(navigation.search({ shop: "shop-a", callback: "keep" })).toEqual({
-      shop: undefined,
-      callback: "keep",
-    });
-  });
-
-  it("店舗URLの補完では現在画面基準のnavigateを使い、pathless親route基準へ戻さない", () => {
-    const RouteComponent = Route.options.component;
-    if (!RouteComponent) throw new Error("Route component is required");
-    render(<RouteComponent />);
-
-    fireEvent.click(screen.getByRole("button", { name: "店舗URLを補う" }));
-
-    expect(mocks.useNavigate).toHaveBeenCalledTimes(2);
-    expect(mocks.usePathlessRouteNavigate).not.toHaveBeenCalled();
-    expect(mocks.pathlessRouteNavigate).not.toHaveBeenCalled();
-    expect(mocks.currentNavigate).toHaveBeenCalledTimes(1);
-
-    const navigation = mocks.currentNavigate.mock.calls[0]?.[0];
-    expect(navigation).toMatchObject({ to: ".", replace: true });
-    expect(navigation.search({ tab: "shops" })).toEqual({ tab: "shops", shop: "shop-a" });
-  });
-
-  it("app Homeのshopは旧店舗contextとして除去せず、org providerへ接続する", () => {
-    mocks.pathname = "/app/home";
-    mocks.appShell = { mode: "navigation", activeKey: "home" };
-    mocks.useSearch.mockReturnValue({ org: "organization-a", shop: "home-shop" });
-    const RouteComponent = Route.options.component;
-    if (!RouteComponent) throw new Error("Route component is required");
-
-    render(<RouteComponent />);
-
-    expect(mocks.authGuardProps).toHaveBeenCalledWith({ requiresShopContext: false, requestedShopId: undefined });
-    expect(mocks.organizationProviderProps).toHaveBeenCalledWith({ requestedOrganizationId: "organization-a" });
-    expect(mocks.authenticatedAppShellProps).toHaveBeenCalledWith({
-      featureRequest: {
-        expectedOrganizationId: "organization-a",
-        scope: { kind: "organization" },
-      },
-    });
-    expect(mocks.currentNavigate).not.toHaveBeenCalled();
-  });
-
-  it("app Accountはorganization providerと要望送信を利用しない", () => {
-    mocks.pathname = "/app/account";
     mocks.appShell = { mode: "navigation", activeKey: null };
-    mocks.useSearch.mockReturnValue({ flow: "overview", oauth: "success" });
+    mocks.useSearch.mockReturnValue({ flow: "connect-google", oauth: "google" });
     const RouteComponent = Route.options.component;
     if (!RouteComponent) throw new Error("Route component is required");
 
@@ -269,6 +232,39 @@ describe("認証済み親route", () => {
     expect(screen.queryByRole("button", { name: "要望を送る" })).toBeNull();
     expect(mocks.authenticatedAppShellProps).toHaveBeenCalledWith({ featureRequest: undefined });
     expect(mocks.featureRequestActionProps).not.toHaveBeenCalled();
+  });
+
+  it("Dashboardのorg・shopを新しい組織scopeとapp shellへ接続する", () => {
+    mocks.pathname = "/dashboard";
+    mocks.appShell = { mode: "navigation", activeKey: "home" };
+    mocks.useSearch.mockReturnValue({ org: "organization-a", shop: "home-shop" });
+    const RouteComponent = Route.options.component;
+    if (!RouteComponent) throw new Error("Route component is required");
+
+    render(<RouteComponent />);
+
+    expect(mocks.organizationProviderProps).toHaveBeenCalledWith({ requestedOrganizationId: "organization-a" });
+    expect(mocks.authenticatedAppShellProps).toHaveBeenCalledWith({
+      featureRequest: {
+        expectedOrganizationId: "organization-a",
+        scope: { kind: "organization" },
+      },
+    });
+    expect(mocks.currentNavigate).not.toHaveBeenCalled();
+  });
+
+  it("組織が未作成ならDashboardの初回Setupを新shell内に表示する", () => {
+    mocks.pathname = "/dashboard";
+    mocks.appShell = { mode: "navigation", activeKey: "home" };
+    mocks.organizationState = { kind: "empty" };
+    const RouteComponent = Route.options.component;
+    if (!RouteComponent) throw new Error("Route component is required");
+
+    render(<RouteComponent />);
+
+    expect(screen.getByTestId("app-shell")).toBeTruthy();
+    expect(screen.getByTestId("dashboard-setup")).toBeTruthy();
+    expect(screen.queryByTestId("organization-state")).toBeNull();
   });
 
   it("詳細画面で組織を変更すると旧entityを持ち越さず同じ主タブへ移動する", () => {

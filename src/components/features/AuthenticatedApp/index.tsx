@@ -7,18 +7,17 @@ export {
 } from "./AppOrganizationScope";
 export { resolveAppFeatureRequestScope } from "./AppOrganizationScope/featureRequestScope";
 export { AppOrganizationSwitcher } from "./AppOrganizationSwitcher";
-export { AuthenticatedHeader } from "./AuthenticatedHeader";
 export { AuthGuard } from "./AuthGuard";
 export type { AppNavigationTarget } from "./appNavigationTargetResolver";
 export { resolveAppNavigationTarget } from "./appNavigationTargetResolver";
 export { resolveAppOrganizationSwitchTarget } from "./appOrganizationSwitchTarget";
 export type {
   AppFilteredListRouteSearch,
-  AppHomeRouteSearch,
   AppNavigationPath,
   AppOrganizationRouteSearch,
   AppOrganizationScopedNavigationPath,
   AppRouteSearch,
+  DashboardRouteSearch,
 } from "./appRoutePolicy";
 export {
   getCanonicalAppHref,
@@ -26,7 +25,7 @@ export {
   normalizeAppRouteSearch,
   resolveAppShellRouteData,
   validateAppFilteredListRouteSearch,
-  validateAppHomeRouteSearch,
   validateAppOrganizationRouteSearch,
+  validateDashboardRouteSearch,
 } from "./appRoutePolicy";
 export { UnauthenticatedBoundary } from "./UnauthenticatedBoundary";

@@ -1,5 +1,5 @@
 type AppOrganizationSwitchPath =
-  | "/app/home"
+  | "/dashboard"
   | "/app/shifts"
   | "/app/staff"
   | "/app/actions"
@@ -14,7 +14,7 @@ type AppOrganizationSwitchTarget = {
 };
 
 const PRESERVED_ORGANIZATION_PATHS = new Set<AppOrganizationSwitchPath>([
-  "/app/home",
+  "/dashboard",
   "/app/shifts",
   "/app/staff",
   "/app/actions",

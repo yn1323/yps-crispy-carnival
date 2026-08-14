@@ -23,6 +23,7 @@ export {
 export const Route = createFileRoute("/_auth/account")({
   validateSearch: validateAccountSecuritySearch,
   head: buildAccountSecurityPageHead,
+  staticData: { appShell: { mode: "navigation", activeKey: null } },
   component: AccountSecurityRoute,
 });
 
@@ -57,6 +58,7 @@ function AccountSecurityRoute() {
 
   return (
     <AccountSecurityPage
+      includeMobileNavigation
       flow={flow}
       oauth={oauth}
       onStartFlow={handleStartFlow}

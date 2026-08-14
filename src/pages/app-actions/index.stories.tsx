@@ -3,6 +3,7 @@ import { useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
 import { type ActionInboxItem, ActionInboxView } from "@/src/components/features/ActionInbox";
 import { ShopFilterMenu } from "@/src/components/features/AuthenticatedApp/ShopFilterMenu";
+import { AuthenticatedAppShell } from "@/src/components/templates/AuthenticatedAppShell";
 import { AppActionsPageView, AppActionsReadOnlyNotice } from ".";
 
 const items: readonly ActionInboxItem[] = [
@@ -87,6 +88,14 @@ function ReadyPreview({ readOnly = false, empty = false }: { readOnly?: boolean;
   );
 }
 
+function AppCompositionPreview() {
+  return (
+    <AuthenticatedAppShell activeKey="actions" activeOrganizationId="organization-preview">
+      <ReadyPreview />
+    </AuthenticatedAppShell>
+  );
+}
+
 const meta = {
   title: "Pages/AppActions/States",
   component: AppActionsPageView,
@@ -119,6 +128,19 @@ export const MobileReady: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
   render: () => <ReadyPreview />,
+};
+
+export const AppCompositionDesktop: Story = {
+  name: "対応Inbox・新shell・デスクトップ",
+  parameters: { vrt: { releaseFixedHeader: true } },
+  render: () => <AppCompositionPreview />,
+};
+
+export const AppCompositionMobile: Story = {
+  ...AppCompositionDesktop,
+  name: "対応Inbox・新shell・モバイル414px",
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
 };
 
 function RetryBehaviorPreview() {

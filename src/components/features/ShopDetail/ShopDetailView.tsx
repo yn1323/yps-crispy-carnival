@@ -25,7 +25,6 @@ type SettingsDialogState = {
 
 type Props = {
   shop: ShopDetailData;
-  organizationSettingsShopId: string;
   staffs: ShopDetailPerson[];
   settingsDialog: SettingsDialogState;
   isDeleting: boolean;
@@ -33,12 +32,12 @@ type Props = {
   onOpenUser: (personId: string) => void;
   onUpdateSettings: (data: ShopFormData) => void | Promise<void>;
   onDelete: () => Promise<boolean>;
-  expectedOrganizationId?: Id<"organizations">;
+  expectedOrganizationId: Id<"organizations">;
+  isShopAdditionEnabled: boolean;
 };
 
 export function ShopDetailView({
   shop,
-  organizationSettingsShopId,
   staffs,
   settingsDialog,
   isDeleting,
@@ -47,6 +46,7 @@ export function ShopDetailView({
   onUpdateSettings,
   onDelete,
   expectedOrganizationId,
+  isShopAdditionEnabled,
 }: Props) {
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
   const [isStaffMembershipDialogOpen, setIsStaffMembershipDialogOpen] = useState(false);
@@ -89,8 +89,7 @@ export function ShopDetailView({
       />
       <ShopOtherSettingsSection
         shop={shop}
-        organizationSettingsShopId={organizationSettingsShopId}
-        appOrganizationId={expectedOrganizationId}
+        organizationId={expectedOrganizationId}
         onRequestDelete={() => setIsDeleteConfirmationOpen(true)}
       />
 
@@ -114,6 +113,7 @@ export function ShopDetailView({
               if (!open) closeStaffMembershipDialog();
             }}
             onClose={closeStaffMembershipDialog}
+            isShopAdditionEnabled={isShopAdditionEnabled}
           />
         </ErrorBoundary>
       )}

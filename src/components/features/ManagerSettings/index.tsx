@@ -6,21 +6,17 @@ import { useManagerSettingsController } from "./useManagerSettingsController";
 
 export function ManagerSettings({
   overview,
-  shopId,
   organizationId,
 }: {
   overview: ReadyManagerSettingsOverview;
-  shopId?: string;
-  organizationId?: Id<"organizations">;
+  organizationId: Id<"organizations">;
 }) {
   const controller = useManagerSettingsController({ overview, organizationId });
   return (
     <>
       <ManagerSettingsView
         overview={overview}
-        shopId={shopId ?? ""}
         organizationId={organizationId}
-        navigationMode={organizationId ? "app" : "legacy"}
         onBack={controller.onBack}
         onRequestResend={controller.onRequestResend}
         onRequestRevoke={controller.onRequestRevoke}

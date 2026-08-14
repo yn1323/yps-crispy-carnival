@@ -51,6 +51,8 @@ vi.mock("@/src/components/features/OrganizationSettings", () => ({
     onAddStaff,
     canAddStaff,
     addStaffDisabledReason,
+    showManagerInvitation,
+    onManageManagers,
   }: {
     people: Array<{ id: string; name: string }>;
     peopleUsage: { current: number; max: number };
@@ -61,6 +63,8 @@ vi.mock("@/src/components/features/OrganizationSettings", () => ({
     onAddStaff: () => void;
     canAddStaff: boolean;
     addStaffDisabledReason?: string;
+    showManagerInvitation: boolean;
+    onManageManagers: () => void;
   }) => (
     <section>
       <output data-testid="people-counts">
@@ -78,6 +82,11 @@ vi.mock("@/src/components/features/OrganizationSettings", () => ({
       <button type="button" onClick={onAddStaff} disabled={!canAddStaff} title={addStaffDisabledReason}>
         スタッフを追加
       </button>
+      {showManagerInvitation && (
+        <button type="button" onClick={onManageManagers}>
+          管理者を設定
+        </button>
+      )}
     </section>
   ),
 }));
@@ -165,6 +174,7 @@ beforeEach(() => {
     visibleCountHasOverflow: false,
     maxPeople: 5,
     canAddStaff: true,
+    features: { managerInvitation: true },
   });
 });
 
@@ -323,5 +333,23 @@ describe("AppStaffRoutePage", () => {
     const addButton = screen.getByRole("button", { name: "スタッフを追加" }) as HTMLButtonElement;
     expect(addButton.disabled).toBe(true);
     expect(addButton.title).toBe("閲覧のみの管理者は、スタッフを追加できません。");
+  });
+
+  it("管理者招待が未公開なら管理者設定の入口を描画しない", () => {
+    mocks.useQuery.mockReturnValue({
+      totalCount: 12,
+      totalCountHasOverflow: false,
+      visibleCount: 1,
+      visibleCountHasOverflow: false,
+      maxPeople: 5,
+      canAddStaff: true,
+      features: { managerInvitation: false },
+    });
+
+    renderPage(
+      <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={shops} />,
+    );
+
+    expect(screen.queryByRole("button", { name: "管理者を設定" })).toBeNull();
   });
 });

@@ -27,7 +27,7 @@ const secondPersonId = "person-manager-second" as Id<"organizationPeople">;
 const candidateId = "person-candidate" as Id<"organizationPeople">;
 const disabledCandidateId = "person-disabled" as Id<"organizationPeople">;
 const invitationId = "invitation-manager" as Id<"organizationInvitations">;
-const shopId = "shop-shibuya";
+const organizationId = "organization-main" as Id<"organizations">;
 const requestId = "00000000-0000-4000-8000-000000000001";
 const noop = () => undefined;
 
@@ -110,7 +110,7 @@ const meta = {
   ],
   args: {
     overview,
-    shopId,
+    organizationId,
     onBack: noop,
     onRequestResend: noop,
     onRequestRevoke: noop,
@@ -370,7 +370,11 @@ export const CandidateSelectionBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   render: () => (
     <SubpageFrame title="既存スタッフを管理者として招待">
-      <ManagerCandidatePageContent overview={overview} result={{ kind: "ready", candidates }} shopId={shopId} />
+      <ManagerCandidatePageContent
+        overview={overview}
+        result={{ kind: "ready", candidates }}
+        organizationId={organizationId}
+      />
     </SubpageFrame>
   ),
   play: async ({ canvasElement }) => {
@@ -398,7 +402,7 @@ export const FreeCandidateAdditionBehavior: Story = {
           actions: { canInviteExistingStaff: true, canInviteExternal: true },
         }}
         result={{ kind: "ready", candidates }}
-        shopId={shopId}
+        organizationId={organizationId}
       />
     </SubpageFrame>
   ),
@@ -441,7 +445,7 @@ export const CandidateUnavailableAtCapacity: Story = {
           },
         }}
         result={{ kind: "ready", candidates }}
-        shopId={shopId}
+        organizationId={organizationId}
       />
     </SubpageFrame>
   ),
@@ -539,7 +543,7 @@ function ManagerSettingsConfirmationHarness() {
       </output>
       <ManagerSettingsView
         overview={overview}
-        shopId={shopId}
+        organizationId={organizationId}
         onBack={noop}
         onRequestResend={(invitation) => setConfirmation({ kind: "resend", invitation, requestId })}
         onRequestRevoke={(invitation) => setConfirmation({ kind: "revoke", invitation, requestId })}
@@ -604,7 +608,7 @@ function CandidateDriftHarness() {
       <ManagerCandidatePageContent
         overview={overview}
         result={{ kind: "ready", candidates: availableCandidates }}
-        shopId={shopId}
+        organizationId={organizationId}
       />
     </SubpageFrame>
   );

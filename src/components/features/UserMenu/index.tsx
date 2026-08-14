@@ -2,35 +2,17 @@ import { Box, Flex, Icon, Menu, Portal, Text } from "@chakra-ui/react";
 import { SignOutButton } from "@clerk/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import {
-  LuBookOpen,
-  LuBuilding2,
-  LuChevronDown,
-  LuLogOut,
-  LuMailQuestion,
-  LuShieldCheck,
-  LuUserRound,
-} from "react-icons/lu";
-import { selectedShopAtom } from "@/src/stores/shop";
-import { featureVisibilityAtom, userAtom } from "@/src/stores/user";
+import { LuBookOpen, LuChevronDown, LuLogOut, LuMailQuestion, LuShieldCheck, LuUserRound } from "react-icons/lu";
+import { userAtom } from "@/src/stores/user";
 
 type Props = {
   tone?: "dark" | "light";
-  accountDestination?: "/account" | "/app/account";
-  showOrganizationSettings?: boolean;
 };
 
-export const UserMenu = ({
-  tone = "dark",
-  accountDestination = "/account",
-  showOrganizationSettings = true,
-}: Props) => {
+export const UserMenu = ({ tone = "dark" }: Props) => {
   const user = useAtomValue(userAtom);
-  const selectedShop = useAtomValue(selectedShopAtom);
-  const featureVisibility = useAtomValue(featureVisibilityAtom);
   const displayName = user.name || "ユーザー";
   const isLight = tone === "light";
-  const showGroupSettings = showOrganizationSettings && featureVisibility.organizationSettingsNavigation;
 
   return (
     <Menu.Root positioning={{ placement: "bottom-end" }}>
@@ -92,19 +74,11 @@ export const UserMenu = ({
             </Box>
             <Menu.Separator />
             <Menu.Item asChild value="login-settings" cursor="pointer">
-              <RouterLink to={accountDestination}>
+              <RouterLink to="/account">
                 <LuShieldCheck aria-hidden />
                 アカウント設定
               </RouterLink>
             </Menu.Item>
-            {showGroupSettings && (
-              <Menu.Item asChild value="group-settings" cursor="pointer">
-                <RouterLink to="/settings" search={{ shop: selectedShop?.shopId }}>
-                  <LuBuilding2 aria-hidden />
-                  組織設定
-                </RouterLink>
-              </Menu.Item>
-            )}
             <Menu.Item asChild value="howto" cursor="pointer">
               <a href="/howto" target="_blank" rel="noreferrer">
                 <LuBookOpen />

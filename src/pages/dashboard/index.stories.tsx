@@ -1,14 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
-import { AppHomePageStateView, AppHomeReadOnlyNotice } from ".";
+import { DashboardPageStateView, DashboardReadOnlyNotice } from ".";
 
 const meta = {
-  title: "Pages/AppHome/States",
-  component: AppHomePageStateView,
+  title: "Pages/Dashboard/States",
+  component: DashboardPageStateView,
   args: { state: { kind: "loading" } },
   parameters: { layout: "padded" },
-} satisfies Meta<typeof AppHomePageStateView>;
+} satisfies Meta<typeof DashboardPageStateView>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -37,7 +37,7 @@ export const MobileReadOnly: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
   render: () => (
-    <AppHomeReadOnlyNotice
+    <DashboardReadOnlyNotice
       organizationId={"organization-preview" as never}
       memberStatus="readOnly"
       businessWriteBlockReason={null}
@@ -51,7 +51,7 @@ function EmptyManagementBehaviorPreview() {
   return opened ? (
     <output>管理画面を開きました</output>
   ) : (
-    <AppHomePageStateView state={{ kind: "empty" }} onOpenManagement={() => setOpened(true)} />
+    <DashboardPageStateView state={{ kind: "empty" }} onOpenManagement={() => setOpened(true)} />
   );
 }
 

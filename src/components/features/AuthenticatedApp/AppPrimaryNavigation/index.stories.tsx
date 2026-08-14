@@ -20,6 +20,10 @@ export const Desktop: Story = {
     const links = within(navigation).getAllByRole("link");
 
     await expect(links).toHaveLength(5);
+    await expect(within(navigation).getByRole("link", { name: "ホーム" })).toHaveAttribute(
+      "href",
+      `/dashboard?org=${ORGANIZATION_ID}`,
+    );
     await expect(within(navigation).getByRole("link", { name: "スタッフ" })).toHaveAttribute("aria-current", "page");
     await expect(within(navigation).getByRole("link", { name: "シフト" })).toHaveAttribute(
       "href",

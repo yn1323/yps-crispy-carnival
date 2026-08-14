@@ -6,17 +6,11 @@ import type { ShopDetailData } from "./types";
 
 type Props = {
   shop: ShopDetailData;
-  organizationSettingsShopId: string;
-  appOrganizationId?: Id<"organizations">;
+  organizationId: Id<"organizations">;
   onRequestDelete: () => void;
 };
 
-export function ShopOtherSettingsSection({
-  shop,
-  organizationSettingsShopId,
-  appOrganizationId,
-  onRequestDelete,
-}: Props) {
+export function ShopOtherSettingsSection({ shop, organizationId, onRequestDelete }: Props) {
   const disabledReasonId = shop.deleteDisabledReason ? `shop-detail-${shop.id}-delete-disabled-reason` : undefined;
 
   return (
@@ -42,23 +36,13 @@ export function ShopOtherSettingsSection({
             <br />
             登録情報をすべて削除したい場合は
             <Link asChild color="teal.700" fontWeight="semibold" textDecoration="underline" textUnderlineOffset="3px">
-              {appOrganizationId ? (
-                <RouterLink
-                  to="/app/manage/organization"
-                  search={{ org: appOrganizationId }}
-                  aria-label="こちら（組織情報を開く）"
-                >
-                  こちら
-                </RouterLink>
-              ) : (
-                <RouterLink
-                  to="/settings"
-                  search={{ shop: organizationSettingsShopId, tab: "settings" }}
-                  aria-label="こちら（組織設定の設定タブを開く）"
-                >
-                  こちら
-                </RouterLink>
-              )}
+              <RouterLink
+                to="/app/manage/organization"
+                search={{ org: organizationId }}
+                aria-label="こちら（組織情報を開く）"
+              >
+                こちら
+              </RouterLink>
             </Link>
           </>
         }

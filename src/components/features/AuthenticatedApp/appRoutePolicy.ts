@@ -1,7 +1,7 @@
 import type { AppNavigationKey } from "./AppPrimaryNavigation";
 
 export type AppOrganizationScopedNavigationPath =
-  | "/app/home"
+  | "/dashboard"
   | "/app/shifts"
   | `/app/shifts/${string}/board`
   | "/app/staff"
@@ -15,7 +15,7 @@ export type AppOrganizationScopedNavigationPath =
   | "/app/manage/billing"
   | `/app/manage/shops/${string}`;
 
-export type AppNavigationPath = AppOrganizationScopedNavigationPath | "/app/account";
+export type AppNavigationPath = AppOrganizationScopedNavigationPath | "/account";
 
 export type AppRouteSearch = {
   org?: string;
@@ -26,16 +26,15 @@ export type AppRouteSearch = {
 };
 
 export type AppOrganizationRouteSearch = Pick<AppRouteSearch, "org">;
-export type AppHomeRouteSearch = Pick<AppRouteSearch, "org" | "shop">;
+export type DashboardRouteSearch = Pick<AppRouteSearch, "org" | "shop">;
 export type AppFilteredListRouteSearch = Pick<AppRouteSearch, "org" | "shopFilter">;
 
 type AppRouteSearchKey = keyof AppRouteSearch;
 
 const NO_APP_SEARCH_KEYS: readonly AppRouteSearchKey[] = [];
 const ORGANIZATION_SEARCH_KEYS = ["org"] as const satisfies readonly AppRouteSearchKey[];
-const HOME_SEARCH_KEYS = ["org", "shop"] as const satisfies readonly AppRouteSearchKey[];
+const DASHBOARD_SEARCH_KEYS = ["org", "shop"] as const satisfies readonly AppRouteSearchKey[];
 const FILTERED_LIST_SEARCH_KEYS = ["org", "shopFilter"] as const satisfies readonly AppRouteSearchKey[];
-const ACCOUNT_SEARCH_KEYS = ["flow", "oauth"] as const satisfies readonly AppRouteSearchKey[];
 
 export type AppShellRouteData =
   | {
@@ -92,8 +91,8 @@ export function validateAppOrganizationRouteSearch(search: Record<string, unknow
   return org ? { org } : {};
 }
 
-export function validateAppHomeRouteSearch(search: Record<string, unknown>): AppHomeRouteSearch {
-  const { org, shop } = normalizeAppRouteSearch("/app/home", search);
+export function validateDashboardRouteSearch(search: Record<string, unknown>): DashboardRouteSearch {
+  const { org, shop } = normalizeAppRouteSearch("/dashboard", search);
   return { ...(org ? { org } : {}), ...(shop ? { shop } : {}) };
 }
 
@@ -104,7 +103,7 @@ export function validateAppFilteredListRouteSearch(search: Record<string, unknow
 
 /** 認証復帰前にroute別allowlist外と空値を除去し、一意なsearchへ収束させる。 */
 export function getCanonicalAppHref(pathname: string, searchStr: string): string | null {
-  if (!isAppPath(pathname)) return null;
+  if (pathname !== "/dashboard" && !isAppPath(pathname)) return null;
 
   const currentSearch = normalizeSearchString(searchStr);
   const rawSearch = Object.fromEntries(new URLSearchParams(currentSearch));
@@ -115,12 +114,10 @@ export function getCanonicalAppHref(pathname: string, searchStr: string): string
 
 function getAllowedAppRouteSearchKeys(pathname: string): readonly AppRouteSearchKey[] {
   if (pathname === "/app") return ORGANIZATION_SEARCH_KEYS;
-  if (pathname === "/app/home") return HOME_SEARCH_KEYS;
+  if (pathname === "/dashboard") return DASHBOARD_SEARCH_KEYS;
   if (pathname === "/app/shifts" || pathname === "/app/staff" || pathname === "/app/actions") {
     return FILTERED_LIST_SEARCH_KEYS;
   }
-  if (pathname === "/app/account") return ACCOUNT_SEARCH_KEYS;
-
   if (
     pathname.startsWith("/app/shifts/") ||
     pathname.startsWith("/app/staff/") ||

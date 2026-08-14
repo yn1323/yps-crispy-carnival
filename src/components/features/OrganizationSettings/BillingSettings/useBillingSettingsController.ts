@@ -1,22 +1,18 @@
 import { useMutation } from "convex/react";
-import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { toaster } from "@/src/components/ui/toaster";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
-import { selectedShopAtom } from "@/src/stores/shop";
 import type { OrganizationBillingView } from "../types";
 
 type Input = {
-  organizationId?: Id<"organizations">;
+  organizationId: Id<"organizations">;
   billing: OrganizationBillingView;
 };
 
 export function useBillingSettingsController(input: Input) {
-  const selectedShop = useAtomValue(selectedShopAtom);
-  const updateBillingEmail = useMutation(api.organizationBilling.mutations.updateBillingEmail);
   const updateBillingEmailForOrganization = useMutation(
     api.organizationBilling.mutations.updateBillingEmailForOrganization,
   );
@@ -30,21 +26,13 @@ export function useBillingSettingsController(input: Input) {
 
   const { run: submitBillingEmail, isRunning: isUpdatingBillingEmail } = useSingleFlight(async (email: string) => {
     const latest = latestRef.current;
-    if (!latest.billing.canUpdateBillingEmail || (!latest.organizationId && !selectedShop?.shopId)) {
+    if (!latest.billing.canUpdateBillingEmail) {
       setIsBillingEmailOpen(false);
       return;
     }
     try {
       const requestId = crypto.randomUUID();
-      if (latest.organizationId) {
-        await updateBillingEmailForOrganization({ organizationId: latest.organizationId, email, requestId });
-      } else if (selectedShop) {
-        await updateBillingEmail({
-          shopId: selectedShop.shopId as Id<"shops">,
-          email,
-          requestId,
-        });
-      }
+      await updateBillingEmailForOrganization({ organizationId: latest.organizationId, email, requestId });
       showSuccessToast({ title: "請求先メールアドレスを変更しました" });
       setIsBillingEmailOpen(false);
     } catch (error) {

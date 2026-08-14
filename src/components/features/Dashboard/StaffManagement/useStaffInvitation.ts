@@ -13,7 +13,11 @@ import { getConvexErrorMessage } from "@/src/lib/convex/error";
 import type { AddStaffFormData } from "../AddStaffForm";
 import type { StaffInvitationMethod } from "./StaffInvitationDialog";
 
-export function useStaffInvitation(isReadOnly = false, showOrganizationPeopleAddition = false) {
+export function useStaffInvitation(
+  isReadOnly = false,
+  showOrganizationPeopleAddition = false,
+  onOpenBillingSettings?: () => void,
+) {
   const isReadOnlyRef = useRef(isReadOnly);
   const showOrganizationPeopleAdditionRef = useRef(showOrganizationPeopleAddition);
   const invitationMutationInFlightRef = useRef(false);
@@ -277,6 +281,7 @@ export function useStaffInvitation(isReadOnly = false, showOrganizationPeopleAdd
     onRetryRegistrationUrl: handleRetryRegistrationUrl,
     onAddStaffs: handleAddStaffs,
     onAddOrganizationPerson: handleAddOrganizationPerson,
+    onOpenBillingSettings,
     reactivationConfirmation: {
       dialog: {
         isOpen: reactivationDialog.isOpen,

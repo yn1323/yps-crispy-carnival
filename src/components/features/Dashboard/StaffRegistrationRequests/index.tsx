@@ -7,6 +7,9 @@ import { Dialog } from "@/src/components/ui/Dialog";
 import type { PeopleCapacityResolution } from "@/src/domains/organizationBilling/peopleCapacity";
 import { formatDateTime } from "@/src/domains/shift/date";
 import type { StaffRegistrationRequest } from "../types";
+import { resolveStaffRegistrationApprovalAvailability } from "./script";
+
+export { resolveStaffRegistrationApprovalAvailability } from "./script";
 
 type StaffRegistrationRequestDialogProps = {
   isOpen: boolean;
@@ -15,6 +18,7 @@ type StaffRegistrationRequestDialogProps = {
   onClose: () => void;
   requests: StaffRegistrationRequest[];
   peopleCapacityResolution?: PeopleCapacityResolution | null;
+  onOpenBillingSettings?: () => void;
   onApprove: (request: StaffRegistrationRequest) => void;
   onReject: (request: StaffRegistrationRequest) => void;
   isApproving?: boolean;
@@ -36,6 +40,7 @@ export const StaffRegistrationRequestDialog = ({
   onClose,
   requests,
   peopleCapacityResolution = null,
+  onOpenBillingSettings,
   onApprove,
   onReject,
   isApproving = false,
@@ -110,7 +115,11 @@ export const StaffRegistrationRequestDialog = ({
       ) : (
         <Stack gap={4} w="full">
           {peopleCapacityResolution && (
-            <PeopleCapacityResolutionAlert resolution={peopleCapacityResolution} retryActionLabel="申請を承認" />
+            <PeopleCapacityResolutionAlert
+              resolution={peopleCapacityResolution}
+              retryActionLabel="申請を承認"
+              onOpenBillingSettings={onOpenBillingSettings}
+            />
           )}
           <Text fontSize="sm" color="fg.muted">
             承認するとスタッフとして登録されます。
@@ -254,33 +263,48 @@ const RequestActionButtons = ({
   isRejecting: boolean;
   isBusy: boolean;
   fullWidth?: boolean;
-}) => (
-  <HStack gap={2} flexShrink={0} justify={fullWidth ? "flex-end" : "center"} w={fullWidth ? "100%" : undefined}>
-    <Button
-      aria-label={`${request.name}を承認`}
-      size="sm"
-      colorPalette="teal"
-      loading={isApproving}
-      disabled={isBusy}
-      onClick={() => onApprove(request)}
-      flex={fullWidth ? 1 : undefined}
-    >
-      承認
-    </Button>
-    <Button
-      data-registration-reject-trigger={request._id}
-      aria-label={`${request.name}を却下`}
-      size="sm"
-      variant="outline"
-      colorPalette="red"
-      gap={1}
-      loading={isRejecting}
-      disabled={isBusy}
-      onClick={() => onReject(request)}
-      flex={fullWidth ? 1 : undefined}
-    >
-      <LuX />
-      却下
-    </Button>
-  </HStack>
-);
+}) => {
+  const approval = resolveStaffRegistrationApprovalAvailability(request);
+  const disabledReasonId = approval.canApprove ? undefined : `registration-approve-disabled-${request._id}`;
+
+  return (
+    <Stack gap={1} align={fullWidth ? "stretch" : "center"} w={fullWidth ? "100%" : undefined}>
+      <HStack gap={2} flexShrink={0} justify={fullWidth ? "flex-end" : "center"} w="100%">
+        <Button
+          aria-label={`${request.name}を承認`}
+          aria-describedby={disabledReasonId}
+          size="sm"
+          colorPalette="teal"
+          loading={isApproving}
+          disabled={isBusy || !approval.canApprove}
+          onClick={() => {
+            if (approval.canApprove) onApprove(request);
+          }}
+          flex={fullWidth ? 1 : undefined}
+        >
+          承認
+        </Button>
+        <Button
+          data-registration-reject-trigger={request._id}
+          aria-label={`${request.name}を却下`}
+          size="sm"
+          variant="outline"
+          colorPalette="red"
+          gap={1}
+          loading={isRejecting}
+          disabled={isBusy}
+          onClick={() => onReject(request)}
+          flex={fullWidth ? 1 : undefined}
+        >
+          <LuX />
+          却下
+        </Button>
+      </HStack>
+      {!approval.canApprove && (
+        <Text id={disabledReasonId} fontSize="xs" color="fg.muted" textAlign={fullWidth ? "left" : "center"}>
+          {approval.disabledReason}
+        </Text>
+      )}
+    </Stack>
+  );
+};

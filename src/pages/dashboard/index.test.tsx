@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ChakraProvider } from "@/src/providers/ChakraProvider";
-import { APP_HOME_SHOP_PREFERENCE_STORAGE_KEY } from "./script";
+import { DASHBOARD_SHOP_PREFERENCE_STORAGE_KEY } from "./script";
 
 const mocks = vi.hoisted(() => ({
   dashboardShopQuery: Symbol("getDashboardShop"),
@@ -57,22 +57,30 @@ vi.mock("@/src/components/features/Dashboard", () => ({
   },
   Dashboard: (props: Record<string, unknown>) => {
     mocks.dashboardProps = props;
-    const navigation = props.navigation as {
-      onOpenShiftBoard: (recruitmentId: string) => void;
-      onOpenStaffDetail: (personId: string) => void;
-    };
+    const navigation = props.navigation as
+      | {
+          onOpenShiftBoard: (recruitmentId: string) => void;
+          onOpenStaffDetail: (personId: string) => void;
+        }
+      | undefined;
     return (
       <section
         aria-label="接続済みホーム"
         data-read-only={String(props.isReadOnly)}
         data-organization-id={String(props.expectedOrganizationId)}
       >
-        <button type="button" onClick={() => navigation.onOpenShiftBoard("recruitment-1")}>
-          シフトを開く
-        </button>
-        <button type="button" onClick={() => navigation.onOpenStaffDetail("person-1")}>
-          スタッフを開く
-        </button>
+        {navigation ? (
+          <>
+            <button type="button" onClick={() => navigation.onOpenShiftBoard("recruitment-1")}>
+              シフトを開く
+            </button>
+            <button type="button" onClick={() => navigation.onOpenStaffDetail("person-1")}>
+              スタッフを開く
+            </button>
+          </>
+        ) : (
+          <span>初回設定</span>
+        )}
       </section>
     );
   },
@@ -102,7 +110,7 @@ vi.mock("@/src/providers/ManagerShopScopeProvider", () => ({
   ),
 }));
 
-import { AppHomeRoutePage } from ".";
+import { DashboardRoutePage, DashboardSetupPage } from ".";
 
 const shop = {
   name: "A店舗",
@@ -161,10 +169,10 @@ beforeEach(() => {
   });
 });
 
-const renderPage = (overrides: Partial<ComponentProps<typeof AppHomeRoutePage>> = {}) =>
+const renderPage = (overrides: Partial<ComponentProps<typeof DashboardRoutePage>> = {}) =>
   render(
     <ChakraProvider>
-      <AppHomeRoutePage
+      <DashboardRoutePage
         organizationId={"organization-a" as never}
         organizationName="Aグループ"
         memberStatus="active"
@@ -175,7 +183,23 @@ const renderPage = (overrides: Partial<ComponentProps<typeof AppHomeRoutePage>> 
     </ChakraProvider>,
   );
 
-describe("AppHomeRoutePage", () => {
+describe("DashboardRoutePage", () => {
+  it("組織未作成時は既存Setupへshop=nullと管理者初期値を接続する", () => {
+    render(
+      <ChakraProvider>
+        <DashboardSetupPage />
+      </ChakraProvider>,
+    );
+
+    expect(screen.getByText("初回設定")).not.toBeNull();
+    expect(mocks.dashboardProps).toMatchObject({
+      shop: null,
+      currentUser: { isNewUser: false, name: "管理者", email: "manager@example.com" },
+      showOrganizationContext: false,
+    });
+    expect(mocks.dashboardProps?.navigation).toBeUndefined();
+  });
+
   it("ホームでは組織・プランのコンテキストを表示しない", () => {
     renderPage();
 
@@ -198,7 +222,7 @@ describe("AppHomeRoutePage", () => {
 
     view.rerender(
       <ChakraProvider>
-        <AppHomeRoutePage
+        <DashboardRoutePage
           organizationId={"organization-a" as never}
           organizationName="Aグループ"
           memberStatus="active"
@@ -221,7 +245,7 @@ describe("AppHomeRoutePage", () => {
     });
     view.rerender(
       <ChakraProvider>
-        <AppHomeRoutePage
+        <DashboardRoutePage
           organizationId={"organization-a" as never}
           organizationName="Aグループ"
           memberStatus="active"
@@ -251,7 +275,7 @@ describe("AppHomeRoutePage", () => {
     });
     view.rerender(
       <ChakraProvider>
-        <AppHomeRoutePage
+        <DashboardRoutePage
           organizationId={"organization-a" as never}
           organizationName="Aグループ"
           memberStatus="active"
@@ -271,7 +295,7 @@ describe("AppHomeRoutePage", () => {
 
     await waitFor(() =>
       expect(mocks.navigate).toHaveBeenCalledWith({
-        to: "/app/home",
+        to: "/dashboard",
         search: { org: "organization-a", shop: "shop-a" },
         replace: true,
       }),
@@ -290,7 +314,7 @@ describe("AppHomeRoutePage", () => {
 
     view.rerender(
       <ChakraProvider>
-        <AppHomeRoutePage
+        <DashboardRoutePage
           organizationId={"organization-b" as never}
           organizationName="Bグループ"
           memberStatus="active"
@@ -302,7 +326,7 @@ describe("AppHomeRoutePage", () => {
 
     await waitFor(() =>
       expect(mocks.navigate).toHaveBeenLastCalledWith({
-        to: "/app/home",
+        to: "/dashboard",
         search: { org: "organization-b", shop: "shop-c" },
         replace: true,
       }),
@@ -346,7 +370,7 @@ describe("AppHomeRoutePage", () => {
 
   it("URLに店舗がなければ組織別の保存hintをactive店舗一覧で検証して復元する", async () => {
     window.localStorage.setItem(
-      APP_HOME_SHOP_PREFERENCE_STORAGE_KEY,
+      DASHBOARD_SHOP_PREFERENCE_STORAGE_KEY,
       JSON.stringify({ "organization-a": "shop-b", "organization-b": "shop-c" }),
     );
 
@@ -354,7 +378,7 @@ describe("AppHomeRoutePage", () => {
 
     await waitFor(() =>
       expect(mocks.navigate).toHaveBeenCalledWith({
-        to: "/app/home",
+        to: "/dashboard",
         search: { org: "organization-a", shop: "shop-b" },
         replace: true,
       }),

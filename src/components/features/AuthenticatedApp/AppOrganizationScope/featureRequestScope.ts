@@ -11,7 +11,7 @@ type Input = {
 
 /** 画面から分かる店舗は、canonical organization queryが返したactive店舗との一致だけで採用する。 */
 export function resolveAppFeatureRequestScope({ pathname, homeShopId, activeShops }: Input): AppFeatureRequestScope {
-  const requestedShopId = pathname === "/app/home" ? homeShopId : resolveScopedShopId(pathname);
+  const requestedShopId = pathname === "/dashboard" ? homeShopId : resolveScopedShopId(pathname);
   const verifiedShop = requestedShopId ? activeShops.find((shop) => shop.id === requestedShopId) : undefined;
 
   return verifiedShop ? { kind: "shop", shop: verifiedShop } : { kind: "organization" };
