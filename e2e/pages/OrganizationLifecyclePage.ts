@@ -29,9 +29,9 @@ export class OrganizationLifecyclePage {
       (url) => url.pathname === "/app/manage/organization" && url.searchParams.get("org") === organizationId,
       { timeout: ORGANIZATION_DATA_TIMEOUT },
     );
-    await expect(this.page.getByRole("heading", { name: "組織情報", exact: true })).toBeVisible({
-      timeout: ORGANIZATION_DATA_TIMEOUT,
-    });
+    await expect(
+      this.page.getByRole("heading", { level: 1 }).filter({ has: this.page.getByText("組織情報", { exact: true }) }),
+    ).toBeVisible({ timeout: ORGANIZATION_DATA_TIMEOUT });
   }
 
   async createOrganization(shopName: string) {

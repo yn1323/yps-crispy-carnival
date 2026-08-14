@@ -190,13 +190,13 @@ export const SelectionBehavior: Story = {
     await userEvent.click(await body.findByRole("menuitem", { name: /C店舗/ }));
     await expect(await canvas.findByRole("button", { name: "店舗を切り替える（現在：C店舗）" })).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: /関西事業部/ }));
-    await expect(canvas.getByRole("button", { name: "関西事業部の組織設定を開く" })).toBeVisible();
+    await waitFor(() => expect(canvas.getByRole("button", { name: "関西事業部の組織設定を開く" })).toBeVisible());
 
     await userEvent.click(canvas.getByRole("button", { name: "店舗を切り替える（現在：C店舗）" }));
     await userEvent.click(await body.findByRole("menuitem", { name: /D店舗/ }));
     await expect(await canvas.findByRole("button", { name: "店舗を切り替える（現在：D店舗）" })).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: /関西事業部/ }));
-    await expect(canvas.getByRole("button", { name: "関西事業部の組織設定を開く" })).toBeVisible();
+    await waitFor(() => expect(canvas.getByRole("button", { name: "関西事業部の組織設定を開く" })).toBeVisible());
   },
 };
 

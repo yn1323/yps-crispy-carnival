@@ -162,9 +162,9 @@ export class ManagerSettingsPage {
       (url) => url.pathname === "/app/manage/managers" && url.searchParams.get("org") === organizationId,
       { timeout: MANAGER_SETTINGS_TIMEOUT },
     );
-    await expect(this.page.getByRole("heading", { name: "管理者設定", exact: true })).toBeVisible({
-      timeout: MANAGER_SETTINGS_TIMEOUT,
-    });
+    await expect(
+      this.page.getByRole("heading", { level: 1 }).filter({ has: this.page.getByText("管理者設定", { exact: true }) }),
+    ).toBeVisible({ timeout: MANAGER_SETTINGS_TIMEOUT });
   }
 
   private async expectInvitationPending(seed: ManagerCandidateSeed) {

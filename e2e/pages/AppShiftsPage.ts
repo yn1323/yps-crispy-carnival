@@ -68,7 +68,7 @@ export class AppShiftsPage {
     await expect(dialog.getByText("対象店舗を選択", { exact: true })).toBeVisible();
     const shopOption = dialog.getByRole("radio", { name: `${data.shopName}を選択`, exact: true });
     await expect(shopOption).not.toBeChecked();
-    await shopOption.click();
+    await dialog.getByText(data.shopName, { exact: true }).click();
     await expect(shopOption).toBeChecked();
     await dialog.getByRole("button", { name: "次へ" }).click();
 
