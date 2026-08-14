@@ -322,9 +322,9 @@ export function PrototypeActionsView() {
       description: "未提出のスタッフを確認し、必要な人数を割り当てます。",
       metadata: [
         { label: "yn1323店舗", icon: "shop" },
-        { label: "8/17〜8/24" },
-        { label: "提出 2/3人" },
-        { label: "締切 8/12" },
+        { label: "8/17〜8/24", icon: "calendar" },
+        { label: "提出 2/3人", icon: "people" },
+        { label: "締切 8/14", icon: "clock" },
       ],
       scopeShopId: APP_PROTOTYPE_IDS.shop,
       actions: [
@@ -345,7 +345,10 @@ export function PrototypeActionsView() {
       statusLabel: "承認待ち",
       title: "山田花子さんからスタッフ登録申請があります",
       description: "申請内容と勤務する店舗を確認してから承認します。",
-      metadata: [{ label: "もて", icon: "shop" }, { label: "申請 8/14 10:30" }],
+      metadata: [
+        { label: "もて", icon: "shop" },
+        { label: "申請 8/14 10:30", icon: "clock" },
+      ],
       scopeShopId: "sample-shop-2",
       actions: [
         {
@@ -370,11 +373,16 @@ export function PrototypeActionsView() {
       statusLabel: "送信失敗",
       title: "田中さんへシフト募集通知を送れませんでした",
       description: "連絡先を確認して再送するか、対応済みにします。",
-      metadata: [{ label: "yn1323店舗", icon: "shop" }, { label: "メール" }, { label: "8/14 09:20" }],
+      metadata: [
+        { label: "yn1323店舗", icon: "shop" },
+        { label: "メール", icon: "mail" },
+        { label: "8/14 09:20", icon: "clock" },
+      ],
       scopeShopId: APP_PROTOTYPE_IDS.shop,
       actions: [
         {
           label: "対応済みにする",
+          emphasis: "danger",
           onClick: () => undefined,
           removesItemOnSuccess: true,
           successMessage: "田中さんへの通知不達を対応済みにしました。",
@@ -394,7 +402,10 @@ export function PrototypeActionsView() {
       statusLabel: "招待エラー",
       title: "鈴木さんへの管理者招待を確認してください",
       description: "招待メールを送信できなかったため、状態の確認が必要です。",
-      metadata: [{ label: "メール" }, { label: "8/14 08:45" }],
+      metadata: [
+        { label: "メール", icon: "mail" },
+        { label: "8/14 08:45", icon: "clock" },
+      ],
       scopeShopId: null,
       actions: [
         {

@@ -189,13 +189,14 @@ export function buildActionInboxItems(
         title: "シフトを組んでスタッフに共有しましょう",
         metadata: [
           { label: item.shopName, icon: "shop" },
-          { label: `${formatDateShort(item.periodStart)}〜${formatDateShort(item.periodEnd)}` },
+          { label: `${formatDateShort(item.periodStart)}〜${formatDateShort(item.periodEnd)}`, icon: "calendar" },
           {
             label: item.totalStaffCountHasOverflow
               ? `提出 ${item.responseCount}人 / 対象 ${item.totalStaffCount}人以上`
               : `提出 ${item.responseCount}/${item.totalStaffCount}人`,
+            icon: "people",
           },
-          { label: `締切 ${formatDateShort(item.deadline)}` },
+          { label: `締切 ${formatDateShort(item.deadline)}`, icon: "clock" },
         ],
         actions: [{ label: "シフトを組む", emphasis: "primary", onClick: () => commands.openShift(item) }],
       };
@@ -209,7 +210,7 @@ export function buildActionInboxItems(
         title: `${item.applicantName}さんからスタッフ登録申請があります`,
         metadata: [
           { label: item.shopName, icon: "shop" },
-          { label: `申請 ${formatDateTime(new Date(item.createdAt))}` },
+          { label: `申請 ${formatDateTime(new Date(item.createdAt))}`, icon: "clock" },
         ],
         actions: [
           actionOrDisabled({
@@ -241,13 +242,21 @@ export function buildActionInboxItems(
         title: `${item.staffName}さんへ${item.notificationKindLabel}を送れませんでした`,
         metadata: [
           { label: item.shopName, icon: "shop" },
-          ...(item.channel ? [{ label: item.channel === "email" ? "メール" : "LINE" }] : []),
-          { label: formatDateTime(new Date(item.lastFailedAt)) },
-        ] as [{ label: string; icon?: "shop" }, ...Array<{ label: string; icon?: "shop" }>],
+          ...(item.channel
+            ? [
+                {
+                  label: item.channel === "email" ? "メール" : "LINE",
+                  ...(item.channel === "email" ? { icon: "mail" as const } : {}),
+                },
+              ]
+            : []),
+          { label: formatDateTime(new Date(item.lastFailedAt)), icon: "clock" },
+        ],
         actions: [
           actionOrDisabled({
             enabled: item.canResolve,
             label: "対応済みにする",
+            emphasis: "danger",
             disabledReason: "閲覧のみ、または契約制限中のため変更できません。",
             onClick: () => commands.requestResolveNotification(item),
           }),
@@ -270,7 +279,10 @@ export function buildActionInboxItems(
       category: "management",
       statusLabel: item.status === "sendFailed" ? "招待エラー" : item.status === "limitReached" ? "上限超過" : "要確認",
       title: `${item.inviteeName}さんへの管理者招待を確認してください`,
-      metadata: [{ label: item.invitedEmail }, { label: formatDateTime(new Date(item.occurredAt)) }],
+      metadata: [
+        { label: item.invitedEmail, icon: "mail" },
+        { label: formatDateTime(new Date(item.occurredAt)), icon: "clock" },
+      ],
       actions: [
         actionOrDisabled({
           enabled: item.canRevoke,

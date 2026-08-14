@@ -4,7 +4,7 @@ export type ActionInboxCategory = "all" | ActionInboxItemCategory;
 
 export type ActionInboxMetadataItem = {
   label: string;
-  icon?: "shop";
+  icon?: "shop" | "calendar" | "people" | "mail" | "clock";
 };
 
 type ActionInboxActionBase = {

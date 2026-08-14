@@ -12,7 +12,12 @@ const allItems: readonly ActionInboxItem[] = [
     category: "shift",
     statusLabel: "締切済み",
     title: "シフトを組んでスタッフに共有しましょう",
-    metadata: [{ label: "yn1323店舗", icon: "shop" }, { label: "8/17〜8/24" }, { label: "提出 2/3人" }],
+    metadata: [
+      { label: "yn1323店舗", icon: "shop" },
+      { label: "8/17〜8/24", icon: "calendar" },
+      { label: "提出 2/3人", icon: "people" },
+      { label: "締切 8/14", icon: "clock" },
+    ],
     actions: [{ label: "シフトを組む", emphasis: "primary", onClick: noop }],
   },
   {
@@ -20,7 +25,10 @@ const allItems: readonly ActionInboxItem[] = [
     category: "staff",
     statusLabel: "承認待ち",
     title: "山田花子さんからスタッフ登録申請があります",
-    metadata: [{ label: "もて", icon: "shop" }, { label: "申請 8/14 10:30" }],
+    metadata: [
+      { label: "もて", icon: "shop" },
+      { label: "申請 8/14 10:30", icon: "clock" },
+    ],
     actions: [
       {
         label: "却下する",
@@ -43,10 +51,15 @@ const allItems: readonly ActionInboxItem[] = [
     category: "notification",
     statusLabel: "送信失敗",
     title: "田中さんへシフト募集通知を送れませんでした",
-    metadata: [{ label: "yn1323店舗", icon: "shop" }, { label: "メール" }, { label: "8/14 09:20" }],
+    metadata: [
+      { label: "yn1323店舗", icon: "shop" },
+      { label: "メール", icon: "mail" },
+      { label: "8/14 09:20", icon: "clock" },
+    ],
     actions: [
       {
         label: "対応済みにする",
+        emphasis: "danger",
         onClick: noop,
         removesItemOnSuccess: true,
         successMessage: "通知不達を対応済みにしました。",
@@ -65,7 +78,10 @@ const allItems: readonly ActionInboxItem[] = [
     category: "management",
     statusLabel: "招待エラー",
     title: "鈴木さんへの管理者招待を確認してください",
-    metadata: [{ label: "メール" }, { label: "8/14 08:45" }],
+    metadata: [
+      { label: "メール", icon: "mail" },
+      { label: "8/14 08:45", icon: "clock" },
+    ],
     actions: [
       {
         label: "取り消す",
@@ -124,6 +140,25 @@ export const Mobile: Story = {
   globals: { viewport: { value: "mobile2", isRotated: false } },
 };
 
+export const RetryGuidance: Story = {
+  args: { items: [allItems[2], allItems[3]] },
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getAllByText("※メールアドレスに誤りがないか確認ください", { exact: true })).toHaveLength(2);
+  },
+};
+
+export const SecondaryActionsMenu: Story = {
+  args: { items: [allItems[1]] },
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: /その他の操作$/ }));
+    await waitFor(() => expect(within(document.body).getByRole("menuitem", { name: "却下する" })).toBeVisible());
+  },
+};
+
 export const SuccessfulRemoval: Story = {
   args: { items: [allItems[1]] },
   parameters: { screenshot: { skip: true } },
@@ -170,7 +205,7 @@ function ConfirmationRemovalPreview() {
   const [items, setItems] = useState<readonly ActionInboxItem[]>([
     {
       ...allItems[2],
-      actions: [{ label: "対応済みにする", onClick: () => setIsConfirming(true) }],
+      actions: [{ label: "対応済みにする", emphasis: "danger", onClick: () => setIsConfirming(true) }],
     },
   ]);
   return (

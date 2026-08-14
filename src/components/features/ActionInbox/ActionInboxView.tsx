@@ -1,8 +1,20 @@
-import { Badge, Box, Flex, HStack, Icon, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
+import { Badge, Box, Flex, HStack, Icon, Menu, Portal, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { IconType } from "react-icons";
-import { LuBellOff, LuCalendarClock, LuCircleCheck, LuShieldAlert, LuStore, LuUserRoundPlus } from "react-icons/lu";
-import { Button, type ButtonProps } from "@/src/components/ui/Button";
+import {
+  LuBellOff,
+  LuCalendarClock,
+  LuCalendarDays,
+  LuCircleCheck,
+  LuClock3,
+  LuEllipsis,
+  LuMail,
+  LuShieldAlert,
+  LuStore,
+  LuUserRoundPlus,
+  LuUsers,
+} from "react-icons/lu";
+import { Button, type ButtonProps, IconButton } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import type {
   ActionInboxAction,
@@ -22,45 +34,25 @@ type Props = {
 };
 
 type CategoryPresentation = {
-  label: string;
   icon: IconType;
-  accent: string;
-  iconBg: string;
-  iconColor: string;
   colorPalette: "orange" | "teal" | "red" | "purple";
 };
 
 const CATEGORY_PRESENTATION: Record<ActionInboxItemCategory, CategoryPresentation> = {
   shift: {
-    label: "シフト",
     icon: LuCalendarClock,
-    accent: "orange.500",
-    iconBg: "orange.50",
-    iconColor: "orange.600",
     colorPalette: "orange",
   },
   staff: {
-    label: "スタッフ",
     icon: LuUserRoundPlus,
-    accent: "teal.600",
-    iconBg: "teal.100",
-    iconColor: "teal.700",
     colorPalette: "teal",
   },
   notification: {
-    label: "通知",
     icon: LuBellOff,
-    accent: "red.500",
-    iconBg: "red.50",
-    iconColor: "red.600",
     colorPalette: "red",
   },
   management: {
-    label: "管理",
     icon: LuShieldAlert,
-    accent: "purple.500",
-    iconBg: "purple.50",
-    iconColor: "purple.600",
     colorPalette: "purple",
   },
 };
@@ -202,7 +194,7 @@ export function ActionInboxView({ items, completedItemId }: Props) {
               key={item.id}
               display="grid"
               gridTemplateRows={exitingItemIds.has(item.id) ? "0fr" : "1fr"}
-              pb={exitingItemIds.has(item.id) ? 0 : { base: 3, md: 4 }}
+              pb={exitingItemIds.has(item.id) ? 0 : { base: 2, md: 3 }}
               transition={`grid-template-rows ${EXIT_DURATION_MS}ms ease, padding-bottom ${EXIT_DURATION_MS}ms ease`}
               _motionReduce={{ transition: "none" }}
             >
@@ -252,6 +244,18 @@ function ActionCard({
   onRunAction: (action: ActionInboxAction) => void;
 }) {
   const presentation = CATEGORY_PRESENTATION[item.category];
+  const shouldShowRetryGuidance = item.category === "notification" || item.category === "management";
+  const visibleActionIndex = Math.max(
+    0,
+    item.actions.findIndex((action) => action.emphasis === "primary"),
+  );
+  const visibleAction = item.actions[visibleActionIndex];
+  const overflowActions = item.actions.filter((_, index) => index !== visibleActionIndex);
+  const overflowActionError = overflowActions
+    .map((action) => actionError?.key === `${item.id}:${action.label}`)
+    .some(Boolean)
+    ? actionError?.message
+    : undefined;
 
   return (
     <Box
@@ -268,114 +272,167 @@ function ActionCard({
       transition={`transform ${EXIT_DURATION_MS}ms ease-in, opacity ${EXIT_DURATION_MS}ms ease-in`}
       _motionReduce={{ transition: "none" }}
     >
-      <Box position="absolute" insetY={0} insetStart={0} w="5px" bg={presentation.accent} aria-hidden />
-
-      <Flex
-        gap={{ base: 3, md: 4 }}
-        align={{ base: "flex-start", md: "center" }}
-        direction={{ base: "column", md: "row" }}
-        py={{ base: 4, md: 4 }}
-        ps={{ base: 5, md: 6 }}
-        pe={{ base: 4, md: 5 }}
+      <Box
+        display="grid"
+        gridTemplateColumns={{ base: "40px minmax(0, 1fr)", md: "48px minmax(0, 1fr) auto" }}
+        columnGap={{ base: 3, md: 4 }}
+        rowGap={1.5}
+        alignItems="center"
+        py={{ base: 3, md: 4 }}
+        px={{ base: 3, md: 5 }}
       >
-        <Flex gap={3} align="flex-start" minW={0} flex={1}>
-          <Flex
-            boxSize="40px"
-            flexShrink={0}
-            align="center"
-            justify="center"
-            borderRadius="full"
-            bg={presentation.iconBg}
-            color={presentation.iconColor}
-          >
-            <Icon as={presentation.icon} boxSize={5} aria-hidden />
-          </Flex>
-
-          <Stack gap={1.5} minW={0} flex={1}>
-            <HStack gap={2} wrap="wrap">
-              <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
-                {presentation.label}
-              </Text>
-              <Badge colorPalette={presentation.colorPalette} variant="subtle" borderRadius="full" px={2} py={0.5}>
-                {item.statusLabel}
-              </Badge>
-            </HStack>
-
-            <Text as="h2" fontSize="md" fontWeight="bold" color="gray.900" lineHeight="short">
-              {item.title}
-            </Text>
-
-            <Metadata values={item.metadata} />
-          </Stack>
-        </Flex>
-
         <Flex
-          gap={2}
-          wrap={{ base: "wrap", sm: "nowrap" }}
-          justify="flex-end"
-          align="flex-start"
-          w={{ base: "full", md: "auto" }}
-          ps={{ base: "52px", md: 0 }}
+          gridColumn="1"
+          gridRow={{ base: "1 / span 4", md: "1 / span 3" }}
+          align="center"
+          justify="center"
+          alignSelf="stretch"
+          color="fg.muted"
         >
-          {item.actions.map((action) => (
-            <ActionButton
-              key={action.label}
-              action={action}
-              isRunning={runningActionKey === `${item.id}:${action.label}`}
-              isInteractionDisabled={isExiting || runningActionKey !== null}
-              errorMessage={actionError?.key === `${item.id}:${action.label}` ? actionError.message : undefined}
-              onRun={() => onRunAction(action)}
-            />
-          ))}
+          <Icon as={presentation.icon} boxSize={{ base: 5, md: 6 }} aria-hidden />
         </Flex>
-      </Flex>
+
+        <HStack gridColumn="2" gridRow="1" gap={2} minW={0} wrap="wrap">
+          <Badge
+            colorPalette={presentation.colorPalette}
+            variant="subtle"
+            bg={item.category === "staff" ? "teal.100" : undefined}
+            borderRadius="full"
+            px={2}
+            py={0.5}
+          >
+            {item.statusLabel}
+          </Badge>
+        </HStack>
+
+        <Text
+          as="h2"
+          gridColumn="2"
+          gridRow="2"
+          minW={0}
+          fontSize={{ base: "md", md: "lg" }}
+          fontWeight="bold"
+          color="gray.900"
+          lineHeight="short"
+        >
+          {item.title}
+        </Text>
+
+        <Metadata gridColumn="2" gridRow="3" values={item.metadata} />
+
+        <Stack gridColumn={{ base: "2", md: "2 / span 2" }} gridRow="4" gap={1} minW={0} w="full">
+          <Flex gap={{ base: 2, md: 4 }} align="center" justify="space-between" w="full" minW={0}>
+            {shouldShowRetryGuidance && <RetryGuidance />}
+            <Flex gap={2} justify="flex-end" align="flex-start" flexShrink={0}>
+              <ActionButton
+                action={visibleAction}
+                category={item.category}
+                isRunning={runningActionKey === `${item.id}:${visibleAction.label}`}
+                isInteractionDisabled={isExiting || runningActionKey !== null}
+                errorMessage={
+                  actionError?.key === `${item.id}:${visibleAction.label}` ? actionError.message : undefined
+                }
+                onRun={() => onRunAction(visibleAction)}
+              />
+              {overflowActions.length > 0 && (
+                <ActionMenu
+                  itemTitle={item.title}
+                  actions={overflowActions}
+                  isInteractionDisabled={isExiting || runningActionKey !== null}
+                  onRunAction={onRunAction}
+                />
+              )}
+            </Flex>
+          </Flex>
+          {overflowActionError && (
+            <Text w="full" fontSize="xs" color="red.700" lineHeight="tall" textAlign="right">
+              {overflowActionError}
+            </Text>
+          )}
+        </Stack>
+      </Box>
     </Box>
   );
 }
 
-function Metadata({ values }: { values: readonly ActionInboxMetadataItem[] }) {
+function RetryGuidance() {
+  return (
+    <Text flex="1" minW={0} fontSize="xs" color="fg.muted" lineHeight="short">
+      ※メールアドレスに誤りがないか確認ください
+    </Text>
+  );
+}
+
+function Metadata({
+  values,
+  gridColumn,
+  gridRow,
+}: {
+  values: readonly ActionInboxMetadataItem[];
+  gridColumn?: string;
+  gridRow?: string;
+}) {
   if (values.length === 0) return null;
 
   return (
-    <Flex as="ul" aria-label="詳細" gapX={2} gapY={1} wrap="wrap" color="fg.muted" fontSize="sm">
+    <Flex
+      as="ul"
+      aria-label="詳細"
+      gridColumn={gridColumn}
+      gridRow={gridRow}
+      gapX={{ base: 3, md: 4 }}
+      gapY={1}
+      wrap="wrap"
+      color="fg.muted"
+      fontSize="xs"
+    >
       {values.map((value, index) => (
-        <HStack as="li" key={`${value.label}-${index}`} gap={2} listStyleType="none">
-          {index > 0 && (
-            <Text as="span" aria-hidden>
-              ・
-            </Text>
-          )}
-          <HStack as="span" gap={1}>
-            {value.icon === "shop" && <Icon as={LuStore} boxSize={4} aria-hidden />}
-            <Text as="span">{value.label}</Text>
-          </HStack>
+        <HStack as="li" key={`${value.label}-${index}`} gap={1.5} listStyleType="none">
+          <MetadataIcon icon={value.icon} />
+          <Text as="span">{value.label}</Text>
         </HStack>
       ))}
     </Flex>
   );
 }
 
+function MetadataIcon({ icon }: { icon: ActionInboxMetadataItem["icon"] }) {
+  const iconByKind = {
+    shop: LuStore,
+    calendar: LuCalendarDays,
+    people: LuUsers,
+    mail: LuMail,
+    clock: LuClock3,
+  } as const;
+  const metadataIcon = icon ? iconByKind[icon] : undefined;
+  return metadataIcon ? <Icon as={metadataIcon} boxSize={4} flexShrink={0} aria-hidden /> : null;
+}
+
 function ActionButton({
   action,
+  category,
   isRunning,
   isInteractionDisabled,
   errorMessage,
   onRun,
 }: {
   action: ActionInboxAction;
+  category: ActionInboxItemCategory;
   isRunning: boolean;
   isInteractionDisabled: boolean;
   errorMessage?: string;
   onRun: () => void;
 }) {
-  const style = getActionButtonStyle(action.emphasis ?? "secondary");
+  const style = getActionButtonStyle(action.emphasis ?? "secondary", category);
 
   return (
-    <Stack gap={1} minW={{ base: "128px", md: "144px" }} flex={{ base: "1 1 128px", md: "0 0 auto" }}>
+    <Stack gap={1} minW={{ base: "auto", md: "144px" }} flex="0 0 auto">
       <Button
         type="button"
         variant={style.variant}
         colorPalette={style.colorPalette}
+        w={{ base: "auto", md: "full" }}
+        whiteSpace="nowrap"
         minH="44px"
         px={4}
         disabled={action.disabled || (isInteractionDisabled && !isRunning)}
@@ -399,11 +456,71 @@ function ActionButton({
   );
 }
 
-function getActionButtonStyle(emphasis: NonNullable<ActionInboxAction["emphasis"]>): {
+function ActionMenu({
+  itemTitle,
+  actions,
+  isInteractionDisabled,
+  onRunAction,
+}: {
+  itemTitle: string;
+  actions: readonly ActionInboxAction[];
+  isInteractionDisabled: boolean;
+  onRunAction: (action: ActionInboxAction) => void;
+}) {
+  return (
+    <Menu.Root positioning={{ placement: "bottom-end" }}>
+      <Menu.Trigger asChild>
+        <IconButton
+          aria-label={`${itemTitle}のその他の操作`}
+          variant="outline"
+          minW="44px"
+          minH="44px"
+          color="fg.muted"
+          disabled={isInteractionDisabled}
+        >
+          <LuEllipsis size={20} aria-hidden />
+        </IconButton>
+      </Menu.Trigger>
+      <Portal>
+        <Menu.Positioner>
+          <Menu.Content minW="220px">
+            {actions.map((action) => {
+              const isDisabled = action.disabled || isInteractionDisabled;
+              return (
+                <Menu.Item
+                  key={action.label}
+                  value={action.label}
+                  color={action.emphasis === "danger" ? "red.600" : undefined}
+                  cursor={isDisabled ? "not-allowed" : "pointer"}
+                  disabled={isDisabled}
+                  onSelect={isDisabled ? undefined : () => onRunAction(action)}
+                >
+                  <Stack gap={0.5} minW={0}>
+                    <Box>{action.label}</Box>
+                    {action.disabled && (
+                      <Box fontSize="xs" color="fg.muted" lineHeight="short" whiteSpace="normal">
+                        {action.disabledReason}
+                      </Box>
+                    )}
+                  </Stack>
+                </Menu.Item>
+              );
+            })}
+          </Menu.Content>
+        </Menu.Positioner>
+      </Portal>
+    </Menu.Root>
+  );
+}
+
+function getActionButtonStyle(
+  emphasis: NonNullable<ActionInboxAction["emphasis"]>,
+  category: ActionInboxItemCategory,
+): {
   variant: ButtonProps["variant"];
   colorPalette: ButtonProps["colorPalette"];
 } {
-  if (emphasis === "primary") return { variant: "solid", colorPalette: "teal" };
+  if (emphasis === "primary") return { variant: "outline", colorPalette: category === "shift" ? "orange" : "teal" };
   if (emphasis === "danger") return { variant: "outline", colorPalette: "red" };
   return { variant: "outline", colorPalette: "gray" };
 }

@@ -11,7 +11,12 @@ const items: readonly ActionInboxItem[] = [
     category: "shift",
     statusLabel: "締切済み",
     title: "シフトを組んでスタッフに共有しましょう",
-    metadata: [{ label: "yn1323店舗", icon: "shop" }, { label: "8/17〜8/24" }, { label: "提出 2/3人" }],
+    metadata: [
+      { label: "yn1323店舗", icon: "shop" },
+      { label: "8/17〜8/24", icon: "calendar" },
+      { label: "提出 2/3人", icon: "people" },
+      { label: "締切 8/14", icon: "clock" },
+    ],
     actions: [{ label: "シフトを組む", emphasis: "primary", onClick: () => undefined }],
   },
   {
@@ -19,7 +24,10 @@ const items: readonly ActionInboxItem[] = [
     category: "staff",
     statusLabel: "承認待ち",
     title: "山田花子さんからスタッフ登録申請があります",
-    metadata: [{ label: "もて", icon: "shop" }, { label: "申請 8/14 10:30" }],
+    metadata: [
+      { label: "もて", icon: "shop" },
+      { label: "申請 8/14 10:30", icon: "clock" },
+    ],
     actions: [
       { label: "却下する", emphasis: "danger", onClick: () => undefined },
       { label: "承認する", emphasis: "primary", onClick: () => undefined },
@@ -30,9 +38,13 @@ const items: readonly ActionInboxItem[] = [
     category: "notification",
     statusLabel: "送信失敗",
     title: "田中さんへシフト募集通知を送れませんでした",
-    metadata: [{ label: "yn1323店舗", icon: "shop" }, { label: "メール" }, { label: "8/14 09:20" }],
+    metadata: [
+      { label: "yn1323店舗", icon: "shop" },
+      { label: "メール", icon: "mail" },
+      { label: "8/14 09:20", icon: "clock" },
+    ],
     actions: [
-      { label: "対応済みにする", onClick: () => undefined },
+      { label: "対応済みにする", emphasis: "danger", onClick: () => undefined },
       { label: "再送する", emphasis: "primary", onClick: () => undefined },
     ],
   },
@@ -41,7 +53,10 @@ const items: readonly ActionInboxItem[] = [
     category: "management",
     statusLabel: "招待エラー",
     title: "鈴木さんへの管理者招待を確認してください",
-    metadata: [{ label: "suzuki@example.com" }, { label: "8/14 08:45" }],
+    metadata: [
+      { label: "suzuki@example.com", icon: "mail" },
+      { label: "8/14 08:45", icon: "clock" },
+    ],
     actions: [
       { label: "取り消す", emphasis: "danger", onClick: () => undefined },
       { label: "再送する", emphasis: "primary", onClick: () => undefined },
