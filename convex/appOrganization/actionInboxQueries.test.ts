@@ -21,7 +21,10 @@ describe("appOrganization/actionInboxQueries.getActionInbox", () => {
     vi.setSystemTime(NOW);
   });
 
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
 
   it("canonical organization actorだけを許可し、別組織のshop filterを拒否する", async () => {
     const t = convexTest(schema, modules);
@@ -106,6 +109,28 @@ describe("appOrganization/actionInboxQueries.getActionInbox", () => {
       canResend: false,
       canRevoke: false,
     });
+  });
+
+  it("管理者招待が未公開でも残存招待の取消は維持し、再送だけを閉じる", async () => {
+    vi.stubEnv("FEATURE_MANAGER_INVITATION", "false");
+    const t = convexTest(schema, modules);
+    const ids = await t.run(
+      async (ctx) => await seedActionInboxSources(ctx, { subject: "action_manager_invitation_closed", now: NOW }),
+    );
+
+    const result = await t
+      .withIdentity({ subject: "action_manager_invitation_closed" })
+      .query(api.appOrganization.actionInboxQueries.getActionInbox, {
+        organizationId: ids.organizationId,
+        shopFilter: "all",
+        refreshBucket: 0,
+      });
+
+    expect(
+      result.items
+        .filter((item) => item.kind === "managerInvitation")
+        .map(({ invitationId, canResend, canRevoke }) => ({ invitationId, canResend, canRevoke })),
+    ).toEqual([{ invitationId: ids.invitationId, canResend: false, canRevoke: true }]);
   });
 
   it("source上限を超える登録申請へ、拒否されないcontinuationだけで重複なく到達する", async () => {

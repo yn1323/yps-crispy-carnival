@@ -492,13 +492,13 @@ describe("notification/templates", () => {
     const confirmationReminder = buildShiftConfirmationReminderLineText({
       periodLabel: "7/2(木)〜7/30(木)",
       deadlineLabel: "6/30(火) 23:59",
-      dashboardUrl: "https://shiftori.app/dashboard",
+      dashboardUrl: "https://shiftori.app/dashboard?org=org_target&shop=shop_target",
     });
     const failure = buildNotificationFailureReminderLineText({
-      dashboardUrl: "https://shiftori.app/dashboard",
+      dashboardUrl: "https://shiftori.app/dashboard?org=org_target&shop=shop_target",
     });
     const shopActivation = buildShopActivationReminderLineText({
-      dashboardUrl: "https://shiftori.app/dashboard",
+      dashboardUrl: "https://shiftori.app/dashboard?org=org_target&shop=shop_target",
     });
 
     expect(recruitment.startsWith("📩 シフト提出のお願い\n")).toBe(true);
@@ -514,7 +514,7 @@ describe("notification/templates", () => {
   });
 
   it("各Flex通知はtype, altText, 主要文言, CTA URLを保持する", () => {
-    const dashboardUrl = "https://shiftori.app/dashboard?shop=shop_target";
+    const dashboardUrl = "https://shiftori.app/dashboard?org=org_target&shop=shop_target";
     const submitUrl = "https://example.com/shifts/submit?token=test";
     const flexMessages = [
       {
@@ -614,7 +614,7 @@ describe("notification/templates", () => {
   });
 
   it("スタッフ登録申請のオーナー通知はダッシュボードリンクのみを案内し、申請者情報を含めない", () => {
-    const dashboardUrl = "https://shiftori.app/dashboard?shop=shop_target";
+    const dashboardUrl = "https://shiftori.app/dashboard?org=org_target&shop=shop_target";
     const lineText = buildStaffRegistrationOwnerDigestLineText({ dashboardUrl });
     const emailHtml = buildStaffRegistrationOwnerDigestEmailHtml({
       managerName: "店長",
@@ -631,13 +631,13 @@ describe("notification/templates", () => {
     expect(emailHtml).toContain("スタッフ登録申請が届いています。");
     expect(emailHtml).toContain("シフトリのダッシュボードで確認してください。");
     expect(emailHtml).toContain("ダッシュボードを確認する");
-    expect(emailHtml).toContain(dashboardUrl);
+    expect(emailHtml).toContain(dashboardUrl.replaceAll("&", "&amp;"));
     expect(`${lineText}\n${emailHtml}`).not.toContain("申請スタッフ");
     expect(`${lineText}\n${emailHtml}`).not.toContain("request@example.com");
   });
 
   it("店舗登録後の本番募集リマインダーはスタッフ追加と募集作成CTAを表示する", () => {
-    const dashboardUrl = "https://shiftori.app/dashboard?shop=shop_target";
+    const dashboardUrl = "https://shiftori.app/dashboard?org=org_target&shop=shop_target";
     const lineText = buildShopActivationReminderLineText({ dashboardUrl });
     const emailHtml = buildShopActivationReminderEmailHtml({
       managerName: "佐藤 店長",
@@ -664,7 +664,7 @@ describe("notification/templates", () => {
     expect(emailHtml).toContain("店舗を登録してから1週間が経過しました。");
     expect(emailHtml).toContain("スタッフを追加して実際にシフトを回収してみましょう！");
     expect(emailHtml).toContain("シフト募集をつくる");
-    expect(emailHtml).toContain(dashboardUrl);
+    expect(emailHtml).toContain(dashboardUrl.replaceAll("&", "&amp;"));
     expect(emailHtml).not.toContain("openExternalBrowser=1");
   });
 

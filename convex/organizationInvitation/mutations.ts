@@ -7,6 +7,7 @@ import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { getOrganizationInvitationSigningSecret } from "../_lib/config";
 import { authenticatedMutation, organizationMutation } from "../_lib/functions";
 import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
+import { isReleaseFeatureEnabled, requireReleaseFeature } from "../_lib/releaseFeatures";
 import { generateUUID } from "../_lib/uuid";
 import { normalizeEmail, requiredEmailSchema } from "../_lib/validation";
 import { ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT } from "../constants";
@@ -308,6 +309,7 @@ async function createManagerInvitation(
     patchExistingTarget?: boolean;
   },
 ) {
+  requireReleaseFeature("managerInvitation");
   // 発行入口が増えても、public handlerと同じ組織の書き込み権限を共通処理で再確認する。
   const { organization, inviterMember } = args;
   let targetPerson = args.targetPerson;
@@ -949,6 +951,7 @@ async function resendInvitationForActor(
   args: { invitationId: Id<"organizationInvitations">; requestId: string },
   actor: InvitationManagerActor,
 ) {
+  requireReleaseFeature("managerInvitation");
   const organization = actor.organization;
   const organizationMember = actor.member;
   await requireOrganizationBusinessWrite(ctx, organization._id);
@@ -1225,6 +1228,7 @@ export const prepareAcceptance = internalMutation({
   args: { token: v.string() },
   returns: prepareAcceptanceResultValidator,
   handler: async (ctx, { token }) => {
+    if (!isReleaseFeatureEnabled("managerInvitation")) return { status: "unavailable" as const };
     if (token.length !== 43) return { status: "invalid" as const };
 
     const actor = await resolveInvitationActor(ctx);
@@ -1314,6 +1318,7 @@ async function linkAccountWithToken(
     proof?: OrganizationInvitationAcceptanceProof;
   },
 ) {
+  if (!isReleaseFeatureEnabled("managerInvitation")) return { status: "unavailable" as const };
   if (args.token.length !== 43) return { status: "invalid" as const };
   const tokenDigest = await digestInvitationToken(args.token);
   if (options?.proof) {

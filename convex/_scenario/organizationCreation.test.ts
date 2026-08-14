@@ -16,13 +16,17 @@ describe("組織追加作成シナリオ", () => {
     vi.useFakeTimers();
     vi.setSystemTime(SCENARIO_NOW);
     vi.stubEnv("ORGANIZATION_INVITATION_SIGNING_SECRET", SIGNING_SECRET);
+    vi.stubEnv("FEATURE_ORGANIZATION_CREATION", "true");
+    vi.stubEnv("FEATURE_SHOP_ADDITION", "true");
+    vi.stubEnv("FEATURE_MANAGER_INVITATION", "true");
+    vi.stubEnv("FEATURE_BILLING", "true");
   });
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllEnvs();
   });
 
-  it("初回・二つ目の組織は独立したTrialで始まり、互いの権限とデータへ混入しない", async () => {
+  it("初回は支払い不要Business、追加組織は独立Trialで始まり、互いの権限とデータへ混入しない", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager({
@@ -31,7 +35,7 @@ describe("組織追加作成シナリオ", () => {
       email: "manager@example.com",
     });
 
-    // Arrange: 初回セットアップでTrialの組織を持つ管理者を作る。
+    // Arrange: 初回セットアップで支払い不要Businessの組織を持つ管理者を作る。
     const firstShopId = await asManager.setupShopAndManager({
       shopName: FIRST_SHOP_NAME,
       submissionPattern: { kind: "dateOnly" },
@@ -61,7 +65,7 @@ describe("組織追加作成シナリオ", () => {
         expect.objectContaining({
           shopId: firstShopId,
           shopName: FIRST_SHOP_NAME,
-          organizationPlan: "trial",
+          organizationPlan: "business",
           memberStatus: "active",
         }),
         expect.objectContaining({
@@ -111,8 +115,8 @@ describe("組織追加作成シナリオ", () => {
     asManager.selectShop(firstShopId);
     const firstSettings = await asManager.getOrganizationSettings();
     expect(firstSettings?.organizationName).toBe(`${FIRST_SHOP_NAME}グループ`);
-    expect(firstSettings?.billing.currentPlan).toBe("trial");
-    expect(firstSettings?.billing.isComplimentary).toBe(false);
+    expect(firstSettings?.billing.currentPlan).toBe("business");
+    expect(firstSettings?.billing.isComplimentary).toBe(true);
     expect(firstSettings?.canAddShop).toBe(true);
     expect(firstSettings?.people.map((person) => person.email).sort()).toEqual([
       "first-staff@example.com",
@@ -208,7 +212,7 @@ describe("組織追加作成シナリオ", () => {
           shopStatus: "active",
           organizationId: organizationIds.first,
           organizationName: `${FIRST_SHOP_NAME}グループ`,
-          organizationPlan: "trial",
+          organizationPlan: "business",
           memberStatus: "active",
         },
         {
@@ -217,7 +221,7 @@ describe("組織追加作成シナリオ", () => {
           shopStatus: "active",
           organizationId: invitation.organizationId,
           organizationName: "招待元店舗グループ",
-          organizationPlan: "trial",
+          organizationPlan: "business",
           memberStatus: "active",
         },
         {

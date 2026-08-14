@@ -82,6 +82,7 @@ export type CreateOrganizationWithFirstShopArgs = {
   regularClosedDays: RegularClosedDay[];
   submissionPattern: ShiftSubmissionPattern;
   correlationId?: string;
+  billingMode: "complimentaryBusiness" | "trial";
   now: number;
 };
 
@@ -104,7 +105,10 @@ export async function createOrganizationWithFirstShop(
 ): Promise<CreateOrganizationWithFirstShopResult> {
   const { userId, now } = args;
   const managerEmailNormalized = normalizeEmail(args.managerEmail);
-  const billingState = { kind: "trial" as const, trialEndsAt: calculateTrialEndsAt(now) };
+  const billingState =
+    args.billingMode === "complimentaryBusiness"
+      ? ({ kind: "complimentary", plan: "business" } as const)
+      : ({ kind: "trial", trialEndsAt: calculateTrialEndsAt(now) } as const);
 
   const organizationId = await ctx.db.insert("organizations", {
     createdByUserId: userId,
@@ -149,11 +153,13 @@ export async function createOrganizationWithFirstShop(
     createdAt: now,
     updatedAt: now,
   });
-  await scheduleOrganizationBillingStateDeadline(ctx, {
-    organizationId,
-    state: billingState,
-    version: 1,
-  });
+  if (billingState.kind === "trial") {
+    await scheduleOrganizationBillingStateDeadline(ctx, {
+      organizationId,
+      state: billingState,
+      version: 1,
+    });
+  }
 
   await ensureDefaultPosition(ctx, shopId);
 
@@ -186,7 +192,7 @@ export async function createOrganizationWithFirstShop(
     targetKind: "organization",
     targetId: organizationId,
     ...(args.managerProfileSource ? { fromState: `managerProfile.${args.managerProfileSource}` } : {}),
-    toState: "trial",
+    toState: billingState.kind === "complimentary" ? "complimentary.business" : "trial",
     correlationId: args.correlationId,
     occurredAt: now,
     analyticsEvent: {

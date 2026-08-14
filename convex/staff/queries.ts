@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { dateJST } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
+import { isReleaseFeatureEnabled } from "../_lib/releaseFeatures";
 import { normalizeEmail } from "../_lib/validation";
 import { ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT } from "../constants";
 import { collectPersonRemovalPreview } from "../organization/personRemoval";
@@ -312,7 +313,9 @@ export const listOrganizationPeopleAvailableForShop = managerQuery({
     if (!people || !activeMembers || !readOnlyMembers || !allNonDeletedShops || !pendingRequests) return null;
     if (people.some((person) => normalizeEmail(person.email) !== person.emailNormalized)) return null;
     const members = [...activeMembers, ...readOnlyMembers];
-    const shops = allNonDeletedShops.filter((shop) => shop.operatingStatus === "active");
+    const shops = allNonDeletedShops.filter(
+      (shop) => organizationShopOperatingStatus(shop.operatingStatus) === "active",
+    );
     const pendingEmails = new Set(pendingRequests.map((request) => request.emailNormalized));
 
     const staffRowsByShop = await Promise.all(
@@ -348,13 +351,15 @@ export const listOrganizationPeopleAvailableForShop = managerQuery({
         shopNamesByPersonId.set(staff.organizationPersonId, current);
       }
     }
+    const canAddMultiShopMembership = isReleaseFeatureEnabled("shopAddition");
 
     return people
       .filter(
         (person) =>
           !currentPersonIds.has(person._id) &&
           !currentEmails.has(person.emailNormalized) &&
-          !pendingEmails.has(person.emailNormalized),
+          !pendingEmails.has(person.emailNormalized) &&
+          (canAddMultiShopMembership || !shopNamesByPersonId.has(person._id)),
       )
       .map((person) => {
         const membersForPerson = membershipsByPersonId.get(person._id) ?? [];

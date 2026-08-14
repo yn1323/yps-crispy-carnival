@@ -220,7 +220,7 @@ describe("notificationOutbox/failureReminderQueries", () => {
   describe("getFailureReminderTargetForShop", () => {
     it("open failure があると manager 受信者を返し、manager staff の LINE 連携を付与する", async () => {
       const t = convexTest(schema, modules);
-      const { shopId } = await t.run(async (ctx) => {
+      const { organizationId, shopId } = await t.run(async (ctx) => {
         const seeded = await seedManagerShop(ctx, {
           subject: "owner_line",
           email: "owner-line@example.com",
@@ -253,7 +253,7 @@ describe("notificationOutbox/failureReminderQueries", () => {
           isDeleted: false,
         });
         await insertFailure(ctx, { shopId: seeded.shopId, status: "open" });
-        return { shopId: seeded.shopId };
+        return { organizationId: seeded.organizationId, shopId: seeded.shopId };
       });
 
       const result = await t.query(internal.notificationOutbox.failureReminderQueries.getFailureReminderTargetForShop, {
@@ -265,7 +265,10 @@ describe("notificationOutbox/failureReminderQueries", () => {
       if (!result) return;
       const dashboardUrl = new URL(result.dashboardUrl);
       expect(dashboardUrl.pathname).toBe("/dashboard");
-      expect([...dashboardUrl.searchParams.entries()]).toEqual([["shop", String(shopId)]]);
+      expect([...dashboardUrl.searchParams.entries()]).toEqual([
+        ["org", String(organizationId)],
+        ["shop", String(shopId)],
+      ]);
       expect(result?.recipients).toEqual(
         expect.arrayContaining([
           expect.objectContaining({

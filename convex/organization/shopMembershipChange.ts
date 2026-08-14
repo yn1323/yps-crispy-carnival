@@ -1,4 +1,5 @@
 import type { Id } from "../_generated/dataModel";
+import { requireReleaseFeature } from "../_lib/releaseFeatures";
 import { sha256Hex } from "../_lib/sha256";
 
 export type OrganizationShopOperatingStatus = "active" | "archived" | "planSuspended";
@@ -43,6 +44,16 @@ export const INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON = "稼働中の店�
 export function organizationShopOperatingStatus(status: OrganizationShopOperatingStatus | undefined) {
   // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
   return status ?? ("active" as const);
+}
+
+/** 未リリース中は、追加後に一人が複数の稼働店舗へ所属する変更だけを閉じる。 */
+export function requireReleasedMultiShopMembershipAddition(args: {
+  addedActiveMembershipCount: number;
+  finalActiveMembershipCount: number;
+}) {
+  if (args.addedActiveMembershipCount > 0 && args.finalActiveMembershipCount > 1) {
+    requireReleaseFeature("shopAddition");
+  }
 }
 
 export function sortShopIds(shopIds: readonly Id<"shops">[]) {

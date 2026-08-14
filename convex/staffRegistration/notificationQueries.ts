@@ -28,6 +28,9 @@ export const getOwnerDigestTargetForShop = internalQuery({
   handler: async (ctx, { shopId }) => {
     const shop = await ctx.db.get(shopId);
     if (!shop || !(await isShopParentActive(ctx, shop))) return null;
+    if (!shop.organizationId) return null;
+    const organization = await ctx.db.get(shop.organizationId);
+    if (!organization || organization.isDeleted) return null;
 
     const pendingRequest = await ctx.db
       .query("staffRegistrationRequests")
@@ -41,7 +44,7 @@ export const getOwnerDigestTargetForShop = internalQuery({
     return {
       shopId,
       shopName: shop.name,
-      dashboardUrl: buildShopDashboardUrl(shopId),
+      dashboardUrl: buildShopDashboardUrl({ organizationId: organization._id, shopId }),
       recipients,
     };
   },

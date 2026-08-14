@@ -38,6 +38,13 @@ describe("appOrganization/manageQueries", () => {
       memberStatus: "active",
       usage: { state: "business", shopUsage: { current: 1 } },
       shopCounts: { active: 1, archived: 0, planSuspended: 0, hasOverflow: false },
+      features: {
+        organizationCreation: false,
+        shopAddition: false,
+        managerInvitation: false,
+        billing: false,
+      },
+      capabilities: { canAddShop: false, canCreateOrganization: false },
     });
     await expect(
       actor.query(api.appOrganization.manageQueries.getManageOverview, {

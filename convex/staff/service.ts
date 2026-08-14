@@ -2,11 +2,12 @@ import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { normalizeEmail } from "../_lib/validation";
-import { SHOP_MEMBERSHIP_STATS_ACTIVE_STAFF_LIMIT } from "../constants";
+import { ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT, SHOP_MEMBERSHIP_STATS_ACTIVE_STAFF_LIMIT } from "../constants";
 import {
   createOrganizationShopStaffMembershipFingerprint,
   ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT,
   organizationShopOperatingStatus,
+  requireReleasedMultiShopMembershipAddition,
 } from "../organization/shopMembershipChange";
 import { requireOrganizationCapacity } from "../organizationBilling/service";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
@@ -416,7 +417,7 @@ export async function prepareOrganizationPeopleForStaffAddition(
           .withIndex("by_organizationId_and_organizationPersonId", (q) =>
             q.eq("organizationId", args.organizationId).eq("organizationPersonId", person._id),
           )
-          .collect(),
+          .take(ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT + 1),
         ctx.db
           .query("organizationMembers")
           .withIndex("by_organizationId_and_personId", (q) =>
@@ -424,6 +425,9 @@ export async function prepareOrganizationPeopleForStaffAddition(
           )
           .collect(),
       ]);
+      if (staffRows.length > ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT) {
+        throw new ConvexError("ユーザーの店舗所属を確認できません。\n画面を更新して、もう一度お試しください。");
+      }
       if (person.status === "removed") {
         if (managerMemberships.some((membership) => membership.status !== "removed")) {
           throw new ConvexError(
@@ -442,6 +446,22 @@ export async function prepareOrganizationPeopleForStaffAddition(
           "削除済みユーザーの店舗所属を確認できません。\nユーザー画面で登録内容を確認してください。",
         );
       }
+      const otherActiveStaffShopIds = [
+        ...new Set(activeStaffRows.filter((staff) => staff.shopId !== args.shopId).map((staff) => staff.shopId)),
+      ];
+      const otherMembershipShops = await Promise.all(
+        otherActiveStaffShopIds.map(async (shopId) => await ctx.db.get(shopId)),
+      );
+      if (otherMembershipShops.some((shop) => !shop || shop.organizationId !== args.organizationId)) {
+        throw new ConvexError("ユーザーの店舗所属を確認できません。\n画面を更新して、もう一度お試しください。");
+      }
+      const activeOtherShopCount = otherMembershipShops.filter(
+        (shop) => shop && !shop.isDeleted && organizationShopOperatingStatus(shop.operatingStatus) === "active",
+      ).length;
+      requireReleasedMultiShopMembershipAddition({
+        addedActiveMembershipCount: 1,
+        finalActiveMembershipCount: activeOtherShopCount + 1,
+      });
       addsPersonToUsage =
         person.status === "removed" ||
         (staffRows.length === 0 && !managerMemberships.some((membership) => membership.status === "active"));

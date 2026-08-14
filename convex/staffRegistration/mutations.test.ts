@@ -33,10 +33,14 @@ async function getPendingRequestId(
 }
 
 describe("staffRegistration/mutations", () => {
-  beforeEach(() => vi.useFakeTimers());
+  beforeEach(() => {
+    vi.stubEnv("FEATURE_SHOP_ADDITION", "true");
+    vi.useFakeTimers();
+  });
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it("店舗固定の登録リンクを作成し、再取得では同じリンクを返す", async () => {
@@ -656,6 +660,7 @@ describe("staffRegistration/mutations", () => {
   });
 
   it("事業者配下の承認は人物とstaffsをdual-writeし、同じ申請の再承認でも重複保存しない", async () => {
+    vi.stubEnv("FEATURE_SHOP_ADDITION", "");
     const t = convexTest(schema, modules);
     const { shopId, organizationId } = await t.run(
       async (ctx) =>
@@ -1025,6 +1030,121 @@ describe("staffRegistration/mutations", () => {
         }),
       ]),
     );
+  });
+
+  it("未リリース中は別active店舗の既存人物を再利用する承認を副作用なしで拒否し、却下は維持する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "registration_shop_feature_closed_manager",
+        plan: "business",
+      });
+      const targetShopId = await ctx.db.insert("shops", {
+        organizationId: base.organizationId,
+        operatingStatus: "active",
+        name: "未リリース承認先",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        regularClosedDays: [],
+        isDeleted: false,
+      });
+      const now = Date.now();
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId: base.organizationId,
+        name: "未リリース承認対象",
+        email: "registration-shop-feature-closed@example.com",
+        emailNormalized: "registration-shop-feature-closed@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const sourceStaffId = await ctx.db.insert("staffs", {
+        shopId: base.shopId,
+        organizationId: base.organizationId,
+        organizationPersonId: personId,
+        name: "未リリース承認対象",
+        email: "registration-shop-feature-closed@example.com",
+        emailNormalized: "registration-shop-feature-closed@example.com",
+        isDeleted: false,
+      });
+      const requestId = await ctx.db.insert("staffRegistrationRequests", {
+        shopId: targetShopId,
+        name: "申請時表示名",
+        email: "registration-shop-feature-closed@example.com",
+        emailNormalized: "registration-shop-feature-closed@example.com",
+        status: "pending",
+        termsConsentVersion: "terms-v1",
+        privacyConsentVersion: "privacy-v1",
+        termsDocumentVersion: "terms-doc-v1",
+        privacyDocumentVersion: "privacy-doc-v1",
+        consentedAt: now,
+        createdAt: now,
+      });
+      const invitationId = await ctx.db.insert("organizationInvitations", {
+        organizationId: base.organizationId,
+        email: "registration-shop-feature-closed@example.com",
+        emailNormalized: "registration-shop-feature-closed@example.com",
+        tokenDigest: "registration-shop-feature-closed-digest",
+        status: "pending",
+        purpose: "managerAddition",
+        inviterMemberId: base.memberId,
+        reservedSeat: true,
+        version: 1,
+        expiresAt: now + 86_400_000,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { ...base, invitationId, personId, requestId, sourceStaffId, targetShopId };
+    });
+    const readProtectedState = () =>
+      t.run(async (ctx) => ({
+        analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+        audits: await ctx.db.query("organizationAuditEvents").collect(),
+        invitation: await ctx.db.get(ids.invitationId),
+        legalConsents: await ctx.db.query("legalConsentStates").collect(),
+        outbox: await ctx.db.query("notificationOutbox").collect(),
+        people: await ctx.db
+          .query("organizationPeople")
+          .withIndex("by_organizationId_and_emailNormalized", (q) =>
+            q
+              .eq("organizationId", ids.organizationId)
+              .eq("emailNormalized", "registration-shop-feature-closed@example.com"),
+          )
+          .collect(),
+        rateLimits: await ctx.db.query("rateLimits").collect(),
+        request: await ctx.db.get(ids.requestId),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+        staffs: (
+          await ctx.db
+            .query("staffs")
+            .withIndex("by_organizationId_and_organizationPersonId", (q) =>
+              q.eq("organizationId", ids.organizationId).eq("organizationPersonId", ids.personId),
+            )
+            .collect()
+        ).map(({ _id, shopId, isDeleted }) => ({ _id, shopId, isDeleted })),
+      }));
+    const before = await readProtectedState();
+    vi.stubEnv("FEATURE_SHOP_ADDITION", "");
+    const actor = t.withIdentity({ subject: "registration_shop_feature_closed_manager" });
+
+    await expect(
+      actor.mutation(api.staffRegistration.mutations.approveRequest, {
+        requestId: ids.requestId,
+        shopId: ids.targetShopId,
+      }),
+    ).rejects.toThrow("この機能は現在利用できません。");
+
+    await expect(readProtectedState()).resolves.toEqual(before);
+    expect(before.request).toMatchObject({ status: "pending" });
+    expect(before.invitation).toMatchObject({ status: "pending", reservedSeat: true });
+    expect(before.staffs).toEqual([{ _id: ids.sourceStaffId, shopId: ids.shopId, isDeleted: false }]);
+
+    await expect(
+      actor.mutation(api.staffRegistration.mutations.rejectRequest, {
+        requestId: ids.requestId,
+        shopId: ids.targetShopId,
+      }),
+    ).resolves.toBeNull();
+    await expect(t.run(async (ctx) => await ctx.db.get(ids.requestId))).resolves.toMatchObject({ status: "rejected" });
   });
 
   it("最後の所属を外してもretained canonical LINEを承認先で利用する", async () => {

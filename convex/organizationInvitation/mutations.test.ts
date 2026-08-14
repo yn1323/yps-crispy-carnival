@@ -120,6 +120,83 @@ describe("organizationInvitation/mutations", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-16T12:00:00+09:00"));
     vi.stubEnv("ORGANIZATION_INVITATION_SIGNING_SECRET", SIGNING_SECRET);
+    vi.stubEnv("FEATURE_MANAGER_INVITATION", "true");
+  });
+
+  it("未リリースflagが閉じている場合は発行を副作用なしで拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const manager = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: "invitation_feature_closed", plan: "business" }),
+    );
+    const readProtectedState = () =>
+      t.run(async (ctx) => ({
+        invitations: await ctx.db.query("organizationInvitations").collect(),
+        audits: await ctx.db.query("organizationAuditEvents").collect(),
+        rateLimits: await ctx.db.query("rateLimits").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+    const before = await readProtectedState();
+    vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
+
+    await expect(
+      t.withIdentity({ subject: "invitation_feature_closed" }).mutation(api.organizationInvitation.mutations.issue, {
+        shopId: manager.shopId,
+        recipient: { kind: "external", invitedName: "閉鎖中の招待", email: "closed@example.test" },
+        requestId: "invitation-feature-closed",
+      }),
+    ).rejects.toThrow("この機能は現在利用できません。");
+    const token = "x".repeat(43);
+    await expect(t.query(api.organizationInvitation.queries.getPreview, { token })).resolves.toEqual({
+      status: "unavailable",
+    });
+    await expect(
+      t
+        .withIdentity({ subject: "invitation_feature_closed" })
+        .mutation(api.organizationInvitation.mutations.linkAccount, {
+          token,
+        }),
+    ).resolves.toEqual({ status: "unavailable" });
+    await expect(t.action(api.organizationInvitation.acceptanceActions.accept, { token })).resolves.toEqual({
+      status: "unavailable",
+      retryable: false,
+    });
+
+    expect(await readProtectedState()).toEqual(before);
+  });
+
+  it("flagを閉じた後は発行済み招待の配送ActionもOutboxを作らない", async () => {
+    const t = convexTest(schema, modules);
+    const manager = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: "invitation_delivery_feature_closed", plan: "business" }),
+    );
+    const issued = await t
+      .withIdentity({ subject: "invitation_delivery_feature_closed" })
+      .mutation(api.organizationInvitation.mutations.issue, {
+        shopId: manager.shopId,
+        recipient: { kind: "external", invitedName: "配送停止対象", email: "delivery-closed@example.test" },
+        requestId: "invitation-delivery-before-close",
+      });
+    const invitation = await t.run((ctx) => ctx.db.get(issued.invitationId));
+    if (!invitation) throw new Error("invitation not found");
+    const before = await t.run(async (ctx) => ({
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
+
+    await expect(
+      t.action(internal.organizationInvitation.actions.enqueueManagerInvitation, {
+        invitationId: invitation._id,
+        expectedVersion: invitation.version,
+      }),
+    ).resolves.toEqual({ enqueued: false });
+
+    expect(
+      await t.run(async (ctx) => ({
+        outbox: await ctx.db.query("notificationOutbox").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      })),
+    ).toEqual(before);
   });
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -824,8 +901,8 @@ describe("organizationInvitation/mutations", () => {
     for (const job of acceptanceJobs) {
       if (job.payload.kind !== "email") throw new Error("email payload expected");
       const actionUrl = extractManagerSettingsActionUrl(job.payload.html);
-      expect(actionUrl.pathname).toBe("/settings/managers");
-      expect([...actionUrl.searchParams.entries()]).toEqual([["shop", manager.shopId]]);
+      expect(actionUrl.pathname).toBe("/app/manage/managers");
+      expect([...actionUrl.searchParams.entries()]).toEqual([["org", manager.organizationId]]);
     }
   });
 
@@ -900,30 +977,26 @@ describe("organizationInvitation/mutations", () => {
       label: "プラン停止中",
       initialStatus: "planSuspended" as const,
       removal: null,
-      expectsShop: true,
     },
     {
       caseKey: "archived",
       label: "アーカイブ",
       initialStatus: "archived" as const,
       removal: null,
-      expectsShop: true,
     },
     {
       caseKey: "deleted",
       label: "削除済み",
       initialStatus: "active" as const,
       removal: "logical" as const,
-      expectsShop: false,
     },
     {
       caseKey: "missing",
       label: "店舗なし",
       initialStatus: "active" as const,
       removal: "physical" as const,
-      expectsShop: false,
     },
-  ])("連携完了CTAは$label店舗の安全な設定URLを使う", async ({ caseKey, initialStatus, removal, expectsShop }) => {
+  ])("連携完了CTAは$label店舗でも組織authority付き設定URLを使う", async ({ caseKey, initialStatus, removal }) => {
     const t = convexTest(schema, modules);
     const subject = `acceptance_cta_${caseKey}`;
     const targetEmail = `${subject}_target@example.com`;
@@ -974,8 +1047,8 @@ describe("organizationInvitation/mutations", () => {
     expect(acceptanceHtml).toHaveLength(2);
     for (const html of acceptanceHtml) {
       const actionUrl = extractManagerSettingsActionUrl(html);
-      expect(actionUrl.pathname).toBe("/settings/managers");
-      expect([...actionUrl.searchParams.entries()]).toEqual(expectsShop ? [["shop", manager.shopId]] : []);
+      expect(actionUrl.pathname).toBe("/app/manage/managers");
+      expect([...actionUrl.searchParams.entries()]).toEqual([["org", manager.organizationId]]);
     }
   });
 

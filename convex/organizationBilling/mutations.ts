@@ -4,6 +4,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { authenticatedMutation } from "../_lib/functions";
+import { requireReleaseFeature } from "../_lib/releaseFeatures";
 import { normalizeEmail } from "../_lib/validation";
 import {
   type AnalyticsSourceEventPayload,
@@ -882,6 +883,7 @@ export const setFreeSelection = authenticatedMutation({
   },
   returns: transitionResultValidator,
   handler: async (ctx, args) => {
+    requireReleaseFeature("billing");
     const actor = await requireOrganizationActorForShop(ctx, {
       user: ctx.user,
       shopId: args.shopId,
@@ -2017,6 +2019,7 @@ async function updateBillingEmailForActor(
   args: { email: string; requestId: string },
   actor: OrganizationReadActor,
 ) {
+  requireReleaseFeature("billing");
   const billingState = await getOrganizationBillingState(ctx, actor.organization._id);
   if (!billingState) {
     throw new ConvexError("組織の契約情報を確認中です");

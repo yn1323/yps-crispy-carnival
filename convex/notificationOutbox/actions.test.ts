@@ -2,7 +2,12 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import { resetResendEmailQueueForTest } from "../_lib/resend";
-import { seedCanonicalStaffLineRecipient, seedLegacyManagerShop, seedManagerShop } from "../_test/seed";
+import {
+  seedCanonicalStaffLineRecipient,
+  seedLegacyManagerShop,
+  seedManagerShop,
+  seedOrganizationManagerShop,
+} from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import {
   NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
@@ -132,6 +137,8 @@ describe("notificationOutbox/actions", () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
     vi.stubEnv("DEBUG_NOTIFY_FAIL", "");
+    vi.stubEnv("FEATURE_BILLING", "true");
+    vi.stubEnv("FEATURE_MANAGER_INVITATION", "true");
     resetResendEmailQueueForTest();
   });
   afterEach(() => {
@@ -714,6 +721,106 @@ describe("notificationOutbox/actions", () => {
     const after = await t.run(async (ctx) => await ctx.db.get(outboxId));
     expect(after).toMatchObject({ status: "sent", resendEmailId: "email_invitation_123" });
     expect(JSON.stringify(after)).not.toContain(expectedToken);
+  });
+
+  it("管理者招待が閉じた後はqueued招待をprovider到達前に停止する", async () => {
+    vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    const { t, outboxId } = await setupOrganizationInvitationJob("valid");
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    await expect(t.run((ctx) => ctx.db.get(outboxId))).resolves.toMatchObject({
+      status: "cancelled",
+      cancelReason: "invitation_inactive",
+    });
+  });
+
+  it("管理者招待が閉じた後はqueued受諾完了メールをprovider到達前に停止する", async () => {
+    vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    const { t, outboxId } = await setupOrganizationInvitationAcceptanceNotificationJob();
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    await expect(t.run((ctx) => ctx.db.get(outboxId))).resolves.toMatchObject({
+      status: "cancelled",
+      cancelReason: "invitation_inactive",
+    });
+  });
+
+  it("管理者招待が明示有効ならqueued受諾完了メールを配送する", async () => {
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>(
+      async () => new Response(JSON.stringify({ id: "email_invitation_linked_123" }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const { t, outboxId } = await setupOrganizationInvitationAcceptanceNotificationJob();
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    await expect(t.run((ctx) => ctx.db.get(outboxId))).resolves.toMatchObject({
+      status: "sent",
+      resendEmailId: "email_invitation_linked_123",
+    });
+  });
+
+  it("支払いが閉じた後はqueued課金メールをprovider到達前に停止する", async () => {
+    vi.stubEnv("FEATURE_BILLING", "");
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    const t = convexTest(schema, modules);
+    const outboxIds = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "closed_queued_billing_notification",
+        email: "closed-billing@example.com",
+        complimentary: true,
+      });
+      const now = Date.now();
+      return await Promise.all(
+        (["canonical", "legacy"] as const).map(
+          async (kind) =>
+            await ctx.db.insert("notificationOutbox", {
+              channel: "email",
+              status: "pending",
+              dedupeKey: `email:test:closed-queued-billing:${kind}`,
+              organizationId: seeded.organizationId,
+              userId: seeded.userId,
+              ...(kind === "canonical" ? { purpose: "billing" as const } : {}),
+              payload: {
+                kind: "email",
+                from: "シフトリ <noreply@example.com>",
+                to: "closed-billing@example.com",
+                subject: "課金状態のお知らせ",
+                html: "<p>test</p>",
+                context: "organizationBilling.billingEmailChanged",
+              },
+              attemptCount: 0,
+              nextRunAt: now,
+              createdAt: now,
+              updatedAt: now,
+            }),
+        ),
+      );
+    });
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    for (const outboxId of outboxIds) {
+      await expect(t.run((ctx) => ctx.db.get(outboxId))).resolves.toMatchObject({
+        status: "cancelled",
+        cancelReason: "organization_billing_changed",
+      });
+    }
   });
 
   it("LINE管理者招待も送信直前にtokenを生成し、端末の外部ブラウザで開く", async () => {
@@ -1839,6 +1946,39 @@ async function setupOrganizationInvitationJob(variant: InvalidOrganizationInvita
     return { outboxId, invitationId };
   });
   return { t, ...ids };
+}
+
+async function setupOrganizationInvitationAcceptanceNotificationJob() {
+  const t = convexTest(schema, modules);
+  const outboxId = await t.run(async (ctx) => {
+    const seeded = await seedOrganizationManagerShop(ctx, {
+      subject: "queued_manager_invitation_acceptance",
+      email: "manager@example.com",
+      complimentary: true,
+    });
+    const now = Date.now();
+    return await ctx.db.insert("notificationOutbox", {
+      channel: "email",
+      status: "pending",
+      dedupeKey: "email:test:queued-manager-invitation-acceptance",
+      organizationId: seeded.organizationId,
+      userId: seeded.userId,
+      purpose: "business",
+      payload: {
+        kind: "email",
+        from: "シフトリ <noreply@example.com>",
+        to: "manager@example.com",
+        subject: "管理者のアカウント連携が完了しました",
+        html: "<p>test</p>",
+        context: "organizationInvitation.linked",
+      },
+      attemptCount: 0,
+      nextRunAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+  return { t, outboxId };
 }
 
 async function setupOrganizationInvitationLineJob(options: { initialAttemptCount?: number } = {}) {

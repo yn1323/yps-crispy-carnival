@@ -44,6 +44,7 @@ import {
   ORGANIZATION_SHOP_STAFF_MEMBERSHIP_CHANGE_TARGET_LIMIT,
   ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT,
   organizationShopOperatingStatus,
+  requireReleasedMultiShopMembershipAddition,
   STALE_SHOP_MEMBERSHIP_CHANGE_ERROR,
   sortShopIds,
 } from "../organization/shopMembershipChange";
@@ -902,6 +903,10 @@ export const changeOrganizationPersonShopMemberships = managerMutation({
       .sort((left, right) => left.shop._id.localeCompare(right.shop._id));
     const addedShopIds = desiredActiveShopIds.filter((shopId) => !currentMembershipByShopId.has(shopId));
     const removedShopIds = removals.map((membership) => membership.shop._id);
+    requireReleasedMultiShopMembershipAddition({
+      addedActiveMembershipCount: addedShopIds.length,
+      finalActiveMembershipCount: desiredActiveShopIds.length,
+    });
 
     const removalByShopId = new Map(removals.map((membership) => [membership.shop._id, membership]));
     if (
@@ -1257,14 +1262,6 @@ export const changeOrganizationShopStaffMemberships = managerMutation({
     });
     if (completed) return completed;
 
-    const rateLimitResult = await rateLimit(ctx, {
-      name: "organizationSettingsMutationShort",
-      key: `${ctx.user._id}:${ctx.shop._id}`,
-    });
-    if (!rateLimitResult.ok) {
-      throw new ConvexError("変更操作が続いています。\n少し待ってから、もう一度お試しください。");
-    }
-
     const snapshot = await collectOrganizationShopStaffMembershipSnapshot(ctx, {
       organizationId,
       shopId: ctx.shop._id,
@@ -1302,6 +1299,18 @@ export const changeOrganizationShopStaffMemberships = managerMutation({
       throw new ConvexError(
         `一度に変更できるスタッフは${ORGANIZATION_SHOP_STAFF_MEMBERSHIP_CHANGE_TARGET_LIMIT}名までです。`,
       );
+    }
+    requireReleasedMultiShopMembershipAddition({
+      addedActiveMembershipCount: additions.length,
+      finalActiveMembershipCount: additions.some((entry) => entry.otherShopNames.length > 0) ? 2 : 1,
+    });
+
+    const rateLimitResult = await rateLimit(ctx, {
+      name: "organizationSettingsMutationShort",
+      key: `${ctx.user._id}:${ctx.shop._id}`,
+    });
+    if (!rateLimitResult.ok) {
+      throw new ConvexError("変更操作が続いています。\n少し待ってから、もう一度お試しください。");
     }
 
     const removalByPersonId = new Map(removals.map((entry) => [entry.person._id, entry]));

@@ -3,6 +3,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { dateJST, getDeadlineCutoff } from "../_lib/dateFormat";
 import { organizationQuery } from "../_lib/functions";
+import { isReleaseFeatureEnabled } from "../_lib/releaseFeatures";
 import { DASHBOARD_RESPONSE_COUNT_LIMIT } from "../constants";
 import { toDashboardRecruitment } from "../dashboard/queries";
 import { isManagerVisibleNotificationFailure } from "../notificationOutbox/failureEligibility";
@@ -754,7 +755,7 @@ async function readManagerInvitationActions(
       invitedEmail: invitation.invitedEmail,
       status: invitation.status,
       expiresAt: invitation.expiresAt,
-      canResend: invitation.canResend,
+      canResend: isReleaseFeatureEnabled("managerInvitation") && invitation.canResend,
       canRevoke: invitation.canRevoke,
       occurredAt: invitation.expiresAt,
     })),

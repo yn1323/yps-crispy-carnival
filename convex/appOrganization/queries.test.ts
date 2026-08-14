@@ -782,6 +782,7 @@ describe("appOrganization organization context queries", () => {
       visibleCountHasOverflow: false,
       maxPeople: 5,
       canAddStaff: true,
+      features: { managerInvitation: false },
     });
 
     await t.run(async (ctx) => await ctx.db.patch(ids.memberId, { status: "readOnly" }));

@@ -4,6 +4,7 @@ import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { authenticatedMutation } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
+import { requireReleaseFeature } from "../_lib/releaseFeatures";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
 import { normalizeEmail } from "../_lib/validation";
 import { recordUserLegalConsent } from "../legal/service";
@@ -88,6 +89,33 @@ export const setupShopAndManager = authenticatedMutation({
       throw new ConvexError("無効になったアカウントでは、初期設定を開始できません。");
     }
     if (currentUser) {
+      const currentMemberships = (
+        await Promise.all(
+          (["active", "readOnly"] as const).map((status) =>
+            ctx.db
+              .query("organizationMembers")
+              .withIndex("by_userId_and_status", (q) => q.eq("userId", currentUser._id).eq("status", status))
+              .take(2),
+          ),
+        )
+      ).flat();
+      for (const membership of currentMemberships) {
+        const organization = await ctx.db.get(membership.organizationId);
+        if (organization && !organization.isDeleted) {
+          throw new ConvexError("すでに組織へ所属しています。");
+        }
+      }
+      const activePeople = await ctx.db
+        .query("organizationPeople")
+        .withIndex("by_userId_and_status", (q) => q.eq("userId", currentUser._id).eq("status", "active"))
+        .take(2);
+      for (const person of activePeople) {
+        const organization = await ctx.db.get(person.organizationId);
+        if (organization && !organization.isDeleted) {
+          throw new ConvexError("すでに組織へ所属しています。");
+        }
+      }
+
       const selfCreatedOrganizations = await ctx.db
         .query("organizations")
         .withIndex("by_createdByUserId_and_isDeleted", (q) =>
@@ -105,14 +133,18 @@ export const setupShopAndManager = authenticatedMutation({
 
       // TODO[narrow]: 全deploymentでm025/m029が完走し、verifyShops/verifyLegacyShopMembersの
       //   全pageが0件になった後、このlegacy shopMembers guardを削除する。
-      //   事業者へ招待された所属は自分で作成した事業者ではないため、org付き店舗はここで拒否しない。
       const legacyMemberships = ctx.db
         .query("shopMembers")
         .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", currentUser._id).eq("isDeleted", false));
       for await (const membership of legacyMemberships) {
         const legacyShop = await ctx.db.get(membership.shopId);
-        if (legacyShop && !legacyShop.isDeleted && !legacyShop.organizationId) {
+        if (!legacyShop || legacyShop.isDeleted) continue;
+        if (!legacyShop.organizationId) {
           throw new ConvexError("すでに店舗が登録されています。");
+        }
+        const organization = await ctx.db.get(legacyShop.organizationId);
+        if (organization && !organization.isDeleted) {
+          throw new ConvexError("すでに組織へ所属しています。");
         }
       }
     }
@@ -144,6 +176,7 @@ export const setupShopAndManager = authenticatedMutation({
       shopName: input.shopName,
       regularClosedDays: [],
       submissionPattern: input.submissionPattern,
+      billingMode: "complimentaryBusiness",
       now,
     });
 
@@ -161,7 +194,7 @@ export const setupShopAndManager = authenticatedMutation({
  * 既に管理者として利用している人が、二つ目以降の組織を作る。
  *
  * 初回セットアップと違い、users行と利用規約の同意状態は既にあるため変更しない。
- * 新しい組織は初回セットアップと同じ2暦月のトライアルで始める。
+ * 追加組織だけを2暦月のトライアルで始める。
  */
 export const createOrganization = authenticatedMutation({
   args: additionalOrganizationArgs,
@@ -218,6 +251,8 @@ async function createAdditionalOrganization(
     source: "canonicalPerson";
   },
 ) {
+  requireReleaseFeature("organizationCreation");
+
   if (user.isDeleted || user.accountDeletionRequestedAt !== undefined) {
     throw new ConvexError(ORGANIZATION_CREATE_UNAVAILABLE_MESSAGE);
   }
@@ -255,6 +290,7 @@ async function createAdditionalOrganization(
     regularClosedDays: WEEKDAY_ORDER.filter((day) => parsed.data.regularClosedDays.includes(day)),
     submissionPattern: parsed.data.submissionPattern,
     correlationId,
+    billingMode: "trial",
     now: Date.now(),
   });
   return { organizationId: created.organizationId, shopId: created.shopId, created: true };
