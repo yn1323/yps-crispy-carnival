@@ -196,16 +196,19 @@ export const listMyOrganizationContexts = authenticatedQuery({
   },
 });
 
-/** URLで明示された組織を、selectorの取得済みpageに依存せず直接検証する。 */
-export const getOrganizationContext = organizationQuery({
-  args: {},
-  returns: organizationContextValidator,
-  handler: async (ctx) =>
-    toOrganizationContext({
-      organization: ctx.organization,
-      person: ctx.organizationPerson,
-      member: ctx.organizationMember,
-    }),
+/** URLで明示された組織を直接検証し、所属失効時は存在を開示せずnullへ収束させる。 */
+export const getOrganizationContext = authenticatedQuery({
+  args: { organizationId: v.id("organizations") },
+  returns: v.union(organizationContextValidator, v.null()),
+  handler: async (ctx, { organizationId }) => {
+    if (!ctx.identity || !ctx.user || ctx.user.isDeleted) return null;
+
+    const actor = await resolveOrganizationReadActor(ctx, {
+      user: ctx.user,
+      organizationId,
+    });
+    return actor ? toOrganizationContext(actor) : null;
+  },
 });
 
 /** Homeの店舗selector向けに、認可済み組織のactive店舗だけを返す。 */

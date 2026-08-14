@@ -109,9 +109,7 @@ describe("appOrganization organization context queries", () => {
           paginationOpts: firstPage(),
         }),
     ).resolves.toEqual({ page: [], isDone: true, continueCursor: "" });
-    await expect(t.query(api.appOrganization.queries.getOrganizationContext, { organizationId })).rejects.toThrow(
-      "Not found",
-    );
+    await expect(t.query(api.appOrganization.queries.getOrganizationContext, { organizationId })).resolves.toBeNull();
   });
 
   it("activeとreadOnlyのcanonical所属を最小DTOで返し、一覧の未取得pageにある組織も直接開ける", async () => {
@@ -194,7 +192,13 @@ describe("appOrganization organization context queries", () => {
       removedActor.query(api.appOrganization.queries.getOrganizationContext, {
         organizationId: removed.organizationId,
       }),
-    ).rejects.toThrow("Not found");
+    ).resolves.toBeNull();
+
+    await expect(
+      removedActor.query(api.appOrganization.queries.getOrganizationContext, {
+        organizationId: "not-an-organization-id" as Id<"organizations">,
+      }),
+    ).rejects.toThrow();
 
     const legacy = convexTest(schema, modules);
     await legacy.run(async (ctx) => {
@@ -312,9 +316,9 @@ describe("appOrganization organization context queries", () => {
       ids.duplicateMember.organizationId,
       ids.sharedPerson.organizationId,
     ]) {
-      await expect(actor.query(api.appOrganization.queries.getOrganizationContext, { organizationId })).rejects.toThrow(
-        "Not found",
-      );
+      await expect(
+        actor.query(api.appOrganization.queries.getOrganizationContext, { organizationId }),
+      ).resolves.toBeNull();
     }
 
     const contexts: OrganizationContext[] = [];

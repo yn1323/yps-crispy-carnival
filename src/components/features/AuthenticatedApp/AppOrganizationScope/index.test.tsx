@@ -159,6 +159,55 @@ describe("AppOrganizationScopeProvider", () => {
     expect(screen.getByTestId("scope").textContent).toBe("A組織:A店,B店;orgs:A組織,B組織");
   });
 
+  it("組織contextの確定前はactive店舗queryを開始せず、所属失効時は子treeを閉じる", () => {
+    let organization:
+      | {
+          organizationId: string;
+          organizationName: string;
+          memberStatus: "active";
+        }
+      | null
+      | undefined;
+    mocks.useQuery.mockImplementation(() => organization);
+    mocks.usePaginatedQuery.mockImplementation((reference) => ({
+      results:
+        reference === mocks.organizationListRef
+          ? [{ organizationId: "organization-a", organizationName: "A組織", memberStatus: "active" }]
+          : [{ shopId: "shop-a", shopName: "A店" }],
+      status: "Exhausted",
+      loadMore: reference === mocks.organizationListRef ? mocks.loadOrganizations : mocks.loadShops,
+    }));
+
+    const view = () => (
+      <AppOrganizationScopeProvider
+        requestedOrganizationId="organization-a"
+        onCanonicalOrganizationResolved={vi.fn()}
+        renderState={renderState}
+      >
+        <ScopeConsumer />
+      </AppOrganizationScopeProvider>
+    );
+    const { rerender } = render(view());
+
+    expect(screen.getByTestId("organization-state").textContent).toBe("loading");
+    expect(mocks.usePaginatedQuery).toHaveBeenCalledWith(mocks.activeShopsRef, "skip", { initialNumItems: 50 });
+    expect(screen.queryByTestId("scope")).toBeNull();
+
+    organization = {
+      organizationId: "organization-a",
+      organizationName: "A組織",
+      memberStatus: "active",
+    };
+    rerender(view());
+    expect(screen.getByTestId("scope").textContent).toBe("A組織:A店;orgs:A組織");
+
+    organization = null;
+    rerender(view());
+    expect(screen.getByTestId("organization-state").textContent).toBe("inaccessible");
+    expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(mocks.activeShopsRef, "skip", { initialNumItems: 50 });
+    expect(screen.queryByTestId("scope")).toBeNull();
+  });
+
   it("active店舗に次pageがあれば継続取得し、部分pageをscopeへ公開しない", async () => {
     mocks.useQuery.mockReturnValue({
       organizationId: "organization-a",

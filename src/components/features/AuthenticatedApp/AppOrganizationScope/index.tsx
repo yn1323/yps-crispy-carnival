@@ -118,7 +118,7 @@ function VerifiedOrganizationScope({
   );
   const shops = usePaginatedQuery(
     api.appOrganization.queries.listOrganizationActiveShops,
-    { organizationId: typedOrganizationId },
+    organization ? { organizationId: organization.organizationId } : "skip",
     { initialNumItems: PAGE_SIZE },
   );
 
@@ -131,6 +131,7 @@ function VerifiedOrganizationScope({
   }, [organizations.loadMore, organizations.status]);
 
   if (organization === undefined) return renderState({ kind: "loading" });
+  if (organization === null) return renderState({ kind: "error", reason: "inaccessible" });
 
   const activeShops =
     shops.status === "Exhausted" ? shops.results.map((shop) => ({ id: shop.shopId, name: shop.shopName })) : null;
