@@ -513,6 +513,100 @@ describe("E2E testing helpers", () => {
     });
   });
 
+  it("view capability lookupは確定募集のsubmit linkを返さない", async () => {
+    const t = convexTest(schema, modules);
+    const managerEmail = "view-capability-owner@example.com";
+    const seed = await t.mutation(internal.testing.seedOpenRecruitmentNotificationScenario, {
+      managerAuthTokenIdentifier: "issuer|view-capability-owner",
+      managerEmail,
+      dates: DATES,
+    });
+    const submitLink = await t.mutation(internal.testing.createMagicLinkTokenForLatestRecruitment, {
+      shopId: seed.shopId,
+      recruitmentId: seed.recruitmentId,
+      staffEmail: managerEmail,
+      purpose: "submit",
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.patch(seed.recruitmentId, { status: "confirmed", confirmedAt: Date.now() });
+    });
+
+    const withoutViewLink = await t.query(internal.testing.getLatestMagicLinkToken, {
+      shopId: seed.shopId,
+      recruitmentId: seed.recruitmentId,
+      staffEmail: managerEmail,
+      purpose: "view",
+    });
+
+    expect(withoutViewLink).toEqual({ token: null });
+
+    await t.run(async (ctx) => {
+      const link = await ctx.db
+        .query("magicLinks")
+        .withIndex("by_token", (q) => q.eq("token", submitLink.token))
+        .unique();
+      if (!link) throw new Error("submit link was not created");
+      await ctx.db.patch(link._id, { accessKind: undefined });
+    });
+    const withLegacySubmitLink = await t.query(internal.testing.getLatestMagicLinkToken, {
+      shopId: seed.shopId,
+      recruitmentId: seed.recruitmentId,
+      staffEmail: managerEmail,
+      purpose: "view",
+    });
+
+    expect(withLegacySubmitLink).toEqual({ token: null });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(seed.recruitmentId, { status: "open", confirmedAt: undefined });
+    });
+    const legacySubmitLink = await t.query(internal.testing.getLatestMagicLinkToken, {
+      shopId: seed.shopId,
+      recruitmentId: seed.recruitmentId,
+      staffEmail: managerEmail,
+      purpose: "submit",
+    });
+
+    expect(legacySubmitLink).toMatchObject({
+      token: submitLink.token,
+      staffId: seed.staffId,
+      recruitmentId: seed.recruitmentId,
+      usedAt: null,
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(seed.recruitmentId, { status: "confirmed", confirmedAt: Date.now() });
+    });
+
+    const viewLink = await t.run(async (ctx) => {
+      const token = "view-capability-token";
+      const expiresAt = Date.now() + 60_000;
+      await ctx.db.insert("magicLinks", {
+        token,
+        staffId: seed.staffId,
+        shopId: seed.shopId,
+        recruitmentId: seed.recruitmentId,
+        accessKind: "view",
+        expiresAt,
+      });
+      return { token, expiresAt };
+    });
+    const withViewLink = await t.query(internal.testing.getLatestMagicLinkToken, {
+      shopId: seed.shopId,
+      recruitmentId: seed.recruitmentId,
+      staffEmail: managerEmail,
+      purpose: "view",
+    });
+
+    expect(withViewLink).toEqual({
+      token: viewLink.token,
+      staffId: seed.staffId,
+      recruitmentId: seed.recruitmentId,
+      expiresAt: viewLink.expiresAt,
+      usedAt: null,
+    });
+  });
+
   it("capability helperの失敗messageへemailを含めない", async () => {
     const t = convexTest(schema, modules);
     const missingEmail = "missing-person@example.com";

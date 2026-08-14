@@ -1532,6 +1532,7 @@ export const getLatestMagicLinkToken = internalQuery({
 
     for (const link of links) {
       if (args.recruitmentId && link.recruitmentId !== args.recruitmentId) continue;
+      if ((link.accessKind ?? "submit") !== args.purpose) continue;
       const recruitment = await ctx.db.get(link.recruitmentId);
       if (!recruitment || recruitment.isDeleted || !matchesPurpose(recruitment.status, args.purpose)) continue;
       return {
