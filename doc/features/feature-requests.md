@@ -6,7 +6,7 @@
 
 ## 関連ファイル
 
-- `src/components/features/AuthenticatedApp/AuthenticatedHeader/index.tsx`
+- `src/components/templates/AuthenticatedAppShell/index.tsx`
 - `src/components/features/AuthenticatedApp/AppOrganizationScope/`
 - `src/components/features/FeatureRequestDialog/`
 - `src/components/templates/Header/index.tsx`
@@ -33,19 +33,19 @@ SPの要望Dialogは入力が1項目だけなので、フルスクリーンに�
 
 `featureRequests` に次のフィールドを保存する。
 
-- `organizationId`（店舗を特定できない`/app/*`からの送信時）
-- `shopId`（店舗を特定できる画面、旧管理画面、スタッフ画面からの送信時）
+- `organizationId`（店舗を特定できない認証済みアプリ画面からの送信時）
+- `shopId`（店舗を特定できる管理画面またはスタッフ画面からの送信時）
 - `userId`（管理ユーザーからの送信時）
 - `staffId`（スタッフからの送信時）
 - `comment`
 - `requestId`
 - `_creationTime`
 
-新しい`/app/*`では、Homeや店舗詳細など画面からactive店舗を一意に特定できる場合だけ、内部で`shopId`を付ける。  店舗を特定できない場合は先頭店舗へfallbackせず、`organizationId`を付ける。  どちらの場合もDialogに対象選択UIは出さない。
+`/dashboard`や`/app/*`では、Homeや店舗詳細など画面からactive店舗を一意に特定できる場合だけ、内部で`shopId`を付ける。  店舗を特定できない場合は先頭店舗へfallbackせず、`organizationId`を付ける。  どちらの場合もDialogに対象選択UIは出さない。
 
 `submitForOrganization`はclientから渡された`expectedOrganizationId`とoptionalな`shopId`を信用しない。  送信者のcanonicalな組織所属を必ず検証し、店舗付きの場合は店舗の組織一致とactive状態もserverで再検証する。  Business write policyも送信時に再確認する。
 
-旧画面の`submit`は選択中店舗をクライアントから受け取り、`managerMutation`でactiveな店舗所属を検証する互換APIとして維持する。  新しい`/app/*`は保存済みの`selectedShopAtom`を組織や店舗の認可根拠に使わない。
+旧client用の`submit`は選択中店舗をクライアントから受け取り、`managerMutation`でactiveな店舗所属を検証する互換APIとして維持する。  `/dashboard`と`/app/*`はbrowser storageの店舗IDを組織や店舗の認可根拠に使わない。
 
 `userId`と`staffId`はクライアントから受け取らず、管理者認証またはスタッフセッションから確定する。
 

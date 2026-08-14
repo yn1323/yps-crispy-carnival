@@ -21,10 +21,9 @@
 
 | 画面 | 利用者ができること |
 |---|---|
-| `/shiftboard/<recruitmentId>?shop=<shopId>` | 希望と割当を確認し、下書きを保存し、シフトを確定する |
 | `/app/shifts/<recruitmentId>/board?org=<organizationId>` | canonicalな組織所属と募集の店舗を照合したうえで、同じシフト表を操作する |
 
-`/app` のシフト表は共通アプリヘッダーとメインナビゲーションを維持し、その下に一覧へ戻る操作と「シフトを調整」の見出しを表示する。  募集状態、提出人数、店舗名は一覧カードで確認し、シフト表ではフォーム直上へ重複表示しない。  既存の`/shiftboard`は期間と確定状態を示す従来ヘッダーを維持する。
+シフト表は共通アプリヘッダーとメインナビゲーションを維持し、その下に一覧へ戻る操作と「シフトを調整」の見出しを表示する。  募集状態、提出人数、店舗名は一覧カードで確認し、シフト表ではフォーム直上へ重複表示しない。
 
 日ごとの募集では、PCは週単位の`ユーザー × 日付`表、SPは日別と一覧の切替を使う。
 勤務区分の募集では、スタッフと勤務区分の組合せを選び、募集作成時点の勤務区分IDと時間に一致する割当だけを保存する。
@@ -63,7 +62,7 @@ serverから届いた提出内容の更新だけでは、未保存変更とし�
 
 下書き保存は現在の割当を一募集分の全置換で永続化する。  `saveShiftAssignments`は受信したraw割当を先にvalidationし、スタッフとポジションの店舗境界を確認する。  その後に省略デフォルトを実IDへ解決し、時間入力方式の安全に統合できる完全隣接区間だけを一件で保存する。  overlapや不正時刻を正規化で隠さず拒否する。
 
-新しい`/app` routeは、最初に募集から店舗を解決してURLの組織と一致することを確認する。  読み込み、保存、確定ではその店舗IDと`expectedOrganizationId`を既存manager APIへ同時に渡し、別組織の店舗、legacy店舗所属、readOnly管理者、非active店舗をserver側で拒否する。
+routeは最初に募集から店舗を解決してURLの組織と一致することを確認する。  読み込み、保存、確定ではその店舗IDと`expectedOrganizationId`を既存manager APIへ同時に渡し、別組織の店舗、legacy店舗所属、readOnly管理者、非active店舗をserver側で拒否する。
 
 既存DBの分割行は一括migrationしない。  ShiftBoard、確定シフト閲覧、新しい通知はread-time正規化するが、読み込みだけでDBを書き換えない。  管理者が既存募集を再保存した場合だけ、その募集の安全に統合できる割当がDBでも正規形へ収束する。
 
@@ -87,7 +86,7 @@ fanoutのcursor、lease、対象上限、再開、provider呼出し前の再確�
 
 | 責務 | 主な入口 |
 |---|---|
-| RouteとPage | `src/routes/_auth/shiftboard.$recruitmentId.tsx`, `src/pages/shift-board/`, `src/routes/_auth/app_.shifts_.$recruitmentId_.board.tsx`, `src/pages/app-shift-board/` |
+| RouteとPage | `src/routes/_auth/app_.shifts_.$recruitmentId_.board.tsx`, `src/pages/app-shift-board/` |
 | 画面の状態遷移 | `src/components/features/ShiftBoard/` |
 | 割当UI | `src/components/features/Shift/ShiftForm/` |
 | 画面非依存の割当処理 | `src/domains/shift/` |

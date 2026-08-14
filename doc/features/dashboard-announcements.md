@@ -9,7 +9,7 @@
 - `src/components/features/Dashboard/DashboardContent/index.tsx` — 店舗登録済み/未登録のDashboardへお知らせ機能を合成する
 - `src/components/features/Dashboard/DashboardAnnouncement/` — お知らせquery、対象判定、行表示、詳細Dialog、HTML sanitizer、Storybookを所有する
 - `src/components/features/Dashboard/HeroSummary/index.tsx` — 店舗ヘッダー直下のお知らせ表示枠
-- `src/pages/app-home/` — URLで検証済みの組織・店舗contextを既存Dashboardへ渡す
+- `src/pages/dashboard/` — `/dashboard`のURLで検証済みの組織・店舗contextをDashboardへ渡す
 
 ### バックエンド（`convex/`）
 
@@ -22,7 +22,7 @@
 | 画面 | 役割 |
 |---|---|
 | シフト担当者ダッシュボード | 公開中のお知らせがある場合、日付とタイトルの行を表示し、押下で本文Dialogを開く |
-| `/app/home` | `org`と`shop`から検証済みの現在contextを使い、旧タブの`selectedShopAtom`を対象判定へ流用しない |
+| `/dashboard?org=<organizationId>&shop=<shopId>` | `org`と`shop`から検証済みの現在contextを使い、browser storageの店舗IDを対象判定や認可へ流用しない |
 | 初回セットアップ前ダッシュボード | 店舗未登録でも、公開中の全体向けお知らせがあれば `WelcomeHero` の上に表示する |
 
 ## API 一覧

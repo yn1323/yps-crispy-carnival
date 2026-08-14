@@ -1,6 +1,6 @@
 # リリース状態
 
-> 最終更新: 2026-08-13
+> 最終更新: 2026-08-15
 >
 > 実環境確認: 未確認
 
@@ -9,19 +9,24 @@
 
 ## 現在の確認状態
 
-2026-08-13時点で、この文書へ必要な実環境証跡は登録されていません。
+2026-08-15時点で、この文書へ必要な実環境証跡は登録されていません。
 次の状態はすべて**未確認**です。
+
+現在のrepository artifactは、通常の公開範囲を1組織、1店舗、1管理者、支払い不要Businessとし、複数組織、複数店舗、複数管理者、支払いを未設定時に閉じます。
+Playwright用Previewだけは対応する公開設定を明示的に有効化します。
+このrepository上の方針から、Productionのartifact、環境変数、migration、既存データの状態を確認済みとは判定しません。
 
 | 確認対象 | 状態 | 最終確認日時 | 対象環境・deployment | 証跡 |
 |---|---|---|---|---|
 | Productionのフロントエンドartifactとcommit SHA | 未確認 | 未確認 | 未確認 | 未登録 |
 | ProductionのConvex deployとcommit SHA | 未確認 | 未確認 | 未確認 | 未登録 |
 | Productionのmigration seriesと各migrationの完了 | 未確認 | 未確認 | 未確認 | 未登録 |
+| m022による既存組織の`complimentary.business`化と、対象集合・実行後exportの検証 | 未確認 | 未確認 | 未確認 | 未登録 |
 | LINE共通化のProduction export判定、m041の実行要否と完了、全ページreadiness | 未確認 | 未確認 | 未確認 | 未登録 |
 | LINE共通化の旧token・Outbox・scheduled callerのdrainと、常時canonical read artifactのProduction反映 | 未確認 | 未確認 | 未確認 | 未登録 |
-| 店舗追加・複数店舗所属を常時公開するartifactのProduction反映と、反映後canary | 未確認 | 未確認 | 未確認 | 未登録 |
-| 組織作成、課金、管理者招待を常時利用可能にするartifactと、旧feature flag環境変数に依存しないこと | 未確認 | 未確認 | 未確認 | 未登録 |
-| 新規組織の2暦月Trial、未契約・利用停止後のデータ保持と利用制限 | 未確認 | 未確認 | 未確認 | 未登録 |
+| `/dashboard`と`/account`の新shell、旧route削除を含むartifactのProduction反映とcanary | 未確認 | 未確認 | 未確認 | 未登録 |
+| `FEATURE_ORGANIZATION_CREATION`、`FEATURE_SHOP_ADDITION`、`FEATURE_MANAGER_INVITATION`、`FEATURE_BILLING`がProductionで閉じていること | 未確認 | 未確認 | 未確認 | 未登録 |
+| 新規Setupが1組織、1店舗、1管理者、`complimentary.business`を作り、Trial deadlineとStripe objectを作らないこと | 未確認 | 未確認 | 未確認 | 未登録 |
 | StripeのPro・Business公開設定、Price、明示された税区分、Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
 | `/commercial-transactions`の事業者名、運営責任者、所在地、電話番号、Pro・Business販売価格の確定情報への置換 | **要対応（仮入力）** | 2026-08-13 | Repository | `src/components/features/CommercialTransactions/index.tsx`の`MANUAL_BUSINESS_DETAILS`と`MANUAL_SALES_PRICES` |
 | Resendの`email.delivered` Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
@@ -54,8 +59,11 @@
 
 ログイン方法とシフト連絡先の分離を公開する前に、対象となる完全修飾Convex deploymentで`narrowReadiness/queries:verifyStaffs`を`isDone: true`まで全ページ実行し、`activeStaffPersonEmailMismatch`の合計が0件であることを記録します。  1件以上の場合は公開を停止し、連絡先を推測して修復せず、別のmigration判定へ分けます。
 
-常時canonical readと店舗・所属追加の常時公開を含むartifactをProductionへ反映する前は、対象Production exportの`convex:verify-line-common-readiness`結果、`migrations/index:runLineCommonLinkBackfill`の実行またはskip根拠、LINE共通化readiness全ページ、旧非同期callerのdrainを別々に記録します。
+常時canonical readを含むartifactをProductionへ反映する前は、対象Production exportの`convex:verify-line-common-readiness`結果、`migrations/index:runLineCommonLinkBackfill`の実行またはskip根拠、LINE共通化readiness全ページ、旧非同期callerのdrainを別々に記録します。
 artifactのProduction反映と反映後canaryも別の証跡とし、ローカルテストやrepository実装から完了を推測しません。
+
+認証済み新routeを公開する前は、対象artifactのSHA、`/dashboard`と`/account`のcanary、旧routeが互換redirectなしで404になること、四つの公開設定の実値を別々に記録します。
+初回Setupの確認は新規作成documentだけを対象とし、既存データのmigration完了証跡には流用しません。
 
 ## 確認記録の様式
 

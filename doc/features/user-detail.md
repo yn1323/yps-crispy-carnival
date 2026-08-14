@@ -22,46 +22,31 @@ Dashboardのスタッフ一覧、組織設定のユーザー一覧、`/app/staff
 シフト連絡先の変更は、Clerkのログイン方法、`users.email`の初期snapshot、別組織の人物、組織の請求先を変更しない。
 ページ本文は、スタッフ情報を開くコンパクトな行、所属店舗一覧、ユーザー削除カードで構成する。
 所属店舗一覧には有効な`staffs`がある店舗だけを表示し、未所属店舗は表示しない。
-スタッフ情報の行から共通プロフィールを扱うレスポンシブDialogを開き、管理者状態の表示からは専用の管理者設定へ進む。
+スタッフ情報の行から共通プロフィールを扱うレスポンシブDialogを開く。  管理者設定への導線と招待中Badgeは、複数管理者の公開設定が有効な環境だけで表示する。
 Dialog下部には「キャンセル」と主操作の「変更を保存」を表示し、変更可否と処理状態に応じて主操作を制御する。
-管理者設定への導線と招待中Badgeは常時公開し、実際の操作可否は組織のプラン、役割、上限、招待状態をサーバー側で再確認して決める。
 組織からの削除は、所属店舗一覧の下にあるユーザー削除カードから確認Dialogを開く。
-「所属店舗を変更」から、シフトスタッフとして所属する店舗をdesired-setで選ぶ変更Dialogを開く。
+複数店舗所属の公開設定が有効な環境では、「所属店舗を変更」から、シフトスタッフとして所属する店舗をdesired-setで選ぶ変更Dialogを開く。
 稼働中の店舗はチェックを変更でき、`archived`または`planSuspended`の既存所属はチェック済みの変更不可項目として保持する。
-所属店舗の行から、対象店舗をパスの`targetShopId`で表す店舗別設定ページへ遷移する。
+所属店舗の行から、対象店舗をpathの`shopId`で表す店舗別設定ページへ遷移する。
 店舗別設定ページは`<店舗名>：<スタッフ名>さん`を見出しとし、通知、通知履歴、シフト対象設定をタブに分けず縦に並べる。通知履歴の見出しには、組織共通のLINE連携の有無を補助バッジとして表示する。
 
 ## URLと遷移
 
 ```text
-/users/<personId>?shop=<sourceShopId>&panel=<basic|line|addShop>&returnTo=<dashboard|settings|shopDetail>&returnShop=<shopId>&returnShopTo=dashboard&users=<count>
-/users/<personId>/shops/<targetShopId>?shop=<sourceShopId>&returnTo=<dashboard|settings|shopDetail>&returnShop=<shopId>&returnShopTo=dashboard&users=<count>
 /app/staff?org=<organizationId>&shopFilter=<shopId>
 /app/staff/<personId>?org=<organizationId>
-/app/staff/<personId>/shops/<targetShopId>?org=<organizationId>
+/app/staff/<personId>/shops/<shopId>?org=<organizationId>
 ```
 
-スタッフ詳細の`panel`は開いているDialogを表し、`basic`はスタッフ情報、`line`は組織共通のLINE連携、`addShop`は所属店舗変更を開く。  `addShop`という値は既存URLとの互換のため維持し、画面上では「店舗追加」と表示しない。
-`panel`を省略したスタッフ詳細URLはDialogを開かないページ本体を表す。
-Dialogを閉じると`panel`をURLから外し、人物ID、店舗、戻り先、一覧表示件数は維持する。
-直接URLを開いた場合も、`panel`にスタッフ情報、LINE連携、所属店舗変更Dialogの状態を追従させる。  旧URLの`panel=email`は通常のスタッフ詳細へ静かに収束させ、自動的なメール同期や削除を再開しない。
-ブラウザバックまたは画面内の閉じる操作でDialogを閉じた後は、履歴上の`panel`も除去し、別画面から戻ってもDialogを再表示しない。
-旧`tab`検索パラメータは受け付けず、スタッフ詳細の状態管理には使わない。
+詳細URLは`org`だけを検索パラメータとして受け取り、Dialogの開閉はページ内の状態として管理する。
+戻る操作、所属店舗へのdrilldown、公開時の管理者設定への遷移は同じ`org`を維持する。
+自分自身を組織から削除した場合はsearchを外した`/dashboard`へ戻り、残っているcanonicalな組織を再解決する。
 
-`/app`の詳細URLは`org`だけを検索パラメータとして受け取り、Dialogの開閉はページ内の状態として管理する。戻る操作、所属店舗へのdrilldown、管理者設定への遷移は同じ`org`を維持する。自分自身を組織から削除した場合だけ`org`を外した`/app/home`へ戻り、残っているcanonicalな組織を再解決する。
+店舗別設定の取得・更新対象はpathの`shopId`として各APIへ明示的に渡す。
+ブラウザ上で指定された`org`、`personId`、`shopId`、`staffId`は認可情報として扱わない。
 
-検索パラメータの`shop`はスタッフ詳細へ来たときの選択店舗を表し、`AuthGuard`、`selectedShopAtom`、ヘッダーの店舗選択と同期する。
-所属店舗を押しても`shop`は変更せず、店舗別設定の取得・更新対象はパスの`targetShopId`として各APIへ明示的に渡す。
-ブラウザ上で指定された`personId`、`targetShopId`、`staffId`は認可情報として扱わない。
-
-Dashboardと組織設定のユーザー一覧は、初期表示を10件とし、「もっと見る」で増やした表示件数を`users`へ10件単位で保持する。
-スタッフ詳細へ遷移するときも`users`を引き継ぐ。
-店舗別設定への遷移は通常の履歴を追加し、ブラウザバックで元のスタッフ詳細へ戻れるようにする。
-店舗別設定の見出しにある戻る操作も、`shop`、`returnTo`、`returnShop`、`returnShopTo`、`users`を維持して元のスタッフ詳細へ戻る。
-スタッフ詳細からの戻る操作は遷移元を`returnTo`で判定する。
-Dashboardまたは組織設定へは現在の`shop`と表示件数を引き継ぎ、`focus`に指定した直前のユーザー付近へスクロールする。
-店舗詳細から遷移した場合は、別店舗の店舗別設定を開いても`returnShop`に保持した出発元店舗へ戻る。
-Dashboard起点の場合は`returnShopTo=dashboard`も引き継ぎ、店舗詳細からDashboardへ戻れる状態を維持する。
+旧`/users/*` routeと、その`panel`、`returnTo`、`returnShop`、`returnShopTo`、`users`、`focus` searchは削除済みであり、互換redirectを設けない。
+一覧と詳細間の復帰は通常のbrowser historyを使う。
 
 Dashboardの移行済みスタッフは、`getDashboardStaffs`が返す`organizationPersonId`を`personId`に使う。
 Widen期間中に`organizationPersonId`が未設定のスタッフだけは、操作不能にせず旧スタッフ詳細モーダルを暫定表示する。
@@ -71,16 +56,9 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 
 | 画面 | 役割 |
 |---|---|
-| `/dashboard?shop=<shopId>&users=<count>&focus=<personId>` | 店舗スタッフ一覧から、移行済みスタッフのスタッフ詳細ページへ遷移する。表示件数と復帰位置を保持する |
-| `/settings?shop=<shopId>&tab=people&users=<count>&focus=<personId>` | 店舗未所属者を含む組織人物一覧から、スタッフ詳細ページへ遷移する。表示件数と復帰位置を保持する |
-| `/users/<personId>?shop=<shopId>` | スタッフ情報の入口、所属店舗、ユーザー削除カードを表示する |
-| `/users/<personId>?shop=<shopId>&panel=basic` | 氏名とシフト連絡先をDialogで扱い、管理者状態は専用の管理者設定への導線として表示する |
-| `/users/<personId>?shop=<shopId>&panel=line` | 組織共通のLINE連携状態、連携URL、案内メール、明示解除をDialogで扱う |
-| `/users/<personId>?shop=<shopId>&panel=addShop` | 既存URLとの互換を維持しながら所属店舗変更Dialogを開き、シフトスタッフとして所属する稼働中店舗をチェックリストで変更する |
-| `/users/<personId>/shops/<targetShopId>?shop=<sourceShopId>` | 対象店舗でのLINE送信可否、通知、シフト対象設定を専用ページで扱う。`shop`は出発元店舗として維持する |
 | `/app/staff?org=<organizationId>&shopFilter=<shopId>` | canonicalな組織の全人物をページングし、任意の同一組織店舗でserver-sideに絞り込む。人物詳細、管理者設定、既存スタッフ追加Dialogへの入口を表示する |
 | `/app/staff/<personId>?org=<organizationId>` | スタッフタブから組織人物の共通プロフィール、所属店舗、削除操作を表示する |
-| `/app/staff/<personId>/shops/<targetShopId>?org=<organizationId>` | 同じ組織の対象店舗における通知、通知履歴、シフト対象設定を表示する |
+| `/app/staff/<personId>/shops/<shopId>?org=<organizationId>` | 同じ組織の対象店舗における通知、通知履歴、シフト対象設定を表示する |
 
 ## 表示状態
 
@@ -95,7 +73,7 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 - 本人が管理者の場合だけ、シフト連絡先メールアドレスの下に「シフト通知用先のメールアドレスです。」と「ログインで利用するメールはアカウント設定から設定してください。」を改行して表示し、「アカウント設定」をリンクにする。
 - 店舗別設定はPCとSPのどちらも通常のページとして表示し、Dialog用の固定高、入れ子スクロール、全画面モーダル用レイアウトを使わない。
 - 所属店舗一覧には未所属店舗を表示しない。
-- 「所属店舗を変更」のボタンとDialogは常に表示し、店舗未所属の管理者にも同じ導線を表示する。認証、所属、店舗境界、課金状態、利用上限は表示状態から独立してserver側で確認する。
+- 複数店舗所属の公開設定が閉じている通常環境では、「所属店舗を変更」のボタンとDialogを表示しない。  public mutationも同じ設定をserver-sideで確認し、副作用前に拒否する。
 - 所属店舗変更Dialogは、シフトスタッフとして所属する店舗のdesired-setチェックリストを表示する。冒頭では「シフトスタッフとして所属する店舗を選択してください。」に続けて、「店舗から外す場合、チェックを外してください。」を改行して表示する。`active`の店舗は所属中・未所属を問わず編集でき、`archived`または`planSuspended`の既存所属はチェック済みのまま変更不可として理由を表示する。非activeの未所属店舗と削除済み店舗は表示しない。
 - Dialog下部には「キャンセル」と主操作の「変更する」を表示する。初期状態との差分がない間、処理中、閲覧専用、契約制限中は「変更する」を無効にする。
 - 追加と解除のどちらも「変更する」を1回押すと確定処理へ進み、二重確認Dialogは開かない。初期状態で所属していた店舗のチェックを外した場合だけ、その店舗の行に「店舗から外す」と「今日以降のシフト割り当てから削除します。」「この店舗からの通知を停止します。LINE連携は組織に残ります。」の2項目を赤字の箇条書きで表示し、再びチェックすると解除表示を消す。解除対象ごとの件数と合計は表示せず、取得済みの解除previewを同じmutationへ渡す。
@@ -113,8 +91,8 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 - 明示解除は確認表示を経て、その組織の全所属店舗だけを停止する。別組織の連携には影響せず、再利用には本人による新しい連携を必要とする。
 - 通知対象の募集と確定シフトは、Dashboardと同じ色・状態表現で期間、締切または確定日、提出人数を表示する。確定シフトは終了日が今日以降の現在分と将来分を表示して再送でき、過去分は表示しない。
 - 確定シフトの個別再送は1回につき40件までを対象とする。対象が40件を超える場合は一部だけ送らず、再送を開始できないことを表示する。
-- 管理者の招待・交代・権限解除は`/settings/managers?shop=<shopId>`へ集約する。スタッフ詳細は状態と「管理者設定で変更」の導線だけを表示し、管理者変更mutationを直接実行しない。
-- 現行backendは`managerInvitationState`をプラン、役割、上限、招待状態から投影し、公開設定による`hidden`は返さない。旧DTOの`hidden`はrolling deploy互換のため表示型にだけ残す。
+- 管理者の招待・交代・権限解除は、公開設定を明示的に有効化した環境では`/app/manage/managers?org=<organizationId>`へ集約する。  通常環境のスタッフ詳細は管理者設定への導線を表示しない。
+- backendは複数管理者の公開設定が閉じているとき`managerInvitationState.kind = "hidden"`を返し、招待、再送、受諾、権限追加をserver-sideでも拒否する。
 - `active`または`readOnly`の管理者も、人物側または店舗側の所属変更から個別店舗・全店舗のスタッフ所属を解除できる。
   個別解除ではほかの店舗所属を維持し、全店舗解除でも管理者権限と組織人物を維持する。
 - 管理者人物を組織から削除する操作は、先に管理者権限を外すまで拒否する。
@@ -168,20 +146,15 @@ mutationの成功は、DB transactionと必要な通知・cleanupの予約が確
 
 ### フロントエンド
 
-- `src/routes/_auth/dashboard.tsx`と`settings.tsx`：ユーザー一覧の`users`と`focus`を受け取るURL境界。
-- `src/routes/_auth/users.$personId.tsx`：人物IDと`shop`、スタッフ情報・LINE連携・所属店舗変更の`panel`、戻り先、出発元店舗、一覧表示件数を受け取るURL境界。所属店舗変更は互換値`panel=addShop`を使い、旧`panel=email`は破棄する。
-- `src/routes/_auth/users.$personId_.shops.$targetShopId.tsx`：対象店舗IDと、出発元店舗・戻り先情報を受け取る店舗別設定のURL境界。
 - `src/routes/_auth/app_.staff_.$personId.tsx`と`src/routes/_auth/app_.staff_.$personId_.shops.$shopId.tsx`：`org`、人物ID、対象店舗IDを受け取る新しいスタッフタブのURL境界。
 - `src/routes/_auth/app_.staff.tsx`と`src/pages/app-staff/`：組織人物のcursor一覧、店舗filter、Loading・QueryError、スタッフ追加店舗の明示選択を扱うスタッフトップの境界。
 - `src/pages/user-detail/`：詳細QueryとLoading、Not Found、正常表示の分岐。
-- `src/pages/user-shop-detail/`：`targetShopId`を明示した詳細QueryとLoading、Empty、正常表示の分岐。
+- `src/pages/user-shop-detail/`：pathの`shopId`を明示した詳細QueryとLoading、Empty、正常表示の分岐。
 - `src/components/features/UserDetail/`：スタッフ情報の入口、所属店舗一覧、所属店舗変更チェックリスト、スタッフ情報Dialog、URL同期、編集と確認操作。
 - `src/components/features/UserShopDetail/`：対象店舗のAPI接続と状態を所有し、LINE送信可否、通知、シフト対象設定をViewへ渡す。
-- `src/components/features/StaffNotificationHistory/`：店舗別設定ページと旧スタッフ詳細フォールバックから利用する通知履歴。
+- `src/components/features/StaffNotificationHistory/`：店舗別設定ページと未移行スタッフ向け暫定詳細から利用する通知履歴。
 - `src/components/features/Dashboard/StaffManagement/`と`StaffRoster/`：店舗スタッフ一覧からの遷移と未移行スタッフの暫定フォールバック。
 - `src/components/features/OrganizationSettings/`：組織人物一覧からの遷移。
-- `src/hooks/useScrollToListItem.ts`：一覧へ戻ったときに直前のユーザー行へスクロールする。
-- `src/lib/userListSearch.ts`：一覧表示件数と復帰対象のQueryStringを正規化する。
 
 ## API一覧
 

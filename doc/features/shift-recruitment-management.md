@@ -21,11 +21,9 @@
 
 | 画面 | 利用者ができること |
 |---|---|
-| `/dashboard?shop=<shopId>` | 募集を作成し、状態別の募集一覧を確認し、募集を削除する |
-| `/app/home?org=<organizationId>&shop=<shopId>` | 明示した組織と店舗を再検証し、既存Dashboardと同じ募集作成、状態別一覧、削除確認を扱う |
+| `/dashboard?org=<organizationId>&shop=<shopId>` | 明示した組織と店舗を再検証し、募集作成、状態別一覧、削除確認を扱う |
 | `/app/shifts?org=<organizationId>` | canonicalな組織にあるactive店舗の募集を状態別にまとめ、店舗filter、募集作成、削除確認、シフト表への遷移を扱う |
 | `/app/shifts/<recruitmentId>/board?org=<organizationId>` | 組織と募集の店舗関係を再検証し、共通アプリヘッダー配下で割当編集と確定を扱う |
-| `/shiftboard/<recruitmentId>?shop=<shopId>` | 対象募集のシフト表へ進む。詳しい挙動は[シフト表](shift-board.md)を参照する |
 
 Dashboardは募集を次の順で表示し、空の分類は表示しない。
 
@@ -52,7 +50,7 @@ Dashboardは募集を次の順で表示し、空の分類は表示しない。
 
 `/app/shifts`から募集を作る場合は、フォームの最初に対象店舗を1店舗だけ選択する。
 選んだ店舗は確認Stepにも表示し、店舗IDとURLの組織IDを募集mutationへ明示してサーバーで再検証する。
-Dashboardと`/app/home`では対象店舗がすでに決まっているため店舗選択Stepを省略するが、確認Stepには店舗名を表示する。
+`/dashboard`では対象店舗がすでに決まっているため店舗選択Stepを省略するが、確認Stepには店舗名を表示する。
 
 シフト終了日当日は過去に含めず、翌日から過去として扱う。
 確定済み募集も削除できるが、削除前に確認する。
@@ -88,7 +86,7 @@ lease、cursor、dedupe、再開、保持期限は[Notification Outbox](notifica
 
 | 責務 | 主な入口 |
 |---|---|
-| RouteとPage | `src/routes/_auth/dashboard.tsx`, `src/pages/dashboard/`, `src/routes/_auth/app_.home.tsx`, `src/pages/app-home/`, `src/routes/_auth/app_.shifts.tsx`, `src/pages/app-shifts/`, `src/routes/_auth/app_.shifts_.$recruitmentId_.board.tsx`, `src/pages/app-shift-board/` |
+| RouteとPage | `src/routes/_auth/dashboard.tsx`, `src/pages/dashboard/`, `src/routes/_auth/app_.shifts.tsx`, `src/pages/app-shifts/`, `src/routes/_auth/app_.shifts_.$recruitmentId_.board.tsx`, `src/pages/app-shift-board/` |
 | 募集の作成 | `src/components/features/CreateRecruitmentForm/`, `src/components/features/Dashboard/RecruitmentManagement/`, `src/components/features/OrganizationRecruitmentManagement/` |
 | 募集の一覧 | `src/components/features/Dashboard/RecruitmentBoard/` |
 | 募集API | `convex/recruitment/mutations.ts`, `convex/recruitment/service.ts` |
