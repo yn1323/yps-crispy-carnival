@@ -21,6 +21,7 @@ Playwright用Previewだけは対応する公開設定を明示的に有効化し
 | Productionのフロントエンドartifactとcommit SHA | 未確認 | 未確認 | 未確認 | 未登録 |
 | ProductionのConvex deployとcommit SHA | 未確認 | 未確認 | 未確認 | 未登録 |
 | Productionのmigration seriesと各migrationの完了 | 未確認 | 未確認 | 未確認 | 未登録 |
+| `/dashboard`新shell反映前のcanonical管理者所属と、legacyな`shopMembers`だけで利用できる管理者が0件であること | 未確認 | 未確認 | 未確認 | 未登録 |
 | m022による既存組織の`complimentary.business`化と、対象集合・実行後exportの検証 | 未確認 | 未確認 | 未確認 | 未登録 |
 | LINE共通化のProduction export判定、m041の実行要否と完了、全ページreadiness | 未確認 | 未確認 | 未確認 | 未登録 |
 | LINE共通化の旧token・Outbox・scheduled callerのdrainと、常時canonical read artifactのProduction反映 | 未確認 | 未確認 | 未確認 | 未登録 |
