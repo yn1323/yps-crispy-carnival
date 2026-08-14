@@ -36,8 +36,8 @@ export const SetupStep2 = ({ onSubmit, defaultValues, formId = "setup-step2" }: 
       <Stack gap={5}>
         <Box borderRadius="lg" bg="blue.50" px={4} py={3}>
           <Text fontSize="sm" color="blue.900" lineHeight="tall">
-            このお店を登録すると、組織の2暦月トライアルが始まります。終了後はProまたはBusinessの契約が必要です。
-            未契約の場合は利用停止になりますが、店舗・ユーザー・過去のシフトは削除されません。
+            このお店を登録すると、最初の組織に支払い不要のBusinessが適用されます。2暦月のトライアル期限や支払い情報の登録はありません。
+            現在の公開範囲は、1組織・1店舗・1管理者です。
           </Text>
           <Link href="/pricing" target="_blank" rel="noreferrer" color="teal.700" fontSize="sm" fontWeight="bold">
             料金とプランを確認する（新しいタブ）

@@ -377,7 +377,7 @@ const DemoCompleteCta = () => (
   <Box bg="teal.50" borderWidth="1px" borderColor="gray.200" borderRadius="md" px={4} py={4} mt={2}>
     <Stack gap={3}>
       <Text color="teal.900" fontWeight="bold" lineHeight={1.6}>
-        2暦月のトライアルで、そのまま運用を始められます
+        支払い情報を登録せず、そのまま運用を始められます
       </Text>
       <Button
         asChild
@@ -391,7 +391,7 @@ const DemoCompleteCta = () => (
         <MeasurementBoundaryLink href="/signup" measurementCtaId="demo_complete_signup">
           <Icon as={LuUserPlus} boxSize={5} />
           <Text as="span" flex={1} textAlign="center">
-            トライアルを始める
+            シフトリを始める
           </Text>
           <Icon as={LuChevronRight} boxSize={5} />
         </MeasurementBoundaryLink>

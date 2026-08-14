@@ -16,10 +16,10 @@ export const BottomCtaSection = () => (
         <Text color="gray.800" fontSize="md" lineHeight="1.9" fontWeight="semibold" maxW="620px">
           希望シフトを集めるところから、確定を知らせるところまで。
           <br />
-          2暦月のトライアルで、実際のシフト運用を試してみませんか。
+          支払い情報を登録せず、実際のシフト運用を始めてみませんか。
         </Text>
         <Stack direction={{ base: "column", md: "row" }} gap={4} w={{ base: "full", md: "auto" }}>
-          <BottomButton href="/signup" label="2暦月トライアルを始める" primary />
+          <BottomButton href="/signup" label="シフトリを始める" primary />
           <BottomButton href="/demo/flow" label="登録不要でデモを見る" />
         </Stack>
       </VStack>

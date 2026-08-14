@@ -69,7 +69,7 @@ const disclosureRows: DisclosureRow[] = [
         <Text>Pro：{MANUAL_SALES_PRICES.pro}</Text>
         <Text>Business：{MANUAL_SALES_PRICES.business}</Text>
         <Text>
-          契約画面でも、契約を確定する前に金額、通貨、税込・税別、請求周期を表示します。プランの上限と契約単位は
+          販売開始後は、契約画面でも契約を確定する前に金額、通貨、税込・税別、請求周期を表示します。初回登録で利用できる範囲は
           <Link href="/pricing" color="teal.700" fontWeight="semibold">
             料金・プラン
           </Link>
@@ -90,12 +90,12 @@ const disclosureRows: DisclosureRow[] = [
   {
     label: "支払時期",
     content:
-      "トライアル中に有料プランの継続を登録した場合は、トライアル終了時に初回料金を請求します。契約制限中などから有料プランを開始する場合は、契約開始時に初回料金を請求します。以後は1か月ごとの更新日に請求します。",
+      "追加組織の無料体験中に有料プランの継続を登録した場合は、無料体験の終了時に初回料金を請求します。契約制限中などから有料プランを開始する場合は、契約開始時に初回料金を請求します。以後は1か月ごとの更新日に請求します。",
   },
   {
     label: "役務の提供時期",
     content:
-      "トライアルは、組織の作成完了後から利用できます。有料プランは、Stripeで契約状態を確認した後に提供を開始します。トライアル中に継続を登録した場合は、トライアル終了時から有料プランへ移行します。",
+      "初回登録で作る最初の組織は、組織の作成完了後から利用できます。追加組織作成機能を提供している場合、追加組織の無料体験も組織の作成完了後から利用できます。有料プランは、Stripeで契約状態を確認した後に提供を開始します。追加組織の無料体験中に継続を登録した場合は、無料体験の終了時から有料プランへ移行します。",
   },
   {
     label: "申込期間",
@@ -107,9 +107,14 @@ const disclosureRows: DisclosureRow[] = [
       "有料プランの契約期間は1か月です。利用停止の手続きが完了するまで、1か月ごとに自動更新します。次回更新日はサービス画面に表示します。",
   },
   {
-    label: "無料体験",
+    label: "初回登録",
     content:
-      "新しく作成した組織は、作成日から2暦月のトライアルで始まります。有料プランと支払い方法を登録しない限り、自動で有料契約には移行しません。未契約のままトライアルが終了した場合は、データを保持したまま組織の業務操作を制限します。",
+      "初回登録で作成する最初の組織には、支払い不要のBusinessを適用します。無料体験の終了日は設定せず、支払い方法の登録を求めません。現在利用できるのは、1組織、1店舗、1管理ユーザーです。",
+  },
+  {
+    label: "追加組織の無料体験",
+    content:
+      "追加組織作成機能を提供している場合、二つ目以降の組織には作成日から2暦月の無料体験を適用します。有料プランと支払い方法を登録しない限り、自動で有料契約には移行しません。未契約のまま無料体験が終了した場合は、データを保持したまま組織の業務操作を制限します。",
   },
   {
     label: "利用停止と返金",
@@ -118,21 +123,21 @@ const disclosureRows: DisclosureRow[] = [
   },
   {
     label: "利用上限",
-    content: `トライアルは利用人数${trialLimits.maxPeople}名、稼働店舗${trialLimits.maxActiveShops}件、有効な管理者${trialLimits.maxActiveManagers}名までです。Proは利用人数${proLimits.maxPeople}名、稼働店舗${proLimits.maxActiveShops}件、有効な管理者${proLimits.maxActiveManagers}名まで、Businessは利用人数${businessLimits.maxPeople}名、稼働店舗${businessLimits.maxActiveShops}件、有効な管理者${businessLimits.maxActiveManagers}名まで利用できます。`,
+    content: `初回登録で作る最初の組織は、利用人数${businessLimits.maxPeople}名、稼働店舗1件、有効な管理ユーザー1名までです。追加組織作成機能と有料プランを提供している場合、追加組織の無料体験は利用人数${trialLimits.maxPeople}名、稼働店舗${trialLimits.maxActiveShops}件、有効な管理ユーザー${trialLimits.maxActiveManagers}名まで、Proは利用人数${proLimits.maxPeople}名、稼働店舗${proLimits.maxActiveShops}件、有効な管理ユーザー${proLimits.maxActiveManagers}名まで、Businessは利用人数${businessLimits.maxPeople}名、稼働店舗${businessLimits.maxActiveShops}件、有効な管理ユーザー${businessLimits.maxActiveManagers}名まで利用できます。`,
   },
   {
     label: "動作環境",
     content:
-      "動作確認の基準環境は、PCおよびモバイル端末のGoogle Chromeです。JavaScriptとCookieを利用できるブラウザ、およびインターネット接続環境が必要です。一部の通知機能には、LINEまたはメールを受信できる環境が必要です。その他の環境で利用する場合は、契約前にトライアルまたは無料デモで動作を確認してください。",
+      "動作確認の基準環境は、PCおよびモバイル端末のGoogle Chromeです。JavaScriptとCookieを利用できるブラウザ、およびインターネット接続環境が必要です。一部の通知機能には、LINEまたはメールを受信できる環境が必要です。その他の環境で利用する場合は、利用開始前に無料デモで動作を確認してください。",
   },
 ];
 
 export function CommercialTransactions(): ReactNode {
   return (
-    <LegalPage title="特定商取引法に基づく表記" lastUpdated="2026年8月13日">
+    <LegalPage title="特定商取引法に基づく表記" lastUpdated="2026年8月15日">
       <Stack gap={6}>
         <Text textStyle="bodySm" color="fg.muted" lineHeight={1.8}>
-          シフト管理SaaS「シフトリ」の有料プランに関する販売条件を表示します。
+          初回登録の利用条件と、将来提供予定の有料プランに関する販売条件を表示します。有料プランの申込機能は現在公開していません。
         </Text>
 
         {hasManualDisclosure ? (

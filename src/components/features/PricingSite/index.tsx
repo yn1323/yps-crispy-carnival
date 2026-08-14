@@ -8,49 +8,35 @@ import { Button } from "@/src/components/ui/Button";
 
 const planCards = [
   {
-    id: "trial",
-    name: "2暦月トライアル",
-    eyebrow: "新しい組織",
-    description: "組織を作成した日から2暦月、Proと同じ機能・上限を試せます。",
-    priceLabel: "作成日から2暦月",
-    limits: ORGANIZATION_PLAN_LIMITS.trial,
-    featured: true,
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    eyebrow: "通常運用",
-    description: "希望回収からシフト作成、複数店舗・管理者の運用まで、すべての機能を利用できます。",
-    priceLabel: "月額料金・税込/税別は契約画面に表示",
-    limits: ORGANIZATION_PLAN_LIMITS.pro,
-    featured: false,
-  },
-  {
-    id: "business",
+    id: "complimentary-business",
     name: "Business",
-    eyebrow: "利用人数が多い組織",
-    description: "Proと同じ機能を、より多い利用人数で運用できます。",
-    priceLabel: "月額料金・税込/税別は契約画面に表示",
-    limits: ORGANIZATION_PLAN_LIMITS.business,
-    featured: false,
+    eyebrow: "初回登録",
+    description: "初回登録で作る最初の組織には、支払い不要のBusinessが適用されます。",
+    priceLabel: "支払い情報の登録なし",
+    limits: {
+      maxPeople: ORGANIZATION_PLAN_LIMITS.business.maxPeople,
+      maxActiveShops: 1,
+      maxActiveManagers: 1,
+    },
+    featured: true,
   },
 ] as const;
 
 const billingFacts: Array<{ icon: IconType; title: string; body: string }> = [
   {
     icon: LuBuilding2,
-    title: "契約と支払いは組織単位",
-    body: "一つの組織に店舗、利用者、管理者、プランと支払いをまとめます。自分で作成して保持できる有効な組織は3件までです。",
+    title: "初回登録で一つの組織",
+    body: "最初の組織と店舗を初回登録で一度だけ作ります。現在、二つ目の組織を追加する機能は公開していません。",
   },
   {
     icon: LuStore,
-    title: "管理者は組織全体を管理",
-    body: "有効な管理者は、組織内のすべての店舗と利用者、プラン、支払いを管理します。店舗限定の管理者権限はありません。",
+    title: "一店舗を本人が管理",
+    body: "現在の公開範囲は一店舗と管理者本人一名です。スタッフの希望回収から確定通知までを同じ店舗で進めます。",
   },
   {
     icon: LuCreditCard,
-    title: "金額を確認してから契約",
-    body: "ProとBusinessの最新の月額料金は、Stripeに登録されたPriceを契約画面に表示します。金額と税込・税別を確認してから支払い方法を登録できます。",
+    title: "支払い情報の登録は不要",
+    body: "初回登録ではカード情報や支払い方法の入力を求めません。支払い不要のBusinessで利用を始められます。",
   },
 ];
 
@@ -74,19 +60,19 @@ export function PricingSite() {
                 lineHeight="1.25"
                 letterSpacing="0"
               >
-                2暦月のトライアルで、
+                支払い情報を登録せず、
                 <Box as="span" display="block" color="teal.700">
-                  実際のシフト運用を試せます
+                  実際のシフト運用を始められます
                 </Box>
               </Heading>
               <Text color="gray.700" fontSize={{ base: "md", md: "lg" }} lineHeight="1.9" maxW="760px">
-                新しく作る組織は、作成日から2暦月のトライアルで始まります。トライアル終了後も利用する場合は、ProまたはBusinessを契約してください。
+                初回登録で作る最初の組織には、支払い不要のBusinessが適用されます。2暦月のトライアル期限や支払い方法の登録はありません。
               </Text>
             </Stack>
             <Stack direction={{ base: "column", sm: "row" }} gap={3} align={{ base: "stretch", sm: "center" }}>
               <Button asChild colorPalette="teal" h="52px" px={7} fontWeight="bold">
                 <MeasurementBoundaryLink href="/signup" measurementCtaId="pricing_signup">
-                  2暦月トライアルを始める
+                  シフトリを始める
                   <Icon as={LuChevronRight} boxSize={5} />
                 </MeasurementBoundaryLink>
               </Button>
@@ -105,13 +91,13 @@ export function PricingSite() {
           <Box as="section" aria-labelledby="plan-comparison-heading">
             <Stack gap={3} maxW="760px" mb={7}>
               <Heading id="plan-comparison-heading" as="h2" color="gray.950" fontSize={{ base: "2xl", md: "3xl" }}>
-                トライアルと有料プラン
+                初回登録で利用できるプラン
               </Heading>
               <Text color="gray.700" lineHeight="1.8">
-                ProとBusinessで利用できる機能に差はありません。組織で利用する人数に合わせて選びます。
+                現在の公開範囲は、1組織・1店舗・1管理者です。利用人数はBusinessの上限まで登録できます。
               </Text>
             </Stack>
-            <SimpleGrid columns={{ base: 1, lg: 3 }} gap={5}>
+            <SimpleGrid columns={1} gap={5} maxW="640px">
               {planCards.map((plan) => (
                 <PlanCard key={plan.id} {...plan} />
               ))}
@@ -141,7 +127,7 @@ export function PricingSite() {
 
           <Box
             as="section"
-            aria-labelledby="trial-ending-heading"
+            aria-labelledby="initial-registration-heading"
             bg="teal.50"
             borderRadius="2xl"
             px={{ base: 5, md: 8 }}
@@ -160,17 +146,19 @@ export function PricingSite() {
                 <Icon as={LuCalendarDays} boxSize={6} />
               </Flex>
               <Stack gap={3}>
-                <Heading id="trial-ending-heading" as="h2" color="gray.950" fontSize={{ base: "xl", md: "2xl" }}>
-                  トライアル終了日と、その後の利用
+                <Heading
+                  id="initial-registration-heading"
+                  as="h2"
+                  color="gray.950"
+                  fontSize={{ base: "xl", md: "2xl" }}
+                >
+                  初回登録はトライアルではありません
                 </Heading>
                 <Text color="gray.800" lineHeight="1.85">
-                  トライアル終了日は組織設定に表示します。たとえば7月14日に組織を作成した場合、9月14日0:00（日本時間）に終了します。
+                  初回登録で作る最初の組織には、2暦月のトライアル終了日を設定しません。支払い情報を登録せず、支払い不要のBusinessで利用を始めます。
                 </Text>
                 <Text color="gray.800" lineHeight="1.85">
-                  終了時点でProまたはBusinessを契約していない場合は、組織のデータを保持したまま利用を制限します。契約手続きを完了すると、同じ組織で運用を再開できます。
-                </Text>
-                <Text color="gray.700" fontSize="sm" lineHeight="1.8">
-                  これまでに無償利用の対象となった組織は、案内済みの利用条件を継続します。
+                  複数組織、複数店舗、複数管理者、有料プランの契約と支払いは、現在の公開範囲に含まれません。
                 </Text>
               </Stack>
             </Flex>
