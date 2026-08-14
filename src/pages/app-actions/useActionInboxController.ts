@@ -255,7 +255,7 @@ export function buildActionInboxItems(
         actions: [
           actionOrDisabled({
             enabled: item.canResolve,
-            label: "対応済みにする",
+            label: "再送せず破棄する",
             emphasis: "danger",
             disabledReason: "閲覧のみ、または契約制限中のため変更できません。",
             onClick: () => commands.requestResolveNotification(item),

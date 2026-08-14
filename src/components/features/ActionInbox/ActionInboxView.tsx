@@ -323,7 +323,7 @@ function ActionCard({
         <Stack gridColumn={{ base: "2", md: "2 / span 2" }} gridRow="4" gap={1} minW={0} w="full">
           <Flex gap={{ base: 2, md: 4 }} align="center" justify="space-between" w="full" minW={0}>
             {shouldShowRetryGuidance && <RetryGuidance />}
-            <Flex gap={2} justify="flex-end" align="flex-start" flexShrink={0}>
+            <Flex gap={2} justify="flex-end" align="flex-start" ms="auto" flexShrink={0}>
               <ActionButton
                 action={visibleAction}
                 category={item.category}

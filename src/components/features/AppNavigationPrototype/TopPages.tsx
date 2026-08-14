@@ -372,7 +372,7 @@ export function PrototypeActionsView() {
       category: "notification",
       statusLabel: "送信失敗",
       title: "田中さんへシフト募集通知を送れませんでした",
-      description: "連絡先を確認して再送するか、対応済みにします。",
+      description: "連絡先を確認して再送するか、再送せず破棄します。",
       metadata: [
         { label: "yn1323店舗", icon: "shop" },
         { label: "メール", icon: "mail" },
@@ -381,11 +381,11 @@ export function PrototypeActionsView() {
       scopeShopId: APP_PROTOTYPE_IDS.shop,
       actions: [
         {
-          label: "対応済みにする",
+          label: "再送せず破棄する",
           emphasis: "danger",
           onClick: () => undefined,
           removesItemOnSuccess: true,
-          successMessage: "田中さんへの通知不達を対応済みにしました。",
+          successMessage: "田中さんへの通知を再送せず破棄しました。",
         },
         {
           label: "再送する",

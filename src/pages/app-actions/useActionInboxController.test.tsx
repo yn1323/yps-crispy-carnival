@@ -122,7 +122,7 @@ describe("useActionInboxController", () => {
     });
     expect(mocks.refresh).toHaveBeenCalledTimes(3);
     expect(staff.actions.map((action) => action.label)).toEqual(["却下する", "承認する"]);
-    expect(notification.actions.map((action) => action.label)).toEqual(["対応済みにする", "再送する"]);
+    expect(notification.actions.map((action) => action.label)).toEqual(["再送せず破棄する", "再送する"]);
   });
 
   it("確認が必要な操作は単一実行し、同じDTOのIDとscopeでmutationする", async () => {
@@ -158,7 +158,7 @@ describe("useActionInboxController", () => {
     const notification = findItem(result.current.items, "notification");
 
     act(() => {
-      void runEnabledAction(getAction(notification.actions, "対応済みにする"));
+      void runEnabledAction(getAction(notification.actions, "再送せず破棄する"));
     });
     await act(async () => result.current.confirm());
 

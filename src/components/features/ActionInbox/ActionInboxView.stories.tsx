@@ -58,11 +58,11 @@ const allItems: readonly ActionInboxItem[] = [
     ],
     actions: [
       {
-        label: "対応済みにする",
+        label: "再送せず破棄する",
         emphasis: "danger",
         onClick: noop,
         removesItemOnSuccess: true,
-        successMessage: "通知不達を対応済みにしました。",
+        successMessage: "通知を再送せず破棄しました。",
       },
       {
         label: "再送する",
@@ -205,7 +205,7 @@ function ConfirmationRemovalPreview() {
   const [items, setItems] = useState<readonly ActionInboxItem[]>([
     {
       ...allItems[2],
-      actions: [{ label: "対応済みにする", emphasis: "danger", onClick: () => setIsConfirming(true) }],
+      actions: [{ label: "再送せず破棄する", emphasis: "danger", onClick: () => setIsConfirming(true) }],
     },
   ]);
   return (
@@ -233,7 +233,7 @@ export const ConfirmationRemoval: Story = {
   render: () => <ConfirmationRemovalPreview />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "対応済みにする" }));
+    await userEvent.click(canvas.getByRole("button", { name: "再送せず破棄する" }));
     await userEvent.click(canvas.getByRole("button", { name: "確認して完了" }));
     await expect(canvas.getByRole("article")).toBeInTheDocument();
     await waitFor(() => expect(canvas.queryByRole("article")).toBeNull());

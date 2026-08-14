@@ -43,9 +43,9 @@ type Story = StoryObj<typeof meta>;
 export const ResolveNotification: Story = {
   play: async ({ args }) => {
     const body = within(document.body);
-    const dialog = await body.findByRole("alertdialog", { name: "送れなかった通知を対応済みにしますか？" });
+    const dialog = await body.findByRole("alertdialog", { name: "送れなかった通知を再送せず破棄しますか？" });
     await waitFor(() => expect(dialog).toBeVisible());
-    await userEvent.click(body.getByRole("button", { name: "対応済みにする" }));
+    await userEvent.click(body.getByRole("button", { name: "再送せず破棄する" }));
     await expect(args.onConfirm).toHaveBeenCalledOnce();
   },
 };

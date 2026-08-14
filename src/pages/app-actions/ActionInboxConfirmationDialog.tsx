@@ -65,10 +65,10 @@ function getCopy(confirmation: Exclude<ActionInboxConfirmation, null>) {
   }
   if (confirmation.kind === "resolveNotification") {
     return {
-      title: "送れなかった通知を対応済みにしますか？",
+      title: "送れなかった通知を再送せず破棄しますか？",
       subject: `${confirmation.item.staffName}さんへの${confirmation.item.notificationKindLabel}を一覧から外します。`,
-      description: "対応済みにすると、この通知は再送されません。",
-      submitLabel: "対応済みにする",
+      description: "この通知は一覧から外れ、再送されません。",
+      submitLabel: "再送せず破棄する",
     };
   }
   return {

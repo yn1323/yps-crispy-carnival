@@ -44,7 +44,7 @@ const items: readonly ActionInboxItem[] = [
       { label: "8/14 09:20", icon: "clock" },
     ],
     actions: [
-      { label: "対応済みにする", emphasis: "danger", onClick: () => undefined },
+      { label: "再送せず破棄する", emphasis: "danger", onClick: () => undefined },
       { label: "再送する", emphasis: "primary", onClick: () => undefined },
     ],
   },
