@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   authenticatedAppShellProps: vi.fn(),
   focusedFlowHeaderProps: vi.fn(),
   featureRequestActionProps: vi.fn(),
+  fullPageSpinnerProps: vi.fn(),
   appShell: null as
     | null
     | {
@@ -24,7 +25,6 @@ const mocks = vi.hoisted(() => ({
     | {
         mode: "focused";
         title: string;
-        backTo: "/app/shifts" | "/app/manage/managers";
         backLabel: string;
       },
   pathname: "/dashboard",
@@ -148,6 +148,13 @@ vi.mock("@/src/components/templates/FocusedFlowHeader", () => ({
   },
 }));
 
+vi.mock("@/src/components/templates/FullPageSpinner", () => ({
+  FullPageSpinner: (props: { reserveHeaderSpace?: boolean; mobileNavigationHeight?: string }) => {
+    mocks.fullPageSpinnerProps(props);
+    return <div data-testid="full-page-spinner" />;
+  },
+}));
+
 vi.mock("@/src/components/templates/Header", () => ({
   HEADER_HEIGHT: { base: "0px", md: "0px" },
 }));
@@ -169,6 +176,7 @@ beforeEach(() => {
   mocks.authenticatedAppShellProps.mockReset();
   mocks.focusedFlowHeaderProps.mockReset();
   mocks.featureRequestActionProps.mockReset();
+  mocks.fullPageSpinnerProps.mockReset();
   mocks.appShell = null;
   mocks.pathname = "/dashboard";
 
@@ -178,6 +186,18 @@ beforeEach(() => {
 });
 
 describe("認証済み親route", () => {
+  it("認証後routeのpendingではヘッダー分の余白を予約する", () => {
+    mocks.appShell = { mode: "navigation", activeKey: "home" };
+    const PendingComponent = Route.options.pendingComponent as ComponentType;
+
+    render(<PendingComponent />);
+
+    expect(mocks.fullPageSpinnerProps).toHaveBeenCalledWith({
+      reserveHeaderSpace: true,
+      mobileNavigationHeight: "68px",
+    });
+  });
+
   it("アカウント設定では店舗contextを要求せず、shopだけを除去して他のqueryを維持する", async () => {
     mocks.pathname = "/account";
     mocks.useSearch.mockReturnValue({ shop: "shop-a" });
@@ -292,8 +312,7 @@ describe("認証済み親route", () => {
     mocks.appShell = {
       mode: "focused",
       title: "既存スタッフを招待",
-      backTo: "/app/manage/managers",
-      backLabel: "管理者と権限へ戻る",
+      backLabel: "前の画面へ戻る",
     };
     mocks.useSearch.mockReturnValue({ org: "organization-a" });
     const RouteComponent = Route.options.component;

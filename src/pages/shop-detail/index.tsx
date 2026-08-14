@@ -5,7 +5,10 @@ import { LuStore } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ShopDetail, ShopDetailSkeleton } from "@/src/components/features/ShopDetail";
-import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
+import {
+  AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT,
+  AuthenticatedPageContent,
+} from "@/src/components/templates/AuthenticatedPageContent";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
@@ -89,8 +92,11 @@ export function ShopDetailPage({ shopId, selectedShopId, returnTo }: Props) {
 
 export function AppShopDetailPage({ shopId, organizationId }: { shopId: string; organizationId: Id<"organizations"> }) {
   return (
-    <AuthenticatedPageContent>
-      <ErrorBoundary key={`${organizationId}:${shopId}`} fallback={(error) => <DefaultErrorFallback error={error} />}>
+    <AuthenticatedPageContent includeMobileNavigation>
+      <ErrorBoundary
+        key={`${organizationId}:${shopId}`}
+        fallback={(error) => <DefaultErrorFallback error={error} minH={AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT} />}
+      >
         <ConnectedAppShopDetailPage shopId={shopId} organizationId={organizationId} />
       </ErrorBoundary>
     </AuthenticatedPageContent>
@@ -119,10 +125,7 @@ function ConnectedAppShopDetailPage({
         title="店舗を表示できません"
         description="店舗が削除されたか、表示する権限がありません。"
         tone="warning"
-        minH={{
-          base: `calc(100dvh - ${HEADER_HEIGHT.base} - 32px)`,
-          md: `calc(100dvh - ${HEADER_HEIGHT.md} - 64px)`,
-        }}
+        minH={AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT}
         action={
           <Button asChild colorPalette="teal">
             <RouterLink to="/app/manage" search={{ org: organizationId }}>

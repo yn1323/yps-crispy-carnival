@@ -55,6 +55,7 @@ const mocks = vi.hoisted(() => ({
   },
   currentUser: { name: "管理者", email: "manager@example.com" } as CurrentUser,
   myShops: [{ shopId: "active-shop", shopName: "所属店舗" }] as ShopRow[],
+  matches: [] as Array<{ staticData: { appShell?: { mode: "navigation" | "focused" } } }>,
   selectedShop: null as SelectedShop,
   user: {
     authId: "manager-user",
@@ -84,6 +85,7 @@ vi.mock("@tanstack/react-router", () => ({
     <div data-testid="navigate" data-to={to} data-redirect={search?.redirect} />
   ),
   useRouterState: mocks.useRouterState,
+  useMatches: () => mocks.matches,
 }));
 
 vi.mock("convex/react", () => ({
@@ -108,7 +110,13 @@ vi.mock("@/convex/_generated/api", () => ({
 }));
 
 vi.mock("@/src/components/templates/FullPageSpinner", () => ({
-  FullPageSpinner: () => <div data-testid="full-page-spinner" />,
+  FullPageSpinner: (props: { showHeader?: boolean; mobileNavigationHeight?: string }) => (
+    <div
+      data-testid="full-page-spinner"
+      data-show-header={props.showHeader ? "true" : "false"}
+      data-mobile-navigation-height={props.mobileNavigationHeight ?? ""}
+    />
+  ),
 }));
 
 vi.mock("@/src/components/features/AccountDeletion", () => ({
@@ -175,6 +183,7 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/dashboard");
 
   mocks.myShops = [{ shopId: "active-shop", shopName: "所属店舗" }];
+  mocks.matches = [];
   mocks.currentUser = {
     name: "管理者",
     email: "manager@example.com",
@@ -232,6 +241,25 @@ beforeEach(() => {
 });
 
 describe("AuthGuard", () => {
+  it("navigation appの認証待機ではSP下部ナビの余白を予約する", () => {
+    mocks.matches = [{ staticData: { appShell: { mode: "navigation" } } }];
+    mocks.useAuth.mockReturnValue({
+      isLoaded: false,
+      isSignedIn: undefined,
+      userId: null,
+    });
+
+    render(
+      <AuthGuard>
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    const spinner = screen.getByTestId("full-page-spinner");
+    expect(spinner.getAttribute("data-show-header")).toBe("true");
+    expect(spinner.getAttribute("data-mobile-navigation-height")).toBe("68px");
+  });
+
   it("未認証時はrouter stateから欠けた店舗queryも実URLからredirectへ保持する", () => {
     window.history.replaceState({}, "", "/dashboard?shop=active-shop");
     mocks.useAuth.mockReturnValue({

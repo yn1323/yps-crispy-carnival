@@ -41,6 +41,7 @@ export type OperationContextViewProps = {
   planStatusCard?: PlanStatusCardProps | null;
   billingSettingsShopId?: string;
   showPageHeading?: boolean;
+  showOrganizationContext?: boolean;
   showShopContext?: boolean;
 };
 
@@ -61,6 +62,7 @@ export const OperationContextView = ({
   planStatusCard,
   billingSettingsShopId,
   showPageHeading = true,
+  showOrganizationContext = true,
   showShopContext = true,
 }: OperationContextViewProps) => {
   const defaultExpanded = planStatusCard?.defaultExpanded ?? false;
@@ -109,87 +111,88 @@ export const OperationContextView = ({
     <Stack gap={{ base: 2, lg: 3 }}>
       {showPageHeading && <VisuallyHidden as="h1">{model.selectedShop.shopName}</VisuallyHidden>}
 
-      {hasAccordionContent ? (
-        <Accordion.Root
-          collapsible
-          variant="plain"
-          colorPalette="gray"
-          value={value}
-          onValueChange={(details) => updateExpanded(details.value.includes(ORGANIZATION_DETAILS_VALUE))}
-        >
-          <Accordion.Item
-            value={ORGANIZATION_DETAILS_VALUE}
-            borderWidth="1px"
-            borderColor="gray.300"
-            borderRadius="lg"
-            bg="white"
-            overflow="hidden"
+      {showOrganizationContext &&
+        (hasAccordionContent ? (
+          <Accordion.Root
+            collapsible
+            variant="plain"
+            colorPalette="gray"
+            value={value}
+            onValueChange={(details) => updateExpanded(details.value.includes(ORGANIZATION_DETAILS_VALUE))}
           >
-            <Heading as="h2" fontSize="inherit" fontWeight="normal">
-              <Accordion.ItemTrigger
-                ref={triggerRef}
-                minH={{ base: "48px", md: "56px" }}
-                px={{ base: 3, md: 4 }}
-                py={2.5}
-                borderRadius="0"
-                cursor="pointer"
-                _hover={{ bg: "gray.50" }}
-                _focusVisible={{
-                  outline: "2px solid",
-                  outlineColor: "teal.700",
-                  outlineOffset: "-2px",
-                }}
-              >
-                <OrganizationSummary model={model} presentation={presentation} />
-                <Accordion.ItemIndicator color="fg.muted" flexShrink={0} />
-              </Accordion.ItemTrigger>
-            </Heading>
+            <Accordion.Item
+              value={ORGANIZATION_DETAILS_VALUE}
+              borderWidth="1px"
+              borderColor="gray.300"
+              borderRadius="lg"
+              bg="white"
+              overflow="hidden"
+            >
+              <Heading as="h2" fontSize="inherit" fontWeight="normal">
+                <Accordion.ItemTrigger
+                  ref={triggerRef}
+                  minH={{ base: "48px", md: "56px" }}
+                  px={{ base: 3, md: 4 }}
+                  py={2.5}
+                  borderRadius="0"
+                  cursor="pointer"
+                  _hover={{ bg: "gray.50" }}
+                  _focusVisible={{
+                    outline: "2px solid",
+                    outlineColor: "teal.700",
+                    outlineOffset: "-2px",
+                  }}
+                >
+                  <OrganizationSummary model={model} presentation={presentation} />
+                  <Accordion.ItemIndicator color="fg.muted" flexShrink={0} />
+                </Accordion.ItemTrigger>
+              </Heading>
 
-            <Accordion.ItemContent borderTopWidth="1px" borderTopColor="gray.200">
-              <Accordion.ItemBody p={0}>
-                {planStatusCard && (
-                  <PlanStatusCard
-                    key={billingSettingsShopId ?? model.selectedShop.shopId}
-                    {...planStatusCard}
-                    onRequestCollapse={handleRequestCollapse}
-                  />
-                )}
-                {hasOrganizationSettingsAction && (
-                  <OrganizationSettingsAction
-                    organizationName={model.selectedGroup.organizationName}
-                    shopId={organizationSettingsShopId}
-                    onOpen={onOpenOrganizationSettings}
-                    withBorder={Boolean(planStatusCard)}
-                  />
-                )}
-                {planStatusCard && billingAction && (
-                  <PlanAndPaymentLink
-                    label={billingAction.label}
-                    onOpen={() => planStatusCard.onAction(billingAction.action)}
-                  />
-                )}
-                {resolvedOrganizationChangeOptions.map((option, index) => (
-                  <OrganizationChangeButton
-                    key={option.key}
-                    organizationName={option.organizationName}
-                    targetId={option.targetId}
-                    withBorder={Boolean(planStatusCard || organizationSettingsShopId || index > 0)}
-                    onSelect={handleOrganizationChange}
-                  />
-                ))}
-              </Accordion.ItemBody>
-            </Accordion.ItemContent>
-          </Accordion.Item>
-        </Accordion.Root>
-      ) : (
-        <Box borderWidth="1px" borderColor="gray.300" borderRadius="lg" bg="white">
-          <Heading as="h2" fontSize="inherit" fontWeight="normal" minH={{ base: "48px", md: "56px" }}>
-            <Flex as="span" align="center" h="full" minH="inherit" px={{ base: 3, md: 4 }} py={2.5}>
-              <OrganizationSummary model={model} />
-            </Flex>
-          </Heading>
-        </Box>
-      )}
+              <Accordion.ItemContent borderTopWidth="1px" borderTopColor="gray.200">
+                <Accordion.ItemBody p={0}>
+                  {planStatusCard && (
+                    <PlanStatusCard
+                      key={billingSettingsShopId ?? model.selectedShop.shopId}
+                      {...planStatusCard}
+                      onRequestCollapse={handleRequestCollapse}
+                    />
+                  )}
+                  {hasOrganizationSettingsAction && (
+                    <OrganizationSettingsAction
+                      organizationName={model.selectedGroup.organizationName}
+                      shopId={organizationSettingsShopId}
+                      onOpen={onOpenOrganizationSettings}
+                      withBorder={Boolean(planStatusCard)}
+                    />
+                  )}
+                  {planStatusCard && billingAction && (
+                    <PlanAndPaymentLink
+                      label={billingAction.label}
+                      onOpen={() => planStatusCard.onAction(billingAction.action)}
+                    />
+                  )}
+                  {resolvedOrganizationChangeOptions.map((option, index) => (
+                    <OrganizationChangeButton
+                      key={option.key}
+                      organizationName={option.organizationName}
+                      targetId={option.targetId}
+                      withBorder={Boolean(planStatusCard || organizationSettingsShopId || index > 0)}
+                      onSelect={handleOrganizationChange}
+                    />
+                  ))}
+                </Accordion.ItemBody>
+              </Accordion.ItemContent>
+            </Accordion.Item>
+          </Accordion.Root>
+        ) : (
+          <Box borderWidth="1px" borderColor="gray.300" borderRadius="lg" bg="white">
+            <Heading as="h2" fontSize="inherit" fontWeight="normal" minH={{ base: "48px", md: "56px" }}>
+              <Flex as="span" align="center" h="full" minH="inherit" px={{ base: 3, md: 4 }} py={2.5}>
+                <OrganizationSummary model={model} />
+              </Flex>
+            </Heading>
+          </Box>
+        ))}
 
       {showShopContext && (
         <Flex align="center" justify="space-between" direction="row" gap={3} minW={0}>
@@ -542,35 +545,44 @@ const ShopStatusBadges = ({ shop }: { shop: ShopContextOption }) => {
   );
 };
 
-export const OperationContextSkeleton = () => (
-  <Stack gap={{ base: 2, lg: 3 }} aria-label="現在の組織と店舗を読み込み中">
-    <Flex
-      align="center"
-      gap={3}
-      minH={{ base: "48px", md: "56px" }}
-      px={{ base: 3, md: 4 }}
-      py={2.5}
-      borderWidth="1px"
-      borderColor="gray.200"
-      borderRadius="lg"
-      bg="white"
-    >
-      <Stack flex={1} minW={0} gap={1}>
-        <Skeleton h="12px" w={{ base: "44px", md: "56px" }} ms={7} />
-        <HStack gap={2}>
-          <Skeleton boxSize="20px" borderRadius="sm" flexShrink={0} />
-          <Skeleton h="22px" w={{ base: "140px", md: "220px" }} maxW="70%" />
-        </HStack>
-      </Stack>
-      <Skeleton boxSize="20px" flexShrink={0} />
-    </Flex>
+export const OperationContextSkeleton = ({
+  showOrganizationContext = true,
+}: {
+  showOrganizationContext?: boolean;
+} = {}) => (
+  <Stack
+    gap={{ base: 2, lg: 3 }}
+    aria-label={showOrganizationContext ? "現在の組織と店舗を読み込み中" : "現在の店舗を読み込み中"}
+  >
+    {showOrganizationContext && (
+      <Flex
+        align="center"
+        gap={3}
+        minH={{ base: "48px", md: "56px" }}
+        px={{ base: 3, md: 4 }}
+        py={2.5}
+        borderWidth="1px"
+        borderColor="gray.200"
+        borderRadius="lg"
+        bg="white"
+      >
+        <Stack flex={1} minW={0} gap={1}>
+          <Skeleton h="12px" w={{ base: "44px", md: "56px" }} ms={7} />
+          <HStack gap={2}>
+            <Skeleton boxSize="20px" borderRadius="sm" flexShrink={0} />
+            <Skeleton h="22px" w={{ base: "140px", md: "220px" }} maxW="70%" />
+          </HStack>
+        </Stack>
+        <Skeleton boxSize="20px" flexShrink={0} />
+      </Flex>
+    )}
     <Flex align="center" justify="space-between" gap={3}>
       <Flex
         align="center"
         gap={2}
         flex={1}
         minW={0}
-        minH={{ base: "48px", md: "56px" }}
+        minH="64px"
         px={{ base: 3, md: 4 }}
         borderWidth="1px"
         borderColor="gray.200"

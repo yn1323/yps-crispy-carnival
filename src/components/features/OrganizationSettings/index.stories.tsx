@@ -6,7 +6,7 @@ import type { OrganizationContextModel } from "./OrganizationContext/script";
 import type { OrganizationBillingView, OrganizationSettingsViewProps } from "./types";
 
 const actions = {
-  onBackToDashboard: fn(),
+  onBack: fn(),
   onSelectOrganization: fn(),
   onUpdateOrganizationName: fn(),
   onManageManagers: fn(),

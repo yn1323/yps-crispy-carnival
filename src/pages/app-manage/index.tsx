@@ -1,5 +1,5 @@
 import { Alert, Box, Flex, Grid, Heading, HStack, Icon, Skeleton, Stack, Text } from "@chakra-ui/react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { usePaginatedQuery, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { type ReactNode, useState } from "react";
@@ -303,7 +303,7 @@ function ReadyOrganizationPage({
   overview: FunctionReturnType<typeof api.appOrganization.manageQueries.getManageOverview>;
   billing: FunctionReturnType<typeof api.appOrganization.manageQueries.getBillingOverview>["billing"];
 }) {
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const organizationName = useOrganizationNameController({
     organizationId,
@@ -324,9 +324,9 @@ function ReadyOrganizationPage({
         <DetailPageHeader
           title="組織情報"
           icon={LuBuilding2}
-          onBack={() => void navigate({ to: "/app/manage", search: { org: organizationId } })}
-          backLabel="管理へ戻る"
-          backAriaLabel="管理へ戻る"
+          onBack={() => router.history.back()}
+          backLabel="前の画面へ戻る"
+          backAriaLabel="前の画面へ戻る"
         />
         <AppManageReadOnlyNotice memberStatus={memberStatus} />
         <OrganizationUsageSection billing={billing} />
@@ -460,7 +460,7 @@ function ConnectedManagersPage({ organizationId }: { organizationId: Id<"organiz
 
 export function AppManageInviteStaffRoutePage({ organizationId, memberStatus }: OrganizationScopeProps) {
   return (
-    <ManageErrorBoundary maxW="760px">
+    <ManageErrorBoundary maxW="760px" includeMobileNavigation={false}>
       {() => (
         <Stack gap={5}>
           <AppManageReadOnlyNotice memberStatus={memberStatus} />
@@ -482,7 +482,7 @@ function ConnectedInviteStaffPage({ organizationId }: { organizationId: Id<"orga
 
 export function AppManageInviteNewRoutePage({ organizationId, memberStatus }: OrganizationScopeProps) {
   return (
-    <ManageErrorBoundary maxW="760px">
+    <ManageErrorBoundary maxW="760px" includeMobileNavigation={false}>
       {() => (
         <Stack gap={5}>
           <AppManageReadOnlyNotice memberStatus={memberStatus} />
@@ -507,7 +507,7 @@ export function AppManageBillingRoutePage(props: OrganizationScopeProps) {
 
 function ConnectedBillingPage({ organizationId, memberStatus }: OrganizationScopeProps) {
   const overview = useQuery(api.appOrganization.manageQueries.getBillingOverview, { organizationId });
-  if (overview === undefined) return <ManageDetailSkeleton />;
+  if (overview === undefined) return <AppManageBillingPageSkeleton />;
 
   return <ReadyBillingPage organizationId={organizationId} memberStatus={memberStatus} overview={overview} />;
 }
@@ -519,7 +519,7 @@ function ReadyBillingPage({
 }: OrganizationScopeProps & {
   overview: FunctionReturnType<typeof api.appOrganization.manageQueries.getBillingOverview>;
 }) {
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const billingEmail = useBillingSettingsController({ organizationId, billing: overview.billing });
   const stripe = useStripeBillingController({
@@ -533,9 +533,9 @@ function ReadyBillingPage({
         <DetailPageHeader
           title="プランと支払い"
           icon={LuCreditCard}
-          onBack={() => void navigate({ to: "/app/manage", search: { org: organizationId } })}
-          backLabel="管理へ戻る"
-          backAriaLabel="管理へ戻る"
+          onBack={() => router.history.back()}
+          backLabel="前の画面へ戻る"
+          backAriaLabel="前の画面へ戻る"
         />
         <AppManageReadOnlyNotice memberStatus={memberStatus} />
         <OrganizationUsageSection billing={overview.billing} />
@@ -555,10 +555,18 @@ function ReadyBillingPage({
   );
 }
 
-function ManageErrorBoundary({ children, maxW }: { children: () => ReactNode; maxW?: string }) {
+function ManageErrorBoundary({
+  children,
+  maxW,
+  includeMobileNavigation = true,
+}: {
+  children: () => ReactNode;
+  maxW?: string;
+  includeMobileNavigation?: boolean;
+}) {
   const [retryRevision, setRetryRevision] = useState(0);
   return (
-    <AuthenticatedPageContent includeMobileNavigation>
+    <AuthenticatedPageContent includeMobileNavigation={includeMobileNavigation}>
       <Box maxW={maxW} mx={maxW ? "auto" : undefined}>
         <ErrorBoundary
           key={retryRevision}
@@ -621,26 +629,199 @@ function ManagePageSkeleton() {
         <Skeleton h="28px" w="80px" />
       </HStack>
       <OrganizationUsageSectionSkeleton />
-      {Array.from({ length: 2 }, (_, index) => (
-        <Stack key={index} gap={3}>
-          <Skeleton h="26px" w={index === 0 ? "104px" : "144px"} />
-          <Skeleton h={index === 0 ? "216px" : "184px"} borderRadius="xl" />
-        </Stack>
-      ))}
+
+      <Stack as="section" gap={4} aria-hidden>
+        <Flex justify="space-between" align="center" gap={3} wrap="wrap">
+          <HStack gap={2}>
+            <Skeleton boxSize={5} borderRadius="sm" />
+            <Skeleton h="28px" w="96px" />
+          </HStack>
+          <Skeleton h="36px" w="144px" borderRadius="md" />
+        </Flex>
+        <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.100" overflow="hidden">
+          <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
+            <ManageRouteRowSkeleton titleWidth="80px" descriptionWidth="224px" />
+            <ManageRouteRowSkeleton titleWidth="112px" descriptionWidth="168px" />
+            <ManageRouteRowSkeleton titleWidth="128px" descriptionWidth="144px" />
+          </Stack>
+        </Box>
+      </Stack>
+
+      <Stack as="section" gap={4} aria-hidden>
+        <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} gap={3} wrap="wrap">
+          <HStack gap={2}>
+            <Skeleton boxSize={5} borderRadius="sm" />
+            <Skeleton h="28px" w="144px" />
+          </HStack>
+          <Skeleton h="36px" w="120px" borderRadius="md" />
+        </Flex>
+        <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.100" overflow="hidden">
+          <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
+            {Array.from({ length: 3 }, (_, index) => (
+              <Flex key={index} gap={3} align="center" px={{ base: 3, md: 4 }} py={3.5}>
+                <Skeleton boxSize="40px" borderRadius="lg" flexShrink={0} />
+                <Skeleton h="20px" w={index === 1 ? "152px" : "112px"} maxW="full" flex={1} />
+                <Skeleton boxSize={5} borderRadius="sm" flexShrink={0} />
+              </Flex>
+            ))}
+          </Stack>
+        </Box>
+      </Stack>
     </Stack>
   );
 }
 
-function ManageDetailSkeleton() {
+function ManageRouteRowSkeleton({ titleWidth, descriptionWidth }: { titleWidth: string; descriptionWidth: string }) {
   return (
-    <Stack gap={{ base: 5, md: 7 }} aria-label="管理情報を読み込み中" aria-busy="true">
-      <HStack gap={3}>
-        <Skeleton boxSize="24px" />
-        <Skeleton h="32px" w="180px" />
-      </HStack>
+    <Flex gap={3} align="center" px={{ base: 3, md: 4 }} py={3.5}>
+      <Skeleton boxSize="40px" borderRadius="lg" flexShrink={0} />
+      <Stack gap={1} flex={1} minW={0}>
+        <Skeleton h="20px" w={titleWidth} maxW="full" />
+        <Skeleton h="18px" w={descriptionWidth} maxW="90%" />
+      </Stack>
+      <Skeleton boxSize={5} borderRadius="sm" flexShrink={0} />
+    </Flex>
+  );
+}
+
+export function AppManageBillingPageSkeleton() {
+  return (
+    <Stack gap={{ base: 5, md: 7 }} aria-label="プランと支払いを読み込み中" aria-busy="true">
+      <DetailPageHeaderSkeleton titleWidth={{ base: "176px", md: "240px" }} />
       <OrganizationUsageSectionSkeleton />
-      <Skeleton h="220px" borderRadius="xl" />
+
+      <Stack gap={4} aria-hidden>
+        <BillingPlanSummarySkeleton />
+        <BillingPlanComparisonSkeleton />
+      </Stack>
+
+      <BillingPaymentInformationSkeleton />
     </Stack>
+  );
+}
+
+function BillingPlanSummarySkeleton() {
+  return (
+    <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
+      <Grid
+        templateColumns={{
+          base: "repeat(2, minmax(0, 1fr))",
+          lg: "minmax(180px, 1.2fr) minmax(150px, 1fr) minmax(180px, 1fr)",
+        }}
+      >
+        <Stack gridColumn={{ base: "1 / -1", lg: "auto" }} gap={1.5} px={{ base: 4, md: 5 }} py={{ base: 4, md: 5 }}>
+          <Skeleton h="18px" w="96px" />
+          <HStack gap={2} wrap="wrap">
+            <Skeleton h={{ base: "28px", md: "32px" }} w="96px" />
+            <Skeleton h="20px" w="88px" borderRadius="full" />
+          </HStack>
+          <Skeleton h="18px" w="232px" maxW="90%" />
+          <Skeleton h="18px" w="280px" maxW="90%" />
+        </Stack>
+
+        <Stack
+          gap={1.5}
+          px={{ base: 4, md: 5 }}
+          py={{ base: 3, md: 5 }}
+          borderTopWidth={{ base: "1px", lg: 0 }}
+          borderRightWidth={{ base: "1px", lg: 0 }}
+          borderLeftWidth={{ base: 0, lg: "1px" }}
+          borderColor="blackAlpha.100"
+        >
+          <Skeleton h="18px" w="40px" />
+          <HStack gap={1.5}>
+            <Skeleton boxSize={4} borderRadius="full" />
+            <Skeleton h="20px" w="96px" />
+          </HStack>
+        </Stack>
+
+        <Stack
+          gap={1.5}
+          px={{ base: 4, md: 5 }}
+          py={{ base: 3, md: 5 }}
+          borderTopWidth={{ base: "1px", lg: 0 }}
+          borderLeftWidth={{ base: 0, lg: "1px" }}
+          borderColor="blackAlpha.100"
+        >
+          <Skeleton h="18px" w="88px" />
+          <HStack gap={1.5} align="flex-start">
+            <Skeleton boxSize={4} borderRadius="sm" flexShrink={0} />
+            <Skeleton h="20px" w="128px" />
+          </HStack>
+          <Skeleton h="18px" w="216px" maxW="90%" />
+        </Stack>
+      </Grid>
+    </Box>
+  );
+}
+
+function BillingPlanComparisonSkeleton() {
+  return (
+    <Grid templateColumns={{ base: "1fr", md: "repeat(2, minmax(0, 1fr))" }} gap={3}>
+      {Array.from({ length: 2 }, (_, index) => (
+        <Stack
+          key={index}
+          minH="216px"
+          borderWidth="1px"
+          borderColor="blackAlpha.100"
+          borderRadius="xl"
+          bg="white"
+          p={4}
+          gap={3}
+        >
+          <HStack justify="space-between" align="flex-start" gap={2}>
+            <Skeleton h="24px" w={index === 0 ? "48px" : "80px"} />
+            {index === 0 && <Skeleton h="20px" w="56px" borderRadius="full" />}
+          </HStack>
+          <Stack gap={0.5}>
+            <Skeleton h="22px" w="112px" />
+            <Skeleton h="16px" w="72px" />
+          </Stack>
+          <Stack gap={1}>
+            <Skeleton h="18px" w="136px" />
+            <Skeleton h="18px" w="112px" />
+            <Skeleton h="18px" w="120px" />
+          </Stack>
+          <Skeleton h="40px" w="full" mt="auto" borderRadius="md" />
+        </Stack>
+      ))}
+    </Grid>
+  );
+}
+
+function BillingPaymentInformationSkeleton() {
+  return (
+    <Stack as="section" gap={3} aria-hidden>
+      <Skeleton h="28px" w="96px" />
+      <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
+        <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
+          <BillingInformationRowSkeleton labelWidth="112px" />
+          <BillingInformationRowSkeleton labelWidth="144px" />
+          <BillingInformationRowSkeleton labelWidth="160px" valueWidth="184px" />
+        </Stack>
+      </Box>
+    </Stack>
+  );
+}
+
+function BillingInformationRowSkeleton({ labelWidth, valueWidth }: { labelWidth: string; valueWidth?: string }) {
+  return (
+    <Flex align="center" gap={{ base: 2.5, md: 3 }} w="full" minH="64px" px={{ base: 3, md: 4 }} py={3.5}>
+      <Skeleton boxSize={5} borderRadius="sm" flexShrink={0} />
+      <Grid
+        flex={1}
+        minW={0}
+        templateColumns={
+          valueWidth ? { base: "minmax(88px, auto) minmax(0, 1fr)", md: "160px minmax(0, 1fr)" } : "minmax(0, 1fr)"
+        }
+        alignItems="center"
+        gap={{ base: 2, md: 4 }}
+      >
+        <Skeleton h="20px" w={labelWidth} maxW="100%" />
+        {valueWidth && <Skeleton h="18px" w={valueWidth} maxW="100%" />}
+      </Grid>
+      <Skeleton boxSize={5} borderRadius="sm" flexShrink={0} />
+    </Flex>
   );
 }
 

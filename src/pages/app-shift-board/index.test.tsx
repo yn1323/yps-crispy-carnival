@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -103,7 +103,7 @@ describe("AppShiftBoardRoutePage", () => {
     expect(mocks.useQuery).not.toHaveBeenCalled();
   });
 
-  it("URLのorgと募集IDでqueryし、共通ヘッダー配下のapp layoutへ同じorg・shop scopeを渡す", () => {
+  it("URLのorgと募集IDでqueryし、店舗名と募集期間をヘッダーへ表示する", async () => {
     mocks.queryResults.scope = { shopId: "shop-1", shopName: "yn1323店舗" };
     mocks.queryResults.data = {
       shopId: "shop-1",
@@ -130,7 +130,7 @@ describe("AppShiftBoardRoutePage", () => {
     });
     expect(screen.getByTestId("shop-id").textContent).toBe("shop-1");
     expect(screen.getByTestId("shop-id").getAttribute("data-layout")).toBe("app");
-    expect(screen.getByRole("heading", { name: "シフトを調整" })).not.toBeNull();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "yn1323店舗：8/17 〜 8/24" })).not.toBeNull());
     const managerShopScope = screen.getByTestId("manager-shop-scope");
     expect(managerShopScope.getAttribute("data-shop-id")).toBe("shop-1");
     expect(managerShopScope.getAttribute("data-organization-id")).toBe("organization-1");

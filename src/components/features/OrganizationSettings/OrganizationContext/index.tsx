@@ -8,7 +8,7 @@ type Props = {
   model: OrganizationContextModel;
   canUpdateOrganizationName: boolean;
   updateOrganizationNameDisabledReason?: string;
-  onBackToDashboard: () => void;
+  onBack: () => void;
   onSelectOrganization: (shopId: string) => void;
   onUpdateOrganizationName: () => void;
 };
@@ -17,7 +17,7 @@ export function OrganizationContext({
   model,
   canUpdateOrganizationName,
   updateOrganizationNameDisabledReason,
-  onBackToDashboard,
+  onBack,
   onSelectOrganization,
   onUpdateOrganizationName,
 }: Props) {
@@ -26,8 +26,9 @@ export function OrganizationContext({
       <DetailPageHeader
         title={model.selectedOrganizationName}
         icon={LuBuilding2}
-        onBack={onBackToDashboard}
-        backAriaLabel={`${model.selectedOrganizationName}のダッシュボードへ戻る`}
+        onBack={onBack}
+        backLabel="前の画面へ戻る"
+        backAriaLabel="前の画面へ戻る"
         action={
           <IconButton
             aria-label="組織名を変更"

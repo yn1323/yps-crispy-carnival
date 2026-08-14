@@ -7,12 +7,16 @@ import type { Id } from "@/convex/_generated/dataModel";
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
+  historyBack: vi.fn(),
   useQuery: vi.fn(),
   getUserDetailRef: Symbol("getUserDetail"),
   getBackDestination: vi.fn(),
 }));
 
-vi.mock("@tanstack/react-router", () => ({ useNavigate: () => mocks.navigate }));
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => mocks.navigate,
+  useRouter: () => ({ history: { back: mocks.historyBack } }),
+}));
 vi.mock("convex/react", () => ({ useQuery: mocks.useQuery }));
 vi.mock("@/convex/_generated/api", () => ({
   api: { organization: { userDetailQueries: { getUserDetail: mocks.getUserDetailRef } } },
@@ -44,6 +48,7 @@ vi.mock("@/src/components/features/UserShopDetail", () => ({
 }));
 
 vi.mock("@/src/components/templates/AuthenticatedPageContent", () => ({
+  AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT: {},
   AuthenticatedPageContent: ({ children }: { children: ReactNode }) => <main>{children}</main>,
 }));
 vi.mock("@/src/components/templates/Header", () => ({ HEADER_HEIGHT: { base: "48px", md: "64px" } }));
@@ -80,6 +85,7 @@ const data = {
 
 beforeEach(() => {
   mocks.navigate.mockReset();
+  mocks.historyBack.mockReset();
   mocks.useQuery.mockReset();
   mocks.getBackDestination.mockReset();
   mocks.useQuery.mockReturnValue(data);
@@ -117,7 +123,7 @@ describe("UserShopDetailPage", () => {
     );
   });
 
-  it("戻るでは元の検索条件を持つユーザー詳細へreplaceで戻る", () => {
+  it("戻るではブラウザ履歴へ戻る", () => {
     render(
       <UserShopDetailPage
         personId="person-target"
@@ -132,7 +138,8 @@ describe("UserShopDetailPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "戻る" }));
 
-    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({ ...backDestination, replace: true });
+    expect(mocks.historyBack).toHaveBeenCalledOnce();
+    expect(mocks.navigate).not.toHaveBeenCalled();
   });
 
   it("app導線はexpected organizationをreadとwrite controllerへ渡し、orgを保って戻る", () => {
@@ -154,11 +161,7 @@ describe("UserShopDetailPage", () => {
     expect(screen.getByTestId("expected-organization").textContent).toBe("organization-a");
 
     fireEvent.click(screen.getByRole("button", { name: "戻る" }));
-    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
-      to: "/app/staff/$personId",
-      params: { personId: "person-target" },
-      search: { org: "organization-a" },
-      replace: true,
-    });
+    expect(mocks.historyBack).toHaveBeenCalledOnce();
+    expect(mocks.navigate).not.toHaveBeenCalled();
   });
 });

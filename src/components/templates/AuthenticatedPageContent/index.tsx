@@ -4,6 +4,12 @@ import { AUTHENTICATED_APP_CONTENT_HEIGHT } from "@/src/components/templates/Aut
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
 
+export const AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT = {
+  base: `calc(${AUTHENTICATED_APP_CONTENT_HEIGHT.base} - 32px)`,
+  md: `calc(${AUTHENTICATED_APP_CONTENT_HEIGHT.md} - 32px)`,
+  lg: `calc(${AUTHENTICATED_APP_CONTENT_HEIGHT.lg} - 32px)`,
+} as const;
+
 type Props = {
   children: ReactNode;
   includeMobileNavigation?: boolean;

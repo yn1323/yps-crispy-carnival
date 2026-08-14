@@ -104,7 +104,10 @@ function ConnectedAppShifts({
     if (sections.status === "CanLoadMore") sections.loadMore(APP_ORGANIZATION_RECRUITMENT_SHOP_PAGE_SIZE);
   }, [sections.loadMore, sections.status]);
 
-  if (sections.status !== "Exhausted") return <AppShiftsPageStateView state={{ kind: "loading" }} />;
+  // 店舗ごとの追加取得が遅れても、取得済みのシフトまで隠して画面全体をローディングにしない。
+  if (sections.results.length === 0 && sections.status !== "Exhausted") {
+    return <AppShiftsPageStateView state={{ kind: "loading" }} />;
+  }
   if (sections.results.length === 0) return <AppShiftsPageStateView state={{ kind: "empty" }} />;
 
   const overview = buildAppShiftsOverview(sections.results, shopFilter);

@@ -1,5 +1,5 @@
 import { useAuth } from "@clerk/react";
-import { Navigate, useRouterState } from "@tanstack/react-router";
+import { Navigate, useMatches, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 import { useAtom } from "jotai";
 import { useEffect, useMemo } from "react";
@@ -18,6 +18,8 @@ import {
 import { normalizeAuthRedirect } from "@/src/lib/auth/redirect";
 import { selectedShopAtom } from "@/src/stores/shop";
 import { EMPTY_USER, userAtom } from "@/src/stores/user";
+import { MOBILE_APP_NAVIGATION_HEIGHT } from "./AppPrimaryNavigation";
+import { resolveAppShellRouteData } from "./appRoutePolicy";
 import { DeletedAccountState } from "./DeletedAccountState";
 import { resolveShopContext } from "./shopContextResolver";
 
@@ -39,6 +41,7 @@ export const AuthGuard = ({
   onReturnToDashboard,
 }: Props) => {
   const { isSignedIn, userId, isLoaded } = useAuth();
+  const appShell = resolveAppShellRouteData(useMatches());
   const location = useRouterState({ select: (state) => state.location });
   const [user, setUser] = useAtom(userAtom);
   const [selectedShop, setSelectedShop] = useAtom(selectedShopAtom);
@@ -163,12 +166,14 @@ export const AuthGuard = ({
   // 古いatomやURLが残っていても、削除済み状態を通常画面より先に確定する。
   if (isAccountDeleted) return <DeletedAccountState accountDeletionRequested={accountDeletionRequested} />;
 
+  const mobileNavigationHeight = appShell?.mode === "navigation" ? MOBILE_APP_NAVIGATION_HEIGHT : undefined;
+
   if (!isLoaded) {
-    return <FullPageSpinner showHeader />;
+    return <FullPageSpinner showHeader mobileNavigationHeight={mobileNavigationHeight} />;
   }
 
   if (currentUser === undefined || (requiresShopContext && shopContextResolution === null)) {
-    return <FullPageSpinner showHeader />;
+    return <FullPageSpinner showHeader mobileNavigationHeight={mobileNavigationHeight} />;
   }
 
   if (requiresShopContext && shopContextResolution?.kind === "invalidRequestedShop") {
@@ -191,7 +196,7 @@ export const AuthGuard = ({
   }
 
   if (!isUserContextReady || !isShopContextReady) {
-    return <FullPageSpinner showHeader />;
+    return <FullPageSpinner showHeader mobileNavigationHeight={mobileNavigationHeight} />;
   }
 
   return children;

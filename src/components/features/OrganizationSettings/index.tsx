@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { normalizeOrganizationSettingsFeatures } from "@/src/domains/featureVisibility";
 import { groupShopsByOrganization, type ShopContextOption } from "@/src/domains/shop/context";
@@ -42,6 +42,7 @@ export function OrganizationSettings({
   onVisibleUserCountChange,
 }: Props) {
   const navigate = useNavigate();
+  const router = useRouter();
   const features = normalizeOrganizationSettingsFeatures(settings.features);
   // 旧応答を受けても空のタブを描画しないための互換fallback。現行応答ではbillingは常にtrue。
   const visibleTab = defaultTab === "billing" && !features.billing ? "people" : defaultTab;
@@ -96,7 +97,7 @@ export function OrganizationSettings({
         focusedPersonId={focusedPersonId}
         onVisibleUserCountChange={onVisibleUserCountChange}
         actions={{
-          onBackToDashboard: () => void navigate({ to: "/dashboard", search: { shop: context.selectedShopId } }),
+          onBack: () => router.history.back(),
           onSelectOrganization: (shopId) =>
             void navigate({
               to: "/settings",

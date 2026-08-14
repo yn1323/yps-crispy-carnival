@@ -22,7 +22,7 @@ export function AppOrganizationStateView({ state, onReload = reloadPage, onChoos
   if (state.kind === "loading") {
     return (
       <Box aria-label="組織情報を読み込み中" aria-busy="true">
-        <ShiftoriLoading variant="section" message="組織情報を読み込んでいます" minH="420px" />
+        <ShiftoriLoading variant="section" message="Loading..." minH="420px" />
       </Box>
     );
   }

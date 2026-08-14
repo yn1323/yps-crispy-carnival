@@ -26,6 +26,7 @@ type Props = {
   focusedPersonId?: string;
   onVisibleUserCountChange?: (count: number) => void;
   operationContextData?: DashboardContentProps["operationContextData"];
+  showOrganizationContext?: DashboardContentProps["showOrganizationContext"];
   planStatus?: DashboardPlanStatusSource | null;
   trialEndingNotice?: DashboardContentProps["trialEndingNotice"];
   billingSettingsShopId?: DashboardContentProps["billingSettingsShopId"];
@@ -43,6 +44,7 @@ export function Dashboard({
   focusedPersonId,
   onVisibleUserCountChange,
   operationContextData,
+  showOrganizationContext = true,
   planStatus,
   trialEndingNotice,
   billingSettingsShopId,
@@ -73,6 +75,7 @@ export function Dashboard({
       focusedPersonId={focusedPersonId}
       onVisibleUserCountChange={onVisibleUserCountChange}
       operationContextData={operationContextData}
+      showOrganizationContext={showOrganizationContext}
       planStatusCard={planStatusCard}
       trialEndingNotice={trialEndingNotice}
       billingSettingsShopId={billingSettingsShopId}

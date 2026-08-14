@@ -37,7 +37,7 @@ export function RecruitmentShopSelection({ shops, selectedShopId, onChange }: Pr
               _checked={{ bg: "teal.600", color: "white" }}
             >
               <RadioCard.ItemHiddenInput />
-              <RadioCard.ItemControl px={{ base: 3, md: 4 }} py={3.5} minH="64px">
+              <RadioCard.ItemControl px={{ base: 3, md: 4 }} py={3.5} minH="64px" alignItems="center">
                 <RadioCard.ItemIndicator flexShrink={0} />
                 <Flex
                   boxSize="40px"

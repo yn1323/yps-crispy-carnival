@@ -46,6 +46,7 @@ function AppAccountRoute() {
 
   return (
     <AccountSecurityPage
+      includeMobileNavigation
       flow={flow}
       oauth={oauth}
       onStartFlow={handleStartFlow}

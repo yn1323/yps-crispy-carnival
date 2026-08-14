@@ -37,7 +37,7 @@ export function ManagerSettingsView({
   organizationId,
   title = "管理者設定",
   titleIcon,
-  backLabel = "組織設定へ戻る",
+  backLabel = "前の画面へ戻る",
   mutationDisabledReason,
   onBack,
   onRequestResend,

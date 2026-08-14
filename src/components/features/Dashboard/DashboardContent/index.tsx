@@ -81,6 +81,7 @@ type Props = {
   showAccountDeletion?: boolean;
   announcement?: DashboardAnnouncementData | null;
   operationContextData?: OperationContextData;
+  showOrganizationContext?: boolean;
   planStatusCard?: PlanStatusCardProps | null;
   trialEndingNotice?: TrialEndingNoticeData | null;
   billingSettingsShopId?: string;
@@ -116,6 +117,7 @@ export const DashboardContent = ({
   showAccountDeletion = false,
   announcement,
   operationContextData,
+  showOrganizationContext = true,
   planStatusCard,
   trialEndingNotice,
   billingSettingsShopId,
@@ -290,6 +292,7 @@ export const DashboardContent = ({
               isDashboardOnboardingDismissed={isDashboardOnboardingDismissed}
               announcementContent={announcementContent ?? undefined}
               operationContextData={operationContextData}
+              showOrganizationContext={showOrganizationContext}
               planStatusCard={planStatusCard}
               trialEndingNotice={trialEndingNotice}
               billingSettingsShopId={billingSettingsShopId}

@@ -250,8 +250,6 @@ const RecruitmentGroupSkeleton = ({ rows, tone }: { rows: number; tone: "confirm
 );
 
 const RecruitmentRowSkeleton = ({ tone }: { tone: "confirmed" | "collecting" }) => {
-  const accent = tone === "confirmed" ? "blue.300" : "green.400";
-
   return (
     <Flex
       align="stretch"
@@ -263,7 +261,7 @@ const RecruitmentRowSkeleton = ({ tone }: { tone: "confirmed" | "collecting" }) 
       boxShadow="xs"
       w="full"
     >
-      <Box w="4px" bg={accent} flexShrink={0} />
+      <Box w="4px" bg="white" flexShrink={0} />
       <Flex
         flex={1}
         minW={0}

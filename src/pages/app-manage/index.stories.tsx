@@ -8,6 +8,7 @@ import {
   ShopsSection,
 } from "@/src/components/features/OrganizationSettings";
 import {
+  AppManageBillingPageSkeleton,
   AppManageHeader,
   AppManagePageStateView,
   AppManageReadOnlyNotice,
@@ -52,6 +53,23 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Loading: Story = {};
+
+export const LoadingMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+};
+
+export const BillingLoading: Story = {
+  name: "読み込み｜プランと支払い",
+  render: () => <AppManageBillingPageSkeleton />,
+};
+
+export const BillingLoadingMobile: Story = {
+  name: "読み込み｜プランと支払い・モバイル",
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  render: () => <AppManageBillingPageSkeleton />,
+};
 
 export const QueryError: Story = {
   args: { state: { kind: "error" } },

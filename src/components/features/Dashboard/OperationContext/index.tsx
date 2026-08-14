@@ -38,6 +38,7 @@ type Props = {
   billingSettingsShopId?: string;
   onOpenShopDetail?: (shopId: string) => void;
   onOpenOrganizationSettings?: () => void;
+  showOrganizationContext?: boolean;
 };
 
 export const OperationContext = ({
@@ -46,6 +47,7 @@ export const OperationContext = ({
   billingSettingsShopId,
   onOpenShopDetail,
   onOpenOrganizationSettings,
+  showOrganizationContext = true,
 }: Props) => {
   const navigate = useNavigate();
   const rawShops = useQuery(api.dashboard.queries.getMyShops, data ? "skip" : {});
@@ -121,6 +123,7 @@ export const OperationContext = ({
       }
       planStatusCard={planStatusCard}
       billingSettingsShopId={billingSettingsShopId}
+      showOrganizationContext={showOrganizationContext}
     />
   );
 };

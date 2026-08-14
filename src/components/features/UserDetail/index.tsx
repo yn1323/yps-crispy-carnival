@@ -1,15 +1,10 @@
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import type { Id } from "@/convex/_generated/dataModel";
 import { clearRequestedShopSearch } from "@/src/lib/authenticatedSearch";
 import { featureVisibilityAtom } from "@/src/stores/user";
-import {
-  getUserDetailBackDestination,
-  getUserDetailRemovedDestination,
-  getUserShopDetailDestination,
-  mergeUserDetailSearch,
-} from "./navigation";
+import { getUserDetailRemovedDestination, getUserShopDetailDestination, mergeUserDetailSearch } from "./navigation";
 import type { UserDetailData, UserDetailPanel, UserDetailReturnTo } from "./types";
 import { UserDetailView } from "./UserDetailView";
 import { useUserLineActions } from "./useUserLineActions";
@@ -39,6 +34,7 @@ export function UserDetail({
   appOrganizationId,
 }: Props) {
   const navigate = useNavigate();
+  const router = useRouter();
   const [appPanel, setAppPanel] = useState<UserDetailPanel>();
   const resolvedActivePanel = appOrganizationId ? appPanel : activePanel;
   const appDetailScope = appOrganizationId ? `${appOrganizationId}:${data.person.id}` : undefined;
@@ -109,19 +105,7 @@ export function UserDetail({
   };
 
   const handleBack = () => {
-    if (appOrganizationId) {
-      void navigate({ to: "/app/staff", search: { org: appOrganizationId }, replace: true });
-      return;
-    }
-    const destination = getUserDetailBackDestination(
-      returnTo,
-      selectedShopId,
-      visibleUserCount,
-      data.person.id,
-      returnShopId,
-      returnShopTo,
-    );
-    void navigate({ ...destination, replace: true });
+    router.history.back();
   };
 
   const handleClosePanel = () => {

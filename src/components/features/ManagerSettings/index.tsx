@@ -13,7 +13,7 @@ export function ManagerSettings({
   shopId?: string;
   organizationId?: Id<"organizations">;
 }) {
-  const controller = useManagerSettingsController({ overview, shopId, organizationId });
+  const controller = useManagerSettingsController({ overview, organizationId });
   return (
     <>
       <ManagerSettingsView

@@ -74,8 +74,7 @@ describe("app shell route policy", () => {
             appShell: {
               mode: "focused",
               title: "管理者を招待",
-              backTo: "/app/manage/managers",
-              backLabel: "管理者と権限へ戻る",
+              backLabel: "前の画面へ戻る",
             },
           },
         },
@@ -83,8 +82,7 @@ describe("app shell route policy", () => {
     ).toEqual({
       mode: "focused",
       title: "管理者を招待",
-      backTo: "/app/manage/managers",
-      backLabel: "管理者と権限へ戻る",
+      backLabel: "前の画面へ戻る",
     });
   });
 

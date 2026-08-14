@@ -11,7 +11,10 @@ import {
   type UserDetailReturnTo,
   UserDetailSkeleton,
 } from "@/src/components/features/UserDetail";
-import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
+import {
+  AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT,
+  AuthenticatedPageContent,
+} from "@/src/components/templates/AuthenticatedPageContent";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
@@ -103,8 +106,11 @@ export function AppUserDetailPage({
   organizationId: Id<"organizations">;
 }) {
   return (
-    <AuthenticatedPageContent>
-      <ErrorBoundary key={`${organizationId}:${personId}`} fallback={(error) => <DefaultErrorFallback error={error} />}>
+    <AuthenticatedPageContent includeMobileNavigation>
+      <ErrorBoundary
+        key={`${organizationId}:${personId}`}
+        fallback={(error) => <DefaultErrorFallback error={error} minH={AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT} />}
+      >
         <ConnectedAppUserDetailPage personId={personId} organizationId={organizationId} />
       </ErrorBoundary>
     </AuthenticatedPageContent>
@@ -133,10 +139,7 @@ function ConnectedAppUserDetailPage({
         title="ユーザーを表示できません"
         description="ユーザーが削除されたか、表示する権限がありません。"
         tone="warning"
-        minH={{
-          base: `calc(100dvh - ${HEADER_HEIGHT.base} - 32px)`,
-          md: `calc(100dvh - ${HEADER_HEIGHT.md} - 64px)`,
-        }}
+        minH={AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT}
         action={
           <Button asChild colorPalette="teal">
             <RouterLink to="/app/staff" search={{ org: organizationId }}>

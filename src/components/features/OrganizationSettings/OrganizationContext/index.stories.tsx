@@ -49,7 +49,7 @@ const meta = {
   args: {
     model: createModel([shop({})], "shop-a-1"),
     canUpdateOrganizationName: true,
-    onBackToDashboard: fn(),
+    onBack: fn(),
     onSelectOrganization: () => {},
     onUpdateOrganizationName: () => {},
   },
@@ -87,14 +87,12 @@ export const MobileMultipleOrganizations: Story = {
 };
 
 export const BackToDashboardBehavior: Story = {
-  name: "組織名からDashboardへ戻る（操作確認）",
+  name: "組織名から前の画面へ戻る（操作確認）",
   parameters: { screenshot: { skip: true } },
   play: async ({ args, canvasElement }) => {
-    const button = within(canvasElement).getByRole("button", {
-      name: "株式会社さくらダイニングのダッシュボードへ戻る",
-    });
+    const button = within(canvasElement).getByRole("button", { name: "前の画面へ戻る" });
     await userEvent.click(button);
-    await expect(args.onBackToDashboard).toHaveBeenCalledOnce();
+    await expect(args.onBack).toHaveBeenCalledOnce();
   },
 };
 
@@ -123,7 +121,7 @@ function SelectionBehaviorStory() {
     <OrganizationContext
       model={createModel(shops, selectedShopId)}
       canUpdateOrganizationName
-      onBackToDashboard={() => {}}
+      onBack={() => {}}
       onSelectOrganization={setSelectedShopId}
       onUpdateOrganizationName={() => {}}
     />

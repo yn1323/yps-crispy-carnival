@@ -182,6 +182,7 @@ function ConnectedAppHome({
         isBillingFeatureVisible={featureVisibility.billing}
         expectedOrganizationId={organizationId}
         navigation={navigation}
+        showOrganizationContext={false}
         operationContextData={{
           shops: shopContexts,
           selectedShop,
@@ -248,7 +249,7 @@ export function AppHomePageStateView({
   onReload?: () => void;
 }) {
   if (state.kind === "loading") {
-    return <DashboardSkeleton />;
+    return <DashboardSkeleton showOrganizationContext={false} />;
   }
 
   if (state.kind === "empty") {

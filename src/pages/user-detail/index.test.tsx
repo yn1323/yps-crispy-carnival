@@ -39,6 +39,7 @@ vi.mock("@/src/components/features/UserDetail", () => ({
   ),
 }));
 vi.mock("@/src/components/templates/AuthenticatedPageContent", () => ({
+  AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT: {},
   AuthenticatedPageContent: ({ children }: { children: ReactNode }) => <main>{children}</main>,
 }));
 vi.mock("@/src/components/templates/Header", () => ({ HEADER_HEIGHT: { base: "48px", md: "64px" } }));

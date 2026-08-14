@@ -1,5 +1,6 @@
 import { Box, Flex } from "@chakra-ui/react";
 import { useQuery } from "convex/react";
+import { useEffect, useState } from "react";
 import { LuRefreshCw, LuTriangleAlert } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -11,6 +12,7 @@ import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
 import { ShiftoriLoading } from "@/src/components/ui/ShiftoriLoading";
+import { formatDateShort } from "@/src/domains/shift/date";
 import { useRetainedShiftBoardData } from "@/src/pages/shift-board/useRetainedShiftBoardData";
 import { useShiftBoardDayKey } from "@/src/pages/shift-board/useShiftBoardDayKey";
 import { ManagerShopScopeProvider } from "@/src/providers/ManagerShopScopeProvider";
@@ -20,16 +22,14 @@ type Props = {
   recruitmentId: string;
 };
 
+const DEFAULT_SHIFT_BOARD_TITLE = "シフトを調整";
+
 export function AppShiftBoardRoutePage({ organizationId, recruitmentId }: Props) {
+  const [headerTitle, setHeaderTitle] = useState(DEFAULT_SHIFT_BOARD_TITLE);
+
   return (
     <Flex direction="column" h={AUTHENTICATED_APP_CONTENT_HEIGHT} minH={0}>
-      <FocusedFlowHeader
-        title="シフトを調整"
-        backTo="/app/shifts"
-        backLabel="シフト一覧へ戻る"
-        backAriaLabel="シフト一覧へ戻る"
-        activeOrganizationId={organizationId}
-      />
+      <FocusedFlowHeader title={headerTitle} backLabel="前の画面へ戻る" backAriaLabel="前の画面へ戻る" />
       <Box flex={1} minH={0}>
         {!organizationId ? (
           <ShiftoriLoading variant="section" message="組織を確認しています" minH="full" />
@@ -43,7 +43,11 @@ export function AppShiftBoardRoutePage({ organizationId, recruitmentId }: Props)
               />
             }
           >
-            <AppShiftBoardQuery organizationId={organizationId} recruitmentId={recruitmentId} />
+            <AppShiftBoardQuery
+              organizationId={organizationId}
+              recruitmentId={recruitmentId}
+              onHeaderTitleChange={setHeaderTitle}
+            />
           </ErrorBoundary>
         )}
       </Box>
@@ -51,7 +55,11 @@ export function AppShiftBoardRoutePage({ organizationId, recruitmentId }: Props)
   );
 }
 
-function AppShiftBoardQuery({ organizationId, recruitmentId }: Required<Props>) {
+function AppShiftBoardQuery({
+  organizationId,
+  recruitmentId,
+  onHeaderTitleChange,
+}: Required<Props> & { onHeaderTitleChange: (title: string) => void }) {
   const organizationDocumentId = organizationId as Id<"organizations">;
   const recruitmentDocumentId = recruitmentId as Id<"recruitments">;
   const refreshDayKey = useShiftBoardDayKey();
@@ -74,6 +82,14 @@ function AppShiftBoardQuery({ organizationId, recruitmentId }: Required<Props>) 
     `${organizationId}:${shopScope?.shopId ?? "none"}:${recruitmentId}`,
     queriedData,
   );
+  const headerTitle =
+    data && shopScope
+      ? `${shopScope.shopName}：${formatDateShort(data.recruitment.periodStart)} 〜 ${formatDateShort(data.recruitment.periodEnd)}`
+      : DEFAULT_SHIFT_BOARD_TITLE;
+
+  useEffect(() => {
+    onHeaderTitleChange(headerTitle);
+  }, [headerTitle, onHeaderTitleChange]);
 
   if (shopScope === undefined) {
     return <ShiftoriLoading variant="section" message="シフト表を読み込んでいます" minH="full" />;

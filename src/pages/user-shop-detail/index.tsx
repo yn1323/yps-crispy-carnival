@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 import { useState } from "react";
 import { LuStore } from "react-icons/lu";
@@ -6,7 +6,10 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { getUserShopDetailBackDestination, type UserDetailReturnTo } from "@/src/components/features/UserDetail";
 import { UserShopDetail, UserShopDetailSkeleton } from "@/src/components/features/UserShopDetail";
-import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
+import {
+  AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT,
+  AuthenticatedPageContent,
+} from "@/src/components/templates/AuthenticatedPageContent";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
@@ -25,11 +28,13 @@ type Props = {
 };
 
 export function UserShopDetailPage(props: Props) {
+  const includeMobileNavigation = Boolean(props.appOrganizationId);
+  const minimumHeight = includeMobileNavigation ? AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT : pageMinimumHeight;
   return (
-    <AuthenticatedPageContent>
+    <AuthenticatedPageContent includeMobileNavigation={includeMobileNavigation}>
       <ErrorBoundary
         key={`${props.appOrganizationId ?? "legacy"}:${props.personId}:${props.targetShopId}`}
-        fallback={(error) => <DefaultErrorFallback error={error} minH={pageMinimumHeight} />}
+        fallback={(error) => <DefaultErrorFallback error={error} minH={minimumHeight} />}
       >
         <ConnectedUserShopDetailPage {...props} />
       </ErrorBoundary>
@@ -48,6 +53,7 @@ function ConnectedUserShopDetailPage({
   appOrganizationId,
 }: Props) {
   const navigate = useNavigate();
+  const router = useRouter();
   // 同じ画面を開いている間はcapability判定時刻を固定する。
   const [queryNow] = useState(() => Date.now());
   const typedTargetShopId = targetShopId as Id<"shops">;
@@ -67,7 +73,7 @@ function ConnectedUserShopDetailPage({
     returnShopId,
     returnShopTo,
   );
-  const handleBack = () => {
+  const navigateToUserDetail = () => {
     if (appOrganizationId) {
       void navigate({
         to: "/app/staff/$personId",
@@ -79,6 +85,7 @@ function ConnectedUserShopDetailPage({
     }
     void navigate({ ...backDestination, replace: true });
   };
+  const handleBack = () => router.history.back();
 
   if (data === undefined) return <UserShopDetailSkeleton />;
 
@@ -89,9 +96,9 @@ function ConnectedUserShopDetailPage({
         title="店舗別設定を表示できません"
         description="ユーザーまたは店舗への所属が削除されたか、この店舗を表示する権限がありません。"
         tone="warning"
-        minH={pageMinimumHeight}
+        minH={appOrganizationId ? AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT : pageMinimumHeight}
         action={
-          <Button colorPalette="teal" onClick={handleBack}>
+          <Button colorPalette="teal" onClick={navigateToUserDetail}>
             スタッフ詳細へ戻る
           </Button>
         }

@@ -34,15 +34,14 @@ function NavigationFrame({ activeKey, children }: NavigationFrameProps) {
 
 type FocusedFrameProps = {
   title: string;
-  backTo: "/app/shifts" | "/app/manage/managers";
   backLabel: string;
   children: ReactNode;
 };
 
-function FocusedFrame({ title, backTo, backLabel, children }: FocusedFrameProps) {
+function FocusedFrame({ title, backLabel, children }: FocusedFrameProps) {
   return (
     <Box w="full" minH="100dvh" bg="gray.50">
-      <FocusedFlowHeader title={title} backTo={backTo} backLabel={backLabel} backAriaLabel={backLabel} />
+      <FocusedFlowHeader title={title} backLabel={backLabel} backAriaLabel={backLabel} />
       {children}
     </Box>
   );
@@ -91,7 +90,7 @@ export const ShiftsMobile: Story = {
 export const ShiftBoardMobile: Story = {
   ...mobile1,
   render: () => (
-    <FocusedFrame title="シフトを調整" backTo="/app/shifts" backLabel="シフト一覧へ戻る">
+    <FocusedFrame title="シフトを調整" backLabel="シフト一覧へ戻る">
       <PrototypeShiftBoardView />
     </FocusedFrame>
   ),
@@ -163,7 +162,7 @@ export const ManageManagersMobile: Story = {
 export const ManageInviteStaffMobile: Story = {
   ...mobile2,
   render: () => (
-    <FocusedFrame title="既存スタッフを招待" backTo="/app/manage/managers" backLabel="管理者と権限へ戻る">
+    <FocusedFrame title="既存スタッフを招待" backLabel="管理者と権限へ戻る">
       <PrototypeManageInviteStaffView />
     </FocusedFrame>
   ),
@@ -172,7 +171,7 @@ export const ManageInviteStaffMobile: Story = {
 export const ManageInviteNewMobile: Story = {
   ...mobile2,
   render: () => (
-    <FocusedFrame title="新しい管理者を招待" backTo="/app/manage/managers" backLabel="管理者と権限へ戻る">
+    <FocusedFrame title="新しい管理者を招待" backLabel="管理者と権限へ戻る">
       <PrototypeManageInviteNewView />
     </FocusedFrame>
   ),
@@ -240,7 +239,7 @@ export const ManageDesktop: Story = {
 
 export const ShiftBoardDesktop: Story = {
   render: () => (
-    <FocusedFrame title="シフトを調整" backTo="/app/shifts" backLabel="シフト一覧へ戻る">
+    <FocusedFrame title="シフトを調整" backLabel="シフト一覧へ戻る">
       <PrototypeShiftBoardView />
     </FocusedFrame>
   ),

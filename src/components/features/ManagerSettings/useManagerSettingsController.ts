@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
@@ -17,14 +17,13 @@ import { canResendManagerInvitation } from "./types";
 
 export function useManagerSettingsController({
   overview,
-  shopId,
   organizationId,
 }: {
   overview: ReadyManagerSettingsOverview;
-  shopId?: string;
   organizationId?: Id<"organizations">;
 }) {
   const navigate = useNavigate();
+  const router = useRouter();
   const resend = useShopMutation(api.organizationInvitation.mutations.resend);
   const revoke = useShopMutation(api.organizationInvitation.mutations.revoke);
   const removeManagerRole = useShopMutation(api.organization.mutations.removeManagerRole);
@@ -112,12 +111,7 @@ export function useManagerSettingsController({
     onConfirm: () => {
       if (confirmation) void run(confirmation);
     },
-    onBack: () =>
-      void navigate(
-        organizationId
-          ? { to: "/app/manage", search: { org: organizationId }, replace: true }
-          : { to: "/settings", search: { shop: shopId ?? "" }, replace: true },
-      ),
+    onBack: () => router.history.back(),
   };
 }
 

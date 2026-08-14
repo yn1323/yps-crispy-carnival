@@ -8,11 +8,13 @@ import type { ShopDetailData } from "./types";
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
+  historyBack: vi.fn(),
   onDeleted: null as (() => void) | null,
 }));
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mocks.navigate,
+  useRouter: () => ({ history: { back: mocks.historyBack } }),
 }));
 
 vi.mock("./ShopDetailView", () => ({
@@ -56,6 +58,7 @@ const shop: ShopDetailData = {
 
 beforeEach(() => {
   mocks.navigate.mockReset();
+  mocks.historyBack.mockReset();
   mocks.onDeleted = null;
 });
 
@@ -74,7 +77,7 @@ describe("店舗詳細の戻り先", () => {
     expect(screen.getByLabelText("組織設定の店舗コンテキスト").textContent).toBe("shop-context");
   });
 
-  it("Dashboardから開いた場合は同じ店舗のDashboardへ戻る", () => {
+  it("Dashboardから開いた場合はブラウザ履歴へ戻る", () => {
     render(
       <ShopDetail
         shop={shop}
@@ -87,26 +90,20 @@ describe("店舗詳細の戻り先", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "前の画面に戻る" }));
 
-    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
-      to: "/dashboard",
-      search: { shop: "shop-context" },
-      replace: true,
-    });
+    expect(mocks.historyBack).toHaveBeenCalledOnce();
+    expect(mocks.navigate).not.toHaveBeenCalled();
   });
 
-  it("戻り先の指定がない直URLではDashboardへ戻る", () => {
+  it("戻り先の指定がない直URLでもブラウザ履歴へ戻る", () => {
     render(<ShopDetail shop={shop} people={[]} selectedShopId="shop-context" deletionReturnShopId="shop-survivor" />);
 
     fireEvent.click(screen.getByRole("button", { name: "前の画面に戻る" }));
 
-    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
-      to: "/dashboard",
-      search: { shop: "shop-context" },
-      replace: true,
-    });
+    expect(mocks.historyBack).toHaveBeenCalledOnce();
+    expect(mocks.navigate).not.toHaveBeenCalled();
   });
 
-  it("組織設定から開いた場合だけ同じ組織設定へ戻る", () => {
+  it("組織設定から開いた場合もブラウザ履歴へ戻る", () => {
     render(
       <ShopDetail
         shop={shop}
@@ -119,11 +116,25 @@ describe("店舗詳細の戻り先", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "前の画面に戻る" }));
 
-    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
-      to: "/settings",
-      search: { shop: "shop-context", tab: "shops" },
-      replace: true,
-    });
+    expect(mocks.historyBack).toHaveBeenCalledOnce();
+    expect(mocks.navigate).not.toHaveBeenCalled();
+  });
+
+  it("Appのタイトル戻るも固定の管理画面へ置き換えず履歴へ戻る", () => {
+    render(
+      <ShopDetail
+        shop={shop}
+        people={[]}
+        selectedShopId="shop-context"
+        deletionReturnShopId="shop-survivor"
+        appOrganizationId={"organization-app" as never}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "前の画面に戻る" }));
+
+    expect(mocks.historyBack).toHaveBeenCalledOnce();
+    expect(mocks.navigate).not.toHaveBeenCalled();
   });
 
   it("Dashboard起点をユーザー詳細との往復後も維持する", () => {

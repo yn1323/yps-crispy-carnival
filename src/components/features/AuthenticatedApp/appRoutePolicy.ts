@@ -45,7 +45,6 @@ export type AppShellRouteData =
   | {
       mode: "focused";
       title: string;
-      backTo: "/app/shifts" | "/app/manage/managers";
       backLabel: string;
     };
 

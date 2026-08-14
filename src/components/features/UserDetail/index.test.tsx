@@ -7,6 +7,7 @@ import type { UserDetailData, UserDetailPanel, UserMembershipChangeInput } from 
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
+  historyBack: vi.fn(),
   changeMemberships: vi.fn(),
   updateProfile: vi.fn(),
   useLineActions: vi.fn(),
@@ -21,6 +22,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mocks.navigate,
+  useRouter: () => ({ history: { back: mocks.historyBack } }),
 }));
 
 vi.mock("jotai", () => ({
@@ -133,6 +135,7 @@ const membershipChangeInput = {
 
 beforeEach(() => {
   mocks.navigate.mockReset();
+  mocks.historyBack.mockReset();
   mocks.changeMemberships.mockReset();
   mocks.updateProfile.mockReset();
   mocks.useLineActions.mockReset();
@@ -188,11 +191,8 @@ describe("UserDetail", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "戻る" }));
-    expect(mocks.navigate).toHaveBeenNthCalledWith(3, {
-      to: "/app/staff",
-      search: { org: organizationId },
-      replace: true,
-    });
+    expect(mocks.historyBack).toHaveBeenCalledOnce();
+    expect(mocks.navigate).toHaveBeenCalledTimes(2);
   });
 
   it("スタッフ情報の更新が成功したら編集モーダルを閉じる", async () => {
@@ -299,18 +299,15 @@ describe("UserDetail", () => {
     });
   });
 
-  it("戻る操作では一覧の復元条件を維持する", () => {
+  it("戻る操作では現在のブラウザ履歴へ戻る", () => {
     render(
       <UserDetail data={data} selectedShopId="shop-b" activePanel="basic" returnTo="settings" visibleUserCount={30} />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "戻る" }));
 
-    expect(mocks.navigate).toHaveBeenCalledWith({
-      to: "/settings",
-      search: { shop: "shop-b", users: 30, focus: "person-1" },
-      replace: true,
-    });
+    expect(mocks.historyBack).toHaveBeenCalledOnce();
+    expect(mocks.navigate).not.toHaveBeenCalled();
   });
 
   it("所属店舗変更の完了前に別パネルへ移った場合は、そのパネルを閉じない", async () => {

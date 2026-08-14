@@ -233,13 +233,7 @@ const APP_ORGANIZATION_ID = "organization-1";
 const renderAppShiftBoard = (args: ComponentProps<typeof ShiftBoardPage>) => (
   <AuthenticatedAppShell activeKey="shifts" activeOrganizationId={APP_ORGANIZATION_ID}>
     <Flex direction="column" h={AUTHENTICATED_APP_CONTENT_HEIGHT} minH={0}>
-      <FocusedFlowHeader
-        title="シフトを調整"
-        backTo="/app/shifts"
-        backLabel="シフト一覧へ戻る"
-        backAriaLabel="シフト一覧へ戻る"
-        activeOrganizationId={APP_ORGANIZATION_ID}
-      />
+      <FocusedFlowHeader title="シフトを調整" backLabel="シフト一覧へ戻る" backAriaLabel="シフト一覧へ戻る" />
       <Box flex={1} minH={0}>
         <ManagerShopScopeProvider shopId="shop-1" expectedOrganizationId={APP_ORGANIZATION_ID}>
           <ShiftBoardPage {...args} layout="app" />

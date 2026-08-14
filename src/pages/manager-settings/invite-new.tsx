@@ -1,5 +1,5 @@
 import { Alert, Stack } from "@chakra-ui/react";
-import { useNavigate } from "@tanstack/react-router";
+import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 import {
@@ -12,11 +12,11 @@ import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
 
 export function ManagerInviteNewPage({ shopId }: { shopId?: string }) {
-  const navigate = useNavigate();
+  const router = useRouter();
   const [queryNow] = useState(() => Date.now());
   const overview = useShopQuery(api.organization.queries.getManagerSettingsOverview, { now: queryNow });
 
-  const onBack = () => void navigate({ to: "/settings/managers", search: { shop: shopId }, replace: true });
+  const onBack = () => router.history.back();
 
   return (
     <AuthenticatedPageContent>
@@ -27,8 +27,8 @@ export function ManagerInviteNewPage({ shopId }: { shopId?: string }) {
           <DetailPageHeader
             title="新しいユーザーを管理者として招待"
             onBack={onBack}
-            backLabel="管理者設定へ戻る"
-            backAriaLabel="管理者設定へ戻る"
+            backLabel="前の画面へ戻る"
+            backAriaLabel="前の画面へ戻る"
           />
           {overview.kind !== "ready" ? (
             <Alert.Root status="error" borderRadius="lg" role="alert">

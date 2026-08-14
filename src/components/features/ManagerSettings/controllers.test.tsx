@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   revoke: vi.fn(),
   removeManagerRole: vi.fn(),
   navigate: vi.fn(),
+  historyBack: vi.fn(),
   showErrorToast: vi.fn(),
   showSuccessToast: vi.fn(),
   randomUUID: vi.fn(),
@@ -56,7 +57,10 @@ vi.mock("convex/react", () => ({
   },
 }));
 
-vi.mock("@tanstack/react-router", () => ({ useNavigate: () => mocks.navigate }));
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => mocks.navigate,
+  useRouter: () => ({ history: { back: mocks.historyBack } }),
+}));
 
 vi.mock("@/src/hooks/useShopMutation", () => ({
   useShopMutation: (reference: symbol) => {
@@ -140,6 +144,7 @@ beforeEach(() => {
     mocks.revoke,
     mocks.removeManagerRole,
     mocks.navigate,
+    mocks.historyBack,
     mocks.showErrorToast,
     mocks.showSuccessToast,
     mocks.randomUUID,
@@ -185,7 +190,7 @@ describe("useManagerSettingsController", () => {
       ...overview,
       invitations: [legacyInvitation],
     };
-    const { result } = renderHook(() => useManagerSettingsController({ overview: legacyOverview, shopId }));
+    const { result } = renderHook(() => useManagerSettingsController({ overview: legacyOverview }));
 
     act(() => result.current.onRequestResend(legacyInvitation));
 
@@ -193,11 +198,20 @@ describe("useManagerSettingsController", () => {
     expect(mocks.resend).not.toHaveBeenCalled();
   });
 
+  it("管理者設定のタイトル戻るは固定の組織設定へ遷移せず履歴へ戻る", () => {
+    const { result } = renderHook(() => useManagerSettingsController({ overview }));
+
+    act(() => result.current.onBack());
+
+    expect(mocks.historyBack).toHaveBeenCalledOnce();
+    expect(mocks.navigate).not.toHaveBeenCalled();
+  });
+
   it("通信失敗後の再送は同じrequestIdを保ち、別の操作意図では更新する", async () => {
     const error = new ConvexError("操作結果を確認できませんでした。");
     mocks.randomUUID.mockReturnValueOnce(requestIds[0]).mockReturnValueOnce(requestIds[1]);
     mocks.resend.mockRejectedValueOnce(error).mockResolvedValueOnce({ status: "issued", invitationId });
-    const { result } = renderHook(() => useManagerSettingsController({ overview, shopId }));
+    const { result } = renderHook(() => useManagerSettingsController({ overview }));
 
     act(() => result.current.onRequestResend(overview.invitations[0]));
     expect(result.current.confirmation).toMatchObject({ kind: "resend", requestId: requestIds[0] });
@@ -225,7 +239,7 @@ describe("useManagerSettingsController", () => {
           resolveMutation = () => resolve({ changed: true });
         }),
     );
-    const { result } = renderHook(() => useManagerSettingsController({ overview, shopId }));
+    const { result } = renderHook(() => useManagerSettingsController({ overview }));
 
     act(() => result.current.onRequestRevoke(overview.invitations[0]));
     act(() => {
@@ -245,7 +259,7 @@ describe("useManagerSettingsController", () => {
       ...overview,
       managers: [{ ...overview.managers[0], isSelf: true }],
     };
-    const { result } = renderHook(() => useManagerSettingsController({ overview: selfOverview, shopId }));
+    const { result } = renderHook(() => useManagerSettingsController({ overview: selfOverview }));
 
     act(() => result.current.onRequestRemoveRole(selfOverview.managers[0]));
     act(() => result.current.onConfirm());
@@ -265,7 +279,7 @@ describe("useManagerSettingsController", () => {
 
   it("確認後にcapabilityを失った古いcallbackではmutationを呼ばない", async () => {
     const { result, rerender } = renderHook(
-      ({ value }: { value: ReadyManagerSettingsOverview }) => useManagerSettingsController({ overview: value, shopId }),
+      ({ value }: { value: ReadyManagerSettingsOverview }) => useManagerSettingsController({ overview: value }),
       { initialProps: { value: overview } },
     );
     act(() => result.current.onRequestResend(overview.invitations[0]));

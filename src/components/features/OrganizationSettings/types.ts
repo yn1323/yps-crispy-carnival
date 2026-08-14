@@ -133,7 +133,7 @@ export type OrganizationBillingView = {
 };
 
 export type OrganizationSettingsActions = {
-  onBackToDashboard: () => void;
+  onBack: () => void;
   onSelectOrganization: (shopId: string) => void;
   onUpdateOrganizationName: () => void;
   onManageManagers: () => void;

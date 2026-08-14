@@ -304,6 +304,26 @@ export const SingleShopMobile: Story = {
   globals: { viewport: { value: "mobile1", isRotated: false } },
 };
 
+export const SingleShopWithoutOrganizationContext: Story = {
+  name: "ホーム・組織とプラン非表示・デスクトップ",
+  args: {
+    ...singleShopDashboardArgs,
+    showOrganizationContext: false,
+  },
+  render: (args) => (
+    <DashboardPagePreview>
+      <DashboardContent {...args} />
+    </DashboardPagePreview>
+  ),
+};
+
+export const SingleShopWithoutOrganizationContextMobile: Story = {
+  ...SingleShopWithoutOrganizationContext,
+  name: "ホーム・組織とプラン非表示・モバイル",
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
 export const SingleShopWithPlanStatus: Story = {
   name: "1店舗・組織とプラン展開・デスクトップ",
   args: {

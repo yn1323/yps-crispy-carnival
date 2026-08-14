@@ -22,6 +22,7 @@ import { MOBILE_APP_NAVIGATION_HEIGHT } from "@/src/components/features/Authenti
 import { AppFeatureRequestAction, type AppFeatureRequestScope } from "@/src/components/features/FeatureRequestDialog";
 import { AuthenticatedAppShell } from "@/src/components/templates/AuthenticatedAppShell";
 import { FocusedFlowHeader } from "@/src/components/templates/FocusedFlowHeader";
+import { FullPageSpinner } from "@/src/components/templates/FullPageSpinner";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { clearRequestedShopSearch, normalizeShopSearch } from "@/src/lib/authenticatedSearch";
 import { AuthProviders } from "@/src/providers/AuthProviders";
@@ -30,6 +31,7 @@ type AuthSearch = AppRouteSearch;
 
 export const Route = createFileRoute("/_auth")({
   ssr: false,
+  pendingComponent: AuthenticatedRoutePending,
   beforeLoad: ({ location }) => {
     const canonicalHref = getCanonicalAppHref(location.pathname, location.searchStr);
     if (canonicalHref) {
@@ -46,6 +48,17 @@ export const Route = createFileRoute("/_auth")({
   },
   component: RouteComponent,
 });
+
+function AuthenticatedRoutePending() {
+  const appShell = resolveAppShellRouteData(useMatches());
+
+  return (
+    <FullPageSpinner
+      reserveHeaderSpace
+      mobileNavigationHeight={appShell?.mode === "navigation" ? MOBILE_APP_NAVIGATION_HEIGHT : undefined}
+    />
+  );
+}
 
 function RouteComponent() {
   // pathless親routeのRoute.useNavigate()は"/"基準になるため、searchだけの更新でもLPへ遷移してしまう。
@@ -227,11 +240,19 @@ function AppOrganizationRouteState({
     >
       {state.kind === "loading" ? (
         <Box
-          minH={{
-            base: `calc(100dvh - ${HEADER_HEIGHT.base} - ${MOBILE_APP_NAVIGATION_HEIGHT} - env(safe-area-inset-bottom))`,
-            md: `calc(100dvh - ${HEADER_HEIGHT.md} - ${MOBILE_APP_NAVIGATION_HEIGHT} - env(safe-area-inset-bottom))`,
-            lg: `calc(100dvh - ${HEADER_HEIGHT.md})`,
-          }}
+          minH={
+            appShell.mode === "navigation"
+              ? {
+                  base: `calc(100dvh - ${HEADER_HEIGHT.base} - ${MOBILE_APP_NAVIGATION_HEIGHT} - env(safe-area-inset-bottom))`,
+                  md: `calc(100dvh - ${HEADER_HEIGHT.md} - ${MOBILE_APP_NAVIGATION_HEIGHT} - env(safe-area-inset-bottom))`,
+                  lg: `calc(100dvh - ${HEADER_HEIGHT.md})`,
+                }
+              : {
+                  base: `calc(100dvh - ${HEADER_HEIGHT.base})`,
+                  md: `calc(100dvh - ${HEADER_HEIGHT.md})`,
+                  lg: `calc(100dvh - ${HEADER_HEIGHT.md})`,
+                }
+          }
           display="flex"
           alignItems="center"
           w="full"
@@ -284,10 +305,8 @@ function AppLayoutFrame({
     <Box w="full" minH="100dvh" bg="gray.50">
       <FocusedFlowHeader
         title={appShell.title}
-        backTo={appShell.backTo}
         backLabel={appShell.backLabel}
         backAriaLabel={appShell.backLabel}
-        activeOrganizationId={activeOrganizationId}
         action={featureRequest ? <AppFeatureRequestAction {...featureRequest} /> : undefined}
       />
       {children}

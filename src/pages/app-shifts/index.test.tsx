@@ -127,7 +127,7 @@ beforeEach(() => {
 });
 
 describe("AppShiftsRoutePage", () => {
-  it("全店舗pageを読み終えるまで部分的な一覧を公開しない", () => {
+  it("追加pageの取得中でも取得済みの一覧を表示する", () => {
     mocks.usePaginatedQuery.mockReturnValue({
       results: [firstSection],
       status: "CanLoadMore",
@@ -144,8 +144,9 @@ describe("AppShiftsRoutePage", () => {
       { initialNumItems: APP_ORGANIZATION_RECRUITMENT_SHOP_PAGE_SIZE },
     );
     expect(mocks.loadMore).toHaveBeenCalledWith(APP_ORGANIZATION_RECRUITMENT_SHOP_PAGE_SIZE);
-    expect(screen.getByText("シフト一覧を読み込み中")).toBeTruthy();
-    expect(screen.queryByRole("region", { name: "統合シフト一覧" })).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "シフト" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "統合シフト一覧" })).toBeTruthy();
+    expect(screen.getByText("1件")).toBeTruthy();
   });
 
   it("H1とdefault全店舗filterを表示し、状態別にまとめた募集へ店舗metadataを結び付ける", () => {

@@ -13,8 +13,7 @@ export const Route = createFileRoute("/_auth/app_/manage_/managers_/invite-staff
     appShell: {
       mode: "focused",
       title: "既存スタッフを招待",
-      backTo: "/app/manage/managers",
-      backLabel: "管理者と権限へ戻る",
+      backLabel: "前の画面へ戻る",
     },
   },
   component: AppManageInviteStaffRoute,

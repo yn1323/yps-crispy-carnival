@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   useQuery: vi.fn(),
   useShopQuery: vi.fn(),
   dashboardProps: undefined as Record<string, unknown> | undefined,
+  dashboardSkeletonProps: undefined as Record<string, unknown> | undefined,
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -50,7 +51,10 @@ vi.mock("@/src/stores/user", () => ({
 vi.mock("@/src/hooks/useShopQuery", () => ({ useShopQuery: mocks.useShopQuery }));
 
 vi.mock("@/src/components/features/Dashboard", () => ({
-  DashboardSkeleton: () => <output data-testid="home-loading">ホームを読み込み中</output>,
+  DashboardSkeleton: (props: Record<string, unknown>) => {
+    mocks.dashboardSkeletonProps = props;
+    return <output data-testid="home-loading">ホームを読み込み中</output>;
+  },
   Dashboard: (props: Record<string, unknown>) => {
     mocks.dashboardProps = props;
     const navigation = props.navigation as {
@@ -136,6 +140,7 @@ beforeEach(() => {
   mocks.navigate.mockReset();
   window.localStorage.clear();
   mocks.dashboardProps = undefined;
+  mocks.dashboardSkeletonProps = undefined;
   mocks.useShopQuery.mockReset();
   mocks.useShopQuery.mockReturnValue(shop);
   mocks.useQuery.mockReset();
@@ -171,10 +176,17 @@ const renderPage = (overrides: Partial<ComponentProps<typeof AppHomeRoutePage>> 
   );
 
 describe("AppHomeRoutePage", () => {
+  it("ホームでは組織・プランのコンテキストを表示しない", () => {
+    renderPage();
+
+    expect(mocks.dashboardProps?.showOrganizationContext).toBe(false);
+  });
+
   it("active店舗の全cursor読込中は店舗queryを開始せずDashboard skeletonを表示する", () => {
     renderPage({ activeShops: null });
 
     expect(screen.getByText("ホームを読み込み中")).not.toBeNull();
+    expect(mocks.dashboardSkeletonProps?.showOrganizationContext).toBe(false);
     expect(mocks.useShopQuery).not.toHaveBeenCalled();
   });
 

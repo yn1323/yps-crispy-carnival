@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ShopDetailView } from "./ShopDetailView";
 import { getShopStaffs } from "./script";
@@ -17,6 +17,7 @@ type Props = {
 
 export function ShopDetail({ shop, people, selectedShopId, deletionReturnShopId, returnTo, appOrganizationId }: Props) {
   const navigate = useNavigate();
+  const router = useRouter();
   const navigateBack = (shopId: string | null) => {
     if (appOrganizationId) {
       void navigate({ to: "/app/manage", search: { org: appOrganizationId }, replace: true });
@@ -34,7 +35,7 @@ export function ShopDetail({ shop, people, selectedShopId, deletionReturnShopId,
           replace: true,
         });
   };
-  const returnToPreviousScreen = () => navigateBack(selectedShopId);
+  const returnToPreviousScreen = () => router.history.back();
   const deletion = useShopDeletionController({
     shop,
     onDeleted: () => navigateBack(deletionReturnShopId),

@@ -1,30 +1,19 @@
-import { Box, Container, Grid, Heading, Link, Text } from "@chakra-ui/react";
-import { Link as RouterLink } from "@tanstack/react-router";
+import { Box, Container, Grid, Heading, Text } from "@chakra-ui/react";
+import { useRouter } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { LuChevronLeft } from "react-icons/lu";
-import { resolveAppNavigationTarget } from "@/src/components/features/AuthenticatedApp";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
-
-type FocusedFlowBackDestination = "/app/shifts" | "/app/manage/managers";
+import { Button } from "@/src/components/ui/Button";
 
 type Props = {
   title: string;
-  backTo: FocusedFlowBackDestination;
   backLabel?: string;
   backAriaLabel?: string;
-  activeOrganizationId?: string | null;
   action?: ReactNode;
 };
 
-export function FocusedFlowHeader({
-  title,
-  backTo,
-  backLabel = "戻る",
-  backAriaLabel = backLabel,
-  activeOrganizationId,
-  action,
-}: Props) {
-  const backTarget = resolveAppNavigationTarget(backTo, activeOrganizationId);
+export function FocusedFlowHeader({ title, backLabel = "戻る", backAriaLabel = backLabel, action }: Props) {
+  const router = useRouter();
 
   return (
     <Box
@@ -45,8 +34,9 @@ export function FocusedFlowHeader({
           alignItems="center"
           gap={2}
         >
-          <Link
-            asChild
+          <Button
+            type="button"
+            variant="plain"
             justifySelf="start"
             display="inline-flex"
             alignItems="center"
@@ -58,14 +48,14 @@ export function FocusedFlowHeader({
             fontWeight="semibold"
             _hover={{ color: "teal.800", textDecoration: "none" }}
             _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "2px" }}
+            aria-label={backAriaLabel}
+            onClick={() => router.history.back()}
           >
-            <RouterLink to={backTarget.to} search={backTarget.search} aria-label={backAriaLabel}>
-              <LuChevronLeft aria-hidden />
-              <Text as="span" display={{ base: "none", sm: "inline" }}>
-                戻る
-              </Text>
-            </RouterLink>
-          </Link>
+            <LuChevronLeft aria-hidden />
+            <Text as="span" display={{ base: "none", sm: "inline" }}>
+              戻る
+            </Text>
+          </Button>
           <Heading as="h1" minW={0} color="gray.950" fontSize={{ base: "md", md: "lg" }} textAlign="center" truncate>
             {title}
           </Heading>

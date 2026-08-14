@@ -31,6 +31,7 @@ export type DashboardContentViewProps = {
   isDashboardOnboardingDismissed: boolean;
   announcementContent?: ReactNode;
   operationContextData?: OperationContextData;
+  showOrganizationContext?: boolean;
   planStatusCard?: PlanStatusCardProps | null;
   trialEndingNotice?: TrialEndingNoticeData | null;
   billingSettingsShopId?: string;
@@ -48,6 +49,7 @@ export function DashboardContentView({
   isDashboardOnboardingDismissed,
   announcementContent,
   operationContextData,
+  showOrganizationContext = true,
   planStatusCard,
   trialEndingNotice,
   billingSettingsShopId,
@@ -58,7 +60,9 @@ export function DashboardContentView({
   notificationFailures,
   navigation,
 }: DashboardContentViewProps) {
-  if (recruitment.status === "loading") return <DashboardContentSkeleton />;
+  if (recruitment.status === "loading") {
+    return <DashboardContentSkeleton showOrganizationContext={showOrganizationContext} />;
+  }
 
   const recruitmentData = recruitment.status === "ready" ? recruitment.data : null;
   const staffData = staff.status === "ready" ? staff.data : null;
@@ -93,6 +97,7 @@ export function DashboardContentView({
               <Stack gap={{ base: 3, lg: 4 }}>
                 <OperationContext
                   data={operationContextData}
+                  showOrganizationContext={showOrganizationContext}
                   planStatusCard={isBillingFeatureVisible ? planStatusCard : null}
                   billingSettingsShopId={isBillingFeatureVisible ? billingSettingsShopId : undefined}
                   onOpenOrganizationSettings={navigation?.onOpenOrganizationSettings}
@@ -178,10 +183,14 @@ function DashboardOnboardingGate({ canEvaluate, children, ...props }: DashboardO
   return <DashboardOnboarding {...props}>{children}</DashboardOnboarding>;
 }
 
-export const DashboardContentSkeleton = () => (
+export const DashboardContentSkeleton = ({
+  showOrganizationContext = true,
+}: {
+  showOrganizationContext?: boolean;
+} = {}) => (
   <ContentWrapper>
     <Stack gap={{ base: 4, lg: 6 }}>
-      <OperationContextSkeleton />
+      <OperationContextSkeleton showOrganizationContext={showOrganizationContext} />
       <HeroSummarySkeleton />
     </Stack>
     <RecruitmentBoardSkeleton />

@@ -42,7 +42,7 @@ export const OrganizationSettingsView = ({
       model={organizationContext}
       canUpdateOrganizationName={canUpdateOrganizationName}
       updateOrganizationNameDisabledReason={updateOrganizationNameDisabledReason}
-      onBackToDashboard={actions.onBackToDashboard}
+      onBack={actions.onBack}
       onSelectOrganization={actions.onSelectOrganization}
       onUpdateOrganizationName={actions.onUpdateOrganizationName}
     />
