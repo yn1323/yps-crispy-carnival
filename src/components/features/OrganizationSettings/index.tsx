@@ -140,7 +140,13 @@ export function OrganizationSettings({
   );
 }
 
+export { OrganizationCreationSection } from "./OrganizationCreation/OrganizationCreationSection";
+export { OrganizationDeletionSection } from "./OrganizationDeletion/OrganizationDeletionSection";
 export { OrganizationSettingsSkeleton, OrganizationSettingsView } from "./OrganizationSettingsView";
+export { OrganizationUsageSection } from "./OrganizationUsageSection";
+export { PeopleSection } from "./PeopleSection";
+export { PlanAndPaymentSection } from "./PlanAndPaymentSection";
+export { ShopsSection } from "./ShopsSection";
 export type {
   BillingDisplayState,
   BillingPlan,

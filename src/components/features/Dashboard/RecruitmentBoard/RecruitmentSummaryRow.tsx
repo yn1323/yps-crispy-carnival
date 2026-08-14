@@ -98,11 +98,11 @@ export function RecruitmentSummaryRow({ recruitment, dataTour, onClick, ariaLabe
           <Flex
             flex={1}
             minW={0}
-            direction="row"
-            align="center"
-            justify={{ base: "space-between", md: "flex-end" }}
+            direction={{ base: "column", sm: "row" }}
+            align={{ base: "stretch", sm: "center" }}
+            justify={{ base: "flex-start", sm: "space-between", md: "flex-end" }}
             gap={{ base: 2, md: 4 }}
-            wrap={{ base: "wrap", sm: "nowrap" }}
+            wrap="nowrap"
           >
             <HStack minW={{ lg: isCurrent ? "176px" : "84px" }} flexShrink={0} gap={2} wrap="wrap">
               <Badge colorPalette={colorPalette} variant="subtle" borderRadius="full" px={2.5} fontSize="xs">
@@ -116,8 +116,9 @@ export function RecruitmentSummaryRow({ recruitment, dataTour, onClick, ariaLabe
             </HStack>
             <HStack
               gap={{ base: 3, lg: 8 }}
-              flex={1}
-              justify="flex-end"
+              flex={{ base: "none", sm: 1 }}
+              w={{ base: "full", sm: "auto" }}
+              justify={{ base: "space-between", sm: "flex-end" }}
               align="center"
               color="fg.muted"
               fontSize="xs"
@@ -128,7 +129,7 @@ export function RecruitmentSummaryRow({ recruitment, dataTour, onClick, ariaLabe
                 gap={1}
                 justify="flex-end"
                 minW={0}
-                flexShrink={1}
+                flexShrink={0}
                 color={isActionRequired ? "orange.700" : undefined}
               >
                 <LuCalendarClock />
@@ -140,7 +141,7 @@ export function RecruitmentSummaryRow({ recruitment, dataTour, onClick, ariaLabe
                 fontSize="xs"
                 color="fg.muted"
                 whiteSpace="nowrap"
-                minW={{ lg: "96px" }}
+                minW={{ base: "84px", lg: "96px" }}
                 textAlign="right"
                 flexShrink={0}
               >

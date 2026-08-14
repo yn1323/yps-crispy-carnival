@@ -17,6 +17,7 @@ export type UserDetailViewProps = {
   data: UserDetailData;
   showShopMembershipAddition: boolean;
   managerSettingsDisabledReason?: string;
+  nonNavigationActionsDisabled?: boolean;
   activePanel?: UserDetailPanel;
   state: {
     isUpdatingProfile: boolean;
@@ -58,6 +59,7 @@ export function UserDetailView({
   data,
   showShopMembershipAddition,
   managerSettingsDisabledReason,
+  nonNavigationActionsDisabled = false,
   activePanel,
   state,
   actions,
@@ -93,11 +95,12 @@ export function UserDetailView({
               名前・シフト通知先などを管理
             </Text>
           }
+          disabled={nonNavigationActionsDisabled}
           onClick={actions.onOpenBasic}
         />
       </Box>
 
-      <UserLineConnectionRow data={data} onOpen={actions.onOpenLine} />
+      <UserLineConnectionRow data={data} disabled={nonNavigationActionsDisabled} onOpen={actions.onOpenLine} />
 
       <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
         <Flex align="center" justify="space-between" gap={3} px={{ base: 4, md: 5 }} pt={4} pb={0}>
@@ -112,7 +115,7 @@ export function UserDetailView({
               size="sm"
               gap={1.5}
               fontWeight="semibold"
-              disabled={!data.canWrite || state.membership.isChanging}
+              disabled={!data.canWrite || state.membership.isChanging || nonNavigationActionsDisabled}
               onClick={actions.onOpenAddShop}
             >
               <LuPencil aria-hidden />
@@ -186,7 +189,15 @@ export function UserDetailView({
   );
 }
 
-function UserLineConnectionRow({ data, onOpen }: { data: UserDetailData; onOpen: () => void }) {
+function UserLineConnectionRow({
+  data,
+  disabled,
+  onOpen,
+}: {
+  data: UserDetailData;
+  disabled: boolean;
+  onOpen: () => void;
+}) {
   const presentation = getLineStatusPresentation(data.line.status);
   return (
     <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
@@ -211,6 +222,7 @@ function UserLineConnectionRow({ data, onOpen }: { data: UserDetailData; onOpen:
           </Text>
         }
         accessibleDescription={`${presentation.description} LINE連携状況、連携方法について`}
+        disabled={disabled}
         onClick={onOpen}
       />
     </Box>

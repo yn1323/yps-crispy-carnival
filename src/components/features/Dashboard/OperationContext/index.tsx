@@ -15,6 +15,8 @@ import type { PlanStatusCardProps } from "../PlanStatusCard";
 import { buildOperationContextModel } from "./script";
 import { OperationContextSkeleton, OperationContextView } from "./View";
 
+export type { OperationContextModel } from "./script";
+export { buildOperationContextModel } from "./script";
 export { OperationContextSkeleton, OperationContextView } from "./View";
 
 export type OperationContextData = {

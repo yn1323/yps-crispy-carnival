@@ -8,8 +8,12 @@ import { DASHBOARD_TOUR_TARGET } from "../dashboardTourTargets";
 import { RecruitmentRow } from "./RecruitmentRow";
 
 type Props = {
+  title?: string;
   groups: DashboardRecruitmentGroup[];
   isReadOnly?: boolean;
+  showRecruitmentMenus?: boolean;
+  canDeleteRecruitments?: boolean;
+  deleteRecruitmentDisabledReason?: string;
   pastStatus: PaginationStatus;
   hasPastRecruitments: boolean;
   isPastRecruitmentsVisible: boolean;
@@ -23,8 +27,12 @@ type Props = {
 };
 
 export const RecruitmentBoard = ({
+  title = "シフト一覧",
   groups,
   isReadOnly = false,
+  showRecruitmentMenus,
+  canDeleteRecruitments,
+  deleteRecruitmentDisabledReason,
   pastStatus,
   hasPastRecruitments,
   isPastRecruitmentsVisible,
@@ -47,7 +55,7 @@ export const RecruitmentBoard = ({
   const hasVisibleContent = hasRecruitments || showPastButton;
 
   return (
-    <Stack as="section" aria-label="シフト一覧" gap={{ base: 4, lg: 5 }}>
+    <Stack as="section" aria-label={title} gap={{ base: 4, lg: 5 }}>
       <Flex justify="space-between" align="flex-end" gap={3} wrap="wrap">
         <Stack gap={1} minW={0}>
           <HStack gap={2.5} align="center">
@@ -61,7 +69,7 @@ export const RecruitmentBoard = ({
               fontWeight="bold"
               color="gray.900"
             >
-              シフト一覧
+              {title}
             </Heading>
           </HStack>
         </Stack>
@@ -84,7 +92,7 @@ export const RecruitmentBoard = ({
       {!hasVisibleContent ? (
         <Empty
           icon={LuInbox}
-          title="シフト一覧はまだありません"
+          title={`${title}はまだありません`}
           description="期間と締切を決めて、スタッフに希望を聞きましょう。"
           tone="brand"
           variant="section"
@@ -125,6 +133,9 @@ export const RecruitmentBoard = ({
                     key={r._id}
                     recruitment={r}
                     isReadOnly={isReadOnly}
+                    showMenu={showRecruitmentMenus}
+                    canDelete={canDeleteRecruitments}
+                    deleteDisabledReason={deleteRecruitmentDisabledReason}
                     dataTour={r._id === tourRecruitmentId ? DASHBOARD_TOUR_TARGET.latestRecruitment : undefined}
                     onOpenShiftBoard={onOpenShiftBoard}
                     onDeleteRecruitment={onDeleteRecruitment}
@@ -233,16 +244,24 @@ const RecruitmentRowSkeleton = ({ tone }: { tone: "confirmed" | "collecting" }) 
           <Flex
             flex={1}
             minW={0}
-            direction="row"
-            align="center"
-            justify={{ base: "space-between", md: "flex-end" }}
+            direction={{ base: "column", sm: "row" }}
+            align={{ base: "stretch", sm: "center" }}
+            justify={{ base: "flex-start", sm: "space-between", md: "flex-end" }}
             gap={{ base: 2, md: 4 }}
-            wrap={{ base: "wrap", sm: "nowrap" }}
+            wrap="nowrap"
           >
             <HStack minW={{ lg: "84px" }} flexShrink={0} gap={2} wrap="wrap">
               <Skeleton h="22px" w={tone === "confirmed" ? "68px" : "56px"} borderRadius="full" />
             </HStack>
-            <HStack gap={{ base: 3, lg: 8 }} flex={1} justify="flex-end" align="center" minW={0} wrap="nowrap">
+            <HStack
+              gap={{ base: 3, lg: 8 }}
+              flex={{ base: "none", sm: 1 }}
+              w={{ base: "full", sm: "auto" }}
+              justify={{ base: "space-between", sm: "flex-end" }}
+              align="center"
+              minW={0}
+              wrap="nowrap"
+            >
               <Skeleton h="18px" w={{ base: "88px", lg: "96px" }} />
               <Skeleton h="18px" w="72px" flexShrink={0} />
             </HStack>
@@ -250,7 +269,7 @@ const RecruitmentRowSkeleton = ({ tone }: { tone: "confirmed" | "collecting" }) 
         </Flex>
       </Flex>
       <Flex align="center" justify="center" pe={{ base: 2, lg: 3 }} flexShrink={0}>
-        <Flex boxSize="36px" align="center" justify="center">
+        <Flex boxSize="44px" align="center" justify="center">
           <Skeleton h="20px" w="4px" borderRadius="full" />
         </Flex>
       </Flex>

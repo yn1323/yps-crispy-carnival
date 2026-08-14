@@ -82,3 +82,10 @@ export function Dashboard({
 }
 
 export const DashboardSkeleton = DashboardContentSkeleton;
+
+export { HeroSummary } from "./HeroSummary";
+export type { OperationContextModel } from "./OperationContext";
+export { buildOperationContextModel, OperationContextView } from "./OperationContext";
+export { RecruitmentBoard } from "./RecruitmentBoard";
+export { StaffRoster } from "./StaffRoster";
+export type { DashboardRecruitmentGroup, Recruitment, Staff } from "./types";

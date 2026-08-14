@@ -25,8 +25,9 @@ export function ManagerSettings({ overview, shopId }: { overview: ReadyManagerSe
   );
 }
 
+export { ManagerCandidateListView } from "./ManagerCandidateListView";
 export { ManagerCandidatePageContent } from "./ManagerCandidatePageContent";
-export { ManagerExternalInviteForm } from "./ManagerExternalInviteForm";
+export { ManagerExternalInviteForm, ManagerExternalInviteFormView } from "./ManagerExternalInviteForm";
 export {
   ManagerCandidatePageSkeleton,
   ManagerExternalInvitePageSkeleton,

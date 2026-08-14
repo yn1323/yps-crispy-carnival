@@ -8,11 +8,19 @@ type Props = {
   candidates: readonly ManagerSettingsCandidate[];
   selectedPersonId: string;
   isSubmitting: boolean;
+  isReadOnly?: boolean;
   onSelect: (personId: string) => void;
   onSubmit: () => void;
 };
 
-export function ManagerCandidateListView({ candidates, selectedPersonId, isSubmitting, onSelect, onSubmit }: Props) {
+export function ManagerCandidateListView({
+  candidates,
+  selectedPersonId,
+  isSubmitting,
+  isReadOnly = false,
+  onSelect,
+  onSubmit,
+}: Props) {
   if (candidates.length === 0) {
     return (
       <Empty
@@ -51,7 +59,7 @@ export function ManagerCandidateListView({ candidates, selectedPersonId, isSubmi
         value={selectedPersonId}
         onValueChange={({ value }) => onSelect(value ?? "")}
         colorPalette="teal"
-        disabled={isSubmitting}
+        disabled={isSubmitting || isReadOnly}
       >
         <Stack gap={0} borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" overflow="hidden">
           {candidates.map((candidate, index) => {
@@ -60,7 +68,7 @@ export function ManagerCandidateListView({ candidates, selectedPersonId, isSubmi
               <RadioCard.Item
                 key={candidate.personId}
                 value={candidate.personId}
-                disabled={!candidate.canSelect}
+                disabled={!candidate.canSelect || isReadOnly}
                 borderWidth={0}
                 borderRadius={0}
                 borderTopWidth={index === 0 ? 0 : "1px"}
@@ -68,8 +76,8 @@ export function ManagerCandidateListView({ candidates, selectedPersonId, isSubmi
                 bg={isSelected ? "teal.600" : "white"}
                 color={isSelected ? "white" : "gray.900"}
                 opacity={candidate.canSelect ? 1 : 0.7}
-                cursor={candidate.canSelect ? "pointer" : "not-allowed"}
-                _hover={candidate.canSelect && !isSelected ? { bg: "gray.50" } : undefined}
+                cursor={candidate.canSelect && !isReadOnly ? "pointer" : "not-allowed"}
+                _hover={candidate.canSelect && !isReadOnly && !isSelected ? { bg: "gray.50" } : undefined}
                 _checked={{ bg: "teal.600", color: "white" }}
               >
                 <RadioCard.ItemHiddenInput />
@@ -125,7 +133,7 @@ export function ManagerCandidateListView({ candidates, selectedPersonId, isSubmi
           w={{ base: "full", md: "auto" }}
           minW={{ md: "208px" }}
           loading={isSubmitting}
-          disabled={!selectedPersonId || isSubmitting}
+          disabled={!selectedPersonId || isSubmitting || isReadOnly}
           onClick={onSubmit}
         >
           管理者として招待する

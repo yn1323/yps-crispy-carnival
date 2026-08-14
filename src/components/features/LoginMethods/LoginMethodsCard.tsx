@@ -11,12 +11,14 @@ export function LoginMethodsCard({
   onSetPassword,
   onConnectGoogle,
   onRequestGoogleDisconnect,
+  isReadOnly = false,
 }: {
   controller: LoginMethodsController;
   passwordChangeController: PasswordChangeController;
   onSetPassword: () => void;
   onConnectGoogle: () => void;
   onRequestGoogleDisconnect: (externalAccountId: string) => Promise<void>;
+  isReadOnly?: boolean;
 }) {
   return (
     <Stack gap={3}>
@@ -27,11 +29,11 @@ export function LoginMethodsCard({
       </Text>
       <Stack gap={0} borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" overflow="hidden" bg="white">
         <Box p={{ base: 3, md: 4 }} bg="white">
-          <EmailContent controller={controller} onSetPassword={onSetPassword} />
+          <EmailContent controller={controller} onSetPassword={onSetPassword} isReadOnly={isReadOnly} />
         </Box>
         {controller.viewModel.emailPassword.canChangePassword ? (
           <Box borderTopWidth="1px" borderColor="blackAlpha.100" p={{ base: 3, md: 4 }}>
-            <PasswordContent controller={passwordChangeController} />
+            <PasswordContent controller={passwordChangeController} isReadOnly={isReadOnly} />
           </Box>
         ) : null}
         <Box borderTopWidth="1px" borderColor="blackAlpha.100" p={{ base: 3, md: 4 }}>
@@ -39,6 +41,7 @@ export function LoginMethodsCard({
             controller={controller}
             onConnect={onConnectGoogle}
             onRequestDisconnect={onRequestGoogleDisconnect}
+            isReadOnly={isReadOnly}
           />
         </Box>
       </Stack>
@@ -49,9 +52,11 @@ export function LoginMethodsCard({
 function EmailContent({
   controller,
   onSetPassword,
+  isReadOnly,
 }: {
   controller: LoginMethodsController;
   onSetPassword: () => void;
+  isReadOnly: boolean;
 }) {
   const { emailPassword } = controller.viewModel;
   const primaryEmail = emailPassword.primaryEmail;
@@ -94,6 +99,7 @@ function EmailContent({
                 colorPalette="teal"
                 onClick={canSetEmailPassword ? onSetPassword : controller.openLoginEmailChange}
                 loading={controller.emailPasswordState.status === "loading"}
+                disabled={isReadOnly}
               >
                 {canSetEmailPassword ? "設定する" : "変更する"}
               </Button>
@@ -105,7 +111,7 @@ function EmailContent({
   );
 }
 
-function PasswordContent({ controller }: { controller: PasswordChangeController }) {
+function PasswordContent({ controller, isReadOnly }: { controller: PasswordChangeController; isReadOnly: boolean }) {
   return (
     <Stack gap={2} as="section" aria-labelledby="login-methods-password-heading">
       <Flex align="center" gap={{ base: 3, md: 4 }} flexWrap={{ base: "wrap", md: "nowrap" }}>
@@ -134,6 +140,7 @@ function PasswordContent({ controller }: { controller: PasswordChangeController 
           colorPalette="teal"
           aria-label="パスワードを変更"
           loading={controller.state.isOpen && controller.state.status === "loading"}
+          disabled={isReadOnly}
           onClick={controller.open}
         >
           変更する
@@ -162,10 +169,12 @@ function GoogleContent({
   controller,
   onConnect,
   onRequestDisconnect,
+  isReadOnly,
 }: {
   controller: LoginMethodsController;
   onConnect: () => void;
   onRequestDisconnect: (externalAccountId: string) => Promise<void>;
+  isReadOnly: boolean;
 }) {
   const { google } = controller.viewModel;
   const googleNeedsReconnection = google.accounts.some((account) => account.status === "needsReconnection");
@@ -217,6 +226,7 @@ function GoogleContent({
                     key={`${account.id}-action`}
                     variant="outline"
                     loading={controller.googleState.status === "loading"}
+                    disabled={isReadOnly}
                     onClick={onConnect}
                   >
                     Googleを再接続
@@ -230,6 +240,7 @@ function GoogleContent({
                     variant="outline"
                     colorPalette="teal"
                     loading={controller.googleState.status === "loading"}
+                    disabled={isReadOnly}
                     onClick={() => {
                       void onRequestDisconnect(account.id);
                     }}
@@ -249,6 +260,7 @@ function GoogleContent({
             colorPalette="teal"
             onClick={onConnect}
             loading={controller.googleState.status === "loading"}
+            disabled={isReadOnly}
           >
             連携する
           </Button>

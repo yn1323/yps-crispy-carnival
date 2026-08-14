@@ -41,9 +41,11 @@ export function ManagerExternalInviteForm({
 
 export function ManagerExternalInviteFormView({
   isSubmitting,
+  isReadOnly = false,
   onRequestInvite,
 }: {
   isSubmitting: boolean;
+  isReadOnly?: boolean;
   onRequestInvite: (invitedName: string, email: string) => void;
 }) {
   const {
@@ -68,12 +70,12 @@ export function ManagerExternalInviteFormView({
         </Stack>
         <Field.Root required invalid={Boolean(errors.name)}>
           <Field.Label>氏名</Field.Label>
-          <Input autoComplete="name" disabled={isSubmitting} {...register("name")} />
+          <Input autoComplete="name" disabled={isSubmitting || isReadOnly} {...register("name")} />
           <Field.ErrorText>{errors.name?.message}</Field.ErrorText>
         </Field.Root>
         <Field.Root required invalid={Boolean(errors.email)}>
           <Field.Label>メールアドレス</Field.Label>
-          <Input type="email" autoComplete="email" disabled={isSubmitting} {...register("email")} />
+          <Input type="email" autoComplete="email" disabled={isSubmitting || isReadOnly} {...register("email")} />
           <Field.ErrorText>{errors.email?.message}</Field.ErrorText>
         </Field.Root>
         <Flex justify="flex-end">
@@ -84,6 +86,7 @@ export function ManagerExternalInviteFormView({
             w={{ base: "full", md: "auto" }}
             minW={{ md: "208px" }}
             loading={isSubmitting}
+            disabled={isReadOnly}
           >
             招待内容を確認する
           </Button>

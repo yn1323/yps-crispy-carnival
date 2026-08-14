@@ -1,4 +1,4 @@
-import { Box, Flex, Heading, HStack, Stack } from "@chakra-ui/react";
+import { Badge, Box, Flex, Heading, HStack, Stack } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import { LuChevronDown, LuShieldCheck, LuUsers } from "react-icons/lu";
 import { StaffListRow } from "@/src/components/shared/StaffListRow";
@@ -16,6 +16,7 @@ type Props = {
   onOpenUser: (personId: string, visibleUserCount: number) => void;
   initialVisibleUserCount?: number;
   focusedPersonId?: string;
+  filterResultCount?: number;
   onVisibleUserCountChange?: (count: number) => void;
 };
 
@@ -27,6 +28,7 @@ export const PeopleSection = ({
   onOpenUser,
   initialVisibleUserCount = DEFAULT_USER_LIST_COUNT,
   focusedPersonId,
+  filterResultCount,
   onVisibleUserCountChange,
 }: Props) => {
   const [visibleUserCount, setVisibleUserCount] = useState(initialVisibleUserCount);
@@ -57,6 +59,11 @@ export const PeopleSection = ({
           <Heading id="organization-people-heading" as="h2" fontSize="lg">
             全スタッフ{peopleUsage.max > 0 ? ` (${peopleUsage.current}/${peopleUsage.max})` : ""}
           </Heading>
+          {filterResultCount !== undefined && (
+            <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2.5} py={1}>
+              表示 {filterResultCount}人
+            </Badge>
+          )}
         </HStack>
         {showManagerInvitation && (
           <Button

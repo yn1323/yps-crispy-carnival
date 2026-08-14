@@ -35,8 +35,11 @@ export type OperationContextViewProps = {
   onShopSelect: (shopId: string) => void;
   onOpenShopDetail: () => void;
   organizationSettingsShopId?: string;
+  onOpenOrganizationSettings?: () => void;
   planStatusCard?: PlanStatusCardProps | null;
   billingSettingsShopId?: string;
+  showPageHeading?: boolean;
+  showShopContext?: boolean;
 };
 
 export const OperationContextView = ({
@@ -44,8 +47,11 @@ export const OperationContextView = ({
   onShopSelect,
   onOpenShopDetail,
   organizationSettingsShopId,
+  onOpenOrganizationSettings,
   planStatusCard,
   billingSettingsShopId,
+  showPageHeading = true,
+  showShopContext = true,
 }: OperationContextViewProps) => {
   const defaultExpanded = planStatusCard?.defaultExpanded ?? false;
   const [value, setValue] = useState<string[]>(defaultExpanded ? [ORGANIZATION_DETAILS_VALUE] : []);
@@ -53,8 +59,9 @@ export const OperationContextView = ({
   const previousDefaultExpanded = useRef(defaultExpanded);
   const previousHasPlanDetails = useRef(Boolean(planStatusCard));
   const isExpanded = value.includes(ORGANIZATION_DETAILS_VALUE);
+  const hasOrganizationSettingsAction = Boolean(organizationSettingsShopId || onOpenOrganizationSettings);
   const hasAccordionContent = Boolean(
-    organizationSettingsShopId || planStatusCard || model.organizationChangeOptions.length > 0,
+    hasOrganizationSettingsAction || planStatusCard || model.organizationChangeOptions.length > 0,
   );
   const presentation = planStatusCard ? getPlanStatusPresentation(planStatusCard.data) : null;
   const billingAction = planStatusCard ? getBillingAction(planStatusCard.data) : null;
@@ -82,7 +89,7 @@ export const OperationContextView = ({
 
   return (
     <Stack gap={{ base: 2, lg: 3 }}>
-      <VisuallyHidden as="h1">{model.selectedShop.shopName}</VisuallyHidden>
+      {showPageHeading && <VisuallyHidden as="h1">{model.selectedShop.shopName}</VisuallyHidden>}
 
       {hasAccordionContent ? (
         <Accordion.Root
@@ -129,10 +136,11 @@ export const OperationContextView = ({
                     onRequestCollapse={handleRequestCollapse}
                   />
                 )}
-                {organizationSettingsShopId && (
-                  <OrganizationSettingsLink
+                {hasOrganizationSettingsAction && (
+                  <OrganizationSettingsAction
                     organizationName={model.selectedGroup.organizationName}
                     shopId={organizationSettingsShopId}
+                    onOpen={onOpenOrganizationSettings}
                     withBorder={Boolean(planStatusCard)}
                   />
                 )}
@@ -165,10 +173,12 @@ export const OperationContextView = ({
         </Box>
       )}
 
-      <Flex align="center" justify="space-between" direction="row" gap={3} minW={0}>
-        <ShopSelector model={model} onSelect={onShopSelect} />
-        <ShopDetailButton onOpenShopDetail={onOpenShopDetail} />
-      </Flex>
+      {showShopContext && (
+        <Flex align="center" justify="space-between" direction="row" gap={3} minW={0}>
+          <ShopSelector model={model} onSelect={onShopSelect} />
+          <ShopDetailButton onOpenShopDetail={onOpenShopDetail} />
+        </Flex>
+      )}
     </Stack>
   );
 };
@@ -221,46 +231,66 @@ const getBillingAction = (data: PlanStatusCardData): BillingAction => {
   return { action: "openPlanAndPayment", label: "プランと支払いへ" };
 };
 
-const OrganizationSettingsLink = ({
+const OrganizationSettingsAction = ({
   organizationName,
   shopId,
+  onOpen,
   withBorder,
 }: {
   organizationName: string;
-  shopId: string;
+  shopId?: string;
+  onOpen?: () => void;
   withBorder: boolean;
-}) => (
-  <Button
-    asChild
-    variant="plain"
-    justifyContent="flex-start"
-    w="full"
-    minH="52px"
-    h="auto"
-    px={{ base: 4, md: 5 }}
-    py={3}
-    borderTopWidth={withBorder ? "1px" : 0}
-    borderTopColor="gray.200"
-    borderRadius="0"
-    color="gray.900"
-    fontSize="md"
-    fontWeight="medium"
-    _hover={{
+}) => {
+  const content = (
+    <>
+      <Text as="span" flex={1} textAlign="left">
+        組織情報を見る
+      </Text>
+      <Icon as={LuChevronRight} boxSize={5} color="fg.muted" flexShrink={0} />
+    </>
+  );
+  const buttonProps = {
+    variant: "plain" as const,
+    justifyContent: "flex-start",
+    w: "full",
+    minH: "52px",
+    h: "auto",
+    px: { base: 4, md: 5 },
+    py: 3,
+    borderTopWidth: withBorder ? "1px" : 0,
+    borderTopColor: "gray.200",
+    borderRadius: "0",
+    color: "gray.900",
+    fontSize: "md",
+    fontWeight: "medium",
+    _hover: {
       bg: "gray.50",
       color: "teal.700",
       textDecoration: "underline",
       textDecorationColor: "teal.700",
       textUnderlineOffset: "3px",
-    }}
-  >
-    <RouterLink to="/settings" search={{ shop: shopId }} aria-label={`${organizationName}の組織設定を開く`}>
-      <Text as="span" flex={1} textAlign="left">
-        組織情報を見る
-      </Text>
-      <Icon as={LuChevronRight} boxSize={5} color="fg.muted" flexShrink={0} />
-    </RouterLink>
-  </Button>
-);
+    },
+  };
+
+  if (onOpen) {
+    return (
+      <Button type="button" aria-label={`${organizationName}の組織設定を開く`} {...buttonProps} onClick={onOpen}>
+        {content}
+      </Button>
+    );
+  }
+
+  if (!shopId) return null;
+
+  return (
+    <Button asChild {...buttonProps}>
+      <RouterLink to="/settings" search={{ shop: shopId }} aria-label={`${organizationName}の組織設定を開く`}>
+        {content}
+      </RouterLink>
+    </Button>
+  );
+};
 
 const PlanAndPaymentLink = ({ label, onOpen }: { label: string; onOpen: () => void }) => (
   <Button

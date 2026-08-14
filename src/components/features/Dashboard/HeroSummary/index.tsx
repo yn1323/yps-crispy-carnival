@@ -16,12 +16,15 @@ type Props = {
   recruitments: Recruitment[];
   onOpenShiftBoard: (recruitmentId: string) => void;
   onCreateRecruitment: () => void;
+  isCreateRecruitmentActionDisabled?: boolean;
+  createRecruitmentDisabledReason?: string;
   announcementBanner?: ReactNode;
   staffRegistrationRequest?: {
     count: number;
     onClick: () => void;
   };
   hasNotificationFailures?: boolean;
+  isNotificationFailuresActionDisabled?: boolean;
   onNotificationFailuresClick?: () => void;
   hideActionSection?: boolean;
   isRecruitmentTaskAvailable?: boolean;
@@ -36,9 +39,12 @@ export const HeroSummary = ({
   recruitments,
   onOpenShiftBoard,
   onCreateRecruitment,
+  isCreateRecruitmentActionDisabled = false,
+  createRecruitmentDisabledReason,
   announcementBanner,
   staffRegistrationRequest,
   hasNotificationFailures = false,
+  isNotificationFailuresActionDisabled = false,
   onNotificationFailuresClick,
   hideActionSection = false,
   isRecruitmentTaskAvailable = true,
@@ -67,8 +73,12 @@ export const HeroSummary = ({
             action={action}
             onOpenShiftBoard={onOpenShiftBoard}
             onCreateRecruitment={onCreateRecruitment}
+            isCreateRecruitmentActionDisabled={isCreateRecruitmentActionDisabled}
+            createRecruitmentDisabledReason={createRecruitmentDisabledReason}
             notificationTask={
-              hasNotificationFailures && onNotificationFailuresClick ? { onClick: onNotificationFailuresClick } : null
+              hasNotificationFailures && onNotificationFailuresClick
+                ? { onClick: onNotificationFailuresClick, isDisabled: isNotificationFailuresActionDisabled }
+                : null
             }
             staffRegistrationRequest={staffRegistrationRequest}
           />

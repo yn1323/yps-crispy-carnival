@@ -1,5 +1,5 @@
 import { Box, Flex, Grid, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
-import { LuCrown, LuStore, LuUsers } from "react-icons/lu";
+import { LuStore, LuUserRoundCog, LuUsers } from "react-icons/lu";
 import type { OrganizationBillingView } from "./types";
 
 export function OrganizationUsageSection({ billing }: { billing: OrganizationBillingView }) {
@@ -63,7 +63,7 @@ export function OrganizationUsageSection({ billing }: { billing: OrganizationBil
         <UsageMeter icon={LuStore} label="店舗数" current={billing.shopUsage.current} max={billing.shopUsage.max} />
         <UsageDivider />
         <UsageMeter
-          icon={LuCrown}
+          icon={LuUserRoundCog}
           label="管理者数"
           current={billing.managerUsage.current}
           max={billing.managerUsage.max}
@@ -150,12 +150,12 @@ const UsageMeter = ({
           <Box flexShrink={0}>
             <MeterIcon aria-hidden />
           </Box>
-          <Text fontSize={{ base: "xs", md: "sm" }} fontWeight="semibold" lineClamp={1}>
+          <Text textStyle="sm" fontWeight="semibold" lineClamp={1}>
             {label}
           </Text>
         </HStack>
         <Text
-          fontSize={{ base: "xs", md: "sm" }}
+          textStyle="sm"
           fontWeight="bold"
           color={isExceeded ? "red.600" : "gray.900"}
           whiteSpace="nowrap"
